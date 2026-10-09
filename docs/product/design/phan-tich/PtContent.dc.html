@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Phân tích · Nội dung</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1280px; height: 1240px; box-sizing: border-box; padding: 28px 32px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
+
+<header style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">PHÂN TÍCH</div>
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h1 style="margin: 0; font-size: 28px; font-weight: 700">{{headline}}</h1>
+<span style="font-size: 12px; font-weight: 600; color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 999px; padding: 4px 10px">30 ngày · so với 30 ngày trước</span>
+<button type="button" aria-label="Cách tính" style="font: inherit; font-size: 13px; font-weight: 700; color: #b0386a; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 999px; width: 32px; height: 32px; cursor: pointer">i</button>
+</div>
+</header>
+
+<div role="tablist" aria-label="Phân tích" style="align-self: flex-start; display: inline-flex; gap: 4px; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 999px; padding: 4px">
+<a href="PtProduct.dc.html" role="tab" aria-selected="false" style="font-size: 14px; font-weight: 600; color: #4a4a55; text-decoration: none; border-radius: 999px; min-height: 40px; padding: 0 18px; display: inline-flex; align-items: center">Sản phẩm</a>
+<button type="button" role="tab" aria-selected="true" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #b0386a; border: 0; border-radius: 999px; min-height: 40px; padding: 0 18px">Nội dung</button>
+</div>
+
+<sc-for list="{{streams}}" as="s" hint-placeholder-count="2">
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 14px 20px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: center; gap: 12px">
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">{{s.name}}</h2>
+<span style="font-size: 15px; font-weight: 700">{{s.gmv}}</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; {{s.deltaStyle}}">{{s.delta}}</span>
+<sc-if value="{{s.closed}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 12px; font-weight: 600; color: #a3222f; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 999px; padding: 3px 10px">{{s.weak}}</span>
+</sc-if>
+<button type="button" onClick="{{s.toggle}}" aria-expanded="{{s.open}}" style="margin-left: auto; font: inherit; font-size: 14px; font-weight: 600; color: #b0386a; background: transparent; border: 0; min-height: 44px; padding: 0 4px; cursor: pointer">{{s.toggleLabel}}</button>
+</div>
+
+<sc-if value="{{s.open}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{s.cells}}" as="m" hint-placeholder-count="5">
+<button type="button" onClick="{{m.pick}}" aria-pressed="{{m.on}}" disabled="{{m.off}}" style="font: inherit; text-align: left; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; {{m.style}}">
+<span style="display: flex; align-items: center; justify-content: space-between; gap: 6px">
+<span style="font-size: 12px; font-weight: 600; {{m.labelStyle}}">{{m.label}}</span>
+<span style="font-size: 11px; font-weight: 700; color: #b0386a">{{m.flag}}</span>
+</span>
+<span style="display: flex; align-items: baseline; gap: 8px">
+<span style="font-size: 22px; font-weight: 700; color: #1a1a1f">{{m.value}}</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 6px; {{m.deltaStyle}}">{{m.delta}}</span>
+</span>
+<span style="font-size: 13px; font-weight: 600; {{m.impactStyle}}">{{m.impact}}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #f1e6eb; padding-top: 14px">
+<h3 style="margin: 0; font-size: 16px; font-weight: 700">{{s.tableTitle}}</h3>
+<sc-for list="{{s.rows}}" as="r" hint-placeholder-count="4">
+<div style="border: 1px solid #f1e6eb; border-radius: 12px; {{r.boxStyle}}">
+<div style="display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(0, 1.2fr) minmax(0, 1.5fr) 90px minmax(0, 1.6fr); gap: 12px; align-items: center; padding: 8px 12px">
+<button type="button" onClick="{{r.toggle}}" aria-expanded="{{r.open}}" style="font: inherit; text-align: left; background: transparent; border: 0; padding: 0; min-height: 52px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: #1a1a1f">
+<span style="font-size: 12px; color: #5f5f6b; width: 12px">{{r.caret}}</span>
+<span style="flex-shrink: 0; width: 40px; height: 52px; border-radius: 8px; background: #ececf0; display: inline-flex; align-items: center; justify-content: center; color: #5f5f6b">
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"></path></svg>
+</span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 14px; font-weight: 600">{{r.title}}</span>
+<span style="font-size: 12px; color: #5f5f6b">{{r.meta}}</span>
+</span>
+</button>
+<span style="font-size: 14px">{{r.before}} → <b>{{r.now}}</b></span>
+<span style="display: flex; align-items: center; gap: 8px">
+<span style="flex: 1; height: 6px; background: #f3edf0; border-radius: 999px; display: flex">
+<span style="height: 6px; border-radius: 999px; {{r.barStyle}}"></span>
+</span>
+<b style="font-size: 14px; min-width: 64px; text-align: right">{{r.gmv}}</b>
+</span>
+<span style="justify-self: start; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 8px; {{r.confStyle}}">{{r.conf}}</span>
+<a href="PtProduct.dc.html" style="justify-self: end; font-size: 13px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem sản phẩm được gắn ›</a>
+</div>
+<sc-if value="{{r.open}}" hint-placeholder-val="{{ false }}">
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 0 12px 12px 74px">
+<sc-for list="{{r.facts}}" as="f" hint-placeholder-count="3">
+<div style="background: #faf7f8; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; color: #5f5f6b">{{f.k}}</span>
+<span style="font-size: 14px; font-weight: 600">{{f.v}}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<div style="display: flex; justify-content: space-between; padding: 0 12px; font-size: 14px">
+<span style="color: #5f5f6b">Còn lại · {{s.restLabel}}</span>
+<b>{{s.restSum}}</b>
+</div>
+</div>
+</div>
+</sc-if>
+</section>
+</sc-for>
+
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Ô xám: CTOR và AOV của video phụ thuộc trang sản phẩm, xem ở tab Sản phẩm. Số liệu là ví dụ minh hoạ.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1240}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { stream: 'video', metric: { video: 'ctr', live: 'ctor' }, open: 'v1' };
+}
+renderVals() {
+const st = this.state;
+const chipUp = 'color: #146c2e; background: #e3f5e8';
+const chipDown = 'color: #a3222f; background: #fdecec';
+const D = {
+video: {
+name: 'Video của người bán', gmv: '1,9 tr ₫/ngày', delta: '▼ 6,1 %', up: false, weak: 'Yếu nhất: CTR −96k ₫/ngày',
+cells: [
+['imp', 'Hiển thị/ngày', '41.200', '▲ 3,2 %', true, '+38k ₫/ngày', 'click'],
+['ctr', 'CTR', '2,92 %', '▼ 9,1 %', false, '−96k ₫/ngày', 'click', true],
+['ctor', 'CTOR', '6,68 %', '▼ 0,9 %', false, 'Phụ thuộc sản phẩm', 'grey'],
+['aov', 'AOV', '173k ₫', '▼ 1,1 %', false, 'Phụ thuộc sản phẩm', 'grey'],
+['gmv', 'GMV/ngày', '1,9 tr ₫', '▼ 6,1 %', false, 'Tổng các ô', 'fixed']
+],
+rows: {
+imp: [['v2', 'Review son lì 12 màu', 'Đăng 21/09 · gắn SM-012', '1.370', '4.880', '+52k ₫', 100, 'Rõ', [['Lượt hiển thị 30 ngày', '146k'], ['Nguồn', 'Đề xuất (For You) 82 %'], ['Sản phẩm', 'SM-012 Son môi số 12']]]],
+ctr: [['v1', 'Mặt nạ đất sét: trước và sau', 'Đăng 02/09 · gắn MN-015', '3,2 %', '1,9 %', '−58k ₫', 100, 'Rõ', [['Lượt hiển thị 30 ngày', '118k'], ['Lượt bấm sản phẩm', '2.240'], ['Gợi ý', 'Giỏ hàng xuất hiện sau giây 20']]], ['v3', 'Routine sáng 3 bước', 'Đăng 15/09 · gắn SR-007', '3,2 %', '2,6 %', '−24k ₫', 41, 'Rõ', [['Lượt hiển thị 30 ngày', '64k'], ['Lượt bấm sản phẩm', '1.660'], ['Gợi ý', 'Gắn 3 sản phẩm, khách không rõ mua gì']]], ['v4', 'Unbox toner rau má', 'Đăng 28/09 · gắn TN-021', '3,2 %', '2,9 %', '−9k ₫', 16, 'Tham khảo', [['Lượt hiển thị 30 ngày', '21k'], ['Lượt bấm sản phẩm', '610'], ['Gợi ý', 'Theo dõi thêm']]]]
+},
+restLabel: '12 video ít lượt xem', restSum: '−5k ₫'
+},
+live: {
+name: 'LIVE của người bán', gmv: '0,8 tr ₫/ngày', delta: '▲ 4,0 %', up: true, weak: 'Yếu nhất: CTOR −22k ₫/ngày',
+cells: [
+['imp', 'Hiển thị/ngày', '6.300', '▲ 8,8 %', true, '+41k ₫/ngày', 'click'],
+['ctr', 'CTR', '4,86 %', '▲ 3,0 %', true, '+12k ₫/ngày', 'click'],
+['ctor', 'CTOR', '7,10 %', '▼ 5,2 %', false, '−22k ₫/ngày', 'click', true],
+['aov', 'AOV', '164k ₫', '▼ 0,6 %', false, 'Phụ thuộc sản phẩm', 'grey'],
+['gmv', 'GMV/ngày', '0,8 tr ₫', '▲ 4,0 %', true, 'Tổng các ô', 'fixed']
+],
+rows: {
+imp: [['l2', 'LIVE tối thứ Sáu 04/10', '2 giờ · 9 sản phẩm', '5.800', '9.100', '+30k ₫', 100, 'Rõ', [['Người xem', '3.420'], ['Nguồn', 'Đề xuất 64 %'], ['Sản phẩm bán chạy', 'SM-012, TN-021']]]],
+ctr: [['l3', 'LIVE trưa 30/09', '1 giờ · 6 sản phẩm', '4,7 %', '5,6 %', '+9k ₫', 100, 'Tham khảo', [['Người xem', '1.180'], ['Lượt bấm', '410'], ['Gợi ý', 'Ghim sản phẩm sớm hơn']]]],
+ctor: [['l1', 'LIVE xả kho 27/09', '3 giờ · 14 sản phẩm', '7,5 %', '5,9 %', '−18k ₫', 100, 'Rõ', [['Người xem', '2.760'], ['Đơn trong phiên', '61'], ['Gợi ý', 'Thêm giới hạn số lượng, giá giờ vàng']]], ['l4', 'LIVE sáng 05/10', '1 giờ · 5 sản phẩm', '7,5 %', '7,0 %', '−3k ₫', 17, 'Tham khảo', [['Người xem', '640'], ['Đơn trong phiên', '12'], ['Gợi ý', 'Theo dõi thêm']]]]
+},
+restLabel: '3 phiên ngắn', restSum: '−1k ₫'
+}
+};
+const streams = ['video', 'live'].map((key) => {
+const d = D[key];
+const open = st.stream === key;
+const mk = st.metric[key];
+const cells = d.cells.map(([k, label, value, delta, up, impact, kind, weak]) => {
+const on = open && mk === k;
+let style = 'background: #ffffff; border: 1px solid #ece3e7; cursor: pointer';
+if (weak) style = 'background: #fff7fa; border: 1px solid #f8b9d3; cursor: pointer';
+if (on) style = 'background: #fff7fa; border: 2px solid #c2306d; cursor: pointer';
+if (kind !== 'click') style = 'background: #faf7f8; border: 1px dashed #e3d6dc; cursor: default';
+return {
+label, value, delta, on, off: kind !== 'click', style,
+labelStyle: kind === 'grey' ? 'color: #5f5f6b' : 'color: #b0386a',
+deltaStyle: up ? chipUp : chipDown,
+impact, impactStyle: kind === 'click' ? (impact.startsWith('+') ? 'color: #146c2e' : 'color: #a3222f') : 'color: #5f5f6b',
+flag: weak ? '✦ Juli gợi ý' : '',
+pick: () => { if (kind === 'click') this.setState({ metric: { ...st.metric, [key]: k }, open: null }); }
+};
+});
+const list = d.rows[mk] || [];
+const label = d.cells.find((c) => c[0] === mk)[1];
+const rows = list.map(([id, title, meta, before, now, gmv, w, conf, facts]) => {
+const ro = st.open === id;
+const pos = gmv.startsWith('+');
+return {
+title, meta, before, now, gmv, conf, open: ro, caret: ro ? '▾' : '▸',
+barStyle: 'width: ' + w + '%; background: ' + (pos ? '#1f8a3d' : '#c2306d'),
+confStyle: conf === 'Rõ' ? 'color: #146c2e; background: #e3f5e8' : 'color: #8a4b00; background: #fff4e0',
+boxStyle: ro ? 'background: #fff7fa; border-color: #f8b9d3' : 'background: #ffffff',
+facts: facts.map(([k, v]) => ({ k, v })),
+toggle: () => this.setState({ open: ro ? null : id })
+};
+});
+return {
+name: d.name, gmv: d.gmv, delta: d.delta, deltaStyle: d.up ? chipUp : chipDown, weak: d.weak,
+open, closed: !open, toggleLabel: open ? 'Thu gọn' : 'Mở',
+toggle: () => this.setState({ stream: open ? null : key, open: null }),
+cells, rows,
+tableTitle: (key === 'video' ? 'Video' : 'Phiên LIVE') + ' tác động ' + label + ' nhiều nhất',
+restLabel: d.restLabel, restSum: d.restSum
+};
+});
+return {
+headline: 'Video: CTR giảm 9 %',
+streams
+};
+}
+}
+</script>
+</body>
+</html>

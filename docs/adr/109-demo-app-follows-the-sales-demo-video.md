@@ -258,3 +258,42 @@ Grill with the owner on the canvas "Thẻ đề xuất — Quyết định"
    - After Từ chối / Không thực hiện / Hoàn tác, Juli does not propose the same change for
      that product for **7 days** unless its data changes clearly. No "Để sau" option.
    - Reasons are stored with the card/run and used to tune later proposals.
+
+## Amendment 2 — Phân tích: less text, every row leads to a card (2026-10-09)
+
+Grill with the owner on the same canvas, renamed "Thiết kế UI flow" (artboards
+PtProduct, PtContent, PtMobile, PtFlow, LinkA; copied to
+`docs/product/design/phan-tich/`). Goal: the seller reads each stream's metrics and their
+change, sees which products and content move GMV, and goes from there to the matching
+card in Đề xuất. Supersedes the layout parts of decisions 2–4; the ranking maths
+(decision 5) is unchanged.
+
+1. **Sub-tabs stay** (Sản phẩm / Nội dung). Each stream is a **collapsible card** like the
+   Đề xuất card: name, GMV/ngày, Δ %, and when collapsed "Yếu nhất: <metric> −N ₫/ngày".
+   The stream that loses the most GMV opens by default; one stream open at a time.
+2. **Metric cells** show only label, value, Δ chip and the ₫/day that metric's change moved
+   GMV (decision 5's figure). "trước X" moves to hover/tap. Cells: Hiển thị, CTR, CTOR,
+   AOV (clickable) + GMV/ngày (sum, not clickable); Bấm/ngày and Đơn/ngày are dropped,
+   CTOR's two steps move into the row detail. The weakest cell carries "✦ Juli gợi ý".
+3. **Ranking table:** rows SKU · name, metric before → now, GMV/ngày bar, Rõ / Tham khảo,
+   then **"Xem đề xuất ›"** when a card exists for that product (else muted "Chưa có đề
+   xuất"). Clicking a row **expands it in place** (CTOR's two steps, SKU orders, the
+   proposal) — the side "Ví dụ" panel is removed. The three closing rows fold into one
+   "Còn lại · 3 dòng" row; "Tổng" equals the cell's figure.
+4. **Two-way links.** "Xem đề xuất ›" opens Quyết định › Đề xuất scrolled to that card,
+   highlighted; the card gains **"Xem phân tích ›"**, which opens Phân tích on that stream,
+   metric and row (expanded). The header's "✦ Juli gợi ý · <metric> kéo GMV −N ₫/ngày"
+   has "Xem N đề xuất ›" (the weakest metric's card group).
+5. **Below the streams:** the hero-product list is removed (its 5-channel profile lives in
+   the row detail). **Khuyến mãi** and **Lịch sale và chiến dịch** (renamed from Dòng
+   thời gian sự kiện) stay collapsed with "Xem thêm"; "Cách tính" becomes an ⓘ button.
+6. **Header:** conclusion title + chip "30 ngày · so với 30 ngày trước" + ⓘ; the
+   explanatory paragraph is removed.
+7. **Nội dung** uses the same pattern: Video and LIVE streams; rows are videos / LIVE
+   sessions with a thumbnail and **"Xem sản phẩm được gắn ›"** (opens Sản phẩm with that
+   product's row expanded). Non-clickable cells (Video CTOR/AOV, LIVE AOV) are greyed
+   "Phụ thuộc sản phẩm".
+8. **Liên kết (option A):** one caption line under the sub-tabs on both tabs — "Sản phẩm:
+   Thẻ sản phẩm · Tab cửa hàng | Nội dung: Video · LIVE | Liên kết: chỉ theo dõi ở
+   Trang chủ ›". No Liên kết card in Phân tích.
+9. **Mobile (390 px):** cells in a 2-column grid; table rows become stacked cards.
