@@ -457,3 +457,18 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Next: integration; DEBT P8-F (anonymous sample, measurement API, revert flag
   on the runs list).
 
+
+## 2026-10-09 — orchestrator (Claude Opus) — P8 integrated
+
+- Merged P8-C (06a95d38; 078 re-chained onto 077, phone cleanup last), P8-E
+  (edbf937b), P8-F (8e873ffc). Verification on aa91074d: check.sh OK on a
+  fresh PG16 (migrations to 078, isolation 12, gitleaks, ruff, pytest 891);
+  unit+harness 6407 passed, only the 9 known failures; mypy clean.
+- After P8-F: consent countdown reads in days past 24 h (was "633166 giờ").
+  Demo vitest 1668/1668, type-check clean, lint 0 errors; backend
+  contract/decision tests 762 passed.
+- Owner updated NEXT_PUBLIC_SUPABASE_URL (2026-10-09 01:28 UTC); takes effect
+  with the P8 deploy build.
+- Open: anonymous /decisions still shows the legacy fixture flow (P8-F debt);
+  deferred phone-cleanup revision id is 35 chars vs varchar(32) — check prod
+  before running that manual step.

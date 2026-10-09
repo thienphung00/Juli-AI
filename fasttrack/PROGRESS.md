@@ -41,8 +41,8 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | P8-G `get_product_diagnoses` playbook tool | 8.4 | done (merged f4740ceb) | P8-G agent (Sonnet) |
 | P8-D App shell + Home | 8.5 | done (merged 41584c55) | P8-D agent (Opus) |
 | P8-E Phân tích UI | 8.6 | done (merged) | P8-E agent (Opus) |
-| P8-F Quyết định UI | 8.7 | doing | P8-F agent (Opus) |
-| P8 integration + deploy | — | todo | orchestrator |
+| P8-F Quyết định UI | 8.7 | done (merged 8e873ffc) | P8-F agent (Opus) |
+| P8 integration + deploy | — | doing (verified; awaiting deploy tag) | orchestrator |
 
 ## P2–P6
 
