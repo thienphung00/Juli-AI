@@ -6534,7 +6534,19 @@ h4 {
 .demo-landing__door .demo-landing__or {
   margin: var(--juli-space-3) 0;
   font-size: 0.85rem;
-  text-align: center;
+}
+
+/* The door's muted paragraph colour must not swallow the form's own error
+   and helper colours. */
+.email-sign-in .juli-form__error,
+.demo-landing__door .email-sign-in .juli-form__error {
+  margin: 0;
+  color: var(--juli-destructive);
+}
+
+.email-sign-in .juli-form__helper,
+.demo-landing__door .email-sign-in .juli-form__helper {
+  margin: 0;
 }
 
 .email-sign-in {
