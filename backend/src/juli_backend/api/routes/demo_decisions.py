@@ -67,9 +67,11 @@ from juli_backend.database import Shop, get_session
 from juli_backend.models.models import ActionCard
 from juli_backend.services import shop_rules
 from juli_backend.services.demo_decisions import (
+    CardContext,
     DecisionNotFound,
     get_surfaced_decision,
     list_surfaced_decisions,
+    load_card_contexts,
     mask_decision_payload,
 )
 
@@ -214,6 +216,52 @@ class DemoDecisionEvidence(BaseModel):
     notes: list[str] = []
 
 
+class DemoDecisionCardKpi(BaseModel):
+    key: str
+    label: str
+    current: float | None = None
+    target: float | None = None
+    unit: str
+
+
+class DemoDecisionCardLever(BaseModel):
+    code: str
+    label: str
+    executor: str
+
+
+class DemoDecisionCardField(BaseModel):
+    field: str
+    label: str
+
+
+class DemoDecisionCardBeforeAfter(BaseModel):
+    field: str
+    label: str
+    before: str
+    after: str
+
+
+class DemoDecisionCard(BaseModel):
+    """The recommendation card (contract p10-quyet-dinh.md §1, fast track P10-A)."""
+
+    seller_sku: str | None = None
+    seller_sku_more: int = 0
+    product_title: str | None = None
+    workflow_label: str
+    updated_at: str | None = None
+    status: str
+    main_kpi: DemoDecisionCardKpi
+    expected_gmv_per_month: int | None = None
+    reason_short: str
+    reason_full: str
+    tiktok_codes: list[str] = []
+    lever: DemoDecisionCardLever
+    change_fields: list[DemoDecisionCardField] = []
+    before_after: list[DemoDecisionCardBeforeAfter] = []
+    gmv_method: str | None = None
+
+
 class DemoDecisionRecommendation(BaseModel):
     workflow_name: str | None = None
     priority: int | None = None
@@ -225,6 +273,7 @@ class DemoDecisionRecommendation(BaseModel):
     reasoning: DemoDecisionReasoning | None = None
     diagnosis: DemoDecisionDiagnosis | None = None
     evidence: DemoDecisionEvidence | None = None
+    card: DemoDecisionCard | None = None
 
 
 class DemoDecisionItem(BaseModel):
@@ -252,7 +301,10 @@ class DemoDecisionDetailResponse(BaseModel):
 
 
 def _build_masked_item(
-    card: ActionCard, shop_id: uuid.UUID, allowed_levers: frozenset[str] | None = None
+    card: ActionCard,
+    shop_id: uuid.UUID,
+    allowed_levers: frozenset[str] | None = None,
+    card_context: CardContext | None = None,
 ) -> DemoDecisionItem | None:
     """Validate one card's masked envelope against the strict typed response
     schema; return ``None`` (never raise) if the persisted payload doesn't
@@ -277,7 +329,9 @@ def _build_masked_item(
     follows.
     """
     try:
-        return DemoDecisionItem(**mask_decision_payload(card, allowed_levers=allowed_levers))
+        return DemoDecisionItem(
+            **mask_decision_payload(card, allowed_levers=allowed_levers, card_context=card_context)
+        )
     except ValidationError as exc:
         logger.warning(
             "demo_decisions_row_dropped_invalid_shape",
@@ -322,10 +376,12 @@ async def list_demo_decisions(
         ) from None
 
     allowed_levers = await shop_rules.auto_levers(session, shop_id)
+    contexts = await load_card_contexts(session, shop_id, cards)
     items = [
         item
         for card in cards
-        if (item := _build_masked_item(card, shop_id, allowed_levers)) is not None
+        if (item := _build_masked_item(card, shop_id, allowed_levers, contexts.get(card.id)))
+        is not None
     ]
     logger.info(
         "demo_decisions_list_read",
@@ -363,7 +419,12 @@ async def get_demo_decision(
     try:
         card = await get_surfaced_decision(session, shop_id, action_card_id)
         allowed_levers = await shop_rules.auto_levers(session, shop_id)
-        item = DemoDecisionItem(**mask_decision_payload(card, allowed_levers=allowed_levers))
+        contexts = await load_card_contexts(session, shop_id, [card])
+        item = DemoDecisionItem(
+            **mask_decision_payload(
+                card, allowed_levers=allowed_levers, card_context=contexts.get(card.id)
+            )
+        )
     except DecisionNotFound as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
