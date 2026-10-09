@@ -1,5 +1,12 @@
 """Per-shop seller-set rules (fast track P8-C, ADR-109 d.12). See ``rules.py``."""
 
+from juli_backend.services.shop_rules.listing_edits import (
+    DESCRIPTION_MAX_CHARS,
+    TITLE_MAX_CHARS,
+    TITLE_MIN_CHARS,
+    ListingEditViolation,
+    validate_listing_edits,
+)
 from juli_backend.services.shop_rules.rules import (
     AUTO_LEVERS,
     BAND_METRICS,
@@ -27,6 +34,7 @@ from juli_backend.services.shop_rules.rules import (
     get_rules,
     import_product_costs_csv,
     max_open_cards,
+    protected_terms,
     set_rule,
     stability_bands,
     validate_rule,
@@ -34,6 +42,12 @@ from juli_backend.services.shop_rules.rules import (
 
 __all__ = [
     "AUTO_LEVERS",
+    "DESCRIPTION_MAX_CHARS",
+    "TITLE_MAX_CHARS",
+    "TITLE_MIN_CHARS",
+    "ListingEditViolation",
+    "protected_terms",
+    "validate_listing_edits",
     "BAND_METRICS",
     "CARD_LEVER_TO_RULE_LEVER",
     "DEFAULT_AUTO_LEVERS",

@@ -24,7 +24,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop
@@ -205,9 +205,19 @@ async def cancel_run(
     )
 
 
+class EditedValues(BaseModel):
+    """The seller's own version of the proposed fields (fast track P10-A, contract §3)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = None
+    description: str | None = None
+
+
 class ConfirmationDecisionRequest(BaseModel):
     decision: str
     option_id: str | None = None
+    edited_values: EditedValues | None = None
 
 
 class ConfirmationDecisionResponse(BaseModel):
@@ -250,6 +260,9 @@ async def submit_confirmation_decision(
         )
 
     run = await _resolve_owned_run(run_id, shop, session)
+    edited = (
+        body.edited_values.model_dump(exclude_none=True) if body.edited_values is not None else {}
+    )
     try:
         outcome = await agent_runs.decide_confirmation(
             session,
@@ -257,11 +270,23 @@ async def submit_confirmation_decision(
             tool_call_id=tool_call_id,
             decision=body.decision,
             option_id=body.option_id,
+            edited_values=edited or None,
         )
     except agent_runs.ConfirmationRejected as rejected:
         raise HTTPException(
             status_code=rejected.http_status,
             detail={"message": rejected.message, "error_code": rejected.error_code},
+        ) from None
+    except agent_runs.EditRejected as violation:
+        # Contract p10-quyet-dinh.md §3: the edit breaks a shop rule; nothing
+        # was decided, the confirmation stays pending.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "rule_violation",
+                "message": violation.message_vi,
+                "field": violation.field,
+            },
         ) from None
 
     # Commit before enqueue: a worker must never see the row still pending (#1221).
@@ -275,6 +300,7 @@ async def submit_confirmation_decision(
             "run_id": str(run_id),
             "tool_call_id": tool_call_id,
             "decision": body.decision,
+            "edited_fields": sorted(edited),
             "celery_task_id": celery_task_id,
         },
     )

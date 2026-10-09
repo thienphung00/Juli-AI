@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -40,6 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import RunConfirmation
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
+from juli_backend.services import shop_rules
 from juli_backend.services.agent.runner import compute_params_sha
 from juli_backend.services.agent.status import WorkflowRunStatus
 
@@ -47,6 +49,8 @@ logger = logging.getLogger(__name__)
 
 WAITING_APPROVAL_RUN_STATUS = WorkflowRunStatus.WAITING_APPROVAL.value
 PENDING_CONFIRMATION_STATUS = "pending"
+#: The one CONFIRM tool whose proposal the seller may edit (title / description).
+EDITABLE_TOOL_NAME = "update_product_listing"
 EXPIRED_CONFIRMATION_STATUS = "expired"
 
 # Machine-readable discriminators. Stable: clients branch on them.
@@ -129,6 +133,15 @@ async def transition_confirmation_or_none(
     return result.rowcount == 1
 
 
+class EditRejected(Exception):
+    """The seller's edited values break a shop rule (fast track P10-A). Nothing was written."""
+
+    def __init__(self, field: str, message_vi: str) -> None:
+        super().__init__(f"{field}: {message_vi}")
+        self.field = field
+        self.message_vi = message_vi
+
+
 async def decide_confirmation(
     session: AsyncSession,
     run: WorkflowRunRow,
@@ -136,6 +149,7 @@ async def decide_confirmation(
     tool_call_id: str,
     decision: str,
     option_id: str | None,
+    edited_values: Mapping[str, str] | None = None,
     now: datetime | None = None,
 ) -> ConfirmationDecision:
     """Walk the ladder for ``run`` and win the transition, or raise :class:`ConfirmationRejected`.
@@ -143,6 +157,15 @@ async def decide_confirmation(
     On approve, the confirmed ``params_sha`` is frozen onto ``run.state`` so
     ``WorkflowRunner.resume`` can re-derive and compare independently before
     executing. The caller must commit.
+
+    ``edited_values`` (fast track P10-A, contract p10-quyet-dinh.md §3): the
+    seller's own version of the proposed ``title`` / ``description``. After the
+    consent binding (the option still matches what Juli proposed), the edit is
+    validated against the shop's rules (:class:`EditRejected` -- the row stays
+    pending), then replaces those arguments in ``pending_confirmation`` with a
+    params sha re-derived over the edited arguments, so the resume executes --
+    and its before/after record stores -- exactly the seller's version.
+    ``edited_fields`` on the same dict tells the resume to say so.
     """
     if run.status != WAITING_APPROVAL_RUN_STATUS:
         raise ConfirmationRejected(
@@ -156,6 +179,8 @@ async def decide_confirmation(
         approved, selected_option_id = False, None
     elif decision == "approve":
         selected_option_id = _bind_consent(run, confirmation, option_id)
+        if edited_values:
+            await _apply_seller_edits(session, run, edited_values)
         approved = True
     else:
         raise ConfirmationRejected(
@@ -173,6 +198,77 @@ async def decide_confirmation(
             f"Confirmation {tool_call_id!r} was already decided.",
         )
     return ConfirmationDecision(decision=decision, approved=approved, new_status=new_status)
+
+
+async def decline_pending_confirmation(
+    session: AsyncSession, run: WorkflowRunRow, *, now: datetime | None = None
+) -> ConfirmationDecision:
+    """Decline the run's one pending confirmation ("Không thực hiện", fast track P10-A).
+
+    The same ladder as ``decide_confirmation(decision="decline")``, for a caller
+    that names the run rather than the tool call.
+    """
+    if run.status != WAITING_APPROVAL_RUN_STATUS:
+        raise ConfirmationRejected(
+            ERROR_RUN_NOT_AWAITING_CONFIRMATION,
+            f"Run {run.id} is not awaiting a confirmation decision (status={run.status!r}).",
+        )
+    result = await session.execute(
+        select(RunConfirmation.tool_call_id)
+        .where(
+            RunConfirmation.workflow_run_id == run.id,
+            RunConfirmation.status == PENDING_CONFIRMATION_STATUS,
+        )
+        .order_by(RunConfirmation.expires_at.desc())
+    )
+    tool_call_id = result.scalars().first()
+    if tool_call_id is None:
+        raise ConfirmationRejected(
+            ERROR_CONFIRMATION_NOT_FOUND, f"Run {run.id} has no pending confirmation."
+        )
+    return await decide_confirmation(
+        session, run, tool_call_id=tool_call_id, decision="decline", option_id=None, now=now
+    )
+
+
+async def _apply_seller_edits(
+    session: AsyncSession, run: WorkflowRunRow, edited_values: Mapping[str, str]
+) -> None:
+    """Validate the seller's edit and bind the run's pending call to it (see above)."""
+    run_state: dict[str, Any] = run.state if isinstance(run.state, dict) else {}
+    pending_state = run_state.get("pending_confirmation")
+    if not isinstance(pending_state, dict):
+        raise ConfirmationRejected(
+            ERROR_RUN_STATE_NOT_RECONSTRUCTABLE,
+            "Run has no reconstructable pending confirmation state.",
+        )
+    arguments = pending_state.get("arguments")
+    arguments = dict(arguments) if isinstance(arguments, Mapping) else {}
+    first_field = next(iter(edited_values))
+    if pending_state.get("tool_name") != EDITABLE_TOOL_NAME:
+        raise EditRejected(first_field, "Bước này không có nội dung sửa được.")
+    detail = run_state.get("product_detail")
+    try:
+        changed = shop_rules.validate_listing_edits(
+            edited_values,
+            proposed=arguments,
+            current=detail if isinstance(detail, Mapping) else None,
+            protected_terms=await shop_rules.protected_terms(session, run.shop_id),
+        )
+    except shop_rules.ListingEditViolation as violation:
+        raise EditRejected(violation.field, violation.message_vi) from None
+    if not changed:
+        return
+    edited_arguments = {**arguments, **changed}
+    run.state = {
+        **run_state,
+        "pending_confirmation": {
+            **pending_state,
+            "arguments": edited_arguments,
+            "params_sha": compute_params_sha(edited_arguments),
+            "edited_fields": sorted(changed),
+        },
+    }
 
 
 async def _pending_confirmation(
@@ -267,7 +363,9 @@ __all__ = [
     "WAITING_APPROVAL_RUN_STATUS",
     "ConfirmationDecision",
     "ConfirmationRejected",
+    "EditRejected",
     "as_aware_utc",
     "decide_confirmation",
+    "decline_pending_confirmation",
     "transition_confirmation_or_none",
 ]
