@@ -906,3 +906,135 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - EN: Could not approve this recommendation right now (error [status]). Please try again.
 - VI: Chưa thể phê duyệt đề xuất này lúc này (lỗi [status]). Vui lòng thử lại.
 - Definition: Signed-in approve fallback for any other non-2xx (issue #1909) — names the fact and the raw status honestly; never a spinner-forever, never a fabricated run id.
+
+### Quyết định — P8-F (AC-8.7)
+
+**`qd.tab.de_xuat`**
+- EN: Recommendations
+- VI: Đề xuất
+- Definition: Quyết định sub-tab 1 (ADR-109 d.13).
+
+**`qd.tab.dang_thuc_hien`**
+- EN: In progress
+- VI: Đang thực hiện
+- Definition: Quyết định sub-tab 2: run timeline + Hàng chờ thẻ tối ưu.
+
+**`qd.tab.do_luong`**
+- EN: Measurement
+- VI: Đo lường
+- Definition: Quyết định sub-tab 3: one row per executed run, day-7 questions.
+
+**`qd.group.title`**
+- EN: N cards to raise [metric] [stream]
+- VI: [N] thẻ tối ưu để nâng [metric] [stream]
+- Definition: Card group header (d.6); stream from channel_scope (Thẻ sản phẩm / (mọi kênh)).
+
+**`qd.group.gmv`**
+- EN: Expected GMV … /month · rule-based estimate
+- VI: GMV dự kiến +[x]/tháng · ước tính theo quy tắc
+- Definition: Σ recoverable GMV/day × 30 (D22); never a model output.
+
+**`qd.batch.approve`**
+- EN: Approve N cards
+- VI: Duyệt [N] thẻ
+- Definition: Approves the group's executable cards one after another (d.6).
+
+**`qd.card.manual`**
+- EN: You apply this in Seller Center
+- VI: Bạn áp dụng trên Seller Center
+- Definition: Price/promotion card (D13); excluded from the batch (d.10).
+
+**`qd.bands.missing`**
+- EN: Set the stability bands before running
+- VI: Đặt ngưỡng giữ ổn định trước khi chạy
+- Definition: d.11: blocks Duyệt N thẻ until a band is set.
+
+**`qd.rules.title`**
+- EN: Rules you set
+- VI: Quy tắc do bạn đặt
+- Definition: d.12 chips and editor heading.
+
+**`qd.rules.set_by.team`**
+- EN: Set by the Juli team
+- VI: Đội ngũ Juli đặt
+- Definition: set_by = team (operator phase).
+
+**`qd.rules.set_by.seller`**
+- EN: Set by you
+- VI: Bạn đặt
+- Definition: set_by = seller.
+
+**`qd.rules.set_by.default`**
+- EN: Default
+- VI: Mặc định
+- Definition: No value set; the backend default applies.
+
+**`qd.rules.team_toggle`**
+- EN: Fill in for the seller (Juli team)
+- VI: Điền thay Seller (đội ngũ Juli)
+- Definition: Editor toggle: saves carry set_by team.
+
+**`qd.step.get_product_diagnoses`**
+- EN: Read TikTok diagnoses
+- VI: Đọc chẩn đoán TikTok
+- Definition: Timeline step for tool get_product_diagnoses.
+
+**`qd.step.get_product_information`**
+- EN: Read product information
+- VI: Đọc thông tin sản phẩm
+- Definition: Timeline step.
+
+**`qd.step.get_seo_keywords`**
+- EN: Analyse keywords
+- VI: Phân tích từ khoá
+- Definition: Timeline step.
+
+**`qd.step.inspect_product_image`**
+- EN: Analyse product image
+- VI: Phân tích ảnh sản phẩm
+- Definition: Timeline step.
+
+**`qd.step.consent`**
+- EN: Confirm once
+- VI: Xác nhận một lần
+- Definition: workflow.approval_required; the two-step option picker renders inline.
+
+**`qd.step.update_product_listing`**
+- EN: Write to TikTok Shop
+- VI: Ghi lên TikTok Shop
+- Definition: Timeline step; a revert run says 'Khôi phục giá trị cũ trên TikTok Shop'.
+
+**`qd.step.upload_product_image`**
+- EN: Upload image to TikTok Shop
+- VI: Tải ảnh lên TikTok Shop
+- Definition: Timeline step.
+
+**`qd.step.check_product_status`**
+- EN: TikTok re-reviews the product page
+- VI: TikTok duyệt lại trang sản phẩm
+- Definition: Timeline step.
+
+**`qd.step.terminal`**
+- EN: Finish · schedule measurement
+- VI: Kết thúc · đặt lịch đo
+- Definition: workflow.completed with a write: 'Đo sơ bộ ngày dd/mm/yyyy (ngày 7), chốt ngày dd/mm/yyyy (ngày 14).' (D14).
+
+**`qd.queue.title`**
+- EN: Optimisation card queue
+- VI: Hàng chờ thẻ tối ưu
+- Definition: GET runs list in the ledger's sections.
+
+**`qd.revert`**
+- EN: Undo
+- VI: Hoàn tác
+- Definition: Starts a revert run (same consent); refusals show the backend's Vietnamese sentence verbatim.
+
+**`qd.keep_change`**
+- EN: Keep the change
+- VI: Giữ thay đổi
+- Definition: Dismisses a day-7 'Hoàn tác?' question.
+
+**`qd.measure.waiting`**
+- EN: Waiting for 7 full days of data · measured on [date]
+- VI: Đang chờ đủ 7 ngày dữ liệu · đo lúc [dd/mm/yyyy]
+- Definition: Đo lường row before day 7; no invented numbers.
