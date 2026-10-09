@@ -148,6 +148,47 @@ def test_fetch_writes_the_snapshot_and_skips_days_on_disk(tmp_path: Path, fetch)
     assert not [c for c in again.calls if c[0] == "product"]
 
 
+class _ShopVideos(_Analytics):
+    """Official and marketing accounts list overlapping videos; marketing fails once."""
+
+    def list_video_performance_all(self, **kwargs: str) -> list[dict]:
+        account_type = kwargs.get("account_type")
+        self.calls.append(("videos", account_type, kwargs.get("sort_field")))
+        if account_type == "OFFICIAL_ACCOUNTS":
+            return [
+                {"id": "v-old", "video_post_time": "2024-12-04 18:17:04", "views": 545},
+                {"id": "v-new", "video_post_time": "2026-10-01 09:00:00", "views": 0},
+            ]
+        if account_type == "MARKETING_ACCOUNTS":
+            raise ValueError("account type not supported")
+        return []
+
+    def get_video_products_performance(self, **kwargs: str) -> dict:
+        self.calls.append(("video_products", kwargs["video_id"]))
+        return {"data": {"products": []}}
+
+
+def test_fetch_lists_every_shop_video_newest_first(tmp_path: Path, fetch) -> None:
+    resources = FakeResources()
+    resources.analytics = _ShopVideos(resources.calls)
+    report = _load("shop_optimization_report")
+
+    fetch.fetch_shop_videos(resources, tmp_path, "2026-08-08", "2026-10-07", report, sleep_s=0)
+
+    listed = [c for c in resources.calls if c[0] == "videos"]
+    assert listed == [
+        ("videos", "OFFICIAL_ACCOUNTS", "views"),
+        ("videos", "MARKETING_ACCOUNTS", "views"),
+    ]
+    videos = json.loads((tmp_path / "videos" / "shop_videos.json").read_text())["videos"]
+    # Newest post first; the zero-view video is kept; each row says its account type.
+    assert [v["id"] for v in videos] == ["v-new", "v-old"]
+    assert {v["account_type"] for v in videos} == {"OFFICIAL_ACCOUNTS"}
+    assert (tmp_path / "videos" / "shop_products" / "v-new.json").exists()
+    assert (tmp_path / "videos" / "shop_products" / "v-old.json").exists()
+    assert (tmp_path / "videos" / "_error_shop_marketing_accounts.json").exists()
+
+
 def test_fetch_defaults(fetch) -> None:
     # 2026-10-07 18:00 UTC is already 2026-10-08 in UTC+7, so yesterday is 10-07.
     assert fetch.yesterday_local(datetime(2026, 10, 7, 18, tzinfo=UTC)) == date(2026, 10, 7)

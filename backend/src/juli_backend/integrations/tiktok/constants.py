@@ -23,6 +23,7 @@ ANALYTICS_LIVE_PRODUCTS_API_VERSION = "202512"
 ANALYTICS_API_VERSION = "202509"
 ANALYTICS_SHOP_PERFORMANCE_PER_HOUR_API_VERSION = "202510"
 ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION = "202605"
+ANALYTICS_SHOP_VIDEOS_LIST_API_VERSION = "202605"
 ANALYTICS_BESTSELLING_API_VERSION = "202511"
 
 ORDER_SEARCH_PATH = f"/order/{ORDER_API_VERSION}/orders/search"
@@ -75,8 +76,9 @@ ANALYTICS_BESTSELLING_VIDEOS_PATH = (
 )
 
 # Shop video analytics (GET): list with the products each video promotes.
+# 202605 adds the ``account_type`` filter and each video's ``creator.author_type``.
 ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH = (
-    f"/analytics/{ANALYTICS_API_VERSION}/shop_videos/performance"
+    f"/analytics/{ANALYTICS_SHOP_VIDEOS_LIST_API_VERSION}/shop_videos/performance"
 )
 
 # LIVE analytics — A-28 is allowlisted for poll ETL (#425); A-26/A-27/A-29 remain deferred.
