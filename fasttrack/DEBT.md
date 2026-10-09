@@ -512,3 +512,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   since before effa4d4a, see P10-B log) — not investigated here.
 - [ ] Not re-shot against a live backend: fidelity screenshots are still P10-C's
   stubbed ones.
+- [ ] Photo links `GET /v1/demo/photos/{shop}/{token}` are unauthenticated and
+  never expire (random token only). Owner accepted for deploy 2026-10-09;
+  switch to signed, expiring URLs later.
