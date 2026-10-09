@@ -31,7 +31,7 @@ describe("app navigation — four destinations, Juli locked", () => {
   });
 
   it("navigates to three pages and marks the active one (pink tint via aria-current)", () => {
-    render(<AppNavigation activePath="/analytics/gmv-tiktok" />);
+    render(<AppNavigation activePath="/analytics" />);
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
 
     expect(within(nav).getByRole("link", { name: "Trang chủ" })).toHaveAttribute("href", "/");

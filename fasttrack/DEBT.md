@@ -348,3 +348,8 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `reverts_run_id` — add it to the list item.
 - [ ] `/settings` signed in now shows only the rules editor; the old
   workflow-template/threshold tabs remain for anonymous only.
+- [ ] P9-C: the demo's KPI dashboard (`/analytics/[metricKey]`) is gone, so
+  `GET /v1/demo/analytics` is no longer read by any page; only the shell's
+  `AnalyticsDataProvider` (plan impact block) still calls it. Backend left
+  untouched on purpose — retire the route (and that provider) at merge. Also
+  dead now: `.analytics-dashboard` and sibling KPI-card rules in `globals.css`.

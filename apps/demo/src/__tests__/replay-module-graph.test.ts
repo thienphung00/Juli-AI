@@ -48,8 +48,8 @@ const SRC_ROOT = resolve(__dirname, "..");
  *
  * Deliberately scoped to the replay entry's own reachable graph, not the
  * whole pre-existing internal app shell. `DemoShell`'s own Analytics data
- * fetch (`GET /v1/demo/analytics`, triggered from `analytics-dashboard.tsx`
- * on a visit to `/analytics`) is a separate, pre-existing mechanism this
+ * fetch (`GET /v1/demo/analytics`, formerly triggered from the removed
+ * `analytics-dashboard.tsx`) is a separate, pre-existing mechanism this
  * issue does not touch and this test does not walk into.
  * whatever "Dùng thử Demo" reveals, and the run route it eventually lands
  * on) and fails if that closure ever comes to include a module that

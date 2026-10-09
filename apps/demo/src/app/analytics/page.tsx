@@ -4,8 +4,8 @@ import { AnalysisPageClient } from "../../components/analysis-page-client";
 
 /**
  * Phân tích (AC-8.6, ADR-109 d.2–5): sub-tabs Sản phẩm / Nội dung, stream
- * funnels, the clicked cell's ranking. The KPI dashboard stays one link away
- * at `/analytics/[metricKey]`.
+ * funnels, the clicked cell's ranking. `/analytics/<anything>` redirects here
+ * (next.config.ts).
  */
 export default function AnalyticsPage() {
   return (
