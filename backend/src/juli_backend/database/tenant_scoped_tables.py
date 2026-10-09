@@ -74,6 +74,11 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_diagnosis_reports"): "tenant_direct",
     # Fast track P8-A, migration 077: stored ADR-109 d.5 metric rankings.
     ("public", "shop_metric_rankings"): "tenant_direct",
+    # Fast track P8-C, migration 078: before/after values of agent writes, the
+    # seller-set rule store, and the day-7 "Hoàn tác?" questions.
+    ("public", "run_write_values"): "tenant_direct",
+    ("public", "shop_rules"): "tenant_direct",
+    ("public", "run_revert_questions"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",

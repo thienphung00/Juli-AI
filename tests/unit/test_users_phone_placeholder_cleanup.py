@@ -70,9 +70,10 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: should be a pre-commit hook that re-parents the file whenever `versions/`
 #: gains a revision -- see #1950's PR body.
 #: Fast track P1-B re-parented it (not renamed) onto `074_shop_ingestion_state`,
-#: then onto `075_analytics_breakdown` at integration, and P7-A onto
-#: `076_shop_diagnosis_reports`, and P8-A onto `077_metric_rankings`.
-PHONE_REVISION = "077_metric_rankings"
+#: then onto `075_analytics_breakdown` at integration, P7-A onto
+#: `076_shop_diagnosis_reports`, P8-A onto `077_metric_rankings`, and P8-C onto
+#: `078_rules_and_write_values`.
+PHONE_REVISION = "078_rules_and_write_values"
 
 _SCHEMA = "phone_cleanup_074"
 

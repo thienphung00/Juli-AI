@@ -157,9 +157,29 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 
 - [x] **AC-8.2 (P8-B)** Verified (from the Partner API spec / a read-only live call by the owner) whether the shop video performance endpoints accept a date range; per-video metrics for the last-30 and prior-30 windows are fetched (date-ranged, or videos posted inside each window as fallback) and exposed to the ranking job. Read-only, rate-limited.
   Evidence (P8-B, 2026-10-08): spec (`tts-openapi-guide` OAS `analytics.json`, v202509) — list, details and video-products endpoints all REQUIRE `start_date_ge`/`end_date_lt`; list `views` = "during the selected time range"; details `granularity=1D` returns dated intervals with product impressions/clicks/GMV (no SKU orders). Commits 5498e2ee (details endpoint: GET wrapper, read allowlist, rate-limit gate key), 3e74be51 (`services/shop_diagnosis_daily/video_windows.py`: `fetch_video_windows` → `VideoWindowMetrics`, basis `date_range` | `posted_in_window`, cap 20/window), 7542e04b (`--video-windows` owner check). Tests `tests/unit/test_shop_diagnosis_video_windows.py` (8: date-range split, both fallbacks, failed video, cap/dedup, 42-call budget, poll-window gate + 429 backoff, gating coverage), `test_tiktok_promotion_search.py::test_video_performance_details_*`, `test_shop_diagnosis_scripts.py::test_video_windows_mode_*`. Live confirmation by the owner and wiring into the daily job (orchestrator, with P8-A) still pending — see DEBT P8-B.
-- [ ] **AC-8.3 (P8-C)** Every write by an agent tool records the field's before and after values on the run; a "Hoàn tác" run restores them with the same CONFIRM consent, refuses when the field changed externally after Juli's write; per-shop rule store (ADR-109 d.12 table) with set_by (team/seller) + set_at, API to read/write; day-7 guardrail check raises a "Hoàn tác?" question when a seller-set band is exceeded (never auto-reverts). Tests incl. two-tenant.
 - [x] **AC-8.4 (P8-G)** Read tool `get_product_diagnoses` added to the Optimize Product playbook as the first step, emitting `tool.started`/`tool.completed` with a Vietnamese summary; read-only; tests. Evidence: `tests/unit/test_agent_tool_product_diagnoses.py` (18 tests: handler happy/empty/API-error, registration READ/AUTO, playbook step 0 + guidance, Vietnamese summaries, runner emits tool.started then tool.completed); playbook/registry/golden/budget pins updated; commits on `fasttrack/p8g-diagnoses`.
 
+- [x] **AC-8.3 (P8-C)** Every write by an agent tool records the field's before and after values on the run; a "Hoàn tác" run restores them with the same CONFIRM consent, refuses when the field changed externally after Juli's write; per-shop rule store (ADR-109 d.12 table) with set_by (team/seller) + set_at, API to read/write; day-7 guardrail check raises a "Hoàn tác?" question when a seller-set band is exceeded (never auto-reverts). Tests incl. two-tenant.
+  Evidence: cd626005..bdcaea66 (P8-C). Migration `078_rules_and_write_values`
+  (run_write_values, shop_rules, run_revert_questions, workflow_runs.reverts_run_id;
+  RLS per verb, tenant_direct). Capture: `ProductToolExecutor` + `write_capture.py`
+  + `SqlWriteValueRecorder`; revert: `services/run_changes` (refusals in Vietnamese,
+  revert playbook + deterministic planner on the ordinary runner/SSE/CONFIRM),
+  `POST /v1/demo/runs/{id}/revert`, `GET /v1/demo/runs/{id}/changes`,
+  `/v1/demo/revert-questions`; rules: `services/shop_rules`, `GET/PUT/DELETE
+  /v1/demo/rules`, cap in `apply_emission_budget`, levers in decisions list +
+  approve; guardrail: `workers/impact_reader/pipeline._day7_guardrail`. Tests:
+  `tests/unit/test_run_changes_revert.py` (capture, revert happy path with CONFIRM,
+  refusal on external change at API and at write, decline, refusals, routes,
+  migration), `tests/unit/test_shop_rules.py` (CRUD + set_by, validation, CSV,
+  isolation, routes), `test_optimize_product_decision_cards.py` (cap from rule,
+  lever not executable/approvable), `test_worker_impact_reader_pipeline.py`
+  (question only above band; none without band / for a revert),
+  `tests/integration/test_run_changes_two_tenant.py` (juli_app, RLS). check.sh
+  `--since bd55f06b` on throwaway PG16: migrations up/down/up PASS (head 078),
+  isolation 12 passed, gitleaks PASS, ruff PASS, pytest 211 passed (incl. the PG
+  two-tenant module). Full unit+harness: 6360 passed; 29 failed = node_modules-less
+  TS contract tests + 2 pre-existing (cross_tenant_probe, destructive_migration CI config).
 - [ ] **AC-8.4 (P8-G)** Read tool `get_product_diagnoses` added to the Optimize Product playbook as the first step, emitting `tool.started`/`tool.completed` with a Vietnamese summary; read-only; tests.
 - [x] **AC-8.5 (P8-D)** App shell per ADR-109 d.1/d.7: left rail (Trang chủ / Quyết định / Phân tích / Juli locked), bottom bar < 768px, shop header with avatar menu holding Cài đặt, "Juli đang chạy · cập nhật HH:MM"; Home 5-stream matrix + GMV/Đơn/AOV cards (from the ADR-108 report). lint/type-check/vitest/e2e green.
   Evidence: 165ce61d, 80c6e118, f60ce932 (fasttrack/p8d-shell). vitest 1649/1649 (Node 20; `navigation.test.tsx`, `demo-shell.test.tsx`, `home.test.tsx`), @juli/ui 180/180, lint 0 errors, tsc clean, `build:demo` OK (dummy Supabase env), Playwright 92/92 (desktop + mobile-web; `responsive-parity` "navigation is a left rail at 1440px and a bottom bar at 390px"), pytest issue-397 + phase-2.6 contracts 29/29. Screenshots 1440/390: `/private/tmp/claude-501/-Users-macos-Juli-AI-v2/6eb8aef9-2bd8-42de-8507-25e6fe552916/scratchpad/shots-p8d/` (home-anon, home-signed-in with stubbed analysis, menus, decisions, analytics).

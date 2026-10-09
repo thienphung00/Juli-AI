@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
@@ -143,6 +143,30 @@ def _log_suppressed(shop_id_str: str, card: ActionCard, reason: str) -> None:
     )
 
 
+_OPTIMIZE_PRODUCT_WORKFLOW_KEY = "optimize_product_2"
+
+
+async def _with_shop_card_cap(
+    session: AsyncSession, shop_id: uuid.UUID, config: DecisionEmissionConfig
+) -> DecisionEmissionConfig:
+    """The seller's "Số thẻ mở cùng lúc" (ADR-109 d.12) as Optimize Product's cap.
+
+    Fast track P8-C. Only when the shop has set one: an unset rule keeps the
+    configured cap (5, ADR-106 decision 6), environment overrides included.
+    """
+    from juli_backend.services import shop_rules
+
+    cap = await shop_rules.configured_max_open_cards(session, shop_id)
+    if cap is None:
+        return config
+    others = tuple(
+        (key, value)
+        for key, value in config.workflow_max_active
+        if key != _OPTIMIZE_PRODUCT_WORKFLOW_KEY
+    )
+    return replace(config, workflow_max_active=(*others, (_OPTIMIZE_PRODUCT_WORKFLOW_KEY, cap)))
+
+
 async def apply_emission_budget(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -187,7 +211,7 @@ async def apply_emission_budget(
     ``persist_scoring_result``); the caller controls the transaction.
     """
     now = _as_aware(now) if now is not None else datetime.now(UTC)
-    config = config or decision_emission_config()
+    config = await _with_shop_card_cap(session, shop_id, config or decision_emission_config())
     week_start = _week_start(now)
     shop_id_str = str(shop_id)
 

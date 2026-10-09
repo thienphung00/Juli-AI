@@ -2,8 +2,17 @@
 
 from juli_backend.models.ingestion import ShopIngestionState
 from juli_backend.models.models import *  # noqa: F403
+from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue, ShopRule
 from juli_backend.models.shop_diagnosis import ShopDiagnosisReport, ShopMetricRanking
 
 #: Imported for their side effect: register `shop_ingestion_state`,
-#: `shop_diagnosis_reports` and `shop_metric_rankings` on `Base.metadata`.
-_REGISTERED_OUTSIDE_MODELS_PY = (ShopIngestionState, ShopDiagnosisReport, ShopMetricRanking)
+#: `shop_diagnosis_reports`, `shop_metric_rankings` and the P8-C tables on
+#: `Base.metadata`.
+_REGISTERED_OUTSIDE_MODELS_PY = (
+    ShopIngestionState,
+    ShopDiagnosisReport,
+    ShopMetricRanking,
+    RunWriteValue,
+    ShopRule,
+    RunRevertQuestion,
+)

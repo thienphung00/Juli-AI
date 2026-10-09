@@ -234,3 +234,44 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   fetch) and a stubbed-route screenshot, not by an e2e against a real backend.
 - [ ] Juli (locked) and the shop menu are a plain disclosure, not an ARIA
   `menu` with arrow-key roving — simpler — upgrade if user testing asks.
+
+## P8-C Before/after + Hoàn tác, rule store, day-7 guardrail (2026-10-08)
+
+- [ ] `set_by` ('team' | 'seller') on `PUT /v1/demo/rules/{key}` is taken from
+  the request and only checked against that allowlist — the codebase has no
+  team/staff role — any signed-in owner of the shop can claim `team` — add a
+  team role (or an operator allowlist) and derive `set_by` from it.
+  `set_by_user_id` is always the authenticated caller.
+- [ ] Stored but not yet consumed: `product_cost` (+ CSV import service, no
+  route), `min_margin_pct`, `max_discount_pct`, `protected_terms` — their
+  consumers (gross-margin ranking D18, price cards, listing-write guard) do not
+  exist yet — wire each when its consumer lands; protected terms should refuse
+  an `update_product_listing` that drops one.
+- [ ] Price is captured (read-back only, no sent-value fallback) but never
+  reverted: a run that changed a price is refused ("Juli không tự hoàn tác giá")
+  — D13 keeps price writes off — revisit if price writes are ever enabled.
+- [ ] Attributes are not captured: `update_product_listing` passes the
+  product's attributes through unchanged, so nothing to undo today — capture
+  them when a lever writes attributes.
+- [ ] Restoring photos re-sends the listing's previous image URIs as
+  `main_images`; untested against the live API (staged-image writes are not
+  wired in production either) — verify on the sandbox shop before relying on it.
+  `GET .../changes` shows images as `{count}` only.
+- [ ] The S-FR-8 live read (API pre-check) and the in-run re-check use the
+  sandbox write resources, because agent writes go to the sandbox merchant only
+  (`factories.py`) — when P5 writes to the real shop, the live reader and write
+  resources must resolve per shop.
+- [ ] The impact reader measures a revert's write like any listing change
+  (impact readings are written for it); only the day-7 guardrail skips revert
+  runs — decide whether revert executions should be excluded from impact
+  readings / calibration.
+- [ ] Day-7 bands are per metric over the impact reader's product-grain metrics
+  (impressions, ctr, conversion_rate, items_sold, gmv, sku_orders,
+  gmv_per_order), not per traffic stream; the question is raised on the first
+  breaching execution of a run and stays one per run.
+- [ ] The "Hoàn tác?" question is its own table and endpoints
+  (`/v1/demo/revert-questions`), not an action card — Đo lường (P8-F) must read
+  it there.
+- [ ] `tests/unit/test_agent_workflow_task_wiring.py` (7 tests) fails without a
+  `DATABASE_URL` in the environment (pre-existing; 29/29 pass with
+  `DATABASE_URL=sqlite+aiosqlite:///:memory:`), so check.sh-style runs report it red.

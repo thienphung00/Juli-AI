@@ -461,3 +461,114 @@ async def test_unclassifiable_payload_is_skipped(session: AsyncSession, shop):
 
     assert result.executions_skipped_unclassified == 1
     assert await _readings(session, execution.id) == []
+
+
+# ---------------------------------------------------------------------------
+# AC-8.3 (fast track P8-C): the day-7 stability guardrail (ADR-109 d.11, D14).
+# ---------------------------------------------------------------------------
+
+
+async def _guardrail_case(
+    session: AsyncSession, shop, *, bands: dict[str, int], reverts: bool = False
+):
+    """A title-only write (primary metric: impressions) on a run, at T+7.
+
+    The constant series moves impressions +10 %, CTR +20 % and AOV
+    (gmv_per_order) 0 %; with no sibling products the control pool falls back
+    to a flat control, so each impact_pct is exactly that move.
+    """
+    from juli_backend.models.models import WorkflowRun
+    from juli_backend.services import shop_rules
+
+    original = WorkflowRun(
+        id=uuid.uuid4(),
+        shop_id=shop.id,
+        subject_ref="p-guardrail",
+        state={},
+        status="completed",
+        prompt_version="optimize_product.v3",
+        prompt_sha256="0" * 64,
+    )
+    session.add(original)
+    run = original
+    if reverts:
+        run = WorkflowRun(
+            id=uuid.uuid4(),
+            shop_id=shop.id,
+            # SQLite has the active-run index without its Postgres predicate.
+            subject_ref="p-guardrail-revert",
+            state={},
+            status="completed",
+            prompt_version="optimize_product.v3",
+            prompt_sha256="0" * 64,
+            reverts_run_id=original.id,
+        )
+        session.add(run)
+    await session.flush()
+    for metric, band in bands.items():
+        await shop_rules.set_rule(
+            session,
+            shop.id,
+            rule_key=shop_rules.STABILITY_BAND,
+            scope_ref=metric,
+            value=band,
+            set_by="seller",
+            set_by_user_id=None,
+        )
+    _seed_constant_series(
+        session,
+        shop.id,
+        _TARGET_PRODUCT,
+        start=_PRE_START,
+        end=REFERENCE_T + timedelta(days=7),
+        pre_values=_PRE_VALUES,
+        post_values=_POST_VALUES,
+    )
+    execution = _make_execution(
+        shop.id,
+        approval_id="approval-guardrail",
+        payload={"product_id": _TARGET_PRODUCT, "title": "Áo thun cotton cao cấp"},
+        t=REFERENCE_T,
+    )
+    execution.workflow_run_id = run.id
+    session.add(execution)
+    await session.flush()
+    await run_daily_impact_reader(session, REFERENCE_T + timedelta(days=7))
+    await session.commit()
+    return run
+
+
+async def _questions(session: AsyncSession):
+    from juli_backend.models.run_changes import RunRevertQuestion
+
+    return list((await session.execute(select(RunRevertQuestion))).scalars().all())
+
+
+async def test_day7_guardrail_asks_when_a_non_target_metric_leaves_the_band(
+    session: AsyncSession, shop
+):
+    run = await _guardrail_case(
+        session, shop, bands={"ctr": 3, "impressions": 3, "gmv_per_order": 3}
+    )
+    [question] = await _questions(session)
+    assert question.workflow_run_id == run.id
+    assert question.status == "open"
+    # impressions is the title change's own target: never a breach. AOV held.
+    assert [b["metric"] for b in question.breaches] == ["ctr"]
+    assert question.breaches[0]["band_pct"] == 3.0
+    assert question.breaches[0]["impact_pct"] > 3.0
+
+
+async def test_day7_guardrail_stays_quiet_inside_the_band(session: AsyncSession, shop):
+    await _guardrail_case(session, shop, bands={"ctr": 50, "gmv_per_order": 3})
+    assert await _questions(session) == []
+
+
+async def test_day7_guardrail_never_asks_without_a_band(session: AsyncSession, shop):
+    await _guardrail_case(session, shop, bands={})
+    assert await _questions(session) == []
+
+
+async def test_day7_guardrail_never_asks_about_a_revert(session: AsyncSession, shop):
+    await _guardrail_case(session, shop, bands={"ctr": 3}, reverts=True)
+    assert await _questions(session) == []

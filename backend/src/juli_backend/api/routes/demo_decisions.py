@@ -65,6 +65,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.database import Shop, get_session
 from juli_backend.models.models import ActionCard
+from juli_backend.services import shop_rules
 from juli_backend.services.demo_decisions import (
     DecisionNotFound,
     get_surfaced_decision,
@@ -250,7 +251,9 @@ class DemoDecisionDetailResponse(BaseModel):
     error: str | None = None
 
 
-def _build_masked_item(card: ActionCard, shop_id: uuid.UUID) -> DemoDecisionItem | None:
+def _build_masked_item(
+    card: ActionCard, shop_id: uuid.UUID, allowed_levers: frozenset[str] | None = None
+) -> DemoDecisionItem | None:
     """Validate one card's masked envelope against the strict typed response
     schema; return ``None`` (never raise) if the persisted payload doesn't
     match the expected shape.
@@ -274,7 +277,7 @@ def _build_masked_item(card: ActionCard, shop_id: uuid.UUID) -> DemoDecisionItem
     follows.
     """
     try:
-        return DemoDecisionItem(**mask_decision_payload(card))
+        return DemoDecisionItem(**mask_decision_payload(card, allowed_levers=allowed_levers))
     except ValidationError as exc:
         logger.warning(
             "demo_decisions_row_dropped_invalid_shape",
@@ -318,7 +321,12 @@ async def list_demo_decisions(
             detail="Failed to read demo decisions",
         ) from None
 
-    items = [item for card in cards if (item := _build_masked_item(card, shop_id)) is not None]
+    allowed_levers = await shop_rules.auto_levers(session, shop_id)
+    items = [
+        item
+        for card in cards
+        if (item := _build_masked_item(card, shop_id, allowed_levers)) is not None
+    ]
     logger.info(
         "demo_decisions_list_read",
         extra={"shop_id": str(shop_id), "count": len(items)},
@@ -354,7 +362,8 @@ async def get_demo_decision(
 
     try:
         card = await get_surfaced_decision(session, shop_id, action_card_id)
-        item = DemoDecisionItem(**mask_decision_payload(card))
+        allowed_levers = await shop_rules.auto_levers(session, shop_id)
+        item = DemoDecisionItem(**mask_decision_payload(card, allowed_levers=allowed_levers))
     except DecisionNotFound as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

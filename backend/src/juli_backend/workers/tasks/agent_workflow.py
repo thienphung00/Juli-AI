@@ -608,12 +608,18 @@ async def _construct_runner(
     parameters here -- `_construct_runner`'s signature is unchanged, only
     what it builds by default (and its `async`-ness) is.
     """
+    from juli_backend.services import run_changes as run_changes_module
     from juli_backend.services.agent import composition as composition_module
     from juli_backend.services.agent import events as events_module
     from juli_backend.services.agent import runner as runner_module
 
     registry = _default_tool_registry()
-    playbook = _playbook_for_run(run)
+    # Fast track P8-C (ADR-109 d.9): a "Hoàn tác" run carries its plan in its
+    # state. It is the same executor in a narrower mode -- the revert playbook
+    # and a deterministic planner in place of the LLM; every event, the
+    # CONFIRM pause and the ledger are unchanged.
+    revert_plan = run_changes_module.revert_plan_from_state(run.state)
+    playbook = run_changes_module.REVERT_LISTING_PLAYBOOK if revert_plan else _playbook_for_run(run)
     # #1939: the ledger stamps this run's workflow key into every fresh
     # dispatch's `payload_json`, which is where `record_workflow_outcome` reads
     # it back from (`extract_workflow_id`). Referenced off the playbook, never
@@ -645,6 +651,13 @@ async def _construct_runner(
         # access it on resume without a second vendor call. Retrieved from
         # run.state (the persisted RunState.product_detail).
         product_detail=run.state.get("product_detail"),
+        # P8-C: every recorded WRITE persists its fields' before/after values
+        # on this run (`run_write_values`), through the ledger's own session.
+        write_value_recorder=run_changes_module.SqlWriteValueRecorder(
+            sync_session, shop_id=run.shop_id, workflow_run_id=run.id
+        ),
+        restore_main_image_uris=revert_plan.restore_main_image_uris if revert_plan else None,
+        revert_expected=revert_plan.expected if revert_plan else None,
     )
     conversation_store = runner_module.JsonbConversationStore(session)
     # #1890: PersistingEventSink now scopes its own per-emit session from a
@@ -669,7 +682,9 @@ async def _construct_runner(
     )
 
     return runner_module.WorkflowRunner(
-        llm_service=_default_llm_service(),
+        llm_service=(
+            run_changes_module.RevertPlanner(revert_plan) if revert_plan else _default_llm_service()
+        ),
         tool_executor=tool_executor,
         event_sink=event_sink,
         conversation_store=conversation_store,

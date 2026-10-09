@@ -22,21 +22,28 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import ToolExecution
+from juli_backend.services import run_changes, shop_rules
 from juli_backend.services.impact import (
+    ALL_METRICS,
     METRIC_MAP,
+    ControlCandidate,
     ControlPoolResult,
     MetricReading,
     MutationKind,
+    RawDailyRecord,
     WindowKind,
     compute_confidence,
+    compute_metric_reading,
     compute_run_readings,
     compute_windows,
     resolve_metric,
@@ -194,6 +201,18 @@ async def _process_kind(
             readings_by_metric.setdefault(reading.metric, reading)
     readings_by_metric.setdefault(run_readings.rollup.metric, run_readings.rollup)
 
+    if kind == "preliminary":
+        await _day7_guardrail(
+            session,
+            execution=execution,
+            t=t,
+            mutations=mutations,
+            target_daily=target_daily,
+            candidates=candidates,
+            confounded=confounded,
+            readings_by_metric=readings_by_metric,
+        )
+
     existing_pairs = await load_existing_metric_pairs(session, execution.id)
 
     written = 0
@@ -230,6 +249,70 @@ async def _process_kind(
     if written:
         await session.flush()
     return written
+
+
+async def _day7_guardrail(
+    session: AsyncSession,
+    *,
+    execution: ToolExecution,
+    t: date,
+    mutations: list[MutationKind],
+    target_daily: Mapping[date, RawDailyRecord],
+    candidates: Sequence[ControlCandidate],
+    confounded: bool,
+    readings_by_metric: dict[str, MetricReading],
+) -> None:
+    """ADR-109 d.11 / D14: at the day-7 check-in, ask "Hoàn tác?" when a metric
+    the change was not meant to move left the seller's stability band.
+
+    Never reverts. A band metric the mutation readings did not already cover is
+    read here with the same control-pool + DiD method. No band set, a revert
+    run, or a run already asked -> nothing (logged).
+    """
+    run_id = execution.workflow_run_id
+    if run_id is None:
+        return
+    bands = await shop_rules.stability_bands(session, execution.shop_id)
+    if not bands:
+        logger.info(
+            "day7_guardrail_no_band",
+            extra={"shop_id": str(execution.shop_id), "run_id": str(run_id)},
+        )
+        return
+    if await run_changes.is_revert_run(session, run_id):
+        return
+    impact: dict[str, Decimal | None] = {}
+    for metric_key in bands:
+        reading = readings_by_metric.get(metric_key)
+        if reading is None and metric_key in ALL_METRICS:
+            spec = resolve_metric(metric_key)
+            pool = select_control_pool(
+                spec,
+                target_daily,
+                candidates,
+                t,
+                "preliminary",
+                volume_floor_for(spec),
+                volume_of=volume_indicator_for(spec),
+            )
+            reading = compute_metric_reading(
+                spec, target_daily, pool.control_daily, t, "preliminary", confounded
+            )
+        impact[metric_key] = reading.impact_pct if reading is not None else None
+    breaches = run_changes.band_breaches(
+        bands=bands,
+        impact_pct_by_metric=impact,
+        target_metrics={METRIC_MAP[mutation].primary.key for mutation in mutations},
+    )
+    if not breaches:
+        logger.info(
+            "day7_guardrail_within_band",
+            extra={"shop_id": str(execution.shop_id), "run_id": str(run_id)},
+        )
+        return
+    await run_changes.raise_revert_question(
+        session, shop_id=execution.shop_id, run_id=run_id, breaches=breaches
+    )
 
 
 async def run_daily_impact_reader(

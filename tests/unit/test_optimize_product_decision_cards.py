@@ -704,3 +704,74 @@ async def test_the_p1_scoring_hook_produces_the_adr106_cards(session, shop_a):
     assert len(cards) == 10
     assert len([c for c in cards if c.surfaced_at is not None]) == 5
     assert all("diagnosis" in json.loads(c.recommendation_payload) for c in cards)
+
+
+# --------------------------------------------------------------- AC-8.3 rules wiring
+
+
+@pytest.mark.asyncio
+async def test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards(session, shop_a):
+    """ADR-109 d.12 "Số thẻ mở cùng lúc": the seller's number replaces the 5."""
+    from juli_backend.services import shop_rules
+
+    await shop_rules.set_rule(
+        session,
+        shop_a.id,
+        rule_key=shop_rules.MAX_OPEN_CARDS,
+        scope_ref=None,
+        value=2,
+        set_by="team",
+        set_by_user_id=shop_a.user_id,
+    )
+    await _score(session, shop_a)
+
+    cards = await _optimize_cards(session, shop_a.id)
+    assert len(cards) == 10, "the ranking is unchanged; only surfacing is capped"
+    surfaced = [c for c in cards if c.surfaced_at is not None]
+    assert sorted(c.priority for c in surfaced) == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_a_lever_the_seller_did_not_allow_is_not_executable_nor_approvable(
+    app, session, shop_a
+):
+    """ADR-109 d.12 "Đòn bẩy được phép tự thực thi": list and approve agree."""
+    from juli_backend.services import shop_rules
+
+    await _score(session, shop_a)
+    user = await session.get(User, shop_a.user_id)
+    async with _client(app, user, shop_a) as client:
+        allowed = (await client.get("/v1/demo/decisions")).json()["data"]
+    title_cards = [
+        i
+        for i in allowed
+        if (i["recommendation"].get("diagnosis") or {}).get("lever", {}).get("code") == "title"
+    ]
+    assert title_cards and all(i["is_executable"] for i in title_cards)
+
+    await shop_rules.set_rule(
+        session,
+        shop_a.id,
+        rule_key=shop_rules.AUTO_LEVERS,
+        scope_ref=None,
+        value=["description", "image"],
+        set_by="seller",
+        set_by_user_id=shop_a.user_id,
+    )
+    await session.commit()
+    async with _client(app, user, shop_a) as client:
+        after = {i["id"]: i for i in (await client.get("/v1/demo/decisions")).json()["data"]}
+        approve = await client.post(f"/v1/demo/decisions/{title_cards[0]['id']}/approve")
+    assert all(after[i["id"]]["is_executable"] is False for i in title_cards)
+    assert approve.status_code == 409
+
+
+def test_promotion_levers_never_execute_and_legacy_cards_are_not_judged():
+    from juli_backend.services import shop_rules
+
+    every = shop_rules.DEFAULT_AUTO_LEVERS
+    assert shop_rules.card_lever_allowed("title", every)
+    assert shop_rules.card_lever_allowed("cover_image", every)
+    for promo in ("product_discount", "flash_sale", "shipping_discount", "buy_more_save_more"):
+        assert not shop_rules.card_lever_allowed(promo, every)
+    assert shop_rules.card_lever_allowed(None, frozenset())

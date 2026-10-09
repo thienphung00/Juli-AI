@@ -1274,8 +1274,10 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # `integration/test_shop_metric_rankings_two_tenant.py::test_unknown_streams_
     # and_metrics_are_refused_by_the_table` (P8-A) and
     # `test_agent_tool_product_diagnoses.py::TestHandler::test_programming_errors_
-    # still_propagate` (P8-G). Every lower layer is unchanged.
-    "no_assert_statement": 452,
+    # still_propagate` (P8-G). With P8-C (+2: `test_shop_rules.py::test_out_of_range_values_are_refused`,
+    # `test_run_changes_revert.py::test_another_shops_run_is_not_found`) -> 454.
+    # Every lower layer is unchanged.
+    "no_assert_statement": 454,
     "and_no_pytest_raises": 121,
     "and_no_mock_assert_called": 106,
     "and_no_unittest_self_assert": 106,
