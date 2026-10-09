@@ -34,8 +34,8 @@ export default function ConnectShopPage() {
         <p className="demo-kicker">Kết nối TikTok Shop</p>
         <h1 id="connect-shop-no-session-title">Bạn chưa đăng nhập</h1>
         <p role="alert" aria-live="assertive">
-          Bạn chưa đăng nhập bằng Google nên chưa thể xem màn hình kết nối
-          shop.
+          Bạn chưa đăng nhập (bằng Google hoặc email) nên chưa thể xem màn
+          hình kết nối shop.
         </p>
         <Link className="demo-placeholder__recovery" href="/">
           Về trang chào mừng để đăng nhập

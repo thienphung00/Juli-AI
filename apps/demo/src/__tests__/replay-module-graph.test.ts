@@ -85,6 +85,8 @@ const ENTRY_POINTS = [
   "components/phan-tich/sample-phan-tich.tsx",
 ];
 
+const SUPABASE_AUTH_MODULE = resolve(SRC_ROOT, "lib/supabase-auth.ts");
+
 const RESOLVABLE_EXTENSIONS = [".tsx", ".ts", "/index.tsx", "/index.ts"];
 
 function resolveImport(fromFile: string, specifier: string): string | null {
@@ -180,11 +182,33 @@ describe("replay entry — module graph carries no /v1/* fetch capability", () =
     const offenders: string[] = [];
 
     for (const [path, source] of modules) {
-      if (backendRoutePattern.test(source) || /\bfetch\(/.test(source)) {
+      const fetchAllowed = path === SUPABASE_AUTH_MODULE;
+      if (backendRoutePattern.test(source) || (!fetchAllowed && /\bfetch\(/.test(source))) {
         offenders.push(path);
       }
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  it("the one fetch() the landing can reach is the sign-in door's, and it only targets Supabase Auth (/auth/v1/*)", () => {
+    // AC-9.1 (intentional guard change): "Đăng nhập bằng email" sits on the
+    // landing's sign-in door, so `lib/supabase-auth.ts` — which POSTs to
+    // GoTrue's /auth/v1/otp and /auth/v1/verify — is in this closure. Those
+    // calls fire only when the visitor presses "Gửi mã" / "Xác nhận" (never
+    // on "Dùng thử Demo"), go to the Supabase project origin rather than a
+    // Juli /v1/* route, and create the same real identity the Google link
+    // does. Pinned here: every path that module builds is an /auth/v1/ one.
+    const source = modules.get(SUPABASE_AUTH_MODULE);
+    expect(source).toBeDefined();
+    const literalPaths = (pattern: RegExp) =>
+      [...(source as string).matchAll(pattern)].map((match) => match[1]);
+    const builtPaths = literalPaths(/new URL\(\s*["'`]([^"'`]+)["'`]/g);
+    const postedPaths = literalPaths(/postGoTrue\(\s*["'`]([^"'`]+)["'`]/g);
+
+    expect(postedPaths).toEqual(["/auth/v1/otp", "/auth/v1/verify"]);
+    for (const path of builtPaths) {
+      expect(path).toMatch(/^\/auth\/v1\//);
+    }
   });
 });

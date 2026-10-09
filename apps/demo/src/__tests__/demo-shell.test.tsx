@@ -218,11 +218,13 @@ describe("Shop-avatar menu", () => {
     render(<DemoShell>Nội dung</DemoShell>);
     await openShopMenu(user);
 
-    const signInLink = await screen.findByRole("link", { name: "Đăng nhập" });
+    const signInLink = await screen.findByRole("link", { name: "Đăng nhập với Google" });
     expect(new URL(signInLink.getAttribute("href") as string).origin).toBe(
       "https://placeholder-project-ref.supabase.co",
     );
     expect(signInLink).not.toHaveAttribute("aria-disabled");
+    // AC-9.1: email sign-in sits beside Google in the same menu.
+    expect(screen.getByRole("link", { name: "Đăng nhập bằng email" })).toHaveAttribute("href", "/auth/email");
     expect(screen.getByRole("button", { name: "Làm mới Demo" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Đăng xuất" })).toBeNull();
   });
@@ -234,11 +236,12 @@ describe("Shop-avatar menu", () => {
     await openShopMenu(user);
 
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Đăng nhập" })).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByRole("link", { name: "Đăng nhập với Google" })).toHaveAttribute("aria-disabled", "true");
     });
     expect(
       screen.getByTitle("Đăng nhập với Google chưa sẵn sàng trong môi trường này."),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Đăng nhập bằng email" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("signed in: holds Cài đặt, Đổi shop and Đăng xuất; sign-out clears the session and shop", async () => {

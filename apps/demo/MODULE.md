@@ -213,6 +213,24 @@ Invariants below.
   bearer-authenticated `GET /v1/shops` call. When not, the disabled state
   now also renders visible Vietnamese copy (`dictionary.md`
   `auth.google.unavailable`), not only an `aria-label`.
+- **Đăng nhập bằng email (AC-9.1).** Beside Google on the landing's sign-in
+  door (disclosure revealing `components/email-sign-in.tsx` `EmailSignIn`),
+  in the anonymous shop-avatar menu ("Đăng nhập với Google" + "Đăng nhập bằng
+  email" → `/auth/email`, `app/auth/email/page.tsx`). `lib/supabase-auth.ts`
+  `requestEmailOtp` (`POST /auth/v1/otp?redirect_to=<origin>/auth/callback`,
+  `{email, create_user: true}`) and `verifyEmailOtp` (`POST /auth/v1/verify`,
+  `{type: "email", email, token}`) — plain fetch, anon key header, no SDK, no
+  new env. Success stores the SAME `AuthSession` under the same key as the
+  Google callback, reports the TikTok registration, and full-loads
+  `/auth/connect-shop` (so the shell's providers re-resolve the session).
+  The magic link lands on `/auth/callback` with the implicit-grant hash
+  (`type=magiclink`), parsed by the unchanged `parseAuthCallbackHash`;
+  `error_code=otp_expired` (hash or query) → `auth.email.link_expired`.
+  Errors are fixed Vietnamese (`EMAIL_OTP_ERROR_COPY`, dictionary
+  `auth.email.*`), never GoTrue text or the code; resend locked 60 s (or the
+  wait GoTrue names). Unconfigured env → disabled with
+  `auth.email.unavailable`. The replay module-graph guard allows
+  `supabase-auth.ts`'s fetch, pinned to `/auth/v1/otp` and `/auth/v1/verify`.
 - `ConnectShopView`'s "Kết nối TikTok Shop" control is LIVE from issue #1970,
   where it used to be `aria-disabled` beside a disclaimer saying it did
   nothing. It calls `lib/tiktok-connect-client.ts`'s bearer-authenticated

@@ -472,3 +472,47 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Open: anonymous /decisions still shows the legacy fixture flow (P8-F debt);
   deferred phone-cleanup revision id is 35 chars vs varchar(32) — check prod
   before running that manual step.
+
+## 2026-10-09 — P9-A agent (Claude Opus) — Email sign-in (AC-9.1)
+
+- Branch fasttrack/p9a-email: 6ad94d8b (OTP client + magic-link callback),
+  0fdbcbd0 (UI), 6ebd3220 (vitest), e4b54f6b (e2e + CSS), docs commit.
+- "Đăng nhập bằng email" beside Google: landing sign-in door (h2 now
+  "Đăng nhập"; disclosure → email → "Gửi mã" → 6-digit code → "Xác nhận"),
+  anonymous avatar menu ("Đăng nhập" relabelled "Đăng nhập với Google" + new
+  email item → `/auth/email`). Plain fetch to GoTrue (`/auth/v1/otp`
+  with `create_user` + `redirect_to=<origin>/auth/callback`,
+  `/auth/v1/verify` type=email); session stored exactly like Google, then a
+  full load to `/auth/connect-shop`. Magic link = same implicit hash →
+  existing callback; `otp_expired` → Vietnamese. 60 s resend cooldown,
+  Vietnamese copy for format / wrong-or-expired code / rate limit / network
+  (dictionary `auth.email.*`). No env, no backend change: the backend accepts
+  any same-project token with aud=authenticated + UUID sub.
+- Intentional guard edits: tests pinning the menu label "Đăng nhập" (2 e2e,
+  demo-shell) → "Đăng nhập với Google"; replay module-graph guard allows the
+  sign-in door's Supabase fetch, pinned to the two /auth/v1 paths.
+- Gates: type-check, lint 0 errors, vitest 1699/1699, e2e 114/114,
+  build:demo OK (dummy env), issue-397 contract 11/11. Screenshots 1440/390 in
+  the session scratchpad `shots-p9a/`.
+- OWNER (Supabase dashboard, project used by NEXT_PUBLIC_SUPABASE_URL):
+  1. Authentication → Sign In / Providers → Email: enable; "Confirm email" may
+     stay on (verify confirms); keep "Allow new users to sign up" on.
+  2. Same page (or Authentication → Settings): Email OTP Expiration 600–900 s;
+     Email OTP Length 6.
+  3. Authentication → Emails → Templates: BOTH "Magic link" and "Confirm
+     signup" (a first-time email gets the signup template) must show
+     `{{ .Token }}`; Vietnamese body, e.g. subject "Mã đăng nhập Juli:
+     {{ .Token }}", body "Mã đăng nhập Juli của bạn: <b>{{ .Token }}</b> (hết
+     hạn sau 10 phút). Hoặc bấm: <a href="{{ .ConfirmationURL }}">Đăng nhập
+     Juli</a>. Nếu bạn không yêu cầu, hãy bỏ qua email này."
+  4. Authentication → URL Configuration: Site URL https://demo.app-juli.com;
+     Redirect URLs include https://demo.app-juli.com/auth/callback (already
+     there for Google — confirm).
+  5. Built-in SMTP is for testing only (a handful of emails/hour, may only
+     deliver to team addresses): Authentication → Emails → SMTP Settings →
+     custom SMTP (e.g. Resend/SES/Postmark on a verified app-juli.com sender
+     such as no-reply@app-juli.com, SPF/DKIM set); then raise Authentication →
+     Rate Limits → "emails sent per hour".
+- Next: owner steps above, then one real sign-in (code + link); check
+  `users.email` is filled (DEBT P9-A).
+

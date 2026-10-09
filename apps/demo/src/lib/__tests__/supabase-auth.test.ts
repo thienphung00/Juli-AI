@@ -77,6 +77,7 @@ describe("parseAuthCallbackHash", () => {
     expect(result).toEqual({
       status: "error",
       message: "User cancelled login",
+      errorCode: "user_cancelled",
     });
   });
 

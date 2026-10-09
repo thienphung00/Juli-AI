@@ -26,7 +26,8 @@ import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
 const SUPABASE_ORIGIN_AUTHORIZE_URL =
   "https://placeholder-project-ref.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
 
-vi.mock("../lib/supabase-auth", () => ({
+vi.mock("../lib/supabase-auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/supabase-auth")>()),
   buildGoogleAuthorizeUrl: vi.fn(),
   GOOGLE_SIGN_IN_UNAVAILABLE_COPY:
     "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",
@@ -243,4 +244,31 @@ describe("DemoLanding — the two doors", () => {
       screen.queryByText("Đăng nhập với Google chưa sẵn sàng trong môi trường này."),
     ).not.toBeInTheDocument();
   });
+
+  it("offers Đăng nhập bằng email beside Google, revealing the email form in place (AC-9.1)", async () => {
+    const user = userEvent.setup();
+    render(<DemoLanding />);
+
+    const toggle = await screen.findByRole("button", { name: "Đăng nhập bằng email" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Email")).toBeNull();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("form", { name: "Đăng nhập bằng email" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Gửi mã" })).toBeInTheDocument();
+  });
+
+  it("disables the email door with its own honest copy when Supabase is not configured", async () => {
+    mockedBuildGoogleAuthorizeUrl.mockReturnValue(null);
+    render(<DemoLanding />);
+
+    expect(
+      await screen.findByText("Đăng nhập bằng email chưa sẵn sàng trong môi trường này."),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Đăng nhập bằng email" })).toBeDisabled();
+  });
 });
+
