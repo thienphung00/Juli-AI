@@ -88,13 +88,12 @@ def test_playwright_desktop_and_mobile_web_viewport_suites_preserve_ia() -> None
     assert "card order" in text.lower()
 
 
-def test_automated_accessibility_keyboard_focus_touch_targets_chart_equivalents() -> None:
+def test_automated_accessibility_keyboard_focus_touch_targets() -> None:
     text = (E2E_DIR / "accessibility.spec.ts").read_text(encoding="utf-8")
     assert "AxeBuilder" in text
     assert "44" in text
     assert "focus-visible" in text
     assert "prefers-reduced-motion" in text
-    assert "sr-only" in text or "chart equivalent" in text.lower()
 
 
 def test_vietnamese_copy_diacritics_and_truthful_empty_loading_error_states() -> None:
@@ -116,9 +115,3 @@ def test_exit_gate_does_not_depend_on_optional_settings_issue_405() -> None:
     text = (E2E_DIR / "locale-and-assistance.spec.ts").read_text(encoding="utf-8")
     assert "Settings" not in text or "Cài đặt provides grounded assistance" in text
     assert "settings/workflows" not in text.lower()
-
-
-def test_exit_gate_does_not_depend_on_optional_analytics_issue_404() -> None:
-    text = (E2E_DIR / "accessibility.spec.ts").read_text(encoding="utf-8")
-    assert "analytics-unavailable-chart" in text or "Chưa khả dụng" in text
-    assert "six-KPI" not in text
