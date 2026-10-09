@@ -13,21 +13,24 @@ ANALYTICS_CHANNELS: frozenset[str] = frozenset(
     }
 )
 
-RAW_CHANNELS: frozenset[str] = frozenset(
-    {
-        "tiktok.orders.raw",
-        "tiktok.order_items.raw",
-        "tiktok.returns.raw",
-        "tiktok.products.raw",
-        "tiktok.inventory.raw",
-        "tiktok.creators.raw",
-        "tiktok.livestreams.raw",
-        "tiktok.settlements.raw",
-        "livestream-events",
-        "creator-events",
-        "settlement-events",
-    }
-) | ANALYTICS_CHANNELS
+RAW_CHANNELS: frozenset[str] = (
+    frozenset(
+        {
+            "tiktok.orders.raw",
+            "tiktok.order_items.raw",
+            "tiktok.returns.raw",
+            "tiktok.products.raw",
+            "tiktok.inventory.raw",
+            "tiktok.creators.raw",
+            "tiktok.livestreams.raw",
+            "tiktok.settlements.raw",
+            "livestream-events",
+            "creator-events",
+            "settlement-events",
+        }
+    )
+    | ANALYTICS_CHANNELS
+)
 
 # Deprecated aliases (channel names were historically called "topics").
 DLQ_TOPIC = DLQ_CHANNEL

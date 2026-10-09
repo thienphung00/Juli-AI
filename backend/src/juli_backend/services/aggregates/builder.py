@@ -75,9 +75,7 @@ async def build_feature_aggregates(
     returns = await ReturnsRepo(session).list(shop_id, limit=list_limit)
     order_items = await OrderItemsRepo(session).list(shop_id, limit=list_limit)
     inventory_items = await InventoryRepo(session).list(shop_id, limit=list_limit)
-    analytics_intervals = await AnalyticsPerformanceRepo(session).list(
-        shop_id, limit=list_limit
-    )
+    analytics_intervals = await AnalyticsPerformanceRepo(session).list(shop_id, limit=list_limit)
     sync_state = await TikTokSyncStateRepo(session).load(shop_id)
     promotion_activity_present = _promotion_activity_partition_present(sync_state)
 
@@ -106,10 +104,7 @@ async def build_feature_aggregates(
     )
 
     ad_revenue_total = Decimal("0")
-    if (
-        promotion_activity_present
-        and computed_kpis.analytics_revenue_denominator is not None
-    ):
+    if promotion_activity_present and computed_kpis.analytics_revenue_denominator is not None:
         ad_revenue_total = computed_kpis.analytics_revenue_denominator
 
     profile_signals = ShopProfileSignals(

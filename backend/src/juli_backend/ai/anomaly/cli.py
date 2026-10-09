@@ -37,9 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Wrote metrics to {result.metrics_path}")
     for label in ("item_swap", "empty_return"):
         stats = per_class[label]
-        print(
-            f"  {label}: precision={stats['precision']:.4f} recall={stats['recall']:.4f}"
-        )
+        print(f"  {label}: precision={stats['precision']:.4f} recall={stats['recall']:.4f}")
     return 0
 
 

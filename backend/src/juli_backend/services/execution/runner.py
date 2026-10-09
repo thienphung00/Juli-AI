@@ -29,9 +29,7 @@ def is_tool_registered(name: str) -> bool:
 
 def run_tool(tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
     if tool_name in _ASYNC_REGISTRY:
-        raise RuntimeError(
-            f"Tool {tool_name} is async-only; use run_tool_async from the worker"
-        )
+        raise RuntimeError(f"Tool {tool_name} is async-only; use run_tool_async from the worker")
     handler = _REGISTRY.get(tool_name)
     if handler is None:
         raise ValueError(f"Unknown tool: {tool_name}")

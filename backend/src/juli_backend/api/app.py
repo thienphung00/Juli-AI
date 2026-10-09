@@ -20,6 +20,7 @@ from juli_backend.api.routes.demo_decisions import router as demo_decisions_rout
 from juli_backend.api.routes.demo_execution import router as demo_execution_router
 from juli_backend.api.routes.demo_rules import router as demo_rules_router
 from juli_backend.api.routes.demo_run_changes import router as demo_run_changes_router
+from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_router
 from juli_backend.api.routes.executions import router as executions_router
 from juli_backend.api.routes.orders import router as orders_router
 from juli_backend.api.routes.outcomes import router as outcomes_router
@@ -66,6 +67,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_decisions_router)
     v1_router.include_router(demo_execution_router)
     v1_router.include_router(demo_run_changes_router)
+    v1_router.include_router(demo_run_flows_router)
     v1_router.include_router(demo_rules_router)
     app.include_router(v1_router)
     # The diagnostic router is not mounted in production at all. Its own

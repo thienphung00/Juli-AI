@@ -64,6 +64,24 @@ from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.workers.tasks import agent_workflow
 
+
+@pytest.fixture(autouse=True)
+def _ordinary_runs_have_no_lever_flow(monkeypatch):
+    """These tests build ordinary runs on stand-in sessions (``object()``).
+
+    Fast track P10-B made ``_construct_runner`` ask whether a run is a
+    cover-image / promotion "lever flow" (a database read); for every run here
+    the answer is no, which is what this stub says without a database. The
+    lever-flow wiring itself is tested in ``test_lever_flows_*.py``.
+    """
+    from juli_backend.services import lever_flows
+
+    async def _no_flow(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(lever_flows, "wiring_for_run", _no_flow)
+
+
 MODULE_PATH = Path(inspect.getfile(agent_workflow))
 
 
@@ -179,6 +197,8 @@ class TestDefaultSeamsComposeRealCollaborators:
             # registered for the future generation capability.
             "inspect_product_image",
             "upload_product_image",
+            # Fast track P10-B: the read-only promotion check.
+            "find_product_promotions",
             "update_product_listing",
             "update_product_price",
             # ADR-088: the terminal tool must be in the PRODUCTION registry,

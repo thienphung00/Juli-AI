@@ -8,6 +8,8 @@ message (``RevertRefused``) when:
 2. the run has not finished;
 3. the run wrote nothing (no ``run_write_values`` rows);
 4. the run changed a price -- Juli never reverts prices on its own (D13);
+   a Seller Center promotion run (P10-B) is refused before that, with
+   ``seller_center``: Juli wrote nothing, the seller turns the promotion off;
 5. a revert of this run is already running, or already restored something;
 6. the live listing no longer holds Juli's after-value for a field it would
    restore -- someone changed it after Juli's write, and Juli does not
@@ -35,6 +37,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.lever_flows import FLOW_PROMOTION, RunLeverFlow
 from juli_backend.models.models import Product
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.run_changes import (
@@ -77,6 +80,9 @@ REFUSED_IN_PROGRESS = "revert_in_progress"
 REFUSED_ALREADY_REVERTED = "already_reverted"
 REFUSED_EXTERNAL_CHANGE = "external_change"
 REFUSED_LIVE_READ_FAILED = "live_read_failed"
+#: Fast track P10-B (contract §5): a Seller Center promotion run wrote nothing;
+#: the seller stops the promotion on Seller Center.
+REFUSED_SELLER_CENTER = "seller_center"
 
 _MESSAGES_VI: Mapping[str, str] = {
     REFUSED_IS_REVERT: (
@@ -93,6 +99,10 @@ _MESSAGES_VI: Mapping[str, str] = {
     REFUSED_LIVE_READ_FAILED: (
         "Juli không đọc được sản phẩm từ TikTok Shop lúc này nên chưa hoàn tác. "
         "Bạn thử lại sau ít phút."
+    ),
+    REFUSED_SELLER_CENTER: (
+        "Khuyến mãi này do bạn áp dụng trên Seller Center. Muốn dừng, bạn tắt khuyến mãi "
+        "trên Seller Center — Juli tự ghi nhận."
     ),
 }
 
@@ -209,12 +219,27 @@ async def _revert_restored_something(
     return found.scalar_one_or_none() is not None
 
 
+async def _is_promotion_run(session: AsyncSession, run: WorkflowRunRow) -> bool:
+    found = await session.execute(
+        select(RunLeverFlow.id)
+        .where(
+            RunLeverFlow.shop_id == run.shop_id,
+            RunLeverFlow.workflow_run_id == run.id,
+            RunLeverFlow.kind == FLOW_PROMOTION,
+        )
+        .limit(1)
+    )
+    return found.scalar_one_or_none() is not None
+
+
 async def revert_block_reason(
     session: AsyncSession, run: WorkflowRunRow, changes: list[FieldChange]
 ) -> str | None:
     """Why ``run`` cannot be reverted, before any live read; ``None`` if it can."""
     if run.reverts_run_id is not None:
         return REFUSED_IS_REVERT
+    if await _is_promotion_run(session, run):
+        return REFUSED_SELLER_CENTER
     if run.status in ACTIVE_STATUSES:
         return REFUSED_NOT_FINISHED
     if not changes:

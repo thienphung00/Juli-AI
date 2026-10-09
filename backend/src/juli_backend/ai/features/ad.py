@@ -35,12 +35,9 @@ def build_ad_features(manifest: dict[str, Any]) -> FeatureMatrix:
     window["cpc_vnd"] = window["cpc_vnd"].astype(float)
     window["roas"] = window["roas"].astype(float)
 
-    shop_baselines = (
-        window.groupby("shop_id", as_index=False)
-        .agg(
-            account_avg_roas_30d=("roas", "mean"),
-            account_spend_velocity_30d=("spend_vnd", "sum"),
-        )
+    shop_baselines = window.groupby("shop_id", as_index=False).agg(
+        account_avg_roas_30d=("roas", "mean"),
+        account_spend_velocity_30d=("spend_vnd", "sum"),
     )
 
     frame = window.merge(shop_baselines, on="shop_id", how="left")

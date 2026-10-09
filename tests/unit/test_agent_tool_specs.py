@@ -88,6 +88,11 @@ EXPECTED_DESCRIPTIONS: dict[str, str] = {
         "A photo dominated by promotional banners or price overlays is a finding even "
         "when the product shown is correct."
     ),
+    "find_product_promotions": (
+        "Look up, read-only, the promotions of one Seller Center type (product discount, "
+        "flash sale, shipping discount, buy more save more) that include the bound product. "
+        "Juli never creates or changes promotions; this only checks what the seller applied."
+    ),
     "upload_product_image": (
         "Screen and upload the seller-supplied candidate listing image staged for this "
         "run. The image is not applied to the listing until update_product_listing is "

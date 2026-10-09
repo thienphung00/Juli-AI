@@ -127,7 +127,7 @@ still-open question — see that module's own docstring.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
@@ -163,6 +163,7 @@ from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.agent.tools.product_write import (
     UpdateProductListingInput,
     UpdateProductPriceInput,
+    cover_replaced_image_uris,
 )
 
 
@@ -407,6 +408,7 @@ class ProductToolExecutor(DomainToolExecutor):
         write_value_recorder: WriteValueRecorder | None = None,
         restore_main_image_uris: tuple[str, ...] | None = None,
         revert_expected: Mapping[str, Any] | None = None,
+        on_image_staged: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__(
             registry=registry,
@@ -436,6 +438,9 @@ class ProductToolExecutor(DomainToolExecutor):
         self._restore_main_image_uris = restore_main_image_uris
         self._revert_expected = dict(revert_expected) if revert_expected else None
         self._before_raw: Mapping[str, Any] | None = None
+        # P10-B (contract §4): told the URI `upload_product_image` staged; the
+        # executor attaches it in this leg, the callback keeps it for the next.
+        self._on_image_staged = on_image_staged
 
     def _binding(self) -> ProductToolContext:
         """The `ProductToolContext` the product domain unwraps and hands to
@@ -452,7 +457,13 @@ class ProductToolExecutor(DomainToolExecutor):
             image_inspector=self._image_inspector,
             product_detail=self._product_detail,
             restore_main_image_uris=self._restore_main_image_uris,
+            on_image_staged=self._image_staged,
         )
+
+    def _image_staged(self, uri: str) -> None:
+        self._staged_image_uri = uri
+        if self._on_image_staged is not None:
+            self._on_image_staged(uri)
 
     def _captures_write(self, *, tool_name: str, spec: ToolSpec) -> bool:
         return (
@@ -469,7 +480,9 @@ class ProductToolExecutor(DomainToolExecutor):
             return {}
         intended: dict[str, Any] = {"title": params.title, "description": params.description}
         if params.attach_staged_image and self._staged_image_uri:
-            intended["main_images"] = [self._staged_image_uri]
+            intended["main_images"] = cover_replaced_image_uris(
+                self._staged_image_uri, self._product_detail
+            )
         elif self._restore_main_image_uris:
             intended["main_images"] = list(self._restore_main_image_uris)
         return intended

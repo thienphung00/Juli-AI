@@ -416,11 +416,17 @@ async def approve_action_card(
     # not allowed Juli to execute -- and every price/promotion lever (D13) --
     # is refused here, by the same predicate the decisions list uses for
     # `is_executable`.
-    from juli_backend.services import shop_rules
+    from juli_backend.services import lever_flows, shop_rules
 
     allowed_levers = await shop_rules.auto_levers(session, shop_id)
-    if not shop_rules.card_lever_allowed(
-        shop_rules.card_lever_code(card.recommendation_payload), allowed_levers
+    lever_code = shop_rules.card_lever_code(card.recommendation_payload)
+    # Fast track P10-B (contract §5): approving a Seller Center promotion card
+    # starts a guided run -- Juli checks the seller's rules, shows the steps and
+    # verifies the promotion read-only. It never writes one (D13), so these
+    # levers are approvable without being "executable".
+    if not (
+        shop_rules.card_lever_allowed(lever_code, allowed_levers)
+        or lever_flows.is_promotion_lever(lever_code)
     ):
         raise WorkflowNotExecutable(
             f"ActionCard {action_card_id}'s lever is not one this shop lets Juli execute"
@@ -465,6 +471,10 @@ async def approve_action_card(
     # subject)` surfaces as IntegrityError, in-transaction -- the caller
     # translates it to 409.
     await session.flush()
+
+    # Fast track P10-B: a cover-image or promotion card's run is a lever flow
+    # (it waits for the seller's photo / Seller Center action).
+    await lever_flows.register_flow(session, shop_id=shop_id, run_id=run.id, lever_code=lever_code)
 
     return ApprovalResult(
         run_id=run.id,

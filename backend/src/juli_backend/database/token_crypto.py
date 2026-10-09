@@ -33,9 +33,7 @@ def decrypt_token(stored_token: str) -> str:
 def _encryption_secret() -> str:
     secret = os.environ.get("TIKTOK_TOKEN_ENCRYPTION_KEY")
     if not secret:
-        raise RuntimeError(
-            "TIKTOK_TOKEN_ENCRYPTION_KEY must be configured"
-        )
+        raise RuntimeError("TIKTOK_TOKEN_ENCRYPTION_KEY must be configured")
     return secret
 
 

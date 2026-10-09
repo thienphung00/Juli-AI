@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.models import Product, RunConfirmation
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from juli_backend.services import lever_flows
 from juli_backend.services.agent_runs.confirmations import (
     PENDING_CONFIRMATION_STATUS,
     WAITING_APPROVAL_RUN_STATUS,
@@ -43,6 +44,9 @@ class RunListItem:
     running_seconds_elapsed: int
     latest_narration: str | None
     decision_summary: PendingDecision | None
+    #: Fast track P10-B (contract §4/§5): ``photo`` / ``seller_action`` while the
+    #: run waits for the seller, else ``None``.
+    awaiting: str | None = None
 
 
 async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) -> list[RunListItem]:
@@ -70,6 +74,7 @@ async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) ->
                 running_seconds_elapsed=run.running_seconds_elapsed,
                 latest_narration=await _latest_narration(session, run.id),
                 decision_summary=decision_summary,
+                awaiting=lever_flows.awaiting_of(run),
             )
         )
     return items
@@ -111,4 +116,19 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if isinstance(value, datetime) else None
 
 
-__all__ = ["PendingDecision", "RunListItem", "STATUS_EVENT_TYPE", "list_runs"]
+async def latest_narration(session: AsyncSession, run_id: uuid.UUID) -> str | None:
+    return await _latest_narration(session, run_id)
+
+
+async def pending_decision(session: AsyncSession, run_id: uuid.UUID) -> PendingDecision | None:
+    return await _pending_decision(session, run_id)
+
+
+__all__ = [
+    "PendingDecision",
+    "RunListItem",
+    "STATUS_EVENT_TYPE",
+    "latest_narration",
+    "list_runs",
+    "pending_decision",
+]

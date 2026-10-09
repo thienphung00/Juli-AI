@@ -2,17 +2,51 @@ import unicodedata
 from dataclasses import dataclass
 
 _POSITIVE_KEYWORDS: set[str] = {
-    "tốt", "tuyệt", "tuyệt vời", "đẹp", "thích", "ưng", "ưng ý",
-    "chất lượng cao", "xuất sắc", "hài lòng", "ổn", "nhanh",
-    "giá rẻ", "đáng mua", "yêu", "hay", "tốt lắm", "rất tốt",
-    "rất đẹp", "rất thích", "giao nhanh", "chất lượng",
+    "tốt",
+    "tuyệt",
+    "tuyệt vời",
+    "đẹp",
+    "thích",
+    "ưng",
+    "ưng ý",
+    "chất lượng cao",
+    "xuất sắc",
+    "hài lòng",
+    "ổn",
+    "nhanh",
+    "giá rẻ",
+    "đáng mua",
+    "yêu",
+    "hay",
+    "tốt lắm",
+    "rất tốt",
+    "rất đẹp",
+    "rất thích",
+    "giao nhanh",
+    "chất lượng",
 }
 
 _NEGATIVE_KEYWORDS: set[str] = {
-    "tệ", "xấu", "dở", "chán", "thất vọng", "kém", "hỏng",
-    "không tốt", "rẻ tiền", "chậm", "lỗi", "trả lại",
-    "quá tệ", "không mua", "không ưng", "dở tệ", "quá dở",
-    "không hài lòng", "mất tiền", "lừa đảo",
+    "tệ",
+    "xấu",
+    "dở",
+    "chán",
+    "thất vọng",
+    "kém",
+    "hỏng",
+    "không tốt",
+    "rẻ tiền",
+    "chậm",
+    "lỗi",
+    "trả lại",
+    "quá tệ",
+    "không mua",
+    "không ưng",
+    "dở tệ",
+    "quá dở",
+    "không hài lòng",
+    "mất tiền",
+    "lừa đảo",
 }
 
 
@@ -44,8 +78,11 @@ class SentimentResult:
 def analyze_comments(comments: list[str]) -> SentimentResult:
     if not comments:
         return SentimentResult(
-            total=0, positive_count=0, negative_count=0,
-            neutral_count=0, overall="neutral",
+            total=0,
+            positive_count=0,
+            negative_count=0,
+            neutral_count=0,
+            overall="neutral",
         )
 
     pos = neg = neu = 0

@@ -27,9 +27,7 @@ class WebhookSideEffects(Protocol):
 class NoopWebhookSideEffects:
     """Test/default side effects — no durable writes."""
 
-    async def on_catalog_event(
-        self, *, entry: CatalogEntry, event: TikTokWebhookPayload
-    ) -> None:
+    async def on_catalog_event(self, *, entry: CatalogEntry, event: TikTokWebhookPayload) -> None:
         return None
 
 
@@ -39,9 +37,7 @@ class DatabaseWebhookSideEffects:
 
     session: AsyncSession
 
-    async def on_catalog_event(
-        self, *, entry: CatalogEntry, event: TikTokWebhookPayload
-    ) -> None:
+    async def on_catalog_event(self, *, entry: CatalogEntry, event: TikTokWebhookPayload) -> None:
         shops = ShopsRepo(self.session)
         shop = await shops.get_by_tiktok_id(event.shop_id)
         if shop is None:

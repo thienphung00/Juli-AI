@@ -324,6 +324,8 @@ class WorkflowRunListItem(BaseModel):
     running_seconds_elapsed: int
     latest_narration: str | None = None
     decision_summary: PendingDecisionSummary | None = None
+    #: Fast track P10-B: ``photo`` / ``seller_action`` while waiting for the seller.
+    awaiting: str | None = None
 
 
 class WorkflowRunListResponse(BaseModel):
@@ -368,6 +370,7 @@ async def list_demo_runs(
                     if item.decision_summary is not None
                     else None
                 ),
+                awaiting=item.awaiting,
             )
             for item in items
         ]

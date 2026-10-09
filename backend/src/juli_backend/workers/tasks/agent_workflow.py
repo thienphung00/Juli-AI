@@ -608,18 +608,42 @@ async def _construct_runner(
     parameters here -- `_construct_runner`'s signature is unchanged, only
     what it builds by default (and its `async`-ness) is.
     """
+    from juli_backend.services import lever_flows as lever_flows_module
     from juli_backend.services import run_changes as run_changes_module
     from juli_backend.services.agent import composition as composition_module
     from juli_backend.services.agent import events as events_module
     from juli_backend.services.agent import runner as runner_module
 
     registry = _default_tool_registry()
+    concurrency_guard = runner_module.ConcurrencyGuard(
+        basis_snapshot=run.state.get("basis_snapshots", {})
+    )
+
+    def _product_detail():
+        return concurrency_guard.get_product_detail() or run.state.get("product_detail")
+
     # Fast track P8-C (ADR-109 d.9): a "Hoàn tác" run carries its plan in its
     # state. It is the same executor in a narrower mode -- the revert playbook
     # and a deterministic planner in place of the LLM; every event, the
     # CONFIRM pause and the ledger are unchanged.
     revert_plan = run_changes_module.revert_plan_from_state(run.state)
-    playbook = run_changes_module.REVERT_LISTING_PLAYBOOK if revert_plan else _playbook_for_run(run)
+    # Fast track P10-B: a cover-image or Seller Center promotion run (a "lever
+    # flow") is the same executor with its own playbook and deterministic
+    # planner, plus the seller's photo for the cover image.
+    flow = (
+        None
+        if revert_plan
+        else await lever_flows_module.wiring_for_run(
+            session, sync_session, run, product, product_detail=_product_detail
+        )
+    )
+    playbook = (
+        run_changes_module.REVERT_LISTING_PLAYBOOK
+        if revert_plan
+        else flow.playbook
+        if flow
+        else _playbook_for_run(run)
+    )
     # #1939: the ledger stamps this run's workflow key into every fresh
     # dispatch's `payload_json`, which is where `record_workflow_outcome` reads
     # it back from (`extract_workflow_id`). Referenced off the playbook, never
@@ -629,9 +653,6 @@ async def _construct_runner(
     # `workflow_runs.prompt_version`.
     ledger = runner_module.ToolExecutionLedger(
         sync_session, shop_id=run.shop_id, workflow_id=playbook.workflow_key
-    )
-    concurrency_guard = runner_module.ConcurrencyGuard(
-        basis_snapshot=run.state.get("basis_snapshots", {})
     )
     read_resources = await _default_read_resources(session, shop_id=run.shop_id)
     write_resources = await _default_write_resources(session)
@@ -658,6 +679,11 @@ async def _construct_runner(
         ),
         restore_main_image_uris=revert_plan.restore_main_image_uris if revert_plan else None,
         revert_expected=revert_plan.expected if revert_plan else None,
+        # P10-B: the seller's checked photo, the TikTok URI already staged from
+        # it (the consent's resume leg), and where a new staging is kept.
+        pending_image_bytes=flow.pending_image_bytes if flow else None,
+        staged_image_uri=flow.staged_image_uri if flow else None,
+        on_image_staged=flow.on_image_staged if flow else None,
     )
     conversation_store = runner_module.JsonbConversationStore(session)
     # #1890: PersistingEventSink now scopes its own per-emit session from a
@@ -681,9 +707,13 @@ async def _construct_runner(
         _shop_scoped_session_factory(run.shop_id), shop_id=run.shop_id
     )
 
-    return runner_module.WorkflowRunner(
+    runner = runner_module.WorkflowRunner(
         llm_service=(
-            run_changes_module.RevertPlanner(revert_plan) if revert_plan else _default_llm_service()
+            run_changes_module.RevertPlanner(revert_plan)
+            if revert_plan
+            else flow.planner
+            if flow
+            else _default_llm_service()
         ),
         tool_executor=tool_executor,
         event_sink=event_sink,
@@ -698,6 +728,22 @@ async def _construct_runner(
         # by the `basis_snapshot=` seed a few lines up on the resume leg.
         concurrency_guard=concurrency_guard,
     )
+    if flow is None:
+        return runner
+    return lever_flows_module.LeverFlowRunner(
+        runner,
+        session=session,
+        wiring=flow,
+        product_detail=_product_detail,
+        schedule_recheck=_schedule_lever_flow_recheck,
+    )
+
+
+def _schedule_lever_flow_recheck(run_id: uuid.UUID) -> None:
+    """P10-B: look for the seller's promotion again in 30 minutes."""
+    from juli_backend.services import lever_flows as lever_flows_module
+
+    resume_lever_flow.apply_async(args=[str(run_id)], countdown=lever_flows_module.RECHECK_DELAY_S)
 
 
 async def _next_sequence_number(session: AsyncSession, run_id: uuid.UUID) -> int:
@@ -925,6 +971,31 @@ async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
                 await _emit_crash_terminal_event(session, run_uuid, exc, shop_id=shop_id)
 
 
+async def _resume_lever_flow_async(run_id: str) -> None:
+    """Continue a run waiting on the seller (fast track P10-B): the photo arrived,
+    or "Tôi đã áp dụng" / a scheduled re-check. Same shell as the other two."""
+    factory = _ensure_session_factory()
+    async with factory() as session:
+        shop_id = await _resolve_run_shop_id(session, uuid.UUID(run_id))
+        async with (
+            with_sticky_shop_scope(session, shop_id),
+            _scoped_ledger_session(shop_id) as sync_session,
+        ):
+            try:
+                run, product = await _load_context(session, uuid.UUID(run_id))
+                runner = await _construct_runner(session, sync_session, run, product)
+                await runner.resume_after_external_wait(run.id)
+                await session.commit()
+            except Exception as exc:
+                run_uuid = uuid.UUID(run_id)
+                logger.exception(
+                    "lever_flow_resume_crashed",
+                    extra={"run_id": str(run_uuid)},
+                    exc_info=True,
+                )
+                await _emit_crash_terminal_event(session, run_uuid, exc, shop_id=shop_id)
+
+
 def run_agent_workflow_sync(run_id: str) -> None:
     asyncio.run(_run_agent_workflow_async(run_id))
 
@@ -949,3 +1020,18 @@ def resume_agent_workflow(run_id: str, approved: bool) -> None:
     runner; it does not itself validate or authorize it.
     """
     resume_agent_workflow_sync(run_id, approved=approved)
+
+
+def resume_lever_flow_sync(run_id: str) -> None:
+    asyncio.run(_resume_lever_flow_async(run_id))
+
+
+@celery_app.task(name="juli_backend.resume_lever_flow", acks_late=True, max_retries=1)
+def resume_lever_flow(run_id: str) -> None:
+    """Continue a cover-image / promotion run waiting on the seller (P10-B).
+
+    Enqueued by ``POST /v1/demo/runs/{id}/photo`` and ``/applied``, and by the
+    run itself 30 minutes after a promotion was not found yet. A run that is no
+    longer waiting is left alone (``LeverFlowRunner`` logs and returns).
+    """
+    resume_lever_flow_sync(run_id)

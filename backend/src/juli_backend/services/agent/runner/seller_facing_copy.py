@@ -63,6 +63,30 @@ _DIAGNOSES_NONE_SUMMARY = "Không có mã chẩn đoán"
 _DIAGNOSES_SHOWN_LABELS = 3
 _DIAGNOSES_UNAVAILABLE_SUMMARY = "Không đọc được chẩn đoán TikTok — tiếp tục với thông tin sản phẩm"
 
+_PROMOTIONS_TOOL = "find_product_promotions"
+_PROMOTIONS_UNAVAILABLE_SUMMARY = "Chưa đọc được khuyến mãi từ TikTok"
+
+
+def _short_date(value: object) -> str:
+    """``2026-10-09`` -> ``09/10``; anything else -> ``…``."""
+    if isinstance(value, str) and len(value) == 10 and value[4] == "-" and value[7] == "-":
+        return f"{value[8:10]}/{value[5:7]}"
+    return "…"
+
+
+def _promotions_summary(result: Mapping[str, Any]) -> str:
+    """P10-B: what the read-only promotion check found, in the seller's words."""
+    if result.get("unavailable") is True:
+        return _PROMOTIONS_UNAVAILABLE_SUMMARY
+    promotions = result.get("promotions")
+    if not isinstance(promotions, list) or not promotions:
+        return "Không có khuyến mãi loại này cho sản phẩm"
+    first = promotions[0] if isinstance(promotions[0], Mapping) else {}
+    label = first.get("type_label") if isinstance(first.get("type_label"), str) else "Khuyến mãi"
+    span = f"{_short_date(first.get('begin_date'))} → {_short_date(first.get('end_date'))}"
+    extra = f" (+{len(promotions) - 1})" if len(promotions) > 1 else ""
+    return f"Có: {label} · {span}{extra}"
+
 
 def tool_completed_summary(tool_name: str, result: Mapping[str, Any]) -> str:
     """The seller-facing `ToolCompletedPayload.summary` for a successful tool.
@@ -73,6 +97,8 @@ def tool_completed_summary(tool_name: str, result: Mapping[str, Any]) -> str:
     never a raw code or vendor text. Anything unexpected falls back to
     `Hoàn tất` -- a summary must never fail a run.
     """
+    if tool_name == _PROMOTIONS_TOOL:
+        return _promotions_summary(result)
     if tool_name != _DIAGNOSES_TOOL:
         return SellerFacingCompletionReason.COMPLETED.value
     if result.get("unavailable") is True:

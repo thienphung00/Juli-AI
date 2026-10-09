@@ -101,9 +101,7 @@ def rank_workflow_recommendations(
         recommended_workflows=[
             WorkflowRecommendation(
                 workflow_key=item.workflow_key,
-                workflow_name=WORKFLOW_DISPLAY_NAMES.get(
-                    item.workflow_key, item.workflow_key
-                ),
+                workflow_name=WORKFLOW_DISPLAY_NAMES.get(item.workflow_key, item.workflow_key),
                 priority=index + 1,
                 rationale=item.rationale,
                 expected_impact=item.expected_impact,

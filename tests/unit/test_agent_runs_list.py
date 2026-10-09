@@ -33,6 +33,8 @@ RUN_LIST_FIELDS = {
     "running_seconds_elapsed",
     "latest_narration",
     "decision_summary",
+    # Fast track P10-B (contract §4/§5): what the seller must do, or null.
+    "awaiting",
 }
 
 # (stop_reason, status) -- every terminal pair the check constraint allows,

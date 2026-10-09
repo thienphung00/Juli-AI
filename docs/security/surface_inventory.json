@@ -129,6 +129,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/photos/{shop_id}/{token}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/demo/revert-questions",
       "methods": [
         "GET"
@@ -177,6 +185,22 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/runs/{run_id}",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/applied",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/runs/{run_id}/cancel",
       "methods": [
         "POST"
@@ -212,6 +236,30 @@
       "path": "/v1/demo/runs/{run_id}/events",
       "methods": [
         "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/instructions",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/measurement",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/photo",
+      "methods": [
+        "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": true
@@ -316,6 +364,14 @@
     },
     {
       "name": "conclude_without_changes",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "find_product_promotions",
       "classification": "read",
       "policy": "auto",
       "playbooks": [

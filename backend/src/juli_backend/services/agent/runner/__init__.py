@@ -83,6 +83,7 @@ from juli_backend.services.agent.runner.conversation_store import (
 )
 from juli_backend.services.agent.runner.core import (
     ExternalWaitNotPermitted,
+    NoExternalWaitError,
     NoPendingConfirmationError,
     RunResult,
     WorkflowRunner,
@@ -143,6 +144,7 @@ __all__ = [
     "ConversationStore",
     "DomainToolExecutor",
     "ExternalWaitNotPermitted",
+    "NoExternalWaitError",
     "IterationGate",
     "IterationGateAction",
     "JsonbConversationStore",

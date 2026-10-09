@@ -169,6 +169,17 @@ def _policy_for_run(run: WorkflowRun) -> TerminationPolicy | None:
     other workflow's numbers". See the module docstring's "A run whose key
     is not registered is LEFT ALONE, loudly."
     """
+    # Fast track P10-B: a cover-image / promotion run shares Optimize Product's
+    # workflow key but waits under its own flow's clock (3 days for the photo).
+    # `external_wait_reason` names the flow; it outlives the wait, which is fine
+    # here because the approval sweep reads the same approval timeout either way.
+    from juli_backend.services import lever_flows as _lever_flows
+
+    flow_policy = _lever_flows.termination_policy_for_wait(
+        getattr(run, "external_wait_reason", None)
+    )
+    if flow_policy is not None:
+        return flow_policy
     try:
         return _agent_playbooks.get_termination_policy(run.workflow_key)
     except UnregisteredWorkflowError:

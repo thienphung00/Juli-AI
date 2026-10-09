@@ -44,7 +44,7 @@ import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from PIL import Image
@@ -332,6 +332,8 @@ def _sample_value(annotation: Any) -> Any:
     origin = getattr(annotation, "__origin__", None)
     if origin is list:
         return [_sample_value(annotation.__args__[0])]
+    if origin is Literal:
+        return annotation.__args__[0]
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         return _sample_params(annotation)
     if annotation is bool:

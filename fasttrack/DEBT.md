@@ -431,3 +431,68 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `groupStages`/`runStages` only used by tests. Remove at merge.
 - [ ] One vitest run (of five) failed once under load in the full suite; not
   reproduced in four reruns. Watch for a flaky async test in quyet-dinh*.
+
+## P10-B — cover-image flow, promotion flow, measurement (AC-10.2)
+
+- [ ] Photo checks: "plain background" and "product ≥ 70 % of frame" are
+  heuristics (`services/lever_flows/photo_checks.py`, `heuristic: true` on the
+  check): border-strip median colour (≥ 90 % of border pixels within 28/255)
+  and the bounding box of pixels > 40/255 away from it, on its longer side
+  (≥ 0.70). A product on a matching-colour background, a busy product that
+  touches the border, or a soft gradient can be misjudged — replace with a
+  segmentation model (or the vision inspector) once there are real rejects to
+  tune on.
+- [ ] Cover-image consent order follows ADR-069: `upload_product_image` stages
+  the photo on TikTok (not visible on the listing) BEFORE the consent, and the
+  CONFIRM is on `update_product_listing` (the step that changes the listing).
+  A declined consent leaves an unattached image in the shop's TikTok media.
+- [ ] The listing's current cover ("before") is fetched by the worker from
+  TikTok's CDN (https + allowlisted `*.ibyteimg.com` / `*.tiktokcdn*.com` /
+  `*.byteimg.com` / `*.ttwstatic.com`, no redirects, ≤ 5 MB) — the host list
+  is from observed URLs, not a TikTok spec; a new CDN host means "before"
+  shows as unavailable (logged, not fatal).
+- [ ] Photos are served at `/v1/demo/photos/{shop_id}/{token}` without the
+  auth header (an `<img>` cannot send one): the 32-byte random token is the
+  capability, never expires, and bytes live in Postgres (`run_lever_photos`,
+  ≤ 5 MB each). Move to object storage with signed, expiring URLs before this
+  sees volume; add a retention job.
+- [ ] Multipart is parsed with the standard library's MIME parser (no
+  `python-multipart` dependency); the body is read whole (≤ 5 MB + 64 KB,
+  checked from Content-Length first).
+- [ ] Seller Center deep link: every promotion type opens the marketing-tools
+  management page (`https://seller-vn.tiktok.com/promotion/marketing-tools/management`);
+  per-tool create URLs are not published — verify the path in a real shop and
+  link each tool directly.
+- [ ] Promotion proposal rules are mine where the spec is silent: lowest SKU
+  price; unset margin floor = 0 % (never below cost); unset cap = margin
+  headroom alone; ≤ 50 %; shipping discount = price × d rounded down to
+  1.000 ₫, at most 30.000 ₫, for orders from the price; flash sale = same
+  price, "a slot within 7 days"; durations 30 / 7 / 14 / 30 days. The card
+  pipeline does not yet carry a structured proposed discount.
+- [ ] Promotion verification is a fixed Search Activities page (100 per type)
+  + Get Activity for up to 20 candidates; vouchers (coupons) are not searched,
+  so a shipping discount created as a voucher is "not found". The "new"
+  promotion is told apart from one that already existed by an opaque ref of
+  the activity id. Read-only endpoints unverified live for a seller shop.
+- [ ] Re-checks: each "Tôi đã áp dụng" resumes the run; a not-found schedules
+  a Celery countdown re-check every 30 min while `verify_attempts < 4`; at most
+  12 checks per run. A click and a scheduled re-check racing each other: the
+  second finds the run not waiting (or waiting again) and is a no-op / one more
+  check — no lock.
+- [ ] The impact reader does not measure promotion runs (no WRITE
+  `tool_executions` row): their measurement stage follows the calendar from
+  `measurement_start`, values are computed at request time, no
+  `impact_readings` rows, no day-7 "Hoàn tác?" question (Seller Center:
+  the seller turns the promotion off).
+- [ ] Measurement: daily averages from `analytics_performance_intervals`
+  (rates pooled), GMV thực tế = GMV/day after − before, NOT control-adjusted
+  (the impact reader's DiD readings store rates at 2 decimals, too coarse for
+  CTOR); "too little data" = < 10 of 14 post days, < 7 pre days or < 20 orders
+  after; "đang tiến triển" from current + 20 % of the gap; calibration moves
+  a quarter of the way to realised ÷ expected (clamped 0..2). All mine — tune
+  with the first real readings.
+- [ ] Calibration is stored per shop and lever (`lever_calibrations`) but not
+  yet read by the ranking (P10-A / P3 consumer).
+- [ ] The day-14 verdict is computed lazily by the first
+  `GET .../measurement` at the final stage (a GET that writes once), not by a
+  job — a run nobody opens is never calibrated.

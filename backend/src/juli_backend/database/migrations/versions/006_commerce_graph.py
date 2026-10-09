@@ -31,21 +31,13 @@ def upgrade() -> None:
         ),
         sa.Column("predicted_gmv", sa.Numeric(precision=18, scale=2), nullable=True),
         sa.Column("realized_gmv", sa.Numeric(precision=18, scale=2), nullable=True),
-        sa.Column(
-            "predicted_conversion", sa.Numeric(precision=10, scale=4), nullable=True
-        ),
-        sa.Column(
-            "realized_conversion", sa.Numeric(precision=10, scale=4), nullable=True
-        ),
+        sa.Column("predicted_conversion", sa.Numeric(precision=10, scale=4), nullable=True),
+        sa.Column("realized_conversion", sa.Numeric(precision=10, scale=4), nullable=True),
         sa.Column("idempotency_key", sa.String(length=255), nullable=True),
         sa.Column("started_at", sa.DateTime(), nullable=True),
         sa.Column("completed_at", sa.DateTime(), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["creator_id"], ["creators.id"]),
         sa.ForeignKeyConstraint(["shop_id"], ["shops.id"]),
         sa.PrimaryKeyConstraint("id"),
@@ -71,18 +63,12 @@ def upgrade() -> None:
         sa.Column("weight", sa.Numeric(precision=10, scale=6), nullable=True),
         sa.Column("metadata_json", sa.Text(), nullable=True),
         sa.Column("computed_at", sa.DateTime(), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
-        ),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["shop_id"], ["shops.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        "ix_graph_edges_shop_type", "graph_edges", ["shop_id", "edge_type"]
-    )
+    op.create_index("ix_graph_edges_shop_type", "graph_edges", ["shop_id", "edge_type"])
     op.create_index(
         "ix_graph_edges_natural_key",
         "graph_edges",

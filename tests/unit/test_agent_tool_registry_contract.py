@@ -73,6 +73,8 @@ EXPECTED_OPTIMIZE_PRODUCT_CAPABILITIES = frozenset(
         "get_product_information",
         "get_seo_keywords",
         "check_product_status",
+        # Fast track P10-B: the read-only promotion check (contract §5).
+        "find_product_promotions",
         "upload_product_image",
         "update_product_listing",
         "update_product_price",
@@ -99,6 +101,7 @@ AGENT_CAPABILITY_TO_CATALOG_WORKFLOW_KEY: dict[str, str] = {
     # capability, granted by no playbook (see _SHARED_TOOL_NAMES).
     "inspect_product_image": "optimize_product_2",
     "upload_product_image": "optimize_product_2",
+    "find_product_promotions": "optimize_product_2",
     "update_product_listing": "optimize_product_2",
     "update_product_price": "optimize_product_2",
 }

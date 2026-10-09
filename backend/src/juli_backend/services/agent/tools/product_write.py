@@ -150,13 +150,30 @@ def handle_upload_product_image(
             "upload_product_image called with no pending_image_bytes staged in run context"
         )
     screened_bytes, safe_filename = screen_and_reencode_image(context.pending_image_bytes)
-    resources.products.upload_product_image(image_bytes=screened_bytes, filename=safe_filename)
-    # The raw response (including its vendor asset URI) is intentionally
-    # discarded here rather than returned: propagating it into the next
-    # call's ProductToolContext.staged_image_uri is per-run server-side
-    # state construction, the run executor's job (ADR-073 / W3-A) — the
-    # model itself never sees the URI (ADR-070 decision 2).
+    response = resources.products.upload_product_image(
+        image_bytes=screened_bytes, filename=safe_filename
+    )
+    # The raw response (including its vendor asset URI) is never returned to
+    # the model (ADR-070 decision 2). Fast track P10-B: the URI goes to the
+    # executor through `on_image_staged`, server-side, so the listing write
+    # after the seller's consent can attach it.
+    uri = _staged_uri(response)
+    if context.on_image_staged is not None:
+        if not uri:
+            raise UnresolvedStagedImageError(
+                "upload_product_image: TikTok's response carries no image uri"
+            )
+        context.on_image_staged(uri)
     return UploadProductImageOutput(staged=True)
+
+
+def _staged_uri(response: object) -> str | None:
+    if not isinstance(response, Mapping):
+        return None
+    data = response.get("data")
+    source = data if isinstance(data, Mapping) else response
+    uri = source.get("uri")
+    return str(uri) if uri else None
 
 
 UPLOAD_PRODUCT_IMAGE_SPEC = ToolSpec(
@@ -243,6 +260,23 @@ def _extract_main_image_refs(product_detail: Mapping[str, Any]) -> list[dict[str
     return refs
 
 
+def cover_replaced_image_uris(
+    staged_image_uri: str, product_detail: Mapping[str, Any] | None
+) -> list[str]:
+    """The staged image as the new cover, the listing's other photos kept in order.
+
+    Fast track P10-B (ADR-109 Amendment 1 d.3, "Ảnh bìa"): the seller's photo
+    replaces the first main image only; dropping the rest of the gallery would
+    be a change nobody approved.
+    """
+    others: list[str] = []
+    images = (product_detail or {}).get("main_images") or []
+    for image in list(images)[1:]:
+        if isinstance(image, Mapping) and image.get("uri"):
+            others.append(str(image["uri"]))
+    return [staged_image_uri, *[uri for uri in others if uri != staged_image_uri]]
+
+
 def _build_listing_edit_body(
     params: UpdateProductListingInput, context: ProductToolContext
 ) -> dict[str, Any]:
@@ -317,7 +351,10 @@ def _build_listing_edit_body(
                 "update_product_listing called with attach_staged_image=True but no "
                 "staged_image_uri in run context"
             )
-        body["main_images"] = [{"uri": context.staged_image_uri}]
+        body["main_images"] = [
+            {"uri": uri}
+            for uri in cover_replaced_image_uris(context.staged_image_uri, context.product_detail)
+        ]
     elif context.restore_main_image_uris:
         # Fast track P8-C: a "Hoàn tác" run puts back the photos the listing
         # had before Juli's write (server-held URIs, see ProductToolContext).

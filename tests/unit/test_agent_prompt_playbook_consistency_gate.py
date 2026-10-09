@@ -123,6 +123,12 @@ _SHARED_TOOL_NAMES: frozenset[str] = frozenset(
         # stage bytes, and marked shared here rather than deleted so removing it is
         # a deliberate decision rather than a side effect of this fix.
         "upload_product_image",
+        # Fast track P10-B: the read-only promotion check is granted only by
+        # `services/lever_flows`'s PROMOTION_PLAYBOOK -- a deterministic mode of
+        # Optimize Product (like P8-C's revert playbook), never the LLM's
+        # playbook. (`upload_product_image` is likewise granted by the P10-B
+        # PHOTO_PLAYBOOK, which stages the seller's photo.)
+        "find_product_promotions",
     }
 )
 
@@ -287,8 +293,8 @@ def test_the_real_registry_and_the_one_real_playbook_agree_on_six_tools():
     playbook_tool_names = _playbook_tool_names(OPTIMIZE_PRODUCT_PLAYBOOK)
     assert registered_tool_names - playbook_tool_names == _SHARED_TOOL_NAMES
     assert playbook_tool_names - registered_tool_names == frozenset()
-    assert _SHARED_TOOL_NAMES == frozenset({"upload_product_image"})
-    assert len(registered_tool_names) == 8
+    assert _SHARED_TOOL_NAMES == frozenset({"upload_product_image", "find_product_promotions"})
+    assert len(registered_tool_names) == 9
 
 
 class TestReverseDirectionDrift:

@@ -74,6 +74,5 @@ def assert_anomaly_input_columns(
             )
         if extra:
             raise FeatureValidationError(
-                f"{frame_name}.parquet contains non-canonical columns: "
-                f"{', '.join(sorted(extra))}"
+                f"{frame_name}.parquet contains non-canonical columns: {', '.join(sorted(extra))}"
             )
