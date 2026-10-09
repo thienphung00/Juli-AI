@@ -243,14 +243,10 @@ test("signed-in: bands gate → rules editor → Duyệt 2 thẻ → SSE timelin
   const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(scroll).toBeLessThanOrEqual(inner);
 
-  // AC-10.3: not-yet-reached stages / steps keep the artboards' greyed #8a8a94
-  // (Run.dc.html) — inactive content, WCAG 1.4.3's "inactive component"
-  // exception; tracked in fasttrack/DEBT.md for the owner.
+  // AC-10.3: not-yet-reached stages / steps use #6b6b76 instead of the
+  // artboards' #8a8a94 so they pass WCAG AA too (owner decision, 2026-10-09).
   const results = await new AxeBuilder({ page })
     .include(".qd-page")
-    .exclude(".qv-stage--todo")
-    .exclude(".qv-step--upcoming .qv-step__label")
-    .exclude(".qv-step--skipped .qv-step__label")
     .withTags(["wcag2a", "wcag2aa"])
     .analyze();
   const blocking = results.violations.filter((v) => v.impact === "critical" || v.impact === "serious");

@@ -420,10 +420,9 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   (`/decisions?tab=…`) `router.replace` never commits; `DecisionsPageClient`
   now follows the requested href itself, but the URL bar may lag in that
   case. Root-cause (Next 16 static page + useSearchParams) before merge.
-- [ ] a11y: the artboards' greyed not-yet-reached stage chips / step labels
-  (#8a8a94 on #f0eef0 / white, ~3.3:1) fail AA contrast; kept for fidelity
-  and excluded from the e2e axe check as inactive content. Owner to confirm
-  or darken.
+- [x] (owner 2026-10-09: darken) a11y: the artboards' greyed not-yet-reached stage chips / step labels
+  (#8a8a94 on #f0eef0 / white, ~3.3:1) failed AA contrast; `--qd-faint` is now
+  #6b6b76 and the e2e axe check no longer excludes them.
 - [ ] Photo consent captions are "Hiện tại" / "Mới" only (the artboard adds
   size and background, which the contract does not carry).
 - [ ] Old P8-F CSS (`.qd-card`, `.qd-run`, `.qd-step`, `.qd-queue`, …) in

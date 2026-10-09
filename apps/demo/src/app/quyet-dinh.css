@@ -14,7 +14,7 @@
   --qd-ink-3: #3a3a44;
   --qd-muted: #5f5f6b;
   --qd-muted-2: #6b6b76;
-  --qd-faint: #8a8a94;
+  --qd-faint: #6b6b76; /* artboards use #8a8a94 (3.3:1); owner chose AA, 2026-10-09 */
   --qd-pink: #b0386a;
   --qd-pink-hover: #8a2a52;
   --qd-pink-button: #c2306d;
