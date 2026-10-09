@@ -73,9 +73,7 @@ def _parse_iso_dates(values: list[str]) -> tuple[str | None, str | None]:
 
 def _compute_split_boundaries(order_dates: list[str], train_ratio: float = 0.8) -> dict[str, str]:
     timestamps = [
-        datetime.fromisoformat(value.replace("Z", "+00:00"))
-        for value in order_dates
-        if value
+        datetime.fromisoformat(value.replace("Z", "+00:00")) for value in order_dates if value
     ]
     if not timestamps:
         today = datetime.now(UTC).date().isoformat()

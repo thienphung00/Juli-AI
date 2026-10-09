@@ -22,9 +22,7 @@ _WEIGHTS = {
 }
 
 
-async def _shop_averages(
-    session: AsyncSession, shop_id: uuid.UUID
-) -> dict[str, float]:
+async def _shop_averages(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, float]:
     """Compute historical per-stream averages for the shop."""
     stmt = select(Livestream).where(
         Livestream.shop_id == shop_id,
@@ -80,21 +78,22 @@ def _sigmoid_scale(raw: float, midpoint: float) -> float:
     return 100.0 / (1.0 + math.exp(-3.0 * x))
 
 
-async def score_livestream(
-    session: AsyncSession, livestream_id: uuid.UUID
-) -> LivestreamScore:
+async def score_livestream(session: AsyncSession, livestream_id: uuid.UUID) -> LivestreamScore:
     ls = await session.get(Livestream, livestream_id)
     if ls is None:
         return LivestreamScore(grade=0, breakdown={})
 
     viewers = ls.viewer_count or 0
     if viewers == 0:
-        return LivestreamScore(grade=0, breakdown={
-            "revenue_per_viewer": 0.0,
-            "conversion_rate": 0.0,
-            "revenue_vs_avg": 0.0,
-            "duration_efficiency": 0.0,
-        })
+        return LivestreamScore(
+            grade=0,
+            breakdown={
+                "revenue_per_viewer": 0.0,
+                "conversion_rate": 0.0,
+                "revenue_vs_avg": 0.0,
+                "duration_efficiency": 0.0,
+            },
+        )
 
     revenue = float(ls.revenue or 0)
     orders = ls.order_count or 0
@@ -118,9 +117,7 @@ async def score_livestream(
         "duration_efficiency": _sigmoid_scale(rph, avgs["avg_rph"]),
     }
 
-    weighted = sum(
-        sub_scores[k] * _WEIGHTS[k] for k in _WEIGHTS
-    )
+    weighted = sum(sub_scores[k] * _WEIGHTS[k] for k in _WEIGHTS)
     grade = max(0, min(100, int(round(weighted))))
 
     return LivestreamScore(grade=grade, breakdown=sub_scores)

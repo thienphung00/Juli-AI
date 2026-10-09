@@ -626,6 +626,8 @@ async def get_price_direction_suggestion(
 
     # No strong signal -> no recommendation
     return None
+
+
 @dataclass
 class ProductRecommendation:
     """A product recommendation with trend-based classification."""

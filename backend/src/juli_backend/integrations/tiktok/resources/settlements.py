@@ -30,13 +30,17 @@ class SettlementsResource:
         page_size: int | None = None,
         page_token: str | None = None,
     ) -> dict[str, Any]:
-        params = strip_nones({
-            "sort_field": "statement_time",
-            "statement_time_ge": str(settle_time_from) if settle_time_from is not None else None,
-            "statement_time_lt": str(settle_time_to) if settle_time_to is not None else None,
-            "page_size": str(page_size) if page_size is not None else None,
-            "page_token": page_token,
-        })
+        params = strip_nones(
+            {
+                "sort_field": "statement_time",
+                "statement_time_ge": str(settle_time_from)
+                if settle_time_from is not None
+                else None,
+                "statement_time_lt": str(settle_time_to) if settle_time_to is not None else None,
+                "page_size": str(page_size) if page_size is not None else None,
+                "page_token": page_token,
+            }
+        )
         parsed = coerce_model(
             FinanceStatementsData,
             self._client.get(
@@ -54,11 +58,15 @@ class SettlementsResource:
         settle_time_to: int | None = None,
         page_size: int = 50,
     ) -> list[dict[str, Any]]:
-        params = strip_nones({
-            "sort_field": "statement_time",
-            "statement_time_ge": str(settle_time_from) if settle_time_from is not None else None,
-            "statement_time_lt": str(settle_time_to) if settle_time_to is not None else None,
-        })
+        params = strip_nones(
+            {
+                "sort_field": "statement_time",
+                "statement_time_ge": str(settle_time_from)
+                if settle_time_from is not None
+                else None,
+                "statement_time_lt": str(settle_time_to) if settle_time_to is not None else None,
+            }
+        )
         raw_items = self._client.get_all_pages_get(
             FINANCE_STATEMENTS_PATH,
             params=params,

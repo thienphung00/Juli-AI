@@ -362,6 +362,13 @@ class NoPendingConfirmationError(RuntimeError):
     """
 
 
+class NoExternalWaitError(RuntimeError):
+    """Raised by `WorkflowRunner.resume_after_external_wait` when the loaded
+    `RunState` is not waiting on the world (fast track P10-B) -- a second
+    resume of a run another worker already resumed, or a caller bug. Never a
+    silent no-op."""
+
+
 class ExternalWaitNotPermitted(RuntimeError):
     """Raised by `WorkflowRunner.enter_external_wait` when the active
     `Playbook`'s `TerminationPolicy.external_wait_timeout_h` is `None`
@@ -1147,7 +1154,9 @@ class WorkflowRunner:
             tool_definitions=tool_definitions,
         )
 
-    async def enter_external_wait(self, workflow_run_id: uuid.UUID, *, reason: str) -> RunResult:
+    async def enter_external_wait(
+        self, workflow_run_id: uuid.UUID, *, reason: str, narration: str | None = None
+    ) -> RunResult:
         """Suspend this run on the WORLD, under its own workflow's clock
         (issue #1706, W9-A/P-SHARED-6; ADR-091 decision 4, ADR-093 d.2).
 
@@ -1195,12 +1204,14 @@ class WorkflowRunner:
         #1706 is not optional: without it this method would be a way to
         strand a run permanently.
 
-        No event is emitted. `waiting_external` is not a failure-class
-        status (`status.py`'s total mapping sends
+        No terminal event is emitted. `waiting_external` is not a
+        failure-class status (`status.py`'s total mapping sends
         `paused_for_external_wait` to it), so no `workflow.failed` follows,
-        and there is no `workflow.approval_required` analogue to emit
-        because there is nobody to ask -- the seller-facing record of the
-        wait is #1713's act record, not an event on this stream.
+        and there is no `workflow.approval_required` analogue to emit.
+        Fast track P10-B: when the wait is on the SELLER (a photo, a
+        promotion applied on Seller Center) the caller passes `narration`,
+        and one ordinary `workflow.status` event carries it ("Đang chờ ảnh từ
+        bạn") -- the existing event type, no new one.
         """
         policy = self._playbook.termination_policy
         if policy.external_wait_timeout_h is None:
@@ -1218,6 +1229,13 @@ class WorkflowRunner:
 
         state = await self._conversation_store.load(workflow_run_id)
         state.external_wait_reason = reason
+        if narration:
+            await self._emit(
+                workflow_run_id,
+                state,
+                WorkflowStatusEvent,
+                WorkflowStatusPayload(phase_narration=narration),
+            )
         stop_reason = StopReason.PAUSED_FOR_EXTERNAL_WAIT
         status = status_for(stop_reason)
         # Issue #1653: the rollup rides the SAME persist call as
@@ -1250,6 +1268,47 @@ class WorkflowRunner:
             prompt_version=state.prompt_version or "",
             prompt_sha256=state.prompt_sha256 or "",
             iteration_count=state.iteration_count,
+        )
+
+    async def resume_after_external_wait(self, workflow_run_id: uuid.UUID) -> RunResult:
+        """Continue a run that was waiting on the world (fast track P10-B).
+
+        The counterpart of `resume()` for `enter_external_wait`: the seller's
+        photo arrived, or the seller says the promotion is applied. Loads a
+        fresh `RunState`, clears `external_wait_reason`, persists `running`
+        durably (same reason as `resume()`: a crash after this point must be
+        reaped as a stale running run, not left waiting), then re-enters
+        `_drive_loop` at the prompt version the run was stamped with. Raises
+        `NoExternalWaitError` when the run is not waiting -- a duplicate resume
+        must not run the loop twice.
+        """
+        state = await self._conversation_store.load(workflow_run_id)
+        if state.external_wait_reason is None:
+            raise NoExternalWaitError(
+                f"WorkflowRunner.resume_after_external_wait: run {workflow_run_id} "
+                "is not waiting on the world."
+            )
+        state.external_wait_reason = None
+        await self._conversation_store.persist(
+            workflow_run_id,
+            state,
+            status=WorkflowRunStatus.RUNNING,
+            running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+            durable=True,
+        )
+        if state.prompt_version is None:
+            system_prompt, version_str, sha256 = self._compose_prompt()
+        else:
+            system_prompt, version_str, sha256 = self._compose_prompt_at_version(
+                state.prompt_version
+            )
+        return await self._drive_loop(
+            workflow_run_id,
+            state,
+            system_prompt=system_prompt,
+            version_str=version_str,
+            sha256=sha256,
+            tool_definitions=self._tool_definitions(),
         )
 
     async def _drive_loop(
@@ -2319,6 +2378,7 @@ class WorkflowRunner:
 
 __all__ = [
     "ExternalWaitNotPermitted",
+    "NoExternalWaitError",
     "NoPendingConfirmationError",
     "RunResult",
     "WorkflowRunner",

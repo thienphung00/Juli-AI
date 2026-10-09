@@ -12,33 +12,19 @@ class ToolRouteEntry:
 
 
 WORKFLOW_TOOL_CATALOG: dict[str, ToolRouteEntry] = {
-    "create_hero_product_1": ToolRouteEntry(
-        "create_hero_product_1", "listing.create_hero_product"
-    ),
+    "create_hero_product_1": ToolRouteEntry("create_hero_product_1", "listing.create_hero_product"),
     "optimize_product_2": ToolRouteEntry("optimize_product_2", "listing.optimize_product"),
-    "replenish_inventory_3": ToolRouteEntry(
-        "replenish_inventory_3", "inventory.replenish"
-    ),
+    "replenish_inventory_3": ToolRouteEntry("replenish_inventory_3", "inventory.replenish"),
     "clear_excess_4": ToolRouteEntry("clear_excess_4", "inventory.clear_excess"),
     "process_order_5": ToolRouteEntry("process_order_5", "fulfillment.process_order"),
-    "create_activity_7a": ToolRouteEntry(
-        "create_activity_7a", "promotion.create_activity"
-    ),
-    "update_activity_7c": ToolRouteEntry(
-        "update_activity_7c", "promotion.update_activity"
-    ),
-    "delete_activity_7b": ToolRouteEntry(
-        "delete_activity_7b", "promotion.delete_activity"
-    ),
+    "create_activity_7a": ToolRouteEntry("create_activity_7a", "promotion.create_activity"),
+    "update_activity_7c": ToolRouteEntry("update_activity_7c", "promotion.update_activity"),
+    "delete_activity_7b": ToolRouteEntry("delete_activity_7b", "promotion.delete_activity"),
     "prevent_cancellation_8a": ToolRouteEntry(
         "prevent_cancellation_8a", "returns.prevent_cancellation"
     ),
-    "prevent_return_8b": ToolRouteEntry(
-        "prevent_return_8b", "returns.prevent_return"
-    ),
-    "prevent_refund_8c": ToolRouteEntry(
-        "prevent_refund_8c", "returns.prevent_refund"
-    ),
+    "prevent_return_8b": ToolRouteEntry("prevent_return_8b", "returns.prevent_return"),
+    "prevent_refund_8c": ToolRouteEntry("prevent_refund_8c", "returns.prevent_refund"),
 }
 
 

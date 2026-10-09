@@ -39,9 +39,7 @@ def _moving_average_stats(values: list[float], window: int = 7) -> tuple[float, 
     return _compute_stats(recent)
 
 
-async def detect_anomalies(
-    session: AsyncSession, shop_id: uuid.UUID
-) -> list[Anomaly]:
+async def detect_anomalies(session: AsyncSession, shop_id: uuid.UUID) -> list[Anomaly]:
     stmt = (
         select(Livestream)
         .where(Livestream.shop_id == shop_id)
@@ -78,23 +76,27 @@ async def detect_anomalies(
 
             if stddev == 0:
                 if current != mean:
-                    anomalies.append(Anomaly(
-                        metric=metric_name,
-                        current_value=current,
-                        mean=mean,
-                        deviation_sigma=float("inf"),
-                        livestream_id=stream.id,
-                    ))
+                    anomalies.append(
+                        Anomaly(
+                            metric=metric_name,
+                            current_value=current,
+                            mean=mean,
+                            deviation_sigma=float("inf"),
+                            livestream_id=stream.id,
+                        )
+                    )
                 continue
 
             sigma = abs(current - mean) / stddev
             if sigma >= _ANOMALY_SIGMA_THRESHOLD:
-                anomalies.append(Anomaly(
-                    metric=metric_name,
-                    current_value=current,
-                    mean=mean,
-                    deviation_sigma=sigma,
-                    livestream_id=stream.id,
-                ))
+                anomalies.append(
+                    Anomaly(
+                        metric=metric_name,
+                        current_value=current,
+                        mean=mean,
+                        deviation_sigma=sigma,
+                        livestream_id=stream.id,
+                    )
+                )
 
     return anomalies

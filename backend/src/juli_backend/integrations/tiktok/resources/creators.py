@@ -31,10 +31,12 @@ class CreatorsResource:
         page_size: int | None = None,
         page_token: str | None = None,
     ) -> dict[str, Any]:
-        params = strip_nones({
-            "page_size": str(page_size) if page_size is not None else None,
-            "page_token": page_token,
-        })
+        params = strip_nones(
+            {
+                "page_size": str(page_size) if page_size is not None else None,
+                "page_token": page_token,
+            }
+        )
         parsed = coerce_model(
             MarketplaceCreatorsSearchData,
             self._client.post(

@@ -74,9 +74,7 @@ async def evaluate_rules(
             continue
 
         since = clock - timedelta(seconds=cooldown_seconds(config))
-        if await history_repo.has_recent_for_type(
-            shop_id, config.alert_type, since=since
-        ):
+        if await history_repo.has_recent_for_type(shop_id, config.alert_type, since=since):
             continue
 
         title, body = build_alert_copy(config, event)

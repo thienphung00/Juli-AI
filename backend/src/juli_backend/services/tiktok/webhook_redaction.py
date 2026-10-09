@@ -52,9 +52,7 @@ def _redact_value(value: Any) -> Any:
             if isinstance(key, str) and _key_matches_denylist(key):
                 # Preserve structure under object-valued denylist keys (useful for #382).
                 out[key] = (
-                    _scrub_leaves(child)
-                    if isinstance(child, (dict, list))
-                    else REDACTED_VALUE
+                    _scrub_leaves(child) if isinstance(child, (dict, list)) else REDACTED_VALUE
                 )
             else:
                 out[key] = _redact_value(child)

@@ -49,7 +49,7 @@ def extract_event_id(*, channel: str, shop_key: str, payload: dict[str, Any]) ->
     if entity_id is not None:
         return f"sync:{channel}:{shop_key}:{entity_id}:{version}"
 
-    digest = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, default=str).encode()
-    ).hexdigest()[:32]
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()[
+        :32
+    ]
     return f"hash:{channel}:{shop_key}:{digest}"

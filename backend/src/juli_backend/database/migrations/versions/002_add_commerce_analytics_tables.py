@@ -51,7 +51,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_products_shop_created", "products", ["shop_id", "created_at"])
-    op.create_index("ix_products_shop_tiktok", "products", ["shop_id", "tiktok_product_id"], unique=True)
+    op.create_index(
+        "ix_products_shop_tiktok", "products", ["shop_id", "tiktok_product_id"], unique=True
+    )
 
     op.create_table(
         "inventory_items",
@@ -68,7 +70,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_inventory_shop_created", "inventory_items", ["shop_id", "created_at"])
-    op.create_index("ix_inventory_shop_sku", "inventory_items", ["shop_id", "tiktok_sku_id"], unique=True)
+    op.create_index(
+        "ix_inventory_shop_sku", "inventory_items", ["shop_id", "tiktok_sku_id"], unique=True
+    )
 
     op.create_table(
         "settlements",
@@ -87,7 +91,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_settlements_shop_created", "settlements", ["shop_id", "created_at"])
-    op.create_index("ix_settlements_shop_tiktok", "settlements", ["shop_id", "tiktok_settlement_id"], unique=True)
+    op.create_index(
+        "ix_settlements_shop_tiktok",
+        "settlements",
+        ["shop_id", "tiktok_settlement_id"],
+        unique=True,
+    )
 
     # --- Analytics tables ---
 
@@ -104,7 +113,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["shop_id"], ["shops.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_creators_shop_tiktok", "creators", ["shop_id", "tiktok_creator_id"], unique=True)
+    op.create_index(
+        "ix_creators_shop_tiktok", "creators", ["shop_id", "tiktok_creator_id"], unique=True
+    )
 
     op.create_table(
         "livestreams",
@@ -125,7 +136,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["creator_id"], ["creators.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_livestreams_shop_tiktok", "livestreams", ["shop_id", "tiktok_livestream_id"], unique=True)
+    op.create_index(
+        "ix_livestreams_shop_tiktok",
+        "livestreams",
+        ["shop_id", "tiktok_livestream_id"],
+        unique=True,
+    )
 
     op.create_table(
         "alert_configs",
@@ -175,8 +191,14 @@ def upgrade() -> None:
     # --- RLS policies for Supabase (seller isolation) ---
 
     for table in (
-        "orders", "products", "inventory_items", "settlements",
-        "creators", "livestreams", "alert_configs", "alert_history",
+        "orders",
+        "products",
+        "inventory_items",
+        "settlements",
+        "creators",
+        "livestreams",
+        "alert_configs",
+        "alert_history",
         "recommendations",
     ):
         # `table` is drawn from the fixed tuple literal above (migration-time DDL), never
@@ -192,11 +214,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    for table in reversed([
-        "orders", "products", "inventory_items", "settlements",
-        "creators", "livestreams", "alert_configs", "alert_history",
-        "recommendations",
-    ]):
+    for table in reversed(
+        [
+            "orders",
+            "products",
+            "inventory_items",
+            "settlements",
+            "creators",
+            "livestreams",
+            "alert_configs",
+            "alert_history",
+            "recommendations",
+        ]
+    ):
         op.execute(f"DROP POLICY IF EXISTS {table}_isolation ON {table}")
         op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
 

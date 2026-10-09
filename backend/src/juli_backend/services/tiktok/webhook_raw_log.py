@@ -40,11 +40,7 @@ class RawWebhookEventRecorder(Protocol):
 def _allowlisted_headers_json(headers: Mapping[str, str] | None) -> str | None:
     if not headers:
         return None
-    selected = {
-        key: value
-        for key, value in headers.items()
-        if key.lower() in _HEADER_ALLOWLIST
-    }
+    selected = {key: value for key, value in headers.items() if key.lower() in _HEADER_ALLOWLIST}
     if not selected:
         return None
     return json.dumps(selected, sort_keys=True)
@@ -94,9 +90,7 @@ def _event_id_for(
     shop_key = tiktok_shop_id or (event.shop_id if event else "") or "unknown"
     channel = f"tiktok.raw_log.{event_type or 'unknown'}"
     try:
-        return extract_event_id(channel=channel, shop_key=shop_key, payload=parsed)[
-            :255
-        ]
+        return extract_event_id(channel=channel, shop_key=shop_key, payload=parsed)[:255]
     except Exception:  # noqa: BLE001 — never block audit path
         return None
 

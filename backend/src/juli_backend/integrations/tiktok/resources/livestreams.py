@@ -35,13 +35,15 @@ class LivestreamsResource:
         page_size: int | None = None,
         page_token: str | None = None,
     ) -> dict[str, Any]:
-        params = strip_nones({
-            "creator_id": creator_id,
-            "start_time": str(start_time) if start_time is not None else None,
-            "end_time": str(end_time) if end_time is not None else None,
-            "page_size": str(page_size) if page_size is not None else None,
-            "page_token": page_token,
-        })
+        params = strip_nones(
+            {
+                "creator_id": creator_id,
+                "start_time": str(start_time) if start_time is not None else None,
+                "end_time": str(end_time) if end_time is not None else None,
+                "page_size": str(page_size) if page_size is not None else None,
+                "page_token": page_token,
+            }
+        )
         parsed = coerce_model(
             CreatorContentSearchData,
             self._client.get(
@@ -60,11 +62,13 @@ class LivestreamsResource:
         end_time: int | None = None,
         page_size: int = 50,
     ) -> list[dict[str, Any]]:
-        params = strip_nones({
-            "creator_id": creator_id,
-            "start_time": str(start_time) if start_time is not None else None,
-            "end_time": str(end_time) if end_time is not None else None,
-        })
+        params = strip_nones(
+            {
+                "creator_id": creator_id,
+                "start_time": str(start_time) if start_time is not None else None,
+                "end_time": str(end_time) if end_time is not None else None,
+            }
+        )
         raw_items = self._client.get_all_pages_get(
             CREATOR_CONTENT_DETAILS_PATH,
             params=params,
@@ -76,10 +80,12 @@ class LivestreamsResource:
 
     def get(self, livestream_id: str) -> dict[str, Any]:
         """Fetch a single content session by ``content_id`` / ``room_id`` filter."""
-        params = strip_nones({
-            "content_id": livestream_id,
-            "room_id": livestream_id,
-        })
+        params = strip_nones(
+            {
+                "content_id": livestream_id,
+                "room_id": livestream_id,
+            }
+        )
         parsed = coerce_model(
             CreatorContentSearchData,
             self._client.get(

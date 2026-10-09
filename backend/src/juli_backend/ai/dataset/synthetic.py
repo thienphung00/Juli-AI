@@ -65,9 +65,7 @@ def generate_order(
         "status": status,
         "order_value": vnd(rng.uniform(50_000, 5_000_000)),
         "currency": "VND",
-        "payment_time": rand_timestamp(rng, 1, days_window)
-        if status != "cancelled"
-        else None,
+        "payment_time": rand_timestamp(rng, 1, days_window) if status != "cancelled" else None,
         "ship_time": rand_timestamp(rng, 1, max(2, days_window - 2))
         if status in ("shipped", "delivered", "returned")
         else None,
@@ -156,9 +154,7 @@ def generate_ads(
                         "shop_id": shop["id"],
                         "campaign_id": campaign_id,
                         "campaign_name": campaign_name,
-                        "date": (
-                            datetime.now(UTC).date() - timedelta(days=day_offset)
-                        ).isoformat(),
+                        "date": (datetime.now(UTC).date() - timedelta(days=day_offset)).isoformat(),
                         "spend_vnd": vnd(spend),
                         "impressions": impressions,
                         "clicks": clicks,

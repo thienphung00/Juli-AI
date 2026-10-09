@@ -61,7 +61,5 @@ class TikTokBusinessAdvertiserAuth:
 
         token_data = data.get("data", {})
         if not isinstance(token_data, dict):
-            raise AuthenticationError(
-                code=0, message="TikTok Business token response missing data"
-            )
+            raise AuthenticationError(code=0, message="TikTok Business token response missing data")
         return token_data

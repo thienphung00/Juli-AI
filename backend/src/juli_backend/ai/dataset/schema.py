@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 RETURN_TYPE_VALUES = frozenset({"item_swap", "empty_return", "other"})
-RETURN_CONDITION_VALUES = frozenset(
-    {"wrong_item", "empty_parcel", "correct_item", "unknown"}
-)
+RETURN_CONDITION_VALUES = frozenset({"wrong_item", "empty_parcel", "correct_item", "unknown"})
 RETURN_STATUS_VALUES = frozenset({"pending_review", "approved", "rejected"})
 
 ORDERS_COLUMNS: tuple[str, ...] = (
