@@ -474,7 +474,9 @@ async def test_a_promotion_run_cannot_be_reverted_reason_seller_center(
     shop, run = await _waiting_promotion_run(session, status="completed")
     async with api_client(engine, shop) as client:
         changes = await client.get(f"/v1/demo/runs/{run.id}/changes")
-        revert = await client.post(f"/v1/demo/runs/{run.id}/revert")
+        revert = await client.post(
+            f"/v1/demo/runs/{run.id}/revert", json={"reason_code": "metrics_dropped"}
+        )
     assert changes.status_code == 200
     availability = changes.json()["revert"]
     assert availability["available"] is False
