@@ -413,3 +413,23 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   page header pattern; DEBT P8-E lists target/diagnosis data, step default,
   label duplication with Home.
 
+
+## 2026-10-09 — Verification of aa91074d against bd55f06b
+
+- `fasttrack/check.sh --since bd55f06b` on a fresh local Postgres 16: migrations
+  PASS (head 078_rules_and_write_values), isolation 12 passed, gitleaks PASS,
+  ruff PASS (85 files), pytest PASS (67 files, 891 passed).
+- Chain 076 -> 077 -> 078 up/down/up verified. The deferred 074 phone cleanup
+  applies on top of 078 and is irreversible by design (NotImplementedError on
+  downgrade). Its id (35 chars) exceeds alembic_version's varchar(32); it
+  applied only after widening the column in the throwaway DB. Pre-existing
+  (same id at base) — production must have a widened column, check before apply.
+- tests/unit + tests/harness (-m "not live and not demo_contract", no
+  DATABASE_URL): 9 failed / 6407 passed — exactly the 9 known pre-existing.
+  mypy backend/src/juli_backend clean (544 files); ruff clean.
+- apps/demo (Node 20.20.2): lint 0 errors (14 warnings), type-check OK,
+  vitest 1657/1658. Failure: replay-scenario byte check — merge-caused:
+  7a901f39 re-captured tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json
+  (prompt_sha256 changed) but apps/demo/src/lib/run-surface/golden-scenarios/
+  copy was not refreshed. Needs a frontend copy (cp fixture over it); not done
+  here (apps/ off limits).
