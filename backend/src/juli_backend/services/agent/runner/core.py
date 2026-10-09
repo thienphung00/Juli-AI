@@ -273,6 +273,7 @@ from juli_backend.services.agent.runner.ledger import (
 )
 from juli_backend.services.agent.runner.outcome_recording import WriteOutcomeRecorder
 from juli_backend.services.agent.runner.seller_facing_copy import (
+    EDITED_BY_SELLER_SUMMARY,
     SellerFacingCompletionReason,
     SellerFacingDeclinedReason,
     SellerFacingRefusalReason,
@@ -1118,7 +1119,11 @@ class WorkflowRunner:
                 tool_name=tool_name,
                 ok=ok,
                 summary=(
-                    tool_completed_summary(tool_name, raw_result)
+                    (
+                        EDITED_BY_SELLER_SUMMARY
+                        if pending.get("edited_fields")
+                        else tool_completed_summary(tool_name, raw_result)
+                    )
                     if ok
                     else SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
                 ),

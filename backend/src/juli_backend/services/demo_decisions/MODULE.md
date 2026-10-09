@@ -58,6 +58,16 @@ to subject_type 'unscoped'. Reporting true for such a card told the seller a
 button would work that returns 409 the moment they press it. Both surfaces now
 read the same predicate rather than each deciding for itself.
 
+## Recommendation card (fast track P10-A)
+
+`card_view.py` builds `recommendation.card` (contract
+`fasttrack/contracts/p10-quyet-dinh.md` §1) for ADR-106 cards at read time:
+`load_card_contexts(session, shop_id, cards)` reads, shop-scoped, the cards'
+products, their SKUs (`inventory_items.seller_sku`), the latest run per card and
+its `run_write_values`; `build_card_block(card, payload, context)` is pure. The
+block is computed, not copied from the stored JSON, so it is outside the
+allowlist below; `mask_decision_payload(..., card_context=...)` attaches it.
+
 ## Masking contract (#718 AC3)
 
 `_mask_recommendation_payload` copies only:

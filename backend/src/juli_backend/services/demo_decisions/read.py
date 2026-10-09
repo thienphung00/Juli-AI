@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ActionCard
+from juli_backend.services.demo_decisions.card_view import CardContext, build_card_block
 
 # Only "active" candidates are ever eligible for the surfaced set — mirrors
 # emission_budget._CANDIDATE_STATUS. A card whose status has moved on
@@ -128,7 +129,10 @@ def _mask_recommendation_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def mask_decision_payload(
-    card: ActionCard, *, allowed_levers: frozenset[str] | None = None
+    card: ActionCard,
+    *,
+    allowed_levers: frozenset[str] | None = None,
+    card_context: CardContext | None = None,
 ) -> dict[str, Any]:
     """Build the public Demo envelope dict for one surfaced ``ActionCard``.
 
@@ -179,6 +183,14 @@ def mask_decision_payload(
             shop_rules.card_lever_code(raw_payload), allowed_levers
         )
 
+    recommendation = _mask_recommendation_payload(raw_payload)
+    # Fast track P10-A (contract p10-quyet-dinh.md §1): the recommendation card
+    # block, built from the payload and ``card_context`` -- not copied from the
+    # stored JSON, so it is not part of the allowlist above.
+    card_block = build_card_block(card, raw_payload, card_context)
+    if card_block is not None:
+        recommendation["card"] = card_block
+
     return {
         "id": str(card.id),
         "title": card.title,
@@ -188,7 +200,7 @@ def mask_decision_payload(
         "computed_at": card.computed_at.isoformat() if card.computed_at else None,
         "surfaced_at": card.surfaced_at.isoformat() if card.surfaced_at else None,
         "is_executable": is_executable,
-        "recommendation": _mask_recommendation_payload(raw_payload),
+        "recommendation": recommendation,
     }
 
 

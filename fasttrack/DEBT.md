@@ -373,3 +373,30 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `AnalyticsDataProvider` (plan impact block) still calls it. Backend left
   untouched on purpose — retire the route (and that provider) at merge. Also
   dead now: `.analytics-dashboard` and sibling KPI-card rules in `globals.css`.
+
+## P10-A — card payload, reasons + cooldown, consent edits (AC-10.1, 2026-10-09)
+
+- [ ] Card `status: expired` = proposal older than 14 days (`card_view.PROPOSAL_VALIDITY_DAYS`)
+  or the product's title changed since. A surfaced card whose basis is unchanged is
+  not rewritten nightly, so its `computed_at` ages even while the scoring keeps
+  re-confirming it; it reads `expired` after 14 days. "Product changed" looks at the
+  title only (description/images are not stored).
+- [ ] `before_after` is only filled from a run's `run_write_values`; a pending card has
+  none (Juli drafts the "after" inside the run). The UI shows field names only until then.
+- [ ] `tiktok_codes` lists TikTok-sourced evidence only; nightly cards carry Juli's
+  local title reading (named "Juli đánh giá" in `reason_full`), so it is usually `[]`
+  until the run-time diagnoses are stored on the card.
+- [ ] `seller_sku` needs an inventory sync that carries `seller_sku`
+  (`inventory_items.seller_sku`, migration 079); webhook snapshots do not, and
+  nothing backfills existing rows — `null` until the next Search Inventory poll.
+- [ ] Cooldown "clear change" compares with the rate the card was proposed on. After
+  a revert that rate may already have moved because of Juli's own change, which can
+  lift the cooldown at once; storing the rate at revert time would be stricter.
+- [ ] A cooled-down proposal leaves its slot empty that scoring run (no fallback to the
+  product's next lever or the next-ranked product).
+- [ ] Consent edits: the conversation window keeps the model's original tool-call
+  arguments; only the tool result carries the edited values the model reads next.
+- [ ] "Không thực hiện" on a *revert* run's consent records a `decline` reason against
+  the original card's lever too (cools it down) — harmless, not intended.
+- [ ] `POST /v1/demo/runs/{id}/revert` now 422s without a body: the current demo UI
+  (Hoàn tác button) breaks until P10-C sends `{reason_code, note?}`.

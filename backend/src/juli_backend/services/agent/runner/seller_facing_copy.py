@@ -54,6 +54,10 @@ class SellerFacingDeclinedReason(StrEnum):
     DECLINED_BY_SELLER = "Bạn đã từ chối thay đổi."
 
 
+#: Fast track P10-A (contract p10-quyet-dinh.md §3): the write ran with the
+#: title / description the seller edited at the consent step.
+EDITED_BY_SELLER_SUMMARY = "Hoàn tất theo bản bạn sửa"
+
 _DIAGNOSES_TOOL = "get_product_diagnoses"
 _DIAGNOSES_NONE_SUMMARY = "Không có mã chẩn đoán"
 _DIAGNOSES_SHOWN_LABELS = 3

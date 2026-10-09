@@ -71,9 +71,9 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: gains a revision -- see #1950's PR body.
 #: Fast track P1-B re-parented it (not renamed) onto `074_shop_ingestion_state`,
 #: then onto `075_analytics_breakdown` at integration, P7-A onto
-#: `076_shop_diagnosis_reports`, P8-A onto `077_metric_rankings`, and P8-C onto
-#: `078_rules_and_write_values`.
-PHONE_REVISION = "078_rules_and_write_values"
+#: `076_shop_diagnosis_reports`, P8-A onto `077_metric_rankings`, P8-C onto
+#: `078_rules_and_write_values`, and P10-A onto `079_decision_reasons`.
+PHONE_REVISION = "079_decision_reasons"
 
 _SCHEMA = "phone_cleanup_074"
 

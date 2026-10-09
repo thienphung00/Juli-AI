@@ -15,6 +15,12 @@ analytics, this module replaces that card with the ADR-106 pipeline:
    the diagnosed stage, the lever and the product's funnel evidence;
 4. withdraw this workflow's drafts that fell out of the top 10.
 
+Seller reasons (fast track P10-A): a (product, lever) the seller rejected,
+declined or reverted is skipped for 7 days (``decision_cooldown``) unless the
+weak stage's rate moved > 20 % relative since (``services.decision_reasons``).
+Those actions dismiss the card; a dismissed latest revision is then governed by
+that cooldown alone, so once it lifts the proposal gets a new revision.
+
 How many surface is the emission budget's decision: ``optimize_product_2``
 has its own per-workflow cap (5, ADR-106 decision 6) in
 ``DecisionEmissionConfig.workflow_max_active``.
@@ -43,7 +49,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import DecisionEmissionConfig
+from juli_backend.models.decision_reasons import DecisionReason
 from juli_backend.models.models import ActionCard, AnalyticsPerformanceInterval, Product
+from juli_backend.services import decision_reasons
 from juli_backend.services.action_cards.basis import (
     BASIS_METADATA_KEY,
     basis_unchanged,
@@ -65,6 +73,7 @@ from juli_backend.services.optimize_product.daily_funnel import (
 )
 from juli_backend.services.optimize_product.decision_cards import (
     DEFAULT_TOP_K,
+    LEVER_CODES,
     CardProposal,
     CatalogProduct,
     ShopCardPlan,
@@ -421,12 +430,29 @@ async def emit_optimize_product_cards(
 
     decisions: list[Any] = []
     kept: set[str] = set()
+    cooldowns = await decision_reasons.active_cooldowns(session, shop_id, now=computed_at)
     for proposal in op_plan.plan.proposals:
         product = op_plan.products.get(proposal.product_id)
         if product is None:
             continue
         subject = _subject_for(product)
         kept.add(subject.subject_id)
+        cooled = _cooled_down(cooldowns, product, proposal)
+        if cooled is not None:
+            latest = await persist._latest_revision(
+                session, shop_id, OPTIMIZE_PRODUCT_WORKFLOW_KEY, subject
+            )
+            decision = persist.CardEmission(
+                workflow_key=OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+                subject_type=subject.subject_type,
+                subject_id=subject.subject_id,
+                card=latest,
+                revision=None if latest is None else latest.revision,
+                suppressed_reason=decision_reasons.SUPPRESSED_REASON_DECISION_COOLDOWN,
+            )
+            decisions.append(decision)
+            persist._log_suppressed(shop_id, decision)
+            continue
         payload = build_card_payload(proposal, op_plan, subject, computed_at=computed_at)
         basis = {
             **_basis(proposal),
@@ -448,9 +474,16 @@ async def emit_optimize_product_cards(
             or (latest.status == _ACTIVE and not is_adr106_card(latest))
         ):
             in_place = latest
-        elif basis_unchanged(stored_basis(latest), basis) or persist._card_still_stands(
-            latest, now=computed_at, cooldown_days=emission_config.cooldown_days
+        elif latest.status != decision_reasons.DISMISSED_CARD_STATUS and (
+            basis_unchanged(stored_basis(latest), basis)
+            or persist._card_still_stands(
+                latest, now=computed_at, cooldown_days=emission_config.cooldown_days
+            )
         ):
+            # A card the seller rejected, declined or reverted (dismissed) is
+            # governed by the per-lever decision cooldown above instead: past
+            # its 7 days, or after a clear data change, the proposal gets a new
+            # revision even when the diagnosis itself has not moved.
             reason = (
                 persist.SUPPRESSED_REASON_BASIS_UNCHANGED
                 if basis_unchanged(stored_basis(latest), basis)
@@ -526,6 +559,23 @@ async def emit_optimize_product_cards(
         },
     )
     return decisions
+
+
+def _cooled_down(
+    cooldowns: dict[tuple[str, str], DecisionReason], product: Product, proposal: CardProposal
+) -> DecisionReason | None:
+    """The seller reason still cooling this (product, lever) down, if any (P10-A).
+
+    A clear move of the weak stage's rate since the reason lifts it early
+    (``decision_reasons.clearly_changed``).
+    """
+    reason = cooldowns.get((str(product.id), LEVER_CODES[proposal.lever]))
+    if reason is None:
+        return None
+    rates = {name: gap.value for name, gap in proposal.gaps.items()}
+    if decision_reasons.clearly_changed(reason, rates):
+        return None
+    return reason
 
 
 async def withdraw_unranked_cards(

@@ -58,6 +58,9 @@ from juli_backend.services.agent.tools.product_write import (
 
 PRODUCT_ID = "1736363193934775939"
 
+#: Since fast track P10-A the revert route requires one reason (contract §2).
+REVERT_REASON = {"reason_code": "metrics_dropped"}
+
 DETAIL: dict[str, Any] = {
     "id": PRODUCT_ID,
     "title": "Nồi lẩu điện mini 1.5L",
@@ -663,7 +666,7 @@ async def test_the_revert_route_202s_and_enqueues_the_new_run(db, session, no_ce
     shop, run = await _seed(session)
     async with _client(db, shop) as client:
         before = await client.get(f"/v1/demo/runs/{run.id}/changes")
-        resp = await client.post(f"/v1/demo/runs/{run.id}/revert")
+        resp = await client.post(f"/v1/demo/runs/{run.id}/revert", json=REVERT_REASON)
         after = await client.get(f"/v1/demo/runs/{run.id}/changes")
 
     assert before.status_code == 200
@@ -689,7 +692,7 @@ async def test_the_revert_route_202s_and_enqueues_the_new_run(db, session, no_ce
 async def test_the_revert_route_409s_with_the_reason_on_an_external_change(db, session, no_celery):
     shop, run = await _seed(session)
     async with _client(db, shop, live_title="Người bán đã sửa") as client:
-        resp = await client.post(f"/v1/demo/runs/{run.id}/revert")
+        resp = await client.post(f"/v1/demo/runs/{run.id}/revert", json=REVERT_REASON)
     assert resp.status_code == 409
     detail = resp.json()["detail"]
     assert detail["code"] == "external_change"
@@ -704,7 +707,7 @@ async def test_the_routes_404_for_another_shops_run(db, session, no_celery):
     shop_b, _ = await _seed(session, label="b")
     async with _client(db, shop_b) as client:
         changes = await client.get(f"/v1/demo/runs/{run_a.id}/changes")
-        revert = await client.post(f"/v1/demo/runs/{run_a.id}/revert")
+        revert = await client.post(f"/v1/demo/runs/{run_a.id}/revert", json=REVERT_REASON)
     assert changes.status_code == 404
     assert revert.status_code == 404
     assert no_celery == []

@@ -121,6 +121,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/decisions/{action_card_id}/reject",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/revert-questions",
       "methods": [
         "GET"
@@ -186,6 +194,14 @@
     },
     {
       "path": "/v1/demo/runs/{run_id}/confirmations/{tool_call_id}",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/decline",
       "methods": [
         "POST"
       ],

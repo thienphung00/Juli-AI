@@ -23,8 +23,9 @@ Price is never an auto-executable lever (D13): ``"price"`` is rejected.
 Wired today: ``max_open_cards`` caps Optimize Product's surfaced cards
 (``action_cards.persist``), ``auto_levers`` decides which cards are executable
 (the decisions list and approve), ``stability_band`` drives the day-7
-guardrail. The cost, margin, discount and protected-term rules are stored for
-the ranking / price / listing-write consumers that do not exist yet.
+guardrail, ``protected_terms`` gate the seller's edit at the consent step
+(``listing_edits``, P10-A). The cost, margin and discount rules are stored for
+the ranking / price consumers that do not exist yet.
 """
 
 from __future__ import annotations
@@ -330,6 +331,14 @@ async def stability_bands(session: AsyncSession, shop_id: uuid.UUID) -> dict[str
         row.scope_ref: Decimal(str(row.value))
         for row in await _rows(session, shop_id, STABILITY_BAND)
     }
+
+
+async def protected_terms(session: AsyncSession, shop_id: uuid.UUID) -> list[str]:
+    """The shop's protected terms (listing edits must keep them); empty until set."""
+    rows = await _rows(session, shop_id, PROTECTED_TERMS)
+    if not rows or not isinstance(rows[0].value, list):
+        return []
+    return [str(term) for term in rows[0].value if isinstance(term, str) and term.strip()]
 
 
 #: ADR-106 card lever code -> the rule's lever name. Codes absent here
