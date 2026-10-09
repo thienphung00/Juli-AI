@@ -13,6 +13,11 @@ const beVietnamPro = Be_Vietnam_Pro({
   subsets: ["latin", "vietnamese"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
+  // Same fallback chain as the artboards ('Be Vietnam Pro', system-ui,
+  // sans-serif): glyphs outside the font's subsets (→, ▲) come from the
+  // system face, not an Arial-metric shim.
+  fallback: ["system-ui", "sans-serif"],
+  adjustFontFallback: false,
   variable: "--font-be-vietnam-pro",
 });
 

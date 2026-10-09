@@ -474,7 +474,7 @@ describe("signed-in Quyết định", () => {
     renderSignedIn({ tab: "do-luong" }, clients);
     const ask = await screen.findByTestId("day7-ask");
     expect(ask).toHaveTextContent("CTR lệch −5,2 % (ngưỡng ±3 %)");
-    expect(screen.getByTestId("measure-panel")).toHaveTextContent("Đã đổi Mô tả");
+    await waitFor(() => expect(screen.getByTestId("measure-panel")).toHaveTextContent("Đã đổi Mô tả"));
     await userEvent.click(within(ask).getByRole("button", { name: "Giữ thay đổi" }));
     await waitFor(() => expect(screen.queryByTestId("day7-ask")).toBeNull());
     expect(clients.dismissQuestion).toHaveBeenCalledWith({ token: "tok", shopId: "shop-1" }, "q1");

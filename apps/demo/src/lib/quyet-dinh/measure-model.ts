@@ -10,6 +10,7 @@ import {
   dayMonth,
   kpiPair,
   rangeText,
+  ratioDecimals,
   ratioText,
   signedPct,
   signedVnd,
@@ -61,7 +62,19 @@ export function measureHead(m: Measurement): MeasureHead {
       chip: { label: "Ngày 7 · trong khoảng", tone: "ok" },
     };
   }
-  return { headline: "Ngày 14: kết quả đã chốt", chip: { label: "Đã chốt · ngày 14", tone: "ok" } };
+  // Day14.dc.html: the headline and chip say the verdict.
+  switch (m.final?.label) {
+    case "dat":
+      return { headline: "Ngày 14: đạt mục tiêu", chip: { label: "Đạt", tone: "ok" } };
+    case "gan_dat":
+      return { headline: "Ngày 14: gần đạt mục tiêu", chip: { label: "Gần đạt", tone: "info" } };
+    case "khong_dat":
+      return { headline: "Ngày 14: không đạt mục tiêu", chip: { label: "Không đạt", tone: "warn" } };
+    case "chua_ket_luan":
+      return { headline: "Ngày 14: chưa đủ cơ sở kết luận", chip: { label: "Chưa kết luận", tone: "muted" } };
+    default:
+      return { headline: "Ngày 14: kết quả đã chốt", chip: { label: "Đã chốt · ngày 14", tone: "ok" } };
+  }
 }
 
 export interface TargetBlock {
@@ -128,7 +141,10 @@ export function resultRows(m: Measurement): ResultRowView[] {
     let actual = "—";
     if (row.actual !== null) {
       if (isGmv) actual = signedVnd(row.actual);
-      else if (isBand && row.before) actual = `${valueText(row.actual, unit)} (${signedPct(row.actual / row.before - 1)})`;
+      else if (isBand && row.before) {
+        const decimals = unit === "ratio" ? ratioDecimals(row.before) : 1;
+        actual = `${valueText(row.actual, unit, decimals)} (${signedPct(row.actual / row.before - 1)})`;
+      }
       else actual = valueText(row.actual, unit);
     }
     return {
@@ -289,7 +305,9 @@ export function day14Steps(m: Measurement, leverLabel: string | null): MeasureSt
   const gmv =
     f?.gmv_actual_per_day === null || f?.gmv_actual_per_day === undefined
       ? "Không tính được"
-      : `${signedVnd(f.gmv_actual_per_day)}/ngày${f.pct_of_expected !== null ? ` · ${f.pct_of_expected} % dự kiến` : ""}`;
+      : `${signedVnd(f.gmv_actual_per_day)}/ngày${
+          f.pct_of_expected !== null ? ` · ${f.pct_of_expected} % dự kiến` : f.label === "khong_dat" ? " · không đạt" : ""
+        }`;
   const coef =
     f?.label === "chua_ket_luan" || !f?.calibration
       ? `Giữ nguyên${f?.calibration ? ` ${COEF(f.calibration.from)}` : ""}`
@@ -318,3 +336,7 @@ export function waitingLine(m: Measurement | null, day7Iso: string | null): stri
   const date = m ? dateText(m.dates.day7) : dateText(day7Iso);
   return `Đang chờ đủ 7 ngày dữ liệu ·  Kết quả ngày ${date}.`;
 }
+
+/** Day14.dc.html's footnote under the verdict. */
+export const FINAL_RULE_NOTE =
+  "Cách chốt: Đạt khi chỉ số mục tiêu ≥ mục tiêu và GMV ≥ 100 % dự kiến · Gần đạt 70–99 % · Không đạt dưới 70 % · Chưa kết luận khi dữ liệu quá ít hoặc có thay đổi khác cùng lúc trên sản phẩm.";

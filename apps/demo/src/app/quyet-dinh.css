@@ -1728,6 +1728,7 @@ body:has(.qd-page) {
 
 .qv-final__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }

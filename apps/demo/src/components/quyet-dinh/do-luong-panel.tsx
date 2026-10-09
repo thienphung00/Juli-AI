@@ -6,6 +6,7 @@ import { useState } from "react";
 import type { CardView } from "../../lib/quyet-dinh/card-model";
 import { MEASURE_NO_READING, MEASURE_WAITING, bandMetricLabel } from "../../lib/quyet-dinh/copy";
 import {
+  FINAL_RULE_NOTE,
   MEASURE_TABS,
   bandRows,
   breachSentence,
@@ -356,7 +357,9 @@ function MeasurePanel({
             </div>
           ) : null}
 
-          {(waiting || (m?.stage === "day7" && !outside)) && canRevert && !action.revertRunId ? (
+          {box ? <div className="qv-note">{FINAL_RULE_NOTE}</div> : null}
+
+          {(waiting || (m?.stage === "day7" && !outside)) && canRevert && !action.revertRunId && !(!m && item.question) ? (
             <div className="qv-measure__foot">
               <button className="qv-btn qv-btn--secondary" disabled={action.busy} onClick={() => setDialog(true)} type="button">
                 Hoàn tác

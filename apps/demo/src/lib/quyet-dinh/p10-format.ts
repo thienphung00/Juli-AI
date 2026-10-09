@@ -21,16 +21,16 @@ function signOf(value: number): string {
 }
 
 /** A ratio as a percent with one or two decimals: 0.054 → "5,4", 0.0444 → "4,44", 0.06 → "6,0". */
-export function pctNumber(ratio: number): string {
+export function pctNumber(ratio: number, minDecimals = 1): string {
   const hundred = Math.round(ratio * 10_000) / 100;
   const two = Math.abs(hundred).toFixed(2);
-  const decimals = two.endsWith("0") ? 1 : 2;
+  const decimals = two.endsWith("0") ? Math.max(1, minDecimals) : 2;
   return signOf(hundred) + grouped(hundred, decimals);
 }
 
 /** 0.054 → "5,4 %". */
-export function ratioText(ratio: number): string {
-  return `${pctNumber(ratio)} %`;
+export function ratioText(ratio: number, minDecimals = 1): string {
+  return `${pctNumber(ratio, minDecimals)} %`;
 }
 
 /** VND compact without the currency: 2_100_000 → "2,1 tr", 70_000 → "70k", 950 → "950". */
@@ -60,8 +60,13 @@ export function countText(value: number): string {
 
 export type ValueUnit = "ratio" | "vnd" | "count";
 
-export function valueText(value: number, unit: ValueUnit): string {
-  if (unit === "ratio") return ratioText(value);
+/** Decimals a ratio prints with (1 or 2), to keep a row's figures aligned ("4,44 %" → "4,40 %"). */
+export function ratioDecimals(ratio: number): number {
+  return pctNumber(ratio).split(",")[1]?.length ?? 1;
+}
+
+export function valueText(value: number, unit: ValueUnit, minDecimals = 1): string {
+  if (unit === "ratio") return ratioText(value, minDecimals);
   if (unit === "vnd") return vndText(value);
   return countText(value);
 }
@@ -127,11 +132,11 @@ export function validityText(expiresAt: string, nowMs: number | null): string | 
 /**
  * A long text as the artboards summarise it: "180 ký tự, một đoạn" (before)
  * or "640 ký tự · Thành phần · Cách dùng · Bảo quản" (after, its section
- * headings). Short text (≤ 80 chars, one line) is returned unchanged.
+ * headings). Short text (≤ 160 chars, one line — already a summary) is returned unchanged.
  */
 export function summariseText(text: string, mode: "before" | "after"): string {
   const trimmed = text.trim();
-  if (trimmed.length <= 80 && !trimmed.includes("\n")) return trimmed;
+  if (trimmed.length <= 160 && !trimmed.includes("\n")) return trimmed;
   const length = [...trimmed].length;
   if (mode === "after") {
     const headings = [...trimmed.matchAll(/(?:^|\n)\s*([^:\n]{2,30}):/g)].map((m) => m[1].trim());
