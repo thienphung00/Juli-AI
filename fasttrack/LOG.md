@@ -522,3 +522,67 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Tests: dropped the e2e "Analytics chart…" a11y test and two Python exit-gate asserts that pinned it; navigation test now uses `/analytics`. TikTok pixel spec untouched (targets `/`).
 - Gates: lint, type-check, vitest 1593, Playwright 104, build:demo pass; pytest -k "demo or issue_397" passes except pre-existing `test_cross_tenant_probe` (SQLAlchemy URL parse, no DATABASE_URL).
 - Debt: backend `GET /v1/demo/analytics` retire at merge (DEBT.md). Dead `.analytics-*` CSS left.
+
+## 2026-10-09 — P10-B agent (Claude Opus) — cover-image flow, promotion flow, measurement (AC-10.2)
+
+- Branch `fasttrack/p10b-flows`, ae6a515a..HEAD. Migration `080_lever_flows`
+  onto `078_rules_and_write_values` (P10-A's 079 is parallel — re-chain at
+  integration; the deferred phone cleanup is re-parented onto 080 and its four
+  pins moved). Tables `run_lever_flows`, `run_lever_photos`,
+  `lever_calibrations`, `run_measurement_finals`, RLS + per-verb grants.
+- Design: a `cover_image` / promotion card's run is a "lever flow" — the real
+  `WorkflowRunner` with its own playbook and a deterministic planner (P8-C's
+  revert pattern). Waiting for the seller is the existing `waiting_external`
+  state (`external_wait_reason` = `photo` / `seller_action` = `awaiting`):
+  the planner raises `AwaitSeller`, `LeverFlowRunner` (returned by the
+  worker's `_construct_runner`, task shells unchanged) records what it computed
+  and calls `enter_external_wait(narration=...)` → one `workflow.status`
+  event. New `WorkflowRunner.resume_after_external_wait`; new Celery task
+  `resume_lever_flow` (agent_runs queue). The reaper judges these waits by the
+  flow's policy (photo 72 h → `timed_out`). No new SSE event type.
+- Photo: reads (diagnoses, listing, current photo), keeps the current cover as
+  "before" (TikTok CDN, allowlisted hosts), waits; `POST .../photo` checks
+  (1:1, ≥ 800 px exact; plain background, product ≥ 70 % heuristic, marked
+  `heuristic: true`) → 202/422 `{checks}`; resume stages the photo
+  (`upload_product_image`, URI kept on the photo row via
+  `ProductToolContext.on_image_staged`, never model-visible) → ordinary consent
+  on `update_product_listing` → the cover replaced, gallery kept, before/after
+  recorded so Hoàn tác restores. Photos served at
+  `/v1/demo/photos/{shop}/{token}` (capability token; allowlisted route).
+  Consent shows before/after via `GET /v1/demo/runs/{id}` → `photo`.
+- Promotion: approve now allows the four Seller Center levers (never written,
+  D13). Reads price + existing promotions (new read-only tool
+  `find_product_promotions`), checks the rules (cost required — a run without
+  one fails loudly; margin floor; per-SKU cap), narrates it, waits.
+  `GET .../instructions` (4 VI steps per type, Seller Center link, summary);
+  `POST .../applied` → verify read-only; not found → "Chưa tìm thấy trên
+  TikTok", stays waiting, re-check every 30 min (≤ 4); found → completed,
+  `measurement_start` = the promotion's start date. `/changes` and `/revert`:
+  unavailable, `seller_center`.
+- `GET .../measurement`: contract §6 shape; stage from the impact reader's
+  readings (promotion runs: calendar — DEBT); bands only from the seller's
+  rules (none → `[]`, `within_band: null`); day-14 labels per the contract;
+  calibration 0.5 start, stored per shop × lever, not moved by
+  `chua_ket_luan`; verdict stored once.
+- Contract interpretation (no shape change): the photo is staged on TikTok
+  before the consent and the consent is on the listing write (ADR-069 order,
+  DEBT); run detail / list responses gain only `awaiting` (+ detail extras:
+  `awaiting_expires_at`, `lever`, `photo`, `promotion`); photo checks carry an
+  extra `heuristic`/`detail` per item; measurement row `key` for GMV is
+  `gmv_per_day`.
+- Gates: new tests 79 passed (unit) + 2 (PG16 two-tenant). check.sh `--since
+  effa4d4a --skip-gitleaks` on a fresh PG16: migrations PASS (080 head,
+  up/down/up), isolation 12, ruff PASS, pytest 400 passed / 1 failed —
+  `test_reaper_two_tenant.py::test_each_run_is_reaped_by_its_own_workflows_policy_as_juli_app`,
+  which fails identically on an untouched `git archive effa4d4a` (pre-existing,
+  not P10-B). Unit + harness without DATABASE_URL: remaining failures are the
+  known ones (agent_workflow_task_wiring ×7 URL parse, cross_tenant_probe,
+  destructive_migration_isolation) plus 27 `test_agent_events_contract` tests
+  that need `node_modules` (`typescript`) in this worktree. mypy clean on the
+  touched modules; import boundaries 56 (unchanged).
+- Guard baselines regenerated (module drift allowlist, surface inventory,
+  ownership registry, runs-list fields, shared-tool marker, test-quality
+  456 + corpus re-derived — the corpus figures will need `python -m
+  eval.quality_detectors reconcile --write` again after P10-A/C merge).
+- Next: integration re-chains 079/080; P10-C reads `awaiting`, `photo.*_url`,
+  `/instructions`, `/applied`, `/measurement`. See DEBT "P10-B".
