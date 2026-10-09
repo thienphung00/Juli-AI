@@ -164,6 +164,8 @@ class TestRegistration:
             # #1208: the image step became a READ inspection.
             "inspect_product_image",
             "get_product_diagnoses",
+            # Fast track P10-B: the read-only promotion check.
+            "find_product_promotions",
         }
 
     def test_registered_specs_are_the_module_level_spec_objects(self):
@@ -467,6 +469,8 @@ class TestHandlerRegistry:
             "check_product_status",
             "inspect_product_image",
             "get_product_diagnoses",
+            # Fast track P10-B: the read-only promotion check.
+            "find_product_promotions",
         }
         assert (
             PRODUCT_READ_TOOL_HANDLERS["get_product_information"] is handle_get_product_information

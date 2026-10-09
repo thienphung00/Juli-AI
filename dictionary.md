@@ -881,6 +881,12 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - _Avoid_: Inspect Product Image
 - Definition: `ToolSpec.seller_rationale_vi` for the `inspect_product_image` tool (issue #1904, W6-FIX).
 
+**`run.option_rationale.find_product_promotions`**
+- EN: Check on TikTok the promotion you applied to this product.
+- VI: Kiểm tra trên TikTok khuyến mãi bạn đã áp dụng cho sản phẩm này.
+- _Avoid_: Find Product Promotions
+- Definition: `ToolSpec.seller_rationale_vi` for the read-only `find_product_promotions` tool (fast track P10-B, contract §5) -- Juli never writes promotions (D13).
+
 **`run.option_rationale.upload_product_image`**
 - EN: Upload the staged image for this product; it is not applied yet.
 - VI: Tải ảnh đã chuẩn bị lên cho sản phẩm này; ảnh chưa được áp dụng.

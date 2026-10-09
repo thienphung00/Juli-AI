@@ -60,11 +60,12 @@ that boundary guard.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -154,6 +155,11 @@ class ProductToolContext:
     # the listing had before Juli's write, server-held (never LLM-supplied),
     # which `update_product_listing` sends back as `main_images`.
     restore_main_image_uris: tuple[str, ...] | None = None
+    # `on_image_staged` -- fast track P10-B: told the TikTok image URI an
+    # `upload_product_image` call produced, so the executor can attach it in
+    # this leg and the worker can keep it (server-side, never model-visible)
+    # for the write that follows the seller's consent on the resume leg.
+    on_image_staged: Callable[[str], None] | None = None
 
 
 # --- sanitize helpers, shared by the READ handlers below (ADR-070) -----------
@@ -524,6 +530,161 @@ GET_PRODUCT_DIAGNOSES_SPEC = ToolSpec(
 )
 
 
+# --- find_product_promotions -------------------------------------------------
+#
+# Fast track P10-B (contract §5, D13): the read-only check behind "Tôi đã áp
+# dụng". Juli never writes a promotion to TikTok; it only looks for the one the
+# seller created on Seller Center. Two reads: Search Activities (one page per
+# matching activity type) and Get Activity for each candidate, whose
+# ``products[]`` says whether the bound product is in it.
+
+#: ADR-106 promotion lever code -> TikTok ``activity_type`` values it covers.
+PROMOTION_ACTIVITY_TYPES: Mapping[str, tuple[str, ...]] = {
+    "product_discount": ("FIXED_PRICE", "DIRECT_DISCOUNT"),
+    "flash_sale": ("FLASHSALE",),
+    "shipping_discount": ("SHIPPING_DISCOUNT",),
+    "buy_more_save_more": ("BUY_MORE_SAVE_MORE",),
+}
+
+#: Vietnamese names of the four promotion levers (the Seller Center names).
+PROMOTION_TYPE_LABELS_VI: Mapping[str, str] = {
+    "product_discount": "Giảm giá sản phẩm",
+    "flash_sale": "Flash sale",
+    "shipping_discount": "Giảm phí vận chuyển",
+    "buy_more_save_more": "Mua nhiều giảm nhiều",
+}
+
+#: Activity statuses that cannot be the promotion the seller just applied.
+_PROMOTION_SKIPPED_STATUSES = frozenset({"DRAFT", "DEACTIVATED", "NOT_EFFECTIVE", "EXPIRED"})
+_PROMOTION_MAX_DETAILS = 20
+_SHOP_UTC_OFFSET = timedelta(hours=7)
+
+
+class FindProductPromotionsInput(BaseModel):
+    """Which of the four Seller Center promotion types to look for on the
+    product already selected for this run."""
+
+    promotion_type: Literal[
+        "product_discount", "flash_sale", "shipping_discount", "buy_more_save_more"
+    ]
+
+
+class FoundPromotion(BaseModel):
+    """One promotion of the requested type that includes the bound product.
+
+    ``ref`` is an opaque fingerprint (not TikTok's activity id) so a later
+    check can tell a new promotion from one that already existed. Dates are the
+    shop's local dates (UTC+7); ``end_date`` is ``None`` when open-ended.
+    """
+
+    ref: str
+    type_label: str
+    status: str
+    begin_date: str | None = None
+    end_date: str | None = None
+
+
+class FindProductPromotionsOutput(BaseModel):
+    promotion_type: str
+    promotions: list[FoundPromotion] = Field(default_factory=list)
+    # True when TikTok could not be read: an empty list then means "unknown".
+    unavailable: bool = False
+
+
+def _promotion_ref(activity_id: str) -> str:
+    return hashlib.sha256(f"promotion:{activity_id}".encode()).hexdigest()[:16]
+
+
+def _promotion_date(value: object) -> str | None:
+    try:
+        seconds = int(str(value))
+    except ValueError:
+        return None
+    if seconds <= 0:
+        return None
+    seconds = seconds // 1000 if seconds > 10**11 else seconds
+    return (datetime.fromtimestamp(seconds, tz=UTC) + _SHOP_UTC_OFFSET).date().isoformat()
+
+
+def _unwrap(payload: object, key: str) -> Any:
+    data = payload.get("data") if isinstance(payload, Mapping) else None
+    source = data if isinstance(data, Mapping) else payload
+    return source.get(key) if isinstance(source, Mapping) else None
+
+
+def _activity_includes(detail: object, product_id: str) -> bool:
+    products = _unwrap(detail, "products")
+    if isinstance(products, list) and products:
+        return any(
+            isinstance(product, Mapping) and str(product.get("id")) == product_id
+            for product in products
+        )
+    # A shop-wide activity (no product list) applies to every product.
+    return str(_unwrap(detail, "product_level") or "").upper() == "SHOP"
+
+
+def handle_find_product_promotions(
+    resources: ProductionReadResources | SandboxWriteResources,
+    context: ProductToolContext,
+    params: FindProductPromotionsInput,
+) -> FindProductPromotionsOutput:
+    """Read-only: the promotions of ``params.promotion_type`` that include the product."""
+    label = PROMOTION_TYPE_LABELS_VI[params.promotion_type]
+    found: list[FoundPromotion] = []
+    try:
+        candidates: list[Mapping[str, Any]] = []
+        for activity_type in PROMOTION_ACTIVITY_TYPES[params.promotion_type]:
+            page = resources.promotion.search_activities(activity_type=activity_type, page_size=100)
+            activities = _unwrap(page, "activities")
+            for activity in activities if isinstance(activities, list) else []:
+                if not isinstance(activity, Mapping) or not activity.get("id"):
+                    continue
+                if str(activity.get("status") or "").upper() in _PROMOTION_SKIPPED_STATUSES:
+                    continue
+                candidates.append(activity)
+        for activity in candidates[:_PROMOTION_MAX_DETAILS]:
+            activity_id = str(activity["id"])
+            detail = resources.promotion.get_activity(activity_id)
+            if not _activity_includes(detail, context.product_id):
+                continue
+            body = detail.get("data") if isinstance(detail, Mapping) else None
+            body = body if isinstance(body, Mapping) else detail
+            merged = {**activity, **(body if isinstance(body, Mapping) else {})}
+            found.append(
+                FoundPromotion(
+                    ref=_promotion_ref(activity_id),
+                    type_label=label,
+                    status=str(merged.get("status") or ""),
+                    begin_date=_promotion_date(merged.get("begin_time")),
+                    end_date=_promotion_date(merged.get("end_time")),
+                )
+            )
+    except (TikTokAPIError, TransportGuardError) as exc:
+        logger.warning(
+            "find_product_promotions_unavailable",
+            extra={"exception_type": type(exc).__name__, "detail": str(exc)[:300]},
+        )
+        return FindProductPromotionsOutput(promotion_type=params.promotion_type, unavailable=True)
+    return FindProductPromotionsOutput(promotion_type=params.promotion_type, promotions=found)
+
+
+FIND_PRODUCT_PROMOTIONS_SPEC = ToolSpec(
+    name="find_product_promotions",
+    description=(
+        "Look up, read-only, the promotions of one Seller Center type (product discount, "
+        "flash sale, shipping discount, buy more save more) that include the bound product. "
+        "Juli never creates or changes promotions; this only checks what the seller applied."
+    ),
+    seller_rationale_vi="Kiểm tra trên TikTok khuyến mãi bạn đã áp dụng cho sản phẩm này.",
+    input_model=FindProductPromotionsInput,
+    output_model=FindProductPromotionsOutput,
+    classification=ToolClassification.READ,
+    policy=ToolPolicy.AUTO,
+    timeout_seconds=20,
+    domain=PRODUCT_DOMAIN,
+)
+
+
 # --- inspect_product_image ----------------------------------------------------
 
 
@@ -643,6 +804,7 @@ PRODUCT_READ_TOOL_HANDLERS: dict[
     CHECK_PRODUCT_STATUS_SPEC.name: handle_check_product_status,
     GET_PRODUCT_DIAGNOSES_SPEC.name: handle_get_product_diagnoses,
     INSPECT_PRODUCT_IMAGE_SPEC.name: handle_inspect_product_image,
+    FIND_PRODUCT_PROMOTIONS_SPEC.name: handle_find_product_promotions,
 }
 
 
@@ -653,3 +815,4 @@ def register_product_read_tools(registry: ToolRegistry) -> None:
     registry.register(CHECK_PRODUCT_STATUS_SPEC)
     registry.register(GET_PRODUCT_DIAGNOSES_SPEC)
     registry.register(INSPECT_PRODUCT_IMAGE_SPEC)
+    registry.register(FIND_PRODUCT_PROMOTIONS_SPEC)
