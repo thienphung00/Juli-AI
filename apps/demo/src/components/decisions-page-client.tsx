@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { resolveTab } from "../lib/quyet-dinh/copy";
 import { readActiveShop, type ActiveShop } from "../lib/shop-session";
 import { readAuthSession, type AuthSession } from "../lib/supabase-auth";
-import { SignedInQuyetDinh } from "./quyet-dinh/signed-in-quyet-dinh";
+import { SignedInQuyetDinh, resolveMeasureTab } from "./quyet-dinh/signed-in-quyet-dinh";
 import { RecommendationsView } from "./recommendations-view";
 
 /**
@@ -56,6 +56,7 @@ export function DecisionsPageClient() {
           tab: resolveTab(searchParams.get("tab")),
           run: searchParams.get("run"),
           rulesOpen: searchParams.get("quy-tac") === "1",
+          measureTab: resolveMeasureTab(searchParams.get("moc")),
         }}
         shop={shop}
         token={session.accessToken}

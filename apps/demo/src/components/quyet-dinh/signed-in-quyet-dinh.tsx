@@ -1,52 +1,81 @@
 "use client";
 
 /**
- * The signed-in Quyết định (AC-8.7, ADR-109 d.6, 8–13) — the one module that
- * wires the real clients: decisions + approve, the run ledger poll, each
- * run's SSE stream, confirmations, the P8-C rules / changes / Hoàn tác /
- * questions. Every client is injectable (`clients`) for tests. The anonymous
- * door never imports this module (`replay-module-graph.test.ts`).
+ * The signed-in Quyết định (AC-8.7 → AC-10.3, ADR-109 Amendment 1) — the one
+ * module that wires the real clients: decisions + approve / reject, the run
+ * ledger poll, each run's SSE stream, confirmations (with edited values),
+ * decline, photo upload, Seller Center instructions / applied, changes,
+ * Hoàn tác with a reason, revert questions and the measurement. Every client
+ * is injectable (`clients`) for tests. The anonymous door never imports this
+ * module (`replay-module-graph.test.ts`).
  *
  * URL state: `tab=de-xuat|dang-thuc-hien|do-luong`, `run=<id>` (the run shown
- * in Đang thực hiện), `quy-tac=1` (rules editor open).
+ * in Đang thực hiện), `moc=ngay-0|ngay-7|ngay-14` (Đo lường tab), `quy-tac=1`
+ * (rules editor open).
  */
 
-import type { AgentEvent, DemoDecisionItem, WorkflowRunListItem } from "@juli/contracts";
+import type { DemoDecisionItem } from "@juli/contracts";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  QdApiError,
+  declineRun,
   deleteShopRule,
   describeRevertError,
   dismissRevertQuestion,
   fetchRevertQuestions,
   fetchRunChanges,
+  fetchRunInstructions,
+  fetchRunMeasurement,
   fetchShopRules,
+  isExternalChange,
+  markRunApplied,
+  photoChecksOf,
   putShopRule,
+  rejectDecision,
   startRunRevert,
+  uploadRunPhoto,
   type AuthedOptions,
 } from "../../lib/quyet-dinh/api-client";
 import { describeApproveError } from "../../lib/quyet-dinh/approve-errors";
 import { approveSequentially } from "../../lib/quyet-dinh/batch";
+import { cardView, type CardView } from "../../lib/quyet-dinh/card-model";
 import { QD_TABS, type QdTabSlug } from "../../lib/quyet-dinh/copy";
 import { groupDecisions } from "../../lib/quyet-dinh/grouping";
+import { MEASURE_TABS, type MeasureTab } from "../../lib/quyet-dinh/measure-model";
+import type { CardStatus, P10DecisionItem, PhotoCheck, QdRun, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
+import { REVERT_REASONS, type ReasonChoice } from "../../lib/quyet-dinh/reasons";
+import { runChip, runKind, runPhase, type Chip } from "../../lib/quyet-dinh/run-model";
+import { buildRunTimeline, type RunKind } from "../../lib/quyet-dinh/timeline";
 import type { RevertQuestion, RunChanges, ShopRules } from "../../lib/quyet-dinh/types";
 import { approveDemoDecision, fetchRecommendations } from "../../lib/recommendations-api-client";
 import { fetchDemoRuns } from "../../lib/run-ledger/api-client";
 import { RUN_LEDGER_POLL_INTERVAL_MS } from "../../lib/run-ledger/panel-config";
 import { groupRunsIntoLedgerSections } from "../../lib/run-ledger/sections";
 import { submitConfirmationDecision } from "../../lib/run-surface/confirmation-client";
-import type { ConfirmDecisionFn } from "../../lib/run-surface/confirmation-decision";
 import { useRunStream } from "../../lib/run-surface/use-run-stream";
 import { AppPageHeader } from "../app-shell/page-header";
-import { RunDetailPane, RunQueue, type RevertState } from "./dang-thuc-hien-panel";
+import { RunQueue } from "./dang-thuc-hien-panel";
 import { DeXuatPanel } from "./de-xuat-panel";
-import { DoLuongPanel, isExecutedRun, type ChangesState, type QuestionActionState } from "./do-luong-panel";
+import {
+  DoLuongPanel,
+  IDLE_REVERT,
+  defaultTab,
+  isExecutedRun,
+  measureTitle,
+  type ChangesState,
+  type MeasureItem,
+  type MeasurementState,
+  type RevertActionState,
+} from "./do-luong-panel";
 import { RulesEditor, type RulesEditorProps } from "./rules-editor";
+import { RunPanel, type LoadState, type PhotoState } from "./run-panel";
 
 export interface QdClients {
   readonly fetchDecisions: typeof fetchRecommendations;
   readonly approve: typeof approveDemoDecision;
+  readonly reject: typeof rejectDecision;
   readonly fetchRuns: typeof fetchDemoRuns;
   readonly fetchRules: typeof fetchShopRules;
   readonly putRule: typeof putShopRule;
@@ -56,6 +85,11 @@ export interface QdClients {
   readonly fetchQuestions: typeof fetchRevertQuestions;
   readonly dismissQuestion: typeof dismissRevertQuestion;
   readonly confirm: typeof submitConfirmationDecision;
+  readonly decline: typeof declineRun;
+  readonly uploadPhoto: typeof uploadRunPhoto;
+  readonly fetchInstructions: typeof fetchRunInstructions;
+  readonly markApplied: typeof markRunApplied;
+  readonly fetchMeasurement: typeof fetchRunMeasurement;
   /** SSE transport override (tests); the real one is same-origin `fetch`. */
   readonly streamFetch?: typeof fetch;
 }
@@ -63,6 +97,7 @@ export interface QdClients {
 export const REAL_QD_CLIENTS: QdClients = {
   fetchDecisions: fetchRecommendations,
   approve: approveDemoDecision,
+  reject: rejectDecision,
   fetchRuns: fetchDemoRuns,
   fetchRules: fetchShopRules,
   putRule: putShopRule,
@@ -72,6 +107,11 @@ export const REAL_QD_CLIENTS: QdClients = {
   fetchQuestions: fetchRevertQuestions,
   dismissQuestion: dismissRevertQuestion,
   confirm: submitConfirmationDecision,
+  decline: declineRun,
+  uploadPhoto: uploadRunPhoto,
+  fetchInstructions: fetchRunInstructions,
+  markApplied: markRunApplied,
+  fetchMeasurement: fetchRunMeasurement,
 };
 
 type Load<T> = { status: "loading" } | { status: "error" } | { status: "ready"; data: T };
@@ -80,20 +120,30 @@ export interface QdQuery {
   readonly tab: QdTabSlug;
   readonly run: string | null;
   readonly rulesOpen: boolean;
+  /** Đo lường's tab (`moc`), or null for the default. */
+  readonly measureTab?: MeasureTab | null;
+}
+
+export function resolveMeasureTab(value: string | null | undefined): MeasureTab | null {
+  return MEASURE_TABS.find((entry) => entry.slug === value)?.id ?? null;
 }
 
 export function qdHref(query: QdQuery): string {
   const params = new URLSearchParams();
   params.set("tab", query.tab);
   if (query.run) params.set("run", query.run);
+  if (query.tab === "do-luong" && query.measureTab) {
+    params.set("moc", MEASURE_TABS.find((entry) => entry.id === query.measureTab)!.slug);
+  }
   if (query.rulesOpen) params.set("quy-tac", "1");
   return `/decisions?${params.toString()}`;
 }
 
-const TITLES: Readonly<Record<QdTabSlug, string>> = {
-  "de-xuat": "Chưa có đề xuất mới",
-  "dang-thuc-hien": "Juli tự áp dụng lên TikTok Shop",
-  "do-luong": "Đo kết quả sau 7 và 14 ngày",
+const RUN_HEADER: Readonly<Record<RunKind, { eyebrow: string; title: string }>> = {
+  listing: { eyebrow: "Quyết định · Đang thực hiện", title: "Juli tự áp dụng lên TikTok Shop" },
+  photo: { eyebrow: "Quyết định · Đang thực hiện · Ảnh bìa", title: "Juli tải ảnh của bạn lên TikTok Shop" },
+  manual: { eyebrow: "Quyết định · Đang thực hiện · Khuyến mãi", title: "Bạn áp dụng trên Seller Center, Juli theo dõi" },
+  revert: { eyebrow: "Quyết định · Đang thực hiện · Hoàn tác", title: "Khôi phục nội dung cũ" },
 };
 
 function useNow(intervalMs = 1000): number | null {
@@ -108,6 +158,18 @@ function useNow(intervalMs = 1000): number | null {
     };
   }, [intervalMs]);
   return now;
+}
+
+function reasonLabel(code: string): string {
+  return REVERT_REASONS.find((reason) => reason.code === code)?.label ?? code;
+}
+
+function errorSentence(error: unknown, fallback: string): string {
+  if (error instanceof QdApiError) {
+    if (error.serverMessage && error.status < 500) return error.serverMessage;
+    if (error.status === 401) return "Phiên đăng nhập của bạn không còn hiệu lực. Vui lòng đăng nhập lại.";
+  }
+  return fallback;
 }
 
 export function SignedInQuyetDinh({
@@ -127,9 +189,9 @@ export function SignedInQuyetDinh({
     return (
       <section aria-labelledby="qd-title" className="qd-page">
         <AppPageHeader eyebrow="Quyết định" title="Việc cần bạn quyết định" titleId="qd-title" />
-        <div className="card qd-empty" role="status">
+        <div className="qv-empty" role="status">
           <p>Bạn chưa chọn shop đang thao tác. Mở Kết nối TikTok Shop để chọn shop.</p>
-          <Link className="btn-secondary" href="/auth/connect-shop">
+          <Link className="qv-link" href="/auth/connect-shop">
             Kết nối TikTok Shop
           </Link>
         </div>
@@ -182,7 +244,7 @@ function QuyetDinhForShop({
     void loadRules();
   }, [loadRules]);
 
-  const [runs, setRuns] = useState<Load<readonly WorkflowRunListItem[]>>({ status: "loading" });
+  const [runs, setRuns] = useState<Load<readonly QdRun[]>>({ status: "loading" });
   const [runsKey, setRunsKey] = useState(0);
   const polling = query.tab !== "de-xuat";
   useEffect(() => {
@@ -190,7 +252,7 @@ function QuyetDinhForShop({
     const load = () =>
       clients
         .fetchRuns({ token, shopId: shop.id })
-        .then((data) => !cancelled && setRuns({ status: "ready", data }))
+        .then((data) => !cancelled && setRuns({ status: "ready", data: data as QdRun[] }))
         .catch(() => !cancelled && setRuns((previous) => (previous.status === "ready" ? previous : { status: "error" })));
     void load();
     const timer = polling ? window.setInterval(load, RUN_LEDGER_POLL_INTERVAL_MS) : null;
@@ -199,6 +261,7 @@ function QuyetDinhForShop({
       if (timer !== null) window.clearInterval(timer);
     };
   }, [clients, token, shop.id, polling, runsKey]);
+  const refreshRuns = useCallback(() => setRunsKey((key) => key + 1), []);
 
   const [questions, setQuestions] = useState<readonly RevertQuestion[]>([]);
   useEffect(() => {
@@ -213,24 +276,44 @@ function QuyetDinhForShop({
     };
   }, [clients, auth, query.tab]);
 
-  const [changesByRun, setChangesByRun] = useState<Record<string, ChangesState>>({});
-  const requestedChanges = useRef(new Set<string>());
   const runList = useMemo(() => (runs.status === "ready" ? runs.data : []), [runs]);
+
+  // Changes + measurement for the executed runs (Đo lường).
+  const [changesByRun, setChangesByRun] = useState<Record<string, ChangesState>>({});
+  const [measureByRun, setMeasureByRun] = useState<Record<string, MeasurementState>>({});
+  const requested = useRef(new Set<string>());
   useEffect(() => {
     if (query.tab !== "do-luong") return;
     for (const run of runList.filter(isExecutedRun)) {
-      if (requestedChanges.current.has(run.id)) continue;
-      requestedChanges.current.add(run.id);
+      if (requested.current.has(run.id)) continue;
+      requested.current.add(run.id);
       clients
         .fetchChanges(auth, run.id)
         .then((changes) => setChangesByRun((map) => ({ ...map, [run.id]: { status: "ready", changes } })))
         .catch(() => setChangesByRun((map) => ({ ...map, [run.id]: { status: "error" } })));
+      clients
+        .fetchMeasurement(auth, run.id)
+        .then((measurement) => setMeasureByRun((map) => ({ ...map, [run.id]: { status: "ready", measurement } })))
+        .catch(() => setMeasureByRun((map) => ({ ...map, [run.id]: { status: "ready", measurement: null } })));
     }
   }, [clients, auth, query.tab, runList]);
 
-  // -- Đề xuất actions ---------------------------------------------------------
-  const [approvedIds, setApprovedIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [droppedIds, setDroppedIds] = useState<ReadonlySet<string>>(() => new Set());
+  // -- cards ---------------------------------------------------------------------
+  const items = useMemo(() => (decisions.status === "ready" ? (decisions.data as P10DecisionItem[]) : []), [decisions]);
+  const views = useMemo(() => new Map(items.map((item) => [item.id, cardView(item)])), [items]);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, CardStatus>>({});
+  const [runByCard, setRunByCard] = useState<Record<string, string>>({});
+  const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
+  const cardFor = useCallback(
+    (run: Pick<QdRun, "id" | "product_name">): CardView | null => {
+      const byRun = Object.entries(runByCard).find(([, runId]) => runId === run.id)?.[0];
+      if (byRun && views.has(byRun)) return views.get(byRun)!;
+      for (const view of views.values()) if (view.title === run.product_name) return view;
+      return null;
+    },
+    [runByCard, views],
+  );
+
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [approveErrors, setApproveErrors] = useState<string[]>([]);
@@ -240,26 +323,51 @@ function QuyetDinhForShop({
   const handleApprove = useCallback(
     (cardIds: readonly string[]) => {
       if (busy || cardIds.length === 0) return;
+      const batch = cardIds.length > 1;
       setBusy(true);
       setApproveErrors([]);
-      setProgress(`Đang duyệt 0/${cardIds.length} thẻ…`);
+      setCardErrors((map) => {
+        const next = { ...map };
+        for (const id of cardIds) delete next[id];
+        return next;
+      });
+      setProgress(batch ? `Đang duyệt 0/${cardIds.length} thẻ…` : null);
       void approveSequentially(
         cardIds,
         (cardId) => clients.approve(cardId, { token, shopId: shop.id }),
-        (done, total) => setProgress(`Đang duyệt ${done}/${total} thẻ…`),
+        (done, total) => batch && setProgress(`Đang duyệt ${done}/${total} thẻ…`),
       ).then((results) => {
         setBusy(false);
         setProgress(null);
         const ok = results.filter((result) => result.runId !== null);
-        setApprovedIds((ids) => new Set([...ids, ...ok.map((result) => result.cardId)]));
-        setApproveErrors(results.filter((result) => result.runId === null).map((result) => describeApproveError(result.error)));
+        setStatusOverrides((map) => ({ ...map, ...Object.fromEntries(ok.map((result) => [result.cardId, "running" as const])) }));
+        setRunByCard((map) => ({ ...map, ...Object.fromEntries(ok.map((result) => [result.cardId, result.runId!])) }));
+        const failed = results.filter((result) => result.runId === null);
+        if (batch) setApproveErrors(failed.map((result) => describeApproveError(result.error)));
+        else
+          setCardErrors((map) => ({
+            ...map,
+            ...Object.fromEntries(failed.map((result) => [result.cardId, describeApproveError(result.error)])),
+          }));
         if (ok.length > 0) {
-          setRunsKey((key) => key + 1);
-          navigate({ tab: "dang-thuc-hien", run: ok[0].runId, rulesOpen: false });
+          refreshRuns();
+          if (batch) navigate({ tab: "dang-thuc-hien", run: ok[0].runId, rulesOpen: false });
         }
       });
     },
-    [busy, clients, token, shop.id, navigate],
+    [busy, clients, token, shop.id, navigate, refreshRuns],
+  );
+
+  const handleReject = useCallback(
+    async (cardId: string, choice: ReasonChoice) => {
+      try {
+        await clients.reject(auth, cardId, choice);
+      } catch (error) {
+        throw new Error(errorSentence(error, "Chưa từ chối được thẻ này. Vui lòng thử lại."));
+      }
+      setStatusOverrides((map) => ({ ...map, [cardId]: "rejected" }));
+    },
+    [clients, auth],
   );
 
   // -- rules editor ------------------------------------------------------------
@@ -278,61 +386,104 @@ function QuyetDinhForShop({
     [clients, auth, loadRules],
   );
 
-  // -- Đo lường actions --------------------------------------------------------
-  const [questionStates, setQuestionStates] = useState<Record<string, QuestionActionState>>({});
-  const onRevertQuestion = (question: RevertQuestion) => {
-    setQuestionStates((map) => ({ ...map, [question.id]: { busy: true, message: null } }));
-    clients
-      .startRevert(auth, question.run_id)
-      .then(({ runId }) => {
-        setRunsKey((key) => key + 1);
-        navigate({ tab: "dang-thuc-hien", run: runId });
-      })
-      .catch((error: unknown) =>
-        setQuestionStates((map) => ({ ...map, [question.id]: { busy: false, message: describeRevertError(error) } })),
-      );
-  };
-  const onDismissQuestion = (question: RevertQuestion) => {
-    setQuestionStates((map) => ({ ...map, [question.id]: { busy: true, message: null } }));
-    clients
-      .dismissQuestion(auth, question.id)
-      .then(() => setQuestions((list) => list.filter((item) => item.id !== question.id)))
-      .catch(() =>
-        setQuestionStates((map) => ({
+  // -- Hoàn tác (Đang thực hiện and Đo lường) -------------------------------------------
+  const [revertMeta, setRevertMeta] = useState<Record<string, { reason: string; startedAt: string }>>({});
+  const [measureActions, setMeasureActions] = useState<Record<string, RevertActionState>>({});
+  const setAction = (runId: string, patch: Partial<RevertActionState>) =>
+    setMeasureActions((map) => ({ ...map, [runId]: { ...(map[runId] ?? IDLE_REVERT), ...patch } }));
+
+  const startRevert = useCallback(
+    async (runId: string, choice: ReasonChoice): Promise<{ runId: string } | { conflict: string } | { error: string }> => {
+      try {
+        const result = await clients.startRevert(auth, runId, choice);
+        setRevertMeta((map) => ({
           ...map,
-          [question.id]: { busy: false, message: "Chưa lưu được lựa chọn. Vui lòng thử lại." },
-        })),
-      );
+          [result.runId]: { reason: reasonLabel(choice.reason_code), startedAt: new Date().toISOString() },
+        }));
+        refreshRuns();
+        return result;
+      } catch (error) {
+        if (isExternalChange(error)) return { conflict: (error as QdApiError).serverMessage ?? describeRevertError(error) };
+        return { error: describeRevertError(error) };
+      }
+    },
+    [clients, auth, refreshRuns],
+  );
+
+  const onMeasureRevert = (item: MeasureItem, choice: ReasonChoice) => {
+    setAction(item.run.id, { busy: true, error: null, conflict: null });
+    void startRevert(item.run.id, choice).then((result) => {
+      if ("runId" in result) setAction(item.run.id, { busy: false, revertRunId: result.runId });
+      else if ("conflict" in result) setAction(item.run.id, { busy: false, conflict: result.conflict });
+      else setAction(item.run.id, { busy: false, error: result.error });
+    });
+  };
+
+  const onMeasureKeep = (item: MeasureItem) => {
+    const questionId =
+      (item.measurement?.status === "ready" ? item.measurement.measurement?.day7?.question_id : null) ?? item.question?.id ?? null;
+    if (!questionId) {
+      setAction(item.run.id, { kept: true });
+      return;
+    }
+    setAction(item.run.id, { busy: true, error: null });
+    clients
+      .dismissQuestion(auth, questionId)
+      .then(() => setAction(item.run.id, { busy: false, kept: true }))
+      .catch(() => setAction(item.run.id, { busy: false, error: "Chưa lưu được lựa chọn. Vui lòng thử lại." }));
   };
 
   // -- selected run --------------------------------------------------------------
   const sections = groupRunsIntoLedgerSections(runList);
   const defaultRun = sections.waitingOnYou[0] ?? sections.running[0] ?? sections.finished[0] ?? null;
-  const selectedRun = runList.find((run) => run.id === query.run) ?? (query.run ? null : defaultRun);
+  const selectedRun = runList.find((run) => run.id === query.run) ?? (query.run ? null : (defaultRun as QdRun | null));
+  const [selectedState, setSelectedState] = useState<{ runId: string; kind: RunKind; chip: Chip } | null>(null);
+  const selectedKind = selectedState && selectedRun && selectedState.runId === selectedRun.id ? selectedState.kind : "listing";
 
+  // -- measure items -------------------------------------------------------------
+  const measureItems: MeasureItem[] = useMemo(
+    () =>
+      runList
+        .filter(isExecutedRun)
+        .filter((run) => {
+          const state = changesByRun[run.id];
+          if (state?.status !== "ready") return true;
+          if (state.changes.reverts_run_id !== null) return false;
+          const m = measureByRun[run.id];
+          const measured = m?.status === "ready" && m.measurement !== null;
+          return state.changes.changes.length > 0 || measured || cardFor(run)?.executor === "seller_center";
+        })
+        .map((run) => ({
+          run,
+          card: cardFor(run),
+          changes: changesByRun[run.id],
+          measurement: measureByRun[run.id],
+          question: questions.find((question) => question.run_id === run.id && !question.revert_run_id) ?? null,
+          action: measureActions[run.id] ?? IDLE_REVERT,
+        })),
+    [runList, changesByRun, measureByRun, questions, measureActions, cardFor],
+  );
+  const measureTab = query.measureTab ?? defaultTab(measureItems);
+
+  // -- header ----------------------------------------------------------------------
   const groups = useMemo(() => (decisions.status === "ready" ? groupDecisions(decisions.data) : []), [decisions]);
-  const title =
-    query.tab === "de-xuat" && groups.length > 0 ? groups[0].title : TITLES[query.tab];
-  const eyebrow = `Quyết định · ${QD_TABS.find((tab) => tab.slug === query.tab)!.label}`;
+  let eyebrow = `Quyết định · ${QD_TABS.find((tab) => tab.slug === query.tab)!.label}`;
+  let title = "Chưa có đề xuất mới";
+  if (query.tab === "de-xuat" && groups.length > 0) title = groups[0].title;
+  if (query.tab === "dang-thuc-hien") ({ eyebrow, title } = RUN_HEADER[selectedKind]);
+  if (query.tab === "do-luong") title = measureItems.length > 0 ? measureTitle(measureItems, measureTab) : "Đo kết quả sau 7 và 14 ngày";
+
+  const runHref = (runId: string | null) => qdHref({ tab: "dang-thuc-hien", run: runId, rulesOpen: false });
 
   return (
     <section aria-labelledby="qd-title" className="qd-page">
-      <AppPageHeader
-        eyebrow={eyebrow}
-        lede={
-          <>
-            Bạn đang thao tác trên: <strong>{shop.name}</strong>
-          </>
-        }
-        title={title}
-        titleId="qd-title"
-      />
+      <AppPageHeader eyebrow={eyebrow} title={title} titleId="qd-title" />
 
-      <div aria-label="Quyết định" className="pt-tabs" role="tablist">
+      <div aria-label="Quyết định" className="qv-tabs" role="tablist">
         {QD_TABS.map((tab) => (
           <button
             aria-selected={query.tab === tab.slug}
-            className="pt-tabs__tab"
+            className="qv-tab"
             key={tab.slug}
             onClick={() => navigate({ tab: tab.slug, run: tab.slug === "dang-thuc-hien" ? query.run : null })}
             role="tab"
@@ -352,15 +503,15 @@ function QuyetDinhForShop({
             rules={rules.data}
           />
         ) : (
-          <p className="qd-muted" role="status">
+          <p className="qv-status-line" role="status">
             {rules.status === "loading" ? "Đang tải quy tắc…" : "Không tải được quy tắc của shop."}
           </p>
         )
       ) : null}
 
       {approveErrors.length > 0 ? (
-        <div className="qd-error-box" role="alert">
-          <p>Không duyệt được {approveErrors.length} thẻ:</p>
+        <div className="qv-orange" role="alert">
+          <div className="qv-orange__title">Không duyệt được {approveErrors.length} thẻ:</div>
           <ul>
             {[...new Set(approveErrors)].map((message) => (
               <li key={message}>{message}</li>
@@ -371,12 +522,14 @@ function QuyetDinhForShop({
 
       {query.tab === "de-xuat" ? (
         decisions.status === "loading" ? (
-          <p role="status">Đang tải đề xuất cho shop của bạn…</p>
+          <p className="qv-status-line" role="status">
+            Đang tải đề xuất cho shop của bạn…
+          </p>
         ) : decisions.status === "error" ? (
-          <div className="card qd-empty" role="alert">
+          <div className="qv-empty" role="alert">
             <p>Không thể tải đề xuất cho shop của bạn. Vui lòng thử lại.</p>
             <button
-              className="btn-secondary"
+              className="qv-btn qv-btn--secondary"
               onClick={() => {
                 setDecisions({ status: "loading" });
                 setDecisionsKey((key) => key + 1);
@@ -387,99 +540,128 @@ function QuyetDinhForShop({
             </button>
           </div>
         ) : groups.length === 0 ? (
-          <div className="card qd-empty" role="status">
+          <div className="qv-empty" role="status">
             <p>Juli đang thu thập dữ liệu shop của bạn. Đề xuất đầu tiên sẽ xuất hiện trong vòng 24 giờ.</p>
           </div>
         ) : (
           <DeXuatPanel
-            approvedIds={approvedIds}
             busy={busy}
-            droppedIds={droppedIds}
+            cardErrors={cardErrors}
             groups={groups}
             onApprove={handleApprove}
-            onDrop={(cardId) => setDroppedIds((ids) => new Set(ids).add(cardId))}
             onOpenRules={() => navigate({ rulesOpen: true })}
+            onOpenRun={(runId) => navigate({ tab: "dang-thuc-hien", run: runId, rulesOpen: false })}
+            onReject={handleReject}
             progress={progress}
+            progressHref={runHref}
             rules={rules.status === "ready" ? rules.data : null}
             rulesStatus={rules.status}
+            runByCard={runByCard}
+            statusOverrides={statusOverrides}
           />
         )
       ) : null}
 
       {query.tab === "dang-thuc-hien" ? (
-        <div className="qd-dt">
-          <div className="qd-dt__main">
+        <div className="qv-dt">
+          <div>
             {runs.status === "loading" ? (
-              <p role="status">Đang tải danh sách…</p>
+              <p className="qv-status-line" role="status">
+                Đang tải danh sách…
+              </p>
             ) : runs.status === "error" ? (
-              <p className="qd-error" role="alert">
+              <p className="qv-inline-error" role="alert">
                 Không thể tải danh sách luồng thực hiện.
               </p>
             ) : selectedRun ? (
               <SelectedRun
                 auth={auth}
+                card={cardFor(selectedRun)}
                 clients={clients}
                 key={selectedRun.id}
+                measureHref={qdHref({ tab: "do-luong", run: null, rulesOpen: false })}
                 nowMs={nowMs}
-                onRevertStarted={(runId) => {
-                  setRunsKey((key) => key + 1);
-                  navigate({ tab: "dang-thuc-hien", run: runId });
-                }}
+                onOpenMeasure={() => navigate({ tab: "do-luong", run: null, rulesOpen: false })}
+                onOpenRun={(runId) => navigate({ tab: "dang-thuc-hien", run: runId })}
+                onRefresh={refreshRuns}
+                onState={setSelectedState}
+                revertMeta={revertMeta[selectedRun.id] ?? null}
                 run={selectedRun}
+                startRevert={startRevert}
               />
             ) : query.run ? (
-              <p className="qd-muted" role="status">
+              <p className="qv-status-line" role="status">
                 Đang tìm lượt chạy này…
               </p>
             ) : (
-              <div className="card qd-empty" role="status">
+              <div className="qv-empty" role="status">
                 <p>Chưa có quyết định nào đang thực hiện. Duyệt thẻ ở tab Đề xuất để Juli bắt đầu.</p>
               </div>
             )}
           </div>
-          <RunQueue onSelect={(runId) => navigate({ run: runId })} runs={runList} selectedId={selectedRun?.id ?? null} />
+          <RunQueue
+            cardFor={cardFor}
+            onSelect={(runId) => navigate({ run: runId })}
+            runs={runList}
+            selectedChip={selectedState && selectedState.runId === selectedRun?.id ? selectedState.chip : null}
+            selectedId={selectedRun?.id ?? null}
+          />
         </div>
       ) : null}
 
       {query.tab === "do-luong" ? (
         <DoLuongPanel
-          changesByRun={changesByRun}
+          items={measureItems}
           nowMs={nowMs}
-          onDismissQuestion={onDismissQuestion}
+          onKeep={onMeasureKeep}
+          onOpenProposals={(event) => {
+            event.preventDefault();
+            navigate({ tab: "de-xuat", run: null });
+          }}
           onOpenRun={(runId) => navigate({ tab: "dang-thuc-hien", run: runId })}
-          onRevertQuestion={onRevertQuestion}
-          questionStates={questionStates}
-          questions={questions}
-          runs={runList}
+          onRevert={onMeasureRevert}
+          onTab={(tab) => navigate({ measureTab: tab })}
+          proposalsHref={qdHref({ tab: "de-xuat", run: null, rulesOpen: false })}
+          tab={measureTab}
         />
       ) : null}
     </section>
   );
 }
 
-function isTerminal(events: readonly AgentEvent[]): boolean {
-  return events.some((event) => event.event_type === "workflow.completed" || event.event_type === "workflow.failed");
-}
-
 function SelectedRun({
   run,
+  card,
   auth,
   clients,
   nowMs,
-  onRevertStarted,
+  revertMeta,
+  measureHref,
+  onOpenMeasure,
+  onOpenRun,
+  onRefresh,
+  onState,
+  startRevert,
 }: {
-  readonly run: WorkflowRunListItem;
+  readonly run: QdRun;
+  readonly card: CardView | null;
   readonly auth: AuthedOptions;
   readonly clients: QdClients;
   readonly nowMs: number | null;
-  readonly onRevertStarted: (runId: string) => void;
+  readonly revertMeta: { readonly reason: string; readonly startedAt: string } | null;
+  readonly measureHref: string;
+  readonly onOpenMeasure: () => void;
+  readonly onOpenRun: (runId: string) => void;
+  readonly onRefresh: () => void;
+  readonly onState: (state: { runId: string; kind: RunKind; chip: Chip }) => void;
+  readonly startRevert: (runId: string, choice: ReasonChoice) => Promise<{ runId: string } | { conflict: string } | { error: string }>;
 }) {
   const { events, streamStatus } = useRunStream(run.id, {
     token: auth.token,
     shopId: auth.shopId,
     fetchImpl: clients.streamFetch,
   });
-  const terminal = isTerminal(events);
+  const terminalSeen = events.some((event) => event.event_type === "workflow.completed" || event.event_type === "workflow.failed");
   const [changes, setChanges] = useState<RunChanges | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -490,33 +672,150 @@ function SelectedRun({
     return () => {
       cancelled = true;
     };
-  }, [clients, auth, run.id, terminal]);
+  }, [clients, auth, run.id, terminalSeen]);
 
-  const [revertState, setRevertState] = useState<RevertState>({ status: "idle" });
-  const confirm: ConfirmDecisionFn = (runId, toolCallId, decision, optionId, options = {}) =>
-    clients.confirm(runId, toolCallId, decision, optionId, { ...options, shopId: auth.shopId });
+  const isRevert = Boolean(changes?.reverts_run_id) || revertMeta !== null;
+  const kind = runKind(run, card, events, isRevert);
+  const [photoChecks, setPhotoChecks] = useState<readonly PhotoCheck[] | null>(null);
+  const [photoState, setPhotoState] = useState<PhotoState>({ status: "idle" });
+  const [appliedPosted, setAppliedPosted] = useState(false);
+  const [appliedState, setAppliedState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
+  const [declined, setDeclined] = useState(false);
+  const timeline = useMemo(
+    () =>
+      buildRunTimeline(events, {
+        kind,
+        isRevert: kind === "revert",
+        awaiting: run.awaiting ?? null,
+        photoChecks,
+        revertStartedAt: revertMeta?.startedAt ?? (kind === "revert" ? run.created_at : null),
+        revertReason: revertMeta?.reason ?? null,
+        revertFieldLabels: changes?.changes.map((change) => change.label) ?? card?.changeLabels ?? [],
+      }),
+    [events, kind, run.awaiting, run.created_at, photoChecks, revertMeta, changes, card],
+  );
+  const phase = runPhase(run, kind, timeline, { appliedPosted, declined });
+  const chip = runChip(run, kind, phase);
+
+  useEffect(() => {
+    onState({ runId: run.id, kind, chip });
+    // chip is derived from kind/phase; compare by value to avoid loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run.id, kind, chip.label, chip.tone]);
+
+  // Seller Center instructions, once the run waits on the seller.
+  const [instructions, setInstructions] = useState<LoadState<SellerInstructions> | null>(null);
+  const wantsInstructions = run.awaiting === "seller_action";
+  useEffect(() => {
+    if (!wantsInstructions) return;
+    let cancelled = false;
+    clients
+      .fetchInstructions(auth, run.id)
+      .then((data) => !cancelled && setInstructions({ status: "ready", data }))
+      .catch(() => !cancelled && setInstructions({ status: "error" }));
+    return () => {
+      cancelled = true;
+    };
+  }, [clients, auth, run.id, wantsInstructions]);
+
+  const [revertBusy, setRevertBusy] = useState(false);
+  const [revertConflict, setRevertConflict] = useState<string | null>(null);
+  const [revertError, setRevertError] = useState<string | null>(null);
+
+  const toolCallId = timeline.pendingConsent?.toolCallId ?? null;
 
   return (
-    <RunDetailPane
+    <RunPanel
+      appliedState={appliedState}
+      card={card}
       changes={changes}
-      confirm={confirm}
-      events={events}
-      isRevert={Boolean(changes?.reverts_run_id)}
+      eventsLoaded={events.length > 0}
+      instructions={instructions}
+      kind={kind}
+      measureHref={measureHref}
       nowMs={nowMs}
-      onRevert={() => {
-        setRevertState({ status: "submitting" });
-        clients
-          .startRevert(auth, run.id)
-          .then(({ runId }) => {
-            setRevertState({ status: "idle" });
-            onRevertStarted(runId);
-          })
-          .catch((error: unknown) => setRevertState({ status: "error", message: describeRevertError(error) }));
+      onApplied={async () => {
+        setAppliedState({ busy: true, error: null });
+        try {
+          await clients.markApplied(auth, run.id);
+          setAppliedPosted(true);
+          setAppliedState({ busy: false, error: null });
+          onRefresh();
+        } catch (error) {
+          setAppliedState({ busy: false, error: errorSentence(error, "Chưa gửi được. Vui lòng thử lại.") });
+        }
       }}
+      onCancelRevert={async () => {
+        if (!toolCallId) return;
+        await clients.confirm(run.id, toolCallId, "decline", null, { token: auth.token, shopId: auth.shopId });
+        setDeclined(true);
+        onRefresh();
+      }}
+      onConfirm={async (callId, optionId, edited) => {
+        await clients.confirm(run.id, callId, "approve", optionId, {
+          token: auth.token,
+          shopId: auth.shopId,
+          editedValues: edited ?? undefined,
+        });
+        onRefresh();
+      }}
+      onDecline={async (choice) => {
+        try {
+          await clients.decline(auth, run.id, choice);
+        } catch (error) {
+          // Contract §2's decline route not deployed yet: decline the consent itself.
+          if (error instanceof QdApiError && (error.status === 404 || error.status === 405) && toolCallId) {
+            await clients.confirm(run.id, toolCallId, "decline", null, { token: auth.token, shopId: auth.shopId });
+          } else {
+            throw new Error(errorSentence(error, "Chưa gửi được lựa chọn. Vui lòng thử lại."));
+          }
+        }
+        setDeclined(true);
+        onRefresh();
+      }}
+      onOpenMeasure={(event) => {
+        event.preventDefault();
+        onOpenMeasure();
+      }}
+      onRevert={(choice) => {
+        setRevertBusy(true);
+        setRevertConflict(null);
+        setRevertError(null);
+        void startRevert(run.id, choice).then((result) => {
+          setRevertBusy(false);
+          if ("runId" in result) onOpenRun(result.runId);
+          else if ("conflict" in result) setRevertConflict(result.conflict);
+          else setRevertError(result.error);
+        });
+      }}
+      onUpload={async (file) => {
+        setPhotoState({ status: "uploading" });
+        try {
+          const checks = await clients.uploadPhoto(auth, run.id, file);
+          setPhotoChecks(checks);
+          setPhotoState({ status: "idle" });
+          onRefresh();
+        } catch (error) {
+          const checks = error instanceof QdApiError ? photoChecksOf(error.body) : null;
+          if (checks) setPhotoChecks(checks);
+          setPhotoState({
+            status: "error",
+            message: checks
+              ? "Ảnh chưa đạt yêu cầu. Vui lòng chọn ảnh khác."
+              : errorSentence(error, "Chưa tải được ảnh lên. Vui lòng thử lại."),
+          });
+        }
+      }}
+      phase={phase}
+      photoChecks={photoChecks}
+      photoState={photoState}
       reconnecting={streamStatus === "reconnecting"}
-      revertState={revertState}
+      revertBusy={revertBusy}
+      revertConflict={revertConflict}
+      revertError={revertError}
+      revertReasonLabel={revertMeta?.reason ?? null}
       run={run}
-      token={auth.token}
+      timeline={timeline}
     />
   );
 }
