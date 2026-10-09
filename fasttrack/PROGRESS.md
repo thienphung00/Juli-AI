@@ -55,10 +55,10 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P10-A Card payload, reasons + 7-day cooldown, consent edits | 10.1 | doing | P10-A agent (Opus) |
-| P10-B Cover-image flow, promotion flow, measurement endpoint | 10.2 | doing | P10-B agent (Opus) |
-| P10-C UI to the artboards in docs/product/design/quyet-dinh-flows | 10.3 | doing | P10-C agent (Opus) |
-| P10 integration + deploy | — | todo | orchestrator |
+| P10-A Card payload, reasons + 7-day cooldown, consent edits | 10.1 | done (merged 6bac0366) | P10-A agent (Opus) |
+| P10-B Cover-image flow, promotion flow, measurement endpoint | 10.2 | done (merged d45313fa) | P10-B agent (Opus) |
+| P10-C UI to the artboards in docs/product/design/quyet-dinh-flows | 10.3 | done (merged e42a9568) | P10-C agent (Opus) |
+| P10 integration (wiring 8ba4e9ff, 9849f24a; contract f54ada3b, 0aaba190; guards 90aec127) | — | done — deploy is the owner's | integration agent (Opus) |
 
 ## P2–P6
 

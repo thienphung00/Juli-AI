@@ -398,22 +398,22 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   arguments; only the tool result carries the edited values the model reads next.
 - [ ] "Không thực hiện" on a *revert* run's consent records a `decline` reason against
   the original card's lever too (cools it down) — harmless, not intended.
-- [ ] `POST /v1/demo/runs/{id}/revert` now 422s without a body: the current demo UI
+- [x] (P10-C sends `{reason_code, note?}`; verified at integration) `POST /v1/demo/runs/{id}/revert` now 422s without a body: the current demo UI
   (Hoàn tác button) breaks until P10-C sends `{reason_code, note?}`.
 
 ## P10-C — Quyết định UI to the artboards (AC-10.3)
 
-- [ ] Built against the contract with fixtures; P10-A/P10-B not merged here.
+- [x] (P10 integration 9849f24a: wired to the merged backend; decline fallback removed) Built against the contract with fixtures; P10-A/P10-B not merged here.
   Live until then: no `recommendation.card` → card degrades to the P7-B
   diagnosis (no SKU chip, KPI current only); `/decline` 404/405 falls back to
   the consent decline; `/measurement` 404 → completion-based waiting line + P8
   `revert-questions`. Re-check every screen against the merged backend.
-- [ ] Manual (promotion) timeline: P10-B's promotion tool names are unknown,
+- [x] (P10 integration 9849f24a: rows mapped to P10-B's tools, contract §7) Manual (promotion) timeline: P10-B's promotion tool names are unknown,
   so tools before the pause fill the three Juli rows in order and tools after
   it are "Kiểm tra trên TikTok"; the pause is the first `workflow.status`
   starting "Đang chờ" (contract only names "Đang chờ ảnh từ bạn"). Pin the
   names/narration with P10-B.
-- [ ] Runs carry no decision id: a run is joined to its card by this visit's
+- [x] (P10 integration 8ba4e9ff: `decision_id` on runs list + detail) Runs carry no decision id: a run is joined to its card by this visit's
   approve response, else by product title (SKU in run titles / queue depends
   on it). Ask P10-B for `decision_id` on the runs list.
 - [ ] Production router: on a page first loaded with a query
@@ -496,3 +496,20 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] The day-14 verdict is computed lazily by the first
   `GET .../measurement` at the final stage (a GET that writes once), not by a
   job — a run nobody opens is never calibrated.
+
+## P10 integration (2026-10-09)
+
+- [ ] "Không thực hiện" at a photo / Seller Center wait ends the run by writing
+  the terminal row + `workflow.failed` event directly from the route
+  (`lever_flows.end_wait_by_seller`, compare-and-set on `waiting_external`),
+  like the reaper — not through the runner. A promotion re-check already
+  scheduled finds the run not waiting and no-ops.
+- [ ] Photo consent images come from `GET /v1/demo/runs/{id}` (fetched by the UI
+  for cover-photo runs when the run / consent / terminal state changes); the
+  consent payload itself still carries no URLs.
+- [ ] The Python↔TS P10 contract test reads the TS interfaces as text (field
+  names only); types/nullability are pinned by tsc, not by the test.
+- [ ] `tests/integration/test_reaper_two_tenant.py` still fails on PG16 (pre-existing
+  since before effa4d4a, see P10-B log) — not investigated here.
+- [ ] Not re-shot against a live backend: fidelity screenshots are still P10-C's
+  stubbed ones.

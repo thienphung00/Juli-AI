@@ -620,3 +620,35 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   eval.quality_detectors reconcile --write` again after P10-A/C merge).
 - Next: integration re-chains 079/080; P10-C reads `awaiting`, `photo.*_url`,
   `/instructions`, `/applied`, `/measurement`. See DEBT "P10-B".
+
+## 2026-10-09 — P10 integration agent (Claude Opus) — UI ↔ backend wired; merged-head verification
+
+- Commits: 90aec127 (drift allowlist re-sorted — merge interleaved P10-A/B
+  entries, test_module_md_sync_parser failed), 8ba4e9ff (runs list + detail
+  `decision_id`; decline at a photo / Seller Center wait ends the run
+  `cancelled_by_seller`), 9849f24a (demo wiring), f54ada3b (tests incl.
+  Python↔TS P10 contract), 0aaba190 (contract §7 accepted deviations),
+  ee38e801 (racy vitest heading).
+- Mismatches fixed: photo consent showed placeholders (consent payload is
+  `attach_staged_image`; URLs now from run detail `photo.*_url`, stored checks
+  reload); photo timeline counted the pre-consent staging upload as the write;
+  promotion timeline slots mis-mapped P10-B's tools (`find_product_promotions`
+  read/verify, rules = narrated text); "Không áp dụng" at the seller step 409'd
+  (backend only declined consents) — backend now ends the wait; decline 404
+  fallback to the consent decline removed (English codes → VI sentence); cards
+  joined by `decision_id`; null `within_band` (no bands) read as out of band;
+  nullable card KPI/title/gmv_method and measurement values. Reason codes,
+  `edited_values`, 422 `rule_violation`, multipart `file`, status codes matched.
+- Verification vs effa4d4a: check.sh --since effa4d4a on a fresh PG16 (initdb,
+  random port, deleted after): migrations PASS (head 080), isolation 12,
+  gitleaks PASS, ruff PASS (98 files), pytest 513 passed / 1 failed =
+  known test_reaper_two_tenant. Unit+harness: 6590 passed / 10 failed vs base
+  6483 / 9 — the known 9 plus test_credentials_in_url_guard, which only failed
+  while check.sh ran concurrently and passes alone. task_wiring 29/29 with the
+  sqlite URL. mypy (backend config) clean, 561 files; ruff clean; guards
+  (route-auth, import boundaries, threat-model/surface inventory, module drift,
+  test-quality, ownership) green.
+- Demo: lint 0 errors (7 pre-existing warnings), type-check clean, vitest
+  1654 (2 failed under load, both pass alone; one hardened), Playwright 124
+  passed / 140 skipped vs `next start`, build:demo OK with dummy Supabase env.
+- Next: owner deploy; re-shoot fidelity against a live backend (DEBT).
