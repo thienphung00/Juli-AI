@@ -2,7 +2,7 @@
 
 import { useId, useState, type ReactNode } from "react";
 
-import { QdApiError } from "../../lib/quyet-dinh/api-client";
+import { QdApiError } from "../../lib/quyet-dinh/client-types";
 import { LEVER_LABELS, RULE_LABELS, TEAM_TOGGLE_LABEL, bandMetricLabel, setByLabel } from "../../lib/quyet-dinh/copy";
 import { vnDate } from "../../lib/quyet-dinh/timeline";
 import type { RuleKey, RuleValueItem, SetBy, ShopRules } from "../../lib/quyet-dinh/types";

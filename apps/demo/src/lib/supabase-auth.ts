@@ -8,7 +8,12 @@
  *
  * This is a real, distinct Supabase Auth identity (ADR-075 unweakened) — not
  * the withdrawn anonymous session from ADR-084 decision 1.
+ *
+ * The session lives in `localStorage` (P11, `persistent-storage.ts`) so it
+ * survives new tabs and a browser restart; sign-out clears both stores.
  */
+
+import { readPersistent, removePersistent, writePersistent } from "./persistent-storage";
 
 export interface AuthSession {
   accessToken: string;
@@ -114,10 +119,7 @@ export function storeAuthSession(session: AuthSession): void {
     return;
   }
 
-  window.sessionStorage.setItem(
-    AUTH_SESSION_STORAGE_KEY,
-    JSON.stringify(session),
-  );
+  writePersistent(AUTH_SESSION_STORAGE_KEY, JSON.stringify(session));
 }
 
 export function readAuthSession(): AuthSession | null {
@@ -125,7 +127,7 @@ export function readAuthSession(): AuthSession | null {
     return null;
   }
 
-  const raw = window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+  const raw = readPersistent(AUTH_SESSION_STORAGE_KEY);
 
   if (!raw) {
     return null;
@@ -154,7 +156,7 @@ export function clearAuthSession(): void {
     return;
   }
 
-  window.sessionStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+  removePersistent(AUTH_SESSION_STORAGE_KEY);
 }
 
 /**

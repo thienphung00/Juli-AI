@@ -6,31 +6,23 @@
  * (`replay-module-graph.test.ts`).
  */
 
+import { QdApiError, photoChecksOf, type AuthedOptions } from "./client-types";
 import type { Measurement, PhotoCheck, RunDetail, SellerInstructions } from "./p10-types";
 import type { ReasonChoice } from "./reasons";
 import type { RevertQuestion, RuleKey, RunChanges, SetBy, ShopRules } from "./types";
 
+// The error class, the options shape and the pure helpers live in the
+// network-free `client-types.ts` (the sample door imports them); re-exported
+// here so every existing import keeps working.
+export {
+  QdApiError,
+  describeRevertError,
+  isExternalChange,
+  photoChecksOf,
+  type AuthedOptions,
+} from "./client-types";
+
 const BASE = "/v1/demo";
-
-export interface AuthedOptions {
-  readonly token: string;
-  readonly shopId: string;
-  readonly fetchImpl?: typeof fetch;
-}
-
-/** A non-2xx answer. `message` is the backend's Vietnamese sentence when it sent one. */
-export class QdApiError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly code: string | null,
-    public readonly serverMessage: string | null,
-    /** The parsed error body (P10: photo checks ride on a 422). */
-    public readonly body: unknown = null,
-  ) {
-    super(serverMessage ?? `Request failed (${status})`);
-    this.name = "QdApiError";
-  }
-}
 
 async function call<T>(
   path: string,
@@ -136,18 +128,6 @@ export async function dismissRevertQuestion(options: AuthedOptions, questionId: 
   await call(`/revert-questions/${encodeURIComponent(questionId)}/dismiss`, options, { method: "POST" });
 }
 
-/** Seller-facing sentence for a failed revert: the backend's own words when given. */
-export function describeRevertError(error: unknown): string {
-  if (error instanceof QdApiError) {
-    if (error.serverMessage && (error.status === 409 || error.status === 503)) return error.serverMessage;
-    if (error.status === 429) return "Bạn vừa gửi quá nhiều yêu cầu. Vui lòng thử lại sau ít phút.";
-    if (error.status === 404) return "Không tìm thấy lượt chạy này trong shop bạn đang thao tác.";
-    if (error.status === 401) return "Phiên đăng nhập của bạn không còn hiệu lực. Vui lòng đăng nhập lại.";
-    return `Chưa thể hoàn tác lúc này (lỗi ${error.status}). Vui lòng thử lại.`;
-  }
-  return "Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.";
-}
-
 function reasonBody(reason: ReasonChoice): { reason_code: string; note?: string } {
   const note = reason.note?.trim();
   return note ? { reason_code: reason.reason_code, note } : { reason_code: reason.reason_code };
@@ -184,26 +164,6 @@ export async function declineRun(
     body: reasonBody(reason),
   });
   return unwrap(body);
-}
-
-/** Photo checks from a 202 or a 422 body (`{checks}` at the top, under `data` or under `detail`). */
-export function photoChecksOf(body: unknown): PhotoCheck[] | null {
-  const candidates = [body, (body as { data?: unknown })?.data, (body as { detail?: unknown })?.detail];
-  for (const candidate of candidates) {
-    const checks = (candidate as { checks?: unknown } | null)?.checks;
-    if (Array.isArray(checks)) {
-      return checks
-        .filter((c): c is PhotoCheck => !!c && typeof c === "object" && typeof (c as PhotoCheck).label === "string")
-        .map((c) => ({
-          key: String(c.key),
-          label: c.label,
-          ok: Boolean(c.ok),
-          ...(typeof c.heuristic === "boolean" ? { heuristic: c.heuristic } : {}),
-          ...(typeof c.detail === "string" && c.detail ? { detail: c.detail } : {}),
-        }));
-    }
-  }
-  return null;
 }
 
 /** Contract §4: multipart `file` (JPG/PNG ≤ 5 MB) → 202 `{checks}`; failing checks → 422 with the same list. */
@@ -244,9 +204,4 @@ export async function fetchRunMeasurement(options: AuthedOptions, runId: string)
     if (error instanceof QdApiError && error.status === 404) return null;
     throw error;
   }
-}
-
-/** 409 `external_change` on a revert (Revert.dc.html's conflict branch). */
-export function isExternalChange(error: unknown): boolean {
-  return error instanceof QdApiError && error.status === 409 && error.code === "external_change";
 }

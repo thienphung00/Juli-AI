@@ -23,6 +23,7 @@ function setHash(hash: string) {
 describe("Auth callback route", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
+    window.localStorage.clear();
     replace.mockClear();
     vi.mocked(reportTikTokRegistration).mockClear();
     vi.mocked(useRouter).mockReturnValue({

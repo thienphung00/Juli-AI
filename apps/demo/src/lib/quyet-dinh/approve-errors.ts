@@ -1,4 +1,4 @@
-import { DemoDecisionApproveError } from "../recommendations-api-client";
+import { DemoDecisionApproveError } from "../decision-approve-error";
 
 /** dictionary.md `error.approve.*` — one honest sentence per status the approve route distinguishes. */
 export function describeApproveError(error: unknown): string {

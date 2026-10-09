@@ -60,6 +60,12 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | P10-C UI to the artboards in docs/product/design/quyet-dinh-flows | 10.3 | done (merged e42a9568) | P10-C agent (Opus) |
 | P10 integration (wiring 8ba4e9ff, 9849f24a; contract f54ada3b, 0aaba190; guards 90aec127) | — | done — deploy is the owner's | integration agent (Opus) |
 
+## P11 — signed-out sample and lasting sign-in
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P11 Signed-out Quyết định = P10 design over sample fixtures (no network); sign-in in localStorage | — | done on `fasttrack/p11-sample-mode` (not merged, not deployed) | P11 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

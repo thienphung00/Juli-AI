@@ -30,12 +30,12 @@ function trackApi(page: Page): string[] {
   return urls;
 }
 
-test("anonymous Quyết định keeps the bundled fixtures and issues no /v1 request", async ({ page }) => {
+test("anonymous Quyết định shows the bundled P10 sample and issues no /v1 request", async ({ page }) => {
   const api = trackApi(page);
   await enterReplayDemo(page);
   await navigatePrimaryDestination(page, "Quyết định");
-  await expect(page.getByRole("button", { name: "Đề xuất", pressed: true })).toBeVisible();
-  await expect(page.locator("article[data-workflow-key]").first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Đề xuất" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("recommendation-card").first()).toContainText("SKU · SM-012");
   expect(api).toEqual([]);
 });
 

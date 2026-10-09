@@ -30,16 +30,11 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     await expect(page.getByTestId("shop-header")).toContainText("Cửa hàng Mẫu Hoa Mai");
 
     await page.goto("/decisions");
-    await expect(page.getByRole("button", { name: "Đề xuất" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Đang thực hiện" })).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Danh mục chăm sóc da", level: 3 }),
-    ).toBeVisible();
-    await expect(
-      page
-        .locator('article[data-workflow-key="create_hero_product_1"]')
-        .getByText("Tạo sản phẩm nổi bật"),
-    ).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Đề xuất" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Đang thực hiện" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Đo lường" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Son môi số 12", level: 3 })).toBeVisible();
+    await expect(page.getByText("Khách thêm giỏ rồi bỏ")).toBeVisible();
   });
 
   // "Mock mode notice" is this test's coverage name for the
@@ -88,22 +83,13 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     expect(requests).toEqual([]);
   });
 
-  test("Decisions error empty state exposes retry without fabricated data", async ({
-    page,
-  }) => {
-    await page.goto("/decisions?load=error");
-    await expect(
-      page.getByRole("alert", { name: "Lỗi tải đề xuất" }),
-    ).toContainText("Không thể tải đề xuất mẫu");
-    await page.getByRole("button", { name: "Thử lại" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Danh mục chăm sóc da", level: 3 }),
-    ).toBeVisible();
-    await expect(
-      page
-        .locator('article[data-workflow-key="create_hero_product_1"]')
-        .getByText("Tạo sản phẩm nổi bật"),
-    ).toBeVisible();
+  // P11: the signed-out Quyết định is the bundled P10 sample — it cannot fail
+  // to load, so the old `?load=error` fixture state is gone. The sample says
+  // what it is instead (the same `mock-data-notice` as Home and Phân tích).
+  test("Decisions sample states truthfully that it is sample data", async ({ page }) => {
+    await page.goto("/decisions");
+    await expect(page.getByTestId("mock-data-notice")).toContainText("là shop minh họa");
+    await expect(page.getByTestId("mock-data-notice")).toContainText("không ghi gì lên TikTok Shop");
   });
 });
 

@@ -5,13 +5,16 @@
  * and a seller with more than one shop must be able to tell which shop
  * they are acting as. The connect-shop screen writes this record when the
  * seller picks a shop; the signed-in Decisions and run surfaces read it —
- * one source of truth, `sessionStorage`, same lifetime as the auth session
- * it accompanies (`supabase-auth.ts`'s `AUTH_SESSION_STORAGE_KEY`).
+ * one source of truth, `localStorage` (`persistent-storage.ts`, P11), same
+ * lifetime as the auth session it accompanies (`supabase-auth.ts`'s
+ * `AUTH_SESSION_STORAGE_KEY`).
  *
  * Pure browser-storage module: no network call site, no `/v1/*` route
  * literal — safe in any module graph, including the anonymous replay
  * door's (ADR-094 decision 1), though nothing on that door reads it.
  */
+
+import { readPersistent, removePersistent, writePersistent } from "./persistent-storage";
 
 export const ACTIVE_SHOP_STORAGE_KEY = "juli_demo_active_shop";
 
@@ -25,7 +28,7 @@ export function storeActiveShop(shop: ActiveShop): void {
     return;
   }
 
-  window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify(shop));
+  writePersistent(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify(shop));
 }
 
 export function readActiveShop(): ActiveShop | null {
@@ -33,7 +36,7 @@ export function readActiveShop(): ActiveShop | null {
     return null;
   }
 
-  const raw = window.sessionStorage.getItem(ACTIVE_SHOP_STORAGE_KEY);
+  const raw = readPersistent(ACTIVE_SHOP_STORAGE_KEY);
 
   if (!raw) {
     return null;
@@ -57,5 +60,5 @@ export function clearActiveShop(): void {
     return;
   }
 
-  window.sessionStorage.removeItem(ACTIVE_SHOP_STORAGE_KEY);
+  removePersistent(ACTIVE_SHOP_STORAGE_KEY);
 }

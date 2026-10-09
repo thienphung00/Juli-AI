@@ -62,9 +62,7 @@ test.describe("Phase 2.6 exit gate — static asset render (ADR-035)", () => {
     await navigatePrimaryDestination(page, "Quyết định");
     await expect(page).toHaveURL(/\/decisions$/);
     await expectFourDestinationShell(page);
-    await expect(
-      page.getByRole("button", { name: "Đề xuất", pressed: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Đề xuất" })).toHaveAttribute("aria-selected", "true");
     await expectBrandedComputedStyles(page);
   });
 

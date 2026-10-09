@@ -87,9 +87,9 @@ Invariants below.
   (`lib/shop-session.ts`, written by the connect-shop screen), and on a
   consented approve navigates to `/decisions/in-progress/{run_id}` using
   the `run_id` from the approve response — never a client-constructed id.
-  `DecisionsPageClient` selects it when `readAuthSession()` finds a stored
-  session; with none, the anonymous `RecommendationsView` renders
-  unchanged.
+  Superseded by `SignedInQuyetDinh` (P10) and, signed out, by
+  `SampleQuyetDinh` (P11, below); `RecommendationsView` is no longer
+  rendered by `/decisions`.
 - **Phân tích (AC-8.6, ADR-109 d.2–5).** `/analytics` renders
   `AnalysisPageClient` (inside `<Suspense>`, it reads `useSearchParams`): the
   report comes from the shell's `useShopReport()` — one `GET /v1/demo/analysis`
@@ -120,10 +120,27 @@ Invariants below.
   over the synthetic helpers in `tests/support/shop_diagnosis.py`; `--check`
   fails when stale). The old KPI dashboard (`/analytics/[metricKey]`) was removed (P9-C);
   `/analytics/<anything>` redirects to `/analytics` (`next.config.ts`).
+- **Quyết định signed out (P11, ADR-094 d.1).** No stored session →
+  `DecisionsPageClient` renders `SampleQuyetDinh`
+  (`components/quyet-dinh/sample-quyet-dinh.tsx`): the same P10 screens
+  (`QuyetDinhView`, `components/quyet-dinh/quyet-dinh-view.tsx`) over
+  `createSampleQdClients()` (`lib/quyet-dinh/sample-clients.ts`, an in-memory
+  store seeded from `lib/quyet-dinh/sample-data.ts` in the P10 contract
+  shapes). Approve / reject / confirm / photo / "Tôi đã áp dụng" / Hoàn tác
+  change that store only and play the run's next events on a timer; "Làm
+  mới Demo" remounts it (`useDemoResetEpoch`). `QuyetDinhView` and
+  `lib/quyet-dinh/client-types.ts` (the `QdClients` contract, `QdApiError`
+  and pure helpers) hold no fetch call site or backend route literal — the
+  sample door is an entry of `replay-module-graph.test.ts`.
+- **Session storage (P11).** `lib/supabase-auth.ts` and `lib/shop-session.ts`
+  keep the sign-in and active shop in `localStorage`
+  (`lib/persistent-storage.ts`, every access in try/catch, one-time
+  migration from `sessionStorage`, sign-out clears both) so a seller stays
+  signed in across new tabs and a browser restart.
 - **Quyết định (AC-8.7, ADR-109 d.6, 8–13) — signed in.** `DecisionsPageClient`
   renders `SignedInQuyetDinh` (`components/quyet-dinh/signed-in-quyet-dinh.tsx`,
   replaces `SignedInDecisions`) — the one module wiring the real clients
-  (injectable `clients`). URL: `tab=de-xuat|dang-thuc-hien|do-luong`,
+  (injectable `clients`) into `QuyetDinhView`. URL: `tab=de-xuat|dang-thuc-hien|do-luong`,
   `run=<id>`, `quy-tac=1` (rules editor open). **Đề xuất** (`DeXuatPanel`):
   `lib/quyet-dinh/grouping.ts` groups `GET /v1/demo/decisions` items by
   `channel_scope` × `stage.code` ("N thẻ tối ưu để nâng CTOR Thẻ sản phẩm",
@@ -261,8 +278,9 @@ Invariants below.
   are same-origin relative paths (#397, no client-side API base), which is
   why `infra/nginx/demo.app-juli.com.conf` now proxies `/v1/` to the API
   upstream — without that, both are served by Next.js and 404.
-- `RecommendationsPanel`/`RecommendationsView` — the ANONYMOUS Decisions
-  branch — make no backend request or real write anywhere in the
+- `RecommendationsPanel`/`RecommendationsView` — formerly the ANONYMOUS
+  Decisions branch (no longer rendered by `/decisions` since P11; kept for
+  the fixture review / replay routes' tests) — make no backend request or real write anywhere in the
   recommendations flow (asserted in `decisions-recommendations.test.tsx`,
   and structurally by `replay-module-graph.test.ts`). Issue #1909 delivered
   the component-level anonymous/signed-in split this invariant was waiting

@@ -515,3 +515,20 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Photo links `GET /v1/demo/photos/{shop}/{token}` are unauthenticated and
   never expire (random token only). Owner accepted for deploy 2026-10-09;
   switch to signed, expiring URLs later.
+
+## P11 signed-out sample (2026-10-09)
+
+- [ ] `RecommendationsView` / `RecommendationsPanel` / `InProgressPanel` and the old
+  fixture review flow are no longer reachable from `/decisions` (only by URL:
+  `/decisions/recommendations/*`, the replay run). Retire them with their tests and the
+  replay-scenario build check once the replay journey is re-pointed or dropped.
+- [ ] The sample keeps its state in memory only (a reload resets it); the applied
+  TN-021 card is listed in Đề xuất (counts in the group title) so Đo lường can show
+  its SKU — same as a real shop where applied cards are returned.
+- [ ] Sample photo consent: "before" image is a placeholder (no sample asset); the
+  "after" is the seller's file as a blob URL.
+- [ ] Sample-mode notice ("Dữ liệu mẫu · … shop minh họa …") is not in the
+  artboards; it follows Home / Phân tích's sample notice.
+- [ ] Vitest needs Node 20/22: Node 26's built-in `localStorage` shadows jsdom's
+  (undefined without `--localstorage-file`), failing ~243 storage tests locally.
+

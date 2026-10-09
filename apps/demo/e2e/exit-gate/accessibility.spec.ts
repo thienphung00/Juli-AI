@@ -28,11 +28,12 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
   });
 
   test("primary actions meet 44×44px touch targets", async ({ page }) => {
+    // P11: the signed-out Quyết định is the P10 sample; its first card is SM-012.
     const approve = page
-      .locator(
-        `article[data-workflow-key="${PRIORITY_WORKFLOW.workflowKey}"]`,
-      )
+      .getByTestId("recommendation-card")
+      .first()
       .getByRole("button", { name: "Phê duyệt" });
+    await expect(approve).toBeVisible();
     const box = await approve.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
@@ -49,9 +50,8 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
     for (let i = 0; i < 30; i += 1) {
       await page.keyboard.press("Tab");
       const approve = page
-        .locator(
-          `article[data-workflow-key="${PRIORITY_WORKFLOW.workflowKey}"]`,
-        )
+        .getByTestId("recommendation-card")
+        .first()
         .getByRole("button", { name: "Phê duyệt" });
       if (await approve.evaluate((node) => node === document.activeElement)) {
         await expect(approve).toBeFocused();
@@ -59,35 +59,25 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
       }
     }
 
-    throw new Error("Could not keyboard-focus Phê duyệt on Priority card");
+    throw new Error("Could not keyboard-focus Phê duyệt on the first card");
   });
 
   test("review stages advance through Tiếp theo to final Phê duyệt", async ({
     page,
   }) => {
-    await page.goto("/decisions");
-    const priorityCard = page.locator(
-      `article[data-workflow-key="${PRIORITY_WORKFLOW.workflowKey}"]`,
-    );
-    await priorityCard.scrollIntoViewIfNeeded();
-    await Promise.all([
-      page.waitForURL(
-        new RegExp(
-          `/decisions/recommendations/${PRIORITY_WORKFLOW.workflowKey}$`,
-        ),
-      ),
-      priorityCard.getByRole("button", { name: "Phê duyệt" }).click(),
-    ]);
+    // P11: the fixture review route is no longer linked from the signed-out
+    // /decisions (the P10 sample); it is opened directly.
+    await page.goto(`/decisions/recommendations/${PRIORITY_WORKFLOW.workflowKey}`);
     await advanceReviewToApproveStage(page);
   });
 
-  test("respects prefers-reduced-motion for scroll-into-view highlight", async ({
+  test("respects prefers-reduced-motion: the sample cards render and expand", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/decisions?highlight=optimize_product_2");
-    await expect(
-      page.locator('article[data-workflow-key="optimize_product_2"]'),
-    ).toBeVisible();
+    await page.goto("/decisions");
+    const card = page.getByTestId("recommendation-card").first();
+    await card.getByRole("button", { name: /Xem thêm/ }).click();
+    await expect(card).toContainText("Lý do đầy đủ");
   });
 });

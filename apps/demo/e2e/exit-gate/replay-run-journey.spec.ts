@@ -142,29 +142,15 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
       await expect(page).toHaveURL(/\/decisions$/);
     });
 
-    await test.step("navigate from the Decisions list card to its review page", async () => {
-      const card = page.locator(
-        `article[data-workflow-key="${REPLAY_SCENARIO_WORKFLOW_KEY}"]`,
-      );
-      await expect(card).toBeVisible();
-      // Issue #1916 (v3 draft): subject on the left of the header, the
-      // workflow category ("Tối ưu sản phẩm") on the right.
+    await test.step("Decisions shows the P10 sample; the scenario's review page opens directly", async () => {
+      // P11: signed-out /decisions renders the P10 sample (no network), which
+      // no longer links to the fixture review route the replay scenario uses;
+      // that route stays and is opened directly.
       await expect(
-        card.getByRole("heading", {
-          level: 3,
-          name: REPLAY_SCENARIO_WORKFLOW_SUBJECT,
-        }),
+        page.getByTestId("recommendation-card").filter({ hasText: REPLAY_SCENARIO_WORKFLOW_SUBJECT }).first(),
       ).toBeVisible();
-      await expect(
-        card.getByText(REPLAY_SCENARIO_WORKFLOW_TITLE),
-      ).toBeVisible();
-      await card.scrollIntoViewIfNeeded();
-      await Promise.all([
-        page.waitForURL(
-          new RegExp(`/decisions/recommendations/${REPLAY_SCENARIO_WORKFLOW_KEY}$`),
-        ),
-        card.getByRole("button", { name: "Phê duyệt" }).click(),
-      ]);
+      await page.goto(`/decisions/recommendations/${REPLAY_SCENARIO_WORKFLOW_KEY}`);
+      await expect(page.getByText(REPLAY_SCENARIO_WORKFLOW_TITLE).first()).toBeVisible();
     });
 
     await test.step("walk the two-step consent gate on the review page — no single click authorizes anything (#1317)", async () => {

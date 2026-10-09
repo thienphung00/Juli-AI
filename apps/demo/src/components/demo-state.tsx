@@ -85,6 +85,8 @@ export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
 interface DemoStateValue {
   feedback: string | null;
   mode: "mock";
+  /** Bumped by "Làm mới Demo": in-memory samples (the signed-out Quyết định) remount on it. */
+  resetEpoch: number;
   mutableState: MutableMockState;
   recommendationContext: RecommendationAssistanceContext | null;
   requestSignIn: () => void;
@@ -118,6 +120,7 @@ function createDefaultMutableState(): MutableMockState {
 
 export function DemoStateProvider({ children }: { children: ReactNode }) {
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [resetEpoch, setResetEpoch] = useState(0);
   const [mutableState, setMutableState] = useState<MutableMockState>(
     createDefaultMutableState,
   );
@@ -170,6 +173,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
     const defaultState = createDefaultMutableState();
 
     setMutableState(defaultState);
+    setResetEpoch((epoch) => epoch + 1);
     setRecommendationContext(null);
     localStorage.setItem(DEMO_MODE_STORAGE_KEY, "mock");
     localStorage.removeItem(DEMO_MUTABLE_STATE_STORAGE_KEY);
@@ -235,6 +239,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
       feedback,
       mode: "mock",
       mutableState,
+      resetEpoch,
       recommendationContext,
       requestSignIn: () => {
         localStorage.setItem(DEMO_MODE_STORAGE_KEY, "mock");
@@ -250,6 +255,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
     [
       feedback,
       mutableState,
+      resetEpoch,
       recommendationContext,
       resetMockState,
       startExecution,
@@ -262,6 +268,11 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
       {children}
     </DemoStateContext.Provider>
   );
+}
+
+/** "Làm mới Demo"'s counter, or 0 outside the demo shell (tests, standalone renders). */
+export function useDemoResetEpoch(): number {
+  return useContext(DemoStateContext)?.resetEpoch ?? 0;
 }
 
 export function useDemoState(): DemoStateValue {

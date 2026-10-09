@@ -83,6 +83,9 @@ const ENTRY_POINTS = [
   "components/replay-run-detail.tsx",
   // AC-8.6: the anonymous Phân tích sample (report + rankings) is bundled, never fetched.
   "components/phan-tich/sample-phan-tich.tsx",
+  // P11: the signed-out Quyết định is the P10 screens over in-memory sample
+  // clients (`lib/quyet-dinh/sample-clients.ts`) — bundled, never fetched.
+  "components/quyet-dinh/sample-quyet-dinh.tsx",
 ];
 
 const SUPABASE_AUTH_MODULE = resolve(SRC_ROOT, "lib/supabase-auth.ts");
@@ -163,6 +166,11 @@ describe("replay entry — module graph carries no /v1/* fetch capability", () =
       "/lib/analytics/api-client.",
       "/lib/analytics/analytics-data-context.",
       "/lib/run-ledger/api-client.",
+      "/lib/quyet-dinh/api-client.",
+      "/lib/recommendations-api-client.",
+      "/lib/run-surface/confirmation-client.",
+      "/lib/run-surface/use-run-stream.",
+      "/components/quyet-dinh/signed-in-quyet-dinh.",
     ];
 
     const reachedForbidden = [...modules.keys()].filter((path) =>

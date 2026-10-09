@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AUTH_SESSION_STORAGE_KEY,
@@ -90,6 +90,7 @@ describe("parseAuthCallbackHash", () => {
 describe("auth session storage", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
+    window.localStorage.clear();
   });
 
   it("round-trips a stored session under its own dedicated key", () => {
@@ -100,9 +101,11 @@ describe("auth session storage", () => {
       tokenType: "bearer",
     });
 
+    // P11: localStorage (Supabase's default) — survives new tabs and a restart.
     expect(
-      window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY),
+      window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY),
     ).not.toBeNull();
+    expect(window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
     expect(readAuthSession()).toEqual({
       accessToken: "abc.def.ghi",
       refreshToken: "r-1",
@@ -126,9 +129,46 @@ describe("auth session storage", () => {
   });
 
   it("returns null for corrupted storage rather than throwing", () => {
-    window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, "{not json");
+    window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, "{not json");
 
     expect(readAuthSession()).toBeNull();
+  });
+
+  it("moves a session an older build left in sessionStorage over to localStorage, once", () => {
+    const legacy = { accessToken: "old.tab.token", refreshToken: null, expiresIn: null, tokenType: "bearer" };
+    window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(legacy));
+
+    expect(readAuthSession()).toEqual(legacy);
+    expect(JSON.parse(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY) as string)).toEqual(legacy);
+    expect(window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
+  });
+
+  it("sign-out clears the session from both stores", () => {
+    window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "a" }));
+    window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "b" }));
+
+    clearAuthSession();
+
+    expect(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
+    expect(readAuthSession()).toBeNull();
+  });
+
+  it("never throws when the browser blocks storage", () => {
+    const blocked = vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+    try {
+      expect(() =>
+        storeAuthSession({ accessToken: "x", refreshToken: null, expiresIn: null, tokenType: "bearer" }),
+      ).not.toThrow();
+      // Falls back to the tab's sessionStorage so this tab still signs in.
+      expect(readAuthSession()?.accessToken).toBe("x");
+      expect(() => clearAuthSession()).not.toThrow();
+      expect(readAuthSession()).toBeNull();
+    } finally {
+      blocked.mockRestore();
+    }
   });
 });
 

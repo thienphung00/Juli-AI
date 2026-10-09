@@ -151,12 +151,14 @@ describe("the [executionId] page door — a stored auth session selects the sign
       expect(headers.get("X-Shop-Id")).toBe("shop-1");
     } finally {
       window.sessionStorage.clear();
+      window.localStorage.clear();
       fetchSpy.mockRestore();
     }
   });
 
   it("without a stored session, the replay door renders and the run lookup is never issued", async () => {
     window.sessionStorage.clear();
+      window.localStorage.clear();
     const fetchSpy = vi.spyOn(global, "fetch");
 
     try {

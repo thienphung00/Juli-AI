@@ -36,6 +36,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://placeholder-project-ref.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key-for-tests";
   window.sessionStorage.clear();
+  window.localStorage.clear();
   vi.mocked(reportTikTokRegistration).mockClear();
   fetchSpy = vi.spyOn(globalThis, "fetch");
 });
@@ -157,7 +158,7 @@ describe("EmailSignIn", () => {
       tokenType: "bearer",
     };
     expect(onSignedIn).toHaveBeenCalledWith(session);
-    expect(JSON.parse(window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY) as string)).toEqual(session);
+    expect(JSON.parse(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY) as string)).toEqual(session);
     const verifyCall = (fetchSpy.mock.calls as unknown as [string, RequestInit][]).find(([url]) =>
       url.includes("/auth/v1/verify"),
     ) as [string, RequestInit];

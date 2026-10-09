@@ -266,6 +266,8 @@ describe("Shop-avatar menu", () => {
     await user.click(screen.getByRole("button", { name: "Đăng xuất" }));
     expect(window.sessionStorage.getItem("juli_demo_auth_session")).toBeNull();
     expect(window.sessionStorage.getItem("juli_demo_active_shop")).toBeNull();
+    expect(window.localStorage.getItem("juli_demo_auth_session")).toBeNull();
+    expect(window.localStorage.getItem("juli_demo_active_shop")).toBeNull();
     expect(assign).toHaveBeenCalledWith("/?entry=door");
   });
 

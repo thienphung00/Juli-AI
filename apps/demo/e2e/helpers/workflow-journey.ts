@@ -92,19 +92,10 @@ export async function approveFromRecommendations(
   workflowKey: string,
   subject: string,
 ) {
-  await page.goto("/decisions");
-  const card = page.locator(`article[data-workflow-key="${workflowKey}"]`);
-  await expect(card).toBeVisible();
-  // Issue #1916 (v3 draft): the card heading is the subject — what the
-  // decision is about — with the workflow category on the right.
-  await expect(
-    card.getByRole("heading", { level: 3, name: subject }),
-  ).toBeVisible();
-  await card.scrollIntoViewIfNeeded();
-  await Promise.all([
-    page.waitForURL(new RegExp(`/decisions/recommendations/${workflowKey}$`)),
-    card.getByRole("button", { name: "Phê duyệt" }).click(),
-  ]);
+  // P11: signed-out /decisions renders the P10 sample, which no longer links
+  // to the fixture review route; the route itself stays, so open it directly.
+  void subject;
+  await page.goto(`/decisions/recommendations/${workflowKey}`);
   await advanceReviewToApproveStage(page);
   await satisfyRequiredUploads(page);
   await confirmApproveThroughGate(page);

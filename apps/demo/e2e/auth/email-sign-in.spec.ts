@@ -136,7 +136,7 @@ test("landing → email → Gửi mã → code → signed in; connect-shop and T
   await expect(page).toHaveURL(/\/auth\/connect-shop$/);
   await expect(page.getByText("Bạn đã đăng nhập bằng")).toContainText("ban@shopcuaban.vn");
   expect(calls[1]).toMatchObject({ path: "/auth/v1/verify", body: { type: "email", email: "ban@shopcuaban.vn", token: "123456" } });
-  const stored = await page.evaluate(() => JSON.parse(sessionStorage.getItem("juli_demo_auth_session") ?? "null"));
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("juli_demo_auth_session") ?? "null"));
   expect(stored).toEqual({ accessToken: ACCESS_TOKEN, refreshToken: "r-email", expiresIn: 3600, tokenType: "bearer" });
   await shoot(page, "connect-shop-after-email");
 

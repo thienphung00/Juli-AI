@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 
-import { RECOMMENDATION_WORKFLOWS } from "../fixtures/workflow-keys";
 import {
   HOME_MATRIX_REGION,
   enterReplayDemo,
@@ -18,19 +17,19 @@ test.describe("Phase 2.6 exit gate — responsive IA parity", () => {
         .getByRole("navigation", { name: "Điều hướng chính" })
         .getByRole("link")
         .allTextContents();
+      await expect(page.getByTestId("recommendation-card").first()).toBeVisible();
       const cardTitles = await page
-        .locator("article[data-workflow-key] h3")
+        .getByTestId("recommendation-card")
+        .locator("h3")
         .allTextContents();
       return { navLabels, cardTitles };
     };
 
     const desktop = await collectLabels();
     await expectFourDestinationShell(page);
-    // Issue #1916: the card h3 carries the subject; the workflow title
-    // renders as the category label on the right of the header.
-    expect(desktop.cardTitles).toEqual(
-      RECOMMENDATION_WORKFLOWS.map((fixture) => fixture.subject),
-    );
+    // P11: the signed-out Quyết định is the P10 sample; the card h3 is the product.
+    expect(desktop.cardTitles[0]).toBe("Son môi số 12");
+    expect(desktop.cardTitles.length).toBeGreaterThanOrEqual(4);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
@@ -39,9 +38,7 @@ test.describe("Phase 2.6 exit gate — responsive IA parity", () => {
     const mobile = await collectLabels();
     expect(mobile.navLabels).toEqual(desktop.navLabels);
     expect(mobile.cardTitles).toEqual(desktop.cardTitles);
-    await expect(
-      page.getByRole("button", { name: "Đề xuất", pressed: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Đề xuất" })).toHaveAttribute("aria-selected", "true");
   });
 
   test("Home matrix labels match on desktop and mobile-web", async ({ page }) => {

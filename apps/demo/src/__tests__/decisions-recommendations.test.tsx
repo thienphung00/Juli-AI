@@ -712,14 +712,16 @@ describe("DecisionsPageClient — the session split (#1909, ADR-094)", () => {
     );
   }
 
-  it("an anonymous visit renders the fixture branch and issues zero /v1/* requests", async () => {
+  it("an anonymous visit renders the P10 sample (Bản minh họa) and issues zero /v1/* requests", async () => {
     const fetchSpy = vi.spyOn(global, "fetch");
 
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText("Tạo sản phẩm nổi bật")).toBeInTheDocument();
+      expect(screen.getAllByTestId("recommendation-card").length).toBeGreaterThan(0);
     });
+    expect(screen.getByTestId("mock-data-notice")).toHaveTextContent("Dữ liệu mẫu");
+    expect(screen.getAllByTestId("recommendation-card")[0]).toHaveTextContent("SKU · SM-012");
 
     const v1Calls = fetchSpy.mock.calls.filter(([input]) =>
       String(input).includes("/v1/"),

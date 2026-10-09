@@ -1,5 +1,7 @@
 import type { DemoDecisionItem, DemoDecisionListResponse } from "@juli/contracts";
 
+import { DemoDecisionApproveError } from "./decision-approve-error";
+
 /**
  * Signed-in Decisions read route (#1320, ADR-094). `/v1/demo/recommendations`
  * never existed as a backend route — this now mirrors the server-side route
@@ -76,12 +78,9 @@ export async function fetchRecommendations(
   return payload.data;
 }
 
-export class DemoDecisionApproveError extends Error {
-  constructor(public readonly status: number) {
-    super(`Demo decision approve failed (${status})`);
-    this.name = "DemoDecisionApproveError";
-  }
-}
+// Lives in the network-free `decision-approve-error.ts` (the sample door's
+// `approve-errors.ts` reads it); re-exported so existing imports keep working.
+export { DemoDecisionApproveError } from "./decision-approve-error";
 
 /**
  * Approve-is-run-creation, from the browser (#1909, ADR-075 decision 1).

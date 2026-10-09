@@ -55,40 +55,19 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
     await expect(page).toHaveURL(/\/decisions$/);
     await expectFourDestinationShell(page);
     await expectShopHeader(page);
-    await expect(
-      page.getByRole("button", { name: "Đề xuất", pressed: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Đề xuất" })).toHaveAttribute("aria-selected", "true");
+    // P11: the signed-out Quyết định is the P10 sample ("Bản minh họa").
+    await expect(page.getByTestId("mock-data-notice")).toContainText("Dữ liệu mẫu");
   });
 
-  test("Priority Workflow 1 is first and marked ★ Ưu tiên", async ({ page }) => {
+  test("the P10 sample cards render in a stable order (SM-012 first)", async ({ page }) => {
     await page.goto("/decisions");
-    const cards = page.locator("article[data-workflow-key]");
-    await expect(cards).toHaveCount(RECOMMENDATION_WORKFLOWS.length);
-
-    const firstKey = await cards.first().getAttribute("data-workflow-key");
-    expect(firstKey).toBe(PRIORITY_WORKFLOW.workflowKey);
-    await expect(cards.first().getByText("★ Ưu tiên")).toBeVisible();
-  });
-
-  test("all recommendation cards render in stable specification order", async ({
-    page,
-  }) => {
-    await page.goto("/decisions");
-    const cards = page.locator("article[data-workflow-key]");
-
-    // `evaluateAll` snapshots the DOM once, with no auto-retry -- run it before
-    // hydration finishes and it returns `[]`, which is how this test flaked on
-    // main-tier while its sibling above (which uses an auto-retrying
-    // `toHaveCount`) passed in the same run. Wait for the count first, then read.
-    await expect(cards).toHaveCount(RECOMMENDATION_WORKFLOWS.length);
-
-    const keys = await cards.evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute("data-workflow-key")),
-    );
-
-    expect(keys).toEqual(
-      RECOMMENDATION_WORKFLOWS.map((fixture) => fixture.workflowKey),
-    );
+    const cards = page.getByTestId("recommendation-card");
+    await expect(cards.first()).toContainText("SKU · SM-012");
+    const first = await cards.locator("h3").allTextContents();
+    await page.reload();
+    await expect(cards.first()).toContainText("SKU · SM-012");
+    expect(await cards.locator("h3").allTextContents()).toEqual(first);
   });
 
   test("Priority Workflow 1 completes review → approve → In Progress", async ({
@@ -108,24 +87,10 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
   test("every executable workflow reaches In Progress in one session", async ({
     page,
   }) => {
-    // beforeEach already entered through the replay door; navigate within the
-    // shell rather than re-loading `/decisions` cold, which would land on the
-    // landing gate with no entry choice recorded.
-    await navigatePrimaryDestination(page, "Quyết định");
-    await expect(page).toHaveURL(/\/decisions$/);
-
+    // P11: signed-out /decisions is the P10 sample and no longer links to the
+    // fixture review routes; each route is opened directly instead.
     for (const fixture of RECOMMENDATION_WORKFLOWS) {
-      const card = page.locator(
-        `article[data-workflow-key="${fixture.workflowKey}"]`,
-      );
-      await expect(card).toBeVisible();
-      await card.scrollIntoViewIfNeeded();
-      await Promise.all([
-        page.waitForURL(
-          new RegExp(`/decisions/recommendations/${fixture.workflowKey}$`),
-        ),
-        card.getByRole("button", { name: "Phê duyệt" }).click(),
-      ]);
+      await page.goto(`/decisions/recommendations/${fixture.workflowKey}`);
       await advanceReviewToApproveStage(page);
       await satisfyRequiredUploads(page);
       await confirmApproveThroughGate(page);
@@ -142,22 +107,6 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
         await expect(
           page.getByRole("heading", { name: fixture.title, level: 1 }),
         ).toBeVisible();
-      }
-      await page.goto("/decisions");
-      await expect(
-        page.getByRole("button", { name: "Đề xuất", pressed: true }),
-      ).toBeVisible();
-      if (fixture.workflowKey === "optimize_product_2") {
-        // Card consumption was a property of the mock `ExecutionRecord` that
-        // #1320 part 2 deleted. The replay path persists nothing -- ADR-094
-        // decision 1 -- so there is no run to consume the card, and it stays
-        // listed. That is consistent with the replay being a repeatable
-        // demonstration rather than a real approval; real card consumption
-        // (ADR-084 decision 6) is a server-side property of a real run and is
-        // exercised by the signed-in path, not here.
-        await expect(card).toHaveCount(1);
-      } else {
-        await expect(card).toHaveCount(0);
       }
     }
   });

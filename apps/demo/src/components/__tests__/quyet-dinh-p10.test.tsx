@@ -136,7 +136,7 @@ const CONSENT_RUN: AgentEvent[] = [
     tool_call_id: "w1",
     tool_name: "update_product_listing",
     proposed_change: CHANGE,
-    expires_at: "2026-10-09T07:00:00Z",
+    expires_at: "2099-10-09T07:00:00Z",
     options: [{ option_id: "opt-1", proposed_change: CHANGE, rationale: "Đủ ý", params_sha: "x" }],
   }),
 ];
@@ -168,7 +168,7 @@ const PHOTO_RUN_AT_CONSENT: AgentEvent[] = [
   ev(7, "workflow.approval_required", {
     tool_call_id: "p2",
     tool_name: "update_product_listing",
-    expires_at: "2026-10-12T03:00:00Z",
+    expires_at: "2099-10-12T03:00:00Z",
     proposed_change: { attach_staged_image: true },
     options: [{ option_id: "opt-1", proposed_change: { attach_staged_image: true }, rationale: "", params_sha: "x" }],
   }),

@@ -652,3 +652,46 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   1654 (2 failed under load, both pass alone; one hardened), Playwright 124
   passed / 140 skipped vs `next start`, build:demo OK with dummy Supabase env.
 - Next: owner deploy; re-shoot fidelity against a live backend (DEBT).
+
+## 2026-10-09 — P11 agent (Claude Opus) — signed-out Quyết định on the P10 design; sign-in survives new tabs
+
+- Branch `fasttrack/p11-sample-mode` from 96322798 (worktree `/Users/macos/juli-ft-p11-sample`).
+- Signed out, `/decisions` now renders `SampleQuyetDinh`: the P10 screens
+  (`QuyetDinhView`, split out of `signed-in-quyet-dinh.tsx`) over
+  `createSampleQdClients()` — an in-memory store seeded with contract-shaped
+  fixtures (`lib/quyet-dinh/sample-data.ts`: SM-012 Son môi số 12 CTOR 5,4 → 5,9 %,
+  +2,1 tr ₫/tháng (juli); SR-007 ảnh bìa (juli_with_photo); KD-030 giảm giá
+  (seller_center); MN-015 mô tả; TN-021 applied with a day-7 measured run). Approve /
+  reject / consent (with edits) / photo / "Tôi đã áp dụng" / Hoàn tác change local
+  state only and play the next contract events (`validateAgentEvent`) on a 700 ms
+  timer. A "Dữ liệu mẫu · … shop minh họa" notice sits under the header, like Home and
+  Phân tích. "Làm mới Demo" remounts the store (`resetEpoch` in demo-state).
+- No network on that branch: `QdClients` contract, `QdApiError` and pure helpers moved
+  to `lib/quyet-dinh/client-types.ts`; `DemoDecisionApproveError` to
+  `lib/decision-approve-error.ts` (both re-exported from the old modules); the SSE
+  hook is injected (`clients.useRunEvents`). `components/quyet-dinh/sample-quyet-dinh.tsx`
+  is a new entry of `replay-module-graph.test.ts`, which now also forbids the
+  quyet-dinh / decisions / confirmation / stream clients and `signed-in-quyet-dinh`.
+- `RecommendationsView` is no longer rendered by `/decisions` but is kept: its unit
+  tests and the fixture review route / replay run (`/decisions/recommendations/*`,
+  `/decisions/in-progress/*`) still use the same fixtures. `verify-replay-scenario-in-build`
+  unchanged and passing (build OK). The e2e journeys that clicked the old list cards
+  now open those routes directly.
+- Auth: `supabase-auth.ts` / `shop-session.ts` store in localStorage through
+  `lib/persistent-storage.ts` (try/catch on every access, falls back to
+  sessionStorage when localStorage is blocked, one-time migration from
+  sessionStorage, sign-out clears both).
+- Tests: `sample-quyet-dinh.test.tsx` (7, no fetch), storage tests (migration,
+  clear-both, blocked storage), `e2e/decisions/quyet-dinh-sample.spec.ts` (P10 card,
+  approve→consent→done, reject, photo, Seller Center, Đo lường, zero `/v1` requests;
+  a second tab stays signed in). Updated: manual-refresh, responsive-parity,
+  decisions-journey, accessibility, locale-and-assistance (`?load=error` state is
+  gone — the bundled sample cannot fail), static-asset-render, replay-run-journey,
+  quyet-dinh.spec (anonymous), email-sign-in (localStorage). Fixed a time bomb in
+  `quyet-dinh-p10.test.tsx` (consent `expires_at` 2026-10-09T07:00Z had passed → the 2
+  "consent with an edit" tests failed at HEAD).
+- Verification (Node 20; Node 26's built-in localStorage breaks jsdom storage, 243
+  unrelated failures at HEAD): lint 0 errors (7 pre-existing warnings), type-check
+  clean, vitest 1665 / 1665, Playwright 132 passed / 140 skipped (port 3317, built
+  artifact), build:demo OK, pytest exit-gate / P10 wiring / workspace guards 43 passed.
+
