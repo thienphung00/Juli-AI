@@ -158,7 +158,7 @@ pygments==2.21.0
     # via
     #   pytest
     #   rich
-pyjwt==2.13.0
+pyjwt==2.15.1
     # via juli-backend (pyproject.toml)
 pytest==9.1.1
     # via
