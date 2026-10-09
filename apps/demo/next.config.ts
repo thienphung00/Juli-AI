@@ -9,6 +9,11 @@ import type { NextConfig } from "next";
 // juli-demo.service starts node_modules/.bin/next directly from this directory.
 const nextConfig: NextConfig = {
   transpilePackages: ["@juli/ui", "@juli/utils", "@juli/tiktok-events"],
+  // The per-metric KPI dashboard (/analytics/<metricKey>) was retired; /analytics
+  // is the Phân tích page (ADR-109). Old bookmarks land there instead of 404ing.
+  async redirects() {
+    return [{ source: "/analytics/:path+", destination: "/analytics", permanent: true }];
+  },
 };
 
 export default nextConfig;

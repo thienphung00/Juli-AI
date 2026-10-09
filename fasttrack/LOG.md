@@ -516,3 +516,9 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
 - Next: owner steps above, then one real sign-in (code + link); check
   `users.email` is filled (DEBT P9-A).
 
+## 2026-10-09 — P9-C agent (Claude Opus) — drop the /analytics/[metricKey] KPI dashboard
+- Removed the route and its only-users: `analytics-dashboard`, `analytics-kpi-card`, `analytics-supplementary-sections`, `analytics-charts`, `lib/analytics/visual-polish` (+ their vitest files incl. analytics-live-wire). Kept `analytics-data-context`, `api-client`, `envelope-mapper`, `fallback-envelope`, `main-kpis`, `mock-data`: still used by `DemoShell` and the plan impact block.
+- `next.config.ts` redirects `/analytics/:path+` to `/analytics` (permanent). No Phân tích footer link existed to remove.
+- Tests: dropped the e2e "Analytics chart…" a11y test and two Python exit-gate asserts that pinned it; navigation test now uses `/analytics`. TikTok pixel spec untouched (targets `/`).
+- Gates: lint, type-check, vitest 1593, Playwright 104, build:demo pass; pytest -k "demo or issue_397" passes except pre-existing `test_cross_tenant_probe` (SQLAlchemy URL parse, no DATABASE_URL).
+- Debt: backend `GET /v1/demo/analytics` retire at merge (DEBT.md). Dead `.analytics-*` CSS left.

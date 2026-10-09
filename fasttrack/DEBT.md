@@ -368,3 +368,8 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   tab); sessionStorage is per tab, so the original tab stays signed out —
   same storage model as Google, accepted.
 
+- [ ] P9-C: the demo's KPI dashboard (`/analytics/[metricKey]`) is gone, so
+  `GET /v1/demo/analytics` is no longer read by any page; only the shell's
+  `AnalyticsDataProvider` (plan impact block) still calls it. Backend left
+  untouched on purpose — retire the route (and that provider) at merge. Also
+  dead now: `.analytics-dashboard` and sibling KPI-card rules in `globals.css`.
