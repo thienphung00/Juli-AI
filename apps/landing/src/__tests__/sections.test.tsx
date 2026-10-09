@@ -4,22 +4,26 @@ import { describe, expect, it } from "vitest";
 import LandingPage from "../app/page";
 
 describe("landing sections (PRD 2.7)", () => {
-  it("renders the hero with outcome-led heading, promise triplet, hook, reassurance line, and partner badge", () => {
+  it("renders the hero with GMV-led heading, promise triplet, hook, reassurance line, and partner badge", () => {
     render(<LandingPage />);
 
     expect(
+      screen.getByText("Chi phí vận hành và hoa hồng sàn ngày càng tăng?"),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("heading", {
         level: 1,
-        name: /trợ lý ai giúp bạn tự động hóa vận hành, giảm chi phí và tối ưu lợi nhuận/i,
+        name: /tăng trưởng GMV ổn định — mở rộng mà không cần đổ thêm ngân sách/i,
       }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Shopee · sắp ra mắt")).toBeInTheDocument();
     // Hero badge + footer both carry the partner line.
     expect(screen.getAllByText(/TikTok Shop Partner/).length).toBeGreaterThanOrEqual(1);
     // The outcome triplet is three separate lines, not one run-on sentence.
     for (const promise of [
-      "Ít việc thủ công hơn.",
-      "Ít chi phí thất thoát hơn.",
-      "Nhiều lợi nhuận hơn.",
+      "Hướng đến +1–3% GMV mỗi tháng",
+      "Tiết kiệm ~1,7 giờ/ngày mỗi nhân sự",
+      "Mở rộng tinh gọn, ROI cao (chi phí từ 500K)",
     ]) {
       expect(screen.getByText(promise)).toBeInTheDocument();
     }
@@ -27,8 +31,19 @@ describe("landing sections (PRD 2.7)", () => {
       screen.getByText(/đăng nhập ngay để biết chính xác 3 điều shop bạn cần cải thiện/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/miễn phí trải nghiệm · dành cho điện thoại/i),
+      screen.getByText(/miễn phí thử nghiệm 3 tháng · dành cho điện thoại/i),
     ).toBeInTheDocument();
+  });
+
+  it("shows the sales demo video in the hero, loaded only on play", () => {
+    render(<LandingPage />);
+
+    const video = screen.getByTestId("hero-demo-video");
+    expect(video).toHaveAttribute("src", "/videos/juli-demo.mp4");
+    expect(video).toHaveAttribute("poster", "/videos/juli-demo-poster.jpg");
+    expect(video).toHaveAttribute("preload", "none");
+    expect(video).toHaveAttribute("controls");
+    expect(video).not.toHaveAttribute("autoplay");
   });
 
   it("renders the four-step story strip", () => {
@@ -37,7 +52,7 @@ describe("landing sections (PRD 2.7)", () => {
     expect(
       screen.getByRole("region", { name: "Juli làm việc như thế nào" }),
     ).toBeInTheDocument();
-    for (const label of ["Phân tích", "Gợi ý", "Thực hiện", "Kết quả"]) {
+    for (const label of ["Phân tích", "Gợi ý", "Thực hiện", "Theo dõi"]) {
       // Each label appears in the strip and again as a feature card title.
       expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(2);
     }
@@ -65,11 +80,13 @@ describe("landing sections (PRD 2.7)", () => {
     expect(screen.getByText("Đẩy khuyến mãi mùa hè")).toBeInTheDocument();
   });
 
-  it("renders the curiosity CTA section", () => {
+  it("renders the closing trial CTA section", () => {
     render(<LandingPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Shop của bạn đang vận hành thế nào?" }),
+      screen.getByRole("heading", {
+        name: "Tăng trưởng tinh gọn và ổn định, bắt đầu miễn phí.",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -94,7 +111,7 @@ describe("landing sections (PRD 2.7)", () => {
     // Full section census — identical content regardless of viewport.
     expect(screen.getByText("Giải pháp trên thị trường")).toBeInTheDocument();
     expect(
-      screen.getByText(/vận hành TMĐT mọi lúc, mọi nơi/i),
+      screen.getByText(/tối ưu từng luồng truy cập, từ thẻ sản phẩm đến live/i),
     ).toBeInTheDocument();
   });
 });

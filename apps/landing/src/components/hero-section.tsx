@@ -1,36 +1,42 @@
-import Image from "next/image";
 import Link from "next/link";
-
-import heroMascot from "@juli/brand/assets/hero-mascot.webp";
 
 import { DEMO_URL, LOGIN_URL } from "../lib/site";
 import { CtaLink } from "./cta-link";
 
-/** The outcome triplet, rendered one promise per line under the problem copy. */
+/** The outcome triplet, rendered one promise per line under the body copy. */
 const PROMISES = [
-  "Ít việc thủ công hơn.",
-  "Ít chi phí thất thoát hơn.",
-  "Nhiều lợi nhuận hơn.",
+  "Hướng đến +1–3% GMV mỗi tháng",
+  "Tiết kiệm ~1,7 giờ/ngày mỗi nhân sự",
+  "Mở rộng tinh gọn, ROI cao (chi phí từ 500K)",
 ] as const;
+
+/**
+ * The sales demo (juli-content-engine `sales-demo-01`, re-encoded to 720p).
+ * `preload="none"` keeps the ~15MB file off the critical path until the
+ * visitor presses play; the poster is the 5-traffic-source GMV table frame.
+ */
+const DEMO_VIDEO_SRC = "/videos/juli-demo.mp4";
+const DEMO_VIDEO_POSTER = "/videos/juli-demo-poster.jpg";
 
 export function HeroSection() {
   return (
     <section aria-labelledby="hero-heading" className="lp-hero">
       <div className="lp-hero__copy">
-        <p className="lp-hero__badge">TikTok Shop Partner ✓</p>
+        <p className="lp-hero__badge">
+          TikTok Shop Partner ✓
+          <span className="lp-hero__badge-soon">Shopee · sắp ra mắt</span>
+        </p>
+        <p className="lp-hero__eyebrow">
+          Chi phí vận hành và hoa hồng sàn ngày càng tăng?
+        </p>
         <h1 className="lp-hero__heading" id="hero-heading">
-          Trợ lý AI giúp bạn tự động hóa vận hành, giảm chi phí và tối ưu lợi
-          nhuận.
+          Tăng trưởng GMV ổn định — mở rộng mà không cần đổ thêm ngân sách.
         </h1>
         <p className="lp-hero__body">
-          Juli theo dõi shop 24/7, tự động phát hiện vấn đề, tìm cơ hội tối ưu
-          và đề xuất những việc cần làm để bạn không phải làm mọi thứ thủ công.
-        </p>
-        <p className="lp-hero__flow">
-          Sản phẩm cần tối ưu. Nhập hàng chậm. Đơn hoàn chồng chất. Quảng cáo
-          đốt ngân sách. Những công việc vận hành lặp lại khiến bạn mất thời
-          gian và những sai sót nhỏ có thể trực tiếp ăn vào lợi nhuận và chi
-          phí.
+          Juli là trợ lý giúp bạn tăng trưởng ổn định và tối ưu vận hành TikTok
+          Shop và Shopee. Juli tìm luồng truy cập cần tối ưu → chỉ số cần cải
+          thiện → sản phẩm và nội dung cần sửa, rồi đề xuất và thực hiện cùng
+          bạn.
         </p>
         <p className="lp-hero__promise">
           {PROMISES.map((promise) => (
@@ -67,16 +73,19 @@ export function HeroSection() {
           của Juli.
         </p>
         <p className="lp-hero__reassurance">
-          Miễn phí trải nghiệm · Dành cho điện thoại · Kết quả trực tiếp
+          Miễn phí thử nghiệm 3 tháng · Dành cho điện thoại · Kết quả trực tiếp
         </p>
       </div>
       <div className="lp-hero__visual">
-        <Image
-          alt="Linh vật Juli giới thiệu bảng điều khiển Juli AI trên điện thoại với các chỉ số doanh thu và tồn kho"
-          className="lp-hero__photo"
-          placeholder="blur"
-          priority
-          src={heroMascot}
+        <video
+          aria-label="Video demo Juli phân tích GMV theo 5 luồng truy cập của một TikTok Shop"
+          className="lp-hero__video"
+          controls
+          data-testid="hero-demo-video"
+          playsInline
+          poster={DEMO_VIDEO_POSTER}
+          preload="none"
+          src={DEMO_VIDEO_SRC}
         />
       </div>
     </section>
