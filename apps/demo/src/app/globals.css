@@ -6489,3 +6489,43 @@ h4 {
   color: var(--muted-foreground);
   font-size: 14px;
 }
+
+/* Status chips on their own tint need the darker step to pass 4.5:1. */
+.qd-page .juli-chip--warning {
+  color: var(--warning-text);
+}
+
+.qd-page .juli-chip--success {
+  color: color-mix(in srgb, var(--success) 72%, #000000);
+}
+
+.qd-page .juli-chip--destructive {
+  color: color-mix(in srgb, var(--destructive) 72%, #000000);
+}
+
+.qd-page .juli-chip--neutral {
+  color: color-mix(in srgb, var(--muted-foreground) 70%, #000000);
+}
+
+.qd-page .pt-tabs__tab {
+  white-space: nowrap;
+}
+
+@media (max-width: 1023px) {
+  /* Bands and rules first: d.11 asks before the first run. */
+  .qd-dx__side {
+    order: -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .qd-page .pt-tabs__tab {
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .qd-group__gmv {
+    justify-items: start;
+    text-align: left;
+  }
+}
