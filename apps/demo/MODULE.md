@@ -151,6 +151,25 @@ Invariants below.
   đủ 7 ngày dữ liệu · đo lúc dd/mm/yyyy" (no measurement API yet — DEBT
   P8-F), `GET /v1/demo/revert-questions` with Hoàn tác / Giữ thay đổi
   (dismiss). Anonymous `/decisions` is unchanged (fixtures, DEBT P8-F).
+- **Quyết định to the artboards (AC-10.3, ADR-109 Amendment 1).** Supersedes
+  the card / run / Đo lường parts above; design source
+  `docs/product/design/quyet-dinh-flows/*.dc.html`, API
+  `fasttrack/contracts/p10-quyet-dinh.md`. Card: `RecommendationCard`
+  (`cardView` in `lib/quyet-dinh/card-model.ts` reads `recommendation.card`,
+  else degrades to the P7-B diagnosis); Main layout ≥ 768 px, Mobile below
+  (`useNarrow`); Phê duyệt → in-card notice + "Xem tiến độ ›"; Từ chối /
+  Không thực hiện / Hoàn tác open `ReasonDialog` (one `reason_code`
+  required, `lib/quyet-dinh/reasons.ts`). Run: `RunPanel` per run kind
+  (`runKind`/`runPhase` in `run-model.ts`; timeline plans in `timeline.ts`)
+  — consent with "✎ Sửa nội dung" → `edited_values`, photo upload
+  (`awaiting="photo"`), Seller Center checklist (`awaiting="seller_action"`,
+  "Tôi đã áp dụng" → `POST applied`), done / declined / conflict panels;
+  flat `RunQueue`. Đo lường: `DoLuongPanel`, tabs `moc=ngay-0|ngay-7|ngay-14`
+  by `measurement.stage` (`measure-model.ts`). Styles: `app/quyet-dinh.css`
+  (`qv-*`, `--qd-*` = the artboards' hex); font Be Vietnam Pro
+  (`--font-be-vietnam-pro`, `app/layout.tsx`) on Quyết định only.
+  `DecisionsPageClient` follows the requested href immediately (the
+  production router may not commit `replace` on a deep-linked page).
 - **Quyết định evidence (AC-7.6).** `lib/decision-evidence.ts` is the one
   mapper for an Optimize Product item's `recommendation.diagnosis` /
   `recommendation.evidence` (P7-B, typed in `@juli/contracts`);

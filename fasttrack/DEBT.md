@@ -373,3 +373,34 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `AnalyticsDataProvider` (plan impact block) still calls it. Backend left
   untouched on purpose — retire the route (and that provider) at merge. Also
   dead now: `.analytics-dashboard` and sibling KPI-card rules in `globals.css`.
+
+## P10-C — Quyết định UI to the artboards (AC-10.3)
+
+- [ ] Built against the contract with fixtures; P10-A/P10-B not merged here.
+  Live until then: no `recommendation.card` → card degrades to the P7-B
+  diagnosis (no SKU chip, KPI current only); `/decline` 404/405 falls back to
+  the consent decline; `/measurement` 404 → completion-based waiting line + P8
+  `revert-questions`. Re-check every screen against the merged backend.
+- [ ] Manual (promotion) timeline: P10-B's promotion tool names are unknown,
+  so tools before the pause fill the three Juli rows in order and tools after
+  it are "Kiểm tra trên TikTok"; the pause is the first `workflow.status`
+  starting "Đang chờ" (contract only names "Đang chờ ảnh từ bạn"). Pin the
+  names/narration with P10-B.
+- [ ] Runs carry no decision id: a run is joined to its card by this visit's
+  approve response, else by product title (SKU in run titles / queue depends
+  on it). Ask P10-B for `decision_id` on the runs list.
+- [ ] Production router: on a page first loaded with a query
+  (`/decisions?tab=…`) `router.replace` never commits; `DecisionsPageClient`
+  now follows the requested href itself, but the URL bar may lag in that
+  case. Root-cause (Next 16 static page + useSearchParams) before merge.
+- [ ] a11y: the artboards' greyed not-yet-reached stage chips / step labels
+  (#8a8a94 on #f0eef0 / white, ~3.3:1) fail AA contrast; kept for fidelity
+  and excluded from the e2e axe check as inactive content. Owner to confirm
+  or darken.
+- [ ] Photo consent captions are "Hiện tại" / "Mới" only (the artboard adds
+  size and background, which the contract does not carry).
+- [ ] Old P8-F CSS (`.qd-card`, `.qd-run`, `.qd-step`, `.qd-queue`, …) in
+  `globals.css` is now dead except the rules editor's; `batch.ts`
+  `groupStages`/`runStages` only used by tests. Remove at merge.
+- [ ] One vitest run (of five) failed once under load in the full suite; not
+  reproduced in four reruns. Watch for a flaky async test in quyet-dinh*.
