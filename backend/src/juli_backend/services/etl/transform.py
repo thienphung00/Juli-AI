@@ -232,7 +232,7 @@ def _transform_inventory(body: dict[str, Any], payload: dict[str, Any]) -> dict[
     sku_id = body.get("sku_id")
     if not sku_id:
         raise TransformError("sku_id required")
-    return {
+    row = {
         "tiktok_product_id": str(body.get("product_id") or body.get("tiktok_product_id") or sku_id),
         "tiktok_sku_id": str(sku_id),
         "quantity": _coerce_int(
@@ -251,6 +251,13 @@ def _transform_inventory(body: dict[str, Any], payload: dict[str, Any]) -> dict[
             or payload.get("occurred_at")
         ),
     }
+    # Fast track P10-A: the seller's SKU code, for the recommendation card. Only
+    # when the payload carries it -- a webhook snapshot without it must not
+    # blank a value an earlier sync stored.
+    seller_sku = body.get("seller_sku")
+    if isinstance(seller_sku, str) and seller_sku.strip():
+        row["seller_sku"] = seller_sku.strip()[:100]
+    return row
 
 
 def _transform_creator(body: dict[str, Any]) -> dict[str, Any]:

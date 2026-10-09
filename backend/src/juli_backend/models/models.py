@@ -310,6 +310,10 @@ class InventoryItem(Base):
     tiktok_sku_id: Mapped[str] = mapped_column(String(100), nullable=False)
     quantity: Mapped[int] = mapped_column(nullable=False)
     warehouse_id: Mapped[str | None] = mapped_column(String(100))
+    #: The seller's own SKU code (TikTok ``seller_sku``), shown on the
+    #: recommendation card (fast track P10-A, migration 079). NULL until an
+    #: inventory sync that carries it.
+    seller_sku: Mapped[str | None] = mapped_column(String(100))
     velocity: Mapped[str] = mapped_column(
         String(20), default="low", server_default="low", nullable=False
     )
