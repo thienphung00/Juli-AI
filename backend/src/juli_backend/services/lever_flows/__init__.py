@@ -25,7 +25,9 @@ from juli_backend.services.lever_flows.flows import (
     PROMOTION_LEVERS,
     RECHECK_DELAY_S,
     AwaitSeller,
+    NotAwaitingSeller,
     awaiting_of,
+    end_wait_by_seller,
     flow_kind_for_lever,
     flows_for_runs,
     get_flow,
@@ -83,6 +85,8 @@ def termination_policy_for_wait(awaiting: str | None):
 
 
 __all__ = [
+    "NotAwaitingSeller",
+    "end_wait_by_seller",
     "AWAITING_PHOTO",
     "AWAITING_SELLER_ACTION",
     "LABELS_VI",

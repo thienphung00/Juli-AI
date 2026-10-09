@@ -144,6 +144,7 @@ class RunDetail(BaseModel):
     latest_narration: str | None = None
     decision_summary: PendingDecisionItem | None = None
     awaiting: str | None = None
+    decision_id: uuid.UUID | None = None
     awaiting_expires_at: str | None = None
     lever: RunLever | None = None
     photo: RunPhotos | None = None
@@ -215,6 +216,7 @@ async def get_demo_run(
                 else None
             ),
             awaiting=awaiting,
+            decision_id=run.action_card_id,
             awaiting_expires_at=_iso(expires),
             lever=lever,
             photo=photo,

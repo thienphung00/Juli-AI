@@ -47,6 +47,9 @@ class RunListItem:
     #: Fast track P10-B (contract §4/§5): ``photo`` / ``seller_action`` while the
     #: run waits for the seller, else ``None``.
     awaiting: str | None = None
+    #: P10 integration: the Quyết định card (``action_cards.id``) this run came
+    #: from, so the UI joins runs to cards by id rather than by product name.
+    decision_id: uuid.UUID | None = None
 
 
 async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) -> list[RunListItem]:
@@ -75,6 +78,7 @@ async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) ->
                 latest_narration=await _latest_narration(session, run.id),
                 decision_summary=decision_summary,
                 awaiting=lever_flows.awaiting_of(run),
+                decision_id=run.action_card_id,
             )
         )
     return items

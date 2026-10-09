@@ -25,11 +25,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.lever_flows import FLOW_PHOTO, FLOW_PROMOTION, RunLeverFlow
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
+from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 
 PHOTO_LEVERS: frozenset[str] = frozenset({"cover_image"})
 PROMOTION_LEVERS: tuple[str, ...] = (
@@ -162,8 +163,74 @@ def touch(flow: RunLeverFlow) -> None:
     flow.updated_at = _now()
 
 
+class NotAwaitingSeller(Exception):
+    """The run is no longer waiting for the seller (resumed, ended, or never waited)."""
+
+
+async def end_wait_by_seller(session: AsyncSession, run: WorkflowRunRow) -> None:
+    """ "Không thực hiện" while the run waits for a photo / a Seller Center action.
+
+    Nothing was written to TikTok, so the run simply ends: ``cancelled`` with
+    ``cancelled_by_seller`` and one ``workflow.failed`` event (the same terminal
+    shape the reaper writes for an expired wait). Compare-and-set on
+    ``waiting_external`` so a resume that already picked the run up wins and
+    this raises :class:`NotAwaitingSeller`. Flush, no commit.
+    """
+    from juli_backend.services.agent.events import WorkflowFailedEvent, WorkflowFailedPayload
+    from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
+
+    if awaiting_of(run) is None:
+        raise NotAwaitingSeller(str(run.id))
+    now = _now()
+    flipped = await session.execute(
+        update(WorkflowRunRow)
+        .where(
+            WorkflowRunRow.id == run.id,
+            WorkflowRunRow.status == WAITING_EXTERNAL_STATUS,
+        )
+        .values(
+            status=WorkflowRunStatus.CANCELLED.value,
+            stop_reason=StopReason.CANCELLED_BY_SELLER.value,
+            completed_at=now,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if getattr(flipped, "rowcount", 0) != 1:
+        raise NotAwaitingSeller(str(run.id))
+    last = await session.execute(
+        select(func.coalesce(func.max(WorkflowRunEventRow.sequence_number), -1)).where(
+            WorkflowRunEventRow.workflow_run_id == run.id
+        )
+    )
+    event = WorkflowFailedEvent(
+        workflow_run_id=run.id,
+        sequence_number=last.scalar_one() + 1,
+        event_type="workflow.failed",
+        timestamp=now.replace(tzinfo=UTC),
+        payload=WorkflowFailedPayload(
+            status=WorkflowRunStatus.CANCELLED, stop_reason=StopReason.CANCELLED_BY_SELLER
+        ),
+        v=1,
+    )
+    session.add(
+        WorkflowRunEventRow(
+            id=uuid.uuid4(),
+            workflow_run_id=run.id,
+            sequence_number=event.sequence_number,
+            event_type=event.event_type,
+            timestamp=event.timestamp,
+            payload=event.payload.model_dump(mode="json"),
+            v=event.v,
+        )
+    )
+    await session.flush()
+    await session.refresh(run)
+
+
 __all__ = [
     "AWAITING_PHOTO",
+    "NotAwaitingSeller",
+    "end_wait_by_seller",
     "AWAITING_SELLER_ACTION",
     "AWAITING_VALUES",
     "MAX_SCHEDULED_ROUNDS",

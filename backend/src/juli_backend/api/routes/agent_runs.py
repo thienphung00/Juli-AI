@@ -326,6 +326,8 @@ class WorkflowRunListItem(BaseModel):
     decision_summary: PendingDecisionSummary | None = None
     #: Fast track P10-B: ``photo`` / ``seller_action`` while waiting for the seller.
     awaiting: str | None = None
+    #: P10 integration: the Quyết định card (``action_cards.id``) the run came from.
+    decision_id: uuid.UUID | None = None
 
 
 class WorkflowRunListResponse(BaseModel):
@@ -371,6 +373,7 @@ async def list_demo_runs(
                     else None
                 ),
                 awaiting=item.awaiting,
+                decision_id=item.decision_id,
             )
             for item in items
         ]

@@ -35,6 +35,8 @@ RUN_LIST_FIELDS = {
     "decision_summary",
     # Fast track P10-B (contract §4/§5): what the seller must do, or null.
     "awaiting",
+    # P10 integration: the decision card the run came from (UI joins by id).
+    "decision_id",
 }
 
 # (stop_reason, status) -- every terminal pair the check constraint allows,

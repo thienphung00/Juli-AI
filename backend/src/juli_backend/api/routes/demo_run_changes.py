@@ -45,13 +45,14 @@ from juli_backend.database import Shop, User, get_session
 from juli_backend.models.decision_reasons import ACTION_DECLINE, ACTION_REVERT
 from juli_backend.models.models import ActionCard
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
-from juli_backend.services import agent_runs, decision_reasons, run_changes
+from juli_backend.services import agent_runs, decision_reasons, lever_flows, run_changes
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
+_NOT_WAITING_ON_SELLER_VI = "Lượt chạy này không còn chờ bạn nữa."
 _ACTIVE_RUN_MESSAGE_VI = (
     "Sản phẩm này đang có một lượt chạy khác. Hãy chờ lượt đó kết thúc rồi hoàn tác."
 )
@@ -402,13 +403,29 @@ async def decline_run(
         )
 
     run = await _resolve_owned_run(run_id, shop, session)
-    try:
-        await agent_runs.decline_pending_confirmation(session, run)
-    except agent_runs.ConfirmationRejected as rejected:
-        raise HTTPException(
-            status_code=rejected.http_status,
-            detail={"message": rejected.message, "error_code": rejected.error_code},
-        ) from None
+    # P10 integration: "Không thực hiện" also ends a lever flow waiting for the
+    # seller's photo or Seller Center action (RunPhoto / RunManual artboards).
+    # Nothing was written, so the run just ends -- no resume task to enqueue.
+    waiting_on_seller = lever_flows.awaiting_of(run) is not None
+    if waiting_on_seller:
+        try:
+            await lever_flows.end_wait_by_seller(session, run)
+        except lever_flows.NotAwaitingSeller:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": _NOT_WAITING_ON_SELLER_VI,
+                    "error_code": "run_not_awaiting_seller",
+                },
+            ) from None
+    else:
+        try:
+            await agent_runs.decline_pending_confirmation(session, run)
+        except agent_runs.ConfirmationRejected as rejected:
+            raise HTTPException(
+                status_code=rejected.http_status,
+                detail={"message": rejected.message, "error_code": rejected.error_code},
+            ) from None
     card = await session.get(ActionCard, run.action_card_id) if run.action_card_id else None
     reason = await decision_reasons.record_reason(
         session,
@@ -424,7 +441,9 @@ async def decline_run(
     decision_reasons.close_card(card)
     # Commit before enqueue: a worker must never see the row still pending (#1221).
     await session.commit()
-    celery_task_id = _enqueue_resume_agent_workflow(run_id, approved=False)
+    celery_task_id = (
+        None if waiting_on_seller else _enqueue_resume_agent_workflow(run_id, approved=False)
+    )
     logger.info(
         "agent_run_declined",
         extra={
@@ -432,6 +451,7 @@ async def decline_run(
             "run_id": str(run_id),
             "reason_code": body.reason_code,
             "celery_task_id": celery_task_id,
+            "ended_seller_wait": waiting_on_seller,
         },
     )
     return RunDeclineResponse(
