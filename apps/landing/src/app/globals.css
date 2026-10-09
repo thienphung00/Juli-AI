@@ -117,7 +117,7 @@ a {
 
 @media (min-width: 56rem) {
   .lp-hero {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 
@@ -127,6 +127,19 @@ a {
   font-size: 0.9rem;
   font-style: italic;
   font-weight: 600;
+}
+
+.lp-hero__badge-soon {
+  margin-left: var(--juli-space-3);
+  font-style: normal;
+  font-weight: 500;
+}
+
+.lp-hero__eyebrow {
+  margin: 0 0 var(--juli-space-2);
+  color: var(--juli-primary-strong);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .lp-hero__heading {
@@ -152,15 +165,6 @@ a {
   font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.5;
-}
-
-.lp-hero__flow {
-  margin: var(--juli-space-4) 0 0;
-  max-width: 34rem;
-  color: var(--juli-foreground);
-  font-size: 0.95rem;
-  font-weight: 500;
-  line-height: 1.7;
 }
 
 .lp-hero__promise {
@@ -213,10 +217,12 @@ a {
   justify-content: center;
 }
 
-.lp-hero__photo {
+.lp-hero__video {
+  display: block;
   width: 100%;
-  max-width: 30rem;
+  aspect-ratio: 16 / 9;
   height: auto;
+  background: var(--juli-muted);
   border-radius: var(--juli-radius-large);
   box-shadow: var(--juli-shadow-medium);
 }
@@ -709,6 +715,20 @@ a {
   font-size: clamp(1.6rem, 3.6vw, 2.4rem);
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+.lp-curiosity__audience {
+  margin: 0;
+  color: var(--juli-primary-strong);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.lp-curiosity__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--juli-space-3);
 }
 
 .lp-curiosity__body {

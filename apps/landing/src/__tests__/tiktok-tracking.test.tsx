@@ -80,7 +80,7 @@ describe("StartDemo", () => {
       "hero-demo-cta",
       "comparison-demo-cta",
       "features-demo-cta",
-      "curiosity-demo-cta",
+      "trial-demo-cta",
     ]) {
       await user.click(screen.getByTestId(testId));
 
@@ -121,10 +121,11 @@ describe("StartDemo", () => {
     );
     const user = userEvent.setup();
 
-    // An in-page anchor and the Login/Signup CTA: same page, same markup,
-    // different destination.
+    // An in-page anchor and the Terms link: same page, same markup, different
+    // destination. (Login/Signup lands in the Demo too, so it is tracked, under
+    // its own content_name.)
     await user.click(screen.getAllByRole("link", { name: /Tính năng/i })[0]);
-    await user.click(screen.getByTestId("hero-login-cta"));
+    await user.click(screen.getAllByRole("link", { name: "Điều khoản dịch vụ" })[0]);
 
     expect(trackedEvents("StartDemo")).toHaveLength(0);
   });

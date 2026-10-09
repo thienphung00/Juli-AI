@@ -9,8 +9,8 @@ route it owns (`/api/tt/event`) talks to TikTok, not to `juli-api`.
 
 ## Public interface
 
-- `/` — single-page marketing story: Hero · 4-step strip · market comparison ·
-  feature showcase · curiosity CTA · closing CTA · footer.
+- `/` — single-page marketing story: Hero (sales demo video, `public/videos/`) ·
+  4-step strip · market comparison · feature showcase · closing trial CTA · footer.
 - `/privacy`, `/terms` (issue #1971) — hosted privacy policy and terms of service,
   a prerequisite for publishing the Google OAuth consent screen (ADR-094 decision
   3). Linked from the hero's sign-in CTA and the site footer, which both pages

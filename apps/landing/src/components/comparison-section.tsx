@@ -18,6 +18,7 @@ const COLUMNS: ComparisonColumn[] = [
       "Kém phù hợp cho điện thoại",
       "Thiếu tính ổn định và chuyên nghiệp",
       "Khó theo kịp những thay đổi của nền tảng",
+      "Dashboard chỉ dừng ở dữ liệu rải rác",
     ],
   },
   {
@@ -25,11 +26,11 @@ const COLUMNS: ComparisonColumn[] = [
     title: "Juli",
     highlight: true,
     pros: [
+      "Tối ưu từng luồng truy cập",
+      "ROI cao, chi phí từ 500K/tháng",
       "Tiết kiệm hơn so với Agency",
-      "Đa cửa hàng và đa nền tảng",
       "Đơn giản và dễ sử dụng",
       "Tiến độ và kết quả trực tiếp",
-      "Bám sát mọi thay đổi",
     ],
     cons: ["Cần thời gian để tối ưu các tính năng", "Không thay thế người bán"],
   },
@@ -41,6 +42,7 @@ const COLUMNS: ComparisonColumn[] = [
       "Chi phí cao",
       "Thiếu thông tin về tiến độ",
       "Khó đánh giá hiệu quả thực tế",
+      "Chi phí tăng theo quy mô",
     ],
   },
 ];
