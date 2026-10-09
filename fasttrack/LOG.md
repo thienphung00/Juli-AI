@@ -503,7 +503,7 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
      signup" (a first-time email gets the signup template) must show
      `{{ .Token }}`; Vietnamese body, e.g. subject "Mã đăng nhập Juli:
      {{ .Token }}", body "Mã đăng nhập Juli của bạn: <b>{{ .Token }}</b> (hết
-     hạn sau 10 phút). Hoặc bấm: <a href=\"{{ .ConfirmationURL }}\">Đăng nhập
+     hạn sau 10 phút). Hoặc bấm: <a href="{{ .ConfirmationURL }}">Đăng nhập
      Juli</a>. Nếu bạn không yêu cầu, hãy bỏ qua email này."
   4. Authentication → URL Configuration: Site URL https://demo.app-juli.com;
      Redirect URLs include https://demo.app-juli.com/auth/callback (already
