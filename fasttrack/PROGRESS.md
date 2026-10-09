@@ -37,11 +37,11 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 |---|---|---|---|
 | P8-A Rankings job, DB only, read on demand | 8.1 | done (merged d7e0e19f) | P8-A agent (Opus) |
 | P8-B Per-video 30/30 data | 8.2 | done (merged 2abcd168) | P8-B agent (Opus) |
-| P8-C Before/after + Hoàn tác, rule store, day-7 guardrail | 8.3 | doing | P8-C agent (Opus) |
+| P8-C Before/after + Hoàn tác, rule store, day-7 guardrail | 8.3 | done (merged 06a95d38, 078 re-chained onto 077) | P8-C agent (Opus) |
 | P8-G `get_product_diagnoses` playbook tool | 8.4 | done (merged f4740ceb) | P8-G agent (Sonnet) |
 | P8-D App shell + Home | 8.5 | done (merged 41584c55) | P8-D agent (Opus) |
-| P8-E Phân tích UI | 8.6 | doing | P8-E agent (Opus) |
-| P8-F Quyết định UI | 8.7 | todo (after C, D, G) | — |
+| P8-E Phân tích UI | 8.6 | done (merged) | P8-E agent (Opus) |
+| P8-F Quyết định UI | 8.7 | doing | P8-F agent (Opus) |
 | P8 integration + deploy | — | todo | orchestrator |
 
 ## P2–P6
