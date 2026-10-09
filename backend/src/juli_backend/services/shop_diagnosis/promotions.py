@@ -286,6 +286,8 @@ class Band:
     last: date
     days_prior: int
     days_last: int
+    #: Products in the promotion (fast track P12); ``None`` for vouchers and unknown lists.
+    product_count: int | None = None
 
 
 def bands(
@@ -298,17 +300,17 @@ def bands(
     days = windows.all_days()
     prior, last = set(windows.prior_days()), set(windows.last_days())
     out: list[Band] = []
-    spans: list[tuple[PromoKind, str, int, int | None]] = [
-        (p.kind, p.title, p.begin, p.end)
+    spans: list[tuple[PromoKind, str, int, int | None, int | None]] = [
+        (p.kind, p.title, p.begin, p.end, None if p.products is None else len(p.products))
         for p in promotions
         if p.kind in (PromoKind.FLASH, PromoKind.DISCOUNT) and p.covers(product_id)
     ]
     spans += [
-        (PromoKind.VOUCHER, v.title, v.begin, v.end)
+        (PromoKind.VOUCHER, v.title, v.begin, v.end, None)
         for v in vouchers
         if product_id is None or not v.specific_products
     ]
-    for kind, title, begin, end in spans:
+    for kind, title, begin, end, count in spans:
         touched = _span_days(begin, end, days)
         if touched:
             out.append(
@@ -319,9 +321,105 @@ def bands(
                     touched[-1],
                     sum(1 for d in touched if d in prior),
                     sum(1 for d in touched if d in last),
+                    count,
                 )
             )
     return sorted(out, key=lambda b: (b.first, b.kind))
+
+
+@dataclass(frozen=True)
+class PromoProduct:
+    """One product's promotions over the 60 days (fast track P12, Phân tích › Khuyến mãi).
+
+    ``kind`` is the promotion that covered it on the most days; ``depth`` the
+    median true depth of its flash sales (flash price vs the already-discounted
+    price, as :func:`flash_depths`), else of its product discounts vs list price;
+    ``gmv_in`` / ``gmv_out`` its mean daily GMV (all channels) on the days a
+    promotion covered at least ``flash_day_coverage`` of the day, and on the
+    other days of the 60 (``None`` when there are none).
+    """
+
+    product_id: str
+    kind: PromoKind
+    days: int
+    depth: float | None
+    gmv_in: float | None
+    gmv_out: float | None
+
+
+def _discount_depth(
+    promo: Promotion, product_id: str, list_prices: dict[str, float]
+) -> list[float]:
+    depths: list[float] = []
+    for sku_id, price in promo.sku_prices.get(product_id, {}).items():
+        base = list_prices.get(sku_id)
+        if base and base > 0:
+            depths.append(1 - price / base)
+    for percent in promo.sku_discounts.get(product_id, {}).values():
+        depths.append(percent / 100)
+    return depths
+
+
+def promo_products(
+    promotions: list[Promotion],
+    windows: Windows,
+    snapshot: Snapshot,
+    gmv_by_day: dict[str, dict[date, float]],
+    config: ShopDiagnosisConfig,
+    limit: int = 10,
+) -> tuple[PromoProduct, ...]:
+    """Products with a known-list flash sale, product discount or bundle in the 60 days.
+
+    ``gmv_by_day`` is ``{product id: {present day: GMV}}`` over the 60 days.
+    Ordered by GMV per day while on promotion, at most ``limit``.
+    """
+    days = windows.all_days()
+    window_lo, window_hi = day_start(days[0]), day_start(days[-1]) + DAY_SECONDS
+    kinds = (PromoKind.FLASH, PromoKind.DISCOUNT, PromoKind.BUNDLE)
+    running = [
+        p
+        for p in promotions
+        if p.kind in kinds
+        and p.products is not None
+        and p.begin < window_hi
+        and (p.end is None or p.end > window_lo)
+    ]
+    out: list[PromoProduct] = []
+    for product_id in sorted({pid for p in running for pid in p.products or ()}):
+        mine = [p for p in running if p.products is not None and product_id in p.products]
+        coverage = coverage_by_day(((p.begin, p.end) for p in mine), days)
+        covered = {d for d, share in coverage.items() if share >= config.flash_day_coverage}
+        by_kind: dict[PromoKind, int] = {}
+        for promo in mine:
+            touched = set(_span_days(promo.begin, promo.end, days))
+            by_kind[promo.kind] = by_kind.get(promo.kind, 0) + len(touched)
+        kind = max(by_kind, key=lambda k: (by_kind[k], k is PromoKind.FLASH))
+        if kind is PromoKind.FLASH:
+            depth, _ = flash_depths(mine, windows, snapshot, [product_id])
+        else:
+            list_prices = snapshot.list_prices(product_id)
+            values = [
+                d
+                for p in mine
+                if p.kind is kind
+                for d in _discount_depth(p, product_id, list_prices)
+            ]
+            depth = statistics.median(values) if values else None
+        daily = gmv_by_day.get(product_id, {})
+        inside = [v for d, v in daily.items() if d in covered]
+        outside = [v for d, v in daily.items() if d not in covered]
+        out.append(
+            PromoProduct(
+                product_id,
+                kind,
+                len(covered),
+                depth,
+                sum(inside) / len(inside) if inside else None,
+                sum(outside) / len(outside) if outside else None,
+            )
+        )
+    out.sort(key=lambda p: -(p.gmv_in or 0.0))
+    return tuple(out[:limit])
 
 
 # --------------------------------------------------------------------------

@@ -239,6 +239,10 @@ class _Row:
     day: str | None = None
     method: str | None = None
     steps: dict[str, float] | None = None
+    #: Product rows: the seller SKU (fast track P12); ``None`` when the catalogue has none.
+    seller_sku: str | None = None
+    #: Content rows: the product ids tagged in the LIVE session / video (fast track P12).
+    products: tuple[str, ...] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -257,6 +261,10 @@ class _Row:
             out["method"] = self.method
         if self.steps is not None:
             out["steps"] = self.steps
+        if self.seller_sku is not None:
+            out["seller_sku"] = self.seller_sku
+        if self.products is not None:
+            out["product_ids"] = list(self.products)
         return out
 
 
@@ -505,6 +513,7 @@ def _product_rankings(
                     quantity_last=q1,
                     method=row_method,
                     steps=steps if metric is Metric.CTOR else None,
+                    seller_sku=snapshot.seller_sku(p.pid),
                 )
             )
     change = stream_last.gmv - stream_prior.gmv
@@ -547,6 +556,8 @@ class _ContentItem:
     day: date | None
     last: Counts | None
     prior: Counts | None = field(default=None)
+    #: Product ids tagged in the session / video, in the order TikTok lists them.
+    products: tuple[str, ...] = ()
 
 
 def _local_day(value: object) -> date | None:
@@ -561,8 +572,49 @@ def _block(value: object) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def live_items(sessions: list[dict], windows: Windows) -> list[_ContentItem]:
+def _product_ids(payload: object) -> list[str]:
+    """Product ids of a ``live/products/<id>.json`` / ``videos/products/<id>.json`` payload."""
+    data = payload.get("data") if isinstance(payload, dict) else None
+    source = data if isinstance(data, dict) else payload
+    items = source.get("products") if isinstance(source, dict) else None
+    if not isinstance(items, list):
+        return []
+    return [str(p["id"]) for p in items if isinstance(p, dict) and p.get("id")]
+
+
+def tagged_products(
+    live_products: dict[str, Any], videos: list[dict], video_products: dict[str, Any]
+) -> dict[str, tuple[str, ...]]:
+    """Per LIVE session id and video id, the product ids it featured (fast track P12).
+
+    From the snapshot's ``live/products/<id>.json``, the video list's own
+    ``products[]`` and ``videos/products/<id>.json``; duplicates dropped, order kept.
+    """
+    out: dict[str, tuple[str, ...]] = {}
+    for session_id, payload in live_products.items():
+        ids = _product_ids(payload)
+        if ids:
+            out[str(session_id)] = tuple(dict.fromkeys(ids))
+    for video in videos:
+        video_id = str(video.get("id") or "")
+        if not video_id:
+            continue
+        listed = [
+            str(p["id"]) for p in video.get("products") or [] if isinstance(p, dict) and p.get("id")
+        ]
+        ids = [*listed, *_product_ids(video_products.get(video_id))]
+        if ids:
+            out[video_id] = tuple(dict.fromkeys(ids))
+    return out
+
+
+def live_items(
+    sessions: list[dict],
+    windows: Windows,
+    tagged: dict[str, tuple[str, ...]] | None = None,
+) -> list[_ContentItem]:
     """LIVE sessions (``live/sessions.json``) placed in the window they started in."""
+    tagged = tagged or {}
     items: list[_ContentItem] = []
     for session in sessions:
         day = _local_day(session.get("start_time"))
@@ -579,19 +631,24 @@ def live_items(sessions: list[dict], windows: Windows) -> list[_ContentItem]:
         )
         title = str(session.get("title") or "LIVE")
         in_last = day >= windows.last_first
+        session_id = str(session.get("id") or "")
         items.append(
             _ContentItem(
-                id=str(session.get("id") or ""),
+                id=session_id,
                 name=f"{title} · {day.strftime('%d/%m/%Y')}",
                 day=day,
                 last=counts if in_last else None,
                 prior=None if in_last else counts,
+                products=tagged.get(session_id, ()),
             )
         )
     return items
 
 
-def video_items(videos: Sequence[VideoWindowCounts]) -> list[_ContentItem]:
+def video_items(
+    videos: Sequence[VideoWindowCounts], tagged: dict[str, tuple[str, ...]] | None = None
+) -> list[_ContentItem]:
+    tagged = tagged or {}
     return [
         _ContentItem(
             id=v.video_id,
@@ -599,6 +656,7 @@ def video_items(videos: Sequence[VideoWindowCounts]) -> list[_ContentItem]:
             day=v.posted_on,
             last=v.last,
             prior=v.prior,
+            products=tagged.get(v.video_id, ()),
         )
         for v in videos
     ]
@@ -674,6 +732,7 @@ def _content_rankings(
                     quantity_prior=None,
                     quantity_last=q,
                     day=item.day.isoformat() if item.day else None,
+                    products=item.products,
                 )
             )
     change = stream_last.gmv - stream_prior.gmv
@@ -723,11 +782,12 @@ def build_rankings(
     if not prior_days or not last_days:
         raise ValueError("the snapshot needs daily files in both 30-day windows")
     series = build_series(snapshot.daily)
+    tagged = tagged_products(snapshot.live_products, snapshot.videos, snapshot.video_products)
     out: list[MetricRanking] = []
     for stream in (Channel.PRODUCT_CARD, Channel.SHOP_TAB):
         out += _product_rankings(snapshot, series, stream, windows, prior_days, last_days, config)
     out += _content_rankings(
-        live_items(snapshot.live_sessions, windows),
+        live_items(snapshot.live_sessions, windows, tagged),
         series,
         Channel.SELLER_LIVE,
         RowKind.LIVE_SESSION,
@@ -738,7 +798,7 @@ def build_rankings(
     )
     if videos is not None:
         out += _content_rankings(
-            video_items(videos),
+            video_items(videos, tagged),
             series,
             Channel.SELLER_VIDEO,
             RowKind.VIDEO,
@@ -771,5 +831,6 @@ __all__ = [
     "metric_values",
     "reconciles",
     "split",
+    "tagged_products",
     "video_items",
 ]

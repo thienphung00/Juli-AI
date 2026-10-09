@@ -47,6 +47,7 @@ from juli_backend.services.shop_diagnosis.promotions import (
     Band,
     FlashAnalysis,
     OrderDiscountShare,
+    PromoProduct,
     VoucherSummary,
     analyse_flash,
     analyse_vouchers,
@@ -54,6 +55,7 @@ from juli_backend.services.shop_diagnosis.promotions import (
     order_discount_share,
     parse_activities,
     parse_vouchers,
+    promo_products,
 )
 from juli_backend.services.shop_diagnosis.snapshot import Snapshot, Windows
 from juli_backend.services.shop_diagnosis.timeline import (
@@ -144,6 +146,11 @@ class ShopDiagnosis:
     watch: tuple[WatchItem, ...]
     titles: dict[str, str]
     orders_present: bool
+    #: Fast track P12 (additive): the shop's GMV per present day of the 60 (all
+    #: channels), the seller SKU per product, and the products' promotions.
+    daily_gmv: dict[date, float] = dataclasses.field(default_factory=dict)
+    seller_skus: dict[str, str] = dataclasses.field(default_factory=dict)
+    promo_products: tuple[PromoProduct, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return _plain(dataclasses.asdict(self))
@@ -435,6 +442,17 @@ def build_report(
     rest_card = builder.compare((Channel.PRODUCT_CARD,), rest)
     all_days = windows.all_days()
     titles = {pid: snapshot.title(pid) for pid in builder.series.get(Channel.TOTAL, {})}
+    present = [d for d in all_days if d in snapshot.daily]
+    daily_gmv = {d: group_sum(builder.series, [Channel.TOTAL], [d]).gmv for d in present}
+    gmv_by_day = {
+        pid: {d: per_day[d].gmv for d in present if d in per_day}
+        for pid, per_day in builder.series.get(Channel.TOTAL, {}).items()
+    }
+    seller_skus = {
+        pid: sku
+        for pid in builder.series.get(Channel.TOTAL, {})
+        if (sku := snapshot.seller_sku(pid))
+    }
     return ShopDiagnosis(
         shop_name=snapshot.shop_name,
         end=snapshot.end,
@@ -458,4 +476,7 @@ def build_report(
         watch=_watch(builder, selection),
         titles=titles,
         orders_present=snapshot.orders is not None,
+        daily_gmv=daily_gmv,
+        seller_skus=seller_skus,
+        promo_products=promo_products(activity_promos, windows, snapshot, gmv_by_day, config),
     )

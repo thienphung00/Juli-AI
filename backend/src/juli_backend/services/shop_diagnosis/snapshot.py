@@ -82,6 +82,13 @@ class Snapshot:
         detail = self.products.get(product_id) or {}
         return str(detail.get("title") or "")
 
+    def seller_sku(self, product_id: str) -> str | None:
+        """The product's seller SKU (its first SKU that has one), ``None`` when not listed."""
+        for sku in (self.products.get(product_id) or {}).get("skus") or []:
+            if isinstance(sku, dict) and str(sku.get("seller_sku") or "").strip():
+                return str(sku["seller_sku"]).strip()
+        return None
+
     def list_prices(self, product_id: str) -> dict[str, float]:
         """Per SKU id, the listed sale price (before any promotion)."""
         out: dict[str, float] = {}

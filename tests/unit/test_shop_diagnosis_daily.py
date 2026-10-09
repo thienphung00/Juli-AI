@@ -60,6 +60,10 @@ REPORT_KEYS = {
     "watch",
     "titles",
     "orders_present",
+    # fast track P12 (additive, contracts/p12-phan-tich.md)
+    "daily_gmv",
+    "seller_skus",
+    "promo_products",
 }
 
 
