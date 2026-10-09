@@ -47,4 +47,14 @@ describe("resolveExpiryCountdown", () => {
 
     expect(resolveExpiryCountdown(expiresAt, now).expired).toBe(true);
   });
+  it("switches to days and hours once a day or more remains", () => {
+    const now = new Date("2026-08-25T10:00:00.000Z").getTime();
+
+    expect(resolveExpiryCountdown("2026-08-27T13:30:00.000Z", now).label).toBe(
+      "2 ngày 3 giờ",
+    );
+    expect(resolveExpiryCountdown("2026-08-26T10:00:00.000Z", now).label).toBe(
+      "1 ngày",
+    );
+  });
 });

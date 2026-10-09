@@ -17,6 +17,7 @@ interface ExpiryCountdown {
 
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
+const HOURS_PER_DAY = 24;
 
 export function resolveExpiryCountdown(
   expiresAtIso: string,
@@ -30,9 +31,17 @@ export function resolveExpiryCountdown(
   }
 
   const totalMinutes = Math.floor(remainingMs / MS_PER_MINUTE);
-  const hours = Math.floor(totalMinutes / MINUTES_PER_HOUR);
+  const totalHours = Math.floor(totalMinutes / MINUTES_PER_HOUR);
   const minutes = totalMinutes % MINUTES_PER_HOUR;
 
-  const label = hours > 0 ? `${hours} giờ ${minutes} phút` : `${minutes} phút`;
+  // Past a day, hours-and-minutes reads as noise ("633166 giờ 17 phút");
+  // whole days and hours are enough at that distance.
+  if (totalHours >= HOURS_PER_DAY) {
+    const days = Math.floor(totalHours / HOURS_PER_DAY);
+    const hours = totalHours % HOURS_PER_DAY;
+    return { label: hours > 0 ? `${days} ngày ${hours} giờ` : `${days} ngày`, expired: false };
+  }
+
+  const label = totalHours > 0 ? `${totalHours} giờ ${minutes} phút` : `${minutes} phút`;
   return { label, expired: false };
 }
