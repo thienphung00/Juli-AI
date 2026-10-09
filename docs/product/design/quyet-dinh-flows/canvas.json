@@ -1,0 +1,180 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Day14.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Ngày 14 · luồng chốt kết quả",
+      "w": 1040,
+      "x": 1120,
+      "y": 6900
+    },
+    "Day7.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Ngày 7 · luồng kiểm tra",
+      "w": 1040,
+      "x": 0,
+      "y": 6900
+    },
+    "Flow.dc.html": {
+      "h": 560,
+      "title": "0 · Toàn bộ luồng sau Phê duyệt",
+      "w": 1960,
+      "x": 0,
+      "y": 1120
+    },
+    "Levers.dc.html": {
+      "h": 1500,
+      "title": "Tất cả loại thay đổi đề xuất (7 đòn bẩy)",
+      "w": 1960,
+      "x": 0,
+      "y": 3700
+    },
+    "Main.dc.html": {
+      "h": 780,
+      "is_interactive": true,
+      "title": "A · Thẻ đề xuất (bấm Xem thêm, Phê duyệt)",
+      "w": 640,
+      "x": 0,
+      "y": 0
+    },
+    "Measure.dc.html": {
+      "h": 1260,
+      "is_interactive": true,
+      "title": "5–7 · Đo lường: ngày 0, ngày 7, ngày 14",
+      "w": 840,
+      "x": 1120,
+      "y": 1980
+    },
+    "Mobile.dc.html": {
+      "h": 720,
+      "title": "A trên điện thoại (390)",
+      "w": 390,
+      "x": 1560,
+      "y": 0
+    },
+    "OptionB.dc.html": {
+      "h": 440,
+      "title": "B · Bảng gọn 2 cột",
+      "w": 760,
+      "x": 720,
+      "y": 0
+    },
+    "Run.dc.html": {
+      "h": 1160,
+      "is_interactive": true,
+      "title": "1–4 · Đang thực hiện: lượt chạy, xác nhận, ghi, TikTok duyệt",
+      "w": 1040,
+      "x": 0,
+      "y": 1980
+    },
+    "RunManual.dc.html": {
+      "h": 1040,
+      "is_interactive": true,
+      "title": "Đang thực hiện · Khuyến mãi: bạn áp dụng trên Seller Center",
+      "w": 1040,
+      "x": 1120,
+      "y": 5500
+    },
+    "RunPhoto.dc.html": {
+      "h": 1040,
+      "is_interactive": true,
+      "title": "Đang thực hiện · Ảnh bìa: Juli tải ảnh lên",
+      "w": 1040,
+      "x": 0,
+      "y": 5500
+    },
+    "Revert.dc.html": {
+      "h": 1100,
+      "title": "Hoàn tác · luồng",
+      "w": 1040,
+      "x": 0,
+      "y": 8300,
+      "is_interactive": true
+    },
+    "Decline.dc.html": {
+      "h": 1100,
+      "title": "Từ chối và Không thực hiện · luồng",
+      "w": 1040,
+      "x": 1120,
+      "y": 8300,
+      "is_interactive": true
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-09T03:00:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "days": {
+      "kind": "title1",
+      "maxW": 2160,
+      "text": "Đo lường · ngày 7 và ngày 14",
+      "w": 240,
+      "x": 0,
+      "y": 6660
+    },
+    "flow": {
+      "kind": "title1",
+      "maxW": 1960,
+      "text": "Tối ưu sản phẩm · luồng sau khi bấm Phê duyệt",
+      "w": 240,
+      "x": 0,
+      "y": 860
+    },
+    "levers": {
+      "kind": "title1",
+      "maxW": 1960,
+      "text": "Các loại thay đổi đề xuất của Tối ưu sản phẩm",
+      "w": 240,
+      "x": 0,
+      "y": 3440
+    },
+    "runs2": {
+      "kind": "title1",
+      "maxW": 2160,
+      "text": "Đang thực hiện · các loại thay đổi khác",
+      "w": 240,
+      "x": 0,
+      "y": 5260
+    },
+    "t": {
+      "kind": "title1",
+      "maxW": 1950,
+      "text": "Thẻ đề xuất · Quyết định › Đề xuất",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "undo": {
+      "kind": "title1",
+      "maxW": 2160,
+      "text": "Hoàn tác · Từ chối · Không thực hiện",
+      "x": 0,
+      "y": 8060
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "OptionB.dc.html",
+    "Mobile.dc.html",
+    "Flow.dc.html",
+    "Run.dc.html",
+    "Measure.dc.html",
+    "Levers.dc.html",
+    "RunPhoto.dc.html",
+    "RunManual.dc.html",
+    "Day7.dc.html",
+    "Day14.dc.html",
+    "Revert.dc.html",
+    "Decline.dc.html"
+  ],
+  "pages": [],
+  "title": "Thẻ đề xuất — Quyết định"
+}

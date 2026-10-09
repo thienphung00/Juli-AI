@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đo lường · ngày 0, 7, 14</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 840px; height: 1260px; box-sizing: border-box; padding: 28px 32px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">QUYẾT ĐỊNH · ĐO LƯỜNG</div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 700">{{headline}}</h1>
+</div>
+
+<div role="tablist" aria-label="Mốc đo" style="display: flex; gap: 6px; flex-wrap: wrap">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+<button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{t.style}}">{{t.label}}</button>
+</sc-for>
+</div>
+
+<sc-if value="{{isD7}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5f5f6b">
+<span>Ví dụ kết quả ngày 7:</span>
+<sc-for list="{{scenarios}}" as="c" hint-placeholder-count="2">
+<button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="font: inherit; font-size: 12px; font-weight: 600; border-radius: 8px; min-height: 32px; padding: 0 10px; cursor: pointer; {{c.style}}">{{c.label}}</button>
+</sc-for>
+</div>
+</sc-if>
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="font-size: 12px; font-weight: 600; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">SKU · SM-012</span>
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Son môi số 12</h2>
+</div>
+<div style="font-size: 13px; color: #5f5f6b">Tối ưu sản phẩm · Thay đổi vào 09/10/2026 · Đã đổi Tiêu đề, Mô tả</div>
+</div>
+<div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px">
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 5px 10px; {{chipStyle}}">{{chip}}</span>
+<button type="button" onClick="{{toggle}}" aria-expanded="{{expanded}}" style="font: inherit; font-size: 13px; font-weight: 600; color: #b0386a; background: transparent; border: 1px solid #f3cfdf; border-radius: 999px; min-height: 36px; padding: 0 12px; cursor: pointer">{{toggleLabel}}</button>
+</div>
+</div>
+
+<sc-if value="{{expanded}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 10px; background: #faf7f8; border-radius: 12px; padding: 14px 16px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px">
+<span style="font-size: 14px; font-weight: 700">Mục tiêu và ngưỡng dao động</span>
+<span style="font-size: 12px; color: #6b6b76">Trung bình mỗi ngày · so với 14 ngày trước khi áp dụng</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<div style="background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 12px; font-weight: 600; color: #b0386a">Chỉ số mục tiêu · CTOR Thẻ sản phẩm</span>
+<span style="font-size: 18px; font-weight: 700">5,4 % → 5,9 %</span>
+<span style="font-size: 12px; color: #5f5f6b">Đạt khi ≥ 5,9 %; đang tiến triển từ 5,5 % trở lên</span>
+</div>
+<div style="background: #ffffff; border: 1px solid #ece3e7; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; font-weight: 600; color: rgb(95, 95, 107)">GMV dự kiến</span><span style="font-size: 18px; font-weight: 700">+70k ₫/ngày · +2,1 tr ₫/tháng<br></span></div>
+</div>
+<table style="width: 100%; border-collapse: collapse; font-size: 13px">
+<thead>
+<tr style="text-align: left; color: #5f5f6b; font-size: 12px">
+<th style="font-weight: 600; padding: 6px 4px">Chỉ số không được lệch</th>
+<th style="font-weight: 600; padding: 6px 4px">Trước</th>
+<th style="font-weight: 600; padding: 6px 4px">Ngưỡng bạn đặt</th>
+<th style="font-weight: 600; padding: 6px 4px">Được phép dao động trong</th>
+</tr>
+</thead>
+<tbody>
+<tr><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb">Lượt hiển thị/ngày</td><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb">9.910</td><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb">±3 %</td><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb; font-weight: 600">9.613 – 10.207</td></tr>
+<tr><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb">CTR</td><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb">4,44 %</td><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb">±3 %</td><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb; font-weight: 600">4,31 % – 4,57 %</td></tr>
+<tr><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb">AOV</td><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb">160k ₫</td><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb">±3 %</td><td style="padding: 6px 4px; border-top: 1px solid #f1e6eb; font-weight: 600">155k – 165k ₫</td></tr>
+</tbody>
+</table>
+
+</div>
+
+<sc-if value="{{waiting}}" hint-placeholder-val="{{ true }}">
+<div style="background: #f5f5f7; border-radius: 12px; padding: 16px; font-size: 14px; color: #4a4a55">Đang chờ đủ 7 ngày dữ liệu ·&nbsp; Kết quả ngày 16/10/2026.</div>
+</sc-if>
+
+<sc-if value="{{hasNumbers}}" hint-placeholder-val="{{ false }}">
+<table style="width: 100%; border-collapse: collapse; font-size: 14px">
+<thead>
+<tr style="text-align: left; color: #5f5f6b; font-size: 12px">
+<th style="font-weight: 600; padding: 8px 6px; border-bottom: 1px solid #f1e6eb">Chỉ số</th>
+<th style="font-weight: 600; padding: 8px 6px; border-bottom: 1px solid #f1e6eb">Trước</th>
+<th style="font-weight: 600; padding: 8px 6px; border-bottom: 1px solid #f1e6eb">Mục tiêu / khoảng cho phép</th>
+<th style="font-weight: 600; padding: 8px 6px; border-bottom: 1px solid #f1e6eb">Thực tế</th>
+<th style="font-weight: 600; padding: 8px 6px; border-bottom: 1px solid #f1e6eb">Đánh giá</th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+<tr>
+<td style="padding: 10px 6px; border-bottom: 1px solid #f6f0f3; font-weight: 600">{{r.name}}</td>
+<td style="padding: 10px 6px; border-bottom: 1px solid #f6f0f3">{{r.before}}</td>
+<td style="padding: 10px 6px; border-bottom: 1px solid #f6f0f3; color: #5f5f6b">{{r.expected}}</td>
+<td style="padding: 10px 6px; border-bottom: 1px solid #f6f0f3; font-weight: 600">{{r.actual}}</td>
+<td style="padding: 10px 6px; border-bottom: 1px solid #f6f0f3"><span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: 3px 8px; {{r.style}}">{{r.verdict}}</span></td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</sc-if>
+
+<sc-if value="{{askRevert}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; background: #fff7ed; border: 1px solid #f5d0a6; border-radius: 12px; padding: 14px 16px">
+<div style="font-size: 15px; font-weight: 700">Hoàn tác?</div>
+<div style="font-size: 14px; color: #4a4a55">AOV còn 152k ₫ (−4,8 %), ngoài khoảng 155k – 165k ₫ bạn cho phép. Juli không tự hoàn tác — bạn quyết định.</div>
+<div style="display: flex; gap: 10px">
+<button type="button" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Hoàn tác</button>
+<button type="button" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Giữ thay đổi</button>
+</div>
+<div style="font-size: 12px; color: #6b6b76">Hoàn tác tạo một lượt chạy mới khôi phục Tiêu đề và Mô tả cũ, cũng qua bước xác nhận.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{final}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 6px; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 14px 16px; font-size: 14px">
+<div style="font-weight: 700">Chốt ngày 14: đạt 82 % mức kỳ vọng</div>
+<div style="color: #4a4a55">GMV thực tế +1,7 tr ₫/tháng so với dự kiến +2,1 tr ₫/tháng. Kết quả này điều chỉnh mức kỳ vọng của các đề xuất "Mô tả" tiếp theo.</div>
+<a href="Main.dc.html" style="font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Đề xuất tiếp theo cho sản phẩm này ›</a>
+</div>
+</sc-if>
+
+<sc-if value="{{notFinal}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; justify-content: flex-end">
+<button type="button" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Hoàn tác</button>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</section>
+
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Số trong bản vẽ là ví dụ minh hoạ.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":840,"height":1260}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { tab: 'd0', bad: false, expanded: true };
+}
+renderVals() {
+const t = this.state.tab;
+const ok = 'background: #e3f5e8; color: #146c2e';
+const warn = 'background: #fff1e0; color: #8a4b00';
+const muted = 'background: #f0eef0; color: #4a4a55';
+const d7ok = [
+{ name: 'CTOR (chỉ số chính)', before: '5,4 %', expected: '5,9 %', actual: '5,7 %', verdict: 'Đang tăng', style: ok },
+{ name: 'Lượt hiển thị/ngày', before: '9.910', expected: '9.613 – 10.207', actual: '10.029 (+1,2 %)', verdict: 'Ổn định', style: muted },
+{ name: 'CTR', before: '4,44 %', expected: '4,31 – 4,57 %', actual: '4,40 % (−0,8 %)', verdict: 'Ổn định', style: muted },
+{ name: 'AOV', before: '160k ₫', expected: '155k – 165k ₫', actual: '161k ₫ (+0,6 %)', verdict: 'Ổn định', style: muted },
+{ name: 'GMV/ngày', before: '3,6 tr ₫', expected: '+70k ₫', actual: '+48k ₫', verdict: 'Sơ bộ', style: muted }
+];
+const d7bad = d7ok.map((r) => r.name === 'AOV' ? { ...r, actual: '152k ₫ (−4,8 %)', verdict: 'Ngoài khoảng', style: warn } : r);
+const d14 = [
+{ name: 'CTOR (chỉ số chính)', before: '5,4 %', expected: '5,9 %', actual: '5,8 %', verdict: 'Gần đạt', style: ok },
+{ name: 'Lượt hiển thị/ngày', before: '9.910', expected: '9.613 – 10.207', actual: '10.098 (+1,9 %)', verdict: 'Ổn định', style: muted },
+{ name: 'CTR', before: '4,44 %', expected: '4,31 – 4,57 %', actual: '4,42 % (−0,4 %)', verdict: 'Ổn định', style: muted },
+{ name: 'AOV', before: '160k ₫', expected: '155k – 165k ₫', actual: '160k ₫ (+0,2 %)', verdict: 'Ổn định', style: muted },
+{ name: 'GMV/ngày', before: '3,6 tr ₫', expected: '+70k ₫', actual: '+57k ₫', verdict: '82 % kỳ vọng', style: ok }
+];
+const bad = this.state.bad;
+const meta = {
+d0: ['Đang chờ dữ liệu sau khi áp dụng', 'Chờ đo · ngày 0', muted, []],
+d7: bad ? ['Ngày 7: một chỉ số ra ngoài khoảng bạn cho phép', 'Ngày 7 · cần bạn quyết', warn, d7bad] : ['Ngày 7: CTOR đang tăng, các chỉ số khác trong khoảng', 'Ngày 7 · trong khoảng', ok, d7ok],
+d14: ['Ngày 14: kết quả đã chốt', 'Đã chốt · ngày 14', ok, d14]
+};
+const labels = [['d0', 'Ngày 0'], ['d7', 'Ngày 7 · kiểm tra'], ['d14', 'Ngày 14 · chốt']];
+const m = meta[t];
+const pill = (on) => on ? 'color: #ffffff; background: #4a4a55; border: 1px solid #4a4a55' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc';
+return {
+expanded: this.state.expanded,
+toggleLabel: this.state.expanded ? 'Thu gọn' : 'Mở rộng',
+toggle: () => this.setState({ expanded: !this.state.expanded }),
+headline: m[0],
+chip: m[1],
+chipStyle: m[2],
+rows: m[3],
+waiting: t === 'd0',
+hasNumbers: t !== 'd0',
+isD7: t === 'd7',
+askRevert: t === 'd7' && bad,
+final: t === 'd14',
+notFinal: t === 'd0' || (t === 'd7' && !bad),
+scenarios: [
+{ label: 'Mọi chỉ số trong ngưỡng', on: !bad, style: pill(!bad), pick: () => this.setState({ bad: false }) },
+{ label: 'Có chỉ số ngoài ngưỡng', on: bad, style: pill(bad), pick: () => this.setState({ bad: true }) }
+],
+tabs: labels.map(([id, label]) => ({
+label,
+on: t === id,
+style: t === id ? 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc',
+pick: () => this.setState({ tab: id })
+}))
+};
+}
+}
+</script>
+</body>
+</html>

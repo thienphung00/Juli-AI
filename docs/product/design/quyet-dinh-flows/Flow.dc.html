@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Luồng Tối ưu sản phẩm sau Phê duyệt</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+</style>
+</helmet>
+<div style="width: 1960px; height: 560px; box-sizing: border-box; padding: 32px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 28px">
+
+<div style="display: flex; gap: 16px; align-items: center; font-size: 13px">
+<span style="font-weight: 600">Ai làm:</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #c2306d"></span>Bạn (Seller hoặc đội ngũ Juli điền thay)</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #2f6fdb"></span>Juli tự động</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #6b6b76"></span>TikTok</span>
+</div>
+
+<div style="display: flex; align-items: stretch; gap: 8px">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="8">
+<div style="display: flex; align-items: center; gap: 8px">
+<div style="box-sizing: border-box; width: 214px; height: 236px; background: #ffffff; border: 1px solid #ece3e7; border-top: 4px solid {{s.color}}; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<span style="font-size: 12px; font-weight: 700; color: {{s.color}}">{{s.n}} · {{s.who}}</span>
+<span style="font-size: 11px; color: #6b6b76">{{s.tab}}</span>
+</div>
+<div style="font-size: 16px; font-weight: 700; line-height: 1.3">{{s.title}}</div>
+<div style="font-size: 13px; line-height: 1.45; color: #4a4a55; white-space: pre-line">{{s.body}}</div>
+</div>
+<sc-if value="{{s.arrow}}" hint-placeholder-val="{{ true }}">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b9aeb3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+</sc-if>
+</div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 14px; font-weight: 700">Nhánh rẽ</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{branches}}" as="b" hint-placeholder-count="4">
+<div style="background: #ffffff; border: 1px dashed #d9c9d0; border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 700; color: #b0386a">Tại bước {{b.at}}</div>
+<div style="font-size: 14px; font-weight: 600">{{b.title}}</div>
+<div style="font-size: 13px; color: #4a4a55">{{b.body}}</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1960,"height":560}}'>
+class Component extends DCLogic {
+renderVals() {
+const you = '#c2306d', juli = '#2f6fdb', tt = '#6b6b76';
+const steps = [
+{ n: 1, who: 'Bạn', color: you, tab: 'Đề xuất', title: 'Phê duyệt thẻ', body: 'Thẻ chuyển sang "Đang thực hiện".\nJuli tạo một lượt chạy và xếp vào hàng chờ — không bao giờ hai thay đổi cùng lúc trên một sản phẩm.' },
+{ n: 2, who: 'Juli', color: juli, tab: 'Đang thực hiện', title: 'Đọc và soạn', body: 'Đọc chẩn đoán TikTok → thông tin sản phẩm → từ khoá → ảnh.\nSoạn tiêu đề và mô tả mới. Chưa ghi gì.' },
+{ n: 3, who: 'Bạn', color: you, tab: 'Đang thực hiện', title: 'Xác nhận một lần', body: 'Xem trước → sau của Tiêu đề và Mô tả.\nChọn rồi bấm Xác nhận (2 bước).\nĐề xuất hết hạn sau 4 giờ.' },
+{ n: 4, who: 'Juli', color: juli, tab: 'Đang thực hiện', title: 'Ghi lên TikTok Shop', body: 'Lưu giá trị cũ của từng trường để có thể hoàn tác, rồi ghi giá trị mới.' },
+{ n: 5, who: 'TikTok', color: tt, tab: 'Đang thực hiện', title: 'TikTok duyệt lại trang sản phẩm', body: 'Juli kiểm tra trạng thái sản phẩm sau khi ghi và báo kết quả.' },
+{ n: 6, who: 'Juli', color: juli, tab: 'Đo lường', title: 'Hoàn tất · đặt lịch đo', body: 'Thẻ chuyển sang "Đã áp dụng".\nĐặt lịch đo ngày 7 và ngày 14.\nNút Hoàn tác có sẵn từ đây.' },
+{ n: 7, who: 'Juli → Bạn', color: juli, tab: 'Đo lường', title: 'Ngày 7 · kiểm tra', body: 'So các chỉ số khác với ngưỡng giữ ổn định bạn đặt.\nVượt ngưỡng → Juli hỏi "Hoàn tác?". Không bao giờ tự hoàn tác.' },
+{ n: 8, who: 'Juli', color: juli, tab: 'Đo lường', title: 'Ngày 14 · chốt kết quả', body: 'CTOR thực tế so với mục tiêu, GMV thực tế so với dự kiến.\nKết quả hiệu chỉnh các đề xuất sau; thẻ mới cho sản phẩm có thể xuất hiện.' }
+];
+return {
+steps: steps.map((s, i) => ({ ...s, arrow: i < steps.length - 1 })),
+branches: [
+{ at: '3', title: 'Bạn chọn Không thực hiện', body: 'Lượt chạy kết thúc, không thay đổi gì. Thẻ ghi "Bạn đã chọn không thay đổi".' },
+{ at: '3', title: 'Đề xuất hết hạn (4 giờ)', body: 'Lượt chạy dừng, không ghi gì. Muốn làm lại phải phê duyệt thẻ lần nữa.' },
+{ at: '5', title: 'TikTok không duyệt trang', body: 'Juli báo lý do của TikTok và đề xuất Hoàn tác về nội dung cũ.' },
+{ at: '6–8', title: 'Bạn bấm Hoàn tác', body: 'Một lượt chạy mới khôi phục giá trị cũ, cũng qua bước xác nhận. Nếu trường đã bị sửa ngoài Juli, Juli dừng và không ghi đè.' }
+]
+};
+}
+}
+</script>
+</body>
+</html>

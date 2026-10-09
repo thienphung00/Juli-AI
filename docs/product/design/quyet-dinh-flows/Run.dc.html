@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đang thực hiện · lượt chạy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1040px; height: 1160px; box-sizing: border-box; padding: 28px 32px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">QUYẾT ĐỊNH · ĐANG THỰC HIỆN</div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 700">Juli tự áp dụng lên TikTok Shop</h1>
+</div>
+
+<div style="display: flex; gap: 4px; background: #ffffff; border: 1px solid #ece3e7; border-radius: 999px; padding: 4px; align-self: flex-start">
+<span style="font-size: 14px; font-weight: 600; color: #4a4a55; padding: 8px 16px">Đề xuất</span>
+<span style="font-size: 14px; font-weight: 600; color: #ffffff; background: #b0386a; border-radius: 999px; padding: 8px 16px">Đang thực hiện</span>
+<a href="Measure.dc.html" style="font-size: 14px; font-weight: 600; color: #4a4a55; padding: 8px 16px; text-decoration: none">Đo lường</a>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start">
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{runChipStyle}}">{{runChip}}</span>
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Lượt chạy · SM-012 · Son môi số 12</h2>
+<button type="button" onClick="{{toggle}}" aria-expanded="{{expanded}}" style="margin-left: auto; font: inherit; font-size: 13px; font-weight: 600; color: #b0386a; background: transparent; border: 1px solid #f3cfdf; border-radius: 999px; min-height: 36px; padding: 0 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px">{{toggleLabel}}
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{chevron}}"></path></svg>
+</button>
+</div>
+
+<sc-if value="{{expanded}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 14px">
+
+<div style="display: flex; gap: 6px; flex-wrap: wrap">
+<sc-for list="{{stages}}" as="g" hint-placeholder-count="5">
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{g.style}}">{{g.label}}</span>
+</sc-for>
+</div>
+
+<ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="8">
+<li style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 72px; gap: 12px; padding: 8px 10px; border-radius: 10px; {{s.rowStyle}}">
+<span style="width: 24px; height: 24px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; {{s.dotStyle}}">{{s.mark}}</span>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 15px; font-weight: 600; {{s.labelStyle}}">{{s.label}}</span>
+<span style="font-size: 13px; color: #5f5f6b">{{s.result}}</span>
+</div>
+<span style="font-size: 12px; color: #6b6b76; text-align: right">{{s.time}}</span>
+</li>
+</sc-for>
+</ol>
+
+<sc-if value="{{showConsent}}" hint-placeholder-val="{{ true }}">
+<div style="border: 1px solid #f8b9d3; background: #fff7fa; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<span style="font-size: 15px; font-weight: 700">Juli đề xuất thay đổi sau — chọn rồi xác nhận</span>
+<span style="font-size: 12px; color: #6b6b76">Còn hiệu lực 3 giờ 58 phút</span>
+</div>
+<sc-if value="{{editing}}" hint-placeholder-val="{{ false }}">
+<div style="background: #ffffff; border: 2px solid #2f6fdb; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px">
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: #5f5f6b">Tiêu đề (bạn sửa)
+<input type="text" value="Son môi lì số 12 — màu đỏ ruby" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; border: 1px solid #c9defa; border-radius: 8px; min-height: 40px; padding: 0 10px">
+</label>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: #5f5f6b">Mô tả (bạn sửa)
+<textarea rows="4" style="font: inherit; font-size: 14px; color: #1a1a1f; border: 1px solid #c9defa; border-radius: 8px; padding: 8px 10px; resize: vertical">Thành phần: … Cách dùng: … Bảo quản: …</textarea>
+</label>
+<div style="font-size: 12px; color: #5f5f6b">Juli kiểm tra độ dài và từ cấm theo quy tắc của bạn trước khi cho lưu. Juli sẽ ghi đúng nội dung bạn sửa.</div>
+<div style="display: flex; justify-content: flex-end; gap: 8px">
+<button type="button" onClick="{{cancelEdit}}" style="font: inherit; font-size: 13px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 8px; min-height: 40px; padding: 0 12px; cursor: pointer">Huỷ sửa</button>
+<button type="button" onClick="{{saveEdit}}" style="font: inherit; font-size: 13px; font-weight: 600; color: #ffffff; background: #2f6fdb; border: 0; border-radius: 8px; min-height: 40px; padding: 0 14px; cursor: pointer">Lưu bản sửa</button>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{notEditing}}" hint-placeholder-val="{{ true }}">
+<button type="button" onClick="{{select}}" aria-pressed="{{selected}}" style="font: inherit; text-align: left; cursor: pointer; background: #ffffff; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; {{optionStyle}}">
+<sc-if value="{{edited}}" hint-placeholder-val="{{ false }}"><span style="align-self: flex-start; font-size: 11px; font-weight: 600; color: #1d4f91; background: #e6f0fd; border-radius: 6px; padding: 2px 8px">Bạn đã sửa</span></sc-if>
+<span style="font-size: 12px; font-weight: 600; color: #5f5f6b">Tiêu đề</span>
+<span style="font-size: 14px; color: #6b6b76; text-decoration: line-through">Son môi số 12</span>
+<span style="font-size: 14px; font-weight: 600">{{newTitle}}</span>
+<span style="font-size: 12px; font-weight: 600; color: #5f5f6b; padding-top: 4px">Mô tả</span>
+<span style="font-size: 14px; color: #6b6b76">180 ký tự, một đoạn</span>
+<span style="font-size: 14px">640 ký tự · Thành phần · Cách dùng · Bảo quản</span>
+</button>
+<button type="button" onClick="{{startEdit}}" style="align-self: flex-start; font: inherit; font-size: 13px; font-weight: 600; color: #2f6fdb; background: transparent; border: 0; min-height: 40px; padding: 0; cursor: pointer">✎ Sửa nội dung trước khi áp dụng</button>
+</sc-if>
+<div style="display: flex; justify-content: space-between; align-items: center">
+<button type="button" onClick="{{decline}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Không thực hiện</button>
+<button type="button" onClick="{{confirm}}" disabled="{{confirmDisabled}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer; {{confirmStyle}}">Xác nhận thay đổi này</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showRunning}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; justify-content: space-between; align-items: center; background: #f5f5f7; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #4a4a55">
+<span>{{runningNote}}</span>
+<button type="button" onClick="{{advance}}" style="font: inherit; font-size: 13px; font-weight: 600; color: #2f6fdb; background: transparent; border: 0; min-height: 44px; cursor: pointer">Mô phỏng: chạy tiếp ›</button>
+</div>
+</sc-if>
+
+<sc-if value="{{showDone}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 14px 16px">
+<div style="font-size: 15px; font-weight: 700">Đã áp dụng · thẻ chuyển sang Đo lường</div>
+<div style="font-size: 13px; color: #4a4a55">Đã đổi: Tiêu đề, Mô tả. Giá trị cũ đã được lưu. Đo sơ bộ 16/10/2026 (ngày 7), chốt 23/10/2026 (ngày 14).</div>
+<div style="display: flex; gap: 10px; align-items: center">
+<a href="Measure.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem Đo lường ›</a>
+<button type="button" style="margin-left: auto; font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Hoàn tác</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showDeclined}}" hint-placeholder-val="{{ false }}">
+<div style="background: #f5f5f7; border-radius: 12px; padding: 14px 16px; font-size: 14px; color: #4a4a55">Bạn đã chọn không thay đổi. Lượt chạy kết thúc, sản phẩm giữ nguyên.</div>
+</sc-if>
+
+<button type="button" onClick="{{reset}}" style="align-self: flex-start; font: inherit; font-size: 12px; color: #6b6b76; background: transparent; border: 0; min-height: 32px; cursor: pointer">↺ Xem lại từ đầu</button>
+</div>
+</sc-if>
+</section>
+
+<aside style="background: #ffffff; border: 1px solid #ece3e7; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 17px; font-weight: 700">Hàng chờ thẻ tối ưu</h2>
+<p style="margin: 0; font-size: 13px; color: #5f5f6b">Juli chạy lần lượt, không bao giờ hai thay đổi cùng lúc trên một sản phẩm.</p>
+<sc-for list="{{queue}}" as="q" hint-placeholder-count="3">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid #f3edf0">
+<div style="display: flex; flex-direction: column">
+<span style="font-size: 13px; font-weight: 700">{{q.sku}}</span>
+<span style="font-size: 13px; color: #4a4a55">{{q.name}}</span>
+</div>
+<span style="flex-shrink: 0; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 4px 8px; {{q.style}}">{{q.status}}</span>
+</div>
+</sc-for>
+</aside>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":1160}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { phase: 'consent', selected: false, expanded: true, editing: false, edited: false };
+}
+renderVals() {
+const order = ['consent', 'writing', 'review', 'done'];
+const p = this.state.phase;
+const declined = p === 'declined';
+const idx = declined ? 4 : 4 + order.indexOf(p);
+const base = [
+['Đọc chẩn đoán TikTok', 'Có mã: "Mô tả quá ngắn"', '10:01:09'],
+['Đọc thông tin sản phẩm', 'Hoàn tất', '10:01:15'],
+['Phân tích từ khoá', 'Tìm được 6 từ khoá: son lì, đỏ ruby…', '10:01:21'],
+['Phân tích ảnh sản phẩm', 'Ảnh bìa đạt chuẩn — không đổi', '10:01:27'],
+['Xác nhận một lần', declined ? 'Bạn chọn không thực hiện' : (p === 'consent' ? 'Đang chờ bạn' : 'Bạn đã xác nhận'), '10:01:30'],
+['Ghi lên TikTok Shop', this.state.edited ? 'Đã ghi Tiêu đề, Mô tả theo bản bạn sửa · giá trị cũ đã lưu' : 'Đã ghi Tiêu đề, Mô tả · giá trị cũ đã lưu', '10:04:02'],
+['TikTok duyệt lại trang sản phẩm', 'Phiên bản mới đã được duyệt', '10:47:30'],
+['Kết thúc · đặt lịch đo', 'Đo sơ bộ 16/10 (ngày 7) · chốt 23/10 (ngày 14)', '10:47:31']
+];
+const steps = base.map(([label, result, time], i) => {
+const done = declined ? i < 4 || i === 4 : i < idx || p === 'done';
+const current = !declined && i === idx && p !== 'done';
+const skipped = declined && i > 4;
+return {
+label,
+result: done || current ? result : (skipped ? 'Bỏ qua' : ''),
+time: done || current ? time : '',
+mark: done ? '✓' : String(i + 1),
+dotStyle: done ? 'background: #1f8a3d; color: #ffffff' : (current ? 'background: #c2306d; color: #ffffff' : 'background: #f0eef0; color: #8a8a94'),
+labelStyle: done || current ? 'color: #1a1a1f' : 'color: #8a8a94',
+rowStyle: current ? 'background: #fff7fa' : ''
+};
+});
+const st = (s, cur) => s === 'done' ? 'background: #e3f5e8; color: #146c2e' : (s === 'cur' ? 'background: #fdeef4; color: #b0386a' : 'background: #f0eef0; color: #8a8a94');
+const stageState = [
+'done', 'done',
+p === 'consent' ? 'cur' : 'done',
+p === 'writing' || p === 'review' ? 'cur' : (p === 'done' ? 'done' : 'todo'),
+p === 'done' ? 'cur' : 'todo'
+];
+const stageNames = ['Phân tích', 'Đề xuất', 'Duyệt', 'Thực thi', 'Đo lường'];
+const chips = {
+consent: ['Đang chờ bạn', 'background: #fff4e0; color: #8a4b00'],
+writing: ['Đang chạy', 'background: #e6f0fd; color: #1d4f91'],
+review: ['Đang chạy', 'background: #e6f0fd; color: #1d4f91'],
+done: ['Đã áp dụng', 'background: #e3f5e8; color: #146c2e'],
+declined: ['Không thay đổi', 'background: #ececf0; color: #4a4a55']
+};
+const qs = { consent: 'Đang chờ bạn', writing: 'Đang chạy', review: 'Đang chạy', done: 'Đã áp dụng', declined: 'Không thay đổi' };
+return {
+editing: this.state.editing,
+notEditing: !this.state.editing,
+edited: this.state.edited,
+newTitle: this.state.edited ? 'Son môi lì số 12 — màu đỏ ruby' : 'Son môi lì cao cấp số 12 — màu đỏ ruby',
+startEdit: () => this.setState({ editing: true }),
+cancelEdit: () => this.setState({ editing: false }),
+saveEdit: () => this.setState({ editing: false, edited: true, selected: true }),
+expanded: this.state.expanded,
+toggleLabel: this.state.expanded ? 'Thu gọn' : 'Mở rộng',
+chevron: this.state.expanded ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6',
+toggle: () => this.setState({ expanded: !this.state.expanded }),
+runChip: chips[p][0],
+runChipStyle: chips[p][1],
+stages: stageNames.map((label, i) => ({ label: (stageState[i] === 'done' ? '✓ ' : (i + 1) + ' ') + label, style: st(stageState[i]) })),
+steps,
+showConsent: p === 'consent',
+showRunning: p === 'writing' || p === 'review',
+runningNote: p === 'writing' ? 'Juli đang ghi lên TikTok Shop…' : 'Đang chờ TikTok duyệt lại trang sản phẩm…',
+showDone: p === 'done',
+showDeclined: declined,
+selected: this.state.selected,
+optionStyle: this.state.selected ? 'border: 2px solid #c2306d; box-shadow: 0 0 0 3px #fdeef4' : 'border: 1px solid #e3d6dc',
+confirmDisabled: !this.state.selected,
+confirmStyle: this.state.selected ? 'background: #c2306d' : 'background: #e7b3c9; cursor: not-allowed',
+select: () => this.setState({ selected: !this.state.selected }),
+confirm: () => this.state.selected && this.setState({ phase: 'writing' }),
+decline: () => this.setState({ phase: 'declined' }),
+advance: () => this.setState({ phase: p === 'writing' ? 'review' : 'done' }),
+reset: () => this.setState({ phase: 'consent', selected: false, editing: false, edited: false }),
+queue: [
+{ sku: 'SM-012', name: 'Son môi số 12', status: qs[p], style: chips[p][1] },
+{ sku: 'MN-015', name: 'Mặt nạ đất sét 100g', status: 'Trong hàng đợi', style: 'background: #f0eef0; color: #4a4a55' },
+{ sku: 'KD-030', name: 'Kem dưỡng ẩm ceramide', status: 'Trong hàng đợi', style: 'background: #f0eef0; color: #4a4a55' }
+]
+};
+}
+}
+</script>
+</body>
+</html>

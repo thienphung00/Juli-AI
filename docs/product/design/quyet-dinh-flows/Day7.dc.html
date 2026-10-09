@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Ngày 7 · kiểm tra</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1040px; height: 900px; box-sizing: border-box; padding: 28px 32px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">QUYẾT ĐỊNH · ĐO LƯỜNG · NGÀY 7</div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 700">{{headline}}</h1>
+</div>
+
+<div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5f5f6b">
+<span>Ví dụ kết quả:</span>
+<sc-for list="{{scenarios}}" as="c" hint-placeholder-count="2">
+<button type="button" aria-pressed="{{c.on}}" onClick="{{c.pick}}" style="font: inherit; font-size: 12px; font-weight: 600; border-radius: 8px; min-height: 32px; padding: 0 10px; cursor: pointer; {{c.style}}">{{c.label}}</button>
+</sc-for>
+</div>
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{chipStyle}}">{{chip}}</span>
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">SM-012 · Son môi số 12 · đổi Tiêu đề, Mô tả ngày 09/10</h2>
+</div>
+
+<ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="5">
+<li style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 96px; gap: 12px; padding: 8px 10px; border-radius: 10px; {{s.rowStyle}}">
+<span style="width: 24px; height: 24px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; {{s.dotStyle}}">{{s.mark}}</span>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 15px; font-weight: 600; {{s.labelStyle}}">{{s.label}}</span>
+<span style="font-size: 13px; color: #5f5f6b">{{s.result}}</span>
+</div>
+<span style="font-size: 12px; color: #6b6b76; text-align: right">{{s.time}}</span>
+</li>
+</sc-for>
+</ol>
+
+<sc-if value="{{showOk}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 6px; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 14px 16px; font-size: 14px">
+<div style="font-weight: 700">Mọi chỉ số trong ngưỡng · tiếp tục theo dõi ngày 14</div>
+<div style="color: #4a4a55">CTOR 5,7 % (mục tiêu 5,9 %). Lượt hiển thị, CTR, AOV đều trong khoảng bạn cho phép. Tiếp tục theo dõi.</div>
+<div style="color: #4a4a55">Đề xuất tiếp theo cho sản phẩm này có thể xuất hiện ở "Đề xuất", nhưng chỉ chạy được sau ngày 14, để hai thay đổi không lẫn kết quả.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showAsk}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; background: #fff7ed; border: 1px solid #f5d0a6; border-radius: 12px; padding: 14px 16px">
+<div style="font-size: 15px; font-weight: 700">Hoàn tác?</div>
+<div style="font-size: 14px; color: #4a4a55">AOV còn 152k ₫ (−4,8 %), ngoài khoảng 155k – 165k ₫ bạn cho phép. CTOR vẫn tăng lên 5,7 %. Juli không tự hoàn tác — bạn quyết định.</div>
+<div style="display: flex; gap: 10px">
+<button type="button" onClick="{{revert}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Hoàn tác</button>
+<button type="button" onClick="{{keep}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Giữ thay đổi</button>
+</div>
+<div style="font-size: 12px; color: #6b6b76">Với khuyến mãi (Seller Center): Hoàn tác = Juli hướng dẫn bạn tắt khuyến mãi.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showReverted}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; justify-content: space-between; align-items: center; background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px; font-size: 14px">
+<span>Đã tạo lượt chạy hoàn tác: khôi phục Tiêu đề và Mô tả cũ, bạn xác nhận trước khi Juli ghi. Kết quả đo của thay đổi này dừng lại.</span>
+<a href="Run.dc.html" style="flex-shrink: 0; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem ở Đang thực hiện ›</a>
+</div>
+</sc-if>
+
+<sc-if value="{{showKept}}" hint-placeholder-val="{{ false }}">
+<div style="background: #f5f5f7; border-radius: 12px; padding: 14px 16px; font-size: 14px; color: #4a4a55">Bạn giữ thay đổi. Juli tiếp tục đo tới ngày 14 và ghi chú AOV đã ra ngoài khoảng ở ngày 7.</div>
+</sc-if>
+</section>
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Số liệu là ví dụ minh hoạ.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { bad: false, answer: null };
+}
+renderVals() {
+const bad = this.state.bad;
+const a = this.state.answer;
+const base = [
+['Đọc dữ liệu 7 ngày sau thay đổi', '7/7 ngày có dữ liệu · so với 14 ngày trước khi đổi', '16/10 02:00'],
+['So chỉ số mục tiêu', 'CTOR 5,4 % → 5,7 % · mục tiêu 5,9 % · đang tiến triển', '16/10 02:01'],
+['So ngưỡng giữ ổn định', bad ? 'AOV 152k ₫ ngoài khoảng 155k – 165k ₫ · Lượt hiển thị, CTR trong khoảng' : 'Lượt hiển thị, CTR, AOV đều trong khoảng', '16/10 02:01'],
+[bad ? 'Hỏi bạn: Hoàn tác?' : 'Báo kết quả sơ bộ', bad ? (a === 'revert' ? 'Bạn chọn Hoàn tác' : (a === 'keep' ? 'Bạn chọn giữ thay đổi' : 'Đang chờ bạn')) : 'Đã gửi · không cần bạn làm gì', '16/10 02:02'],
+['Chờ chốt ngày 14', a === 'revert' ? 'Dừng đo vì đã hoàn tác' : '23/10/2026', '']
+];
+const pos = bad && !a ? 3 : 4;
+const steps = base.map(([label, result, time], i) => {
+const done = i < pos || (a === 'revert' && i === 4);
+const current = i === pos && !(a === 'revert');
+const warnRow = bad && i === 2;
+return {
+label, result, time,
+mark: done ? (warnRow ? '!' : '✓') : String(i + 1),
+dotStyle: warnRow ? 'background: #c96a00; color: #ffffff' : (done ? 'background: #1f8a3d; color: #ffffff' : (current ? 'background: #c2306d; color: #ffffff' : 'background: #f0eef0; color: #8a8a94')),
+labelStyle: done || current ? 'color: #1a1a1f' : 'color: #8a8a94',
+rowStyle: current ? 'background: #fff7fa' : ''
+};
+});
+const pill = (on) => on ? 'color: #ffffff; background: #4a4a55; border: 1px solid #4a4a55' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc';
+let chip = ['Ngày 7 · trong khoảng', 'background: #e3f5e8; color: #146c2e'];
+if (bad && !a) chip = ['Ngày 7 · cần bạn quyết', 'background: #fff1e0; color: #8a4b00'];
+if (a === 'revert') chip = ['Đang hoàn tác', 'background: #e6f0fd; color: #1d4f91'];
+if (a === 'keep') chip = ['Giữ thay đổi · chờ ngày 14', 'background: #f0eef0; color: #4a4a55'];
+return {
+headline: bad ? 'Ngày 7: một chỉ số ra ngoài khoảng bạn cho phép' : 'Ngày 7: đang tiến triển, mọi chỉ số trong khoảng',
+chip: chip[0], chipStyle: chip[1],
+steps,
+showOk: !bad,
+showAsk: bad && !a,
+showReverted: a === 'revert',
+showKept: a === 'keep',
+revert: () => this.setState({ answer: 'revert' }),
+keep: () => this.setState({ answer: 'keep' }),
+scenarios: [
+{ label: 'Mọi chỉ số trong khoảng', on: !bad, style: pill(!bad), pick: () => this.setState({ bad: false, answer: null }) },
+{ label: 'Có chỉ số ngoài khoảng', on: bad, style: pill(bad), pick: () => this.setState({ bad: true, answer: null }) }
+]
+};
+}
+}
+</script>
+</body>
+</html>

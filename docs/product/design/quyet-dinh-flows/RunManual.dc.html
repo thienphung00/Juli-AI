@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đang thực hiện · khuyến mãi trên Seller Center</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1040px; height: 1040px; box-sizing: border-box; padding: 28px 32px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">QUYẾT ĐỊNH · ĐANG THỰC HIỆN · KHUYẾN MÃI</div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 700">Bạn áp dụng trên Seller Center, Juli theo dõi</h1>
+</div>
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{chipStyle}}">{{chip}}</span>
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">KD-030 · Kem dưỡng ẩm ceramide · Giảm giá sản phẩm</h2>
+<button type="button" onClick="{{toggle}}" aria-expanded="{{expanded}}" style="margin-left: auto; font: inherit; font-size: 13px; font-weight: 600; color: #b0386a; background: transparent; border: 1px solid #f3cfdf; border-radius: 999px; min-height: 36px; padding: 0 12px; cursor: pointer">{{toggleLabel}}</button>
+</div>
+
+<sc-if value="{{expanded}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; gap: 6px; flex-wrap: wrap">
+<sc-for list="{{stages}}" as="g" hint-placeholder-count="5">
+<span style="font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{g.style}}">{{g.label}}</span>
+</sc-for>
+</div>
+
+<ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="6">
+<li style="display: grid; grid-template-columns: 28px minmax(0, 1fr) 96px; gap: 12px; padding: 8px 10px; border-radius: 10px; {{s.rowStyle}}">
+<span style="width: 24px; height: 24px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; {{s.dotStyle}}">{{s.mark}}</span>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 15px; font-weight: 600; {{s.labelStyle}}">{{s.label}} <span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 1px 6px; {{s.whoStyle}}">{{s.who}}</span></span>
+<span style="font-size: 13px; color: #5f5f6b">{{s.result}}</span>
+</div>
+<span style="font-size: 12px; color: #6b6b76; text-align: right">{{s.time}}</span>
+</li>
+</sc-for>
+</ol>
+
+<sc-if value="{{showGuide}}" hint-placeholder-val="{{ true }}">
+<div style="border: 1px solid #f8b9d3; background: #fff7fa; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<span style="font-size: 15px; font-weight: 700">Làm theo 4 bước trên Seller Center</span>
+<a href="#" style="font-size: 13px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Mở Seller Center ↗</a>
+</div>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{todo}}" as="t" hint-placeholder-count="4">
+<li>
+<label style="display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; min-height: 32px">
+<input type="checkbox" checked="{{t.on}}" onChange="{{t.flip}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #c2306d">
+<span><strong style="font-weight: 600">{{t.n}}.</strong> {{t.text}}</span>
+</label>
+</li>
+</sc-for>
+</ol>
+<div style="font-size: 12px; color: #6b6b76">Giá 279k → 259k (−7 %) · 30 ngày · biên lợi nhuận còn 35 % (≥ 30 % bạn đặt) · trong trần giảm 10 % bạn đặt.</div>
+<div style="display: flex; justify-content: space-between">
+<button type="button" onClick="{{skip}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Không áp dụng nữa</button>
+<button type="button" onClick="{{applied}}" disabled="{{appliedDisabled}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer; {{appliedStyle}}">Tôi đã áp dụng</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showVerify}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; justify-content: space-between; align-items: center; background: #f5f5f7; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #4a4a55">
+<span>Juli đang tìm khuyến mãi trên TikTok Shop để xác nhận…</span>
+<button type="button" onClick="{{advance}}" style="font: inherit; font-size: 13px; font-weight: 600; color: #2f6fdb; background: transparent; border: 0; min-height: 44px; cursor: pointer">Mô phỏng: chạy tiếp ›</button>
+</div>
+<div style="font-size: 12px; color: #6b6b76">Nếu chưa thấy khuyến mãi: Juli báo "Chưa tìm thấy trên TikTok", giữ bước 4 mở và nhắc bạn kiểm tra lại. Juli chỉ bắt đầu đếm ngày khi đã tìm thấy.</div>
+</sc-if>
+
+<sc-if value="{{showDone}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 14px 16px">
+<div style="font-size: 15px; font-weight: 700">Đã xác nhận trên TikTok · thẻ chuyển sang Đo lường</div>
+<div style="font-size: 13px; color: #4a4a55">Chỉ số mục tiêu: CTOR 4,2 % → 5,0 %. Tính từ ngày khuyến mãi bắt đầu: đo sơ bộ ngày 7, chốt ngày 14.</div>
+<div style="display: flex; gap: 10px; align-items: center">
+<a href="Measure.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem Đo lường ›</a>
+<span style="margin-left: auto; font-size: 12px; color: #6b6b76; max-width: 320px; text-align: right">Không có nút Hoàn tác: muốn dừng, bạn tắt khuyến mãi trên Seller Center — Juli tự ghi nhận.</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showSkipped}}" hint-placeholder-val="{{ false }}">
+<div style="background: #f5f5f7; border-radius: 12px; padding: 14px 16px; font-size: 14px; color: #4a4a55">Bạn chọn không áp dụng. Thẻ kết thúc, không có gì được đo.</div>
+</sc-if>
+
+<button type="button" onClick="{{reset}}" style="align-self: flex-start; font: inherit; font-size: 12px; color: #6b6b76; background: transparent; border: 0; min-height: 32px; cursor: pointer">↺ Xem lại từ đầu</button>
+</div>
+</sc-if>
+</section>
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Áp dụng cho Giảm giá sản phẩm, Flash sale, Giảm phí vận chuyển, Mua nhiều giảm nhiều. Juli không ghi khuyến mãi lên TikTok. Số liệu là ví dụ minh hoạ.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":1040}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { phase: 'guide', checks: [false, false, false, false], expanded: true };
+}
+renderVals() {
+const p = this.state.phase;
+const skipped = p === 'skipped';
+const pos = { guide: 3, verify: 4, done: 6, skipped: 3 }[p];
+const juli = ['Juli', 'background: #e6f0fd; color: #1d4f91'];
+const you = ['Bạn', 'background: #fdeef4; color: #b0386a'];
+const base = [
+['Đọc giá và khuyến mãi hiện có', 'Giá 279k · trung vị đối thủ 259k · chưa có khuyến mãi', '10:01:09', juli],
+['Kiểm tra quy tắc bạn đặt', 'Biên lợi nhuận sau giảm 35 % ≥ 30 % · giảm 7 % ≤ trần 10 %', '10:01:11', juli],
+['Soạn hướng dẫn', '4 bước trên Seller Center', '10:01:12', juli],
+['Áp dụng trên Seller Center', skipped ? 'Bạn chọn không áp dụng' : (p === 'guide' ? 'Đang chờ bạn' : 'Bạn báo đã áp dụng'), '11:20:05', you],
+['Kiểm tra trên TikTok', 'Tìm thấy: Giảm giá sản phẩm · KD-030 · 259k · 09/10 → 08/11', '11:20:09', juli],
+['Kết thúc · đặt lịch đo', 'Đo sơ bộ 16/10 (ngày 7) · chốt 23/10 (ngày 14)', '11:20:10', juli]
+];
+const steps = base.map(([label, result, time, who], i) => {
+const done = skipped ? i <= 3 : i < pos;
+const current = !skipped && i === pos;
+return {
+label, who: who[0], whoStyle: who[1],
+result: done || current ? result : (skipped && i > 3 ? 'Bỏ qua' : ''),
+time: done || current ? time : '',
+mark: done ? '✓' : String(i + 1),
+dotStyle: done ? 'background: #1f8a3d; color: #ffffff' : (current ? 'background: #c2306d; color: #ffffff' : 'background: #f0eef0; color: #8a8a94'),
+labelStyle: done || current ? 'color: #1a1a1f' : 'color: #8a8a94',
+rowStyle: current ? 'background: #fff7fa' : ''
+};
+});
+const texts = [
+'Vào Marketing › Giảm giá sản phẩm › Tạo khuyến mãi',
+'Chọn sản phẩm KD-030 · Kem dưỡng ẩm ceramide 50ml',
+'Đặt giá giảm 259.000 ₫, từ 09/10/2026 đến 08/11/2026',
+'Bấm Lưu và kiểm tra khuyến mãi ở trạng thái Đang diễn ra'
+];
+const checks = this.state.checks;
+const all = checks.every(Boolean);
+const chips = {
+guide: ['Đang chờ bạn', 'background: #fff4e0; color: #8a4b00'],
+verify: ['Đang kiểm tra', 'background: #e6f0fd; color: #1d4f91'],
+done: ['Đã áp dụng', 'background: #e3f5e8; color: #146c2e'],
+skipped: ['Không áp dụng', 'background: #ececf0; color: #4a4a55']
+};
+const sst = (k) => k === 'done' ? 'background: #e3f5e8; color: #146c2e' : (k === 'cur' ? 'background: #fdeef4; color: #b0386a' : 'background: #f0eef0; color: #8a8a94');
+const ss = ['done', 'done', p === 'guide' ? 'cur' : 'done', p === 'verify' ? 'cur' : (p === 'done' ? 'done' : 'todo'), p === 'done' ? 'cur' : 'todo'];
+const names = ['Phân tích', 'Đề xuất', 'Duyệt', 'Thực thi', 'Đo lường'];
+return {
+expanded: this.state.expanded,
+toggleLabel: this.state.expanded ? 'Thu gọn' : 'Mở rộng',
+toggle: () => this.setState({ expanded: !this.state.expanded }),
+chip: chips[p][0],
+chipStyle: chips[p][1],
+stages: names.map((label, i) => ({ label: (ss[i] === 'done' ? '✓ ' : (i + 1) + ' ') + label, style: sst(ss[i]) })),
+steps,
+todo: texts.map((text, i) => ({ n: i + 1, text, on: checks[i], flip: () => { const c = checks.slice(); c[i] = !c[i]; this.setState({ checks: c }); } })),
+showGuide: p === 'guide',
+showVerify: p === 'verify',
+showDone: p === 'done',
+showSkipped: skipped,
+appliedDisabled: !all,
+appliedStyle: all ? 'background: #c2306d' : 'background: #e7b3c9; cursor: not-allowed',
+applied: () => all && this.setState({ phase: 'verify' }),
+skip: () => this.setState({ phase: 'skipped' }),
+advance: () => this.setState({ phase: 'done' }),
+reset: () => this.setState({ phase: 'guide', checks: [false, false, false, false] })
+};
+}
+}
+</script>
+</body>
+</html>

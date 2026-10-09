@@ -51,6 +51,15 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | P9-A Email sign-in (OTP code / magic link) beside Google | 9.1 | doing | P9-A agent (Opus) |
 | P9-B Hand a shop connected by the Juli team over to the seller's own Juli account (invite / transfer) | 9.2 | todo — needs a grill | — |
 
+## P10 — Quyết định card and flows, 100 % to the approved design (ADR-109 Amendment 1)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P10-A Card payload, reasons + 7-day cooldown, consent edits | 10.1 | doing | P10-A agent (Opus) |
+| P10-B Cover-image flow, promotion flow, measurement endpoint | 10.2 | doing | P10-B agent (Opus) |
+| P10-C UI to the artboards in docs/product/design/quyet-dinh-flows | 10.3 | doing | P10-C agent (Opus) |
+| P10 integration + deploy | — | todo | orchestrator |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

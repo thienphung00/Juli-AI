@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Thẻ đề xuất A</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 640px; height: 780px; box-sizing: border-box; padding: 24px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6">
+<article style="box-sizing: border-box; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 2px rgba(20,20,30,0.04)">
+
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">SKU · SM-012</span>
+<h3 style="margin: 0; font-size: 18px; font-weight: 700">Son môi số 12</h3>
+</div>
+<div style="font-size: 13px; color: #5f5f6b">Tối ưu sản phẩm · Cập nhật 09/10/2026</div>
+</div>
+<span style="flex-shrink: 0; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 5px 10px; {{statusStyle}}">{{statusLabel}}</span>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 14px 16px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 600; color: #b0386a">CTOR - Thẻ sản phẩm</div>
+<div style="display: flex; align-items: baseline; gap: 10px">
+<span style="font-size: 28px; font-weight: 700">5,4 %</span>
+<span style="font-size: 18px; color: #5f5f6b">→</span>
+<span style="font-size: 28px; font-weight: 700">5,9 %</span>
+<span style="font-size: 12px; font-weight: 600; color: #146c2e; background: #e3f5e8; border-radius: 6px; padding: 2px 6px">▲ 9,3 %</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px">
+<div style="font-size: 12px; font-weight: 600; color: #b0386a">GMV dự kiến</div>
+<div style="font-size: 20px; font-weight: 700">+2,1 tr ₫/tháng</div>
+</div>
+</div>
+
+<dl style="margin: 0; display: grid; grid-template-columns: 120px minmax(0, 1fr); row-gap: 10px; column-gap: 12px; font-size: 14px">
+<dt style="color: #5f5f6b">Lý do</dt>
+<dd style="margin: 0">Khách thêm giỏ rồi bỏ</dd>
+<dt style="color: #5f5f6b">Thay đổi đề xuất</dt>
+<dd style="margin: 0; display: flex; gap: 6px; flex-wrap: wrap">
+<span style="font-size: 13px; font-weight: 600; background: #f5f0f2; border-radius: 6px; padding: 3px 8px">Tiêu đề</span>
+<span style="font-size: 13px; font-weight: 600; background: #f5f0f2; border-radius: 6px; padding: 3px 8px">Mô tả</span>
+</dd>
+</dl>
+
+<sc-if value="{{expanded}}" hint-placeholder-val="{{ false }}">
+<section style="display: flex; flex-direction: column; gap: 12px; background: #faf7f8; border-radius: 12px; padding: 14px 16px; font-size: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 600; color: #5f5f6b">Lý do đầy đủ</div>
+<div>Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop (38,9 % so với 56,4 %). TikTok báo mã chẩn đoán: “Mô tả quá ngắn”.</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 600; color: #5f5f6b">Tiêu đề</div>
+<div style="color: #6b6b76; text-decoration: line-through">Son môi số 12</div>
+<div style="font-weight: 600">Son môi lì cao cấp số 12 — màu đỏ ruby</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 600; color: #5f5f6b">Mô tả</div>
+<div style="color: #6b6b76">Hiện tại: 180 ký tự, một đoạn.</div>
+<div>Đề xuất: 640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản, thêm từ khoá “son lì”, “đỏ ruby”.</div>
+</div>
+<div style="font-size: 12px; color: #6b6b76">GMV dự kiến tính theo cách của TikTok: lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc.</div>
+</section>
+</sc-if>
+
+<sc-if value="{{approved}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #eef6ff; border: 1px solid #c9defa; border-radius: 12px; padding: 12px 14px; font-size: 14px">
+<span>Đã tạo lượt chạy. Juli đọc chẩn đoán TikTok và soạn nội dung — bạn xác nhận lần cuối trước khi Juli ghi lên TikTok Shop.</span>
+<a href="Run.dc.html" style="flex-shrink: 0; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Xem tiến độ ›</a>
+</div>
+</sc-if>
+
+<sc-if value="{{rejected}}" hint-placeholder-val="{{ false }}">
+<div style="background: #f5f5f7; border-radius: 12px; padding: 12px 14px; font-size: 14px; color: #4a4a55">Đã từ chối. Juli không thay đổi gì trên sản phẩm này.</div>
+</sc-if>
+
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 6px; border-top: 1px solid #f1e6eb">
+<sc-if value="{{pending}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; gap: 10px">
+<button type="button" onClick="{{approve}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 20px; cursor: pointer">Phê duyệt</button>
+<button type="button" onClick="{{reject}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Từ chối</button>
+</div>
+</sc-if>
+<button type="button" onClick="{{toggle}}" aria-expanded="{{expanded}}" style="margin-left: auto; font: inherit; font-size: 14px; font-weight: 600; color: #b0386a; background: transparent; border: 0; min-height: 44px; padding: 0 4px; cursor: pointer">{{toggleLabel}}</button>
+</div>
+
+</article>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":640,"height":780}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { expanded: false, status: 'pending' };
+}
+renderVals() {
+const s = this.state.status;
+const styles = {
+pending: 'color: #8a4b00; background: #fff4e0',
+approved: 'color: #1d4f91; background: #e6f0fd',
+rejected: 'color: #4a4a55; background: #ececf0'
+};
+const labels = { pending: 'Chờ duyệt', approved: 'Đang thực hiện', rejected: 'Đã từ chối' };
+return {
+expanded: this.state.expanded,
+toggleLabel: this.state.expanded ? 'Thu gọn' : 'Xem thêm',
+toggle: () => this.setState({ expanded: !this.state.expanded }),
+pending: s === 'pending',
+approved: s === 'approved',
+rejected: s === 'rejected',
+statusLabel: labels[s],
+statusStyle: styles[s],
+approve: () => this.setState({ status: 'approved' }),
+reject: () => this.setState({ status: 'rejected' })
+};
+}
+}
+</script>
+</body>
+</html>

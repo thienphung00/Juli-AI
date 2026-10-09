@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Các loại thay đổi đề xuất</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1960px; height: 1500px; box-sizing: border-box; padding: 32px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 28px">
+
+<div style="display: flex; gap: 20px; align-items: center; font-size: 13px; flex-wrap: wrap">
+<span style="font-weight: 600">Ai thực hiện:</span>
+<span style="font-weight: 600; color: #146c2e; background: #e3f5e8; border-radius: 999px; padding: 4px 10px">Juli tự ghi sau khi bạn xác nhận</span>
+<span style="font-weight: 600; color: #1d4f91; background: #e6f0fd; border-radius: 999px; padding: 4px 10px">Juli tải lên — cần ảnh từ bạn</span>
+<span style="font-weight: 600; color: #8a4b00; background: #fff4e0; border-radius: 999px; padding: 4px 10px">Bạn áp dụng trên Seller Center — Juli theo dõi kết quả</span>
+</div>
+
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+<section style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: baseline; gap: 12px">
+<h2 style="margin: 0; font-size: 20px; font-weight: 700">{{g.title}}</h2>
+<span style="font-size: 13px; color: #5f5f6b">{{g.sub}}</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+<sc-for list="{{g.cards}}" as="c" hint-placeholder-count="4">
+<article style="box-sizing: border-box; background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px">
+<div style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+<div style="display: flex; align-items: center; gap: 6px">
+<span style="font-size: 11px; font-weight: 600; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 2px 6px">SKU · {{c.sku}}</span>
+<h3 style="margin: 0; font-size: 15px; font-weight: 700">{{c.name}}</h3>
+</div>
+<div style="font-size: 12px; color: #5f5f6b">Tối ưu sản phẩm · Cập nhật 09/10/2026</div>
+</div>
+<span style="flex-shrink: 0; font-size: 11px; font-weight: 600; color: #8a4b00; background: #fff4e0; border-radius: 999px; padding: 4px 8px">Chờ duyệt</span>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 10px; padding: 10px 12px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 11px; font-weight: 600; color: #b0386a">{{c.kpi}}</span>
+<span style="font-size: 20px; font-weight: 700">{{c.target}}</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px">
+<span style="font-size: 11px; font-weight: 600; color: #b0386a">GMV dự kiến</span>
+<span style="font-size: 15px; font-weight: 700">{{c.gmv}}</span>
+</div>
+</div>
+
+<dl style="margin: 0; display: grid; grid-template-columns: 96px minmax(0, 1fr); row-gap: 8px; column-gap: 8px; font-size: 13px">
+<dt style="color: #5f5f6b">Lý do</dt>
+<dd style="margin: 0">{{c.reason}}</dd>
+<dt style="color: #5f5f6b">Thay đổi đề xuất</dt>
+<dd style="margin: 0"><span style="font-size: 12px; font-weight: 600; background: #f5f0f2; border-radius: 6px; padding: 2px 8px">{{c.lever}}</span></dd>
+</dl>
+
+<div style="display: flex; flex-direction: column; gap: 4px; background: #faf7f8; border-radius: 10px; padding: 10px 12px; font-size: 12px">
+<span style="font-weight: 600; color: #5f5f6b">Xem thêm sẽ hiện</span>
+<span style="white-space: pre-line; color: #3a3a44">{{c.detail}}</span>
+</div>
+
+<span style="align-self: flex-start; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 4px 10px; {{c.whoStyle}}">{{c.who}}</span>
+
+<div style="display: flex; align-items: center; gap: 8px; padding-top: 4px; border-top: 1px solid #f1e6eb">
+<button type="button" style="font: inherit; font-size: 13px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 14px; cursor: pointer">Phê duyệt</button>
+<button type="button" style="font: inherit; font-size: 13px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 12px; cursor: pointer">Từ chối</button>
+<button type="button" style="margin-left: auto; font: inherit; font-size: 13px; font-weight: 600; color: #b0386a; background: transparent; border: 0; min-height: 44px; cursor: pointer">Xem thêm</button>
+</div>
+<span style="font-size: 12px; color: #5f5f6b">{{c.after}}</span>
+</article>
+</sc-for>
+</div>
+</section>
+</sc-for>
+
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Mỗi thẻ đề xuất đúng một thay đổi. Số liệu là ví dụ minh hoạ.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1960,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() {
+const auto = ['Juli tự cập nhật sau khi bạn xác nhận', 'color: #146c2e; background: #e3f5e8'];
+const photo = ['Juli tải lên — cần ảnh từ bạn', 'color: #1d4f91; background: #e6f0fd'];
+const manual = ['Bạn thực hiện trên Seller Center', 'color: #8a4b00; background: #fff4e0'];
+const afterAuto = 'Phê duyệt → lượt chạy → bạn xác nhận trước → sau → Juli ghi.';
+const afterManual = 'Phê duyệt → Juli đưa hướng dẫn từng bước; bạn bấm "Đã áp dụng" để Juli bắt đầu đo.';
+const card = (o, who, after) => ({ ...o, who: who[0], whoStyle: who[1], after });
+return {
+groups: [
+{
+title: 'Hiển thị → Nhấp',
+sub: 'Chỉ số chính: CTR. Khách thấy sản phẩm nhưng ít bấm vào.',
+cards: [
+card({ sku: 'SR-007', name: 'Sữa rửa mặt amino 150ml', kpi: 'CTR - Thẻ sản phẩm', target: '2,1 % → 2,8 %', gmv: '+1,4 tr ₫/tháng', reason: 'Ảnh bìa kém nổi bật', lever: 'Ảnh bìa', detail: 'TikTok báo: "Ảnh chính chất lượng thấp".\nĐề xuất: ảnh nền trắng, sản phẩm chiếm ≥ 70 % khung, 1:1, ≥ 800 px.\nJuli không tự chọn ảnh — bạn gửi ảnh, Juli tải lên.' }, photo, 'Phê duyệt → Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.'),
+card({ sku: 'SM-012', name: 'Son môi số 12', kpi: 'CTR - Thẻ sản phẩm', target: '3,0 % → 3,6 %', gmv: '+2,4 tr ₫/tháng', reason: 'Tiêu đề thiếu từ khoá', lever: 'Tiêu đề', detail: 'Cũ: "Son môi số 12"\nMới: "Son môi lì cao cấp số 12 — màu đỏ ruby"\nTừ khoá thêm: son lì, đỏ ruby.' }, auto, afterAuto)
+]
+},
+{
+title: 'Nhấp → Đặt hàng',
+sub: 'Chỉ số chính: CTOR. Khách vào trang nhưng không mua.',
+cards: [
+card({ sku: 'MN-015', name: 'Mặt nạ đất sét 100g', kpi: 'CTOR - Thẻ sản phẩm', target: '5,4 % → 5,9 %', gmv: '+2,1 tr ₫/tháng', reason: 'Mô tả quá ngắn', lever: 'Mô tả', detail: 'Hiện tại: 180 ký tự, một đoạn.\nĐề xuất: 640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản.' }, auto, afterAuto),
+card({ sku: 'KD-030', name: 'Kem dưỡng ẩm ceramide', kpi: 'CTOR - Thẻ sản phẩm', target: '4,2 % → 5,0 %', gmv: '+3,0 tr ₫/tháng', reason: 'Giá cao hơn đối thủ', lever: 'Giảm giá sản phẩm', detail: 'Giá 279k → 259k (−7 %) trong 30 ngày.\nBiên lợi nhuận còn 35 % · trong trần giảm giá 10 % bạn đặt.\nCần giá vốn; chưa nhập thì không đề xuất giá.' }, manual, afterManual),
+card({ sku: 'TN-021', name: 'Toner rau má 200ml', kpi: 'CTOR - Thẻ sản phẩm', target: '6,1 % → 6,8 %', gmv: '+1,2 tr ₫/tháng', reason: 'Khách bỏ giỏ, chưa có flash sale', lever: 'Flash sale', detail: 'Tham gia flash sale khung 20:00–22:00 thứ Sáu.\nGiá flash 189k (−12 % so với giá đang bán).\nChỉ khi biên lợi nhuận ≥ mức bạn đặt.' }, manual, afterManual),
+card({ sku: 'KC-004', name: 'Kem chống nắng SPF50+', kpi: 'CTOR - Thẻ sản phẩm', target: '5,0 % → 5,5 %', gmv: '+0,9 tr ₫/tháng', reason: 'Phí vận chuyển làm khách bỏ giỏ', lever: 'Giảm phí vận chuyển', detail: 'Giảm 15k phí vận chuyển cho đơn từ 199k.\nÁp dụng 14 ngày, theo dõi tỷ lệ bỏ giỏ.' }, manual, afterManual)
+]
+},
+{
+title: 'Giá trị đơn hàng',
+sub: 'Chỉ số chính: AOV. Khách mua nhưng mỗi đơn ít món.',
+cards: [
+card({ sku: 'TN-021', name: 'Toner rau má 200ml', kpi: 'AOV (SKU)', target: '182k → 205k ₫', gmv: '+1,6 tr ₫/tháng', reason: 'Phần lớn đơn chỉ 1 món', lever: 'Mua nhiều giảm nhiều', detail: 'Mua 2 giảm 8 % (một bậc).\n68 % đơn hiện có 1 món · giá một món phổ biến 182k.' }, manual, afterManual)
+]
+}
+]
+};
+}
+}
+</script>
+</body>
+</html>

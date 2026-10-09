@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Từ chối và Không thực hiện</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="position: relative; width: 1040px; height: 1100px; box-sizing: border-box; padding: 28px 32px; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column; gap: 16px">
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">{{eyebrow}}</div>
+<h1 style="margin: 0; font-size: 28px; font-weight: 700">{{headline}}</h1>
+</div>
+
+<div role="tablist" aria-label="Trường hợp" style="display: flex; gap: 6px">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="2">
+<button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; {{t.style}}">{{t.label}}</button>
+</sc-for>
+</div>
+
+<section style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="font-size: 12px; font-weight: 600; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">SKU · SM-012</span>
+<h2 style="margin: 0; font-size: 18px; font-weight: 700">Son môi số 12</h2>
+</div>
+<div style="font-size: 13px; color: #5f5f6b">{{context}}</div>
+</div>
+<span style="flex-shrink: 0; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 5px 10px; {{chipStyle}}">{{chip}}</span>
+</div>
+
+<sc-if value="{{showActions}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 14px; color: #4a4a55">{{actionIntro}}</div>
+<div style="display: flex; gap: 10px">
+<button type="button" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">{{primaryLabel}}</button>
+<button type="button" onClick="{{open}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 2px solid #c2306d; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">{{declineLabel}}</button>
+</div>
+<div style="font-size: 12px; color: #6b6b76">Bấm “{{declineLabel}}” để xem hộp thoại hỏi lý do.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showResult}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="5">
+<li style="display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 8px 10px">
+<span style="width: 24px; height: 24px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: #1f8a3d; color: #ffffff">✓</span>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 15px; font-weight: 600">{{s.label}}</span>
+<span style="font-size: 13px; color: #5f5f6b">{{s.result}}</span>
+</div>
+</li>
+</sc-for>
+</ol>
+<div style="background: #f5f5f7; border-radius: 12px; padding: 14px 16px; font-size: 14px; color: #4a4a55">{{outcome}}</div>
+<button type="button" onClick="{{reset}}" style="align-self: flex-start; font: inherit; font-size: 12px; color: #6b6b76; background: transparent; border: 0; min-height: 32px; cursor: pointer">↺ Xem lại từ đầu</button>
+</div>
+</sc-if>
+</section>
+
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Số liệu là ví dụ minh hoạ.</p>
+
+<sc-if value="{{showDialog}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; inset: 0; background: rgba(26,26,31,0.42); display: flex; align-items: center; justify-content: center">
+<div role="dialog" aria-modal="true" aria-labelledby="decline-q" style="box-sizing: border-box; width: 540px; background: #ffffff; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 48px rgba(20,20,30,0.25)">
+<h3 id="decline-q" style="margin: 0; font-size: 19px; font-weight: 700">{{dialogTitle}}</h3>
+<p style="margin: 0; font-size: 14px; color: #4a4a55">{{dialogBody}}</p>
+<fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px">
+<legend style="font-size: 14px; font-weight: 600; padding: 0 0 6px">Vì sao? <span style="font-weight: 400; color: #6b6b76">(chọn một · bắt buộc)</span></legend>
+<sc-for list="{{reasons}}" as="r" hint-placeholder-count="6">
+<label style="display: flex; align-items: center; gap: 10px; font-size: 14px; min-height: 36px; cursor: pointer">
+<input type="radio" name="decline-reason" checked="{{r.on}}" onChange="{{r.pick}}" style="width: 18px; height: 18px; accent-color: #c2306d">
+<span>{{r.label}}</span>
+</label>
+</sc-for>
+</fieldset>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #5f5f6b">Ghi chú thêm (không bắt buộc)
+<input type="text" placeholder="Ví dụ: shop không dùng từ “cao cấp” trong tên sản phẩm" style="font: inherit; font-size: 14px; border: 1px solid #e3d6dc; border-radius: 8px; min-height: 40px; padding: 0 10px">
+</label>
+<div style="font-size: 12px; color: #6b6b76">{{dialogNote}}</div>
+<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding-top: 4px">
+<div style="display: flex; gap: 10px">
+<button type="button" onClick="{{close}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Quay lại</button>
+<button type="button" onClick="{{submit}}" disabled="{{submitDisabled}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; {{submitStyle}} border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">{{submitLabel}}</button>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":1100}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { mode: 'reject', phase: 'card', picked: null };
+}
+renderVals() {
+const m = this.state.mode;
+const p = this.state.phase;
+const picked = this.state.picked;
+const R = {
+reject: ['Thay đổi không hợp thương hiệu hoặc giọng văn', 'Lý do hoặc số liệu chưa thuyết phục', 'Tôi đang tự sửa sản phẩm này', 'Sản phẩm sắp ngừng bán hoặc hết hàng', 'Đang chạy chiến dịch khác cho sản phẩm này', 'Khác'],
+skip: ['Nội dung sai thông tin sản phẩm', 'Văn phong chưa phù hợp', 'Thay đổi quá nhiều so với hiện tại', 'Đổi ý, chưa muốn thay đổi lúc này', 'Khác']
+}[m];
+const why = picked || '';
+const later = false;
+const T = {
+reject: {
+eyebrow: 'QUYẾT ĐỊNH · ĐỀ XUẤT · TỪ CHỐI',
+headline: later ? 'Đã hoãn thẻ, Juli nhắc lại sau 7 ngày' : (p === 'done' ? 'Đã từ chối thẻ đề xuất' : 'Từ chối một thẻ đề xuất'),
+context: 'Tối ưu sản phẩm · Thay đổi đề xuất: Tiêu đề, Mô tả · Chờ duyệt',
+actionIntro: 'Thẻ đang chờ bạn ở sub-tab Đề xuất. Chưa có lượt chạy nào, chưa đọc hay ghi gì lên TikTok.',
+primary: 'Phê duyệt', decline: 'Từ chối',
+dialogTitle: 'Từ chối thẻ này?',
+dialogBody: 'Thẻ sẽ rời khỏi Đề xuất. Juli không thay đổi gì trên sản phẩm.',
+dialogNote: 'Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ. Lý do giúp Juli chỉnh các đề xuất sau.',
+submit: 'Từ chối thẻ',
+steps: [
+{ label: 'Bạn bấm Từ chối', result: 'Từ Đề xuất · 09/10/2026 09:30' },
+{ label: 'Cho Juli biết lý do', result: why },
+{ label: 'Thẻ chuyển sang "Đã từ chối"', result: 'Rời khỏi Đề xuất · vẫn xem được trong lịch sử' },
+{ label: 'Juli ghi nhận', result: 'Không đề xuất lại Tiêu đề / Mô tả cho SM-012 trước 16/10/2026' }
+],
+outcome: 'Chỗ trống trong Đề xuất được dành cho sản phẩm có GMV tiềm năng kế tiếp.'
+},
+skip: {
+eyebrow: 'QUYẾT ĐỊNH · ĐANG THỰC HIỆN · KHÔNG THỰC HIỆN',
+headline: later ? 'Đã hoãn, Juli nhắc lại sau 7 ngày' : (p === 'done' ? 'Lượt chạy kết thúc, không thay đổi gì' : 'Không thực hiện ở bước xác nhận'),
+context: 'Lượt chạy · đang ở bước Xác nhận một lần · Juli đã soạn Tiêu đề, Mô tả mới',
+actionIntro: 'Bạn đã phê duyệt thẻ, Juli đã đọc và soạn nội dung, đang chờ bạn xác nhận trước khi ghi lên TikTok.',
+primary: 'Xác nhận thay đổi này', decline: 'Không thực hiện',
+dialogTitle: 'Không thực hiện thay đổi này?',
+dialogBody: 'Lượt chạy kết thúc ngay, Juli không ghi gì lên TikTok Shop.',
+dialogNote: 'Chỉ muốn sửa vài chữ? Bấm Quay lại rồi chọn Sửa nội dung ở bước xác nhận. Lý do giúp Juli soạn nội dung sát hơn.',
+submit: 'Kết thúc, không thay đổi',
+steps: [
+{ label: 'Bạn bấm Không thực hiện', result: 'Ở bước Xác nhận một lần · 09/10/2026 10:02' },
+{ label: 'Cho Juli biết lý do', result: why },
+{ label: 'Lượt chạy kết thúc', result: 'Không ghi gì lên TikTok Shop · trạng thái "Không thay đổi"' },
+{ label: 'Juli ghi nhận', result: 'Nội dung đã soạn được lưu kèm lý do để soạn lại tốt hơn' }
+],
+outcome: 'Thẻ không quay lại Đề xuất ngay. Juli có thể đề xuất lại sản phẩm này sau 7 ngày với nội dung mới.'
+}
+}[m];
+const laterSteps = [
+{ label: 'Bạn chọn Để sau', result: 'Không cần lý do' },
+{ label: 'Thẻ tạm ẩn', result: 'Trạng thái "Tạm hoãn" · quay lại Đề xuất ngày 16/10/2026' },
+{ label: 'Juli nhắc lại', result: 'Số liệu được cập nhật lại trước khi thẻ quay lại' }
+];
+const chip = p === 'card' || p === 'dialog'
+? (m === 'reject' ? ['Chờ duyệt', 'background: #fff4e0; color: #8a4b00'] : ['Đang chờ bạn', 'background: #fff4e0; color: #8a4b00'])
+: (later ? ['Tạm hoãn', 'background: #e6f0fd; color: #1d4f91'] : (m === 'reject' ? ['Đã từ chối', 'background: #ececf0; color: #4a4a55'] : ['Không thay đổi', 'background: #ececf0; color: #4a4a55']));
+return {
+eyebrow: T.eyebrow, headline: T.headline, context: T.context,
+chip: chip[0], chipStyle: chip[1],
+actionIntro: T.actionIntro, primaryLabel: T.primary, declineLabel: T.decline,
+dialogTitle: T.dialogTitle, dialogBody: T.dialogBody, dialogNote: T.dialogNote, submitLabel: T.submit,
+showActions: p === 'card' || p === 'dialog',
+showDialog: p === 'dialog',
+showResult: p === 'done' || later,
+steps: later ? laterSteps : T.steps,
+outcome: later ? 'Không có gì thay đổi trên sản phẩm. Bạn có thể Phê duyệt hoặc Từ chối khi thẻ quay lại.' : T.outcome,
+reasons: R.map((label) => ({ label, on: picked === label, pick: () => this.setState({ picked: label }) })),
+submitDisabled: !picked,
+submitStyle: picked ? 'background: #c2306d; cursor: pointer;' : 'background: #e7b3c9; cursor: not-allowed;',
+open: () => this.setState({ phase: 'dialog' }),
+close: () => this.setState({ phase: 'card' }),
+submit: () => picked && this.setState({ phase: 'done' }),
+reset: () => this.setState({ phase: 'card', picked: null }),
+tabs: [['reject', 'Từ chối (ở Đề xuất)'], ['skip', 'Không thực hiện (ở bước xác nhận)']].map(([id, label]) => ({
+label, on: m === id,
+style: m === id ? 'color: #ffffff; background: #b0386a; border: 1px solid #b0386a' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3d6dc',
+pick: () => this.setState({ mode: id, phase: 'card', picked: null })
+}))
+};
+}
+}
+</script>
+</body>
+</html>
