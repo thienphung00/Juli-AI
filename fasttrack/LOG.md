@@ -1058,7 +1058,8 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   symbols documented). PG16 (initdb, port 55417): `test_migrations` + contract + order-costs /
   shop-diagnosis / shop-ingestion / onboarding two-tenant: 64 passed, 1 failed = the known
   `test_no_public_table_holds_update_beyond_its_call_site` (7 pre-existing tables).
-  `fasttrack/check.sh --since 09960b20`: see the final line below. Demo (Node 20): lint 0
+  `fasttrack/check.sh --since 09960b20` (fresh PG16): migrations PASS at 084, isolation
+  12 passed, gitleaks PASS, ruff PASS (37 files), pytest 17 files 313 passed / 1 skipped. Demo (Node 20): lint 0
   errors (7 pre-existing warnings), type-check clean, vitest 132 files 1771 passed,
   Playwright (port 3327, example Supabase env) 160 passed / 140 skipped incl. the new
   onboarding spec, `pnpm build:demo --force` OK.
