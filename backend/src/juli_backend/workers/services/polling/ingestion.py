@@ -94,8 +94,7 @@ from juli_backend.models.models import (
 )
 from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRepo, utc_now_naive
 from juli_backend.services.ingestion import HandoffFn
-from juli_backend.services.onboarding.history import max_lookback_days
-from juli_backend.services.onboarding.status import history_days_available
+from juli_backend.services.onboarding import history_days_available, max_lookback_days
 from juli_backend.services.order_costs import OrderCostsResult, sync_order_costs
 from juli_backend.workers.services.polling.analytics_range import (
     AnalyticsRangeResult,
@@ -168,7 +167,7 @@ def history_empty_chunks_to_stop() -> int:
 
 
 def _connect_days() -> int:
-    from juli_backend.services.onboarding.history import connect_days
+    from juli_backend.services.onboarding import connect_days
 
     return connect_days()
 

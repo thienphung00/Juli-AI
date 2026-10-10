@@ -798,7 +798,7 @@ async def test_the_quick_scan_task_takes_its_own_lock_not_the_cycle_lock():
         seen.append(lock.is_held(shop_id, "quick_scan"))
         return "ran"
 
-    import juli_backend.services.onboarding.quick_scan as module
+    import juli_backend.services.onboarding as module
 
     original = module.run_quick_scan
     module.run_quick_scan = fake_scan

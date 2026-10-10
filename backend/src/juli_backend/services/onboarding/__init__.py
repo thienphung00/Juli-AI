@@ -16,6 +16,8 @@ from juli_backend.services.onboarding.history import (
     nightly_chunk_days,
     nightly_chunks,
 )
+from juli_backend.services.onboarding.quick_scan import QuickScanResult, run_quick_scan
+from juli_backend.services.onboarding.quick_scan import enabled as quick_scan_enabled
 from juli_backend.services.onboarding.status import (
     build_onboarding_status,
     history_days_available,
@@ -24,6 +26,7 @@ from juli_backend.services.onboarding.status import (
 )
 
 __all__ = [
+    "QuickScanResult",
     "build_onboarding_status",
     "connect_days",
     "history_days_available",
@@ -33,4 +36,6 @@ __all__ = [
     "nightly_chunk_days",
     "nightly_chunks",
     "onboarding_status",
+    "quick_scan_enabled",
+    "run_quick_scan",
 ]

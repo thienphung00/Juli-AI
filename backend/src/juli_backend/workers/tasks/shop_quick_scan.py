@@ -58,7 +58,7 @@ async def run_quick_scan_task(
     rate_limiter: Any | None = None,
     scan_kwargs: dict[str, Any] | None = None,
 ) -> Any:
-    from juli_backend.services.onboarding.quick_scan import run_quick_scan
+    from juli_backend.services.onboarding import run_quick_scan
 
     token = lock.try_acquire(
         shop_id, LOCK_NAME, ttl_seconds=int(BUDGET_SECONDS) + _LOCK_GRACE_SECONDS

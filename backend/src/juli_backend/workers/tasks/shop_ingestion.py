@@ -57,7 +57,7 @@ import os
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,6 +77,8 @@ HISTORY_TASK = "juli_backend.shop_history_backfill"
 POLL_SHOP_TASK = "juli_backend.poll_shop"
 FANOUT_TASK = "juli_backend.shop_poll_fanout"
 HISTORY_EXTEND_TASK = "juli_backend.shop_history_extend"
+
+_SHOP_UTC_OFFSET = timedelta(hours=7)
 
 #: History runs whose stop is deliberate: no immediate re-enqueue (P17).
 _HISTORY_PARKED_REASONS = frozenset({"fast_not_done", "connect_window_done", "already_extended"})
@@ -275,9 +277,9 @@ def maybe_enqueue_history(
 
 def maybe_enqueue_quick_scan(lock: Any, shop_id: str, enqueuers: Enqueuers) -> str | None:
     """P17 (D26): the quick scan, once per marker lifetime; the scan itself runs once."""
-    from juli_backend.services.onboarding.quick_scan import enabled
+    from juli_backend.services.onboarding import quick_scan_enabled
 
-    if not enabled():
+    if not quick_scan_enabled():
         return None
     task_id = _marked_enqueue(
         lock, shop_id, "quick_scan_queued", lambda _token: enqueuers.quick_scan(shop_id)
@@ -469,7 +471,7 @@ async def run_history_task(
     ``SHOP_HISTORY_NIGHTLY_CHUNK_DAYS`` once per local day and never
     re-enqueues (the next night continues).
     """
-    from juli_backend.services.onboarding.history import (
+    from juli_backend.services.onboarding import (
         connect_days,
         nightly_chunk_days,
         nightly_chunks,
@@ -480,13 +482,12 @@ async def run_history_task(
     )
 
     if nightly:
-        from juli_backend.services.action_cards.emission_budget import shop_day
-
-        moment = now or datetime.now(UTC)
+        # The shop's local day (UTC+7): one nightly run per day.
+        moment = (now or datetime.now(UTC)).astimezone(UTC)
         mode: dict[str, Any] = {
             "chunk_days": nightly_chunk_days(),
             "max_chunks": nightly_chunks(),
-            "once_on": shop_day(moment),
+            "once_on": (moment + _SHOP_UTC_OFFSET).date(),
         }
     else:
         mode = {"stop_at_days": connect_days()}
