@@ -93,6 +93,9 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "order_price_details"): "tenant_direct",
     ("public", "order_finance_transactions"): "tenant_direct",
     ("public", "order_cost_fetches"): "tenant_direct",
+    # Fast track P15, migration 082: derived data of seller-uploaded videos /
+    # LIVE recordings (the media itself is never stored in the database).
+    ("public", "content_analyses"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",

@@ -58,6 +58,7 @@ import {
   type MeasurementState,
   type RevertActionState,
 } from "./do-luong-panel";
+import { VideoAnalysis } from "../content-analysis/video-analysis";
 import { ContentRunPanel, contentChip, contentPhase } from "./content-run-panel";
 import { RulesEditor, type RulesEditorProps } from "./rules-editor";
 import { RunPanel, type LoadState, type PhotoState } from "./run-panel";
@@ -705,6 +706,8 @@ function SelectedRun({
     onRefresh();
   };
 
+  const analysisClients = useMemo(() => clients.analysisClients?.(auth) ?? null, [clients, auth]);
+
   if (kind === "content") {
     const act = async (action: () => Promise<void>) => {
       try {
@@ -719,6 +722,9 @@ function SelectedRun({
       <ContentRunPanel
         card={card}
         chip={chip}
+        analysis={
+          analysisClients && content ? <VideoAnalysis clients={analysisClients} target={{ kind: content.kind, runId: run.id }} /> : null
+        }
         detail={content}
         measureHref={measureHref}
         onDecline={declineRun}

@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models."""
 
+from juli_backend.models.content_analysis import ContentAnalysis
 from juli_backend.models.decision_reasons import DecisionReason
 from juli_backend.models.ingestion import ShopIngestionState
 from juli_backend.models.lever_flows import (
@@ -35,4 +36,5 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     OrderPriceDetail,
     OrderFinanceTransaction,
     OrderCostFetch,
+    ContentAnalysis,
 )

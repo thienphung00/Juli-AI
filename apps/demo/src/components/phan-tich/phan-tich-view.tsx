@@ -29,6 +29,8 @@ import type { RankedStream, RankingLoader, RankingPayload } from "../../lib/phan
 import type { ShopDiagnosisReport } from "../../lib/shop-analysis/types";
 import { useNarrow } from "../quyet-dinh/use-narrow";
 import { CalendarSection, MobileExtras, PromoSection } from "./extras";
+import type { ContentAnalysisClients } from "../../lib/content-analysis/types";
+import { VideoAnalysis } from "../content-analysis/video-analysis";
 import { StreamCard, type RankingState } from "./stream-card";
 
 /**
@@ -57,6 +59,8 @@ export interface PhanTichViewProps {
   /** Writes the selection into the URL (router.replace in the app). */
   readonly onNavigate?: (href: string) => void;
   readonly sample?: boolean;
+  /** P15 "Phân tích video" in Nội dung row detail; absent → no block. */
+  readonly analysisClients?: ContentAnalysisClients | null;
 }
 
 export const INFO_TEXT =
@@ -64,7 +68,7 @@ export const INFO_TEXT =
 
 const rankingKey = (stream: RankedStream, metric: CellMetric) => `${stream}:${metric}`;
 
-export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavigate, sample = false }: PhanTichViewProps) {
+export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavigate, sample = false, analysisClients = null }: PhanTichViewProps) {
   const narrow = useNarrow();
   const queryKey = `${query.tab ?? ""}|${query.stream ?? ""}|${query.metric ?? ""}|${query.huong ?? ""}|${query.row ?? ""}`;
   // The UI follows what the seller clicked straight away; the URL catches up
@@ -286,6 +290,21 @@ export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavi
               state={open ? state : undefined}
               table={open ? table : null}
               taggedHref={(productId) => analysisHref(taggedSelection(productId))}
+              renderRowDetail={
+                analysisClients && view.spec.rowKind !== "product"
+                  ? (r) => {
+                      const kind = view.spec.rowKind === "video" ? "video" : "live";
+                      return (
+                        <VideoAnalysis
+                          clients={analysisClients}
+                          compact
+                          key={r.id}
+                          target={{ kind, contentRef: `${kind}:${r.id}`, productId: r.taggedProduct }}
+                        />
+                      );
+                    }
+                  : undefined
+              }
               view={view}
             />
           );

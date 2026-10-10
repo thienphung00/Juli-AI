@@ -829,6 +829,8 @@ def test_beat_schedule_has_exactly_the_eight_expected_entries():
         "shop-poll-fanout",
         # Fast track P14-E: content runs' auto-detect and measurement readings.
         "content-runs-poll",
+        # Fast track P15: the 24 h sweep of uploaded videos.
+        "content-analysis-sweep",
     }
 
 

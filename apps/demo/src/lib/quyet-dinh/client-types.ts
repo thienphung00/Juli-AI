@@ -17,6 +17,7 @@ import type {
   ConfirmationDecisionResult,
   SubmitConfirmationDecisionOptions,
 } from "../run-surface/confirmation-decision";
+import type { ContentAnalysisClients } from "../content-analysis/types";
 import type { Measurement, PhotoCheck, RunDetail, SellerInstructions } from "./p10-types";
 import type { ReasonChoice } from "./reasons";
 import type { RevertQuestion, RuleKey, RunChanges, SetBy, ShopRules } from "./types";
@@ -145,6 +146,11 @@ export interface QdClients {
   /** P14-E "Tôi đã đăng video" / "Tôi đã LIVE xong". */
   readonly markPublished: (options: AuthedOptions, runId: string) => Promise<void>;
   readonly useRunEvents: RunEventsHook;
+  /**
+   * P15 "Phân tích video" for a content run: the real chunked upload (signed in)
+   * or the canned sample (signed out / no shop). Optional: absent → no block.
+   */
+  readonly analysisClients?: (auth: AuthedOptions) => ContentAnalysisClients;
   /** SSE transport override (tests); the real one is same-origin `fetch`. */
   readonly streamFetch?: typeof fetch;
 }

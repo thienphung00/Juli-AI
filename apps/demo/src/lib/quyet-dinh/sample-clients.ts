@@ -12,6 +12,7 @@ import { useCallback, useSyncExternalStore } from "react";
 
 import type { AgentEvent, WorkflowRunListItem } from "@juli/contracts";
 
+import { createSampleAnalysisClients } from "../content-analysis/sample";
 import type { QdClients, RunEventsState } from "./client-types";
 import type { Measurement, PhotoCheck, QdRun, RunAwaiting, RunDetail } from "./p10-types";
 import {
@@ -53,6 +54,8 @@ import {
 import type { FieldChange, RunChanges, ShopRules } from "./types";
 
 const DAY_MS = 86_400_000;
+/** P15: one stable canned-analysis client (no network). */
+const SAMPLE_ANALYSIS_CLIENTS = createSampleAnalysisClients();
 const CONSENT_VALIDITY_MS = 4 * 3_600_000;
 
 type RunKindSample = "listing" | "photo" | "manual" | "revert" | "content";
@@ -324,6 +327,7 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
   return {
     snapshotRuns,
     useRunEvents: useSampleRunEvents,
+    analysisClients: () => SAMPLE_ANALYSIS_CLIENTS,
 
     fetchDecisions: () =>
       resolved([

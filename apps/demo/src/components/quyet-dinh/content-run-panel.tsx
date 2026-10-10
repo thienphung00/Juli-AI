@@ -120,6 +120,8 @@ export interface ContentRunPanelProps {
   readonly onRedraft: () => Promise<void>;
   readonly onPublished: () => Promise<void>;
   readonly onDecline: (choice: ReasonChoice) => Promise<void>;
+  /** P15: the "Phân tích video" block (upload + result) for this run's product. */
+  readonly analysis?: React.ReactNode;
 }
 
 function errorText(error: unknown, fallback: string): string {
@@ -207,6 +209,8 @@ export function ContentRunPanel(props: ContentRunPanelProps) {
           </a>
         </div>
       ) : null}
+
+      {props.analysis && phase !== "declined" && phase !== "ended" ? props.analysis : null}
 
       {phase === "declined" ? (
         declinedReason ? (

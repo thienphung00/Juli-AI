@@ -114,6 +114,17 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | P14 integrated: `fasttrack/p14-data` + `fasttrack/p14-cards` + `fasttrack/p14-content` merged (in that order, `--no-ff`) on `fasttrack/p14-integration` from ddef3245; content cards obey the D24.17 limits / validity / 3-day stay with P14-E's ≤ 5/week as a sub-limit; head `081_order_cost_data`, deferred phone cleanup last; full suites + `check.sh --since ddef3245` green (see LOG) | 14.1–14.7, 14.C1–14.F3, 14E.1–14E.5 | done on `fasttrack/p14-integration` (not merged into `fasttrack/optimize-product`, not deployed) | integration agent (Opus) |
 | D24.21 owner choices on `fasttrack/p14-integration` (merged 3836bf2a docs): strict 7-day return after Từ chối / Không thực hiện / Hoàn tác for Optimize, content and legacy cards; "Số thẻ mở cùng lúc" 5–30 (default 30); fixed daily slots 3 Juli / 1 Seller Center / 1 content, empty slot stays empty, every day; "Giọng văn" / "Từ không được dùng" rules read by content runs and enforced on listing writes; content ≤ 5/week in the shop week; 081 grants trimmed; full suites + `check.sh --since 3836bf2a` green (see LOG) | 14.R1–14.R6 | done on `fasttrack/p14-integration` (not merged, not deployed) | integration agent (Opus) |
 
+## P15 — content analysis of seller uploads (D24.19, D24.20; contract `contracts/p15-content-analysis.md`)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Migration `082_content_analysis` (`content_analyses`, tenant_direct, RLS, juli_app S/I/U), upload slot + chunked PUT (signed `X-Upload-Token`, 32 MB chunks, resumable, first-box sniff, size/type/in-flight limits), list/get routes, temporary disk storage + 24 h sweep | 15.1, 15.2 | done on `fasttrack/p15-content-analysis` (not merged, not deployed) | P15 agent (Opus) |
+| Pipeline on queue `content_analysis` (idempotent, per-shop lock, retries, cost per stage): ffprobe/ffmpeg (`-f mov`, file-only), ASR (`whisper-1`, vi, glossary, word timestamps), LIVE windows from ASR mentions (−2/+5 min, ≤ 3), cuts (port of `reference_analyze.py`), keyframes / 2 s, `gpt-5.4-nano` vision (on-screen text + product on screen), ONE structured-output scoring call; file deleted after | 15.3, 15.4 | done | P15 agent (Opus) |
+| Monthly OpenAI cap per shop (default $5, `shop_rules.openai_monthly_cap_usd` override for P16) before every paid step and at upload | 15.5 | done | P15 agent (Opus) |
+| Juli soạn reads the best / weakest analysed upload of the product (prompt v2) | 15.6 | done | P15 agent (Opus) |
+| UI "Phân tích video" block in the content run and Phân tích › Nội dung row detail; sample = canned analysis, no network (no artboard — owner review) | 15.7 | done | P15 agent (Opus) |
+| Ops: worker `-Q` + nginx chunk location + runbook `docs/runbooks/content-analysis-runbook.md` + env example | 15.8 | done; owner to install ffmpeg on the VPS before deploy | P15 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

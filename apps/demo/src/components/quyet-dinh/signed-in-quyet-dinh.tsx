@@ -33,6 +33,7 @@ import {
   chooseContentScript,
 } from "../../lib/quyet-dinh/api-client";
 import type { AuthedOptions, QdClients, RunEventsState } from "../../lib/quyet-dinh/client-types";
+import { createAnalysisClients } from "../../lib/content-analysis/api-client";
 import { approveDemoDecision, fetchRecommendations } from "../../lib/recommendations-api-client";
 import { fetchDemoRuns } from "../../lib/run-ledger/api-client";
 import { submitConfirmationDecision } from "../../lib/run-surface/confirmation-client";
@@ -72,6 +73,7 @@ export const REAL_QD_CLIENTS: QdClients = {
   redraftContent: redraftContentScript,
   markPublished: markContentPublished,
   useRunEvents: useLiveRunEvents,
+  analysisClients: createAnalysisClients,
 };
 
 export function SignedInQuyetDinh({

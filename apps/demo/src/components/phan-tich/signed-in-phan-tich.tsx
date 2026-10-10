@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+
+import { createAnalysisClients } from "../../lib/content-analysis/api-client";
 
 import type { QueryState } from "../../lib/phan-tich/model";
 import { fetchMetricRanking } from "../../lib/phan-tich/rankings-client";
@@ -38,8 +40,10 @@ export function SignedInPhanTich({
     [fetchRanking, token, shopId],
   );
   const loadDecisions = useCallback(() => fetchDecisions({ token, shopId }), [fetchDecisions, token, shopId]);
+  const analysisClients = useMemo(() => createAnalysisClients({ token, shopId }), [token, shopId]);
   return (
     <PhanTichView
+      analysisClients={analysisClients}
       loadDecisions={loadDecisions}
       loadRanking={loadRanking}
       onNavigate={onNavigate}

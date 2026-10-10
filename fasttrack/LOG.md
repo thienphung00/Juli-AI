@@ -995,3 +995,46 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   693 passed. Demo (Node 20): lint 0 errors (7 pre-existing warnings), type-check clean, vitest 130
   files 1715 passed, Playwright 154 passed / 140 skipped (port 3324, example Supabase env),
   `pnpm build:demo --force` OK.
+
+## 2026-10-10 — P15 content analysis of seller uploads (agent: Claude Opus, `fasttrack/p15-content-analysis` from `fasttrack/p14-integration` 2c35c1e4)
+
+- Built D24.20 per `contracts/p15-content-analysis.md`: migration `082_content_analysis`
+  (`content_analyses`, tenant_direct, RLS, juli_app S/I/U; deferred phone cleanup re-parented, still
+  last — the orchestrator re-chains against P16's migration at merge); resumable chunked upload
+  (slot → `PUT …/file?offset=N` + `X-Upload-Token`, 32 MB chunks for Cloudflare, first-box sniff);
+  pipeline on the new Celery queue `content_analysis` (ffprobe/ffmpeg with `-f mov
+  -protocol_whitelist file`; `whisper-1` ASR in Vietnamese with a product glossary; LIVE windows
+  from ASR mentions; cuts ported from the content engine's `reference_analyze.py`; keyframes / 2 s;
+  `gpt-5.4-nano` vision for on-screen text + product on screen; ONE structured-output scoring call
+  over derived signals; numbers from signals only); per-shop monthly OpenAI cap (default $5,
+  `shop_rules.openai_monthly_cap_usd` override for P16); file deleted after analysis, hourly sweep at
+  24 h. Content runs' drafter gets the best / weakest analysis (prompt `p15-content-prompt-v2`). UI
+  "Phân tích video" block in the content run and in Phân tích › Nội dung row detail; sample shows a
+  canned analysis with no network. No new Python dependency (numpy/PIL/httpx only).
+- Guards that caught things on the way: import boundaries (api/workers now import the package
+  root), credentials-in-URL (the slot token moved from the query string to a header), ratchet (no
+  new noqa), test-quality reconciliation (re-derived with `reconcile --write`), surface inventory
+  and beat-set pins (regenerated / extended).
+- Measured on the generated fixtures (Apple M2, mocked OpenAI): 6 s and 30 s 320×240 videos → 0.32
+  s / 0.40 s of ffmpeg work end to end (probe 0.04–0.07, audio 0.07–0.16, cuts 0.07–0.08,
+  keyframes 0.06–0.07 s). OpenAI cost (estimate from the price tables, not billed): 30 s video ≈
+  ASR $0.003 + vision ≈ $0.001 + scoring ≈ $0.0003 → ≈ $0.004–0.005; a 2 h LIVE scanned 60 min +
+  3 windows ≈ $0.36–0.40 ASR + ≈ $0.01 vision.
+- Verification: ruff / format clean on changed files; mypy clean (content_analysis, content_cards,
+  routes, task, llm). `tests/unit` in four chunks: all green except the pre-existing failures
+  (`test_cross_tenant_probe`, `test_destructive_migration_isolation` CI flag, 7
+  `test_agent_workflow_task_wiring`). `tests/unit/test_p15_content_analysis.py` 31 passed on PG16
+  (incl. RLS as juli_app). `tests/integration` on fresh PG16: 276 passed, 21 skipped, 3 failed — the
+  same 3 as at ddef3245 / P14 integration (`content_analyses` is justified in the UPDATE registry).
+  `fasttrack/check.sh --since 2c35c1e4` (docker PG16): migrations PASS at 082, isolation 12 passed,
+  gitleaks PASS, ruff PASS (38 files), pytest 10 files 204 passed. Demo (Node 20): lint 0 errors (7
+  pre-existing warnings), type-check clean, vitest 131 files 1719 passed + 2 failed in
+  `rules-editor-off-api.test.tsx` under the full parallel run only (13/13 alone, before and after
+  P15 — flake, DEBT), Playwright `e2e/analytics` 32 passed, `e2e/decisions` 36 passed / 140 skipped,
+  P15 specs re-run after the token change 18 passed (port 3325, example Supabase env),
+  `pnpm build:demo` OK.
+- Note: a `git stash`/`pop` probe during the vitest flake check popped an unrelated old stash
+  (stashes are shared across worktrees); the pop conflicted and was reset — that stash entry is
+  intact (`stash@{0}`), nothing of it was committed.
+- Next: owner review of the UI deviation (no artboard) and of vision-instead-of-OCR; install ffmpeg
+  on the VPS; P16 to own the cap override; orchestrator to re-chain 082 against P16's migration.

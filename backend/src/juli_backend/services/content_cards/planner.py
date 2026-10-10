@@ -135,6 +135,9 @@ class ContentPlanner:
     rules: ContentRules
     facts: DraftFacts
     today: Any = shop_today
+    #: P15: summaries of the seller's analysed uploads of this product
+    #: (``content_analysis.context``).
+    analyses: list[dict[str, Any]] = field(default_factory=list)
     #: Set when this leg drafted a version (the runner wrapper persists it).
     drafted: list[DraftOutcome] = field(default_factory=list)
 
@@ -262,6 +265,14 @@ class ContentPlanner:
             if isinstance(e, Mapping)
         ]
         description = _text(product.get("description"))
+        rate_key = "ctr" if self.kind == VIDEO else "product_ctor"
+        rate_by_ref = {
+            str(r.get("ref")): r.get(rate_key)
+            for r in rows
+            if r.get("ref") and isinstance(r.get(rate_key), int | float)
+        }
+        from juli_backend.services.content_analysis.context import pick
+
         return DraftInputs(
             facts=facts,
             rules=self.rules,
@@ -269,6 +280,7 @@ class ContentPlanner:
             product={"description": description},
             seo_words=_seo_words(results.get(SEO_TOOL, [None])[-1]) if self.kind == VIDEO else [],
             examples=examples,
+            analyses=pick(self.analyses, rate_by_ref) if self.analyses else (),
         )
 
     async def _draft(self, results: Mapping[str, list[Any]], config: LLMConfig) -> AssistantTurn:

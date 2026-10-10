@@ -115,13 +115,28 @@ async def wiring_for_run(
         product_title=title,
         basket_skus=(label, *others),
     )
+    analyses: list[dict[str, Any]] = []
+    try:
+        from juli_backend.services.content_analysis.context import load_summaries
+
+        async with session.begin_nested():  # a failed read must not poison the run's session
+            analyses = await load_summaries(
+                session, run.shop_id, str(product.tiktok_product_id), spec.kind
+            )
+    except Exception:  # P15 context is optional: never fail a run over it
+        logger.warning("content_run_analyses_unavailable", exc_info=True)
     if drafter is None:
         from juli_backend.services.content_cards.drafter import OpenAIContentDrafter
 
         drafter = OpenAIContentDrafter()
     return ContentWiring(
         planner=ContentPlanner(
-            kind=spec.kind, state=state, drafter=drafter, rules=rules, facts=facts
+            kind=spec.kind,
+            state=state,
+            drafter=drafter,
+            rules=rules,
+            facts=facts,
+            analyses=analyses,
         )
     )
 

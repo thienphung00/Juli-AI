@@ -317,6 +317,14 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "(granted by 081); order_price_details / order_finance_transactions are "
         "replaced by delete + insert and hold no UPDATE",
     ),
+    MutationSite(
+        "public",
+        "content_analyses",
+        "UPDATE",
+        "backend/src/juli_backend/services/content_analysis/uploads.py",
+        "row.received_bytes = storage.append_chunk(conf, row.storage_key, offset, data)",
+        "fast track P15: upload progress, then the pipeline's status / result (granted by 082)",
+    ),
 )
 
 #: Scan hits that are provably NOT database writes. Each is pinned to its

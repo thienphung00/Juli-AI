@@ -30,7 +30,10 @@ from typing import Any, Literal, Protocol
 #: copy per fan-out tick. Their TTL bounds a lost message. ``diagnosis`` is the
 #: daily shop diagnosis build's own mutex (``workers/tasks/shop_diagnosis.py``):
 #: it reads TikTok only, so it may run beside a cycle but never beside itself.
-LockName = Literal["cycle", "history", "bootstrap_queued", "history_queued", "diagnosis"]
+#: ``content_analysis`` (fast track P15) serialises one shop's video analyses.
+LockName = Literal[
+    "cycle", "history", "bootstrap_queued", "history_queued", "diagnosis", "content_analysis"
+]
 
 _RELEASE_IF_OWNER_SCRIPT = """
 if redis.call('get', KEYS[1]) == ARGV[1] then
