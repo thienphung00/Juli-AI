@@ -52,6 +52,6 @@ async def get_current_shop_permissions(
     ``needs_reconnect`` drives the seller's "Kết nối lại TikTok Shop để cấp quyền
     mới" strip. Scope names only; no token is returned.
     """
-    from juli_backend.services.ops.scopes import shop_scope_status
+    from juli_backend.services import ops
 
-    return {"data": (await shop_scope_status(session, shop.id)).to_json()}
+    return {"data": (await ops.shop_scope_status(session, shop.id)).to_json()}
