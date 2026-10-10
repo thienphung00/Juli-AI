@@ -607,3 +607,36 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] PROGRESS cites AC `14E.6` for the P14-E UI row; ACCEPTANCE has only AC-14E.1–14E.5 (as on `fasttrack/p14-content`).
 - [ ] 37 test/backend files fail `ruff format --check` when run over the whole tree from the repo root — the same 37 at ddef3245 (check.sh's changed-files ruff step is clean).
 - [ ] `tests/integration/test_migrations.py::test_no_public_table_holds_update_beyond_its_call_site` (Postgres only) fails at ddef3245 already (7 tables granted UPDATE without a `GRANT_REQUIRED` call site: P8/P10 tables); P14-C's `081_order_cost_data` adds 3 more (`order_cost_fetches`, `order_finance_transactions`, `order_price_details`). Either register the call sites in `tests/unit/test_juli_app_grants_cover_mutations.py` or revoke the grants — owner/agent decision, not done in the integration.
+
+## P15 content analysis (2026-10-10)
+
+- [ ] **Deviation, owner review**: the "Phân tích video" block has no artboard; it reuses the
+  ContentRun / Phân tích box styles (`.qv-va*` in `quyet-dinh.css`).
+- [ ] **Deviation**: OCR and product-on-screen use `gpt-5.4-nano` vision on keyframes (low detail,
+  near-duplicate frames not resent) instead of EasyOCR / PaddleOCR / OpenCLIP — all need torch or
+  paddle (hundreds of MB) on the VPS. Scene cuts use the port of the content engine's
+  `reference_analyze.py`, not PySceneDetect (BSD-3, but needs OpenCV). No new Python dependency.
+- [ ] LIVE product timing from TikTok does not exist (A-26 per-minute metrics are shop-level, A-27
+  has no timing): windows come from ASR mentions in the first 60 min; a product first named after
+  that is "not found". The pipeline accepts timing hints (`live_timing_s`) for when an API appears.
+- [ ] Per-shop cap override is read from `shop_rules` key `openai_monthly_cap_usd` (number) —
+  not in `RULE_KEYS`, so only a direct write (P16's Ops console) sets it; P16 may move it, then
+  change `costs.monthly_cap_usd`. D25.8's "alert the team" on cap is not done here.
+- [ ] Cost figures are estimates: ASR by minutes × a static price table (`whisper-1` $0.006/min),
+  vision / scoring by the token price table; not reconciled with OpenAI billing. Not measured
+  against the live API (no key in this session) — only on mocked usage.
+- [ ] A retry after a provider error restarts the pipeline from the beginning (stages already paid
+  are paid again; ≤ 3 attempts).
+- [ ] `content_analysis` shares the main worker (`-Q …,content_analysis`, prefork concurrency =
+  CPUs); a dedicated `--concurrency 1` unit if analyses ever delay agent runs.
+- [ ] Enqueue failure leaves the row `queued` with no automatic re-enqueue (runbook has the manual
+  command); expired `awaiting_upload` rows are shown as expired but stay in the table.
+- [ ] Uploads from a content run carry no Phân tích row (`content_ref` null), so they count as
+  "đã tải lên", not best / weakest.
+- [ ] nginx default `client_max_body_size` (1 MB) still applies to every other route — P10's 5 MB
+  photo upload route has no override either (pre-existing; checked while adding the chunk location).
+- [ ] Ops before deploy (owner): `apt install ffmpeg` on the VPS, create
+  `/var/lib/juli/content-uploads` (0700), reinstall the worker unit and nginx vhosts.
+- [ ] Demo vitest `rules-editor-off-api.test.tsx` failed 2 tests once in the full parallel run and
+  passes alone (13/13) — timing flake under load, not P15 code.
+

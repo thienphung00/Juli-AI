@@ -298,3 +298,50 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   `apps/demo/src/components/__tests__/quyet-dinh-content.test.tsx` (11),
   `e2e/decisions/quyet-dinh-content.spec.ts` (desktop + mobile, zero `/v1` requests).
 
+## P15 — content analysis of seller uploads (contract `contracts/p15-content-analysis.md`)
+
+- [x] **AC-15.1** Migration `082_content_analysis` onto 081 (id ≤ 32 chars), deferred phone
+  cleanup re-parented and still last; `content_analyses` tenant_direct, RLS per verb, juli_app
+  SELECT/INSERT/UPDATE; no media column. — evidence: `check.sh` migrations PASS at
+  `082_content_analysis` (upgrade / downgrade −1 / upgrade), isolation 12 passed;
+  `test_content_analyses_are_isolated_per_shop_under_rls` (PG16, as `juli_app`: shop A sees only
+  its row, an insert for shop B is rejected); `test_migration_082_…`; grant registry entry.
+- [x] **AC-15.2** Upload: slot (type mp4/mov, video ≤ 500 MB, LIVE ≤ 4 GB, ≤ 2 in flight, cap),
+  chunked PUT ≤ 32 MB with a signed slot token in `X-Upload-Token` + session + `X-Shop-Id`,
+  offset resume, first chunk must be an MP4/MOV box, 6 h expiry; file 0600 under a non-served
+  dir, path from Juli's ids only; another shop → 404. — evidence: `test_upload_slot_validation`,
+  `test_chunks_offsets_first_box_and_expiry`, `test_the_upload_token_binds_the_slot_and_expires`,
+  `test_storage_keys_cannot_escape_the_upload_dir`, `test_the_routes_open_a_slot_take_chunks_queue_and_list`.
+- [x] **AC-15.3** Pipeline (video): ffprobe/ffmpeg only (never executed; renamed non-video refused
+  before any parser), ASR with glossary, cuts, keyframes every 2 s, vision, ONE scoring call over
+  derived signals; numbers from signals (product first second, CTA second by index, cuts / 10 s);
+  banned suggestions dropped; claims in the seller's video flagged; file + work dir deleted after;
+  cost per stage on the row. — evidence: `test_a_video_is_analysed_costed_and_its_file_deleted`
+  (generated testsrc/sine fixture: cuts at 2 s and 4 s, product at 2 s, CTA at 3 s),
+  `test_numbers_come_from_the_signals_and_words_are_checked`, `test_the_scoring_prompt_carries_derived_signals_only`,
+  transcription / vision wire tests (MockTransport, recording adapter).
+- [x] **AC-15.4** LIVE: windows from the first ASR mentions of name / brand / SKU (−2 / +5 min,
+  ≤ 3), transcript / keyframes / cuts inside the windows only. — evidence:
+  `test_a_live_is_analysed_only_around_the_product_mentions`. TikTok product timing: none exists
+  in the API (DEBT).
+- [x] **AC-15.5** Monthly OpenAI cap checked before ASR / vision / scoring and when a slot opens;
+  over it: `refused`, Vietnamese message, nothing spent, file deleted / 402. — evidence:
+  `test_over_the_monthly_cap_the_asr_step_is_refused_and_nothing_is_spent`,
+  `test_the_cap_refuses_a_new_upload_with_a_vietnamese_402`, `test_the_month_starts_at_midnight_vietnam_time`.
+- [x] **AC-15.6** Task idempotent, per-shop lock, provider error → retry with the file kept,
+  last attempt → failed + file deleted; 24 h sweep; queue `content_analysis` routed and consumed
+  by the worker unit; beat at :47. — evidence: `test_the_task_is_idempotent_locked_per_shop_and_retries_provider_errors`,
+  `test_the_last_failed_attempt_deletes_the_file`, `test_the_sweep_deletes_files_older_than_a_day`,
+  `test_the_tasks_are_routed_to_their_own_queue_and_the_worker_consumes_it`.
+- [x] **AC-15.7** Content runs use the analyses (best / weakest by TikTok rate, else latest);
+  an upload from a run takes the run's product. — evidence: `test_best_and_weakest_analyses_are_picked_by_the_tiktok_rate`,
+  `test_the_drafter_prompt_carries_the_analyses_only_when_there_are_some`,
+  `test_done_analyses_of_the_product_are_loaded_for_the_run`, `test_an_upload_from_a_content_run_takes_the_runs_product`,
+  `test_p14_content_flow.py` unchanged green.
+- [x] **AC-15.8** UI: "Phân tích video" block (hook, giây sản phẩm xuất hiện, CTA, nhịp cắt, vấn
+  đề, gợi ý, upload + progress, polling, VI errors) in the content run and Phân tích › Nội dung
+  row detail; signed-out / no-shop sample = canned analysis, upload disabled, zero `/v1`
+  requests. — evidence: `src/components/__tests__/video-analysis.test.tsx` (7),
+  `e2e/analytics/video-analysis.spec.ts` (desktop + mobile: sample, signed-in chunked upload →
+  done), `e2e/decisions/quyet-dinh-content.spec.ts` (block in the sample run). No artboard (DEBT).
+
