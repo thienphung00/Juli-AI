@@ -207,13 +207,8 @@ async def test_handover_moves_the_shop_through_the_definer_function(owner_engine
             text("SELECT count(*) FROM public.workflow_runs WHERE shop_id = :s"),
             {"s": shop_tenant.shop_id},
         ).scalar_one()
-        may_act = conn.execute(
-            text("SELECT team_may_act FROM public.ops_shop_settings WHERE shop_id = :s"),
-            {"s": shop_tenant.shop_id},
-        ).scalar_one()
     assert owner == seller.user_id
     assert runs > 0
-    assert may_act is True
 
 
 async def test_seller_stamps_consent_on_own_row_only(two_tenants, owner_engine):
@@ -238,3 +233,38 @@ async def test_seller_stamps_consent_on_own_row_only(two_tenants, owner_engine):
         ).scalar_one()
     assert stamped is True
     assert other is True
+
+
+async def test_disconnect_as_juli_app_under_the_shops_scope(owner_engine):
+    from juli_backend.services.ops import disconnect
+    from tests.integration.two_tenant import seed_tenant
+
+    tenant = seed_tenant(owner_engine, label=f"disc-{uuid.uuid4().hex[:6]}")
+
+    class Quiet:
+        async def send_notice(self, **_):
+            return False
+
+    ops_mailer.set_mailer(Quiet())  # type: ignore[arg-type]
+    try:
+        async with app_session() as session:
+            listing = await overview.find_shop(session, tenant.shop_id)
+            await session.commit()
+            result = await disconnect.disconnect_shop(
+                session, ACTOR, listing, reason="probe", confirm_name=listing.shop_name
+            )
+            await session.commit()
+    finally:
+        ops_mailer.set_mailer(None)
+    assert result.credentials_revoked >= 1
+    with owner_engine.connect() as conn:
+        active = conn.execute(
+            text("SELECT is_active FROM public.shops WHERE id = :s"), {"s": tenant.shop_id}
+        ).scalar_one()
+        statuses = set(
+            conn.execute(
+                text("SELECT status FROM public.tiktok_credentials WHERE shop_id = :s"),
+                {"s": tenant.shop_id},
+            ).scalars()
+        )
+    assert active is False and statuses == {"needs_reauth"}

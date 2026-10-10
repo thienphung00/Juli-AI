@@ -8,8 +8,10 @@
   ``user_id`` moves to the seller through ``ops_transfer_shop`` (SECURITY
   DEFINER, juli_ops only). Cards, runs, rules and history key on ``shop_id``
   and are untouched.
-- If the seller agrees, the team keeps Vận hành (act-for-seller) access:
-  ``team_may_act`` on, ``seller_consent_at`` = now. Otherwise both are cleared.
+- The seller's answer to "let the team keep Vận hành access" is stored on the
+  invite (``seller_kept_ops_access``) and shown in Ops. Since D25.3 was amended
+  (2026-10-10) nobody acts FOR a seller: Vận hành access means the team keeps
+  managing the shop's Ops settings (overrides, stage) -- never seller writes.
 
 Every step is audited.
 """
@@ -28,7 +30,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import Shop, User
-from juli_backend.models.ops import OpsShopInvite, OpsShopSettings
+from juli_backend.models.ops import OpsShopInvite
 from juli_backend.repositories._base import utc_now_naive
 from juli_backend.services.ops import audit
 from juli_backend.services.ops.access import is_sqlite, ops_role
@@ -231,33 +233,15 @@ async def accept_invite(
         row.accepted_at = moment
         row.accepted_user_id = user.id
         row.seller_kept_ops_access = kept
-        settings = await session.get(OpsShopSettings, row.shop_id)
-        before = (
-            None
-            if settings is None
-            else {
-                "team_may_act": settings.team_may_act,
-                "seller_consent_at": settings.seller_consent_at.isoformat()
-                if settings.seller_consent_at
-                else None,
-            }
-        )
-        if settings is None:
-            settings = OpsShopSettings(shop_id=row.shop_id, stage="trial", team_may_act=False)
-            session.add(settings)
-        settings.team_may_act = kept
-        settings.seller_consent_at = moment if kept else None
-        settings.updated_at = moment
     await audit.record(
         session,
         audit.Actor(staff_id=None, email=user.email or "seller"),
         "invite_accept",
         shop_id=row.shop_id,
-        before={"owner_user_id": str(previous_owner), **(before or {})},
+        before={"owner_user_id": str(previous_owner)},
         after={
             "owner_user_id": str(user.id),
-            "team_may_act": kept,
-            "seller_consent_at": moment.isoformat() if kept else None,
+            "seller_kept_ops_access": kept,
         },
         at=moment,
     )

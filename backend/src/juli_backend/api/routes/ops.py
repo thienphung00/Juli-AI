@@ -13,11 +13,11 @@ AUTH -- every route, fail closed, in this order:
 PRIVACY. Every response is passed through ``services/ops/masking.mask_pii``
 (the ``MaskedRoute`` route class): no buyer data reaches a staff screen.
 
-WRITES are audited in ``ops_audit_log``. "Xem như shop" reads call the very
-handlers the seller's own routes use, under that shop's tenant scope, so staff
-see exactly the seller's payloads; the ``act/*`` routes (approve, reject,
-rules) only work when the shop's ``team_may_act`` flag AND the seller's
-consent are set, and are audited as "by staff X for seller".
+WRITES (settings, scenarios, invites, staff, disconnect) are audited in
+``ops_audit_log``. "Xem như shop" (D25.3, amended 2026-10-10) is ALWAYS
+read-only: its GETs call the very handlers the seller's own routes use, under
+that shop's tenant scope, so staff see exactly the seller's payloads; every
+non-GET under ``/view/`` is refused with 403 and nothing acts for a seller.
 """
 
 from __future__ import annotations
@@ -35,8 +35,14 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.routes import demo_analysis, demo_decisions, demo_execution, demo_rules
-from juli_backend.api.routes.demo_run_changes import SellerReasonRequest
+from juli_backend.api.routes import (
+    agent_runs,
+    demo_analysis,
+    demo_decisions,
+    demo_rules,
+    demo_run_changes,
+    demo_run_flows,
+)
 from juli_backend.core.security import (
     CF_ACCESS_HEADER,
     Unauthorized,
@@ -52,6 +58,7 @@ from juli_backend.models.ops import ROLE_ADMIN, ROLE_OPERATOR, ROLE_VIEWER
 from juli_backend.services.ops import (
     ShopListing,
     audit,
+    disconnect,
     invites,
     mask_pii,
     overview,
@@ -335,17 +342,12 @@ async def ops_run_detail(
     return {"data": data}
 
 
-# -- "Xem như shop" (D25.3) ------------------------------------------------------------
+# -- "Xem như shop" (D25.3, amended 2026-10-10: ALWAYS read-only) ------------------------
 
 
 class ViewSessionWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    mode: Literal["view", "act", "exit"] = "view"
-
-
-async def _act_allowed(session: AsyncSession, shop_id: uuid.UUID) -> bool:
-    view = await ops_settings.get_settings(session, shop_id)
-    return view.team_may_act and view.seller_consent_at is not None
+    mode: Literal["view", "exit"] = "view"
 
 
 @router.post("/shops/{shop_id}/view-session")
@@ -355,39 +357,27 @@ async def ops_view_session(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """Log opening / switching / leaving "Xem như shop" (every session is logged)."""
+    """Log opening / leaving "Xem như shop" (every session is logged)."""
     listing = await _shop(session, shop_id)
-    allowed = await _act_allowed(session, shop_id)
-    if body.mode == "act" and not (allowed and ctx.staff.at_least(ROLE_OPERATOR)):
-        raise HTTPException(status_code=403, detail="Acting for this seller is not allowed")
     await audit.record(
-        session,
-        ctx.staff.actor,
-        f"view_as_{body.mode}",
-        shop_id=shop_id,
-        after={"mode": body.mode},
+        session, ctx.staff.actor, f"view_as_{body.mode}", shop_id=shop_id, after={"mode": body.mode}
     )
     await session.commit()
     settings_view = await ops_settings.get_settings(session, shop_id)
-    return {
-        "shop": _shop_json(listing),
-        "stage": settings_view.stage,
-        "act_allowed": allowed,
-        "can_act": allowed and ctx.staff.at_least(ROLE_OPERATOR),
-        "seller_consent_at": settings_view.seller_consent_at.isoformat()
-        if settings_view.seller_consent_at
-        else None,
-    }
+    return {"shop": _shop_json(listing), "stage": settings_view.stage, "read_only": True}
 
 
-async def _seller_scope(session: AsyncSession, listing: ShopListing) -> tuple[Shop, User]:
-    """Apply the shop's own tenant scope (shop + owner) and load both rows."""
+async def _seller_scope(session: AsyncSession, listing: ShopListing) -> Shop:
+    """Apply the shop's own tenant scope (shop + owner) and load the shop row."""
     await _apply_tenant_context_to_session(session, listing.shop_id, listing.owner_user_id)
     shop = await session.get(Shop, listing.shop_id)
-    owner = await session.get(User, listing.owner_user_id)
-    if shop is None or owner is None:
+    if shop is None:
         raise HTTPException(status_code=404, detail="Shop not found")
-    return shop, owner
+    return shop
+
+
+async def _view_shop(session: AsyncSession, shop_id: uuid.UUID) -> Shop:
+    return await _seller_scope(session, await _shop(session, shop_id))
 
 
 @router.get("/shops/{shop_id}/view/analysis")
@@ -397,8 +387,7 @@ async def ops_view_analysis(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> Any:
-    listing = await _shop(session, shop_id)
-    shop, _ = await _seller_scope(session, listing)
+    shop = await _view_shop(session, shop_id)
     return await demo_analysis.get_demo_analysis(ranking=ranking, session=session, shop=shop)
 
 
@@ -410,8 +399,7 @@ async def ops_view_ranking(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> Any:
-    listing = await _shop(session, shop_id)
-    shop, _ = await _seller_scope(session, listing)
+    shop = await _view_shop(session, shop_id)
     return await demo_analysis.get_demo_metric_ranking(
         stream=stream, metric=metric, session=session, shop=shop
     )
@@ -423,8 +411,7 @@ async def ops_view_decisions(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> Any:
-    listing = await _shop(session, shop_id)
-    shop, _ = await _seller_scope(session, listing)
+    shop = await _view_shop(session, shop_id)
     return await demo_decisions.list_demo_decisions(session=session, shop=shop)
 
 
@@ -434,112 +421,119 @@ async def ops_view_rules(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> Any:
-    listing = await _shop(session, shop_id)
-    shop, _ = await _seller_scope(session, listing)
+    shop = await _view_shop(session, shop_id)
     return await demo_rules.get_shop_rules(shop=shop, session=session)
 
 
-# -- act for the seller (D25.3, only with the flag + consent) ------------------------------
-
-
-async def _act_scope(
-    session: AsyncSession, shop_id: uuid.UUID, ctx: OpsContext
-) -> tuple[Shop, User]:
-    listing = await _shop(session, shop_id)
-    if not await _act_allowed(session, shop_id):
-        raise HTTPException(status_code=403, detail="Acting for this seller is not allowed")
-    return await _seller_scope(session, listing)
-
-
-async def _audit_act(
-    session: AsyncSession,
-    ctx: OpsContext,
+@router.get("/shops/{shop_id}/view/runs")
+async def ops_view_runs(
     shop_id: uuid.UUID,
-    action: str,
-    after: dict[str, Any],
-) -> None:
-    await audit.record(
-        session, ctx.staff.actor, action, shop_id=shop_id, after=after, for_seller=True
-    )
-    await session.commit()
-
-
-@router.post("/shops/{shop_id}/act/decisions/{action_card_id}/approve", status_code=202)
-async def ops_act_approve(
-    shop_id: uuid.UUID,
-    action_card_id: uuid.UUID,
-    ctx: OpsContext = Depends(operator),
+    limit: int = Query(default=100, ge=1, le=1000),
+    ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> Any:
-    shop, owner = await _act_scope(session, shop_id, ctx)
-    result = await demo_execution.approve_demo_decision(
-        action_card_id=action_card_id, shop=shop, user=owner, session=session
-    )
-    await _audit_act(session, ctx, shop_id, "act_approve", {"action_card_id": str(action_card_id)})
-    return result
+    shop = await _view_shop(session, shop_id)
+    return await agent_runs.list_demo_runs(shop=shop, session=session, limit=limit)
 
 
-@router.post("/shops/{shop_id}/act/decisions/{action_card_id}/reject")
-async def ops_act_reject(
+@router.get("/shops/{shop_id}/view/runs/{run_id}")
+async def ops_view_run(
     shop_id: uuid.UUID,
-    action_card_id: uuid.UUID,
-    body: SellerReasonRequest,
-    ctx: OpsContext = Depends(operator),
+    run_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> Any:
-    shop, owner = await _act_scope(session, shop_id, ctx)
-    result = await demo_execution.reject_demo_decision(
-        action_card_id=action_card_id, body=body, shop=shop, user=owner, session=session
-    )
-    await _audit_act(
-        session,
-        ctx,
-        shop_id,
-        "act_reject",
-        {"action_card_id": str(action_card_id), "reason_code": body.reason_code},
-    )
-    return result
+    shop = await _view_shop(session, shop_id)
+    return await demo_run_flows.get_demo_run(run_id=run_id, shop=shop, session=session)
 
 
-@router.put("/shops/{shop_id}/act/rules/{rule_key}")
-async def ops_act_put_rule(
+@router.get("/shops/{shop_id}/view/runs/{run_id}/changes")
+async def ops_view_run_changes(
     shop_id: uuid.UUID,
-    rule_key: str,
-    body: demo_rules.RuleWriteRequest,
-    ctx: OpsContext = Depends(operator),
+    run_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> Any:
-    shop, owner = await _act_scope(session, shop_id, ctx)
-    team_body = body.model_copy(update={"set_by": "team"})
-    result = await demo_rules.put_shop_rule(
-        rule_key=rule_key, body=team_body, shop=shop, user=owner, session=session
-    )
-    await _audit_act(
-        session,
-        ctx,
-        shop_id,
-        "act_rule_set",
-        {"rule_key": rule_key, "scope_ref": body.scope_ref, "value": body.value},
-    )
-    return result
+    shop = await _view_shop(session, shop_id)
+    return await demo_run_changes.get_run_changes(run_id=run_id, shop=shop, session=session)
 
 
-@router.delete("/shops/{shop_id}/act/rules/{rule_key}", status_code=204)
-async def ops_act_delete_rule(
+@router.get("/shops/{shop_id}/view/runs/{run_id}/instructions")
+async def ops_view_run_instructions(
     shop_id: uuid.UUID,
-    rule_key: str,
-    scope_ref: str | None = Query(default=None),
-    ctx: OpsContext = Depends(operator),
+    run_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
+) -> Any:
+    shop = await _view_shop(session, shop_id)
+    return await demo_run_flows.get_run_instructions(run_id=run_id, shop=shop, session=session)
+
+
+@router.get("/shops/{shop_id}/view/runs/{run_id}/measurement")
+async def ops_view_run_measurement(
+    shop_id: uuid.UUID,
+    run_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    shop = await _view_shop(session, shop_id)
+    return await demo_run_flows.get_run_measurement(run_id=run_id, shop=shop, session=session)
+
+
+@router.get("/shops/{shop_id}/view/revert-questions")
+async def ops_view_revert_questions(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    shop = await _view_shop(session, shop_id)
+    return await demo_run_changes.list_revert_questions(shop=shop, session=session)
+
+
+@router.api_route(
+    "/shops/{shop_id}/view/{rest:path}",
+    methods=["POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+)
+async def ops_view_refuses_writes(
+    shop_id: uuid.UUID, rest: str, ctx: OpsContext = Depends(viewer)
 ) -> Response:
-    shop, _ = await _act_scope(session, shop_id, ctx)
-    result = await demo_rules.delete_shop_rule(
-        rule_key=rule_key, scope_ref=scope_ref, shop=shop, session=session
-    )
-    await _audit_act(
-        session, ctx, shop_id, "act_rule_unset", {"rule_key": rule_key, "scope_ref": scope_ref}
-    )
-    return result
+    """D25.3 (amended): "Xem như shop" never writes. Every non-GET is a 403."""
+    logger.warning("ops_view_write_refused", extra={"staff_id": str(ctx.staff.id), "path": rest})
+    raise HTTPException(status_code=403, detail="Xem như shop chỉ xem, không ghi được")
+
+
+# -- "Huỷ kết nối" (D25.13, Admin only) ------------------------------------------------------
+
+
+class DisconnectWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str
+    confirm_name: str
+
+
+@router.post("/shops/{shop_id}/disconnect")
+async def ops_disconnect_shop(
+    shop_id: uuid.UUID,
+    body: DisconnectWrite,
+    ctx: OpsContext = Depends(admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Revoke Juli's stored authorization, stop polling / cards, cancel pending runs.
+
+    Idempotent: a second call changes nothing and says ``already_disconnected``.
+    Audited with the reason. History, rules and measurements are kept.
+    """
+    listing = await _shop(session, shop_id)
+    try:
+        result = await disconnect.disconnect_shop(
+            session, ctx.staff.actor, listing, reason=body.reason, confirm_name=body.confirm_name
+        )
+    except disconnect.DisconnectError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    await session.commit()
+    return {"data": result.to_json()}
 
 
 # -- "Mô phỏng" (D25.10, D25.11) ------------------------------------------------------------

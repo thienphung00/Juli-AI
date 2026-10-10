@@ -22,6 +22,8 @@ WHAT IT ADDS.
 - ``users.staff_access_consent_at`` (D25.6): when the seller accepted staff
   access "to support and operate the service" on the connect-shop screen.
   ``juli_app`` may UPDATE that one column (its own row, by the existing policy).
+- There is NO act-for-seller state (D25.3 amended 2026-10-10: "Xem như shop"
+  is always read-only; staff change a shop only through these overrides).
 - Three SECURITY DEFINER functions (ADR-089 shape: fixed SQL, ``out_`` columns,
   EXECUTE revoked from PUBLIC):
   * ``ops_current_shop_overrides()`` -- the override row of
@@ -144,8 +146,6 @@ def _create_tables() -> None:
         sa.Column("promotion_api_enabled", sa.Boolean(), nullable=True),
         sa.Column("openai_model", sa.String(length=64), nullable=True),
         sa.Column("openai_monthly_cap_usd", sa.Numeric(10, 2), nullable=True),
-        sa.Column("team_may_act", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("seller_consent_at", sa.DateTime(), nullable=True),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("shop_id", name="pk_ops_shop_settings"),
         sa.ForeignKeyConstraint(["shop_id"], ["shops.id"], name="fk_ops_shop_settings_shop"),
@@ -249,16 +249,14 @@ def _create_functions() -> None:
         out_content_cards_enabled boolean,
         out_promotion_api_enabled boolean,
         out_openai_model varchar,
-        out_openai_monthly_cap_usd numeric,
-        out_team_may_act boolean,
-        out_seller_consent_at timestamp
+        out_openai_monthly_cap_usd numeric
     )
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public
     AS $fn$
         SELECT s.shop_id, s.stage, s.card_daily_limit, s.card_weekly_limit,
                s.card_open_limit, s.enabled_streams, s.enabled_actions,
                s.content_cards_enabled, s.promotion_api_enabled, s.openai_model,
-               s.openai_monthly_cap_usd, s.team_may_act, s.seller_consent_at
+               s.openai_monthly_cap_usd
         FROM public.ops_shop_settings s
         WHERE s.shop_id = public.app_current_shop_id()
     $fn$;

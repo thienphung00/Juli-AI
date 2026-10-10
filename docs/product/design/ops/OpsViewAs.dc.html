@@ -19,14 +19,11 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <div role="status" style="display: flex; align-items: center; gap: 14px; background: {{bannerBg}}; color: #ffffff; padding: 0 24px; min-height: 52px; font-size: 14px">
 <b>{{bannerText}}</b>
 <span style="opacity: 0.85">Phiên xem được ghi nhật ký · không hiện dữ liệu người mua</span>
-<div style="margin-left: auto; display: flex; gap: 8px; align-items: center">
-<button type="button" onClick="{{toggleAct}}" disabled="{{actDisabled}}" style="font: inherit; font-size: 13px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 0; border-radius: 8px; min-height: 36px; padding: 0 12px; cursor: pointer">{{actLabel}}</button>
-<a href="OpsOverview.dc.html" style="color: #ffffff; font-weight: 600; text-decoration: none; min-height: 36px; display: inline-flex; align-items: center">Thoát</a>
-</div>
+<a href="OpsOverview.dc.html" style="margin-left: auto; color: #ffffff; font-weight: 600; text-decoration: none; min-height: 36px; display: inline-flex; align-items: center">Thoát</a>
 </div>
 <div style="display: flex; flex: 1; min-height: 0">
 <nav aria-label="Seller" style="width: 104px; border-right: 1px solid #f1e6eb; background: #ffffff; display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 18px; font-size: 12px; color: #4a4a55">
-<b style="font-size: 20px; color: #1a1a1f">Juli.</b><span>Trang chủ</span><span style="color: #b0386a; font-weight: 700">Quyết định</span><span>Phân tích</span><span>Juli</span>
+<b style="font-size: 20px; color: #1a1a1f">Juli.</b><a href="PtProduct.dc.html" style="color: #4a4a55; text-decoration: none">Trang chủ</a><span style="color: #b0386a; font-weight: 700">Quyết định</span><a href="PtProduct.dc.html" style="color: #4a4a55; text-decoration: none">Phân tích</a><span>Juli</span><a href="OpsShopSettings.dc.html" style="color: #4a4a55; text-decoration: none">Quy tắc</a>
 </nav>
 <main style="flex: 1; padding: 22px 28px; display: flex; flex-direction: column; gap: 14px">
 <div style="display: flex; align-items: center; gap: 12px"><span style="width: 44px; height: 44px; border-radius: 12px; background: #f3a9c8; display: inline-flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 700">MT</span><span style="display: flex; flex-direction: column"><b style="font-size: 17px">Mỹ phẩm Thảo Nhi</b><span style="font-size: 12px; color: #5f5f6b">TikTok Shop · Thử nghiệm</span></span></div>
@@ -47,23 +44,15 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
 class Component extends DCLogic {
-constructor(props) {
-super(props);
-this.state = { act: false, consent: true };
-}
 renderVals() {
-const act = this.state.act;
 return {
-bannerBg: act ? '#a3222f' : '#1a1a1f',
-bannerText: act ? 'Đang làm thay Mỹ phẩm Thảo Nhi · mọi thao tác được ghi nhật ký' : 'Đang xem như Mỹ phẩm Thảo Nhi · chỉ xem',
-actLabel: act ? 'Về chỉ xem' : 'Làm thay seller',
-actDisabled: !this.state.consent,
-toggleAct: () => this.setState({ act: !act }),
-writeDisabled: !act,
-writeTitle: act ? '' : 'Chỉ xem: bật "Làm thay seller" để thao tác',
-approveStyle: act ? 'background: #c2306d; cursor: pointer' : 'background: #e7b3c9; cursor: not-allowed',
-rejectStyle: act ? 'cursor: pointer' : 'color: #6b6b76; cursor: not-allowed',
-writeNote: act ? 'Thao tác sẽ ghi "bởi thien.phung (Vận hành) thay seller"' : 'Chỉ xem. Seller đã đồng ý cho đội ngũ làm thay (10/10/2026).'
+bannerBg: '#1a1a1f',
+bannerText: 'Đang xem như Mỹ phẩm Thảo Nhi · chỉ xem, không ghi được',
+writeDisabled: true,
+writeTitle: 'Chế độ xem: không thể thao tác thay seller',
+approveStyle: 'background: #e7b3c9; cursor: not-allowed',
+rejectStyle: 'color: #6b6b76; cursor: not-allowed',
+writeNote: 'Xem được mọi trang của seller (Trang chủ, Quyết định, Phân tích, Juli, Quy tắc, lượt chạy). Mọi nút ghi đều khoá.'
 };
 }
 }

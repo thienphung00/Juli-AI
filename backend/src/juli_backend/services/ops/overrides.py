@@ -111,8 +111,6 @@ class ShopOverrides:
     promotion_api_enabled: bool | None = None
     openai_model: str | None = None
     openai_monthly_cap_usd: Decimal | None = None
-    team_may_act: bool = False
-    seller_consent_at: datetime | None = None
 
 
 DEFAULT_OVERRIDES = ShopOverrides()
@@ -149,8 +147,6 @@ def from_row(row: OpsShopSettings | None) -> ShopOverrides:
             if row.openai_monthly_cap_usd is not None
             else None
         ),
-        team_may_act=bool(row.team_may_act),
-        seller_consent_at=row.seller_consent_at,
     )
 
 
@@ -183,8 +179,6 @@ async def shop_overrides(session: AsyncSession, shop_id: uuid.UUID) -> ShopOverr
         promotion_api_enabled=result["out_promotion_api_enabled"],
         openai_model=result["out_openai_model"],
         openai_monthly_cap_usd=Decimal(str(cap)) if cap is not None else None,
-        team_may_act=bool(result["out_team_may_act"]),
-        seller_consent_at=result["out_seller_consent_at"],
     )
 
 

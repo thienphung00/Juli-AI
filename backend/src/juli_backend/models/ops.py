@@ -116,8 +116,6 @@ class OpsShopSettings(Base):
     promotion_api_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     openai_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     openai_monthly_cap_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
-    team_may_act: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-    seller_consent_at: Mapped[datetime | None] = mapped_column(nullable=True)
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

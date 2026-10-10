@@ -34,6 +34,8 @@ class InviteMail:
 class Mailer(Protocol):
     async def send_invite(self, mail: InviteMail) -> bool: ...
 
+    async def send_notice(self, *, to: str, subject: str, body: str) -> bool: ...
+
 
 def invite_body(mail: InviteMail) -> str:
     keep = (
@@ -73,6 +75,29 @@ class SmtpMailer:
             if self.user:
                 smtp.login(self.user, self.password)
             smtp.send_message(message)
+
+    def _send_plain(self, to: str, subject: str, body: str) -> None:
+        message = EmailMessage()
+        message["From"] = self.sender
+        message["To"] = to
+        message["Subject"] = subject
+        message.set_content(body)
+        with smtplib.SMTP(self.host, self.port, timeout=15) as smtp:
+            smtp.starttls()
+            if self.user:
+                smtp.login(self.user, self.password)
+            smtp.send_message(message)
+
+    async def send_notice(self, *, to: str, subject: str, body: str) -> bool:
+        if not self.configured:
+            logger.info("ops_notice_mail_not_configured")
+            return False
+        try:
+            await asyncio.to_thread(self._send_plain, to, subject, body)
+        except (OSError, smtplib.SMTPException):
+            logger.warning("ops_notice_mail_failed", exc_info=True)
+            return False
+        return True
 
     async def send_invite(self, mail: InviteMail) -> bool:
         if not self.configured:

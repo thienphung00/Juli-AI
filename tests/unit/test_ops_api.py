@@ -222,9 +222,7 @@ async def test_unknown_shop_404(session):
 async def test_overview_lists_shops_with_totals(session):
     owner, shop = await make_tenant(session)
     owner.email = "seller.long.name@gmail.com"
-    session.add(
-        OpsShopSettings(shop_id=shop.id, stage="self", team_may_act=False, openai_monthly_cap_usd=0)
-    )
+    session.add(OpsShopSettings(shop_id=shop.id, stage="self", openai_monthly_cap_usd=0))
     await make_workflow_run(session, shop, status="failed", cost_usd=0.5)
     user = await _staff(session, "viewer")
     async with _client_as(session, user) as client:
@@ -282,70 +280,59 @@ async def test_run_of_another_shop_is_404(session):
 # -- view as / act for seller -------------------------------------------------------------
 
 
-async def test_view_session_is_logged_and_act_needs_flag_and_consent(session):
+async def test_view_session_is_logged_and_read_only(session):
     _, shop = await make_tenant(session)
-    user = await _staff(session, "operator")
+    user = await _staff(session, "admin")
     async with _client_as(session, user) as client:
         view = await client.post(f"/v1/ops/shops/{shop.id}/view-session", json={"mode": "view"})
-        assert view.status_code == 200 and view.json()["act_allowed"] is False
-        assert (
-            await client.post(f"/v1/ops/shops/{shop.id}/view-session", json={"mode": "act"})
-        ).status_code == 403
-        denied = await client.put(
-            f"/v1/ops/shops/{shop.id}/act/rules/max_open_cards",
-            json={"value": 3, "set_by": "seller"},
-        )
-        assert denied.status_code == 403
-        # flag on, no consent → still refused
-        await client.put(
-            f"/v1/ops/shops/{shop.id}/settings", json={"changes": {"team_may_act": True}}
-        )
-        assert (
-            await client.put(
-                f"/v1/ops/shops/{shop.id}/act/rules/max_open_cards",
-                json={"value": 3, "set_by": "seller"},
-            )
-        ).status_code == 403
-        await client.put(
-            f"/v1/ops/shops/{shop.id}/settings", json={"changes": {"seller_consented": True}}
-        )
+        assert view.status_code == 200 and view.json()["read_only"] is True
+        # there is no act mode any more (D25.3 amended)
         act = await client.post(f"/v1/ops/shops/{shop.id}/view-session", json={"mode": "act"})
-        assert act.status_code == 200 and act.json()["can_act"] is True
-        ok = await client.put(
-            f"/v1/ops/shops/{shop.id}/act/rules/max_open_cards",
-            json={"value": 3, "set_by": "seller"},
-        )
-        assert ok.status_code == 200, ok.text
+        assert act.status_code == 422
     assert await _audit_count(session, "view_as_view") == 1
-    assert await _audit_count(session, "view_as_act") == 1
-    entry = (
-        (await session.execute(select(OpsAuditLog).where(OpsAuditLog.action == "act_rule_set")))
-        .scalars()
-        .one()
-    )
-    assert entry.for_seller is True
-    rule = (
-        (await session.execute(select(ShopRule).where(ShopRule.shop_id == shop.id))).scalars().one()
-    )
-    assert rule.set_by == "team"
 
 
-async def test_viewer_cannot_act_even_with_consent(session):
+@pytest.mark.parametrize(
+    ("method", "tail"),
+    [
+        ("post", "decisions/c1/approve"),
+        ("post", "decisions/c1/reject"),
+        ("put", "rules/max_open_cards"),
+        ("delete", "rules/max_open_cards"),
+        ("post", "runs/r1/confirmations/call-1"),
+        ("patch", "anything"),
+        ("post", "decisions"),
+    ],
+)
+async def test_view_as_refuses_every_write_even_for_admin(session, method, tail):
     _, shop = await make_tenant(session)
-    session.add(
-        OpsShopSettings(
-            shop_id=shop.id,
-            stage="trial",
-            team_may_act=True,
-            seller_consent_at=datetime(2026, 10, 10),
-        )
-    )
+    user = await _staff(session, "admin")
+    async with _client_as(session, user) as client:
+        kwargs = {"json": {}} if method != "delete" else {}
+        response = await getattr(client, method)(f"/v1/ops/shops/{shop.id}/view/{tail}", **kwargs)
+    assert response.status_code == 403
+    rules = (await session.execute(select(func.count()).select_from(ShopRule))).scalar_one()
+    assert rules == 0
+
+
+def test_no_act_routes_and_view_is_get_only():
+    from juli_backend.api.app import create_app
+
+    paths = create_app().openapi()["paths"]
+    assert not [p for p in paths if p.startswith("/v1/ops/") and "/act/" in p]
+    for path, ops in paths.items():
+        if path.startswith("/v1/ops/shops/{shop_id}/view/"):
+            assert set(ops) == {"get"}, path
+
+
+async def test_view_runs_mirror_the_seller_list(session):
+    _, shop = await make_tenant(session)
+    await make_workflow_run(session, shop)
     user = await _staff(session, "viewer")
     async with _client_as(session, user) as client:
-        response = await client.put(
-            f"/v1/ops/shops/{shop.id}/act/rules/max_open_cards", json={"value": 3, "set_by": "team"}
-        )
-    assert response.status_code == 403
+        response = await client.get(f"/v1/ops/shops/{shop.id}/view/runs")
+    assert response.status_code == 200, response.text
+    assert len(response.json()["data"]) == 1
 
 
 async def test_view_analysis_is_the_seller_payload_without_ops_only_keys(session):
@@ -484,8 +471,10 @@ async def test_invite_and_accept_moves_the_shop_and_keeps_ops_access(session, fa
         await session.execute(select(WorkflowRun.shop_id).where(WorkflowRun.id == run_id))
     ).scalar_one()
     assert run_shop == shop_id  # history kept
-    settings = await session.get(OpsShopSettings, shop_id)
-    assert settings.team_may_act is True and settings.seller_consent_at is not None
+    from juli_backend.models.ops import OpsShopInvite
+
+    invite = (await session.execute(select(OpsShopInvite))).scalars().one()
+    assert invite.seller_kept_ops_access is True
     assert await _audit_count(session, "invite_create") == 1
     assert await _audit_count(session, "invite_accept") == 1
 
@@ -507,8 +496,6 @@ async def test_seller_can_decline_ops_access_and_expired_invite_fails(session, f
             "/v1/shop-invites/accept", json={"token": token, "keep_ops_access": False}
         )
     assert ok.json()["data"]["kept_ops_access"] is False
-    settings = await session.get(OpsShopSettings, shop.id)
-    assert settings.team_may_act is False and settings.seller_consent_at is None
 
     async with _client_as(session, staff_user) as client:
         second = await client.post(

@@ -30,7 +30,7 @@ OVERRIDE_FIELDS: tuple[str, ...] = (
     "openai_monthly_cap_usd",
 )
 #: Other settable fields (not "overrides": they have no default to return to).
-OTHER_FIELDS: tuple[str, ...] = ("stage", "team_may_act", "seller_consented")
+OTHER_FIELDS: tuple[str, ...] = ("stage",)
 LIMIT_RANGE = (1, 100)
 CAP_RANGE = (Decimal("0"), Decimal("1000"))
 
@@ -45,8 +45,6 @@ class ShopSettingsView:
     stage: str
     overrides: dict[str, Any]
     defaults: dict[str, Any]
-    team_may_act: bool
-    seller_consent_at: datetime | None
     updated_at: datetime | None
 
     def to_json(self) -> dict[str, Any]:
@@ -56,11 +54,6 @@ class ShopSettingsView:
             "stage_label": STAGE_LABELS.get(self.stage, self.stage),
             "overrides": self.overrides,
             "defaults": self.defaults,
-            "team_may_act": self.team_may_act,
-            "seller_consent_at": self.seller_consent_at.isoformat()
-            if self.seller_consent_at
-            else None,
-            "act_allowed": self.team_may_act and self.seller_consent_at is not None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "options": {
                 "stages": [{"id": s, "label": STAGE_LABELS[s]} for s in STAGES],
@@ -102,8 +95,6 @@ def _view(shop_id: uuid.UUID, row: OpsShopSettings | None) -> ShopSettingsView:
         stage=row.stage if row is not None else "trial",
         overrides={name: _value(row, name) for name in OVERRIDE_FIELDS},
         defaults=defaults(),
-        team_may_act=bool(row.team_may_act) if row is not None else False,
-        seller_consent_at=row.seller_consent_at if row is not None else None,
         updated_at=row.updated_at if row is not None else None,
     )
 
@@ -112,9 +103,7 @@ def snapshot(row: OpsShopSettings | None) -> dict[str, Any]:
     """The audit's before/after picture of a row."""
     if row is None:
         return {}
-    data = {name: _value(row, name) for name in (*OVERRIDE_FIELDS, "stage", "team_may_act")}
-    data["seller_consent_at"] = row.seller_consent_at.isoformat() if row.seller_consent_at else None
-    return data
+    return {name: _value(row, name) for name in (*OVERRIDE_FIELDS, "stage")}
 
 
 async def get_settings(session: AsyncSession, shop_id: uuid.UUID) -> ShopSettingsView:
@@ -200,27 +189,17 @@ async def update_settings(
     stage = changes.get("stage")
     if "stage" in changes and stage not in STAGES:
         raise SettingsError(f"stage must be one of {', '.join(STAGES)}")
-    may_act = changes.get("team_may_act")
-    if "team_may_act" in changes and not isinstance(may_act, bool):
-        raise SettingsError("team_may_act must be true or false")
-    consented = changes.get("seller_consented")
-    if "seller_consented" in changes and not isinstance(consented, bool):
-        raise SettingsError("seller_consented must be true or false")
     moment = now or utc_now_naive()
     async with ops_role(session):
         row = await session.get(OpsShopSettings, shop_id)
         before = snapshot(row)
         if row is None:
-            row = OpsShopSettings(shop_id=shop_id, stage="trial", team_may_act=False)
+            row = OpsShopSettings(shop_id=shop_id, stage="trial")
             session.add(row)
         for name, value in clean.items():
             setattr(row, name, value)
         if isinstance(stage, str):
             row.stage = stage
-        if isinstance(may_act, bool):
-            row.team_may_act = may_act
-        if "seller_consented" in changes:
-            row.seller_consent_at = moment if consented else None
         row.updated_at = moment
         after = snapshot(row)
     await audit.record(session, actor, action, shop_id=shop_id, before=before, after=after)

@@ -61,7 +61,7 @@ def _card(shop_id, priority: int, lever: str = "title", key: str = "optimize_pro
 
 
 async def _settings(session, shop_id, **values):
-    session.add(OpsShopSettings(shop_id=shop_id, stage="trial", team_may_act=False, **values))
+    session.add(OpsShopSettings(shop_id=shop_id, stage="trial", **values))
     await session.flush()
 
 

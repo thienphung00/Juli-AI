@@ -93,16 +93,15 @@ set('Hành động bật', '7/7 + nội dung', 'Ví dụ tắt Flash sale nếu 
 set('Thẻ nội dung (Video/LIVE)', 'Bật', 'Juli soạn · bạn làm', false),
 set('API khuyến mãi', 'Tắt', 'Juli tự tạo khuyến mãi sau khi seller đồng ý', false),
 set('Model OpenAI', 'gpt-5.4-nano', 'Vòng gọi tool và soạn nội dung', false),
-set('Trần chi phí OpenAI', '$5 / tháng', 'Vượt trần: dừng soạn mới, báo đội ngũ', true),
-set('Đội ngũ được làm thay', 'Có · seller đồng ý 10/10', 'Duyệt thẻ, nhập Quy tắc thay seller', true)
+set('Trần chi phí OpenAI', '$5 / tháng', 'Vượt trần: dừng soạn mới, báo đội ngũ', true)
 ],
 ownerText: this.state.invited ? 'Đã gửi lời mời tới thaonhi@gmail.com · chờ seller đăng nhập và nhận shop.' : 'Shop do đội ngũ kết nối (tài khoản ops@app-juli.com). Chưa bàn giao.',
 showInvite: !this.state.invited,
 invite: () => this.setState({ invited: true }),
 log: [
 { t: '10/10 09:12', who: 'thien.phung', what: 'đặt trần chi phí OpenAI $5/tháng' },
-{ t: '10/10 08:40', who: 'thien.phung', what: 'mở Xem như shop (chỉ xem, 6 phút)' },
-{ t: '09/10 16:05', who: 'minh.le', what: 'nhập Quy tắc: giá vốn 14 SKU (làm thay seller)' },
+{ t: '10/10 08:40', who: 'thien.phung', what: 'mở Xem như shop (6 phút)' },
+{ t: '09/10 16:05', who: 'minh.le', what: 'đổi giới hạn thẻ: 3 thẻ mới/ngày' },
 { t: '09/10 15:30', who: 'minh.le', what: 'chuyển giai đoạn: Thử nghiệm' },
 { t: '09/10 15:22', who: 'hệ thống', what: 'kết nối TikTok Shop thành công' }
 ]
