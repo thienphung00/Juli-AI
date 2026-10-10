@@ -61,21 +61,14 @@ OUTCOME_SKIPPED = "skipped"
 
 
 def production_collaborators() -> Any:
-    from juli_backend.services.content_analysis.config import settings
-    from juli_backend.services.content_analysis.openai_media import (
-        OpenAITranscriber,
-        OpenAIVision,
-    )
-    from juli_backend.services.content_analysis.pipeline import Collaborators
-    from juli_backend.services.content_analysis.product_info import TikTokProductReader
-    from juli_backend.services.content_analysis.scoring import OpenAIScorer
+    from juli_backend.services import content_analysis as ca
 
-    conf = settings()
-    return Collaborators(
-        transcriber=OpenAITranscriber(conf.asr_model),
-        vision=OpenAIVision(conf.vision_model),
-        scorer=OpenAIScorer(conf.scoring_model),
-        product_reader=TikTokProductReader(),
+    conf = ca.settings()
+    return ca.Collaborators(
+        transcriber=ca.OpenAITranscriber(conf.asr_model),
+        vision=ca.OpenAIVision(conf.vision_model),
+        scorer=ca.OpenAIScorer(conf.scoring_model),
+        product_reader=ca.TikTokProductReader(),
     )
 
 
@@ -104,12 +97,10 @@ async def run_analysis(
     """Task body (module docstring). Returns the outcome."""
     from juli_backend.database.tenant_context import with_sticky_shop_scope
     from juli_backend.models.content_analysis import ContentAnalysis
-    from juli_backend.services.content_analysis import costs, pipeline
-    from juli_backend.services.content_analysis.config import settings
-    from juli_backend.services.content_analysis.openai_media import ProviderError
-    from juli_backend.services.content_cards.driver import load_rules
+    from juli_backend.services import content_analysis as ca
 
-    conf = conf or settings()
+    costs, pipeline, ProviderError = ca.costs, ca.pipeline, ca.ProviderError
+    conf = conf or ca.settings()
     token = lock.try_acquire(shop_id, LOCK_NAME, ttl_seconds=LOCK_TTL_SECONDS)
     if token is None:
         logger.info("content_analysis_locked", extra={"shop_id": shop_id})
@@ -130,7 +121,7 @@ async def run_analysis(
                 row.error_code = None
                 row.error_message = None
                 await session.commit()
-                rules = await load_rules(session, shop_uuid, discount_cap_pct=None)
+                rules = await ca.seller_rules(session, shop_uuid)
                 try:
                     await pipeline.analyze(
                         session, row, collab=collaborators(), conf=conf, rules=rules
@@ -214,10 +205,9 @@ def analyze_content_upload(self: Any, analysis_id: str, shop_id: str) -> str:
 
 @celery_app.task(name=SWEEP_TASK)
 def content_analysis_sweep() -> int:
-    from juli_backend.services.content_analysis import storage
-    from juli_backend.services.content_analysis.config import settings
+    from juli_backend.services import content_analysis as ca
 
-    removed = storage.sweep(settings())
+    removed = ca.storage.sweep(ca.settings())
     logger.info("content_analysis_sweep", extra={"removed": removed})
     return removed
 

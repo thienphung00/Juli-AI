@@ -36,9 +36,7 @@ from juli_backend.api.dependencies import get_active_shop
 from juli_backend.api.routes import demo_run_flows as _flows
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
-from juli_backend.services.content_analysis import storage, uploads
-from juli_backend.services.content_analysis.config import settings
-from juli_backend.services.content_analysis.pipeline import STATUS_QUEUED
+from juli_backend.services.content_analysis import STATUS_QUEUED, settings, storage, uploads
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +62,9 @@ def _refused(exc: uploads.UploadRefused) -> HTTPException:
 
 def _enqueue(analysis_id: uuid.UUID, shop_id: uuid.UUID) -> str | None:
     """Imported lazily so Celery is not a route import."""
-    from juli_backend.workers.tasks.content_analysis import enqueue_analysis
+    from juli_backend.workers.tasks import content_analysis as content_analysis_tasks
 
-    return enqueue_analysis(analysis_id, shop_id)
+    return content_analysis_tasks.enqueue_analysis(analysis_id, shop_id)
 
 
 @router.post("/content-analysis", status_code=status.HTTP_201_CREATED)
