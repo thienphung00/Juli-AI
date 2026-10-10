@@ -785,6 +785,11 @@ def test_the_users_update_grant_is_column_scoped():
     checks an UPDATE's whole column list, so a grant missing `updated_at`
     denies the statement outright -- measured as `InsufficientPrivilegeError:
     permission denied for table users` before it was added.
+
+    Fast track P16 (`083_ops_console`, D25.6) adds one more column on purpose:
+    `staff_access_consent_at`, which `repositories/identity.py` stamps on the
+    caller's own row when the seller accepts the staff-access sentence at
+    connect. `id` and `phone` stay unwritable.
     """
     with owner_sync_engine() as engine:
         table_level = {
@@ -796,10 +801,10 @@ def test_the_users_update_grant_is_column_scoped():
         "juli_app holds a TABLE-level UPDATE on public.users; migration 065 "
         "grants it per column on purpose, so `id` and `phone` stay unwritable"
     )
-    assert columns == {"email", "display_name", "updated_at"}, (
+    assert columns == {"email", "display_name", "updated_at", "staff_access_consent_at"}, (
         f"the column-scoped UPDATE on public.users is {sorted(columns)}; it must "
-        "be exactly the backfill's two columns plus the `updated_at` SQLAlchemy "
-        "writes unasked"
+        "be exactly the backfill's two columns, the `updated_at` SQLAlchemy "
+        "writes unasked, and P16's staff-access consent stamp"
     )
 
 
