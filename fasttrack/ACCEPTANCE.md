@@ -307,3 +307,78 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   `apps/demo/src/components/__tests__/quyet-dinh-content.test.tsx` (11),
   `e2e/decisions/quyet-dinh-content.spec.ts` (desktop + mobile, zero `/v1` requests).
 
+## P17 — onboarding speed (D26, D25.12; contract `contracts/p17-onboarding-speed.md`)
+
+- [x] **AC-17.1** Quick scan beside the fast phase: `bootstrap_shop` enqueues
+  `shop_quick_scan` on `ingest_priority` once (marker) before the fast phase; the scan
+  takes its own `quick_scan` lock (never `cycle`), reads A-34 for the last 14 local days
+  (≤ 2 pages) + one diagnoses call for the top 10 by GMV (+ Get Product only for a chosen
+  product the catalog lacks), and selects 1–3 cover-image / title / description proposals
+  backed by a TikTok code (decision 4 on 14 days, median trigger), priced by D22 on the 14
+  days; no LLM. — evidence: `tests/unit/test_onboarding_speed.py`
+  (`test_the_scan_window_is_the_last_fourteen_full_local_days`,
+  `test_only_cover_title_description_backed_by_a_tiktok_code_become_quick_cards`,
+  `test_a_product_not_asked_or_without_a_code_gets_no_quick_card`,
+  `test_the_d22_estimate_on_fourteen_days_prices_extra_clicks_through_ctor`,
+  `test_max_cards_is_one_to_three`, `test_bootstrap_enqueues_the_quick_scan_once_before_the_fast_phase`,
+  `test_the_quick_scan_task_takes_its_own_lock_not_the_cycle_lock`,
+  `test_the_quick_scan_routes_to_the_priority_queue_and_history_extends_nightly`,
+  `test_a_product_missing_from_the_catalog_gets_a_placeholder_row`,
+  `test_the_scan_runs_once_and_skips_when_full_cards_exist`,
+  `test_a_failing_read_records_failed_and_never_raises`).
+- [x] **AC-17.2** Quick cards take the day-1 Juli slots and are labelled ("Đề xuất nhanh ·
+  dựa trên 14 ngày", "Tham khảo", `expected_impact.confidence = reference`, `gmv_method`
+  14 ngày); the full diagnosis re-scores a same-lever quick card in place (same row,
+  `surfaced_at` kept, TikTok codes reused as evidence, `quick_scan` removed), withdraws one
+  it does not confirm at once, supersedes one whose product gets another lever, and fills
+  the slots the quick cards left. — evidence:
+  `test_quick_cards_take_the_day_one_juli_slots_and_the_full_run_upgrades_them`,
+  `test_full_cards_fill_the_slots_the_quick_cards_left`,
+  `test_a_quick_card_whose_product_gets_another_lever_is_superseded`,
+  `test_the_decisions_endpoint_labels_a_quick_card`.
+- [x] **AC-17.3** `GET /v1/shops/me/onboarding`: three steps (quick scan, 60-day backfill +
+  diagnosis, history) with status / percent / ETA, `active`, label "Juli đang đọc dữ liệu
+  shop · bước N/3", poll 15 s while active, 300 s with only history left, none when done;
+  `history_days_available` / target / remaining / `window_90d_available` (≥ 180 days). —
+  evidence: `test_status_*` (6), `test_history_days_available_is_contiguous_days_stored`,
+  `test_the_onboarding_endpoint_reads_the_shops_state`,
+  `test_the_onboarding_endpoint_needs_a_signed_in_shop`.
+- [x] **AC-17.4** History to 180 days: look-back 180 (docs: no shop-analytics maximum
+  documented; 180 days is the only documented analytics limit — Get Video Performances
+  202403); the post-connect chain stops at 60 days (`connect_window_done`, not re-enqueued,
+  the poll no longer revives it); nightly `shop-history-extend` (19:43 UTC) enqueues one
+  `nightly` run per shop past its fast phase: 2 × 15-day chunks once per local day,
+  resumable from the earliest date, per-shop `history` lock, ends at `max_lookback`. —
+  evidence: `test_the_look_back_defaults_to_180_days`,
+  `test_after_connect_the_chain_stops_at_sixty_days_then_extends_nightly`,
+  `test_the_history_task_parks_at_sixty_days_and_nightly_never_re_enqueues`,
+  `test_the_poll_keeps_only_the_post_connect_chain_alive`,
+  `test_the_nightly_fanout_enqueues_one_run_per_shop_past_its_fast_phase`; existing
+  `TestHistoryPhase` (resume, out-of-range halving, rate-limited chunk) unchanged.
+- [x] **AC-17.5** 429 in the daily diagnosis: `with_backoff` waits 2/4/8/16/32 s (cap 60,
+  jittered, env) then raises `ThrottledError`; `video_windows` then skips the video tables
+  for the cycle (no `posted_in_window` fallback), other tables kept, counter
+  `video_windows_throttled_skips` logged. — evidence: `test_shop_diagnosis_video_windows.py`
+  (`test_backoff_is_exponential_jittered_and_capped`, `test_a_non_throttle_error_is_not_retried`,
+  `test_still_throttled_details_skip_the_video_tables_instead_of_the_fallback`,
+  `test_a_still_throttled_list_also_skips_without_whole_window_reads`,
+  `test_the_job_drops_only_the_video_tables_when_windows_are_skipped`).
+- [x] **AC-17.6** Cost reads: orders of the last 30 days up to 60 per pass per cycle before
+  older ones at 10, the fast tier waiting for the rate-limit window within 600 s and the
+  cycle deadline, a 429 / permission error still stopping at once; env-configurable. —
+  evidence: `test_order_costs.py` (`test_recent_orders_read_up_to_sixty_a_cycle_before_older_ones_at_ten`,
+  `test_the_fast_tier_waits_for_the_window_instead_of_stopping`,
+  `test_the_wait_budget_bounds_the_cycle_and_older_orders_never_wait`,
+  `test_a_429_in_the_fast_tier_still_stops_at_once`, `test_fast_tier_settings_come_from_the_environment`).
+- [x] **AC-17.7** Migration `084_onboarding_speed` (≤ 32 chars, after 081 on this branch,
+  phone cleanup re-parented and last) passes upgrade / downgrade / upgrade on a fresh PG16;
+  as `juli_app`, the quick scan writes only its shop's rows and the onboarding read never
+  sees another shop's state. — evidence: `check.sh --since 09960b20` migrations PASS at 084;
+  `tests/integration/test_onboarding_speed_two_tenant.py` (3).
+- [x] **AC-17.8** Demo: the strip on Trang chủ / Quyết định / Phân tích for a signed-in user
+  with a shop, polling at the server's interval and re-reading Quyết định's cards while
+  active; quiet history note; nothing when done; signed-out / no-shop samples unchanged and
+  make no onboarding request; quick-card chip + "Độ tin cậy: Tham khảo". — evidence:
+  `apps/demo/src/__tests__/onboarding-strip.test.tsx` (15),
+  `quyet-dinh-p10.test.tsx` ("P17: a quick-scan card shows its label chip…", "P17: a full
+  card … shows no quick chip"), `e2e/onboarding/onboarding-strip.spec.ts` (3 × projects).

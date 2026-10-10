@@ -12,6 +12,10 @@ phone-cleanup step stays the tail). It adds five nullable columns to
 
 ## 1. Quick scan (D26)
 
+Code: `services/onboarding/quick_scan.py` (pure selection + `run_quick_scan`),
+`workers/tasks/shop_quick_scan.py` (task). Env: `QUICK_SCAN_ENABLED` (1),
+`QUICK_SCAN_TOP_PRODUCTS` (10), `QUICK_SCAN_MAX_CARDS` (3, clamped 1–3).
+
 Task `juli_backend.shop_quick_scan(shop_id)`, queue **`ingest_priority`**,
 enqueued by `bootstrap_shop` as it starts (de-duplicated by a
 `quick_scan_queued` marker), so it runs **in parallel** with the fast phase
@@ -43,6 +47,14 @@ Selection (pure, `services/onboarding/quick_scan.py`):
 Cards: workflow `optimize_product_2`, subject = the product (same ladder as the
 full pipeline, `emit_optimize_product_cards`), then `apply_emission_budget`, so
 they take the day-1 **Juli** slots (3) and surface at once. No LLM call.
+
+A shop whose `shop_ingestion_state.first_card_at` is set (the full diagnosis
+already wrote cards) is skipped before any TikTok call, and again just before the
+write. The A-34 rows carry no title: titles come from the `products` row, or —
+for a product the catalog does not hold yet — from Get Product, written as a
+placeholder `products` row with `update_time` = 1970-01-01 so the first real
+product sync overwrites every column (`ProductsRepo.upsert` refuses only older
+`update_time`s). Gift / not-on-sale listings are skipped (`exclusion_reason`).
 
 Card payload additions (`recommendation_payload.diagnosis.quick_scan`, allowlisted
 in the masked read):
@@ -171,7 +183,8 @@ Python accessor: `services.onboarding.history_days_available(state)`.
 
 `services/shop_diagnosis_daily/fetch.with_backoff`: on a throttle (HTTP 429,
 TikTok `36009002` / `100005`, "Too many requests") it waits exponentially with
-full jitter — base `SHOP_DIAGNOSIS_BACKOFF_BASE_SECONDS` (2), × 2 per retry,
+jitter (each wait drawn from the upper half of its nominal value) — base
+`SHOP_DIAGNOSIS_BACKOFF_BASE_SECONDS` (2), × 2 per retry,
 capped at `SHOP_DIAGNOSIS_BACKOFF_CAP_SECONDS` (60), `SHOP_DIAGNOSIS_BACKOFF_RETRIES`
 (5) retries — and then raises `ThrottledError`. In `video_windows`, a throttle
 that survives the backoff no longer falls back to whole-window
