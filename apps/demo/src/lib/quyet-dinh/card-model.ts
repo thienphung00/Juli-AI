@@ -73,6 +73,8 @@ export interface CardView {
   readonly changeLabels: readonly string[];
   readonly beforeAfter: readonly BeforeAfterView[];
   readonly gmvMethod: string | null;
+  /** P14-B: rank adjusted by this shop's previous results ("đã điều chỉnh theo kết quả trước"). */
+  readonly adjustedByHistory: boolean;
   readonly leverCode: string | null;
   readonly leverLabel: string | null;
   readonly executor: LeverExecutor;
@@ -164,6 +166,7 @@ function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardV
     changeLabels: card.change_fields.map((field) => field.label),
     beforeAfter: card.before_after.map(beforeAfterView),
     gmvMethod: text(card.gmv_method),
+    adjustedByHistory: card.adjusted_by_history === true,
     leverCode: card.lever.code,
     leverLabel: card.lever.label,
     executor: card.lever.executor,
@@ -201,6 +204,7 @@ function fromDiagnosis(item: P10DecisionItem): CardView {
     changeLabels: leverLabel ? [leverLabel] : [],
     beforeAfter: [],
     gmvMethod: text(diagnosis?.recoverable_gmv_basis?.label),
+    adjustedByHistory: false,
     leverCode: text(diagnosis?.lever?.code),
     leverLabel,
     executor: executorForLever(diagnosis?.lever?.code, item.is_executable),

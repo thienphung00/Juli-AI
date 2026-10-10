@@ -786,3 +786,48 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   clean, vitest 1687/1687, Playwright 147 passed / 140 skipped (port 3319; new
   `e2e/analytics/no-shop-sample.spec.ts` 10/10 across desktop + mobile-web),
   build:demo OK (Playwright webServer build).
+
+## 2026-10-10 — P14 agent (Claude Opus) — card limits, learning from history, "Hành động"
+
+- Branch `fasttrack/p14-cards` from a1e6767e. No migration.
+- **P14-A (D24.17).** `DecisionEmissionConfig` is now `daily_new_cap` 5 /
+  `weekly_new_cap` 25 / `max_open` 30 / `validity_days` 7 / `min_stay_days` 3 /
+  `cooldown_days` 7 / `first_day_mix` (juli 3, seller_center 1, content 1), each
+  with a `CDP_DECISION_EMISSION_*` override; the old `max_active` / weekly novelty /
+  per-workflow cap are gone. `apply_emission_budget`: expires surfaced cards at 7 days
+  (`status = "expired"`, `metadata_json.expired_at`), keeps the others with their
+  original `surfaced_at` (no more re-stamping), surfaces drafts up to
+  min(daily, weekly, open) room in shop time (UTC+7); first connect uses the executor
+  mix. Counts read the novelty ledger, now one row per surfacing. Campaign-plan and
+  content hooks: `CAMPAIGN_PLAN_WORKFLOW_KEYS`, `CONTENT_WORKFLOW_KEYS` /
+  payload `executor_type`. Optimize Product: top 30; open card with an unchanged
+  diagnosis re-scored in place; expired card → same lever returns 7 days after expiry
+  (`expired_cooldown`), another lever at once; `withdraw_unranked_cards` keeps a
+  surfaced card ≥ 3 days unless `invalid_reason` (title edited outside Juli, not on
+  sale, stock 0, metric at target). `persist` (legacy workflows) gives expired cards
+  the same 7-day return. Card block: `expired` status, validity 7 days from
+  surfacing. Rejected / declined / reverted: existing P10-A cooldown already matches
+  (7 days, every time, no escalation) — kept its > 20 % early lift.
+- **P14-B (D24.6).** `LeverHistory`: factor = coefficient ÷ 0.5 clamped [0.25, 2];
+  `decision_reasons.reason_penalty` = max(0.4, 1 − 0.2 × Σ fade over 60 days),
+  circumstantial codes excluded; `measurement.shop_calibrations`. Ranking sorts on
+  recoverable × factor × penalty; shown GMV and measurement unchanged. Payload
+  `adjusted_by_history` + `diagnosis.history_adjustment`; API card block and UI line
+  "Thứ tự đề xuất đã điều chỉnh theo kết quả trước của shop." Formula in DECISIONS
+  D24 notes.
+- **P14-D.** "Đòn bẩy được tự thực thi" → "Hành động được tự thực thi" (rules label;
+  allow-listed in `destination-naming.test.ts`), canvas title "(7 hành động)",
+  ADR-109 UI copy. Internal `shop_report.py` HTML left (DEBT).
+- Tests: new `tests/unit/test_p14_card_limits.py` (18: 14-day simulation, mix,
+  shop day, campaign hook, seller rule, expiry return ×2, no escalation, 3-day stay,
+  invalid ×3, in-place re-score, calibration/penalty math and ordering); existing
+  emission / optimize / API / CDP tests updated to the new limits.
+- Verification: action_cards / optimize_product / lever_flows / decision_reasons /
+  demo_decisions suites 455 passed, 20 skipped; wider `tests/unit` + integration
+  subset importing these modules 2541 passed, 11 failed — all pre-existing or
+  environmental (9 fail identically on a1e6767e: agent workflow wiring, cross-tenant
+  probe, CI-yaml guard; credentials-in-URL guard only times out at 30 s, passes
+  without the timeout). mypy clean (45 files), ruff clean. Demo (Node 20): lint 0
+  errors (7 pre-existing warnings), type-check clean, vitest 1690/1690.
+  `fasttrack/check.sh --since a1e6767e` (docker PG16): migrations PASS (head 080),
+  isolation 12 passed, gitleaks PASS, ruff PASS, pytest 139 passed.

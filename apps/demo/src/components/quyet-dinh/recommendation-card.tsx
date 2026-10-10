@@ -97,6 +97,11 @@ function MoreSection({ card }: { readonly card: CardView }) {
       {card.gmvMethod ? (
         <div className="qv-more__method">GMV dự kiến tính theo cách của TikTok: {withStop(card.gmvMethod)}</div>
       ) : null}
+      {card.adjustedByHistory ? (
+        <div className="qv-more__method" data-testid="adjusted-by-history">
+          Thứ tự đề xuất đã điều chỉnh theo kết quả trước của shop.
+        </div>
+      ) : null}
     </section>
   );
 }

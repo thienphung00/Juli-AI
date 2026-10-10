@@ -600,7 +600,7 @@ async def test_integration_compute_scoring_persist_emission_filter_get_reflects_
 ):
     workflows = [
         (f"wf_integration_{i}", f"Workflow {i}", i) for i in range(1, 8)
-    ]  # 7 candidates, default max_active=5
+    ]  # 7 candidates, D24.17 default: 5 new a day
     result = _scoring_result(shop.id, workflows=workflows)
 
     cards = await persist_scoring_result(session, shop.id, result)
@@ -609,7 +609,7 @@ async def test_integration_compute_scoring_persist_emission_filter_get_reflects_
     await session.commit()
 
     assert len(outcome.surfaced) == 5
-    assert len(outcome.suppressed["active_cap"]) == 2
+    assert len(outcome.suppressed["daily_cap"]) == 2
 
     resp = await demo_client.get("/v1/demo/decisions")
 
@@ -619,7 +619,7 @@ async def test_integration_compute_scoring_persist_emission_filter_get_reflects_
     assert returned_ids == {str(card.id) for card in outcome.surfaced}
     assert len(body["data"]) == 5
 
-    suppressed_ids = {card.id for card in outcome.suppressed["active_cap"]}
+    suppressed_ids = {card.id for card in outcome.suppressed["daily_cap"]}
     for card_id in suppressed_ids:
         detail = await demo_client.get(f"/v1/demo/decisions/{card_id}")
         assert detail.status_code == 404

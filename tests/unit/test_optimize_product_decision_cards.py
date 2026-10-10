@@ -1,9 +1,10 @@
 """Optimize Product cards from the ADR-106 pipeline on P1 data (fasttrack P7-B).
 
 AC-7.3: the whole catalog is scored per shop from the daily per-product
-analytics P1 stores; the top 10 are ranked, one card per product, at most 5
-surfaced; each card carries the diagnosed stage, the lever and the funnel
-evidence (TikTok's KPI names, 30 days vs the 30 before) in ``/v1/demo/decisions``.
+analytics P1 stores; the top 30 (D24.17; was 10) are ranked, one card per
+product, at most 5 surfaced on the first day (D24.17 limits); each card
+carries the diagnosed stage, the lever and the funnel evidence (TikTok's KPI
+names, 30 days vs the 30 before) in ``/v1/demo/decisions``.
 Two shops never see each other's cards. D22: the ranking is recoverable GMV per
 day, labelled a rule-based estimate.
 
@@ -272,7 +273,7 @@ async def shop_a(session):
 
 
 @pytest.mark.asyncio
-async def test_whole_catalog_is_scored_and_the_top_ten_ranked(session, shop_a):
+async def test_whole_catalog_is_scored_and_the_top_thirty_ranked(session, shop_a):
     op = await plan_optimize_product_cards(session, shop_a.id, now=COMPUTED_AT)
 
     assert op is not None
@@ -280,8 +281,8 @@ async def test_whole_catalog_is_scored_and_the_top_ten_ranked(session, shop_a):
     plan = op.plan
     assert plan.products_scored == len(CATALOG) + 1  # every listing with analytics
     assert any("quà tặng" in reason for reason in plan.excluded.values())
-    assert [p.rank for p in plan.proposals] == list(range(1, 11))
-    assert plan.overflow == 2  # 12 weak products, 10 kept
+    assert [p.rank for p in plan.proposals] == list(range(1, 13))
+    assert plan.overflow == 0  # 12 weak products, all within the top 30
     ids = [p.product_id for p in plan.proposals]
     assert len(set(ids)) == len(ids)
     assert not any("healthy" in pid for pid in ids)
@@ -301,13 +302,15 @@ async def test_scoring_writes_one_card_per_product_and_surfaces_at_most_five(ses
     await _score(session, shop_a)
 
     cards = await _optimize_cards(session, shop_a.id)
-    assert len(cards) == 10
+    assert len(cards) == 12
     assert {c.subject_type for c in cards} == {"product"}
-    assert len({c.subject_id for c in cards}) == 10
+    assert len({c.subject_id for c in cards}) == 12
     surfaced = [c for c in cards if c.surfaced_at is not None]
-    assert len(surfaced) == 5
-    assert sorted(c.priority for c in surfaced) == [1, 2, 3, 4, 5]
-    assert {c.suppressed_reason for c in cards if c.surfaced_at is None} == {"active_cap"}
+    # D24.17 first day: 5 cards in all; the three Juli slots go to the three
+    # best product cards; this shop has no Seller Center or content card, so
+    # those two slots go to the next best cards of any workflow.
+    assert sorted(c.priority for c in surfaced) == [1, 2, 3]
+    assert {c.suppressed_reason for c in cards if c.surfaced_at is None} == {"daily_cap"}
 
     # The rule pipeline's single top-revenue card is not emitted for this shop.
     top = (
@@ -315,7 +318,7 @@ async def test_scoring_writes_one_card_per_product_and_surfaces_at_most_five(ses
     ).scalar_one()
     assert str(top.id) not in {c.subject_id for c in cards}
 
-    # Other workflows still surface beside them: the 5 product cards take one slot.
+    # Other workflows share the same 5: they fill the two free slots.
     others = (
         (
             await session.execute(
@@ -358,19 +361,18 @@ async def test_rescoring_is_idempotent_and_keeps_one_card_per_product(session, s
     second = {c.subject_id: c.id for c in await _optimize_cards(session, shop_a.id)}
 
     assert first == second
-    novelty = (
+    surfacings = (
         (
             await session.execute(
                 select(DecisionEmissionNoveltyLedger).where(
                     DecisionEmissionNoveltyLedger.shop_id == shop_a.id,
-                    DecisionEmissionNoveltyLedger.workflow_key == OPTIMIZE_PRODUCT_WORKFLOW_KEY,
                 )
             )
         )
         .scalars()
         .all()
     )
-    assert len(novelty) == 1
+    assert len(surfacings) == 5  # one ledger row per surfacing; a rerun adds none
 
 
 @pytest.mark.asyncio
@@ -482,7 +484,7 @@ async def test_decisions_endpoint_returns_diagnosis_and_evidence(app, session, s
 
     assert resp.status_code == 200, resp.text
     items = [i for i in resp.json()["data"] if i["recommendation"].get("diagnosis")]
-    assert len(items) == 5
+    assert len(items) == 3  # D24.17 first day: 3 Juli cards + 2 cards of other workflows
     first = items[0]["recommendation"]
     diagnosis, evidence = first["diagnosis"], first["evidence"]
     assert diagnosis["rank"] == 1
@@ -502,6 +504,7 @@ async def test_decisions_endpoint_returns_diagnosis_and_evidence(app, session, s
     assert by_key["add_to_cart_rate"]["note"]  # only 5 of 30 days carry it
     assert by_key["impressions"]["confidence"] in {"Rõ", "Tham khảo", "Chưa đủ dữ liệu"}
     assert items[0]["is_executable"] is True
+    assert first["card"]["adjusted_by_history"] is False  # P14-B, no history yet
     # No internal identifiers in the public body.
     body = resp.text
     assert OPTIMIZE_PRODUCT_WORKFLOW_KEY not in body
@@ -603,7 +606,8 @@ def test_funnel_evidence_uses_tiktok_definitions_and_previous_window():
 
 
 @pytest.mark.asyncio
-async def test_budget_gives_a_capped_workflow_one_slot_and_its_own_cap(session, shop_a):
+async def test_every_workflow_counts_alike_against_the_daily_limit(session, shop_a):
+    """D24.17 replaces the Optimize Product per-workflow cap: one limit for all cards."""
     for index in range(7):
         session.add(
             ActionCard(
@@ -633,14 +637,13 @@ async def test_budget_gives_a_capped_workflow_one_slot_and_its_own_cap(session, 
             )
         )
     await session.flush()
-    config = DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=10)
 
-    outcome = await apply_emission_budget(session, shop_a.id, now=COMPUTED_AT, config=config)
+    outcome = await apply_emission_budget(
+        session, shop_a.id, now=COMPUTED_AT, config=DecisionEmissionConfig()
+    )
 
-    keys = [c.workflow_key for c in outcome.surfaced]
-    assert keys.count(OPTIMIZE_PRODUCT_WORKFLOW_KEY) == 5
-    assert len([k for k in keys if k != OPTIMIZE_PRODUCT_WORKFLOW_KEY]) == 4
-    assert len(outcome.suppressed["active_cap"]) == 4
+    assert len(outcome.newly_surfaced) == 5
+    assert len(outcome.suppressed["daily_cap"]) == 8
 
 
 def test_a34_add_to_cart_joins_the_detail_row():
@@ -701,8 +704,8 @@ async def test_the_p1_scoring_hook_produces_the_adr106_cards(session, shop_a):
     await score_and_persist_cards(session, shop_a.id)
 
     cards = await _optimize_cards(session, shop_a.id)
-    assert len(cards) == 10
-    assert len([c for c in cards if c.surfaced_at is not None]) == 5
+    assert len(cards) == 12
+    assert len([c for c in cards if c.surfaced_at is not None]) >= 3
     assert all("diagnosis" in json.loads(c.recommendation_payload) for c in cards)
 
 
@@ -711,7 +714,7 @@ async def test_the_p1_scoring_hook_produces_the_adr106_cards(session, shop_a):
 
 @pytest.mark.asyncio
 async def test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards(session, shop_a):
-    """ADR-109 d.12 "Số thẻ mở cùng lúc": the seller's number replaces the 5."""
+    """ADR-109 d.12 "Số thẻ mở cùng lúc": when set, the seller's number lowers the 30."""
     from juli_backend.services import shop_rules
 
     await shop_rules.set_rule(
@@ -726,7 +729,7 @@ async def test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards(session, 
     await _score(session, shop_a)
 
     cards = await _optimize_cards(session, shop_a.id)
-    assert len(cards) == 10, "the ranking is unchanged; only surfacing is capped"
+    assert len(cards) == 12, "the ranking is unchanged; only surfacing is capped"
     surfaced = [c for c in cards if c.surfaced_at is not None]
     assert sorted(c.priority for c in surfaced) == [1, 2]
 
@@ -735,7 +738,7 @@ async def test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards(session, 
 async def test_a_lever_the_seller_did_not_allow_is_not_executable_nor_approvable(
     app, session, shop_a
 ):
-    """ADR-109 d.12 "Đòn bẩy được phép tự thực thi": list and approve agree."""
+    """ADR-109 d.12 "Hành động được phép tự thực thi": list and approve agree."""
     from juli_backend.services import shop_rules
 
     await _score(session, shop_a)

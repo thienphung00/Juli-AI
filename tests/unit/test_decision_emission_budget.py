@@ -3,9 +3,10 @@
 Throttles which persisted Action Card candidates *surface* into the Demo
 active set, independently of recomputation/persistence (#715, B-3).
 
-AC1 → active surfaced set capped at the config default of 5.
+AC1 → the surfaced set is capped (D24.17 replaced #716's "5 active / soft
+      weekly novelty 3": 5 new a day, 25 a week, 30 open; the day-by-day
+      behaviour is in ``test_p14_card_limits.py``).
 AC2 → 7-day per-workflow cooldown blocks re-surfacing after a terminal action.
-AC3 → soft weekly novelty quota of 3 is enforced.
 AC4 → candidates are still recomputed/persisted when the budget suppresses
       surfacing (dual cadence — surfacing != recomputation). This is also the
       resolution proof for Collision 1 (US-11 vs the in-flight skip).
@@ -37,7 +38,7 @@ from juli_backend.models.models import ActionCard, DecisionEmissionNoveltyLedger
 from juli_backend.services.action_cards.emission_budget import (
     SUPPRESSED_REASON_ACTIVE_CAP,
     SUPPRESSED_REASON_COOLDOWN,
-    SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP,
+    SUPPRESSED_REASON_DAILY_CAP,
     apply_emission_budget,
 )
 from juli_backend.services.action_cards.persist import (
@@ -187,18 +188,18 @@ async def _fetch(session, shop_id: uuid.UUID, workflow_key: str) -> ActionCard |
 
 
 # ---------------------------------------------------------------------------
-# AC1 — active surfaced set capped at config default of 5
+# AC1 — the open set is capped (D24.17: 30 open; 5 new a day)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_active_surfaced_set_capped_at_config_default_5(session, shop):
-    for i in range(1, 8):  # 7 candidates, cap is 5
+async def test_open_cards_capped_at_max_open(session, shop):
+    for i in range(1, 8):  # 7 candidates, open cap 5
         session.add(_make_card(shop.id, f"wf_{i}", priority=i))
     await session.flush()
 
     now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    config = DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=10)
+    config = DecisionEmissionConfig(max_open=5, daily_new_cap=50)
     outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
 
     assert len(outcome.surfaced) == 5
@@ -210,6 +211,61 @@ async def test_active_surfaced_set_capped_at_config_default_5(session, shop):
         assert card.workflow_key in {"wf_6", "wf_7"}
         assert card.surfaced_at is None
         assert card.suppressed_reason == SUPPRESSED_REASON_ACTIVE_CAP
+
+
+@pytest.mark.asyncio
+async def test_default_limit_is_five_new_cards_a_day(session, shop):
+    for i in range(1, 9):
+        session.add(_make_card(shop.id, f"wf_{i}", priority=i))
+    await session.flush()
+
+    now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
+    outcome = await apply_emission_budget(session, shop.id, now=now)
+
+    assert [c.workflow_key for c in outcome.newly_surfaced] == [f"wf_{i}" for i in range(1, 6)]
+    assert {c.workflow_key for c in outcome.suppressed[SUPPRESSED_REASON_DAILY_CAP]} == {
+        "wf_6",
+        "wf_7",
+        "wf_8",
+    }
+    # One ledger row per surfacing (the per-day / per-week count).
+    ledger_rows = (
+        (
+            await session.execute(
+                select(DecisionEmissionNoveltyLedger).where(
+                    DecisionEmissionNoveltyLedger.shop_id == shop.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(ledger_rows) == 5
+
+    # Same day, later run: nothing new; the five stay surfaced.
+    again = await apply_emission_budget(session, shop.id, now=now + timedelta(hours=3))
+    assert again.newly_surfaced == []
+    assert len(again.surfaced) == 5
+    assert len(again.suppressed[SUPPRESSED_REASON_DAILY_CAP]) == 3
+
+
+def test_config_defaults_and_env_overrides(monkeypatch):
+    from juli_backend.core.config import decision_emission_config
+
+    default = decision_emission_config()
+    assert (default.daily_new_cap, default.weekly_new_cap, default.max_open) == (5, 25, 30)
+    assert (default.validity_days, default.min_stay_days, default.cooldown_days) == (7, 3, 7)
+    assert dict(default.first_day_mix) == {"juli": 3, "seller_center": 1, "content": 1}
+
+    monkeypatch.setenv("CDP_DECISION_EMISSION_DAILY_NEW_CAP", "8")
+    monkeypatch.setenv("CDP_DECISION_EMISSION_WEEKLY_NEW_CAP", "40")
+    monkeypatch.setenv("CDP_DECISION_EMISSION_MAX_OPEN", "12")
+    monkeypatch.setenv("CDP_DECISION_EMISSION_FIRST_DAY_MIX", "juli=2,seller_center=2")
+    tuned = decision_emission_config()
+    assert (tuned.daily_new_cap, tuned.weekly_new_cap, tuned.max_open) == (8, 40, 12)
+    assert tuned.first_day_mix == (("juli", 2), ("seller_center", 2))
+    monkeypatch.setenv("CDP_DECISION_EMISSION_FIRST_DAY_MIX", "garbage")
+    assert decision_emission_config().first_day_mix == default.first_day_mix
 
 
 # ---------------------------------------------------------------------------
@@ -229,8 +285,9 @@ async def test_cooldown_blocks_resurfacing_within_seven_days(session, shop):
     session.add(recently_dismissed)
     await session.flush()
 
-    config = DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=10)
-    outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
+    outcome = await apply_emission_budget(
+        session, shop.id, now=now, config=DecisionEmissionConfig()
+    )
 
     assert outcome.surfaced == []
     assert len(outcome.suppressed[SUPPRESSED_REASON_COOLDOWN]) == 1
@@ -252,284 +309,14 @@ async def test_cooldown_expired_allows_resurfacing(session, shop):
     session.add(long_dismissed)
     await session.flush()
 
-    config = DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=10)
-    outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
+    outcome = await apply_emission_budget(
+        session, shop.id, now=now, config=DecisionEmissionConfig()
+    )
 
     assert len(outcome.surfaced) == 1
     assert outcome.surfaced[0].workflow_key == "wf_old_dismiss"
     assert outcome.surfaced[0].surfaced_at == now
     assert outcome.suppressed[SUPPRESSED_REASON_COOLDOWN] == []
-
-
-# ---------------------------------------------------------------------------
-# AC3 — soft weekly novelty quota of 3 is enforced *as a churn target*
-#
-# Operator decision (#716 B-4, cycle 2): "soft" means fill-to-cap. The
-# weekly novelty cap only orders *preference* among candidates competing for
-# the active-cap slots — it never removes a candidate outright while a slot
-# is still open under ``max_active``. ``SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP``
-# therefore never gets assigned by current code (see
-# ``test_weekly_novelty_cap_reason_is_structurally_unreachable`` below); the
-# constant/frozenset member is retained for schema/API stability (the
-# ``ActionCard.suppressed_reason`` column and MODULE.md contract) and in
-# case a future slice reintroduces a hard-gate mode.
-#
-# ``test_weekly_novelty_cap_suppresses_new_workflows_beyond_quota`` below is
-# the pre-existing AC3 test, updated in place (not test-weakening — an
-# operator-decided requirement change): it keeps its original 4-novel/
-# quota-3 setup but now uses a *tight* ``max_active`` so it still proves a
-# real suppression happens, with the reason correctly re-attributed to
-# ``active_cap`` instead of the now-unreachable ``weekly_novelty_cap``.
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_weekly_novelty_cap_suppresses_new_workflows_beyond_quota(session, shop):
-    """Updated for the fill-to-cap operator decision (#716 B-4, cycle 2).
-
-    Same 4-brand-new-workflow_keys / novelty-cap-3 setup as before, but
-    ``max_active`` is now tight (3, matching the quota) so the run still
-    demonstrates a genuine suppression — just correctly attributed to
-    ``active_cap`` (the true binding constraint under fill-to-cap) rather
-    than ``weekly_novelty_cap``, which no candidate is ever suppressed by
-    once room exists under the active cap.
-    """
-    for i in range(1, 5):  # 4 brand-new workflow_keys, novelty cap is 3
-        session.add(_make_card(shop.id, f"wf_novel_{i}", priority=i))
-    await session.flush()
-
-    now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)  # Saturday
-    config = DecisionEmissionConfig(max_active=3, cooldown_days=7, weekly_novelty_cap=3)
-    outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
-
-    assert len(outcome.surfaced) == 3
-    assert {c.workflow_key for c in outcome.surfaced} == {
-        "wf_novel_1",
-        "wf_novel_2",
-        "wf_novel_3",
-    }
-    # The 4th candidate is dropped by lack of *room*, not by the novelty
-    # quota itself — weekly_novelty_cap stays empty.
-    assert outcome.suppressed[SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP] == []
-    assert len(outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]) == 1
-    assert outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP][0].workflow_key == "wf_novel_4"
-
-    # Durable, server-side (Postgres) — not only in Redis. Ledger only ever
-    # records candidates that actually surfaced this week.
-    ledger_rows = (
-        (
-            await session.execute(
-                select(DecisionEmissionNoveltyLedger).where(
-                    DecisionEmissionNoveltyLedger.shop_id == shop.id
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert len(ledger_rows) == 3
-    assert {row.workflow_key for row in ledger_rows} == {"wf_novel_1", "wf_novel_2", "wf_novel_3"}
-
-
-@pytest.mark.asyncio
-async def test_weekly_novelty_quota_soft_fills_remaining_active_cap_slots(session, shop):
-    """New for the fill-to-cap decision: once room exists under ``max_active``,
-    novelty-overflow candidates surface too instead of being dropped — the
-    quota is a churn target, not a supply ceiling. The ledger accounting
-    stays truthful: it records all four novel surfacings this week,
-    including the one that overflowed the quota."""
-    for i in range(1, 5):  # 4 brand-new workflow_keys, novelty cap is 3
-        session.add(_make_card(shop.id, f"wf_novel_{i}", priority=i))
-    await session.flush()
-
-    now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)  # Saturday
-    config = DecisionEmissionConfig(max_active=10, cooldown_days=7, weekly_novelty_cap=3)
-    outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
-
-    assert len(outcome.surfaced) == 4
-    assert {c.workflow_key for c in outcome.surfaced} == {
-        "wf_novel_1",
-        "wf_novel_2",
-        "wf_novel_3",
-        "wf_novel_4",
-    }
-    assert outcome.suppressed[SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP] == []
-    assert outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP] == []
-
-    ledger_rows = (
-        (
-            await session.execute(
-                select(DecisionEmissionNoveltyLedger).where(
-                    DecisionEmissionNoveltyLedger.shop_id == shop.id
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert len(ledger_rows) == 4
-    assert {row.workflow_key for row in ledger_rows} == {
-        "wf_novel_1",
-        "wf_novel_2",
-        "wf_novel_3",
-        "wf_novel_4",
-    }
-
-
-@pytest.mark.asyncio
-async def test_worked_example_six_novel_candidates_default_config_fills_zero_idle_slots(
-    session, shop
-):
-    """The exact worked example from the operator decision: defaults
-    (max_active=5, cooldown_days=7, weekly_novelty_cap=3), 6 novel
-    candidates in one week. Required (fill to cap): 5 surfaced, zero slots
-    left idle, the 6th suppressed as ``active_cap`` (not
-    ``weekly_novelty_cap``)."""
-    for i in range(1, 7):  # 6 brand-new workflow_keys
-        session.add(_make_card(shop.id, f"wf_worked_{i}", priority=i))
-    await session.flush()
-
-    now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    config = DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=3)
-    outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
-
-    assert len(outcome.surfaced) == 5  # zero slots left idle
-    assert {c.workflow_key for c in outcome.surfaced} == {f"wf_worked_{i}" for i in range(1, 6)}
-    assert outcome.suppressed[SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP] == []
-    assert len(outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]) == 1
-    assert outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP][0].workflow_key == "wf_worked_6"
-
-    ledger_rows = (
-        (
-            await session.execute(
-                select(DecisionEmissionNoveltyLedger).where(
-                    DecisionEmissionNoveltyLedger.shop_id == shop.id
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert len(ledger_rows) == 5
-    assert {row.workflow_key for row in ledger_rows} == {f"wf_worked_{i}" for i in range(1, 6)}
-
-
-@pytest.mark.asyncio
-async def test_weekly_novelty_cap_is_soft_already_novel_keys_keep_surfacing(session, shop):
-    """A workflow_key already counted this week does not re-consume novelty
-    budget, and is preferred (ranked ahead of any novelty-overflow
-    candidate) for the active-cap slots. ``max_active`` is tight (1) so the
-    run still demonstrates a real suppression; under fill-to-cap semantics
-    that suppression is correctly attributed to ``active_cap``, since a
-    looser cap would let both candidates surface (see
-    ``test_weekly_novelty_quota_soft_fills_remaining_active_cap_slots``)."""
-    now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    week_start = now.date() - timedelta(days=now.date().weekday())
-    session.add_all(
-        [
-            DecisionEmissionNoveltyLedger(
-                id=uuid.uuid4(),
-                shop_id=shop.id,
-                week_start=week_start,
-                workflow_key=f"wf_already_{i}",
-                first_surfaced_at=now - timedelta(days=1),
-            )
-            for i in range(1, 4)  # 3 slots already spent this week
-        ]
-    )
-    # A 4th candidate reusing an already-novel key, plus one brand-new key.
-    session.add(_make_card(shop.id, "wf_already_1", priority=1))
-    session.add(_make_card(shop.id, "wf_new", priority=2))
-    await session.flush()
-
-    config = DecisionEmissionConfig(max_active=1, cooldown_days=7, weekly_novelty_cap=3)
-    outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
-
-    surfaced_keys = {c.workflow_key for c in outcome.surfaced}
-    assert surfaced_keys == {"wf_already_1"}
-    assert outcome.suppressed[SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP] == []
-    assert len(outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]) == 1
-    assert outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP][0].workflow_key == "wf_new"
-
-
-@pytest.mark.asyncio
-async def test_novelty_overflow_candidates_ranked_after_quota_satisfied_within_active_cap(
-    session, shop
-):
-    """The quota still shapes *which* Decisions win a scarce active-cap slot
-    first: an already-novel (free) candidate is preferred over a
-    novelty-overflow candidate for the active-cap pass, even when the
-    overflow candidate has a numerically better (lower) raw priority.
-    Priority ordering is otherwise preserved within each group."""
-    now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    week_start = now.date() - timedelta(days=now.date().weekday())
-    # One key already counted novel earlier this week.
-    session.add(
-        DecisionEmissionNoveltyLedger(
-            id=uuid.uuid4(),
-            shop_id=shop.id,
-            week_start=week_start,
-            workflow_key="wf_already",
-            first_surfaced_at=now - timedelta(days=1),
-        )
-    )
-    # 3 brand-new candidates consume the novelty quota (cap=3); a 4th
-    # brand-new candidate overflows it. "wf_already" reuses the pre-counted
-    # key at the *worst* raw priority (5) — numerically after the overflow
-    # candidate (priority 4).
-    session.add(_make_card(shop.id, "wf_new_1", priority=1))
-    session.add(_make_card(shop.id, "wf_new_2", priority=2))
-    session.add(_make_card(shop.id, "wf_new_3", priority=3))
-    session.add(_make_card(shop.id, "wf_new_4", priority=4))  # overflow
-    session.add(_make_card(shop.id, "wf_already", priority=5))
-    await session.flush()
-
-    config = DecisionEmissionConfig(max_active=4, cooldown_days=7, weekly_novelty_cap=3)
-    outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
-
-    surfaced_keys = {c.workflow_key for c in outcome.surfaced}
-    # wf_already (already-novel, free) wins the 4th slot over wf_new_4
-    # (novelty-overflow) despite its worse raw priority.
-    assert surfaced_keys == {"wf_new_1", "wf_new_2", "wf_new_3", "wf_already"}
-    assert outcome.suppressed[SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP] == []
-    assert len(outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]) == 1
-    assert outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP][0].workflow_key == "wf_new_4"
-
-    # wf_new_4 never surfaced, so it is correctly absent from the ledger —
-    # only actual surfacings are recorded, whether from the within-quota or
-    # overflow group.
-    ledger_rows = (
-        (
-            await session.execute(
-                select(DecisionEmissionNoveltyLedger).where(
-                    DecisionEmissionNoveltyLedger.shop_id == shop.id
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert {row.workflow_key for row in ledger_rows} == {
-        "wf_already",
-        "wf_new_1",
-        "wf_new_2",
-        "wf_new_3",
-    }
-
-
-def test_weekly_novelty_cap_reason_is_structurally_unreachable():
-    """Documents (rather than silently leaving dead code) that
-    ``SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP`` is retained in
-    ``SUPPRESSED_REASONS`` for schema/API stability but is never assigned by
-    ``apply_emission_budget`` under the fill-to-cap operator decision
-    (#716 B-4, cycle 2): every suppression is now either ``cooldown`` (hard,
-    unchanged) or ``active_cap`` (hard, the only real supply ceiling). The
-    novelty quota only orders preference among candidates competing for
-    active-cap slots — it never itself removes a candidate while a slot
-    remains open."""
-    from juli_backend.services.action_cards import emission_budget as module
-
-    assert SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP in module.SUPPRESSED_REASONS
 
 
 # ---------------------------------------------------------------------------
@@ -544,7 +331,7 @@ async def test_suppressed_candidate_is_still_recomputed_on_next_scoring_run(sess
     await session.flush()
 
     now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    config = DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=10)
+    config = DecisionEmissionConfig(max_open=5, daily_new_cap=50)
     await apply_emission_budget(session, shop.id, now=now, config=config)
 
     suppressed_before = await _fetch(session, shop.id, "wf_7")
@@ -589,7 +376,7 @@ async def test_suppression_reason_is_recorded_and_queryable(session, shop):
     await session.flush()
 
     now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    config = DecisionEmissionConfig(max_active=1, cooldown_days=7, weekly_novelty_cap=10)
+    config = DecisionEmissionConfig(max_open=1, daily_new_cap=50)
     await apply_emission_budget(session, shop.id, now=now, config=config)
 
     stmt = select(ActionCard).where(
@@ -622,7 +409,7 @@ async def test_suppression_reason_codes_are_logged_per_suppressed_card(session, 
     await session.flush()
 
     now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    config = DecisionEmissionConfig(max_active=1, cooldown_days=7, weekly_novelty_cap=10)
+    config = DecisionEmissionConfig(max_open=1, daily_new_cap=50)
 
     with caplog.at_level(logging.INFO, logger="juli_backend.services.action_cards.emission_budget"):
         outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
@@ -689,7 +476,7 @@ async def test_suppression_log_lines_contain_no_pii_tokens_or_financial_values(
     await session.flush()
 
     now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    config = DecisionEmissionConfig(max_active=0, cooldown_days=7, weekly_novelty_cap=10)
+    config = DecisionEmissionConfig(max_open=0, daily_new_cap=50)
 
     with caplog.at_level(logging.INFO, logger="juli_backend.services.action_cards.emission_budget"):
         outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
@@ -836,7 +623,7 @@ async def test_dismissed_workflow_superseded_after_cooldown_fully_elapses(sessio
 
     # Now eligible for a fresh emission-budget evaluation.
     budget_now = later_computed_at + timedelta(minutes=1)
-    config = DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=10)
+    config = DecisionEmissionConfig(max_open=5, daily_new_cap=50)
     outcome = await apply_emission_budget(session, shop.id, now=budget_now, config=config)
     assert any(c.id == successor.id for c in outcome.surfaced)
 

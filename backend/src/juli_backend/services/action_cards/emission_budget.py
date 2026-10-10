@@ -1,100 +1,233 @@
-"""Decision emission/surfacing budget — ADR-038 §6, #716 (B-4).
+"""Decision emission/surfacing budget — ADR-038 §6, #716 (B-4), fasttrack D24.17.
 
-Throttles which persisted Action Card *candidates* (``status == "active"``)
+Decides which persisted Action Card *candidates* (``status == "active"``)
 surface into the Demo active set. Deliberately independent of recomputation:
 ``services.action_cards.persist`` refreshes a candidate this module has not yet
-surfaced on every scoring run regardless of budget (Collision 1, #716; a
-*surfaced* card is an offer and is left alone instead — #1703, ADR-087 d.3);
-this module runs on its own cadence and only ever writes the surfacing columns
-(``ActionCard.surfaced_at`` / ``ActionCard.suppressed_reason``) — never
-title/priority/payload/computed_at. See MODULE.md "Emission/surfacing
-persistence model" for why columns were chosen over a new ``status`` enum.
+surfaced on every scoring run regardless of budget (Collision 1, #716); this
+module runs on its own cadence and writes only the surfacing columns
+(``ActionCard.surfaced_at`` / ``ActionCard.suppressed_reason``), the
+``expired`` status of a card past its validity, and the surfacing ledger —
+never title/priority/payload/computed_at.
+
+**D24.17 limits (owner, 2026-10-10), one for every shop.** At most
+``daily_new_cap`` (5) cards surfaced for the first time per shop day,
+``weekly_new_cap`` (25) per shop week, ``max_open`` (30) open at once. Days and
+weeks are the shop's (Vietnam, UTC+7; weeks start Monday). Campaign-plan cards
+(:data:`CAMPAIGN_PLAN_WORKFLOW_KEYS`) are outside every limit.
+
+- **Sticky.** A surfaced card keeps its ``surfaced_at`` (the moment it was first
+  put in front of the seller) until it leaves the desk: the seller acts, it
+  expires, or the producer withdraws it (``optimize_product_cards`` keeps it at
+  least ``min_stay_days`` unless it is no longer valid).
+- **Validity.** ``validity_days`` (7) after surfacing it becomes ``expired``.
+  The same action on the same subject may return ``cooldown_days`` (7) after
+  that (``persist`` / ``optimize_product_cards`` own the return; see
+  :func:`expired_card_returns`).
+- **First connect.** A shop that has never had a surfaced card gets its first
+  day mixed by executor (``first_day_mix``: 3 Juli / Juli + ảnh, 1 Seller
+  Center, 1 content — video/LIVE cards a sibling phase adds); an empty slot is
+  filled with the next best card. Every later day is plain priority order.
+
+**Surfacing ledger.** ``decision_emission_novelty_ledger`` (the #716 weekly
+novelty ledger) now holds one row per surfacing: ``workflow_key`` carries
+``<card id hex>@<shop day yyyymmdd>`` and ``week_start`` the shop week's
+Monday. ``surfaced_at`` cannot count surfacings — a dismissed or withdrawn
+card clears it — so the per-day and per-week counts are read here, and no
+schema change is needed. Rows written before D24.17 (one per workflow key and
+week) still count as one surfacing each.
 
 ``SUPPRESSED_REASONS`` below is this module's vocabulary and answers "was this
 candidate surfaced?". The emission path owns a separate, disjoint set
 (``persist.REVISION_SUPPRESSED_REASONS``) answering "was a row written at
-all?"; those never reach ``ActionCard.suppressed_reason``, so the two can be
-told apart by their carrier and not only by their spelling (ADR-087 d.6).
+all?"; those never reach ``ActionCard.suppressed_reason`` (ADR-087 d.6).
 
-Postgres is sole source of truth here (this table plus the novelty ledger).
-Nothing in this module reads or writes Redis.
+Postgres is sole source of truth here. Nothing in this module reads or writes
+Redis.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import DecisionEmissionConfig, decision_emission_config
+from juli_backend.core.config.decision_emission import (
+    EXECUTOR_CONTENT,
+    EXECUTOR_JULI,
+    EXECUTOR_SELLER_CENTER,
+)
 from juli_backend.models.models import ActionCard, DecisionEmissionNoveltyLedger
 
 logger = logging.getLogger(__name__)
 
+#: Open-card ceiling reached (``max_open``). The string predates D24.17.
 SUPPRESSED_REASON_ACTIVE_CAP = "active_cap"
 SUPPRESSED_REASON_COOLDOWN = "cooldown"
-# Retained for schema/API stability (ActionCard.suppressed_reason column,
-# MODULE.md contract, any future hard-gate mode) even though current code
-# never assigns it. Operator decision (#716 B-4, cycle 2): the weekly
-# novelty quota is a *churn target*, not a supply ceiling — it only orders
-# preference among candidates competing for active-cap slots (see
-# apply_emission_budget below). A candidate is suppressed only by
-# SUPPRESSED_REASON_COOLDOWN (hard, unconditional) or
-# SUPPRESSED_REASON_ACTIVE_CAP (hard, the only real surfacing ceiling); once
-# the novelty quota is spent, an additional novel candidate still surfaces
-# as long as a slot remains under max_active, so nothing is ever suppressed
-# *because of* novelty alone anymore.
+#: Today's ``daily_new_cap`` is used up.
+SUPPRESSED_REASON_DAILY_CAP = "daily_cap"
+#: This week's ``weekly_new_cap`` is used up. The string predates D24.17 (it
+#: was the never-assigned soft novelty quota of #716); since D24.17 it is a
+#: real, hard weekly limit on new cards.
 SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP = "weekly_novelty_cap"
+SUPPRESSED_REASON_WEEKLY_CAP = SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP
 
 SUPPRESSED_REASONS: frozenset[str] = frozenset(
     {
         SUPPRESSED_REASON_ACTIVE_CAP,
         SUPPRESSED_REASON_COOLDOWN,
-        SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP,
+        SUPPRESSED_REASON_DAILY_CAP,
+        SUPPRESSED_REASON_WEEKLY_CAP,
     }
 )
 
+#: A surfaced card past ``validity_days`` (D24.17). Not ``active``, so it
+#: leaves the Demo active set; ``surfaced_at`` is kept as history.
+EXPIRED_STATUS = "expired"
+#: ``metadata_json`` key stamped with the moment a card expired.
+EXPIRED_AT_METADATA_KEY = "expired_at"
+
+#: Campaign-plan cards ("Kế hoạch chiến dịch", D24.10) sit outside the D24.17
+#: limits and the 7-day validity (a plan is valid until registration closes).
+#: No producer writes them yet; this is the hook.
+CAMPAIGN_PLAN_WORKFLOW_KEYS: frozenset[str] = frozenset({"campaign_plan"})
+
+#: Workflows whose cards fill the first day's ``content`` slot (video / LIVE,
+#: "Juli soạn · bạn làm", D24.4). A card of any workflow can also claim it with
+#: ``recommendation_payload.executor_type`` = ``video`` or ``live``.
+CONTENT_WORKFLOW_KEYS: frozenset[str] = frozenset()
+_CONTENT_EXECUTOR_TYPES = frozenset({"video", "live"})
+
+#: Executor slot of a card the first-day mix does not name.
+EXECUTOR_OTHER = "other"
+
+#: The shop's clock (Vietnam, UTC+7) for "day" and "week".
+SHOP_UTC_OFFSET = timedelta(hours=7)
+
 # Only "active" (candidate, un-actioned) rows are eligible for surfacing
 # consideration. Anything in persist.IN_FLIGHT_STATUSES has already left the
-# candidate pool structurally (persist_scoring_result freezes it in place)
-# and is not re-litigated here.
+# candidate pool structurally and is not re-litigated here.
 _CANDIDATE_STATUS = "active"
 
 
 @dataclass(frozen=True, slots=True)
 class EmissionBudgetOutcome:
-    """Result of one ``apply_emission_budget`` run for a shop."""
+    """Result of one ``apply_emission_budget`` run for a shop.
+
+    ``surfaced`` is the whole open set after the run (cards already open plus
+    the ones surfaced now); ``newly_surfaced`` only the latter; ``expired`` the
+    cards this run moved to :data:`EXPIRED_STATUS`.
+    """
 
     surfaced: list[ActionCard]
     suppressed: dict[str, list[ActionCard]]
-
-
-def _week_start(now: datetime) -> date:
-    """Monday (UTC date) of the ISO week containing *now*."""
-    today = now.date()
-    return today - timedelta(days=today.weekday())
+    newly_surfaced: list[ActionCard] = field(default_factory=list)
+    expired: list[ActionCard] = field(default_factory=list)
 
 
 def _as_aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+def shop_day(now: datetime) -> date:
+    """The shop's calendar day (UTC+7) at *now*."""
+    return (_as_aware(now).astimezone(UTC) + SHOP_UTC_OFFSET).date()
+
+
+def shop_week_start(now: datetime) -> date:
+    """Monday of the shop's week at *now*."""
+    today = shop_day(now)
+    return today - timedelta(days=today.weekday())
+
+
+def _shop_day_start_utc(now: datetime) -> datetime:
+    day = shop_day(now)
+    return datetime(day.year, day.month, day.day, tzinfo=UTC) - SHOP_UTC_OFFSET
+
+
+def _payload(card: ActionCard) -> dict:
+    try:
+        payload = json.loads(card.recommendation_payload or "{}")
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def executor_slot(card: ActionCard) -> str:
+    """Who carries *card* out, as a first-day-mix slot (D24.17)."""
+    from juli_backend.services.demo_decisions.card_view import LEVERS
+
+    payload = _payload(card)
+    if (
+        card.workflow_key in CONTENT_WORKFLOW_KEYS
+        or payload.get("executor_type") in _CONTENT_EXECUTOR_TYPES
+    ):
+        return EXECUTOR_CONTENT
+    diagnosis = payload.get("diagnosis")
+    lever = diagnosis.get("lever") if isinstance(diagnosis, dict) else None
+    code = lever.get("code") if isinstance(lever, dict) else None
+    if not isinstance(code, str) or code not in LEVERS:
+        return EXECUTOR_OTHER
+    executor = LEVERS[code][1]
+    if executor in ("juli", "juli_with_photo"):
+        return EXECUTOR_JULI
+    if executor == EXECUTOR_SELLER_CENTER:
+        return EXECUTOR_SELLER_CENTER
+    return EXECUTOR_OTHER
+
+
+def expired_at(card: ActionCard, *, validity_days: int) -> datetime | None:
+    """When *card* expired: the stamped moment, else ``surfaced_at`` + validity."""
+    try:
+        meta = json.loads(card.metadata_json or "{}")
+    except json.JSONDecodeError:
+        meta = {}
+    raw = meta.get(EXPIRED_AT_METADATA_KEY) if isinstance(meta, dict) else None
+    if isinstance(raw, str):
+        try:
+            return _as_aware(datetime.fromisoformat(raw))
+        except ValueError:
+            pass
+    if card.surfaced_at is not None:
+        return _as_aware(card.surfaced_at) + timedelta(days=validity_days)
+    if card.updated_at is not None:
+        return _as_aware(card.updated_at)
+    return None
+
+
+def expired_card_returns(
+    card: ActionCard, *, now: datetime, cooldown_days: int, validity_days: int
+) -> bool:
+    """Whether the action of an expired *card* may be proposed again (7 days on)."""
+    moment = expired_at(card, validity_days=validity_days)
+    if moment is None:
+        return True
+    return _as_aware(now) - moment >= timedelta(days=cooldown_days)
+
+
+def _expire(card: ActionCard, now: datetime) -> None:
+    card.status = EXPIRED_STATUS
+    card.suppressed_reason = None
+    try:
+        meta = json.loads(card.metadata_json or "{}")
+    except json.JSONDecodeError:
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    meta[EXPIRED_AT_METADATA_KEY] = now.isoformat()
+    card.metadata_json = json.dumps(meta)
+
+
 def _terminal_marker(card: ActionCard) -> datetime | None:
     """Most recent terminal-action timestamp on *card*, if any.
 
     Considers all three terminal markers (approved_at / executed_at /
-    dismissed_at). These are read off *already-loaded* ``ActionCard`` rows
-    (the caller's single ``WHERE shop_id=:s AND status='active'`` query,
-    served by the pre-existing ``ix_action_cards_shop_status``) — this
-    function issues no query of its own, so no index backs it today. The
-    composite ``ix_action_cards_shop_workflow_terminal`` index (shop_id,
-    workflow_key, dismissed_at, approved_at, executed_at) is provisioned
-    ahead of need, for a cooldown lookup query a future slice may issue
-    directly against Postgres instead of computing this in Python.
+    dismissed_at), read off already-loaded rows; no query of its own.
     """
     raw_markers = (card.approved_at, card.executed_at, card.dismissed_at)
     markers = [ts for ts in raw_markers if ts is not None]
@@ -110,28 +243,49 @@ def _in_cooldown(card: ActionCard, *, now: datetime, cooldown_days: int) -> bool
     return _as_aware(now) - marker < timedelta(days=cooldown_days)
 
 
-async def _novel_workflow_keys_this_week(
+def _ledger_key(card: ActionCard, day: date) -> str:
+    return f"{card.id.hex}@{day:%Y%m%d}"
+
+
+async def _surfacings_this_week(
     session: AsyncSession, shop_id: uuid.UUID, week_start: date
-) -> set[str]:
-    stmt = select(DecisionEmissionNoveltyLedger.workflow_key).where(
+) -> list[DecisionEmissionNoveltyLedger]:
+    stmt = select(DecisionEmissionNoveltyLedger).where(
         DecisionEmissionNoveltyLedger.shop_id == shop_id,
         DecisionEmissionNoveltyLedger.week_start == week_start,
     )
-    result = await session.execute(stmt)
-    return set(result.scalars().all())
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def _shop_ever_surfaced(session: AsyncSession, shop_id: uuid.UUID) -> bool:
+    """Whether the shop has ever had a card in front of it (ledger or card row)."""
+    ledger = await session.execute(
+        select(func.count())
+        .select_from(DecisionEmissionNoveltyLedger)
+        .where(DecisionEmissionNoveltyLedger.shop_id == shop_id)
+    )
+    if (ledger.scalar_one() or 0) > 0:
+        return True
+    cards = await session.execute(
+        select(func.count())
+        .select_from(ActionCard)
+        .where(
+            ActionCard.shop_id == shop_id,
+            or_(
+                ActionCard.surfaced_at.isnot(None),
+                ActionCard.status.in_(("approved", "executing", "dismissed", EXPIRED_STATUS)),
+            ),
+        )
+    )
+    return (cards.scalar_one() or 0) > 0
 
 
 def _log_suppressed(shop_id_str: str, card: ActionCard, reason: str) -> None:
-    """One structured log entry per suppressed candidate (on-call diagnosability
-    of Decision lag, #716 AC "emission-drop reason codes are logged").
+    """One structured log entry per suppressed candidate (#716 AC6).
 
-    Deliberately per-suppression, not only an aggregate: an on-call engineer
-    investigating why a *specific* shop's Decision feed looks stale needs to
-    see which ``workflow_key`` dropped and why, not just a count. Carries
-    only system identifiers (shop id, workflow key, reason code) — never
-    ``card.title`` / ``card.description`` / ``card.recommendation_payload``,
-    which may carry seller-identifying or financial content (PRD security
-    stories 22/23 — no PII, no tokens, no raw financial values in logs).
+    Carries only system identifiers (shop id, workflow key, reason code) —
+    never ``card.title`` / ``card.description`` / ``card.recommendation_payload``
+    (PRD security stories 22/23).
     """
     logger.info(
         "emission_budget_suppressed",
@@ -143,28 +297,49 @@ def _log_suppressed(shop_id_str: str, card: ActionCard, reason: str) -> None:
     )
 
 
-_OPTIMIZE_PRODUCT_WORKFLOW_KEY = "optimize_product_2"
-
-
 async def _with_shop_card_cap(
     session: AsyncSession, shop_id: uuid.UUID, config: DecisionEmissionConfig
 ) -> DecisionEmissionConfig:
-    """The seller's "Số thẻ mở cùng lúc" (ADR-109 d.12) as Optimize Product's cap.
+    """The seller's "Số thẻ mở cùng lúc" (ADR-109 d.12), when set, lowers ``max_open``.
 
-    Fast track P8-C. Only when the shop has set one: an unset rule keeps the
-    configured cap (5, ADR-106 decision 6), environment overrides included.
+    Fast track P8-C; D24.17 keeps it as the seller's own rule (D24.2 "the
+    seller's rules" gate). Unset keeps the configured ceiling (30).
     """
     from juli_backend.services import shop_rules
 
     cap = await shop_rules.configured_max_open_cards(session, shop_id)
-    if cap is None:
+    if cap is None or cap >= config.max_open:
         return config
-    others = tuple(
-        (key, value)
-        for key, value in config.workflow_max_active
-        if key != _OPTIMIZE_PRODUCT_WORKFLOW_KEY
-    )
-    return replace(config, workflow_max_active=(*others, (_OPTIMIZE_PRODUCT_WORKFLOW_KEY, cap)))
+    return replace(config, max_open=cap)
+
+
+def first_day_pick(
+    cards: list[ActionCard], slots: int, mix: tuple[tuple[str, int], ...]
+) -> list[ActionCard]:
+    """The first day's cards: fill each executor slot in priority order, then the rest.
+
+    *cards* is in priority order. Returns at most *slots* cards, in priority order.
+    """
+    chosen: list[ActionCard] = []
+    taken: set[uuid.UUID] = set()
+    for slot, count in mix:
+        left = count
+        for card in cards:
+            if len(chosen) >= slots or left <= 0:
+                break
+            if card.id in taken or executor_slot(card) != slot:
+                continue
+            chosen.append(card)
+            taken.add(card.id)
+            left -= 1
+    for card in cards:
+        if len(chosen) >= slots:
+            break
+        if card.id not in taken:
+            chosen.append(card)
+            taken.add(card.id)
+    order = {card.id: index for index, card in enumerate(cards)}
+    return sorted(chosen, key=lambda c: order[c.id])
 
 
 async def apply_emission_budget(
@@ -174,46 +349,34 @@ async def apply_emission_budget(
     now: datetime | None = None,
     config: DecisionEmissionConfig | None = None,
 ) -> EmissionBudgetOutcome:
-    """Throttle persisted candidate Action Cards into the active surfaced set.
+    """Expire, keep and add to the shop's surfaced set under the D24.17 limits.
 
-    Evaluates every ``status == "active"`` candidate row for *shop_id*, in
-    priority order, against two *hard* gates plus one *soft* preference pass
-    (operator decision, #716 B-4 cycle 2 — "soft means fill to cap"):
+    Over every ``status == "active"`` candidate row for *shop_id*, in priority
+    order:
 
-    1. **Cooldown (hard, unconditional).** A workflow inside its 7-day
-       post-terminal-action window never surfaces, regardless of free slots.
-    2. **Weekly novelty quota (soft — a *churn target*, not a supply
-       ceiling).** Candidates are partitioned into a "within-quota" group
-       (already-novel-this-week candidates, plus the first
-       ``weekly_novelty_cap`` distinct new ``workflow_key``s in priority
-       order) and a "novelty-overflow" group (new ``workflow_key``s beyond
-       the quota). The within-quota group is ranked ahead of the overflow
-       group for the active-cap pass below — the quota still shapes *which*
-       Decisions win a scarce slot first — but this partitioning by itself
-       never removes a candidate from the surfaced set. Priority order is
-       preserved within each group.
-    3. **Active cap (hard, the only true supply ceiling).** The
-       within-quota group, followed by the overflow group, is walked in
-       that order and surfaced until ``max_active`` is reached; anything
-       left over is suppressed as ``active_cap`` — including
-       novelty-overflow candidates once room runs out. Consequently
-       ``SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP`` is never assigned by this
-       function: nothing is suppressed *because of* novelty alone anymore,
-       only because of cooldown or lack of room.
+    1. **Expire.** A surfaced card ``validity_days`` (7) after its
+       ``surfaced_at`` becomes ``expired`` (campaign plans excepted).
+    2. **Keep.** Every other surfaced card stays surfaced, its ``surfaced_at``
+       untouched (D24.17 "stays at least 3 days" — withdrawal belongs to the
+       producer, which knows when a card is no longer valid).
+    3. **Cooldown (hard).** A draft inside its 7-day post-terminal-action
+       window never surfaces.
+    4. **Room.** ``min(daily_new_cap − surfaced today, weekly_new_cap −
+       surfaced this week, max_open − open)``; campaign-plan drafts surface
+       without taking room. The first day a shop ever sees cards fills the
+       room with the executor mix (:func:`first_day_pick`); otherwise in
+       priority order. Drafts left over are suppressed with the binding
+       limit's reason.
 
-    Every evaluated candidate gets a fresh ``surfaced_at`` /
-    ``suppressed_reason`` decision — this function never touches candidate
-    content. The novelty ledger records every candidate that actually ends
-    up surfaced this week (within-quota or overflow alike), so the weekly
-    counter stays a truthful account of real surfacings for tuning — a
-    suppressed (never-surfaced) candidate is never recorded. Performs no
-    commit (same isolated-failure-domain pattern as
-    ``persist_scoring_result``); the caller controls the transaction.
+    Every newly surfaced card adds one ledger row. Performs no commit; the
+    caller controls the transaction.
     """
     now = _as_aware(now) if now is not None else datetime.now(UTC)
     config = await _with_shop_card_cap(session, shop_id, config or decision_emission_config())
-    week_start = _week_start(now)
     shop_id_str = str(shop_id)
+    today = shop_day(now)
+    week_start = shop_week_start(now)
+    day_start = _shop_day_start_utc(now)
 
     stmt = (
         select(ActionCard)
@@ -221,110 +384,104 @@ async def apply_emission_budget(
         .order_by(ActionCard.priority.asc(), ActionCard.workflow_key.asc())
     )
     candidates = list((await session.execute(stmt)).scalars().all())
+    first_connect = not await _shop_ever_surfaced(session, shop_id)
+    week_rows = await _surfacings_this_week(session, shop_id, week_start)
+    ledger_keys = {row.workflow_key for row in week_rows}
+    surfaced_week = len(week_rows)
+    surfaced_today = sum(1 for row in week_rows if _as_aware(row.first_surfaced_at) >= day_start)
 
-    already_novel_this_week = await _novel_workflow_keys_this_week(session, shop_id, week_start)
-    novelty_used = len(already_novel_this_week)
-
-    surfaced: list[ActionCard] = []
-    suppressed: dict[str, list[ActionCard]] = {reason: [] for reason in SUPPRESSED_REASONS}
-
-    # Gate 1 (hard, unchanged): cooldown. Anything still cooling down is
-    # dropped outright and never competes for a surfaced slot.
-    eligible: list[ActionCard] = []
+    open_cards: list[ActionCard] = []
+    expired: list[ActionCard] = []
+    drafts: list[ActionCard] = []
     for card in candidates:
+        if card.surfaced_at is None:
+            drafts.append(card)
+            continue
+        campaign = card.workflow_key in CAMPAIGN_PLAN_WORKFLOW_KEYS
+        age = now - _as_aware(card.surfaced_at)
+        if not campaign and age >= timedelta(days=config.validity_days):
+            _expire(card, now)
+            expired.append(card)
+            continue
+        card.suppressed_reason = None
+        open_cards.append(card)
+
+    suppressed: dict[str, list[ActionCard]] = {reason: [] for reason in SUPPRESSED_REASONS}
+    open_counted = sum(1 for c in open_cards if c.workflow_key not in CAMPAIGN_PLAN_WORKFLOW_KEYS)
+    # On a tie the earlier limit names the suppression: daily, weekly, open.
+    limits = (
+        (config.daily_new_cap - surfaced_today, SUPPRESSED_REASON_DAILY_CAP),
+        (config.weekly_new_cap - surfaced_week, SUPPRESSED_REASON_WEEKLY_CAP),
+        (config.max_open - open_counted, SUPPRESSED_REASON_ACTIVE_CAP),
+    )
+    room, room_reason = min(limits, key=lambda item: item[0])
+    room = max(room, 0)
+
+    eligible: list[ActionCard] = []
+    campaign_drafts: list[ActionCard] = []
+    for card in drafts:
         if _in_cooldown(card, now=now, cooldown_days=config.cooldown_days):
-            card.surfaced_at = None
             card.suppressed_reason = SUPPRESSED_REASON_COOLDOWN
             suppressed[SUPPRESSED_REASON_COOLDOWN].append(card)
             _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_COOLDOWN)
             continue
-        eligible.append(card)
-
-    # Gate 2 (soft preference, not elimination): partition by novelty quota.
-    # Already-novel keys are always "free" (never consume/gate on the
-    # quota); the first `weekly_novelty_cap` distinct new keys (in priority
-    # order) join them in the within-quota group, everything after that
-    # becomes novelty-overflow. Order within each group mirrors the
-    # original priority order.
-    within_quota: list[ActionCard] = []
-    overflow: list[ActionCard] = []
-    is_new_this_week: dict[uuid.UUID, bool] = {}
-    # A workflow with several cards (one per subject) is one novelty: its
-    # later cards follow the group its first card landed in.
-    quota_group: dict[str, bool] = {}
-    for card in eligible:
-        is_new = card.workflow_key not in already_novel_this_week
-        is_new_this_week[card.id] = is_new
-        if is_new and card.workflow_key in quota_group:
-            in_quota = quota_group[card.workflow_key]
-        elif is_new and novelty_used >= config.weekly_novelty_cap:
-            in_quota = False
+        if card.workflow_key in CAMPAIGN_PLAN_WORKFLOW_KEYS:
+            campaign_drafts.append(card)
         else:
-            in_quota = True
-            if is_new:
-                novelty_used += 1
-        if is_new:
-            quota_group[card.workflow_key] = in_quota
-        (within_quota if in_quota else overflow).append(card)
+            eligible.append(card)
 
-    # Gate 3 (hard): active cap. within-quota candidates are offered a slot
-    # before overflow candidates — the quota's only remaining effect is this
-    # ordering — then whatever is left once max_active is reached is
-    # suppressed as active_cap (the true, sole supply ceiling).
-    #
-    # A workflow with its own cap (``config.workflow_max_active``, e.g.
-    # Optimize Product's one card per product, up to 5) takes ONE slot for
-    # its first surfaced card and surfaces further cards up to its cap without
-    # taking more; every other workflow takes one slot per card. With no
-    # capped workflow among the candidates this is exactly the old rule
-    # (slots used == cards surfaced).
-    slots_used = 0
-    per_workflow: dict[str, int] = {}
-    for card in within_quota + overflow:
-        cap = config.cap_for(card.workflow_key)
-        already = per_workflow.get(card.workflow_key, 0)
-        needs_slot = cap is None or already == 0
-        fits = (not needs_slot or slots_used < config.max_active) and (cap is None or already < cap)
-        if not fits:
-            card.surfaced_at = None
-            card.suppressed_reason = SUPPRESSED_REASON_ACTIVE_CAP
-            suppressed[SUPPRESSED_REASON_ACTIVE_CAP].append(card)
-            _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_ACTIVE_CAP)
+    if first_connect:
+        chosen = first_day_pick(eligible, room, config.first_day_mix)
+    else:
+        chosen = eligible[:room]
+    chosen_ids = {card.id for card in chosen}
+
+    newly_surfaced: list[ActionCard] = []
+    for card in eligible:
+        if card.id not in chosen_ids:
+            card.suppressed_reason = room_reason
+            suppressed[room_reason].append(card)
+            _log_suppressed(shop_id_str, card, room_reason)
             continue
-        if needs_slot:
-            slots_used += 1
-        per_workflow[card.workflow_key] = already + 1
-
         card.surfaced_at = now
         card.suppressed_reason = None
-        surfaced.append(card)
-
-        if is_new_this_week[card.id] and card.workflow_key not in already_novel_this_week:
-            already_novel_this_week.add(card.workflow_key)
+        newly_surfaced.append(card)
+        key = _ledger_key(card, today)
+        if key not in ledger_keys:
+            ledger_keys.add(key)
             session.add(
                 DecisionEmissionNoveltyLedger(
                     id=uuid.uuid4(),
                     shop_id=shop_id,
                     week_start=week_start,
-                    workflow_key=card.workflow_key,
+                    workflow_key=key,
                     first_surfaced_at=now,
                 )
             )
+    for card in campaign_drafts:
+        card.surfaced_at = now
+        card.suppressed_reason = None
+        newly_surfaced.append(card)
 
     await session.flush()
 
-    # Aggregate, per-reason counts *in addition to* (never instead of) the
-    # per-suppression ``emission_budget_suppressed`` entries logged above —
-    # cheap to scan/alert on, but not a substitute for drilling into which
-    # workflow_key dropped for a given shop.
     logger.info(
         "emission_budget_applied",
         extra={
             "shop_id": shop_id_str,
-            "surfaced_count": len(surfaced),
+            "first_connect": first_connect,
+            "surfaced_count": len(open_cards) + len(newly_surfaced),
+            "newly_surfaced_count": len(newly_surfaced),
+            "expired_count": len(expired),
             "suppressed_active_cap": len(suppressed[SUPPRESSED_REASON_ACTIVE_CAP]),
+            "suppressed_daily_cap": len(suppressed[SUPPRESSED_REASON_DAILY_CAP]),
             "suppressed_cooldown": len(suppressed[SUPPRESSED_REASON_COOLDOWN]),
-            "suppressed_weekly_novelty_cap": len(suppressed[SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP]),
+            "suppressed_weekly_novelty_cap": len(suppressed[SUPPRESSED_REASON_WEEKLY_CAP]),
         },
     )
-    return EmissionBudgetOutcome(surfaced=surfaced, suppressed=suppressed)
+    return EmissionBudgetOutcome(
+        surfaced=open_cards + newly_surfaced,
+        suppressed=suppressed,
+        newly_surfaced=newly_surfaced,
+        expired=expired,
+    )

@@ -81,6 +81,14 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 |---|---|---|---|
 | P13 no-shop → sample + "Kết nối TikTok Shop ›" strip on Trang chủ / Phân tích / Quyết định; Home sample = the cosmetics shop; Phân tích header left-aligned; reason-box debt accepted | 13.1–13.4 | done on `fasttrack/p13-no-shop-sample` (not merged, not deployed) | P13 agent (Opus) |
 
+## P14 — card limits, learning, "Hành động" (D24.17, D24.6, D24.2)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P14-A card limits: 5 new/day, 25/week, 30 open; first-day executor mix; 7-day validity → `expired` + 7-day return; 3-day stay; top 30 nightly | 14.1–14.5 | done on `fasttrack/p14-cards` (not merged, not deployed) | P14 agent (Opus) |
+| P14-B ranking × calibration factor × seller-reason penalty; `adjusted_by_history` | 14.6 | done on `fasttrack/p14-cards` | P14 agent (Opus) |
+| P14-D "Đòn bẩy" → "Hành động" in demo UI copy and design canvas | 14.7 | done on `fasttrack/p14-cards` | P14 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

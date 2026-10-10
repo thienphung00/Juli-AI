@@ -600,8 +600,12 @@ def test_budget_reasons_and_revision_reasons_are_disjoint():
     the budget's own set is pinned verbatim so widening the revision
     vocabulary can never quietly annex one of its values.
     """
-    assert SUPPRESSED_REASONS == frozenset({"active_cap", "cooldown", "weekly_novelty_cap"})
-    assert REVISION_SUPPRESSED_REASONS == frozenset({"basis_unchanged", "active_card_exists"})
+    assert SUPPRESSED_REASONS == frozenset(
+        {"active_cap", "cooldown", "daily_cap", "weekly_novelty_cap"}
+    )
+    assert REVISION_SUPPRESSED_REASONS == frozenset(
+        {"basis_unchanged", "active_card_exists", "expired_cooldown"}
+    )
     assert SUPPRESSED_REASONS.isdisjoint(REVISION_SUPPRESSED_REASONS)
 
 

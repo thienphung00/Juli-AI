@@ -314,6 +314,16 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(more).toHaveTextContent("Đề xuất: 640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản.");
     expect(more).toHaveTextContent("GMV dự kiến tính theo cách của TikTok: lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV");
     expect(screen.getByRole("button", { name: "Thu gọn" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByTestId("adjusted-by-history")).toBeNull();
+  });
+
+  it("P14-B: a card ranked by the shop's history says so under Xem thêm", () => {
+    const view = cardView(item("1", { adjusted_by_history: true }));
+    expect(view.adjustedByHistory).toBe(true);
+    render(
+      <RecommendationCard card={view} expanded narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} status="pending" />,
+    );
+    expect(screen.getByTestId("adjusted-by-history")).toHaveTextContent("đã điều chỉnh theo kết quả trước");
   });
 
   it("status chips per state; approved shows the blue notice with Xem tiến độ ›, rejected the grey one", () => {

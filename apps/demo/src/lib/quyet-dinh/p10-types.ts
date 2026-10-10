@@ -56,6 +56,8 @@ export interface RecommendationCardPayload {
   readonly change_fields: readonly { readonly field: string; readonly label: string }[];
   readonly before_after: readonly CardBeforeAfter[];
   readonly gmv_method: string | null;
+  /** P14-B (D24.6): the card's rank was weighted by the shop's results/reasons for the action. */
+  readonly adjusted_by_history?: boolean;
 }
 
 /** A decisions item as P10-A sends it (the `card` is additive). */

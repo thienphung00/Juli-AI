@@ -73,6 +73,11 @@ const ALLOWED_USES: ReadonlyArray<{
     snippet: 'action: "Hành động",',
     reason: "Timeline step-kind label (an action step), not the tab.",
   },
+  {
+    path: "apps/demo/src/lib/quyet-dinh/copy.ts",
+    snippet: 'auto_levers: "Hành động được tự thực thi",',
+    reason: "Fast track D24.2: the seller-facing word for a lever (was \"Đòn bẩy\"), not the tab.",
+  },
 ];
 
 /** AC4: the three cascade layers, scanned together rather than one CI round at a time. */
