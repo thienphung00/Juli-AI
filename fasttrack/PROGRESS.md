@@ -90,6 +90,14 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | P14-C price detail + finance transactions per order, read-only (D24.13): client + allowlist, migration `081_order_cost_data` (3 tables, RLS), bounded rate-limited step in `run_shop_cycle`, `sku_deductions` accessor — contract `contracts/p14-rules-and-cost.md` | 14.C1–14.C3 | done on `fasttrack/p14-data` (not merged, not deployed) | P14-C/F agent (Opus) |
 | P14-F rule fields Juli cannot read from TikTok (giá vốn SKU, biên LN gộp mặc định, trần giảm giá shop, phí chương trình, chiến dịch sàn + ghi chú, ROAS mục tiêu, ngân sách GMV Max, khung giờ LIVE): store + validation + GET/PUT, typed `shop_economics` accessor, demo rules editor (sample read-only) | 14.F1–14.F3 | done on `fasttrack/p14-data` (not merged, not deployed) | P14-C/F agent (Opus) |
 
+### P14-A/B/D — card limits, learning, "Hành động" (D24.17, D24.6, D24.2)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P14-A card limits: 5 new/day, 25/week, 30 open; first-day executor mix; 7-day validity → `expired` + 7-day return; 3-day stay; top 30 nightly | 14.1–14.5 | done on `fasttrack/p14-cards` (not merged, not deployed) | P14 agent (Opus) |
+| P14-B ranking × calibration factor × seller-reason penalty; `adjusted_by_history` | 14.6 | done on `fasttrack/p14-cards` | P14 agent (Opus) |
+| P14-D "Đòn bẩy" → "Hành động" in demo UI copy and design canvas | 14.7 | done on `fasttrack/p14-cards` | P14 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

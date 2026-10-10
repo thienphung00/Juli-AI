@@ -554,7 +554,7 @@ async def test_revert_is_tenant_scoped(session, enqueued):
 
 
 def _emission_config() -> DecisionEmissionConfig:
-    return DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=3)
+    return DecisionEmissionConfig(cooldown_days=7)
 
 
 async def _emit(session, shop, at: datetime):

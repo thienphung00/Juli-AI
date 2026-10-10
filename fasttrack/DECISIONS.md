@@ -249,6 +249,31 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
         daily); it is withdrawn earlier only when no longer valid (product
         edited outside Juli, out of stock, metric already at target), not for
         dropping in rank.
+  - *Implementation notes (P14, 2026-10-10; agent choices, owner may overrule):*
+    - **17**: "day"/"week" are the shop's (UTC+7, weeks from Monday); a tie
+      between limits is reported as `daily_cap`. Validity counts from the
+      card's first surfacing (`surfaced_at`, no longer re-stamped each run);
+      after 7 days the card's status becomes `expired`. After its 3-day stay a
+      card that dropped out of the top 30 is withdrawn. The seller's own
+      "Số thẻ mở cùng lúc" rule (1–5), when set, still lowers the 30. Rejected /
+      declined / reverted keep P10-A's early return on a > 20 % data change.
+    - **6, calibration**: ranking value = recoverable GMV/day × *factor* ×
+      *penalty*. *factor* = coefficient ÷ 0.5, clamped to [0.25, 2] — the
+      coefficient (realised ÷ expected, `lever_calibrations`) starts at 0.5
+      for every lever, so an unmeasured lever is neutral (1) and a lever that
+      delivered what was expected (→ 1.0) ranks up to 2×.
+    - **6, reasons**: *penalty* = max(0.4, 1 − 0.2 × Σ max(0, 1 − age_days ÷ 60))
+      over the shop's Từ chối / Không thực hiện / Hoàn tác reasons for that
+      lever in the last 60 days (all products). One fresh reason → 0.8,
+      fading to none at 60 days; floor 0.4. Circumstantial codes
+      (`editing_myself`, `discontinued`, `other_campaign`, `changed_mind`) carry
+      no penalty.
+    - The shown "GMV dự kiến" and the day-14 measurement stay on the
+      rule-based estimate (D22 label unchanged); the weights reorder cards
+      only. The payload carries `adjusted_by_history` (and
+      `diagnosis.history_adjustment`); the card says "Thứ tự đề xuất đã điều
+      chỉnh theo kết quả trước của shop."
+
   18. **Content cards (Video / LIVE), P14** (owner, 2026-10-10; artboards
       ContentCards, ContentRun): same card frame + chip "Juli soạn · bạn làm";
       after Phê duyệt Juli reads data and drafts with `gpt-5.4-nano`

@@ -28,12 +28,15 @@ orchestrator.
              "executor": "juli" },     // juli | juli_with_photo | seller_center
   "change_fields": [ { "field": "title", "label": "Tiêu đề" }, { "field": "description", "label": "Mô tả" } ],
   "before_after": [ { "field": "title", "label": "Tiêu đề", "before": "…", "after": "…" } ],
-  "gmv_method": "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc"  // (VI)
+  "gmv_method": "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",  // (VI)
+  "adjusted_by_history": false       // P14-B (D24.6): rank weighted by this shop's results / reasons for the action
 }
 ```
 Lever codes: `cover_image` (juli_with_photo), `title`, `description` (juli),
 `product_discount`, `flash_sale`, `shipping_discount`, `buy_more_save_more` (seller_center).
-`expired` = proposal older than its validity or the product changed since.
+`expired` = surfaced 7 days ago or more (D24.17; card status `expired`/`withdrawn`), or
+the product changed since. `adjusted_by_history` (P14-B): the card's rank was weighted by
+the shop's history for the action; `expected_gmv_per_month` stays the rule-based estimate.
 
 ## 2. Reasons and cooldown (P10-A)
 

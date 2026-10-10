@@ -397,6 +397,18 @@ async def current_calibration(session: AsyncSession, shop_id: uuid.UUID, lever: 
     return Decimal(str(row.coefficient)) if row is not None else DEFAULT_CALIBRATION
 
 
+async def shop_calibrations(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Decimal]:
+    """lever -> the shop's stored coefficient; a lever never measured is absent (0.5).
+
+    Read by the nightly card ranking (D24.6,
+    ``optimize_product.decision_cards.LeverHistory``).
+    """
+    rows = (
+        await session.execute(select(LeverCalibration).where(LeverCalibration.shop_id == shop_id))
+    ).scalars()
+    return {row.lever: Decimal(str(row.coefficient)) for row in rows}
+
+
 async def _update_calibration(
     session: AsyncSession, shop_id: uuid.UUID, lever: str, ratio: Decimal
 ) -> tuple[Decimal, Decimal]:
@@ -799,6 +811,7 @@ __all__ = [
     "WindowTotals",
     "card_target",
     "current_calibration",
+    "shop_calibrations",
     "final_label",
     "format_value",
     "measure_run",

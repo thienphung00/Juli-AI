@@ -39,6 +39,10 @@ from juli_backend.services.action_cards.basis import (
     compute_card_basis,
     stored_basis,
 )
+from juli_backend.services.action_cards.emission_budget import (
+    EXPIRED_STATUS,
+    expired_card_returns,
+)
 from juli_backend.services.action_cards.subjects import (
     SUBJECT_TYPE_UNSCOPED,
     CardSubject,
@@ -113,6 +117,10 @@ SUPPRESSED_REASON_BASIS_UNCHANGED = "basis_unchanged"
 #: and ADR-087 decision 3 does not reach it.
 SUPPRESSED_REASON_ACTIVE_CARD_EXISTS = "active_card_exists"
 
+#: The subject's latest card expired (D24.17) less than ``cooldown_days`` (7)
+#: ago: the same action on the same subject waits out that gap.
+SUPPRESSED_REASON_EXPIRED_COOLDOWN = "expired_cooldown"
+
 #: The complete revision-suppression vocabulary. Disjoint from
 #: ``emission_budget.SUPPRESSED_REASONS`` by construction -- different
 #: question, different carrier (see the module docstring).
@@ -120,6 +128,7 @@ REVISION_SUPPRESSED_REASONS: frozenset[str] = frozenset(
     {
         SUPPRESSED_REASON_BASIS_UNCHANGED,
         SUPPRESSED_REASON_ACTIVE_CARD_EXISTS,
+        SUPPRESSED_REASON_EXPIRED_COOLDOWN,
     }
 )
 
@@ -300,6 +309,7 @@ def _card_still_stands(
     *,
     now: datetime,
     cooldown_days: int,
+    validity_days: int = 7,
 ) -> bool:
     """Whether *card* is still the shop's live answer for its subject.
 
@@ -322,6 +332,11 @@ def _card_still_stands(
     """
     if card.status == "dismissed":
         return not _terminal_cooldown_expired(card, now=now, cooldown_days=cooldown_days)
+    if card.status == EXPIRED_STATUS:
+        # D24.17: an expired card's action may return 7 days after it expired.
+        return not expired_card_returns(
+            card, now=now, cooldown_days=cooldown_days, validity_days=validity_days
+        )
     if card.executed_at is not None:
         return not _terminal_cooldown_expired(card, now=now, cooldown_days=cooldown_days)
     if card.status == _ACTIVE_STATUS:
@@ -478,7 +493,7 @@ async def emit_scoring_cards(
     config = emission_config or decision_emission_config()
 
     # ADR-106 / D21: a shop with product analytics gets its Optimize Product
-    # cards from the stage-diagnosis pipeline -- whole catalog scored, top 10
+    # cards from the stage-diagnosis pipeline -- whole catalog scored, top 30
     # ranked, one card per product -- instead of the rule pipeline's single
     # top-revenue card. `None` (no product analytics) keeps the rule card.
     optimize_plan = await _plan_optimize_product(session, shop_id, now=computed_at)
@@ -503,7 +518,27 @@ async def emit_scoring_cards(
             result=result,
         )
 
-        if latest is not None:
+        if latest is not None and latest.status == EXPIRED_STATUS:
+            # D24.17: an expired card is history; its action returns as a new
+            # revision 7 days after expiry, whether or not the basis moved.
+            if _card_still_stands(
+                latest,
+                now=computed_at,
+                cooldown_days=config.cooldown_days,
+                validity_days=config.validity_days,
+            ):
+                decision = CardEmission(
+                    workflow_key=workflow_key,
+                    subject_type=subject.subject_type,
+                    subject_id=subject.subject_id,
+                    card=latest,
+                    revision=latest.revision,
+                    suppressed_reason=SUPPRESSED_REASON_EXPIRED_COOLDOWN,
+                )
+                decisions.append(decision)
+                _log_suppressed(shop_id, decision)
+                continue
+        elif latest is not None:
             if basis_unchanged(stored_basis(latest), current_basis):
                 decision = CardEmission(
                     workflow_key=workflow_key,

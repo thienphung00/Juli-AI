@@ -82,7 +82,7 @@ export const RULE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   min_margin_pct: "Biên lợi nhuận tối thiểu khi giảm giá",
   max_discount_pct: "Trần giảm giá theo SKU",
   max_open_cards: "Số thẻ mở cùng lúc",
-  auto_levers: "Đòn bẩy được tự thực thi",
+  auto_levers: "Hành động được tự thực thi",
   protected_terms: "Từ / thông tin không được sửa",
   // P14-F (off-api-rules.ts holds the help text).
   sku_cost: "Giá vốn theo SKU",

@@ -260,6 +260,8 @@ class DemoDecisionCard(BaseModel):
     change_fields: list[DemoDecisionCardField] = []
     before_after: list[DemoDecisionCardBeforeAfter] = []
     gmv_method: str | None = None
+    #: P14-B (D24.6): the rank was weighted by the shop's history for the action.
+    adjusted_by_history: bool = False
 
 
 class DemoDecisionRecommendation(BaseModel):

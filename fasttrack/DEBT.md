@@ -560,3 +560,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] `live_schedule` is shop-local time with no time zone stored (assumed Asia/Ho_Chi_Minh).
 - [ ] In the signed-out sample only the P14 group is read-only; the older groups remain editable in memory (P11 behaviour).
 
+## P14 card limits and learning (2026-10-10)
+
+- [ ] The seller rule "Số thẻ mở cùng lúc" (`max_open_cards`) still has its P8-C range 1–5 and reports 5 when unset (`shop_rules.max_open_cards`, Quy tắc UI "Mặc định"); since D24.17 an unset rule means 30. When set it lowers the 30. Owner to decide: drop the rule, or re-range it to 1–30.
+- [ ] The per-day / per-week surfacing counts reuse `decision_emission_novelty_ledger` as a surfacing log (`workflow_key` = `<card id hex>@<yyyymmdd>`) to avoid a migration; a dedicated column/table would be clearer once the migration chain is free.
+- [ ] Legacy (non-ADR-106) workflow cards: a dismissed card still needs a basis change to return (ADR-087 d.6), unlike D24.17's "after 7 days"; expired ones do return after 7 days. Optimize Product follows D24.17 fully.
+- [ ] `CAMPAIGN_PLAN_WORKFLOW_KEYS` (`campaign_plan`) and `CONTENT_WORKFLOW_KEYS` (empty; or payload `executor_type` video/live) are hooks: no producer writes those cards yet. Campaign plans have no "valid until registration closes" clock yet (they never expire).
+- [ ] Withdrawal "out of stock" reads `inventory_items` quantity sum (no rows = unknown, kept); "metric at target" uses the current funnel window's rate against the card's `reference_rate`.
+- [ ] `optimize_product/shop_report.py` (internal HTML report) still says "Đòn bẩy giá và Seller Center"; not seller-facing app copy, left.
