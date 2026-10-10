@@ -14,10 +14,9 @@ route it owns (`/api/tt/event`) talks to TikTok, not to `juli-api`.
 - `/privacy`, `/terms` (issue #1971) — hosted privacy policy and terms of service,
   a prerequisite for publishing the Google OAuth consent screen (ADR-094 decision
   3). Linked from the hero's sign-in CTA and the site footer, which both pages
-  reuse. Content is owner-led: data-handling sections are grounded in what the
-  code demonstrably does; legal-specific fields (entity details, retention,
-  jurisdiction, liability, warranty) are explicit `[OWNER: ...]` placeholders
-  (`OwnerPlaceholder` component) pending owner and legal review — not invented.
+  reuse. Data-handling sections are grounded in what the code demonstrably does;
+  entity details (`COMPANY` in `src/lib/site.ts`), retention, rights and
+  commercial terms were set by the owner (grill session 2026-10-10).
 - `DEMO_URL` (`src/lib/site.ts`) — the one CTA destination
   (`demo.app-juli.com`, Mock mode; `NEXT_PUBLIC_DEMO_URL` overrides for preview).
 - `POST /api/tt/event` — the TikTok Events API relay. Same-origin, so an ad
