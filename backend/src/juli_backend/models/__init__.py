@@ -9,6 +9,11 @@ from juli_backend.models.lever_flows import (
     RunMeasurementFinal,
 )
 from juli_backend.models.models import *  # noqa: F403
+from juli_backend.models.order_costs import (
+    OrderCostFetch,
+    OrderFinanceTransaction,
+    OrderPriceDetail,
+)
 from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue, ShopRule
 from juli_backend.models.shop_diagnosis import ShopDiagnosisReport, ShopMetricRanking
 
@@ -27,4 +32,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     RunLeverPhoto,
     LeverCalibration,
     RunMeasurementFinal,
+    OrderPriceDetail,
+    OrderFinanceTransaction,
+    OrderCostFetch,
 )

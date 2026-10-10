@@ -548,3 +548,15 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [x] (owner 2026-10-10: show the sample name) The shell header in the no-shop state still names "Chưa chọn shop" (no "cập nhật HH:MM" line) above the sample, while the page's notice names the sample shop "Cửa hàng Mẫu Hoa Mai". Deliberate (the header is the seller's identity), revisit if the owner wants the sample name there.
 - [ ] The sample's daily GMV bars (Lịch sale) average 6,31 tr ₫/ngày in the prior window vs the streams' summed 6,95 tr ₫/ngày (last window agrees: 7,12 vs 7,16 tr). Only the bars show it (no total is printed from them); left as the P12 artboard values.
 - [ ] `SignedInQuyetDinh`'s own `!shop` empty state is now unreachable from `/decisions` (the page client routes no-shop to the sample); kept for direct callers / tests.
+
+## P14-C/F cost data and off-API rule fields (2026-10-10)
+
+- [ ] Neither cost endpoint has been read live. Field names and shapes are from the docs + OAS; the `voucher_deduction_*` / `shipping_fee_deduction_platform_voucher` semantics (amount vs voucher-type code) and which finance fee lines a VN shop gets must be confirmed on the first live read before any ROI uses them.
+- [ ] The app's granted scopes are unconfirmed: without `seller.finance.info` the finance pass stops every cycle with `order_costs_permission_denied` (logged, not surfaced in the UI).
+- [ ] Backfill is slow by design: ≤ 10 price + ≤ 10 finance reads per 15-min cycle (~960 orders/day/shop). A shop with more orders than that in 60 days takes several days to fill; raise `ORDER_COSTS_*_PER_CYCLE` once the real per-endpoint limits are known.
+- [ ] A settled order is not re-read for later refunds / adjustments (finance stops at the first non-empty answer); price detail is re-read when the order's `update_time` moves.
+- [ ] `sku_deductions` and `shop_economics` have no consumer yet (D24.5 / D24.11 / D24.12 ROI and promotion proposals are later P14 work); `lever_flows/promotion.py` still reads `product_cost` / `max_discount_pct` / `min_margin_pct` directly and ignores `sku_cost` / the shop-wide cap.
+- [ ] No packaging / handling cost per order field (considered; no D24 consumer yet).
+- [ ] `live_schedule` is shop-local time with no time zone stored (assumed Asia/Ho_Chi_Minh).
+- [ ] In the signed-out sample only the P14 group is read-only; the older groups remain editable in memory (P11 behaviour).
+

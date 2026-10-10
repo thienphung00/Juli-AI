@@ -6139,6 +6139,22 @@ h4 {
   font-size: 14px;
 }
 
+.qd-rule__help {
+  margin: 0;
+  font-size: 13px;
+}
+
+.qd-rule__readonly {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.qd-rule__readonly dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .qd-rule__error {
   margin: 0;
   color: color-mix(in srgb, var(--destructive) 72%, #000000);

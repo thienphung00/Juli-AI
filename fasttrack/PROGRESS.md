@@ -81,6 +81,15 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 |---|---|---|---|
 | P13 no-shop → sample + "Kết nối TikTok Shop ›" strip on Trang chủ / Phân tích / Quyết định; Home sample = the cosmetics shop; Phân tích header left-aligned; reason-box debt accepted | 13.1–13.4 | done on `fasttrack/p13-no-shop-sample` (not merged, not deployed) | P13 agent (Opus) |
 
+## P14 — recommendation pipeline (D24)
+
+### P14-C/F — cost data and rule fields for what TikTok does not give us
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P14-C price detail + finance transactions per order, read-only (D24.13): client + allowlist, migration `081_order_cost_data` (3 tables, RLS), bounded rate-limited step in `run_shop_cycle`, `sku_deductions` accessor — contract `contracts/p14-rules-and-cost.md` | 14.C1–14.C3 | done on `fasttrack/p14-data` (not merged, not deployed) | P14-C/F agent (Opus) |
+| P14-F rule fields Juli cannot read from TikTok (giá vốn SKU, biên LN gộp mặc định, trần giảm giá shop, phí chương trình, chiến dịch sàn + ghi chú, ROAS mục tiêu, ngân sách GMV Max, khung giờ LIVE): store + validation + GET/PUT, typed `shop_economics` accessor, demo rules editor (sample read-only) | 14.F1–14.F3 | done on `fasttrack/p14-data` (not merged, not deployed) | P14-C/F agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

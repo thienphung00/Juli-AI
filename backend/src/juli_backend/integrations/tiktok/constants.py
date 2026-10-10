@@ -4,6 +4,7 @@ from __future__ import annotations
 
 ORDER_API_VERSION = "202309"
 ORDER_DETAIL_API_VERSION = "202507"
+ORDER_PRICE_DETAIL_API_VERSION = "202407"
 PRODUCT_API_VERSION = "202309"
 PRODUCT_LISTING_API_VERSION = "202312"
 PRODUCT_SEO_API_VERSION = "202405"
@@ -17,6 +18,7 @@ AUTHORIZATION_API_VERSION = "202309"
 AFFILIATE_SELLER_API_VERSION = "202406"
 AFFILIATE_CONTENT_API_VERSION = "202412"
 FINANCE_API_VERSION = "202309"
+FINANCE_ORDER_TRANSACTIONS_API_VERSION = "202501"
 PROMOTION_API_VERSION = "202309"
 PROMOTION_COUPON_API_VERSION = "202406"
 ANALYTICS_LIVE_PRODUCTS_API_VERSION = "202512"
@@ -55,6 +57,13 @@ CREATOR_CONTENT_DETAILS_PATH = (
     f"/affiliate_seller/{AFFILIATE_CONTENT_API_VERSION}/open_collaborations/creator_content_details"
 )
 FINANCE_STATEMENTS_PATH = f"/finance/{FINANCE_API_VERSION}/statements"
+#: Templates (rate-limit bucket keys and docs); the call uses the ``*_path`` helpers.
+ORDER_PRICE_DETAIL_PATH_TEMPLATE = (
+    f"/order/{ORDER_PRICE_DETAIL_API_VERSION}/orders/{{order_id}}/price_detail"
+)
+FINANCE_ORDER_TRANSACTIONS_PATH_TEMPLATE = (
+    f"/finance/{FINANCE_ORDER_TRANSACTIONS_API_VERSION}/orders/{{order_id}}/statement_transactions"
+)
 
 PROMOTION_CREATE_PATH = f"/promotion/{PROMOTION_API_VERSION}/activities"
 # Read-only searches (both are POSTs, neither mutates anything).
@@ -130,6 +139,26 @@ def promotion_activity_products_path(activity_id: str) -> str:
 
 def promotion_deactivate_path(activity_id: str) -> str:
     return f"/promotion/{PROMOTION_API_VERSION}/activities/{activity_id}/deactivate"
+
+
+def _numeric_id(value: str, *, name: str) -> str:
+    """A TikTok id interpolated into a path must be all digits (no path injection)."""
+    text = str(value).strip()
+    if not text.isdigit():
+        raise ValueError(f"{name} must be a numeric TikTok id")
+    return text
+
+
+def order_price_detail_path(order_id: str) -> str:
+    """``GET /order/202407/orders/{order_id}/price_detail`` (scope seller.order.info)."""
+    oid = _numeric_id(order_id, name="order_id")
+    return f"/order/{ORDER_PRICE_DETAIL_API_VERSION}/orders/{oid}/price_detail"
+
+
+def finance_order_transactions_path(order_id: str) -> str:
+    """``GET /finance/202501/orders/{order_id}/statement_transactions`` (seller.finance.info)."""
+    oid = _numeric_id(order_id, name="order_id")
+    return f"/finance/{FINANCE_ORDER_TRANSACTIONS_API_VERSION}/orders/{oid}/statement_transactions"
 
 
 def product_detail_path(product_id: str) -> str:

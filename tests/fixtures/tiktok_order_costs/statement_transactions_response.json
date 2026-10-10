@@ -1,0 +1,86 @@
+{
+  "_meta": {
+    "source": "Partner API reference get-transactions-by-order-202501 (example, VND-adapted) + bundled OAS schema",
+    "endpoint": "GET /finance/202501/orders/{order_id}/statement_transactions",
+    "note": "Doc example only; not a live read. Names are kept in the fixture to prove the parser drops them."
+  },
+  "response": {
+    "code": 0,
+    "message": "Success",
+    "request_id": "202610100000000000000000000001",
+    "data": {
+      "order_id": "5793990727963214852",
+      "order_create_time": 1790000000,
+      "currency": "VND",
+      "revenue_amount": "440000",
+      "fee_and_tax_amount": "-52800",
+      "shipping_cost_amount": "-7000",
+      "settlement_amount": "380200",
+      "total_count": 2,
+      "sku_transactions": [
+        {
+          "sku_id": "1729700293904534135",
+          "sku_name": "Test SKU name",
+          "statement_id": "7238804564097517339",
+          "product_name": "Test Product name",
+          "quantity": "2",
+          "settlement_amount": "316800",
+          "revenue_amount": "360000",
+          "revenue_breakdown": {
+            "subtotal_before_discount_amount": "400000",
+            "seller_discount_amount": "-40000",
+            "refund_subtotal_before_discount_amount": "0",
+            "seller_discount_refund_amount": "0"
+          },
+          "fee_tax_amount": "-43200",
+          "fee_tax_breakdown": {
+            "fee": {
+              "platform_commission_amount": "-28800",
+              "transaction_fee_amount": "-7200",
+              "voucher_xtra_service_fee_amount": "-7200",
+              "flash_sales_service_fee_amount": "0",
+              "affiliate_commission_amount": ""
+            },
+            "tax": {
+              "vat_amount": "0"
+            }
+          },
+          "shipping_cost_amount": "0",
+          "shipping_cost_breakdown": {
+            "actual_shipping_fee_amount": "-30000",
+            "shipping_fee_discount_amount": "15000",
+            "customer_paid_shipping_fee_amount": "15000",
+            "supplementary_component": {
+              "platform_shipping_fee_discount_amount": "15000"
+            }
+          }
+        },
+        {
+          "sku_id": "1729700293904534999",
+          "sku_name": "Other SKU",
+          "statement_id": "7238804564097517339",
+          "product_name": "Other product",
+          "quantity": "1",
+          "settlement_amount": "63400",
+          "revenue_amount": "80000",
+          "revenue_breakdown": {
+            "subtotal_before_discount_amount": "100000",
+            "seller_discount_amount": "-20000"
+          },
+          "fee_tax_amount": "-9600",
+          "fee_tax_breakdown": {
+            "fee": {
+              "platform_commission_amount": "-6400",
+              "transaction_fee_amount": "-1600",
+              "voucher_xtra_service_fee_amount": "-1600"
+            }
+          },
+          "shipping_cost_amount": "-7000",
+          "shipping_cost_breakdown": {
+            "actual_shipping_fee_amount": "-7000"
+          }
+        }
+      ]
+    }
+  }
+}

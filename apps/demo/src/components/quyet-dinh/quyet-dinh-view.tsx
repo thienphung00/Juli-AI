@@ -430,6 +430,7 @@ export function QuyetDinhView({
       {query.rulesOpen ? (
         rules.status === "ready" ? (
           <RulesEditor
+            offApiReadOnly={sample}
             onClose={() => navigate({ rulesOpen: false })}
             onDelete={onDeleteRule}
             onSave={onSaveRule}

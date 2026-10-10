@@ -23,6 +23,18 @@ export interface ShopRules {
   readonly protected_terms: RuleValueItem;
   readonly band_metrics: readonly string[];
   readonly listing_levers: readonly string[];
+  // P14-F: what no TikTok API gives Juli. Optional so an older backend (or a
+  // fixture written before P14) still parses; unset reads as "—".
+  readonly sku_cost?: Readonly<Record<string, RuleValueItem>>;
+  readonly default_gross_margin_pct?: RuleValueItem | null;
+  readonly default_max_discount_pct?: RuleValueItem | null;
+  readonly program_fee_pct?: RuleValueItem | null;
+  readonly joins_platform_campaigns?: RuleValueItem | null;
+  readonly platform_campaign_note?: RuleValueItem | null;
+  readonly target_roas?: RuleValueItem | null;
+  readonly gmv_max_daily_budget?: RuleValueItem | null;
+  readonly live_schedule?: RuleValueItem | null;
+  readonly weekdays?: readonly string[];
 }
 
 export type RuleKey =
@@ -32,7 +44,16 @@ export type RuleKey =
   | "max_discount_pct"
   | "max_open_cards"
   | "auto_levers"
-  | "protected_terms";
+  | "protected_terms"
+  | "sku_cost"
+  | "default_gross_margin_pct"
+  | "default_max_discount_pct"
+  | "program_fee_pct"
+  | "joins_platform_campaigns"
+  | "platform_campaign_note"
+  | "target_roas"
+  | "gmv_max_daily_budget"
+  | "live_schedule";
 
 export interface FieldChange {
   readonly field: string;

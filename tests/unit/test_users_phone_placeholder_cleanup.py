@@ -73,8 +73,8 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: then onto `075_analytics_breakdown` at integration, P7-A onto
 #: `076_shop_diagnosis_reports`, P8-A onto `077_metric_rankings`, P8-C onto
 #: `078_rules_and_write_values`, P10-A onto `079_decision_reasons`,
-#: and P10-B onto `080_lever_flows`.
-PHONE_REVISION = "080_lever_flows"
+#: P10-B onto `080_lever_flows`, and P14-C onto `081_order_cost_data`.
+PHONE_REVISION = "081_order_cost_data"
 
 _SCHEMA = "phone_cleanup_074"
 
