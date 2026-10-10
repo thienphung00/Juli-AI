@@ -837,15 +837,11 @@ a {
   font-size: 0.9rem;
 }
 
-.lp-legal__notice {
+.lp-legal__intro {
   margin: 0;
-  border: 1px solid var(--juli-border-accent);
-  border-radius: var(--juli-radius);
-  background: color-mix(in srgb, var(--juli-primary-text) 6%, transparent);
-  padding: var(--juli-space-4);
   color: var(--juli-foreground);
-  font-size: 0.9rem;
-  line-height: 1.6;
+  font-size: 0.98rem;
+  line-height: 1.7;
 }
 
 .lp-legal__section {
@@ -875,18 +871,6 @@ a {
   gap: var(--juli-space-2);
   margin: 0;
   padding-inline-start: 1.25rem;
-}
-
-.lp-legal__placeholder {
-  margin: 0;
-  border: 1px dashed var(--juli-border-accent);
-  border-radius: var(--juli-radius);
-  background: color-mix(in srgb, var(--juli-muted-foreground) 8%, transparent);
-  padding: var(--juli-space-3);
-  color: var(--juli-muted-foreground);
-  font-size: 0.9rem;
-  font-style: italic;
-  line-height: 1.6;
 }
 
 .lp-legal__contact-link {

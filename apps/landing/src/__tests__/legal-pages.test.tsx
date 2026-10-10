@@ -4,18 +4,17 @@ import { describe, expect, it } from "vitest";
 import LandingPage from "../app/page";
 import PrivacyPolicyPage from "../app/privacy/page";
 import TermsOfServicePage from "../app/terms/page";
+import { COMPANY } from "../lib/site";
 
 describe("privacy and terms pages exist and are linked (issue #1971)", () => {
-  it("renders /privacy with a heading, last-updated line, and owner-review notice", () => {
+  it("renders /privacy with a heading, last-updated line, and the operating entity", () => {
     render(<PrivacyPolicyPage />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Chính sách bảo mật" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/cập nhật lần cuối/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/cần chủ sở hữu sản phẩm cùng bộ phận pháp lý rà soát/i),
-    ).toBeInTheDocument();
+    expect(screen.getAllByText(new RegExp(COMPANY.taxId)).length).toBeGreaterThan(0);
   });
 
   it("grounds /privacy's data sections in what the code actually reads and writes", () => {
@@ -40,27 +39,34 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     expect(screen.getAllByText(/sandbox/i).length).toBeGreaterThan(0);
   });
 
-  it("leaves explicit, visible owner placeholders rather than inventing legal facts", () => {
+  it("names every data processor the product actually sends data to, including the LLM", () => {
     render(<PrivacyPolicyPage />);
 
-    const placeholders = screen.getAllByTestId("owner-placeholder");
-    expect(placeholders.length).toBeGreaterThan(0);
-    for (const placeholder of placeholders) {
-      expect(placeholder).toHaveTextContent(/^\[OWNER:/);
+    const list = screen.getByRole("list", { name: "Bên xử lý dữ liệu" });
+    for (const processor of ["Supabase", "TikTok Shop API", "OpenAI", "Zalo", "Firebase", "TikTok Pixel"]) {
+      expect(list, processor).toHaveTextContent(processor);
+    }
+    expect(screen.getByText(/không bán dữ liệu của bạn/i)).toBeInTheDocument();
+  });
+
+  it("publishes no unfinished drafts: no placeholders, no 'pending legal review' banner", () => {
+    for (const Page of [PrivacyPolicyPage, TermsOfServicePage]) {
+      const { container, unmount } = render(<Page />);
+      expect(container).not.toHaveTextContent(/\[OWNER:/);
+      expect(container).not.toHaveTextContent(/bộ phận pháp lý/i);
+      unmount();
     }
   });
 
-  it("renders /terms with a heading and the same owner-review notice pattern", () => {
+  it("renders /terms with the entity, the trial terms, and GMV figures framed as targets", () => {
     render(<TermsOfServicePage />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Điều khoản dịch vụ" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/cần chủ sở hữu sản phẩm và bộ phận pháp lý soạn thảo/i),
-    ).toBeInTheDocument();
-    const placeholders = screen.getAllByTestId("owner-placeholder");
-    expect(placeholders.length).toBeGreaterThan(0);
+    expect(screen.getAllByText(new RegExp(COMPANY.name)).length).toBeGreaterThan(0);
+    expect(screen.getByText(/miễn phí trong 3 tháng đầu/i)).toBeInTheDocument();
+    expect(screen.getByText(/không phải cam kết về kết quả/i)).toBeInTheDocument();
   });
 
   it("/terms links back to /privacy for the data-handling detail", () => {
