@@ -345,6 +345,8 @@ def content_detail(run: WorkflowRun, *, awaiting: str | None) -> dict[str, Any] 
         stage = "ended"
     elif stage == STAGE_PUBLISHED:
         stage = STAGE_PUBLISH
+    elif stage == STAGE_FAILED:
+        stage = "ended"
     version = shown_version(state)
     shown = draft(state, version) if version else None
     script = None

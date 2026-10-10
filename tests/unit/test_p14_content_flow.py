@@ -762,6 +762,9 @@ async def test_two_failed_drafts_end_the_run_without_showing_anything(session):
     )
     assert done.status == WorkflowRunStatus.COMPLETED
     assert "chưa soạn được kịch bản" in done.final_response
+    assert (
+        run_state.content_detail(await _reload(session, run.id), awaiting=None)["stage"] == "ended"
+    )
 
 
 @pytest.mark.asyncio

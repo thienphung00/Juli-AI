@@ -81,6 +81,15 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 |---|---|---|---|
 | P13 no-shop → sample + "Kết nối TikTok Shop ›" strip on Trang chủ / Phân tích / Quyết định; Home sample = the cosmetics shop; Phân tích header left-aligned; reason-box debt accepted | 13.1–13.4 | done on `fasttrack/p13-no-shop-sample` (not merged, not deployed) | P13 agent (Opus) |
 
+## P14-E — "Juli soạn · bạn làm" content cards (D24.4, D24.17–D24.19)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Contract `contracts/p14-content-cards.md`; artboards ContentCards / ContentRun copied to `docs/product/design/quyet-dinh-flows/` | 14E.1 | done (b668231c) | P14-E agent (Opus) |
+| Backend: candidates from `metric_rankings` (video CTR / LIVE CTOR), nightly emission (7-day validity + cooldown, ≤ 5 new/week, 3-day stay, reason cooldown), card block, content run (reads → ONE `gpt-5.4-nano` structured-output call → choice → publish → detect), seller routes, poll beat, measurement + calibration; no migration | 14E.2–14E.5 | done on `fasttrack/p14-content` (2f7692b3 + follow-up; not merged, not deployed) | P14-E agent (Opus) |
+| UI: content card variant, content group, `content-run-panel`, client calls, signed-out / no-shop sample (MN-015 video, SM-012 LIVE, canned scripts) | 14E.6 | done on `fasttrack/p14-content` (1534786b) | P14-E agent (Opus, UI fork) |
+| Emission budget counts content cards for the day-1 content slot | — | sibling (card limits agent): count `workflow_key in content_cards.CONTENT_WORKFLOW_KEYS` | card-limits agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

@@ -786,3 +786,60 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   clean, vitest 1687/1687, Playwright 147 passed / 140 skipped (port 3319; new
   `e2e/analytics/no-shop-sample.spec.ts` 10/10 across desktop + mobile-web),
   build:demo OK (Playwright webServer build).
+
+### 2026-10-10 — P14-E: "Juli soạn · bạn làm" content cards (Video / LIVE)
+
+- Branch `fasttrack/p14-content` from 7590ba9d (D24.19). Contract
+  `fasttrack/contracts/p14-content-cards.md`; artboards ContentCards / ContentRun
+  copied to `docs/product/design/quyet-dinh-flows/` (b668231c). UI built by a fork
+  in parallel against the contract (1534786b); backend 2f7692b3 + docs commit.
+- **Candidates (rules, nightly)**: `services/content_cards/candidates.py` over the
+  stored `shop_metric_rankings` — `seller_video × ctr` rows below the stream prior with
+  ≥ 1 000 impressions per product (impressions = clicks ÷ CTR) → video card;
+  `seller_live × ctor` rows below the LIVE prior with ≥ 100 clicks → LIVE card.
+  Expected GMV = −Σ the rows' `gmv_per_day` (already D22's formula), shared 1/N across
+  a row's products, × 30. Template copy only.
+- **Emission** (`emission.py`), called from `action_cards.persist.emit_scoring_cards`
+  at a marked P14-E hook (the only edit in the sibling's file): writes ActionCards with
+  `workflow_key` `content_video` / `content_live` (`CONTENT_WORKFLOW_KEYS`) and payload
+  `card_executor: "juli_drafts"`, `content{…}` (no `diagnosis`). Re-scores open cards in
+  place; 7-day validity from `surfaced_at`, expiry → withdrawn + `expired_at` → back
+  after 7 days; reason cooldown via `decision_reasons` (card_basis learns content
+  cards); surfaced cards withdrawn early only at target / product not sellable;
+  ≤ 5 new content cards per ISO week; approved-in-measurement blocks 21 days.
+  Never touches `surfaced_at` (surfacing is the budget's).
+- **Run**: playbooks `content_video` / `content_live` (`agent/playbooks/content.py`,
+  registered; prompt pins `content_*/v1.md`); deterministic `ContentPlanner` +
+  `ContentRunner` wired in `_construct_runner`. Reads via a new `content` tool domain
+  (`get_content_performance`, `find_new_content`, read-only analytics) + existing
+  `get_product_information` / `get_seo_keywords` / `find_product_promotions`; seller
+  rules narrated (`assistant.text`). ONE `gpt-5.4-nano` call per version through the
+  OpenAI adapter with the new `response_format` → `text.format` json_schema (strict);
+  usage rides the planner's turn, so `workflow_runs.input/output_tokens` / `cost_usd`
+  count it. Guardrails: banned claim patterns + Juli/founder phrases + seller banned
+  words, protected-term respelling, prices / stock / discount vs data and cap, length,
+  hook ≤ 12 words, product on screen ≤ 3 s, basket order. Prompts adapt the
+  content-engine voice rules, hook-pattern table and HOOK/SETUP/VALUE/CTA frame to the
+  seller (tone, banned words, the shop's best videos / LIVEs as examples).
+- **Waits**: `content_choice` (3 days) and `content_publish` (7 days) join
+  `lever_flows.AWAITING_VALUES` (runs list, decline route, reaper policies). Seller
+  routes `POST /v1/demo/runs/{id}/content/use|redraft|published` (202 / 409 / 422) →
+  existing `resume_lever_flow`. Run detail `content` block (steps, script blocks,
+  wait, measuring line). State in `workflow_runs.state["content_run"]` (RunState keeps
+  unknown keys) — no migration.
+- **Measurement / poll**: hourly beat `content-runs-poll` (minute 41) per pollable
+  shop: auto-detects the new video / LIVE (then resumes the run) and stores the video
+  day-7 / day-14 readings (new vs old videos' CTR) or the next-3-sessions LIVE CTOR;
+  `GET /measurement` turns them into the P10 §6 body, final stored once with
+  calibration per `video_script` / `live_script`.
+- **Existing tests touched**: tool description snapshot + dictionary entries for the
+  two tools, production registry set, dispatcher-domain preservation scoped to the
+  pre-#1704 domains, beat schedule (8 entries), surface inventory regenerated.
+- Verification: ruff + format clean, mypy 581 files clean; backend unit suite 6473
+  passed, 9 failed — all pre-existing locally (also fail at 7590ba9d: cross-tenant
+  probe, destructive-migration CI flag, 7 `_construct_runner` wiring tests needing a
+  DB URL); new tests `test_p14_content_rules.py` 24, `test_p14_content_flow.py` 12.
+  Demo: lint 0 errors (7 pre-existing warnings), type-check clean, vitest 1700/1700,
+  Playwright `e2e/decisions` 32 passed / 140 skipped on port 3322 (content spec on
+  desktop + mobile, zero `/v1` requests).
+

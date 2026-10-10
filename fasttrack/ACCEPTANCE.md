@@ -234,3 +234,44 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   CTOR Thẻ sản phẩm 5,14 % on both), e2e CTOR test; home.test.tsx updated
 - [x] **AC-13.4** DEBT records the "reason box disappears after reload" item as
   accepted by the owner, won't fix. — evidence: fasttrack/DEBT.md (P12 section)
+
+## P14-E — "Juli soạn · bạn làm" content cards (contract: fasttrack/contracts/p14-content-cards.md)
+
+- [x] **AC-14E.1** Contract written; ContentCards.dc.html and ContentRun.dc.html copied
+  to `docs/product/design/quyet-dinh-flows/` with README rows. — evidence: b668231c.
+- [x] **AC-14E.2** Nightly, rules only (no model before Phê duyệt, D24.1): a product
+  whose videos' CTR is below the Video stream's prior CTR with ≥ 1 000 product
+  impressions → "Kịch bản video mới" (KPI "CTR - Video của người bán", target = the
+  stream prior, expected GMV = the ranking rows' D22 loss × 30); a product sold in LIVE
+  sessions whose CTOR is below the LIVE prior with ≥ 100 clicks → "Kịch bản host +
+  thứ tự giỏ" (KPI "CTOR - LIVE của người bán"). P10 card shape + `executor:
+  "juli_drafts"` + `content`; template text. 7-day validity and 7-day return after
+  expiry; reason cooldown (Từ chối / Không thực hiện) keyed on `video_script` /
+  `live_script`; a surfaced card is withdrawn early only when at target / product not
+  sellable; ≤ 5 new content cards per ISO week. — evidence:
+  `tests/unit/test_p14_content_rules.py` (candidates ×6), `test_p14_content_flow.py`
+  (cards + card block, stored rankings, re-score in place + weekly cap, expiry +
+  return, at-target withdrawal, reason cooldown).
+- [x] **AC-14E.3** After Phê duyệt: content run (`content_video` / `content_live`)
+  reads `get_content_performance`, `get_product_information`, `get_seo_keywords` /
+  `find_product_promotions` (tool.* SSE), narrates the seller's rules, makes ONE
+  `gpt-5.4-nano` call with OpenAI structured output (`text.format` json_schema, added to
+  the adapter), validates it (banned / protected / facts / discount cap / length /
+  product on screen ≤ 3 s), waits (`content_choice`); Soạn lại = one more call (bản 2,
+  sees bản 1); Dùng (edits re-checked, 422 otherwise) → waits (`content_publish`);
+  "Tôi đã đăng video" / "Tôi đã LIVE xong" or the hourly poll's auto-detect →
+  `find_new_content` → measuring. Không thực hiện = existing decline route (7-day
+  cooldown). No TikTok write, no Hoàn tác. Token usage on the run row. — evidence:
+  `test_p14_content_flow.py` (video run end to end, auto-detect, two failed drafts,
+  LIVE run + decline + routes, 202/422 routes), rules tests (schemas, guardrails ×12,
+  prompts, adapter body, drafter one call).
+- [x] **AC-14E.4** Measurement: video CTR of new videos tagging the product vs old
+  videos at day 7 / day 14; LIVE product CTOR over the next 3 sessions vs the prior
+  session(s); P10 labels and per-lever calibration, stored once; 409 before it starts.
+  — evidence: video run test (day 7 → final Không đạt 46 %, calibration `video_script`,
+  one final row), progress / stage unit tests.
+- [x] **AC-14E.5** Signed-out and no-shop samples carry MN-015 (video) and SM-012
+  (LIVE) content cards with canned scripts; no network, no model. — evidence:
+  `apps/demo/src/components/__tests__/quyet-dinh-content.test.tsx` (11),
+  `e2e/decisions/quyet-dinh-content.spec.ts` (desktop + mobile, zero `/v1` requests).
+

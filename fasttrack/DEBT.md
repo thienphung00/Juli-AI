@@ -548,3 +548,34 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [x] (owner 2026-10-10: show the sample name) The shell header in the no-shop state still names "Chưa chọn shop" (no "cập nhật HH:MM" line) above the sample, while the page's notice names the sample shop "Cửa hàng Mẫu Hoa Mai". Deliberate (the header is the seller's identity), revisit if the owner wants the sample name there.
 - [ ] The sample's daily GMV bars (Lịch sale) average 6,31 tr ₫/ngày in the prior window vs the streams' summed 6,95 tr ₫/ngày (last window agrees: 7,12 vs 7,16 tr). Only the bars show it (no total is printed from them); left as the P12 artboard values.
 - [ ] `SignedInQuyetDinh`'s own `!shop` empty state is now unreachable from `/decisions` (the page client routes no-shop to the sample); kept for direct callers / tests.
+
+## P14-E content cards (2026-10-10)
+
+- [ ] Day-1 content slot: emission surfaces content cards like any other candidate
+  until the card-limits work counts them (`workflow_key in
+  content_cards.CONTENT_WORKFLOW_KEYS`, or payload `card_executor == "juli_drafts"`).
+  The ≤ 5/week sub-limit is enforced at creation (new rows per ISO week), not at
+  surfacing.
+- [ ] Seller tone and banned words: no rule key exists yet; the run reads
+  `shop_rules` rows `content_tone` / `tone` and `banned_terms` / `banned_words` if the
+  seller-rules work adds them (unvalidated until then). Protected terms and the
+  per-SKU discount cap are read today.
+- [ ] LIVE candidate CTOR is the SESSION's (the ranking has no per-product split);
+  a session featuring N products shares its loss 1/N. The run and the measurement use
+  the product's own per-session CTOR (`get_live_products_performance`).
+- [ ] Basket position: TikTok's LIVE product list carries no position field today;
+  `basket_position` is read only if one of `position` / `basket_position` /
+  `display_position` / `sort_order` / `order` appears, else omitted.
+- [ ] Video measurement reads the shop video list over the window (per-video totals);
+  a video posted near day 0 counts its whole window, not day-by-day.
+- [ ] The content run's state lives in `workflow_runs.state["content_run"]` (no
+  migration this phase); a dedicated table would make readings queryable.
+- [ ] Seller-edited final text is stored per run (`edited_blocks`) but not yet exported
+  to the SFT dataset (D24.8).
+- [ ] UI: the publish-wait box has no Không thực hiện button (artboard has none); the
+  backend accepts decline there. Card list is the P10 single column (artboard shows a
+  2-column grid) and keeps the P10 uplift chip / group GMV line.
+- [ ] Pre-existing local failures unrelated to P14-E (also fail at 7590ba9d):
+  `test_cross_tenant_probe`, `test_destructive_migration_isolation`, 7 of
+  `test_agent_workflow_task_wiring` (env: DATABASE_URL / CI flags).
+
