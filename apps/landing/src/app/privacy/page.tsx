@@ -3,20 +3,24 @@ import type { Metadata } from "next";
 import { LandingHeader } from "../../components/landing-header";
 import { SiteFooter } from "../../components/site-footer";
 import { COMPANY } from "../../lib/site";
+import {
+  ENGLISH_SECTION_ID,
+  GOOGLE_PERMISSIONS_URL,
+  GOOGLE_USER_DATA_POLICY_URL,
+  LAST_UPDATED_EN,
+  PrivacyPolicyEnglish,
+} from "./privacy-policy-english";
 
 export const metadata: Metadata = {
-  title: "Chính sách bảo mật — Juli AI",
+  title: "Chính sách bảo mật / Privacy Policy — Juli AI",
   description:
-    "Juli AI thu thập gì, đọc gì từ shop TikTok Shop của bạn, chia sẻ với ai, lưu trong bao lâu, và quyền của bạn với dữ liệu đó.",
+    "Juli AI thu thập gì, đọc gì từ shop TikTok Shop của bạn, chia sẻ với ai, lưu trong bao lâu, và quyền của bạn với dữ liệu đó. Full English version included: what data Juli AI collects (including Google user data), how it is used, shared, protected, retained and deleted.",
 };
 
 const LAST_UPDATED = "10/10/2026";
 
 /** Anchor for §3, so the Google OAuth consent screen can deep-link to it. */
 const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
-const GOOGLE_USER_DATA_POLICY_URL =
-  "https://developers.google.com/terms/api-services-user-data-policy";
-const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
 
 export default function PrivacyPolicyPage() {
   return (
@@ -28,10 +32,34 @@ export default function PrivacyPolicyPage() {
           <h1 className="lp-legal__heading">Chính sách bảo mật</h1>
           <p className="lp-legal__updated">Cập nhật lần cuối: {LAST_UPDATED}</p>
 
+          <div className="lp-legal__en-notice" lang="en" data-testid="privacy-en-notice">
+            <p>
+              <strong>Privacy Policy — Juli AI.</strong> App name: Juli AI. Operator:{" "}
+              <span lang="vi">{COMPANY.name}</span> (tax ID {COMPANY.taxId}). Website:
+              app-juli.com. Contact:{" "}
+              <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+                {COMPANY.email}
+              </a>
+              . Last updated (effective date): {LAST_UPDATED_EN}.
+            </p>
+            <p>
+              <a className="lp-legal__contact-link" href={`#${ENGLISH_SECTION_ID}`}>
+                English version ↓
+              </a>
+            </p>
+          </div>
+
           <p className="lp-legal__intro">
             Chính sách này giải thích cách Juli AI thu thập, sử dụng, chia sẻ và bảo vệ dữ
             liệu khi bạn sử dụng website app-juli.com, bản Demo và ứng dụng Juli, phù hợp
             với Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.
+          </p>
+          <p className="lp-legal__intro">
+            Trang này có bản tiếng Anh đầy đủ ở phía dưới. Nếu hai bản có khác biệt, bản
+            tiếng Việt được ưu tiên áp dụng, trừ trường hợp điều đó mâu thuẫn với các cam
+            kết của Juli AI theo Chính sách dữ liệu người dùng của Google API Services, bao
+            gồm các yêu cầu Sử dụng giới hạn (Limited Use) tại mục 3 — các cam kết này luôn
+            được áp dụng.
           </p>
 
           <section className="lp-legal__section">
@@ -217,35 +245,6 @@ export default function PrivacyPolicyPage() {
                 để xoá, hãy gửi yêu cầu xoá như trên
               </li>
             </ul>
-
-            <div lang="en">
-              <h3 className="lp-legal__subheading">English summary (Google user data)</h3>
-              <p>
-                Juli AI (app-juli.com), operated by {COMPANY.name}, offers &ldquo;Sign in with
-                Google&rdquo; through Supabase Auth and requests only the openid, email and
-                profile scopes. <strong>Data accessed:</strong> your Google account email
-                address (and whether it is verified), name, profile picture URL and Google
-                account ID. Juli does not store your Google access or refresh tokens and calls
-                no Google API on your behalf. <strong>Use:</strong> only to create your Juli
-                account, sign you in, identify your account, show you which email you are
-                signed in with, and contact you about your account. It is used only to provide
-                or improve Juli&rsquo;s user-facing features; never for advertising, never sold,
-                never used to develop, improve or train generalized AI/ML models, and never
-                sent to OpenAI or any AI model. <strong>Sharing:</strong> only with service
-                providers needed to run Juli (Supabase for authentication and database
-                hosting, our server host, and Google Workspace as our email provider), when required by law, or
-                with your consent; never with advertising platforms (including TikTok) and
-                never transferred for any other purpose. <strong>Protection:</strong> TLS in
-                transit, encryption at rest by our database host, verified sessions,
-                row-level security and least-privilege database access, secrets in a managed
-                secret store. <strong>Retention and deletion:</strong> kept while your Juli
-                account exists; email {COMPANY.email} to have your account and Google user
-                data deleted within 30 days; revoke access at any time at
-                https://myaccount.google.com/permissions. Juli&rsquo;s use and transfer to any
-                other app of information received from Google APIs will adhere to the Google
-                API Services User Data Policy, including the Limited Use requirements.
-              </p>
-            </div>
           </section>
 
           <section className="lp-legal__section">
@@ -400,6 +399,8 @@ export default function PrivacyPolicyPage() {
               .
             </p>
           </section>
+
+          <PrivacyPolicyEnglish />
         </article>
       </main>
       <SiteFooter />

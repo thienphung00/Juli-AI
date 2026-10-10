@@ -128,21 +128,116 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
       expect(section).toHaveTextContent(/myaccount\.google\.com\/permissions/);
     });
 
-    it("carries an English summary for Google's reviewers", () => {
+    it("drops the short English summary from the Vietnamese §3 (the full English version replaces it)", () => {
       const section = googleSection();
-      const summary = section.querySelector('[lang="en"]');
-      expect(summary).not.toBeNull();
+      expect(section.querySelector('[lang="en"]')).toBeNull();
+    });
+  });
+
+  describe("Google OAuth brand verification: /privacy has a complete English version on the same URL", () => {
+    function englishPart() {
+      const { container } = render(<PrivacyPolicyPage />);
+      const part = container.querySelector("#english");
+      expect(part).not.toBeNull();
+      return part as HTMLElement;
+    }
+
+    it("is a separate, anchored part with lang=\"en\" and its own heading", () => {
+      const part = englishPart();
+      expect(part).toHaveAttribute("lang", "en");
+      expect(
+        within(part).getByRole("heading", { level: 2, name: "Privacy Policy — Juli AI (English)" }),
+      ).toBeInTheDocument();
+    });
+
+    it("is linked from the top of the page with \"English version ↓\"", () => {
+      render(<PrivacyPolicyPage />);
+      expect(screen.getByRole("link", { name: "English version ↓" })).toHaveAttribute(
+        "href",
+        "#english",
+      );
+    });
+
+    it("states app name, operator, tax ID, website, contact and date in English near the top", () => {
+      render(<PrivacyPolicyPage />);
+      const notice = screen.getByTestId("privacy-en-notice");
+      expect(notice).toHaveAttribute("lang", "en");
+      expect(notice).toHaveTextContent("App name: Juli AI");
+      expect(notice).toHaveTextContent(COMPANY.name);
+      expect(notice).toHaveTextContent(`tax ID ${COMPANY.taxId}`);
+      expect(notice).toHaveTextContent("Website: app-juli.com");
+      expect(notice).toHaveTextContent(COMPANY.email);
+      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 10, 2026/);
+    });
+
+    it("translates every section 1–12", () => {
+      const part = englishPart();
+      const headings = within(part)
+        .getAllByRole("heading", { level: 3 })
+        .map((heading) => heading.textContent);
+      expect(headings).toEqual([
+        "1. Who we are",
+        "2. Account information",
+        "3. Google user data",
+        "4. Information we read from your shop",
+        "5. What Juli records or changes on your shop",
+        "6. Purposes of data use",
+        "7. Who we share data with",
+        "8. Security and retention",
+        "9. Your rights",
+        "10. Age requirement",
+        "11. Changes to this policy",
+        "12. Contact",
+      ]);
+    });
+
+    it("gives Google user data a first-class section with every required subsection", () => {
+      const part = englishPart();
+      const section = within(part)
+        .getByRole("heading", { level: 3, name: "3. Google user data" })
+        .closest("section") as HTMLElement;
+      expect(section).toHaveAttribute("id", "google-user-data");
+      expect(section).toHaveTextContent(/openid, email and profile/);
+      const subheadings = within(section)
+        .getAllByRole("heading", { level: 4 })
+        .map((heading) => heading.textContent);
+      expect(subheadings).toEqual([
+        "3.1. Data Juli accesses",
+        "3.2. How Juli uses this data",
+        "3.3. Limited Use",
+        "3.4. Who Juli shares this data with",
+        "3.5. How Juli protects this data",
+        "3.6. Retention, deletion and revoking access",
+      ]);
+      expect(section).toHaveTextContent(
+        "Juli AI’s use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy (https://developers.google.com/terms/api-services-user-data-policy), including the Limited Use requirements.",
+      );
+      expect(
+        within(section).getByRole("link", { name: "Google API Services User Data Policy" }),
+      ).toHaveAttribute("href", "https://developers.google.com/terms/api-services-user-data-policy");
       for (const phrase of [
-        "openid, email and profile",
-        "never for advertising",
-        "never sold",
-        "generalized AI/ML models",
-        "Limited Use",
+        "does not use this data for advertising",
+        "does not sell this data",
+        "generalized artificial intelligence (AI) or machine learning (ML) models",
+        "does not sell, rent or trade Google user data",
+        "encrypted at rest",
+        "row-level security",
         "within 30 days",
         "myaccount.google.com/permissions",
       ]) {
-        expect(summary, phrase).toHaveTextContent(phrase);
+        expect(section, phrase).toHaveTextContent(phrase);
       }
+      expect(within(section).getByRole("link", { name: COMPANY.email })).toHaveAttribute(
+        "href",
+        `mailto:${COMPANY.email}`,
+      );
+    });
+
+    it("says in both languages that the Vietnamese version prevails, except over Limited Use", () => {
+      const part = englishPart();
+      expect(part).toHaveTextContent(/the Vietnamese version prevails, except where/);
+      expect(part).toHaveTextContent(/Limited Use requirements \(section 3\), which always apply/);
+      expect(screen.getByText(/bản\s+tiếng Việt được ưu tiên áp dụng/)).toBeInTheDocument();
     });
   });
 

@@ -874,3 +874,29 @@ a {
 .lp-legal__contact-link {
   color: var(--juli-primary-text);
 }
+
+/* /privacy: the English notice near the top and the full English version. */
+.lp-legal__en-notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--juli-space-2);
+  padding-inline-start: var(--juli-space-3);
+  border-inline-start: 3px solid var(--juli-primary-text);
+}
+
+.lp-legal__en-notice p {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.lp-legal__part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--juli-space-6);
+  margin-top: var(--juli-space-6);
+  padding-top: var(--juli-space-6);
+  border-top: 1px solid var(--juli-border);
+  scroll-margin-top: var(--juli-space-6);
+}
