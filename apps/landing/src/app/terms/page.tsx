@@ -62,7 +62,7 @@ export default function TermsOfServicePage() {
             <h2 className="lp-legal__section-heading">4. Kết nối shop</h2>
             <p>
               Khi bạn kết nối shop TikTok Shop, bạn cho phép Juli đọc dữ liệu shop của bạn
-              (mục 3 của{" "}
+              (mục 4 của{" "}
               <a className="lp-legal__contact-link" href="/privacy">
                 Chính sách bảo mật
               </a>

@@ -12,6 +12,7 @@ import {
   buildGoogleAuthorizeUrl,
 } from "../lib/supabase-auth";
 import { EmailSignIn } from "./email-sign-in";
+import { LegalConsentNote } from "./legal-consent-note";
 import { SampleHome } from "./home/sample-home";
 
 /**
@@ -174,6 +175,7 @@ export function DemoLanding() {
               ) : null}
             </>
           )}
+          <LegalConsentNote />
         </article>
       </div>
     </section>

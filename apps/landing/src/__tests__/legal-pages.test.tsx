@@ -30,13 +30,31 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     for (const resource of ["Đơn hàng", "Sản phẩm", "Tồn kho", "Đơn hoàn"]) {
       expect(items.some((text) => text.includes(resource)), resource).toBe(true);
     }
-    // Identity: Google sign-in, no password, no phone required.
-    expect(screen.getByText(/đăng nhập với google là cách duy nhất/i)).toBeInTheDocument();
+    // Identity: Google or email-code sign-in, no password.
+    expect(screen.getByText(/đăng nhập với google, hoặc bằng\s+email/i)).toBeInTheDocument();
     // Write path: default-off, sandbox-only today, owner-authorized per listing.
     expect(
       screen.getByText(/không thay đổi bất kỳ điều gì trên shop tiktok shop thật/i),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/sandbox/i).length).toBeGreaterThan(0);
+  });
+
+  it("discloses Google user data access, use, storage and sharing, and keeps it from ads and AI", () => {
+    render(<PrivacyPolicyPage />);
+
+    const list = screen.getByRole("list", { name: "Cách Juli xử lý dữ liệu người dùng Google" });
+    for (const facet of ["Truy cập", "Sử dụng", "Lưu trữ", "Chia sẻ"]) {
+      expect(list, facet).toHaveTextContent(facet);
+    }
+    expect(list).toHaveTextContent(/không gửi cho\s+nền tảng quảng cáo/);
+    expect(screen.getByRole("link", { name: /Google API Services/ })).toHaveAttribute(
+      "href",
+      "https://developers.google.com/terms/api-services-user-data-policy",
+    );
+    // The TikTok bullet must no longer claim an (even hashed) email is sent.
+    expect(screen.getByRole("list", { name: "Bên xử lý dữ liệu" })).toHaveTextContent(
+      /không nhận email/,
+    );
   });
 
   it("names every data processor the product actually sends data to, including the LLM", () => {

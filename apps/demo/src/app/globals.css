@@ -6601,3 +6601,16 @@ h4 {
 .no-shop-strip__link:hover {
   text-decoration: underline;
 }
+
+/* Privacy + terms links on every sign-in surface (Google OAuth policy). */
+.demo-legal-note {
+  margin: var(--juli-space-3) 0 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.demo-legal-note a {
+  color: inherit;
+  text-decoration: underline;
+}

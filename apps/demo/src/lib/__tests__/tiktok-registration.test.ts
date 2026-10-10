@@ -106,13 +106,12 @@ describe("the ad-referral gate", () => {
 });
 
 describe("reportTikTokRegistration", () => {
-  it("identifies the seller with hashed values, then records the registration", async () => {
+  it("identifies the seller by hashed Juli user id only — never the (Google) email", async () => {
     const token = accessTokenFor({ email: "  Seller@Example.COM ", sub: "user-1" });
 
     await reportTikTokRegistration(token);
 
     expect(pixel.identify).toHaveBeenCalledWith({
-      email: await sha256Hex("seller@example.com"),
       external_id: await sha256Hex("user-1"),
     });
     expect(pixel.track).toHaveBeenCalledWith(

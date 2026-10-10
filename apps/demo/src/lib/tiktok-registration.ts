@@ -79,7 +79,7 @@ function claimRegistration(userId: string): boolean {
 }
 
 /**
- * Report a completed Google sign-up to TikTok, once per user per browser.
+ * Report a completed sign-up (Google or email) to TikTok, once per user per browser.
  *
  * `identify` first and `track` second, in that order: identify seeds the
  * matching state the next event reads, it does not decorate events already
@@ -99,13 +99,16 @@ export async function reportTikTokRegistration(accessToken: string): Promise<voi
     return;
   }
 
-  const { email, userId } = readSupabaseIdentity(accessToken);
+  const { userId } = readSupabaseIdentity(accessToken);
 
   if (!userId || !claimRegistration(userId)) {
     return;
   }
 
-  await identifyTikTokUser({ email, externalId: userId });
+  // Juli's own user id only — never the email. For a Google sign-in the email
+  // is Google user data, which Google's API Services User Data Policy does not
+  // allow us to hand to an advertising platform, hashed or not (/privacy §3).
+  await identifyTikTokUser({ externalId: userId });
   trackTikTokEvent(TikTokEvents.completeRegistration);
 }
 

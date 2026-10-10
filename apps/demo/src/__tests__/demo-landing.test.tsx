@@ -66,6 +66,20 @@ describe("DemoLanding — the two doors", () => {
     expect(within(doors).getByText(/minh họa|dữ liệu mẫu/)).toBeInTheDocument();
   });
 
+  it("links the privacy policy and terms right where the seller signs in", () => {
+    render(<DemoLanding />);
+
+    const note = screen.getByTestId("legal-consent-note");
+    expect(within(note).getByRole("link", { name: "Chính sách bảo mật" })).toHaveAttribute(
+      "href",
+      "https://app-juli.com/privacy",
+    );
+    expect(within(note).getByRole("link", { name: "Điều khoản dịch vụ" })).toHaveAttribute(
+      "href",
+      "https://app-juli.com/terms",
+    );
+  });
+
   it("never issues a fetch merely by rendering the landing", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
