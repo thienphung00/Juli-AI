@@ -245,3 +245,7 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
         (Hoàn tác): the same action on the same product may return after
         **7 days**, every time — no escalation, no per-reason durations
         (reasons still lower its priority, D24.6).
+      - Once surfaced, a card stays at least **3 days** (numbers still update
+        daily); it is withdrawn earlier only when no longer valid (product
+        edited outside Juli, out of stock, metric already at target), not for
+        dropping in rank.
