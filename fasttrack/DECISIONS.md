@@ -380,3 +380,16 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       checks; a token is refreshed only within 24 h of expiry, about weekly.)
 - **D24.22** — Banned words and tone go into the drafting prompt and the draft
   is checked before the seller sees it (owner, 2026-10-10, option A).
+
+- **D26** — Cards right after connecting: "quét nhanh" (owner, 2026-10-10).
+  Runs in parallel with the 60-day backfill, on the priority queue, ~2–3 min
+  after connect: the last **14 days** of product performance (1–2 calls for
+  the whole shop) + TikTok listing diagnosis codes for the top 5–10 products
+  → **1–3 cards of Tiêu đề / Mô tả / Ảnh bìa only** (Juli tự làm), labelled
+  "Đề xuất nhanh · dựa trên 14 ngày", confidence "Tham khảo". They take the
+  day-1 Juli slots (3/1/1); the full diagnosis (~10–20 min) fills the
+  remaining slots and keeps quick cards that are still valid, updating their
+  numbers. The client shows progress ("Juli đang đọc dữ liệu shop · bước
+  1/3"), and cards appear as soon as they exist. Delivered in **P17** with
+  D25.12 (history to 180 days, 429 fix) and faster cost reads for the first
+  30 days (60 orders / 15 min, rate-limited).
