@@ -79,11 +79,24 @@ export const LEVER_LABELS: Readonly<Record<string, string>> = Object.freeze({
 export const RULE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   stability_band: "Ngưỡng giữ ổn định",
   product_cost: "Giá vốn theo sản phẩm",
-  min_margin_pct: "Biên lợi nhuận tối thiểu",
+  min_margin_pct: "Biên lợi nhuận tối thiểu khi giảm giá",
   max_discount_pct: "Trần giảm giá theo SKU",
   max_open_cards: "Số thẻ mở cùng lúc",
-  auto_levers: "Đòn bẩy được tự thực thi",
+  auto_levers: "Hành động được tự thực thi",
   protected_terms: "Từ / thông tin không được sửa",
+  // D24.21 (5): read by the video / LIVE content runs.
+  content_tone: "Giọng văn",
+  banned_terms: "Từ không được dùng",
+  // P14-F (off-api-rules.ts holds the help text).
+  sku_cost: "Giá vốn theo SKU",
+  default_gross_margin_pct: "Biên lợi nhuận gộp mặc định",
+  default_max_discount_pct: "Trần giảm giá tối đa (toàn shop)",
+  program_fee_pct: "Phí tham gia chương trình",
+  joins_platform_campaigns: "Tham gia chiến dịch sàn",
+  platform_campaign_note: "Chiến dịch đang đăng ký",
+  target_roas: "Mục tiêu ROAS",
+  gmv_max_daily_budget: "Ngân sách GMV Max hằng ngày",
+  live_schedule: "Khung giờ LIVE thường xuyên",
 });
 
 export function setByLabel(setBy: string | null | undefined): string {

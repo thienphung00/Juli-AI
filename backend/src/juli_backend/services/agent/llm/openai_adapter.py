@@ -56,7 +56,8 @@ slice does not build.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -76,6 +77,30 @@ from juli_backend.services.agent.llm.service import Message, ToolDefinition
 _API_KEY_ENV_VAR = "OPENAI_API_KEY"
 DEFAULT_BASE_URL = "https://api.openai.com"
 _RESPONSES_PATH = "/v1/responses"
+
+
+@dataclass(frozen=True)
+class JsonSchemaFormat:
+    """A structured-output request: the JSON schema the model's text must follow.
+
+    Translated to the Responses API's ``text.format`` (``type: json_schema``).
+    ``strict`` asks OpenAI to guarantee the shape (every property required,
+    ``additionalProperties: false`` -- the schema's author must comply).
+    """
+
+    name: str
+    schema: Mapping[str, Any]
+    strict: bool = True
+
+    def to_wire(self) -> dict[str, Any]:
+        return {
+            "format": {
+                "type": "json_schema",
+                "name": self.name,
+                "schema": dict(self.schema),
+                "strict": self.strict,
+            }
+        }
 
 
 class LLMProviderError(RuntimeError):
@@ -117,7 +142,16 @@ class OpenAIResponsesAdapter:
         tools: Sequence[ToolDefinition],
         config: LLMConfig,
         tool_choice: str | None = None,
+        response_format: JsonSchemaFormat | None = None,
     ) -> AssistantTurn:
+        """One Responses API call.
+
+        ``response_format`` (fast track P14-E, D24.16) asks for OpenAI
+        structured output: the model's text is then a JSON document that
+        conforms to the given schema (``text.format`` = ``json_schema``,
+        ``strict``). The text still arrives as the turn's ``FinalResponse``;
+        the caller parses and validates it. Omitted, the request is unchanged.
+        """
         api_key = require_env(_API_KEY_ENV_VAR)
         body = _build_request_body(
             model=config.model,
@@ -127,6 +161,7 @@ class OpenAIResponsesAdapter:
             max_output_tokens=config.max_output_tokens,
             temperature=config.temperature,
             tool_choice=tool_choice,
+            response_format=response_format,
         )
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -178,6 +213,7 @@ def _build_request_body(
     max_output_tokens: int,
     temperature: float,
     tool_choice: str | None = None,
+    response_format: JsonSchemaFormat | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "model": model,
@@ -194,6 +230,8 @@ def _build_request_body(
     }
     if tool_choice is not None:
         body["tool_choice"] = tool_choice
+    if response_format is not None:
+        body["text"] = response_format.to_wire()
     return body
 
 

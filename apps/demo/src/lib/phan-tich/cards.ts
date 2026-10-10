@@ -107,6 +107,13 @@ export function decisionGroupHref(metric: CellMetric): string {
 
 /** Card "Xem phân tích ›": Phân tích on that stream, metric and row (expanded); `null` without a product. */
 export function analysisHrefForDecision(item: DemoDecisionItem): string | null {
+  // P14-E content cards: Phân tích › Nội dung on the stream × metric the card came from.
+  const content = (item as P10DecisionItem).recommendation.card?.content;
+  if (content) {
+    return content.kind === "live"
+      ? analysisHref({ tab: "noi-dung", stream: "seller_live", metric: "ctor" })
+      : analysisHref({ tab: "noi-dung", stream: "seller_video", metric: "ctr" });
+  }
   const ref = toCardRef(item);
   if (!ref) return null;
   return analysisHref({ tab: "san-pham", stream: ref.stream, metric: ref.metric, row: ref.productId });

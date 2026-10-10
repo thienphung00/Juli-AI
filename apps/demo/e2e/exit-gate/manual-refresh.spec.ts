@@ -6,8 +6,9 @@ import { resetDemo } from "../helpers/workflow-journey";
  * "Làm mới Demo" puts the signed-out Quyết định back: since P11 that page is
  * the P10 sample over an in-memory store, remounted on the reset.
  */
+// P14-E: the sample's content cards reuse MN-015 / SM-012; this gate walks the P10 cards.
 const sampleCard = (page: import("@playwright/test").Page, name: string) =>
-  page.getByTestId("recommendation-card").filter({ hasText: name });
+  page.getByTestId("recommendation-card").filter({ hasText: name }).filter({ hasNotText: "Juli soạn · bạn làm" });
 
 async function rejectCard(page: import("@playwright/test").Page, name: string) {
   const card = sampleCard(page, name);

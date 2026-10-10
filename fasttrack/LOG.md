@@ -786,3 +786,212 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   clean, vitest 1687/1687, Playwright 147 passed / 140 skipped (port 3319; new
   `e2e/analytics/no-shop-sample.spec.ts` 10/10 across desktop + mobile-web),
   build:demo OK (Playwright webServer build).
+
+### 2026-10-10 — P14-C/F: cost data (read-only) and rule fields for what TikTok does not give us
+
+- Branch `fasttrack/p14-data` from a1e6767e. Commits e16ee0c9 (P14-C), 89aaf11e (P14-F), then docs.
+- Schemas from the local corpus (`partner_documents/api-reference/orders/get-price-detail-202407.md`,
+  `finance/get-transactions-by-order-202501.md`; their examples are truncated) completed from the
+  bundled OAS (`tts-openapi-guide` references). Price-detail line items have a line-item id but no
+  SKU id, so the step maps them with the existing order-detail read (ids only; the payload's buyer
+  e-mail / address are never kept). The `voucher_deduction_*` fields are documented as a voucher
+  *type* with an amount-looking example: stored, marked UNVERIFIED, excluded from the funded totals.
+- Migration `081_order_cost_data` onto `080_lever_flows`; the deferred phone cleanup re-parented
+  onto 081 (pins in five tests and the deploy runbook moved with it).
+- Where the step lives: first written as `workers/services/polling/order_costs.py`; the
+  import-boundary check forbids a NEW `workers → integrations` edge, so the fetch loop is
+  `services/order_costs/sync.py` and `run_shop_cycle` calls it. It takes rate-limit tokens directly
+  (10 / 60 s, the poll steps' window) without waiting, instead of `analytics_range.acquire_or_wait`.
+- P14-F needs no migration: new `shop_rules` keys. The list was checked against the OAS (no cost
+  field in the Product API; campaigns only as `campaign_inventory` after approval; analytics splits
+  GMV_MAX / NON_GMV_MAX GMV but has no spend or target; finance has programme fees only per settled
+  order; LIVE analytics is past sessions). `min_margin_pct` relabelled "Biên lợi nhuận tối thiểu
+  khi giảm giá". The signed-out sample shows the new group read-only (`offApiReadOnly`); the
+  existing groups keep their in-memory sample editing.
+- Verification: ruff + format clean, mypy `backend/src/juli_backend` clean (569 files), import
+  boundaries PASS; new pytest: `test_order_costs.py` 36, `test_shop_rules_off_api.py` 40,
+  `TestOrderCostsInTheCycle` 1, `test_order_costs_two_tenant.py` 1; 156 related unit files: 1916
+  passed, 9 failed = 7 `test_agent_workflow_task_wiring.py` (fail identically at the base checkout,
+  local DATABASE_URL parsing) + 2 fixed in this branch (facade export list, import boundary);
+  `fasttrack/check.sh --since a1e6767e` on fresh PG16: migrations PASS (at 081), isolation 12
+  passed, gitleaks PASS, ruff PASS (30 files), pytest 298 passed; RLS / grant / two-tenant suites
+  on PG16: 60 passed, 1 skipped, 1 xfailed. Demo (Node 20): type-check clean, lint 0 errors (7
+  pre-existing warnings), vitest 1702/1702 (a first full run had 3 timing failures in other files
+  that passed on re-run), Playwright `e2e/decisions/` 32 passed / 140 skipped (port 3321).
+
+## 2026-10-10 — P14 agent (Claude Opus) — card limits, learning from history, "Hành động"
+
+- Branch `fasttrack/p14-cards` from a1e6767e. No migration.
+- **P14-A (D24.17).** `DecisionEmissionConfig` is now `daily_new_cap` 5 /
+  `weekly_new_cap` 25 / `max_open` 30 / `validity_days` 7 / `min_stay_days` 3 /
+  `cooldown_days` 7 / `first_day_mix` (juli 3, seller_center 1, content 1), each
+  with a `CDP_DECISION_EMISSION_*` override; the old `max_active` / weekly novelty /
+  per-workflow cap are gone. `apply_emission_budget`: expires surfaced cards at 7 days
+  (`status = "expired"`, `metadata_json.expired_at`), keeps the others with their
+  original `surfaced_at` (no more re-stamping), surfaces drafts up to
+  min(daily, weekly, open) room in shop time (UTC+7); first connect uses the executor
+  mix. Counts read the novelty ledger, now one row per surfacing. Campaign-plan and
+  content hooks: `CAMPAIGN_PLAN_WORKFLOW_KEYS`, `CONTENT_WORKFLOW_KEYS` /
+  payload `executor_type`. Optimize Product: top 30; open card with an unchanged
+  diagnosis re-scored in place; expired card → same lever returns 7 days after expiry
+  (`expired_cooldown`), another lever at once; `withdraw_unranked_cards` keeps a
+  surfaced card ≥ 3 days unless `invalid_reason` (title edited outside Juli, not on
+  sale, stock 0, metric at target). `persist` (legacy workflows) gives expired cards
+  the same 7-day return. Card block: `expired` status, validity 7 days from
+  surfacing. Rejected / declined / reverted: existing P10-A cooldown already matches
+  (7 days, every time, no escalation) — kept its > 20 % early lift.
+- **P14-B (D24.6).** `LeverHistory`: factor = coefficient ÷ 0.5 clamped [0.25, 2];
+  `decision_reasons.reason_penalty` = max(0.4, 1 − 0.2 × Σ fade over 60 days),
+  circumstantial codes excluded; `measurement.shop_calibrations`. Ranking sorts on
+  recoverable × factor × penalty; shown GMV and measurement unchanged. Payload
+  `adjusted_by_history` + `diagnosis.history_adjustment`; API card block and UI line
+  "Thứ tự đề xuất đã điều chỉnh theo kết quả trước của shop." Formula in DECISIONS
+  D24 notes.
+- **P14-D.** "Đòn bẩy được tự thực thi" → "Hành động được tự thực thi" (rules label;
+  allow-listed in `destination-naming.test.ts`), canvas title "(7 hành động)",
+  ADR-109 UI copy. Internal `shop_report.py` HTML left (DEBT).
+- Tests: new `tests/unit/test_p14_card_limits.py` (18: 14-day simulation, mix,
+  shop day, campaign hook, seller rule, expiry return ×2, no escalation, 3-day stay,
+  invalid ×3, in-place re-score, calibration/penalty math and ordering); existing
+  emission / optimize / API / CDP tests updated to the new limits.
+- Verification: action_cards / optimize_product / lever_flows / decision_reasons /
+  demo_decisions suites 455 passed, 20 skipped; wider `tests/unit` + integration
+  subset importing these modules 2541 passed, 11 failed — all pre-existing or
+  environmental (9 fail identically on a1e6767e: agent workflow wiring, cross-tenant
+  probe, CI-yaml guard; credentials-in-URL guard only times out at 30 s, passes
+  without the timeout). mypy clean (45 files), ruff clean. Demo (Node 20): lint 0
+  errors (7 pre-existing warnings), type-check clean, vitest 1690/1690.
+  `fasttrack/check.sh --since a1e6767e` (docker PG16): migrations PASS (head 080),
+  isolation 12 passed, gitleaks PASS, ruff PASS, pytest 139 passed.
+
+### 2026-10-10 — P14-E: "Juli soạn · bạn làm" content cards (Video / LIVE)
+
+- Branch `fasttrack/p14-content` from 7590ba9d (D24.19). Contract
+  `fasttrack/contracts/p14-content-cards.md`; artboards ContentCards / ContentRun
+  copied to `docs/product/design/quyet-dinh-flows/` (b668231c). UI built by a fork
+  in parallel against the contract (1534786b); backend 2f7692b3 + docs commit.
+- **Candidates (rules, nightly)**: `services/content_cards/candidates.py` over the
+  stored `shop_metric_rankings` — `seller_video × ctr` rows below the stream prior with
+  ≥ 1 000 impressions per product (impressions = clicks ÷ CTR) → video card;
+  `seller_live × ctor` rows below the LIVE prior with ≥ 100 clicks → LIVE card.
+  Expected GMV = −Σ the rows' `gmv_per_day` (already D22's formula), shared 1/N across
+  a row's products, × 30. Template copy only.
+- **Emission** (`emission.py`), called from `action_cards.persist.emit_scoring_cards`
+  at a marked P14-E hook (the only edit in the sibling's file): writes ActionCards with
+  `workflow_key` `content_video` / `content_live` (`CONTENT_WORKFLOW_KEYS`) and payload
+  `card_executor: "juli_drafts"`, `content{…}` (no `diagnosis`). Re-scores open cards in
+  place; 7-day validity from `surfaced_at`, expiry → withdrawn + `expired_at` → back
+  after 7 days; reason cooldown via `decision_reasons` (card_basis learns content
+  cards); surfaced cards withdrawn early only at target / product not sellable;
+  ≤ 5 new content cards per ISO week; approved-in-measurement blocks 21 days.
+  Never touches `surfaced_at` (surfacing is the budget's).
+- **Run**: playbooks `content_video` / `content_live` (`agent/playbooks/content.py`,
+  registered; prompt pins `content_*/v1.md`); deterministic `ContentPlanner` +
+  `ContentRunner` wired in `_construct_runner`. Reads via a new `content` tool domain
+  (`get_content_performance`, `find_new_content`, read-only analytics) + existing
+  `get_product_information` / `get_seo_keywords` / `find_product_promotions`; seller
+  rules narrated (`assistant.text`). ONE `gpt-5.4-nano` call per version through the
+  OpenAI adapter with the new `response_format` → `text.format` json_schema (strict);
+  usage rides the planner's turn, so `workflow_runs.input/output_tokens` / `cost_usd`
+  count it. Guardrails: banned claim patterns + Juli/founder phrases + seller banned
+  words, protected-term respelling, prices / stock / discount vs data and cap, length,
+  hook ≤ 12 words, product on screen ≤ 3 s, basket order. Prompts adapt the
+  content-engine voice rules, hook-pattern table and HOOK/SETUP/VALUE/CTA frame to the
+  seller (tone, banned words, the shop's best videos / LIVEs as examples).
+- **Waits**: `content_choice` (3 days) and `content_publish` (7 days) join
+  `lever_flows.AWAITING_VALUES` (runs list, decline route, reaper policies). Seller
+  routes `POST /v1/demo/runs/{id}/content/use|redraft|published` (202 / 409 / 422) →
+  existing `resume_lever_flow`. Run detail `content` block (steps, script blocks,
+  wait, measuring line). State in `workflow_runs.state["content_run"]` (RunState keeps
+  unknown keys) — no migration.
+- **Measurement / poll**: hourly beat `content-runs-poll` (minute 41) per pollable
+  shop: auto-detects the new video / LIVE (then resumes the run) and stores the video
+  day-7 / day-14 readings (new vs old videos' CTR) or the next-3-sessions LIVE CTOR;
+  `GET /measurement` turns them into the P10 §6 body, final stored once with
+  calibration per `video_script` / `live_script`.
+- **Existing tests touched**: tool description snapshot + dictionary entries for the
+  two tools, production registry set, dispatcher-domain preservation scoped to the
+  pre-#1704 domains, beat schedule (8 entries), surface inventory regenerated.
+- Verification: ruff + format clean, mypy 581 files clean; backend unit suite 6473
+  passed, 9 failed — all pre-existing locally (also fail at 7590ba9d: cross-tenant
+  probe, destructive-migration CI flag, 7 `_construct_runner` wiring tests needing a
+  DB URL); new tests `test_p14_content_rules.py` 24, `test_p14_content_flow.py` 12.
+  Demo: lint 0 errors (7 pre-existing warnings), type-check clean, vitest 1700/1700,
+  Playwright `e2e/decisions` 32 passed / 140 skipped on port 3322 (content spec on
+  desktop + mobile, zero `/v1` requests).
+
+### 2026-10-10 — P14 integration: p14-data + p14-cards + p14-content
+
+- Branch `fasttrack/p14-integration` from ddef3245 (worktree `juli-ft-p14-int`). Merged `--no-ff`:
+  `fasttrack/p14-data` (clean), `fasttrack/p14-cards` (6e808245; conflicts only in PROGRESS / LOG /
+  ACCEPTANCE / DEBT / DECISIONS → union; P14-A/B/D implementation notes kept under D24.17, before
+  D24.18–20 and D25), `fasttrack/p14-content` (5095558d; docs union + three code conflicts kept
+  both sides: `DemoDecisionCard` has `adjusted_by_history` and `content`, `p10-types.ts` both fields
+  + `CardContentPayload`, `destination-naming.test.ts` both allow-list entries). P14 sections in
+  PROGRESS / ACCEPTANCE now sit under one "## P14 — recommendation pipeline (D24)".
+- Integration fixes (separate commits): aace1159 the emission budget's `CONTENT_WORKFLOW_KEYS` is
+  P14-E's (`content_video` / `content_live`) and payload `card_executor: "juli_drafts"` claims the
+  day-1 content slot, so content cards take the daily / weekly / open limits, the 7-day validity
+  and the 3-day stay like any card (P14-E's ≤ 5/week stays a creation sub-limit); P14-E's
+  `expired_recently` honours a card the budget expired (`expired`), so its 7-day return holds —
+  new `tests/unit/test_p14_integration_content_budget.py` (3). 438e3f6e import boundary (p14-cards
+  deep-imported `core.config.decision_emission`; failed on the branch alone too). ff1db5df
+  zero-assertion reconciliation 456 → 459 (three P14-C/F `pytest.raises`-only tests; failed on
+  `fasttrack/p14-data` alone too).
+- No changes needed: migration head `081_order_cost_data`, deferred phone cleanup parented on 081
+  (pins already moved by p14-data); beat schedule (only p14-content adds a beat); surface inventory
+  regenerated — identical. Seller tone / banned words: p14-data added no rule key, P14-E's reader
+  of `content_tone`/`tone`, `banned_terms`/`banned_words` left as is (DEBT).
+- Verification: ruff clean; `ruff format --check` over the tree lists the same 37 files as
+  ddef3245; mypy 589 files clean. `tests/unit` 6664 passed, 242 skipped, 2 xfailed, 9 failed —
+  the same 9 fail at ddef3245 (7 `test_agent_workflow_task_wiring`, `test_cross_tenant_probe`,
+  `test_destructive_migration_isolation` CI flag). `tests/integration` without a DB: 50 passed,
+  244 skipped, 2 failed + 4 errors (same at ddef3245); on a fresh PG16: 276 passed, 21 skipped, 3
+  failed — the same 3 at ddef3245 (recorded-replay registry, sanitizer registry, public UPDATE
+  grants; the last now also lists P14-C's three tables, DEBT). `fasttrack/check.sh --since
+  ddef3245` (docker PG16): migrations PASS at 081, isolation 12 passed, gitleaks PASS, ruff PASS (89
+  files), pytest 35 files 624 passed. Demo (Node 20): lint 0 errors (7 pre-existing warnings),
+  type-check clean, vitest 130 files 1714 passed, Playwright 154 passed / 140 skipped (port 3323),
+  `pnpm build:demo --force` OK.
+
+
+### 2026-10-10 — P14 integration: D24.21 owner choices
+
+- Merged `fasttrack/optimize-product` (`--no-ff`, docs 3836bf2a: DECISIONS D24.21 + D25 8–10; no conflict).
+- (1)/(3) Strict 7-day return: `decision_reasons.clearly_changed` / `CLEAR_CHANGE_RELATIVE` removed;
+  Optimize Product's `_cooled_down` is the reason row alone; content emission already keyed on the
+  cooldown only. Legacy workflows (`persist.emit_scoring_cards`): a dismissed newest row is handled
+  like an expired one — inside 7 days suppressed (`basis_unchanged` / `active_card_exists` as
+  before), after 7 days a new chained revision even with an unchanged basis. **ADR-087 d.6
+  ("clock never triggers") is replaced for dismissed cards** (DEBT: ADR text not amended). UI copy
+  drops "trừ khi số liệu đổi rõ".
+- (2) `max_open_cards` 5–30, default 30; stored values < 5 clamp to 5 on read (no data migration).
+- (4) Fixed daily slots: `DecisionEmissionConfig.first_day_mix` → `daily_slots`
+  (env `CDP_DECISION_EMISSION_DAILY_SLOTS`); `apply_emission_budget` picks per slot every day
+  (`daily_slot_pick`), today's earlier surfacings (ledger rows → cards) use up their slot, no
+  backfill, the first-day-only mix and `_shop_ever_surfaced` are gone. Legacy cards (no lever) take
+  Juli slots after the ADR-106 Juli cards. `plan_shop_cards` keeps the top 30 per executor type
+  (`keep_top_per_type`). Content candidates rank by GMV × lever weight (`lever_history`).
+- (5) `content_tone` / `banned_terms` rule keys (validation, routes, accessors), editor group
+  "Nội dung video / LIVE", sample values, chips; `content_cards.driver.load_rules` reads exactly
+  them; `agent_runs.confirmations` refuses an `update_product_listing` approve whose title /
+  description contains a banned term (`EditRejected` → 422 `rule_violation`), also checked on the
+  seller's edit (`validate_listing_edits(banned_terms=…)`).
+- Also: content ≤ 5/week in the shop week (`emission._week_start` = shop Monday 00:00 +07);
+  `081_order_cost_data` grants no UPDATE on `order_price_details` / `order_finance_transactions`
+  (delete + insert only; 081 is not deployed, edited in place, no new migration), `order_cost_fetches`
+  UPDATE registered in `GRANT_REQUIRED`; PROGRESS AC id 14E.6 → 14E.5.
+- Tests updated for the slots (14-day simulation now 48 Juli / 16 SC / 16 content, slots 3/1/1 per
+  day; first-day backfill tests replaced by empty-slot / every-day / same-day tests; legacy-card
+  budgets 5 → 3), new `tests/unit/test_d24_21_owner_choices.py` (7).
+- Verification: ruff clean; `ruff format --check` lists none of the changed files (whole-tree
+  list unchanged: 37 under tests/ plus agent-runtime/infra/.claude files); mypy 589 files clean.
+  `tests/unit` (run in 8 chunks): 6681 passed, 242 skipped, 2 xfailed, 9 failed — the same 9
+  pre-existing (7 `test_agent_workflow_task_wiring`, `test_cross_tenant_probe`,
+  `test_destructive_migration_isolation` CI flag). `tests/integration` on a fresh PG16: 276 passed,
+  21 skipped, 3 failed — the same 3 (recorded-replay registry, sanitizer registry, public UPDATE
+  grants — now only the 7 older tables). `fasttrack/check.sh --since 3836bf2a` (docker PG16):
+  migrations PASS at 081, isolation 12 passed, gitleaks PASS, ruff PASS (98 files), pytest 42 files
+  693 passed. Demo (Node 20): lint 0 errors (7 pre-existing warnings), type-check clean, vitest 130
+  files 1715 passed, Playwright 154 passed / 140 skipped (port 3324, example Supabase env),
+  `pnpm build:demo --force` OK.

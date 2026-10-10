@@ -268,6 +268,9 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for fast track P10-B (lever flows,
         # photos, calibration and day-14 verdicts as juli_app, AC-10.2).
         "test_lever_flows_two_tenant.py",
+        # Reason 2 again: seeds two tenants for fast track P14-C (per-order
+        # cost data written as juli_app under each shop's scope).
+        "test_order_costs_two_tenant.py",
     }
 )
 

@@ -11,9 +11,14 @@ Field rules, where the contract leaves a choice:
 
 - ``status``: ``dismissed`` → ``rejected``; ``approved`` / ``executing`` →
   ``applied`` once the card's latest run finished ``completed`` having written
-  something, else ``running``; ``withdrawn`` → ``expired``; ``active`` →
-  ``expired`` when the proposal is older than :data:`PROPOSAL_VALIDITY_DAYS`
-  or the product's title changed since it was proposed, else ``pending``.
+  something, else ``running``; ``withdrawn`` / ``expired`` → ``expired``;
+  ``active`` → ``expired`` when it was surfaced :data:`PROPOSAL_VALIDITY_DAYS`
+  (7, D24.17) or more ago (``computed_at`` for a card never surfaced) or the
+  product's title changed since it was proposed, else ``pending``.
+- ``adjusted_by_history`` (P14-B, D24.6): the card's rank was weighted by the
+  shop's history for the lever (calibration or seller reasons), so the UI can
+  say "đã điều chỉnh theo kết quả trước". The shown GMV stays the rule-based
+  estimate.
 - ``main_kpi``: the weak stage the GMV estimate is built on
   (``recoverable_gmv_basis``), ``target`` = its ``reference_rate`` so the KPI
   and ``expected_gmv_per_month`` agree. Without a basis: the diagnosis's main
@@ -43,7 +48,8 @@ from juli_backend.models.run_changes import RunWriteValue
 from juli_backend.services.agent.tools.diagnosis_labels import diagnosis_label_vi
 
 WORKFLOW_LABEL_VI = "Tối ưu sản phẩm"
-PROPOSAL_VALIDITY_DAYS = 14
+#: D24.17: a card is valid 7 days from surfacing.
+PROPOSAL_VALIDITY_DAYS = 7
 
 #: Lever code -> (Vietnamese label, who carries it out).
 LEVERS: Mapping[str, tuple[str, str]] = {
@@ -200,17 +206,17 @@ def _status(
 ) -> str:
     if card.status == "dismissed":
         return "rejected"
-    if card.status == "withdrawn":
+    if card.status in ("withdrawn", "expired"):
         return "expired"
     if card.status in ("approved", "executing"):
         run = context.latest_run
         if run is not None and run.status == "completed" and context.writes:
             return "applied"
         return "running"
-    computed = card.computed_at
-    if computed is not None:
-        aware = computed.replace(tzinfo=UTC) if computed.tzinfo is None else computed
-        if now - aware > timedelta(days=PROPOSAL_VALIDITY_DAYS):
+    since = card.surfaced_at or card.computed_at
+    if since is not None:
+        aware = since.replace(tzinfo=UTC) if since.tzinfo is None else since
+        if now - aware >= timedelta(days=PROPOSAL_VALIDITY_DAYS):
             return "expired"
     product = context.product
     proposed_title = diagnosis.get("product_title")
@@ -349,6 +355,7 @@ def build_card_block(
         "change_fields": [{"field": field_code, "label": field_label}],
         "before_after": _before_after(context),
         "gmv_method": _GMV_METHOD_VI.get(str(kpi["key"])) if per_day is not None else None,
+        "adjusted_by_history": diagnosis.get("adjusted_by_history") is True,
     }
 
 

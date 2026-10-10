@@ -188,6 +188,11 @@ def mask_decision_payload(
     # block, built from the payload and ``card_context`` -- not copied from the
     # stored JSON, so it is not part of the allowlist above.
     card_block = build_card_block(card, raw_payload, card_context)
+    if card_block is None and isinstance(raw_payload.get("content"), dict):
+        # Fast track P14-E (contract p14-content-cards.md §1): a content card.
+        from juli_backend.services.content_cards.card_view import build_content_card_block
+
+        card_block = build_content_card_block(card, raw_payload, card_context)
     if card_block is not None:
         recommendation["card"] = card_block
 

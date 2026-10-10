@@ -17,10 +17,15 @@ import type { Measurement, PhotoCheck, QdRun, RunAwaiting, RunDetail } from "./p
 import {
   SAMPLE_APPLIED_CARD,
   SAMPLE_CARDS,
+  SAMPLE_CONTENT_CARDS,
   SAMPLE_FINISHED_CHANGES,
   SAMPLE_FINISHED_RUN_ID,
   SAMPLE_INSTRUCTIONS,
   SAMPLE_PHOTO_CHECKS,
+  contentPublished,
+  contentPublishWait,
+  contentRedraft,
+  contentUntilChoice,
   endDraft,
   executorOf,
   finishedListingEvents,
@@ -31,6 +36,9 @@ import {
   photoUntilUpload,
   revertUntilConsent,
   sampleChanges,
+  sampleContentDecision,
+  sampleContentDetail,
+  sampleContentMeasurement,
   sampleDay7Measurement,
   sampleDecision,
   sampleRules,
@@ -39,13 +47,15 @@ import {
   writeAndReview,
   type EventDraft,
   type SampleCardSpec,
+  type SampleContentSpec,
+  type SampleContentState,
 } from "./sample-data";
 import type { FieldChange, RunChanges, ShopRules } from "./types";
 
 const DAY_MS = 86_400_000;
 const CONSENT_VALIDITY_MS = 4 * 3_600_000;
 
-type RunKindSample = "listing" | "photo" | "manual" | "revert";
+type RunKindSample = "listing" | "photo" | "manual" | "revert" | "content";
 
 interface SampleRun {
   readonly id: string;
@@ -58,6 +68,9 @@ interface SampleRun {
   photo: RunDetail["photo"];
   /** For a revert run: the run it restores. */
   readonly revertsRunId: string | null;
+  /** P14-E content run: the card and the run's content state. */
+  readonly contentSpec?: SampleContentSpec;
+  content?: SampleContentState;
 }
 
 export interface SampleClientsOptions {
@@ -78,7 +91,10 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
   const now = options.now ?? (() => Date.now());
   const startedAt = now();
 
-  const cardStatus = new Map<string, string>(SAMPLE_CARDS.map((card) => [card.id, card.status ?? "pending"]));
+  const cardStatus = new Map<string, string>([
+    ...SAMPLE_CARDS.map((card): [string, string] => [card.id, card.status ?? "pending"]),
+    ...SAMPLE_CONTENT_CARDS.map((card): [string, string] => [card.id, "pending"]),
+  ]);
   let rules: ShopRules = sampleRules();
   const runs = new Map<string, SampleRun>();
   const listeners = new Set<() => void>();
@@ -196,6 +212,14 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
       }
       return;
     }
+    if (run.kind === "content" && run.contentSpec && run.content) {
+      cardStatus.set(run.contentSpec.id, "applied");
+      run.content.stage = "measuring";
+      run.content.stepAt[4] = iso(doneMs);
+      run.changes = sampleChanges(run.id, [], { revert: { available: false, reason_code: "content", message: null, runs: [] } });
+      run.measurement = sampleContentMeasurement(doneMs, run.contentSpec);
+      return;
+    }
     if (run.card) cardStatus.set(run.card.id, "applied");
     if (run.kind === "listing") {
       const written = pendingWrite.get(run.id) ?? {};
@@ -251,6 +275,36 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
     return run;
   };
 
+  /** P14-E: approve a content card → reads → bản 1 → waits for the seller's choice. */
+  const startContentRun = (spec: SampleContentSpec): SampleRun => {
+    const id = newRunId();
+    const run: SampleRun = {
+      id,
+      kind: "content",
+      card: null,
+      contentSpec: spec,
+      content: { stage: "drafting", version: 1, chosenVersion: null, edited: false, stepAt: [null, null, null, null, null, null] },
+      item: runItem(id, spec.name, { status: "running", decision_id: spec.id } as Partial<QdRun>),
+      events: EMPTY_EVENTS,
+      changes: sampleChanges(id, [], { revert: { available: false, reason_code: "content", message: null, runs: [] } }),
+      measurement: null,
+      photo: null,
+      revertsRunId: null,
+    };
+    runs.set(id, run);
+    append(run, contentUntilChoice(spec));
+    const at = run.events.map((event) => event.timestamp);
+    run.content = { ...run.content!, stage: "choice", stepAt: [at[2] ?? null, at[at.length - 3] ?? null, at[at.length - 2] ?? null, null, null, null] };
+    setAwaiting(run, "content_choice", "waiting_external");
+    return run;
+  };
+
+  const contentRun = (runId: string): SampleRun & { contentSpec: SampleContentSpec; content: SampleContentState } => {
+    const run = getRun(runId);
+    if (run.kind !== "content" || !run.contentSpec || !run.content) throw new Error("Lượt chạy này không phải kịch bản nội dung.");
+    return run as SampleRun & { contentSpec: SampleContentSpec; content: SampleContentState };
+  };
+
   const resolved = <T,>(value: T): Promise<T> => Promise.resolve(value);
   const snapshotRuns = (): QdRun[] => [...runs.values()].map((run) => run.item).reverse();
 
@@ -272,10 +326,16 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
     useRunEvents: useSampleRunEvents,
 
     fetchDecisions: () =>
-      resolved(
-        SAMPLE_CARDS.map((card) => sampleDecision({ ...card, status: cardStatus.get(card.id) as SampleCardSpec["status"] }, startedAt)),
-      ),
+      resolved([
+        ...SAMPLE_CARDS.map((card) => sampleDecision({ ...card, status: cardStatus.get(card.id) as SampleCardSpec["status"] }, startedAt)),
+        ...SAMPLE_CONTENT_CARDS.map((card) => sampleContentDecision(card, startedAt, cardStatus.get(card.id) ?? "pending")),
+      ]),
     approve: (cardId) => {
+      const content = SAMPLE_CONTENT_CARDS.find((entry) => entry.id === cardId);
+      if (content) {
+        cardStatus.set(cardId, "running");
+        return resolved({ runId: startContentRun(content).id });
+      }
       const card = SAMPLE_CARDS.find((entry) => entry.id === cardId);
       if (!card) return Promise.reject(new Error("Không tìm thấy thẻ này trong bản minh họa."));
       cardStatus.set(cardId, "running");
@@ -355,6 +415,7 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
     decline: (_auth, runId) => {
       const run = getRun(runId);
       const stop = run.item.awaiting ? "cancelled_by_seller" : "confirmation_declined";
+      if (run.content) run.content.stage = "declined";
       append(run, [endDraft(stop)]);
       return resolved({ status: "declined", cooldown_until: iso(now() + 7 * DAY_MS) });
     },
@@ -380,8 +441,46 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
       return resolved(undefined);
     },
     fetchMeasurement: (_auth, runId) => resolved(getRun(runId).measurement),
+    useContent: (_auth, runId, version, editedBlocks) => {
+      const run = contentRun(runId);
+      run.content.chosenVersion = version;
+      run.content.edited = Boolean(editedBlocks && Object.keys(editedBlocks).length > 0);
+      run.content.stage = "publish";
+      run.content.stepAt[3] = iso(now());
+      append(run, contentPublishWait(run.contentSpec));
+      setAwaiting(run, "content_publish", "waiting_external");
+      return resolved(undefined);
+    },
+    redraftContent: (_auth, runId) => {
+      const run = contentRun(runId);
+      if (run.content.version >= 2) return Promise.reject(new Error("Juli đã soạn lại một lần."));
+      run.content.version = 2;
+      append(run, contentRedraft());
+      run.content.stepAt[2] = iso(now());
+      setAwaiting(run, "content_choice", "waiting_external");
+      return resolved(undefined);
+    },
+    markPublished: (_auth, runId) => {
+      const run = contentRun(runId);
+      setAwaiting(run, null, "running");
+      play(run, contentPublished(run.contentSpec));
+      return resolved(undefined);
+    },
     fetchRunDetail: (_auth, runId) => {
       const run = getRun(runId);
+      if (run.kind === "content" && run.contentSpec && run.content) {
+        return resolved({
+          id: run.id,
+          status: run.item.status,
+          awaiting: run.item.awaiting ?? null,
+          awaiting_expires_at: run.item.awaiting ? iso(now() + 3 * DAY_MS) : null,
+          decision_id: run.contentSpec.id,
+          lever: { code: run.contentSpec.kind === "video" ? "video_script" : "live_script", kind: "content" },
+          photo: null,
+          promotion: null,
+          content: sampleContentDetail(run.contentSpec, run.content),
+        });
+      }
       return resolved({
         id: run.id,
         status: run.item.status,

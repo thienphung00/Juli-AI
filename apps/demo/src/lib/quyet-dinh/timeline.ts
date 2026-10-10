@@ -38,7 +38,8 @@ import { resolveRunTerminalState } from "../run-ledger/terminal-state";
 
 export type StepStatus = "done" | "current" | "upcoming" | "failed" | "skipped";
 export type StepKind = "tool" | "consent" | "terminal" | "await";
-export type RunKind = "listing" | "photo" | "manual" | "revert";
+/** `content` (P14-E): a "Juli soạn · bạn làm" run — its panel reads the run detail's `content.steps`. */
+export type RunKind = "listing" | "photo" | "manual" | "revert" | "content";
 export type Who = "juli" | "you";
 
 export interface TimelineStep {
@@ -86,7 +87,7 @@ export interface RunTimeline {
 export interface TimelineOptions {
   readonly isRevert?: boolean;
   readonly kind?: RunKind;
-  readonly awaiting?: "photo" | "seller_action" | null;
+  readonly awaiting?: "photo" | "seller_action" | "content_choice" | "content_publish" | null;
   /** Photo checks the seller's upload got this visit (contract §4). */
   readonly photoChecks?: readonly { readonly label: string; readonly ok: boolean }[] | null;
   /** Revert run: when it was started and the reason the seller gave. */
@@ -162,6 +163,17 @@ export const PLANS: Readonly<Record<RunKind, readonly RowSpec[]>> = {
     { type: "verify", key: "verify", label: "Kiểm tra trên TikTok", who: "juli" },
     { type: "terminal", key: "terminal", label: "Kết thúc · đặt lịch đo", who: "juli" },
   ],
+  content: [
+    { type: "tool", key: "read-content", label: "Đọc số liệu nội dung", tools: ["get_content_performance"] },
+    {
+      type: "tool",
+      key: "read-product",
+      label: "Đọc thông tin sản phẩm",
+      tools: ["get_product_information", "get_seo_keywords", "find_product_promotions", "get_seller_content_rules"],
+    },
+    { type: "tool", key: "detect", label: "Tìm video / phiên LIVE mới", tools: ["find_new_content"] },
+    MEASURE_END,
+  ],
   revert: [
     { type: "revertClicked", key: "clicked", label: "Bạn bấm Hoàn tác" },
     { type: "revertReason", key: "reason", label: "Cho Juli biết lý do" },
@@ -189,6 +201,10 @@ export const TOOL_STEP_LABELS: Readonly<Record<string, string>> = Object.freeze(
   upload_product_image: "Tải ảnh lên TikTok Shop",
   update_product_price: "Cập nhật giá trên TikTok Shop",
   check_product_status: "TikTok duyệt lại trang sản phẩm",
+  get_content_performance: "Đọc số liệu nội dung",
+  get_seller_content_rules: "Đọc Quy tắc của bạn",
+  find_product_promotions: "Đọc khuyến mãi",
+  find_new_content: "Tìm video / phiên LIVE mới",
 });
 export const UNKNOWN_TOOL_LABEL = "Bước xử lý";
 

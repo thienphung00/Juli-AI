@@ -234,3 +234,76 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   CTOR Thẻ sản phẩm 5,14 % on both), e2e CTOR test; home.test.tsx updated
 - [x] **AC-13.4** DEBT records the "reason box disappears after reload" item as
   accepted by the owner, won't fix. — evidence: fasttrack/DEBT.md (P12 section)
+
+## P14 — recommendation pipeline (D24)
+
+### P14-C/F — cost data (read-only) and rule fields for what TikTok does not give us (D24.5, D24.12, D24.13)
+
+Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-data`.
+
+- [x] **AC-14.C1** `GET /order/202407/orders/{id}/price_detail` and `GET /finance/202501/orders/{id}/statement_transactions` are exact production-read GETs (numeric order id only), have a client (`OrderCostsResource`) and are documented in `endpoints.md` with the unverified fields marked. — evidence: `tests/unit/test_order_costs.py` (allowlist accepts both, refuses POST/PUT/other versions/non-numeric/suffixed paths; path helpers; endpoints.md), `test_tiktok_public_facade.py`.
+- [x] **AC-14.C2** Migration `081_order_cost_data` (onto 080; the deferred phone cleanup re-parented onto 081, still the tail) adds `order_price_details` (per shop/order/SKU + order row, seller- vs platform-funded), `order_finance_transactions` (per shop/order/SKU/statement + order row, fee/shipping breakdown), `order_cost_fetches`; tenant_direct with RLS per verb; amounts and ids only, no buyer data. — evidence: `fasttrack/check.sh --since a1e6767e` on a fresh PG16: migrations PASS (up/down/up at 081), isolation 12 passed; `tests/integration/test_order_costs_two_tenant.py` (juli_app: A's rows invisible/unwritable from B, B's replace leaves A's rows); RLS/grant/isolation suites (`test_rls_*`, `test_runtime_role_grant_coverage`, `test_two_tenant_isolation_proof`, `test_check_7_production_write_rls`, `test_cross_tenant_probe`, two-tenant suites) 60 passed / 1 skipped / 1 xfailed on PG16; unit: idempotent replace, per-shop, no PII stored, model ⇔ migration columns.
+- [x] **AC-14.C3** Each scheduled shop cycle reads a bounded number of orders of the last 60 days (new, or changed since read; finance for delivered, unsettled, at most daily), under the cycle's per-shop lock, one rate-limit bucket per endpoint, stops on an empty bucket / vendor 429 / missing scope, counts other errors per order (5 attempts), and never fails the cycle. — evidence: `test_order_costs.py` (first cycle reads, second cycle makes no vendor call, limiter bound + resume, 429, permission denied, per-order error count + give-up, failed SKU lookup, unexpected error contained, switch-off, env limits); `test_shop_ingestion.py::TestOrderCostsInTheCycle` (real `run_shop_cycle`).
+- [x] **AC-14.F1** Optional rule fields for what no TikTok API gives (list and reasons in the contract §4): `sku_cost`, `default_gross_margin_pct`, `default_max_discount_pct`, `program_fee_pct`, `joins_platform_campaigns`, `platform_campaign_note`, `target_roas`, `gmv_max_daily_budget`, `live_schedule` (plus the existing `min_margin_pct`, relabelled "khi giảm giá"); validated with plain messages; served by the existing `GET/PUT/DELETE /v1/demo/rules`. — evidence: `tests/unit/test_shop_rules_off_api.py` (40: valid/invalid per field, unset defaults, routes incl. 422 and unset, per shop).
+- [x] **AC-14.F2** The ranking layer reads them only through the typed `shop_rules.shop_economics` (`ShopEconomics`: costs, margins, caps, fee, campaign, ads targets, LIVE slots; `unit_cost`, `gross_margin`, `break_even_roas`, `max_discount_pct` return `None` rather than guess); nothing else reads them yet. — evidence: `test_shop_rules_off_api.py` (precedence SKU > product > default margin, margin and break-even ROAS, cap precedence, other shop empty).
+- [x] **AC-14.F3** The demo rules editor has a "Thông tin TikTok không cung cấp" group with every field (Vietnamese label + help, who set it, Lưu / Bỏ đặt, inline Vietnamese errors, LIVE slots as `T2 T4 T6 20:00-22:00` lines); signed out (sample) it shows the sample values read-only with no input and no `/v1` request. — evidence: `src/components/__tests__/rules-editor-off-api.test.tsx` (13), `e2e/decisions/rules-off-api.spec.ts` (2 × desktop + mobile-web); full vitest 1702/1702 (Node 20), decisions Playwright 32 passed / 140 skipped, lint 0 errors, type-check clean.
+
+### P14-A/B/D — card limits and learning (D24.17, D24.6, D24.2)
+
+- [x] **AC-14.1** One limit for every shop: at most 5 new cards per shop day, 25 per shop week, 30 open; campaign-plan cards outside it; env overrides kept. Evidence: `tests/unit/test_p14_card_limits.py::test_fourteen_day_simulation_counts_per_day` (14 days, new/open/expired per day, daily/weekly/open limit each binding), `test_the_day_is_the_shops_day`, `test_campaign_plan_cards_are_outside_the_limits`, `test_decision_emission_budget.py::test_config_defaults_and_env_overrides`.
+- [x] **AC-14.2** ~~First connect: day 1 = 3 Juli + 1 Seller Center + 1 content, an empty slot filled by the next best card; later days in priority order.~~ Superseded by D24.21 (4) — see AC-14.R3.
+- [x] **AC-14.3** A card is valid 7 days from surfacing (`expired`, "Hết hạn" in the card block); expired, rejected, declined, reverted: the same action on the same product returns after 7 days, every time. Evidence: `test_an_expired_card_returns_seven_days_after_expiry`, `test_rejected_and_reverted_return_after_seven_days_every_time`, `test_a_legacy_workflow_card_also_waits_seven_days_after_expiry`, P10-A cooldown tests unchanged.
+- [x] **AC-14.4** A surfaced card stays at least 3 days; earlier only when invalid (edited outside Juli, out of stock, metric at target). Evidence: `test_a_surfaced_card_stays_three_days_before_an_unranked_withdrawal`, `test_an_invalid_card_is_withdrawn_inside_its_three_days[edited|out_of_stock|at_target]`.
+- [x] **AC-14.5** Open cards are re-scored in place daily (numbers, rank, `computed_at`; `surfaced_at` kept). Evidence: `test_an_open_card_is_rescored_in_place`, simulation stickiness asserts.
+- [x] **AC-14.6** Ranking = recoverable GMV × calibration factor (coefficient ÷ 0.5, [0.25, 2]) × reason penalty (60-day fade, floor 0.4); shown GMV unchanged; `adjusted_by_history` in payload, card block and UI. Evidence: `test_calibration_and_reasons_reorder_the_ranking`, `test_a_rejection_lowers_that_actions_priority_for_the_shop`, `test_lever_history_maps_the_coefficient_around_the_neutral_half`, `test_reason_penalty_fades_over_sixty_days_with_a_floor`; vitest `quyet-dinh-p10.test.tsx` "P14-B: a card ranked by the shop's history says so".
+- [x] **AC-14.7** Seller-facing "Đòn bẩy" → "Hành động" (rules label, design canvas title, ADR-109 UI copy); code identifiers unchanged. Evidence: `apps/demo` has no "đòn bẩy" left; `destination-naming.test.ts` allow-lists the new label.
+
+### P14 — D24.21 owner choices (2026-10-10)
+
+- [x] **AC-14.R1** Strictly 7 days after Từ chối / Không thực hiện / Hoàn tác before the same action on the same product returns — no early return on a > 20 % data change (`decision_reasons.clearly_changed` removed); Optimize Product, content and legacy-workflow cards alike (legacy: a dismissed card returns as a new revision after 7 days even with an unchanged basis, ADR-087 d.6 replaced there). Evidence: `test_p10a_card_reasons_edits.py::test_no_data_change_lifts_the_cooldown_early`, `test_cooldown_suppresses_re_proposal_and_lifts_after_seven_days`, `test_decision_emission_budget.py::test_a_dismissed_card_returns_after_seven_days_even_unchanged`, `test_p14_card_limits.py::test_rejected_and_reverted_return_after_seven_days_every_time`; UI copy no longer says "trừ khi số liệu đổi rõ".
+- [x] **AC-14.R2** "Số thẻ mở cùng lúc" (`max_open_cards`) 5–30, default 30; a stored older value < 5 reads as 5; editor shows "thẻ (5–30)" with help and the 5–30 error. Evidence: `test_shop_rules.py` (defaults, out-of-range 4/31, routes 422, clamp), `test_p14_card_limits.py::test_the_sellers_rule_still_lowers_the_open_limit`, `test_optimize_product_decision_cards.py::test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards`, vitest `quyet-dinh.test.tsx` rules editor.
+- [x] **AC-14.R3** Fixed daily slots every day (the first day included): at most 3 Juli (`juli`/`juli_with_photo`; legacy cards after them), 1 Seller Center, 1 content; each type in its own priority (expected GMV × calibration × reason penalty); an empty slot stays empty; cards surfaced earlier the same day use up their slot; weekly 25 and open 30 still bind; the Optimize plan keeps top 30 per type. Evidence: `test_p14_card_limits.py::test_fourteen_day_simulation_counts_per_day` (slots 3/1/1 asserted each surfacing day), `test_fourteen_days_with_a_type_running_out_leave_its_slot_empty`, `test_an_empty_slot_stays_empty_on_the_first_day`, `test_every_day_has_the_same_fixed_slots`, `test_cards_surfaced_earlier_today_use_up_their_slot`; `test_d24_21_owner_choices.py::test_each_executor_type_keeps_its_own_top_k`, `test_content_priority_is_gmv_times_the_levers_history`.
+- [x] **AC-14.R4** New rules "Giọng văn" (`content_tone`, text ≤ 300) and "Từ không được dùng" (`banned_terms`, ≤ 50 terms ≤ 100 chars): validation, `GET/PUT/DELETE /v1/demo/rules`, a "Nội dung video / LIVE" group in the rules editor, sample values, chips. Evidence: `test_shop_rules.py`, vitest "D24.21: edits the content voice".
+- [x] **AC-14.R5** Content runs read exactly `content_tone` / `banned_terms` (aliases `tone` / `banned_words` ignored); a listing title / description write containing a banned term is refused (422 `rule_violation`, confirmation stays pending) — Juli's proposal and the seller's edit alike. Evidence: `test_d24_21_owner_choices.py` (load_rules, listing edit, approve refused, edit-out approved).
+- [x] **AC-14.R6** Content ≤ 5/week counts in the shop's week (Asia/Ho_Chi_Minh, Monday). Evidence: `test_d24_21_owner_choices.py::test_the_content_week_is_the_shops_week`. And the public UPDATE-grant guard no longer lists P14-C's tables (081 trimmed, `order_cost_fetches` registered); 7 pre-existing tables remain (DEBT).
+
+### P14-E — "Juli soạn · bạn làm" content cards (contract: fasttrack/contracts/p14-content-cards.md)
+
+- [x] **AC-14E.1** Contract written; ContentCards.dc.html and ContentRun.dc.html copied
+  to `docs/product/design/quyet-dinh-flows/` with README rows. — evidence: b668231c.
+- [x] **AC-14E.2** Nightly, rules only (no model before Phê duyệt, D24.1): a product
+  whose videos' CTR is below the Video stream's prior CTR with ≥ 1 000 product
+  impressions → "Kịch bản video mới" (KPI "CTR - Video của người bán", target = the
+  stream prior, expected GMV = the ranking rows' D22 loss × 30); a product sold in LIVE
+  sessions whose CTOR is below the LIVE prior with ≥ 100 clicks → "Kịch bản host +
+  thứ tự giỏ" (KPI "CTOR - LIVE của người bán"). P10 card shape + `executor:
+  "juli_drafts"` + `content`; template text. 7-day validity and 7-day return after
+  expiry; reason cooldown (Từ chối / Không thực hiện) keyed on `video_script` /
+  `live_script`; a surfaced card is withdrawn early only when at target / product not
+  sellable; ≤ 5 new content cards per shop week (Asia/Ho_Chi_Minh, Monday; was ISO week in UTC until D24.21). — evidence:
+  `tests/unit/test_p14_content_rules.py` (candidates ×6), `test_p14_content_flow.py`
+  (cards + card block, stored rankings, re-score in place + weekly cap, expiry +
+  return, at-target withdrawal, reason cooldown).
+- [x] **AC-14E.3** After Phê duyệt: content run (`content_video` / `content_live`)
+  reads `get_content_performance`, `get_product_information`, `get_seo_keywords` /
+  `find_product_promotions` (tool.* SSE), narrates the seller's rules, makes ONE
+  `gpt-5.4-nano` call with OpenAI structured output (`text.format` json_schema, added to
+  the adapter), validates it (banned / protected / facts / discount cap / length /
+  product on screen ≤ 3 s), waits (`content_choice`); Soạn lại = one more call (bản 2,
+  sees bản 1); Dùng (edits re-checked, 422 otherwise) → waits (`content_publish`);
+  "Tôi đã đăng video" / "Tôi đã LIVE xong" or the hourly poll's auto-detect →
+  `find_new_content` → measuring. Không thực hiện = existing decline route (7-day
+  cooldown). No TikTok write, no Hoàn tác. Token usage on the run row. — evidence:
+  `test_p14_content_flow.py` (video run end to end, auto-detect, two failed drafts,
+  LIVE run + decline + routes, 202/422 routes), rules tests (schemas, guardrails ×12,
+  prompts, adapter body, drafter one call).
+- [x] **AC-14E.4** Measurement: video CTR of new videos tagging the product vs old
+  videos at day 7 / day 14; LIVE product CTOR over the next 3 sessions vs the prior
+  session(s); P10 labels and per-lever calibration, stored once; 409 before it starts.
+  — evidence: video run test (day 7 → final Không đạt 46 %, calibration `video_script`,
+  one final row), progress / stage unit tests.
+- [x] **AC-14E.5** Signed-out and no-shop samples carry MN-015 (video) and SM-012
+  (LIVE) content cards with canned scripts; no network, no model. — evidence:
+  `apps/demo/src/components/__tests__/quyet-dinh-content.test.tsx` (11),
+  `e2e/decisions/quyet-dinh-content.spec.ts` (desktop + mobile, zero `/v1` requests).
+

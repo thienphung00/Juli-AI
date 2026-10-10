@@ -210,6 +210,9 @@ class TestDefaultSeamsComposeRealCollaborators:
             # cross-checks the real builder against the real playbook instead
             # and is what actually catches that class of gap.
             "conclude_without_changes",
+            # Fast track P14-E: the content run's read-only tools.
+            "get_content_performance",
+            "find_new_content",
         }
 
     def test_playbook_for_run_resolves_the_runs_own_workflow(self):

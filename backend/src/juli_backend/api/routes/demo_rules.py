@@ -9,6 +9,12 @@
 - ``DELETE /v1/demo/rules/{rule_key}?scope_ref=`` -- unset one value; its
   default applies again. 404 when nothing was set.
 
+Fast track P14-F adds the rule fields for what no TikTok API gives Juli (cost
+per SKU, default margin and discount cap, programme fee, platform campaigns,
+ROAS target / GMV Max budget, regular LIVE slots); they use the same GET / PUT /
+DELETE, see ``services/shop_rules/rules.py``. D24.21 (5) adds ``content_tone``
+("Giọng văn") and ``banned_terms`` ("Từ không được dùng"), the same way.
+
 ``set_by`` is ``team`` (the Juli team filling values in on the seller's behalf,
 the operator phase) or ``seller``. The codebase has no team/staff role yet, so
 the value is taken from the request and only checked against that allowlist;
@@ -57,8 +63,25 @@ class ShopRulesData(BaseModel):
     max_open_cards: RuleValueItem
     auto_levers: RuleValueItem
     protected_terms: RuleValueItem
+    #: D24.21 (5): "Giọng văn" (≤ 300 characters) and "Từ không được dùng"
+    #: (≤ 50 terms), read by the content runs.
+    content_tone: RuleValueItem | None
+    banned_terms: RuleValueItem
     band_metrics: list[str]
     listing_levers: list[str]
+    # P14-F: what no TikTok API gives Juli (contract p14-rules-and-cost.md §3).
+    #: TikTok SKU id -> cost per unit (VND); wins over ``product_cost``.
+    sku_cost: dict[str, RuleValueItem]
+    default_gross_margin_pct: RuleValueItem | None
+    default_max_discount_pct: RuleValueItem | None
+    program_fee_pct: RuleValueItem | None
+    joins_platform_campaigns: RuleValueItem | None
+    platform_campaign_note: RuleValueItem | None
+    target_roas: RuleValueItem | None
+    gmv_max_daily_budget: RuleValueItem | None
+    #: ``[{"days": ["mon", ...], "start": "HH:MM", "end": "HH:MM"}]``.
+    live_schedule: RuleValueItem | None
+    weekdays: list[str]
 
 
 class ShopRulesResponse(BaseModel):
@@ -95,6 +118,10 @@ def _item(value: shop_rules.RuleValue) -> RuleValueItem:
     )
 
 
+def _optional(value: shop_rules.RuleValue | None) -> RuleValueItem | None:
+    return _item(value) if value is not None else None
+
+
 @router.get("", response_model=ShopRulesResponse)
 async def get_shop_rules(
     shop: Shop = Depends(get_active_shop),
@@ -110,8 +137,20 @@ async def get_shop_rules(
             max_open_cards=_item(rules.max_open_cards),
             auto_levers=_item(rules.auto_levers),
             protected_terms=_item(rules.protected_terms),
+            content_tone=_optional(rules.content_tone),
+            banned_terms=_item(rules.banned_terms),
             band_metrics=list(shop_rules.BAND_METRICS),
             listing_levers=list(shop_rules.LISTING_LEVERS),
+            sku_cost={k: _item(v) for k, v in rules.sku_cost.items()},
+            default_gross_margin_pct=_optional(rules.default_gross_margin_pct),
+            default_max_discount_pct=_optional(rules.default_max_discount_pct),
+            program_fee_pct=_optional(rules.program_fee_pct),
+            joins_platform_campaigns=_optional(rules.joins_platform_campaigns),
+            platform_campaign_note=_optional(rules.platform_campaign_note),
+            target_roas=_optional(rules.target_roas),
+            gmv_max_daily_budget=_optional(rules.gmv_max_daily_budget),
+            live_schedule=_optional(rules.live_schedule),
+            weekdays=list(shop_rules.WEEKDAYS),
         )
     )
 

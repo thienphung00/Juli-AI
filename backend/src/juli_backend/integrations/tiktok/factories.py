@@ -27,6 +27,7 @@ from juli_backend.integrations.tiktok.resources.analytics import AnalyticsResour
 from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
 from juli_backend.integrations.tiktok.resources.fulfillment import FulfillmentResource
 from juli_backend.integrations.tiktok.resources.inventory import InventoryResource
+from juli_backend.integrations.tiktok.resources.order_costs import OrderCostsResource
 from juli_backend.integrations.tiktok.resources.orders import OrdersResource
 from juli_backend.integrations.tiktok.resources.products import ProductsResource
 from juli_backend.integrations.tiktok.resources.promotion import PromotionResource
@@ -59,6 +60,9 @@ class ProductionReadResources:
     inventory: InventoryResource
     analytics: AnalyticsResource
     promotion: PromotionResource
+    #: Per-order price detail + finance transactions (P14-C). Defaulted so the
+    #: many hand-built test bundles stay valid; the factory always sets it.
+    order_costs: OrderCostsResource | None = None
 
 
 @dataclass(frozen=True)
@@ -162,6 +166,7 @@ class ProductionReadClientFactory:
             inventory=InventoryResource(client),
             analytics=AnalyticsResource(client),
             promotion=PromotionResource(client),
+            order_costs=OrderCostsResource(client),
         )
 
 

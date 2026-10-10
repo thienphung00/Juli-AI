@@ -554,7 +554,7 @@ async def test_revert_is_tenant_scoped(session, enqueued):
 
 
 def _emission_config() -> DecisionEmissionConfig:
-    return DecisionEmissionConfig(max_active=5, cooldown_days=7, weekly_novelty_cap=3)
+    return DecisionEmissionConfig(cooldown_days=7)
 
 
 async def _emit(session, shop, at: datetime):
@@ -604,7 +604,8 @@ async def test_cooldown_suppresses_re_proposal_and_lifts_after_seven_days(sessio
 
 
 @pytest.mark.asyncio
-async def test_cooldown_lifts_early_on_a_clear_data_change(session, shop_a):
+async def test_no_data_change_lifts_the_cooldown_early(session, shop_a):
+    """D24.21 (1): strictly 7 days -- even a > 20 % move keeps the cooldown."""
     from juli_backend.models.models import User
 
     await _score(session, shop_a)
@@ -616,19 +617,13 @@ async def test_cooldown_lifts_early_on_a_clear_data_change(session, shop_a):
     at = reason.decided_at.replace(tzinfo=UTC) + timedelta(days=1)
 
     # The CTR the card was proposed on was 0.02; record it as if it had been
-    # 0.024 (current is 16.7 % lower: not clear) -> still cooling down.
-    reason.basis_rate = 0.024
+    # 0.026 (current is 23 % lower -- the old "clear change") -> still cooling.
+    reason.basis_rate = 0.026
     await session.commit()
     decisions = await _emit(session, shop_a, at)
     (kept,) = [d for d in decisions if d.subject_id == top.subject_id]
     assert kept.suppressed_reason == "decision_cooldown"
-
-    # 0.026 -> current is 23 % lower: a clear change, re-proposed now.
-    reason.basis_rate = 0.026
-    await session.commit()
-    decisions = await _emit(session, shop_a, at)
-    (lifted,) = [d for d in decisions if d.subject_id == top.subject_id]
-    assert lifted.suppressed_reason is None and lifted.card.status == "active"
+    assert not hasattr(decision_reasons, "clearly_changed")
 
 
 @pytest.mark.asyncio
@@ -649,17 +644,6 @@ async def test_cooldowns_are_per_shop(session):
     await session.commit()
     assert len(await decision_reasons.active_cooldowns(session, shop_a.id)) == 1
     assert await decision_reasons.active_cooldowns(session, shop_b.id) == {}
-
-
-def test_clear_change_is_more_than_twenty_percent_relative():
-    reason = DecisionReason(basis_stage_rate="ctor", basis_rate=0.05)
-    from decimal import Decimal
-
-    assert not decision_reasons.clearly_changed(reason, {"ctor": Decimal("0.06")})  # +20 %
-    assert decision_reasons.clearly_changed(reason, {"ctor": Decimal("0.0601")})
-    assert decision_reasons.clearly_changed(reason, {"ctor": Decimal("0.039")})  # -22 %
-    assert not decision_reasons.clearly_changed(reason, {"ctor": None})
-    assert not decision_reasons.clearly_changed(DecisionReason(), {"ctor": Decimal("1")})
 
 
 # =========================================================================== §3 edits
@@ -908,4 +892,4 @@ def test_migration_079_is_short_chained_and_tenant_scoped():
     deferred = (migrations / "deferred/074_users_placeholder_phone_cleanup.py").read_text(
         encoding="utf-8"
     )
-    assert 'down_revision: str | None = "080_lever_flows"' in deferred
+    assert 'down_revision: str | None = "081_order_cost_data"' in deferred

@@ -12,15 +12,19 @@ that input and nothing else:
    ("Juli tự đề xuất"), then cards waiting for the seller's maximum discount
    ("Cần mức giảm giá tối đa"), then cards whose listing fault TikTok was not
    asked about yet ("Chưa hỏi TikTok"), each group ranked by ``gap × GMV_28d``;
-3. keep the top ``top_k`` (10); one proposal per product.
+3. keep the top ``top_k`` (30, D24.17) per executor type (Juli / Seller Center,
+   D24.21 (4)); one proposal per product.
 
-How many of those surface is the emission budget's call (≤ 5 for this
-workflow, ADR-106 decision 6). Listing evidence here is local and limited to
-the title — the description and images are not stored, and deriving their
-codes from empty values would invent faults (OP-NFR-2). Owner tests, Seller
-Center cards, the gift fallback, the ratings filter and the traffic-source
-check need orders, promotions, ratings or A-34 channel blocks this input does
-not carry; they stay report-only. Pure.
+How many of those surface is the emission budget's call (D24.17: 5 new a
+day, 25 a week, 30 open). Learning (D24.6): the ranking value is the
+recoverable GMV × the shop's history weight for the lever
+(:class:`LeverHistory`); the shown estimate stays the rule-based one.
+Listing evidence here is local and limited to the title — the description
+and images are not stored, and deriving their codes from empty values would
+invent faults (OP-NFR-2). Owner tests, Seller Center cards, the gift
+fallback, the ratings filter and the traffic-source check need orders,
+promotions, ratings or A-34 channel blocks this input does not carry; they
+stay report-only. Pure.
 """
 
 from __future__ import annotations
@@ -64,8 +68,15 @@ from juli_backend.services.optimize_product.shop_report import (
 #: Version of the card payload shape; bump when ``diagnosis`` changes shape.
 PAYLOAD_VERSION = "adr106-v1"
 
-#: Ranked proposals kept per shop (DECISIONS "Defaults taken": top-10 ranked).
-DEFAULT_TOP_K = 10
+#: Ranked proposals kept per shop and executor type (D24.17: nightly candidates
+#: top 30, was 10; D24.21 (4): per type -- Juli / Seller Center -- since each
+#: fills its own daily slot).
+DEFAULT_TOP_K = 30
+
+#: The promotion angles a seller carries out in Seller Center (D24.21 (4) slot).
+SELLER_CENTER_ANGLES: frozenset[Angle] = frozenset(
+    {Angle.GIAM_GIA, Angle.MUA_NHIEU_GIAM_NHIEU, Angle.FLASH_SALE, Angle.GIAM_PHI_VAN_CHUYEN}
+)
 
 STATUS_CODE_RULE = "rule"
 STATUS_CODE_NEEDS_CAP = "needs_discount_cap"
@@ -97,6 +108,41 @@ LEVER_CODES: dict[Angle, str] = {
 
 #: TikTok's statuses for a listing that is on sale.
 LIVE_STATUSES = frozenset({"activate", "active", "live", "on_sale"})
+
+
+#: D24.6 calibration mapping: the coefficient (realised ÷ expected GMV,
+#: ``lever_flows.measurement``) starts at 0.5 for every lever, so the ranking
+#: factor is ``coefficient ÷ 0.5`` -- 1 (neutral) until a lever has been
+#: measured -- clamped to [0.25, 2].
+CALIBRATION_NEUTRAL = Decimal("0.5")
+CALIBRATION_FACTOR_MIN = Decimal("0.25")
+CALIBRATION_FACTOR_MAX = Decimal("2")
+
+
+@dataclass(frozen=True)
+class LeverHistory:
+    """What the shop's history says about one lever (D24.6), for the ranking only.
+
+    ``calibration``: the lever's coefficient for the shop (0.5 until measured).
+    ``reason_penalty``: from the seller's Từ chối / Không thực hiện / Hoàn tác
+    reasons (``decision_reasons.reason_penalties``), 1 when there are none.
+    """
+
+    calibration: Decimal = CALIBRATION_NEUTRAL
+    reason_penalty: Decimal = Decimal(1)
+
+    @property
+    def calibration_factor(self) -> Decimal:
+        factor = self.calibration / CALIBRATION_NEUTRAL
+        return min(max(factor, CALIBRATION_FACTOR_MIN), CALIBRATION_FACTOR_MAX)
+
+    @property
+    def weight(self) -> Decimal:
+        return self.calibration_factor * self.reason_penalty
+
+    @property
+    def adjusted(self) -> bool:
+        return self.calibration_factor != 1 or self.reason_penalty != 1
 
 
 @dataclass(frozen=True)
@@ -137,6 +183,20 @@ class CardProposal:
     channel_scope: str = "ALL_CHANNELS"
     bmsm: dict | None = None
     gaps: dict[str, Gap] = field(default_factory=dict)
+    #: D24.6: the shop's history for this lever, applied to the ranking only.
+    history: LeverHistory | None = None
+
+    @property
+    def ranking_gmv_per_day(self) -> Decimal | None:
+        """Recoverable GMV × the lever's history weight — what the ranking sorts on."""
+        if self.recoverable_gmv_per_day is None:
+            return None
+        weight = self.history.weight if self.history is not None else Decimal(1)
+        return self.recoverable_gmv_per_day * weight
+
+    @property
+    def adjusted_by_history(self) -> bool:
+        return self.history is not None and self.history.adjusted
 
     @property
     def main_kpi(self) -> str:
@@ -198,6 +258,17 @@ class CardProposal:
             "recoverable_gmv_per_day": _f(self.recoverable_gmv_per_day),
             "recoverable_gmv_basis": self.recoverable_basis,
             "product_title": self.title,
+            "adjusted_by_history": self.adjusted_by_history,
+            "history_adjustment": (
+                {
+                    "calibration_coefficient": _f(self.history.calibration),
+                    "calibration_factor": _f(self.history.calibration_factor),
+                    "reason_penalty": _f(self.history.reason_penalty),
+                    "ranking_gmv_per_day": _f(self.ranking_gmv_per_day),
+                }
+                if self.history is not None and self.history.adjusted
+                else None
+            ),
         }
 
 
@@ -396,6 +467,24 @@ def _pending_proposal(
     )
 
 
+def keep_top_per_type(ordered: list[CardProposal], top_k: int) -> list[CardProposal]:
+    """The best ``top_k`` of each executor type, re-ranked 1..n in their order.
+
+    D24.21 (4): Juli-executed and Seller Center cards fill separate daily
+    slots, so each type keeps its own top ``top_k`` -- otherwise a shop whose
+    best 30 are all Juli cards would never fill its Seller Center slot.
+    """
+    per_type: dict[bool, int] = {}
+    selected: list[CardProposal] = []
+    for proposal in ordered:
+        seller_center = proposal.lever in SELLER_CENTER_ANGLES
+        if per_type.get(seller_center, 0) >= top_k:
+            continue
+        per_type[seller_center] = per_type.get(seller_center, 0) + 1
+        selected.append(proposal)
+    return [replace(p, rank=index) for index, p in enumerate(selected, start=1)]
+
+
 def plan_shop_cards(
     funnels: list[ProductFunnel],
     catalog: dict[str, CatalogProduct],
@@ -404,8 +493,13 @@ def plan_shop_cards(
     top_k: int = DEFAULT_TOP_K,
     discount_cap_set: bool = False,
     last30: dict[str, FunnelWindow] | None = None,
+    history: dict[str, LeverHistory] | None = None,
 ) -> ShopCardPlan:
-    """Score the catalog, compose the ranked proposals, keep the top ``top_k``."""
+    """Score the catalog, compose the ranked proposals, keep the top ``top_k``.
+
+    ``history`` (lever code -> :class:`LeverHistory`, D24.6) weights the
+    ranking; a lever absent from it is neutral.
+    """
     excluded: dict[str, str] = {}
     evidence_by_id: dict[str, list[Evidence]] = {}
     for funnel in funnels:
@@ -440,9 +534,16 @@ def plan_shop_cards(
 
     # D22: rank by recoverable GMV per day (rule-based); ADR-106's gap × GMV_28d
     # breaks ties and orders proposals with no estimate, after those with one.
+    # D24.6: both are weighted by the shop's history for the lever.
     def _priced(p: CardProposal) -> CardProposal:
         value, basis = recoverable_gmv_per_day(p.stage, p.gaps, (last30 or {}).get(p.product_id))
-        return replace(p, recoverable_gmv_per_day=value, recoverable_basis=basis)
+        lever_history = (history or {}).get(LEVER_CODES[p.lever])
+        return replace(
+            p, recoverable_gmv_per_day=value, recoverable_basis=basis, history=lever_history
+        )
+
+    def _weight(p: CardProposal) -> Decimal:
+        return p.history.weight if p.history is not None else Decimal(1)
 
     rules, needs_cap, not_asked = (
         [_priced(p) for p in group] for group in (rules, needs_cap, not_asked)
@@ -450,9 +551,9 @@ def plan_shop_cards(
     for group in (rules, needs_cap, not_asked):
         group.sort(
             key=lambda p: (
-                p.recoverable_gmv_per_day is not None,
-                p.recoverable_gmv_per_day or Decimal(0),
-                p.rank_score,
+                p.ranking_gmv_per_day is not None,
+                p.ranking_gmv_per_day or Decimal(0),
+                p.rank_score * _weight(p),
             ),
             reverse=True,
         )
@@ -464,12 +565,12 @@ def plan_shop_cards(
             continue
         seen.add(proposal.product_id)
         ordered.append(proposal)
-    kept = [replace(p, rank=index) for index, p in enumerate(ordered[:top_k], start=1)]
+    kept = keep_top_per_type(ordered, top_k)
     return ShopCardPlan(
         proposals=kept,
         medians=medians,
         skips=skips,
         excluded=excluded,
         products_scored=len(funnels),
-        overflow=max(len(ordered) - top_k, 0),
+        overflow=len(ordered) - len(kept),
     )

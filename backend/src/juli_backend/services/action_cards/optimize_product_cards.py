@@ -8,22 +8,30 @@ analytics, this module replaces that card with the ADR-106 pipeline:
 1. read the shop's daily per-product analytics that P1 ingestion stores
    (``analytics_performance_intervals``, grains ``product`` and ``sku``) and
    its ``products`` rows;
-2. score the whole catalog and keep the top 10 ranked proposals
-   (:func:`~juli_backend.services.optimize_product.decision_cards.plan_shop_cards`);
+2. score the whole catalog and keep the top 30 ranked proposals per executor
+   type (D24.17; per type since D24.21 (4))
+   (:func:`~juli_backend.services.optimize_product.decision_cards.plan_shop_cards`),
+   ranked by recoverable GMV × the shop's history for the lever (D24.6:
+   calibration coefficient and seller reasons, :func:`lever_history`);
 3. write one subject-scoped card per proposed product, through the same
    revision ladder ``persist.emit_scoring_cards`` applies (ADR-087), carrying
    the diagnosed stage, the lever and the product's funnel evidence;
-4. withdraw this workflow's drafts that fell out of the top 10.
+4. withdraw this workflow's drafts that fell out of the top 30, and surfaced
+   cards that are no longer valid or have stayed their 3 days unranked
+   (:func:`withdraw_unranked_cards`, D24.17).
+
+D24.17: a surfaced card whose diagnosis has not changed is re-scored in place
+(numbers, rank, ``computed_at``; ``surfaced_at`` kept). An expired card's
+action returns on that product 7 days after it expired.
 
 Seller reasons (fast track P10-A): a (product, lever) the seller rejected,
-declined or reverted is skipped for 7 days (``decision_cooldown``) unless the
-weak stage's rate moved > 20 % relative since (``services.decision_reasons``).
+declined or reverted is skipped for 7 days (``decision_cooldown``) -- strictly,
+no early return on a data change (D24.21 (1), ``services.decision_reasons``).
 Those actions dismiss the card; a dismissed latest revision is then governed by
 that cooldown alone, so once it lifts the proposal gets a new revision.
 
-How many surface is the emission budget's decision: ``optimize_product_2``
-has its own per-workflow cap (5, ADR-106 decision 6) in
-``DecisionEmissionConfig.workflow_max_active``.
+How many surface is the emission budget's decision (D24.17: 5 new a day,
+25 a week, 30 open, every workflow alike).
 
 A shop with **no** product analytics in the store keeps the rule pipeline's
 card exactly as before — the pipeline has nothing to diagnose, and inventing a
@@ -40,8 +48,8 @@ import json
 import logging
 import uuid
 from collections import defaultdict
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -50,7 +58,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import DecisionEmissionConfig
 from juli_backend.models.decision_reasons import DecisionReason
-from juli_backend.models.models import ActionCard, AnalyticsPerformanceInterval, Product
+from juli_backend.models.models import (
+    ActionCard,
+    AnalyticsPerformanceInterval,
+    InventoryItem,
+    Product,
+)
 from juli_backend.services import decision_reasons
 from juli_backend.services.action_cards.basis import (
     BASIS_METADATA_KEY,
@@ -58,6 +71,10 @@ from juli_backend.services.action_cards.basis import (
     hash_basis_field,
     product_basis_fields,
     stored_basis,
+)
+from juli_backend.services.action_cards.emission_budget import (
+    EXPIRED_STATUS,
+    expired_card_returns,
 )
 from juli_backend.services.action_cards.subjects import (
     SUBJECT_TYPE_PRODUCT,
@@ -76,9 +93,11 @@ from juli_backend.services.optimize_product.decision_cards import (
     LEVER_CODES,
     CardProposal,
     CatalogProduct,
+    LeverHistory,
     ShopCardPlan,
     plan_shop_cards,
 )
+from juli_backend.services.optimize_product.funnel import ProductFunnel
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +129,8 @@ class OptimizeProductPlan:
     plan: ShopCardPlan
     products: dict[str, Product]
     days: dict[str, list[ProductDay]]
+    #: TikTok product id -> its funnel this run (validity checks, D24.17).
+    funnels: dict[str, ProductFunnel] = field(default_factory=dict)
 
 
 def _dec(value: Any) -> Decimal:
@@ -282,7 +303,8 @@ async def plan_optimize_product_cards(
             product_funnel(product_id, title, series, as_of=as_of, config=config, age_days=age)
         )
     last30 = {pid: last_window(series, as_of=as_of) for pid, series in days.items()}
-    plan = plan_shop_cards(funnels, catalog, config, top_k=top_k, last30=last30)
+    history = await lever_history(session, shop_id, now=now)
+    plan = plan_shop_cards(funnels, catalog, config, top_k=top_k, last30=last30, history=history)
     logger.info(
         "optimize_product_cards_planned",
         extra={
@@ -294,7 +316,37 @@ async def plan_optimize_product_cards(
             "overflow": plan.overflow,
         },
     )
-    return OptimizeProductPlan(as_of=as_of, plan=plan, products=products, days=days)
+    return OptimizeProductPlan(
+        as_of=as_of,
+        plan=plan,
+        products=products,
+        days=days,
+        funnels={f.product_id: f for f in funnels},
+    )
+
+
+async def lever_history(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+) -> dict[str, LeverHistory]:
+    """lever code -> the shop's history for it (D24.6); only levers with any history.
+
+    The calibration coefficient comes from ``lever_calibrations``
+    (``lever_flows.measurement.shop_calibrations``), the penalty from the
+    seller's reasons of the last 60 days (``decision_reasons.reason_penalties``).
+    """
+    from juli_backend.services.lever_flows.measurement import shop_calibrations
+
+    calibrations = await shop_calibrations(session, shop_id)
+    penalties = await decision_reasons.reason_penalties(session, shop_id, now=now)
+    out: dict[str, LeverHistory] = {}
+    for lever in set(calibrations) | set(penalties):
+        kwargs: dict[str, Decimal] = {}
+        if lever in calibrations:
+            kwargs["calibration"] = calibrations[lever]
+        if lever in penalties:
+            kwargs["reason_penalty"] = penalties[lever]
+        out[lever] = LeverHistory(**kwargs)
+    return out
 
 
 def _subject_for(product: Product) -> CardSubject:
@@ -350,6 +402,7 @@ def build_card_payload(
         "user_action_required": True,
         "source_kpi_ids": [],
         "computed_at": computed_at.isoformat(),
+        "adjusted_by_history": proposal.adjusted_by_history,
         "subject": {"type": subject.subject_type, "id": subject.subject_id, "label": subject.label},
         "reasoning": {
             "copy_source": _COPY_SOURCE,
@@ -474,6 +527,50 @@ async def emit_optimize_product_cards(
             or (latest.status == _ACTIVE and not is_adr106_card(latest))
         ):
             in_place = latest
+        elif latest.status == EXPIRED_STATUS:
+            # D24.17: the same action on this product returns 7 days after its
+            # card expired; another action may come at once. Either way as a
+            # new revision -- the expired card was an offer, it is history.
+            same_action = (
+                decision_reasons.card_basis(latest).lever_code == LEVER_CODES[proposal.lever]
+            )
+            if same_action and not expired_card_returns(
+                latest,
+                now=computed_at,
+                cooldown_days=emission_config.cooldown_days,
+                validity_days=emission_config.validity_days,
+            ):
+                decision = persist.CardEmission(
+                    workflow_key=OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+                    subject_type=subject.subject_type,
+                    subject_id=subject.subject_id,
+                    card=latest,
+                    revision=latest.revision,
+                    suppressed_reason=persist.SUPPRESSED_REASON_EXPIRED_COOLDOWN,
+                )
+                decisions.append(decision)
+                persist._log_suppressed(shop_id, decision)
+                continue
+        elif (
+            latest.status == _ACTIVE
+            and latest.surfaced_at is not None
+            and basis_unchanged(stored_basis(latest), basis)
+        ):
+            # D24.17: an open card is re-scored daily in place -- its numbers
+            # and rank follow the data, ``surfaced_at`` (its 3-day stay and
+            # 7-day validity) does not move. Same diagnosis, so no revision.
+            _write(latest, proposal, payload, basis, computed_at)
+            await session.flush()
+            decision = persist.CardEmission(
+                workflow_key=OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+                subject_type=subject.subject_type,
+                subject_id=subject.subject_id,
+                card=latest,
+                revision=latest.revision,
+                suppressed_reason=persist.SUPPRESSED_REASON_BASIS_UNCHANGED,
+            )
+            decisions.append(decision)
+            continue
         elif latest.status != decision_reasons.DISMISSED_CARD_STATUS and (
             basis_unchanged(stored_basis(latest), basis)
             or persist._card_still_stands(
@@ -482,8 +579,8 @@ async def emit_optimize_product_cards(
         ):
             # A card the seller rejected, declined or reverted (dismissed) is
             # governed by the per-lever decision cooldown above instead: past
-            # its 7 days, or after a clear data change, the proposal gets a new
-            # revision even when the diagnosis itself has not moved.
+            # its 7 days the proposal gets a new revision even when the
+            # diagnosis itself has not moved (D24.21: strictly 7 days).
             reason = (
                 persist.SUPPRESSED_REASON_BASIS_UNCHANGED
                 if basis_unchanged(stored_basis(latest), basis)
@@ -548,7 +645,14 @@ async def emit_optimize_product_cards(
             )
         )
 
-    withdrawn = await withdraw_unranked_cards(session, shop_id, keep_subject_ids=kept)
+    withdrawn = await withdraw_unranked_cards(
+        session,
+        shop_id,
+        keep_subject_ids=kept,
+        now=computed_at,
+        op_plan=op_plan,
+        min_stay_days=emission_config.min_stay_days,
+    )
     logger.info(
         "optimize_product_cards_emitted",
         extra={
@@ -566,44 +670,164 @@ def _cooled_down(
 ) -> DecisionReason | None:
     """The seller reason still cooling this (product, lever) down, if any (P10-A).
 
-    A clear move of the weak stage's rate since the reason lifts it early
-    (``decision_reasons.clearly_changed``).
+    Strictly 7 days (D24.21 (1)): no data change lifts it early.
     """
-    reason = cooldowns.get((str(product.id), LEVER_CODES[proposal.lever]))
-    if reason is None:
-        return None
-    rates = {name: gap.value for name, gap in proposal.gaps.items()}
-    if decision_reasons.clearly_changed(reason, rates):
-        return None
-    return reason
+    return cooldowns.get((str(product.id), LEVER_CODES[proposal.lever]))
+
+
+#: Why a surfaced card left before its 7 days (D24.17), for the log.
+WITHDRAW_EDITED_OUTSIDE_JULI = "edited_outside_juli"
+WITHDRAW_OUT_OF_STOCK = "out_of_stock"
+WITHDRAW_NOT_ON_SALE = "not_on_sale"
+WITHDRAW_AT_TARGET = "metric_at_target"
+WITHDRAW_UNRANKED = "unranked_after_min_stay"
+
+
+def _diagnosis(card: ActionCard) -> dict:
+    try:
+        payload = json.loads(card.recommendation_payload or "{}")
+    except json.JSONDecodeError:
+        return {}
+    diagnosis = payload.get("diagnosis") if isinstance(payload, dict) else None
+    return diagnosis if isinstance(diagnosis, dict) else {}
+
+
+def _rate(funnel: ProductFunnel, key: str) -> Decimal | None:
+    window = funnel.current
+    return {"ctr": window.ctr, "ctor": window.ctor, "aov": window.aov}.get(key)
+
+
+def invalid_reason(
+    card: ActionCard,
+    *,
+    product: Product | None,
+    stock: Decimal | None,
+    funnel: ProductFunnel | None,
+) -> str | None:
+    """Why a surfaced card is no longer valid (D24.17), else ``None``.
+
+    - the product was edited outside Juli: its title differs from the one the
+      card was proposed on (an approved card is no longer ``active``, so Juli's
+      own edits never reach here);
+    - it is not on sale, or out of stock (every SKU's quantity is 0; no stock
+      rows means unknown, which never withdraws);
+    - the weak stage's rate is already at or above the card's target
+      (``recoverable_gmv_basis.reference_rate``) over the current window.
+    """
+    diagnosis = _diagnosis(card)
+    proposed_title = diagnosis.get("product_title")
+    if product is not None and isinstance(proposed_title, str) and proposed_title:
+        if (product.title or product.name) != proposed_title:
+            return WITHDRAW_EDITED_OUTSIDE_JULI
+    if product is not None and product.status:
+        from juli_backend.services.optimize_product.decision_cards import LIVE_STATUSES
+
+        if product.status.strip().lower() not in LIVE_STATUSES:
+            return WITHDRAW_NOT_ON_SALE
+    if stock is not None and stock <= 0:
+        return WITHDRAW_OUT_OF_STOCK
+    basis = diagnosis.get("recoverable_gmv_basis")
+    if funnel is not None and isinstance(basis, dict):
+        target = basis.get("reference_rate")
+        key = basis.get("stage_rate")
+        current = _rate(funnel, str(key)) if key else None
+        if isinstance(target, int | float) and current is not None:
+            if current >= Decimal(str(target)):
+                return WITHDRAW_AT_TARGET
+    return None
+
+
+async def _stock_by_tiktok_id(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Decimal]:
+    rows = await session.execute(
+        select(InventoryItem.tiktok_product_id, func.sum(InventoryItem.quantity))
+        .where(InventoryItem.shop_id == shop_id)
+        .group_by(InventoryItem.tiktok_product_id)
+    )
+    return {str(pid): _dec(total) for pid, total in rows.all()}
+
+
+def _as_aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 async def withdraw_unranked_cards(
-    session: AsyncSession, shop_id: uuid.UUID, *, keep_subject_ids: set[str]
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    keep_subject_ids: set[str],
+    now: datetime | None = None,
+    op_plan: OptimizeProductPlan | None = None,
+    min_stay_days: int = 3,
 ) -> list[ActionCard]:
-    """Withdraw this workflow's live cards that are no longer ranked.
+    """Withdraw this workflow's live cards that are no longer ranked or no longer valid.
 
-    Withdrawn: an unscoped legacy card, an unsurfaced draft, and a live card
-    the rule pipeline wrote for a product this pipeline does not rank. Kept: a
-    surfaced ADR-106 card — an offer on the seller's desk stays until they act
-    (ADR-106 decision 6: a slot frees when its card is acted on).
+    Withdrawn at once: an unscoped legacy card and a live card the rule
+    pipeline wrote, unless ranked; an unsurfaced draft that is not ranked.
+
+    A surfaced ADR-106 card (D24.17) stays at least ``min_stay_days`` (3): it
+    is withdrawn earlier only when :func:`invalid_reason` says it is no longer
+    valid -- never for dropping out of the ranking. After its 3 days, a card
+    that is no longer ranked is withdrawn too. (A valid ranked card stays until
+    the seller acts or it expires at 7 days, ``emission_budget``.)
     """
+    now = _as_aware(now) if now is not None else datetime.now(UTC)
     stmt = select(ActionCard).where(
         ActionCard.shop_id == shop_id,
         ActionCard.workflow_key == OPTIMIZE_PRODUCT_WORKFLOW_KEY,
         ActionCard.status == _ACTIVE,
     )
+    cards = list((await session.execute(stmt)).scalars())
+    surfaced = [c for c in cards if c.surfaced_at is not None and is_adr106_card(c)]
+    products_by_id: dict[str, Product] = {}
+    stock: dict[str, Decimal] = {}
+    if surfaced:
+        product_ids = {c.subject_id for c in surfaced if c.subject_type == SUBJECT_TYPE_PRODUCT}
+        if op_plan is not None:
+            products_by_id = {
+                str(p.id): p for p in op_plan.products.values() if str(p.id) in product_ids
+            }
+        else:
+            rows = await session.execute(select(Product).where(Product.shop_id == shop_id))
+            products_by_id = {str(p.id): p for p in rows.scalars() if str(p.id) in product_ids}
+        stock = await _stock_by_tiktok_id(session, shop_id)
+
     withdrawn: list[ActionCard] = []
-    for card in (await session.execute(stmt)).scalars():
-        if card.subject_type == SUBJECT_TYPE_PRODUCT and card.subject_id in keep_subject_ids:
-            continue
+    for card in cards:
+        ranked = card.subject_type == SUBJECT_TYPE_PRODUCT and card.subject_id in keep_subject_ids
         legacy = card.subject_type == SUBJECT_TYPE_UNSCOPED or not is_adr106_card(card)
-        if card.surfaced_at is not None and not legacy:
-            continue
+        why: str | None = None
+        if card.surfaced_at is None or legacy:
+            if ranked:
+                continue
+            why = "unranked"
+        else:
+            product = products_by_id.get(card.subject_id)
+            tiktok_id = product.tiktok_product_id if product is not None else None
+            funnel = (
+                op_plan.funnels.get(str(tiktok_id))
+                if op_plan is not None and tiktok_id is not None
+                else None
+            )
+            why = invalid_reason(
+                card,
+                product=product,
+                stock=stock.get(str(tiktok_id)) if tiktok_id is not None else None,
+                funnel=funnel,
+            )
+            if why is None and not ranked:
+                stayed = now - _as_aware(card.surfaced_at)
+                if stayed >= timedelta(days=min_stay_days):
+                    why = WITHDRAW_UNRANKED
+            if why is None:
+                continue
         card.status = WITHDRAWN_STATUS
         card.surfaced_at = None
         card.suppressed_reason = None
         withdrawn.append(card)
+        logger.info(
+            "optimize_product_card_withdrawn",
+            extra={"shop_id": str(shop_id), "card_id": str(card.id), "why": why},
+        )
     if withdrawn:
         await session.flush()
     return withdrawn
@@ -615,8 +839,10 @@ __all__ = [
     "OptimizeProductPlan",
     "build_card_payload",
     "emit_optimize_product_cards",
+    "invalid_reason",
     "is_adr106_card",
     "latest_product_analytics_day",
+    "lever_history",
     "load_product_days",
     "plan_optimize_product_cards",
     "withdraw_unranked_cards",

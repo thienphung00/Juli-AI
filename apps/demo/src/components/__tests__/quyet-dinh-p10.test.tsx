@@ -105,7 +105,7 @@ function rules(): ShopRules {
     product_cost: {},
     max_discount_pct: {},
     min_margin_pct: null,
-    max_open_cards: { ...unset, value: 5 },
+    max_open_cards: { ...unset, value: 30 },
     auto_levers: { ...unset, value: [] },
     protected_terms: { ...unset, value: [] },
     band_metrics: ["ctr"],
@@ -314,6 +314,16 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(more).toHaveTextContent("Đề xuất: 640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản.");
     expect(more).toHaveTextContent("GMV dự kiến tính theo cách của TikTok: lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV");
     expect(screen.getByRole("button", { name: "Thu gọn" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByTestId("adjusted-by-history")).toBeNull();
+  });
+
+  it("P14-B: a card ranked by the shop's history says so under Xem thêm", () => {
+    const view = cardView(item("1", { adjusted_by_history: true }));
+    expect(view.adjustedByHistory).toBe(true);
+    render(
+      <RecommendationCard card={view} expanded narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} status="pending" />,
+    );
+    expect(screen.getByTestId("adjusted-by-history")).toHaveTextContent("đã điều chỉnh theo kết quả trước");
   });
 
   it("status chips per state; approved shows the blue notice with Xem tiến độ ›, rejected the grey one", () => {
@@ -337,7 +347,7 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(done).toHaveTextContent("Hoàn thành · đã từ chối thẻ");
     expect(done).toHaveTextContent("Đang chạy chiến dịch khác cho sản phẩm này");
     expect(done).toHaveTextContent("Lý do giúp Juli đưa ra đề xuất tốt hơn: Juli chờ chiến dịch kết thúc để không lẫn kết quả.");
-    expect(done).toHaveTextContent("Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ.");
+    expect(done).toHaveTextContent("Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày.");
     expect(done).toHaveTextContent("Chỗ trống trong Đề xuất được dành cho sản phẩm có GMV tiềm năng kế tiếp.");
     for (const [status, label] of [["applied", "Đã áp dụng"], ["expired", "Hết hạn"]] as const) {
       const { container } = render(

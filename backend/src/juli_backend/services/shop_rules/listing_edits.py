@@ -15,7 +15,12 @@ Rules checked, in this order, per field:
 3. the shop's protected terms (``shop_rules`` ``protected_terms``, ADR-109 d.12
    "Từ / thông tin không được sửa"): every term the current listing field
    contains -- or, when the current value is unknown, Juli's proposal contains
-   -- must still be in the edit (case-insensitive).
+   -- must still be in the edit (case-insensitive);
+4. the shop's banned terms (``shop_rules`` ``banned_terms``, D24.21 (5) "Từ
+   không được dùng"): the edit must not contain any of them (whole word,
+   case-insensitive). :func:`check_banned_terms` applies the same check to
+   whatever title / description is about to be written -- Juli's own proposal
+   included (``agent_runs.confirmations`` at approve).
 
 The first failure raises :class:`ListingEditViolation` with the field and a
 Vietnamese message for the seller. Pure.
@@ -23,6 +28,7 @@ Vietnamese message for the seller. Pure.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -84,12 +90,36 @@ def _check_protected_terms(
             )
 
 
+def _contains_term(text: str, term: str) -> bool:
+    needle = term.strip().casefold()
+    if not needle:
+        return False
+    return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", text.casefold()) is not None
+
+
+def check_banned_terms(values: Mapping[str, Any], banned_terms: Sequence[str]) -> None:
+    """Raise :class:`ListingEditViolation` if a title / description uses a banned term."""
+    for field in EDITABLE_FIELDS:
+        value = values.get(field)
+        if not isinstance(value, str):
+            continue
+        for term in banned_terms:
+            if _contains_term(value, term):
+                label = FIELD_LABELS_VI[field]
+                raise ListingEditViolation(
+                    field,
+                    f'{label} có "{term.strip()}" — từ bạn đặt là không được dùng. '
+                    "Hãy bỏ hoặc thay từ này.",
+                )
+
+
 def validate_listing_edits(
     edited: Mapping[str, str],
     *,
     proposed: Mapping[str, Any],
     current: Mapping[str, Any] | None,
     protected_terms: Sequence[str],
+    banned_terms: Sequence[str] = (),
 ) -> dict[str, str]:
     """Return the edits that differ from Juli's proposal, or raise :class:`ListingEditViolation`.
 
@@ -114,6 +144,7 @@ def validate_listing_edits(
             proposal = proposed.get(field)
             reference = proposal if isinstance(proposal, str) else None
         _check_protected_terms(field, value, reference, protected_terms)
+        check_banned_terms({field: value}, banned_terms)
         if value != proposed.get(field):
             changed[field] = value
     return changed

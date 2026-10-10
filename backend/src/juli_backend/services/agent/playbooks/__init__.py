@@ -57,6 +57,10 @@ from juli_backend.services.agent.playbooks.base import (
     TerminationPolicy,
     validate_playbook_tools,
 )
+from juli_backend.services.agent.playbooks.content import (
+    CONTENT_LIVE_PLAYBOOK,
+    CONTENT_VIDEO_PLAYBOOK,
+)
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
@@ -99,6 +103,9 @@ class UnregisteredWorkflowError(LookupError):
 #: hand-written string so the registry and the artifact cannot disagree.
 _PLAYBOOK_REGISTRY: dict[str, Playbook] = {
     OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key: OPTIMIZE_PRODUCT_PLAYBOOK,
+    # Fast track P14-E: "Juli soạn · bạn làm" content runs (Video / LIVE).
+    CONTENT_VIDEO_PLAYBOOK.workflow_key: CONTENT_VIDEO_PLAYBOOK,
+    CONTENT_LIVE_PLAYBOOK.workflow_key: CONTENT_LIVE_PLAYBOOK,
 }
 
 

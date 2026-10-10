@@ -296,6 +296,23 @@ def _legacy_handler_for(spec: ToolSpec) -> Any:
     return PRODUCT_WRITE_TOOL_HANDLERS.get(spec.name)
 
 
+#: Domains registered after #1704 (fast track P14-E: the content run's read-only
+#: tools). They had no pre-#1704 dispatch to preserve, so the behaviour-
+#: preservation checks below compare only the domains that existed then.
+_PRE_1704_DOMAINS = frozenset({"product", "terminal"})
+
+
+def _later_domain_tool_names() -> frozenset[str]:
+    from juli_backend.services.agent.tools.domain_registry import get_registered_tool_domains
+
+    return frozenset(
+        name
+        for domain in get_registered_tool_domains().values()
+        if domain.name not in _PRE_1704_DOMAINS
+        for name in domain.handlers
+    )
+
+
 def _legacy_reachable_tool_names() -> frozenset[str]:
     """The tool names the pre-#1704 dispatch could reach, derived from the
     three literal tables it dispatched over — never a hand-written list."""
@@ -371,7 +388,7 @@ def test_product_domain_migration_is_behaviour_preserving():
     moves this test with it; nothing here names a tool.
     """
     registry = build_product_tool_registry()
-    specs = registry.list_all()
+    specs = [spec for spec in registry.list_all() if spec.domain in _PRE_1704_DOMAINS]
     assert specs, "the production registry must not be empty"
 
     compared = 0
@@ -419,6 +436,8 @@ class TestProductDomainMigrationIsBehaviourPreserving:
         enough. This compares the resolved callable itself.
         """
         for spec in build_product_tool_registry().list_all():
+            if spec.domain not in _PRE_1704_DOMAINS:
+                continue
             resolved = get_tool_domain(spec.domain).handler_for(spec.name)
             assert resolved is _legacy_handler_for(spec), (
                 f"{spec.name!r} now resolves to a different handler than the "
@@ -428,7 +447,9 @@ class TestProductDomainMigrationIsBehaviourPreserving:
     def test_the_reachable_tool_set_is_derived_and_unchanged(self):
         """Both sides derived: the registered domains' handler tables, and
         the three literal tables the old executor dispatched over."""
-        assert reachable_tool_names() == _legacy_reachable_tool_names()
+        later = _later_domain_tool_names()
+        assert reachable_tool_names() - later == _legacy_reachable_tool_names()
+        assert later <= reachable_tool_names()
 
     def test_every_tool_the_production_registry_offers_is_reachable(self):
         """The registry is what `WorkflowRunner` offers the model; the domain
@@ -436,7 +457,7 @@ class TestProductDomainMigrationIsBehaviourPreserving:
         second is a tool the model can propose and the runtime cannot run."""
         registered = frozenset(spec.name for spec in build_product_tool_registry().list_all())
         assert registered <= reachable_tool_names()
-        assert registered == _legacy_reachable_tool_names()
+        assert registered - _later_domain_tool_names() == _legacy_reachable_tool_names()
 
 
 # --- AC2: a non-product domain gets a subject-generic context -------------------

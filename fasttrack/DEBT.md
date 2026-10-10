@@ -548,3 +548,70 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [x] (owner 2026-10-10: show the sample name) The shell header in the no-shop state still names "Chưa chọn shop" (no "cập nhật HH:MM" line) above the sample, while the page's notice names the sample shop "Cửa hàng Mẫu Hoa Mai". Deliberate (the header is the seller's identity), revisit if the owner wants the sample name there.
 - [ ] The sample's daily GMV bars (Lịch sale) average 6,31 tr ₫/ngày in the prior window vs the streams' summed 6,95 tr ₫/ngày (last window agrees: 7,12 vs 7,16 tr). Only the bars show it (no total is printed from them); left as the P12 artboard values.
 - [ ] `SignedInQuyetDinh`'s own `!shop` empty state is now unreachable from `/decisions` (the page client routes no-shop to the sample); kept for direct callers / tests.
+
+## P14-C/F cost data and off-API rule fields (2026-10-10)
+
+- [ ] Neither cost endpoint has been read live. Field names and shapes are from the docs + OAS; the `voucher_deduction_*` / `shipping_fee_deduction_platform_voucher` semantics (amount vs voucher-type code) and which finance fee lines a VN shop gets must be confirmed on the first live read before any ROI uses them.
+- [ ] The app's granted scopes are unconfirmed: without `seller.finance.info` the finance pass stops every cycle with `order_costs_permission_denied` (logged, not surfaced in the UI).
+- [ ] Backfill is slow by design: ≤ 10 price + ≤ 10 finance reads per 15-min cycle (~960 orders/day/shop). A shop with more orders than that in 60 days takes several days to fill; raise `ORDER_COSTS_*_PER_CYCLE` once the real per-endpoint limits are known.
+- [ ] A settled order is not re-read for later refunds / adjustments (finance stops at the first non-empty answer); price detail is re-read when the order's `update_time` moves.
+- [ ] `sku_deductions` and `shop_economics` have no consumer yet (D24.5 / D24.11 / D24.12 ROI and promotion proposals are later P14 work); `lever_flows/promotion.py` still reads `product_cost` / `max_discount_pct` / `min_margin_pct` directly and ignores `sku_cost` / the shop-wide cap.
+- [ ] No packaging / handling cost per order field (considered; no D24 consumer yet).
+- [ ] `live_schedule` is shop-local time with no time zone stored (assumed Asia/Ho_Chi_Minh).
+- [ ] In the signed-out sample only the P14 group is read-only; the older groups remain editable in memory (P11 behaviour).
+
+## P14 card limits and learning (2026-10-10)
+
+- [ ] The seller rule "Số thẻ mở cùng lúc" (`max_open_cards`) still has its P8-C range 1–5 and reports 5 when unset (`shop_rules.max_open_cards`, Quy tắc UI "Mặc định"); since D24.17 an unset rule means 30. When set it lowers the 30. Owner to decide: drop the rule, or re-range it to 1–30.
+- [ ] The per-day / per-week surfacing counts reuse `decision_emission_novelty_ledger` as a surfacing log (`workflow_key` = `<card id hex>@<yyyymmdd>`) to avoid a migration; a dedicated column/table would be clearer once the migration chain is free.
+- [ ] Legacy (non-ADR-106) workflow cards: a dismissed card still needs a basis change to return (ADR-087 d.6), unlike D24.17's "after 7 days"; expired ones do return after 7 days. Optimize Product follows D24.17 fully.
+- [ ] *(content half resolved by the P14 integration, aace1159: `CONTENT_WORKFLOW_KEYS` is P14-E's `content_video` / `content_live`, plus payload `card_executor: "juli_drafts"`.)* `CAMPAIGN_PLAN_WORKFLOW_KEYS` (`campaign_plan`) and `CONTENT_WORKFLOW_KEYS` (empty; or payload `executor_type` video/live) are hooks: no producer writes those cards yet. Campaign plans have no "valid until registration closes" clock yet (they never expire).
+- [ ] Withdrawal "out of stock" reads `inventory_items` quantity sum (no rows = unknown, kept); "metric at target" uses the current funnel window's rate against the card's `reference_rate`.
+- [ ] `optimize_product/shop_report.py` (internal HTML report) still says "Đòn bẩy giá và Seller Center"; not seller-facing app copy, left.
+
+## P14-E content cards (2026-10-10)
+
+- [x] *(resolved by the P14 integration, aace1159 — the budget counts them; the ≤ 5/week creation sub-limit stays.)* Day-1 content slot: emission surfaces content cards like any other candidate
+  until the card-limits work counts them (`workflow_key in
+  content_cards.CONTENT_WORKFLOW_KEYS`, or payload `card_executor == "juli_drafts"`).
+  The ≤ 5/week sub-limit is enforced at creation (new rows per ISO week), not at
+  surfacing.
+- [x] Seller tone and banned words: resolved by D24.21 (5) — validated rule keys
+  `content_tone` / `banned_terms`; the run reads exactly them (aliases dropped).
+- [ ] LIVE candidate CTOR is the SESSION's (the ranking has no per-product split);
+  a session featuring N products shares its loss 1/N. The run and the measurement use
+  the product's own per-session CTOR (`get_live_products_performance`).
+- [ ] Basket position: TikTok's LIVE product list carries no position field today;
+  `basket_position` is read only if one of `position` / `basket_position` /
+  `display_position` / `sort_order` / `order` appears, else omitted.
+- [ ] Video measurement reads the shop video list over the window (per-video totals);
+  a video posted near day 0 counts its whole window, not day-by-day.
+- [ ] The content run's state lives in `workflow_runs.state["content_run"]` (no
+  migration this phase); a dedicated table would make readings queryable.
+- [ ] Seller-edited final text is stored per run (`edited_blocks`) but not yet exported
+  to the SFT dataset (D24.8).
+- [ ] UI: the publish-wait box has no Không thực hiện button (artboard has none); the
+  backend accepts decline there. Card list is the P10 single column (artboard shows a
+  2-column grid) and keeps the P10 uplift chip / group GMV line.
+- [ ] Pre-existing local failures unrelated to P14-E (also fail at 7590ba9d):
+  `test_cross_tenant_probe`, `test_destructive_migration_isolation`, 7 of
+  `test_agent_workflow_task_wiring` (env: DATABASE_URL / CI flags).
+
+## P14 integration (2026-10-10)
+
+- [x] Ranking across producers: resolved by D24.21 (4) — fixed daily slots per executor type, each type ranked by its own priority; no shared scale needed.
+- [x] P14-E's ≤ 5/week sub-limit now counts in the shop's week (Asia/Ho_Chi_Minh, Monday), like the card limits.
+- [ ] P14-E expires an open card at > 7 days (withdrawn + `expired_at`), the budget at ≥ 7 days (`expired` + `expired_at`); both now give the 7-day return, but the stored status differs by which ran first.
+- [x] PROGRESS cited AC `14E.6` for the P14-E UI row; now cites AC-14E.5 (the UI + samples AC; ACCEPTANCE has 14E.1–14E.5).
+- [ ] 37 test/backend files fail `ruff format --check` when run over the whole tree from the repo root — the same 37 at ddef3245 (check.sh's changed-files ruff step is clean).
+- [ ] `tests/integration/test_migrations.py::test_no_public_table_holds_update_beyond_its_call_site` (Postgres only) fails at ddef3245 already (7 tables granted UPDATE without a `GRANT_REQUIRED` call site: P8/P10 tables); P14-C's `081_order_cost_data` adds 3 more (`order_cost_fetches`, `order_finance_transactions`, `order_price_details`). Either register the call sites in `tests/unit/test_juli_app_grants_cover_mutations.py` or revoke the grants — owner/agent decision, not done in the integration.
+  **D24.21 pass:** P14-C's three are gone from the list — `081` no longer grants UPDATE on `order_price_details` / `order_finance_transactions` (replaced by delete + insert), and `order_cost_fetches`' UPDATE is registered (`store.py` attempt counter). Still listed (7, pre-existing): `lever_calibrations`, `run_lever_flows`, `run_lever_photos`, `run_revert_questions`, `shop_diagnosis_reports`, `shop_metric_rankings`, `shop_rules`.
+
+## D24.21 owner choices (2026-10-10)
+
+- [ ] **ADR-087 d.6 replaced for dismissed cards** (D24.21 (3)): a legacy-workflow card the seller rejected / declined / reverted returns as a new revision 7 days later on the clock alone, basis moved or not. ADR-087's text ("the clock is a cap, never a trigger") is not amended yet; `persist.py` / `action_cards/MODULE.md` document the change. Executed cards keep the ADR-087 rule (clock + basis).
+- [ ] Legacy-workflow cards (no ADR-106 lever, executor `other`) take the daily **Juli** slots, after the ADR-106 Juli cards (their priority scale is not comparable). The owner's slot list names only Juli / Seller Center / content; this mapping is the agent's choice.
+- [ ] The Optimize Product plan keeps the top 30 **per executor type** (Juli / Seller Center), up to 60 drafts, so the Seller Center slot is not starved by a shop whose best 30 are Juli cards. The open limit (30) still caps what surfaces.
+- [ ] Content-card priority now multiplies expected GMV by the lever's calibration × reason penalty (`video_script` / `live_script`); no content calibration is measured yet, so only seller reasons move it today.
+- [ ] Banned terms are checked on the listing write at approve (Juli's proposal and the seller's edit) — the agent's drafting prompt does not receive them yet, so a proposal containing one must be edited by the seller before approval.
+- [ ] A `max_open_cards` value stored under the old 1..5 range reads as 5 (clamped); no data migration.

@@ -39,6 +39,10 @@ from juli_backend.services.action_cards.basis import (
     compute_card_basis,
     stored_basis,
 )
+from juli_backend.services.action_cards.emission_budget import (
+    EXPIRED_STATUS,
+    expired_card_returns,
+)
 from juli_backend.services.action_cards.subjects import (
     SUBJECT_TYPE_UNSCOPED,
     CardSubject,
@@ -65,6 +69,7 @@ _SEVERITY_RANK: dict[str, int] = {
 # seller (or dry-run flow) has moved a card past that — approved, dismissed,
 # or executing — continuous re-scoring must not silently reset it back.
 IN_FLIGHT_STATUSES: frozenset[str] = frozenset({"approved", "dismissed", "executing"})
+_DISMISSED_STATUS = "dismissed"
 
 _ACTIVE_STATUS = "active"
 
@@ -113,6 +118,10 @@ SUPPRESSED_REASON_BASIS_UNCHANGED = "basis_unchanged"
 #: and ADR-087 decision 3 does not reach it.
 SUPPRESSED_REASON_ACTIVE_CARD_EXISTS = "active_card_exists"
 
+#: The subject's latest card expired (D24.17) less than ``cooldown_days`` (7)
+#: ago: the same action on the same subject waits out that gap.
+SUPPRESSED_REASON_EXPIRED_COOLDOWN = "expired_cooldown"
+
 #: The complete revision-suppression vocabulary. Disjoint from
 #: ``emission_budget.SUPPRESSED_REASONS`` by construction -- different
 #: question, different carrier (see the module docstring).
@@ -120,6 +129,7 @@ REVISION_SUPPRESSED_REASONS: frozenset[str] = frozenset(
     {
         SUPPRESSED_REASON_BASIS_UNCHANGED,
         SUPPRESSED_REASON_ACTIVE_CARD_EXISTS,
+        SUPPRESSED_REASON_EXPIRED_COOLDOWN,
     }
 )
 
@@ -276,10 +286,11 @@ def _terminal_cooldown_expired(
     #716 added the column) — the same fallback already documented pre-B-4 for
     the surfacing signal.
 
-    Under #1703 this is the churn floor ADR-087 decision 6 permits as a
-    *secondary* cap ("a time-based rule is admissible only as a secondary cap
-    on churn, never as the primary trigger"): the clock cannot cause a
-    revision, it can only delay one the basis already justified.
+    Under #1703 this was the churn floor ADR-087 decision 6 permits as a
+    *secondary* cap. Since D24.21 (3) (owner, 2026-10-10) a **dismissed** card
+    (the seller's Từ chối / Không thực hiện / Hoàn tác) returns on the clock
+    alone once this elapses -- the strict 7-day rule every card follows; for an
+    executed card the clock still only delays a revision the basis justified.
     """
     stamped = [
         _as_aware(marker)
@@ -300,6 +311,7 @@ def _card_still_stands(
     *,
     now: datetime,
     cooldown_days: int,
+    validity_days: int = 7,
 ) -> bool:
     """Whether *card* is still the shop's live answer for its subject.
 
@@ -322,6 +334,11 @@ def _card_still_stands(
     """
     if card.status == "dismissed":
         return not _terminal_cooldown_expired(card, now=now, cooldown_days=cooldown_days)
+    if card.status == EXPIRED_STATUS:
+        # D24.17: an expired card's action may return 7 days after it expired.
+        return not expired_card_returns(
+            card, now=now, cooldown_days=cooldown_days, validity_days=validity_days
+        )
     if card.executed_at is not None:
         return not _terminal_cooldown_expired(card, now=now, cooldown_days=cooldown_days)
     if card.status == _ACTIVE_STATUS:
@@ -449,7 +466,9 @@ async def emit_scoring_cards(
     3. **Compute the basis** for the subject under this workflow key
        (``basis.compute_card_basis``) -- the KPI severity buckets behind the
        recommendation plus the subject's own material fields.
-    4. **Decide**: no chain yet → revision 1; basis unchanged →
+    4. **Decide**: an expired or dismissed newest row → a new revision 7 days
+       after expiry / the seller's action, basis moved or not (D24.17,
+       D24.21 (3)); no chain yet → revision 1; basis unchanged →
        ``basis_unchanged``; basis changed but a card is still standing →
        ``active_card_exists``; basis changed and the newest row is a draft
        the seller has never been shown → recomputed in place (#716's
@@ -478,7 +497,7 @@ async def emit_scoring_cards(
     config = emission_config or decision_emission_config()
 
     # ADR-106 / D21: a shop with product analytics gets its Optimize Product
-    # cards from the stage-diagnosis pipeline -- whole catalog scored, top 10
+    # cards from the stage-diagnosis pipeline -- whole catalog scored, top 30
     # ranked, one card per product -- instead of the rule pipeline's single
     # top-revenue card. `None` (no product analytics) keeps the rule card.
     optimize_plan = await _plan_optimize_product(session, shop_id, now=computed_at)
@@ -503,7 +522,37 @@ async def emit_scoring_cards(
             result=result,
         )
 
-        if latest is not None:
+        if latest is not None and latest.status in (EXPIRED_STATUS, _DISMISSED_STATUS):
+            # D24.17: an expired card is history; its action returns as a new
+            # revision 7 days after expiry, whether or not the basis moved.
+            # D24.21 (3): a card the seller rejected / declined / reverted
+            # (dismissed) likewise returns 7 days after that action, whether
+            # or not the basis moved -- replacing ADR-087 d.6's "the clock
+            # alone never triggers a revision" for legacy workflows.
+            if _card_still_stands(
+                latest,
+                now=computed_at,
+                cooldown_days=config.cooldown_days,
+                validity_days=config.validity_days,
+            ):
+                if latest.status == EXPIRED_STATUS:
+                    reason = SUPPRESSED_REASON_EXPIRED_COOLDOWN
+                elif basis_unchanged(stored_basis(latest), current_basis):
+                    reason = SUPPRESSED_REASON_BASIS_UNCHANGED
+                else:
+                    reason = SUPPRESSED_REASON_ACTIVE_CARD_EXISTS
+                decision = CardEmission(
+                    workflow_key=workflow_key,
+                    subject_type=subject.subject_type,
+                    subject_id=subject.subject_id,
+                    card=latest,
+                    revision=latest.revision,
+                    suppressed_reason=reason,
+                )
+                decisions.append(decision)
+                _log_suppressed(shop_id, decision)
+                continue
+        elif latest is not None:
             if basis_unchanged(stored_basis(latest), current_basis):
                 decision = CardEmission(
                     workflow_key=workflow_key,
@@ -614,6 +663,17 @@ async def emit_scoring_cards(
                 emission_config=config,
             )
         )
+
+    # --- P14-E integration point (content cards, D24.4 / D24.17 / D24.18) ---
+    # "Juli soạn · bạn làm" Video / LIVE cards from the stored metric rankings,
+    # written with workflow_key in content_cards.CONTENT_WORKFLOW_KEYS
+    # (content_video / content_live) and payload card_executor "juli_drafts",
+    # so the emission budget can count them for the day-1 content slot. Owns
+    # its own cooldown / validity / <= 5-per-week rules; never surfaces a card.
+    from juli_backend.services.content_cards.emission import emit_content_cards_safely
+
+    decisions.extend(await emit_content_cards_safely(session, shop_id, now=computed_at))
+    # --- end P14-E ---
 
     return ScoringEmissionReport(decisions=tuple(decisions))
 

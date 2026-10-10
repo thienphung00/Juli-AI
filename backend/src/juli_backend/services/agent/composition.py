@@ -157,6 +157,10 @@ def build_product_tool_registry() -> ToolRegistry:
     # on the first run that reaches the retry. It did: run ffc8fd40 crashed with
     # `Unknown tool: 'conclude_without_changes'` and was recorded worker_lost.
     register_terminal_tools(registry)
+    # Fast track P14-E: the content run's read-only tools (`content` domain).
+    from juli_backend.services.content_cards.tools import register_content_read_tools
+
+    register_content_read_tools(registry)
     return registry
 
 

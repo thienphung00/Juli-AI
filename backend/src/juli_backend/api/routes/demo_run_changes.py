@@ -246,8 +246,8 @@ async def start_run_revert(
 
     Requires ``{reason_code, note?}`` (fast track P10-A, contract §2): 422 for a
     missing/unknown reason. The reason is stored with the reverted run, and the
-    same lever is not proposed again for the product for 7 days unless its data
-    changes clearly.
+    same lever is not proposed again for the product for 7 days (strictly,
+    D24.21).
     """
     try:
         decision_reasons.validate_reason(ACTION_REVERT, body.reason_code, body.note)

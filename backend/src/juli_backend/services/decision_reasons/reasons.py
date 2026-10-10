@@ -7,13 +7,10 @@ note of at most 300 characters. :func:`record_reason` stores it with who and
 when, and the (product, lever) it cools down.
 
 **Cooldown.** After any of the three actions the same lever is not proposed
-again for that product for :data:`COOLDOWN_DAYS` days, unless the product's
-data changed clearly. "Clearly", conservatively: the weak stage's rate the card
-was proposed on (``basis_rate``, the CTR / CTOR / AOV of
-``recoverable_gmv_basis``) moved by more than :data:`CLEAR_CHANGE_RELATIVE`
-(20 %) relative to that value, in either direction. A move of 20 % or less --
-ordinary day-to-day noise for a product's 14-day rate -- keeps the cooldown.
-No stored rate, or no current rate, never lifts it: only the clock does.
+again for that product for :data:`COOLDOWN_DAYS` days -- strictly: only the
+clock lifts it (owner D24.21 (1), 2026-10-10, which removed the earlier early
+return on a > 20 % move of the weak stage's rate). ``basis_stage_rate`` /
+``basis_rate`` are still stored with the reason, as history.
 
 Pure policy + two small queries; no commit (the routes commit).
 """
@@ -41,9 +38,6 @@ from juli_backend.models.decision_reasons import (
 from juli_backend.models.models import ActionCard
 
 COOLDOWN_DAYS = 7
-#: Relative move of the weak-stage rate that counts as a clear data change.
-CLEAR_CHANGE_RELATIVE = Decimal("0.20")
-
 #: The suppression reason card generation logs for a cooled-down proposal.
 SUPPRESSED_REASON_DECISION_COOLDOWN = "decision_cooldown"
 
@@ -119,7 +113,19 @@ def _payload(card: ActionCard | None) -> Mapping[str, Any]:
 
 
 def card_basis(card: ActionCard | None) -> CardBasis:
-    """The lever and weak-stage rate of an ADR-106 card (all ``None`` otherwise)."""
+    """The lever and weak-stage rate of an ADR-106 card (all ``None`` otherwise).
+
+    Fast track P14-E: a content card (payload ``content``) cools down its own
+    lever (``video_script`` / ``live_script``) on its CTR / CTOR.
+    """
+    content = _payload(card).get("content")
+    if isinstance(content, Mapping) and content.get("lever_code"):
+        rate = content.get("current")
+        return CardBasis(
+            str(content["lever_code"]),
+            str(content.get("stage_rate") or "") or None,
+            float(rate) if isinstance(rate, int | float) else None,
+        )
     diagnosis = _payload(card).get("diagnosis")
     if not isinstance(diagnosis, Mapping):
         return CardBasis(None, None, None)
@@ -211,15 +217,65 @@ async def active_cooldowns(
     return {(str(row.product_id), str(row.lever_code)): row for row in rows}
 
 
-def clearly_changed(reason: DecisionReason, current_rates: Mapping[str, Decimal | None]) -> bool:
-    """Whether the weak stage's rate moved > 20 % relative since the reason (see module)."""
-    if reason.basis_stage_rate is None or reason.basis_rate is None or reason.basis_rate <= 0:
-        return False
-    current = current_rates.get(reason.basis_stage_rate)
-    if current is None:
-        return False
-    basis = Decimal(str(reason.basis_rate))
-    return abs(Decimal(current) - basis) / basis > CLEAR_CHANGE_RELATIVE
+#: D24.6: how long a seller reason keeps lowering its lever's priority, how
+#: much a fresh one lowers it, and the floor (a lever is never buried).
+PENALTY_WINDOW_DAYS = 60
+PENALTY_PER_REASON = Decimal("0.2")
+PENALTY_FLOOR = Decimal("0.4")
+
+#: Reason codes about the seller's circumstances, not about the action itself;
+#: they carry no penalty (the 7-day cooldown still applies).
+CIRCUMSTANTIAL_REASON_CODES: frozenset[str] = frozenset(
+    {"editing_myself", "discontinued", "other_campaign", "changed_mind"}
+)
+
+
+def reason_penalty(ages_days: list[float]) -> Decimal:
+    """``max(0.4, 1 − 0.2 × Σ max(0, 1 − age ÷ 60))`` over the counted reasons.
+
+    One fresh reason → 0.8; it fades linearly to no effect at 60 days; three
+    fresh reasons reach the 0.4 floor.
+    """
+    total = Decimal(0)
+    for age in ages_days:
+        fade = Decimal(1) - Decimal(str(max(age, 0.0))) / Decimal(PENALTY_WINDOW_DAYS)
+        if fade > 0:
+            total += fade
+    return max(PENALTY_FLOOR, Decimal(1) - PENALTY_PER_REASON * total).quantize(Decimal("0.0001"))
+
+
+async def reason_penalties(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime | None = None
+) -> dict[str, Decimal]:
+    """lever code -> :func:`reason_penalty` from the shop's last 60 days of reasons.
+
+    Per (shop, lever), across products (D24.6: the reasons lower *that
+    action's* priority for the shop). Levers without a counted reason are
+    absent (neutral).
+    """
+    current = _naive_utc(now)
+    since = current - timedelta(days=PENALTY_WINDOW_DAYS)
+    rows = (
+        (
+            await session.execute(
+                select(DecisionReason).where(
+                    DecisionReason.shop_id == shop_id,
+                    DecisionReason.lever_code.isnot(None),
+                    DecisionReason.decided_at > since,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    ages: dict[str, list[float]] = {}
+    for row in rows:
+        if row.reason_code in CIRCUMSTANTIAL_REASON_CODES or row.lever_code is None:
+            continue
+        decided = row.decided_at.replace(tzinfo=None) if row.decided_at.tzinfo else row.decided_at
+        age = (current - decided).total_seconds() / 86400
+        ages.setdefault(str(row.lever_code), []).append(age)
+    return {lever: reason_penalty(values) for lever, values in ages.items()}
 
 
 def cooldown_until_iso(reason: DecisionReason) -> str:

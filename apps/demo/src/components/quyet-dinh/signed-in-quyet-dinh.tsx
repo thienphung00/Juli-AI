@@ -23,11 +23,14 @@ import {
   fetchRunInstructions,
   fetchRunMeasurement,
   fetchShopRules,
+  markContentPublished,
   markRunApplied,
   putShopRule,
+  redraftContentScript,
   rejectDecision,
   startRunRevert,
   uploadRunPhoto,
+  chooseContentScript,
 } from "../../lib/quyet-dinh/api-client";
 import type { AuthedOptions, QdClients, RunEventsState } from "../../lib/quyet-dinh/client-types";
 import { approveDemoDecision, fetchRecommendations } from "../../lib/recommendations-api-client";
@@ -65,6 +68,9 @@ export const REAL_QD_CLIENTS: QdClients = {
   markApplied: markRunApplied,
   fetchMeasurement: fetchRunMeasurement,
   fetchRunDetail,
+  useContent: chooseContentScript,
+  redraftContent: redraftContentScript,
+  markPublished: markContentPublished,
   useRunEvents: useLiveRunEvents,
 };
 

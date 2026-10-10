@@ -193,7 +193,6 @@ class TestEmissionBudgetAppliedOnTheComputePath:
         # Weekly novelty cap defaults to 3 — push it well above the candidate
         # count so only the active cap (default 5) is the constraint under
         # test here; the novelty gate itself is B-4's own scope.
-        monkeypatch.setenv("CDP_DECISION_EMISSION_WEEKLY_NOVELTY_CAP", "10")
 
         shop = shop_with_synced_data
         # Fixture's own rules pipeline ranks 5 workflows at priority 1-5.
@@ -220,26 +219,22 @@ class TestEmissionBudgetAppliedOnTheComputePath:
         surfaced = [card for card in cards if card.surfaced_at is not None]
         suppressed = [card for card in cards if card.surfaced_at is None]
 
-        assert len(surfaced) == 5, "at most the configured active cap (5) may be surfaced"
-        assert len(suppressed) == 3
+        # D24.21 (4): these legacy cards (no ADR-106 lever) take the 3 daily
+        # Juli slots; the Seller Center and content slots have no candidate and
+        # stay empty.
+        assert len(surfaced) == 3, "at most the 3 Juli slots (D24.21) may be surfaced"
+        assert len(suppressed) == 5
 
-        # The 5 fixture-ranked candidates (priority 1-5) fill the 5 surfaced
-        # slots; all three lower-priority seeded candidates (10-12) lose on
-        # priority and are suppressed. Three over the cap rather than two, so
-        # the cap is under more pressure here than it was before #1960, not
-        # less.
-        surfaced_keys = {card.workflow_key for card in surfaced}
-        assert surfaced_keys == {
-            "prevent_return_8b",
-            "optimize_product_2",
-            "create_hero_product_1",
-            "process_order_5",
-            "prevent_cancellation_8a",
+        # The 3 best-priority fixture-ranked candidates fill the slots; the
+        # other two and all three lower-priority seeded candidates (10-12) lose
+        # on priority and are suppressed.
+        by_priority = sorted(cards, key=lambda c: (c.priority, c.workflow_key))
+        assert {c.id for c in surfaced} == {c.id for c in by_priority[:3]}
+        assert {"seed_extra_1", "seed_extra_2", "seed_extra_3"} <= {
+            c.workflow_key for c in suppressed
         }
-
         for card in suppressed:
-            assert card.workflow_key in {"seed_extra_1", "seed_extra_2", "seed_extra_3"}
-            assert card.suppressed_reason == "active_cap"
+            assert card.suppressed_reason == "daily_cap"
 
     @pytest.mark.asyncio
     async def test_stage_persists_suppressed_candidates_not_just_surfaced_ones(
@@ -248,7 +243,6 @@ class TestEmissionBudgetAppliedOnTheComputePath:
         """Dual cadence: recomputation persistence must not be gated by
         surfacing — a suppressed candidate is still a durable, queryable
         Action Card row, just not in the surfaced set."""
-        monkeypatch.setenv("CDP_DECISION_EMISSION_WEEKLY_NOVELTY_CAP", "10")
         shop = shop_with_synced_data
         for index, priority in enumerate((10, 11, 12), start=1):
             await _seed_extra_active_candidate(
@@ -262,8 +256,8 @@ class TestEmissionBudgetAppliedOnTheComputePath:
         await decision_rules_scoring_stage(session, job, computed_at=COMPUTED_AT)
 
         cards = await _cards_for(session, shop.id)
-        suppressed = [c for c in cards if c.suppressed_reason == "active_cap"]
-        assert len(suppressed) == 3
+        suppressed = [c for c in cards if c.suppressed_reason == "daily_cap"]
+        assert len(suppressed) == 5  # 8 candidates, 3 Juli slots (D24.21)
         for card in suppressed:
             # Still an "active" candidate row, content intact — recomputation
             # and surfacing are independently gated.

@@ -127,6 +127,11 @@ PRODUCTION_READ_GET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^/analytics/\d+/shop/[^/]+/products_performance$"),
     # A-25 Get Promotion Activity (production-read)
     re.compile(r"^/promotion/\d+/activities/[^/]+$"),
+    # Cost data (fast track P14-C, D24.13): one order's price detail (seller vs
+    # platform deductions; scope seller.order.info) and its SKU-level finance
+    # transactions (scope seller.finance.info). Pure GETs; exact versions.
+    re.compile(r"^/order/202407/orders/\d+/price_detail$"),
+    re.compile(r"^/finance/202501/orders/\d+/statement_transactions$"),
 )
 
 # Known write path patterns — used by CI/static checks.

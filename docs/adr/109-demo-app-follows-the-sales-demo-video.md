@@ -92,7 +92,8 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
      phẩm"). The group header shows the target (current → target rate, the sum of its
      cards) and "GMV dự kiến" per month from D22's recoverable GMV/day × 30.
    - Each compact card: product code + name, "KPI chính", Lý do, Mã TikTok (diagnosis),
-     Đòn bẩy, and the concrete change.
+     Hành động (formerly "Đòn bẩy"; renamed in UI copy, fasttrack D24.2), and the
+     concrete change.
    - **"Duyệt N thẻ"** approves the group and creates N runs that execute **one after
      another** (the video's "Hàng chờ thẻ tối ưu"), never two changes on one product at
      once. Single cards can still be approved or dropped.
@@ -142,7 +143,7 @@ TikTok's diagnosis per row. Customers who saw the video should find the same pro
     | Biên lợi nhuận tối thiểu (%) | price recommendations | no price recommendation |
     | Trần giảm giá per SKU (%) | price recommendations | no price recommendation |
     | Số thẻ mở cùng lúc (≤ 5) | emission budget | 5 |
-    | Đòn bẩy được phép tự thực thi (title / description / attributes / image) | run executor | all listing levers; price never (D13) |
+    | Hành động được phép tự thực thi (title / description / attributes / image) | run executor | all listing levers; price never (D13) |
     | Từ / thông tin không được sửa (brand terms, claims) | listing writes | none |
 
     **Operator phase first:** at the start the Juli team fills these inputs on the seller's

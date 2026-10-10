@@ -149,6 +149,13 @@ celery_app.conf.update(
             "task": "juli_backend.shop_poll_fanout",
             "schedule": crontab(minute="7,22,37,52"),
         },
+        # Fast track P14-E: content runs -- auto-detect the seller's new video /
+        # LIVE and take the day-7 / day-14 (video) or next-3-sessions (LIVE)
+        # readings. Minute 41: not a multiple of 5 and none of the slots above.
+        "content-runs-poll": {
+            "task": "juli_backend.content_runs_poll",
+            "schedule": crontab(minute=41),
+        },
     },
 )
 

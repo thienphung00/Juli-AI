@@ -205,3 +205,27 @@ export async function fetchRunMeasurement(options: AuthedOptions, runId: string)
     throw error;
   }
 }
+
+// -- P14-E content runs (`p14-content-cards.md` §2.2) ----------------------------------------
+
+/** "Dùng kịch bản này": the chosen version, plus only the blocks the seller edited. */
+export async function chooseContentScript(
+  options: AuthedOptions,
+  runId: string,
+  version: number,
+  editedBlocks?: Readonly<Record<string, string>> | null,
+): Promise<void> {
+  const body: { version: number; edited_blocks?: Readonly<Record<string, string>> } = { version };
+  if (editedBlocks && Object.keys(editedBlocks).length > 0) body.edited_blocks = editedBlocks;
+  await call(`/runs/${encodeURIComponent(runId)}/content/use`, options, { method: "POST", body });
+}
+
+/** "Soạn lại": one more model call (bản 2). */
+export async function redraftContentScript(options: AuthedOptions, runId: string): Promise<void> {
+  await call(`/runs/${encodeURIComponent(runId)}/content/redraft`, options, { method: "POST" });
+}
+
+/** "Tôi đã đăng video" / "Tôi đã LIVE xong". */
+export async function markContentPublished(options: AuthedOptions, runId: string): Promise<void> {
+  await call(`/runs/${encodeURIComponent(runId)}/content/published`, options, { method: "POST" });
+}
