@@ -242,6 +242,16 @@ class DemoDecisionCardBeforeAfter(BaseModel):
     after: str
 
 
+class DemoDecisionCardContent(BaseModel):
+    """A content card's extra block (contract p14-content-cards.md §1, fast track P14-E)."""
+
+    kind: str
+    action_label: str
+    chip: str
+    will_draft: list[str] = []
+    measure: str = ""
+
+
 class DemoDecisionCard(BaseModel):
     """The recommendation card (contract p10-quyet-dinh.md §1, fast track P10-A)."""
 
@@ -262,6 +272,7 @@ class DemoDecisionCard(BaseModel):
     gmv_method: str | None = None
     #: P14-B (D24.6): the rank was weighted by the shop's history for the action.
     adjusted_by_history: bool = False
+    content: DemoDecisionCardContent | None = None
 
 
 class DemoDecisionRecommendation(BaseModel):

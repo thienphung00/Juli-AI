@@ -29,8 +29,11 @@ export interface WorkflowRunListItem {
   running_seconds_elapsed: number;
   latest_narration: string | null;
   decision_summary: PendingDecisionSummary | null;
-  /** Fast track P10-B: `photo` / `seller_action` while the run waits for the seller. */
-  awaiting?: "photo" | "seller_action" | null;
+  /**
+   * Fast track P10-B: `photo` / `seller_action` while the run waits for the seller;
+   * P14-E content runs: `content_choice` (pick a script) / `content_publish` (film / go LIVE).
+   */
+  awaiting?: "photo" | "seller_action" | "content_choice" | "content_publish" | null;
   /** Fast track P10 integration: the decision card (`action_cards.id`) the run came from. */
   decision_id?: string | null;
 }

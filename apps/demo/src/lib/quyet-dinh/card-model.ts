@@ -34,6 +34,11 @@ export const EXECUTOR_COPY: Readonly<Record<LeverExecutor, { chip: string; after
     after: "Phê duyệt → Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.",
     notice: "Đã tạo lượt chạy. Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.",
   },
+  juli_drafts: {
+    chip: "Juli soạn · bạn làm",
+    after: "Phê duyệt → Juli đọc số liệu và soạn kịch bản → bạn chọn → bạn quay hoặc LIVE → Juli đo.",
+    notice: "Đã tạo lượt chạy. Juli đọc số liệu và soạn kịch bản — bạn xem, chọn rồi quay hoặc LIVE.",
+  },
   seller_center: {
     chip: "Bạn thực hiện trên Seller Center",
     after: 'Phê duyệt → Juli đưa hướng dẫn từng bước; bạn bấm "Đã áp dụng" để Juli bắt đầu đo.',
@@ -52,6 +57,25 @@ export interface BeforeAfterView {
   readonly after: string;
   /** Mobile one-liner: “old” → “new”, or "180 → 640 ký tự, …". */
   readonly inline: string;
+}
+
+/**
+ * The content card's fact row label (ContentCards.dc.html; D24.2 makes it the
+ * seller-facing word for a lever). The fact-row label, not the retired tab name.
+ */
+export const ACTION_ROW_LABEL = "Hành động";
+
+/** P14-E content card extras (`ContentCards.dc.html`). */
+export interface CardContentView {
+  readonly kind: "video" | "live";
+  /** The action chip in the action row ("Kịch bản video mới"). */
+  readonly actionLabel: string;
+  /** "Juli soạn · bạn làm". */
+  readonly chip: string;
+  /** "Juli sẽ soạn", one line per item (rendered pre-line). */
+  readonly willDraft: string;
+  /** "Đo kết quả". */
+  readonly measure: string;
 }
 
 export interface CardView {
@@ -80,6 +104,20 @@ export interface CardView {
   readonly executor: LeverExecutor;
   /** Built from the P10-A card (false = degraded from the P7-B diagnosis). */
   readonly fromContract: boolean;
+  /** P14-E: set for a "Juli soạn · bạn làm" content card. */
+  readonly content: CardContentView | null;
+}
+
+export function contentView(card: RecommendationCardPayload): CardContentView | null {
+  const content = card.content;
+  if (!content) return null;
+  return {
+    kind: content.kind,
+    actionLabel: content.action_label || card.lever.label,
+    chip: content.chip || EXECUTOR_COPY.juli_drafts.chip,
+    willDraft: content.will_draft.join("\n"),
+    measure: content.measure,
+  };
 }
 
 function text(value: unknown): string | null {
@@ -169,8 +207,9 @@ function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardV
     adjustedByHistory: card.adjusted_by_history === true,
     leverCode: card.lever.code,
     leverLabel: card.lever.label,
-    executor: card.lever.executor,
+    executor: card.content ? "juli_drafts" : card.lever.executor,
     fromContract: true,
+    content: contentView(card),
   };
 }
 
@@ -209,6 +248,7 @@ function fromDiagnosis(item: P10DecisionItem): CardView {
     leverLabel,
     executor: executorForLever(diagnosis?.lever?.code, item.is_executable),
     fromContract: false,
+    content: null,
   };
 }
 

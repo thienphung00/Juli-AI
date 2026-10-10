@@ -33,7 +33,8 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
     await expect(page.getByRole("tab", { name: "Đề xuất" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Đang thực hiện" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Đo lường" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Son môi số 12", level: 3 })).toBeVisible();
+    // P14-E: SM-012 also has a content (LIVE) card in the sample — the first heading is the P10 card.
+    await expect(page.getByRole("heading", { name: "Son môi số 12", level: 3 }).first()).toBeVisible();
     await expect(page.getByText("Khách thêm giỏ rồi bỏ")).toBeVisible();
   });
 

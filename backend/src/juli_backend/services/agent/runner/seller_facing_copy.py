@@ -97,6 +97,10 @@ def tool_completed_summary(tool_name: str, result: Mapping[str, Any]) -> str:
     never a raw code or vendor text. Anything unexpected falls back to
     `Hoàn tất` -- a summary must never fail a run.
     """
+    # Fast track P14-E: a tool that words its own seller-facing summary.
+    own = result.get("summary_vi")
+    if isinstance(own, str) and own.strip():
+        return own.strip()
     if tool_name == _PROMOTIONS_TOOL:
         return _promotions_summary(result)
     if tool_name != _DIAGNOSES_TOOL:

@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 
-import { CARD_STATUS_LABELS, EXECUTOR_COPY, REJECTED_NOTICE, type CardView } from "../../lib/quyet-dinh/card-model";
+import { ACTION_ROW_LABEL, CARD_STATUS_LABELS, EXECUTOR_COPY, REJECTED_NOTICE, type CardView } from "../../lib/quyet-dinh/card-model";
 import type { CardStatus, LeverExecutor } from "../../lib/quyet-dinh/p10-types";
 import { REJECT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
 import { ReasonDone } from "./reason-dialog";
@@ -28,6 +28,7 @@ const WHO_TONE: Readonly<Record<LeverExecutor, string>> = {
   juli: "ok",
   juli_with_photo: "info",
   seller_center: "wait",
+  juli_drafts: "drafts",
 };
 
 export interface RecommendationCardProps {
@@ -63,7 +64,44 @@ function AnalysisLink({ href }: { readonly href: string | null | undefined }) {
   );
 }
 
+/** `ContentCards.dc.html`: the action row = the action chip + the purple "Juli soạn · bạn làm" chip. */
+function ContentAction({ card }: { readonly card: CardView }) {
+  if (!card.content) return null;
+  return (
+    <>
+      <span className="qv-field-chip">{card.content.actionLabel}</span>
+      <span className="qv-drafts-chip" data-testid="drafts-chip">
+        {card.content.chip}
+      </span>
+    </>
+  );
+}
+
+/** `ContentCards.dc.html` Xem thêm: Lý do đầy đủ · Juli sẽ soạn · Đo kết quả. */
+function ContentMore({ card }: { readonly card: CardView }) {
+  if (!card.content) return null;
+  return (
+    <section aria-label="Chi tiết đề xuất" className="qv-more qv-more--content">
+      {card.reasonFull ? (
+        <div>
+          <div className="qv-more__label">Lý do đầy đủ</div>
+          <div>{card.reasonFull}</div>
+        </div>
+      ) : null}
+      <div>
+        <div className="qv-more__label">Juli sẽ soạn</div>
+        <div className="qv-pre-line">{card.content.willDraft}</div>
+      </div>
+      <div>
+        <div className="qv-more__label">Đo kết quả</div>
+        <div>{card.content.measure}</div>
+      </div>
+    </section>
+  );
+}
+
 function MoreSection({ card }: { readonly card: CardView }) {
+  if (card.content) return <ContentMore card={card} />;
   return (
     <section aria-label="Chi tiết đề xuất" className="qv-more">
       {card.reasonFull ? (
@@ -166,6 +204,54 @@ function Outcome({
   return null;
 }
 
+/** `ContentCards.dc.html` footer: Phê duyệt · Từ chối · Xem phân tích › · (right) Xem thêm. */
+function ContentActions({
+  status,
+  blockedReason,
+  blockId,
+  busy,
+  expanded,
+  analysisHref,
+  onApprove,
+  onReject,
+  onToggle,
+}: {
+  readonly status: CardStatus;
+  readonly blockedReason?: string | null;
+  readonly blockId: string;
+  readonly busy?: boolean;
+  readonly expanded: boolean;
+  readonly analysisHref?: string | null;
+  readonly onApprove: () => void;
+  readonly onReject: () => void;
+  readonly onToggle: () => void;
+}) {
+  return (
+    <div className="qv-card__actions qv-card__actions--content">
+      {status === "pending" ? (
+        <>
+          <button
+            aria-describedby={blockedReason ? blockId : undefined}
+            className="qv-btn qv-btn--primary"
+            disabled={Boolean(blockedReason) || busy}
+            onClick={onApprove}
+            type="button"
+          >
+            Phê duyệt
+          </button>
+          <button className="qv-btn qv-btn--secondary" disabled={busy} onClick={onReject} type="button">
+            Từ chối
+          </button>
+        </>
+      ) : null}
+      <AnalysisLink href={analysisHref} />
+      <button aria-expanded={expanded} className="qv-btn qv-btn--ghost qv-card__toggle" onClick={onToggle} type="button">
+        {expanded ? "Thu gọn" : "Xem thêm"}
+      </button>
+    </div>
+  );
+}
+
 export function RecommendationCard(props: RecommendationCardProps) {
   return props.narrow ? <MobileCard {...props} /> : <DesktopCard {...props} />;
 }
@@ -188,7 +274,7 @@ function DesktopCard({
 }: RecommendationCardProps) {
   const titleId = useId();
   const blockId = useId();
-  const showWho = card.executor !== "juli";
+  const showWho = card.executor !== "juli" && card.content === null;
   return (
     <article
       aria-labelledby={titleId}
@@ -245,13 +331,17 @@ function DesktopCard({
       <dl className="qv-facts">
         <dt>Lý do</dt>
         <dd>{card.reasonShort}</dd>
-        <dt>Thay đổi đề xuất</dt>
+        <dt>{card.content ? ACTION_ROW_LABEL : "Thay đổi đề xuất"}</dt>
         <dd className="qv-field-chips">
-          {card.changeLabels.map((label) => (
-            <span className="qv-field-chip" key={label}>
-              {label}
-            </span>
-          ))}
+          {card.content ? (
+            <ContentAction card={card} />
+          ) : (
+            card.changeLabels.map((label) => (
+              <span className="qv-field-chip" key={label}>
+                {label}
+              </span>
+            ))
+          )}
         </dd>
       </dl>
 
@@ -261,6 +351,19 @@ function DesktopCard({
 
       <Outcome executor={card.executor} onOpenProgress={onOpenProgress} progressHref={progressHref} rejectReason={rejectReason} status={status} />
 
+      {card.content ? (
+        <ContentActions
+          blockId={blockId}
+          blockedReason={blockedReason}
+          busy={busy}
+          expanded={expanded}
+          analysisHref={analysisHref}
+          onApprove={onApprove}
+          onReject={onReject}
+          onToggle={onToggle}
+          status={status}
+        />
+      ) : (
       <div className="qv-card__actions">
         {status === "pending" ? (
           <div className="qv-card__buttons">
@@ -283,6 +386,7 @@ function DesktopCard({
         </button>
         <AnalysisLink href={analysisHref} />
       </div>
+      )}
       {showWho && status === "pending" ? <span className="qv-after-note">{EXECUTOR_COPY[card.executor].after}</span> : null}
       {status === "pending" && blockedReason ? (
         <p className="qv-card__error" id={blockId}>
@@ -316,7 +420,7 @@ function MobileCard({
 }: RecommendationCardProps) {
   const titleId = useId();
   const blockId = useId();
-  const showWho = card.executor !== "juli";
+  const showWho = card.executor !== "juli" && card.content === null;
   return (
     <article
       aria-labelledby={titleId}
@@ -367,8 +471,12 @@ function MobileCard({
       </div>
 
       <div className="qv-mfact qv-mfact--changes">
-        <div className="qv-mfact__label">Thay đổi đề xuất</div>
-        {card.beforeAfter.length > 0
+        <div className="qv-mfact__label">{card.content ? ACTION_ROW_LABEL : "Thay đổi đề xuất"}</div>
+        {card.content ? (
+          <span className="qv-field-chips">
+            <ContentAction card={card} />
+          </span>
+        ) : card.beforeAfter.length > 0
           ? card.beforeAfter.map((row) => (
               <span key={row.field}>
                 <strong>{row.label}:</strong> {row.inline}

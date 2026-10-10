@@ -36,6 +36,8 @@ const PHOTO_TOOLS = new Set(["upload_product_image"]);
 /** Which artboard a run follows: from its awaiting state, the card it came from, or its tools. */
 export function runKind(run: QdRun, card: CardView | null, events: readonly AgentEvent[], isRevert: boolean): RunKind {
   if (isRevert) return "revert";
+  if (run.awaiting === "content_choice" || run.awaiting === "content_publish") return "content";
+  if (card?.executor === "juli_drafts" || card?.content) return "content";
   if (run.awaiting === "photo") return "photo";
   if (run.awaiting === "seller_action") return "manual";
   if (card?.executor === "juli_with_photo") return "photo";

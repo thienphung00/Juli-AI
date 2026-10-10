@@ -613,6 +613,7 @@ async def _construct_runner(
     from juli_backend.services.agent import composition as composition_module
     from juli_backend.services.agent import events as events_module
     from juli_backend.services.agent import runner as runner_module
+    from juli_backend.services.content_cards import driver as content_driver_module
 
     registry = _default_tool_registry()
     concurrency_guard = runner_module.ConcurrencyGuard(
@@ -636,6 +637,13 @@ async def _construct_runner(
         else await lever_flows_module.wiring_for_run(
             session, sync_session, run, product, product_detail=_product_detail
         )
+    )
+    # Fast track P14-E: a content run ("Juli soạn · bạn làm") is the same
+    # executor with a deterministic planner that makes the one drafting call.
+    content = (
+        None
+        if revert_plan or flow
+        else await content_driver_module.wiring_for_run(session, run, product)
     )
     playbook = (
         run_changes_module.REVERT_LISTING_PLAYBOOK
@@ -713,6 +721,8 @@ async def _construct_runner(
             if revert_plan
             else flow.planner
             if flow
+            else content.planner
+            if content
             else _default_llm_service()
         ),
         tool_executor=tool_executor,
@@ -728,6 +738,8 @@ async def _construct_runner(
         # by the `basis_snapshot=` seed a few lines up on the resume leg.
         concurrency_guard=concurrency_guard,
     )
+    if content is not None:
+        return content_driver_module.ContentRunner(runner, session=session, wiring=content)
     if flow is None:
         return runner
     return lever_flows_module.LeverFlowRunner(

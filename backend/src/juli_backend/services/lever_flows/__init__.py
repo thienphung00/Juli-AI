@@ -81,7 +81,10 @@ def termination_policy_for_wait(awaiting: str | None):
         return PHOTO_PLAYBOOK.termination_policy
     if awaiting == AWAITING_SELLER_ACTION:
         return PROMOTION_PLAYBOOK.termination_policy
-    return None
+    # Fast track P14-E: a content run's two waits (3 days / 7 days).
+    from juli_backend.services.content_cards.planner import termination_policy_for
+
+    return termination_policy_for(awaiting)
 
 
 __all__ = [

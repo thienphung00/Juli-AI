@@ -40,6 +40,8 @@ from juli_backend.models.models import Product
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services import agent_runs, lever_flows
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
+from juli_backend.services.content_cards import measurement as content_measurement
+from juli_backend.services.content_cards import run_state as content_run_state
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +151,9 @@ class RunDetail(BaseModel):
     lever: RunLever | None = None
     photo: RunPhotos | None = None
     promotion: RunPromotion | None = None
+    #: Fast track P14-E (contract p14-content-cards.md §2.1): a content run's
+    #: steps, script, waits and measuring line; ``None`` for every other run.
+    content: dict[str, Any] | None = None
 
 
 class RunDetailResponse(BaseModel):
@@ -221,6 +226,7 @@ async def get_demo_run(
             lever=lever,
             photo=photo,
             promotion=promotion,
+            content=content_run_state.content_detail(run, awaiting=awaiting),
         )
     )
 
@@ -405,7 +411,11 @@ async def get_run_measurement(
     """Contract §6. The day-14 verdict is stored (and calibrates the lever) once."""
     run = await _owned_run(session, shop, run_id)
     try:
-        body = await lever_flows.measure_run(session, shop.id, run)
+        if content_measurement.is_content_run(run):
+            # Fast track P14-E: video CTR / LIVE CTOR readings (contract §4).
+            body = await content_measurement.measure_content_run(session, shop.id, run)
+        else:
+            body = await lever_flows.measure_run(session, shop.id, run)
     except lever_flows.NotMeasurable as exc:
         raise _conflict(exc.code, exc.message_vi) from None
     await session.commit()

@@ -225,6 +225,30 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/demo/runs/{run_id}/content/published",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/content/redraft",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/demo/runs/{run_id}/content/use",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/demo/runs/{run_id}/decline",
       "methods": [
         "POST"
@@ -371,7 +395,23 @@
       ]
     },
     {
+      "name": "find_new_content",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
       "name": "find_product_promotions",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "get_content_performance",
       "classification": "read",
       "policy": "auto",
       "playbooks": [

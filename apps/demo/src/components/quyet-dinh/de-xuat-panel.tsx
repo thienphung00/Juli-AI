@@ -118,6 +118,9 @@ export function DeXuatPanel({
         const runnable = batchCards(group, excluded);
         const headingId = `qd-group-${group.key.replace(/[^a-z0-9]/gi, "-")}`;
         const gmv = gmvMonthText(group.gmvPerMonth);
+        // P14-E: content cards change nothing on the listing, so the stability bands
+        // do not gate them, and each one is filmed separately (no batch approve).
+        const cardBlock = group.content ? null : blockReason;
         const groupBlock =
           blockReason ?? (runnable.length === 0 ? "Không còn thẻ nào Juli tự thực hiện được trong nhóm này." : null);
         return (
@@ -139,6 +142,7 @@ export function DeXuatPanel({
                   </span>
                 ) : null}
               </div>
+              {group.content ? null : (
               <div className="qv-group__actions">
                 <button
                   aria-describedby={groupBlock ? `${headingId}-block` : undefined}
@@ -153,7 +157,8 @@ export function DeXuatPanel({
                   Sửa
                 </button>
               </div>
-              {groupBlock ? (
+              )}
+              {groupBlock && !group.content ? (
                 <p className="qv-group__block" id={`${headingId}-block`}>
                   {groupBlock}
                 </p>
@@ -167,7 +172,7 @@ export function DeXuatPanel({
                   <li key={view.id}>
                     <RecommendationCard
                       analysisHref={analysisHrefForDecision(group.cards.find((c) => c.id === view.id)?.item ?? group.cards[0].item)}
-                      blockedReason={blockReason}
+                      blockedReason={cardBlock}
                       focused={highlight === `card:${view.id}`}
                       rejectReason={rejectReasons[view.id] ?? null}
                       busy={busy}

@@ -133,6 +133,17 @@ export interface QdClients {
   readonly markApplied: (options: AuthedOptions, runId: string) => Promise<void>;
   readonly fetchMeasurement: (options: AuthedOptions, runId: string) => Promise<Measurement | null>;
   readonly fetchRunDetail: (options: AuthedOptions, runId: string) => Promise<RunDetail>;
+  /** P14-E "Dùng kịch bản này" (`p14-content-cards.md` §2.2): version + only the edited blocks. */
+  readonly useContent: (
+    options: AuthedOptions,
+    runId: string,
+    version: number,
+    editedBlocks?: Readonly<Record<string, string>> | null,
+  ) => Promise<void>;
+  /** P14-E "Soạn lại". */
+  readonly redraftContent: (options: AuthedOptions, runId: string) => Promise<void>;
+  /** P14-E "Tôi đã đăng video" / "Tôi đã LIVE xong". */
+  readonly markPublished: (options: AuthedOptions, runId: string) => Promise<void>;
   readonly useRunEvents: RunEventsHook;
   /** SSE transport override (tests); the real one is same-origin `fetch`. */
   readonly streamFetch?: typeof fetch;

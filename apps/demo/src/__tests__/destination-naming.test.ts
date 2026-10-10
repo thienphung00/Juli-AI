@@ -78,6 +78,11 @@ const ALLOWED_USES: ReadonlyArray<{
     snippet: 'auto_levers: "Hành động được tự thực thi",',
     reason: "Fast track D24.2: the seller-facing word for a lever (was \"Đòn bẩy\"), not the tab.",
   },
+  {
+    path: "apps/demo/src/lib/quyet-dinh/card-model.ts",
+    snippet: 'export const ACTION_ROW_LABEL = "Hành động";',
+    reason: "P14-E content card's fact-row label (ContentCards.dc.html; D24.2 seller term for a lever), not the tab.",
+  },
 ];
 
 /** AC4: the three cascade layers, scanned together rather than one CI round at a time. */

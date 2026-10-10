@@ -38,6 +38,7 @@ from juli_backend.services.agent.tools.domains import (
 )
 from juli_backend.services.agent.tools.product_domain import PRODUCT_TOOL_DOMAIN
 from juli_backend.services.agent.tools.terminal import TERMINAL_TOOL_DOMAIN
+from juli_backend.services.content_cards.tools import CONTENT_TOOL_DOMAIN
 
 #: The registered tool domains, `name -> ToolDomain`. ONE explicit dict
 #: literal, no discovery: a later domain adds its import above and one line
@@ -46,6 +47,8 @@ from juli_backend.services.agent.tools.terminal import TERMINAL_TOOL_DOMAIN
 _TOOL_DOMAIN_REGISTRY: dict[str, ToolDomain] = {
     PRODUCT_TOOL_DOMAIN.name: PRODUCT_TOOL_DOMAIN,
     TERMINAL_TOOL_DOMAIN.name: TERMINAL_TOOL_DOMAIN,
+    # Fast track P14-E: the content run's read-only TikTok tools.
+    CONTENT_TOOL_DOMAIN.name: CONTENT_TOOL_DOMAIN,
 }
 
 
