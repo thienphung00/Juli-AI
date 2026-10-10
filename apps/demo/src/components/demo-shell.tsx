@@ -9,6 +9,7 @@ import { clearActiveShop } from "../lib/shop-session";
 import { ShopReportProvider, useShopReport } from "../lib/shop-report/shop-report-context";
 import { buildGoogleAuthorizeUrl, clearAuthSession } from "../lib/supabase-auth";
 import { AppNavigation } from "./app-shell/app-navigation";
+import { PermissionStrip } from "./app-shell/permission-strip";
 import { ShopHeader } from "./app-shell/shop-header";
 import { DemoStateProvider, useDemoState } from "./demo-state";
 
@@ -93,6 +94,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
         <p aria-label="Phản hồi Demo" aria-live="polite" className="juli-sr-only" role="status">
           {feedback}
         </p>
+        {state.status === "ready" ? <PermissionStrip shopId={state.shop.id} token={state.token} /> : null}
         <main className="app-content">{children}</main>
       </div>
     </div>

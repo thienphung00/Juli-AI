@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { fmtGmvShort, fmtRate, fmtUsd, fmtWhen } from "../../lib/ops/format";
-import type { OpsMe, Overview, OverviewShop, StageId } from "../../lib/ops/types";
+import type { OpsMe, Overview, OverviewShop, Permissions, StageId } from "../../lib/ops/types";
 import { C, OpsHeader, OpsPage, STAGE_STYLE } from "./ops-shell";
 
 /** "Tổng quan" — artboard OpsOverview.dc.html (D25.5). */
@@ -164,8 +164,9 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
                       <span role="cell">
                         <span style={{ fontSize: 12, fontWeight: 600, borderRadius: 999, padding: "3px 10px", ...STAGE_STYLE[s.stage] }}>{s.stage_label}</span>
                       </span>
-                      <span role="cell" style={{ fontSize: 13, fontWeight: 600, color: connColor }}>
+                      <span role="cell" style={{ fontSize: 13, fontWeight: 600, color: connColor, display: "flex", flexDirection: "column" }}>
                         {connLabel}
+                        <PermissionLine permissions={s.permissions ?? null} />
                       </span>
                       <span role="cell" style={{ fontSize: 13 }}>
                         {none ? "chưa kết nối shop" : fmtWhen(s.last_poll_at)}
@@ -228,6 +229,22 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
         />
       ) : null}
     </OpsPage>
+  );
+}
+
+/** D25.15: the shop's TikTok permission status under its connection. */
+function PermissionLine({ permissions }: { readonly permissions: Permissions | null }) {
+  if (!permissions || permissions.status === "not_connected") return null;
+  if (permissions.status === "complete") {
+    return <span style={{ fontSize: 11, fontWeight: 600, color: C.green }}>Đủ quyền</span>;
+  }
+  if (permissions.status === "unknown") {
+    return <span style={{ fontSize: 11, fontWeight: 600, color: C.muted2 }}>Quyền: chưa rõ</span>;
+  }
+  return (
+    <span data-testid="missing-scopes" style={{ fontSize: 11, fontWeight: 700, color: C.red }} title={permissions.missing.map((m) => `${m.scope} (${m.used_for})`).join(", ")}>
+      Thiếu {permissions.missing.length} quyền
+    </span>
   );
 }
 

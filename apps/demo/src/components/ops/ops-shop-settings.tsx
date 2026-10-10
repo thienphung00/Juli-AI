@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import type { OpsMe, OverrideKey, ShopSettings, ShopSettingsPage, StageId } from "../../lib/ops/types";
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
+import { OpsRules } from "./ops-rules";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
 
 /** "Cài đặt shop" — artboard OpsShopSettings.dc.html (D25.4, D25.7). */
@@ -172,6 +173,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
   const actions = (eff(s, "enabled_actions") as string[]) ?? [];
   const content = eff(s, "content_cards_enabled") as boolean;
   const cap = s.overrides.openai_monthly_cap_usd as number | null;
+  const capShown = (cap ?? (s.defaults.openai_monthly_cap_usd as number | null)) as number | null;
   const pendingInvite = page.invites.find((i) => !i.accepted_at && !i.revoked_at);
   const ownerText = page.shop.owned_by_team
     ? pendingInvite
@@ -333,12 +335,13 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
               help="Vượt trần: dừng soạn mới, báo đội ngũ"
               onDefault={() => void save({ openai_monthly_cap_usd: null })}
               overridden={cap !== null}
-              summary={cap !== null ? `$${String(cap).replace(".", ",")} / tháng` : "Không giới hạn"}
+              summary={capShown !== null ? `$${String(capShown).replace(".", ",")} / tháng` : "Không giới hạn"}
               title="Trần chi phí OpenAI"
             >
-              <CapEditor onSave={(v) => void save({ openai_monthly_cap_usd: v })} value={cap} />
+              <CapEditor onSave={(v) => void save({ openai_monthly_cap_usd: v })} value={capShown} />
             </SettingRow>
           </div>
+          <OpsRules canEdit={canEdit} shopId={shopId} />
         </section>
         <aside style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={card}>

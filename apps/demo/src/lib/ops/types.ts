@@ -32,6 +32,13 @@ export interface OverviewShop {
   readonly openai_cap_usd: number | null;
   readonly openai_cap_reached: boolean;
   readonly gmv_30d: number | null;
+  readonly permissions?: Permissions | null;
+}
+
+export interface Permissions {
+  readonly status: "complete" | "missing" | "unknown" | "not_connected";
+  readonly missing: readonly { scope: string; used_for: string }[];
+  readonly needs_reconnect: boolean;
 }
 
 export interface Overview {

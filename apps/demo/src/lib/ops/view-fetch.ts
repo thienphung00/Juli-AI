@@ -44,3 +44,23 @@ export function createOpsViewFetch(options: { readonly shopId: string; readonly 
   };
   return viewFetch as typeof fetch;
 }
+
+/**
+ * "Quy tắc" in Cài đặt shop (D25.14): the seller's rules editor and clients,
+ * re-pointed at `/v1/ops/shops/{id}/rules` (Vận hành+; every change audited
+ * and written as the team's). Only the rules paths are mapped.
+ */
+export function createOpsRulesFetch(options: { readonly shopId: string; readonly baseFetch?: typeof fetch }): typeof fetch {
+  const base = options.baseFetch ?? fetch;
+  const shopBase = `/v1/ops/shops/${encodeURIComponent(options.shopId)}`;
+  const rulesFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    const url = new URL(raw, "http://ops.local");
+    const match = /^\/v1\/demo\/rules(\/[^/?]+)?$/.exec(url.pathname);
+    if (!match) return refuse(404, "Không có trong Quy tắc");
+    const headers = new Headers(init?.headers);
+    headers.delete("X-Shop-Id");
+    return base(`${shopBase}/rules${match[1] ?? ""}${url.search}`, { ...init, headers });
+  };
+  return rulesFetch as typeof fetch;
+}
