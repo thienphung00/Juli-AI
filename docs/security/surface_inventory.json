@@ -369,6 +369,14 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/shops/me/onboarding",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
       "path": "/v1/workflow-outcomes/{approval_id}",
       "methods": [
         "GET"
