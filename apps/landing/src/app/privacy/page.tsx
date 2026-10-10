@@ -148,8 +148,8 @@ export default function PrivacyPolicyPage() {
               <li>
                 Nhà cung cấp dịch vụ cần thiết để vận hành Juli, chỉ trong phạm vi cần thiết:
                 Supabase (xác thực đăng nhập và lưu trữ cơ sở dữ liệu của Juli), nhà cung cấp
-                máy chủ (VPS) nơi chạy ứng dụng Juli, và dịch vụ email Juli dùng để gửi mã
-                đăng nhập hoặc thư liên hệ về tài khoản cho bạn
+                máy chủ (VPS) nơi chạy ứng dụng Juli, và Google Workspace (dịch vụ email Juli
+                dùng để gửi mã đăng nhập và thư liên hệ về tài khoản cho bạn)
               </li>
               <li>Khi pháp luật hoặc cơ quan nhà nước có thẩm quyền yêu cầu</li>
               <li>Khi có sự đồng ý rõ ràng của bạn</li>
@@ -233,7 +233,7 @@ export default function PrivacyPolicyPage() {
                 never used to develop, improve or train generalized AI/ML models, and never
                 sent to OpenAI or any AI model. <strong>Sharing:</strong> only with service
                 providers needed to run Juli (Supabase for authentication and database
-                hosting, our server host, and our email provider), when required by law, or
+                hosting, our server host, and Google Workspace as our email provider), when required by law, or
                 with your consent; never with advertising platforms (including TikTok) and
                 never transferred for any other purpose. <strong>Protection:</strong> TLS in
                 transit, encryption at rest by our database host, verified sessions,
