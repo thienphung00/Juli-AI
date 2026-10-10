@@ -764,7 +764,12 @@ describe("DecisionsPageClient — the session split (#1909, ADR-094)", () => {
     const headers = new Headers(init.headers);
     expect(headers.get("Authorization")).toBe("Bearer real-bearer-token");
     expect(headers.get("X-Shop-Id")).toBe("shop-1");
-    expect(fetchSpy.mock.calls.every(([url]) => String(url).startsWith("/v1/demo/"))).toBe(true);
+    // P17 adds the onboarding status read (`GET /v1/shops/me/onboarding`) beside the demo routes.
+    expect(
+      fetchSpy.mock.calls.every(
+        ([url]) => String(url).startsWith("/v1/demo/") || String(url) === "/v1/shops/me/onboarding",
+      ),
+    ).toBe(true);
 
     // The anonymous branch's fixture content must not be standing in.
     expect(screen.queryByText("Tạo sản phẩm nổi bật")).not.toBeInTheDocument();

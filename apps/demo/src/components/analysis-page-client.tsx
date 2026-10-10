@@ -4,7 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 import { useShopReport } from "../lib/shop-report/shop-report-context";
+import { onboardingReportReady, type OnboardingStatus } from "../lib/onboarding/api-client";
 import { NoShopSampleStrip } from "./app-shell/no-shop-sample-strip";
+import { ShopOnboardingStrip } from "./onboarding/onboarding-strip";
 import { AppPageHeader } from "./app-shell/page-header";
 import { SamplePhanTich } from "./phan-tich/sample-phan-tich";
 import { SignedInPhanTich } from "./phan-tich/signed-in-phan-tich";
@@ -32,6 +34,17 @@ export function AnalysisPageClient() {
     row: searchParams?.get("row"),
   };
   const onNavigate = useCallback((href: string) => router.replace(href, { scroll: false }), [router]);
+  const reportEmpty = state.status === "empty";
+  const onOnboardingStatus = useCallback(
+    (status: OnboardingStatus) => {
+      if (reportEmpty && onboardingReportReady(status)) reload();
+    },
+    [reportEmpty, reload],
+  );
+  const strip =
+    "shop" in state ? (
+      <ShopOnboardingStrip onStatus={onOnboardingStatus} shopId={state.shop.id} token={state.token} />
+    ) : null;
 
   if (state.status === "anonymous") {
     return <SamplePhanTich onNavigate={onNavigate} query={query} />;
@@ -47,17 +60,22 @@ export function AnalysisPageClient() {
   }
   if (state.status === "ready") {
     return (
-      <SignedInPhanTich
+      <>
+        {strip}
+        <SignedInPhanTich
         envelope={state.envelope}
         onNavigate={onNavigate}
         query={query}
         shopId={state.shop.id}
         token={state.token}
-      />
+        />
+      </>
     );
   }
 
   return (
+    <>
+    {strip}
     <section aria-labelledby="analytics-title" className="pa-page">
       <AppPageHeader eyebrow="PHÂN TÍCH" title="Phân tích luồng truy cập" titleId="analytics-title" />
       {state.status === "empty" ? (
@@ -82,5 +100,7 @@ export function AnalysisPageClient() {
         </p>
       )}
     </section>
+    </>
   );
 }
+

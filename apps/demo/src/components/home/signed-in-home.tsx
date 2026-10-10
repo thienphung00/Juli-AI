@@ -1,6 +1,10 @@
 "use client";
 
+import { useCallback } from "react";
+
+import { onboardingReportReady, type OnboardingStatus } from "../../lib/onboarding/api-client";
 import { useShopReport } from "../../lib/shop-report/shop-report-context";
+import { ShopOnboardingStrip } from "../onboarding/onboarding-strip";
 import { NoShopSampleStrip } from "../app-shell/no-shop-sample-strip";
 import { AppPageHeader } from "../app-shell/page-header";
 import { HomeOverview } from "./home-overview";
@@ -16,9 +20,26 @@ import { SampleHome } from "./sample-home";
  */
 export function SignedInHome() {
   const { state, reload } = useShopReport();
+  const reportEmpty = state.status === "empty";
+  const onOnboardingStatus = useCallback(
+    (status: OnboardingStatus) => {
+      if (reportEmpty && onboardingReportReady(status)) reload();
+    },
+    [reportEmpty, reload],
+  );
+  // P17: a seller with a shop sees Juli's progress reading it (nothing once done).
+  const strip =
+    "shop" in state ? (
+      <ShopOnboardingStrip onStatus={onOnboardingStatus} shopId={state.shop.id} token={state.token} />
+    ) : null;
 
   if (state.status === "ready") {
-    return <HomeOverview envelope={state.envelope} />;
+    return (
+      <>
+        {strip}
+        <HomeOverview envelope={state.envelope} />
+      </>
+    );
   }
 
   if (state.status === "no-shop") {
@@ -61,9 +82,12 @@ export function SignedInHome() {
   }
 
   return (
+    <>
+    {strip}
     <section aria-labelledby="home-title" className="home-overview">
       <AppPageHeader eyebrow="Trang chủ" title="Báo cáo của shop" titleId="home-title" />
       {body}
     </section>
+    </>
   );
 }

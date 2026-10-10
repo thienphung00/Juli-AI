@@ -134,6 +134,7 @@ export function QuyetDinhView({
   onNavigate,
   clients,
   sample = false,
+  cardsRefresh = 0,
 }: {
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string };
@@ -142,6 +143,8 @@ export function QuyetDinhView({
   readonly clients: QdClients;
   /** The signed-out "Bản minh họa": shows the sample notice. */
   readonly sample?: boolean;
+  /** P17: a new value re-reads the cards in place (onboarding poll); a failed re-read keeps what is shown. */
+  readonly cardsRefresh?: number;
 }) {
   const auth: AuthedOptions = useMemo(() => ({ token, shopId: shop.id }), [token, shop.id]);
   const nowMs = useNow();
@@ -159,6 +162,17 @@ export function QuyetDinhView({
       cancelled = true;
     };
   }, [clients, token, shop.id, decisionsKey]);
+  useEffect(() => {
+    if (!cardsRefresh) return;
+    let cancelled = false;
+    clients
+      .fetchDecisions({ token, shopId: shop.id })
+      .then((items) => !cancelled && setDecisions({ status: "ready", data: items }))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [clients, token, shop.id, cardsRefresh]);
 
   const [rules, setRules] = useState<Load<ShopRules>>({ status: "loading" });
   const loadRules = useCallback(
