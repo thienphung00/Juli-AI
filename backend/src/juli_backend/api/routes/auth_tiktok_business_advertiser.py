@@ -27,15 +27,20 @@ router = APIRouter(prefix="/auth/tiktok/business", tags=["auth"])
 DEFAULT_BUSINESS_API_BASE_URL = "https://business-api.tiktok.com"
 
 
-def get_business_advertiser_oauth_service() -> TikTokBusinessAdvertiserOAuthService:
+# Before TikTok approves the app there is no App ID / secret. A reviewer opening the
+# redirect URI must get a clear client error, never a 5xx (smoke-checklist runbook).
+NOT_CONFIGURED_DETAIL = (
+    "TikTok Business OAuth is not configured yet (the app is awaiting TikTok approval); "
+    "authorization cannot be completed"
+)
+
+
+def get_business_advertiser_oauth_service() -> TikTokBusinessAdvertiserOAuthService | None:
     try:
         app_secret = require_env("TIKTOK_BUSINESS_APP_SECRET")
         app_id = require_env("TIKTOK_BUSINESS_APP_ID")
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="TikTok Business OAuth is not configured",
-        ) from exc
+    except RuntimeError:
+        return None
 
     base_url = os.environ.get("TIKTOK_BUSINESS_API_BASE_URL", DEFAULT_BUSINESS_API_BASE_URL).strip()
     if not base_url:
@@ -56,7 +61,7 @@ def get_business_advertiser_oauth_service() -> TikTokBusinessAdvertiserOAuthServ
 async def tiktok_business_advertiser_oauth_callback(
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
-    oauth_service: TikTokBusinessAdvertiserOAuthService = Depends(
+    oauth_service: TikTokBusinessAdvertiserOAuthService | None = Depends(
         get_business_advertiser_oauth_service
     ),
     session: AsyncSession = Depends(get_session),
@@ -72,6 +77,8 @@ async def tiktok_business_advertiser_oauth_callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing required query parameter: state",
         )
+    if oauth_service is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=NOT_CONFIGURED_DETAIL)
 
     try:
         result, token_data, user_id = await oauth_service.handle_callback(code, state)

@@ -44,15 +44,20 @@ class TikTokBusinessAccountHolderCallbackResult(BaseModel):
     access_token_expires_in: int | None = None
 
 
-def get_business_account_holder_auth() -> TikTokBusinessAccountHolderAuth:
+# Before TikTok approves the app there is no App ID / secret. A reviewer opening the
+# redirect URI must get a clear client error, never a 5xx (smoke-checklist runbook).
+NOT_CONFIGURED_DETAIL = (
+    "TikTok Business OAuth is not configured yet (the app is awaiting TikTok approval); "
+    "authorization cannot be completed"
+)
+
+
+def get_business_account_holder_auth() -> TikTokBusinessAccountHolderAuth | None:
     try:
         app_id = require_env("TIKTOK_BUSINESS_APP_ID")
         app_secret = require_env("TIKTOK_BUSINESS_APP_SECRET")
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="TikTok Business OAuth is not configured",
-        ) from exc
+    except RuntimeError:
+        return None
 
     base_url = os.environ.get(
         "TIKTOK_BUSINESS_API_BASE_URL", "https://business-api.tiktok.com"
@@ -88,7 +93,7 @@ def _verify_state(state: str, app_secret: str) -> uuid.UUID:
 async def tiktok_business_account_holder_callback(
     auth_code: str | None = Query(default=None),
     state: str | None = Query(default=None),
-    auth_client: TikTokBusinessAccountHolderAuth = Depends(get_business_account_holder_auth),
+    auth_client: TikTokBusinessAccountHolderAuth | None = Depends(get_business_account_holder_auth),
     session: AsyncSession = Depends(get_session),
 ) -> TikTokBusinessAccountHolderCallbackResult:
     """Accept TikTok Business account-holder redirect and exchange ``auth_code``."""
@@ -103,13 +108,9 @@ async def tiktok_business_account_holder_callback(
             detail="Missing required query parameter: state",
         )
 
-    try:
-        app_secret = require_env("TIKTOK_BUSINESS_APP_SECRET")
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="TikTok Business OAuth is not configured",
-        ) from exc
+    if auth_client is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=NOT_CONFIGURED_DETAIL)
+    app_secret = require_env("TIKTOK_BUSINESS_APP_SECRET")
 
     try:
         user_id = _verify_state(state, app_secret)

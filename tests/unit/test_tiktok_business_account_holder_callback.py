@@ -34,13 +34,9 @@ TOKEN_FIXTURE = {
 
 
 def _build_state(user_id: uuid.UUID, *, secret: str = APP_SECRET) -> str:
-    payload = json.dumps(
-        {"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)}
-    )
+    payload = json.dumps({"user_id": str(user_id), "nonce": secrets.token_urlsafe(16)})
     encoded = base64.urlsafe_b64encode(payload.encode()).decode()
-    signature = hmac.new(
-        secret.encode(), encoded.encode(), hashlib.sha256
-    ).hexdigest()
+    signature = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
     return f"{encoded}.{signature}"
 
 
@@ -67,9 +63,10 @@ def mock_token_exchange(monkeypatch):
 
 @pytest_asyncio.fixture
 async def client(engine, monkeypatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
     from juli_backend.api.app import create_app
     from juli_backend.database import get_session
-    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     application = create_app()
@@ -80,9 +77,7 @@ async def client(engine, monkeypatch):
 
     application.dependency_overrides[get_session] = _test_session
 
-    async with AsyncClient(
-        transport=ASGITransport(app=application), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=application), base_url="http://test") as c:
         yield c
 
 
@@ -226,9 +221,7 @@ class TestBusinessAccountHolderCallbackRoute:
         assert "auth_code_123" not in raw
 
     @pytest.mark.asyncio
-    async def test_callback_token_exchange_failure_returns_502(
-        self, client, mock_token_exchange
-    ):
+    async def test_callback_token_exchange_failure_returns_502(self, client, mock_token_exchange):
         mock_token_exchange.side_effect = AuthenticationError(
             code=40002, message="Invalid auth code"
         )
@@ -241,31 +234,42 @@ class TestBusinessAccountHolderCallbackRoute:
         assert TOKEN_FIXTURE["access_token"] not in resp.text
 
     @pytest.mark.asyncio
-    async def test_callback_missing_app_id_returns_503(self, client, monkeypatch):
+    async def test_callback_missing_app_id_returns_400_not_configured(self, client, monkeypatch):
         monkeypatch.delenv("TIKTOK_BUSINESS_APP_ID", raising=False)
         resp = await client.get(
             CALLBACK_PATH,
             params={"auth_code": "auth_code", "state": _build_state(uuid.uuid4())},
         )
-        assert resp.status_code == 503
-        assert resp.json()["detail"] == "TikTok Business OAuth is not configured"
+        assert resp.status_code == 400
+        assert resp.json()["detail"].startswith("TikTok Business OAuth is not configured yet")
 
     @pytest.mark.asyncio
-    async def test_callback_missing_app_secret_returns_503(self, client, monkeypatch):
+    async def test_unconfigured_callback_without_params_is_400_not_5xx(self, client, monkeypatch):
+        # Reviewers open the bare redirect URI before TikTok issues App ID / secret.
+        monkeypatch.delenv("TIKTOK_BUSINESS_APP_ID", raising=False)
+        monkeypatch.delenv("TIKTOK_BUSINESS_APP_SECRET", raising=False)
+        resp = await client.get(CALLBACK_PATH)
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Missing required query parameter: auth_code"
+
+    @pytest.mark.asyncio
+    async def test_callback_missing_app_secret_returns_400_not_configured(
+        self, client, monkeypatch
+    ):
         monkeypatch.delenv("TIKTOK_BUSINESS_APP_SECRET", raising=False)
         resp = await client.get(
             CALLBACK_PATH,
             params={"auth_code": "auth_code", "state": _build_state(uuid.uuid4())},
         )
-        assert resp.status_code == 503
-        assert resp.json()["detail"] == "TikTok Business OAuth is not configured"
+        assert resp.status_code == 400
+        assert resp.json()["detail"].startswith("TikTok Business OAuth is not configured yet")
 
     @pytest.mark.asyncio
     async def test_callback_does_not_require_jwt(self, client):
         resp = await client.get(CALLBACK_PATH)
-        assert resp.status_code != 401 or "authorization" not in resp.json().get(
-            "detail", ""
-        ).lower()
+        assert (
+            resp.status_code != 401 or "authorization" not in resp.json().get("detail", "").lower()
+        )
 
     @pytest.mark.asyncio
     async def test_callback_route_is_listed_in_openapi(self, client):

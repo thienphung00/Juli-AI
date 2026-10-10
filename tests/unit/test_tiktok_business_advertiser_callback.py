@@ -166,24 +166,35 @@ class TestBusinessAdvertiserOAuthCallbackRoute:
         assert TOKEN_FIXTURE["access_token"] not in resp.text
 
     @pytest.mark.asyncio
-    async def test_callback_missing_app_id_returns_503(self, client, monkeypatch):
+    async def test_callback_missing_app_id_returns_400_not_configured(self, client, monkeypatch):
         monkeypatch.delenv("TIKTOK_BUSINESS_APP_ID", raising=False)
         resp = await client.get(
             CALLBACK_PATH,
             params={"code": "auth_code", "state": "ignored"},
         )
-        assert resp.status_code == 503
-        assert resp.json()["detail"] == "TikTok Business OAuth is not configured"
+        assert resp.status_code == 400
+        assert resp.json()["detail"].startswith("TikTok Business OAuth is not configured yet")
 
     @pytest.mark.asyncio
-    async def test_callback_missing_app_secret_returns_503(self, client, monkeypatch):
+    async def test_unconfigured_callback_without_params_is_400_not_5xx(self, client, monkeypatch):
+        # Reviewers open the bare redirect URI before TikTok issues App ID / secret.
+        monkeypatch.delenv("TIKTOK_BUSINESS_APP_ID", raising=False)
+        monkeypatch.delenv("TIKTOK_BUSINESS_APP_SECRET", raising=False)
+        resp = await client.get(CALLBACK_PATH)
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Missing required query parameter: code"
+
+    @pytest.mark.asyncio
+    async def test_callback_missing_app_secret_returns_400_not_configured(
+        self, client, monkeypatch
+    ):
         monkeypatch.delenv("TIKTOK_BUSINESS_APP_SECRET", raising=False)
         resp = await client.get(
             CALLBACK_PATH,
             params={"code": "auth_code", "state": "ignored"},
         )
-        assert resp.status_code == 503
-        assert resp.json()["detail"] == "TikTok Business OAuth is not configured"
+        assert resp.status_code == 400
+        assert resp.json()["detail"].startswith("TikTok Business OAuth is not configured yet")
 
     @pytest.mark.asyncio
     async def test_callback_does_not_require_jwt(self, client):
