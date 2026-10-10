@@ -199,3 +199,31 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   9. **Campaigns**: Juli also proposes TikTok platform campaigns (Chiến dịch
      sàn: which products to register, at what discount within margin) and the
      seller's own campaigns; research of the API and rules in progress.
+  10. **Campaign timing** (owner, 2026-10-10): a "Kế hoạch chiến dịch" card
+      ~14 days before each mega sale day, ~7 days before double days and
+      payday; Juli detects registration itself via `campaign_inventory`
+      (stock locked for a campaign); seller promotions become one
+      "Kế hoạch khuyến mãi" per product (one price layer — platform campaign >
+      flash sale > product discount — plus cart layer and one voucher), checked
+      against stacking rules and the margin floor.
+  11. **GMV Max on sale days**: Juli suggests turning on "Ngày khuyến mãi"
+      3–5 days before the event (Academy), ROI target ≥ break-even ROAS
+      (1 ÷ margin), budget from TikTok's `/gmv_max/bid/recommend/`; the seller
+      applies it. Juli writes ads settings only after the Business app is
+      approved and with per-change consent. No manual ROI edits on the day
+      (they forfeit ROI Protection). The agency's "0h–2h" practice is a
+      hypothesis: measured per shop from hourly shop GMV and GMV Max hourly
+      cost on the next sale day before Juli recommends it.
+  12. **ROI of promotions and campaigns** = (incremental GMV × margin −
+      seller-funded cost) ÷ seller-funded cost; platform-funded discounts are
+      not a cost; incremental GMV vs normal days and sibling controls
+      (ADR-077); needs cost price in Quy tắc.
+  13. **Cost data**: ingest, read-only, `GET /order/202407/orders/{id}/price_detail`
+      (seller vs platform deductions) and per-order finance transactions.
+  14. **Agent research tools** (only in runs after approval, D24.1): curated,
+      read-only — `search_juli_documentation` over vetted Academy excerpts,
+      FastMoss market reads with a per-run credit cap, existing TikTok read
+      tools. No open web search (injection, determinism; ADR-068 amended).
+  15. **Market data**: a weekly non-LLM job caches FastMoss data (competitor
+      prices, category best-sellers and videos, keywords); card selection and
+      the agent read the cache.
