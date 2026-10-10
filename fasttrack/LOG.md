@@ -786,3 +786,36 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   clean, vitest 1687/1687, Playwright 147 passed / 140 skipped (port 3319; new
   `e2e/analytics/no-shop-sample.spec.ts` 10/10 across desktop + mobile-web),
   build:demo OK (Playwright webServer build).
+
+### 2026-10-10 — P14-C/F: cost data (read-only) and rule fields for what TikTok does not give us
+
+- Branch `fasttrack/p14-data` from a1e6767e. Commits e16ee0c9 (P14-C), 89aaf11e (P14-F), then docs.
+- Schemas from the local corpus (`partner_documents/api-reference/orders/get-price-detail-202407.md`,
+  `finance/get-transactions-by-order-202501.md`; their examples are truncated) completed from the
+  bundled OAS (`tts-openapi-guide` references). Price-detail line items have a line-item id but no
+  SKU id, so the step maps them with the existing order-detail read (ids only; the payload's buyer
+  e-mail / address are never kept). The `voucher_deduction_*` fields are documented as a voucher
+  *type* with an amount-looking example: stored, marked UNVERIFIED, excluded from the funded totals.
+- Migration `081_order_cost_data` onto `080_lever_flows`; the deferred phone cleanup re-parented
+  onto 081 (pins in five tests and the deploy runbook moved with it).
+- Where the step lives: first written as `workers/services/polling/order_costs.py`; the
+  import-boundary check forbids a NEW `workers → integrations` edge, so the fetch loop is
+  `services/order_costs/sync.py` and `run_shop_cycle` calls it. It takes rate-limit tokens directly
+  (10 / 60 s, the poll steps' window) without waiting, instead of `analytics_range.acquire_or_wait`.
+- P14-F needs no migration: new `shop_rules` keys. The list was checked against the OAS (no cost
+  field in the Product API; campaigns only as `campaign_inventory` after approval; analytics splits
+  GMV_MAX / NON_GMV_MAX GMV but has no spend or target; finance has programme fees only per settled
+  order; LIVE analytics is past sessions). `min_margin_pct` relabelled "Biên lợi nhuận tối thiểu
+  khi giảm giá". The signed-out sample shows the new group read-only (`offApiReadOnly`); the
+  existing groups keep their in-memory sample editing.
+- Verification: ruff + format clean, mypy `backend/src/juli_backend` clean (569 files), import
+  boundaries PASS; new pytest: `test_order_costs.py` 36, `test_shop_rules_off_api.py` 40,
+  `TestOrderCostsInTheCycle` 1, `test_order_costs_two_tenant.py` 1; 156 related unit files: 1916
+  passed, 9 failed = 7 `test_agent_workflow_task_wiring.py` (fail identically at the base checkout,
+  local DATABASE_URL parsing) + 2 fixed in this branch (facade export list, import boundary);
+  `fasttrack/check.sh --since a1e6767e` on fresh PG16: migrations PASS (at 081), isolation 12
+  passed, gitleaks PASS, ruff PASS (30 files), pytest 298 passed; RLS / grant / two-tenant suites
+  on PG16: 60 passed, 1 skipped, 1 xfailed. Demo (Node 20): type-check clean, lint 0 errors (7
+  pre-existing warnings), vitest 1702/1702 (a first full run had 3 timing failures in other files
+  that passed on re-run), Playwright `e2e/decisions/` 32 passed / 140 skipped (port 3321).
+
