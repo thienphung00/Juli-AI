@@ -235,6 +235,8 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 - [x] **AC-13.4** DEBT records the "reason box disappears after reload" item as
   accepted by the owner, won't fix. — evidence: fasttrack/DEBT.md (P12 section)
 
+## P14 — recommendation pipeline (D24)
+
 ### P14-C/F — cost data (read-only) and rule fields for what TikTok does not give us (D24.5, D24.12, D24.13)
 
 Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-data`.

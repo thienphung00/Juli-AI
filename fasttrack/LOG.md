@@ -920,3 +920,37 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   Playwright `e2e/decisions` 32 passed / 140 skipped on port 3322 (content spec on
   desktop + mobile, zero `/v1` requests).
 
+### 2026-10-10 — P14 integration: p14-data + p14-cards + p14-content
+
+- Branch `fasttrack/p14-integration` from ddef3245 (worktree `juli-ft-p14-int`). Merged `--no-ff`:
+  `fasttrack/p14-data` (clean), `fasttrack/p14-cards` (6e808245; conflicts only in PROGRESS / LOG /
+  ACCEPTANCE / DEBT / DECISIONS → union; P14-A/B/D implementation notes kept under D24.17, before
+  D24.18–20 and D25), `fasttrack/p14-content` (5095558d; docs union + three code conflicts kept
+  both sides: `DemoDecisionCard` has `adjusted_by_history` and `content`, `p10-types.ts` both fields
+  + `CardContentPayload`, `destination-naming.test.ts` both allow-list entries). P14 sections in
+  PROGRESS / ACCEPTANCE now sit under one "## P14 — recommendation pipeline (D24)".
+- Integration fixes (separate commits): aace1159 the emission budget's `CONTENT_WORKFLOW_KEYS` is
+  P14-E's (`content_video` / `content_live`) and payload `card_executor: "juli_drafts"` claims the
+  day-1 content slot, so content cards take the daily / weekly / open limits, the 7-day validity
+  and the 3-day stay like any card (P14-E's ≤ 5/week stays a creation sub-limit); P14-E's
+  `expired_recently` honours a card the budget expired (`expired`), so its 7-day return holds —
+  new `tests/unit/test_p14_integration_content_budget.py` (3). 438e3f6e import boundary (p14-cards
+  deep-imported `core.config.decision_emission`; failed on the branch alone too). ff1db5df
+  zero-assertion reconciliation 456 → 459 (three P14-C/F `pytest.raises`-only tests; failed on
+  `fasttrack/p14-data` alone too).
+- No changes needed: migration head `081_order_cost_data`, deferred phone cleanup parented on 081
+  (pins already moved by p14-data); beat schedule (only p14-content adds a beat); surface inventory
+  regenerated — identical. Seller tone / banned words: p14-data added no rule key, P14-E's reader
+  of `content_tone`/`tone`, `banned_terms`/`banned_words` left as is (DEBT).
+- Verification: ruff clean; `ruff format --check` over the tree lists the same 37 files as
+  ddef3245; mypy 589 files clean. `tests/unit` 6664 passed, 242 skipped, 2 xfailed, 9 failed —
+  the same 9 fail at ddef3245 (7 `test_agent_workflow_task_wiring`, `test_cross_tenant_probe`,
+  `test_destructive_migration_isolation` CI flag). `tests/integration` without a DB: 50 passed,
+  244 skipped, 2 failed + 4 errors (same at ddef3245); on a fresh PG16: 276 passed, 21 skipped, 3
+  failed — the same 3 at ddef3245 (recorded-replay registry, sanitizer registry, public UPDATE
+  grants; the last now also lists P14-C's three tables, DEBT). `fasttrack/check.sh --since
+  ddef3245` (docker PG16): migrations PASS at 081, isolation 12 passed, gitleaks PASS, ruff PASS (89
+  files), pytest 35 files 624 passed. Demo (Node 20): lint 0 errors (7 pre-existing warnings),
+  type-check clean, vitest 130 files 1714 passed, Playwright 154 passed / 140 skipped (port 3323),
+  `pnpm build:demo --force` OK.
+

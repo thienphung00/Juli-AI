@@ -565,18 +565,18 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] The seller rule "Số thẻ mở cùng lúc" (`max_open_cards`) still has its P8-C range 1–5 and reports 5 when unset (`shop_rules.max_open_cards`, Quy tắc UI "Mặc định"); since D24.17 an unset rule means 30. When set it lowers the 30. Owner to decide: drop the rule, or re-range it to 1–30.
 - [ ] The per-day / per-week surfacing counts reuse `decision_emission_novelty_ledger` as a surfacing log (`workflow_key` = `<card id hex>@<yyyymmdd>`) to avoid a migration; a dedicated column/table would be clearer once the migration chain is free.
 - [ ] Legacy (non-ADR-106) workflow cards: a dismissed card still needs a basis change to return (ADR-087 d.6), unlike D24.17's "after 7 days"; expired ones do return after 7 days. Optimize Product follows D24.17 fully.
-- [ ] `CAMPAIGN_PLAN_WORKFLOW_KEYS` (`campaign_plan`) and `CONTENT_WORKFLOW_KEYS` (empty; or payload `executor_type` video/live) are hooks: no producer writes those cards yet. Campaign plans have no "valid until registration closes" clock yet (they never expire).
+- [ ] *(content half resolved by the P14 integration, aace1159: `CONTENT_WORKFLOW_KEYS` is P14-E's `content_video` / `content_live`, plus payload `card_executor: "juli_drafts"`.)* `CAMPAIGN_PLAN_WORKFLOW_KEYS` (`campaign_plan`) and `CONTENT_WORKFLOW_KEYS` (empty; or payload `executor_type` video/live) are hooks: no producer writes those cards yet. Campaign plans have no "valid until registration closes" clock yet (they never expire).
 - [ ] Withdrawal "out of stock" reads `inventory_items` quantity sum (no rows = unknown, kept); "metric at target" uses the current funnel window's rate against the card's `reference_rate`.
 - [ ] `optimize_product/shop_report.py` (internal HTML report) still says "Đòn bẩy giá và Seller Center"; not seller-facing app copy, left.
 
 ## P14-E content cards (2026-10-10)
 
-- [ ] Day-1 content slot: emission surfaces content cards like any other candidate
+- [x] *(resolved by the P14 integration, aace1159 — the budget counts them; the ≤ 5/week creation sub-limit stays.)* Day-1 content slot: emission surfaces content cards like any other candidate
   until the card-limits work counts them (`workflow_key in
   content_cards.CONTENT_WORKFLOW_KEYS`, or payload `card_executor == "juli_drafts"`).
   The ≤ 5/week sub-limit is enforced at creation (new rows per ISO week), not at
   surfacing.
-- [ ] Seller tone and banned words: no rule key exists yet; the run reads
+- [ ] Seller tone and banned words: no rule key exists yet (P14-F, merged in the P14 integration, added none either — still open); the run reads
   `shop_rules` rows `content_tone` / `tone` and `banned_terms` / `banned_words` if the
   seller-rules work adds them (unvalidated until then). Protected terms and the
   per-SKU discount cap are read today.
@@ -599,3 +599,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `test_cross_tenant_probe`, `test_destructive_migration_isolation`, 7 of
   `test_agent_workflow_task_wiring` (env: DATABASE_URL / CI flags).
 
+## P14 integration (2026-10-10)
+
+- [ ] Ranking across producers: P14-E content cards take `priority` 1..N among content candidates only, while Optimize Product cards number their own list; the budget sorts all `active` drafts by `priority`, so after day 1 a content card with priority 1 competes as an equal of the top Optimize card. A shared scale (e.g. by recoverable GMV/day) is not decided.
+- [ ] P14-E's ≤ 5/week sub-limit counts per ISO week in UTC (`created_at`), the budget's weeks are the shop's (UTC+7, Monday); a few hours' offset on Sunday night/Monday morning.
+- [ ] P14-E expires an open card at > 7 days (withdrawn + `expired_at`), the budget at ≥ 7 days (`expired` + `expired_at`); both now give the 7-day return, but the stored status differs by which ran first.
+- [ ] PROGRESS cites AC `14E.6` for the P14-E UI row; ACCEPTANCE has only AC-14E.1–14E.5 (as on `fasttrack/p14-content`).
+- [ ] 37 test/backend files fail `ruff format --check` when run over the whole tree from the repo root — the same 37 at ddef3245 (check.sh's changed-files ruff step is clean).
+- [ ] `tests/integration/test_migrations.py::test_no_public_table_holds_update_beyond_its_call_site` (Postgres only) fails at ddef3245 already (7 tables granted UPDATE without a `GRANT_REQUIRED` call site: P8/P10 tables); P14-C's `081_order_cost_data` adds 3 more (`order_cost_fetches`, `order_finance_transactions`, `order_price_details`). Either register the call sites in `tests/unit/test_juli_app_grants_cover_mutations.py` or revoke the grants — owner/agent decision, not done in the integration.
