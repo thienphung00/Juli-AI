@@ -338,3 +338,11 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       simulation must show whether a target is inside normal noise.
       Scenarios are saved per shop with a name and can be set as the shop's
       target. Internal only for now.
+  12. **History for the 90-day window** (owner, 2026-10-10, option A): keep the
+      60-day backfill at connect (fast first cards), then extend history in
+      the background each night, slowly, up to 180 days (or the API's real
+      maximum look-back, checked first; beyond that history accumulates
+      naturally). The 90-day window unlocks when 2 × 90 days exist; until then
+      it is greyed "Đang tải lịch sử · còn N ngày". Fix the video-windows 429
+      handling in the same work: longer retry/back-off on 429 and skip the
+      video tables for that cycle instead of falling back to whole-day reads.
