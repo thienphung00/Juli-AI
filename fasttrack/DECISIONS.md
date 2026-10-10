@@ -275,3 +275,15 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       **seller upload (2C)**, plus compliant signals: Accounts API
       `video_view_retention`, caption, thumbnail/share URL (after the Business
       app and the Accounts API form are approved) and Partner shop metrics.
+  20. **P15 content analysis** (owner, 2026-10-10): the seller uploads the
+      video or LIVE recording; ASR via OpenAI transcription for short videos
+      and LIVE windows (faster-whisper on the VPS only at volume); scene cuts
+      (PySceneDetect + content-engine `reference_analyze.py`), on-screen text
+      (OCR), product-on-screen by matching product images to keyframes;
+      `gpt-5.4-nano` scores hook / CTA from the derived signals (structured
+      output) — the whole video is never sent to a model. LIVE: only windows
+      around the product's pin/mention times. No Remotion video building for
+      now. Uploaded files are deleted after analysis; only derived data kept.
+      Cost estimate (to verify against OpenAI pricing): ≈ $0.006–0.009 per
+      analysed minute; a 30–60 s video ≈ $0.005–0.01; a LIVE ≈ $0.2–0.3 with
+      windows (≈ $0.7–1.1 for a whole 2 h session).
