@@ -101,7 +101,7 @@ def make_video(
     if audio:
         args += ["-map", f"{n}:a", "-c:a", "aac"]
     args += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast", str(path)]
-    subprocess.run(args, check=True, timeout=60)  # noqa: S603 - test fixture
+    subprocess.run(args, check=True, timeout=60)
     return path
 
 
@@ -207,6 +207,10 @@ class FakeProducts:
         return self.info
 
 
+def failing() -> Collaborators:
+    return collab(transcriber=FakeTranscriber(fail=True))
+
+
 def collab(**kw: Any) -> Collaborators:
     return Collaborators(
         transcriber=kw.get("transcriber") or FakeTranscriber(),
@@ -276,7 +280,7 @@ def test_a_renamed_non_video_is_refused_before_any_parser(tmp_path, conf):
 @needs_ffmpeg
 def test_a_file_without_a_video_stream_is_refused(tmp_path, conf):
     path = tmp_path / "audio_only.mp4"
-    subprocess.run(  # noqa: S603
+    subprocess.run(
         [
             "ffmpeg",
             "-v",
@@ -894,7 +898,6 @@ async def test_the_task_is_idempotent_locked_per_shop_and_retries_provider_error
     assert out == task.OUTCOME_LOCKED
     lock.release(str(shop.id), "content_analysis", held)
 
-    failing = lambda: collab(transcriber=FakeTranscriber(fail=True))  # noqa: E731
     out = await task.run_analysis(
         str(row.id),
         str(shop.id),
@@ -938,7 +941,6 @@ async def test_the_last_failed_attempt_deletes_the_file(engine, session, conf, v
     shop, _ = await seed_shop(session)
     row = await _uploaded(session, shop, conf, video)
     key = row.storage_key
-    failing = lambda: collab(transcriber=FakeTranscriber(fail=True))  # noqa: E731
     for _ in range(task.MAX_ATTEMPTS):
         out = await task.run_analysis(
             str(row.id),
