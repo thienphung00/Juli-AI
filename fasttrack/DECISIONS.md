@@ -257,3 +257,14 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       tagging the product or the next LIVE selling it. **No Hoàn tác** (Juli
       writes nothing to TikTok). Measurement: video CTR on new videos at day
       7 / 14; LIVE CTOR over the **next 3 sessions** selling the product.
+  19. **Content analysis and voice** (owner, 2026-10-10): P14 reuses the
+      juli-content-engine script frame (HOOK / SETUP / VALUE / CTA, `cut.json`
+      ideas) as the JSON schema and its generic voice rules as prompt
+      templates rewritten for the seller's product, on `gpt-5.4-nano`;
+      analysis uses TikTok numbers only (CTR, views, tagged product, basket
+      position). Analysing the content of existing videos/LIVEs is P15: first
+      check whether Juli may fetch the seller's video files through TikTok
+      APIs and run its own pipeline (ASR, cut detection, vision); if not,
+      the seller uploads the video file to Juli. Scripts follow the seller's
+      voice (tone and banned words in Quy tắc + the shop's own best-selling
+      videos/LIVEs as examples), never Juli's founder voice; no Fujiwa data.
