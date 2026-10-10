@@ -112,6 +112,7 @@ class ShopRow:
             else None,
             "openai_cap_reached": self.cap_reached,
             "gmv_30d": self.gmv_30d,
+            "permissions": self.extra.get("permissions"),
         }
 
 
@@ -262,6 +263,9 @@ async def _shop_numbers(session: AsyncSession, row: ShopRow, now: datetime) -> N
         .first()
     )
     row.gmv_30d = _gmv_last_days(report, WINDOW_DAYS)
+    from juli_backend.services.ops.scopes import shop_scope_status
+
+    row.extra["permissions"] = (await shop_scope_status(session, shop_id)).to_json()
 
 
 def _gmv_last_days(report: Any, days: int) -> float | None:
