@@ -15,6 +15,8 @@
 
 import type { DemoDecisionItem } from "@juli/contracts";
 
+import type { P10DecisionItem } from "./p10-types";
+
 const STAGE_METRIC: Readonly<Record<string, string>> = {
   card: "CTR",
   page: "CTOR",
@@ -60,6 +62,21 @@ export interface DecisionGroup {
   readonly cards: readonly CompactCard[];
   /** Σ recoverable GMV/day × 30, or null when no card carries one. */
   readonly gmvPerMonth: number | null;
+  /** P14-E: the "Juli soạn · bạn làm" content group (no batch approve, no band gate). */
+  readonly content?: boolean;
+}
+
+export const CONTENT_GROUP_KEY = "content";
+
+/** P14-E: a "Juli soạn · bạn làm" content card (`p14-content-cards.md` §1). */
+export function isContentCard(item: DemoDecisionItem): boolean {
+  const card = (item as P10DecisionItem).recommendation.card;
+  return Boolean(card && (card.content || card.lever?.executor === "juli_drafts"));
+}
+
+/** ContentCards.dc.html's heading. */
+export function contentGroupTitle(count: number): string {
+  return `${count} thẻ nội dung: Juli soạn, bạn quay hoặc LIVE`;
 }
 
 function text(value: unknown): string | null {
@@ -111,6 +128,7 @@ export function toCompactCard(item: DemoDecisionItem): CompactCard {
 }
 
 function groupKey(item: DemoDecisionItem): string {
+  if (isContentCard(item)) return CONTENT_GROUP_KEY;
   const diagnosis = item.recommendation.diagnosis;
   if (!diagnosis) return "other";
   return `${diagnosis.channel_scope ?? "ALL_CHANNELS"}:${diagnosis.stage?.code ?? "?"}`;
@@ -139,6 +157,21 @@ export function groupDecisions(items: readonly DemoDecisionItem[]): DecisionGrou
   }
   return order.map((key) => {
     const members = buckets.get(key)!;
+    if (key === CONTENT_GROUP_KEY) {
+      const cards = members.map(toCompactCard);
+      const months = members
+        .map((member) => (member as P10DecisionItem).recommendation.card?.expected_gmv_per_month)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+      return {
+        key,
+        streamLabel: null,
+        metric: null,
+        title: contentGroupTitle(cards.length),
+        cards,
+        gmvPerMonth: months.length > 0 ? months.reduce((a, b) => a + b, 0) : null,
+        content: true,
+      };
+    }
     const diagnosis = members[0].recommendation.diagnosis ?? null;
     const metric = diagnosis ? (STAGE_METRIC[diagnosis.stage?.code ?? ""] ?? text(diagnosis.main_kpi?.label)) : null;
     const scope = diagnosis?.channel_scope ?? "ALL_CHANNELS";

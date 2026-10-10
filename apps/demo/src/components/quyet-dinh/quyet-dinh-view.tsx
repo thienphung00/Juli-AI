@@ -58,6 +58,7 @@ import {
   type MeasurementState,
   type RevertActionState,
 } from "./do-luong-panel";
+import { ContentRunPanel, contentChip, contentPhase } from "./content-run-panel";
 import { RulesEditor, type RulesEditorProps } from "./rules-editor";
 import { RunPanel, type LoadState, type PhotoState } from "./run-panel";
 
@@ -97,6 +98,7 @@ const RUN_HEADER: Readonly<Record<RunKind, { eyebrow: string; title: string }>> 
   photo: { eyebrow: "Quyết định · Đang thực hiện · Ảnh bìa", title: "Juli tải ảnh của bạn lên TikTok Shop" },
   manual: { eyebrow: "Quyết định · Đang thực hiện · Khuyến mãi", title: "Bạn áp dụng trên Seller Center, Juli theo dõi" },
   revert: { eyebrow: "Quyết định · Đang thực hiện · Hoàn tác", title: "Khôi phục nội dung cũ" },
+  content: { eyebrow: "Quyết định · Đang thực hiện", title: "Juli soạn kịch bản, bạn quay hoặc LIVE" },
 };
 
 function useNow(intervalMs = 1000): number | null {
@@ -365,7 +367,9 @@ export function QuyetDinhView({
   const sections = groupRunsIntoLedgerSections(runList);
   const defaultRun = sections.waitingOnYou[0] ?? sections.running[0] ?? sections.finished[0] ?? null;
   const selectedRun = runList.find((run) => run.id === query.run) ?? (query.run ? null : (defaultRun as QdRun | null));
-  const [selectedState, setSelectedState] = useState<{ runId: string; kind: RunKind; chip: Chip } | null>(null);
+  const [selectedState, setSelectedState] = useState<{ runId: string; kind: RunKind; chip: Chip; headline?: string | null } | null>(
+    null,
+  );
   const selectedKind = selectedState && selectedRun && selectedState.runId === selectedRun.id ? selectedState.kind : "listing";
 
   // -- measure items -------------------------------------------------------------
@@ -379,7 +383,8 @@ export function QuyetDinhView({
           if (state.changes.reverts_run_id !== null) return false;
           const m = measureByRun[run.id];
           const measured = m?.status === "ready" && m.measurement !== null;
-          return state.changes.changes.length > 0 || measured || cardFor(run)?.executor === "seller_center";
+          const executor = cardFor(run)?.executor;
+          return state.changes.changes.length > 0 || measured || executor === "seller_center" || executor === "juli_drafts";
         })
         .map((run) => ({
           run,
@@ -399,6 +404,7 @@ export function QuyetDinhView({
   let title = "Chưa có đề xuất mới";
   if (query.tab === "de-xuat" && groups.length > 0) title = groups[0].title;
   if (query.tab === "dang-thuc-hien") ({ eyebrow, title } = RUN_HEADER[selectedKind]);
+  if (query.tab === "dang-thuc-hien" && selectedKind === "content" && selectedState?.headline) title = selectedState.headline;
   if (query.tab === "do-luong") title = measureItems.length > 0 ? measureTitle(measureItems, measureTab) : "Đo kết quả sau 7 và 14 ngày";
 
   const runHref = (runId: string | null) => qdHref({ tab: "dang-thuc-hien", run: runId, rulesOpen: false });
@@ -588,7 +594,7 @@ function SelectedRun({
   readonly onOpenMeasure: () => void;
   readonly onOpenRun: (runId: string) => void;
   readonly onRefresh: () => void;
-  readonly onState: (state: { runId: string; kind: RunKind; chip: Chip }) => void;
+  readonly onState: (state: { runId: string; kind: RunKind; chip: Chip; headline?: string | null }) => void;
   readonly startRevert: (runId: string, choice: ReasonChoice) => Promise<{ runId: string } | { conflict: string } | { error: string }>;
 }) {
   const { events, streamStatus } = clients.useRunEvents(run.id, auth, clients.streamFetch);
@@ -629,18 +635,26 @@ function SelectedRun({
     [events, kind, run.awaiting, run.created_at, shownChecks, revertMeta, changes, card],
   );
   const phase = runPhase(run, kind, timeline, { appliedPosted, declined });
-  const chip = runChip(run, kind, phase);
+  // P14-E content runs: their phase and chip come from the run detail's `content`.
+  const content = kind === "content" ? (detail?.content ?? null) : null;
+  const cPhase = contentPhase(run, content, timeline, declined);
+  const chip = kind === "content" ? contentChip(cPhase, run.stop_reason) : runChip(run, kind, phase);
+  const headline = content?.headline ?? null;
 
   useEffect(() => {
-    onState({ runId: run.id, kind, chip });
+    onState({ runId: run.id, kind, chip, headline });
     // chip is derived from kind/phase; compare by value to avoid loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [run.id, kind, chip.label, chip.tone]);
+  }, [run.id, kind, chip.label, chip.tone, headline]);
 
   // Cover-photo runs: the before/after URLs and the stored checks live on the
   // run detail (P10-B), not in the consent payload (`attach_staged_image`).
-  const wantsDetail = kind === "photo";
+  // Content runs (P14-E): the steps, script and waits live there too, so the
+  // detail is re-read whenever the run moves (status, awaiting, a new event).
+  const wantsDetail = kind === "photo" || kind === "content";
   const consentSeen = timeline.pendingConsent !== null;
+  const [detailKey, setDetailKey] = useState(0);
+  const moves = kind === "content" ? `${run.status}:${events.length}` : "";
   useEffect(() => {
     if (!wantsDetail) return;
     let cancelled = false;
@@ -651,7 +665,7 @@ function SelectedRun({
     return () => {
       cancelled = true;
     };
-  }, [clients, auth, run.id, wantsDetail, run.awaiting, consentSeen, terminalSeen]);
+  }, [clients, auth, run.id, wantsDetail, run.awaiting, consentSeen, terminalSeen, moves, detailKey]);
 
   // Seller Center instructions, once the run waits on the seller.
   const [instructions, setInstructions] = useState<LoadState<SellerInstructions> | null>(null);
@@ -673,6 +687,54 @@ function SelectedRun({
   const [revertError, setRevertError] = useState<string | null>(null);
 
   const toolCallId = timeline.pendingConsent?.toolCallId ?? null;
+
+  const declineRun = async (choice: ReasonChoice) => {
+    try {
+      await clients.decline(auth, run.id, choice);
+    } catch (error) {
+      // 404/409: nothing is waiting for the seller any more (decided elsewhere,
+      // already resumed or ended) — the backend's own words are English codes.
+      if (error instanceof QdApiError && (error.status === 404 || error.status === 409)) {
+        onRefresh();
+        throw new Error("Lượt chạy này không còn chờ bạn quyết định. Vui lòng tải lại trang.");
+      }
+      throw new Error(errorSentence(error, "Chưa gửi được lựa chọn. Vui lòng thử lại."));
+    }
+    setDeclined(true);
+    onRefresh();
+  };
+
+  if (kind === "content") {
+    const act = async (action: () => Promise<void>) => {
+      try {
+        await action();
+      } catch (error) {
+        throw new Error(errorSentence(error, "Chưa gửi được. Vui lòng thử lại."));
+      }
+      onRefresh();
+      setDetailKey((key) => key + 1);
+    };
+    return (
+      <ContentRunPanel
+        card={card}
+        chip={chip}
+        detail={content}
+        measureHref={measureHref}
+        onDecline={declineRun}
+        onOpenMeasure={(event) => {
+          event.preventDefault();
+          onOpenMeasure();
+        }}
+        onPublished={() => act(() => clients.markPublished(auth, run.id))}
+        onRedraft={() => act(() => clients.redraftContent(auth, run.id))}
+        onUse={(version, edited) => act(() => clients.useContent(auth, run.id, version, edited))}
+        phase={cPhase}
+        reconnecting={streamStatus === "reconnecting"}
+        run={run}
+        timeline={timeline}
+      />
+    );
+  }
 
   return (
     <RunPanel
@@ -709,21 +771,7 @@ function SelectedRun({
         });
         onRefresh();
       }}
-      onDecline={async (choice) => {
-        try {
-          await clients.decline(auth, run.id, choice);
-        } catch (error) {
-          // 404/409: nothing is waiting for the seller any more (decided elsewhere,
-          // already resumed or ended) — the backend's own words are English codes.
-          if (error instanceof QdApiError && (error.status === 404 || error.status === 409)) {
-            onRefresh();
-            throw new Error("Lượt chạy này không còn chờ bạn quyết định. Vui lòng tải lại trang.");
-          }
-          throw new Error(errorSentence(error, "Chưa gửi được lựa chọn. Vui lòng thử lại."));
-        }
-        setDeclined(true);
-        onRefresh();
-      }}
+      onDecline={declineRun}
       onOpenMeasure={(event) => {
         event.preventDefault();
         onOpenMeasure();

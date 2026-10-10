@@ -18,7 +18,10 @@ function recordBackendRequests(page: Page): string[] {
   return requests;
 }
 
-const card = (page: Page, name: string) => page.getByTestId("recommendation-card").filter({ hasText: name });
+// P14-E: the sample also holds content cards for MN-015 / SM-012 ("Juli soạn · bạn làm");
+// this spec walks the P10 listing / photo / promotion cards, so it skips those.
+const card = (page: Page, name: string) =>
+  page.getByTestId("recommendation-card").filter({ hasText: name }).filter({ hasNotText: "Juli soạn · bạn làm" });
 
 test.describe("Signed-out Quyết định — the P10 sample", () => {
   test.beforeEach(async ({ page }) => {

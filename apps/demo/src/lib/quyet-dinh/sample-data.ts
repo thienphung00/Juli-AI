@@ -10,7 +10,17 @@
 
 import { validateAgentEvent, type AgentEvent, type DemoDecisionItem } from "@juli/contracts";
 
-import type { LeverCode, LeverExecutor, Measurement, P10DecisionItem, PhotoCheck, SellerInstructions } from "./p10-types";
+import type {
+  ContentRunDetail,
+  ContentScript,
+  ContentStage,
+  LeverCode,
+  LeverExecutor,
+  Measurement,
+  P10DecisionItem,
+  PhotoCheck,
+  SellerInstructions,
+} from "./p10-types";
 import type { FieldChange, RunChanges, ShopRules } from "./types";
 
 export const SAMPLE_SHOP = { id: "sample-shop", name: "Cửa hàng Mẫu Hoa Mai" } as const;
@@ -473,6 +483,333 @@ export function sampleWaitingMeasurement(completedMs: number, spec: SampleCardSp
     },
     expected_gmv_per_day: Math.round(spec.gmvMonth / 30),
     bands: sampleDay7Measurement(completedMs).bands,
+    rows: [],
+    day7: null,
+    final: null,
+  };
+}
+
+// -- P14-E content cards ("Juli soạn · bạn làm", ContentCards.dc.html / ContentRun.dc.html) --
+
+export type SampleContentKind = "video" | "live";
+
+export interface SampleContentSpec {
+  readonly id: string;
+  readonly sku: string;
+  readonly name: string;
+  readonly kind: SampleContentKind;
+  readonly current: number;
+  readonly target: number;
+  readonly gmvMonth: number;
+  readonly reasonShort: string;
+  readonly reasonFull: string;
+  readonly actionLabel: string;
+  readonly willDraft: readonly string[];
+  readonly measure: string;
+}
+
+const CONTENT_KPI: Readonly<Record<SampleContentKind, { key: string; label: string; lever: string; workflow: string; method: string }>> = {
+  video: {
+    key: "video_ctr",
+    label: "CTR - Video của người bán",
+    lever: "video_script",
+    workflow: "Tối ưu nội dung · Video",
+    method: "lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+  },
+  live: {
+    key: "live_ctor",
+    label: "CTOR - LIVE của người bán",
+    lever: "live_script",
+    workflow: "Tối ưu nội dung · LIVE",
+    method: "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+  },
+};
+
+/** ContentCards.dc.html's video card. */
+export const SAMPLE_CONTENT_VIDEO: SampleContentSpec = {
+  id: "sample-content-mn-015",
+  sku: "MN-015",
+  name: "Mặt nạ đất sét 100g",
+  kind: "video",
+  current: 0.019,
+  target: 0.032,
+  gmvMonth: 1_700_000,
+  reasonShort: "Video có lượt xem nhưng ít bấm vào sản phẩm",
+  reasonFull:
+    'Video "Mặt nạ đất sét: trước và sau" có 118k lượt hiển thị, CTR 1,9 % so với 3,2 % của các video khác trong shop. Giỏ hàng xuất hiện sau giây 20.',
+  actionLabel: "Kịch bản video mới",
+  willDraft: [
+    "Hook 3 giây và 2 phương án mở đầu",
+    "Kịch bản 25–35 giây theo cảnh, sản phẩm xuất hiện trước giây 3",
+    "Lời kêu gọi bấm giỏ, gợi ý hashtag và nhạc đang lên",
+  ],
+  measure: "CTR trên các video mới gắn MN-015 trong 7 và 14 ngày, so với video cũ.",
+};
+
+/** ContentCards.dc.html's LIVE card. */
+export const SAMPLE_CONTENT_LIVE: SampleContentSpec = {
+  id: "sample-content-sm-012",
+  sku: "SM-012",
+  name: "Son môi số 12",
+  kind: "live",
+  current: 0.059,
+  target: 0.075,
+  gmvMonth: 900_000,
+  reasonShort: "Người xem bấm vào nhưng ít chốt đơn",
+  reasonFull:
+    'Phiên "LIVE xả kho 27/09" có CTOR 5,9 % so với 7,5 % trung bình 30 ngày trước. SM-012 nằm ở vị trí 9 trong giỏ, không được ghim.',
+  actionLabel: "Kịch bản host + thứ tự giỏ",
+  willDraft: [
+    "Kịch bản host theo khung ASBC cho SM-012, có so sánh giá và giới hạn số lượng",
+    "Thứ tự giỏ: sản phẩm chủ lực lên đầu, thời điểm ghim",
+    "Gợi ý flash sale trong LIVE trong mức trần giảm giá của bạn",
+  ],
+  measure: "CTOR của SM-012 ở 3 phiên LIVE kế tiếp, so với phiên trước.",
+};
+
+export const SAMPLE_CONTENT_CARDS: readonly SampleContentSpec[] = [SAMPLE_CONTENT_VIDEO, SAMPLE_CONTENT_LIVE];
+
+/** A content card as `GET /v1/demo/decisions` sends it (`p14-content-cards.md` §1): no diagnosis. */
+export function sampleContentDecision(spec: SampleContentSpec, nowMs: number, status: string = "pending"): P10DecisionItem {
+  const kpi = CONTENT_KPI[spec.kind];
+  const at = new Date(nowMs - HOUR_MS).toISOString();
+  const item = {
+    id: spec.id,
+    title: `${spec.actionLabel} · ${spec.name}`,
+    description: spec.reasonShort,
+    severity: "warning",
+    priority: 2,
+    computed_at: at,
+    surfaced_at: at,
+    is_executable: true,
+    recommendation: {
+      source_kpi_ids: [],
+      workflow_name: kpi.workflow,
+      card: {
+        seller_sku: spec.sku,
+        seller_sku_more: 0,
+        product_title: spec.name,
+        workflow_label: kpi.workflow,
+        updated_at: at,
+        status,
+        main_kpi: { key: kpi.key, label: kpi.label, current: spec.current, target: spec.target, unit: "ratio" },
+        expected_gmv_per_month: spec.gmvMonth,
+        reason_short: spec.reasonShort,
+        reason_full: spec.reasonFull,
+        tiktok_codes: [],
+        lever: { code: kpi.lever, label: spec.actionLabel, executor: "juli_drafts" },
+        change_fields: [{ field: kpi.lever, label: spec.actionLabel }],
+        before_after: [],
+        gmv_method: kpi.method,
+        content: {
+          kind: spec.kind,
+          action_label: spec.actionLabel,
+          chip: "Juli soạn · bạn làm",
+          will_draft: spec.willDraft,
+          measure: spec.measure,
+        },
+      },
+    },
+  };
+  return item as unknown as DemoDecisionItem as P10DecisionItem;
+}
+
+interface ContentCopy {
+  readonly title: string;
+  readonly headline: string;
+  readonly steps: readonly (readonly [string, string])[];
+  readonly scriptTitle: string;
+  readonly blocks: Readonly<Record<1 | 2, readonly { readonly key: string; readonly label: string; readonly text: string }[]>>;
+  readonly wait: { readonly title: string; readonly body: string; readonly done_label: string; readonly detect_what: string };
+  readonly measureBody: string;
+  readonly readTools: readonly [string, string][];
+}
+
+/** ContentRun.dc.html's canned copy, verbatim (no model call in the sample). */
+export const SAMPLE_CONTENT_COPY: Readonly<Record<SampleContentKind, ContentCopy>> = {
+  video: {
+    title: "MN-015 · Mặt nạ đất sét 100g · kịch bản video",
+    headline: "Juli đã soạn kịch bản video, bạn quay và đăng",
+    steps: [
+      ["Đọc số liệu video và sản phẩm", "3 video gắn MN-015 · CTR 1,9 % · giỏ hàng xuất hiện giây 20"],
+      ["Đọc thông tin sản phẩm, từ khoá", 'Mô tả, ảnh, từ khoá "mặt nạ đất sét", "se khít lỗ chân lông"'],
+      ["Soạn kịch bản", "gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra"],
+      ["Bạn xem, sửa và chọn", ""],
+      ["Bạn quay và đăng video gắn MN-015", ""],
+      ["Đo CTR trên video mới · ngày 7, ngày 14", ""],
+    ],
+    scriptTitle: "Kịch bản video 25–35 giây",
+    blocks: {
+      1: [
+        { key: "hook", label: "Hook (0–3 giây)", text: '"Lỗ chân lông to sau 1 tuần dùng cái này…" · cận mặt trước khi đắp' },
+        { key: "scene_2", label: "Cảnh 2 (3–15 giây)", text: "Đắp mặt nạ, đồng hồ đếm 10 phút\nSản phẩm và giỏ hàng xuất hiện từ giây 3" },
+        { key: "scene_3", label: "Cảnh 3 (15–28 giây)", text: "Rửa mặt, so sánh trước/sau cùng ánh sáng" },
+        { key: "cta", label: "Kêu gọi + gợi ý", text: '"Bấm giỏ vàng, đang giảm hôm nay"\n#matnadatset #skincare · nhạc đang lên tuần này' },
+      ],
+      2: [
+        { key: "hook", label: "Hook (0–3 giây)", text: '"Mình thử mặt nạ 69k này 7 ngày liền" · cầm sản phẩm lên khung hình' },
+        { key: "scene_2", label: "Cảnh 2 (3–15 giây)", text: "Ngày 1 → ngày 7, mỗi ngày 2 giây\nGiỏ hàng ghim từ giây 3" },
+        { key: "scene_3", label: "Cảnh 3 (15–28 giây)", text: "Kết quả cuối, chạm vào da" },
+        { key: "cta", label: "Kêu gọi + gợi ý", text: '"Link ở giỏ vàng"\n#reviewthat #matnadatset' },
+      ],
+    },
+    wait: {
+      title: "Đang chờ bạn đăng video",
+      body: "Đăng video có gắn link MN-015 trong 7 ngày. Juli bắt đầu đo khi video mới có lượt hiển thị.",
+      done_label: "Tôi đã đăng video",
+      detect_what: "video mới gắn MN-015",
+    },
+    measureBody:
+      'Video mới "7 ngày mặt nạ đất sét" đăng 12/10. CTR sau 2 ngày: 2,8 % (video cũ 1,9 %, mục tiêu 3,2 %). Kết quả ngày 7: 19/10.',
+    readTools: [
+      ["get_content_performance", "3 video gắn MN-015 · CTR 1,9 % · giỏ hàng xuất hiện giây 20"],
+      ["get_product_information", "Hoàn tất"],
+      ["get_seo_keywords", 'Từ khoá "mặt nạ đất sét", "se khít lỗ chân lông"'],
+      ["get_seller_content_rules", "Không có từ cấm · 0 từ bảo vệ"],
+    ],
+  },
+  live: {
+    title: "SM-012 · Son môi số 12 · kịch bản LIVE",
+    headline: "Juli đã soạn kịch bản host và thứ tự giỏ, bạn LIVE",
+    steps: [
+      ["Đọc số liệu các phiên LIVE", "Phiên 27/09: CTOR SM-012 5,9 % · vị trí 9 trong giỏ, không ghim"],
+      ["Đọc sản phẩm, giá, khuyến mãi, Quy tắc", "Trần giảm giá 10 % · biên tối thiểu 30 %"],
+      ["Soạn kịch bản host và thứ tự giỏ", "gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra"],
+      ["Bạn xem, sửa và chọn", ""],
+      ["Bạn LIVE theo kịch bản", ""],
+      ["Đo CTOR ở 3 phiên kế tiếp", ""],
+    ],
+    scriptTitle: "Kịch bản host cho SM-012 + thứ tự giỏ",
+    blocks: {
+      1: [
+        { key: "opening", label: "Mở (A · Attention)", text: '"Màu đỏ ruby đang hết hàng trên TikTok, hôm nay shop còn 50 thỏi"' },
+        { key: "show", label: "Thử màu (S · Show)", text: "Thoa trên môi và tay dưới 2 loại ánh sáng · so sánh với son 300k" },
+        {
+          key: "close",
+          label: "Chốt (B · Benefit + C · Close)",
+          text: "Flash sale trong LIVE −8 % (trong trần 10 %) · 10 phút · ghim SM-012 ngay lúc nói giá",
+        },
+        { key: "basket", label: "Thứ tự giỏ", text: "1. SM-012 (ghim) · 2. MN-015 · 3. TN-021 · 4. combo son + mặt nạ" },
+      ],
+      2: [
+        { key: "opening", label: "Mở", text: '"Ai môi khô mà vẫn muốn son lì thì ở lại 5 phút"' },
+        { key: "show", label: "Thử màu", text: "Đeo khẩu trang rồi tháo ra: không lem" },
+        { key: "close", label: "Chốt", text: "Voucher LIVE từ 199k (≈ 1,3 × AOV) · đếm ngược 5 phút" },
+        { key: "basket", label: "Thứ tự giỏ", text: "1. SM-012 (ghim) · 2. combo son + mặt nạ · 3. MN-015" },
+      ],
+    },
+    wait: {
+      title: "Đang chờ phiên LIVE kế tiếp",
+      body: "Juli đo CTOR của SM-012 ở 3 phiên LIVE kế tiếp có bán SM-012.",
+      done_label: "Tôi đã LIVE xong",
+      detect_what: "phiên LIVE mới có SM-012",
+    },
+    measureBody: "Phiên 14/10: CTOR SM-012 7,2 % (trước 5,9 %, mục tiêu 7,5 %). Còn 2 phiên nữa để chốt.",
+    readTools: [
+      ["get_content_performance", "Phiên 27/09: CTOR SM-012 5,9 % · vị trí 9 trong giỏ, không ghim"],
+      ["get_product_information", "Hoàn tất"],
+      ["find_product_promotions", "Chưa có khuyến mãi"],
+      ["get_seller_content_rules", "Trần giảm giá 10 % · biên tối thiểu 30 %"],
+    ],
+  },
+};
+
+export const CONTENT_CHECKS_LINE =
+  "Đã kiểm tra: không có từ cấm, giữ từ bảo vệ của bạn, đúng thông tin sản phẩm, trong trần giảm giá.";
+
+export interface SampleContentState {
+  stage: ContentStage;
+  version: 1 | 2;
+  chosenVersion: number | null;
+  edited: boolean;
+  /** When each of the 6 steps finished (ISO), null while not done. */
+  stepAt: (string | null)[];
+}
+
+/** `GET /v1/demo/runs/{id}` → `data.content` for a sample content run. */
+export function sampleContentDetail(spec: SampleContentSpec, state: SampleContentState): ContentRunDetail {
+  const copy = SAMPLE_CONTENT_COPY[spec.kind];
+  const blocks = copy.blocks[state.version];
+  const script: ContentScript | null =
+    state.stage === "drafting"
+      ? null
+      : {
+          version: state.version,
+          title: copy.scriptTitle,
+          blocks,
+          checks: [
+            { key: "banned", label: "không có từ cấm", ok: true },
+            { key: "protected", label: "giữ từ bảo vệ của bạn", ok: true },
+            { key: "facts", label: "đúng thông tin sản phẩm", ok: true },
+            { key: "discount", label: "trong trần giảm giá", ok: true },
+          ],
+          checks_line: CONTENT_CHECKS_LINE,
+          plain_text: [copy.scriptTitle, ...blocks.map((block) => `${block.label}\n${block.text}`)].join("\n\n"),
+          raw: null,
+        };
+  return {
+    kind: spec.kind,
+    stage: state.stage,
+    title: copy.title,
+    headline: copy.headline,
+    steps: copy.steps.map(([label, result], index) => ({
+      key: ["read_content", "read_product", "draft", "choose", "publish", "measure"][index],
+      label,
+      result: state.stepAt[index] && result ? result : null,
+      at: state.stepAt[index],
+    })),
+    script,
+    versions: state.version,
+    can_redraft: state.version < 2,
+    chosen_version: state.chosenVersion,
+    edited: state.edited,
+    wait: state.stage === "publish" ? copy.wait : null,
+    measure_body: state.stage === "measuring" ? copy.measureBody : null,
+    published_at: null,
+    detected: null,
+  };
+}
+
+/** Approve → reads → bản 1 → "Đang chờ bạn xem kịch bản". */
+export function contentUntilChoice(spec: SampleContentSpec): EventDraft[] {
+  const copy = SAMPLE_CONTENT_COPY[spec.kind];
+  return [
+    { event_type: "workflow.started", payload: { workflow_key: `content_${spec.kind}`, product_ref: "sample", prompt_version: "v1" } },
+    ...copy.readTools.flatMap(([name, summary], index) => tool(`k${index}`, name, summary)),
+    { event_type: "assistant.text", payload: { text: "Đã soạn kịch bản (bản 1) · gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra" } },
+    status("Đang chờ bạn xem kịch bản"),
+  ];
+}
+
+/** Soạn lại → bản 2. */
+export function contentRedraft(): EventDraft[] {
+  return [
+    status("Juli đang soạn lại kịch bản"),
+    { event_type: "assistant.text", payload: { text: "Đã soạn kịch bản (bản 2) · gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra" } },
+    status("Đang chờ bạn xem kịch bản"),
+  ];
+}
+
+/** Dùng kịch bản này → waiting for the video / the LIVE. */
+export function contentPublishWait(spec: SampleContentSpec): EventDraft[] {
+  return [status(SAMPLE_CONTENT_COPY[spec.kind].wait.title)];
+}
+
+/** "Tôi đã đăng video" / "Tôi đã LIVE xong" → Juli looks, then measures. */
+export function contentPublished(spec: SampleContentSpec): EventDraft[][] {
+  const found = spec.kind === "video" ? 'Video mới "7 ngày mặt nạ đất sét" gắn MN-015' : "Phiên 14/10 có bán SM-012";
+  return [[started("d1", "find_new_content")], [completed("d1", "find_new_content", found), endDraft("final_response")]];
+}
+
+/** Đo lường for a finished sample content run: waiting for the day-7 / first-session reading. */
+export function sampleContentMeasurement(completedMs: number, spec: SampleContentSpec): Measurement {
+  const kpi = CONTENT_KPI[spec.kind];
+  return {
+    stage: "waiting",
+    dates: { day7: isoDay(completedMs + 7 * DAY_MS), day14: isoDay(completedMs + 14 * DAY_MS) },
+    target: { label: kpi.label, current: spec.current, target: spec.target, progress_from: spec.current, unit: "ratio" },
+    expected_gmv_per_day: Math.round(spec.gmvMonth / 30),
+    bands: [],
     rows: [],
     day7: null,
     final: null,

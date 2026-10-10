@@ -12,7 +12,8 @@ import type { DemoDecisionItem, WorkflowRunListItem } from "@juli/contracts";
 export type CardStatus = "pending" | "running" | "applied" | "rejected" | "expired";
 
 /** §1 lever executors. */
-export type LeverExecutor = "juli" | "juli_with_photo" | "seller_center";
+/** P14-E: `juli_drafts` = "Juli soạn · bạn làm" (content cards, `p14-content-cards.md`). */
+export type LeverExecutor = "juli" | "juli_with_photo" | "seller_center" | "juli_drafts";
 
 /** §1 lever codes (seven change types, ADR-109 Amendment 1 d.3). */
 export type LeverCode =
@@ -56,6 +57,17 @@ export interface RecommendationCardPayload {
   readonly change_fields: readonly { readonly field: string; readonly label: string }[];
   readonly before_after: readonly CardBeforeAfter[];
   readonly gmv_method: string | null;
+  /** P14-E content cards only (`p14-content-cards.md` §1). */
+  readonly content?: CardContentPayload | null;
+}
+
+/** P14-E `recommendation.card.content`. */
+export interface CardContentPayload {
+  readonly kind: "video" | "live";
+  readonly action_label: string;
+  readonly chip: string;
+  readonly will_draft: readonly string[];
+  readonly measure: string;
 }
 
 /** A decisions item as P10-A sends it (the `card` is additive). */
@@ -66,7 +78,7 @@ export type P10DecisionItem = DemoDecisionItem & {
 };
 
 /** §4/§5 `run.awaiting`. */
-export type RunAwaiting = "photo" | "seller_action";
+export type RunAwaiting = "photo" | "seller_action" | "content_choice" | "content_publish";
 
 /**
  * A runs-list item as the backend sends it: `awaiting` (P10-B) and
@@ -104,6 +116,58 @@ export interface RunDetail {
     readonly verify_attempts: number;
     readonly measurement_start: string | null;
   } | null;
+  /** P14-E content runs only (`p14-content-cards.md` §2.1). */
+  readonly content?: ContentRunDetail | null;
+}
+
+export type ContentStage = "drafting" | "choice" | "publish" | "measuring" | "declined" | "ended";
+
+export interface ContentStep {
+  readonly key: string;
+  readonly label: string;
+  readonly result: string | null;
+  readonly at: string | null;
+}
+
+export interface ContentBlock {
+  readonly key: string;
+  readonly label: string;
+  readonly text: string;
+}
+
+export interface ContentScript {
+  readonly version: number;
+  readonly title: string;
+  readonly blocks: readonly ContentBlock[];
+  readonly checks: readonly { readonly key: string; readonly label: string; readonly ok: boolean }[];
+  readonly checks_line: string;
+  readonly plain_text: string;
+  readonly raw?: Record<string, unknown> | null;
+}
+
+export interface ContentWait {
+  readonly title: string;
+  readonly body: string;
+  readonly done_label: string;
+  readonly detect_what: string;
+}
+
+/** `GET /v1/demo/runs/{id}` → `data.content`. */
+export interface ContentRunDetail {
+  readonly kind: "video" | "live";
+  readonly stage: ContentStage;
+  readonly title: string;
+  readonly headline: string;
+  readonly steps: readonly ContentStep[];
+  readonly script: ContentScript | null;
+  readonly versions: number;
+  readonly can_redraft: boolean;
+  readonly chosen_version: number | null;
+  readonly edited: boolean;
+  readonly wait: ContentWait | null;
+  readonly measure_body: string | null;
+  readonly published_at: string | null;
+  readonly detected: Record<string, unknown> | null;
 }
 
 /** §5 `GET /v1/demo/runs/{id}/instructions`. */
