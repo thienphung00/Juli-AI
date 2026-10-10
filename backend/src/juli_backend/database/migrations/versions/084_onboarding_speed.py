@@ -44,19 +44,22 @@ depends_on: str | Sequence[str] | None = None
 TABLE = "shop_ingestion_state"
 QUICK_SCAN_STATUSES = ("running", "done", "skipped", "failed")
 
-COLUMNS: tuple[sa.Column, ...] = (
-    sa.Column("quick_scan_status", sa.String(length=20), nullable=True),
-    sa.Column("quick_scan_started_at", sa.DateTime(), nullable=True),
-    sa.Column("quick_scan_done_at", sa.DateTime(), nullable=True),
-    sa.Column("quick_scan_cards", sa.Integer(), nullable=True),
-    sa.Column("history_extended_on", sa.Date(), nullable=True),
-)
 CHECK_NAME = f"ck_{TABLE}_quick_scan_status"
 
 
+def _columns() -> tuple[sa.Column, ...]:
+    return (
+        sa.Column("quick_scan_status", sa.String(length=20), nullable=True),
+        sa.Column("quick_scan_started_at", sa.DateTime(), nullable=True),
+        sa.Column("quick_scan_done_at", sa.DateTime(), nullable=True),
+        sa.Column("quick_scan_cards", sa.Integer(), nullable=True),
+        sa.Column("history_extended_on", sa.Date(), nullable=True),
+    )
+
+
 def upgrade() -> None:
-    for column in COLUMNS:
-        op.add_column(TABLE, column.copy())
+    for column in _columns():
+        op.add_column(TABLE, column)
     values = ", ".join(repr(v) for v in QUICK_SCAN_STATUSES)
     op.create_check_constraint(
         CHECK_NAME, TABLE, f"quick_scan_status IS NULL OR quick_scan_status IN ({values})"
@@ -65,5 +68,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_constraint(CHECK_NAME, TABLE, type_="check")
-    for column in reversed(COLUMNS):
+    for column in reversed(_columns()):
         op.drop_column(TABLE, column.name)
