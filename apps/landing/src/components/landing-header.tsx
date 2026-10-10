@@ -6,8 +6,9 @@ import { DEMO_URL, SECTION_IDS } from "../lib/site";
 import { CtaLink } from "./cta-link";
 
 const NAV_LINKS = [
-  { href: `#${SECTION_IDS.features}`, label: "Tính năng" },
+  // Same order as the sections on the page: Giải pháp (comparison) comes before Tính năng.
   { href: `#${SECTION_IDS.comparison}`, label: "Giải pháp" },
+  { href: `#${SECTION_IDS.features}`, label: "Tính năng" },
   { href: `#${SECTION_IDS.contact}`, label: "Liên hệ" },
 ] as const;
 

@@ -30,13 +30,13 @@ export function HeroSection() {
           Chi phí vận hành và hoa hồng sàn ngày càng tăng?
         </p>
         <h1 className="lp-hero__heading" id="hero-heading">
-          Tăng trưởng GMV ổn định — mở rộng mà không cần đổ thêm ngân sách.
+          Tăng trưởng GMV ổn định và mở rộng mà không cần chi thêm nhiều ngân
+          sách.
         </h1>
         <p className="lp-hero__body">
           Juli là trợ lý giúp bạn tăng trưởng ổn định và tối ưu vận hành TikTok
-          Shop và Shopee. Juli tìm luồng truy cập cần tối ưu → chỉ số cần cải
-          thiện → sản phẩm và nội dung cần sửa, rồi đề xuất và thực hiện cùng
-          bạn.
+          Shop và Shopee. Juli giúp mang lại hiệu suất cho các Lượt hiển thị,
+          tỷ lệ bấm, tỷ lệ đặt hàng, giá trị mỗi đơn từ đó:
         </p>
         <p className="lp-hero__promise">
           {PROMISES.map((promise) => (
@@ -44,9 +44,6 @@ export function HeroSection() {
               {promise}
             </span>
           ))}
-        </p>
-        <p className="lp-hero__hook">
-          Đăng nhập ngay để biết chính xác 3 điều shop bạn cần cải thiện.
         </p>
         <div className="lp-hero__actions">
           <CtaLink data-testid="hero-demo-cta" href={DEMO_URL} size="large">
@@ -61,6 +58,9 @@ export function HeroSection() {
             Đăng nhập / Đăng ký
           </CtaLink>
         </div>
+        <p className="lp-hero__reassurance">
+          Miễn phí thử nghiệm 3 tháng · Dành cho điện thoại · Kết quả trực tiếp
+        </p>
         <p className="lp-hero__consent" data-testid="hero-consent-note">
           Bằng việc đăng nhập, bạn đồng ý với{" "}
           <Link className="lp-hero__consent-link" href="/terms">
@@ -71,9 +71,6 @@ export function HeroSection() {
             Chính sách bảo mật
           </Link>{" "}
           của Juli.
-        </p>
-        <p className="lp-hero__reassurance">
-          Miễn phí thử nghiệm 3 tháng · Dành cho điện thoại · Kết quả trực tiếp
         </p>
       </div>
       <div className="lp-hero__visual">

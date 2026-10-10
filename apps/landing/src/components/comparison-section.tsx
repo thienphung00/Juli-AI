@@ -26,7 +26,6 @@ const COLUMNS: ComparisonColumn[] = [
     title: "Juli",
     highlight: true,
     pros: [
-      "Tối ưu từng luồng truy cập",
       "ROI cao, chi phí từ 500K/tháng",
       "Tiết kiệm hơn so với Agency",
       "Đơn giản và dễ sử dụng",
@@ -41,7 +40,7 @@ const COLUMNS: ComparisonColumn[] = [
     cons: [
       "Chi phí cao",
       "Thiếu thông tin về tiến độ",
-      "Khó đánh giá hiệu quả thực tế",
+      "Tiến độ hợp tác chậm",
       "Chi phí tăng theo quy mô",
     ],
   },

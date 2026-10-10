@@ -2,9 +2,12 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import LandingPage from "../app/page";
+import { ComparisonSection } from "../components/comparison-section";
+import { HeroSection } from "../components/hero-section";
+import { LandingHeader } from "../components/landing-header";
 
 describe("landing sections (PRD 2.7)", () => {
-  it("renders the hero with GMV-led heading, promise triplet, hook, reassurance line, and partner badge", () => {
+  it("renders the hero with GMV-led heading, promise triplet, reassurance line, and partner badge", () => {
     render(<LandingPage />);
 
     expect(
@@ -13,7 +16,7 @@ describe("landing sections (PRD 2.7)", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: /tăng trưởng GMV ổn định — mở rộng mà không cần đổ thêm ngân sách/i,
+        name: /tăng trưởng GMV ổn định và mở rộng mà không cần chi thêm nhiều ngân sách/i,
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Shopee · sắp ra mắt")).toBeInTheDocument();
@@ -27,9 +30,6 @@ describe("landing sections (PRD 2.7)", () => {
     ]) {
       expect(screen.getByText(promise)).toBeInTheDocument();
     }
-    expect(
-      screen.getByText(/đăng nhập ngay để biết chính xác 3 điều shop bạn cần cải thiện/i),
-    ).toBeInTheDocument();
     expect(
       screen.getByText(/miễn phí thử nghiệm 3 tháng · dành cho điện thoại/i),
     ).toBeInTheDocument();
@@ -113,5 +113,34 @@ describe("landing sections (PRD 2.7)", () => {
     expect(
       screen.getByText(/tối ưu từng luồng truy cập, từ thẻ sản phẩm đến live/i),
     ).toBeInTheDocument();
+  });
+});
+
+describe("owner copy edits (2026-10-10)", () => {
+  it("hero: no '3 điều' hook, new body line, reassurance above the consent note", () => {
+    const { container } = render(<HeroSection />);
+    expect(screen.queryByText(/Đăng nhập ngay để biết chính xác 3 điều/)).toBeNull();
+    expect(container.textContent).toContain(
+      "Juli giúp mang lại hiệu suất cho các Lượt hiển thị, tỷ lệ bấm, tỷ lệ đặt hàng, giá trị mỗi đơn từ đó:",
+    );
+    const reassurance = container.querySelector(".lp-hero__reassurance");
+    const consent = container.querySelector(".lp-hero__consent");
+    expect(reassurance && consent).toBeTruthy();
+    expect(reassurance!.compareDocumentPosition(consent!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("comparison: Juli no longer lists 'Tối ưu từng luồng truy cập'; Agency reads 'Tiến độ hợp tác chậm'", () => {
+    render(<ComparisonSection />);
+    expect(screen.queryByText("Tối ưu từng luồng truy cập")).toBeNull();
+    expect(screen.queryByText("Khó đánh giá hiệu quả thực tế")).toBeNull();
+    expect(screen.getByText("Tiến độ hợp tác chậm")).toBeInTheDocument();
+  });
+
+  it("header nav follows the page order: Giải pháp before Tính năng", () => {
+    render(<LandingHeader />);
+    const labels = within(screen.getByRole("navigation", { name: "Điều hướng chính" }))
+      .getAllByRole("link")
+      .map((link) => link.textContent);
+    expect(labels).toEqual(["Giải pháp", "Tính năng", "Liên hệ"]);
   });
 });

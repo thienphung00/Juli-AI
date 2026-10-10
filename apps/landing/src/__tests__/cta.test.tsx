@@ -29,14 +29,6 @@ describe("Demo CTA wiring (PRD 2.7 + CONTEXT.md apps/landing)", () => {
     }
   });
 
-  it("drives signup with the concrete three-improvements promise", () => {
-    render(<LandingPage />);
-
-    expect(
-      screen.getByText(/3 điều shop bạn cần cải thiện/i),
-    ).toBeInTheDocument();
-  });
-
   it("closes with the trial CTA naming the audience and the 3-month free offer", () => {
     render(<LandingPage />);
 
