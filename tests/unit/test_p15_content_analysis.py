@@ -1048,3 +1048,87 @@ def test_migration_082_chains_after_081_is_tenant_direct_and_the_cleanup_stays_l
     for column in ContentAnalysis.__table__.columns:
         assert f'"{column.name}"' in text, column.name
     assert "ENABLE ROW LEVEL SECURITY" in text and "app_current_shop_id()" in text
+
+
+# -- RLS (real Postgres, as the runtime role) -----------------------------------------------
+
+
+def _seed_shop_with_analysis(engine, label: str) -> tuple[uuid.UUID, uuid.UUID]:
+    from sqlalchemy import text
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    user_id, shop_id, analysis_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO public.users (id, phone, created_at, updated_at) "
+                "VALUES (:id, :phone, :now, :now)"
+            ),
+            {"id": str(user_id), "phone": f"+1555{user_id.hex[:7]}", "now": now},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO public.shops (id, user_id, shop_name, tiktok_shop_id, "
+                "created_at, updated_at) VALUES (:id, :u, :n, :t, :now, :now)"
+            ),
+            {
+                "id": str(shop_id),
+                "u": str(user_id),
+                "n": label,
+                "t": f"tt-{shop_id.hex[:10]}",
+                "now": now,
+            },
+        )
+        conn.execute(
+            text(
+                "INSERT INTO public.content_analyses (id, shop_id, kind, status, file_name, "
+                "content_type, size_bytes, upload_expires_at) VALUES "
+                "(:id, :s, 'video', 'done', 'a.mp4', 'video/mp4', 1, :now)"
+            ),
+            {"id": str(analysis_id), "s": str(shop_id), "now": now},
+        )
+    return shop_id, analysis_id
+
+
+@pytest.mark.asyncio
+async def test_content_analyses_are_isolated_per_shop_under_rls():
+    from sqlalchemy import select as sa_select
+    from sqlalchemy.exc import DBAPIError
+
+    from juli_backend.database.tenant_context import with_shop_scope
+    from tests.support.postgres import (
+        juli_app_async_sessionmaker,
+        owner_sync_engine,
+        postgres_reachable,
+    )
+
+    if not postgres_reachable():
+        pytest.skip("DATABASE_URL does not point at a Postgres database")
+    with owner_sync_engine() as engine:
+        shop_a, analysis_a = _seed_shop_with_analysis(engine, "rls-a")
+        shop_b, analysis_b = _seed_shop_with_analysis(engine, "rls-b")
+
+    async with juli_app_async_sessionmaker() as factory:
+        async with factory() as session:
+            async with with_shop_scope(session, shop_a):
+                ids = set((await session.execute(sa_select(ContentAnalysis.id))).scalars())
+                assert analysis_a in ids and analysis_b not in ids
+                listed = await uploads.list_for(session, shop_b)
+                assert listed == []
+        async with factory() as session:
+            with pytest.raises(DBAPIError):
+                async with with_shop_scope(session, shop_a):
+                    session.add(
+                        ContentAnalysis(
+                            shop_id=shop_b,
+                            kind="video",
+                            status="done",
+                            file_name="x.mp4",
+                            content_type="video/mp4",
+                            size_bytes=1,
+                            upload_expires_at=datetime(2026, 10, 10),
+                            cost_usd=0,
+                            attempts=0,
+                        )
+                    )
+                    await session.flush()

@@ -351,10 +351,10 @@ def build_result(
 ) -> dict[str, Any]:
     """The stored / served result: numbers from the signals, words from the model (checked)."""
     raw = raw or {}
-    hook_raw = raw.get("hook") if isinstance(raw.get("hook"), Mapping) else {}
-    verdict = str(hook_raw.get("verdict") or "")
-    verdict = verdict if verdict in HOOK_VERDICT_VI else None
-    cta_raw = raw.get("cta") if isinstance(raw.get("cta"), Mapping) else {}
+    hook_raw: Mapping[str, Any] = raw["hook"] if isinstance(raw.get("hook"), Mapping) else {}
+    verdict_raw = str(hook_raw.get("verdict") or "")
+    verdict = verdict_raw if verdict_raw in HOOK_VERDICT_VI else None
+    cta_raw: Mapping[str, Any] = raw["cta"] if isinstance(raw.get("cta"), Mapping) else {}
     cta_present = cta_raw.get("source") in ("speech", "screen")
     cta_at = _cta_time(signals, cta_raw) if cta_present else None
     if cta_present and cta_at is None:
