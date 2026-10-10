@@ -49,7 +49,7 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P9-A Email sign-in (OTP code / magic link) beside Google | 9.1 | doing | P9-A agent (Opus) |
-| P9-B Hand a shop connected by the Juli team over to the seller's own Juli account (invite / transfer) | 9.2 | todo — needs a grill | — |
+| P9-B Hand a shop connected by the Juli team over to the seller's own Juli account (invite / transfer) | 9.2 | done in P16 (D25.7) on `fasttrack/p16-ops` (not merged, not deployed) | P16 agent (Opus) |
 
 ## P10 — Quyết định card and flows, 100 % to the approved design (ADR-109 Amendment 1)
 
@@ -112,6 +112,16 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P14 integrated: `fasttrack/p14-data` + `fasttrack/p14-cards` + `fasttrack/p14-content` merged (in that order, `--no-ff`) on `fasttrack/p14-integration` from ddef3245; content cards obey the D24.17 limits / validity / 3-day stay with P14-E's ≤ 5/week as a sub-limit; head `081_order_cost_data`, deferred phone cleanup last; full suites + `check.sh --since ddef3245` green (see LOG) | 14.1–14.7, 14.C1–14.F3, 14E.1–14E.5 | done on `fasttrack/p14-integration` (not merged into `fasttrack/optimize-product`, not deployed) | integration agent (Opus) |
+
+## P16 — Juli Ops, the internal console (D25) + P9-B
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Migration `083_ops_console` (role `juli_ops`, 5 ops tables, consent column, 3 DEFINER functions), staff / audit / overrides / scenarios / invites, overrides read by emission / content / OpenAI | 16.1, 16.2 | done on `fasttrack/p16-ops` (not merged, not deployed) | P16 agent (Opus) |
+| `/v1/ops/*` API: Access JWT + staff role (fail closed), masking, overview, settings, Quy tắc (D25.14), runs, read-only view-as (D25.3 amended), simulation (D25.10–11), scenarios, invites + accept (P9-B), Huỷ kết nối (D25.13), permission status (D25.15) | 16.3–16.9 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
+| Ops pages in apps/demo on `ops.app-juli.com` (middleware host split, noindex): Tổng quan, Cài đặt shop, Xem như shop, Mô phỏng (**artboard not yet owner-reviewed — review requested**), Nhân viên, Nhật ký; seller `/nhan-shop`; reconnect strip | 16.10 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
+| Infra files + runbook (owner applies): nginx vhost, opt-in provisioning, env example, `docs/runbooks/ops-console-runbook.md` | 16.11 | done (files only) — owner steps pending | owner |
+| Privacy: staff-access sentence (VN + EN) + connect-shop notice + consent timestamp | 16.12 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
 
 ## P2–P6
 

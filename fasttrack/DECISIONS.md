@@ -363,3 +363,33 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       simulation must show whether a target is inside normal noise.
       Scenarios are saved per shop with a name and can be set as the shop's
       target. Internal only for now.
+- **D25 additions, 2026-10-10 (owner, via the orchestrator during P16):**
+  11. **Mô phỏng window and trend:** a window selector 7 / 14 / 30 / 90 ngày drives the
+      baseline (per-day average over N), the ▲/▼ chip on every cell (last N vs the N
+      before; green up, red down, grey when |Δ| < 0.5 %) and the volatility bands (p10–p90
+      within N). A window the history cannot cover is shown greyed "Chưa đủ dữ liệu (cần
+      2 × N ngày)" — never invented. API takes `window` ∈ {7, 14, 30, 90}.
+  12. *(number reserved; not used)*
+  13. **"Huỷ kết nối"** per connected / token-expired shop in Tổng quan, Admin only:
+      confirmation listing the effects, a required reason (audited) and the typed shop
+      name; revoke Juli's stored authorization, stop polling and card generation, cancel
+      pending runs, write nothing more to TikTok, keep history / rules / measurements so
+      reconnecting resumes, e-mail the seller. TikTok has no revoke endpoint: stored
+      tokens are destroyed and the credential marked `needs_reauth`.
+  14. **Quy tắc in Cài đặt shop:** Vận hành / Admin edit every seller rule (incl. the P14
+      keys, "Giọng văn", "Từ không được dùng", "Số thẻ mở cùng lúc" 5–30) through the
+      existing rule store and validation, always as the team, every change audited; the
+      seller later sees and keeps editing them. Approving cards stays the seller's.
+  15. **Permission status:** every token refresh persists the granted scopes when the
+      response carries them; Ops shows per shop "đủ quyền / thiếu X / chưa rõ" for the
+      scopes Juli uses; a missing scope shows the seller "Kết nối lại TikTok Shop để cấp
+      quyền mới".
+  - **D25.3 amended:** "Xem như shop" is ALWAYS read-only — staff see everything the
+    seller's client shows (Trang chủ, Quyết định incl. run details, Phân tích, Juli, Quy
+    tắc) and can never write through it. No act-for-seller mode, no team-may-act flag or
+    consent field; the view-as API refuses every non-GET with 403. Staff change things
+    only via Cài đặt shop (overrides, Quy tắc) and Admin-only Huỷ kết nối.
+  - **D25.8 storage (coordination with P15):** the monthly OpenAI cap is the `shop_rules`
+    row `openai_monthly_cap_usd` (default $5/month from `OPENAI_MONTHLY_CAP_USD_DEFAULT`),
+    read by P15's content analysis and by P16's drafting / agent-run gates.
+
