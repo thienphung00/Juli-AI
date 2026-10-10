@@ -405,7 +405,7 @@ export const SAMPLE_INSTRUCTIONS: SellerInstructions = {
 
 export function sampleRules(): ShopRules {
   const unset = { value: null, set_by: null, set_by_user_id: null, set_at: null };
-  const band = (value: number) => ({ value, set_by: "seller" as const, set_by_user_id: "sample", set_at: "2026-10-08T03:00:00Z" });
+  const band = (value: unknown) => ({ value, set_by: "seller" as const, set_by_user_id: "sample", set_at: "2026-10-08T03:00:00Z" });
   return {
     stability_band: { impressions: band(3), ctr: band(3), gmv_per_order: band(3) },
     product_cost: {},
@@ -416,6 +416,17 @@ export function sampleRules(): ShopRules {
     protected_terms: { ...unset, value: [] },
     band_metrics: ["impressions", "ctr", "conversion_rate", "items_sold", "gmv", "sku_orders", "gmv_per_order"],
     listing_levers: ["title", "description", "attributes", "image"],
+    // P14-F sample values (read-only in the signed-out sample).
+    sku_cost: { "1729700293904534135": band(120_000) },
+    default_gross_margin_pct: band(40),
+    default_max_discount_pct: band(15),
+    program_fee_pct: band(4),
+    joins_platform_campaigns: band(true),
+    platform_campaign_note: band("11.11 — giảm 15 % cho Kem dưỡng ẩm ceramide"),
+    target_roas: band(6),
+    gmv_max_daily_budget: band(500_000),
+    live_schedule: band([{ days: ["tue", "thu"], start: "20:00", end: "22:00" }]),
+    weekdays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
   };
 }
 

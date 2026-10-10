@@ -1,5 +1,11 @@
 """Per-shop seller-set rules (fast track P8-C, ADR-109 d.12). See ``rules.py``."""
 
+from juli_backend.services.shop_rules.economics import (
+    LiveSlot,
+    ShopEconomics,
+    economics_from_rules,
+    shop_economics,
+)
 from juli_backend.services.shop_rules.listing_edits import (
     DESCRIPTION_MAX_CHARS,
     TITLE_MAX_CHARS,
@@ -17,11 +23,14 @@ from juli_backend.services.shop_rules.rules import (
     MAX_DISCOUNT_PCT,
     MAX_OPEN_CARDS,
     MIN_MARGIN_PCT,
+    OFF_API_RULE_KEYS,
     PRODUCT_COST,
     PROTECTED_TERMS,
     RULE_KEYS,
     SCOPED_RULES,
+    SKU_COST,
     STABILITY_BAND,
+    WEEKDAYS,
     CostImportResult,
     RuleValidationError,
     RuleValue,
@@ -56,6 +65,13 @@ __all__ = [
     "MAX_DISCOUNT_PCT",
     "MAX_OPEN_CARDS",
     "MIN_MARGIN_PCT",
+    "OFF_API_RULE_KEYS",
+    "SKU_COST",
+    "WEEKDAYS",
+    "LiveSlot",
+    "ShopEconomics",
+    "economics_from_rules",
+    "shop_economics",
     "PRODUCT_COST",
     "PROTECTED_TERMS",
     "RULE_KEYS",

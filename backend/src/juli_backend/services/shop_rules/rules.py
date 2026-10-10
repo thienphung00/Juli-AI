@@ -20,6 +20,29 @@ Each value is one ``shop_rules`` row with ``set_by`` ('team' | 'seller'),
 
 Price is never an auto-executable lever (D13): ``"price"`` is rejected.
 
+Fast track P14-F (contract ``fasttrack/contracts/p14-rules-and-cost.md``):
+what no TikTok API gives Juli, each optional --
+
+- ``sku_cost`` (scope: TikTok SKU id) -- VND per unit, ≥ 0. Wins over
+  ``product_cost`` for that SKU.
+- ``default_gross_margin_pct`` (shop-wide) -- %, 0 < v < 100: the margin to
+  assume for a product with no cost set.
+- ``default_max_discount_pct`` (shop-wide) -- %, 0 ≤ v ≤ 100: the discount cap
+  for every SKU without its own ``max_discount_pct``.
+- ``program_fee_pct`` (shop-wide) -- %, 0 ≤ v < 100: the fee of the programmes
+  the shop is in (Voucher Xtra, Flash Sale service fee …), known only after an
+  order settles.
+- ``joins_platform_campaigns`` (shop-wide) -- bool.
+- ``platform_campaign_note`` (shop-wide) -- text ≤ 500: the campaigns the
+  seller has registered for (there is no campaign-registration API).
+- ``target_roas`` (shop-wide) -- 0 < v ≤ 100 (GMV ÷ ad cost).
+- ``gmv_max_daily_budget`` (shop-wide) -- VND per day, ≥ 0 (no Business API yet).
+- ``live_schedule`` (shop-wide) -- up to 14 regular LIVE slots
+  ``{"days": ["mon", …], "start": "HH:MM", "end": "HH:MM"}``.
+
+They are read by nothing yet but the ranking layer's typed accessor
+(``economics.shop_economics``).
+
 Wired today: ``max_open_cards`` caps Optimize Product's surfaced cards
 (``action_cards.persist``), ``auto_levers`` decides which cards are executable
 (the decisions list and approve), ``stability_band`` drives the day-7
@@ -52,6 +75,29 @@ MAX_DISCOUNT_PCT = "max_discount_pct"
 MAX_OPEN_CARDS = "max_open_cards"
 AUTO_LEVERS = "auto_levers"
 PROTECTED_TERMS = "protected_terms"
+# P14-F: what the APIs cannot tell Juli.
+SKU_COST = "sku_cost"
+DEFAULT_GROSS_MARGIN_PCT = "default_gross_margin_pct"
+DEFAULT_MAX_DISCOUNT_PCT = "default_max_discount_pct"
+PROGRAM_FEE_PCT = "program_fee_pct"
+JOINS_PLATFORM_CAMPAIGNS = "joins_platform_campaigns"
+PLATFORM_CAMPAIGN_NOTE = "platform_campaign_note"
+TARGET_ROAS = "target_roas"
+GMV_MAX_DAILY_BUDGET = "gmv_max_daily_budget"
+LIVE_SCHEDULE = "live_schedule"
+
+#: The P14-F keys, in the editor's order.
+OFF_API_RULE_KEYS: tuple[str, ...] = (
+    SKU_COST,
+    DEFAULT_GROSS_MARGIN_PCT,
+    DEFAULT_MAX_DISCOUNT_PCT,
+    PROGRAM_FEE_PCT,
+    JOINS_PLATFORM_CAMPAIGNS,
+    PLATFORM_CAMPAIGN_NOTE,
+    TARGET_ROAS,
+    GMV_MAX_DAILY_BUDGET,
+    LIVE_SCHEDULE,
+)
 
 RULE_KEYS: tuple[str, ...] = (
     STABILITY_BAND,
@@ -61,10 +107,20 @@ RULE_KEYS: tuple[str, ...] = (
     MAX_OPEN_CARDS,
     AUTO_LEVERS,
     PROTECTED_TERMS,
+    *OFF_API_RULE_KEYS,
 )
 
+#: P14-F shop-wide keys; each is a ``ShopRules`` attribute of the same name.
+_SHOP_WIDE_OFF_API: frozenset[str] = frozenset(set(OFF_API_RULE_KEYS) - {SKU_COST})
+
 #: Rules keyed by a subject (metric / product / SKU); the rest are shop-wide.
-SCOPED_RULES: frozenset[str] = frozenset({STABILITY_BAND, PRODUCT_COST, MAX_DISCOUNT_PCT})
+SCOPED_RULES: frozenset[str] = frozenset({STABILITY_BAND, PRODUCT_COST, MAX_DISCOUNT_PCT, SKU_COST})
+
+WEEKDAYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+MAX_LIVE_SLOTS = 14
+MAX_NOTE_LENGTH = 500
+MAX_TARGET_ROAS = 100
+MAX_DAILY_BUDGET_VND = 10_000_000_000
 
 #: The metric keys a stability band can be set for -- the impact reader's
 #: metrics (``services/impact/metric_map.ALL_METRICS``): Lượt hiển thị sản phẩm,
@@ -114,6 +170,16 @@ class ShopRules:
         default_factory=lambda: RuleValue(sorted(DEFAULT_AUTO_LEVERS), None, None, None)
     )
     protected_terms: RuleValue = field(default_factory=lambda: RuleValue([], None, None, None))
+    # P14-F: unset (``None`` / empty) until the seller sets them.
+    sku_cost: dict[str, RuleValue] = field(default_factory=dict)
+    default_gross_margin_pct: RuleValue | None = None
+    default_max_discount_pct: RuleValue | None = None
+    program_fee_pct: RuleValue | None = None
+    joins_platform_campaigns: RuleValue | None = None
+    platform_campaign_note: RuleValue | None = None
+    target_roas: RuleValue | None = None
+    gmv_max_daily_budget: RuleValue | None = None
+    live_schedule: RuleValue | None = None
 
 
 def _number(value: Any, *, rule: str) -> Decimal:
@@ -154,11 +220,13 @@ def validate_rule(rule_key: str, scope_ref: str, value: Any) -> tuple[str, Any]:
         if not Decimal(0) < band <= Decimal(100):
             raise RuleValidationError("stability_band: value must be > 0 and ≤ 100 (%)")
         return scope_ref, _json_number(band)
-    if rule_key == PRODUCT_COST:
+    if rule_key in (PRODUCT_COST, SKU_COST):
         cost = _number(value, rule=rule_key)
         if cost < 0:
-            raise RuleValidationError("product_cost: value must be ≥ 0")
+            raise RuleValidationError(f"{rule_key}: value must be ≥ 0")
         return scope_ref, _json_number(cost)
+    if rule_key in _OFF_API_VALIDATORS:
+        return scope_ref, _OFF_API_VALIDATORS[rule_key](value)
     if rule_key in (MIN_MARGIN_PCT, MAX_DISCOUNT_PCT):
         pct = _number(value, rule=rule_key)
         upper_ok = pct < 100 if rule_key == MIN_MARGIN_PCT else pct <= 100
@@ -191,6 +259,101 @@ def validate_rule(rule_key: str, scope_ref: str, value: Any) -> tuple[str, Any]:
     if len(terms) > MAX_PROTECTED_TERMS or any(len(t) > MAX_TERM_LENGTH for t in terms):
         raise RuleValidationError("protected_terms: too many terms, or a term is too long")
     return scope_ref, list(dict.fromkeys(terms))
+
+
+def _pct(value: Any, *, rule: str, low_open: bool, high: int, high_open: bool) -> int | float:
+    pct = _number(value, rule=rule)
+    low_ok = pct > 0 if low_open else pct >= 0
+    high_ok = pct < high if high_open else pct <= high
+    if not (low_ok and high_ok):
+        raise RuleValidationError(f"{rule}: value is a percentage out of range")
+    return _json_number(pct)
+
+
+def _bool(value: Any, *, rule: str) -> bool:
+    if not isinstance(value, bool):
+        raise RuleValidationError(f"{rule}: value must be true or false")
+    return value
+
+
+def _note(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise RuleValidationError(f"{PLATFORM_CAMPAIGN_NOTE}: value must be non-empty text")
+    text = value.strip()
+    if len(text) > MAX_NOTE_LENGTH:
+        raise RuleValidationError(f"{PLATFORM_CAMPAIGN_NOTE}: at most {MAX_NOTE_LENGTH} characters")
+    return text
+
+
+def _target_roas(value: Any) -> int | float:
+    roas = _number(value, rule=TARGET_ROAS)
+    if not Decimal(0) < roas <= Decimal(MAX_TARGET_ROAS):
+        raise RuleValidationError(f"{TARGET_ROAS}: value must be > 0 and ≤ {MAX_TARGET_ROAS}")
+    return _json_number(roas)
+
+
+def _daily_budget(value: Any) -> int | float:
+    budget = _number(value, rule=GMV_MAX_DAILY_BUDGET)
+    if not Decimal(0) <= budget <= Decimal(MAX_DAILY_BUDGET_VND):
+        raise RuleValidationError(f"{GMV_MAX_DAILY_BUDGET}: value must be ≥ 0 VND per day")
+    return _json_number(budget)
+
+
+def _clock(value: Any, *, rule: str) -> str:
+    text = value.strip() if isinstance(value, str) else ""
+    parts = text.split(":")
+    if len(parts) != 2 or not all(p.isdigit() and len(p) == 2 for p in parts):
+        raise RuleValidationError(f"{rule}: times are HH:MM")
+    hour, minute = int(parts[0]), int(parts[1])
+    if hour > 23 or minute > 59:
+        raise RuleValidationError(f"{rule}: times are HH:MM")
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _live_schedule(value: Any) -> list[dict[str, Any]]:
+    rule = LIVE_SCHEDULE
+    if not isinstance(value, list):
+        raise RuleValidationError(f"{rule}: value must be a list of slots")
+    if len(value) > MAX_LIVE_SLOTS:
+        raise RuleValidationError(f"{rule}: at most {MAX_LIVE_SLOTS} slots")
+    slots: list[dict[str, Any]] = []
+    for slot in value:
+        if not isinstance(slot, Mapping) or set(slot) != {"days", "start", "end"}:
+            raise RuleValidationError(f"{rule}: each slot is {{days, start, end}}")
+        days = slot["days"]
+        if (
+            not isinstance(days, list)
+            or not days
+            or not all(isinstance(d, str) and d in WEEKDAYS for d in days)
+        ):
+            raise RuleValidationError(f"{rule}: days are a non-empty subset of {list(WEEKDAYS)}")
+        start, end = _clock(slot["start"], rule=rule), _clock(slot["end"], rule=rule)
+        if start == end:
+            raise RuleValidationError(f"{rule}: a slot cannot start and end at the same time")
+        ordered = [d for d in WEEKDAYS if d in set(days)]
+        normalised = {"days": ordered, "start": start, "end": end}
+        if normalised not in slots:
+            slots.append(normalised)
+    return slots
+
+
+#: P14-F validators (``sku_cost`` shares ``product_cost``'s rule above).
+_OFF_API_VALIDATORS: Mapping[str, Any] = {
+    DEFAULT_GROSS_MARGIN_PCT: lambda v: _pct(
+        v, rule=DEFAULT_GROSS_MARGIN_PCT, low_open=True, high=100, high_open=True
+    ),
+    DEFAULT_MAX_DISCOUNT_PCT: lambda v: _pct(
+        v, rule=DEFAULT_MAX_DISCOUNT_PCT, low_open=False, high=100, high_open=False
+    ),
+    PROGRAM_FEE_PCT: lambda v: _pct(
+        v, rule=PROGRAM_FEE_PCT, low_open=False, high=100, high_open=True
+    ),
+    JOINS_PLATFORM_CAMPAIGNS: lambda v: _bool(v, rule=JOINS_PLATFORM_CAMPAIGNS),
+    PLATFORM_CAMPAIGN_NOTE: _note,
+    TARGET_ROAS: _target_roas,
+    GMV_MAX_DAILY_BUDGET: _daily_budget,
+    LIVE_SCHEDULE: _live_schedule,
+}
 
 
 def _validate_set_by(set_by: str) -> str:
@@ -298,6 +461,10 @@ async def get_rules(session: AsyncSession, shop_id: uuid.UUID) -> ShopRules:
             rules.auto_levers = _value(row)
         elif row.rule_key == PROTECTED_TERMS:
             rules.protected_terms = _value(row)
+        elif row.rule_key == SKU_COST:
+            rules.sku_cost[row.scope_ref] = _value(row)
+        elif row.rule_key in _SHOP_WIDE_OFF_API:
+            setattr(rules, row.rule_key, _value(row))
     return rules
 
 
