@@ -73,27 +73,19 @@ export default function TermsOfServicePage() {
           </section>
 
           <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">5. Thử nghiệm miễn phí và phí dịch vụ</h2>
+            <h2 className="lp-legal__section-heading">5. Phí dịch vụ</h2>
             <p>
-              Người dùng mới được dùng thử Juli miễn phí trong 3 tháng đầu. Juli không tự
-              động thu phí khi hết thời gian thử nghiệm. Sau thời gian này, bạn có thể tiếp
-              tục sử dụng bằng cách đăng ký gói trả phí, với mức phí từ 500.000đ/tháng tuỳ
-              gói; mức phí cụ thể được thông báo và chỉ áp dụng khi bạn đồng ý đăng ký.
+              Phí dịch vụ Juli là 500.000đ/tháng. Bạn có thể huỷ bất cứ lúc nào. Phí đã
+              thanh toán không thể hoàn lại.
             </p>
           </section>
 
           <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">6. Đề xuất và kết quả</h2>
+            <h2 className="lp-legal__section-heading">6. Đề xuất của Juli</h2>
             <p>
-              Các đề xuất của Juli được tạo bằng AI dựa trên dữ liệu shop và có thể không
-              chính xác hoặc không phù hợp với mọi trường hợp. Bạn là người quyết định cuối
-              cùng cho mọi hành động trên shop của mình.
-            </p>
-            <p>
-              Các con số như &quot;hướng đến cải thiện 1–3% GMV mỗi tháng&quot; hay thời gian
-              tiết kiệm được là mục tiêu Juli hướng tới, không phải cam kết về kết quả. Kết
-              quả thực tế phụ thuộc vào sản phẩm, thị trường, chính sách của sàn và cách
-              bạn vận hành shop.
+              Các đề xuất của Juli được tạo bằng AI dựa trên dữ liệu shop và chỉ mang tính
+              tương đối. Juli chỉ thực hiện một hành động khi bạn đồng ý, và bạn là người
+              quyết định cuối cùng cho mọi hành động trên shop của mình.
             </p>
           </section>
 

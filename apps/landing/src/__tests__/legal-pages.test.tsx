@@ -58,15 +58,16 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     }
   });
 
-  it("renders /terms with the entity, the trial terms, and GMV figures framed as targets", () => {
+  it("renders /terms with the entity, the fee terms, and AI suggestions run only on consent", () => {
     render(<TermsOfServicePage />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Điều khoản dịch vụ" }),
     ).toBeInTheDocument();
     expect(screen.getAllByText(new RegExp(COMPANY.name)).length).toBeGreaterThan(0);
-    expect(screen.getByText(/miễn phí trong 3 tháng đầu/i)).toBeInTheDocument();
-    expect(screen.getByText(/không phải cam kết về kết quả/i)).toBeInTheDocument();
+    expect(screen.getByText(/500\.000đ\/tháng.*huỷ bất cứ lúc nào/i)).toBeInTheDocument();
+    expect(screen.getByText(/chỉ thực hiện một hành động khi bạn đồng ý/i)).toBeInTheDocument();
+    expect(screen.queryByText(/GMV/)).not.toBeInTheDocument();
   });
 
   it("/terms links back to /privacy for the data-handling detail", () => {
