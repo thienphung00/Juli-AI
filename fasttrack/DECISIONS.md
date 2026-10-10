@@ -316,3 +316,25 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   7. **Handover (P9-B)**: "Mời seller" sends an email invite; the seller signs
      in and takes ownership; the team keeps Vận hành access if the seller
      agrees; cards, runs, rules and history are kept.
+  21. **P14 integration choices** (owner, 2026-10-10): (1) return after
+      Từ chối / Không thực hiện / Hoàn tác is strictly 7 days — no early
+      return on a > 20 % data change; (2) the seller rule "Số thẻ mở cùng lúc"
+      becomes 5–30, default 30; (3) legacy-workflow cards follow the same
+      7-day rule; (4) product and content cards are ranked **separately, with
+      fixed daily slots** (3 Juli tự làm / ảnh · 1 Seller Center · 1 nội dung);
+      a slot with no candidate stays empty; (5) new seller rules "Giọng văn"
+      and "Từ không được dùng", read by content runs.
+- **D25 additions** (owner, 2026-10-10):
+  8. Over the monthly OpenAI cap: stop new drafting for that shop and alert
+     the team; rule cards keep running; the cap is set per shop in Ops.
+  9. Staff can open each run's detail (timeline, LLM output, tokens),
+     read-only.
+  10. **Ops tab "Mô phỏng"** (4 KPI × 4 streams), for both target-setting per
+      shop and sales demos. Locked cells: Video CTOR, Video AOV, LIVE AOV;
+      Hiển thị editable with an "indirect" warning. Baseline = the shop's last
+      30 days, **plus a volatility view**: per stream and per product/content
+      row, the normal high/low band of each KPI (daily spread), so the team
+      can pick streams with stable impressions and small swings — the
+      simulation must show whether a target is inside normal noise.
+      Scenarios are saved per shop with a name and can be set as the shop's
+      target. Internal only for now.
