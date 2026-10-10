@@ -8,7 +8,8 @@
    ────────────────────────────────────────────────────────────────────── */
 
 .qd-page,
-.qv-overlay {
+.qv-overlay,
+.pa-page {
   --qd-ink: #1a1a1f;
   --qd-ink-2: #4a4a55;
   --qd-ink-3: #3a3a44;
@@ -1958,4 +1959,45 @@ body:has(.qd-page) {
   .qv-dialog {
     padding: 18px 20px;
   }
+}
+
+/* ── Phân tích ↔ Đề xuất (ADR-109 Amendment 2 d.4, PtFlow) ───────────── */
+
+/* "Xem phân tích ›" on the card: 13/700, soft pink pill, pushed right. */
+.qd-page .qv-analysis-link {
+  margin-left: auto;
+  border-radius: 8px;
+  background: var(--qd-pink-soft);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.qv-card__actions .qv-card__toggle + .qv-analysis-link {
+  margin-left: 0;
+}
+
+.qv-card__links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.qv-card__links .qv-analysis-link {
+  margin-left: 0;
+}
+
+/* Arrived from Phân tích: the card (or the metric's group) is scrolled to and
+   outlined pink for 3 s — border 2px #c2306d + a 4px #fdeef4 ring. */
+.qv-card--focus {
+  border: 2px solid var(--qd-pink-button);
+  box-shadow: 0 0 0 4px var(--qd-pink-soft);
+}
+
+.qv-group--focus {
+  border-radius: 16px;
+  box-shadow: 0 0 0 2px var(--qd-pink-button), 0 0 0 6px var(--qd-pink-soft);
 }

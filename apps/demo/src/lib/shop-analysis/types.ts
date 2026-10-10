@@ -99,6 +99,8 @@ export interface Band {
   last: string;
   days_prior: number;
   days_last: number;
+  /** Products in the promotion (fast track P12); null for vouchers / unknown lists. */
+  product_count?: number | null;
 }
 
 export interface DayGroupCell {
@@ -252,6 +254,26 @@ export interface ShopDiagnosisReport {
   watch: WatchItem[];
   titles: Record<string, string>;
   orders_present: boolean;
+  /** Fast track P12 (additive, `fasttrack/contracts/p12-phan-tich.md`): GMV per present day of the 60, all channels. */
+  daily_gmv?: Record<string, number>;
+  /** P12: product id → seller SKU. */
+  seller_skus?: Record<string, string>;
+  /** P12: the products' promotions over the 60 days. */
+  promo_products?: PromoProduct[];
+}
+
+/** P12 `promo_products[]` (backend `promotions.PromoProduct`). */
+export interface PromoProduct {
+  product_id: string;
+  /** PromoKind value: "Flash sale" | "Giảm giá sản phẩm" | "Mua nhiều giảm nhiều". */
+  kind: string;
+  /** Days a promotion covered at least half the day. */
+  days: number;
+  /** Median true depth (flash) or depth vs list price (discount), as a share. */
+  depth: number | null;
+  /** Mean daily GMV (all channels) on promotion days / on the other days. */
+  gmv_in: number | null;
+  gmv_out: number | null;
 }
 
 export type HeroRanking = "60d" | "30d";

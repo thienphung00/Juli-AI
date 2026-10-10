@@ -1,32 +1,32 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AnalysisPageClient } from "../analysis-page-client";
 import { PhanTichView } from "../phan-tich/phan-tich-view";
-import { closingRows } from "../phan-tich/ranking-table";
-import { loadSampleRanking } from "../phan-tich/sample-phan-tich";
+import { loadSampleDecisions, loadSampleRanking } from "../phan-tich/sample-phan-tich";
 import { SignedInPhanTich } from "../phan-tich/signed-in-phan-tich";
-import {
-  findBottleneck,
-  pageTitle,
-  resolveSelection,
-  suggestionLine,
-} from "../../lib/phan-tich/model";
+import { SampleQuyetDinh } from "../quyet-dinh/sample-quyet-dinh";
+import { analysisHrefForDecision, decisionCardHref, indexCards } from "../../lib/phan-tich/cards";
+import { calendarView, promoView } from "../../lib/phan-tich/extras";
+import { deltaChip, kMoney, signedKMoney } from "../../lib/phan-tich/format";
+import { analysisHref, defaultStream, pageTitle, resolveSelection, streamView, streamsOf, type QueryState } from "../../lib/phan-tich/model";
 import { DEMO_RANKINGS_API_PATH, fetchMetricRanking } from "../../lib/phan-tich/rankings-client";
-import type { RankingEnvelope, RankingLoader } from "../../lib/phan-tich/types";
-import sampleEnvelope from "../../lib/shop-analysis/sample-report.json";
-import sampleRankings from "../../lib/shop-analysis/sample-rankings.json";
-import type { ShopAnalysisEnvelope } from "../../lib/shop-analysis/types";
+import { sampleEnvelope, sampleProductId, sampleRankings, sampleReport } from "../../lib/phan-tich/sample-data";
+import type { RankingEnvelope } from "../../lib/phan-tich/types";
+import { createSampleQdClients } from "../../lib/quyet-dinh/sample-clients";
+import { SAMPLE_CARDS, sampleDecision } from "../../lib/quyet-dinh/sample-data";
 import { ACTIVE_SHOP_STORAGE_KEY } from "../../lib/shop-session";
 import { ShopReportProvider } from "../../lib/shop-report/shop-report-context";
 import { AUTH_SESSION_STORAGE_KEY } from "../../lib/supabase-auth";
-import { signedMoney } from "../../lib/vn-format";
+import { resolveTab } from "../../lib/quyet-dinh/copy";
+import type { QdQuery } from "../quyet-dinh/quyet-dinh-view";
 
 /**
- * Phân tích (AC-8.6, ADR-109 decisions 2–5): sub-tabs and URL state, the
- * clickable cells, the bottleneck, the ranking table and its closing rows,
- * the "Ví dụ" panel, the hero list and the collapsed sections.
+ * Phân tích (ADR-109 Amendment 2, AC-12.x): collapsible streams, cells with
+ * ₫/day impact, re-ranking, rows that expand in place, "Còn lại" / "Tổng",
+ * the two-way links with Đề xuất, both doors.
  */
 
 const searchParams = new URLSearchParams();
@@ -37,21 +37,42 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams,
 }));
 
-const SAMPLE = sampleEnvelope as unknown as ShopAnalysisEnvelope;
-const RANKINGS = sampleRankings as unknown as Record<string, Record<string, RankingEnvelope>>;
-const CTOR = RANKINGS.product_card.ctor;
+const REPORT = sampleReport();
+const RANKINGS = sampleRankings();
+const CTOR = RANKINGS.product_card!.ctor as RankingEnvelope;
+const SM012 = sampleProductId("SM-012");
 
-function renderView(query: Record<string, string> = {}, loadRanking: RankingLoader = loadSampleRanking) {
-  const onNavigate = vi.fn();
-  const utils = render(
-    <PhanTichView envelope={SAMPLE} loadRanking={loadRanking} onNavigate={onNavigate} query={query} sample />,
+function queryOf(href: string): QueryState {
+  const p = new URLSearchParams(href.split("?")[1] ?? "");
+  return { tab: p.get("tab"), stream: p.get("stream"), metric: p.get("metric"), huong: p.get("huong"), row: p.get("row") };
+}
+
+/** The view with its URL state held locally, as the page does through the router. */
+function Harness({ initial, spy }: { initial: string; spy?: (href: string) => void }) {
+  const [href, setHref] = useState(initial);
+  return (
+    <PhanTichView
+      loadDecisions={loadSampleDecisions}
+      loadRanking={loadSampleRanking}
+      onNavigate={(next) => {
+        spy?.(next);
+        setHref(next);
+      }}
+      query={queryOf(href)}
+      report={REPORT}
+      sample
+    />
   );
-  return { ...utils, onNavigate };
 }
 
-function cell(name: RegExp) {
-  return screen.getByRole("button", { name });
+function renderView(initial = "/analytics") {
+  const spy = vi.fn();
+  const utils = render(<Harness initial={initial} spy={spy} />);
+  return { ...utils, spy };
 }
+
+const stream = (name: string) => screen.getAllByTestId("pa-stream").find((s) => within(s).queryByRole("heading", { level: 2, name }))!;
+const rowOf = (text: string) => screen.getAllByTestId("pa-row").find((r) => r.textContent?.includes(text))!;
 
 beforeEach(() => {
   window.sessionStorage.clear();
@@ -65,279 +86,311 @@ afterEach(() => {
 });
 
 describe("Phân tích model", () => {
-  it("picks the Rõ factor with the largest negative GMV contribution as the bottleneck", () => {
-    const bottleneck = findBottleneck(SAMPLE.report, "san-pham");
-    expect(bottleneck).toMatchObject({ stream: "product_card", metric: "ctor" });
-    // AOV on Thẻ sản phẩm is also Rõ and negative, but smaller; Tab cửa hàng is Tham khảo only.
-    const card = SAMPLE.report.channels.find((c) => c.channel === "product_card");
-    const ctor = card?.comparison.factors.find((f) => f.factor === "ctor");
-    expect(bottleneck?.contribution).toBe(ctor?.contribution);
-    // Nội dung: nothing negative is Rõ in the sample → no bottleneck.
-    expect(findBottleneck(SAMPLE.report, "noi-dung")).toBeNull();
+  it("formats like the artboards", () => {
+    expect(kMoney(3_619_000)).toBe("3,6 tr ₫");
+    expect(signedKMoney(-250_000)).toBe("−250k ₫");
+    expect(signedKMoney(620_000)).toBe("+620k ₫");
+    expect(signedKMoney(300)).toBe("0k ₫");
+    expect(deltaChip(100, 107.6)).toEqual({ text: "▲ 7,6 %", tone: "up" });
+    expect(deltaChip(100, 84.8)).toEqual({ text: "▼ 15,2 %", tone: "down" });
   });
 
-  it("builds a conclusion-style title from the data", () => {
-    expect(pageTitle(SAMPLE.report, "san-pham")).toBe("Thẻ sản phẩm: CTOR giảm 15,2 %");
-    expect(pageTitle(SAMPLE.report, "noi-dung")).toBe("Nội dung: không có chỉ số nào kéo GMV xuống rõ rệt");
+  it("each cell carries the report's ₫/day contribution; the weakest gets ✦ Juli gợi ý", () => {
+    const card = streamView(REPORT, "product_card");
+    expect(card.cells.map((c) => c.label)).toEqual(["Hiển thị/ngày", "CTR", "CTOR", "AOV", "GMV/ngày"]);
+    expect(card.cells.map((c) => c.impact)).toEqual(["+620k ₫/ngày", "−12k ₫/ngày", "−250k ₫/ngày", "−105k ₫/ngày", "Tổng của 4 ô"]);
+    expect(card.cells.find((c) => c.weak)?.metric).toBe("ctor");
+    expect(card.weakText).toBe("Yếu nhất: CTOR −250k ₫/ngày");
+    expect(card.cells.map((c) => c.value).slice(0, 4)).toEqual(["9.913", "4,44 %", "5,14 %", "160k ₫"]);
+    expect(card.gmvText).toBe("3,6 tr ₫/ngày");
+    expect(card.cells[4].clickable).toBe(false);
+    expect(streamView(REPORT, "shop_tab").weakText).toBe("Yếu nhất: AOV −31k ₫/ngày");
   });
 
-  it("writes the Juli gợi ý line from the report only, with no invented target", () => {
-    const bottleneck = findBottleneck(SAMPLE.report, "san-pham");
-    const line = suggestionLine(SAMPLE.report, bottleneck!);
-    expect(line).toMatch(/^Tối ưu CTOR: khách thêm giỏ rồi bỏ: Đơn\/thêm giỏ .* → .* · kéo GMV\/ngày −/);
-    expect(line).not.toMatch(/Mục tiêu/);
+  it("content streams grey the cells that depend on the product page", () => {
+    const video = streamView(REPORT, "seller_video");
+    expect(video.cells.filter((c) => c.grey && c.metric !== "gmv").map((c) => [c.metric, c.impact])).toEqual([
+      ["ctor", "Phụ thuộc sản phẩm"],
+      ["aov", "Phụ thuộc sản phẩm"],
+    ]);
+    expect(video.weakMetric).toBe("ctr");
+    expect(streamView(REPORT, "seller_live").cells.filter((c) => c.grey).map((c) => c.metric)).toEqual(["aov", "gmv"]);
   });
 
-  it("resolves Home links, and falls back to the bottleneck for a cell that is not clickable", () => {
-    expect(resolveSelection(SAMPLE.report, { tab: "noi-dung", stream: "live", metric: "ctr" })).toEqual({
-      tab: "noi-dung",
-      cell: { stream: "seller_live", metric: "ctr" },
-    });
-    // The stream decides the tab even when `tab` disagrees.
-    expect(resolveSelection(SAMPLE.report, { tab: "noi-dung", stream: "tab-cua-hang", metric: "aov" }).cell).toEqual({
-      stream: "shop_tab",
-      metric: "aov",
-    });
-    // Video AOV is shown, not clickable (d.4) → the sub-tab's default.
-    expect(resolveSelection(SAMPLE.report, { stream: "video", metric: "aov" })).toEqual({
-      tab: "noi-dung",
-      cell: { stream: "seller_video", metric: "impressions" },
-    });
-    expect(resolveSelection(SAMPLE.report, {}).cell).toEqual({ stream: "product_card", metric: "ctor" });
+  it("opens the stream whose weakest metric loses the most GMV; the h1 names it", () => {
+    expect(defaultStream(streamsOf("san-pham").map((s) => streamView(REPORT, s.stream)))).toBe("product_card");
+    expect(pageTitle(REPORT, "san-pham")).toMatch(/^Thẻ sản phẩm: CTOR giảm \d+ %$/);
+    expect(pageTitle(REPORT, "noi-dung")).toMatch(/^Video: CTR giảm \d+ %$/);
+  });
+
+  it("resolves the URL: defaults, old CTOR-step links, collapsed, Kéo lên, row", () => {
+    expect(resolveSelection(REPORT, {})).toEqual({ tab: "san-pham", stream: "product_card", metric: "ctor", direction: "down", row: null });
+    expect(resolveSelection(REPORT, { stream: "the-san-pham", metric: "them-gio" }).metric).toBe("ctor");
+    expect(resolveSelection(REPORT, { stream: "video", metric: "aov" }).metric).toBe("ctr");
+    expect(resolveSelection(REPORT, { tab: "san-pham", stream: "dong" }).stream).toBeNull();
+    const sel = resolveSelection(REPORT, { stream: "tab-cua-hang", metric: "aov", huong: "len", row: "x" });
+    expect(sel).toEqual({ tab: "san-pham", stream: "shop_tab", metric: "aov", direction: "up", row: "x" });
+    expect(resolveSelection(REPORT, queryOf(analysisHref(sel)))).toEqual(sel);
+  });
+
+  it("every sample table reconciles to its cell: listed rows + closing rows = the cell's ₫/day", () => {
+    for (const [s, byMetric] of Object.entries(RANKINGS)) {
+      for (const [m, envelope] of Object.entries(byMetric ?? {})) {
+        const r = envelope!.ranking;
+        const listed = [...r.down, ...r.up].reduce((sum, row) => sum + row.gmv_per_day, 0);
+        const closing = r.closing.few.gmv_per_day + r.closing.others.gmv_per_day + r.closing.mix.gmv_per_day;
+        expect(listed + closing, `${s} × ${m}`).toBeCloseTo(r.stream_factor_gmv, 6);
+        const cell = REPORT.channels.find((c) => c.channel === s)!.comparison.factors.find((f) => f.factor === m)!;
+        expect(r.stream_factor_gmv).toBe(cell.contribution);
+      }
+    }
+  });
+
+  it("the sample is the Quyết định sample's shop: every sample card's product is ranked", () => {
+    const ids = new Set(Object.values(RANKINGS).flatMap((b) => Object.values(b ?? {}).flatMap((e) => [...e!.ranking.down, ...e!.ranking.up].map((r) => r.id))));
+    for (const card of SAMPLE_CARDS) {
+      const item = sampleDecision(card, Date.now());
+      expect(ids.has(item.recommendation.diagnosis!.tiktok_product_id!), card.sku).toBe(true);
+    }
+  });
+
+  it("joins a row to a card by product and metric; a card links back to its row", () => {
+    const items = SAMPLE_CARDS.map((c) => sampleDecision(c, Date.now()));
+    const cards = indexCards(items);
+    expect(cards.find(SM012, "ctor")?.id).toBe("sample-sm-012");
+    expect(cards.find(SM012, "ctr")).toBeNull();
+    expect(cards.find(sampleProductId("SR-007"), "ctr")?.proposal).toBe("Ảnh bìa · +1,4 tr ₫/tháng");
+    expect(cards.countFor("ctor")).toBe(4);
+    expect(decisionCardHref("sample-sm-012")).toBe("/decisions?tab=de-xuat&the=sample-sm-012");
+    expect(analysisHrefForDecision(items[0])).toBe(`/analytics?tab=san-pham&stream=the-san-pham&metric=ctor&row=${SM012}`);
+  });
+
+  it("Khuyến mãi and Lịch sale read the report's promotions and daily GMV", () => {
+    const promo = promoView(REPORT);
+    expect(promo.stats.map((s) => s.k)).toEqual(["Flash sale", "Giảm thật trung bình", "Voucher"]);
+    expect(promo.stats[0].v).toBe("8/60 ngày");
+    expect(promo.stats[1].v).toBe("−9 %");
+    expect(promo.rows.find((r) => r.sku === "SM-012")).toMatchObject({ shallow: true, depth: "−2 % (quá nông)" });
+    const calendar = calendarView(REPORT)!;
+    expect(calendar.bars).toHaveLength(60);
+    expect(calendar.first).toBe("08/08");
+    expect(calendar.middle).toBe("07/09 · bắt đầu 30 ngày gần đây");
+    expect(calendar.tiles.map((t) => t.title)).toEqual(["9.9", "Flash sale 20/09", "Sắp tới"]);
+    expect(calendar.tiles[2].text).toBe("10.10, 11.11");
+    expect(calendarView({ ...REPORT, daily_gmv: undefined })).toBeNull();
   });
 });
 
 describe("Phân tích view", () => {
-  it("opens on Sản phẩm with the bottleneck selected, outlined and explained", async () => {
+  it("opens Thẻ sản phẩm on its weakest cell; Tab cửa hàng is collapsed with its weakest", async () => {
     renderView();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Thẻ sản phẩm: CTOR giảm 15,2 %");
-    expect(screen.getByText(/Phân tích · Sản phẩm/)).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Sản phẩm" })).toHaveAttribute("aria-selected", "true");
-
-    const ctor = cell(/^CTOR · Thẻ sản phẩm/);
-    expect(ctor).toHaveAttribute("aria-pressed", "true");
-    expect(ctor).toHaveClass("pt-tile--bottleneck");
-    expect(screen.getByTestId("juli-suggestion")).toHaveTextContent(/Juli gợi ý:.*Tối ưu CTOR/);
-    expect(screen.getByTestId("juli-suggestion")).not.toHaveTextContent("Mục tiêu");
-    expect(await screen.findByRole("heading", { name: "SKU kéo CTOR xuống" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Thẻ sản phẩm: CTOR giảm/);
+    expect(screen.getByTestId("mock-data-notice")).toBeInTheDocument();
+    expect(screen.getByTestId("juli-suggestion")).toHaveTextContent("✦ Juli gợi ý · CTOR kéo GMV −250k ₫/ngày");
+    expect(await screen.findByRole("link", { name: "Xem 4 đề xuất ›" })).toHaveAttribute("href", "/decisions?tab=de-xuat&nhom=ctor");
+    expect(screen.getByTestId("pa-caption")).toHaveTextContent("Sản phẩm:Thẻ sản phẩm · Tab cửa hàng|Nội dung:Video · LIVE|Liên kết:chỉ theo dõi ởTrang chủ ›");
+    expect(within(stream("Thẻ sản phẩm")).getByRole("button", { name: "Thu gọn" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(stream("Tab cửa hàng")).getByText("Yếu nhất: AOV −31k ₫/ngày")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^CTOR · Thẻ sản phẩm/ })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("heading", { name: "5 sản phẩm kéo CTOR xuống" })).toBeInTheDocument();
+    expect(screen.getByTestId("ranking-total")).toHaveTextContent("Tổng · bằng số của ô CTOR−250k ₫/ngày");
   });
 
-  it("switches sub-tab and writes it into the URL", async () => {
-    const user = userEvent.setup();
-    const { onNavigate } = renderView();
-    await user.click(screen.getByRole("tab", { name: "Nội dung" }));
-
-    expect(onNavigate).toHaveBeenLastCalledWith("/analytics?tab=noi-dung");
-    expect(screen.getByRole("tab", { name: "Nội dung" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "Video của shop" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "LIVE của shop" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Thẻ sản phẩm" })).toBeNull();
-    expect(screen.queryByTestId("juli-suggestion")).toBeNull();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Nội dung:/);
+  it("only one stream is open; opening Tab cửa hàng collapses Thẻ sản phẩm", async () => {
+    const { spy } = renderView();
+    await userEvent.click(within(stream("Tab cửa hàng")).getByRole("button", { name: "Mở" }));
+    expect(within(stream("Thẻ sản phẩm")).getByRole("button", { name: "Mở" })).toBeInTheDocument();
+    expect(spy).toHaveBeenLastCalledWith("/analytics?tab=san-pham&stream=tab-cua-hang&metric=aov");
+    expect(await screen.findByRole("heading", { name: "1 sản phẩm kéo AOV xuống" })).toBeInTheDocument();
   });
 
-  it("lands on a Home link's stream × metric", async () => {
-    const loadRanking = vi.fn(loadSampleRanking);
-    renderView({ tab: "san-pham", stream: "tab-cua-hang", metric: "aov" }, loadRanking);
-    expect(cell(/^AOV · Tab cửa hàng/)).toHaveAttribute("aria-pressed", "true");
-    expect(loadRanking).toHaveBeenCalledWith("shop_tab", "aov");
-    expect(await screen.findByRole("heading", { name: "SKU kéo AOV xuống" })).toBeInTheDocument();
+  it("a clicked cell re-ranks the table and the URL follows; GMV/ngày is not clickable", async () => {
+    const { spy } = renderView();
+    await userEvent.click(screen.getByRole("button", { name: /^AOV · Thẻ sản phẩm/ }));
+    expect(spy).toHaveBeenLastCalledWith("/analytics?tab=san-pham&stream=the-san-pham&metric=aov");
+    expect(await screen.findByRole("heading", { name: "2 sản phẩm kéo AOV xuống" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^GMV\/ngày · Thẻ sản phẩm/ })).toBeDisabled();
   });
 
-  it("a clicked cell re-ranks the table: fetch with its stream × metric, URL updated", async () => {
-    const user = userEvent.setup();
-    const loadRanking = vi.fn(loadSampleRanking);
-    const { onNavigate } = renderView({}, loadRanking);
-    await screen.findByRole("heading", { name: "SKU kéo CTOR xuống" });
-
-    await user.click(cell(/^AOV · Thẻ sản phẩm/));
-    expect(loadRanking).toHaveBeenLastCalledWith("product_card", "aov");
-    expect(onNavigate).toHaveBeenLastCalledWith("/analytics?tab=san-pham&stream=the-san-pham&metric=aov");
-    expect(cell(/^AOV · Thẻ sản phẩm/)).toHaveAttribute("aria-pressed", "true");
-    expect(await screen.findByRole("heading", { name: "SKU kéo AOV xuống" })).toBeInTheDocument();
-
-    // The CTOR tile carries its two steps, each clickable on Thẻ sản phẩm.
-    await user.click(cell(/^Đơn\/thêm giỏ · Thẻ sản phẩm/));
-    expect(loadRanking).toHaveBeenLastCalledWith("product_card", "orders_per_cart");
-    expect(await screen.findByRole("heading", { name: "SKU kéo Đơn/thêm giỏ xuống" })).toBeInTheDocument();
-
-    // Back to a cell already loaded: no second request.
-    const calls = loadRanking.mock.calls.length;
-    await user.click(cell(/^AOV · Thẻ sản phẩm/));
-    expect(loadRanking.mock.calls.length).toBe(calls);
-  });
-
-  it("content streams: Video CTOR/AOV and LIVE AOV are shown, not clickable", async () => {
-    renderView({ tab: "noi-dung" });
-    const video = screen.getByRole("article", { name: "Video của shop" });
-    const live = screen.getByRole("article", { name: "LIVE của shop" });
-
-    expect(within(video).getAllByRole("button").map((b) => b.getAttribute("data-metric"))).toEqual(["impressions", "ctr"]);
-    expect(within(live).getAllByRole("button").map((b) => b.getAttribute("data-metric"))).toEqual([
-      "impressions",
-      "ctr",
-      "ctor",
-    ]);
-    expect(within(video).getAllByText("phụ thuộc sản phẩm → xem tab Sản phẩm")).toHaveLength(2);
-    expect(within(live).getAllByText("phụ thuộc sản phẩm → xem tab Sản phẩm")).toHaveLength(1);
-    // The default cell of a sub-tab without a bottleneck ranks videos.
-    expect(await screen.findByRole("heading", { name: "Video kéo Lượt hiển thị sản phẩm xuống" })).toBeInTheDocument();
-  });
-
-  it("lists rows with metric prior → last, GMV/ngày and confidence; closing rows add up to Tổng", async () => {
-    const user = userEvent.setup();
-    renderView();
-    const table = await screen.findByTestId("ranking-table");
-    const payload = CTOR.ranking;
-
-    const listed = within(table).getAllByRole("row").filter((r) => r.hasAttribute("data-row-id"));
-    expect(listed.map((r) => r.getAttribute("data-row-id"))).toEqual(payload.down.map((r) => r.id));
-    expect(listed[0]).toHaveTextContent("s1");
-    expect(listed[0]).toHaveTextContent("Bình giữ nhiệt inox 500ml");
-    expect(listed[0]).toHaveTextContent(/6,28 % → 3,67 %/);
-    expect(listed[0]).toHaveTextContent(signedMoney(payload.down[0].gmv_per_day));
-    expect(within(listed[0]).getByText("Rõ")).toBeInTheDocument();
-
-    expect(within(table).getByText("Thay đổi cơ cấu sản phẩm")).toBeInTheDocument();
-    expect(within(table).getByTestId("ranking-total")).toHaveTextContent(`Tổng = ${signedMoney(payload.stream_factor_gmv)}`);
-
-    for (const direction of ["down", "up"] as const) {
-      const shown = (direction === "down" ? payload.down : payload.up).reduce((s, r) => s + r.gmv_per_day, 0);
-      const closing = closingRows(payload, direction).reduce((s, r) => s + r.gmv, 0);
-      expect(shown + closing).toBeCloseTo(payload.stream_factor_gmv, 0);
-    }
-
-    await user.click(screen.getByRole("button", { name: "Kéo lên" }));
-    expect(screen.getByRole("heading", { name: "SKU kéo CTOR lên" })).toBeInTheDocument();
-    const upRows = within(screen.getByTestId("ranking-table"))
-      .getAllByRole("row")
-      .filter((r) => r.hasAttribute("data-row-id"));
-    expect(upRows.map((r) => r.getAttribute("data-row-id"))).toEqual(payload.up.map((r) => r.id));
-    expect(screen.getByText(`${payload.down.length} sản phẩm kéo xuống (xem Kéo xuống)`)).toBeInTheDocument();
-  });
-
-  it("LIVE rows read title · dd/mm/yyyy", async () => {
-    renderView({ stream: "live", metric: "ctr" });
-    const table = await screen.findByTestId("ranking-table");
-    expect(screen.getByRole("heading", { name: "Phiên LIVE kéo CTR xuống" })).toBeInTheDocument();
-    const first = RANKINGS.seller_live.ctr.ranking.down[0];
-    expect(within(table).getByText(first.name)).toBeInTheDocument();
-    expect(first.name).toMatch(/ · \d{2}\/\d{2}\/\d{4}$/);
-  });
-
-  it("404 → 'Chưa có bảng xếp hạng cho chỉ số này'; a failure offers Thử lại", async () => {
-    const user = userEvent.setup();
-    renderView({}, vi.fn().mockResolvedValue(null));
-    expect(await screen.findByText("Chưa có bảng xếp hạng cho chỉ số này")).toBeInTheDocument();
-    expect(screen.queryByTestId("ranking-table")).toBeNull();
-    expect(screen.queryByTestId("detail-panel")).toBeNull();
-
-    const failing = vi.fn().mockRejectedValueOnce(new Error("500")).mockImplementation(loadSampleRanking);
-    renderView({ stream: "the-san-pham", metric: "ctr" }, failing);
-    expect(await screen.findByText("Không tải được bảng xếp hạng. Vui lòng thử lại.")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Thử lại" }));
-    expect(await screen.findByRole("heading", { name: "SKU kéo CTR xuống" })).toBeInTheDocument();
-    expect(failing).toHaveBeenCalledTimes(2);
-  });
-
-  it("a clicked row opens the Ví dụ panel: hero profile when present, else its row numbers", async () => {
-    const user = userEvent.setup();
-    renderView();
-    const panel = await screen.findByTestId("detail-panel");
-    // Default: the first row (s1, a hero) with its 5-channel profile.
-    expect(panel).toHaveTextContent("Ví dụ · s1");
-    expect(within(panel).getByRole("region", { name: /Hồ sơ 5 kênh/ })).toBeInTheDocument();
-    expect(within(panel).getByText("Thẻ sản phẩm của người bán")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /Thớt gỗ tròn 30cm/ }));
-    const next = screen.getByTestId("detail-panel");
-    expect(next).toHaveTextContent("Ví dụ · s7");
-    expect(next).toHaveTextContent("Thớt gỗ tròn 30cm");
-    expect(within(next).queryByRole("region", { name: /Hồ sơ 5 kênh/ })).toBeNull();
-    expect(next).toHaveTextContent(/không thuộc năm sản phẩm chủ lực/);
-    expect(screen.getByRole("button", { name: /Thớt gỗ tròn 30cm/ })).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("hero products expand in place; Khuyến mãi, Dòng thời gian and Cách tính start collapsed", async () => {
-    const user = userEvent.setup();
+  it("rows expand in place with CTOR's two steps, SKU orders and the proposal", async () => {
     renderView();
     await screen.findByTestId("ranking-table");
-
-    const hero = screen.getByRole("button", { name: /Hộp cơm giữ nhiệt 3 tầng/ });
-    expect(hero).toHaveAttribute("aria-expanded", "false");
-    await user.click(hero);
-    expect(hero).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("region", { name: "Chỉ số của Hộp cơm giữ nhiệt 3 tầng" })).toBeInTheDocument();
-
-    for (const id of ["khuyen-mai", "dong-thoi-gian", "cach-tinh"]) {
-      const section = screen.getByTestId(`more-${id}`);
-      const toggle = within(section).getByRole("button", { name: "Xem thêm" });
-      expect(toggle).toHaveAttribute("aria-expanded", "false");
-      expect(document.getElementById(`${id}-body`)).toBeEmptyDOMElement();
-    }
-    const promos = screen.getByTestId("more-khuyen-mai");
-    await user.click(within(promos).getByRole("button", { name: "Xem thêm" }));
-    expect(within(promos).getByRole("button", { name: "Thu gọn" })).toHaveAttribute("aria-expanded", "true");
-    expect(document.getElementById("khuyen-mai-body")).not.toBeEmptyDOMElement();
+    const sm = rowOf("Son môi số 12");
+    await userEvent.click(within(sm).getByRole("button", { expanded: false }));
+    expect(within(rowOf("Son môi số 12")).getByText("Hai bước của CTOR")).toBeInTheDocument();
+    expect(within(rowOf("Son môi số 12")).getByText("Thêm giỏ/bấm +6k ₫ · Đơn/thêm giỏ −118k ₫")).toBeInTheDocument();
+    expect(within(rowOf("Son môi số 12")).getByText("217 → 162")).toBeInTheDocument();
+    expect(within(rowOf("Son môi số 12")).getByText("Mô tả · +2,1 tr ₫/tháng")).toBeInTheDocument();
   });
 
-  it("a stream without data says so and has no cells", () => {
-    const envelope = structuredClone(SAMPLE);
-    envelope.report.channels = envelope.report.channels.filter((c) => c.channel !== "shop_tab");
-    render(<PhanTichView envelope={envelope} loadRanking={loadSampleRanking} query={{}} />);
-    const tab = screen.getByRole("article", { name: "Tab cửa hàng" });
-    expect(tab).toHaveTextContent("Chưa có dữ liệu");
-    expect(within(tab).queryAllByRole("button")).toHaveLength(0);
+  it("rows with a card link to it; the others say Chưa có đề xuất", async () => {
+    renderView();
+    await screen.findByTestId("ranking-table");
+    await waitFor(() => expect(within(rowOf("Son môi số 12")).getByRole("link", { name: "Xem đề xuất ›" })).toHaveAttribute("href", "/decisions?tab=de-xuat&the=sample-sm-012"));
+    expect(within(rowOf("Kem dưỡng ẩm ceramide")).getByRole("link", { name: "Xem đề xuất ›" })).toHaveAttribute("href", "/decisions?tab=de-xuat&the=sample-kd-030");
+    expect(within(rowOf("Sữa rửa mặt amino")).getByText("Chưa có đề xuất")).toBeInTheDocument();
+  });
+
+  it("Kéo lên, Còn lại · 3 dòng", async () => {
+    renderView();
+    await screen.findByTestId("ranking-table");
+    await userEvent.click(screen.getByRole("button", { name: "Kéo lên" }));
+    expect(screen.getByRole("heading", { name: "1 sản phẩm kéo CTOR lên" })).toBeInTheDocument();
+    expect(rowOf("Toner rau má 200ml")).toBeTruthy();
+    const rest = screen.getByRole("button", { name: /Còn lại · 3 dòng/ });
+    await userEvent.click(rest);
+    expect(screen.getByText("2 sản phẩm ít đơn")).toBeInTheDocument();
+    expect(screen.getByText("Thay đổi cơ cấu sản phẩm")).toBeInTheDocument();
+  });
+
+  it("arrives on a row from a card: stream, metric and row expanded; a Kéo lên row switches the table", async () => {
+    renderView(`/analytics?tab=san-pham&stream=the-san-pham&metric=ctor&row=${SM012}`);
+    await screen.findByTestId("ranking-table");
+    expect(within(rowOf("Son môi số 12")).getByRole("button", { expanded: true })).toBeInTheDocument();
+    renderView(`/analytics?tab=san-pham&stream=the-san-pham&metric=ctor&row=${sampleProductId("TN-021")}`);
+    expect(await screen.findByRole("heading", { name: "1 sản phẩm kéo CTOR lên" })).toBeInTheDocument();
+  });
+
+  it("Nội dung: video rows, greyed cells, Xem sản phẩm được gắn › opens that product's row", async () => {
+    const { spy } = renderView("/analytics?tab=noi-dung");
+    expect(screen.queryByTestId("juli-suggestion")).toBeNull();
+    expect(screen.getByRole("button", { name: /^CTOR · Video của người bán/ })).toBeDisabled();
+    expect(await screen.findByRole("heading", { name: "Video tác động CTR nhiều nhất" })).toBeInTheDocument();
+    const v1 = rowOf("Mặt nạ đất sét: trước và sau");
+    expect(v1).toHaveTextContent("Đăng 02/09 · gắn MN-015");
+    await userEvent.click(within(v1).getByRole("link", { name: "Xem sản phẩm được gắn ›" }));
+    expect(spy).toHaveBeenLastCalledWith(`/analytics?tab=san-pham&stream=the-san-pham&metric=ctor&row=${sampleProductId("MN-015")}`);
+    expect(await screen.findByRole("tab", { name: "Sản phẩm" })).toHaveAttribute("aria-selected", "true");
+    expect(within(rowOf("Mặt nạ đất sét 100g")).getByRole("button", { expanded: true })).toBeInTheDocument();
+  });
+
+  it("Khuyến mãi and Lịch sale start collapsed; ⓘ Cách tính toggles the explanation", async () => {
+    renderView();
+    const promo = screen.getByTestId("more-khuyen-mai");
+    expect(within(promo).getByRole("button", { name: "Xem thêm" })).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(within(promo).getByRole("button", { name: "Xem thêm" }));
+    expect(within(promo).getByText("Giảm thật trung bình")).toBeInTheDocument();
+    await userEvent.click(within(screen.getByTestId("more-lich-sale")).getByRole("button", { name: "Xem thêm" }));
+    expect(screen.getByText(/gấp .* lần ngày thường/)).toBeInTheDocument();
+    expect(screen.queryByText(/Số trung bình mỗi ngày/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Cách tính" }));
+    expect(screen.getByText(/Số trung bình mỗi ngày/)).toBeInTheDocument();
+  });
+
+  it("the old Ví dụ panel, hero list and explanatory paragraph are gone", async () => {
+    renderView();
+    await screen.findByTestId("ranking-table");
+    expect(screen.queryByTestId("detail-panel")).toBeNull();
+    expect(screen.queryByText(/Bấm một chỉ số để xem/)).toBeNull();
+    expect(screen.queryByText(/Sản phẩm chủ lực/)).toBeNull();
+  });
+});
+
+describe("Đề xuất ← Phân tích", () => {
+  function QdHarness({ initial }: { initial: string }) {
+    const [href, setHref] = useState(initial);
+    const p = new URLSearchParams(href.split("?")[1] ?? "");
+    const query: QdQuery = { tab: resolveTab(p.get("tab")), run: null, rulesOpen: false, focusCard: p.get("the"), focusMetric: p.get("nhom") };
+    const [clients] = useState(() => createSampleQdClients({ stepMs: 0 }));
+    return <SampleQuyetDinh clients={clients} onNavigate={setHref} query={query} />;
+  }
+
+  it("the=<card> outlines that card for 3 s; each card links back with Xem phân tích ›", async () => {
+    vi.spyOn(window, "setTimeout");
+    render(<QdHarness initial="/decisions?tab=de-xuat&the=sample-sm-012" />);
+    const card = await waitFor(() => {
+      const found = document.querySelector('[data-decision-id="sample-sm-012"]');
+      expect(found).not.toBeNull();
+      return found as HTMLElement;
+    });
+    await waitFor(() => expect(card).toHaveAttribute("data-focused", "true"));
+    expect(card.className).toContain("qv-card--focus");
+    expect(within(card).getByRole("link", { name: "Xem phân tích ›" })).toHaveAttribute(
+      "href",
+      `/analytics?tab=san-pham&stream=the-san-pham&metric=ctor&row=${SM012}`,
+    );
+    expect(window.setTimeout).toHaveBeenCalledWith(expect.any(Function), 3000);
+  });
+
+  it("nhom=ctor outlines the CTOR group", async () => {
+    render(<QdHarness initial="/decisions?tab=de-xuat&nhom=ctor" />);
+    await waitFor(() => expect(document.querySelector(".qv-group--focus")).not.toBeNull());
+    expect(document.querySelector(".qv-group--focus")?.getAttribute("data-group-key")).toBe("PRODUCT_CARD:page");
   });
 });
 
 describe("Phân tích — signed in", () => {
-  it("reads each clicked cell's ranking with the token and the acting shop", async () => {
+  it("reads the open cell's ranking and the decisions with the token and the acting shop", async () => {
     const fetchRanking = vi.fn().mockResolvedValue(CTOR);
-    render(<SignedInPhanTich envelope={SAMPLE} fetchRanking={fetchRanking} query={{}} shopId="shop-1" token="token-1" />);
+    const fetchDecisions = vi.fn().mockResolvedValue([]);
+    render(
+      <SignedInPhanTich
+        envelope={sampleEnvelope()}
+        fetchDecisions={fetchDecisions}
+        fetchRanking={fetchRanking}
+        query={{}}
+        shopId="shop-1"
+        token="token-1"
+      />,
+    );
     expect(await screen.findByTestId("ranking-table")).toBeInTheDocument();
     expect(fetchRanking).toHaveBeenCalledWith({ token: "token-1", shopId: "shop-1", stream: "product_card", metric: "ctor" });
+    expect(fetchDecisions).toHaveBeenCalledWith({ token: "token-1", shopId: "shop-1" });
     expect(screen.queryByTestId("mock-data-notice")).toBeNull();
+    expect(within(rowOf("Son môi số 12")).getByText("Chưa có đề xuất")).toBeInTheDocument();
+  });
+
+  it("a decisions failure only hides the links", async () => {
+    render(
+      <SignedInPhanTich
+        envelope={sampleEnvelope()}
+        fetchDecisions={vi.fn().mockRejectedValue(new Error("down"))}
+        fetchRanking={vi.fn().mockResolvedValue(CTOR)}
+        query={{}}
+        shopId="s"
+        token="t"
+      />,
+    );
+    expect(await screen.findByTestId("ranking-table")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Xem đề xuất ›" })).toBeNull();
+  });
+
+  it("404 → Chưa có bảng xếp hạng; a failure offers Thử lại", async () => {
+    const fetchRanking = vi.fn().mockRejectedValueOnce(new Error("x")).mockResolvedValue(null);
+    render(
+      <SignedInPhanTich envelope={sampleEnvelope()} fetchDecisions={vi.fn().mockResolvedValue([])} fetchRanking={fetchRanking} query={{}} shopId="s" token="t" />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByText("Chưa có bảng xếp hạng cho chỉ số này")).toBeInTheDocument();
   });
 
   it("the rankings client sends bearer + X-Shop-Id, and maps 404 to null", async () => {
     const ok = vi.fn().mockResolvedValue(new Response(JSON.stringify(CTOR), { status: 200 }));
-    await expect(
-      fetchMetricRanking({ token: "t", shopId: "s", stream: "seller_live", metric: "ctor", fetchImpl: ok }),
-    ).resolves.toEqual(CTOR);
+    await expect(fetchMetricRanking({ token: "t", shopId: "s", stream: "seller_live", metric: "ctor", fetchImpl: ok })).resolves.toEqual(CTOR);
     const [url, init] = ok.mock.calls[0];
     expect(url).toBe(`${DEMO_RANKINGS_API_PATH}?stream=seller_live&metric=ctor`);
     expect(init.headers).toMatchObject({ Authorization: "Bearer t", "X-Shop-Id": "s" });
-
     const missing = vi.fn().mockResolvedValue(new Response("{}", { status: 404 }));
-    await expect(
-      fetchMetricRanking({ token: "t", shopId: "s", stream: "product_card", metric: "aov", fetchImpl: missing }),
-    ).resolves.toBeNull();
-    const broken = vi.fn().mockResolvedValue(new Response("{}", { status: 500 }));
-    await expect(
-      fetchMetricRanking({ token: "t", shopId: "s", stream: "product_card", metric: "aov", fetchImpl: broken }),
-    ).rejects.toThrow();
+    await expect(fetchMetricRanking({ token: "t", shopId: "s", stream: "product_card", metric: "aov", fetchImpl: missing })).resolves.toBeNull();
   });
 
   it("/analytics reads the report once, through the shell's useShopReport", async () => {
     window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({ accessToken: "token-1", tokenType: "bearer" }));
     window.sessionStorage.setItem(ACTIVE_SHOP_STORAGE_KEY, JSON.stringify({ id: "shop-1", name: "Shop Thật" }));
     searchParams.set("tab", "noi-dung");
-    const loadAnalysis = vi.fn().mockResolvedValue(SAMPLE);
+    const loadAnalysis = vi.fn().mockResolvedValue(sampleEnvelope());
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 404 }));
-
     render(
       <ShopReportProvider loadAnalysis={loadAnalysis}>
         <AnalysisPageClient />
       </ShopReportProvider>,
     );
-
     expect(await screen.findByRole("tab", { name: "Nội dung" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByText("Chưa có bảng xếp hạng cho chỉ số này")).toBeInTheDocument();
     expect(loadAnalysis).toHaveBeenCalledTimes(1);
     const urls = fetchSpy.mock.calls.map(([u]) => String(u));
+    expect(urls).toContain(`${DEMO_RANKINGS_API_PATH}?stream=seller_video&metric=ctr`);
     expect(urls.some((u) => u.startsWith("/v1/demo/analysis?") || u === "/v1/demo/analysis")).toBe(false);
-    expect(urls).toEqual([`${DEMO_RANKINGS_API_PATH}?stream=seller_video&metric=impressions`]);
   });
 
   it("a signed-in shop with no report gets an honest empty state, never the sample", async () => {
@@ -359,7 +412,7 @@ describe("Phân tích — signed in", () => {
         <AnalysisPageClient />
       </ShopReportProvider>,
     );
-    expect(await screen.findByTestId("mock-data-notice")).toBeInTheDocument();
+    expect(await screen.findByTestId("mock-data-notice")).toHaveTextContent("Cửa hàng Mẫu Hoa Mai");
     expect(await screen.findByTestId("ranking-table")).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });

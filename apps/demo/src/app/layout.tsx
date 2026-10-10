@@ -6,6 +6,7 @@ import { DemoShell } from "../components/demo-shell";
 import { TikTokTracking } from "../components/tiktok-tracking";
 import "./globals.css";
 import "./quyet-dinh.css";
+import "./phan-tich.css";
 
 /** Quyết định's typeface (AC-10.3 artboards); exposed as a variable so only
  *  those screens use it — the shell keeps Inter. */

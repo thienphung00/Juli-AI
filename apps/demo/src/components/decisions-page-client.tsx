@@ -70,6 +70,9 @@ export function DecisionsPageClient() {
     run: params.get("run"),
     rulesOpen: params.get("quy-tac") === "1",
     measureTab: resolveMeasureTab(params.get("moc")),
+    // Phân tích's "Xem đề xuất ›" / "Xem N đề xuất ›" (ADR-109 Amendment 2 d.4).
+    focusCard: params.get("the"),
+    focusMetric: params.get("nhom"),
   };
 
   if (session) {

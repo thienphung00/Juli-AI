@@ -1,7 +1,7 @@
 "use client";
 
 import { ConfirmDialog } from "@juli/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { cardView, gmvMonthText, type CardView } from "../../lib/quyet-dinh/card-model";
 import {
@@ -12,6 +12,7 @@ import {
   bandMetricLabel,
   setByLabel,
 } from "../../lib/quyet-dinh/copy";
+import { analysisHrefForDecision, cardMetric } from "../../lib/phan-tich/cards";
 import { batchCards, type DecisionGroup } from "../../lib/quyet-dinh/grouping";
 import type { CardStatus, P10DecisionItem } from "../../lib/quyet-dinh/p10-types";
 import type { ReasonChoice } from "../../lib/quyet-dinh/reasons";
@@ -44,6 +45,18 @@ export interface DeXuatPanelProps {
   readonly onOpenRules: () => void;
   readonly onOpenRun: (runId: string | null) => void;
   readonly progressHref: (runId: string | null) => string;
+  /** Phân tích's "Xem đề xuất ›": the card to scroll to and outline for 3 s. */
+  readonly focusCard?: string | null;
+  /** Phân tích's "Xem N đề xuất ›": the metric (ctr / ctor / aov) whose group to scroll to. */
+  readonly focusMetric?: string | null;
+}
+
+/** How long an arriving card / group stays outlined (PtFlow: "viền hồng 3 giây"). */
+export const FOCUS_MS = 3000;
+
+function groupMetric(group: DecisionGroup): string | null {
+  const first = group.cards[0]?.item;
+  return first ? cardMetric(first) : null;
 }
 
 export function DeXuatPanel({
@@ -60,8 +73,27 @@ export function DeXuatPanel({
   onOpenRules,
   onOpenRun,
   progressHref,
+  focusCard = null,
+  focusMetric = null,
 }: DeXuatPanelProps) {
   const narrow = useNarrow();
+  const focusGroupKey = focusMetric ? (groups.find((group) => groupMetric(group) === focusMetric)?.key ?? null) : null;
+  const focusTarget = focusCard ? `card:${focusCard}` : focusGroupKey ? `group:${focusGroupKey}` : null;
+  const [highlight, setHighlight] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusTarget) return;
+    const attribute = focusTarget.startsWith("card:") ? "data-decision-id" : "data-group-key";
+    const value = focusTarget.slice(focusTarget.indexOf(":") + 1);
+    const element = [...document.querySelectorAll(`[${attribute}]`)].find((el) => el.getAttribute(attribute) === value);
+    if (!element) return;
+    element.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    const start = window.setTimeout(() => setHighlight(focusTarget), 0);
+    const timer = window.setTimeout(() => setHighlight(null), FOCUS_MS);
+    return () => {
+      window.clearTimeout(start);
+      window.clearTimeout(timer);
+    };
+  }, [focusTarget]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [pendingBatch, setPendingBatch] = useState<readonly string[] | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
@@ -88,7 +120,13 @@ export function DeXuatPanel({
         const groupBlock =
           blockReason ?? (runnable.length === 0 ? "Không còn thẻ nào Juli tự thực hiện được trong nhóm này." : null);
         return (
-          <section aria-labelledby={headingId} className="qv-group" data-testid="decision-group" key={group.key}>
+          <section
+            aria-labelledby={headingId}
+            className={`qv-group${highlight === `group:${group.key}` ? " qv-group--focus" : ""}`}
+            data-group-key={group.key}
+            data-testid="decision-group"
+            key={group.key}
+          >
             <div className="qv-group__head">
               <div className="qv-group__titles">
                 <h2 className="qv-group__title" id={headingId}>
@@ -127,7 +165,9 @@ export function DeXuatPanel({
                 return (
                   <li key={view.id}>
                     <RecommendationCard
+                      analysisHref={analysisHrefForDecision(group.cards.find((c) => c.id === view.id)?.item ?? group.cards[0].item)}
                       blockedReason={blockReason}
+                      focused={highlight === `card:${view.id}`}
                       busy={busy}
                       card={view}
                       error={cardErrors[view.id] ?? null}

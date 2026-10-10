@@ -695,3 +695,54 @@ Append-only. Newest at the bottom. Format: `## YYYY-MM-DD — who` then bullets.
   clean, vitest 1665 / 1665, Playwright 132 passed / 140 skipped (port 3317, built
   artifact), build:demo OK, pytest exit-gate / P10 wiring / workspace guards 43 passed.
 
+
+## 2026-10-10 — P12 agent (Claude Opus) — Phân tích redesign (ADR-109 Amendment 2)
+
+Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p12-phan-tich`.
+
+- Backend (3fb2dab9, additive, contract `contracts/p12-phan-tich.md`, no migration):
+  report `daily_gmv`, `seller_skus`, `promo_products` (`promotions.promo_products`),
+  `Band.product_count`; ranking rows `seller_sku` (products), `product_ids` (LIVE /
+  video, `rankings.tagged_products`). Per-cell ₫/day impact and the weakest metric
+  were already in the report (`factors[].contribution`); the row → card join uses
+  the existing `diagnosis.tiktok_product_id` and stage.
+- UI: `lib/phan-tich/{model,rows,cards,extras,format,sample-data}.ts`,
+  `components/phan-tich/{phan-tich-view,stream-card,extras,sample-phan-tich,signed-in-phan-tich}.tsx`,
+  `app/phan-tich.css` (`.pa-*` on the `--qd-*` tokens). Removed: StreamFunnel,
+  RankingTable, DetailPanel (Ví dụ), HeroList, `components/shop-analysis/*`,
+  `lib/phan-tich/notes.ts`. Quyết định: `the=` / `nhom=` focus (3 s outline) and
+  "Xem phân tích ›" on every diagnosed card.
+- Deviations from the artboards (all data-driven or honesty):
+  1. Sample numbers: the cells' ₫/day impacts and last values are the artboards',
+     prior values are derived with ADR-108's log-share split so Δ % agrees with
+     ₫/day — CTOR shows ▼ 6,9 % (artboard 15,2 %), Hiển thị ▲ 19,4 %, GMV ▲ 7,5 %;
+     h1 "Thẻ sản phẩm: CTOR giảm 7 %". Video/LIVE Hiển thị/ngày 5.630 / 1.410
+     (artboard 41.200 / 6.300 cannot give 1,9 / 0,8 tr ₫ with those rates).
+     "Còn lại" sums are reconciled so Tổng = the cell (artboard rows did not add up).
+  2. Row ↔ card links follow the real sample cards (product × metric): TN-021 AOV
+     ("Mua nhiều giảm nhiều"), KC-004 CTOR ("Phí vận chuyển") and SM-012 CTR
+     ("Tiêu đề") read "Chưa có đề xuất" — those cards do not exist in the
+     Quyết định sample; TN-021 CTOR (applied card) links to it.
+  3. Row facts: see DEBT (AOV facts, Kênh khác only for heroes, no "Lý do" on
+     Kéo lên rows, video Nguồn / LIVE duration); a no-card down row shows a generic
+     "Gợi ý" ("Theo dõi thêm" when Tham khảo).
+  4. Khuyến mãi: "Giảm thật trung bình" sub reads "So với giá đang bán trước flash
+     sale" (what true depth measures); a shallow depth reads "(quá nông)" in red
+     instead of "(giá đã tăng trước)"; Voucher sub "N voucher đang chạy · đơn đạt
+     ngưỡng"; all promo products are listed (sample: 5 rows, not 3); KD-030 is a
+     product discount, not "Voucher 20k" (vouchers are shop-level).
+  5. Lịch sale: 8 flash days are drawn pink (the artboard's stat says 8/60 but
+     draws one); tiles' "gấp N lần" / "+N %" are computed against the median
+     normal day; "Sắp tới" omits "chưa đăng ký".
+  6. LinkA's dashed pink frame marks "what option A adds" — the app draws the
+     caption as a white strip with the 1px pink hairline.
+  7. A "Dữ liệu mẫu · … shop minh họa" notice sits under the header when signed
+     out (P11 precedent); the footer "Số liệu là ví dụ minh hoạ." shows only then.
+  8. "Xem N đề xuất ›" scrolls to / outlines the group rather than filtering.
+  9. Mobile Khuyến mãi / Lịch sale item texts are the desktop tiles' texts.
+  10. `--qd-faint` #6b6b76 (AA) for "Chưa có đề xuất" and the footer, as P10.
+- Verification (Node 20): lint 0 errors (7 pre-existing warnings), type-check
+  clean, vitest 1673/1673 (in a full parallel run 5 unrelated tests time out
+  intermittently; they pass in isolation), Playwright 134 passed / 140 skipped
+  (port 3318), build:demo OK, shop-diagnosis pytest 120 passed, `check.sh` OK
+  (migrations at 080 unchanged, isolation 12, ruff, pytest 32, gitleaks).

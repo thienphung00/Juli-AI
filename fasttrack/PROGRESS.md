@@ -66,6 +66,15 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 |---|---|---|---|
 | P11 Signed-out Quyết định = P10 design over sample fixtures (no network); sign-in in localStorage | — | done on `fasttrack/p11-sample-mode` (not merged, not deployed) | P11 agent (Opus) |
 
+## P12 — Phân tích redesign to the approved artboards (ADR-109 Amendment 2)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P12 backend additive fields (report `daily_gmv`, `seller_skus`, `promo_products`, `Band.product_count`; ranking rows `seller_sku`, `product_ids`) — contract `contracts/p12-phan-tich.md`, no migration | 12.1 | done on `fasttrack/p12-phan-tich` (not merged, not deployed) | P12 agent (Opus) |
+| P12 UI: streams, cells, ranking, rows, Khuyến mãi / Lịch sale, Nội dung, mobile, LinkA | 12.2 | done on `fasttrack/p12-phan-tich` | P12 agent (Opus) |
+| P12 two-way links Phân tích ↔ Đề xuất (`the=`, `nhom=`, "Xem phân tích ›") | 12.3 | done on `fasttrack/p12-phan-tich` | P12 agent (Opus) |
+| P12 signed-out sample = the Quyết định sample's shop, no network | 12.4 | done on `fasttrack/p12-phan-tich` | P12 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

@@ -40,6 +40,10 @@ export interface RankingRow {
   method?: string;
   /** CTOR on Thẻ sản phẩm: the share carried by each of its two steps. */
   steps?: Partial<Record<"add_to_cart_rate" | "orders_per_cart", number>>;
+  /** Product rows: the seller SKU (fast track P12, additive). */
+  seller_sku?: string | null;
+  /** LIVE / video rows: the product ids it featured (fast track P12, additive). */
+  product_ids?: string[];
 }
 
 export interface ClosingRow {

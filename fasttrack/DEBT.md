@@ -532,3 +532,12 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Vitest needs Node 20/22: Node 26's built-in `localStorage` shadows jsdom's
   (undefined without `--localstorage-file`), failing ~243 storage tests locally.
 
+
+## P12 Phân tích redesign (2026-10-10)
+
+- [ ] Home's signed-out sample is still the household shop of `lib/shop-analysis/sample-report.json`; Phân tích and Quyết định show the cosmetics sample shop. Home's matrix links still land on valid cells, but the numbers differ between Home and Phân tích when signed out.
+- [ ] `scripts/demo_analysis_sample.py --check` fails at HEAD before P12 (`ImportError: VideoWindowMetrics` from `rankings`); `sample-rankings.json` is no longer read by the app and is kept only for that script.
+- [ ] Row facts with no data source: AOV rows show "Đơn hàng SKU 30 ngày" instead of the artboard's "Món mỗi đơn" / "Đơn 1 món"; "Kênh khác" only for hero products (5-channel profile); "Lý do" on Kéo lên rows is not shown; Video "Nguồn" (traffic source) and LIVE duration are not available.
+- [ ] Voucher stat reads the share of orders at or above a running voucher's threshold (`above_after`), not redemptions; "Sắp tới" omits "chưa đăng ký" (no campaign-registration data).
+- [ ] `nhom=<metric>` scrolls to and outlines the metric's group; it does not filter the other groups out.
+- [ ] Old `.pt-*` rules in `globals.css` are now unused (no component emits them).

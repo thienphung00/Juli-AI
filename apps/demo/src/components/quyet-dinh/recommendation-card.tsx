@@ -44,6 +44,19 @@ export interface RecommendationCardProps {
   readonly onApprove: () => void;
   readonly onReject: () => void;
   readonly onOpenProgress?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  /** "Xem phân tích ›" (ADR-109 Amendment 2 d.4, PtFlow): Phân tích on the card's stream, metric and row. */
+  readonly analysisHref?: string | null;
+  /** Arrived from Phân tích's "Xem đề xuất ›": outlined pink for 3 s. */
+  readonly focused?: boolean;
+}
+
+function AnalysisLink({ href }: { readonly href: string | null | undefined }) {
+  if (!href) return null;
+  return (
+    <a className="qv-analysis-link" href={href}>
+      Xem phân tích ›
+    </a>
+  );
 }
 
 function MoreSection({ card }: { readonly card: CardView }) {
@@ -146,12 +159,21 @@ function DesktopCard({
   onApprove,
   onReject,
   onOpenProgress,
+  analysisHref,
+  focused = false,
 }: RecommendationCardProps) {
   const titleId = useId();
   const blockId = useId();
   const showWho = card.executor !== "juli";
   return (
-    <article aria-labelledby={titleId} className="qv-card" data-decision-id={card.id} data-status={status} data-testid="recommendation-card">
+    <article
+      aria-labelledby={titleId}
+      className={`qv-card${focused ? " qv-card--focus" : ""}`}
+      data-decision-id={card.id}
+      data-focused={focused ? "true" : undefined}
+      data-status={status}
+      data-testid="recommendation-card"
+    >
       <div className="qv-card__top">
         <div className="qv-card__id">
           <div className="qv-card__name-row">
@@ -235,6 +257,7 @@ function DesktopCard({
         <button aria-expanded={expanded} className="qv-btn qv-btn--ghost qv-card__toggle" onClick={onToggle} type="button">
           {expanded ? "Thu gọn" : "Xem thêm"}
         </button>
+        <AnalysisLink href={analysisHref} />
       </div>
       {showWho && status === "pending" ? <span className="qv-after-note">{EXECUTOR_COPY[card.executor].after}</span> : null}
       {status === "pending" && blockedReason ? (
@@ -263,6 +286,8 @@ function MobileCard({
   onApprove,
   onReject,
   onOpenProgress,
+  analysisHref,
+  focused = false,
 }: RecommendationCardProps) {
   const titleId = useId();
   const blockId = useId();
@@ -270,8 +295,9 @@ function MobileCard({
   return (
     <article
       aria-labelledby={titleId}
-      className="qv-card qv-card--mobile"
+      className={`qv-card qv-card--mobile${focused ? " qv-card--focus" : ""}`}
       data-decision-id={card.id}
+      data-focused={focused ? "true" : undefined}
       data-status={status}
       data-testid="recommendation-card"
     >
@@ -362,9 +388,12 @@ function MobileCard({
           {error}
         </p>
       ) : null}
-      <button aria-expanded={expanded} className="qv-card__more-link" onClick={onToggle} type="button">
-        {expanded ? "Thu gọn ‹" : "Xem thêm ›"}
-      </button>
+      <div className="qv-card__links">
+        <button aria-expanded={expanded} className="qv-card__more-link" onClick={onToggle} type="button">
+          {expanded ? "Thu gọn ‹" : "Xem thêm ›"}
+        </button>
+        <AnalysisLink href={analysisHref} />
+      </div>
     </article>
   );
 }

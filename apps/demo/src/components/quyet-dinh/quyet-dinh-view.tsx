@@ -71,6 +71,10 @@ export interface QdQuery {
   readonly rulesOpen: boolean;
   /** Đo lường's tab (`moc`), or null for the default. */
   readonly measureTab?: MeasureTab | null;
+  /** `the=<card id>`: Đề xuất scrolls to that card and outlines it for 3 s (Phân tích's "Xem đề xuất ›"). */
+  readonly focusCard?: string | null;
+  /** `nhom=ctr|ctor|aov`: the same for that metric's card group ("Xem N đề xuất ›"). */
+  readonly focusMetric?: string | null;
 }
 
 export function resolveMeasureTab(value: string | null | undefined): MeasureTab | null {
@@ -476,6 +480,8 @@ export function QuyetDinhView({
           <DeXuatPanel
             busy={busy}
             cardErrors={cardErrors}
+            focusCard={query.focusCard ?? null}
+            focusMetric={query.focusMetric ?? null}
             groups={groups}
             onApprove={handleApprove}
             onOpenRules={() => navigate({ rulesOpen: true })}
