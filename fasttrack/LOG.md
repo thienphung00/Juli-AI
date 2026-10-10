@@ -954,3 +954,44 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   type-check clean, vitest 130 files 1714 passed, Playwright 154 passed / 140 skipped (port 3323),
   `pnpm build:demo --force` OK.
 
+
+### 2026-10-10 — P14 integration: D24.21 owner choices
+
+- Merged `fasttrack/optimize-product` (`--no-ff`, docs 3836bf2a: DECISIONS D24.21 + D25 8–10; no conflict).
+- (1)/(3) Strict 7-day return: `decision_reasons.clearly_changed` / `CLEAR_CHANGE_RELATIVE` removed;
+  Optimize Product's `_cooled_down` is the reason row alone; content emission already keyed on the
+  cooldown only. Legacy workflows (`persist.emit_scoring_cards`): a dismissed newest row is handled
+  like an expired one — inside 7 days suppressed (`basis_unchanged` / `active_card_exists` as
+  before), after 7 days a new chained revision even with an unchanged basis. **ADR-087 d.6
+  ("clock never triggers") is replaced for dismissed cards** (DEBT: ADR text not amended). UI copy
+  drops "trừ khi số liệu đổi rõ".
+- (2) `max_open_cards` 5–30, default 30; stored values < 5 clamp to 5 on read (no data migration).
+- (4) Fixed daily slots: `DecisionEmissionConfig.first_day_mix` → `daily_slots`
+  (env `CDP_DECISION_EMISSION_DAILY_SLOTS`); `apply_emission_budget` picks per slot every day
+  (`daily_slot_pick`), today's earlier surfacings (ledger rows → cards) use up their slot, no
+  backfill, the first-day-only mix and `_shop_ever_surfaced` are gone. Legacy cards (no lever) take
+  Juli slots after the ADR-106 Juli cards. `plan_shop_cards` keeps the top 30 per executor type
+  (`keep_top_per_type`). Content candidates rank by GMV × lever weight (`lever_history`).
+- (5) `content_tone` / `banned_terms` rule keys (validation, routes, accessors), editor group
+  "Nội dung video / LIVE", sample values, chips; `content_cards.driver.load_rules` reads exactly
+  them; `agent_runs.confirmations` refuses an `update_product_listing` approve whose title /
+  description contains a banned term (`EditRejected` → 422 `rule_violation`), also checked on the
+  seller's edit (`validate_listing_edits(banned_terms=…)`).
+- Also: content ≤ 5/week in the shop week (`emission._week_start` = shop Monday 00:00 +07);
+  `081_order_cost_data` grants no UPDATE on `order_price_details` / `order_finance_transactions`
+  (delete + insert only; 081 is not deployed, edited in place, no new migration), `order_cost_fetches`
+  UPDATE registered in `GRANT_REQUIRED`; PROGRESS AC id 14E.6 → 14E.5.
+- Tests updated for the slots (14-day simulation now 48 Juli / 16 SC / 16 content, slots 3/1/1 per
+  day; first-day backfill tests replaced by empty-slot / every-day / same-day tests; legacy-card
+  budgets 5 → 3), new `tests/unit/test_d24_21_owner_choices.py` (7).
+- Verification: ruff clean; `ruff format --check` lists none of the changed files (whole-tree
+  list unchanged: 37 under tests/ plus agent-runtime/infra/.claude files); mypy 589 files clean.
+  `tests/unit` (run in 8 chunks): 6681 passed, 242 skipped, 2 xfailed, 9 failed — the same 9
+  pre-existing (7 `test_agent_workflow_task_wiring`, `test_cross_tenant_probe`,
+  `test_destructive_migration_isolation` CI flag). `tests/integration` on a fresh PG16: 276 passed,
+  21 skipped, 3 failed — the same 3 (recorded-replay registry, sanitizer registry, public UPDATE
+  grants — now only the 7 older tables). `fasttrack/check.sh --since 3836bf2a` (docker PG16):
+  migrations PASS at 081, isolation 12 passed, gitleaks PASS, ruff PASS (98 files), pytest 42 files
+  693 passed. Demo (Node 20): lint 0 errors (7 pre-existing warnings), type-check clean, vitest 130
+  files 1715 passed, Playwright 154 passed / 140 skipped (port 3324, example Supabase env),
+  `pnpm build:demo --force` OK.

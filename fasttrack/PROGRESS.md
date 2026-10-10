@@ -104,7 +104,7 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 |---|---|---|---|
 | Contract `contracts/p14-content-cards.md`; artboards ContentCards / ContentRun copied to `docs/product/design/quyet-dinh-flows/` | 14E.1 | done (b668231c) | P14-E agent (Opus) |
 | Backend: candidates from `metric_rankings` (video CTR / LIVE CTOR), nightly emission (7-day validity + cooldown, ≤ 5 new/week, 3-day stay, reason cooldown), card block, content run (reads → ONE `gpt-5.4-nano` structured-output call → choice → publish → detect), seller routes, poll beat, measurement + calibration; no migration | 14E.2–14E.5 | done on `fasttrack/p14-content` (2f7692b3 + follow-up; not merged, not deployed) | P14-E agent (Opus) |
-| UI: content card variant, content group, `content-run-panel`, client calls, signed-out / no-shop sample (MN-015 video, SM-012 LIVE, canned scripts) | 14E.6 | done on `fasttrack/p14-content` (1534786b) | P14-E agent (Opus, UI fork) |
+| UI: content card variant, content group, `content-run-panel`, client calls, signed-out / no-shop sample (MN-015 video, SM-012 LIVE, canned scripts) | 14E.5 | done on `fasttrack/p14-content` (1534786b) | P14-E agent (Opus, UI fork) |
 | Emission budget counts content cards for the day-1 content slot | 14.2 | done on `fasttrack/p14-integration` (aace1159): budget `CONTENT_WORKFLOW_KEYS` = P14-E's `content_video` / `content_live`, payload `card_executor: "juli_drafts"` claims the slot; a budget-expired content card keeps its 7-day return | integration agent (Opus) |
 
 ### P14 integrated
@@ -112,6 +112,7 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P14 integrated: `fasttrack/p14-data` + `fasttrack/p14-cards` + `fasttrack/p14-content` merged (in that order, `--no-ff`) on `fasttrack/p14-integration` from ddef3245; content cards obey the D24.17 limits / validity / 3-day stay with P14-E's ≤ 5/week as a sub-limit; head `081_order_cost_data`, deferred phone cleanup last; full suites + `check.sh --since ddef3245` green (see LOG) | 14.1–14.7, 14.C1–14.F3, 14E.1–14E.5 | done on `fasttrack/p14-integration` (not merged into `fasttrack/optimize-product`, not deployed) | integration agent (Opus) |
+| D24.21 owner choices on `fasttrack/p14-integration` (merged 3836bf2a docs): strict 7-day return after Từ chối / Không thực hiện / Hoàn tác for Optimize, content and legacy cards; "Số thẻ mở cùng lúc" 5–30 (default 30); fixed daily slots 3 Juli / 1 Seller Center / 1 content, empty slot stays empty, every day; "Giọng văn" / "Từ không được dùng" rules read by content runs and enforced on listing writes; content ≤ 5/week in the shop week; 081 grants trimmed; full suites + `check.sh --since 3836bf2a` green (see LOG) | 14.R1–14.R6 | done on `fasttrack/p14-integration` (not merged, not deployed) | integration agent (Opus) |
 
 ## P2–P6
 

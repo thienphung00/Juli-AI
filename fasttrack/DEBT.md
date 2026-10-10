@@ -576,10 +576,8 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   content_cards.CONTENT_WORKFLOW_KEYS`, or payload `card_executor == "juli_drafts"`).
   The ≤ 5/week sub-limit is enforced at creation (new rows per ISO week), not at
   surfacing.
-- [ ] Seller tone and banned words: no rule key exists yet (P14-F, merged in the P14 integration, added none either — still open); the run reads
-  `shop_rules` rows `content_tone` / `tone` and `banned_terms` / `banned_words` if the
-  seller-rules work adds them (unvalidated until then). Protected terms and the
-  per-SKU discount cap are read today.
+- [x] Seller tone and banned words: resolved by D24.21 (5) — validated rule keys
+  `content_tone` / `banned_terms`; the run reads exactly them (aliases dropped).
 - [ ] LIVE candidate CTOR is the SESSION's (the ranking has no per-product split);
   a session featuring N products shares its loss 1/N. The run and the measurement use
   the product's own per-session CTOR (`get_live_products_performance`).
@@ -601,9 +599,19 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P14 integration (2026-10-10)
 
-- [ ] Ranking across producers: P14-E content cards take `priority` 1..N among content candidates only, while Optimize Product cards number their own list; the budget sorts all `active` drafts by `priority`, so after day 1 a content card with priority 1 competes as an equal of the top Optimize card. A shared scale (e.g. by recoverable GMV/day) is not decided.
-- [ ] P14-E's ≤ 5/week sub-limit counts per ISO week in UTC (`created_at`), the budget's weeks are the shop's (UTC+7, Monday); a few hours' offset on Sunday night/Monday morning.
+- [x] Ranking across producers: resolved by D24.21 (4) — fixed daily slots per executor type, each type ranked by its own priority; no shared scale needed.
+- [x] P14-E's ≤ 5/week sub-limit now counts in the shop's week (Asia/Ho_Chi_Minh, Monday), like the card limits.
 - [ ] P14-E expires an open card at > 7 days (withdrawn + `expired_at`), the budget at ≥ 7 days (`expired` + `expired_at`); both now give the 7-day return, but the stored status differs by which ran first.
-- [ ] PROGRESS cites AC `14E.6` for the P14-E UI row; ACCEPTANCE has only AC-14E.1–14E.5 (as on `fasttrack/p14-content`).
+- [x] PROGRESS cited AC `14E.6` for the P14-E UI row; now cites AC-14E.5 (the UI + samples AC; ACCEPTANCE has 14E.1–14E.5).
 - [ ] 37 test/backend files fail `ruff format --check` when run over the whole tree from the repo root — the same 37 at ddef3245 (check.sh's changed-files ruff step is clean).
 - [ ] `tests/integration/test_migrations.py::test_no_public_table_holds_update_beyond_its_call_site` (Postgres only) fails at ddef3245 already (7 tables granted UPDATE without a `GRANT_REQUIRED` call site: P8/P10 tables); P14-C's `081_order_cost_data` adds 3 more (`order_cost_fetches`, `order_finance_transactions`, `order_price_details`). Either register the call sites in `tests/unit/test_juli_app_grants_cover_mutations.py` or revoke the grants — owner/agent decision, not done in the integration.
+  **D24.21 pass:** P14-C's three are gone from the list — `081` no longer grants UPDATE on `order_price_details` / `order_finance_transactions` (replaced by delete + insert), and `order_cost_fetches`' UPDATE is registered (`store.py` attempt counter). Still listed (7, pre-existing): `lever_calibrations`, `run_lever_flows`, `run_lever_photos`, `run_revert_questions`, `shop_diagnosis_reports`, `shop_metric_rankings`, `shop_rules`.
+
+## D24.21 owner choices (2026-10-10)
+
+- [ ] **ADR-087 d.6 replaced for dismissed cards** (D24.21 (3)): a legacy-workflow card the seller rejected / declined / reverted returns as a new revision 7 days later on the clock alone, basis moved or not. ADR-087's text ("the clock is a cap, never a trigger") is not amended yet; `persist.py` / `action_cards/MODULE.md` document the change. Executed cards keep the ADR-087 rule (clock + basis).
+- [ ] Legacy-workflow cards (no ADR-106 lever, executor `other`) take the daily **Juli** slots, after the ADR-106 Juli cards (their priority scale is not comparable). The owner's slot list names only Juli / Seller Center / content; this mapping is the agent's choice.
+- [ ] The Optimize Product plan keeps the top 30 **per executor type** (Juli / Seller Center), up to 60 drafts, so the Seller Center slot is not starved by a shop whose best 30 are Juli cards. The open limit (30) still caps what surfaces.
+- [ ] Content-card priority now multiplies expected GMV by the lever's calibration × reason penalty (`video_script` / `live_script`); no content calibration is measured yet, so only seller reasons move it today.
+- [ ] Banned terms are checked on the listing write at approve (Juli's proposal and the seller's edit) — the agent's drafting prompt does not receive them yet, so a proposal containing one must be edited by the seller before approval.
+- [ ] A `max_open_cards` value stored under the old 1..5 range reads as 5 (clamped); no data migration.
