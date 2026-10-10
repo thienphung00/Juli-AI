@@ -86,8 +86,13 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 
 <sc-if value="{{showDone}}" hint-placeholder-val="{{ false }}">
 <div style="display: flex; flex-direction: column; gap: 8px; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 14px 16px; font-size: 14px">
-<div style="font-weight: 700">Đã khôi phục nội dung cũ</div>
-<div style="color: #4a4a55">Kết quả đo của thay đổi này dừng lại và được ghi là "Đã hoàn tác"{{reasonText}}. Juli không đề xuất lại thay đổi Tiêu đề / Mô tả cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ.</div>
+<div style="font-weight: 700">Hoàn tác hoàn thành · đã khôi phục nội dung cũ</div>
+<div style="display: flex; flex-direction: column; gap: 4px; background: #ffffff; border: 1px solid #c7e8d0; border-radius: 10px; padding: 10px 12px">
+<span style="font-size: 12px; font-weight: 600; color: #5f5f6b">Lý do bạn chọn</span>
+<span style="font-weight: 600">{{reasonLabel}}</span>
+<span style="color: #4a4a55">Lý do giúp Juli đưa ra đề xuất tốt hơn: {{reasonLearn}}</span>
+</div>
+<div style="color: #4a4a55">Kết quả đo của thay đổi này dừng lại và được ghi là "Đã hoàn tác". Juli không đề xuất lại thay đổi Tiêu đề / Mô tả cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ.</div>
 <div style="color: #6b6b76; font-size: 12px">Một lần hoàn tác không thể hoàn tác tiếp. Muốn dùng lại nội dung mới, chờ đề xuất sau.</div>
 </div>
 </sc-if>
@@ -118,7 +123,6 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #5f5f6b">Ghi chú thêm (không bắt buộc)
 <input type="text" placeholder="Ví dụ: khách nhắn hỏi về tên sản phẩm mới" style="font: inherit; font-size: 14px; border: 1px solid #e3d6dc; border-radius: 8px; min-height: 40px; padding: 0 10px">
 </label>
-<div style="font-size: 12px; color: #6b6b76">Lý do giúp Juli chỉnh các đề xuất sau, ví dụ "Sai thông tin sản phẩm" → Juli kiểm kỹ thông tin trước khi soạn.</div>
 <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px">
 <button type="button" onClick="{{cancel}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Huỷ, giữ thay đổi</button>
 <button type="button" onClick="{{go}}" disabled="{{goDisabled}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; {{goStyle}} border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; cursor: pointer">Bắt đầu hoàn tác</button>
@@ -181,7 +185,15 @@ toggle: () => this.setState({ expanded: !this.state.expanded }),
 chip: chips[p][0], chipStyle: chips[p][1],
 steps,
 reasons: R.map((label) => ({ label, on: this.state.picked === label, pick: () => this.setState({ picked: label }) })),
-reasonText: this.state.picked ? ' · lý do: ' + this.state.picked : '',
+reasonLabel: this.state.picked || 'Khác',
+reasonLearn: ({
+'Doanh số hoặc chỉ số giảm': 'lần sau Juli đặt mức kỳ vọng thận trọng hơn cho loại thay đổi này.',
+'Khách phản hồi không tốt': 'Juli đọc thêm đánh giá và tin nhắn của khách trước khi soạn.',
+'Nội dung sai thông tin sản phẩm': 'Juli kiểm kỹ thông tin sản phẩm trước khi soạn.',
+'Không hợp giọng thương hiệu': 'Juli bám sát giọng văn và từ cấm trong Quy tắc của bạn.',
+'TikTok cảnh báo sản phẩm': 'Juli kiểm tra chính sách TikTok kỹ hơn trước khi đề xuất.',
+'Khác': 'Juli ghi lại ghi chú của bạn để xem xét ở đề xuất sau.'
+})[this.state.picked || 'Khác'],
 goDisabled: !this.state.picked,
 goStyle: this.state.picked ? 'background: #c2306d; cursor: pointer;' : 'background: #e7b3c9; cursor: not-allowed;',
 showReason: p === 'reason',

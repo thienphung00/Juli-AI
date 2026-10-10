@@ -64,7 +64,16 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </li>
 </sc-for>
 </ol>
-<div style="background: #f5f5f7; border-radius: 12px; padding: 14px 16px; font-size: 14px; color: #4a4a55">{{outcome}}</div>
+<div style="display: flex; flex-direction: column; gap: 8px; background: #f1faf3; border: 1px solid #c7e8d0; border-radius: 12px; padding: 14px 16px; font-size: 14px">
+<div style="font-weight: 700">{{doneTitle}}</div>
+<div style="display: flex; flex-direction: column; gap: 4px; background: #ffffff; border: 1px solid #c7e8d0; border-radius: 10px; padding: 10px 12px">
+<span style="font-size: 12px; font-weight: 600; color: #5f5f6b">Lý do bạn chọn</span>
+<span style="font-weight: 600">{{reasonLabel}}</span>
+<span style="color: #4a4a55">Lý do giúp Juli đưa ra đề xuất tốt hơn: {{reasonLearn}}</span>
+</div>
+<div style="color: #4a4a55">{{dialogNote}}</div>
+<div style="color: #4a4a55">{{outcome}}</div>
+</div>
 <button type="button" onClick="{{reset}}" style="align-self: flex-start; font: inherit; font-size: 12px; color: #6b6b76; background: transparent; border: 0; min-height: 32px; cursor: pointer">↺ Xem lại từ đầu</button>
 </div>
 </sc-if>
@@ -78,7 +87,7 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 <h3 id="decline-q" style="margin: 0; font-size: 19px; font-weight: 700">{{dialogTitle}}</h3>
 <p style="margin: 0; font-size: 14px; color: #4a4a55">{{dialogBody}}</p>
 <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px">
-<legend style="font-size: 14px; font-weight: 600; padding: 0 0 6px">Vì sao? <span style="font-weight: 400; color: #6b6b76">(chọn một · bắt buộc)</span></legend>
+<legend style="font-size: 14px; font-weight: 600; padding: 0 0 6px">Vì sao? <span style="font-weight: 400; color: rgb(107, 107, 118)">(chọn một)&nbsp;</span></legend>
 <sc-for list="{{reasons}}" as="r" hint-placeholder-count="6">
 <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; min-height: 36px; cursor: pointer">
 <input type="radio" name="decline-reason" checked="{{r.on}}" onChange="{{r.pick}}" style="width: 18px; height: 18px; accent-color: #c2306d">
@@ -86,10 +95,9 @@ a{color:#b0386a}a:hover{color:#8a2a52}
 </label>
 </sc-for>
 </fieldset>
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #5f5f6b">Ghi chú thêm (không bắt buộc)
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #5f5f6b"><span>Ghi chú thêm (không bắt buộc)</span>
 <input type="text" placeholder="Ví dụ: shop không dùng từ “cao cấp” trong tên sản phẩm" style="font: inherit; font-size: 14px; border: 1px solid #e3d6dc; border-radius: 8px; min-height: 40px; padding: 0 10px">
 </label>
-<div style="font-size: 12px; color: #6b6b76">{{dialogNote}}</div>
 <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding-top: 4px">
 <div style="display: flex; gap: 10px">
 <button type="button" onClick="{{close}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 16px; cursor: pointer">Quay lại</button>
@@ -126,7 +134,7 @@ actionIntro: 'Thẻ đang chờ bạn ở sub-tab Đề xuất. Chưa có lượ
 primary: 'Phê duyệt', decline: 'Từ chối',
 dialogTitle: 'Từ chối thẻ này?',
 dialogBody: 'Thẻ sẽ rời khỏi Đề xuất. Juli không thay đổi gì trên sản phẩm.',
-dialogNote: 'Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ. Lý do giúp Juli chỉnh các đề xuất sau.',
+dialogNote: 'Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ.', doneTitle: 'Hoàn thành · đã từ chối thẻ',
 submit: 'Từ chối thẻ',
 steps: [
 { label: 'Bạn bấm Từ chối', result: 'Từ Đề xuất · 09/10/2026 09:30' },
@@ -143,9 +151,9 @@ context: 'Lượt chạy · đang ở bước Xác nhận một lần · Juli đ
 actionIntro: 'Bạn đã phê duyệt thẻ, Juli đã đọc và soạn nội dung, đang chờ bạn xác nhận trước khi ghi lên TikTok.',
 primary: 'Xác nhận thay đổi này', decline: 'Không thực hiện',
 dialogTitle: 'Không thực hiện thay đổi này?',
-dialogBody: 'Lượt chạy kết thúc ngay, Juli không ghi gì lên TikTok Shop.',
-dialogNote: 'Chỉ muốn sửa vài chữ? Bấm Quay lại rồi chọn Sửa nội dung ở bước xác nhận. Lý do giúp Juli soạn nội dung sát hơn.',
-submit: 'Kết thúc, không thay đổi',
+dialogBody: 'Khi đồng ý, gợi ý sẽ không quay lại',
+dialogNote: 'Không có gì được ghi lên TikTok Shop. Lần sau chỉ muốn sửa vài chữ, chọn Sửa nội dung ở bước xác nhận.', doneTitle: 'Hoàn thành · không thực hiện thay đổi',
+submit: 'Đồng ý',
 steps: [
 { label: 'Bạn bấm Không thực hiện', result: 'Ở bước Xác nhận một lần · 09/10/2026 10:02' },
 { label: 'Cho Juli biết lý do', result: why },
@@ -167,7 +175,20 @@ return {
 eyebrow: T.eyebrow, headline: T.headline, context: T.context,
 chip: chip[0], chipStyle: chip[1],
 actionIntro: T.actionIntro, primaryLabel: T.primary, declineLabel: T.decline,
-dialogTitle: T.dialogTitle, dialogBody: T.dialogBody, dialogNote: T.dialogNote, submitLabel: T.submit,
+dialogTitle: T.dialogTitle, dialogBody: T.dialogBody, dialogNote: T.dialogNote, submitLabel: T.submit, doneTitle: T.doneTitle,
+reasonLabel: picked || 'Khác',
+reasonLearn: ({
+'Thay đổi không hợp thương hiệu hoặc giọng văn': 'Juli bám sát giọng văn và từ cấm trong Quy tắc của bạn.',
+'Lý do hoặc số liệu chưa thuyết phục': 'Juli chỉ đề xuất khi số liệu đủ rõ và giải thích kỹ hơn.',
+'Tôi đang tự sửa sản phẩm này': 'Juli chờ thay đổi của bạn có kết quả rồi mới đề xuất lại.',
+'Sản phẩm sắp ngừng bán hoặc hết hàng': 'Juli bỏ qua sản phẩm này ở các đề xuất sau.',
+'Đang chạy chiến dịch khác cho sản phẩm này': 'Juli chờ chiến dịch kết thúc để không lẫn kết quả.',
+'Nội dung sai thông tin sản phẩm': 'Juli kiểm kỹ thông tin sản phẩm trước khi soạn.',
+'Văn phong chưa phù hợp': 'Juli soạn theo văn phong gần với nội dung hiện tại của bạn hơn.',
+'Thay đổi quá nhiều so với hiện tại': 'Juli đề xuất thay đổi nhỏ hơn, giữ phần bạn đã viết.',
+'Đổi ý, chưa muốn thay đổi lúc này': 'Juli đề xuất lại sau 7 ngày với số liệu mới.',
+'Khác': 'Juli ghi lại ghi chú của bạn để xem xét ở đề xuất sau.'
+})[picked || 'Khác'],
 showActions: p === 'card' || p === 'dialog',
 showDialog: p === 'dialog',
 showResult: p === 'done' || later,
