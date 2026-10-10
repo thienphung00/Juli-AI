@@ -649,3 +649,40 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Demo vitest `rules-editor-off-api.test.tsx` failed 2 tests once in the full parallel run and
   passes alone (13/13) — timing flake under load, not P15 code.
 
+
+## P16 Juli Ops (2026-10-10)
+
+- [ ] **OpsSimulate artboard not yet explicitly reviewed by the owner** — implemented as
+  drawn (incl. D25.11 window / trend); review requested.
+- [ ] Simulation history: reports carry `daily_streams` / `daily_products` only from P16 on;
+  until the daily job has run on P16 code a shop has no simulation data at all, and a shop
+  never has more than its stored reports' days (≤ 60 today) — windows 7 / 14 / 30 are
+  computable, **90 needs 180 days** and shows "Chưa đủ dữ liệu". No backfill of older days.
+- [ ] Per-product volatility rows for Video / LIVE are products by traffic source (A-34),
+  not per video / per LIVE session: no stored daily series exists per video or session.
+- [ ] TikTok scope names in `services/ops/scopes.py`: only `seller.order.info` and
+  `seller.finance.info` are documented in this repo; `data.shop_analytics.public.read`,
+  `seller.product.basic`, `seller.promotion.info` are UNVERIFIED — check in Partner Center
+  and set `TIKTOK_REQUIRED_SCOPES` if they differ.
+- [ ] "Huỷ kết nối": TikTok has no token-revoke API — Juli destroys its stored tokens; the
+  seller must remove the app in Seller Center to revoke TikTok's side. Pending runs get
+  `cancel_requested` (the existing cancel path); a run parked in `waiting_*` stays in that
+  status until its own expiry/reaper picks the flag up.
+- [ ] `promotion_api_enabled` override is stored, shown and audited but gates nothing:
+  Juli makes no promotion write (D13).
+- [ ] Invite / disconnect e-mails need SMTP (`OPS_SMTP_*`); without it Ops shows the
+  accept link to forward and the disconnect notice is only logged. The seller who opens
+  an invite signed out must sign in and re-open the link (no deep-link resume).
+- [ ] "Xem như shop": the live run event stream (SSE) is not mirrored — run details show,
+  the event timeline is in Ops run detail (`/v1/ops/shops/{id}/runs/{run}`). The seller
+  "Juli" tab is shown but not available in view-as.
+- [ ] Ops "Quy tắc" writes commit the rule first and the audit row in a second
+  transaction (the seller handler commits itself); a crash between the two would leave an
+  unaudited rule change.
+- [ ] D24.21 (2) implemented here ("Số thẻ mở cùng lúc" 5–30, default 30): existing seller
+  rows below 5 are clamped up to 5 when read.
+- [ ] Ops pages are desktop-first (1440 px artboards); below 900 px the columns stack,
+  not separately designed.
+- [ ] `public UPDATE grants` integration test (`test_no_public_table_holds_update_beyond_its_call_site`)
+  still fails as at the P14 base (pre-existing, P14 tables); P16 adds no new table UPDATE
+  for `juli_app` (only `users.staff_access_consent_at`, column-level).

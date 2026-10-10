@@ -216,8 +216,12 @@ class TikTokCredentialRepo(SessionRepo):
         refresh_token: str,
         token_expires_at: datetime,
         refresh_token_expires_at: datetime | None = None,
+        scopes: str | None = None,
     ) -> TikTokCredential:
         """Persist a successful rotation and its health signal (ADR-081 decisions 4/7).
+
+        P16 (D25.15): ``scopes`` -- the grant the refresh response reported --
+        replaces the stored list when given; ``None`` leaves it untouched.
 
         Beyond the token triad: ``last_refreshed_at`` is stamped, ``refresh_count``
         goes up by exactly one, and ``last_refresh_error`` is cleared -- a
@@ -233,6 +237,8 @@ class TikTokCredentialRepo(SessionRepo):
         credential.last_refresh_error = None
         if refresh_token_expires_at is not None:
             credential.refresh_token_expires_at = refresh_token_expires_at
+        if scopes is not None:
+            credential.scopes = scopes
         await self._session.flush()
         return _hydrate_decrypted_tokens(credential)
 

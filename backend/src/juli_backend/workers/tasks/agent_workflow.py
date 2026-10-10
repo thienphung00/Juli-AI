@@ -156,7 +156,7 @@ import os
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import create_engine as create_sync_engine
 from sqlalchemy import func, select, text
@@ -723,7 +723,8 @@ async def _construct_runner(
             if flow
             else content.planner
             if content
-            else _default_llm_service()
+            # P16 (D25.8): Optimize Product's model calls stop over the shop's cap.
+            else await _ops_cap_guarded(session, run.shop_id, _default_llm_service())
         ),
         tool_executor=tool_executor,
         event_sink=event_sink,
@@ -737,6 +738,9 @@ async def _construct_runner(
         # RunState.basis_snapshots so it survives the pause and is read back
         # by the `basis_snapshot=` seed a few lines up on the resume leg.
         concurrency_guard=concurrency_guard,
+        # Fast track P16 (D25.4): the shop's OpenAI model override from Juli
+        # Ops (default model otherwise); also what the run's cost is priced at.
+        llm_config=await _ops_llm_config(session, run.shop_id),
     )
     if content is not None:
         return content_driver_module.ContentRunner(runner, session=session, wiring=content)
@@ -749,6 +753,23 @@ async def _construct_runner(
         product_detail=_product_detail,
         schedule_recheck=_schedule_lever_flow_recheck,
     )
+
+
+async def _ops_cap_guarded(session: AsyncSession, shop_id: uuid.UUID, inner: Any) -> Any:
+    if not isinstance(session, AsyncSession):  # wiring tests pass a stand-in session
+        return inner
+    from juli_backend.services import ops
+
+    return await ops.cap_guarded(session, shop_id, inner)
+
+
+async def _ops_llm_config(session: AsyncSession, shop_id: uuid.UUID) -> Any:
+    """``LLMConfig`` with the shop's Juli Ops model override, if any (P16)."""
+    from juli_backend.services import ops
+
+    if not isinstance(session, AsyncSession):  # wiring tests pass a stand-in session
+        return None
+    return await ops.llm_config_for(session, shop_id)
 
 
 def _schedule_lever_flow_recheck(run_id: uuid.UUID) -> None:

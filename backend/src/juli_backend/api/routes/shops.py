@@ -40,3 +40,18 @@ async def get_current_shop(
 ) -> Shop:
     """Return the shop identified by the X-Shop-Id header."""
     return shop
+
+
+@router.get("/me/permissions")
+async def get_current_shop_permissions(
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """P16 (D25.15): whether the shop's TikTok grant carries every scope Juli uses.
+
+    ``needs_reconnect`` drives the seller's "Kết nối lại TikTok Shop để cấp quyền
+    mới" strip. Scope names only; no token is returned.
+    """
+    from juli_backend.services import ops
+
+    return {"data": (await ops.shop_scope_status(session, shop.id)).to_json()}

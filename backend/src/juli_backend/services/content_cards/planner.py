@@ -119,6 +119,24 @@ def rules_sentence(rules: ContentRules) -> str:
     return "Quy tắc của bạn: " + " · ".join(parts)
 
 
+#: Fast track P16 (D25.8): the shop is over its monthly OpenAI cap set in Ops.
+DRAFT_ERROR_OPENAI_CAP = "openai_cap_reached"
+_CAP_REACHED_VI = (
+    "Juli tạm dừng soạn kịch bản mới cho shop này: đã chạm trần chi phí AI của tháng. "
+    "Đội ngũ Juli đã được báo."
+)
+
+
+@dataclass(frozen=True)
+class DraftGate:
+    """What Juli Ops says about drafting for this shop (D25.4 model, D25.8 cap)."""
+
+    model: str | None = None
+    cap_reached: bool = False
+    spent_usd: float = 0.0
+    cap_usd: float | None = None
+
+
 @dataclass
 class ContentPlanner:
     """A deterministic ``LLMService`` for one content run (module docstring).
@@ -140,6 +158,8 @@ class ContentPlanner:
     analyses: list[dict[str, Any]] = field(default_factory=list)
     #: Set when this leg drafted a version (the runner wrapper persists it).
     drafted: list[DraftOutcome] = field(default_factory=list)
+    #: Juli Ops overrides for drafting (model, monthly cap); None = defaults.
+    draft_gate: DraftGate | None = None
 
     async def complete(
         self,
@@ -302,6 +322,23 @@ class ContentPlanner:
             "protected_terms": list(self.rules.protected_terms),
             "discount_cap_pct": self.rules.discount_cap_pct,
         }
+        gate = self.draft_gate or DraftGate()
+        if gate.cap_reached:
+            # D25.8: no new drafting over the cap; the team is alerted by this
+            # log line (and the Ops overview badge). Rule cards keep running.
+            logger.warning(
+                "ops_openai_cap_reached",
+                extra={
+                    "kind": self.kind,
+                    "spent_usd": gate.spent_usd,
+                    "cap_usd": gate.cap_usd,
+                },
+            )
+            self.state["stage"] = run_state.STAGE_FAILED
+            self.state["error"] = DRAFT_ERROR_OPENAI_CAP
+            return _turn(FinalResponse(content=_CAP_REACHED_VI))
+        if gate.model:
+            config = replace(config, model=gate.model)
         outcome = await self.drafter.draft(
             kind=self.kind,
             inputs=inputs,

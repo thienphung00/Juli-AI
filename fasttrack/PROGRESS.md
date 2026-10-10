@@ -49,7 +49,7 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P9-A Email sign-in (OTP code / magic link) beside Google | 9.1 | doing | P9-A agent (Opus) |
-| P9-B Hand a shop connected by the Juli team over to the seller's own Juli account (invite / transfer) | 9.2 | todo — needs a grill | — |
+| P9-B Hand a shop connected by the Juli team over to the seller's own Juli account (invite / transfer) | 9.2 | done in P16 (D25.7) on `fasttrack/p16-ops` (not merged, not deployed) | P16 agent (Opus) |
 
 ## P10 — Quyết định card and flows, 100 % to the approved design (ADR-109 Amendment 1)
 
@@ -124,6 +124,16 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | Juli soạn reads the best / weakest analysed upload of the product (prompt v2) | 15.6 | done | P15 agent (Opus) |
 | UI "Phân tích video" block in the content run and Phân tích › Nội dung row detail; sample = canned analysis, no network (no artboard — owner review) | 15.7 | done | P15 agent (Opus) |
 | Ops: worker `-Q` + nginx chunk location + runbook `docs/runbooks/content-analysis-runbook.md` + env example | 15.8 | done; owner to install ffmpeg on the VPS before deploy | P15 agent (Opus) |
+
+## P16 — Juli Ops, the internal console (D25) + P9-B
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Migration `083_ops_console` (role `juli_ops`, 5 ops tables, consent column, 3 DEFINER functions), staff / audit / overrides / scenarios / invites, overrides read by emission / content / OpenAI | 16.1, 16.2 | done on `fasttrack/p16-ops` (not merged, not deployed) | P16 agent (Opus) |
+| `/v1/ops/*` API: Access JWT + staff role (fail closed), masking, overview, settings, Quy tắc (D25.14), runs, read-only view-as (D25.3 amended), simulation (D25.10–11), scenarios, invites + accept (P9-B), Huỷ kết nối (D25.13), permission status (D25.15) | 16.3–16.9 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
+| Ops pages in apps/demo on `ops.app-juli.com` (middleware host split, noindex): Tổng quan, Cài đặt shop, Xem như shop, Mô phỏng (**artboard not yet owner-reviewed — review requested**), Nhân viên, Nhật ký; seller `/nhan-shop`; reconnect strip | 16.10 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
+| Infra files + runbook (owner applies): nginx vhost, opt-in provisioning, env example, `docs/runbooks/ops-console-runbook.md` | 16.11 | done (files only) — owner steps pending | owner |
+| Privacy: staff-access sentence (VN + EN) + connect-shop notice + consent timestamp | 16.12 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
 
 ## P2–P6
 

@@ -15,6 +15,10 @@ the proof). Each table is classified as one of:
 - "tenant_via_parent": child of a tenant_direct table, RLS policy uses EXISTS
 - "non_tenant": shared across tenants, user_id or app.current_user_id keyed
 - "non_tenant_unprotected": no RLS policy (webhook_raw_events only)
+- "ops_only": internal Juli Ops console tables (fast track P16, migration 083).
+  Some carry a ``shop_id`` (the shop a setting / audit row / invite is ABOUT),
+  but they are not tenant data: RLS is on, the only policy is ``TO juli_ops``
+  and ``juli_app`` has no grant at all, so no seller path can read them.
 """
 
 from __future__ import annotations
@@ -105,6 +109,13 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "users"): "non_tenant",
     ("public", "shops"): "non_tenant",
     ("public", "webhook_raw_events"): "non_tenant_unprotected",
+    # Fast track P16 (D25), migration 083: the Juli Ops console. Reached only
+    # through the ``juli_ops`` role on the /v1/ops path; never a tenant read.
+    ("public", "ops_staff"): "ops_only",
+    ("public", "ops_audit_log"): "ops_only",
+    ("public", "ops_shop_settings"): "ops_only",
+    ("public", "ops_sim_scenarios"): "ops_only",
+    ("public", "ops_shop_invites"): "ops_only",
 }
 
 #: Metadata about via-parent relationships (child_table -> (parent_table, fk_col, pk_col))
@@ -114,6 +125,11 @@ VIA_PARENT_MAPPINGS = {
     ("public", "impact_readings"): ("tool_executions", "tool_execution_id", "id"),
     ("public", "action_card_approvals"): ("action_cards", "action_card_id", "id"),
 }
+
+
+def get_ops_only_tables() -> list[tuple[str, str]]:
+    """The Juli Ops tables (RLS on, ``juli_ops`` only, no ``juli_app`` grant)."""
+    return [key for key, value in TABLE_CLASSIFICATION_MAP.items() if value == "ops_only"]
 
 
 def get_tenant_scoped_tables() -> list[tuple[str, str]]:

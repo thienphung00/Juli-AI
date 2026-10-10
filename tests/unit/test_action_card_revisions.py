@@ -601,7 +601,8 @@ def test_budget_reasons_and_revision_reasons_are_disjoint():
     vocabulary can never quietly annex one of its values.
     """
     assert SUPPRESSED_REASONS == frozenset(
-        {"active_cap", "cooldown", "daily_cap", "weekly_novelty_cap"}
+        # P16 (D25.4): `ops_disabled` -- the card's stream / action is off in Juli Ops.
+        {"active_cap", "cooldown", "daily_cap", "weekly_novelty_cap", "ops_disabled"}
     )
     assert REVISION_SUPPRESSED_REASONS == frozenset(
         {"basis_unchanged", "active_card_exists", "expired_cooldown"}

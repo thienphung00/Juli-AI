@@ -130,9 +130,11 @@ export function PrivacyPolicyEnglish() {
           assessment or lending, and does <strong>not</strong> use it to develop, improve or
           train generalized artificial intelligence (AI) or machine learning (ML) models.
           Google user data is not sent to OpenAI or to any AI model. Juli staff do not read
-          this data except with your consent (for example, when you ask for support), when
-          needed for security purposes (for example, investigating abuse), or when required
-          by law.
+          this data except with your consent (for example, when you ask for support, or to
+          support and operate the service &mdash; which you accept when you connect a shop),
+          when needed for security purposes (for example, investigating abuse), or when
+          required by law. Staff see shop data only, never buyer data, and every access is
+          logged.
         </p>
 
         <h4 className="lp-legal__subheading">3.3. Limited Use</h4>

@@ -10,6 +10,7 @@ Step-by-step operator guides for App Review deployment (Phase 2.5-d).
 | [`backend-deploy-runbook.md`](backend-deploy-runbook.md) | #258 | Build and run FastAPI on VPS |
 | [`reviewer-login-runbook.md`](reviewer-login-runbook.md) | #260 | Reviewer demo login |
 | [`smoke-checklist-runbook.md`](smoke-checklist-runbook.md) | #261 | App Review smoke sign-off + CORS |
+| [`ops-console-runbook.md`](ops-console-runbook.md) | P16 (D25) | Juli Ops on ops.app-juli.com: DNS, cert, Cloudflare Access, env, first Admin |
 
 Operational scripts, Nginx, and systemd units remain under [`infra/`](../infra/).
 

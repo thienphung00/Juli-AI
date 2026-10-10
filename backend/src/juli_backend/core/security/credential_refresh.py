@@ -116,6 +116,23 @@ def _dialect_name(session: AsyncSession) -> str:
     return session.get_bind().dialect.name
 
 
+def granted_scopes_of(token_data: dict) -> str | None:
+    """P16 (D25.15): the comma-joined scope list a token response carries, if any.
+
+    TikTok's token responses name it ``granted_scopes`` (a list); some carry
+    ``scopes`` (a string). ``None`` when neither is present -- the stored list
+    is then left as it was (never cleared by a response that simply omits it).
+    """
+    granted = token_data.get("granted_scopes")
+    if granted is None:
+        granted = token_data.get("scopes")
+    if granted is None:
+        return None
+    if isinstance(granted, list | tuple):
+        return ",".join(str(scope).strip() for scope in granted if str(scope).strip())
+    return str(granted)
+
+
 def _access_token_expires_at(raw: int | None) -> datetime:
     """Vendor-authoritative access-token expiry (ADR-081 decision 3).
 
@@ -427,6 +444,7 @@ async def refresh_credential(
             new_refresh_token,
             new_expires_at,
             refresh_token_expires_at=new_refresh_token_expires_at,
+            scopes=granted_scopes_of(token_data),
         )
         await session.commit()
         await reapply_shop_scope(session, shop_id)

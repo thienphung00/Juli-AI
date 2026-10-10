@@ -26,10 +26,12 @@ from juli_backend.api.routes.demo_rules import router as demo_rules_router
 from juli_backend.api.routes.demo_run_changes import router as demo_run_changes_router
 from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_router
 from juli_backend.api.routes.executions import router as executions_router
+from juli_backend.api.routes.ops import router as ops_router
 from juli_backend.api.routes.orders import router as orders_router
 from juli_backend.api.routes.outcomes import router as outcomes_router
 from juli_backend.api.routes.products import router as products_router
 from juli_backend.api.routes.recommendations import router as recommendations_router
+from juli_backend.api.routes.shop_invites import router as shop_invites_router
 from juli_backend.api.routes.shops import router as shops_router
 from juli_backend.api.routes.webhook_tiktok import router as webhook_tiktok_router
 from juli_backend.api.routes.workflow_outcomes import router as workflow_outcomes_router
@@ -75,6 +77,9 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_content_runs_router)
     v1_router.include_router(demo_content_analysis_router)
     v1_router.include_router(demo_rules_router)
+    # Fast track P16 (D25): the Juli Ops console and the seller's invite accept.
+    v1_router.include_router(ops_router)
+    v1_router.include_router(shop_invites_router)
     app.include_router(v1_router)
     # The diagnostic router is not mounted in production at all. Its own
     # ENABLE_TIKTOK_DEBUG flag is deliberately NOT consulted here: the environment check

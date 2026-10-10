@@ -1038,3 +1038,46 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   intact (`stash@{0}`), nothing of it was committed.
 - Next: owner review of the UI deviation (no artboard) and of vision-instead-of-OCR; install ffmpeg
   on the VPS; P16 to own the cap override; orchestrator to re-chain 082 against P16's migration.
+
+### 2026-10-10 — P16 Juli Ops (D25) + P9-B handover — P16 agent (Opus)
+
+- Branch `fasttrack/p16-ops` from `fasttrack/p14-integration` (2c35c1e4), worktree `juli-ft-p16`.
+  Migration **`083_ops_console`** onto `081_order_cost_data` (orchestrator re-chains after P15's
+  082); deferred phone cleanup re-parented onto 083 (pins moved in 5 tests).
+- Backend: role `juli_ops` + 5 `ops_*` tables (RLS, `juli_ops` only, `ops_only` class),
+  `users.staff_access_consent_at`, DEFINER `ops_current_shop_overrides` / `ops_list_shops` /
+  `ops_transfer_shop`; `/v1/ops/*` (Access JWT verified + staff role, fail closed; PII-masking
+  route class; every write audited); overrides read by emission budget / content emission /
+  drafting / agent runs; OpenAI cap = shared `shop_rules` row `openai_monthly_cap_usd` ($5
+  default, P15 coordination) gating drafting and Optimize Product model calls; simulation from
+  new additive report keys `daily_streams` / `daily_products`; scenarios; invites + seller accept
+  (P9-B); Huỷ kết nối; Ops Quy tắc; scopes persisted on refresh + permission status.
+- Owner changes mid-task, all applied: D25.11 window / trend, D25.13 disconnect, D25.14 Quy
+  tắc, D25.15 permissions, D25.3 amended (view-as always read-only — act mode, flag and
+  consent removed; non-GET under `/view/` → 403), cap storage shared with P15. D24.21 (2)/(5)
+  implemented on the way (open cards 5–30 default 30; Giọng văn, Từ không được dùng rule keys +
+  seller editor fields).
+- Frontend (apps/demo): `/ops` route group (Tổng quan, Cài đặt shop + Quy tắc, Xem như shop,
+  Mô phỏng, Nhân viên, Nhật ký, own Google sign-in landing), `middleware.ts` host split + noindex,
+  `/nhan-shop` (token in the link fragment, POSTed), staff-access notice on connect, reconnect
+  strip. Landing privacy sentence VN + EN.
+- Infra (files only): `infra/nginx/ops.app-juli.com.conf`, `INSTALL_OPS_VHOST=1` in
+  `provision-nginx.sh`, env example, `docs/runbooks/ops-console-runbook.md`.
+- Guards touched: quality reconciliation re-derived (459 → 473, 6236 functions / 615 modules),
+  surface inventory regenerated (threat-model test now detects auth transitively), no new
+  suppressions, creds-in-URL clean.
+- Verification: ruff clean; mypy (backend config) 610 files clean. `tests/unit` 6777 passed,
+  11 failed — the 9 that fail at the P14 base (7 `test_agent_workflow_task_wiring` without a DB
+  URL — all pass with one, `test_cross_tenant_probe`, `test_destructive_migration_isolation`),
+  plus `test_action_card_revisions` (pinned `ops_disabled` afterwards) and one timing flake
+  (`test_slow_backing_store_does_not_stall_the_event_loop`, passes alone). `tests/integration`
+  on PG16: 288 passed, 4 failed — the 3 base failures (recorded-replay, sanitizer registry,
+  public UPDATE grants) + `test_run_changes_two_tenant` (5–30 rule; fixed, passes).
+  `fasttrack/check.sh --since 2c35c1e4` (docker PG16): migrations PASS at `083_ops_console`,
+  isolation 12, gitleaks PASS (one test false positive allowlisted), ruff 70 files, pytest 41
+  files 511 passed → **OK**. Demo (Node 20): lint 0 errors (7 pre-existing warnings), tsc clean,
+  vitest 135 files 1733 passed, `pnpm build:demo` OK, Playwright `DEMO_E2E_PORT=3326`: ops 8,
+  auth + analytics 36, decisions + exit-gate 118 passed / 140 skipped. Landing: lint, tsc,
+  vitest 49, build OK.
+- Next: owner — review OpsSimulate; apply `docs/runbooks/ops-console-runbook.md`; the
+  orchestrator re-chains 083 after P15's 082 and confirms P15 reads the same cap row.

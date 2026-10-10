@@ -25,6 +25,13 @@
  */
 export const CONNECT_START_PATH = "/v1/auth/tiktok/start" as const;
 
+/** The query the connect start sends: the seller accepted the staff-access notice. */
+export const STAFF_ACCESS_CONSENT_QUERY = "staff_access_consent=true" as const;
+
+/** Shown under "Kết nối TikTok Shop" (privacy policy §3.2, D25.6). */
+export const STAFF_ACCESS_NOTICE =
+  "Khi kết nối, bạn đồng ý để nhân viên Juli xem dữ liệu shop (không gồm dữ liệu người mua) để hỗ trợ và vận hành dịch vụ. Mọi lần truy cập đều được ghi nhật ký.";
+
 export interface TikTokOAuthStart {
   authorize_url: string;
   state_expires_in: number;
@@ -44,7 +51,9 @@ export async function startTikTokConnect(
   accessToken: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<TikTokOAuthStart> {
-  const response = await fetchImpl(CONNECT_START_PATH, {
+  // P16 (D25.6): connecting a shop accepts the staff-access notice shown under
+  // the button; the API stamps the time on the seller's own user row.
+  const response = await fetchImpl(`${CONNECT_START_PATH}?${STAFF_ACCESS_CONSENT_QUERY}`, {
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${accessToken}`,

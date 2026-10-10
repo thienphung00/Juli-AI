@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Juli Ops · Mô phỏng</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f4f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1600px; height: 1560px; box-sizing: border-box; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f4f4f6; display: flex; flex-direction: column">
+<header style="display: flex; align-items: center; gap: 16px; background: #1a1a1f; color: #ffffff; padding: 0 28px; min-height: 60px">
+<b style="font-size: 18px">Juli <span style="color: #f3a9c8">Ops</span></b>
+<nav aria-label="Ops" style="display: flex; gap: 4px; font-size: 14px">
+<a href="OpsOverview.dc.html" style="color: #d6d6dc; text-decoration: none; padding: 6px 12px">Tổng quan</a>
+<span style="background: #3a3a44; border-radius: 8px; padding: 6px 12px; font-weight: 600">Mô phỏng</span>
+<a href="OpsShopSettings.dc.html" style="color: #d6d6dc; text-decoration: none; padding: 6px 12px">Cài đặt shop</a>
+</nav>
+<span style="margin-left: auto; font-size: 13px; color: #d6d6dc">thien.phung@app-juli.com · Vận hành</span>
+</header>
+<main style="padding: 22px 28px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700">Mô phỏng · Cửa hàng Mẫu Hoa Mai</h1>
+<div role="radiogroup" aria-label="Khoảng thời gian" style="display: inline-flex; gap: 4px; background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 3px">
+<sc-for list="{{wins}}" as="w" hint-placeholder-count="4"><button type="button" role="radio" aria-checked="{{w.on}}" onClick="{{w.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border: 0; border-radius: 8px; min-height: 34px; padding: 0 12px; cursor: pointer; {{w.style}}">{{w.label}}</button></sc-for>
+</div>
+<span style="font-size: 12px; font-weight: 600; color: #4a4a55; background: #ffffff; border: 1px solid #e3e3e8; border-radius: 999px; padding: 4px 10px">{{winNote}}</span>
+<span style="font-size: 12px; font-weight: 600; color: #5b2a86; background: #f3e8ff; border-radius: 999px; padding: 4px 10px">Pilot đặc biệt</span>
+<div style="margin-left: auto; display: flex; gap: 8px">
+<button type="button" onClick="{{reset}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; min-height: 40px; padding: 0 14px; cursor: pointer">Về gốc</button>
+<button type="button" onClick="{{save}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #1a1a1f; border: 0; border-radius: 10px; min-height: 40px; padding: 0 14px; cursor: pointer">Lưu kịch bản</button>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start">
+<section style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: grid; grid-template-columns: 210px repeat(4, minmax(0, 1fr)) 160px; gap: 10px; font-size: 12px; font-weight: 600; color: #5f5f6b">
+<span>Luồng · độ ổn định</span><span>Hiển thị/ngày</span><span>CTR</span><span>CTOR</span><span>AOV</span><span>GMV/ngày</span>
+</div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 210px repeat(4, minmax(0, 1fr)) 160px; gap: 10px; align-items: stretch; border-top: 1px solid #f0f0f3; padding-top: 10px">
+<button type="button" onClick="{{r.pick}}" aria-pressed="{{r.on}}" style="font: inherit; text-align: left; background: transparent; border: 0; padding: 0; cursor: pointer; display: flex; flex-direction: column; gap: 4px; color: #1a1a1f">
+<b style="font-size: 15px">{{r.name}}</b>
+<span style="align-self: flex-start; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 8px; {{r.stabStyle}}">{{r.stab}}</span>
+<span style="font-size: 11px; color: #5f5f6b">{{r.stabNote}}</span>
+</button>
+<sc-for list="{{r.cells}}" as="c" hint-placeholder-count="4">
+<div style="border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; {{c.box}}">
+<span style="display: flex; justify-content: space-between; align-items: baseline; gap: 6px"><b style="font-size: 15px">{{c.value}}</b><span style="font-size: 11px; font-weight: 600; border-radius: 6px; padding: 1px 6px; {{c.trendStyle}}">{{c.trend}}</span></span><span style="font-size: 11px; font-weight: 700; {{c.tagStyle}}">{{c.tag}}</span>
+<span style="font-size: 11px; color: #5f5f6b">Dao động thường: {{c.band}}</span>
+<sc-if value="{{c.editable}}" hint-placeholder-val="{{ true }}">
+<span style="display: flex; align-items: center; gap: 4px">
+<button type="button" onClick="{{c.dec}}" aria-label="Giảm 5 %" style="font: inherit; font-size: 14px; font-weight: 700; width: 28px; height: 28px; border-radius: 6px; border: 1px solid #e3e3e8; background: #ffffff; cursor: pointer">−</button>
+<span style="min-width: 54px; text-align: center; font-size: 13px; font-weight: 700; {{c.deltaStyle}}">{{c.delta}}</span>
+<button type="button" onClick="{{c.inc}}" aria-label="Tăng 5 %" style="font: inherit; font-size: 14px; font-weight: 700; width: 28px; height: 28px; border-radius: 6px; border: 1px solid #e3e3e8; background: #ffffff; cursor: pointer">+</button>
+</span>
+<span style="font-size: 11px; font-weight: 600; {{c.noiseStyle}}">{{c.noise}}</span>
+</sc-if>
+<sc-if value="{{c.locked}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 11px; color: #4a4a55">Khoá · phụ thuộc trang sản phẩm</span>
+</sc-if>
+</div>
+</sc-for>
+<div style="display: flex; flex-direction: column; justify-content: center; gap: 2px; background: #faf7f8; border-radius: 10px; padding: 8px 10px">
+<b style="font-size: 15px">{{r.gmvNew}}</b>
+<span style="font-size: 11px; color: #5f5f6b">gốc {{r.gmvBase}}</span>
+<span style="font-size: 12px; font-weight: 700; {{r.gmvDeltaStyle}}">{{r.gmvDelta}}</span>
+</div>
+</div>
+</sc-for>
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Hiển thị là chỉ số gián tiếp (thuật toán): chỉ tác động qua quảng cáo, chiến dịch, nội dung. Mỗi lần bấm ± đổi 5 %. Ô viền đứt bị khoá theo bản đồ Hành động.</p>
+</section>
+
+<aside style="display: flex; flex-direction: column; gap: 12px">
+<div style="background: #1a1a1f; color: #ffffff; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; color: #d6d6dc">GMV cả shop sau mô phỏng</span>
+<b style="font-size: 30px">{{totalNew}}/ngày</b>
+<span style="font-size: 14px; color: #d6d6dc">gốc {{totalBase}}/ngày</span>
+<span style="font-size: 16px; font-weight: 700; color: #9fe3b4">{{totalDelta}}</span>
+<span style="font-size: 13px; color: #d6d6dc">≈ {{monthDelta}} mỗi tháng</span>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+<b style="font-size: 14px">Hành động có thể tạo ra thay đổi này</b>
+<sc-for list="{{actions}}" as="a" hint-placeholder-count="3">
+<div style="border-top: 1px solid #f0f0f3; padding-top: 6px"><b>{{a.cell}}</b> · {{a.what}}</div>
+</sc-for>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+<b style="font-size: 14px">Kịch bản đã lưu</b>
+<sc-for list="{{saved}}" as="s" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; gap: 8px; border-top: 1px solid #f0f0f3; padding-top: 6px"><span style="flex: 1">{{s.name}} · {{s.delta}}</span><span style="font-size: 11px; font-weight: 700; {{s.tagStyle}}">{{s.tag}}</span></div>
+</sc-for>
+<button type="button" style="font: inherit; font-size: 13px; font-weight: 600; color: #b0386a; background: transparent; border: 0; min-height: 36px; cursor: pointer; text-align: left">Đặt kịch bản đang xem làm mục tiêu của shop ›</button>
+</div>
+</aside>
+</div>
+
+<section style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 12px"><h2 style="margin: 0; font-size: 17px; font-weight: 700">Độ dao động · {{selName}}</h2><span style="font-size: 13px; color: #5f5f6b">Từng {{rowKind}}: khoảng dao động thường ngày (p10–p90 trong {{win}} ngày) · chọn dòng ổn định để đặt mục tiêu</span>
+<div style="margin-left: auto; display: inline-flex; gap: 4px; background: #f7f7f9; border: 1px solid #e3e3e8; border-radius: 10px; padding: 3px">
+<sc-for list="{{sorts}}" as="o" hint-placeholder-count="2"><button type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="font: inherit; font-size: 12px; font-weight: 600; border: 0; border-radius: 8px; min-height: 32px; padding: 0 10px; cursor: pointer; {{o.style}}">{{o.label}}</button></sc-for>
+</div></div>
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)) 130px; gap: 10px; font-size: 12px; font-weight: 600; color: #5f5f6b; padding: 0 8px">
+<span>{{rowKindCap}}</span><span>Hiển thị/ngày (thấp – cao)</span><span>CTR (thấp – cao)</span><span>CTOR (thấp – cao)</span><span>Hệ số biến thiên hiển thị</span><span>Đánh giá</span>
+</div>
+<sc-for list="{{vol}}" as="v" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)) 130px; gap: 10px; align-items: center; border-top: 1px solid #f0f0f3; padding: 8px; font-size: 13px">
+<span><b>{{v.name}}</b></span><span>{{v.imp}}</span><span>{{v.ctr}}</span><span>{{v.ctor}}</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; height: 6px; background: #f0f0f3; border-radius: 999px; display: flex"><span style="height: 6px; border-radius: 999px; {{v.barStyle}}"></span></span>{{v.cv}}</span>
+<span style="justify-self: start; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 8px; {{v.tagStyle}}">{{v.tag}}</span>
+</div>
+</sc-for>
+</section>
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Mô phỏng cộng theo công thức GMV = Hiển thị × CTR × CTOR × AOV cho từng luồng; không phải dự báo của mô hình. Số liệu là ví dụ minh hoạ.</p>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1560}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { d: { card: { ctor: 10 }, live: { ctr: 5 } }, sel: 'card', sort: 'stable', savedNow: false, win: 30 };
+}
+renderVals() {
+const st = this.state;
+const B = {
+card: { name: 'Thẻ sản phẩm', imp: 9913, ctr: 4.44, ctor: 5.14, aov: 160, band: { imp: 12, ctr: 8, ctor: 14, aov: 4 }, cv: 0.12, lock: [] },
+shop: { name: 'Tab cửa hàng', imp: 2118, ctr: 5.83, ctor: 7.14, aov: 167, band: { imp: 9, ctr: 7, ctor: 11, aov: 5 }, cv: 0.09, lock: [] },
+video: { name: 'Video', imp: 5630, ctr: 2.92, ctor: 6.68, aov: 173, band: { imp: 48, ctr: 22, ctor: 18, aov: 6 }, cv: 0.48, lock: ['ctor', 'aov'] },
+live: { name: 'LIVE', imp: 1410, ctr: 4.86, ctor: 7.10, aov: 164, band: { imp: 35, ctr: 16, ctor: 20, aov: 7 }, cv: 0.35, lock: ['aov'] }
+};
+const K = [['imp', 'Hiển thị'], ['ctr', 'CTR'], ['ctor', 'CTOR'], ['aov', 'AOV']];
+const W = st.win;
+const TR = {
+7: { card: { imp: 4.1, ctr: -1.2, ctor: -3.8, aov: 0.6 }, shop: { imp: -0.8, ctr: 0.4, ctor: 1.1, aov: -0.9 }, video: { imp: 18.5, ctr: -6.2, ctor: -1.0, aov: 0.3 }, live: { imp: 9.2, ctr: 2.1, ctor: -4.4, aov: -0.5 } },
+14: { card: { imp: 9.8, ctr: -0.6, ctor: -7.5, aov: -1.1 }, shop: { imp: -1.2, ctr: -0.2, ctor: 1.6, aov: -1.4 }, video: { imp: 7.4, ctr: -8.0, ctor: -0.6, aov: -0.4 }, live: { imp: 6.1, ctr: 2.8, ctor: -5.0, aov: -0.2 } },
+30: { card: { imp: 24.8, ctr: -0.3, ctor: -15.2, aov: -2.9 }, shop: { imp: -1.6, ctr: -0.3, ctor: 2.0, aov: -2.0 }, video: { imp: 3.2, ctr: -9.1, ctor: -0.9, aov: -1.1 }, live: { imp: 8.8, ctr: 3.0, ctor: -5.2, aov: -0.6 } },
+90: { card: { imp: 41.0, ctr: 2.4, ctor: -9.6, aov: -4.8 }, shop: { imp: 5.5, ctr: 1.1, ctor: 3.4, aov: -3.1 }, video: { imp: -12.0, ctr: -4.5, ctor: 1.2, aov: -2.0 }, live: { imp: 22.0, ctr: 6.4, ctor: -2.1, aov: 1.0 } }
+};
+const BS = { 7: 0.6, 14: 0.8, 30: 1, 90: 1.4 }[W];
+const fmtN = (n) => Math.round(n).toLocaleString('vi-VN');
+const fmtP = (n) => n.toFixed(2).replace('.', ',') + ' %';
+const fmtK = (n) => Math.round(n) + 'k ₫';
+const fmtM = (n) => (n / 1e6).toFixed(2).replace('.', ',') + ' tr ₫';
+const gmv = (b, m) => (b.imp * (1 + (m.imp || 0) / 100)) * (b.ctr * (1 + (m.ctr || 0) / 100) / 100) * (b.ctor * (1 + (m.ctor || 0) / 100) / 100) * (b.aov * 1000 * (1 + (m.aov || 0) / 100));
+let totB = 0, totN = 0;
+const actionsMap = { card: { imp: 'từ khoá tiêu đề, chiến dịch sàn, GMV Max', ctr: 'ảnh bìa, tiêu đề', ctor: 'mô tả, giá, flash sale, voucher, phí ship', aov: 'mua nhiều giảm nhiều, combo' }, shop: { imp: 'trang trí shop, video kéo follow', ctr: 'sản phẩm nổi bật, banner', ctor: 'như Thẻ sản phẩm', aov: 'như Thẻ sản phẩm' }, video: { imp: 'đăng đều, GMV Max video', ctr: 'hook 3 giây, gắn link' }, live: { imp: 'thời lượng, số phiên, LIVE GMV Max', ctr: 'ghim sản phẩm, thứ tự giỏ', ctor: 'kịch bản host, flash sale LIVE' } };
+const actions = [];
+const rows = Object.entries(B).map(([key, b]) => {
+const m = st.d[key] || {};
+const g0 = gmv(b, {}), g1 = gmv(b, m);
+totB += g0; totN += g1;
+const cells = K.map(([k, label]) => {
+const locked = b.lock.includes(k);
+const dv = m[k] || 0;
+const base = b[k];
+const now = base * (1 + dv / 100);
+const value = k === 'imp' ? fmtN(now) : (k === 'aov' ? fmtK(now) : fmtP(now));
+const bandPct = Math.round(b.band[k] * BS);
+const tr = TR[W][key][k];
+const flat = Math.abs(tr) < 0.5;
+const inNoise = Math.abs(dv) <= bandPct;
+if (dv !== 0 && actionsMap[key][k]) actions.push({ cell: b.name + ' · ' + label + (dv > 0 ? ' +' : ' ') + dv + ' %', what: actionsMap[key][k] });
+return {
+value, locked, editable: !locked,
+tag: locked ? '' : (k === 'imp' ? 'gián tiếp ⚠' : ''), tagStyle: 'color: #8a4b00',
+trend: (flat ? '' : (tr > 0 ? '▲ ' : '▼ ')) + Math.abs(tr).toFixed(1).replace('.', ',') + ' %',
+trendStyle: flat ? 'color: #4a4a55; background: #f0eef0' : (tr > 0 ? 'color: #146c2e; background: #e3f5e8' : 'color: #a3222f; background: #fdecec'),
+band: '±' + bandPct + ' %',
+delta: (dv > 0 ? '+' : '') + dv + ' %', deltaStyle: dv > 0 ? 'color: #146c2e' : (dv < 0 ? 'color: #a3222f' : 'color: #4a4a55'),
+noise: dv === 0 ? '' : (inNoise ? 'Trong dao động thường ngày' : 'Vượt dao động · đo được'),
+noiseStyle: inNoise ? 'color: #8a4b00' : 'color: #146c2e',
+box: locked ? 'background: #f0eef0; border: 1px dashed #d6d2d6' : (dv !== 0 ? 'background: #fff7fa; border: 2px solid #c2306d' : 'background: #ffffff; border: 1px solid #ece3e7'),
+inc: () => this.setState({ d: { ...st.d, [key]: { ...m, [k]: dv + 5 } } }),
+dec: () => this.setState({ d: { ...st.d, [key]: { ...m, [k]: dv - 5 } } })
+};
+});
+const stable = b.cv < 0.15, mid = b.cv < 0.3;
+const pct = ((g1 - g0) / g0 * 100);
+return {
+name: b.name, on: st.sel === key, pick: () => this.setState({ sel: key }), cells,
+stab: stable ? 'Ổn định' : (mid ? 'Dao động vừa' : 'Dao động cao'),
+stabStyle: stable ? 'color: #146c2e; background: #e3f5e8' : (mid ? 'color: #8a4b00; background: #fff4e0' : 'color: #a3222f; background: #fdecec'),
+stabNote: 'Biến thiên hiển thị ' + Math.round(b.cv * 100) + ' %',
+gmvBase: fmtM(g0), gmvNew: fmtM(g1), gmvDelta: (pct >= 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + ' %', gmvDeltaStyle: pct > 0 ? 'color: #146c2e' : (pct < 0 ? 'color: #a3222f' : 'color: #4a4a55')
+};
+});
+const VOL = {
+card: { kind: 'sản phẩm', rows: [['SM-012 Son môi số 12', '3.400 – 4.300', '3,0 – 3,4 %', '5,0 – 5,8 %', 0.11], ['MN-015 Mặt nạ đất sét', '1.900 – 2.400', '2,6 – 3,1 %', '5,1 – 6,0 %', 0.13], ['KD-030 Kem dưỡng ceramide', '700 – 1.600', '3,4 – 4,2 %', '3,6 – 5,0 %', 0.41], ['TN-021 Toner rau má', '1.100 – 1.500', '3,8 – 4,4 %', '6,1 – 7,0 %', 0.14], ['SR-007 Sữa rửa mặt amino', '600 – 2.300', '1,8 – 2,6 %', '4,0 – 5,3 %', 0.62]] },
+shop: { kind: 'sản phẩm', rows: [['SM-012 Son môi số 12', '380 – 460', '6,0 – 6,6 %', '6,9 – 7,6 %', 0.08], ['TN-021 Toner rau má', '260 – 330', '5,4 – 6,1 %', '7,6 – 8,6 %', 0.1]] },
+video: { kind: 'video', rows: [['Review son lì 12 màu', '1.200 – 9.800', '2,4 – 3,6 %', '—', 0.82], ['Mặt nạ đất sét: trước và sau', '2.100 – 5.600', '1,6 – 2,3 %', '—', 0.44], ['Routine sáng 3 bước', '900 – 2.700', '2,2 – 3,1 %', '—', 0.51]] },
+live: { kind: 'phiên LIVE', rows: [['LIVE tối thứ Sáu', '5.200 – 9.400', '4,4 – 5,9 %', '6,6 – 8,0 %', 0.29], ['LIVE trưa', '800 – 1.600', '4,1 – 5,2 %', '6,0 – 7,4 %', 0.33]] }
+};
+const sv = VOL[st.sel];
+let vrows = sv.rows.map(([name, imp, ctr, ctor, cv]) => {
+const stable = cv < 0.15, mid = cv < 0.3;
+return { name, imp, ctr, ctor, cvNum: cv, cv: Math.round(cv * 100) + ' %', barStyle: 'width: ' + Math.min(100, cv * 100) + '%; background: ' + (stable ? '#1f8a3d' : (mid ? '#c96a00' : '#c2306d')), tag: stable ? 'Ổn định · nên chọn' : (mid ? 'Dao động vừa' : 'Dao động cao'), tagStyle: stable ? 'color: #146c2e; background: #e3f5e8' : (mid ? 'color: #8a4b00; background: #fff4e0' : 'color: #a3222f; background: #fdecec') };
+});
+vrows = vrows.sort((a, b) => st.sort === 'stable' ? a.cvNum - b.cvNum : b.cvNum - a.cvNum);
+const pill = (on) => on ? 'color: #1a1a1f; background: #ffffff; box-shadow: 0 1px 2px rgba(20,20,30,0.08)' : 'color: #5f5f6b; background: transparent';
+const pct = (totN - totB) / totB * 100;
+return {
+rows, actions: actions.length ? actions : [{ cell: 'Chưa chỉnh ô nào', what: 'bấm ± ở một ô để xem Hành động tương ứng' }],
+totalBase: fmtM(totB), totalNew: fmtM(totN), totalDelta: (pct >= 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + ' % · ' + (totN - totB >= 0 ? '+' : '') + Math.round((totN - totB) / 1000) + 'k ₫/ngày',
+monthDelta: (((totN - totB) * 30) / 1e6).toFixed(1).replace('.', ',') + ' tr ₫',
+selName: B[st.sel].name, win: W,
+wins: [7, 14, 30, 90].map((n) => ({ label: n + ' ngày', on: W === n, style: W === n ? 'color: #ffffff; background: #1a1a1f' : 'color: #4a4a55; background: transparent', pick: () => this.setState({ win: n }) })),
+winNote: 'Gốc: trung bình ' + W + ' ngày · ▲▼ so với ' + W + ' ngày trước đó · dao động trong ' + W + ' ngày', rowKind: sv.kind, rowKindCap: sv.kind.charAt(0).toUpperCase() + sv.kind.slice(1),
+vol: vrows,
+sorts: [['stable', 'Ổn định trước'], ['volatile', 'Dao động trước']].map(([id, label]) => ({ label, on: st.sort === id, style: pill(st.sort === id), pick: () => this.setState({ sort: id }) })),
+saved: [
+{ name: 'Mục tiêu Q4', delta: '+6,2 % GMV', tag: 'Mục tiêu shop', tagStyle: 'color: #146c2e' },
+{ name: 'Chỉ CTOR Thẻ sản phẩm +10 %', delta: '+4,9 % GMV', tag: '', tagStyle: '' }
+].concat(st.savedNow ? [{ name: 'Kịch bản 10/10 15:20', delta: (pct >= 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + ' % GMV', tag: 'mới lưu', tagStyle: 'color: #b0386a' }] : []),
+save: () => this.setState({ savedNow: true }),
+reset: () => this.setState({ d: {}, savedNow: false })
+};
+}
+}
+</script>
+</body>
+</html>
