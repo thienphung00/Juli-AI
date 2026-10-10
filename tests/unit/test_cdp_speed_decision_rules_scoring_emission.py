@@ -219,25 +219,21 @@ class TestEmissionBudgetAppliedOnTheComputePath:
         surfaced = [card for card in cards if card.surfaced_at is not None]
         suppressed = [card for card in cards if card.surfaced_at is None]
 
-        assert len(surfaced) == 5, "at most the daily limit (5, D24.17) may be surfaced"
-        assert len(suppressed) == 3
+        # D24.21 (4): these legacy cards (no ADR-106 lever) take the 3 daily
+        # Juli slots; the Seller Center and content slots have no candidate and
+        # stay empty.
+        assert len(surfaced) == 3, "at most the 3 Juli slots (D24.21) may be surfaced"
+        assert len(suppressed) == 5
 
-        # The 5 fixture-ranked candidates (priority 1-5) fill the 5 surfaced
-        # slots; all three lower-priority seeded candidates (10-12) lose on
-        # priority and are suppressed. Three over the cap rather than two, so
-        # the cap is under more pressure here than it was before #1960, not
-        # less.
-        surfaced_keys = {card.workflow_key for card in surfaced}
-        assert surfaced_keys == {
-            "prevent_return_8b",
-            "optimize_product_2",
-            "create_hero_product_1",
-            "process_order_5",
-            "prevent_cancellation_8a",
+        # The 3 best-priority fixture-ranked candidates fill the slots; the
+        # other two and all three lower-priority seeded candidates (10-12) lose
+        # on priority and are suppressed.
+        by_priority = sorted(cards, key=lambda c: (c.priority, c.workflow_key))
+        assert {c.id for c in surfaced} == {c.id for c in by_priority[:3]}
+        assert {"seed_extra_1", "seed_extra_2", "seed_extra_3"} <= {
+            c.workflow_key for c in suppressed
         }
-
         for card in suppressed:
-            assert card.workflow_key in {"seed_extra_1", "seed_extra_2", "seed_extra_3"}
             assert card.suppressed_reason == "daily_cap"
 
     @pytest.mark.asyncio
@@ -261,7 +257,7 @@ class TestEmissionBudgetAppliedOnTheComputePath:
 
         cards = await _cards_for(session, shop.id)
         suppressed = [c for c in cards if c.suppressed_reason == "daily_cap"]
-        assert len(suppressed) == 3
+        assert len(suppressed) == 5  # 8 candidates, 3 Juli slots (D24.21)
         for card in suppressed:
             # Still an "active" candidate row, content intact — recomputation
             # and surfacing are independently gated.

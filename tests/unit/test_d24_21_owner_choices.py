@@ -35,11 +35,22 @@ from juli_backend.services.optimize_product.decision_cards import (
     keep_top_per_type,
 )
 from tests.support.builders import make_tenant
-from tests.unit.test_p10a_card_reasons_edits import (  # noqa: F401 -- fixture
+from tests.unit.test_p10a_card_reasons_edits import (
+    Enqueued,
     _post_confirmation,
     _waiting_run,
-    enqueued,
 )
+
+
+@pytest.fixture
+def recorder(monkeypatch) -> Enqueued:
+    from juli_backend.api.routes import agent_runs, demo_run_changes
+
+    calls = Enqueued()
+    monkeypatch.setattr(agent_runs, "_enqueue_resume_agent_workflow", calls.resume)
+    monkeypatch.setattr(demo_run_changes, "_enqueue_resume_agent_workflow", calls.resume)
+    return calls
+
 
 # =========================================================================== (5) rules
 
@@ -119,7 +130,7 @@ async def _ban(session, shop, user, terms):
 
 
 @pytest.mark.asyncio
-async def test_approving_juli_proposal_with_a_banned_term_is_refused(session, enqueued):  # noqa: F811
+async def test_approving_juli_proposal_with_a_banned_term_is_refused(session, recorder):
     """The write itself is checked: Juli's own proposal cannot carry the term."""
     user, shop = await make_tenant(session)
     run, _card, _product = await _waiting_run(session, shop)
@@ -135,11 +146,11 @@ async def test_approving_juli_proposal_with_a_banned_term_is_refused(session, en
     assert '"Juli viết"' in detail["message"]
     confirmation = (await session.execute(select(RunConfirmation))).scalar_one()
     assert confirmation.status == "pending"
-    assert enqueued.calls == []
+    assert recorder.calls == []
 
 
 @pytest.mark.asyncio
-async def test_the_seller_can_edit_the_banned_term_out_and_approve(session, enqueued):  # noqa: F811
+async def test_the_seller_can_edit_the_banned_term_out_and_approve(session, recorder):
     user, shop = await make_tenant(session)
     run, _card, _product = await _waiting_run(session, shop)
     await _ban(session, shop, user, ["Juli viết"])
@@ -168,7 +179,7 @@ async def test_the_seller_can_edit_the_banned_term_out_and_approve(session, enqu
         },
     )
     assert good.status_code == 202, good.text
-    assert enqueued.calls == [(run.id, True)]
+    assert recorder.calls == [(run.id, True)]
 
 
 # =========================================================================== (4) ranking
