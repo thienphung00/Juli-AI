@@ -113,7 +113,8 @@ errors (then `failed` / `provider_final`, file deleted), cost stored per stage a
 **Cost cap**: before ASR (each slice), vision and scoring:
 `spent this month (workflow_runs.cost_usd + content_analyses.cost_usd, UTC+7 month) +
 estimate ≤ cap`, cap = `shop_rules.openai_monthly_cap_usd` (number, P16 writes it) else
-`OPENAI_MONTHLY_COST_CAP_USD` (default $5). Over → `refused`, message "Shop đã dùng hết
+`OPENAI_MONTHLY_CAP_USD_DEFAULT` (default $5) — integration: cap and spend both read through
+P16's `services/shop_rules/openai_cap.py` (one accessor for P15 and P16). Over → `refused`, message "Shop đã dùng hết
 hạn mức phân tích bằng AI của tháng này (x / y USD) …". Also checked when a slot opens (402).
 
 ## 5. Where it shows (no artboard — deviation, owner review)

@@ -14,7 +14,7 @@ export function auditWhat(entry: AuditEntry): string {
         (k) => JSON.stringify(after[k]) !== JSON.stringify(((entry.before ?? {}) as Record<string, unknown>)[k]),
       );
       if (keys.includes("openai_monthly_cap_usd") && after.openai_monthly_cap_usd !== null)
-        return `đặt trần chi phí OpenAI $${String(after.openai_monthly_cap_usd)}/tháng`;
+        return `đặt giới hạn chi phí OpenAI $${String(after.openai_monthly_cap_usd)}/tháng`;
       if (keys.includes("stage")) return `chuyển giai đoạn: ${STAGE_VI[String(after.stage)] ?? String(after.stage)}`;
       if (keys.includes("card_daily_limit") && after.card_daily_limit !== null)
         return `đổi giới hạn thẻ: ${String(after.card_daily_limit)} thẻ mới/ngày`;

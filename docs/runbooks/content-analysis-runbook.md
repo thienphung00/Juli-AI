@@ -31,7 +31,8 @@ hundred MB — not worth it on this VPS at today's volume).
   `content_analysis_finished` (outcome, cost, usage), `content_analysis_error`,
   `content_analysis_sweep`.
 - A shop over its monthly cap gets `refused` with a Vietnamese message; raise the
-  cap with a `shop_rules` row `openai_monthly_cap_usd` (P16's Ops console owns the UI).
+  cap in Juli Ops › Cài đặt shop › "Giới hạn chi phí OpenAI" (the `shop_rules` row
+  `openai_monthly_cap_usd`, shared with drafting; default `OPENAI_MONTHLY_CAP_USD_DEFAULT`).
 - Stuck `queued` (enqueue failed): re-enqueue with
   `celery call juli_backend.analyze_content_upload --args='["<id>","<shop_id>"]'`.
 - Disk check: `du -sh /var/lib/juli/content-uploads` should stay near zero between uploads.

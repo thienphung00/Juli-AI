@@ -122,7 +122,7 @@ def rules_sentence(rules: ContentRules) -> str:
 #: Fast track P16 (D25.8): the shop is over its monthly OpenAI cap set in Ops.
 DRAFT_ERROR_OPENAI_CAP = "openai_cap_reached"
 _CAP_REACHED_VI = (
-    "Juli tạm dừng soạn kịch bản mới cho shop này: đã chạm trần chi phí AI của tháng. "
+    "Juli tạm dừng soạn kịch bản mới cho shop này: đã chạm giới hạn chi phí AI của tháng. "
     "Đội ngũ Juli đã được báo."
 )
 

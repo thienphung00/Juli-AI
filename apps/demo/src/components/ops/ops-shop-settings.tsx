@@ -332,11 +332,11 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
             </SettingRow>
             <SettingRow
               disabled={!canEdit}
-              help="Vượt trần: dừng soạn mới, báo đội ngũ"
+              help="Vượt giới hạn: dừng soạn mới, báo đội ngũ"
               onDefault={() => void save({ openai_monthly_cap_usd: null })}
               overridden={cap !== null}
               summary={capShown !== null ? `$${String(capShown).replace(".", ",")} / tháng` : "Không giới hạn"}
-              title="Trần chi phí OpenAI"
+              title="Giới hạn chi phí OpenAI"
             >
               <CapEditor onSave={(v) => void save({ openai_monthly_cap_usd: v })} value={capShown} />
             </SettingRow>

@@ -52,7 +52,7 @@ test("Tổng quan lists shops with totals and the Admin-only Huỷ kết nối",
   await page.goto("/ops");
   await expect(page.getByRole("heading", { name: "Gian hàng đã kết nối" })).toBeVisible();
   await expect(page.getByTestId("ops-shop-row")).toHaveCount(3);
-  await expect(page.getByTestId("cap-badge")).toContainText("Chạm trần");
+  await expect(page.getByTestId("cap-badge")).toContainText("Chạm giới hạn");
   await page.getByRole("button", { name: "Huỷ kết nối" }).first().click();
   await expect(page.getByRole("dialog")).toContainText("Seller nhận email báo đã huỷ kết nối.");
   await page.getByRole("button", { name: "Quay lại" }).click();

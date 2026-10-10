@@ -67,8 +67,6 @@ class AnalysisSettings:
     asr_model: str
     vision_model: str
     scoring_model: str
-    #: Default per-shop monthly OpenAI cap (USD); a per-shop override wins (``costs``).
-    monthly_cap_usd: float
     #: LIVE without TikTok product timing: at most this many minutes are transcribed
     #: while looking for the product's mentions.
     live_scan_max_minutes: int
@@ -97,7 +95,6 @@ def settings() -> AnalysisSettings:
         asr_model=_str("CONTENT_ANALYSIS_ASR_MODEL", "whisper-1"),
         vision_model=_str("CONTENT_ANALYSIS_VISION_MODEL", "gpt-5.4-nano"),
         scoring_model=_str("CONTENT_ANALYSIS_SCORING_MODEL", "gpt-5.4-nano"),
-        monthly_cap_usd=_float("OPENAI_MONTHLY_COST_CAP_USD", 5.0),
         live_scan_max_minutes=_int("CONTENT_ANALYSIS_LIVE_SCAN_MAX_MINUTES", 60),
         live_window_before_s=120.0,
         live_window_after_s=300.0,

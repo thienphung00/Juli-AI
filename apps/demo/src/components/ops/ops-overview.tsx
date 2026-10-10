@@ -71,7 +71,7 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
         {
           label: "OpenAI tháng này",
           value: fmtUsd(t.openai_cost_month_usd),
-          sub: t.openai_cap_alerts ? `${t.openai_cap_alerts} shop chạm trần` : "chưa shop nào chạm trần",
+          sub: t.openai_cap_alerts ? `${t.openai_cap_alerts} shop chạm giới hạn` : "chưa shop nào chạm giới hạn",
           color: t.openai_cap_alerts ? C.red : undefined,
         },
       ]
@@ -184,7 +184,7 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
                         {fmtUsd(s.openai_cost_month_usd)}
                         {s.openai_cap_reached ? (
                           <span data-testid="cap-badge" style={{ fontSize: 11, fontWeight: 700, color: C.red }}>
-                            Chạm trần {fmtUsd(s.openai_cap_usd)}
+                            Chạm giới hạn {fmtUsd(s.openai_cap_usd)}
                           </span>
                         ) : null}
                       </span>

@@ -581,3 +581,43 @@ async def test_staff_set_the_sellers_rules_audited_and_the_seller_sees_them(sess
             "/v1/demo/rules/content_tone", json={"value": "Lịch sự", "set_by": "seller"}
         )
         assert edit.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_a_rule_change_is_never_left_unaudited(session, monkeypatch):
+    """Integration P15+P16: the rule row and its audit row commit together.
+
+    If writing the audit row fails, the rule write is rolled back with it (PUT
+    and DELETE); before, the seller handler committed the rule first.
+    """
+    from juli_backend.api.routes import ops as ops_routes
+
+    _, shop = await make_tenant(session)
+    shop_id = shop.id
+    op = await _staff(session, "operator", "op.atomic@app-juli.com")
+    async with _client_as(session, op) as client:
+        put = await client.put(
+            f"/v1/ops/shops/{shop_id}/rules/target_roas", json={"value": 6, "set_by": "team"}
+        )
+        assert put.status_code == 200, put.text
+
+    async def broken_record(*_args, **_kwargs):
+        raise RuntimeError("audit store down")
+
+    monkeypatch.setattr(ops_routes.audit, "record", broken_record)
+    async with _client_as(session, op) as client:
+        with pytest.raises(RuntimeError):
+            await client.put(
+                f"/v1/ops/shops/{shop_id}/rules/content_tone",
+                json={"value": "Thân thiện", "set_by": "team"},
+            )
+        with pytest.raises(RuntimeError):
+            await client.delete(f"/v1/ops/shops/{shop_id}/rules/target_roas")
+    keys = sorted(
+        (await session.execute(select(ShopRule.rule_key).where(ShopRule.shop_id == shop_id)))
+        .scalars()
+        .all()
+    )
+    assert keys == ["target_roas"]
+    assert await _audit_count(session, "rule_set") == 1
+    assert await _audit_count(session, "rule_unset") == 0

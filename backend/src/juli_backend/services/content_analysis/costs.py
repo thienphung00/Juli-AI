@@ -8,28 +8,23 @@ month (UTC+7). Before every paid step (ASR, vision, scoring) the pipeline asks
 it, the step is refused with a Vietnamese message and the analysis ends
 ``refused`` (nothing more is spent).
 
-The cap: a per-shop override stored as the ``shop_rules`` row
-``openai_monthly_cap_usd`` (a number; P16's Ops console owns writing it), else
-``OPENAI_MONTHLY_COST_CAP_USD`` (default 5 USD).
+The cap and the month's spend come from ONE accessor shared with P16's
+drafting / agent-run gates (``services/shop_rules/openai_cap.py``): the
+``shop_rules`` row ``openai_monthly_cap_usd`` (written by Juli Ops), else
+``OPENAI_MONTHLY_CAP_USD_DEFAULT`` (default 5 USD).
 """
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import datetime
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.content_analysis import ContentAnalysis
-from juli_backend.models.models import WorkflowRun
-from juli_backend.models.run_changes import ShopRule
-from juli_backend.services.content_analysis.config import settings
+from juli_backend.services.shop_rules import openai_cap
 
-CAP_RULE_KEY = "openai_monthly_cap_usd"
-_SHOP_TZ = timezone(timedelta(hours=7))
+CAP_RULE_KEY = openai_cap.OPENAI_MONTHLY_CAP_USD
 
 CAP_REACHED_CODE = "cost_cap_reached"
 
@@ -64,46 +59,17 @@ class Budget:
 
 def month_start_utc(now: datetime | None = None) -> datetime:
     """The first instant of the shop's (UTC+7) month, as naive UTC."""
-    local = (now or datetime.now(UTC)).astimezone(_SHOP_TZ)
-    first = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return first.astimezone(UTC).replace(tzinfo=None)
+    return openai_cap.month_start_utc(now)
 
 
 async def monthly_cap_usd(session: AsyncSession, shop_id: uuid.UUID) -> float:
-    row = (
-        await session.execute(
-            select(ShopRule.value).where(
-                ShopRule.shop_id == shop_id, ShopRule.rule_key == CAP_RULE_KEY
-            )
-        )
-    ).first()
-    value = row[0] if row is not None else None
-    if isinstance(value, int | float) and not isinstance(value, bool) and value >= 0:
-        return float(value)
-    if isinstance(value, dict) and isinstance(value.get("usd"), int | float):
-        return max(0.0, float(value["usd"]))
-    return settings().monthly_cap_usd
+    return float((await openai_cap.openai_monthly_cap_usd(session, shop_id)).usd)
 
 
 async def monthly_spend_usd(
     session: AsyncSession, shop_id: uuid.UUID, *, now: datetime | None = None
 ) -> float:
-    since = month_start_utc(now)
-    runs = (
-        await session.execute(
-            select(func.coalesce(func.sum(WorkflowRun.cost_usd), 0)).where(
-                WorkflowRun.shop_id == shop_id, WorkflowRun.created_at >= since
-            )
-        )
-    ).scalar_one()
-    analyses = (
-        await session.execute(
-            select(func.coalesce(func.sum(ContentAnalysis.cost_usd), 0)).where(
-                ContentAnalysis.shop_id == shop_id, ContentAnalysis.created_at >= since
-            )
-        )
-    ).scalar_one()
-    return float(Decimal(str(runs or 0)) + Decimal(str(analyses or 0)))
+    return float(await openai_cap.openai_spend_this_month(session, shop_id, now=now))
 
 
 async def budget(

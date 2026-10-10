@@ -35,11 +35,11 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select, text
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -93,10 +93,6 @@ def allowed_openai_models() -> tuple[str, ...]:
     from juli_backend.services.agent.llm.config import PRICE_TABLE_USD_PER_MILLION_TOKENS
 
     return tuple(sorted(PRICE_TABLE_USD_PER_MILLION_TOKENS))
-
-
-#: The shop's clock (UTC+7) for "this month".
-SHOP_UTC_OFFSET = timedelta(hours=7)
 
 
 @dataclass(frozen=True)
@@ -249,26 +245,18 @@ class CapStatus:
 
 def month_start_utc(now: datetime | None = None) -> datetime:
     """The first instant of the shop's (UTC+7) current month, as naive UTC."""
-    current = (now or datetime.now(UTC)).astimezone(UTC) + SHOP_UTC_OFFSET
-    local_start = current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return (local_start - SHOP_UTC_OFFSET).replace(tzinfo=None)
+    from juli_backend.services.shop_rules.openai_cap import month_start_utc as start
+
+    return start(now)
 
 
 async def openai_cost_this_month(
     session: AsyncSession, shop_id: uuid.UUID, *, now: datetime | None = None
 ) -> Decimal:
-    """Sum of the month's ``workflow_runs.cost_usd`` (content drafts + agent runs)."""
-    from juli_backend.models.models import WorkflowRun
+    """The month's OpenAI spend, shared with P15 (workflow runs + content analyses)."""
+    from juli_backend.services.shop_rules.openai_cap import openai_spend_this_month
 
-    start = month_start_utc(now)
-    total = (
-        await session.execute(
-            select(func.coalesce(func.sum(WorkflowRun.cost_usd), 0)).where(
-                WorkflowRun.shop_id == shop_id, WorkflowRun.created_at >= start
-            )
-        )
-    ).scalar_one()
-    return Decimal(str(total or 0))
+    return await openai_spend_this_month(session, shop_id, now=now)
 
 
 async def openai_cap_status(

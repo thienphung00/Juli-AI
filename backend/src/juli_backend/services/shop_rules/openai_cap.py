@@ -9,6 +9,11 @@ It is a TEAM setting, not a seller rule: it is deliberately NOT in
 "Cài đặt shop" writes it (audited) through :func:`set_openai_monthly_cap`.
 P15 content analysis (ASR / vision / scoring) and P16 drafting / agent runs read
 it through :func:`openai_monthly_cap_usd`, under the shop's own scope.
+
+The spend the cap is checked against is ONE figure too
+(:func:`openai_spend_this_month`): the shop's ``workflow_runs.cost_usd`` (content
+drafting, agent runs) plus ``content_analyses.cost_usd`` (P15), from the first
+instant of the shop's month (Asia/Ho_Chi_Minh, UTC+7).
 """
 
 from __future__ import annotations
@@ -16,19 +21,23 @@ from __future__ import annotations
 import os
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.content_analysis import ContentAnalysis
+from juli_backend.models.models import WorkflowRun
 from juli_backend.models.run_changes import ShopRule
 
 OPENAI_MONTHLY_CAP_USD = "openai_monthly_cap_usd"
 DEFAULT_CAP_ENV = "OPENAI_MONTHLY_CAP_USD_DEFAULT"
 FALLBACK_DEFAULT_USD = Decimal("5")
 CAP_MAX_USD = Decimal("1000")
+#: The shop's month runs on Vietnam time (no DST).
+SHOP_UTC_OFFSET = timedelta(hours=7)
 
 
 class CapValidationError(ValueError):
@@ -123,3 +132,32 @@ async def clear_openai_monthly_cap(session: AsyncSession, shop_id: uuid.UUID) ->
     await session.delete(row)
     await session.flush()
     return True
+
+
+def month_start_utc(now: datetime | None = None) -> datetime:
+    """The first instant of the shop's (UTC+7) current month, as naive UTC."""
+    current = (now or datetime.now(UTC)).astimezone(UTC) + SHOP_UTC_OFFSET
+    local_start = current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return (local_start - SHOP_UTC_OFFSET).replace(tzinfo=None)
+
+
+async def openai_spend_this_month(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime | None = None
+) -> Decimal:
+    """The shop's OpenAI spend this month: workflow runs + content analyses."""
+    since = month_start_utc(now)
+    runs = (
+        await session.execute(
+            select(func.coalesce(func.sum(WorkflowRun.cost_usd), 0)).where(
+                WorkflowRun.shop_id == shop_id, WorkflowRun.created_at >= since
+            )
+        )
+    ).scalar_one()
+    analyses = (
+        await session.execute(
+            select(func.coalesce(func.sum(ContentAnalysis.cost_usd), 0)).where(
+                ContentAnalysis.shop_id == shop_id, ContentAnalysis.created_at >= since
+            )
+        )
+    ).scalar_one()
+    return Decimal(str(runs or 0)) + Decimal(str(analyses or 0))

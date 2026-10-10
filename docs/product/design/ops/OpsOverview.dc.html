@@ -118,7 +118,7 @@ kpis: [
 { label: 'Đang hoạt động', value: '4', sub: 'lấy dữ liệu trong 24 giờ', style: 'color: #146c2e' },
 { label: 'Mất kết nối', value: '1', sub: 'token hết hạn', style: 'color: #a3222f' },
 { label: 'Thẻ đã duyệt (30 ngày)', value: '51', sub: 'tỷ lệ duyệt 72 %', style: '' },
-{ label: 'OpenAI tháng này', value: '$8,5', sub: 'trần chung $50', style: '' }
+{ label: 'OpenAI tháng này', value: '$8,5', sub: 'giới hạn chung $50', style: '' }
 ],
 filters: [['all', 'Tất cả'], ['trial', 'Thử nghiệm'], ['self', 'Tự vận hành'], ['pilot', 'Pilot đặc biệt']].map(([id, label]) => ({ label, on: s === id, style: pill(s === id), pick: () => this.setState({ stage: id }) })),
 rows

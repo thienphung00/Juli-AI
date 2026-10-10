@@ -545,27 +545,58 @@ async def ops_put_rule(
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
 ) -> Any:
-    """Set one seller rule as the team (same storage and validation as the seller's)."""
+    """Set one seller rule as the team (same storage and validation as the seller's).
+
+    The rule row and its audit row are written in ONE transaction: a failure
+    between them rolls both back, so no rule change is ever left unaudited.
+    """
+    from juli_backend.services import shop_rules
+
     shop = await _view_shop(session, shop_id)
     before = await _rule_snapshot(session, shop_id, rule_key, body.scope_ref)
-    team = body.model_copy(update={"set_by": "team"})
-    result = await demo_rules.put_shop_rule(
-        rule_key=rule_key, body=team, shop=shop, user=ctx.user, session=session
+    try:
+        row = await shop_rules.set_rule(
+            session,
+            shop.id,
+            rule_key=rule_key,
+            scope_ref=body.scope_ref,
+            value=body.value,
+            set_by="team",
+            set_by_user_id=ctx.user.id,
+        )
+        await audit.record(
+            session,
+            ctx.staff.actor,
+            "rule_set",
+            shop_id=shop_id,
+            before={"rule_key": rule_key, "scope_ref": body.scope_ref, "rule": before},
+            after={
+                "rule_key": rule_key,
+                "scope_ref": body.scope_ref,
+                "rule": {"value": row.value, "set_by": "team"},
+            },
+        )
+        await session.commit()
+    except shop_rules.RuleValidationError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    except Exception:
+        await session.rollback()
+        raise
+    logger.info(
+        "ops_shop_rule_set",
+        extra={"shop_id": str(shop_id), "rule_key": rule_key, "staff_id": str(ctx.staff.id)},
     )
-    await audit.record(
-        session,
-        ctx.staff.actor,
-        "rule_set",
-        shop_id=shop_id,
-        before={"rule_key": rule_key, "scope_ref": body.scope_ref, "rule": before},
-        after={
-            "rule_key": rule_key,
-            "scope_ref": body.scope_ref,
-            "rule": {"value": result.data.value, "set_by": "team"},
-        },
+    return demo_rules.RuleWriteResponse(
+        data=demo_rules.RuleWriteData(
+            rule_key=row.rule_key,
+            scope_ref=row.scope_ref,
+            value=row.value,
+            set_by=row.set_by,
+            set_by_user_id=row.set_by_user_id,
+            set_at=row.set_at,
+        )
     )
-    await session.commit()
-    return result
 
 
 @router.delete("/shops/{shop_id}/rules/{rule_key}", status_code=204)
@@ -576,21 +607,40 @@ async def ops_delete_rule(
     ctx: OpsContext = Depends(operator),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    """Unset one seller rule; the delete and its audit row commit together."""
+    from juli_backend.services import shop_rules
+
     shop = await _view_shop(session, shop_id)
     before = await _rule_snapshot(session, shop_id, rule_key, scope_ref)
-    result = await demo_rules.delete_shop_rule(
-        rule_key=rule_key, scope_ref=scope_ref, shop=shop, session=session
+    try:
+        existed = await shop_rules.delete_rule(
+            session, shop.id, rule_key=rule_key, scope_ref=scope_ref
+        )
+        if not existed:
+            await session.rollback()
+            raise HTTPException(status_code=404, detail="Rule not set")
+        await audit.record(
+            session,
+            ctx.staff.actor,
+            "rule_unset",
+            shop_id=shop_id,
+            before={"rule_key": rule_key, "scope_ref": scope_ref, "rule": before},
+            after=None,
+        )
+        await session.commit()
+    except shop_rules.RuleValidationError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    except HTTPException:
+        raise
+    except Exception:
+        await session.rollback()
+        raise
+    logger.info(
+        "ops_shop_rule_unset",
+        extra={"shop_id": str(shop_id), "rule_key": rule_key, "staff_id": str(ctx.staff.id)},
     )
-    await audit.record(
-        session,
-        ctx.staff.actor,
-        "rule_unset",
-        shop_id=shop_id,
-        before={"rule_key": rule_key, "scope_ref": scope_ref, "rule": before},
-        after=None,
-    )
-    await session.commit()
-    return result
+    return Response(status_code=204)
 
 
 # -- "Huỷ kết nối" (D25.13, Admin only) ------------------------------------------------------

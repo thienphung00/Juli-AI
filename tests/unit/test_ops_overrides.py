@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -16,6 +16,7 @@ from juli_backend.core.config.decision_emission import DecisionEmissionConfig
 from juli_backend.models.models import ActionCard
 from juli_backend.models.ops import OpsShopSettings
 from juli_backend.services.action_cards.emission_budget import (
+    SUPPRESSED_REASON_ACTIVE_CAP,
     SUPPRESSED_REASON_OPS_DISABLED,
     apply_emission_budget,
 )
@@ -78,7 +79,9 @@ async def test_default_shop_keeps_the_d24_17_limits(session):
         session.add(_card(shop.id, p))
     await session.flush()
     outcome = await apply_emission_budget(session, shop.id, now=START)
-    assert len(outcome.newly_surfaced) == 5
+    # D24.21 (4): the daily slots (3 Juli · 1 Seller Center · 1 content) still
+    # apply with no Ops row; seven Juli drafts fill the three Juli slots.
+    assert len(outcome.newly_surfaced) == 3
 
 
 async def test_daily_limit_override_is_honoured(session):
@@ -108,8 +111,16 @@ async def test_seller_open_cap_still_lowers_an_ops_limit(session):
     for p in range(1, 12):
         session.add(_card(shop.id, p))
     await session.flush()
-    outcome = await apply_emission_budget(session, shop.id, now=START)
-    assert len(outcome.newly_surfaced) == 6
+    # D24.21 (4): 3 Juli slots a day; on day 3 the seller's 6 open cards bind,
+    # although Ops raised the daily / weekly limits.
+    surfaced = []
+    for day in range(3):
+        outcome = await apply_emission_budget(session, shop.id, now=START + timedelta(days=day))
+        surfaced.append(len(outcome.newly_surfaced))
+        await session.flush()
+    assert surfaced == [3, 3, 0]
+    assert len(outcome.surfaced) == 6
+    assert outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]
 
 
 async def test_disabled_action_and_stream_are_suppressed(session):

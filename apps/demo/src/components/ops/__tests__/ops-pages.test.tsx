@@ -18,7 +18,7 @@ describe("Tổng quan (OpsOverview.dc.html)", () => {
     expect(screen.getByText("trên 3 tài khoản")).toBeInTheDocument();
     expect(screen.getAllByTestId("ops-shop-row")).toHaveLength(3);
     expect(screen.getByText("Token hết hạn", { exact: false }) ?? null).toBeTruthy();
-    expect(screen.getByTestId("cap-badge")).toHaveTextContent("Chạm trần $5,0");
+    expect(screen.getByTestId("cap-badge")).toHaveTextContent("Chạm giới hạn $5,0");
     expect(screen.getByText("Đội ngũ vận hành · chưa bàn giao")).toBeInTheDocument();
     expect(screen.getByText("1,2 tỷ")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Pilot đặc biệt" }));
@@ -51,7 +51,7 @@ describe("Cài đặt shop (OpsShopSettings.dc.html)", () => {
     expect(within(rows[0]).getByText("5/ngày · 25/tuần · 30 mở")).toBeInTheDocument();
     expect(within(rows[6]).getByText("Ghi đè")).toBeInTheDocument();
     expect(within(rows[6]).getByText("$5 / tháng")).toBeInTheDocument();
-    expect(screen.getByText(/đặt trần chi phí OpenAI \$5\/tháng/)).toBeInTheDocument();
+    expect(screen.getByText(/đặt giới hạn chi phí OpenAI \$5\/tháng/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: /Pilot đặc biệt/ }));
     await waitFor(() => expect(a.putSettings).toHaveBeenCalledWith(SHOP_ID, { stage: "pilot" }));
     fireEvent.click(screen.getByRole("button", { name: "Về mặc định" }));
