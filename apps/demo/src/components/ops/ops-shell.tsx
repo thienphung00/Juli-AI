@@ -42,6 +42,12 @@ export const STAGE_STYLE: Record<string, CSSProperties> = {
   pilot: { background: "#f3e8ff", color: "#5b2a86" },
 };
 
+/** The artboards are desktop (1440 px); below 900 px the columns stack. */
+const OPS_NARROW_CSS = `@media (max-width: 900px) {
+  .ops-sim, .ops-settings { grid-template-columns: minmax(0, 1fr) !important; }
+  .ops-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}`;
+
 export type OpsNavKey = "overview" | "staff" | "audit" | "simulate" | "settings";
 
 export function OpsHeader({
@@ -100,6 +106,7 @@ export function OpsHeader({
 export function OpsPage({ children }: { readonly children: ReactNode }) {
   return (
     <div className="ops-page" style={{ minHeight: "100vh", fontFamily: FONT, color: C.ink, background: C.page, display: "flex", flexDirection: "column" }}>
+      <style>{OPS_NARROW_CSS}</style>
       {children}
     </div>
   );
