@@ -56,11 +56,12 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.config import DecisionEmissionConfig, decision_emission_config
-from juli_backend.core.config.decision_emission import (
+from juli_backend.core.config import (
     EXECUTOR_CONTENT,
     EXECUTOR_JULI,
     EXECUTOR_SELLER_CENTER,
+    DecisionEmissionConfig,
+    decision_emission_config,
 )
 from juli_backend.models.models import ActionCard, DecisionEmissionNoveltyLedger
 from juli_backend.services.content_cards.constants import (

@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
-from juli_backend.core.config.decision_emission import EXECUTOR_CONTENT
+from juli_backend.core.config import EXECUTOR_CONTENT
 from juli_backend.models.models import ActionCard
 from juli_backend.services.action_cards.emission_budget import (
     EXPIRED_STATUS,
