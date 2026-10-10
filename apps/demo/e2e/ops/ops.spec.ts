@@ -8,6 +8,19 @@ import { ME, OVERVIEW, SETTINGS, SHOP_ID, SIMULATION, VIEW_SESSION } from "../..
  * ever made, and "Xem như shop" never sends a write.
  */
 
+const unset = { value: null, set_by: null, set_by_user_id: null, set_at: null };
+const RULES = {
+  stability_band: {},
+  product_cost: {},
+  max_discount_pct: {},
+  min_margin_pct: null,
+  max_open_cards: { ...unset, value: 30 },
+  auto_levers: { ...unset, value: ["title"] },
+  protected_terms: { ...unset, value: [] },
+  band_metrics: ["ctr"],
+  listing_levers: ["title", "description", "attributes", "image"],
+};
+
 async function stub(page: Page) {
   const writes: string[] = [];
   const seller: string[] = [];
@@ -28,6 +41,7 @@ async function stub(page: Page) {
     if (path === `/v1/ops/shops/${SHOP_ID}/view/decisions`) return json({ data: [] });
     if (path === `/v1/ops/shops/${SHOP_ID}/view/runs`) return json({ data: [] });
     if (path === `/v1/ops/shops/${SHOP_ID}/simulation`) return json(SIMULATION);
+    if (path === `/v1/ops/shops/${SHOP_ID}/rules`) return json({ data: RULES });
     return json({ detail: "not stubbed" }, 404);
   });
   return { writes, seller };
@@ -55,6 +69,8 @@ test("Cài đặt shop shows stage, overrides, invite and the audit log", async 
   await expect(page.getByText("Ghi đè")).toBeVisible();
   await expect(page.getByRole("button", { name: "Mời seller" })).toBeVisible();
   await expect(page.getByTestId("ops-audit-row")).toHaveCount(1);
+  await expect(page.getByTestId("ops-rules").getByTestId("rules-editor")).toBeVisible();
+  await expect(page.getByTestId("rule-content_tone")).toBeVisible();
 });
 
 test("Xem như shop is read-only and never writes", async ({ page }) => {
