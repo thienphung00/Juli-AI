@@ -48,8 +48,13 @@ EnvironmentFile=/etc/juli/api.env
 # `ingest_backfill` (shop_history_backfill -- the low-priority history walk). One worker
 # consuming every queue gives no strict priority between them; a dedicated
 # `-Q ingest_priority` worker is the follow-up if connects ever queue behind history.
+# Fast track P15 adds `content_analysis` (analyze_content_upload, content_analysis_sweep):
+# ffmpeg + OpenAI work on seller-uploaded videos; needs ffmpeg/ffprobe on the box and
+# CONTENT_ANALYSIS_UPLOAD_DIR writable (see docs/runbooks/content-analysis-runbook.md).
+# A dedicated `-Q content_analysis --concurrency 1` unit is the follow-up if analyses
+# ever delay agent runs (fasttrack/DEBT.md).
 ExecStart=/root/releases/current/.venv/bin/celery -A juli_backend.workers.celery_app worker \
-    -Q celery,agent_runs,credentials,ingest_priority,ingest_backfill \
+    -Q celery,agent_runs,credentials,ingest_priority,ingest_backfill,content_analysis \
     --loglevel=info
 Restart=on-failure
 RestartSec=5

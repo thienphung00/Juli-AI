@@ -27,7 +27,7 @@ from juli_backend.services.content_cards.guardrails import (
     DraftFacts,
 )
 
-PROMPT_VERSION = "p14-content-prompt-v1"
+PROMPT_VERSION = "p15-content-prompt-v2"
 
 _COMMON_RULES = """\
 Bạn viết kịch bản cho NGƯỜI BÁN trên TikTok Shop Việt Nam, bằng giọng của chính người bán đó.
@@ -120,8 +120,14 @@ def user_prompt(
     seo_words: Sequence[str],
     examples: Sequence[Mapping[str, Any]],
     previous: Mapping[str, Any] | None = None,
+    analyses: Sequence[Mapping[str, Any]] = (),
 ) -> str:
-    """The data: this shop's product, numbers, rules and its own best content."""
+    """The data: this shop's product, numbers, rules and its own best content.
+
+    ``analyses`` (P15): what Juli found in the seller's own uploaded videos of
+    this product -- the best and the weakest by TikTok's rate. Added only when
+    there is one, so a shop without uploads gets the P14 prompt unchanged.
+    """
     data: dict[str, Any] = {
         "sản_phẩm": {
             "tên": facts.product_title,
@@ -141,10 +147,18 @@ def user_prompt(
     }
     if kind != VIDEO:
         data["các_mã_được_dùng_trong_giỏ"] = list(facts.basket_skus)
+    if analyses:
+        data["phân_tích_video_của_người_bán"] = [dict(a) for a in analyses][:2]
     parts = [
         "DỮ LIỆU (chỉ dùng những gì có ở đây):",
         json.dumps(data, ensure_ascii=False, indent=1),
     ]
+    if analyses:
+        parts.append(
+            'Dựa vào "phân_tích_video_của_người_bán": giữ điều video tốt nhất đã làm được, '
+            "sửa đúng các vấn đề của video yếu nhất (mở đầu, lúc sản phẩm xuất hiện, lời kêu "
+            "gọi, nhịp cắt)."
+        )
     if previous:
         parts.append(
             "Đây là BẢN 2. Người bán muốn một hướng khác bản 1 dưới đây: đổi mẫu hook và cách "
