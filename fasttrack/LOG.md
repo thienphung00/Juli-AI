@@ -982,3 +982,18 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
 - Guards touched: quality reconciliation re-derived (459 → 473, 6236 functions / 615 modules),
   surface inventory regenerated (threat-model test now detects auth transitively), no new
   suppressions, creds-in-URL clean.
+- Verification: ruff clean; mypy (backend config) 610 files clean. `tests/unit` 6777 passed,
+  11 failed — the 9 that fail at the P14 base (7 `test_agent_workflow_task_wiring` without a DB
+  URL — all pass with one, `test_cross_tenant_probe`, `test_destructive_migration_isolation`),
+  plus `test_action_card_revisions` (pinned `ops_disabled` afterwards) and one timing flake
+  (`test_slow_backing_store_does_not_stall_the_event_loop`, passes alone). `tests/integration`
+  on PG16: 288 passed, 4 failed — the 3 base failures (recorded-replay, sanitizer registry,
+  public UPDATE grants) + `test_run_changes_two_tenant` (5–30 rule; fixed, passes).
+  `fasttrack/check.sh --since 2c35c1e4` (docker PG16): migrations PASS at `083_ops_console`,
+  isolation 12, gitleaks PASS (one test false positive allowlisted), ruff 70 files, pytest 41
+  files 511 passed → **OK**. Demo (Node 20): lint 0 errors (7 pre-existing warnings), tsc clean,
+  vitest 135 files 1733 passed, `pnpm build:demo` OK, Playwright `DEMO_E2E_PORT=3326`: ops 8,
+  auth + analytics 36, decisions + exit-gate 118 passed / 140 skipped. Landing: lint, tsc,
+  vitest 49, build OK.
+- Next: owner — review OpsSimulate; apply `docs/runbooks/ops-console-runbook.md`; the
+  orchestrator re-chains 083 after P15's 082 and confirms P15 reads the same cap row.
