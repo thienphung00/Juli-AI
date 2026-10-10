@@ -59,6 +59,26 @@ const ALLOWED_USES: ReadonlyArray<{
   readonly reason: string;
 }> = [
   {
+    path: "apps/demo/src/components/ops/ops-shop-settings.tsx",
+    snippet: 'title="Hành động bật"',
+    reason: "P16 Ops: the D24.2 card actions a shop may get (artboard OpsShopSettings), not the tab.",
+  },
+  {
+    path: "apps/demo/src/components/ops/ops-simulate.tsx",
+    snippet: "bản đồ Hành động.",
+    reason: "P16 Ops: the D24 lever map (artboard OpsSimulate), not the tab.",
+  },
+  {
+    path: "apps/demo/src/components/ops/ops-simulate.tsx",
+    snippet: "Hành động có thể tạo ra thay đổi này",
+    reason: "P16 Ops: actions for a changed cell (artboard OpsSimulate), not the tab.",
+  },
+  {
+    path: "apps/demo/src/components/ops/ops-simulate.tsx",
+    snippet: "xem Hành động tương ứng",
+    reason: "P16 Ops: actions for a changed cell (artboard OpsSimulate), not the tab.",
+  },
+  {
     path: "apps/demo/src/lib/destination-copy.ts",
     snippet: 'overriding #1910\'s interim "Hành động" label.',
     reason: "The docblock that records the retirement; the one place it must survive.",
