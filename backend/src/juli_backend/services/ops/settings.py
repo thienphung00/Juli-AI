@@ -10,7 +10,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.config.decision_emission import decision_emission_config
+from juli_backend.core.config import decision_emission_config
 from juli_backend.models.ops import STAGE_LABELS, STAGES, OpsShopSettings
 from juli_backend.repositories._base import utc_now_naive
 from juli_backend.services.ops import audit
@@ -215,9 +215,9 @@ async def update_settings(
             session.add(row)
         for name, value in clean.items():
             setattr(row, name, value)
-        if "stage" in changes:
+        if isinstance(stage, str):
             row.stage = stage
-        if "team_may_act" in changes:
+        if isinstance(may_act, bool):
             row.team_may_act = may_act
         if "seller_consented" in changes:
             row.seller_consent_at = moment if consented else None

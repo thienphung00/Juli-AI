@@ -236,6 +236,9 @@ def test_no_backend_source_takes_a_uuid_modulo() -> None:
 #: a new file that touches `phone` fails until it is named here on purpose,
 #: which is the only way this check keeps meaning anything as the tree grows.
 ALLOWED_PHONE_MENTIONS = {
+    # P16 (D25.6): the ops masker REMOVES phone numbers from staff payloads; it
+    # never reads users.phone.
+    "services/ops/masking.py",
     # Writes, not reads. Both pass a fixed sentinel for an internal, non-seller
     # account (TikTok app review / advertiser), never a per-seller number.
     "services/tiktok/app_review_store.py",

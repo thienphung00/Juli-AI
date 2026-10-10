@@ -40,9 +40,8 @@ async def ops_role(session: AsyncSession) -> AsyncIterator[None]:
         await session.flush()
         return
     await session.execute(text(f"SET LOCAL ROLE {OPS_ROLE}"))
-    try:
-        yield
-        await session.flush()
-    finally:
-        if session.in_transaction() and session.is_active:
-            await session.execute(text(f"SET LOCAL ROLE {_quote_ident(str(previous))}"))
+    # On an error the transaction is rolled back by the caller, which also
+    # undoes SET LOCAL; restoring would only fail on the aborted transaction.
+    yield
+    await session.flush()
+    await session.execute(text(f"SET LOCAL ROLE {_quote_ident(str(previous))}"))

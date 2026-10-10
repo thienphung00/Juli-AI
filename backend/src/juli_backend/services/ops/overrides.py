@@ -41,8 +41,9 @@ from typing import Any
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.config.decision_emission import DecisionEmissionConfig
+from juli_backend.core.config import DecisionEmissionConfig
 from juli_backend.models.ops import STAGE_TRIAL, OpsShopSettings
+from juli_backend.services.agent.llm.config import LLMConfig
 from juli_backend.services.ops.access import is_sqlite
 
 logger = logging.getLogger(__name__)
@@ -194,14 +195,13 @@ def emission_limits(
     config: DecisionEmissionConfig, overrides: ShopOverrides
 ) -> DecisionEmissionConfig:
     """D24.17 limits with the shop's overrides applied (may raise or lower)."""
-    changes: dict[str, int] = {}
     if overrides.card_daily_limit is not None:
-        changes["daily_new_cap"] = overrides.card_daily_limit
+        config = replace(config, daily_new_cap=overrides.card_daily_limit)
     if overrides.card_weekly_limit is not None:
-        changes["weekly_new_cap"] = overrides.card_weekly_limit
+        config = replace(config, weekly_new_cap=overrides.card_weekly_limit)
     if overrides.card_open_limit is not None:
-        changes["max_open"] = overrides.card_open_limit
-    return replace(config, **changes) if changes else config
+        config = replace(config, max_open=overrides.card_open_limit)
+    return config
 
 
 def stream_enabled(overrides: ShopOverrides, stream: str) -> bool:
@@ -239,6 +239,13 @@ def promotion_api_enabled(overrides: ShopOverrides) -> bool:
 
 def openai_model(overrides: ShopOverrides) -> str:
     return overrides.openai_model or DEFAULT_OPENAI_MODEL
+
+
+async def llm_config_for(session: AsyncSession, shop_id: uuid.UUID) -> LLMConfig:
+    """The agent runner's ``LLMConfig`` with the shop's model override (P16)."""
+    current = await shop_overrides(session, shop_id)
+    config = LLMConfig()
+    return replace(config, model=current.openai_model) if current.openai_model else config
 
 
 # -- the monthly OpenAI cap (D25.8) ----------------------------------------------

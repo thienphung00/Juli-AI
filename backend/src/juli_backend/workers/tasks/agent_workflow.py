@@ -156,7 +156,7 @@ import os
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import create_engine as create_sync_engine
 from sqlalchemy import func, select, text
@@ -173,7 +173,6 @@ from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent import crash_classification as crash_module
 from juli_backend.services.agent import events as events_module
 from juli_backend.services.agent import runner as runner_module
-from juli_backend.services.agent.llm.config import LLMConfig
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
 
@@ -755,15 +754,11 @@ async def _construct_runner(
     )
 
 
-async def _ops_llm_config(session: AsyncSession, shop_id: uuid.UUID) -> LLMConfig:
+async def _ops_llm_config(session: AsyncSession, shop_id: uuid.UUID) -> Any:
     """``LLMConfig`` with the shop's Juli Ops model override, if any (P16)."""
-    from dataclasses import replace as _replace
+    from juli_backend.services import ops
 
-    from juli_backend.services.ops import overrides as ops_overrides
-
-    current = await ops_overrides.shop_overrides(session, shop_id)
-    config = LLMConfig()
-    return _replace(config, model=current.openai_model) if current.openai_model else config
+    return await ops.llm_config_for(session, shop_id)
 
 
 def _schedule_lever_flow_recheck(run_id: uuid.UUID) -> None:

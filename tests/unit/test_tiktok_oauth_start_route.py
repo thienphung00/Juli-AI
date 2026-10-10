@@ -149,7 +149,10 @@ def test_start_accepts_no_caller_supplied_user_identity() -> None:
     `get_current_user` dependency.
     """
     parameters = inspect.signature(route_module.tiktok_oauth_start).parameters
-    assert set(parameters) == {"user", "oauth_service"}, (
+    # P16 (D25.6): `staff_access_consent` is a boolean the seller ticks and
+    # `session` stores its timestamp on the caller's OWN row -- neither names a
+    # user, so neither can redirect the state.
+    assert set(parameters) == {"user", "oauth_service", "session", "staff_access_consent"}, (
         f"unexpected inputs on the start route: {sorted(parameters)}"
     )
 
@@ -167,3 +170,24 @@ async def test_start_answers_503_when_tiktok_oauth_is_not_configured(session, se
 
     application.dependency_overrides.clear()
     assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_start_records_the_staff_access_consent_on_the_callers_row(
+    app, session, oauth_service
+) -> None:
+    """P16 (D25.6): ticking the consent on the connect screen stamps the seller."""
+    from juli_backend.core.security import get_current_user
+
+    seller = User(id=uuid.uuid4(), phone="+84900000066")
+    session.add(seller)
+    await session.flush()
+    app.dependency_overrides[get_current_user] = lambda: seller
+    async with client_for(app) as client:
+        plain = await client.get(START_PATH)
+        assert plain.status_code == 200
+        assert seller.staff_access_consent_at is None
+        consented = await client.get(START_PATH + "?staff_access_consent=true")
+    assert consented.status_code == 200
+    await session.refresh(seller)
+    assert seller.staff_access_consent_at is not None

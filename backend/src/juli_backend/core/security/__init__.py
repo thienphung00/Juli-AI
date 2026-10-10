@@ -1,5 +1,6 @@
 """Authentication and authorization."""
 
+from juli_backend.core.security.cf_access import CF_ACCESS_HEADER, verify_access_jwt
 from juli_backend.core.security.credential_resolver import *  # noqa: F403
 from juli_backend.core.security.credential_resolver import (
     NoReadCredentialForShop,
@@ -21,6 +22,9 @@ from juli_backend.core.security.oauth_state import (
 from juli_backend.core.security.tiktok_oauth import BindingVerifier, TikTokOAuthService
 
 __all__ = [
+    # P16: the Cloudflare Access gate of /v1/ops (api is capped at depth 2).
+    "CF_ACCESS_HEADER",
+    "verify_access_jwt",
     # #1200: the verifier seam services/tiktok/credential_binding.py implements.
     # Exported here so that module can reach it at the depth-2 package root.
     "BindingVerifier",

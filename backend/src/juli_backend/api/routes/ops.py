@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -37,20 +37,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.routes import demo_analysis, demo_decisions, demo_execution, demo_rules
 from juli_backend.api.routes.demo_run_changes import SellerReasonRequest
-from juli_backend.core.security import get_current_user
-from juli_backend.core.security.cf_access import CF_ACCESS_HEADER, verify_access_jwt
-from juli_backend.core.security.exceptions import Unauthorized
+from juli_backend.core.security import (
+    CF_ACCESS_HEADER,
+    Unauthorized,
+    get_current_user,
+    verify_access_jwt,
+)
 from juli_backend.database import Shop, User, get_session
 from juli_backend.database.tenant_context import (
     _apply_tenant_context_to_session,
     with_shop_scope,
 )
 from juli_backend.models.ops import ROLE_ADMIN, ROLE_OPERATOR, ROLE_VIEWER
-from juli_backend.services.ops import audit, invites, overview, runs, scenarios, simulation
+from juli_backend.services.ops import (
+    ShopListing,
+    audit,
+    invites,
+    mask_pii,
+    overview,
+    runs,
+    scenarios,
+    simulation,
+)
 from juli_backend.services.ops import settings as ops_settings
 from juli_backend.services.ops import staff as ops_staff
-from juli_backend.services.ops.masking import mask_pii
-from juli_backend.services.ops.overview import ShopListing
 from juli_backend.services.shop_diagnosis import Channel, Metric, Ranking
 
 logger = logging.getLogger(__name__)
@@ -59,7 +69,7 @@ logger = logging.getLogger(__name__)
 class MaskedRoute(APIRoute):
     """Re-serialises every JSON response with buyer PII masked (D25.6)."""
 
-    def get_route_handler(self) -> Callable[[Request], Awaitable[Response]]:
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         original = super().get_route_handler()
 
         async def handler(request: Request) -> Response:
@@ -67,7 +77,7 @@ class MaskedRoute(APIRoute):
             if response.media_type != "application/json" or not response.body:
                 return response
             try:
-                payload = json.loads(response.body)
+                payload = json.loads(bytes(response.body))
             except ValueError:
                 return response
             headers = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
