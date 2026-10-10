@@ -75,6 +75,12 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | P12 two-way links Phân tích ↔ Đề xuất (`the=`, `nhom=`, "Xem phân tích ›") | 12.3 | done on `fasttrack/p12-phan-tich` | P12 agent (Opus) |
 | P12 signed-out sample = the Quyết định sample's shop, no network | 12.4 | done on `fasttrack/p12-phan-tich` | P12 agent (Opus) |
 
+## P13 — signed in without a shop sees the sample; one sample shop everywhere
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P13 no-shop → sample + "Kết nối TikTok Shop ›" strip on Trang chủ / Phân tích / Quyết định; Home sample = the cosmetics shop; Phân tích header left-aligned; reason-box debt accepted | 13.1–13.4 | done on `fasttrack/p13-no-shop-sample` (not merged, not deployed) | P13 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

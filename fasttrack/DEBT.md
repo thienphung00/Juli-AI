@@ -535,10 +535,16 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P12 Phân tích redesign (2026-10-10)
 
-- [ ] Home's signed-out sample is still the household shop of `lib/shop-analysis/sample-report.json`; Phân tích and Quyết định show the cosmetics sample shop. Home's matrix links still land on valid cells, but the numbers differ between Home and Phân tích when signed out.
+- [x] (P13) Home's signed-out sample is still the household shop of `lib/shop-analysis/sample-report.json`; Phân tích and Quyết định show the cosmetics sample shop. — repaid: Home (and the shell header) now read `lib/phan-tich/sample-data.ts`'s `sampleEnvelope()`; `sample-report.json` stays only as a signed-in report stub in two Quyết định e2e specs.
 - [ ] `scripts/demo_analysis_sample.py --check` fails at HEAD before P12 (`ImportError: VideoWindowMetrics` from `rankings`); `sample-rankings.json` is no longer read by the app and is kept only for that script.
 - [ ] Row facts with no data source: AOV rows show "Đơn hàng SKU 30 ngày" instead of the artboard's "Món mỗi đơn" / "Đơn 1 món"; "Kênh khác" only for hero products (5-channel profile); "Lý do" on Kéo lên rows is not shown; Video "Nguồn" (traffic source) and LIVE duration are not available.
 - [ ] Voucher stat reads the share of orders at or above a running voucher's threshold (`above_after`), not redemptions; "Sắp tới" omits "chưa đăng ký" (no campaign-registration data).
 - [ ] `nhom=<metric>` scrolls to and outlines the metric's group; it does not filter the other groups out.
 - [ ] Old `.pt-*` rules in `globals.css` are now unused (no component emits them).
-- [ ] Reason completion message (a0382006) shows the reason box only in the visit the reason was given; the backend stores `reason_code` but no read returns it, so after a reload the older text (no reason box) shows.
+- [x] Reason completion message (a0382006) shows the reason box only in the visit the reason was given; the backend stores `reason_code` but no read returns it, so after a reload the older text (no reason box) shows. — **accepted by the owner, won't fix** (2026-10-10): reasons are for Juli's learning; the seller need not see them again.
+
+## P13 signed-in, no shop → sample (2026-10-10)
+
+- [ ] The shell header in the no-shop state still names "Chưa chọn shop" (no "cập nhật HH:MM" line) above the sample, while the page's notice names the sample shop "Cửa hàng Mẫu Hoa Mai". Deliberate (the header is the seller's identity), revisit if the owner wants the sample name there.
+- [ ] The sample's daily GMV bars (Lịch sale) average 6,31 tr ₫/ngày in the prior window vs the streams' summed 6,95 tr ₫/ngày (last window agrees: 7,12 vs 7,16 tr). Only the bars show it (no total is printed from them); left as the P12 artboard values.
+- [ ] `SignedInQuyetDinh`'s own `!shop` empty state is now unreachable from `/decisions` (the page client routes no-shop to the sample); kept for direct callers / tests.

@@ -762,3 +762,27 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   no read endpoint returns it): after a reload a rejected card / declined run /
   finished revert falls back to the previous text without the reason box.
 - Verification: lint 0 errors, type-check clean, vitest 1675/1675, Playwright 136 passed.
+
+### 2026-10-10 — P13: signed in without a shop sees the sample; one sample shop
+
+- Owner decisions 2026-10-10. Branch `fasttrack/p13-no-shop-sample` from 4ebea7a8.
+- `no-shop` (session, no acting shop): Trang chủ / Phân tích / Quyết định render
+  the signed-out sample under `NoShopSampleStrip` ("Bạn đang xem dữ liệu mẫu ·
+  Kết nối TikTok Shop ›" → `/auth/connect-shop`); no `/v1` request; sample
+  actions stay in memory. Signed in with a shop unchanged.
+- Phân tích header bug: `.pa-page > .page-header` made the shared header a
+  column but kept its `align-items: flex-end`, pushing kicker + h1 right in the
+  non-report states → `align-items: flex-start`.
+- Home's sample (and the shell header's anonymous envelope) now come from
+  `lib/phan-tich/sample-data.ts`. The sample report gained Liên kết (affiliate,
+  greyed on Home, not a Phân tích stream) and a shop-wide `total` = the
+  additive streams summed (it was Thẻ sản phẩm's comparison); Video / LIVE are
+  no longer flagged `orders_estimated` (only Tab cửa hàng is, as on the wire).
+  Phân tích's figures are unchanged. Home: GMV 30 ngày 214,9 tr (+3,1 %), Đơn
+  1.314 (trước 1.250), CTOR Thẻ sản phẩm 5,14 % = Phân tích's cell. Name kept:
+  "Cửa hàng Mẫu Hoa Mai" (already the P11 / P12 samples' name).
+- DEBT: reason-box-after-reload accepted by the owner, won't fix.
+- Verification (Node 20): lint 0 errors (7 pre-existing warnings), type-check
+  clean, vitest 1687/1687, Playwright 147 passed / 140 skipped (port 3319; new
+  `e2e/analytics/no-shop-sample.spec.ts` 10/10 across desktop + mobile-web),
+  build:demo OK (Playwright webServer build).

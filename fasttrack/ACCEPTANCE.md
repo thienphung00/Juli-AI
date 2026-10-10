@@ -212,3 +212,25 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   Evidence: unit "Đề xuất ← Phân tích" (2) + e2e "Xem đề xuất › → the card, highlighted; Xem phân tích › → back on that row".
 - [x] **AC-12.4** Signed out, Phân tích is the Quyết định sample's shop (SM-012, MN-015, KD-030, SR-007, TN-021) and issues no `/v1` request.
   Evidence: `replay-module-graph.test.ts` (entry `sample-phan-tich.tsx`), unit coherence test (every sample card's product is ranked), e2e "no /v1 request" (`api == []`). Full: vitest 1673/1673 (Node 20), Playwright 134 passed / 140 skipped, lint 0 errors, type-check clean, build:demo OK.
+
+## P13 — signed in, no TikTok Shop → the sample (owner decisions 2026-10-10)
+
+- [x] **AC-13.1** Signed in with no TikTok Shop connected, Trang chủ, Phân tích
+  and Quyết định show the signed-out sample screens (P11 / P12 samples, the
+  cosmetics shop) under "Bạn đang xem dữ liệu mẫu · Kết nối TikTok Shop ›",
+  linking to `/auth/connect-shop`; the sample issues no `/v1` request and its
+  actions stay in local state; signed in WITH a shop is unchanged. — evidence:
+  `src/__tests__/no-shop-sample.test.tsx`; `e2e/analytics/no-shop-sample.spec.ts`
+  (strip, no /v1 request across the three pages, link → connect-shop)
+- [x] **AC-13.2** Phân tích's header (kicker + h1) is left-aligned in the
+  non-report states (`.pa-page > .page-header` overrode `align-items: flex-end`
+  of the shared header). — evidence: no-shop-sample.test.tsx (CSS rule);
+  no-shop-sample.spec.ts (bounding boxes, no-shop and empty-report states)
+- [x] **AC-13.3** Trang chủ's sample is the same cosmetics shop and numbers as
+  Phân tích / Quyết định (one name: "Cửa hàng Mẫu Hoa Mai"): 5-stream matrix
+  (Liên kết added to the sample, greyed), GMV / Đơn / AOV from the additive
+  streams; every Home link resolves to that stream in Phân tích, and to the same
+  cell where clickable. — evidence: no-shop-sample.test.tsx (figures equal,
+  CTOR Thẻ sản phẩm 5,14 % on both), e2e CTOR test; home.test.tsx updated
+- [x] **AC-13.4** DEBT records the "reason box disappears after reload" item as
+  accepted by the owner, won't fix. — evidence: fasttrack/DEBT.md (P12 section)

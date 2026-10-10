@@ -44,6 +44,9 @@ body:has(.pa-page) {
 .pa-page > .page-header {
   display: flex;
   flex-direction: column;
+  /* The shared .page-header sets align-items: flex-end (title row, actions on
+     the right); in this column it pushed the kicker and h1 to the right (P13). */
+  align-items: flex-start;
   gap: 8px;
   margin: 0;
 }

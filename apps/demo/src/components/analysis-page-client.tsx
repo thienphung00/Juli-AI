@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 import { useShopReport } from "../lib/shop-report/shop-report-context";
+import { NoShopSampleStrip } from "./app-shell/no-shop-sample-strip";
 import { AppPageHeader } from "./app-shell/page-header";
 import { SamplePhanTich } from "./phan-tich/sample-phan-tich";
 import { SignedInPhanTich } from "./phan-tich/signed-in-phan-tich";
@@ -16,8 +16,9 @@ import { SignedInPhanTich } from "./phan-tich/signed-in-phan-tich";
  * `metric`, `huong`, `row`) holds the open stream, the selected cell and the
  * expanded row, so Home's matrix and a card's "Xem phân tích ›" land on them.
  * Signed out → the bundled "Bản minh họa" (the Quyết định sample's shop; no
- * request); signed in → the shop's report, honest empty / error states,
- * never the sample in its place.
+ * request); signed in without a shop → the same sample under the "Kết nối
+ * TikTok Shop ›" strip (P13); signed in with a shop → the shop's report,
+ * honest empty / error states, never the sample in its place.
  */
 export function AnalysisPageClient() {
   const { state, reload } = useShopReport();
@@ -35,6 +36,15 @@ export function AnalysisPageClient() {
   if (state.status === "anonymous") {
     return <SamplePhanTich onNavigate={onNavigate} query={query} />;
   }
+  if (state.status === "no-shop") {
+    // P13: signed in, no TikTok Shop yet → the same sample, under the connect strip.
+    return (
+      <>
+        <NoShopSampleStrip />
+        <SamplePhanTich onNavigate={onNavigate} query={query} />
+      </>
+    );
+  }
   if (state.status === "ready") {
     return (
       <SignedInPhanTich
@@ -50,14 +60,7 @@ export function AnalysisPageClient() {
   return (
     <section aria-labelledby="analytics-title" className="pa-page">
       <AppPageHeader eyebrow="PHÂN TÍCH" title="Phân tích luồng truy cập" titleId="analytics-title" />
-      {state.status === "no-shop" ? (
-        <div className="card analysis-empty" role="status">
-          <p>Bạn chưa chọn shop đang thao tác. Mở Kết nối TikTok Shop để chọn shop.</p>
-          <Link className="btn-secondary" href="/auth/connect-shop">
-            Kết nối TikTok Shop
-          </Link>
-        </div>
-      ) : state.status === "empty" ? (
+      {state.status === "empty" ? (
         <div className="card analysis-empty" role="status">
           <p className="analysis-eyebrow">Chưa có báo cáo</p>
           <p>

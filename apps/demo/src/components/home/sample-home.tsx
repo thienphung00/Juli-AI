@@ -1,15 +1,15 @@
-import sampleEnvelope from "../../lib/shop-analysis/sample-report.json";
-import type { ShopAnalysisEnvelope } from "../../lib/shop-analysis/types";
+import { sampleEnvelope } from "../../lib/phan-tich/sample-data";
 import { HomeOverview } from "./home-overview";
 
 /**
- * Trang chủ for an ANONYMOUS visitor (after "Dùng thử Demo"): the same
- * synthetic sample report Phân tích shows (invented shop, invented numbers),
- * bundled statically — viewing it issues no request. An entry of
- * `replay-module-graph.test.ts`, which keeps every authenticated backend client out of
- * this module's import graph.
+ * Trang chủ's sample ("Bản minh họa"): signed out after "Dùng thử Demo", and
+ * signed in with no TikTok Shop connected (P13, under the connect strip).
+ * The same invented cosmetics shop and numbers as the Phân tích and Quyết
+ * định samples (`lib/phan-tich/sample-data.ts`), built in memory — viewing it
+ * issues no request. An entry of `replay-module-graph.test.ts`, which keeps
+ * every authenticated backend client out of this module's import graph.
  */
-const SAMPLE = sampleEnvelope as unknown as ShopAnalysisEnvelope;
+const SAMPLE = sampleEnvelope();
 
 export function SampleHome() {
   return <HomeOverview envelope={SAMPLE} sample />;

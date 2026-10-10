@@ -132,7 +132,7 @@ describe("App shell — rail, header, slot", () => {
     await waitFor(() => expect(header).toHaveTextContent("Cửa hàng Mẫu Hoa Mai"));
     expect(header).toHaveTextContent("Bản minh họa");
     expect(header).toHaveTextContent("TikTok Shop");
-    expect(header).toHaveTextContent("Dữ liệu mẫu · cập nhật 01:15");
+    expect(header).toHaveTextContent("Dữ liệu mẫu · cập nhật 08:00");
     expect(header).not.toHaveTextContent("Juli đang chạy");
     expect(within(header).getByRole("button", { name: /^Menu shop/ })).toHaveTextContent("CH");
   });

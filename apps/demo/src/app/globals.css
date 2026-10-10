@@ -6575,3 +6575,29 @@ h4 {
 .email-sign-in__actions button {
   min-height: var(--juli-touch-target);
 }
+
+/* ── P13: signed in, no TikTok Shop — the sample under a connect strip ── */
+
+.no-shop-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--pink-background);
+  padding: 10px 14px;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.no-shop-strip__link {
+  color: var(--pink-text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.no-shop-strip__link:hover {
+  text-decoration: underline;
+}

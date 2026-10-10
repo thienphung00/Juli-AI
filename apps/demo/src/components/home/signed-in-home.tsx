@@ -1,17 +1,18 @@
 "use client";
 
-import Link from "next/link";
-
-import { CONNECT_SHOP_HREF } from "../../lib/app-navigation";
 import { useShopReport } from "../../lib/shop-report/shop-report-context";
+import { NoShopSampleStrip } from "../app-shell/no-shop-sample-strip";
 import { AppPageHeader } from "../app-shell/page-header";
 import { HomeOverview } from "./home-overview";
+import { SampleHome } from "./sample-home";
 
 /**
  * Trang chủ for a SIGNED-IN seller: the acting shop's latest ADR-108 report,
  * read once by the shell (`ShopReportProvider`) — Home issues no request of
- * its own. Missing shop, no report yet (404) and a failed read each get an
- * honest state; the sample never stands in for the seller's shop.
+ * its own. No shop connected yet → the sample Home under the "Kết nối TikTok
+ * Shop ›" strip (P13; nothing is the seller's). No report yet (404) and a
+ * failed read each get an honest state; the sample never stands in for a
+ * connected shop.
  */
 export function SignedInHome() {
   const { state, reload } = useShopReport();
@@ -20,17 +21,18 @@ export function SignedInHome() {
     return <HomeOverview envelope={state.envelope} />;
   }
 
-  let body;
   if (state.status === "no-shop") {
-    body = (
-      <div className="card home-state" role="status">
-        <p>Bạn chưa chọn shop đang thao tác. Kết nối TikTok Shop để Juli bắt đầu đọc số liệu.</p>
-        <Link className="btn-secondary" href={CONNECT_SHOP_HREF}>
-          Kết nối TikTok Shop
-        </Link>
-      </div>
+    // P13: no TikTok Shop yet → the sample Home (no request), under the connect strip.
+    return (
+      <>
+        <NoShopSampleStrip />
+        <SampleHome />
+      </>
     );
-  } else if (state.status === "empty") {
+  }
+
+  let body;
+  if (state.status === "empty") {
     body = (
       <div className="card home-state" role="status">
         <p className="eyebrow">Chưa có báo cáo</p>

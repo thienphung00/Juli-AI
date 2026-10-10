@@ -53,7 +53,16 @@ Invariants below.
   (`lib/shop-report/shop-report-context.tsx`, mounted by the shell) resolves
   the session once and holds the acting shop's latest `GET /v1/demo/analysis`
   envelope (`resolving | anonymous | no-shop | loading | empty | error |
-  ready`; anonymous = the bundled sample, lazy-loaded, no request). Header, Trang chủ and Phân tích read it.
+  ready`; anonymous = the bundled sample — `lib/phan-tich/sample-data.ts`'s
+  `sampleEnvelope()`, lazy-loaded, no request). Header, Trang chủ and Phân tích read it.
+- **Signed in, no shop → the sample (P13).** `no-shop` renders the same sample
+  screens as signed out — `SampleHome`, `SamplePhanTich`, `SampleQuyetDinh`
+  (in-memory clients, nothing written) — under `NoShopSampleStrip`
+  (`components/app-shell/no-shop-sample-strip.tsx`: "Bạn đang xem dữ liệu mẫu ·
+  Kết nối TikTok Shop ›" → `/auth/connect-shop`). One sample shop everywhere:
+  "Cửa hàng Mẫu Hoa Mai", the cosmetics shop (SM-012 …); its report carries
+  Liên kết (Home's greyed row) and a shop-wide `total` summed over the additive
+  streams (Home's GMV / Đơn / AOV cards).
 - **Run route exception** (#1910, PUI-DESIGN.md §2, owner amendment
   2026-09-14): the real run route (`/decisions/in-progress/<id>` where
   `looksLikeRunId(id)`) renders WITHOUT the shop header and feedback region
@@ -117,8 +126,9 @@ Invariants below.
   xuất". Signed-in reads: `lib/phan-tich/rankings-client.ts` (per open cell) and
   `fetchRecommendations` (cards). Styles: `app/phan-tich.css` (`.pa-*`, the
   `--qd-*` tokens). Contract: `fasttrack/contracts/p12-phan-tich.md`.
-  `lib/shop-analysis/sample-report.json` still feeds Home's signed-out sample;
-  `sample-rankings.json` is kept only because `scripts/demo_analysis_sample.py
+  `lib/shop-analysis/sample-report.json` (the old household shop) is no longer
+  read by the app — only two Quyết định e2e specs use it as a signed-in report
+  stub; `sample-rankings.json` is kept only because `scripts/demo_analysis_sample.py
   --check` regenerates it. The old KPI dashboard (`/analytics/[metricKey]`) was
   removed (P9-C); `/analytics/<anything>` redirects to `/analytics`.
 - **Đề xuất ← Phân tích (P12).** `/decisions?tab=de-xuat&the=<card id>` scrolls to

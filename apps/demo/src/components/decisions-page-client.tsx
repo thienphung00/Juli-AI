@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { resolveTab } from "../lib/quyet-dinh/copy";
 import { readActiveShop, type ActiveShop } from "../lib/shop-session";
 import { readAuthSession, type AuthSession } from "../lib/supabase-auth";
+import { NoShopSampleStrip } from "./app-shell/no-shop-sample-strip";
 import { useDemoResetEpoch } from "./demo-state";
 import { resolveMeasureTab } from "./quyet-dinh/quyet-dinh-view";
 import { SampleQuyetDinh } from "./quyet-dinh/sample-quyet-dinh";
@@ -15,7 +16,8 @@ import { SignedInQuyetDinh } from "./quyet-dinh/signed-in-quyet-dinh";
  * The /decisions session split (issue #1909, ADR-094). A stored real
  * Supabase session (`lib/supabase-auth.ts`) selects the signed-in branch —
  * `SignedInQuyetDinh` (AC-8.7, ADR-109 d.6/8–13), the one Decisions module allowed to call
- * authenticated `/v1/*` routes. No session renders the same P10 screens as
+ * authenticated `/v1/*` routes. A session with no acting shop (P13) and no
+ * session at all both render the same P10 screens as
  * a sample ("Bản minh họa", `SampleQuyetDinh`) over in-memory fixture
  * clients: it stays inside a module graph that reaches no network call site
  * (ADR-094 decision 1, `replay-module-graph.test.ts`).
@@ -74,6 +76,17 @@ export function DecisionsPageClient() {
     focusCard: params.get("the"),
     focusMetric: params.get("nhom"),
   };
+
+  if (session && !shop) {
+    // P13: signed in, no TikTok Shop yet → the sample (in-memory clients, no
+    // request, nothing written for the seller), under the connect strip.
+    return (
+      <>
+        <NoShopSampleStrip />
+        <SampleQuyetDinh key={resetEpoch} onNavigate={onNavigate} query={query} />
+      </>
+    );
+  }
 
   if (session) {
     return <SignedInQuyetDinh onNavigate={onNavigate} query={query} shop={shop} token={session.accessToken} />;

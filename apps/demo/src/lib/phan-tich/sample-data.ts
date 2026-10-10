@@ -14,7 +14,14 @@
  * cell ("Tổng" = the cell's figure). Pure data — bundled, never fetched.
  */
 
-import type { ChannelRow, Counts, ShopAnalysisEnvelope, ShopDiagnosisReport } from "../shop-analysis/types";
+import type {
+  ChannelKey,
+  ChannelRow,
+  Counts,
+  FunnelComparison,
+  ShopAnalysisEnvelope,
+  ShopDiagnosisReport,
+} from "../shop-analysis/types";
 import type { CellMetric } from "./model";
 import type { ClosingRow, RankedMetric, RankedStream, RankingEnvelope, RankingRow, RowKind } from "./types";
 
@@ -50,7 +57,8 @@ interface StreamTargets {
 
 const ORDER: readonly CellMetric[] = ["impressions", "ctr", "ctor", "aov"];
 
-function counts(values: Readonly<Record<CellMetric, number>>, cart: boolean): Counts {
+/** Only Tab cửa hàng's SKU orders are estimated (CTOR × clicks): TikTok gives none there. */
+function counts(values: Readonly<Record<CellMetric, number>>, cart: boolean, estimated: boolean): Counts {
   const clicks = values.impressions * values.ctr;
   const orders = clicks * values.ctor;
   return {
@@ -59,12 +67,12 @@ function counts(values: Readonly<Record<CellMetric, number>>, cart: boolean): Co
     add_to_cart: cart ? orders / 0.45 : null,
     sku_orders: orders,
     gmv: orders * values.aov,
-    orders_estimated: !cart,
+    orders_estimated: estimated,
   };
 }
 
 /** Prior values such that the log-share split of the GMV change gives `contribution`. */
-function channel(stream: RankedStream, t: StreamTargets): ChannelRow {
+function channel(stream: ChannelKey, t: StreamTargets): ChannelRow {
   const gmvLast = ORDER.reduce((product, m) => product * t.last[m], 1);
   const change = ORDER.reduce((sum, m) => sum + t.contribution[m], 0);
   const logR = Math.log(gmvLast / (gmvLast - change));
@@ -74,8 +82,8 @@ function channel(stream: RankedStream, t: StreamTargets): ChannelRow {
   return {
     channel: stream,
     comparison: {
-      prior: counts(prior, t.cart ?? false),
-      last: counts(t.last, t.cart ?? false),
+      prior: counts(prior, t.cart ?? false, stream === "shop_tab"),
+      last: counts(t.last, t.cart ?? false, stream === "shop_tab"),
       factors: ORDER.map((m) => ({
         factor: m,
         prior: prior[m],
@@ -115,6 +123,34 @@ const STREAMS: Readonly<Record<RankedStream, StreamTargets>> = {
     confidence: { impressions: RO, ctr: TK, ctor: RO, aov: TK },
   },
 };
+
+/**
+ * Liên kết (affiliate creators' videos and LIVEs): not a Phân tích stream (Juli
+ * does not act on it), but Trang chủ's matrix shows it greyed "chỉ theo dõi"
+ * (ADR-109 d.3), so the shared sample carries it too.
+ */
+const AFFILIATE: StreamTargets = {
+  last: { impressions: 3270, ctr: 0.0312, ctor: 0.0524, aov: 158_000 },
+  contribution: { impressions: 62_000, ctr: -9_000, ctor: 6_000, aov: -4_000 },
+  confidence: { impressions: TK, ctr: TK, ctor: TK, aov: TK },
+};
+
+/** Additive streams' counts summed — the shop-wide row Trang chủ's GMV / Đơn / AOV cards read. */
+function shopTotal(rows: readonly ChannelRow[]): FunnelComparison {
+  const sum = (window: "prior" | "last"): Counts => {
+    const parts = rows.filter((r) => r.additive).map((r) => r.comparison[window]);
+    const add = (read: (c: Counts) => number | null) =>
+      parts.reduce((acc, c) => acc + (read(c) ?? 0), 0);
+    return {
+      impressions: add((c) => c.impressions),
+      clicks: add((c) => c.clicks),
+      add_to_cart: null,
+      sku_orders: add((c) => c.sku_orders),
+      gmv: add((c) => c.gmv),
+    };
+  };
+  return { prior: sum("prior"), last: sum("last"), factors: [] };
+}
 
 // -- daily GMV, promotions -------------------------------------------------------------------
 
@@ -173,6 +209,10 @@ export function sampleReport(): ShopDiagnosisReport {
     days_last: index < 30 ? 0 : 1,
     product_count: products,
   });
+  const channels: ChannelRow[] = [
+    ...(Object.keys(STREAMS) as RankedStream[]).map((s) => channel(s, STREAMS[s])),
+    channel("affiliate", AFFILIATE),
+  ];
   const report = {
     shop_name: "Cửa hàng Mẫu Hoa Mai",
     end: END,
@@ -180,8 +220,8 @@ export function sampleReport(): ShopDiagnosisReport {
     ranking: "60d",
     missing_days: [],
     sale_days: [isoDay(NINE_NINE)],
-    total: channel("product_card", STREAMS.product_card).comparison,
-    channels: (Object.keys(STREAMS) as RankedStream[]).map((s) => channel(s, STREAMS[s])),
+    total: shopTotal(channels),
+    channels,
     affiliate_rows: [],
     groups: [],
     timelines: [],

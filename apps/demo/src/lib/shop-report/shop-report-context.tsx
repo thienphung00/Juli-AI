@@ -21,9 +21,10 @@ import { readAuthSession } from "../supabase-auth";
  * HH:MM") and Home read the same envelope instead of each fetching it.
  *
  * - No stored Supabase session → `anonymous`: the bundled synthetic sample
- *   (an invented shop), loaded lazily so the layout chunk stays small; no
+ *   (the invented cosmetics shop of `phan-tich/sample-data.ts`), loaded lazily so the layout chunk stays small; no
  *   request leaves the origin.
- * - Session but no acting shop → `no-shop`.
+ * - Session but no acting shop → `no-shop`: Home, Phân tích and Quyết định
+ *   show the same bundled sample under a "Kết nối TikTok Shop ›" strip (P13).
  * - Session + shop → `GET /v1/demo/analysis` (default ranking) through the
  *   one authenticated client; 404 → `empty`, failure → `error` (never the
  *   sample standing in for the seller's shop).
@@ -58,9 +59,10 @@ export interface ShopReportContextValue {
 
 const ShopReportContext = createContext<ShopReportContextValue | null>(null);
 
+/** The bundled sample (P13: the cosmetics shop Phân tích and Quyết định show) — built in memory, never fetched. */
 async function loadSample(): Promise<ShopAnalysisEnvelope> {
-  const sample = await import("../shop-analysis/sample-report.json");
-  return (sample.default ?? sample) as unknown as ShopAnalysisEnvelope;
+  const { sampleEnvelope } = await import("../phan-tich/sample-data");
+  return sampleEnvelope();
 }
 
 interface ShopReportProviderProps {

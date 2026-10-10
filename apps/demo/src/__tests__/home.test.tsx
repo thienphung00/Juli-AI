@@ -5,7 +5,7 @@ import HomePage from "../app/page";
 import { DemoStateProvider } from "../components/demo-state";
 import { HomeOverview } from "../components/home/home-overview";
 import { ENTRY_MODE_STORAGE_KEY } from "../lib/entry-mode";
-import sampleEnvelope from "../lib/shop-analysis/sample-report.json";
+import { sampleEnvelope } from "../lib/phan-tich/sample-data";
 import type { ShopAnalysisEnvelope } from "../lib/shop-analysis/types";
 import { ACTIVE_SHOP_STORAGE_KEY } from "../lib/shop-session";
 import { buildHomeOverview, windowLengthDays } from "../lib/shop-report/home-metrics";
@@ -19,7 +19,8 @@ import { vnClock, vnWeekdayDate } from "../lib/vn-format";
  * (#1319) — ADR-109 puts the report's overview on Home on purpose.
  */
 
-const SAMPLE = sampleEnvelope as unknown as ShopAnalysisEnvelope;
+/** P13: Home's sample is the Phân tích / Quyết định sample's cosmetics shop. */
+const SAMPLE = sampleEnvelope();
 
 function withoutShopTab(envelope: ShopAnalysisEnvelope): ShopAnalysisEnvelope {
   return {
@@ -42,7 +43,7 @@ function renderHome(loadAnalysis?: () => Promise<ShopAnalysisEnvelope | null>) {
 }
 
 describe("home metrics — mapping the ADR-108 report", () => {
-  it("turns daily averages into 30-day totals and keeps whole orders when the report has them", () => {
+  it("turns daily averages into 30-day totals; SKU orders × days without whole orders", () => {
     const model = buildHomeOverview(SAMPLE);
     const { total, windows } = SAMPLE.report;
     const days = windowLengthDays(windows.last_first, windows.last_last);
@@ -52,9 +53,19 @@ describe("home metrics — mapping the ADR-108 report", () => {
     expect(gmv.label).toBe("GMV 30 ngày");
     expect(gmv.last).toBeCloseTo(total.last.gmv * 30);
     expect(gmv.prior).toBeCloseTo(total.prior.gmv * 30);
-    expect(orders.last).toBe(total.orders_last);
-    expect(orders.prior).toBe(total.orders_prior);
+    expect(total.orders_last).toBeUndefined();
+    expect(orders.last).toBeCloseTo((total.last.sku_orders as number) * 30);
     expect(aov.last).toBeCloseTo(total.last.gmv / (total.last.sku_orders as number));
+  });
+
+  it("keeps whole orders when the report has them", () => {
+    const withOrders: ShopAnalysisEnvelope = {
+      ...SAMPLE,
+      report: { ...SAMPLE.report, total: { ...SAMPLE.report.total, orders_last: 1724, orders_prior: 1442 } },
+    };
+    const [, orders] = buildHomeOverview(withOrders).cards;
+    expect(orders.last).toBe(1724);
+    expect(orders.prior).toBe(1442);
   });
 
   it("lays out the five streams in the video's three groups, Liên kết monitor-only and unlinked", () => {
@@ -114,8 +125,8 @@ describe("HomeOverview view", () => {
     );
     expect(screen.getByTestId("home-stat-gmv")).toHaveTextContent("GMV 30 ngày");
     expect(screen.getByTestId("home-stat-orders")).toHaveTextContent("Đơn 30 ngày");
-    expect(screen.getByTestId("home-stat-orders")).toHaveTextContent("1.724");
-    expect(screen.getByTestId("home-stat-orders")).toHaveTextContent("trước 1.442");
+    expect(screen.getByTestId("home-stat-orders")).toHaveTextContent("1.314");
+    expect(screen.getByTestId("home-stat-orders")).toHaveTextContent("trước 1.250");
     expect(screen.getByTestId("home-stat-aov")).toHaveTextContent("AOV");
     expect(screen.getByTestId("mock-data-notice")).toHaveTextContent("Dữ liệu mẫu");
 
