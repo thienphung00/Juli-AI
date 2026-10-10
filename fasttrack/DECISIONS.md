@@ -227,3 +227,7 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   15. **Market data**: a weekly non-LLM job caches FastMoss data (competitor
       prices, category best-sellers and videos, keywords); card selection and
       the agent read the cache.
+  16. **Structured output**: every LLM output that becomes seller-facing or
+      a write (title, description, scripts, narration) uses OpenAI structured
+      output (JSON schema), validated for length, banned terms, the seller's
+      protected terms and facts before the consent step.
