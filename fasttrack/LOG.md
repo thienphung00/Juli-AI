@@ -746,3 +746,19 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   intermittently; they pass in isolation), Playwright 134 passed / 140 skipped
   (port 3318), build:demo OK, shop-diagnosis pytest 120 passed, `check.sh` OK
   (migrations at 080 unchanged, isolation 12, ruff, pytest 32, gitleaks).
+
+### 2026-10-10 — P12 follow-up: reason note → completion message (owner edit a0382006)
+
+- Dialogs: the "Lý do giúp Juli…" hint is gone from all three; Từ chối / Không thực
+  hiện legend "Vì sao? (chọn một)"; Không thực hiện body "Khi đồng ý, gợi ý sẽ không
+  quay lại", submit "Đồng ý" (Hoàn tác keeps "(chọn một · bắt buộc)", as its artboard).
+- Completion (`ReasonDone`, green box + white "Lý do bạn chọn" box with the picked
+  reason's label and its `learn` sentence — the artboards' `reasonLearn`, keyed by
+  `reason_code` in `lib/quyet-dinh/reasons.ts`): "Hoàn thành · đã từ chối thẻ" on the
+  card, "Hoàn thành · không thực hiện thay đổi" in the run panel, "Hoàn tác hoàn
+  thành · đã khôi phục nội dung cũ" on the finished revert; then the artboards' note
+  and outcome lines. Signed-in and sample doors share it.
+- The reason is known only in the visit it was given (the frontend keeps the code;
+  no read endpoint returns it): after a reload a rejected card / declined run /
+  finished revert falls back to the previous text without the reason box.
+- Verification: lint 0 errors, type-check clean, vitest 1675/1675, Playwright 136 passed.

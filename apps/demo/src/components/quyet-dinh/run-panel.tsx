@@ -13,7 +13,8 @@ import type { RunChanges } from "../../lib/quyet-dinh/types";
 import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../../lib/run-ledger/copy";
 import { resolveRunTerminalState } from "../../lib/run-ledger/terminal-state";
 import { ConfirmationRejectedError } from "../../lib/run-surface/confirmation-decision";
-import { ReasonDialog, SKIP_DIALOG_BODY, revertDialogBody } from "./reason-dialog";
+import { DECLINE_REASONS, REVERT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
+import { ReasonDialog, ReasonDone, SKIP_DIALOG_BODY, revertDialogBody } from "./reason-dialog";
 import { Chevron, StageChips, StepList, timelineRows } from "./run-steps";
 
 /**
@@ -82,6 +83,8 @@ export function RunPanel(props: RunPanelProps) {
   const { run, kind, phase, timeline, card, changes, reconnecting, eventsLoaded } = props;
   const [expanded, setExpanded] = useState(true);
   const [dialog, setDialog] = useState<"skip" | "revert" | null>(null);
+  /** The reason code the seller gave for Không thực hiện in this visit (the completion message). */
+  const [declinedReason, setDeclinedReason] = useState<string | null>(null);
   const [dialogBusy, setDialogBusy] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const chip = runChip(run, kind, phase);
@@ -208,7 +211,22 @@ export function RunPanel(props: RunPanelProps) {
             </p>
           ) : null}
 
-          {phase === "declined" ? <div className="qv-grey">{declinedText(kind)}</div> : null}
+          {phase === "declined" ? (
+            declinedReason ? (
+              <ReasonDone
+                lines={[
+                  "Không có gì được ghi lên TikTok Shop. Lần sau chỉ muốn sửa vài chữ, chọn Sửa nội dung ở bước xác nhận.",
+                  kind === "listing"
+                    ? "Thẻ không quay lại Đề xuất ngay. Juli có thể đề xuất lại sản phẩm này sau 7 ngày với nội dung mới."
+                    : declinedText(kind),
+                ]}
+                reason={reasonOption(DECLINE_REASONS, declinedReason)}
+                title="Hoàn thành · không thực hiện thay đổi"
+              />
+            ) : (
+              <div className="qv-grey">{declinedText(kind)}</div>
+            )
+          ) : null}
           {phase === "conflict" ? <ConflictBox message={null} /> : null}
           {phase === "ended" && timeline.terminal ? <div className="qv-grey">{endedText(timeline.terminal.stopReason)}</div> : null}
         </div>
@@ -230,7 +248,10 @@ export function RunPanel(props: RunPanelProps) {
           setDialogError(null);
           props
             .onDecline(choice)
-            .then(() => setDialog(null))
+            .then(() => {
+              setDeclinedReason(choice.reason_code);
+              setDialog(null);
+            })
             .catch((error: unknown) =>
               setDialogError(error instanceof Error && error.message ? error.message : "Chưa gửi được lựa chọn. Vui lòng thử lại."),
             )
@@ -732,15 +753,23 @@ function DonePanel({
 }) {
   if (kind === "revert") {
     const fields = changedLabels.length > 0 ? changedLabels.join(" / ") : "này";
+    const lines = [
+      `Kết quả đo của thay đổi này dừng lại và được ghi là "Đã hoàn tác". Juli không đề xuất lại thay đổi ${fields} cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ.`,
+    ];
+    const small = "Một lần hoàn tác không thể hoàn tác tiếp. Muốn dùng lại nội dung mới, chờ đề xuất sau.";
+    const title = "Hoàn tác hoàn thành · đã khôi phục nội dung cũ";
+    if (revertReasonLabel) {
+      return (
+        <div data-testid="run-done">
+          <ReasonDone lines={lines} reason={reasonOption(REVERT_REASONS, revertReasonLabel)} small={small} title={title} />
+        </div>
+      );
+    }
     return (
       <div className="qv-done qv-done--tight" data-testid="run-done">
-        <div className="qv-done__title">Đã khôi phục nội dung cũ</div>
-        <div className="qv-done__text">
-          Kết quả đo của thay đổi này dừng lại và được ghi là &quot;Đã hoàn tác&quot;
-          {revertReasonLabel ? ` · lý do: ${revertReasonLabel}` : ""}. Juli không đề xuất lại thay đổi {fields} cho sản phẩm này trong
-          7 ngày, trừ khi số liệu đổi rõ.
-        </div>
-        <div className="qv-done__small">Một lần hoàn tác không thể hoàn tác tiếp. Muốn dùng lại nội dung mới, chờ đề xuất sau.</div>
+        <div className="qv-done__title">{title}</div>
+        <div className="qv-done__text">{lines[0]}</div>
+        <div className="qv-done__small">{small}</div>
       </div>
     );
   }

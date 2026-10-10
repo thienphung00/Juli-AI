@@ -24,7 +24,8 @@ interface ModeCopy {
   readonly title: string;
   readonly legend: string;
   readonly placeholder: string;
-  readonly help: string;
+  /** Text after "Vì sao?" ("(chọn một)" since a0382006 on Từ chối / Không thực hiện). */
+  readonly hint: string;
   readonly cancel: string;
   readonly submit: string;
   readonly reasons: readonly ReasonOption[];
@@ -35,7 +36,7 @@ const COPY: Readonly<Record<ReasonDialogMode, ModeCopy>> = {
     title: "Từ chối thẻ này?",
     legend: "Vì sao?",
     placeholder: "Ví dụ: shop không dùng từ “cao cấp” trong tên sản phẩm",
-    help: "Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ. Lý do giúp Juli chỉnh các đề xuất sau.",
+    hint: "(chọn một)",
     cancel: "Quay lại",
     submit: "Từ chối thẻ",
     reasons: REJECT_REASONS,
@@ -44,16 +45,16 @@ const COPY: Readonly<Record<ReasonDialogMode, ModeCopy>> = {
     title: "Không thực hiện thay đổi này?",
     legend: "Vì sao?",
     placeholder: "Ví dụ: shop không dùng từ “cao cấp” trong tên sản phẩm",
-    help: "Chỉ muốn sửa vài chữ? Bấm Quay lại rồi chọn Sửa nội dung ở bước xác nhận. Lý do giúp Juli soạn nội dung sát hơn.",
+    hint: "(chọn một)",
     cancel: "Quay lại",
-    submit: "Kết thúc, không thay đổi",
+    submit: "Đồng ý",
     reasons: DECLINE_REASONS,
   },
   revert: {
     title: "Hoàn tác thay đổi này?",
     legend: "Vì sao bạn muốn hoàn tác?",
     placeholder: "Ví dụ: khách nhắn hỏi về tên sản phẩm mới",
-    help: 'Lý do giúp Juli chỉnh các đề xuất sau, ví dụ "Sai thông tin sản phẩm" → Juli kiểm kỹ thông tin trước khi soạn.',
+    hint: "(chọn một · bắt buộc)",
     cancel: "Huỷ, giữ thay đổi",
     submit: "Bắt đầu hoàn tác",
     reasons: REVERT_REASONS,
@@ -61,7 +62,7 @@ const COPY: Readonly<Record<ReasonDialogMode, ModeCopy>> = {
 };
 
 export const REJECT_DIALOG_BODY = "Thẻ sẽ rời khỏi Đề xuất. Juli không thay đổi gì trên sản phẩm.";
-export const SKIP_DIALOG_BODY = "Lượt chạy kết thúc ngay, Juli không ghi gì lên TikTok Shop.";
+export const SKIP_DIALOG_BODY = "Khi đồng ý, gợi ý sẽ không quay lại";
 
 /** "Juli sẽ khôi phục Tiêu đề và Mô tả cũ của <strong>…</strong>, …" (Revert.dc.html). */
 export function revertDialogBody(fieldLabels: readonly string[], productName: string): ReactNode {
@@ -142,7 +143,7 @@ export function ReasonDialog({ mode, open, body, submitLabel, busy = false, erro
         <p className="qv-dialog__body">{body}</p>
         <fieldset className="qv-reasons">
           <legend>
-            {copy.legend} <span>(chọn một · bắt buộc)</span>
+            {copy.legend} <span>{copy.hint}</span>
           </legend>
           {copy.reasons.map((reason, index) => (
             <label className="qv-reason" key={reason.code}>
@@ -168,7 +169,6 @@ export function ReasonDialog({ mode, open, body, submitLabel, busy = false, erro
             value={note}
           />
         </label>
-        <div className="qv-dialog__help">{copy.help}</div>
         {error ? (
           <p className="qv-inline-error" role="alert">
             {error}
@@ -192,6 +192,41 @@ export function ReasonDialog({ mode, open, body, submitLabel, busy = false, erro
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The completion message after Từ chối / Không thực hiện / Hoàn tác (owner edit
+ * a0382006, `Decline.dc.html` / `Revert.dc.html`): the green box with the title,
+ * a white "Lý do bạn chọn" box (the label of the code the seller picked + what
+ * Juli does with it), then the lines.
+ */
+export function ReasonDone({
+  title,
+  reason,
+  lines,
+  small,
+}: {
+  readonly title: string;
+  readonly reason: ReasonOption;
+  readonly lines: readonly string[];
+  readonly small?: string;
+}) {
+  return (
+    <div className="qv-done qv-done--tight" data-testid="reason-done" role="status">
+      <div className="qv-done__title">{title}</div>
+      <div className="qv-reason-box">
+        <span className="qv-reason-box__k">Lý do bạn chọn</span>
+        <span className="qv-reason-box__v">{reason.label}</span>
+        <span className="qv-reason-box__learn">Lý do giúp Juli đưa ra đề xuất tốt hơn: {reason.learn}</span>
+      </div>
+      {lines.map((line) => (
+        <div className="qv-done__text" key={line}>
+          {line}
+        </div>
+      ))}
+      {small ? <div className="qv-done__small">{small}</div> : null}
     </div>
   );
 }

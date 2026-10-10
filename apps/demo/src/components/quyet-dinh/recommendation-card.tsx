@@ -4,6 +4,8 @@ import { useId } from "react";
 
 import { CARD_STATUS_LABELS, EXECUTOR_COPY, REJECTED_NOTICE, type CardView } from "../../lib/quyet-dinh/card-model";
 import type { CardStatus, LeverExecutor } from "../../lib/quyet-dinh/p10-types";
+import { REJECT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
+import { ReasonDone } from "./reason-dialog";
 
 /**
  * The recommendation card (ADR-109 Amendment 1 d.1–3): `Main.dc.html` from
@@ -48,6 +50,8 @@ export interface RecommendationCardProps {
   readonly analysisHref?: string | null;
   /** Arrived from Phân tích's "Xem đề xuất ›": outlined pink for 3 s. */
   readonly focused?: boolean;
+  /** The reason code the seller gave when rejecting it in this visit (the completion message). */
+  readonly rejectReason?: string | null;
 }
 
 function AnalysisLink({ href }: { readonly href: string | null | undefined }) {
@@ -115,7 +119,9 @@ function Outcome({
   executor,
   progressHref,
   onOpenProgress,
+  rejectReason = null,
 }: {
+  readonly rejectReason?: string | null;
   readonly status: CardStatus;
   readonly executor: LeverExecutor;
   readonly progressHref: string | null;
@@ -131,6 +137,18 @@ function Outcome({
           </a>
         ) : null}
       </div>
+    );
+  }
+  if (status === "rejected" && rejectReason) {
+    return (
+      <ReasonDone
+        lines={[
+          "Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ.",
+          "Chỗ trống trong Đề xuất được dành cho sản phẩm có GMV tiềm năng kế tiếp.",
+        ]}
+        reason={reasonOption(REJECT_REASONS, rejectReason)}
+        title="Hoàn thành · đã từ chối thẻ"
+      />
     );
   }
   if (status === "rejected") {
@@ -161,6 +179,7 @@ function DesktopCard({
   onOpenProgress,
   analysisHref,
   focused = false,
+  rejectReason = null,
 }: RecommendationCardProps) {
   const titleId = useId();
   const blockId = useId();
@@ -235,7 +254,7 @@ function DesktopCard({
 
       <ExecutorLines executor={card.executor} show={showWho} />
 
-      <Outcome executor={card.executor} onOpenProgress={onOpenProgress} progressHref={progressHref} status={status} />
+      <Outcome executor={card.executor} onOpenProgress={onOpenProgress} progressHref={progressHref} rejectReason={rejectReason} status={status} />
 
       <div className="qv-card__actions">
         {status === "pending" ? (
@@ -288,6 +307,7 @@ function MobileCard({
   onOpenProgress,
   analysisHref,
   focused = false,
+  rejectReason = null,
 }: RecommendationCardProps) {
   const titleId = useId();
   const blockId = useId();
@@ -360,7 +380,7 @@ function MobileCard({
 
       <ExecutorLines executor={card.executor} show={showWho} />
 
-      <Outcome executor={card.executor} onOpenProgress={onOpenProgress} progressHref={progressHref} status={status} />
+      <Outcome executor={card.executor} onOpenProgress={onOpenProgress} progressHref={progressHref} rejectReason={rejectReason} status={status} />
 
       {status === "pending" ? (
         <div className="qv-card__grid-buttons">

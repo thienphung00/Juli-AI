@@ -111,6 +111,45 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
     await userEvent.click(within(dialog).getByRole("radio", { name: "Lý do hoặc số liệu chưa thuyết phục" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Từ chối thẻ" }));
     await waitFor(() => expect(within(photo).getByTestId("card-status")).toHaveTextContent("Đã từ chối"));
+    // a0382006: the completion message names the picked reason and what Juli learns from it.
+    const done = within(photo).getByTestId("reason-done");
+    expect(done).toHaveTextContent("Hoàn thành · đã từ chối thẻ");
+    expect(done).toHaveTextContent("Lý do bạn chọnLý do hoặc số liệu chưa thuyết phục");
+    expect(done).toHaveTextContent("Lý do giúp Juli đưa ra đề xuất tốt hơn: Juli chỉ đề xuất khi số liệu đủ rõ và giải thích kỹ hơn.");
+  });
+
+  it("Không thực hiện and Hoàn tác end on the completion message with the picked reason", async () => {
+    renderSample();
+    await waitFor(() => expect(cardOf("Son môi số 12")).toBeDefined());
+    await userEvent.click(within(cardOf("Son môi số 12")).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(await screen.findByRole("link", { name: "Xem tiến độ ›" }));
+    await screen.findByTestId("consent-block");
+    await userEvent.click(screen.getByRole("button", { name: "Không thực hiện" }));
+    const skip = screen.getByRole("dialog", { name: "Không thực hiện thay đổi này?" });
+    expect(skip).toHaveTextContent("Khi đồng ý, gợi ý sẽ không quay lại");
+    expect(skip).not.toHaveTextContent("Lý do giúp Juli");
+    await userEvent.click(within(skip).getByRole("radio", { name: "Văn phong chưa phù hợp" }));
+    await userEvent.click(within(skip).getByRole("button", { name: "Đồng ý" }));
+    const declined = await screen.findByTestId("reason-done");
+    expect(declined).toHaveTextContent("Hoàn thành · không thực hiện thay đổi");
+    expect(declined).toHaveTextContent("Juli soạn theo văn phong gần với nội dung hiện tại của bạn hơn.");
+  });
+
+  it("Hoàn tác: no hint in the dialog; the finished revert shows the reason box", async () => {
+    renderSample("/decisions?tab=dang-thuc-hien&run=sample-run-tn-021");
+    await userEvent.click(await screen.findByRole("button", { name: "Hoàn tác" }));
+    const dialog = screen.getByRole("dialog", { name: "Hoàn tác thay đổi này?" });
+    expect(dialog).not.toHaveTextContent("Lý do giúp Juli");
+    await userEvent.click(within(dialog).getByRole("radio", { name: "Khách phản hồi không tốt" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Bắt đầu hoàn tác" }));
+    const consent = await screen.findByTestId("consent-block");
+    await userEvent.click(consent.querySelector(".qv-option") as HTMLElement);
+    await userEvent.click(within(consent).getByRole("button", { name: "Xác nhận khôi phục" }));
+    const done = await screen.findByTestId("reason-done", {}, { timeout: 3000 });
+    expect(done).toHaveTextContent("Hoàn tác hoàn thành · đã khôi phục nội dung cũ");
+    expect(done).toHaveTextContent("Lý do bạn chọnKhách phản hồi không tốt");
+    expect(done).toHaveTextContent("Lý do giúp Juli đưa ra đề xuất tốt hơn: Juli đọc thêm đánh giá và tin nhắn của khách trước khi soạn.");
+    expect(done).toHaveTextContent('được ghi là "Đã hoàn tác"');
   });
 
   it("Đang thực hiện: the consent → Xác nhận plays the write and TikTok's review to the end", async () => {

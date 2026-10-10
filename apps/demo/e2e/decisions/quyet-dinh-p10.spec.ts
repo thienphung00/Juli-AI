@@ -293,7 +293,8 @@ test.describe("P10 Đề xuất card", () => {
     await dialog.getByRole("textbox").fill("Số liệu cũ");
     await dialog.getByRole("button", { name: "Từ chối thẻ" }).click();
     await expect(other.getByTestId("card-status")).toHaveText("Đã từ chối");
-    await expect(other).toContainText("Đã từ chối. Juli không thay đổi gì trên sản phẩm này.");
+    await expect(other.getByTestId("reason-done")).toContainText("Hoàn thành · đã từ chối thẻ");
+    await expect(other.getByTestId("reason-done")).toContainText("Lý do bạn chọnLý do hoặc số liệu chưa thuyết phục");
     expect(posts.find((p) => p.path.endsWith("/13/reject"))?.body).toEqual({ reason_code: "not_convincing", note: "Số liệu cũ" });
   });
 });
@@ -318,11 +319,15 @@ test.describe("P10 Đang thực hiện", () => {
 
     await page.getByRole("button", { name: "Không thực hiện" }).click();
     const dialog = page.getByRole("dialog", { name: "Không thực hiện thay đổi này?" });
-    await expect(dialog.getByRole("button", { name: "Kết thúc, không thay đổi" })).toBeDisabled();
+    await expect(dialog).toContainText("Khi đồng ý, gợi ý sẽ không quay lại");
+    await expect(dialog).not.toContainText("Lý do giúp Juli");
+    await expect(dialog.getByRole("button", { name: "Đồng ý" })).toBeDisabled();
     await dialog.getByRole("radio", { name: "Văn phong chưa phù hợp" }).check();
-    await dialog.getByRole("button", { name: "Kết thúc, không thay đổi" }).click();
+    await dialog.getByRole("button", { name: "Đồng ý" }).click();
     await expect.poll(() => posts.find((p) => p.path.endsWith("/decline"))?.body).toEqual({ reason_code: "tone" });
-    await expect(page.getByTestId("run-detail")).toContainText("Bạn đã chọn không thay đổi.");
+    const done = page.getByTestId("reason-done");
+    await expect(done).toContainText("Hoàn thành · không thực hiện thay đổi");
+    await expect(done).toContainText("Lý do giúp Juli đưa ra đề xuất tốt hơn: Juli soạn theo văn phong gần với nội dung hiện tại của bạn hơn.");
   });
 
   test("cover image: the upload posts the file and shows the checks", async ({ page }) => {
@@ -460,8 +465,8 @@ test.describe("P10 fidelity screenshots", () => {
           await dialogShot(page, "Decline--skip-dialog");
           await page.getByRole("radio", { name: "Văn phong chưa phù hợp" }).check();
           await dialogShot(page, "Decline--skip-dialog-picked");
-          await page.getByRole("button", { name: "Kết thúc, không thay đổi" }).click();
-          await expect(page.getByTestId("run-detail")).toContainText("Bạn đã chọn không thay đổi.");
+          await page.getByRole("button", { name: "Đồng ý" }).click();
+          await expect(page.getByTestId("reason-done")).toContainText("Hoàn thành · không thực hiện thay đổi");
           await shot(page, "Decline--skip-done");
           await page.getByRole("button", { name: "Thu gọn" }).click();
           await shot(page, "Run--collapsed");

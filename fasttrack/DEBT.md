@@ -541,3 +541,4 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Voucher stat reads the share of orders at or above a running voucher's threshold (`above_after`), not redemptions; "Sắp tới" omits "chưa đăng ký" (no campaign-registration data).
 - [ ] `nhom=<metric>` scrolls to and outlines the metric's group; it does not filter the other groups out.
 - [ ] Old `.pt-*` rules in `globals.css` are now unused (no component emits them).
+- [ ] Reason completion message (a0382006) shows the reason box only in the visit the reason was given; the backend stores `reason_code` but no read returns it, so after a reload the older text (no reason box) shows.

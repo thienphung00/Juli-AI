@@ -99,6 +99,7 @@ export function DeXuatPanel({
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [rejectBusy, setRejectBusy] = useState(false);
   const [rejectError, setRejectError] = useState<string | null>(null);
+  const [rejectReasons, setRejectReasons] = useState<Readonly<Record<string, string>>>({});
   const bandsSet = bandsAreSet(rules);
 
   const statusOf = (card: CardView): CardStatus => statusOverrides[card.id] ?? card.status;
@@ -168,6 +169,7 @@ export function DeXuatPanel({
                       analysisHref={analysisHrefForDecision(group.cards.find((c) => c.id === view.id)?.item ?? group.cards[0].item)}
                       blockedReason={blockReason}
                       focused={highlight === `card:${view.id}`}
+                      rejectReason={rejectReasons[view.id] ?? null}
                       busy={busy}
                       card={view}
                       error={cardErrors[view.id] ?? null}
@@ -216,8 +218,12 @@ export function DeXuatPanel({
           if (!rejecting) return;
           setRejectBusy(true);
           setRejectError(null);
-          onReject(rejecting, choice)
-            .then(() => setRejecting(null))
+          const cardId = rejecting;
+          onReject(cardId, choice)
+            .then(() => {
+              setRejectReasons((map) => ({ ...map, [cardId]: choice.reason_code }));
+              setRejecting(null);
+            })
             .catch((error: unknown) =>
               setRejectError(error instanceof Error && error.message ? error.message : "Chưa từ chối được. Vui lòng thử lại."),
             )

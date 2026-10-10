@@ -1,6 +1,6 @@
 import type { AgentEvent, DemoDecisionItem, WorkflowRunListItem } from "@juli/contracts";
 import { validateAgentEvent } from "@juli/contracts";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -328,6 +328,17 @@ describe("the recommendation card (Main.dc.html)", () => {
     renderCard({ status: "rejected" });
     expect(screen.getByTestId("card-status")).toHaveTextContent("Đã từ chối");
     expect(screen.getByRole("status")).toHaveTextContent("Đã từ chối. Juli không thay đổi gì trên sản phẩm này.");
+    cleanup();
+    // Rejected in this visit (a0382006): the green completion message with the picked reason.
+    render(
+      <RecommendationCard card={cardView(item("1"))} expanded={false} narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} rejectReason="other_campaign" status="rejected" />,
+    );
+    const done = screen.getByTestId("reason-done");
+    expect(done).toHaveTextContent("Hoàn thành · đã từ chối thẻ");
+    expect(done).toHaveTextContent("Đang chạy chiến dịch khác cho sản phẩm này");
+    expect(done).toHaveTextContent("Lý do giúp Juli đưa ra đề xuất tốt hơn: Juli chờ chiến dịch kết thúc để không lẫn kết quả.");
+    expect(done).toHaveTextContent("Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ.");
+    expect(done).toHaveTextContent("Chỗ trống trong Đề xuất được dành cho sản phẩm có GMV tiềm năng kế tiếp.");
     for (const [status, label] of [["applied", "Đã áp dụng"], ["expired", "Hết hạn"]] as const) {
       const { container } = render(
         <RecommendationCard card={cardView(item("1"))} expanded={false} narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} status={status} />,
@@ -401,7 +412,7 @@ describe("the recommendation card (Main.dc.html)", () => {
 describe("reason dialogs (Decline.dc.html, Revert.dc.html)", () => {
   it.each([
     ["reject", "Từ chối thẻ này?", "Từ chối thẻ", "Quay lại", REJECT_REASONS],
-    ["skip", "Không thực hiện thay đổi này?", "Kết thúc, không thay đổi", "Quay lại", DECLINE_REASONS],
+    ["skip", "Không thực hiện thay đổi này?", "Đồng ý", "Quay lại", DECLINE_REASONS],
     ["revert", "Hoàn tác thay đổi này?", "Bắt đầu hoàn tác", "Huỷ, giữ thay đổi", REVERT_REASONS],
   ] as const)("%s: exact labels, one reason required, optional note, cancel does nothing", async (mode, title, submit, cancel, reasons) => {
     const onSubmit = vi.fn();
@@ -409,7 +420,10 @@ describe("reason dialogs (Decline.dc.html, Revert.dc.html)", () => {
     render(<ReasonDialog body={REJECT_DIALOG_BODY} mode={mode} onCancel={onCancel} onSubmit={onSubmit} open />);
     const dialog = screen.getByRole("dialog", { name: title });
     expect(within(dialog).getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual(reasons.map((r) => r.label));
-    expect(dialog).toHaveTextContent("(chọn một · bắt buộc)");
+    // a0382006: "(chọn một)" on Từ chối / Không thực hiện; the note moved to the completion message.
+    expect(dialog).toHaveTextContent(mode === "revert" ? "(chọn một · bắt buộc)" : "(chọn một)");
+    if (mode !== "revert") expect(dialog).not.toHaveTextContent("chọn một · bắt buộc");
+    expect(dialog).not.toHaveTextContent("Lý do giúp Juli");
     expect(dialog).not.toHaveTextContent("Để sau");
     const button = within(dialog).getByRole("button", { name: submit });
     expect(button).toBeDisabled();
@@ -477,9 +491,15 @@ describe("consent with an edit (Run.dc.html)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Không thực hiện" }));
     const dialog = screen.getByRole("dialog", { name: "Không thực hiện thay đổi này?" });
     await userEvent.click(within(dialog).getByRole("radio", { name: "Thay đổi quá nhiều so với hiện tại" }));
-    await userEvent.click(within(dialog).getByRole("button", { name: "Kết thúc, không thay đổi" }));
+    expect(dialog).toHaveTextContent("Khi đồng ý, gợi ý sẽ không quay lại");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Đồng ý" }));
     await waitFor(() => expect(c.decline).toHaveBeenCalledWith({ token: "tok", shopId: "shop-1" }, RUN_ID, { reason_code: "too_much_change" }));
-    expect(await screen.findByText("Bạn đã chọn không thay đổi. Lượt chạy kết thúc, sản phẩm giữ nguyên.")).toBeInTheDocument();
+    const done = await screen.findByTestId("reason-done");
+    expect(done).toHaveTextContent("Hoàn thành · không thực hiện thay đổi");
+    expect(done).toHaveTextContent("Lý do bạn chọnThay đổi quá nhiều so với hiện tại");
+    expect(done).toHaveTextContent("Lý do giúp Juli đưa ra đề xuất tốt hơn: Juli đề xuất thay đổi nhỏ hơn, giữ phần bạn đã viết.");
+    expect(done).toHaveTextContent("Không có gì được ghi lên TikTok Shop. Lần sau chỉ muốn sửa vài chữ, chọn Sửa nội dung ở bước xác nhận.");
+    expect(done).toHaveTextContent("Thẻ không quay lại Đề xuất ngay. Juli có thể đề xuất lại sản phẩm này sau 7 ngày với nội dung mới.");
   });
 
   it("Thu gọn / Mở rộng collapses the run to its name and status", async () => {

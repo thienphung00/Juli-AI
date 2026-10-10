@@ -74,6 +74,26 @@ test.describe("Signed-out Quyết định — the P10 sample", () => {
     await dialog.getByRole("radio", { name: "Lý do hoặc số liệu chưa thuyết phục" }).check();
     await dialog.getByRole("button", { name: "Từ chối thẻ" }).click();
     await expect(other.getByTestId("card-status")).toHaveText("Đã từ chối");
+    await expect(other.getByTestId("reason-done")).toContainText("Hoàn thành · đã từ chối thẻ");
+    await expect(other.getByTestId("reason-done")).toContainText("Juli chỉ đề xuất khi số liệu đủ rõ và giải thích kỹ hơn.");
+    expect(v1).toEqual([]);
+  });
+
+  test("Hoàn tác ends on the completion message with the picked reason", async ({ page }) => {
+    const v1 = recordBackendRequests(page);
+    await page.goto("/decisions?tab=dang-thuc-hien&run=sample-run-tn-021");
+    await page.getByRole("button", { name: "Hoàn tác" }).click();
+    const dialog = page.getByRole("dialog", { name: "Hoàn tác thay đổi này?" });
+    await expect(dialog).not.toContainText("Lý do giúp Juli");
+    await dialog.getByRole("radio", { name: "TikTok cảnh báo sản phẩm" }).check();
+    await dialog.getByRole("button", { name: "Bắt đầu hoàn tác" }).click();
+    const consent = page.getByTestId("consent-block");
+    await consent.locator(".qv-option").click();
+    await consent.getByRole("button", { name: "Xác nhận khôi phục" }).click();
+    const done = page.getByTestId("reason-done");
+    await expect(done).toContainText("Hoàn tác hoàn thành · đã khôi phục nội dung cũ");
+    await expect(done).toContainText("Lý do bạn chọnTikTok cảnh báo sản phẩm");
+    await expect(done).toContainText("Lý do giúp Juli đưa ra đề xuất tốt hơn: Juli kiểm tra chính sách TikTok kỹ hơn trước khi đề xuất.");
     expect(v1).toEqual([]);
   });
 
