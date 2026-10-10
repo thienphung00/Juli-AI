@@ -954,3 +954,31 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   type-check clean, vitest 130 files 1714 passed, Playwright 154 passed / 140 skipped (port 3323),
   `pnpm build:demo --force` OK.
 
+
+### 2026-10-10 — P16 Juli Ops (D25) + P9-B handover — P16 agent (Opus)
+
+- Branch `fasttrack/p16-ops` from `fasttrack/p14-integration` (2c35c1e4), worktree `juli-ft-p16`.
+  Migration **`083_ops_console`** onto `081_order_cost_data` (orchestrator re-chains after P15's
+  082); deferred phone cleanup re-parented onto 083 (pins moved in 5 tests).
+- Backend: role `juli_ops` + 5 `ops_*` tables (RLS, `juli_ops` only, `ops_only` class),
+  `users.staff_access_consent_at`, DEFINER `ops_current_shop_overrides` / `ops_list_shops` /
+  `ops_transfer_shop`; `/v1/ops/*` (Access JWT verified + staff role, fail closed; PII-masking
+  route class; every write audited); overrides read by emission budget / content emission /
+  drafting / agent runs; OpenAI cap = shared `shop_rules` row `openai_monthly_cap_usd` ($5
+  default, P15 coordination) gating drafting and Optimize Product model calls; simulation from
+  new additive report keys `daily_streams` / `daily_products`; scenarios; invites + seller accept
+  (P9-B); Huỷ kết nối; Ops Quy tắc; scopes persisted on refresh + permission status.
+- Owner changes mid-task, all applied: D25.11 window / trend, D25.13 disconnect, D25.14 Quy
+  tắc, D25.15 permissions, D25.3 amended (view-as always read-only — act mode, flag and
+  consent removed; non-GET under `/view/` → 403), cap storage shared with P15. D24.21 (2)/(5)
+  implemented on the way (open cards 5–30 default 30; Giọng văn, Từ không được dùng rule keys +
+  seller editor fields).
+- Frontend (apps/demo): `/ops` route group (Tổng quan, Cài đặt shop + Quy tắc, Xem như shop,
+  Mô phỏng, Nhân viên, Nhật ký, own Google sign-in landing), `middleware.ts` host split + noindex,
+  `/nhan-shop` (token in the link fragment, POSTed), staff-access notice on connect, reconnect
+  strip. Landing privacy sentence VN + EN.
+- Infra (files only): `infra/nginx/ops.app-juli.com.conf`, `INSTALL_OPS_VHOST=1` in
+  `provision-nginx.sh`, env example, `docs/runbooks/ops-console-runbook.md`.
+- Guards touched: quality reconciliation re-derived (459 → 473, 6236 functions / 615 modules),
+  surface inventory regenerated (threat-model test now detects auth transitively), no new
+  suppressions, creds-in-URL clean.
