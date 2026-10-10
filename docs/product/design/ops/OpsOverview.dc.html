@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Juli Ops · Tổng quan</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f4f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1040px; box-sizing: border-box; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f4f4f6; display: flex; flex-direction: column">
+<header style="display: flex; align-items: center; gap: 16px; background: #1a1a1f; color: #ffffff; padding: 0 28px; min-height: 60px">
+<b style="font-size: 18px">Juli <span style="color: #f3a9c8">Ops</span></b>
+<nav aria-label="Ops" style="display: flex; gap: 4px; font-size: 14px">
+<span style="background: #3a3a44; border-radius: 8px; padding: 6px 12px; font-weight: 600">Tổng quan</span>
+<a href="OpsShopSettings.dc.html" style="color: #d6d6dc; text-decoration: none; padding: 6px 12px">Nhân viên</a>
+<a href="OpsShopSettings.dc.html" style="color: #d6d6dc; text-decoration: none; padding: 6px 12px">Nhật ký</a>
+</nav>
+<span style="margin-left: auto; font-size: 13px; color: #d6d6dc">thien.phung@app-juli.com · Admin</span>
+</header>
+<main style="padding: 24px 28px; display: flex; flex-direction: column; gap: 18px">
+<h1 style="margin: 0; font-size: 26px; font-weight: 700">Gian hàng đã kết nối</h1>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; font-weight: 600; color: #5f5f6b">{{k.label}}</span>
+<span style="font-size: 26px; font-weight: 700; {{k.style}}">{{k.value}}</span>
+<span style="font-size: 12px; color: #6b6b76">{{k.sub}}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+<span style="font-size: 13px; font-weight: 600">Giai đoạn:</span>
+<sc-for list="{{filters}}" as="f" hint-placeholder-count="4">
+<button type="button" aria-pressed="{{f.on}}" onClick="{{f.pick}}" style="font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; min-height: 36px; padding: 0 12px; cursor: pointer; {{f.style}}">{{f.label}}</button>
+</sc-for>
+<label style="margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px">Tìm shop <input type="search" placeholder="Tên shop, mã shop" style="font: inherit; font-size: 14px; border: 1px solid #e3e3e8; border-radius: 8px; min-height: 36px; padding: 0 10px; width: 220px"></label>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 14px; overflow: hidden">
+<div style="display: grid; grid-template-columns: minmax(0, 2.2fr) 130px 130px 110px 130px 90px 90px 110px 120px 190px; gap: 10px; padding: 10px 16px; background: #f7f7f9; font-size: 12px; font-weight: 600; color: #5f5f6b">
+<span>Shop</span><span>Giai đoạn</span><span>Kết nối</span><span>Lấy dữ liệu</span><span>Thẻ mở / duyệt / từ chối</span><span>Tỷ lệ duyệt</span><span>Chạy lỗi</span><span>OpenAI tháng</span><span>GMV 30 ngày</span><span></span>
+</div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+<div style="display: grid; grid-template-columns: minmax(0, 2.2fr) 130px 130px 110px 130px 90px 90px 110px 120px 190px; gap: 10px; padding: 10px 16px; border-top: 1px solid #f0f0f3; align-items: center; font-size: 14px">
+<span style="display: flex; flex-direction: column; gap: 2px"><b>{{r.name}}</b><span style="font-size: 12px; color: #6b6b76">{{r.owner}}</span></span>
+<span style="justify-self: start; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 10px; {{r.stageStyle}}">{{r.stage}}</span>
+<span style="font-size: 13px; font-weight: 600; {{r.connStyle}}">{{r.conn}}</span>
+<span style="font-size: 13px">{{r.poll}}</span>
+<span style="font-size: 13px">{{r.cards}}</span>
+<span style="font-size: 13px">{{r.rate}}</span>
+<span style="font-size: 13px; {{r.failStyle}}">{{r.fail}}</span>
+<span style="font-size: 13px">{{r.cost}}</span>
+<span style="font-size: 13px">{{r.gmv}}</span>
+<span style="display: flex; gap: 10px; justify-content: flex-end"><a href="OpsViewAs.dc.html" style="font-size: 13px; font-weight: 600; text-decoration: none; min-height: 36px; display: inline-flex; align-items: center">Xem như shop</a><a href="OpsShopSettings.dc.html" style="font-size: 13px; font-weight: 600; text-decoration: none; min-height: 36px; display: inline-flex; align-items: center">Cài đặt</a></span>
+</div>
+</sc-for>
+</div>
+<p style="margin: 0; font-size: 12px; color: #6b6b76">Không có dữ liệu người mua trên trang nội bộ. Số liệu là ví dụ minh hoạ.</p>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { stage: 'all' };
+}
+renderVals() {
+const s = this.state.stage;
+const ST = { trial: ['Thử nghiệm', 'background: #e6f0fd; color: #1d4f91'], self: ['Tự vận hành', 'background: #e3f5e8; color: #146c2e'], pilot: ['Pilot đặc biệt', 'background: #f3e8ff; color: #5b2a86'] };
+const R = [
+['Cửa hàng Mẫu Hoa Mai', 'Đội ngũ vận hành · chưa bàn giao', 'pilot', 'ok', '08:07 hôm nay', '18 / 9 / 3', '75 %', '0', '$1,8', '214,9 tr'],
+['Gia dụng Phúc An', 'seller: phucan@…', 'self', 'ok', '08:22 hôm nay', '12 / 14 / 2', '88 %', '1', '$2,4', '1,2 tỷ'],
+['Mỹ phẩm Thảo Nhi', 'seller: thaonhi@…', 'trial', 'expired', '3 ngày trước', '25 / 2 / 6', '25 %', '0', '$0,3', '86,4 tr'],
+['Gia dụng Minh An', 'Đội ngũ vận hành · đang mời seller', 'trial', 'ok', '07:52 hôm nay', '9 / 5 / 1', '83 %', '2', '$0,9', '142,0 tr'],
+['Thời trang Linh Đan', 'seller: linhdan@…', 'self', 'ok', '08:37 hôm nay', '6 / 21 / 4', '84 %', '0', '$3,1', '512,7 tr'],
+['Đồ chơi Bé Na', 'seller: bena@…', 'trial', 'none', 'chưa kết nối shop', '— / — / —', '—', '—', '$0', '—']
+];
+const conn = { ok: ['Đang kết nối', 'color: #146c2e'], expired: ['Token hết hạn', 'color: #a3222f'], none: ['Chưa kết nối', 'color: #6b6b76'] };
+const rows = R.filter((r) => s === 'all' || r[2] === s).map(([name, owner, st, c, poll, cards, rate, fail, cost, gmv]) => ({
+name, owner, stage: ST[st][0], stageStyle: ST[st][1], conn: conn[c][0], connStyle: conn[c][1], poll, cards, rate, fail, failStyle: fail !== '0' && fail !== '—' ? 'color: #a3222f; font-weight: 700' : '', cost, gmv
+}));
+const pill = (on) => on ? 'color: #ffffff; background: #1a1a1f; border: 1px solid #1a1a1f' : 'color: #4a4a55; background: #ffffff; border: 1px solid #e3e3e8';
+return {
+kpis: [
+{ label: 'Đã kết nối', value: '5', sub: 'trên 6 tài khoản', style: '' },
+{ label: 'Đang hoạt động', value: '4', sub: 'lấy dữ liệu trong 24 giờ', style: 'color: #146c2e' },
+{ label: 'Mất kết nối', value: '1', sub: 'token hết hạn', style: 'color: #a3222f' },
+{ label: 'Thẻ đã duyệt (30 ngày)', value: '51', sub: 'tỷ lệ duyệt 72 %', style: '' },
+{ label: 'OpenAI tháng này', value: '$8,5', sub: 'trần chung $50', style: '' }
+],
+filters: [['all', 'Tất cả'], ['trial', 'Thử nghiệm'], ['self', 'Tự vận hành'], ['pilot', 'Pilot đặc biệt']].map(([id, label]) => ({ label, on: s === id, style: pill(s === id), pick: () => this.setState({ stage: id }) })),
+rows
+};
+}
+}
+</script>
+</body>
+</html>

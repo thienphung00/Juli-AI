@@ -79,8 +79,21 @@ async def get_demo_analysis(
         extra={"shop_id": str(shop.id), "as_of": stored.as_of.isoformat(), "ranking": ranking},
     )
     return DemoAnalysisResponse(
-        as_of=stored.as_of, built_at=stored.built_at, ranking=stored.ranking, report=stored.report
+        as_of=stored.as_of,
+        built_at=stored.built_at,
+        ranking=stored.ranking,
+        report=seller_report(stored.report),
     )
+
+
+#: Report keys kept for the Ops simulation only (P16): large and not drawn by
+#: any seller screen, so the seller payload leaves them out.
+OPS_ONLY_REPORT_KEYS: frozenset[str] = frozenset({"daily_products"})
+
+
+def seller_report(report: dict[str, Any]) -> dict[str, Any]:
+    """The stored report as the seller (and "Xem như shop") receives it."""
+    return {key: value for key, value in report.items() if key not in OPS_ONLY_REPORT_KEYS}
 
 
 class DemoMetricRankingResponse(BaseModel):

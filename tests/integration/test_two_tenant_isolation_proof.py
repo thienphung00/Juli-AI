@@ -100,6 +100,10 @@ def _enumerate_tenant_scoped_tables(engine: Engine) -> list[tuple[str, str]]:
             columns = inspector.get_columns(table, schema=schema)
             column_names = {col["name"] for col in columns}
 
+            if TABLE_CLASSIFICATION_MAP.get((schema, table)) == "ops_only":
+                # P16: ops tables name the shop they are about but are not tenant
+                # data; test_ops_console_db.py proves juli_app cannot reach them.
+                continue
             if "shop_id" in column_names:
                 tenant_scoped.append((schema, table))
             elif (schema, table) in VIA_PARENT_MAPPINGS:
@@ -172,7 +176,7 @@ def _verify_rls_enabled_on_all_classified_tables(engine: Engine) -> None:
                 continue
 
             classification = TABLE_CLASSIFICATION_MAP[key]
-            if classification in ("tenant_direct", "tenant_via_parent", "non_tenant"):
+            if classification in ("tenant_direct", "tenant_via_parent", "non_tenant", "ops_only"):
                 # All tenant-scoped tables must have RLS enabled
                 assert rls_enabled, (
                     f"Table {schema}.{table} missing RLS (relrowsecurity={rls_enabled})"

@@ -173,6 +173,7 @@ from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services.agent import crash_classification as crash_module
 from juli_backend.services.agent import events as events_module
 from juli_backend.services.agent import runner as runner_module
+from juli_backend.services.agent.llm.config import LLMConfig
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
 
@@ -737,6 +738,9 @@ async def _construct_runner(
         # RunState.basis_snapshots so it survives the pause and is read back
         # by the `basis_snapshot=` seed a few lines up on the resume leg.
         concurrency_guard=concurrency_guard,
+        # Fast track P16 (D25.4): the shop's OpenAI model override from Juli
+        # Ops (default model otherwise); also what the run's cost is priced at.
+        llm_config=await _ops_llm_config(session, run.shop_id),
     )
     if content is not None:
         return content_driver_module.ContentRunner(runner, session=session, wiring=content)
@@ -749,6 +753,17 @@ async def _construct_runner(
         product_detail=_product_detail,
         schedule_recheck=_schedule_lever_flow_recheck,
     )
+
+
+async def _ops_llm_config(session: AsyncSession, shop_id: uuid.UUID) -> LLMConfig:
+    """``LLMConfig`` with the shop's Juli Ops model override, if any (P16)."""
+    from dataclasses import replace as _replace
+
+    from juli_backend.services.ops import overrides as ops_overrides
+
+    current = await ops_overrides.shop_overrides(session, shop_id)
+    config = LLMConfig()
+    return _replace(config, model=current.openai_model) if current.openai_model else config
 
 
 def _schedule_lever_flow_recheck(run_id: uuid.UUID) -> None:

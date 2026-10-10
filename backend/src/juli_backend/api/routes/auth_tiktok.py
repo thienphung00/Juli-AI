@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security import get_current_user
 from juli_backend.core.security.exceptions import Unauthorized
-from juli_backend.database import User, get_session
+from juli_backend.database import User, UsersRepo, get_session
 from juli_backend.services.tiktok.oauth import (
     TikTokOAuthInfrastructureService,
     TikTokOAuthNotConfiguredError,
@@ -43,8 +43,10 @@ def get_tiktok_oauth_service() -> TikTokOAuthInfrastructureService:
 
 @router.get("/start", response_model=TikTokOAuthStartResult)
 async def tiktok_oauth_start(
+    staff_access_consent: bool = Query(default=False),
     user: User = Depends(get_current_user),
     oauth_service: TikTokOAuthInfrastructureService = Depends(get_tiktok_oauth_service),
+    session: AsyncSession = Depends(get_session),
 ) -> TikTokOAuthStartResult:
     """Begin connecting the authenticated seller's TikTok Shop (issue #1970).
 
@@ -58,7 +60,13 @@ async def tiktok_oauth_start(
     with its bearer token (a top-level navigation cannot carry one) and then
     navigate itself.
     """
-    return begin_tiktok_oauth(user.id, oauth_service=oauth_service)
+    result = begin_tiktok_oauth(user.id, oauth_service=oauth_service)
+    if staff_access_consent:
+        # Fast track P16 (D25.6): the seller ticked "Juli staff may access my
+        # shop data to support and operate the service" on the connect screen.
+        await UsersRepo(session).record_staff_access_consent(user.id)
+        await session.commit()
+    return result
 
 
 @router.get("/callback", response_model=TikTokOAuthCallbackResult)

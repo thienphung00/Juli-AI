@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import builtins
 import uuid
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -17,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_user_scope
 from juli_backend.models.models import Shop, User
-from juli_backend.repositories._base import SessionRepo
+from juli_backend.repositories._base import SessionRepo, utc_now_naive
 
 
 class UsersRepo(SessionRepo):
@@ -106,6 +107,20 @@ class UsersRepo(SessionRepo):
                 # test_a_returning_seller_with_no_email_is_backfilled`).
                 await self._session.flush()
             return user
+
+    async def record_staff_access_consent(
+        self, user_id: uuid.UUID, *, at: datetime | None = None
+    ) -> None:
+        """Stamp ``staff_access_consent_at`` (D25.6) on the caller's own row.
+
+        Under ``with_user_scope`` like the identity backfill above, and flushed
+        inside it for the same reason: ``users_update_public`` matches only the
+        caller's own row, and only while the user GUC is set.
+        """
+        async with with_user_scope(self._session, user_id):
+            user = await self.get(user_id)
+            user.staff_access_consent_at = at or utc_now_naive()
+            await self._session.flush()
 
     @staticmethod
     def _record_first_known_identity(

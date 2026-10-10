@@ -149,8 +149,10 @@ export default function PrivacyPolicyPage() {
               hay huấn luyện các mô hình trí tuệ nhân tạo (AI) hoặc học máy (ML) tổng quát.
               Dữ liệu người dùng Google không được gửi cho OpenAI hay bất kỳ mô hình AI nào.
               Nhân viên Juli không đọc dữ liệu này, trừ khi bạn đồng ý (ví dụ: khi bạn nhờ hỗ
-              trợ), khi cần cho mục đích bảo mật (ví dụ: điều tra lạm dụng), hoặc khi pháp
-              luật yêu cầu.
+              trợ, hoặc để hỗ trợ và vận hành dịch vụ — bạn đồng ý điều này khi kết nối shop),
+              khi cần cho mục đích bảo mật (ví dụ: điều tra lạm dụng), hoặc khi pháp luật yêu
+              cầu. Nhân viên chỉ xem dữ liệu shop, không bao giờ xem dữ liệu người mua, và mọi
+              lần truy cập đều được ghi nhật ký.
             </p>
             <p>
               Việc Juli sử dụng và chuyển cho bất kỳ ứng dụng nào khác thông tin nhận được từ

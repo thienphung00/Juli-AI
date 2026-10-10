@@ -9,6 +9,13 @@ from juli_backend.models.lever_flows import (
     RunMeasurementFinal,
 )
 from juli_backend.models.models import *  # noqa: F403
+from juli_backend.models.ops import (
+    OpsAuditLog,
+    OpsShopInvite,
+    OpsShopSettings,
+    OpsSimScenario,
+    OpsStaff,
+)
 from juli_backend.models.order_costs import (
     OrderCostFetch,
     OrderFinanceTransaction,
@@ -35,4 +42,9 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     OrderPriceDetail,
     OrderFinanceTransaction,
     OrderCostFetch,
+    OpsStaff,
+    OpsAuditLog,
+    OpsShopSettings,
+    OpsSimScenario,
+    OpsShopInvite,
 )

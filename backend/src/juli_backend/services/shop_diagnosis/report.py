@@ -151,6 +151,17 @@ class ShopDiagnosis:
     daily_gmv: dict[date, float] = dataclasses.field(default_factory=dict)
     seller_skus: dict[str, str] = dataclasses.field(default_factory=dict)
     promo_products: tuple[PromoProduct, ...] = ()
+    #: Fast track P16 (additive, D25.10/11): the four seller streams' raw daily
+    #: counts ``{stream: {day: [impressions, clicks, sku_orders, gmv]}}`` and the
+    #: same per product for the top products of each stream
+    #: ``{stream: {product_id: {day: [...]}}}`` -- the Ops "Mô phỏng" baseline,
+    #: trend and volatility bands read them (``services/ops/simulation.py``).
+    daily_streams: dict[str, dict[date, list[float | None]]] = dataclasses.field(
+        default_factory=dict
+    )
+    daily_products: dict[str, dict[str, dict[date, list[float | None]]]] = dataclasses.field(
+        default_factory=dict
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return _plain(dataclasses.asdict(self))
@@ -448,6 +459,7 @@ def build_report(
         pid: {d: per_day[d].gmv for d in present if d in per_day}
         for pid, per_day in builder.series.get(Channel.TOTAL, {}).items()
     }
+    daily_streams, daily_products = _daily_stream_counts(builder.series, present)
     seller_skus = {
         pid: sku
         for pid in builder.series.get(Channel.TOTAL, {})
@@ -479,4 +491,54 @@ def build_report(
         daily_gmv=daily_gmv,
         seller_skus=seller_skus,
         promo_products=promo_products(activity_promos, windows, snapshot, gmv_by_day, config),
+        daily_streams=daily_streams,
+        daily_products=daily_products,
     )
+
+
+#: The seller's own four streams of the Ops simulation (D25.10).
+SIMULATION_STREAMS: tuple[Channel, ...] = (
+    Channel.PRODUCT_CARD,
+    Channel.SHOP_TAB,
+    Channel.SELLER_VIDEO,
+    Channel.SELLER_LIVE,
+)
+#: Products kept per stream in ``daily_products`` (by impressions over the days).
+DAILY_PRODUCTS_PER_STREAM = 15
+
+
+def _counts_row(counts: Counts) -> list[float | None]:
+    return [
+        round(counts.impressions, 2),
+        round(counts.clicks, 2),
+        None if counts.sku_orders is None else round(counts.sku_orders, 2),
+        round(counts.gmv, 2),
+    ]
+
+
+def _daily_stream_counts(
+    series: Series, days: list[date]
+) -> tuple[
+    dict[str, dict[date, list[float | None]]], dict[str, dict[str, dict[date, list[float | None]]]]
+]:
+    streams: dict[str, dict[date, list[float | None]]] = {}
+    products: dict[str, dict[str, dict[date, list[float | None]]]] = {}
+    for channel in SIMULATION_STREAMS:
+        streams[channel.value] = {
+            day: _counts_row(group_sum(series, [channel], [day])) for day in days
+        }
+        by_product = series.get(channel, {})
+        reach = sorted(
+            by_product,
+            key=lambda pid: (
+                -sum(by_product[pid][d].impressions for d in days if d in by_product[pid])
+            ),
+        )
+        kept: dict[str, dict[date, list[float | None]]] = {}
+        for pid in reach[:DAILY_PRODUCTS_PER_STREAM]:
+            per_day = by_product[pid]
+            rows = {d: _counts_row(per_day[d]) for d in days if d in per_day}
+            if any((row[0] or 0) > 0 for row in rows.values()):
+                kept[pid] = rows
+        products[channel.value] = kept
+    return streams, products

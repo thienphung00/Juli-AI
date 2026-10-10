@@ -68,6 +68,8 @@ from juli_backend.services.content_cards.constants import (
     CONTENT_WORKFLOW_KEYS as _P14E_CONTENT_WORKFLOW_KEYS,
 )
 from juli_backend.services.content_cards.constants import EXECUTOR_JULI_DRAFTS
+from juli_backend.services.ops import overrides as ops_overrides
+from juli_backend.services.ops.overrides import ShopOverrides
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +84,13 @@ SUPPRESSED_REASON_DAILY_CAP = "daily_cap"
 SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP = "weekly_novelty_cap"
 SUPPRESSED_REASON_WEEKLY_CAP = SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP
 
+#: Fast track P16 (D25.4): the card's stream or action is turned off for the
+#: shop in Juli Ops (``ops_shop_settings``).
+SUPPRESSED_REASON_OPS_DISABLED = "ops_disabled"
+
 SUPPRESSED_REASONS: frozenset[str] = frozenset(
     {
+        SUPPRESSED_REASON_OPS_DISABLED,
         SUPPRESSED_REASON_ACTIVE_CAP,
         SUPPRESSED_REASON_COOLDOWN,
         SUPPRESSED_REASON_DAILY_CAP,
@@ -190,6 +197,25 @@ def executor_slot(card: ActionCard) -> str:
     if executor == EXECUTOR_SELLER_CENTER:
         return EXECUTOR_SELLER_CENTER
     return EXECUTOR_OTHER
+
+
+def card_lever(card: ActionCard) -> str | None:
+    """The card's action (lever) code, when its payload names one."""
+    diagnosis = _payload(card).get("diagnosis")
+    lever = diagnosis.get("lever") if isinstance(diagnosis, dict) else None
+    code = lever.get("code") if isinstance(lever, dict) else None
+    return code if isinstance(code, str) else None
+
+
+def ops_card_enabled(card: ActionCard, overrides: ShopOverrides) -> bool:
+    """Whether Juli Ops lets this draft surface (D25.4 streams / actions / content)."""
+    if card.workflow_key in CAMPAIGN_PLAN_WORKFLOW_KEYS:
+        return True
+    if card.workflow_key in ops_overrides.CONTENT_KINDS:
+        return ops_overrides.content_kind_enabled(overrides, card.workflow_key)
+    if executor_slot(card) == EXECUTOR_CONTENT:
+        return overrides.content_cards_enabled is not False
+    return ops_overrides.product_card_enabled(overrides, card_lever(card))
 
 
 def expired_at(card: ActionCard, *, validity_days: int) -> datetime | None:
@@ -309,14 +335,22 @@ def _log_suppressed(shop_id_str: str, card: ActionCard, reason: str) -> None:
 
 
 async def _with_shop_card_cap(
-    session: AsyncSession, shop_id: uuid.UUID, config: DecisionEmissionConfig
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    config: DecisionEmissionConfig,
+    overrides: ShopOverrides | None = None,
 ) -> DecisionEmissionConfig:
-    """The seller's "Số thẻ mở cùng lúc" (ADR-109 d.12), when set, lowers ``max_open``.
+    """The shop's Ops overrides, then the seller's "Số thẻ mở cùng lúc".
 
-    Fast track P8-C; D24.17 keeps it as the seller's own rule (D24.2 "the
-    seller's rules" gate). Unset keeps the configured ceiling (30).
+    Fast track P16 (D25.4): a card-limit override set in Juli Ops replaces the
+    default daily / weekly / open limits (it may raise or lower them). Then
+    P8-C's seller rule (ADR-109 d.12, D24.17 keeps it as the seller's own rule)
+    can only LOWER ``max_open``. Unset keeps the configured ceiling (30).
     """
     from juli_backend.services import shop_rules
+
+    if overrides is not None:
+        config = ops_overrides.emission_limits(config, overrides)
 
     cap = await shop_rules.configured_max_open_cards(session, shop_id)
     if cap is None or cap >= config.max_open:
@@ -383,7 +417,10 @@ async def apply_emission_budget(
     caller controls the transaction.
     """
     now = _as_aware(now) if now is not None else datetime.now(UTC)
-    config = await _with_shop_card_cap(session, shop_id, config or decision_emission_config())
+    overrides = await ops_overrides.shop_overrides(session, shop_id)
+    config = await _with_shop_card_cap(
+        session, shop_id, config or decision_emission_config(), overrides
+    )
     shop_id_str = str(shop_id)
     today = shop_day(now)
     week_start = shop_week_start(now)
@@ -431,6 +468,11 @@ async def apply_emission_budget(
     eligible: list[ActionCard] = []
     campaign_drafts: list[ActionCard] = []
     for card in drafts:
+        if not ops_card_enabled(card, overrides):
+            card.suppressed_reason = SUPPRESSED_REASON_OPS_DISABLED
+            suppressed[SUPPRESSED_REASON_OPS_DISABLED].append(card)
+            _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_OPS_DISABLED)
+            continue
         if _in_cooldown(card, now=now, cooldown_days=config.cooldown_days):
             card.suppressed_reason = SUPPRESSED_REASON_COOLDOWN
             suppressed[SUPPRESSED_REASON_COOLDOWN].append(card)
@@ -488,6 +530,7 @@ async def apply_emission_budget(
             "suppressed_daily_cap": len(suppressed[SUPPRESSED_REASON_DAILY_CAP]),
             "suppressed_cooldown": len(suppressed[SUPPRESSED_REASON_COOLDOWN]),
             "suppressed_weekly_novelty_cap": len(suppressed[SUPPRESSED_REASON_WEEKLY_CAP]),
+            "suppressed_ops_disabled": len(suppressed[SUPPRESSED_REASON_OPS_DISABLED]),
         },
     )
     return EmissionBudgetOutcome(

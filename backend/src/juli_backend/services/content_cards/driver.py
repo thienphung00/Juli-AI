@@ -27,7 +27,7 @@ from juli_backend.services.content_cards.constants import SPEC_BY_WORKFLOW
 from juli_backend.services.content_cards.drafter import ContentDrafter
 from juli_backend.services.content_cards.emission import payload_of
 from juli_backend.services.content_cards.guardrails import ContentRules, DraftFacts
-from juli_backend.services.content_cards.planner import ContentPlanner
+from juli_backend.services.content_cards.planner import ContentPlanner, DraftGate
 from juli_backend.services.lever_flows.flows import AwaitSeller, awaiting_of
 
 logger = logging.getLogger(__name__)
@@ -138,8 +138,27 @@ async def wiring_for_run(
         drafter = OpenAIContentDrafter()
     return ContentWiring(
         planner=ContentPlanner(
-            kind=spec.kind, state=state, drafter=drafter, rules=rules, facts=facts
+            kind=spec.kind,
+            state=state,
+            drafter=drafter,
+            rules=rules,
+            facts=facts,
+            draft_gate=await draft_gate_for(session, run.shop_id),
         )
+    )
+
+
+async def draft_gate_for(session: AsyncSession, shop_id: uuid.UUID) -> DraftGate:
+    """Juli Ops' model override and monthly-cap verdict for this shop (D25.4, D25.8)."""
+    from juli_backend.services.ops import overrides as ops_overrides
+
+    current = await ops_overrides.shop_overrides(session, shop_id)
+    cap = await ops_overrides.openai_cap_status(session, shop_id, overrides=current)
+    return DraftGate(
+        model=current.openai_model,
+        cap_reached=cap.reached,
+        spent_usd=float(cap.spent_usd),
+        cap_usd=float(cap.cap_usd) if cap.cap_usd is not None else None,
     )
 
 
