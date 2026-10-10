@@ -287,3 +287,32 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       Cost estimate (to verify against OpenAI pricing): ≈ $0.006–0.009 per
       analysed minute; a 30–60 s video ≈ $0.005–0.01; a LIVE ≈ $0.2–0.3 with
       windows (≈ $0.7–1.1 for a whole 2 h session).
+
+- **D25** — Internal console ("ops") for the Juli team (owner grill,
+  2026-10-10). Includes P9-B (shop handover).
+  1. **Where**: `ops.app-juli.com`, built from the demo app's code so staff see
+     exactly what the seller sees; two gates — Cloudflare Access (Google,
+     @app-juli.com only) and a staff role in the database.
+  2. **Roles**: Xem (view only) · Vận hành (change a shop's settings, enter
+     Quy tắc for the seller, approve cards for the seller when the seller has
+     agreed) · Admin (staff and feature flags). Every action is audited (who,
+     what, when).
+  3. **"Xem như shop"**: read-only by default — the shop's Trang chủ, Phân
+     tích, Quyết định with a banner "Đang xem như Shop X · chỉ xem", all
+     writes blocked. Acting for the seller is enabled per shop, with the
+     seller's recorded consent, every action audited.
+  4. **Per-shop settings overriding defaults**: card limits, enabled actions
+     and streams, content cards on/off, promotion API on/off, OpenAI model,
+     **monthly OpenAI cost cap**, and the shop stage — **Thử nghiệm · Tự vận
+     hành · Pilot đặc biệt**; "về mặc định"; all changes audited.
+  5. **Overview**: totals (connected, active, disconnected/token expired) and a
+     filterable list per shop — last poll, last diagnosis, cards open /
+     approved / rejected, approval rate, failed runs, OpenAI cost this month,
+     GMV 30 days.
+  6. **Privacy**: staff never see buyer data (masked), only shop data; every
+     "Xem như shop" session is logged; the privacy policy's staff-access
+     sentence gains "to support and operate the service", accepted by the
+     seller when connecting a shop.
+  7. **Handover (P9-B)**: "Mời seller" sends an email invite; the seller signs
+     in and takes ownership; the team keeps Vận hành access if the seller
+     agrees; cards, runs, rules and history are kept.
