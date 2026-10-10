@@ -375,7 +375,12 @@ def _resources(costs: FakeOrderCosts | None = None, orders: FakeOrders | None = 
     return SimpleNamespace(order_costs=costs or FakeOrderCosts(), orders=orders or FakeOrders())
 
 
+async def _no_sleep(_seconds: float) -> None:
+    return None
+
+
 async def _sync(session, shop, resources, *, limiter=None, **kwargs):
+    kwargs.setdefault("sleep", _no_sleep)
     return await worker.sync_order_costs(
         session=session,
         shop_id=shop.id,
@@ -582,3 +587,121 @@ def test_the_migration_creates_every_model_column():
         for column in model.__table__.columns.keys():
             assert f'"{column}"' in text, (model.__tablename__, column)
     assert "ENABLE ROW LEVEL SECURITY" in text and "app_current_shop_id()" in text
+
+
+# -- P17: a fast tier for the orders of the last 30 days --------------------------------------
+
+
+class _WindowLimiter(FakeRateLimiter):
+    """``limit`` tokens per endpoint per window; every awaited sleep opens a new window."""
+
+    async def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        self.reset()
+
+    def __init__(self, *, limit: int) -> None:
+        super().__init__(limit=limit)
+        self.slept: list[float] = []
+
+
+async def _orders(session, shop, prefix: str, count: int, *, days_ago: int) -> None:
+    for i in range(count):
+        await _order(
+            session, shop, f"{prefix}{i:03d}", status="AWAITING_SHIPMENT", days_ago=days_ago
+        )
+
+
+@pytest.mark.asyncio
+async def test_recent_orders_read_up_to_sixty_a_cycle_before_older_ones_at_ten(session):
+    shop = await _shop(session, "fast")
+    await _orders(session, shop, "7", 70, days_ago=5)
+    await _orders(session, shop, "8", 15, days_ago=40)
+    resources = _resources()
+
+    result = await _sync(session, shop, resources, finance_limit=0)
+
+    assert result.price.fetched == 70 and result.price.fetched_recent == 60
+    calls = resources.order_costs.price_calls
+    assert sum(1 for c in calls if c.startswith("7")) == 60
+    assert sum(1 for c in calls if c.startswith("8")) == 10
+    # Fast tier first.
+    assert all(c.startswith("7") for c in calls[:60])
+
+    # Next cycle: the 10 recent left, then 5 older.
+    again = await _sync(session, shop, resources, finance_limit=0)
+    assert again.price.fetched == 15 and again.price.fetched_recent == 10
+
+
+@pytest.mark.asyncio
+async def test_the_fast_tier_waits_for_the_window_instead_of_stopping(session):
+    shop = await _shop(session, "wait")
+    await _orders(session, shop, "6", 25, days_ago=2)
+    limiter = _WindowLimiter(limit=10)
+    resources = _resources()
+
+    result = await _sync(
+        session, shop, resources, limiter=limiter, finance_limit=0, sleep=limiter.sleep
+    )
+
+    assert result.price.fetched == 25 and not result.price.rate_limited
+    assert limiter.slept and result.price.waited_seconds == sum(limiter.slept)
+    assert all(s <= worker.TOKEN_POLL_SECONDS for s in limiter.slept)
+
+
+@pytest.mark.asyncio
+async def test_the_wait_budget_bounds_the_cycle_and_older_orders_never_wait(session):
+    shop = await _shop(session, "budget")
+    await _orders(session, shop, "5", 30, days_ago=2)
+    limiter = FakeRateLimiter(limit=10)  # never refills
+    slept: list[float] = []
+
+    async def sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    result = await _sync(
+        session, shop, _resources(), limiter=limiter, finance_limit=0, sleep=sleep, max_wait=30
+    )
+    # 10 price reads (the SKU lookup has its own bucket), then 30 s of waiting and stop.
+    assert result.price.rate_limited and result.price.fetched == 10
+    assert sum(slept) == 30 and result.price.waited_seconds == 30
+
+    shop_old = await _shop(session, "old")
+    await _orders(session, shop_old, "4", 12, days_ago=45)
+    slept.clear()
+    old = await _sync(
+        session,
+        shop_old,
+        _resources(),
+        limiter=FakeRateLimiter(limit=5),
+        finance_limit=0,
+        sleep=sleep,
+    )
+    assert old.price.rate_limited and old.price.fetched == 5 and slept == []
+
+
+@pytest.mark.asyncio
+async def test_a_429_in_the_fast_tier_still_stops_at_once(session):
+    shop = await _shop(session, "fast429")
+    await _orders(session, shop, "3", 5, days_ago=1)
+    slept: list[float] = []
+
+    async def sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    def throttled(_oid):
+        raise RateLimitError(36009004, "too many requests")
+
+    resources = _resources(FakeOrderCosts(price=throttled))
+    result = await _sync(session, shop, resources, finance_limit=0, sleep=sleep)
+    assert result.price.rate_limited and len(resources.order_costs.price_calls) == 1
+    assert slept == []
+
+
+def test_fast_tier_settings_come_from_the_environment(monkeypatch):
+    assert (worker.fast_window_days(), worker.fast_per_cycle()) == (30, 60)
+    assert worker.max_wait_seconds() == 600.0
+    monkeypatch.setenv(worker.FAST_WINDOW_DAYS_ENV, "14")
+    monkeypatch.setenv(worker.FAST_PER_CYCLE_ENV, "40")
+    monkeypatch.setenv(worker.MAX_WAIT_SECONDS_ENV, "junk")
+    assert (worker.fast_window_days(), worker.fast_per_cycle()) == (14, 40)
+    assert worker.max_wait_seconds() == 600.0

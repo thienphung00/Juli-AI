@@ -908,6 +908,7 @@ async def run_shop_cycle(
             shop_key=run.shop_key,
             deadline=deadline,
             now=now,
+            sleep=sleep,
         )
         if new_days:
             # D11: scoring once a day, after the analytics pass.
