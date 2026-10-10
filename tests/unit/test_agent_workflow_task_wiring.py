@@ -507,6 +507,9 @@ class TestConstructRunner:
             # workflow_outcome_records row and the outcome chain's
             # state-change link reads `missing` forever.
             "outcome_recorder",
+            # P16 (D25.4): the shop's Juli Ops model override (None = the
+            # runner's default LLMConfig; a stand-in session reads none).
+            "llm_config",
         }
         assert callable(kwargs["cancel_check"])
         # Same object, not merely an equivalent one — two guards would each

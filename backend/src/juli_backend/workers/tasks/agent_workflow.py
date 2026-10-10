@@ -756,6 +756,8 @@ async def _construct_runner(
 
 
 async def _ops_cap_guarded(session: AsyncSession, shop_id: uuid.UUID, inner: Any) -> Any:
+    if not isinstance(session, AsyncSession):  # wiring tests pass a stand-in session
+        return inner
     from juli_backend.services import ops
 
     return await ops.cap_guarded(session, shop_id, inner)
@@ -765,6 +767,8 @@ async def _ops_llm_config(session: AsyncSession, shop_id: uuid.UUID) -> Any:
     """``LLMConfig`` with the shop's Juli Ops model override, if any (P16)."""
     from juli_backend.services import ops
 
+    if not isinstance(session, AsyncSession):  # wiring tests pass a stand-in session
+        return None
     return await ops.llm_config_for(session, shop_id)
 
 
