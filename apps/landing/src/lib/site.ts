@@ -34,3 +34,12 @@ export const SITE_ORIGINS: readonly string[] = [
   "https://app-juli.com",
   "http://localhost:3007",
 ];
+
+/** The legal entity operating Juli AI, named on /privacy and /terms. */
+export const COMPANY = {
+  name: "Công ty TNHH Công Nghệ Juli AI",
+  taxId: "0319617654",
+  address:
+    "1B Đường số 30 Trần Não, Phường An Khánh, Thành phố Hồ Chí Minh, Việt Nam",
+  email: "lienhe@app-juli.com",
+} as const;
