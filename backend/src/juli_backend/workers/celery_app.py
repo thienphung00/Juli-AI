@@ -45,6 +45,9 @@ celery_app.conf.update(
         # the worker unit's -Q (#1205's trap -- see the note above).
         "juli_backend.bootstrap_shop": {"queue": "ingest_priority"},
         "juli_backend.shop_history_backfill": {"queue": "ingest_backfill"},
+        # Fast track P17 (D26): the quick scan beside a connecting shop's fast
+        # phase -- same priority queue, already in the worker unit's -Q.
+        "juli_backend.shop_quick_scan": {"queue": "ingest_priority"},
     },
     beat_schedule={
         # ADR-038 §5 — Mock-mode hourly reconciliation for DEMO_REFERENCE_SHOP_ID only (#533).
@@ -155,6 +158,14 @@ celery_app.conf.update(
         "content-runs-poll": {
             "task": "juli_backend.content_runs_poll",
             "schedule": crontab(minute=41),
+        },
+        # Fast track P17 (D25.12): extend each shop's analytics history a few
+        # small chunks a night, up to 180 days. 19:43 UTC = 02:43 UTC+7, a quiet
+        # hour for the shops; minute 43 is not a multiple of 5 and none of the
+        # slots above.
+        "shop-history-extend": {
+            "task": "juli_backend.shop_history_extend",
+            "schedule": crontab(hour=19, minute=43),
         },
     },
 )

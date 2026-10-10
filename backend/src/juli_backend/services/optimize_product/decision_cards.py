@@ -494,27 +494,34 @@ def plan_shop_cards(
     discount_cap_set: bool = False,
     last30: dict[str, FunnelWindow] | None = None,
     history: dict[str, LeverHistory] | None = None,
+    tiktok_evidence: dict[str, list[Evidence]] | None = None,
 ) -> ShopCardPlan:
     """Score the catalog, compose the ranked proposals, keep the top ``top_k``.
 
     ``history`` (lever code -> :class:`LeverHistory`, D24.6) weights the
-    ranking; a lever absent from it is neutral.
+    ranking; a lever absent from it is neutral. ``tiktok_evidence`` (product id
+    -> TikTok's own listing codes, fast track P17: what the quick scan read)
+    is added to the local title evidence, and those products count as asked.
     """
     excluded: dict[str, str] = {}
     evidence_by_id: dict[str, list[Evidence]] = {}
+    asked = set(tiktok_evidence or {})
     for funnel in funnels:
         product = catalog.get(funnel.product_id) or CatalogProduct(funnel.product_id, funnel.title)
         reason = exclusion_reason(product, config)
         if reason:
             excluded[funnel.product_id] = reason
-        evidence_by_id[funnel.product_id] = title_evidence(product.title, config)
+        evidence_by_id[funnel.product_id] = [
+            *title_evidence(product.title, config),
+            *(tiktok_evidence or {}).get(funnel.product_id, []),
+        ]
 
     medians, diagnoses, skips = diagnose_all(
         funnels,
         evidence_by_id,
         excluded,
         config,
-        asked=set(),
+        asked=asked,
         discount_cap_set=discount_cap_set,
     )
     by_id = {d.product_id: d for d in diagnoses}
