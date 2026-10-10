@@ -112,6 +112,16 @@ EXPECTED_DESCRIPTIONS: dict[str, str] = {
         "is already well-optimized, or when you need more information to make "
         "a recommendation. Provide a brief, honest reason for your conclusion."
     ),
+    # Fast track P14-E: the content run's read-only tools.
+    "get_content_performance": (
+        "Read, for the bound product, the last 30 days of the shop's videos that tag it "
+        "(kind=video) or the LIVE sessions that sold it (kind=live): impressions, clicks, "
+        "CTR / CTOR, basket position when TikTok reports it, plus the shop's best examples."
+    ),
+    "find_new_content": (
+        "Look, read-only, for a video posted since a day that tags the bound product and "
+        "has impressions (kind=video), or a LIVE session since that day that sold it (kind=live)."
+    ),
 }
 
 

@@ -119,7 +119,19 @@ def _payload(card: ActionCard | None) -> Mapping[str, Any]:
 
 
 def card_basis(card: ActionCard | None) -> CardBasis:
-    """The lever and weak-stage rate of an ADR-106 card (all ``None`` otherwise)."""
+    """The lever and weak-stage rate of an ADR-106 card (all ``None`` otherwise).
+
+    Fast track P14-E: a content card (payload ``content``) cools down its own
+    lever (``video_script`` / ``live_script``) on its CTR / CTOR.
+    """
+    content = _payload(card).get("content")
+    if isinstance(content, Mapping) and content.get("lever_code"):
+        rate = content.get("current")
+        return CardBasis(
+            str(content["lever_code"]),
+            str(content.get("stage_rate") or "") or None,
+            float(rate) if isinstance(rate, int | float) else None,
+        )
     diagnosis = _payload(card).get("diagnosis")
     if not isinstance(diagnosis, Mapping):
         return CardBasis(None, None, None)

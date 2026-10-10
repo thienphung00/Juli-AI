@@ -53,6 +53,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from juli_backend.services.agent.playbooks.base import Playbook, PlaybookStep
+from juli_backend.services.agent.playbooks.content import (
+    CONTENT_LIVE_PLAYBOOK,
+    CONTENT_VIDEO_PLAYBOOK,
+)
 from juli_backend.services.agent.playbooks.optimize_product import OPTIMIZE_PRODUCT_PLAYBOOK
 
 _PROMPTS_ROOT = Path(__file__).resolve().parent
@@ -105,6 +109,17 @@ _WORKFLOW_BINDINGS: dict[str, _WorkflowPromptBinding] = {
         prompt_dir="optimize_product",
         playbook=OPTIMIZE_PRODUCT_PLAYBOOK,
     ),
+    # Fast track P14-E: content runs. Their planner is deterministic; the prose
+    # pins the run (prompt_version / sha) and documents the flow. The drafting
+    # prompt itself is `services/content_cards/prompts.py`.
+    CONTENT_VIDEO_PLAYBOOK.workflow_key: _WorkflowPromptBinding(
+        prompt_dir="content_video",
+        playbook=CONTENT_VIDEO_PLAYBOOK,
+    ),
+    CONTENT_LIVE_PLAYBOOK.workflow_key: _WorkflowPromptBinding(
+        prompt_dir="content_live",
+        playbook=CONTENT_LIVE_PLAYBOOK,
+    ),
 }
 
 # The production prompt version pin (ADR-072 d.4) -- a code constant,
@@ -113,6 +128,8 @@ _WORKFLOW_BINDINGS: dict[str, _WorkflowPromptBinding] = {
 # released version to production; never redirect this via configuration.
 PRODUCTION_PROMPT_VERSION: dict[str, int] = {
     OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key: 3,
+    CONTENT_VIDEO_PLAYBOOK.workflow_key: 1,
+    CONTENT_LIVE_PLAYBOOK.workflow_key: 1,
 }
 
 

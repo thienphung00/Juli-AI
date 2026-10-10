@@ -66,7 +66,9 @@ The existing approve endpoint creates an ordinary `workflow_runs` row
 1. `tool.*` `get_content_performance` (video list + per-video metrics for the product /
    LIVE sessions + products incl. basket position when TikTok reports one)
 2. `tool.*` `get_product_information`, then `get_seo_keywords` (video) or
-   `find_product_promotions` (LIVE), then `get_seller_content_rules`
+   `find_product_promotions` (`flash_sale`, LIVE); then `assistant.text` with the
+   seller's rules read from the database ("Quy tắc của bạn: Trần giảm giá 10 % · …") —
+   the rules are not a TikTok tool, so they are narrated, not a `tool.*` pair
 3. `assistant.text` "Đã soạn kịch bản (bản 1) · gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra" (VI)
 4. `workflow.status` "Đang chờ bạn xem kịch bản" (VI) — `awaiting = "content_choice"`
 5. after Dùng kịch bản này: `workflow.status` "Đang chờ bạn đăng video" /
@@ -77,8 +79,14 @@ The existing approve endpoint creates an ordinary `workflow_runs` row
 Soạn lại: one more model call (bản 2) — events 3–4 again. At most 2 versions.
 Không thực hiện at either wait: the existing `POST /v1/demo/runs/{id}/decline` (reason
 codes of P10 §2 decline) → run `cancelled` / `cancelled_by_seller`, 7-day cooldown.
-**No Hoàn tác** (`GET /runs/{id}/changes` → `revert.available=false`,
-`reason_code="content"`).
+**No Hoàn tác**: the run writes nothing to TikTok, so `GET /runs/{id}/changes` has no
+changes and the revert route refuses it with the existing "nothing written" answer; the
+UI never shows the button for a content run.
+`tool.completed.summary` of the two content tools is their own VI sentence
+(`summary_vi`, e.g. "3 video gắn sản phẩm · CTR 1,9 %", "Tìm thấy 1 video mới").
+A version that fails the guardrails is not shown: `assistant.text` "Bản 1 chưa đạt kiểm
+tra nên Juli không hiển thị. Bạn bấm Soạn lại …"; if bản 2 fails too the run ends
+(`final_response`, nothing to measure).
 
 `awaiting` (runs list and run detail) gains `content_choice` and `content_publish`.
 The choice wait lasts 3 days, the publish wait 7 days (then `timed_out`).

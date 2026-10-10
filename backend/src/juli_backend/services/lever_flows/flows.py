@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.lever_flows import FLOW_PHOTO, FLOW_PROMOTION, RunLeverFlow
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from juli_backend.services.content_cards import constants as _content
 
 PHOTO_LEVERS: frozenset[str] = frozenset({"cover_image"})
 PROMOTION_LEVERS: tuple[str, ...] = (
@@ -42,7 +43,16 @@ PROMOTION_LEVERS: tuple[str, ...] = (
 
 AWAITING_PHOTO = "photo"
 AWAITING_SELLER_ACTION = "seller_action"
-AWAITING_VALUES: frozenset[str] = frozenset({AWAITING_PHOTO, AWAITING_SELLER_ACTION})
+#: Fast track P14-E: a content run waits for the seller's script choice, then
+#: for the video / the LIVE (``content_cards.run_state``). Same column, same
+#: decline route, its own timeouts.
+AWAITING_CONTENT_CHOICE = _content.AWAITING_CONTENT_CHOICE
+AWAITING_CONTENT_PUBLISH = _content.AWAITING_CONTENT_PUBLISH
+CONTENT_CHOICE_WAIT_HOURS = _content.CHOICE_WAIT_HOURS
+CONTENT_PUBLISH_WAIT_HOURS = _content.PUBLISH_WAIT_HOURS
+AWAITING_VALUES: frozenset[str] = frozenset(
+    {AWAITING_PHOTO, AWAITING_SELLER_ACTION, AWAITING_CONTENT_CHOICE, AWAITING_CONTENT_PUBLISH}
+)
 
 #: ``workflow.status`` narrations (VI) for the two waits and the failed check.
 NARRATION_AWAITING_PHOTO = "Đang chờ ảnh từ bạn"
@@ -93,6 +103,10 @@ def wait_timeout_hours(awaiting: str | None) -> int | None:
         return PHOTO_WAIT_HOURS
     if awaiting == AWAITING_SELLER_ACTION:
         return PROMOTION_WAIT_HOURS
+    if awaiting == AWAITING_CONTENT_CHOICE:
+        return CONTENT_CHOICE_WAIT_HOURS
+    if awaiting == AWAITING_CONTENT_PUBLISH:
+        return CONTENT_PUBLISH_WAIT_HOURS
     return None
 
 

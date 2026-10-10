@@ -615,6 +615,17 @@ async def emit_scoring_cards(
             )
         )
 
+    # --- P14-E integration point (content cards, D24.4 / D24.17 / D24.18) ---
+    # "Juli soạn · bạn làm" Video / LIVE cards from the stored metric rankings,
+    # written with workflow_key in content_cards.CONTENT_WORKFLOW_KEYS
+    # (content_video / content_live) and payload card_executor "juli_drafts",
+    # so the emission budget can count them for the day-1 content slot. Owns
+    # its own cooldown / validity / <= 5-per-week rules; never surfaces a card.
+    from juli_backend.services.content_cards.emission import emit_content_cards_safely
+
+    decisions.extend(await emit_content_cards_safely(session, shop_id, now=computed_at))
+    # --- end P14-E ---
+
     return ScoringEmissionReport(decisions=tuple(decisions))
 
 

@@ -887,6 +887,18 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - _Avoid_: Find Product Promotions
 - Definition: `ToolSpec.seller_rationale_vi` for the read-only `find_product_promotions` tool (fast track P10-B, contract §5) -- Juli never writes promotions (D13).
 
+**`run.option_rationale.get_content_performance`**
+- EN: Read this product's video or LIVE numbers.
+- VI: Đọc số liệu video hoặc LIVE của sản phẩm này.
+- _Avoid_: Get Content Performance
+- Definition: `ToolSpec.seller_rationale_vi` for the read-only `get_content_performance` tool of a content run (fast track P14-E, contract `p14-content-cards.md` §2).
+
+**`run.option_rationale.find_new_content`**
+- EN: Look on TikTok for this product's new video or LIVE.
+- VI: Tìm video hoặc phiên LIVE mới của sản phẩm này trên TikTok.
+- _Avoid_: Find New Content
+- Definition: `ToolSpec.seller_rationale_vi` for the read-only `find_new_content` tool of a content run (fast track P14-E) -- Juli never posts videos or opens LIVEs.
+
 **`run.option_rationale.upload_product_image`**
 - EN: Upload the staged image for this product; it is not applied yet.
 - VI: Tải ảnh đã chuẩn bị lên cho sản phẩm này; ảnh chưa được áp dụng.
