@@ -848,6 +848,13 @@ a {
   line-height: 1.4;
 }
 
+.lp-legal__subheading {
+  margin: var(--juli-space-2) 0 0;
+  color: var(--juli-foreground);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
 .lp-legal__section p,
 .lp-legal__section li {
   margin: 0;

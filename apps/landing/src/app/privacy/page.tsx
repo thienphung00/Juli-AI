@@ -12,6 +12,12 @@ export const metadata: Metadata = {
 
 const LAST_UPDATED = "10/10/2026";
 
+/** Anchor for §3, so the Google OAuth consent screen can deep-link to it. */
+const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
+const GOOGLE_USER_DATA_POLICY_URL =
+  "https://developers.google.com/terms/api-services-user-data-policy";
+const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
+
 export default function PrivacyPolicyPage() {
   return (
     <>
@@ -52,7 +58,10 @@ export default function PrivacyPolicyPage() {
               tôi không yêu cầu bạn tạo hoặc nhập mật khẩu.
             </p>
             <ul aria-label="Thông tin tài khoản Juli thu thập">
-              <li>Từ Google: địa chỉ email đã xác thực, tên hiển thị và ảnh đại diện (xem mục 3)</li>
+              <li>
+                Từ Google: địa chỉ email, tên hiển thị, ảnh đại diện và mã định danh tài
+                khoản Google (xem mục 3)
+              </li>
               <li>Khi đăng nhập bằng email: địa chỉ email bạn nhập</li>
               <li>
                 Tuỳ chọn: số Zalo hoặc mã người dùng Zalo, chỉ khi bạn bật nhận cảnh báo
@@ -64,43 +73,179 @@ export default function PrivacyPolicyPage() {
             </ul>
           </section>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">3. Dữ liệu người dùng Google</h2>
+          <section
+            className="lp-legal__section"
+            id={GOOGLE_SECTION_ID}
+            aria-labelledby="google-user-data-heading"
+          >
+            <h2 className="lp-legal__section-heading" id="google-user-data-heading">
+              3. Dữ liệu người dùng Google (Google user data)
+            </h2>
             <p>
-              Khi bạn chọn đăng nhập với Google, Juli chỉ yêu cầu các quyền cơ bản (openid,
-              email, profile). Juli không truy cập Gmail, Google Drive, danh bạ, lịch hay
-              bất kỳ dữ liệu Google nào khác.
+              Mục này áp dụng khi bạn chọn &ldquo;Đăng nhập với Google&rdquo; trên Juli AI
+              (app-juli.com và demo.app-juli.com), do {COMPANY.name} vận hành. Việc đăng
+              nhập được thực hiện qua Supabase Auth. Juli chỉ yêu cầu các quyền đăng nhập cơ
+              bản của Google: <strong>openid</strong>, <strong>email</strong> và{" "}
+              <strong>profile</strong>. Juli không yêu cầu quyền truy cập Gmail, Google
+              Drive, Danh bạ, Lịch hay bất kỳ dịch vụ hoặc dữ liệu Google nào khác.
             </p>
-            <ul aria-label="Cách Juli xử lý dữ liệu người dùng Google">
-              <li>
-                Truy cập: địa chỉ email đã xác thực, tên hiển thị và ảnh đại diện trong tài
-                khoản Google của bạn
-              </li>
-              <li>
-                Sử dụng: chỉ để tạo và đăng nhập tài khoản Juli, hiển thị tên và ảnh của bạn
-                trong ứng dụng, và liên hệ với bạn về tài khoản và dịch vụ
-              </li>
-              <li>
-                Lưu trữ: trong cơ sở dữ liệu Supabase của Juli, có mã hoá khi truyền, cho tới
-                khi bạn xoá tài khoản (xoá trong vòng 30 ngày, xem mục 8)
-              </li>
-              <li>
-                Chia sẻ: Juli không bán, không cho thuê và không chuyển dữ liệu người dùng
-                Google cho bên thứ ba, không dùng dữ liệu này cho quảng cáo, không gửi cho
-                nền tảng quảng cáo (kể cả TikTok), và không dùng để huấn luyện hay gửi cho mô
-                hình AI. Ngoại lệ duy nhất là khi pháp luật yêu cầu
-              </li>
+
+            <h3 className="lp-legal__subheading">3.1. Dữ liệu Juli truy cập</h3>
+            <ul aria-label="Dữ liệu người dùng Google Juli truy cập">
+              <li>Địa chỉ email của tài khoản Google và trạng thái đã xác thực của email đó</li>
+              <li>Tên hiển thị (họ tên) trên tài khoản Google</li>
+              <li>Ảnh đại diện (đường dẫn ảnh hồ sơ) trên tài khoản Google</li>
+              <li>Mã định danh tài khoản Google (Google account ID)</li>
             </ul>
             <p>
-              Việc Juli sử dụng và chuyển thông tin nhận được từ Google API tuân thủ{" "}
+              Juli không nhận mật khẩu Google của bạn. Juli không lưu mã truy cập (access
+              token) hay mã làm mới (refresh token) Google của bạn, và không gọi bất kỳ API
+              Google nào thay mặt bạn sau khi đăng nhập.
+            </p>
+
+            <h3 className="lp-legal__subheading">3.2. Cách Juli sử dụng dữ liệu này</h3>
+            <ul aria-label="Cách Juli sử dụng dữ liệu người dùng Google">
+              <li>Tạo tài khoản Juli cho bạn và đăng nhập cho bạn ở những lần sau</li>
+              <li>
+                Nhận diện tài khoản của bạn, để mỗi tài khoản chỉ xem được shop và dữ liệu của
+                chính mình, và hiển thị email bạn đang đăng nhập trong ứng dụng
+              </li>
+              <li>Liên hệ với bạn về tài khoản và dịch vụ Juli (ví dụ: hỗ trợ, thay đổi quan trọng)</li>
+            </ul>
+            <p>
+              Juli chỉ dùng dữ liệu người dùng Google để cung cấp và cải thiện các tính năng
+              của Juli mà bạn thấy và sử dụng. Juli <strong>không</strong> dùng dữ liệu này
+              cho quảng cáo (kể cả quảng cáo nhắm mục tiêu, cá nhân hoá hay tiếp thị lại),
+              <strong> không</strong> bán dữ liệu này, <strong>không</strong> dùng để đánh giá
+              tín dụng hay cho vay, và <strong>không</strong> dùng để phát triển, cải thiện
+              hay huấn luyện các mô hình trí tuệ nhân tạo (AI) hoặc học máy (ML) tổng quát.
+              Dữ liệu người dùng Google không được gửi cho OpenAI hay bất kỳ mô hình AI nào.
+              Nhân viên Juli không đọc dữ liệu này, trừ khi bạn đồng ý (ví dụ: khi bạn nhờ hỗ
+              trợ), khi cần cho mục đích bảo mật (ví dụ: điều tra lạm dụng), hoặc khi pháp
+              luật yêu cầu.
+            </p>
+            <p>
+              Việc Juli sử dụng và chuyển cho bất kỳ ứng dụng nào khác thông tin nhận được từ
+              Google API tuân thủ{" "}
               <a
                 className="lp-legal__contact-link"
-                href="https://developers.google.com/terms/api-services-user-data-policy"
+                href={GOOGLE_USER_DATA_POLICY_URL}
+                rel="noopener noreferrer"
+                target="_blank"
               >
-                Chính sách dữ liệu người dùng của Google API Services
+                Chính sách dữ liệu người dùng của Google API Services (Google API Services
+                User Data Policy)
               </a>
               , bao gồm các yêu cầu về Sử dụng giới hạn (Limited Use).
             </p>
+
+            <h3 className="lp-legal__subheading">3.3. Juli chia sẻ dữ liệu này với ai</h3>
+            <p>
+              Juli không bán, không cho thuê và không trao đổi dữ liệu người dùng Google. Juli
+              chỉ chuyển hoặc tiết lộ dữ liệu này trong các trường hợp sau:
+            </p>
+            <ul aria-label="Bên nhận dữ liệu người dùng Google">
+              <li>
+                Nhà cung cấp dịch vụ cần thiết để vận hành Juli, chỉ trong phạm vi cần thiết:
+                Supabase (xác thực đăng nhập và lưu trữ cơ sở dữ liệu của Juli), nhà cung cấp
+                máy chủ (VPS) nơi chạy ứng dụng Juli, và dịch vụ email Juli dùng để gửi mã
+                đăng nhập hoặc thư liên hệ về tài khoản cho bạn
+              </li>
+              <li>Khi pháp luật hoặc cơ quan nhà nước có thẩm quyền yêu cầu</li>
+              <li>Khi có sự đồng ý rõ ràng của bạn</li>
+            </ul>
+            <p>
+              Juli không gửi dữ liệu người dùng Google cho nền tảng quảng cáo nào (kể cả
+              TikTok Pixel và TikTok Events API), không gửi cho nhà môi giới dữ liệu, và không
+              chuyển dữ liệu này cho bên nào khác vì bất kỳ mục đích nào ngoài các mục đích
+              nêu trên.
+            </p>
+
+            <h3 className="lp-legal__subheading">3.4. Cách Juli bảo vệ dữ liệu này</h3>
+            <ul aria-label="Cách Juli bảo vệ dữ liệu người dùng Google">
+              <li>
+                Mã hoá khi truyền: kết nối giữa trình duyệt của bạn và Juli, và giữa máy chủ
+                Juli với Supabase, đều được mã hoá bằng HTTPS/TLS
+              </li>
+              <li>
+                Cơ sở dữ liệu được lưu trữ trên Supabase, nơi dữ liệu được mã hoá khi lưu trữ
+                (encryption at rest) bởi nhà cung cấp
+              </li>
+              <li>
+                Kiểm soát truy cập: mỗi yêu cầu tới máy chủ Juli phải kèm phiên đăng nhập đã
+                được xác minh chữ ký; cơ sở dữ liệu áp dụng phân quyền theo từng dòng (row-level
+                security) để mỗi tài khoản chỉ đọc được dữ liệu của chính mình; ứng dụng chạy
+                bằng tài khoản cơ sở dữ liệu với quyền tối thiểu cần thiết
+              </li>
+              <li>
+                Khoá bí mật của hệ thống được lưu trong dịch vụ quản lý khoá bí mật (AWS), không
+                lưu trong mã nguồn
+              </li>
+              <li>
+                Trình duyệt của bạn chỉ lưu phiên đăng nhập Juli (do Supabase cấp), không lưu mã
+                truy cập Google; phiên này bị xoá khi bạn đăng xuất
+              </li>
+            </ul>
+
+            <h3 className="lp-legal__subheading">3.5. Lưu trữ, xoá dữ liệu và thu hồi quyền truy cập</h3>
+            <ul aria-label="Lưu trữ và xoá dữ liệu người dùng Google">
+              <li>
+                Lưu trữ: Juli giữ dữ liệu người dùng Google nêu ở mục 3.1 trong thời gian tài
+                khoản Juli của bạn còn tồn tại
+              </li>
+              <li>
+                Yêu cầu xoá: gửi email tới{" "}
+                <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+                  {COMPANY.email}
+                </a>{" "}
+                từ địa chỉ email của tài khoản. Chúng tôi xác nhận trong vòng 72 giờ và xoá tài
+                khoản cùng toàn bộ dữ liệu người dùng Google khỏi hệ thống của Juli và Supabase
+                trong vòng 30 ngày kể từ khi nhận yêu cầu
+              </li>
+              <li>
+                Thu hồi quyền truy cập: bạn có thể gỡ quyền truy cập của Juli bất kỳ lúc nào tại{" "}
+                <a
+                  className="lp-legal__contact-link"
+                  href={GOOGLE_PERMISSIONS_URL}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  trang quyền của tài khoản Google
+                </a>{" "}
+                (myaccount.google.com/permissions). Sau khi thu hồi, Juli không thể đăng nhập
+                cho bạn bằng Google nữa. Việc thu hồi không tự động xoá dữ liệu Juli đã lưu;
+                để xoá, hãy gửi yêu cầu xoá như trên
+              </li>
+            </ul>
+
+            <div lang="en">
+              <h3 className="lp-legal__subheading">English summary (Google user data)</h3>
+              <p>
+                Juli AI (app-juli.com), operated by {COMPANY.name}, offers &ldquo;Sign in with
+                Google&rdquo; through Supabase Auth and requests only the openid, email and
+                profile scopes. <strong>Data accessed:</strong> your Google account email
+                address (and whether it is verified), name, profile picture URL and Google
+                account ID. Juli does not store your Google access or refresh tokens and calls
+                no Google API on your behalf. <strong>Use:</strong> only to create your Juli
+                account, sign you in, identify your account, show you which email you are
+                signed in with, and contact you about your account. It is used only to provide
+                or improve Juli&rsquo;s user-facing features; never for advertising, never sold,
+                never used to develop, improve or train generalized AI/ML models, and never
+                sent to OpenAI or any AI model. <strong>Sharing:</strong> only with service
+                providers needed to run Juli (Supabase for authentication and database
+                hosting, our server host, and our email provider), when required by law, or
+                with your consent; never with advertising platforms (including TikTok) and
+                never transferred for any other purpose. <strong>Protection:</strong> TLS in
+                transit, encryption at rest by our database host, verified sessions,
+                row-level security and least-privilege database access, secrets in a managed
+                secret store. <strong>Retention and deletion:</strong> kept while your Juli
+                account exists; email {COMPANY.email} to have your account and Google user
+                data deleted within 30 days; revoke access at any time at
+                https://myaccount.google.com/permissions. Juli&rsquo;s use and transfer to any
+                other app of information received from Google APIs will adhere to the Google
+                API Services User Data Policy, including the Limited Use requirements.
+              </p>
+            </div>
           </section>
 
           <section className="lp-legal__section">
@@ -191,9 +336,11 @@ export default function PrivacyPolicyPage() {
           <section className="lp-legal__section">
             <h2 className="lp-legal__section-heading">8. Bảo mật và thời gian lưu trữ</h2>
             <p>
-              Dữ liệu được mã hoá khi truyền (HTTPS). Quyền truy cập dữ liệu được giới hạn
-              theo từng shop, và khoá truy cập TikTok Shop được lưu trong hệ thống quản lý
-              khoá bí mật, không lưu trong mã nguồn.
+              Dữ liệu được mã hoá khi truyền (HTTPS/TLS) và được nhà cung cấp cơ sở dữ liệu
+              (Supabase) mã hoá khi lưu trữ. Quyền truy cập dữ liệu được giới hạn theo từng
+              tài khoản và từng shop, và khoá truy cập TikTok Shop được lưu trong hệ thống quản
+              lý khoá bí mật, không lưu trong mã nguồn. Chi tiết riêng cho dữ liệu người dùng
+              Google nằm ở mục 3.4 và 3.5.
             </p>
             <p>
               Chúng tôi lưu dữ liệu trong thời gian bạn sử dụng Juli. Khi bạn ngắt kết nối

@@ -39,22 +39,111 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     expect(screen.getAllByText(/sandbox/i).length).toBeGreaterThan(0);
   });
 
-  it("discloses Google user data access, use, storage and sharing, and keeps it from ads and AI", () => {
-    render(<PrivacyPolicyPage />);
-
-    const list = screen.getByRole("list", { name: "Cách Juli xử lý dữ liệu người dùng Google" });
-    for (const facet of ["Truy cập", "Sử dụng", "Lưu trữ", "Chia sẻ"]) {
-      expect(list, facet).toHaveTextContent(facet);
+  describe("Google OAuth brand verification: /privacy §3 covers every item Google checks", () => {
+    function googleSection() {
+      render(<PrivacyPolicyPage />);
+      const heading = screen.getByRole("heading", {
+        level: 2,
+        name: /Dữ liệu người dùng Google \(Google user data\)/,
+      });
+      const section = heading.closest("section");
+      expect(section).not.toBeNull();
+      return section as HTMLElement;
     }
-    expect(list).toHaveTextContent(/không gửi cho\s+nền tảng quảng cáo/);
-    expect(screen.getByRole("link", { name: /Google API Services/ })).toHaveAttribute(
-      "href",
-      "https://developers.google.com/terms/api-services-user-data-policy",
-    );
-    // The TikTok bullet must no longer claim an (even hashed) email is sent.
-    expect(screen.getByRole("list", { name: "Bên xử lý dữ liệu" })).toHaveTextContent(
-      /không nhận email/,
-    );
+
+    it("has a dedicated, deep-linkable section naming the brand, the operator and the scopes", () => {
+      const section = googleSection();
+      expect(section).toHaveAttribute("id", "du-lieu-nguoi-dung-google");
+      expect(section).toHaveTextContent("Juli AI");
+      expect(section).toHaveTextContent("app-juli.com");
+      expect(section).toHaveTextContent(COMPANY.name);
+      // Exactly the scopes the Supabase Google door requests — nothing else.
+      expect(section).toHaveTextContent(/openid, email và profile/);
+      expect(section).toHaveTextContent(/không yêu cầu quyền truy cập Gmail, Google\s+Drive/);
+    });
+
+    it("states WHAT Google user data is accessed", () => {
+      googleSection();
+      const list = screen.getByRole("list", { name: "Dữ liệu người dùng Google Juli truy cập" });
+      for (const field of ["email", "Tên hiển thị", "Ảnh đại diện", "Google account ID"]) {
+        expect(list, field).toHaveTextContent(field);
+      }
+    });
+
+    it("states HOW it is used, with the no-ads / no-sale / no-AI-training limits", () => {
+      const section = googleSection();
+      const list = screen.getByRole("list", { name: "Cách Juli sử dụng dữ liệu người dùng Google" });
+      expect(list).toHaveTextContent(/Tạo tài khoản Juli/);
+      expect(list).toHaveTextContent(/Liên hệ với bạn về tài khoản/);
+      expect(section).toHaveTextContent(/cho quảng cáo/);
+      expect(section).toHaveTextContent(/không\s*bán dữ liệu này/);
+      expect(section).toHaveTextContent(/huấn luyện các mô hình trí tuệ nhân tạo \(AI\) hoặc học máy \(ML\) tổng quát/);
+    });
+
+    it("affirms compliance with the Google API Services User Data Policy, including Limited Use", () => {
+      const section = googleSection();
+      const links = within(section)
+        .getAllByRole("link", { name: /Google API Services/ })
+        .map((link) => link.getAttribute("href"));
+      expect(links).toContain("https://developers.google.com/terms/api-services-user-data-policy");
+      expect(section).toHaveTextContent(/Limited Use/);
+    });
+
+    it("states WITH WHOM it is shared: service providers, the law, consent — never sold, never to ad platforms", () => {
+      const section = googleSection();
+      const list = screen.getByRole("list", { name: "Bên nhận dữ liệu người dùng Google" });
+      expect(list).toHaveTextContent("Supabase");
+      expect(list).toHaveTextContent(/pháp luật/);
+      expect(list).toHaveTextContent(/sự đồng ý/);
+      expect(section).toHaveTextContent(/không bán, không cho thuê/);
+      expect(section).toHaveTextContent(/không gửi dữ liệu người dùng Google cho nền tảng quảng cáo/);
+      // The TikTok processor bullet must not claim an (even hashed) email is sent.
+      expect(screen.getByRole("list", { name: "Bên xử lý dữ liệu" })).toHaveTextContent(
+        /không nhận email/,
+      );
+    });
+
+    it("describes the data protection mechanisms", () => {
+      googleSection();
+      const list = screen.getByRole("list", { name: "Cách Juli bảo vệ dữ liệu người dùng Google" });
+      expect(list).toHaveTextContent(/TLS/);
+      expect(list).toHaveTextContent(/encryption at rest/);
+      expect(list).toHaveTextContent(/row-level\s+security/);
+      expect(list).toHaveTextContent(/không lưu mã\s+truy cập Google/);
+    });
+
+    it("states retention, how to request deletion and its timeframe, and how to revoke access", () => {
+      const section = googleSection();
+      const list = screen.getByRole("list", { name: "Lưu trữ và xoá dữ liệu người dùng Google" });
+      expect(list).toHaveTextContent(/tài\s+khoản Juli của bạn còn tồn tại/);
+      expect(list).toHaveTextContent(/trong vòng 30 ngày/);
+      expect(within(list).getByRole("link", { name: COMPANY.email })).toHaveAttribute(
+        "href",
+        `mailto:${COMPANY.email}`,
+      );
+      expect(within(list).getByRole("link", { name: /quyền của tài khoản Google/ })).toHaveAttribute(
+        "href",
+        "https://myaccount.google.com/permissions",
+      );
+      expect(section).toHaveTextContent(/myaccount\.google\.com\/permissions/);
+    });
+
+    it("carries an English summary for Google's reviewers", () => {
+      const section = googleSection();
+      const summary = section.querySelector('[lang="en"]');
+      expect(summary).not.toBeNull();
+      for (const phrase of [
+        "openid, email and profile",
+        "never for advertising",
+        "never sold",
+        "generalized AI/ML models",
+        "Limited Use",
+        "within 30 days",
+        "myaccount.google.com/permissions",
+      ]) {
+        expect(summary, phrase).toHaveTextContent(phrase);
+      }
+    });
   });
 
   it("names every data processor the product actually sends data to, including the LLM", () => {

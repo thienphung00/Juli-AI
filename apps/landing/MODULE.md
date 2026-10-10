@@ -17,6 +17,9 @@ route it owns (`/api/tt/event`) talks to TikTok, not to `juli-api`.
   reuse. Data-handling sections are grounded in what the code demonstrably does;
   entity details (`COMPANY` in `src/lib/site.ts`), retention, rights and
   commercial terms were set by the owner (grill session 2026-10-10).
+  `/privacy#du-lieu-nguoi-dung-google` (§3) is the Google OAuth brand-verification
+  section: scopes, data accessed, use, Limited Use, sharing, protection,
+  retention/deletion/revocation, plus an English summary; tests pin each item.
 - `DEMO_URL` (`src/lib/site.ts`) — the one CTA destination
   (`demo.app-juli.com`, Mock mode; `NEXT_PUBLIC_DEMO_URL` overrides for preview).
 - `POST /api/tt/event` — the TikTok Events API relay. Same-origin, so an ad
