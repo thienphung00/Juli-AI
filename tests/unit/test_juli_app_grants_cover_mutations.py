@@ -306,6 +306,14 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "state.history_earliest_date = earliest_date",
         "bootstrap phase transitions and history/analytics cursors (granted by 074)",
     ),
+    MutationSite(
+        "public",
+        "content_analyses",
+        "UPDATE",
+        "backend/src/juli_backend/services/content_analysis/uploads.py",
+        "row.received_bytes = storage.append_chunk(conf, row.storage_key, offset, data)",
+        "fast track P15: upload progress, then the pipeline's status / result (granted by 082)",
+    ),
 )
 
 #: Scan hits that are provably NOT database writes. Each is pinned to its
