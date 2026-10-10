@@ -357,8 +357,9 @@ async def test_transcription_http_error_is_a_retryable_provider_error(tmp_path, 
     client = OpenAITranscriber(
         "whisper-1", transport=httpx.MockTransport(lambda r: httpx.Response(500))
     )
-    with pytest.raises(ProviderError):
+    with pytest.raises(ProviderError) as err:
         await client.transcribe(audio, prompt="", offset_s=0, duration_s=1)
+    assert "HTTP 500" in str(err.value)
 
 
 def test_a_model_without_timestamps_gets_its_slice_time():
@@ -793,8 +794,9 @@ def test_the_upload_token_binds_the_slot_and_expires(monkeypatch):
 
 
 def test_storage_keys_cannot_escape_the_upload_dir(conf):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as err:
         storage.path_of(conf, "../../etc/passwd")
+    assert "escapes" in str(err.value)
 
 
 def test_the_sweep_deletes_files_older_than_a_day(conf):
