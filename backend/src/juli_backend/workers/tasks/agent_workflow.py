@@ -723,7 +723,8 @@ async def _construct_runner(
             if flow
             else content.planner
             if content
-            else _default_llm_service()
+            # P16 (D25.8): Optimize Product's model calls stop over the shop's cap.
+            else await _ops_cap_guarded(session, run.shop_id, _default_llm_service())
         ),
         tool_executor=tool_executor,
         event_sink=event_sink,
@@ -752,6 +753,12 @@ async def _construct_runner(
         product_detail=_product_detail,
         schedule_recheck=_schedule_lever_flow_recheck,
     )
+
+
+async def _ops_cap_guarded(session: AsyncSession, shop_id: uuid.UUID, inner: Any) -> Any:
+    from juli_backend.services import ops
+
+    return await ops.cap_guarded(session, shop_id, inner)
 
 
 async def _ops_llm_config(session: AsyncSession, shop_id: uuid.UUID) -> Any:

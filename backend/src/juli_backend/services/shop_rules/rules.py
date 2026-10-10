@@ -85,6 +85,9 @@ PLATFORM_CAMPAIGN_NOTE = "platform_campaign_note"
 TARGET_ROAS = "target_roas"
 GMV_MAX_DAILY_BUDGET = "gmv_max_daily_budget"
 LIVE_SCHEDULE = "live_schedule"
+# D24.21 (5): read by content runs ("Giọng văn", "Từ không được dùng").
+CONTENT_TONE = "content_tone"
+BANNED_TERMS = "banned_terms"
 
 #: The P14-F keys, in the editor's order.
 OFF_API_RULE_KEYS: tuple[str, ...] = (
@@ -97,6 +100,8 @@ OFF_API_RULE_KEYS: tuple[str, ...] = (
     TARGET_ROAS,
     GMV_MAX_DAILY_BUDGET,
     LIVE_SCHEDULE,
+    CONTENT_TONE,
+    BANNED_TERMS,
 )
 
 RULE_KEYS: tuple[str, ...] = (
@@ -137,8 +142,11 @@ BAND_METRICS: tuple[str, ...] = (
 
 LISTING_LEVERS: tuple[str, ...] = ("title", "description", "attributes", "image")
 DEFAULT_AUTO_LEVERS: frozenset[str] = frozenset(LISTING_LEVERS)
-DEFAULT_MAX_OPEN_CARDS = 5
-MAX_OPEN_CARDS_CEILING = 5
+#: D24.21 (2): "Số thẻ mở cùng lúc" is 5–30, default 30 (the D24.17 open limit).
+DEFAULT_MAX_OPEN_CARDS = 30
+MAX_OPEN_CARDS_FLOOR = 5
+MAX_OPEN_CARDS_CEILING = 30
+MAX_TONE_LENGTH = 300
 MAX_PROTECTED_TERMS = 200
 MAX_TERM_LENGTH = 100
 
@@ -180,6 +188,8 @@ class ShopRules:
     target_roas: RuleValue | None = None
     gmv_max_daily_budget: RuleValue | None = None
     live_schedule: RuleValue | None = None
+    content_tone: RuleValue | None = None
+    banned_terms: RuleValue | None = None
 
 
 def _number(value: Any, *, rule: str) -> Decimal:
@@ -236,9 +246,10 @@ def validate_rule(rule_key: str, scope_ref: str, value: Any) -> tuple[str, Any]:
     if rule_key == MAX_OPEN_CARDS:
         if isinstance(value, bool) or not isinstance(value, int):
             raise RuleValidationError("max_open_cards: value must be an integer")
-        if not 1 <= value <= MAX_OPEN_CARDS_CEILING:
+        if not MAX_OPEN_CARDS_FLOOR <= value <= MAX_OPEN_CARDS_CEILING:
             raise RuleValidationError(
-                f"max_open_cards: value must be between 1 and {MAX_OPEN_CARDS_CEILING}"
+                f"max_open_cards: value must be between {MAX_OPEN_CARDS_FLOOR} and "
+                f"{MAX_OPEN_CARDS_CEILING}"
             )
         return scope_ref, value
     if rule_key == AUTO_LEVERS:
@@ -338,6 +349,24 @@ def _live_schedule(value: Any) -> list[dict[str, Any]]:
 
 
 #: P14-F validators (``sku_cost`` shares ``product_cost``'s rule above).
+def _tone(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise RuleValidationError("content_tone: value must be a non-empty text")
+    tone = value.strip()
+    if len(tone) > MAX_TONE_LENGTH:
+        raise RuleValidationError(f"content_tone: at most {MAX_TONE_LENGTH} characters")
+    return tone
+
+
+def _banned(value: Any) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise RuleValidationError("banned_terms: value must be a list of strings")
+    terms = [term.strip() for term in value if term.strip()]
+    if len(terms) > MAX_PROTECTED_TERMS or any(len(t) > MAX_TERM_LENGTH for t in terms):
+        raise RuleValidationError("banned_terms: too many terms, or a term is too long")
+    return list(dict.fromkeys(terms))
+
+
 _OFF_API_VALIDATORS: Mapping[str, Any] = {
     DEFAULT_GROSS_MARGIN_PCT: lambda v: _pct(
         v, rule=DEFAULT_GROSS_MARGIN_PCT, low_open=True, high=100, high_open=True
@@ -353,6 +382,8 @@ _OFF_API_VALIDATORS: Mapping[str, Any] = {
     TARGET_ROAS: _target_roas,
     GMV_MAX_DAILY_BUDGET: _daily_budget,
     LIVE_SCHEDULE: _live_schedule,
+    CONTENT_TONE: _tone,
+    BANNED_TERMS: _banned,
 }
 
 
@@ -469,11 +500,11 @@ async def get_rules(session: AsyncSession, shop_id: uuid.UUID) -> ShopRules:
 
 
 async def max_open_cards(session: AsyncSession, shop_id: uuid.UUID) -> int:
-    """The seller's open-card cap for Optimize Product, 5 until set."""
+    """The seller's open-card cap, 30 until set (D24.21)."""
     rows = await _rows(session, shop_id, MAX_OPEN_CARDS)
     if not rows or not isinstance(rows[0].value, int):
         return DEFAULT_MAX_OPEN_CARDS
-    return max(1, min(MAX_OPEN_CARDS_CEILING, rows[0].value))
+    return max(MAX_OPEN_CARDS_FLOOR, min(MAX_OPEN_CARDS_CEILING, rows[0].value))
 
 
 async def auto_levers(session: AsyncSession, shop_id: uuid.UUID) -> frozenset[str]:
@@ -489,7 +520,7 @@ async def configured_max_open_cards(session: AsyncSession, shop_id: uuid.UUID) -
     rows = await _rows(session, shop_id, MAX_OPEN_CARDS)
     if not rows or not isinstance(rows[0].value, int):
         return None
-    return max(1, min(MAX_OPEN_CARDS_CEILING, rows[0].value))
+    return max(MAX_OPEN_CARDS_FLOOR, min(MAX_OPEN_CARDS_CEILING, rows[0].value))
 
 
 async def stability_bands(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Decimal]:

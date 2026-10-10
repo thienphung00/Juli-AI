@@ -246,9 +246,9 @@ async def _shop_numbers(session: AsyncSession, row: ShopRow, now: datetime) -> N
             )
         ).scalar_one()
     )
-    row.openai_cost_month_usd = await ov.openai_cost_this_month(
-        session, shop_id, now=now.replace(tzinfo=UTC)
-    )
+    cap = await ov.openai_cap_status(session, shop_id, now=now.replace(tzinfo=UTC))
+    row.openai_cost_month_usd = cap.spent_usd
+    row.openai_cap_usd = cap.cap_usd
     report = (
         (
             await session.execute(
@@ -300,11 +300,6 @@ async def build_overview(session: AsyncSession, *, now: datetime | None = None) 
         cfg = settings.get(listing.shop_id)
         if cfg is not None:
             row.stage = cfg.stage
-            row.openai_cap_usd = (
-                Decimal(str(cfg.openai_monthly_cap_usd))
-                if cfg.openai_monthly_cap_usd is not None
-                else None
-            )
         row.invite_pending = listing.shop_id in pending
         async with with_shop_scope(session, listing.shop_id):
             await _shop_numbers(session, row, current)

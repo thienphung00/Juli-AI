@@ -94,6 +94,8 @@ export const RULE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   target_roas: "Mục tiêu ROAS",
   gmv_max_daily_budget: "Ngân sách GMV Max hằng ngày",
   live_schedule: "Khung giờ LIVE thường xuyên",
+  content_tone: "Giọng văn",
+  banned_terms: "Từ không được dùng",
 });
 
 export function setByLabel(setBy: string | null | undefined): string {

@@ -39,6 +39,8 @@ export interface RulesEditorProps {
   readonly headingLevel?: 2 | 3;
   /** Signed-out sample: the P14-F fields are shown, not edited. */
   readonly offApiReadOnly?: boolean;
+  /** Juli Ops (D25.14): every value is written as the team's; no toggle. */
+  readonly fixedSetBy?: SetBy;
 }
 
 /** 422 → the rule's own range, in the seller's words (the backend's text is English). */
@@ -47,7 +49,7 @@ export const RULE_ERROR_COPY: Readonly<Record<RuleKey, string>> = Object.freeze(
   product_cost: "Giá vốn phải là số từ 0 trở lên, kèm mã sản phẩm.",
   min_margin_pct: "Biên lợi nhuận phải từ 0 đến dưới 100 %.",
   max_discount_pct: "Trần giảm giá phải từ 0 đến 100 %, kèm mã SKU.",
-  max_open_cards: "Số thẻ mở cùng lúc phải là số nguyên từ 1 đến 5.",
+  max_open_cards: "Số thẻ mở cùng lúc phải là số nguyên từ 5 đến 30.",
   auto_levers: "Chỉ chọn trong Tiêu đề, Mô tả, Thuộc tính, Ảnh. Giá không bao giờ được tự thực thi.",
   protected_terms: "Tối đa 200 từ, mỗi từ không quá 100 ký tự.",
   ...OFF_API_ERROR_COPY,
@@ -356,7 +358,7 @@ function TextAreaRule({
   onSave,
   onDelete,
 }: {
-  readonly ruleKey: "platform_campaign_note" | "live_schedule";
+  readonly ruleKey: "platform_campaign_note" | "live_schedule" | "content_tone" | "banned_terms";
   readonly item: RuleValueItem | null | undefined;
   readonly initial: string;
   readonly placeholder: string;
@@ -460,6 +462,29 @@ function OffApiFields({ rules, setBy, onSave, onDelete }: FieldProps) {
           return slots;
         }}
       />
+      <TextAreaRule
+        initial={rules.content_tone?.set_by && typeof rules.content_tone.value === "string" ? rules.content_tone.value : ""}
+        item={rules.content_tone}
+        onDelete={onDelete}
+        onSave={onSave}
+        placeholder="Thân thiện, xưng mình – bạn, không phóng đại"
+        ruleKey="content_tone"
+        setBy={setBy}
+        toValue={(text) => {
+          if (!text.trim()) throw new Error("vi:Nhập giọng văn, hoặc bấm Bỏ đặt.");
+          return text.trim();
+        }}
+      />
+      <TextAreaRule
+        initial={rules.banned_terms?.set_by && Array.isArray(rules.banned_terms.value) ? (rules.banned_terms.value as string[]).join("\n") : ""}
+        item={rules.banned_terms}
+        onDelete={onDelete}
+        onSave={onSave}
+        placeholder="Mỗi dòng một từ"
+        ruleKey="banned_terms"
+        setBy={setBy}
+        toValue={(text) => text.split("\n").map((term) => term.trim()).filter(Boolean)}
+      />
     </>
   );
 }
@@ -492,9 +517,10 @@ export function RulesEditor({
   onClose,
   headingLevel = 2,
   offApiReadOnly = false,
+  fixedSetBy,
 }: RulesEditorProps) {
   const [team, setTeam] = useState(false);
-  const setBy: SetBy = team ? "team" : "seller";
+  const setBy: SetBy = fixedSetBy ?? (team ? "team" : "seller");
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const levers = Array.isArray(rules.auto_levers.value) ? (rules.auto_levers.value as string[]) : [];
   const [leverDraft, setLeverDraft] = useState<readonly string[]>(levers);
@@ -520,10 +546,12 @@ export function RulesEditor({
         ) : null}
       </div>
 
-      <label className="qd-toggle">
-        <input checked={team} onChange={(event) => setTeam(event.target.checked)} type="checkbox" />
-        <span>{TEAM_TOGGLE_LABEL}</span>
-      </label>
+      {fixedSetBy ? null : (
+        <label className="qd-toggle">
+          <input checked={team} onChange={(event) => setTeam(event.target.checked)} type="checkbox" />
+          <span>{TEAM_TOGGLE_LABEL}</span>
+        </label>
+      )}
       <p className="qd-muted" data-testid="set-by-mode">
         Giá trị bạn lưu sẽ ghi: {setByLabel(setBy)}
       </p>
@@ -554,11 +582,11 @@ export function RulesEditor({
           label={RULE_LABELS.max_open_cards}
           onDelete={onDelete}
           onSave={onSave}
-          placeholder="5"
+          placeholder="30"
           ruleKey="max_open_cards"
           scopeRef={null}
           setBy={setBy}
-          suffix="thẻ (1–5)"
+          suffix="thẻ (5–30)"
         />
         <RuleRow error={leverSaver.error} item={rules.auto_levers} label={RULE_LABELS.auto_levers} testId="rule-auto_levers">
           <div className="qd-rule__checks">

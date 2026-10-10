@@ -502,6 +502,97 @@ async def ops_view_refuses_writes(
     raise HTTPException(status_code=403, detail="Xem như shop chỉ xem, không ghi được")
 
 
+# -- "Quy tắc" in Cài đặt shop (D25.14): staff set the seller's rules up first -----------
+
+
+async def _rule_snapshot(
+    session: AsyncSession, shop_id: uuid.UUID, rule_key: str, scope_ref: str | None
+) -> Any:
+    from sqlalchemy import select
+
+    from juli_backend.models.run_changes import ShopRule
+
+    row = (
+        await session.execute(
+            select(ShopRule).where(
+                ShopRule.shop_id == shop_id,
+                ShopRule.rule_key == rule_key,
+                ShopRule.scope_ref == (scope_ref or "").strip(),
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    return {"value": row.value, "set_by": row.set_by}
+
+
+@router.get("/shops/{shop_id}/rules")
+async def ops_get_rules(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    """The shop's rules exactly as the seller's Quy tắc page reads them."""
+    shop = await _view_shop(session, shop_id)
+    return await demo_rules.get_shop_rules(shop=shop, session=session)
+
+
+@router.put("/shops/{shop_id}/rules/{rule_key}")
+async def ops_put_rule(
+    shop_id: uuid.UUID,
+    rule_key: str,
+    body: demo_rules.RuleWriteRequest,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    """Set one seller rule as the team (same storage and validation as the seller's)."""
+    shop = await _view_shop(session, shop_id)
+    before = await _rule_snapshot(session, shop_id, rule_key, body.scope_ref)
+    team = body.model_copy(update={"set_by": "team"})
+    result = await demo_rules.put_shop_rule(
+        rule_key=rule_key, body=team, shop=shop, user=ctx.user, session=session
+    )
+    await audit.record(
+        session,
+        ctx.staff.actor,
+        "rule_set",
+        shop_id=shop_id,
+        before={"rule_key": rule_key, "scope_ref": body.scope_ref, "rule": before},
+        after={
+            "rule_key": rule_key,
+            "scope_ref": body.scope_ref,
+            "rule": {"value": result.data.value, "set_by": "team"},
+        },
+    )
+    await session.commit()
+    return result
+
+
+@router.delete("/shops/{shop_id}/rules/{rule_key}", status_code=204)
+async def ops_delete_rule(
+    shop_id: uuid.UUID,
+    rule_key: str,
+    scope_ref: str | None = Query(default=None),
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    shop = await _view_shop(session, shop_id)
+    before = await _rule_snapshot(session, shop_id, rule_key, scope_ref)
+    result = await demo_rules.delete_shop_rule(
+        rule_key=rule_key, scope_ref=scope_ref, shop=shop, session=session
+    )
+    await audit.record(
+        session,
+        ctx.staff.actor,
+        "rule_unset",
+        shop_id=shop_id,
+        before={"rule_key": rule_key, "scope_ref": scope_ref, "rule": before},
+        after=None,
+    )
+    await session.commit()
+    return result
+
+
 # -- "Huỷ kết nối" (D25.13, Admin only) ------------------------------------------------------
 
 

@@ -28,7 +28,9 @@ WHAT IT ADDS.
   EXECUTE revoked from PUBLIC):
   * ``ops_current_shop_overrides()`` -- the override row of
     ``app_current_shop_id()`` only, for the seller/worker paths that must honour
-    it (card limits, streams, actions, content, promotion API, model, cap).
+    it (card limits, streams, actions, content, promotion API, model). The
+    monthly OpenAI cap is NOT here: it is the ``shop_rules`` row
+    ``openai_monthly_cap_usd`` shared with P15 (``services/shop_rules/openai_cap.py``).
     EXECUTE to ``juli_app`` and ``juli_ops``. Carries no personal data.
   * ``ops_list_shops()`` -- every shop with its owner's id, e-mail and consent
     time, for the overview. EXECUTE to ``juli_ops`` only (seller e-mails are
@@ -144,7 +146,6 @@ def _create_tables() -> None:
         sa.Column("content_cards_enabled", sa.Boolean(), nullable=True),
         sa.Column("promotion_api_enabled", sa.Boolean(), nullable=True),
         sa.Column("openai_model", sa.String(length=64), nullable=True),
-        sa.Column("openai_monthly_cap_usd", sa.Numeric(10, 2), nullable=True),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("shop_id", name="pk_ops_shop_settings"),
         sa.ForeignKeyConstraint(["shop_id"], ["shops.id"], name="fk_ops_shop_settings_shop"),
@@ -247,15 +248,13 @@ def _create_functions() -> None:
         out_enabled_actions json,
         out_content_cards_enabled boolean,
         out_promotion_api_enabled boolean,
-        out_openai_model varchar,
-        out_openai_monthly_cap_usd numeric
+        out_openai_model varchar
     )
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public
     AS $fn$
         SELECT s.shop_id, s.stage, s.card_daily_limit, s.card_weekly_limit,
                s.card_open_limit, s.enabled_streams, s.enabled_actions,
-               s.content_cards_enabled, s.promotion_api_enabled, s.openai_model,
-               s.openai_monthly_cap_usd
+               s.content_cards_enabled, s.promotion_api_enabled, s.openai_model
         FROM public.ops_shop_settings s
         WHERE s.shop_id = public.app_current_shop_id()
     $fn$;

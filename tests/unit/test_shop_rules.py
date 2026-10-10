@@ -38,7 +38,7 @@ async def _shop(session, label: str) -> Shop:
 async def test_defaults_apply_until_a_value_is_set(session):
     shop = await _shop(session, "a")
     rules = await shop_rules.get_rules(session, shop.id)
-    assert rules.max_open_cards.value == 5 and rules.max_open_cards.set_by is None
+    assert rules.max_open_cards.value == 30 and rules.max_open_cards.set_by is None
     assert set(rules.auto_levers.value) == {"title", "description", "attributes", "image"}
     assert rules.stability_band == {} and rules.min_margin_pct is None
     assert await shop_rules.stability_bands(session, shop.id) == {}
@@ -94,8 +94,8 @@ async def test_a_value_records_who_set_it_and_when_and_can_be_replaced_and_unset
         ("product_cost", "p-1", -1),
         ("min_margin_pct", "", 100),
         ("max_discount_pct", "sku-1", 101),
-        ("max_open_cards", "", 6),
-        ("max_open_cards", "", 0),
+        ("max_open_cards", "", 31),
+        ("max_open_cards", "", 4),
         ("max_open_cards", "x", 3),
         ("auto_levers", "", ["title", "price"]),
         ("auto_levers", "", ["banner"]),
@@ -109,7 +109,13 @@ def test_out_of_range_values_are_refused(rule_key, scope_ref, value):
 
 
 def test_set_by_is_team_or_seller_only():
-    assert shop_rules.validate_rule("max_open_cards", "", 3) == ("", 3)
+    assert shop_rules.validate_rule("max_open_cards", "", 7) == ("", 7)
+    # D24.21: 5–30, plus the content-run rules
+    assert shop_rules.validate_rule("content_tone", "", " thân thiện ") == ("", "thân thiện")
+    assert shop_rules.validate_rule("banned_terms", "", ["rẻ nhất", " ", "rẻ nhất"]) == (
+        "",
+        ["rẻ nhất"],
+    )
     with pytest.raises(shop_rules.RuleValidationError):
         shop_rules.rules._validate_set_by("juli")
 
@@ -141,16 +147,16 @@ async def test_one_shop_never_sees_or_changes_anothers_rules(session):
         shop_a.id,
         rule_key="max_open_cards",
         scope_ref=None,
-        value=2,
+        value=6,
         set_by="seller",
         set_by_user_id=shop_a.user_id,
     )
-    assert await shop_rules.configured_max_open_cards(session, shop_a.id) == 2
+    assert await shop_rules.configured_max_open_cards(session, shop_a.id) == 6
     assert await shop_rules.configured_max_open_cards(session, shop_b.id) is None
     assert not await shop_rules.delete_rule(
         session, shop_b.id, rule_key="max_open_cards", scope_ref=None
     )
-    assert await shop_rules.configured_max_open_cards(session, shop_a.id) == 2
+    assert await shop_rules.configured_max_open_cards(session, shop_a.id) == 6
 
 
 def test_band_breaches_skip_target_metrics_and_missing_readings():
@@ -209,13 +215,13 @@ async def test_the_rules_routes_read_write_and_unset(engine, session):
             json={"scope_ref": "ctr", "value": 3, "set_by": "team"},
         )
         cap = await client.put(
-            "/v1/demo/rules/max_open_cards", json={"value": 3, "set_by": "seller"}
+            "/v1/demo/rules/max_open_cards", json={"value": 7, "set_by": "seller"}
         )
         bad = await client.put(
             "/v1/demo/rules/auto_levers", json={"value": ["price"], "set_by": "seller"}
         )
         bad_set_by = await client.put(
-            "/v1/demo/rules/max_open_cards", json={"value": 3, "set_by": "juli"}
+            "/v1/demo/rules/max_open_cards", json={"value": 7, "set_by": "juli"}
         )
         after = await client.get("/v1/demo/rules")
         unset = await client.delete("/v1/demo/rules/stability_band", params={"scope_ref": "ctr"})
@@ -225,7 +231,7 @@ async def test_the_rules_routes_read_write_and_unset(engine, session):
 
     assert empty.status_code == 200
     data = empty.json()["data"]
-    assert data["max_open_cards"]["value"] == 5 and data["max_open_cards"]["set_by"] is None
+    assert data["max_open_cards"]["value"] == 30 and data["max_open_cards"]["set_by"] is None
     assert data["stability_band"] == {}
     assert "ctr" in data["band_metrics"]
 
@@ -245,7 +251,7 @@ async def test_the_rules_routes_read_write_and_unset(engine, session):
 
     data = after.json()["data"]
     assert data["stability_band"]["ctr"]["value"] == 3
-    assert data["max_open_cards"]["value"] == 3 and data["max_open_cards"]["set_by"] == "seller"
+    assert data["max_open_cards"]["value"] == 7 and data["max_open_cards"]["set_by"] == "seller"
     assert unset.status_code == 204
     assert unset_again.status_code == 404
 

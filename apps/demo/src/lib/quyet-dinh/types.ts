@@ -34,6 +34,9 @@ export interface ShopRules {
   readonly target_roas?: RuleValueItem | null;
   readonly gmv_max_daily_budget?: RuleValueItem | null;
   readonly live_schedule?: RuleValueItem | null;
+  // D24.21 (5): read by content runs.
+  readonly content_tone?: RuleValueItem | null;
+  readonly banned_terms?: RuleValueItem | null;
   readonly weekdays?: readonly string[];
 }
 
@@ -53,7 +56,9 @@ export type RuleKey =
   | "platform_campaign_note"
   | "target_roas"
   | "gmv_max_daily_budget"
-  | "live_schedule";
+  | "live_schedule"
+  | "content_tone"
+  | "banned_terms";
 
 export interface FieldChange {
   readonly field: string;

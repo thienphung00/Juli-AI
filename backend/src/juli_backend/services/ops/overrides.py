@@ -19,10 +19,11 @@ Who reads what:
   ``content_cards.emission`` writes no content card for an off stream;
 - OpenAI model → content drafting (``content_cards.planner``) and agent runs
   (``workers/tasks/agent_workflow``);
-- monthly OpenAI cap → content drafting stops for the shop when the month's
-  ``workflow_runs.cost_usd`` reaches it (``openai_cap_status``); rule cards are
-  not affected. The overview shows a badge and the drafter logs
-  ``ops_openai_cap_reached`` (the team alert).
+- monthly OpenAI cap (a ``shop_rules`` row shared with P15, default $5, see
+  ``services/shop_rules/openai_cap.py``) → content drafting and agent runs
+  (Optimize Product) stop for the shop when the month's ``workflow_runs.cost_usd``
+  reaches it (``openai_cap_status``); rule cards are not affected. The overview
+  shows a badge and the gate logs ``ops_openai_cap_reached`` (the team alert).
 - promotion API on/off → :func:`promotion_api_enabled`. Juli makes no promotion
   write today (D13: the seller applies promotions in Seller Center), so it is
   stored, shown and audited, and gates nothing yet (DEBT).
@@ -110,7 +111,6 @@ class ShopOverrides:
     content_cards_enabled: bool | None = None
     promotion_api_enabled: bool | None = None
     openai_model: str | None = None
-    openai_monthly_cap_usd: Decimal | None = None
 
 
 DEFAULT_OVERRIDES = ShopOverrides()
@@ -142,11 +142,6 @@ def from_row(row: OpsShopSettings | None) -> ShopOverrides:
         content_cards_enabled=row.content_cards_enabled,
         promotion_api_enabled=row.promotion_api_enabled,
         openai_model=row.openai_model,
-        openai_monthly_cap_usd=(
-            Decimal(str(row.openai_monthly_cap_usd))
-            if row.openai_monthly_cap_usd is not None
-            else None
-        ),
     )
 
 
@@ -167,7 +162,6 @@ async def shop_overrides(session: AsyncSession, shop_id: uuid.UUID) -> ShopOverr
         return DEFAULT_OVERRIDES
     if result is None or result["out_shop_id"] != shop_id:
         return DEFAULT_OVERRIDES
-    cap = result["out_openai_monthly_cap_usd"]
     return ShopOverrides(
         stage=result["out_stage"] or STAGE_TRIAL,
         card_daily_limit=result["out_card_daily_limit"],
@@ -178,7 +172,6 @@ async def shop_overrides(session: AsyncSession, shop_id: uuid.UUID) -> ShopOverr
         content_cards_enabled=result["out_content_cards_enabled"],
         promotion_api_enabled=result["out_promotion_api_enabled"],
         openai_model=result["out_openai_model"],
-        openai_monthly_cap_usd=Decimal(str(cap)) if cap is not None else None,
     )
 
 
@@ -247,7 +240,8 @@ async def llm_config_for(session: AsyncSession, shop_id: uuid.UUID) -> LLMConfig
 
 @dataclass(frozen=True)
 class CapStatus:
-    cap_usd: Decimal | None
+    cap_usd: Decimal
+    is_default: bool
     spent_usd: Decimal
     reached: bool
 
@@ -283,7 +277,50 @@ async def openai_cap_status(
     overrides: ShopOverrides | None = None,
     now: datetime | None = None,
 ) -> CapStatus:
-    current = overrides if overrides is not None else await shop_overrides(session, shop_id)
+    """Spent this month vs the shop's cap (``shop_rules`` row shared with P15, $5 default)."""
+    from juli_backend.services.shop_rules.openai_cap import openai_monthly_cap_usd
+
+    del overrides  # the cap is not an ops_shop_settings column (shared with P15)
+    cap = await openai_monthly_cap_usd(session, shop_id)
     spent = await openai_cost_this_month(session, shop_id, now=now)
-    cap = current.openai_monthly_cap_usd
-    return CapStatus(cap_usd=cap, spent_usd=spent, reached=cap is not None and spent >= cap)
+    return CapStatus(
+        cap_usd=cap.usd, is_default=cap.is_default, spent_usd=spent, reached=spent >= cap.usd
+    )
+
+
+class CapGuardedLLMService:
+    """D25.8 for agent runs (Optimize Product): refuse the model call over the cap.
+
+    Wraps the run's ``LLMService``; when the shop's month has reached its cap
+    every ``complete`` raises ``LLMProviderError`` before any request, so the
+    runner ends the run its usual way (``failed`` / ``llm_error``) without
+    spending. Logged ``ops_openai_cap_reached`` (the team alert).
+    """
+
+    def __init__(self, inner: Any, cap: CapStatus, shop_id: uuid.UUID) -> None:
+        self._inner = inner
+        self._cap = cap
+        self._shop_id = shop_id
+
+    async def complete(self, **kwargs: Any) -> Any:
+        if self._cap.reached:
+            from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
+
+            logger.warning(
+                "ops_openai_cap_reached",
+                extra={
+                    "shop_id": str(self._shop_id),
+                    "spent_usd": float(self._cap.spent_usd),
+                    "cap_usd": float(self._cap.cap_usd),
+                    "path": "agent_run",
+                },
+            )
+            raise LLMProviderError("monthly OpenAI cap reached for this shop")
+        return await self._inner.complete(**kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+
+async def cap_guarded(session: AsyncSession, shop_id: uuid.UUID, inner: Any) -> Any:
+    return CapGuardedLLMService(inner, await openai_cap_status(session, shop_id), shop_id)

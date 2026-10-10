@@ -5,17 +5,27 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import decision_emission_config
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ops import STAGE_LABELS, STAGES, OpsShopSettings
 from juli_backend.repositories._base import utc_now_naive
 from juli_backend.services.ops import audit
 from juli_backend.services.ops import overrides as ov
 from juli_backend.services.ops.access import ops_role
+from juli_backend.services.shop_rules.openai_cap import (
+    CapValidationError,
+    OpenAICap,
+    clear_openai_monthly_cap,
+    default_cap_usd,
+    openai_monthly_cap_usd,
+    set_openai_monthly_cap,
+    validate_cap,
+)
 
 #: The override columns ("Cài đặt riêng"); NULL = Mặc định.
 OVERRIDE_FIELDS: tuple[str, ...] = (
@@ -29,10 +39,12 @@ OVERRIDE_FIELDS: tuple[str, ...] = (
     "openai_model",
     "openai_monthly_cap_usd",
 )
+#: Stored on ``ops_shop_settings``; the cap lives in ``shop_rules`` (shared with P15).
+CAP_FIELD = "openai_monthly_cap_usd"
+ROW_FIELDS: tuple[str, ...] = tuple(f for f in OVERRIDE_FIELDS if f != CAP_FIELD)
 #: Other settable fields (not "overrides": they have no default to return to).
 OTHER_FIELDS: tuple[str, ...] = ("stage",)
 LIMIT_RANGE = (1, 100)
-CAP_RANGE = (Decimal("0"), Decimal("1000"))
 
 
 class SettingsError(ValueError):
@@ -76,7 +88,7 @@ def defaults() -> dict[str, Any]:
         "content_cards_enabled": True,
         "promotion_api_enabled": False,
         "openai_model": ov.DEFAULT_OPENAI_MODEL,
-        "openai_monthly_cap_usd": None,
+        "openai_monthly_cap_usd": float(default_cap_usd()),
     }
 
 
@@ -89,27 +101,35 @@ def _value(row: OpsShopSettings | None, name: str) -> Any:
     return value
 
 
-def _view(shop_id: uuid.UUID, row: OpsShopSettings | None) -> ShopSettingsView:
+def _view(shop_id: uuid.UUID, row: OpsShopSettings | None, cap: OpenAICap) -> ShopSettingsView:
+    overrides = {name: _value(row, name) for name in ROW_FIELDS}
+    overrides[CAP_FIELD] = None if cap.is_default else float(cap.usd)
     return ShopSettingsView(
         shop_id=shop_id,
         stage=row.stage if row is not None else "trial",
-        overrides={name: _value(row, name) for name in OVERRIDE_FIELDS},
+        overrides=overrides,
         defaults=defaults(),
         updated_at=row.updated_at if row is not None else None,
     )
 
 
-def snapshot(row: OpsShopSettings | None) -> dict[str, Any]:
-    """The audit's before/after picture of a row."""
-    if row is None:
-        return {}
-    return {name: _value(row, name) for name in (*OVERRIDE_FIELDS, "stage")}
+def snapshot(row: OpsShopSettings | None, cap: OpenAICap) -> dict[str, Any]:
+    """The audit's before/after picture."""
+    data = {} if row is None else {name: _value(row, name) for name in (*ROW_FIELDS, "stage")}
+    if row is not None or not cap.is_default:
+        data[CAP_FIELD] = None if cap.is_default else float(cap.usd)
+    return data
+
+
+async def _cap(session: AsyncSession, shop_id: uuid.UUID) -> OpenAICap:
+    async with with_shop_scope(session, shop_id):
+        return await openai_monthly_cap_usd(session, shop_id)
 
 
 async def get_settings(session: AsyncSession, shop_id: uuid.UUID) -> ShopSettingsView:
     async with ops_role(session):
         row = await session.get(OpsShopSettings, shop_id)
-    return _view(shop_id, row)
+    return _view(shop_id, row, await _cap(session, shop_id))
 
 
 def _limit(name: str, value: Any) -> int | None:
@@ -157,16 +177,13 @@ def _validated(name: str, value: Any) -> Any:
                 f"openai_model must be one of {', '.join(ov.allowed_openai_models())}"
             )
         return value
-    if name == "openai_monthly_cap_usd":
+    if name == CAP_FIELD:
         if value is None:
             return None
         try:
-            cap = Decimal(str(value))
-        except InvalidOperation as exc:
-            raise SettingsError("openai_monthly_cap_usd must be a number") from exc
-        if not CAP_RANGE[0] <= cap <= CAP_RANGE[1]:
-            raise SettingsError("openai_monthly_cap_usd must be between 0 and 1000")
-        return cap.quantize(Decimal("0.01"))
+            return validate_cap(value)
+        except CapValidationError as exc:
+            raise SettingsError(str(exc)) from None
     raise SettingsError(f"unknown setting {name!r}")
 
 
@@ -190,26 +207,42 @@ async def update_settings(
     if "stage" in changes and stage not in STAGES:
         raise SettingsError(f"stage must be one of {', '.join(STAGES)}")
     moment = now or utc_now_naive()
+    cap_before = await _cap(session, shop_id)
+    cap_after = cap_before
+    if CAP_FIELD in clean:
+        async with with_shop_scope(session, shop_id):
+            if clean[CAP_FIELD] is None:
+                await clear_openai_monthly_cap(session, shop_id)
+            else:
+                await set_openai_monthly_cap(
+                    session, shop_id, clean[CAP_FIELD], set_by_user_id=None
+                )
+            cap_after = await openai_monthly_cap_usd(session, shop_id)
+    row_changes = {k: v for k, v in clean.items() if k != CAP_FIELD}
     async with ops_role(session):
         row = await session.get(OpsShopSettings, shop_id)
-        before = snapshot(row)
-        if row is None:
+        before = snapshot(row, cap_before)
+        if row is None and (row_changes or isinstance(stage, str)):
             row = OpsShopSettings(shop_id=shop_id, stage="trial")
             session.add(row)
-        for name, value in clean.items():
-            setattr(row, name, value)
-        if isinstance(stage, str):
-            row.stage = stage
-        row.updated_at = moment
-        after = snapshot(row)
+        if row is not None:
+            for name, value in row_changes.items():
+                setattr(row, name, value)
+            if isinstance(stage, str):
+                row.stage = stage
+            row.updated_at = moment
+        after = snapshot(row, cap_after)
     await audit.record(session, actor, action, shop_id=shop_id, before=before, after=after)
-    return _view(shop_id, row)
+    return _view(shop_id, row, cap_after)
 
 
 async def reset_overrides(
     session: AsyncSession, actor: audit.Actor, shop_id: uuid.UUID
 ) -> ShopSettingsView:
-    """ "Về mặc định": every override back to NULL (stage and act flag kept). Audited."""
+    """ "Về mặc định": every override back to NULL (stage kept). Audited.
+
+    The OpenAI cap goes back to its default ($5/month) too.
+    """
     return await update_settings(
         session,
         actor,

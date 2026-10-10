@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -30,7 +29,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     func,
     text,
@@ -113,7 +111,6 @@ class OpsShopSettings(Base):
     content_cards_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     promotion_api_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     openai_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    openai_monthly_cap_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

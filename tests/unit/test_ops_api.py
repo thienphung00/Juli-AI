@@ -54,7 +54,12 @@ async def _staff(session, role: str, email: str | None = None, *, active: bool =
 
 def _client_as(session, user: User):
     app = build_app(session)
-    app.dependency_overrides[get_current_user] = lambda: user
+
+    async def current() -> User:
+        await session.refresh(user)  # a route's rollback expires it, like a new request
+        return user
+
+    app.dependency_overrides[get_current_user] = current
     return client_for(app)
 
 
@@ -222,7 +227,10 @@ async def test_unknown_shop_404(session):
 async def test_overview_lists_shops_with_totals(session):
     owner, shop = await make_tenant(session)
     owner.email = "seller.long.name@gmail.com"
-    session.add(OpsShopSettings(shop_id=shop.id, stage="self", openai_monthly_cap_usd=0))
+    from juli_backend.services.shop_rules.openai_cap import set_openai_monthly_cap
+
+    session.add(OpsShopSettings(shop_id=shop.id, stage="self"))
+    await set_openai_monthly_cap(session, shop.id, 0, set_by_user_id=None)
     await make_workflow_run(session, shop, status="failed", cost_usd=0.5)
     user = await _staff(session, "viewer")
     async with _client_as(session, user) as client:
@@ -514,3 +522,62 @@ async def test_seller_can_decline_ops_access_and_expired_invite_fails(session, f
     async with _client_as(session, seller) as client:
         expired = await client.post("/v1/shop-invites/accept", json={"token": token2})
     assert expired.status_code == 410
+
+
+# -- Quy tắc in Cài đặt shop (D25.14) ---------------------------------------------------
+
+
+async def test_staff_set_the_sellers_rules_audited_and_the_seller_sees_them(session):
+    owner, shop = await make_tenant(session)
+    shop_id = shop.id
+    viewer_user = await _staff(session, "viewer")
+    async with _client_as(session, viewer_user) as client:
+        refused = await client.put(
+            f"/v1/ops/shops/{shop_id}/rules/content_tone", json={"value": "x", "set_by": "team"}
+        )
+    assert refused.status_code == 403
+    op = await _staff(session, "operator", "op.rules@app-juli.com")
+    async with _client_as(session, op) as client:
+        for key, value in (
+            ("content_tone", "Thân thiện, xưng mình – bạn"),
+            ("banned_terms", ["rẻ nhất", "số 1"]),
+            ("max_open_cards", 12),
+            ("target_roas", 6),
+        ):
+            put = await client.put(
+                f"/v1/ops/shops/{shop_id}/rules/{key}", json={"value": value, "set_by": "seller"}
+            )
+            assert put.status_code == 200, put.text
+            assert put.json()["data"]["set_by"] == "team"
+        bad = await client.put(
+            f"/v1/ops/shops/{shop_id}/rules/max_open_cards", json={"value": 40, "set_by": "team"}
+        )
+        assert bad.status_code == 422
+        read = await client.get(f"/v1/ops/shops/{shop_id}/rules")
+        assert read.json()["data"]["content_tone"]["value"] == "Thân thiện, xưng mình – bạn"
+        gone = await client.delete(f"/v1/ops/shops/{shop_id}/rules/target_roas")
+        assert gone.status_code == 204
+    entries = (
+        (await session.execute(select(OpsAuditLog).where(OpsAuditLog.shop_id == shop_id)))
+        .scalars()
+        .all()
+    )
+    actions = sorted(e.action for e in entries)
+    assert actions == ["rule_set"] * 4 + ["rule_unset"]
+    tone = next(
+        e for e in entries if e.action == "rule_set" and e.after["rule_key"] == "content_tone"
+    )
+    assert tone.before["rule"] is None and tone.actor_email == "op.rules@app-juli.com"
+    # the seller's own Quy tắc page reads the same rows and can keep editing them
+    from tests.support.api import authenticated_client
+
+    seller_shop = await session.get(Shop, shop_id)
+    async with authenticated_client(session, user=owner, shop=seller_shop) as client:
+        mine = (await client.get("/v1/demo/rules")).json()["data"]
+        assert mine["banned_terms"]["value"] == ["rẻ nhất", "số 1"]
+        assert mine["max_open_cards"]["set_by"] == "team"
+        assert mine["target_roas"] is None
+        edit = await client.put(
+            "/v1/demo/rules/content_tone", json={"value": "Lịch sự", "set_by": "seller"}
+        )
+        assert edit.status_code == 200

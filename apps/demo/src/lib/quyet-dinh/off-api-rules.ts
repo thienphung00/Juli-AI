@@ -16,7 +16,9 @@ export type OffApiRuleKey =
   | "platform_campaign_note"
   | "target_roas"
   | "gmv_max_daily_budget"
-  | "live_schedule";
+  | "live_schedule"
+  | "content_tone"
+  | "banned_terms";
 
 export interface LiveSlotWire {
   readonly days: readonly string[];
@@ -76,6 +78,16 @@ export const OFF_API_FIELDS: ReadonlyArray<{ readonly key: OffApiRuleKey; readon
     label: "Khung giờ LIVE thường xuyên",
     help: "Mỗi dòng một khung, ví dụ: T2 T4 T6 20:00-22:00 hoặc T7-CN 21:00-23:00.",
   },
+  {
+    key: "content_tone",
+    label: "Giọng văn",
+    help: "Juli soạn kịch bản video / LIVE theo giọng này, ví dụ: thân thiện, xưng mình – bạn.",
+  },
+  {
+    key: "banned_terms",
+    label: "Từ không được dùng",
+    help: "Mỗi dòng một từ; kịch bản có từ này sẽ bị loại.",
+  },
 ];
 
 export const OFF_API_LABELS: Readonly<Record<OffApiRuleKey, string>> = Object.freeze(
@@ -93,6 +105,8 @@ export const OFF_API_ERROR_COPY: Readonly<Record<OffApiRuleKey, string>> = Objec
   target_roas: "ROAS phải lớn hơn 0 và không quá 100.",
   gmv_max_daily_budget: "Ngân sách phải là số từ 0 trở lên (₫/ngày).",
   live_schedule: "Tối đa 14 khung, mỗi khung gồm ngày (T2…CN) và giờ HH:MM-HH:MM.",
+  content_tone: "Giọng văn không được để trống và tối đa 300 ký tự.",
+  banned_terms: "Tối đa 200 từ, mỗi từ không quá 100 ký tự.",
 });
 
 export const WEEKDAY_LABELS: Readonly<Record<string, string>> = Object.freeze({
@@ -185,7 +199,10 @@ export function displayOffApiValue(key: OffApiRuleKey, rules: ShopRules): string
     case "target_roas":
       return `${String(item.value)} lần`;
     case "platform_campaign_note":
+    case "content_tone":
       return String(item.value);
+    case "banned_terms":
+      return Array.isArray(item.value) && item.value.length ? (item.value as string[]).join(", ") : "—";
     default:
       return `${String(item.value)} %`;
   }

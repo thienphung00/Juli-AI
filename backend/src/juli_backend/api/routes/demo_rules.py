@@ -76,6 +76,9 @@ class ShopRulesData(BaseModel):
     gmv_max_daily_budget: RuleValueItem | None
     #: ``[{"days": ["mon", ...], "start": "HH:MM", "end": "HH:MM"}]``.
     live_schedule: RuleValueItem | None
+    # D24.21 (5), read by content runs.
+    content_tone: RuleValueItem | None = None
+    banned_terms: RuleValueItem | None = None
     weekdays: list[str]
 
 
@@ -143,6 +146,8 @@ async def get_shop_rules(
             target_roas=_optional(rules.target_roas),
             gmv_max_daily_budget=_optional(rules.gmv_max_daily_budget),
             live_schedule=_optional(rules.live_schedule),
+            content_tone=_optional(rules.content_tone),
+            banned_terms=_optional(rules.banned_terms),
             weekdays=list(shop_rules.WEEKDAYS),
         )
     )

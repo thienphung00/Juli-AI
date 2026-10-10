@@ -158,7 +158,7 @@ async def draft_gate_for(session: AsyncSession, shop_id: uuid.UUID) -> DraftGate
         model=current.openai_model,
         cap_reached=cap.reached,
         spent_usd=float(cap.spent_usd),
-        cap_usd=float(cap.cap_usd) if cap.cap_usd is not None else None,
+        cap_usd=float(cap.cap_usd),
     )
 
 

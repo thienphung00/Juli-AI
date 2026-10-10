@@ -91,6 +91,27 @@ async def test_daily_limit_override_is_honoured(session):
     assert len(outcome.newly_surfaced) == 2
 
 
+async def test_seller_open_cap_still_lowers_an_ops_limit(session):
+    from juli_backend.services import shop_rules
+
+    shop, _ = await seed_shop(session)
+    await _settings(session, shop.id, card_daily_limit=20, card_weekly_limit=50)
+    await shop_rules.set_rule(
+        session,
+        shop.id,
+        rule_key=shop_rules.MAX_OPEN_CARDS,
+        scope_ref=None,
+        value=6,
+        set_by="seller",
+        set_by_user_id=None,
+    )
+    for p in range(1, 12):
+        session.add(_card(shop.id, p))
+    await session.flush()
+    outcome = await apply_emission_budget(session, shop.id, now=START)
+    assert len(outcome.newly_surfaced) == 6
+
+
 async def test_disabled_action_and_stream_are_suppressed(session):
     shop, _ = await seed_shop(session)
     await _settings(session, shop.id, enabled_actions=["title"])
@@ -159,7 +180,9 @@ async def test_model_override_reaches_the_content_drafter(session):
 
 async def test_over_the_monthly_cap_stops_drafting(session, caplog):
     shop, product = await seed_shop(session)
-    await _settings(session, shop.id, openai_monthly_cap_usd=Decimal("1.00"))
+    from juli_backend.services.shop_rules.openai_cap import set_openai_monthly_cap
+
+    await set_openai_monthly_cap(session, shop.id, Decimal("1.00"), set_by_user_id=None)
     _, earlier = await _content_run(session, shop, product)
     earlier.cost_usd = Decimal("1.5")
     earlier.status = "completed"
@@ -182,10 +205,61 @@ async def test_over_the_monthly_cap_stops_drafting(session, caplog):
     assert any(r.message == "ops_openai_cap_reached" for r in caplog.records)
 
 
-async def test_no_cap_means_no_limit(session):
+async def test_no_cap_row_means_the_shared_five_dollar_default(session, monkeypatch):
     shop, _ = await seed_shop(session)
     cap = await ov.openai_cap_status(session, shop.id)
-    assert cap.reached is False and cap.cap_usd is None
+    assert cap.reached is False and cap.cap_usd == Decimal("5") and cap.is_default is True
+    monkeypatch.setenv("OPENAI_MONTHLY_CAP_USD_DEFAULT", "0")
+    assert (await ov.openai_cap_status(session, shop.id)).reached is True
+
+
+async def test_the_cap_is_the_shop_rules_row_p15_reads(session):
+    from juli_backend.models.run_changes import ShopRule
+    from juli_backend.services.shop_rules.openai_cap import (
+        OPENAI_MONTHLY_CAP_USD,
+        openai_monthly_cap_usd,
+        set_openai_monthly_cap,
+    )
+
+    shop, _ = await seed_shop(session)
+    await set_openai_monthly_cap(session, shop.id, 12.5, set_by_user_id=None)
+    row = (
+        (await session.execute(select(ShopRule).where(ShopRule.rule_key == OPENAI_MONTHLY_CAP_USD)))
+        .scalars()
+        .one()
+    )
+    assert (row.shop_id, row.scope_ref, row.value, row.set_by) == (shop.id, "", 12.5, "team")
+    assert (await openai_monthly_cap_usd(session, shop.id)).usd == Decimal("12.50")
+
+
+async def test_the_seller_rules_route_cannot_set_the_cap(session):
+    from juli_backend.services import shop_rules
+
+    with pytest.raises(shop_rules.RuleValidationError):
+        shop_rules.validate_rule("openai_monthly_cap_usd", "", 100)
+
+
+async def test_over_the_cap_an_agent_run_makes_no_model_call(session, caplog):
+    from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
+    from juli_backend.services.shop_rules.openai_cap import set_openai_monthly_cap
+
+    shop, product = await seed_shop(session)
+    await set_openai_monthly_cap(session, shop.id, 0, set_by_user_id=None)
+
+    class Inner:
+        calls = 0
+
+        async def complete(self, **kwargs):
+            Inner.calls += 1
+
+    guarded = await ov.cap_guarded(session, shop.id, Inner())
+    with caplog.at_level("WARNING"), pytest.raises(LLMProviderError):
+        await guarded.complete(messages=[], system="", tools=[], config=None)
+    assert Inner.calls == 0
+    assert any(r.message == "ops_openai_cap_reached" for r in caplog.records)
+    await set_openai_monthly_cap(session, shop.id, 50, set_by_user_id=None)
+    await (await ov.cap_guarded(session, shop.id, Inner())).complete(messages=[])
+    assert Inner.calls == 1
 
 
 def test_month_start_is_the_shops_local_month():

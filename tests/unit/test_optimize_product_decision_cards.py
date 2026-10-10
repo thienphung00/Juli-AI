@@ -714,7 +714,12 @@ async def test_the_p1_scoring_hook_produces_the_adr106_cards(session, shop_a):
 
 @pytest.mark.asyncio
 async def test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards(session, shop_a):
-    """ADR-109 d.12 "Số thẻ mở cùng lúc": when set, the seller's number lowers the 30."""
+    """ADR-109 d.12 "Số thẻ mở cùng lúc": when set, the seller's number lowers the 30.
+
+    D24.21 makes the rule 5–30 (the cap itself is proven on the emission budget
+    in ``test_ops_overrides.py::test_seller_open_cap_still_lowers_an_ops_limit``);
+    here the rule at its floor keeps the surfaced set within it.
+    """
     from juli_backend.services import shop_rules
 
     await shop_rules.set_rule(
@@ -722,7 +727,7 @@ async def test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards(session, 
         shop_a.id,
         rule_key=shop_rules.MAX_OPEN_CARDS,
         scope_ref=None,
-        value=2,
+        value=5,
         set_by="team",
         set_by_user_id=shop_a.user_id,
     )
@@ -731,7 +736,8 @@ async def test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards(session, 
     cards = await _optimize_cards(session, shop_a.id)
     assert len(cards) == 12, "the ranking is unchanged; only surfacing is capped"
     surfaced = [c for c in cards if c.surfaced_at is not None]
-    assert sorted(c.priority for c in surfaced) == [1, 2]
+    assert 1 <= len(surfaced) <= 5
+    assert sorted(c.priority for c in surfaced) == list(range(1, len(surfaced) + 1))
 
 
 @pytest.mark.asyncio
