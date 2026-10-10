@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,14 +32,20 @@ def _error(exc: invites.InviteError) -> HTTPException:
     return HTTPException(status_code=_STATUS.get(exc.code, 400), detail=exc.code)
 
 
-@router.get("/preview")
+class PreviewBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    token: str
+
+
+@router.post("/preview")
 async def preview_shop_invite(
-    token: str = Query(..., min_length=20, max_length=200),
+    body: PreviewBody,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Read-only: what the invite is for (the token travels in the body, never a URL)."""
     try:
-        return {"data": await invites.preview_invite(session, token, user)}
+        return {"data": await invites.preview_invite(session, body.token, user)}
     except invites.InviteError as exc:
         raise _error(exc) from None
 

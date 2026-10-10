@@ -1,19 +1,16 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { useEffect, useState } from "react";
 
 import { AcceptInvite } from "../../components/accept-invite";
 
-function Inner() {
-  const params = useSearchParams();
-  return <AcceptInvite inviteToken={params.get("token")} />;
-}
-
+/** /nhan-shop#<token> — the e-mailed link keeps the token in the fragment (never sent to a server). */
 export default function AcceptInvitePage() {
-  return (
-    <Suspense fallback={null}>
-      <Inner />
-    </Suspense>
-  );
+  const [token, setToken] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setToken(window.location.hash.replace(/^#/, "") || null), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  if (token === undefined) return null;
+  return <AcceptInvite inviteToken={token} />;
 }

@@ -241,17 +241,21 @@ async def test_the_sellers_rule_still_lowers_the_open_limit(session, tenant_shop
         shop_id,
         rule_key=shop_rules.MAX_OPEN_CARDS,
         scope_ref=None,
-        value=2,
+        value=6,  # D24.21: the rule is 5–30
         set_by="team",
         set_by_user_id=tenant_shop.user_id,
     )
-    for priority in range(1, 6):
+    # P16: Juli Ops raises the daily limit so the seller's 6 is the binding one.
+    from juli_backend.models.ops import OpsShopSettings
+
+    session.add(OpsShopSettings(shop_id=shop_id, stage="trial", card_daily_limit=20))
+    for priority in range(1, 10):
         session.add(_card(shop_id, priority, lever="title"))
     await session.flush()
 
     outcome = await apply_emission_budget(session, shop_id, now=START)
 
-    assert len(outcome.newly_surfaced) == 2
+    assert len(outcome.newly_surfaced) == 6
     assert len(outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]) == 3
 
 

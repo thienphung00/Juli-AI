@@ -450,7 +450,7 @@ async def test_invite_and_accept_moves_the_shop_and_keeps_ops_access(session, fa
     assert created.json()["email_sent"] is True
     mail = fake_mailer.sent[0]
     assert mail.to == "thaonhi@gmail.com"
-    token = mail.accept_url.split("token=")[1]
+    token = mail.accept_url.split("#")[1]
     shop_id, run_id = shop.id, run.id
 
     stranger = await make_user(session, email="other@gmail.com")
@@ -463,7 +463,7 @@ async def test_invite_and_accept_moves_the_shop_and_keeps_ops_access(session, fa
     seller = await make_user(session, email="thaonhi@gmail.com")
     seller_id = seller.id
     async with _client_as(session, seller) as client:
-        preview = await client.get(f"/v1/shop-invites/preview?token={token}")
+        preview = await client.post("/v1/shop-invites/preview", json={"token": token})
         assert preview.json()["data"]["keep_ops_access_asked"] is True
         accepted = await client.post(
             "/v1/shop-invites/accept", json={"token": token, "keep_ops_access": True}
@@ -497,7 +497,7 @@ async def test_seller_can_decline_ops_access_and_expired_invite_fails(session, f
             json={"email": "s@gmail.com", "keep_ops_access": True},
         )
     assert created.json()["email_sent"] is False
-    token = created.json()["accept_url"].split("token=")[1]
+    token = created.json()["accept_url"].split("#")[1]
     seller = await make_user(session, email="s@gmail.com")
     async with _client_as(session, seller) as client:
         ok = await client.post(
@@ -509,7 +509,7 @@ async def test_seller_can_decline_ops_access_and_expired_invite_fails(session, f
         second = await client.post(
             f"/v1/ops/shops/{shop.id}/invites", json={"email": "s@gmail.com"}
         )
-    token2 = second.json()["accept_url"].split("token=")[1]
+    token2 = second.json()["accept_url"].split("#")[1]
     from juli_backend.models.ops import OpsShopInvite
 
     row = (

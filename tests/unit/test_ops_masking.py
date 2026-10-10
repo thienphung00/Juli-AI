@@ -32,10 +32,14 @@ def test_phones_and_non_staff_emails_in_text_are_masked():
 
 def test_numbers_and_ids_survive():
     out = mask_pii(
-        {"gmv_30d": 214900000, "id": "0912345678901", "accept_url": "https://x/?token=0912345678"}
+        {
+            "gmv_30d": 214900000,
+            "id": "0912345678901",
+            "accept_url": "https://x/nhan-shop/0912345678",
+        }
     )
     assert out == {
         "gmv_30d": 214900000,
         "id": "0912345678901",
-        "accept_url": "https://x/?token=0912345678",
+        "accept_url": "https://x/nhan-shop/0912345678",
     }

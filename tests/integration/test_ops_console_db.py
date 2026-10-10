@@ -189,7 +189,7 @@ async def test_handover_moves_the_shop_through_the_definer_function(owner_engine
                 session, ACTOR, listing, email="seller.p16@gmail.com", keep_ops_access=True
             )
             await session.commit()
-        token = created.accept_url.split("token=")[1]
+        token = created.accept_url.split("#")[1]
         from juli_backend.models.models import User
 
         async with app_session() as session:
@@ -242,10 +242,13 @@ async def test_disconnect_as_juli_app_under_the_shops_scope(owner_engine):
     tenant = seed_tenant(owner_engine, label=f"disc-{uuid.uuid4().hex[:6]}")
 
     class Quiet:
-        async def send_notice(self, **_):
+        async def send_invite(self, mail):
             return False
 
-    ops_mailer.set_mailer(Quiet())  # type: ignore[arg-type]
+        async def send_notice(self, *, to, subject, body):
+            return False
+
+    ops_mailer.set_mailer(Quiet())
     try:
         async with app_session() as session:
             listing = await overview.find_shop(session, tenant.shop_id)

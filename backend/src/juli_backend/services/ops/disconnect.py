@@ -35,7 +35,7 @@ from juli_backend.models.models import Shop, TikTokCredential, WorkflowRun
 from juli_backend.repositories._base import utc_now_naive
 from juli_backend.services.ops import audit
 from juli_backend.services.ops.mailer import get_mailer
-from juli_backend.services.ops.overview import ShopListing  # noqa: F401  (re-exported for callers)
+from juli_backend.services.ops.overview import ShopListing
 
 logger = logging.getLogger(__name__)
 

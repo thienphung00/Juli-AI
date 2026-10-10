@@ -40,6 +40,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import DecisionEmissionConfig
@@ -157,7 +158,7 @@ async def shop_overrides(session: AsyncSession, shop_id: uuid.UUID) -> ShopOverr
                 .mappings()
                 .first()
             )
-    except Exception:  # noqa: BLE001 - defaults are the safe answer; logged
+    except SQLAlchemyError:  # defaults are the safe answer; logged
         logger.warning("ops_overrides_read_failed", extra={"shop_id": str(shop_id)}, exc_info=True)
         return DEFAULT_OVERRIDES
     if result is None or result["out_shop_id"] != shop_id:

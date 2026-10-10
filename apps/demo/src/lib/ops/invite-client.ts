@@ -31,7 +31,13 @@ async function call<T>(path: string, token: string, init: RequestInit = {}, fetc
 }
 
 export function previewInvite(token: string, inviteToken: string, fetchImpl?: typeof fetch) {
-  return call<InvitePreview>(`/v1/shop-invites/preview?token=${encodeURIComponent(inviteToken)}`, token, {}, fetchImpl);
+  // The invite token travels in the body, never in an API URL.
+  return call<InvitePreview>(
+    "/v1/shop-invites/preview",
+    token,
+    { method: "POST", body: JSON.stringify({ token: inviteToken }) },
+    fetchImpl,
+  );
 }
 
 export function acceptInvite(token: string, inviteToken: string, keepOpsAccess: boolean, fetchImpl?: typeof fetch) {

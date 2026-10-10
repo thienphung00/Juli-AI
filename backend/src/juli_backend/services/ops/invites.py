@@ -56,7 +56,10 @@ def hash_token(token: str) -> str:
 
 def accept_url(token: str) -> str:
     base = os.environ.get("OPS_INVITE_ACCEPT_BASE_URL", "").strip() or DEFAULT_ACCEPT_BASE
-    return f"{base.rstrip('/')}{ACCEPT_PATH}?token={token}"
+    # The e-mailed link must carry the one-time invite token (only its sha256 is
+    # stored; it works once, for 7 days, and only for the invited signed-in e-mail).
+    # It never reaches an API URL: the seller app posts it in a JSON body.
+    return f"{base.rstrip('/')}{ACCEPT_PATH}#{token}"
 
 
 def _clean_email(raw: Any) -> str:

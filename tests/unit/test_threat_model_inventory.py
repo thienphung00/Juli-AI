@@ -38,6 +38,16 @@ def _requires_auth(route: APIRoute) -> bool:
             dep = param.default.dependency
             if dep is get_current_user or dep is get_active_shop:
                 return True
+    # P16: the Juli Ops routes authenticate through their own dependency
+    # (`get_ops_context`, which itself depends on get_current_user); walk the
+    # resolved dependency tree so a transitive auth dependency counts.
+    return _depends_transitively(route.dependant, (get_current_user, get_active_shop))
+
+
+def _depends_transitively(dependant, targets) -> bool:
+    for sub in dependant.dependencies:
+        if sub.call in targets or _depends_transitively(sub, targets):
+            return True
     return False
 
 
