@@ -13,8 +13,9 @@ limit for every shop:
   when it is no longer valid;
 - after a terminal action (or expiry) the same action on the same subject may
   return after ``cooldown_days`` (7);
-- the first day a shop is ever shown cards is mixed by who carries the action
-  out (``first_day_mix``: ~3 Juli, 1 Seller Center, 1 content).
+- every day's new cards are split into fixed slots by who carries the action
+  out (``daily_slots``: 3 Juli, 1 Seller Center, 1 content -- D24.21 (4)); a
+  slot with no candidate stays empty.
 
 These replace the #716 "max 5 active / weekly novelty 3" defaults and the
 Optimize Product per-workflow cap of 5. See
@@ -33,7 +34,7 @@ _MAX_OPEN_ENV_VAR = "CDP_DECISION_EMISSION_MAX_OPEN"
 _COOLDOWN_DAYS_ENV_VAR = "CDP_DECISION_EMISSION_COOLDOWN_DAYS"
 _VALIDITY_DAYS_ENV_VAR = "CDP_DECISION_EMISSION_VALIDITY_DAYS"
 _MIN_STAY_DAYS_ENV_VAR = "CDP_DECISION_EMISSION_MIN_STAY_DAYS"
-_FIRST_DAY_MIX_ENV_VAR = "CDP_DECISION_EMISSION_FIRST_DAY_MIX"
+_DAILY_SLOTS_ENV_VAR = "CDP_DECISION_EMISSION_DAILY_SLOTS"
 
 _DEFAULT_DAILY_NEW_CAP = 5
 _DEFAULT_WEEKLY_NEW_CAP = 25
@@ -42,14 +43,15 @@ _DEFAULT_COOLDOWN_DAYS = 7
 _DEFAULT_VALIDITY_DAYS = 7
 _DEFAULT_MIN_STAY_DAYS = 3
 
-#: Executor slots of a shop's first surfaced day, in fill order (D24.17):
-#: ``juli`` covers ``juli`` and ``juli_with_photo`` cards, ``seller_center`` the
-#: promotion levers, ``content`` the video / LIVE cards. A slot with no card is
-#: filled by the next best card of any type.
+#: Executor slots of every shop day, in fill order (D24.21 (4), owner
+#: 2026-10-10; it replaced D24.17's first-day-only mix): ``juli`` covers
+#: ``juli`` and ``juli_with_photo`` cards (and legacy-workflow cards, which the
+#: Juli agent runs), ``seller_center`` the promotion levers, ``content`` the
+#: video / LIVE cards. A slot with no candidate stays empty -- no backfill.
 EXECUTOR_JULI = "juli"
 EXECUTOR_SELLER_CENTER = "seller_center"
 EXECUTOR_CONTENT = "content"
-_DEFAULT_FIRST_DAY_MIX: tuple[tuple[str, int], ...] = (
+_DEFAULT_DAILY_SLOTS: tuple[tuple[str, int], ...] = (
     (EXECUTOR_JULI, 3),
     (EXECUTOR_SELLER_CENTER, 1),
     (EXECUTOR_CONTENT, 1),
@@ -66,7 +68,7 @@ class DecisionEmissionConfig:
     cooldown_days: int = _DEFAULT_COOLDOWN_DAYS
     validity_days: int = _DEFAULT_VALIDITY_DAYS
     min_stay_days: int = _DEFAULT_MIN_STAY_DAYS
-    first_day_mix: tuple[tuple[str, int], ...] = _DEFAULT_FIRST_DAY_MIX
+    daily_slots: tuple[tuple[str, int], ...] = _DEFAULT_DAILY_SLOTS
 
 
 def _int_env(name: str, default: int) -> int:
@@ -100,10 +102,10 @@ def decision_emission_config() -> DecisionEmissionConfig:
     """Read the emission budget tunables from the environment.
 
     Defaults (D24.17): 5 new/day, 25 new/week, 30 open, 7-day cooldown, 7-day
-    validity, 3-day minimum stay, first day 3 Juli + 1 Seller Center + 1 content.
+    validity, 3-day minimum stay, daily slots 3 Juli + 1 Seller Center + 1 content.
     Override via ``CDP_DECISION_EMISSION_DAILY_NEW_CAP``, ``…_WEEKLY_NEW_CAP``,
     ``…_MAX_OPEN``, ``…_COOLDOWN_DAYS``, ``…_VALIDITY_DAYS``, ``…_MIN_STAY_DAYS``
-    and ``…_FIRST_DAY_MIX`` (``juli=3,seller_center=1,content=1``).
+    and ``…_DAILY_SLOTS`` (``juli=3,seller_center=1,content=1``).
     """
     return DecisionEmissionConfig(
         daily_new_cap=_int_env(_DAILY_NEW_CAP_ENV_VAR, _DEFAULT_DAILY_NEW_CAP),
@@ -112,5 +114,5 @@ def decision_emission_config() -> DecisionEmissionConfig:
         cooldown_days=_int_env(_COOLDOWN_DAYS_ENV_VAR, _DEFAULT_COOLDOWN_DAYS),
         validity_days=_int_env(_VALIDITY_DAYS_ENV_VAR, _DEFAULT_VALIDITY_DAYS),
         min_stay_days=_int_env(_MIN_STAY_DAYS_ENV_VAR, _DEFAULT_MIN_STAY_DAYS),
-        first_day_mix=_pairs_env(_FIRST_DAY_MIX_ENV_VAR, _DEFAULT_FIRST_DAY_MIX),
+        daily_slots=_pairs_env(_DAILY_SLOTS_ENV_VAR, _DEFAULT_DAILY_SLOTS),
     )

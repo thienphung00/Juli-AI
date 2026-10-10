@@ -306,6 +306,17 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "state.history_earliest_date = earliest_date",
         "bootstrap phase transitions and history/analytics cursors (granted by 074)",
     ),
+    # -- fast track P14-C (migration 081) ------------------------------------
+    MutationSite(
+        "public",
+        "order_cost_fetches",
+        "UPDATE",
+        "backend/src/juli_backend/services/order_costs/store.py",
+        "row.price_attempts = (row.price_attempts or 0) + 1",
+        "the per-order fetch state records each read and failed attempt in place "
+        "(granted by 081); order_price_details / order_finance_transactions are "
+        "replaced by delete + insert and hold no UPDATE",
+    ),
 )
 
 #: Scan hits that are provably NOT database writes. Each is pinned to its

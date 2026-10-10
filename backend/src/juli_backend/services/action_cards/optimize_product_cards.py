@@ -8,7 +8,8 @@ analytics, this module replaces that card with the ADR-106 pipeline:
 1. read the shop's daily per-product analytics that P1 ingestion stores
    (``analytics_performance_intervals``, grains ``product`` and ``sku``) and
    its ``products`` rows;
-2. score the whole catalog and keep the top 30 ranked proposals (D24.17)
+2. score the whole catalog and keep the top 30 ranked proposals per executor
+   type (D24.17; per type since D24.21 (4))
    (:func:`~juli_backend.services.optimize_product.decision_cards.plan_shop_cards`),
    ranked by recoverable GMV × the shop's history for the lever (D24.6:
    calibration coefficient and seller reasons, :func:`lever_history`);
@@ -24,8 +25,8 @@ D24.17: a surfaced card whose diagnosis has not changed is re-scored in place
 action returns on that product 7 days after it expired.
 
 Seller reasons (fast track P10-A): a (product, lever) the seller rejected,
-declined or reverted is skipped for 7 days (``decision_cooldown``) unless the
-weak stage's rate moved > 20 % relative since (``services.decision_reasons``).
+declined or reverted is skipped for 7 days (``decision_cooldown``) -- strictly,
+no early return on a data change (D24.21 (1), ``services.decision_reasons``).
 Those actions dismiss the card; a dismissed latest revision is then governed by
 that cooldown alone, so once it lifts the proposal gets a new revision.
 
@@ -578,8 +579,8 @@ async def emit_optimize_product_cards(
         ):
             # A card the seller rejected, declined or reverted (dismissed) is
             # governed by the per-lever decision cooldown above instead: past
-            # its 7 days, or after a clear data change, the proposal gets a new
-            # revision even when the diagnosis itself has not moved.
+            # its 7 days the proposal gets a new revision even when the
+            # diagnosis itself has not moved (D24.21: strictly 7 days).
             reason = (
                 persist.SUPPRESSED_REASON_BASIS_UNCHANGED
                 if basis_unchanged(stored_basis(latest), basis)
@@ -669,16 +670,9 @@ def _cooled_down(
 ) -> DecisionReason | None:
     """The seller reason still cooling this (product, lever) down, if any (P10-A).
 
-    A clear move of the weak stage's rate since the reason lifts it early
-    (``decision_reasons.clearly_changed``).
+    Strictly 7 days (D24.21 (1)): no data change lifts it early.
     """
-    reason = cooldowns.get((str(product.id), LEVER_CODES[proposal.lever]))
-    if reason is None:
-        return None
-    rates = {name: gap.value for name, gap in proposal.gaps.items()}
-    if decision_reasons.clearly_changed(reason, rates):
-        return None
-    return reason
+    return cooldowns.get((str(product.id), LEVER_CODES[proposal.lever]))
 
 
 #: Why a surfaced card left before its 7 days (D24.17), for the log.

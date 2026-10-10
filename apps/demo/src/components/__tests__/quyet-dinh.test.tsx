@@ -95,7 +95,7 @@ function rules(bands: Record<string, number> = {}): ShopRules {
     product_cost: {},
     max_discount_pct: {},
     min_margin_pct: null,
-    max_open_cards: { ...unset, value: 5 },
+    max_open_cards: { ...unset, value: 30 },
     auto_levers: { ...unset, value: ["attributes", "description", "image", "title"] },
     protected_terms: { ...unset, value: [] },
     band_metrics: ["impressions", "ctr", "conversion_rate", "items_sold", "gmv", "sku_orders", "gmv_per_order"],
@@ -269,11 +269,33 @@ describe("rules editor", () => {
     await userEvent.click(within(impressions).getByRole("button", { name: "Lưu" }));
     expect(onSave).toHaveBeenLastCalledWith("stability_band", 3.5, "team", "impressions");
 
-    onSave.mockRejectedValueOnce(new QdApiError(422, null, "max_open_cards: value must be between 1 and 5"));
+    onSave.mockRejectedValueOnce(new QdApiError(422, null, "max_open_cards: value must be between 5 and 30"));
     const cards = screen.getByTestId("rule-max_open_cards");
     await userEvent.type(within(cards).getByRole("textbox"), "9");
     await userEvent.click(within(cards).getByRole("button", { name: "Lưu" }));
-    expect(await within(cards).findByRole("alert")).toHaveTextContent("Số thẻ mở cùng lúc phải là số nguyên từ 1 đến 5.");
+    expect(await within(cards).findByRole("alert")).toHaveTextContent("Số thẻ mở cùng lúc phải là số nguyên từ 5 đến 30.");
+  });
+
+  it("D24.21: edits the content voice — Giọng văn and Từ không được dùng", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(<RulesEditor onDelete={vi.fn()} onSave={onSave} rules={rules({})} />);
+    expect(screen.getByTestId("rule-max_open_cards")).toHaveTextContent("5–30");
+
+    const tone = screen.getByTestId("rule-content_tone");
+    await userEvent.click(within(tone).getByRole("button", { name: "Lưu" }));
+    expect(await within(tone).findByRole("alert")).toHaveTextContent("Nhập giọng văn");
+    await userEvent.type(within(tone).getByRole("textbox"), "  Thân thiện, xưng mình ");
+    await userEvent.click(within(tone).getByRole("button", { name: "Lưu" }));
+    expect(onSave).toHaveBeenLastCalledWith("content_tone", "Thân thiện, xưng mình", "seller", null);
+
+    const banned = screen.getByTestId("rule-banned_terms");
+    await userEvent.type(within(banned).getByRole("textbox"), "rẻ nhất{enter}{enter}cam kết");
+    await userEvent.click(within(banned).getByRole("button", { name: "Lưu" }));
+    expect(onSave).toHaveBeenLastCalledWith("banned_terms", ["rẻ nhất", "cam kết"], "seller", null);
+
+    onSave.mockRejectedValueOnce(new QdApiError(422, null, "banned_terms: at most 50 terms"));
+    await userEvent.click(within(banned).getByRole("button", { name: "Lưu" }));
+    expect(await within(banned).findByRole("alert")).toHaveTextContent("Tối đa 50 từ");
   });
 });
 

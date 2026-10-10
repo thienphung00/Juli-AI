@@ -159,7 +159,7 @@ async function signedIn(page: Page) {
       product_cost: {},
       max_discount_pct: {},
       min_margin_pct: null,
-      max_open_cards: { ...unset, value: 5 },
+      max_open_cards: { ...unset, value: 30 },
       auto_levers: { ...unset, value: ["attributes", "description", "image", "title"] },
       protected_terms: { ...unset, value: [] },
       band_metrics: ["impressions", "ctr", "conversion_rate", "items_sold", "gmv", "sku_orders", "gmv_per_order"],

@@ -47,9 +47,11 @@ export const RULE_ERROR_COPY: Readonly<Record<RuleKey, string>> = Object.freeze(
   product_cost: "Giá vốn phải là số từ 0 trở lên, kèm mã sản phẩm.",
   min_margin_pct: "Biên lợi nhuận phải từ 0 đến dưới 100 %.",
   max_discount_pct: "Trần giảm giá phải từ 0 đến 100 %, kèm mã SKU.",
-  max_open_cards: "Số thẻ mở cùng lúc phải là số nguyên từ 1 đến 5.",
+  max_open_cards: "Số thẻ mở cùng lúc phải là số nguyên từ 5 đến 30.",
   auto_levers: "Chỉ chọn trong Tiêu đề, Mô tả, Thuộc tính, Ảnh. Giá không bao giờ được tự thực thi.",
   protected_terms: "Tối đa 200 từ, mỗi từ không quá 100 ký tự.",
+  content_tone: "Giọng văn cần có nội dung, tối đa 300 ký tự.",
+  banned_terms: "Tối đa 50 từ, mỗi từ không quá 100 ký tự.",
   ...OFF_API_ERROR_COPY,
 });
 
@@ -395,6 +397,99 @@ function TextAreaRule({
   );
 }
 
+const MAX_OPEN_CARDS_HELP =
+  "Từ 5 đến 30, mặc định 30. Mỗi ngày Juli thêm tối đa 5 thẻ mới (3 Juli làm, 1 Seller Center, 1 nội dung), 25 thẻ mỗi tuần.";
+const CONTENT_TONE_MAX = 300;
+const BANNED_TERMS_MAX = 50;
+
+/** D24.21 (5): the voice Juli's video / LIVE scripts follow ("Giọng văn", "Từ không được dùng"). */
+function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
+  const tone = rules.content_tone;
+  const banned = rules.banned_terms;
+  const toneId = useId();
+  const bannedId = useId();
+  const [toneDraft, setToneDraft] = useState(tone?.set_by && typeof tone.value === "string" ? tone.value : "");
+  const [bannedDraft, setBannedDraft] = useState(
+    banned?.set_by && Array.isArray(banned.value) ? (banned.value as string[]).join("\n") : "",
+  );
+  const toneSaver = useRowSaver("content_tone");
+  const bannedSaver = useRowSaver("banned_terms");
+  return (
+    <fieldset className="qd-rules-editor__group" data-testid="rules-content-voice">
+      <legend>Nội dung video / LIVE</legend>
+      <p className="qd-muted">Juli viết kịch bản theo giọng văn này và không dùng các từ bạn cấm (cả khi sửa tiêu đề, mô tả).</p>
+      <RuleRow
+        error={toneSaver.error}
+        help={`Ví dụ: thân thiện, xưng mình, gọi khách là bạn. Tối đa ${CONTENT_TONE_MAX} ký tự.`}
+        item={tone}
+        label={RULE_LABELS.content_tone}
+        testId="rule-content_tone"
+      >
+        <label className="qd-sr" htmlFor={toneId}>
+          {RULE_LABELS.content_tone}
+        </label>
+        <textarea
+          className="qd-input qd-textarea"
+          id={toneId}
+          maxLength={CONTENT_TONE_MAX}
+          onChange={(event) => setToneDraft(event.target.value)}
+          placeholder="Thân thiện, xưng mình, gọi khách là bạn"
+          rows={2}
+          value={toneDraft}
+        />
+        <button
+          className="btn-secondary qd-rule__save"
+          disabled={toneSaver.saving}
+          onClick={() =>
+            void toneSaver.save(async () => {
+              if (!toneDraft.trim()) throw new Error("vi:Nhập giọng văn, hoặc bấm Bỏ đặt.");
+              await onSave("content_tone", toneDraft.trim(), setBy, null);
+            })
+          }
+          type="button"
+        >
+          Lưu
+        </button>
+        <ClearButton item={tone} onClear={() => void toneSaver.save(() => onDelete("content_tone", null))} saving={toneSaver.saving} />
+      </RuleRow>
+      <RuleRow
+        error={bannedSaver.error}
+        help={`Mỗi dòng một từ, tối đa ${BANNED_TERMS_MAX} từ. Juli không đưa các từ này vào kịch bản, tiêu đề hay mô tả.`}
+        item={banned}
+        label={RULE_LABELS.banned_terms}
+        testId="rule-banned_terms"
+      >
+        <label className="qd-sr" htmlFor={bannedId}>
+          {RULE_LABELS.banned_terms}
+        </label>
+        <textarea
+          className="qd-input qd-textarea"
+          id={bannedId}
+          onChange={(event) => setBannedDraft(event.target.value)}
+          placeholder="Mỗi dòng một từ"
+          rows={3}
+          value={bannedDraft}
+        />
+        <button
+          className="btn-secondary qd-rule__save"
+          disabled={bannedSaver.saving}
+          onClick={() =>
+            void bannedSaver.save(async () => {
+              const terms = bannedDraft.split("\n").map((term) => term.trim()).filter(Boolean);
+              if (terms.length > BANNED_TERMS_MAX) throw new Error(`vi:Tối đa ${BANNED_TERMS_MAX} từ.`);
+              await onSave("banned_terms", terms, setBy, null);
+            })
+          }
+          type="button"
+        >
+          Lưu
+        </button>
+        <ClearButton item={banned} onClear={() => void bannedSaver.save(() => onDelete("banned_terms", null))} saving={bannedSaver.saving} />
+      </RuleRow>
+    </fieldset>
+  );
+}
+
 function OffApiFields({ rules, setBy, onSave, onDelete }: FieldProps) {
   const number = (
     ruleKey: "default_gross_margin_pct" | "default_max_discount_pct" | "program_fee_pct" | "target_roas" | "gmv_max_daily_budget",
@@ -554,11 +649,12 @@ export function RulesEditor({
           label={RULE_LABELS.max_open_cards}
           onDelete={onDelete}
           onSave={onSave}
-          placeholder="5"
+          help={MAX_OPEN_CARDS_HELP}
+          placeholder="30"
           ruleKey="max_open_cards"
           scopeRef={null}
           setBy={setBy}
-          suffix="thẻ (1–5)"
+          suffix="thẻ (5–30)"
         />
         <RuleRow error={leverSaver.error} item={rules.auto_levers} label={RULE_LABELS.auto_levers} testId="rule-auto_levers">
           <div className="qd-rule__checks">
@@ -618,6 +714,8 @@ export function RulesEditor({
           </button>
         </RuleRow>
       </fieldset>
+
+      <ContentVoiceFields onDelete={onDelete} onSave={onSave} rules={rules} setBy={setBy} />
 
       <fieldset className="qd-rules-editor__group">
         <legend>Giá và biên lợi nhuận</legend>

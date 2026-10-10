@@ -21,7 +21,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ActionCard, InventoryItem, Product
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
-from juli_backend.models.run_changes import ShopRule
 from juli_backend.services.content_cards import run_state
 from juli_backend.services.content_cards.constants import SPEC_BY_WORKFLOW
 from juli_backend.services.content_cards.drafter import ContentDrafter
@@ -32,11 +31,6 @@ from juli_backend.services.lever_flows.flows import AwaitSeller, awaiting_of
 
 logger = logging.getLogger(__name__)
 
-#: Rule keys the seller's tone and banned words may be stored under. The rule
-#: store does not validate them yet (the seller-rules work owns that); a value
-#: that is not a string / list of strings is ignored.
-TONE_RULE_KEYS = ("content_tone", "tone")
-BANNED_RULE_KEYS = ("banned_terms", "banned_words")
 #: Other products the LIVE basket may list after the product itself.
 MAX_BASKET_OTHERS = 5
 
@@ -49,28 +43,17 @@ class ContentWiring:
 async def load_rules(
     session: AsyncSession, shop_id: uuid.UUID, *, discount_cap_pct: float | None
 ) -> ContentRules:
+    """The seller's rules a content run obeys (D24.21 (5)).
+
+    Exactly the validated ``shop_rules`` keys ``content_tone`` ("Giọng văn") and
+    ``banned_terms`` ("Từ không được dùng"), plus the protected terms.
+    """
     from juli_backend.services import shop_rules
 
-    protected = await shop_rules.protected_terms(session, shop_id)
-    rows = (
-        await session.execute(
-            select(ShopRule).where(
-                ShopRule.shop_id == shop_id,
-                ShopRule.rule_key.in_((*TONE_RULE_KEYS, *BANNED_RULE_KEYS)),
-            )
-        )
-    ).scalars()
-    tone: str | None = None
-    banned: list[str] = []
-    for row in rows:
-        if row.rule_key in TONE_RULE_KEYS and isinstance(row.value, str) and row.value.strip():
-            tone = row.value.strip()[:300]
-        elif row.rule_key in BANNED_RULE_KEYS and isinstance(row.value, list):
-            banned += [str(v).strip() for v in row.value if isinstance(v, str) and v.strip()]
     return ContentRules(
-        tone=tone,
-        banned_terms=tuple(dict.fromkeys(banned)),
-        protected_terms=tuple(protected),
+        tone=await shop_rules.content_tone(session, shop_id),
+        banned_terms=tuple(await shop_rules.banned_terms(session, shop_id)),
+        protected_terms=tuple(await shop_rules.protected_terms(session, shop_id)),
         discount_cap_pct=discount_cap_pct,
     )
 

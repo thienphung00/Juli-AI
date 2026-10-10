@@ -16,16 +16,17 @@ Per shop:
    no longer valid (product inactive, metric already at target) — never for
    dropping in rank, and never inside its first
    :data:`~.constants.MIN_SURFACED_DAYS` days for any other reason;
-3. **emit** each candidate, best expected GMV first: skip a product not in
+3. **emit** each candidate, best priority first (expected GMV × the lever's
+   calibration × seller-reason penalty, D24.6 / D24.21 (4)): skip a product not in
    the catalogue / not active, a (product, lever) in the seller's 7-day reason
    cooldown (``decision_reasons``), a card whose run is in flight or was
    approved in the last :data:`MEASURING_DAYS` days (no overlapping change in
    measurement, D24.2), an expiry cooldown; refresh an open card's numbers in
    place (D24.17: "re-scored daily"); otherwise write a new revision — at most
-   :data:`~.constants.WEEKLY_CONTENT_CARDS` new content cards per ISO week
-   (D24.17 sub-limit).
+   :data:`~.constants.WEEKLY_CONTENT_CARDS` new content cards per shop week
+   (Asia/Ho_Chi_Minh, Monday start -- the card limits' week; D24.17 sub-limit).
 
-Surfacing (how many show, the day-1 content slot) is the emission budget's
+Surfacing (how many show, the daily content slot) is the emission budget's
 job; this module writes candidates with ``status="active"`` and never touches
 ``surfaced_at``. No commit.
 """
@@ -57,6 +58,7 @@ from juli_backend.services.content_cards.candidates import (
 )
 from juli_backend.services.content_cards.constants import (
     CHIP_VI,
+    CONTENT_LEVERS,
     CONTENT_WORKFLOW_KEYS,
     COOLDOWN_DAYS,
     EXECUTOR_JULI_DRAFTS,
@@ -111,9 +113,17 @@ def _aware(value: datetime | None) -> datetime | None:
 
 
 def _week_start(now: datetime) -> datetime:
-    day = now.astimezone(UTC).date()
-    monday = day - timedelta(days=day.weekday())
-    return datetime(monday.year, monday.month, monday.day, tzinfo=UTC)
+    """The start of the shop's week at *now*: Monday 00:00 Asia/Ho_Chi_Minh, as UTC.
+
+    The same week the card limits count in (``emission_budget.shop_week_start``).
+    """
+    from juli_backend.services.action_cards.emission_budget import (
+        SHOP_UTC_OFFSET,
+        shop_week_start,
+    )
+
+    monday = shop_week_start(now)
+    return datetime(monday.year, monday.month, monday.day, tzinfo=UTC) - SHOP_UTC_OFFSET
 
 
 def _metadata(card: ActionCard) -> dict[str, Any]:
@@ -394,6 +404,16 @@ async def _load_rankings(
     }
 
 
+async def _lever_weights(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+) -> dict[str, float]:
+    """Content lever -> calibration factor × seller-reason penalty (D24.6)."""
+    from juli_backend.services.action_cards.optimize_product_cards import lever_history
+
+    history = await lever_history(session, shop_id, now=now)
+    return {lever: float(item.weight) for lever, item in history.items() if lever in CONTENT_LEVERS}
+
+
 async def emit_content_cards(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -409,6 +429,7 @@ async def emit_content_cards(
     candidates = merge_ranked(
         candidates_from_ranking(tables.get(VIDEO), VIDEO),
         candidates_from_ranking(tables.get(LIVE), LIVE),
+        weights=await _lever_weights(session, shop_id, now=now),
     )
     latest = await _latest_cards(session, shop_id)
     ids = {c.tiktok_product_id for c in candidates}
@@ -597,7 +618,10 @@ def surfaced_long_enough(card: ActionCard, *, now: datetime) -> bool:
 
 
 def week_of(now: datetime) -> date:
-    return _week_start(now).date()
+    """Monday of the shop's week at *now* (Asia/Ho_Chi_Minh)."""
+    from juli_backend.services.action_cards.emission_budget import shop_week_start
+
+    return shop_week_start(now)
 
 
 __all__ = [

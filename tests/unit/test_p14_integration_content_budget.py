@@ -70,7 +70,7 @@ def test_a_p14e_card_is_the_content_slot():
 
 
 @pytest.mark.asyncio
-async def test_first_day_mix_surfaces_a_p14e_content_card(session):
+async def test_the_daily_content_slot_surfaces_a_p14e_content_card(session):
     shop, _ = await seed_shop(session)
     await _products(session, shop, [("p-video", "MN-015")])
     tables = {"video": _video_table([_row("v1", 0.019, 2249, -56_000, ["p-video"])])}
@@ -83,7 +83,7 @@ async def test_first_day_mix_surfaces_a_p14e_content_card(session):
 
     outcome = await apply_emission_budget(session, shop.id, now=START)
 
-    assert len(outcome.newly_surfaced) == 5
+    assert len(outcome.newly_surfaced) == 4  # 3 Juli + the content slot
     assert content in outcome.newly_surfaced
 
 

@@ -5,7 +5,6 @@ See ``reasons.py``.
 
 from juli_backend.services.decision_reasons.reasons import (
     CIRCUMSTANTIAL_REASON_CODES,
-    CLEAR_CHANGE_RELATIVE,
     COOLDOWN_DAYS,
     DISMISSED_CARD_STATUS,
     PENALTY_FLOOR,
@@ -17,7 +16,6 @@ from juli_backend.services.decision_reasons.reasons import (
     InvalidReason,
     active_cooldowns,
     card_basis,
-    clearly_changed,
     close_card,
     cooldown_until_iso,
     product_id_of,
@@ -29,7 +27,6 @@ from juli_backend.services.decision_reasons.reasons import (
 )
 
 __all__ = [
-    "CLEAR_CHANGE_RELATIVE",
     "COOLDOWN_DAYS",
     "DISMISSED_CARD_STATUS",
     "REASON_LABELS_VI",
@@ -42,7 +39,6 @@ __all__ = [
     "InvalidReason",
     "active_cooldowns",
     "card_basis",
-    "clearly_changed",
     "close_card",
     "cooldown_until_iso",
     "product_id_of",

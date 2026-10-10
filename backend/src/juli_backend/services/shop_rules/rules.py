@@ -13,7 +13,8 @@ Each value is one ``shop_rules`` row with ``set_by`` ('team' | 'seller'),
   recommendation.
 - ``max_discount_pct`` (scope: TikTok SKU id) -- %, 0 ≤ v ≤ 100. Unset: no price
   recommendation.
-- ``max_open_cards`` (shop-wide) -- int 1..5. Unset: 5.
+- ``max_open_cards`` (shop-wide) -- int 5..30. Unset: 30 (D24.21 (2); was
+  1..5, unset 5 -- a stored value below 5 reads as 5).
 - ``auto_levers`` (shop-wide) -- subset of title / description / attributes /
   image. Unset: all four.
 - ``protected_terms`` (shop-wide) -- list of non-empty strings. Unset: none.
@@ -40,7 +41,14 @@ what no TikTok API gives Juli, each optional --
 - ``live_schedule`` (shop-wide) -- up to 14 regular LIVE slots
   ``{"days": ["mon", …], "start": "HH:MM", "end": "HH:MM"}``.
 
-They are read by nothing yet but the ranking layer's typed accessor
+Fast track D24.21 (5), the content runs' voice (``content_cards.driver``):
+
+- ``content_tone`` (shop-wide) -- "Giọng văn", free text ≤ 300 characters.
+- ``banned_terms`` (shop-wide) -- "Từ không được dùng", ≤ 50 terms of ≤ 100
+  characters. Content drafts must not contain them, and neither may a listing
+  title / description Juli writes (``listing_edits``).
+
+The P14-F keys are read by nothing yet but the ranking layer's typed accessor
 (``economics.shop_economics``).
 
 Wired today: ``max_open_cards`` caps Optimize Product's surfaced cards
@@ -85,6 +93,9 @@ PLATFORM_CAMPAIGN_NOTE = "platform_campaign_note"
 TARGET_ROAS = "target_roas"
 GMV_MAX_DAILY_BUDGET = "gmv_max_daily_budget"
 LIVE_SCHEDULE = "live_schedule"
+# D24.21 (5): the content runs' voice.
+CONTENT_TONE = "content_tone"
+BANNED_TERMS = "banned_terms"
 
 #: The P14-F keys, in the editor's order.
 OFF_API_RULE_KEYS: tuple[str, ...] = (
@@ -107,6 +118,8 @@ RULE_KEYS: tuple[str, ...] = (
     MAX_OPEN_CARDS,
     AUTO_LEVERS,
     PROTECTED_TERMS,
+    CONTENT_TONE,
+    BANNED_TERMS,
     *OFF_API_RULE_KEYS,
 )
 
@@ -137,10 +150,15 @@ BAND_METRICS: tuple[str, ...] = (
 
 LISTING_LEVERS: tuple[str, ...] = ("title", "description", "attributes", "image")
 DEFAULT_AUTO_LEVERS: frozenset[str] = frozenset(LISTING_LEVERS)
-DEFAULT_MAX_OPEN_CARDS = 5
-MAX_OPEN_CARDS_CEILING = 5
+#: D24.21 (2): "Số thẻ mở cùng lúc" is 5..30, 30 until set (the D24.17 open limit).
+DEFAULT_MAX_OPEN_CARDS = 30
+MIN_OPEN_CARDS_FLOOR = 5
+MAX_OPEN_CARDS_CEILING = 30
 MAX_PROTECTED_TERMS = 200
 MAX_TERM_LENGTH = 100
+#: D24.21 (5).
+MAX_TONE_LENGTH = 300
+MAX_BANNED_TERMS = 50
 
 
 class RuleValidationError(ValueError):
@@ -170,6 +188,9 @@ class ShopRules:
         default_factory=lambda: RuleValue(sorted(DEFAULT_AUTO_LEVERS), None, None, None)
     )
     protected_terms: RuleValue = field(default_factory=lambda: RuleValue([], None, None, None))
+    # D24.21 (5): unset until the seller sets them.
+    content_tone: RuleValue | None = None
+    banned_terms: RuleValue = field(default_factory=lambda: RuleValue([], None, None, None))
     # P14-F: unset (``None`` / empty) until the seller sets them.
     sku_cost: dict[str, RuleValue] = field(default_factory=dict)
     default_gross_margin_pct: RuleValue | None = None
@@ -236,11 +257,30 @@ def validate_rule(rule_key: str, scope_ref: str, value: Any) -> tuple[str, Any]:
     if rule_key == MAX_OPEN_CARDS:
         if isinstance(value, bool) or not isinstance(value, int):
             raise RuleValidationError("max_open_cards: value must be an integer")
-        if not 1 <= value <= MAX_OPEN_CARDS_CEILING:
+        if not MIN_OPEN_CARDS_FLOOR <= value <= MAX_OPEN_CARDS_CEILING:
             raise RuleValidationError(
-                f"max_open_cards: value must be between 1 and {MAX_OPEN_CARDS_CEILING}"
+                f"max_open_cards: value must be between {MIN_OPEN_CARDS_FLOOR} "
+                f"and {MAX_OPEN_CARDS_CEILING}"
             )
         return scope_ref, value
+    if rule_key == CONTENT_TONE:
+        if not isinstance(value, str) or not value.strip():
+            raise RuleValidationError("content_tone: value must be non-empty text")
+        tone = value.strip()
+        if len(tone) > MAX_TONE_LENGTH:
+            raise RuleValidationError(f"content_tone: at most {MAX_TONE_LENGTH} characters")
+        return scope_ref, tone
+    if rule_key == BANNED_TERMS:
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise RuleValidationError("banned_terms: value must be a list of strings")
+        banned = list(dict.fromkeys(term.strip() for term in value if term.strip()))
+        if len(banned) > MAX_BANNED_TERMS:
+            raise RuleValidationError(f"banned_terms: at most {MAX_BANNED_TERMS} terms")
+        if any(len(t) > MAX_TERM_LENGTH for t in banned):
+            raise RuleValidationError(
+                f"banned_terms: each term is at most {MAX_TERM_LENGTH} characters"
+            )
+        return scope_ref, banned
     if rule_key == AUTO_LEVERS:
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
             raise RuleValidationError("auto_levers: value must be a list of lever names")
@@ -461,6 +501,10 @@ async def get_rules(session: AsyncSession, shop_id: uuid.UUID) -> ShopRules:
             rules.auto_levers = _value(row)
         elif row.rule_key == PROTECTED_TERMS:
             rules.protected_terms = _value(row)
+        elif row.rule_key == CONTENT_TONE:
+            rules.content_tone = _value(row)
+        elif row.rule_key == BANNED_TERMS:
+            rules.banned_terms = _value(row)
         elif row.rule_key == SKU_COST:
             rules.sku_cost[row.scope_ref] = _value(row)
         elif row.rule_key in _SHOP_WIDE_OFF_API:
@@ -468,12 +512,16 @@ async def get_rules(session: AsyncSession, shop_id: uuid.UUID) -> ShopRules:
     return rules
 
 
+def _clamp_open_cards(value: int) -> int:
+    return max(MIN_OPEN_CARDS_FLOOR, min(MAX_OPEN_CARDS_CEILING, value))
+
+
 async def max_open_cards(session: AsyncSession, shop_id: uuid.UUID) -> int:
-    """The seller's open-card cap for Optimize Product, 5 until set."""
+    """The seller's open-card cap, 30 until set (D24.21 (2))."""
     rows = await _rows(session, shop_id, MAX_OPEN_CARDS)
     if not rows or not isinstance(rows[0].value, int):
         return DEFAULT_MAX_OPEN_CARDS
-    return max(1, min(MAX_OPEN_CARDS_CEILING, rows[0].value))
+    return _clamp_open_cards(rows[0].value)
 
 
 async def auto_levers(session: AsyncSession, shop_id: uuid.UUID) -> frozenset[str]:
@@ -489,7 +537,7 @@ async def configured_max_open_cards(session: AsyncSession, shop_id: uuid.UUID) -
     rows = await _rows(session, shop_id, MAX_OPEN_CARDS)
     if not rows or not isinstance(rows[0].value, int):
         return None
-    return max(1, min(MAX_OPEN_CARDS_CEILING, rows[0].value))
+    return _clamp_open_cards(rows[0].value)
 
 
 async def stability_bands(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Decimal]:
@@ -506,6 +554,24 @@ async def protected_terms(session: AsyncSession, shop_id: uuid.UUID) -> list[str
     if not rows or not isinstance(rows[0].value, list):
         return []
     return [str(term) for term in rows[0].value if isinstance(term, str) and term.strip()]
+
+
+async def content_tone(session: AsyncSession, shop_id: uuid.UUID) -> str | None:
+    """The seller's "Giọng văn" (``content_tone``), or ``None`` until set."""
+    rows = await _rows(session, shop_id, CONTENT_TONE)
+    if not rows or not isinstance(rows[0].value, str) or not rows[0].value.strip():
+        return None
+    return rows[0].value.strip()[:MAX_TONE_LENGTH]
+
+
+async def banned_terms(session: AsyncSession, shop_id: uuid.UUID) -> list[str]:
+    """The seller's "Từ không được dùng" (``banned_terms``); empty until set."""
+    rows = await _rows(session, shop_id, BANNED_TERMS)
+    if not rows or not isinstance(rows[0].value, list):
+        return []
+    return list(
+        dict.fromkeys(str(t).strip() for t in rows[0].value if isinstance(t, str) and t.strip())
+    )
 
 
 #: ADR-106 card lever code -> the rule's lever name. Codes absent here

@@ -19,7 +19,7 @@ function baseRules(over: Record<string, unknown>) {
     product_cost: {},
     max_discount_pct: {},
     min_margin_pct: null,
-    max_open_cards: { ...UNSET, value: 5 },
+    max_open_cards: { ...UNSET, value: 30 },
     auto_levers: { ...UNSET, value: ["attributes", "description", "image", "title"] },
     protected_terms: { ...UNSET, value: [] },
     band_metrics: ["impressions", "ctr"],

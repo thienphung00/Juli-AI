@@ -186,7 +186,7 @@ function Outcome({
     return (
       <ReasonDone
         lines={[
-          "Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ.",
+          "Juli không đề xuất lại cùng thay đổi cho sản phẩm này trong 7 ngày.",
           "Chỗ trống trong Đề xuất được dành cho sản phẩm có GMV tiềm năng kế tiếp.",
         ]}
         reason={reasonOption(REJECT_REASONS, rejectReason)}

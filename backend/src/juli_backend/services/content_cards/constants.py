@@ -39,7 +39,8 @@ VALIDITY_DAYS = 7
 COOLDOWN_DAYS = 7
 #: Once surfaced, a card stays at least this long unless it is no longer valid.
 MIN_SURFACED_DAYS = 3
-#: D24.17 sub-limit: at most this many new content cards per ISO week.
+#: D24.17 sub-limit: at most this many new content cards per shop week
+#: (Asia/Ho_Chi_Minh, Monday start -- the card limits' week).
 WEEKLY_CONTENT_CARDS = 5
 
 PAYLOAD_VERSION = "p14-content-v1"

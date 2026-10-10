@@ -754,7 +754,7 @@ function DonePanel({
   if (kind === "revert") {
     const fields = changedLabels.length > 0 ? changedLabels.join(" / ") : "này";
     const lines = [
-      `Kết quả đo của thay đổi này dừng lại và được ghi là "Đã hoàn tác". Juli không đề xuất lại thay đổi ${fields} cho sản phẩm này trong 7 ngày, trừ khi số liệu đổi rõ.`,
+      `Kết quả đo của thay đổi này dừng lại và được ghi là "Đã hoàn tác". Juli không đề xuất lại thay đổi ${fields} cho sản phẩm này trong 7 ngày.`,
     ];
     const small = "Một lần hoàn tác không thể hoàn tác tiếp. Muốn dùng lại nội dung mới, chờ đề xuất sau.";
     const title = "Hoàn tác hoàn thành · đã khôi phục nội dung cũ";

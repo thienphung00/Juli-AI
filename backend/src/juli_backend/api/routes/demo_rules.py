@@ -12,7 +12,8 @@
 Fast track P14-F adds the rule fields for what no TikTok API gives Juli (cost
 per SKU, default margin and discount cap, programme fee, platform campaigns,
 ROAS target / GMV Max budget, regular LIVE slots); they use the same GET / PUT /
-DELETE, see ``services/shop_rules/rules.py``.
+DELETE, see ``services/shop_rules/rules.py``. D24.21 (5) adds ``content_tone``
+("Giọng văn") and ``banned_terms`` ("Từ không được dùng"), the same way.
 
 ``set_by`` is ``team`` (the Juli team filling values in on the seller's behalf,
 the operator phase) or ``seller``. The codebase has no team/staff role yet, so
@@ -62,6 +63,10 @@ class ShopRulesData(BaseModel):
     max_open_cards: RuleValueItem
     auto_levers: RuleValueItem
     protected_terms: RuleValueItem
+    #: D24.21 (5): "Giọng văn" (≤ 300 characters) and "Từ không được dùng"
+    #: (≤ 50 terms), read by the content runs.
+    content_tone: RuleValueItem | None
+    banned_terms: RuleValueItem
     band_metrics: list[str]
     listing_levers: list[str]
     # P14-F: what no TikTok API gives Juli (contract p14-rules-and-cost.md §3).
@@ -132,6 +137,8 @@ async def get_shop_rules(
             max_open_cards=_item(rules.max_open_cards),
             auto_levers=_item(rules.auto_levers),
             protected_terms=_item(rules.protected_terms),
+            content_tone=_optional(rules.content_tone),
+            banned_terms=_item(rules.banned_terms),
             band_metrics=list(shop_rules.BAND_METRICS),
             listing_levers=list(shop_rules.LISTING_LEVERS),
             sku_cost={k: _item(v) for k, v in rules.sku_cost.items()},

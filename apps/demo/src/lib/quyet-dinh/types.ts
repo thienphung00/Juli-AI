@@ -21,6 +21,9 @@ export interface ShopRules {
   readonly max_open_cards: RuleValueItem;
   readonly auto_levers: RuleValueItem;
   readonly protected_terms: RuleValueItem;
+  // D24.21 (5): the content runs' voice. Optional so an older backend parses.
+  readonly content_tone?: RuleValueItem | null;
+  readonly banned_terms?: RuleValueItem;
   readonly band_metrics: readonly string[];
   readonly listing_levers: readonly string[];
   // P14-F: what no TikTok API gives Juli. Optional so an older backend (or a
@@ -45,6 +48,8 @@ export type RuleKey =
   | "max_open_cards"
   | "auto_levers"
   | "protected_terms"
+  | "content_tone"
+  | "banned_terms"
   | "sku_cost"
   | "default_gross_margin_pct"
   | "default_max_discount_pct"

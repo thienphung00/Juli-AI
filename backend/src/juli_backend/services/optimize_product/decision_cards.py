@@ -12,7 +12,8 @@ that input and nothing else:
    ("Juli tự đề xuất"), then cards waiting for the seller's maximum discount
    ("Cần mức giảm giá tối đa"), then cards whose listing fault TikTok was not
    asked about yet ("Chưa hỏi TikTok"), each group ranked by ``gap × GMV_28d``;
-3. keep the top ``top_k`` (30, D24.17); one proposal per product.
+3. keep the top ``top_k`` (30, D24.17) per executor type (Juli / Seller Center,
+   D24.21 (4)); one proposal per product.
 
 How many of those surface is the emission budget's call (D24.17: 5 new a
 day, 25 a week, 30 open). Learning (D24.6): the ranking value is the
@@ -67,8 +68,15 @@ from juli_backend.services.optimize_product.shop_report import (
 #: Version of the card payload shape; bump when ``diagnosis`` changes shape.
 PAYLOAD_VERSION = "adr106-v1"
 
-#: Ranked proposals kept per shop (D24.17: nightly candidates top 30; was 10).
+#: Ranked proposals kept per shop and executor type (D24.17: nightly candidates
+#: top 30, was 10; D24.21 (4): per type -- Juli / Seller Center -- since each
+#: fills its own daily slot).
 DEFAULT_TOP_K = 30
+
+#: The promotion angles a seller carries out in Seller Center (D24.21 (4) slot).
+SELLER_CENTER_ANGLES: frozenset[Angle] = frozenset(
+    {Angle.GIAM_GIA, Angle.MUA_NHIEU_GIAM_NHIEU, Angle.FLASH_SALE, Angle.GIAM_PHI_VAN_CHUYEN}
+)
 
 STATUS_CODE_RULE = "rule"
 STATUS_CODE_NEEDS_CAP = "needs_discount_cap"
@@ -459,6 +467,24 @@ def _pending_proposal(
     )
 
 
+def keep_top_per_type(ordered: list[CardProposal], top_k: int) -> list[CardProposal]:
+    """The best ``top_k`` of each executor type, re-ranked 1..n in their order.
+
+    D24.21 (4): Juli-executed and Seller Center cards fill separate daily
+    slots, so each type keeps its own top ``top_k`` -- otherwise a shop whose
+    best 30 are all Juli cards would never fill its Seller Center slot.
+    """
+    per_type: dict[bool, int] = {}
+    selected: list[CardProposal] = []
+    for proposal in ordered:
+        seller_center = proposal.lever in SELLER_CENTER_ANGLES
+        if per_type.get(seller_center, 0) >= top_k:
+            continue
+        per_type[seller_center] = per_type.get(seller_center, 0) + 1
+        selected.append(proposal)
+    return [replace(p, rank=index) for index, p in enumerate(selected, start=1)]
+
+
 def plan_shop_cards(
     funnels: list[ProductFunnel],
     catalog: dict[str, CatalogProduct],
@@ -539,12 +565,12 @@ def plan_shop_cards(
             continue
         seen.add(proposal.product_id)
         ordered.append(proposal)
-    kept = [replace(p, rank=index) for index, p in enumerate(ordered[:top_k], start=1)]
+    kept = keep_top_per_type(ordered, top_k)
     return ShopCardPlan(
         proposals=kept,
         medians=medians,
         skips=skips,
         excluded=excluded,
         products_scored=len(funnels),
-        overflow=max(len(ordered) - top_k, 0),
+        overflow=len(ordered) - len(kept),
     )

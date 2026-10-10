@@ -7,13 +7,10 @@ note of at most 300 characters. :func:`record_reason` stores it with who and
 when, and the (product, lever) it cools down.
 
 **Cooldown.** After any of the three actions the same lever is not proposed
-again for that product for :data:`COOLDOWN_DAYS` days, unless the product's
-data changed clearly. "Clearly", conservatively: the weak stage's rate the card
-was proposed on (``basis_rate``, the CTR / CTOR / AOV of
-``recoverable_gmv_basis``) moved by more than :data:`CLEAR_CHANGE_RELATIVE`
-(20 %) relative to that value, in either direction. A move of 20 % or less --
-ordinary day-to-day noise for a product's 14-day rate -- keeps the cooldown.
-No stored rate, or no current rate, never lifts it: only the clock does.
+again for that product for :data:`COOLDOWN_DAYS` days -- strictly: only the
+clock lifts it (owner D24.21 (1), 2026-10-10, which removed the earlier early
+return on a > 20 % move of the weak stage's rate). ``basis_stage_rate`` /
+``basis_rate`` are still stored with the reason, as history.
 
 Pure policy + two small queries; no commit (the routes commit).
 """
@@ -41,9 +38,6 @@ from juli_backend.models.decision_reasons import (
 from juli_backend.models.models import ActionCard
 
 COOLDOWN_DAYS = 7
-#: Relative move of the weak-stage rate that counts as a clear data change.
-CLEAR_CHANGE_RELATIVE = Decimal("0.20")
-
 #: The suppression reason card generation logs for a cooled-down proposal.
 SUPPRESSED_REASON_DECISION_COOLDOWN = "decision_cooldown"
 
@@ -221,17 +215,6 @@ async def active_cooldowns(
         .all()
     )
     return {(str(row.product_id), str(row.lever_code)): row for row in rows}
-
-
-def clearly_changed(reason: DecisionReason, current_rates: Mapping[str, Decimal | None]) -> bool:
-    """Whether the weak stage's rate moved > 20 % relative since the reason (see module)."""
-    if reason.basis_stage_rate is None or reason.basis_rate is None or reason.basis_rate <= 0:
-        return False
-    current = current_rates.get(reason.basis_stage_rate)
-    if current is None:
-        return False
-    basis = Decimal(str(reason.basis_rate))
-    return abs(Decimal(current) - basis) / basis > CLEAR_CHANGE_RELATIVE
 
 
 #: D24.6: how long a seller reason keeps lowering its lever's priority, how

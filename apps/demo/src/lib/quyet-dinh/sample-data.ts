@@ -421,9 +421,11 @@ export function sampleRules(): ShopRules {
     product_cost: {},
     max_discount_pct: {},
     min_margin_pct: null,
-    max_open_cards: { ...unset, value: 5 },
+    max_open_cards: { ...unset, value: 30 },
     auto_levers: { ...unset, value: ["attributes", "description", "image", "title"] },
     protected_terms: { ...unset, value: [] },
+    content_tone: band("Thân thiện, xưng mình, gọi khách là bạn; không nói quá"),
+    banned_terms: band(["rẻ nhất", "cam kết 100 %"]),
     band_metrics: ["impressions", "ctr", "conversion_rate", "items_sold", "gmv", "sku_orders", "gmv_per_order"],
     listing_levers: ["title", "description", "attributes", "image"],
     // P14-F sample values (read-only in the signed-out sample).

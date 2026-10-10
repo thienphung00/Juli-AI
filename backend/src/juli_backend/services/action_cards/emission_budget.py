@@ -23,10 +23,13 @@ weeks are the shop's (Vietnam, UTC+7; weeks start Monday). Campaign-plan cards
   The same action on the same subject may return ``cooldown_days`` (7) after
   that (``persist`` / ``optimize_product_cards`` own the return; see
   :func:`expired_card_returns`).
-- **First connect.** A shop that has never had a surfaced card gets its first
-  day mixed by executor (``first_day_mix``: 3 Juli / Juli + ảnh, 1 Seller
-  Center, 1 content — P14-E video/LIVE cards); an empty slot is
-  filled with the next best card. Every later day is plain priority order.
+- **Fixed daily slots** (D24.21 (4), owner 2026-10-10). Every shop day --
+  the first one included -- is split by executor (``daily_slots``: at most 3
+  Juli / Juli + ảnh, 1 Seller Center, 1 content -- P14-E video/LIVE cards).
+  Each type is ranked by its own priority (expected GMV × calibration ×
+  reason penalty, set by its producer); a slot with no candidate stays
+  **empty** -- no backfill from another type. The weekly and open limits still
+  bind across all slots. This replaced D24.17's first-day-only mix.
 
 **Surfacing ledger.** ``decision_emission_novelty_ledger`` (the #716 weekly
 novelty ledger) now holds one row per surfacing: ``workflow_key`` carries
@@ -53,7 +56,7 @@ import uuid
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import (
@@ -102,7 +105,7 @@ EXPIRED_AT_METADATA_KEY = "expired_at"
 #: No producer writes them yet; this is the hook.
 CAMPAIGN_PLAN_WORKFLOW_KEYS: frozenset[str] = frozenset({"campaign_plan"})
 
-#: Workflows whose cards fill the first day's ``content`` slot (video / LIVE,
+#: Workflows whose cards fill the daily ``content`` slot (video / LIVE,
 #: "Juli soạn · bạn làm", D24.4): P14-E's ``content_video`` / ``content_live``.
 #: A card of any workflow can also claim it with ``recommendation_payload``
 #: ``card_executor`` = ``juli_drafts`` (P14-E) or ``executor_type`` = ``video``
@@ -113,7 +116,8 @@ CONTENT_WORKFLOW_KEYS: frozenset[str] = _P14E_CONTENT_WORKFLOW_KEYS
 _CONTENT_EXECUTOR_TYPES = frozenset({"video", "live"})
 _CONTENT_CARD_EXECUTORS = frozenset({EXECUTOR_JULI_DRAFTS})
 
-#: Executor slot of a card the first-day mix does not name.
+#: Executor slot of a card with no ADR-106 lever (legacy workflows, rule
+#: pipeline cards). Those are run by the Juli agent, so they take ``juli`` slots.
 EXECUTOR_OTHER = "other"
 
 #: The shop's clock (Vietnam, UTC+7) for "day" and "week".
@@ -169,7 +173,7 @@ def _payload(card: ActionCard) -> dict:
 
 
 def executor_slot(card: ActionCard) -> str:
-    """Who carries *card* out, as a first-day-mix slot (D24.17)."""
+    """Who carries *card* out (D24.17); :func:`daily_slot` maps it to a day slot."""
     from juli_backend.services.demo_decisions.card_view import LEVERS
 
     payload = _payload(card)
@@ -268,29 +272,6 @@ async def _surfacings_this_week(
     return list((await session.execute(stmt)).scalars().all())
 
 
-async def _shop_ever_surfaced(session: AsyncSession, shop_id: uuid.UUID) -> bool:
-    """Whether the shop has ever had a card in front of it (ledger or card row)."""
-    ledger = await session.execute(
-        select(func.count())
-        .select_from(DecisionEmissionNoveltyLedger)
-        .where(DecisionEmissionNoveltyLedger.shop_id == shop_id)
-    )
-    if (ledger.scalar_one() or 0) > 0:
-        return True
-    cards = await session.execute(
-        select(func.count())
-        .select_from(ActionCard)
-        .where(
-            ActionCard.shop_id == shop_id,
-            or_(
-                ActionCard.surfaced_at.isnot(None),
-                ActionCard.status.in_(("approved", "executing", "dismissed", EXPIRED_STATUS)),
-            ),
-        )
-    )
-    return (cards.scalar_one() or 0) > 0
-
-
 def _log_suppressed(shop_id_str: str, card: ActionCard, reason: str) -> None:
     """One structured log entry per suppressed candidate (#716 AC6).
 
@@ -324,33 +305,65 @@ async def _with_shop_card_cap(
     return replace(config, max_open=cap)
 
 
-def first_day_pick(
-    cards: list[ActionCard], slots: int, mix: tuple[tuple[str, int], ...]
-) -> list[ActionCard]:
-    """The first day's cards: fill each executor slot in priority order, then the rest.
+def daily_slot(card: ActionCard) -> str:
+    """The daily slot *card* takes (D24.21 (4)): ``other`` cards share ``juli``."""
+    slot = executor_slot(card)
+    return EXECUTOR_JULI if slot == EXECUTOR_OTHER else slot
 
-    *cards* is in priority order. Returns at most *slots* cards, in priority order.
+
+def daily_slot_pick(
+    cards: list[ActionCard],
+    room: int,
+    slots: dict[str, int],
+    fill_order: tuple[str, ...],
+) -> list[ActionCard]:
+    """Today's new cards: up to ``slots[slot]`` of each type, in its own priority order.
+
+    *cards* is in priority order; *slots* is the room left in each slot today;
+    *room* the room left across all slots (weekly / open / daily). Slots fill in
+    *fill_order*. A slot without a candidate stays empty (no backfill). In the
+    ``juli`` slot the ADR-106 Juli cards go first (their own ranking), then
+    legacy cards (``other``: a different priority scale, not comparable).
+    Returns the chosen cards in priority order.
     """
     chosen: list[ActionCard] = []
-    taken: set[uuid.UUID] = set()
-    for slot, count in mix:
-        left = count
-        for card in cards:
-            if len(chosen) >= slots or left <= 0:
+    legacy_last = sorted(cards, key=lambda c: executor_slot(c) == EXECUTOR_OTHER)
+    for slot in fill_order:
+        left = slots.get(slot, 0)
+        for card in legacy_last:
+            if len(chosen) >= room or left <= 0:
                 break
-            if card.id in taken or executor_slot(card) != slot:
+            if daily_slot(card) != slot:
                 continue
             chosen.append(card)
-            taken.add(card.id)
             left -= 1
-    for card in cards:
-        if len(chosen) >= slots:
-            break
-        if card.id not in taken:
-            chosen.append(card)
-            taken.add(card.id)
     order = {card.id: index for index, card in enumerate(cards)}
     return sorted(chosen, key=lambda c: order[c.id])
+
+
+async def _surfaced_today_by_slot(
+    session: AsyncSession, rows: list[DecisionEmissionNoveltyLedger], day_start: datetime
+) -> dict[str, int]:
+    """Slot -> how many cards were surfaced for the first time today (ledger rows)."""
+    ids: list[uuid.UUID] = []
+    for row in rows:
+        if _as_aware(row.first_surfaced_at) < day_start:
+            continue
+        hex_id, sep, _day = row.workflow_key.partition("@")
+        if not sep:
+            continue
+        try:
+            ids.append(uuid.UUID(hex=hex_id))
+        except ValueError:
+            continue
+    counts: dict[str, int] = {}
+    if not ids:
+        return counts
+    cards = (await session.execute(select(ActionCard).where(ActionCard.id.in_(ids)))).scalars()
+    for card in cards:
+        slot = daily_slot(card)
+        counts[slot] = counts.get(slot, 0) + 1
+    return counts
 
 
 async def apply_emission_budget(
@@ -374,10 +387,11 @@ async def apply_emission_budget(
        window never surfaces.
     4. **Room.** ``min(daily_new_cap − surfaced today, weekly_new_cap −
        surfaced this week, max_open − open)``; campaign-plan drafts surface
-       without taking room. The first day a shop ever sees cards fills the
-       room with the executor mix (:func:`first_day_pick`); otherwise in
-       priority order. Drafts left over are suppressed with the binding
-       limit's reason.
+       without taking room. Within it, every day's fixed executor slots
+       (:func:`daily_slot_pick`, D24.21 (4)): each slot takes its own type in
+       priority order, an empty slot stays empty. Drafts left over are
+       suppressed with the binding limit's reason, or ``daily_cap`` when
+       their slot is full.
 
     Every newly surfaced card adds one ledger row. Performs no commit; the
     caller controls the transaction.
@@ -395,7 +409,6 @@ async def apply_emission_budget(
         .order_by(ActionCard.priority.asc(), ActionCard.workflow_key.asc())
     )
     candidates = list((await session.execute(stmt)).scalars().all())
-    first_connect = not await _shop_ever_surfaced(session, shop_id)
     week_rows = await _surfacings_this_week(session, shop_id, week_start)
     ledger_keys = {row.workflow_key for row in week_rows}
     surfaced_week = len(week_rows)
@@ -441,18 +454,24 @@ async def apply_emission_budget(
         else:
             eligible.append(card)
 
-    if first_connect:
-        chosen = first_day_pick(eligible, room, config.first_day_mix)
-    else:
-        chosen = eligible[:room]
+    used_today = await _surfaced_today_by_slot(session, week_rows, day_start)
+    slot_room = {
+        slot: max(count - used_today.get(slot, 0), 0) for slot, count in config.daily_slots
+    }
+    fill_order = tuple(slot for slot, _count in config.daily_slots)
+    chosen = daily_slot_pick(eligible, room, slot_room, fill_order)
     chosen_ids = {card.id for card in chosen}
+    room_left = room - len(chosen)
 
     newly_surfaced: list[ActionCard] = []
     for card in eligible:
         if card.id not in chosen_ids:
-            card.suppressed_reason = room_reason
-            suppressed[room_reason].append(card)
-            _log_suppressed(shop_id_str, card, room_reason)
+            # Overall room used up -> the binding limit; else its slot is full
+            # (or has no daily slot) -> today's limit for that type.
+            reason = room_reason if room_left <= 0 else SUPPRESSED_REASON_DAILY_CAP
+            card.suppressed_reason = reason
+            suppressed[reason].append(card)
+            _log_suppressed(shop_id_str, card, reason)
             continue
         card.surfaced_at = now
         card.suppressed_reason = None
@@ -480,7 +499,6 @@ async def apply_emission_budget(
         "emission_budget_applied",
         extra={
             "shop_id": shop_id_str,
-            "first_connect": first_connect,
             "surfaced_count": len(open_cards) + len(newly_surfaced),
             "newly_surfaced_count": len(newly_surfaced),
             "expired_count": len(expired),

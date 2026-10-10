@@ -181,6 +181,7 @@ async def decide_confirmation(
         selected_option_id = _bind_consent(run, confirmation, option_id)
         if edited_values:
             await _apply_seller_edits(session, run, edited_values)
+        await _check_listing_banned_terms(session, run)
         approved = True
     else:
         raise ConfirmationRejected(
@@ -254,6 +255,7 @@ async def _apply_seller_edits(
             proposed=arguments,
             current=detail if isinstance(detail, Mapping) else None,
             protected_terms=await shop_rules.protected_terms(session, run.shop_id),
+            banned_terms=await shop_rules.banned_terms(session, run.shop_id),
         )
     except shop_rules.ListingEditViolation as violation:
         raise EditRejected(violation.field, violation.message_vi) from None
@@ -269,6 +271,28 @@ async def _apply_seller_edits(
             "edited_fields": sorted(changed),
         },
     }
+
+
+async def _check_listing_banned_terms(session: AsyncSession, run: WorkflowRunRow) -> None:
+    """D24.21 (5): no listing write may carry the seller's "Từ không được dùng".
+
+    Applies to the title / description about to be written -- Juli's proposal
+    or the seller's edit of it. :class:`EditRejected`; the row stays pending.
+    """
+    run_state: dict[str, Any] = run.state if isinstance(run.state, dict) else {}
+    pending_state = run_state.get("pending_confirmation")
+    if not isinstance(pending_state, dict) or pending_state.get("tool_name") != EDITABLE_TOOL_NAME:
+        return
+    arguments = pending_state.get("arguments")
+    if not isinstance(arguments, Mapping):
+        return
+    banned = await shop_rules.banned_terms(session, run.shop_id)
+    if not banned:
+        return
+    try:
+        shop_rules.check_banned_terms(arguments, banned)
+    except shop_rules.ListingEditViolation as violation:
+        raise EditRejected(violation.field, violation.message_vi) from None
 
 
 async def _pending_confirmation(

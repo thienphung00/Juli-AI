@@ -10,9 +10,9 @@ Each row records exactly one ``reason_code`` (the dialog's required radio), the
 optional ``note`` (≤ 300 characters), who decided and when, and what the 7-day
 cooldown is keyed on: the product (``product_id``) and the change type
 (``lever_code``). ``basis_stage_rate`` / ``basis_rate`` are the weak stage's
-rate the card was proposed on -- card generation compares the current rate with
-it to decide whether the product's data "changed clearly" (see
-``services/decision_reasons``). Rows are INSERT-only. Timestamps naive UTC.
+rate the card was proposed on, kept as history (since D24.21 the cooldown is
+strictly 7 days; no data change lifts it, see ``services/decision_reasons``).
+Rows are INSERT-only. Timestamps naive UTC.
 """
 
 from __future__ import annotations

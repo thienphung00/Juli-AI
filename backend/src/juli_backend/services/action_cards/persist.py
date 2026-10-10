@@ -69,6 +69,7 @@ _SEVERITY_RANK: dict[str, int] = {
 # seller (or dry-run flow) has moved a card past that — approved, dismissed,
 # or executing — continuous re-scoring must not silently reset it back.
 IN_FLIGHT_STATUSES: frozenset[str] = frozenset({"approved", "dismissed", "executing"})
+_DISMISSED_STATUS = "dismissed"
 
 _ACTIVE_STATUS = "active"
 
@@ -285,10 +286,11 @@ def _terminal_cooldown_expired(
     #716 added the column) — the same fallback already documented pre-B-4 for
     the surfacing signal.
 
-    Under #1703 this is the churn floor ADR-087 decision 6 permits as a
-    *secondary* cap ("a time-based rule is admissible only as a secondary cap
-    on churn, never as the primary trigger"): the clock cannot cause a
-    revision, it can only delay one the basis already justified.
+    Under #1703 this was the churn floor ADR-087 decision 6 permits as a
+    *secondary* cap. Since D24.21 (3) (owner, 2026-10-10) a **dismissed** card
+    (the seller's Từ chối / Không thực hiện / Hoàn tác) returns on the clock
+    alone once this elapses -- the strict 7-day rule every card follows; for an
+    executed card the clock still only delays a revision the basis justified.
     """
     stamped = [
         _as_aware(marker)
@@ -464,7 +466,9 @@ async def emit_scoring_cards(
     3. **Compute the basis** for the subject under this workflow key
        (``basis.compute_card_basis``) -- the KPI severity buckets behind the
        recommendation plus the subject's own material fields.
-    4. **Decide**: no chain yet → revision 1; basis unchanged →
+    4. **Decide**: an expired or dismissed newest row → a new revision 7 days
+       after expiry / the seller's action, basis moved or not (D24.17,
+       D24.21 (3)); no chain yet → revision 1; basis unchanged →
        ``basis_unchanged``; basis changed but a card is still standing →
        ``active_card_exists``; basis changed and the newest row is a draft
        the seller has never been shown → recomputed in place (#716's
@@ -518,22 +522,32 @@ async def emit_scoring_cards(
             result=result,
         )
 
-        if latest is not None and latest.status == EXPIRED_STATUS:
+        if latest is not None and latest.status in (EXPIRED_STATUS, _DISMISSED_STATUS):
             # D24.17: an expired card is history; its action returns as a new
             # revision 7 days after expiry, whether or not the basis moved.
+            # D24.21 (3): a card the seller rejected / declined / reverted
+            # (dismissed) likewise returns 7 days after that action, whether
+            # or not the basis moved -- replacing ADR-087 d.6's "the clock
+            # alone never triggers a revision" for legacy workflows.
             if _card_still_stands(
                 latest,
                 now=computed_at,
                 cooldown_days=config.cooldown_days,
                 validity_days=config.validity_days,
             ):
+                if latest.status == EXPIRED_STATUS:
+                    reason = SUPPRESSED_REASON_EXPIRED_COOLDOWN
+                elif basis_unchanged(stored_basis(latest), current_basis):
+                    reason = SUPPRESSED_REASON_BASIS_UNCHANGED
+                else:
+                    reason = SUPPRESSED_REASON_ACTIVE_CARD_EXISTS
                 decision = CardEmission(
                     workflow_key=workflow_key,
                     subject_type=subject.subject_type,
                     subject_id=subject.subject_id,
                     card=latest,
                     revision=latest.revision,
-                    suppressed_reason=SUPPRESSED_REASON_EXPIRED_COOLDOWN,
+                    suppressed_reason=reason,
                 )
                 decisions.append(decision)
                 _log_suppressed(shop_id, decision)

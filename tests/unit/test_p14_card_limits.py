@@ -2,8 +2,9 @@
 
 AC-14.1 one limit for every shop: 5 new cards a day, 25 a week, 30 open; a
         14-day simulation on a fixture shop checks the counts day by day.
-AC-14.2 first connect: day 1 is mixed by executor (3 Juli, 1 Seller Center,
-        1 content); an empty slot takes the next best card.
+AC-14.2 fixed daily slots (D24.21 (4), replacing D24.17's first-day mix):
+        every day at most 3 Juli / Juli + ảnh, 1 Seller Center, 1 content,
+        each type in its own priority order; an empty slot stays empty.
 AC-14.3 a card is valid 7 days from surfacing, then ``expired``; its action
         returns on the same product 7 days after expiry, every time.
 AC-14.4 a surfaced card stays at least 3 days; earlier withdrawal only when it
@@ -63,7 +64,20 @@ from tests.unit.test_optimize_product_decision_cards import (
 #: Thursday 2026-10-15, 09:00 in Vietnam.
 START = datetime(2026, 10, 15, 2, 0, tzinfo=UTC)
 
-_LEVER_CYCLE = ("title", "cover_image", "product_discount", "description")
+_JULI_LEVERS = ("title", "cover_image", "description")
+
+
+def _slot_of(card: ActionCard) -> str:
+    from juli_backend.services.action_cards.emission_budget import daily_slot
+
+    return daily_slot(card)
+
+
+def _slots(cards) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for card in cards:
+        counts[_slot_of(card)] = counts.get(_slot_of(card), 0) + 1
+    return counts
 
 
 def _card(shop_id: uuid.UUID, priority: int, *, lever: str | None, workflow_key: str | None = None):
@@ -100,18 +114,22 @@ async def tenant_shop(session):
 
 @pytest.mark.asyncio
 async def test_fourteen_day_simulation_counts_per_day(session, tenant_shop):
-    """80 waiting cards, no seller action, one budget run a day for 14 days."""
+    """80 waiting cards (48 Juli, 16 Seller Center, 16 content), no seller
+    action, one budget run a day for 14 days: every day that surfaces fills the
+    fixed slots 3 / 1 / 1, each type in its own priority order."""
     shop_id = tenant_shop.id
     for priority in range(1, 81):
-        if priority == 10:
+        if priority % 5 == 0:
             session.add(_content_card(shop_id, priority))
+        elif priority % 5 == 4:
+            session.add(_card(shop_id, priority, lever="product_discount"))
         else:
-            session.add(_card(shop_id, priority, lever=_LEVER_CYCLE[(priority - 1) % 4]))
+            session.add(_card(shop_id, priority, lever=_JULI_LEVERS[priority % 3]))
     await session.flush()
 
     # (new today, open after the run, expired today, binding limit if any)
     expected = [
-        (5, 5, 0, SUPPRESSED_REASON_DAILY_CAP),  # Thu: first connect
+        (5, 5, 0, SUPPRESSED_REASON_DAILY_CAP),  # Thu: first connect, same slots
         (5, 10, 0, SUPPRESSED_REASON_DAILY_CAP),  # Fri
         (5, 15, 0, SUPPRESSED_REASON_DAILY_CAP),  # Sat
         (5, 20, 0, SUPPRESSED_REASON_DAILY_CAP),  # Sun: week 1 had 20
@@ -135,13 +153,19 @@ async def test_fourteen_day_simulation_counts_per_day(session, tenant_shop):
         assert len(outcome.surfaced) == open_, f"day {day + 1}"
         assert len(outcome.expired) == expired, f"day {day + 1}"
         assert outcome.suppressed[binding], f"day {day + 1}: {binding} should bind"
+        if new:
+            assert _slots(outcome.newly_surfaced) == {
+                "juli": 3,
+                "seller_center": 1,
+                "content": 1,
+            }, f"day {day + 1}"
         if day == 0:
             first_day = list(outcome.newly_surfaced)
-            # Mix: priorities 1, 2, 4 (Juli), 3 (Seller Center), 10 (video).
-            assert sorted(c.priority for c in first_day) == [1, 2, 3, 4, 10]
+            # Juli 1, 2, 3 · Seller Center 4 · content 5.
+            assert sorted(c.priority for c in first_day) == [1, 2, 3, 4, 5]
         if day == 1:
-            # The mix is the first day only; afterwards plain priority order.
-            assert sorted(c.priority for c in outcome.newly_surfaced) == [5, 6, 7, 8, 9]
+            # Day 2 has the same slots, each type next in its own order.
+            assert sorted(c.priority for c in outcome.newly_surfaced) == [6, 7, 8, 9, 10]
         if day < 7:
             # Sticky: a surfaced card keeps the moment it was first surfaced.
             assert all(c.surfaced_at == START for c in first_day)
@@ -164,7 +188,34 @@ async def test_fourteen_day_simulation_counts_per_day(session, tenant_shop):
 
 
 @pytest.mark.asyncio
-async def test_first_day_without_content_fills_the_slot_with_the_next_best(session, tenant_shop):
+async def test_fourteen_days_with_a_type_running_out_leave_its_slot_empty(session, tenant_shop):
+    """2 content and 3 Seller Center candidates only: once they are used the
+    slots stay empty -- the Juli slot never grows past 3 (no backfill)."""
+    shop_id = tenant_shop.id
+    for priority in range(1, 61):
+        session.add(_card(shop_id, priority, lever=_JULI_LEVERS[priority % 3]))
+    for priority in (61, 62, 63):
+        session.add(_card(shop_id, priority, lever="flash_sale"))
+    for priority in (64, 65):
+        session.add(_content_card(shop_id, priority))
+    await session.flush()
+
+    per_day = []
+    for day in range(14):
+        outcome = await apply_emission_budget(session, shop_id, now=START + timedelta(days=day))
+        await session.flush()
+        per_day.append(_slots(outcome.newly_surfaced))
+    assert per_day[0] == {"juli": 3, "seller_center": 1, "content": 1}
+    assert per_day[1] == {"juli": 3, "seller_center": 1, "content": 1}
+    assert per_day[2] == {"juli": 3, "seller_center": 1}
+    assert all(d.get("juli", 0) <= 3 for d in per_day)
+    assert all(d.get("seller_center", 0) == 0 for d in per_day[3:])
+    assert all(d.get("content", 0) == 0 for d in per_day[2:])
+    assert sum(sum(d.values()) for d in per_day) <= 3 * 14 + 3 + 2
+
+
+@pytest.mark.asyncio
+async def test_an_empty_slot_stays_empty_on_the_first_day(session, tenant_shop):
     shop_id = tenant_shop.id
     levers = ["title", "title", "title", "title", "flash_sale", "description", "cover_image"]
     for priority, lever in enumerate(levers, start=1):
@@ -173,12 +224,14 @@ async def test_first_day_without_content_fills_the_slot_with_the_next_best(sessi
 
     outcome = await apply_emission_budget(session, shop_id, now=START)
 
-    # Juli 1-3, Seller Center 5 (flash sale), then the next best: 4.
-    assert sorted(c.priority for c in outcome.newly_surfaced) == [1, 2, 3, 4, 5]
+    # Juli 1-3, Seller Center 5 (flash sale); no content candidate -> empty.
+    assert sorted(c.priority for c in outcome.newly_surfaced) == [1, 2, 3, 5]
+    assert {c.priority for c in outcome.suppressed[SUPPRESSED_REASON_DAILY_CAP]} == {4, 6, 7}
 
 
 @pytest.mark.asyncio
-async def test_a_shop_that_has_had_cards_gets_no_first_day_mix(session, tenant_shop):
+async def test_every_day_has_the_same_fixed_slots(session, tenant_shop):
+    """A shop that has had cards gets the same slots (no "plain priority" days)."""
     shop_id = tenant_shop.id
     old = _card(shop_id, 99, lever="title")
     old.status = "dismissed"
@@ -190,12 +243,32 @@ async def test_a_shop_that_has_had_cards_gets_no_first_day_mix(session, tenant_s
 
     outcome = await apply_emission_budget(session, shop_id, now=START)
 
-    assert sorted(c.priority for c in outcome.newly_surfaced) == [1, 2, 3, 4, 5]
+    assert sorted(c.priority for c in outcome.newly_surfaced) == [1, 2, 3, 6]
+
+
+@pytest.mark.asyncio
+async def test_cards_surfaced_earlier_today_use_up_their_slot(session, tenant_shop):
+    shop_id = tenant_shop.id
+    for priority in range(1, 7):
+        session.add(_card(shop_id, priority, lever="title"))
+    session.add(_card(shop_id, 7, lever="flash_sale"))
+    await session.flush()
+    morning = await apply_emission_budget(session, shop_id, now=START)
+    assert sorted(c.priority for c in morning.newly_surfaced) == [1, 2, 3, 7]
+
+    session.add(_content_card(shop_id, 8))
+    session.add(_card(shop_id, 9, lever="product_discount"))
+    await session.flush()
+    later = await apply_emission_budget(session, shop_id, now=START + timedelta(hours=2))
+
+    # Only the content slot is still open today.
+    assert [c.priority for c in later.newly_surfaced] == [8]
+    assert {c.priority for c in later.suppressed[SUPPRESSED_REASON_DAILY_CAP]} == {4, 5, 6, 9}
 
 
 @pytest.mark.asyncio
 async def test_the_day_is_the_shops_day(session, tenant_shop):
-    """16:59 and 17:01 UTC are two Vietnamese days: each gets its 5."""
+    """16:59 and 17:01 UTC are two Vietnamese days: each gets its Juli slots."""
     shop_id = tenant_shop.id
     for priority in range(1, 13):
         session.add(_card(shop_id, priority, lever="title"))
@@ -207,8 +280,8 @@ async def test_the_day_is_the_shops_day(session, tenant_shop):
     first = await apply_emission_budget(session, shop_id, now=before)
     second = await apply_emission_budget(session, shop_id, now=after)
 
-    assert len(first.newly_surfaced) == 5
-    assert len(second.newly_surfaced) == 5
+    assert len(first.newly_surfaced) == 3
+    assert len(second.newly_surfaced) == 3
 
 
 @pytest.mark.asyncio
@@ -224,7 +297,7 @@ async def test_campaign_plan_cards_are_outside_the_limits(session, tenant_shop):
     later = await apply_emission_budget(session, shop_id, now=START + timedelta(days=8))
 
     keys = [c.workflow_key for c in outcome.newly_surfaced]
-    assert keys.count(OPTIMIZE_PRODUCT_WORKFLOW_KEY) == 5
+    assert keys.count(OPTIMIZE_PRODUCT_WORKFLOW_KEY) == 3  # the Juli slots
     assert keys.count(campaign_key) == 1
     # Not on the 7-day validity clock either.
     assert campaign_key in {c.workflow_key for c in later.surfaced}
@@ -233,6 +306,7 @@ async def test_campaign_plan_cards_are_outside_the_limits(session, tenant_shop):
 
 @pytest.mark.asyncio
 async def test_the_sellers_rule_still_lowers_the_open_limit(session, tenant_shop):
+    """ "Số thẻ mở cùng lúc" (5..30, D24.21 (2)) below 30 binds as the open limit."""
     from juli_backend.services import shop_rules
 
     shop_id = tenant_shop.id
@@ -241,18 +315,21 @@ async def test_the_sellers_rule_still_lowers_the_open_limit(session, tenant_shop
         shop_id,
         rule_key=shop_rules.MAX_OPEN_CARDS,
         scope_ref=None,
-        value=2,
+        value=5,
         set_by="team",
         set_by_user_id=tenant_shop.user_id,
     )
-    for priority in range(1, 6):
+    for priority in range(1, 9):
         session.add(_card(shop_id, priority, lever="title"))
     await session.flush()
 
-    outcome = await apply_emission_budget(session, shop_id, now=START)
+    first = await apply_emission_budget(session, shop_id, now=START)
+    second = await apply_emission_budget(session, shop_id, now=START + timedelta(days=1))
 
-    assert len(outcome.newly_surfaced) == 2
-    assert len(outcome.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]) == 3
+    assert len(first.newly_surfaced) == 3
+    assert len(second.newly_surfaced) == 2
+    assert len(second.surfaced) == 5
+    assert len(second.suppressed[SUPPRESSED_REASON_ACTIVE_CAP]) == 3
 
 
 # =========================================================================== AC-14.3

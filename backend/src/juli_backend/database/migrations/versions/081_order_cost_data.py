@@ -22,8 +22,9 @@ WHAT IT ADDS.
 Amounts and ids only -- no buyer data, no product or SKU names.
 
 Written by the poll cycle (``services/order_costs/sync.py``, run by ``run_shop_cycle``) under
-the shop's sticky scope: INSERT / UPDATE, and DELETE on the two data tables
-(an order's rows are replaced as a set when it is read again). Tenant-scoped
+the shop's sticky scope: INSERT and DELETE on the two data tables (an order's
+rows are replaced as a set when it is read again), INSERT / UPDATE on the fetch
+state. Tenant-scoped
 like 080: RLS on, one policy per verb through ``app_current_shop_id()``.
 
 The seller rule fields of P14-F need no schema: they are new ``rule_key``
@@ -49,9 +50,12 @@ depends_on: str | Sequence[str] | None = None
 ROLE_NAME = "juli_app"
 
 #: table -> the verbs juli_app needs (matched to the call sites; see docstring).
+#: The two data tables are replaced as a set (delete + insert), never updated,
+#: so they hold no UPDATE (least privilege; ``test_no_public_table_holds_update_
+#: beyond_its_call_site``). ``order_cost_fetches`` is updated in place.
 GRANTS: dict[str, str] = {
-    "order_price_details": "SELECT, INSERT, UPDATE, DELETE",
-    "order_finance_transactions": "SELECT, INSERT, UPDATE, DELETE",
+    "order_price_details": "SELECT, INSERT, DELETE",
+    "order_finance_transactions": "SELECT, INSERT, DELETE",
     "order_cost_fetches": "SELECT, INSERT, UPDATE",
 }
 

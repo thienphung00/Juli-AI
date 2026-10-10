@@ -339,6 +339,16 @@ export function ruleChips(rules: ShopRules | null): RuleChip[] {
     const levers = (rules.auto_levers.value as string[]).map((lever) => LEVER_LABELS[lever] ?? lever);
     chips.push({ key: "auto_levers", text: `Tự thực thi: ${levers.join(", ") || "không"}`, setBy: rules.auto_levers.set_by });
   }
+  if (rules.content_tone?.set_by && typeof rules.content_tone.value === "string") {
+    chips.push({ key: "content_tone", text: `Giọng văn: ${rules.content_tone.value}`, setBy: rules.content_tone.set_by });
+  }
+  if (rules.banned_terms?.set_by && Array.isArray(rules.banned_terms.value)) {
+    chips.push({
+      key: "banned_terms",
+      text: `${(rules.banned_terms.value as string[]).length} từ không được dùng`,
+      setBy: rules.banned_terms.set_by,
+    });
+  }
   if (rules.protected_terms.set_by && Array.isArray(rules.protected_terms.value)) {
     chips.push({
       key: "protected_terms",

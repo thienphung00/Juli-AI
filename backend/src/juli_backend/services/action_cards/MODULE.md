@@ -63,7 +63,7 @@ slice — see "Out of scope".
 - `emission_budget.apply_emission_budget(session, shop_id, *, now=None, config=None)`
   → `EmissionBudgetOutcome` (#716, B-4; D24.17) — expires surfaced cards past 7
   days, keeps the rest (sticky `surfaced_at`), surfaces new drafts under the
-  D24.17 limits (first-day executor mix for a shop never shown a card); writes
+  D24.17 limits split into fixed daily executor slots (D24.21 (4)); writes
   only `surfaced_at` / `suppressed_reason` / the `expired` status, never
   candidate content. See "D24.17 card limits" below.
 - `emission_budget.EmissionBudgetOutcome` — `surfaced` (the open set after the
@@ -73,15 +73,16 @@ slice — see "Out of scope".
   `_ACTIVE_CAP` (`active_cap`, the open limit) / `_COOLDOWN` — the
   `ActionCard.suppressed_reason` values
 - `emission_budget.EXPIRED_STATUS`, `CAMPAIGN_PLAN_WORKFLOW_KEYS` (outside the
-  limits; hook), `CONTENT_WORKFLOW_KEYS` (first-day content slot; hook),
-  `executor_slot(card)`, `first_day_pick(...)`, `expired_card_returns(...)`
+  limits; hook), `CONTENT_WORKFLOW_KEYS` (daily content slot; hook),
+  `executor_slot(card)`, `daily_slot(card)`, `daily_slot_pick(...)`,
+  `expired_card_returns(...)`
 - `core.config.decision_emission_config()` / `DecisionEmissionConfig` —
   tunables consumed by `persist_scoring_result` (cooldown / expiry return),
   `emit_optimize_product_cards` (min stay) and `apply_emission_budget`
 - `plan_optimize_product_cards(session, shop_id, *, now)` → `OptimizeProductPlan | None`
   (from `optimize_product_cards`, fasttrack P7-B, ADR-106, D21/D22) — reads the shop's
   daily product/SKU analytics and `products`, scores the whole catalog, keeps the top
-  30 proposals (D24.17) ranked by recoverable GMV per day × the shop's history weight
+  30 proposals per executor type (D24.17; Juli / Seller Center since D24.21 (4)) ranked by recoverable GMV per day × the shop's history weight
   for the lever (D24.6, `lever_history`); `None` when the shop has no product
   analytics (the rule pipeline's card then stands)
 - `emit_optimize_product_cards(session, shop_id, plan, *, computed_at, emission_config)`
@@ -244,6 +245,12 @@ re-offered when its cooldown expires, and a changed one returns as a chained
 successor instead of a reset that erases the dismiss. #716's actual requirement
 — that the cooldown clock can finish — is unchanged.
 
+**D24.21 (3) replaces that for dismissed cards** (owner, 2026-10-10): a card the
+seller rejected / declined / reverted returns as a chained successor 7 days after
+that action whether or not its basis moved — the same strict 7-day rule as the
+Optimize Product and content cards (whose seller-reason cooldown no longer lifts
+early on a > 20 % data change, D24.21 (1)). Inside the 7 days it stays dismissed.
+
 ## D24.17 card limits (fasttrack P14-A, owner 2026-10-10) — supersedes the #716 caps below
 
 One limit for every shop: at most 5 cards surfaced for the first time per shop day,
@@ -261,17 +268,19 @@ One limit for every shop: at most 5 cards surfaced for the first time per shop d
   least 3 days unless it is no longer valid.
 - **Re-scored in place**: an open Optimize Product card whose diagnosis is unchanged
   gets its numbers, rank and `computed_at` rewritten daily; `surfaced_at` stays.
-- **First connect**: a shop with no ledger row and no card ever surfaced gets day 1
-  mixed by executor — 3 `juli`/`juli_with_photo`, 1 `seller_center`, 1 content
-  (video/LIVE: `CONTENT_WORKFLOW_KEYS` or payload `executor_type`); an empty slot
-  takes the next best card.
+- **Fixed daily slots** (D24.21 (4), owner 2026-10-10; replaced D24.17's first-day
+  mix): every shop day — the first one included — at most 3 `juli`/`juli_with_photo`
+  (legacy cards with no lever take these too, after the ADR-106 Juli cards),
+  1 `seller_center`, 1 content (video/LIVE: `CONTENT_WORKFLOW_KEYS` or payload
+  `executor_type`), each type in its own priority order. A slot with no candidate
+  stays empty (no backfill); cards surfaced earlier the same day use up their slot.
 - **Ledger**: `decision_emission_novelty_ledger` holds one row per surfacing
   (`workflow_key` = `<card id hex>@<shop day yyyymmdd>`, `week_start` = shop Monday);
   the per-day and per-week counts read it (no schema change).
 - Env: `CDP_DECISION_EMISSION_DAILY_NEW_CAP`, `_WEEKLY_NEW_CAP`, `_MAX_OPEN`,
-  `_COOLDOWN_DAYS`, `_VALIDITY_DAYS`, `_MIN_STAY_DAYS`, `_FIRST_DAY_MIX`
-  (`juli=3,seller_center=1,content=1`). The seller's "Số thẻ mở cùng lúc" rule, when
-  set, lowers the open limit.
+  `_COOLDOWN_DAYS`, `_VALIDITY_DAYS`, `_MIN_STAY_DAYS`, `_DAILY_SLOTS`
+  (`juli=3,seller_center=1,content=1`). The seller's "Số thẻ mở cùng lúc" rule
+  (5–30, default 30, D24.21 (2)), when set, lowers the open limit.
 
 The #716 sections below (max active, per-workflow caps, soft novelty quota) describe
 the superseded design and are kept as history.

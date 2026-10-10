@@ -306,9 +306,9 @@ async def test_scoring_writes_one_card_per_product_and_surfaces_at_most_five(ses
     assert {c.subject_type for c in cards} == {"product"}
     assert len({c.subject_id for c in cards}) == 12
     surfaced = [c for c in cards if c.surfaced_at is not None]
-    # D24.17 first day: 5 cards in all; the three Juli slots go to the three
-    # best product cards; this shop has no Seller Center or content card, so
-    # those two slots go to the next best cards of any workflow.
+    # D24.21 (4) daily slots: the three Juli slots go to the three best
+    # product cards; this shop has no Seller Center or content card, so those
+    # two slots stay empty.
     assert sorted(c.priority for c in surfaced) == [1, 2, 3]
     assert {c.suppressed_reason for c in cards if c.surfaced_at is None} == {"daily_cap"}
 
@@ -318,7 +318,7 @@ async def test_scoring_writes_one_card_per_product_and_surfaces_at_most_five(ses
     ).scalar_one()
     assert str(top.id) not in {c.subject_id for c in cards}
 
-    # Other workflows share the same 5: they fill the two free slots.
+    # Legacy workflows take Juli slots only after the product cards: none today.
     others = (
         (
             await session.execute(
@@ -331,10 +331,7 @@ async def test_scoring_writes_one_card_per_product_and_surfaces_at_most_five(ses
         .scalars()
         .all()
     )
-    assert {c.workflow_key for c in others if c.surfaced_at is not None} == {
-        "prevent_return_8b",
-        "process_order_5",
-    }
+    assert others and {c.workflow_key for c in others if c.surfaced_at is not None} == set()
 
     payload = json.loads(surfaced[0].recommendation_payload)
     diagnosis, evidence = payload["diagnosis"], payload["evidence"]
@@ -372,7 +369,7 @@ async def test_rescoring_is_idempotent_and_keeps_one_card_per_product(session, s
         .scalars()
         .all()
     )
-    assert len(surfacings) == 5  # one ledger row per surfacing; a rerun adds none
+    assert len(surfacings) == 3  # one ledger row per surfacing; a rerun adds none
 
 
 @pytest.mark.asyncio
@@ -484,7 +481,7 @@ async def test_decisions_endpoint_returns_diagnosis_and_evidence(app, session, s
 
     assert resp.status_code == 200, resp.text
     items = [i for i in resp.json()["data"] if i["recommendation"].get("diagnosis")]
-    assert len(items) == 3  # D24.17 first day: 3 Juli cards + 2 cards of other workflows
+    assert len(items) == 3  # D24.21 (4): the 3 Juli slots; no SC / content candidate
     first = items[0]["recommendation"]
     diagnosis, evidence = first["diagnosis"], first["evidence"]
     assert diagnosis["rank"] == 1
@@ -607,7 +604,8 @@ def test_funnel_evidence_uses_tiktok_definitions_and_previous_window():
 
 @pytest.mark.asyncio
 async def test_every_workflow_counts_alike_against_the_daily_limit(session, shop_a):
-    """D24.17 replaces the Optimize Product per-workflow cap: one limit for all cards."""
+    """D24.17 replaces the Optimize Product per-workflow cap: one limit for all cards;
+    D24.21 (4): within it, the daily slots (cards with no lever take Juli slots)."""
     for index in range(7):
         session.add(
             ActionCard(
@@ -642,8 +640,8 @@ async def test_every_workflow_counts_alike_against_the_daily_limit(session, shop
         session, shop_a.id, now=COMPUTED_AT, config=DecisionEmissionConfig()
     )
 
-    assert len(outcome.newly_surfaced) == 5
-    assert len(outcome.suppressed["daily_cap"]) == 8
+    assert len(outcome.newly_surfaced) == 3
+    assert len(outcome.suppressed["daily_cap"]) == 10
 
 
 def test_a34_add_to_cart_joins_the_detail_row():
@@ -714,7 +712,7 @@ async def test_the_p1_scoring_hook_produces_the_adr106_cards(session, shop_a):
 
 @pytest.mark.asyncio
 async def test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards(session, shop_a):
-    """ADR-109 d.12 "Số thẻ mở cùng lúc": when set, the seller's number lowers the 30."""
+    """ADR-109 d.12 "Số thẻ mở cùng lúc" (5..30, D24.21 (2)): when set, it lowers the 30."""
     from juli_backend.services import shop_rules
 
     await shop_rules.set_rule(
@@ -722,16 +720,20 @@ async def test_the_sellers_max_open_cards_rule_caps_the_surfaced_cards(session, 
         shop_a.id,
         rule_key=shop_rules.MAX_OPEN_CARDS,
         scope_ref=None,
-        value=2,
+        value=5,
         set_by="team",
         set_by_user_id=shop_a.user_id,
     )
     await _score(session, shop_a)
+    for day in (1, 2):
+        await apply_emission_budget(session, shop_a.id, now=COMPUTED_AT + timedelta(days=day))
+    await session.commit()
 
     cards = await _optimize_cards(session, shop_a.id)
     assert len(cards) == 12, "the ranking is unchanged; only surfacing is capped"
     surfaced = [c for c in cards if c.surfaced_at is not None]
-    assert sorted(c.priority for c in surfaced) == [1, 2]
+    assert sorted(c.priority for c in surfaced) == [1, 2, 3, 4, 5]
+    assert {c.suppressed_reason for c in cards if c.surfaced_at is None} == {"active_cap"}
 
 
 @pytest.mark.asyncio

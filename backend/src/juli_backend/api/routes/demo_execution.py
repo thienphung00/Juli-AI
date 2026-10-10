@@ -217,8 +217,8 @@ async def reject_demo_decision(
 
     422 for a missing/unknown ``reason_code`` or a note over 300 characters;
     404 for another shop's card, a card not on the desk, or no such card. The
-    same lever is not proposed again for that product for 7 days unless its
-    data changes clearly (``services.decision_reasons``).
+    same lever is not proposed again for that product for 7 days -- strictly,
+    D24.21 (``services.decision_reasons``).
     """
     try:
         decision_reasons.validate_reason(ACTION_REJECT, body.reason_code, body.note)

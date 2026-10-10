@@ -218,12 +218,24 @@ def product_rate(payload: Mapping[str, Any] | None, tiktok_product_id: str) -> f
 
 
 def merge_ranked(
-    video: Sequence[ContentCandidate], live: Sequence[ContentCandidate]
+    video: Sequence[ContentCandidate],
+    live: Sequence[ContentCandidate],
+    *,
+    weights: Mapping[str, float] | None = None,
 ) -> list[ContentCandidate]:
-    """Both kinds in one list, best expected GMV first (stable on product id)."""
+    """Both kinds in one list, best priority first (stable on product id).
+
+    Priority = expected GMV × the lever's history weight (calibration factor ×
+    seller-reason penalty, D24.6), the content cards' own ranking for their
+    daily slot (D24.21 (4)). ``weights``: lever code -> weight; absent = 1.
+    """
+
+    def priority(c: ContentCandidate) -> float:
+        return c.recoverable_gmv_per_day * (weights or {}).get(c.spec.lever_code, 1.0)
+
     return sorted(
         [*video, *live],
-        key=lambda c: (-c.recoverable_gmv_per_day, c.kind, c.tiktok_product_id),
+        key=lambda c: (-priority(c), c.kind, c.tiktok_product_id),
     )
 
 

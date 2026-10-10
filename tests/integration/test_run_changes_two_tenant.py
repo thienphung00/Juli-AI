@@ -178,7 +178,7 @@ async def test_rules_are_invisible_and_unwritable_across_tenants(owner_engine, t
             tenant_a.shop_id,
             rule_key="max_open_cards",
             scope_ref=None,
-            value=2,
+            value=6,
             set_by="team",
             set_by_user_id=tenant_a.user_id,
         )
@@ -202,7 +202,7 @@ async def test_rules_are_invisible_and_unwritable_across_tenants(owner_engine, t
     assert _count(owner_engine, "shop_rules", tenant_a.shop_id) == 1
 
     async with committing_juli_app_session(tenant_a.shop_id) as session:
-        assert await shop_rules.configured_max_open_cards(session, tenant_a.shop_id) == 2
+        assert await shop_rules.configured_max_open_cards(session, tenant_a.shop_id) == 6
 
 
 @pytest.mark.asyncio

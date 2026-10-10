@@ -64,6 +64,10 @@ from juli_backend.services.scoring.types import (
     WorkflowRecommendations,
 )
 
+#: These cards carry no ADR-106 lever (they take ``juli`` slots, D24.21 (4)):
+#: one wide slot isolates the limit under test from the daily slots.
+_ONE_WIDE_SLOT = (("juli", 50),)
+
 
 def _snapshot(shop_id: uuid.UUID) -> FeatureAggregateSnapshot:
     return FeatureAggregateSnapshot(
@@ -199,7 +203,7 @@ async def test_open_cards_capped_at_max_open(session, shop):
     await session.flush()
 
     now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    config = DecisionEmissionConfig(max_open=5, daily_new_cap=50)
+    config = DecisionEmissionConfig(max_open=5, daily_new_cap=50, daily_slots=_ONE_WIDE_SLOT)
     outcome = await apply_emission_budget(session, shop.id, now=now, config=config)
 
     assert len(outcome.surfaced) == 5
@@ -214,7 +218,9 @@ async def test_open_cards_capped_at_max_open(session, shop):
 
 
 @pytest.mark.asyncio
-async def test_default_limit_is_five_new_cards_a_day(session, shop):
+async def test_default_limit_is_the_daily_slots(session, shop):
+    """5 new a day, split 3 Juli / 1 Seller Center / 1 content (D24.21 (4)):
+    legacy cards (no lever) take the Juli slots, so 3 of them a day."""
     for i in range(1, 9):
         session.add(_make_card(shop.id, f"wf_{i}", priority=i))
     await session.flush()
@@ -222,8 +228,10 @@ async def test_default_limit_is_five_new_cards_a_day(session, shop):
     now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
     outcome = await apply_emission_budget(session, shop.id, now=now)
 
-    assert [c.workflow_key for c in outcome.newly_surfaced] == [f"wf_{i}" for i in range(1, 6)]
+    assert [c.workflow_key for c in outcome.newly_surfaced] == [f"wf_{i}" for i in range(1, 4)]
     assert {c.workflow_key for c in outcome.suppressed[SUPPRESSED_REASON_DAILY_CAP]} == {
+        "wf_4",
+        "wf_5",
         "wf_6",
         "wf_7",
         "wf_8",
@@ -240,13 +248,13 @@ async def test_default_limit_is_five_new_cards_a_day(session, shop):
         .scalars()
         .all()
     )
-    assert len(ledger_rows) == 5
+    assert len(ledger_rows) == 3
 
-    # Same day, later run: nothing new; the five stay surfaced.
+    # Same day, later run: nothing new; the three stay surfaced.
     again = await apply_emission_budget(session, shop.id, now=now + timedelta(hours=3))
     assert again.newly_surfaced == []
-    assert len(again.surfaced) == 5
-    assert len(again.suppressed[SUPPRESSED_REASON_DAILY_CAP]) == 3
+    assert len(again.surfaced) == 3
+    assert len(again.suppressed[SUPPRESSED_REASON_DAILY_CAP]) == 5
 
 
 def test_config_defaults_and_env_overrides(monkeypatch):
@@ -255,17 +263,17 @@ def test_config_defaults_and_env_overrides(monkeypatch):
     default = decision_emission_config()
     assert (default.daily_new_cap, default.weekly_new_cap, default.max_open) == (5, 25, 30)
     assert (default.validity_days, default.min_stay_days, default.cooldown_days) == (7, 3, 7)
-    assert dict(default.first_day_mix) == {"juli": 3, "seller_center": 1, "content": 1}
+    assert dict(default.daily_slots) == {"juli": 3, "seller_center": 1, "content": 1}
 
     monkeypatch.setenv("CDP_DECISION_EMISSION_DAILY_NEW_CAP", "8")
     monkeypatch.setenv("CDP_DECISION_EMISSION_WEEKLY_NEW_CAP", "40")
     monkeypatch.setenv("CDP_DECISION_EMISSION_MAX_OPEN", "12")
-    monkeypatch.setenv("CDP_DECISION_EMISSION_FIRST_DAY_MIX", "juli=2,seller_center=2")
+    monkeypatch.setenv("CDP_DECISION_EMISSION_DAILY_SLOTS", "juli=2,seller_center=2")
     tuned = decision_emission_config()
     assert (tuned.daily_new_cap, tuned.weekly_new_cap, tuned.max_open) == (8, 40, 12)
-    assert tuned.first_day_mix == (("juli", 2), ("seller_center", 2))
-    monkeypatch.setenv("CDP_DECISION_EMISSION_FIRST_DAY_MIX", "garbage")
-    assert decision_emission_config().first_day_mix == default.first_day_mix
+    assert tuned.daily_slots == (("juli", 2), ("seller_center", 2))
+    monkeypatch.setenv("CDP_DECISION_EMISSION_DAILY_SLOTS", "garbage")
+    assert decision_emission_config().daily_slots == default.daily_slots
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +339,7 @@ async def test_suppressed_candidate_is_still_recomputed_on_next_scoring_run(sess
     await session.flush()
 
     now = datetime(2026, 8, 8, 12, 0, tzinfo=UTC)
-    config = DecisionEmissionConfig(max_open=5, daily_new_cap=50)
+    config = DecisionEmissionConfig(max_open=5, daily_new_cap=50, daily_slots=_ONE_WIDE_SLOT)
     await apply_emission_budget(session, shop.id, now=now, config=config)
 
     suppressed_before = await _fetch(session, shop.id, "wf_7")
@@ -623,18 +631,16 @@ async def test_dismissed_workflow_superseded_after_cooldown_fully_elapses(sessio
 
     # Now eligible for a fresh emission-budget evaluation.
     budget_now = later_computed_at + timedelta(minutes=1)
-    config = DecisionEmissionConfig(max_open=5, daily_new_cap=50)
+    config = DecisionEmissionConfig(max_open=5, daily_new_cap=50, daily_slots=_ONE_WIDE_SLOT)
     outcome = await apply_emission_budget(session, shop.id, now=budget_now, config=config)
     assert any(c.id == successor.id for c in outcome.surfaced)
 
 
 @pytest.mark.asyncio
-async def test_elapsed_cooldown_alone_does_not_re_offer_an_unchanged_card(session, shop):
-    """The other half of the amendment above: the clock caps churn, it does
-    not trigger a revision (ADR-087 decision 6).
-
-    Cooldown fully elapsed, basis untouched — no second pass is manufactured,
-    and the suppression says which of the two reasons applied.
+async def test_a_dismissed_card_returns_after_seven_days_even_unchanged(session, shop):
+    """D24.21 (3) (owner, 2026-10-10) replaces ADR-087 d.6 here: a legacy
+    workflow card the seller rejected returns 7 days later as a new revision,
+    whether or not its basis moved. Inside the 7 days it stays dismissed.
     """
     first_computed_at = datetime(2026, 8, 1, 9, 0, tzinfo=UTC)
     first_result = _result(shop.id, first_computed_at, workflow_key="wf_dismiss_unchanged")
@@ -649,24 +655,33 @@ async def test_elapsed_cooldown_alone_does_not_re_offer_an_unchanged_card(sessio
     card.surfaced_at = first_computed_at
     await session.flush()
 
+    inside = await emit_scoring_cards(
+        session,
+        shop.id,
+        _result(shop.id, dismissed_marker + timedelta(days=6), workflow_key="wf_dismiss_unchanged"),
+    )
+    assert [d.suppressed_reason for d in inside.decisions] == [SUPPRESSED_REASON_BASIS_UNCHANGED]
+
     later_result = _result(
         shop.id,
-        dismissed_marker + timedelta(days=8),
+        dismissed_marker + timedelta(days=7, minutes=1),
         workflow_key="wf_dismiss_unchanged",
-        workflow_name="Would-be re-offer",
+        workflow_name="Re-offer after 7 days",
         priority=2,
     )
     report = await emit_scoring_cards(session, shop.id, later_result)
     await session.flush()
 
-    assert [d.suppressed_reason for d in report.decisions] == [SUPPRESSED_REASON_BASIS_UNCHANGED]
+    assert [d.suppressed_reason for d in report.decisions] == [None]
     stmt = select(ActionCard).where(
         ActionCard.shop_id == shop.id,
         ActionCard.workflow_key == "wf_dismiss_unchanged",
     )
     rows = (await session.execute(stmt)).scalars().all()
-    assert len(rows) == 1
-    assert rows[0].title != "Would-be re-offer"
+    assert len(rows) == 2
+    successor = next(row for row in rows if row.id != card.id)
+    assert successor.title == "Re-offer after 7 days"
+    assert successor.supersedes_card_id == card.id and successor.status == "active"
 
 
 @pytest.mark.asyncio
