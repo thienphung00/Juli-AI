@@ -161,3 +161,41 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   [ADR-109](../docs/adr/109-demo-app-follows-the-sales-demo-video.md) at the
   owner's request (an exception to D4's no-ADR rule) (owner, 2026-10-08).
   Grill in progress; open points listed in the ADR.
+
+- **D24** — Recommendation pipeline for all four streams (owner grill,
+  2026-10-10). Principle: rules decide *what* and *how much*; the LLM only
+  writes content; the LLM never produces a number.
+  1. **No OpenAI call before the seller's first approval.** Producing and
+     ranking cards (nightly) is rules and arithmetic only; a card's text is a
+     template. The model is called only once the seller approves a card
+     (Phê duyệt), so unapproved proposals cost nothing.
+  2. **Rules choose the action** from the lever map (canvas "Đòn bẩy",
+     4 streams × metric) after the gates: enough data, TikTok eligibility,
+     the seller's rules, cooldown, no overlapping change in measurement.
+     Seller-facing term: **"Hành động"** (replaces "Đòn bẩy"/lever in UI copy).
+  3. **Card copy stays templated** (reason, expected GMV); LLM only in runs.
+  4. **Video and LIVE get "Juli soạn · bạn làm" cards**: video hook/script for
+     a product whose video CTR fell; LIVE host script / basket order for LIVE
+     CTOR. The seller films or goes live; Juli measures on the next
+     videos/sessions.
+  5. **Promotions stay seller-executed** (Seller Center, Juli verifies). Juli
+     proposes a discount only within the seller's margin rule (cost price or
+     minimum margin in Quy tắc) and against competitor prices (FastMoss, with
+     industry/market data); the promotion-create API is enabled only later.
+  6. **Learning now**: expected GMV × the lever's calibration coefficient
+     (currently written but unused); Từ chối / Hoàn tác reasons lower that
+     action's priority for the shop.
+  7. **Models**: `gpt-5.4-nano` for the tool loop; a stronger OpenAI model for
+     writing content (title, description, scripts), chosen by eval before it
+     is switched on. Estimate ≈ $0.02 per workflow, ≈ 1 workflow/shop/day at
+     most (≤ 5 product cards + ~3 content cards per week) → ≈ $0.6/shop/month;
+     to be replaced by measured `workflow_runs` cost.
+  8. **Customer vocabulary**: now a per-category vocabulary bank in the prompt
+     (TikTok SEO words, the shop's best-selling listings, buyer reviews with
+     buyer data removed, FastMoss). SFT later, per category, objective in this
+     order: *effective* (day-14 Đạt / Gần đạt) and *accepted* (seller kept or
+     edited it) — training examples must be both; seller-edited final text is
+     the target.
+  9. **Campaigns**: Juli also proposes TikTok platform campaigns (Chiến dịch
+     sàn: which products to register, at what discount within margin) and the
+     seller's own campaigns; research of the API and rules in progress.
