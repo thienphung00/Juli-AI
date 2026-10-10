@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomePage from "../app/page";
 import { AnalysisPageClient } from "../components/analysis-page-client";
 import { DecisionsPageClient } from "../components/decisions-page-client";
+import { ShopHeader } from "../components/app-shell/shop-header";
 import { DemoStateProvider } from "../components/demo-state";
+import { useShopReport } from "../lib/shop-report/shop-report-context";
 import { HomeOverview } from "../components/home/home-overview";
 import { CONNECT_SHOP_HREF } from "../lib/app-navigation";
 import { resolveSelection, specOf, STREAM_SPECS, streamView, type QueryState } from "../lib/phan-tich/model";
@@ -197,5 +199,26 @@ describe("Phân tích header alignment (P13 bug)", () => {
     const rule = css.match(/\.pa-head,\s*\.pa-page > \.page-header \{([^}]*)\}/);
     expect(rule?.[1]).toMatch(/flex-direction:\s*column/);
     expect(rule?.[1]).toMatch(/align-items:\s*flex-start/);
+  });
+});
+
+describe("signed in, no TikTok Shop → the header names the sample shop", () => {
+  function HeaderFromContext() {
+    const { state } = useShopReport();
+    return <ShopHeader googleHref={null} onRefreshDemo={() => undefined} onSignOut={() => undefined} state={state} />;
+  }
+
+  it("shows the sample shop name, the Bản minh họa badge and 'Dữ liệu mẫu · cập nhật', not 'Chưa chọn shop'", async () => {
+    signInWithoutShop();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    renderInShell(<HeaderFromContext />);
+    const header = await screen.findByTestId("shop-header");
+    expect(await within(header).findByText(REPORT.shop_name)).toBeInTheDocument();
+    expect(header).not.toHaveTextContent("Chưa chọn shop");
+    expect(header).toHaveTextContent("Bản minh họa");
+    expect(header).toHaveTextContent(/Dữ liệu mẫu · cập nhật \d{2}:\d{2}/);
+    // Still signed in: the menu offers connect + sign out, not the sign-in doors.
+    expect(within(header).getByRole("link", { name: "Kết nối TikTok Shop", hidden: true })).toHaveAttribute("href", CONNECT_SHOP_HREF);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

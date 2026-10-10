@@ -545,6 +545,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P13 signed-in, no shop → sample (2026-10-10)
 
-- [ ] The shell header in the no-shop state still names "Chưa chọn shop" (no "cập nhật HH:MM" line) above the sample, while the page's notice names the sample shop "Cửa hàng Mẫu Hoa Mai". Deliberate (the header is the seller's identity), revisit if the owner wants the sample name there.
+- [x] (owner 2026-10-10: show the sample name) The shell header in the no-shop state still names "Chưa chọn shop" (no "cập nhật HH:MM" line) above the sample, while the page's notice names the sample shop "Cửa hàng Mẫu Hoa Mai". Deliberate (the header is the seller's identity), revisit if the owner wants the sample name there.
 - [ ] The sample's daily GMV bars (Lịch sale) average 6,31 tr ₫/ngày in the prior window vs the streams' summed 6,95 tr ₫/ngày (last window agrees: 7,12 vs 7,16 tr). Only the bars show it (no total is printed from them); left as the P12 artboard values.
 - [ ] `SignedInQuyetDinh`'s own `!shop` empty state is now unreachable from `/decisions` (the page client routes no-shop to the sample); kept for direct callers / tests.

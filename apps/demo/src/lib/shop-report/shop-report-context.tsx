@@ -40,7 +40,12 @@ export interface ActingShop {
 export type ShopReportState =
   | { readonly status: "resolving" }
   | { readonly status: "anonymous"; readonly envelope: ShopAnalysisEnvelope | null }
-  | { readonly status: "no-shop"; readonly token: string }
+  | {
+      readonly status: "no-shop";
+      readonly token: string;
+      /** The bundled sample the no-shop pages show (P13); `null` until it has loaded. */
+      readonly envelope?: ShopAnalysisEnvelope | null;
+    }
   | { readonly status: "loading"; readonly token: string; readonly shop: ActingShop }
   | { readonly status: "empty"; readonly token: string; readonly shop: ActingShop }
   | { readonly status: "error"; readonly token: string; readonly shop: ActingShop }
@@ -96,7 +101,12 @@ export function ShopReportProvider({
       const token = session.accessToken;
       const active = readActiveShop();
       if (!active) {
-        setState({ status: "no-shop", token });
+        setState({ status: "no-shop", token, envelope: null });
+        loadSample()
+          .then((envelope) => {
+            if (!cancelled) setState({ status: "no-shop", token, envelope });
+          })
+          .catch(() => undefined);
         return;
       }
       const shop: ActingShop = { id: active.id, name: active.name };

@@ -70,7 +70,8 @@ function shopNameOf(state: ShopReportState): string | null {
     case "error":
       return state.shop.name || "Shop của bạn";
     case "no-shop":
-      return "Chưa chọn shop";
+      // P13: no shop connected → the pages show the sample, so the header names it too.
+      return state.envelope?.report.shop_name ?? "Chưa chọn shop";
     default:
       return null;
   }
@@ -103,8 +104,10 @@ export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut }: Shop
 
   const anonymous = state.status === "anonymous";
   const signedIn = !anonymous && state.status !== "resolving";
+  // Both doors that show the bundled sample: signed out, and signed in without a shop.
+  const sample = anonymous || state.status === "no-shop";
   const name = shopNameOf(state);
-  const envelope = envelopeOf(state);
+  const envelope = state.status === "no-shop" ? (state.envelope ?? null) : envelopeOf(state);
   const updatedAt = vnClock(envelope?.built_at);
   const close = () => setOpen(false);
 
@@ -125,7 +128,7 @@ export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut }: Shop
         <div className="shop-header__identity">
           <p className="shop-header__name">
             {name ?? <span className="text-muted">Đang tải…</span>}
-            {anonymous ? <span className="badge badge-pink">{DEMO_MODE_REPLAY_LABEL}</span> : null}
+            {sample ? <span className="badge badge-pink">{DEMO_MODE_REPLAY_LABEL}</span> : null}
           </p>
           <p className="shop-header__sub">{shopSubline({})}</p>
         </div>
@@ -211,9 +214,9 @@ export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut }: Shop
         <p className="shop-header__status">
           <span
             aria-hidden="true"
-            className={anonymous ? "status-dot status-dot--idle" : "status-dot"}
+            className={sample ? "status-dot status-dot--idle" : "status-dot"}
           />
-          {anonymous
+          {sample
             ? `Dữ liệu mẫu · cập nhật ${updatedAt}`
             : `Juli đang chạy · cập nhật ${updatedAt}`}
         </p>
