@@ -9,6 +9,7 @@ import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 import { decodeJwtPayload } from "../lib/supabase-auth";
 import { ShopsFetchError, fetchShops, type Shop } from "../lib/shops-client";
 import {
+  STAFF_ACCESS_NOTICE,
   startTikTokConnect,
   type TikTokOAuthStart,
 } from "../lib/tiktok-connect-client";
@@ -178,6 +179,12 @@ function ConnectTikTokShopButton({
       >
         Kết nối TikTok Shop
       </button>
+      <p className="connect-shop__consent" data-testid="staff-access-notice" style={{ fontSize: 12, color: "#5f5f6b", maxWidth: 520 }}>
+        {STAFF_ACCESS_NOTICE}{" "}
+        <a href="https://app-juli.com/privacy" rel="noreferrer" target="_blank">
+          Chính sách bảo mật
+        </a>
+      </p>
       {phase === "starting" && (
         <p aria-live="polite" role="status">
           {CONNECT_REDIRECTING_COPY}

@@ -99,7 +99,16 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   );
 }
 
+/** Juli Ops (P16) renders its own chrome: no seller shell, no seller providers. */
+export function isOpsRoute(pathname: string): boolean {
+  return pathname === "/ops" || pathname.startsWith("/ops/");
+}
+
 export function DemoShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname() ?? "/";
+  if (isOpsRoute(pathname)) {
+    return <>{children}</>;
+  }
   return (
     <DemoStateProvider>
       <AnalyticsDataProvider>
