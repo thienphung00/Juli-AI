@@ -231,3 +231,17 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       a write (title, description, scripts, narration) uses OpenAI structured
       output (JSON schema), validated for length, banned terms, the seller's
       protected terms and facts before the consent step.
+  17. **Card limits and return times** (owner, 2026-10-10; trial phase —
+      the goal is continuous use):
+      - One limit for every shop: at most **5 new cards/day, 25/week, 30 open**
+        (replaces `max_active` 5 / weekly novelty 3). Campaign-plan cards are
+        outside the limit. Nightly candidates: top 30 (was 10).
+      - On connect: day 1 shows the top 5 mixed by type (~3 Juli tự làm,
+        1 Seller Center, 1 video/LIVE); then +5/day while fewer than 30 are
+        open.
+      - A card is valid 7 days (a campaign plan until registration closes);
+        open cards are re-scored daily with the new numbers.
+      - Expired, rejected (Từ chối), declined (Không thực hiện) or reverted
+        (Hoàn tác): the same action on the same product may return after
+        **7 days**, every time — no escalation, no per-reason durations
+        (reasons still lower its priority, D24.6).
