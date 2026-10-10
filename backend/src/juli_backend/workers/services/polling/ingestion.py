@@ -27,7 +27,9 @@ SPEC §3.1–3.3 and §3.7. Three entrypoints, one per Celery task in
     Analytics at most once a day: from the last fully-fetched day + 1 up to
     TikTok's ``latest_available_date``, read from a single A-36 probe; when
     nothing is new the cycle makes zero analytics detail calls. A day pass that
-    fetched new days re-runs scoring (D11).
+    fetched new days re-runs scoring (D11). After the commerce steps, a bounded
+    number of orders' cost data (price detail, finance transactions; P14-C) is
+    read by ``services.order_costs.sync_order_costs``, which never fails the cycle.
 
 TENANT SCOPE. Every entrypoint resolves the shop's own credential with
 ``resolve_read_credential_for_shop``, refuses it unless it is read-capable and
@@ -89,6 +91,7 @@ from juli_backend.models.models import (
 )
 from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRepo, utc_now_naive
 from juli_backend.services.ingestion import HandoffFn
+from juli_backend.services.order_costs import OrderCostsResult, sync_order_costs
 from juli_backend.workers.services.polling.analytics_range import (
     AnalyticsRangeResult,
     probe_latest_available_date,
@@ -818,6 +821,8 @@ class ShopCycleResult:
     analytics: AnalyticsRangeResult | None = None
     cards: int | None = None
     outcomes: list[SyncOutcome] = field(default_factory=list)
+    #: P14-C cost data read this cycle (never fails the cycle).
+    order_costs: OrderCostsResult | None = None
 
 
 async def run_shop_cycle(
@@ -892,6 +897,18 @@ async def run_shop_cycle(
         )
         await session.commit()
         _assert_cycle_succeeded(outcomes, shop_id=shop_id)
+        # P14-C (D24.13): a few orders' price detail / finance transactions,
+        # read-only, after the orders were just synced. Never fails the cycle.
+        result.order_costs = await sync_order_costs(
+            session=session,
+            shop_id=shop_id,
+            resources=run.resources,
+            rate_limiter=rate_limiter,
+            app_id=run.app_id,
+            shop_key=run.shop_key,
+            deadline=deadline,
+            now=now,
+        )
         if new_days:
             # D11: scoring once a day, after the analytics pass.
             result.cards = await _score(run, score_fn, phase="daily")

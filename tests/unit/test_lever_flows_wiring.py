@@ -50,7 +50,9 @@ def test_the_deferred_phone_cleanup_stays_the_tail():
         / "backend/src/juli_backend/database/migrations/deferred"
         / "074_users_placeholder_phone_cleanup.py"
     )
-    assert 'down_revision: str | None = "080_lever_flows"' in deferred.read_text(encoding="utf-8")
+    assert 'down_revision: str | None = "081_order_cost_data"' in deferred.read_text(
+        encoding="utf-8"
+    )
 
 
 def test_the_reaper_judges_a_lever_flow_wait_by_its_own_policy():

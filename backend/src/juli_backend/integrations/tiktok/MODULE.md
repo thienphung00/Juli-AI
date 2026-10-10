@@ -49,6 +49,14 @@ Matches ``__all__`` — re-exports only:
   ``analytics_shop_sku_performance_path``, ``analytics_shop_video_products_performance_path``,
   ``product_detail_path``, ``promotion_activity_path`` (the last six keyed by the
   shop diagnosis fetch's rate-limit gate, fast track P7-A)
+- **Per-order cost reads (fast track P14-C, D24.13)** —
+  ``ORDER_PRICE_DETAIL_PATH_TEMPLATE`` (``GET /order/202407/orders/{order_id}/price_detail``,
+  scope ``seller.order.info``) and ``FINANCE_ORDER_TRANSACTIONS_PATH_TEMPLATE``
+  (``GET /finance/202501/orders/{order_id}/statement_transactions``, scope
+  ``seller.finance.info``), the rate-limit bucket keys of
+  ``ProductionReadResources.order_costs`` (``OrderCostsResource``:
+  ``get_price_detail``, ``get_statement_transactions``; numeric order id only).
+  Both GETs are exact entries of the production-read allowlist
 - **Optimize Product reads (ADR-090 d.3, ADR-106 Amendments 4–5)** — product
   diagnosis: ``PRODUCT_DIAGNOSIS_API_VERSION``, ``PRODUCT_DIAGNOSES_PATH``,
   ``PRODUCT_DIAGNOSE_OPTIMIZE_API_VERSION``, ``PRODUCT_DIAGNOSE_OPTIMIZE_PATH``

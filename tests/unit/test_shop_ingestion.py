@@ -1127,3 +1127,62 @@ def test_the_migration_creates_every_model_column_and_chains_onto_073():
     assert "app_current_shop_id()" in text
     assert "SECURITY DEFINER" in text
     assert "REVOKE ALL ON FUNCTION" in text
+
+
+# ---------------------------------------------------------------------------
+# P14-C -- the scheduled cycle reads a few orders' cost data after commerce
+# ---------------------------------------------------------------------------
+
+
+class TestOrderCostsInTheCycle:
+    @pytest.mark.asyncio
+    async def test_the_cycle_reads_cost_data_and_a_vendor_failure_never_fails_it(self, session):
+        from juli_backend.integrations.tiktok import TikTokAPIError
+        from juli_backend.models.order_costs import OrderCostFetch, OrderPriceDetail
+
+        shop = await _make_shop(session, label="cost")
+        analytics = FakeAnalyticsResource(prefix="cost")
+        await _fast(session, shop, analytics)
+        created = NOW.replace(tzinfo=None) - timedelta(days=2)
+        session.add(
+            Order(
+                shop_id=shop.id,
+                tiktok_order_id="5793990727963214852",
+                status="DELIVERED",
+                total_amount=Decimal(100000),
+                currency="VND",
+                tiktok_created_at=created,
+                update_time=created,
+            )
+        )
+        await session.commit()
+
+        calls: list[str] = []
+
+        class Costs:
+            def get_price_detail(self, order_id):
+                calls.append(f"price:{order_id}")
+                return {"currency": "VND", "subtotal_deduction_seller": "5000", "line_items": []}
+
+            def get_statement_transactions(self, order_id):
+                calls.append(f"finance:{order_id}")
+                raise TikTokAPIError(36009003, "internal")
+
+        resources = make_resources(analytics)
+        resources.order_costs = Costs()
+        resources.orders.get_details.return_value = {"orders": []}
+        result = await _cycle(session, shop, analytics, now=NOW, resources=resources)
+
+        assert calls == ["price:5793990727963214852", "finance:5793990727963214852"]
+        assert result.order_costs is not None
+        assert (result.order_costs.price.fetched, result.order_costs.finance.errors) == (1, 1)
+        stored = (
+            await session.execute(
+                select(OrderPriceDetail).where(OrderPriceDetail.shop_id == shop.id)
+            )
+        ).scalar_one()
+        assert stored.seller_funded_amount == Decimal(5000)
+        fetch = (
+            await session.execute(select(OrderCostFetch).where(OrderCostFetch.shop_id == shop.id))
+        ).scalar_one()
+        assert fetch.finance_attempts == 1 and fetch.price_fetched_at is not None

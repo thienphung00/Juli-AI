@@ -472,6 +472,65 @@ Returns `shops[]` with `id` (tiktok shop id) and `cipher` (`shop_cipher`).
 
 ---
 
+## Cost data — price detail and finance transactions per order (fast track P14-C)
+
+DECISIONS D24.13: ingest, read-only, the seller-funded vs platform-funded
+deductions of each order and its SKU-level settlement. Contract:
+[`fasttrack/contracts/p14-rules-and-cost.md`](../../../fasttrack/contracts/p14-rules-and-cost.md).
+
+### Implemented (`OrderCostsResource`, `resources/order_costs.py`)
+
+| Client path | Scope | Client API |
+|-------------|-------|------------|
+| `GET /order/202407/orders/{order_id}/price_detail` | `seller.order.info` | `get_price_detail(order_id)` |
+| `GET /finance/202501/orders/{order_id}/statement_transactions` | `seller.finance.info` | `get_statement_transactions(order_id)` |
+
+Both are exact entries of the production-read GET allowlist
+(`capabilities.PRODUCTION_READ_GET_PATTERNS`, numeric order id only). Neither has
+been read live yet; field names come from the Partner API reference (local corpus
+`partner_documents/api-reference/orders/get-price-detail-202407.md`,
+`finance/get-transactions-by-order-202501.md`) and the bundled OAS schema.
+Fixtures: `tests/fixtures/tiktok_order_costs/` (doc examples, VND-adapted).
+
+**Price detail `data`** — order-level amounts, plus `line_items[]` (same fields +
+`id` = line item id, one line item per unit). Stored per (shop, order, SKU) in
+`order_price_details` (line items summed per SKU; SKU from the order detail's
+`line_items[].sku_id`) plus an order-level row (`tiktok_sku_id = ''`):
+
+| Field | Meaning (docs) | Stored |
+|-------|----------------|--------|
+| `sku_list_price` / `sku_sale_price` | MSRP total / promotional total (`list − subtotal_deduction_seller − subtotal_deduction_platform`) | yes |
+| `subtotal_deduction_seller` / `subtotal_deduction_platform` | product discount funded by seller / platform | yes; summed into `seller_funded_amount` / `platform_funded_amount` |
+| `shipping_fee_deduction_seller` / `shipping_fee_deduction_platform` | shipping discount funded by seller / platform | yes; summed into the two funded totals |
+| `voucher_deduction_seller` / `voucher_deduction_platform` / `shipping_fee_deduction_platform_voucher` | **UNVERIFIED**: described as a voucher *type* (`1010000` PLATFORM_NEW_USER, …) while the example shows a number | stored as amounts, excluded from the funded totals |
+| `subtotal`, `subtotal_tax_amount`, `tax_amount`, `net_price_amount`, `payment`, `total`, `shipping_list_price`, `shipping_sale_price`, `currency` | totals | yes |
+| `cod_fee*`, `distance_*`, `sku_gift_*`, `tax_rate` | not relevant to VN / not amounts we use | no |
+
+**Finance `data`** — `order_id`, `order_create_time`, `currency`,
+`revenue_amount`, `fee_and_tax_amount`, `shipping_cost_amount`,
+`settlement_amount`, `sku_transactions[]` (`sku_id`, `statement_id`, `quantity`,
+`revenue_amount`, `revenue_breakdown{subtotal_before_discount_amount,
+seller_discount_amount, refund_*}`, `fee_tax_amount`, `fee_tax_breakdown{fee{…},
+tax{…}}`, `shipping_cost_amount`, `shipping_cost_breakdown{…,
+supplementary_component{…}}`, `settlement_amount`; also `sku_name`,
+`product_name`, which are dropped). Stored per (shop, order, SKU, statement) in
+`order_finance_transactions` with the VN-relevant fee lines as columns
+(`platform_commission_amount`, `transaction_fee_amount`,
+`affiliate_commission_amount`, `voucher_xtra_service_fee_amount`,
+`flash_sales_service_fee_amount`, `campaign_resource_fee`,
+`sfp_service_fee_amount`, `vn_fix_infrastructure_fee`) and every fee / tax /
+shipping line in two JSON columns. Empty `sku_transactions` = not settled yet.
+Data only after 2023-07-01 (docs).
+
+**Polling:** `services/order_costs/sync.py` (`sync_order_costs`), run inside `run_shop_cycle`
+after the commerce steps: orders of the last 60 days, ≤ 10 price + ≤ 10 finance
+reads per cycle (env `ORDER_COSTS_PRICE_PER_CYCLE`, `ORDER_COSTS_FINANCE_PER_CYCLE`,
+`ORDER_COSTS_SYNC=0` to switch off), one rate-limit bucket per endpoint template,
+no waiting; a 429 or a missing scope ends the pass for that cycle. Only amounts
+and ids are stored — no buyer data.
+
+---
+
 ## Analytics / Ads Signals
 
 **Status:** **UNVERIFIED** in TikTok Shop Partner API Reference; **not implemented**
