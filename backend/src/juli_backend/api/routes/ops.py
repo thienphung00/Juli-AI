@@ -227,7 +227,6 @@ def _audit_json(row: Any) -> dict[str, Any]:
         "actor_email": row.actor_email,
         "shop_id": str(row.shop_id) if row.shop_id else None,
         "action": row.action,
-        "for_seller": row.for_seller,
         "before": row.before,
         "after": row.after,
     }

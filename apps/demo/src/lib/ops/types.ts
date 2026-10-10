@@ -68,9 +68,6 @@ export interface ShopSettings {
   readonly stage_label: string;
   readonly overrides: Overrides;
   readonly defaults: Overrides;
-  readonly team_may_act: boolean;
-  readonly seller_consent_at: string | null;
-  readonly act_allowed: boolean;
   readonly updated_at: string | null;
   readonly options: {
     readonly stages: readonly { id: StageId; label: string }[];
@@ -86,7 +83,6 @@ export interface AuditEntry {
   readonly actor_email: string;
   readonly shop_id: string | null;
   readonly action: string;
-  readonly for_seller: boolean;
   readonly before: unknown;
   readonly after: unknown;
 }
@@ -120,9 +116,15 @@ export interface ShopSettingsPage {
 export interface ViewSession {
   readonly shop: ShopInfo;
   readonly stage: StageId;
-  readonly act_allowed: boolean;
-  readonly can_act: boolean;
-  readonly seller_consent_at: string | null;
+  readonly read_only: true;
+}
+
+export interface DisconnectResult {
+  readonly already_disconnected: boolean;
+  readonly credentials_revoked: number;
+  readonly runs_cancelled: number;
+  readonly email_sent: boolean;
+  readonly tiktok_revoke: string;
 }
 
 export type StreamId = "product_card" | "shop_tab" | "seller_video" | "seller_live";

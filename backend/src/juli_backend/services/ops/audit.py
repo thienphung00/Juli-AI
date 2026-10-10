@@ -40,7 +40,6 @@ async def record(
     shop_id: uuid.UUID | None = None,
     before: Any = None,
     after: Any = None,
-    for_seller: bool = False,
     at: datetime | None = None,
 ) -> OpsAuditLog:
     """Append one audit row (no commit; the caller's transaction owns it)."""
@@ -50,7 +49,6 @@ async def record(
         actor_email=actor.email,
         shop_id=shop_id,
         action=action,
-        for_seller=for_seller,
         before=_jsonable(before),
         after=_jsonable(after),
     )

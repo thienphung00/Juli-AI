@@ -123,7 +123,6 @@ def _create_tables() -> None:
         sa.Column("actor_email", sa.String(length=320), nullable=False),
         sa.Column("shop_id", sa.Uuid(), nullable=True),
         sa.Column("action", sa.String(length=64), nullable=False),
-        sa.Column("for_seller", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("before", sa.JSON(), nullable=True),
         sa.Column("after", sa.JSON(), nullable=True),
         sa.Column("at", sa.DateTime(), server_default=sa.func.now(), nullable=False),

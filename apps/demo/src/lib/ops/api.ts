@@ -2,6 +2,7 @@ import { readAuthSession } from "../supabase-auth";
 import type {
   AuditEntry,
   Deltas,
+  DisconnectResult,
   Invite,
   OpsMe,
   Overview,
@@ -100,8 +101,14 @@ export const opsApi = {
       { method: "POST", body: { email, keep_ops_access: keepOpsAccess } },
       o,
     ),
-  viewSession: (shopId: string, mode: "view" | "act" | "exit", o?: OpsRequestOptions) =>
+  viewSession: (shopId: string, mode: "view" | "exit", o?: OpsRequestOptions) =>
     opsRequest<ViewSession>(`${shopPath(shopId)}/view-session`, { method: "POST", body: { mode } }, o),
+  disconnect: (shopId: string, reason: string, confirmName: string, o?: OpsRequestOptions) =>
+    opsRequest<{ data: DisconnectResult }>(
+      `${shopPath(shopId)}/disconnect`,
+      { method: "POST", body: { reason, confirm_name: confirmName } },
+      o,
+    ),
   simulation: (shopId: string, window: number, o?: OpsRequestOptions) =>
     opsRequest<SimulationPage>(`${shopPath(shopId)}/simulation?window=${window}`, {}, o),
   createScenario: (shopId: string, name: string, deltas: Deltas, isTarget: boolean, o?: OpsRequestOptions) =>

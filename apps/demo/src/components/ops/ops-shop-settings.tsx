@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
-import { fmtDate } from "../../lib/ops/format";
 import type { OpsMe, OverrideKey, ShopSettings, ShopSettingsPage, StageId } from "../../lib/ops/types";
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
@@ -338,24 +337,6 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
               title="Trần chi phí OpenAI"
             >
               <CapEditor onSave={(v) => void save({ openai_monthly_cap_usd: v })} value={cap} />
-            </SettingRow>
-            <SettingRow
-              disabled={!canEdit}
-              help="Duyệt thẻ, nhập Quy tắc thay seller"
-              overridden={s.team_may_act}
-              summary={s.team_may_act ? (s.seller_consent_at ? `Có · seller đồng ý ${fmtDate(s.seller_consent_at).slice(0, 5)}` : "Có · chờ seller đồng ý") : "Không"}
-              title="Đội ngũ được làm thay"
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ display: "flex", gap: 6 }}>
-                  <input checked={s.team_may_act} onChange={(e) => void save({ team_may_act: e.target.checked })} type="checkbox" />
-                  Cho phép đội ngũ làm thay
-                </label>
-                <label style={{ display: "flex", gap: 6 }}>
-                  <input checked={s.seller_consent_at !== null} onChange={(e) => void save({ seller_consented: e.target.checked })} type="checkbox" />
-                  Seller đã đồng ý (ghi thời điểm)
-                </label>
-              </div>
             </SettingRow>
           </div>
         </section>

@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: 
 
 describe("Tổng quan (OpsOverview.dc.html)", () => {
   it("shows the five totals, one row per shop, the cap badge and filters by stage", async () => {
-    render(<OpsOverview api={{ overview: async () => OVERVIEW }} me={ME} />);
+    render(<OpsOverview api={{ overview: async () => OVERVIEW, disconnect: vi.fn() }} me={ME} />);
     expect(await screen.findByRole("heading", { name: "Gian hàng đã kết nối" })).toBeInTheDocument();
     expect(screen.getByText("Đã kết nối")).toBeInTheDocument();
     expect(screen.getByText("trên 3 tài khoản")).toBeInTheDocument();
@@ -45,12 +45,12 @@ describe("Cài đặt shop (OpsShopSettings.dc.html)", () => {
     render(<OpsShopSettings api={a} me={ME} shopId={SHOP_ID} />);
     expect(await screen.findByRole("heading", { name: "Mỹ phẩm Thảo Nhi" })).toBeInTheDocument();
     const rows = screen.getAllByTestId("ops-setting");
-    expect(rows).toHaveLength(8);
+    expect(rows).toHaveLength(7);
+    expect(screen.queryByText("Đội ngũ được làm thay")).toBeNull();
     expect(within(rows[0]).getByText("Mặc định")).toBeInTheDocument();
     expect(within(rows[0]).getByText("5/ngày · 25/tuần · 30 mở")).toBeInTheDocument();
     expect(within(rows[6]).getByText("Ghi đè")).toBeInTheDocument();
     expect(within(rows[6]).getByText("$5 / tháng")).toBeInTheDocument();
-    expect(within(rows[7]).getByText(/Có · seller đồng ý 10\/10/)).toBeInTheDocument();
     expect(screen.getByText(/đặt trần chi phí OpenAI \$5\/tháng/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: /Pilot đặc biệt/ }));
     await waitFor(() => expect(a.putSettings).toHaveBeenCalledWith(SHOP_ID, { stage: "pilot" }));
@@ -136,23 +136,53 @@ describe("simulation math (client mirror)", () => {
 });
 
 describe("Xem như shop fetch", () => {
-  it("maps seller reads to the ops view API and refuses writes unless acting", async () => {
+  it("maps seller reads (incl. runs) to the ops view API and refuses every write", async () => {
     const base = vi.fn(async () => new Response("{}", { status: 200 }));
-    const view = createOpsViewFetch({ shopId: SHOP_ID, act: false, baseFetch: base as unknown as typeof fetch });
+    const view = createOpsViewFetch({ shopId: SHOP_ID, baseFetch: base as unknown as typeof fetch });
     await view("/v1/demo/decisions", { headers: { "X-Shop-Id": "x", Authorization: "Bearer t" } });
     expect(base).toHaveBeenLastCalledWith(`/v1/ops/shops/${SHOP_ID}/view/decisions`, expect.anything());
     const headers = (base.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Headers;
     expect(headers.get("X-Shop-Id")).toBeNull();
     await view("/v1/demo/analysis/rankings?stream=product_card&metric=ctr");
     expect(base).toHaveBeenLastCalledWith(`/v1/ops/shops/${SHOP_ID}/view/analysis/rankings?stream=product_card&metric=ctr`, expect.anything());
-    const refused = await view("/v1/demo/decisions/c1/approve", { method: "POST" });
-    expect(refused.status).toBe(403);
-    expect((await view("/v1/demo/runs")).status).toBe(404);
-    const act = createOpsViewFetch({ shopId: SHOP_ID, act: true, baseFetch: base as unknown as typeof fetch });
-    await act("/v1/demo/decisions/c1/approve", { method: "POST" });
-    expect(base).toHaveBeenLastCalledWith(`/v1/ops/shops/${SHOP_ID}/act/decisions/c1/approve`, expect.anything());
-    await act("/v1/demo/rules/max_open_cards", { method: "PUT" });
-    expect(base).toHaveBeenLastCalledWith(`/v1/ops/shops/${SHOP_ID}/act/rules/max_open_cards`, expect.anything());
-    expect((await act("/v1/demo/runs/r1/decline", { method: "POST" })).status).toBe(403);
+    await view("/v1/demo/runs/r1/changes");
+    expect(base).toHaveBeenLastCalledWith(`/v1/ops/shops/${SHOP_ID}/view/runs/r1/changes`, expect.anything());
+    const calls = base.mock.calls.length;
+    for (const [path, method] of [
+      ["/v1/demo/decisions/c1/approve", "POST"],
+      ["/v1/demo/decisions/c1/reject", "POST"],
+      ["/v1/demo/rules/max_open_cards", "PUT"],
+      ["/v1/demo/rules/max_open_cards", "DELETE"],
+      ["/v1/demo/runs/r1/confirmations/x", "POST"],
+    ]) {
+      expect((await view(path, { method })).status).toBe(403);
+    }
+    expect(base.mock.calls.length).toBe(calls);
+    expect((await view("/v1/demo/runs/r1/events")).status).toBe(404);
+  });
+});
+
+describe("Huỷ kết nối (D25.13)", () => {
+  it("is Admin-only, needs a reason and the typed shop name, then calls the API", async () => {
+    const disconnect = vi.fn(async () => ({ data: {} as never }));
+    const { unmount } = render(<OpsOverview api={{ overview: async () => OVERVIEW, disconnect }} me={{ ...ME, role: "operator", role_label: "Vận hành" }} />);
+    await screen.findAllByTestId("ops-shop-row");
+    expect(screen.queryByRole("button", { name: "Huỷ kết nối" })).toBeNull();
+    unmount();
+    render(<OpsOverview api={{ overview: async () => OVERVIEW, disconnect }} me={ME} />);
+    await screen.findAllByTestId("ops-shop-row");
+    // two connected shops get the action, the never-connected one does not
+    expect(screen.getAllByRole("button", { name: "Huỷ kết nối" })).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole("button", { name: "Huỷ kết nối" })[0]);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Lượt chạy đang chờ được huỷ; không ghi gì thêm lên TikTok.")).toBeInTheDocument();
+    const confirm = within(dialog).getByRole("button", { name: "Huỷ kết nối" });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Lý do (bắt buộc, ghi vào nhật ký)"), { target: { value: "seller yêu cầu" } });
+    fireEvent.change(within(dialog).getByLabelText("Gõ tên shop để xác nhận"), { target: { value: "Mỹ phẩm Thảo" } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Gõ tên shop để xác nhận"), { target: { value: "Mỹ phẩm Thảo Nhi" } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(disconnect).toHaveBeenCalledWith(SHOP_ID, "seller yêu cầu", "Mỹ phẩm Thảo Nhi"));
   });
 });

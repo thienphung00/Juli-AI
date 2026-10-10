@@ -97,9 +97,6 @@ export const SETTINGS: ShopSettingsPage = {
       openai_model: "gpt-5.4-nano",
       openai_monthly_cap_usd: null,
     },
-    team_may_act: true,
-    seller_consent_at: "2026-10-10T02:00:00",
-    act_allowed: true,
     updated_at: null,
     options: {
       stages: [
@@ -125,7 +122,6 @@ export const SETTINGS: ShopSettingsPage = {
       actor_email: "thien.phung@app-juli.com",
       shop_id: SHOP_ID,
       action: "settings_update",
-      for_seller: false,
       before: { openai_monthly_cap_usd: null },
       after: { openai_monthly_cap_usd: 5 },
     },
@@ -135,9 +131,7 @@ export const SETTINGS: ShopSettingsPage = {
 export const VIEW_SESSION: ViewSession = {
   shop: SETTINGS.shop,
   stage: "trial",
-  act_allowed: true,
-  can_act: true,
-  seller_consent_at: "2026-10-10T02:00:00",
+  read_only: true,
 };
 
 const band = (mean: number, pct: number, cv: number) => ({ p10: mean * (1 - pct / 100), p90: mean * (1 + pct / 100), mean, band_pct: pct, cv, days: 30 });

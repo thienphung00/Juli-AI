@@ -10,7 +10,7 @@ import { C, OpsHeader, OpsPage, STAGE_STYLE } from "./ops-shell";
 
 /** "Tổng quan" — artboard OpsOverview.dc.html (D25.5). */
 
-const GRID = "minmax(0, 2.2fr) 130px 130px 110px 130px 90px 90px 110px 120px 190px";
+const GRID = "minmax(0, 2fr) 120px 120px 110px 130px 80px 80px 100px 110px 260px";
 const CONN: Record<string, [string, string]> = {
   ok: ["Đang kết nối", C.green],
   expired: ["Token hết hạn", C.red],
@@ -28,8 +28,10 @@ function ownerLine(shop: OverviewShop): string {
   return `seller: ${shop.owner_email ?? "—"}`;
 }
 
-export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly api?: Pick<OpsApi, "overview"> }) {
+export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly api?: Pick<OpsApi, "overview" | "disconnect"> }) {
   const [data, setData] = useState<Overview | null>(null);
+  const [confirm, setConfirm] = useState<OverviewShop | null>(null);
+  const [epoch, setEpoch] = useState(0);
   const [failed, setFailed] = useState(false);
   const [stage, setStage] = useState<StageId | "all">("all");
   const [query, setQuery] = useState("");
@@ -43,7 +45,7 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
     return () => {
       live = false;
     };
-  }, [api]);
+  }, [api, epoch]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -195,6 +197,15 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
                         <Link href={`/ops/shops/${s.shop_id}`} style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 36, display: "inline-flex", alignItems: "center", color: C.pink }}>
                           Cài đặt
                         </Link>
+                        {me.role === "admin" && s.connection !== "none" ? (
+                          <button
+                            onClick={() => setConfirm(s)}
+                            style={{ font: "inherit", fontSize: 13, fontWeight: 600, color: C.red, background: "transparent", border: 0, minHeight: 36, cursor: "pointer" }}
+                            type="button"
+                          >
+                            Huỷ kết nối
+                          </button>
+                        ) : null}
                       </span>
                     </div>
                   );
@@ -205,6 +216,95 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
           </>
         ) : null}
       </main>
+      {confirm ? (
+        <DisconnectDialog
+          onCancel={() => setConfirm(null)}
+          onConfirm={async (reason, typed) => {
+            await api.disconnect(confirm.shop_id, reason, typed);
+            setConfirm(null);
+            setEpoch(epoch + 1);
+          }}
+          shop={confirm}
+        />
+      ) : null}
     </OpsPage>
+  );
+}
+
+/** D25.13 "Huỷ kết nối" confirmation (artboard OpsOverview.dc.html). */
+function DisconnectDialog({
+  shop,
+  onCancel,
+  onConfirm,
+}: {
+  readonly shop: OverviewShop;
+  readonly onCancel: () => void;
+  readonly onConfirm: (reason: string, typed: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ready = reason.trim().length > 0 && typed.trim() === shop.shop_name.trim() && !busy;
+  const field = { font: "inherit", fontSize: 14, border: `1px solid ${C.line}`, borderRadius: 8, minHeight: 40, padding: "0 10px" } as const;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(26,26,31,0.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div
+        aria-labelledby="disc-q"
+        aria-modal="true"
+        role="dialog"
+        style={{ boxSizing: "border-box", width: 520, maxWidth: "100%", background: "#fff", borderRadius: 16, padding: "22px 24px", display: "flex", flexDirection: "column", gap: 12, boxShadow: "0 20px 48px rgba(20,20,30,0.25)" }}
+      >
+        <h3 id="disc-q" style={{ margin: 0, fontSize: 19, fontWeight: 700 }}>
+          Huỷ kết nối {shop.shop_name}?
+        </h3>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: C.body, display: "flex", flexDirection: "column", gap: 4 }}>
+          <li>Juli thu hồi quyền TikTok của shop và ngừng lấy dữ liệu, ngừng tạo thẻ.</li>
+          <li>Lượt chạy đang chờ được huỷ; không ghi gì thêm lên TikTok.</li>
+          <li>Lịch sử, Quy tắc và kết quả đo được giữ lại; kết nối lại sẽ dùng tiếp.</li>
+          <li>Seller nhận email báo đã huỷ kết nối.</li>
+        </ul>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: C.muted }}>
+          Lý do (bắt buộc, ghi vào nhật ký)
+          <input onChange={(e) => setReason(e.target.value)} placeholder="Ví dụ: seller yêu cầu dừng dùng thử" style={field} type="text" value={reason} />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: C.muted }}>
+          Gõ tên shop để xác nhận
+          <input onChange={(e) => setTyped(e.target.value)} placeholder={shop.shop_name} style={field} type="text" value={typed} />
+        </label>
+        <span style={{ fontSize: 12, color: C.muted2 }}>Chỉ vai trò Admin được huỷ kết nối.</span>
+        {error ? (
+          <span role="alert" style={{ color: C.red, fontSize: 13 }}>
+            {error}
+          </span>
+        ) : null}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button
+            onClick={onCancel}
+            style={{ font: "inherit", fontSize: 14, fontWeight: 600, color: C.ink, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, minHeight: 44, padding: "0 16px", cursor: "pointer" }}
+            type="button"
+          >
+            Quay lại
+          </button>
+          <button
+            disabled={!ready}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await onConfirm(reason.trim(), typed.trim());
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Không huỷ kết nối được.");
+                setBusy(false);
+              }
+            }}
+            style={{ font: "inherit", fontSize: 14, fontWeight: 600, color: "#fff", background: C.red, border: 0, borderRadius: 10, minHeight: 44, padding: "0 18px", cursor: ready ? "pointer" : "not-allowed", opacity: ready ? 1 : 0.6 }}
+            type="button"
+          >
+            Huỷ kết nối
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

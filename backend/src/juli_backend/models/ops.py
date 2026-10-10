@@ -90,8 +90,6 @@ class OpsAuditLog(Base):
     actor_email: Mapped[str] = mapped_column(String(320))
     shop_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     action: Mapped[str] = mapped_column(String(64))
-    #: True when the write was made "by staff X for seller" (act mode, D25.3).
-    for_seller: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     before: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     after: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     at: Mapped[datetime] = mapped_column(server_default=func.now())
