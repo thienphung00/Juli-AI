@@ -33,7 +33,7 @@ for good / refused); a transient provider error keeps it for the retry; the hour
 | | Request | Answer |
 |---|---|---|
 | Open a slot | `POST /v1/demo/content-analysis` `{kind, content_ref?, tiktok_product_id?, run_id?, file_name, content_type: video/mp4 \| video/quicktime, size_bytes}` | 201 `{data: {analysis, upload: {url, token, chunk_bytes, expires_at}}}` |
-| Send bytes | `PUT {url}?offset=N&token=…`, raw body (`application/octet-stream`), ≤ `chunk_bytes` (32 MB) | 200 `{data: analysis}`; the chunk that completes `size_bytes` → `queued` + enqueue |
+| Send bytes | `PUT {url}?offset=N`, header `X-Upload-Token: <token>` (never in the URL), raw body (`application/octet-stream`), ≤ `chunk_bytes` (32 MB) | 200 `{data: analysis}`; the chunk that completes `size_bytes` → `queued` + enqueue |
 | List | `GET /v1/demo/content-analysis?tiktok_product_id=&content_ref=&run_id=` | `{data: [analysis]}` newest first, ≤ 20 |
 | One | `GET /v1/demo/content-analysis/{id}` | `{data: analysis}`; another shop's → 404 |
 

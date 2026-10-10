@@ -6,7 +6,7 @@ Contract ``fasttrack/contracts/p15-content-analysis.md``.
   ``{kind, content_ref?, tiktok_product_id?, run_id?, file_name, content_type, size_bytes}``
   → 201 ``{data: {analysis, upload: {url, token, chunk_bytes, expires_at}}}``;
   413 / 415 / 422 / 409 ``too_many_uploads`` / 402 ``cost_cap_reached``.
-- ``PUT /v1/demo/content-analysis/{id}/file?offset=N&token=…`` -- raw bytes
+- ``PUT /v1/demo/content-analysis/{id}/file?offset=N`` + header ``X-Upload-Token`` -- raw bytes
   (``Content-Type: application/octet-stream``), ≤ 32 MB per request, at the
   offset Juli already holds → 200 ``{data: analysis}``; the last chunk queues
   the analysis (``analyze_content_upload`` on the ``content_analysis`` queue).
@@ -28,7 +28,7 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -149,13 +149,14 @@ async def upload_content_chunk(
     analysis_id: uuid.UUID,
     request: Request,
     offset: int = Query(ge=0),
-    token: str = Query(min_length=10, max_length=200),
+    # A header, never the query string: URLs reach access logs.
+    upload_token: str = Header(alias="X-Upload-Token", min_length=10, max_length=200),
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     conf = settings()
     try:
-        signed = storage.verify(token, analysis_id, shop.id)
+        signed = storage.verify(upload_token, analysis_id, shop.id)
     except RuntimeError:
         signed = False
     if not signed:

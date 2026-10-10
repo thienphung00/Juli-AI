@@ -95,9 +95,10 @@ export async function uploadVideo(
     const piece = file.slice(offset, Math.min(file.size, offset + chunk));
     try {
       const body = await parse<{ data: ContentAnalysis }>(
-        await fetchImpl(`${url}?offset=${offset}&token=${encodeURIComponent(token)}`, {
+        await fetchImpl(`${url}?offset=${offset}`, {
           method: "PUT",
-          headers: headers(auth, { "Content-Type": "application/octet-stream" }),
+          // The slot token rides in a header, never the URL (URLs reach access logs).
+          headers: headers(auth, { "Content-Type": "application/octet-stream", "X-Upload-Token": token }),
           body: piece,
         }),
       );

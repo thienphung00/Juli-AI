@@ -90,6 +90,8 @@ test("signed in: upload in chunks, then the analysis appears", async ({ page }) 
   });
   await page.route("**/v1/demo/content-analysis/an-1/file*", async (route) => {
     const url = new URL(route.request().url());
+    expect(route.request().headers()["x-upload-token"]).toBe("123.abc");
+    expect(url.searchParams.has("token")).toBe(false);
     puts.push(Number(url.searchParams.get("offset")));
     received += route.request().postDataBuffer()?.length ?? 0;
     const status = received >= size ? "queued" : "awaiting_upload";

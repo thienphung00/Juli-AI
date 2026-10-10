@@ -836,19 +836,25 @@ async def test_the_routes_open_a_slot_take_chunks_queue_and_list(
         )
         assert res.status_code == 201, res.text
         body = res.json()["data"]
-        url, token = body["upload"]["url"], body["upload"]["token"]
+        url, up_token = body["upload"]["url"], body["upload"]["token"]
         assert (
             body["upload"]["chunk_bytes"] == 50_000
             and body["analysis"]["status"] == "awaiting_upload"
         )
-        bad = await client.put(f"{url}?offset=0&token=0.deadbeefdeadbeef", content=data[:10])
+        bad = await client.put(
+            f"{url}?offset=0", content=data[:10], headers={"X-Upload-Token": "0.deadbeefdeadbeef"}
+        )
         assert bad.status_code == 403
-        too_big = await client.put(f"{url}?offset=0&token={token}", content=data[:60_000])
+        too_big = await client.put(
+            f"{url}?offset=0", headers={"X-Upload-Token": up_token}, content=data[:60_000]
+        )
         assert too_big.status_code == 413
         last = None
         for offset in range(0, len(data), 50_000):
             last = await client.put(
-                f"{url}?offset={offset}&token={token}", content=data[offset : offset + 50_000]
+                f"{url}?offset={offset}",
+                headers={"X-Upload-Token": up_token},
+                content=data[offset : offset + 50_000],
             )
             assert last.status_code == 200, last.text
         assert last is not None and last.json()["data"]["status"] == "queued"

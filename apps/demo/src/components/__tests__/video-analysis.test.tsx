@@ -149,10 +149,12 @@ describe("content-analysis client", () => {
     expect(out.status).toBe("queued");
     expect(held).toBe(10);
     expect(calls[0]).toBe("POST /v1/demo/content-analysis");
-    expect(calls).toContain("PUT /v1/demo/content-analysis/a-1/file?offset=4&token=t.k");
+    expect(calls).toContain("PUT /v1/demo/content-analysis/a-1/file?offset=4");
     expect(progress.at(-1)).toBe(1);
     const headers = fetchImpl.mock.calls[1][1]?.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer tok");
     expect(headers["X-Shop-Id"]).toBe("shop");
+    expect(headers["X-Upload-Token"]).toBe("t.k");
+    expect(calls.join(" ")).not.toContain("token=");
   });
 });
