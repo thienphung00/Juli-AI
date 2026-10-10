@@ -371,3 +371,12 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       it is greyed "Đang tải lịch sử · còn N ngày". Fix the video-windows 429
       handling in the same work: longer retry/back-off on 429 and skip the
       video tables for that cycle instead of falling back to whole-day reads.
+  14. **Rules set by the team first** (owner, 2026-10-10): staff edit each
+      shop's Quy tắc from Ops "Cài đặt shop" (audited); later the seller adjusts
+      and optimises them in their own Quy tắc. Card approval stays seller-only.
+  15. **Permission status**: token refresh also stores `granted_scopes`; Ops
+      shows each shop's scope status; a missing scope shows the seller a
+      "Kết nối lại TikTok Shop để cấp quyền mới" strip. (The 30-minute beat only
+      checks; a token is refreshed only within 24 h of expiry, about weekly.)
+- **D24.22** — Banned words and tone go into the drafting prompt and the draft
+  is checked before the seller sees it (owner, 2026-10-10, option A).
