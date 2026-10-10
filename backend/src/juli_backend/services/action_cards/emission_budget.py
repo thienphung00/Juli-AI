@@ -25,7 +25,7 @@ weeks are the shop's (Vietnam, UTC+7; weeks start Monday). Campaign-plan cards
   :func:`expired_card_returns`).
 - **First connect.** A shop that has never had a surfaced card gets its first
   day mixed by executor (``first_day_mix``: 3 Juli / Juli + ảnh, 1 Seller
-  Center, 1 content — video/LIVE cards a sibling phase adds); an empty slot is
+  Center, 1 content — P14-E video/LIVE cards); an empty slot is
   filled with the next best card. Every later day is plain priority order.
 
 **Surfacing ledger.** ``decision_emission_novelty_ledger`` (the #716 weekly
@@ -63,6 +63,10 @@ from juli_backend.core.config.decision_emission import (
     EXECUTOR_SELLER_CENTER,
 )
 from juli_backend.models.models import ActionCard, DecisionEmissionNoveltyLedger
+from juli_backend.services.content_cards.constants import (
+    CONTENT_WORKFLOW_KEYS as _P14E_CONTENT_WORKFLOW_KEYS,
+)
+from juli_backend.services.content_cards.constants import EXECUTOR_JULI_DRAFTS
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +102,15 @@ EXPIRED_AT_METADATA_KEY = "expired_at"
 CAMPAIGN_PLAN_WORKFLOW_KEYS: frozenset[str] = frozenset({"campaign_plan"})
 
 #: Workflows whose cards fill the first day's ``content`` slot (video / LIVE,
-#: "Juli soạn · bạn làm", D24.4). A card of any workflow can also claim it with
-#: ``recommendation_payload.executor_type`` = ``video`` or ``live``.
-CONTENT_WORKFLOW_KEYS: frozenset[str] = frozenset()
+#: "Juli soạn · bạn làm", D24.4): P14-E's ``content_video`` / ``content_live``.
+#: A card of any workflow can also claim it with ``recommendation_payload``
+#: ``card_executor`` = ``juli_drafts`` (P14-E) or ``executor_type`` = ``video``
+#: / ``live``. Content cards obey every limit, the validity and the 3-day stay
+#: here like any other card; P14-E's ≤ 5 new per week is a sub-limit applied
+#: when they are written (``content_cards.emission``).
+CONTENT_WORKFLOW_KEYS: frozenset[str] = _P14E_CONTENT_WORKFLOW_KEYS
 _CONTENT_EXECUTOR_TYPES = frozenset({"video", "live"})
+_CONTENT_CARD_EXECUTORS = frozenset({EXECUTOR_JULI_DRAFTS})
 
 #: Executor slot of a card the first-day mix does not name.
 EXECUTOR_OTHER = "other"
@@ -165,6 +174,7 @@ def executor_slot(card: ActionCard) -> str:
     payload = _payload(card)
     if (
         card.workflow_key in CONTENT_WORKFLOW_KEYS
+        or payload.get("card_executor") in _CONTENT_CARD_EXECUTORS
         or payload.get("executor_type") in _CONTENT_EXECUTOR_TYPES
     ):
         return EXECUTOR_CONTENT

@@ -75,6 +75,8 @@ logger = logging.getLogger(__name__)
 
 _ACTIVE = "active"
 _WITHDRAWN = "withdrawn"
+#: Set by ``action_cards.emission_budget`` on a surfaced card past its validity.
+_EXPIRED = "expired"
 _IN_FLIGHT = frozenset({"approved", "executing"})
 _SEVERITY = "warning"
 #: An approved content card blocks a new one on the same product and lever for
@@ -313,7 +315,17 @@ def _withdraw(card: ActionCard, *, why: str, now: datetime) -> None:
 
 
 def expired_recently(card: ActionCard, *, now: datetime) -> bool:
-    """A withdrawn card that expired less than ``COOLDOWN_DAYS`` ago."""
+    """A card that expired less than ``COOLDOWN_DAYS`` ago.
+
+    Expired here (withdrawn, ``expired_at`` stamped) or by the emission budget
+    (status ``expired``, same ``expired_at`` key; P14 card limits, D24.17).
+    """
+    if card.status == _EXPIRED:
+        from juli_backend.services.action_cards.emission_budget import expired_card_returns
+
+        return not expired_card_returns(
+            card, now=now, cooldown_days=COOLDOWN_DAYS, validity_days=VALIDITY_DAYS
+        )
     if card.status != _WITHDRAWN:
         return False
     raw = _metadata(card).get(EXPIRED_AT_KEY)
