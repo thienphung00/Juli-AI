@@ -1280,7 +1280,12 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # a_cost_fails_loudly`, `test_lever_flows_wiring.py::test_resume_after_external_
     # wait_refuses_a_run_that_is_not_waiting`) -> 456.
     # Every lower layer is unchanged.
-    "no_assert_statement": 456,
+    # With P14-C/F (+3: `test_shop_rules_off_api.py::test_out_of_range_values_
+    # are_refused`, `test_order_costs.py::test_both_reads_are_exact_production_
+    # read_gets`, `test_order_costs.py::test_path_helpers_refuse_a_non_numeric_
+    # order_id`) -> 459, re-derived by `reconciliation_identities` on the P14
+    # integration tree. Every lower layer is unchanged.
+    "no_assert_statement": 459,
     "and_no_pytest_raises": 121,
     "and_no_mock_assert_called": 106,
     "and_no_unittest_self_assert": 106,
