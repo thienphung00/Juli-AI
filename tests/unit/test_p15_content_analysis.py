@@ -1132,3 +1132,41 @@ async def test_content_analyses_are_isolated_per_shop_under_rls():
                         )
                     )
                     await session.flush()
+
+
+@pytest.mark.asyncio
+async def test_an_upload_from_a_content_run_takes_the_runs_product(session, conf):
+    from tests.support.lever_flows import seed_run
+
+    shop, product = await seed_shop(session)
+    run = await seed_run(session, shop, product)
+    row = await uploads.create_upload(
+        session,
+        shop_id=shop.id,
+        user_id=None,
+        kind="video",
+        content_ref=None,
+        tiktok_product_id=None,
+        workflow_run_id=run.id,
+        file_name="a.mp4",
+        content_type="video/mp4",
+        size_bytes=10,
+        conf=conf,
+    )
+    assert row.tiktok_product_id == product.tiktok_product_id and row.workflow_run_id == run.id
+    other, _ = await seed_shop(session, "b")
+    with pytest.raises(uploads.UploadRefused) as err:
+        await uploads.create_upload(
+            session,
+            shop_id=other.id,
+            user_id=None,
+            kind="video",
+            content_ref=None,
+            tiktok_product_id=None,
+            workflow_run_id=run.id,
+            file_name="a.mp4",
+            content_type="video/mp4",
+            size_bytes=10,
+            conf=conf,
+        )
+    assert err.value.status == 404

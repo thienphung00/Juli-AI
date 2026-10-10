@@ -2225,3 +2225,172 @@ body:has(.qd-page) {
     flex-wrap: wrap;
   }
 }
+
+/* ── P15 "Phân tích video" (no artboard — reuses the ContentRun boxes; owner review
+   pending, fasttrack/DEBT.md). Used in the content run panel and in Phân tích ›
+   Nội dung row detail. ───────────────────────────────────────────────────── */
+
+.qv-va {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--qd-border-2);
+  border-radius: 12px;
+  background: var(--qd-surface);
+  padding: 14px 16px;
+  font-size: 14px;
+  min-width: 0;
+}
+
+.qv-va--compact {
+  margin-top: 8px;
+  background: var(--qd-soft);
+}
+
+.qv-va__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.qv-va__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.qv-va__badge,
+.qv-va__status {
+  border-radius: 999px;
+  background: var(--qd-grey);
+  color: var(--qd-ink-2);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.qv-va__status[data-status="done"] {
+  background: var(--qd-ok-bg);
+  color: var(--qd-ok-fg);
+}
+
+.qv-va__status[data-status="queued"],
+.qv-va__status[data-status="processing"],
+.qv-va__status[data-status="awaiting_upload"] {
+  background: var(--qd-info-bg);
+  color: var(--qd-info-fg);
+}
+
+.qv-va__status[data-status="failed"],
+.qv-va__status[data-status="refused"],
+.qv-va__status[data-status="expired"] {
+  background: var(--qd-wait-bg);
+  color: var(--qd-wait-fg);
+}
+
+.qv-va__result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.qv-va__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.qv-va__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.qv-va__fact dt,
+.qv-va__k {
+  color: var(--qd-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.qv-va__fact dd {
+  margin: 0;
+  color: var(--qd-ink);
+  overflow-wrap: anywhere;
+}
+
+.qv-va__verdict {
+  font-weight: 700;
+}
+
+.qv-va__verdict--strong {
+  color: var(--qd-ok-fg);
+}
+
+.qv-va__verdict--weak {
+  color: var(--qd-wait-fg);
+}
+
+.qv-va__list ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--qd-ink-2);
+}
+
+.qv-va__note,
+.qv-va__muted,
+.qv-va__hint {
+  margin: 0;
+  color: var(--qd-muted);
+  font-size: 12px;
+}
+
+.qv-va__muted {
+  font-size: 13px;
+}
+
+.qv-va__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.qv-va__progress progress {
+  width: 100%;
+  accent-color: var(--qd-pink);
+}
+
+.qv-va__upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.qv-va__pick {
+  cursor: pointer;
+}
+
+.qv-va__pick--off {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.qv-va__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.qv-va__input:focus-visible + .qv-va__hint,
+.qv-va__upload:focus-within .qv-va__pick {
+  outline: 2px solid var(--qd-pink);
+  outline-offset: 2px;
+}

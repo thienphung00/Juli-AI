@@ -29,7 +29,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.content_analysis import ContentAnalysis
-from juli_backend.models.models import WorkflowRun
+from juli_backend.models.models import Product, WorkflowRun
 from juli_backend.services.content_analysis import costs, storage
 from juli_backend.services.content_analysis.config import (
     CONTENT_TYPES,
@@ -125,6 +125,10 @@ async def create_upload(
         run = await session.get(WorkflowRun, workflow_run_id)
         if run is None or run.shop_id != shop_id:
             raise UploadRefused(404, "run_not_found", "Không tìm thấy lượt chạy này.")
+        if tiktok_product_id is None and run.product_id is not None:
+            # From a content run: the run's own product.
+            product = await session.get(Product, run.product_id)
+            tiktok_product_id = product.tiktok_product_id if product is not None else None
     in_flight = (
         await session.execute(
             select(func.count())
