@@ -249,3 +249,11 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
         daily); it is withdrawn earlier only when no longer valid (product
         edited outside Juli, out of stock, metric already at target), not for
         dropping in rank.
+  18. **Content cards (Video / LIVE), P14** (owner, 2026-10-10; artboards
+      ContentCards, ContentRun): same card frame + chip "Juli soạn · bạn làm";
+      after Phê duyệt Juli reads data and drafts with `gpt-5.4-nano`
+      (structured output); the seller picks Dùng kịch bản này / Soạn lại /
+      Không thực hiện, then films or goes live; Juli detects the new video
+      tagging the product or the next LIVE selling it. **No Hoàn tác** (Juli
+      writes nothing to TikTok). Measurement: video CTR on new videos at day
+      7 / 14; LIVE CTOR over the **next 3 sessions** selling the product.
