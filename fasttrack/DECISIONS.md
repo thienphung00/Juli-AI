@@ -268,3 +268,10 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       the seller uploads the video file to Juli. Scripts follow the seller's
       voice (tone and banned words in Quy tắc + the shop's own best-selling
       videos/LIVEs as examples), never Juli's founder voice; no Fujiwa data.
+      *2B result (2026-10-10):* no compliant API gives the seller's video or
+      LIVE replay file. Accounts API prohibits downloading media; Spark Ads /
+      GMV Max `preview_url` exists but needs ads authorization and conflicts
+      with that rule; no API returns transcripts or LIVE replays. → P15 uses
+      **seller upload (2C)**, plus compliant signals: Accounts API
+      `video_view_retention`, caption, thumbnail/share URL (after the Business
+      app and the Accounts API form are approved) and Partner shop metrics.
