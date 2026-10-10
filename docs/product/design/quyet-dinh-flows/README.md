@@ -20,9 +20,11 @@ font sizes, states. Each `.dc.html` is HTML with inline styles plus a small
 | `Day14.dc.html` | Day-14 final (Đạt / Gần đạt / Không đạt / Chưa kết luận) | Đo lường |
 | `Revert.dc.html` | Hoàn tác: reason dialog (one required), conflict branch, consent, restore | Dialog + Đang thực hiện |
 | `Decline.dc.html` | Từ chối (Đề xuất) and Không thực hiện (consent) with reason dialog | Dialogs |
+| `ContentCards.dc.html` | P14 content cards: Video (Kịch bản video mới) and LIVE (Kịch bản host + thứ tự giỏ), chip "Juli soạn · bạn làm", collapsed / Xem thêm (2026-10-10, D24.18) | Đề xuất (content group) |
+| `ContentRun.dc.html` | P14 content run: 6 steps, script (bản 1/2, Dùng kịch bản này / Soạn lại / Sao chép / Không thực hiện), waiting for the video / LIVE, measuring (2026-10-10, D24.18) | Đang thực hiện |
 
 Demo-only affordances in the artboards that are NOT product features: the "Ví dụ" /
 scenario switches, "Mô phỏng: chạy tiếp", "↺ Xem lại từ đầu". Real state comes from the
 API and the run's SSE stream. Numbers in the artboards are illustrative.
 
-API contract between backend and UI: `fasttrack/contracts/p10-quyet-dinh.md`.
+API contract between backend and UI: `fasttrack/contracts/p10-quyet-dinh.md`; content cards and runs: `fasttrack/contracts/p14-content-cards.md`.
