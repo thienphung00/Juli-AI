@@ -175,6 +175,23 @@ def test_analytics_resource_request_shapes() -> None:
     (listing, video, live) = client.calls
     assert listing[1] == ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH
     assert listing[2]["params"]["sort_field"] == "gmv" and listing[2]["items_key"] == "videos"
+    assert listing[2]["params"]["version"] == "202605"
+    assert "account_type" not in listing[2]["params"]
     assert video[1] == analytics_shop_video_products_performance_path("v1")
     assert video[2]["params"]["start_date_ge"] == "2026-09-06"
     assert live[1] == analytics_shop_live_products_performance_path("l1")
+
+
+def test_video_list_is_202605_and_narrows_by_account_type() -> None:
+    assert ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH == "/analytics/202605/shop_videos/performance"
+    resource, client = _analytics()
+    resource.list_video_performance_all(
+        start_date_ge="2026-08-08",
+        end_date_lt="2026-10-07",
+        sort_field="views",
+        account_type="OFFICIAL_ACCOUNTS",
+    )
+    [(_, path, kwargs)] = client.calls
+    assert path == ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH
+    assert kwargs["params"]["account_type"] == "OFFICIAL_ACCOUNTS"
+    assert kwargs["params"]["sort_field"] == "views"

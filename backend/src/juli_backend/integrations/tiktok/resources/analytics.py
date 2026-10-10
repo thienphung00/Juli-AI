@@ -24,6 +24,7 @@ from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_VIDEOS_LIST_API_VERSION,
     ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH,
     analytics_shop_live_products_performance_path,
     analytics_shop_performance_per_hour_path,
@@ -266,16 +267,24 @@ class AnalyticsResource:
         start_date_ge: str,
         end_date_lt: str,
         sort_field: str = "gmv",
+        account_type: str | None = None,
         page_size: int = 100,
     ) -> list[dict[str, Any]]:
-        """Get Shop Video Performance List, paginated; each video lists its products."""
-        params = {
-            "version": ANALYTICS_API_VERSION,
-            "start_date_ge": start_date_ge,
-            "end_date_lt": end_date_lt,
-            "sort_field": sort_field,
-            "sort_order": "DESC",
-        }
+        """Get Shop Video Performance List, paginated; each video lists its products.
+
+        ``account_type`` narrows to ``OFFICIAL_ACCOUNTS``, ``MARKETING_ACCOUNTS`` or
+        ``AFFILIATE_ACCOUNTS``; omitted, TikTok returns every account (``ALL``).
+        """
+        params = strip_nones(
+            {
+                "version": ANALYTICS_SHOP_VIDEOS_LIST_API_VERSION,
+                "start_date_ge": start_date_ge,
+                "end_date_lt": end_date_lt,
+                "sort_field": sort_field,
+                "sort_order": "DESC",
+                "account_type": account_type,
+            }
+        )
         return self._client.get_all_pages_get(
             ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH,
             params=params,

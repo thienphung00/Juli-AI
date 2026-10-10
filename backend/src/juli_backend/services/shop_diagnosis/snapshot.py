@@ -13,6 +13,8 @@ and end date, outside the repo (order data holds buyer information)::
     live/products/<live id>.json    the session's product performance payload
     videos/videos.json              {"videos": [...]}
     videos/products/<video id>.json the video's product performance payload
+    videos/shop_videos.json         {"videos": [...]} the shop's own accounts, newest first
+    videos/shop_products/<id>.json  product performance of each of those videos
     products/<product id>.json      Get Product payload (title, SKU prices)
 
 Every file but ``daily/`` is optional: a missing one reads as empty and the page

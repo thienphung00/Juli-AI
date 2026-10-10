@@ -43,6 +43,8 @@ ACTIVITY_STATUSES = ("ONGOING", "NOT_START", "EXPIRED", "DEACTIVATED")
 MAX_ACTIVITY_DETAIL_CALLS = 400
 MAX_LIVE_SESSIONS = 60
 MAX_VIDEOS = 40
+# The shop's own accounts: every video with activity in the window, no GMV cut.
+SHOP_ACCOUNT_TYPES = ("OFFICIAL_ACCOUNTS", "MARKETING_ACCOUNTS")
 MAX_PRODUCT_DETAILS = 40
 
 _SCRIPTS = Path(__file__).resolve().parent
@@ -250,6 +252,47 @@ def fetch_videos(
         _write(target / "_error.json", report._error_payload(exc))
 
 
+def fetch_shop_videos(
+    resources: Any, folder: Path, first: str, end_lt: str, report: ModuleType, *, sleep_s: float
+) -> None:
+    """Every video from the shop's own accounts, newest post first, with its products.
+
+    ``videos/videos.json`` keeps the top videos of all accounts by GMV for the report;
+    this list keeps the shop's own videos that a GMV cut would drop (zero-GMV ones too).
+    Each row carries the ``account_type`` it was listed under.
+    """
+    target = folder / "videos"
+    videos: dict[str, dict] = {}
+    for account_type in SHOP_ACCOUNT_TYPES:
+        try:
+            rows = resources.analytics.list_video_performance_all(
+                start_date_ge=first,
+                end_date_lt=end_lt,
+                sort_field="views",
+                account_type=account_type,
+            )
+        except Exception as exc:
+            _write(target / f"_error_shop_{account_type.lower()}.json", report._error_payload(exc))
+            continue
+        for row in rows:
+            video_id = str(row.get("id") or "")
+            if video_id and video_id not in videos:
+                videos[video_id] = {**row, "account_type": account_type}
+    listed = sorted(
+        videos.values(), key=lambda v: str(v.get("video_post_time") or ""), reverse=True
+    )
+    _write(target / "shop_videos.json", {"videos": listed})
+    for video_id in videos:
+        time.sleep(sleep_s)
+        try:
+            payload = resources.analytics.get_video_products_performance(
+                video_id=video_id, start_date_ge=first, end_date_lt=end_lt
+            )
+        except Exception as exc:
+            payload = {"_error": report._error_payload(exc)}
+        _write(target / "shop_products" / f"{video_id}.json", payload)
+
+
 def _gmv(row: dict) -> float:
     block = row.get("total_performance") or {}
     gmv = block.get("gmv") if isinstance(block, dict) else None
@@ -311,6 +354,7 @@ def fetch_snapshot(
     )
     fetch_live(resources, folder, first.isoformat(), end_lt, report, sleep_s=sleep_s)
     fetch_videos(resources, folder, first.isoformat(), end_lt, report, sleep_s=sleep_s)
+    fetch_shop_videos(resources, folder, first.isoformat(), end_lt, report, sleep_s=sleep_s)
     fetch_product_details(resources, folder, report, limit=max_products, sleep_s=sleep_s)
     meta = {
         "shop_name": shop_name,
