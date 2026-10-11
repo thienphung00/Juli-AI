@@ -420,3 +420,31 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   1/3"), and cards appear as soon as they exist. Delivered in **P17** with
   D25.12 (history to 180 days, 429 fix) and faster cost reads for the first
   30 days (60 orders / 15 min, rate-limited).
+
+- **D27** — Juli Ops: speed, confirmations, audit log (owner, 2026-10-11).
+  Artboards: canvas "Thiết kế UI flow", row "Juli Ops · xác nhận, nhật ký, tốc độ
+  (D27)" — `OpsConfirm`, `OpsLog`, and the header of `OpsSimulate`.
+  1. **Daily precompute, not live recompute (9A).** Ops Tổng quan and Mô phỏng read
+     numbers computed once a day, right after the shop's daily analytics pass
+     (new days landed). Pages show "Số liệu đến hết DD/MM · cập nhật lúc HH:MM" +
+     **Làm mới**, which recomputes only the shop being viewed (Tổng quan: all rows).
+  2. **Compact daily table for Mô phỏng (2A):** one row per shop × stream × day
+     (impressions, clicks, orders, GMV), written when the diagnosis report is built;
+     the simulation reads it instead of merging stored report JSON. Daily refresh only.
+  3. **Commerce polling hourly (8B):** orders / inventory / returns / products / order
+     costs every 60 min instead of 15 (analytics stays once a day).
+  4. **Audit retention (4A):** configuration changes 365 days; view-as sessions and
+     system jobs 90 days; a nightly job deletes expired rows; index on (shop_id, at).
+  5. **Every change is confirmed (5B, 10A):** stage → a before→after dialog; checkboxes
+     / toggles / selects (streams, actions, API khuyến mãi, model, OpenAI cap) are a
+     draft with a bottom bar "N thay đổi chưa lưu · Bỏ thay đổi · Lưu thay đổi (N)",
+     then one confirm dialog listing each before→after; one save = one audit row.
+  6. **Audit merging (6A):** same actor + same shop + same field within 10 minutes →
+     one row (first before → last after); if the final value equals the original, the
+     row is deleted (nothing logged).
+  7. **No reason field (7)** except Huỷ kết nối, where it stays required (already live).
+  8. **Mô phỏng lives in one place:** the main nav (Tổng quan · Mô phỏng · Nhân viên ·
+     Nhật ký). The page shows only the current shop's name + "Đổi shop ở Tổng quan ›";
+     shops are chosen and searched in Tổng quan (search by shop name), and the last
+     chosen shop is remembered. No shop chosen → "Chọn một shop ở Tổng quan ›". Removed:
+     Mô phỏng in the shop nav and the per-row Mô phỏng link.
