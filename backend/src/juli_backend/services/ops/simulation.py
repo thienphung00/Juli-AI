@@ -518,7 +518,7 @@ def baseline(history: History, window: int) -> dict[str, Any]:
                     "cells": cells,
                 }
             )
-            rows = []
+            rows: list[dict[str, Any]] = []
             for pid, per_day in history.products.get(stream, {}).items():
                 row_days = _present(per_day, last_days)
                 if len(row_days) < max(3, window // 3):
