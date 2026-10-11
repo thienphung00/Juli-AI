@@ -58,6 +58,7 @@ import {
   type MeasurementState,
   type RevertActionState,
 } from "./do-luong-panel";
+import { VideoAnalysis } from "../content-analysis/video-analysis";
 import { ContentRunPanel, contentChip, contentPhase } from "./content-run-panel";
 import { RulesEditor, type RulesEditorProps } from "./rules-editor";
 import { RunPanel, type LoadState, type PhotoState } from "./run-panel";
@@ -134,6 +135,7 @@ export function QuyetDinhView({
   onNavigate,
   clients,
   sample = false,
+  cardsRefresh = 0,
 }: {
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string };
@@ -142,6 +144,8 @@ export function QuyetDinhView({
   readonly clients: QdClients;
   /** The signed-out "Bản minh họa": shows the sample notice. */
   readonly sample?: boolean;
+  /** P17: a new value re-reads the cards in place (onboarding poll); a failed re-read keeps what is shown. */
+  readonly cardsRefresh?: number;
 }) {
   const auth: AuthedOptions = useMemo(() => ({ token, shopId: shop.id }), [token, shop.id]);
   const nowMs = useNow();
@@ -159,6 +163,17 @@ export function QuyetDinhView({
       cancelled = true;
     };
   }, [clients, token, shop.id, decisionsKey]);
+  useEffect(() => {
+    if (!cardsRefresh) return;
+    let cancelled = false;
+    clients
+      .fetchDecisions({ token, shopId: shop.id })
+      .then((items) => !cancelled && setDecisions({ status: "ready", data: items }))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [clients, token, shop.id, cardsRefresh]);
 
   const [rules, setRules] = useState<Load<ShopRules>>({ status: "loading" });
   const loadRules = useCallback(
@@ -705,6 +720,8 @@ function SelectedRun({
     onRefresh();
   };
 
+  const analysisClients = useMemo(() => clients.analysisClients?.(auth) ?? null, [clients, auth]);
+
   if (kind === "content") {
     const act = async (action: () => Promise<void>) => {
       try {
@@ -719,6 +736,9 @@ function SelectedRun({
       <ContentRunPanel
         card={card}
         chip={chip}
+        analysis={
+          analysisClients && content ? <VideoAnalysis clients={analysisClients} target={{ kind: content.kind, runId: run.id }} /> : null
+        }
         detail={content}
         measureHref={measureHref}
         onDecline={declineRun}

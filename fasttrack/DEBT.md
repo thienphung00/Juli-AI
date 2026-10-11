@@ -615,3 +615,93 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Content-card priority now multiplies expected GMV by the lever's calibration × reason penalty (`video_script` / `live_script`); no content calibration is measured yet, so only seller reasons move it today.
 - [ ] Banned terms are checked on the listing write at approve (Juli's proposal and the seller's edit) — the agent's drafting prompt does not receive them yet, so a proposal containing one must be edited by the seller before approval.
 - [ ] A `max_open_cards` value stored under the old 1..5 range reads as 5 (clamped); no data migration.
+
+
+## P15 content analysis (2026-10-10)
+
+- [ ] **Deviation, owner review**: the "Phân tích video" block has no artboard; it reuses the
+  ContentRun / Phân tích box styles (`.qv-va*` in `quyet-dinh.css`).
+- [ ] **Deviation**: OCR and product-on-screen use `gpt-5.4-nano` vision on keyframes (low detail,
+  near-duplicate frames not resent) instead of EasyOCR / PaddleOCR / OpenCLIP — all need torch or
+  paddle (hundreds of MB) on the VPS. Scene cuts use the port of the content engine's
+  `reference_analyze.py`, not PySceneDetect (BSD-3, but needs OpenCV). No new Python dependency.
+- [ ] LIVE product timing from TikTok does not exist (A-26 per-minute metrics are shop-level, A-27
+  has no timing): windows come from ASR mentions in the first 60 min; a product first named after
+  that is "not found". The pipeline accepts timing hints (`live_timing_s`) for when an API appears.
+- [ ] Per-shop cap override is read from `shop_rules` key `openai_monthly_cap_usd` (number) —
+  not in `RULE_KEYS`, so only a direct write (P16's Ops console) sets it; P16 may move it, then
+  change `costs.monthly_cap_usd`. D25.8's "alert the team" on cap is not done here.
+- [ ] Cost figures are estimates: ASR by minutes × a static price table (`whisper-1` $0.006/min),
+  vision / scoring by the token price table; not reconciled with OpenAI billing. Not measured
+  against the live API (no key in this session) — only on mocked usage.
+- [ ] A retry after a provider error restarts the pipeline from the beginning (stages already paid
+  are paid again; ≤ 3 attempts).
+- [ ] `content_analysis` shares the main worker (`-Q …,content_analysis`, prefork concurrency =
+  CPUs); a dedicated `--concurrency 1` unit if analyses ever delay agent runs.
+- [ ] Enqueue failure leaves the row `queued` with no automatic re-enqueue (runbook has the manual
+  command); expired `awaiting_upload` rows are shown as expired but stay in the table.
+- [ ] Uploads from a content run carry no Phân tích row (`content_ref` null), so they count as
+  "đã tải lên", not best / weakest.
+- [ ] nginx default `client_max_body_size` (1 MB) still applies to every other route — P10's 5 MB
+  photo upload route has no override either (pre-existing; checked while adding the chunk location).
+- [ ] Ops before deploy (owner): `apt install ffmpeg` on the VPS, create
+  `/var/lib/juli/content-uploads` (0700), reinstall the worker unit and nginx vhosts.
+- [ ] Demo vitest `rules-editor-off-api.test.tsx` failed 2 tests once in the full parallel run and
+  passes alone (13/13) — timing flake under load, not P15 code.
+
+
+## P16 Juli Ops (2026-10-10)
+
+- [ ] **OpsSimulate artboard not yet explicitly reviewed by the owner** — implemented as
+  drawn (incl. D25.11 window / trend); review requested.
+- [ ] Simulation history: reports carry `daily_streams` / `daily_products` only from P16 on;
+  until the daily job has run on P16 code a shop has no simulation data at all, and a shop
+  never has more than its stored reports' days (≤ 60 today) — windows 7 / 14 / 30 are
+  computable, **90 needs 180 days** and shows "Chưa đủ dữ liệu". No backfill of older days.
+- [ ] Per-product volatility rows for Video / LIVE are products by traffic source (A-34),
+  not per video / per LIVE session: no stored daily series exists per video or session.
+- [ ] TikTok scope names in `services/ops/scopes.py`: only `seller.order.info` and
+  `seller.finance.info` are documented in this repo; `data.shop_analytics.public.read`,
+  `seller.product.basic`, `seller.promotion.info` are UNVERIFIED — check in Partner Center
+  and set `TIKTOK_REQUIRED_SCOPES` if they differ.
+- [ ] "Huỷ kết nối": TikTok has no token-revoke API — Juli destroys its stored tokens; the
+  seller must remove the app in Seller Center to revoke TikTok's side. Pending runs get
+  `cancel_requested` (the existing cancel path); a run parked in `waiting_*` stays in that
+  status until its own expiry/reaper picks the flag up.
+- [ ] `promotion_api_enabled` override is stored, shown and audited but gates nothing:
+  Juli makes no promotion write (D13).
+- [ ] Invite / disconnect e-mails need SMTP (`OPS_SMTP_*`); without it Ops shows the
+  accept link to forward and the disconnect notice is only logged. The seller who opens
+  an invite signed out must sign in and re-open the link (no deep-link resume).
+- [ ] "Xem như shop": the live run event stream (SSE) is not mirrored — run details show,
+  the event timeline is in Ops run detail (`/v1/ops/shops/{id}/runs/{run}`). The seller
+  "Juli" tab is shown but not available in view-as.
+- [ ] Ops "Quy tắc" writes commit the rule first and the audit row in a second
+  transaction (the seller handler commits itself); a crash between the two would leave an
+  unaudited rule change.
+- [ ] D24.21 (2) implemented here ("Số thẻ mở cùng lúc" 5–30, default 30): existing seller
+  rows below 5 are clamped up to 5 when read.
+- [ ] Ops pages are desktop-first (1440 px artboards); below 900 px the columns stack,
+  not separately designed.
+- [ ] `public UPDATE grants` integration test (`test_no_public_table_holds_update_beyond_its_call_site`)
+  still fails as at the P14 base (pre-existing, P14 tables); P16 adds no new table UPDATE
+  for `juli_app` (only `users.staff_access_consent_at`, column-level).
+## P17 onboarding speed (2026-10-10)
+
+- [ ] Time to first card is an estimate (≈ 15–60 s, ≤ ~3–4 min when the shared A-34 window is busy); measure it on the first real connect from `shop_quick_scan_done.seconds_since_connect`.
+- [ ] The quick scan runs "in parallel" only if the worker has ≥ 2 processes: the unit runs one `celery worker` (prefork, one process per CPU). On a 1-CPU VPS it queues behind the fast phase; a dedicated `-Q ingest_priority` worker (or `--concurrency 2`) is the fix.
+- [ ] The quick scan and the fast phase share the A-34 rate-limit window (same endpoint key); the scan waits for it rather than skipping. No priority between them.
+- [ ] A placeholder `products` row (Get Product title / status, `update_time` 1970-01-01) exists until the fast phase's product sync overwrites it; if that sync never runs, the row stays minimal (no price, category).
+- [ ] Quick cards carry no 30/30 `evidence` block (A-34 gives one 14-day total, no daily rows); the payload's `evidence` is the empty-series reading until the full run re-scores the card.
+- [ ] Only `QUICK_SCAN_TOP_PRODUCTS` (10) products are asked to TikTok; a weak product outside the top 10 by 14-day GMV cannot get a quick card (by design, D26 "top 5–10").
+- [ ] A quick card whose product the full run proposes with another lever is withdrawn and replaced by a new revision the same day; the seller sees one card disappear and possibly another appear (Juli slot already counted for the day).
+- [ ] The API's real look-back for shop analytics is undocumented; 180 is the documented limit of a sibling endpoint. The walk's out-of-range halving records TikTok's actual limit (`shop_history_done` reason `out_of_range`, `history_earliest_date`) — read it from the first production shop and note it in D25.12.
+- [ ] Onboarding ETA is a fixed typical duration (900 s from the fast phase's start), not measured progress; the history step gives "còn N ngày", no time.
+- [ ] `quick_scan_status = running` older than 15 min reads as failed in the status (worker died); the row itself is not repaired.
+- [ ] `_marked_enqueue` keeps the `quick_scan_queued` marker for 2 h even when the enqueue returned no task id; a second bootstrap within 2 h does not retry a lost scan (the full diagnosis writes cards anyway).
+- [ ] No MODULE.md for `services/onboarding` (not a `map.md` row yet).
+- [ ] UI (fork): a failed onboarding read hides the strip and retries every 60 s (not 15 s), so cards stop refreshing on Quyết định until the next successful read.
+- [ ] UI (fork): "Độ tin cậy: Tham khảo" shows only next to an expected GMV; a quick card without `expected_gmv_per_month` shows the chip but not the confidence.
+- [ ] UI (fork): Home has no cards list, so the poll only re-reads Home's and Phân tích's report (once step 2 is done and the report was empty); Phân tích's per-cell "Xem đề xuất" counts are not refreshed.
+- [ ] UI (fork): the first onboarding read does not re-read Quyết định's cards (it lands with the page's own read), so new cards appear from the second poll (~15 s after load).
+- [ ] Pre-existing, not P17: `tests/harness/test_module_md_sync_parser.py` (2) fails at 09960b20 too (P14 drift + stale `_WEEKLY_NOVELTY_CAP` entry); regenerate the allowlist in an integration pass.

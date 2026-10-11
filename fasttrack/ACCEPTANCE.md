@@ -180,7 +180,6 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
   isolation 12 passed, gitleaks PASS, ruff PASS, pytest 211 passed (incl. the PG
   two-tenant module). Full unit+harness: 6360 passed; 29 failed = node_modules-less
   TS contract tests + 2 pre-existing (cross_tenant_probe, destructive_migration CI config).
-- [ ] **AC-8.4 (P8-G)** Read tool `get_product_diagnoses` added to the Optimize Product playbook as the first step, emitting `tool.started`/`tool.completed` with a Vietnamese summary; read-only; tests.
 - [x] **AC-8.5 (P8-D)** App shell per ADR-109 d.1/d.7: left rail (Trang chủ / Quyết định / Phân tích / Juli locked), bottom bar < 768px, shop header with avatar menu holding Cài đặt, "Juli đang chạy · cập nhật HH:MM"; Home 5-stream matrix + GMV/Đơn/AOV cards (from the ADR-108 report). lint/type-check/vitest/e2e green.
   Evidence: 165ce61d, 80c6e118, f60ce932 (fasttrack/p8d-shell). vitest 1649/1649 (Node 20; `navigation.test.tsx`, `demo-shell.test.tsx`, `home.test.tsx`), @juli/ui 180/180, lint 0 errors, tsc clean, `build:demo` OK (dummy Supabase env), Playwright 92/92 (desktop + mobile-web; `responsive-parity` "navigation is a left rail at 1440px and a bottom bar at 390px"), pytest issue-397 + phase-2.6 contracts 29/29. Screenshots 1440/390: `/private/tmp/claude-501/-Users-macos-Juli-AI-v2/6eb8aef9-2bd8-42de-8507-25e6fe552916/scratchpad/shots-p8d/` (home-anon, home-signed-in with stubbed analysis, menus, decisions, analytics).
 - [x] **AC-8.6 (P8-E)** Phân tích per ADR-109 d.2–5. Evidence (branch `fasttrack/p8e-analysis`): aca17597 (sample rankings generator), fdd8410f (UI), 8c2fdfb2 (vitest `components/__tests__/phan-tich.test.tsx`, 20 tests: bottleneck/title/suggestion, URL tab + Home-link landing, cell click → loader(stream, metric) + URL, non-clickable content cells, rows + closing rows = Tổng, LIVE dd/mm/yyyy, 404 empty + retry, row → Ví dụ panel, hero expand, collapsed sections, signed-in client + one `/v1/demo/analysis` read), 0cd3598b (Playwright `e2e/analytics/phan-tich.spec.ts`: anonymous with zero `/v1` requests, stubbed signed-in, no horizontal scroll, axe). Gates: type-check 0, lint 0 errors, vitest 1657/1658 (the 1 = pre-existing replay-scenario byte check, fails on 41584c55 too — DEBT P8-E), e2e 102/102 (desktop + mobile-web), `pnpm build:demo` OK (dummy Supabase env in the shell only).
@@ -190,7 +189,7 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 
 - [x] **AC-9.1 (P9-A)** demo.app-juli.com offers "Đăng nhập bằng email" beside Google: the seller enters an email, receives a 6-digit code (Supabase Auth email OTP; magic link also accepted), and lands signed in with the same session shape as Google, so every signed-in page and the TikTok Shop connect flow work unchanged. Errors (wrong/expired code, rate limit) in Vietnamese. No new env var beyond NEXT_PUBLIC_SUPABASE_*. Tests + e2e (stubbed Supabase).
   Evidence (branch `fasttrack/p9a-email`): 6ad94d8b (OTP client in `lib/supabase-auth.ts`: `POST /auth/v1/otp` + `POST /auth/v1/verify` type=email, same `AuthSession` + storage key; callback reads magic links + `otp_expired`), 0fdbcbd0 (UI: landing door disclosure, avatar menu "Đăng nhập với Google" / "Đăng nhập bằng email", `/auth/email`), 6ebd3220 (vitest `lib/__tests__/email-otp.test.ts` 17, `__tests__/email-sign-in.test.tsx` 8, magic-link cases in `auth-callback.test.tsx`, landing/menu cases; replay module-graph guard intentionally allows `supabase-auth.ts` fetch pinned to `/auth/v1/otp|verify`), e4b54f6b (Playwright `e2e/auth/email-sign-in.spec.ts`: landing → code → `/auth/connect-shop` with the email bearer on `GET /v1/shops` and `GET /v1/auth/tiktok/start`; wrong code, rate limit, magic link + expired link, menu → `/auth/email`, axe). Backend: `get_current_user` checks only alg (ES256/HS256), `aud=authenticated` and a UUID `sub` — an email-OTP access token from the same project carries all three, no backend change. Gates: type-check 0, lint 0 errors, vitest 1699/1699, e2e 114/114 (desktop + mobile-web), `pnpm build:demo` OK (dummy Supabase env in the shell only), pytest issue-397 contract 11/11. Owner must enable the Email provider + template + SMTP (LOG P9-A).
-- [ ] **AC-9.2 (P9-B)** A shop connected under a Juli team account can be handed to the seller's account (decided in a grill).
+- [x] **AC-9.2 (P9-B)** A shop connected under a Juli team account can be handed to the seller's account (decided in a grill). — evidence: P16 / D25.7: `tests/unit/test_ops_api.py::test_invite_and_accept_moves_the_shop_and_keeps_ops_access`, `::test_seller_can_decline_ops_access_and_expired_invite_fails`, `tests/integration/test_ops_console_db.py::test_handover_moves_the_shop_through_the_definer_function` (branch `fasttrack/p16-ops`).
 
 ## P10 — Quyết định card and flows (contract: fasttrack/contracts/p10-quyet-dinh.md)
 
@@ -200,7 +199,6 @@ Tick with evidence: `- [x] AC-n … — evidence: <sha / test / query / log>`.
 
 - [x] **AC-10.2 (P10-B)** Contract §4–§6 implemented with tests (photo checks, awaiting states, instructions/applied/verify, measurement stages and final labels; no TikTok promotion writes).
   Evidence (branch `fasttrack/p10b-flows`, ae6a515a..945ec32a): migration `080_lever_flows` onto 078 (ae6a515a; phone cleanup re-pinned onto 080); read-only `find_product_promotions` + staged cover URI kept server-side, cover replaced with the gallery kept (0d4b2b6e); lever flows (`services/lever_flows`), runner `enter_external_wait(narration=)` + `resume_after_external_wait`, worker `resume_lever_flow`, reaper per-flow policy, approve registers the flow and allows promotion cards, revert refused `seller_center`, routes `GET /v1/demo/runs/{id}` (`awaiting`), `POST .../photo`, `GET /v1/demo/photos/{shop}/{token}`, `GET .../instructions`, `POST .../applied`, `GET .../measurement`, `awaiting` on the runs list (be0735d9); tests (aa7dc586, 945ec32a): `tests/unit/test_lever_flows_photo.py` (checks pass/fail per key, file/type/size, end-to-end photo run through the real `WorkflowRunner`: wait + narration + before kept → stage → consent → cover written with before/after recorded; decline; 3-day expiry via the reaper, not at 71 h; routes 202/422/409/404, run detail + list `awaiting`, photo served by token), `test_lever_flows_promotion.py` (proposal vs margin floor/cap, refusal, no-cost fails loudly, 4 instruction sets, end-to-end promotion run: rules narrated → waits → not found "Chưa tìm thấy trên TikTok" + re-check scheduled → found → `measurement_start`; pre-existing promotion not taken; `FakePromotion.writes == []` and no listing edit; approve registers flows; instructions/applied 200/202/409/404; `/changes` + `/revert` `seller_center`; tool unavailable/shop-wide), `test_lever_flows_measurement.py` (waiting/day7/final, bands only from rules, `within_band` null/true/false + question id, dat/gan_dat/khong_dat/chua_ket_luan (thin data, other change), calibration 0.5 → 0.66/0.58/0.38/0.63 and unchanged for chua_ket_luan, stored once, promotion by calendar, 409/404), `test_lever_flows_wiring.py` (080 pins, reaper policy, Celery route, `NoExternalWaitError`), `tests/integration/test_lever_flows_two_tenant.py` (juli_app RLS: 2 passed on PG16). `fasttrack/check.sh --since effa4d4a --skip-gitleaks` on a fresh local PG16: migrations PASS (up/down/up at 080), isolation 12 passed, ruff PASS (77 files), pytest 400 passed / 1 failed = `test_reaper_two_tenant.py::test_each_run_is_reaped_by_its_own_workflows_policy_as_juli_app`, which fails identically on an untouched export of effa4d4a (pre-existing). Unit+harness (no DATABASE_URL): only pre-existing / node_modules failures (LOG).
-- [ ] **AC-10.3 (P10-C)** Quyết định matches the artboards exactly at 1440 and 390 (side-by-side screenshots of every artboard state vs the app), wired to the contract with fixtures where the backend is not merged yet; lint/type-check/vitest/e2e/build green.
 
 ## P12 — Phân tích redesign (ADR-109 Amendment 2; contract: fasttrack/contracts/p12-phan-tich.md)
 
@@ -307,3 +305,140 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   `apps/demo/src/components/__tests__/quyet-dinh-content.test.tsx` (11),
   `e2e/decisions/quyet-dinh-content.spec.ts` (desktop + mobile, zero `/v1` requests).
 
+## P15 — content analysis of seller uploads (contract `contracts/p15-content-analysis.md`)
+
+- [x] **AC-15.1** Migration `082_content_analysis` onto 081 (id ≤ 32 chars), deferred phone
+  cleanup re-parented and still last; `content_analyses` tenant_direct, RLS per verb, juli_app
+  SELECT/INSERT/UPDATE; no media column. — evidence: `check.sh` migrations PASS at
+  `082_content_analysis` (upgrade / downgrade −1 / upgrade), isolation 12 passed;
+  `test_content_analyses_are_isolated_per_shop_under_rls` (PG16, as `juli_app`: shop A sees only
+  its row, an insert for shop B is rejected); `test_migration_082_…`; grant registry entry.
+- [x] **AC-15.2** Upload: slot (type mp4/mov, video ≤ 500 MB, LIVE ≤ 4 GB, ≤ 2 in flight, cap),
+  chunked PUT ≤ 32 MB with a signed slot token in `X-Upload-Token` + session + `X-Shop-Id`,
+  offset resume, first chunk must be an MP4/MOV box, 6 h expiry; file 0600 under a non-served
+  dir, path from Juli's ids only; another shop → 404. — evidence: `test_upload_slot_validation`,
+  `test_chunks_offsets_first_box_and_expiry`, `test_the_upload_token_binds_the_slot_and_expires`,
+  `test_storage_keys_cannot_escape_the_upload_dir`, `test_the_routes_open_a_slot_take_chunks_queue_and_list`.
+- [x] **AC-15.3** Pipeline (video): ffprobe/ffmpeg only (never executed; renamed non-video refused
+  before any parser), ASR with glossary, cuts, keyframes every 2 s, vision, ONE scoring call over
+  derived signals; numbers from signals (product first second, CTA second by index, cuts / 10 s);
+  banned suggestions dropped; claims in the seller's video flagged; file + work dir deleted after;
+  cost per stage on the row. — evidence: `test_a_video_is_analysed_costed_and_its_file_deleted`
+  (generated testsrc/sine fixture: cuts at 2 s and 4 s, product at 2 s, CTA at 3 s),
+  `test_numbers_come_from_the_signals_and_words_are_checked`, `test_the_scoring_prompt_carries_derived_signals_only`,
+  transcription / vision wire tests (MockTransport, recording adapter).
+- [x] **AC-15.4** LIVE: windows from the first ASR mentions of name / brand / SKU (−2 / +5 min,
+  ≤ 3), transcript / keyframes / cuts inside the windows only. — evidence:
+  `test_a_live_is_analysed_only_around_the_product_mentions`. TikTok product timing: none exists
+  in the API (DEBT).
+- [x] **AC-15.5** Monthly OpenAI cap checked before ASR / vision / scoring and when a slot opens;
+  over it: `refused`, Vietnamese message, nothing spent, file deleted / 402. — evidence:
+  `test_over_the_monthly_cap_the_asr_step_is_refused_and_nothing_is_spent`,
+  `test_the_cap_refuses_a_new_upload_with_a_vietnamese_402`, `test_the_month_starts_at_midnight_vietnam_time`.
+- [x] **AC-15.6** Task idempotent, per-shop lock, provider error → retry with the file kept,
+  last attempt → failed + file deleted; 24 h sweep; queue `content_analysis` routed and consumed
+  by the worker unit; beat at :47. — evidence: `test_the_task_is_idempotent_locked_per_shop_and_retries_provider_errors`,
+  `test_the_last_failed_attempt_deletes_the_file`, `test_the_sweep_deletes_files_older_than_a_day`,
+  `test_the_tasks_are_routed_to_their_own_queue_and_the_worker_consumes_it`.
+- [x] **AC-15.7** Content runs use the analyses (best / weakest by TikTok rate, else latest);
+  an upload from a run takes the run's product. — evidence: `test_best_and_weakest_analyses_are_picked_by_the_tiktok_rate`,
+  `test_the_drafter_prompt_carries_the_analyses_only_when_there_are_some`,
+  `test_done_analyses_of_the_product_are_loaded_for_the_run`, `test_an_upload_from_a_content_run_takes_the_runs_product`,
+  `test_p14_content_flow.py` unchanged green.
+- [x] **AC-15.8** UI: "Phân tích video" block (hook, giây sản phẩm xuất hiện, CTA, nhịp cắt, vấn
+  đề, gợi ý, upload + progress, polling, VI errors) in the content run and Phân tích › Nội dung
+  row detail; signed-out / no-shop sample = canned analysis, upload disabled, zero `/v1`
+  requests. — evidence: `src/components/__tests__/video-analysis.test.tsx` (7),
+  `e2e/analytics/video-analysis.spec.ts` (desktop + mobile: sample, signed-in chunked upload →
+  done), `e2e/decisions/quyet-dinh-content.spec.ts` (block in the sample run). No artboard (DEBT).
+
+## P16 — Juli Ops (D25) — branch `fasttrack/p16-ops`, contract `contracts/p16-ops.md`
+
+- [x] **AC-16.1** Migration `083_ops_console`: ops tables are not tenant tables — RLS on, only `juli_ops`, no `juli_app` / `anon` / `authenticated` grant; DEFINER functions with EXECUTE scoped; up / down / up clean. — evidence: `tests/integration/test_ops_console_db.py` (13, PG16), `check_public_schema_privileges` PASS, alembic up/down/up.
+- [x] **AC-16.2** Overrides honoured, defaults unchanged when unset: card limits, streams / actions / content on-off, model; OpenAI cap (shared `shop_rules` row, $5 default) stops drafting and Optimize Product model calls, logs `ops_openai_cap_reached`, badge in Tổng quan; rule cards unaffected. — evidence: `tests/unit/test_ops_overrides.py`.
+- [x] **AC-16.3** Gates fail closed: Access JWT (aud / iss / exp / domain / key / missing header / missing config / certs down), bypass refused in production, Supabase JWT, active staff, role matrix. — evidence: `tests/unit/test_ops_cf_access.py`, `test_ops_api.py` (gates + role matrix).
+- [x] **AC-16.4** No buyer PII in any ops response; every write audited with before / after. — evidence: `test_ops_masking.py`, `test_ops_api.py::test_run_detail_is_read_only_and_masks_buyer_pii`, `::test_settings_put_audits_before_after_and_reset`.
+- [x] **AC-16.5** "Xem như shop" read-only (D25.3 amended): seller payloads via the seller handlers; every non-GET 403; no act routes; sessions logged. — evidence: `test_ops_api.py::test_view_as_refuses_every_write_even_for_admin`, `::test_no_act_routes_and_view_is_get_only`, `::test_view_session_is_logged_and_read_only`; `ops-view-as.test.tsx`; e2e `ops.spec.ts` (no write sent).
+- [x] **AC-16.6** Mô phỏng: windows 7/14/30/90, trend, p10–p90 bands, CV stability, locked cells, ±5 % steps, GMV math, uncomputable windows reported; scenarios + one target. — evidence: `test_ops_simulation.py`, `test_ops_api.py::test_simulation_endpoint_windows_and_scenarios`, `ops-pages.test.tsx`, e2e.
+- [x] **AC-16.7** Huỷ kết nối (D25.13): Admin only, reason + typed name, idempotent, audited; polling stops, runs cancelled, history kept, reconnect resumes. — evidence: `test_ops_disconnect.py`, `test_ops_console_db.py::test_disconnect_as_juli_app_under_the_shops_scope`, `ops-pages.test.tsx`.
+- [x] **AC-16.8** Quy tắc in Cài đặt shop (D25.14): every seller rule incl. Giọng văn / Từ không được dùng / 5–30 open cards, set as team, audited, seller sees and edits them. — evidence: `test_ops_api.py::test_staff_set_the_sellers_rules_audited_and_the_seller_sees_them`, `test_shop_rules.py`, `ops-rules-permissions.test.tsx`.
+- [x] **AC-16.9** Permission status (D25.15): scopes persisted on refresh; Ops status; seller reconnect strip. — evidence: `test_ops_scopes.py`, `ops-rules-permissions.test.tsx`.
+- [x] **AC-16.10** Ops pages match the artboards on `ops.app-juli.com` (host split, noindex). — evidence: `middleware.test.ts`, `ops-pages.test.tsx`, Playwright `e2e/ops/ops.spec.ts` (8, port 3326). OpsSimulate awaits owner review.
+- [ ] **AC-16.11** Owner infra (DNS proxied, cert expand, vhost, Cloudflare Access, env, first Admin) — files + `docs/runbooks/ops-console-runbook.md` ready; owner to apply. Evidence of files: `tests/unit/test_ops_vhost.py`.
+- [x] **AC-16.12** Privacy: staff-access sentence (VN + EN) and connect-shop notice; consent timestamp stored. — evidence: `apps/landing/src/__tests__/privacy-staff-access.test.tsx`, `test_tiktok_oauth_start_route.py::test_start_records_the_staff_access_consent_on_the_callers_row`.
+
+## P17 — onboarding speed (D26, D25.12; contract `contracts/p17-onboarding-speed.md`)
+
+- [x] **AC-17.1** Quick scan beside the fast phase: `bootstrap_shop` enqueues
+  `shop_quick_scan` on `ingest_priority` once (marker) before the fast phase; the scan
+  takes its own `quick_scan` lock (never `cycle`), reads A-34 for the last 14 local days
+  (≤ 2 pages) + one diagnoses call for the top 10 by GMV (+ Get Product only for a chosen
+  product the catalog lacks), and selects 1–3 cover-image / title / description proposals
+  backed by a TikTok code (decision 4 on 14 days, median trigger), priced by D22 on the 14
+  days; no LLM. — evidence: `tests/unit/test_onboarding_speed.py`
+  (`test_the_scan_window_is_the_last_fourteen_full_local_days`,
+  `test_only_cover_title_description_backed_by_a_tiktok_code_become_quick_cards`,
+  `test_a_product_not_asked_or_without_a_code_gets_no_quick_card`,
+  `test_the_d22_estimate_on_fourteen_days_prices_extra_clicks_through_ctor`,
+  `test_max_cards_is_one_to_three`, `test_bootstrap_enqueues_the_quick_scan_once_before_the_fast_phase`,
+  `test_the_quick_scan_task_takes_its_own_lock_not_the_cycle_lock`,
+  `test_the_quick_scan_routes_to_the_priority_queue_and_history_extends_nightly`,
+  `test_a_product_missing_from_the_catalog_gets_a_placeholder_row`,
+  `test_the_scan_runs_once_and_skips_when_full_cards_exist`,
+  `test_a_failing_read_records_failed_and_never_raises`).
+- [x] **AC-17.2** Quick cards take the day-1 Juli slots and are labelled ("Đề xuất nhanh ·
+  dựa trên 14 ngày", "Tham khảo", `expected_impact.confidence = reference`, `gmv_method`
+  14 ngày); the full diagnosis re-scores a same-lever quick card in place (same row,
+  `surfaced_at` kept, TikTok codes reused as evidence, `quick_scan` removed), withdraws one
+  it does not confirm at once, supersedes one whose product gets another lever, and fills
+  the slots the quick cards left. — evidence:
+  `test_quick_cards_take_the_day_one_juli_slots_and_the_full_run_upgrades_them`,
+  `test_full_cards_fill_the_slots_the_quick_cards_left`,
+  `test_a_quick_card_whose_product_gets_another_lever_is_superseded`,
+  `test_the_decisions_endpoint_labels_a_quick_card`.
+- [x] **AC-17.3** `GET /v1/shops/me/onboarding`: three steps (quick scan, 60-day backfill +
+  diagnosis, history) with status / percent / ETA, `active`, label "Juli đang đọc dữ liệu
+  shop · bước N/3", poll 15 s while active, 300 s with only history left, none when done;
+  `history_days_available` / target / remaining / `window_90d_available` (≥ 180 days). —
+  evidence: `test_status_*` (6), `test_history_days_available_is_contiguous_days_stored`,
+  `test_the_onboarding_endpoint_reads_the_shops_state`,
+  `test_the_onboarding_endpoint_needs_a_signed_in_shop`.
+- [x] **AC-17.4** History to 180 days: look-back 180 (docs: no shop-analytics maximum
+  documented; 180 days is the only documented analytics limit — Get Video Performances
+  202403); the post-connect chain stops at 60 days (`connect_window_done`, not re-enqueued,
+  the poll no longer revives it); nightly `shop-history-extend` (19:43 UTC) enqueues one
+  `nightly` run per shop past its fast phase: 2 × 15-day chunks once per local day,
+  resumable from the earliest date, per-shop `history` lock, ends at `max_lookback`. —
+  evidence: `test_the_look_back_defaults_to_180_days`,
+  `test_after_connect_the_chain_stops_at_sixty_days_then_extends_nightly`,
+  `test_the_history_task_parks_at_sixty_days_and_nightly_never_re_enqueues`,
+  `test_the_poll_keeps_only_the_post_connect_chain_alive`,
+  `test_the_nightly_fanout_enqueues_one_run_per_shop_past_its_fast_phase`; existing
+  `TestHistoryPhase` (resume, out-of-range halving, rate-limited chunk) unchanged.
+- [x] **AC-17.5** 429 in the daily diagnosis: `with_backoff` waits 2/4/8/16/32 s (cap 60,
+  jittered, env) then raises `ThrottledError`; `video_windows` then skips the video tables
+  for the cycle (no `posted_in_window` fallback), other tables kept, counter
+  `video_windows_throttled_skips` logged. — evidence: `test_shop_diagnosis_video_windows.py`
+  (`test_backoff_is_exponential_jittered_and_capped`, `test_a_non_throttle_error_is_not_retried`,
+  `test_still_throttled_details_skip_the_video_tables_instead_of_the_fallback`,
+  `test_a_still_throttled_list_also_skips_without_whole_window_reads`,
+  `test_the_job_drops_only_the_video_tables_when_windows_are_skipped`).
+- [x] **AC-17.6** Cost reads: orders of the last 30 days up to 60 per pass per cycle before
+  older ones at 10, the fast tier waiting for the rate-limit window within 600 s and the
+  cycle deadline, a 429 / permission error still stopping at once; env-configurable. —
+  evidence: `test_order_costs.py` (`test_recent_orders_read_up_to_sixty_a_cycle_before_older_ones_at_ten`,
+  `test_the_fast_tier_waits_for_the_window_instead_of_stopping`,
+  `test_the_wait_budget_bounds_the_cycle_and_older_orders_never_wait`,
+  `test_a_429_in_the_fast_tier_still_stops_at_once`, `test_fast_tier_settings_come_from_the_environment`).
+- [x] **AC-17.7** Migration `084_onboarding_speed` (≤ 32 chars, after 081 on this branch,
+  phone cleanup re-parented and last) passes upgrade / downgrade / upgrade on a fresh PG16;
+  as `juli_app`, the quick scan writes only its shop's rows and the onboarding read never
+  sees another shop's state. — evidence: `check.sh --since 09960b20` migrations PASS at 084;
+  `tests/integration/test_onboarding_speed_two_tenant.py` (3).
+- [x] **AC-17.8** Demo: the strip on Trang chủ / Quyết định / Phân tích for a signed-in user
+  with a shop, polling at the server's interval and re-reading Quyết định's cards while
+  active; quiet history note; nothing when done; signed-out / no-shop samples unchanged and
+  make no onboarding request; quick-card chip + "Độ tin cậy: Tham khảo". — evidence:
+  `apps/demo/src/__tests__/onboarding-strip.test.tsx` (15),
+  `quyet-dinh-p10.test.tsx` ("P17: a quick-scan card shows its label chip…", "P17: a full
+  card … shows no quick chip"), `e2e/onboarding/onboarding-strip.spec.ts` (3 × projects).

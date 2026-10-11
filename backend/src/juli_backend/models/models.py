@@ -49,6 +49,9 @@ class User(Base):
     # maximum address length.
     email: Mapped[str | None] = mapped_column(String(320))
     display_name: Mapped[str | None] = mapped_column(String(100))
+    #: D25.6 (migration 083): when the seller accepted staff access "to support and
+    #: operate the service" on the connect-shop screen.
+    staff_access_consent_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

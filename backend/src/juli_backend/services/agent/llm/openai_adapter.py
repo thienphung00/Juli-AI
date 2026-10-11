@@ -266,6 +266,12 @@ def _translate_message(message: Message) -> dict[str, Any]:
             "call_id": call_id,
             "output": str(message.get("content", "")),
         }
+    content = message.get("content", "")
+    if role == "user" and isinstance(content, list | tuple):
+        # Fast track P15: a user message may carry content parts as the
+        # Responses API spells them (``input_text`` / ``input_image``), so the
+        # content-analysis vision step can send keyframes. Passed through as is.
+        return {"role": "user", "content": [dict(part) for part in content]}
     content_type = "input_text" if role == "user" else "output_text"
     return {
         "role": role,

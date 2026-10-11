@@ -4,6 +4,7 @@ import type { DemoDecisionItem } from "@juli/contracts";
 import { useMemo } from "react";
 
 import type { QueryState } from "../../lib/phan-tich/model";
+import { createSampleAnalysisClients } from "../../lib/content-analysis/sample";
 import { sampleReport, sampleRankings } from "../../lib/phan-tich/sample-data";
 import type { RankingLoader } from "../../lib/phan-tich/types";
 import { SAMPLE_CARDS, sampleDecision } from "../../lib/quyet-dinh/sample-data";
@@ -19,6 +20,7 @@ import { PhanTichView } from "./phan-tich-view";
  */
 
 const RANKINGS = sampleRankings();
+const SAMPLE_ANALYSIS = createSampleAnalysisClients();
 
 export const loadSampleRanking: RankingLoader = async (stream, metric) => RANKINGS[stream]?.[metric] ?? null;
 
@@ -38,6 +40,7 @@ export function SamplePhanTich({
   const report = useMemo(() => sampleReport(), []);
   return (
     <PhanTichView
+      analysisClients={SAMPLE_ANALYSIS}
       loadDecisions={loadSampleDecisions}
       loadRanking={loadSampleRanking}
       onNavigate={onNavigate}

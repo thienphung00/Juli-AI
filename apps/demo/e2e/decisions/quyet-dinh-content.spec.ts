@@ -58,6 +58,10 @@ test.describe("Signed-out Quyết định — P14-E content cards", () => {
     await expect(page.getByTestId("content-steps").getByRole("listitem")).toHaveCount(6);
     const script = page.getByTestId("content-script");
     await expect(script).toContainText("Bản 1 · bạn sửa trực tiếp được");
+    // P15: the run shows the canned "Phân tích video" (sample: upload disabled, no request).
+    const analysis = run.getByTestId("video-analysis");
+    await expect(analysis.getByTestId("video-analysis-result")).toContainText("Sản phẩm xuất hiện lần đầu ở giây 6,0");
+    await expect(analysis.getByTestId("video-analysis-input")).toBeDisabled();
     await expect(script).toContainText("Đã kiểm tra: không có từ cấm");
 
     await script.getByRole("button", { name: "Soạn lại" }).click();

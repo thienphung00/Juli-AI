@@ -431,6 +431,16 @@ async def emit_content_cards(
         candidates_from_ranking(tables.get(LIVE), LIVE),
         weights=await _lever_weights(session, shop_id, now=now),
     )
+    # Fast track P16 (D25.4): a content kind turned off in Juli Ops (content
+    # cards off, its stream or its action off) gets no new card.
+    from juli_backend.services.ops import overrides as ops_overrides
+
+    shop_overrides = await ops_overrides.shop_overrides(session, shop_id)
+    candidates = [
+        c
+        for c in candidates
+        if ops_overrides.content_kind_enabled(shop_overrides, c.spec.workflow_key)
+    ]
     latest = await _latest_cards(session, shop_id)
     ids = {c.tiktok_product_id for c in candidates}
     open_product_ids: set[str] = set()

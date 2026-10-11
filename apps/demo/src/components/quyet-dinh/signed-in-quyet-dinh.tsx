@@ -33,6 +33,7 @@ import {
   chooseContentScript,
 } from "../../lib/quyet-dinh/api-client";
 import type { AuthedOptions, QdClients, RunEventsState } from "../../lib/quyet-dinh/client-types";
+import { createAnalysisClients } from "../../lib/content-analysis/api-client";
 import { approveDemoDecision, fetchRecommendations } from "../../lib/recommendations-api-client";
 import { fetchDemoRuns } from "../../lib/run-ledger/api-client";
 import { submitConfirmationDecision } from "../../lib/run-surface/confirmation-client";
@@ -72,6 +73,7 @@ export const REAL_QD_CLIENTS: QdClients = {
   redraftContent: redraftContentScript,
   markPublished: markContentPublished,
   useRunEvents: useLiveRunEvents,
+  analysisClients: createAnalysisClients,
 };
 
 export function SignedInQuyetDinh({
@@ -80,12 +82,15 @@ export function SignedInQuyetDinh({
   query,
   onNavigate,
   clients = REAL_QD_CLIENTS,
+  cardsRefresh,
 }: {
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string } | null;
   readonly query: QdQuery;
   readonly onNavigate: (href: string) => void;
   readonly clients?: QdClients;
+  /** P17: bumped by the onboarding poll — re-read the cards without a loading state. */
+  readonly cardsRefresh?: number;
 }) {
   if (!shop) {
     return (
@@ -100,5 +105,14 @@ export function SignedInQuyetDinh({
       </section>
     );
   }
-  return <QuyetDinhView clients={clients} onNavigate={onNavigate} query={query} shop={shop} token={token} />;
+  return (
+    <QuyetDinhView
+      cardsRefresh={cardsRefresh}
+      clients={clients}
+      onNavigate={onNavigate}
+      query={query}
+      shop={shop}
+      token={token}
+    />
+  );
 }

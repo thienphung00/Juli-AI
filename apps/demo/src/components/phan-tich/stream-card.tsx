@@ -39,6 +39,8 @@ export interface StreamCardProps {
   readonly onRetry: () => void;
   readonly onTaggedProduct: (productId: string) => void;
   readonly taggedHref: (productId: string) => string;
+  /** P15: extra content under an open content row's facts ("Phân tích video"). */
+  readonly renderRowDetail?: (row: RowView) => React.ReactNode;
 }
 
 function Chip({ tone, text, className = "pa-delta" }: { readonly tone: string; readonly text: string; readonly className?: string }) {
@@ -183,6 +185,7 @@ function DesktopRow({ row, open, content, props }: { readonly row: RowView; read
         </span>
       </div>
       {open ? <Facts content={content} mobile={false} row={row} /> : null}
+      {open && content && props.renderRowDetail ? props.renderRowDetail(row) : null}
     </div>
   );
 }
@@ -208,6 +211,7 @@ function MobileRow({ row, open, content, props }: { readonly row: RowView; reado
         </span>
       </button>
       {open ? <Facts content={content} mobile row={row} /> : null}
+      {open && content && props.renderRowDetail ? props.renderRowDetail(row) : null}
       <div className="pa-mrow__foot">
         <Confidence value={row.confidence} />
         {content ? <TaggedLink href={props.taggedHref} onOpen={props.onTaggedProduct} row={row} /> : <CardLink mobile row={row} />}

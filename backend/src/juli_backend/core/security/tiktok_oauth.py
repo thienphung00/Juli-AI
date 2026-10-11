@@ -143,6 +143,9 @@ class TikTokOAuthService:
 
         if existing and existing.user_id == user_id:
             shop = existing
+            # P16 (D25.13): a shop paused by a deauthorization or by Juli Ops
+            # "Huỷ kết nối" resumes when its seller reconnects.
+            shop.is_active = True
         elif existing:
             logger.warning(
                 "tiktok_shop_already_claimed",
@@ -201,6 +204,10 @@ class TikTokOAuthService:
             # its first `create` wrote. Assigning here, same as `shop_cipher`
             # above, relies on the caller's flush/commit to persist it.
             existing_cred.scopes = scopes
+            # P16 (D25.13): fresh tokens end a "needs_reauth" state (an expired
+            # authorization, or a Juli Ops disconnect) -- reconnecting resumes.
+            existing_cred.status = "active"
+            existing_cred.last_refresh_error = None
         except NotFound:
             await cred_repo.create(
                 shop_id=shop.id,

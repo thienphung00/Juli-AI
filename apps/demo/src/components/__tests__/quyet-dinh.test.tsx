@@ -271,7 +271,7 @@ describe("rules editor", () => {
 
     onSave.mockRejectedValueOnce(new QdApiError(422, null, "max_open_cards: value must be between 5 and 30"));
     const cards = screen.getByTestId("rule-max_open_cards");
-    await userEvent.type(within(cards).getByRole("textbox"), "9");
+    await userEvent.type(within(cards).getByRole("textbox"), "40");
     await userEvent.click(within(cards).getByRole("button", { name: "Lưu" }));
     expect(await within(cards).findByRole("alert")).toHaveTextContent("Số thẻ mở cùng lúc phải là số nguyên từ 5 đến 30.");
   });

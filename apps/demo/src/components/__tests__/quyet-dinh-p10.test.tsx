@@ -326,6 +326,38 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(screen.getByTestId("adjusted-by-history")).toHaveTextContent("đã điều chỉnh theo kết quả trước");
   });
 
+  it("P17: a quick-scan card shows its label chip and confidence 'Tham khảo' near the GMV", () => {
+    const quick = {
+      label: "Đề xuất nhanh · dựa trên 14 ngày",
+      confidence: "Tham khảo",
+      window_days: 14,
+      basis: "GMV dự kiến theo công thức D22 trên 14 ngày gần nhất",
+    };
+    const view = cardView(item("q1", { quick_scan: quick }));
+    expect(view.quickScan).toEqual({ label: quick.label, confidence: "Tham khảo", basis: quick.basis });
+    for (const narrow of [false, true]) {
+      const { unmount } = render(
+        <RecommendationCard card={view} expanded={false} narrow={narrow} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} status="pending" />,
+      );
+      expect(screen.getByTestId("quick-scan-chip")).toHaveTextContent("Đề xuất nhanh · dựa trên 14 ngày");
+      expect(screen.getByTestId("quick-scan-confidence")).toHaveTextContent("Độ tin cậy: Tham khảo");
+      unmount();
+    }
+  });
+
+  it("P17: a full card (no quick_scan, or null) shows no quick chip", () => {
+    for (const card of [{}, { quick_scan: null }]) {
+      const view = cardView(item("f1", card));
+      expect(view.quickScan).toBeNull();
+      const { unmount } = render(
+        <RecommendationCard card={view} expanded={false} narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} status="pending" />,
+      );
+      expect(screen.queryByTestId("quick-scan-chip")).toBeNull();
+      expect(screen.queryByTestId("quick-scan-confidence")).toBeNull();
+      unmount();
+    }
+  });
+
   it("status chips per state; approved shows the blue notice with Xem tiến độ ›, rejected the grey one", () => {
     const { unmount } = render(
       <RecommendationCard card={cardView(item("1"))} expanded={false} narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref="/x" status="running" />,

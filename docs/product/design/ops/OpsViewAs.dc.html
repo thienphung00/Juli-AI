@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Juli Ops · Xem như shop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f5f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1440px; height: 960px; box-sizing: border-box; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f7f5f6; display: flex; flex-direction: column">
+<div role="status" style="display: flex; align-items: center; gap: 14px; background: {{bannerBg}}; color: #ffffff; padding: 0 24px; min-height: 52px; font-size: 14px">
+<b>{{bannerText}}</b>
+<span style="opacity: 0.85">Phiên xem được ghi nhật ký · không hiện dữ liệu người mua</span>
+<a href="OpsOverview.dc.html" style="margin-left: auto; color: #ffffff; font-weight: 600; text-decoration: none; min-height: 36px; display: inline-flex; align-items: center">Thoát</a>
+</div>
+<div style="display: flex; flex: 1; min-height: 0">
+<nav aria-label="Seller" style="width: 104px; border-right: 1px solid #f1e6eb; background: #ffffff; display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 18px; font-size: 12px; color: #4a4a55">
+<b style="font-size: 20px; color: #1a1a1f">Juli.</b><a href="PtProduct.dc.html" style="color: #4a4a55; text-decoration: none">Trang chủ</a><span style="color: #b0386a; font-weight: 700">Quyết định</span><a href="PtProduct.dc.html" style="color: #4a4a55; text-decoration: none">Phân tích</a><span>Juli</span><a href="OpsShopSettings.dc.html" style="color: #4a4a55; text-decoration: none">Quy tắc</a>
+</nav>
+<main style="flex: 1; padding: 22px 28px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 44px; height: 44px; border-radius: 12px; background: #f3a9c8; display: inline-flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 700">MT</span><span style="display: flex; flex-direction: column"><b style="font-size: 17px">Mỹ phẩm Thảo Nhi</b><span style="font-size: 12px; color: #5f5f6b">TikTok Shop · Thử nghiệm</span></span></div>
+<div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #b0386a">QUYẾT ĐỊNH · ĐỀ XUẤT</div>
+<h1 style="margin: 0; font-size: 26px; font-weight: 700">4 thẻ tối ưu để nâng CTOR Thẻ sản phẩm</h1>
+<article style="background: #ffffff; border: 1px solid #f3cfdf; border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; max-width: 640px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 12px; font-weight: 600; color: #b0386a; background: #fdeef4; border-radius: 6px; padding: 3px 8px">SKU · KD-030</span><b style="font-size: 17px">Kem dưỡng ẩm ceramide</b><span style="margin-left: auto; font-size: 12px; font-weight: 600; color: #8a4b00; background: #fff4e0; border-radius: 999px; padding: 4px 10px">Chờ duyệt</span></div>
+<div style="display: flex; justify-content: space-between; background: #fff7fa; border: 1px solid #f8b9d3; border-radius: 12px; padding: 12px 14px"><span><span style="font-size: 12px; font-weight: 600; color: #b0386a">CTOR - Thẻ sản phẩm</span><br><b style="font-size: 24px">4,2 % → 5,0 %</b></span><span style="text-align: right"><span style="font-size: 12px; font-weight: 600; color: #b0386a">GMV dự kiến</span><br><b style="font-size: 18px">+3,0 tr ₫/tháng</b></span></div>
+<div style="display: flex; gap: 10px; align-items: center; border-top: 1px solid #f1e6eb; padding-top: 8px">
+<button type="button" disabled="{{writeDisabled}}" title="{{writeTitle}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; border: 0; border-radius: 10px; min-height: 44px; padding: 0 18px; {{approveStyle}}">Phê duyệt</button>
+<button type="button" disabled="{{writeDisabled}}" title="{{writeTitle}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #1a1a1f; background: #ffffff; border: 1px solid #e3d6dc; border-radius: 10px; min-height: 44px; padding: 0 18px; {{rejectStyle}}">Từ chối</button>
+<span style="font-size: 13px; color: #5f5f6b">{{writeNote}}</span>
+</div>
+</article>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+renderVals() {
+return {
+bannerBg: '#1a1a1f',
+bannerText: 'Đang xem như Mỹ phẩm Thảo Nhi · chỉ xem, không ghi được',
+writeDisabled: true,
+writeTitle: 'Chế độ xem: không thể thao tác thay seller',
+approveStyle: 'background: #e7b3c9; cursor: not-allowed',
+rejectStyle: 'color: #6b6b76; cursor: not-allowed',
+writeNote: 'Xem được mọi trang của seller (Trang chủ, Quyết định, Phân tích, Juli, Quy tắc, lượt chạy). Mọi nút ghi đều khoá.'
+};
+}
+}
+</script>
+</body>
+</html>

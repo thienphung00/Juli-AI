@@ -64,6 +64,9 @@ REPORT_KEYS = {
     "daily_gmv",
     "seller_skus",
     "promo_products",
+    # fast track P16 (additive, contracts/p16-ops.md): the Ops simulation's daily counts
+    "daily_streams",
+    "daily_products",
 }
 
 

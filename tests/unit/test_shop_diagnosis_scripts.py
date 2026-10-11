@@ -110,7 +110,11 @@ class FakeResources:
 
 
 @pytest.fixture
-def fetch() -> ModuleType:
+def fetch(monkeypatch) -> ModuleType:
+    # P17: throttle waits are jittered; pin them to their nominal values here.
+    from juli_backend.services.shop_diagnosis_daily import fetch as fetch_module
+
+    monkeypatch.setattr(fetch_module, "jitter", lambda delay: delay)
     return _load("shop_diagnosis_fetch")
 
 
@@ -198,7 +202,7 @@ def test_throttled_coupons_do_not_stop_activities_or_details(tmp_path: Path, fet
     _promotions(fetch, resources, tmp_path, sleeps)
 
     target = tmp_path / "promotions"
-    assert sleeps == [2, 4, 8]
+    assert sleeps == [2, 4, 8, 16, 32]
     assert (target / "_error_coupons.json").exists()
     assert not (target / "coupons.json").exists()
     assert json.loads((target / "activities.json").read_text())["activities"]

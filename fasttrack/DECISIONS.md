@@ -312,6 +312,16 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       Cost estimate (to verify against OpenAI pricing): ≈ $0.006–0.009 per
       analysed minute; a 30–60 s video ≈ $0.005–0.01; a LIVE ≈ $0.2–0.3 with
       windows (≈ $0.7–1.1 for a whole 2 h session).
+  21. **P14 integration choices** (owner, 2026-10-10): (1) return after
+      Từ chối / Không thực hiện / Hoàn tác is strictly 7 days — no early
+      return on a > 20 % data change; (2) the seller rule "Số thẻ mở cùng lúc"
+      becomes 5–30, default 30; (3) legacy-workflow cards follow the same
+      7-day rule; (4) product and content cards are ranked **separately, with
+      fixed daily slots** (3 Juli tự làm / ảnh · 1 Seller Center · 1 nội dung);
+      a slot with no candidate stays empty; (5) new seller rules "Giọng văn"
+      and "Từ không được dùng", read by content runs.
+  22. Banned words and tone go into the drafting prompt and the draft
+      is checked before the seller sees it (owner, 2026-10-10, option A).
 
 - **D25** — Internal console ("ops") for the Juli team (owner grill,
   2026-10-10). Includes P9-B (shop handover).
@@ -341,14 +351,6 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   7. **Handover (P9-B)**: "Mời seller" sends an email invite; the seller signs
      in and takes ownership; the team keeps Vận hành access if the seller
      agrees; cards, runs, rules and history are kept.
-  21. **P14 integration choices** (owner, 2026-10-10): (1) return after
-      Từ chối / Không thực hiện / Hoàn tác is strictly 7 days — no early
-      return on a > 20 % data change; (2) the seller rule "Số thẻ mở cùng lúc"
-      becomes 5–30, default 30; (3) legacy-workflow cards follow the same
-      7-day rule; (4) product and content cards are ranked **separately, with
-      fixed daily slots** (3 Juli tự làm / ảnh · 1 Seller Center · 1 nội dung);
-      a slot with no candidate stays empty; (5) new seller rules "Giọng văn"
-      and "Từ không được dùng", read by content runs.
 - **D25 additions** (owner, 2026-10-10):
   8. Over the monthly OpenAI cap: stop new drafting for that shop and alert
      the team; rule cards keep running; the cap is set per shop in Ops.
@@ -363,6 +365,11 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       simulation must show whether a target is inside normal noise.
       Scenarios are saved per shop with a name and can be set as the shop's
       target. Internal only for now.
+  11. **Mô phỏng window and trend:** a window selector 7 / 14 / 30 / 90 ngày drives the
+      baseline (per-day average over N), the ▲/▼ chip on every cell (last N vs the N
+      before; green up, red down, grey when |Δ| < 0.5 %) and the volatility bands (p10–p90
+      within N). A window the history cannot cover is shown greyed "Chưa đủ dữ liệu (cần
+      2 × N ngày)" — never invented. API takes `window` ∈ {7, 14, 30, 90}.
   12. **History for the 90-day window** (owner, 2026-10-10, option A): keep the
       60-day backfill at connect (fast first cards), then extend history in
       the background each night, slowly, up to 180 days (or the API's real
@@ -371,15 +378,35 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       it is greyed "Đang tải lịch sử · còn N ngày". Fix the video-windows 429
       handling in the same work: longer retry/back-off on 429 and skip the
       video tables for that cycle instead of falling back to whole-day reads.
+  13. **"Huỷ kết nối"** per connected / token-expired shop in Tổng quan, Admin only:
+      confirmation listing the effects, a required reason (audited) and the typed shop
+      name; revoke Juli's stored authorization, stop polling and card generation, cancel
+      pending runs, write nothing more to TikTok, keep history / rules / measurements so
+      reconnecting resumes, e-mail the seller. TikTok has no revoke endpoint: stored
+      tokens are destroyed and the credential marked `needs_reauth`.
   14. **Rules set by the team first** (owner, 2026-10-10): staff edit each
       shop's Quy tắc from Ops "Cài đặt shop" (audited); later the seller adjusts
       and optimises them in their own Quy tắc. Card approval stays seller-only.
+      *P16 detail:* Vận hành / Admin edit every seller rule (incl. the P14
+      keys, "Giọng văn", "Từ không được dùng", "Số thẻ mở cùng lúc" 5–30) through the
+      existing rule store and validation, always as the team, every change audited; the
+      seller later sees and keeps editing them. Approving cards stays the seller's.
   15. **Permission status**: token refresh also stores `granted_scopes`; Ops
       shows each shop's scope status; a missing scope shows the seller a
       "Kết nối lại TikTok Shop để cấp quyền mới" strip. (The 30-minute beat only
       checks; a token is refreshed only within 24 h of expiry, about weekly.)
-- **D24.22** — Banned words and tone go into the drafting prompt and the draft
-  is checked before the seller sees it (owner, 2026-10-10, option A).
+      *P16 detail:* every token refresh persists the granted scopes when the
+      response carries them; Ops shows per shop "đủ quyền / thiếu X / chưa rõ" for the
+      scopes Juli uses; a missing scope shows the seller "Kết nối lại TikTok Shop để cấp
+      quyền mới".
+  - **D25.3 amended:** "Xem như shop" is ALWAYS read-only — staff see everything the
+    seller's client shows (Trang chủ, Quyết định incl. run details, Phân tích, Juli, Quy
+    tắc) and can never write through it. No act-for-seller mode, no team-may-act flag or
+    consent field; the view-as API refuses every non-GET with 403. Staff change things
+    only via Cài đặt shop (overrides, Quy tắc) and Admin-only Huỷ kết nối.
+  - **D25.8 storage (coordination with P15):** the monthly OpenAI cap is the `shop_rules`
+    row `openai_monthly_cap_usd` (default $5/month from `OPENAI_MONTHLY_CAP_USD_DEFAULT`),
+    read by P15's content analysis and by P16's drafting / agent-run gates.
 
 - **D26** — Cards right after connecting: "quét nhanh" (owner, 2026-10-10).
   Runs in parallel with the 60-day backfill, on the priority queue, ~2–3 min

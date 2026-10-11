@@ -55,6 +55,8 @@ class DraftInputs:
     product: Mapping[str, Any] = field(default_factory=dict)
     seo_words: Sequence[str] = ()
     examples: Sequence[Mapping[str, Any]] = ()
+    #: P15: the analysis of the seller's best / weakest uploaded video (derived only).
+    analyses: Sequence[Mapping[str, Any]] = ()
 
 
 @dataclass(frozen=True)
@@ -156,6 +158,7 @@ class OpenAIContentDrafter:
             seo_words=inputs.seo_words,
             examples=inputs.examples,
             previous=previous,
+            analyses=inputs.analyses,
         )
         try:
             turn = await self._adapter.complete(

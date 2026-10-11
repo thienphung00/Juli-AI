@@ -39,6 +39,8 @@ export interface RulesEditorProps {
   readonly headingLevel?: 2 | 3;
   /** Signed-out sample: the P14-F fields are shown, not edited. */
   readonly offApiReadOnly?: boolean;
+  /** Juli Ops (D25.14): every value is written as the team's; no toggle. */
+  readonly fixedSetBy?: SetBy;
 }
 
 /** 422 → the rule's own range, in the seller's words (the backend's text is English). */
@@ -587,9 +589,10 @@ export function RulesEditor({
   onClose,
   headingLevel = 2,
   offApiReadOnly = false,
+  fixedSetBy,
 }: RulesEditorProps) {
   const [team, setTeam] = useState(false);
-  const setBy: SetBy = team ? "team" : "seller";
+  const setBy: SetBy = fixedSetBy ?? (team ? "team" : "seller");
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const levers = Array.isArray(rules.auto_levers.value) ? (rules.auto_levers.value as string[]) : [];
   const [leverDraft, setLeverDraft] = useState<readonly string[]>(levers);
@@ -615,10 +618,12 @@ export function RulesEditor({
         ) : null}
       </div>
 
-      <label className="qd-toggle">
-        <input checked={team} onChange={(event) => setTeam(event.target.checked)} type="checkbox" />
-        <span>{TEAM_TOGGLE_LABEL}</span>
-      </label>
+      {fixedSetBy ? null : (
+        <label className="qd-toggle">
+          <input checked={team} onChange={(event) => setTeam(event.target.checked)} type="checkbox" />
+          <span>{TEAM_TOGGLE_LABEL}</span>
+        </label>
+      )}
       <p className="qd-muted" data-testid="set-by-mode">
         Giá trị bạn lưu sẽ ghi: {setByLabel(setBy)}
       </p>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Juli Ops · Cài đặt shop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f4f6}
+a{color:#b0386a}a:hover{color:#8a2a52}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1200px; box-sizing: border-box; font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: #1a1a1f; background: #f4f4f6; display: flex; flex-direction: column">
+<header style="display: flex; align-items: center; gap: 16px; background: #1a1a1f; color: #ffffff; padding: 0 28px; min-height: 60px">
+<b style="font-size: 18px">Juli <span style="color: #f3a9c8">Ops</span></b>
+<a href="OpsOverview.dc.html" style="color: #d6d6dc; text-decoration: none; font-size: 14px">‹ Tổng quan</a>
+<span style="margin-left: auto; font-size: 13px; color: #d6d6dc">thien.phung@app-juli.com · Admin</span>
+</header>
+<main style="padding: 24px 28px; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start">
+<section style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: center; gap: 12px"><h1 style="margin: 0; font-size: 24px; font-weight: 700">Mỹ phẩm Thảo Nhi</h1><span style="font-size: 12px; font-weight: 600; color: #1d4f91; background: #e6f0fd; border-radius: 999px; padding: 3px 10px">{{stageLabel}}</span><a href="OpsViewAs.dc.html" style="margin-left: auto; font-size: 14px; font-weight: 600; text-decoration: none">Xem như shop ›</a></div>
+
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 700">Giai đoạn</h2>
+<div role="radiogroup" aria-label="Giai đoạn" style="display: flex; gap: 8px">
+<sc-for list="{{stages}}" as="g" hint-placeholder-count="3">
+<button type="button" role="radio" aria-checked="{{g.on}}" onClick="{{g.pick}}" style="font: inherit; font-size: 14px; font-weight: 600; border-radius: 10px; min-height: 44px; padding: 0 14px; cursor: pointer; text-align: left; {{g.style}}">{{g.label}}<br><span style="font-size: 12px; font-weight: 400">{{g.sub}}</span></button>
+</sc-for>
+</div>
+</div>
+
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center"><h2 style="margin: 0; font-size: 16px; font-weight: 700">Cài đặt riêng</h2><button type="button" style="margin-left: auto; font: inherit; font-size: 13px; font-weight: 600; color: #b0386a; background: transparent; border: 0; min-height: 36px; cursor: pointer">Về mặc định</button></div>
+<sc-for list="{{settings}}" as="x" hint-placeholder-count="8">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 200px 120px; gap: 12px; align-items: center; border-top: 1px solid #f0f0f3; padding-top: 10px; font-size: 14px">
+<span style="display: flex; flex-direction: column; gap: 2px"><b>{{x.k}}</b><span style="font-size: 12px; color: #6b6b76">{{x.help}}</span></span>
+<span style="border: 1px solid #e3e3e8; border-radius: 8px; min-height: 36px; padding: 0 10px; display: flex; align-items: center; {{x.style}}">{{x.v}}</span>
+<span style="font-size: 12px; {{x.badgeStyle}}">{{x.badge}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<aside style="display: flex; flex-direction: column; gap: 16px">
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 700">Chủ shop và bàn giao</h2>
+<div style="font-size: 14px; color: #4a4a55">{{ownerText}}</div>
+<sc-if value="{{showInvite}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #5f5f6b">Email của seller<input type="email" value="thaonhi@gmail.com" style="font: inherit; font-size: 14px; border: 1px solid #e3e3e8; border-radius: 8px; min-height: 40px; padding: 0 10px"></label>
+<label style="display: flex; gap: 8px; align-items: center; font-size: 13px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #c2306d">Hỏi seller cho đội ngũ giữ quyền Vận hành</label>
+<button type="button" onClick="{{invite}}" style="font: inherit; font-size: 14px; font-weight: 600; color: #ffffff; background: #c2306d; border: 0; border-radius: 10px; min-height: 44px; cursor: pointer">Mời seller</button>
+</div>
+</sc-if>
+<span style="font-size: 12px; color: #6b6b76">Thẻ, lượt chạy, Quy tắc và lịch sử được giữ nguyên khi bàn giao.</span>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 700">Nhật ký</h2>
+<sc-for list="{{log}}" as="l" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; font-size: 13px; border-top: 1px solid #f0f0f3; padding-top: 6px"><span style="color: #6b6b76">{{l.t}}</span><span><b>{{l.who}}</b> {{l.what}}</span></div>
+</sc-for>
+</div>
+</aside>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { stage: 'trial', invited: false };
+}
+renderVals() {
+const st = this.state.stage;
+const S = [['trial', 'Thử nghiệm', 'Đội ngũ nhập liệu, theo dõi sát'], ['self', 'Tự vận hành', 'Seller tự dùng'], ['pilot', 'Pilot đặc biệt', 'Cấu hình riêng, ưu tiên hỗ trợ']];
+const lab = Object.fromEntries(S.map(([a, b]) => [a, b]));
+const pill = (on) => on ? 'color: #ffffff; background: #1a1a1f; border: 1px solid #1a1a1f' : 'color: #1a1a1f; background: #ffffff; border: 1px solid #e3e3e8';
+const own = 'background: #fff7fa; border-color: #f8b9d3; font-weight: 600';
+const def = 'color: #4a4a55';
+const set = (k, v, help, overridden) => ({ k, v, help, style: overridden ? own : def, badge: overridden ? 'Ghi đè' : 'Mặc định', badgeStyle: overridden ? 'color: #b0386a; font-weight: 700' : 'color: #6b6b76' });
+return {
+stageLabel: lab[st],
+stages: S.map(([id, label, sub]) => ({ label, sub, on: st === id, style: pill(st === id), pick: () => this.setState({ stage: id }) })),
+settings: [
+set('Giới hạn thẻ', '5/ngày · 25/tuần · 30 mở', 'D24.17', false),
+set('Luồng được đề xuất', 'Thẻ SP · Tab · Video · LIVE', 'Tắt luồng không phù hợp với shop', false),
+set('Hành động bật', '7/7 + nội dung', 'Ví dụ tắt Flash sale nếu shop không đủ điều kiện', false),
+set('Thẻ nội dung (Video/LIVE)', 'Bật', 'Juli soạn · bạn làm', false),
+set('API khuyến mãi', 'Tắt', 'Juli tự tạo khuyến mãi sau khi seller đồng ý', false),
+set('Model OpenAI', 'gpt-5.4-nano', 'Vòng gọi tool và soạn nội dung', false),
+set('Giới hạn chi phí OpenAI', '$5 / tháng', 'Vượt giới hạn: dừng soạn mới, báo đội ngũ', true)
+],
+ownerText: this.state.invited ? 'Đã gửi lời mời tới thaonhi@gmail.com · chờ seller đăng nhập và nhận shop.' : 'Shop do đội ngũ kết nối (tài khoản ops@app-juli.com). Chưa bàn giao.',
+showInvite: !this.state.invited,
+invite: () => this.setState({ invited: true }),
+log: [
+{ t: '10/10 09:12', who: 'thien.phung', what: 'đặt giới hạn chi phí OpenAI $5/tháng' },
+{ t: '10/10 08:40', who: 'thien.phung', what: 'mở Xem như shop (6 phút)' },
+{ t: '09/10 16:05', who: 'minh.le', what: 'đổi giới hạn thẻ: 3 thẻ mới/ngày' },
+{ t: '09/10 15:30', who: 'minh.le', what: 'chuyển giai đoạn: Thử nghiệm' },
+{ t: '09/10 15:22', who: 'hệ thống', what: 'kết nối TikTok Shop thành công' }
+]
+};
+}
+}
+</script>
+</body>
+</html>

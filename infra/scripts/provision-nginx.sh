@@ -59,6 +59,28 @@ for conf in app-juli.com.conf api.app-juli.com.conf demo.app-juli.com.conf; do
     echo "Installed ${conf}"
 done
 
+# Juli Ops (P16, D25.1): opt-in, because its vhost names ops.app-juli.com on the
+# demo certificate and nginx -t fails for EVERY site until that certificate has been
+# expanded (docs/runbooks/ops-console-runbook.md, step 3). Run with INSTALL_OPS_VHOST=1
+# after the expansion; without it an already-installed ops vhost is left as it is.
+if [ "${INSTALL_OPS_VHOST:-0}" = "1" ]; then
+    src="${NGINX_SRC}/ops.app-juli.com.conf"
+    if [ ! -f "${src}" ]; then
+        echo "Missing nginx config: ${src}" >&2
+        exit 1
+    fi
+    if ! openssl x509 -noout -ext subjectAltName \
+        -in /etc/letsencrypt/live/demo.app-juli.com/fullchain.pem 2>/dev/null | grep -q "ops.app-juli.com"; then
+        echo "The demo certificate does not cover ops.app-juli.com yet; expand it first (runbook step 3)." >&2
+        exit 1
+    fi
+    install -m 0644 "${src}" "${SITES_AVAILABLE}/ops.app-juli.com.conf"
+    ln -sf "${SITES_AVAILABLE}/ops.app-juli.com.conf" "${SITES_ENABLED}/ops.app-juli.com.conf"
+    echo "Installed ops.app-juli.com.conf"
+else
+    echo "Skipped ops.app-juli.com.conf (set INSTALL_OPS_VHOST=1 after the certificate expansion)"
+fi
+
 # Inbound rate-limit zones (#898/ADR-061 §2b). `limit_req_zone` must live in the http
 # context, so this is a conf.d snippet, not a vhost — Ubuntu's stock nginx.conf already
 # `include`s /etc/nginx/conf.d/*.conf inside `http {}`, before sites-enabled/*. Unlike

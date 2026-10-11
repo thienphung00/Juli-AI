@@ -75,6 +75,8 @@ _DIAGNOSIS_ALLOWLIST: tuple[str, ...] = (
     "recoverable_gmv_basis",
     "product_title",
     "tiktok_product_id",
+    # Fast track P17 (D26): a quick-scan card's label / confidence / basis.
+    "quick_scan",
 )
 
 _EVIDENCE_ALLOWLIST: tuple[str, ...] = (

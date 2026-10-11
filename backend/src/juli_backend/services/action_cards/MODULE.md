@@ -100,6 +100,12 @@ slice — see "Out of scope".
   the pieces of the above, public for tests and the read side
 - `OptimizeProductPlan` / `WITHDRAWN_STATUS` — the plan one scoring run reads once per
   shop, and the status of a withdrawn draft
+- `is_quick_card(card)` — fast track P17 (D26): whether a card came from the quick
+  scan (`diagnosis.quick_scan`)
+- `quick_card_evidence(session, shop_id)` — the TikTok codes open quick cards carry,
+  fed to the full diagnosis as evidence
+- `WITHDRAW_QUICK_NOT_CONFIRMED` / `WITHDRAW_QUICK_SUPERSEDED` — why a quick card left
+  when the full run did not keep its lever
 - `hash_basis_field(name, value)` / `product_basis_fields(session, shop_id, *,
   workflow_key, subject)` (from `basis`) — the basis fingerprint pieces for a producer
   with its own catalog

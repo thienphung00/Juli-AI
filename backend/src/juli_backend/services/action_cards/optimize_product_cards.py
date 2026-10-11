@@ -33,6 +33,18 @@ that cooldown alone, so once it lifts the proposal gets a new revision.
 How many surface is the emission budget's decision (D24.17: 5 new a day,
 25 a week, 30 open, every workflow alike).
 
+Quick cards (fast track P17, D26): the quick scan
+(``services/onboarding/quick_scan``) writes its 1-3 cards through
+:func:`emit_optimize_product_cards` with an ``OptimizeProductPlan`` carrying
+``quick_scan`` (payload ``diagnosis.quick_scan``). The next full run upgrades
+them: the TikTok codes a quick card carries are fed to the full diagnosis as
+evidence (:func:`quick_card_evidence`); a surfaced quick card whose product
+gets the **same lever** is re-scored in place (same row, ``surfaced_at``
+kept, ``quick_scan`` dropped); one whose product gets another lever is
+withdrawn and the new lever is a new revision; one whose product is no longer
+proposed is withdrawn at once (``quick_scan_not_confirmed``) -- the 3-day stay
+does not protect a reference-only card.
+
 A shop with **no** product analytics in the store keeps the rule pipeline's
 card exactly as before — the pipeline has nothing to diagnose, and inventing a
 product would be worse than the legacy card (``subjects`` module docstring).
@@ -98,6 +110,7 @@ from juli_backend.services.optimize_product.decision_cards import (
     plan_shop_cards,
 )
 from juli_backend.services.optimize_product.funnel import ProductFunnel
+from juli_backend.services.optimize_product.listing_signals import Evidence, EvidenceSource
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +144,8 @@ class OptimizeProductPlan:
     days: dict[str, list[ProductDay]]
     #: TikTok product id -> its funnel this run (validity checks, D24.17).
     funnels: dict[str, ProductFunnel] = field(default_factory=dict)
+    #: P17: set for the quick scan's plan -- the payload's ``diagnosis.quick_scan``.
+    quick_scan: dict | None = None
 
 
 def _dec(value: Any) -> Decimal:
@@ -304,7 +319,15 @@ async def plan_optimize_product_cards(
         )
     last30 = {pid: last_window(series, as_of=as_of) for pid, series in days.items()}
     history = await lever_history(session, shop_id, now=now)
-    plan = plan_shop_cards(funnels, catalog, config, top_k=top_k, last30=last30, history=history)
+    plan = plan_shop_cards(
+        funnels,
+        catalog,
+        config,
+        top_k=top_k,
+        last30=last30,
+        history=history,
+        tiktok_evidence=await quick_card_evidence(session, shop_id),
+    )
     logger.info(
         "optimize_product_cards_planned",
         extra={
@@ -323,6 +346,47 @@ async def plan_optimize_product_cards(
         days=days,
         funnels={f.product_id: f for f in funnels},
     )
+
+
+def is_quick_card(card: ActionCard) -> bool:
+    """Whether *card* is a quick-scan card (P17): its diagnosis carries ``quick_scan``."""
+    return isinstance(_diagnosis(card).get("quick_scan"), dict)
+
+
+async def quick_card_evidence(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> dict[str, list[Evidence]]:
+    """TikTok product id -> the TikTok codes this shop's open quick cards were built on.
+
+    The full pipeline otherwise only reads the title locally (module
+    docstring of ``decision_cards``); feeding TikTok's own codes back keeps a
+    confirmed cover-image or description card confirmed when it is upgraded.
+    """
+    rows = await session.execute(
+        select(ActionCard).where(
+            ActionCard.shop_id == shop_id,
+            ActionCard.workflow_key == OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+            ActionCard.status == _ACTIVE,
+        )
+    )
+    out: dict[str, list[Evidence]] = {}
+    for card in rows.scalars():
+        diagnosis = _diagnosis(card)
+        if not isinstance(diagnosis.get("quick_scan"), dict):
+            continue
+        product_id = diagnosis.get("tiktok_product_id")
+        lever = diagnosis.get("lever")
+        entries = lever.get("evidence") if isinstance(lever, dict) else None
+        if not product_id or not isinstance(entries, list):
+            continue
+        evidence = [
+            Evidence(str(e["code"]), EvidenceSource.TIKTOK, detail=str(e.get("detail") or ""))
+            for e in entries
+            if isinstance(e, dict) and e.get("code") and e.get("source") == "tiktok"
+        ]
+        if evidence:
+            out[str(product_id)] = evidence
+    return out
 
 
 async def lever_history(
@@ -361,11 +425,16 @@ def _short(text: str, limit: int = 60) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def _impact_sentence(proposal: CardProposal) -> str | None:
+def _impact_sentence(proposal: CardProposal, *, quick: bool = False) -> str | None:
     value = proposal.recoverable_gmv_per_day
     if value is None:
         return None
     vnd = f"{int(value.quantize(Decimal('1'))):,}".replace(",", ".")
+    if quick:
+        return (
+            f"Có thể lấy lại khoảng {vnd} ₫ GMV mỗi ngày (ước tính theo quy tắc trên "
+            "14 ngày gần nhất, chỉ để tham khảo)"
+        )
     return f"Có thể lấy lại khoảng {vnd} ₫ GMV mỗi ngày (ước tính theo quy tắc, chưa phải mô hình)"
 
 
@@ -382,6 +451,7 @@ def build_card_payload(
     agent run read it unchanged) and adds ``diagnosis`` and ``evidence``.
     """
     as_of = op_plan.as_of.isoformat()
+    quick = op_plan.quick_scan is not None
     return {
         "workflow_key": OPTIMIZE_PRODUCT_WORKFLOW_KEY,
         "workflow_name": _WORKFLOW_NAME,
@@ -392,7 +462,7 @@ def build_card_payload(
                 "expected_impact": {
                     "metric": "recoverable_gmv_per_day",
                     "value": float(proposal.recoverable_gmv_per_day),
-                    "confidence": "rule_based_estimate",
+                    "confidence": "reference" if quick else "rule_based_estimate",
                 }
             }
             if proposal.recoverable_gmv_per_day is not None
@@ -407,13 +477,14 @@ def build_card_payload(
         "reasoning": {
             "copy_source": _COPY_SOURCE,
             "why": proposal.reason,
-            "expected_impact": _impact_sentence(proposal),
+            "expected_impact": _impact_sentence(proposal, quick=quick),
             "next_steps": [proposal.lever_detail],
             "source_kpi_ids": [],
         },
         "diagnosis": {
             **proposal.diagnosis_payload(as_of=as_of, medians=op_plan.plan.medians),
             "tiktok_product_id": proposal.product_id,
+            **({"quick_scan": dict(op_plan.quick_scan)} if op_plan.quick_scan is not None else {}),
         },
         "evidence": funnel_evidence(op_plan.days.get(proposal.product_id, []), as_of=op_plan.as_of),
     }
@@ -521,6 +592,36 @@ async def emit_optimize_product_cards(
             in_place = await persist._adoptable_unscoped_candidate(
                 session, shop_id, OPTIMIZE_PRODUCT_WORKFLOW_KEY
             )
+        elif (
+            op_plan.quick_scan is None
+            and latest.status == _ACTIVE
+            and latest.surfaced_at is not None
+            and is_quick_card(latest)
+        ):
+            # P17: the full diagnosis meets a surfaced quick card on this product.
+            if decision_reasons.card_basis(latest).lever_code == LEVER_CODES[proposal.lever]:
+                # Same action: the same card, re-scored with the full numbers;
+                # its surfacing (3-day stay, 7-day validity) is kept.
+                _write(latest, proposal, payload, basis, computed_at)
+                await session.flush()
+                decision = persist.CardEmission(
+                    workflow_key=OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+                    subject_type=subject.subject_type,
+                    subject_id=subject.subject_id,
+                    card=latest,
+                    revision=latest.revision,
+                    suppressed_reason=persist.SUPPRESSED_REASON_BASIS_UNCHANGED,
+                )
+                decisions.append(decision)
+                logger.info(
+                    "optimize_product_quick_card_upgraded",
+                    extra={"shop_id": str(shop_id), "card_id": str(latest.id)},
+                )
+                continue
+            # Another action: the quick card is withdrawn; the new action
+            # is a new revision for the budget to place.
+            _withdraw(latest, shop_id, why=WITHDRAW_QUICK_SUPERSEDED)
+            await session.flush()
         elif (
             latest.status == WITHDRAWN_STATUS
             or persist._is_unsurfaced_draft(latest)
@@ -676,11 +777,23 @@ def _cooled_down(
 
 
 #: Why a surfaced card left before its 7 days (D24.17), for the log.
+WITHDRAW_QUICK_NOT_CONFIRMED = "quick_scan_not_confirmed"
+WITHDRAW_QUICK_SUPERSEDED = "quick_scan_superseded"
 WITHDRAW_EDITED_OUTSIDE_JULI = "edited_outside_juli"
 WITHDRAW_OUT_OF_STOCK = "out_of_stock"
 WITHDRAW_NOT_ON_SALE = "not_on_sale"
 WITHDRAW_AT_TARGET = "metric_at_target"
 WITHDRAW_UNRANKED = "unranked_after_min_stay"
+
+
+def _withdraw(card: ActionCard, shop_id: uuid.UUID, *, why: str) -> None:
+    card.status = WITHDRAWN_STATUS
+    card.surfaced_at = None
+    card.suppressed_reason = None
+    logger.info(
+        "optimize_product_card_withdrawn",
+        extra={"shop_id": str(shop_id), "card_id": str(card.id), "why": why},
+    )
 
 
 def _diagnosis(card: ActionCard) -> dict:
@@ -814,20 +927,18 @@ async def withdraw_unranked_cards(
                 stock=stock.get(str(tiktok_id)) if tiktok_id is not None else None,
                 funnel=funnel,
             )
+            full_run = op_plan is not None and op_plan.quick_scan is None
+            if why is None and not ranked and full_run and is_quick_card(card):
+                # P17: the full diagnosis did not confirm this quick card.
+                why = WITHDRAW_QUICK_NOT_CONFIRMED
             if why is None and not ranked:
                 stayed = now - _as_aware(card.surfaced_at)
                 if stayed >= timedelta(days=min_stay_days):
                     why = WITHDRAW_UNRANKED
             if why is None:
                 continue
-        card.status = WITHDRAWN_STATUS
-        card.surfaced_at = None
-        card.suppressed_reason = None
+        _withdraw(card, shop_id, why=why)
         withdrawn.append(card)
-        logger.info(
-            "optimize_product_card_withdrawn",
-            extra={"shop_id": str(shop_id), "card_id": str(card.id), "why": why},
-        )
     if withdrawn:
         await session.flush()
     return withdrawn
@@ -841,6 +952,8 @@ __all__ = [
     "emit_optimize_product_cards",
     "invalid_reason",
     "is_adr106_card",
+    "is_quick_card",
+    "quick_card_evidence",
     "latest_product_analytics_day",
     "lever_history",
     "load_product_days",

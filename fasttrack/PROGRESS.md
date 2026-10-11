@@ -49,7 +49,7 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P9-A Email sign-in (OTP code / magic link) beside Google | 9.1 | doing | P9-A agent (Opus) |
-| P9-B Hand a shop connected by the Juli team over to the seller's own Juli account (invite / transfer) | 9.2 | todo — needs a grill | — |
+| P9-B Hand a shop connected by the Juli team over to the seller's own Juli account (invite / transfer) | 9.2 | done in P16 (D25.7) on `fasttrack/p16-ops` (not merged, not deployed) | P16 agent (Opus) |
 
 ## P10 — Quyết định card and flows, 100 % to the approved design (ADR-109 Amendment 1)
 
@@ -113,6 +113,42 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 |---|---|---|---|
 | P14 integrated: `fasttrack/p14-data` + `fasttrack/p14-cards` + `fasttrack/p14-content` merged (in that order, `--no-ff`) on `fasttrack/p14-integration` from ddef3245; content cards obey the D24.17 limits / validity / 3-day stay with P14-E's ≤ 5/week as a sub-limit; head `081_order_cost_data`, deferred phone cleanup last; full suites + `check.sh --since ddef3245` green (see LOG) | 14.1–14.7, 14.C1–14.F3, 14E.1–14E.5 | done on `fasttrack/p14-integration` (not merged into `fasttrack/optimize-product`, not deployed) | integration agent (Opus) |
 | D24.21 owner choices on `fasttrack/p14-integration` (merged 3836bf2a docs): strict 7-day return after Từ chối / Không thực hiện / Hoàn tác for Optimize, content and legacy cards; "Số thẻ mở cùng lúc" 5–30 (default 30); fixed daily slots 3 Juli / 1 Seller Center / 1 content, empty slot stays empty, every day; "Giọng văn" / "Từ không được dùng" rules read by content runs and enforced on listing writes; content ≤ 5/week in the shop week; 081 grants trimmed; full suites + `check.sh --since 3836bf2a` green (see LOG) | 14.R1–14.R6 | done on `fasttrack/p14-integration` (not merged, not deployed) | integration agent (Opus) |
+
+## P15 — content analysis of seller uploads (D24.19, D24.20; contract `contracts/p15-content-analysis.md`)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Migration `082_content_analysis` (`content_analyses`, tenant_direct, RLS, juli_app S/I/U), upload slot + chunked PUT (signed `X-Upload-Token`, 32 MB chunks, resumable, first-box sniff, size/type/in-flight limits), list/get routes, temporary disk storage + 24 h sweep | 15.1, 15.2 | done on `fasttrack/p15-content-analysis` (not merged, not deployed) | P15 agent (Opus) |
+| Pipeline on queue `content_analysis` (idempotent, per-shop lock, retries, cost per stage): ffprobe/ffmpeg (`-f mov`, file-only), ASR (`whisper-1`, vi, glossary, word timestamps), LIVE windows from ASR mentions (−2/+5 min, ≤ 3), cuts (port of `reference_analyze.py`), keyframes / 2 s, `gpt-5.4-nano` vision (on-screen text + product on screen), ONE structured-output scoring call; file deleted after | 15.3, 15.4 | done | P15 agent (Opus) |
+| Monthly OpenAI cap per shop (default $5, `shop_rules.openai_monthly_cap_usd` override for P16) before every paid step and at upload | 15.5 | done | P15 agent (Opus) |
+| Juli soạn reads the best / weakest analysed upload of the product (prompt v2) | 15.6 | done | P15 agent (Opus) |
+| UI "Phân tích video" block in the content run and Phân tích › Nội dung row detail; sample = canned analysis, no network (no artboard — owner review) | 15.7 | done | P15 agent (Opus) |
+| Ops: worker `-Q` + nginx chunk location + runbook `docs/runbooks/content-analysis-runbook.md` + env example | 15.8 | done; owner to install ffmpeg on the VPS before deploy | P15 agent (Opus) |
+
+## P16 — Juli Ops, the internal console (D25) + P9-B
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Migration `083_ops_console` (role `juli_ops`, 5 ops tables, consent column, 3 DEFINER functions), staff / audit / overrides / scenarios / invites, overrides read by emission / content / OpenAI | 16.1, 16.2 | done on `fasttrack/p16-ops` (not merged, not deployed) | P16 agent (Opus) |
+| `/v1/ops/*` API: Access JWT + staff role (fail closed), masking, overview, settings, Quy tắc (D25.14), runs, read-only view-as (D25.3 amended), simulation (D25.10–11), scenarios, invites + accept (P9-B), Huỷ kết nối (D25.13), permission status (D25.15) | 16.3–16.9 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
+| Ops pages in apps/demo on `ops.app-juli.com` (middleware host split, noindex): Tổng quan, Cài đặt shop, Xem như shop, Mô phỏng (**artboard not yet owner-reviewed — review requested**), Nhân viên, Nhật ký; seller `/nhan-shop`; reconnect strip | 16.10 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
+| Infra files + runbook (owner applies): nginx vhost, opt-in provisioning, env example, `docs/runbooks/ops-console-runbook.md` | 16.11 | done (files only) — owner steps pending | owner |
+| Privacy: staff-access sentence (VN + EN) + connect-shop notice + consent timestamp | 16.12 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
+## P17 — onboarding speed (D26, D25.12, P14-C pacing)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Contract `contracts/p17-onboarding-speed.md` | — | done (81f3b543) | P17 agent (Opus) |
+| 429 in the daily diagnosis: jittered capped backoff, skip the video tables (no whole-window fallback), skip counter | 17.5 | done (e40a5634) | P17 agent (Opus) |
+| Faster cost reads: orders of the last 30 days up to 60 / pass / cycle, waiting for the rate-limit window (≤ 600 s); older at 10 | 17.6 | done (58b225d5) | P17 agent (Opus) |
+| Migration `084_onboarding_speed` (5 nullable columns on `shop_ingestion_state`, after 081 here; re-chain after 083) | 17.7 | done (2ed5e4c0) | P17 agent (Opus) |
+| Quick scan (D26): `shop_quick_scan` on `ingest_priority` beside the fast phase; 14-day A-34 + TikTok diagnoses → 1–3 cover/title/description cards, D22 on 14 days, "Đề xuất nhanh · dựa trên 14 ngày" / "Tham khảo", day-1 Juli slots; full run re-scores same-lever quick cards in place, withdraws the rest | 17.1, 17.2 | done (74aefe3c, 55d9aeec) | P17 agent (Opus) |
+| `GET /v1/shops/me/onboarding` (3 steps, percent / ETA, `history_days_available` for P16) | 17.3 | done (74aefe3c) | P17 agent (Opus) |
+| History to 180 days (D25.12): look-back 180; connect chain stops at 60 days; nightly `shop-history-extend` 2 × 15 days, resumable, per-shop lock | 17.4 | done (74aefe3c) | P17 agent (Opus) |
+| Demo: onboarding strip on Trang chủ / Quyết định / Phân tích, 15 s poll while active, cards re-read; quick-card chip + "Độ tin cậy: Tham khảo" | 17.8 | done (60f89874, dd52f8b5) | P17 agent (Opus, UI fork) |
+| Two-tenant proof on PG16, guards (surface inventory, beat set, quality corpus, import boundaries, MODULE.md) | 17.7 | done (336122aa, 9214acc8, 4549b98a) | P17 agent (Opus) |
+
+Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deployed.
 
 ## P2–P6
 
