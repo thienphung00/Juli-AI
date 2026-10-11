@@ -77,7 +77,12 @@ export function OpsHeader({
         link("simulate", `/ops/shops/${shopId}/mo-phong`, "Mô phỏng"),
         link("settings", `/ops/shops/${shopId}`, "Cài đặt shop"),
       ]
-    : [link("overview", "/ops", "Tổng quan"), link("staff", "/ops/nhan-vien", "Nhân viên"), link("audit", "/ops/nhat-ky", "Nhật ký")];
+    : [
+        link("overview", "/ops", "Tổng quan"),
+        link("simulate", "/ops/mo-phong", "Mô phỏng"),
+        link("staff", "/ops/nhan-vien", "Nhân viên"),
+        link("audit", "/ops/nhat-ky", "Nhật ký"),
+      ];
   return (
     <header
       style={{ display: "flex", alignItems: "center", gap: 16, background: C.ink, color: "#ffffff", padding: "0 28px", minHeight: 60, flexWrap: "wrap" }}

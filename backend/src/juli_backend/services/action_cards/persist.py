@@ -445,6 +445,57 @@ def _log_suppressed(shop_id: uuid.UUID, decision: CardEmission) -> None:
     )
 
 
+#: Workflows that may surface cards in Quyết định (owner, 2026-10-11): only
+#: Tối ưu sản phẩm and the content cards (plus campaign plans when they land).
+#: The older rule workflows (restock, order processing, returns, clearance,
+#: hero products) stay in the scorer but never become seller cards. Override
+#: with ``CDP_ENABLED_WORKFLOWS`` (comma-separated workflow keys).
+_DEFAULT_ENABLED_WORKFLOWS = frozenset(
+    {"optimize_product_2", "content_video", "content_live", "campaign_plan"}
+)
+
+
+def enabled_card_workflows() -> frozenset[str] | None:
+    """The enabled workflow keys, or ``None`` for "every workflow" (``*``)."""
+    import os
+
+    raw = os.getenv("CDP_ENABLED_WORKFLOWS", "").strip()
+    if not raw:
+        return _DEFAULT_ENABLED_WORKFLOWS
+    if raw == "*":
+        return None
+    return frozenset(key.strip() for key in raw.split(",") if key.strip())
+
+
+async def withdraw_disabled_workflow_cards(
+    session: AsyncSession, shop_id: uuid.UUID, enabled: frozenset[str]
+) -> int:
+    """Withdraw open cards of workflows that are no longer enabled."""
+    rows = (
+        (
+            await session.execute(
+                select(ActionCard).where(
+                    ActionCard.shop_id == shop_id,
+                    ActionCard.status == "active",
+                    ActionCard.workflow_key.not_in(sorted(enabled)),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for card in rows:
+        card.status = "withdrawn"
+        card.suppressed_reason = "workflow_disabled"
+    if rows:
+        await session.flush()
+        logger.info(
+            "action_cards_disabled_workflow_withdrawn",
+            extra={"shop_id": str(shop_id), "count": len(rows)},
+        )
+    return len(rows)
+
+
 async def emit_scoring_cards(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -502,8 +553,14 @@ async def emit_scoring_cards(
     # top-revenue card. `None` (no product analytics) keeps the rule card.
     optimize_plan = await _plan_optimize_product(session, shop_id, now=computed_at)
 
+    enabled_workflows = enabled_card_workflows()
+    if enabled_workflows is not None:
+        await withdraw_disabled_workflow_cards(session, shop_id, enabled_workflows)
+
     for recommendation in result.recommendations.recommended_workflows:
         workflow_key = recommendation.workflow_key
+        if enabled_workflows is not None and workflow_key not in enabled_workflows:
+            continue
         if optimize_plan is not None and workflow_key == _OPTIMIZE_PRODUCT_WORKFLOW_KEY:
             continue
         subject = await resolve_card_subject(session, shop_id, workflow_key)

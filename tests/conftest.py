@@ -29,6 +29,9 @@ os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-collection-default
 # runs. A test exercising the "SUPABASE_URL missing/unusable" failure path
 # still `monkeypatch.delenv`/`setenv`s it for that test's duration.
 os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
+# Tests exercise every scoring workflow; production defaults to Tối ưu sản phẩm +
+# content only (persist.enabled_card_workflows, owner 2026-10-11).
+os.environ.setdefault("CDP_ENABLED_WORKFLOWS", "*")
 
 
 DISPOSABLE_MARKER = "JULI_TEST_DATABASE_DISPOSABLE"

@@ -195,6 +195,9 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
                         <Link href={`/ops/shops/${s.shop_id}/xem`} style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 36, display: "inline-flex", alignItems: "center", color: C.pink }}>
                           Xem như shop
                         </Link>
+                        <Link href={`/ops/shops/${s.shop_id}/mo-phong`} style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 36, display: "inline-flex", alignItems: "center", color: C.pink }}>
+                          Mô phỏng
+                        </Link>
                         <Link href={`/ops/shops/${s.shop_id}`} style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 36, display: "inline-flex", alignItems: "center", color: C.pink }}>
                           Cài đặt
                         </Link>
