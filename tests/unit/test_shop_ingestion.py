@@ -1121,8 +1121,10 @@ def test_the_migration_creates_every_model_column_and_chains_onto_073():
     assert 'revision: str = "074_shop_ingestion_state"' in text
     assert len("074_shop_ingestion_state") <= 32
     assert 'down_revision: str | None = "073_waiting_external"' in text
+    # P17 adds the quick-scan columns in 084_onboarding_speed.
+    p17 = path.with_name("084_onboarding_speed.py").read_text(encoding="utf-8")
     for column in ShopIngestionState.__table__.columns.keys():
-        assert f'"{column}"' in text, column
+        assert f'"{column}"' in text or f'"{column}"' in p17, column
     assert "ENABLE ROW LEVEL SECURITY" in text
     assert "app_current_shop_id()" in text
     assert "SECURITY DEFINER" in text

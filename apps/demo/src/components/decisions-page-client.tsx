@@ -1,13 +1,15 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { resolveTab } from "../lib/quyet-dinh/copy";
 import { readActiveShop, type ActiveShop } from "../lib/shop-session";
 import { readAuthSession, type AuthSession } from "../lib/supabase-auth";
+import type { OnboardingStatus } from "../lib/onboarding/api-client";
 import { NoShopSampleStrip } from "./app-shell/no-shop-sample-strip";
 import { useDemoResetEpoch } from "./demo-state";
+import { ShopOnboardingStrip } from "./onboarding/onboarding-strip";
 import { resolveMeasureTab } from "./quyet-dinh/quyet-dinh-view";
 import { SampleQuyetDinh } from "./quyet-dinh/sample-quyet-dinh";
 import { SignedInQuyetDinh } from "./quyet-dinh/signed-in-quyet-dinh";
@@ -53,6 +55,15 @@ export function DecisionsPageClient() {
     undefined,
   );
   const [shop, setShop] = useState<ActiveShop | null>(null);
+  // P17: while Juli reads a newly connected shop, every onboarding poll re-reads
+  // the cards so quick-scan and full cards appear as soon as they exist.
+  const [cardsRefresh, setCardsRefresh] = useState(0);
+  // The first read lands with the page's own card read, so only later polls re-read.
+  const onboardingReads = useRef(0);
+  const onOnboardingStatus = useCallback((status: OnboardingStatus) => {
+    onboardingReads.current += 1;
+    if (status.active && onboardingReads.current > 1) setCardsRefresh((tick) => tick + 1);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -89,7 +100,20 @@ export function DecisionsPageClient() {
   }
 
   if (session) {
-    return <SignedInQuyetDinh onNavigate={onNavigate} query={query} shop={shop} token={session.accessToken} />;
+    return (
+      <>
+        {shop ? (
+          <ShopOnboardingStrip onStatus={onOnboardingStatus} shopId={shop.id} token={session.accessToken} />
+        ) : null}
+        <SignedInQuyetDinh
+          cardsRefresh={cardsRefresh}
+          onNavigate={onNavigate}
+          query={query}
+          shop={shop}
+          token={session.accessToken}
+        />
+      </>
+    );
   }
 
   return <SampleQuyetDinh key={resetEpoch} onNavigate={onNavigate} query={query} />;

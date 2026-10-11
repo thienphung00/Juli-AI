@@ -2393,4 +2393,21 @@ body:has(.qd-page) {
 .qv-va__upload:focus-within .qv-va__pick {
   outline: 2px solid var(--qd-pink);
   outline-offset: 2px;
+/* P17 (D26): a quick-scan card — "Đề xuất nhanh · dựa trên 14 ngày", confidence "Tham khảo". */
+.qv-quick-chip {
+  display: inline-block;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--qd-purple-bg);
+  padding: 2px 10px;
+  color: var(--qd-purple);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.qv-quick-confidence {
+  margin-top: 2px;
+  color: var(--juli-muted-foreground);
+  font-size: 12px;
 }

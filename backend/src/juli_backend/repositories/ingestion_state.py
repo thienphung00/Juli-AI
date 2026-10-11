@@ -30,6 +30,8 @@ ONCE_COLUMNS: frozenset[str] = frozenset(
         "first_card_at",
         "history_started_at",
         "history_done_at",
+        "quick_scan_started_at",
+        "quick_scan_done_at",
     }
 )
 

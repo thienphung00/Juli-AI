@@ -40,7 +40,16 @@ ranking job must treat these rows as approximate.
 calls. ADR-109 lists at most 10 rows; videos below the cap fall into the stream's
 closing rows, so the top 20 by window GMV (ties: views) per window are enough.
 Every call goes through the resources the caller hands in (the job wraps them in
-``pacing.RateLimitedResources``) and ``fetch.with_backoff`` (429: 2 s, 4 s, 8 s).
+``pacing.RateLimitedResources``) and ``fetch.with_backoff`` (429: exponential
+backoff with jitter, capped).
+
+**Still throttled** (fast track P17, D25.12): a read that is still refused with
+a 429 after the backoff does NOT fall back to the posted-in-window totals (that
+fallback is for a refused scope or endpoint): the run stops calling, returns
+``skipped_reason = "throttled"`` with no videos, and :func:`ranking_videos` /
+the job skip the two video tables for this cycle -- every other stream's tables
+are still stored. Each skip increments :data:`THROTTLED_SKIPS` (logged as
+``video_windows_throttled_skips``).
 
 **Into the ranking.** :func:`ranking_videos` turns the result into the ranking's
 input (``shop_diagnosis.rankings.VideoWindowCounts``): one row per video, a
@@ -62,7 +71,12 @@ from typing import Any, Literal
 from juli_backend.services.shop_diagnosis.channels import Counts
 from juli_backend.services.shop_diagnosis.rankings import VideoWindowCounts
 from juli_backend.services.shop_diagnosis.snapshot import Snapshot, Windows, to_float
-from juli_backend.services.shop_diagnosis_daily.fetch import Sleep, error_payload, with_backoff
+from juli_backend.services.shop_diagnosis_daily.fetch import (
+    Sleep,
+    ThrottledError,
+    error_payload,
+    with_backoff,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +87,23 @@ POSTED_IN_WINDOW: Basis = "posted_in_window"
 WINDOW_DAYS = 30
 #: Details calls per window (deduplicated across the two windows). See module doc.
 MAX_VIDEOS_PER_WINDOW = 20
+
+#: Why a run returned no videos on purpose: still throttled after the backoff.
+SKIPPED_THROTTLED = "throttled"
+
+
+class _SkipCounter:
+    """Process-wide count of video-window runs skipped for a 429 (logged, for ops)."""
+
+    def __init__(self) -> None:
+        self.value = 0
+
+    def increment(self) -> int:
+        self.value += 1
+        return self.value
+
+
+THROTTLED_SKIPS = _SkipCounter()
 
 
 @dataclass(frozen=True)
@@ -122,6 +153,9 @@ class VideoWindowMetrics:
     fallback_reason: dict[str, str] | None = None
     #: Videos whose details call failed after the first succeeded (left out).
     failed_video_ids: tuple[str, ...] = field(default_factory=tuple)
+    #: Set when the run gave up on purpose (``"throttled"``): no videos, and the
+    #: caller skips the video tables for this cycle.
+    skipped_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         out = asdict(self)
@@ -298,6 +332,20 @@ def fetch_video_windows(
             **kwargs,
         )
 
+    def skipped(exc: ThrottledError) -> VideoWindowMetrics:
+        total = THROTTLED_SKIPS.increment()
+        logger.warning(
+            "shop_video_windows_skipped",
+            extra={
+                "end": snapshot.end.isoformat(),
+                "reason": SKIPPED_THROTTLED,
+                "attempts": exc.attempts,
+                "calls": run.calls,
+                "video_windows_throttled_skips": total,
+            },
+        )
+        return result(basis=DATE_RANGE, skipped_reason=SKIPPED_THROTTLED)
+
     def fallback(exc: BaseException) -> VideoWindowMetrics:
         reason = error_payload(exc)
         logger.warning(
@@ -314,6 +362,8 @@ def fetch_video_windows(
     try:
         last_rows = _list_window(resources, run, windows.last_first, windows.last_last)
         prior_rows = _list_window(resources, run, windows.prior_first, windows.prior_last)
+    except ThrottledError as exc:
+        return skipped(exc)
     except Exception as exc:
         return fallback(exc)
 
@@ -341,6 +391,10 @@ def fetch_video_windows(
                     granularity="1D",
                 )
             )
+        except ThrottledError as exc:
+            # Still limited after the backoff: stop calling, skip the video
+            # tables this cycle rather than ranking on a partial set.
+            return skipped(exc)
         except Exception as exc:
             if not out and not failed:
                 return fallback(exc)
@@ -394,6 +448,8 @@ def _ranking_counts(metrics: WindowMetrics | None) -> Counts | None:
 def ranking_videos(metrics: VideoWindowMetrics) -> list[VideoWindowCounts]:
     """The fetch result as the ranking's per-video input (see module doc)."""
     out: list[VideoWindowCounts] = []
+    if metrics.skipped_reason is not None:
+        return out
     for row in metrics.videos:
         last = _ranking_counts(row.last)
         prior = _ranking_counts(row.prior)
@@ -415,6 +471,8 @@ __all__ = [
     "DATE_RANGE",
     "MAX_VIDEOS_PER_WINDOW",
     "POSTED_IN_WINDOW",
+    "SKIPPED_THROTTLED",
+    "THROTTLED_SKIPS",
     "WINDOW_DAYS",
     "Basis",
     "VideoWindowMetrics",

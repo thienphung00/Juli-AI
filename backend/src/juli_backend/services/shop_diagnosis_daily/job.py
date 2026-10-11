@@ -195,14 +195,20 @@ def fetch_ranking_videos(
     *,
     sleep_s: float = 0.4,
     backoff_sleep: Callable[[float], Any] = time.sleep,
-) -> list[VideoWindowCounts]:
+) -> list[VideoWindowCounts] | None:
     """Production ``video_metrics``: P8-B's per-video windows as the ranking's input.
+
+    ``None`` when the windows were skipped for a 429 (P17): no video tables.
 
     ``resources`` are the snapshot fetch's own (rate-limited, read-only) ones, so
     no credential is resolved again; the call budget is ``fetch_video_windows``'
     (2 list walks + at most 20 details calls per window).
     """
     windows = fetch_video_windows(resources, snapshot, sleep_s=sleep_s, backoff_sleep=backoff_sleep)
+    if windows.skipped_reason is not None:
+        # P17 (D25.12): still throttled -- the video tables are skipped this
+        # cycle; the other streams' tables are built and stored as usual.
+        return None
     videos = ranking_videos(windows)
     logger.info(
         "shop_video_windows_fetched",

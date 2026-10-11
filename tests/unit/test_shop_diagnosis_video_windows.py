@@ -277,7 +277,7 @@ def test_every_read_takes_a_token_on_the_polls_endpoint_key_and_429s_back_off():
         analytics_shop_video_performance_path("v2"),
         analytics_shop_video_performance_path("v2"),  # the retry takes its own token
     ]
-    assert backoffs == [2.0]
+    assert len(backoffs) == 1 and 1.0 <= backoffs[0] <= 2.0  # jittered upper half of 2 s
 
 
 def test_every_tiktok_method_the_module_calls_is_gated():
@@ -321,3 +321,94 @@ def test_ranking_videos_drops_sides_without_activity_or_impressions():
     assert [(r.video_id, r.last is not None, r.prior is None) for r in rows] == [
         ("new", True, True)
     ]
+
+
+# -- P17 (D25.12): 429 -> longer jittered backoff, then skip the video tables --
+
+
+class _AlwaysThrottled(Exception):
+    status_code = 429
+
+
+def test_backoff_is_exponential_jittered_and_capped(monkeypatch):
+    from juli_backend.services.shop_diagnosis_daily import fetch as fetch_module
+
+    monkeypatch.setenv("SHOP_DIAGNOSIS_BACKOFF_BASE_SECONDS", "2")
+    monkeypatch.setenv("SHOP_DIAGNOSIS_BACKOFF_CAP_SECONDS", "10")
+    monkeypatch.setenv("SHOP_DIAGNOSIS_BACKOFF_RETRIES", "5")
+    assert fetch_module.backoff_delays() == (2.0, 4.0, 8.0, 10.0, 10.0)
+
+    waits: list[float] = []
+    calls = {"n": 0}
+
+    def always() -> None:
+        calls["n"] += 1
+        raise _AlwaysThrottled("Too many requests")
+
+    with pytest.raises(fetch_module.ThrottledError) as caught:
+        fetch_module.with_backoff(always, waits.append)
+    assert calls["n"] == 6 and caught.value.attempts == 6
+    assert fetch_module.is_throttled(caught.value)
+    for wait, nominal in zip(waits, (2.0, 4.0, 8.0, 10.0, 10.0), strict=True):
+        assert nominal / 2 <= wait <= nominal
+
+
+def test_a_non_throttle_error_is_not_retried():
+    from juli_backend.services.shop_diagnosis_daily import fetch as fetch_module
+
+    waits: list[float] = []
+
+    def broken() -> None:
+        raise ValueError("bad request")
+
+    with pytest.raises(ValueError):
+        fetch_module.with_backoff(broken, waits.append)
+    assert waits == []
+
+
+def test_still_throttled_details_skip_the_video_tables_instead_of_the_fallback(caplog):
+    class Throttled(FakeVideoResources):
+        def __init__(self) -> None:
+            super().__init__(last=[_listed("v1", 9, 1), _listed("v2", 8, 1)], prior=[])
+            inner = self.analytics
+
+            class Analytics:
+                list_video_performance_all = inner.list_video_performance_all
+
+                def get_video_performance(self, **kwargs: str):
+                    raise _AlwaysThrottled("Too many requests")
+
+            self.analytics = Analytics()
+
+    before = video_windows.THROTTLED_SKIPS.value
+    caplog.set_level("WARNING")
+    result = _fetch(Throttled(), _snapshot(videos=[_listed("v1", 9, 1)]))
+
+    assert result.skipped_reason == video_windows.SKIPPED_THROTTLED
+    assert result.videos == () and result.fallback_reason is None
+    assert result.basis != POSTED_IN_WINDOW
+    assert video_windows.ranking_videos(result) == []
+    assert video_windows.THROTTLED_SKIPS.value == before + 1
+    events = [r for r in caplog.records if r.getMessage() == "shop_video_windows_skipped"]
+    assert events and events[0].video_windows_throttled_skips == before + 1
+
+
+def test_a_still_throttled_list_also_skips_without_whole_window_reads():
+    resources = FakeVideoResources(last=[], prior=[], list_error=_AlwaysThrottled("429"))
+
+    result = _fetch(resources, _snapshot(videos=[_listed("v1", 9, 1)]))
+
+    assert result.skipped_reason == video_windows.SKIPPED_THROTTLED
+    assert result.videos == ()
+    assert len(resources.of("list")) == 6  # 1 + 5 retries, then stop
+    assert resources.of("details") == []
+
+
+def test_the_job_drops_only_the_video_tables_when_windows_are_skipped():
+    from juli_backend.services.shop_diagnosis_daily.job import fetch_ranking_videos
+
+    resources = FakeVideoResources(last=[], prior=[], list_error=_AlwaysThrottled("429"))
+    assert (
+        fetch_ranking_videos(resources, _snapshot(), sleep_s=0, backoff_sleep=lambda _s: None)
+        is None
+    )

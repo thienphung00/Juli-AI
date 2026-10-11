@@ -106,6 +106,22 @@ export interface CardView {
   readonly fromContract: boolean;
   /** P14-E: set for a "Juli soạn · bạn làm" content card. */
   readonly content: CardContentView | null;
+  /** P17 (D26): set for a quick-scan card ("Đề xuất nhanh · dựa trên 14 ngày", confidence "Tham khảo"). */
+  readonly quickScan?: QuickScanView | null;
+}
+
+export interface QuickScanView {
+  readonly label: string;
+  readonly confidence: string;
+  readonly basis: string | null;
+}
+
+export function quickScanView(card: RecommendationCardPayload): QuickScanView | null {
+  const quick = card.quick_scan;
+  if (!quick || typeof quick !== "object") return null;
+  const label = typeof quick.label === "string" && quick.label ? quick.label : "Đề xuất nhanh";
+  const confidence = typeof quick.confidence === "string" && quick.confidence ? quick.confidence : "Tham khảo";
+  return { label, confidence, basis: typeof quick.basis === "string" && quick.basis ? quick.basis : null };
 }
 
 export function contentView(card: RecommendationCardPayload): CardContentView | null {
@@ -210,6 +226,7 @@ function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardV
     executor: card.content ? "juli_drafts" : card.lever.executor,
     fromContract: true,
     content: contentView(card),
+    quickScan: quickScanView(card),
   };
 }
 

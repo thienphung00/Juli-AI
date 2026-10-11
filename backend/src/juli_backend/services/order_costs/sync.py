@@ -14,6 +14,15 @@ bounded per cycle:
    statement_transactions`` for delivered orders not yet settled, asked again at
    most once a day. ``ORDER_COSTS_FINANCE_PER_CYCLE`` per cycle (default 10).
 
+FAST TIER (fast track P17, D26). Orders created in the last
+``ORDER_COSTS_FAST_WINDOW_DAYS`` (30) -- the backlog a newly connected shop
+brings -- are read up to ``ORDER_COSTS_FAST_PER_CYCLE`` (60) per pass per
+cycle, before the older ones (31-60 days) at the per-cycle limits above. In the
+fast tier an empty rate-limit bucket is waited out (polling the window every
+few seconds) instead of ending the pass, for at most
+``ORDER_COSTS_MAX_WAIT_SECONDS`` (600) per cycle and never past the cycle's
+deadline; a vendor 429 or a permission error still ends the pass at once.
+
 RATE LIMITS. Every call takes a token from the shared Redis ``RateLimiter``
 (the same 10-per-60 s window the poll steps use) under its endpoint TEMPLATE
 (one bucket per endpoint, not per order), without waiting: when the bucket is
@@ -62,6 +71,14 @@ ENABLED_ENV = "ORDER_COSTS_SYNC"
 PRICE_PER_CYCLE_ENV = "ORDER_COSTS_PRICE_PER_CYCLE"
 FINANCE_PER_CYCLE_ENV = "ORDER_COSTS_FINANCE_PER_CYCLE"
 DEFAULT_PER_CYCLE = 10
+FAST_WINDOW_DAYS_ENV = "ORDER_COSTS_FAST_WINDOW_DAYS"
+FAST_PER_CYCLE_ENV = "ORDER_COSTS_FAST_PER_CYCLE"
+MAX_WAIT_SECONDS_ENV = "ORDER_COSTS_MAX_WAIT_SECONDS"
+DEFAULT_FAST_WINDOW_DAYS = 30
+DEFAULT_FAST_PER_CYCLE = 60
+DEFAULT_MAX_WAIT_SECONDS = 600.0
+#: How often a waiting fast-tier pass asks the limiter again.
+TOKEN_POLL_SECONDS = 6.0
 #: ``GET /order/202507/orders`` takes at most 50 ids.
 ORDER_DETAIL_BATCH = 50
 #: Rate-limit bucket of the line-item -> SKU lookup (its own endpoint).
@@ -83,11 +100,26 @@ def enabled() -> bool:
     return os.environ.get(ENABLED_ENV, "1").strip().lower() not in {"0", "false", "no", "off"}
 
 
-def _per_cycle(name: str) -> int:
+def _per_cycle(name: str, default: int = DEFAULT_PER_CYCLE) -> int:
     try:
-        return max(0, int(os.environ.get(name, str(DEFAULT_PER_CYCLE))))
+        return max(0, int(os.environ.get(name, str(default))))
     except ValueError:
-        return DEFAULT_PER_CYCLE
+        return default
+
+
+def fast_window_days() -> int:
+    return _per_cycle(FAST_WINDOW_DAYS_ENV, DEFAULT_FAST_WINDOW_DAYS)
+
+
+def fast_per_cycle() -> int:
+    return _per_cycle(FAST_PER_CYCLE_ENV, DEFAULT_FAST_PER_CYCLE)
+
+
+def max_wait_seconds() -> float:
+    try:
+        return max(0.0, float(os.environ.get(MAX_WAIT_SECONDS_ENV, str(DEFAULT_MAX_WAIT_SECONDS))))
+    except ValueError:
+        return DEFAULT_MAX_WAIT_SECONDS
 
 
 def price_per_cycle() -> int:
@@ -102,6 +134,10 @@ def finance_per_cycle() -> int:
 class PassResult:
     candidates: int = 0
     fetched: int = 0
+    #: P17: of ``fetched``, orders of the fast tier (last 30 days).
+    fetched_recent: int = 0
+    #: P17: seconds spent waiting for the rate-limit window in the fast tier.
+    waited_seconds: float = 0.0
     rows: int = 0
     errors: int = 0
     rate_limited: bool = False
@@ -126,6 +162,13 @@ def _error_label(exc: BaseException) -> str:
     return f"{type(exc).__name__}{f' code={code}' if code is not None else ''}"
 
 
+@dataclass
+class _WaitBudget:
+    """Seconds a cycle may still spend waiting for tokens (shared by both passes)."""
+
+    seconds: float
+
+
 class _Pass:
     """The shared mechanics of one pass: time, tokens, one vendor call."""
 
@@ -138,6 +181,8 @@ class _Pass:
         shop_key: str,
         deadline: DeadlineLike | None,
         label: str,
+        sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep,
+        wait_budget: _WaitBudget | None = None,
     ) -> None:
         self.result = result
         self._limiter = rate_limiter
@@ -145,6 +190,44 @@ class _Pass:
         self._shop_key = shop_key
         self._deadline = deadline
         self._label = label
+        self._sleep = sleep
+        self._wait_budget = wait_budget or _WaitBudget(0.0)
+        #: P17: wait for an empty bucket to refill (fast tier) instead of stopping.
+        self.wait_for_tokens = False
+
+    def _acquire(self, endpoint: str) -> bool:
+        return self._limiter.acquire(
+            self._app_id,
+            self._shop_key,
+            endpoint,
+            max_requests=RATE_LIMIT_MAX_REQUESTS,
+            window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+        )
+
+    def _in_time(self) -> bool:
+        if self._deadline is None:
+            return True
+        try:
+            self._deadline.check(stage=STAGE)
+        except Exception:
+            self.result.out_of_time = True
+            return False
+        return True
+
+    async def _token(self, endpoint: str) -> bool:
+        """A token now, or -- in the fast tier -- after waiting within the budget."""
+        if self._acquire(endpoint):
+            return True
+        while self.wait_for_tokens and self._wait_budget.seconds > 0:
+            step = min(TOKEN_POLL_SECONDS, self._wait_budget.seconds)
+            await self._sleep(step)
+            self._wait_budget.seconds -= step
+            self.result.waited_seconds += step
+            if not self._in_time():
+                return False
+            if self._acquire(endpoint):
+                return True
+        return False
 
     def stopped(self) -> bool:
         r = self.result
@@ -154,21 +237,11 @@ class _Pass:
         self, endpoint: str, fetch: Callable[[], Any]
     ) -> tuple[Any, BaseException | None]:
         """Run ``fetch`` in a thread after a token; ``(None, None)`` means the pass must stop."""
-        if self._deadline is not None:
-            try:
-                self._deadline.check(stage=STAGE)
-            except Exception:
-                self.result.out_of_time = True
-                return None, None
-        acquired = self._limiter.acquire(
-            self._app_id,
-            self._shop_key,
-            endpoint,
-            max_requests=RATE_LIMIT_MAX_REQUESTS,
-            window_seconds=RATE_LIMIT_WINDOW_SECONDS,
-        )
-        if not acquired:
-            self.result.rate_limited = True
+        if not self._in_time():
+            return None, None
+        if not await self._token(endpoint):
+            if not self.result.out_of_time:
+                self.result.rate_limited = True
             return None, None
         try:
             return await asyncio.to_thread(fetch), None
@@ -225,18 +298,29 @@ async def _price_pass(
     step: _Pass,
     now: datetime,
     limit: int,
+    fast_limit: int,
+    fast_days: int,
 ) -> None:
-    refs = await order_costs_store.orders_needing_price(session, shop_id, now=now, limit=limit)
+    recent = await order_costs_store.orders_needing_price(
+        session, shop_id, now=now, limit=fast_limit, newer_than_days=fast_days
+    )
+    older = await order_costs_store.orders_needing_price(
+        session, shop_id, now=now, limit=limit, older_than_days=fast_days
+    )
+    refs = [*recent, *older]
     step.result.candidates = len(refs)
     if not refs:
         return
+    step.wait_for_tokens = bool(recent)
     skus = await _sku_maps(step, orders_resource, [ref.tiktok_order_id for ref in refs])
     if skus is None:
         return
+    recent_ids = {ref.tiktok_order_id for ref in recent}
     for ref in refs:
         if step.stopped():
             return
         order_id = ref.tiktok_order_id
+        step.wait_for_tokens = order_id in recent_ids
         data, error = await step.call(
             ORDER_PRICE_DETAIL_PATH_TEMPLATE, partial(resource.get_price_detail, order_id)
         )
@@ -264,6 +348,8 @@ async def _price_pass(
 
         step.result.rows += await _commit_order(session, write)
         step.result.fetched += 1
+        if order_id in recent_ids:
+            step.result.fetched_recent += 1
         if parsed.unmapped_line_items:
             logger.info(
                 "order_costs_unmapped_line_items",
@@ -293,13 +379,23 @@ async def _finance_pass(
     step: _Pass,
     now: datetime,
     limit: int,
+    fast_limit: int,
+    fast_days: int,
 ) -> None:
-    refs = await order_costs_store.orders_needing_finance(session, shop_id, now=now, limit=limit)
+    recent = await order_costs_store.orders_needing_finance(
+        session, shop_id, now=now, limit=fast_limit, newer_than_days=fast_days
+    )
+    older = await order_costs_store.orders_needing_finance(
+        session, shop_id, now=now, limit=limit, older_than_days=fast_days
+    )
+    refs = [*recent, *older]
+    recent_ids = {ref.tiktok_order_id for ref in recent}
     step.result.candidates = len(refs)
     for ref in refs:
         if step.stopped():
             return
         order_id = ref.tiktok_order_id
+        step.wait_for_tokens = order_id in recent_ids
         data, error = await step.call(
             FINANCE_ORDER_TRANSACTIONS_PATH_TEMPLATE,
             partial(resource.get_statement_transactions, order_id),
@@ -326,6 +422,8 @@ async def _finance_pass(
 
         step.result.rows += await _commit_order(session, write)
         step.result.fetched += 1
+        if order_id in recent_ids:
+            step.result.fetched_recent += 1
 
 
 async def sync_order_costs(
@@ -340,8 +438,17 @@ async def sync_order_costs(
     now: datetime | None = None,
     price_limit: int | None = None,
     finance_limit: int | None = None,
+    fast_limit: int | None = None,
+    fast_days: int | None = None,
+    max_wait: float | None = None,
+    sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep,
 ) -> OrderCostsResult:
-    """Both passes for one shop. Never raises a vendor error; see the module docstring."""
+    """Both passes for one shop. Never raises a vendor error; see the module docstring.
+
+    ``price_limit`` / ``finance_limit`` bound the older tier, ``fast_limit`` the
+    fast one (orders of the last ``fast_days``); ``max_wait`` is the cycle's
+    token-wait budget (P17).
+    """
     result = OrderCostsResult()
     resource = getattr(resources, "order_costs", None)
     orders_resource = getattr(resources, "orders", None)
@@ -352,6 +459,9 @@ async def sync_order_costs(
         result.skipped_reason = "no_resource"
         return result
     stamp = _naive_utc(now)
+    wait_budget = _WaitBudget(max_wait_seconds() if max_wait is None else max(0.0, max_wait))
+    tier_days = fast_window_days() if fast_days is None else fast_days
+    tier_limit = fast_per_cycle() if fast_limit is None else fast_limit
 
     def make_step(pass_result: PassResult, label: str) -> _Pass:
         return _Pass(
@@ -361,6 +471,8 @@ async def sync_order_costs(
             shop_key=shop_key,
             deadline=deadline,
             label=label,
+            sleep=sleep,
+            wait_budget=wait_budget,
         )
 
     try:
@@ -372,6 +484,8 @@ async def sync_order_costs(
             step=make_step(result.price, "price"),
             now=stamp,
             limit=price_per_cycle() if price_limit is None else price_limit,
+            fast_limit=tier_limit if price_limit != 0 else 0,
+            fast_days=tier_days,
         )
         await _finance_pass(
             session=session,
@@ -380,6 +494,8 @@ async def sync_order_costs(
             step=make_step(result.finance, "finance"),
             now=stamp,
             limit=finance_per_cycle() if finance_limit is None else finance_limit,
+            fast_limit=tier_limit if finance_limit != 0 else 0,
+            fast_days=tier_days,
         )
     except Exception as exc:
         logger.error(
@@ -392,6 +508,9 @@ async def sync_order_costs(
         extra={
             "shop_id": str(shop_id),
             "price_fetched": result.price.fetched,
+            "price_fetched_recent": result.price.fetched_recent,
+            "finance_fetched_recent": result.finance.fetched_recent,
+            "waited_seconds": result.price.waited_seconds + result.finance.waited_seconds,
             "price_candidates": result.price.candidates,
             "price_errors": result.price.errors,
             "finance_fetched": result.finance.fetched,

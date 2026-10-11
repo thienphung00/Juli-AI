@@ -61,6 +61,16 @@ export interface RecommendationCardPayload {
   readonly adjusted_by_history?: boolean;
   /** P14-E content cards only (`p14-content-cards.md` §1). */
   readonly content?: CardContentPayload | null;
+  /** P17 (D26): a quick-scan card (`p17-onboarding-speed.md` §1); absent / null otherwise. */
+  readonly quick_scan?: CardQuickScanPayload | null;
+}
+
+/** P17 `recommendation.card.quick_scan`. */
+export interface CardQuickScanPayload {
+  readonly label: string;
+  readonly confidence: string;
+  readonly window_days: number;
+  readonly basis: string;
 }
 
 /** P14-E `recommendation.card.content`. */

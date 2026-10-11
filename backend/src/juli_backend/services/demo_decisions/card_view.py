@@ -26,6 +26,9 @@ Field rules, where the contract leaves a choice:
 - ``tiktok_codes``: labels of diagnosis codes TikTok itself returned. Juli's
   local reading of the same codes is named in ``reason_full`` as "Juli đánh
   giá", never as TikTok's (OP-NFR-2).
+- ``quick_scan`` (fast track P17, D26): a quick-scan card's label, confidence
+  ("Tham khảo"), window and basis, else ``None``; its ``gmv_method`` names the
+  14-day window.
 - ``before_after``: only complete pairs -- the latest run's recorded writes
   (``run_write_values``). A pending card's "after" does not exist yet (Juli
   drafts it in the run), so it has none.
@@ -201,6 +204,24 @@ def _fmt(value: float, unit: str) -> str:
     return f"{value * 100:.1f}".replace(".", ",") + " %"
 
 
+_GMV_METHOD_14D_VI: Mapping[str, str] = {
+    key: text.replace("trung bình 30 ngày", "trung bình 14 ngày")
+    for key, text in _GMV_METHOD_VI.items()
+}
+
+
+def _quick_scan(diagnosis: Mapping[str, Any]) -> dict[str, Any] | None:
+    block = diagnosis.get("quick_scan")
+    if not isinstance(block, Mapping):
+        return None
+    return {
+        "label": block.get("label"),
+        "confidence": block.get("confidence"),
+        "window_days": block.get("window_days"),
+        "basis": block.get("basis"),
+    }
+
+
 def _status(
     card: ActionCard, diagnosis: Mapping[str, Any], context: CardContext, now: datetime
 ) -> str:
@@ -339,6 +360,7 @@ def build_card_block(
     title = (product.title or product.name) if product is not None else None
     field_code, field_label = _LEVER_FIELDS.get(lever_code, (lever_code, lever_label))
     first_sku = context.seller_skus[0] if context.seller_skus else None
+    quick = _quick_scan(diagnosis)
     return {
         "seller_sku": first_sku,
         "seller_sku_more": max(context.sku_count - 1, 0) if first_sku else 0,
@@ -354,7 +376,12 @@ def build_card_block(
         "lever": {"code": lever_code, "label": lever_label, "executor": executor},
         "change_fields": [{"field": field_code, "label": field_label}],
         "before_after": _before_after(context),
-        "gmv_method": _GMV_METHOD_VI.get(str(kpi["key"])) if per_day is not None else None,
+        "gmv_method": (
+            (_GMV_METHOD_14D_VI if quick else _GMV_METHOD_VI).get(str(kpi["key"]))
+            if per_day is not None
+            else None
+        ),
+        "quick_scan": quick,
         "adjusted_by_history": diagnosis.get("adjusted_by_history") is True,
     }
 

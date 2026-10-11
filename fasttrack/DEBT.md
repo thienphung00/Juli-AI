@@ -686,3 +686,22 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] `public UPDATE grants` integration test (`test_no_public_table_holds_update_beyond_its_call_site`)
   still fails as at the P14 base (pre-existing, P14 tables); P16 adds no new table UPDATE
   for `juli_app` (only `users.staff_access_consent_at`, column-level).
+## P17 onboarding speed (2026-10-10)
+
+- [ ] Time to first card is an estimate (≈ 15–60 s, ≤ ~3–4 min when the shared A-34 window is busy); measure it on the first real connect from `shop_quick_scan_done.seconds_since_connect`.
+- [ ] The quick scan runs "in parallel" only if the worker has ≥ 2 processes: the unit runs one `celery worker` (prefork, one process per CPU). On a 1-CPU VPS it queues behind the fast phase; a dedicated `-Q ingest_priority` worker (or `--concurrency 2`) is the fix.
+- [ ] The quick scan and the fast phase share the A-34 rate-limit window (same endpoint key); the scan waits for it rather than skipping. No priority between them.
+- [ ] A placeholder `products` row (Get Product title / status, `update_time` 1970-01-01) exists until the fast phase's product sync overwrites it; if that sync never runs, the row stays minimal (no price, category).
+- [ ] Quick cards carry no 30/30 `evidence` block (A-34 gives one 14-day total, no daily rows); the payload's `evidence` is the empty-series reading until the full run re-scores the card.
+- [ ] Only `QUICK_SCAN_TOP_PRODUCTS` (10) products are asked to TikTok; a weak product outside the top 10 by 14-day GMV cannot get a quick card (by design, D26 "top 5–10").
+- [ ] A quick card whose product the full run proposes with another lever is withdrawn and replaced by a new revision the same day; the seller sees one card disappear and possibly another appear (Juli slot already counted for the day).
+- [ ] The API's real look-back for shop analytics is undocumented; 180 is the documented limit of a sibling endpoint. The walk's out-of-range halving records TikTok's actual limit (`shop_history_done` reason `out_of_range`, `history_earliest_date`) — read it from the first production shop and note it in D25.12.
+- [ ] Onboarding ETA is a fixed typical duration (900 s from the fast phase's start), not measured progress; the history step gives "còn N ngày", no time.
+- [ ] `quick_scan_status = running` older than 15 min reads as failed in the status (worker died); the row itself is not repaired.
+- [ ] `_marked_enqueue` keeps the `quick_scan_queued` marker for 2 h even when the enqueue returned no task id; a second bootstrap within 2 h does not retry a lost scan (the full diagnosis writes cards anyway).
+- [ ] No MODULE.md for `services/onboarding` (not a `map.md` row yet).
+- [ ] UI (fork): a failed onboarding read hides the strip and retries every 60 s (not 15 s), so cards stop refreshing on Quyết định until the next successful read.
+- [ ] UI (fork): "Độ tin cậy: Tham khảo" shows only next to an expected GMV; a quick card without `expected_gmv_per_month` shows the chip but not the confidence.
+- [ ] UI (fork): Home has no cards list, so the poll only re-reads Home's and Phân tích's report (once step 2 is done and the report was empty); Phân tích's per-cell "Xem đề xuất" counts are not refreshed.
+- [ ] UI (fork): the first onboarding read does not re-read Quyết định's cards (it lands with the page's own read), so new cards appear from the second poll (~15 s after load).
+- [ ] Pre-existing, not P17: `tests/harness/test_module_md_sync_parser.py` (2) fails at 09960b20 too (P14 drift + stale `_WEEKLY_NOVELTY_CAP` entry); regenerate the allowlist in an integration pass.

@@ -16,10 +16,13 @@ SPEC §3.1–3.3 and §3.7. Three entrypoints, one per Celery task in
     ``SHOP_HISTORY_CHUNK_DAYS`` chunks from the earliest date already stored,
     until TikTok returns no data (``SHOP_HISTORY_EMPTY_CHUNKS_TO_STOP``
     consecutive empty chunks), refuses the range as out of bounds, or
-    ``SHOP_HISTORY_MAX_LOOKBACK_DAYS`` is reached. The earliest date reached is
-    persisted after every chunk, so a re-run resumes where the last one stopped
-    and never refetches a completed chunk. A chunk whose calls were
-    rate-limited is not recorded and is retried.
+    ``SHOP_HISTORY_MAX_LOOKBACK_DAYS`` (180, fast track P17 / D25.12) is
+    reached. The earliest date reached is persisted after every chunk, so a
+    re-run resumes where the last one stopped and never refetches a completed
+    chunk. A chunk whose calls were rate-limited is not recorded and is retried.
+    P17: right after connect the chain stops at ``SHOP_HISTORY_CONNECT_DAYS``
+    (60) days (``stop_at_days``); the nightly ``shop-history-extend`` beat then
+    reads a few small chunks a night (``nightly``) up to the look-back.
 
 ``run_shop_cycle``
     The scheduled cycle, once per shop per fan-out. Commerce steps every
@@ -91,6 +94,7 @@ from juli_backend.models.models import (
 )
 from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRepo, utc_now_naive
 from juli_backend.services.ingestion import HandoffFn
+from juli_backend.services.onboarding import history_days_available, max_lookback_days
 from juli_backend.services.order_costs import OrderCostsResult, sync_order_costs
 from juli_backend.workers.services.polling.analytics_range import (
     AnalyticsRangeResult,
@@ -154,11 +158,18 @@ def history_chunk_days() -> int:
 
 
 def history_max_lookback_days() -> int:
-    return _env_int(HISTORY_MAX_LOOKBACK_DAYS_ENV, 1095)
+    """D25.12: 180 days (was 1095); see ``services.onboarding.history``."""
+    return max_lookback_days()
 
 
 def history_empty_chunks_to_stop() -> int:
     return _env_int(HISTORY_EMPTY_CHUNKS_TO_STOP_ENV, 2)
+
+
+def _connect_days() -> int:
+    from juli_backend.services.onboarding import connect_days
+
+    return connect_days()
 
 
 def history_chunks_per_task() -> int:
@@ -662,8 +673,15 @@ async def run_history_chunks(
     empty_chunks_to_stop: int | None = None,
     concurrency: int | None = None,
     budget_seconds: float | None = None,
+    stop_at_days: int | None = None,
+    once_on: date | None = None,
 ) -> HistoryResult:
-    """Walk analytics backwards from the earliest stored day. See the module docstring."""
+    """Walk analytics backwards from the earliest stored day. See the module docstring.
+
+    P17: ``stop_at_days`` ends the run (not the walk) once that many days are
+    available (``connect_window_done``); ``once_on`` (the nightly run's local
+    day) makes a second run on the same day a no-op (``already_extended``).
+    """
     deadline = _CycleDeadline(budget_seconds=budget_seconds or history_budget_seconds())
     span = chunk_days or history_chunk_days()
     lookback = max_lookback_days or history_max_lookback_days()
@@ -694,6 +712,16 @@ async def run_history_chunks(
             result.done, result.reason = True, "already_done"
             result.earliest_date = state.history_earliest_date
             return result
+        if stop_at_days is not None and history_days_available(state) >= stop_at_days:
+            result.reason = "connect_window_done"
+            result.earliest_date = state.history_earliest_date
+            return result
+        if once_on is not None:
+            if state.history_extended_on == once_on:
+                result.reason = "already_extended"
+                result.earliest_date = state.history_earliest_date
+                return result
+            await repo.update(shop_id, history_extended_on=once_on)
 
         state, first = await repo.stamp_once(
             shop_id, "history_started_at", status=BOOTSTRAP_HISTORY_RUNNING, failed_phase=None
@@ -781,6 +809,12 @@ async def run_history_chunks(
                     await _finish_history(run, reason="max_lookback")
                     result.done, result.reason = True, "max_lookback"
                     break
+                if stop_at_days is not None and history_days_available(state) >= stop_at_days:
+                    result.reason = "connect_window_done"
+                    break
+            else:
+                if result.reason is None:
+                    result.reason = "chunk_budget"
         except Exception as exc:
             await _mark_failed(run, phase="history", error=exc)
             raise
@@ -821,6 +855,9 @@ class ShopCycleResult:
     analytics: AnalyticsRangeResult | None = None
     cards: int | None = None
     outcomes: list[SyncOutcome] = field(default_factory=list)
+    #: P17: the post-connect history chain has not reached its 60 days yet, so
+    #: the poll keeps it alive; beyond that only the nightly beat extends it.
+    history_connect_pending: bool = False
     #: P14-C cost data read this cycle (never fails the cycle).
     order_costs: OrderCostsResult | None = None
 
@@ -861,6 +898,9 @@ async def run_shop_cycle(
             result.needs_bootstrap = True
             return result
         result.history_done = state.history_done_at is not None
+        result.history_connect_pending = (
+            not result.history_done and history_days_available(state) < _connect_days()
+        )
 
         outcomes = result.outcomes
         new_days = False
@@ -908,6 +948,7 @@ async def run_shop_cycle(
             shop_key=run.shop_key,
             deadline=deadline,
             now=now,
+            sleep=sleep,
         )
         if new_days:
             # D11: scoring once a day, after the analytics pass.

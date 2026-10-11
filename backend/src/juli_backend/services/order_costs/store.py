@@ -59,12 +59,29 @@ def _window_start(now: datetime) -> datetime:
     return now - timedelta(days=WINDOW_DAYS)
 
 
+def _age_filter(now: datetime, newer_than_days: int | None, older_than_days: int | None) -> list:
+    """Order-age bounds inside the 60-day window (P17: a fast tier for recent orders)."""
+    created = _order_created()
+    clauses = [created >= _window_start(now)]
+    if newer_than_days is not None:
+        clauses.append(created >= now - timedelta(days=newer_than_days))
+    if older_than_days is not None:
+        clauses.append(created < now - timedelta(days=older_than_days))
+    return clauses
+
+
 def _order_created():
     return func.coalesce(Order.tiktok_created_at, Order.created_at)
 
 
 async def orders_needing_price(
-    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime, limit: int
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    now: datetime,
+    limit: int,
+    newer_than_days: int | None = None,
+    older_than_days: int | None = None,
 ) -> list[OrderRef]:
     """Orders never read, or changed (``update_time``) since their price detail was read."""
     stmt = (
@@ -78,7 +95,7 @@ async def orders_needing_price(
         )
         .where(
             Order.shop_id == shop_id,
-            _order_created() >= _window_start(now),
+            *_age_filter(now, newer_than_days, older_than_days),
             func.upper(Order.status).not_in(_PRICE_SKIP_STATUSES),
             or_(
                 OrderCostFetch.id.is_(None),
@@ -99,7 +116,13 @@ async def orders_needing_price(
 
 
 async def orders_needing_finance(
-    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime, limit: int
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    now: datetime,
+    limit: int,
+    newer_than_days: int | None = None,
+    older_than_days: int | None = None,
 ) -> list[OrderRef]:
     """Delivered orders not yet settled and not asked within ``FINANCE_RECHECK``."""
     stmt = (
@@ -113,7 +136,7 @@ async def orders_needing_finance(
         )
         .where(
             Order.shop_id == shop_id,
-            _order_created() >= _window_start(now),
+            *_age_filter(now, newer_than_days, older_than_days),
             func.upper(Order.status).in_(_FINANCE_STATUSES),
             or_(
                 OrderCostFetch.id.is_(None),

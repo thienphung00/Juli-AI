@@ -831,6 +831,8 @@ def test_beat_schedule_has_exactly_the_eight_expected_entries():
         "content-runs-poll",
         # Fast track P15: the 24 h sweep of uploaded videos.
         "content-analysis-sweep",
+        # Fast track P17 (D25.12): nightly history extension to 180 days.
+        "shop-history-extend",
     }
 
 

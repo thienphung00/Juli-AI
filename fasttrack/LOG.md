@@ -1081,3 +1081,70 @@ Branch `fasttrack/p12-phan-tich` from d65eb320; worktree `/Users/macos/juli-ft-p
   vitest 49, build OK.
 - Next: owner — review OpsSimulate; apply `docs/runbooks/ops-console-runbook.md`; the
   orchestrator re-chains 083 after P15's 082 and confirms P15 reads the same cap row.
+## 2026-10-10 — P17 onboarding speed (D26, D25.12, P14-C pacing)
+
+Branch `fasttrack/p17-onboarding-speed` from 09960b20 (P17 agent, Opus; UI by a forked
+agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
+
+- **Quick scan (D26)**: `juli_backend.shop_quick_scan` (queue `ingest_priority`, lock
+  `quick_scan`) is enqueued by `bootstrap_shop` as it starts (marker `quick_scan_queued`),
+  so it runs in another worker beside the fast phase. TikTok calls: A-34 202605 for the
+  last 14 local days (`page_size` 100, ≤ 2 pages) + one `/product/202405/products/diagnoses`
+  call for the top 10 by GMV (+ Get Product for a chosen product the catalog does not hold
+  yet — placeholder `products` row at `update_time` 1970-01-01, overwritten by the first
+  sync), all through the shared Redis window. Selection = ADR-106 decision 4 on the 14-day
+  funnels (median trigger, TikTok codes as evidence, no discount cap), only cover image /
+  title / description, D22 on the 14 days, 1–3 cards. Written through
+  `emit_optimize_product_cards` + `apply_emission_budget` → the day-1 Juli slots.
+  Upgrade: the full run feeds the quick cards' TikTok codes to `plan_shop_cards`
+  (`tiktok_evidence`), re-scores a same-lever quick card in place (`surfaced_at` kept),
+  supersedes one with another lever, withdraws one not proposed at once
+  (`quick_scan_not_confirmed`).
+- **Time to first card**: the scan's own work is ~1 s with fakes (selection 3 ms for 200
+  products); in production it is 2–5 TikTok reads behind the shared window, so **≈ 15–60 s
+  after connect** (Celery pick-up + reads + one DB transaction) when the A-34 window is free;
+  if the fast phase has just spent it, the gate waits for the reset (≤ 60 s per window, cap
+  180 s) → **≤ ~3–4 min worst case**. Not measured on a live shop (no connect performed);
+  `shop_quick_scan_done.seconds_since_connect` and `shop_ingestion_state.quick_scan_done_at
+  − connect_committed_at` measure it in production.
+- **Onboarding status**: `GET /v1/shops/me/onboarding` (bearer + X-Shop-Id) → three steps,
+  percent / ETA (typical 900 s, `ONBOARDING_FULL_DIAGNOSIS_TYPICAL_SECONDS`), `active`,
+  label, poll interval (15 / 300 / null), `history_days_available` (contract §2, read by
+  P16), `window_90d_available` at ≥ 180 days.
+- **History (D25.12)**: API look-back checked in `partner_documents/api-reference/analytics/`:
+  no maximum is documented for the shop analytics reads (A-34 202605, 202509 shop / product
+  / SKU / video / LIVE); the only documented analytics limit is **180 days** (Get Video
+  Performances 202403, "start_time must be within the last 180 days"); hourly shop data is
+  30 days. `SHOP_HISTORY_MAX_LOOKBACK_DAYS` default 1095 → **180**; the existing out-of-range
+  halving still stops at TikTok's real limit. Connect chain stops at 60 days
+  (`SHOP_HISTORY_CONNECT_DAYS`); nightly beat `shop-history-extend` (19:43 UTC = 02:43 +07)
+  → `shop_history_backfill(nightly=True)`: 2 × 15-day chunks once per local day
+  (`history_extended_on`), per-shop `history` lock, resumable; 60 → 180 days in 4 nights.
+- **429 (D25.12)**: `fetch.with_backoff` 2/4/8/16/32 s (cap 60, upper-half jitter, env) then
+  `ThrottledError`; `video_windows` skips the video tables for the cycle on it (no
+  `posted_in_window` fallback), counter `video_windows_throttled_skips`.
+- **Cost reads**: orders of the last 30 days up to 60 per pass per cycle (waiting for the
+  window ≤ 600 s), older at 10; 429 / permission still stop at once.
+- **Migration** `084_onboarding_speed` → `081_order_cost_data` (5 nullable columns +
+  check constraint on `shop_ingestion_state`); deferred phone cleanup re-parented onto 084;
+  the five tests pinning the head / cleanup parent updated.
+- **Demo** (fork): `lib/onboarding/*` client + `useOnboardingStatus`, `OnboardingStrip` /
+  `ShopOnboardingStrip` on Trang chủ, Phân tích and Quyết định (signed in with a shop only;
+  Quyết định re-reads its cards on each active poll), quick chip + "Độ tin cậy: Tham khảo".
+- Guards: surface inventory regenerated (new route), beat-set test + `shop-history-extend`,
+  `eval.quality_detectors reconcile --write` (corpus 6,199 / 609 modules; zero-assertion 49
+  unchanged), workers import `services.onboarding` via its package root, MODULE.md entries.
+- Verification: ruff + format clean on changed files; mypy clean on the changed modules.
+  `tests/unit` in 4 chunks: a 1661 passed / 7 failed, b–c 693 / 1, d–r 2858 / 1, s–z 1505 /
+  3 → the 3 fixed (surface inventory, beat set, quality corpus); remaining 9 = the known
+  pre-existing (7 `test_agent_workflow_task_wiring` — 29/29 with a sqlite `DATABASE_URL` —,
+  `test_cross_tenant_probe`, `test_destructive_migration_isolation`). `tests/harness`: 2
+  failures in `test_module_md_sync_parser` also fail at 09960b20 (P14 drift; P17's own
+  symbols documented). PG16 (initdb, port 55417): `test_migrations` + contract + order-costs /
+  shop-diagnosis / shop-ingestion / onboarding two-tenant: 64 passed, 1 failed = the known
+  `test_no_public_table_holds_update_beyond_its_call_site` (7 pre-existing tables).
+  `fasttrack/check.sh --since 09960b20` (fresh PG16): migrations PASS at 084, isolation
+  12 passed, gitleaks PASS, ruff PASS (37 files), pytest 17 files 313 passed / 1 skipped. Demo (Node 20): lint 0
+  errors (7 pre-existing warnings), type-check clean, vitest 132 files 1771 passed,
+  Playwright (port 3327, example Supabase env) 160 passed / 140 skipped incl. the new
+  onboarding spec, `pnpm build:demo --force` OK.

@@ -33,6 +33,18 @@ BOOTSTRAP_HISTORY_RUNNING = "history_running"
 BOOTSTRAP_HISTORY_DONE = "history_done"
 BOOTSTRAP_FAILED = "failed"
 
+#: Quick scan lifecycle (P17, migration 084's check constraint).
+QUICK_SCAN_RUNNING = "running"
+QUICK_SCAN_DONE = "done"
+QUICK_SCAN_SKIPPED = "skipped"
+QUICK_SCAN_FAILED = "failed"
+QUICK_SCAN_STATUSES: tuple[str, ...] = (
+    QUICK_SCAN_RUNNING,
+    QUICK_SCAN_DONE,
+    QUICK_SCAN_SKIPPED,
+    QUICK_SCAN_FAILED,
+)
+
 BOOTSTRAP_STATUSES: tuple[str, ...] = (
     BOOTSTRAP_NOT_STARTED,
     BOOTSTRAP_FAST_RUNNING,
@@ -83,6 +95,15 @@ class ShopIngestionState(Base):
     analytics_last_run_on: Mapped[date | None] = mapped_column(Date)
     latest_available_date: Mapped[date | None] = mapped_column(Date)
 
+    # Quick scan (fast track P17, D26; migration 084): the "quét nhanh" that
+    # writes 1-3 cards from the last 14 days while the fast phase runs.
+    quick_scan_status: Mapped[str | None] = mapped_column(String(20))
+    quick_scan_started_at: Mapped[datetime | None] = mapped_column()
+    quick_scan_done_at: Mapped[datetime | None] = mapped_column()
+    quick_scan_cards: Mapped[int | None] = mapped_column(Integer)
+    #: Local day of the last nightly history extension (D25.12).
+    history_extended_on: Mapped[date | None] = mapped_column(Date)
+
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
@@ -95,5 +116,10 @@ __all__ = [
     "BOOTSTRAP_HISTORY_RUNNING",
     "BOOTSTRAP_NOT_STARTED",
     "BOOTSTRAP_STATUSES",
+    "QUICK_SCAN_DONE",
+    "QUICK_SCAN_FAILED",
+    "QUICK_SCAN_RUNNING",
+    "QUICK_SCAN_SKIPPED",
+    "QUICK_SCAN_STATUSES",
     "ShopIngestionState",
 ]

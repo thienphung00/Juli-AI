@@ -23,6 +23,11 @@ from juli_backend.api.dependencies import get_active_shop
 
 - `GET /v1/shops` — list authenticated user's shops
 - `GET /v1/shops/me` — get the shop identified by X-Shop-Id header
+- `get_current_shop_onboarding` → `GET /v1/shops/me/onboarding` — fast track P17
+  (D26 / D25.12): the shop's onboarding progress (quick scan, 60-day backfill +
+  diagnosis, history) and `history_days_available`; read-only, no TikTok call
+- `OnboardingResponse` / `OnboardingStep` — that endpoint's response model
+- `DemoDecisionQuickScan` — a quick-scan card's label block on `GET /v1/demo/decisions`
 - `tiktok_oauth_start` → `GET /v1/auth/tiktok/start` — begin a seller-initiated TikTok
   Shop connect (issue #1970, ADR-094 decision 3's named follow-up). **Requires the
   Supabase JWT**: `get_current_user` is the only identity input, and the user id it

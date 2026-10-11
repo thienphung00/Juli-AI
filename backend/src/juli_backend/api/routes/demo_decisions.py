@@ -164,6 +164,16 @@ class DemoDecisionRecoverableBasis(BaseModel):
     window_days: int
 
 
+class DemoDecisionQuickScan(BaseModel):
+    """A quick-scan card's label (fast track P17, D26; contract p17-onboarding-speed.md §1)."""
+
+    label: str | None = None
+    confidence: str | None = None
+    window_days: int | None = None
+    scanned_at: str | None = None
+    basis: str | None = None
+
+
 class DemoDecisionDiagnosis(BaseModel):
     """ADR-106 stage diagnosis of one product (Optimize Product cards only)."""
 
@@ -185,6 +195,8 @@ class DemoDecisionDiagnosis(BaseModel):
     recoverable_gmv_basis: DemoDecisionRecoverableBasis | None = None
     product_title: str | None = None
     tiktok_product_id: str | None = None
+    #: P17: set on a quick-scan card.
+    quick_scan: DemoDecisionQuickScan | None = None
 
 
 class DemoDecisionWindow(BaseModel):
@@ -273,6 +285,8 @@ class DemoDecisionCard(BaseModel):
     #: P14-B (D24.6): the rank was weighted by the shop's history for the action.
     adjusted_by_history: bool = False
     content: DemoDecisionCardContent | None = None
+    #: P17 (D26): a quick-scan card ("Đề xuất nhanh · dựa trên 14 ngày", "Tham khảo").
+    quick_scan: DemoDecisionQuickScan | None = None
 
 
 class DemoDecisionRecommendation(BaseModel):

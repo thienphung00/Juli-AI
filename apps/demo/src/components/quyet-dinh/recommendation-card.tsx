@@ -64,6 +64,26 @@ function AnalysisLink({ href }: { readonly href: string | null | undefined }) {
   );
 }
 
+/** P17 (D26): a quick-scan card says so — "Đề xuất nhanh · dựa trên 14 ngày". */
+function QuickScanChip({ card }: { readonly card: CardView }) {
+  if (!card.quickScan) return null;
+  return (
+    <span className="qv-quick-chip" data-testid="quick-scan-chip" title={card.quickScan.basis ?? undefined}>
+      {card.quickScan.label}
+    </span>
+  );
+}
+
+/** P17: the quick card's confidence ("Độ tin cậy: Tham khảo"), next to its expected GMV. */
+function QuickScanConfidence({ card }: { readonly card: CardView }) {
+  if (!card.quickScan) return null;
+  return (
+    <div className="qv-quick-confidence" data-testid="quick-scan-confidence">
+      Độ tin cậy: {card.quickScan.confidence}
+    </div>
+  );
+}
+
 /** `ContentCards.dc.html`: the action row = the action chip + the purple "Juli soạn · bạn làm" chip. */
 function ContentAction({ card }: { readonly card: CardView }) {
   if (!card.content) return null;
@@ -293,6 +313,7 @@ function DesktopCard({
             </h3>
           </div>
           <div className="qv-card__meta">{card.meta}</div>
+          <QuickScanChip card={card} />
         </div>
         <span className={`qv-chip qv-status qv-tone--${STATUS_TONE[status]}`} data-testid="card-status">
           {CARD_STATUS_LABELS[status]}
@@ -323,6 +344,7 @@ function DesktopCard({
             <div className="qv-kpi__gmv">
               <div className="qv-kpi__label">GMV dự kiến</div>
               <div className="qv-kpi__money">{card.gmvPerMonth}</div>
+              <QuickScanConfidence card={card} />
             </div>
           ) : null}
         </div>
@@ -437,6 +459,7 @@ function MobileCard({
             {card.title}
           </h3>
           <div className="qv-card__meta">{card.meta}</div>
+          <QuickScanChip card={card} />
         </div>
         <span className={`qv-chip qv-status qv-tone--${STATUS_TONE[status]}`} data-testid="card-status">
           {CARD_STATUS_LABELS[status]}
@@ -460,6 +483,7 @@ function MobileCard({
               <span className="qv-kpi__money">
                 {card.gmvPerMonth} <span className="qv-estimate">ước tính</span>
               </span>
+              <QuickScanConfidence card={card} />
             </div>
           ) : null}
         </div>

@@ -6630,3 +6630,67 @@ h4 {
   color: inherit;
   text-decoration: underline;
 }
+
+/* ── P17: Juli reading a newly connected shop — the onboarding strip ── */
+
+.onboarding-strip {
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--pink-background);
+  padding: 10px 14px;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.onboarding-strip__label {
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+
+.onboarding-strip__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-strip__step {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  color: var(--juli-muted-foreground);
+  font-size: 13px;
+}
+
+.onboarding-strip__step--running,
+.onboarding-strip__step--done {
+  color: var(--foreground);
+}
+
+.onboarding-strip__step-meta {
+  font-size: 12px;
+}
+
+.onboarding-strip__bar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.onboarding-strip__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--pink-text);
+}
+
+.onboarding-note {
+  margin: 0 0 12px;
+  color: var(--juli-muted-foreground);
+  font-size: 13px;
+}

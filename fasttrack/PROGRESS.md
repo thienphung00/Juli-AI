@@ -134,6 +134,21 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 | Ops pages in apps/demo on `ops.app-juli.com` (middleware host split, noindex): Tổng quan, Cài đặt shop, Xem như shop, Mô phỏng (**artboard not yet owner-reviewed — review requested**), Nhân viên, Nhật ký; seller `/nhan-shop`; reconnect strip | 16.10 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
 | Infra files + runbook (owner applies): nginx vhost, opt-in provisioning, env example, `docs/runbooks/ops-console-runbook.md` | 16.11 | done (files only) — owner steps pending | owner |
 | Privacy: staff-access sentence (VN + EN) + connect-shop notice + consent timestamp | 16.12 | done on `fasttrack/p16-ops` | P16 agent (Opus) |
+## P17 — onboarding speed (D26, D25.12, P14-C pacing)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Contract `contracts/p17-onboarding-speed.md` | — | done (81f3b543) | P17 agent (Opus) |
+| 429 in the daily diagnosis: jittered capped backoff, skip the video tables (no whole-window fallback), skip counter | 17.5 | done (e40a5634) | P17 agent (Opus) |
+| Faster cost reads: orders of the last 30 days up to 60 / pass / cycle, waiting for the rate-limit window (≤ 600 s); older at 10 | 17.6 | done (58b225d5) | P17 agent (Opus) |
+| Migration `084_onboarding_speed` (5 nullable columns on `shop_ingestion_state`, after 081 here; re-chain after 083) | 17.7 | done (2ed5e4c0) | P17 agent (Opus) |
+| Quick scan (D26): `shop_quick_scan` on `ingest_priority` beside the fast phase; 14-day A-34 + TikTok diagnoses → 1–3 cover/title/description cards, D22 on 14 days, "Đề xuất nhanh · dựa trên 14 ngày" / "Tham khảo", day-1 Juli slots; full run re-scores same-lever quick cards in place, withdraws the rest | 17.1, 17.2 | done (74aefe3c, 55d9aeec) | P17 agent (Opus) |
+| `GET /v1/shops/me/onboarding` (3 steps, percent / ETA, `history_days_available` for P16) | 17.3 | done (74aefe3c) | P17 agent (Opus) |
+| History to 180 days (D25.12): look-back 180; connect chain stops at 60 days; nightly `shop-history-extend` 2 × 15 days, resumable, per-shop lock | 17.4 | done (74aefe3c) | P17 agent (Opus) |
+| Demo: onboarding strip on Trang chủ / Quyết định / Phân tích, 15 s poll while active, cards re-read; quick-card chip + "Độ tin cậy: Tham khảo" | 17.8 | done (60f89874, dd52f8b5) | P17 agent (Opus, UI fork) |
+| Two-tenant proof on PG16, guards (surface inventory, beat set, quality corpus, import boundaries, MODULE.md) | 17.7 | done (336122aa, 9214acc8, 4549b98a) | P17 agent (Opus) |
+
+Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deployed.
 
 ## P2–P6
 

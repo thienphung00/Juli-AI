@@ -16,12 +16,19 @@ the script passes ``~/.juli-shop-snapshots/<shop>/<end>/``.
 Daily A-34 files already in ``folder`` are not refetched. Each optional part
 that fails writes its own ``_error*.json`` (class and message, tokens redacted)
 and the run moves on. A throttled call (HTTP 429 / TikTok "Too many requests")
-is retried after 2 s, 4 s, then 8 s.
+is retried with exponential backoff and jitter (fast track P17, D25.12): nominal
+waits 2 s, 4 s, 8 s, 16 s, 32 s (capped at 60 s), each drawn uniformly from its
+upper half; still throttled after the last retry, :class:`ThrottledError` is
+raised so a caller can skip that part for this cycle (``video_windows``) instead
+of hammering the API. Env: ``SHOP_DIAGNOSIS_BACKOFF_BASE_SECONDS``,
+``SHOP_DIAGNOSIS_BACKOFF_CAP_SECONDS``, ``SHOP_DIAGNOSIS_BACKOFF_RETRIES``.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import random
 import re
 import time
 from collections.abc import Callable
@@ -43,11 +50,49 @@ MAX_PRODUCT_DETAILS = 40
 ORDER_SLICE_DAYS = 7
 MESSAGE_LIMIT = 300
 
-BACKOFF_SECONDS = (2.0, 4.0, 8.0)
+BACKOFF_BASE_ENV = "SHOP_DIAGNOSIS_BACKOFF_BASE_SECONDS"
+BACKOFF_CAP_ENV = "SHOP_DIAGNOSIS_BACKOFF_CAP_SECONDS"
+BACKOFF_RETRIES_ENV = "SHOP_DIAGNOSIS_BACKOFF_RETRIES"
+_DEFAULT_BACKOFF_BASE = 2.0
+_DEFAULT_BACKOFF_CAP = 60.0
+_DEFAULT_BACKOFF_RETRIES = 5
 #: TikTok's "Too many requests" code (HTTP 429); 100005 is the generic throttle code.
 THROTTLE_CODES = (36009002, 100005)
 
 Sleep = Callable[[float], Any]
+
+
+def _env_number(name: str, default: float, *, minimum: float) -> float:
+    try:
+        return max(minimum, float(os.getenv(name, str(default))))
+    except ValueError:
+        return default
+
+
+def backoff_delays() -> tuple[float, ...]:
+    """Nominal throttle waits: base × 2^i, capped, one per retry (env-configurable)."""
+    base = _env_number(BACKOFF_BASE_ENV, _DEFAULT_BACKOFF_BASE, minimum=0.0)
+    cap = _env_number(BACKOFF_CAP_ENV, _DEFAULT_BACKOFF_CAP, minimum=0.0)
+    retries = int(_env_number(BACKOFF_RETRIES_ENV, _DEFAULT_BACKOFF_RETRIES, minimum=0))
+    return tuple(min(cap, base * 2**i) for i in range(retries))
+
+
+#: The default nominal waits (2, 4, 8, 16, 32 s); kept for the operator script.
+BACKOFF_SECONDS = backoff_delays()
+
+
+def jitter(delay: float) -> float:
+    """A wait drawn from the upper half of ``delay`` (spreads retries of parallel runs)."""
+    return random.uniform(delay / 2, delay)
+
+
+class ThrottledError(RuntimeError):
+    """A read still throttled (429) after every backoff retry."""
+
+    def __init__(self, cause: BaseException, attempts: int) -> None:
+        super().__init__(f"still throttled after {attempts} attempts: {type(cause).__name__}")
+        self.cause = cause
+        self.attempts = attempts
 
 
 def yesterday_local(now: datetime | None = None) -> date:
@@ -105,6 +150,8 @@ def gmv_of(item: dict) -> Decimal:
 
 def is_throttled(exc: BaseException) -> bool:
     """True for a 429 / "Too many requests" failure, however the client surfaced it."""
+    if isinstance(exc, ThrottledError):
+        return True
     if getattr(exc, "code", None) in THROTTLE_CODES:
         return True
     response = getattr(exc, "response", None)
@@ -114,15 +161,25 @@ def is_throttled(exc: BaseException) -> bool:
 
 
 def with_backoff(call: Callable[[], Any], backoff_sleep: Sleep) -> Any:
-    """Run ``call``; on a throttle wait 2 s, 4 s, then 8 s and retry (up to 4 calls in all)."""
-    for delay in BACKOFF_SECONDS:
+    """Run ``call``; on a throttle wait (exponential, jittered, capped) and retry.
+
+    Non-throttle errors propagate at once. Throttled on the last attempt too, it
+    raises :class:`ThrottledError` (``is_throttled`` stays true for it).
+    """
+    delays = backoff_delays()
+    for delay in delays:
         try:
             return call()
         except Exception as exc:
             if not is_throttled(exc):
                 raise
-            backoff_sleep(delay)
-    return call()
+            backoff_sleep(jitter(delay))
+    try:
+        return call()
+    except Exception as exc:
+        if is_throttled(exc):
+            raise ThrottledError(exc, len(delays) + 1) from exc
+        raise
 
 
 def fetch_daily(
@@ -436,6 +493,8 @@ __all__ = [
     "DAYS",
     "MAX_PRODUCT_DETAILS",
     "THROTTLE_CODES",
+    "ThrottledError",
+    "backoff_delays",
     "error_payload",
     "fetch_daily",
     "fetch_live",

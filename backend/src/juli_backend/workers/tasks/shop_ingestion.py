@@ -13,7 +13,17 @@ Four tasks, replacing the single-merchant ``fujiwa-poll-cycle`` beat entry:
     fan-out. Enqueues the history phase when it finishes.
 
 ``juli_backend.shop_history_backfill``  (queue ``ingest_backfill``)
-    Some history chunks per run, then re-enqueues itself until done.
+    Some history chunks per run, then re-enqueues itself until 60 days exist
+    (fast track P17, D25.12; ``SHOP_HISTORY_CONNECT_DAYS``). Beyond that,
+    ``nightly=True`` runs from the ``shop-history-extend`` beat read a few
+    small chunks a night up to the look-back (180 days).
+
+``juli_backend.shop_history_extend``    (beat, nightly 19:43 UTC = 02:43 UTC+7)
+    Enqueues one nightly history run per shop whose walk is not done.
+
+``juli_backend.shop_quick_scan``        (queue ``ingest_priority``, P17 / D26)
+    Enqueued by ``bootstrap_shop`` as it starts; 1-3 quick cards in parallel
+    with the fast phase (``workers/tasks/shop_quick_scan.py``).
 
 ``juli_backend.poll_shop``              (default queue)
     One scheduled cycle for one shop (commerce every time, analytics at most
@@ -47,7 +57,7 @@ import os
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,6 +65,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.workers.celery_app import celery_app
 from juli_backend.workers.tasks.database import get_async_database_url
 from juli_backend.workers.tasks.shop_diagnosis import enqueue_shop_diagnosis
+from juli_backend.workers.tasks.shop_quick_scan import enqueue_quick_scan
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +76,12 @@ BOOTSTRAP_TASK = "juli_backend.bootstrap_shop"
 HISTORY_TASK = "juli_backend.shop_history_backfill"
 POLL_SHOP_TASK = "juli_backend.poll_shop"
 FANOUT_TASK = "juli_backend.shop_poll_fanout"
+HISTORY_EXTEND_TASK = "juli_backend.shop_history_extend"
+
+_SHOP_UTC_OFFSET = timedelta(hours=7)
+
+#: History runs whose stop is deliberate: no immediate re-enqueue (P17).
+_HISTORY_PARKED_REASONS = frozenset({"fast_not_done", "connect_window_done", "already_extended"})
 
 _OUTER_TIMEOUT_GRACE_SECONDS = 60.0
 _LOCK_GRACE_SECONDS = 60
@@ -178,10 +195,12 @@ def enqueue_bootstrap(
     return async_result.id
 
 
-def enqueue_history(shop_id: str, *, marker_token: str | None, countdown: int = 0) -> str:
+def enqueue_history(
+    shop_id: str, *, marker_token: str | None, countdown: int = 0, nightly: bool = False
+) -> str:
     async_result = shop_history_backfill.apply_async(
         args=[shop_id],
-        kwargs={"marker_token": marker_token},
+        kwargs={"marker_token": marker_token, "nightly": nightly},
         queue=QUEUE_BACKFILL,
         countdown=countdown or None,
     )
@@ -201,6 +220,8 @@ class Enqueuers:
     poll: Callable[[str], str] = enqueue_poll_shop
     #: P7-A: the ADR-108 shop diagnosis report (``workers/tasks/shop_diagnosis.py``).
     diagnosis: Callable[[str], str | None] = enqueue_shop_diagnosis
+    #: P17 (D26): the quick scan (``workers/tasks/shop_quick_scan.py``).
+    quick_scan: Callable[[str], str | None] = enqueue_quick_scan
 
 
 def _now_iso() -> str:
@@ -213,7 +234,7 @@ def _marked_enqueue(
     lock: Any,
     shop_id: str,
     marker: str,
-    enqueue: Callable[[str | None], str],
+    enqueue: Callable[[str | None], str | None],
 ) -> str | None:
     """Enqueue once per marker lifetime. Returns the task id, or None if skipped/failed."""
     token = lock.try_acquire(shop_id, marker, ttl_seconds=_MARKER_TTL_SECONDS)
@@ -235,14 +256,37 @@ def _marked_enqueue(
 
 
 def maybe_enqueue_history(
-    lock: Any, shop_id: str, enqueuers: Enqueuers, *, countdown: int = 0
+    lock: Any, shop_id: str, enqueuers: Enqueuers, *, countdown: int = 0, nightly: bool = False
 ) -> str | None:
+    if nightly:
+        return _marked_enqueue(
+            lock,
+            shop_id,
+            "history_queued",
+            lambda token: enqueuers.history(
+                shop_id, marker_token=token, countdown=countdown, nightly=True
+            ),
+        )
     return _marked_enqueue(
         lock,
         shop_id,
         "history_queued",
         lambda token: enqueuers.history(shop_id, marker_token=token, countdown=countdown),
     )
+
+
+def maybe_enqueue_quick_scan(lock: Any, shop_id: str, enqueuers: Enqueuers) -> str | None:
+    """P17 (D26): the quick scan, once per marker lifetime; the scan itself runs once."""
+    from juli_backend.services.onboarding import quick_scan_enabled
+
+    if not quick_scan_enabled():
+        return None
+    task_id = _marked_enqueue(
+        lock, shop_id, "quick_scan_queued", lambda _token: enqueuers.quick_scan(shop_id)
+    )
+    if task_id is not None:
+        logger.info("shop_quick_scan_enqueued", extra={"shop_id": shop_id, "task_id": task_id})
+    return task_id
 
 
 def maybe_enqueue_diagnosis(shop_id: str, enqueuers: Enqueuers, *, after: str) -> str | None:
@@ -378,6 +422,8 @@ async def run_bootstrap_task(
 
     if marker_token:
         lock.release(shop_id, "bootstrap_queued", marker_token)
+    # P17 (D26): the quick scan runs beside the fast phase, in another worker.
+    maybe_enqueue_quick_scan(lock, shop_id, enqueuers)
     fast = fast_fn or run_bootstrap_fast_phase
     ttl = int(bootstrap_budget_seconds() + _OUTER_TIMEOUT_GRACE_SECONDS) + _LOCK_GRACE_SECONDS
 
@@ -415,11 +461,36 @@ async def run_history_task(
     marker_token: str | None = None,
     history_fn: Callable[..., Awaitable[Any]] | None = None,
     run_kwargs: dict[str, Any] | None = None,
+    nightly: bool = False,
+    now: datetime | None = None,
 ) -> Any:
+    """History chunks for one shop.
+
+    P17 (D25.12): after connect, stop at ``SHOP_HISTORY_CONNECT_DAYS`` (60) and
+    re-enqueue until then; ``nightly`` reads ``SHOP_HISTORY_NIGHTLY_CHUNKS`` ×
+    ``SHOP_HISTORY_NIGHTLY_CHUNK_DAYS`` once per local day and never
+    re-enqueues (the next night continues).
+    """
+    from juli_backend.services.onboarding import (
+        connect_days,
+        nightly_chunk_days,
+        nightly_chunks,
+    )
     from juli_backend.workers.services.polling.ingestion import (
         history_budget_seconds,
         run_history_chunks,
     )
+
+    if nightly:
+        # The shop's local day (UTC+7): one nightly run per day.
+        moment = (now or datetime.now(UTC)).astimezone(UTC)
+        mode: dict[str, Any] = {
+            "chunk_days": nightly_chunk_days(),
+            "max_chunks": nightly_chunks(),
+            "once_on": (moment + _SHOP_UTC_OFFSET).date(),
+        }
+    else:
+        mode = {"stop_at_days": connect_days()}
 
     if marker_token:
         lock.release(shop_id, "history_queued", marker_token)
@@ -430,13 +501,22 @@ async def run_history_task(
         async with session_factory() as session:
             kwargs = await collaborators(session)
             result = await history(
-                session=session, shop_id=uuid.UUID(shop_id), **kwargs, **(run_kwargs or {})
+                session=session,
+                shop_id=uuid.UUID(shop_id),
+                **kwargs,
+                **{**mode, **(run_kwargs or {})},
             )
             await session.commit()
             return result
 
     ran, result = await _with_cycle_lock(lock, shop_id, "history", ttl, body)
-    if ran and result is not None and not result.done and result.reason != "fast_not_done":
+    if (
+        ran
+        and result is not None
+        and not nightly
+        and not result.done
+        and result.reason not in _HISTORY_PARKED_REASONS
+    ):
         countdown = _HISTORY_RETRY_COUNTDOWN_SECONDS if result.reason == "incomplete_chunk" else 0
         maybe_enqueue_history(lock, shop_id, enqueuers, countdown=countdown)
     return result
@@ -473,11 +553,50 @@ async def run_poll_shop_task(
         maybe_enqueue_diagnosis(shop_id, enqueuers, after="daily_analytics")
     if result.needs_bootstrap:
         maybe_enqueue_bootstrap(lock, shop_id, enqueuers)
-    elif not result.history_done and not lock.is_held(shop_id, "history"):
-        # Keeps the history chain alive across a lost message or a worker
-        # restart; the marker makes this a no-op while one is queued.
+    elif (
+        not result.history_done
+        and getattr(result, "history_connect_pending", False)
+        and not lock.is_held(shop_id, "history")
+    ):
+        # Keeps the post-connect history chain alive across a lost message or a
+        # worker restart, until its 60 days exist (P17: beyond that, only the
+        # nightly beat extends it); the marker makes this a no-op while queued.
         maybe_enqueue_history(lock, shop_id, enqueuers)
     return result
+
+
+async def run_history_extend_fanout(
+    session: AsyncSession,
+    *,
+    lock: Any,
+    enqueuers: Enqueuers,
+    enumerate_fn: Callable[[AsyncSession], Awaitable[list[Any]]] | None = None,
+) -> int:
+    """Nightly beat (P17, D25.12): one ``nightly`` history run per shop past its fast phase.
+
+    The run itself skips a shop whose walk is done or that already ran today;
+    the ``history_queued`` marker skips one whose history run is queued.
+    """
+    from juli_backend.workers.services.polling.ingestion import enumerate_pollable_shops
+
+    enumerate_shops = enumerate_fn or enumerate_pollable_shops
+    shops = await enumerate_shops(session)
+    enqueued = 0
+    for shop in shops:
+        if not shop.fast_done:
+            continue
+        shop_id = str(shop.shop_id)
+        if lock.is_held(shop_id, "history"):
+            continue
+        try:
+            if maybe_enqueue_history(lock, shop_id, enqueuers, nightly=True) is not None:
+                enqueued += 1
+        except Exception:
+            logger.error(
+                "shop_history_extend_enqueue_failed", extra={"shop_id": shop_id}, exc_info=True
+            )
+    logger.info("shop_history_extend_fanout", extra={"shops": len(shops), "enqueued": enqueued})
+    return enqueued
 
 
 # -- Celery wrappers ----------------------------------------------------------
@@ -554,8 +673,25 @@ def bootstrap_shop(
     )
 
 
+@celery_app.task(name=HISTORY_EXTEND_TASK)
+def shop_history_extend() -> None:
+    """Beat: the nightly history extension to 180 days (P17, D25.12)."""
+    env = _skip_if_unconfigured("shop_history_extend")
+    if env is None:
+        return
+
+    async def go() -> None:
+        factory = _session_factory()
+        async with factory() as session:
+            await run_history_extend_fanout(session, lock=_redis_lock(env), enqueuers=Enqueuers())
+
+    _run(go, timeout=300.0, event="shop_history_extend")
+
+
 @celery_app.task(name=HISTORY_TASK)
-def shop_history_backfill(shop_id: str, marker_token: str | None = None) -> None:
+def shop_history_backfill(
+    shop_id: str, marker_token: str | None = None, nightly: bool = False
+) -> None:
     """History phase chunks for one shop (low-priority queue)."""
     from juli_backend.workers.services.polling.ingestion import history_budget_seconds
 
@@ -571,6 +707,7 @@ def shop_history_backfill(shop_id: str, marker_token: str | None = None) -> None
             collaborators=_production_collaborators(env),
             enqueuers=Enqueuers(),
             marker_token=marker_token,
+            nightly=nightly,
         )
 
     _run(
@@ -610,6 +747,7 @@ def poll_shop(shop_id: str) -> None:
 __all__ = [
     "BOOTSTRAP_TASK",
     "FANOUT_TASK",
+    "HISTORY_EXTEND_TASK",
     "HISTORY_TASK",
     "POLL_SHOP_TASK",
     "QUEUE_BACKFILL",
@@ -621,12 +759,15 @@ __all__ = [
     "maybe_enqueue_bootstrap",
     "maybe_enqueue_diagnosis",
     "maybe_enqueue_history",
+    "maybe_enqueue_quick_scan",
     "poll_shop",
     "run_bootstrap_task",
     "run_fanout",
+    "run_history_extend_fanout",
     "run_history_task",
     "run_poll_shop_task",
     "score_and_persist_cards",
     "shop_history_backfill",
+    "shop_history_extend",
     "shop_poll_fanout",
 ]

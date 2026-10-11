@@ -274,6 +274,9 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for fast track P16 (Juli Ops tables,
         # juli_ops role path, SECURITY DEFINER functions, handover).
         "test_ops_console_db.py",
+        # Reason 2 again: seeds two tenants for fast track P17 (quick scan and
+        # onboarding state written as juli_app under each shop's scope).
+        "test_onboarding_speed_two_tenant.py",
     }
 )
 
