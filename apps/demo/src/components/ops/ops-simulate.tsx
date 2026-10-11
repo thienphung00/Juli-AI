@@ -55,6 +55,8 @@ type Api = Pick<OpsApi, "simulation" | "createScenario" | "setTarget">;
 
 export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; readonly shopId: string; readonly api?: Api }) {
   const [win, setWin] = useState<number>(30);
+  // Until the person picks a window, fall back to the longest one with data.
+  const [picked, setPicked] = useState(false);
   const [page, setPage] = useState<SimulationPage | null>(null);
   const [failed, setFailed] = useState(false);
   const [deltas, setDeltas] = useState<Deltas>({});
@@ -71,10 +73,14 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
         .then((p) => {
           setPage(p);
           setFailed(false);
+          if (!picked && !p.status.baseline_available) {
+            const fallback = [...p.windows].reverse().find((x) => x.baseline_available);
+            if (fallback && fallback.days !== w) setWin(fallback.days);
+          }
         })
         .catch(() => setFailed(true));
     },
-    [api, shopId],
+    [api, shopId, picked],
   );
 
   useEffect(() => {
@@ -145,7 +151,10 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
                 <button
                   aria-checked={win === n}
                   key={n}
-                  onClick={() => setWin(n)}
+                  onClick={() => {
+                    setPicked(true);
+                    setWin(n);
+                  }}
                   role="radio"
                   style={{
                     font: "inherit",
@@ -179,7 +188,12 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
         </div>
         {failed ? <p role="alert">Không tải được mô phỏng.</p> : null}
         {!page && !failed ? <p role="status">Đang tải…</p> : null}
-        {page && status && !status.comparable ? (
+        {page && status && status.history_days === 0 ? (
+          <p data-testid="sim-no-history" role="status" style={{ margin: 0, fontSize: 13, color: C.amber, fontWeight: 600 }}>
+            Shop chưa có dữ liệu theo ngày cho mô phỏng.
+            {page.rebuilding ? " Juli đang dựng lại báo cáo — tải lại trang sau khoảng 10 phút." : " Dữ liệu có sau lần đồng bộ kế tiếp."}
+          </p>
+        ) : page && status && !status.comparable ? (
           <p data-testid="window-insufficient" role="status" style={{ margin: 0, fontSize: 13, color: C.amber, fontWeight: 600 }}>
             Chưa đủ dữ liệu (cần 2 × {win} ngày) · hiện có {status.history_days} ngày
             {available ? " — gốc dùng được, chưa so sánh được ▲▼" : ""}

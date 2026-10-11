@@ -219,5 +219,7 @@ export interface SimulationPage {
   readonly volatility: Partial<Record<StreamId, { row_kind: string; rows: readonly VolatilityRow[] }>>;
   readonly lever_map: Partial<Record<StreamId, Partial<Record<KpiId, string>>>>;
   readonly step_pct: number;
+  /** True when the shop had no per-day data and a report rebuild was queued. */
+  readonly rebuilding?: boolean;
   readonly scenarios: readonly Scenario[];
 }

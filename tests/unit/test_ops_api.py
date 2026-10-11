@@ -433,6 +433,50 @@ async def test_simulation_endpoint_windows_and_scenarios(session, monkeypatch):
     assert await _audit_count(session, "scenario_set_target") == 1
 
 
+async def test_simulation_without_daily_data_queues_a_report_rebuild(session, monkeypatch):
+    """Reports stored before P16 have no daily streams: the page asks for a rebuild."""
+    from juli_backend.workers.tasks import shop_diagnosis as diagnosis_tasks
+
+    queued: list[str] = []
+    monkeypatch.setattr(
+        diagnosis_tasks, "enqueue_shop_diagnosis", lambda shop_id: queued.append(shop_id) or "t1"
+    )
+    _, shop = await make_tenant(session)
+    session.add(
+        ShopDiagnosisReport(
+            shop_id=shop.id,
+            end_date=date.today(),
+            ranking="60d",
+            report={"channels": []},
+            built_at=datetime(2026, 10, 9),
+        )
+    )
+    user = await _staff(session, "viewer")
+    async with _client_as(session, user) as client:
+        body = (await client.get(f"/v1/ops/shops/{shop.id}/simulation")).json()
+    assert body["status"]["history_days"] == 0
+    assert body["streams"] == []
+    assert body["rebuilding"] is True
+    assert queued == [str(shop.id)]
+
+
+async def test_simulation_with_daily_data_does_not_rebuild(session, monkeypatch):
+    from juli_backend.workers.tasks import shop_diagnosis as diagnosis_tasks
+
+    monkeypatch.setattr(sim, "HISTORY_DAYS", 100_000)
+    queued: list[str] = []
+    monkeypatch.setattr(
+        diagnosis_tasks, "enqueue_shop_diagnosis", lambda shop_id: queued.append(shop_id) or "t1"
+    )
+    _, shop = await make_tenant(session)
+    session.add(_stored_report(shop, days=20))
+    user = await _staff(session, "viewer")
+    async with _client_as(session, user) as client:
+        body = (await client.get(f"/v1/ops/shops/{shop.id}/simulation?window=7")).json()
+    assert body["rebuilding"] is False and len(body["streams"]) == 4
+    assert queued == []
+
+
 # -- invite / handover (P9-B) -----------------------------------------------------------------
 
 

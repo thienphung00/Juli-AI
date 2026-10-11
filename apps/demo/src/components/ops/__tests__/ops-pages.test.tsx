@@ -7,6 +7,7 @@ import { OpsOverview } from "../ops-overview";
 import { OpsShopSettings } from "../ops-shop-settings";
 import { OpsSimulate } from "../ops-simulate";
 import { ME, OVERVIEW, SETTINGS, SHOP_ID, SIMULATION, SIMULATION_90 } from "./fixtures";
+import type { SimulationPage } from "../../../lib/ops/types";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }), usePathname: () => "/ops" }));
 
@@ -103,6 +104,27 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     fireEvent.click(screen.getByRole("radio", { name: "90 ngày" }));
     expect(await screen.findByTestId("window-insufficient")).toHaveTextContent("Chưa đủ dữ liệu (cần 2 × 90 ngày) · hiện có 60 ngày");
     expect(sim).toHaveBeenLastCalledWith(SHOP_ID, 90);
+  });
+
+  it("opens on the longest window with data when 30 days is not covered yet", async () => {
+    const short = (days: number, ok: boolean) => ({ days, baseline_available: ok, comparable: false, needs_days: 2 * days, history_days: 20 });
+    const windows = [short(7, true), short(14, true), short(30, false), short(90, false)];
+    const empty: SimulationPage = { ...SIMULATION, windows, status: windows[2], streams: [], volatility: {} };
+    const sim = vi.fn(async (_id: string, w: number) => (w === 14 ? { ...SIMULATION, window: 14, windows, status: windows[1] } : empty));
+    render(<OpsSimulate api={{ simulation: sim, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
+    await waitFor(() => expect(sim).toHaveBeenLastCalledWith(SHOP_ID, 14));
+    expect(await screen.findByTestId("sim-row-product_card")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "14 ngày" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("says the daily data is being rebuilt instead of showing an empty table", async () => {
+    const none = { baseline_available: false, comparable: false, history_days: 0 };
+    const windows = [7, 14, 30, 90].map((days) => ({ days, needs_days: 2 * days, ...none }));
+    const page: SimulationPage = { ...SIMULATION, windows, status: windows[2], streams: [], volatility: {}, rebuilding: true };
+    const sim = vi.fn(async () => page);
+    render(<OpsSimulate api={{ simulation: sim, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
+    expect(await screen.findByTestId("sim-no-history")).toHaveTextContent("Juli đang dựng lại báo cáo");
+    expect(sim).toHaveBeenCalledTimes(1);
   });
 
   it("saves the scenario and sets it as the shop target", async () => {
