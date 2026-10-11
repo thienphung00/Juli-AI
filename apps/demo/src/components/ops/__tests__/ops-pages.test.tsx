@@ -41,10 +41,10 @@ describe("Cài đặt shop (OpsShopSettings.dc.html)", () => {
     invite: vi.fn(async () => ({ data: {} as never, email_sent: true, accept_url: null })),
   });
 
-  it("shows stage, Ghi đè / Mặc định badges, the audit and saves changes", async () => {
+  it("shows stage, Ghi đè / Mặc định badges, the audit; stage and reset ask first", async () => {
     const a = api();
     render(<OpsShopSettings api={a} me={ME} shopId={SHOP_ID} />);
-    expect(await screen.findByRole("heading", { name: "Mỹ phẩm Thảo Nhi" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Mỹ phẩm Thảo Nhi · Cài đặt shop" })).toBeInTheDocument();
     const rows = screen.getAllByTestId("ops-setting");
     expect(rows).toHaveLength(7);
     expect(screen.queryByText("Đội ngũ được làm thay")).toBeNull();
@@ -52,10 +52,18 @@ describe("Cài đặt shop (OpsShopSettings.dc.html)", () => {
     expect(within(rows[0]).getByText("5/ngày · 25/tuần · 30 mở")).toBeInTheDocument();
     expect(within(rows[6]).getByText("Ghi đè")).toBeInTheDocument();
     expect(within(rows[6]).getByText("$5 / tháng")).toBeInTheDocument();
-    expect(screen.getByText(/đặt giới hạn chi phí OpenAI \$5\/tháng/)).toBeInTheDocument();
+    expect(screen.getByText(/Trần chi phí OpenAI: Không giới hạn → \$5 \/ tháng/)).toBeInTheDocument();
+    // D27.5: the stage asks before → after
     fireEvent.click(screen.getByRole("radio", { name: /Pilot đặc biệt/ }));
+    expect(a.putSettings).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Đổi giai đoạn" }));
     await waitFor(() => expect(a.putSettings).toHaveBeenCalledWith(SHOP_ID, { stage: "pilot" }));
+    // Về mặc định lists what goes back, then resets
     fireEvent.click(screen.getByRole("button", { name: "Về mặc định" }));
+    const reset = screen.getByRole("dialog", { name: "Đưa cài đặt riêng của Mỹ phẩm Thảo Nhi về mặc định?" });
+    expect(within(reset).getAllByTestId("confirm-row")[0]).toHaveTextContent("Trần chi phí OpenAI$5 / tháng → Không giới hạn");
+    expect(a.resetSettings).not.toHaveBeenCalled();
+    fireEvent.click(within(reset).getByRole("button", { name: "Về mặc định" }));
     await waitFor(() => expect(a.resetSettings).toHaveBeenCalled());
     fireEvent.change(screen.getByLabelText("Email của seller"), { target: { value: "thaonhi@gmail.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Mời seller" }));
@@ -65,7 +73,9 @@ describe("Cài đặt shop (OpsShopSettings.dc.html)", () => {
 
   it("is read-only for a Xem (viewer) role", async () => {
     render(<OpsShopSettings api={api()} me={{ ...ME, role: "viewer", role_label: "Xem" }} shopId={SHOP_ID} />);
-    await screen.findByRole("heading", { name: "Mỹ phẩm Thảo Nhi" });
+    await screen.findByRole("heading", { name: "Mỹ phẩm Thảo Nhi · Cài đặt shop" });
+    expect(screen.getByRole("button", { name: "Về mặc định" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sửa Luồng được đề xuất" })).toBeDisabled();
     expect(screen.getByRole("radio", { name: /Pilot đặc biệt/ })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Mời seller" })).toBeNull();
   });

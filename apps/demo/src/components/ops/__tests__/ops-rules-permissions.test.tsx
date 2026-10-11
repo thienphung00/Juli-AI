@@ -42,6 +42,11 @@ describe("Quy tắc in Cài đặt shop (D25.14)", () => {
     const tone = within(section).getByTestId("rule-content_tone");
     fireEvent.change(within(tone).getByRole("textbox"), { target: { value: "Thân thiện" } });
     fireEvent.click(within(tone).getByRole("button", { name: "Lưu" }));
+    // D27.5: the rule save asks before → after first
+    const dialog = await screen.findByRole("dialog", { name: "Lưu quy tắc cho shop?" });
+    expect(within(dialog).getByTestId("confirm-row")).toHaveTextContent("Giọng vănChưa đặt → Thân thiện");
+    expect(calls.some(([, i]) => i?.method === "PUT")).toBe(false);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xác nhận lưu" }));
     await waitFor(() => expect(calls.some(([u, i]) => u === `/v1/ops/shops/${SHOP_ID}/rules/content_tone` && i?.method === "PUT")).toBe(true));
     const put = calls.find(([u, i]) => u.endsWith("/rules/content_tone") && i?.method === "PUT");
     expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({ value: "Thân thiện", set_by: "team" });
