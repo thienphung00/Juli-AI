@@ -58,7 +58,7 @@ class SmtpMailer:
         self.port = int(os.environ.get("OPS_SMTP_PORT", "587") or 587)
         self.user = os.environ.get("OPS_SMTP_USER", "").strip()
         self.password = os.environ.get("OPS_SMTP_PASSWORD", "")
-        self.sender = os.environ.get("OPS_MAIL_FROM", "").strip() or "Juli <no-reply@app-juli.com>"
+        self.sender = os.environ.get("OPS_MAIL_FROM", "").strip() or "Juli <lienhe@app-juli.com>"
 
     @property
     def configured(self) -> bool:

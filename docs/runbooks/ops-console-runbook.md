@@ -1,6 +1,6 @@
 # Ops console runbook — Juli Ops on ops.app-juli.com (fast track P16)
 
-> **Decisions:** `fasttrack/DECISIONS.md` D25 (1–15) · **Contract:** `fasttrack/contracts/p16-ops.md`
+> **Decisions:** `fasttrack/DECISIONS.md` D25 (1–15), D27 · **Contract:** `fasttrack/contracts/p16-ops.md`
 > **Prerequisite:** the VPS from [`vps-wiring-runbook.md`](vps-wiring-runbook.md) (nginx, certbot,
 > the Cloudflare origin lockdown timer) and the demo lane deployed with a P16 commit.
 
@@ -29,6 +29,11 @@ SELECT r.rolname FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid
 
 If the last query returns nothing (the runtime login was granted `juli_app` after the
 migration ran), grant it once: `GRANT juli_ops TO <runtime login role>;`.
+
+You no longer have to remember this: the deploy refuses a release while the grant is
+missing and prints the exact statement, and the API answers every Ops request with
+**503** `Thiếu quyền juli_ops cho database — chạy GRANT juli_ops TO <role>.` instead of a
+500 — see [Kiểm tra khi deploy](#kiểm-tra-khi-deploy).
 
 ## 2. Cloudflare DNS
 
@@ -90,24 +95,44 @@ Zero Trust → Access → Applications → **Add an application → Self-hosted*
 Save, then open the application → **Overview → Application Audience (AUD) Tag** and copy
 it. The team domain is under Settings → Custom pages (`<team>.cloudflareaccess.com`).
 
-## 6. API environment
+## 6. API environment — the AWS secret, never api.env
 
-Add to `/etc/juli/api.env` (template: `infra/scripts/env/api.env.example`), then restart
-the API lane (or deploy):
+`/etc/juli/api.env` is **generated**: `infra/scripts/fetch-secrets.sh` rewrites it from the
+AWS Secrets Manager secret **`juli/api/production`** on every Celery unit start
+(`ExecStartPre`) and on `juli-secrets-refresh.timer`. A key hand-added to api.env
+disappears on the next regeneration — that is exactly how Ops silently became "Tài khoản
+này không có quyền" (403, `ops_cf_access_denied: Cloudflare Access is not configured`)
+after a deploy. So every Ops key lives **in the secret**:
+
+| Key | Required | Value |
+|---|---|---|
+| `CF_ACCESS_TEAM_DOMAIN` | **Yes** (deploy refuses without it) | `<team>` or `<team>.cloudflareaccess.com` (step 5) |
+| `CF_ACCESS_AUD` | **Yes** (deploy refuses without it) | the AUD tag from step 5 |
+| `OPS_ALLOWED_EMAIL_DOMAIN` | No (default `app-juli.com`) | `app-juli.com` |
+| `OPS_SMTP_*`, `OPS_MAIL_FROM` | No (without SMTP Ops shows the link to forward) | see [Gửi email mời](#gửi-email-mời) |
+| `OPS_INVITE_ACCEPT_BASE_URL` | No | `https://demo.app-juli.com` |
+| `OPENAI_MONTHLY_CAP_USD_DEFAULT` | No (default `5`) | shared with P15: the monthly OpenAI cap when a shop has none set |
+
+`put-secret-value` **replaces the whole JSON** — merge the new keys into the current
+value, never send only the new ones. From the admin workstation (values never printed):
 
 ```bash
-CF_ACCESS_TEAM_DOMAIN=<team>                 # or <team>.cloudflareaccess.com
-CF_ACCESS_AUD=<the AUD tag from step 5>
-OPS_ALLOWED_EMAIL_DOMAIN=app-juli.com
-# Invites / disconnect e-mails (optional; without SMTP Ops shows the link to forward):
-OPS_SMTP_HOST=...  OPS_SMTP_PORT=587  OPS_SMTP_USER=...  OPS_SMTP_PASSWORD=...
-OPS_MAIL_FROM=Juli <no-reply@app-juli.com>
-OPS_INVITE_ACCEPT_BASE_URL=https://demo.app-juli.com
-# Shared with P15: the monthly OpenAI cap when a shop has none set (default 5):
-OPENAI_MONTHLY_CAP_USD_DEFAULT=5
+aws secretsmanager get-secret-value --region us-east-2 --secret-id juli/api/production \
+  --query SecretString --output text > /tmp/juli-api.json        # chmod 600; delete after
+jq --arg team '<team>' --arg aud '<AUD tag>' \
+  '. + {CF_ACCESS_TEAM_DOMAIN: $team, CF_ACCESS_AUD: $aud, OPS_ALLOWED_EMAIL_DOMAIN: "app-juli.com"}' \
+  /tmp/juli-api.json > /tmp/juli-api.new.json
+jq 'keys | length' /tmp/juli-api.json /tmp/juli-api.new.json      # new = old + added keys
+aws secretsmanager put-secret-value --region us-east-2 --secret-id juli/api/production \
+  --secret-string file:///tmp/juli-api.new.json
+rm -f /tmp/juli-api.json /tmp/juli-api.new.json
 ```
 
-Never set `OPS_CF_ACCESS_BYPASS` on the VPS (it is refused when `ENVIRONMENT=production`).
+Then on the VPS: `sudo /root/Juli-AI-v2/infra/scripts/fetch-secrets.sh` and re-run the
+deploy (or `sudo systemctl restart juli-api` for the durable unit). Check only key
+NAMES, never values: `sudo grep -oE '^(CF_ACCESS|OPS)_[A-Z_]+=' /etc/juli/api.env`.
+
+Never set `OPS_CF_ACCESS_BYPASS` in the secret (it is refused when `ENVIRONMENT=production`).
 
 ## 7. Supabase redirect URL
 
@@ -137,6 +162,67 @@ Every further staff member is added by an Admin in Ops → Nhân viên (audited)
    (no Supabase token / no Access assertion).
 4. `https://demo.app-juli.com/ops` → 404.
 5. Ops → a shop → Xem như shop → the banner reads "chỉ xem, không ghi được"; no button acts.
+
+## Gửi email mời
+
+"Mời seller" and "Huỷ kết nối" send e-mail through SMTP (`services/ops/mailer.py`:
+STARTTLS, then login). With `OPS_SMTP_HOST` unset nothing is sent and Ops shows the
+accept link for staff to forward. Google Workspace, all keys in the secret
+`juli/api/production` (section 6):
+
+| Key | Value |
+|---|---|
+| `OPS_SMTP_HOST` | `smtp.gmail.com` |
+| `OPS_SMTP_PORT` | `587` |
+| `OPS_SMTP_USER` | the Workspace mailbox that signs in (see below) |
+| `OPS_SMTP_PASSWORD` | a Google Workspace **app password** for that mailbox (Google Account → Security → 2-Step Verification → App passwords). Put it straight into the secret — **never paste it in chat**, a ticket or a commit. |
+| `OPS_MAIL_FROM` | `Juli <lienhe@app-juli.com>` — this is also the code default, so the key can be left out |
+
+- If `lienhe@app-juli.com` is an **alias or a group**, not a mailbox, it cannot sign in:
+  set `OPS_SMTP_USER` to a real mailbox (e.g. `thien.phung@app-juli.com`) and, in that
+  mailbox's Gmail → Settings → Accounts → **"Send mail as"**, add and verify
+  `lienhe@app-juli.com`. Without that, Gmail rewrites the From to the mailbox address.
+- **Quote `OPS_MAIL_FROM` if you set it.** fetch-secrets.sh writes `KEY=value` verbatim and
+  the deploy reads api.env with bash `source`, where an unquoted `Juli <lienhe@…>` is a
+  syntax error (the `<` is a redirect) and the deploy stops. Store the value WITH the
+  double quotes — JSON `"OPS_MAIL_FROM": "\"Juli <lienhe@app-juli.com>\""` — which both
+  bash and systemd read as `Juli <lienhe@app-juli.com>`. Or simply leave the key out.
+- Test: Ops → a shop → Mời seller to your own address; failures log
+  `ops_invite_mail_failed` (`sudo journalctl -u 'juli-api*' --since '10 min ago' | grep ops_invite_mail`).
+
+## Kiểm tra khi deploy
+
+Two checks in `infra/scripts/deploy.sh` (API lane, `deploy_lane_api`), both run before
+the new API candidate starts; either one fails the lane, so traffic stays on the running
+release and the release record shows `ops_preflight` = the reason:
+
+1. **Cloudflare Access config** (`require_cf_access_env`), right after api.env is read and
+   before any migration. Fails when `CF_ACCESS_TEAM_DOMAIN` or `CF_ACCESS_AUD` is absent,
+   empty or still the `REPLACE_*` placeholder; prints only the key name(s):
+
+   ```
+   FAIL: /etc/juli/api.env has no usable CF_ACCESS_AUD — Juli Ops would refuse every request (403 "Cloudflare Access is not configured"). Fix: add CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD to the AWS secret juli/api/production (api.env is regenerated from it; never hand-edit api.env), run fetch-secrets.sh, then re-run the deploy.
+   ```
+
+   Fix: section 6 (the secret), then re-run the deploy.
+2. **`juli_ops` membership** (`require_ops_role_grant` →
+   `safe_alembic_helpers.py verify-ops-role-grant`), right after migrations (they create the
+   role). Connects as the RUNTIME role (`DATABASE_URL`, not the migration owner) and asks
+   `pg_has_role(current_user, 'juli_ops', 'MEMBER')`. On failure the last line is the
+   exact statement to run as the owner:
+
+   ```
+   FAIL: juli_ops grant check refused the release
+   the runtime database role 'juli_app' (the user in DATABASE_URL) is not a member of juli_ops, so Juli Ops would answer 503 on every request. Run once as the database owner, then re-run the deploy:
+   GRANT juli_ops TO juli_app;
+   ```
+
+   Migrations have already been applied at that point (additive, never reverted) — run the
+   GRANT and re-run the deploy.
+
+If the grant goes missing later anyway, every `/v1/ops/*` request answers **503**
+`{"detail": "Thiếu quyền juli_ops cho database — chạy GRANT juli_ops TO <role>."}` and the
+API logs `ops_role_missing` (once per request).
 
 ## Rollback
 
