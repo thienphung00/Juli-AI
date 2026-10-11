@@ -845,3 +845,46 @@ def test_the_migration_matches_the_model_and_chains_onto_075():
         assert f'"{column.name}"' in text, column.name
     assert "ENABLE ROW LEVEL SECURITY" in text
     assert "app_current_shop_id()" in text
+
+
+def test_a_forced_build_runs_once_per_shop_per_cooldown(monkeypatch):
+    """Ops Mô phỏng forces a rebuild of a pre-P16 report; reopening the page must not
+    re-fetch TikTok each time: the second forced request inside the cooldown is a
+    normal (non-forced) build, which skips as ``already_built``."""
+    import redis
+
+    import juli_backend.database.database as database_module
+    from juli_backend.workers.tasks import shop_diagnosis as task_module
+
+    class _FakeRedis:
+        def __init__(self) -> None:
+            self.keys: dict[str, int] = {}
+
+        def set(self, key, value, nx=False, ex=None):
+            if nx and key in self.keys:
+                return None
+            self.keys[key] = ex
+            return True
+
+    fake = _FakeRedis()
+    seen: list[bool] = []
+
+    async def _fake_run(shop_id, **kwargs):
+        seen.append(kwargs["force"])
+
+    monkeypatch.setenv("TIKTOK_APP_KEY", "k")
+    monkeypatch.setenv("TIKTOK_APP_SECRET", "s")
+    monkeypatch.setenv("REDIS_URL", "redis://fake")
+    monkeypatch.setattr(redis, "from_url", lambda url: fake)
+    monkeypatch.setattr(task_module, "run_build_shop_diagnosis", _fake_run)
+    monkeypatch.setattr(task_module, "get_async_database_url", lambda: "sqlite+aiosqlite://")
+    monkeypatch.setattr(database_module, "ensure_worker_session_factory", lambda url: None)
+
+    shop_id = str(uuid.uuid4())
+    task_module.build_shop_diagnosis.run(shop_id, force=True)
+    task_module.build_shop_diagnosis.run(shop_id, force=True)
+    task_module.build_shop_diagnosis.run(shop_id)
+    assert seen == [True, False, False]
+    assert fake.keys == {
+        task_module.forced_rebuild_key(shop_id): task_module.FORCED_REBUILD_COOLDOWN_SECONDS
+    }

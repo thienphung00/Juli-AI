@@ -62,9 +62,24 @@ def lock_ttl_seconds() -> int:
     return int(budget_seconds()) + _LOCK_GRACE_SECONDS
 
 
-def enqueue_shop_diagnosis(shop_id: str) -> str | None:
-    """Enqueue one build; never raises (a broker hiccup must not fail the caller)."""
+#: A forced rebuild (Ops Mô phỏng found no daily data) runs at most once per shop
+#: per this many seconds, so reopening the page never re-fetches TikTok each time.
+FORCED_REBUILD_COOLDOWN_SECONDS = 6 * 3600
+
+
+def forced_rebuild_key(shop_id: str) -> str:
+    return f"ingest:diagnosis-forced:{shop_id}"
+
+
+def enqueue_shop_diagnosis(shop_id: str, *, force: bool = False) -> str | None:
+    """Enqueue one build; never raises (a broker hiccup must not fail the caller).
+
+    ``force`` rebuilds the latest day even when its report exists (a report stored
+    before P16 has no daily streams); the task rate-limits forced builds per shop.
+    """
     try:
+        if force:
+            return build_shop_diagnosis.delay(shop_id, force=True).id
         return build_shop_diagnosis.delay(shop_id).id
     except Exception:
         logger.error("shop_diagnosis_enqueue_failed", extra={"shop_id": shop_id}, exc_info=True)
@@ -148,7 +163,7 @@ async def _build(
 
 
 @celery_app.task(name=BUILD_SHOP_DIAGNOSIS_TASK)
-def build_shop_diagnosis(shop_id: str) -> None:
+def build_shop_diagnosis(shop_id: str, force: bool = False) -> None:
     """Build and store the shop's diagnosis report for its latest analytics day."""
     app_key = os.getenv("TIKTOK_APP_KEY", "").strip()
     app_secret = os.getenv("TIKTOK_APP_SECRET", "").strip()
@@ -174,6 +189,13 @@ def build_shop_diagnosis(shop_id: str) -> None:
         from juli_backend.workers.services.polling.shop_lock import RedisShopIngestLock
 
         client = redis.from_url(redis_url)
+        forced = force and bool(
+            client.set(
+                forced_rebuild_key(shop_id), "1", nx=True, ex=FORCED_REBUILD_COOLDOWN_SECONDS
+            )
+        )
+        if force and not forced:
+            logger.info("shop_diagnosis_forced_cooldown", extra={"shop_id": shop_id})
         await run_build_shop_diagnosis(
             shop_id,
             session_factory=ensure_worker_session_factory(get_async_database_url()),
@@ -181,6 +203,7 @@ def build_shop_diagnosis(shop_id: str) -> None:
             app_secret=app_secret,
             lock=RedisShopIngestLock(client),
             rate_limiter=shared_rate_limiter(client),
+            force=forced,
         )
 
     timeout = budget_seconds()
@@ -194,6 +217,7 @@ def build_shop_diagnosis(shop_id: str) -> None:
 
 __all__ = [
     "BUILD_SHOP_DIAGNOSIS_TASK",
+    "FORCED_REBUILD_COOLDOWN_SECONDS",
     "LOCK_NAME",
     "build_shop_diagnosis",
     "enqueue_shop_diagnosis",

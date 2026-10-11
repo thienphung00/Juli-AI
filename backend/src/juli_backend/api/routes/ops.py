@@ -765,13 +765,14 @@ async def _simulation_body(
         except simulation.SimulationError:
             item["result"] = None
         scenario_rows.append(item)
-    # Reports stored before P16 carry no per-day streams: queue a rebuild so the
-    # page fills in a few minutes instead of staying empty (the task holds a lock).
+    # Reports stored before P16 carry no per-day streams, and the latest day's report
+    # already exists, so only a FORCED rebuild refills it (the task holds a lock and
+    # allows one forced build per shop per 6 h).
     rebuilding = False
     if payload["status"]["history_days"] == 0:
         from juli_backend.workers.tasks import shop_diagnosis as diagnosis_tasks
 
-        rebuilding = diagnosis_tasks.enqueue_shop_diagnosis(str(shop_id)) is not None
+        rebuilding = diagnosis_tasks.enqueue_shop_diagnosis(str(shop_id), force=True) is not None
     return {
         "shop": _shop_json(listing),
         "stage": settings_view.stage,

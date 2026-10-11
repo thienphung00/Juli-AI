@@ -445,7 +445,9 @@ async def test_simulation_without_daily_data_queues_a_report_rebuild(session, mo
 
     queued: list[str] = []
     monkeypatch.setattr(
-        diagnosis_tasks, "enqueue_shop_diagnosis", lambda shop_id: queued.append(shop_id) or "t1"
+        diagnosis_tasks,
+        "enqueue_shop_diagnosis",
+        lambda shop_id, force=False: queued.append((shop_id, force)) or "t1",
     )
     _, shop = await make_tenant(session)
     session.add(
@@ -463,7 +465,8 @@ async def test_simulation_without_daily_data_queues_a_report_rebuild(session, mo
     assert body["status"]["history_days"] == 0
     assert body["streams"] == []
     assert body["rebuilding"] is True
-    assert queued == [str(shop.id)]
+    # forced: the latest day's report exists but predates the daily streams
+    assert queued == [(str(shop.id), True)]
 
 
 async def test_simulation_with_daily_data_does_not_rebuild(session, monkeypatch):
@@ -472,7 +475,9 @@ async def test_simulation_with_daily_data_does_not_rebuild(session, monkeypatch)
     monkeypatch.setattr(sim, "HISTORY_DAYS", 100_000)
     queued: list[str] = []
     monkeypatch.setattr(
-        diagnosis_tasks, "enqueue_shop_diagnosis", lambda shop_id: queued.append(shop_id) or "t1"
+        diagnosis_tasks,
+        "enqueue_shop_diagnosis",
+        lambda shop_id, force=False: queued.append((shop_id, force)) or "t1",
     )
     _, shop = await make_tenant(session)
     session.add(_stored_report(shop, days=20))
