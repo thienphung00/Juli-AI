@@ -498,9 +498,13 @@ async def sync_order_costs(
             fast_days=tier_days,
         )
     except Exception as exc:
+        label = _error_label(exc)
+        # The label (class + vendor code, never a payload) is in the message too:
+        # the worker's plain log format drops ``extra``.
         logger.error(
-            "order_costs_failed",
-            extra={"shop_id": str(shop_id), "error": _error_label(exc)},
+            "order_costs_failed error=%s",
+            label,
+            extra={"shop_id": str(shop_id), "error": label},
         )
         result.skipped_reason = "error"
     logger.info(
