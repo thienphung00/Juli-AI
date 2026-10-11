@@ -883,7 +883,8 @@ class TestFanout:
 
 
 # ---------------------------------------------------------------------------
-# AC-1.6 -- commerce every cycle, analytics at most once a day
+# AC-1.6 -- commerce every cycle (at most hourly per shop since D27.3), analytics
+# at most once a day
 # ---------------------------------------------------------------------------
 
 
@@ -977,6 +978,50 @@ class TestCadence:
         assert resources.orders.search_all.call_args_list == [
             call(update_time_from=1_784_000_000)
         ], "the watermark from the fast phase drives the next read"
+
+    @pytest.mark.asyncio
+    async def test_commerce_runs_at_most_once_an_hour_per_shop(self, session, monkeypatch):
+        """D27.3: the 15-minute fan-out reaches the shop, commerce waits its 60 minutes."""
+        monkeypatch.delenv("SHOP_COMMERCE_INTERVAL_MINUTES", raising=False)
+        shop = await _make_shop(session, label="hourly")
+        analytics = FakeAnalyticsResource(prefix="hourly")
+        await _fast(session, shop, analytics, score_fn=_count_score)
+
+        first = make_resources(analytics)
+        ran = await _cycle(session, shop, analytics, now=NOW, resources=first)
+        assert ran.commerce_skip_reason is None
+        first.orders.search_all.assert_called_once()
+        assert (await _state(session, shop.id)).commerce_last_run_at == NOW.replace(tzinfo=None)
+
+        for minutes in (15, 30, 59):
+            later = make_resources(analytics)
+            skipped = await _cycle(
+                session, shop, analytics, now=NOW + timedelta(minutes=minutes), resources=later
+            )
+            assert skipped.commerce_skip_reason == "interval", minutes
+            later.orders.search_all.assert_not_called()
+            assert skipped.order_costs is None
+
+        hour = make_resources(analytics)
+        again = await _cycle(
+            session, shop, analytics, now=NOW + timedelta(minutes=60), resources=hour
+        )
+        assert again.commerce_skip_reason is None
+        hour.orders.search_all.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_the_commerce_interval_is_configurable(self, session, monkeypatch):
+        monkeypatch.setenv("SHOP_COMMERCE_INTERVAL_MINUTES", "15")
+        shop = await _make_shop(session, label="every15")
+        analytics = FakeAnalyticsResource(prefix="every15")
+        await _fast(session, shop, analytics, score_fn=_count_score)
+        await _cycle(session, shop, analytics, now=NOW)
+        resources = make_resources(analytics)
+        result = await _cycle(
+            session, shop, analytics, now=NOW + timedelta(minutes=15), resources=resources
+        )
+        assert result.commerce_skip_reason is None
+        resources.orders.search_all.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

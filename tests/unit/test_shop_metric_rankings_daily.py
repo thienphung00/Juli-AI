@@ -479,3 +479,50 @@ def test_the_migration_matches_the_model_and_chains_onto_076():
 def test_the_models_allowed_values_are_the_rankings_streams_and_metrics():
     assert set(RANKING_STREAMS) == {s.value for s in STREAM_METRICS}
     assert set(RANKING_METRICS) == {m.value for m in Metric}
+
+
+# ---------------------------------------------------------------------------
+# P18 (D27.1 / D27.2) -- the build also writes the compact daily rows and the
+# shop's Ops summary row
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_job_writes_the_compact_days_and_the_ops_summary(engine, session, tmp_path):
+    from juli_backend.models.ops import OpsShopDailySummary
+    from juli_backend.models.shop_diagnosis import ShopDailyProduct, ShopDailyStream
+    from juli_backend.services.ops import simulation as sim
+
+    shop = await _make_shop(session, label="cmp")
+    result, _ = await _build(engine, shop.id, tmp_path)
+
+    assert result.built and result.compact_rows and result.ops_summary is True
+    report = (
+        (
+            await session.execute(
+                select(ShopDiagnosisReport.report).where(
+                    ShopDiagnosisReport.shop_id == shop.id, ShopDiagnosisReport.ranking == "60d"
+                )
+            )
+        )
+        .scalars()
+        .one()
+    )
+    streams = await _stored(session, ShopDailyStream, shop.id)
+    expected = {
+        (stream, day) for stream, by_day in report["daily_streams"].items() for day in by_day
+    }
+    assert {(r.stream, r.day.isoformat()) for r in streams} == expected
+    assert await _stored(session, ShopDailyProduct, shop.id)
+    # The simulation reads the compact rows: same numbers as merging the report JSON.
+    history = await sim.load_history(session, shop.id, today=END + timedelta(days=1))
+    from_json = sim.baseline(sim.merge_reports([report]), 30)
+    from_table = sim.baseline(history, 30)
+    assert from_table["data_through"] == END.isoformat()
+    assert from_table["generated_at"] is not None
+    for key in ("streams", "volatility", "windows", "status", "from", "to"):
+        assert from_table[key] == from_json[key], key
+    summary = (await _stored(session, OpsShopDailySummary, shop.id))[0]
+    assert summary.data_through == END
+    assert summary.payload["last_diagnosis_at"] is not None
+    assert summary.payload["connection"] == "ok"

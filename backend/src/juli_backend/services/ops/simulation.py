@@ -539,7 +539,16 @@ def baseline(history: History, window: int) -> dict[str, Any]:
                         "stability": stability(imp.cv),
                     }
                 )
-            rows.sort(key=lambda r: (r["impressions_cv"] is None, r["impressions_cv"] or 0))
+            # Stable first; ties by reach (the report's order), then id -- deterministic
+            # whatever order the rows were read in.
+            rows.sort(
+                key=lambda r: (
+                    r["impressions_cv"] is None,
+                    r["impressions_cv"] or 0,
+                    -r["impressions"]["mean"],
+                    r["id"],
+                )
+            )
             volatility[stream] = {"row_kind": ROW_KINDS[stream], "rows": rows}
     first = _days(history.last_day, window)[0] if history.last_day else None
     return {

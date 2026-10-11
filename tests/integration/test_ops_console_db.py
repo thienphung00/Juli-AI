@@ -67,7 +67,15 @@ async def app_session(shop_id: uuid.UUID | None = None):
 
 def test_every_ops_table_is_classified_and_rls_enabled(owner_engine):
     assert sorted(OPS_TABLES) == sorted(
-        ["ops_staff", "ops_audit_log", "ops_shop_settings", "ops_sim_scenarios", "ops_shop_invites"]
+        [
+            "ops_staff",
+            "ops_audit_log",
+            "ops_shop_settings",
+            "ops_sim_scenarios",
+            "ops_shop_invites",
+            # P18 (D27.1, migration 085)
+            "ops_shop_daily_summary",
+        ]
     )
     with owner_engine.connect() as conn:
         for table in OPS_TABLES:
@@ -97,6 +105,7 @@ async def test_juli_app_cannot_read_ops_tables(two_tenants, table):
     [
         "SELECT * FROM public.ops_list_shops()",
         "SELECT * FROM public.ops_transfer_shop(gen_random_uuid(), gen_random_uuid())",
+        "SELECT * FROM public.ops_find_shop(gen_random_uuid())",
     ],
 )
 async def test_juli_app_cannot_call_ops_only_functions(two_tenants, call):
@@ -156,14 +165,70 @@ async def test_settings_audit_and_overview_from_a_juli_app_session(two_tenants):
     assert row_a["stage"] == "self"
 
 
-async def test_audit_log_is_append_only_for_juli_ops(two_tenants):
+async def test_audit_log_rows_merge_and_expire_as_juli_ops_only(two_tenants):
+    """D27.6 / D27.4 (migration 085): juli_ops may UPDATE (merge) and DELETE
+    (revert, retention) audit rows; juli_app still has no grant at all."""
+    tenant_a, _ = two_tenants
+    staff_id = uuid.uuid4()
     async with app_session() as session:
         async with session.begin():
-            await audit.record(session, ACTOR, "probe")
+            async with ops_role(session):
+                await session.execute(
+                    text(
+                        "INSERT INTO public.ops_staff (id, email, role) VALUES (:i, :e, 'operator')"
+                    ),
+                    {"i": staff_id, "e": f"merge-{staff_id.hex[:6]}@app-juli.com"},
+                )
+        actor = audit.Actor(staff_id=staff_id, email="merge@app-juli.com")
+        async with session.begin():
+            await audit.record(
+                session,
+                actor,
+                "settings_update",
+                shop_id=tenant_a.shop_id,
+                before={"stage": "trial"},
+                after={"stage": "pilot"},
+                field="stage",
+            )
+            merged = await audit.record(
+                session,
+                actor,
+                "settings_update",
+                shop_id=tenant_a.shop_id,
+                before={"stage": "pilot"},
+                after={"stage": "self"},
+                field="stage",
+            )
+            assert merged is not None and merged.merged_count == 2
+        async with session.begin():
+            gone = await audit.record(
+                session,
+                actor,
+                "settings_update",
+                shop_id=tenant_a.shop_id,
+                before={"stage": "self"},
+                after={"stage": "trial"},
+                field="stage",
+            )
+            assert gone is None
+        async with session.begin():
+            await audit.purge_expired(session)
+    async with app_session(tenant_a.shop_id) as session:
         with pytest.raises(Exception, match="permission denied"):
-            async with session.begin():
-                async with ops_role(session):
-                    await session.execute(text("DELETE FROM public.ops_audit_log"))
+            await session.execute(text("DELETE FROM public.ops_audit_log"))
+
+
+async def test_ops_summary_and_find_shop_from_a_juli_app_session(two_tenants):
+    tenant_a, _ = two_tenants
+    async with app_session() as session:
+        listing = await overview.find_shop(session, tenant_a.shop_id)
+        assert listing is not None and listing.shop_id == tenant_a.shop_id
+        summary = await overview.refresh_shop_summary(session, tenant_a.shop_id)
+        await session.commit()
+        assert summary.payload["connection"] in ("ok", "expired", "none")
+        data = await overview.build_overview(session)
+        await session.commit()
+    assert any(r["shop_id"] == str(tenant_a.shop_id) for r in data["shops"])
 
 
 async def test_handover_moves_the_shop_through_the_definer_function(owner_engine):
