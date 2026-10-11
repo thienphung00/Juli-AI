@@ -68,19 +68,33 @@ from juli_backend.services.ops import (
 )
 from juli_backend.services.ops import settings as ops_settings
 from juli_backend.services.ops import staff as ops_staff
+from juli_backend.services.ops.access import OpsRoleMissing
 from juli_backend.services.shop_diagnosis import Channel, Metric, Ranking
 
 logger = logging.getLogger(__name__)
 
 
 class MaskedRoute(APIRoute):
-    """Re-serialises every JSON response with buyer PII masked (D25.6)."""
+    """Re-serialises every JSON response with buyer PII masked (D25.6).
+
+    Also turns :class:`OpsRoleMissing` (the runtime DB role lacks ``juli_ops``
+    membership, so ``SET LOCAL ROLE juli_ops`` was refused) into a 503 naming
+    the exact ``GRANT`` to run, logged once per request as ``ops_role_missing``.
+    """
 
     def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         original = super().get_route_handler()
 
         async def handler(request: Request) -> Response:
-            response = await original(request)
+            try:
+                response = await original(request)
+            except OpsRoleMissing as exc:
+                logger.error(
+                    "ops_role_missing", extra={"db_role": exc.role, "path": request.url.path}
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"detail": exc.detail}
+                )
             if response.media_type != "application/json" or not response.body:
                 return response
             try:

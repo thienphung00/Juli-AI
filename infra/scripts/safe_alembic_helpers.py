@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -437,6 +438,66 @@ def verify_runtime_role_owns_nothing(
     return {"checked": True, "role": role, "owned": 0}
 
 
+OPS_ROLE = "juli_ops"
+
+
+def _decide_ops_role_grant(role: str, ops_role_exists: bool, is_member: bool) -> None:
+    """Raise unless the runtime login `role` can `SET ROLE juli_ops` (P19, 4A).
+
+    Pure, so the decision and its message are testable without a database.
+    Every /v1/ops/* request does `SET LOCAL ROLE juli_ops`; without membership
+    Postgres refuses it and Juli Ops answers 503 on every screen. The last line
+    of the message is the exact statement to run, on its own line.
+    """
+    if not ops_role_exists:
+        raise RuntimeError(
+            f"role {OPS_ROLE} does not exist in this database, although migrations "
+            "have run (083_ops_console creates it). Check DATABASE_URL points at the "
+            "production database."
+        )
+    if not is_member:
+        raise RuntimeError(
+            f"the runtime database role '{role}' (the user in DATABASE_URL) is not a "
+            f"member of {OPS_ROLE}, so Juli Ops would answer 503 on every request. "
+            "Run once as the database owner, then re-run the deploy:\n"
+            f"GRANT {OPS_ROLE} TO {role};"
+        )
+
+
+def verify_ops_role_grant(url: str | None = None) -> dict[str, object]:
+    """Check that the RUNTIME role (DATABASE_URL, not the migration owner) is a
+    member of juli_ops. Connects as the runtime role on purpose: `current_user`
+    is then the exact name to GRANT to, with no parsing of pooler usernames."""
+    raw = (url or os.environ.get("DATABASE_URL", "")).strip()
+    if not raw:
+        raise RuntimeError("DATABASE_URL must be set to check the juli_ops grant")
+    engine = create_engine(sync_database_url(raw), pool_pre_ping=True)
+    try:
+        with engine.connect() as conn:
+            role = str(conn.execute(text("SELECT current_user")).scalar_one())
+            exists = bool(
+                conn.execute(
+                    text("SELECT count(*) FROM pg_roles WHERE rolname = :r").bindparams(r=OPS_ROLE)
+                ).scalar_one()
+            )
+            member = exists and bool(
+                conn.execute(
+                    text("SELECT pg_has_role(current_user, :r, 'MEMBER')").bindparams(r=OPS_ROLE)
+                ).scalar_one()
+            )
+    except Exception as exc:
+        # The class name only: a driver message can echo the host and user, and the
+        # deploy log is not the place for connection details.
+        raise RuntimeError(
+            f"could not query the juli_ops grant as the runtime role ({type(exc).__name__}). "
+            "Check that DATABASE_URL is reachable."
+        ) from None
+    finally:
+        engine.dispose()
+    _decide_ops_role_grant(role, exists, member)
+    return {"checked": True, "role": role, "member_of": OPS_ROLE}
+
+
 def estimate_database_bytes() -> int:
     with _engine().connect() as conn:
         return int(conn.execute(text("SELECT pg_database_size(current_database())")).scalar_one())
@@ -492,6 +553,9 @@ def main() -> int:
         help="Postgres URL to inspect. MUST authenticate as the runtime role — "
         "run as the owner it inverts and always reports failure.",
     )
+
+    p_ops = sub.add_parser("verify-ops-role-grant")
+    p_ops.add_argument("--url", help="Runtime Postgres URL (default: DATABASE_URL)")
 
     p_rls = sub.add_parser("verify-rls-enforced")
     p_rls.add_argument(
@@ -572,6 +636,14 @@ def main() -> int:
             result = verify_runtime_role_owns_nothing(args.url)
         except Exception as exc:
             print(f"runtime role ownership check failed: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(result))
+        return 0
+    if args.command == "verify-ops-role-grant":
+        try:
+            result = verify_ops_role_grant(args.url)
+        except Exception as exc:
+            print(f"{exc}", file=sys.stderr)
             return 1
         print(json.dumps(result))
         return 0

@@ -391,6 +391,67 @@ verify_celery_worker_queues() {
 # Lanes
 # --------------------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------------------
+# Juli Ops preconditions (fast track P19). Both run inside the API lane, before the
+# candidate starts, and fail the lane rather than ship an Ops console that is dead on
+# arrival. Neither prints a value from api.env or the database URL.
+# --------------------------------------------------------------------------------------
+
+# Owner decision 2A. /v1/ops/* refuses every request (403, "Cloudflare Access is not
+# configured") while CF_ACCESS_TEAM_DOMAIN or CF_ACCESS_AUD is missing — and api.env is
+# REGENERATED from the AWS secret juli/api/production by fetch-secrets.sh, so a key
+# hand-added to api.env silently disappears on the next regeneration. The fix is always
+# the secret, never api.env.
+#
+# Prints the NAMES of the required keys that are absent, empty, or still the
+# api.env.example placeholder (REPLACE_*), one per line. Reads only those two keys'
+# lines; the last assignment wins, as with `source`.
+cf_access_missing_keys() {
+    local file="$1" key
+    for key in CF_ACCESS_TEAM_DOMAIN CF_ACCESS_AUD; do
+        if ! awk -v k="${key}" -v q="'" '
+            {
+                line = $0
+                sub(/^[[:space:]]*(export[[:space:]]+)?/, "", line)
+                if (index(line, k "=") != 1) next
+                v = substr(line, length(k) + 2)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+                gsub("^[\"" q "]|[\"" q "]$", "", v)
+                ok = (v != "" && v !~ /^REPLACE_/)
+            }
+            END { exit(ok ? 0 : 1) }' "${file}" 2>/dev/null; then
+            echo "${key}"
+        fi
+    done
+}
+
+require_cf_access_env() {
+    local file="$1" missing
+    missing="$(cf_access_missing_keys "${file}" | tr '\n' ' ')"
+    missing="${missing% }"
+    if [ -n "${missing}" ]; then
+        log "FAIL: ${file} has no usable ${missing// / or } — Juli Ops would refuse every request (403 \"Cloudflare Access is not configured\"). Fix: add CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD to the AWS secret juli/api/production (api.env is regenerated from it; never hand-edit api.env), run fetch-secrets.sh, then re-run the deploy."
+        return 1
+    fi
+    note "Cloudflare Access config present (CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD)"
+}
+
+# Decision 4A. Every Ops request does SET LOCAL ROLE juli_ops as the RUNTIME role (the
+# user in DATABASE_URL); without membership each one fails (the API answers 503). Runs
+# after migrations, since 083_ops_console creates juli_ops. The helper connects as the
+# runtime role and, on failure, ends its message with the exact GRANT line.
+require_ops_role_grant() {
+    local release_dir="$1" out
+    if ! out="$("${release_dir}/.venv/bin/python" \
+        "${CANONICAL_ROOT}/infra/scripts/safe_alembic_helpers.py" verify-ops-role-grant 2>&1 >/dev/null)"; then
+        log "FAIL: juli_ops grant check refused the release"
+        # The helper's own message; its last line is the exact GRANT to run.
+        printf '%s\n' "${out}" >&2
+        return 1
+    fi
+    note "runtime database role is a member of juli_ops"
+}
+
 ensure_release_worktree() {
     local sha="$1" release_dir="$2"
     if [ -d "${release_dir}" ]; then
@@ -421,6 +482,12 @@ deploy_lane_api() {
     # Migrations: additive-gate + apply BEFORE the candidate starts. Never reverted.
     set -a; # shellcheck disable=SC1090
     source "${API_ENV_FILE}"; set +a
+
+    # P19 / 2A: refuse an api.env without Cloudflare Access before touching the DB.
+    if ! require_cf_access_env "${API_ENV_FILE}"; then
+        record_step api ops_preflight "cf_access_missing"
+        return 1
+    fi
 
     # Run the additive migration gate: refuse non-additive schema changes before
     # the candidate starts. This gate must run BEFORE safe-alembic-upgrade.sh.
@@ -462,6 +529,13 @@ deploy_lane_api() {
     RELEASE_DIR="${release_dir}" API_ENV_FILE="${API_ENV_FILE}" \
         "${CANONICAL_ROOT}/infra/scripts/safe-alembic-upgrade.sh"
     record_step api migrations "applied"
+
+    # P19 / 4A: after migrations (they create juli_ops), before the candidate starts.
+    if ! require_ops_role_grant "${release_dir}"; then
+        record_step api ops_preflight "juli_ops_grant_missing"
+        return 1
+    fi
+    record_step api ops_preflight "passed"
 
     systemctl stop "juli-api-candidate-${peer_port}" >/dev/null 2>&1 || true
     systemctl reset-failed "juli-api-candidate-${peer_port}" >/dev/null 2>&1 || true
