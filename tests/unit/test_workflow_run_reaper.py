@@ -833,6 +833,8 @@ def test_beat_schedule_has_exactly_the_eight_expected_entries():
         "content-analysis-sweep",
         # Fast track P17 (D25.12): nightly history extension to 180 days.
         "shop-history-extend",
+        # Fast track P18 (D27.4): nightly Ops audit retention.
+        "ops-audit-retention",
     }
 
 
