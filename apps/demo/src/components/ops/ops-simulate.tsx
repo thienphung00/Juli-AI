@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
+import { writeCurrentShop } from "../../lib/ops/current-shop";
 import { fmtInt, fmtK, fmtM, fmtPct, fmtSignedPct } from "../../lib/ops/format";
 import { STABILITY_COPY, STEP, cleanDeltas, inNoise, simulate, step, trendChip } from "../../lib/ops/simulation";
 import type { BandStats, Deltas, KpiId, OpsMe, SimCell, SimulationPage, Stability, StreamId } from "../../lib/ops/types";
+import { FreshnessLine } from "./ops-freshness";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
 
 /**
@@ -51,7 +54,7 @@ function bandText(band: BandStats | null): string {
   return band?.band_pct === null || band?.band_pct === undefined ? "—" : `±${Math.round(band.band_pct)} %`;
 }
 
-type Api = Pick<OpsApi, "simulation" | "createScenario" | "setTarget">;
+type Api = Pick<OpsApi, "simulation" | "createScenario" | "setTarget"> & Partial<Pick<OpsApi, "refreshSimulation">>;
 
 export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; readonly shopId: string; readonly api?: Api }) {
   const [win, setWin] = useState<number>(30);
@@ -65,6 +68,8 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
   const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const canEdit = me.role !== "viewer";
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const load = useCallback(
     (w: number) => {
@@ -73,6 +78,8 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
         .then((p) => {
           setPage(p);
           setFailed(false);
+          // D27.8: the shop on screen is the current shop (deep links included).
+          writeCurrentShop({ id: shopId, name: p.shop.shop_name });
           if (!picked && !p.status.baseline_available) {
             const fallback = [...p.windows].reverse().find((x) => x.baseline_available);
             if (fallback && fallback.days !== w) setWin(fallback.days);
@@ -127,6 +134,19 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
     }
   };
 
+  const refresh = async () => {
+    if (!api.refreshSimulation) return;
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      setPage(await api.refreshSimulation(shopId, win));
+    } catch {
+      setRefreshError("Không làm mới được. Thử lại sau.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const vol = page?.volatility[sel];
   const vrows = [...(vol?.rows ?? [])].sort((a, b) => {
     const x = a.impressions_cv ?? 9;
@@ -139,10 +159,13 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
 
   return (
     <OpsPage>
-      <OpsHeader active="simulate" me={me} shopId={shopId} />
+      <OpsHeader active="simulate" me={me} />
       <main style={{ padding: "22px 28px", display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>Mô phỏng · {shopName}</h1>
+          <Link href="/ops" style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 34, display: "inline-flex", alignItems: "center", color: C.pink }}>
+            Đổi shop ở Tổng quan ›
+          </Link>
           <div aria-label="Khoảng thời gian" role="radiogroup" style={{ display: "inline-flex", gap: 4, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, padding: 3 }}>
             {WINDOWS.map((n) => {
               const st = page?.windows.find((w) => w.days === n);
@@ -186,6 +209,13 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
             </button>
           </div>
         </div>
+        <FreshnessLine
+          canRefresh={canEdit && Boolean(api.refreshSimulation)}
+          data={page}
+          error={refreshError}
+          onRefresh={() => void refresh()}
+          refreshing={refreshing}
+        />
         {failed ? <p role="alert">Không tải được mô phỏng.</p> : null}
         {!page && !failed ? <p role="status">Đang tải…</p> : null}
         {page && status && status.history_days === 0 ? (

@@ -1,4 +1,10 @@
+import { describeSettingsAudit } from "../../lib/ops/setting-changes";
 import type { AuditEntry } from "../../lib/ops/types";
+import { RULE_LABELS } from "../../lib/quyet-dinh/copy";
+
+function ruleLabel(key: unknown): string {
+  return RULE_LABELS[String(key)] ?? String(key ?? "—");
+}
 
 /** One audit row as a sentence (artboard "Nhật ký"). */
 export function auditWho(entry: AuditEntry): string {
@@ -9,25 +15,16 @@ export function auditWho(entry: AuditEntry): string {
 export function auditWhat(entry: AuditEntry): string {
   const after = (entry.after ?? {}) as Record<string, unknown>;
   switch (entry.action) {
-    case "settings_update": {
-      const keys = Object.keys(after).filter(
-        (k) => JSON.stringify(after[k]) !== JSON.stringify(((entry.before ?? {}) as Record<string, unknown>)[k]),
-      );
-      if (keys.includes("openai_monthly_cap_usd") && after.openai_monthly_cap_usd !== null)
-        return `đặt giới hạn chi phí OpenAI $${String(after.openai_monthly_cap_usd)}/tháng`;
-      if (keys.includes("stage")) return `chuyển giai đoạn: ${STAGE_VI[String(after.stage)] ?? String(after.stage)}`;
-      if (keys.includes("card_daily_limit") && after.card_daily_limit !== null)
-        return `đổi giới hạn thẻ: ${String(after.card_daily_limit)} thẻ mới/ngày`;
-      return `đổi cài đặt: ${keys.join(", ") || "—"}`;
-    }
+    case "settings_update":
+      return describeSettingsAudit(entry.before, entry.after);
     case "settings_reset":
-      return "đưa cài đặt riêng về mặc định";
+      return "Đưa cài đặt riêng về mặc định";
     case "view_as_view":
-      return "mở Xem như shop";
+      return "Xem như shop";
     case "shop_disconnect":
-      return `huỷ kết nối shop: ${String(after.reason ?? "")}`;
+      return `Huỷ kết nối · lý do: ${String(after.reason ?? "")}`;
     case "view_as_exit":
-      return "thoát Xem như shop";
+      return "Thoát Xem như shop";
     case "invite_create":
       return `mời seller ${String(after.email ?? "")}`;
     case "invite_accept":
@@ -40,14 +37,16 @@ export function auditWhat(entry: AuditEntry): string {
       return "sửa kịch bản mô phỏng";
     case "scenario_delete":
       return "xoá kịch bản mô phỏng";
+    case "rule_set":
+      return `Quy tắc · ${ruleLabel(after.rule_key ?? (entry.before as Record<string, unknown> | null)?.rule_key)}: đặt giá trị mới`;
+    case "rule_unset":
+      return `Quy tắc · ${ruleLabel((entry.before as Record<string, unknown> | null)?.rule_key)}: về mặc định`;
     case "staff_upsert":
       return `cập nhật nhân viên ${String(after.email ?? "")}`;
     default:
       return entry.action;
   }
 }
-
-const STAGE_VI: Record<string, string> = { trial: "Thử nghiệm", self: "Tự vận hành", pilot: "Pilot đặc biệt" };
 
 export function auditWhen(iso: string | null): string {
   if (!iso) return "—";

@@ -1,15 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
-import type { OpsMe, OverrideKey, ShopSettings, ShopSettingsPage, StageId } from "../../lib/ops/types";
+import { writeCurrentShop } from "../../lib/ops/current-shop";
+import { ACTION_NAMES, STREAM_NAMES, changeRows, draftRows, draftSummary, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
+import type { OpsMe, OverrideKey, ShopSettingsPage, StageId } from "../../lib/ops/types";
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
+import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
 import { OpsRules } from "./ops-rules";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
 
-/** "Cài đặt shop" — artboard OpsShopSettings.dc.html (D25.4, D25.7). */
+/**
+ * "Cài đặt shop" — artboards OpsShopSettings.dc.html (D25.4, D25.7) and
+ * OpsConfirm.dc.html (D27.5): the stage asks before → after; every other setting
+ * is a draft saved in ONE PUT (one audit row) after one confirm dialog.
+ */
 
 const STAGES: [StageId, string, string][] = [
   ["trial", "Thử nghiệm", "Đội ngũ nhập liệu, theo dõi sát"],
@@ -17,30 +24,9 @@ const STAGES: [StageId, string, string][] = [
   ["pilot", "Pilot đặc biệt", "Cấu hình riêng, ưu tiên hỗ trợ"],
 ];
 const STREAM_LABEL: Record<string, string> = { product_card: "Thẻ SP", shop_tab: "Tab", seller_video: "Video", seller_live: "LIVE" };
-const ACTION_LABEL: Record<string, string> = {
-  cover_image: "Ảnh bìa",
-  title: "Tiêu đề",
-  description: "Mô tả",
-  product_discount: "Giảm giá SP",
-  buy_more_save_more: "Mua nhiều giảm nhiều",
-  flash_sale: "Flash sale",
-  shipping_discount: "Giảm phí ship",
-  video_script: "Kịch bản video",
-  live_script: "Kịch bản LIVE",
-};
 const OWN: CSSProperties = { background: "#fff7fa", borderColor: "#f8b9d3", fontWeight: 600 };
 
 type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite">;
-
-function eff(settings: ShopSettings, key: OverrideKey): unknown {
-  const o = settings.overrides[key];
-  return o === null || o === undefined ? settings.defaults[key] : o;
-}
-
-function isSet(settings: ShopSettings, key: OverrideKey): boolean {
-  const o = settings.overrides[key];
-  return o !== null && o !== undefined;
-}
 
 function SettingRow({
   title,
@@ -103,7 +89,8 @@ function SettingRow({
   );
 }
 
-function Checks({
+/** Artboard OpsConfirm: each stream / action is a chip with a check box. */
+function Chips({
   options,
   value,
   labels,
@@ -111,24 +98,48 @@ function Checks({
 }: {
   readonly options: readonly string[];
   readonly value: readonly string[];
-  readonly labels: Record<string, string>;
+  readonly labels: Readonly<Record<string, string>>;
   readonly onChange: (next: string[]) => void;
 }) {
   return (
-    <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-      {options.map((id) => (
-        <label key={id} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            checked={value.includes(id)}
-            onChange={(e) => onChange(e.target.checked ? [...value, id] : value.filter((v) => v !== id))}
-            type="checkbox"
-          />
-          {labels[id] ?? id}
-        </label>
-      ))}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {options.map((id) => {
+        const on = value.includes(id);
+        return (
+          <button
+            aria-pressed={on}
+            key={id}
+            onClick={() => onChange(options.filter((o) => (o === id ? !on : value.includes(o))))}
+            style={{
+              font: "inherit",
+              fontSize: 14,
+              borderRadius: 10,
+              minHeight: 40,
+              padding: "0 12px",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              ...(on ? { color: C.ink, background: "#fff7fa", border: "1px solid #f8b9d3", fontWeight: 600 } : { color: C.muted2, background: "#ffffff", border: `1px solid ${C.line}` }),
+            }}
+            type="button"
+          >
+            <span aria-hidden="true" style={{ width: 16, height: 16, borderRadius: 4, boxSizing: "border-box", ...(on ? { background: C.pinkStrong, border: 0 } : { border: "1.5px solid #b8b8c2" }) }} />
+            {labels[id] ?? id}
+          </button>
+        );
+      })}
     </div>
   );
 }
+
+type Draft = Partial<Record<OverrideKey, unknown>>;
+type Dialog = { kind: "stage"; stage: StageId } | { kind: "save" } | { kind: "reset" } | null;
+
+const sameValue = (a: unknown, b: unknown) => {
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((x) => b.includes(x));
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+};
 
 export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: OpsMe; readonly shopId: string; readonly api?: Api }) {
   const [page, setPage] = useState<ShopSettingsPage | null>(null);
@@ -136,12 +147,22 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
   const [inviteEmail, setInviteEmail] = useState("");
   const [keep, setKeep] = useState(true);
   const [inviteNote, setInviteNote] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft>({});
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  // Bumped whenever the draft is dropped so the number inputs restart from the saved value.
+  const [epoch, setEpoch] = useState(0);
+  const clearToast = useCallback(() => setToast(null), []);
   const canEdit = me.role !== "viewer";
 
   const load = useCallback(() => {
     api
       .settings(shopId)
-      .then(setPage)
+      .then((p) => {
+        setPage(p);
+        // D27.8: opening a shop's settings makes it the current shop (Mô phỏng opens it).
+        writeCurrentShop({ id: shopId, name: p.shop.shop_name });
+      })
       .catch(() => setError("Không tải được cài đặt."));
   }, [api, shopId]);
 
@@ -149,31 +170,47 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
     load();
   }, [load]);
 
-  const save = async (changes: Record<string, unknown>) => {
-    setError(null);
-    try {
-      await api.putSettings(shopId, changes);
-      load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Không lưu được.");
-    }
-  };
+  const rows = useMemo(() => (page ? draftRows(page.settings, draft) : []), [page, draft]);
 
   if (!page) {
     return (
       <OpsPage>
-        <OpsHeader back me={me} />
+        <OpsHeader me={me} />
         <main style={{ padding: "24px 28px" }}>{error ? <p role="alert">{error}</p> : <p role="status">Đang tải…</p>}</main>
       </OpsPage>
     );
   }
   const s = page.settings;
-  const limits = [eff(s, "card_daily_limit"), eff(s, "card_weekly_limit"), eff(s, "card_open_limit")];
-  const streams = (eff(s, "enabled_streams") as string[]) ?? [];
-  const actions = (eff(s, "enabled_actions") as string[]) ?? [];
-  const content = eff(s, "content_cards_enabled") as boolean;
-  const cap = s.overrides.openai_monthly_cap_usd as number | null;
-  const capShown = (cap ?? (s.defaults.openai_monthly_cap_usd as number | null)) as number | null;
+  const shopName = page.shop.shop_name;
+  /** The value shown: the draft's when there is one, else the saved one. */
+  const eff = (key: OverrideKey): unknown => {
+    const o = key in draft ? draft[key] : s.overrides[key];
+    return o === null || o === undefined ? s.defaults[key] : o;
+  };
+  const isSet = (key: OverrideKey): boolean => {
+    const o = key in draft ? draft[key] : s.overrides[key];
+    return o !== null && o !== undefined;
+  };
+  const change = (patch: Draft) => {
+    setToast(null);
+    setDraft((cur) => {
+      const next: Draft = { ...cur };
+      for (const key of Object.keys(patch) as OverrideKey[]) {
+        const value = patch[key];
+        const saved = s.overrides[key] ?? null;
+        const back = sameValue(value, saved) || (saved === null && value !== null && sameValue(value, s.defaults[key]));
+        if (back) delete next[key];
+        else next[key] = value;
+      }
+      return next;
+    });
+  };
+  const limits = [eff("card_daily_limit"), eff("card_weekly_limit"), eff("card_open_limit")] as number[];
+  const streams = (eff("enabled_streams") as string[]) ?? [];
+  const actions = (eff("enabled_actions") as string[]) ?? [];
+  const content = eff("content_cards_enabled") as boolean;
+  const capShown = eff("openai_monthly_cap_usd") as number | null;
+  const anyOverride = SETTING_KEYS.some((k) => s.overrides[k] !== null && s.overrides[k] !== undefined);
   const pendingInvite = page.invites.find((i) => !i.accepted_at && !i.revoked_at);
   const ownerText = page.shop.owned_by_team
     ? pendingInvite
@@ -192,18 +229,74 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
     }
   };
 
+  const resetRows = SETTING_KEYS.filter((k) => s.overrides[k] !== null && s.overrides[k] !== undefined).flatMap((k) =>
+    changeRows(k, s.overrides[k], s.defaults[k], true),
+  );
+  const confirmDialog =
+    dialog?.kind === "stage" ? (
+      <ConfirmDialog
+        confirmLabel="Đổi giai đoạn"
+        note="Áp dụng ngay cho thẻ và lượt chạy mới. Nhật ký ghi 1 dòng."
+        onCancel={() => setDialog(null)}
+        onConfirm={async () => {
+          await api.putSettings(shopId, { stage: dialog.stage });
+          setDialog(null);
+          setToast("Đã đổi giai đoạn · ghi 1 dòng nhật ký");
+          load();
+        }}
+        rows={[{ k: "Giai đoạn", before: STAGE_NAMES[s.stage] ?? s.stage_label, after: STAGE_NAMES[dialog.stage] ?? dialog.stage }]}
+        title={`Đổi giai đoạn của ${shopName}?`}
+      />
+    ) : dialog?.kind === "save" ? (
+      <ConfirmDialog
+        confirmLabel="Xác nhận lưu"
+        note={`Áp dụng từ lượt tạo thẻ kế tiếp. Nhật ký ghi 1 dòng cho cả ${rows.length} thay đổi.`}
+        onCancel={() => setDialog(null)}
+        onConfirm={async () => {
+          const n = rows.length;
+          await api.putSettings(shopId, { ...draft });
+          setDraft({});
+          setEpoch((e) => e + 1);
+          setDialog(null);
+          setToast(`Đã lưu ${n} thay đổi · ghi 1 dòng nhật ký`);
+          load();
+        }}
+        rows={rows}
+        title={`Lưu ${rows.length} thay đổi cho ${shopName}?`}
+      />
+    ) : dialog?.kind === "reset" ? (
+      <ConfirmDialog
+        confirmLabel="Về mặc định"
+        note="Mọi cài đặt riêng của shop trở về mặc định. Nhật ký ghi 1 dòng."
+        onCancel={() => setDialog(null)}
+        onConfirm={async () => {
+          await api.resetSettings(shopId);
+          setDraft({});
+          setEpoch((e) => e + 1);
+          setDialog(null);
+          setToast("Đã đưa về mặc định · ghi 1 dòng nhật ký");
+          load();
+        }}
+        rows={resetRows}
+        title={`Đưa cài đặt riêng của ${shopName} về mặc định?`}
+      />
+    ) : null;
+
   return (
     <OpsPage>
-      <OpsHeader back me={me} />
-      <main className="ops-settings" style={{ padding: "24px 28px", display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: 20, alignItems: "start" }}>
+      <OpsHeader me={me} />
+      <main
+        className="ops-settings"
+        style={{ padding: `22px 28px ${rows.length > 0 ? 110 : 24}px`, display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: 20, alignItems: "start" }}
+      >
         <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{page.shop.shop_name}</h1>
-            <span style={{ fontSize: 12, fontWeight: 600, borderRadius: 999, padding: "3px 10px", ...STAGE_STYLE[s.stage] }}>{s.stage_label}</span>
-            <Link href={`/ops/shops/${shopId}/mo-phong`} style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
-              Mô phỏng ›
+            <Link href="/ops" style={{ fontSize: 14, textDecoration: "none", color: C.pink }}>
+              ‹ Tổng quan
             </Link>
-            <Link href={`/ops/shops/${shopId}/xem`} style={{ fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{shopName} · Cài đặt shop</h1>
+            <span style={{ fontSize: 12, fontWeight: 600, borderRadius: 999, padding: "3px 10px", ...STAGE_STYLE[s.stage] }}>{s.stage_label}</span>
+            <Link href={`/ops/shops/${shopId}/xem`} style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
               Xem như shop ›
             </Link>
           </div>
@@ -222,7 +315,9 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
                     aria-checked={on}
                     disabled={!canEdit}
                     key={id}
-                    onClick={() => void save({ stage: id })}
+                    onClick={() => {
+                      if (!on) setDialog({ kind: "stage", stage: id });
+                    }}
                     role="radio"
                     style={{
                       font: "inherit",
@@ -249,12 +344,9 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
             <div style={{ display: "flex", alignItems: "center" }}>
               <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Cài đặt riêng</h2>
               <button
-                disabled={!canEdit}
-                onClick={async () => {
-                  await api.resetSettings(shopId);
-                  load();
-                }}
-                style={{ marginLeft: "auto", font: "inherit", fontSize: 13, fontWeight: 600, color: C.pink, background: "transparent", border: 0, minHeight: 36, cursor: "pointer" }}
+                disabled={!canEdit || !anyOverride}
+                onClick={() => setDialog({ kind: "reset" })}
+                style={{ marginLeft: "auto", font: "inherit", fontSize: 13, fontWeight: 600, color: C.pink, background: "transparent", border: 0, minHeight: 36, cursor: canEdit && anyOverride ? "pointer" : "default", opacity: canEdit && anyOverride ? 1 : 0.5 }}
                 type="button"
               >
                 Về mặc định
@@ -263,66 +355,71 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
             <SettingRow
               disabled={!canEdit}
               help="D24.17"
-              onDefault={() => void save({ card_daily_limit: null, card_weekly_limit: null, card_open_limit: null })}
-              overridden={isSet(s, "card_daily_limit") || isSet(s, "card_weekly_limit") || isSet(s, "card_open_limit")}
+              onDefault={() => {
+                change({ card_daily_limit: null, card_weekly_limit: null, card_open_limit: null });
+                setEpoch((e) => e + 1);
+              }}
+              overridden={isSet("card_daily_limit") || isSet("card_weekly_limit") || isSet("card_open_limit")}
               summary={`${limits[0]}/ngày · ${limits[1]}/tuần · ${limits[2]} mở`}
               title="Giới hạn thẻ"
             >
               <LimitEditor
+                key={`limits-${epoch}`}
+                keys={["card_daily_limit", "card_weekly_limit", "card_open_limit"]}
                 labels={["/ngày", "/tuần", "mở"]}
-                onSave={(v) => void save({ card_daily_limit: v[0], card_weekly_limit: v[1], card_open_limit: v[2] })}
-                values={limits as number[]}
+                onChange={change}
+                values={limits}
               />
             </SettingRow>
             <SettingRow
               disabled={!canEdit}
               help="Tắt luồng không phù hợp với shop"
-              onDefault={() => void save({ enabled_streams: null })}
-              overridden={isSet(s, "enabled_streams")}
+              onDefault={() => change({ enabled_streams: null })}
+              overridden={isSet("enabled_streams")}
               summary={streams.map((id) => STREAM_LABEL[id] ?? id).join(" · ") || "Không luồng nào"}
               title="Luồng được đề xuất"
             >
-              <Checks labels={STREAM_LABEL} onChange={(next) => void save({ enabled_streams: next })} options={s.options.streams.map((x) => x.id)} value={streams} />
+              <Chips labels={STREAM_NAMES} onChange={(next) => change({ enabled_streams: next })} options={s.options.streams.map((x) => x.id)} value={streams} />
             </SettingRow>
             <SettingRow
               disabled={!canEdit}
               help="Ví dụ tắt Flash sale nếu shop không đủ điều kiện"
-              onDefault={() => void save({ enabled_actions: null })}
-              overridden={isSet(s, "enabled_actions")}
+              onDefault={() => change({ enabled_actions: null })}
+              overridden={isSet("enabled_actions")}
               summary={`${actions.filter((a) => !a.endsWith("_script")).length}/7${actions.some((a) => a.endsWith("_script")) ? " + nội dung" : ""}`}
               title="Hành động bật"
             >
-              <Checks labels={ACTION_LABEL} onChange={(next) => void save({ enabled_actions: next })} options={s.options.actions} value={actions} />
+              <Chips labels={ACTION_NAMES} onChange={(next) => change({ enabled_actions: next })} options={s.options.actions} value={actions} />
             </SettingRow>
             <SettingRow
               disabled={!canEdit}
               help="Juli soạn · bạn làm"
-              onDefault={() => void save({ content_cards_enabled: null })}
-              overridden={isSet(s, "content_cards_enabled")}
+              onDefault={() => change({ content_cards_enabled: null })}
+              overridden={isSet("content_cards_enabled")}
               summary={content ? "Bật" : "Tắt"}
               title="Thẻ nội dung (Video/LIVE)"
             >
-              <Toggle on={content} onChange={(v) => void save({ content_cards_enabled: v })} />
+              <Toggle label="Thẻ nội dung" on={content} onChange={(v) => change({ content_cards_enabled: v })} />
             </SettingRow>
             <SettingRow
               disabled={!canEdit}
               help="Juli tự tạo khuyến mãi sau khi seller đồng ý"
-              onDefault={() => void save({ promotion_api_enabled: null })}
-              overridden={isSet(s, "promotion_api_enabled")}
-              summary={eff(s, "promotion_api_enabled") ? "Bật" : "Tắt"}
+              onDefault={() => change({ promotion_api_enabled: null })}
+              overridden={isSet("promotion_api_enabled")}
+              summary={eff("promotion_api_enabled") ? "Bật" : "Tắt"}
               title="API khuyến mãi"
             >
-              <Toggle on={Boolean(eff(s, "promotion_api_enabled"))} onChange={(v) => void save({ promotion_api_enabled: v })} />
+              <Toggle label="API khuyến mãi" on={Boolean(eff("promotion_api_enabled"))} onChange={(v) => change({ promotion_api_enabled: v })} />
             </SettingRow>
             <SettingRow
               disabled={!canEdit}
               help="Vòng gọi tool và soạn nội dung"
-              onDefault={() => void save({ openai_model: null })}
-              overridden={isSet(s, "openai_model")}
-              summary={String(eff(s, "openai_model"))}
+              onDefault={() => change({ openai_model: null })}
+              overridden={isSet("openai_model")}
+              summary={String(eff("openai_model"))}
               title="Model OpenAI"
             >
-              <select aria-label="Model OpenAI" onChange={(e) => void save({ openai_model: e.target.value })} value={String(eff(s, "openai_model"))}>
+              <select aria-label="Model OpenAI" onChange={(e) => change({ openai_model: e.target.value })} value={String(eff("openai_model"))}>
                 {s.options.models.map((m) => (
                   <option key={m} value={m}>
                     {m}
@@ -333,15 +430,18 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
             <SettingRow
               disabled={!canEdit}
               help="Vượt giới hạn: dừng soạn mới, báo đội ngũ"
-              onDefault={() => void save({ openai_monthly_cap_usd: null })}
-              overridden={cap !== null}
+              onDefault={() => {
+                change({ openai_monthly_cap_usd: null });
+                setEpoch((e) => e + 1);
+              }}
+              overridden={isSet("openai_monthly_cap_usd")}
               summary={capShown !== null ? `$${String(capShown).replace(".", ",")} / tháng` : "Không giới hạn"}
               title="Giới hạn chi phí OpenAI"
             >
-              <CapEditor onSave={(v) => void save({ openai_monthly_cap_usd: v })} value={capShown} />
+              <CapEditor key={`cap-${epoch}`} onChange={(v) => change({ openai_monthly_cap_usd: v })} value={capShown} />
             </SettingRow>
           </div>
-          <OpsRules canEdit={canEdit} shopId={shopId} />
+          <OpsRules canEdit={canEdit} shopName={shopName} shopId={shopId} />
         </section>
         <aside style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={card}>
@@ -393,30 +493,66 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
           </div>
         </aside>
       </main>
+      {rows.length > 0 && !dialog ? (
+        <DraftBar count={rows.length} onDiscard={() => {
+            setDraft({});
+            setEpoch((e) => e + 1);
+          }} onSave={() => setDialog({ kind: "save" })} summary={draftSummary(rows)} />
+      ) : null}
+      {toast && rows.length === 0 && !dialog ? <Toast onDone={clearToast} text={toast} /> : null}
+      {confirmDialog}
     </OpsPage>
   );
 }
 
-function Toggle({ on, onChange }: { readonly on: boolean; readonly onChange: (v: boolean) => void }) {
+function Toggle({ on, label, onChange }: { readonly on: boolean; readonly label: string; readonly onChange: (v: boolean) => void }) {
   return (
-    <label style={{ display: "flex", gap: 6 }}>
-      <input checked={on} onChange={(e) => onChange(e.target.checked)} type="checkbox" />
-      Bật
-    </label>
+    <button
+      aria-label={label}
+      aria-pressed={on}
+      onClick={() => onChange(!on)}
+      style={{
+        font: "inherit",
+        fontSize: 13,
+        fontWeight: 600,
+        borderRadius: 999,
+        minHeight: 36,
+        padding: "0 14px",
+        cursor: "pointer",
+        ...(on ? { color: "#ffffff", background: C.pinkStrong, border: 0 } : { color: C.body, background: "#ffffff", border: `1px solid ${C.line}` }),
+      }}
+      type="button"
+    >
+      {on ? "Bật" : "Tắt"}
+    </button>
   );
 }
 
-function LimitEditor({ values, labels, onSave }: { readonly values: number[]; readonly labels: string[]; readonly onSave: (v: number[]) => void }) {
-  const [draft, setDraft] = useState(values.map(String));
+function LimitEditor({
+  keys,
+  values,
+  labels,
+  onChange,
+}: {
+  readonly keys: readonly OverrideKey[];
+  readonly values: readonly number[];
+  readonly labels: readonly string[];
+  readonly onChange: (patch: Draft) => void;
+}) {
+  const [text, setText] = useState(values.map(String));
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-      {draft.map((v, i) => (
+      {text.map((v, i) => (
         <label key={labels[i]} style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <input
             aria-label={`Giới hạn ${labels[i]}`}
             max={100}
             min={1}
-            onChange={(e) => setDraft(draft.map((d, j) => (j === i ? e.target.value : d)))}
+            onChange={(e) => {
+              setText(text.map((d, j) => (j === i ? e.target.value : d)));
+              const n = Number.parseInt(e.target.value, 10);
+              if (Number.isFinite(n) && n > 0) onChange({ [keys[i]]: n });
+            }}
             style={{ width: 56 }}
             type="number"
             value={v}
@@ -424,23 +560,29 @@ function LimitEditor({ values, labels, onSave }: { readonly values: number[]; re
           {labels[i]}
         </label>
       ))}
-      <button onClick={() => onSave(draft.map((d) => Number.parseInt(d, 10)))} type="button">
-        Lưu
-      </button>
     </div>
   );
 }
 
-function CapEditor({ value, onSave }: { readonly value: number | null; readonly onSave: (v: number) => void }) {
-  const [draft, setDraft] = useState(value === null ? "" : String(value));
+function CapEditor({ value, onChange }: { readonly value: number | null; readonly onChange: (v: number) => void }) {
+  const [text, setText] = useState(value === null ? "" : String(value));
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
       $
-      <input aria-label="Trần USD mỗi tháng" min={0} onChange={(e) => setDraft(e.target.value)} step="0.5" style={{ width: 80 }} type="number" value={draft} />
+      <input
+        aria-label="Trần USD mỗi tháng"
+        min={0}
+        onChange={(e) => {
+          setText(e.target.value);
+          const n = Number(e.target.value);
+          if (e.target.value !== "" && Number.isFinite(n) && n >= 0) onChange(n);
+        }}
+        step="0.5"
+        style={{ width: 80 }}
+        type="number"
+        value={text}
+      />
       / tháng
-      <button disabled={draft === ""} onClick={() => onSave(Number(draft))} type="button">
-        Lưu
-      </button>
     </div>
   );
 }

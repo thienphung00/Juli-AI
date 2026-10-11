@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CURRENT_SHOP_KEY } from "../../../lib/ops/current-shop";
 import { AUTH_SESSION_STORAGE_KEY } from "../../../lib/supabase-auth";
 import { OpsViewAs } from "../ops-view-as";
 import { ME, SHOP_ID, VIEW_SESSION } from "./fixtures";
@@ -28,6 +29,8 @@ describe("Xem như shop (OpsViewAs.dc.html, D25.3 amended: always read-only)", (
     await waitFor(() => expect(banner).toHaveTextContent("Đang xem như Mỹ phẩm Thảo Nhi · chỉ xem, không ghi được"));
     expect(banner).toHaveTextContent("Phiên xem được ghi nhật ký · không hiện dữ liệu người mua");
     expect(viewSession).toHaveBeenCalledWith(SHOP_ID, "view");
+    // D27.8: viewing a shop makes it the current shop for Mô phỏng
+    expect(JSON.parse(window.localStorage.getItem(CURRENT_SHOP_KEY) ?? "{}")).toEqual({ id: SHOP_ID, name: "Mỹ phẩm Thảo Nhi" });
     expect(screen.queryByRole("button", { name: /Làm thay seller/ })).toBeNull();
     expect(screen.getByTestId("seller-view")).toBeDisabled();
     expect(screen.getByTestId("write-note")).toHaveTextContent("Mọi nút ghi đều khoá.");

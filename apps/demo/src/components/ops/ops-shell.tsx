@@ -71,12 +71,9 @@ export function OpsHeader({
         {label}
       </Link>
     );
+  // D27.8: Mô phỏng lives only in the main nav (it opens the shop chosen in Tổng quan).
   const items = shopId
-    ? [
-        link("overview", "/ops", "Tổng quan"),
-        link("simulate", `/ops/shops/${shopId}/mo-phong`, "Mô phỏng"),
-        link("settings", `/ops/shops/${shopId}`, "Cài đặt shop"),
-      ]
+    ? [link("overview", "/ops", "Tổng quan"), link("settings", `/ops/shops/${shopId}`, "Cài đặt shop")]
     : [
         link("overview", "/ops", "Tổng quan"),
         link("simulate", "/ops/mo-phong", "Mô phỏng"),

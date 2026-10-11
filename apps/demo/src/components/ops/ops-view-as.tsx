@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
+import { writeCurrentShop } from "../../lib/ops/current-shop";
 import { createOpsViewFetch } from "../../lib/ops/view-fetch";
 import type { OpsMe, ViewSession } from "../../lib/ops/types";
 import { fetchMetricRanking } from "../../lib/phan-tich/rankings-client";
@@ -89,7 +90,12 @@ export function OpsViewAs({
     let live = true;
     api
       .viewSession(shopId, "view")
-      .then((s) => live && setSession(s))
+      .then((s) => {
+        if (!live) return;
+        setSession(s);
+        // D27.8: the shop being viewed becomes the current shop (main-nav Mô phỏng opens it).
+        writeCurrentShop({ id: shopId, name: s.shop.shop_name });
+      })
       .catch(() => live && setFailed(true));
     return () => {
       live = false;

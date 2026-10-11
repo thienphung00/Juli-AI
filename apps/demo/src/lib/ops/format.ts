@@ -64,3 +64,26 @@ export function fmtDate(iso: string | null | undefined): string {
   const d = iso.slice(0, 10).split("-");
   return d.length === 3 ? `${d[2]}/${d[1]}/${d[0]}` : "—";
 }
+
+/**
+ * D27.1 freshness line: "Số liệu đến hết 10/10 · cập nhật lúc 07:12 hôm nay".
+ * `null` when the backend sent no `generated_at` (older API): no line is shown.
+ */
+export function fmtFreshness(
+  f: { readonly generated_at?: string | null; readonly data_through?: string | null } | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (!f?.generated_at) return null;
+  const iso = f.generated_at;
+  const at = new Date(iso.endsWith("Z") || /[+-]\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`);
+  if (Number.isNaN(at.getTime())) return null;
+  const local = (d: Date) => new Date(d.getTime() + 7 * 3600 * 1000);
+  const a = local(at);
+  const b = local(now);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const hhmm = `${p(a.getUTCHours())}:${p(a.getUTCMinutes())}`;
+  const today = a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
+  const updated = `cập nhật lúc ${hhmm} ${today ? "hôm nay" : `${p(a.getUTCDate())}/${p(a.getUTCMonth() + 1)}`}`;
+  const d = f.data_through?.slice(0, 10).split("-");
+  return d && d.length === 3 ? `Số liệu đến hết ${d[2]}/${d[1]} · ${updated}` : updated.charAt(0).toUpperCase() + updated.slice(1);
+}

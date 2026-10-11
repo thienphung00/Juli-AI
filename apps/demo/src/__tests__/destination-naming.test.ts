@@ -64,6 +64,11 @@ const ALLOWED_USES: ReadonlyArray<{
     reason: "P16 Ops: the D24.2 card actions a shop may get (artboard OpsShopSettings), not the tab.",
   },
   {
+    path: "apps/demo/src/lib/ops/setting-changes.ts",
+    snippet: 'enabled_actions: "Hành động",',
+    reason: "D27 Ops: the confirm dialog's row label for the card actions (artboard OpsConfirm), not the tab.",
+  },
+  {
     path: "apps/demo/src/components/ops/ops-simulate.tsx",
     snippet: "bản đồ Hành động.",
     reason: "P16 Ops: the D24 lever map (artboard OpsSimulate), not the tab.",
