@@ -116,6 +116,39 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     expect(sim).toHaveBeenLastCalledWith(SHOP_ID, 90);
   });
 
+  it("dims the table and says which window is loading, and drops a slower earlier answer", async () => {
+    const s14: SimulationPage = {
+      ...SIMULATION,
+      window: 14,
+      status: SIMULATION.windows[1],
+      streams: SIMULATION.streams.map((s) => ({ ...s, cells: s.cells.map((c) => (c.kpi === "impressions" ? { ...c, value: 1234 } : c)) })),
+    };
+    const pending: Record<number, (p: SimulationPage) => void> = {};
+    let first = true;
+    const sim = vi.fn((_id: string, w: number) => {
+      if (first) {
+        first = false;
+        return Promise.resolve(SIMULATION);
+      }
+      return new Promise<SimulationPage>((resolve) => {
+        pending[w] = resolve;
+      });
+    });
+    render(<OpsSimulate api={{ simulation: sim, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
+    await screen.findByTestId("sim-row-product_card");
+    fireEvent.click(screen.getByRole("radio", { name: "14 ngày" }));
+    expect(await screen.findByTestId("sim-loading")).toHaveTextContent("Đang tải số liệu 14 ngày…");
+    fireEvent.click(screen.getByRole("radio", { name: "7 ngày" }));
+    expect(screen.getByTestId("sim-loading")).toHaveTextContent("Đang tải số liệu 7 ngày…");
+    // the slower 14-day answer arrives after 7 was chosen: it must not replace the page
+    await waitFor(() => expect(pending[14]).toBeDefined());
+    pending[14](s14);
+    await waitFor(() => expect(screen.getByTestId("sim-loading")).toBeInTheDocument());
+    expect(within(screen.getByTestId("sim-cell-product_card-impressions")).queryByText("1.234")).toBeNull();
+    pending[7]({ ...SIMULATION, window: 7, status: SIMULATION.windows[0] });
+    await waitFor(() => expect(screen.queryByTestId("sim-loading")).toBeNull());
+  });
+
   it("opens on the longest window with data when 30 days is not covered yet", async () => {
     const short = (days: number, ok: boolean) => ({ days, baseline_available: ok, comparable: false, needs_days: 2 * days, history_days: 20 });
     const windows = [short(7, true), short(14, true), short(30, false), short(90, false)];

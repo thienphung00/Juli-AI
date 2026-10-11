@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
@@ -70,12 +70,16 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
   const canEdit = me.role !== "viewer";
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  // Only the latest request may update the page (a slow earlier one is dropped).
+  const requestId = useRef(0);
 
   const load = useCallback(
     (w: number) => {
+      const id = ++requestId.current;
       api
         .simulation(shopId, w)
         .then((p) => {
+          if (id !== requestId.current) return;
           setPage(p);
           setFailed(false);
           // D27.8: the shop on screen is the current shop (deep links included).
@@ -85,7 +89,10 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
             if (fallback && fallback.days !== w) setWin(fallback.days);
           }
         })
-        .catch(() => setFailed(true));
+        .catch(() => {
+          if (id !== requestId.current) return;
+          setFailed(true);
+        });
     },
     [api, shopId, picked],
   );
@@ -94,6 +101,8 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
     load(win);
   }, [load, win]);
 
+  // The page still shows another window's numbers until the chosen one arrives.
+  const loadingWin = page && !failed && page.window !== win ? win : null;
   const streams = useMemo(() => page?.streams ?? [], [page]);
   const result = useMemo(() => simulate(streams, deltas), [streams, deltas]);
   const status = page?.status;
@@ -217,6 +226,11 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
           refreshing={refreshing}
         />
         {failed ? <p role="alert">Không tải được mô phỏng.</p> : null}
+        {page && loadingWin !== null ? (
+          <p data-testid="sim-loading" role="status" style={{ margin: 0, fontSize: 13, color: C.body, fontWeight: 600 }}>
+            Đang tải số liệu {loadingWin} ngày…
+          </p>
+        ) : null}
         {!page && !failed ? <p role="status">Đang tải…</p> : null}
         {page && status && status.history_days === 0 ? (
           <p data-testid="sim-no-history" role="status" style={{ margin: 0, fontSize: 13, color: C.amber, fontWeight: 600 }}>
@@ -231,7 +245,7 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
         ) : null}
         {page ? (
           <div className="ops-sim" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 16, alignItems: "start" }}>
-            <section style={{ ...card, opacity: available ? 1 : 0.5, overflowX: "auto" }}>
+            <section aria-busy={loadingWin !== null} style={{ ...card, opacity: available && loadingWin === null ? 1 : 0.5, overflowX: "auto", transition: "opacity 120ms" }}>
               <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 10, fontSize: 12, fontWeight: 600, color: C.muted, minWidth: 900 }}>
                 <span>Luồng · độ ổn định</span>
                 <span>Hiển thị/ngày</span>
