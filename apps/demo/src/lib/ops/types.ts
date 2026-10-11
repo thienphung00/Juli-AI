@@ -41,8 +41,13 @@ export interface Permissions {
   readonly needs_reconnect: boolean;
 }
 
-export interface Overview {
-  readonly generated_at: string;
+/** D27.1 freshness: when the daily precompute ran and the last day it covers. Optional (older backend). */
+export interface Freshness {
+  readonly generated_at?: string | null;
+  readonly data_through?: string | null;
+}
+
+export interface Overview extends Freshness {
   readonly totals: {
     readonly accounts: number;
     readonly connected: number;
@@ -84,6 +89,9 @@ export interface ShopSettings {
   };
 }
 
+/** D27.4 audit groups (Nhật ký filter chips). */
+export type AuditKind = "config" | "view" | "system";
+
 export interface AuditEntry {
   readonly id: string;
   readonly at: string | null;
@@ -92,6 +100,11 @@ export interface AuditEntry {
   readonly action: string;
   readonly before: unknown;
   readonly after: unknown;
+  /** D27: optional so an older backend still parses. */
+  readonly kind?: AuditKind | null;
+  /** D27.6: how many changes within 10 minutes were merged into this row (≥ 1). */
+  readonly merged_count?: number | null;
+  readonly shop_name?: string | null;
 }
 
 export interface Invite {
@@ -207,7 +220,7 @@ export interface Scenario {
   readonly result?: SimResult | null;
 }
 
-export interface SimulationPage {
+export interface SimulationPage extends Freshness {
   readonly shop: ShopInfo;
   readonly stage: StageId;
   readonly window: number;

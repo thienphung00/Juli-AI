@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
+import { readCurrentShop, writeCurrentShop } from "../../lib/ops/current-shop";
 import { fmtGmvShort, fmtRate, fmtUsd, fmtWhen } from "../../lib/ops/format";
 import type { OpsMe, Overview, OverviewShop, Permissions, StageId } from "../../lib/ops/types";
+import { FreshnessLine } from "./ops-freshness";
 import { C, OpsHeader, OpsPage, STAGE_STYLE } from "./ops-shell";
 
 /** "Tổng quan" — artboard OpsOverview.dc.html (D25.5). */
@@ -28,19 +30,48 @@ function ownerLine(shop: OverviewShop): string {
   return `seller: ${shop.owner_email ?? "—"}`;
 }
 
-export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly api?: Pick<OpsApi, "overview" | "disconnect"> }) {
+type Api = Pick<OpsApi, "overview" | "disconnect"> & Partial<Pick<OpsApi, "refreshOverview">>;
+
+export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly api?: Api }) {
   const [data, setData] = useState<Overview | null>(null);
   const [confirm, setConfirm] = useState<OverviewShop | null>(null);
   const [epoch, setEpoch] = useState(0);
   const [failed, setFailed] = useState(false);
   const [stage, setStage] = useState<StageId | "all">("all");
   const [query, setQuery] = useState("");
+  // D27.8: the chosen shop (remembered) — the main-nav Mô phỏng opens it.
+  const [current, setCurrent] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const canRefresh = me.role !== "viewer" && Boolean(api.refreshOverview);
+
+  const choose = (s: OverviewShop) => {
+    writeCurrentShop({ id: s.shop_id, name: s.shop_name });
+    setCurrent(s.shop_id);
+  };
+
+  const refresh = async () => {
+    if (!api.refreshOverview) return;
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      setData(await api.refreshOverview());
+    } catch {
+      setRefreshError("Không làm mới được. Thử lại sau.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     let live = true;
     api
       .overview()
-      .then((d) => live && setData(d))
+      .then((d) => {
+        if (!live) return;
+        setData(d);
+        setCurrent(readCurrentShop()?.id ?? null);
+      })
       .catch(() => live && setFailed(true));
     return () => {
       live = false;
@@ -81,7 +112,10 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
     <OpsPage>
       <OpsHeader active="overview" me={me} />
       <main style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
-        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>Gian hàng đã kết nối</h1>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>Gian hàng đã kết nối</h1>
+          <FreshnessLine canRefresh={canRefresh} data={data} error={refreshError} onRefresh={() => void refresh()} refreshing={refreshing} />
+        </div>
         {failed ? <p role="alert">Không tải được tổng quan.</p> : null}
         {!data && !failed ? <p role="status">Đang tải…</p> : null}
         {data ? (
@@ -150,16 +184,39 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
                 {rows.map((s) => {
                   const [connLabel, connColor] = CONN[s.connection] ?? CONN.none;
                   const none = s.connection === "none";
+                  const chosen = current === s.shop_id;
                   return (
                     <div
+                      data-chosen={chosen ? "true" : undefined}
                       data-testid="ops-shop-row"
                       key={s.shop_id}
                       role="row"
-                      style={{ display: "grid", gridTemplateColumns: GRID, gap: 10, padding: "10px 16px", borderTop: `1px solid ${C.lineSoft}`, alignItems: "center", fontSize: 14 }}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: GRID,
+                        gap: 10,
+                        padding: "10px 16px",
+                        borderTop: `1px solid ${C.lineSoft}`,
+                        alignItems: "center",
+                        fontSize: 14,
+                        background: chosen ? "#fff7fa" : undefined,
+                        boxShadow: chosen ? `inset 3px 0 0 ${C.pinkStrong}` : undefined,
+                      }}
                     >
-                      <span role="cell" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <b>{s.shop_name}</b>
-                        <span style={{ fontSize: 12, color: C.muted2 }}>{ownerLine(s)}</span>
+                      <span role="cell" style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
+                        <button
+                          aria-pressed={chosen}
+                          onClick={() => choose(s)}
+                          style={{ font: "inherit", fontSize: 14, fontWeight: 700, color: C.ink, background: "transparent", border: 0, padding: 0, textAlign: "left", cursor: "pointer" }}
+                          title="Chọn shop này cho Mô phỏng"
+                          type="button"
+                        >
+                          {s.shop_name}
+                        </button>
+                        <span style={{ fontSize: 12, color: C.muted2 }}>
+                          {ownerLine(s)}
+                          {chosen ? <b style={{ color: C.pink }}> · đang chọn</b> : null}
+                        </span>
                       </span>
                       <span role="cell">
                         <span style={{ fontSize: 12, fontWeight: 600, borderRadius: 999, padding: "3px 10px", ...STAGE_STYLE[s.stage] }}>{s.stage_label}</span>
@@ -192,13 +249,10 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
                         {fmtGmvShort(s.gmv_30d)}
                       </span>
                       <span role="cell" style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                        <Link href={`/ops/shops/${s.shop_id}/xem`} style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 36, display: "inline-flex", alignItems: "center", color: C.pink }}>
+                        <Link href={`/ops/shops/${s.shop_id}/xem`} onClick={() => choose(s)} style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 36, display: "inline-flex", alignItems: "center", color: C.pink }}>
                           Xem như shop
                         </Link>
-                        <Link href={`/ops/shops/${s.shop_id}/mo-phong`} style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 36, display: "inline-flex", alignItems: "center", color: C.pink }}>
-                          Mô phỏng
-                        </Link>
-                        <Link href={`/ops/shops/${s.shop_id}`} style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 36, display: "inline-flex", alignItems: "center", color: C.pink }}>
+                        <Link href={`/ops/shops/${s.shop_id}`} onClick={() => choose(s)} style={{ fontSize: 13, fontWeight: 600, textDecoration: "none", minHeight: 36, display: "inline-flex", alignItems: "center", color: C.pink }}>
                           Cài đặt
                         </Link>
                         {me.role === "admin" && s.connection !== "none" ? (

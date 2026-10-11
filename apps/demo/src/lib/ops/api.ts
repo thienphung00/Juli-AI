@@ -1,6 +1,7 @@
 import { readAuthSession } from "../supabase-auth";
 import type {
   AuditEntry,
+  AuditKind,
   Deltas,
   DisconnectResult,
   Invite,
@@ -80,8 +81,15 @@ const shopPath = (shopId: string) => `/shops/${encodeURIComponent(shopId)}`;
 export const opsApi = {
   me: (o?: OpsRequestOptions) => opsRequest<OpsMe>("/me", {}, o),
   overview: (o?: OpsRequestOptions) => opsRequest<Overview>("/overview", {}, o),
-  audit: (shopId: string | null, o?: OpsRequestOptions) =>
-    opsRequest<{ data: AuditEntry[] }>(shopId ? `/audit?shop_id=${encodeURIComponent(shopId)}` : "/audit", {}, o),
+  /** D27.1: recompute every row now (Vận hành / Admin; Xem gets 403). */
+  refreshOverview: (o?: OpsRequestOptions) => opsRequest<Overview>("/overview/refresh", { method: "POST" }, o),
+  audit: (shopId: string | null, kind?: AuditKind | null, o?: OpsRequestOptions) => {
+    const q = new URLSearchParams();
+    if (shopId) q.set("shop_id", shopId);
+    if (kind) q.set("kind", kind);
+    const qs = q.toString();
+    return opsRequest<{ data: AuditEntry[] }>(qs ? `/audit?${qs}` : "/audit", {}, o);
+  },
   staff: (o?: OpsRequestOptions) =>
     opsRequest<{ data: { id: string; email: string; role: string; role_label: string; active: boolean; signed_in: boolean }[] }>(
       "/staff",
@@ -111,6 +119,9 @@ export const opsApi = {
     ),
   simulation: (shopId: string, window: number, o?: OpsRequestOptions) =>
     opsRequest<SimulationPage>(`${shopPath(shopId)}/simulation?window=${window}`, {}, o),
+  /** D27.1: recompute this shop's simulation numbers now (Xem gets 403). */
+  refreshSimulation: (shopId: string, window: number, o?: OpsRequestOptions) =>
+    opsRequest<SimulationPage>(`${shopPath(shopId)}/simulation/refresh?window=${window}`, { method: "POST" }, o),
   createScenario: (shopId: string, name: string, deltas: Deltas, isTarget: boolean, o?: OpsRequestOptions) =>
     opsRequest<{ data: Scenario }>(
       `${shopPath(shopId)}/scenarios`,

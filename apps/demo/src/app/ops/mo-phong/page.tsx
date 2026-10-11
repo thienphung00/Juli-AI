@@ -1,8 +1,8 @@
 "use client";
 
 import { OpsGate } from "../../../components/ops/ops-shell";
-import { OpsSimulatePicker } from "../../../components/ops/ops-simulate-picker";
+import { OpsSimulateCurrent } from "../../../components/ops/ops-simulate-current";
 
-export default function OpsSimulatePickerPage() {
-  return <OpsGate>{(me) => <OpsSimulatePicker me={me} />}</OpsGate>;
+export default function OpsSimulateCurrentPage() {
+  return <OpsGate>{(me) => <OpsSimulateCurrent me={me} />}</OpsGate>;
 }
