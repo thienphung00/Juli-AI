@@ -19,9 +19,19 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import JSON, Date, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    Date,
+    ForeignKey,
+    Numeric,
+    PrimaryKeyConstraint,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from juli_backend.orm_base import Base
@@ -93,3 +103,59 @@ class ShopMetricRanking(Base):
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+#: The four seller streams of the compact daily tables (D27.2; Ops "Mô phỏng").
+DAILY_STREAMS: tuple[str, ...] = ("product_card", "shop_tab", "seller_video", "seller_live")
+_COUNT = Numeric(14, 2)
+_GMV = Numeric(18, 2)
+
+
+class ShopDailyStream(Base):
+    """One shop × stream × day of raw counts (D27.2, migration 085).
+
+    Written when the diagnosis report is built (``report.daily_streams``), read
+    by the Ops simulation instead of merging stored report JSON. ``orders`` is
+    NULL when the report had no order data for that day. Timestamps naive UTC.
+    """
+
+    __tablename__ = "shop_daily_streams"
+    __table_args__ = (
+        PrimaryKeyConstraint("shop_id", "stream", "day", name="pk_shop_daily_streams"),
+    )
+
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    stream: Mapped[str] = mapped_column(String(16), nullable=False)
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    impressions: Mapped[Decimal] = mapped_column(_COUNT, nullable=False)
+    clicks: Mapped[Decimal] = mapped_column(_COUNT, nullable=False)
+    orders: Mapped[Decimal | None] = mapped_column(_COUNT, nullable=True)
+    gmv: Mapped[Decimal] = mapped_column(_GMV, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False)
+
+
+class ShopDailyProduct(Base):
+    """One shop × stream × product × day (``report.daily_products``; volatility rows).
+
+    ``title`` / ``seller_sku`` label the row (the report's ``titles`` /
+    ``seller_skus`` at the time the day was written).
+    """
+
+    __tablename__ = "shop_daily_products"
+    __table_args__ = (
+        PrimaryKeyConstraint(
+            "shop_id", "stream", "product_id", "day", name="pk_shop_daily_products"
+        ),
+    )
+
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
+    stream: Mapped[str] = mapped_column(String(16), nullable=False)
+    product_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    impressions: Mapped[Decimal] = mapped_column(_COUNT, nullable=False)
+    clicks: Mapped[Decimal] = mapped_column(_COUNT, nullable=False)
+    orders: Mapped[Decimal | None] = mapped_column(_COUNT, nullable=True)
+    gmv: Mapped[Decimal] = mapped_column(_GMV, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    seller_sku: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False)

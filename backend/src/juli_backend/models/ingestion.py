@@ -103,6 +103,9 @@ class ShopIngestionState(Base):
     quick_scan_cards: Mapped[int | None] = mapped_column(Integer)
     #: Local day of the last nightly history extension (D25.12).
     history_extended_on: Mapped[date | None] = mapped_column(Date)
+    #: D27.3 (migration 085): when the scheduled cycle last started the commerce
+    #: steps; they run at most once per ``SHOP_COMMERCE_INTERVAL_MINUTES``.
+    commerce_last_run_at: Mapped[datetime | None] = mapped_column()
 
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

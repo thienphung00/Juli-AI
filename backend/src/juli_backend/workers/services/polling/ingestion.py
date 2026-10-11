@@ -25,8 +25,12 @@ SPEC §3.1–3.3 and §3.7. Three entrypoints, one per Celery task in
     reads a few small chunks a night (``nightly``) up to the look-back.
 
 ``run_shop_cycle``
-    The scheduled cycle, once per shop per fan-out. Commerce steps every
-    fifteen minutes exactly as before (watermarks, page caps, verdicts).
+    The scheduled cycle, once per shop per fan-out (every 15 minutes, kept for
+    bootstrap pickup and the daily analytics probe). Commerce steps (orders,
+    inventory, returns, products, order costs) at most once per
+    ``SHOP_COMMERCE_INTERVAL_MINUTES`` (60, D27.3) per shop, exactly as before
+    otherwise (watermarks, page caps, verdicts); a cycle inside the interval
+    skips them (``commerce_skip_reason = "interval"``).
     Analytics at most once a day: from the last fully-fetched day + 1 up to
     TikTok's ``latest_available_date``, read from a single A-36 probe; when
     nothing is new the cycle makes zero analytics detail calls. A day pass that
@@ -65,7 +69,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -147,6 +151,26 @@ def _env_float(name: str, default: float) -> float:
     except ValueError:
         value = default
     return max(1.0, value)
+
+
+COMMERCE_INTERVAL_ENV = "SHOP_COMMERCE_INTERVAL_MINUTES"
+
+
+def commerce_interval() -> timedelta:
+    """D27.3: commerce steps run at most once per this interval per shop (60 min)."""
+    return timedelta(minutes=_env_int(COMMERCE_INTERVAL_ENV, 60))
+
+
+def _naive_utc(now: datetime | None) -> datetime:
+    current = now or datetime.now(UTC)
+    if current.tzinfo is not None:
+        current = current.astimezone(UTC).replace(tzinfo=None)
+    return current
+
+
+def _commerce_due(state: ShopIngestionState, current: datetime) -> bool:
+    last = state.commerce_last_run_at
+    return last is None or current - last >= commerce_interval()
 
 
 def fast_days() -> int:
@@ -860,6 +884,8 @@ class ShopCycleResult:
     history_connect_pending: bool = False
     #: P14-C cost data read this cycle (never fails the cycle).
     order_costs: OrderCostsResult | None = None
+    #: D27.3: why the commerce steps did not run this cycle (``"interval"``).
+    commerce_skip_reason: str | None = None
 
 
 async def run_shop_cycle(
@@ -904,15 +930,27 @@ async def run_shop_cycle(
 
         outcomes = result.outcomes
         new_days = False
-        try:
-            await _run_commerce_steps(
-                run,
-                rate_limiter=rate_limiter,
-                handoff_fn=handoff_fn,
-                sleep=sleep,
-                deadline=deadline,
-                outcomes=outcomes,
+        current = _naive_utc(now)
+        commerce = _commerce_due(state, current)
+        if commerce:
+            # Stamped before the steps: a failing cycle still waits the interval.
+            await run.state_repo.update(shop_id, commerce_last_run_at=current)
+        else:
+            result.commerce_skip_reason = "interval"
+            logger.info(
+                "shop_commerce_skipped",
+                extra={"shop_id": str(shop_id), "reason": "interval"},
             )
+        try:
+            if commerce:
+                await _run_commerce_steps(
+                    run,
+                    rate_limiter=rate_limiter,
+                    handoff_fn=handoff_fn,
+                    sleep=sleep,
+                    deadline=deadline,
+                    outcomes=outcomes,
+                )
             new_days = await _daily_analytics(
                 run,
                 state=state,
@@ -939,17 +977,18 @@ async def run_shop_cycle(
         _assert_cycle_succeeded(outcomes, shop_id=shop_id)
         # P14-C (D24.13): a few orders' price detail / finance transactions,
         # read-only, after the orders were just synced. Never fails the cycle.
-        result.order_costs = await sync_order_costs(
-            session=session,
-            shop_id=shop_id,
-            resources=run.resources,
-            rate_limiter=rate_limiter,
-            app_id=run.app_id,
-            shop_key=run.shop_key,
-            deadline=deadline,
-            now=now,
-            sleep=sleep,
-        )
+        if commerce:
+            result.order_costs = await sync_order_costs(
+                session=session,
+                shop_id=shop_id,
+                resources=run.resources,
+                rate_limiter=rate_limiter,
+                app_id=run.app_id,
+                shop_key=run.shop_key,
+                deadline=deadline,
+                now=now,
+                sleep=sleep,
+            )
         if new_days:
             # D11: scoring once a day, after the analytics pass.
             result.cards = await _score(run, score_fn, phase="daily")

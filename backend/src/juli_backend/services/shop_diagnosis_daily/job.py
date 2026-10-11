@@ -28,6 +28,12 @@ The daily worker job behind ``juli_backend.build_shop_diagnosis``:
 4. **Store** each report's ``to_dict()`` (aggregates only) under the shop's
    scope, replacing a row for the same (shop, end date, ranking), and each
    metric ranking the same way per (shop, end date, stream, metric).
+5. **Compact + summary** (P18, D27.1/27.2): upsert the report's per-day stream
+   and product counts into ``shop_daily_streams`` / ``shop_daily_products``
+   (``compact.py``) and recompute the shop's Ops Tổng quan row
+   (``ops_shop_daily_summary``). This build runs after the daily analytics
+   pass landed new days, so both refresh once a day. Each step is logged and
+   swallowed on failure: neither can fail the report.
 
 TikTok is only ever read here: the resources come from
 ``ProductionReadClientFactory``, whose transport refuses non-read methods.
@@ -105,6 +111,10 @@ class DiagnosisBuildResult:
     #: ``"<stream>/<metric>"`` of every stored ADR-109 metric ranking.
     metric_rankings: list[str] = field(default_factory=list)
     new_daily_files: int = 0
+    #: P18 (D27.2): compact daily rows upserted (``None`` when that write failed).
+    compact_rows: int | None = None
+    #: P18 (D27.1): the shop's Ops summary row was recomputed after this build.
+    ops_summary: bool = False
 
 
 def assert_read_credential_for(credential: TikTokCredential, shop_id: uuid.UUID) -> None:
@@ -354,6 +364,10 @@ async def build_and_store_shop_diagnosis(
         await session.commit()
     result.built = True
     result.rankings = list(reports)
+    result.compact_rows = await _write_compact_days(
+        session_factory, shop_id, list(reports.values()), built_at
+    )
+    result.ops_summary = await _refresh_ops_summary(session_factory, shop_id)
     result.metric_rankings = [f"{t.stream.value}/{t.metric.value}" for t in metric_rankings]
     logger.info(
         "shop_diagnosis_built",
@@ -367,6 +381,45 @@ async def build_and_store_shop_diagnosis(
         },
     )
     return result
+
+
+async def _write_compact_days(
+    session_factory: Any, shop_id: uuid.UUID, reports: list[dict[str, Any]], built_at: datetime
+) -> int | None:
+    """D27.2: upsert the report's days into the compact tables. Never fails the build."""
+    from juli_backend.services.shop_diagnosis_daily.compact import write_report_days
+
+    try:
+        async with session_factory() as session:
+            async with with_shop_scope(session, shop_id):
+                written = await write_report_days(session, shop_id, reports, written_at=built_at)
+            await session.commit()
+    except Exception as exc:
+        logger.error(
+            "shop_daily_compact_write_failed",
+            extra={"shop_id": str(shop_id), "error_type": type(exc).__name__},
+            exc_info=True,
+        )
+        return None
+    return written
+
+
+async def _refresh_ops_summary(session_factory: Any, shop_id: uuid.UUID) -> bool:
+    """D27.1: the shop's Ops Tổng quan row, once a day after new days landed. Never fails."""
+    from juli_backend.services.ops.overview import refresh_shop_summary
+
+    try:
+        async with session_factory() as session:
+            await refresh_shop_summary(session, shop_id)
+            await session.commit()
+    except Exception as exc:
+        logger.error(
+            "ops_shop_summary_failed",
+            extra={"shop_id": str(shop_id), "error_type": type(exc).__name__},
+            exc_info=True,
+        )
+        return False
+    return True
 
 
 __all__ = [

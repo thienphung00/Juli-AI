@@ -145,6 +145,11 @@ celery_app.conf.update(
         # and is excluded from this reasoning for the same reason it is
         # excluded from #1659's own daily-beat check.
         #
+        # Fast track P18 (D27.3): the fan-out stays every 15 minutes (bootstrap
+        # pickup, the daily analytics probe), but each shop's commerce steps run
+        # at most once per SHOP_COMMERCE_INTERVAL_MINUTES (60) -- gated per
+        # shop in `run_shop_cycle`, not here.
+        #
         # Fast track P1-B (SPEC §3.2, D7/D9.4): the single-merchant
         # `fujiwa-poll-cycle` entry is REPLACED by a fan-out that enqueues one
         # task per connected shop with a usable read credential -- the
@@ -178,6 +183,13 @@ celery_app.conf.update(
         "shop-history-extend": {
             "task": "juli_backend.shop_history_extend",
             "schedule": crontab(hour=19, minute=43),
+        },
+        # Fast track P18 (D27.4): delete Juli Ops audit rows past retention
+        # (config 365 days, view / system 90). 20:31 UTC = 03:31 UTC+7; minute
+        # 31 is not a multiple of 5 and none of the slots above. Default queue.
+        "ops-audit-retention": {
+            "task": "juli_backend.ops_audit_retention",
+            "schedule": crontab(hour=20, minute=31),
         },
     },
 )

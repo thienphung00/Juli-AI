@@ -369,6 +369,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/overview/refresh",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/disconnect",
       "methods": [
         "POST"
@@ -490,6 +498,14 @@
     },
     {
       "path": "/v1/ops/shops/{shop_id}/simulation/compute",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/simulation/refresh",
       "methods": [
         "POST"
       ],

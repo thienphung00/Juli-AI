@@ -114,10 +114,10 @@ def _view(shop_id: uuid.UUID, row: OpsShopSettings | None, cap: OpenAICap) -> Sh
 
 
 def snapshot(row: OpsShopSettings | None, cap: OpenAICap) -> dict[str, Any]:
-    """The audit's before/after picture."""
-    data = {} if row is None else {name: _value(row, name) for name in (*ROW_FIELDS, "stage")}
-    if row is not None or not cap.is_default:
-        data[CAP_FIELD] = None if cap.is_default else float(cap.usd)
+    """Every settable key's stored value (``None`` = Mặc định); the audit diffs two."""
+    data = {name: _value(row, name) for name in ROW_FIELDS}
+    data["stage"] = row.stage if row is not None else "trial"
+    data[CAP_FIELD] = None if cap.is_default else float(cap.usd)
     return data
 
 
@@ -232,7 +232,19 @@ async def update_settings(
                 row.stage = stage
             row.updated_at = moment
         after = snapshot(row, cap_after)
-    await audit.record(session, actor, action, shop_id=shop_id, before=before, after=after)
+    changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+    if changed:
+        # D27.5/27.6: one save = one row listing every changed key; a save of a
+        # single key names it, so repeated edits of it within 10 minutes merge.
+        await audit.record(
+            session,
+            actor,
+            action,
+            shop_id=shop_id,
+            before={k: before.get(k) for k in changed},
+            after={k: after.get(k) for k in changed},
+            field=changed[0] if len(changed) == 1 else None,
+        )
     return _view(shop_id, row, cap_after)
 
 
