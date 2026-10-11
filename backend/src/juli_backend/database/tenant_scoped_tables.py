@@ -100,6 +100,9 @@ TABLE_CLASSIFICATION_MAP = {
     # Fast track P15, migration 082: derived data of seller-uploaded videos /
     # LIVE recordings (the media itself is never stored in the database).
     ("public", "content_analyses"): "tenant_direct",
+    # Fast track P18 (D27.2, migration 085): compact daily counts for Ops "Mô phỏng".
+    ("public", "shop_daily_streams"): "tenant_direct",
+    ("public", "shop_daily_products"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",
@@ -116,6 +119,7 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ops_shop_settings"): "ops_only",
     ("public", "ops_sim_scenarios"): "ops_only",
     ("public", "ops_shop_invites"): "ops_only",
+    ("public", "ops_shop_daily_summary"): "ops_only",
 }
 
 #: Metadata about via-parent relationships (child_table -> (parent_table, fk_col, pk_col))

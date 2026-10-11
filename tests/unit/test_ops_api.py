@@ -189,8 +189,14 @@ async def test_settings_put_audits_before_after_and_reset(session):
     update = next(r for r in rows if r.action == "settings_update")
     assert update.actor_email == "op@app-juli.com"
     assert update.shop_id == shop.id
-    assert update.before == {}
-    assert update.after["card_daily_limit"] == 3
+    # D27.5: one save of several keys = ONE row listing only the changed keys.
+    assert update.before == {
+        "card_daily_limit": None,
+        "openai_monthly_cap_usd": None,
+        "stage": "trial",
+    }
+    assert update.after == {"card_daily_limit": 3, "openai_monthly_cap_usd": 5.0, "stage": "pilot"}
+    assert update.field is None and update.merged_count == 1
 
 
 @pytest.mark.parametrize(

@@ -1,13 +1,16 @@
 """Ops "Mô phỏng" (D25.10, D25.11): baseline, trend, volatility, what-if GMV.
 
-DATA. The daily shop-diagnosis job stores, per report, the four seller streams'
-raw daily counts (``report.daily_streams``: impressions, clicks, SKU orders,
-GMV per day) and the same per product for each stream's top products
+DATA. The daily shop-diagnosis job computes, per report, the four seller
+streams' raw daily counts (``report.daily_streams``: impressions, clicks, SKU
+orders, GMV per day) and the same per product for each stream's top products
 (``report.daily_products``) -- added in P16 to ``services/shop_diagnosis/
-report.py``. A report covers the 60 days before its ``end_date``; this module
-merges every stored report of the shop (newest wins per day), so the history
-grows past 60 days as the job keeps running. Nothing is invented: a window that
-the stored days cannot cover is reported unavailable.
+report.py``. Since P18 (D27.2) the job also upserts them into the compact
+tables ``shop_daily_streams`` / ``shop_daily_products`` (one row per day,
+newest wins; ``services/shop_diagnosis_daily/compact.py``), and
+:func:`load_history` reads those -- no report JSON is merged per request. The
+history grows past a report's 60 days as the job keeps running. Nothing is
+invented: a window that the stored days cannot cover is reported unavailable.
+:func:`merge_reports` (the old in-memory merge) stays for tests and fixtures.
 
 WINDOW ``N`` ∈ {7, 14, 30, 90} (D25.11) drives
 - the baseline: per-day average over the last ``N`` days (impressions/day,
@@ -32,13 +35,13 @@ import statistics
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.shop_diagnosis import ShopDiagnosisReport
+from juli_backend.models.shop_diagnosis import ShopDailyProduct, ShopDailyStream
 
 STREAMS: tuple[str, ...] = ("product_card", "shop_tab", "seller_video", "seller_live")
 STREAM_NAMES: dict[str, str] = {
@@ -70,8 +73,10 @@ WINDOWS: tuple[int, ...] = (7, 14, 30, 90)
 DEFAULT_WINDOW = 30
 STEP_PCT = 5
 DELTA_RANGE = (-90, 300)
-#: How far back stored reports are merged (2 × the longest window + slack).
+#: How far back history is read (2 × the longest window + slack) ...
 HISTORY_DAYS = 2 * max(WINDOWS) + 10
+#: ... plus one report's span (a report ending HISTORY_DAYS ago covers 60 days before).
+REPORT_DAYS = 60
 #: Stable / medium thresholds on the coefficient of variation of impressions.
 CV_STABLE = 0.15
 CV_MEDIUM = 0.30
@@ -322,6 +327,8 @@ class History:
     seller_skus: dict[str, str]
     last_day: date | None
     first_day: date | None
+    #: When the newest stored day was written (compact tables); None from reports.
+    generated_at: datetime | None = None
 
     @property
     def days_available(self) -> int:
@@ -378,23 +385,67 @@ def merge_reports(reports: Iterable[Mapping[str, Any]]) -> History:
 async def load_history(
     session: AsyncSession, shop_id: uuid.UUID, *, today: date | None = None
 ) -> History:
-    """Every stored report of the shop over the last ``HISTORY_DAYS`` (caller sets scope)."""
+    """The shop's compact daily rows over the last ``HISTORY_DAYS`` (caller sets scope)."""
     current = today or date.today()
-    reports = (
+    since = current - timedelta(days=HISTORY_DAYS + REPORT_DAYS)
+    streams: dict[str, dict[date, DayCounts]] = {s: {} for s in STREAMS}
+    products: dict[str, dict[str, dict[date, DayCounts]]] = {s: {} for s in STREAMS}
+    titles: dict[str, str] = {}
+    skus: dict[str, str] = {}
+    generated: list[datetime] = []
+    stream_rows = (
         (
             await session.execute(
-                select(ShopDiagnosisReport.report)
-                .where(
-                    ShopDiagnosisReport.shop_id == shop_id,
-                    ShopDiagnosisReport.end_date >= current - timedelta(days=HISTORY_DAYS),
+                select(ShopDailyStream).where(
+                    ShopDailyStream.shop_id == shop_id, ShopDailyStream.day >= since
                 )
-                .order_by(ShopDiagnosisReport.end_date.asc(), ShopDiagnosisReport.built_at.asc())
             )
         )
         .scalars()
         .all()
     )
-    return merge_reports(r for r in reports if isinstance(r, Mapping))
+    for row in stream_rows:
+        if row.stream in streams:
+            streams[row.stream][row.day] = _row_counts(row)
+            generated.append(row.updated_at)
+    product_rows = (
+        (
+            await session.execute(
+                select(ShopDailyProduct)
+                .where(ShopDailyProduct.shop_id == shop_id, ShopDailyProduct.day >= since)
+                .order_by(ShopDailyProduct.day.asc(), ShopDailyProduct.updated_at.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for prow in product_rows:
+        if prow.stream not in products:
+            continue
+        products[prow.stream].setdefault(prow.product_id, {})[prow.day] = _row_counts(prow)
+        if prow.title:
+            titles[prow.product_id] = prow.title
+        if prow.seller_sku:
+            skus[prow.product_id] = prow.seller_sku
+    all_days = [d for by_day in streams.values() for d in by_day]
+    return History(
+        streams=streams,
+        products=products,
+        titles=titles,
+        seller_skus=skus,
+        last_day=max(all_days) if all_days else None,
+        first_day=min(all_days) if all_days else None,
+        generated_at=max(generated) if generated else None,
+    )
+
+
+def _row_counts(row: ShopDailyStream | ShopDailyProduct) -> DayCounts:
+    return DayCounts(
+        float(row.impressions or 0),
+        float(row.clicks or 0),
+        None if row.orders is None else float(row.orders),
+        float(row.gmv or 0),
+    )
 
 
 def _days(last_day: date, count: int, offset: int = 0) -> list[date]:
@@ -467,7 +518,7 @@ def baseline(history: History, window: int) -> dict[str, Any]:
                     "cells": cells,
                 }
             )
-            rows = []
+            rows: list[dict[str, Any]] = []
             for pid, per_day in history.products.get(stream, {}).items():
                 row_days = _present(per_day, last_days)
                 if len(row_days) < max(3, window // 3):
@@ -488,7 +539,16 @@ def baseline(history: History, window: int) -> dict[str, Any]:
                         "stability": stability(imp.cv),
                     }
                 )
-            rows.sort(key=lambda r: (r["impressions_cv"] is None, r["impressions_cv"] or 0))
+            # Stable first; ties by reach (the report's order), then id -- deterministic
+            # whatever order the rows were read in.
+            rows.sort(
+                key=lambda r: (
+                    r["impressions_cv"] is None,
+                    r["impressions_cv"] or 0,
+                    -r["impressions"]["mean"],
+                    r["id"],
+                )
+            )
             volatility[stream] = {"row_kind": ROW_KINDS[stream], "rows": rows}
     first = _days(history.last_day, window)[0] if history.last_day else None
     return {
@@ -496,6 +556,9 @@ def baseline(history: History, window: int) -> dict[str, Any]:
         "windows": [window_status(history, w) for w in WINDOWS],
         "from": first.isoformat() if first and status["baseline_available"] else None,
         "to": history.last_day.isoformat() if history.last_day else None,
+        # D27.1: "Số liệu đến hết DD/MM · cập nhật lúc HH:MM".
+        "data_through": history.last_day.isoformat() if history.last_day else None,
+        "generated_at": history.generated_at.isoformat() if history.generated_at else None,
         "status": status,
         "streams": streams,
         "volatility": volatility,

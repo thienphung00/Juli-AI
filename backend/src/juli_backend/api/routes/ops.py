@@ -175,7 +175,23 @@ async def ops_me(ctx: OpsContext = Depends(viewer)) -> dict[str, Any]:
 async def ops_overview(
     ctx: OpsContext = Depends(viewer), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
-    return await overview.build_overview(session)
+    """Tổng quan from the daily summaries (D27.1); a shop without one is computed once."""
+    body = await overview.build_overview(session)
+    await session.commit()
+    return body
+
+
+@router.post("/overview/refresh")
+async def ops_overview_refresh(
+    ctx: OpsContext = Depends(operator), session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    """ "Làm mới" (D27.1): recompute every shop's summary now; same body as GET."""
+    body = await overview.build_overview(session, refresh=True)
+    await audit.record(
+        session, ctx.staff.actor, audit.ACTION_DATA_REFRESH, after={"target": "overview"}
+    )
+    await session.commit()
+    return body
 
 
 class StaffWrite(BaseModel):
@@ -227,6 +243,9 @@ def _audit_json(row: Any) -> dict[str, Any]:
         "actor_email": row.actor_email,
         "shop_id": str(row.shop_id) if row.shop_id else None,
         "action": row.action,
+        "kind": audit.kind_of(row.action),
+        "field": row.field,
+        "merged_count": row.merged_count or 1,
         "before": row.before,
         "after": row.after,
     }
@@ -235,11 +254,12 @@ def _audit_json(row: Any) -> dict[str, Any]:
 @router.get("/audit")
 async def ops_audit(
     shop_id: uuid.UUID | None = Query(default=None),
+    kind: Literal["config", "view", "system"] | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    rows = await audit.list_entries(session, shop_id=shop_id, limit=limit)
+    rows = await audit.list_entries(session, shop_id=shop_id, kind=kind, limit=limit)
     return {"data": [_audit_json(r) for r in rows]}
 
 
@@ -295,7 +315,18 @@ async def ops_put_settings(
         await session.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from None
     await session.commit()
+    await _refresh_summary_quietly(session, shop_id)
     return {"settings": view.to_json()}
+
+
+async def _refresh_summary_quietly(session: AsyncSession, shop_id: uuid.UUID) -> None:
+    """A settings change (e.g. the OpenAI cap) shows in Tổng quan at once; never fails."""
+    try:
+        await overview.refresh_shop_summary(session, shop_id)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        logger.warning("ops_summary_refresh_failed", extra={"shop_id": str(shop_id)})
 
 
 @router.post("/shops/{shop_id}/settings/reset")
@@ -307,6 +338,7 @@ async def ops_reset_settings(
     await _shop(session, shop_id)
     view = await ops_settings.reset_overrides(session, ctx.staff.actor, shop_id)
     await session.commit()
+    await _refresh_summary_quietly(session, shop_id)
     return {"settings": view.to_json()}
 
 
@@ -569,6 +601,7 @@ async def ops_put_rule(
             ctx.staff.actor,
             "rule_set",
             shop_id=shop_id,
+            field=f"{rule_key}:{(body.scope_ref or '').strip()}",
             before={"rule_key": rule_key, "scope_ref": body.scope_ref, "rule": before},
             after={
                 "rule_key": rule_key,
@@ -694,15 +727,33 @@ async def _baseline(session: AsyncSession, shop_id: uuid.UUID, window: int) -> d
     return simulation.baseline(history, window)
 
 
-@router.get("/shops/{shop_id}/simulation")
-async def ops_simulation(
-    shop_id: uuid.UUID,
-    window: int = Query(default=simulation.DEFAULT_WINDOW),
-    ctx: OpsContext = Depends(viewer),
-    session: AsyncSession = Depends(get_session),
+async def _fill_compact_from_reports(
+    session: AsyncSession, shop_id: uuid.UUID, *, latest_only: bool
+) -> int:
+    """Re-derive the compact daily rows from the stored report JSON (D27.2)."""
+    from datetime import date, timedelta
+
+    from juli_backend.services.shop_diagnosis_daily import compact
+
+    since = date.today() - timedelta(days=simulation.HISTORY_DAYS)
+    async with with_shop_scope(session, shop_id):
+        written = await compact.rebuild_from_stored_reports(
+            session, shop_id, since=since, latest_only=latest_only
+        )
+    await session.commit()
+    return written
+
+
+async def _simulation_body(
+    session: AsyncSession, listing: ShopListing, window: int
 ) -> dict[str, Any]:
-    listing = await _shop(session, shop_id)
-    payload = await _baseline(session, shop_id, _window(window))
+    shop_id = listing.shop_id
+    payload = await _baseline(session, shop_id, window)
+    if payload["status"]["history_days"] == 0:
+        # Reports stored before migration 085 are not in the compact table yet:
+        # fill it once from them (no TikTok call), then read again.
+        if await _fill_compact_from_reports(session, shop_id, latest_only=False):
+            payload = await _baseline(session, shop_id, window)
     settings_view = await ops_settings.get_settings(session, shop_id)
     saved = await scenarios.list_scenarios(session, shop_id)
     values = simulation.baseline_values(payload)
@@ -728,6 +779,41 @@ async def ops_simulation(
         "rebuilding": rebuilding,
         "scenarios": scenario_rows,
     }
+
+
+@router.get("/shops/{shop_id}/simulation")
+async def ops_simulation(
+    shop_id: uuid.UUID,
+    window: int = Query(default=simulation.DEFAULT_WINDOW),
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    listing = await _shop(session, shop_id)
+    return await _simulation_body(session, listing, _window(window))
+
+
+@router.post("/shops/{shop_id}/simulation/refresh")
+async def ops_simulation_refresh(
+    shop_id: uuid.UUID,
+    window: int = Query(default=simulation.DEFAULT_WINDOW),
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """ "Làm mới" (D27.1): this shop's compact rows from its latest stored report and
+    its Tổng quan summary, recomputed now; same body as GET simulation."""
+    listing = await _shop(session, shop_id)
+    checked = _window(window)
+    await _fill_compact_from_reports(session, shop_id, latest_only=True)
+    await overview.refresh_shop_summary(session, shop_id)
+    await audit.record(
+        session,
+        ctx.staff.actor,
+        audit.ACTION_DATA_REFRESH,
+        shop_id=shop_id,
+        after={"target": "simulation", "window": checked},
+    )
+    await session.commit()
+    return await _simulation_body(session, listing, checked)
 
 
 class SimulateBody(BaseModel):

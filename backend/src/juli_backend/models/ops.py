@@ -12,6 +12,9 @@ the seller-facing ``juli_app`` role has no grant on any of them (migration
   column means "Mặc định"; a value means "Ghi đè".
 - ``ops_sim_scenarios`` -- saved "Mô phỏng" scenarios (D25.10).
 - ``ops_shop_invites`` -- "Mời seller" handover invites (D25.7, P9-B).
+- ``ops_shop_daily_summary`` -- one row per shop: the Tổng quan numbers
+  computed once a day after the shop's daily analytics pass (D27.1, migration
+  085).
 
 Timestamps naive UTC, like ``models/run_changes.py``.
 """
@@ -19,13 +22,14 @@ Timestamps naive UTC, like ``models/run_changes.py``.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     ForeignKey,
     Index,
     Integer,
@@ -88,9 +92,13 @@ class OpsAuditLog(Base):
     actor_email: Mapped[str] = mapped_column(String(320))
     shop_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     action: Mapped[str] = mapped_column(String(64))
+    #: D27.6: the one setting / rule a config change touched (NULL: several, or n/a).
+    field: Mapped[str | None] = mapped_column(String(160), nullable=True)
     before: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     after: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     at: Mapped[datetime] = mapped_column(server_default=func.now())
+    #: D27.6: how many edits of the same field within 10 minutes this row stands for.
+    merged_count: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 class OpsShopSettings(Base):
@@ -154,3 +162,19 @@ class OpsShopInvite(Base):
     #: what the seller answered on accept (None until accepted).
     seller_kept_ops_access: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class OpsShopDailySummary(Base):
+    """The Tổng quan numbers of one shop, computed once a day (D27.1, migration 085).
+
+    ``payload`` holds what ``services/ops/overview.py`` computes per shop
+    (connection, last poll / diagnosis, cards, failed runs, OpenAI cost, GMV 30
+    days, permissions); ``data_through`` is the last analytics day it covers.
+    """
+
+    __tablename__ = "ops_shop_daily_summary"
+
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    data_through: Mapped[date | None] = mapped_column(Date, nullable=True)
+    generated_at: Mapped[datetime] = mapped_column()
