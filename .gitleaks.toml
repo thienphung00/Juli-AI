@@ -9,3 +9,9 @@ description = "TikTok webhook contract collection — sanitized Partner Center s
 paths = [
   '''docs/integrations/tiktok_api/webhook-contract-collection\.md''',
 ]
+
+[[allowlists]]
+description = "apiwatch snapshots — field names and changelog keys from PUBLIC platform docs (hash-suffixed keys look like keys)"
+paths = [
+  '''infra/apiwatch/snapshots/[a-z]+\.json''',
+]

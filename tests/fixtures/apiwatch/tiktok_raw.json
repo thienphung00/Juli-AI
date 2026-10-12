@@ -1,0 +1,300 @@
+{
+ "errors": {},
+ "tree": [
+  {
+   "document_id": "64ec52a0cb677b02869af45e",
+   "parent_id": "",
+   "name": "API Reference",
+   "is_dir": 1,
+   "is_api_doc": true,
+   "doc_type": 10,
+   "keywords": [
+    {
+     "keyword": "",
+     "font_color": "#141414",
+     "background_color": "#E6E6E6"
+    }
+   ],
+   "update_time": "1704988347",
+   "document_path": ""
+  },
+  {
+   "document_id": "64ec531564ed2e0295a661ae",
+   "parent_id": "",
+   "name": "Webhooks",
+   "is_dir": 1,
+   "is_api_doc": false,
+   "doc_type": 2,
+   "keywords": [
+    {
+     "keyword": "",
+     "font_color": "#141414",
+     "background_color": "#E6E6E6"
+    }
+   ],
+   "update_time": "1704988347",
+   "document_path": ""
+  },
+  {
+   "document_id": "64ec532ccb677b02869af53a",
+   "parent_id": "",
+   "name": "Changelog",
+   "is_dir": 1,
+   "is_api_doc": false,
+   "doc_type": 3,
+   "keywords": [
+    {
+     "keyword": "",
+     "font_color": "#141414",
+     "background_color": "#E6E6E6"
+    }
+   ],
+   "update_time": "1704988347",
+   "document_path": ""
+  },
+  {
+   "document_id": "64f563f664ed2e02956cb264",
+   "parent_id": "64ec52a0cb677b02869af45e",
+   "name": "Products",
+   "is_dir": 1,
+   "is_api_doc": true,
+   "doc_type": 1,
+   "keywords": [
+    {
+     "keyword": "",
+     "font_color": "#141414",
+     "background_color": "#E6E6E6"
+    }
+   ],
+   "update_time": "1765479685",
+   "document_path": "37f51kv3"
+  },
+  {
+   "document_id": "650955cabace3e02b73cc886",
+   "parent_id": "670cb97c192d3d0308408c8f",
+   "name": "(4) Package update",
+   "is_dir": 0,
+   "is_api_doc": false,
+   "doc_type": 2,
+   "keywords": [
+    {
+     "keyword": "",
+     "font_color": "#141414",
+     "background_color": "#E6E6E6"
+    }
+   ],
+   "update_time": "1751450086",
+   "document_path": "4-package-update"
+  },
+  {
+   "document_id": "6509d85b4a0bb702c057fdda",
+   "parent_id": "64f563f664ed2e02956cb264",
+   "name": "Get Product",
+   "is_dir": 0,
+   "is_api_doc": true,
+   "doc_type": 1,
+   "keywords": [
+    {
+     "keyword": "",
+     "font_color": "#141414",
+     "background_color": "#E6E6E6"
+    }
+   ],
+   "update_time": "1791639173",
+   "api_method": 2,
+   "document_path": "get-product-202309"
+  },
+  {
+   "document_id": "670cb97c192d3d0308408c8f",
+   "parent_id": "64ec531564ed2e0295a661ae",
+   "name": "Logistics",
+   "is_dir": 1,
+   "is_api_doc": false,
+   "doc_type": 2,
+   "keywords": [
+    {
+     "keyword": "",
+     "font_color": "#141414",
+     "background_color": "#E6E6E6"
+    }
+   ],
+   "update_time": "1752809620",
+   "document_path": "670cb97c192d3d0308408c8f"
+  },
+  {
+   "document_id": "68af6766f863d304997a97ff",
+   "parent_id": "64ec532ccb677b02869af53a",
+   "name": "Analytics",
+   "is_dir": 1,
+   "is_api_doc": false,
+   "doc_type": 3,
+   "keywords": [
+    {
+     "keyword": "",
+     "font_color": "#141414",
+     "background_color": "#E6E6E6"
+    }
+   ],
+   "update_time": "1756325739",
+   "document_path": "kjodelbz"
+  },
+  {
+   "document_id": "6aba2d4f3adbea051387e346",
+   "parent_id": "68af6766f863d304997a97ff",
+   "name": "Analytics API Changelog: Enhanced Shop, Video, and LIVE Analytics",
+   "is_dir": 0,
+   "is_api_doc": false,
+   "doc_type": 3,
+   "keywords": [
+    {
+     "keyword": "Updated",
+     "font_color": "#FF7D00",
+     "background_color": "#FFF7E8"
+    }
+   ],
+   "update_time": "1790586321",
+   "document_path": "6az7iwe9"
+  }
+ ],
+ "versions": {
+  "6509d85b4a0bb702c057fdda": [
+   {
+    "id": "6509d85b4a0bb702c057fdda",
+    "slug": "get-product-202309"
+   }
+  ]
+ },
+ "meta": {
+  "6509d85b4a0bb702c057fdda": {
+   "document_id": "6509d85b4a0bb702c057fdda",
+   "document_api_meta": {
+    "interface_path": "/product/202309/products/{product_id}",
+    "title": "Get Product",
+    "env_desc": "Retrieve product details by product ID, including products in the `FREEZE` or `DELETED` status.",
+    "method": 2,
+    "document_path": "get-product-202309",
+    "is_post_method": false,
+    "request_query_param": [
+     {
+      "name": "app_key",
+      "type": "string",
+      "required": "Y",
+      "desc": "Every single app will have a unique key. Please use the specific key assigned to your app."
+     },
+     {
+      "name": "locale",
+      "type": "string",
+      "required": "N",
+      "desc": "The BCP-47 locale codes for displaying category information.\nDefault: The default locale of your shop.\nPossible values:\n- cs-CZ\n- de-AT\n- de-BE\n- de-DE\n- el-GR\n- en-GB\n- en-IE\n- en-US\n- es-ES\n- es-MX\n- fr-FR\n- fr-BE\n- hu-HU\n- id-ID\n- it-IT\n- ja-JP\n- ms-MY\n- nl-NL\n- nl-BE\n- pl-PL\n- pt-BR\n- pt-PT\n- th-TH\n- vi-VN\n- zh-CN"
+     },
+     {
+      "name": "shop_cipher",
+      "type": "string",
+      "required": "Y",
+      "desc": "Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. \nGet by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9)"
+     }
+    ],
+    "request_path_param": [
+     {
+      "name": "product_id",
+      "type": "string",
+      "required": "Y",
+      "desc": "The product ID in TikTok Shop."
+     }
+    ],
+    "response_param": [
+     {
+      "name": "code",
+      "type": "int",
+      "required": "N"
+     },
+     {
+      "name": "message",
+      "type": "string",
+      "required": "N"
+     },
+     {
+      "name": "data",
+      "type": "object",
+      "required": "N"
+     },
+     {
+      "name": "^audit",
+      "type": "object",
+      "required": "N"
+     },
+     {
+      "name": "^^status",
+      "type": "string",
+      "required": "N"
+     },
+     {
+      "name": "^create_time",
+      "type": "int",
+      "required": "N"
+     },
+     {
+      "name": "^id",
+      "type": "string",
+      "required": "N"
+     },
+     {
+      "name": "^skus",
+      "type": "[]object",
+      "required": "N"
+     },
+     {
+      "name": "^^id",
+      "type": "string",
+      "required": "N"
+     },
+     {
+      "name": "^^price",
+      "type": "object",
+      "required": "N"
+     },
+     {
+      "name": "^^^currency",
+      "type": "string",
+      "required": "N"
+     },
+     {
+      "name": "^^^sale_price",
+      "type": "string",
+      "required": "N"
+     },
+     {
+      "name": "^status",
+      "type": "string",
+      "required": "N"
+     },
+     {
+      "name": "^title",
+      "type": "string",
+      "required": "N"
+     },
+     {
+      "name": "^update_time",
+      "type": "int",
+      "required": "N"
+     }
+    ],
+    "scope_list": [
+     {
+      "package_name": "Product Basic"
+     }
+    ]
+   }
+  }
+ },
+ "pages": {
+  "650955cabace3e02b73cc886": {
+   "title": "(4) Package update",
+   "content": "# 1. Trigger scenario\nThe **package update** webhook is triggered when package updates such as combine, split, cancel the combine package operation, etc. occur.\n# 2. Data business parameters\n| **Parameter name** | **Sample** | **Description** |\n| --- | --- | --- |\n| sc_type | COMBINE | Type of the event trigger, with possible values: <br>  <br> * COMBINE <br> * CANCEL_COMBINE <br> * SPLIT <br> * CANCEL_SPLIT <br> * ADDRESS_UPDATE_SPLIT <br> * CANCEL_FULFILL_SPLIT <br> * FULFILL_UNCOMBINE <br> * PARTLY_CANCEL_SPLIT <br> * SPLIT_BY_SKU_CANCEL |\n| role_type | ROLE_USER | Operator of the event trigger, with possible values: <br>  <br> * ROLE_USER <br> * ROLE_SELLER <br> * ROLE_OPERATOR <br> * ROLE_SYSTEM |\n| package_list | []object | Package list updated by the event trigger |\n| └ package_id | \"123456\" | The identification of a package |\n| └ order_id_list | [\"152523\", \"532123\"] | List of order IDs in a given package |\n| update_time | 1627587600 | The time when the package was updated, represented as a Unix timestamp (seconds). |\n## Event example\n```JSON\n{\n  \"type\": 4,\n  \"tts_notification_id\": \"7327112393057371910\",\n  \"shop_id\": \"7494049642642441621\",\n  \"timestamp\": 1644412885,\n  \"data\": {\n    \"sc_type\": \"COMBINE\",\n    \"role_type\": \"ROLE_USER\",\n    \"package_list\": [\n      {\n        \"package_id\": \"123456\",\n        \"order_id_list\": [\n          \"152523\",\n          \"532123\"\n        ]\n      }\n    ],\n    \"update_time\": 1644412885\n  }\n}\n```\n\n\n"
+  },
+  "6aba2d4f3adbea051387e346": {
+   "title": "Analytics API Changelog: Enhanced Shop, Video, and LIVE Analytics",
+   "content": "**Release date: 2026-09-28 | Availability: Public by default | API documentation: Publicly visible**\nThis update expands Analytics API coverage for shop sales and channel attribution, video sales and engagement, and LIVE sales and viewing performance. New attributed GMV, traffic conversion, and LIVE auction metrics help developers analyze shop and content performance in greater detail.\n**Video details API migration:** The new `Get Shop Videos Performance Details` replaces `Get Shop Video Performance Details`. The previous API will be retired within three months of this release (no later than 2026-12-28). Migrate as soon as possible.\n\nSeller development teams and analytics ISVs can use these updates in their own systems to compare sales contributions from seller and creator content, LIVE streams, videos, and product cards, track hourly changes in shop performance, and assess impressions, clicks, sales, and engagement across videos and LIVE streams.\n# API Update Overview\n| API | Version | Key Updates |\n| --- | --- | --- |\n| Get Shop Performance | 202609 | Adds GMV source breakdowns, average order value, paying customers, cancellations and returns, shipping fees, taxes, and product click and impression metrics. |\n| Get Shop Performance Per Hour | 202510 | Adds order, customer, content-attributed GMV, and product traffic metrics to both hourly data and daily totals. |\n| Get Shop Video Performance Overview | 202609 | Adds video-attributed sales, daily average customers, conversion, view, and product-viewer metrics. Some metrics are available only for offline data. |\n| Get Shop Video Performance List | 202605 | Adds attributed GMV, engagement, product traffic, video-to-LIVE clicks, completion rate, and creator information. |\n| Get Shop Videos Performance Details | 202609 | New batch video details （Max 500） API returning sales, engagement, audience profiles, metadata, and errors for each video. Replaces Get Shop Video Performance Details, which will be retired within three months of this release. |\n| Get Shop Video Product Performance List | 202509 | Adds product click-through rate, purchasing customers, GMV per 1,000 product impressions, and product clicks and impress"
+  }
+ }
+}
