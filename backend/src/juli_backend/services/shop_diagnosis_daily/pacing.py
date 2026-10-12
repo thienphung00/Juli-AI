@@ -79,6 +79,9 @@ ENDPOINTS: dict[tuple[str, str], Callable[[tuple[Any, ...], dict[str, Any]], str
     ("analytics", "get_video_products_performance"): lambda a, k: (
         analytics_shop_video_products_performance_path(_first_arg(a, k, "video_id"))
     ),
+    # One bucket per video, as before the 202609 batch migration: the adapter now
+    # sends one id per batch call, and a single shared batch bucket (8 per minute)
+    # could not fit the run's up-to-40 detail reads in the gate's 180 s wait.
     ("analytics", "get_video_performance"): lambda a, k: analytics_shop_video_performance_path(
         _first_arg(a, k, "video_id")
     ),

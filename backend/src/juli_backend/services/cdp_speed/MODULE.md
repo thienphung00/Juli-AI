@@ -110,9 +110,10 @@ Locked material ids from ``webhook_catalog.MATERIAL_CATALOG_IDS`` (#532 / ADR-03
 | Catalog | Event type | Partner resources (named) |
 |---------|------------|---------------------------|
 | **#1** | ``ORDER_STATUS_CHANGE`` | ``orders``, ``analytics_shop`` |
-| **#2** | ``REVERSE_STATUS_UPDATE`` | ``returns``, ``orders``, ``analytics_shop`` |
+| **#2** | ``REVERSE_STATUS_UPDATE`` (legacy v1; replaced by #11 + #12) | ``returns``, ``orders``, ``analytics_shop`` |
 | **#5** | ``PRODUCT_STATUS_CHANGE`` | ``products``, ``analytics_shop``, ``analytics_products_list`` |
-| **#12** | ``RETURN_STATUS_CHANGE`` | ``returns``, ``analytics_shop`` |
+| **#11** | ``CANCELLATION_STATUS_CHANGE`` | ``orders``, ``analytics_shop`` |
+| **#12** | ``RETURN_STATUS_CHANGE`` | ``returns``, ``orders``, ``analytics_shop`` |
 | **#27** | ``INVENTORY_STATUS_CHANGE`` | ``inventory``, ``products``, ``analytics_shop`` |
 | **#39** | ``ACTIVITY_STATUS_CHANGE`` | ``promotion_activity`` (from payload hint), ``analytics_shop`` |
 | **#67** | ``REFUND_SUCCESS`` | ``returns``, ``orders``, ``analytics_shop`` |

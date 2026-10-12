@@ -39,6 +39,7 @@ MATERIAL_TYPES = (
     "ORDER_STATUS_CHANGE",  # 1
     "REVERSE_STATUS_UPDATE",  # 2
     "PRODUCT_STATUS_CHANGE",  # 5
+    "CANCELLATION_STATUS_CHANGE",  # 11 (replaces legacy 2 with 12)
     "RETURN_STATUS_CHANGE",  # 12
     "INVENTORY_STATUS_CHANGE",  # 27
     "ACTIVITY_STATUS_CHANGE",  # 39
@@ -49,7 +50,6 @@ MATERIAL_TYPES = (
 NON_MATERIAL_TYPES = (
     "RECIPIENT_ADDRESS_UPDATE",  # 3
     "PACKAGE_UPDATE",  # 4
-    "CANCELLATION_STATUS_CHANGE",  # 11
     "FBT_INVENTORY_UPDATE",  # 24
 )
 
@@ -86,7 +86,7 @@ def material_env(monkeypatch):
 
 class TestMaterialCatalogScope:
     def test_locked_material_catalog_ids(self):
-        assert MATERIAL_CATALOG_IDS == frozenset({1, 2, 5, 12, 27, 39, 67, 68})
+        assert MATERIAL_CATALOG_IDS == frozenset({1, 2, 5, 11, 12, 27, 39, 67, 68})
 
     @pytest.mark.parametrize("event_type", MATERIAL_TYPES)
     def test_material_types_in_scope(self, event_type: str):

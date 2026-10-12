@@ -26,6 +26,15 @@ ANALYTICS_API_VERSION = "202509"
 ANALYTICS_SHOP_PERFORMANCE_PER_HOUR_API_VERSION = "202510"
 ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION = "202605"
 ANALYTICS_BESTSELLING_API_VERSION = "202511"
+#: Get Shop Videos Performance Details (batch, ``video_ids``). Replaces the single-video
+#: Get Shop Video Performance Details 202509 (Analytics changelog 2026-09-28).
+ANALYTICS_VIDEO_DETAILS_API_VERSION = "202609"
+#: The retiring single-video details API; kept only as the adapter's fallback.
+ANALYTICS_VIDEO_DETAILS_LEGACY_API_VERSION = "202509"
+#: "will be retired within three months of this release (no later than 2026-12-28)".
+ANALYTICS_VIDEO_DETAILS_LEGACY_RETIREMENT = "2026-12-28"
+#: The changelog's "New batch video details (Max 500)".
+ANALYTICS_VIDEO_DETAILS_MAX_IDS = 500
 
 ORDER_SEARCH_PATH = f"/order/{ORDER_API_VERSION}/orders/search"
 ORDER_DETAIL_PATH = f"/order/{ORDER_DETAIL_API_VERSION}/orders"
@@ -88,6 +97,11 @@ ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH = (
     f"/analytics/{ANALYTICS_API_VERSION}/shop_videos/performance"
 )
 
+# Get Shop Videos Performance Details (batch): sales.overall + traffic per video.
+ANALYTICS_SHOP_VIDEOS_BATCH_PERFORMANCE_PATH = (
+    f"/analytics/{ANALYTICS_VIDEO_DETAILS_API_VERSION}/shop_videos/batch_performance"
+)
+
 # LIVE analytics — A-28 is allowlisted for poll ETL (#425); A-26/A-27/A-29 remain deferred.
 ANALYTICS_LIVE_PERFORMANCE_LIST_PATH = f"/analytics/{ANALYTICS_API_VERSION}/shop_lives/performance"
 # Doc-sample / deferred LIVE paths (do not allowlist for poll).
@@ -102,8 +116,16 @@ def analytics_shop_video_products_performance_path(video_id: str) -> str:
 
 
 def analytics_shop_video_performance_path(video_id: str) -> str:
-    """Get Shop Video Performance Details: one video's metrics per day (``granularity=1D``)."""
-    return f"/analytics/{ANALYTICS_API_VERSION}/shop_videos/{video_id}/performance"
+    """Get Shop Video Performance Details 202509 (retiring, see
+    ``ANALYTICS_VIDEO_DETAILS_LEGACY_RETIREMENT``): one video's metrics per interval.
+
+    Only the batch adapter's scope fallback calls it; new code uses
+    ``ANALYTICS_SHOP_VIDEOS_BATCH_PERFORMANCE_PATH``.
+    """
+    return (
+        f"/analytics/{ANALYTICS_VIDEO_DETAILS_LEGACY_API_VERSION}/shop_videos/"
+        f"{video_id}/performance"
+    )
 
 
 def analytics_shop_live_products_performance_path(live_id: str) -> str:

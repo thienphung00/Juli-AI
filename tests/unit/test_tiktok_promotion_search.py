@@ -19,7 +19,10 @@ from juli_backend.integrations.tiktok.constants import (
     analytics_shop_live_products_performance_path,
     analytics_shop_video_products_performance_path,
 )
-from juli_backend.integrations.tiktok.resources.analytics import AnalyticsResource
+from juli_backend.integrations.tiktok.resources.analytics import (
+    AnalyticsResource,
+    VideoPerformanceError,
+)
 from juli_backend.integrations.tiktok.resources.promotion import PromotionResource
 
 
@@ -192,14 +195,19 @@ def test_video_performance_details_is_a_production_read_get_only() -> None:
 
 
 def test_video_performance_details_asks_for_daily_intervals() -> None:
-    from juli_backend.integrations.tiktok.constants import analytics_shop_video_performance_path
+    from juli_backend.integrations.tiktok.constants import (
+        ANALYTICS_SHOP_VIDEOS_BATCH_PERFORMANCE_PATH,
+    )
 
     resource, client = _analytics()
-    resource.get_video_performance(
-        video_id="v1", start_date_ge="2026-08-08", end_date_lt="2026-10-07"
-    )
+    # The fake client answers {}: no row for v1, so the adapter refuses it.
+    with pytest.raises(VideoPerformanceError):
+        resource.get_video_performance(
+            video_id="v1", start_date_ge="2026-08-08", end_date_lt="2026-10-07"
+        )
     [(kind, path, kwargs)] = client.calls
-    assert (kind, path) == ("GET", analytics_shop_video_performance_path("v1"))
+    assert (kind, path) == ("GET", ANALYTICS_SHOP_VIDEOS_BATCH_PERFORMANCE_PATH)
+    assert kwargs["params"]["video_ids"] == "[v1]"
     assert kwargs["params"]["granularity"] == "1D"
     assert kwargs["params"]["start_date_ge"] == "2026-08-08"
     assert kwargs["params"]["end_date_lt"] == "2026-10-07"

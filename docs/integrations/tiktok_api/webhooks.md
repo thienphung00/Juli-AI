@@ -78,14 +78,14 @@ Workflow mapping: `docs/product/execution_layer.md` — Webhook catalog in use
 | 1 | `ORDER_STATUS_CHANGE` | `tiktok.order_status_change` | Process Order (5) | Yes |
 
 
-| 2 | `REVERSE_STATUS_UPDATE` | `tiktok.reverse_status_update` | Request 8a/8b/8c intake | **CONFIRMED** |
+| 2 | `REVERSE_STATUS_UPDATE` | `tiktok.reverse_status_update` | Request 8a/8b/8c intake — **legacy v1**, not in the docv2 webhook list; replaced by 11 + 12 (see `docs/runbooks/apiwatch.md`) | **CONFIRMED** (legacy) |
 | 3 | `RECIPIENT_ADDRESS_UPDATE` | `tiktok.recipient_address_update` | Process Order (5) | Yes |
 | 4 | `PACKAGE_UPDATE` | `tiktok.package_update` | Split Package (6) | Yes |
 | 5 | `PRODUCT_STATUS_CHANGE` | `tiktok.product_status_change` | Hero Product (1), Optimize (2) | Yes |
 | 6 | `SELLER_DEAUTHORIZATION` | `tiktok.account.lifecycle` | Account — pause automations | Yes |
 | 7 | `UPCOMING_AUTHORIZATION_EXPIRATION` | `tiktok.account.lifecycle` | Account — re-auth prompt | **CONFIRMED** |
 | 11 | `CANCELLATION_STATUS_CHANGE` | `tiktok.cancellation_status_change` | Request Cancellation (8a) | **CONFIRMED** |
-| 12 | `RETURN_STATUS_CHANGE` | `tiktok.returns.raw` | Request Return (8b) | **CONFIRMED** |
+| 12 | `RETURN_STATUS_CHANGE` | `tiktok.returns.raw` | Request Return (8b), Refund-only (8c) | **CONFIRMED** |
 | 15 | `PRODUCT_INFORMATION_CHANGE` | `tiktok.product_information_change` (no ETL) | Product history re-read + diff (P23, D30.4) | Yes |
 | 16 | `PRODUCT_CREATION` | `tiktok.product_creation` (no ETL) | Product history baseline / creation (P23) | Yes |
 | 18 | `PRODUCT_CATEGORY_CHANGE` | `tiktok.product_category_change` (no ETL) | Product history category change (P23) | Yes |

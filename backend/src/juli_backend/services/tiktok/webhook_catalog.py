@@ -40,6 +40,12 @@ PHASE2_CATALOG: dict[int, CatalogEntry] = {
         ("ORDER_STATUS_CHANGE",),
         ("process_order_5",),
     ),
+    # Legacy (API v1) webhook: its only page is the docv1 "Reverse Status Update"
+    # (tagged ``v1_deprecated``, last edited 2024-01-29); the docv2 webhook list
+    # has no type 2. API 202309 (2023-09-19) split it into 11 (cancellation) and
+    # 12 (return / refund-only). Kept so a shop still subscribed is routed as
+    # before; 11 and 12 below carry its workflows and fetches. See
+    # ``LEGACY_SUPERSEDED_BY`` and docs/runbooks/apiwatch.md ("Đã xử lý").
     2: CatalogEntry(
         2,
         "reverse_status_update",
@@ -89,15 +95,18 @@ PHASE2_CATALOG: dict[int, CatalogEntry] = {
         "tiktok.cancellation_status_change",
         ("CANCELLATION_STATUS_CHANGE",),
         ("prevent_cancellation_8a",),
-        confirmed=False,
+        # Payload ``type: 11`` per docv2 page 11-cancellation-status-change.
+        confirmed=True,
     ),
     12: CatalogEntry(
         12,
         "return_status_change",
         "tiktok.returns.raw",
         ("RETURN_STATUS_CHANGE",),
-        ("prevent_return_8b",),
-        confirmed=False,
+        # ``return_type`` REFUND (refund only) arrives here too since type 2 left.
+        ("prevent_return_8b", "prevent_refund_8c"),
+        # Payload ``type: 12`` per docv2 page 12-return-status-change.
+        confirmed=True,
     ),
     21: CatalogEntry(
         21,
@@ -221,7 +230,12 @@ PHASE2_CATALOG: dict[int, CatalogEntry] = {
 PHASE2_CATALOG_IDS: tuple[int, ...] = tuple(sorted(PHASE2_CATALOG))
 
 # Material catalog types enqueue shop Analytics precompute after ingest (#532 / ADR-038).
-MATERIAL_CATALOG_IDS: frozenset[int] = frozenset({1, 2, 5, 12, 27, 39, 67, 68})
+MATERIAL_CATALOG_IDS: frozenset[int] = frozenset({1, 2, 5, 11, 12, 27, 39, 67, 68})
+#: Legacy webhook types and the documented types that replace them. 2
+#: (``REVERSE_STATUS_UPDATE``) is absent from the docv2 webhook list; a shop
+#: subscribed to 11 + 12 gets everything 2 drove (workflows 8a/8b/8c, material
+#: fetch). Unknown or legacy types are still acked 200 and stored raw.
+LEGACY_SUPERSEDED_BY: dict[int, tuple[int, ...]] = {2: (11, 12)}
 INVENTORY_CHANGED_CATALOG_ID = 68
 #: Fast track P23 (D30.4): types that trigger a product / activity re-read for the
 #: history tables (``services/product_history/webhooks.py``). 39 also keeps its

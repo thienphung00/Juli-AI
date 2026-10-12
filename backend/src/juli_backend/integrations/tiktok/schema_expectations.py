@@ -575,6 +575,45 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         ),
     ),
     Expectation(
+        # Replaces GET /analytics/202509/shop_videos/{video_id}/performance (retiring
+        # by 2026-12-28); read by the shop-diagnosis 30/30 video windows (P8-B).
+        "GET /analytics/202609/shop_videos/batch_performance",
+        "shop videos performance details",
+        expected=frozenset(
+            {
+                "videos",
+                "videos[].video_id",
+                "videos[].performance",
+                "videos[].performance.intervals",
+                "videos[].performance.intervals[].start_date",
+                "videos[].performance.intervals[].end_date",
+                "videos[].performance.intervals[].sales",
+                "videos[].performance.intervals[].sales.overall",
+                "videos[].performance.intervals[].sales.overall.gmv",
+                "videos[].performance.intervals[].sales.overall.items_sold",
+                "videos[].performance.intervals[].sales.overall.product_clicks",
+                "videos[].performance.intervals[].sales.overall.product_impressions",
+                "videos[].performance.intervals[].traffic",
+                "videos[].performance.intervals[].traffic.views",
+            }
+        ),
+        documented=frozenset(
+            {
+                "latest_available_date",
+                "videos[].error",
+                "videos[].video",
+                "videos[].performance.viewer_profile",
+                "videos[].performance.intervals[].sales.overall.ctr",
+                "videos[].performance.intervals[].sales.overall.customers",
+                "videos[].performance.intervals[].sales.overall.gpm",
+                "videos[].performance.intervals[].traffic.comments",
+                "videos[].performance.intervals[].traffic.likes",
+                "videos[].performance.intervals[].traffic.new_followers",
+                "videos[].performance.intervals[].traffic.shares",
+            }
+        ),
+    ),
+    Expectation(
         "GET /analytics/202509/shop_skus/performance",
         "sku performance list",
         expected=frozenset(

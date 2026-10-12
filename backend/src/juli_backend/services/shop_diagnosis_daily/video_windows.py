@@ -18,7 +18,11 @@ snapshot (``videos/videos.json``) has one 60-day total per video, not two window
   ``granularity`` = ``ALL`` | ``1D``; each ``performance.intervals[]`` has its own
   ``start_date`` / ``end_date`` and ``sales.overall.{product_impressions,
   product_clicks, ctr, gmv, items_sold}`` plus ``traffic.views`` -- but no SKU
-  orders.
+  orders. Retiring by 2026-12-28 (Analytics changelog 2026-09-28): since then
+  ``resources.analytics.get_video_performance`` reads the batch
+  ``GET /analytics/202609/shop_videos/batch_performance`` (same fields under
+  ``videos[].performance``) and returns them in this 202509 shape; it falls back
+  to the 202509 call only on a scope refusal, until the retirement date.
 - ``GET .../shop_videos/{video_id}/products/performance``: also date-ranged
   (required); per product GMV and units only in the spec.
 
