@@ -64,6 +64,11 @@ def local_midnight_utc(day: date) -> datetime:
     return start.astimezone(UTC).replace(tzinfo=None)
 
 
+def plain_decimal(value: Decimal) -> str:
+    """``72000`` / ``72000.5`` -- never ``7.2E+4``."""
+    return format(value.normalize(), "f")
+
+
 def _price_text(value: object) -> str | None:
     if value is None or value == "":
         return None
@@ -72,7 +77,7 @@ def _price_text(value: object) -> str | None:
         if value is None:
             return None
     try:
-        return str(Decimal(str(value)).normalize())
+        return plain_decimal(Decimal(str(value)))
     except (InvalidOperation, ValueError):
         return None
 
@@ -326,6 +331,7 @@ __all__ = [
     "local_day",
     "local_midnight_utc",
     "normalize_detail",
+    "plain_decimal",
     "prices_moved",
     "sha256_text",
     "skus_of",

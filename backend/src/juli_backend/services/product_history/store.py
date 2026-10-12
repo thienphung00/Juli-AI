@@ -41,6 +41,7 @@ from juli_backend.services.product_history.normalize import (
     diff,
     epoch_to_naive_utc,
     local_day,
+    plain_decimal,
     sha256_text,
 )
 
@@ -151,7 +152,7 @@ def _same_price(after: Any, new: NormalizedProduct) -> bool:
         if not isinstance(item, Mapping):
             return False
         try:
-            wanted = str(Decimal(str(item.get("amount"))).normalize())
+            wanted = plain_decimal(Decimal(str(item.get("amount"))))
         except (InvalidOperation, ValueError):
             return False
         if current.get(str(item.get("sku_id"))) != wanted:

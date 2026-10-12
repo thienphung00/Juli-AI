@@ -419,6 +419,9 @@ async def _load_context(session: AsyncSession, run_id: uuid.UUID) -> tuple[Workf
     product = await session.get(Product, run.product_id)
     if product is None:
         raise LookupError(f"products row not found for product_id={run.product_id}")
+    # Fast track P23 (D30.1c): the run's execution baseline, before the runner
+    # starts (a resume finds it already stored: one cheap read, no new row).
+    await _capture_execution_baseline(run)
     return run, product
 
 
@@ -955,7 +958,7 @@ async def _emit_crash_terminal_event(
 
 
 async def _capture_execution_baseline(run: WorkflowRun) -> None:
-    """Fast track P23 (D30.1c): the run's ``execution`` baseline, before the runner starts.
+    """Fast track P23 (D30.1c): the run's ``execution`` baseline (from ``_load_context``).
 
     Its own shop-scoped session, committed on its own, so it can never touch the
     run's transaction; any failure is logged and the run goes on.
@@ -990,7 +993,6 @@ async def _run_agent_workflow_async(run_id: str) -> None:
         ):
             try:
                 run, product = await _load_context(session, uuid.UUID(run_id))
-                await _capture_execution_baseline(run)
                 runner = await _construct_runner(session, sync_session, run, product)
                 await runner.run(run.id, product_ref=product.tiktok_product_id)
                 await session.commit()
