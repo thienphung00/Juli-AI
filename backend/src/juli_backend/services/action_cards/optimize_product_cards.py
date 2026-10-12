@@ -99,6 +99,7 @@ from juli_backend.services.action_cards.subjects import (
 )
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.daily_funnel import (
+    ChannelTraffic,
     ProductDay,
     funnel_evidence,
     last_window,
@@ -118,6 +119,7 @@ from juli_backend.services.optimize_product.eligibility import (
     stored_product_gift_reason,
 )
 from juli_backend.services.optimize_product.funnel import ProductFunnel
+from juli_backend.services.optimize_product.kpi_channel import CHANNEL_TOTAL, channel_days
 from juli_backend.services.optimize_product.listing_signals import Evidence, EvidenceSource
 from juli_backend.services.optimize_product.prediction import CalibrationStats
 
@@ -192,6 +194,39 @@ def _a34_cart(row: AnalyticsPerformanceInterval) -> tuple[Decimal | None, Decima
     if add_cart is None or clicks is None:
         return None, None
     return add_cart, clicks
+
+
+#: A-33 content types P1 keeps under ``traffic_breakdown`` / ``sales_breakdown`` (D32).
+_CONTENT_TYPES: tuple[str, ...] = ("PRODUCT_CARD", "VIDEO", "LIVE")
+
+
+def _channel_traffic(row: AnalyticsPerformanceInterval) -> dict[str, ChannelTraffic]:
+    """D32: the row's per-content-type traffic (A-33 breakdowns); ``{}`` without one.
+
+    Clicks are the mapper's ``round(impressions × ctr)``; a content type with
+    impressions but no CTR has no click count and is left out (unknown, not 0).
+    """
+    traffic = row.traffic_breakdown if isinstance(row.traffic_breakdown, dict) else {}
+    sales = row.sales_breakdown if isinstance(row.sales_breakdown, dict) else {}
+    out: dict[str, ChannelTraffic] = {}
+    for key in _CONTENT_TYPES:
+        block = traffic.get(key)
+        if not isinstance(block, dict):
+            continue
+        impressions = _optional_dec(block.get("impressions"))
+        clicks = _optional_dec(block.get("clicks"))
+        if impressions is None or clicks is None:
+            continue
+        sale = sales.get(key)
+        gmv = _optional_dec(sale.get("gmv")) if isinstance(sale, dict) else None
+        out[key] = ChannelTraffic(impressions=impressions, clicks=clicks, gmv=gmv)
+    if out:
+        # A content type with sales but no traffic block: its GMV, zero traffic.
+        for key in _CONTENT_TYPES:
+            sale = sales.get(key)
+            if key not in out and isinstance(sale, dict) and key not in traffic:
+                out[key] = ChannelTraffic(gmv=_optional_dec(sale.get("gmv")))
+    return out
 
 
 async def latest_product_analytics_day(
@@ -276,6 +311,7 @@ async def load_product_days(
                 gmv=_dec(product_row.gmv),
                 add_to_cart=add_cart,
                 cart_clicks=cart_clicks,
+                channels=_channel_traffic(product_row),
             )
         )
     for series in out.values():
@@ -557,6 +593,8 @@ def d29_payload(proposal: CardProposal) -> dict[str, Any]:
             "window_days": kpi.window_days,
             "low_data": kpi.low_data,
             "day14_only": kpi.day14_only,
+            # D32: the channel the KPI is read and measured on ("total" = all).
+            "channel": kpi.channel,
         },
         "gmv_estimate": {"per_month_min": float(round(low)), "per_month_max": float(round(high))},
         "sibling_cards": proposal.sibling_cards,
@@ -1114,6 +1152,17 @@ def _diagnosis(card: ActionCard) -> dict:
     return diagnosis if isinstance(diagnosis, dict) else {}
 
 
+def _kpi_channel(card: ActionCard) -> str:
+    """D32: the channel a stored card's KPI is read on; ``total`` when it has none."""
+    try:
+        payload = json.loads(card.recommendation_payload or "{}")
+    except json.JSONDecodeError:
+        return CHANNEL_TOTAL
+    kpi = payload.get("kpi") if isinstance(payload, dict) else None
+    channel = kpi.get("channel") if isinstance(kpi, dict) else None
+    return str(channel) if isinstance(channel, str) and channel else CHANNEL_TOTAL
+
+
 def _rate(funnel: ProductFunnel, key: str) -> Decimal | None:
     window = funnel.current
     return {"ctr": window.ctr, "ctor": window.ctor, "aov": window.aov}.get(key)
@@ -1236,6 +1285,16 @@ async def withdraw_unranked_cards(
                 if op_plan is not None and tiktok_id is not None
                 else None
             )
+            channel = _kpi_channel(card)
+            if channel != CHANNEL_TOTAL and op_plan is not None and tiktok_id is not None:
+                # D32: "already at target" compares the KPI's own channel.
+                funnel = product_funnel(
+                    str(tiktok_id),
+                    "",
+                    channel_days(op_plan.days.get(str(tiktok_id), []), channel),
+                    as_of=op_plan.as_of,
+                    config=StageDiagnosisConfig(),
+                )
             why = invalid_reason(
                 card,
                 product=product,

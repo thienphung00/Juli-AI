@@ -162,6 +162,29 @@ function unitOfMetric(metric: string | null | undefined): KpiUnit {
 
 const isNum = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
+/** D32: seller copy for the channel a KPI is measured on (no backend terms). */
+const KPI_CHANNEL_LABELS: Readonly<Record<string, string>> = {
+  product_card: "đo trên kênh Thẻ sản phẩm",
+  video: "đo trên kênh Video",
+  live: "đo trên kênh LIVE",
+  total: "đo trên tất cả kênh",
+};
+
+/** D32: "đo trên kênh Thẻ sản phẩm" / "đo trên tất cả kênh"; null for a card from before D32. */
+export function kpiChannelText(channel: string | null | undefined): string | null {
+  if (!channel) return null;
+  return KPI_CHANNEL_LABELS[channel] ?? KPI_CHANNEL_LABELS.total;
+}
+
+/** P23 + D32: "30 ngày · đo trên kênh Thẻ sản phẩm"; the channel alone without a window. */
+export function kpiWindowText(kpi: CardKpiTarget | null | undefined): string | null {
+  const days = kpi?.window_days;
+  const window = isNum(days) && days > 0 ? `${days} ngày` : null;
+  const channel = kpiChannelText(kpi?.channel);
+  if (window && channel) return `${window} · ${channel}`;
+  return window ?? channel;
+}
+
 /** "3,8–4,4 %", "182k–205k ₫", "9.900–10.400". */
 export function kpiRangeText(min: number, max: number, unit: KpiUnit): string {
   if (unit === "vnd") return `${compactVndNumber(min)}–${compactVndNumber(max)} ₫`;
@@ -324,7 +347,6 @@ function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardV
   const metric = card.target_metric ?? card.kpi?.metric ?? null;
   const productKey =
     text(item.recommendation.diagnosis?.tiktok_product_id) ?? card.product_title ?? text(item.recommendation.diagnosis?.product_title);
-  const windowDays = card.kpi?.window_days;
   return {
     id: item.id,
     sku,
@@ -351,7 +373,7 @@ function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardV
     content: contentView(card),
     quickScan: quickScanView(card),
     confidence: confidenceView(card.confidence),
-    kpiWindow: isNum(windowDays) && windowDays > 0 ? `${windowDays} ngày` : null,
+    kpiWindow: kpiWindowText(card.kpi),
     siblingKey: metric && productKey ? `${productKey}::${metric}` : null,
     targetMetricLabel: metric ? (TARGET_METRIC_LABELS[metric] ?? metric.toUpperCase()) : null,
     siblingCards: isNum(card.sibling_cards) && card.sibling_cards > 0 ? card.sibling_cards : 0,

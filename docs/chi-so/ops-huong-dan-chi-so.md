@@ -174,6 +174,22 @@ Lưu ý: Mô phỏng so mục tiêu với dao động của MỘT khoảng (dao 
    mục tiêu hiện dạng khoảng, Độ tin cậy Thấp, chỉ chốt ở ngày 14.
 7. **Ưu tiên sản phẩm có Lưu lượng ổn định** khi xếp hạng; Quality Score và dự đoán hiệu quả là thuật
    toán nội bộ, chỉ lộ ra qua thứ hạng thẻ, Độ tin cậy và khoảng mục tiêu.
+8. **Kênh đo (D32).** Chỉ số mục tiêu, khoảng thích ứng, dao động trung bình, mức kẹp KPI, Độ tin
+   cậy, mức tham chiếu, GMV dự kiến và kết quả ngày 7 / ngày 14 đều tính trên **kênh mà thay đổi tác
+   động**: Ảnh bìa, Tiêu đề, Mô tả → Thẻ sản phẩm (gồm tab Cửa hàng); Giảm giá, Flash sale, Giảm phí vận
+   chuyển, Mua nhiều giảm nhiều → tất cả kênh. Dữ liệu theo kênh là lượt hiển thị + CTR (và GMV) mỗi
+   ngày của TikTok theo loại nội dung; TikTok không trả đơn hàng theo kênh, nên CTOR và AOV luôn tính
+   trên tất cả kênh. Khi kênh có ít hơn Dữ liệu tối thiểu lượt nhấp trên khoảng dài nhất (hoặc ngày đó
+   không có số theo kênh), Juli dùng tất cả kênh và thẻ ghi "đo trên tất cả kênh"; ngược lại thẻ ghi
+   "đo trên kênh Thẻ sản phẩm". Trên một kênh, mức tham chiếu là trung vị của shop **trên kênh đó** và
+   mức trước đây của sản phẩm trên kênh đó (chuẩn ngành hàng là số tất cả kênh nên không dùng); Độ tin
+   cậy theo lượt nhấp và CV lượt hiển thị của kênh. GMV/ngày của sản phẩm vẫn phải giữ trong dao động
+   (kiểm tra trên tất cả kênh). Video và LIVE là thẻ nội dung riêng, đo trên luồng của chúng.
+
+**Ví dụ kênh đo (số giả lập):** một sản phẩm bán qua Thẻ sản phẩm (đều) và Video (CTR mỗi ngày nhảy
+0,5–4,5 %). Thẻ Ảnh bìa: trên tất cả kênh CTR 2,55 %, dao động ±7,2 % → mục tiêu kẹp 2,74–3,10 %; trên
+Thẻ sản phẩm CTR 2,96 %, dao động ±1,6 % → mục tiêu kẹp 3,00–3,10 %. Khoảng hẹp hơn nên một thay đổi
+nhỏ của ảnh bìa đã đo được, và lượt nhấp video không che mất kết quả.
 
 **Ví dụ khoảng mục tiêu "3,22 % → 3,8–4,4 %":** CTR hiện tại 3,22 %, dao động trung bình ±18 %
 (= ±0,58 điểm). Khoảng cho phép: 3,22 + 0,58 = 3,80 % đến 3,22 + 3 × 0,58 = 4,96 %. Dự đoán hiệu quả

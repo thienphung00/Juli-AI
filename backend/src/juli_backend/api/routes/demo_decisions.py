@@ -308,6 +308,9 @@ class DemoDecisionKpi(BaseModel):
     window_days: int
     low_data: bool = False
     day14_only: bool = False
+    #: D32: the channel the KPI is read and measured on -- "product_card" /
+    #: "video" / "live", or "total" (all channels; also every pre-D32 card).
+    channel: str = "total"
 
 
 class DemoDecisionGmvEstimate(BaseModel):

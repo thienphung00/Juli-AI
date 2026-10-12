@@ -86,7 +86,7 @@ function ConfidencePill({ card }: { readonly card: CardView }) {
   );
 }
 
-/** P23 (D29.1): the KPI's window, "· 30 ngày". */
+/** P23 (D29.1) + D32: the KPI's window and channel, "· 30 ngày · đo trên kênh Thẻ sản phẩm". */
 function KpiWindow({ card }: { readonly card: CardView }) {
   if (!card.kpiWindow) return null;
   return (

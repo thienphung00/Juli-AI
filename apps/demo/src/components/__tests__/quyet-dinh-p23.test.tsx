@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { cardView, gmvRangeText, groupSiblings, kpiTargetTexts } from "../../lib/quyet-dinh/card-model";
+import { cardView, gmvRangeText, groupSiblings, kpiChannelText, kpiTargetTexts, kpiWindowText } from "../../lib/quyet-dinh/card-model";
 import { groupDecisions } from "../../lib/quyet-dinh/grouping";
 import { day14Steps, externalChangeLines, finalBox, measureHead } from "../../lib/quyet-dinh/measure-model";
 import type { Measurement, P10DecisionItem, RecommendationCardPayload } from "../../lib/quyet-dinh/p10-types";
@@ -132,6 +132,17 @@ describe("P23 card: confidence, KPI range, window, GMV range", () => {
     expect(card).toHaveTextContent("3,22 %");
     expect(card).toHaveTextContent("4,57 %");
     expect(card).toHaveTextContent("· 30 ngày");
+  });
+
+  it("D32: the window note names the channel the KPI is measured on", () => {
+    renderCard(cardView(item("1", { ...P23, kpi: { ...P23.kpi!, channel: "product_card" } })));
+    expect(screen.getByTestId("kpi-window")).toHaveTextContent("· 30 ngày · đo trên kênh Thẻ sản phẩm");
+    expect(kpiWindowText({ ...P23.kpi!, channel: "total" })).toBe("30 ngày · đo trên tất cả kênh");
+    expect(kpiWindowText({ ...P23.kpi!, window_days: null, channel: "video" })).toBe("đo trên kênh Video");
+    // A card from before D32 carries no channel: the note stays the window alone.
+    expect(kpiWindowText(P23.kpi)).toBe("30 ngày");
+    expect(kpiChannelText(null)).toBeNull();
+    expect(kpiChannelText("live")).toBe("đo trên kênh LIVE");
   });
 
   it("without the new fields the card looks as before", () => {

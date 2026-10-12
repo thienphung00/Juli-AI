@@ -605,3 +605,29 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       endpoints Juli calls. At runtime every client (TikTok, Shopee, the connector)
       reports schema drift (missing or unexpected fields) instead of failing silently;
       Shopee push 5 `shopee_updates` is logged as a platform notice.
+
+- **D32** — A card's KPI is set and measured on the channel its lever acts on (decision S24C,
+  fast track P27, 2026-10-12). Context: D29 read the target metric over ALL channels, so a cover
+  image change (seen only on the product card) was measured against CTR diluted by Video / LIVE
+  traffic it cannot move, and the band of that mixture was wide (a real card showed "▲ 12–39 %").
+  1. **Lever → channel:** Ảnh bìa, Tiêu đề, Mô tả → Thẻ sản phẩm (A-33 `PRODUCT_CARD`: search,
+     recommendation, shop page, Shop Tab); Giảm giá, Flash sale, Giảm phí vận chuyển, Mua nhiều
+     giảm nhiều → all channels (a price shows everywhere). Video / LIVE stay the content cards'
+     (P14-E, already read on their own stream). Map: `optimize_product/kpi_channel.LEVER_CHANNEL`.
+  2. **What is per channel:** the stored A-33 breakdown (`traffic_breakdown` impressions + CTR →
+     clicks, `sales_breakdown` GMV) per product-day — so Lượt hiển thị and CTR. No per-channel SKU
+     orders are stored, so CTOR and AOV stay all-channel (ADR-106 Amendment 2).
+  3. **On the channel:** the adaptive window (D29.1), the window-mean band (1.2816 × stdev / √n /
+     mean), the KPI clamp (kpi_min..kpi_max × band), the reference (the channel's shop median and
+     the product's earlier level on it; the all-channel category benchmark is not used), "Độ tin
+     cậy" (the channel's clicks and impressions CV), the GMV estimate (the channel's GMV/day), the
+     "already at target" withdrawal, the pre-D29 re-score, and the day-7 / day-14 verdicts,
+     strength and "target reached". The GMV-first trigger and the decomposition (D29.2) and the
+     guard bands + GMV hold (D29.8/9) stay product-wide.
+  4. **Fallback:** when the channel window is "ít dữ liệu" (< Dữ liệu tối thiểu clicks on the
+     longest window) or the product has no breakdown rows, the KPI uses all channels and
+     `kpi.channel = "total"`; otherwise `kpi.channel = "product_card"`. A card from before D32
+     has no `kpi.channel` and is measured on all channels as before.
+  5. **Copy:** the card's window note reads "· 30 ngày · đo trên kênh Thẻ sản phẩm" or "· 30 ngày ·
+     đo trên tất cả kênh"; the Đo lường target reads "CTR · đo trên kênh Thẻ sản phẩm"; an
+     all-channel card's KPI label is the metric alone ("CTOR"), no longer "CTOR - Thẻ sản phẩm".

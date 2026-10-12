@@ -257,13 +257,34 @@ def _status(
 _KPI_UNITS: Mapping[str, str] = {"aov": "vnd", "impressions": "count"}
 
 
+#: D32: a KPI read on all channels names the metric alone (not "Thẻ sản phẩm").
+_KPI_LABELS_ALL_CHANNELS_VI: Mapping[str, str] = {
+    "ctr": "CTR",
+    "ctor": "CTOR",
+    "aov": "AOV (SKU)",
+    "impressions": "Lượt hiển thị",
+}
+
+
+def _main_kpi_label(key: str, channel: object) -> str:
+    """The card's KPI label; D32 names the channel the KPI is measured on.
+
+    A card from before D32 (no ``channel``) keeps its label.
+    """
+    if channel == "total":
+        return _KPI_LABELS_ALL_CHANNELS_VI[key]
+    if channel in ("video", "live"):
+        return f"{_KPI_LABELS_ALL_CHANNELS_VI[key]} - {'Video' if channel == 'video' else 'LIVE'}"
+    return _KPI_LABELS_VI[key]
+
+
 def _main_kpi(diagnosis: Mapping[str, Any]) -> dict[str, Any]:
     basis = diagnosis.get("recoverable_gmv_basis")
     if isinstance(basis, Mapping) and basis.get("stage_rate") in _KPI_LABELS_VI:
         key = str(basis["stage_rate"])
         return {
             "key": key,
-            "label": _KPI_LABELS_VI[key],
+            "label": _main_kpi_label(key, basis.get("channel")),
             "current": _num(basis.get("current_rate")),
             "target": _num(basis.get("reference_rate")),
             "unit": _KPI_UNITS.get(key, "ratio"),

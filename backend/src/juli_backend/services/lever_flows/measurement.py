@@ -33,6 +33,12 @@ description, cover image) or whose Seller Center promotion Juli verified:
   label but ``chua_ket_luan`` moves the lever's calibration (realised ÷ expected,
   0.5 until the first reading) a quarter of the way to this run's ratio
   (clamped to 0..2).
+- **Channel (D32).** A card whose ``kpi.channel`` is a channel (``product_card``)
+  reads its TARGET metric -- before / after values, the 1-band verdicts, the
+  strength and "target reached" -- on that channel's daily traffic
+  (``traffic_breakdown``), the same series its KPI was set on; GMV, the guard
+  bands and the data-sufficiency checks stay all-channel (the product's GMV must
+  hold). The target label names the channel ("CTR · đo trên kênh Thẻ sản phẩm").
 - **Strength (D31.7).** With a day-14 verdict, ``verdict.strength`` grades the
   target metric's change (post vs pre window mean, % of pre) against both
   windows' window-mean bands combined: ``clear`` / ``likely`` / ``noise``
@@ -71,6 +77,12 @@ from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue
 from juli_backend.services import shop_rules
 from juli_backend.services.change_strength import change_strength
+from juli_backend.services.optimize_product.kpi_channel import (
+    CHANNEL_METRICS,
+    CHANNEL_TOTAL,
+    CONTENT_TYPE,
+    measured_on_vi,
+)
 from juli_backend.services.run_changes.default_bands import default_bands, effective_bands
 from juli_backend.services.shop_rules.diag_tunables import diag_tunables
 
@@ -204,8 +216,54 @@ def _dec(value: object) -> Decimal:
     return Decimal(str(value)) if value is not None else Decimal(0)
 
 
+@dataclass(frozen=True)
+class ChannelRow:
+    """One product-day projected onto one channel (D32): traffic only, no orders."""
+
+    start_date: date
+    impressions: Decimal
+    clicks: Decimal
+    sku_orders: Decimal | None = None
+    items_sold: Decimal | None = None
+    gmv: Decimal | None = None
+    ctr: Decimal | None = None
+    conversion_rate: Decimal | None = None
+    click_to_order_rate: Decimal | None = None
+
+
+def channel_rows(rows: Iterable[AnalyticsPerformanceInterval], channel: str) -> list[ChannelRow]:
+    """The rows' ``channel`` traffic (A-33 ``traffic_breakdown``), one per stored day.
+
+    A day stored with a breakdown but without this content type showed nothing on
+    it (zeros); a day with no breakdown at all, or whose content type has no click
+    count, is unknown and left out.
+    """
+    key = CONTENT_TYPE.get(channel)
+    if key is None:
+        return []
+    out: list[ChannelRow] = []
+    for row in rows:
+        breakdown = row.traffic_breakdown if isinstance(row.traffic_breakdown, dict) else {}
+        if not any(k in breakdown for k in CONTENT_TYPE.values()):
+            continue
+        block = breakdown.get(key)
+        if block is None:
+            out.append(ChannelRow(row.start_date, Decimal(0), Decimal(0)))
+            continue
+        if not isinstance(block, dict) or block.get("clicks") is None:
+            continue
+        out.append(
+            ChannelRow(
+                row.start_date,
+                _dec(block.get("impressions")),
+                _dec(block.get("clicks")),
+            )
+        )
+    return out
+
+
 def window_totals(
-    rows: Iterable[AnalyticsPerformanceInterval], start: date, end: date
+    rows: Iterable[AnalyticsPerformanceInterval | ChannelRow], start: date, end: date
 ) -> WindowTotals:
     """Sum one product's daily rows over the inclusive ``[start, end]``."""
     picked = [row for row in rows if start <= row.start_date <= end]
@@ -289,6 +347,8 @@ class CardTarget:
     expected_gmv_per_day: Decimal | None
     #: D29.10: a volatile product's card is judged at day 14 only.
     day14_only: bool = False
+    #: D32: the channel its KPI was set on; ``None`` for a card written before D32.
+    channel: str | None = None
 
 
 def card_target(card: ActionCard | None) -> CardTarget:
@@ -315,6 +375,7 @@ def card_target(card: ActionCard | None) -> CardTarget:
         return None if value is None else Decimal(str(value))
 
     kpi_block = payload.get("kpi") if isinstance(payload, Mapping) else None
+    channel = kpi_block.get("channel") if isinstance(kpi_block, Mapping) else None
     return CardTarget(
         lever=str(lever["code"]) if lever.get("code") else None,
         kpi_key=str(kpi_key) if kpi_key in KPI_METRIC else None,
@@ -322,6 +383,7 @@ def card_target(card: ActionCard | None) -> CardTarget:
         target=dec(basis.get("reference_rate")),
         expected_gmv_per_day=dec(diagnosis.get("recoverable_gmv_per_day")),
         day14_only=bool(kpi_block.get("day14_only")) if isinstance(kpi_block, Mapping) else False,
+        channel=str(channel) if isinstance(channel, str) and channel else None,
     )
 
 
@@ -529,10 +591,10 @@ def final_label(
 
 
 def daily_metric_series(
-    rows: Iterable[AnalyticsPerformanceInterval], start: date, end: date
+    rows: Iterable[AnalyticsPerformanceInterval | ChannelRow], start: date, end: date
 ) -> dict[str, list[float | None]]:
     """Each band metric's value per day over ``[start, end]`` (D29.9 default bands)."""
-    by_day: dict[date, list[AnalyticsPerformanceInterval]] = {}
+    by_day: dict[date, list[AnalyticsPerformanceInterval | ChannelRow]] = {}
     for row in rows:
         if start <= row.start_date <= end:
             by_day.setdefault(row.start_date, []).append(row)
@@ -742,18 +804,35 @@ async def measure_run(
     kpi_key = target.kpi_key
     target_metric = KPI_METRIC.get(kpi_key or "")
     unit = METRIC_UNITS.get(target_metric or "", "ratio")
+    # D32: the target metric is read on the channel its KPI was set on.
+    channel = target.channel
+    on_channel = (
+        channel is not None
+        and channel != CHANNEL_TOTAL
+        and channel in CONTENT_TYPE
+        and kpi_key in CHANNEL_METRICS
+    )
+    target_rows: list[Any] = channel_rows(rows, channel) if on_channel and channel else list(rows)
+    pre_t = window_totals(target_rows, pre_start, pre_end)
+    post_t = window_totals(target_rows, day0 + timedelta(days=1), post_end)
     progress_from = (
         target.current + PROGRESS_SHARE * (target.target - target.current)
         if target.current is not None and target.target is not None
         else None
     )
+    label = _KPI_TARGET_LABEL.get(kpi_key or "", "Chỉ số mục tiêu")
+    if channel is not None and kpi_key is not None and kpi_key in _KPI_SHORT:
+        measured = channel if on_channel else CHANNEL_TOTAL
+        label = f"{_KPI_SHORT[kpi_key]} · {measured_on_vi(measured)}"
     target_body = {
-        "label": _KPI_TARGET_LABEL.get(kpi_key or "", "Chỉ số mục tiêu"),
+        "label": label,
         "current": _number(target.current, unit),
         "target": _number(target.target, unit),
         "progress_from": _number(progress_from, unit),
         "unit": unit,
     }
+    if channel is not None:
+        target_body["channel"] = channel if on_channel else CHANNEL_TOTAL
 
     configured = await shop_rules.stability_bands(session, shop_id)
     tunables = await diag_tunables(session, shop_id)
@@ -761,6 +840,10 @@ async def measure_run(
     # D29.8: success is judged against 1 window-mean band; D29.9: the guard
     # default is guard_band_mult × that band, a seller band wins.
     window_bands = default_bands(pre_series)
+    if on_channel and target_metric is not None:
+        channel_series = daily_metric_series(target_rows, pre_start, pre_end)
+        window_bands.pop(target_metric, None)
+        window_bands.update(default_bands({target_metric: channel_series[target_metric]}))
     guard_defaults = default_bands(pre_series, guard_band_mult=tunables.guard_band_mult)
     effective = effective_bands(configured, guard_defaults)
     bands: list[dict[str, Any]] = []
@@ -813,6 +896,7 @@ async def measure_run(
             window=(pre_start, day14),
             pre=pre,
             post=post,
+            target_post=post_t,
             target=target,
             target_metric=target_metric,
             confounded=confounded,
@@ -828,6 +912,8 @@ async def measure_run(
             progress_from=progress_from,
             pre=pre,
             post=post,
+            target_pre=pre_t,
+            target_post=post_t,
             bands=bands,
             band_status=band_status,
             expected=expected,
@@ -846,9 +932,10 @@ async def measure_run(
         gmv_band = window_bands.get("gmv")
         if not target.day14_only:
             post7 = window_totals(rows, day0 + timedelta(days=1), day7)
+            post7_t = window_totals(target_rows, day0 + timedelta(days=1), day7)
             verdict["day7"] = day7_verdict(
-                pre_value=pre.value(target_metric),
-                post_value=post7.value(target_metric),
+                pre_value=pre_t.value(target_metric),
+                post_value=post7_t.value(target_metric),
                 band_pct=target_band,
                 pre_gmv=pre.value("gmv"),
                 post_gmv=post7.value("gmv"),
@@ -856,8 +943,8 @@ async def measure_run(
             )
         if stage == STAGE_FINAL:
             verdict["day14"] = day14_verdict(
-                pre_value=pre.value(target_metric),
-                post_value=post.value(target_metric),
+                pre_value=pre_t.value(target_metric),
+                post_value=post_t.value(target_metric),
                 band_pct=target_band,
                 target=target.target,
                 pre_gmv=pre.value("gmv"),
@@ -865,10 +952,10 @@ async def measure_run(
                 gmv_band_pct=gmv_band,
             )
             if verdict["day14"] is not None:
-                post_series = daily_metric_series(rows, day0 + timedelta(days=1), post_end)
+                post_series = daily_metric_series(target_rows, day0 + timedelta(days=1), post_end)
                 verdict["strength"] = day14_strength(
-                    pre_value=pre.value(target_metric),
-                    post_value=post.value(target_metric),
+                    pre_value=pre_t.value(target_metric),
+                    post_value=post_t.value(target_metric),
                     pre_band_pct=target_band,
                     post_band_pct=default_bands({target_metric: post_series[target_metric]}).get(
                         target_metric
@@ -905,6 +992,8 @@ def _rows(
     progress_from: Decimal | None,
     pre: WindowTotals,
     post: WindowTotals,
+    target_pre: WindowTotals,
+    target_post: WindowTotals,
     bands: list[dict[str, Any]],
     band_status: Mapping[str, bool | None],
     expected: Decimal | None,
@@ -913,7 +1002,7 @@ def _rows(
     rows: list[dict[str, Any]] = []
     if target_metric is not None and kpi_key is not None:
         unit = METRIC_UNITS[target_metric]
-        actual = post.value(target_metric)
+        actual = target_post.value(target_metric)
         if final is not None:
             verdict, tone = LABELS_VI[final["label"]], _LABEL_TONE[final["label"]]
         elif actual is None:
@@ -928,7 +1017,7 @@ def _rows(
             {
                 "key": kpi_key,
                 "label": f"{_KPI_SHORT[kpi_key]} (chỉ số chính)",
-                "before": _number(pre.value(target_metric), unit),
+                "before": _number(target_pre.value(target_metric), unit),
                 "expected": format_value(target.target, unit),
                 "actual": _number(actual, unit),
                 "verdict": verdict,
@@ -991,6 +1080,7 @@ async def _final(
     window: tuple[date, date],
     pre: WindowTotals,
     post: WindowTotals,
+    target_post: WindowTotals,
     target: CardTarget,
     target_metric: str | None,
     confounded: bool,
@@ -1017,7 +1107,7 @@ async def _final(
         if actual is not None and expected is not None and expected > 0
         else None
     )
-    target_value = post.value(target_metric) if target_metric else None
+    target_value = target_post.value(target_metric) if target_metric else None
     reached = (
         target_value is not None and target.target is not None and target_value >= target.target
     )
@@ -1074,8 +1164,10 @@ __all__ = [
     "STAGE_DAY7",
     "STAGE_FINAL",
     "STAGE_WAITING",
+    "ChannelRow",
     "WindowTotals",
     "card_target",
+    "channel_rows",
     "current_calibration",
     "day14_strength",
     "fleet_calibration_stats",
