@@ -105,6 +105,13 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "shop_daily_products"): "tenant_direct",
     # Fast track P20 (D28.4, migration 086): shop subscription periods (append-only).
     ("public", "shop_subscription_periods"): "tenant_direct",
+    # Fast track P23 (D30.1 / D30.4, migration 087): product history, promotions,
+    # external changes (append-only except the promotion upserts) and run baselines.
+    ("public", "product_snapshots"): "tenant_direct",
+    ("public", "promotion_activities"): "tenant_direct",
+    ("public", "promotion_activity_products"): "tenant_direct",
+    ("public", "external_changes"): "tenant_direct",
+    ("public", "run_baselines"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",

@@ -419,6 +419,9 @@ async def _load_context(session: AsyncSession, run_id: uuid.UUID) -> tuple[Workf
     product = await session.get(Product, run.product_id)
     if product is None:
         raise LookupError(f"products row not found for product_id={run.product_id}")
+    # Fast track P23 (D30.1c): the run's execution baseline, before the runner
+    # starts (a resume finds it already stored: one cheap read, no new row).
+    await _capture_execution_baseline(run)
     return run, product
 
 
@@ -952,6 +955,32 @@ async def _emit_crash_terminal_event(
                 extra={"run_id": str(run_id)},
                 exc_info=True,
             )
+
+
+async def _capture_execution_baseline(run: WorkflowRun) -> None:
+    """Fast track P23 (D30.1c): the run's ``execution`` baseline (from ``_load_context``).
+
+    Its own shop-scoped session, committed on its own, so it can never touch the
+    run's transaction; any failure is logged and the run goes on.
+    """
+    from juli_backend.models.history import PHASE_EXECUTION
+    from juli_backend.services.product_history import capture_run_baseline
+
+    try:
+        async with _shop_scoped_session_factory(run.shop_id)() as baseline_session:
+            await capture_run_baseline(
+                baseline_session,
+                shop_id=run.shop_id,
+                workflow_run_id=run.id,
+                product_id=run.product_id,
+                phase=PHASE_EXECUTION,
+                action_card_id=run.action_card_id,
+            )
+            await baseline_session.commit()
+    except Exception:
+        logger.warning(
+            "run_execution_baseline_failed", extra={"run_id": str(run.id)}, exc_info=True
+        )
 
 
 async def _run_agent_workflow_async(run_id: str) -> None:

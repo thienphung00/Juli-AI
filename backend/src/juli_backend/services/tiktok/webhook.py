@@ -35,7 +35,13 @@ def should_handoff_to_etl(event_type: str, channel: str) -> bool:
     """Account/platform and deferred events skip ETL ingest."""
     if channel == ACCOUNT_LIFECYCLE_CHANNEL:
         return False
-    from juli_backend.services.tiktok.webhook_catalog import is_deferred_webhook_type
+    from juli_backend.services.tiktok.webhook_catalog import (
+        HISTORY_ONLY_CHANNELS,
+        is_deferred_webhook_type,
+    )
+
+    if channel in HISTORY_ONLY_CHANNELS:
+        return False
 
     return not is_deferred_webhook_type(event_type)
 

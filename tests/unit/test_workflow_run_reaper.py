@@ -837,6 +837,8 @@ def test_beat_schedule_has_exactly_the_eight_expected_entries():
         "ops-audit-retention",
         # Fast track P20 (D28.3): hourly system OpenAI limit 80 % e-mail check.
         "ops-openai-system-alert",
+        # Fast track P23 (D30.1): the daily product snapshot + promotion sweep.
+        "product-history-fanout",
     }
 
 

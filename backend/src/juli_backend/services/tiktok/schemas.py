@@ -28,14 +28,18 @@ class TikTokWebhookPayload(BaseModel):
     shop_id: str = Field(min_length=1)
     timestamp: int | None = None
     data: dict[str, Any] | None = None
+    #: TikTok's ``tts_notification_id`` -- one per push, the same on a redelivery.
+    notification_id: str | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> TikTokWebhookPayload:
+        notification = raw.get("tts_notification_id")
         return cls(
             type=_canonical_event_type(raw["type"]),
             shop_id=_resolve_shop_id(raw),
             timestamp=raw.get("timestamp"),
             data=raw.get("data") if isinstance(raw.get("data"), dict) else None,
+            notification_id=str(notification) if notification else None,
         )
 
 

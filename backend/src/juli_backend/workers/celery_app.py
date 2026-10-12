@@ -199,6 +199,14 @@ celery_app.conf.update(
             "task": "juli_backend.ops_openai_system_alert",
             "schedule": crontab(minute=19),
         },
+        # Fast track P23 (D30.1 / D30.4): the daily product snapshot (update_time
+        # + price reconciliation) and promotion sweep, one task per shop. 20:53
+        # UTC = 03:53 UTC+7, after the night's history extend; minute 53 is not a
+        # multiple of 5 and none of the slots above. Default queue.
+        "product-history-fanout": {
+            "task": "juli_backend.product_history_fanout",
+            "schedule": crontab(hour=20, minute=53),
+        },
     },
 )
 

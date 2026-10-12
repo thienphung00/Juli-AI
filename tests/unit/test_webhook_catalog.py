@@ -18,7 +18,6 @@ from juli_backend.services.tiktok.webhook_catalog import (
     resolve_catalog_entry,
 )
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WEBHOOKS_DOC = REPO_ROOT / "docs/integrations/tiktok_api/webhooks.md"
 
@@ -30,15 +29,35 @@ CATALOG_FIXTURES: list[tuple[int, str, str, str]] = [
     (5, "PRODUCT_STATUS_CHANGE", "product_status_change", "tiktok.product_status_change"),
     (6, "SELLER_DEAUTHORIZATION", "seller_deauthorization", "tiktok.account.lifecycle"),
     (7, "UPCOMING_AUTHORIZATION_EXPIRATION", "auth_expiration_warning", "tiktok.account.lifecycle"),
-    (11, "CANCELLATION_STATUS_CHANGE", "cancellation_status_change", "tiktok.cancellation_status_change"),
+    (
+        11,
+        "CANCELLATION_STATUS_CHANGE",
+        "cancellation_status_change",
+        "tiktok.cancellation_status_change",
+    ),
     (12, "RETURN_STATUS_CHANGE", "return_status_change", "tiktok.returns.raw"),
-    (21, "INBOUND_FBT_ORDER_STATUS_CHANGE", "inbound_fbt_order_status", "tiktok.inbound_fbt_order_status"),
+    (
+        21,
+        "INBOUND_FBT_ORDER_STATUS_CHANGE",
+        "inbound_fbt_order_status",
+        "tiktok.inbound_fbt_order_status",
+    ),
     (24, "FBT_INVENTORY_UPDATE", "fbt_inventory_update", "tiktok.fbt_inventory_update"),
     (27, "INVENTORY_STATUS_CHANGE", "inventory_status_change", "tiktok.inventory_status_change"),
-    (37, "PRODUCT_AUDIT_STATUS_CHANGE", "product_audit_status_change", "tiktok.product_audit_status_change"),
+    (
+        37,
+        "PRODUCT_AUDIT_STATUS_CHANGE",
+        "product_audit_status_change",
+        "tiktok.product_audit_status_change",
+    ),
     (39, "ACTIVITY_STATUS_CHANGE", "activity_status_change", "tiktok.activity_status_change"),
     (58, "FBT_MCF_ORDER_STATUS", "fbt_mcf_order_status", "tiktok.fbt_mcf_order_status"),
-    (64, "AFTERSALES_REQUEST_STATUS_UPDATE", "aftersales_request_status", "tiktok.aftersales_request_status"),
+    (
+        64,
+        "AFTERSALES_REQUEST_STATUS_UPDATE",
+        "aftersales_request_status",
+        "tiktok.aftersales_request_status",
+    ),
     (65, "RMA_STATUS_UPDATE", "rma_status_update", "tiktok.rma_status_update"),
     (67, "REFUND_SUCCESS", "refund_success", "tiktok.refund_success"),
     (68, "INVENTORY_CHANGED", "inventory_changed", "tiktok.inventory.raw"),
@@ -58,12 +77,16 @@ class TestPhase2CatalogRegistry:
                 7,
                 11,
                 12,
+                15,
+                16,
+                18,
                 21,
                 24,
                 27,
                 37,
                 39,
                 58,
+                63,
                 64,
                 65,
                 67,

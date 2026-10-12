@@ -75,9 +75,9 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: `078_rules_and_write_values`, P10-A onto `079_decision_reasons`,
 #: P10-B onto `080_lever_flows`, P14-C onto `081_order_cost_data`, P15 onto
 #: `082_content_analysis`, P16 onto `083_ops_console`, and P17 onto
-#: `084_onboarding_speed`, P18 onto `085_ops_daily_precompute`, and P20 onto
-#: `086_ops_cost_and_terms`.
-PHONE_REVISION = "086_ops_cost_and_terms"
+#: `084_onboarding_speed`, P18 onto `085_ops_daily_precompute`, P20 onto
+#: `086_ops_cost_and_terms`, and P23 onto `087_history_and_baselines`.
+PHONE_REVISION = "087_history_and_baselines"
 
 _SCHEMA = "phone_cleanup_074"
 

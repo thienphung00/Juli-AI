@@ -86,12 +86,16 @@ Workflow mapping: `docs/product/execution_layer.md` — Webhook catalog in use
 | 7 | `UPCOMING_AUTHORIZATION_EXPIRATION` | `tiktok.account.lifecycle` | Account — re-auth prompt | **CONFIRMED** |
 | 11 | `CANCELLATION_STATUS_CHANGE` | `tiktok.cancellation_status_change` | Request Cancellation (8a) | **CONFIRMED** |
 | 12 | `RETURN_STATUS_CHANGE` | `tiktok.returns.raw` | Request Return (8b) | **CONFIRMED** |
+| 15 | `PRODUCT_INFORMATION_CHANGE` | `tiktok.product_information_change` (no ETL) | Product history re-read + diff (P23, D30.4) | Yes |
+| 16 | `PRODUCT_CREATION` | `tiktok.product_creation` (no ETL) | Product history baseline / creation (P23) | Yes |
+| 18 | `PRODUCT_CATEGORY_CHANGE` | `tiktok.product_category_change` (no ETL) | Product history category change (P23) | Yes |
 | 21 | `INBOUND_FBT_ORDER_STATUS_CHANGE` | `tiktok.inbound_fbt_order_status` | Replenish FBT (3b) | **UNKNOWN** |
 | 24 | `FBT_INVENTORY_UPDATE` | `tiktok.fbt_inventory_update` | Replenish/Clear/Return FBT | **CONFIRMED** |
 | 27 | `INVENTORY_STATUS_CHANGE` | `tiktok.inventory_status_change` | Replenish (3), Clear (4) | **CONFIRMED** |
 | 37 | `PRODUCT_AUDIT_STATUS_CHANGE` | `tiktok.product_audit_status_change` | Hero Product (1) | **CONFIRMED** |
 | 39 | `ACTIVITY_STATUS_CHANGE` | `tiktok.activity_status_change` | Activity 7a/7b/7c, Clear (4) | **CONFIRMED** |
 | 58 | `FBT_MCF_ORDER_STATUS` | `tiktok.fbt_mcf_order_status` | Process Order FBT (5B) | **CONFIRMED** |
+| 63 | `ACTIVITY_CHANGE` | `tiktok.activity_change` (no ETL) | Promotion history refresh (P23); 39 stays the fallback | **UNKNOWN** (name) |
 | 64 | `AFTERSALES_REQUEST_STATUS_UPDATE` | `tiktok.aftersales_request_status` | Request Refund (8c) | **CONFIRMED** |
 | 65 | `RMA_STATUS_UPDATE` | `tiktok.rma_status_update` | Request Return (8b) | **CONFIRMED** |
 | 67 | `REFUND_SUCCESS` | `tiktok.refund_success` | Request Refund (8c) | **CONFIRMED** |
