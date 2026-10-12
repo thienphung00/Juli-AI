@@ -779,3 +779,50 @@ def test_fujiwa_like_shop_gets_few_honest_cards():
     # The others: noise is not a fall, thin data is not a diagnosis.
     assert reasons["fw-binh-giu-nhiet"] == "d29:no_gmv_drop"
     assert reasons["fw-qua-tang"] == "d29:low_data"
+
+
+# =========================================================================== API surfaces
+
+
+def test_seller_payload_carries_the_d29_fields_but_not_the_quality_score():
+    from juli_backend.api.routes.demo_decisions import DemoDecisionRecommendation
+    from juli_backend.services.demo_decisions.read import _mask_recommendation_payload
+
+    payload = {
+        "workflow_name": "Tối ưu sản phẩm",
+        "target_metric": "aov",
+        "confidence": "low",
+        "kpi": {
+            "metric": "aov",
+            "current": 200000.0,
+            "target": 230000.0,
+            "target_min": 210000.0,
+            "target_max": 250000.0,
+            "display": "range",
+            "band_pct": 5.0,
+            "window_days": 30,
+            "low_data": False,
+            "day14_only": True,
+        },
+        "gmv_estimate": {"per_month_min": 1_000_000.0, "per_month_max": 3_000_000.0},
+        "sibling_cards": 1,
+        "quality": {"score": 70, "parts": {}, "issues": []},
+    }
+    masked = _mask_recommendation_payload(payload)
+    assert "quality" not in masked
+    model = DemoDecisionRecommendation.model_validate(masked)
+    assert model.target_metric == "aov" and model.confidence == "low"
+    assert model.kpi is not None and model.kpi.display == "range"
+    assert model.gmv_estimate is not None and model.gmv_estimate.per_month_max == 3_000_000.0
+    assert model.sibling_cards == 1
+
+
+async def test_seller_rules_carry_band_defaults(session):
+    from juli_backend.services.lever_flows import shop_band_defaults
+
+    _, shop = await make_tenant(session)
+    assert await shop_band_defaults(session, shop.id) == {}
+    await _seed_products(session, shop, {"p1": _series(30, noise=0.2, seed=9)})
+    defaults = await shop_band_defaults(session, shop.id)
+    assert {"impressions", "ctr", "conversion_rate", "ctor", "aov", "gmv"} <= set(defaults)
+    assert defaults["ctor"] == defaults["conversion_rate"] > 0
