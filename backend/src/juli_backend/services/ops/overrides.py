@@ -338,11 +338,13 @@ class CapGuardedLLMService:
 
 
 async def cap_guarded(session: AsyncSession, shop_id: uuid.UUID, inner: Any) -> Any:
+    from juli_backend.services.ops import system_cap
     from juli_backend.services.subscriptions import is_read_only
 
     return CapGuardedLLMService(
         inner,
         await openai_cap_status(session, shop_id),
         shop_id,
+        system_cap_reached=await system_cap.system_cap_reached(session),
         read_only=await is_read_only(session, shop_id),
     )

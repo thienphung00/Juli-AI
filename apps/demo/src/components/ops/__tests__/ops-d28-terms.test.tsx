@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOpsViewFetch } from "../../../lib/ops/view-fetch";
 import type { OpsMe } from "../../../lib/ops/types";
 import { TERM_PATH, TermStrip, TermStripView, termStrip } from "../../app-shell/term-strip";
+import { resetCostSystemCache } from "../ops-cost-banner";
 import { OpsTerms, extension, termPill } from "../ops-terms";
 import { MB_SHOP_ID, MB_TERMS, ME, SHOP_ID, TERMS } from "./fixtures";
 
@@ -16,6 +17,11 @@ const OPERATOR = { ...ME, role: "operator" as const, role_label: "Vận hành" }
 
 beforeEach(() => {
   window.localStorage.clear();
+  resetCostSystemCache();
+});
+
+afterEach(() => {
+  resetCostSystemCache();
 });
 
 /* -- seller strip (D28.4) ------------------------------------------------------------------ */

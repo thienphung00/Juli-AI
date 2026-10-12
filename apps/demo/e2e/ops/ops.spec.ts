@@ -206,6 +206,31 @@ test("Mô phỏng: window, ± steps, locked cells, volatility", async ({ page })
   await expect(page.getByRole("radio", { name: "30 ngày" })).toHaveAttribute("aria-checked", "true");
 });
 
+test("Chi phí: system limit, per-shop caps, confirm before save; banner on every page (D28.3)", async ({ page }) => {
+  const { puts } = await stub(page);
+  await page.goto("/ops/chi-phi");
+  await expect(page.getByRole("heading", { name: "Chi phí OpenAI · tháng 10" })).toBeVisible();
+  await expect(page.getByTestId("cost-used")).toHaveText("$41,00");
+  await expect(page.getByTestId("cost-pct")).toHaveText("82 %");
+  await expect(page.getByTestId("cost-row")).toHaveCount(2);
+  await expect(page.getByTestId("cost-row").first()).toContainText("$10,00 / tháng · riêng");
+  await expect(page.getByTestId("ops-cost-banner")).toContainText("Đã dùng 82 % giới hạn OpenAI");
+  await page.getByRole("button", { name: "Sửa giới hạn", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Sửa giới hạn OpenAI cả hệ thống?" });
+  await dialog.getByRole("button", { name: "$80" }).click();
+  await expect(dialog.getByTestId("confirm-row")).toContainText("$50,00 → $80,00");
+  await dialog.getByRole("button", { name: "Xác nhận lưu" }).click();
+  await expect(page.getByTestId("ops-toast")).toContainText("Đã lưu giới hạn · ghi 1 dòng nhật ký");
+  await page.getByRole("button", { name: "Sửa giới hạn Mỹ phẩm Thảo Nhi" }).click();
+  const shopDialog = page.getByRole("dialog", { name: "Sửa giới hạn riêng của Mỹ phẩm Thảo Nhi?" });
+  await shopDialog.getByRole("button", { name: "$20" }).click();
+  await shopDialog.getByRole("button", { name: "Xác nhận lưu" }).click();
+  await expect.poll(() => puts).toEqual([{ usd: 80 }, { usd: 20 }]);
+  // The banner is on every Ops page (one call, cached).
+  await page.getByRole("navigation", { name: "Ops" }).getByRole("link", { name: "Nhật ký" }).click();
+  await expect(page.getByTestId("ops-cost-banner")).toBeVisible();
+});
+
 test("Thời hạn: sorted rows, filters, history, extend by package with a contract number (D28.4)", async ({ page }) => {
   const { puts } = await stub(page);
   await page.goto("/ops/thoi-han");

@@ -1,8 +1,21 @@
-"""Juli Ops tab "Thời hạn" (fast track P20, DECISIONS D28.4).
+"""Juli Ops tabs "Chi phí" and "Thời hạn" (fast track P20, DECISIONS D28.3 / D28.4).
 
 Mounted beside ``api/routes/ops.py`` under ``/v1/ops`` with the same auth
 dependencies (Cloudflare Access → Supabase → active staff row → role) and the
 same PII-masking route class.
+
+Chi phí (D28.3):
+
+- ``GET  /v1/ops/costs`` (Xem+) -- the month's system OpenAI spend vs the
+  system cap, and each shop's spend vs its own cap (``is_custom`` = "· riêng").
+- ``GET  /v1/ops/costs/system`` (Xem+) -- the system figure alone: the one cheap
+  call behind the ≥ 80 % banner on every Ops page.
+- ``PUT  /v1/ops/costs/system-cap`` (Admin) ``{"usd": n}`` -- audited
+  ``openai_system_cap_set``.
+- ``PUT  /v1/ops/shops/{id}/openai-cap`` (Admin) ``{"usd": n | null}`` -- the
+  shop's ``shop_rules`` row ``openai_monthly_cap_usd`` through the existing
+  settings path (``ops_settings.update_settings``), so P15 / P16 read it;
+  ``null`` = back to the default. Audited ``openai_shop_cap_set``.
 
 Thời hạn (D28.4):
 
@@ -21,6 +34,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import date, timedelta
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -31,6 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.api.routes.ops import (
     MaskedRoute,
     OpsContext,
+    _refresh_summary_quietly,
     _shop,
     _shop_json,
     admin,
@@ -40,20 +55,150 @@ from juli_backend.database import get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ops import STAGE_LABELS, STAGE_TRIAL, OpsShopSettings
 from juli_backend.services import subscriptions
-from juli_backend.services.ops import audit, overview
+from juli_backend.services.ops import audit, overview, system_cap
+from juli_backend.services.ops import settings as ops_settings
 from juli_backend.services.ops.access import ops_role
+from juli_backend.services.shop_rules import openai_cap
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 
 ACTION_PERIOD_ADDED = "subscription_period_added"
+SHOP_CAP_STATE_OK = "ok"
+SHOP_CAP_STATE_SHOP = "shop_cap"
+SHOP_CAP_STATE_SYSTEM = "system_cap"
 
 
 async def _stages(session: AsyncSession) -> dict[uuid.UUID, str]:
     async with ops_role(session):
         rows = (await session.execute(select(OpsShopSettings))).scalars().all()
     return {r.shop_id: r.stage for r in rows}
+
+
+# -- Chi phí (D28.3) -----------------------------------------------------------------
+
+
+def _days_left_in_month(today: date) -> int:
+    first_next = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
+    return (first_next - today).days
+
+
+async def costs_body(session: AsyncSession) -> dict[str, Any]:
+    status_now = await system_cap.system_status(session)
+    stages = await _stages(session)
+    shops: list[dict[str, Any]] = []
+    for listing in await overview.list_shops(session):
+        async with with_shop_scope(session, listing.shop_id):
+            spent = await openai_cap.openai_spend_this_month(session, listing.shop_id)
+            cap = await openai_cap.openai_monthly_cap_usd(session, listing.shop_id)
+        if status_now.reached:
+            state = SHOP_CAP_STATE_SYSTEM
+        elif spent >= cap.usd:
+            state = SHOP_CAP_STATE_SHOP
+        else:
+            state = SHOP_CAP_STATE_OK
+        stage = stages.get(listing.shop_id, STAGE_TRIAL)
+        shops.append(
+            {
+                "shop_id": str(listing.shop_id),
+                "shop_name": listing.shop_name,
+                "stage": stage,
+                "stage_label": STAGE_LABELS.get(stage, stage),
+                "used_usd": float(spent),
+                "cap_usd": float(cap.usd),
+                "is_custom": not cap.is_default,
+                "state": state,
+            }
+        )
+    shops.sort(key=lambda s: (-s["used_usd"], s["shop_name"]))
+    today = subscriptions.shop_today()
+    return {
+        "system": {
+            **status_now.to_json(),
+            "alert_sent": await system_cap.alert_sent_for(session, status_now.month),
+        },
+        "warn_pct": float(system_cap.WARN_PCT),
+        "days_left_in_month": _days_left_in_month(today),
+        "default_shop_cap_usd": float(openai_cap.default_cap_usd()),
+        "seller_paused_text": system_cap.SELLER_PAUSED_VI,
+        "shops": shops,
+    }
+
+
+@router.get("/costs")
+async def ops_costs(
+    ctx: OpsContext = Depends(viewer), session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    return await costs_body(session)
+
+
+@router.get("/costs/system")
+async def ops_costs_system(
+    ctx: OpsContext = Depends(viewer), session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    status_now = await system_cap.system_status(session)
+    return {
+        "system": {
+            **status_now.to_json(),
+            "alert_sent": await system_cap.alert_sent_for(session, status_now.month),
+        }
+    }
+
+
+class CapWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    usd: float
+
+
+class ShopCapWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    usd: float | None
+
+
+@router.put("/costs/system-cap")
+async def ops_put_system_cap(
+    body: CapWrite,
+    ctx: OpsContext = Depends(admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    try:
+        await system_cap.set_system_cap(session, ctx.staff.actor, body.usd)
+    except system_cap.SystemCapError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    await session.commit()
+    return {"system": (await system_cap.system_status(session)).to_json()}
+
+
+@router.put("/shops/{shop_id}/openai-cap")
+async def ops_put_shop_cap(
+    shop_id: uuid.UUID,
+    body: ShopCapWrite,
+    ctx: OpsContext = Depends(admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """The shop's own cap via the existing settings path (``shop_rules``), audited."""
+    await _shop(session, shop_id)
+    try:
+        view = await ops_settings.update_settings(
+            session,
+            ctx.staff.actor,
+            shop_id,
+            {ops_settings.CAP_FIELD: body.usd},
+            action=system_cap.ACTION_SHOP_CAP,
+        )
+    except ops_settings.SettingsError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    await session.commit()
+    await _refresh_summary_quietly(session, shop_id)
+    override = view.overrides.get(ops_settings.CAP_FIELD)
+    return {
+        "shop_id": str(shop_id),
+        "cap_usd": override if override is not None else view.defaults[ops_settings.CAP_FIELD],
+        "is_custom": override is not None,
+    }
 
 
 # -- Thời hạn (D28.4) -----------------------------------------------------------------

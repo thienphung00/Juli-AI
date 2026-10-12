@@ -13,8 +13,10 @@ drafting / agent-run gates (``services/shop_rules/openai_cap.py``): the
 ``shop_rules`` row ``openai_monthly_cap_usd`` (written by Juli Ops), else
 ``OPENAI_MONTHLY_CAP_USD_DEFAULT`` (default 5 USD).
 
-Fast track P20 adds a refusal checked first, with its own code:
-``shop_read_only`` when the shop's term has run out past its grace (D28.4,
+Fast track P20 adds two refusals checked first, each with its own code:
+``system_cap_reached`` when the whole system's month has reached the system
+OpenAI limit (D28.3, ``services/ops/system_cap.py``), and ``shop_read_only``
+when the shop's term has run out past its grace (D28.4,
 ``services/subscriptions``).
 """
 
@@ -31,6 +33,7 @@ from juli_backend.services.shop_rules import openai_cap
 CAP_RULE_KEY = openai_cap.OPENAI_MONTHLY_CAP_USD
 
 CAP_REACHED_CODE = "cost_cap_reached"
+SYSTEM_CAP_CODE = "system_cap_reached"
 READ_ONLY_CODE = "shop_read_only"
 
 
@@ -105,13 +108,23 @@ async def check(
     """Raise ``CostCapExceeded`` unless ``spent + pending + estimate`` ≤ the cap.
 
     ``pending_usd`` is what the current analysis has spent but not stored yet.
-    Refused first, with its own code: a read-only shop (D28.4).
+    Refused first, with their own codes: a read-only shop (D28.4) and a system
+    month at its OpenAI limit (D28.3).
     """
+    from juli_backend.services.ops import system_cap
     from juli_backend.services.subscriptions import READ_ONLY_DETAIL, is_read_only
 
     if await is_read_only(session, shop_id):
         raise CostCapExceeded(
             0.0, 0.0, estimate_usd, code=READ_ONLY_CODE, message_vi=READ_ONLY_DETAIL
+        )
+    if await system_cap.system_cap_reached(session, now=now):
+        raise CostCapExceeded(
+            0.0,
+            0.0,
+            estimate_usd,
+            code=SYSTEM_CAP_CODE,
+            message_vi=system_cap.SELLER_PAUSED_VI,
         )
     current = await budget(session, shop_id, now=now)
     spent = current.spent_usd + pending_usd
@@ -124,6 +137,7 @@ __all__ = [
     "CAP_REACHED_CODE",
     "CAP_RULE_KEY",
     "READ_ONLY_CODE",
+    "SYSTEM_CAP_CODE",
     "Budget",
     "CostCapExceeded",
     "budget",

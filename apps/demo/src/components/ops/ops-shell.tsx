@@ -6,6 +6,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { OpsApiError, opsApi, type OpsApi } from "../../lib/ops/api";
 import type { OpsMe } from "../../lib/ops/types";
 import { buildGoogleAuthorizeUrl, readAuthSession } from "../../lib/supabase-auth";
+import { OpsCostBanner } from "./ops-cost-banner";
 
 /** Shared ops chrome (artboards `docs/product/design/ops/*.dc.html`). */
 
@@ -72,12 +73,13 @@ export function OpsHeader({
       </Link>
     );
   // D27.8: Mô phỏng lives only in the main nav (it opens the shop chosen in Tổng quan).
-  // D28: Tổng quan · Mô phỏng · Thời hạn · Nhân viên · Nhật ký.
+  // D28: Tổng quan · Mô phỏng · Chi phí · Thời hạn · Nhân viên · Nhật ký.
   const items = shopId
     ? [link("overview", "/ops", "Tổng quan"), link("settings", `/ops/shops/${shopId}`, "Cài đặt shop")]
     : [
         link("overview", "/ops", "Tổng quan"),
         link("simulate", "/ops/mo-phong", "Mô phỏng"),
+        link("costs", "/ops/chi-phi", "Chi phí"),
         link("terms", "/ops/thoi-han", "Thời hạn"),
         link("staff", "/ops/nhan-vien", "Nhân viên"),
         link("audit", "/ops/nhat-ky", "Nhật ký"),
@@ -105,6 +107,8 @@ export function OpsHeader({
         </span>
       ) : null}
     </header>
+    {/* D28.3: the system OpenAI limit banner on every signed-in Ops page. */}
+    {me ? <OpsCostBanner /> : null}
     </>
   );
 }

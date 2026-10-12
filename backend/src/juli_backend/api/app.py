@@ -80,7 +80,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(demo_rules_router)
     # Fast track P16 (D25): the Juli Ops console and the seller's invite accept.
     v1_router.include_router(ops_router)
-    # Fast track P20 (D28.4): Juli Ops tab Thời hạn.
+    # Fast track P20 (D28.3 / D28.4): Juli Ops tabs Chi phí and Thời hạn.
     v1_router.include_router(ops_billing_router)
     v1_router.include_router(shop_invites_router)
     app.include_router(v1_router)

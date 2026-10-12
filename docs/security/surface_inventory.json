@@ -353,6 +353,30 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/costs",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/costs/system",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/costs/system-cap",
+      "methods": [
+        "PUT"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/me",
       "methods": [
         "GET"
@@ -396,6 +420,14 @@
       "path": "/v1/ops/shops/{shop_id}/invites",
       "methods": [
         "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/openai-cap",
+      "methods": [
+        "PUT"
       ],
       "requires_auth": true,
       "tenant_scoped": false
