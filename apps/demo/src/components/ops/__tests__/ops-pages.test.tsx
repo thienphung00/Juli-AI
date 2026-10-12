@@ -160,7 +160,7 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     const ctr = screen.getByTestId("sim-cell-product_card-ctr");
     expect(within(ctr).getByTestId("trend-strength")).toHaveTextContent("Trong dao động");
     expect(within(ctr).getByTestId("cell-band")).toHaveTextContent("Dao động TB 30 ngày:");
-    expect(within(ctr).getByRole("button", { name: "Thẻ sản phẩm CTR: xem dao động mỗi ngày" })).toHaveAttribute("title", "Mỗi ngày: ±8 %");
+    expect(within(ctr).getByRole("button", { name: "Thẻ sản phẩm CTR: xem dao động mỗi ngày" })).toHaveAttribute("title", "Dao động mỗi ngày: ±8 %");
     // A low-data cell shows no strength, even when one is sent.
     expect(within(screen.getByTestId("sim-cell-seller_live-ctor")).queryByTestId("trend-strength")).toBeNull();
     // The what-if verdict keeps its own words.
