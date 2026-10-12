@@ -478,3 +478,36 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   5. **Payment-ready:** the future payment system calls the same grant function with
      `source=payment` and its transaction id (idempotent on the reference); Ops needs no
      change.
+
+- **D29** — How Juli diagnoses and sets KPIs for volatile metrics (owner, 2026-10-12).
+  Context: Fujiwa's Thẻ sản phẩm moves ±26 % impressions and ±66 % CTOR per day, so a
+  7–14-day gap against the shop median is mostly noise; the ranker ignored volatility.
+  1. **Adaptive window (16.1A):** per product, the shortest of 14 → 30 → 60 days with
+     ≥ 30 clicks (CTR) / ≥ 30 orders (CTOR, AOV); otherwise "ít dữ liệu", no diagnosis.
+  2. **A problem starts at GMV (16.2):** a product is a candidate only when its GMV fell
+     by more than its own volatility band versus its stable level; then GMV is split into
+     Hiển thị × CTR × CTOR × AOV to find the metric that caused it. The same band is the
+     basis of the KPI.
+  3. **Reference (16.3A):** the higher of the shop median, the product's own earlier stable
+     level, and a category benchmark when available.
+  4. **Several levers, one metric (16.4A):** one card chain per (product, lever), but a
+     product has ONE target metric at a time; several levers may run together only within
+     that metric (e.g. CTR: Ảnh bìa A + Tiêu đề T), never CTR and CTOR at once, so results
+     stay attributable.
+  5. **Stable first (16.5A):** ranking prefers products with stable traffic (low CV); their
+     KPIs are more precise.
+  6. **Confidence on the card (16.6A):** "Độ tin cậy: Cao / Vừa / Thấp" from data volume and
+     volatility.
+  7. **KPI target (17.1A):** = the 16.3 reference, clamped to [current + 1 × window-mean
+     band, current + 3 × band] (below 1 band it cannot be measured; above 3 it over-promises).
+  8. **Success (17.2A):** the target metric's window mean moves by more than 1 band in the
+     right direction AND the product's GMV does not fall by more than its band. Day 7:
+     "Đang lên" / "Chưa rõ"; day 14: "Đạt" / "Một phần" / "Không đạt".
+  9. **Guard metrics (17.3A):** the hold threshold of every non-target metric = its own
+     window-mean band (replaces the fixed ±3 %); editable.
+  10. **Volatile products (17.4A, CV > 30 %):** cards still allowed, KPI shown as a range
+      (e.g. "CTR 3,2 % → 3,8–4,4 %"), confidence "Thấp", judged at day 14 only.
+  11. **Who sets it (17.5A):** Juli proposes; the seller may edit within [min, max] when
+      approving; **Juli Ops Admins may change every level per shop** (bands, KPI range
+      multipliers, guard thresholds, data minimums) — Ops is where each shop is tuned
+      before the seller uses demo.app-juli.com.
