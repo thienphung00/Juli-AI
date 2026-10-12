@@ -1,17 +1,14 @@
 # Gitleaks config — extends default rules with doc/sample allowlists.
+# One [allowlist] table (not [[allowlists]]): CI pins gitleaks 8.21, which only
+# reads the singular form; newer versions still accept it.
 title = "Juli AI gitleaks"
 
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "TikTok webhook contract collection — sanitized Partner Center sample payloads (IDs look like keys)"
+[allowlist]
+description = "Public samples: TikTok webhook contract collection (sanitized Partner Center payloads) and apiwatch snapshots (public platform doc field names / hash-suffixed changelog keys)"
 paths = [
   '''docs/integrations/tiktok_api/webhook-contract-collection\.md''',
-]
-
-[[allowlists]]
-description = "apiwatch snapshots — field names and changelog keys from PUBLIC platform docs (hash-suffixed keys look like keys)"
-paths = [
   '''infra/apiwatch/snapshots/[a-z]+\.json''',
 ]
