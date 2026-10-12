@@ -63,6 +63,37 @@ export interface RecommendationCardPayload {
   readonly content?: CardContentPayload | null;
   /** P17 (D26): a quick-scan card (`p17-onboarding-speed.md` §1); absent / null otherwise. */
   readonly quick_scan?: CardQuickScanPayload | null;
+  /** P23 (D29.4): the product's one target metric. */
+  readonly target_metric?: CardTargetMetric | null;
+  /** P23 (D29.6): "Độ tin cậy: Cao / Vừa / Thấp". */
+  readonly confidence?: CardConfidence | null;
+  /** P23 (D29.7/D29.10): the band-based KPI; `display: "range"` for volatile products. */
+  readonly kpi?: CardKpiTarget | null;
+  /** P23 (D30.3): expected GMV as a range. */
+  readonly gmv_estimate?: CardGmvEstimate | null;
+  /** P23 (D29.4): other active cards of the same product + target metric. */
+  readonly sibling_cards?: number | null;
+}
+
+export type CardTargetMetric = "ctr" | "ctor" | "aov" | "impressions";
+export type CardConfidence = "high" | "medium" | "low";
+
+/** P23 `recommendation.card.kpi` (values in the metric's unit: ratio / VND / count). */
+export interface CardKpiTarget {
+  readonly metric: CardTargetMetric;
+  readonly current: number | null;
+  readonly target: number | null;
+  readonly target_min?: number | null;
+  readonly target_max?: number | null;
+  readonly display?: "point" | "range" | null;
+  readonly band_pct?: number | null;
+  readonly window_days?: 14 | 30 | 60 | number | null;
+  readonly low_data?: boolean | null;
+}
+
+export interface CardGmvEstimate {
+  readonly per_month_min: number | null;
+  readonly per_month_max: number | null;
 }
 
 /** P17 `recommendation.card.quick_scan`. */
@@ -215,8 +246,25 @@ export interface MeasurementRow {
   readonly tone: MeasurementTone;
 }
 
+/** P23 (D29.8): day-7 / day-14 verdict words. */
+export interface MeasurementVerdict {
+  readonly day7?: "rising" | "unclear" | null;
+  readonly day14?: "met" | "partial" | "not_met" | null;
+  readonly affected_by_external_change?: boolean | null;
+}
+
+/** P23 (D30.4): a change made outside Juli that overlaps the measurement. */
+export interface ExternalChange {
+  readonly kind: string;
+  readonly fields?: readonly string[] | null;
+  readonly occurred_at: string | null;
+  readonly source?: string | null;
+}
+
 export interface Measurement {
   readonly stage: MeasurementStage;
+  readonly verdict?: MeasurementVerdict | null;
+  readonly external_changes?: readonly ExternalChange[] | null;
   readonly dates: { readonly day7: string; readonly day14: string };
   readonly target: {
     readonly label: string;

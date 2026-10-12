@@ -76,9 +76,30 @@ function QuickScanChip({ card }: { readonly card: CardView }) {
   );
 }
 
+/** P23 (D29.6): "Độ tin cậy: Cao / Vừa / Thấp" — green / amber / grey. */
+function ConfidencePill({ card }: { readonly card: CardView }) {
+  if (!card.confidence) return null;
+  return (
+    <span className={`qv-confidence qv-tone--${card.confidence.tone}`} data-testid="confidence-pill">
+      Độ tin cậy: {card.confidence.label}
+    </span>
+  );
+}
+
+/** P23 (D29.1): the KPI's window, "· 30 ngày". */
+function KpiWindow({ card }: { readonly card: CardView }) {
+  if (!card.kpiWindow) return null;
+  return (
+    <span className="qv-kpi__window" data-testid="kpi-window">
+      · {card.kpiWindow}
+    </span>
+  );
+}
+
 /** P17: the quick card's confidence ("Độ tin cậy: Tham khảo"), next to its expected GMV. */
 function QuickScanConfidence({ card }: { readonly card: CardView }) {
-  if (!card.quickScan) return null;
+  // P23: the pill under the title already says it.
+  if (!card.quickScan || card.confidence) return null;
   return (
     <div className="qv-quick-confidence" data-testid="quick-scan-confidence">
       Độ tin cậy: {card.quickScan.confidence}
@@ -319,6 +340,7 @@ function DesktopCard({
           </div>
           <div className="qv-card__meta">{card.meta}</div>
           <QuickScanChip card={card} />
+          <ConfidencePill card={card} />
         </div>
         <span className={`qv-chip qv-status qv-tone--${STATUS_TONE[status]}`} data-testid="card-status">
           {CARD_STATUS_LABELS[status]}
@@ -342,6 +364,7 @@ function DesktopCard({
                   </>
                 ) : null}
                 {card.kpiUplift ? <span className="qv-uplift">{card.kpiUplift}</span> : null}
+                <KpiWindow card={card} />
               </div>
             ) : null}
           </div>
@@ -466,6 +489,7 @@ function MobileCard({
           </h3>
           <div className="qv-card__meta">{card.meta}</div>
           <QuickScanChip card={card} />
+          <ConfidencePill card={card} />
         </div>
         <span className={`qv-chip qv-status qv-tone--${STATUS_TONE[status]}`} data-testid="card-status">
           {CARD_STATUS_LABELS[status]}
@@ -481,6 +505,7 @@ function MobileCard({
             <div className="qv-kpi__values">
               <span className="qv-kpi__big">{card.kpiPairText}</span>
               {card.kpiUplift ? <span className="qv-uplift">{card.kpiUplift}</span> : null}
+              <KpiWindow card={card} />
             </div>
           ) : null}
           {card.gmvPerMonth ? (

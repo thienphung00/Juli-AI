@@ -6,12 +6,14 @@ import { useState } from "react";
 import type { CardView } from "../../lib/quyet-dinh/card-model";
 import { MEASURE_NO_READING, MEASURE_WAITING, bandMetricLabel } from "../../lib/quyet-dinh/copy";
 import {
+  EXTERNAL_CHANGE_TITLE,
   FINAL_RULE_NOTE,
   MEASURE_TABS,
   bandRows,
   breachSentence,
   day14Steps,
   day7Steps,
+  externalChangeLines,
   finalBox,
   measureHead,
   resultRows,
@@ -255,6 +257,7 @@ function MeasurePanel({
       {expanded ? (
         <div className="qv-run__body">
           {m ? <TargetAndBands m={m} /> : null}
+          {m ? <ExternalNote m={m} /> : null}
 
           {m?.stage === "day7" ? <StepList label="Các bước kiểm tra ngày 7" rows={measureRows(day7Steps(m, answered))} testId="day7-steps" wide /> : null}
           {m?.stage === "final" ? (
@@ -383,6 +386,24 @@ function MeasurePanel({
         open={dialog}
       />
     </section>
+  );
+}
+
+/** P23 (D30.4): the measurement overlaps a change made outside Juli — Juli does not take the credit. */
+function ExternalNote({ m }: { readonly m: Measurement }) {
+  const lines = externalChangeLines(m);
+  if (!lines) return null;
+  return (
+    <div className="qv-external" data-testid="external-change" role="note">
+      <span className="qv-external__title">{EXTERNAL_CHANGE_TITLE}</span>
+      {lines.length > 0 ? (
+        <ul>
+          {lines.map((line, i) => (
+            <li key={`${i}-${line}`}>{line}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 

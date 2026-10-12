@@ -10,8 +10,17 @@
  */
 
 import { MANUAL_LEVER_CODES } from "./grouping";
-import { compactVndNumber, fullDate, kpiPair, summariseText, upliftChip } from "./p10-format";
-import type { CardStatus, LeverExecutor, P10DecisionItem, RecommendationCardPayload } from "./p10-types";
+import { compactVndNumber, countText, fullDate, kpiPair, pctNumber, summariseText, upliftChip } from "./p10-format";
+import type {
+  CardConfidence,
+  CardGmvEstimate,
+  CardKpiTarget,
+  CardStatus,
+  CardTargetMetric,
+  LeverExecutor,
+  P10DecisionItem,
+  RecommendationCardPayload,
+} from "./p10-types";
 
 export const CARD_STATUS_LABELS: Readonly<Record<CardStatus, string>> = {
   pending: "Chờ duyệt",
@@ -108,6 +117,113 @@ export interface CardView {
   readonly content: CardContentView | null;
   /** P17 (D26): set for a quick-scan card ("Đề xuất nhanh · dựa trên 14 ngày", confidence "Tham khảo"). */
   readonly quickScan?: QuickScanView | null;
+  /** P23 (D29.6): "Độ tin cậy: Cao / Vừa / Thấp" pill; absent on older payloads. */
+  readonly confidence?: ConfidenceView | null;
+  /** P23 (D29.1): the KPI's window, "30 ngày". */
+  readonly kpiWindow?: string | null;
+  /** P23 (D29.4): product + target metric, for grouping sibling cards. */
+  readonly siblingKey?: string | null;
+  /** "CTR" — the metric named in the group header "N thay đổi cho CTR". */
+  readonly targetMetricLabel?: string | null;
+  /** Other active cards of the same product + metric (0 = none). */
+  readonly siblingCards?: number;
+}
+
+export interface ConfidenceView {
+  readonly label: "Cao" | "Vừa" | "Thấp";
+  /** Pill tone: green / amber / grey. */
+  readonly tone: "ok" | "wait" | "muted";
+}
+
+const CONFIDENCE: Readonly<Record<CardConfidence, ConfidenceView>> = {
+  high: { label: "Cao", tone: "ok" },
+  medium: { label: "Vừa", tone: "wait" },
+  low: { label: "Thấp", tone: "muted" },
+};
+
+export function confidenceView(value: unknown): ConfidenceView | null {
+  return typeof value === "string" && value in CONFIDENCE ? CONFIDENCE[value as CardConfidence] : null;
+}
+
+export const TARGET_METRIC_LABELS: Readonly<Record<CardTargetMetric, string>> = {
+  ctr: "CTR",
+  ctor: "CTOR",
+  aov: "AOV",
+  impressions: "Lượt hiển thị",
+};
+
+type KpiUnit = "ratio" | "vnd" | "count";
+
+function unitOfMetric(metric: string | null | undefined): KpiUnit {
+  if (metric === "aov") return "vnd";
+  if (metric === "impressions") return "count";
+  return "ratio";
+}
+
+const isNum = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+/** "3,8–4,4 %", "182k–205k ₫", "9.900–10.400". */
+export function kpiRangeText(min: number, max: number, unit: KpiUnit): string {
+  if (unit === "vnd") return `${compactVndNumber(min)}–${compactVndNumber(max)} ₫`;
+  if (unit === "count") return `${countText(min)}–${countText(max)}`;
+  return `${pctNumber(min)}–${pctNumber(max)} %`;
+}
+
+/** "▲ 18–37 %" from current to a target range. */
+function upliftRange(current: number, min: number, max: number): string | null {
+  const low = upliftChip(current, min);
+  const high = upliftChip(current, max);
+  if (!low || !high) return null;
+  if (low === high) return low;
+  if (low[0] !== high[0]) return null;
+  return `${low.slice(0, -2)}–${high.slice(2)}`;
+}
+
+interface KpiTexts {
+  readonly kpiCurrent: string;
+  readonly kpiTarget: string;
+  readonly kpiPairText: string;
+  readonly kpiUplift: string | null;
+}
+
+/** P23 (D29.10): the band KPI as the card prints it; null keeps the main_kpi texts. */
+export function kpiTargetTexts(kpi: CardKpiTarget | null | undefined, unitHint?: KpiUnit): KpiTexts | null {
+  if (!kpi || !isNum(kpi.current)) return null;
+  const unit = unitHint ?? unitOfMetric(kpi.metric);
+  if (kpi.display === "range" && isNum(kpi.target_min) && isNum(kpi.target_max)) {
+    const current = kpiPair(kpi.current, kpi.current, unit).split(" → ")[0];
+    const target = kpiRangeText(kpi.target_min, kpi.target_max, unit);
+    return {
+      kpiCurrent: current,
+      kpiTarget: target,
+      kpiPairText: `${current} → ${target}`,
+      kpiUplift: upliftRange(kpi.current, kpi.target_min, kpi.target_max),
+    };
+  }
+  if (!isNum(kpi.target)) return null;
+  const pair = kpiPair(kpi.current, kpi.target, unit);
+  const [kpiCurrent, kpiTarget] = pair.split(" → ");
+  return { kpiCurrent, kpiTarget, kpiPairText: pair, kpiUplift: upliftChip(kpi.current, kpi.target) };
+}
+
+function scaled(value: number, divisor: number, decimals: number): string {
+  const [whole, fraction] = (Math.abs(value) / divisor).toFixed(decimals).split(".");
+  const withDots = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return fraction ? `${withDots},${fraction}` : withDots;
+}
+
+/** P23 (D30.3): "+0,5–1,2 tr ₫/tháng" (one unit for both ends); a point when both round alike. */
+export function gmvRangeText(estimate: CardGmvEstimate | null | undefined): string | null {
+  if (!estimate || !isNum(estimate.per_month_min) || !isNum(estimate.per_month_max)) return null;
+  const lo = Math.min(estimate.per_month_min, estimate.per_month_max);
+  const hi = Math.max(estimate.per_month_min, estimate.per_month_max);
+  const top = Math.max(Math.abs(lo), Math.abs(hi));
+  const [divisor, decimals, suffix] = top >= 1e9 ? [1e9, 1, " tỷ"] : top >= 1e6 ? [1e6, 1, " tr"] : top >= 1e3 ? [1e3, 0, "k"] : [1, 0, ""];
+  const fmt = (v: number) => `${v < 0 ? "−" : ""}${scaled(v, divisor, decimals)}`;
+  const sign = lo >= 0 ? "+" : "";
+  const a = fmt(lo);
+  const b = fmt(hi);
+  return `${sign}${a === b ? a : `${a}–${b}`}${suffix} ₫/tháng`;
 }
 
 export interface QuickScanView {
@@ -202,18 +318,25 @@ function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardV
   const sku = card.seller_sku ? `${card.seller_sku}${card.seller_sku_more > 0 ? ` +${card.seller_sku_more}` : ""}` : null;
   const reasonFull = reasonFullText(card);
   const updated = fullDate(card.updated_at);
+  const band = kpiTargetTexts(card.kpi, card.main_kpi?.unit === "vnd" ? "vnd" : undefined);
+  // A point KPI keeps today's main_kpi line; a range (or a card with no main_kpi) uses the band KPI.
+  const bandKpi = band && (card.kpi?.display === "range" || !kpi) ? band : null;
+  const metric = card.target_metric ?? card.kpi?.metric ?? null;
+  const productKey =
+    text(item.recommendation.diagnosis?.tiktok_product_id) ?? card.product_title ?? text(item.recommendation.diagnosis?.product_title);
+  const windowDays = card.kpi?.window_days;
   return {
     id: item.id,
     sku,
     title: card.product_title ?? text(item.recommendation.diagnosis?.product_title) ?? item.title,
     meta: updated === "—" ? card.workflow_label : `${card.workflow_label} · Cập nhật ${updated}`,
     status: card.status,
-    kpiLabel: kpi?.label ?? card.main_kpi?.label ?? null,
-    kpiCurrent: kpi ? kpiPair(kpi.current, kpi.target, kpi.unit).split(" → ")[0] : null,
-    kpiTarget: kpi ? kpiPair(kpi.current, kpi.target, kpi.unit).split(" → ")[1] : null,
-    kpiUplift: kpi ? upliftChip(kpi.current, kpi.target) : null,
-    kpiPairText: kpi ? kpiPair(kpi.current, kpi.target, kpi.unit) : null,
-    gmvPerMonth: gmvMonthText(card.expected_gmv_per_month),
+    kpiLabel: kpi?.label ?? card.main_kpi?.label ?? (bandKpi && metric ? (TARGET_METRIC_LABELS[metric] ?? null) : null),
+    kpiCurrent: bandKpi ? bandKpi.kpiCurrent : kpi ? kpiPair(kpi.current, kpi.target, kpi.unit).split(" → ")[0] : null,
+    kpiTarget: bandKpi ? bandKpi.kpiTarget : kpi ? kpiPair(kpi.current, kpi.target, kpi.unit).split(" → ")[1] : null,
+    kpiUplift: bandKpi ? bandKpi.kpiUplift : kpi ? upliftChip(kpi.current, kpi.target) : null,
+    kpiPairText: bandKpi ? bandKpi.kpiPairText : kpi ? kpiPair(kpi.current, kpi.target, kpi.unit) : null,
+    gmvPerMonth: gmvRangeText(card.gmv_estimate) ?? gmvMonthText(card.expected_gmv_per_month),
     reasonShort: card.reason_short,
     reasonMobile: mobileReason(card.reason_short, card.reason_full),
     reasonFull,
@@ -227,6 +350,11 @@ function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardV
     fromContract: true,
     content: contentView(card),
     quickScan: quickScanView(card),
+    confidence: confidenceView(card.confidence),
+    kpiWindow: isNum(windowDays) && windowDays > 0 ? `${windowDays} ngày` : null,
+    siblingKey: metric && productKey ? `${productKey}::${metric}` : null,
+    targetMetricLabel: metric ? (TARGET_METRIC_LABELS[metric] ?? metric.toUpperCase()) : null,
+    siblingCards: isNum(card.sibling_cards) && card.sibling_cards > 0 ? card.sibling_cards : 0,
   };
 }
 
@@ -272,4 +400,49 @@ function fromDiagnosis(item: P10DecisionItem): CardView {
 export function cardView(item: P10DecisionItem): CardView {
   const card = item.recommendation.card;
   return card ? fromCard(item, card) : fromDiagnosis(item);
+}
+
+export type CardRun =
+  | { readonly kind: "single"; readonly view: CardView }
+  | {
+      readonly kind: "siblings";
+      readonly key: string;
+      readonly title: string;
+      /** "2 thay đổi cho CTR". */
+      readonly countText: string;
+      readonly views: readonly CardView[];
+    };
+
+/**
+ * P23 (D29.4): cards with `sibling_cards > 0` that share a product + target
+ * metric sit together under one product header, at the first one's place.
+ * Approving each card stays separate. Without the field nothing moves.
+ */
+export function groupSiblings(views: readonly CardView[]): CardRun[] {
+  const byKey = new Map<string, CardView[]>();
+  for (const view of views) {
+    if (!view.siblingKey || !view.siblingCards) continue;
+    const list = byKey.get(view.siblingKey) ?? [];
+    list.push(view);
+    byKey.set(view.siblingKey, list);
+  }
+  const runs: CardRun[] = [];
+  const placed = new Set<string>();
+  for (const view of views) {
+    const list = view.siblingKey ? byKey.get(view.siblingKey) : undefined;
+    if (!list || list.length < 2) {
+      runs.push({ kind: "single", view });
+      continue;
+    }
+    if (placed.has(view.siblingKey!)) continue;
+    placed.add(view.siblingKey!);
+    runs.push({
+      kind: "siblings",
+      key: view.siblingKey!,
+      title: view.title,
+      countText: `${list.length} thay đổi cho ${view.targetMetricLabel ?? "chỉ số này"}`,
+      views: list,
+    });
+  }
+  return runs;
 }
