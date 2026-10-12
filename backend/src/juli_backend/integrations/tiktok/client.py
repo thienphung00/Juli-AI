@@ -20,6 +20,7 @@ import requests
 from pydantic import BaseModel
 
 from juli_backend.integrations.tiktok.exceptions import TikTokAPIError, error_from_response
+from juli_backend.integrations.tiktok.schema_expectations import check_response_drift
 from juli_backend.integrations.tiktok.schemas import validate_data
 from juli_backend.integrations.tiktok.signing import sign_request
 
@@ -329,6 +330,7 @@ class TikTokClient:
             return self._handle_response(resp)
 
         data = self._request_with_retry(path, send)
+        check_response_drift("GET", path, data)
         if response_model is not None:
             return validate_data(response_model, data)
         return data
@@ -396,6 +398,7 @@ class TikTokClient:
             return self._handle_response(resp)
 
         data = self._request_with_retry(path, send) if retry_transient else send()
+        check_response_drift("POST", path, data)
         if response_model is not None:
             return validate_data(response_model, data)
         return data
