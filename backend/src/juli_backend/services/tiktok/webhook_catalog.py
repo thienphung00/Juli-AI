@@ -176,6 +176,38 @@ PHASE2_CATALOG: dict[int, CatalogEntry] = {
         ("prevent_refund_8c",),
         confirmed=False,
     ),
+    # Fast track P23 (D30.4): product and promotion changes for the history
+    # tables. Handled by ``services/product_history`` (re-read + diff), never
+    # handed to the ETL consumer -- see ``HISTORY_CATALOG_IDS``.
+    15: CatalogEntry(
+        15,
+        "product_information_change",
+        "tiktok.product_information_change",
+        ("PRODUCT_INFORMATION_CHANGE",),
+        ("optimize_product_2",),
+    ),
+    16: CatalogEntry(
+        16,
+        "product_creation",
+        "tiktok.product_creation",
+        ("PRODUCT_CREATION",),
+        ("create_hero_product_1",),
+    ),
+    18: CatalogEntry(
+        18,
+        "product_category_change",
+        "tiktok.product_category_change",
+        ("PRODUCT_CATEGORY_CHANGE",),
+        ("optimize_product_2",),
+    ),
+    63: CatalogEntry(
+        63,
+        "activity_change",
+        "tiktok.activity_change",
+        ("ACTIVITY_CHANGE",),
+        ("create_activity_7a", "update_activity_7c", "delete_activity_7b"),
+        confirmed=False,
+    ),
     68: CatalogEntry(
         68,
         "inventory_changed",
@@ -191,6 +223,20 @@ PHASE2_CATALOG_IDS: tuple[int, ...] = tuple(sorted(PHASE2_CATALOG))
 # Material catalog types enqueue shop Analytics precompute after ingest (#532 / ADR-038).
 MATERIAL_CATALOG_IDS: frozenset[int] = frozenset({1, 2, 5, 12, 27, 39, 67, 68})
 INVENTORY_CHANGED_CATALOG_ID = 68
+#: Fast track P23 (D30.4): types that trigger a product / activity re-read for the
+#: history tables (``services/product_history/webhooks.py``). 39 also keeps its
+#: workflow signal and material compute; 15 / 16 / 18 / 63 skip the ETL handoff
+#: (their bodies carry only ids: the product transform would overwrite the
+#: product's title with "Unknown").
+HISTORY_CATALOG_IDS: frozenset[int] = frozenset({15, 16, 18, 39, 63})
+HISTORY_ONLY_CHANNELS: frozenset[str] = frozenset(
+    {
+        "tiktok.product_information_change",
+        "tiktok.product_creation",
+        "tiktok.product_category_change",
+        "tiktok.activity_change",
+    }
+)
 COALESCE_68_SECONDS = 15 * 60
 
 _EVENT_TYPE_INDEX: dict[str, CatalogEntry] = {

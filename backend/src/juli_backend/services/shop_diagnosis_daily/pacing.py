@@ -30,6 +30,7 @@ from juli_backend.integrations.tiktok import (
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH,
     ORDER_SEARCH_PATH,
+    PRODUCT_SEARCH_PATH,
     PROMOTION_ACTIVITIES_SEARCH_PATH,
     PROMOTION_COUPONS_SEARCH_PATH,
     RateLimiter,
@@ -88,6 +89,8 @@ ENDPOINTS: dict[tuple[str, str], Callable[[tuple[Any, ...], dict[str, Any]], str
         _first_arg(a, k, "activity_id")
     ),
     ("products", "get_details"): lambda a, k: product_detail_path(_first_arg(a, k, "product_id")),
+    # Fast track P23 (D30.1): the daily product snapshot's Search Products walk.
+    ("products", "search_all"): lambda _a, _k: PRODUCT_SEARCH_PATH,
 }
 
 

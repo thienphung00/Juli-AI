@@ -31,8 +31,15 @@ from typing import Any, Literal, Protocol
 #: daily shop diagnosis build's own mutex (``workers/tasks/shop_diagnosis.py``):
 #: it reads TikTok only, so it may run beside a cycle but never beside itself.
 #: ``content_analysis`` (fast track P15) serialises one shop's video analyses.
+#: ``product_history`` (P23) is the daily product snapshot + promotion sweep's mutex.
 LockName = Literal[
-    "cycle", "history", "bootstrap_queued", "history_queued", "diagnosis", "content_analysis"
+    "cycle",
+    "history",
+    "bootstrap_queued",
+    "history_queued",
+    "diagnosis",
+    "content_analysis",
+    "product_history",
 ]
 
 _RELEASE_IF_OWNER_SCRIPT = """

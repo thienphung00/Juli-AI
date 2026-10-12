@@ -43,6 +43,8 @@ from juli_backend.api.routes.demo_run_changes import SellerReasonRequest, invali
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
 from juli_backend.models.decision_reasons import ACTION_REJECT
+from juli_backend.models.history import PHASE_APPROVAL
+from juli_backend.repositories import utc_now_naive
 from juli_backend.services import decision_reasons
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 from juli_backend.services.agent import approval as approval_module
@@ -65,6 +67,15 @@ class DemoDecisionApproveResponse(BaseModel):
     success: bool = True
     data: DemoDecisionApproveData | None = None
     error: str | None = None
+
+
+def _enqueue_approval_baseline(shop_id: uuid.UUID, run_id: uuid.UUID) -> str | None:
+    """Imported lazily so the Celery app is not a route import (like ``agent_runs``)."""
+    from juli_backend.workers.tasks import product_history as product_history_tasks
+
+    return product_history_tasks.enqueue_run_baseline(
+        shop_id, run_id, PHASE_APPROVAL, utc_now_naive()
+    )
 
 
 @router.post(
@@ -175,6 +186,9 @@ async def approve_demo_decision(
         ) from None
 
     celery_task_id = _enqueue_run_agent_workflow(result.run_id)
+    # Fast track P23 (D30.1c): the approval baseline, captured off the request
+    # (no extra query here); never fails the approval.
+    _enqueue_approval_baseline(shop_id, result.run_id)
 
     logger.info(
         "agent_run_approved",

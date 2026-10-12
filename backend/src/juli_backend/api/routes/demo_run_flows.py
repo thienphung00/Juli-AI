@@ -15,7 +15,8 @@ Contract ``fasttrack/contracts/p10-quyet-dinh.md`` §4-§6:
 - ``POST /v1/demo/runs/{run_id}/applied`` -- "Tôi đã áp dụng": 202, the run
   verifies read-only on TikTok (``tool.*`` events); not found -> it keeps
   waiting with "Chưa tìm thấy trên TikTok".
-- ``GET  /v1/demo/runs/{run_id}/measurement`` -- target, bands, day 7, day 14.
+- ``GET  /v1/demo/runs/{run_id}/measurement`` -- target, bands, day 7, day 14, and
+  (P23, D30.4) ``external_changes``: the product's non-Juli changes in the window.
 
 Same auth and tenant scope as every ``/v1/demo`` route (``get_active_shop``);
 another shop's run is a 404, never a 403.
@@ -42,6 +43,7 @@ from juli_backend.services import agent_runs, lever_flows
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 from juli_backend.services.content_cards import measurement as content_measurement
 from juli_backend.services.content_cards import run_state as content_run_state
+from juli_backend.services.product_history import overlap as product_history_overlap
 
 logger = logging.getLogger(__name__)
 
@@ -418,5 +420,11 @@ async def get_run_measurement(
             body = await lever_flows.measure_run(session, shop.id, run)
     except lever_flows.NotMeasurable as exc:
         raise _conflict(exc.code, exc.message_vi) from None
+    # Fast track P23 (D30.4): the product's non-Juli changes inside the measured
+    # window ("bị ảnh hưởng bởi thay đổi khác"). Annotation only; the verdict
+    # above is unchanged.
+    body["external_changes"] = await product_history_overlap.measurement_external_changes(
+        session, shop.id, run, body
+    )
     await session.commit()
     return body

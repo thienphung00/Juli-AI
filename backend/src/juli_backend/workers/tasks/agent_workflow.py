@@ -954,6 +954,32 @@ async def _emit_crash_terminal_event(
             )
 
 
+async def _capture_execution_baseline(run: WorkflowRun) -> None:
+    """Fast track P23 (D30.1c): the run's ``execution`` baseline, before the runner starts.
+
+    Its own shop-scoped session, committed on its own, so it can never touch the
+    run's transaction; any failure is logged and the run goes on.
+    """
+    from juli_backend.models.history import PHASE_EXECUTION
+    from juli_backend.services.product_history.baselines import capture_run_baseline
+
+    try:
+        async with _shop_scoped_session_factory(run.shop_id)() as baseline_session:
+            await capture_run_baseline(
+                baseline_session,
+                shop_id=run.shop_id,
+                workflow_run_id=run.id,
+                product_id=run.product_id,
+                phase=PHASE_EXECUTION,
+                action_card_id=run.action_card_id,
+            )
+            await baseline_session.commit()
+    except Exception:
+        logger.warning(
+            "run_execution_baseline_failed", extra={"run_id": str(run.id)}, exc_info=True
+        )
+
+
 async def _run_agent_workflow_async(run_id: str) -> None:
     factory = _ensure_session_factory()
     async with factory() as session:
@@ -964,6 +990,7 @@ async def _run_agent_workflow_async(run_id: str) -> None:
         ):
             try:
                 run, product = await _load_context(session, uuid.UUID(run_id))
+                await _capture_execution_baseline(run)
                 runner = await _construct_runner(session, sync_session, run, product)
                 await runner.run(run.id, product_ref=product.tiktok_product_id)
                 await session.commit()
