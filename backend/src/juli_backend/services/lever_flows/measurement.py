@@ -33,6 +33,12 @@ description, cover image) or whose Seller Center promotion Juli verified:
   label but ``chua_ket_luan`` moves the lever's calibration (realised ÷ expected,
   0.5 until the first reading) a quarter of the way to this run's ratio
   (clamped to 0..2).
+- **Strength (D31.7).** With a day-14 verdict, ``verdict.strength`` grades the
+  target metric's change (post vs pre window mean, % of pre) against both
+  windows' window-mean bands combined: ``clear`` / ``likely`` / ``noise``
+  (``services.change_strength``); None without data. The verdict words and the
+  external-change note are unchanged; the UI shows "Đạt · chưa chắc chắn" for a
+  met verdict that is not ``clear``.
 """
 
 from __future__ import annotations
@@ -64,6 +70,7 @@ from juli_backend.models.models import (
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue
 from juli_backend.services import shop_rules
+from juli_backend.services.change_strength import change_strength
 from juli_backend.services.run_changes.default_bands import default_bands, effective_bands
 from juli_backend.services.shop_rules.diag_tunables import diag_tunables
 
@@ -645,6 +652,25 @@ def day14_verdict(
     return VERDICT_NOT_MET
 
 
+def day14_strength(
+    *,
+    pre_value: Decimal | None,
+    post_value: Decimal | None,
+    pre_band_pct: Decimal | None,
+    post_band_pct: Decimal | None,
+) -> str | None:
+    """D31.7: the target metric's change (% of the pre-window value) graded against
+    the pre and post windows' window-mean bands combined; None without data."""
+    if pre_value is None or post_value is None or pre_value <= 0:
+        return None
+    change = float((post_value - pre_value) / pre_value * 100)
+    return change_strength(
+        change,
+        None if pre_band_pct is None else float(pre_band_pct),
+        None if post_band_pct is None else float(post_band_pct),
+    )
+
+
 def _today() -> date:
     return (datetime.now(UTC) + _SHOP_OFFSET).date()
 
@@ -809,6 +835,8 @@ async def measure_run(
     verdict: dict[str, Any] = {
         "day7": None,
         "day14": None,
+        # D31.7: the day-14 target change against the pre/post bands combined.
+        "strength": None,
         "affected_by_external_change": False,
     }
     if target_metric is not None and stage != STAGE_WAITING:
@@ -834,6 +862,16 @@ async def measure_run(
                 post_gmv=post.value("gmv"),
                 gmv_band_pct=gmv_band,
             )
+            if verdict["day14"] is not None:
+                post_series = daily_metric_series(rows, day0 + timedelta(days=1), post_end)
+                verdict["strength"] = day14_strength(
+                    pre_value=pre.value(target_metric),
+                    post_value=post.value(target_metric),
+                    pre_band_pct=target_band,
+                    post_band_pct=default_bands({target_metric: post_series[target_metric]}).get(
+                        target_metric
+                    ),
+                )
 
     body: dict[str, Any] = {
         "stage": stage,
@@ -1037,6 +1075,7 @@ __all__ = [
     "WindowTotals",
     "card_target",
     "current_calibration",
+    "day14_strength",
     "fleet_calibration_stats",
     "shop_calibration_stats",
     "shop_band_defaults",

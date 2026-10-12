@@ -239,3 +239,60 @@ def test_cell_verdict_uses_the_window_band_and_low_data():
     assert sim.cell_verdict(cell, -10) == "measurable"
     assert sim.cell_verdict({**cell, "low_data": True}, 50) == "low_data"
     assert sim.cell_verdict({"band": None, "low_data": False}, 50) == "in_noise"
+
+
+# -- D31.7: strength of the ▲/▼ trend ---------------------------------------------
+
+
+def _alternating_then_step(level_last: float, level_prior: float, n: int):
+    """± 10 % alternating impressions around ``level_last`` (last n days), then prior."""
+
+    def imp(i: int) -> float:
+        level = level_last if i < n else level_prior
+        return level * (0.9 if i % 2 else 1.1)
+
+    return imp
+
+
+@pytest.mark.parametrize(
+    ("level_prior", "expected"),
+    [(1000.0, "noise"), (930.0, "likely"), (850.0, "clear")],
+)
+def test_trend_strength_uses_both_windows_bands(level_prior, expected):
+    n = 14
+    history = sim.merge_reports([_report(60, imp=_alternating_then_step(1000.0, level_prior, n))])
+    cell = _cell(sim.baseline(history, n), "product_card", "impressions")
+    last = [1000.0 * (0.9 if i % 2 else 1.1) for i in range(n)]
+    prior = [level_prior * (0.9 if i % 2 else 1.1) for i in range(n, 2 * n)]
+
+    def pct(values):
+        return 1.2816 * statistics.stdev(values) / math.sqrt(n) / statistics.fmean(values) * 100
+
+    combined = math.hypot(pct(last), pct(prior))
+    size = abs(cell["trend_pct"])
+    assert cell["trend_strength"] == expected
+    # The same rule, re-derived: ≥ 2 × combined clear, ≥ 1 × likely, else noise.
+    assert expected == (
+        "clear" if size >= 2 * combined else "likely" if size >= combined else "noise"
+    )
+
+
+def test_trend_strength_is_null_without_a_comparison_or_on_low_data():
+    short = sim.baseline(sim.merge_reports([_report(20)]), 14)  # 20 < 2 × 14 days
+    assert all(c["trend_strength"] is None for s in short["streams"] for c in s["cells"])
+    thin = sim.baseline(sim.merge_reports([_report(60, imp=lambda i: 80.0)]), 7)
+    ctr = _cell(thin, "shop_tab", "ctr")
+    assert ctr["low_data"] is True and ctr["trend_strength"] is None
+    # Hiển thị is never low-data: a flat series is graded (no change → noise).
+    assert _cell(thin, "shop_tab", "impressions")["trend_strength"] == "noise"
+
+
+def test_trend_strength_null_when_only_the_prior_window_is_thin():
+    # Last 7 days: 10 clicks/day (70); the 7 before: 2 clicks/day (14 < 30).
+    report = _report(14)
+    for i, day in enumerate(sorted(report["daily_streams"]["product_card"], reverse=True)):
+        clicks = 10.0 if i < 7 else 2.0
+        report["daily_streams"]["product_card"][day] = [1000.0, clicks, 1.0, 150_000.0]
+    cell = _cell(sim.baseline(sim.merge_reports([report]), 7), "product_card", "ctr")
+    assert cell["low_data"] is False and cell["trend_pct"] is not None
+    assert cell["trend_strength"] is None

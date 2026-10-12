@@ -54,10 +54,19 @@ const DAY14_VERDICT = {
   not_met: { chip: "Không đạt", headline: "Ngày 14: không đạt mục tiêu", tone: "warn" },
 } as const;
 
-/** P23 (D29.8): the day-14 verdict word when the backend sends one. */
+/** D31.7: a met verdict whose change is not clearly above both windows' noise. */
+export const MET_UNSURE_LABEL = "Đạt · chưa chắc chắn";
+
+function metUnsure(m: Measurement): boolean {
+  const s = m.verdict?.strength;
+  return m.verdict?.day14 === "met" && (s === "likely" || s === "noise");
+}
+
+/** P23 (D29.8): the day-14 verdict word when the backend sends one (D31.7: "Đạt · chưa chắc chắn"). */
 export function day14VerdictLabel(m: Measurement): string | null {
   const v = m.verdict?.day14;
-  return v && v in DAY14_VERDICT ? DAY14_VERDICT[v].chip : null;
+  if (!v || !(v in DAY14_VERDICT)) return null;
+  return metUnsure(m) ? MET_UNSURE_LABEL : DAY14_VERDICT[v].chip;
 }
 
 export function measureHead(m: Measurement): MeasureHead {
@@ -69,7 +78,7 @@ export function measureHead(m: Measurement): MeasureHead {
   }
   if (m.stage === "final" && d14 && d14 in DAY14_VERDICT) {
     const v = DAY14_VERDICT[d14];
-    return { headline: v.headline, chip: { label: v.chip, tone: v.tone } };
+    return { headline: v.headline, chip: { label: day14VerdictLabel(m) ?? v.chip, tone: v.tone } };
   }
   if (m.stage === "waiting") {
     return { headline: "Đang chờ dữ liệu sau khi áp dụng", chip: { label: "Chờ đo · ngày 0", tone: "muted" } };
@@ -288,7 +297,7 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
     case "dat":
       return {
         tone: "ok",
-        title: `Đạt: ${metric} ${actualMetric === null ? "—" : fmt(actualMetric)} ≥ mục tiêu ${fmt(m.target.target)}`,
+        title: `${metUnsure(m) ? MET_UNSURE_LABEL : "Đạt"}: ${metric} ${actualMetric === null ? "—" : fmt(actualMetric)} ≥ mục tiêu ${fmt(m.target.target)}`,
         body: `${gmvLine} Thay đổi được giữ.`.trim(),
         next,
         offerRevert: false,

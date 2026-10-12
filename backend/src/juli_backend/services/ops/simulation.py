@@ -17,7 +17,10 @@ WINDOW ``N`` ∈ {7, 14, 30, 90} (D25.11) drives
   CTR = clicks / impressions, CTOR = SKU orders / clicks, AOV = GMV / SKU
   orders -- the Phân tích definitions), and GMV/day;
 - the ▲/▼ trend: those KPIs over the last ``N`` days vs the ``N`` days before
-  (needs ``2N`` days of history, else ``comparable = False``);
+  (needs ``2N`` days of history, else ``comparable = False``), with its strength
+  ``trend_strength`` (D31.7): the trend against the combined window-mean band of
+  both windows, ``clear`` / ``likely`` / ``noise``; None when either window is
+  low-data or a band / the trend is missing;
 - the volatility: p10–p90 of the daily values within the last ``N`` days, the
   "normal band" ``±band_pct`` (the larger distance of p10 / p90 from the mean,
   in % of the mean) and the coefficient of variation of daily impressions.
@@ -51,6 +54,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.shop_diagnosis import ShopDailyProduct, ShopDailyStream
+from juli_backend.services.change_strength import change_strength
 
 STREAMS: tuple[str, ...] = ("product_card", "shop_tab", "seller_video", "seller_live")
 STREAM_NAMES: dict[str, str] = {
@@ -578,26 +582,33 @@ def baseline(history: History, window: int) -> dict[str, Any]:
             by_day = history.streams.get(stream, {})
             present = _present(by_day, last_days)
             last = window_kpis(present)
-            prior = window_kpis(_present(by_day, prior_days)) if status["comparable"] else None
+            prior_present = _present(by_day, prior_days) if status["comparable"] else []
+            prior = window_kpis(prior_present) if status["comparable"] else None
             cells = []
             for kpi in KPIS:
                 daily_values = [d.kpi(kpi) for d in present]
                 cell_band = mean_band(daily_values)
                 daily_band = band(daily_values)
                 events = window_events(present, kpi)
+                low_data = events is not None and events < LOW_DATA_MIN_EVENTS
+                trend = trend_pct(last[kpi], prior[kpi]) if prior else None
                 cells.append(
                     {
                         "kpi": kpi,
                         "label": KPI_LABELS[kpi],
                         "value": last[kpi],
-                        "trend_pct": trend_pct(last[kpi], prior[kpi]) if prior else None,
+                        "trend_pct": trend,
+                        # D31.7: the trend against both windows' bands combined.
+                        "trend_strength": _trend_strength(
+                            trend, cell_band, prior_present, kpi, low_data=low_data
+                        ),
                         # D28.1: band of the window mean; the daily p10–p90 for hover.
                         "band": cell_band.to_json() if cell_band else None,
                         "daily_band": daily_band.to_json() if daily_band else None,
                         # D28.2: what the cell rests on, and whether it is too little.
                         "events": events,
                         "event_kind": EVENT_KIND[kpi],
-                        "low_data": events is not None and events < LOW_DATA_MIN_EVENTS,
+                        "low_data": low_data,
                         "locked": (stream, kpi) in LOCKED,
                         "indirect": kpi in INDIRECT,
                         "actions": LEVER_MAP.get(stream, {}).get(kpi),
@@ -665,6 +676,31 @@ def baseline(history: History, window: int) -> dict[str, Any]:
         "lever_map": LEVER_MAP,
         "step_pct": STEP_PCT,
     }
+
+
+def _trend_strength(
+    trend: float | None,
+    last_band: Band | None,
+    prior_present: list[DayCounts],
+    kpi: str,
+    *,
+    low_data: bool,
+) -> str | None:
+    """D31.7: ``clear`` / ``likely`` / ``noise`` for a cell's ▲/▼ trend.
+
+    The trend is a difference of two window means, so it is graded against both
+    windows' window-mean bands combined (``change_strength``). A low-data cell
+    (either window, D28.2) or a missing trend / band gets None: nothing is shown.
+    """
+    if trend is None or low_data or last_band is None:
+        return None
+    prior_events = window_events(prior_present, kpi)
+    if prior_events is not None and prior_events < LOW_DATA_MIN_EVENTS:
+        return None
+    prior_band = mean_band([d.kpi(kpi) for d in prior_present])
+    if prior_band is None:
+        return None
+    return change_strength(trend, last_band.band_pct, prior_band.band_pct)
 
 
 def baseline_values(payload: Mapping[str, Any]) -> dict[str, dict[str, float | None]]:

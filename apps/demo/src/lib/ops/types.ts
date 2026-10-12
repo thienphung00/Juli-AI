@@ -1,3 +1,5 @@
+import type { ChangeStrength } from "../change-strength";
+
 /** Shapes of `/v1/ops/*` (contract `fasttrack/contracts/p16-ops.md`). */
 
 export type StageId = "trial" | "self" | "pilot";
@@ -169,6 +171,8 @@ export interface SimCell {
   readonly label: string;
   readonly value: number | null;
   readonly trend_pct: number | null;
+  /** D31.7: the trend against both windows' bands combined; null / absent: show nothing. */
+  readonly trend_strength?: ChangeStrength | null;
   /** D28.1: band of the window mean (older backends: the daily p10–p90 band). */
   readonly band: BandStats | null;
   /** D28.1: the daily p10–p90 band, shown on hover / click. Absent on older backends. */
