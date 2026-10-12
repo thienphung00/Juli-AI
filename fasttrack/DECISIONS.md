@@ -448,3 +448,33 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      shops are chosen and searched in Tổng quan (search by shop name), and the last
      chosen shop is remembered. No shop chosen → "Chọn một shop ở Tổng quan ›". Removed:
      Mô phỏng in the shop nav and the per-row Mô phỏng link.
+
+- **D28** — Juli Ops: number reliability, OpenAI limits, shop terms (owner, 2026-10-12).
+  Artboards: canvas "Thiết kế UI flow", row "Juli Ops · độ tin cậy số liệu, giới hạn
+  OpenAI, thời hạn shop (D28)" — `OpsSimBand`, `OpsOpenAICap` (tab Chi phí),
+  `OpsShopTerm` (tab Thời hạn). Main nav: Tổng quan · Mô phỏng · Chi phí · Thời hạn ·
+  Nhân viên · Nhật ký.
+  1. **Band of the window mean (11A).** A Mô phỏng cell shows "Dao động TB N ngày: ±X %"
+     = 1.2816 × stdev(daily values) / √(days present) / mean; the daily p10–p90 band
+     ("Mỗi ngày: ±Y %") is shown on hover / click. "Đo được" compares a target to the
+     window band, so it shrinks from 7 → 14 → 30 days.
+  2. **Low-data cells (3C):** fewer than 30 clicks (CTR) or 30 orders (CTOR, AOV) in the
+     window → the value stays but is grey with a "*" mark, a dashed cell, a grey "~"
+     trend chip and "ít dữ liệu · N đơn"; a target on it reads "Ít dữ liệu".
+  3. **System OpenAI limit (5A), tab Chi phí:** monthly system cap (default $50,
+     Admin-editable with a confirm dialog). ≥ 80 %: banner on every Ops page + one email to
+     Admins per month. ≥ 100 %: no new OpenAI calls for any shop (drafting, content
+     analysis, agent runs); cards are still emitted; the seller sees "Juli tạm dừng soạn
+     nội dung mới". Each shop's own cap (default $5) is editable per row ("· riêng").
+  4. **Shop terms (6A), tab Thời hạn:** manual extension by package only — 30 or 365
+     days — recorded as a *subscription period* (shop, plan, starts_on, ends_on, source
+     `contract` | `payment`, reference = contract no. / payment id, unique per source,
+     actor). A still-active shop's new period starts at its current end; an expired one
+     starts today. Expiry = latest `ends_on`. States: còn hạn; sắp hết (≤ 14 days);
+     ân hạn 7 days after expiry (Juli runs, seller sees an amber reminder to contact
+     lienhe@app-juli.com); then **chỉ xem** (no new cards, no runs or drafting; data sync
+     continues so the shop resumes at once). Admins see days left and may extend without
+     limit. A shop with no period yet is "Chưa đặt thời hạn" and is NOT restricted.
+  5. **Payment-ready:** the future payment system calls the same grant function with
+     `source=payment` and its transaction id (idempotent on the reference); Ops needs no
+     change.
