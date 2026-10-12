@@ -250,6 +250,8 @@ export interface MeasurementRow {
 export interface MeasurementVerdict {
   readonly day7?: "rising" | "unclear" | null;
   readonly day14?: "met" | "partial" | "not_met" | null;
+  /** D31.7: the day-14 target change against the pre/post bands combined; null: nothing new. */
+  readonly strength?: "clear" | "likely" | "noise" | null;
   readonly affected_by_external_change?: boolean | null;
 }
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
+import { changeStrengthLabel, type ChangeStrength } from "../../lib/change-strength";
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
 import { fmtInt, fmtK, fmtM, fmtPct, fmtSignedPct } from "../../lib/ops/format";
@@ -34,6 +35,8 @@ const TREND_STYLE: Record<string, CSSProperties> = {
   flat: { color: C.body, background: "#f0eef0" },
   none: { color: C.muted2, background: "#f0eef0" },
 };
+// D31.7: the trend's strength sits next to its chip as small tinted text.
+const STRENGTH_COLOR: Record<ChangeStrength, string> = { clear: C.ink, likely: C.body, noise: C.muted2 };
 const STREAM_LABEL: Record<StreamId, string> = { product_card: "Thẻ sản phẩm", shop_tab: "Tab cửa hàng", seller_video: "Video", seller_live: "LIVE" };
 const KPI_LABEL: Record<KpiId, string> = { impressions: "Hiển thị", ctr: "CTR", ctor: "CTOR", aov: "AOV" };
 
@@ -476,6 +479,9 @@ function Cell({
         : { background: "#fff", border: "1px solid #ece3e7" };
   const label = `${STREAM_LABEL[stream]} ${KPI_LABEL[cell.kpi]}`;
   const chipText = low && trend.tone !== "none" ? `~ ${trend.text.replace(/^[▲▼] /, "")}` : trend.text;
+  // D31.7: never on a low-data cell (the backend sends null there too).
+  const strength = !low && cell.trend_strength ? cell.trend_strength : null;
+  const strengthText = changeStrengthLabel(strength);
   return (
     <div data-locked={cell.locked} data-low-data={low} data-testid={`sim-cell-${stream}-${cell.kpi}`} style={{ borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 4, ...box }}>
       <button
@@ -488,7 +494,7 @@ function Cell({
         type="button"
       >
         <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6, flexWrap: "wrap", width: "100%" }}>
-          <span style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
             <b data-testid="cell-value" style={{ fontSize: 15, ...(low ? { color: LOW.value } : {}) }}>
               {value(cell.kpi, now)}
             </b>
@@ -500,6 +506,15 @@ function Cell({
             <span data-testid="trend-chip" style={{ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "1px 6px", ...(low ? LOW_CHIP : TREND_STYLE[trend.tone]) }}>
               {chipText}
             </span>
+            {strength && strengthText ? (
+              <span
+                data-strength={strength}
+                data-testid="trend-strength"
+                style={{ fontSize: 11, fontWeight: strength === "clear" ? 700 : 600, color: STRENGTH_COLOR[strength], whiteSpace: "nowrap" }}
+              >
+                {strengthText}
+              </span>
+            ) : null}
           </span>
           {!cell.locked && cell.indirect ? <span style={{ fontSize: 11, fontWeight: 700, color: C.amber }}>gián tiếp ⚠</span> : null}
         </span>

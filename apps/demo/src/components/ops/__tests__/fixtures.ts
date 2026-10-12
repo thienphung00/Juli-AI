@@ -176,6 +176,8 @@ function stream(
       label: labels[k],
       value: v[i],
       trend_pct: [4.1, -1.2, -3.8, 0.3][i],
+      // D31.7 (backend: null on a low-data cell; the UI hides it there too).
+      trend_strength: (["clear", "noise", "likely", "noise"] as const)[i] as "clear" | "likely" | "noise" | null,
       band: windowBand(v[i], bands[i], i === 0 ? cv : 0.05),
       daily_band: band(v[i], bands[i], i === 0 ? cv : 0.05),
       events: i === 0 ? null : i === 1 ? events[0] : events[1],

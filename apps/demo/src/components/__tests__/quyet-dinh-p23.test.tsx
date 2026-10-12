@@ -296,6 +296,33 @@ describe("P23 measurement verdicts and external changes (D29.8, D30.4)", () => {
     expect(finalBox(measurement("final"), "Tiêu đề")?.title).toBe("Gần đạt: 70 % mức kỳ vọng");
   });
 
+  it("D31.7: Đạt not clearly above both windows' noise reads Đạt · chưa chắc chắn", () => {
+    for (const strength of ["likely", "noise"] as const) {
+      const m = measurement("final", { verdict: { day14: "met", strength } });
+      expect(measureHead(m)).toEqual({ headline: "Ngày 14: đạt mục tiêu", chip: { label: "Đạt · chưa chắc chắn", tone: "ok" } });
+      expect(day14Steps(m, "Tiêu đề")[3].result).toBe("Đạt · chưa chắc chắn");
+      expect(finalBox(m, "Tiêu đề")?.title).toMatch(/^Đạt · chưa chắc chắn: CTR /);
+    }
+    const clear = measurement("final", { verdict: { day14: "met", strength: "clear" } });
+    expect(measureHead(clear).chip).toEqual({ label: "Đạt", tone: "ok" });
+    expect(finalBox(clear, "Tiêu đề")?.title).toMatch(/^Đạt: CTR /);
+    // Một phần / Không đạt keep their words whatever the strength.
+    expect(measureHead(measurement("final", { verdict: { day14: "partial", strength: "likely" } })).chip.label).toBe("Một phần");
+    expect(measureHead(measurement("final", { verdict: { day14: "not_met", strength: "noise" } })).chip.label).toBe("Không đạt");
+  });
+
+  it("D31.7: the panel chip and the external-change note together", () => {
+    renderMeasure(
+      measurement("final", {
+        verdict: { day14: "met", strength: "likely", affected_by_external_change: true },
+        external_changes: [{ kind: "product_edit", fields: ["title"], occurred_at: "2026-10-12T03:00:00Z", source: "webhook_15" }],
+      }),
+      "d14",
+    );
+    expect(screen.getByTestId("measure-chip")).toHaveTextContent("Đạt · chưa chắc chắn");
+    expect(screen.getByTestId("external-change")).toHaveTextContent("Bị ảnh hưởng bởi thay đổi khác");
+  });
+
   it("external change lines; none without the fields", () => {
     const m = measurement("final", {
       verdict: { day14: "partial", affected_by_external_change: true },

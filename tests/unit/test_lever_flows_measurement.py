@@ -396,3 +396,53 @@ async def test_the_route_serves_its_own_shops_runs_only(engine, session):
     assert foreign.status_code == 404
     assert not_measurable.status_code == 409
     assert not_measurable.json()["detail"]["code"] == "nothing_written"
+
+
+# --- D31.7: strength of the day-14 change ---------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("pre", "post", "pre_band", "post_band", "expected"),
+    [
+        ("0.040", "0.048", "6", "8", "clear"),  # +20 % = 2 × √(6² + 8²)
+        ("0.040", "0.044", "6", "8", "likely"),  # +10 % = 1 × combined
+        ("0.040", "0.0436", "6", "8", "noise"),  # +9 % > 6 (one band alone: "moved")
+        ("0.040", "0.046", None, "8", None),
+        (None, "0.046", "6", "8", None),
+        ("0", "0.046", "6", "8", None),
+    ],
+)
+def test_day14_strength_grades_against_both_windows(pre, post, pre_band, post_band, expected):
+    from decimal import Decimal
+
+    def dec(value):
+        return None if value is None else Decimal(value)
+
+    assert (
+        lever_flows.measurement.day14_strength(
+            pre_value=dec(pre),
+            post_value=dec(post),
+            pre_band_pct=dec(pre_band),
+            post_band_pct=dec(post_band),
+        )
+        == expected
+    )
+
+
+@pytest.mark.asyncio
+async def test_day14_verdict_carries_its_strength_and_day7_does_not(session):
+    shop, _product, run, execution = await _listing_run(session)
+    # Flat series: both bands sit at the 1 % floor (combined ≈ 1.41 %); CTOR +12.5 %.
+    await _series(session, shop.id, post={"orders": 27, "gmv": 3_920_000})
+    await _reading(session, run, execution, "preliminary")
+    day7 = await lever_flows.measure_run(session, shop.id, run, today=T + timedelta(days=8))
+    assert day7["stage"] == "day7"
+    assert day7["verdict"]["strength"] is None
+
+    await _reading(session, run, execution, "final")
+    body = await lever_flows.measure_run(session, shop.id, run)
+
+    assert body["stage"] == "final"
+    assert body["verdict"]["day14"] is not None
+    assert body["verdict"]["strength"] == "clear"
+    assert body["verdict"]["affected_by_external_change"] is False

@@ -451,6 +451,10 @@ def assess_product(
     # The fall is a difference of two window means, so its band combines both
     # windows' window-mean bands (√(a² + b²)); one window's band alone would call
     # ~1 in 5 flat products "fallen" on noise.
+    # D31.7 note: the same combined band as ``services.change_strength``, but in VND
+    # (not %), floored at MIN_BAND_PCT, with a 1 × multiplier: a fall > 1 × combined,
+    # i.e. at least "likely". Candidate selection keeps 1 × rather than the 2 × of
+    # "clear" on purpose, so a real fall is not missed.
     half = math.hypot(_half_width(now.daily_values("gmv")), _half_width(before.daily_values("gmv")))
     half = max(half, gmv_now * MIN_BAND_PCT / 100)
     base.update(gmv_current=gmv_now, gmv_earlier=gmv_before, gmv_band_abs=half)

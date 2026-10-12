@@ -151,6 +151,33 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     expect(within(screen.getByTestId("sim-cell-product_card-ctor")).getByTestId("cell-verdict")).toHaveTextContent("Trong dao động");
   });
 
+  it("D31.7: the trend's strength sits next to its chip; hover and the window band are unchanged", async () => {
+    render(<OpsSimulate api={{ simulation: async () => SIMULATION, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
+    const imp = await screen.findByTestId("sim-cell-product_card-impressions");
+    expect(within(imp).getByTestId("trend-chip")).toHaveTextContent("▲ 4,1 %");
+    expect(within(imp).getByTestId("trend-strength")).toHaveTextContent("Thay đổi rõ");
+    expect(within(screen.getByTestId("sim-cell-product_card-ctor")).getByTestId("trend-strength")).toHaveTextContent("Có thể thay đổi");
+    const ctr = screen.getByTestId("sim-cell-product_card-ctr");
+    expect(within(ctr).getByTestId("trend-strength")).toHaveTextContent("Trong dao động");
+    expect(within(ctr).getByTestId("cell-band")).toHaveTextContent("Dao động TB 30 ngày:");
+    expect(within(ctr).getByRole("button", { name: "Thẻ sản phẩm CTR: xem dao động mỗi ngày" })).toHaveAttribute("title", "Mỗi ngày: ±8 %");
+    // A low-data cell shows no strength, even when one is sent.
+    expect(within(screen.getByTestId("sim-cell-seller_live-ctor")).queryByTestId("trend-strength")).toBeNull();
+    // The what-if verdict keeps its own words.
+    fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % Thẻ sản phẩm CTOR" }));
+    expect(within(screen.getByTestId("sim-cell-product_card-ctor")).getByTestId("cell-verdict")).toHaveTextContent("Vượt dao động · đo được");
+  });
+
+  it("D31.7: no strength from an older backend or without a comparison", async () => {
+    const page = {
+      ...SIMULATION,
+      streams: SIMULATION.streams.map((s) => ({ ...s, cells: s.cells.map((c, i) => (i === 0 ? { ...c, trend_strength: undefined } : { ...c, trend_strength: null })) })),
+    };
+    render(<OpsSimulate api={{ simulation: async () => page, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
+    await screen.findByTestId("sim-row-product_card");
+    expect(screen.queryAllByTestId("trend-strength")).toHaveLength(0);
+  });
+
   it("D28.2: a low-data cell is grey with a *, a dashed box, a ~ chip, its count, and reads Ít dữ liệu", async () => {
     render(<OpsSimulate api={{ simulation: async () => SIMULATION, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
     const cell = await screen.findByTestId("sim-cell-seller_live-ctor");

@@ -1,0 +1,19 @@
+{
+  "description": "D31.7 change strength: one table, tested by tests/unit/test_change_strength.py (backend) and apps/demo/src/lib/__tests__/change-strength.test.ts (demo).",
+  "cases": [
+    { "name": "clear rise", "change": 25, "a": 6, "b": 8, "expected": "clear" },
+    { "name": "clear at exactly 2x", "change": 20, "a": 6, "b": 8, "expected": "clear" },
+    { "name": "clear fall", "change": -30, "a": 6, "b": 8, "expected": "clear" },
+    { "name": "likely just under 2x", "change": 19.9, "a": 6, "b": 8, "expected": "likely" },
+    { "name": "likely at exactly 1x", "change": 10, "a": 6, "b": 8, "expected": "likely" },
+    { "name": "likely fall", "change": -15, "a": 6, "b": 8, "expected": "likely" },
+    { "name": "noise just under 1x", "change": 9.9, "a": 6, "b": 8, "expected": "noise" },
+    { "name": "noise no change", "change": 0, "a": 6, "b": 8, "expected": "noise" },
+    { "name": "one band alone would call it clear", "change": 12, "a": 5, "b": 12, "expected": "noise" },
+    { "name": "zero bands, any change is clear", "change": 0.5, "a": 0, "b": 0, "expected": "clear" },
+    { "name": "zero bands, no change is noise", "change": 0, "a": 0, "b": 0, "expected": "noise" },
+    { "name": "missing change", "change": null, "a": 6, "b": 8, "expected": null },
+    { "name": "missing first band", "change": 25, "a": null, "b": 8, "expected": null },
+    { "name": "missing second band", "change": 25, "a": 6, "b": null, "expected": null }
+  ]
+}
