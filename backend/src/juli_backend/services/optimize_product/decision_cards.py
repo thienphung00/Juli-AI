@@ -60,6 +60,7 @@ from juli_backend.services.optimize_product.diagnosis import (
     codes_for_angle,
     compute_gaps,
 )
+from juli_backend.services.optimize_product.eligibility import gift_reason
 from juli_backend.services.optimize_product.funnel import FunnelWindow, ProductFunnel, ShopMedians
 from juli_backend.services.optimize_product.listing_signals import (
     Evidence,
@@ -184,6 +185,10 @@ class CatalogProduct:
     status: str | None = None
     #: TikTok's category name (D30.2 risky-claims rule list), when stored.
     category: str | None = None
+    #: Known SKU prices (VND) and TikTok's ``is_not_for_sale`` flag, when the
+    #: caller has them -- the gift rule (``eligibility``) reads both.
+    sku_prices: tuple[Decimal, ...] = ()
+    is_not_for_sale: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -420,10 +425,15 @@ def title_evidence(title: str, config: StageDiagnosisConfig) -> list[Evidence]:
 
 
 def exclusion_reason(product: CatalogProduct, config: StageDiagnosisConfig) -> str | None:
-    """Gift / not-for-sale titles and listings not on sale are not diagnosed."""
-    signals = listing_signals_from_product({"title": product.title}, config)
-    if signals.excluded_reason:
-        return signals.excluded_reason
+    """Gift items (``eligibility``) and listings not on sale are not diagnosed."""
+    gift = gift_reason(
+        title=product.title,
+        is_not_for_sale=product.is_not_for_sale,
+        sku_prices=product.sku_prices,
+        extra_patterns=config.exclude_title_patterns,
+    )
+    if gift:
+        return gift
     if product.status and product.status.strip().lower() not in LIVE_STATUSES:
         return f"status {product.status}"
     return None

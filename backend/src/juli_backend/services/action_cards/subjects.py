@@ -181,13 +181,23 @@ async def _resolve_product_subject(session: AsyncSession, shop_id: uuid.UUID) ->
     unscoped and unapprovable -- "you have nothing to optimize" is the truth,
     and an invented product id would not be.
     """
+    from juli_backend.services.optimize_product.eligibility import stored_product_gift_reason
+
     stmt = (
         select(Product)
         .where(Product.shop_id == shop_id)
         .order_by(Product.revenue.desc(), Product.tiktok_product_id.asc())
-        .limit(1)
     )
-    product = (await session.execute(stmt)).scalars().first()
+    # A gift item (free gift attached to orders) accrues revenue from other
+    # products' orders and so tops this ordering; it is never a subject.
+    product = next(
+        (
+            p
+            for p in (await session.execute(stmt)).scalars()
+            if stored_product_gift_reason(p) is None
+        ),
+        None,
+    )
     if product is None:
         return UNSCOPED_SUBJECT
     return CardSubject(

@@ -51,6 +51,8 @@ Có câu hỏi, bạn cứ nhắn đội ngũ Juli ({Kênh liên hệ}) hoặc e
 | **Giữ ổn định** | Ở ngày 7 hoặc 14, con số không phải mục tiêu vẫn nằm trong ngưỡng |
 | **Hoàn tác?** | Juli hỏi bạn có muốn quay lại nội dung cũ không — Juli không tự quay lại |
 | **Giữ thay đổi** | Bạn giữ thay đổi; Juli đo tiếp đến ngày 14 |
+| **Đã hủy** | Hàng chờ thẻ tối ưu: bạn đã dừng lượt chạy này trước khi Juli thay đổi gì |
+| **Sự cố** | Hàng chờ thẻ tối ưu: lượt chạy dừng vì lỗi phía Juli; sản phẩm không bị thay đổi |
 | **Quy tắc** | Nơi bạn đặt giới hạn cho Juli (ngưỡng, giá vốn, mức giảm giá tối đa…) |
 
 ## 1. Bốn luồng bán hàng

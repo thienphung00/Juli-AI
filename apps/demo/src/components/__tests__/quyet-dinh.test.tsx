@@ -10,7 +10,7 @@ import { approveSequentially, groupStages, runStages } from "../../lib/quyet-din
 import { batchCards, groupDecisions } from "../../lib/quyet-dinh/grouping";
 import { buildRunTimeline, vnDate } from "../../lib/quyet-dinh/timeline";
 import type { RevertQuestion, RunChanges, ShopRules } from "../../lib/quyet-dinh/types";
-import { RunQueue } from "../quyet-dinh/dang-thuc-hien-panel";
+import { queueRuns, RunQueue } from "../quyet-dinh/dang-thuc-hien-panel";
 import { measurementLine } from "../quyet-dinh/do-luong-panel";
 import { RulesEditor } from "../quyet-dinh/rules-editor";
 import { REAL_QD_CLIENTS, SignedInQuyetDinh, type QdClients, type QdQuery } from "../quyet-dinh/signed-in-quyet-dinh";
@@ -377,6 +377,46 @@ describe("Hàng chờ thẻ tối ưu", () => {
     expect(rows).toContain("Sản phẩm r3Đã áp dụng");
     expect(rows).toContain("Sản phẩm r4Không thay đổi");
     expect(screen.getByRole("button", { name: /Sản phẩm r3/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("P26: a reaped run is Sự cố and a seller-cancelled one Đã hủy, never Đang chạy", () => {
+    render(
+      <RunQueue
+        cardFor={() => null}
+        onSelect={vi.fn()}
+        runs={[
+          run({ id: "lost", status: "failed", stop_reason: "worker_lost" }),
+          run({ id: "cancel", status: "cancelled", stop_reason: "cancelled_by_seller" }),
+        ]}
+        selectedChip={{ label: "Đang chạy", tone: "info" }}
+        selectedId="lost"
+      />,
+    );
+    const rows = screen.getAllByRole("button").map((button) => button.textContent);
+    expect(rows).toEqual(["Sản phẩm lostSự cố", "Sản phẩm cancelĐã hủy"]);
+  });
+
+  it("P26: finished runs older than 14 days leave the queue; one row per card", () => {
+    const now = Date.parse("2026-10-12T00:00:00Z");
+    const kept = queueRuns(
+      [
+        run({ id: "live", status: "running", stop_reason: null, created_at: "2026-08-19T00:00:00Z", completed_at: null }),
+        run({ id: "old", status: "failed", stop_reason: "worker_lost", completed_at: "2026-08-19T04:00:00Z" }),
+        run({ id: "c-new", decision_id: "card-1", created_at: "2026-10-10T00:00:00Z", completed_at: "2026-10-10T01:00:00Z" }),
+        run({
+          id: "c-old",
+          decision_id: "card-1",
+          status: "failed",
+          stop_reason: "worker_lost",
+          created_at: "2026-10-09T00:00:00Z",
+          completed_at: "2026-10-09T01:00:00Z",
+        }),
+      ],
+      now,
+    );
+    expect(kept.map((r) => r.id)).toEqual(["live", "c-new"]);
+    // The run the seller has open always stays.
+    expect(queueRuns([run({ id: "old", completed_at: "2026-08-19T04:00:00Z" })], now, "old").map((r) => r.id)).toEqual(["old"]);
   });
 });
 

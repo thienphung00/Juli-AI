@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
+from juli_backend.services.optimize_product.eligibility import gift_reason_from_raw
 
 
 class EvidenceSource(str, Enum):
@@ -143,12 +144,9 @@ def listing_signals_from_product(product: dict, config: StageDiagnosisConfig) ->
         if isinstance(s.get("price"), dict)
     ]
     prices = [p for p in prices if p]
-    excluded = None
-    lowered = title.lower()
-    for pattern in config.exclude_title_patterns:
-        if pattern in lowered:
-            excluded = f"title matches '{pattern}'"
-            break
+    # Gift items are never diagnosed (``eligibility``): TikTok's documented
+    # ``is_not_for_sale`` flag when the payload has it, else the title / price rule.
+    excluded = gift_reason_from_raw(product, config.exclude_title_patterns)
     return ListingSignals(
         product_id=str(product.get("id") or ""),
         title=title,

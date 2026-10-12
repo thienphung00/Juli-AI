@@ -66,6 +66,10 @@ from juli_backend.services.optimize_product.decision_cards import (
     recoverable_gmv_per_day,
 )
 from juli_backend.services.optimize_product.diagnosis import Angle, Diagnosis, diagnose_product
+from juli_backend.services.optimize_product.eligibility import (
+    gift_reason_from_raw,
+    is_gift_product,
+)
 from juli_backend.services.optimize_product.funnel import FunnelWindow, ProductFunnel, ShopMedians
 from juli_backend.services.optimize_product.listing_signals import (
     Evidence,
@@ -198,6 +202,12 @@ def select_quick_proposals(
     The caller keeps the first 1-3 that pass the catalog checks.
     """
     config = config or StageDiagnosisConfig()
+    # Gift items (``eligibility``) are neither candidates nor peers of the medians.
+    funnels = [
+        f
+        for f in funnels
+        if not is_gift_product(title=f.title, extra_patterns=config.exclude_title_patterns)
+    ]
     medians = ShopMedians.from_products(funnels, config)
     by_id = {f.product_id: f for f in funnels}
     asked_ids = tuple(pid for pid in asked if pid in by_id)
@@ -299,7 +309,8 @@ def fetch_quick_inputs(
         if sleep_s:
             time.sleep(sleep_s)
     funnels = funnels_from_a34(rows)
-    asked = top_by_gmv(funnels, top_n)
+    # Gift items never become quick cards: do not spend the diagnosis call on them.
+    asked = top_by_gmv([f for f in funnels if not is_gift_product(title=f.title)], top_n)
     evidence: dict[str, list[Evidence]] = {}
     if asked:
         evidence = evidence_from_diagnoses(resources.products.get_diagnoses(asked))
@@ -546,7 +557,7 @@ async def _scan_and_write(
             raw = await asyncio.to_thread(resources.products.get_details, proposal.product_id)
             result.calls += 1
             values = _detail_values(raw if isinstance(raw, dict) else {})
-            if values is None:
+            if values is None or gift_reason_from_raw(raw, config.exclude_title_patterns):
                 continue
             details[proposal.product_id] = values
             title, status = values["title"], values["status"]

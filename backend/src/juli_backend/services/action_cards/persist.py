@@ -127,6 +127,12 @@ SUPPRESSED_REASON_EXPIRED_COOLDOWN = "expired_cooldown"
 #: so results stay attributable. The proposal waits until that card leaves.
 SUPPRESSED_REASON_OTHER_METRIC_ACTIVE = "other_metric_active"
 
+#: The card's product is a gift item (``optimize_product.eligibility``: a
+#: free gift attached to orders, not sold on its own). Never an optimize
+#: candidate: a live card for it is retired (``withdrawn``) on the next run
+#: carrying this reason, and is never executed.
+SUPPRESSED_REASON_GIFT_PRODUCT = "gift_product"
+
 #: The complete revision-suppression vocabulary. Disjoint from
 #: ``emission_budget.SUPPRESSED_REASONS`` by construction -- different
 #: question, different carrier (see the module docstring).
@@ -136,6 +142,7 @@ REVISION_SUPPRESSED_REASONS: frozenset[str] = frozenset(
         SUPPRESSED_REASON_ACTIVE_CARD_EXISTS,
         SUPPRESSED_REASON_EXPIRED_COOLDOWN,
         SUPPRESSED_REASON_OTHER_METRIC_ACTIVE,
+        SUPPRESSED_REASON_GIFT_PRODUCT,
     }
 )
 
