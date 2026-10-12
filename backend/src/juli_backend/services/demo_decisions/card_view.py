@@ -78,6 +78,8 @@ _KPI_LABELS_VI: Mapping[str, str] = {
     "ctr": "CTR - Thẻ sản phẩm",
     "ctor": "CTOR - Thẻ sản phẩm",
     "aov": "AOV (SKU)",
+    # P23 (D29): a GMV fall explained by impressions targets Hiển thị.
+    "impressions": "Lượt hiển thị sản phẩm",
 }
 
 #: ≤ 6 words, by the stage the diagnosis found weak.
@@ -98,6 +100,10 @@ _GMV_METHOD_VI: Mapping[str, str] = {
     ),
     "aov": (
         "đơn hàng SKU × (AOV mục tiêu − AOV hiện tại), trung bình 30 ngày, ước tính theo quy tắc"
+    ),
+    "impressions": (
+        "GMV mỗi ngày × (lượt hiển thị mục tiêu ÷ lượt hiển thị hiện tại − 1), "
+        "ước tính theo quy tắc"
     ),
 }
 
@@ -244,6 +250,10 @@ def _status(
     return "pending"
 
 
+#: P23: aov in VND, impressions a count, CTR / CTOR ratios.
+_KPI_UNITS: Mapping[str, str] = {"aov": "vnd", "impressions": "count"}
+
+
 def _main_kpi(diagnosis: Mapping[str, Any]) -> dict[str, Any]:
     basis = diagnosis.get("recoverable_gmv_basis")
     if isinstance(basis, Mapping) and basis.get("stage_rate") in _KPI_LABELS_VI:
@@ -253,7 +263,7 @@ def _main_kpi(diagnosis: Mapping[str, Any]) -> dict[str, Any]:
             "label": _KPI_LABELS_VI[key],
             "current": _num(basis.get("current_rate")),
             "target": _num(basis.get("reference_rate")),
-            "unit": "vnd" if key == "aov" else "ratio",
+            "unit": _KPI_UNITS.get(key, "ratio"),
         }
     main = diagnosis.get("main_kpi")
     main = main if isinstance(main, Mapping) else {}

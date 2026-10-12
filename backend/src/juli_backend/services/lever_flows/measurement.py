@@ -64,6 +64,8 @@ from juli_backend.models.models import (
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue
 from juli_backend.services import shop_rules
+from juli_backend.services.run_changes.default_bands import default_bands, effective_bands
+from juli_backend.services.shop_rules.diag_tunables import diag_tunables
 
 STAGE_WAITING = "waiting"
 STAGE_DAY7 = "day7"
@@ -101,13 +103,28 @@ KPI_METRIC: Mapping[str, str] = {
     "ctr": "ctr",
     "ctor": "conversion_rate",
     "aov": "gmv_per_order",
+    # P23 (D29): a card whose GMV fall is explained by Hiển thị.
+    "impressions": "impressions",
 }
 _KPI_TARGET_LABEL: Mapping[str, str] = {
     "ctr": "CTR Thẻ sản phẩm",
     "ctor": "CTOR Thẻ sản phẩm",
     "aov": "AOV (SKU)",
+    "impressions": "Lượt hiển thị/ngày",
 }
-_KPI_SHORT: Mapping[str, str] = {"ctr": "CTR", "ctor": "CTOR", "aov": "AOV"}
+_KPI_SHORT: Mapping[str, str] = {
+    "ctr": "CTR",
+    "ctor": "CTOR",
+    "aov": "AOV",
+    "impressions": "Lượt hiển thị",
+}
+
+#: D29.8 verdict labels (contract P23 ``verdict``).
+VERDICT_RISING = "rising"
+VERDICT_UNCLEAR = "unclear"
+VERDICT_MET = "met"
+VERDICT_PARTIAL = "partial"
+VERDICT_NOT_MET = "not_met"
 
 METRIC_LABELS_VI: Mapping[str, str] = {
     "impressions": "Lượt hiển thị/ngày",
@@ -261,6 +278,8 @@ class CardTarget:
     current: Decimal | None
     target: Decimal | None
     expected_gmv_per_day: Decimal | None
+    #: D29.10: a volatile product's card is judged at day 14 only.
+    day14_only: bool = False
 
 
 def card_target(card: ActionCard | None) -> CardTarget:
@@ -286,12 +305,14 @@ def card_target(card: ActionCard | None) -> CardTarget:
     def dec(value: object) -> Decimal | None:
         return None if value is None else Decimal(str(value))
 
+    kpi_block = payload.get("kpi") if isinstance(payload, Mapping) else None
     return CardTarget(
         lever=str(lever["code"]) if lever.get("code") else None,
         kpi_key=str(kpi_key) if kpi_key in KPI_METRIC else None,
         current=dec(basis.get("current_rate")),
         target=dec(basis.get("reference_rate")),
         expected_gmv_per_day=dec(diagnosis.get("recoverable_gmv_per_day")),
+        day14_only=bool(kpi_block.get("day14_only")) if isinstance(kpi_block, Mapping) else False,
     )
 
 
@@ -498,6 +519,78 @@ def final_label(
     return LABEL_KHONG_DAT
 
 
+def daily_metric_series(
+    rows: Iterable[AnalyticsPerformanceInterval], start: date, end: date
+) -> dict[str, list[float | None]]:
+    """Each band metric's value per day over ``[start, end]`` (D29.9 default bands)."""
+    by_day: dict[date, list[AnalyticsPerformanceInterval]] = {}
+    for row in rows:
+        if start <= row.start_date <= end:
+            by_day.setdefault(row.start_date, []).append(row)
+    out: dict[str, list[float | None]] = {m: [] for m in METRIC_UNITS}
+    for day in sorted(by_day):
+        totals = window_totals(by_day[day], day, day)
+        for metric in METRIC_UNITS:
+            value = totals.value(metric)
+            out[metric].append(None if value is None else float(value))
+    return out
+
+
+def _moved_bands(before: Decimal | None, after: Decimal | None, band_pct: Decimal | None) -> bool:
+    """The window mean moved up by more than ``band_pct`` % of the before value."""
+    if before is None or after is None or band_pct is None or before <= 0:
+        return False
+    return (after - before) / before * 100 > band_pct
+
+
+def _gmv_holds(before: Decimal | None, after: Decimal | None, band_pct: Decimal | None) -> bool:
+    """GMV did not fall by more than its band (no GMV data: cannot tell, holds)."""
+    if before is None or after is None or before <= 0:
+        return True
+    band = band_pct if band_pct is not None else Decimal(0)
+    return (before - after) / before * 100 <= band
+
+
+def day7_verdict(
+    *,
+    pre_value: Decimal | None,
+    post_value: Decimal | None,
+    band_pct: Decimal | None,
+    pre_gmv: Decimal | None,
+    post_gmv: Decimal | None,
+    gmv_band_pct: Decimal | None,
+) -> str:
+    """D29.8 day 7: "rising" when the target moved > 1 band up and GMV held, else "unclear"."""
+    rising = _moved_bands(pre_value, post_value, band_pct) and _gmv_holds(
+        pre_gmv, post_gmv, gmv_band_pct
+    )
+    return VERDICT_RISING if rising else VERDICT_UNCLEAR
+
+
+def day14_verdict(
+    *,
+    pre_value: Decimal | None,
+    post_value: Decimal | None,
+    band_pct: Decimal | None,
+    target: Decimal | None,
+    pre_gmv: Decimal | None,
+    post_gmv: Decimal | None,
+    gmv_band_pct: Decimal | None,
+) -> str | None:
+    """D29.8 day 14: "met" (moved > 1 band, at the KPI target, GMV held), "partial"
+    (moved or reached, not both with GMV held), "not_met"; ``None`` without data."""
+    if pre_value is None or post_value is None:
+        return None
+    moved = _moved_bands(pre_value, post_value, band_pct)
+    reached = target is not None and post_value >= target
+    holds = _gmv_holds(pre_gmv, post_gmv, gmv_band_pct)
+    if moved and holds and (reached or target is None):
+        return VERDICT_MET
+    if moved or reached:
+        return VERDICT_PARTIAL
+    return VERDICT_NOT_MET
+
+
 def _today() -> date:
     return (datetime.now(UTC) + _SHOP_OFFSET).date()
 
@@ -581,9 +674,16 @@ async def measure_run(
     }
 
     configured = await shop_rules.stability_bands(session, shop_id)
+    tunables = await diag_tunables(session, shop_id)
+    pre_series = daily_metric_series(rows, pre_start, pre_end)
+    # D29.8: success is judged against 1 window-mean band; D29.9: the guard
+    # default is guard_band_mult × that band, a seller band wins.
+    window_bands = default_bands(pre_series)
+    guard_defaults = default_bands(pre_series, guard_band_mult=tunables.guard_band_mult)
+    effective = effective_bands(configured, guard_defaults)
     bands: list[dict[str, Any]] = []
     band_status: dict[str, bool | None] = {}
-    for metric, band in sorted(configured.items()):
+    for metric, (band, band_source) in sorted(effective.items()):
         if metric == target_metric or metric not in METRIC_LABELS_VI:
             continue
         m_unit = METRIC_UNITS[metric]
@@ -601,6 +701,7 @@ async def measure_run(
                 "low": _number(low, m_unit),
                 "high": _number(high, m_unit),
                 "unit": m_unit,
+                "source": band_source,
             }
         )
         actual = post.value(metric) if stage != STAGE_WAITING else None
@@ -651,7 +752,36 @@ async def measure_run(
             final=final,
         )
 
-    return {
+    verdict: dict[str, Any] = {
+        "day7": None,
+        "day14": None,
+        "affected_by_external_change": False,
+    }
+    if target_metric is not None and stage != STAGE_WAITING:
+        target_band = window_bands.get(target_metric)
+        gmv_band = window_bands.get("gmv")
+        if not target.day14_only:
+            post7 = window_totals(rows, day0 + timedelta(days=1), day7)
+            verdict["day7"] = day7_verdict(
+                pre_value=pre.value(target_metric),
+                post_value=post7.value(target_metric),
+                band_pct=target_band,
+                pre_gmv=pre.value("gmv"),
+                post_gmv=post7.value("gmv"),
+                gmv_band_pct=gmv_band,
+            )
+        if stage == STAGE_FINAL:
+            verdict["day14"] = day14_verdict(
+                pre_value=pre.value(target_metric),
+                post_value=post.value(target_metric),
+                band_pct=target_band,
+                target=target.target,
+                pre_gmv=pre.value("gmv"),
+                post_gmv=post.value("gmv"),
+                gmv_band_pct=gmv_band,
+            )
+
+    body: dict[str, Any] = {
         "stage": stage,
         "dates": {"day7": day7.isoformat(), "day14": day14.isoformat()},
         "target": target_body,
@@ -664,6 +794,12 @@ async def measure_run(
         },
         "final": final,
     }
+    # D29.8 / D30.4: an external change overlapping the window (the measurement's
+    # ``external_changes``, when present) marks the day-14 label.
+    external = body.get("external_changes")
+    verdict["affected_by_external_change"] = bool(external) and verdict["day14"] is not None
+    body["verdict"] = verdict
+    return body
 
 
 def _rows(

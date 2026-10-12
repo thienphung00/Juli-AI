@@ -51,6 +51,8 @@ from juli_backend.services.impact import (
     volume_floor_for,
     volume_indicator_for,
 )
+from juli_backend.services.run_changes.default_bands import default_bands, effective_bands
+from juli_backend.services.shop_rules.diag_tunables import diag_tunables
 from juli_backend.workers.impact_reader.classify import classify_mutation_kinds, rollup_metric_for
 from juli_backend.workers.impact_reader.queries import (
     build_reading_row,
@@ -251,6 +253,33 @@ async def _process_kind(
     return written
 
 
+#: D29.9: the default guard band is read over the 14 days before the change.
+GUARD_PRE_DAYS = 14
+
+
+def pre_change_series(
+    target_daily: Mapping[date, RawDailyRecord], t: date
+) -> dict[str, list[float | None]]:
+    """Each band metric's daily values over the :data:`GUARD_PRE_DAYS` before ``t``."""
+    days = sorted(d for d in target_daily if d < t)[-GUARD_PRE_DAYS:]
+    out: dict[str, list[float | None]] = {}
+    for metric in shop_rules.BAND_METRICS:
+        values: list[float | None] = []
+        for day in days:
+            record = target_daily[day]
+            if metric == "gmv_per_order":
+                value = (
+                    record.gmv / record.sku_orders
+                    if record.gmv is not None and record.sku_orders
+                    else None
+                )
+            else:
+                value = getattr(record, metric, None)
+            values.append(None if value is None else float(value))
+        out[metric] = values
+    return out
+
+
 async def _day7_guardrail(
     session: AsyncSession,
     *,
@@ -272,7 +301,19 @@ async def _day7_guardrail(
     run_id = execution.workflow_run_id
     if run_id is None:
         return
-    bands = await shop_rules.stability_bands(session, execution.shop_id)
+    seller_bands = await shop_rules.stability_bands(session, execution.shop_id)
+    # D29.9 (P23): every metric without a seller band gets its window-mean band.
+    tunables = await diag_tunables(session, execution.shop_id)
+    bands = {
+        metric: band
+        for metric, (band, _source) in effective_bands(
+            seller_bands,
+            default_bands(
+                pre_change_series(target_daily, t),
+                guard_band_mult=tunables.guard_band_mult,
+            ),
+        ).items()
+    }
     if not bands:
         logger.info(
             "day7_guardrail_no_band",

@@ -122,8 +122,18 @@ async def _bands(session, shop_id, **bands):
 # --- stages, target, bands --------------------------------------------------------------
 
 
+@pytest.fixture
+def seller_bands_only(monkeypatch):
+    """The seller's own bands in isolation (pre-D29.9): no window-mean defaults."""
+    from juli_backend.services.lever_flows import measurement
+
+    monkeypatch.setattr(measurement, "default_bands", lambda *_a, **_k: {})
+
+
 @pytest.mark.asyncio
-async def test_waiting_shows_the_target_and_the_sellers_bands_and_no_rows(session):
+async def test_waiting_shows_the_target_and_the_sellers_bands_and_no_rows(
+    session, seller_bands_only
+):
     shop, _product, run, _execution = await _listing_run(session)
     await _series(session, shop.id, post={}, post_days=3)
     await _bands(session, shop.id, impressions=3, ctr=3, gmv_per_order=3)
@@ -150,6 +160,7 @@ async def test_waiting_shows_the_target_and_the_sellers_bands_and_no_rows(sessio
         "low": 9700,
         "high": 10300,
         "unit": "count",
+        "source": "seller",
     }
     assert body["rows"] == []
     assert body["day7"] == {"within_band": None, "question_id": None}
@@ -157,7 +168,9 @@ async def test_waiting_shows_the_target_and_the_sellers_bands_and_no_rows(sessio
 
 
 @pytest.mark.asyncio
-async def test_no_band_set_means_no_bands_and_within_band_null_never_a_default(session):
+async def test_no_seller_band_means_window_mean_defaults_d29_9(session):
+    """D29.9 (P23) replaces "no band set -> no bands": every non-target metric gets
+    its window-mean band over the 14 days before the change, marked ``default``."""
     shop, _product, run, execution = await _listing_run(session)
     await _series(session, shop.id, post={"orders": 26}, post_days=7)
     await _reading(session, run, execution, "preliminary")
@@ -165,13 +178,18 @@ async def test_no_band_set_means_no_bands_and_within_band_null_never_a_default(s
     body = await lever_flows.measure_run(session, shop.id, run)
 
     assert body["stage"] == "day7"
-    assert body["bands"] == []
-    assert body["day7"]["within_band"] is None
-    assert [r["key"] for r in body["rows"]] == ["ctor", "gmv_per_day"]
+    assert body["bands"]
+    assert {b["source"] for b in body["bands"]} == {"default"}
+    assert "conversion_rate" not in {b["key"] for b in body["bands"]}  # the target
+    assert all(b["band_pct"] > 0 for b in body["bands"])
+    assert body["verdict"]["day7"] in {"rising", "unclear"}
+    assert body["verdict"]["day14"] is None
+    assert [r["key"] for r in body["rows"]][0] == "ctor"
+    assert [r["key"] for r in body["rows"]][-1] == "gmv_per_day"
 
 
 @pytest.mark.asyncio
-async def test_day7_within_the_band_with_rows_and_tones(session):
+async def test_day7_within_the_band_with_rows_and_tones(session, seller_bands_only):
     shop, _product, run, execution = await _listing_run(session)
     await _series(session, shop.id, post={"orders": 26, "gmv": 3_900_000}, post_days=7)
     await _reading(session, run, execution, "preliminary")
