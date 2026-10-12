@@ -128,8 +128,56 @@ async def _apply_tenant_context_to_session(
     Raises:
         TenantContextRequiredError: If context is required but not available.
     """
-    global _system_scope_active
+    _require_tenant_context(shop_id, user_id)
 
+    # Use set_config() with parameterized queries to avoid SQL injection.
+    # set_config(name, value, is_local) with is_local=true == SET LOCAL.
+    try:
+        bind = session.get_bind()
+        dialect_name = bind.dialect.name if hasattr(bind, "dialect") else "postgresql"
+
+        # Skip GUC setting on SQLite (no support for set_config)
+        if dialect_name == "sqlite":
+            return
+
+        # One round trip whatever is being set (P22): each statement costs
+        # ~220 ms against the production pooler, and two separate
+        # `set_config` calls were the commonest pair on every seller request.
+        if shop_id is not None and user_id is not None:
+            await session.execute(
+                text(_SET_BOTH_SQL).bindparams(
+                    shop_key=_SHOP_GUC,
+                    shop_val=str(shop_id),
+                    user_key=_USER_GUC,
+                    user_val=str(user_id),
+                )
+            )
+        elif shop_id is not None:
+            await session.execute(
+                text("SELECT set_config('app.current_shop_id', :val, true)").bindparams(
+                    val=str(shop_id)
+                )
+            )
+        elif user_id is not None:
+            await session.execute(
+                text("SELECT set_config('app.current_user_id', :val, true)").bindparams(
+                    val=str(user_id)
+                )
+            )
+    except TenantContextRequiredError:
+        raise
+    except Exception:
+        # Unexpected errors should propagate (not swallowed)
+        logger.error("Failed to apply tenant context", exc_info=True)
+        raise
+
+
+def _require_tenant_context(shop_id: uuid.UUID | None, user_id: uuid.UUID | None) -> None:
+    """The fail-closed decision `_apply_tenant_context_to_session` makes before SQL.
+
+    Split out (P22) so a scope that sets its GUCs in a fused statement still
+    makes exactly the same refusal, before anything reaches the database.
+    """
     # Fail-closed in Python before any SQL.
     #
     # Three modes, narrowest first:
@@ -148,38 +196,30 @@ async def _apply_tenant_context_to_session(
             f"system_scope_active={_system_scope_active}"
         )
 
-    # Use set_config() with parameterized queries to avoid SQL injection.
-    # set_config(name, value, is_local) with is_local=true == SET LOCAL.
-    try:
-        bind = session.get_bind()
-        dialect_name = bind.dialect.name if hasattr(bind, "dialect") else "postgresql"
-
-        # Skip GUC setting on SQLite (no support for set_config)
-        if dialect_name == "sqlite":
-            return
-
-        if shop_id is not None:
-            await session.execute(
-                text("SELECT set_config('app.current_shop_id', :val, true)").bindparams(
-                    val=str(shop_id)
-                )
-            )
-        if user_id is not None:
-            await session.execute(
-                text("SELECT set_config('app.current_user_id', :val, true)").bindparams(
-                    val=str(user_id)
-                )
-            )
-    except TenantContextRequiredError:
-        raise
-    except Exception:
-        # Unexpected errors should propagate (not swallowed)
-        logger.error("Failed to apply tenant context", exc_info=True)
-        raise
-
 
 _SHOP_GUC = "app.current_shop_id"
 _USER_GUC = "app.current_user_id"
+
+_SET_BOTH_SQL = (
+    "SELECT set_config(:shop_key, :shop_val, true), set_config(:user_key, :user_val, true)"
+)
+
+# Read the pair in force AND write the new pair, in ONE round trip (P22).
+#
+# Every scope used to spend three statements on entry -- read the prior pair,
+# write the shop, write the pair -- at ~220 ms each in production. This reads
+# and writes in one. The ORDER is what makes it correct: the prior values must
+# be read before `set_config` changes them. `OFFSET 0` keeps the subquery from
+# being flattened into the outer query, so it is a separate plan node whose row
+# is produced -- `current_setting` evaluated -- before the outer projection,
+# which is where `set_config` runs, ever sees it. Measured on Postgres 16:
+# with the shop GUC already 'abc', this returns prior 'abc' and leaves 'new'.
+_SWAP_GUCS_SQL = (
+    "SELECT prior.shop, prior.usr, "  # nosec B608 -- constant text, values are bound
+    "set_config(:shop_key, :shop_val, true), set_config(:user_key, :user_val, true) "
+    f"FROM (SELECT current_setting('{_SHOP_GUC}', true) AS shop, "
+    f"current_setting('{_USER_GUC}', true) AS usr OFFSET 0) AS prior"
+)
 
 
 def _require_shop_for_shop_scope(shop_id: uuid.UUID | None) -> uuid.UUID:
@@ -241,6 +281,24 @@ async def _write_tenant_gucs(session: AsyncSession, shop: str, user: str) -> Non
             "       set_config(:user_key, :user_val, true)"
         ).bindparams(shop_key=_SHOP_GUC, shop_val=shop, user_key=_USER_GUC, user_val=user)
     )
+
+
+async def _swap_tenant_gucs(session: AsyncSession, shop: str, user: str) -> tuple[str, str]:
+    """Set both GUCs and return the pair they held before -- one round trip.
+
+    Exactly `_read_tenant_gucs` followed by `_write_tenant_gucs`, fused (P22);
+    see `_SWAP_GUCS_SQL` for why the read is guaranteed to see the old values.
+    """
+    if _session_is_sqlite(session):
+        return "", ""
+    row = (
+        await session.execute(
+            text(_SWAP_GUCS_SQL).bindparams(
+                shop_key=_SHOP_GUC, shop_val=shop, user_key=_USER_GUC, user_val=user
+            )
+        )
+    ).one()
+    return (row[0] or "", row[1] or "")
 
 
 async def _restore_tenant_gucs(
@@ -406,15 +464,15 @@ async def with_shop_scope(
     try:
         # Before the GUC read, not after: the read below is itself a statement.
         _require_shop_for_shop_scope(shop_id)
-        prior_shop, prior_user = await _read_tenant_gucs(session)
-        await _apply_tenant_context_to_session(session, shop_id, None)
+        _require_tenant_context(shop_id, None)
+        # Read the prior pair and set the new one in ONE statement (P22).
         # Withhold the user GUC explicitly rather than by omission. The
         # docstring above promises every user-keyed policy denies inside this
         # scope; that only held while nothing had set the GUC earlier in the
         # transaction. Under an enclosing `with_tenant_scope`, or a second pass
         # through a loop, it would have been inherited and the promise would
         # have been quietly false.
-        await _write_tenant_gucs(session, str(shop_id), "")
+        prior_shop, prior_user = await _swap_tenant_gucs(session, str(shop_id), "")
         applied = True
         yield
     except BaseException:
@@ -557,14 +615,17 @@ async def with_sticky_shop_scope(
         # is itself a statement, and a scope with no shop must reach the
         # database not at all.
         shop = _require_shop_for_shop_scope(shop_id)
-        prior_shop, prior_user = await _read_tenant_gucs(session)
-        listen_target, listener = _register_sticky_listener(session, shop)
-        await _apply_tenant_context_to_session(session, shop, None)
+        _require_tenant_context(shop, None)
+        # Read the prior pair and set the new one in ONE statement (P22), and
+        # BEFORE the listener exists: if this statement autobegins the
+        # transaction, a listener already bound would set the shop first and
+        # the "prior" pair read here would be the shop itself.
         # Withhold the user GUC explicitly rather than by omission — the same
         # reasoning as `with_shop_scope`, and the same pair the listener puts
         # back on every subsequent transaction.
-        await _write_tenant_gucs(session, str(shop), "")
+        prior_shop, prior_user = await _swap_tenant_gucs(session, str(shop), "")
         applied = True
+        listen_target, listener = _register_sticky_listener(session, shop)
         yield
     except BaseException:
         body_failed = True
@@ -729,6 +790,8 @@ def with_sticky_shop_scope_sync(
 async def with_user_scope(
     session: AsyncSession,
     user_id: uuid.UUID,
+    *,
+    restore: bool = True,
 ) -> AsyncIterator[None]:
     """Set user context only, for the authentication lookup itself (#1691).
 
@@ -762,9 +825,20 @@ async def with_user_scope(
     knows a user and no shop; `get_active_shop` establishes the shop afterwards,
     from the `X-Shop-Id` header, against the user's own shops.
 
+    `restore=False` (P22) is for a caller that ENDS THE TRANSACTION right after
+    the block -- `get_current_user`, which commits immediately. `SET LOCAL` dies
+    with the transaction, so the commit does the restore's job, and the read of
+    the prior pair (only needed to restore it) is skipped too: one statement
+    instead of three, two round trips (~440 ms) off every authenticated
+    request. Any other caller must keep the default; with `restore=False` and
+    no immediate commit/rollback, the user GUC would stay set for whatever runs
+    next in the transaction.
+
     Args:
         session: AsyncSession to set the GUC on
         user_id: the subject of the verified JWT
+        restore: put the prior pair back on exit (default). False only when
+            the caller commits or rolls back immediately after the block.
 
     Raises:
         TenantContextRequiredError: if user_id is None, before any SQL is
@@ -774,12 +848,16 @@ async def with_user_scope(
         msg = "with_user_scope requires a user_id"
         raise TenantContextRequiredError(msg)
 
+    if not restore:
+        await _write_tenant_gucs(session, "", str(user_id))
+        yield
+        return
+
     body_failed = False
     prior_shop, prior_user = "", ""
     applied = False
     try:
-        prior_shop, prior_user = await _read_tenant_gucs(session)
-        await _write_tenant_gucs(session, "", str(user_id))
+        prior_shop, prior_user = await _swap_tenant_gucs(session, "", str(user_id))
         applied = True
         yield
     except BaseException:

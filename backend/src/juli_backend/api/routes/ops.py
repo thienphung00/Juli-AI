@@ -138,17 +138,31 @@ async def get_ops_context(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> OpsContext:
-    """Gates 2–3: a signed-in user with an active staff row matching Access."""
-    member = await ops_staff.resolve_staff(session, user_id=user.id, email=user.email)
+    """Gates 2–3: a signed-in user with an active staff row matching Access.
+
+    P22: the staff row is cached in-process for 60 s (``ops_staff.cached_staff``
+    -- see there for the cross-worker trade-off), so the common request makes
+    no database call here at all. On a miss the read stays in the request's
+    transaction and is committed only when it wrote (a first-sight
+    ``user_id`` binding); a read-only resolution costs no COMMIT.
+    """
+    member = ops_staff.cached_staff(user.id, user.email)
     if member is None:
-        await session.rollback()
-        logger.warning("ops_not_staff", extra={"user_id": str(user.id)})
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-    if access_email is not None and access_email != member.email:
-        await session.rollback()
+        member = await ops_staff.resolve_staff(session, user_id=user.id, email=user.email)
+        if member is None:
+            await session.rollback()
+            logger.warning("ops_not_staff", extra={"user_id": str(user.id)})
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        if access_email is not None and access_email != member.email:
+            await session.rollback()
+            logger.warning("ops_access_email_mismatch", extra={"staff_id": str(member.id)})
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        if member.newly_bound:
+            await session.commit()  # persists the first-sight user_id binding
+        ops_staff.remember_staff(user.id, user.email, member)
+    elif access_email is not None and access_email != member.email:
         logger.warning("ops_access_email_mismatch", extra={"staff_id": str(member.id)})
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-    await session.commit()  # persists a first-sight user_id binding
     return OpsContext(staff=member, user=user)
 
 
