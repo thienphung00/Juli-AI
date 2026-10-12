@@ -156,6 +156,25 @@ test("Cài đặt shop: stage confirm, then a draft saved in one PUT (D27.5)", a
   expect(puts).toEqual([{ changes: { enabled_streams: ["product_card", "shop_tab", "seller_video"], promotion_api_enabled: true } }]);
 });
 
+test("Cài đặt shop: Chẩn đoán & KPI tunables go through the draft bar and one PUT (D29.11)", async ({ page }) => {
+  const { puts } = await stub(page);
+  await page.goto(`/ops/shops/${SHOP_ID}`);
+  const diag = page.getByTestId("ops-diag");
+  await diag.getByRole("button", { name: /Chẩn đoán & KPI/ }).click();
+  await expect(diag.getByTestId("ops-setting")).toHaveCount(6);
+  await expect(diag.getByTestId("ops-setting").first()).toContainText("14 · 30 · 60 ngày");
+  await page.getByRole("button", { name: "Sửa Ngưỡng biến động" }).click();
+  await page.getByRole("spinbutton", { name: "Ngưỡng biến động" }).fill("25");
+  const bar = page.getByRole("region", { name: "Thay đổi chưa lưu" });
+  await expect(bar).toContainText("1 thay đổi chưa lưu");
+  await bar.getByRole("button", { name: "Lưu thay đổi (1)" }).click();
+  const save = page.getByRole("dialog", { name: "Lưu 1 thay đổi cho Mỹ phẩm Thảo Nhi?" });
+  await expect(save.getByTestId("confirm-row")).toContainText("CV > 30 % → CV > 25 %");
+  await save.getByRole("button", { name: "Xác nhận lưu" }).click();
+  await expect(page.getByTestId("ops-toast")).toContainText("Đã lưu 1 thay đổi · ghi 1 dòng nhật ký");
+  expect(puts).toEqual([{ changes: { volatile_cv: 0.25 } }]);
+});
+
 test("Nhật ký filters by kind and shows merged rows (D27.4, D27.6)", async ({ page }) => {
   await stub(page);
   await page.goto("/ops/nhat-ky");
@@ -265,6 +284,32 @@ test("Xem như shop: Xem thêm expands, tabs work, write buttons are disabled, l
   await expect(page.getByRole("button", { name: "Phân tích" })).toHaveAttribute("aria-current", "page");
   expect(writes).toEqual([]);
   expect(seller).toEqual([]);
+});
+
+test("Xem như shop shows the D29 card UI read-only (confidence, KPI range, GMV range)", async ({ page }) => {
+  const { writes } = await stub(page);
+  const card = {
+    ...VIEW_CARD.recommendation.card,
+    target_metric: "ctor",
+    confidence: "medium",
+    kpi: { metric: "ctor", current: 0.054, target: 0.062, target_min: 0.058, target_max: 0.066, display: "range", band_pct: 7, window_days: 30, low_data: false },
+    gmv_estimate: { per_month_min: 500_000, per_month_max: 1_200_000 },
+  };
+  await page.route(`**/v1/ops/shops/${SHOP_ID}/view/decisions`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [{ ...VIEW_CARD, recommendation: { ...VIEW_CARD.recommendation, card } }] }),
+    }),
+  );
+  await page.goto(`/ops/shops/${SHOP_ID}/xem`);
+  const view = page.getByTestId("recommendation-card").first();
+  await expect(view.getByTestId("confidence-pill")).toHaveText("Độ tin cậy: Vừa");
+  await expect(view).toContainText("5,8–6,6 %");
+  await expect(view.getByTestId("kpi-window")).toContainText("30 ngày");
+  await expect(view).toContainText("+0,5–1,2 tr ₫/tháng");
+  await expect(view.getByRole("button", { name: "Phê duyệt" })).toBeDisabled();
+  expect(writes).toEqual([]);
 });
 
 test("Mô phỏng: window, ± steps, locked cells, volatility", async ({ page }) => {

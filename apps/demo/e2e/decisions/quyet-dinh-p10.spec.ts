@@ -252,7 +252,7 @@ function revertScenario(phase: Parameters<typeof revertEvents>[0]): Scenario {
   });
 }
 
-function measureScenario(m: ReturnType<typeof measurement> | null): Scenario {
+function measureScenario(m: Record<string, unknown> | null): Scenario {
   return scenario({
     decisions: [MAIN_CARD],
     runs: [LISTING_RUN({ status: "completed", stop_reason: "final_response", completed_at: vn("10:47:31") })],
@@ -296,6 +296,58 @@ test.describe("P10 Đề xuất card", () => {
     await expect(other.getByTestId("reason-done")).toContainText("Hoàn thành · đã từ chối thẻ");
     await expect(other.getByTestId("reason-done")).toContainText("Lý do bạn chọnLý do hoặc số liệu chưa thuyết phục");
     expect(posts.find((p) => p.path.endsWith("/13/reject"))?.body).toEqual({ reason_code: "not_convincing", note: "Số liệu cũ" });
+  });
+});
+
+test.describe("P23 Đề xuất card (D29)", () => {
+  const P23 = {
+    target_metric: "ctr",
+    confidence: "low",
+    kpi: { metric: "ctr", current: 0.0322, target: 0.041, target_min: 0.038, target_max: 0.044, display: "range", band_pct: 9, window_days: 30, low_data: false },
+    gmv_estimate: { per_month_min: 500_000, per_month_max: 1_200_000 },
+    sibling_cards: 1,
+  };
+  const TITLE: CardSpec = { ...LEVER_CARDS[1], id: "31", current: 0.0322, target: 0.041, productId: "1729999", extra: P23 };
+  const COVER: CardSpec = { ...LEVER_CARDS[0], id: "32", sku: "SM-012", name: "Son môi số 12", current: 0.0322, target: 0.041, productId: "1729999", extra: P23 };
+
+  test("confidence pill, KPI range with window, GMV range; sibling cards under one product header", async ({ page }) => {
+    const posts = await stub(page, scenario({ decisions: [TITLE, LEVER_CARDS[2], COVER] }));
+    await page.goto("/decisions");
+    const group = page.getByTestId("sibling-group");
+    await expect(group).toContainText("2 thay đổi cho CTR");
+    await expect(group.getByTestId("recommendation-card")).toHaveCount(2);
+    const card = group.getByTestId("recommendation-card").first();
+    await expect(card.getByTestId("confidence-pill")).toHaveText("Độ tin cậy: Thấp");
+    await expect(card).toContainText("3,8–4,4 %");
+    await expect(card.getByTestId("kpi-window")).toContainText("30 ngày");
+    await expect(card).toContainText("+0,5–1,2 tr ₫/tháng");
+    // a card without the new fields looks as before
+    const plain = page.getByTestId("recommendation-card").filter({ hasText: "Mặt nạ đất sét" });
+    await expect(plain.getByTestId("confidence-pill")).toHaveCount(0);
+    await expect(plain).toContainText("+2,1 tr ₫/tháng");
+    // approving stays per card
+    await card.getByRole("button", { name: "Phê duyệt" }).click();
+    await expect.poll(() => posts.filter((p) => p.path.endsWith("/approve")).map((p) => p.path)).toEqual(["/v1/demo/decisions/31/approve"]);
+  });
+
+  test("Đo lường: day-14 verdict word and the external-change note (D29.8, D30.4)", async ({ page }) => {
+    await stub(
+      page,
+      measureScenario({
+        ...measurement("final", "gan_dat"),
+        verdict: { day7: null, day14: "partial", affected_by_external_change: true },
+        external_changes: [
+          { kind: "product_edit", fields: ["title"], occurred_at: "2026-10-12T03:00:00Z", source: "webhook_15" },
+          { kind: "promotion_create", fields: ["flash_sale"], occurred_at: "2026-10-14T03:00:00Z", source: "webhook_63" },
+        ],
+      }),
+    );
+    await page.goto("/decisions?tab=do-luong");
+    await expect(page.getByTestId("measure-chip")).toHaveText("Một phần");
+    const note = page.getByTestId("external-change");
+    await expect(note).toContainText("Bị ảnh hưởng bởi thay đổi khác");
+    await expect(note).toContainText("Tiêu đề sửa ngoài Juli · 12/10");
+    await expect(note).toContainText("Flash sale bắt đầu · 14/10");
   });
 });
 
