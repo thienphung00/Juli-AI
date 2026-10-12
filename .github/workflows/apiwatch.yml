@@ -1,0 +1,124 @@
+# apiwatch — weekly TikTok Shop + Shopee API/doc change watcher (DECISIONS D31.10).
+#
+# Fetches the platforms' PUBLIC docs (no secrets, no platform credentials), diffs
+# them against infra/apiwatch/snapshots/<platform>.json and, when something
+# changed:
+#   * opens or updates ONE issue per platform per ISO week (label `apiwatch`)
+#     with the markdown report, Juli-used items first;
+#   * commits the new snapshots on branch apiwatch/<date> and opens (or updates)
+#     a PR, so merging the PR "acknowledges" the change set.
+# A source that could not be fetched also lands in the issue, so a silently
+# broken watcher is visible. Runbook: docs/runbooks/apiwatch.md.
+#
+# Notes: schedules run only from the default branch; PRs opened with
+# GITHUB_TOKEN do not trigger other workflows (the snapshot PR is JSON only);
+# the repo setting "Allow GitHub Actions to create and approve pull requests"
+# must be on for the PR step. This workflow never deploys anything.
+name: apiwatch
+
+on:
+  schedule:
+    - cron: "0 1 * * 1" # Monday 01:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: apiwatch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Output directory
+        run: echo "OUT=$RUNNER_TEMP/apiwatch" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install requests
+        run: python -m pip install --quiet "requests>=2.31,<3"
+
+      - name: Run watcher
+        env:
+          PYTHONPATH: infra/apiwatch
+          GITHUB_TOKEN: ${{ github.token }} # GitHub API rate limit for SDK releases only
+        run: python -m apiwatch run --platform all --write --out-dir "$OUT"
+
+      - name: Keep reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: apiwatch-${{ github.run_id }}
+          path: ${{ env.OUT }}
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Open or update the weekly issues
+        run: |
+          set -euo pipefail
+          week="$(date -u +%G-W%V)"
+          gh label create apiwatch --color C5DEF5 \
+            --description "Platform API/doc change (infra/apiwatch)" --force >/dev/null
+          for platform in tiktok shopee; do
+            has_changes="$(jq -r --arg p "$platform" '.platforms[$p].has_changes // false' "$OUT/summary.json")"
+            errors="$(jq -r --arg p "$platform" '(.platforms[$p].errors // {}) | length' "$OUT/summary.json")"
+            if [ "$has_changes" != "true" ] && [ "$errors" = "0" ]; then
+              echo "$platform: no changes"
+              continue
+            fi
+            title="apiwatch: $platform $week"
+            body="$OUT/$platform.md"
+            number="$(gh issue list --label apiwatch --state open --search "\"$title\" in:title" \
+              --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+            if [ -n "$number" ]; then
+              gh issue edit "$number" --body-file "$body"
+              echo "$platform: updated issue #$number"
+            else
+              gh issue create --title "$title" --label apiwatch --body-file "$body"
+            fi
+          done
+
+      - name: Commit snapshots and open the PR
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain -- infra/apiwatch/snapshots)" ]; then
+            echo "snapshots unchanged"
+            exit 0
+          fi
+          day="$(date -u +%F)"
+          branch="apiwatch/$day"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add infra/apiwatch/snapshots
+          git commit -m "chore(apiwatch): platform doc snapshots $day"
+          git push --force origin "$branch"
+          {
+            echo "Snapshot cập nhật bởi apiwatch ($day). Báo cáo: các issue \`apiwatch\` tuần này."
+            echo
+            for platform in tiktok shopee; do
+              jq -r --arg p "$platform" \
+                '.platforms[$p] | "- \($p): \(.changes.total) thay đổi, \(.changes.juli) liên quan Juli, snapshot \(.snapshot_bytes) bytes"' \
+                "$OUT/summary.json"
+            done
+            echo
+            echo "Merge PR này = đã ghi nhận thay đổi (runbook: docs/runbooks/apiwatch.md)."
+          } > "$OUT/pr-body.md"
+          existing="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --body-file "$OUT/pr-body.md"
+          else
+            gh pr create --base "${{ github.event.repository.default_branch }}" --head "$branch" \
+              --title "chore(apiwatch): platform doc snapshots $day" --body-file "$OUT/pr-body.md"
+          fi
