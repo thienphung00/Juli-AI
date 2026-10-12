@@ -587,6 +587,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      every comparison: |change| ≥ 2 × band → "Thay đổi rõ"; 1–2 × band → "Có thể thay
      đổi"; below → "Trong dao động". "Not random" is not "caused by Juli": a day-14 result
      still needs no overlapping external change and holding guard metrics (D29/D30).
+     A met day-14 target whose strength is "likely" or "noise" reads "Đạt · chưa chắc
+     chắn" (S22A: a weaker result never gets a stronger label). Card candidates keep the
+     1 × combined band (catch "likely" falls); certainty shows through "Độ tin cậy".
   8. **Copy (owner):** one vocabulary across the system, the Ops guide and the seller
      guide: the seller guide uses the on-screen labels only, never backend, endpoint or
      team terms.
