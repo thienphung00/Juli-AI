@@ -8,6 +8,7 @@ import type { OpsMe, ShopTermRow, SubscriptionPeriod, Term, TermState } from "..
 import { termStrip, TERM_STRIP_STYLE } from "../app-shell/term-strip";
 import { ConfirmDialog, Toast } from "./ops-confirm";
 import { C, OpsHeader, OpsPage, card } from "./ops-shell";
+import { OpsSkeleton } from "./ops-skeleton";
 
 /**
  * Tab "Thời hạn" (D28.4, artboard OpsShopTerm.dc.html): every shop's term, sorted
@@ -233,7 +234,7 @@ export function OpsTerms({ me, api = opsApi }: { readonly me: OpsMe; readonly ap
             </div>
           </div>
           {failed ? <p role="alert">Không tải được thời hạn các shop.</p> : null}
-          {rows === null && !failed ? <p role="status">Đang tải…</p> : null}
+          {rows === null && !failed ? <OpsSkeleton rows={6} /> : null}
           {rows ? (
             <div style={{ ...card, padding: "8px 18px 14px", gap: 0, overflowX: "auto" }}>
               <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 10, fontSize: 12, fontWeight: 600, color: C.muted, padding: "8px 0", minWidth: 760 }}>

@@ -206,7 +206,11 @@ describe("Nhật ký (D27.4, D27.6, OpsLog.dc.html)", () => {
     await waitFor(() => expect(screen.getAllByTestId("ops-audit-row")).toHaveLength(1));
     expect(screen.getByRole("button", { name: "Xem như shop" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "Hệ thống" }));
-    await waitFor(() => expect(audit).toHaveBeenLastCalledWith(null, "system"));
+    // "Hệ thống" also holds data_refresh (the backend's `view` kind): both kinds are asked for.
+    await waitFor(() => expect(audit).toHaveBeenCalledWith(null, "system"));
+    await waitFor(() => expect(audit).toHaveBeenLastCalledWith(null, "view"));
+    await waitFor(() => expect(screen.getAllByTestId("ops-audit-row")).toHaveLength(1));
+    expect(screen.getByTestId("ops-audit-row")).toHaveAttribute("data-kind", "system");
     fireEvent.click(screen.getByRole("button", { name: "Cấu hình" }));
     await waitFor(() => expect(screen.getAllByTestId("ops-audit-row")).toHaveLength(2));
   });

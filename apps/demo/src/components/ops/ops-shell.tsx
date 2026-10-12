@@ -6,7 +6,9 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { OpsApiError, opsApi, type OpsApi } from "../../lib/ops/api";
 import type { OpsMe } from "../../lib/ops/types";
 import { buildGoogleAuthorizeUrl, readAuthSession } from "../../lib/supabase-auth";
+import { clearCachedMe, loadMe, readCachedMe } from "../../lib/ops/me-cache";
 import { OpsCostBanner } from "./ops-cost-banner";
+import { OpsSkeleton } from "./ops-skeleton";
 
 /** Shared ops chrome (artboards `docs/product/design/ops/*.dc.html`). */
 
@@ -101,7 +103,7 @@ export function OpsHeader({
           {items}
         </nav>
       )}
-      {me ? (
+      {me?.email ? (
         <span style={{ marginLeft: "auto", fontSize: 13, color: "#d6d6dc" }}>
           {me.email} · {me.role_label}
         </span>
@@ -129,7 +131,24 @@ type GateState =
   | { kind: "error" }
   | { kind: "ready"; me: OpsMe };
 
-/** Signed in + an active staff row, or an honest state. */
+/**
+ * The `me` a page gets while `GET /v1/ops/me` is still on its way (first Ops
+ * page of a tab): the least role, so no write control shows until the real role
+ * lands. Pages fetch their own data meanwhile.
+ */
+export const PENDING_ME: OpsMe = { email: "", role: "viewer", role_label: "" };
+
+function signedOut(): GateState {
+  return { kind: "signed-out", googleHref: buildGoogleAuthorizeUrl(`${window.location.origin}/ops/dang-nhap`) };
+}
+
+/**
+ * Signed in + an active staff row, or an honest state. P22: `me` is fetched
+ * once per tab session (`lib/ops/me-cache`) and the page renders straight away
+ * — with the cached `me`, or {@link PENDING_ME} on the first page — so its own
+ * data request runs in parallel with `me`. A 401 / 403 from `me` still replaces
+ * the page with the signed-out / forbidden state.
+ */
 export function OpsGate({
   api = opsApi,
   children,
@@ -141,19 +160,24 @@ export function OpsGate({
   useEffect(() => {
     let live = true;
     const timer = window.setTimeout(() => {
-      if (!readAuthSession()) {
-        setState({ kind: "signed-out", googleHref: buildGoogleAuthorizeUrl(`${window.location.origin}/ops/dang-nhap`) });
+      const session = readAuthSession();
+      if (!session) {
+        setState(signedOut());
         return;
       }
-      api
-        .me()
+      const token = session.accessToken;
+      const cached = readCachedMe(token);
+      setState({ kind: "ready", me: cached?.me ?? PENDING_ME });
+      if (cached?.fresh) return;
+      loadMe(token, () => api.me())
         .then((me) => live && setState({ kind: "ready", me }))
         .catch((error: unknown) => {
           if (!live) return;
-          if (error instanceof OpsApiError && error.status === 401) {
-            setState({ kind: "signed-out", googleHref: buildGoogleAuthorizeUrl(`${window.location.origin}/ops/dang-nhap`) });
-          } else if (error instanceof OpsApiError && error.status === 403) setState({ kind: "forbidden" });
-          else setState({ kind: "error" });
+          if (error instanceof OpsApiError && (error.status === 401 || error.status === 403)) {
+            clearCachedMe();
+            setState(error.status === 401 ? signedOut() : { kind: "forbidden" });
+          } else if (!cached) setState({ kind: "error" });
+          // a failed background refresh keeps the cached `me`
         });
     }, 0);
     return () => {
@@ -167,8 +191,9 @@ export function OpsGate({
     <OpsPage>
       <OpsHeader me={null} />
       <main style={{ padding: "24px 28px" }}>
+        {state.kind === "loading" ? <OpsSkeleton /> : null}
+        {state.kind === "loading" ? null : (
         <div role="status" style={{ ...card, maxWidth: 520 }}>
-          {state.kind === "loading" ? <span>Đang tải…</span> : null}
           {state.kind === "signed-out" ? (
             <>
               <b>Đăng nhập Juli Ops</b>
@@ -185,6 +210,7 @@ export function OpsGate({
           {state.kind === "forbidden" ? <span>Tài khoản này không có quyền vào Juli Ops.</span> : null}
           {state.kind === "error" ? <span>Không tải được Juli Ops. Thử lại sau.</span> : null}
         </div>
+        )}
       </main>
     </OpsPage>
   );
