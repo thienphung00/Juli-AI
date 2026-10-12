@@ -16,7 +16,7 @@ import { recommendationFixtures } from "../../lib/recommendations";
  *
  * The list card is horizontal: subject on the left of the header, workflow
  * category on the right, `Ưu tiên` on the first card only, and a preview
- * block carrying the change itself — so "Phê duyệt" is an informed click,
+ * block carrying the change itself — so "Duyệt" is an informed click,
  * not a navigation. "Xem thêm" opens the detail BESIDE the list (never an
  * overlay or a modal — owner direction, stated twice), hides itself while
  * open, and "← Quay lại" restores the grid.
@@ -119,12 +119,12 @@ describe("Recommendation card — v3 anatomy (issue #1916)", () => {
     }
   });
 
-  it("offers exactly the three actions of the draft: Phê duyệt, Từ chối, Xem thêm", () => {
+  it("offers exactly the three actions of the draft: Duyệt, Từ chối, Xem thêm", () => {
     renderView();
 
     const card = findCard(recommendationFixtures[0].workflowKey);
     expect(
-      within(card).getByRole("button", { name: "Phê duyệt" }),
+      within(card).getByRole("button", { name: "Duyệt" }),
     ).toBeInTheDocument();
     expect(
       within(card).getByRole("button", { name: "Từ chối" }),
@@ -176,7 +176,7 @@ describe("Xem thêm — the detail opens beside the list, never over it (issue #
     expect(within(detail).getByText(fixture.risks)).toBeInTheDocument();
   });
 
-  it("hides Xem thêm on the open card while Phê duyệt and Từ chối stay", async () => {
+  it("hides Xem thêm on the open card while Duyệt and Từ chối stay", async () => {
     const user = userEvent.setup();
     renderView();
 
@@ -189,7 +189,7 @@ describe("Xem thêm — the detail opens beside the list, never over it (issue #
       within(card).queryByRole("button", { name: "Xem thêm" }),
     ).not.toBeInTheDocument();
     expect(
-      within(card).getByRole("button", { name: "Phê duyệt" }),
+      within(card).getByRole("button", { name: "Duyệt" }),
     ).toBeInTheDocument();
     expect(
       within(card).getByRole("button", { name: "Từ chối" }),
@@ -246,7 +246,7 @@ describe("Xem thêm — the detail opens beside the list, never over it (issue #
     );
   });
 
-  it("keeps the list card's Phê duyệt as a navigation to the review route — the consent gate is untouched", async () => {
+  it("keeps the list card's Duyệt as a navigation to the review route — the consent gate is untouched", async () => {
     const user = userEvent.setup();
     renderView();
 
@@ -255,7 +255,7 @@ describe("Xem thêm — the detail opens beside the list, never over it (issue #
     await user.click(within(card).getByRole("button", { name: "Xem thêm" }));
 
     // With the detail open, approving still only navigates — nothing executes.
-    await user.click(within(card).getByRole("button", { name: "Phê duyệt" }));
+    await user.click(within(card).getByRole("button", { name: "Duyệt" }));
     expect(push).toHaveBeenCalledWith(
       `/decisions/recommendations/${fixture.workflowKey}`,
     );

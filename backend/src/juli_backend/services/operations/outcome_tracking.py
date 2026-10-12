@@ -97,7 +97,7 @@ WORKFLOW_OUTCOME_SUCCESS_CRITERIA: dict[str, dict[str, str]] = {
 CADENCE_LABELS: dict[str, dict[str, str]] = {
     "realtime": {
         "title": "Thực thi thời gian thực",
-        "description": "Trạng thái thực thi ngay sau phê duyệt",
+        "description": "Trạng thái thực thi ngay sau khi duyệt",
     },
     "daily": {
         "title": "Sơ bộ hàng ngày",

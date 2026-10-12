@@ -50,7 +50,7 @@ test.describe("Signed-out Quyết định — the P10 sample", () => {
     await expect(main).toContainText("TikTok báo mã chẩn đoán: “Mô tả quá ngắn”.");
     await main.getByRole("button", { name: /Thu gọn/ }).click();
 
-    await main.getByRole("button", { name: "Phê duyệt" }).click();
+    await main.getByRole("button", { name: "Duyệt" }).click();
     await expect(main.getByTestId("card-status")).toHaveText("Đang thực hiện");
     await main.getByRole("link", { name: "Xem tiến độ ›" }).click();
 
@@ -105,7 +105,7 @@ test.describe("Signed-out Quyết định — the P10 sample", () => {
     await page.goto("/decisions");
 
     const photo = card(page, "Sữa rửa mặt amino 150ml");
-    await photo.getByRole("button", { name: "Phê duyệt" }).click();
+    await photo.getByRole("button", { name: "Duyệt" }).click();
     await photo.getByRole("link", { name: "Xem tiến độ ›" }).click();
     await expect(page.getByTestId("photo-request")).toContainText("Juli cần ảnh bìa mới từ bạn");
     await page.getByTestId("photo-input").setInputFiles({ name: "anh.png", mimeType: "image/png", buffer: Buffer.from([137, 80, 78, 71]) });
@@ -113,7 +113,7 @@ test.describe("Signed-out Quyết định — the P10 sample", () => {
 
     await page.getByRole("tab", { name: "Đề xuất" }).click();
     const manual = card(page, "Kem dưỡng ẩm ceramide");
-    await manual.getByRole("button", { name: "Phê duyệt" }).click();
+    await manual.getByRole("button", { name: "Duyệt" }).click();
     await manual.getByRole("link", { name: "Xem tiến độ ›" }).click();
     const guide = page.getByTestId("seller-guide");
     await expect(guide).toContainText("Làm theo 4 bước trên Seller Center");

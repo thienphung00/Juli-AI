@@ -357,7 +357,7 @@ async def test_scoring_writes_one_card_per_product_and_surfaces_at_most_five(ses
     assert payload["expected_impact"]["metric"] == "recoverable_gmv_per_day"
     labels = [m["label"] for m in evidence["metrics"]]
     assert labels[:5] == [
-        "Lượt hiển thị sản phẩm",
+        "Lượt hiển thị",
         "CTR",
         "Tỷ lệ thêm vào giỏ hàng",
         "CTOR",
@@ -501,7 +501,10 @@ async def test_decisions_endpoint_returns_diagnosis_and_evidence(app, session, s
     diagnosis, evidence = first["diagnosis"], first["evidence"]
     assert diagnosis["rank"] == 1
     assert diagnosis["status"] == "rule"
-    assert diagnosis["stage"] == {"code": "card", "label": "Hiển thị → Nhấp (thẻ sản phẩm)"}
+    assert diagnosis["stage"] == {
+        "code": "card",
+        "label": "Lượt hiển thị → Lượt nhấp (thẻ sản phẩm)",
+    }
     assert diagnosis["lever"]["code"] == "title"
     assert diagnosis["main_kpi"]["label"] == "CTOR"
     assert diagnosis["trigger"]["code"] == "shop_median"

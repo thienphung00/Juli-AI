@@ -66,7 +66,7 @@ interface PlanReviewCardProps {
  * - A seller who agrees approves in one tap, without expanding anything —
  *   with one stated exception: a plan carrying a "needs you" section (ADR-055
  *   item 12) renders its uploads unfolded between the Decision section and
- *   the primary action, and keeps Phê duyệt disabled until every required
+ *   the primary action, and keeps Duyệt disabled until every required
  *   upload is supplied. The section explains why Juli cannot propose there
  *   and what unblocks approval; it is never a silent blank.
  */
@@ -361,7 +361,7 @@ export function PlanReviewCard({ plan, onApproveConfirm }: PlanReviewCardProps) 
             onClick={() => setApproveGateOpen(true)}
             type="button"
           >
-            Phê duyệt
+            Duyệt
           </Button>
         </CardFooter>
       </Card>

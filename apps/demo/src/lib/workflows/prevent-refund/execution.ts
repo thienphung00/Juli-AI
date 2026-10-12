@@ -35,7 +35,7 @@ export function createPreventRefundTimeline(): ExecutionTimelineStep[] {
         "Lấy bản xem trước số tiền một phần/toàn bộ — không ước lượng.",
       status: "pending",
       recoveryText:
-        "Thử lại tính toán khi thất bại; chặn phê duyệt đến khi có kết quả hợp lệ.",
+        "Thử lại tính toán khi thất bại; chặn duyệt đến khi có kết quả hợp lệ.",
     },
     {
       id: "calculation-outcome",
@@ -44,7 +44,7 @@ export function createPreventRefundTimeline(): ExecutionTimelineStep[] {
       title: "Tính toán sẵn sàng / không khả dụng",
       description: "Chỉ tiếp tục khi có kết quả tính toán hợp lệ.",
       status: "pending",
-      recoveryText: "Giữ phê duyệt tắt khi thiếu số tiền tính toán.",
+      recoveryText: "Giữ duyệt tắt khi thiếu số tiền tính toán.",
     },
     {
       id: "get-reject-reasons",
@@ -60,7 +60,7 @@ export function createPreventRefundTimeline(): ExecutionTimelineStep[] {
       kind: "outcome",
       title: "Cần quyết định của shop",
       description:
-        "Shop chọn Phê duyệt hoặc Từ chối; Từ chối bắt buộc có lý do.",
+        "Shop chọn Duyệt hoặc Từ chối; Từ chối bắt buộc có lý do.",
       status: "pending",
       recoveryText: "Thiếu lý do từ chối — quay lại bước nhập.",
     },
@@ -68,7 +68,7 @@ export function createPreventRefundTimeline(): ExecutionTimelineStep[] {
       id: "approve-refund",
       stepNumber: 7,
       kind: "action",
-      title: "Phê duyệt hoàn tiền",
+      title: "Duyệt hoàn tiền",
       description:
         "Gửi hoàn tiền theo số tiền đã tính (nhánh loại trừ với từ chối).",
       status: "pending",
@@ -80,7 +80,7 @@ export function createPreventRefundTimeline(): ExecutionTimelineStep[] {
       stepNumber: 8,
       kind: "action",
       title: "Từ chối hoàn tiền",
-      description: "Gửi từ chối kèm lý do (nhánh loại trừ với phê duyệt).",
+      description: "Gửi từ chối kèm lý do (nhánh loại trừ với duyệt).",
       status: "pending",
       recoveryText:
         "Thử lại ghi nhận quyết định theo cách idempotent khi lỗi tạm thời.",
@@ -91,7 +91,7 @@ export function createPreventRefundTimeline(): ExecutionTimelineStep[] {
       kind: "wait",
       title: "Chờ hoàn tiền thành công",
       description:
-        "Webhook #67 xác nhận hoàn tất sau phê duyệt; từ chối chờ trạng thái yêu cầu chính thức.",
+        "Webhook #67 xác nhận hoàn tất sau duyệt; từ chối chờ trạng thái yêu cầu chính thức.",
       status: "pending",
       recoveryText:
         "Không xác nhận tiền đã chuyển trước khi webhook xác nhận — làm mới yêu cầu nếu timeout.",

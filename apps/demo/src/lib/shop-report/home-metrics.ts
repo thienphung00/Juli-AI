@@ -68,7 +68,7 @@ export interface HomeOverviewModel {
 }
 
 export const METRIC_COLUMNS: ReadonlyArray<{ readonly metric: MetricKey; readonly label: string }> = [
-  { metric: "impressions", label: "Lượt hiển thị sản phẩm/ngày" },
+  { metric: "impressions", label: "Lượt hiển thị/ngày" },
   { metric: "ctr", label: "CTR" },
   { metric: "ctor", label: "CTOR" },
   { metric: "aov", label: "AOV" },
@@ -92,8 +92,8 @@ const STREAMS: ReadonlyArray<{
 }> = [
   { channel: "product_card", label: "Thẻ sản phẩm", sub: "Khách tự tìm đến sản phẩm", group: "product", tab: "san-pham", stream: "the-san-pham" },
   { channel: "shop_tab", label: "Tab cửa hàng", sub: "Trang cửa hàng của shop", group: "product", tab: "san-pham", stream: "tab-cua-hang" },
-  { channel: "seller_video", label: "Video của shop", sub: "Video shop tự đăng", group: "content", tab: "noi-dung", stream: "video" },
-  { channel: "seller_live", label: "LIVE của shop", sub: "Phiên LIVE của shop", group: "content", tab: "noi-dung", stream: "live" },
+  { channel: "seller_video", label: "Video", sub: "Video shop tự đăng", group: "content", tab: "noi-dung", stream: "video" },
+  { channel: "seller_live", label: "LIVE", sub: "Phiên LIVE của shop", group: "content", tab: "noi-dung", stream: "live" },
   { channel: "affiliate", label: "Liên kết", sub: "Video và LIVE của nhà sáng tạo", group: "affiliate", tab: null, stream: null },
 ];
 

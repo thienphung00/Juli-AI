@@ -26,6 +26,8 @@ export interface StreamSpec {
   readonly label: string;
   /** The h1's short name ("Video: CTR giảm 9 %"). */
   readonly short: string;
+  /** Long name shown only as the stream name's hover title (V6: "Video của người bán"). */
+  readonly hint?: string;
   readonly rowKind: RowKind;
   /** Clickable cells (ADR-109 d.4); the others are grey "Phụ thuộc sản phẩm". */
   readonly clickable: readonly CellMetric[];
@@ -34,8 +36,8 @@ export interface StreamSpec {
 export const STREAM_SPECS: readonly StreamSpec[] = [
   { stream: "product_card", slug: "the-san-pham", tab: "san-pham", label: "Thẻ sản phẩm", short: "Thẻ sản phẩm", rowKind: "product", clickable: CELL_METRICS },
   { stream: "shop_tab", slug: "tab-cua-hang", tab: "san-pham", label: "Tab cửa hàng", short: "Tab cửa hàng", rowKind: "product", clickable: CELL_METRICS },
-  { stream: "seller_video", slug: "video", tab: "noi-dung", label: "Video của người bán", short: "Video", rowKind: "video", clickable: ["impressions", "ctr"] },
-  { stream: "seller_live", slug: "live", tab: "noi-dung", label: "LIVE của người bán", short: "LIVE", rowKind: "live_session", clickable: ["impressions", "ctr", "ctor"] },
+  { stream: "seller_video", slug: "video", tab: "noi-dung", label: "Video", short: "Video", hint: "Video của người bán", rowKind: "video", clickable: ["impressions", "ctr"] },
+  { stream: "seller_live", slug: "live", tab: "noi-dung", label: "LIVE", short: "LIVE", hint: "LIVE của người bán", rowKind: "live_session", clickable: ["impressions", "ctr", "ctor"] },
 ];
 
 export const TABS: ReadonlyArray<{ readonly slug: TabSlug; readonly label: string }> = [
@@ -54,7 +56,7 @@ export const METRIC_SLUGS: Record<RankedMetric, string> = {
 
 /** Cell labels (PtProduct `label`). */
 export const CELL_LABELS: Record<CellMetric, string> = {
-  impressions: "Hiển thị/ngày",
+  impressions: "Lượt hiển thị/ngày",
   ctr: "CTR",
   ctor: "CTOR",
   aov: "AOV",
@@ -62,7 +64,7 @@ export const CELL_LABELS: Record<CellMetric, string> = {
 
 /** The table / caption name of a metric (PtProduct `col`). */
 export const METRIC_COLS: Record<CellMetric, string> = {
-  impressions: "Hiển thị",
+  impressions: "Lượt hiển thị",
   ctr: "CTR",
   ctor: "CTOR",
   aov: "AOV",

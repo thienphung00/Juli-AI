@@ -19,7 +19,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: Approve
 - VI: Phê duyệt
 - _Avoid_: Đồng ý, Chấp thuận, Xác nhận
-- Definition: Authorizes a recommendation to enter its workflow.
+- Definition: Authorizes a recommendation to enter its workflow. On screen the button reads "Duyệt" (D31.8 V10); this row stays "Phê duyệt" because the released agent prompts v1–v3 pin it (ADR-072: released prompts are immutable) — switch it with the next prompt version.
 
 **`decisions.reject`**
 - EN: Reject
@@ -37,7 +37,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: See more
 - VI: Xem thêm
 - _Avoid_: Mở rộng, Chi tiết AI, Xem chi tiết
-- Definition: The list card's third action (issue #1916, v3 draft) — opens the recommendation's detail beside the list (the list narrows, the detail takes the remainder; never an overlay or a modal). Hides itself while its card's detail is open; Phê duyệt and Từ chối stay on the card.
+- Definition: The list card's third action (issue #1916, v3 draft) — opens the recommendation's detail beside the list (the list narrows, the detail takes the remainder; never an overlay or a modal). Hides itself while its card's detail is open; Duyệt and Từ chối stay on the card.
 
 **`decisions.detail.title`**
 - EN: Recommendation detail
@@ -396,12 +396,12 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 
 **`home.intro`**
 - EN: The two places you need: recommendations awaiting approval, and the full picture of your shop.
-- VI: Hai nơi bạn cần: đề xuất đang chờ phê duyệt, và bức tranh toàn cảnh shop.
+- VI: Hai nơi bạn cần: đề xuất đang chờ duyệt, và bức tranh toàn cảnh shop.
 - Definition: Home intro orienting the seller to the two launcher cards below it.
 
 **`decisions.intro`**
 - EN: These are recommendations Juli found for your shop, based on your latest sales data — you review, adjust, then decide whether to approve.
-- VI: Đây là đề xuất Juli tìm thấy cho shop của bạn, dựa trên dữ liệu bán hàng gần nhất — bạn xem, chỉnh, rồi quyết định phê duyệt hay không.
+- VI: Đây là đề xuất Juli tìm thấy cho shop của bạn, dựa trên dữ liệu bán hàng gần nhất — bạn xem, chỉnh, rồi quyết định duyệt hay không.
 - Definition: Decisions intro making human-in-the-loop explicit — the seller approves, nothing acts on their behalf.
 
 **`error.kpi_not_found.body`**
@@ -422,7 +422,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 
 **`toast.decision.approved`**
 - EN: Recommendation approved.
-- VI: Đã phê duyệt đề xuất.
+- VI: Đã duyệt đề xuất.
 
 **`error.login.wrong_password`**
 - EN: Wrong email or password. Please try again.
@@ -613,7 +613,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 
 **`run.no_retry`**
 - EN: Want to make a new change? Go back to Actions to approve a new recommendation.
-- VI: Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để phê duyệt đề xuất mới.
+- VI: Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để duyệt đề xuất mới.
 - _Avoid_: Hành động
 - Definition: Explanation on every failed/cancelled/expired/timed-out/worker_lost run's card — no retry-in-place control exists; a new run needs a new approval. Names the destination tab, so it resolves from `ACTIONS_DESTINATION_LABEL` rather than repeating the label (issue #1959); "Hành động" is the tab's retired interim name (D21).
 
@@ -812,7 +812,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 
 **`run.terminal.completed.body`**
 - EN: Juli finished and applied the approved change.
-- VI: Juli đã hoàn tất và áp dụng thay đổi được phê duyệt.
+- VI: Juli đã hoàn tất và áp dụng thay đổi được duyệt.
 - Definition: `completed` terminal-state explanation (run ledger #1318 and the staged run view's Hoàn tất stage, #1316 -- one shared table, `lib/run-ledger/copy.ts`'s `RUN_TERMINAL_STATE_COPY`). Landed by issue #1321.
 
 **`run.terminal.cancelled.body`**
@@ -947,7 +947,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 
 **`decisions.approve.confirm_title`**
 - EN: Approve this recommendation?
-- VI: Phê duyệt đề xuất này?
+- VI: Duyệt đề xuất này?
 - Definition: Title of the signed-in approve consent dialog (issue #1909, two-step consent per #1317's pattern).
 
 **`decisions.approve.confirm_body`**
@@ -957,7 +957,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 
 **`error.approve.session_expired`**
 - EN: Your sign-in session is no longer valid. Please sign in with Google again, then approve.
-- VI: Phiên đăng nhập của bạn không còn hiệu lực. Vui lòng đăng nhập với Google lại, rồi phê duyệt.
+- VI: Phiên đăng nhập của bạn không còn hiệu lực. Vui lòng đăng nhập với Google lại, rồi duyệt.
 - Definition: Signed-in approve 401 (issue #1909) — the token was rejected; recovery is a fresh sign-in, never a retry loop and never fixture content.
 
 **`error.approve.not_found`**
@@ -972,7 +972,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 
 **`error.approve.generic`**
 - EN: Could not approve this recommendation right now (error [status]). Please try again.
-- VI: Chưa thể phê duyệt đề xuất này lúc này (lỗi [status]). Vui lòng thử lại.
+- VI: Chưa thể duyệt đề xuất này lúc này (lỗi [status]). Vui lòng thử lại.
 - Definition: Signed-in approve fallback for any other non-2xx (issue #1909) — names the fact and the raw status honestly; never a spinner-forever, never a fabricated run id.
 
 ### Quyết định — P8-F (AC-8.7)

@@ -132,7 +132,7 @@ async def test_the_job_for_one_shop_stores_only_that_shops_rankings(
             session, tenant_a.shop_id, Channel.PRODUCT_CARD, Metric.CTR
         )
     assert stored is not None and stored.as_of == END
-    assert stored.ranking["stream_label"] == "Thẻ sản phẩm của người bán"
+    assert stored.ranking["stream_label"] == "Thẻ sản phẩm"
 
 
 @pytest.mark.asyncio

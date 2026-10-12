@@ -76,11 +76,13 @@ LABEL_GAN_DAT = "gan_dat"
 LABEL_KHONG_DAT = "khong_dat"
 LABEL_CHUA_KET_LUAN = "chua_ket_luan"
 
+#: V5 (D31.8): the stored codes stay; on screen only Đạt / Một phần / Không đạt
+#: (``gan_dat`` and ``chua_ket_luan`` both read "Một phần").
 LABELS_VI: Mapping[str, str] = {
     LABEL_DAT: "Đạt",
-    LABEL_GAN_DAT: "Gần đạt",
+    LABEL_GAN_DAT: "Một phần",
     LABEL_KHONG_DAT: "Không đạt",
-    LABEL_CHUA_KET_LUAN: "Chưa kết luận",
+    LABEL_CHUA_KET_LUAN: "Một phần",
 }
 _LABEL_TONE: Mapping[str, str] = {
     LABEL_DAT: "ok",
@@ -879,11 +881,11 @@ def _rows(
         elif actual is None:
             verdict, tone = "Chưa đủ dữ liệu", "muted"
         elif target.target is not None and actual >= target.target:
-            verdict, tone = "Đạt mục tiêu", "ok"
+            verdict, tone = "Đang lên", "ok"
         elif progress_from is not None and actual >= progress_from:
-            verdict, tone = "Đang tăng", "ok"
+            verdict, tone = "Đang lên", "ok"
         else:
-            verdict, tone = "Chưa tăng", "warn"
+            verdict, tone = "Chưa rõ", "warn"
         rows.append(
             {
                 "key": kpi_key,
@@ -902,7 +904,7 @@ def _rows(
         if status is None:
             verdict, tone = "Chưa đủ dữ liệu", "muted"
         elif status:
-            verdict, tone = "Ổn định", "muted"
+            verdict, tone = "Giữ ổn định", "muted"
         else:
             verdict, tone = "Ngoài khoảng", "warn"
         expected_range = (

@@ -60,7 +60,7 @@ interface SpineTableEntry {
   /**
    * ADR-055 item 12 — the stated exception to one-tap approval. True only
    * for a plan carrying a "needs you" upload section, whose required upload
-   * keeps Phê duyệt disabled until the seller supplies a file. Entries
+   * keeps Duyệt disabled until the seller supplies a file. Entries
    * without this flag keep the unqualified one-tap contract.
    */
   sellerUploadGate?: true;
@@ -211,7 +211,7 @@ describe.each(SPINE_WORKFLOWS)(
       (entry) => entry.workflowKey === workflowKey,
     );
     const recommendedOptions = plan.decision.recommendedOptions;
-    // Summary row + reasoning disclosure + Phê duyệt, plus the recommended
+    // Summary row + reasoning disclosure + Duyệt, plus the recommended
     // options disclosure where the workflow carries one. The reasoning
     // disclosure is unconditional — every plan has reasoning (ADR-055 item 11).
     const restingButtonCount = 3 + (recommendedOptions ? 1 : 0);
@@ -283,7 +283,7 @@ describe.each(SPINE_WORKFLOWS)(
       expect(summaryRow).toHaveTextContent(plan.situation.summary);
 
       expect(
-        within(card).getByRole("button", { name: "Phê duyệt" }),
+        within(card).getByRole("button", { name: "Duyệt" }),
       ).toBeInTheDocument();
       expect(within(card).getAllByRole("button")).toHaveLength(
         restingButtonCount,
@@ -425,7 +425,7 @@ describe.each(SPINE_WORKFLOWS)(
 
         const card = screen.getByTestId("plan-review-card");
         for (const button of within(card).getAllByRole("button")) {
-          if (sellerUploadGate && button.textContent === "Phê duyệt") {
+          if (sellerUploadGate && button.textContent === "Duyệt") {
             // The upload gate deliberately rests the primary action disabled
             // (ADR-055 item 12) — asserted in the gate-specific tests below.
             continue;
@@ -502,7 +502,7 @@ describe.each(SPINE_WORKFLOWS)(
 
         renderSpine();
 
-        await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+        await user.click(screen.getByRole("button", { name: "Duyệt" }));
 
         expect(screen.getByRole("dialog")).toBeInTheDocument();
         expect(push).not.toHaveBeenCalled();
@@ -527,14 +527,14 @@ describe.each(SPINE_WORKFLOWS)(
 
         renderSpine();
 
-        await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+        await user.click(screen.getByRole("button", { name: "Duyệt" }));
 
         expect(screen.getByRole("dialog")).toBeInTheDocument();
         expect(mockStartExecution).not.toHaveBeenCalled();
       });
     } else {
       // ADR-055 item 12 — the stated exception to one-tap approval: the
-      // required upload keeps Phê duyệt disabled, so nothing can fire
+      // required upload keeps Duyệt disabled, so nothing can fire
       // startExecution until the seller supplies a file.
       it("blocks approval while the required upload is missing", async () => {
         const user = userEvent.setup();
@@ -542,7 +542,7 @@ describe.each(SPINE_WORKFLOWS)(
         renderSpine();
 
         const approveButton = screen.getByRole("button", {
-          name: "Phê duyệt",
+          name: "Duyệt",
         });
         expect(approveButton).toBeDisabled();
 
@@ -563,11 +563,11 @@ describe.each(SPINE_WORKFLOWS)(
         );
         await waitFor(() => {
           expect(
-            screen.getByRole("button", { name: "Phê duyệt" }),
+            screen.getByRole("button", { name: "Duyệt" }),
           ).toBeEnabled();
         });
 
-        await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+        await user.click(screen.getByRole("button", { name: "Duyệt" }));
 
         expect(screen.getByRole("dialog")).toBeInTheDocument();
         expect(mockStartExecution).not.toHaveBeenCalled();
@@ -584,7 +584,7 @@ describe.each(SPINE_WORKFLOWS)(
         );
         await waitFor(() => {
           expect(
-            screen.getByRole("button", { name: "Phê duyệt" }),
+            screen.getByRole("button", { name: "Duyệt" }),
           ).toBeEnabled();
         });
 

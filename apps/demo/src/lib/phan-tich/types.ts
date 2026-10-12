@@ -32,7 +32,7 @@ export interface RankingRow {
   /** The metric before → after (content rows: the stream's prior value → the row's). */
   prior: number | null;
   last: number | null;
-  /** The quantity behind the metric (lượt hiển thị / lượt bấm / đơn hàng SKU), window totals. */
+  /** The quantity behind the metric (lượt hiển thị / lượt nhấp / đơn hàng SKU), window totals. */
   quantity_prior: number | null;
   quantity_last: number;
   /** LIVE sessions and videos: ISO day. */

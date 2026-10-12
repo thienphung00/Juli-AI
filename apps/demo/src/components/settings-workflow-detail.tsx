@@ -34,7 +34,7 @@ export function SettingsWorkflowDetail() {
       role="status"
     >
       <PageHeader
-        subtitle="Chỉnh sửa mặc định và ngưỡng cho mẫu quy trình này. Thay đổi không phê duyệt đề xuất hiện có."
+        subtitle="Chỉnh sửa mặc định và ngưỡng cho mẫu quy trình này. Thay đổi không duyệt đề xuất hiện có."
         title={template.displayName}
       />
 

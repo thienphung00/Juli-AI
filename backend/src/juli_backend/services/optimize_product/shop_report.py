@@ -174,7 +174,7 @@ METRICS: tuple[tuple[str, str, str], ...] = (
     ("aov", "AOV", "money"),
     ("items_per_order", "Món/đơn", "dec2"),
     ("ctr", "CTR", "ratio"),
-    ("add_to_cart_rate", "Thêm giỏ/click", "ratio"),
+    ("add_to_cart_rate", "Thêm giỏ/lượt nhấp", "ratio"),
     ("ctor", "CTOR", "ratio"),
     ("refund_share", "Hoàn tiền/GMV", "ratio"),
     ("card_ctr", "CTR kênh thẻ sản phẩm", "ratio"),
@@ -517,11 +517,11 @@ def channel_shares(item: dict) -> list[tuple[str, Decimal]]:
             * to_decimal(tab.get("shop_tab_ctor_sku")),
         ),
         (
-            "Video của shop",
+            "Video",
             to_decimal(block("seller_video_performance").get("attributed_sku_orders")),
         ),
         (
-            "LIVE của shop",
+            "LIVE",
             to_decimal(block("seller_live_performance").get("attributed_sku_orders")),
         ),
         (
@@ -2262,7 +2262,7 @@ def _rest_table(report: ShopReport) -> str:
         f'<td class="num">{_e(fmt_value("money", r.aov))}</td></tr>'
         for r in report.rest_products
     ]
-    head = ["Sản phẩm", "Lượt hiển thị", "Lượt bấm", "Đơn", "CTR", "CTOR", "AOV"]
+    head = ["Sản phẩm", "Lượt hiển thị", "Lượt nhấp", "Đơn", "CTR", "CTOR", "AOV"]
     return _section(
         "Phần còn lại",
         "Các sản phẩm còn lại có traffic",
@@ -2586,7 +2586,7 @@ def _tech(report: ShopReport) -> str:
         f"GMV 28 ngày {span('card_last28')} dùng để xếp hạng.</li></ol>",
         "<h3>Công thức</h3><ol>",
         "<li>CTR = product_clicks ÷ product_impressions; CTOR = sku_orders ÷ product_clicks; "
-        "AOV = gmv ÷ sku_orders; Món/đơn = items_sold ÷ sku_orders; Thêm giỏ/click = "
+        "AOV = gmv ÷ sku_orders; Món/đơn = items_sold ÷ sku_orders; Thêm giỏ/lượt nhấp = "
         "add_cart_count ÷ product_clicks; Hoàn tiền/GMV = refunds ÷ gmv; Đơn/ngày và GMV/ngày "
         "chia cho 30. Số của shop và của nhóm là tổng các số đếm rồi mới chia, không phải trung "
         "bình các tỷ lệ.</li>",

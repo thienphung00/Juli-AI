@@ -40,8 +40,8 @@ test.describe("Phase 2.6 exit gate — Decisions journey", () => {
     await expect(matrix.locator("tr[data-channel] > th")).toHaveText([
       /^Thẻ sản phẩm/,
       /^Tab cửa hàng/,
-      /^Video của shop/,
-      /^LIVE của shop/,
+      /^Video/,
+      /^LIVE/,
       /^Liên kết/,
     ]);
     await matrix.getByRole("link", { name: /^CTOR Thẻ sản phẩm:/ }).click();

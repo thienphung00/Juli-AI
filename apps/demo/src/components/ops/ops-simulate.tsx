@@ -34,8 +34,10 @@ const TREND_STYLE: Record<string, CSSProperties> = {
   flat: { color: C.body, background: "#f0eef0" },
   none: { color: C.muted2, background: "#f0eef0" },
 };
+/** V6: the long stream name, only as a hover title. */
+const STREAM_HINT: Partial<Record<StreamId, string>> = { seller_video: "Video của người bán", seller_live: "LIVE của người bán" };
 const STREAM_LABEL: Record<StreamId, string> = { product_card: "Thẻ sản phẩm", shop_tab: "Tab cửa hàng", seller_video: "Video", seller_live: "LIVE" };
-const KPI_LABEL: Record<KpiId, string> = { impressions: "Hiển thị", ctr: "CTR", ctor: "CTOR", aov: "AOV" };
+const KPI_LABEL: Record<KpiId, string> = { impressions: "Lượt hiển thị", ctr: "CTR", ctor: "CTOR", aov: "AOV" };
 
 function value(kpi: KpiId, v: number | null): string {
   if (v === null) return "—";
@@ -254,7 +256,7 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
             <section aria-busy={loadingWin !== null} style={{ ...card, opacity: available && loadingWin === null ? 1 : 0.5, overflowX: "auto", transition: "opacity 120ms" }}>
               <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 10, fontSize: 12, fontWeight: 600, color: C.muted, minWidth: 900 }}>
                 <span>Luồng · độ ổn định</span>
-                <span>Hiển thị/ngày</span>
+                <span>Lượt hiển thị/ngày</span>
                 <span>CTR</span>
                 <span>CTOR</span>
                 <span>AOV</span>
@@ -271,10 +273,12 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
                       style={{ font: "inherit", textAlign: "left", background: "transparent", border: 0, padding: 0, cursor: "pointer", display: "flex", flexDirection: "column", gap: 4, color: C.ink }}
                       type="button"
                     >
-                      <b style={{ fontSize: 15 }}>{s.name}</b>
+                      <b style={{ fontSize: 15 }} title={STREAM_HINT[s.stream]}>
+                        {s.name}
+                      </b>
                       <span style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "3px 8px", ...STAB_STYLE[s.stability] }}>{stab.label}</span>
                       <span style={{ fontSize: 11, color: C.muted }}>
-                        Biến thiên hiển thị {s.impressions_cv === null ? "—" : `${Math.round(s.impressions_cv * 100)} %`}
+                        Dao động mỗi ngày (lượt hiển thị): {bandPctText(s.cells.find((c) => c.kpi === "impressions")?.daily_band?.band_pct)}
                       </span>
                     </button>
                     {s.cells.map((c) => (
@@ -297,10 +301,10 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
                 );
               })}
               <p data-testid="sim-low-legend" style={{ margin: 0, fontSize: 12, color: C.muted2 }}>
-                <b style={{ color: LOW.mark }}>*</b> ít dữ liệu: dưới 30 click (CTR) hoặc dưới 30 đơn (CTOR, AOV) trong khoảng · bấm hoặc rê chuột vào ô để xem dao động mỗi ngày
+                <b style={{ color: LOW.mark }}>*</b> Ít dữ liệu: dưới 30 lượt nhấp (CTR) hoặc dưới 30 đơn (CTOR, AOV) trong khoảng · bấm hoặc rê chuột vào ô để xem dao động mỗi ngày
               </p>
               <p style={{ margin: 0, fontSize: 12, color: C.muted2 }}>
-                Hiển thị là chỉ số gián tiếp (thuật toán): chỉ tác động qua quảng cáo, chiến dịch, nội dung. Mỗi lần bấm ± đổi 5 %. Ô viền đứt bị khoá theo bản đồ Hành động.
+                Lượt hiển thị là chỉ số gián tiếp (thuật toán): chỉ tác động qua quảng cáo, chiến dịch, nội dung. Mỗi lần bấm ± đổi 5 %. Ô viền đứt bị khoá theo bản đồ Hành động.
               </p>
             </section>
             <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -361,12 +365,12 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
               <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Độ dao động · {STREAM_LABEL[sel]}</h2>
               <span style={{ fontSize: 13, color: C.muted }}>
-                Từng {vol?.row_kind ?? "dòng"}: khoảng dao động thường ngày (p10–p90 trong {win} ngày) · chọn dòng ổn định để đặt mục tiêu
+                Từng {vol?.row_kind ?? "dòng"}: dao động mỗi ngày (p10–p90 trong {win} ngày) · chọn dòng ổn định để đặt mục tiêu
               </span>
               <div style={{ marginLeft: "auto", display: "inline-flex", gap: 4, background: "#f7f7f9", border: `1px solid ${C.line}`, borderRadius: 10, padding: 3 }}>
                 {(
                   [
-                    ["stable", "Ổn định trước"],
+                    ["stable", "Lưu lượng ổn định trước"],
                     ["volatile", "Dao động trước"],
                   ] as const
                 ).map(([id, label]) => (
@@ -394,10 +398,10 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
             </div>
             <div style={{ display: "grid", gridTemplateColumns: VGRID, gap: 10, fontSize: 12, fontWeight: 600, color: C.muted, padding: "0 8px", minWidth: 900 }}>
               <span>{(vol?.row_kind ?? "Dòng").replace(/^./, (x) => x.toUpperCase())}</span>
-              <span>Hiển thị/ngày (thấp – cao)</span>
+              <span>Lượt hiển thị/ngày (thấp – cao)</span>
               <span>CTR (thấp – cao)</span>
               <span>CTOR (thấp – cao)</span>
-              <span>Hệ số biến thiên hiển thị</span>
+              <span>Dao động mỗi ngày (lượt hiển thị)</span>
               <span>Đánh giá</span>
             </div>
             {vrows.length === 0 ? <span style={{ fontSize: 13, color: C.muted2, padding: "0 8px" }}>Chưa đủ dữ liệu từng dòng cho khoảng này.</span> : null}
@@ -411,9 +415,9 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
                 <span>{range("ctor", v.ctor)}</span>
                 <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ flex: 1, height: 6, background: C.lineSoft, borderRadius: 999, display: "flex" }}>
-                    <span style={{ height: 6, borderRadius: 999, width: `${Math.min(100, (v.impressions_cv ?? 0) * 100)}%`, background: BAR[v.stability] }} />
+                    <span style={{ height: 6, borderRadius: 999, width: `${Math.min(100, v.impressions?.band_pct ?? 0)}%`, background: BAR[v.stability] }} />
                   </span>
-                  {v.impressions_cv === null ? "—" : `${Math.round(v.impressions_cv * 100)} %`}
+                  {bandPctText(v.impressions?.band_pct)}
                 </span>
                 <span style={{ justifySelf: "start", fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "3px 8px", ...STAB_STYLE[v.stability] }}>{STABILITY_COPY[v.stability].row}</span>
               </div>
@@ -421,7 +425,7 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
           </section>
         ) : null}
         <p style={{ margin: 0, fontSize: 12, color: C.muted2 }}>
-          Mô phỏng cộng theo công thức GMV = Hiển thị × CTR × CTOR × AOV cho từng luồng; không phải dự báo của mô hình.
+          Mô phỏng cộng theo công thức GMV = Lượt hiển thị × CTR × CTOR × AOV cho từng luồng; không phải dự báo của mô hình.
         </p>
       </main>
     </OpsPage>
@@ -463,10 +467,10 @@ function Cell({
   const verdict = cellVerdict(cell, delta);
   // Older backends send only `band` (then the daily p10–p90): no window band, no toggle.
   const legacy = cell.daily_band === undefined;
-  const unit = cell.event_kind === "click" ? "click" : "đơn";
-  const lowText = low && cell.events !== null && cell.events !== undefined ? `ít dữ liệu · ${fmtInt(cell.events)} ${unit}` : null;
-  const daily = `Mỗi ngày: ${bandPctText(cell.daily_band?.band_pct)}`;
-  const tip = legacy ? undefined : `${daily}${lowText ? ` · ít dữ liệu: ${fmtInt(cell.events ?? 0)} ${unit} trong ${days} ngày` : ""}`;
+  const unit = cell.event_kind === "click" ? "lượt nhấp" : "đơn";
+  const lowText = low && cell.events !== null && cell.events !== undefined ? `Ít dữ liệu · ${fmtInt(cell.events)} ${unit}` : null;
+  const daily = `Dao động mỗi ngày: ${bandPctText(cell.daily_band?.band_pct)}`;
+  const tip = legacy ? undefined : `${daily}${lowText ? ` · Ít dữ liệu: ${fmtInt(cell.events ?? 0)} ${unit} trong ${days} ngày` : ""}`;
   const box: CSSProperties = cell.locked
     ? { background: "#f0eef0", border: "1px dashed #d6d2d6" }
     : delta !== 0
@@ -504,7 +508,7 @@ function Cell({
           {!cell.locked && cell.indirect ? <span style={{ fontSize: 11, fontWeight: 700, color: C.amber }}>gián tiếp ⚠</span> : null}
         </span>
         <span data-testid="cell-band" style={{ fontSize: 11, color: C.body }}>
-          {legacy ? `Dao động thường: ${bandPctText(cell.band?.band_pct)}` : `Dao động TB ${days} ngày: ${bandPctText(cell.band?.band_pct)}`}
+          {legacy ? `Dao động mỗi ngày: ${bandPctText(cell.band?.band_pct)}` : `Dao động TB ${days} ngày: ${bandPctText(cell.band?.band_pct)}`}
         </span>
         {!legacy && open ? (
           <span data-testid="cell-daily" style={{ fontSize: 11, color: C.muted2 }}>

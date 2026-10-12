@@ -58,7 +58,7 @@ export function createPreventCancellationTimeline(): ExecutionTimelineStep[] {
       kind: "outcome",
       title: "Cần quyết định của shop",
       description:
-        "Shop chọn Phê duyệt hoặc Từ chối; Từ chối bắt buộc có lý do.",
+        "Shop chọn Duyệt hoặc Từ chối; Từ chối bắt buộc có lý do.",
       status: "pending",
       recoveryText:
         "Thiếu lý do từ chối — quay lại bước lấy lý do và nhập lại.",
@@ -67,8 +67,8 @@ export function createPreventCancellationTimeline(): ExecutionTimelineStep[] {
       id: "approve-cancellation",
       stepNumber: 7,
       kind: "action",
-      title: "Phê duyệt huỷ đơn",
-      description: "Gửi lựa chọn phê duyệt (nhánh loại trừ với từ chối).",
+      title: "Duyệt huỷ đơn",
+      description: "Gửi lựa chọn duyệt (nhánh loại trừ với từ chối).",
       status: "pending",
       recoveryText:
         "Thử lại ghi nhận quyết định theo cách idempotent khi lỗi tạm thời.",
@@ -79,7 +79,7 @@ export function createPreventCancellationTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Từ chối huỷ đơn",
       description:
-        "Gửi từ chối kèm lý do đã chọn (nhánh loại trừ với phê duyệt).",
+        "Gửi từ chối kèm lý do đã chọn (nhánh loại trừ với duyệt).",
       status: "pending",
       recoveryText:
         "Thử lại ghi nhận quyết định theo cách idempotent khi lỗi tạm thời.",
@@ -99,7 +99,7 @@ export function createPreventCancellationTimeline(): ExecutionTimelineStep[] {
       id: "cancellation-outcome",
       stepNumber: 10,
       kind: "outcome",
-      title: "Đã phê duyệt / từ chối / hết hạn / thất bại",
+      title: "Đã duyệt / từ chối / hết hạn / thất bại",
       description:
         "Giữ hàng chờ quyết định được giải phóng tự động — không gọi Update Inventory. Không hoàn tác sau từ chối cuối.",
       status: "pending",

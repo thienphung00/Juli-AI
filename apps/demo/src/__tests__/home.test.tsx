@@ -78,7 +78,7 @@ describe("home metrics — mapping the ADR-108 report", () => {
     ]);
     expect(model.groups.map((g) => g.rows.map((r) => r.label))).toEqual([
       ["Thẻ sản phẩm", "Tab cửa hàng"],
-      ["Video của shop", "LIVE của shop"],
+      ["Video", "LIVE"],
       ["Liên kết"],
     ]);
     const affiliate = model.groups[2].rows[0];
@@ -132,7 +132,7 @@ describe("HomeOverview view", () => {
 
     const matrix = screen.getByRole("region", { name: "Ma trận 5 luồng truy cập" });
     const headers = within(matrix).getAllByRole("columnheader").map((th) => th.textContent);
-    expect(headers).toEqual(["Luồng truy cập", "Lượt hiển thị sản phẩm/ngày", "CTR", "CTOR", "AOV"]);
+    expect(headers).toEqual(["Luồng truy cập", "Lượt hiển thị/ngày", "CTR", "CTOR", "AOV"]);
     expect(within(matrix).getAllByText(/so với kỳ trước/).length).toBeGreaterThanOrEqual(16);
 
     const ctrLink = within(matrix).getByRole("link", { name: /^CTR Thẻ sản phẩm:/ });

@@ -27,7 +27,7 @@ function formatSellerDeadline(value: string): string {
 }
 
 /** The seller's branch: approve the cancellation, or reject it. */
-const APPROVE_DECISION = "Phê duyệt";
+const APPROVE_DECISION = "Duyệt";
 
 /**
  * Situation → Decision → Details plan review for `prevent_cancellation_8a`
@@ -85,7 +85,7 @@ export function getPreventCancellationPlanReview(
     impact: buildPlanImpact(defaultPreventCancellationAnalyticsMetricKey),
     decision: {
       proposal: isApproveBranch
-        ? `Juli đề xuất phê duyệt yêu cầu huỷ đơn ${defaults.order_id} trước hạn ${deadline}.`
+        ? `Juli đề xuất duyệt yêu cầu huỷ đơn ${defaults.order_id} trước hạn ${deadline}.`
         : `Juli đề xuất từ chối yêu cầu huỷ đơn ${defaults.order_id} trước hạn ${deadline}.`,
       // The workflow's pre-authored reasoning from the shared fixture table.
       reasoning: preventCancellationFixture.reasoning,
@@ -97,7 +97,7 @@ export function getPreventCancellationPlanReview(
             label: "Quyết định cho yêu cầu huỷ",
             options: [
               {
-                value: "Phê duyệt yêu cầu huỷ",
+                value: "Duyệt yêu cầu huỷ",
                 proposed: isApproveBranch,
               },
               {

@@ -75,7 +75,7 @@ export function createPreventReturnTimeline(): ExecutionTimelineStep[] {
       kind: "outcome",
       title: "Cần quyết định của shop",
       description:
-        "Shop chọn Phê duyệt hoặc Từ chối; Từ chối bắt buộc có lý do.",
+        "Shop chọn Duyệt hoặc Từ chối; Từ chối bắt buộc có lý do.",
       status: "pending",
       recoveryText: "Thiếu lý do từ chối — chặn gửi và quay lại nhập.",
     },
@@ -83,8 +83,8 @@ export function createPreventReturnTimeline(): ExecutionTimelineStep[] {
       id: "approve-return",
       stepNumber: 9,
       kind: "action",
-      title: "Phê duyệt trả hàng",
-      description: "Gửi phê duyệt (nhánh loại trừ với từ chối).",
+      title: "Duyệt trả hàng",
+      description: "Gửi duyệt (nhánh loại trừ với từ chối).",
       status: "pending",
       recoveryText:
         "Thử lại ghi nhận quyết định theo cách idempotent khi lỗi tạm thời.",
@@ -94,7 +94,7 @@ export function createPreventReturnTimeline(): ExecutionTimelineStep[] {
       stepNumber: 10,
       kind: "action",
       title: "Từ chối trả hàng",
-      description: "Gửi từ chối kèm lý do (nhánh loại trừ với phê duyệt).",
+      description: "Gửi từ chối kèm lý do (nhánh loại trừ với duyệt).",
       status: "pending",
       recoveryText:
         "Thử lại ghi nhận quyết định theo cách idempotent khi lỗi tạm thời.",
@@ -105,7 +105,7 @@ export function createPreventReturnTimeline(): ExecutionTimelineStep[] {
       kind: "wait",
       title: "Chờ kiểm tra thực tế",
       description:
-        "Với trả hàng FBS đã phê duyệt, thu kết quả còn bán được trước khi nhập kho.",
+        "Với trả hàng FBS đã duyệt, thu kết quả còn bán được trước khi nhập kho.",
       status: "pending",
       recoveryText:
         "Giữ kết quả kiểm tra ở trạng thái cần thêm thông tin đến khi có số lượng.",

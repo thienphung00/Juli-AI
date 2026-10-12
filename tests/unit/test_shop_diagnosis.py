@@ -77,7 +77,7 @@ CONFIG = ShopDiagnosisConfig()
 WINDOWS = Windows.ending(END, CONFIG.window_days)
 
 KPI_LABELS = (
-    "Lượt hiển thị sản phẩm",
+    "Lượt hiển thị",
     "CTR (Tỷ lệ nhấp)",
     "Lượt nhấp vào sản phẩm",
     "Tỷ lệ thêm vào giỏ hàng",
@@ -89,10 +89,10 @@ KPI_LABELS = (
     "Hoàn tiền",
 )
 CHANNEL_NAMES = (
-    "Thẻ sản phẩm của người bán",
+    "Thẻ sản phẩm",
     "Tab Cửa hàng",
-    "Video của người bán",
-    "LIVE của người bán",
+    "Video",
+    "LIVE",
     "Liên kết",
     "Video liên kết",
     "LIVE liên kết",

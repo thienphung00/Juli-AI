@@ -43,7 +43,7 @@ export function createUpdateActivityTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Cập nhật chương trình khuyến mãi",
       description:
-        "Gửi thay đổi cấu hình/sản phẩm đã phê duyệt qua Update Activity Product.",
+        "Gửi thay đổi cấu hình/sản phẩm đã duyệt qua Update Activity Product.",
       status: "pending",
       recoveryText:
         "TikTok từ chối cập nhật — quay lại bước nhập liệu và chỉnh trường/SKU bị lỗi.",

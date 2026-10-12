@@ -1,6 +1,6 @@
 """Funnel comparison, four-factor GMV split and the hero decision tree — ADR-108 d.5, 7.
 
-GMV = Lượt hiển thị sản phẩm × CTR × CTOR × AOV holds exactly on window totals
+GMV = Lượt hiển thị × CTR × CTOR × AOV holds exactly on window totals
 (clicks and SKU orders cancel). The GMV change is split into one contribution
 per factor by log shares, ``ΔGMV × ln(f₁/f₀) ÷ ln(GMV₁/GMV₀)``; written with the
 logarithmic mean ``L(GMV₁, GMV₀)`` it stays defined when GMV did not move, and
@@ -31,7 +31,7 @@ class Factor(StrEnum):
 
 
 FACTOR_LABELS: dict[Factor, str] = {
-    Factor.IMPRESSIONS: "Lượt hiển thị sản phẩm",
+    Factor.IMPRESSIONS: "Lượt hiển thị",
     Factor.CTR: "CTR (Tỷ lệ nhấp)",
     Factor.CTOR: "CTOR",
     Factor.AOV: "AOV (SKU)",
@@ -331,7 +331,7 @@ def decide(
                 None,
                 share,
                 _scoped(
-                    f"GMV {verb} {_pct(share, False)} chủ yếu do lượt hiển thị sản phẩm; "
+                    f"GMV {verb} {_pct(share, False)} chủ yếu do lượt hiển thị; "
                     "sửa trang sản phẩm ít tác động đến yếu tố này"
                 ),
                 LOOK_NEXT[Verdict.IMPRESSIONS_ONLY],

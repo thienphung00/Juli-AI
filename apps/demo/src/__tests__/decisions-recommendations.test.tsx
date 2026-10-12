@@ -276,7 +276,7 @@ describe("Decisions — Recommendations", () => {
       .forEach((fixture) => {
         const card = findCard(fixture.workflowKey) as HTMLElement;
         const approveButton = within(card).getByRole("button", {
-          name: "Phê duyệt",
+          name: "Duyệt",
         });
 
         expect(approveButton).toBeDisabled();
@@ -286,7 +286,7 @@ describe("Decisions — Recommendations", () => {
 
         const explanation = card.querySelector(`#${describedBy}`);
         expect(explanation).not.toBeNull();
-        expect(explanation?.textContent ?? "").toMatch(/Phê duyệt/);
+        expect(explanation?.textContent ?? "").toMatch(/Duyệt/);
         expect((explanation?.textContent ?? "").length).toBeGreaterThan(20);
       });
   });
@@ -315,7 +315,7 @@ describe("Decisions — Recommendations", () => {
       push.mockClear();
       const card = findCard(fixture.workflowKey) as HTMLElement;
       const approveButton = within(card).getByRole("button", {
-        name: "Phê duyệt",
+        name: "Duyệt",
       });
 
       expect(approveButton).toBeEnabled();

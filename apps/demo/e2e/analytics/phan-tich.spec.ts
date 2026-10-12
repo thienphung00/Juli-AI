@@ -49,7 +49,7 @@ test.describe("Phân tích — signed out (Bản minh họa)", () => {
 
     await page.getByRole("tab", { name: "Nội dung" }).click();
     await expect(page.getByRole("heading", { name: "Video tác động CTR nhiều nhất" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /^CTOR · Video của người bán/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /^CTOR · Video/ })).toBeDisabled();
 
     expect(api).toEqual([]);
   });

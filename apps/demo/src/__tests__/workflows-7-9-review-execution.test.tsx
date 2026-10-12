@@ -54,7 +54,7 @@ const WORKFLOWS = [
     executionId: "exec-prevent_cancellation_8a-1",
     expectedStepCount: 10,
     waitTitle: "Chờ trạng thái huỷ đơn",
-    outcomeTitle: "Đã phê duyệt / từ chối / hết hạn / thất bại",
+    outcomeTitle: "Đã duyệt / từ chối / hết hạn / thất bại",
     recoverySnippet: "Làm mới yêu cầu huỷ đơn sau timeout webhook",
   },
   {
@@ -231,7 +231,7 @@ describe("Workflows 7–9 review → approve → In Progress", () => {
 
       expect(card).toBeTruthy();
       const approveButton = within(card as HTMLElement).getByRole("button", {
-        name: "Phê duyệt",
+        name: "Duyệt",
       });
       expect(approveButton).toBeEnabled();
       expect(approveButton).not.toHaveAttribute("aria-describedby");

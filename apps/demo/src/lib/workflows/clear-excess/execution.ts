@@ -42,7 +42,7 @@ export function createClearExcessTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Cập nhật giá",
       description:
-        "Áp dụng markdown cơ sở đã được phê duyệt trước khi tạo hoặc bỏ qua khuyến mãi.",
+        "Áp dụng markdown cơ sở đã được duyệt trước khi tạo hoặc bỏ qua khuyến mãi.",
       status: "pending",
       recoveryText:
         "TikTok từ chối cập nhật giá — quay lại bước nhập liệu để chỉnh markdown hoặc SKU.",

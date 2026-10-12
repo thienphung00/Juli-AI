@@ -37,7 +37,7 @@ export function buildPreventCancellationReviewInputDefaults(): Record<
     buyer_reason: "Đổi ý trước khi giao",
     decision_deadline: "2026-07-18 17:00",
     eligibility: "Còn trong cửa sổ quyết định trước giao hàng",
-    seller_decision: "Phê duyệt",
+    seller_decision: "Duyệt",
     reject_reason: "",
   };
 }
@@ -57,7 +57,7 @@ export function getPreventCancellationReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -65,7 +65,7 @@ export function getPreventCancellationReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body:
-        "Mã yêu cầu/đơn và điều kiện là chỉ đọc. Shop phải chọn Phê duyệt hoặc Từ chối — không có mặc định. Lý do từ chối lấy từ danh sách chính thức, không tự điền.",
+        "Mã yêu cầu/đơn và điều kiện là chỉ đọc. Shop phải chọn Duyệt hoặc Từ chối — không có mặc định. Lý do từ chối lấy từ danh sách chính thức, không tự điền.",
       inputFields: [
         {
           key: "cancel_id",
@@ -104,7 +104,7 @@ export function getPreventCancellationReviewStages(
         },
         {
           key: "seller_decision",
-          label: "Quyết định của shop (Phê duyệt / Từ chối)",
+          label: "Quyết định của shop (Duyệt / Từ chối)",
           prefillValue: "",
           required: true,
           editable: true,
@@ -120,12 +120,12 @@ export function getPreventCancellationReviewStages(
     },
     {
       stage: "preview",
-      title: "Xem trước trước khi phê duyệt",
+      title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(preventCancellationFixture),
     },
     {
       stage: "approve",
-      title: "Xác nhận phê duyệt",
+      title: "Xác nhận duyệt",
       body: buildSellerApproveBody(),
     },
   ];

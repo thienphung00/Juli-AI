@@ -27,7 +27,7 @@ function formatSellerDeadline(value: string): string {
 }
 
 /** The seller's branch: approve the return, or reject it. */
-const APPROVE_DECISION = "Phê duyệt";
+const APPROVE_DECISION = "Duyệt";
 
 /**
  * Situation → Decision → Details plan review for `prevent_return_8b` (ADR-055
@@ -82,7 +82,7 @@ export function getPreventReturnPlanReview(
         `Hạn quyết định là ${deadline}.`,
         `Tình trạng hiện tại: ${defaults.rma_state.toLowerCase()}.`,
         `Theo quy tắc hiện có, đây là lần trả đầu và chưa có dấu hiệu bất thường.`,
-        `Nhập lại kho là một bước riêng ở sau, không nằm trong lần phê duyệt này.`,
+        `Nhập lại kho là một bước riêng ở sau, không nằm trong lần duyệt này.`,
       ],
       analyticsMetricHref: buildAnalyticsMetricHref(
         defaultPreventReturnAnalyticsMetricKey,
@@ -93,7 +93,7 @@ export function getPreventReturnPlanReview(
     impact: buildPlanImpact(defaultPreventReturnAnalyticsMetricKey),
     decision: {
       proposal: isApproveBranch
-        ? `Juli đề xuất phê duyệt yêu cầu trả hàng đơn ${defaults.order_id} trước hạn ${deadline}.`
+        ? `Juli đề xuất duyệt yêu cầu trả hàng đơn ${defaults.order_id} trước hạn ${deadline}.`
         : `Juli đề xuất từ chối yêu cầu trả hàng đơn ${defaults.order_id} trước hạn ${deadline}.`,
       // The workflow's pre-authored reasoning from the shared fixture table.
       reasoning: preventReturnFixture.reasoning,
@@ -105,7 +105,7 @@ export function getPreventReturnPlanReview(
             label: "Quyết định cho yêu cầu trả hàng",
             options: [
               {
-                value: "Phê duyệt yêu cầu trả hàng",
+                value: "Duyệt yêu cầu trả hàng",
                 proposed: isApproveBranch,
               },
               {

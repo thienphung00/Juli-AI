@@ -203,7 +203,11 @@ def test_all_five_demo_main_kpis_survive_masking_with_values() -> None:
                 "value": 172945097.0,
             },
             "aov": {"availability": "available", "label": "AOV", "value": 209884.8264563107},
-            "ctor": {"availability": "available", "label": "CTOR (click→đơn)", "value": 0.0833},
+            "ctor": {
+                "availability": "available",
+                "label": "CTOR (lượt nhấp → đơn)",
+                "value": 0.0833,
+            },
             "live_hours": {"availability": "available", "label": "LIVE hours", "value": 1899.4},
             "cancellation_rate": {
                 "availability": "available",

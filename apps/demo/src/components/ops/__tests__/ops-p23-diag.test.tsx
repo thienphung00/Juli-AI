@@ -44,7 +44,7 @@ describe("Chẩn đoán & KPI (D29.11)", () => {
     expect(rows).toHaveLength(6);
     expect(rows.map((r) => within(r).getByRole("button", { name: /^Sửa / }).textContent)).toEqual([
       "14 · 30 · 60 ngày",
-      "30 nhấp/đơn",
+      "30 lượt nhấp/đơn",
       "×1 dao động",
       "×3 dao động",
       "×1 dao động",
@@ -60,8 +60,8 @@ describe("Chẩn đoán & KPI (D29.11)", () => {
     fireEvent.click(screen.getByRole("button", { name: "60 ngày", pressed: true }));
     fireEvent.click(screen.getByRole("button", { name: "Sửa KPI tối đa" }));
     fireEvent.change(screen.getByRole("spinbutton", { name: "KPI tối đa" }), { target: { value: "2.5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sửa Ngưỡng biến động" }));
-    const cv = screen.getByRole("spinbutton", { name: "Ngưỡng biến động" });
+    fireEvent.click(screen.getByRole("button", { name: "Sửa Ngưỡng lưu lượng ổn định" }));
+    const cv = screen.getByRole("spinbutton", { name: "Ngưỡng lưu lượng ổn định" });
     expect(cv).toHaveValue(30);
     fireEvent.change(cv, { target: { value: "25" } });
     const bar = screen.getByRole("region", { name: "Thay đổi chưa lưu" });
@@ -73,7 +73,7 @@ describe("Chẩn đoán & KPI (D29.11)", () => {
     expect(within(dialog).getAllByTestId("confirm-row").map((r) => r.textContent)).toEqual([
       "Cửa sổ chẩn đoán14 · 30 · 60 ngày → 14 · 30 ngày",
       "KPI tối đa×3 dao động → ×2,5 dao động",
-      "Ngưỡng biến độngCV > 30 % → CV > 25 %",
+      "Ngưỡng lưu lượng ổn địnhCV > 30 % → CV > 25 %",
     ]);
     fireEvent.click(within(dialog).getByRole("button", { name: "Xác nhận lưu" }));
     await waitFor(() => expect(a.putSettings).toHaveBeenCalledTimes(1));

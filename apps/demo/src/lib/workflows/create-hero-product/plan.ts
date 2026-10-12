@@ -95,10 +95,10 @@ export function getCreateHeroProductPlanReview(): PlanReviewContent {
       // Why Juli cannot propose here, and what happens next — never a bare
       // pair of blank required fields (empty-states principle).
       explanation:
-        "Ảnh sản phẩm là của shop, nên Juli không tự tạo hay đề xuất ảnh thay bạn. Khi bạn thêm ảnh, nút phê duyệt sẽ mở và Juli tạo sản phẩm với các thông tin đã chuẩn bị.",
+        "Ảnh sản phẩm là của shop, nên Juli không tự tạo hay đề xuất ảnh thay bạn. Khi bạn thêm ảnh, nút duyệt sẽ mở và Juli tạo sản phẩm với các thông tin đã chuẩn bị.",
       uploadFields: buildNeedsYouUploadFields(),
       approvalBlockedText:
-        "Phê duyệt sẽ mở sau khi bạn thêm ảnh sản phẩm.",
+        "Duyệt sẽ mở sau khi bạn thêm ảnh sản phẩm.",
     },
   };
 }

@@ -604,11 +604,11 @@ const DIAG_NUMBERS: readonly {
   scale?: number;
   integer?: boolean;
 }[] = [
-  { key: "diag_min_events", title: "Dữ liệu tối thiểu", help: "Nhấp (CTR) / đơn (CTOR, AOV) trong cửa sổ", unit: "nhấp/đơn", step: 1, integer: true },
+  { key: "diag_min_events", title: "Dữ liệu tối thiểu", help: "Lượt nhấp (CTR) / đơn (CTOR, AOV) trong cửa sổ", unit: "lượt nhấp/đơn", step: 1, integer: true },
   { key: "kpi_min_band_mult", title: "KPI tối thiểu", help: "Mục tiêu ≥ hiện tại + N × dao động", unit: "× dao động", step: 0.5 },
   { key: "kpi_max_band_mult", title: "KPI tối đa", help: "Mục tiêu ≤ hiện tại + N × dao động", unit: "× dao động", step: 0.5 },
   { key: "guard_band_mult", title: "Ngưỡng giữ ổn định", help: "Chỉ số không phải mục tiêu", unit: "× dao động", step: 0.5 },
-  { key: "volatile_cv", title: "Ngưỡng biến động", help: "Trên ngưỡng: KPI dạng khoảng, độ tin cậy Thấp", unit: "% CV", step: 5, scale: 100 },
+  { key: "volatile_cv", title: "Ngưỡng lưu lượng ổn định", help: "Lượt hiển thị dao động (CV) trên ngưỡng: KPI dạng khoảng, độ tin cậy Thấp", unit: "% CV", step: 5, scale: 100 },
 ];
 
 /** P23 (D29.11): "Chẩn đoán & KPI" — collapsed; every row is part of the D27 draft. */

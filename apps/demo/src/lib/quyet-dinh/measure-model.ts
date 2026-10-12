@@ -93,11 +93,12 @@ export function measureHead(m: Measurement): MeasureHead {
     case "dat":
       return { headline: "Ngày 14: đạt mục tiêu", chip: { label: "Đạt", tone: "ok" } };
     case "gan_dat":
-      return { headline: "Ngày 14: gần đạt mục tiêu", chip: { label: "Gần đạt", tone: "info" } };
+      return { headline: "Ngày 14: đạt một phần", chip: { label: "Một phần", tone: "info" } };
     case "khong_dat":
       return { headline: "Ngày 14: không đạt mục tiêu", chip: { label: "Không đạt", tone: "warn" } };
     case "chua_ket_luan":
-      return { headline: "Ngày 14: chưa đủ cơ sở kết luận", chip: { label: "Chưa kết luận", tone: "muted" } };
+      // V5: the old "Chưa kết luận" reads as "Một phần"; the headline says why.
+      return { headline: "Ngày 14: chưa đủ dữ liệu để chốt rõ", chip: { label: "Một phần", tone: "muted" } };
     default:
       return { headline: "Ngày 14: kết quả đã chốt", chip: { label: "Đã chốt · ngày 14", tone: "ok" } };
   }
@@ -127,8 +128,16 @@ export interface BandRowView {
   readonly label: string;
   readonly before: string;
   readonly band: string;
+  /** V8: "Bạn đặt" / "Juli gợi ý"; null when the payload does not say. */
+  readonly source: string | null;
   readonly range: string;
 }
+
+/** V8: the source tag next to a Ngưỡng giữ ổn định value. */
+export const BAND_SOURCE_LABELS: Readonly<Record<"seller" | "default", string>> = {
+  seller: "Bạn đặt",
+  default: "Juli gợi ý",
+};
 
 export function bandRows(m: Measurement): BandRowView[] {
   return m.bands.map((band: MeasurementBand) => ({
@@ -136,6 +145,7 @@ export function bandRows(m: Measurement): BandRowView[] {
     label: band.label,
     before: valueText(band.before, band.unit),
     band: `±${countText(band.band_pct)} %`,
+    source: band.source ? BAND_SOURCE_LABELS[band.source] : null,
     range: rangeText(band.low, band.high, band.unit),
   }));
 }
@@ -252,11 +262,12 @@ export function day7Steps(m: Measurement, answer: "revert" | "keep" | null): Mea
   ];
 }
 
+/** V5: old payload labels map onto the day-14 set (Đạt / Một phần / Không đạt). */
 export const FINAL_LABELS: Readonly<Record<FinalLabel, string>> = {
   dat: "Đạt",
-  gan_dat: "Gần đạt",
+  gan_dat: "Một phần",
   khong_dat: "Không đạt",
-  chua_ket_luan: "Chưa kết luận",
+  chua_ket_luan: "Một phần",
 };
 
 export interface FinalBox {
@@ -283,7 +294,6 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
   const next = "Đề xuất tiếp theo cho sản phẩm này ›";
   const v = m.verdict?.day14;
   const label: FinalLabel = v === "met" ? "dat" : v === "partial" ? "gan_dat" : v === "not_met" ? "khong_dat" : f.label;
-  const nearWord = v === "partial" ? "Một phần" : "Gần đạt";
   switch (label) {
     case "dat":
       return {
@@ -296,7 +306,7 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
     case "gan_dat":
       return {
         tone: "info",
-        title: `${nearWord}: ${f.pct_of_expected ?? "—"} % mức kỳ vọng`,
+        title: `Một phần: ${f.pct_of_expected ?? "—"} % mức kỳ vọng`,
         body: `${gmvLine} Thay đổi được giữ; mức kỳ vọng của đề xuất ${lever} sau sẽ thận trọng hơn.`.trim(),
         next,
         offerRevert: false,
@@ -314,7 +324,7 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
     case "chua_ket_luan":
       return {
         tone: "muted",
-        title: "Chưa kết luận: chưa đủ cơ sở kết luận",
+        title: "Một phần: chưa đủ dữ liệu để chốt rõ",
         body: "Quá ít dữ liệu để tách tác động của thay đổi khỏi dao động thường ngày. Thay đổi được giữ; kết quả này không dùng để điều chỉnh mức kỳ vọng.",
         next,
         offerRevert: false,
@@ -368,7 +378,7 @@ export function waitingLine(m: Measurement | null, day7Iso: string | null): stri
 
 /** Day14.dc.html's footnote under the verdict. */
 export const FINAL_RULE_NOTE =
-  "Cách chốt: Đạt khi chỉ số mục tiêu ≥ mục tiêu và GMV ≥ 100 % dự kiến · Gần đạt 70–99 % · Không đạt dưới 70 % · Chưa kết luận khi dữ liệu quá ít hoặc có thay đổi khác cùng lúc trên sản phẩm.";
+  "Cách chốt: Đạt khi chỉ số mục tiêu tăng rõ, chạm mục tiêu và GMV giữ được · Đạt · chưa chắc chắn khi đạt nhưng mức tăng chỉ gấp 1–2 lần mức dao động · Một phần khi chỉ tăng rõ hoặc chỉ chạm mục tiêu, hoặc khi dữ liệu quá ít · Không đạt khi không tăng rõ và không chạm mục tiêu.";
 
 const FIELD_NAMES: Readonly<Record<string, string>> = {
   title: "Tiêu đề",

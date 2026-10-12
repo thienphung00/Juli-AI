@@ -218,7 +218,7 @@ def test_card_block_fields_follow_the_contract():
     assert block["reason_short"] == "Khách xem nhưng ít đặt hàng"
     assert block["lever"] == {"code": "description", "label": "Mô tả", "executor": "juli"}
     assert block["gmv_method"] == (
-        "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, "
+        "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, "
         "ước tính theo quy tắc"
     )
     assert block["seller_sku"] is None and block["seller_sku_more"] == 0

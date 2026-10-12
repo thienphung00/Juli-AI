@@ -382,7 +382,7 @@ export const recommendationFixtures = [
     signal: "1 yêu cầu huỷ đơn đang chờ quyết định trước hạn xử lý.",
     expectedImpactLabel: "—",
     reasoning:
-      "Người mua đã gửi yêu cầu huỷ đơn trước khi hàng được giao; shop cần quyết định phê duyệt hoặc từ chối.",
+      "Người mua đã gửi yêu cầu huỷ đơn trước khi hàng được giao; shop cần quyết định duyệt hoặc từ chối.",
     sellerReason:
       "Quyết định sớm giúp giữ đơn hoặc giải phóng hàng đúng hạn.",
     evidence:
@@ -390,7 +390,7 @@ export const recommendationFixtures = [
     eligibility:
       "Áp dụng trước khi giao hàng và trong thời gian shop còn được phép quyết định.",
     knownLimits:
-      "Chính sách tự động phê duyệt/từ chối chính xác chưa được xác định — mọi trường hợp chưa rõ ràng đều cần shop tự quyết định, Juli không tự động xử lý thay.",
+      "Chính sách tự động duyệt/từ chối chính xác chưa được xác định — mọi trường hợp chưa rõ ràng đều cần shop tự quyết định, Juli không tự động xử lý thay.",
     risks:
       "Việc giữ hàng chờ quyết định sẽ tự động giải phóng theo kết quả — không có thao tác cập nhật tồn kho nào được thực hiện thủ công.",
   },

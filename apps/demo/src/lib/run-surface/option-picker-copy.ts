@@ -21,7 +21,7 @@ export const OPTION_PICKER_SUBMITTING_COPY = "Đang gửi lựa chọn của b�
 /** `run.no_retry` -- reused verbatim (ADR-084 decision 6: no retry-in-place
  *  control). Explains the expired/rejected state's dead end honestly rather
  *  than offering a control that cannot exist. */
-export const OPTION_PICKER_NO_RETRY_COPY = `Muốn thực hiện thay đổi mới? Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để phê duyệt đề xuất mới.`;
+export const OPTION_PICKER_NO_RETRY_COPY = `Muốn thực hiện thay đổi mới? Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để duyệt đề xuất mới.`;
 
 /** `run.option_rationale.fallback` -- rendered in place of a payload
  *  rationale the guard below rejects (issue #1908). Generic and still

@@ -570,7 +570,7 @@ function PhotoRequest({
         <span className="qv-consent__title">Juli cần ảnh bìa mới từ bạn</span>
         <span className="qv-upload__lede">Juli không tự chọn hay tạo ảnh cho sản phẩm. Ảnh cần đạt:</span>
         <ul className="qv-upload__list">
-          <li>Tỉ lệ 1:1, tối thiểu 800 × 800 px</li>
+          <li>Tỷ lệ 1:1, tối thiểu 800 × 800 px</li>
           <li>Nền trắng hoặc trơn, không chữ, không khung viền</li>
           <li>Sản phẩm chiếm từ 70 % khung ảnh</li>
         </ul>

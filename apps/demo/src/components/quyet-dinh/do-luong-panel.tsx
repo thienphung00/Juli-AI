@@ -413,7 +413,7 @@ function TargetAndBands({ m }: { readonly m: Measurement }) {
   return (
     <div className="qv-target" data-testid="measure-target">
       <div className="qv-target__head">
-        <span className="qv-target__title">Mục tiêu và ngưỡng dao động</span>
+        <span className="qv-target__title">Mục tiêu và Ngưỡng giữ ổn định</span>
         <span className="qv-target__hint">Trung bình mỗi ngày · so với 14 ngày trước khi áp dụng</span>
       </div>
       <div className="qv-target__cards">
@@ -436,7 +436,7 @@ function TargetAndBands({ m }: { readonly m: Measurement }) {
               <tr>
                 <th scope="col">Chỉ số không được lệch</th>
                 <th scope="col">Trước</th>
-                <th scope="col">Ngưỡng bạn đặt</th>
+                <th scope="col">Ngưỡng giữ ổn định</th>
                 <th scope="col">Được phép dao động trong</th>
               </tr>
             </thead>
@@ -445,7 +445,10 @@ function TargetAndBands({ m }: { readonly m: Measurement }) {
                 <tr key={band.key}>
                   <td>{band.label}</td>
                   <td>{band.before}</td>
-                  <td>{band.band}</td>
+                  <td>
+                    {band.band}
+                    {band.source ? <span className="qv-band-source"> · {band.source}</span> : null}
+                  </td>
                   <td>{band.range}</td>
                 </tr>
               ))}

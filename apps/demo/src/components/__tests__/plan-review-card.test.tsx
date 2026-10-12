@@ -108,12 +108,12 @@ describe("Review page before/after comparison (issue #1916)", () => {
     expect(rendered.closest("[aria-expanded='false']")).toBeNull();
   });
 
-  it("keeps the two-step consent gate: the second Phê duyệt only arms the dialog, and only its confirm authorises", async () => {
+  it("keeps the two-step consent gate: the second Duyệt only arms the dialog, and only its confirm authorises", async () => {
     const user = userEvent.setup();
     renderOptimizeReview();
 
-    // Second Phê duyệt (the first lives on the list card) arms the dialog…
-    await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+    // Second Duyệt (the first lives on the list card) arms the dialog…
+    await user.click(screen.getByRole("button", { name: "Duyệt" }));
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent(SELLER_APPROVE_GATE.description);
     expect(push).not.toHaveBeenCalled();
@@ -127,7 +127,7 @@ describe("Review page before/after comparison (issue #1916)", () => {
     expect(push).not.toHaveBeenCalled();
 
     // …and only the dialog's own confirm authorises.
-    await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+    await user.click(screen.getByRole("button", { name: "Duyệt" }));
     await user.click(
       within(screen.getByRole("dialog")).getByRole("button", {
         name: SELLER_APPROVE_GATE.confirmLabel,

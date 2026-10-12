@@ -83,7 +83,7 @@ VIDEO_SPEC = KindSpec(
     workflow_label="Tối ưu nội dung · Video",
     action_label="Kịch bản video mới",
     kpi_key="video_ctr",
-    kpi_label="CTR - Video của người bán",
+    kpi_label="CTR - Video",
     reason_short="Video có lượt xem nhưng ít bấm vào sản phẩm",
     stream="seller_video",
     metric="ctr",
@@ -100,12 +100,12 @@ LIVE_SPEC = KindSpec(
     workflow_label="Tối ưu nội dung · LIVE",
     action_label="Kịch bản host + thứ tự giỏ",
     kpi_key="live_ctor",
-    kpi_label="CTOR - LIVE của người bán",
+    kpi_label="CTOR - LIVE",
     reason_short="Người xem bấm vào nhưng ít chốt đơn",
     stream="seller_live",
     metric="ctor",
     gmv_method=(
-        "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV của LIVE trong shop, "
+        "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV của LIVE trong shop, "
         "trung bình 30 ngày, ước tính theo quy tắc"
     ),
 )

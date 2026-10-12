@@ -312,7 +312,7 @@ function StabilityCard({
         </>
       ) : (
         <>
-          <p className="qv-side__text">Ngày thứ 7, chỉ số nào lệch quá ngưỡng thì Juli hỏi bạn có hoàn tác không.</p>
+          <p className="qv-side__text">Ngày thứ 7, chỉ số nào lệch quá Ngưỡng giữ ổn định thì Juli hỏi bạn có hoàn tác không.</p>
           <ul className="qv-side__chips">
             {bands.map((band) => (
               <li className="qv-side__chip" key={band.metric} title={setByLabel(band.setBy)}>

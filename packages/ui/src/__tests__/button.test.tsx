@@ -12,13 +12,13 @@ describe("Button", () => {
   it("renders primary, secondary, and ghost variants with Vietnamese labels", () => {
     render(
       <>
-        <Button variant="primary">Phê duyệt</Button>
+        <Button variant="primary">Duyệt</Button>
         <Button variant="secondary">Từ chối</Button>
         <Button variant="ghost">Mở rộng</Button>
       </>,
     );
 
-    expect(screen.getByRole("button", { name: "Phê duyệt" })).toHaveClass(
+    expect(screen.getByRole("button", { name: "Duyệt" })).toHaveClass(
       "juli-btn--primary",
     );
     expect(screen.getByRole("button", { name: "Từ chối" })).toHaveClass(
@@ -32,13 +32,13 @@ describe("Button", () => {
   it("applies size classes and meets the 44px touch-target contract", () => {
     render(
       <>
-        <Button size="large">Phê duyệt</Button>
+        <Button size="large">Duyệt</Button>
         <Button size="default">Từ chối</Button>
         <Button size="small">Mở rộng</Button>
       </>,
     );
 
-    expect(screen.getByRole("button", { name: "Phê duyệt" })).toHaveClass(
+    expect(screen.getByRole("button", { name: "Duyệt" })).toHaveClass(
       "juli-btn--large",
     );
     expect(screen.getByRole("button", { name: "Từ chối" })).toHaveClass(
@@ -52,9 +52,9 @@ describe("Button", () => {
   });
 
   it("disables interaction while loading and exposes a spinner", () => {
-    render(<Button loading>Phê duyệt</Button>);
+    render(<Button loading>Duyệt</Button>);
 
-    const button = screen.getByRole("button", { name: "Phê duyệt" });
+    const button = screen.getByRole("button", { name: "Duyệt" });
 
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("aria-busy", "true");
@@ -71,8 +71,8 @@ describe("Button", () => {
     const user = userEvent.setup();
     const onClick = vi.fn();
 
-    render(<Button onClick={onClick}>Phê duyệt</Button>);
-    await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+    render(<Button onClick={onClick}>Duyệt</Button>);
+    await user.click(screen.getByRole("button", { name: "Duyệt" }));
 
     expect(onClick).toHaveBeenCalledOnce();
   });

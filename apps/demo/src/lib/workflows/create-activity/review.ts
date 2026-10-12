@@ -46,7 +46,7 @@ export function getCreateActivityReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -99,14 +99,14 @@ export function getCreateActivityReviewStages(
     },
     {
       stage: "preview",
-      title: "Xem trước trước khi phê duyệt",
+      title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(createActivityFixture, [
         "Khuyến mãi mục tiêu qua giao hàng do TikTok quản lý chưa có trong Demo.",
       ]),
     },
     {
       stage: "approve",
-      title: "Xác nhận phê duyệt",
+      title: "Xác nhận duyệt",
       body: buildSellerApproveBody(),
     },
   ];

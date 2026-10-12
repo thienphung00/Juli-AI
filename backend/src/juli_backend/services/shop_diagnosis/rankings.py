@@ -6,8 +6,8 @@ metric moved, last 30 vs prior 30 days. Pure over a loaded
 :class:`~juli_backend.services.shop_diagnosis.snapshot.Snapshot`; the daily job
 stores the result and nothing renders it here.
 
-**Product rows** (Thẻ sản phẩm của người bán, Tab Cửa hàng). Each product's
-GMV/day is split over the chain Lượt hiển thị sản phẩm → CTR → CTOR → AOV with
+**Product rows** (Thẻ sản phẩm, Tab Cửa hàng). Each product's
+GMV/day is split over the chain Lượt hiển thị → CTR → CTOR → AOV with
 ADR-108's log shares (:func:`.decomposition.log_share`) when every factor is
 > 0 on both sides, else by sequential substitution in that order
 (:func:`.decomposition.sequential_share`, exact and defined at zero). A prior
@@ -23,13 +23,13 @@ prior-window value, later factors at their prior values:
 
 - CTR: impressions/day × (row CTR − prior CTR) × prior CTOR × prior AOV;
 - CTOR: clicks/day × (row CTOR − prior CTOR) × prior AOV;
-- Lượt hiển thị sản phẩm: (row impressions − the prior window's mean per row)/day
+- Lượt hiển thị: (row impressions − the prior window's mean per row)/day
   × prior CTR × prior CTOR × prior AOV — the prior "rate" of impressions is per
   session (per video).
 
 **Confidence** (ADR-108 d.11 on the metric's own quantity): lượt hiển thị for
-Lượt hiển thị sản phẩm with ``ranking_impressions_floor`` per window instead of
-the order floors, lượt bấm for CTR, đơn hàng SKU for CTOR, its steps and AOV. A
+Lượt hiển thị with ``ranking_impressions_floor`` per window instead of
+the order floors, lượt nhấp for CTR, đơn hàng SKU for CTOR, its steps and AOV. A
 row under the floor on both sides is not listed (it goes to "N … ít đơn");
 otherwise *Rõ* when :func:`.confidence.label` says so, else *Tham khảo*.
 
@@ -84,7 +84,7 @@ class Metric(StrEnum):
 #: As TikTok writes them (ADR-109 d.4; Tỷ lệ thêm vào giỏ hàng / đơn/thêm giỏ
 #: are the two steps carried by the wide CTOR cell).
 METRIC_LABELS: dict[Metric, str] = {
-    Metric.IMPRESSIONS: "Lượt hiển thị sản phẩm",
+    Metric.IMPRESSIONS: "Lượt hiển thị",
     Metric.CTR: "CTR",
     Metric.CTOR: "CTOR",
     Metric.ADD_TO_CART_RATE: "Tỷ lệ thêm vào giỏ hàng",
@@ -134,7 +134,7 @@ _NOUNS: dict[RowKind, tuple[str, str, str]] = {
 #: What "too little data" means for each metric's quantity.
 _FEW: dict[Metric, str] = {
     Metric.IMPRESSIONS: "ít lượt hiển thị",
-    Metric.CTR: "ít lượt bấm",
+    Metric.CTR: "ít lượt nhấp",
 }
 
 

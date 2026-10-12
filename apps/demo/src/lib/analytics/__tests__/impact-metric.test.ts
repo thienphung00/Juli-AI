@@ -23,7 +23,7 @@ describe("buildImpactMetricSnapshot", () => {
     expect(snapshot!.delta).toBe("▲ 19%");
     expect(snapshot!.trend).toBe("positive");
     expect(snapshot!.sentiment).toBe("positive");
-    expect(snapshot!.metricName).toBe("CTOR (click→đơn)");
+    expect(snapshot!.metricName).toBe("CTOR (lượt nhấp → đơn)");
   });
 
   it("returns the real latest GMV value formatted as VND", () => {
@@ -79,7 +79,7 @@ describe("buildImpactMetricSnapshot", () => {
       kpis: {
         ctor: {
           availability: "unavailable",
-          label: "CTOR (click→đơn)",
+          label: "CTOR (lượt nhấp → đơn)",
         },
       },
     });
@@ -94,7 +94,7 @@ describe("buildImpactMetricSnapshot", () => {
       kpis: {
         ctor: {
           availability: "available",
-          label: "CTOR (click→đơn)",
+          label: "CTOR (lượt nhấp → đơn)",
           series: [{ t: "2026-07-20", v: 3.8 }],
         },
       },

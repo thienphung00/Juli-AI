@@ -28,7 +28,7 @@ describe("mapDecisionEvidence — P7-B Optimize Product fields", () => {
   it("maps the real backend item: stage, lever action, trigger, recoverable GMV", () => {
     const evidence = mapDecisionEvidence(item);
     expect(evidence).toMatchObject({
-      stage: "Hiển thị → Nhấp (thẻ sản phẩm)",
+      stage: "Lượt hiển thị → Lượt nhấp (thẻ sản phẩm)",
       lever: "Viết lại tiêu đề",
       trigger: "CTR thẻ sản phẩm ước tính thấp hơn 60 % so với trung bình shop trong 14 ngày qua",
       recoverableGmvPerDay: 1200000,
@@ -41,7 +41,7 @@ describe("mapDecisionEvidence — P7-B Optimize Product fields", () => {
   it("keeps the backend's metrics, labels and order; ratios stay fractions", () => {
     const evidence = mapDecisionEvidence(item);
     expect(evidence?.metrics.map((m) => [m.key, m.label, m.unit])).toEqual([
-      ["impressions", "Lượt hiển thị sản phẩm", "count"],
+      ["impressions", "Lượt hiển thị", "count"],
       ["ctr", "CTR", "ratio"],
       ["add_to_cart_rate", "Tỷ lệ thêm vào giỏ hàng", "ratio"],
       ["ctor", "CTOR", "ratio"],

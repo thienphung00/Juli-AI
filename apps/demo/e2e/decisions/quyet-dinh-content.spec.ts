@@ -35,21 +35,21 @@ test.describe("Signed-out Quyết định — P14-E content cards", () => {
     await page.goto("/decisions");
 
     await expect(contentGroup(page)).toContainText("2 thẻ nội dung: Juli soạn, bạn quay hoặc LIVE");
-    await expect(contentGroup(page).getByRole("button", { name: /^Duyệt/ })).toHaveCount(0);
+    await expect(contentGroup(page).getByRole("button", { name: /^Duyệt \d+ thẻ/ })).toHaveCount(0);
     const video = contentCard(page, "Mặt nạ đất sét 100g");
     const live = contentCard(page, "Son môi số 12");
     await expect(video.getByTestId("drafts-chip")).toHaveText("Juli soạn · bạn làm");
     await expect(live.getByTestId("drafts-chip")).toHaveText("Juli soạn · bạn làm");
-    await expect(video).toContainText(/CTR( -)? Video của người bán/);
+    await expect(video).toContainText(/CTR( -)? Video/);
     await expect(video).toContainText("+1,7 tr ₫/tháng");
-    await expect(live).toContainText(/CTOR( -)? LIVE của người bán/);
+    await expect(live).toContainText(/CTOR( -)? LIVE/);
 
     await video.getByRole("button", { name: /Xem thêm/ }).click();
     await expect(video).toContainText("Juli sẽ soạn");
     await expect(video).toContainText("Hook 3 giây và 2 phương án mở đầu");
     await expect(video).toContainText("CTR trên các video mới gắn MN-015 trong 7 và 14 ngày, so với video cũ.");
 
-    await video.getByRole("button", { name: "Phê duyệt" }).click();
+    await video.getByRole("button", { name: "Duyệt" }).click();
     await expect(video.getByTestId("card-status")).toHaveText("Đang thực hiện");
     await video.getByRole("link", { name: "Xem tiến độ ›" }).click();
 
@@ -83,7 +83,7 @@ test.describe("Signed-out Quyết định — P14-E content cards", () => {
     const v1 = recordBackendRequests(page);
     await page.goto("/decisions");
     const live = contentCard(page, "Son môi số 12");
-    await live.getByRole("button", { name: "Phê duyệt" }).click();
+    await live.getByRole("button", { name: "Duyệt" }).click();
     await live.getByRole("link", { name: "Xem tiến độ ›" }).click();
 
     const script = page.getByTestId("content-script");

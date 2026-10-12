@@ -16,7 +16,7 @@ import { useSellerHref } from "../seller-view-context";
 
 /**
  * Trang chủ (AC-8.5, ADR-109 decision 3) — the sales demo video's overview:
- * GMV / Đơn / AOV cards over the 5-stream matrix (Lượt hiển thị sản phẩm/ngày,
+ * GMV / Đơn / AOV cards over the 5-stream matrix (Lượt hiển thị/ngày,
  * CTR, CTOR, AOV per stream, tinted by direction "so với kỳ trước", Liên kết
  * greyed "chỉ theo dõi"). Pure view of one ADR-108 envelope: the signed-in
  * shop's (`signed-in-home.tsx`) or the bundled sample (`sample-home.tsx`).

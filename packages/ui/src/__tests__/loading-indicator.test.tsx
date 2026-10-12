@@ -29,9 +29,9 @@ describe("LoadingSpinner", () => {
   });
 
   it("accepts a custom accessible label", () => {
-    render(<LoadingSpinner label="Đang phê duyệt đề xuất" />);
+    render(<LoadingSpinner label="Đang duyệt đề xuất" />);
 
-    expect(screen.getByText("Đang phê duyệt đề xuất")).toBeInTheDocument();
+    expect(screen.getByText("Đang duyệt đề xuất")).toBeInTheDocument();
   });
 });
 

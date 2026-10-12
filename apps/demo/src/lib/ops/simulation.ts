@@ -86,7 +86,7 @@ export function bandPctText(pct: number | null | undefined): string {
 }
 
 export const STABILITY_COPY: Record<Stability, { label: string; row: string; style: string }> = {
-  stable: { label: "Ổn định", row: "Ổn định · nên chọn", style: "stable" },
+  stable: { label: "Lưu lượng ổn định", row: "Lưu lượng ổn định · nên chọn", style: "stable" },
   medium: { label: "Dao động vừa", row: "Dao động vừa", style: "medium" },
   volatile: { label: "Dao động cao", row: "Dao động cao", style: "volatile" },
   unknown: { label: "Chưa đủ dữ liệu", row: "Chưa đủ dữ liệu", style: "unknown" },

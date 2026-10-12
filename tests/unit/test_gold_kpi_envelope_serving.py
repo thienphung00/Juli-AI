@@ -102,7 +102,7 @@ class TestCtor:
 
         assert kpi["availability"] == "available"
         assert float(kpi["value"]) == pytest.approx((100 * 0.05 + 200 * 0.10) / 300)
-        assert kpi["label"] == "CTOR (click→đơn)"
+        assert kpi["label"] == "CTOR (lượt nhấp → đơn)"
 
     async def test_zero_rate_with_gmv_is_available_zero(self, session, shop):
         await add_interval(

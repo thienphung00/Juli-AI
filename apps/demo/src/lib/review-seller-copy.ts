@@ -6,18 +6,18 @@ export const REVIEW_STAGE_TITLES = {
   why: "Vì sao đề xuất này",
   analytics: "Bằng chứng từ Phân tích",
   inputs: "Thông tin cần xác nhận",
-  preview: "Xem trước trước khi phê duyệt",
-  approve: "Xác nhận phê duyệt",
+  preview: "Xem trước trước khi duyệt",
+  approve: "Xác nhận duyệt",
 } as const;
 
 export const SELLER_APPROVE_STAGE_BODY =
-  "Bạn sắp phê duyệt đề xuất này. Sau khi xác nhận, Juli mở luồng Đang thực hiện để bạn theo dõi tiến trình. Demo không gọi TikTok API thật.";
+  "Bạn sắp duyệt đề xuất này. Sau khi xác nhận, Juli mở luồng Đang thực hiện để bạn theo dõi tiến trình. Demo không gọi TikTok API thật.";
 
 export const SELLER_APPROVE_GATE = {
-  title: "Xác nhận phê duyệt",
+  title: "Xác nhận duyệt",
   description:
-    "Bạn có chắc muốn phê duyệt đề xuất này? Hành động sẽ chuyển sang Đang thực hiện.",
-  confirmLabel: "Phê duyệt",
+    "Bạn có chắc muốn duyệt đề xuất này? Hành động sẽ chuyển sang Đang thực hiện.",
+  confirmLabel: "Duyệt",
   cancelLabel: "Hủy",
 } as const;
 

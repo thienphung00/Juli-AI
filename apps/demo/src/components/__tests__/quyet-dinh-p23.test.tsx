@@ -70,7 +70,7 @@ function item(id: string, card: Partial<RecommendationCardPayload> = {}, product
         rank: 1,
         status: "rule",
         status_label: "Theo quy tắc",
-        stage: { code: "card", label: "Hiển thị → Nhấp" },
+        stage: { code: "card", label: "Lượt hiển thị → Lượt nhấp" },
         lever: { code: card.lever?.code ?? "title", label: "Tiêu đề", action: "Viết lại tiêu đề" },
         main_kpi: { key: "ctr", label: "CTR", value: "3,22 %" },
         trigger: { code: "below_median", gap: -0.3, sentence: "Thấp hơn trung vị shop" },
@@ -161,8 +161,8 @@ describe("P23 card: confidence, KPI range, window, GMV range", () => {
     );
     expect(screen.getByTestId("confidence-pill")).toHaveTextContent("Độ tin cậy: Thấp");
     expect(screen.getByTestId("recommendation-card")).toHaveTextContent("3,8–4,4 %");
-    expect(screen.getByRole("button", { name: "Phê duyệt" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Phê duyệt" })).toHaveAttribute("title", READ_ONLY_TITLE);
+    expect(screen.getByRole("button", { name: "Duyệt" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Duyệt" })).toHaveAttribute("title", READ_ONLY_TITLE);
   });
 });
 
@@ -214,7 +214,7 @@ describe("P23 sibling cards (D29.4)", () => {
     expect(group).toHaveTextContent("Son môi số 12");
     expect(group).toHaveTextContent("2 thay đổi cho CTR");
     expect(within(group).getAllByTestId("recommendation-card")).toHaveLength(2);
-    expect(within(group).getAllByRole("button", { name: "Phê duyệt" })).toHaveLength(2);
+    expect(within(group).getAllByRole("button", { name: "Duyệt" })).toHaveLength(2);
     expect(screen.getAllByTestId("recommendation-card")).toHaveLength(3);
   });
 
@@ -232,7 +232,7 @@ function measurement(stage: Measurement["stage"], over: Partial<Measurement> = {
     target: { label: "CTR Thẻ sản phẩm", current: 0.0322, target: 0.041, progress_from: 0.033, unit: "ratio" },
     expected_gmv_per_day: 30_000,
     bands: [],
-    rows: stage === "waiting" ? [] : [{ key: "ctr", label: "CTR (chỉ số chính)", before: 0.0322, expected: "4,1 %", actual: 0.036, verdict: "Đang tăng", tone: "ok" }],
+    rows: stage === "waiting" ? [] : [{ key: "ctr", label: "CTR (chỉ số chính)", before: 0.0322, expected: "4,1 %", actual: 0.036, verdict: "Đang lên", tone: "ok" }],
     day7: stage === "waiting" ? null : { within_band: true, question_id: null },
     final:
       stage === "final" ? { label: "gan_dat", gmv_actual_per_day: 20_000, pct_of_expected: 70, calibration: { lever: "title", from: 0.5, to: 0.45 } } : null,
@@ -289,11 +289,11 @@ describe("P23 measurement verdicts and external changes (D29.8, D30.4)", () => {
     expect(measureHead(measurement("final", { verdict: { day14: "met" } })).chip).toEqual({ label: "Đạt", tone: "ok" });
     expect(measureHead(measurement("final", { verdict: { day14: "partial" } })).chip).toEqual({ label: "Một phần", tone: "info" });
     expect(measureHead(measurement("final", { verdict: { day14: "not_met" } })).chip).toEqual({ label: "Không đạt", tone: "warn" });
-    expect(measureHead(measurement("final")).chip.label).toBe("Gần đạt");
+    expect(measureHead(measurement("final")).chip.label).toBe("Một phần");
     const partial = measurement("final", { verdict: { day14: "partial" } });
     expect(finalBox(partial, "Tiêu đề")?.title).toBe("Một phần: 70 % mức kỳ vọng");
     expect(day14Steps(partial, "Tiêu đề")[3].result).toBe("Một phần");
-    expect(finalBox(measurement("final"), "Tiêu đề")?.title).toBe("Gần đạt: 70 % mức kỳ vọng");
+    expect(finalBox(measurement("final"), "Tiêu đề")?.title).toBe("Một phần: 70 % mức kỳ vọng");
   });
 
   it("external change lines; none without the fields", () => {
@@ -344,7 +344,7 @@ describe("P23 hold thresholds (D29.9)", () => {
     const ctr = within(screen.getByTestId("rule-stability_band-ctr")).getByRole("textbox");
     expect(ctr).toHaveValue("8,5");
     expect(within(screen.getByTestId("rule-stability_band-aov")).getByRole("textbox")).toHaveValue("4");
-    expect(screen.getByText(/Gợi ý theo dao động của từng chỉ số/)).toBeInTheDocument();
+    expect(screen.getByText(/Juli gợi ý theo dao động của từng chỉ số/)).toBeInTheDocument();
     await userEvent.clear(ctr);
     await userEvent.type(ctr, "6");
     await userEvent.click(within(screen.getByTestId("rule-stability_band-ctr")).getByRole("button", { name: "Lưu" }));
@@ -356,13 +356,14 @@ describe("P23 hold thresholds (D29.9)", () => {
     expect(bandDefault(r, "ctr")).toBe(5);
   });
 
-  it("without defaults: empty inputs and the ±3 % suggestion", () => {
+  it("without defaults: empty inputs and no suggestion (V8: no fixed ±3 %)", () => {
     const r = unsetBands();
     expect(bandDefault(r, "ctr")).toBeNull();
     render(<RulesEditor onDelete={vi.fn()} onSave={vi.fn()} rules={r} />);
     const ctr = within(screen.getByTestId("rule-stability_band-ctr")).getByRole("textbox");
     expect(ctr).toHaveValue("");
-    expect(ctr).toHaveAttribute("placeholder", "3");
-    expect(screen.getByText(/Gợi ý ±3 %/)).toBeInTheDocument();
+    expect(ctr).toHaveAttribute("placeholder", "—");
+    expect(screen.queryByText(/±3 %/)).toBeNull();
+    expect(screen.queryByText(/Juli gợi ý/)).toBeNull();
   });
 });

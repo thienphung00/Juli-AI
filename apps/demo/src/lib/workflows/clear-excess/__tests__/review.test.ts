@@ -57,7 +57,7 @@ describe("getClearExcessReviewStages", () => {
     expect(inputs?.body).toMatch(/không thể hoàn tác|bước sau/i);
     expect(zeroStockField?.required).toBe(false);
     expect(zeroStockField?.editable).toBe(false);
-    expect(zeroStockField?.prefillValue).toMatch(/bước sau|chưa phê duyệt/i);
+    expect(zeroStockField?.prefillValue).toMatch(/bước sau|chưa duyệt/i);
 
     expect(preview?.body).toContain(clearExcessFixture!.sellerReason);
     expect(preview?.body).toMatch(/giao hàng do TikTok quản lý.*chưa có trong Demo/i);

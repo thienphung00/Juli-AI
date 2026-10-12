@@ -20,7 +20,7 @@ export function SettingsView() {
       </h1>
       <p className="demo-intro">
         Mẫu quy trình và ngưỡng ảnh hưởng đến đề xuất trong tương lai — không
-        thay thế việc phê duyệt tại {ACTIONS_DESTINATION_LABEL}.
+        thay thế việc duyệt tại {ACTIONS_DESTINATION_LABEL}.
       </p>
 
       <div

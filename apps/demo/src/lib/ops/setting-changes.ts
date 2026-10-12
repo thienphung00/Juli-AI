@@ -71,7 +71,7 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   kpi_min_band_mult: "KPI tối thiểu",
   kpi_max_band_mult: "KPI tối đa",
   guard_band_mult: "Ngưỡng giữ ổn định",
-  volatile_cv: "Ngưỡng biến động",
+  volatile_cv: "Ngưỡng lưu lượng ổn định",
 };
 
 const MULT_KEYS = new Set(["kpi_min_band_mult", "kpi_max_band_mult", "guard_band_mult"]);
@@ -104,7 +104,7 @@ export function fmtSetting(key: string, value: unknown): string {
   if (key === "diag_windows" && Array.isArray(value)) return value.length ? `${[...value].sort((a, b) => Number(a) - Number(b)).join(" · ")} ngày` : "Không có";
   if (MULT_KEYS.has(key)) return `×${comma(Number(value))} dao động`;
   if (key === "volatile_cv") return `CV > ${comma(Math.round(Number(value) * 1000) / 10)} %`;
-  if (key === "diag_min_events") return `${String(value)} nhấp/đơn`;
+  if (key === "diag_min_events") return `${String(value)} lượt nhấp/đơn`;
   if (typeof value === "boolean") return value ? "Bật" : "Tắt";
   if (Array.isArray(value)) {
     const names = LIST_NAMES[key] ?? {};

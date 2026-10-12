@@ -136,7 +136,7 @@ describe("RecommendationCard — v3 anatomy (issue #1916)", () => {
       within(card).queryByRole("button", { name: "Xem thêm" }),
     ).not.toBeInTheDocument();
     expect(
-      within(card).getByRole("button", { name: "Phê duyệt" }),
+      within(card).getByRole("button", { name: "Duyệt" }),
     ).toBeInTheDocument();
     expect(
       within(card).getByRole("button", { name: "Từ chối" }),
