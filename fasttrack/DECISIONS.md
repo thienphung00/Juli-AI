@@ -728,3 +728,32 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      Inputs and results stay outside the repo (shop data and reviews are never committed). The
      report compares the simulation with Juli's proposals (win rate with interval, headroom
      rank vs Juli's card choice, reasons), and gains a "real result" column at Fujiwa's day 14.
+
+- **D36** — A model-free buyer simulator: a calibrated choice model run as Monte Carlo (grill
+  H1–H7, product owner, 2026-10-13). The LLM simulation (D35) is costly per call; this one runs
+  thousands of visits for free and learns after every run. Not built yet; prototype offline.
+  1. **Model (H1A):** a discrete-choice (logit) model over card and page features: utility =
+     persona weights × features + position effect + Gumbel noise → click; a page model →
+     order. Interpretable and fit for little data. A machine-learning model (e.g. gradient
+     boosting) replaces or augments it only once enough labelled outcomes exist.
+  2. **Learning sources (H2A):** real per-product metrics (a shop's impressions / clicks /
+     orders, or public category sales shares) calibrate the baseline; D35's LLM runs label the
+     effect of text variants (distillation); D34 group results are the judge and update the
+     weights after every wave.
+  3. **Text → features (H3A):** rules and per-category lexicons (keywords, numbers such as
+     volume / pack size, claimed benefits, review aspects such as delivery, taste, packaging,
+     price); an LLM may draft a category's lexicon once, after which everything runs without AI.
+  4. **Runs (H4, early stopping):** visits are simulated in batches of 200 over draws of the
+     model's uncertain weights; after each batch the estimate (CTR / CTOR per variant and its
+     interval) is compared with the previous one, and the run stops when it moves less than a
+     tolerance for 2 batches in a row (patience) or at a ceiling. The variant search stops the
+     same way: when new variants no longer beat the best one beyond the simulation's noise.
+  5. **KPI (H5A):** the predicted range goes into `kpi_target(predicted=…)` (D30.3): it may
+     narrow the [1×, 3×] band clamp, never widen it.
+  6. **Where (H6A):** a prototype in the local pilot folder next to D35, compared with it;
+     moved into the backend only after it meets G13 (rank correlation ≥ 0.3 with real results).
+  7. **Validation (H7A):** calibrate on 2/3 of the products, predict the held-out 1/3; backtest
+     past title changes where they exist. Calibration can use a public category scrape (≈200
+     listings with price, sold, rating, badges, position) instead of one client shop; public
+     pages carry sales but no impressions or clicks, so that calibration fits sales shares, and
+     CTR / CTOR calibration needs a connected shop's analytics.
