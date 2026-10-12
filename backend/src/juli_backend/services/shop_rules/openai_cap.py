@@ -144,20 +144,22 @@ def month_start_utc(now: datetime | None = None) -> datetime:
 async def openai_spend_this_month(
     session: AsyncSession, shop_id: uuid.UUID, *, now: datetime | None = None
 ) -> Decimal:
-    """The shop's OpenAI spend this month: workflow runs + content analyses."""
+    """The shop's OpenAI spend this month: workflow runs + content analyses.
+
+    Both sums in one statement (P22): each round trip is ~220 ms in production,
+    and this runs on every content draft / agent run gate and every overview
+    refresh.
+    """
     since = month_start_utc(now)
-    runs = (
-        await session.execute(
-            select(func.coalesce(func.sum(WorkflowRun.cost_usd), 0)).where(
-                WorkflowRun.shop_id == shop_id, WorkflowRun.created_at >= since
-            )
-        )
-    ).scalar_one()
-    analyses = (
-        await session.execute(
-            select(func.coalesce(func.sum(ContentAnalysis.cost_usd), 0)).where(
-                ContentAnalysis.shop_id == shop_id, ContentAnalysis.created_at >= since
-            )
-        )
-    ).scalar_one()
+    runs_sum = (
+        select(func.coalesce(func.sum(WorkflowRun.cost_usd), 0))
+        .where(WorkflowRun.shop_id == shop_id, WorkflowRun.created_at >= since)
+        .scalar_subquery()
+    )
+    analyses_sum = (
+        select(func.coalesce(func.sum(ContentAnalysis.cost_usd), 0))
+        .where(ContentAnalysis.shop_id == shop_id, ContentAnalysis.created_at >= since)
+        .scalar_subquery()
+    )
+    runs, analyses = (await session.execute(select(runs_sum, analyses_sum))).one()
     return Decimal(str(runs or 0)) + Decimal(str(analyses or 0))

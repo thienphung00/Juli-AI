@@ -121,15 +121,42 @@ def snapshot(row: OpsShopSettings | None, cap: OpenAICap) -> dict[str, Any]:
     return data
 
 
-async def _cap(session: AsyncSession, shop_id: uuid.UUID) -> OpenAICap:
-    async with with_shop_scope(session, shop_id):
+async def _cap(
+    session: AsyncSession, shop_id: uuid.UUID, *, restore_role: str | None = None
+) -> OpenAICap:
+    async with with_shop_scope(session, shop_id, restore_role=restore_role):
         return await openai_monthly_cap_usd(session, shop_id)
 
 
 async def get_settings(session: AsyncSession, shop_id: uuid.UUID) -> ShopSettingsView:
+    return await view_of(session, shop_id, await settings_row(session, shop_id))
+
+
+async def settings_row(session: AsyncSession, shop_id: uuid.UUID) -> OpsShopSettings | None:
+    """The shop's ``ops_shop_settings`` row (an ops read; free inside an open ops block)."""
     async with ops_role(session):
-        row = await session.get(OpsShopSettings, shop_id)
-    return _view(shop_id, row, await _cap(session, shop_id))
+        return await session.get(OpsShopSettings, shop_id)
+
+
+async def view_of(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    row: OpsShopSettings | None,
+    *,
+    restore_role: str | None = None,
+) -> ShopSettingsView:
+    """The settings view from an already-read row plus the cap (read under the shop's scope).
+
+    Split from :func:`get_settings` (P22) so a route can read the row inside the
+    ops block it already holds and pay for one role switch, not two;
+    ``restore_role`` is that block's handed-over restore (``OpsRoleBlock``).
+    """
+    return view_from(shop_id, row, await _cap(session, shop_id, restore_role=restore_role))
+
+
+def view_from(shop_id: uuid.UUID, row: OpsShopSettings | None, cap: OpenAICap) -> ShopSettingsView:
+    """The settings view from a row and a cap the caller already read."""
+    return _view(shop_id, row, cap)
 
 
 def _limit(name: str, value: Any) -> int | None:

@@ -82,8 +82,33 @@ def _current_transaction(session: AsyncSession) -> object | None:
     return sync.get_transaction() if sync is not None else None
 
 
+class OpsRoleBlock:
+    """What an ``ops_role`` block yields: lets the caller take over the restore."""
+
+    def __init__(self) -> None:
+        #: The role to return to, when THIS block switched (else None).
+        self.previous: str | None = None
+        self.handed_over = False
+
+    def hand_over(self) -> str | None:
+        """Take over restoring the role; returns the role to restore, or None.
+
+        For a caller whose very next statement can carry
+        ``set_config('role', <returned>, true)`` itself -- "Xem như shop" folds
+        it into the statement that sets the seller's tenant GUCs -- saving the
+        restore's own round trip. The block then skips its restore, so that
+        next statement MUST restore the role; until it does, the transaction
+        is still ``juli_ops``. None means there is nothing to restore here
+        (SQLite, or an outer block owns the switch).
+        """
+        if self.previous is None:
+            return None
+        self.handed_over = True
+        return self.previous
+
+
 @asynccontextmanager
-async def ops_role(session: AsyncSession) -> AsyncIterator[None]:
+async def ops_role(session: AsyncSession) -> AsyncIterator[OpsRoleBlock]:
     """Run the block as ``juli_ops``; restore the previous role on the way out.
 
     Re-entrant at no cost (P22): a block opened inside another block of the
@@ -91,13 +116,14 @@ async def ops_role(session: AsyncSession) -> AsyncIterator[None]:
     wrap several ops reads in one outer block and pay for one switch and one
     restore instead of one pair per read.
     """
+    block = OpsRoleBlock()
     if is_sqlite(session):
-        yield
+        yield block
         return
     info = getattr(session, "info", None)
     active = info.get(_ACTIVE_KEY) if info is not None else None
     if active is not None and active is _current_transaction(session):
-        yield
+        yield block
         await session.flush()
         return
     try:
@@ -110,20 +136,22 @@ async def ops_role(session: AsyncSession) -> AsyncIterator[None]:
     if switched is None:
         raise OpsRoleMissing(previous)
     if previous == OPS_ROLE:
-        yield
+        yield block
         await session.flush()
         return
+    block.previous = previous
     if info is not None:
         info[_ACTIVE_KEY] = _current_transaction(session)
     try:
         # On an error the transaction is rolled back by the caller, which also
         # undoes SET LOCAL; restoring would only fail on the aborted transaction.
-        yield
+        yield block
         await session.flush()
     finally:
         if info is not None:
             info.pop(_ACTIVE_KEY, None)
-    await session.execute(_RESTORE_SQL.bindparams(role=previous))
+    if not block.handed_over:
+        await session.execute(_RESTORE_SQL.bindparams(role=previous))
 
 
 def _login_role(session: AsyncSession) -> str:

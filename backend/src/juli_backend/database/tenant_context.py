@@ -113,6 +113,8 @@ async def _apply_tenant_context_to_session(
     session: AsyncSession,
     shop_id: uuid.UUID | None,
     user_id: uuid.UUID | None,
+    *,
+    restore_role: str | None = None,
 ) -> None:
     """Apply tenant context to a session by setting GUCs via set_config().
 
@@ -124,6 +126,11 @@ async def _apply_tenant_context_to_session(
         session: AsyncSession to apply context to
         shop_id: The shop ID (from contextvars)
         user_id: The user ID (from contextvars)
+        restore_role: P22 -- a database role to switch back to IN THE SAME
+            statement (``set_config('role', ..., true)``, i.e. ``SET LOCAL
+            ROLE``). Only for a caller leaving an ``ops_role`` block it took
+            the restore over from (``OpsRoleBlock.hand_over``); it saves that
+            restore's round trip.
 
     Raises:
         TenantContextRequiredError: If context is required but not available.
@@ -143,6 +150,21 @@ async def _apply_tenant_context_to_session(
         # One round trip whatever is being set (P22): each statement costs
         # ~220 ms against the production pooler, and two separate
         # `set_config` calls were the commonest pair on every seller request.
+        if restore_role is not None and shop_id is not None and user_id is not None:
+            await session.execute(
+                text(_SET_ROLE_AND_BOTH_SQL).bindparams(
+                    role=restore_role,
+                    shop_key=_SHOP_GUC,
+                    shop_val=str(shop_id),
+                    user_key=_USER_GUC,
+                    user_val=str(user_id),
+                )
+            )
+            return
+        if restore_role is not None:
+            await session.execute(
+                text("SELECT set_config('role', :role, true)").bindparams(role=restore_role)
+            )
         if shop_id is not None and user_id is not None:
             await session.execute(
                 text(_SET_BOTH_SQL).bindparams(
@@ -204,6 +226,11 @@ _SET_BOTH_SQL = (
     "SELECT set_config(:shop_key, :shop_val, true), set_config(:user_key, :user_val, true)"
 )
 
+_SET_ROLE_AND_BOTH_SQL = (
+    "SELECT set_config('role', :role, true), "
+    "set_config(:shop_key, :shop_val, true), set_config(:user_key, :user_val, true)"
+)
+
 # Read the pair in force AND write the new pair, in ONE round trip (P22).
 #
 # Every scope used to spend three statements on entry -- read the prior pair,
@@ -217,6 +244,13 @@ _SET_BOTH_SQL = (
 _SWAP_GUCS_SQL = (
     "SELECT prior.shop, prior.usr, "  # nosec B608 -- constant text, values are bound
     "set_config(:shop_key, :shop_val, true), set_config(:user_key, :user_val, true) "
+    f"FROM (SELECT current_setting('{_SHOP_GUC}', true) AS shop, "
+    f"current_setting('{_USER_GUC}', true) AS usr OFFSET 0) AS prior"
+)
+_SWAP_GUCS_AND_ROLE_SQL = (
+    "SELECT prior.shop, prior.usr, "  # nosec B608 -- constant text, values are bound
+    "set_config(:shop_key, :shop_val, true), set_config(:user_key, :user_val, true), "
+    "set_config('role', :role, true) "
     f"FROM (SELECT current_setting('{_SHOP_GUC}', true) AS shop, "
     f"current_setting('{_USER_GUC}', true) AS usr OFFSET 0) AS prior"
 )
@@ -283,21 +317,24 @@ async def _write_tenant_gucs(session: AsyncSession, shop: str, user: str) -> Non
     )
 
 
-async def _swap_tenant_gucs(session: AsyncSession, shop: str, user: str) -> tuple[str, str]:
+async def _swap_tenant_gucs(
+    session: AsyncSession, shop: str, user: str, *, restore_role: str | None = None
+) -> tuple[str, str]:
     """Set both GUCs and return the pair they held before -- one round trip.
 
     Exactly `_read_tenant_gucs` followed by `_write_tenant_gucs`, fused (P22);
     see `_SWAP_GUCS_SQL` for why the read is guaranteed to see the old values.
+    `restore_role` also switches the transaction's role back in the same
+    statement (see `with_shop_scope`).
     """
     if _session_is_sqlite(session):
         return "", ""
-    row = (
-        await session.execute(
-            text(_SWAP_GUCS_SQL).bindparams(
-                shop_key=_SHOP_GUC, shop_val=shop, user_key=_USER_GUC, user_val=user
-            )
-        )
-    ).one()
+    params = {"shop_key": _SHOP_GUC, "shop_val": shop, "user_key": _USER_GUC, "user_val": user}
+    sql = _SWAP_GUCS_SQL
+    if restore_role is not None:
+        sql = _SWAP_GUCS_AND_ROLE_SQL
+        params["role"] = restore_role
+    row = (await session.execute(text(sql).bindparams(**params))).one()
     return (row[0] or "", row[1] or "")
 
 
@@ -411,6 +448,8 @@ async def with_tenant_scope(
 async def with_shop_scope(
     session: AsyncSession,
     shop_id: uuid.UUID,
+    *,
+    restore_role: str | None = None,
 ) -> AsyncIterator[None]:
     """Set shop context only, for work that has a shop but no user (ADR-089).
 
@@ -447,6 +486,11 @@ async def with_shop_scope(
     Args:
         session: AsyncSession to set the GUC on
         shop_id: the shop this unit of work belongs to
+        restore_role: P22 -- a database role to switch back to in the SAME
+            statement that sets the GUCs. Only for a caller leaving an
+            ``ops_role`` block it took the restore over from
+            (``OpsRoleBlock.hand_over``); it saves the restore's round trip.
+            Not restored again on exit: the role belongs to the caller.
 
     Raises:
         TenantContextRequiredError: if shop_id is None, before any SQL is
@@ -472,7 +516,9 @@ async def with_shop_scope(
         # transaction. Under an enclosing `with_tenant_scope`, or a second pass
         # through a loop, it would have been inherited and the promise would
         # have been quietly false.
-        prior_shop, prior_user = await _swap_tenant_gucs(session, str(shop_id), "")
+        prior_shop, prior_user = await _swap_tenant_gucs(
+            session, str(shop_id), "", restore_role=restore_role
+        )
         applied = True
         yield
     except BaseException:

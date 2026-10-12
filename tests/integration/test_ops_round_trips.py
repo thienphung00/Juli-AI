@@ -133,7 +133,22 @@ async def probe(two_tenants, staff_user) -> AsyncIterator[Probe]:
 # Upper bounds, in round trips (statements + BEGIN/COMMIT/ROLLBACK). Each was
 # measured on this branch and given no slack beyond what a data-dependent
 # branch can add; raising one is a latency regression of ~220 ms per unit.
-BOUNDS: dict[str, int] = {}
+#
+# Before P22 (same data, same harness): me 12, overview 24, settings 35,
+# simulation 44, view_session 33, view_decisions 23, view_runs 28 (+2 per
+# extra run), view_analysis 22, view_rules 22, rules 22.
+BOUNDS: dict[str, int] = {
+    "me": 4,
+    "overview": 12,
+    "settings": 14,
+    "simulation": 16,
+    "view_session": 11,
+    "view_decisions": 12,
+    "view_runs": 13,
+    "view_analysis": 11,
+    "view_rules": 11,
+    "rules": 11,
+}
 
 
 async def _check(probe: Probe, name: str, method: str, path: str, **kwargs) -> Seen:
@@ -146,6 +161,21 @@ async def _check(probe: Probe, name: str, method: str, path: str, **kwargs) -> S
 
 async def test_ops_me(probe):
     await _check(probe, "me", "GET", "/v1/ops/me")
+
+
+async def test_ops_me_cold_cache(probe):
+    """The first request of a staff member on a worker: the staff row is read.
+
+    auth (BEGIN, user GUC, users, COMMIT) + BEGIN, role switch, ops_staff,
+    role restore, ROLLBACK -- and no COMMIT for a read-only resolution.
+    """
+    await probe.once("GET", "/v1/ops/me")  # warm asyncpg's statement cache
+    from juli_backend.services.ops import staff as ops_staff
+
+    ops_staff.clear_staff_cache()
+    seen = await probe.once("GET", "/v1/ops/me")
+    print(f"\n== GET /v1/ops/me (cold staff cache)\n{seen.describe()}")
+    assert seen.round_trips <= 9, seen.describe()
 
 
 async def test_ops_overview(probe):
@@ -182,3 +212,24 @@ async def test_ops_view_as(probe, two_tenants, tail):
 async def test_ops_rules(probe, two_tenants):
     shop = two_tenants[0].shop_id
     await _check(probe, "rules", "GET", f"/v1/ops/shops/{shop}/rules")
+
+
+async def test_one_shop_summary_refresh(two_tenants):
+    """The per-shop cost of "Làm mới" / a first overview: the numbers under the
+    shop's scope plus the upsert in an ops block (was 24 round trips)."""
+    from juli_backend.services.ops import overview
+
+    shop = two_tenants[0].shop_id
+    async with juli_app_async_sessionmaker() as factory:
+        counter = SqlCounter.attach(factory.kw["bind"])
+        try:
+            async with factory() as session:
+                await overview.refresh_shop_summary(session, shop)  # warm statement cache
+                await session.rollback()
+                with counter.measure() as seen:
+                    await overview.refresh_shop_summary(session, shop)
+                await session.rollback()
+        finally:
+            counter.detach()
+    print(f"\n== refresh_shop_summary (one shop)\n{seen.describe()}")
+    assert seen.round_trips <= 12, seen.describe()

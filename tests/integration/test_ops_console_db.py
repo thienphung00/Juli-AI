@@ -146,6 +146,52 @@ async def test_ops_role_switches_and_restores(two_tenants):
     assert (inside, after) == ("juli_ops", RUNTIME_ROLE)
 
 
+async def test_nested_ops_blocks_switch_once_and_restore_once(two_tenants):
+    """P22: ops_role is re-entrant within a transaction -- the inner block runs in
+    the role the outer one set, emits nothing, and the outer restores."""
+    from tests.support.sql_counter import SqlCounter
+
+    async with app_session() as session:
+        counter = SqlCounter.attach(session.bind.engine)
+        try:
+            async with session.begin():
+                with counter.measure() as seen:
+                    async with ops_role(session):
+                        async with ops_role(session):
+                            inner = (
+                                await session.execute(text("SELECT current_user"))
+                            ).scalar_one()
+                        still = (await session.execute(text("SELECT current_user"))).scalar_one()
+                after = (await session.execute(text("SELECT current_user"))).scalar_one()
+        finally:
+            counter.detach()
+    assert (inner, still, after) == ("juli_ops", "juli_ops", RUNTIME_ROLE)
+    assert seen.statements == 4, seen.describe()  # switch, 2 probes, restore
+
+
+async def test_handed_over_restore_rides_on_the_shop_scope(two_tenants):
+    """P22: a block may hand its role restore to the next scope statement; the
+    scoped read then runs as juli_app under the shop GUC, never as juli_ops."""
+    from juli_backend.database.tenant_context import with_shop_scope
+
+    tenant_a, _ = two_tenants
+    async with app_session() as session:
+        async with session.begin():
+            async with ops_role(session) as block:
+                previous = block.hand_over()
+            assert previous == RUNTIME_ROLE
+            # Not restored yet: the scope's own statement must do it.
+            assert (await session.execute(text("SELECT current_user"))).scalar_one() == "juli_ops"
+            async with with_shop_scope(session, tenant_a.shop_id, restore_role=previous):
+                who, shop = (
+                    await session.execute(
+                        text("SELECT current_user, current_setting('app.current_shop_id', true)")
+                    )
+                ).one()
+    assert who == RUNTIME_ROLE
+    assert shop == str(tenant_a.shop_id)
+
+
 async def test_settings_audit_and_overview_from_a_juli_app_session(two_tenants):
     tenant_a, tenant_b = two_tenants
     async with app_session() as session:
