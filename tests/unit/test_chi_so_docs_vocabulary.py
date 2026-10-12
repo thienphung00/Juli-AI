@@ -22,16 +22,6 @@ SELLER_DOC = DOCS / "nguoi-ban-huong-dan-chi-so.md"
 UI_SRC = ROOT / "apps" / "demo" / "src"
 GLOSSARY_HEADING = "## Bảng thuật ngữ"
 
-# TODO(P24): remove once fasttrack/p24-strength (D31.7 change strength) merges and
-# these strings are on screen; until then they are the agreed copy, not UI text yet.
-PENDING_D31_7_LABELS: frozenset[str] = frozenset(
-    {
-        "Thay đổi rõ",
-        "Có thể thay đổi",
-        "Đạt · chưa chắc chắn",
-    }
-)
-
 # Words the seller guide must never contain (case-insensitive, whole words).
 BANNED_WORDS: tuple[str, ...] = (
     "API",
@@ -107,8 +97,6 @@ def test_ops_glossary_has_the_extra_cach_tinh_column() -> None:
 
 @pytest.mark.parametrize("label", _glossary_labels(OPS_DOC))
 def test_every_label_is_on_screen(label: str) -> None:
-    if label in PENDING_D31_7_LABELS:
-        pytest.skip("D31.7 label pending fasttrack/p24-strength (TODO remove allowlist)")
     ui = _ui_text()
     assert label in ui or html.escape(label, quote=False) in ui, (
         f"glossary label {label!r} is not in apps/demo/src verbatim"
