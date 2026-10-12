@@ -379,6 +379,17 @@ async def run_quick_scan(
                 result.skipped_reason = "already_ran"
                 result.status = state.quick_scan_status
                 return result
+            # Fast track P20 (D28.4): a read-only shop gets no new cards. The
+            # scan's state is left as it is, so a renewal can still run it.
+            from juli_backend.services.subscriptions import is_read_only
+
+            if await is_read_only(session, shop_id, today=None):
+                result.skipped_reason = "read_only"
+                logger.info(
+                    "shop_quick_scan_skipped",
+                    extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
+                )
+                return result
             if state.first_card_at is not None:
                 await repo.update(shop_id, quick_scan_status=QUICK_SCAN_SKIPPED)
                 await session.commit()

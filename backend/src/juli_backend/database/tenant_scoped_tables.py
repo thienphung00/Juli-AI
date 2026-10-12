@@ -103,6 +103,8 @@ TABLE_CLASSIFICATION_MAP = {
     # Fast track P18 (D27.2, migration 085): compact daily counts for Ops "Mô phỏng".
     ("public", "shop_daily_streams"): "tenant_direct",
     ("public", "shop_daily_products"): "tenant_direct",
+    # Fast track P20 (D28.4, migration 086): shop subscription periods (append-only).
+    ("public", "shop_subscription_periods"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",
@@ -112,6 +114,9 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "users"): "non_tenant",
     ("public", "shops"): "non_tenant",
     ("public", "webhook_raw_events"): "non_tenant_unprotected",
+    # Fast track P20 (D28.3, migration 086): system-wide Ops settings (the OpenAI
+    # system cap). No shop data: RLS on, juli_ops writes, juli_app may only read.
+    ("public", "ops_system_settings"): "non_tenant",
     # Fast track P16 (D25), migration 083: the Juli Ops console. Reached only
     # through the ``juli_ops`` role on the /v1/ops path; never a tenant read.
     ("public", "ops_staff"): "ops_only",

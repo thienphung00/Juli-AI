@@ -87,3 +87,31 @@ export function fmtFreshness(
   const d = f.data_through?.slice(0, 10).split("-");
   return d && d.length === 3 ? `Số liệu đến hết ${d[2]}/${d[1]} · ${updated}` : updated.charAt(0).toUpperCase() + updated.slice(1);
 }
+
+/** "$41,00" — the Chi phí tab's money (two decimals, comma). */
+export function fmtUsd2(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  return `$${n.toFixed(2).replace(".", ",")}`;
+}
+
+/** "82 %" from a fraction (rounded down below 100 so 99,6 % never reads "100 %"). */
+export function fmtPctWhole(fraction: number): string {
+  const pct = fraction * 100;
+  return `${pct < 100 ? Math.floor(pct) : Math.round(pct)} %`;
+}
+
+/** ISO date + N days → ISO date (calendar arithmetic in UTC, no time zone drift). */
+export function addDaysIso(iso: string, days: number): string {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d) + days * 86_400_000);
+  return t.toISOString().slice(0, 10);
+}
+
+/** Whole days from ISO date `a` to ISO date `b`. */
+export function daysBetweenIso(a: string, b: string): number {
+  const parse = (iso: string) => {
+    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((parse(b) - parse(a)) / 86_400_000);
+}

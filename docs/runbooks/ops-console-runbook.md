@@ -1,6 +1,6 @@
 # Ops console runbook — Juli Ops on ops.app-juli.com (fast track P16)
 
-> **Decisions:** `fasttrack/DECISIONS.md` D25 (1–15), D27 · **Contract:** `fasttrack/contracts/p16-ops.md`
+> **Decisions:** `fasttrack/DECISIONS.md` D25 (1–15), D27, D28 · **Contract:** `fasttrack/contracts/p16-ops.md`
 > **Prerequisite:** the VPS from [`vps-wiring-runbook.md`](vps-wiring-runbook.md) (nginx, certbot,
 > the Cloudflare origin lockdown timer) and the demo lane deployed with a P16 commit.
 
@@ -112,6 +112,7 @@ after a deploy. So every Ops key lives **in the secret**:
 | `OPS_SMTP_*`, `OPS_MAIL_FROM` | No (without SMTP Ops shows the link to forward) | see [Gửi email mời](#gửi-email-mời) |
 | `OPS_INVITE_ACCEPT_BASE_URL` | No | `https://demo.app-juli.com` |
 | `OPENAI_MONTHLY_CAP_USD_DEFAULT` | No (default `5`) | shared with P15: the monthly OpenAI cap when a shop has none set |
+| `OPENAI_SYSTEM_CAP_USD_DEFAULT` | No (default `50`) | D28.3: the whole system's monthly OpenAI limit until an Admin saves one in Ops → Chi phí |
 
 `put-secret-value` **replaces the whole JSON** — merge the new keys into the current
 value, never send only the new ones. From the admin workstation (values never printed):
@@ -223,6 +224,25 @@ release and the release record shows `ops_preflight` = the reason:
 If the grant goes missing later anyway, every `/v1/ops/*` request answers **503**
 `{"detail": "Thiếu quyền juli_ops cho database — chạy GRANT juli_ops TO <role>."}` and the
 API logs `ops_role_missing` (once per request).
+
+## Chi phí và Thời hạn (D28)
+
+Migration `086_ops_cost_and_terms` ships with the release (expand-only: two tables, one
+SECURITY DEFINER function). Check: `SELECT version_num FROM alembic_version;` →
+`086_ops_cost_and_terms` (or later).
+
+- **Chi phí** — the system OpenAI limit (default $50 / month, Admin "Sửa giới hạn") and each
+  shop's own cap ("Sửa", "· riêng" when not the $5 default). At 80 % every Ops page shows an
+  amber banner and the hourly beat task `juli_backend.ops_openai_system_alert` e-mails the
+  active Admins once that month (needs the SMTP keys below; without them it logs
+  `openai_system_alert_unsent` and retries hourly). At 100 % Juli makes no new OpenAI call for
+  any shop (drafting, content analysis, agent runs) until the next month (UTC+7) or a higher
+  limit; cards are still created.
+- **Thời hạn** — Admin "Gói 30 ngày" / "Gói 365 ngày" with the contract number (unique; the
+  same number twice adds nothing). A shop with no period is not restricted. 7 days after
+  expiry the shop becomes **chỉ xem**: no new cards, runs, drafting or analysis (seller
+  actions answer 403 with the contact address); data sync continues, so a new period
+  resumes everything at once.
 
 ## Rollback
 

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.database import NotFound, Shop, get_session
 from juli_backend.repositories.repos import ToolExecutionsRepo
 from juli_backend.services.execution.dispatch import enqueue_approved_tool
@@ -57,7 +57,12 @@ class ExecutionStatusResponse(BaseModel):
     error: str | None = None
 
 
-@router.post("", response_model=ExecutionEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "",
+    response_model=ExecutionEnqueueResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_writable_shop)],
+)
 async def enqueue_execution(
     body: ExecutionEnqueueRequest,
     shop: Shop = Depends(get_active_shop),

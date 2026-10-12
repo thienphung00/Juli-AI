@@ -542,6 +542,15 @@ async def emit_scoring_cards(
 
     No commit: every write lands on the caller's session, exactly as before.
     """
+    # Fast track P20 (D28.4): a shop whose term ran out past its grace is
+    # read-only -- no new cards of any kind (rule, Optimize Product, content).
+    # Data sync and scoring keep running, so a renewal resumes cards at once.
+    from juli_backend.services.subscriptions import is_read_only
+
+    if await is_read_only(session, shop_id):
+        logger.info("action_cards_skipped_read_only", extra={"shop_id": str(shop_id)})
+        return ScoringEmissionReport(decisions=())
+
     decisions: list[CardEmission] = []
     computed_at = result.signals.computed_at
     computed_at_iso = computed_at.isoformat()

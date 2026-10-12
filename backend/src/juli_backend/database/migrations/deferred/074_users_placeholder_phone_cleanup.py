@@ -1,7 +1,7 @@
 """CONTRACT step for #1972: null out the phone numbers Juli fabricated
 
 Revision ID: 074_users_placeholder_phone_cleanup
-Revises: 085_ops_daily_precompute
+Revises: 086_ops_cost_and_terms
 Create Date: 2026-09-20
 
 **This file is deliberately NOT in ``versions/``. Do not move it there until it
@@ -106,7 +106,7 @@ the VPS, against the release directory that is *currently serving*:
 
 1. Confirm the serving release contains ``064_users_phone_nullable`` (and so
    the code that stopped fabricating) and that ``alembic current`` reports
-   ``085_ops_daily_precompute``. If it reports anything earlier, STOP: an older
+   ``086_ops_cost_and_terms``. If it reports anything earlier, STOP: an older
    release would immediately mint fresh placeholders behind this cleanup.
 
    This file has been renumbered four times (065 -> 066 -> 070 -> 072 -> 074)
@@ -121,7 +121,8 @@ the VPS, against the release directory that is *currently serving*:
    P15 onto ``082_content_analysis`` and
    P16 onto ``083_ops_console``, and
    P17 onto ``084_onboarding_speed``, and
-   P18 onto ``085_ops_daily_precompute``.
+   P18 onto ``085_ops_daily_precompute``, and
+   P20 onto ``086_ops_cost_and_terms``.
 2. Take the backup (``infra/scripts/safe-alembic-upgrade.sh`` does this).
 3. Copy this file into that release's ``versions/`` directory and LEAVE IT
    THERE -- removing it afterwards would leave Alembic at a revision with no
@@ -144,7 +145,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "074_users_placeholder_phone_cleanup"
-down_revision: str | None = "085_ops_daily_precompute"
+down_revision: str | None = "086_ops_cost_and_terms"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

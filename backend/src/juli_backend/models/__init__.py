@@ -17,6 +17,7 @@ from juli_backend.models.ops import (
     OpsShopSettings,
     OpsSimScenario,
     OpsStaff,
+    OpsSystemSetting,
 )
 from juli_backend.models.order_costs import (
     OrderCostFetch,
@@ -30,6 +31,7 @@ from juli_backend.models.shop_diagnosis import (
     ShopDiagnosisReport,
     ShopMetricRanking,
 )
+from juli_backend.models.subscriptions import ShopSubscriptionPeriod
 
 #: Imported for their side effect: register `shop_ingestion_state`,
 #: `shop_diagnosis_reports`, `shop_metric_rankings`, the P8-C tables, P10-A's
@@ -58,4 +60,6 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     OpsShopDailySummary,
     ShopDailyStream,
     ShopDailyProduct,
+    OpsSystemSetting,
+    ShopSubscriptionPeriod,
 )

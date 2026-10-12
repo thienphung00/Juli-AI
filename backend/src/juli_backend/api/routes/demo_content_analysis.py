@@ -32,7 +32,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.routes import demo_run_flows as _flows
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
@@ -67,7 +67,11 @@ def _enqueue(analysis_id: uuid.UUID, shop_id: uuid.UUID) -> str | None:
     return content_analysis_tasks.enqueue_analysis(analysis_id, shop_id)
 
 
-@router.post("/content-analysis", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/content-analysis",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_writable_shop)],
+)
 async def create_content_upload(
     body: CreateUploadBody,
     shop: Shop = Depends(get_active_shop),

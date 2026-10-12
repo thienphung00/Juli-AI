@@ -191,6 +191,14 @@ celery_app.conf.update(
             "task": "juli_backend.ops_audit_retention",
             "schedule": crontab(hour=20, minute=31),
         },
+        # Fast track P20 (D28.3): the system OpenAI limit's 80 % e-mail to the
+        # Admins, at most one per month (remembered in ops_system_settings).
+        # Hourly at minute 19: not a multiple of 5 and none of the slots above.
+        # Default queue.
+        "ops-openai-system-alert": {
+            "task": "juli_backend.ops_openai_system_alert",
+            "schedule": crontab(minute=19),
+        },
     },
 )
 

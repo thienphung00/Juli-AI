@@ -37,7 +37,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.routes.agent_runs import _enqueue_run_agent_workflow
 from juli_backend.api.routes.demo_run_changes import SellerReasonRequest, invalid_reason
 from juli_backend.core.security import get_current_user
@@ -71,6 +71,7 @@ class DemoDecisionApproveResponse(BaseModel):
     "/{action_card_id}/approve",
     response_model=DemoDecisionApproveResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_writable_shop)],
 )
 async def approve_demo_decision(
     action_card_id: uuid.UUID,

@@ -306,8 +306,8 @@ class TestTheMigrationMatchesTheModel:
         # P8-C `078_rules_and_write_values`; P10-A `079_decision_reasons`;
         # P10-B `080_lever_flows`; P14-C `081_order_cost_data`; P15
         # `082_content_analysis`; P16 `083_ops_console`; P17 `084_onboarding_speed`;
-        # P18 `085_ops_daily_precompute`.
-        assert heads == ["085_ops_daily_precompute"], heads
+        # P18 `085_ops_daily_precompute`; P20 `086_ops_cost_and_terms`.
+        assert heads == ["086_ops_cost_and_terms"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema

@@ -2,6 +2,7 @@ import { readAuthSession } from "../supabase-auth";
 import type {
   AuditEntry,
   AuditKind,
+  CostsPage,
   Deltas,
   DisconnectResult,
   Invite,
@@ -10,7 +11,10 @@ import type {
   Scenario,
   ShopSettings,
   ShopSettingsPage,
+  ShopTermsPage,
   SimulationPage,
+  SystemCost,
+  TermsPage,
   ViewSession,
 } from "./types";
 
@@ -134,6 +138,22 @@ export const opsApi = {
       { method: "PATCH", body: { is_target: true } },
       o,
     ),
+  /** D28.3 tab Chi phí: the month's system spend and every shop's own cap. */
+  costs: (o?: OpsRequestOptions) => opsRequest<CostsPage>("/costs", {}, o),
+  /** D28.3: the system figure alone (the banner on every Ops page). */
+  costSystem: (o?: OpsRequestOptions) => opsRequest<{ system: SystemCost }>("/costs/system", {}, o),
+  /** D28.3 "Sửa giới hạn" (Admin). */
+  putSystemCap: (usd: number, o?: OpsRequestOptions) =>
+    opsRequest<{ system: SystemCost }>("/costs/system-cap", { method: "PUT", body: { usd } }, o),
+  /** D28.3 per-shop "Sửa" (Admin); `null` = back to the default. */
+  putShopCap: (shopId: string, usd: number | null, o?: OpsRequestOptions) =>
+    opsRequest<{ shop_id: string; cap_usd: number; is_custom: boolean }>(`${shopPath(shopId)}/openai-cap`, { method: "PUT", body: { usd } }, o),
+  /** D28.4 tab Thời hạn. */
+  terms: (o?: OpsRequestOptions) => opsRequest<TermsPage>("/terms", {}, o),
+  shopTerms: (shopId: string, o?: OpsRequestOptions) => opsRequest<ShopTermsPage>(`${shopPath(shopId)}/terms`, {}, o),
+  /** D28.4 "Gói 30 / 365 ngày" (Admin): source = contract, reference = số hợp đồng. */
+  addTerm: (shopId: string, days: 30 | 365, reference: string, o?: OpsRequestOptions) =>
+    opsRequest<ShopTermsPage>(`${shopPath(shopId)}/terms`, { method: "POST", body: { days, reference } }, o),
 };
 
 export type OpsApi = typeof opsApi;

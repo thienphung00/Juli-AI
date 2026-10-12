@@ -163,3 +163,50 @@ rows (`field = null`) and `view`/`system` rows never merge.
 nightly Celery beat entry `ops-audit-retention` (task `juli_backend.ops_audit_retention`,
 20:31 UTC = 03:31 UTC+7, default queue) deletes expired rows
 (`services/ops/audit.purge_expired`); index on `at` (085) + (`shop_id`, `at`) (083).
+
+## 9. D28 — tab Chi phí (system OpenAI limit) and tab Thời hạn (shop terms), fast track P20
+
+Migration **`086_ops_cost_and_terms`** (onto `085_ops_daily_precompute`; the deferred
+`074_users_placeholder_phone_cleanup` is re-parented onto it and stays the tail). Expand-only:
+
+- `shop_subscription_periods` — tenant table (RLS by `app_current_shop_id()`), `juli_app`
+  SELECT + INSERT only (append-only history). `plan` month|year, `days` 30|365,
+  `starts_on`, `ends_on`, `source` contract|payment, `reference` (UNIQUE with `source`),
+  `actor_email`, `created_at`; index (shop_id, ends_on).
+- `ops_system_settings` — key → JSON (`openai_system_cap_usd`, `openai_alert_sent`). RLS:
+  `FOR ALL TO juli_ops`, `FOR SELECT TO juli_app USING (true)`; no shop data.
+- `public.openai_spend_since(timestamp) → numeric` — every shop's
+  `workflow_runs.cost_usd` + `content_analyses.cost_usd` by `created_at`; SECURITY DEFINER,
+  `search_path` pinned, EXECUTE to `juli_app` and `juli_ops` only.
+
+**Terms** (`services/subscriptions`): `grant_period(session, shop_id, days=30|365, source,
+reference, actor_email, today)` — idempotent on (source, reference); a still-active shop's
+period starts at its current end, an expired one today. `shop_term` → `none | ok | soon
+(0–14 days) | grace (1–7 days after expiry) | read_only (8+)`. Read-only: no card emission
+(`action_cards.persist.emit_scoring_cards`, `onboarding.quick_scan.run_quick_scan`), no
+drafting (`content_cards.driver.draft_gate_for` → error `shop_read_only`), no agent-run
+model call (`ops.overrides.cap_guarded`), no content analysis (`content_analysis.costs.check`
+→ code `shop_read_only`), and seller writes answer **403** `{"detail": "Shop đang ở chế độ
+chỉ xem — liên hệ lienhe@app-juli.com để gia hạn."}` (`api.dependencies.require_writable_shop`
+on approve, confirmations, revert, redraft, executions, content-analysis upload). Polling
+continues. `none` and `grace` are not restricted.
+
+**System cap** (`services/ops/system_cap.py`): `ops_system_settings['openai_system_cap_usd']`,
+else `OPENAI_SYSTEM_CAP_USD_DEFAULT` (50). Month = the UTC+7 month (`openai_cap.month_start_utc`).
+≥ 100 %: content analysis / drafting / agent runs refuse with `system_cap_reached` (seller text
+"Juli tạm dừng soạn nội dung mới. Thẻ đề xuất và các bước bạn tự làm vẫn dùng bình thường.");
+cards are still emitted. ≥ 80 %: the hourly task `juli_backend.ops_openai_system_alert`
+(minute 19) e-mails active Admins once per month (marker `openai_alert_sent = {month, level}`;
+without SMTP it logs `openai_system_alert_unsent` and does not mark).
+
+| Method | Path | Role | Body / answer |
+|---|---|---|---|
+| GET | `/v1/ops/costs` | Xem | `{system: {month, used_usd, cap_usd, cap_is_default, pct, level: 80\|100\|null, reached, alert_sent}, warn_pct, days_left_in_month, default_shop_cap_usd, seller_paused_text, shops: [{shop_id, shop_name, stage, used_usd, cap_usd, is_custom, state: ok\|shop_cap\|system_cap}]}` |
+| GET | `/v1/ops/costs/system` | Xem | `{system: …}` — the banner on every Ops page (one call per session) |
+| PUT | `/v1/ops/costs/system-cap` | Admin | `{usd}` (1–100000) → `{system}`; audit `openai_system_cap_set` |
+| PUT | `/v1/ops/shops/{id}/openai-cap` | Admin | `{usd \| null}` (0–1000; null = default) → `{shop_id, cap_usd, is_custom}`; writes the `shop_rules` row through `ops_settings.update_settings`; audit `openai_shop_cap_set` |
+| GET | `/v1/ops/terms` | Xem | `{today, soon_days, grace_days, shops: [{shop_id, shop_name, stage, stage_label, state, expires_on, days_left, grace_days_left, latest_period}]}` sorted by days left, no term last |
+| GET | `/v1/ops/shops/{id}/terms` | Xem | `{shop, today, term, periods: [newest first]}` |
+| POST | `/v1/ops/shops/{id}/terms` | Admin | `{days: 30\|365, reference}` → the GET body + `{created, period}`; source `contract`; audit `subscription_period_added` (kind config); a repeated reference returns `created: false` and writes nothing |
+| GET | `/v1/ops/shops/{id}/view/term` | Xem | "Xem như shop": the seller's `/v1/shops/me/term` body |
+| GET | `/v1/shops/me/term` | seller | `{data: {state, expires_on, days_left, grace_days_left}}` — the seller strip (grace amber, read_only grey) |

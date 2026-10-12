@@ -278,33 +278,59 @@ async def openai_cap_status(
 
 
 class CapGuardedLLMService:
-    """D25.8 for agent runs (Optimize Product): refuse the model call over the cap.
+    """D25.8 / D28.3 / D28.4 for agent runs (Optimize Product): refuse the model call.
 
-    Wraps the run's ``LLMService``; when the shop's month has reached its cap
-    every ``complete`` raises ``LLMProviderError`` before any request, so the
-    runner ends the run its usual way (``failed`` / ``llm_error``) without
-    spending. Logged ``ops_openai_cap_reached`` (the team alert).
+    Wraps the run's ``LLMService``; when the shop's month has reached its cap,
+    the whole system's month has reached the system cap (``system_cap_reached``),
+    or the shop's term is read-only (``shop_read_only``), every ``complete``
+    raises ``LLMProviderError`` before any request, so the runner ends the run
+    its usual way (``failed`` / ``llm_error``) without spending. Logged
+    ``ops_openai_cap_reached`` / ``ops_openai_system_cap_reached`` /
+    ``shop_read_only_run_refused`` (the team alert).
     """
 
-    def __init__(self, inner: Any, cap: CapStatus, shop_id: uuid.UUID) -> None:
+    def __init__(
+        self,
+        inner: Any,
+        cap: CapStatus,
+        shop_id: uuid.UUID,
+        *,
+        system_cap_reached: bool = False,
+        read_only: bool = False,
+    ) -> None:
         self._inner = inner
         self._cap = cap
         self._shop_id = shop_id
+        self._system_cap_reached = system_cap_reached
+        self._read_only = read_only
+
+    def refusal(self) -> tuple[str, str] | None:
+        """``(reason, log event)`` when no model call may be made."""
+        if self._read_only:
+            return "shop_read_only", "shop_read_only_run_refused"
+        if self._system_cap_reached:
+            return "system_cap_reached", "ops_openai_system_cap_reached"
+        if self._cap.reached:
+            return "openai_cap_reached", "ops_openai_cap_reached"
+        return None
 
     async def complete(self, **kwargs: Any) -> Any:
-        if self._cap.reached:
+        refusal = self.refusal()
+        if refusal is not None:
             from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
 
+            reason, event = refusal
             logger.warning(
-                "ops_openai_cap_reached",
+                event,
                 extra={
                     "shop_id": str(self._shop_id),
                     "spent_usd": float(self._cap.spent_usd),
                     "cap_usd": float(self._cap.cap_usd),
+                    "reason": reason,
                     "path": "agent_run",
                 },
             )
-            raise LLMProviderError("monthly OpenAI cap reached for this shop")
+            raise LLMProviderError(f"OpenAI call refused for this shop: {reason}")
         return await self._inner.complete(**kwargs)
 
     def __getattr__(self, name: str) -> Any:
@@ -312,4 +338,13 @@ class CapGuardedLLMService:
 
 
 async def cap_guarded(session: AsyncSession, shop_id: uuid.UUID, inner: Any) -> Any:
-    return CapGuardedLLMService(inner, await openai_cap_status(session, shop_id), shop_id)
+    from juli_backend.services.ops import system_cap
+    from juli_backend.services.subscriptions import is_read_only
+
+    return CapGuardedLLMService(
+        inner,
+        await openai_cap_status(session, shop_id),
+        shop_id,
+        system_cap_reached=await system_cap.system_cap_reached(session),
+        read_only=await is_read_only(session, shop_id),
+    )

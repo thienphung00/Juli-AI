@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.routes import demo_run_flows as _flows
 from juli_backend.database import Shop, get_session
 from juli_backend.services.content_cards import actions
@@ -87,6 +87,7 @@ async def use_content_script(
     "/runs/{run_id}/content/redraft",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=ContentStepResponse,
+    dependencies=[Depends(require_writable_shop)],
 )
 async def redraft_content_script(
     run_id: uuid.UUID,

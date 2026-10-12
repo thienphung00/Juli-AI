@@ -33,7 +33,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.routes.agent_runs import (
     _enqueue_resume_agent_workflow,
     _enqueue_run_agent_workflow,
@@ -233,6 +233,7 @@ async def get_run_changes(
     "/runs/{run_id}/revert",
     response_model=RevertStartedResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_writable_shop)],
 )
 async def start_run_revert(
     run_id: uuid.UUID,

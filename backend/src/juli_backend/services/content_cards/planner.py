@@ -125,16 +125,40 @@ _CAP_REACHED_VI = (
     "Juli tạm dừng soạn kịch bản mới cho shop này: đã chạm giới hạn chi phí AI của tháng. "
     "Đội ngũ Juli đã được báo."
 )
+#: Fast track P20 (D28.3): the whole system's month reached the system OpenAI limit.
+DRAFT_ERROR_SYSTEM_CAP = "system_cap_reached"
+_SYSTEM_CAP_VI = (
+    "Juli tạm dừng soạn nội dung mới. Thẻ đề xuất và các bước bạn tự làm vẫn dùng bình thường."
+)
+#: Fast track P20 (D28.4): the shop's term ran out past its grace (chỉ xem).
+DRAFT_ERROR_READ_ONLY = "shop_read_only"
+_READ_ONLY_VI = (
+    "Shop đang ở chế độ chỉ xem: Juli không tạo thẻ mới và không chạy hành động. "
+    "Liên hệ lienhe@app-juli.com để gia hạn."
+)
 
 
 @dataclass(frozen=True)
 class DraftGate:
-    """What Juli Ops says about drafting for this shop (D25.4 model, D25.8 cap)."""
+    """What Juli Ops says about drafting for this shop (D25.4 model, D25.8 cap,
+    D28.3 system cap, D28.4 read-only term)."""
 
     model: str | None = None
     cap_reached: bool = False
     spent_usd: float = 0.0
     cap_usd: float | None = None
+    system_cap_reached: bool = False
+    read_only: bool = False
+
+    def refusal(self) -> tuple[str, str, str] | None:
+        """``(error code, log event, seller text)`` when no new drafting may start."""
+        if self.read_only:
+            return DRAFT_ERROR_READ_ONLY, "shop_read_only_drafting_refused", _READ_ONLY_VI
+        if self.system_cap_reached:
+            return DRAFT_ERROR_SYSTEM_CAP, "ops_openai_system_cap_reached", _SYSTEM_CAP_VI
+        if self.cap_reached:
+            return DRAFT_ERROR_OPENAI_CAP, "ops_openai_cap_reached", _CAP_REACHED_VI
+        return None
 
 
 @dataclass
@@ -323,20 +347,24 @@ class ContentPlanner:
             "discount_cap_pct": self.rules.discount_cap_pct,
         }
         gate = self.draft_gate or DraftGate()
-        if gate.cap_reached:
-            # D25.8: no new drafting over the cap; the team is alerted by this
-            # log line (and the Ops overview badge). Rule cards keep running.
+        refusal = gate.refusal()
+        if refusal is not None:
+            # D25.8 / D28.3 / D28.4: no new drafting over the shop's cap, the
+            # system cap, or on a read-only shop; the team is alerted by this log
+            # line (and the Ops badges). Rule cards keep running.
+            code, event, seller_text = refusal
             logger.warning(
-                "ops_openai_cap_reached",
+                event,
                 extra={
                     "kind": self.kind,
                     "spent_usd": gate.spent_usd,
                     "cap_usd": gate.cap_usd,
+                    "path": "drafting",
                 },
             )
             self.state["stage"] = run_state.STAGE_FAILED
-            self.state["error"] = DRAFT_ERROR_OPENAI_CAP
-            return _turn(FinalResponse(content=_CAP_REACHED_VI))
+            self.state["error"] = code
+            return _turn(FinalResponse(content=seller_text))
         if gate.model:
             config = replace(config, model=gate.model)
         outcome = await self.drafter.draft(

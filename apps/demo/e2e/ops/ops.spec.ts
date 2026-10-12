@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { ME, OVERVIEW, SETTINGS, SHOP_ID, SIMULATION, VIEW_SESSION } from "../../src/components/ops/__tests__/fixtures";
+import { COSTS, MB_SHOP_ID, MB_TERMS, ME, OVERVIEW, SETTINGS, SHOP_ID, SIMULATION, TERMS, VIEW_SESSION } from "../../src/components/ops/__tests__/fixtures";
 
 /**
  * P16 Juli Ops pages (artboards docs/product/design/ops). Local host serves the
@@ -80,6 +80,24 @@ async function stub(page: Page) {
     if (path === `/v1/ops/shops/${SHOP_ID}/view/runs`) return json({ data: [] });
     if (path === `/v1/ops/shops/${SHOP_ID}/simulation` || path === `/v1/ops/shops/${SHOP_ID}/simulation/refresh`) return json({ ...SIMULATION, ...fresh });
     if (path === `/v1/ops/shops/${SHOP_ID}/rules`) return json({ data: RULES });
+    // D28.3 tab Chi phí + the banner on every page; D28.4 tab Thời hạn.
+    if (path === "/v1/ops/costs/system") return json({ system: COSTS.system });
+    if (path === "/v1/ops/costs") return json(COSTS);
+    if (path === "/v1/ops/costs/system-cap" && req.method() === "PUT") {
+      puts.push(req.postDataJSON());
+      return json({ system: { ...COSTS.system, cap_usd: 80, cap_is_default: false, pct: 0.5125, level: null } });
+    }
+    if (path.endsWith("/openai-cap") && req.method() === "PUT") {
+      puts.push(req.postDataJSON());
+      return json({ shop_id: SHOP_ID, cap_usd: 20, is_custom: true });
+    }
+    if (path === "/v1/ops/terms") return json(TERMS);
+    if (path === `/v1/ops/shops/${MB_SHOP_ID}/terms`) {
+      if (req.method() === "POST") puts.push(req.postDataJSON());
+      return json(MB_TERMS);
+    }
+    if (/^\/v1\/ops\/shops\/[^/]+\/terms$/.test(path)) return json({ ...MB_TERMS, periods: [] });
+    if (path === `/v1/ops/shops/${SHOP_ID}/view/term`) return json({ data: { state: "grace", expires_on: "2026-10-09", days_left: -3, grace_days_left: 4 } });
     return json({ detail: "not stubbed" }, 404);
   });
   return { writes, seller, puts, posts };
@@ -186,4 +204,57 @@ test("Mô phỏng: window, ± steps, locked cells, volatility", async ({ page })
   await expect(page.getByTestId("sim-action").first()).toContainText("Thẻ sản phẩm · CTOR +5 %");
   await expect(page.getByTestId("vol-row").first()).toContainText("SM-012");
   await expect(page.getByRole("radio", { name: "30 ngày" })).toHaveAttribute("aria-checked", "true");
+});
+
+test("Chi phí: system limit, per-shop caps, confirm before save; banner on every page (D28.3)", async ({ page }) => {
+  const { puts } = await stub(page);
+  await page.goto("/ops/chi-phi");
+  await expect(page.getByRole("heading", { name: "Chi phí OpenAI · tháng 10" })).toBeVisible();
+  await expect(page.getByTestId("cost-used")).toHaveText("$41,00");
+  await expect(page.getByTestId("cost-pct")).toHaveText("82 %");
+  await expect(page.getByTestId("cost-row")).toHaveCount(2);
+  await expect(page.getByTestId("cost-row").first()).toContainText("$10,00 / tháng · riêng");
+  await expect(page.getByTestId("ops-cost-banner")).toContainText("Đã dùng 82 % giới hạn OpenAI");
+  await page.getByRole("button", { name: "Sửa giới hạn", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Sửa giới hạn OpenAI cả hệ thống?" });
+  await dialog.getByRole("button", { name: "$80" }).click();
+  await expect(dialog.getByTestId("confirm-row")).toContainText("$50,00 → $80,00");
+  await dialog.getByRole("button", { name: "Xác nhận lưu" }).click();
+  await expect(page.getByTestId("ops-toast")).toContainText("Đã lưu giới hạn · ghi 1 dòng nhật ký");
+  await page.getByRole("button", { name: "Sửa giới hạn Mỹ phẩm Thảo Nhi" }).click();
+  const shopDialog = page.getByRole("dialog", { name: "Sửa giới hạn riêng của Mỹ phẩm Thảo Nhi?" });
+  await shopDialog.getByRole("button", { name: "$20" }).click();
+  await shopDialog.getByRole("button", { name: "Xác nhận lưu" }).click();
+  await expect.poll(() => puts).toEqual([{ usd: 80 }, { usd: 20 }]);
+  // The banner is on every Ops page (one call, cached).
+  await page.getByRole("navigation", { name: "Ops" }).getByRole("link", { name: "Nhật ký" }).click();
+  await expect(page.getByTestId("ops-cost-banner")).toBeVisible();
+});
+
+test("Thời hạn: sorted rows, filters, history, extend by package with a contract number (D28.4)", async ({ page }) => {
+  const { puts } = await stub(page);
+  await page.goto("/ops/thoi-han");
+  await expect(page.getByRole("heading", { name: "Thời hạn" })).toBeVisible();
+  await expect(page.getByTestId("term-row")).toHaveCount(6);
+  await expect(page.getByTestId("term-pill").first()).toHaveText("Chỉ xem");
+  await page.getByRole("group", { name: "Lọc theo thời hạn" }).getByRole("button", { name: "Ân hạn" }).click();
+  await expect(page.getByTestId("term-row")).toHaveCount(1);
+  await page.getByRole("button", { name: "Mẹ Bông Kids", exact: true }).click();
+  await expect(page.getByTestId("term-period")).toContainText("HĐ-2026-008 · thien.phung");
+  await expect(page.getByTestId("term-seller-sees")).toContainText("Juli vẫn chạy thêm 4 ngày");
+  await page.getByRole("button", { name: "Gói 365 ngày cho Mẹ Bông Kids" }).click();
+  const dialog = page.getByRole("dialog", { name: "Gia hạn Mẹ Bông Kids?" });
+  await expect(dialog).toContainText("Nguồn: Hợp đồng");
+  await expect(dialog).toContainText("Shop đã hết hạn: kỳ mới tính từ hôm nay.");
+  await expect(dialog.getByRole("button", { name: "Gia hạn" })).toBeDisabled();
+  await dialog.getByLabel("Số hợp đồng").fill("HĐ-2026-014");
+  await dialog.getByRole("button", { name: "Gia hạn" }).click();
+  await expect(page.getByTestId("ops-toast")).toContainText("Đã gia hạn Mẹ Bông Kids");
+  expect(puts).toEqual([{ days: 365, reference: "HĐ-2026-014" }]);
+});
+
+test("Xem như shop shows the seller's term strip", async ({ page }) => {
+  await stub(page);
+  await page.goto(`/ops/shops/${SHOP_ID}/xem`);
+  await expect(page.getByTestId("term-strip")).toContainText("Gói Juli của shop đã hết hạn ngày 09/10/2026");
 });

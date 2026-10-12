@@ -284,7 +284,8 @@ describe("Mô phỏng in one place (D27.8)", () => {
     expect(simulation).toHaveBeenCalledWith(SHOP_ID, 30);
     expect(screen.getByRole("link", { name: "Đổi shop ở Tổng quan ›" })).toHaveAttribute("href", "/ops");
     expect(screen.getByText("Mô phỏng", { selector: "[aria-current='page']" })).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Ops" })).toHaveTextContent("Tổng quanMô phỏngNhân viênNhật ký");
+    // D28: Tổng quan · Mô phỏng · Chi phí · Thời hạn · Nhân viên · Nhật ký.
+    expect(screen.getByRole("navigation", { name: "Ops" })).toHaveTextContent("Tổng quanMô phỏngChi phíThời hạnNhân viênNhật ký");
   });
 });
 

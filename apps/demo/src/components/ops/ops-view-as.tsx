@@ -14,6 +14,7 @@ import { fetchRecommendations } from "../../lib/recommendations-api-client";
 import { fetchShopAnalysis } from "../../lib/shop-analysis/api-client";
 import type { ShopAnalysisEnvelope } from "../../lib/shop-analysis/types";
 import { readAuthSession } from "../../lib/supabase-auth";
+import { TermStrip } from "../app-shell/term-strip";
 import { HomeOverview } from "../home/home-overview";
 import { SignedInPhanTich } from "../phan-tich/signed-in-phan-tich";
 import { resolveMeasureTab, QuyetDinhView } from "../quyet-dinh/quyet-dinh-view";
@@ -175,6 +176,7 @@ export function OpsViewAs({
           Không mở được Xem như shop.
         </p>
       ) : null}
+      {session ? <TermStrip fetchImpl={viewFetch} shopId={shopId} token={token} /> : null}
       {session ? (
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
           <nav aria-label="Seller" style={{ width: 104, borderRight: "1px solid #f1e6eb", background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", gap: 18, paddingTop: 18, fontSize: 12, color: C.body }}>

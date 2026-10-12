@@ -18,6 +18,8 @@ const READS: readonly [RegExp, (m: RegExpExecArray) => string][] = [
   [/^\/v1\/demo\/runs\/([^/]+)$/, (m) => `/view/runs/${m[1]}`],
   [/^\/v1\/demo\/runs\/([^/]+)\/(changes|instructions|measurement)$/, (m) => `/view/runs/${m[1]}/${m[2]}`],
   [/^\/v1\/demo\/revert-questions$/, () => "/view/revert-questions"],
+  // D28.4: the seller's term strip ("Gói Juli … hết hạn" / "chỉ xem").
+  [/^\/v1\/shops\/me\/term$/, () => "/view/term"],
 ];
 
 function refuse(status: number, detail: string): Response {
