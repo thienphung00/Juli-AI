@@ -672,3 +672,59 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      title), `ctor@total` (description; product discount when the cap rule exists), `aov@total`
      (BMSM), `content_video`, `content_live`. CTOR and AOV per channel are not reachable (no
      per-channel orders, D32.2).
+
+- **D34** — Optimise in groups, each with a randomised delayed control (grill G1–G8, product
+  owner, 2026-10-12). Context: a shop optimising 3–5 products, one of them a best-seller, cannot
+  tell a working lever from luck (platform algorithm, season, competitors). Cards are also chosen
+  *because* a product just dropped, so before/after alone over-credits levers (regression to the
+  mean). Not built yet; D33's per-cell quota is the delivery mechanism.
+  1. **Group (G1A):** target metric × lever × channel, within one shop (e.g. "CTR · Ảnh bìa ·
+     Thẻ sản phẩm"), matching D33's cells and D32's channels.
+  2. **Control (G2A):** of the eligible products in a group, about 1/3 are drawn at random as
+     the control and get their card 14 days later (a delayed holdout: no seller loses the card
+     for good). Randomisation is the only design that removes both external shocks and
+     regression to the mean. A stratification score (D35) may balance the draw; it never
+     decides who is treated.
+  3. **Waves (G3A):** a group launches within a ~3-day window and is measured at the same day 14
+     for treatment and control.
+  4. **Verdict (G4A, relaxed):** difference-in-differences of the median per-product change
+     (treated vs control), bootstrap interval, worded with D31.7 ("Thay đổi rõ / Có thể thay
+     đổi / Trong dao động"). A verdict needs ≥ 3 treated + ≥ 2 control products and is labelled
+     "Sơ bộ"; from ≥ 5 + ≥ 3 the label is dropped. Fewer: "Chưa đủ cơ sở".
+  5. **Assignment, not approval (G5A):** the primary result is by assignment (intent-to-treat,
+     whether or not the seller approved); approved-only is a secondary view.
+  6. **Small shops (G6A):** a shop too small for a group shows "Chưa đủ cơ sở" with the
+     cross-shop result for the same metric × lever ("Ở các shop tương tự, đòn bẩy này: +x %").
+  7. **Learning (G7A):** every group result, from every shop, goes to a lever-effect table;
+     once a metric × lever has ~10 groups, that table replaces the fixed ranking weights
+     (e.g. D30.2's 1.5× listing boost).
+  8. **Who sees it (G8A):** Ops sees groups, controls and intervals; the seller sees one plain
+     sentence ("Nhóm 6 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 7 % so với các sản phẩm chưa
+     đổi").
+
+- **D35** — Buyer simulation with AI agents before the real A/B test (grill G9–G14, product
+  owner, 2026-10-12). Simulated buyers get the direction right more often than the size, and
+  cannot reproduce the platform's distribution, so simulation never replaces D34's control.
+  1. **Role (G9A):** score each product's headroom per cell, pick the best of 3–4 variants for a
+     card, and stratify D34's control draw. The real A/B test stays the judge.
+  2. **Cells:** CTR · Thẻ sản phẩm (a shuffled grid of ~12 cards: the shop's and competitors'
+     cover image, title, price, rating, sold) and CTOR (a product page: images, description,
+     price, sampled reviews → buy or not, with a reason) first; AOV (quantity choice) later;
+     Video weak; Lượt hiển thị and LIVE are not simulated.
+  3. **Personas (G11A):** built from aggregate audience data and from the reviews of the
+     product and its competitors (needs, purchase criteria, objections from 1–3★ reviews, usual
+     spend), 8–10 archetypes per category mixed by their review share. Never from an
+     individual buyer's data; reviewer identities are dropped at collection.
+  4. **Competitors (G12A):** the shop's other products plus top sellers in the same category
+     (stored data or FastMoss).
+  5. **Randomisation:** grid order, variant order and blind labels shuffled per call with a
+     logged seed; an A/A arm (the original shown twice) measures the simulation's own noise,
+     and a difference counts only beyond it.
+  6. **Trust (G13A):** at first the score only picks variants and stratifies; it ranks cards
+     only after ≥ 10 groups show a rank correlation ≥ 0.3 with real D34 results.
+  7. **Pilot (G10, G14):** Fujiwa (TikTok Shop) and Ory (Shopee), 10 products each, 50
+     personas, grid 4 variants (original, Juli's proposal, 2 alternatives) + page 2 variants,
+     GPT-5.4 nano. A cost estimate is printed and confirmed before the run, with a hard stop.
+     Inputs and results stay outside the repo (shop data and reviews are never committed). The
+     report compares the simulation with Juli's proposals (win rate with interval, headroom
+     rank vs Juli's card choice, reasons), and gains a "real result" column at Fujiwa's day 14.
