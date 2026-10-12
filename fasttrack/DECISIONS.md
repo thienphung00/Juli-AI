@@ -590,3 +590,15 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   8. **Copy (owner):** one vocabulary across the system, the Ops guide and the seller
      guide: the seller guide uses the on-screen labels only, never backend, endpoint or
      team terms.
+  9. **TikTok and the connector (S21A):** the ingest gateway serves TikTok now (e.g.
+     a seller-entered ad spend lands as source `manual`); TikTok ad spend moves to the
+     TikTok API for Business once that app is approved; a Juli Connector reader for TikTok
+     Seller Center is built only after the TikTok Shop partner terms are reviewed, and
+     only for data with no official route (Juli's partner API access is not risked).
+  10. **Watching platform changes (owner):** TikTok Shop and Shopee change their APIs and
+      docs often. A scheduled watcher snapshots both platforms' API docs (endpoint list,
+      request/response fields, push/webhook catalog, changelogs, SDK releases), diffs
+      against the stored snapshot and opens one GitHub issue per change set, flagging
+      endpoints Juli calls. At runtime every client (TikTok, Shopee, the connector)
+      reports schema drift (missing or unexpected fields) instead of failing silently;
+      Shopee push 5 `shopee_updates` is logged as a platform notice.
