@@ -33,7 +33,7 @@ shrinks as the window grows 7 → 14 → 30 days. The daily p10–p90 band stays
 Hiển thị never is.
 
 SIMULATION. GMV/day per stream = Hiển thị × CTR × CTOR × AOV; each cell moves
-in ±5 % steps; Video CTOR, Video AOV and LIVE AOV are locked (D25.10 -- they
+in ±1 % steps; Video CTOR, Video AOV and LIVE AOV are locked (D25.10 -- they
 depend on the product page, not on the stream). A change on a low-data cell is
 "Ít dữ liệu"; one whose size is within the cell's window band is "Trong dao
 động" (not measurable); a larger one is "Vượt dao động · đo được"
@@ -84,7 +84,7 @@ LOCKED: frozenset[tuple[str, str]] = frozenset(
 INDIRECT: frozenset[str] = frozenset({"impressions"})
 WINDOWS: tuple[int, ...] = (7, 14, 30, 90)
 DEFAULT_WINDOW = 30
-STEP_PCT = 5
+STEP_PCT = 1
 DELTA_RANGE = (-90, 300)
 #: How far back history is read (2 × the longest window + slack) ...
 HISTORY_DAYS = 2 * max(WINDOWS) + 10
@@ -329,7 +329,7 @@ def trend_pct(last: float | None, prior: float | None) -> float | None:
 
 
 def validate_deltas(deltas: Mapping[str, Any]) -> dict[str, dict[str, int]]:
-    """``{stream: {kpi: pct}}`` with ±5 % steps, known cells, nothing locked."""
+    """``{stream: {kpi: pct}}`` with ±1 % steps, known cells, nothing locked."""
     if not isinstance(deltas, Mapping):
         raise SimulationError("deltas must be an object")
     clean: dict[str, dict[str, int]] = {}

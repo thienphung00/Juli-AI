@@ -307,7 +307,7 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
                 <b style={{ color: LOW.mark }}>*</b> Ít dữ liệu: dưới 30 lượt nhấp (CTR) hoặc dưới 30 đơn (CTOR, AOV) trong khoảng · bấm hoặc rê chuột vào ô để xem dao động mỗi ngày
               </p>
               <p style={{ margin: 0, fontSize: 12, color: C.muted2 }}>
-                Lượt hiển thị là chỉ số gián tiếp (thuật toán): chỉ tác động qua quảng cáo, chiến dịch, nội dung. Mỗi lần bấm ± đổi 5 %. Ô viền đứt bị khoá theo bản đồ Hành động.
+                Lượt hiển thị là chỉ số gián tiếp (thuật toán): chỉ tác động qua quảng cáo, chiến dịch, nội dung. Mỗi lần bấm ± đổi {STEP} %. Ô viền đứt bị khoá theo bản đồ Hành động.
               </p>
             </section>
             <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -541,14 +541,14 @@ function Cell({
       ) : (
         <>
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <button aria-label={`Giảm 5 % ${label}`} disabled={!canEdit} onClick={() => onStep(-STEP)} style={stepBtn} type="button">
+            <button aria-label={`Giảm ${STEP} % ${label}`} disabled={!canEdit} onClick={() => onStep(-STEP)} style={stepBtn} type="button">
               −
             </button>
             <span style={{ minWidth: 54, textAlign: "center", fontSize: 13, fontWeight: 700, color: pctColor(delta) }}>
               {delta > 0 ? "+" : ""}
               {delta} %
             </span>
-            <button aria-label={`Tăng 5 % ${label}`} disabled={!canEdit} onClick={() => onStep(STEP)} style={stepBtn} type="button">
+            <button aria-label={`Tăng ${STEP} % ${label}`} disabled={!canEdit} onClick={() => onStep(STEP)} style={stepBtn} type="button">
               +
             </button>
           </span>

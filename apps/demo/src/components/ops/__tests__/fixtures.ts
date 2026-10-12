@@ -224,7 +224,7 @@ export const SIMULATION: SimulationPage = {
     },
   },
   lever_map: {},
-  step_pct: 5,
+  step_pct: 1,
   scenarios: [
     {
       id: "s1",

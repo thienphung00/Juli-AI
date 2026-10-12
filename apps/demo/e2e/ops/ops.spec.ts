@@ -317,7 +317,7 @@ test("Mô phỏng: window, ± steps, locked cells, volatility", async ({ page })
   await page.goto(`/ops/shops/${SHOP_ID}/mo-phong`);
   await expect(page.getByTestId("sim-row-product_card")).toBeVisible();
   await expect(page.getByTestId("sim-cell-seller_video-ctor")).toHaveAttribute("data-locked", "true");
-  await page.getByRole("button", { name: "Tăng 5 % Thẻ sản phẩm CTOR" }).click();
+  for (let k = 0; k < 5; k++) await page.getByRole("button", { name: "Tăng 1 % Thẻ sản phẩm CTOR" }).click();
   await expect(page.getByTestId("sim-cell-product_card-ctor")).toContainText("+5 %");
   await expect(page.getByTestId("sim-action").first()).toContainText("Thẻ sản phẩm · CTOR +5 %");
   await expect(page.getByTestId("vol-row").first()).toContainText("SM-012");

@@ -89,7 +89,7 @@ def test_locked_cells_are_exactly_video_ctor_aov_and_live_aov():
     [
         {"nope": {"ctr": 5}},
         {"product_card": {"gmv": 5}},
-        {"product_card": {"ctr": 3}},
+        {"product_card": {"ctr": 2.5}},  # not a whole 1 % step
         {"product_card": {"ctr": 1000}},
     ],
 )

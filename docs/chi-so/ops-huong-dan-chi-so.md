@@ -132,7 +132,7 @@ Mục tiêu đặt trên ô này đánh giá là "Ít dữ liệu". Cách xử l
 
 ### 2.4 Đánh giá mục tiêu trong Mô phỏng
 
-Mỗi lần bấm ± đổi 5 %. Nhãn dưới ô:
+Mỗi lần bấm ± đổi 1 %. Nhãn dưới ô:
 
 - **Trong dao động** — |mục tiêu| ≤ Dao động TB N ngày: dù đạt cũng không phân biệt được với ngẫu
   nhiên. Đừng đặt mục tiêu này cho shop.

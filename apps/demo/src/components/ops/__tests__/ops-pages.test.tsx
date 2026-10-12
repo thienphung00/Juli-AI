@@ -82,7 +82,7 @@ describe("Cài đặt shop (OpsShopSettings.dc.html)", () => {
 });
 
 describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
-  it("steps cells by 5 %, locks Video CTOR/AOV and LIVE AOV, recomputes GMV and lists actions", async () => {
+  it("steps cells by 1 % (five clicks = 5 %), locks Video CTOR/AOV and LIVE AOV, recomputes GMV and lists actions", async () => {
     const sim = vi.fn(async (_id: string, w: number) => (w === 90 ? SIMULATION_90 : SIMULATION));
     render(<OpsSimulate api={{ simulation: sim, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
     expect(await screen.findByTestId("sim-row-product_card")).toBeInTheDocument();
@@ -94,14 +94,14 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     expect(within(screen.getByTestId("sim-cell-product_card-impressions")).getByText("gián tiếp ⚠")).toBeInTheDocument();
     expect(within(screen.getByTestId("sim-cell-product_card-impressions")).getByTestId("trend-chip")).toHaveTextContent("▲ 4,1 %");
     expect(within(screen.getByTestId("sim-cell-product_card-aov")).getByTestId("trend-chip")).toHaveTextContent("0,3 %");
-    const plus = screen.getByRole("button", { name: "Tăng 5 % Thẻ sản phẩm CTOR" });
-    fireEvent.click(plus);
+    const plus = screen.getByRole("button", { name: "Tăng 1 % Thẻ sản phẩm CTOR" });
+    for (let k = 0; k < 5; k++) fireEvent.click(plus);
     const ctor = screen.getByTestId("sim-cell-product_card-ctor");
     expect(within(ctor).getByText("+5 %")).toBeInTheDocument();
     // D28.1: the 30-day window band (±2,6 %) is far narrower than the daily ±14 %.
     expect(within(ctor).getByTestId("cell-verdict")).toHaveTextContent("Vượt dao động · đo được");
-    fireEvent.click(plus);
-    fireEvent.click(plus);
+    for (let k = 0; k < 5; k++) fireEvent.click(plus);
+    for (let k = 0; k < 5; k++) fireEvent.click(plus);
     expect(within(ctor).getByText("Vượt dao động · đo được")).toBeInTheDocument();
     expect(within(screen.getByTestId("sim-row-product_card")).getByText("+15,0 %")).toBeInTheDocument();
     expect(screen.getAllByTestId("sim-action")[0]).toHaveTextContent("Thẻ sản phẩm · CTOR +15 % · mô tả, giá, flash sale");
@@ -147,7 +147,7 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     fireEvent.click(screen.getByRole("radio", { name: "7 ngày" }));
     await waitFor(() => expect(within(screen.getByTestId("sim-cell-product_card-ctor")).getByTestId("cell-band")).toHaveTextContent("Dao động TB 7 ngày: ±5,3 %"));
     // +5 % now sits inside the wider 7-day band.
-    fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % Thẻ sản phẩm CTOR" }));
+    for (let k = 0; k < 5; k++) fireEvent.click(screen.getByRole("button", { name: "Tăng 1 % Thẻ sản phẩm CTOR" }));
     expect(within(screen.getByTestId("sim-cell-product_card-ctor")).getByTestId("cell-verdict")).toHaveTextContent("Trong dao động");
   });
 
@@ -164,7 +164,7 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     // A low-data cell shows no strength, even when one is sent.
     expect(within(screen.getByTestId("sim-cell-seller_live-ctor")).queryByTestId("trend-strength")).toBeNull();
     // The what-if verdict keeps its own words.
-    fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % Thẻ sản phẩm CTOR" }));
+    for (let k = 0; k < 5; k++) fireEvent.click(screen.getByRole("button", { name: "Tăng 1 % Thẻ sản phẩm CTOR" }));
     expect(within(screen.getByTestId("sim-cell-product_card-ctor")).getByTestId("cell-verdict")).toHaveTextContent("Vượt dao động · đo được");
   });
 
@@ -200,7 +200,7 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
       "* Ít dữ liệu: dưới 30 lượt nhấp (CTR) hoặc dưới 30 đơn (CTOR, AOV) trong khoảng · bấm hoặc rê chuột vào ô để xem dao động mỗi ngày",
     );
     // A target on it is "Ít dữ liệu" however large.
-    for (let i = 0; i < 8; i++) fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % LIVE CTOR" }));
+    for (let i = 0; i < 8; i++) fireEvent.click(screen.getByRole("button", { name: "Tăng 1 % LIVE CTOR" }));
     expect(within(cell).getByTestId("cell-verdict")).toHaveTextContent("Ít dữ liệu");
   });
 
@@ -216,7 +216,7 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     const cell = await screen.findByTestId("sim-cell-product_card-ctor");
     expect(within(cell).getByTestId("cell-band")).toHaveTextContent("Dao động mỗi ngày: ±14 %");
     expect(within(cell).queryByTestId("low-mark")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % Thẻ sản phẩm CTOR" }));
+    for (let k = 0; k < 5; k++) fireEvent.click(screen.getByRole("button", { name: "Tăng 1 % Thẻ sản phẩm CTOR" }));
     expect(within(cell).getByTestId("cell-verdict")).toHaveTextContent("Trong dao động");
   });
 
@@ -279,7 +279,7 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     const setTarget = vi.fn(async () => ({ data: SIMULATION.scenarios[0] }));
     render(<OpsSimulate api={{ simulation: async () => SIMULATION, createScenario, setTarget }} me={ME} shopId={SHOP_ID} />);
     await screen.findByTestId("sim-row-product_card");
-    fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % LIVE CTR" }));
+    for (let k = 0; k < 5; k++) fireEvent.click(screen.getByRole("button", { name: "Tăng 1 % LIVE CTR" }));
     fireEvent.click(screen.getByRole("button", { name: "Lưu kịch bản" }));
     await waitFor(() => expect(createScenario).toHaveBeenCalledWith(SHOP_ID, expect.stringMatching(/^Kịch bản /), { seller_live: { ctr: 5 } }, false));
     fireEvent.click(screen.getByRole("button", { name: "Đặt kịch bản đang xem làm mục tiêu của shop ›" }));

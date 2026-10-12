@@ -2,14 +2,14 @@ import type { Deltas, KpiId, SimCell, SimStream, Stability, StreamId } from "./t
 
 /**
  * Client mirror of `services/ops/simulation.py` (D25.10): GMV/day per stream
- * = Hiển thị × CTR × CTOR × AOV, cells move in ±5 % steps, Video CTOR / AOV
+ * = Hiển thị × CTR × CTOR × AOV, cells move in ±1 % steps, Video CTOR / AOV
  * and LIVE AOV locked. The server is the source of truth for the baseline and
  * bands; this only re-multiplies so ± answers instantly.
  */
 
 export const KPIS: readonly KpiId[] = ["impressions", "ctr", "ctor", "aov"];
 export const STREAMS: readonly StreamId[] = ["product_card", "shop_tab", "seller_video", "seller_live"];
-export const STEP = 5;
+export const STEP = 1;
 
 export function streamGmv(stream: SimStream, deltas: Partial<Record<KpiId, number>> = {}): number {
   let total = 1;
