@@ -139,9 +139,9 @@ describe("Workflow 7b plan review — Situation → Decision → Details spine",
     expect(summaryRow).toHaveTextContent(plan.situation.summary);
 
     // Exactly one primary action, and exactly three buttons total
-    // (summary-row disclosure + reasoning disclosure + Phê duyệt).
+    // (summary-row disclosure + reasoning disclosure + Duyệt).
     expect(
-      within(card).getByRole("button", { name: "Phê duyệt" }),
+      within(card).getByRole("button", { name: "Duyệt" }),
     ).toBeInTheDocument();
     expect(within(card).getAllByRole("button")).toHaveLength(3);
 
@@ -235,7 +235,7 @@ describe("Workflow 7b plan review — Situation → Decision → Details spine",
 
     renderSpine();
 
-    await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+    await user.click(screen.getByRole("button", { name: "Duyệt" }));
 
     expect(screen.getByRole("dialog")).toHaveTextContent(
       SELLER_APPROVE_GATE.description,

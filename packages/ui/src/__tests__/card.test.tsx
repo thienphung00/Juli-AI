@@ -50,7 +50,7 @@ describe("Card", () => {
     render(
       <InteractiveCard data-testid="interactive-card" onClick={onClick}>
         <CardTitle>Quyết định</CardTitle>
-        <CardBody>Xem đề xuất cần phê duyệt.</CardBody>
+        <CardBody>Xem đề xuất cần duyệt.</CardBody>
       </InteractiveCard>,
     );
 

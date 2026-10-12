@@ -12,8 +12,9 @@ run's content state; this module only turns them into the P10 §6 body, so the
 GET never calls TikTok. The final label and the per-lever calibration
 (``video_script`` / ``live_script``) follow P10: progress toward the target is
 the realised share of the expected GMV, ≥ 100 % and target reached = Đạt,
-70–99 % = Gần đạt, < 70 % = Không đạt, too little data = Chưa kết luận (no
-calibration update). Stored once in ``run_measurement_finals``.
+70–99 % = gan_dat, < 70 % = khong_dat, too little data = chua_ket_luan (no
+calibration update); gan_dat and chua_ket_luan are both shown "Một phần" (V5).
+Stored once in ``run_measurement_finals``.
 """
 
 from __future__ import annotations
@@ -63,12 +64,12 @@ def _verdict(before: float | None, actual: float | None, target: float | None) -
     if actual is None or before is None:
         return "Chưa có số liệu", "muted"
     if target is not None and actual >= target:
-        return "Đạt mục tiêu", "ok"
+        return "Đang lên", "ok"
     if actual > before:
-        return "Đang tăng", "ok"
+        return "Đang lên", "ok"
     if actual < before:
-        return "Đang giảm", "warn"
-    return "Ổn định", "muted"
+        return "Chưa rõ", "warn"
+    return "Chưa rõ", "muted"
 
 
 def video_stage(readings: Mapping[str, Any]) -> str:
@@ -120,7 +121,7 @@ def _rows_video(reading: Mapping[str, Any] | None, target: float | None) -> list
         },
         {
             "key": "impressions",
-            "label": "Lượt hiển thị sản phẩm từ video mới",
+            "label": "Lượt hiển thị từ video mới",
             "before": reading.get("old_impressions"),
             "expected": "—",
             "actual": reading.get("new_impressions"),

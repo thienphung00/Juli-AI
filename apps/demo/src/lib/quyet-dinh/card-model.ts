@@ -30,27 +30,27 @@ export const CARD_STATUS_LABELS: Readonly<Record<CardStatus, string>> = {
   expired: "Hết hạn",
 };
 
-/** Executor chip + "what happens after Phê duyệt" (Levers.dc.html, verbatim). */
+/** Executor chip + "what happens after Duyệt" (Levers.dc.html, verbatim). */
 export const EXECUTOR_COPY: Readonly<Record<LeverExecutor, { chip: string; after: string; notice: string }>> = {
   juli: {
     chip: "Juli tự cập nhật sau khi bạn xác nhận",
-    after: "Phê duyệt → lượt chạy → bạn xác nhận trước → sau → Juli ghi.",
+    after: "Duyệt → lượt chạy → bạn xác nhận trước → sau → Juli ghi.",
     notice:
       "Đã tạo lượt chạy. Juli đọc chẩn đoán TikTok và soạn nội dung — bạn xác nhận lần cuối trước khi Juli ghi lên TikTok Shop.",
   },
   juli_with_photo: {
     chip: "Juli tải lên — cần ảnh từ bạn",
-    after: "Phê duyệt → Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.",
+    after: "Duyệt → Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.",
     notice: "Đã tạo lượt chạy. Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.",
   },
   juli_drafts: {
     chip: "Juli soạn · bạn làm",
-    after: "Phê duyệt → Juli đọc số liệu và soạn kịch bản → bạn chọn → bạn quay hoặc LIVE → Juli đo.",
+    after: "Duyệt → Juli đọc số liệu và soạn kịch bản → bạn chọn → bạn quay hoặc LIVE → Juli đo.",
     notice: "Đã tạo lượt chạy. Juli đọc số liệu và soạn kịch bản — bạn xem, chọn rồi quay hoặc LIVE.",
   },
   seller_center: {
     chip: "Bạn thực hiện trên Seller Center",
-    after: 'Phê duyệt → Juli đưa hướng dẫn từng bước; bạn bấm "Đã áp dụng" để Juli bắt đầu đo.',
+    after: 'Duyệt → Juli đưa hướng dẫn từng bước; bạn bấm "Đã áp dụng" để Juli bắt đầu đo.',
     notice: 'Đã tạo lượt chạy. Juli đưa hướng dẫn từng bước; bạn bấm "Đã áp dụng" để Juli bắt đầu đo.',
   },
 };

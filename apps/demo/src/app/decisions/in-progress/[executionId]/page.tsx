@@ -55,7 +55,7 @@ function ApprovedInputsSummary({ record }: { record: ExecutionRecord }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Thông tin đã phê duyệt</CardTitle>
+        <CardTitle>Thông tin đã duyệt</CardTitle>
       </CardHeader>
       <CardBody>
         <div className="execution-detail__summary">
@@ -185,7 +185,7 @@ export function InProgressDetailView({ executionId }: { executionId: string }) {
   return (
     <section className="demo-decisions">
       <PageHeader
-        subtitle="Theo dõi từng bước hành động, chờ và kết quả sau khi bạn phê duyệt."
+        subtitle="Theo dõi từng bước hành động, chờ và kết quả sau khi bạn duyệt."
         title={workflowTitle}
       />
       <div className="demo-decisions__list">

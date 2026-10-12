@@ -79,7 +79,7 @@ _KPI_LABELS_VI: Mapping[str, str] = {
     "ctor": "CTOR - Thẻ sản phẩm",
     "aov": "AOV (SKU)",
     # P23 (D29): a GMV fall explained by impressions targets Hiển thị.
-    "impressions": "Lượt hiển thị sản phẩm",
+    "impressions": "Lượt hiển thị",
 }
 
 #: ≤ 6 words, by the stage the diagnosis found weak.
@@ -95,7 +95,7 @@ _GMV_METHOD_VI: Mapping[str, str] = {
         "trung bình 30 ngày, ước tính theo quy tắc"
     ),
     "ctor": (
-        "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, "
+        "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, "
         "trung bình 30 ngày, ước tính theo quy tắc"
     ),
     "aov": (

@@ -18,7 +18,7 @@ DEMO_MAIN_KPI_METRIC_IDS: tuple[str, ...] = (
 _DEMO_MAIN_KPI_LABELS: dict[str, str] = {
     "gmv_tiktok": "GMV (TikTok)",
     "aov": "AOV",
-    "ctor": "CTOR (click→đơn)",
+    "ctor": "CTOR (lượt nhấp → đơn)",
     "live_hours": "LIVE hours",
     "cancellation_rate": "Cancellation rate",
 }

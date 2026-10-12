@@ -46,7 +46,7 @@ _THUMBNAIL_PX = 256
 FORMATS: dict[str, str] = {"JPEG": "image/jpeg", "PNG": "image/png"}
 
 LABEL_FILE = "JPG hoặc PNG, tối đa 5 MB"
-LABEL_RATIO = "Tỉ lệ 1:1"
+LABEL_RATIO = "Tỷ lệ 1:1"
 LABEL_SIZE = "Tối thiểu 800 × 800 px"
 LABEL_BACKGROUND = "Nền trắng hoặc trơn"
 LABEL_FILL = "Sản phẩm chiếm từ 70 % khung ảnh"

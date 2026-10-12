@@ -47,7 +47,7 @@ export interface EvidenceMetric {
 }
 
 export interface DecisionEvidence {
-  /** Diagnosed funnel stage, e.g. "Hiển thị → Nhấp (thẻ sản phẩm)". */
+  /** Diagnosed funnel stage, e.g. "Lượt hiển thị → Lượt nhấp (thẻ sản phẩm)". */
   readonly stage: string | null;
   /** What to do, e.g. "Viết lại tiêu đề" (lever action, else its label). */
   readonly lever: string | null;

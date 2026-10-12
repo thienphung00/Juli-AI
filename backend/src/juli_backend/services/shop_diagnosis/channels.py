@@ -7,13 +7,13 @@ names (d.1):
 ==========================  ==================================  ==========================
 Report channel              A-34 block                          Notes
 ==========================  ==================================  ==========================
-Thẻ sản phẩm của người bán  ``seller_product_card_performance``
+Thẻ sản phẩm  ``seller_product_card_performance``
 Tab Cửa hàng                ``shop_tab_performance``            ``shop_tab_*`` keys; no
                                                                 add-to-cart; SKU orders =
                                                                 ``shop_tab_ctor_sku`` ×
                                                                 clicks (*ước tính*)
-Video của người bán         ``seller_video_performance``
-LIVE của người bán          ``seller_live_performance``
+Video         ``seller_video_performance``
+LIVE          ``seller_live_performance``
 Liên kết                    ``affiliate_total_performance``     sub-rows below
   Video liên kết            ``affiliate_video_performance``     GMV ``attributed_video_gmv``
   LIVE liên kết             ``affiliate_live_performance``      GMV ``live_attributed_gmv``
@@ -73,10 +73,10 @@ ADDITIVE: tuple[Channel, ...] = (
 )
 
 CHANNEL_LABELS: dict[Channel, str] = {
-    Channel.PRODUCT_CARD: "Thẻ sản phẩm của người bán",
+    Channel.PRODUCT_CARD: "Thẻ sản phẩm",
     Channel.SHOP_TAB: "Tab Cửa hàng",
-    Channel.SELLER_VIDEO: "Video của người bán",
-    Channel.SELLER_LIVE: "LIVE của người bán",
+    Channel.SELLER_VIDEO: "Video",
+    Channel.SELLER_LIVE: "LIVE",
     Channel.AFFILIATE: "Liên kết",
     Channel.AFFILIATE_VIDEO: "Video liên kết",
     Channel.AFFILIATE_LIVE: "LIVE liên kết",

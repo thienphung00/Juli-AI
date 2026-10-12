@@ -23,7 +23,7 @@ const DEFAULT_KPIS: DemoAnalyticsEnvelope["kpis"] = {
   },
   ctor: {
     availability: "available",
-    label: "CTOR (click→đơn)",
+    label: "CTOR (lượt nhấp → đơn)",
     series: [
       { t: "2026-07-01", v: 3.2 },
       { t: "2026-07-20", v: 3.8 },

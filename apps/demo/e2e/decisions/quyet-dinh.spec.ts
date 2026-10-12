@@ -59,7 +59,7 @@ function decision(id: string, name: string, lever: string, executable: boolean, 
         rank: 1,
         status: "rule",
         status_label: "Theo quy tắc",
-        stage: { code: "page", label: "Nhấp → Đặt hàng (trang sản phẩm)" },
+        stage: { code: "page", label: "Lượt nhấp → Đặt hàng (trang sản phẩm)" },
         lever: {
           code: lever,
           label: lever,

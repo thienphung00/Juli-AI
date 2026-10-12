@@ -327,7 +327,7 @@ export function StreamCard(props: StreamCardProps) {
   return (
     <section aria-labelledby={titleId} className={`pa-stream${narrow ? " pa-stream--mobile" : ""}`} data-stream={view.spec.slug} data-testid="pa-stream">
       <div className="pa-stream__head">
-        <h2 className="pa-stream__name" id={titleId}>
+        <h2 className="pa-stream__name" id={titleId} title={view.spec.hint}>
           {view.spec.label}
         </h2>
         <span className="pa-stream__gmv">{narrow ? view.gmvShort : view.gmvText}</span>

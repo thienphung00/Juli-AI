@@ -49,12 +49,12 @@ const LEVER_LABEL: Record<LeverCode, string> = {
   buy_more_save_more: "Mua nhiều giảm nhiều",
 };
 const STAGE = {
-  ctr: { code: "card", label: "Hiển thị → Nhấp" },
-  ctor: { code: "page", label: "Nhấp → Đặt hàng" },
+  ctr: { code: "card", label: "Lượt hiển thị → Lượt nhấp" },
+  ctor: { code: "page", label: "Lượt nhấp → Đặt hàng" },
   aov: { code: "basket", label: "Giá trị đơn hàng" },
 } as const;
 const KPI_LABEL = { ctr: "CTR - Thẻ sản phẩm", ctor: "CTOR - Thẻ sản phẩm", aov: "AOV (SKU)" } as const;
-const GMV_METHOD = "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc";
+const GMV_METHOD = "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc";
 
 export interface SampleCardSpec {
   readonly id: string;
@@ -465,15 +465,15 @@ export function sampleDay7Measurement(completedMs: number): Measurement {
     target: { label: "CTOR Thẻ sản phẩm", current: 0.054, target: 0.059, progress_from: 0.055, unit: "ratio" },
     expected_gmv_per_day: 70_000,
     bands: [
-      { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, band_pct: 3, low: 9613, high: 10207, unit: "count" },
-      { key: "ctr", label: "CTR", before: 0.0444, band_pct: 3, low: 0.0431, high: 0.0457, unit: "ratio" },
-      { key: "aov", label: "AOV", before: 160_000, band_pct: 3, low: 155_000, high: 165_000, unit: "vnd" },
+      { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, band_pct: 3, low: 9613, high: 10207, unit: "count", source: "default" },
+      { key: "ctr", label: "CTR", before: 0.0444, band_pct: 3, low: 0.0431, high: 0.0457, unit: "ratio", source: "default" },
+      { key: "aov", label: "AOV", before: 160_000, band_pct: 3, low: 155_000, high: 165_000, unit: "vnd", source: "default" },
     ],
     rows: [
-      { key: "ctor", label: "CTOR (chỉ số chính)", before: 0.054, expected: "5,9 %", actual: 0.057, verdict: "Đang tăng", tone: "ok" },
-      { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, expected: "9.613 – 10.207", actual: 10029, verdict: "Ổn định", tone: "muted" },
-      { key: "ctr", label: "CTR", before: 0.0444, expected: "4,31 – 4,57 %", actual: 0.044, verdict: "Ổn định", tone: "muted" },
-      { key: "aov", label: "AOV", before: 160_000, expected: "155k – 165k ₫", actual: 161_000, verdict: "Ổn định", tone: "muted" },
+      { key: "ctor", label: "CTOR (chỉ số chính)", before: 0.054, expected: "5,9 %", actual: 0.057, verdict: "Đang lên", tone: "ok" },
+      { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, expected: "9.613 – 10.207", actual: 10029, verdict: "Giữ ổn định", tone: "muted" },
+      { key: "ctr", label: "CTR", before: 0.0444, expected: "4,31 – 4,57 %", actual: 0.044, verdict: "Giữ ổn định", tone: "muted" },
+      { key: "aov", label: "AOV", before: 160_000, expected: "155k – 165k ₫", actual: 161_000, verdict: "Giữ ổn định", tone: "muted" },
       { key: "gmv_per_day", label: "GMV/ngày", before: 3_600_000, expected: "+70k ₫", actual: 48_000, verdict: "Sơ bộ", tone: "muted" },
     ],
     day7: { within_band: true, question_id: null },
@@ -524,17 +524,17 @@ export interface SampleContentSpec {
 const CONTENT_KPI: Readonly<Record<SampleContentKind, { key: string; label: string; lever: string; workflow: string; method: string }>> = {
   video: {
     key: "video_ctr",
-    label: "CTR - Video của người bán",
+    label: "CTR - Video",
     lever: "video_script",
     workflow: "Tối ưu nội dung · Video",
     method: "lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV, trung bình 30 ngày, ước tính theo quy tắc",
   },
   live: {
     key: "live_ctor",
-    label: "CTOR - LIVE của người bán",
+    label: "CTOR - LIVE",
     lever: "live_script",
     workflow: "Tối ưu nội dung · LIVE",
-    method: "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+    method: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
   },
 };
 

@@ -50,7 +50,7 @@ export function getProcessOrderReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI Tỷ lệ hủy đơn trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI Tỷ lệ hủy đơn trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -117,7 +117,7 @@ export function getProcessOrderReviewStages(
     },
     {
       stage: "preview",
-      title: "Xem trước trước khi phê duyệt",
+      title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(processOrderFixture, [
         "Juli sẽ ưu tiên đơn theo thứ tự đã xếp hạng, đóng gói và giao theo loại vận chuyển bạn xác nhận.",
         "Ngưỡng thời gian chính xác để tạo đề xuất này chưa được xác định.",
@@ -125,7 +125,7 @@ export function getProcessOrderReviewStages(
     },
     {
       stage: "approve",
-      title: "Xác nhận phê duyệt",
+      title: "Xác nhận duyệt",
       body: buildSellerApproveBody([
         "Demo không tạo hoặc giao lô hàng khi đơn đang tạm giữ.",
       ]),

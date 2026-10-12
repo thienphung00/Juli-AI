@@ -111,7 +111,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Tách đơn hàng",
       description:
-        "Chỉ chạy khi shop phê duyệt tách — tạo các nhóm gói đã được duyệt.",
+        "Chỉ chạy khi shop duyệt tách — tạo các nhóm gói đã được duyệt.",
       status: "pending",
       recoveryText: "Điều chỉnh nhóm tách rồi thử lại khi TikTok từ chối nhóm.",
     },
@@ -160,7 +160,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Tạo gói hàng",
       description:
-        "Nhóm line item đã phê duyệt và giữ package_id trước khi giao.",
+        "Nhóm line item đã duyệt và giữ package_id trước khi giao.",
       status: "pending",
       recoveryText:
         "Giữ line item đã chọn và thử lại idempotent khi tạo gói thất bại.",

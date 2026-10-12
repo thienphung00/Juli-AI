@@ -29,7 +29,7 @@ export function buildClearExcessReviewInputDefaults(): Record<string, string> {
     promotion_start_date: "2026-08-07",
     promotion_end_date: "2026-08-21",
     flash_sale_eligibility: "Chưa kiểm tra — chờ xác minh điều kiện thật",
-    zero_floor_stock_ack: "Bước sau — chưa phê duyệt trước khi xả hàng",
+    zero_floor_stock_ack: "Bước sau — chưa duyệt trước khi xả hàng",
   };
 }
 
@@ -49,7 +49,7 @@ export function getClearExcessReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI AOV trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI AOV trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -62,7 +62,7 @@ export function getClearExcessReviewStages(
         "Cửa sổ khuyến mãi cần ngày bắt đầu và kết thúc rõ ràng.",
         "Flash Sale chỉ chọn được sau khi có kết quả kiểm tra điều kiện thật — Demo hiển thị trạng thái chờ kiểm tra, không giả lập đủ điều kiện.",
         "Ngưỡng tốc độ quay vòng/tuổi hàng để kích hoạt đề xuất này chưa được xác định.",
-        "Xoá tồn kho sàn về 0 là bước sau, không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế, không được phê duyệt ngầm ở bước này.",
+        "Xoá tồn kho sàn về 0 là bước sau, không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế, không được duyệt ngầm ở bước này.",
       ].join("\n\n"),
       inputFields: [
         {
@@ -118,14 +118,14 @@ export function getClearExcessReviewStages(
     },
     {
       stage: "preview",
-      title: "Xem trước trước khi phê duyệt",
+      title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(clearExcessFixture, [
         "Giao hàng do TikTok quản lý cho xả tồn chưa có trong Demo.",
       ]),
     },
     {
       stage: "approve",
-      title: "Xác nhận phê duyệt",
+      title: "Xác nhận duyệt",
       body: buildSellerApproveBody([
         "Demo không giả lập kết quả đủ điều kiện Flash Sale.",
       ]),

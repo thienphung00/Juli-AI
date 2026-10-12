@@ -232,7 +232,7 @@ def test_home_responsive_focus_touch_vietnamese_and_reduced_motion_contract() ->
     assert ":focus-visible" in ui_css
     assert "--juli-touch-target: 44px" in tokens_css
     assert "@media (prefers-reduced-motion: reduce)" in globals_css
-    assert "Lượt hiển thị sản phẩm/ngày" in home
+    assert "Lượt hiển thị/ngày" in home
     assert "Quyết định" in destination_copy and "Phân tích" in nav
 
 

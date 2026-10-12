@@ -332,7 +332,7 @@ def confidence(
 
 
 def decompose(now: WindowCounts, before: WindowCounts) -> dict[str, float]:
-    """``ln(metric now / metric before)`` per factor of GMV = Hiển thị × CTR × CTOR × AOV.
+    """``ln(metric now / metric before)`` per factor of GMV = Lượt hiển thị × CTR × CTOR × AOV.
 
     A factor with no value on either side is left out (it explains nothing).
     """

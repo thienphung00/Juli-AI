@@ -138,7 +138,7 @@ export function SettingsThresholdsPanel() {
     >
       <h2 id="settings-thresholds-title">Ngưỡng</h2>
       <p className="settings-thresholds__intro">
-        Thay đổi ngưỡng chỉ ảnh hưởng đề xuất trong tương lai — không phê duyệt
+        Thay đổi ngưỡng chỉ ảnh hưởng đề xuất trong tương lai — không duyệt
         hay thực thi quyết định hiện có.
       </p>
 

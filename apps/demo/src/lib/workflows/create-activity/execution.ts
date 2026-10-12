@@ -42,7 +42,7 @@ export function createCreateActivityTimeline(): ExecutionTimelineStep[] {
       stepNumber: 2,
       kind: "action",
       title: "Tạo chương trình khuyến mãi",
-      description: "Gửi activity đã phê duyệt qua Create Activity.",
+      description: "Gửi activity đã duyệt qua Create Activity.",
       status: "pending",
       recoveryText:
         "Giữ nguyên dữ liệu đã nhập và sửa lỗi xác thực trước khi gửi lại.",

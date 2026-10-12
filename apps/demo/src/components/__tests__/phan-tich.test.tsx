@@ -97,7 +97,7 @@ describe("Phân tích model", () => {
 
   it("each cell carries the report's ₫/day contribution; the weakest gets ✦ Juli gợi ý", () => {
     const card = streamView(REPORT, "product_card");
-    expect(card.cells.map((c) => c.label)).toEqual(["Hiển thị/ngày", "CTR", "CTOR", "AOV", "GMV/ngày"]);
+    expect(card.cells.map((c) => c.label)).toEqual(["Lượt hiển thị/ngày", "CTR", "CTOR", "AOV", "GMV/ngày"]);
     expect(card.cells.map((c) => c.impact)).toEqual(["+620k ₫/ngày", "−12k ₫/ngày", "−250k ₫/ngày", "−105k ₫/ngày", "Tổng của 4 ô"]);
     expect(card.cells.find((c) => c.weak)?.metric).toBe("ctor");
     expect(card.weakText).toBe("Yếu nhất: CTOR −250k ₫/ngày");
@@ -254,7 +254,7 @@ describe("Phân tích view", () => {
   it("Nội dung: video rows, greyed cells, Xem sản phẩm được gắn › opens that product's row", async () => {
     const { spy } = renderView("/analytics?tab=noi-dung");
     expect(screen.queryByTestId("juli-suggestion")).toBeNull();
-    expect(screen.getByRole("button", { name: /^CTOR · Video của người bán/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^CTOR · Video/ })).toBeDisabled();
     expect(await screen.findByRole("heading", { name: "Video tác động CTR nhiều nhất" })).toBeInTheDocument();
     const v1 = rowOf("Mặt nạ đất sét: trước và sau");
     expect(v1).toHaveTextContent("Đăng 02/09 · gắn MN-015");

@@ -289,7 +289,7 @@ def _funnel_boxes(channel: Channel, c: FunnelComparison) -> str:
     p, q = c.prior, c.last
     boxes = [
         _box(
-            "Lượt hiển thị sản phẩm",
+            "Lượt hiển thị",
             num(p.impressions),
             num(q.impressions),
             _chip(p.impressions, q.impressions),
@@ -403,9 +403,9 @@ def _step2(report: ShopDiagnosis) -> str:
     ]
     return f"""
 <section class="step" id="buoc-2">
-<p class="eyebrow">Bước 2</p><h2>Phễu của từng kênh: từ lượt hiển thị sản phẩm đến GMV</h2>
+<p class="eyebrow">Bước 2</p><h2>Phễu của từng kênh: từ lượt hiển thị đến GMV</h2>
 <p class="lede">Mỗi ô ghi số trung bình mỗi ngày của 30 ngày gần đây, số của 30 ngày trước và mức
-thay đổi. Thay đổi GMV của mỗi kênh được tách thành bốn phần: Lượt hiển thị sản phẩm, CTR, CTOR và
+thay đổi. Thay đổi GMV của mỗi kênh được tách thành bốn phần: Lượt hiển thị, CTR, CTOR và
 AOV (SKU); bốn phần cộng lại đúng bằng thay đổi GMV.</p>
 <div class="rows">{"".join(rows)}</div>
 {_sub_rows_table(report.affiliate_rows)}
@@ -620,7 +620,7 @@ niêm yết:
 <div class="charts"><div class="tbl"><table><thead><tr><th>Tuần</th><th>Thời gian có flash
 sale</th></tr></thead>
 <tbody>{weekly}</tbody></table></div>
-<div class="tbl"><table><thead><tr><th>Nhóm ngày (Thẻ sản phẩm của người bán)</th><th>Số ngày</th>
+<div class="tbl"><table><thead><tr><th>Nhóm ngày (Thẻ sản phẩm)</th><th>Số ngày</th>
 <th>Đơn hàng SKU</th><th>CTOR</th><th>Đơn trên lượt thêm vào
 giỏ</th></tr></thead><tbody>{cells}</tbody>
 </table></div></div>"""
@@ -670,7 +670,7 @@ mọi đơn đạt ngưỡng trong thời gian voucher chạy.</p>
 
 
 TIMELINE_METRICS = (
-    ("Lượt hiển thị sản phẩm", "impressions", lambda v: num(v)),
+    ("Lượt hiển thị", "impressions", lambda v: num(v)),
     ("CTR (Tỷ lệ nhấp)", "ctr", lambda v: pct(v)),
     ("CTOR", "ctor", lambda v: pct(v)),
     ("AOV (SKU)", "aov", lambda v: money(v)),
@@ -724,7 +724,7 @@ style="background:var(--vouch)"></i>Voucher</span></div>
 # --------------------------------------------------------------------------
 
 KPI_ROWS: tuple[tuple[str, str, str], ...] = (
-    ("Lượt hiển thị sản phẩm", "impressions", "num"),
+    ("Lượt hiển thị", "impressions", "num"),
     ("CTR (Tỷ lệ nhấp)", "ctr", "pct"),
     ("Lượt nhấp vào sản phẩm", "clicks", "num"),
     ("Tỷ lệ thêm vào giỏ hàng", "add_to_cart_rate", "pct"),
@@ -912,7 +912,7 @@ def _hero(profile: HeroProfile, report: ShopDiagnosis) -> str:
 <h3>3. Phễu theo từng kênh</h3>
 <p><b>Cách đọc:</b> {escape(profile.reading)}</p>
 {_channel_table(profile)}
-<p class="note">Nhóm khách tự tìm đến (Thẻ sản phẩm của người bán và Tab Cửa hàng), phần góp
+<p class="note">Nhóm khách tự tìm đến (Thẻ sản phẩm và Tab Cửa hàng), phần góp
 vào thay đổi GMV:</p>
 {_contrib_line(profile.self_search)}
 <h3>4. Khuyến mãi trên sản phẩm này</h3>
@@ -998,7 +998,7 @@ NOTES = (
     "Tỷ lệ của một khoảng thời gian được tính từ tổng của khoảng đó (ví dụ CTR = tổng lượt "
     "nhấp chia tổng lượt "
     "hiển thị), giống cách Trung tâm người bán tính, không lấy trung bình các tỷ lệ từng ngày.",
-    "CTR = lượt nhấp vào sản phẩm chia lượt hiển thị sản phẩm. Tỷ lệ thêm vào giỏ hàng = số "
+    "CTR = lượt nhấp vào sản phẩm chia lượt hiển thị. Tỷ lệ thêm vào giỏ hàng = số "
     "lượt thêm vào giỏ "
     "chia lượt nhấp. CTOR = đơn hàng SKU chia lượt nhấp. AOV (SKU) = GMV chia đơn hàng SKU.",
     "GMV là GMV của TikTok, đã gồm đơn bị hủy và hoàn tiền; không trừ gì thêm.",
@@ -1008,8 +1008,7 @@ NOTES = (
     "Tab Cửa hàng không có số liệu thêm vào giỏ hàng; đơn hàng SKU của kênh này được ước tính "
     "bằng CTOR nhân "
     "lượt nhấp. Kênh này trùng một phần với các kênh khác nên không cộng vào tổng shop.",
-    "Ở Video và LIVE của người bán, khách thường mua ngay không qua giỏ hàng, nên CTOR gồm cả "
-    "khách mua thẳng.",
+    "Ở Video và LIVE, khách thường mua ngay không qua giỏ hàng, nên CTOR gồm cả khách mua thẳng.",
     'Mức tin cậy: "Rõ" khi mỗi kỳ có từ 30 đơn trở lên và khoảng tin cậy 90 % của chênh lệch '
     "không chứa 0; "
     '"Tham khảo" khi một kỳ có 10 đến 29 đơn hoặc chênh lệch nằm trong biên độ nhiễu; "Chưa đủ '

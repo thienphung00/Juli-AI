@@ -765,7 +765,7 @@ describe("repeat consent — not bundled into the approve step", () => {
       screen.queryByText(REPEAT_CONSENT_COPY.promptTitle),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
+    await user.click(screen.getByRole("button", { name: "Duyệt" }));
 
     const dialog = await screen.findByRole("dialog");
     expect(dialog.textContent ?? "").not.toContain(
@@ -775,7 +775,7 @@ describe("repeat consent — not bundled into the approve step", () => {
       REPEAT_CONSENT_COPY.grantLabel,
     );
 
-    await user.click(within(dialog).getByRole("button", { name: "Phê duyệt" }));
+    await user.click(within(dialog).getByRole("button", { name: "Duyệt" }));
 
     // Approving starts the work; it never grants a standing permission.
     expect(

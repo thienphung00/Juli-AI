@@ -1,6 +1,6 @@
 """Event timeline, the report's only daily view — ADR-108 decision 9.
 
-Per channel, four lines — Lượt hiển thị sản phẩm, CTR, CTOR, AOV — as trailing
+Per channel, four lines — Lượt hiển thị, CTR, CTOR, AOV — as trailing
 7-day rolling values: impressions are the 7-day mean, each rate the ratio of
 the 7-day sums (never a mean of daily rates). A point exists from the 7th day
 of the snapshot. Platform sale days (same-number day and month: 9.9, 10.10,

@@ -203,11 +203,11 @@ async def test_day7_within_the_band_with_rows_and_tones(session, seller_bands_on
     assert main["key"] == "ctor" and main["label"] == "CTOR (chỉ số chính)"
     assert main["expected"] == "5,9 %"
     assert main["actual"] == pytest.approx(26 / 450, abs=1e-6)
-    assert (main["verdict"], main["tone"]) == ("Đang tăng", "ok")
+    assert (main["verdict"], main["tone"]) == ("Đang lên", "ok")
     band_rows = {r["key"]: r for r in body["rows"][1:-1]}
     assert band_rows["impressions"]["expected"] == "9.700 – 10.300"
     assert (band_rows["impressions"]["verdict"], band_rows["impressions"]["tone"]) == (
-        "Ổn định",
+        "Giữ ổn định",
         "muted",
     )
     gmv = body["rows"][-1]

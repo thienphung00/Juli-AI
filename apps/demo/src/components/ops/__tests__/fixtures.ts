@@ -162,7 +162,7 @@ function stream(
   events: [number, number] = [3000, 150],
 ) {
   const kpis = ["impressions", "ctr", "ctor", "aov"] as const;
-  const labels = { impressions: "Hiển thị", ctr: "CTR", ctor: "CTOR", aov: "AOV" };
+  const labels = { impressions: "Lượt hiển thị", ctr: "CTR", ctor: "CTOR", aov: "AOV" };
   return {
     stream: id,
     name,

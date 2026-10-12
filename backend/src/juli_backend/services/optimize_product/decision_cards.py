@@ -120,8 +120,8 @@ STATUS_LABELS: dict[str, str] = {
 
 #: The funnel stage each branch acts on, in the seller's words.
 STAGE_LABELS: dict[Branch, str] = {
-    Branch.CARD: "Hiển thị → Nhấp (thẻ sản phẩm)",
-    Branch.PAGE: "Nhấp → Đặt hàng (trang sản phẩm)",
+    Branch.CARD: "Lượt hiển thị → Lượt nhấp (thẻ sản phẩm)",
+    Branch.PAGE: "Lượt nhấp → Đặt hàng (trang sản phẩm)",
     Branch.BASKET: "Giá trị đơn hàng (AOV)",
 }
 

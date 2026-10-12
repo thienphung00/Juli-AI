@@ -35,10 +35,10 @@ import { HOME_MATRIX_REGION, navigatePrimaryDestination } from "../helpers/demo-
  * A first pass of this spec still failed after that merge — not because
  * the wiring was wrong, but because THIS SPEC skipped the two-step
  * consent gate ADR-055 item 8's `PlanReviewCard` requires: clicking the
- * list card's "Phê duyệt" only reaches the REVIEW page
- * (`/decisions/recommendations/{workflowKey}`); a second "Phê duyệt" in
+ * list card's "Duyệt" only reaches the REVIEW page
+ * (`/decisions/recommendations/{workflowKey}`); a second "Duyệt" in
  * `.demo-plan__actions` only ARMS a `ConfirmDialog` (`role="dialog"`,
- * heading "Xác nhận phê duyệt"); only the CONFIRM button *inside that
+ * heading "Xác nhận duyệt"); only the CONFIRM button *inside that
  * dialog* triggers `onApproveConfirm`'s navigation
  * (`review-test-helpers.ts`'s `confirmApproveThroughGate` encodes the same
  * sequence for the unit suite). Skipping straight from the list-card click
@@ -155,7 +155,7 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
 
     await test.step("walk the two-step consent gate on the review page — no single click authorizes anything (#1317)", async () => {
       // ADR-055 item 8's Situation → Decision → Details spine
-      // (`PlanReviewCard`) renders the first "Phê duyệt" in its
+      // (`PlanReviewCard`) renders the first "Duyệt" in its
       // `.demo-plan__actions` footer; clicking it only ARMS the gate
       // (`setApproveGateOpen(true)`) — it must not, by itself, navigate
       // anywhere. Asserted explicitly below rather than assumed, per the
@@ -164,7 +164,7 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
       // `confirmApproveThroughGate` encodes for the unit suite.
       await page
         .locator(".demo-plan__actions")
-        .getByRole("button", { name: "Phê duyệt" })
+        .getByRole("button", { name: "Duyệt" })
         .click();
       await expect(page).toHaveURL(
         new RegExp(`/decisions/recommendations/${REPLAY_SCENARIO_WORKFLOW_KEY}$`),
@@ -173,9 +173,9 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
       const dialog = page.getByRole("dialog");
       await expect(dialog).toBeVisible();
       await expect(
-        dialog.getByRole("heading", { name: "Xác nhận phê duyệt" }),
+        dialog.getByRole("heading", { name: "Xác nhận duyệt" }),
       ).toBeVisible();
-      await dialog.getByRole("button", { name: "Phê duyệt" }).click();
+      await dialog.getByRole("button", { name: "Duyệt" }).click();
 
       // THE PREVIOUSLY-BLOCKED STEP (gap 1, #1320 part 2's stated scope) —
       // #1762 landed this navigation; confirmed here rather than assumed.
@@ -262,7 +262,7 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
 
     await test.step("completion — the run reaches Hoàn tất with the approved outcome, never the decline or rejection copy", async () => {
       await expect(
-        page.getByText("Juli đã hoàn tất và áp dụng thay đổi được phê duyệt."),
+        page.getByText("Juli đã hoàn tất và áp dụng thay đổi được duyệt."),
       ).toBeVisible({ timeout: 15_000 });
       // A finished run opens/renders with every reached stage frozen, the
       // terminal stage included — `RunStagedView`'s own "finished runs

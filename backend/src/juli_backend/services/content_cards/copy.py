@@ -48,13 +48,13 @@ def reason_full(candidate: ContentCandidate) -> str:
         if len(rows) == 1:
             row = rows[0]
             return (
-                f"Video {_quoted(row.name)} có {compact(row.volume)} lượt hiển thị sản phẩm, "
+                f"Video {_quoted(row.name)} có {compact(row.volume)} lượt hiển thị, "
                 f"CTR {pct(row.rate)} so với {pct(candidate.target)} của video trong shop "
                 "30 ngày trước."
             )
         return (
             f"{len(rows)} video gắn sản phẩm có {compact(candidate.volume)} "
-            "lượt hiển thị sản phẩm, "
+            "lượt hiển thị, "
             f"CTR {pct(candidate.current)} so với {pct(candidate.target)} của video trong shop "
             f"30 ngày trước. Thấp nhất: {_quoted(rows[0].name)} (CTR {pct(rows[0].rate)})."
         )

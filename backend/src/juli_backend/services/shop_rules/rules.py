@@ -136,7 +136,7 @@ MAX_TARGET_ROAS = 100
 MAX_DAILY_BUDGET_VND = 10_000_000_000
 
 #: The metric keys a stability band can be set for -- the impact reader's
-#: metrics (``services/impact/metric_map.ALL_METRICS``): Lượt hiển thị sản phẩm,
+#: metrics (``services/impact/metric_map.ALL_METRICS``): Lượt hiển thị,
 #: CTR, tỷ lệ chuyển đổi, số sản phẩm bán, GMV, đơn hàng SKU, AOV.
 BAND_METRICS: tuple[str, ...] = (
     "impressions",

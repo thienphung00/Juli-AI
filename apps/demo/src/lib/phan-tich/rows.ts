@@ -118,7 +118,7 @@ function productFacts(ctx: TableContext, row: RankingRow, card: CardRef | null, 
     const others = otherChannels(report, row.id, stream);
     if (others) facts.push({ k: "Kênh khác", v: others });
   } else if (metric === "ctr") {
-    facts.push(window("Lượt bấm"));
+    facts.push(window("Lượt nhấp"));
     if (card) facts.push({ k: "Mã TikTok", v: card.codes.length > 0 ? card.codes.join(", ") : "Không có" });
   } else {
     const steps = metric === "ctor" ? row.steps : undefined;
@@ -136,8 +136,8 @@ function productFacts(ctx: TableContext, row: RankingRow, card: CardRef | null, 
 }
 
 const CONTENT_QUANTITY: Readonly<Record<CellMetric, string>> = {
-  impressions: "Lượt hiển thị sản phẩm",
-  ctr: "Lượt bấm sản phẩm",
+  impressions: "Lượt hiển thị",
+  ctr: "Lượt nhấp",
   ctor: "Đơn trong phiên",
   aov: "Đơn",
 };

@@ -108,7 +108,7 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     // volatility: stable first, then the other sort
     const vol = screen.getAllByTestId("vol-row");
     expect(vol[0]).toHaveTextContent("SM-012");
-    expect(vol[0]).toHaveTextContent("Ổn định · nên chọn");
+    expect(vol[0]).toHaveTextContent("Lưu lượng ổn định · nên chọn");
     fireEvent.click(screen.getByRole("button", { name: "Dao động trước" }));
     expect(screen.getAllByTestId("vol-row")[0]).toHaveTextContent("KD-030");
     // a 90-day window the history cannot cover is shown, not invented
@@ -138,10 +138,10 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     expect(within(screen.getByTestId("sim-cell-product_card-aov")).getByTestId("cell-band")).toHaveTextContent("Dao động TB 30 ngày: ±0,7 %");
     expect(within(cell).queryByTestId("cell-daily")).toBeNull();
     const toggle = within(cell).getByRole("button", { name: "Thẻ sản phẩm CTOR: xem dao động mỗi ngày" });
-    expect(toggle).toHaveAttribute("title", "Mỗi ngày: ±14 %");
+    expect(toggle).toHaveAttribute("title", "Dao động mỗi ngày: ±14 %");
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(within(cell).getByTestId("cell-daily")).toHaveTextContent("Mỗi ngày: ±14 %");
+    expect(within(cell).getByTestId("cell-daily")).toHaveTextContent("Dao động mỗi ngày: ±14 %");
     fireEvent.click(toggle);
     expect(within(cell).queryByTestId("cell-daily")).toBeNull();
     fireEvent.click(screen.getByRole("radio", { name: "7 ngày" }));
@@ -188,8 +188,8 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     expect(within(cell).getByTestId("low-mark")).toHaveStyle({ color: "#a3622a" });
     expect(within(cell).getByTestId("trend-chip")).toHaveTextContent("~ 3,8 %");
     expect(within(cell).getByTestId("trend-chip")).not.toHaveTextContent("▼");
-    expect(within(cell).getByTestId("cell-low")).toHaveTextContent("ít dữ liệu · 18 đơn");
-    expect(within(cell).getByRole("button", { name: "LIVE CTOR: xem dao động mỗi ngày" })).toHaveAttribute("title", "Mỗi ngày: ±20 % · ít dữ liệu: 18 đơn trong 30 ngày");
+    expect(within(cell).getByTestId("cell-low")).toHaveTextContent("Ít dữ liệu · 18 đơn");
+    expect(within(cell).getByRole("button", { name: "LIVE CTOR: xem dao động mỗi ngày" })).toHaveAttribute("title", "Dao động mỗi ngày: ±20 % · Ít dữ liệu: 18 đơn trong 30 ngày");
     // The CTR of the same stream has enough clicks; the locked AOV keeps its lock.
     expect(screen.getByTestId("sim-cell-seller_live-ctr")).toHaveAttribute("data-low-data", "false");
     expect(within(screen.getByTestId("sim-cell-seller_live-ctr")).queryByTestId("low-mark")).toBeNull();
@@ -197,7 +197,7 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     expect(within(aov).getByText("Khoá · phụ thuộc trang sản phẩm")).toBeInTheDocument();
     expect(within(aov).getByTestId("low-mark")).toBeInTheDocument();
     expect(screen.getByTestId("sim-low-legend")).toHaveTextContent(
-      "* ít dữ liệu: dưới 30 click (CTR) hoặc dưới 30 đơn (CTOR, AOV) trong khoảng · bấm hoặc rê chuột vào ô để xem dao động mỗi ngày",
+      "* Ít dữ liệu: dưới 30 lượt nhấp (CTR) hoặc dưới 30 đơn (CTOR, AOV) trong khoảng · bấm hoặc rê chuột vào ô để xem dao động mỗi ngày",
     );
     // A target on it is "Ít dữ liệu" however large.
     for (let i = 0; i < 8; i++) fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % LIVE CTOR" }));
@@ -214,7 +214,7 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     };
     render(<OpsSimulate api={{ simulation: async () => legacy, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
     const cell = await screen.findByTestId("sim-cell-product_card-ctor");
-    expect(within(cell).getByTestId("cell-band")).toHaveTextContent("Dao động thường: ±14 %");
+    expect(within(cell).getByTestId("cell-band")).toHaveTextContent("Dao động mỗi ngày: ±14 %");
     expect(within(cell).queryByTestId("low-mark")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % Thẻ sản phẩm CTOR" }));
     expect(within(cell).getByTestId("cell-verdict")).toHaveTextContent("Trong dao động");

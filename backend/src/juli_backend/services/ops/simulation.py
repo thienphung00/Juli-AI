@@ -72,7 +72,7 @@ ROW_KINDS: dict[str, str] = {
 }
 KPIS: tuple[str, ...] = ("impressions", "ctr", "ctor", "aov")
 KPI_LABELS: dict[str, str] = {
-    "impressions": "Hiển thị",
+    "impressions": "Lượt hiển thị",
     "ctr": "CTR",
     "ctor": "CTOR",
     "aov": "AOV",

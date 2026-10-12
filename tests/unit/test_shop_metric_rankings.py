@@ -242,7 +242,7 @@ def test_impressions_use_the_1000_floor_and_small_rows_close_as_few() -> None:
         assert max(row["quantity_prior"], row["quantity_last"]) >= 1_000
     ctr = tables[("product_card", "ctr")]
     assert "tiny" not in {r["id"] for r in _all_rows(ctr)}  # under 10 clicks both sides
-    assert ctr["closing"]["few"]["label"].endswith("ít lượt bấm")
+    assert ctr["closing"]["few"]["label"].endswith("ít lượt nhấp")
     assert tables[("product_card", "ctor")]["closing"]["few"]["label"].endswith("ít đơn")
 
 
@@ -330,19 +330,19 @@ def test_videos_are_ranked_only_when_their_window_metrics_are_given() -> None:
     assert {m for (s, m) in tables if s == "seller_video"} == {"impressions", "ctr"}
     for metric in ("impressions", "ctr"):
         payload = tables[("seller_video", metric)]
-        assert payload["stream_label"] == "Video của người bán"
+        assert payload["stream_label"] == "Video"
         assert payload["row_kind"] == "video"
         assert reconciles(payload)
 
 
 def test_labels_are_tiktoks_own_words() -> None:
     tables = _by_key(build_rankings(_snapshot()))
-    assert tables[("product_card", "impressions")]["metric_label"] == "Lượt hiển thị sản phẩm"
+    assert tables[("product_card", "impressions")]["metric_label"] == "Lượt hiển thị"
     assert tables[("product_card", "ctr")]["metric_label"] == "CTR"
     assert tables[("shop_tab", "aov")]["metric_label"] == "AOV"
     assert tables[("shop_tab", "ctor")]["stream_label"] == "Tab Cửa hàng"
-    assert tables[("product_card", "ctor")]["stream_label"] == "Thẻ sản phẩm của người bán"
-    assert tables[("seller_live", "ctor")]["stream_label"] == "LIVE của người bán"
+    assert tables[("product_card", "ctor")]["stream_label"] == "Thẻ sản phẩm"
+    assert tables[("seller_live", "ctor")]["stream_label"] == "LIVE"
     big = next(r for r in _all_rows(tables[("product_card", "ctr")]) if r["id"] == "big")
     assert big["name"] == "Nước kiềm 24 chai"
 

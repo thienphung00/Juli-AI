@@ -42,7 +42,7 @@ const REFUND_TYPE_LABELS: Record<string, string> = {
 };
 
 /** The seller's branch: approve the refund, or reject it. */
-const APPROVE_DECISION = "Phê duyệt";
+const APPROVE_DECISION = "Duyệt";
 
 /**
  * Situation → Decision → Details plan review for `prevent_refund_8c` (ADR-055
@@ -102,7 +102,7 @@ export function getPreventRefundPlanReview(
     impact: buildPlanImpact(defaultPreventRefundAnalyticsMetricKey),
     decision: {
       proposal: isApproveBranch
-        ? `Juli đề xuất phê duyệt hoàn ${amount} cho đơn hàng ${defaults.order_id} trước hạn ${deadline}.`
+        ? `Juli đề xuất duyệt hoàn ${amount} cho đơn hàng ${defaults.order_id} trước hạn ${deadline}.`
         : `Juli đề xuất từ chối yêu cầu hoàn tiền đơn ${defaults.order_id} trước hạn ${deadline}.`,
       // The workflow's pre-authored reasoning from the shared fixture table.
       reasoning: preventRefundFixture.reasoning,
@@ -114,7 +114,7 @@ export function getPreventRefundPlanReview(
             label: "Quyết định cho yêu cầu hoàn tiền",
             options: [
               {
-                value: "Phê duyệt yêu cầu hoàn tiền",
+                value: "Duyệt yêu cầu hoàn tiền",
                 proposed: isApproveBranch,
               },
               {

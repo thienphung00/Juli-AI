@@ -128,8 +128,8 @@ export const MAIN_KPI_DEFINITIONS: Record<MetricKey, MainKpiDefinition> = {
   ctor: {
     metricKey: "ctor",
     category: "Quản lý sản phẩm",
-    name: "CTOR (click→đơn)",
-    description: "Tỷ lệ chuyển đổi từ click thành đơn hàng.",
+    name: "CTOR (lượt nhấp → đơn)",
+    description: "Tỷ lệ chuyển đổi từ lượt nhấp thành đơn hàng.",
     icon: "◎",
     available: true,
     goalDirection: "higher-is-better",

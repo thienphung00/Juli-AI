@@ -48,7 +48,7 @@ export function getOptimizeProductReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -58,7 +58,7 @@ export function getOptimizeProductReviewStages(
       body: [
         "Giá trị hiện tại được tải từ sản phẩm trên shop; tiêu đề/mô tả SEO điền sẵn từ gợi ý TikTok.",
         "Thay ảnh/tệp mặc định tắt — chỉ bật khi shop chọn thay thế hoặc bổ sung.",
-        "Giá theo khuyến nghị T9 trong giới hạn sàn lợi nhuận đã cấu hình; mọi trường thay đổi vẫn có thể chỉnh trước khi phê duyệt.",
+        "Giá theo khuyến nghị T9 trong giới hạn sàn lợi nhuận đã cấu hình; mọi trường thay đổi vẫn có thể chỉnh trước khi duyệt.",
       ].join(" "),
       inputFields: [
         {
@@ -138,15 +138,15 @@ export function getOptimizeProductReviewStages(
     },
     {
       stage: "preview",
-      title: "Xem trước trước khi phê duyệt",
+      title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(optimizeFixture, [
-        "Giá phải ở trên mức sàn lợi nhuận đã cấu hình — thay đổi dưới sàn sẽ bị chặn khi phê duyệt.",
+        "Giá phải ở trên mức sàn lợi nhuận đã cấu hình — thay đổi dưới sàn sẽ bị chặn khi duyệt.",
         "Giao hàng do TikTok quản lý cho tối ưu sản phẩm chưa có trong Demo.",
       ]),
     },
     {
       stage: "approve",
-      title: "Xác nhận phê duyệt",
+      title: "Xác nhận duyệt",
       body: buildSellerApproveBody(),
     },
   ];

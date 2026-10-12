@@ -31,7 +31,7 @@ import {
 /**
  * Quyết định to the approved artboards (AC-10.3, ADR-109 Amendment 1),
  * end to end against a stubbed API shaped like the P10 contract
- * (`fasttrack/contracts/p10-quyet-dinh.md`): the card (Xem thêm, Phê duyệt
+ * (`fasttrack/contracts/p10-quyet-dinh.md`): the card (Xem thêm, Duyệt
  * notice, Từ chối with a required reason), consent with an edit →
  * `edited_values`, Không thực hiện → decline with a reason, the cover-image
  * upload, the Seller Center checklist gating "Tôi đã áp dụng", Đo lường's
@@ -267,7 +267,7 @@ const RUN_URL = (id: string) => `/decisions?tab=dang-thuc-hien&run=${id}`;
 // -- behaviour ----------------------------------------------------------------------
 
 test.describe("P10 Đề xuất card", () => {
-  test("Xem thêm expands in place; Phê duyệt shows the notice; Từ chối needs one reason", async ({ page }) => {
+  test("Xem thêm expands in place; Duyệt shows the notice; Từ chối needs one reason", async ({ page }) => {
     const posts = await stub(page, scenario({ decisions: [MAIN_CARD, LEVER_CARDS[2]] }));
     await page.goto("/decisions");
     const card = page.getByTestId("recommendation-card").filter({ hasText: "Son môi số 12" });
@@ -279,7 +279,7 @@ test.describe("P10 Đề xuất card", () => {
     await expect(card).toContainText("TikTok báo mã chẩn đoán: “Mô tả quá ngắn”.");
     await expect(card.getByRole("button", { name: /Thu gọn/ })).toHaveAttribute("aria-expanded", "true");
 
-    await card.getByRole("button", { name: "Phê duyệt" }).click();
+    await card.getByRole("button", { name: "Duyệt" }).click();
     await expect(card.getByTestId("card-status")).toHaveText("Đang thực hiện");
     await expect(card.getByRole("status")).toContainText("Đã tạo lượt chạy.");
     await expect(card.getByRole("link", { name: "Xem tiến độ ›" })).toBeVisible();
@@ -326,7 +326,7 @@ test.describe("P23 Đề xuất card (D29)", () => {
     await expect(plain.getByTestId("confidence-pill")).toHaveCount(0);
     await expect(plain).toContainText("+2,1 tr ₫/tháng");
     // approving stays per card
-    await card.getByRole("button", { name: "Phê duyệt" }).click();
+    await card.getByRole("button", { name: "Duyệt" }).click();
     await expect.poll(() => posts.filter((p) => p.path.endsWith("/approve")).map((p) => p.path)).toEqual(["/v1/demo/decisions/31/approve"]);
   });
 
@@ -483,7 +483,7 @@ test.describe("P10 fidelity screenshots", () => {
       await at(page, width);
       await page.goto("/decisions");
       const card = page.getByTestId("recommendation-card").first();
-      await card.getByRole("button", { name: "Phê duyệt" }).click();
+      await card.getByRole("button", { name: "Duyệt" }).click();
       await expect(card.getByTestId("card-status")).toHaveText("Đang thực hiện");
       await shot(page, `${width === 390 ? "Mobile" : "Main"}--approved`, card);
     });

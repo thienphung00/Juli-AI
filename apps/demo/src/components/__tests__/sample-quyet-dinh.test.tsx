@@ -95,11 +95,11 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
     expect(main).toHaveTextContent("TikTok báo mã chẩn đoán: “Mô tả quá ngắn”.");
   });
 
-  it("Phê duyệt creates a local run; Từ chối needs one reason and only changes local state", async () => {
+  it("Duyệt creates a local run; Từ chối needs one reason and only changes local state", async () => {
     const clients = renderSample();
     await waitFor(() => expect(cardOf("Son môi số 12")).toBeDefined());
     const main = cardOf("Son môi số 12");
-    await userEvent.click(within(main).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(within(main).getByRole("button", { name: "Duyệt" }));
     await waitFor(() => expect(within(main).getByTestId("card-status")).toHaveTextContent("Đang thực hiện"));
     expect(within(main).getByRole("link", { name: "Xem tiến độ ›" })).toBeInTheDocument();
     expect(clients.snapshotRuns().find((run) => run.product_name === "Son môi số 12")?.status).toBe("waiting_approval");
@@ -121,7 +121,7 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
   it("Không thực hiện and Hoàn tác end on the completion message with the picked reason", async () => {
     renderSample();
     await waitFor(() => expect(cardOf("Son môi số 12")).toBeDefined());
-    await userEvent.click(within(cardOf("Son môi số 12")).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(within(cardOf("Son môi số 12")).getByRole("button", { name: "Duyệt" }));
     await userEvent.click(await screen.findByRole("link", { name: "Xem tiến độ ›" }));
     await screen.findByTestId("consent-block");
     await userEvent.click(screen.getByRole("button", { name: "Không thực hiện" }));
@@ -155,7 +155,7 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
   it("Đang thực hiện: the consent → Xác nhận plays the write and TikTok's review to the end", async () => {
     const clients = renderSample();
     await waitFor(() => expect(cardOf("Son môi số 12")).toBeDefined());
-    await userEvent.click(within(cardOf("Son môi số 12")).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(within(cardOf("Son môi số 12")).getByRole("button", { name: "Duyệt" }));
     await userEvent.click(await screen.findByRole("link", { name: "Xem tiến độ ›" }));
     const consent = await screen.findByTestId("consent-block");
     expect(screen.getByTestId("run-timeline")).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
   it("cover image: the upload passes the checks locally and reaches the consent", async () => {
     renderSample();
     await waitFor(() => expect(cardOf(SAMPLE_PHOTO_CARD.name)).toBeDefined());
-    await userEvent.click(within(cardOf(SAMPLE_PHOTO_CARD.name)).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(within(cardOf(SAMPLE_PHOTO_CARD.name)).getByRole("button", { name: "Duyệt" }));
     await userEvent.click(await screen.findByRole("link", { name: "Xem tiến độ ›" }));
     await screen.findByTestId("photo-request");
     await act(async () => {
@@ -188,7 +188,7 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
   it("Seller Center: the checklist gates Tôi đã áp dụng; Juli then finds the promotion", async () => {
     renderSample();
     await waitFor(() => expect(cardOf(SAMPLE_MANUAL_CARD.name)).toBeDefined());
-    await userEvent.click(within(cardOf(SAMPLE_MANUAL_CARD.name)).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(within(cardOf(SAMPLE_MANUAL_CARD.name)).getByRole("button", { name: "Duyệt" }));
     await userEvent.click(await screen.findByRole("link", { name: "Xem tiến độ ›" }));
     const guide = await screen.findByTestId("seller-guide");
     await waitFor(() => expect(guide).toHaveTextContent("Làm theo 4 bước trên Seller Center"));

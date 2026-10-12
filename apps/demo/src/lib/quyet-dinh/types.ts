@@ -27,7 +27,7 @@ export interface ShopRules {
   readonly band_metrics: readonly string[];
   /**
    * P23 (D29.9): per-metric default hold threshold (± %) from the metric's own
-   * window-mean band. Optional: without it the editor suggests ±3 %.
+   * window-mean band. Optional: without it the editor shows no suggestion (V8).
    */
   readonly stability_band_defaults?: Readonly<Record<string, number | null>> | null;
   readonly listing_levers: readonly string[];
@@ -123,7 +123,7 @@ export function bandsAreSet(rules: ShopRules | null): boolean {
 
 /**
  * P23 (D29.9): the band-based default hold threshold for one metric (± %), or
- * null (the editor then keeps its ±3 % suggestion). Read from
+ * null (the editor then shows no suggestion). Read from
  * `stability_band_defaults`, else an unset `stability_band` item that carries a value.
  */
 export function bandDefault(rules: ShopRules | null, metric: string): number | null {

@@ -54,7 +54,7 @@ export function getCreateHeroProductReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -135,7 +135,7 @@ export function getCreateHeroProductReviewStages(
     },
     {
       stage: "preview",
-      title: "Xem trước trước khi phê duyệt",
+      title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(createHeroProductFixture, [
         "Shop cần đã xác thực, có đủ thuộc tính/nhãn hiệu/hình ảnh bắt buộc, và kho giao hàng đã được gán.",
         "Ngưỡng chính xác để phát hiện khoảng trống danh mục chưa được xác định — Juli không tự suy diễn con số này.",
@@ -143,7 +143,7 @@ export function getCreateHeroProductReviewStages(
     },
     {
       stage: "approve",
-      title: "Xác nhận phê duyệt",
+      title: "Xác nhận duyệt",
       body: buildSellerApproveBody([
         "Giao hàng do TikTok quản lý cho sản phẩm mới chưa có trong Demo.",
       ]),

@@ -47,7 +47,7 @@ export const RUN_TERMINAL_STATE_COPY: Readonly<
   completed: {
     label: "Hoàn tất",
     chipVariant: "success",
-    body: "Juli đã hoàn tất và áp dụng thay đổi được phê duyệt.",
+    body: "Juli đã hoàn tất và áp dụng thay đổi được duyệt.",
   },
   completed_after_decline: {
     label: "Hoàn tất — không đổi",
@@ -94,7 +94,7 @@ export const RUN_TERMINAL_STATE_UNKNOWN_COPY: RunTerminalStateCopy = {
 
 /** `run.no_retry` -- every failed/cancelled/expired/timed-out/worker_lost
  *  card carries this instead of any retry-in-place control. */
-export const RUN_LEDGER_NO_RETRY_NOTE = `Muốn thực hiện thay đổi mới? Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để phê duyệt đề xuất mới.`;
+export const RUN_LEDGER_NO_RETRY_NOTE = `Muốn thực hiện thay đổi mới? Hãy quay lại ${ACTIONS_DESTINATION_LABEL} để duyệt đề xuất mới.`;
 
 /** `run.ledger.back_to_actions` -- reuses the exact link text the per-run
  *  not-found recovery state already uses, for one consistent phrase. The key

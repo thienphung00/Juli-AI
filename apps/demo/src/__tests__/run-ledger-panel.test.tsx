@@ -235,7 +235,7 @@ describe("Run ledger — In-Progress becomes the run ledger (#1318)", () => {
 
     expect(
       screen.getByText(
-        "Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để phê duyệt đề xuất mới.",
+        "Muốn thực hiện thay đổi mới? Hãy quay lại Quyết định để duyệt đề xuất mới.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Về Quyết định" })).toHaveAttribute(

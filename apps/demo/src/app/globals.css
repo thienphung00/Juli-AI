@@ -3966,7 +3966,7 @@ h4 {
   background: color-mix(in srgb, var(--chart-neutral) 45%, var(--card));
 }
 
-/* Funnel cards: nine boxes from Lượt hiển thị sản phẩm to GMV. */
+/* Funnel cards: nine boxes from Lượt hiển thị to GMV. */
 .funnel-list {
   display: grid;
   gap: 10px;

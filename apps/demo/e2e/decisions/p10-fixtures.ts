@@ -27,8 +27,8 @@ const LEVER_LABEL: Record<Lever, string> = {
   buy_more_save_more: "Mua nhiều giảm nhiều",
 };
 const STAGE: Record<string, { code: string; label: string }> = {
-  ctr: { code: "card", label: "Hiển thị → Nhấp" },
-  ctor: { code: "page", label: "Nhấp → Đặt hàng" },
+  ctr: { code: "card", label: "Lượt hiển thị → Lượt nhấp" },
+  ctor: { code: "page", label: "Lượt nhấp → Đặt hàng" },
   aov: { code: "basket", label: "Giá trị đơn hàng" },
 };
 
@@ -104,7 +104,7 @@ export function decision(spec: CardSpec) {
         lever: { code: spec.lever, label: LEVER_LABEL[spec.lever], executor: EXECUTOR[spec.lever] },
         change_fields: fields,
         before_after: spec.beforeAfter ?? [],
-        gmv_method: "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+        gmv_method: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
         ...spec.extra,
       },
     },
@@ -353,22 +353,22 @@ const BANDS = [
 
 function rows(stage: "d7ok" | "d7bad" | "d14", final?: string) {
   const ctor = stage === "d14" ? (final === "dat" ? 0.06 : final === "khong_dat" ? 0.053 : final === "chua_ket_luan" ? 0.056 : 0.058) : 0.057;
-  const verdict = stage === "d14" ? { dat: "Đạt", gan_dat: "Gần đạt", khong_dat: "Không đạt", chua_ket_luan: "Chưa kết luận" }[final ?? "gan_dat"]! : "Đang tăng";
+  const verdict = stage === "d14" ? { dat: "Đạt", gan_dat: "Một phần", khong_dat: "Không đạt", chua_ket_luan: "Một phần" }[final ?? "gan_dat"]! : "Đang lên";
   const gmv = stage === "d14" ? { dat: 74_000, gan_dat: 57_000, khong_dat: -6_000, chua_ket_luan: 0 }[final ?? "gan_dat"]! : 48_000;
   return [
     { key: "ctor", label: "CTOR (chỉ số chính)", before: 0.054, expected: "5,9 %", actual: ctor, verdict, tone: final === "khong_dat" ? "warn" : "ok" },
-    { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, expected: "9.613 – 10.207", actual: stage === "d14" ? 10098 : 10029, verdict: "Ổn định", tone: "muted" },
-    { key: "ctr", label: "CTR", before: 0.0444, expected: "4,31 – 4,57 %", actual: stage === "d14" ? 0.0442 : 0.044, verdict: "Ổn định", tone: "muted" },
+    { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, expected: "9.613 – 10.207", actual: stage === "d14" ? 10098 : 10029, verdict: "Giữ ổn định", tone: "muted" },
+    { key: "ctr", label: "CTR", before: 0.0444, expected: "4,31 – 4,57 %", actual: stage === "d14" ? 0.0442 : 0.044, verdict: "Giữ ổn định", tone: "muted" },
     stage === "d7bad"
       ? { key: "aov", label: "AOV", before: 160_000, expected: "155k – 165k ₫", actual: 152_000, verdict: "Ngoài khoảng", tone: "warn" }
-      : { key: "aov", label: "AOV", before: 160_000, expected: "155k – 165k ₫", actual: stage === "d14" ? 160_300 : 161_000, verdict: "Ổn định", tone: "muted" },
+      : { key: "aov", label: "AOV", before: 160_000, expected: "155k – 165k ₫", actual: stage === "d14" ? 160_300 : 161_000, verdict: "Giữ ổn định", tone: "muted" },
     {
       key: "gmv",
       label: "GMV/ngày",
       before: 3_600_000,
       expected: "+70k ₫",
       actual: gmv,
-      verdict: stage === "d14" ? (final === "khong_dat" ? "Không đạt" : final === "chua_ket_luan" ? "Chưa kết luận" : `${Math.round((gmv / 70_000) * 100)} % kỳ vọng`) : "Sơ bộ",
+      verdict: stage === "d14" ? (final === "khong_dat" ? "Không đạt" : final === "chua_ket_luan" ? "Một phần" : `${Math.round((gmv / 70_000) * 100)} % kỳ vọng`) : "Sơ bộ",
       tone: stage === "d14" && final !== "khong_dat" && final !== "chua_ket_luan" ? "ok" : "muted",
     },
   ];

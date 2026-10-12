@@ -52,7 +52,7 @@ export function createDeleteActivityTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Vô hiệu hoá chương trình khuyến mãi",
       description:
-        "Gửi yêu cầu deactivate sau khi shop phê duyệt rõ ràng.",
+        "Gửi yêu cầu deactivate sau khi shop duyệt rõ ràng.",
       status: "pending",
       recoveryText:
         "Deactivate thất bại — activity vẫn hiển thị active; thử lại sau khi xác nhận.",

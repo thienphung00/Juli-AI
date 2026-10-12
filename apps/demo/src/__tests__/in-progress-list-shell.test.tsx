@@ -268,7 +268,7 @@ describe("In Progress list shell — the other 10 workflows' legacy execution ca
 
     // Pre-#1318 copy should not be present.
     expect(
-      within(placeholder).queryByText("Công việc đã phê duyệt sẽ xuất hiện ở đây."),
+      within(placeholder).queryByText("Công việc đã duyệt sẽ xuất hiện ở đây."),
     ).not.toBeInTheDocument();
     expect(within(placeholder).queryByText(/Sắp ra mắt/)).not.toBeInTheDocument();
     expect(

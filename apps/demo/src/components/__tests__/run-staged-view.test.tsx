@@ -183,7 +183,7 @@ describe("RunStagedView -- a finished run reopens fully frozen", () => {
   it("renders every stage frozen and the terminal stage shows the run's actual outcome", () => {
     render(<RunStagedView events={approved} productName={PRODUCT_NAME} runId="run-1" />);
 
-    expect(screen.getByText("Juli đã hoàn tất và áp dụng thay đổi được phê duyệt.")).toBeInTheDocument();
+    expect(screen.getByText("Juli đã hoàn tất và áp dụng thay đổi được duyệt.")).toBeInTheDocument();
     const tabs = screen.getAllByRole("tab");
     // Every tab up to and including the terminal one is enabled/revisitable.
     for (const tab of tabs) {

@@ -60,7 +60,7 @@ interface ImpactTableEntry {
   workflowKey: string;
   getPlan: () => ReturnType<typeof getDeleteActivityPlanReview>;
   /**
-   * ADR-055 item 12 — the upload exception: Phê duyệt rests disabled until
+   * ADR-055 item 12 — the upload exception: Duyệt rests disabled until
    * the required upload is supplied, so approval-path assertions must
    * unblock it first. The impact block itself is unaffected.
    */
@@ -340,7 +340,7 @@ describe.each(IMPACT_WORKFLOWS)(
 
       if (sellerUploadGate) {
         // The upload exception (ADR-055 item 12): supply the required upload
-        // to unblock Phê duyệt. The impact block must not change for this
+        // to unblock Duyệt. The impact block must not change for this
         // either — it has exactly one state.
         selectUploadFile(
           screen.getByLabelText(/Ảnh sản phẩm/),
@@ -348,7 +348,7 @@ describe.each(IMPACT_WORKFLOWS)(
         );
         await waitFor(() => {
           expect(
-            screen.getByRole("button", { name: "Phê duyệt" }),
+            screen.getByRole("button", { name: "Duyệt" }),
           ).toBeEnabled();
         });
       }

@@ -36,7 +36,7 @@
       "status_label": "Juli tự đề xuất",
       "stage": {
         "code": "card",
-        "label": "Hiển thị → Nhấp (thẻ sản phẩm)"
+        "label": "Lượt hiển thị → Lượt nhấp (thẻ sản phẩm)"
       },
       "lever": {
         "code": "title",
@@ -138,7 +138,7 @@
       "metrics": [
         {
           "key": "impressions",
-          "label": "Lượt hiển thị sản phẩm",
+          "label": "Lượt hiển thị",
           "unit": "count_per_day",
           "definition": "Số lượt sản phẩm được hiển thị, trung bình mỗi ngày",
           "current": 3500.0,
@@ -151,7 +151,7 @@
           "key": "ctr",
           "label": "CTR",
           "unit": "ratio",
-          "definition": "Lượt nhấp ÷ lượt hiển thị sản phẩm",
+          "definition": "Lượt nhấp ÷ lượt hiển thị",
           "current": 0.02,
           "previous": 0.02,
           "change": 0.0,

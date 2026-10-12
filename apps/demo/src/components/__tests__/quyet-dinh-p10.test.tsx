@@ -63,7 +63,7 @@ const CARD: RecommendationCardPayload = {
     { field: "title", label: "Tiêu đề", before: "Son môi số 12", after: "Son môi lì cao cấp số 12 — màu đỏ ruby" },
     { field: "description", label: "Mô tả", before: "180 ký tự, một đoạn", after: "640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản" },
   ],
-  gmv_method: "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+  gmv_method: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
 };
 
 function item(id: string, card: Partial<RecommendationCardPayload> | null = {}): P10DecisionItem {
@@ -84,7 +84,7 @@ function item(id: string, card: Partial<RecommendationCardPayload> | null = {}):
         rank: 1,
         status: "rule",
         status_label: "Theo quy tắc",
-        stage: { code: "page", label: "Nhấp → Đặt hàng" },
+        stage: { code: "page", label: "Lượt nhấp → Đặt hàng" },
         lever: { code: card?.lever?.code ?? "description", label: "Mô tả", action: "Viết lại mô tả" },
         main_kpi: { key: "ctor", label: "CTOR", value: "5,4 %" },
         trigger: { code: "below_median", gap: -0.3, sentence: "Thấp hơn trung vị shop" },
@@ -296,7 +296,7 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(within(card).queryByTestId("executor-chip")).toBeNull();
     await userEvent.click(within(card).getByRole("button", { name: "Xem thêm" }));
     expect(handlers.onToggle).toHaveBeenCalled();
-    await userEvent.click(within(card).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(within(card).getByRole("button", { name: "Duyệt" }));
     expect(handlers.onApprove).toHaveBeenCalled();
     await userEvent.click(within(card).getByRole("button", { name: "Từ chối" }));
     expect(handlers.onReject).toHaveBeenCalled();
@@ -312,7 +312,7 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(more).toHaveTextContent("Sau: Son môi lì cao cấp số 12 — màu đỏ ruby");
     expect(more).toHaveTextContent("Hiện tại: 180 ký tự, một đoạn.");
     expect(more).toHaveTextContent("Đề xuất: 640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản.");
-    expect(more).toHaveTextContent("GMV dự kiến tính theo cách của TikTok: lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV");
+    expect(more).toHaveTextContent("GMV dự kiến tính theo cách của TikTok: lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV");
     expect(screen.getByRole("button", { name: "Thu gọn" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.queryByTestId("adjusted-by-history")).toBeNull();
   });
@@ -365,7 +365,7 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(screen.getByTestId("card-status")).toHaveTextContent("Đang thực hiện");
     expect(screen.getByRole("status")).toHaveTextContent("Đã tạo lượt chạy. Juli đọc chẩn đoán TikTok và soạn nội dung");
     expect(screen.getByRole("link", { name: "Xem tiến độ ›" })).toHaveAttribute("href", "/x");
-    expect(screen.queryByRole("button", { name: "Phê duyệt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Duyệt" })).toBeNull();
     unmount();
     renderCard({ status: "rejected" });
     expect(screen.getByTestId("card-status")).toHaveTextContent("Đã từ chối");
@@ -389,18 +389,18 @@ describe("the recommendation card (Main.dc.html)", () => {
     }
   });
 
-  it("Levers: photo and Seller Center cards carry the executor chip and what happens after Phê duyệt", () => {
+  it("Levers: photo and Seller Center cards carry the executor chip and what happens after Duyệt", () => {
     const photo = cardView(item("2", { lever: { code: "cover_image", label: "Ảnh bìa", executor: "juli_with_photo" } }));
     const { unmount } = render(
       <RecommendationCard card={photo} expanded={false} narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} status="pending" />,
     );
     expect(screen.getByTestId("executor-chip")).toHaveTextContent("Juli tải lên — cần ảnh từ bạn");
-    expect(screen.getByTestId("recommendation-card")).toHaveTextContent("Phê duyệt → Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.");
+    expect(screen.getByTestId("recommendation-card")).toHaveTextContent("Duyệt → Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.");
     unmount();
     const promo = cardView(item("3", { lever: { code: "product_discount", label: "Giảm giá sản phẩm", executor: "seller_center" } }));
     render(<RecommendationCard card={promo} expanded={false} narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} status="pending" />);
     expect(screen.getByTestId("executor-chip")).toHaveTextContent("Bạn thực hiện trên Seller Center");
-    expect(screen.getByRole("button", { name: "Phê duyệt" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Duyệt" })).toBeEnabled();
   });
 
   it("Mobile.dc.html below 768 px: stacked KPI, inline before → after, two-column buttons, Xem thêm ›", () => {
@@ -438,11 +438,11 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(c.reject).toHaveBeenCalledWith({ token: "tok", shopId: "shop-1" }, "1", { reason_code: "discontinued" });
   });
 
-  it("Phê duyệt on one card shows the notice in place (no navigation)", async () => {
+  it("Duyệt on one card shows the notice in place (no navigation)", async () => {
     const c = clients();
     const onNavigate = signedIn({}, c);
     const card = await screen.findByTestId("recommendation-card");
-    await userEvent.click(within(card).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(within(card).getByRole("button", { name: "Duyệt" }));
     await waitFor(() => expect(within(card).getByTestId("card-status")).toHaveTextContent("Đang thực hiện"));
     expect(within(card).getByRole("link", { name: "Xem tiến độ ›" })).toHaveAttribute("href", `/decisions?tab=dang-thuc-hien&run=${RUN_ID}`);
     expect(onNavigate).not.toHaveBeenCalled();
@@ -565,7 +565,7 @@ describe("cover image (RunPhoto.dc.html)", () => {
     });
     signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
     const request = await screen.findByTestId("photo-request");
-    expect(request).toHaveTextContent("Tỉ lệ 1:1, tối thiểu 800 × 800 px");
+    expect(request).toHaveTextContent("Tỷ lệ 1:1, tối thiểu 800 × 800 px");
     // The page heading follows the selected run's kind, reported after its first render.
     await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Juli tải ảnh của bạn lên TikTok Shop"));
     const input = screen.getByTestId("photo-input") as HTMLInputElement;
@@ -593,7 +593,7 @@ describe("cover image (RunPhoto.dc.html)", () => {
         photo: {
           before_url: "/v1/demo/photos/shop-1/before-token",
           after_url: "/v1/demo/photos/shop-1/after-token",
-          checks: [{ key: "square", label: "Tỉ lệ 1:1", ok: true }],
+          checks: [{ key: "square", label: "Tỷ lệ 1:1", ok: true }],
         },
         promotion: null,
       }),
@@ -718,8 +718,8 @@ function measurement(stage: Measurement["stage"], over: Partial<Measurement> = {
       stage === "waiting"
         ? []
         : [
-            { key: "ctor", label: "CTOR (chỉ số chính)", before: 0.054, expected: "5,9 %", actual: 0.057, verdict: "Đang tăng", tone: "ok" },
-            { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, expected: "9.613 – 10.207", actual: 10029, verdict: "Ổn định", tone: "muted" },
+            { key: "ctor", label: "CTOR (chỉ số chính)", before: 0.054, expected: "5,9 %", actual: 0.057, verdict: "Đang lên", tone: "ok" },
+            { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, expected: "9.613 – 10.207", actual: 10029, verdict: "Giữ ổn định", tone: "muted" },
             { key: "aov", label: "AOV", before: 160_000, expected: "155k – 165k ₫", actual: 152_000, verdict: "Ngoài khoảng", tone: "warn" },
           ],
     day7: stage === "waiting" ? null : { within_band: false, question_id: "q-1" },
@@ -737,16 +737,16 @@ describe("measurement model (Measure.dc.html, Day7, Day14)", () => {
       note: "Đạt khi ≥ 5,9 %; đang tiến triển từ 5,5 % trở lên",
       gmv: "+70k ₫/ngày · +2,1 tr ₫/tháng",
     });
-    expect(bandRows(m)[0]).toEqual({ key: "impressions", label: "Lượt hiển thị/ngày", before: "9.910", band: "±3 %", range: "9.613 – 10.207" });
+    expect(bandRows(m)[0]).toEqual({ key: "impressions", label: "Lượt hiển thị/ngày", before: "9.910", band: "±3 %", source: null, range: "9.613 – 10.207" });
     expect(resultRows(m).map((row) => row.actual)).toEqual(["5,7 %", "10.029 (+1,2 %)", "152k ₫ (−5,0 %)"]);
     expect(measureHead(m).chip).toEqual({ label: "Ngày 7 · cần bạn quyết", tone: "warn" });
     expect(measureHead(measurement("waiting")).headline).toBe("Đang chờ dữ liệu sau khi áp dụng");
   });
 
-  it("day-14 boxes per label; calibration not updated for Chưa kết luận", () => {
+  it("day-14 boxes per label; calibration not updated for chua_ket_luan", () => {
     const final = (label: "dat" | "gan_dat" | "khong_dat" | "chua_ket_luan") =>
       measurement("final", { final: { label, gmv_actual_per_day: 57_000, pct_of_expected: 82, calibration: label === "chua_ket_luan" ? null : { lever: "description", from: 0.5, to: 0.58 } } });
-    expect(finalBox(final("gan_dat"), "Mô tả")).toMatchObject({ tone: "info", title: "Gần đạt: 82 % mức kỳ vọng", offerRevert: false });
+    expect(finalBox(final("gan_dat"), "Mô tả")).toMatchObject({ tone: "info", title: "Một phần: 82 % mức kỳ vọng", offerRevert: false });
     expect(finalBox(final("khong_dat"), "Mô tả")).toMatchObject({ tone: "warn", offerRevert: true, next: "Xem đề xuất khác cho sản phẩm này ›" });
     expect(finalBox(final("dat"), "Mô tả")?.tone).toBe("ok");
     expect(finalBox(final("chua_ket_luan"), "Mô tả")?.tone).toBe("muted");
@@ -775,7 +775,7 @@ describe("Đo lường panel", () => {
       <DoLuongPanel items={items} nowMs={null} onKeep={onKeep} onOpenProposals={vi.fn()} onOpenRun={vi.fn()} onRevert={onRevert} onTab={vi.fn()} proposalsHref="/d" tab="d7" />,
     );
     expect(screen.getByRole("tab", { name: "Ngày 7 · kiểm tra" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByTestId("measure-target")).toHaveTextContent("Mục tiêu và ngưỡng dao động");
+    expect(screen.getByTestId("measure-target")).toHaveTextContent("Mục tiêu và Ngưỡng giữ ổn định");
     expect(screen.getByTestId("day7-steps")).toHaveTextContent("Hỏi bạn: Hoàn tác?");
     const ask = screen.getByTestId("day7-ask");
     expect(ask).toHaveTextContent("AOV còn 152k ₫ (−5,0 %), ngoài khoảng 155k – 165k ₫ bạn cho phép. Juli không tự hoàn tác — bạn quyết định.");

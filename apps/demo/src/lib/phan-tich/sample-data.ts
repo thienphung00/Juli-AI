@@ -382,7 +382,7 @@ const PRODUCT_TABLES: Readonly<Record<"product_card" | "shop_tab", Readonly<Reco
         ["KD-030", 0.039, 0.037, -5_000, TK, 620, 580],
       ],
       up: [["SM-012", 0.03, 0.032, 4_000, RO, 2160, 3750]],
-      closing: ["3 sản phẩm ít lượt bấm", -1_000, 2_000],
+      closing: ["3 sản phẩm ít lượt nhấp", -1_000, 2_000],
     },
     ctor: {
       down: [
@@ -416,7 +416,7 @@ const PRODUCT_TABLES: Readonly<Record<"product_card" | "shop_tab", Readonly<Reco
     ctr: {
       down: [["KC-004", 0.052, 0.049, -3_000, TK, 410, 380]],
       up: [["SM-012", 0.061, 0.063, 2_000, TK, 700, 790]],
-      closing: ["4 sản phẩm ít lượt bấm", 0, -1_000],
+      closing: ["4 sản phẩm ít lượt nhấp", 0, -1_000],
     },
     ctor: {
       down: [["KD-030", 0.066, 0.061, -6_000, TK, 52, 47]],
@@ -445,7 +445,7 @@ const CONTENT_TABLES: Readonly<Record<"seller_video" | "seller_live", Partial<Re
         ["v4", "Unbox toner rau má", "2026-09-28", ["TN-021"], 0.032, 0.029, -9_000, TK, 610],
       ],
       up: [],
-      closing: ["12 video ít lượt bấm", -5_000, 1_000],
+      closing: ["12 video ít lượt nhấp", -5_000, 1_000],
     },
   },
   seller_live: {
@@ -457,7 +457,7 @@ const CONTENT_TABLES: Readonly<Record<"seller_video" | "seller_live", Partial<Re
     ctr: {
       down: [],
       up: [["l3", "LIVE trưa", "2026-09-30", ["TN-021", "SM-012", "MN-015", "KD-030", "SR-007", "KC-004"], 0.047, 0.056, 9_000, TK, 410]],
-      closing: ["3 phiên LIVE ít lượt bấm", 1_000, 1_000],
+      closing: ["3 phiên LIVE ít lượt nhấp", 1_000, 1_000],
     },
     ctor: {
       down: [

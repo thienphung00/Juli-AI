@@ -233,7 +233,7 @@ describe("Review input defaults - proposed values", () => {
         if (dependsOnField) {
           // reject_reason can be empty if seller_decision = approve
           const decisionValue = defaults[dependsOnField];
-          if (decisionValue === "Phê duyệt" || decisionValue === "approve") {
+          if (decisionValue === "Duyệt" || decisionValue === "approve") {
             continue; // reject_reason may be empty for approve
           }
         }

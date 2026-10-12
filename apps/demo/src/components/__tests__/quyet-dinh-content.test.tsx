@@ -41,7 +41,7 @@ describe("content card model", () => {
     expect(view.executor).toBe("juli_drafts");
     expect(view.sku).toBe("MN-015");
     expect(view.meta).toMatch(/^Tối ưu nội dung · Video · Cập nhật /);
-    expect(view.kpiLabel).toBe("CTR - Video của người bán");
+    expect(view.kpiLabel).toBe("CTR - Video");
     expect(view.kpiCurrent).toBe("1,9 %");
     expect(view.kpiTarget).toBe("3,2 %");
     expect(view.gmvPerMonth).toBe("+1,7 tr ₫/tháng");
@@ -256,11 +256,11 @@ describe("signed-out sample — content cards", () => {
     await waitFor(() => expect(contentGroup()).toBeDefined());
     const group = contentGroup();
     expect(group).toHaveTextContent("2 thẻ nội dung: Juli soạn, bạn quay hoặc LIVE");
-    expect(within(group).queryByRole("button", { name: /^Duyệt/ })).toBeNull();
+    expect(within(group).queryByRole("button", { name: /^Duyệt \d+ thẻ/ })).toBeNull();
     const video = contentCard("Mặt nạ đất sét 100g");
     expect(video).toHaveTextContent("SKU · MN-015");
     expect(video).toHaveTextContent("Tối ưu nội dung · Video");
-    expect(video).toHaveTextContent("CTR - Video của người bán");
+    expect(video).toHaveTextContent("CTR - Video");
     expect(within(video).getByTestId("drafts-chip")).toHaveTextContent("Juli soạn · bạn làm");
     expect(within(contentCard("Son môi số 12")).getByTestId("drafts-chip")).toHaveTextContent("Juli soạn · bạn làm");
     await userEvent.click(within(video).getByRole("button", { name: "Xem thêm" }));
@@ -269,12 +269,12 @@ describe("signed-out sample — content cards", () => {
     expect(within(video).getByRole("button", { name: "Thu gọn" })).toBeInTheDocument();
   });
 
-  it("video: Phê duyệt → bản 1 → Soạn lại → bản 2 → Dùng → wait → Tôi đã đăng → Đang đo", async () => {
+  it("video: Duyệt → bản 1 → Soạn lại → bản 2 → Dùng → wait → Tôi đã đăng → Đang đo", async () => {
     const clients = createSampleQdClients({ stepMs: 0 });
     render(<Harness clients={clients} />);
     await waitFor(() => expect(contentGroup()).toBeDefined());
     const video = contentCard("Mặt nạ đất sét 100g");
-    await userEvent.click(within(video).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(within(video).getByRole("button", { name: "Duyệt" }));
     await userEvent.click(await within(video).findByRole("link", { name: "Xem tiến độ ›" }));
     const script = await screen.findByTestId("content-script");
     expect(script).toHaveTextContent("Bản 1 · bạn sửa trực tiếp được");
@@ -292,7 +292,7 @@ describe("signed-out sample — content cards", () => {
     const changes = await clients.fetchChanges({ token: "", shopId: "" }, runItem.id);
     expect(changes.revert.available).toBe(false);
     const measurement = await clients.fetchMeasurement({ token: "", shopId: "" }, runItem.id);
-    expect(measurement?.target.label).toBe("CTR - Video của người bán");
+    expect(measurement?.target.label).toBe("CTR - Video");
   });
 
   it("LIVE: Không thực hiện at the script ends the run with the picked reason", async () => {
@@ -300,7 +300,7 @@ describe("signed-out sample — content cards", () => {
     render(<Harness clients={clients} />);
     await waitFor(() => expect(contentGroup()).toBeDefined());
     const live = contentCard("Son môi số 12");
-    await userEvent.click(within(live).getByRole("button", { name: "Phê duyệt" }));
+    await userEvent.click(within(live).getByRole("button", { name: "Duyệt" }));
     await userEvent.click(await within(live).findByRole("link", { name: "Xem tiến độ ›" }));
     const script = await screen.findByTestId("content-script");
     expect(script).toHaveTextContent("Kịch bản host cho SM-012 + thứ tự giỏ");

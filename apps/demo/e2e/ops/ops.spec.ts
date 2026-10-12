@@ -163,8 +163,8 @@ test("Cài đặt shop: Chẩn đoán & KPI tunables go through the draft bar an
   await diag.getByRole("button", { name: /Chẩn đoán & KPI/ }).click();
   await expect(diag.getByTestId("ops-setting")).toHaveCount(6);
   await expect(diag.getByTestId("ops-setting").first()).toContainText("14 · 30 · 60 ngày");
-  await page.getByRole("button", { name: "Sửa Ngưỡng biến động" }).click();
-  await page.getByRole("spinbutton", { name: "Ngưỡng biến động" }).fill("25");
+  await page.getByRole("button", { name: "Sửa Ngưỡng lưu lượng ổn định" }).click();
+  await page.getByRole("spinbutton", { name: "Ngưỡng lưu lượng ổn định" }).fill("25");
   const bar = page.getByRole("region", { name: "Thay đổi chưa lưu" });
   await expect(bar).toContainText("1 thay đổi chưa lưu");
   await bar.getByRole("button", { name: "Lưu thay đổi (1)" }).click();
@@ -231,7 +231,7 @@ const VIEW_CARD = {
       rank: 1,
       status: "rule",
       status_label: "Theo quy tắc",
-      stage: { code: "page", label: "Nhấp → Đặt hàng" },
+      stage: { code: "page", label: "Lượt nhấp → Đặt hàng" },
       lever: { code: "description", label: "Mô tả", action: "Viết lại mô tả" },
       main_kpi: { key: "ctor", label: "CTOR", value: "5,4 %" },
       trigger: { code: "below_median", gap: -0.3, sentence: "Thấp hơn trung vị shop" },
@@ -270,7 +270,7 @@ test("Xem như shop: Xem thêm expands, tabs work, write buttons are disabled, l
   await expect(more).toHaveAttribute("aria-expanded", "false");
   await more.click();
   await expect(page.locator(".qv-card__toggle, .qv-card__more-link").first()).toHaveAttribute("aria-expanded", "true");
-  const approve = page.getByRole("button", { name: "Phê duyệt" }).first();
+  const approve = page.getByRole("button", { name: "Duyệt" }).first();
   await expect(approve).toBeDisabled();
   await expect(approve).toHaveAttribute("title", "Chế độ xem: không thể thao tác thay seller");
   await page.getByRole("tab", { name: "Đo lường" }).click();
@@ -308,7 +308,7 @@ test("Xem như shop shows the D29 card UI read-only (confidence, KPI range, GMV 
   await expect(view).toContainText("5,8–6,6 %");
   await expect(view.getByTestId("kpi-window")).toContainText("30 ngày");
   await expect(view).toContainText("+0,5–1,2 tr ₫/tháng");
-  await expect(view.getByRole("button", { name: "Phê duyệt" })).toBeDisabled();
+  await expect(view.getByRole("button", { name: "Duyệt" })).toBeDisabled();
   expect(writes).toEqual([]);
 });
 

@@ -279,7 +279,7 @@ def _content_note(content: FunnelComparison) -> str:
     change = (q.impressions / p.impressions - 1) if p.impressions else None
     pct = "" if change is None else f" ({change * 100:+.0f} %)".replace(".", ",")
     return (
-        f"Nhóm nội dung: lượt hiển thị sản phẩm {p.impressions:,.0f} → {q.impressions:,.0f}/ngày"
+        f"Nhóm nội dung: lượt hiển thị {p.impressions:,.0f} → {q.impressions:,.0f}/ngày"
         f"{pct}; GMV {_money_short(p.gmv)} → {_money_short(q.gmv)}/ngày."
     ).replace(",", ".")
 

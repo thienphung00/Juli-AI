@@ -12,9 +12,9 @@ import { ReasonDone } from "./reason-dialog";
  * The recommendation card (ADR-109 Amendment 1 d.1–3): `Main.dc.html` from
  * 768 px, `Mobile.dc.html` below. Collapsed by default; "Xem thêm" expands
  * in place (Lý do đầy đủ, before → after per field, how GMV dự kiến is
- * computed). Phê duyệt → the blue notice + "Xem tiến độ ›"; Từ chối opens
+ * computed). Duyệt → the blue notice + "Xem tiến độ ›"; Từ chối opens
  * the reason dialog (the caller owns it). Promotion / photo cards carry the
- * executor chip and what happens after Phê duyệt (`Levers.dc.html`).
+ * executor chip and what happens after Duyệt (`Levers.dc.html`).
  */
 
 export const STATUS_TONE: Readonly<Record<CardStatus, string>> = {
@@ -248,7 +248,7 @@ function Outcome({
   return null;
 }
 
-/** `ContentCards.dc.html` footer: Phê duyệt · Từ chối · Xem phân tích › · (right) Xem thêm. */
+/** `ContentCards.dc.html` footer: Duyệt · Từ chối · Xem phân tích › · (right) Xem thêm. */
 function ContentActions({
   status,
   blockedReason,
@@ -282,7 +282,7 @@ function ContentActions({
             {...write(Boolean(blockedReason) || busy)}
             type="button"
           >
-            Phê duyệt
+            Duyệt
           </button>
           <button className="qv-btn qv-btn--secondary" onClick={onReject} type="button" {...write(busy)}>
             Từ chối
@@ -424,7 +424,7 @@ function DesktopCard({
               {...write(Boolean(blockedReason) || busy)}
               type="button"
             >
-              Phê duyệt
+              Duyệt
             </button>
             <button className="qv-btn qv-btn--secondary" onClick={onReject} type="button" {...write(busy)}>
               Từ chối
@@ -559,7 +559,7 @@ function MobileCard({
             {...write(Boolean(blockedReason) || busy)}
             type="button"
           >
-            Phê duyệt
+            Duyệt
           </button>
           <button className="qv-btn qv-btn--secondary" onClick={onReject} type="button" {...write(busy)}>
             Từ chối

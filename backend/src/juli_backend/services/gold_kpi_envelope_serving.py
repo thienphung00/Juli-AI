@@ -197,7 +197,7 @@ async def compute_demo_main_kpis_payload(
 
     ctor_kpi: dict[str, Any] = {
         "availability": "available" if ctor_value is not None else "unavailable",
-        "label": "CTOR (click→đơn)",
+        "label": "CTOR (lượt nhấp → đơn)",
     }
     if ctor_value is not None:
         ctor_kpi["value"] = ctor_value

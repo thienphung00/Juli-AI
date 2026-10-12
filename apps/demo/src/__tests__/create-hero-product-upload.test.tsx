@@ -173,9 +173,9 @@ describe("create_hero_product_1 upload exception — reachable from the review r
 
     const decision = screen.getByTestId("plan-decision");
     const needsYou = screen.getByTestId("plan-needs-you");
-    const approveButton = screen.getByRole("button", { name: "Phê duyệt" });
+    const approveButton = screen.getByRole("button", { name: "Duyệt" });
 
-    // Document order: Decision → needs-you → Phê duyệt. The section reads as
+    // Document order: Decision → needs-you → Duyệt. The section reads as
     // the thing standing between the seller and approval, never a footnote
     // after the action.
     expect(
@@ -257,12 +257,12 @@ describe("create_hero_product_1 upload exception — reachable from the review r
     }
   });
 
-  it("disables Phê duyệt while main_images is empty and never fires startExecution", async () => {
+  it("disables Duyệt while main_images is empty and never fires startExecution", async () => {
     const user = userEvent.setup();
 
     renderHeroReview();
 
-    const approveButton = screen.getByRole("button", { name: "Phê duyệt" });
+    const approveButton = screen.getByRole("button", { name: "Duyệt" });
     expect(approveButton).toBeDisabled();
     expect(approveButton).toHaveAccessibleDescription(
       getCreateHeroProductPlanReview().needsYou!.approvalBlockedText,
@@ -283,7 +283,7 @@ describe("create_hero_product_1 upload exception — reachable from the review r
     selectUploadFile(getMainImagesInput(), makeValidPngFile("serum.png"));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Phê duyệt" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Duyệt" })).toBeEnabled();
     });
     // The optional field is still empty; the blocking line is gone.
     expect(getSupportingFileInput().value).toBe("");
@@ -315,7 +315,7 @@ describe("create_hero_product_1 upload exception — reachable from the review r
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Phê duyệt" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Duyệt" })).toBeDisabled();
     expect(screen.getByTestId("plan-approve-blocked")).toBeInTheDocument();
   });
 });

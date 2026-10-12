@@ -328,7 +328,7 @@ describe("HomeActivityTracker", () => {
     const buttons = screen.queryAllByRole("button");
     // Only the retry button if in error state should be present
     buttons.forEach((button) => {
-      expect(button.textContent).not.toMatch(/Phê duyệt|Từ chối|Duyệt|Reject/);
+      expect(button.textContent).not.toMatch(/Duyệt|Từ chối|Duyệt|Reject/);
     });
   });
 

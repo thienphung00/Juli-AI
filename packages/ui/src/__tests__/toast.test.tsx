@@ -8,7 +8,7 @@ const styles = loadUiStyles();
 
 const successToast: ToastItem = {
   id: "toast-1",
-  message: "Đã phê duyệt đề xuất.",
+  message: "Đã duyệt đề xuất.",
   variant: "success",
 };
 
@@ -32,7 +32,7 @@ describe("Toast", () => {
 
     const toast = screen.getByRole("status");
 
-    expect(screen.getByText("Đã phê duyệt đề xuất.")).toBeInTheDocument();
+    expect(screen.getByText("Đã duyệt đề xuất.")).toBeInTheDocument();
     expect(toast).toHaveAttribute("aria-live", "polite");
     expect(toast).toHaveAttribute("data-testid", "juli-toast");
   });

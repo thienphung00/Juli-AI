@@ -46,7 +46,7 @@ export function buildPreventReturnReviewInputDefaults(): Record<string, string> 
     decision_deadline: "2026-07-20 12:00",
     rma_state: "Đang chờ hàng về kho",
     risk_evidence: "Quy tắc: lần trả đầu — không có dấu hiệu gian lận",
-    seller_decision: "Phê duyệt",
+    seller_decision: "Duyệt",
     reject_reason: "",
     review_notes: "Khách hàng yêu cầu hoàn tiền, chúng tôi đồng ý",
     restock_enabled: "off",
@@ -68,7 +68,7 @@ export function getPreventReturnReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -76,7 +76,7 @@ export function getPreventReturnReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body:
-        "Không có mặc định Phê duyệt/Từ chối. Nhập lại kho mặc định tắt đến khi kiểm tra thực tế. Luồng trả hàng qua giao hàng do TikTok quản lý chỉ ghi nhận — không thực thi tại đây.",
+        "Không có mặc định Duyệt/Từ chối. Nhập lại kho mặc định tắt đến khi kiểm tra thực tế. Luồng trả hàng qua giao hàng do TikTok quản lý chỉ ghi nhận — không thực thi tại đây.",
       inputFields: [
         {
           key: "return_id",
@@ -122,7 +122,7 @@ export function getPreventReturnReviewStages(
         },
         {
           key: "seller_decision",
-          label: "Quyết định của shop (Phê duyệt / Từ chối)",
+          label: "Quyết định của shop (Duyệt / Từ chối)",
           prefillValue: "",
           required: true,
           editable: true,
@@ -154,12 +154,12 @@ export function getPreventReturnReviewStages(
     },
     {
       stage: "preview",
-      title: "Xem trước trước khi phê duyệt",
+      title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(preventReturnFixture),
     },
     {
       stage: "approve",
-      title: "Xác nhận phê duyệt",
+      title: "Xác nhận duyệt",
       body: buildSellerApproveBody(),
     },
   ];

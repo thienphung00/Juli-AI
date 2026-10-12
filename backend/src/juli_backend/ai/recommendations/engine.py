@@ -586,7 +586,7 @@ async def get_price_direction_suggestion(
             suggested_price=None,
             message=(
                 f"Duy trì giá hiện tại cho {product.name}. Lưu lượng khách tăng "
-                "nhưng tỉ lệ chốt đơn giảm — đây là vấn đề tăng lưu lượng, "
+                "nhưng tỷ lệ chốt đơn giảm — đây là vấn đề tăng lưu lượng, "
                 "không phải giá."
             ),
             cta="Nhấn để duy trì giá",

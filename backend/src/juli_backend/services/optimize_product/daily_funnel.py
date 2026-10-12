@@ -168,7 +168,7 @@ def last_window(
 
 #: key, TikTok's Vietnamese name, unit. Unit drives formatting in the UI only.
 EVIDENCE_METRICS: tuple[tuple[str, str, str], ...] = (
-    ("impressions", "Lượt hiển thị sản phẩm", "count_per_day"),
+    ("impressions", "Lượt hiển thị", "count_per_day"),
     ("ctr", "CTR", "ratio"),
     ("add_to_cart_rate", "Tỷ lệ thêm vào giỏ hàng", "ratio"),
     ("ctor", "CTOR", "ratio"),
@@ -179,7 +179,7 @@ EVIDENCE_METRICS: tuple[tuple[str, str, str], ...] = (
 
 DEFINITIONS: dict[str, str] = {
     "impressions": "Số lượt sản phẩm được hiển thị, trung bình mỗi ngày",
-    "ctr": "Lượt nhấp ÷ lượt hiển thị sản phẩm",
+    "ctr": "Lượt nhấp ÷ lượt hiển thị",
     "add_to_cart_rate": "Lượt thêm vào giỏ hàng ÷ lượt nhấp",
     "ctor": "Đơn hàng SKU ÷ lượt nhấp",
     "aov": "GMV ÷ đơn hàng SKU",

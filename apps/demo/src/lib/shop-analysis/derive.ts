@@ -22,10 +22,10 @@ export const refundShare = (c: Counts) => ratio(c.refunds ?? null, c.gmv);
 
 /** TikTok's Vietnamese channel names (backend `CHANNEL_LABELS`). */
 export const CHANNEL_LABELS: Record<ChannelKey, string> = {
-  product_card: "Thẻ sản phẩm của người bán",
+  product_card: "Thẻ sản phẩm",
   shop_tab: "Tab Cửa hàng",
-  seller_video: "Video của người bán",
-  seller_live: "LIVE của người bán",
+  seller_video: "Video",
+  seller_live: "LIVE",
   affiliate: "Liên kết",
   affiliate_video: "Video liên kết",
   affiliate_live: "LIVE liên kết",
@@ -55,7 +55,7 @@ export const CHANNEL_SUBTITLES: Record<ChannelKey, string> = {
 
 /** Backend `decomposition.FACTOR_LABELS`. */
 export const FACTOR_LABELS: Record<FactorKey, string> = {
-  impressions: "Lượt hiển thị sản phẩm",
+  impressions: "Lượt hiển thị",
   ctr: "CTR (Tỷ lệ nhấp)",
   ctor: "CTOR",
   aov: "AOV (SKU)",

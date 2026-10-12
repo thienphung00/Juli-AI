@@ -22,7 +22,7 @@ export async function advanceReviewToApproveStage(page: Page) {
   await expect(reviewActions).toBeVisible();
 
   for (let guard = 0; guard < 12; guard += 1) {
-    const approve = reviewActions.getByRole("button", { name: "Phê duyệt" });
+    const approve = reviewActions.getByRole("button", { name: "Duyệt" });
     if (await approve.isVisible()) {
       await expect(approve).toBeVisible();
       return;
@@ -36,12 +36,12 @@ export async function advanceReviewToApproveStage(page: Page) {
     }
 
     await expect(
-      reviewActions.getByRole("button", { name: /Tiếp theo|Phê duyệt/ }),
+      reviewActions.getByRole("button", { name: /Tiếp theo|Duyệt/ }),
     ).toBeVisible();
   }
 
   await expect(
-    reviewActions.getByRole("button", { name: "Phê duyệt" }),
+    reviewActions.getByRole("button", { name: "Duyệt" }),
   ).toBeVisible();
 }
 
@@ -77,14 +77,14 @@ export async function satisfyRequiredUploads(page: Page) {
 /** Open Approve-stage ConfirmDialog and confirm (DVR-A5 gate). */
 export async function confirmApproveThroughGate(page: Page) {
   await reviewActionsFooter(page)
-    .getByRole("button", { name: "Phê duyệt" })
+    .getByRole("button", { name: "Duyệt" })
     .click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   await expect(
-    dialog.getByRole("heading", { name: "Xác nhận phê duyệt" }),
+    dialog.getByRole("heading", { name: "Xác nhận duyệt" }),
   ).toBeVisible();
-  await dialog.getByRole("button", { name: "Phê duyệt" }).click();
+  await dialog.getByRole("button", { name: "Duyệt" }).click();
 }
 
 export async function approveFromRecommendations(

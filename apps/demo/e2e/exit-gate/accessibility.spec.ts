@@ -32,7 +32,7 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
     const approve = page
       .getByTestId("recommendation-card")
       .first()
-      .getByRole("button", { name: "Phê duyệt" });
+      .getByRole("button", { name: "Duyệt" });
     await expect(approve).toBeVisible();
     const box = await approve.boundingBox();
     expect(box).not.toBeNull();
@@ -40,7 +40,7 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
     expect(box!.height).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
   });
 
-  test("keyboard flow: tab reaches Phê duyệt with focus-visible", async ({
+  test("keyboard flow: tab reaches Duyệt with focus-visible", async ({
     page,
   }) => {
     await page.keyboard.press("Tab");
@@ -52,17 +52,17 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
       const approve = page
         .getByTestId("recommendation-card")
         .first()
-        .getByRole("button", { name: "Phê duyệt" });
+        .getByRole("button", { name: "Duyệt" });
       if (await approve.evaluate((node) => node === document.activeElement)) {
         await expect(approve).toBeFocused();
         return;
       }
     }
 
-    throw new Error("Could not keyboard-focus Phê duyệt on the first card");
+    throw new Error("Could not keyboard-focus Duyệt on the first card");
   });
 
-  test("review stages advance through Tiếp theo to final Phê duyệt", async ({
+  test("review stages advance through Tiếp theo to final Duyệt", async ({
     page,
   }) => {
     // P11: the fixture review route is no longer linked from the signed-out

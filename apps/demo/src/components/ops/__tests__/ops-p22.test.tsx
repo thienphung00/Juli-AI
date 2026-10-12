@@ -93,7 +93,7 @@ const DECISION = {
       rank: 1,
       status: "rule",
       status_label: "Theo quy tắc",
-      stage: { code: "page", label: "Nhấp → Đặt hàng" },
+      stage: { code: "page", label: "Lượt nhấp → Đặt hàng" },
       lever: { code: "description", label: "Mô tả", action: "Viết lại mô tả" },
       main_kpi: { key: "ctor", label: "CTOR", value: "5,4 %" },
       trigger: { code: "below_median", gap: -0.3, sentence: "Thấp hơn trung vị shop" },
@@ -143,7 +143,7 @@ function renderViewAs() {
 // -- 1, 2: view-as is read-only, but reading works and links stay in view-as ----------
 
 describe("Xem như shop: read-only controls (P22)", () => {
-  it("Xem thêm, tabs and links work; Phê duyệt / Từ chối / Sửa quy tắc are disabled with the view-as title", async () => {
+  it("Xem thêm, tabs and links work; Duyệt / Từ chối / Sửa quy tắc are disabled with the view-as title", async () => {
     const { calls } = renderViewAs();
     const toggle = await screen.findByRole("button", { name: /Xem thêm/ });
     expect(toggle).toBeEnabled();
@@ -151,7 +151,7 @@ describe("Xem như shop: read-only controls (P22)", () => {
     fireEvent.click(toggle);
     await waitFor(() => expect(screen.getByRole("button", { name: /Thu gọn|Xem thêm/ })).toHaveAttribute("aria-expanded", "true"));
 
-    for (const name of ["Phê duyệt", "Từ chối"]) {
+    for (const name of ["Duyệt", "Từ chối"]) {
       const button = screen.getByRole("button", { name });
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute("title", READ_ONLY_TITLE);

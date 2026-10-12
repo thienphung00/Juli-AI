@@ -64,7 +64,7 @@ function item({
         rank: 1,
         status: "rule",
         status_label: "Theo quy tắc",
-        stage: { code: stage, label: "Nhấp → Đặt hàng (trang sản phẩm)" },
+        stage: { code: stage, label: "Lượt nhấp → Đặt hàng (trang sản phẩm)" },
         lever: {
           code: lever,
           label: lever,
@@ -438,10 +438,10 @@ describe("signed-in Quyết định", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("2 thẻ tối ưu để nâng CTOR Thẻ sản phẩm");
   });
 
-  it("blocks Phê duyệt and Duyệt N thẻ until a stability band is set", async () => {
+  it("blocks Duyệt and Duyệt N thẻ until a stability band is set", async () => {
     renderSignedIn({}, stubClients({ fetchRules: vi.fn().mockResolvedValue(rules()) }));
     expect(await screen.findByRole("button", { name: "Duyệt 2 thẻ" })).toBeDisabled();
-    for (const button of screen.getAllByRole("button", { name: "Phê duyệt" })) expect(button).toBeDisabled();
+    for (const button of screen.getAllByRole("button", { name: "Duyệt" })) expect(button).toBeDisabled();
     expect(screen.getByRole("button", { name: "Đặt ngưỡng" })).toBeInTheDocument();
   });
 

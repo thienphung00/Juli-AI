@@ -36,7 +36,7 @@ export function buildPreventRefundReviewInputDefaults(): Record<string, string> 
     refund_type: "partial",
     physical_return_linked: "Không — thuộc luồng trả hàng riêng",
     decision_deadline: "2026-07-19 09:00",
-    seller_decision: "Phê duyệt",
+    seller_decision: "Duyệt",
     reject_reason: "",
   };
 }
@@ -56,7 +56,7 @@ export function getPreventRefundReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi phê duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -64,7 +64,7 @@ export function getPreventRefundReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body:
-        "Số tiền tính toán chỉ đọc — không ước lượng. Không có mặc định Phê duyệt/Từ chối. Nếu thiếu kết quả tính toán, không phê duyệt. Hoàn tiền không gắn hành động tồn kho (thuộc luồng trả hàng).",
+        "Số tiền tính toán chỉ đọc — không ước lượng. Không có mặc định Duyệt/Từ chối. Nếu thiếu kết quả tính toán, không duyệt. Hoàn tiền không gắn hành động tồn kho (thuộc luồng trả hàng).",
       inputFields: [
         {
           key: "aftersale_id",
@@ -117,7 +117,7 @@ export function getPreventRefundReviewStages(
         },
         {
           key: "seller_decision",
-          label: "Quyết định của shop (Phê duyệt / Từ chối)",
+          label: "Quyết định của shop (Duyệt / Từ chối)",
           prefillValue: "",
           required: true,
           editable: true,
@@ -133,12 +133,12 @@ export function getPreventRefundReviewStages(
     },
     {
       stage: "preview",
-      title: "Xem trước trước khi phê duyệt",
+      title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(preventRefundFixture),
     },
     {
       stage: "approve",
-      title: "Xác nhận phê duyệt",
+      title: "Xác nhận duyệt",
       body: buildSellerApproveBody(),
     },
   ];

@@ -654,7 +654,7 @@ export function RulesEditor({
         <legend>{RULE_LABELS.stability_band} (±%)</legend>
         <p className="qd-muted">
           Chỉ số không phải mục tiêu được phép lệch bao nhiêu trước khi Juli hỏi hoàn tác.{" "}
-          {bandSuggested ? "Gợi ý theo dao động của từng chỉ số." : "Gợi ý ±3 %."}
+          {bandSuggested ? "Juli gợi ý theo dao động của từng chỉ số." : null}
         </p>
         {rules.band_metrics.map((metric) => (
           <NumberRule
@@ -663,7 +663,7 @@ export function RulesEditor({
             label={bandMetricLabel(metric)}
             onDelete={onDelete}
             onSave={onSave}
-            placeholder={bandText(bandDefault(rules, metric)) ?? "3"}
+            placeholder={bandText(bandDefault(rules, metric)) ?? "—"}
             prefill={bandText(bandDefault(rules, metric)) ?? undefined}
             ruleKey="stability_band"
             scopeRef={metric}

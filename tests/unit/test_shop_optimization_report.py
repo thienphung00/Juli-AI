@@ -240,9 +240,9 @@ def test_channel_share_uses_attributed_orders(pending_report: ShopReport) -> Non
         item["shop_tab_performance"]["shop_tab_ctor_sku"]
     )
     assert attributed > orders  # the fixture over-attributes, as TikTok does
-    assert shares["LIVE của shop"] == live / attributed * 100
+    assert shares["LIVE"] == live / attributed * 100
     assert sum(shares.values()) == 100  # normalised over the five blocks
-    assert "Video của shop" not in shares  # zero channels are not shown
+    assert "Video" not in shares  # zero channels are not shown
 
 
 def test_not_asked_card_when_gap_fires_without_evidence(pending_report: ShopReport) -> None:

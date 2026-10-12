@@ -169,7 +169,7 @@ async def test_candidates_become_content_cards_with_the_contract_card_block(sess
     assert card["seller_sku"] == "MN-015" and card["status"] == "pending"
     assert card["main_kpi"] == {
         "key": "video_ctr",
-        "label": "CTR - Video của người bán",
+        "label": "CTR - Video",
         "current": pytest.approx(0.019),
         "target": 0.032,
         "unit": "ratio",
@@ -191,7 +191,7 @@ async def test_candidates_become_content_cards_with_the_contract_card_block(sess
         cards["content_live"], json.loads(cards["content_live"].recommendation_payload), None
     )
     assert live["lever"]["label"] == "Kịch bản host + thứ tự giỏ"
-    assert live["main_kpi"]["label"] == "CTOR - LIVE của người bán"
+    assert live["main_kpi"]["label"] == "CTOR - LIVE"
     # No discount cap set: no flash-sale line in "Juli sẽ soạn".
     assert "chưa đặt trần giảm giá" in live["content"]["will_draft"][-1]
 
@@ -677,7 +677,7 @@ async def test_a_video_run_drafts_waits_redrafts_uses_detects_and_measures(sessi
     assert body["stage"] == "day7"
     assert body["rows"][0]["actual"] == pytest.approx(0.025)  # 100 / 4 000
     assert body["rows"][0]["before"] == pytest.approx(2_242 / 118_000)
-    assert body["target"]["label"] == "CTR - Video của người bán"
+    assert body["target"]["label"] == "CTR - Video"
     assert body["content"]["new_videos"] == 1
     await content_poll.poll_shop(session, shop.id, res, now=NOW + timedelta(days=15))
     final = await content_measurement.measure_content_run(

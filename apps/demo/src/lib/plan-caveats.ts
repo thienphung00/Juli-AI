@@ -179,7 +179,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
   prevent_cancellation_8a: [
     {
       caveatClass: "threshold-undefined",
-      text: "Chính sách phê duyệt hoặc từ chối tự động chính xác chưa được xác định.",
+      text: "Chính sách duyệt hoặc từ chối tự động chính xác chưa được xác định.",
     },
     {
       caveatClass: "reassurance",

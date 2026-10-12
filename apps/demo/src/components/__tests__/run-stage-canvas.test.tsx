@@ -236,7 +236,7 @@ describe("RunStageCanvas -- Hoàn tất stage", () => {
       />,
     );
 
-    expect(screen.getByText("Juli đã hoàn tất và áp dụng thay đổi được phê duyệt.")).toBeInTheDocument();
+    expect(screen.getByText("Juli đã hoàn tất và áp dụng thay đổi được duyệt.")).toBeInTheDocument();
     expect(screen.queryByText(/final_response/)).not.toBeInTheDocument();
   });
 

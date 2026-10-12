@@ -234,6 +234,8 @@ export interface MeasurementBand {
   readonly low: number | null;
   readonly high: number | null;
   readonly unit: MeasureUnit;
+  /** Who set the band: the seller in Quy tắc, or Juli's default (D29.9). Absent on older payloads. */
+  readonly source?: "seller" | "default";
 }
 
 export interface MeasurementRow {

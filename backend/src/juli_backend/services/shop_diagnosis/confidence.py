@@ -6,7 +6,7 @@
 * **Chưa đủ dữ liệu** — under ``reference_min_orders`` orders on a side.
 
 Rates (CTR, Tỷ lệ thêm vào giỏ hàng, CTOR) use a two-proportion z interval on the
-window totals. Daily-average quantities (Lượt hiển thị sản phẩm, GMV, AOV) use a
+window totals. Daily-average quantities (Lượt hiển thị, GMV, AOV) use a
 Welch interval on the difference of the two windows' daily series.
 """
 

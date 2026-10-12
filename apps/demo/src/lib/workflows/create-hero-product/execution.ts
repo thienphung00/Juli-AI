@@ -102,7 +102,7 @@ export function createHeroProductTimeline(): ExecutionTimelineStep[] {
       stepNumber: 11,
       kind: "action",
       title: "Tạo sản phẩm",
-      description: "Gửi payload một/nhiều SKU đã được phê duyệt.",
+      description: "Gửi payload một/nhiều SKU đã được duyệt.",
       status: "pending",
       recoveryText: "Giữ nguyên dữ liệu đã nhập và sửa lỗi xác thực trước khi gửi lại.",
     },

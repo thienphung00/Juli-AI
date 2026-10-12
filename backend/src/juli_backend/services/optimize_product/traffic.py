@@ -47,14 +47,14 @@ CHANNELS: tuple[tuple[str, str, str, str, str], ...] = (
     ),
     (
         "seller_video",
-        "Video của shop",
+        "Video",
         "seller_video_performance",
         "product_impressions",
         "product_clicks",
     ),
     (
         "seller_live",
-        "LIVE của shop",
+        "LIVE",
         "seller_live_performance",
         "product_impressions",
         "product_clicks",

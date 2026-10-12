@@ -44,7 +44,7 @@ export interface RecommendationCardProps {
   risks: string;
   /**
    * True while this card's beside-the-list detail is open: "Xem thêm"
-   * hides itself; Phê duyệt and Từ chối stay on the card (issue #1916).
+   * hides itself; Duyệt and Từ chối stay on the card (issue #1916).
    */
   seeMoreOpen?: boolean;
   sellerReason?: string;
@@ -162,7 +162,7 @@ export const RecommendationCard = forwardRef<
           onClick={onApprove}
           variant="primary"
         >
-          Phê duyệt
+          Duyệt
         </Button>
         <Button onClick={onReject} variant="secondary">
           {rejectLabel}
