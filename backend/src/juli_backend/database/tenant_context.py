@@ -450,6 +450,7 @@ async def with_shop_scope(
     shop_id: uuid.UUID,
     *,
     restore_role: str | None = None,
+    transaction_ends_after: bool = False,
 ) -> AsyncIterator[None]:
     """Set shop context only, for work that has a shop but no user (ADR-089).
 
@@ -491,6 +492,14 @@ async def with_shop_scope(
             ``ops_role`` block it took the restore over from
             (``OpsRoleBlock.hand_over``); it saves the restore's round trip.
             Not restored again on exit: the role belongs to the caller.
+        transaction_ends_after: P29 -- the caller's promise that the
+            transaction ends (COMMIT, or the session's close-time ROLLBACK)
+            right after this block, with no statement in between. ``SET LOCAL``
+            dies with the transaction, so the exit restore -- one round trip,
+            ~395 ms from the production VPS -- is skipped. The same promise
+            ``UsersRepo.get_for_authentication(transaction_ends_after=True)``
+            makes. Only for a request's LAST database work: a statement run
+            after the block would still see this shop's scope.
 
     Raises:
         TenantContextRequiredError: if shop_id is None, before any SQL is
@@ -526,8 +535,86 @@ async def with_shop_scope(
         raise
     finally:
         try:
-            if applied:
+            # A failed body needs no restore when the transaction ends anyway;
+            # a healthy one skips it only on the caller's explicit promise.
+            if applied and not transaction_ends_after:
                 await _restore_tenant_gucs(session, prior_shop, prior_user, body_failed=body_failed)
+        finally:
+            _shop_scope_active.reset(token)
+
+
+class ShopScopeSequence:
+    """What :func:`sequential_shop_scopes` yields: ``await seq.enter(shop_id)``."""
+
+    def __init__(self, session: AsyncSession, restore_role: str | None) -> None:
+        self._session = session
+        self._restore_role = restore_role
+        self.applied = False
+        self.prior: tuple[str, str] = ("", "")
+
+    async def enter(self, shop_id: uuid.UUID) -> None:
+        """Make ``shop_id`` the transaction's shop scope (user GUC withheld).
+
+        The first call reads the prior pair and sets the new one in ONE
+        statement (and switches the role back, when handed a restore); every
+        later call is one ``set_config`` pair -- no per-shop restore.
+        """
+        _require_shop_for_shop_scope(shop_id)
+        _require_tenant_context(shop_id, None)
+        if not self.applied:
+            self.prior = await _swap_tenant_gucs(
+                self._session, str(shop_id), "", restore_role=self._restore_role
+            )
+            self.applied = True
+            return
+        await _write_tenant_gucs(self._session, str(shop_id), "")
+
+
+@asynccontextmanager
+async def sequential_shop_scopes(
+    session: AsyncSession,
+    *,
+    restore_role: str | None = None,
+    transaction_ends_after: bool = False,
+) -> AsyncIterator[ShopScopeSequence]:
+    """``with_shop_scope`` for a LOOP over shops, one shop at a time (P29).
+
+    A fleet page (Chi phí, Thời hạn) reads each shop's numbers under THAT
+    shop's own scope -- ADR-089, one shop at a time, nothing widened. Wrapping
+    each iteration in its own ``with_shop_scope`` paid a swap on entry and a
+    restore on exit per shop; here the scope moves from shop to shop with one
+    ``set_config`` pair each, and the prior pair is put back once at the end
+    (or not at all under ``transaction_ends_after``, see ``with_shop_scope``).
+    Between two ``enter`` calls the previous shop's scope is still in force:
+    read only what belongs to the shop just entered.
+
+    ``restore_role``: as ``with_shop_scope``'s, carried by the first ``enter``.
+    """
+    token = _shop_scope_active.set(True)
+    sequence = ShopScopeSequence(session, restore_role)
+    body_failed = False
+    try:
+        yield sequence
+    except BaseException:
+        body_failed = True
+        raise
+    finally:
+        try:
+            if sequence.applied and not transaction_ends_after:
+                await _restore_tenant_gucs(
+                    session, sequence.prior[0], sequence.prior[1], body_failed=body_failed
+                )
+            elif (
+                not sequence.applied
+                and restore_role is not None
+                and not transaction_ends_after
+                and not body_failed
+            ):
+                # No shop was entered, so the handed-over role switch never rode
+                # on a statement: do it now.
+                await session.execute(
+                    text("SELECT set_config('role', :role, true)").bindparams(role=restore_role)
+                )
         finally:
             _shop_scope_active.reset(token)
 

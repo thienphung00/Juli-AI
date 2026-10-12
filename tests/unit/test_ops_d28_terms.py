@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import func, select
 
+from juli_backend.api.routes.ops import get_ops_user
 from juli_backend.core.security import get_current_user
 from juli_backend.models.models import Shop, User
 from juli_backend.models.ops import OpsAuditLog, OpsStaff
@@ -45,6 +46,10 @@ def bypass_access(monkeypatch):
 def frozen_today(monkeypatch):
     """Every reader without an explicit ``today`` sees 12/10/2026."""
     monkeypatch.setattr(terms_module, "shop_today", lambda now=None: TODAY)
+    # The Ops routes call it through the package root (`subscriptions.shop_today`),
+    # a separate binding: without this the route tests used the real date and
+    # failed from 13/10/2026 (Vietnam time) on.
+    monkeypatch.setattr(subs, "shop_today", lambda now=None: TODAY)
     return TODAY
 
 
@@ -64,6 +69,8 @@ def _client_as(session, user: User):
         return user
 
     app.dependency_overrides[get_current_user] = current
+
+    app.dependency_overrides[get_ops_user] = current
     return client_for(app)
 
 

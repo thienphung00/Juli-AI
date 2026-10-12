@@ -120,9 +120,67 @@ def remember_staff(user_id: uuid.UUID, email: str | None, member: StaffMember) -
 
 
 def clear_staff_cache() -> None:
-    """Forget every cached member (any staff change; tests)."""
+    """Forget every cached member and signed-in user (any staff change; tests)."""
     with _cache_lock:
         _cache.clear()
+        _user_cache.clear()
+
+
+# -- the signed-in user cache (P29) ------------------------------------------------
+#
+# With the staff row cached, the dearest part of an Ops request was the users
+# read in front of it: BEGIN, the user GUC, the users row, COMMIT -- four round
+# trips, ~1.6 s from the VPS to the us-west-2 pooler, before the route touched
+# its own data. The Ops console needs only two facts from that row: the id and
+# the e-mail the staff cache is keyed by. Both are cached here, per process,
+# for the same STAFF_CACHE_TTL_SECONDS, keyed by the VERIFIED JWT ``sub``.
+#
+# What is NOT cached: the token. ``get_ops_user`` verifies the Supabase JWT
+# (signature, audience, expiry) on every request before looking here, and the
+# Cloudflare Access gate runs on every request too. An entry is written only
+# after the request resolved to an ACTIVE staff member, from a users row read
+# (and committed) on that same request -- so a seller, or anyone who is not
+# staff, is never cached and is re-read every time. Entries are not refreshed
+# by hits: a read older than the TTL is always re-done.
+#
+# Invalidation: TTL, and ``clear_staff_cache`` (every staff change made in
+# this process). The trade-off is the staff cache's own: a users-row change
+# (only the e-mail matters here) reaches this process within 60 s.
+
+
+@dataclass(frozen=True)
+class OpsUser:
+    """What the Ops console needs from the signed-in ``users`` row."""
+
+    id: uuid.UUID
+    email: str | None
+    #: True when this came from the cache rather than this request's read.
+    cached: bool = field(default=False, compare=False)
+
+
+_user_cache: dict[uuid.UUID, tuple[float, OpsUser]] = {}
+
+
+def cached_user(user_id: uuid.UUID) -> OpsUser | None:
+    """The signed-in user read for this verified ``sub`` in the last 60 s, if any."""
+    with _cache_lock:
+        hit = _user_cache.get(user_id)
+        if hit is None:
+            return None
+        stored_at, user = hit
+        if time.monotonic() - stored_at > STAFF_CACHE_TTL_SECONDS:
+            del _user_cache[user_id]
+            return None
+        return user
+
+
+def remember_user(user: OpsUser) -> None:
+    """Cache a user read on THIS request (never re-store a cached one: no TTL refresh)."""
+    if user.cached:
+        return
+    stored = OpsUser(id=user.id, email=user.email, cached=True)
+    with _cache_lock:
+        _user_cache[user.id] = (time.monotonic(), stored)
 
 
 async def resolve_staff(

@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -206,6 +208,109 @@ async def system_status(session: AsyncSession, *, now: datetime | None = None) -
     )
 
 
+# -- the Ops banner read (P29) -------------------------------------------------------
+#
+# ``GET /v1/ops/costs/system`` sits behind the >= 80 % banner on EVERY Ops page.
+# It was the spend, then each ``ops_system_settings`` row in its own SAVEPOINT:
+# nine round trips (~3.5 s from the VPS) for three values. Now: one statement
+# for all three, and the answer cached per process for BANNER_CACHE_TTL_SECONDS,
+# keyed by the (UTC+7) month. The figure is system-wide -- no shop's data, the
+# same for every staff member. The OpenAI GATES never read this cache
+# (``system_cap_reached`` still reads the database every time).
+#
+# Invalidation: TTL; and :func:`forget_banner`, called by ``set_system_cap``
+# (the Admin's "Sửa giới hạn") and again by its route after the COMMIT. The
+# hourly alert task runs in a worker process; its "sent" marker reaches the
+# banner within the TTL.
+
+BANNER_CACHE_TTL_SECONDS = 30.0
+
+_banner_cache: dict[str, tuple[float, SystemCapStatus, bool]] = {}
+_banner_lock = threading.Lock()
+
+
+def forget_banner() -> None:
+    """Drop the cached banner figure (a cap change; tests)."""
+    with _banner_lock:
+        _banner_cache.clear()
+
+
+def _setting_value(key: str) -> Any:
+    return select(OpsSystemSetting.value).where(OpsSystemSetting.key == key).scalar_subquery()
+
+
+def _cap_from(value: Any, updated_at: datetime | None, updated_by: str | None) -> SystemCap:
+    """``system_cap``'s decision, from an already-read row (``value`` None = no row)."""
+    if value is not None:
+        try:
+            return SystemCap(
+                usd=validate_cap(value),
+                is_default=False,
+                updated_at=updated_at,
+                updated_by=updated_by,
+            )
+        except SystemCapError:
+            logger.warning("ops_system_cap_invalid", extra={"value": str(value)[:40]})
+    return SystemCap(usd=default_cap_usd(), is_default=True)
+
+
+async def _banner_from_database(
+    session: AsyncSession, now: datetime | None
+) -> tuple[SystemCapStatus, bool]:
+    since = month_start_utc(now)
+    month = month_label(now)
+    if is_sqlite(session):
+        status = await system_status(session, now=now)
+        return status, await alert_sent_for(session, status.month)
+    stmt = select(
+        func.public.openai_spend_since(since),
+        _setting_value(SYSTEM_CAP_KEY),
+        select(OpsSystemSetting.updated_at)
+        .where(OpsSystemSetting.key == SYSTEM_CAP_KEY)
+        .scalar_subquery(),
+        select(OpsSystemSetting.updated_by)
+        .where(OpsSystemSetting.key == SYSTEM_CAP_KEY)
+        .scalar_subquery(),
+        _setting_value(ALERT_KEY),
+    )
+    try:
+        spent, cap_value, updated_at, updated_by, alert = (await session.execute(stmt)).one()
+    except SQLAlchemyError:
+        # The old path tolerated an unreadable settings row (each read in its
+        # own savepoint). Keep that: this is the request's only statement, so
+        # roll back and take the slow, tolerant path once.
+        logger.warning("ops_system_banner_fused_read_failed", exc_info=True)
+        await session.rollback()
+        status = await system_status(session, now=now)
+        return status, await alert_sent_for(session, status.month)
+    status = SystemCapStatus(
+        month=month,
+        month_start_utc=since,
+        used_usd=Decimal(str(spent or 0)),
+        cap=_cap_from(cap_value, updated_at, updated_by),
+    )
+    return status, isinstance(alert, dict) and alert.get("month") == month
+
+
+async def system_banner(
+    session: AsyncSession, *, now: datetime | None = None
+) -> tuple[SystemCapStatus, bool]:
+    """``(system_status, alert_sent_for(month))`` for the Ops banner: cached, else ONE read.
+
+    Only for a caller with no other work in the transaction before it (a
+    failed fused read rolls the transaction back).
+    """
+    month = month_label(now)
+    with _banner_lock:
+        hit = _banner_cache.get(month)
+        if hit is not None and time.monotonic() - hit[0] <= BANNER_CACHE_TTL_SECONDS:
+            return hit[1], hit[2]
+    status, sent = await _banner_from_database(session, now)
+    with _banner_lock:
+        _banner_cache[month] = (time.monotonic(), status, sent)
+    return status, sent
+
+
 async def system_cap_reached(session: AsyncSession, *, now: datetime | None = None) -> bool:
     """The gate read: True when the month's system spend ≥ the system cap.
 
@@ -241,6 +346,7 @@ async def _write(session: AsyncSession, key: str, value: Any, actor_email: str) 
 async def set_system_cap(session: AsyncSession, actor: audit.Actor, value: Any) -> SystemCap:
     """Admin "Sửa giới hạn": store the cap and write one audit row (no commit)."""
     cap = validate_cap(value)
+    forget_banner()  # P29: the route forgets it again after its COMMIT
     before = await system_cap(session)
     stored: int | float = int(cap) if cap == cap.to_integral_value() else float(cap)
     await _write(session, SYSTEM_CAP_KEY, stored, actor.email)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -163,24 +165,130 @@ async def _cap(
         return await openai_monthly_cap_usd(session, shop_id)
 
 
+# -- the cap + tunables cache (P29) -------------------------------------------------
+#
+# The settings and simulation pages read the shop's two team ``shop_rules`` rows
+# (the OpenAI cap, the D29 tunables) under the shop's scope: the scope's GUC
+# statement plus the read, ~0.8 s from the VPS, for values only Ops changes.
+# Cached per process for CAP_CACHE_TTL_SECONDS, keyed by shop id -- one shop's
+# entry is only ever served for that shop, and only to an Ops route that has
+# already passed the staff gate (every staff member may see every shop).
+#
+# Invalidation: the only writer of either row is :func:`update_settings` (PUT
+# settings, "Về mặc định", PUT openai-cap), which forgets the shop's entry
+# before it writes; the routes forget it again after their COMMIT, so a read
+# racing the write cannot re-cache the old value for longer than that window.
+# The enforcement paths (the cap gate, the diagnosis) never read this cache.
+# The API runs one process; were it more, another process's entry would lag a
+# change by at most the TTL.
+
+CAP_CACHE_TTL_SECONDS = 30.0
+
+_cap_cache: dict[uuid.UUID, tuple[float, OpenAICap, dict[str, Any]]] = {}
+_cap_cache_lock = threading.Lock()
+
+
+def cached_cap_and_tunables(shop_id: uuid.UUID) -> tuple[OpenAICap, dict[str, Any]] | None:
+    """This shop's cap and tunables if read in the last 30 s (a copy), else None."""
+    with _cap_cache_lock:
+        hit = _cap_cache.get(shop_id)
+        if hit is None:
+            return None
+        stored_at, cap, tunables = hit
+        if time.monotonic() - stored_at > CAP_CACHE_TTL_SECONDS:
+            del _cap_cache[shop_id]
+            return None
+        return cap, dict(tunables)
+
+
+def _remember_cap_and_tunables(
+    shop_id: uuid.UUID, cap: OpenAICap, tunables: dict[str, Any]
+) -> None:
+    with _cap_cache_lock:
+        _cap_cache[shop_id] = (time.monotonic(), cap, dict(tunables))
+
+
+def forget_cap_and_tunables(shop_id: uuid.UUID | None = None) -> None:
+    """Drop one shop's cached cap/tunables (every shop when ``None``: tests)."""
+    with _cap_cache_lock:
+        if shop_id is None:
+            _cap_cache.clear()
+        else:
+            _cap_cache.pop(shop_id, None)
+
+
+async def cap_and_tunables(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    restore_role: str | None = None,
+    transaction_ends_after: bool = False,
+) -> tuple[OpenAICap, dict[str, Any], bool]:
+    """The cached pair, else :func:`_cap_and_tunables` (and cache it).
+
+    The third value says whether ``restore_role`` was used: on a cache hit no
+    statement ran, so a caller that handed over an ``ops_role`` restore still
+    owns it (or, when its transaction ends next, may simply drop it).
+    """
+    hit = cached_cap_and_tunables(shop_id)
+    if hit is not None:
+        return hit[0], hit[1], False
+    cap, tunables = await _cap_and_tunables(
+        session,
+        shop_id,
+        restore_role=restore_role,
+        transaction_ends_after=transaction_ends_after,
+    )
+    _remember_cap_and_tunables(shop_id, cap, tunables)
+    return cap, tunables, True
+
+
 async def _cap_and_tunables(
-    session: AsyncSession, shop_id: uuid.UUID, *, restore_role: str | None = None
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    restore_role: str | None = None,
+    transaction_ends_after: bool = False,
 ) -> tuple[OpenAICap, dict[str, Any]]:
     """Both team ``shop_rules`` rows in ONE statement, under one shop scope."""
-    async with with_shop_scope(session, shop_id, restore_role=restore_role):
-        rows = (
-            await session.execute(
-                select(ShopRule).where(
-                    ShopRule.shop_id == shop_id,
-                    ShopRule.rule_key.in_((OPENAI_MONTHLY_CAP_USD, DIAG_TUNABLES)),
-                    ShopRule.scope_ref == "",
-                )
+    async with with_shop_scope(
+        session,
+        shop_id,
+        restore_role=restore_role,
+        transaction_ends_after=transaction_ends_after,
+    ):
+        return await _read_cap_and_tunables(session, shop_id)
+
+
+async def _read_cap_and_tunables(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> tuple[OpenAICap, dict[str, Any]]:
+    """The one-statement read itself; the caller holds the shop's scope."""
+    rows = (
+        await session.execute(
+            select(ShopRule).where(
+                ShopRule.shop_id == shop_id,
+                ShopRule.rule_key.in_((OPENAI_MONTHLY_CAP_USD, DIAG_TUNABLES)),
+                ShopRule.scope_ref == "",
             )
-        ).scalars()
-        by_key = {row.rule_key: row for row in rows}
-        return cap_from_row(by_key.get(OPENAI_MONTHLY_CAP_USD)), overrides_from_row(
-            by_key.get(DIAG_TUNABLES)
         )
+    ).scalars()
+    by_key = {row.rule_key: row for row in rows}
+    return cap_from_row(by_key.get(OPENAI_MONTHLY_CAP_USD)), overrides_from_row(
+        by_key.get(DIAG_TUNABLES)
+    )
+
+
+async def cap_and_tunables_in_scope(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> tuple[OpenAICap, dict[str, Any]]:
+    """The cached pair, else the read (and cache it); the caller holds the shop's scope."""
+    hit = cached_cap_and_tunables(shop_id)
+    if hit is not None:
+        return hit
+    cap, tunables = await _read_cap_and_tunables(session, shop_id)
+    _remember_cap_and_tunables(shop_id, cap, tunables)
+    return cap, tunables
 
 
 async def get_settings(session: AsyncSession, shop_id: uuid.UUID) -> ShopSettingsView:
@@ -302,6 +410,8 @@ async def update_settings(
     if "stage" in changes and stage not in STAGES:
         raise SettingsError(f"stage must be one of {', '.join(STAGES)}")
     moment = now or utc_now_naive()
+    # P29: before the write; the route forgets it again after its COMMIT.
+    forget_cap_and_tunables(shop_id)
     cap_before, tunables_before = await _cap_and_tunables(session, shop_id)
     cap_after, tunables_after = cap_before, tunables_before
     tunable_changes = {k: v for k, v in clean.items() if k in TUNABLE_FIELDS}

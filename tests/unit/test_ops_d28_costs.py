@@ -18,6 +18,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
+from juli_backend.api.routes.ops import get_ops_user
 from juli_backend.core.security import get_current_user
 from juli_backend.models.content_analysis import ContentAnalysis
 from juli_backend.models.models import Shop, User
@@ -55,6 +56,8 @@ def _client_as(session, user: User):
         return user
 
     app.dependency_overrides[get_current_user] = current
+
+    app.dependency_overrides[get_ops_user] = current
     return client_for(app)
 
 

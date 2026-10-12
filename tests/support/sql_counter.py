@@ -8,8 +8,15 @@ counts the things that each cost one:
   reads, writes, ``set_config(...)`` for tenant scope, ``SET LOCAL ROLE``,
   ``SELECT current_user``;
 - every transaction boundary: ``BEGIN`` (asyncpg sends it as its own message
-  before the first statement), ``COMMIT`` and ``ROLLBACK``; ``SAVEPOINT`` /
-  ``RELEASE`` too.
+  before the first statement), ``COMMIT`` and ``ROLLBACK``. ``SAVEPOINT`` /
+  ``RELEASE`` / ``ROLLBACK TO`` are counted ONCE, as the statements the dialect
+  executes through the cursor (P29: they used to be counted twice, once more
+  from the savepoint event, so a savepoint pair read as four round trips).
+
+Not counted, and real in production: asyncpg's ``prepare`` of a statement text
+the connection has not seen yet (one extra round trip per new statement shape
+per connection). ``tests/integration/test_ops_round_trips.py`` therefore counts
+the second, warm call.
 
 Usage::
 
@@ -43,7 +50,7 @@ class Seen:
 
     @property
     def transactions(self) -> int:
-        """Transaction-control round trips: BEGIN / COMMIT / ROLLBACK / SAVEPOINT."""
+        """Transaction-control round trips: BEGIN / COMMIT / ROLLBACK."""
         return sum(1 for e in self.events if e.startswith("<"))
 
     @property
@@ -79,9 +86,6 @@ class SqlCounter:
         event.listen(sync_engine, "begin", counter._on_begin)
         event.listen(sync_engine, "commit", counter._on_commit)
         event.listen(sync_engine, "rollback", counter._on_rollback)
-        event.listen(sync_engine, "savepoint", counter._on_savepoint)
-        event.listen(sync_engine, "release_savepoint", counter._on_release)
-        event.listen(sync_engine, "rollback_savepoint", counter._on_rollback_savepoint)
         return counter
 
     def detach(self) -> None:
@@ -90,9 +94,6 @@ class SqlCounter:
             ("begin", self._on_begin),
             ("commit", self._on_commit),
             ("rollback", self._on_rollback),
-            ("savepoint", self._on_savepoint),
-            ("release_savepoint", self._on_release),
-            ("rollback_savepoint", self._on_rollback_savepoint),
         ):
             event.remove(self._engine, name, fn)
 
@@ -120,15 +121,6 @@ class SqlCounter:
 
     def _on_rollback(self, conn: Any) -> None:
         self._record("<ROLLBACK>")
-
-    def _on_savepoint(self, conn: Any, name: str) -> None:
-        self._record("<SAVEPOINT>")
-
-    def _on_release(self, conn: Any, name: str, context: Any) -> None:
-        self._record("<RELEASE SAVEPOINT>")
-
-    def _on_rollback_savepoint(self, conn: Any, name: str, context: Any) -> None:
-        self._record("<ROLLBACK TO SAVEPOINT>")
 
 
 __all__ = ["Seen", "SqlCounter"]
