@@ -79,7 +79,9 @@ def summarise(
 ) -> list[Row]:
     rows: list[Row] = []
     for (method, route), durations in groups.items():
-        if prefix and not route.startswith(prefix):
+        # Routes inside the mounted /v1 sub-app may be logged without the mount
+        # prefix ("/ops/me"), so "/v1/ops" also matches them.
+        if prefix and not (route.startswith(prefix) or ("/v1" + route).startswith(prefix)):
             continue
         if len(durations) < min_count:
             continue
