@@ -1,0 +1,32 @@
+{
+ "code": 0,
+ "msg": "ok",
+ "result": {
+  "total": 2,
+  "item": [
+   {
+    "item_id": 111222333,
+    "item_name": "Sản phẩm mẫu A",
+    "sales": 300000,
+    "orders": 1.5,
+    "units": 2,
+    "buyers": 1,
+    "product_impressions": 900,
+    "product_clicks": 30,
+    "ctr": 0.0333,
+    "sales_ratio": 0.3,
+    "image": "x.jpg",
+    "sales_pct_diff": 0.1
+   },
+   {
+    "item_id": "444555666",
+    "item_name": "Sản phẩm mẫu B",
+    "sales": 0,
+    "orders": 0,
+    "product_impressions": 10,
+    "product_clicks": 0,
+    "ctr": 0
+   }
+  ]
+ }
+}

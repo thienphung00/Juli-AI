@@ -345,6 +345,70 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/ingest/pair",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ingest/pairing-codes",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/ingest/status",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ingest/status",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ingest/token/rotate",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ingest/tokens",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/ingest/tokens/{token_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/ingest/{platform}/{dataset}",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": false,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/audit",
       "methods": [
         "GET"
@@ -786,6 +850,14 @@
       ],
       "requires_auth": true,
       "tenant_scoped": true
+    },
+    {
+      "path": "/v1/shops/shopee",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
     },
     {
       "path": "/v1/workflow-outcomes/{approval_id}",

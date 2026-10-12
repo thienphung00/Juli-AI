@@ -1,0 +1,27 @@
+{
+ "code": 0,
+ "msg": "ok",
+ "result": {
+  "total": 1,
+  "need_upload_item": false,
+  "items": [
+   {
+    "item_id": 111222333,
+    "name": "Sản phẩm mẫu A",
+    "confirmed_sales": 300000,
+    "confirmed_orders": 1.5,
+    "confirmed_units": 2,
+    "confirmed_buyers": 1,
+    "placed_sales": 350000,
+    "impressions": 900,
+    "clicks": 30,
+    "ctr": 0.0333,
+    "uv": 25,
+    "atc_uv": 4,
+    "atc_rate": 0.16,
+    "conversion_rate": 0.05,
+    "status": 1
+   }
+  ]
+ }
+}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <title>Juli Connector</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h1>Juli Connector</h1>
+    <form id="pair-form">
+      <label for="code">Mã kết nối từ Juli</label>
+      <input id="code" name="code" autocomplete="off" placeholder="ABCDE-FGHJK" maxlength="16" required />
+      <button type="submit">Kết nối</button>
+      <p id="pair-error" role="alert"></p>
+      <p class="hint">Trong Juli, mở Cài đặt › Kết nối Shopee và chọn “Tạo mã kết nối”. Mã dùng một lần, hết hạn sau 10 phút.</p>
+    </form>
+    <section id="paired" hidden>
+      <p>Đã kết nối. Hết hạn: <span id="token-expiry"></span></p>
+      <p>Đồng bộ gần nhất: <span id="last-sync"></span></p>
+      <ul id="datasets"></ul>
+      <button id="sync-now" type="button">Đồng bộ hôm qua</button>
+      <button id="unpair" type="button" class="secondary">Ngắt kết nối trên trình duyệt này</button>
+    </section>
+    <script src="popup.js"></script>
+  </body>
+</html>

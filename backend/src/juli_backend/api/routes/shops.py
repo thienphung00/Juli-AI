@@ -1,7 +1,7 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
@@ -59,6 +59,51 @@ async def list_shops(
     """Return all shops belonging to the authenticated user."""
     shops = await ShopsRepo(session).list(user.id)
     return shops[offset : offset + limit]
+
+
+class ShopeeShopRequest(BaseModel):
+    """D31.1: a Shopee shop for the signed-in seller (no Shopee OAuth yet)."""
+
+    shop_name: str = Field(min_length=1, max_length=200)
+    shopee_shop_id: str | None = Field(default=None, pattern=r"^[0-9]{1,32}$")
+
+
+class ShopeeShopResponse(BaseModel):
+    id: uuid.UUID
+    shop_name: str
+    platform: str
+    shopee_shop_id: str | None
+
+    model_config = {"from_attributes": True}
+
+
+@router.post("/shopee", response_model=ShopeeShopResponse, status_code=status.HTTP_201_CREATED)
+async def create_shopee_shop(
+    body: ShopeeShopRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Shop:
+    """Connect a Shopee shop: a ``platform='shopee'`` shop fed by the Juli Connector.
+
+    The seller then creates a pairing code for it (``POST /v1/ingest/pairing-codes``
+    with ``X-Shop-Id``) and types it into the extension.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    from juli_backend.services.ingest import connect_shopee_shop
+
+    try:
+        shop = await connect_shopee_shop(
+            session, user_id=user.id, shop_name=body.shop_name, shopee_shop_id=body.shopee_shop_id
+        )
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "shopee_shop_taken"},
+        ) from None
+    return shop
 
 
 @router.get("/me", response_model=ShopResponse)

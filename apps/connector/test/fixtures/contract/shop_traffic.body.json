@@ -1,0 +1,47 @@
+{
+ "source": "extension",
+ "source_version": "0.1.0",
+ "captured_at": "2026-10-12T03:00:00.000Z",
+ "period": {
+  "start": "2026-10-11",
+  "end": "2026-10-11",
+  "granularity": "day"
+ },
+ "order_type": null,
+ "rows": [
+  {
+   "date": "2026-10-11",
+   "device": "all",
+   "page_views": 300,
+   "avg_page_views": 2.5,
+   "avg_stay_time": 90,
+   "bounce_rate": 0.42,
+   "visitors": 120,
+   "new_visitors": 80,
+   "existing_visitors": 40,
+   "new_followers": 5
+  },
+  {
+   "date": "2026-10-11",
+   "device": "pc",
+   "page_views": 200,
+   "avg_page_views": 2.5,
+   "avg_stay_time": 90,
+   "bounce_rate": 0.42,
+   "visitors": 80,
+   "new_visitors": 60,
+   "existing_visitors": 20
+  },
+  {
+   "date": "2026-10-11",
+   "device": "app",
+   "page_views": 100,
+   "avg_page_views": 2.5,
+   "avg_stay_time": 90,
+   "bounce_rate": 0.42,
+   "visitors": 40,
+   "new_visitors": 40,
+   "existing_visitors": 0
+  }
+ ]
+}
