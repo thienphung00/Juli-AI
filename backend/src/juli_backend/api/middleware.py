@@ -18,11 +18,14 @@ nothing an attacker can use to map internals.
 from __future__ import annotations
 
 import logging
+import os
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from juli_backend.core.observability import (
     CORRELATION_ID_HEADER,
@@ -36,6 +39,13 @@ from juli_backend.core.observability import (
 logger = logging.getLogger(__name__)
 
 GENERIC_ERROR_DETAIL = "Internal server error"
+
+HTTP_TIMING_LOG_ENV = "HTTP_TIMING_LOG"
+HTTP_REQUEST_EVENT = "http_request"
+UNMATCHED_ROUTE = "unmatched"
+# Probed every few seconds by the deploy and uptime checks; timing it would drown the
+# signal the latency report is for.
+_UNTIMED_PATHS = frozenset({"/health"})
 
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
@@ -87,3 +97,90 @@ def install_error_boundary(app: FastAPI) -> None:
             body["request_id"] = correlation_id
             headers[CORRELATION_ID_HEADER] = correlation_id
         return JSONResponse(status_code=500, content=body, headers=headers)
+
+
+def http_timing_enabled() -> bool:
+    """``HTTP_TIMING_LOG`` defaults on; only the literal ``"0"`` turns it off."""
+    return os.environ.get(HTTP_TIMING_LOG_ENV, "1").strip() != "0"
+
+
+def _route_template(scope: Scope) -> str:
+    """The matched route's template (``/v1/ops/shops/{shop_id}``), never the raw path.
+
+    FastAPI's router writes the matched route into the (shared, mutated) scope during
+    routing, so it is readable here once the inner app has run. The raw path is never a
+    fallback: it carries shop ids and other identifiers, and these logs live on the VPS.
+    """
+    route = scope.get("route")
+    path = getattr(route, "path", None)
+    return path if isinstance(path, str) and path else UNMATCHED_ROUTE
+
+
+class RequestTimingMiddleware:
+    """Log one ``http_request`` event per request with its server-side duration (P21).
+
+    Pure ASGI rather than ``BaseHTTPMiddleware`` so streaming responses and background
+    tasks are not buffered or cut short, and so the clock stops when the last body chunk
+    is sent rather than when the handler returns.
+
+    The event carries only ``route`` (template), ``method``, ``status`` and
+    ``duration_ms``; the correlation id is added by the JSON formatter from context when
+    this middleware runs inside ``CorrelationIdMiddleware``. No query string, headers,
+    body or user/shop identifiers — by construction, not by redaction.
+
+    It also sets ``Server-Timing: app;dur=<ms>`` on the response. That header has to be
+    sent before the body, so its duration is time-to-headers, a little under the logged
+    ``duration_ms``.
+    """
+
+    def __init__(self, app: ASGIApp, *, enabled: bool | None = None) -> None:
+        self.app = app
+        self.enabled = http_timing_enabled() if enabled is None else enabled
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if not self.enabled or scope["type"] != "http" or scope.get("path") in _UNTIMED_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        start = time.perf_counter()
+        status = 500
+        logged = False
+
+        def _log() -> None:
+            nonlocal logged
+            if logged:
+                return
+            logged = True
+            logger.info(
+                HTTP_REQUEST_EVENT,
+                extra={
+                    "route": _route_template(scope),
+                    "method": scope.get("method", ""),
+                    "status": status,
+                    "duration_ms": round((time.perf_counter() - start) * 1000, 1),
+                },
+            )
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = int(message["status"])
+                dur = (time.perf_counter() - start) * 1000
+                headers = list(message.get("headers", []))
+                headers.append((b"server-timing", f"app;dur={dur:.1f}".encode("latin-1")))
+                message = {**message, "headers": headers}
+            await send(message)
+            if message["type"] == "http.response.body" and not message.get("more_body", False):
+                _log()
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except BaseException:
+            # The error boundary outside this middleware turns it into a 500; record it
+            # as one and let it propagate unchanged.
+            status = 500
+            _log()
+            raise
+        # A response that never sent a final body chunk (client disconnect, an app that
+        # only sent headers) is still one request.
+        _log()

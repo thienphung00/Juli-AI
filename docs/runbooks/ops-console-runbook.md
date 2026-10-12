@@ -244,6 +244,37 @@ SECURITY DEFINER function). Check: `SELECT version_num FROM alembic_version;` �
   actions answer 403 with the contact address); data sync continues, so a new period
   resumes everything at once.
 
+## Đo latency
+
+Since P21 the API logs one JSON event per request (every route, not only Ops; `/health` is
+skipped):
+
+```json
+{"event": "http_request", "route": "/v1/ops/shops/{shop_id}/simulation", "method": "GET",
+ "status": 200, "duration_ms": 184.2, "correlation_id": "…", "level": "INFO", …}
+```
+
+`route` is the route **template** (never the raw path, query string, ids or e-mails;
+`unmatched` for a 404 with no route). `duration_ms` is server-side time until the response
+body is handed off — it excludes nginx, Cloudflare and the network. Every response also
+carries `Server-Timing: app;dur=<ms>` (time to headers), visible in the browser's Network
+tab → Timing. `HTTP_TIMING_LOG=0` in the API env turns both off.
+
+p50/p90/p95/p99 per route, on the VPS (stdlib only, system `python3`). The script ships
+with the live release, so use `~/releases/current`, not `/root/Juli-AI-v2` (the canonical
+checkout is not moved to each deploy's commit). The serving unit is the deploy's transient
+`juli-api-candidate-<port>`; after a reboot it is `juli-api` until the next deploy, so read
+both:
+
+```bash
+journalctl -u juli-api -u 'juli-api-candidate-*' --since '24 hours ago' -o cat \
+  | python3 /root/releases/current/infra/scripts/latency_report.py --prefix /v1/ops
+```
+
+Options: `--prefix` (omit for every route), `--min-count N` (hide rarely-hit routes). Output
+is sorted by p95, slowest first; non-JSON lines are ignored. Percentiles are nearest-rank,
+so on a route with fewer than ~20 requests p95/p99 are effectively the max.
+
 ## Rollback
 
 Remove the vhost (`sudo rm /etc/nginx/sites-enabled/ops.app-juli.com.conf && sudo nginx -t &&
