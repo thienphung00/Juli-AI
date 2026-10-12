@@ -20,8 +20,8 @@ clicks; AOV = GMV ÷ SKU orders. Pure.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -35,6 +35,22 @@ EVIDENCE_WINDOW_DAYS = 30
 
 
 @dataclass(frozen=True)
+class ChannelTraffic:
+    """One content type's share of a product-day (A-33 ``traffic.breakdowns[]``).
+
+    ``impressions`` and ``clicks`` (``round(impressions × ctr)``, the mapper's
+    derivation) come from the traffic breakdown; ``gmv`` from the sales
+    breakdown of the same response, ``None`` when TikTok sent none for the
+    content type. A-33 carries no per-content-type SKU orders, so CTOR and AOV
+    are never read per channel (ADR-106 Amendment 2).
+    """
+
+    impressions: Decimal = ZERO
+    clicks: Decimal = ZERO
+    gmv: Decimal | None = None
+
+
+@dataclass(frozen=True)
 class ProductDay:
     """One product's all-channel analytics for one day.
 
@@ -43,6 +59,10 @@ class ProductDay:
     stores only for days fetched as single-day windows; ``None`` when the day
     has no such row. ``cart_clicks`` is kept apart from ``clicks`` (A-33) so
     the add-to-cart rate divides two numbers from the same response.
+
+    ``channels`` (D32): A-33 content type (``PRODUCT_CARD`` / ``VIDEO`` /
+    ``LIVE``) -> that channel's traffic for the day; empty when the day was
+    stored without a breakdown.
     """
 
     day: date
@@ -53,6 +73,7 @@ class ProductDay:
     gmv: Decimal = ZERO
     add_to_cart: Decimal | None = None
     cart_clicks: Decimal | None = None
+    channels: Mapping[str, ChannelTraffic] = field(default_factory=dict, hash=False)
 
 
 @dataclass(frozen=True)

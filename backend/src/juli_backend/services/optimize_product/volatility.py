@@ -245,6 +245,9 @@ class Kpi:
     low_data: bool
     #: D29.10: a volatile product is judged at day 14 only.
     day14_only: bool = False
+    #: D32: the channel the KPI is read and measured on (``kpi_channel``):
+    #: ``product_card`` / ``video`` / ``live``, or ``total`` (all channels).
+    channel: str = "total"
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -258,6 +261,7 @@ class Kpi:
             "window_days": self.window_days,
             "low_data": self.low_data,
             "day14_only": self.day14_only,
+            "channel": self.channel,
         }
 
 
@@ -272,6 +276,7 @@ def kpi_target(
     volatile: bool,
     low_data: bool = False,
     predicted: tuple[float, float] | None = None,
+    channel: str = "total",
 ) -> Kpi:
     """Reference clamped to ``[current + min × band, current + max × band]``.
 
@@ -299,6 +304,7 @@ def kpi_target(
         window_days=window_days,
         low_data=low_data,
         day14_only=volatile,
+        channel=channel,
     )
 
 
@@ -514,6 +520,7 @@ __all__ = [
     "WindowCounts",
     "assess_product",
     "confidence",
+    "daily_cv",
     "decompose",
     "guard_bands",
     "kpi_target",

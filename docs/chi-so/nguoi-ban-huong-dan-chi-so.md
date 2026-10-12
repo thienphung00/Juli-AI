@@ -141,6 +141,12 @@ Ngay sau khi bạn kết nối shop, Juli tạo vài thẻ **Đề xuất nhanh 
   shop.
 - Mục tiêu là một **khoảng** khi sản phẩm lên xuống nhiều từng ngày; khi đó Juli chỉ chốt kết quả ở
   ngày 14.
+- Thẻ ghi rõ Juli đo trên kênh nào, ví dụ "· 30 ngày · đo trên kênh Thẻ sản phẩm". Ảnh bìa, tiêu đề
+  và mô tả chỉ hiện trên thẻ sản phẩm (tìm kiếm, gợi ý, trang shop, tab Cửa hàng), không hiện trong video
+  hay LIVE, nên Juli đặt và chấm mục tiêu CTR trên đúng kênh đó: lượt nhấp từ video không làm mục tiêu
+  lên xuống theo. Giảm giá, flash sale, giảm phí vận chuyển và mua nhiều giảm nhiều hiện ở mọi kênh nên
+  được đo "trên tất cả kênh". CTOR và AOV luôn đo trên tất cả kênh. Khi kênh của thay đổi có quá ít
+  lượt nhấp, Juli cũng đo trên tất cả kênh và thẻ ghi "đo trên tất cả kênh".
 
 **Độ tin cậy**:
 

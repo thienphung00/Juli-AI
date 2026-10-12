@@ -89,7 +89,12 @@ export interface CardKpiTarget {
   readonly band_pct?: number | null;
   readonly window_days?: 14 | 30 | 60 | number | null;
   readonly low_data?: boolean | null;
+  /** D32: the channel the KPI is read and measured on; absent on cards from before D32. */
+  readonly channel?: CardKpiChannel | null;
 }
+
+/** D32 `kpi.channel`: the lever's channel, or "total" (all channels, also the fallback). */
+export type CardKpiChannel = "product_card" | "video" | "live" | "total";
 
 export interface CardGmvEstimate {
   readonly per_month_min: number | null;

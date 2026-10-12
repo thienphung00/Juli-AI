@@ -705,3 +705,14 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] UI (fork): Home has no cards list, so the poll only re-reads Home's and Phân tích's report (once step 2 is done and the report was empty); Phân tích's per-cell "Xem đề xuất" counts are not refreshed.
 - [ ] UI (fork): the first onboarding read does not re-read Quyết định's cards (it lands with the page's own read), so new cards appear from the second poll (~15 s after load).
 - [ ] Pre-existing, not P17: `tests/harness/test_module_md_sync_parser.py` (2) fails at 09960b20 too (P14 drift + stale `_WEEKLY_NOVELTY_CAP` entry); regenerate the allowlist in an integration pass.
+
+## P27 (D32) shortcuts and open risks
+
+- [ ] Per-channel CTOR / AOV need per-channel SKU orders: persist A-34's
+  `seller_product_card_performance` (+ `shop_tab_performance`) blocks per product-day
+  (`attributed_sku_orders`, `attributed_gmv`) — the same fetch DEBT P7-B already asks for.
+  Until then a Mô tả / price card's CTOR is all-channel by necessity.
+- [ ] Per-channel clicks are the mapper's `round(impressions × ctr)` from A-33; at TikTok's
+  CTR precision the error is well under one click a day per channel, but it is derived, not a
+  count TikTok reports.
+- [ ] Category benchmarks (D29.3) are all-channel and are not used for a channel KPI.

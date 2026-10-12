@@ -14,7 +14,10 @@ target metric = its stage's metric) and replaces its numbers with D29's:
 - KPI = the higher of the card's old reference and the product's own earlier
   level (D29.3), clamped to [current + min × band, current + max × band] (D29.7),
   a range when the product is volatile (D29.10);
-- "Độ tin cậy" (D29.6) and the GMV range per month (D30.3).
+- "Độ tin cậy" (D29.6) and the GMV range per month (D30.3);
+- D32: all of it on the channel the card's lever acts on (``kpi_channel``),
+  all channels when that channel is thin; on a channel the card's old
+  reference (an all-channel shop median) is not comparable and is dropped.
 
 ``None`` when the card already has a D29 ``kpi`` or the KPI cannot be
 recomputed (no daily rows, no band): the card is then shown as before, and the
@@ -29,6 +32,7 @@ from datetime import date
 from typing import Any
 
 from juli_backend.services.optimize_product.daily_funnel import ProductDay
+from juli_backend.services.optimize_product.kpi_channel import channel_gmv_per_day, kpi_window
 from juli_backend.services.optimize_product.prediction import gmv_range_per_month
 from juli_backend.services.optimize_product.tunables import DiagTunables
 from juli_backend.services.optimize_product.volatility import (
@@ -37,6 +41,7 @@ from juli_backend.services.optimize_product.volatility import (
     confidence,
     kpi_target,
     select_window,
+    stability,
     window_counts,
 )
 
@@ -99,13 +104,23 @@ def rescore_legacy_payload(
     metric = legacy_metric(payload)
     if metric is None or not rows:
         return None
-    window = select_window(rows, as_of, metric, tunables)
+    lever = diagnosis.get("lever")
+    lever_code = lever.get("code") if isinstance(lever, Mapping) else None
+    kw = kpi_window(
+        rows,
+        as_of=as_of,
+        metric=metric,
+        lever=str(lever_code) if lever_code else None,
+        tunables=tunables,
+        total=select_window(rows, as_of, metric, tunables),
+    )
+    window = kw.window
     current = window.value
     if current is None or current <= 0 or window.band_pct is None:
         return None
     basis = diagnosis.get("recoverable_gmv_basis")
     basis = basis if isinstance(basis, Mapping) else {}
-    old_reference = _num(basis.get("reference_rate"))
+    old_reference = None if kw.per_channel else _num(basis.get("reference_rate"))
     options = [
         (value, source)
         for value, source in (
@@ -118,7 +133,12 @@ def rescore_legacy_payload(
     assessment = assess_product(
         str(diagnosis.get("tiktok_product_id") or ""), rows, as_of=as_of, tunables=tunables
     )
-    volatile = assessment.stability == "volatile"
+    cv = kw.impressions_cv(as_of) if kw.per_channel else assessment.impressions_cv
+    volatile = (
+        stability(cv, tunables) == "volatile"
+        if kw.per_channel
+        else assessment.stability == "volatile"
+    )
     kpi = kpi_target(
         metric=metric,
         current=current,
@@ -128,14 +148,18 @@ def rescore_legacy_payload(
         tunables=tunables,
         volatile=volatile,
         low_data=window.low_data,
+        channel=kw.channel,
     )
     level = confidence(
         events=window.events,
-        cv=assessment.impressions_cv,
+        cv=cv,
         low_data=window.low_data,
         tunables=tunables,
     )
     gmv_day = window_counts(rows, as_of, window.window_days).value("gmv") or 0.0
+    if kw.per_channel:
+        channel_gmv = channel_gmv_per_day(rows, kw.channel, as_of, window.window_days)
+        gmv_day = channel_gmv if channel_gmv is not None else gmv_day
     low, high = gmv_range_per_month(gmv_day, current, kpi.target_min, kpi.target_max)
     recoverable = gmv_day * max(kpi.target / current - 1, 0.0)
 
@@ -149,6 +173,7 @@ def rescore_legacy_payload(
             "reference_rate": kpi.target,
             "reference": source,
             "window_days": window.window_days,
+            "channel": kw.channel,
         }
     )
     new_diagnosis["recoverable_gmv_basis"] = new_basis
@@ -174,6 +199,7 @@ def rescore_legacy_payload(
                 "window_days": kpi.window_days,
                 "low_data": kpi.low_data,
                 "day14_only": kpi.day14_only,
+                "channel": kpi.channel,
             },
             "gmv_estimate": {
                 "per_month_min": float(round(low)),

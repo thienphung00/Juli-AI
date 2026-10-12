@@ -139,7 +139,9 @@ async def test_the_decisions_list_carries_the_card_block(session, shop_a):
     basis = diagnosis["recoverable_gmv_basis"]
     assert card["main_kpi"] == {
         "key": basis["stage_rate"],
-        "label": "CTR - Thẻ sản phẩm",
+        # D32: the seeded rows carry no per-channel breakdown, so the title card's
+        # CTR is read on all channels and the label names the metric alone.
+        "label": "CTR",
         "current": pytest.approx(basis["current_rate"]),
         "target": pytest.approx(basis["reference_rate"]),
         "unit": "ratio",

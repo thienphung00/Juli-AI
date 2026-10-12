@@ -30,6 +30,7 @@ stay report-only. Pure.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -45,7 +46,7 @@ from juli_backend.services.optimize_product.cards import (
 )
 from juli_backend.services.optimize_product.catalog_scan import diagnose_all
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
-from juli_backend.services.optimize_product.daily_funnel import ProductDay
+from juli_backend.services.optimize_product.daily_funnel import ProductDay, product_funnel
 from juli_backend.services.optimize_product.diagnosis import (
     BRANCH_ORDER,
     Angle,
@@ -62,6 +63,11 @@ from juli_backend.services.optimize_product.diagnosis import (
 )
 from juli_backend.services.optimize_product.eligibility import gift_reason
 from juli_backend.services.optimize_product.funnel import FunnelWindow, ProductFunnel, ShopMedians
+from juli_backend.services.optimize_product.kpi_channel import (
+    channel_days,
+    channel_gmv_per_day,
+    kpi_window,
+)
 from juli_backend.services.optimize_product.listing_signals import (
     Evidence,
     derive_local_evidence,
@@ -90,10 +96,15 @@ from juli_backend.services.optimize_product.volatility import (
     STABILITY_ORDER,
     Assessment,
     Kpi,
+    MetricWindow,
     assess_product,
     kpi_target,
     reference_for,
+    stability,
     window_counts,
+)
+from juli_backend.services.optimize_product.volatility import (
+    confidence as confidence_level,
 )
 
 #: Version of the card payload shape; bump when ``diagnosis`` changes shape.
@@ -236,9 +247,14 @@ class CardProposal:
     d29_ranking_value: Decimal | None = None
     #: D29.4: other cards of the same product and target metric in this plan.
     sibling_cards: int = 0
+    #: D32: "Độ tin cậy" of a KPI read on the lever's channel (its events and
+    #: impressions CV); ``None`` keeps the product's all-channel confidence.
+    kpi_confidence: str | None = None
 
     @property
     def confidence(self) -> str | None:
+        if self.kpi_confidence is not None:
+            return self.kpi_confidence
         return self.assessment.confidence if self.assessment is not None else None
 
     @property
@@ -795,6 +811,116 @@ def _d29_levers(
     return None, [], None
 
 
+@dataclass(frozen=True)
+class _KpiBasis:
+    """What one (product, lever) KPI is built on (D29 on the D32 channel)."""
+
+    channel: str
+    window: MetricWindow
+    rows: tuple[ProductDay, ...]
+    reference: float
+    source: str
+    medians: ShopMedians
+    #: ``None``: the product's all-channel confidence (``Assessment.confidence``).
+    confidence: str | None
+    volatile: bool
+    gmv_per_day: float
+
+
+def _channel_medians(
+    channel: str,
+    funnels: list[ProductFunnel],
+    excluded: dict[str, str],
+    daily: dict[str, list[ProductDay]],
+    *,
+    cache: dict[str, ShopMedians],
+    as_of: date,
+    config: StageDiagnosisConfig,
+) -> ShopMedians:
+    """The shop medians over every product's projection onto ``channel`` (same floors)."""
+    if channel not in cache:
+        cache[channel] = ShopMedians.from_products(
+            (
+                product_funnel(
+                    f.product_id,
+                    f.title,
+                    channel_days(daily.get(f.product_id, []), channel),
+                    as_of=as_of,
+                    config=config,
+                )
+                for f in funnels
+                if f.product_id not in excluded
+            ),
+            config,
+        )
+    return cache[channel]
+
+
+def _kpi_basis(
+    rows: list[ProductDay],
+    *,
+    as_of: date,
+    metric: str,
+    lever: str,
+    tunables: DiagTunables,
+    total: MetricWindow,
+    assessment: Assessment,
+    medians: ShopMedians,
+    channel_medians: Callable[[str], ShopMedians],
+    benchmark: float | None,
+) -> _KpiBasis:
+    """D32: the KPI window, reference, confidence and GMV/day on the lever's channel.
+
+    All-channel (``total``): D29 unchanged -- the shop median, the product's own
+    earlier level and the category benchmark; the product's confidence and
+    stability; the product's GMV/day. On a channel: the same rules over the
+    channel's own series -- the channel's shop median and earlier level (a
+    category benchmark is all-channel, so it is not used); confidence and
+    stability from the channel window's clicks and impressions CV; GMV/day of
+    the channel (TikTok's sales breakdown), the product's when none is stored.
+    """
+    kw = kpi_window(rows, as_of=as_of, metric=metric, lever=lever, tunables=tunables, total=total)
+    window = kw.window
+    current = window.value or 0.0
+    gmv_day = assessment.gmv_current or 0.0
+    conf: str | None = None
+    if not kw.per_channel:
+        used = medians
+        volatile = assessment.stability == "volatile"
+        bench = benchmark
+    else:
+        used = channel_medians(kw.channel)
+        cv = kw.impressions_cv(as_of)
+        conf = confidence_level(
+            events=window.events, cv=cv, low_data=window.low_data, tunables=tunables
+        )
+        volatile = stability(cv, tunables) == "volatile"
+        bench = None
+        channel_gmv = channel_gmv_per_day(rows, kw.channel, as_of, window.window_days)
+        if channel_gmv is not None:
+            gmv_day = channel_gmv
+    median = {"ctr": used.ctr, "ctor": used.ctor, "aov": used.aov}.get(metric)
+    reference, source = reference_for(
+        metric,
+        shop_median=float(median) if median is not None else None,
+        earlier=window.earlier,
+        benchmark=bench,
+    )
+    if reference is None:
+        reference, source = current, "current"
+    return _KpiBasis(
+        channel=kw.channel,
+        window=window,
+        rows=kw.rows,
+        reference=reference,
+        source=source or "current",
+        medians=used,
+        confidence=conf,
+        volatile=volatile,
+        gmv_per_day=gmv_day,
+    )
+
+
 def _plan_d29(
     funnels: list[ProductFunnel],
     catalog: dict[str, CatalogProduct],
@@ -822,6 +948,7 @@ def _plan_d29(
         STATUS_CODE_NEEDS_CAP: [],
         STATUS_CODE_NOT_ASKED: [],
     }
+    channel_medians: dict[str, ShopMedians] = {}
     for funnel in funnels:
         pid = funnel.product_id
         if pid in excluded:
@@ -848,36 +975,44 @@ def _plan_d29(
         if status is None:
             skips.append(Skip(pid, funnel.title, f"d29:{SKIP_NO_LEVER}"))
             continue
-        median = {"ctr": medians.ctr, "ctor": medians.ctor, "aov": medians.aov}.get(metric)
-        reference, source = reference_for(
-            metric,
-            shop_median=float(median) if median is not None else None,
-            earlier=window.earlier,
-            benchmark=(benchmarks.get(pid) or {}).get(metric),
-        )
-        if reference is None:
-            reference, source = current, "current"
         product = catalog.get(pid) or CatalogProduct(pid, funnel.title)
         facts = listing_facts.get(pid) or ListingFacts(
             title=product.title, category=product.category, tiktok_asked=pid in asked
         )
         quality = quality_score(facts, evidence)
         gaps = compute_gaps(funnel, medians, config)
-        target_gap = _target_gap(metric, current, medians, window.earlier, window.low_data)
-        trigger = Trigger.OWN_TREND if source == "own_earlier" else Trigger.SHOP_MEDIAN
         reason = d29_reason(assessment, metric)
-        gmv_day = assessment.gmv_current or 0.0
-        volatile = assessment.stability == "volatile"
-        counts = window_counts(daily.get(pid, []), as_of, window.window_days)
-        last = FunnelWindow(
-            days=counts.days,
-            impressions=Decimal(str(counts.impressions)),
-            clicks=Decimal(str(counts.clicks)),
-            sku_orders=Decimal(str(counts.orders)),
-            gmv=Decimal(str(counts.gmv)),
-        )
+        rows = daily.get(pid, [])
         for angle in angles:
             lever = LEVER_CODES[angle]
+            # D32: the KPI is read on the channel the lever acts on.
+            basis = _kpi_basis(
+                rows,
+                as_of=as_of,
+                metric=metric,
+                lever=lever,
+                tunables=tunables,
+                total=window,
+                assessment=assessment,
+                medians=medians,
+                channel_medians=lambda ch: _channel_medians(
+                    ch, funnels, excluded, daily, cache=channel_medians, as_of=as_of, config=config
+                ),
+                benchmark=(benchmarks.get(pid) or {}).get(metric),
+            )
+            current = basis.window.value or 0.0
+            target_gap = _target_gap(
+                metric, current, basis.medians, basis.window.earlier, basis.window.low_data
+            )
+            trigger = Trigger.OWN_TREND if basis.source == "own_earlier" else Trigger.SHOP_MEDIAN
+            counts = window_counts(basis.rows, as_of, basis.window.window_days)
+            last = FunnelWindow(
+                days=counts.days,
+                impressions=Decimal(str(counts.impressions)),
+                clicks=Decimal(str(counts.clicks)),
+                sku_orders=Decimal(str(counts.orders)),
+                gmv=Decimal(str(counts.gmv)),
+            )
             prediction = predict(
                 lever,
                 quality.gap(lever),
@@ -887,14 +1022,16 @@ def _plan_d29(
             kpi = kpi_target(
                 metric=metric,
                 current=current,
-                band_pct=window.band_pct,
-                reference=reference,
-                window_days=window.window_days,
+                band_pct=basis.window.band_pct or 0.0,
+                reference=basis.reference,
+                window_days=basis.window.window_days,
                 tunables=tunables,
-                volatile=volatile,
-                low_data=window.low_data,
+                volatile=basis.volatile,
+                low_data=basis.window.low_data,
                 predicted=prediction.metric_range(current),
+                channel=basis.channel,
             )
+            gmv_day = basis.gmv_per_day
             recoverable = Decimal(str(gmv_day * max(kpi.target / current - 1, 0.0)))
             low, high = gmv_range_per_month(gmv_day, current, kpi.target_min, kpi.target_max)
             lever_history = history.get(lever)
@@ -941,15 +1078,17 @@ def _plan_d29(
                         "stage_rate": metric,
                         "current_rate": current,
                         "reference_rate": kpi.target,
-                        "reference": source,
+                        "reference": basis.source,
                         "volume_per_day": float(_volume_per_day(metric, last)),
                         "aov": None if last.aov is None else float(last.aov),
-                        "window_days": window.window_days,
+                        "window_days": basis.window.window_days,
+                        "channel": basis.channel,
                     },
                     history=lever_history,
                     assessment=assessment,
                     target_metric=metric,
                     kpi=kpi,
+                    kpi_confidence=basis.confidence,
                     quality=quality,
                     prediction=prediction,
                     gmv_estimate=(low, high),
