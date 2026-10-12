@@ -236,3 +236,91 @@ export interface SimulationPage extends Freshness {
   readonly rebuilding?: boolean;
   readonly scenarios: readonly Scenario[];
 }
+
+/* -- D28.3 tab "Chi phí" (`/v1/ops/costs*`) ------------------------------------------ */
+
+export interface SystemCost {
+  readonly month: string;
+  readonly used_usd: number;
+  readonly cap_usd: number;
+  readonly cap_is_default: boolean;
+  readonly cap_updated_at: string | null;
+  readonly cap_updated_by: string | null;
+  /** used / cap as a fraction (0.82 = 82 %). */
+  readonly pct: number;
+  /** 80 (≥ 80 %), 100 (reached) or null. */
+  readonly level: 80 | 100 | null;
+  readonly reached: boolean;
+  /** This month's alert e-mail went out to the Admins. */
+  readonly alert_sent?: boolean;
+}
+
+export type ShopCostState = "ok" | "shop_cap" | "system_cap";
+
+export interface ShopCost {
+  readonly shop_id: string;
+  readonly shop_name: string;
+  readonly stage: StageId;
+  readonly stage_label: string;
+  readonly used_usd: number;
+  readonly cap_usd: number;
+  /** A cap set for this shop ("· riêng"); false = the default. */
+  readonly is_custom: boolean;
+  readonly state: ShopCostState;
+}
+
+export interface CostsPage {
+  readonly system: SystemCost;
+  readonly warn_pct: number;
+  readonly days_left_in_month: number;
+  readonly default_shop_cap_usd: number;
+  readonly seller_paused_text: string;
+  readonly shops: readonly ShopCost[];
+}
+
+/* -- D28.4 tab "Thời hạn" (`/v1/ops/terms`, `/v1/ops/shops/{id}/terms`) ----------------- */
+
+export type TermState = "none" | "ok" | "soon" | "grace" | "read_only";
+
+export interface Term {
+  readonly state: TermState;
+  readonly expires_on: string | null;
+  readonly days_left: number | null;
+  readonly grace_days_left: number | null;
+}
+
+export interface SubscriptionPeriod {
+  readonly id: string;
+  readonly plan: "month" | "year";
+  readonly days: 30 | 365;
+  readonly starts_on: string;
+  readonly ends_on: string;
+  readonly source: "contract" | "payment";
+  readonly reference: string;
+  readonly actor_email: string | null;
+  readonly created_at: string | null;
+}
+
+export interface ShopTermRow extends Term {
+  readonly shop_id: string;
+  readonly shop_name: string;
+  readonly stage: StageId;
+  readonly stage_label: string;
+  readonly latest_period: SubscriptionPeriod | null;
+}
+
+export interface TermsPage {
+  readonly today: string;
+  readonly soon_days: number;
+  readonly grace_days: number;
+  readonly shops: readonly ShopTermRow[];
+}
+
+export interface ShopTermsPage {
+  readonly shop: ShopInfo;
+  readonly today: string;
+  readonly term: Term;
+  readonly periods: readonly SubscriptionPeriod[];
+  readonly created?: boolean;
+  readonly period?: SubscriptionPeriod;
+}

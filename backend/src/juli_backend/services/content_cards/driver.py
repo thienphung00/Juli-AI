@@ -143,8 +143,10 @@ async def wiring_for_run(
 
 
 async def draft_gate_for(session: AsyncSession, shop_id: uuid.UUID) -> DraftGate:
-    """Juli Ops' model override and monthly-cap verdict for this shop (D25.4, D25.8)."""
+    """Juli Ops' model override and cap verdicts for this shop (D25.4, D25.8, D28.3),
+    and whether its term is read-only (D28.4)."""
     from juli_backend.services.ops import overrides as ops_overrides
+    from juli_backend.services.subscriptions import is_read_only
 
     current = await ops_overrides.shop_overrides(session, shop_id)
     cap = await ops_overrides.openai_cap_status(session, shop_id, overrides=current)
@@ -153,6 +155,7 @@ async def draft_gate_for(session: AsyncSession, shop_id: uuid.UUID) -> DraftGate
         cap_reached=cap.reached,
         spent_usd=float(cap.spent_usd),
         cap_usd=float(cap.cap_usd),
+        read_only=await is_read_only(session, shop_id),
     )
 
 

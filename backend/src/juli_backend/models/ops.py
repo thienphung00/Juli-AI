@@ -178,3 +178,20 @@ class OpsShopDailySummary(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     data_through: Mapped[date | None] = mapped_column(Date, nullable=True)
     generated_at: Mapped[datetime] = mapped_column()
+
+
+class OpsSystemSetting(Base):
+    """A system-wide Ops setting (D28.3, migration 086): key → JSON value.
+
+    ``openai_system_cap_usd`` (the monthly OpenAI limit of the whole system) and
+    ``openai_alert_sent`` (``{"month": "2026-10", "level": 80}``: the 80 % e-mail
+    of that month went out). Holds no shop data: ``juli_app`` may read it (the
+    OpenAI gates), only ``juli_ops`` writes it.
+    """
+
+    __tablename__ = "ops_system_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_by: Mapped[str | None] = mapped_column(String(320), nullable=True)

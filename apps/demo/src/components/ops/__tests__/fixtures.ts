@@ -1,4 +1,4 @@
-import type { Overview, ShopSettingsPage, SimulationPage, StreamId, ViewSession } from "../../../lib/ops/types";
+import type { CostsPage, Overview, ShopSettingsPage, ShopTermsPage, SimulationPage, StreamId, TermsPage, ViewSession } from "../../../lib/ops/types";
 
 /** Ops fixtures shared by vitest and Playwright (numbers from the artboards). */
 
@@ -213,4 +213,77 @@ export const SIMULATION_90: SimulationPage = {
   status: SIMULATION.windows[3],
   streams: [],
   volatility: {},
+};
+
+/* -- D28: tabs Chi phí and Thời hạn (artboards OpsOpenAICap, OpsShopTerm; today 12/10/2026) -- */
+
+const termRow = (o: Partial<TermsPage["shops"][number]>): TermsPage["shops"][number] => ({
+  shop_id: SHOP_ID,
+  shop_name: "Mỹ phẩm Thảo Nhi",
+  stage: "trial",
+  stage_label: "Thử nghiệm",
+  state: "ok",
+  expires_on: "2026-11-30",
+  days_left: 49,
+  grace_days_left: null,
+  latest_period: null,
+  ...o,
+});
+
+export const MB_SHOP_ID = "44444444-2222-4333-8444-555555555555";
+
+export const TERMS: TermsPage = {
+  today: "2026-10-12",
+  soon_days: 14,
+  grace_days: 7,
+  shops: [
+    termRow({}),
+    termRow({ shop_id: "22222222-2222-4333-8444-555555555555", shop_name: "Fujiwa Vietnam Store", stage: "pilot", stage_label: "Pilot đặc biệt", expires_on: "2027-02-01", days_left: 112 }),
+    termRow({ shop_id: "33333333-2222-4333-8444-555555555555", shop_name: "Gốm Hà Nam", stage: "self", stage_label: "Tự vận hành", state: "soon", expires_on: "2026-10-17", days_left: 5 }),
+    termRow({ shop_id: MB_SHOP_ID, shop_name: "Mẹ Bông Kids", state: "grace", expires_on: "2026-10-09", days_left: -3, grace_days_left: 4 }),
+    termRow({ shop_id: "55555555-2222-4333-8444-555555555555", shop_name: "An Diệp Home", stage: "self", stage_label: "Tự vận hành", state: "read_only", expires_on: "2026-09-30", days_left: -12 }),
+    termRow({ shop_id: "66666666-2222-4333-8444-555555555555", shop_name: "Shop Mới", state: "none", expires_on: null, days_left: null }),
+  ],
+};
+
+export const MB_TERMS: ShopTermsPage = {
+  shop: { shop_id: MB_SHOP_ID, shop_name: "Mẹ Bông Kids", owner_email: null, owned_by_team: false, staff_access_consent_at: null },
+  today: "2026-10-12",
+  term: { state: "grace", expires_on: "2026-10-09", days_left: -3, grace_days_left: 4 },
+  periods: [
+    {
+      id: "p1",
+      plan: "month",
+      days: 30,
+      starts_on: "2026-09-09",
+      ends_on: "2026-10-09",
+      source: "contract",
+      reference: "HĐ-2026-008",
+      actor_email: "thien.phung@app-juli.com",
+      created_at: "2026-09-09T02:00:00",
+    },
+  ],
+};
+
+export const COSTS: CostsPage = {
+  system: {
+    month: "2026-10",
+    used_usd: 41,
+    cap_usd: 50,
+    cap_is_default: true,
+    cap_updated_at: null,
+    cap_updated_by: null,
+    pct: 0.82,
+    level: 80,
+    reached: false,
+    alert_sent: true,
+  },
+  warn_pct: 0.8,
+  days_left_in_month: 19,
+  default_shop_cap_usd: 5,
+  seller_paused_text: "Juli tạm dừng soạn nội dung mới. Thẻ đề xuất và các bước bạn tự làm vẫn dùng bình thường.",
+  shops: [
+    { shop_id: "22222222-2222-4333-8444-555555555555", shop_name: "Fujiwa Vietnam Store", stage: "pilot", stage_label: "Pilot đặc biệt", used_usd: 18.86, cap_usd: 10, is_custom: true, state: "shop_cap" },
+    { shop_id: SHOP_ID, shop_name: "Mỹ phẩm Thảo Nhi", stage: "trial", stage_label: "Thử nghiệm", used_usd: 3.1, cap_usd: 5, is_custom: false, state: "ok" },
+  ],
 };

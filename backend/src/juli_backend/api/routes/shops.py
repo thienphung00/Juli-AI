@@ -97,3 +97,19 @@ async def get_current_shop_onboarding(
     from juli_backend.services.onboarding import onboarding_status
 
     return await onboarding_status(session, shop.id)
+
+
+@router.get("/me/term")
+async def get_current_shop_term(
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Fast track P20 (D28.4): the shop's Juli term as the seller's strip reads it.
+
+    ``state`` is ``none`` | ``ok`` | ``soon`` | ``grace`` | ``read_only``; the
+    seller app shows an amber reminder in ``grace`` and a grey "chỉ xem" strip in
+    ``read_only`` (nothing otherwise). Dates are the shop's (UTC+7) calendar.
+    """
+    from juli_backend.services.subscriptions import shop_term
+
+    return {"data": (await shop_term(session, shop.id)).to_json()}

@@ -68,3 +68,31 @@ async def get_active_shop(
     set_tenant_context(shop.id, user.id)
 
     return shop
+
+
+async def require_writable_shop(
+    shop: Shop = Depends(get_active_shop),
+    session: AsyncSession = Depends(get_session),
+) -> Shop:
+    """Fast track P20 (D28.4): refuse a seller action on a read-only shop.
+
+    A shop whose term ended more than 7 days ago (past the grace) is "chỉ xem":
+    no new agent runs, no approval or confirmation that would write to TikTok,
+    no revert, no OpenAI drafting or content analysis. 403 with the Vietnamese
+    reason. Reads and data sync are not affected; a shop with no term set
+    (``none``) and a shop in its grace days are not restricted.
+    """
+    from juli_backend.services.subscriptions import READ_ONLY_DETAIL, is_read_only
+
+    # The check must not leave behind a transaction the route did not start: a
+    # route that later rolls back would then expire every object the caller holds.
+    # (On the request path ``get_active_shop`` has already opened the transaction
+    # and set the tenant GUCs in it, so this only applies when none is open.)
+    started_here = not session.in_transaction()
+    read_only = await is_read_only(session, shop.id)
+    if started_here:
+        await session.commit()
+    if read_only:
+        logger.info("shop_read_only_write_refused", extra={"shop_id": str(shop.id)})
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=READ_ONLY_DETAIL)
+    return shop

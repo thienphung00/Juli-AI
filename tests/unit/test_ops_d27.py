@@ -513,7 +513,7 @@ def test_migration_085_chain_and_shape():
     deferred = (
         MIGRATION.parents[1] / "deferred" / "074_users_placeholder_phone_cleanup.py"
     ).read_text(encoding="utf-8")
-    assert 'down_revision: str | None = "085_ops_daily_precompute"' in deferred
+    assert 'down_revision: str | None = "086_ops_cost_and_terms"' in deferred
     for table in ("shop_daily_streams", "shop_daily_products", "ops_shop_daily_summary"):
         assert f'"{table}"' in text
     for model in (ShopDailyStream, ShopDailyProduct, OpsShopDailySummary):

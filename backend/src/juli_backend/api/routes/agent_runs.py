@@ -27,7 +27,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.database import Shop, get_session
 from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
@@ -230,6 +230,7 @@ class ConfirmationDecisionResponse(BaseModel):
     "/{run_id}/confirmations/{tool_call_id}",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=ConfirmationDecisionResponse,
+    dependencies=[Depends(require_writable_shop)],
 )
 async def submit_confirmation_decision(
     run_id: uuid.UUID,

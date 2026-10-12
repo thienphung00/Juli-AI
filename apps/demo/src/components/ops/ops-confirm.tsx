@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { ChangeRow } from "../../lib/ops/setting-changes";
 import { C } from "./ops-shell";
@@ -33,7 +33,12 @@ const PRIMARY = {
   cursor: "pointer",
 } as const;
 
-/** "before → after" dialog: "Quay lại" / the confirm label. Escape = Quay lại. */
+/**
+ * "before → after" dialog: "Quay lại" / the confirm label. Escape = Quay lại.
+ * `children` (D28: a package / cap choice, the contract number) sit between the
+ * title and the before → after rows; `confirmDisabled` holds the confirm button
+ * until they are complete.
+ */
 export function ConfirmDialog({
   title,
   rows,
@@ -41,6 +46,8 @@ export function ConfirmDialog({
   confirmLabel,
   onCancel,
   onConfirm,
+  children,
+  confirmDisabled = false,
 }: {
   readonly title: string;
   readonly rows: readonly Pick<ChangeRow, "k" | "before" | "after">[];
@@ -48,6 +55,8 @@ export function ConfirmDialog({
   readonly confirmLabel: string;
   readonly onCancel: () => void;
   readonly onConfirm: () => Promise<void>;
+  readonly children?: ReactNode;
+  readonly confirmDisabled?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +80,7 @@ export function ConfirmDialog({
         <h3 id="ops-cf-q" style={{ margin: 0, fontSize: 19, fontWeight: 700 }}>
           {title}
         </h3>
+        {children}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {rows.map((d, i) => (
             <div
@@ -96,7 +106,7 @@ export function ConfirmDialog({
             Quay lại
           </button>
           <button
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             onClick={async () => {
               setBusy(true);
               setError(null);
@@ -107,7 +117,7 @@ export function ConfirmDialog({
                 setBusy(false);
               }
             }}
-            style={{ ...PRIMARY, opacity: busy ? 0.6 : 1 }}
+            style={{ ...PRIMARY, opacity: busy || confirmDisabled ? 0.6 : 1 }}
             type="button"
           >
             {confirmLabel}
