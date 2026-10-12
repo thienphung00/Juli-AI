@@ -409,6 +409,12 @@ async def test_simulation_endpoint_windows_and_scenarios(session, monkeypatch):
         assert computed.json()["result"]["streams"]["product_card"]["delta_pct"] == pytest.approx(
             10
         )
+        # D28: constant days → window band 0, 150 orders → a +10 % CTOR is measurable.
+        assert computed.json()["verdicts"] == [
+            {"stream": "product_card", "kpi": "ctor", "delta": 10, "verdict": "measurable"}
+        ]
+        cell = body["streams"][0]["cells"][2]
+        assert (cell["events"], cell["event_kind"], cell["low_data"]) == (150, "order", False)
         locked = await client.post(
             f"/v1/ops/shops/{shop.id}/simulation/compute",
             json={"deltas": {"seller_live": {"aov": 5}}},

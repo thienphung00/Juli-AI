@@ -165,7 +165,15 @@ export interface SimCell {
   readonly label: string;
   readonly value: number | null;
   readonly trend_pct: number | null;
+  /** D28.1: band of the window mean (older backends: the daily p10–p90 band). */
   readonly band: BandStats | null;
+  /** D28.1: the daily p10–p90 band, shown on hover / click. Absent on older backends. */
+  readonly daily_band?: BandStats | null;
+  /** D28.2: the window's summed clicks (CTR) / SKU orders (CTOR, AOV); null for Hiển thị. */
+  readonly events?: number | null;
+  readonly event_kind?: "click" | "order" | null;
+  /** D28.2: fewer than 30 events in the window. */
+  readonly low_data?: boolean;
   readonly locked: boolean;
   readonly indirect: boolean;
   readonly actions: string | null;

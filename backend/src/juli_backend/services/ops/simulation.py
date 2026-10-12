@@ -22,10 +22,19 @@ WINDOW ``N`` ∈ {7, 14, 30, 90} (D25.11) drives
   "normal band" ``±band_pct`` (the larger distance of p10 / p90 from the mean,
   in % of the mean) and the coefficient of variation of daily impressions.
 
+RELIABILITY (D28.1, D28.2). A baseline cell's ``band`` is the band of the
+WINDOW MEAN: ``±1.2816 × stdev(daily values) / √(days present) / mean`` -- it
+shrinks as the window grows 7 → 14 → 30 days. The daily p10–p90 band stays as
+``daily_band`` (shown on hover). A cell whose window holds fewer than
+``LOW_DATA_MIN_EVENTS`` clicks (CTR) or SKU orders (CTOR, AOV) is ``low_data``;
+Hiển thị never is.
+
 SIMULATION. GMV/day per stream = Hiển thị × CTR × CTOR × AOV; each cell moves
 in ±5 % steps; Video CTOR, Video AOV and LIVE AOV are locked (D25.10 -- they
-depend on the product page, not on the stream). A change whose size is within
-the cell's ``band_pct`` is "trong dao động thường ngày" (not measurable).
+depend on the product page, not on the stream). A change on a low-data cell is
+"Ít dữ liệu"; one whose size is within the cell's window band is "Trong dao
+động" (not measurable); a larger one is "Vượt dao động · đo được"
+(:func:`cell_verdict`).
 """
 
 from __future__ import annotations
@@ -80,6 +89,17 @@ REPORT_DAYS = 60
 #: Stable / medium thresholds on the coefficient of variation of impressions.
 CV_STABLE = 0.15
 CV_MEDIUM = 0.30
+#: z of the 80 % two-sided interval (p10–p90 of a normal) for the window-mean band.
+Z_80 = 1.2816
+#: D28.2: fewer clicks (CTR) / SKU orders (CTOR, AOV) in the window → "ít dữ liệu".
+LOW_DATA_MIN_EVENTS = 30
+#: The count each KPI's reliability rests on (None: never low-data).
+EVENT_KIND: dict[str, str | None] = {
+    "impressions": None,
+    "ctr": "click",
+    "ctor": "order",
+    "aov": "order",
+}
 
 #: (stream, KPI) → the actions ("Hành động") that move it (D24 lever map).
 LEVER_MAP: dict[str, dict[str, str]] = {
@@ -216,6 +236,76 @@ def band(values: Iterable[float | None]) -> Band | None:
         band_pct = None
         cv = None
     return Band(p10=p10, p90=p90, mean=mean, band_pct=band_pct, cv=cv, days=len(clean))
+
+
+def mean_band(values: Iterable[float | None]) -> Band | None:
+    """D28.1: the 80 % band of the window MEAN (``±Z_80 × stdev / √n``, in % of the mean).
+
+    ``p10`` / ``p90`` are the mean minus / plus that half-width; ``cv`` is the
+    daily coefficient of variation. ``band_pct`` is None with < 2 days or mean ≤ 0.
+    """
+    clean = [float(v) for v in values if v is not None and math.isfinite(float(v))]
+    if not clean:
+        return None
+    mean = statistics.fmean(clean)
+    n = len(clean)
+    half = Z_80 * statistics.stdev(clean) / math.sqrt(n) if n > 1 else 0.0
+    ok = n > 1 and mean > 0
+    return Band(
+        p10=mean - half,
+        p90=mean + half,
+        mean=mean,
+        band_pct=half / mean * 100 if ok else None,
+        cv=statistics.pstdev(clean) / mean if mean > 0 else None,
+        days=n,
+    )
+
+
+def window_events(days: Iterable[DayCounts], kpi: str) -> int | None:
+    """The window's summed clicks (CTR) / SKU orders (CTOR, AOV); None for Hiển thị."""
+    kind = EVENT_KIND[kpi]
+    if kind is None:
+        return None
+    if kind == "click":
+        return round(sum(d.clicks for d in days))
+    return round(sum(d.orders or 0 for d in days))
+
+
+def cell_verdict(cell: Mapping[str, Any], delta: int) -> str | None:
+    """D28: ``low_data`` / ``in_noise`` / ``measurable`` for a target ``delta`` on a cell.
+
+    None when nothing is targeted. Uses the window band; no band → in noise.
+    """
+    if not delta:
+        return None
+    if cell.get("low_data"):
+        return "low_data"
+    band_json = cell.get("band") or {}
+    band_pct = band_json.get("band_pct") if isinstance(band_json, Mapping) else None
+    if band_pct is None or abs(delta) <= band_pct:
+        return "in_noise"
+    return "measurable"
+
+
+def verdicts(
+    payload: Mapping[str, Any], deltas: Mapping[str, Mapping[str, int]]
+) -> list[dict[str, Any]]:
+    """:func:`cell_verdict` for every changed cell of :func:`baseline`'s payload."""
+    out: list[dict[str, Any]] = []
+    for row in payload.get("streams", []):
+        for cell in row["cells"]:
+            delta = (deltas.get(row["stream"]) or {}).get(cell["kpi"], 0)
+            verdict = cell_verdict(cell, delta)
+            if verdict:
+                out.append(
+                    {
+                        "stream": row["stream"],
+                        "kpi": cell["kpi"],
+                        "delta": delta,
+                        "verdict": verdict,
+                    }
+                )
+    return out
 
 
 def stability(cv: float | None) -> str:
@@ -491,14 +581,23 @@ def baseline(history: History, window: int) -> dict[str, Any]:
             prior = window_kpis(_present(by_day, prior_days)) if status["comparable"] else None
             cells = []
             for kpi in KPIS:
-                cell_band = band(d.kpi(kpi) for d in present)
+                daily_values = [d.kpi(kpi) for d in present]
+                cell_band = mean_band(daily_values)
+                daily_band = band(daily_values)
+                events = window_events(present, kpi)
                 cells.append(
                     {
                         "kpi": kpi,
                         "label": KPI_LABELS[kpi],
                         "value": last[kpi],
                         "trend_pct": trend_pct(last[kpi], prior[kpi]) if prior else None,
+                        # D28.1: band of the window mean; the daily p10–p90 for hover.
                         "band": cell_band.to_json() if cell_band else None,
+                        "daily_band": daily_band.to_json() if daily_band else None,
+                        # D28.2: what the cell rests on, and whether it is too little.
+                        "events": events,
+                        "event_kind": EVENT_KIND[kpi],
+                        "low_data": events is not None and events < LOW_DATA_MIN_EVENTS,
                         "locked": (stream, kpi) in LOCKED,
                         "indirect": kpi in INDIRECT,
                         "actions": LEVER_MAP.get(stream, {}).get(kpi),

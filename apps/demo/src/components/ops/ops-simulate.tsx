@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
 import { fmtInt, fmtK, fmtM, fmtPct, fmtSignedPct } from "../../lib/ops/format";
-import { STABILITY_COPY, STEP, cleanDeltas, inNoise, simulate, step, trendChip } from "../../lib/ops/simulation";
+import { STABILITY_COPY, STEP, VERDICT_COPY, bandPctText, cleanDeltas, cellVerdict, simulate, step, trendChip, type Verdict } from "../../lib/ops/simulation";
 import type { BandStats, Deltas, KpiId, OpsMe, SimCell, SimulationPage, Stability, StreamId } from "../../lib/ops/types";
 import { FreshnessLine } from "./ops-freshness";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
@@ -50,9 +50,14 @@ function range(kpi: KpiId, band: BandStats | null): string {
   return `${f(band.p10)} – ${f(band.p90)} %`;
 }
 
-function bandText(band: BandStats | null): string {
-  return band?.band_pct === null || band?.band_pct === undefined ? "—" : `±${Math.round(band.band_pct)} %`;
-}
+// D28.2 low-data cell (artboard OpsSimBand.dc.html).
+const LOW = { value: "#8a8a94", mark: "#a3622a", border: "#d9c3a5", background: "#fbfaf7" } as const;
+const LOW_CHIP: CSSProperties = { color: LOW.value, background: "#f0f0f3" };
+const VERDICT_STYLE: Record<Verdict, CSSProperties> = {
+  low_data: { color: C.amber, background: "#fff4e0" },
+  in_noise: { color: C.body, background: "#f0f0f3" },
+  measurable: { color: C.green, background: "#e3f5e8" },
+};
 
 type Api = Pick<OpsApi, "simulation" | "createScenario" | "setTarget"> & Partial<Pick<OpsApi, "refreshSimulation">>;
 
@@ -274,9 +279,10 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
                     {s.cells.map((c) => (
                       <Cell
                         canEdit={available}
+                        days={page.window}
                         cell={c}
                         delta={deltas[s.stream]?.[c.kpi] ?? 0}
-                        key={c.kpi}
+                        key={`${c.kpi}-${page.window}`}
                         onStep={(by) => setDeltas(step(deltas, s.stream, c.kpi, by))}
                         stream={s.stream}
                       />
@@ -289,6 +295,9 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
                   </div>
                 );
               })}
+              <p data-testid="sim-low-legend" style={{ margin: 0, fontSize: 12, color: C.muted2 }}>
+                <b style={{ color: LOW.mark }}>*</b> ít dữ liệu: dưới 30 click (CTR) hoặc dưới 30 đơn (CTOR, AOV) trong khoảng · bấm hoặc rê chuột vào ô để xem dao động mỗi ngày
+              </p>
               <p style={{ margin: 0, fontSize: 12, color: C.muted2 }}>
                 Hiển thị là chỉ số gián tiếp (thuật toán): chỉ tác động qua quảng cáo, chiến dịch, nội dung. Mỗi lần bấm ± đổi 5 %. Ô viền đứt bị khoá theo bản đồ Hành động.
               </p>
@@ -432,38 +441,81 @@ function btn(primary: boolean): CSSProperties {
 
 function Cell({
   cell,
+  days,
   delta,
   stream,
   onStep,
   canEdit,
 }: {
   readonly cell: SimCell;
+  /** The window the numbers cover (D28.1 "Dao động TB N ngày"). */
+  readonly days: number;
   readonly delta: number;
   readonly stream: StreamId;
   readonly onStep: (by: number) => void;
   readonly canEdit: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const now = cell.value === null ? null : cell.value * (1 + delta / 100);
   const trend = trendChip(cell.trend_pct);
-  const noisy = inNoise(delta, cell.band?.band_pct);
+  const low = Boolean(cell.low_data);
+  const verdict = cellVerdict(cell, delta);
+  // Older backends send only `band` (then the daily p10–p90): no window band, no toggle.
+  const legacy = cell.daily_band === undefined;
+  const unit = cell.event_kind === "click" ? "click" : "đơn";
+  const lowText = low && cell.events !== null && cell.events !== undefined ? `ít dữ liệu · ${fmtInt(cell.events)} ${unit}` : null;
+  const daily = `Mỗi ngày: ${bandPctText(cell.daily_band?.band_pct)}`;
+  const tip = legacy ? undefined : `${daily}${lowText ? ` · ít dữ liệu: ${fmtInt(cell.events ?? 0)} ${unit} trong ${days} ngày` : ""}`;
   const box: CSSProperties = cell.locked
     ? { background: "#f0eef0", border: "1px dashed #d6d2d6" }
     : delta !== 0
-      ? { background: "#fff7fa", border: `2px solid ${C.pinkStrong}` }
-      : { background: "#fff", border: "1px solid #ece3e7" };
+      ? { background: low ? LOW.background : "#fff7fa", border: `2px solid ${C.pinkStrong}` }
+      : low
+        ? { background: LOW.background, border: `1px dashed ${LOW.border}` }
+        : { background: "#fff", border: "1px solid #ece3e7" };
   const label = `${STREAM_LABEL[stream]} ${KPI_LABEL[cell.kpi]}`;
+  const chipText = low && trend.tone !== "none" ? `~ ${trend.text.replace(/^[▲▼] /, "")}` : trend.text;
   return (
-    <div data-locked={cell.locked} data-testid={`sim-cell-${stream}-${cell.kpi}`} style={{ borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 4, ...box }}>
-      <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-        <span style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <b style={{ fontSize: 15 }}>{value(cell.kpi, now)}</b>
-          <span data-testid="trend-chip" style={{ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "1px 6px", ...TREND_STYLE[trend.tone] }}>
-            {trend.text}
+    <div data-locked={cell.locked} data-low-data={low} data-testid={`sim-cell-${stream}-${cell.kpi}`} style={{ borderRadius: 10, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 4, ...box }}>
+      <button
+        aria-expanded={legacy ? undefined : open}
+        aria-label={legacy ? undefined : `${label}: xem dao động mỗi ngày`}
+        disabled={legacy}
+        onClick={() => setOpen((o) => !o)}
+        style={{ font: "inherit", textAlign: "left", background: "transparent", border: 0, padding: 0, cursor: legacy ? "default" : "pointer", display: "flex", flexDirection: "column", gap: 4, color: C.ink }}
+        title={tip}
+        type="button"
+      >
+        <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6, flexWrap: "wrap", width: "100%" }}>
+          <span style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <b data-testid="cell-value" style={{ fontSize: 15, ...(low ? { color: LOW.value } : {}) }}>
+              {value(cell.kpi, now)}
+            </b>
+            {low ? (
+              <span data-testid="low-mark" style={{ fontSize: 13, fontWeight: 700, color: LOW.mark, marginLeft: -4 }}>
+                *
+              </span>
+            ) : null}
+            <span data-testid="trend-chip" style={{ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "1px 6px", ...(low ? LOW_CHIP : TREND_STYLE[trend.tone]) }}>
+              {chipText}
+            </span>
           </span>
+          {!cell.locked && cell.indirect ? <span style={{ fontSize: 11, fontWeight: 700, color: C.amber }}>gián tiếp ⚠</span> : null}
         </span>
-        {!cell.locked && cell.indirect ? <span style={{ fontSize: 11, fontWeight: 700, color: C.amber }}>gián tiếp ⚠</span> : null}
-      </span>
-      <span style={{ fontSize: 11, color: C.muted }}>Dao động thường: {bandText(cell.band)}</span>
+        <span data-testid="cell-band" style={{ fontSize: 11, color: C.body }}>
+          {legacy ? `Dao động thường: ${bandPctText(cell.band?.band_pct)}` : `Dao động TB ${days} ngày: ${bandPctText(cell.band?.band_pct)}`}
+        </span>
+        {!legacy && open ? (
+          <span data-testid="cell-daily" style={{ fontSize: 11, color: C.muted2 }}>
+            {daily}
+          </span>
+        ) : null}
+        {lowText ? (
+          <span data-testid="cell-low" style={{ fontSize: 11, color: LOW.mark }}>
+            {lowText}
+          </span>
+        ) : null}
+      </button>
       {cell.locked ? (
         <span style={{ fontSize: 11, color: C.body }}>Khoá · phụ thuộc trang sản phẩm</span>
       ) : (
@@ -480,8 +532,14 @@ function Cell({
               +
             </button>
           </span>
-          {delta !== 0 ? (
-            <span style={{ fontSize: 11, fontWeight: 600, color: noisy ? C.amber : C.green }}>{noisy ? "Trong dao động thường ngày" : "Vượt dao động · đo được"}</span>
+          {verdict ? (
+            <span
+              data-testid="cell-verdict"
+              style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: 700, borderRadius: 6, padding: "2px 6px", ...VERDICT_STYLE[verdict] }}
+              title={verdict === "low_data" ? `Dưới 30 ${unit} trong ${days} ngày — chọn khoảng dài hơn` : undefined}
+            >
+              {VERDICT_COPY[verdict]}
+            </span>
           ) : null}
         </>
       )}

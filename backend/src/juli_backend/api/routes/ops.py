@@ -850,7 +850,12 @@ async def ops_simulate(
         result = simulation.simulate(simulation.baseline_values(payload), body.deltas)
     except simulation.SimulationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
-    return {"result": result, "actions": simulation.actions_for(body.deltas)}
+    return {
+        "result": result,
+        "actions": simulation.actions_for(body.deltas),
+        # D28: per changed cell, low_data / in_noise / measurable on the window band.
+        "verdicts": simulation.verdicts(payload, body.deltas),
+    }
 
 
 class ScenarioWrite(BaseModel):

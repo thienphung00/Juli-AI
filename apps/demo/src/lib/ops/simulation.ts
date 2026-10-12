@@ -1,4 +1,4 @@
-import type { Deltas, KpiId, SimStream, Stability, StreamId } from "./types";
+import type { Deltas, KpiId, SimCell, SimStream, Stability, StreamId } from "./types";
 
 /**
  * Client mirror of `services/ops/simulation.py` (D25.10): GMV/day per stream
@@ -58,9 +58,31 @@ export function cleanDeltas(deltas: Deltas): Deltas {
   return out;
 }
 
-/** "Trong dao động thường ngày" when |Δ| ≤ the cell's normal band. */
+/** "Trong dao động" when |Δ| ≤ the cell's window band (D28.1; no band → in noise). */
 export function inNoise(delta: number, bandPct: number | null | undefined): boolean {
   return bandPct === null || bandPct === undefined ? true : Math.abs(delta) <= bandPct;
+}
+
+export type Verdict = "low_data" | "in_noise" | "measurable";
+
+/** Mirror of the server's `cell_verdict` (D28): low data first, then the window band. */
+export function cellVerdict(cell: Pick<SimCell, "band" | "low_data">, delta: number): Verdict | null {
+  if (!delta) return null;
+  if (cell.low_data) return "low_data";
+  return inNoise(delta, cell.band?.band_pct) ? "in_noise" : "measurable";
+}
+
+export const VERDICT_COPY: Record<Verdict, string> = {
+  low_data: "Ít dữ liệu",
+  in_noise: "Trong dao động",
+  measurable: "Vượt dao động · đo được",
+};
+
+/** "±7 %" / "±2,6 %": one decimal below 10 % so a narrow window band is not "±0 %". */
+export function bandPctText(pct: number | null | undefined): string {
+  if (pct === null || pct === undefined) return "—";
+  const text = pct < 10 ? (Math.round(pct * 10) / 10).toFixed(1).replace(".", ",").replace(/,0$/, "") : String(Math.round(pct));
+  return `±${text} %`;
 }
 
 export const STABILITY_COPY: Record<Stability, { label: string; row: string; style: string }> = {

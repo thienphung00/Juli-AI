@@ -136,7 +136,18 @@ export const VIEW_SESSION: ViewSession = {
 
 const band = (mean: number, pct: number, cv: number) => ({ p10: mean * (1 - pct / 100), p90: mean * (1 + pct / 100), mean, band_pct: pct, cv, days: 30 });
 
-function stream(id: StreamId, name: string, v: [number, number, number, number], bands: [number, number, number, number], cv: number, locked: string[] = []) {
+/** D28.1: the window-mean band of a 30-day window from the daily ±band (1.2816 σ / √30 ≈ daily / √30). */
+const windowBand = (mean: number, dailyPct: number, cv: number) => band(mean, Math.round((dailyPct / Math.sqrt(30)) * 10) / 10, cv);
+
+function stream(
+  id: StreamId,
+  name: string,
+  v: [number, number, number, number],
+  bands: [number, number, number, number],
+  cv: number,
+  locked: string[] = [],
+  events: [number, number] = [3000, 150],
+) {
   const kpis = ["impressions", "ctr", "ctor", "aov"] as const;
   const labels = { impressions: "Hiển thị", ctr: "CTR", ctor: "CTOR", aov: "AOV" };
   return {
@@ -152,7 +163,11 @@ function stream(id: StreamId, name: string, v: [number, number, number, number],
       label: labels[k],
       value: v[i],
       trend_pct: [4.1, -1.2, -3.8, 0.3][i],
-      band: band(v[i], bands[i], i === 0 ? cv : 0.05),
+      band: windowBand(v[i], bands[i], i === 0 ? cv : 0.05),
+      daily_band: band(v[i], bands[i], i === 0 ? cv : 0.05),
+      events: i === 0 ? null : i === 1 ? events[0] : events[1],
+      event_kind: (i === 0 ? null : i === 1 ? "click" : "order") as "click" | "order" | null,
+      low_data: i === 0 ? false : (i === 1 ? events[0] : events[1]) < 30,
       locked: locked.includes(k),
       indirect: k === "impressions",
       actions: null as string | null,
@@ -181,7 +196,8 @@ export const SIMULATION: SimulationPage = {
     card,
     stream("shop_tab", "Tab cửa hàng", [2118, 0.0583, 0.0714, 167_000], [9, 7, 11, 5], 0.09),
     stream("seller_video", "Video", [5630, 0.0292, 0.0668, 173_000], [48, 22, 18, 6], 0.48, ["ctor", "aov"]),
-    stream("seller_live", "LIVE", [1410, 0.0486, 0.071, 164_000], [35, 16, 20, 7], 0.35, ["aov"]),
+    // D28.2: 18 orders in 30 days → LIVE CTOR / AOV are "ít dữ liệu".
+    stream("seller_live", "LIVE", [1410, 0.0486, 0.071, 164_000], [35, 16, 20, 7], 0.35, ["aov"], [2055, 18]),
   ],
   volatility: {
     product_card: {
