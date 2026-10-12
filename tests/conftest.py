@@ -507,3 +507,13 @@ def tiktok_config(app_key, app_secret):
         "app_secret": app_secret,
         "base_url": "https://open-api.tiktokglobalshop.com",
     }
+
+
+@pytest.fixture(autouse=True)
+def _forget_cached_ops_staff():
+    """The resolved-staff cache (P22) is process-wide; no test may inherit one."""
+    from juli_backend.services.ops.staff import clear_staff_cache
+
+    clear_staff_cache()
+    yield
+    clear_staff_cache()

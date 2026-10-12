@@ -84,6 +84,11 @@ async def shop_scope_status(session: AsyncSession, shop_id: uuid.UUID) -> ScopeS
             )
         )
     ).all()
+    return status_from_credentials([(scopes, status) for scopes, status in rows])
+
+
+def status_from_credentials(rows: list[tuple[str | None, str]]) -> ScopeStatus:
+    """``shop_scope_status`` from already-read ``(scopes, status)`` credential rows."""
     live = [scopes for scopes, status in rows if status != "needs_reauth"]
     if not live:
         return status_of(None, connected=False)

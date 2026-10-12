@@ -131,14 +131,35 @@ def test_the_prior_gucs_are_put_back_on_exit() -> None:
     _run(run)
 
     # The double reports no prior context, so the restore writes the empty pair
-    # back. What matters is that a restore happened after the body.
-    assert len(session.statements) >= 3, (
-        f"expected read, write, restore; got {len(session.statements)} statements"
+    # back. What matters is that a restore happened after the body. Since P22
+    # the read and the write are ONE statement (`_SWAP_GUCS_SQL`).
+    assert len(session.statements) >= 2, (
+        f"expected swap (read+write), restore; got {len(session.statements)} statements"
     )
     last_text, _ = session.statements[-1]
     assert "set_config" in last_text, (
         f"the last statement must put the prior GUCs back, got: {last_text}"
     )
+
+
+def test_restore_false_sets_the_guc_once_and_leaves_it_to_the_commit() -> None:
+    """P22: `get_current_user` commits right after the auth read, and `SET LOCAL`
+    dies with the transaction, so it asks for no read-back and no restore --
+    exactly one statement, carrying the caller's verified id and an empty shop."""
+    session = _RecordingSession()
+    user_id = uuid.uuid4()
+
+    async def run() -> None:
+        async with with_user_scope(cast("object", session), user_id, restore=False):
+            pass
+
+    _run(run)
+
+    assert len(session.statements) == 1, session.statements
+    sql, params = session.statements[0]
+    assert "current_setting" not in sql
+    assert params["user_val"] == str(user_id)
+    assert params["shop_val"] == ""
 
 
 def test_the_scope_is_restored_even_when_the_body_raises() -> None:

@@ -42,14 +42,24 @@ class _Result:
     def scalar_one(self) -> Any:
         return self._value
 
+    def one(self) -> Any:
+        return self._value
+
 
 class _FakePgSession:
-    """Just enough AsyncSession for ``ops_role`` on a non-SQLite dialect."""
+    """Just enough AsyncSession for ``ops_role`` on a non-SQLite dialect.
 
-    def __init__(self, set_role_error: Exception | None = None) -> None:
-        self.statements: list[str] = []
+    P22: the switch is ONE statement -- ``SELECT <current role>, CASE WHEN
+    pg_has_role(...) THEN set_config('role', 'juli_ops', true) END`` -- and the
+    restore is ``set_config('role', <previous>, true)``.
+    """
+
+    def __init__(self, set_role_error: Exception | None = None, *, member: bool = True) -> None:
+        self.statements: list[tuple[str, dict]] = []
         self.flushed = False
+        self.info: dict = {}
         self._error = set_role_error
+        self._member = member
 
     def get_bind(self) -> Any:
         dialect = type("D", (), {"name": "postgresql"})()
@@ -57,11 +67,12 @@ class _FakePgSession:
 
     async def execute(self, stmt: Any) -> _Result:
         sql = str(stmt)
-        self.statements.append(sql)
-        if sql == "SELECT current_user":
-            return _Result("juli_app")
-        if sql == "SET LOCAL ROLE juli_ops" and self._error is not None:
-            raise self._error
+        params = dict(stmt.compile().params)
+        self.statements.append((sql, params))
+        if "pg_has_role" in sql:
+            if self._error is not None:
+                raise self._error
+            return _Result(("juli_app", "juli_ops" if self._member else None))
         return _Result(None)
 
     async def flush(self) -> None:
@@ -69,19 +80,30 @@ class _FakePgSession:
 
 
 def _dbapi_error(message: str, sqlstate: str | None) -> DBAPIError:
-    return DBAPIError("SET LOCAL ROLE juli_ops", None, _PgError(message, sqlstate))
+    return DBAPIError("set_config('role', 'juli_ops', true)", None, _PgError(message, sqlstate))
 
 
-async def test_granted_role_switches_and_restores():
+async def test_granted_role_switches_and_restores_in_two_statements():
     session = _FakePgSession()
     async with access.ops_role(cast(AsyncSession, session)):
         pass
-    assert session.statements == [
-        "SELECT current_user",
-        "SET LOCAL ROLE juli_ops",
-        'SET LOCAL ROLE "juli_app"',
-    ]
+    assert len(session.statements) == 2
+    (enter_sql, enter_params), (restore_sql, restore_params) = session.statements
+    assert "current_user" in enter_sql and "set_config('role'" in enter_sql
+    assert enter_params == {"role": "juli_ops"}
+    assert "set_config('role'" in restore_sql
+    assert restore_params == {"role": "juli_app"}
     assert session.flushed
+
+
+async def test_not_a_member_raises_ops_role_missing_naming_the_current_role():
+    session = _FakePgSession(member=False)
+    with pytest.raises(access.OpsRoleMissing) as caught:
+        async with access.ops_role(cast(AsyncSession, session)):
+            pytest.fail("the block must not run without the role")
+    assert caught.value.role == "juli_app"
+    assert caught.value.detail == EXPECTED_DETAIL
+    assert len(session.statements) == 1, "nothing to restore: the role never changed"
 
 
 async def test_insufficient_privilege_raises_ops_role_missing_with_the_grant():

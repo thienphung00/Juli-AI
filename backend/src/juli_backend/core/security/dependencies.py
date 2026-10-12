@@ -66,8 +66,16 @@ async def get_current_user(
         # authentication has not set yet, and the repository owns knowing that.
         # ADR-085 decision 2 keeps the tenant seam out of this module, so the
         # scope lives in UsersRepo, not here.
+        #
+        # `transaction_ends_after=True` (P22): the commit below ends this
+        # transaction immediately, and with it the `SET LOCAL` user GUC, so the
+        # scope need not read and restore the prior pair -- two round trips
+        # (~440 ms in production) off every authenticated request.
         user = await UsersRepo(session).get_for_authentication(
-            user_id, email=identity.email, display_name=identity.display_name
+            user_id,
+            email=identity.email,
+            display_name=identity.display_name,
+            transaction_ends_after=True,
         )
     except NotFound:
         # Defensive backstop only (#1906): `get_for_authentication` now
@@ -99,5 +107,14 @@ async def get_current_user(
     # email filled in during `get_for_authentication`, and that write is
     # persisted here. Without this commit the backfill would be rolled back at
     # request end and re-attempted on every single request, forever.
+    #
+    # P22 gives it a third: it is what clears the user GUC. The scope above
+    # skipped its own restore (`transaction_ends_after=True`) because this
+    # commit ends the transaction, and `SET LOCAL` with it. On the ordinary
+    # read-only request it costs one round trip -- the same as the restore it
+    # replaces, and a rollback would cost the same again -- so "commit only
+    # when something was written" would save nothing while giving up the
+    # atomic-unit guarantee above. Do not move or drop it without restoring
+    # the scope's own restore.
     await session.commit()
     return user

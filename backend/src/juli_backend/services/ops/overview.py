@@ -250,89 +250,92 @@ async def find_shop(session: AsyncSession, shop_id: uuid.UUID) -> ShopListing | 
 
 
 async def _shop_numbers(session: AsyncSession, row: ShopRow, now: datetime) -> None:
+    """One shop's numbers (caller holds the shop's scope), in four statements.
+
+    P22: these were fourteen sequential reads -- ~3 s per shop at the
+    production pooler's ~220 ms a round trip, paid by every "Làm mới" and by
+    the first overview after a shop connects. The eight aggregates are now
+    scalar subqueries of ONE statement, and the credential rows are read once
+    for both the connection state and the permissions. Every read is still the
+    caller's shop scope under RLS; nothing here widens what is visible.
+    """
+    from juli_backend.services.ops.scopes import status_from_credentials
+
     shop_id = row.listing.shop_id
     since = now - timedelta(days=WINDOW_DAYS)
     creds = (
         await session.execute(
-            select(TikTokCredential.status, TikTokCredential.refresh_token_expires_at).where(
-                TikTokCredential.shop_id == shop_id
-            )
+            select(
+                TikTokCredential.status,
+                TikTokCredential.refresh_token_expires_at,
+                TikTokCredential.scopes,
+            ).where(TikTokCredential.shop_id == shop_id)
         )
     ).all()
     if not creds:
         row.connection = CONN_NONE
     elif any(
-        status == "active" and (expires is None or expires > now) for status, expires in creds
+        status == "active" and (expires is None or expires > now) for status, expires, _ in creds
     ):
         row.connection = CONN_OK
     else:
         row.connection = CONN_EXPIRED
-    row.last_poll_at = (
+
+    def count(model: Any, *where: Any) -> Any:
+        return select(func.count()).select_from(model).where(*where).scalar_subquery()
+
+    def newest(column: Any, *where: Any) -> Any:
+        return select(func.max(column)).where(*where).scalar_subquery()
+
+    numbers = (
         await session.execute(
-            select(func.max(TikTokSyncState.last_success_at)).where(
-                TikTokSyncState.shop_id == shop_id
-            )
-        )
-    ).scalar_one()
-    row.last_diagnosis_at = (
-        await session.execute(
-            select(func.max(ShopDiagnosisReport.built_at)).where(
-                ShopDiagnosisReport.shop_id == shop_id
-            )
-        )
-    ).scalar_one()
-    row.cards_open = int(
-        (
-            await session.execute(
-                select(func.count())
-                .select_from(ActionCard)
-                .where(
+            select(
+                newest(TikTokSyncState.last_success_at, TikTokSyncState.shop_id == shop_id),
+                newest(ShopDiagnosisReport.built_at, ShopDiagnosisReport.shop_id == shop_id),
+                count(
+                    ActionCard,
                     ActionCard.shop_id == shop_id,
                     ActionCard.status == "active",
                     ActionCard.surfaced_at.is_not(None),
-                )
-            )
-        ).scalar_one()
-    )
-    row.cards_approved_30d = int(
-        (
-            await session.execute(
-                select(func.count())
-                .select_from(WorkflowRun)
-                .where(
+                ),
+                count(
+                    WorkflowRun,
                     WorkflowRun.shop_id == shop_id,
                     WorkflowRun.action_card_id.is_not(None),
                     WorkflowRun.created_at >= since,
-                )
-            )
-        ).scalar_one()
-    )
-    row.cards_rejected_30d = int(
-        (
-            await session.execute(
-                select(func.count())
-                .select_from(DecisionReason)
-                .where(
+                ),
+                count(
+                    DecisionReason,
                     DecisionReason.shop_id == shop_id,
                     DecisionReason.action == ACTION_REJECT,
                     DecisionReason.decided_at >= since,
-                )
-            )
-        ).scalar_one()
-    )
-    row.failed_runs_30d = int(
-        (
-            await session.execute(
-                select(func.count())
-                .select_from(WorkflowRun)
-                .where(
+                ),
+                count(
+                    WorkflowRun,
                     WorkflowRun.shop_id == shop_id,
                     WorkflowRun.status.in_(FAILED_RUN_STATUSES),
                     WorkflowRun.created_at >= since,
-                )
+                ),
+                newest(ShopDailyStream.day, ShopDailyStream.shop_id == shop_id),
+                newest(ShopDiagnosisReport.end_date, ShopDiagnosisReport.shop_id == shop_id),
             )
-        ).scalar_one()
-    )
+        )
+    ).one()
+    (
+        row.last_poll_at,
+        row.last_diagnosis_at,
+        cards_open,
+        approved,
+        rejected,
+        failed,
+        stream_through,
+        report_through,
+    ) = numbers
+    row.cards_open = int(cards_open or 0)
+    row.cards_approved_30d = int(approved or 0)
+    row.cards_rejected_30d = int(rejected or 0)
+    row.failed_runs_30d = int(failed or 0)
+    row.data_through = stream_through or report_through
     cap = await ov.openai_cap_status(session, shop_id, now=now.replace(tzinfo=UTC))
     row.openai_cost_month_usd = cap.spent_usd
     row.openai_cap_usd = cap.cap_usd
@@ -349,20 +352,9 @@ async def _shop_numbers(session: AsyncSession, row: ShopRow, now: datetime) -> N
         .first()
     )
     row.gmv_30d = _gmv_last_days(report, WINDOW_DAYS)
-    row.data_through = (
-        await session.execute(
-            select(func.max(ShopDailyStream.day)).where(ShopDailyStream.shop_id == shop_id)
-        )
-    ).scalar_one() or (
-        await session.execute(
-            select(func.max(ShopDiagnosisReport.end_date)).where(
-                ShopDiagnosisReport.shop_id == shop_id
-            )
-        )
-    ).scalar_one()
-    from juli_backend.services.ops.scopes import shop_scope_status
-
-    row.extra["permissions"] = (await shop_scope_status(session, shop_id)).to_json()
+    row.extra["permissions"] = status_from_credentials(
+        [(scopes, status) for status, _, scopes in creds]
+    ).to_json()
 
 
 def _gmv_last_days(report: Any, days: int) -> float | None:
@@ -379,11 +371,8 @@ def _naive_utc(now: datetime | None) -> datetime:
     return (now or datetime.now(UTC)).astimezone(UTC).replace(tzinfo=None)
 
 
-async def refresh_shop_summary(
-    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime | None = None
-) -> OpsShopDailySummary:
-    """Compute one shop's numbers now and store them (upsert; no commit)."""
-    current = _naive_utc(now)
+async def _computed_row(session: AsyncSession, shop_id: uuid.UUID, current: datetime) -> ShopRow:
+    """One shop's numbers, read under that shop's own scope (ADR-089)."""
     placeholder = ShopListing(
         shop_id=shop_id,
         shop_name="",
@@ -396,15 +385,35 @@ async def refresh_shop_summary(
     row = ShopRow(listing=placeholder)
     async with with_shop_scope(session, shop_id):
         await _shop_numbers(session, row, current)
+    return row
+
+
+def _store_summary(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    row: ShopRow,
+    current: datetime,
+    summary: OpsShopDailySummary | None,
+) -> OpsShopDailySummary:
+    """Write ``row``'s numbers into ``summary`` (new when None); inside an ops block."""
+    if summary is None:
+        summary = OpsShopDailySummary(shop_id=shop_id)
+        session.add(summary)
+    summary.payload = row.numbers()
+    summary.data_through = row.data_through
+    summary.generated_at = current
+    return summary
+
+
+async def refresh_shop_summary(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime | None = None
+) -> OpsShopDailySummary:
+    """Compute one shop's numbers now and store them (upsert; no commit)."""
+    current = _naive_utc(now)
+    row = await _computed_row(session, shop_id, current)
     async with ops_role(session):
         summary = await session.get(OpsShopDailySummary, shop_id)
-        if summary is None:
-            summary = OpsShopDailySummary(shop_id=shop_id)
-            session.add(summary)
-        summary.payload = row.numbers()
-        summary.data_through = row.data_through
-        summary.generated_at = current
-    return summary
+        return _store_summary(session, shop_id, row, current, summary)
 
 
 async def build_overview(
@@ -416,8 +425,10 @@ async def build_overview(
     the caller commits.
     """
     current = _naive_utc(now)
-    listings = await list_shops(session)
+    # ONE ops block for the listing and the three ops tables (P22): ops_role is
+    # re-entrant, so list_shops' own block costs nothing in here.
     async with ops_role(session):
+        listings = await list_shops(session)
         settings = {
             s.shop_id: s for s in (await session.execute(select(OpsShopSettings))).scalars().all()
         }
@@ -438,6 +449,21 @@ async def build_overview(
             s.shop_id: s
             for s in (await session.execute(select(OpsShopDailySummary))).scalars().all()
         }
+    # Shops with no summary yet (or every shop on refresh) are computed one at a
+    # time, each under its OWN shop scope -- that is ADR-089, not an N+1 to
+    # remove -- and then stored together in ONE ops block rather than one
+    # role switch per shop (P22).
+    computed = {
+        listing.shop_id: await _computed_row(session, listing.shop_id, current)
+        for listing in listings
+        if refresh or listing.shop_id not in summaries
+    }
+    if computed:
+        async with ops_role(session):
+            for shop_id, numbers in computed.items():
+                summaries[shop_id] = _store_summary(
+                    session, shop_id, numbers, current, summaries.get(shop_id)
+                )
     rows: list[ShopRow] = []
     for listing in listings:
         row = ShopRow(listing=listing)
@@ -445,10 +471,7 @@ async def build_overview(
         if cfg is not None:
             row.stage = cfg.stage
         row.invite_pending = listing.shop_id in pending
-        summary = summaries.get(listing.shop_id)
-        if refresh or summary is None:
-            summary = await refresh_shop_summary(session, listing.shop_id, now=current)
-        row.load_numbers(summary)
+        row.load_numbers(summaries[listing.shop_id])
         rows.append(row)
     connected = [r for r in rows if r.connection != CONN_NONE]
     approved = sum(r.cards_approved_30d for r in rows)

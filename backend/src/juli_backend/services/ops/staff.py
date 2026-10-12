@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import threading
+import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +36,9 @@ class StaffMember:
     role: str
     active: bool
     user_id: uuid.UUID | None
+    #: True when this resolution bound ``user_id`` to an e-mail-seeded row: the
+    #: caller must commit. Not part of the member's identity.
+    newly_bound: bool = field(default=False, compare=False)
 
     @property
     def role_label(self) -> str:
@@ -57,6 +62,69 @@ def normalise_email(email: str) -> str:
     return email.strip().lower()
 
 
+# -- the resolved-staff cache (P22) ----------------------------------------------
+#
+# Every ``/v1/ops/*`` request resolves its staff member; on the production VPS
+# that lookup was five round trips (BEGIN, role switch, read, role restore,
+# COMMIT), ~1.1 s, for a row that changes a few times a month. It is cached per
+# process for STAFF_CACHE_TTL_SECONDS, keyed by (Supabase user id, verified
+# e-mail) -- an e-mail change is a different key, so it re-resolves at once.
+#
+# Only ACTIVE members are cached; a non-staff or inactive caller is looked up
+# every time, so nobody is locked out longer than one request after being added.
+# Any staff change made through THIS process (``upsert_staff``) clears the cache.
+#
+# THE TRADE-OFF, stated: the API runs several workers, and a role change or a
+# deactivation made on one worker reaches the OTHER workers' caches only when
+# their entry expires -- up to 60 s during which a just-removed member keeps
+# their old role there. The Cloudflare Access gate and the Supabase JWT are
+# still checked on every request; only the ops_staff row is cached.
+
+STAFF_CACHE_TTL_SECONDS = 60.0
+
+_cache: dict[tuple[uuid.UUID, str | None], tuple[float, StaffMember]] = {}
+_cache_lock = threading.Lock()
+
+
+def _cache_key(user_id: uuid.UUID, email: str | None) -> tuple[uuid.UUID, str | None]:
+    return (user_id, normalise_email(email) if email else None)
+
+
+def cached_staff(user_id: uuid.UUID, email: str | None) -> StaffMember | None:
+    """The cached active member for this user, if resolved in the last 60 s."""
+    key = _cache_key(user_id, email)
+    with _cache_lock:
+        hit = _cache.get(key)
+        if hit is None:
+            return None
+        stored_at, member = hit
+        if time.monotonic() - stored_at > STAFF_CACHE_TTL_SECONDS:
+            del _cache[key]
+            return None
+        return member
+
+
+def remember_staff(user_id: uuid.UUID, email: str | None, member: StaffMember) -> None:
+    """Cache an ACTIVE member (call only after any binding write has committed)."""
+    if not member.active:
+        return
+    stored = StaffMember(
+        id=member.id,
+        email=member.email,
+        role=member.role,
+        active=member.active,
+        user_id=member.user_id,
+    )
+    with _cache_lock:
+        _cache[_cache_key(user_id, email)] = (time.monotonic(), stored)
+
+
+def clear_staff_cache() -> None:
+    """Forget every cached member (any staff change; tests)."""
+    with _cache_lock:
+        _cache.clear()
+
+
 async def resolve_staff(
     session: AsyncSession, *, user_id: uuid.UUID, email: str | None
 ) -> StaffMember | None:
@@ -77,10 +145,21 @@ async def resolve_staff(
         )
         if row is None or not row.active:
             return None
-        if row.user_id is None:
+        newly_bound = row.user_id is None
+        if newly_bound:
             row.user_id = user_id
             row.updated_at = _now()
-    return _member(row)
+    member = _member(row)
+    if newly_bound:
+        return StaffMember(
+            id=member.id,
+            email=member.email,
+            role=member.role,
+            active=member.active,
+            user_id=member.user_id,
+            newly_bound=True,
+        )
+    return member
 
 
 async def list_staff(session: AsyncSession) -> list[StaffMember]:
@@ -112,6 +191,10 @@ async def upsert_staff(
     """Add or change a staff member (Admin only; audited)."""
     if role not in ROLES:
         raise StaffError(f"unknown role {role!r}")
+    # Before the write, not after the commit: a cached member must never
+    # outlive a change this process made, even if the caller's commit races a
+    # concurrent request.
+    clear_staff_cache()
     wanted = normalise_email(email)
     if "@" not in wanted:
         raise StaffError("invalid e-mail")

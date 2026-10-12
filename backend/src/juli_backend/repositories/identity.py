@@ -34,6 +34,7 @@ class UsersRepo(SessionRepo):
         *,
         email: str | None = None,
         display_name: str | None = None,
+        transaction_ends_after: bool = False,
     ) -> User:
         """Read one user during authentication, under a scope of its own (#1691).
 
@@ -81,8 +82,16 @@ class UsersRepo(SessionRepo):
         concern; the vendor shape stops at `core/security/`. Both are optional:
         a token without a verified email leaves the column NULL, which is the
         honest answer and the one `users.phone` could not give before #1972.
+
+        `transaction_ends_after=True` (P22) is the caller's promise that it
+        commits or rolls back immediately after this returns -- which
+        `get_current_user` does, unconditionally (#1906). `SET LOCAL` dies with
+        that transaction, so the scope skips reading the prior GUC pair and
+        putting it back: one statement instead of three on every authenticated
+        request. The flush below still runs INSIDE the scope, which is the part
+        #1973 depends on.
         """
-        async with with_user_scope(self._session, user_id):
+        async with with_user_scope(self._session, user_id, restore=not transaction_ends_after):
             try:
                 user = await self.get(user_id)
             except NotFound:

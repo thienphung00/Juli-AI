@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import Product, RunConfirmation
@@ -53,7 +53,13 @@ class RunListItem:
 
 
 async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) -> list[RunListItem]:
-    """The shop's runs, newest first. A queued run with no events is still listed."""
+    """The shop's runs, newest first. A queued run with no events is still listed.
+
+    Three statements whatever the number of runs (P22): the runs, every run's
+    latest narration, every waiting run's pending confirmation. This used to
+    read the narration (and the confirmation) once PER RUN -- up to 200
+    sequential round trips for the default limit, ~220 ms each in production.
+    """
     result = await session.execute(
         select(WorkflowRunRow, Product)
         .where(WorkflowRunRow.shop_id == shop_id)
@@ -61,11 +67,12 @@ async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) ->
         .order_by(WorkflowRunRow.created_at.desc())
         .limit(limit)
     )
+    rows = result.all()
+    narrations = await _latest_narrations(session, [run.id for run, _ in rows])
+    waiting = [run.id for run, _ in rows if run.status == WAITING_APPROVAL_RUN_STATUS]
+    decisions = await _pending_decisions(session, waiting)
     items: list[RunListItem] = []
-    for run, product in result.all():
-        decision_summary = None
-        if run.status == WAITING_APPROVAL_RUN_STATUS:
-            decision_summary = await _pending_decision(session, run.id)
+    for run, product in rows:
         items.append(
             RunListItem(
                 id=run.id,
@@ -75,13 +82,71 @@ async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) ->
                 created_at=_iso(run.created_at) or "",
                 completed_at=_iso(run.completed_at),
                 running_seconds_elapsed=run.running_seconds_elapsed,
-                latest_narration=await _latest_narration(session, run.id),
-                decision_summary=decision_summary,
+                latest_narration=narrations.get(run.id),
+                decision_summary=decisions.get(run.id),
                 awaiting=lever_flows.awaiting_of(run),
                 decision_id=run.action_card_id,
             )
         )
     return items
+
+
+async def _latest_narrations(
+    session: AsyncSession, run_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, str | None]:
+    """Each run's newest ``workflow.status`` narration, in one statement."""
+    if not run_ids:
+        return {}
+    newest = (
+        select(
+            WorkflowRunEventRow.workflow_run_id.label("run_id"),
+            WorkflowRunEventRow.payload.label("payload"),
+            func.row_number()
+            .over(
+                partition_by=WorkflowRunEventRow.workflow_run_id,
+                order_by=WorkflowRunEventRow.sequence_number.desc(),
+            )
+            .label("rank"),
+        )
+        .where(
+            WorkflowRunEventRow.workflow_run_id.in_(run_ids),
+            WorkflowRunEventRow.event_type == STATUS_EVENT_TYPE,
+        )
+        .subquery()
+    )
+    result = await session.execute(
+        select(newest.c.run_id, newest.c.payload).where(newest.c.rank == 1)
+    )
+    return {run_id: _narration_of(payload) for run_id, payload in result.all()}
+
+
+def _narration_of(payload: object) -> str | None:
+    return payload.get("phase_narration") if isinstance(payload, dict) else None
+
+
+async def _pending_decisions(
+    session: AsyncSession, run_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, PendingDecision]:
+    """Each waiting run's pending confirmation (one per run), in one statement."""
+    if not run_ids:
+        return {}
+    result = await session.execute(
+        select(RunConfirmation).where(
+            RunConfirmation.workflow_run_id.in_(run_ids),
+            RunConfirmation.status == PENDING_CONFIRMATION_STATUS,
+        )
+    )
+    found: dict[uuid.UUID, PendingDecision] = {}
+    for confirmation in result.scalars().all():
+        found.setdefault(confirmation.workflow_run_id, _decision_of(confirmation))
+    return found
+
+
+def _decision_of(confirmation: RunConfirmation) -> PendingDecision:
+    return PendingDecision(
+        tool_call_id=confirmation.tool_call_id,
+        expires_at=_iso(confirmation.expires_at) or str(confirmation.expires_at),
+    )
 
 
 async def _latest_narration(session: AsyncSession, run_id: uuid.UUID) -> str | None:
@@ -94,8 +159,7 @@ async def _latest_narration(session: AsyncSession, run_id: uuid.UUID) -> str | N
         .order_by(WorkflowRunEventRow.sequence_number.desc())
         .limit(1)
     )
-    payload = result.scalars().first()
-    return payload.get("phase_narration") if isinstance(payload, dict) else None
+    return _narration_of(result.scalars().first())
 
 
 async def _pending_decision(session: AsyncSession, run_id: uuid.UUID) -> PendingDecision | None:
@@ -108,12 +172,7 @@ async def _pending_decision(session: AsyncSession, run_id: uuid.UUID) -> Pending
         .limit(1)
     )
     confirmation = result.scalars().first()
-    if confirmation is None:
-        return None
-    return PendingDecision(
-        tool_call_id=confirmation.tool_call_id,
-        expires_at=_iso(confirmation.expires_at) or str(confirmation.expires_at),
-    )
+    return None if confirmation is None else _decision_of(confirmation)
 
 
 def _iso(value: datetime | None) -> str | None:
