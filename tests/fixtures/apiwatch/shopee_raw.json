@@ -1,0 +1,113 @@
+{
+ "errors": {},
+ "modules": {
+  "modules": [
+   {
+    "module_id": 89,
+    "module_name": "Product",
+    "type": 1,
+    "items": [
+     {
+      "id": 612,
+      "name": "v2.product.get_item_base_info",
+      "type": 1,
+      "status": 1
+     }
+    ]
+   },
+   {
+    "module_id": 87,
+    "module_name": "Overview",
+    "type": 2,
+    "items": [
+     {
+      "id": 64,
+      "name": "Introduction",
+      "type": 2,
+      "status": 1
+     }
+    ]
+   }
+  ]
+ },
+ "apis": {
+  "v2.product.get_item_base_info": {
+   "api_id": 612,
+   "api_name": "v2.product.get_item_base_info",
+   "api_type": "Shop",
+   "define": "Use this api to get basic info of item by item_id list.",
+   "is_get_method": 0,
+   "method": 2,
+   "module_id": 89,
+   "module_name": "Product",
+   "path": "/api/v2/product/get_item_base_info",
+   "status": 1,
+   "api_permission": [
+    "ERP System",
+    "Seller In House System",
+    "Product Management"
+   ],
+   "params": "{\"request_params\": [{\"name\": \"item_id_list\", \"type\": \"int64[]\", \"required\": \"True\", \"description\": \"item_id list; limit [0,50]\"}, {\"name\": \"need_tax_info\", \"type\": \"boolean\", \"required\": \"False\", \"description\": \"if true will response tax_info\"}], \"response_params\": [{\"name\": \"error\", \"type\": \"string\", \"description\": \"Indicate error type if hit error. Empty if no error happened.\"}, {\"name\": \"message\", \"type\": \"string\", \"description\": \"Indicate error details if hit error. Empty if no error happened.\"}, {\"name\": \"response\", \"type\": \"object\", \"description\": \"\", \"children\": [{\"name\": \"item_list\", \"type\": \"object[]\", \"description\": \"\", \"children\": [{\"name\": \"item_id\", \"type\": \"int64\", \"description\": \"Shopee's unique identifier for an item.\"}, {\"name\": \"item_name\", \"type\": \"string\", \"description\": \"Name of the item in local language.\"}, {\"name\": \"price_info\", \"type\": \"object[]\", \"description\": \"If the item has models, price_info will not be returned. Please get the price of each model through the get_model_list api\", \"children\": [{\"name\": \"currency\", \"type\": \"string\", \"description\": \"The three-digit code representing the currency unit used for the item in Shopee Listings.\"}, {\"name\": \"current_price\", \"type\": \"float\", \"description\": \"The current price of the item in the listing currency. If product under a onging promotion, current_price will be the promotion price\"}]}, {\"name\": \"item_status\", \"type\": \"string\", \"description\": \"<p>Enumerated type that defines the current status of the item. Applicable values: NORMAL, BANNED, UNLIST,&nbsp;<b><font color=\\\"#c24f4a\\\" style>SELLER_DELETE, SHOPEE_DELETE, REVIEWING</font></b>.<br /></p>\"}]}]}]}",
+   "update_log_list": [
+    {
+     "date": "2026-04-03",
+     "content": "remove promotion_id"
+    },
+    {
+     "date": "2026-03-13",
+     "content": "add new response field \"medicine_id\""
+    }
+   ]
+  }
+ },
+ "push_category": {
+  "category": [
+   {
+    "category_id": 1001,
+    "category_name": "Order Push",
+    "push": [
+     {
+      "push_api_id": 1,
+      "push_api_name": "order_status_push"
+     }
+    ]
+   }
+  ]
+ },
+ "push": {
+  "1": {
+   "update_logs": [
+    {
+     "ctime": 1692019537,
+     "description": "Shopee now support buyer to raise return& refund after order completed, for order_status_push add new field \"completed_scenario\" to indicate which COMPLETED status order is in.\n\n"
+    }
+   ],
+   "push_api": {
+    "push_api_id": 1,
+    "push_api_name": "order_status_push",
+    "push_code": 3,
+    "description": "Get notified immediately on all order status updates. This includes order cancellations that occur before shipping, so that you can take the necessary steps in time.",
+    "push_params": "[{\"name\": \"data\", \"type\": \"object\", \"required\": null, \"description\": \"<p>Main Push message data<br /></p>\", \"children\": [{\"name\": \"ordersn\", \"type\": \"string\", \"required\": null, \"description\": \"<p>Return by default. Shopee's unique identifier for an order.<br /></p>\"}, {\"name\": \"status\", \"type\": \"string\", \"required\": null, \"description\": \"<p>Return by default. Enumerated type that defines the current status of the order.<br /></p>\"}, {\"name\": \"update_time\", \"type\": \"timestamp\", \"required\": null, \"description\": \"<p>Return by default. Timestamp that indicates the last time that there was a change in value of order, such as order status changed from 'Paid' to 'Completed'.<br /></p>\"}]}, {\"name\": \"shop_id\", \"type\": \"int\", \"required\": null, \"description\": \"<p>Shopee's unique identifier for a shop. Required param for most APIs.<br /></p>\"}, {\"name\": \"code\", \"type\": \"int\", \"required\": null, \"description\": \"<p>Shopee's unique identifier for a push notification.<br /></p>\"}]"
+   }
+  }
+ },
+ "guides": {
+  "developer_guide_list": [
+   {
+    "item_id": 50,
+    "item_name": "Getting Started",
+    "item_type": 1,
+    "status": 1,
+    "children": [
+     {
+      "item_id": 4,
+      "item_name": "Introduction",
+      "item_type": 2,
+      "release_time": 1660708257,
+      "status": 1
+     }
+    ]
+   }
+  ]
+ }
+}
