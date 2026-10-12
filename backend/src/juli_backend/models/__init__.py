@@ -2,6 +2,13 @@
 
 from juli_backend.models.content_analysis import ContentAnalysis
 from juli_backend.models.decision_reasons import DecisionReason
+from juli_backend.models.history import (
+    ExternalChange,
+    ProductSnapshot,
+    PromotionActivity,
+    PromotionActivityProduct,
+    RunBaseline,
+)
 from juli_backend.models.ingestion import ShopIngestionState
 from juli_backend.models.lever_flows import (
     LeverCalibration,
@@ -62,4 +69,9 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopDailyProduct,
     OpsSystemSetting,
     ShopSubscriptionPeriod,
+    ProductSnapshot,
+    PromotionActivity,
+    PromotionActivityProduct,
+    ExternalChange,
+    RunBaseline,
 )
