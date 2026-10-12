@@ -294,7 +294,7 @@ async def test_whole_catalog_is_scored_and_the_top_thirty_ranked(session, shop_a
     assert op.as_of == AS_OF
     plan = op.plan
     assert plan.products_scored == len(CATALOG) + 1  # every listing with analytics
-    assert any("quà tặng" in reason for reason in plan.excluded.values())
+    assert any(reason.startswith("gift_product") for reason in plan.excluded.values())
     assert [p.rank for p in plan.proposals] == list(range(1, 13))
     assert plan.overflow == 0  # 12 weak products, all within the top 30
     ids = [p.product_id for p in plan.proposals]

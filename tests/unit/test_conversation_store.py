@@ -278,3 +278,24 @@ class TestNoWorkflowRunnerInThisSlice:
         source = (RUNNER_PACKAGE_DIR / "__init__.py").read_text()
         assert "class WorkflowRunner" not in source
         assert "import WorkflowRunner" not in source
+
+
+class TestStartedAtColumn:
+    """P26: `workflow_runs.started_at` was never written (every run read NULL).
+    The first persist to RUNNING stamps it from `RunState.started_at`; a later
+    RUNNING persist (resume) keeps the first value."""
+
+    async def test_first_running_persist_stamps_started_at_once(self, session: AsyncSession):
+        run_id = await _seed_workflow_run(session)
+        store = JsonbConversationStore(session)
+        first = datetime(2026, 10, 1, 4, 0, tzinfo=UTC)
+        state = RunState()
+        state.started_at = first.isoformat()
+
+        await store.persist(run_id, state, status=WorkflowRunStatus.RUNNING)
+        state.started_at = (first + timedelta(hours=1)).isoformat()
+        await store.persist(run_id, state, status=WorkflowRunStatus.RUNNING)
+
+        row = await session.get(WorkflowRun, run_id)
+        assert row is not None and row.started_at is not None
+        assert row.started_at.replace(tzinfo=UTC) == first

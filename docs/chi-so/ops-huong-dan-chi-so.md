@@ -59,6 +59,8 @@ Nguồn: `fasttrack/DECISIONS.md` D25–D31; `services/ops/simulation.py`;
 | **Giữ ổn định** | Đánh giá của một chỉ số giữ: vẫn trong Ngưỡng giữ ổn định | trước × (1 − ngưỡng %) ≤ thực tế ≤ trước × (1 + ngưỡng %); ngoài thì "Ngoài khoảng" |
 | **Hoàn tác?** | Ngày 7 có chỉ số vượt Ngưỡng giữ ổn định — Juli hỏi người bán; Juli không tự hoàn tác | Bất kỳ chỉ số giữ nào ra ngoài khoảng trên |
 | **Giữ thay đổi** | Người bán chọn giữ; Juli đo tiếp đến ngày 14 | — |
+| **Đã hủy** | Hàng chờ thẻ tối ưu: người bán dừng lượt chạy ("Không thực hiện" khi Juli chờ, hoặc huỷ) trước khi Juli ghi gì | `status = cancelled`, `stop_reason = cancelled_by_seller`; hàng chờ chỉ giữ lượt đã kết thúc trong 14 ngày, mỗi thẻ một lượt mới nhất |
+| **Sự cố** | Hàng chờ thẻ tối ưu: lượt chạy mất worker (không ai xử lý) và bị dừng; không ghi gì lên TikTok | `status = failed`, `stop_reason = worker_lost` — bộ dọn (reaper, mỗi 5 phút) đóng lượt không có sự kiện quá thời hạn của playbook |
 | **Quy tắc** | Trang người bán đặt giới hạn cho Juli (Ngưỡng giữ ổn định, giá vốn, trần giảm giá, số thẻ mở…) | Đội ngũ đặt trước từ Cài đặt shop; người bán chỉnh sau |
 
 ## 1. Bốn luồng và bốn chỉ số

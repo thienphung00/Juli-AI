@@ -49,6 +49,24 @@ export function runKind(run: QdRun, card: CardView | null, events: readonly Agen
   return "listing";
 }
 
+/** The run statuses that are not over yet; every other status is terminal. */
+const LIVE_RUN_STATUSES = new Set(["queued", "running", "waiting_approval", "waiting_external"]);
+
+export function isTerminalRun(run: Pick<QdRun, "status">): boolean {
+  return !LIVE_RUN_STATUSES.has(run.status);
+}
+
+/** A run that ended without success whose event stream shows no terminal event (not
+ * loaded yet, or reaped / cancelled before it emitted one): its phase from the polled
+ * status. A completed run still waits for its events (the done panel needs its writes). */
+function terminalPhaseFromStatus(run: QdRun): RunPhase | null {
+  if (run.status === "completed") return null;
+  const stop = run.stop_reason;
+  if (stop === "confirmation_declined" || stop === "cancelled_by_seller") return "declined";
+  if (stop === "concurrency_conflict") return "conflict";
+  return "ended";
+}
+
 export function runPhase(
   run: QdRun,
   kind: RunKind,
@@ -63,6 +81,9 @@ export function runPhase(
     if (terminal.kind === "completed" && (timeline.wrote || kind === "manual" || kind === "revert")) return "done";
     return "ended";
   }
+  // Never "Đang chạy" for a run the server already ended (e.g. reaped as worker_lost).
+  const ended = isTerminalRun(run) ? terminalPhaseFromStatus(run) : null;
+  if (ended) return ended;
   if (local.declined) return "declined";
   if (run.status === "queued") return "queued";
   if (run.awaiting === "photo") return "photo";
@@ -104,6 +125,8 @@ export function runChip(run: QdRun, kind: RunKind, phase: RunPhase): Chip {
     case "done":
       return kind === "revert" ? { label: "Đã hoàn tác", tone: "muted" } : { label: "Đã áp dụng", tone: "ok" };
     case "declined":
+      // The seller stopped the run ("Không thực hiện" on a wait / cancel): the ledger's "Đã hủy".
+      if (run.stop_reason === "cancelled_by_seller") return { label: RUN_TERMINAL_STATE_COPY.cancelled.label, tone: "muted" };
       if (kind === "manual") return { label: "Không áp dụng", tone: "muted" };
       if (kind === "revert") return { label: "Không hoàn tác", tone: "muted" };
       return { label: "Không thay đổi", tone: "muted" };
@@ -121,9 +144,8 @@ export function listChip(run: QdRun): Chip {
   if (run.status === "queued") return { label: "Trong hàng đợi", tone: "queue" };
   if (run.status === "waiting_approval" || run.awaiting) return { label: "Đang chờ bạn", tone: "wait" };
   if (run.status === "running" || run.status === "waiting_external") return { label: "Đang chạy", tone: "info" };
-  if (run.stop_reason === "confirmation_declined" || run.stop_reason === "cancelled_by_seller") {
-    return { label: "Không thay đổi", tone: "muted" };
-  }
+  if (run.stop_reason === "confirmation_declined") return { label: "Không thay đổi", tone: "muted" };
+  if (run.stop_reason === "cancelled_by_seller") return { label: RUN_TERMINAL_STATE_COPY.cancelled.label, tone: "muted" };
   if (run.status === "completed" && run.stop_reason === "final_response") return { label: "Đã áp dụng", tone: "ok" };
   const key = resolveRunTerminalState(run.stop_reason);
   return { label: (key ? RUN_TERMINAL_STATE_COPY[key] : RUN_TERMINAL_STATE_UNKNOWN_COPY).label, tone: "muted" };

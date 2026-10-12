@@ -113,6 +113,10 @@ from juli_backend.services.optimize_product.decision_cards import (
     ShopCardPlan,
     plan_shop_cards,
 )
+from juli_backend.services.optimize_product.eligibility import (
+    GIFT_PRODUCT,
+    stored_product_gift_reason,
+)
 from juli_backend.services.optimize_product.funnel import ProductFunnel
 from juli_backend.services.optimize_product.listing_signals import Evidence, EvidenceSource
 from juli_backend.services.optimize_product.prediction import CalibrationStats
@@ -320,7 +324,11 @@ async def plan_optimize_product_cards(
         # binds a run to a ``products`` row); it is excluded, not invented.
         status = product.status if product else "NOT_IN_CATALOG"
         catalog[product_id] = CatalogProduct(
-            product_id, title, status, category=product.category if product else None
+            product_id,
+            title,
+            status,
+            category=product.category if product else None,
+            sku_prices=(product.price,) if product is not None and product.price else (),
         )
         created = product.tiktok_created_at if product else None
         age = (as_of - created.date()).days if created else None
@@ -836,6 +844,11 @@ async def emit_optimize_product_cards(
         op_plan=op_plan,
         min_stay_days=emission_config.min_stay_days,
     )
+    if op_plan.quick_scan is None:
+        # P23 follow-up: a pending card written before D29 that this run did not
+        # rewrite (its diagnosis moved, or it is no longer ranked but still within
+        # its stay) gets the D29 KPI / confidence / GMV range in place.
+        await rescore_pending_cards(session, shop_id, op_plan, now=computed_at)
     logger.info(
         "optimize_product_cards_emitted",
         extra={
@@ -846,6 +859,91 @@ async def emit_optimize_product_cards(
         },
     )
     return decisions
+
+
+async def rescore_pending_cards(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    op_plan: OptimizeProductPlan,
+    *,
+    now: datetime,
+) -> list[ActionCard]:
+    """Re-score every pending pre-D29 card of the shop in place (no new revision).
+
+    Pending: ``active`` (surfaced or a draft) with an ADR-106 ``diagnosis`` and
+    no D29 ``kpi``. The card keeps its row, revision, lever and ``surfaced_at``;
+    its numbers become D29's (:func:`rescore.rescore_legacy_payload`). A card
+    whose KPI cannot be recomputed (no daily rows for its product) is left as it
+    is -- the read model caps its target. Quick-scan cards are left to the full
+    run's own upgrade. No commit here.
+    """
+    from juli_backend.services.optimize_product.rescore import rescore_legacy_payload
+    from juli_backend.services.shop_rules.diag_tunables import diag_tunables
+
+    rows = await session.execute(
+        select(ActionCard).where(
+            ActionCard.shop_id == shop_id,
+            ActionCard.workflow_key == OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+            ActionCard.status == _ACTIVE,
+        )
+    )
+    cards = [c for c in rows.scalars() if is_adr106_card(c) and not is_quick_card(c)]
+    if not cards:
+        return []
+    tunables = await diag_tunables(session, shop_id)
+    by_uuid = {str(p.id): p for p in op_plan.products.values()}
+    rescored: list[ActionCard] = []
+    for card in cards:
+        try:
+            payload = json.loads(card.recommendation_payload or "{}")
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        tiktok_id = _diagnosis(card).get("tiktok_product_id")
+        if not tiktok_id:
+            ref = subject_product_ref(card.subject_type, card.subject_id)
+            product = by_uuid.get(ref) if ref is not None else None
+            tiktok_id = product.tiktok_product_id if product is not None else None
+        days = op_plan.days.get(str(tiktok_id)) if tiktok_id else None
+        updated = rescore_legacy_payload(
+            payload, days or [], as_of=op_plan.as_of, tunables=tunables
+        )
+        if updated is None:
+            continue
+        card.recommendation_payload = json.dumps(updated, ensure_ascii=False)
+        card.computed_at = now
+        rescored.append(card)
+    if rescored:
+        await session.flush()
+        logger.info(
+            "optimize_product_cards_rescored_d29",
+            extra={"shop_id": str(shop_id), "rescored": len(rescored)},
+        )
+    return rescored
+
+
+async def rescore_shop_cards(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+) -> dict[str, Any]:
+    """Ops: re-score one shop's pending cards from stored data only (no TikTok call).
+
+    Plans from the stored daily analytics, then (a) retires gift-product cards
+    and (b) re-scores pending pre-D29 cards in place. Emits no new card and
+    touches no surfacing (the daily diagnosis build does that). No commit here.
+    """
+    op_plan = await plan_optimize_product_cards(session, shop_id, now=now)
+    if op_plan is None:
+        return {"shop_id": str(shop_id), "status": "no_product_analytics"}
+    gifts = await retire_gift_cards(session, shop_id)
+    rescored = await rescore_pending_cards(session, shop_id, op_plan, now=now)
+    return {
+        "shop_id": str(shop_id),
+        "status": "ok",
+        "as_of": op_plan.as_of.isoformat(),
+        "gift_cards_retired": len(gifts),
+        "cards_rescored": len(rescored),
+    }
 
 
 #: D29: the funnel stage of a pre-D29 card -> the metric it targeted.
@@ -961,16 +1059,50 @@ WITHDRAW_OUT_OF_STOCK = "out_of_stock"
 WITHDRAW_NOT_ON_SALE = "not_on_sale"
 WITHDRAW_AT_TARGET = "metric_at_target"
 WITHDRAW_UNRANKED = "unranked_after_min_stay"
+#: A gift item (``optimize_product.eligibility``) is never an optimize
+#: candidate: its live cards -- surfaced or not, ADR-106 or legacy -- are
+#: retired on the next run with this reason and never executed.
+WITHDRAW_GIFT_PRODUCT = GIFT_PRODUCT
 
 
 def _withdraw(card: ActionCard, shop_id: uuid.UUID, *, why: str) -> None:
     card.status = WITHDRAWN_STATUS
     card.surfaced_at = None
-    card.suppressed_reason = None
+    # A gift card keeps its reason on the row (the revision vocabulary's
+    # ``gift_product``), so Ops can see why it left; other withdrawals clear it.
+    card.suppressed_reason = WITHDRAW_GIFT_PRODUCT if why == WITHDRAW_GIFT_PRODUCT else None
     logger.info(
         "optimize_product_card_withdrawn",
         extra={"shop_id": str(shop_id), "card_id": str(card.id), "why": why},
     )
+
+
+async def retire_gift_cards(session: AsyncSession, shop_id: uuid.UUID) -> list[ActionCard]:
+    """Withdraw every live card (any status ``active``) whose product is a gift item."""
+    gift_ids = await gift_product_ids(session, shop_id)
+    if not gift_ids:
+        return []
+    rows = await session.execute(
+        select(ActionCard).where(
+            ActionCard.shop_id == shop_id,
+            ActionCard.workflow_key == OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+            ActionCard.status == _ACTIVE,
+        )
+    )
+    retired: list[ActionCard] = []
+    for card in rows.scalars():
+        if subject_product_ref(card.subject_type, card.subject_id) in gift_ids:
+            _withdraw(card, shop_id, why=WITHDRAW_GIFT_PRODUCT)
+            retired.append(card)
+    if retired:
+        await session.flush()
+    return retired
+
+
+async def gift_product_ids(session: AsyncSession, shop_id: uuid.UUID) -> set[str]:
+    """``products.id`` (as str) of the shop's gift items (``eligibility``)."""
+    rows = await session.execute(select(Product).where(Product.shop_id == shop_id))
+    return {str(p.id) for p in rows.scalars() if stored_product_gift_reason(p) is not None}
 
 
 def _diagnosis(card: ActionCard) -> dict:
@@ -1066,7 +1198,9 @@ async def withdraw_unranked_cards(
         ActionCard.workflow_key == OPTIMIZE_PRODUCT_WORKFLOW_KEY,
         ActionCard.status == _ACTIVE,
     )
-    cards = list((await session.execute(stmt)).scalars())
+    withdrawn = await retire_gift_cards(session, shop_id)
+    retired = {c.id for c in withdrawn}
+    cards = [c for c in (await session.execute(stmt)).scalars() if c.id not in retired]
     surfaced = [c for c in cards if c.surfaced_at is not None and is_adr106_card(c)]
     products_by_id: dict[str, Product] = {}
     stock: dict[str, Decimal] = {}
@@ -1085,7 +1219,6 @@ async def withdraw_unranked_cards(
             products_by_id = {str(p.id): p for p in rows.scalars() if str(p.id) in product_ids}
         stock = await _stock_by_tiktok_id(session, shop_id)
 
-    withdrawn: list[ActionCard] = []
     for card in cards:
         ranked = card.subject_type in PRODUCT_SUBJECT_TYPES and card.subject_id in keep_subject_ids
         legacy = card.subject_type == SUBJECT_TYPE_UNSCOPED or not is_adr106_card(card)
@@ -1132,6 +1265,10 @@ __all__ = [
     "OptimizeProductPlan",
     "build_card_payload",
     "emit_optimize_product_cards",
+    "gift_product_ids",
+    "rescore_pending_cards",
+    "rescore_shop_cards",
+    "retire_gift_cards",
     "invalid_reason",
     "is_adr106_card",
     "is_quick_card",

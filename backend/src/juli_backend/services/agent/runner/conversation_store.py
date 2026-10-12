@@ -128,6 +128,17 @@ _TERMINAL_STATUSES: frozenset[WorkflowRunStatus] = (
 )
 
 
+def _started_at_value(iso: str | None, fallback: datetime) -> datetime:
+    """`RunState.started_at` (ISO, set at the top of `run()`) as a datetime, else now."""
+    if iso:
+        try:
+            value = datetime.fromisoformat(iso)
+        except ValueError:
+            return fallback
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    return fallback
+
+
 @dataclass(frozen=True)
 class PendingConfirmationWrite:
     """The `run_confirmations` row `persist`'s `pending_confirmation`
@@ -340,6 +351,11 @@ class JsonbConversationStore:
             run.stop_reason = stop_reason.value if stop_reason is not None else None
             run.required_steps_completed = required_steps_completed
             now = datetime.now(UTC)
+            # The column used to be written by nobody (only the state blob's ISO
+            # string was), so every run read `started_at IS NULL`. Stamped once,
+            # the first time the runner moves the run to RUNNING; resume keeps it.
+            if status is WorkflowRunStatus.RUNNING and run.started_at is None:
+                run.started_at = _started_at_value(state.started_at, now)
             if status in _TERMINAL_STATUSES:
                 run.completed_at = now
             elif status is WorkflowRunStatus.WAITING_APPROVAL:

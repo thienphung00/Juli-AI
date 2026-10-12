@@ -45,7 +45,7 @@ import type { RevertQuestion, RunChanges, ShopRules } from "../../lib/quyet-dinh
 import { RUN_LEDGER_POLL_INTERVAL_MS } from "../../lib/run-ledger/panel-config";
 import { groupRunsIntoLedgerSections } from "../../lib/run-ledger/sections";
 import { AppPageHeader } from "../app-shell/page-header";
-import { RunQueue } from "./dang-thuc-hien-panel";
+import { queueRuns, RunQueue } from "./dang-thuc-hien-panel";
 import { DeXuatPanel } from "./de-xuat-panel";
 import {
   DoLuongPanel,
@@ -379,7 +379,7 @@ export function QuyetDinhView({
   };
 
   // -- selected run --------------------------------------------------------------
-  const sections = groupRunsIntoLedgerSections(runList);
+  const sections = groupRunsIntoLedgerSections(queueRuns(runList, nowMs, query.run ?? null));
   const defaultRun = sections.waitingOnYou[0] ?? sections.running[0] ?? sections.finished[0] ?? null;
   const selectedRun = runList.find((run) => run.id === query.run) ?? (query.run ? null : (defaultRun as QdRun | null));
   const [selectedState, setSelectedState] = useState<{ runId: string; kind: RunKind; chip: Chip; headline?: string | null } | null>(
@@ -558,6 +558,7 @@ export function QuyetDinhView({
           </div>
           <RunQueue
             cardFor={cardFor}
+            nowMs={nowMs}
             onSelect={(runId) => navigate({ run: runId })}
             runs={runList}
             selectedChip={selectedState && selectedState.runId === selectedRun?.id ? selectedState.chip : null}

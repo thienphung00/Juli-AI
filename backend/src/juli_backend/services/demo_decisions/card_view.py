@@ -22,7 +22,9 @@ Field rules, where the contract leaves a choice:
 - ``main_kpi``: the weak stage the GMV estimate is built on
   (``recoverable_gmv_basis``), ``target`` = its ``reference_rate`` so the KPI
   and ``expected_gmv_per_month`` agree. Without a basis: the diagnosis's main
-  KPI, no target.
+  KPI, no target. A pre-D29 card (no ``kpi``) that the re-score could not reach
+  has its target capped at 3 × a fallback band (``optimize_product.rescore``) and
+  its GMV estimate scaled with it -- never the uncapped shop median.
 - ``tiktok_codes``: labels of diagnosis codes TikTok itself returned. Juli's
   local reading of the same codes is named in ``reason_full`` as "Juli đánh
   giá", never as TikTok's (OP-NFR-2).
@@ -49,6 +51,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.models import ActionCard, InventoryItem, Product, WorkflowRun
 from juli_backend.models.run_changes import RunWriteValue
 from juli_backend.services.agent.tools.diagnosis_labels import diagnosis_label_vi
+from juli_backend.services.optimize_product.rescore import cap_legacy_target, has_d29_kpi
 
 WORKFLOW_LABEL_VI = "Tối ưu sản phẩm"
 #: D24.17: a card is valid 7 days from surfacing.
@@ -277,6 +280,22 @@ def _main_kpi(diagnosis: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _capped_legacy(
+    kpi: dict[str, Any], per_day: float | None
+) -> tuple[dict[str, Any], float | None]:
+    """A pre-D29 card the re-score could not reach: its target never above the 3× cap.
+
+    The GMV estimate is linear in the target, so it shrinks by the same share.
+    """
+    current, target = kpi.get("current"), kpi.get("target")
+    capped = cap_legacy_target(current, target)
+    if capped is None or target is None or current is None or capped >= target:
+        return kpi, per_day
+    if per_day is not None and target > current:
+        per_day = per_day * (capped - current) / (target - current)
+    return {**kpi, "target": capped}, per_day
+
+
 def _evidence(diagnosis: Mapping[str, Any]) -> tuple[list[str], list[str]]:
     """(TikTok's code labels, Juli's local-reading labels), de-duplicated, in order."""
     lever = diagnosis.get("lever")
@@ -363,6 +382,8 @@ def build_card_block(
     kpi = _main_kpi(diagnosis)
     tiktok, local = _evidence(diagnosis)
     per_day = _num(diagnosis.get("recoverable_gmv_per_day"))
+    if not has_d29_kpi(payload):
+        kpi, per_day = _capped_legacy(kpi, per_day)
     product = context.product
     title = (product.title or product.name) if product is not None else None
     field_code, field_label = _LEVER_FIELDS.get(lever_code, (lever_code, lever_label))

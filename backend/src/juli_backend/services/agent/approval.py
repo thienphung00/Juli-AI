@@ -343,12 +343,23 @@ async def _resolve_card_subject(session: AsyncSession, card: ActionCard) -> _Car
         ) from exc
 
     try:
-        await ProductsRepo(session).get(card.shop_id, product_id)
+        product = await ProductsRepo(session).get(card.shop_id, product_id)
     except NotFound as exc:
         raise CardSubjectNotApprovable(
             f"ActionCard {card.id} names product {product_id} as its subject, "
             "which does not exist for this shop"
         ) from exc
+
+    # A gift item (free gift attached to orders) is never optimized: a card
+    # written before the gift rule existed is refused here, never executed.
+    from juli_backend.services.optimize_product.eligibility import stored_product_gift_reason
+
+    gift = stored_product_gift_reason(product)
+    if gift is not None:
+        raise CardSubjectNotApprovable(
+            f"ActionCard {card.id} names product {product_id}, a gift item ({gift}); "
+            "gift items are never optimized"
+        )
 
     return _CardSubject(
         subject_type=subject_type,

@@ -55,6 +55,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.shop_diagnosis import ShopDailyProduct, ShopDailyStream
 from juli_backend.services.change_strength import change_strength
+from juli_backend.services.optimize_product.eligibility import is_gift_product
 
 STREAMS: tuple[str, ...] = ("product_card", "shop_tab", "seller_video", "seller_live")
 STREAM_NAMES: dict[str, str] = {
@@ -630,6 +631,10 @@ def baseline(history: History, window: int) -> dict[str, Any]:
             )
             rows: list[dict[str, Any]] = []
             for pid, per_day in history.products.get(stream, {}).items():
+                # Gift items ride on other products' orders: kept in the shop
+                # totals above, never a row of the per-product table.
+                if is_gift_product(title=history.titles.get(pid)):
+                    continue
                 row_days = _present(per_day, last_days)
                 if len(row_days) < max(3, window // 3):
                     continue

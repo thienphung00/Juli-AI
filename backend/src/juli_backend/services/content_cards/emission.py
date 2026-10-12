@@ -72,6 +72,10 @@ from juli_backend.services.content_cards.constants import (
     WEEKLY_CONTENT_CARDS,
     ContentKind,
 )
+from juli_backend.services.optimize_product.eligibility import (
+    GIFT_PRODUCT,
+    stored_product_gift_reason,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +148,11 @@ def payload_of(card: ActionCard) -> dict[str, Any]:
 
 def _sellable(product: Product) -> bool:
     return (product.status or "").upper() not in _NOT_SELLABLE
+
+
+def _gift(product: Product) -> bool:
+    """A gift item (``optimize_product.eligibility``) never gets a content card."""
+    return stored_product_gift_reason(product) is not None
 
 
 @dataclass(frozen=True)
@@ -463,6 +472,9 @@ async def emit_content_cards(
         if card_expired(card, now=now):
             _withdraw(card, why="expired", now=now)
             withdrawn += 1
+        elif product_facts is not None and _gift(product_facts.product):
+            _withdraw(card, why=GIFT_PRODUCT, now=now)
+            withdrawn += 1
         elif product_facts is None or not _sellable(product_facts.product):
             _withdraw(card, why="product_not_sellable", now=now)
             withdrawn += 1
@@ -509,7 +521,7 @@ async def emit_content_cards(
             persist._log_suppressed(shop_id, decision)
 
         current = latest.get((spec.workflow_key, subject.subject_id))
-        if not _sellable(product_facts.product):
+        if not _sellable(product_facts.product) or _gift(product_facts.product):
             suppressed(SUPPRESSED_NOT_SELLABLE, current)
             continue
         if (subject.subject_id, spec.lever_code) in cooldowns:
