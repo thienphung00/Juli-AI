@@ -251,3 +251,28 @@ def test_report_empty_input() -> None:
     out = io.StringIO()
     latency_report.main([], stdin=io.StringIO(""), stdout=out)
     assert "No http_request events" in out.getvalue()
+
+
+def test_a_route_in_a_mounted_sub_app_is_logged_with_its_mount_prefix(caplog):
+    """The /v1 API is a mounted sub-app: its route template is relative to the mount,
+    so the event must add the mount (``root_path``) to read ``/v1/ops/...``."""
+    import logging
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from juli_backend.api.middleware import RequestTimingMiddleware
+
+    inner = FastAPI()
+
+    @inner.get("/ops/shops/{shop_id}")
+    def _shop(shop_id: str) -> dict[str, str]:
+        return {"ok": shop_id}
+
+    outer = FastAPI()
+    outer.mount("/v1", inner)
+    outer.add_middleware(RequestTimingMiddleware)
+    with caplog.at_level(logging.INFO, logger="juli_backend.api.middleware"):
+        TestClient(outer).get("/v1/ops/shops/abc")
+    routes = [r.route for r in caplog.records if r.getMessage() == "http_request"]
+    assert routes == ["/v1/ops/shops/{shop_id}"]

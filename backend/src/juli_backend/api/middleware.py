@@ -113,7 +113,15 @@ def _route_template(scope: Scope) -> str:
     """
     route = scope.get("route")
     path = getattr(route, "path", None)
-    return path if isinstance(path, str) and path else UNMATCHED_ROUTE
+    if not isinstance(path, str) or not path:
+        return UNMATCHED_ROUTE
+    # Inside a mounted sub-application (the ``/v1`` API) the template is relative to
+    # the mount; ``root_path`` carries the mount prefix, so the logged template is the
+    # public one (``/v1/ops/me``, not ``/ops/me``) and a ``--prefix /v1/ops`` matches.
+    root = scope.get("root_path") or ""
+    if isinstance(root, str) and root and not path.startswith(root):
+        return root.rstrip("/") + path
+    return path
 
 
 class RequestTimingMiddleware:
