@@ -116,7 +116,9 @@ def main(
     stdout: TextIO | None = None,
 ) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else None)
-    parser.add_argument("--prefix", help="only routes whose template starts with this, e.g. /v1/ops")
+    parser.add_argument(
+        "--prefix", help="only routes whose template starts with this, e.g. /v1/ops"
+    )
     parser.add_argument("--min-count", type=int, default=1, help="hide routes with fewer requests")
     args = parser.parse_args(argv)
     rows = summarise(collect(stdin or sys.stdin), prefix=args.prefix, min_count=args.min_count)
