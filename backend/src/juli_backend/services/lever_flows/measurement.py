@@ -409,6 +409,42 @@ async def shop_calibrations(session: AsyncSession, shop_id: uuid.UUID) -> dict[s
     return {row.lever: Decimal(str(row.coefficient)) for row in rows}
 
 
+async def shop_calibration_stats(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> dict[str, tuple[Decimal, int]]:
+    """lever -> (coefficient, measured day-14 results) for the shop (D30.3 shrinkage)."""
+    rows = (
+        await session.execute(select(LeverCalibration).where(LeverCalibration.shop_id == shop_id))
+    ).scalars()
+    return {row.lever: (Decimal(str(row.coefficient)), int(row.readings or 0)) for row in rows}
+
+
+async def fleet_calibration_stats(session: AsyncSession) -> dict[str, tuple[Decimal, int]]:
+    """lever -> (results-weighted mean coefficient, results) over every shop the session sees.
+
+    D30.3's fleet level. Under a shop-scoped session (row-level security) this
+    sees only that shop, which degrades to the shop's own numbers -- never
+    another shop's, and never an error.
+    """
+    rows = (
+        await session.execute(
+            select(
+                LeverCalibration.lever,
+                func.sum(LeverCalibration.coefficient * LeverCalibration.readings),
+                func.sum(LeverCalibration.readings),
+            )
+            .where(LeverCalibration.readings > 0)
+            .group_by(LeverCalibration.lever)
+        )
+    ).all()
+    out: dict[str, tuple[Decimal, int]] = {}
+    for lever, weighted, readings in rows:
+        if not readings:
+            continue
+        out[str(lever)] = (Decimal(str(weighted)) / Decimal(int(readings)), int(readings))
+    return out
+
+
 async def _update_calibration(
     session: AsyncSession, shop_id: uuid.UUID, lever: str, ratio: Decimal
 ) -> tuple[Decimal, Decimal]:
@@ -811,6 +847,8 @@ __all__ = [
     "WindowTotals",
     "card_target",
     "current_calibration",
+    "fleet_calibration_stats",
+    "shop_calibration_stats",
     "shop_calibrations",
     "final_label",
     "format_value",

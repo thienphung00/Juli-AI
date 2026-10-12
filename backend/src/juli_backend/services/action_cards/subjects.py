@@ -89,6 +89,52 @@ SUBJECT_TYPE_UNSCOPED = "unscoped"
 #: seam, never a caller's convenience.
 BINDABLE_SUBJECT_TYPES: frozenset[str] = frozenset({SUBJECT_TYPE_PRODUCT})
 
+#: D29.4 (fast track P23): ``action_cards.subject_type`` for one card chain per
+#: (product, lever) -- ``subject_id`` is ``"<products.id>:<lever code>"``. The
+#: revision ladder and the partial unique "one live card per subject" key on
+#: the subject, so a product may hold one live card per lever. The card is
+#: still ABOUT the product: :func:`subject_product_ref` maps both kinds to the
+#: ``products.id`` the approve path binds the run to (as a ``"product"``
+#: subject). Chains written before P23 (``"product"``) keep working.
+SUBJECT_TYPE_PRODUCT_LEVER = "product_lever"
+_PRODUCT_LEVER_SEP = ":"
+
+#: Card subject kinds that name a product (the run is bound to that product).
+PRODUCT_SUBJECT_TYPES: frozenset[str] = frozenset(
+    {SUBJECT_TYPE_PRODUCT, SUBJECT_TYPE_PRODUCT_LEVER}
+)
+
+
+def product_lever_subject_id(product_id: str, lever_code: str) -> str:
+    return f"{product_id}{_PRODUCT_LEVER_SEP}{lever_code}"
+
+
+def subject_product_ref(subject_type: str | None, subject_id: str | None) -> str | None:
+    """The ``products.id`` (string) a product or product-lever subject names, else ``None``."""
+    if not subject_id or subject_type not in PRODUCT_SUBJECT_TYPES:
+        return None
+    if subject_type == SUBJECT_TYPE_PRODUCT_LEVER:
+        ref, sep, lever = subject_id.partition(_PRODUCT_LEVER_SEP)
+        return ref if sep and lever else None
+    return subject_id
+
+
+def subject_product_uuid(subject_type: str | None, subject_id: str | None) -> uuid.UUID | None:
+    ref = subject_product_ref(subject_type, subject_id)
+    if ref is None:
+        return None
+    try:
+        return uuid.UUID(ref)
+    except ValueError:
+        return None
+
+
+def card_product_uuid(card: ActionCard | None) -> uuid.UUID | None:
+    """The ``products.id`` a card is about (product or product-lever subject), else ``None``."""
+    if card is None:
+        return None
+    return subject_product_uuid(card.subject_type, card.subject_id)
+
 
 @dataclass(frozen=True, slots=True)
 class CardSubject:
@@ -192,12 +238,20 @@ def card_subject_is_bindable(card: ActionCard) -> bool:
     It does **not** verify the referenced row exists -- that needs a query and
     a shop scope, and approve does it for real at the moment it matters.
     """
+    if card.subject_type == SUBJECT_TYPE_PRODUCT_LEVER:
+        return subject_product_ref(card.subject_type, card.subject_id) is not None
     return card.subject_type in BINDABLE_SUBJECT_TYPES and bool(card.subject_id)
 
 
 __all__ = [
     "BINDABLE_SUBJECT_TYPES",
+    "PRODUCT_SUBJECT_TYPES",
     "SUBJECT_TYPE_PRODUCT",
+    "SUBJECT_TYPE_PRODUCT_LEVER",
+    "card_product_uuid",
+    "product_lever_subject_id",
+    "subject_product_ref",
+    "subject_product_uuid",
     "SUBJECT_TYPE_UNSCOPED",
     "UNSCOPED_SUBJECT",
     "CardSubject",

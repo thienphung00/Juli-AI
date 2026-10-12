@@ -110,6 +110,10 @@ from juli_backend.database.exceptions import NotFound
 from juli_backend.models.models import ActionCard, ActionCardApproval
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.repositories.repos import ActionCardsRepo, ProductsRepo
+from juli_backend.services.action_cards.subjects import (
+    SUBJECT_TYPE_PRODUCT_LEVER,
+    subject_product_ref,
+)
 from juli_backend.services.agent import playbooks as playbooks_module
 
 Clock = Callable[[], datetime]
@@ -309,6 +313,12 @@ async def _resolve_card_subject(session: AsyncSession, card: ActionCard) -> _Car
     """
     subject_type = card.subject_type
     subject_ref = card.subject_id
+    if subject_type == SUBJECT_TYPE_PRODUCT_LEVER:
+        # D29.4 (P23): one card chain per (product, lever). The card is about
+        # the product; the run binds to it as a plain "product" subject, so
+        # nothing downstream of approve sees a new kind.
+        subject_type = "product"
+        subject_ref = subject_product_ref(SUBJECT_TYPE_PRODUCT_LEVER, card.subject_id) or ""
 
     if subject_type == _UNSCOPED_SUBJECT_TYPE or not subject_ref:
         raise CardSubjectNotApprovable(

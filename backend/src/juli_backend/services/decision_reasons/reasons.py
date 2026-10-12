@@ -300,10 +300,7 @@ def close_card(card: ActionCard | None, *, now: datetime | None = None) -> None:
 
 
 def product_id_of(card: ActionCard | None) -> uuid.UUID | None:
-    """The ``products.id`` a product-subject card is about, else ``None``."""
-    if card is None or card.subject_type != "product" or not card.subject_id:
-        return None
-    try:
-        return uuid.UUID(card.subject_id)
-    except ValueError:
-        return None
+    """The ``products.id`` a product(-lever) subject card is about, else ``None``."""
+    from juli_backend.services.action_cards.subjects import card_product_uuid
+
+    return card_product_uuid(card)

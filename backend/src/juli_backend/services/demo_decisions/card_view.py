@@ -114,12 +114,9 @@ class CardContext:
 
 
 def _product_uuid(card: ActionCard) -> uuid.UUID | None:
-    if card.subject_type != "product" or not card.subject_id:
-        return None
-    try:
-        return uuid.UUID(card.subject_id)
-    except ValueError:
-        return None
+    from juli_backend.services.action_cards.subjects import card_product_uuid
+
+    return card_product_uuid(card)
 
 
 async def load_card_contexts(

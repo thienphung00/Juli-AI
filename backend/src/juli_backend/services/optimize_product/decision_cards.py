@@ -29,9 +29,12 @@ stay report-only. Pure.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, replace
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
+from juli_backend.services.optimize_product.basket import basket_threshold
 from juli_backend.services.optimize_product.cards import (
     ANGLE_ACTION,
     NOT_ENOUGH_DATA,
@@ -42,15 +45,20 @@ from juli_backend.services.optimize_product.cards import (
 )
 from juli_backend.services.optimize_product.catalog_scan import diagnose_all
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
+from juli_backend.services.optimize_product.daily_funnel import ProductDay
 from juli_backend.services.optimize_product.diagnosis import (
     BRANCH_ORDER,
     Angle,
+    BmsmProposal,
     Branch,
     Diagnosis,
     Gap,
     Label,
     Skip,
     Trigger,
+    _angles_with_evidence,
+    codes_for_angle,
+    compute_gaps,
 )
 from juli_backend.services.optimize_product.funnel import FunnelWindow, ProductFunnel, ShopMedians
 from juli_backend.services.optimize_product.listing_signals import (
@@ -59,10 +67,32 @@ from juli_backend.services.optimize_product.listing_signals import (
     is_title_code,
     listing_signals_from_product,
 )
+from juli_backend.services.optimize_product.prediction import (
+    CalibrationStats,
+    Prediction,
+    gmv_range_per_month,
+    predict,
+)
+from juli_backend.services.optimize_product.quality_score import (
+    ListingFacts,
+    QualityScore,
+    lever_weight,
+    quality_score,
+)
 from juli_backend.services.optimize_product.shop_report import (
     STATUS_NEEDS_CAP,
     STATUS_NOT_ASKED,
     STATUS_RULE,
+)
+from juli_backend.services.optimize_product.tunables import DiagTunables
+from juli_backend.services.optimize_product.volatility import (
+    STABILITY_ORDER,
+    Assessment,
+    Kpi,
+    assess_product,
+    kpi_target,
+    reference_for,
+    window_counts,
 )
 
 #: Version of the card payload shape; bump when ``diagnosis`` changes shape.
@@ -152,6 +182,8 @@ class CatalogProduct:
     product_id: str
     title: str
     status: str | None = None
+    #: TikTok's category name (D30.2 risky-claims rule list), when stored.
+    category: str | None = None
 
 
 @dataclass(frozen=True)
@@ -185,10 +217,30 @@ class CardProposal:
     gaps: dict[str, Gap] = field(default_factory=dict)
     #: D24.6: the shop's history for this lever, applied to the ranking only.
     history: LeverHistory | None = None
+    #: D29: the product's volatility assessment, its target metric and KPI.
+    assessment: Assessment | None = None
+    target_metric: str | None = None
+    kpi: Kpi | None = None
+    #: D30.2 / D30.3 (internal): Quality Score and the calibrated lift.
+    quality: QualityScore | None = None
+    prediction: Prediction | None = None
+    #: D30.3: GMV range per month (min, max) from the KPI range.
+    gmv_estimate: tuple[float, float] | None = None
+    #: D29 ranking value (recoverable × calibration × reason penalty × QS weight);
+    #: replaces the D24.6 weighting when set.
+    d29_ranking_value: Decimal | None = None
+    #: D29.4: other cards of the same product and target metric in this plan.
+    sibling_cards: int = 0
+
+    @property
+    def confidence(self) -> str | None:
+        return self.assessment.confidence if self.assessment is not None else None
 
     @property
     def ranking_gmv_per_day(self) -> Decimal | None:
         """Recoverable GMV × the lever's history weight — what the ranking sorts on."""
+        if self.d29_ranking_value is not None:
+            return self.d29_ranking_value
         if self.recoverable_gmv_per_day is None:
             return None
         weight = self.history.weight if self.history is not None else Decimal(1)
@@ -269,6 +321,10 @@ class CardProposal:
                 if self.history is not None and self.history.adjusted
                 else None
             ),
+            # D29 / D30.3 internals (not in the seller allowlist): the assessment
+            # behind the target metric and the calibrated lift.
+            **({"volatility": self.assessment.to_json()} if self.assessment is not None else {}),
+            **({"prediction": self.prediction.to_json()} if self.prediction is not None else {}),
         }
 
 
@@ -495,6 +551,13 @@ def plan_shop_cards(
     last30: dict[str, FunnelWindow] | None = None,
     history: dict[str, LeverHistory] | None = None,
     tiktok_evidence: dict[str, list[Evidence]] | None = None,
+    daily: dict[str, list[ProductDay]] | None = None,
+    as_of: date | None = None,
+    tunables: DiagTunables | None = None,
+    calibration: dict[str, CalibrationStats] | None = None,
+    fleet_calibration: dict[str, CalibrationStats] | None = None,
+    listing_facts: dict[str, ListingFacts] | None = None,
+    benchmarks: dict[str, dict[str, float]] | None = None,
 ) -> ShopCardPlan:
     """Score the catalog, compose the ranked proposals, keep the top ``top_k``.
 
@@ -502,6 +565,12 @@ def plan_shop_cards(
     ranking; a lever absent from it is neutral. ``tiktok_evidence`` (product id
     -> TikTok's own listing codes, fast track P17: what the quick scan read)
     is added to the local title evidence, and those products count as asked.
+
+    With ``daily`` (product id -> daily rows) and ``as_of`` the D29 pipeline
+    runs instead of ADR-106's gap threshold (:func:`_plan_d29`): GMV-first
+    trigger, one target metric per product, one proposal per (product, lever)
+    within it, stable-first ranking, KPI and Quality Score / Performance
+    Prediction (D30.2–3). Without them, the ADR-106 behaviour is unchanged.
     """
     excluded: dict[str, str] = {}
     evidence_by_id: dict[str, list[Evidence]] = {}
@@ -524,6 +593,26 @@ def plan_shop_cards(
         asked=asked,
         discount_cap_set=discount_cap_set,
     )
+    if daily is not None and as_of is not None:
+        return _plan_d29(
+            funnels,
+            catalog,
+            config,
+            medians=medians,
+            excluded=excluded,
+            evidence_by_id=evidence_by_id,
+            asked=asked,
+            top_k=top_k,
+            discount_cap_set=discount_cap_set,
+            daily=daily,
+            as_of=as_of,
+            tunables=tunables or DiagTunables(),
+            history=history or {},
+            calibration=calibration or {},
+            fleet_calibration=fleet_calibration or {},
+            listing_facts=listing_facts or {},
+            benchmarks=benchmarks or {},
+        )
     by_id = {d.product_id: d for d in diagnoses}
     funnel_by_id = {f.product_id: f for f in funnels}
 
@@ -580,4 +669,318 @@ def plan_shop_cards(
         excluded=excluded,
         products_scored=len(funnels),
         overflow=len(ordered) - len(kept),
+    )
+
+
+# =========================================================================== D29
+
+
+#: D29: the funnel stage (branch) that moves each target metric. Hiển thị moves
+#: through the title's keywords (the Đòn bẩy map: "từ khoá tiêu đề").
+METRIC_BRANCH: dict[str, Branch] = {
+    "impressions": Branch.CARD,
+    "ctr": Branch.CARD,
+    "ctor": Branch.PAGE,
+    "aov": Branch.BASKET,
+}
+METRIC_LABELS_VI: dict[str, str] = {
+    "impressions": "Lượt hiển thị",
+    "ctr": "CTR",
+    "ctor": "CTOR",
+    "aov": "AOV",
+}
+#: Why a product got no D29 proposal (the plan's ``skips``), besides the assessment's status.
+SKIP_NO_LEVER = "no_lever_for_target_metric"
+
+
+def _pct_text(value: float) -> str:
+    return f"{round(value * 100)} %"
+
+
+def d29_reason(assessment: Assessment, metric: str) -> str:
+    """One sentence: the GMV fall beyond its band, then the metric that explains it."""
+    gmv_now, gmv_before = assessment.gmv_current or 0.0, assessment.gmv_earlier or 0.0
+    fall = 1 - gmv_now / gmv_before if gmv_before > 0 else 0.0
+    metric_fall = 1 - math.exp(assessment.contributions.get(metric, 0.0))
+    return (
+        f"GMV mỗi ngày giảm {_pct_text(fall)} so với {assessment.window_days} ngày trước, "
+        f"vượt mức dao động bình thường; nguyên nhân chính: {METRIC_LABELS_VI[metric]} "
+        f"giảm {_pct_text(metric_fall)}"
+    )
+
+
+def _target_gap(
+    metric: str,
+    current: float,
+    medians: ShopMedians,
+    earlier: float | None,
+    low_data: bool,
+) -> Gap:
+    median = {"ctr": medians.ctr, "ctor": medians.ctor, "aov": medians.aov}.get(metric)
+    value = Decimal(str(current))
+    prior = Decimal(str(earlier)) if earlier is not None else None
+    return Gap(
+        factor=metric,
+        value=value,
+        median=median,
+        prior=prior,
+        gap_median=Decimal(1) - value / median if median else None,
+        gap_trend=Decimal(1) - value / prior if prior else None,
+        cleared_floor=not low_data,
+        median_peers=medians.peers.get(metric, 0),
+    )
+
+
+def _volume_per_day(metric: str, window: FunnelWindow) -> Decimal:
+    if metric == "ctor":
+        return window.per_day(window.clicks)
+    if metric == "aov":
+        return window.per_day(window.sku_orders)
+    return window.per_day(window.impressions)
+
+
+def _d29_levers(
+    metric: str,
+    *,
+    evidence: list[Evidence],
+    asked: bool,
+    discount_cap_set: bool,
+    funnel: ProductFunnel,
+    config: StageDiagnosisConfig,
+) -> tuple[str | None, list[Angle], BmsmProposal | None]:
+    """(status code, levers, BMSM) for the target metric; ``(None, [], None)`` = no lever.
+
+    Same gates as ADR-106 decision 4: a listing lever needs a diagnosis code, a
+    discount needs the seller's cap and no description code, BMSM needs a
+    reachable basket threshold. A target metric with no evidence yet is a
+    pending card ("Chưa hỏi TikTok" / "Cần mức giảm giá tối đa") on its first lever.
+    """
+    branch = METRIC_BRANCH[metric]
+    if metric == "aov":
+        basket = basket_threshold(None, funnel.current.items_per_order, config)
+        if not basket.reached:
+            return None, [], None
+        bmsm = BmsmProposal(
+            threshold_items=basket.threshold_items,
+            percent=config.bmsm_percent_default,
+            percent_is_estimate=not discount_cap_set,
+            source=basket.source,
+            orders=basket.orders,
+            share=basket.share,
+        )
+        return STATUS_CODE_RULE, [Angle.MUA_NHIEU_GIAM_NHIEU], bmsm
+    angles = _angles_with_evidence(
+        branch, evidence, discount_cap_set=discount_cap_set, active_promotion=False
+    )
+    if metric == "impressions":
+        angles = [a for a in angles if a is Angle.TIEU_DE]
+    if angles:
+        return STATUS_CODE_RULE, angles, None
+    codes = {e.code for e in evidence}
+    if not asked:
+        first = Angle.TIEU_DE if metric == "impressions" else BRANCH_ORDER[branch][0]
+        return STATUS_CODE_NOT_ASKED, [first], None
+    if branch is Branch.PAGE and not codes_for_angle(Angle.MO_TA, codes) and not discount_cap_set:
+        return STATUS_CODE_NEEDS_CAP, [Angle.GIAM_GIA], None
+    return None, [], None
+
+
+def _plan_d29(
+    funnels: list[ProductFunnel],
+    catalog: dict[str, CatalogProduct],
+    config: StageDiagnosisConfig,
+    *,
+    medians: ShopMedians,
+    excluded: dict[str, str],
+    evidence_by_id: dict[str, list[Evidence]],
+    asked: set[str],
+    top_k: int,
+    discount_cap_set: bool,
+    daily: dict[str, list[ProductDay]],
+    as_of: date,
+    tunables: DiagTunables,
+    history: dict[str, LeverHistory],
+    calibration: dict[str, CalibrationStats],
+    fleet_calibration: dict[str, CalibrationStats],
+    listing_facts: dict[str, ListingFacts],
+    benchmarks: dict[str, dict[str, float]],
+) -> ShopCardPlan:
+    """D29 + D30.2–3 over the catalog (see :func:`plan_shop_cards`)."""
+    skips: list[Skip] = []
+    groups: dict[str, list[CardProposal]] = {
+        STATUS_CODE_RULE: [],
+        STATUS_CODE_NEEDS_CAP: [],
+        STATUS_CODE_NOT_ASKED: [],
+    }
+    for funnel in funnels:
+        pid = funnel.product_id
+        if pid in excluded:
+            continue
+        assessment = assess_product(pid, daily.get(pid, []), as_of=as_of, tunables=tunables)
+        if not assessment.candidate or assessment.target_metric is None:
+            skips.append(Skip(pid, funnel.title, f"d29:{assessment.status}"))
+            continue
+        metric = assessment.target_metric
+        window = assessment.metrics[metric]
+        current = window.value
+        if current is None or current <= 0 or window.band_pct is None:
+            skips.append(Skip(pid, funnel.title, "d29:no_current_value"))
+            continue
+        evidence = evidence_by_id.get(pid, [])
+        status, angles, bmsm = _d29_levers(
+            metric,
+            evidence=evidence,
+            asked=pid in asked,
+            discount_cap_set=discount_cap_set,
+            funnel=funnel,
+            config=config,
+        )
+        if status is None:
+            skips.append(Skip(pid, funnel.title, f"d29:{SKIP_NO_LEVER}"))
+            continue
+        median = {"ctr": medians.ctr, "ctor": medians.ctor, "aov": medians.aov}.get(metric)
+        reference, source = reference_for(
+            metric,
+            shop_median=float(median) if median is not None else None,
+            earlier=window.earlier,
+            benchmark=(benchmarks.get(pid) or {}).get(metric),
+        )
+        if reference is None:
+            reference, source = current, "current"
+        product = catalog.get(pid) or CatalogProduct(pid, funnel.title)
+        facts = listing_facts.get(pid) or ListingFacts(
+            title=product.title, category=product.category, tiktok_asked=pid in asked
+        )
+        quality = quality_score(facts, evidence)
+        gaps = compute_gaps(funnel, medians, config)
+        target_gap = _target_gap(metric, current, medians, window.earlier, window.low_data)
+        trigger = Trigger.OWN_TREND if source == "own_earlier" else Trigger.SHOP_MEDIAN
+        reason = d29_reason(assessment, metric)
+        gmv_day = assessment.gmv_current or 0.0
+        volatile = assessment.stability == "volatile"
+        counts = window_counts(daily.get(pid, []), as_of, window.window_days)
+        last = FunnelWindow(
+            days=counts.days,
+            impressions=Decimal(str(counts.impressions)),
+            clicks=Decimal(str(counts.clicks)),
+            sku_orders=Decimal(str(counts.orders)),
+            gmv=Decimal(str(counts.gmv)),
+        )
+        for angle in angles:
+            lever = LEVER_CODES[angle]
+            prediction = predict(
+                lever,
+                quality.gap(lever),
+                shop=calibration.get(lever),
+                fleet=fleet_calibration.get(lever),
+            )
+            kpi = kpi_target(
+                metric=metric,
+                current=current,
+                band_pct=window.band_pct,
+                reference=reference,
+                window_days=window.window_days,
+                tunables=tunables,
+                volatile=volatile,
+                low_data=window.low_data,
+                predicted=prediction.metric_range(current),
+            )
+            recoverable = Decimal(str(gmv_day * max(kpi.target / current - 1, 0.0)))
+            low, high = gmv_range_per_month(gmv_day, current, kpi.target_min, kpi.target_max)
+            lever_history = history.get(lever)
+            penalty = lever_history.reason_penalty if lever_history is not None else Decimal(1)
+            ranking = (
+                recoverable
+                * Decimal(str(prediction.factor))
+                * penalty
+                * Decimal(str(lever_weight(quality, lever)))
+            )
+            diag = Diagnosis(
+                product_id=pid,
+                title=funnel.title,
+                label=Label.AOV if metric == "aov" else Label.CTOR,
+                trigger=trigger,
+                branch=METRIC_BRANCH[metric],
+                angle=angle,
+                gap=target_gap,
+                gaps=gaps,
+                evidence=tuple(e for e in evidence if codes_for_angle(angle, [e.code])),
+                rank_score=target_gap.gap * funnel.gmv_28d,
+                channel_scope=funnel.channel_scope,
+                bmsm=bmsm,
+            )
+            proposal = _rule_proposal(diag, reason, config)
+            if status != STATUS_CODE_RULE:
+                proposal = replace(
+                    proposal,
+                    status=status,
+                    lever_confirmed=False,
+                    lever_detail=(
+                        "Giảm giá sản phẩm, sau khi shop đặt mức giảm giá tối đa"
+                        if status == STATUS_CODE_NEEDS_CAP
+                        else f"{ANGLE_ACTION[angle]}, nếu TikTok chỉ ra lỗi"
+                    ),
+                )
+            groups[status].append(
+                replace(
+                    proposal,
+                    gap=max(target_gap.gap, Decimal(0)),
+                    recoverable_gmv_per_day=recoverable,
+                    recoverable_basis={
+                        "label": RECOVERABLE_LABEL,
+                        "stage_rate": metric,
+                        "current_rate": current,
+                        "reference_rate": kpi.target,
+                        "reference": source,
+                        "volume_per_day": float(_volume_per_day(metric, last)),
+                        "aov": None if last.aov is None else float(last.aov),
+                        "window_days": window.window_days,
+                    },
+                    history=lever_history,
+                    assessment=assessment,
+                    target_metric=metric,
+                    kpi=kpi,
+                    quality=quality,
+                    prediction=prediction,
+                    gmv_estimate=(low, high),
+                    d29_ranking_value=ranking,
+                )
+            )
+
+    def _key(p: CardProposal) -> tuple:
+        level = p.assessment.stability if p.assessment is not None else "unknown"
+        value = p.ranking_gmv_per_day
+        return (
+            STABILITY_ORDER.get(level, 9),
+            value is None,
+            -(value or Decimal(0)),
+            -p.rank_score,
+            p.product_id,
+            LEVER_CODES[p.lever],
+        )
+
+    ordered: list[CardProposal] = []
+    for status_code in (STATUS_CODE_RULE, STATUS_CODE_NEEDS_CAP, STATUS_CODE_NOT_ASKED):
+        ordered.extend(sorted(groups[status_code], key=_key))
+    # D29.4: one proposal per (product, lever); a product's proposals share its metric.
+    seen: set[tuple[str, Angle]] = set()
+    unique: list[CardProposal] = []
+    for proposal in ordered:
+        key = (proposal.product_id, proposal.lever)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(proposal)
+    kept = keep_top_per_type(unique, top_k)
+    per_product: dict[str, int] = {}
+    for proposal in kept:
+        per_product[proposal.product_id] = per_product.get(proposal.product_id, 0) + 1
+    kept = [replace(p, sibling_cards=per_product[p.product_id] - 1) for p in kept]
+    return ShopCardPlan(
+        proposals=kept,
+        medians=medians,
+        skips=skips,
+        excluded=excluded,
+        products_scored=len(funnels),
+        overflow=len(unique) - len(kept),
     )

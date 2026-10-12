@@ -71,6 +71,9 @@ AS_OF = date(2026, 10, 6)
 COMPUTED_AT = datetime(2026, 10, 7, 8, 0, tzinfo=UTC)
 DAYS = 60
 AOV = Decimal("200000")
+#: D29.2: the weak products fell to their weak rates this many days ago.
+DROP_DAYS = 14
+HEALTHY_RATE = Decimal("0.05")
 LONG_TITLE = "Bình giữ nhiệt inox 304 dung tích lớn giữ lạnh 24 giờ cho dân văn phòng"
 
 
@@ -115,10 +118,15 @@ async def _seed_shop(session, label: str, *, catalog=CATALOG, cart_days: int = 5
             )
         )
         impressions = Decimal(2000 + 100 * index)
-        clicks = (impressions * ctr).quantize(Decimal("1"))
-        orders = (clicks * ctor).quantize(Decimal("1"))
         for offset in range(DAYS):
             day = AS_OF - timedelta(days=offset)
+            # D29.2: a card needs a real GMV fall. A weak product was at the
+            # healthy rates until 14 days ago; its weak factor is what fell.
+            weak_now = offset < DROP_DAYS
+            day_ctr = ctr if weak_now else max(ctr, HEALTHY_RATE)
+            day_ctor = ctor if weak_now else max(ctor, HEALTHY_RATE)
+            clicks = (impressions * day_ctr).quantize(Decimal("1"))
+            orders = (clicks * day_ctor).quantize(Decimal("1"))
             breakdown = (
                 {"A34_TOTAL": {"add_cart_count": int(clicks // 5), "clicks": int(clicks)}}
                 if offset < cart_days
@@ -264,6 +272,12 @@ async def _optimize_cards(session, shop_id: uuid.UUID, status: str = "active") -
     return list((await session.execute(stmt)).scalars().all())
 
 
+def _product_ref(card: ActionCard) -> str | None:
+    from juli_backend.services.action_cards.subjects import subject_product_ref
+
+    return subject_product_ref(card.subject_type, card.subject_id)
+
+
 @pytest_asyncio.fixture
 async def shop_a(session):
     return await _seed_shop(session, "A")
@@ -303,8 +317,9 @@ async def test_scoring_writes_one_card_per_product_and_surfaces_at_most_five(ses
 
     cards = await _optimize_cards(session, shop_a.id)
     assert len(cards) == 12
-    assert {c.subject_type for c in cards} == {"product"}
-    assert len({c.subject_id for c in cards}) == 12
+    # D29.4 (P23): one chain per (product, lever) -- here one lever per product.
+    assert {c.subject_type for c in cards} == {"product_lever"}
+    assert len({_product_ref(c) for c in cards}) == 12
     surfaced = [c for c in cards if c.surfaced_at is not None]
     # D24.21 (4) daily slots: the three Juli slots go to the three best
     # product cards; this shop has no Seller Center or content card, so those
@@ -316,7 +331,7 @@ async def test_scoring_writes_one_card_per_product_and_surfaces_at_most_five(ses
     top = (
         await session.execute(select(Product).where(Product.tiktok_product_id == "A-healthy00"))
     ).scalar_one()
-    assert str(top.id) not in {c.subject_id for c in cards}
+    assert str(top.id) not in {_product_ref(c) for c in cards}
 
     # Legacy workflows take Juli slots only after the product cards: none today.
     others = (
@@ -388,8 +403,8 @@ async def test_two_shops_are_scored_in_isolation(session, shop_a):
     }
     b_cards = await _optimize_cards(session, shop_b.id)
     a_cards = await _optimize_cards(session, shop_a.id)
-    assert b_cards and {c.subject_id for c in b_cards} <= b_products
-    assert not {c.subject_id for c in a_cards} & b_products
+    assert b_cards and {_product_ref(c) for c in b_cards} <= b_products
+    assert not {_product_ref(c) for c in a_cards} & b_products
     # Shop B's medians come from its own 10 listings, not shop A's 26.
     for card in b_cards:
         diagnosis = json.loads(card.recommendation_payload)["diagnosis"]
@@ -494,7 +509,8 @@ async def test_decisions_endpoint_returns_diagnosis_and_evidence(app, session, s
     assert first["expected_impact"]["confidence"] == "rule_based_estimate"
     assert evidence["window_days"] == 30
     by_key = {m["key"]: m for m in evidence["metrics"]}
-    assert by_key["ctr"]["current"] == pytest.approx(0.02, abs=1e-3)
+    # 30-day evidence: 14 weak days at 2 % after 16 healthy ones at 5 % (D29 fixture).
+    assert by_key["ctr"]["current"] == pytest.approx(0.036, abs=1e-3)
     assert by_key["ctor"]["definition"] == "Đơn hàng SKU ÷ lượt nhấp"
     assert by_key["aov"]["current"] == pytest.approx(200000)
     assert by_key["add_to_cart_rate"]["current"] == pytest.approx(0.2, abs=1e-2)
@@ -531,7 +547,8 @@ async def test_approving_an_adr106_card_creates_an_optimize_product_run(app, ses
         )
     ).scalar_one()
     assert run.workflow_key == OPTIMIZE_PRODUCT_WORKFLOW_KEY
-    assert str(run.product_id) == card.subject_id
+    assert str(run.product_id) == _product_ref(card)
+    assert run.subject_type == "product" and run.subject_ref == str(run.product_id)
     assert run.status == "queued"
     # The run's writes stay behind CONFIRM (D13: write policy unchanged).
     playbook = playbooks.get_playbook(run.workflow_key)

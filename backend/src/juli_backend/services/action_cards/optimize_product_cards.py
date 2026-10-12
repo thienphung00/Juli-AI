@@ -89,9 +89,13 @@ from juli_backend.services.action_cards.emission_budget import (
     expired_card_returns,
 )
 from juli_backend.services.action_cards.subjects import (
+    PRODUCT_SUBJECT_TYPES,
     SUBJECT_TYPE_PRODUCT,
+    SUBJECT_TYPE_PRODUCT_LEVER,
     SUBJECT_TYPE_UNSCOPED,
     CardSubject,
+    product_lever_subject_id,
+    subject_product_ref,
 )
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.daily_funnel import (
@@ -111,6 +115,7 @@ from juli_backend.services.optimize_product.decision_cards import (
 )
 from juli_backend.services.optimize_product.funnel import ProductFunnel
 from juli_backend.services.optimize_product.listing_signals import Evidence, EvidenceSource
+from juli_backend.services.optimize_product.prediction import CalibrationStats
 
 logger = logging.getLogger(__name__)
 
@@ -288,13 +293,16 @@ async def plan_optimize_product_cards(
     own D-1, not the wall clock, so a late analytics pass never reads a window
     of empty days as a fall.
     """
+    from juli_backend.services.shop_rules.diag_tunables import diag_tunables
+
     config = config or StageDiagnosisConfig()
     as_of = await latest_product_analytics_day(session, shop_id, on_or_before=now.date())
     if as_of is None:
         return None
-    days = await load_product_days(
-        session, shop_id, as_of - timedelta(days=_LOOKBACK_DAYS - 1), as_of
-    )
+    tunables = await diag_tunables(session, shop_id)
+    # D29.1: the longest adaptive window and the same-length earlier level before it.
+    lookback = max(_LOOKBACK_DAYS, 2 * max(tunables.windows))
+    days = await load_product_days(session, shop_id, as_of - timedelta(days=lookback - 1), as_of)
     if not days:
         return None
     products = {
@@ -311,7 +319,9 @@ async def plan_optimize_product_cards(
         # A product the catalog does not hold cannot carry a card (approve
         # binds a run to a ``products`` row); it is excluded, not invented.
         status = product.status if product else "NOT_IN_CATALOG"
-        catalog[product_id] = CatalogProduct(product_id, title, status)
+        catalog[product_id] = CatalogProduct(
+            product_id, title, status, category=product.category if product else None
+        )
         created = product.tiktok_created_at if product else None
         age = (as_of - created.date()).days if created else None
         funnels.append(
@@ -319,6 +329,7 @@ async def plan_optimize_product_cards(
         )
     last30 = {pid: last_window(series, as_of=as_of) for pid, series in days.items()}
     history = await lever_history(session, shop_id, now=now)
+    shop_stats, fleet_stats = await calibration_stats(session, shop_id)
     plan = plan_shop_cards(
         funnels,
         catalog,
@@ -327,6 +338,11 @@ async def plan_optimize_product_cards(
         last30=last30,
         history=history,
         tiktok_evidence=await quick_card_evidence(session, shop_id),
+        daily=days,
+        as_of=as_of,
+        tunables=tunables,
+        calibration=shop_stats,
+        fleet_calibration=fleet_stats,
     )
     logger.info(
         "optimize_product_cards_planned",
@@ -387,6 +403,23 @@ async def quick_card_evidence(
         if evidence:
             out[str(product_id)] = evidence
     return out
+
+
+async def calibration_stats(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> tuple[dict[str, CalibrationStats], dict[str, CalibrationStats]]:
+    """(shop, fleet) lever -> measured coefficient and result count (D30.3)."""
+    from juli_backend.services.lever_flows.measurement import (
+        fleet_calibration_stats,
+        shop_calibration_stats,
+    )
+
+    shop = await shop_calibration_stats(session, shop_id)
+    fleet = await fleet_calibration_stats(session)
+    return (
+        {k: CalibrationStats(float(c), n) for k, (c, n) in shop.items()},
+        {k: CalibrationStats(float(c), n) for k, (c, n) in fleet.items()},
+    )
 
 
 async def lever_history(
@@ -487,6 +520,39 @@ def build_card_payload(
             **({"quick_scan": dict(op_plan.quick_scan)} if op_plan.quick_scan is not None else {}),
         },
         "evidence": funnel_evidence(op_plan.days.get(proposal.product_id, []), as_of=op_plan.as_of),
+        **d29_payload(proposal),
+    }
+
+
+def d29_payload(proposal: CardProposal) -> dict[str, Any]:
+    """The D29 / D30 card fields (contract P23; the frontend codes against these names).
+
+    ``target_metric``, ``confidence``, ``kpi``, ``gmv_estimate`` and
+    ``sibling_cards`` are seller-facing; ``quality`` is internal (D30.5) and is
+    not in the seller allowlist. Empty for a proposal built without D29.
+    """
+    if proposal.kpi is None or proposal.target_metric is None:
+        return {}
+    kpi = proposal.kpi
+    low, high = proposal.gmv_estimate or (0.0, 0.0)
+    return {
+        "target_metric": proposal.target_metric,
+        "confidence": proposal.confidence,
+        "kpi": {
+            "metric": kpi.metric,
+            "current": kpi.current,
+            "target": kpi.target,
+            "target_min": kpi.target_min,
+            "target_max": kpi.target_max,
+            "display": kpi.display,
+            "band_pct": round(kpi.band_pct, 2),
+            "window_days": kpi.window_days,
+            "low_data": kpi.low_data,
+            "day14_only": kpi.day14_only,
+        },
+        "gmv_estimate": {"per_month_min": float(round(low)), "per_month_max": float(round(high))},
+        "sibling_cards": proposal.sibling_cards,
+        **({"quality": proposal.quality.to_json()} if proposal.quality is not None else {}),
     }
 
 
@@ -555,17 +621,17 @@ async def emit_optimize_product_cards(
     decisions: list[Any] = []
     kept: set[str] = set()
     cooldowns = await decision_reasons.active_cooldowns(session, shop_id, now=computed_at)
+    live_metrics = await live_metrics_by_product(
+        session, shop_id, now=computed_at, full_run=op_plan.quick_scan is None
+    )
     for proposal in op_plan.plan.proposals:
         product = op_plan.products.get(proposal.product_id)
         if product is None:
             continue
-        subject = _subject_for(product)
+        subject, latest = await chain_for(session, shop_id, product, LEVER_CODES[proposal.lever])
         kept.add(subject.subject_id)
         cooled = _cooled_down(cooldowns, product, proposal)
         if cooled is not None:
-            latest = await persist._latest_revision(
-                session, shop_id, OPTIMIZE_PRODUCT_WORKFLOW_KEY, subject
-            )
             decision = persist.CardEmission(
                 workflow_key=OPTIMIZE_PRODUCT_WORKFLOW_KEY,
                 subject_type=subject.subject_type,
@@ -577,6 +643,25 @@ async def emit_optimize_product_cards(
             decisions.append(decision)
             persist._log_suppressed(shop_id, decision)
             continue
+        metric = proposal_metric(proposal)
+        other = {
+            m
+            for card_id, m in live_metrics.get(str(product.id), {}).items()
+            if latest is None or card_id != latest.id
+        }
+        if other - {metric}:
+            # D29.4: never two target metrics on one product at once.
+            decision = persist.CardEmission(
+                workflow_key=OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+                subject_type=subject.subject_type,
+                subject_id=subject.subject_id,
+                card=latest,
+                revision=None if latest is None else latest.revision,
+                suppressed_reason=persist.SUPPRESSED_REASON_OTHER_METRIC_ACTIVE,
+            )
+            decisions.append(decision)
+            persist._log_suppressed(shop_id, decision)
+            continue
         payload = build_card_payload(proposal, op_plan, subject, computed_at=computed_at)
         basis = {
             **_basis(proposal),
@@ -584,9 +669,6 @@ async def emit_optimize_product_cards(
                 session, shop_id, workflow_key=OPTIMIZE_PRODUCT_WORKFLOW_KEY, subject=subject
             ),
         }
-        latest = await persist._latest_revision(
-            session, shop_id, OPTIMIZE_PRODUCT_WORKFLOW_KEY, subject
-        )
         in_place: ActionCard | None = None
         if latest is None:
             in_place = await persist._adoptable_unscoped_candidate(
@@ -766,6 +848,101 @@ async def emit_optimize_product_cards(
     return decisions
 
 
+#: D29: the funnel stage of a pre-D29 card -> the metric it targeted.
+_STAGE_METRIC: dict[str, str] = {"card": "ctr", "page": "ctor", "basket": "aov"}
+#: An approved / executed card holds its product's metric through its
+#: measurement (approve → write → day 14), bounded so a stuck run never blocks forever.
+_IN_FLIGHT_DAYS = 21
+
+
+def proposal_metric(proposal: CardProposal) -> str:
+    return proposal.target_metric or _STAGE_METRIC.get(proposal.stage.value, "ctor")
+
+
+def card_metric(card: ActionCard) -> str | None:
+    """The target metric a stored card is about (D29 ``target_metric``, else its stage)."""
+    try:
+        payload = json.loads(card.recommendation_payload or "{}")
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    metric = payload.get("target_metric")
+    if isinstance(metric, str) and metric:
+        return metric
+    diagnosis = payload.get("diagnosis")
+    stage = diagnosis.get("stage") if isinstance(diagnosis, dict) else None
+    code = stage.get("code") if isinstance(stage, dict) else None
+    return _STAGE_METRIC.get(str(code)) if code else None
+
+
+async def chain_for(
+    session: AsyncSession, shop_id: uuid.UUID, product: Product, lever_code: str
+) -> tuple[CardSubject, ActionCard | None]:
+    """The (product, lever) chain's subject and newest row (D29.4).
+
+    A chain written before P23 is keyed on the product alone; it stays the
+    lever's chain while its newest row carries that lever, so existing rows keep
+    their revision ladder (re-score in place, 7-day return, cooldowns). Every
+    other (product, lever) gets its own ``product_lever`` chain.
+    """
+    from juli_backend.services.action_cards import persist
+
+    lever_subject = CardSubject(
+        subject_type=SUBJECT_TYPE_PRODUCT_LEVER,
+        subject_id=product_lever_subject_id(str(product.id), lever_code),
+        label=product.title or product.name,
+    )
+    latest = await persist._latest_revision(
+        session, shop_id, OPTIMIZE_PRODUCT_WORKFLOW_KEY, lever_subject
+    )
+    if latest is not None:
+        return lever_subject, latest
+    legacy_subject = _subject_for(product)
+    legacy = await persist._latest_revision(
+        session, shop_id, OPTIMIZE_PRODUCT_WORKFLOW_KEY, legacy_subject
+    )
+    if legacy is not None and decision_reasons.card_basis(legacy).lever_code == lever_code:
+        return legacy_subject, legacy
+    return lever_subject, None
+
+
+async def live_metrics_by_product(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime, full_run: bool = True
+) -> dict[str, dict[uuid.UUID, str]]:
+    """products.id -> {card id: target metric} of the cards that hold a metric (D29.4).
+
+    Holding: a surfaced live card (a quick card does not, in a full run -- the
+    full diagnosis replaces it), and an approved / executed card within
+    :data:`_IN_FLIGHT_DAYS`. Drafts, withdrawn, expired and dismissed rows do not.
+    """
+    rows = await session.execute(
+        select(ActionCard).where(
+            ActionCard.shop_id == shop_id,
+            ActionCard.workflow_key == OPTIMIZE_PRODUCT_WORKFLOW_KEY,
+            ActionCard.subject_type.in_(PRODUCT_SUBJECT_TYPES),
+            ActionCard.status.notin_(
+                (WITHDRAWN_STATUS, EXPIRED_STATUS, decision_reasons.DISMISSED_CARD_STATUS)
+            ),
+        )
+    )
+    horizon = _as_aware(now) - timedelta(days=_IN_FLIGHT_DAYS)
+    out: dict[str, dict[uuid.UUID, str]] = defaultdict(dict)
+    for card in rows.scalars():
+        if card.status == _ACTIVE:
+            if card.surfaced_at is None or (full_run and is_quick_card(card)):
+                continue
+        else:
+            marker = card.executed_at or card.approved_at
+            if marker is None or _as_aware(marker) < horizon:
+                continue
+        ref = subject_product_ref(card.subject_type, card.subject_id)
+        metric = card_metric(card)
+        if ref is not None and metric is not None:
+            out[ref][card.id] = metric
+    return dict(out)
+
+
 def _cooled_down(
     cooldowns: dict[tuple[str, str], DecisionReason], product: Product, proposal: CardProposal
 ) -> DecisionReason | None:
@@ -894,7 +1071,11 @@ async def withdraw_unranked_cards(
     products_by_id: dict[str, Product] = {}
     stock: dict[str, Decimal] = {}
     if surfaced:
-        product_ids = {c.subject_id for c in surfaced if c.subject_type == SUBJECT_TYPE_PRODUCT}
+        product_ids = {
+            ref
+            for c in surfaced
+            if (ref := subject_product_ref(c.subject_type, c.subject_id)) is not None
+        }
         if op_plan is not None:
             products_by_id = {
                 str(p.id): p for p in op_plan.products.values() if str(p.id) in product_ids
@@ -906,7 +1087,7 @@ async def withdraw_unranked_cards(
 
     withdrawn: list[ActionCard] = []
     for card in cards:
-        ranked = card.subject_type == SUBJECT_TYPE_PRODUCT and card.subject_id in keep_subject_ids
+        ranked = card.subject_type in PRODUCT_SUBJECT_TYPES and card.subject_id in keep_subject_ids
         legacy = card.subject_type == SUBJECT_TYPE_UNSCOPED or not is_adr106_card(card)
         why: str | None = None
         if card.surfaced_at is None or legacy:
@@ -914,7 +1095,8 @@ async def withdraw_unranked_cards(
                 continue
             why = "unranked"
         else:
-            product = products_by_id.get(card.subject_id)
+            product_ref = subject_product_ref(card.subject_type, card.subject_id)
+            product = products_by_id.get(product_ref) if product_ref is not None else None
             tiktok_id = product.tiktok_product_id if product is not None else None
             funnel = (
                 op_plan.funnels.get(str(tiktok_id))
