@@ -2,7 +2,11 @@ from typing import Any
 
 from fastapi import APIRouter, FastAPI
 
-from juli_backend.api.middleware import CorrelationIdMiddleware, install_error_boundary
+from juli_backend.api.middleware import (
+    CorrelationIdMiddleware,
+    RequestTimingMiddleware,
+    install_error_boundary,
+)
 from juli_backend.api.routes.action_cards import router as action_cards_router
 from juli_backend.api.routes.agent_runs import router as agent_runs_router
 from juli_backend.api.routes.auth_tiktok import router as auth_tiktok_router
@@ -95,6 +99,9 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     # registered with (see juli_backend.services.webhook.app.WEBHOOK_PATH).
     app.include_router(webhook_tiktok_router)
 
+    # P21: request timing sits just inside correlation, so its http_request event carries
+    # the correlation id and its clock covers routing, handlers and the response body.
+    app.add_middleware(RequestTimingMiddleware)
     # Correlation must wrap everything, so it is added last (Starlette applies middleware
     # outermost-last) and therefore sees the request before any route or handler runs.
     app.add_middleware(CorrelationIdMiddleware)
