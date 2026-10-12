@@ -1,0 +1,63 @@
+{
+ "code": 0,
+ "msg": "ok",
+ "result": {
+  "data_ready": true,
+  "data": {
+   "all": {
+    "page_views": 300,
+    "avg_page_views": 2.5,
+    "avg_stay_time": "00:01:30",
+    "bounce_rate": 0.42,
+    "visitors": 120,
+    "new_visitors": 80,
+    "existing_visitors": 40,
+    "new_followers": 5,
+    "page_views_pct_diff": 0.0,
+    "avg_page_views_pct_diff": 0.0,
+    "avg_stay_time_pct_diff": 0.0,
+    "bounce_rate_pct_diff": 0.0,
+    "visitors_pct_diff": 0.0,
+    "new_visitors_pct_diff": 0.0,
+    "existing_visitors_pct_diff": 0.0,
+    "new_followers_pct_diff": 0.0
+   },
+   "pc": {
+    "page_views": 200,
+    "avg_page_views": 2.5,
+    "avg_stay_time": "00:01:30",
+    "bounce_rate": 0.42,
+    "visitors": 80,
+    "new_visitors": 60,
+    "existing_visitors": 20,
+    "new_followers": "-",
+    "page_views_pct_diff": 0.0,
+    "avg_page_views_pct_diff": 0.0,
+    "avg_stay_time_pct_diff": 0.0,
+    "bounce_rate_pct_diff": 0.0,
+    "visitors_pct_diff": 0.0,
+    "new_visitors_pct_diff": 0.0,
+    "existing_visitors_pct_diff": 0.0,
+    "new_followers_pct_diff": 0.0
+   },
+   "app": {
+    "page_views": 100,
+    "avg_page_views": 2.5,
+    "avg_stay_time": "00:01:30",
+    "bounce_rate": 0.42,
+    "visitors": 40,
+    "new_visitors": 40,
+    "existing_visitors": 0,
+    "new_followers": "-",
+    "page_views_pct_diff": 0.0,
+    "avg_page_views_pct_diff": 0.0,
+    "avg_stay_time_pct_diff": 0.0,
+    "bounce_rate_pct_diff": 0.0,
+    "visitors_pct_diff": 0.0,
+    "new_visitors_pct_diff": 0.0,
+    "existing_visitors_pct_diff": 0.0,
+    "new_followers_pct_diff": 0.0
+   }
+  }
+ }
+}

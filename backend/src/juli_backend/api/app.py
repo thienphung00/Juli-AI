@@ -30,6 +30,7 @@ from juli_backend.api.routes.demo_rules import router as demo_rules_router
 from juli_backend.api.routes.demo_run_changes import router as demo_run_changes_router
 from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_router
 from juli_backend.api.routes.executions import router as executions_router
+from juli_backend.api.routes.ingest import router as ingest_router
 from juli_backend.api.routes.ops import router as ops_router
 from juli_backend.api.routes.ops_billing import router as ops_billing_router
 from juli_backend.api.routes.orders import router as orders_router
@@ -87,6 +88,8 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     # Fast track P20 (D28.3 / D28.4): Juli Ops tabs Chi phí and Thời hạn.
     v1_router.include_router(ops_billing_router)
     v1_router.include_router(shop_invites_router)
+    # Fast track P24 (D31.3 / D31.4): the ingest gateway and Juli Connector pairing.
+    v1_router.include_router(ingest_router)
     app.include_router(v1_router)
     # The diagnostic router is not mounted in production at all. Its own
     # ENABLE_TIKTOK_DEBUG flag is deliberately NOT consulted here: the environment check

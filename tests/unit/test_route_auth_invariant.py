@@ -112,6 +112,32 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
         "for the lookup, and a token is matched only within that shop. No TikTok URL or "
         "credential is involved."
     ),
+    # Fast track P24 (D31.3 / D31.4): the ingest gateway's extension-facing routes. The
+    # caller is the Juli Connector browser extension, which by design never holds a Juli
+    # session or password; it authenticates with a scoped ingest token instead.
+    ("POST", "/v1/ingest/pair"): (
+        "Pairing redeem: exchanges a 10-minute, single-use code the signed-in seller "
+        "created (POST /v1/ingest/pairing-codes, session-authenticated) for an ingest "
+        "token. The code is the credential (hash-matched under RLS); rate-limited per "
+        "client and overall."
+    ),
+    ("POST", "/v1/ingest/token/rotate"): (
+        "Ingest-token rotation: authenticated by the ingest token (get_ingest_principal), "
+        "one shop, hashed, expiring, revocable; not a Juli session."
+    ),
+    ("GET", "/v1/ingest/status"): (
+        "Extension status read for the token's own shop: authenticated by the ingest token "
+        "(get_ingest_principal), resolved under that shop's RLS scope."
+    ),
+    ("POST", "/v1/ingest/status"): (
+        "Extension drift report for the token's own shop: authenticated by the ingest "
+        "token (get_ingest_principal)."
+    ),
+    ("POST", "/v1/ingest/{platform}/{dataset}"): (
+        "Ingest gateway post: authenticated by the ingest token (get_ingest_principal), "
+        "which names exactly one shop; writes only under that shop's RLS scope, "
+        "rate-limited per shop."
+    ),
     ("GET", "/v1/auth/tiktok/callback"): (
         "TikTok Shop OAuth redirect callback — authenticated by a signed OAuth `state` "
         "token (TikTokOAuthInfrastructureService.verify_state), which binds the callback "

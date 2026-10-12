@@ -1,0 +1,130 @@
+{
+ "source": "extension",
+ "source_version": "0.1.0",
+ "captured_at": "2026-10-12T03:00:00.000Z",
+ "period": {
+  "start": "2026-10-11",
+  "end": "2026-10-11",
+  "granularity": "day"
+ },
+ "order_type": "confirmed",
+ "rows": [
+  {
+   "date": "2026-10-11",
+   "source": "psd_label_product_card",
+   "sales": 1000000,
+   "orders": 3.5,
+   "units": 4,
+   "buyers": 3,
+   "product_clicks": 100,
+   "unique_product_clicks": 80,
+   "sales_per_order": 285714.29,
+   "ctr": 0.05,
+   "product_clicks_to_orders_rate": 0.035,
+   "product_impressions": 3000,
+   "unique_product_impressions": 2000,
+   "extra": {
+    "sales_ratio": 0.2,
+    "orders_ratio": 0.2,
+    "product_clicks_ratio": 0.2,
+    "content_views_ratio": 0.2,
+    "video_views_ratio": 0.2,
+    "live_views_ratio": 0.2,
+    "product_impressions_ratio": 0.2
+   }
+  },
+  {
+   "date": "2026-10-11",
+   "source": "psd_label_seller_live",
+   "sales": 2000000,
+   "orders": 7,
+   "units": 8,
+   "buyers": 6,
+   "product_clicks": 200,
+   "unique_product_clicks": 160,
+   "sales_per_order": 285714.29,
+   "ctr": 0.05,
+   "product_clicks_to_orders_rate": 0.035,
+   "live_views": 400,
+   "live_viewers": 300,
+   "extra": {
+    "sales_ratio": 0.2,
+    "orders_ratio": 0.2,
+    "product_clicks_ratio": 0.2,
+    "content_views_ratio": 0.2,
+    "video_views_ratio": 0.2,
+    "live_views_ratio": 0.2,
+    "product_impressions_ratio": 0.2
+   }
+  },
+  {
+   "date": "2026-10-11",
+   "source": "psd_label_seller_video",
+   "sales": 3000000,
+   "orders": 10.5,
+   "units": 12,
+   "buyers": 9,
+   "product_clicks": 300,
+   "unique_product_clicks": 240,
+   "sales_per_order": 285714.29,
+   "ctr": 0.05,
+   "product_clicks_to_orders_rate": 0.035,
+   "video_views": 900,
+   "video_viewers": 700,
+   "extra": {
+    "sales_ratio": 0.2,
+    "orders_ratio": 0.2,
+    "product_clicks_ratio": 0.2,
+    "content_views_ratio": 0.2,
+    "video_views_ratio": 0.2,
+    "live_views_ratio": 0.2,
+    "product_impressions_ratio": 0.2
+   }
+  },
+  {
+   "date": "2026-10-11",
+   "source": "psd_label_affiliate",
+   "sales": 4000000,
+   "orders": 14,
+   "units": 16,
+   "buyers": 12,
+   "product_clicks": 400,
+   "unique_product_clicks": 320,
+   "sales_per_order": 285714.29,
+   "ctr": 0.05,
+   "product_clicks_to_orders_rate": 0.035,
+   "content_views": 150,
+   "content_viewers": 120,
+   "extra": {
+    "sales_ratio": 0.2,
+    "orders_ratio": 0.2,
+    "product_clicks_ratio": 0.2,
+    "content_views_ratio": 0.2,
+    "video_views_ratio": 0.2,
+    "live_views_ratio": 0.2,
+    "product_impressions_ratio": 0.2
+   }
+  },
+  {
+   "date": "2026-10-11",
+   "source": "psd_label_shopee_ads",
+   "sales": 200000,
+   "orders": 1,
+   "units": 1,
+   "product_impressions": 5000,
+   "product_clicks": 60,
+   "ads_expense": 50000,
+   "ads_roas": 4,
+   "live_views": 0,
+   "video_views": 0,
+   "ctr": 0.012,
+   "conversion": 0.0167,
+   "extra": {
+    "sales_ratio": 0.1,
+    "orders_ratio": 0.1,
+    "product_impressions_ratio": 0.3,
+    "product_clicks_ratio": 0.2
+   }
+  }
+ ]
+}

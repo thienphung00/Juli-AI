@@ -112,6 +112,14 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "promotion_activity_products"): "tenant_direct",
     ("public", "external_changes"): "tenant_direct",
     ("public", "run_baselines"): "tenant_direct",
+    # Fast track P24 (D31.3 / D31.4, migration 088): the ingest gateway and the
+    # Juli Connector pairing. ``ingest_pairing_codes``' SELECT policy also admits
+    # the one row whose code hash the redeemer asserts (no shop known yet).
+    ("public", "ingest_pairing_codes"): "tenant_direct",
+    ("public", "ingest_tokens"): "tenant_direct",
+    ("public", "ingest_raw_payloads"): "tenant_direct",
+    ("public", "platform_daily_metrics"): "tenant_direct",
+    ("public", "ingest_dataset_status"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",

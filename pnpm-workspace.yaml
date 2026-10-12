@@ -8,4 +8,6 @@ packages:
   # dependency-validation / deployment-checks.
   - "apps/demo"
   - "apps/landing"
+  # The Juli Connector Chrome extension (fast track P24, D31.4).
+  - "apps/connector"
   - "packages/*"

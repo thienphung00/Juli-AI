@@ -65,6 +65,12 @@ class Shop(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     shop_name: Mapped[str] = mapped_column(String(200), nullable=False)
     tiktok_shop_id: Mapped[str | None] = mapped_column(String(100), unique=True)
+    #: D31 (migration 088): the marketplace this Juli shop is. Every shop before
+    #: 088 is TikTok; a Shopee shop has no TikTok credential and is fed only by
+    #: the ingest gateway (``/v1/ingest/shopee/...``) until Shopee OAuth exists.
+    platform: Mapped[str] = mapped_column(String(16), default="tiktok", server_default="tiktok")
+    #: The Seller Centre shop id, when known (the extension reports it at pairing).
+    shopee_shop_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
@@ -72,7 +78,10 @@ class Shop(Base):
     owner: Mapped["User"] = relationship(back_populates="shops")
     credentials: Mapped[list["TikTokCredential"]] = relationship(back_populates="shop")
 
-    __table_args__ = (Index("ix_shops_user_id", "user_id"),)
+    __table_args__ = (
+        Index("ix_shops_user_id", "user_id"),
+        CheckConstraint("platform IN ('tiktok', 'shopee')", name="ck_shops_platform"),
+    )
 
 
 class TikTokCredential(Base):

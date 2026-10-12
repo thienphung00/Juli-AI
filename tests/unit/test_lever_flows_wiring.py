@@ -50,7 +50,7 @@ def test_the_deferred_phone_cleanup_stays_the_tail():
         / "backend/src/juli_backend/database/migrations/deferred"
         / "074_users_placeholder_phone_cleanup.py"
     )
-    assert 'down_revision: str | None = "087_history_and_baselines"' in deferred.read_text(
+    assert 'down_revision: str | None = "088_ingest_gateway"' in deferred.read_text(
         encoding="utf-8"
     )
 

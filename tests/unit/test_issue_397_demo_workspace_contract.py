@@ -105,8 +105,14 @@ def test_root_declares_real_pnpm_turbo_workspace() -> None:
     workspace = yaml.safe_load((ROOT / "pnpm-workspace.yaml").read_text(encoding="utf-8"))
     # apps/landing joined in Phase 2.7 (#785 shipped the app; it was wired into
     # the workspace afterwards). The dashboard stays out by design -- see
-    # test_npm_owned_dashboard_is_not_a_pnpm_workspace_member below.
-    assert set(workspace["packages"]) == {"apps/demo", "apps/landing", "packages/*"}
+    # test_npm_owned_dashboard_is_not_a_pnpm_workspace_member below. apps/connector
+    # (the Juli Connector extension, fast track P24 / D31.4) joined after it.
+    assert set(workspace["packages"]) == {
+        "apps/demo",
+        "apps/landing",
+        "apps/connector",
+        "packages/*",
+    }
     assert (ROOT / "turbo.json").is_file()
     assert {"lint", "type-check", "test", "build"} <= set(
         root_package["scripts"]  # type: ignore[arg-type]

@@ -568,7 +568,7 @@ def test_migration_081_chains_after_080_and_the_cleanup_stays_last():
     deferred = (MIGRATIONS / "deferred/074_users_placeholder_phone_cleanup.py").read_text(
         encoding="utf-8"
     )
-    assert 'down_revision: str | None = "087_history_and_baselines"' in deferred
+    assert 'down_revision: str | None = "088_ingest_gateway"' in deferred
 
 
 def test_the_new_tables_are_tenant_direct():

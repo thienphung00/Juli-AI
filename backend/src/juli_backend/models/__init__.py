@@ -9,6 +9,13 @@ from juli_backend.models.history import (
     PromotionActivityProduct,
     RunBaseline,
 )
+from juli_backend.models.ingest import (
+    IngestDatasetStatus,
+    IngestPairingCode,
+    IngestRawPayload,
+    IngestToken,
+    PlatformDailyMetric,
+)
 from juli_backend.models.ingestion import ShopIngestionState
 from juli_backend.models.lever_flows import (
     LeverCalibration,
@@ -74,4 +81,9 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     PromotionActivityProduct,
     ExternalChange,
     RunBaseline,
+    IngestPairingCode,
+    IngestToken,
+    IngestRawPayload,
+    PlatformDailyMetric,
+    IngestDatasetStatus,
 )

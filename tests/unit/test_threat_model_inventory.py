@@ -187,6 +187,13 @@ UNAUTHENTICATED_ALLOWLIST = {
     # Fast track P10-B: a cover-image run's stored photo, behind a random
     # per-photo capability token (an <img> cannot send the auth header).
     "/v1/demo/photos/{shop_id}/{token}",
+    # Fast track P24 (D31.4): the Juli Connector extension holds no Juli session. The
+    # pairing redeem is authenticated by its one-time code; the others by the scoped,
+    # hashed, revocable ingest token (one shop, ingest routes only).
+    "/v1/ingest/pair",
+    "/v1/ingest/token/rotate",
+    "/v1/ingest/status",
+    "/v1/ingest/{platform}/{dataset}",
 }
 
 REGENERATION_COMMAND = (

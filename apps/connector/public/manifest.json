@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Juli Connector",
+  "version": "0.1.0",
+  "description": "Gửi số liệu Seller Centre của chính shop bạn (Shopee) sang Juli để Juli phân tích và đề xuất.",
+  "minimum_chrome_version": "111",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["https://banhang.shopee.vn/*", "__JULI_API_ORIGIN__/*"],
+  "background": { "service_worker": "sw.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://banhang.shopee.vn/*"],
+      "js": ["hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://banhang.shopee.vn/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": { "default_title": "Juli Connector", "default_popup": "popup.html" },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" }
+}
