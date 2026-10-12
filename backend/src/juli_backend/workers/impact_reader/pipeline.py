@@ -51,8 +51,6 @@ from juli_backend.services.impact import (
     volume_floor_for,
     volume_indicator_for,
 )
-from juli_backend.services.run_changes.default_bands import default_bands, effective_bands
-from juli_backend.services.shop_rules.diag_tunables import diag_tunables
 from juli_backend.workers.impact_reader.classify import classify_mutation_kinds, rollup_metric_for
 from juli_backend.workers.impact_reader.queries import (
     build_reading_row,
@@ -303,12 +301,12 @@ async def _day7_guardrail(
         return
     seller_bands = await shop_rules.stability_bands(session, execution.shop_id)
     # D29.9 (P23): every metric without a seller band gets its window-mean band.
-    tunables = await diag_tunables(session, execution.shop_id)
+    tunables = await shop_rules.diag_tunables(session, execution.shop_id)
     bands = {
         metric: band
-        for metric, (band, _source) in effective_bands(
+        for metric, (band, _source) in run_changes.effective_bands(
             seller_bands,
-            default_bands(
+            run_changes.default_bands(
                 pre_change_series(target_daily, t),
                 guard_band_mult=tunables.guard_band_mult,
             ),

@@ -9,6 +9,7 @@
 - ``guardrail`` / ``questions`` -- the day-7 "Hoàn tác?" question.
 """
 
+from juli_backend.services.run_changes.default_bands import default_bands, effective_bands
 from juli_backend.services.run_changes.guardrail import (
     BandBreach,
     band_breaches,
@@ -45,6 +46,8 @@ from juli_backend.services.run_changes.revert import (
 )
 
 __all__ = [
+    "default_bands",
+    "effective_bands",
     "FIELD_LABELS_VI",
     "REVERT_LISTING_PLAYBOOK",
     "BandBreach",

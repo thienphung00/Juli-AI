@@ -474,9 +474,9 @@ def _seller_bands_only(monkeypatch, request):
     """The guardrail tests below pin the seller's own bands (pre-D29.9); the
     window-mean defaults are covered in ``test_p23_volatility``."""
     if "guardrail" in request.node.name:
-        from juli_backend.workers.impact_reader import pipeline
+        from juli_backend.services import run_changes
 
-        monkeypatch.setattr(pipeline, "default_bands", lambda *_a, **_k: {})
+        monkeypatch.setattr(run_changes, "default_bands", lambda *_a, **_k: {})
 
 
 async def _guardrail_case(

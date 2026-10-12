@@ -1,5 +1,10 @@
 """Per-shop seller-set rules (fast track P8-C, ADR-109 d.12). See ``rules.py``."""
 
+from juli_backend.services.shop_rules.diag_tunables import (
+    diag_tunables,
+    set_tunable_overrides,
+    tunable_overrides,
+)
 from juli_backend.services.shop_rules.economics import (
     LiveSlot,
     ShopEconomics,
@@ -59,6 +64,9 @@ from juli_backend.services.shop_rules.rules import (
 )
 
 __all__ = [
+    "diag_tunables",
+    "set_tunable_overrides",
+    "tunable_overrides",
     "AUTO_LEVERS",
     "BANNED_TERMS",
     "CONTENT_TONE",
