@@ -631,3 +631,44 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   5. **Copy:** the card's window note reads "· 30 ngày · đo trên kênh Thẻ sản phẩm" or "· 30 ngày ·
      đo trên tất cả kênh"; the Đo lường target reads "CTR · đo trên kênh Thẻ sản phẩm"; an
      all-channel card's KPI label is the metric alone ("CTOR"), no longer "CTOR - Thẻ sản phẩm".
+
+- **D33** — Many cards per shop: an opt-in quota per cell (product owner, fast track P28,
+  2026-10-12). Context: each card targets +5–10 % on one metric, so a seller should see several
+  at once — up to 5 open cards per (metric × traffic stream), e.g. 5 for CTR and 5 for CTOR on
+  Thẻ sản phẩm. Trial on one shop first; every other shop unchanged.
+  1. **Switch:** three team tunables in the existing `shop_rules.diag_tunables` row (no
+     migration, no env): `card_quota_mode` (default off), `card_quota_per_cell` (5, 1–20),
+     `card_quota_max_open` (40, 5–100). Juli Ops → Cài đặt shop → "Nhiều thẻ mỗi ô (thử
+     nghiệm)", Admin only, audited like the D29.11 tunables.
+  2. **Cells:** a card's cell is `<target metric>@<kpi.channel>` (D32: `ctr@product_card`,
+     `ctor@total` …); `content_video` / `content_live` are their own cells; a pre-D32 card is
+     `@total`, a pre-D29 card takes its stage's metric, anything else is `other`.
+  3. **Mode on (emission budget):** the D24.21 daily slots (3 Juli / 1 Seller Center /
+     1 content) and the default daily / weekly limits are replaced by ≤ `card_quota_per_cell`
+     OPEN cards per cell under an overall open cap of `card_quota_max_open`; a draft whose cell
+     is full is suppressed `cell_cap`. Kept: validity / expiry, the 7-day cooldowns, D29.4 (one
+     target metric per product, enforced at emission), `ops_disabled`, the gift exclusion, a
+     daily / weekly / open limit Ops set explicitly, and the seller's "Số thẻ mở cùng lúc"
+     (still only lowers the cap, so it wins). The planner keeps 3 × N candidates per cell
+     instead of 30 per executor type.
+  4. **Mode on (planner):** (a) price levers read stored facts: the discount cap is "set" when
+     the shop has `default_max_discount_pct` or any SKU `max_discount_pct` rule; a running
+     product discount / flash sale (`promotion_activities`, not ended, product not removed)
+     blocks Juli's product discount on that product; a running Mua nhiều giảm nhiều blocks
+     BMSM. Flash sale and shipping discount still need gates no stored data gives (they stay
+     off). (b) **S28B "below shop level"**: a product whose GMV did NOT fall (D29 `no_gmv_drop`)
+     but whose CTR / CTOR / AOV sits below the shop median by more than one band of its own
+     window (enough data: not "ít dữ liệu", median with enough peers), and also below the
+     channel's median on the lever's channel, gets a card: the metric furthest below; KPI =
+     the minimum clamp alone (current + KPI tối thiểu × band, a point); "Độ tin cậy" Thấp;
+     ranked after every GMV-drop card; payload `reason_code = "below_shop_level"`; seller copy
+     "CTR của sản phẩm trên kênh Thẻ sản phẩm thấp hơn mức chung của shop (x so với y); doanh
+     thu không giảm, đây là cơ hội tăng thêm". (c) The Quality-Score lever weight (D30.2,
+     up to 1.5× for listing levers) is neutral, so price levers rank like listing levers.
+  5. **Mode off:** byte-identical behaviour (tests compare a shop with no row and one with the
+     mode explicitly off; the planner's proposals are equal with the quota inputs passed).
+  6. **Reachable cells today** (from what P1 stores): `impressions@product_card` /
+     `impressions@total` (title, D29 drop only), `ctr@product_card` / `ctr@total` (cover image,
+     title), `ctor@total` (description; product discount when the cap rule exists), `aov@total`
+     (BMSM), `content_video`, `content_live`. CTOR and AOV per channel are not reachable (no
+     per-channel orders, D32.2).

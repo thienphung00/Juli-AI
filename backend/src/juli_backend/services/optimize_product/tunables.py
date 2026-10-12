@@ -22,6 +22,13 @@ KPI_MIN_BAND_MULT = "kpi_min_band_mult"
 KPI_MAX_BAND_MULT = "kpi_max_band_mult"
 GUARD_BAND_MULT = "guard_band_mult"
 VOLATILE_CV = "volatile_cv"
+#: D33 (P28): the per-shop "many cards" quota mode -- opt-in, off by default.
+CARD_QUOTA_MODE = "card_quota_mode"
+CARD_QUOTA_PER_CELL = "card_quota_per_cell"
+CARD_QUOTA_MAX_OPEN = "card_quota_max_open"
+
+#: The D33 quota keys (stored in the same team row as the D29 tunables).
+QUOTA_KEYS: tuple[str, ...] = (CARD_QUOTA_MODE, CARD_QUOTA_PER_CELL, CARD_QUOTA_MAX_OPEN)
 
 TUNABLE_KEYS: tuple[str, ...] = (
     DIAG_WINDOWS,
@@ -30,6 +37,7 @@ TUNABLE_KEYS: tuple[str, ...] = (
     KPI_MAX_BAND_MULT,
     GUARD_BAND_MULT,
     VOLATILE_CV,
+    *QUOTA_KEYS,
 )
 
 #: Bounds an Admin may set (inclusive).
@@ -37,6 +45,9 @@ WINDOW_RANGE = (7, 90)
 MIN_EVENTS_RANGE = (5, 1000)
 BAND_MULT_RANGE = (0.5, 10.0)
 CV_RANGE = (0.05, 2.0)
+#: D33: open cards per cell (target metric × channel) and the overall open cap.
+QUOTA_PER_CELL_RANGE = (1, 20)
+QUOTA_MAX_OPEN_RANGE = (5, 100)
 
 
 class TunableError(ValueError):
@@ -45,7 +56,15 @@ class TunableError(ValueError):
 
 @dataclass(frozen=True)
 class DiagTunables:
-    """D29 defaults: windows 14/30/60, 30 events, KPI 1–3 bands, guard 1 band, CV 0.30."""
+    """D29 defaults: windows 14/30/60, 30 events, KPI 1–3 bands, guard 1 band, CV 0.30.
+
+    D33 (P28): ``card_quota_mode`` (off by default) switches the shop from the
+    D24.21 daily slots to ``card_quota_per_cell`` (5) open cards per cell --
+    target metric × KPI channel, content kinds their own cells -- under an
+    overall open cap of ``card_quota_max_open`` (40); in that mode the nightly
+    planner also proposes price levers from stored facts, adds the "below shop
+    level" branch (S28B) and drops the Quality-Score lever weight.
+    """
 
     windows: tuple[int, ...] = (14, 30, 60)
     min_events: int = 30
@@ -53,6 +72,9 @@ class DiagTunables:
     kpi_max_band_mult: float = 3.0
     guard_band_mult: float = 1.0
     volatile_cv: float = 0.30
+    card_quota_mode: bool = False
+    card_quota_per_cell: int = 5
+    card_quota_max_open: int = 40
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -62,6 +84,9 @@ class DiagTunables:
             KPI_MAX_BAND_MULT: self.kpi_max_band_mult,
             GUARD_BAND_MULT: self.guard_band_mult,
             VOLATILE_CV: self.volatile_cv,
+            CARD_QUOTA_MODE: self.card_quota_mode,
+            CARD_QUOTA_PER_CELL: self.card_quota_per_cell,
+            CARD_QUOTA_MAX_OPEN: self.card_quota_max_open,
         }
 
     @classmethod
@@ -87,6 +112,9 @@ class DiagTunables:
             kpi_max_band_mult=float(values[KPI_MAX_BAND_MULT]),
             guard_band_mult=float(values[GUARD_BAND_MULT]),
             volatile_cv=float(values[VOLATILE_CV]),
+            card_quota_mode=bool(values[CARD_QUOTA_MODE]),
+            card_quota_per_cell=int(values[CARD_QUOTA_PER_CELL]),
+            card_quota_max_open=int(values[CARD_QUOTA_MAX_OPEN]),
         )
 
 
@@ -98,8 +126,24 @@ def _number(name: str, value: Any, low: float, high: float) -> float:
     return float(value)
 
 
+def _whole(name: str, value: Any, low: int, high: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TunableError(f"{name} must be a whole number")
+    if not low <= value <= high:
+        raise TunableError(f"{name} must be between {low} and {high}")
+    return value
+
+
 def validate_tunable(name: str, value: Any) -> Any:
     """The clean value for one key, or :class:`TunableError`."""
+    if name == CARD_QUOTA_MODE:
+        if not isinstance(value, bool):
+            raise TunableError(f"{name} must be true or false")
+        return value
+    if name == CARD_QUOTA_PER_CELL:
+        return _whole(name, value, *QUOTA_PER_CELL_RANGE)
+    if name == CARD_QUOTA_MAX_OPEN:
+        return _whole(name, value, *QUOTA_MAX_OPEN_RANGE)
     if name == DIAG_WINDOWS:
         if not isinstance(value, list | tuple) or not value or len(value) > 5:
             raise TunableError(f"{name} must be a list of 1 to 5 day counts")
@@ -127,11 +171,15 @@ def validate_tunable(name: str, value: Any) -> Any:
 
 
 __all__ = [
+    "CARD_QUOTA_MAX_OPEN",
+    "CARD_QUOTA_MODE",
+    "CARD_QUOTA_PER_CELL",
     "DIAG_MIN_EVENTS",
     "DIAG_WINDOWS",
     "GUARD_BAND_MULT",
     "KPI_MAX_BAND_MULT",
     "KPI_MIN_BAND_MULT",
+    "QUOTA_KEYS",
     "TUNABLE_KEYS",
     "VOLATILE_CV",
     "DiagTunables",

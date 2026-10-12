@@ -259,6 +259,36 @@ Các phần khác của Cài đặt shop: giai đoạn (Thử nghiệm · Tự v
 động bật/tắt, API khuyến mãi, model, giới hạn OpenAI riêng (mặc định $5/tháng), và Quy tắc của người bán
 (ghi "Đội ngũ Juli đặt"; người bán thấy và sửa tiếp).
 
+### 5.1 "Nhiều thẻ mỗi ô (thử nghiệm)" (Admin, D33)
+
+Bật cho từng shop (mặc định Tắt; shop khác không đổi). Lưu cùng hàng tunable của "Chẩn đoán & KPI",
+qua hộp xác nhận, ghi Nhật ký.
+
+| Nhãn | Mặc định | Giới hạn | Tác dụng |
+|---|---|---|---|
+| Nhiều thẻ mỗi ô | Tắt | Bật / Tắt | Thay 3 Juli / 1 Seller Center / 1 nội dung mỗi ngày (và giới hạn ngày/tuần mặc định) bằng tối đa N thẻ MỞ cho mỗi ô |
+| Thẻ mở mỗi ô | 5 thẻ/ô | 1–20 | N. Ô = chỉ số mục tiêu × kênh đo (CTR · Thẻ sản phẩm, CTOR · tất cả kênh …); Video và LIVE (nội dung) là ô riêng |
+| Thẻ mở tối đa (nhiều thẻ) | 40 thẻ mở | 5–100 | Trần chung. "Số thẻ mở cùng lúc" của người bán vẫn thắng; giới hạn ngày/tuần/mở mà Ops đặt riêng vẫn áp dụng |
+
+Khi bật: thời hạn 7 ngày, thời gian chờ 7 ngày, một chỉ số mỗi sản phẩm (D29.4), luồng/hành động tắt
+và loại trừ quà tặng giữ nguyên; thẻ bị chặn vì ô đầy có lý do `cell_cap`. Trang Cài đặt shop hiện
+"Thẻ đang mở theo ô" (ví dụ "CTR · Thẻ sản phẩm: 5/5"). Cũng chỉ khi bật:
+
+- **Giảm giá** được đề xuất khi shop có Quy tắc mức giảm giá tối đa (mặc định hoặc theo SKU); không đề
+  xuất khi sản phẩm đang có giảm giá / flash sale đang chạy (bảng khuyến mãi đã lưu); Mua nhiều giảm
+  nhiều không đề xuất khi đang chạy. Flash sale và Giảm phí vận chuyển vẫn tắt (chưa có dữ liệu cho
+  điều kiện của chúng).
+- **Thấp hơn mức shop (S28B):** sản phẩm có GMV không giảm (`no_gmv_drop`) nhưng CTR / CTOR / AOV thấp
+  hơn trung vị của shop quá 1 × dao động (đủ dữ liệu), và cũng thấp hơn trung vị trên kênh của thay đổi,
+  nhận thẻ: mục tiêu = KPI tối thiểu (1 ×) thôi, Độ tin cậy Thấp, xếp sau mọi thẻ GMV giảm, mã
+  `reason_code = below_shop_level`. Lý do hiện cho người bán: "CTR của sản phẩm trên kênh Thẻ sản phẩm
+  thấp hơn mức chung của shop (x so với y); doanh thu không giảm, đây là cơ hội tăng thêm".
+- Trọng số Quality Score theo loại thay đổi (tới 1,5 × cho ảnh bìa / tiêu đề / mô tả) bỏ, nên thay đổi
+  giá xếp hạng ngang thay đổi nội dung.
+
+Ô có thể có thẻ với dữ liệu hiện lưu: Lượt hiển thị và CTR (Thẻ sản phẩm hoặc tất cả kênh), CTOR và
+AOV (chỉ tất cả kênh), Video, LIVE.
+
 ## 6. Các màn hình Ops khác
 
 - **Tổng quan**: Đã kết nối / Đang hoạt động / Mất kết nối (Token hết hạn); từng shop: Giai đoạn, Kết

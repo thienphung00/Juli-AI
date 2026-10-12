@@ -128,6 +128,14 @@ Juli không đề xuất chỉ vì một con số trông thấp. Một sản ph�
    để biết chắc thay đổi nào mang lại kết quả. Mỗi thẻ trong nhóm bạn vẫn duyệt riêng.
 4. **Sản phẩm có Lưu lượng ổn định được ưu tiên**, vì kết quả đo trên chúng chính xác hơn.
 
+Với một số shop đang thử chế độ **nhiều thẻ**, Juli còn đề xuất cả khi doanh thu không giảm nhưng một
+con số của sản phẩm (CTR, CTOR hoặc AOV) thấp hơn hẳn mức chung của shop trên cùng kênh, ví dụ "CTR của
+sản phẩm trên kênh Thẻ sản phẩm thấp hơn mức chung của shop (2,50 % so với 5,00 %); doanh thu không giảm,
+đây là cơ hội tăng thêm". Những thẻ này luôn có Độ tin cậy **Thấp**, mục tiêu khiêm tốn (vừa đủ để đo
+được) và đứng sau các thẻ về doanh thu giảm. Ở chế độ này bạn có thể thấy tối đa 5 thẻ mở cho mỗi con
+số trên mỗi kênh (ví dụ 5 thẻ CTR trên Thẻ sản phẩm), thay vì vài thẻ mới mỗi ngày; quy tắc **Số thẻ mở
+cùng lúc** bạn đặt vẫn được giữ.
+
 Ngay sau khi bạn kết nối shop, Juli tạo vài thẻ **Đề xuất nhanh · dựa trên 14 ngày** (tiêu đề, mô tả,
 ảnh bìa) để bạn bắt đầu ngay; độ tin cậy của chúng là "Tham khảo".
 

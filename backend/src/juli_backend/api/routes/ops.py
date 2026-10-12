@@ -326,12 +326,28 @@ async def ops_get_settings(
         previous_role = block.hand_over()
     # The role switch back rides on the scope's first statement.
     view = await ops_settings.view_of(session, shop_id, row, restore_role=previous_role)
-    return {
+    body: dict[str, Any] = {
         "shop": _shop_json(listing),
         "settings": view.to_json(),
         "invites": [invites.invite_json(i) for i in shop_invites],
         "audit": [_audit_json(r) for r in log],
     }
+    if view.overrides.get("card_quota_mode") is True:
+        # D33: open cards per cell, read only for a shop in the quota mode.
+        body["card_cells"] = await _card_cells_quietly(session, shop_id)
+    return body
+
+
+async def _card_cells_quietly(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, int] | None:
+    """Cell (target metric × channel) -> open cards; ``None`` when the read fails."""
+    from juli_backend.services.action_cards.emission_budget import open_cell_counts
+
+    try:
+        async with with_shop_scope(session, shop_id):
+            return await open_cell_counts(session, shop_id)
+    except Exception:
+        logger.warning("ops_card_cells_read_failed", extra={"shop_id": str(shop_id)})
+        return None
 
 
 class SettingsWrite(BaseModel):

@@ -44,7 +44,17 @@ async def rescore_shop_cards_async(
         async with with_shop_scope(session, shop_id):
             result = await rescore_shop_cards(session, shop_id, now=moment)
             await session.commit()
-    logger.info("rescore_shop_cards_done", extra=result)
+    # The counts go in the message too: journald keeps the text, not the extras.
+    logger.info(
+        "rescore_shop_cards_done shop_id=%s status=%s as_of=%s gift_cards_retired=%s "
+        "cards_rescored=%s",
+        result.get("shop_id"),
+        result.get("status"),
+        result.get("as_of", "-"),
+        result.get("gift_cards_retired", 0),
+        result.get("cards_rescored", 0),
+        extra=result,
+    )
     return result
 
 

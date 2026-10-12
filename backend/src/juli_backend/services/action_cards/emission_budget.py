@@ -31,6 +31,18 @@ weeks are the shop's (Vietnam, UTC+7; weeks start Monday). Campaign-plan cards
   **empty** -- no backfill from another type. The weekly and open limits still
   bind across all slots. This replaced D24.17's first-day-only mix.
 
+**D33 quota mode (opt-in per shop, P28).** When the shop's team tunable
+``card_quota_mode`` is on (Juli Ops → Cài đặt shop → "Nhiều thẻ mỗi ô"), the
+daily slots and the default daily / weekly limits are replaced by a cap of
+``card_quota_per_cell`` (5) OPEN cards per cell -- the card's target metric ×
+its KPI channel (``ctr@product_card``, ``ctor@total`` …; ``content_video`` /
+``content_live`` are cells of their own; a card with neither is ``other``) --
+under an overall open cap of ``card_quota_max_open`` (40). Kept as before:
+expiry, the cooldown, ``ops_disabled``, a daily / weekly / open limit Ops set
+explicitly for the shop, and the seller's own "Số thẻ mở cùng lúc" (which still
+only lowers the open cap). A draft whose cell is full is suppressed
+``cell_cap``. With the mode off nothing here changes.
+
 **Surfacing ledger.** ``decision_emission_novelty_ledger`` (the #716 weekly
 novelty ledger) now holds one row per surfacing: ``workflow_key`` carries
 ``<card id hex>@<shop day yyyymmdd>`` and ``week_start`` the shop week's
@@ -90,6 +102,9 @@ SUPPRESSED_REASON_WEEKLY_CAP = SUPPRESSED_REASON_WEEKLY_NOVELTY_CAP
 #: Fast track P16 (D25.4): the card's stream or action is turned off for the
 #: shop in Juli Ops (``ops_shop_settings``).
 SUPPRESSED_REASON_OPS_DISABLED = "ops_disabled"
+#: D33 quota mode: the draft's cell (target metric × channel) already holds
+#: ``card_quota_per_cell`` open cards.
+SUPPRESSED_REASON_CELL_CAP = "cell_cap"
 
 SUPPRESSED_REASONS: frozenset[str] = frozenset(
     {
@@ -98,8 +113,16 @@ SUPPRESSED_REASONS: frozenset[str] = frozenset(
         SUPPRESSED_REASON_COOLDOWN,
         SUPPRESSED_REASON_DAILY_CAP,
         SUPPRESSED_REASON_WEEKLY_CAP,
+        SUPPRESSED_REASON_CELL_CAP,
     }
 )
+
+#: D33: the cell of a card that names no target metric (legacy / rule cards).
+CELL_OTHER = "other"
+#: D33: "no limit" for the daily / weekly caps the quota mode replaces.
+_NO_LIMIT = 1_000_000
+#: Pre-D29 cards: the funnel stage they act on -> their metric (as ``optimize_product_cards``).
+_STAGE_METRIC: dict[str, str] = {"card": "ctr", "page": "ctor", "basket": "aov"}
 
 #: A surfaced card past ``validity_days`` (D24.17). Not ``active``, so it
 #: leaves the Demo active set; ``surfaced_at`` is kept as history.
@@ -211,6 +234,32 @@ def card_lever(card: ActionCard) -> str | None:
     return code if isinstance(code, str) else None
 
 
+def card_cell(card: ActionCard) -> str:
+    """D33: the quota cell of *card* -- ``<target metric>@<KPI channel>``.
+
+    Content cards (``content_video`` / ``content_live``, or a card claiming the
+    content executor) are their own cells; a card from before D32 (no
+    ``kpi.channel``) is all-channel; one from before D29 takes its funnel
+    stage's metric; a card with neither is :data:`CELL_OTHER`.
+    """
+    if card.workflow_key in CONTENT_WORKFLOW_KEYS:
+        return card.workflow_key
+    if executor_slot(card) == EXECUTOR_CONTENT:
+        return card.workflow_key or EXECUTOR_CONTENT
+    payload = _payload(card)
+    metric = payload.get("target_metric")
+    if not isinstance(metric, str) or not metric:
+        diagnosis = payload.get("diagnosis")
+        stage = diagnosis.get("stage") if isinstance(diagnosis, dict) else None
+        code = stage.get("code") if isinstance(stage, dict) else None
+        metric = _STAGE_METRIC.get(code) if isinstance(code, str) else None
+    if metric is None:
+        return CELL_OTHER
+    kpi = payload.get("kpi")
+    channel = kpi.get("channel") if isinstance(kpi, dict) else None
+    return f"{metric}@{channel if isinstance(channel, str) and channel else 'total'}"
+
+
 def ops_card_enabled(card: ActionCard, overrides: ShopOverrides) -> bool:
     """Whether Juli Ops lets this draft surface (D25.4 streams / actions / content)."""
     if card.workflow_key in CAMPAIGN_PLAN_WORKFLOW_KEYS:
@@ -315,11 +364,30 @@ def _log_suppressed(shop_id_str: str, card: ActionCard, reason: str) -> None:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class CardQuota:
+    """D33: the shop's quota mode -- ``per_cell`` open cards per cell, ``max_open`` overall."""
+
+    per_cell: int
+    max_open: int
+
+
+async def shop_card_quota(session: AsyncSession, shop_id: uuid.UUID) -> CardQuota | None:
+    """The shop's D33 quota when its team turned the mode on, else ``None``."""
+    from juli_backend.services.shop_rules.diag_tunables import diag_tunables
+
+    tunables = await diag_tunables(session, shop_id)
+    if not tunables.card_quota_mode:
+        return None
+    return CardQuota(per_cell=tunables.card_quota_per_cell, max_open=tunables.card_quota_max_open)
+
+
 async def _with_shop_card_cap(
     session: AsyncSession,
     shop_id: uuid.UUID,
     config: DecisionEmissionConfig,
     overrides: ShopOverrides | None = None,
+    quota: CardQuota | None = None,
 ) -> DecisionEmissionConfig:
     """The shop's Ops overrides, then the seller's "Số thẻ mở cùng lúc".
 
@@ -327,9 +395,17 @@ async def _with_shop_card_cap(
     default daily / weekly / open limits (it may raise or lower them). Then
     P8-C's seller rule (ADR-109 d.12, D24.17 keeps it as the seller's own rule)
     can only LOWER ``max_open``. Unset keeps the configured ceiling (30).
+
+    D33 quota mode (``quota``): the open ceiling starts at the quota's
+    ``max_open`` and the default daily / weekly limits are lifted; an explicit
+    Ops limit and the seller's rule then apply as above.
     """
     from juli_backend.services import shop_rules
 
+    if quota is not None:
+        config = replace(
+            config, max_open=quota.max_open, daily_new_cap=_NO_LIMIT, weekly_new_cap=_NO_LIMIT
+        )
     if overrides is not None:
         config = ops_overrides.emission_limits(config, overrides)
 
@@ -373,6 +449,46 @@ def daily_slot_pick(
             left -= 1
     order = {card.id: index for index, card in enumerate(cards)}
     return sorted(chosen, key=lambda c: order[c.id])
+
+
+def cell_quota_pick(
+    cards: list[ActionCard],
+    room: int,
+    per_cell: int,
+    open_by_cell: dict[str, int],
+) -> list[ActionCard]:
+    """D33: drafts in priority order, each while its cell holds < ``per_cell`` open cards.
+
+    *open_by_cell* counts the cards already open per cell (:func:`card_cell`);
+    *room* the overall room left. Returns the chosen cards in priority order.
+    """
+    chosen: list[ActionCard] = []
+    counts = dict(open_by_cell)
+    for card in cards:
+        if len(chosen) >= room:
+            break
+        cell = card_cell(card)
+        if counts.get(cell, 0) >= per_cell:
+            continue
+        counts[cell] = counts.get(cell, 0) + 1
+        chosen.append(card)
+    return chosen
+
+
+async def open_cell_counts(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, int]:
+    """D33 (Ops): cell -> the shop's open (surfaced, ``active``) cards in it."""
+    stmt = select(ActionCard).where(
+        ActionCard.shop_id == shop_id,
+        ActionCard.status == _CANDIDATE_STATUS,
+        ActionCard.surfaced_at.isnot(None),
+    )
+    counts: dict[str, int] = {}
+    for card in (await session.execute(stmt)).scalars():
+        if card.workflow_key in CAMPAIGN_PLAN_WORKFLOW_KEYS:
+            continue
+        cell = card_cell(card)
+        counts[cell] = counts.get(cell, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 async def _surfaced_today_by_slot(
@@ -432,8 +548,9 @@ async def apply_emission_budget(
     """
     now = _as_aware(now) if now is not None else datetime.now(UTC)
     overrides = await ops_overrides.shop_overrides(session, shop_id)
+    quota = await shop_card_quota(session, shop_id)
     config = await _with_shop_card_cap(
-        session, shop_id, config or decision_emission_config(), overrides
+        session, shop_id, config or decision_emission_config(), overrides, quota
     )
     shop_id_str = str(shop_id)
     today = shop_day(now)
@@ -467,7 +584,12 @@ async def apply_emission_budget(
         card.suppressed_reason = None
         open_cards.append(card)
 
-    suppressed: dict[str, list[ActionCard]] = {reason: [] for reason in SUPPRESSED_REASONS}
+    # ``cell_cap`` exists only in the D33 quota mode (off: the outcome is unchanged).
+    suppressed: dict[str, list[ActionCard]] = {
+        reason: []
+        for reason in SUPPRESSED_REASONS
+        if quota is not None or reason != SUPPRESSED_REASON_CELL_CAP
+    }
     open_counted = sum(1 for c in open_cards if c.workflow_key not in CAMPAIGN_PLAN_WORKFLOW_KEYS)
     # On a tie the earlier limit names the suppression: daily, weekly, open.
     limits = (
@@ -496,12 +618,24 @@ async def apply_emission_budget(
         else:
             eligible.append(card)
 
-    used_today = await _surfaced_today_by_slot(session, week_rows, day_start)
-    slot_room = {
-        slot: max(count - used_today.get(slot, 0), 0) for slot, count in config.daily_slots
-    }
-    fill_order = tuple(slot for slot, _count in config.daily_slots)
-    chosen = daily_slot_pick(eligible, room, slot_room, fill_order)
+    if quota is None:
+        used_today = await _surfaced_today_by_slot(session, week_rows, day_start)
+        slot_room = {
+            slot: max(count - used_today.get(slot, 0), 0) for slot, count in config.daily_slots
+        }
+        fill_order = tuple(slot for slot, _count in config.daily_slots)
+        chosen = daily_slot_pick(eligible, room, slot_room, fill_order)
+        full_reason = SUPPRESSED_REASON_DAILY_CAP
+    else:
+        # D33: up to ``per_cell`` open cards per cell instead of the daily slots.
+        open_by_cell: dict[str, int] = {}
+        for card in open_cards:
+            if card.workflow_key in CAMPAIGN_PLAN_WORKFLOW_KEYS:
+                continue
+            cell = card_cell(card)
+            open_by_cell[cell] = open_by_cell.get(cell, 0) + 1
+        chosen = cell_quota_pick(eligible, room, quota.per_cell, open_by_cell)
+        full_reason = SUPPRESSED_REASON_CELL_CAP
     chosen_ids = {card.id for card in chosen}
     room_left = room - len(chosen)
 
@@ -509,8 +643,9 @@ async def apply_emission_budget(
     for card in eligible:
         if card.id not in chosen_ids:
             # Overall room used up -> the binding limit; else its slot is full
-            # (or has no daily slot) -> today's limit for that type.
-            reason = room_reason if room_left <= 0 else SUPPRESSED_REASON_DAILY_CAP
+            # (or has no daily slot) -> today's limit for that type (D33: its
+            # cell is full).
+            reason = room_reason if room_left <= 0 else full_reason
             card.suppressed_reason = reason
             suppressed[reason].append(card)
             _log_suppressed(shop_id_str, card, reason)
@@ -549,6 +684,14 @@ async def apply_emission_budget(
             "suppressed_cooldown": len(suppressed[SUPPRESSED_REASON_COOLDOWN]),
             "suppressed_weekly_novelty_cap": len(suppressed[SUPPRESSED_REASON_WEEKLY_CAP]),
             "suppressed_ops_disabled": len(suppressed[SUPPRESSED_REASON_OPS_DISABLED]),
+            **(
+                {
+                    "quota_mode": True,
+                    "suppressed_cell_cap": len(suppressed[SUPPRESSED_REASON_CELL_CAP]),
+                }
+                if quota is not None
+                else {}
+            ),
         },
     )
     return EmissionBudgetOutcome(
