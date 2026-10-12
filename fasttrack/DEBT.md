@@ -716,3 +716,18 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   CTR precision the error is well under one click a day per channel, but it is derived, not a
   count TikTok reports.
 - [ ] Category benchmarks (D29.3) are all-channel and are not used for a channel KPI.
+
+## P29 merge (2026-10-13)
+
+- [ ] Pre-existing, not P29-merge: `tests/unit/test_import_boundaries.py::test_strict_with_baseline_passes_for_known_production_debt`
+  fails — `api/routes/ops.py` deep-imports `juli_backend.services.ops.access` and 5 more
+  `services.ops.*` modules (cross-package depth 3 > 2). Fails on base 2190f2de too; check.sh does
+  not select it — re-export the used names from `juli_backend.services.ops` (or baseline them) in
+  the merge PR.
+- [ ] Pre-existing, not P29-merge: `tests/unit/test_destructive_migration_isolation.py::test_ci_is_configured_to_declare_its_database_disposable`
+  fails — `fasttrack-deploy.yml` sets `DATABASE_URL` but never `JULI_TEST_DATABASE_DISPOSABLE`
+  (check.sh exports it itself, so the deploy works). Not selected by check.sh — declare it in the
+  workflow env in the merge PR.
+- [x] ~~`test_ops_round_trips.py` fleet bounds (costs/terms, 2 round trips per shop) failed when an
+  earlier module in the same pytest process left shops in the shared database~~ — repaid: the module
+  is on `_SHARED_STATE_MODULES` (own database), so it sees only its two tenants.

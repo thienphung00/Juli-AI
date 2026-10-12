@@ -283,6 +283,12 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for fast track P24 (pairing codes,
         # ingest tokens and the normalized ingest rows as juli_app).
         "test_ingest_two_tenant.py",
+        # Reason 2 again: the Ops fleet pages (Chi phí, Thời hạn) walk EVERY
+        # shop ops_list_shops() returns, 2 round trips per shop (P29), and the
+        # module bounds them for its own two tenants. Any earlier module's
+        # leftover shops in the shared database (e.g. test_fetch_executor_scope)
+        # inflate the count, which is data drift, not a latency regression.
+        "test_ops_round_trips.py",
     }
 )
 
