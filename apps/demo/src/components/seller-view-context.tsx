@@ -57,7 +57,7 @@ export interface WriteControlProps {
 }
 
 /**
- * Props for a control that writes (Phê duyệt, Lưu, an input of a rule…):
+ * Props for a control that writes (approve, save, an input of a rule…):
  * spread AFTER the control's own `disabled` / `title`. In read-only mode it is
  * disabled with the view-as title and `data-read-only` (greyed by
  * `globals.css`); otherwise it keeps its own `disabled`.
