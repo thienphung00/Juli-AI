@@ -115,6 +115,28 @@ def test_every_label_is_on_screen(label: str) -> None:
     )
 
 
+# Labels retired by the vocabulary standardisation (V1–V10); neither guide may use them.
+RETIRED_LABELS: tuple[str, ...] = (
+    "Hiển thị/ngày",  # V1 → "Lượt hiển thị/ngày" (capital H: the old standalone label)
+    "Lượt hiển thị sản phẩm",
+    "Tỉ lệ",  # V2
+    "Lượt bấm",  # V3
+    "Gần đạt",  # V5
+    "Chưa kết luận",
+    "Dao động thường",  # V7
+    "Biến thiên hiển thị",
+    "Ngưỡng biến động",
+    "Ngưỡng bạn đặt",  # V8
+    "Phê duyệt",  # V10
+)
+
+
+@pytest.mark.parametrize("doc", [OPS_DOC, SELLER_DOC], ids=["ops", "seller"])
+def test_guides_use_no_retired_label(doc: Path) -> None:
+    text = doc.read_text(encoding="utf-8")
+    assert [label for label in RETIRED_LABELS if label in text] == []
+
+
 def test_seller_guide_has_no_backend_or_team_terms() -> None:
     text = SELLER_DOC.read_text(encoding="utf-8")
     hits: list[str] = []
