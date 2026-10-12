@@ -533,8 +533,11 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      when the shop has enough results, otherwise fleet-level (shrinkage) — output as a
      range CTR/CTOR → GMV with confidence, feeding the D29 KPI.
   4. **External changes (18.4):** subscribe TikTok webhooks **15 Product information
-     change** (`changed_fields`, `update_time`) and **39 Activity status change**, plus
-     18 / 5 / 37 / 27 / 68 already available; on an event Juli re-reads the product, diffs
+     change** (`changed_fields`, `update_time`), **63 Activity change** (promotion
+     CREATE / UPDATE / DEACTIVATE with the products and SKUs added or removed — richer than
+     39 Activity status change, which stays as a fallback), **16 Product creation**
+     (baseline from day one, new-product rules), plus 18 / 5 / 37 / 27 / 68 already
+     available; 25 Opportunity matching waits for the Opportunities/keywords work; on an event Juli re-reads the product, diffs
      it against the snapshot and records an "external change". A daily `update_time`
      reconciliation catches missed webhooks and price changes (no price webhook). External
      changes appear on the product timeline; a measured card overlapping one reads "bị ảnh
