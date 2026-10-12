@@ -964,7 +964,7 @@ async def _capture_execution_baseline(run: WorkflowRun) -> None:
     run's transaction; any failure is logged and the run goes on.
     """
     from juli_backend.models.history import PHASE_EXECUTION
-    from juli_backend.services.product_history.baselines import capture_run_baseline
+    from juli_backend.services.product_history import capture_run_baseline
 
     try:
         async with _shop_scoped_session_factory(run.shop_id)() as baseline_session:

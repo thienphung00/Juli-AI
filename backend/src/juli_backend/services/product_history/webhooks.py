@@ -144,19 +144,6 @@ class HistoryEnqueuer(Protocol):
     def __call__(self, shop_id: str, work: HistoryWork) -> str | None: ...
 
 
-def _celery_enqueue(shop_id: str, work: HistoryWork) -> str | None:
-    from juli_backend.workers.tasks.product_history import (
-        product_history_refresh_activity,
-        product_history_refresh_product,
-    )
-
-    if work.subject == "product":
-        return product_history_refresh_product.delay(
-            shop_id, work.subject_id, work.source, work.hint_kind, list(work.hint_fields)
-        ).id
-    return product_history_refresh_activity.delay(shop_id, work.change, work.source).id
-
-
 class CoalesceGate(Protocol):
     def try_acquire(self, key: str, ttl_seconds: int) -> bool: ...
 
@@ -191,8 +178,9 @@ def set_history_enqueuer(enqueuer: HistoryEnqueuer | None) -> None:
     _enqueuer = enqueuer
 
 
-def get_history_enqueuer() -> HistoryEnqueuer:
-    return _enqueuer or _celery_enqueue
+def get_history_enqueuer() -> HistoryEnqueuer | None:
+    """The Celery adapter ``workers/dispatch_binding`` binds at API / worker startup."""
+    return _enqueuer
 
 
 def set_coalesce_gate(gate: CoalesceGate | None) -> None:
@@ -232,8 +220,12 @@ def enqueue_work(
                 return None
         except Exception:
             logger.warning("product_history_coalesce_gate_failed", exc_info=True)
+    bound = enqueuer or get_history_enqueuer()
+    if bound is None:
+        logger.warning("product_history_enqueuer_not_bound", extra={"shop_id": shop_id})
+        return None
     try:
-        return (enqueuer or get_history_enqueuer())(shop_id, work)
+        return bound(shop_id, work)
     except Exception:
         logger.error(
             "product_history_enqueue_failed",

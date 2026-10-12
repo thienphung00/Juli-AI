@@ -12,6 +12,7 @@ from juli_backend.services.action_cards.dispatch import set_refresh_dispatcher
 from juli_backend.services.execution.dispatch import set_task_dispatcher
 from juli_backend.services.execution.outcome_port import set_workflow_outcome_recorder
 from juli_backend.services.ingestion import set_bootstrap_dispatcher
+from juli_backend.services.product_history import HistoryWork, set_history_enqueuer
 
 
 @dataclass
@@ -41,6 +42,23 @@ class CeleryBootstrapDispatcher:
         return enqueue_bootstrap(
             shop_id, connect_committed_at=connect_committed_at, enqueued_at=enqueued_at
         )
+
+
+@dataclass
+class CeleryHistoryEnqueuer:
+    """Enqueue a webhook's product / activity re-read (fast track P23, D30.4)."""
+
+    def __call__(self, shop_id: str, work: HistoryWork) -> str | None:
+        from juli_backend.workers.tasks.product_history import (
+            product_history_refresh_activity,
+            product_history_refresh_product,
+        )
+
+        if work.subject == "product":
+            return product_history_refresh_product.delay(
+                shop_id, work.subject_id, work.source, work.hint_kind, list(work.hint_fields)
+            ).id
+        return product_history_refresh_activity.delay(shop_id, work.change, work.source).id
 
 
 @dataclass
@@ -82,3 +100,4 @@ def bind_celery_dispatchers() -> None:
     set_bootstrap_dispatcher(CeleryBootstrapDispatcher())
     set_task_dispatcher(CeleryTaskDispatcher())
     set_workflow_outcome_recorder(OperationsWorkflowOutcomeRecorder())
+    set_history_enqueuer(CeleryHistoryEnqueuer())

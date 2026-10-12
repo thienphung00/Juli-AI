@@ -91,7 +91,7 @@ async def _resources(
     create_resources: Any = None,
     rate_limiter: Any = None,
 ) -> Any:
-    from juli_backend.services.product_history.job import build_resources, plan_reads
+    from juli_backend.services.product_history import build_resources, plan_reads
 
     plan = await plan_reads(
         session_factory, shop_id, app_key=app_key, app_secret=app_secret, resolve=resolve
@@ -115,7 +115,7 @@ async def run_daily(
     backoff_sleep: Callable[[float], Any] | None = None,
 ) -> dict[str, Any] | None:
     """Products then promotions for one shop; ``None`` when locked or failed."""
-    from juli_backend.services.product_history.job import reconcile_products, sweep_promotions
+    from juli_backend.services.product_history import reconcile_products, sweep_promotions
 
     token: str | None = None
     if lock is not None:
@@ -173,7 +173,7 @@ async def run_refresh_product(
     now: datetime | None = None,
 ) -> int:
     from juli_backend.models.history import KIND_CONTENT
-    from juli_backend.services.product_history.job import refresh_product
+    from juli_backend.services.product_history import refresh_product
 
     try:
         shop_uuid = uuid.UUID(shop_id)
@@ -214,8 +214,7 @@ async def run_refresh_activity(
     rate_limiter: Any = None,
     now: datetime | None = None,
 ) -> int:
-    from juli_backend.services.product_history.job import refresh_activity
-    from juli_backend.services.product_history.promotions import ActivityChange
+    from juli_backend.services.product_history import ActivityChange, refresh_activity
 
     try:
         shop_uuid = uuid.UUID(shop_id)
@@ -251,7 +250,7 @@ async def run_capture_baseline(
 ) -> bool:
     """Capture one run baseline under the shop's scope; True when a row was stored."""
     from juli_backend.database.tenant_context import with_shop_scope
-    from juli_backend.services.product_history.baselines import capture_for_run
+    from juli_backend.services.product_history import capture_for_run
 
     shop_uuid = uuid.UUID(shop_id)
     try:
@@ -426,7 +425,7 @@ def product_history_refresh_activity(shop_id: str, change: dict[str, Any], sourc
 @celery_app.task(name=REPLAY_TASK)
 def product_history_replay_webhooks(since: str | None = None, limit: int = 5000) -> dict:
     """One-off: ``celery call juli_backend.product_history_replay_webhooks``."""
-    from juli_backend.services.product_history.replay import replay_raw_events
+    from juli_backend.services.product_history import replay_raw_events
 
     async def go() -> dict:
         async with _factory()() as session:
