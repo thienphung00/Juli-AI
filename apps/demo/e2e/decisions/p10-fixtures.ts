@@ -47,6 +47,10 @@ export interface CardSpec {
   fields?: { field: string; label: string }[];
   beforeAfter?: { field: string; label: string; before: string; after: string }[];
   status?: string;
+  /** P23: the TikTok product id (cards of one product share it); default per card id. */
+  productId?: string;
+  /** P23 (D29): extra `recommendation.card` fields (confidence, kpi, gmv_estimate, sibling_cards…). */
+  extra?: Record<string, unknown>;
 }
 
 const KPI_LABEL = { ctr: "CTR - Thẻ sản phẩm", ctor: "CTOR - Thẻ sản phẩm", aov: "AOV (SKU)" } as const;
@@ -77,7 +81,7 @@ export function decision(spec: CardSpec) {
         channel_scope: "PRODUCT_CARD",
         recoverable_gmv_per_day: spec.gmvMonth / 30,
         product_title: spec.name,
-        tiktok_product_id: `1729000${spec.id}`,
+        tiktok_product_id: spec.productId ?? `1729000${spec.id}`,
       },
       card: {
         seller_sku: spec.sku,
@@ -101,6 +105,7 @@ export function decision(spec: CardSpec) {
         change_fields: fields,
         before_after: spec.beforeAfter ?? [],
         gmv_method: "lượt bấm × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+        ...spec.extra,
       },
     },
   };

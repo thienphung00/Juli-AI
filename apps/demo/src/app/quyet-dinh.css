@@ -2413,3 +2413,73 @@ body:has(.qd-page) {
   color: var(--juli-muted-foreground);
   font-size: 12px;
 }
+
+/* P23 (D29.6): "Độ tin cậy: Cao / Vừa / Thấp" — pill tones come from .qv-tone--*. */
+.qv-confidence {
+  display: inline-block;
+  margin-top: 4px;
+  margin-right: 6px;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* P23 (D29.1): "· 30 ngày" after the KPI values. */
+.qv-kpi__window {
+  color: var(--qd-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* P23 (D29.4): cards of one product + one metric under one header. */
+.qv-siblings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  grid-column: 1 / -1;
+  border-left: 3px solid var(--qd-pink-border);
+  padding-left: 12px;
+}
+
+.qv-siblings__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 14px;
+}
+
+.qv-siblings__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.qv-siblings__count {
+  color: var(--qd-muted);
+  font-size: 13px;
+}
+
+/* P23 (D30.4): a measured change overlapped by a change made outside Juli. */
+.qv-external {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--qd-orange-border);
+  border-radius: 12px;
+  background: var(--qd-orange-panel);
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.qv-external__title {
+  font-weight: 700;
+}
+
+.qv-external ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--qd-ink-2);
+}

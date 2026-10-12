@@ -16,7 +16,7 @@ import {
   valueText,
   vndText,
 } from "./p10-format";
-import type { FinalLabel, Measurement, MeasurementBand, MeasurementRow, MeasurementStage, MeasureUnit } from "./p10-types";
+import type { ExternalChange, FinalLabel, Measurement, MeasurementBand, MeasurementRow, MeasurementStage, MeasureUnit } from "./p10-types";
 import type { ChipTone } from "./run-model";
 
 export type MeasureTab = "d0" | "d7" | "d14";
@@ -43,7 +43,34 @@ export interface MeasureHead {
   readonly chip: { readonly label: string; readonly tone: ChipTone };
 }
 
+const DAY7_VERDICT = {
+  rising: { word: "Đang lên", tone: "ok" },
+  unclear: { word: "Chưa rõ", tone: "muted" },
+} as const;
+
+const DAY14_VERDICT = {
+  met: { chip: "Đạt", headline: "Ngày 14: đạt mục tiêu", tone: "ok" },
+  partial: { chip: "Một phần", headline: "Ngày 14: đạt một phần", tone: "info" },
+  not_met: { chip: "Không đạt", headline: "Ngày 14: không đạt mục tiêu", tone: "warn" },
+} as const;
+
+/** P23 (D29.8): the day-14 verdict word when the backend sends one. */
+export function day14VerdictLabel(m: Measurement): string | null {
+  const v = m.verdict?.day14;
+  return v && v in DAY14_VERDICT ? DAY14_VERDICT[v].chip : null;
+}
+
 export function measureHead(m: Measurement): MeasureHead {
+  const d7 = m.verdict?.day7;
+  const d14 = m.verdict?.day14;
+  if (m.stage === "day7" && d7 && d7 in DAY7_VERDICT && !(m.day7 && m.day7.within_band === false)) {
+    const v = DAY7_VERDICT[d7];
+    return { headline: `Ngày 7: ${shortMetric(m.target.label)} ${v.word.toLowerCase()}`, chip: { label: v.word, tone: v.tone } };
+  }
+  if (m.stage === "final" && d14 && d14 in DAY14_VERDICT) {
+    const v = DAY14_VERDICT[d14];
+    return { headline: v.headline, chip: { label: v.chip, tone: v.tone } };
+  }
   if (m.stage === "waiting") {
     return { headline: "Đang chờ dữ liệu sau khi áp dụng", chip: { label: "Chờ đo · ngày 0", tone: "muted" } };
   }
@@ -254,7 +281,10 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
     actualMonth && expectedMonth ? `GMV thực tế ${actualMonth}/tháng so với dự kiến ${expectedMonth}/tháng.` : "";
   const lever = leverLabel ? `"${leverLabel}"` : "này";
   const next = "Đề xuất tiếp theo cho sản phẩm này ›";
-  switch (f.label) {
+  const v = m.verdict?.day14;
+  const label: FinalLabel = v === "met" ? "dat" : v === "partial" ? "gan_dat" : v === "not_met" ? "khong_dat" : f.label;
+  const nearWord = v === "partial" ? "Một phần" : "Gần đạt";
+  switch (label) {
     case "dat":
       return {
         tone: "ok",
@@ -266,7 +296,7 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
     case "gan_dat":
       return {
         tone: "info",
-        title: `Gần đạt: ${f.pct_of_expected ?? "—"} % mức kỳ vọng`,
+        title: `${nearWord}: ${f.pct_of_expected ?? "—"} % mức kỳ vọng`,
         body: `${gmvLine} Thay đổi được giữ; mức kỳ vọng của đề xuất ${lever} sau sẽ thận trọng hơn.`.trim(),
         next,
         offerRevert: false,
@@ -320,7 +350,7 @@ export function day14Steps(m: Measurement, leverLabel: string | null): MeasureSt
       status: "done",
     },
     { label: "Tính GMV thực tế", result: gmv, time: day, status: "done" },
-    { label: "Chốt kết quả", result: f ? FINAL_LABELS[f.label] : "—", time: day, status: "done" },
+    { label: "Chốt kết quả", result: day14VerdictLabel(m) ?? (f ? FINAL_LABELS[f.label] : "—"), time: day, status: "done" },
     {
       label: `Cập nhật mức kỳ vọng cho loại "${leverLabel ?? "thay đổi này"}"`,
       result: `Hệ số hiệu chỉnh ${coef}`,
@@ -339,3 +369,64 @@ export function waitingLine(m: Measurement | null, day7Iso: string | null): stri
 /** Day14.dc.html's footnote under the verdict. */
 export const FINAL_RULE_NOTE =
   "Cách chốt: Đạt khi chỉ số mục tiêu ≥ mục tiêu và GMV ≥ 100 % dự kiến · Gần đạt 70–99 % · Không đạt dưới 70 % · Chưa kết luận khi dữ liệu quá ít hoặc có thay đổi khác cùng lúc trên sản phẩm.";
+
+const FIELD_NAMES: Readonly<Record<string, string>> = {
+  title: "Tiêu đề",
+  description: "Mô tả",
+  main_images: "Ảnh",
+  images: "Ảnh",
+  cover_image: "Ảnh bìa",
+  video: "Video",
+  price: "Giá",
+  sku_price: "Giá",
+  skus: "SKU",
+  attributes: "Thuộc tính",
+  product_attributes: "Thuộc tính",
+  category: "Ngành hàng",
+  category_id: "Ngành hàng",
+};
+
+const PROMO_NAMES: Readonly<Record<string, string>> = {
+  flash_sale: "Flash sale",
+  flashsale: "Flash sale",
+  product_discount: "Giảm giá SP",
+  direct_discount: "Giảm giá SP",
+  fixed_price: "Giảm giá SP",
+  buy_more_save_more: "Mua nhiều giảm nhiều",
+  bmsm: "Mua nhiều giảm nhiều",
+  shipping_discount: "Giảm phí ship",
+  voucher: "Voucher",
+  coupon: "Voucher",
+};
+
+function externalText(change: ExternalChange): string {
+  const kind = (change.kind ?? "").toLowerCase();
+  const fields = (change.fields ?? []).map((f) => String(f).toLowerCase());
+  const promo = [...fields, kind.replace(/^(promotion|activity)_?/, "")].map((f) => PROMO_NAMES[f]).find(Boolean);
+  if (promo || kind.startsWith("promotion") || kind.startsWith("activity")) {
+    const verb = /end|deactivat|stop|expire/.test(kind) ? "kết thúc" : /update|change/.test(kind) ? "thay đổi" : "bắt đầu";
+    return `${promo ?? "Khuyến mãi"} ${verb}`;
+  }
+  if (kind.includes("price") && fields.length === 0) return "Giá đổi ngoài Juli";
+  const names = [...new Set(fields.map((f) => FIELD_NAMES[f]).filter(Boolean))];
+  if (names.length === 0) return "Sản phẩm sửa ngoài Juli";
+  const joined = names.map((n, i) => (i === 0 || n === "SKU" ? n : n.toLowerCase())).join(", ");
+  return `${joined} sửa ngoài Juli`;
+}
+
+/**
+ * P23 (D30.4): "Bị ảnh hưởng bởi thay đổi khác" lines ("Tiêu đề sửa ngoài Juli · 12/10",
+ * "Flash sale bắt đầu · 14/10"), oldest first; null when nothing overlaps.
+ */
+export function externalChangeLines(m: Measurement): string[] | null {
+  const changes = m.external_changes ?? [];
+  if (!m.verdict?.affected_by_external_change && changes.length === 0) return null;
+  return [...changes]
+    .sort((a, b) => Date.parse(a.occurred_at ?? "") - Date.parse(b.occurred_at ?? ""))
+    .map((change) => {
+      const date = dayMonth(change.occurred_at);
+      return date === "—" ? externalText(change) : `${externalText(change)} · ${date}`;
+    });
+}
+
+export const EXTERNAL_CHANGE_TITLE = "Bị ảnh hưởng bởi thay đổi khác";

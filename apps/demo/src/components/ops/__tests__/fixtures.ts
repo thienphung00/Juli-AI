@@ -85,6 +85,12 @@ export const SETTINGS: ShopSettingsPage = {
       promotion_api_enabled: null,
       openai_model: null,
       openai_monthly_cap_usd: 5,
+      diag_windows: null,
+      diag_min_events: null,
+      kpi_min_band_mult: null,
+      kpi_max_band_mult: null,
+      guard_band_mult: null,
+      volatile_cv: null,
     },
     defaults: {
       card_daily_limit: 5,
@@ -96,6 +102,13 @@ export const SETTINGS: ShopSettingsPage = {
       promotion_api_enabled: false,
       openai_model: "gpt-5.4-nano",
       openai_monthly_cap_usd: null,
+      // P23 (D29.11)
+      diag_windows: [14, 30, 60],
+      diag_min_events: 30,
+      kpi_min_band_mult: 1,
+      kpi_max_band_mult: 3,
+      guard_band_mult: 1,
+      volatile_cv: 0.3,
     },
     updated_at: null,
     options: {

@@ -61,7 +61,11 @@ export interface Overview extends Freshness {
   readonly shops: readonly OverviewShop[];
 }
 
+/** P23 (D29.11): per-shop diagnosis & KPI tunables; optional until the backend sends them. */
+export type DiagKey = "diag_windows" | "diag_min_events" | "kpi_min_band_mult" | "kpi_max_band_mult" | "guard_band_mult" | "volatile_cv";
+
 export type OverrideKey =
+  | DiagKey
   | "card_daily_limit"
   | "card_weekly_limit"
   | "card_open_limit"
@@ -72,7 +76,7 @@ export type OverrideKey =
   | "openai_model"
   | "openai_monthly_cap_usd";
 
-export type Overrides = { readonly [K in OverrideKey]: unknown };
+export type Overrides = { readonly [K in Exclude<OverrideKey, DiagKey>]: unknown } & { readonly [K in DiagKey]?: unknown };
 
 export interface ShopSettings {
   readonly shop_id: string;

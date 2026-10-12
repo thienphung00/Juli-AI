@@ -5,8 +5,8 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
-import { ACTION_NAMES, STREAM_NAMES, changeRows, draftRows, draftSummary, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
-import type { OpsMe, OverrideKey, ShopSettingsPage, StageId } from "../../lib/ops/types";
+import { ACTION_NAMES, DIAG_KEYS, STREAM_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
+import type { DiagKey, OpsMe, OverrideKey, ShopSettingsPage, StageId } from "../../lib/ops/types";
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
 import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
 import { OpsRules } from "./ops-rules";
@@ -442,6 +442,9 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
               <CapEditor key={`cap-${epoch}`} onChange={(v) => change({ openai_monthly_cap_usd: v })} value={capShown} />
             </SettingRow>
           </div>
+          {DIAG_KEYS.some((k) => s.defaults[k] !== undefined) ? (
+            <DiagSection canEdit={canEdit} change={change} eff={eff} epoch={epoch} isSet={isSet} onEpoch={() => setEpoch((e) => e + 1)} />
+          ) : null}
           <OpsRules canEdit={canEdit} shopName={shopName} shopId={shopId} />
         </section>
         <aside style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -584,6 +587,148 @@ function CapEditor({ value, onChange }: { readonly value: number | null; readonl
         value={text}
       />
       / tháng
+    </div>
+  );
+}
+
+const WINDOW_OPTIONS = ["14", "30", "60"];
+const WINDOW_LABELS: Record<string, string> = { "14": "14 ngày", "30": "30 ngày", "60": "60 ngày" };
+
+/** One numeric tunable: `scale` 100 shows a fraction as % (0,30 → 30). */
+const DIAG_NUMBERS: readonly {
+  key: Exclude<DiagKey, "diag_windows">;
+  title: string;
+  help: string;
+  unit: string;
+  step: number;
+  scale?: number;
+  integer?: boolean;
+}[] = [
+  { key: "diag_min_events", title: "Dữ liệu tối thiểu", help: "Nhấp (CTR) / đơn (CTOR, AOV) trong cửa sổ", unit: "nhấp/đơn", step: 1, integer: true },
+  { key: "kpi_min_band_mult", title: "KPI tối thiểu", help: "Mục tiêu ≥ hiện tại + N × dao động", unit: "× dao động", step: 0.5 },
+  { key: "kpi_max_band_mult", title: "KPI tối đa", help: "Mục tiêu ≤ hiện tại + N × dao động", unit: "× dao động", step: 0.5 },
+  { key: "guard_band_mult", title: "Ngưỡng giữ ổn định", help: "Chỉ số không phải mục tiêu", unit: "× dao động", step: 0.5 },
+  { key: "volatile_cv", title: "Ngưỡng biến động", help: "Trên ngưỡng: KPI dạng khoảng, độ tin cậy Thấp", unit: "% CV", step: 5, scale: 100 },
+];
+
+/** P23 (D29.11): "Chẩn đoán & KPI" — collapsed; every row is part of the D27 draft. */
+function DiagSection({
+  canEdit,
+  eff,
+  isSet,
+  change,
+  epoch,
+  onEpoch,
+}: {
+  readonly canEdit: boolean;
+  readonly eff: (key: OverrideKey) => unknown;
+  readonly isSet: (key: OverrideKey) => boolean;
+  readonly change: (patch: Draft) => void;
+  readonly epoch: number;
+  readonly onEpoch: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const overridden = DIAG_KEYS.filter((k) => isSet(k)).length;
+  const windows = ((eff("diag_windows") as number[] | null) ?? []).map(String);
+  return (
+    <div data-testid="ops-diag" style={card}>
+      <button
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        style={{ font: "inherit", display: "flex", alignItems: "center", gap: 8, background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left", color: C.ink }}
+        type="button"
+      >
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Chẩn đoán &amp; KPI</h2>
+        {overridden > 0 ? <span style={{ fontSize: 12, fontWeight: 700, color: C.pink }}>{overridden} ghi đè</span> : null}
+        <span aria-hidden="true" style={{ marginLeft: "auto", color: C.muted2 }}>
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open ? (
+        <>
+          <SettingRow
+            disabled={!canEdit}
+            help="Ngắn nhất đủ dữ liệu được dùng"
+            onDefault={() => change({ diag_windows: null })}
+            overridden={isSet("diag_windows")}
+            summary={fmtSetting("diag_windows", eff("diag_windows"))}
+            title="Cửa sổ chẩn đoán"
+          >
+            <Chips
+              labels={WINDOW_LABELS}
+              onChange={(next) => {
+                if (next.length > 0) change({ diag_windows: next.map(Number) });
+              }}
+              options={WINDOW_OPTIONS}
+              value={windows}
+            />
+          </SettingRow>
+          {DIAG_NUMBERS.map((row) => (
+            <SettingRow
+              disabled={!canEdit}
+              help={row.help}
+              key={row.key}
+              onDefault={() => {
+                change({ [row.key]: null });
+                onEpoch();
+              }}
+              overridden={isSet(row.key)}
+              summary={fmtSetting(row.key, eff(row.key))}
+              title={row.title}
+            >
+              <NumEditor
+                integer={row.integer}
+                key={`${row.key}-${epoch}`}
+                label={row.title}
+                onChange={(v) => change({ [row.key]: v })}
+                scale={row.scale ?? 1}
+                step={row.step}
+                unit={row.unit}
+                value={eff(row.key) as number | null}
+              />
+            </SettingRow>
+          ))}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function NumEditor({
+  value,
+  label,
+  unit,
+  step,
+  scale,
+  integer,
+  onChange,
+}: {
+  readonly value: number | null;
+  readonly label: string;
+  readonly unit: string;
+  readonly step: number;
+  readonly scale: number;
+  readonly integer?: boolean;
+  readonly onChange: (v: number) => void;
+}) {
+  const [text, setText] = useState(value === null || value === undefined ? "" : String(Math.round(value * scale * 100) / 100));
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <input
+        aria-label={label}
+        min={0}
+        onChange={(e) => {
+          setText(e.target.value);
+          const n = Number(e.target.value.replace(",", "."));
+          if (e.target.value === "" || !Number.isFinite(n) || n <= 0 || (integer && !Number.isInteger(n))) return;
+          onChange(scale === 1 ? n : Math.round((n / scale) * 10_000) / 10_000);
+        }}
+        step={step}
+        style={{ width: 80 }}
+        type="number"
+        value={text}
+      />
+      {unit}
     </div>
   );
 }

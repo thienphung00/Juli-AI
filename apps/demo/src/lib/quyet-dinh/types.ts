@@ -25,6 +25,11 @@ export interface ShopRules {
   readonly content_tone?: RuleValueItem | null;
   readonly banned_terms?: RuleValueItem;
   readonly band_metrics: readonly string[];
+  /**
+   * P23 (D29.9): per-metric default hold threshold (± %) from the metric's own
+   * window-mean band. Optional: without it the editor suggests ±3 %.
+   */
+  readonly stability_band_defaults?: Readonly<Record<string, number | null>> | null;
   readonly listing_levers: readonly string[];
   // P14-F: what no TikTok API gives Juli. Optional so an older backend (or a
   // fixture written before P14) still parses; unset reads as "—".
@@ -114,4 +119,18 @@ export function setBands(rules: ShopRules | null): { metric: string; band: numbe
 /** ADR-109 d.11: no run before the stability bands are set. */
 export function bandsAreSet(rules: ShopRules | null): boolean {
   return setBands(rules).length > 0;
+}
+
+/**
+ * P23 (D29.9): the band-based default hold threshold for one metric (± %), or
+ * null (the editor then keeps its ±3 % suggestion). Read from
+ * `stability_band_defaults`, else an unset `stability_band` item that carries a value.
+ */
+export function bandDefault(rules: ShopRules | null, metric: string): number | null {
+  if (!rules) return null;
+  const fromDefaults = rules.stability_band_defaults?.[metric];
+  if (typeof fromDefaults === "number" && Number.isFinite(fromDefaults) && fromDefaults > 0) return fromDefaults;
+  const item = rules.stability_band[metric];
+  if (item && item.set_by === null && typeof item.value === "number" && Number.isFinite(item.value) && item.value > 0) return item.value;
+  return null;
 }

@@ -1,4 +1,4 @@
-import type { OverrideKey, ShopSettings } from "./types";
+import type { DiagKey, OverrideKey, ShopSettings } from "./types";
 
 /**
  * D27.5: a settings change as "before → after" rows (artboard OpsConfirm.dc.html),
@@ -37,6 +37,22 @@ export const SETTING_KEYS: readonly OverrideKey[] = [
   "promotion_api_enabled",
   "openai_model",
   "openai_monthly_cap_usd",
+  "diag_windows",
+  "diag_min_events",
+  "kpi_min_band_mult",
+  "kpi_max_band_mult",
+  "guard_band_mult",
+  "volatile_cv",
+];
+
+/** P23 (D29.11): the "Chẩn đoán & KPI" keys, in row order. */
+export const DIAG_KEYS: readonly DiagKey[] = [
+  "diag_windows",
+  "diag_min_events",
+  "kpi_min_band_mult",
+  "kpi_max_band_mult",
+  "guard_band_mult",
+  "volatile_cv",
 ];
 
 export const SETTING_LABELS: Readonly<Record<string, string>> = {
@@ -50,7 +66,17 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   promotion_api_enabled: "API khuyến mãi",
   openai_model: "Model OpenAI",
   openai_monthly_cap_usd: "Trần chi phí OpenAI",
+  diag_windows: "Cửa sổ chẩn đoán",
+  diag_min_events: "Dữ liệu tối thiểu",
+  kpi_min_band_mult: "KPI tối thiểu",
+  kpi_max_band_mult: "KPI tối đa",
+  guard_band_mult: "Ngưỡng giữ ổn định",
+  volatile_cv: "Ngưỡng biến động",
 };
+
+const MULT_KEYS = new Set(["kpi_min_band_mult", "kpi_max_band_mult", "guard_band_mult"]);
+
+const comma = (n: number) => String(n).replace(".", ",");
 
 const LIST_NAMES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   enabled_streams: STREAM_NAMES,
@@ -75,6 +101,10 @@ export function fmtSetting(key: string, value: unknown): string {
   if (key === "stage") return STAGE_NAMES[String(value)] ?? String(value ?? "—");
   if (key === "openai_monthly_cap_usd") return value === null || value === undefined ? "Không giới hạn" : `${usd(Number(value))} / tháng`;
   if (value === null || value === undefined) return "Mặc định";
+  if (key === "diag_windows" && Array.isArray(value)) return value.length ? `${[...value].sort((a, b) => Number(a) - Number(b)).join(" · ")} ngày` : "Không có";
+  if (MULT_KEYS.has(key)) return `×${comma(Number(value))} dao động`;
+  if (key === "volatile_cv") return `CV > ${comma(Math.round(Number(value) * 1000) / 10)} %`;
+  if (key === "diag_min_events") return `${String(value)} nhấp/đơn`;
   if (typeof value === "boolean") return value ? "Bật" : "Tắt";
   if (Array.isArray(value)) {
     const names = LIST_NAMES[key] ?? {};

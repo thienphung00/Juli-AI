@@ -17,7 +17,7 @@ import {
   type OffApiRuleKey,
 } from "../../lib/quyet-dinh/off-api-rules";
 import { vnDate } from "../../lib/quyet-dinh/timeline";
-import type { RuleKey, RuleValueItem, SetBy, ShopRules } from "../../lib/quyet-dinh/types";
+import { bandDefault, type RuleKey, type RuleValueItem, type SetBy, type ShopRules } from "../../lib/quyet-dinh/types";
 import { useWriteControl } from "../seller-view-context";
 
 /**
@@ -66,6 +66,11 @@ function describeError(ruleKey: RuleKey, error: unknown): string {
   }
   if (error instanceof Error && error.message.startsWith("vi:")) return error.message.slice(3);
   return "Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.";
+}
+
+/** A band default as the input shows it: 4.5 → "4,5". */
+function bandText(value: number | null): string | null {
+  return value === null ? null : String(Math.round(value * 10) / 10).replace(".", ",");
 }
 
 function parseNumber(raw: string): number {
@@ -141,6 +146,7 @@ function NumberRule({
   onSave,
   onDelete,
   help,
+  prefill,
 }: {
   readonly ruleKey: RuleKey;
   readonly scopeRef: string | null;
@@ -152,10 +158,12 @@ function NumberRule({
   readonly onSave: RulesEditorProps["onSave"];
   readonly onDelete: RulesEditorProps["onDelete"];
   readonly help?: string;
+  /** P23 (D29.9): the value an unset rule starts from (editable), e.g. a band-based default. */
+  readonly prefill?: string;
 }) {
   const write = useWriteControl();
   const inputId = useId();
-  const initial = item?.set_by && item.value !== null && item.value !== undefined ? String(item.value) : "";
+  const initial = item?.set_by && item.value !== null && item.value !== undefined ? String(item.value) : (prefill ?? "");
   const [draft, setDraft] = useState(initial);
   const { error, saving, save } = useRowSaver(ruleKey);
   return (
@@ -614,6 +622,7 @@ export function RulesEditor({
   const [termsDraft, setTermsDraft] = useState(terms.join("\n"));
   const termsSaver = useRowSaver("protected_terms");
   const termsId = useId();
+  const bandSuggested = rules.band_metrics.some((metric) => bandDefault(rules, metric) !== null);
 
   return (
     <section aria-labelledby="qd-rules-editor" className="card qd-rules-editor" data-testid="rules-editor">
@@ -643,7 +652,10 @@ export function RulesEditor({
 
       <fieldset className="qd-rules-editor__group">
         <legend>{RULE_LABELS.stability_band} (±%)</legend>
-        <p className="qd-muted">Chỉ số không phải mục tiêu được phép lệch bao nhiêu trước khi Juli hỏi hoàn tác. Gợi ý ±3 %.</p>
+        <p className="qd-muted">
+          Chỉ số không phải mục tiêu được phép lệch bao nhiêu trước khi Juli hỏi hoàn tác.{" "}
+          {bandSuggested ? "Gợi ý theo dao động của từng chỉ số." : "Gợi ý ±3 %."}
+        </p>
         {rules.band_metrics.map((metric) => (
           <NumberRule
             item={rules.stability_band[metric]}
@@ -651,7 +663,8 @@ export function RulesEditor({
             label={bandMetricLabel(metric)}
             onDelete={onDelete}
             onSave={onSave}
-            placeholder="3"
+            placeholder={bandText(bandDefault(rules, metric)) ?? "3"}
+            prefill={bandText(bandDefault(rules, metric)) ?? undefined}
             ruleKey="stability_band"
             scopeRef={metric}
             setBy={setBy}

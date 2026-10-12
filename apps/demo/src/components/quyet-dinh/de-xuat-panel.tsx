@@ -3,7 +3,7 @@
 import { ConfirmDialog } from "@juli/ui";
 import { useEffect, useState } from "react";
 
-import { cardView, gmvMonthText, type CardView } from "../../lib/quyet-dinh/card-model";
+import { cardView, gmvMonthText, groupSiblings, type CardView } from "../../lib/quyet-dinh/card-model";
 import {
   BANDS_MISSING_BODY,
   BANDS_MISSING_PROMPT,
@@ -125,6 +125,42 @@ export function DeXuatPanel({
         const cardBlock = group.content ? null : blockReason;
         const groupBlock =
           blockReason ?? (runnable.length === 0 ? "Không còn thẻ nào Juli tự thực hiện được trong nhóm này." : null);
+        const renderCard = (view: CardView) => {
+          const status = statusOf(view);
+          const runId = runByCard[view.id] ?? null;
+          return (
+            <RecommendationCard
+              analysisHref={analysisHrefForDecision(group.cards.find((c) => c.id === view.id)?.item ?? group.cards[0].item)}
+              blockedReason={cardBlock}
+              focused={highlight === `card:${view.id}`}
+              rejectReason={rejectReasons[view.id] ?? null}
+              busy={busy}
+              card={view}
+              error={cardErrors[view.id] ?? null}
+              expanded={expanded.has(view.id)}
+              narrow={narrow}
+              onApprove={() => onApprove([view.id])}
+              onOpenProgress={(event) => {
+                event.preventDefault();
+                onOpenRun(runId);
+              }}
+              onReject={() => {
+                setRejectError(null);
+                setRejecting(view.id);
+              }}
+              onToggle={() =>
+                setExpanded((set) => {
+                  const next = new Set(set);
+                  if (next.has(view.id)) next.delete(view.id);
+                  else next.add(view.id);
+                  return next;
+                })
+              }
+              progressHref={progressHref(runId)}
+              status={status}
+            />
+          );
+        };
         return (
           <section
             aria-labelledby={headingId}
@@ -167,44 +203,23 @@ export function DeXuatPanel({
               ) : null}
             </div>
             <ul className="qv-cards">
-              {views.map((view) => {
-                const status = statusOf(view);
-                const runId = runByCard[view.id] ?? null;
-                return (
-                  <li key={view.id}>
-                    <RecommendationCard
-                      analysisHref={analysisHrefForDecision(group.cards.find((c) => c.id === view.id)?.item ?? group.cards[0].item)}
-                      blockedReason={cardBlock}
-                      focused={highlight === `card:${view.id}`}
-                      rejectReason={rejectReasons[view.id] ?? null}
-                      busy={busy}
-                      card={view}
-                      error={cardErrors[view.id] ?? null}
-                      expanded={expanded.has(view.id)}
-                      narrow={narrow}
-                      onApprove={() => onApprove([view.id])}
-                      onOpenProgress={(event) => {
-                        event.preventDefault();
-                        onOpenRun(runId);
-                      }}
-                      onReject={() => {
-                        setRejectError(null);
-                        setRejecting(view.id);
-                      }}
-                      onToggle={() =>
-                        setExpanded((set) => {
-                          const next = new Set(set);
-                          if (next.has(view.id)) next.delete(view.id);
-                          else next.add(view.id);
-                          return next;
-                        })
-                      }
-                      progressHref={progressHref(runId)}
-                      status={status}
-                    />
+              {groupSiblings(views).map((run) =>
+                run.kind === "single" ? (
+                  <li key={run.view.id}>{renderCard(run.view)}</li>
+                ) : (
+                  <li aria-label={`${run.title} · ${run.countText}`} className="qv-siblings" data-testid="sibling-group" key={run.key}>
+                    <div className="qv-siblings__head">
+                      <span className="qv-siblings__title">{run.title}</span>
+                      <span className="qv-siblings__count">{run.countText}</span>
+                    </div>
+                    <ul className="qv-cards">
+                      {run.views.map((view) => (
+                        <li key={view.id}>{renderCard(view)}</li>
+                      ))}
+                    </ul>
                   </li>
-                );
-              })}
+                ),
+              )}
             </ul>
           </section>
         );
