@@ -41,6 +41,7 @@ from juli_backend.services.action_cards.optimize_product_cards import (
     emit_optimize_product_cards,
     plan_optimize_product_cards,
 )
+from juli_backend.services.action_cards.subjects import card_product_uuid
 from juli_backend.services.agent.events import InMemoryEventSink
 from juli_backend.services.agent.runner import compute_params_sha
 from juli_backend.services.agent.runner.concurrency import ConcurrencyGuard
@@ -107,7 +108,7 @@ async def test_the_decisions_list_carries_the_card_block(session, shop_a):
     await _score(session, shop_a)
     user = await session.get(User, shop_a.user_id)
     top = next(c for c in await _optimize_cards(session, shop_a.id) if c.priority == 1)
-    product = await session.get(Product, uuid.UUID(top.subject_id))
+    product = await session.get(Product, card_product_uuid(top))
     for sku_id, seller_sku in (("s-2", "SM-013"), ("s-1", "SM-012"), ("s-3", None)):
         session.add(
             InventoryItem(

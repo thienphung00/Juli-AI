@@ -29,6 +29,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -466,6 +467,16 @@ async def test_unclassifiable_payload_is_skipped(session: AsyncSession, shop):
 # ---------------------------------------------------------------------------
 # AC-8.3 (fast track P8-C): the day-7 stability guardrail (ADR-109 d.11, D14).
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _seller_bands_only(monkeypatch, request):
+    """The guardrail tests below pin the seller's own bands (pre-D29.9); the
+    window-mean defaults are covered in ``test_p23_volatility``."""
+    if "guardrail" in request.node.name:
+        from juli_backend.services import run_changes
+
+        monkeypatch.setattr(run_changes, "default_bands", lambda *_a, **_k: {})
 
 
 async def _guardrail_case(

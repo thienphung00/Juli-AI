@@ -56,6 +56,7 @@ from juli_backend.models.models import ActionCard, Product
 from juli_backend.services.action_cards.subjects import (
     SUBJECT_TYPE_PRODUCT,
     CardSubject,
+    subject_product_uuid,
 )
 from juli_backend.services.scoring.types import DailyScoringResult, KpiId
 
@@ -123,9 +124,10 @@ async def product_basis_fields(
     when the subject is not a product of this shop.
     """
     fields = _SUBJECT_BASIS_FIELDS.get(workflow_key, ())
-    if not fields or subject.subject_type != SUBJECT_TYPE_PRODUCT:
+    product_id = subject_product_uuid(subject.subject_type, subject.subject_id)
+    if not fields or product_id is None:
         return {}
-    product = await session.get(Product, uuid.UUID(subject.subject_id))
+    product = await session.get(Product, product_id)
     if product is None or product.shop_id != shop_id:
         return {}
     return {field.name: _hash_field(field.name, field.project(product)) for field in fields}

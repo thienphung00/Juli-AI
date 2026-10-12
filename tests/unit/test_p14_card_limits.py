@@ -50,6 +50,7 @@ from juli_backend.services.action_cards.persist import (
     SUPPRESSED_REASON_EXPIRED_COOLDOWN,
     emit_scoring_cards,
 )
+from juli_backend.services.action_cards.subjects import card_product_uuid
 from juli_backend.services.demo_decisions import CardContext, build_card_block
 from juli_backend.services.optimize_product.decision_cards import LeverHistory
 from tests.support.builders import make_tenant
@@ -469,7 +470,7 @@ async def test_an_invalid_card_is_withdrawn_inside_its_three_days(session, shop_
     await _score(session, shop_a)
     card = next(c for c in await _optimize_cards(session, shop_a.id) if c.priority == 1)
     others = [c for c in await _optimize_cards(session, shop_a.id) if c.id != card.id]
-    product = await session.get(Product, uuid.UUID(card.subject_id))
+    product = await session.get(Product, card_product_uuid(card))
     assert product is not None
     if invalid == "edited":
         product.title = "Tiêu đề người bán tự sửa ngoài Juli"
@@ -579,8 +580,17 @@ async def test_calibration_and_reasons_reorder_the_ranking(session, shop_a):
     assert payload["history_adjustment"]["calibration_factor"] == 0.5
     # The shown estimate stays the rule-based one (D22 label honest).
     assert payload["recoverable_gmv_per_day"] == pytest.approx(float(first.recoverable_gmv_per_day))
+    # D30.3 (P23): the ranking applies the shrunk calibration factor of the
+    # Performance Prediction (2 results < 5: fleet level, pulled toward 1) and the
+    # Quality-Score weight, not the raw D24.6 factor.
+    from juli_backend.services.optimize_product.quality_score import lever_weight
+
+    assert first.prediction is not None and first.prediction.source == "fleet"
+    assert 0.5 < first.prediction.factor < 1
     assert payload["history_adjustment"]["ranking_gmv_per_day"] == pytest.approx(
-        float(first.recoverable_gmv_per_day) * 0.5
+        float(first.recoverable_gmv_per_day)
+        * first.prediction.factor
+        * lever_weight(first.quality, "description")
     )
 
 

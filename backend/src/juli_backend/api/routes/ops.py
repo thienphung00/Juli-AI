@@ -347,6 +347,13 @@ async def ops_put_settings(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     await _shop(session, shop_id)
+    admin_only = sorted(set(body.changes) & ops_settings.ADMIN_ONLY_FIELDS)
+    if admin_only and not ctx.staff.at_least(ROLE_ADMIN):
+        # D29.11: the diagnosis / KPI tunables are an Admin's to change.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Admin only: {', '.join(admin_only)}",
+        )
     try:
         view = await ops_settings.update_settings(session, ctx.staff.actor, shop_id, body.changes)
     except ops_settings.SettingsError as exc:
@@ -374,7 +381,12 @@ async def ops_reset_settings(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     await _shop(session, shop_id)
-    view = await ops_settings.reset_overrides(session, ctx.staff.actor, shop_id)
+    view = await ops_settings.reset_overrides(
+        session,
+        ctx.staff.actor,
+        shop_id,
+        include_admin_fields=ctx.staff.at_least(ROLE_ADMIN),
+    )
     await session.commit()
     await _refresh_summary_quietly(session, shop_id)
     return {"settings": view.to_json()}

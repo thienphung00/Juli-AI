@@ -39,6 +39,7 @@ from juli_backend.services.action_cards.optimize_product_cards import (
     OPTIMIZE_PRODUCT_WORKFLOW_KEY,
     WITHDRAWN_STATUS,
 )
+from juli_backend.services.action_cards.subjects import subject_product_ref
 from juli_backend.services.onboarding import quick_scan as qs
 from juli_backend.services.onboarding.status import (
     build_onboarding_status,
@@ -355,7 +356,8 @@ async def test_quick_cards_take_the_day_one_juli_slots_and_the_full_run_upgrades
         assert diagnosis["lever"]["code"] == lever
         assert diagnosis["lever"]["confirmed"] is True
         assert any(e["source"] == "tiktok" for e in diagnosis["lever"]["evidence"])
-        assert diagnosis["recoverable_gmv_basis"]["window_days"] == 30
+        # D29.1: the target metric's adaptive window (14 / 30 / 60 days).
+        assert diagnosis["recoverable_gmv_basis"]["window_days"] in (14, 30, 60)
     # Healthy over 60 days: the full run does not confirm it -> withdrawn at once.
     assert title.status == WITHDRAWN_STATUS and title.surfaced_at is None
     # The 3 Juli slots of the day were taken by the quick cards: nothing new today.
@@ -459,7 +461,7 @@ async def test_a_product_missing_from_the_catalog_gets_a_placeholder_row(session
     assert product.title == "Áo thun cotton nam" and product.status == "ACTIVATE"
     assert product.update_time == qs.PLACEHOLDER_UPDATE_TIME
     (card,) = await _cards(session, shop.id)
-    assert card.subject_id == str(product.id)
+    assert subject_product_ref(card.subject_type, card.subject_id) == str(product.id)
     assert _diag(card)["product_title"] == "Áo thun cotton nam"
 
     # The first real product sync overwrites the placeholder.

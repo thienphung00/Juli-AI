@@ -289,6 +289,26 @@ class DemoDecisionCard(BaseModel):
     quick_scan: DemoDecisionQuickScan | None = None
 
 
+class DemoDecisionKpi(BaseModel):
+    """D29.7 / 29.10: the card's KPI in the target metric's unit (P23 contract)."""
+
+    metric: str
+    current: float
+    target: float
+    target_min: float
+    target_max: float
+    display: str
+    band_pct: float
+    window_days: int
+    low_data: bool = False
+    day14_only: bool = False
+
+
+class DemoDecisionGmvEstimate(BaseModel):
+    per_month_min: float
+    per_month_max: float
+
+
 class DemoDecisionRecommendation(BaseModel):
     workflow_name: str | None = None
     priority: int | None = None
@@ -301,6 +321,14 @@ class DemoDecisionRecommendation(BaseModel):
     diagnosis: DemoDecisionDiagnosis | None = None
     evidence: DemoDecisionEvidence | None = None
     card: DemoDecisionCard | None = None
+    #: P23 (D29): "ctr" | "ctor" | "aov" | "impressions".
+    target_metric: str | None = None
+    #: P23 (D29.6): "high" | "medium" | "low".
+    confidence: str | None = None
+    kpi: DemoDecisionKpi | None = None
+    gmv_estimate: DemoDecisionGmvEstimate | None = None
+    #: P23 (D29.4): other active cards of the same product and target metric.
+    sibling_cards: int | None = None
 
 
 class DemoDecisionItem(BaseModel):

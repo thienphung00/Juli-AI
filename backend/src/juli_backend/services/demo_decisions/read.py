@@ -43,6 +43,13 @@ _RECOMMENDATION_ALLOWLIST: tuple[str, ...] = (
     "preconditions_met",
     "user_action_required",
     "source_kpi_ids",
+    # P23 (D29): target metric, confidence, KPI, GMV range, sibling cards.
+    # ``quality`` (D30.2) is internal and deliberately absent.
+    "target_metric",
+    "confidence",
+    "kpi",
+    "gmv_estimate",
+    "sibling_cards",
 )
 
 _EXPECTED_IMPACT_ALLOWLIST: tuple[str, ...] = ("metric", "value", "confidence")

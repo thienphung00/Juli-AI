@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
-from juli_backend.services import shop_rules
+from juli_backend.services import lever_flows, shop_rules
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,11 @@ class RuleValueItem(BaseModel):
 
 
 class ShopRulesData(BaseModel):
-    #: metric key -> ± % band (no entry: no day-7 question for that metric).
+    #: metric key -> ± % band the seller set (wins over the default below).
     stability_band: dict[str, RuleValueItem]
+    #: P23 (D29.9): metric -> the default ± % hold threshold (the window-mean
+    #: band); keyed by band metric plus the aliases ``ctor`` / ``aov``.
+    stability_band_defaults: dict[str, float] | None = None
     #: TikTok product id -> cost per unit (VND).
     product_cost: dict[str, RuleValueItem]
     #: TikTok SKU id -> max discount %.
@@ -131,6 +134,7 @@ async def get_shop_rules(
     return ShopRulesResponse(
         data=ShopRulesData(
             stability_band={k: _item(v) for k, v in rules.stability_band.items()},
+            stability_band_defaults=await lever_flows.shop_band_defaults(session, shop.id),
             product_cost={k: _item(v) for k, v in rules.product_cost.items()},
             max_discount_pct={k: _item(v) for k, v in rules.max_discount_pct.items()},
             min_margin_pct=_item(rules.min_margin_pct) if rules.min_margin_pct else None,

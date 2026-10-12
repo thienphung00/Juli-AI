@@ -122,6 +122,11 @@ SUPPRESSED_REASON_ACTIVE_CARD_EXISTS = "active_card_exists"
 #: ago: the same action on the same subject waits out that gap.
 SUPPRESSED_REASON_EXPIRED_COOLDOWN = "expired_cooldown"
 
+#: D29.4 (P23): the product already has a live card on ANOTHER target metric
+#: (CTR vs CTOR ...); several levers may run together only within one metric,
+#: so results stay attributable. The proposal waits until that card leaves.
+SUPPRESSED_REASON_OTHER_METRIC_ACTIVE = "other_metric_active"
+
 #: The complete revision-suppression vocabulary. Disjoint from
 #: ``emission_budget.SUPPRESSED_REASONS`` by construction -- different
 #: question, different carrier (see the module docstring).
@@ -130,6 +135,7 @@ REVISION_SUPPRESSED_REASONS: frozenset[str] = frozenset(
         SUPPRESSED_REASON_BASIS_UNCHANGED,
         SUPPRESSED_REASON_ACTIVE_CARD_EXISTS,
         SUPPRESSED_REASON_EXPIRED_COOLDOWN,
+        SUPPRESSED_REASON_OTHER_METRIC_ACTIVE,
     }
 )
 

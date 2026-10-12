@@ -605,7 +605,8 @@ def test_budget_reasons_and_revision_reasons_are_disjoint():
         {"active_cap", "cooldown", "daily_cap", "weekly_novelty_cap", "ops_disabled"}
     )
     assert REVISION_SUPPRESSED_REASONS == frozenset(
-        {"basis_unchanged", "active_card_exists", "expired_cooldown"}
+        # P23 (D29.4): `other_metric_active` -- one target metric per product.
+        {"basis_unchanged", "active_card_exists", "expired_cooldown", "other_metric_active"}
     )
     assert SUPPRESSED_REASONS.isdisjoint(REVISION_SUPPRESSED_REASONS)
 
