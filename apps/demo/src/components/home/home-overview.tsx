@@ -12,6 +12,7 @@ import {
 } from "../../lib/shop-report/home-metrics";
 import { compactMoney, num, pct, slashDate, vnClock, vnWeekdayDate } from "../../lib/vn-format";
 import { AppPageHeader } from "../app-shell/page-header";
+import { useSellerHref } from "../seller-view-context";
 
 /**
  * Trang chủ (AC-8.5, ADR-109 decision 3) — the sales demo video's overview:
@@ -42,6 +43,7 @@ function headline(cards: readonly HomeTotalCard[], days: number): string {
 }
 
 function MatrixCell({ cell, row }: { readonly cell: HomeMetricCell; readonly row: HomeStreamRow }) {
+  const sellerHref = useSellerHref();
   const column = METRIC_COLUMNS.find((c) => c.metric === cell.metric)?.label ?? cell.metric;
   const value = formatMetric(cell.metric, cell.last);
   const tone = row.monitorOnly ? "muted" : cell.tone;
@@ -65,7 +67,7 @@ function MatrixCell({ cell, row }: { readonly cell: HomeMetricCell; readonly row
         <Link
           aria-label={`${column} ${row.label}: ${value}, ${delta}. Xem trong Phân tích`}
           className="matrix-cell__link"
-          href={cell.href}
+          href={sellerHref(cell.href)}
         >
           {body}
         </Link>

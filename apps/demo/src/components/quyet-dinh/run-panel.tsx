@@ -16,6 +16,7 @@ import { ConfirmationRejectedError } from "../../lib/run-surface/confirmation-de
 import { DECLINE_REASONS, REVERT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
 import { ReasonDialog, ReasonDone, SKIP_DIALOG_BODY, revertDialogBody } from "./reason-dialog";
 import { Chevron, StageChips, StepList, timelineRows } from "./run-steps";
+import { useSellerHref, useWriteControl } from "../seller-view-context";
 
 /**
  * One run in Đang thực hiện (ADR-109 Amendment 1 d.3–5, d.7):
@@ -314,6 +315,7 @@ function ConsentBlock({
   readonly onCancelRevert: () => Promise<void>;
   readonly photoUrls: RunPanelProps["photoUrls"];
 }) {
+  const write = useWriteControl();
   const options =
     consent.options.length > 0
       ? consent.options
@@ -400,6 +402,7 @@ function ConsentBlock({
                 onChange={(event) => setDraft((d) => ({ ...d, title: event.target.value }))}
                 type="text"
                 value={draft.title}
+                {...write()}
               />
             </label>
           ) : null}
@@ -412,6 +415,7 @@ function ConsentBlock({
                 onChange={(event) => setDraft((d) => ({ ...d, description: event.target.value }))}
                 rows={4}
                 value={draft.description}
+                {...write()}
               />
             </label>
           ) : null}
@@ -424,10 +428,10 @@ function ConsentBlock({
             </p>
           ) : null}
           <div className="qv-edit__actions">
-            <button className="qv-btn qv-btn--secondary qv-btn--small" onClick={() => setEditing(false)} type="button">
+            <button className="qv-btn qv-btn--secondary qv-btn--small" onClick={() => setEditing(false)} type="button" {...write()}>
               Huỷ sửa
             </button>
-            <button className="qv-btn qv-btn--blue qv-btn--small" onClick={saveEdit} type="button">
+            <button className="qv-btn qv-btn--blue qv-btn--small" onClick={saveEdit} type="button" {...write()}>
               Lưu bản sửa
             </button>
           </div>
@@ -443,10 +447,10 @@ function ConsentBlock({
                 <button
                   aria-pressed={pressed}
                   className="qv-option qv-option--photo"
-                  disabled={expired}
                   key={option.option_id}
                   onClick={() => setSelected(pressed ? null : option.option_id)}
                   type="button"
+                  {...write(expired)}
                 >
                   <span className="qv-photo">
                     <span className="qv-photo__frame">
@@ -472,10 +476,10 @@ function ConsentBlock({
               <button
                 aria-pressed={pressed}
                 className={`qv-option${isRevert ? " qv-option--revert" : ""}`}
-                disabled={expired}
                 key={option.option_id}
                 onClick={() => setSelected(pressed ? null : option.option_id)}
                 type="button"
+                {...write(expired)}
               >
                 {pressed && edited ? <span className="qv-edited">Bạn đã sửa</span> : null}
                 {rows.map((row, index) => (
@@ -485,7 +489,7 @@ function ConsentBlock({
             );
           })}
           {editable.length > 0 ? (
-            <button className="qv-edit-link" disabled={expired} onClick={startEdit} type="button">
+            <button className="qv-edit-link" onClick={startEdit} type="button" {...write(expired)}>
               ✎ Sửa nội dung trước khi áp dụng
             </button>
           ) : null}
@@ -501,7 +505,6 @@ function ConsentBlock({
       <div className="qv-consent__actions">
         <button
           className="qv-btn qv-btn--secondary"
-          disabled={status !== "idle"}
           onClick={() => {
             if (isRevert) {
               setStatus("submitting");
@@ -511,14 +514,15 @@ function ConsentBlock({
             }
           }}
           type="button"
+          {...write(status !== "idle")}
         >
           {isRevert ? "Không hoàn tác nữa" : "Không thực hiện"}
         </button>
         <button
           className="qv-btn qv-btn--primary"
-          disabled={!selected || status !== "idle" || editing || expired}
           onClick={confirm}
           type="button"
+          {...write(!selected || status !== "idle" || editing || expired)}
         >
           {status === "submitting" ? "Đang gửi…" : confirmLabel}
         </button>
@@ -556,6 +560,7 @@ function PhotoRequest({
   readonly state: PhotoState;
   readonly onUpload: (file: File) => Promise<void>;
 }) {
+  const write = useWriteControl();
   const input = useRef<HTMLInputElement | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const uploading = state.status === "uploading";
@@ -585,7 +590,7 @@ function PhotoRequest({
           </p>
         ) : null}
       </div>
-      <button className="qv-dropzone" disabled={uploading} onClick={() => input.current?.click()} type="button">
+      <button className="qv-dropzone" onClick={() => input.current?.click()} type="button" {...write(uploading)}>
         <svg
           aria-hidden="true"
           fill="none"
@@ -624,6 +629,7 @@ function PhotoRequest({
         }}
         ref={input}
         type="file"
+        {...write()}
       />
     </div>
   );
@@ -644,6 +650,7 @@ function SellerGuide({
   readonly onApplied: () => Promise<void>;
   readonly onSkip: () => void;
 }) {
+  const write = useWriteControl();
   const steps = instructions?.status === "ready" ? instructions.data.steps : [];
   const [ticks, setTicks] = useState<readonly boolean[]>([]);
   const all = steps.length > 0 && steps.every((_, index) => ticks[index]);
@@ -688,6 +695,7 @@ function SellerGuide({
                     })
                   }
                   type="checkbox"
+                  {...write()}
                 />
                 <span>
                   <strong>{index + 1}.</strong> {text}
@@ -706,16 +714,16 @@ function SellerGuide({
         </p>
       ) : null}
       <div className="qv-guide__actions">
-        <button className="qv-btn qv-btn--secondary" disabled={applied.busy} onClick={onSkip} type="button">
+        <button className="qv-btn qv-btn--secondary" onClick={onSkip} type="button" {...write(applied.busy)}>
           Không áp dụng nữa
         </button>
         <button
           className="qv-btn qv-btn--primary"
-          disabled={!all || applied.busy}
           onClick={() => {
             if (all) void onApplied();
           }}
           type="button"
+          {...write(!all || applied.busy)}
         >
           Tôi đã áp dụng
         </button>
@@ -751,6 +759,8 @@ function DonePanel({
   readonly revertBusy: boolean;
   readonly revertReasonLabel: string | null;
 }) {
+  const sellerHref = useSellerHref();
+  const write = useWriteControl();
   if (kind === "revert") {
     const fields = changedLabels.length > 0 ? changedLabels.join(" / ") : "này";
     const lines = [
@@ -793,7 +803,7 @@ function DonePanel({
       <div className="qv-done__title">{title}</div>
       <div className="qv-done__text">{text}</div>
       <div className="qv-done__actions">
-        <a className="qv-link" href={measureHref} onClick={onOpenMeasure}>
+        <a className="qv-link" href={sellerHref(measureHref)} onClick={onOpenMeasure}>
           Xem Đo lường ›
         </a>
         {kind === "manual" ? (
@@ -804,9 +814,9 @@ function DonePanel({
           <button
             aria-describedby={revert && !revert.available && revert.message ? "qv-revert-why" : undefined}
             className="qv-btn qv-btn--secondary"
-            disabled={!revert?.available || revertBusy}
             onClick={onRevert}
             type="button"
+            {...write(!revert?.available || revertBusy)}
           >
             {revertBusy ? "Đang tạo lượt hoàn tác…" : kind === "photo" ? "Hoàn tác (dùng lại ảnh cũ)" : "Hoàn tác"}
           </button>

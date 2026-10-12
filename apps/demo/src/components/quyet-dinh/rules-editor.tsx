@@ -18,6 +18,7 @@ import {
 } from "../../lib/quyet-dinh/off-api-rules";
 import { vnDate } from "../../lib/quyet-dinh/timeline";
 import type { RuleKey, RuleValueItem, SetBy, ShopRules } from "../../lib/quyet-dinh/types";
+import { useWriteControl } from "../seller-view-context";
 
 /**
  * The rules editor (ADR-109 d.12, operator phase). Every rule of the shop's
@@ -152,6 +153,7 @@ function NumberRule({
   readonly onDelete: RulesEditorProps["onDelete"];
   readonly help?: string;
 }) {
+  const write = useWriteControl();
   const inputId = useId();
   const initial = item?.set_by && item.value !== null && item.value !== undefined ? String(item.value) : "";
   const [draft, setDraft] = useState(initial);
@@ -174,11 +176,11 @@ function NumberRule({
         onChange={(event) => setDraft(event.target.value)}
         placeholder={placeholder}
         value={draft}
+        {...write()}
       />
       <span className="qd-rule__suffix">{suffix}</span>
       <button
         className="btn-secondary qd-rule__save"
-        disabled={saving}
         onClick={() =>
           void save(async () => {
             const value = parseNumber(draft);
@@ -186,15 +188,16 @@ function NumberRule({
           })
         }
         type="button"
+        {...write(saving)}
       >
         Lưu
       </button>
       {item?.set_by ? (
         <button
           className="qd-rule__clear"
-          disabled={saving}
           onClick={() => void save(() => onDelete(ruleKey, scopeRef))}
           type="button"
+          {...write(saving)}
         >
           Bỏ đặt
         </button>
@@ -222,6 +225,7 @@ function ScopedRule({
   readonly onDelete: RulesEditorProps["onDelete"];
   readonly help?: string;
 }) {
+  const write = useWriteControl();
   const [scope, setScope] = useState("");
   const [value, setValue] = useState("");
   const { error, saving, save } = useRowSaver(ruleKey);
@@ -240,9 +244,9 @@ function ScopedRule({
               <span className="qd-rule__by"> · {provenance(item)}</span>
               <button
                 className="qd-rule__clear"
-                disabled={saving}
                 onClick={() => void save(() => onDelete(ruleKey, ref))}
                 type="button"
+                {...write(saving)}
               >
                 Bỏ đặt
               </button>
@@ -254,7 +258,7 @@ function ScopedRule({
       )}
       <div className="qd-rule__add">
         <label htmlFor={scopeId}>{scopeLabel}</label>
-        <input className="qd-input" id={scopeId} onChange={(event) => setScope(event.target.value)} value={scope} />
+        <input className="qd-input" id={scopeId} onChange={(event) => setScope(event.target.value)} value={scope} {...write()} />
         <label htmlFor={valueId}>Giá trị ({suffix})</label>
         <input
           className="qd-input"
@@ -262,10 +266,10 @@ function ScopedRule({
           inputMode="decimal"
           onChange={(event) => setValue(event.target.value)}
           value={value}
+          {...write()}
         />
         <button
           className="btn-secondary qd-rule__save"
-          disabled={saving}
           onClick={() =>
             void save(async () => {
               await onSave(ruleKey, parseNumber(value), setBy, scope.trim() || null);
@@ -274,6 +278,7 @@ function ScopedRule({
             })
           }
           type="button"
+          {...write(saving)}
         >
           Thêm
         </button>
@@ -302,15 +307,17 @@ function ClearButton({
   readonly saving: boolean;
   readonly onClear: () => void;
 }) {
+  const write = useWriteControl();
   if (!item?.set_by) return null;
   return (
-    <button className="qd-rule__clear" disabled={saving} onClick={onClear} type="button">
+    <button className="qd-rule__clear" onClick={onClear} type="button" {...write(saving)}>
       Bỏ đặt
     </button>
   );
 }
 
 function CampaignOptIn({ rules, setBy, onSave, onDelete }: FieldProps) {
+  const write = useWriteControl();
   const item = rules.joins_platform_campaigns;
   const selectId = useId();
   const [draft, setDraft] = useState(item?.set_by ? (item.value === true ? "yes" : "no") : "");
@@ -327,14 +334,13 @@ function CampaignOptIn({ rules, setBy, onSave, onDelete }: FieldProps) {
       <label className="qd-sr" htmlFor={selectId}>
         {label}
       </label>
-      <select className="qd-input" id={selectId} onChange={(event) => setDraft(event.target.value)} value={draft}>
+      <select className="qd-input" id={selectId} onChange={(event) => setDraft(event.target.value)} value={draft} {...write()}>
         <option value="">Chưa chọn</option>
         <option value="yes">Có</option>
         <option value="no">Không</option>
       </select>
       <button
         className="btn-secondary qd-rule__save"
-        disabled={saving}
         onClick={() =>
           void save(async () => {
             if (!draft) throw new Error("vi:Chọn Có hoặc Không.");
@@ -342,6 +348,7 @@ function CampaignOptIn({ rules, setBy, onSave, onDelete }: FieldProps) {
           })
         }
         type="button"
+        {...write(saving)}
       >
         Lưu
       </button>
@@ -369,6 +376,7 @@ function TextAreaRule({
   readonly onSave: RulesEditorProps["onSave"];
   readonly onDelete: RulesEditorProps["onDelete"];
 }) {
+  const write = useWriteControl();
   const areaId = useId();
   const [draft, setDraft] = useState(initial);
   const { error, saving, save } = useRowSaver(ruleKey);
@@ -385,12 +393,13 @@ function TextAreaRule({
         placeholder={placeholder}
         rows={3}
         value={draft}
+        {...write()}
       />
       <button
         className="btn-secondary qd-rule__save"
-        disabled={saving}
         onClick={() => void save(() => onSave(ruleKey, toValue(draft), setBy, null))}
         type="button"
+        {...write(saving)}
       >
         Lưu
       </button>
@@ -406,6 +415,7 @@ const BANNED_TERMS_MAX = 50;
 
 /** D24.21 (5): the voice Juli's video / LIVE scripts follow ("Giọng văn", "Từ không được dùng"). */
 function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
+  const write = useWriteControl();
   const tone = rules.content_tone;
   const banned = rules.banned_terms;
   const toneId = useId();
@@ -438,10 +448,10 @@ function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
           placeholder="Thân thiện, xưng mình, gọi khách là bạn"
           rows={2}
           value={toneDraft}
+          {...write()}
         />
         <button
           className="btn-secondary qd-rule__save"
-          disabled={toneSaver.saving}
           onClick={() =>
             void toneSaver.save(async () => {
               if (!toneDraft.trim()) throw new Error("vi:Nhập giọng văn, hoặc bấm Bỏ đặt.");
@@ -449,6 +459,7 @@ function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
             })
           }
           type="button"
+          {...write(toneSaver.saving)}
         >
           Lưu
         </button>
@@ -471,10 +482,10 @@ function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
           placeholder="Mỗi dòng một từ"
           rows={3}
           value={bannedDraft}
+          {...write()}
         />
         <button
           className="btn-secondary qd-rule__save"
-          disabled={bannedSaver.saving}
           onClick={() =>
             void bannedSaver.save(async () => {
               const terms = bannedDraft.split("\n").map((term) => term.trim()).filter(Boolean);
@@ -483,6 +494,7 @@ function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
             })
           }
           type="button"
+          {...write(bannedSaver.saving)}
         >
           Lưu
         </button>
@@ -591,6 +603,7 @@ export function RulesEditor({
   offApiReadOnly = false,
   fixedSetBy,
 }: RulesEditorProps) {
+  const write = useWriteControl();
   const [team, setTeam] = useState(false);
   const setBy: SetBy = fixedSetBy ?? (team ? "team" : "seller");
   const Heading = headingLevel === 2 ? "h2" : "h3";
@@ -620,7 +633,7 @@ export function RulesEditor({
 
       {fixedSetBy ? null : (
         <label className="qd-toggle">
-          <input checked={team} onChange={(event) => setTeam(event.target.checked)} type="checkbox" />
+          <input checked={team} onChange={(event) => setTeam(event.target.checked)} type="checkbox" {...write()} />
           <span>{TEAM_TOGGLE_LABEL}</span>
         </label>
       )}
@@ -673,6 +686,7 @@ export function RulesEditor({
                     )
                   }
                   type="checkbox"
+                  {...write()}
                 />
                 {LEVER_LABELS[lever] ?? lever}
               </label>
@@ -681,9 +695,9 @@ export function RulesEditor({
           <span className="qd-muted">Giá không bao giờ tự thực thi.</span>
           <button
             className="btn-secondary qd-rule__save"
-            disabled={leverSaver.saving}
             onClick={() => void leverSaver.save(() => onSave("auto_levers", [...leverDraft], setBy, null))}
             type="button"
+            {...write(leverSaver.saving)}
           >
             Lưu
           </button>
@@ -699,10 +713,10 @@ export function RulesEditor({
             placeholder="Mỗi dòng một từ"
             rows={3}
             value={termsDraft}
+            {...write()}
           />
           <button
             className="btn-secondary qd-rule__save"
-            disabled={termsSaver.saving}
             onClick={() =>
               void termsSaver.save(() =>
                 onSave(
@@ -714,6 +728,7 @@ export function RulesEditor({
               )
             }
             type="button"
+            {...write(termsSaver.saving)}
           >
             Lưu
           </button>

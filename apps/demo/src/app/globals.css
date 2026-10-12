@@ -6694,3 +6694,15 @@ h4 {
   color: var(--juli-muted-foreground);
   font-size: 13px;
 }
+
+/* "Xem như shop" (D25.3): a write control on a seller screen, disabled with
+   "Chế độ xem: không thể thao tác thay seller". The pink / outlined buttons
+   already have their own disabled look (quyet-dinh.css); everything else is
+   greyed here. */
+[data-read-only] {
+  cursor: not-allowed;
+}
+
+[data-read-only]:not(.qv-btn--primary):not(.qv-btn--secondary) {
+  opacity: 0.55;
+}

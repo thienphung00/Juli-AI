@@ -21,6 +21,7 @@ import { num } from "../../lib/vn-format";
 import { REJECT_DIALOG_BODY, ReasonDialog } from "./reason-dialog";
 import { RecommendationCard } from "./recommendation-card";
 import { useNarrow } from "./use-narrow";
+import { useWriteControl } from "../seller-view-context";
 
 /**
  * Đề xuất (ADR-109 Amendment 1; `Main.dc.html`, `Mobile.dc.html`,
@@ -76,6 +77,7 @@ export function DeXuatPanel({
   focusCard = null,
   focusMetric = null,
 }: DeXuatPanelProps) {
+  const write = useWriteControl();
   const narrow = useNarrow();
   const focusGroupKey = focusMetric ? (groups.find((group) => groupMetric(group) === focusMetric)?.key ?? null) : null;
   const focusTarget = focusCard ? `card:${focusCard}` : focusGroupKey ? `group:${focusGroupKey}` : null;
@@ -147,13 +149,13 @@ export function DeXuatPanel({
                 <button
                   aria-describedby={groupBlock ? `${headingId}-block` : undefined}
                   className="qv-btn qv-btn--primary"
-                  disabled={busy || groupBlock !== null}
                   onClick={() => setPendingBatch(runnable.map((card) => card.id))}
                   type="button"
+                  {...write(busy || groupBlock !== null)}
                 >
                   Duyệt {runnable.length} thẻ
                 </button>
-                <button className="qv-btn qv-btn--secondary" onClick={onOpenRules} type="button">
+                <button className="qv-btn qv-btn--secondary" onClick={onOpenRules} type="button" {...write()}>
                   Sửa
                 </button>
               </div>
@@ -268,6 +270,7 @@ function StabilityCard({
   readonly rulesStatus: "loading" | "error" | "ready";
   readonly onOpenRules: () => void;
 }) {
+  const write = useWriteControl();
   const bands = setBands(rules);
   return (
     <section aria-labelledby="qd-stability" className="qv-side" data-testid="stability-card">
@@ -287,7 +290,7 @@ function StabilityCard({
           </p>
           <p className="qv-side__text">{BANDS_MISSING_BODY}</p>
           <div className="qv-side__actions">
-            <button className="qv-btn qv-btn--primary" onClick={onOpenRules} type="button">
+            <button className="qv-btn qv-btn--primary" onClick={onOpenRules} type="button" {...write()}>
               Đặt ngưỡng
             </button>
           </div>
@@ -360,6 +363,7 @@ export function ruleChips(rules: ShopRules | null): RuleChip[] {
 }
 
 function RulesChips({ rules, onOpenRules }: { readonly rules: ShopRules | null; readonly onOpenRules: () => void }) {
+  const write = useWriteControl();
   const chips = ruleChips(rules);
   return (
     <section aria-labelledby="qd-rules" className="qv-side" data-testid="rules-chips">
@@ -380,7 +384,7 @@ function RulesChips({ rules, onOpenRules }: { readonly rules: ShopRules | null; 
         </ul>
       )}
       <div className="qv-side__actions">
-        <button className="qv-btn qv-btn--secondary" onClick={onOpenRules} type="button">
+        <button className="qv-btn qv-btn--secondary" onClick={onOpenRules} type="button" {...write()}>
           Sửa quy tắc
         </button>
       </div>

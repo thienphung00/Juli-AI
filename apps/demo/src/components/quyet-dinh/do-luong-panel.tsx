@@ -30,6 +30,7 @@ import { num } from "../../lib/vn-format";
 import { ReasonDialog, revertDialogBody } from "./reason-dialog";
 import { ConflictBox } from "./run-panel";
 import { StepList, type StepRow } from "./run-steps";
+import { useSellerHref, useWriteControl } from "../seller-view-context";
 
 /**
  * Đo lường (ADR-109 Amendment 1 d.6; `Measure.dc.html`, `Day7.dc.html`,
@@ -205,6 +206,8 @@ function MeasurePanel({
   readonly proposalsHref: string;
   readonly onOpenProposals: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
+  const sellerHref = useSellerHref();
+  const write = useWriteControl();
   const { run, card, action } = item;
   const [expanded, setExpanded] = useState(true);
   const [dialog, setDialog] = useState(false);
@@ -274,11 +277,11 @@ function MeasurePanel({
               </div>
               <div className="qv-buttons">
                 {canRevert ? (
-                  <button className="qv-btn qv-btn--primary" disabled={action.busy} onClick={() => setDialog(true)} type="button">
+                  <button className="qv-btn qv-btn--primary" onClick={() => setDialog(true)} type="button" {...write(action.busy)}>
                     Hoàn tác
                   </button>
                 ) : null}
-                <button className="qv-btn qv-btn--secondary" disabled={action.busy} onClick={onKeep} type="button">
+                <button className="qv-btn qv-btn--secondary" onClick={onKeep} type="button" {...write(action.busy)}>
                   Giữ thay đổi
                 </button>
               </div>
@@ -298,11 +301,11 @@ function MeasurePanel({
               </div>
               <div className="qv-buttons">
                 {canRevert ? (
-                  <button className="qv-btn qv-btn--primary" disabled={action.busy} onClick={() => setDialog(true)} type="button">
+                  <button className="qv-btn qv-btn--primary" onClick={() => setDialog(true)} type="button" {...write(action.busy)}>
                     Hoàn tác
                   </button>
                 ) : null}
-                <button className="qv-btn qv-btn--secondary" disabled={action.busy} onClick={onKeep} type="button">
+                <button className="qv-btn qv-btn--secondary" onClick={onKeep} type="button" {...write(action.busy)}>
                   Giữ thay đổi
                 </button>
               </div>
@@ -317,7 +320,7 @@ function MeasurePanel({
               </span>
               <a
                 className="qv-link"
-                href={`/decisions?tab=dang-thuc-hien&run=${action.revertRunId}`}
+                href={sellerHref(`/decisions?tab=dang-thuc-hien&run=${action.revertRunId}`)}
                 onClick={(event) => {
                   event.preventDefault();
                   onOpenRun(action.revertRunId!);
@@ -345,11 +348,11 @@ function MeasurePanel({
               <div className="qv-final__title">{box.title}</div>
               <div className="qv-final__body">{box.body}</div>
               <div className="qv-final__actions">
-                <a className="qv-link" href={proposalsHref} onClick={onOpenProposals}>
+                <a className="qv-link" href={sellerHref(proposalsHref)} onClick={onOpenProposals}>
                   {box.next}
                 </a>
                 {box.offerRevert && canRevert && !action.revertRunId ? (
-                  <button className="qv-btn qv-btn--secondary" disabled={action.busy} onClick={() => setDialog(true)} type="button">
+                  <button className="qv-btn qv-btn--secondary" onClick={() => setDialog(true)} type="button" {...write(action.busy)}>
                     Hoàn tác
                   </button>
                 ) : null}
@@ -361,7 +364,7 @@ function MeasurePanel({
 
           {(waiting || (m?.stage === "day7" && !outside)) && canRevert && !action.revertRunId && !(!m && item.question) ? (
             <div className="qv-measure__foot">
-              <button className="qv-btn qv-btn--secondary" disabled={action.busy} onClick={() => setDialog(true)} type="button">
+              <button className="qv-btn qv-btn--secondary" onClick={() => setDialog(true)} type="button" {...write(action.busy)}>
                 Hoàn tác
               </button>
             </div>

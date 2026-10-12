@@ -186,10 +186,83 @@ test("Xem như shop is read-only and never writes", async ({ page }) => {
   const { writes, seller } = await stub(page);
   await page.goto(`/ops/shops/${SHOP_ID}/xem`);
   await expect(page.getByTestId("view-as-banner")).toContainText("chỉ xem, không ghi được");
-  await expect(page.getByTestId("seller-view")).toHaveAttribute("disabled", "");
+  // P22: no blanket disabled wrapper (it made every in-page control inert).
+  await expect(page.getByTestId("seller-view")).not.toHaveAttribute("disabled", "");
   await expect(page.getByRole("button", { name: /Làm thay seller/ })).toHaveCount(0);
   await page.getByRole("button", { name: "Quy tắc" }).click();
   await page.getByRole("button", { name: "Phân tích" }).click();
+  expect(writes).toEqual([]);
+  expect(seller).toEqual([]);
+});
+
+const VIEW_CARD = {
+  id: "d1",
+  title: "Tối ưu Son môi số 12",
+  description: "",
+  severity: "high",
+  priority: 1,
+  computed_at: null,
+  surfaced_at: null,
+  is_executable: true,
+  recommendation: {
+    source_kpi_ids: [],
+    diagnosis: {
+      version: "adr106-v1",
+      as_of: "2026-10-09",
+      rank: 1,
+      status: "rule",
+      status_label: "Theo quy tắc",
+      stage: { code: "page", label: "Nhấp → Đặt hàng" },
+      lever: { code: "description", label: "Mô tả", action: "Viết lại mô tả" },
+      main_kpi: { key: "ctor", label: "CTOR", value: "5,4 %" },
+      trigger: { code: "below_median", gap: -0.3, sentence: "Thấp hơn trung vị shop" },
+      channel_scope: "PRODUCT_CARD",
+      recoverable_gmv_per_day: 70_000,
+      product_title: "Son môi số 12",
+      tiktok_product_id: "1729",
+    },
+    card: {
+      seller_sku: "SM-012",
+      seller_sku_more: 0,
+      product_title: "Son môi số 12",
+      workflow_label: "Tối ưu sản phẩm",
+      updated_at: "2026-10-09T02:00:00Z",
+      status: "pending",
+      main_kpi: { key: "ctor", label: "CTOR - Thẻ sản phẩm", current: 0.054, target: 0.059, unit: "ratio" },
+      expected_gmv_per_month: 2_100_000,
+      reason_short: "Khách thêm giỏ rồi bỏ",
+      reason_full: "Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop.",
+      tiktok_codes: ["Mô tả quá ngắn"],
+      lever: { code: "description", label: "Mô tả", executor: "juli" },
+      change_fields: [{ field: "description", label: "Mô tả" }],
+      before_after: [{ field: "description", label: "Mô tả", before: "180 ký tự", after: "640 ký tự" }],
+      gmv_method: "ước tính theo quy tắc",
+    },
+  },
+};
+
+test("Xem như shop: Xem thêm expands, tabs work, write buttons are disabled, links stay in view-as (P22)", async ({ page }) => {
+  const { writes, seller } = await stub(page);
+  await page.route(`**/v1/ops/shops/${SHOP_ID}/view/decisions`, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [VIEW_CARD] }) }),
+  );
+  await page.goto(`/ops/shops/${SHOP_ID}/xem`);
+  const more = page.getByRole("button", { name: /Xem thêm/ }).first();
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await more.click();
+  await expect(page.locator(".qv-card__toggle, .qv-card__more-link").first()).toHaveAttribute("aria-expanded", "true");
+  const approve = page.getByRole("button", { name: "Phê duyệt" }).first();
+  await expect(approve).toBeDisabled();
+  await expect(approve).toHaveAttribute("title", "Chế độ xem: không thể thao tác thay seller");
+  await page.getByRole("tab", { name: "Đo lường" }).click();
+  await expect(page.getByRole("tab", { name: "Đo lường" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Đề xuất" }).click();
+  const analysis = page.getByRole("link", { name: "Xem phân tích ›" }).first();
+  await expect(analysis).toHaveAttribute("href", new RegExp(`^/ops/shops/${SHOP_ID}/xem\\?trang=phan-tich`));
+  await analysis.click();
+  await expect(page).toHaveURL(new RegExp(`/ops/shops/${SHOP_ID}/xem\\?trang=phan-tich`));
+  await expect(page.getByTestId("view-as-banner")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Phân tích" })).toHaveAttribute("aria-current", "page");
   expect(writes).toEqual([]);
   expect(seller).toEqual([]);
 });
