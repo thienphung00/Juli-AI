@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
 import { createOpsViewFetch } from "../../lib/ops/view-fetch";
+import { readViewAsQuery, viewAsBase, viewAsHref, viewAsTabHref, type ViewAsTab } from "../../lib/ops/view-as-routes";
 import type { OpsMe, ViewSession } from "../../lib/ops/types";
 import { fetchMetricRanking } from "../../lib/phan-tich/rankings-client";
 import { resolveTab } from "../../lib/quyet-dinh/copy";
@@ -19,18 +21,24 @@ import { HomeOverview } from "../home/home-overview";
 import { SignedInPhanTich } from "../phan-tich/signed-in-phan-tich";
 import { resolveMeasureTab, QuyetDinhView } from "../quyet-dinh/quyet-dinh-view";
 import { REAL_QD_CLIENTS } from "../quyet-dinh/signed-in-quyet-dinh";
+import { SellerViewProvider } from "../seller-view-context";
 import { C, FONT } from "./ops-shell";
+import { OpsSkeleton } from "./ops-skeleton";
 
 /**
  * "Xem như shop" — artboard OpsViewAs.dc.html (D25.3, amended 2026-10-10:
  * ALWAYS read-only). The seller's own screens (Trang chủ, Quyết định with run
  * details, Phân tích, Quy tắc) under a banner; every GET is re-pointed to the
  * ops view API (`createOpsViewFetch`), every write is refused (client and
- * server), and the seller views sit inside a disabled `<fieldset>` so no write
- * control can be pressed. Every session is logged.
+ * server). The seller views run in read-only mode (`SellerViewProvider`):
+ * reading — Xem thêm, tabs, filters, row expanders, links — works; every
+ * control that writes is disabled with "Chế độ xem: không thể thao tác thay
+ * seller". Which seller screen shows lives in the URL (`?trang=…`, see
+ * `lib/ops/view-as-routes`), so links between seller screens stay in view-as.
+ * Every session is logged.
  */
 
-type Tab = "home" | "decisions" | "analytics" | "rules";
+type Tab = ViewAsTab;
 
 function withFetch<T extends object>(options: T, fetchImpl: typeof fetch): T {
   return { ...options, fetchImpl };
@@ -81,9 +89,25 @@ export function OpsViewAs({
 }) {
   const [session, setSession] = useState<ViewSession | null>(null);
   const [failed, setFailed] = useState(false);
-  const [tab, setTab] = useState<Tab>("decisions");
-  const [qdParams, setQdParams] = useState(new URLSearchParams());
-  const [ptParams, setPtParams] = useState(new URLSearchParams());
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // The URL is the source of truth (`?trang=…` + that screen's own query). The
+  // UI follows the href it asked for straight away; `router.replace` then
+  // moves the URL (same pattern as /decisions, DEBT P10-C).
+  const [pending, setPending] = useState<{ href: string; base: string } | null>(null);
+  const base = searchParams.toString();
+  const go = useCallback(
+    (href: string) => {
+      setPending({ href, base });
+      router.replace(href, { scroll: false });
+    },
+    [router, base],
+  );
+  const setTab = useCallback((next: Tab) => go(viewAsTabHref(shopId, next)), [go, shopId]);
+  const current = pending && pending.base === base ? new URLSearchParams(pending.href.split("?")[1] ?? "") : new URLSearchParams(base);
+  const { tab, params: screenParams } = readViewAsQuery(current);
+  const qdParams = tab === "decisions" || tab === "rules" ? screenParams : new URLSearchParams();
+  const ptParams = tab === "analytics" ? screenParams : new URLSearchParams();
   const [envelope, setEnvelope] = useState<ShopAnalysisEnvelope | null | undefined>(undefined);
   const token = readAuthSession()?.accessToken ?? "";
 
@@ -106,8 +130,9 @@ export function OpsViewAs({
   const viewFetch = useMemo(() => createOpsViewFetch({ shopId, baseFetch }), [shopId, baseFetch]);
   const clients = useMemo(() => opsQdClients(viewFetch), [viewFetch]);
 
+  // P22: the seller screens load in parallel with the (logged) view session —
+  // the view API does not depend on it.
   useEffect(() => {
-    if (!session) return;
     let live = true;
     fetchShopAnalysis({ token, shopId, fetchImpl: viewFetch })
       .then((e) => live && setEnvelope(e))
@@ -115,21 +140,31 @@ export function OpsViewAs({
     return () => {
       live = false;
     };
-  }, [session, token, shopId, viewFetch]);
+  }, [token, shopId, viewFetch]);
 
-  const onNavigate = useCallback((href: string) => {
-    const [path, search = ""] = href.split("?");
-    const params = new URLSearchParams(search);
-    if (path.startsWith("/analytics")) {
-      setPtParams(params);
-      setTab("analytics");
-    } else if (path.startsWith("/decisions")) {
-      setQdParams(params);
-      setTab("decisions");
-    } else if (path === "/" || path === "") {
-      setTab("home");
-    }
-  }, []);
+  /** A seller screen asked for a seller href: its view-as equivalent, never a seller route. */
+  const onNavigate = useCallback(
+    (href: string) => {
+      const mapped = viewAsHref(shopId, href);
+      if (mapped.startsWith(viewAsBase(shopId))) go(mapped);
+    },
+    [go, shopId],
+  );
+  const mapHref = useCallback((href: string) => viewAsHref(shopId, href), [shopId]);
+
+  /** A plain `<a>` between seller screens (already mapped by `useSellerHref`): stay in the page. */
+  const onSellerClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as Element).closest?.("a[href]");
+      if (!anchor || anchor.getAttribute("target") === "_blank") return;
+      const href = anchor.getAttribute("href") ?? "";
+      if (!href.startsWith(viewAsBase(shopId))) return;
+      event.preventDefault();
+      go(href);
+    },
+    [go, shopId],
+  );
 
   const name = session?.shop.shop_name ?? "…";
   const initials = name
@@ -176,8 +211,8 @@ export function OpsViewAs({
           Không mở được Xem như shop.
         </p>
       ) : null}
-      {session ? <TermStrip fetchImpl={viewFetch} shopId={shopId} token={token} /> : null}
-      {session ? (
+      {failed ? null : <TermStrip fetchImpl={viewFetch} shopId={shopId} token={token} />}
+      {failed ? null : (
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
           <nav aria-label="Seller" style={{ width: 104, borderRight: "1px solid #f1e6eb", background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", gap: 18, paddingTop: 18, fontSize: 12, color: C.body }}>
             <b style={{ fontSize: 20, color: C.ink }}>Juli.</b>
@@ -208,20 +243,16 @@ export function OpsViewAs({
               <span style={{ width: 44, height: 44, borderRadius: 12, background: "#f3a9c8", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>{initials}</span>
               <span style={{ display: "flex", flexDirection: "column" }}>
                 <b style={{ fontSize: 17 }}>{name}</b>
-                <span style={{ fontSize: 12, color: C.muted }}>TikTok Shop · {STAGE_NAMES[session.stage]}</span>
+                <span style={{ fontSize: 12, color: C.muted }}>TikTok Shop{session ? ` · ${STAGE_NAMES[session.stage] ?? session.stage}` : ""}</span>
               </span>
               <span data-testid="write-note" style={{ marginLeft: "auto", fontSize: 13, color: C.muted }}>
                 Xem được mọi trang của seller (Trang chủ, Quyết định, Phân tích, Quy tắc, lượt chạy). Mọi nút ghi đều khoá.
               </span>
             </div>
-            <fieldset
-              data-testid="seller-view"
-              disabled
-              style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
-              title="Chế độ xem: không thể thao tác thay seller"
-            >
+            <SellerViewProvider href={mapHref} readOnly>
+            <div data-read-only-view="" data-testid="seller-view" onClick={onSellerClick} style={{ minWidth: 0 }}>
               {tab === "home" ? (
-                envelope ? <HomeOverview envelope={envelope} /> : <p role="status">{envelope === null ? "Shop chưa có báo cáo." : "Đang tải…"}</p>
+                envelope ? <HomeOverview envelope={envelope} /> : envelope === null ? <p role="status">Shop chưa có báo cáo.</p> : <OpsSkeleton variant="cards" rows={3} />
               ) : null}
               {tab === "analytics" ? (
                 envelope ? (
@@ -235,16 +266,17 @@ export function OpsViewAs({
                     token={token}
                   />
                 ) : (
-                  <p role="status">{envelope === null ? "Shop chưa có báo cáo." : "Đang tải…"}</p>
+                  envelope === null ? <p role="status">Shop chưa có báo cáo.</p> : <OpsSkeleton variant="cards" rows={3} />
                 )
               ) : null}
               {tab === "decisions" || tab === "rules" ? (
                 <QuyetDinhView clients={clients} key={tab} onNavigate={onNavigate} query={qdQuery} shop={{ id: shopId, name }} token={token} />
               ) : null}
-            </fieldset>
+            </div>
+            </SellerViewProvider>
           </main>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

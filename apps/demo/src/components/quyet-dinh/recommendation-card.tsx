@@ -5,6 +5,7 @@ import { useId } from "react";
 import { ACTION_ROW_LABEL, CARD_STATUS_LABELS, EXECUTOR_COPY, REJECTED_NOTICE, type CardView } from "../../lib/quyet-dinh/card-model";
 import type { CardStatus, LeverExecutor } from "../../lib/quyet-dinh/p10-types";
 import { REJECT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
+import { useSellerHref, useWriteControl } from "../seller-view-context";
 import { ReasonDone } from "./reason-dialog";
 
 /**
@@ -56,9 +57,10 @@ export interface RecommendationCardProps {
 }
 
 function AnalysisLink({ href }: { readonly href: string | null | undefined }) {
+  const sellerHref = useSellerHref();
   if (!href) return null;
   return (
-    <a className="qv-analysis-link" href={href}>
+    <a className="qv-analysis-link" href={sellerHref(href)}>
       Xem phân tích ›
     </a>
   );
@@ -190,12 +192,13 @@ function Outcome({
   readonly progressHref: string | null;
   readonly onOpenProgress?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
+  const sellerHref = useSellerHref();
   if (status === "running") {
     return (
       <div className="qv-notice" role="status">
         <span>{EXECUTOR_COPY[executor].notice}</span>
         {progressHref ? (
-          <a className="qv-link" href={progressHref} onClick={onOpenProgress}>
+          <a className="qv-link" href={sellerHref(progressHref)} onClick={onOpenProgress}>
             Xem tiến độ ›
           </a>
         ) : null}
@@ -246,6 +249,7 @@ function ContentActions({
   readonly onReject: () => void;
   readonly onToggle: () => void;
 }) {
+  const write = useWriteControl();
   return (
     <div className="qv-card__actions qv-card__actions--content">
       {status === "pending" ? (
@@ -253,13 +257,13 @@ function ContentActions({
           <button
             aria-describedby={blockedReason ? blockId : undefined}
             className="qv-btn qv-btn--primary"
-            disabled={Boolean(blockedReason) || busy}
             onClick={onApprove}
+            {...write(Boolean(blockedReason) || busy)}
             type="button"
           >
             Phê duyệt
           </button>
-          <button className="qv-btn qv-btn--secondary" disabled={busy} onClick={onReject} type="button">
+          <button className="qv-btn qv-btn--secondary" onClick={onReject} type="button" {...write(busy)}>
             Từ chối
           </button>
         </>
@@ -292,6 +296,7 @@ function DesktopCard({
   focused = false,
   rejectReason = null,
 }: RecommendationCardProps) {
+  const write = useWriteControl();
   const titleId = useId();
   const blockId = useId();
   const showWho = card.executor !== "juli" && card.content === null;
@@ -392,13 +397,13 @@ function DesktopCard({
             <button
               aria-describedby={blockedReason ? blockId : undefined}
               className="qv-btn qv-btn--primary"
-              disabled={Boolean(blockedReason) || busy}
               onClick={onApprove}
+              {...write(Boolean(blockedReason) || busy)}
               type="button"
             >
               Phê duyệt
             </button>
-            <button className="qv-btn qv-btn--secondary" disabled={busy} onClick={onReject} type="button">
+            <button className="qv-btn qv-btn--secondary" onClick={onReject} type="button" {...write(busy)}>
               Từ chối
             </button>
           </div>
@@ -440,6 +445,7 @@ function MobileCard({
   focused = false,
   rejectReason = null,
 }: RecommendationCardProps) {
+  const write = useWriteControl();
   const titleId = useId();
   const blockId = useId();
   const showWho = card.executor !== "juli" && card.content === null;
@@ -524,13 +530,13 @@ function MobileCard({
           <button
             aria-describedby={blockedReason ? blockId : undefined}
             className="qv-btn qv-btn--primary"
-            disabled={Boolean(blockedReason) || busy}
             onClick={onApprove}
+            {...write(Boolean(blockedReason) || busy)}
             type="button"
           >
             Phê duyệt
           </button>
-          <button className="qv-btn qv-btn--secondary" disabled={busy} onClick={onReject} type="button">
+          <button className="qv-btn qv-btn--secondary" onClick={onReject} type="button" {...write(busy)}>
             Từ chối
           </button>
         </div>

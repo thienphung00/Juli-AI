@@ -11,6 +11,7 @@ import { auditWhat, auditWhen, auditWho } from "./audit-text";
 import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
 import { OpsRules } from "./ops-rules";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
+import { OpsSkeleton } from "./ops-skeleton";
 
 /**
  * "Cài đặt shop" — artboards OpsShopSettings.dc.html (D25.4, D25.7) and
@@ -176,7 +177,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
     return (
       <OpsPage>
         <OpsHeader me={me} />
-        <main style={{ padding: "24px 28px" }}>{error ? <p role="alert">{error}</p> : <p role="status">Đang tải…</p>}</main>
+        <main style={{ padding: "24px 28px" }}>{error ? <p role="alert">{error}</p> : <OpsSkeleton rows={3} variant="cards" />}</main>
       </OpsPage>
     );
   }

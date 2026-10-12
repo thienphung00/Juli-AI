@@ -10,6 +10,7 @@ import { vnTime, type RunTimeline } from "../../lib/quyet-dinh/timeline";
 import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../../lib/run-ledger/copy";
 import { resolveRunTerminalState } from "../../lib/run-ledger/terminal-state";
 import { ReasonDialog, ReasonDone, SKIP_DIALOG_BODY } from "./reason-dialog";
+import { useSellerHref, useWriteControl } from "../seller-view-context";
 
 /**
  * One "Juli soạn · bạn làm" run in Đang thực hiện (P14-E, `ContentRun.dc.html`,
@@ -129,6 +130,7 @@ function errorText(error: unknown, fallback: string): string {
 }
 
 export function ContentRunPanel(props: ContentRunPanelProps) {
+  const sellerHref = useSellerHref();
   const { run, card, detail, timeline, phase, chip } = props;
   const [dialog, setDialog] = useState(false);
   const [dialogBusy, setDialogBusy] = useState(false);
@@ -204,7 +206,7 @@ export function ContentRunPanel(props: ContentRunPanelProps) {
         <div className="qv-measure-box" data-testid="content-measuring">
           <div className="qv-measure-box__title">Đang đo kết quả</div>
           {detail?.measure_body ? <div className="qv-measure-box__body">{detail.measure_body}</div> : null}
-          <a className="qv-measure-box__link" href={props.measureHref} onClick={props.onOpenMeasure}>
+          <a className="qv-measure-box__link" href={sellerHref(props.measureHref)} onClick={props.onOpenMeasure}>
             Xem ở Đo lường ›
           </a>
         </div>
@@ -273,6 +275,7 @@ function ScriptBox({
   readonly onRedraft: ContentRunPanelProps["onRedraft"];
   readonly onSkip: () => void;
 }) {
+  const write = useWriteControl();
   const [edited, setEdited] = useState<Readonly<Record<string, string>>>({});
   const [busy, setBusy] = useState<"use" | "redraft" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -319,6 +322,7 @@ function ScriptBox({
                 }}
                 rows={Math.max(1, value.split("\n").length)}
                 value={value}
+                {...write()}
               />
             </div>
           );
@@ -333,18 +337,17 @@ function ScriptBox({
       <div className="qv-script__actions">
         <button
           className="qv-btn qv-btn--primary"
-          disabled={busy !== null}
           onClick={() => run("use", () => onUse(script.version, Object.keys(edited).length > 0 ? edited : null))}
           type="button"
+          {...write(busy !== null)}
         >
           {busy === "use" ? "Đang gửi…" : "Dùng kịch bản này"}
         </button>
         <button
           className="qv-btn qv-btn--secondary"
-          disabled={!canRedraft || busy !== null}
           onClick={() => run("redraft", onRedraft)}
-          title={canRedraft ? undefined : "Juli đã soạn lại một lần."}
           type="button"
+          {...write(!canRedraft || busy !== null, canRedraft ? undefined : "Juli đã soạn lại một lần.")}
         >
           {busy === "redraft" ? "Juli đang soạn lại…" : "Soạn lại"}
         </button>
@@ -361,7 +364,7 @@ function ScriptBox({
         >
           {copied ? "Đã sao chép" : "Sao chép"}
         </button>
-        <button className="qv-btn qv-btn--secondary qv-script__skip" disabled={busy !== null} onClick={onSkip} type="button">
+        <button className="qv-btn qv-btn--secondary qv-script__skip" onClick={onSkip} type="button" {...write(busy !== null)}>
           Không thực hiện
         </button>
       </div>
@@ -376,6 +379,7 @@ function WaitBox({
   readonly wait: NonNullable<ContentRunDetail["wait"]>;
   readonly onPublished: () => Promise<void>;
 }) {
+  const write = useWriteControl();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -390,7 +394,6 @@ function WaitBox({
       <div className="qv-wait-box__actions">
         <button
           className="qv-btn qv-btn--primary"
-          disabled={busy}
           onClick={() => {
             setBusy(true);
             setError(null);
@@ -399,6 +402,7 @@ function WaitBox({
               .finally(() => setBusy(false));
           }}
           type="button"
+          {...write(busy)}
         >
           {wait.done_label}
         </button>

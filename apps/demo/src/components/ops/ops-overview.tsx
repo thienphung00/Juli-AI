@@ -9,6 +9,7 @@ import { fmtGmvShort, fmtRate, fmtUsd, fmtWhen } from "../../lib/ops/format";
 import type { OpsMe, Overview, OverviewShop, Permissions, StageId } from "../../lib/ops/types";
 import { FreshnessLine } from "./ops-freshness";
 import { C, OpsHeader, OpsPage, STAGE_STYLE } from "./ops-shell";
+import { OpsSkeleton } from "./ops-skeleton";
 
 /** "Tổng quan" — artboard OpsOverview.dc.html (D25.5). */
 
@@ -117,7 +118,7 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
           <FreshnessLine canRefresh={canRefresh} data={data} error={refreshError} onRefresh={() => void refresh()} refreshing={refreshing} />
         </div>
         {failed ? <p role="alert">Không tải được tổng quan.</p> : null}
-        {!data && !failed ? <p role="status">Đang tải…</p> : null}
+        {!data && !failed ? <OpsSkeleton rows={6} /> : null}
         {data ? (
           <>
             <div className="ops-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>

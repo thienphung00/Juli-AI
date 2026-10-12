@@ -8,6 +8,7 @@ import type { CostsPage, OpsMe, ShopCost, ShopCostState } from "../../lib/ops/ty
 import { publishCostSystem } from "./ops-cost-banner";
 import { ConfirmDialog, Toast } from "./ops-confirm";
 import { C, OpsHeader, OpsPage, card } from "./ops-shell";
+import { OpsSkeleton } from "./ops-skeleton";
 
 /**
  * Tab "Chi phí" (D28.3, artboard OpsOpenAICap.dc.html): the month's OpenAI spend
@@ -134,9 +135,9 @@ export function OpsCosts({ me, api = opsApi }: { readonly me: OpsMe; readonly ap
         </p>
       ) : null}
       {!page && !failed ? (
-        <p role="status" style={{ margin: "12px 28px" }}>
-          Đang tải…
-        </p>
+        <div style={{ margin: "12px 28px" }}>
+          <OpsSkeleton rows={6} />
+        </div>
       ) : null}
       {page && system ? (
         <main className="ops-sim" style={{ padding: "16px 28px 22px", display: "grid", gridTemplateColumns: "minmax(0, 1fr) 420px", gap: 20, alignItems: "start" }}>

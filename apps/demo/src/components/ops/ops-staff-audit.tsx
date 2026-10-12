@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import type { AuditEntry, AuditKind, OpsMe } from "../../lib/ops/types";
-import { auditWhat, auditWhen, auditWho } from "./audit-text";
+import { auditKind, auditQueryKinds, auditWhat, auditWhen, auditWho } from "./audit-text";
+import { OpsSkeleton } from "./ops-skeleton";
 import { C, OpsHeader, OpsPage, card } from "./ops-shell";
 
 /** "Nhân viên" (Admin) and "Nhật ký" — reached from the overview nav (D25.2). */
@@ -84,25 +85,31 @@ const AUDIT_FILTERS: [AuditKind | "all", string][] = [
 ];
 const AGRID = "120px 150px 190px minmax(0, 1fr)";
 
-/** The row's group; an older backend sends no `kind`, so it is read off the action. */
-export function auditKind(entry: AuditEntry): AuditKind {
-  if (entry.kind) return entry.kind;
-  if (entry.action.startsWith("view_as_")) return "view";
-  if (entry.actor_email === "system") return "system";
-  return "config";
-}
+/** The row's group (read off the action; see `audit-text`). */
+export { auditKind };
 
 /** "Nhật ký" — artboard OpsLog.dc.html (D27.4, D27.6). */
 export function OpsAudit({ me, api = opsApi }: { readonly me: OpsMe; readonly api?: Pick<OpsApi, "audit"> & Partial<Pick<OpsApi, "overview">> }) {
   const [filter, setFilter] = useState<AuditKind | "all">("all");
-  const [rows, setRows] = useState<AuditEntry[] | null>(null);
+  // Rows with the filter they were loaded for: a filter change shows the skeleton until its rows land.
+  const [loaded, setLoaded] = useState<{ filter: AuditKind | "all"; rows: AuditEntry[] } | null>(null);
+  const rows = loaded && loaded.filter === filter ? loaded.rows : null;
   const [names, setNames] = useState<Record<string, string>>({});
   useEffect(() => {
     let live = true;
-    api
-      .audit(null, filter === "all" ? null : filter)
-      .then((r) => live && setRows(r.data))
-      .catch(() => live && setRows([]));
+    // "Hệ thống" also holds data_refresh, which the backend files under `view`:
+    // ask for both kinds and keep the rows of this group (newest first).
+    Promise.all(auditQueryKinds(filter).map((kind) => api.audit(null, kind)))
+      .then((pages) => {
+        if (!live) return;
+        const seen = new Set<string>();
+        const merged = pages
+          .flatMap((r) => r.data)
+          .filter((e) => (seen.has(e.id) ? false : (seen.add(e.id), true)))
+          .sort((x, y) => (y.at ?? "").localeCompare(x.at ?? ""));
+        setLoaded({ filter, rows: merged });
+      })
+      .catch(() => live && setLoaded({ filter, rows: [] }));
     return () => {
       live = false;
     };
@@ -156,7 +163,7 @@ export function OpsAudit({ me, api = opsApi }: { readonly me: OpsMe; readonly ap
             <span>Shop</span>
             <span>Thay đổi</span>
           </div>
-          {rows === null ? <span role="status">Đang tải…</span> : null}
+          {rows === null ? <OpsSkeleton rows={6} variant="table" /> : null}
           {rows !== null && shown.length === 0 ? <span style={{ color: C.muted2, padding: "9px 0" }}>Chưa có thao tác nào.</span> : null}
           {shown.map((entry) => {
             const merged = (entry.merged_count ?? 1) > 1;

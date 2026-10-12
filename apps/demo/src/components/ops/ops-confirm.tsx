@@ -61,13 +61,17 @@ export function ConfirmDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const back = useRef<HTMLButtonElement>(null);
+  // P22: a second press before React re-renders the button as disabled (double
+  // click, Enter + click) must not send the change twice — the state flag alone
+  // only takes effect on the next render.
+  const inFlight = useRef(false);
   useEffect(() => {
     back.current?.focus();
   }, []);
   return (
     <div
       onKeyDown={(e) => {
-        if (e.key === "Escape" && !busy) onCancel();
+        if (e.key === "Escape" && !busy && !inFlight.current) onCancel();
       }}
       style={{ position: "fixed", inset: 0, background: "rgba(26,26,31,0.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 30 }}
     >
@@ -102,12 +106,15 @@ export function ConfirmDialog({
           </span>
         ) : null}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button disabled={busy} onClick={onCancel} ref={back} style={SECONDARY} type="button">
+          <button disabled={busy} onClick={() => !inFlight.current && onCancel()} ref={back} style={SECONDARY} type="button">
             Quay lại
           </button>
           <button
             disabled={busy || confirmDisabled}
+            aria-busy={busy || undefined}
             onClick={async () => {
+              if (inFlight.current || confirmDisabled) return;
+              inFlight.current = true;
               setBusy(true);
               setError(null);
               try {
@@ -115,6 +122,7 @@ export function ConfirmDialog({
               } catch (e) {
                 setError(e instanceof Error ? e.message : "Không lưu được.");
                 setBusy(false);
+                inFlight.current = false;
               }
             }}
             style={{ ...PRIMARY, opacity: busy || confirmDisabled ? 0.6 : 1 }}

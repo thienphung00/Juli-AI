@@ -32,6 +32,7 @@ import { CalendarSection, MobileExtras, PromoSection } from "./extras";
 import type { ContentAnalysisClients } from "../../lib/content-analysis/types";
 import { VideoAnalysis } from "../content-analysis/video-analysis";
 import { StreamCard, type RankingState } from "./stream-card";
+import { useSellerHref } from "../seller-view-context";
 
 /**
  * Phân tích (ADR-109 Amendment 2; `docs/product/design/phan-tich/` PtProduct,
@@ -69,6 +70,7 @@ export const INFO_TEXT =
 const rankingKey = (stream: RankedStream, metric: CellMetric) => `${stream}:${metric}`;
 
 export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavigate, sample = false, analysisClients = null }: PhanTichViewProps) {
+  const sellerHref = useSellerHref();
   const narrow = useNarrow();
   const queryKey = `${query.tab ?? ""}|${query.stream ?? ""}|${query.metric ?? ""}|${query.huong ?? ""}|${query.row ?? ""}`;
   // The UI follows what the seller clicked straight away; the URL catches up
@@ -242,7 +244,7 @@ export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavi
                 {METRIC_COLS[weak]} kéo GMV {perDay(headView.weakContribution)}
               </span>
               {weakCards > 0 ? (
-                <Link className="pa-suggest__btn" href={decisionGroupHref(weak)}>
+                <Link className="pa-suggest__btn" href={sellerHref(decisionGroupHref(weak))}>
                   Xem {weakCards} đề xuất ›
                 </Link>
               ) : null}
@@ -262,7 +264,7 @@ export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavi
           </span>
           <b>Liên kết:</b>
           <span>chỉ theo dõi ở</span>
-          <Link className="pa-caption__link" href="/">
+          <Link className="pa-caption__link" href={sellerHref("/")}>
             Trang chủ ›
           </Link>
         </p>

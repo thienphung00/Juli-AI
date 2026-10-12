@@ -10,6 +10,7 @@ import { STABILITY_COPY, STEP, VERDICT_COPY, bandPctText, cleanDeltas, cellVerdi
 import type { BandStats, Deltas, KpiId, OpsMe, SimCell, SimulationPage, Stability, StreamId } from "../../lib/ops/types";
 import { FreshnessLine } from "./ops-freshness";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
+import { OpsSkeleton } from "./ops-skeleton";
 
 /**
  * "Mô phỏng" — artboard OpsSimulate.dc.html (D25.10 + D25.11 window / trend).
@@ -236,7 +237,7 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
             Đang tải số liệu {loadingWin} ngày…
           </p>
         ) : null}
-        {!page && !failed ? <p role="status">Đang tải…</p> : null}
+        {!page && !failed ? <OpsSkeleton rows={3} variant="cards" /> : null}
         {page && status && status.history_days === 0 ? (
           <p data-testid="sim-no-history" role="status" style={{ margin: 0, fontSize: 13, color: C.amber, fontWeight: 600 }}>
             Shop chưa có dữ liệu theo ngày cho mô phỏng.

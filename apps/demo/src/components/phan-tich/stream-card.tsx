@@ -7,6 +7,7 @@ import { decisionCardHref } from "../../lib/phan-tich/cards";
 import type { CellMetric, CellView, Direction, StreamView } from "../../lib/phan-tich/model";
 import type { RowView, TableView } from "../../lib/phan-tich/rows";
 import type { RankingPayload } from "../../lib/phan-tich/types";
+import { useSellerHref } from "../seller-view-context";
 
 /**
  * One collapsible stream card (ADR-109 Amendment 2 d.1–3; PtProduct,
@@ -112,9 +113,10 @@ function Facts({ row, mobile, content }: { readonly row: RowView; readonly mobil
 }
 
 function CardLink({ row, mobile }: { readonly row: RowView; readonly mobile: boolean }) {
+  const sellerHref = useSellerHref();
   if (row.card) {
     return (
-      <Link className="pa-row__link" href={decisionCardHref(row.card.id)}>
+      <Link className="pa-row__link" href={sellerHref(decisionCardHref(row.card.id))}>
         Xem đề xuất ›
       </Link>
     );
@@ -133,12 +135,13 @@ function Thumb() {
 }
 
 function TaggedLink({ row, href, onOpen }: { readonly row: RowView; readonly href: (id: string) => string; readonly onOpen: (id: string) => void }) {
+  const sellerHref = useSellerHref();
   if (!row.taggedProduct) return <span />;
   const productId = row.taggedProduct;
   return (
     <a
       className="pa-row__link"
-      href={href(productId)}
+      href={sellerHref(href(productId))}
       onClick={(event) => {
         event.preventDefault();
         onOpen(productId);

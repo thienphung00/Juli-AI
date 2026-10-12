@@ -17,7 +17,7 @@ beforeEach(() => {
 });
 
 describe("Xem như shop (OpsViewAs.dc.html, D25.3 amended: always read-only)", () => {
-  it("shows the read-only banner, logs the session, disables every seller control and has no act toggle", async () => {
+  it("shows the read-only banner, logs the session, keeps the seller view readable and has no act toggle", async () => {
     const viewSession = vi.fn(async () => VIEW_SESSION);
     const fetchStub = vi.fn(async (url: string) =>
       url.endsWith("/view/decisions") || url.endsWith("/view/runs")
@@ -32,7 +32,8 @@ describe("Xem như shop (OpsViewAs.dc.html, D25.3 amended: always read-only)", (
     // D27.8: viewing a shop makes it the current shop for Mô phỏng
     expect(JSON.parse(window.localStorage.getItem(CURRENT_SHOP_KEY) ?? "{}")).toEqual({ id: SHOP_ID, name: "Mỹ phẩm Thảo Nhi" });
     expect(screen.queryByRole("button", { name: /Làm thay seller/ })).toBeNull();
-    expect(screen.getByTestId("seller-view")).toBeDisabled();
+    // P22: no blanket disabled wrapper — reading works; write controls are disabled one by one (ops-p22.test).
+    expect(screen.getByTestId("seller-view").tagName).not.toBe("FIELDSET");
     expect(screen.getByTestId("write-note")).toHaveTextContent("Mọi nút ghi đều khoá.");
     for (const name of ["Trang chủ", "Quyết định", "Phân tích", "Juli", "Quy tắc"]) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
