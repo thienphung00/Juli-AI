@@ -98,7 +98,8 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     fireEvent.click(plus);
     const ctor = screen.getByTestId("sim-cell-product_card-ctor");
     expect(within(ctor).getByText("+5 %")).toBeInTheDocument();
-    expect(within(ctor).getByText("Trong dao động thường ngày")).toBeInTheDocument();
+    // D28.1: the 30-day window band (±2,6 %) is far narrower than the daily ±14 %.
+    expect(within(ctor).getByTestId("cell-verdict")).toHaveTextContent("Vượt dao động · đo được");
     fireEvent.click(plus);
     fireEvent.click(plus);
     expect(within(ctor).getByText("Vượt dao động · đo được")).toBeInTheDocument();
@@ -114,6 +115,82 @@ describe("Mô phỏng (OpsSimulate.dc.html + D25.11)", () => {
     fireEvent.click(screen.getByRole("radio", { name: "90 ngày" }));
     expect(await screen.findByTestId("window-insufficient")).toHaveTextContent("Chưa đủ dữ liệu (cần 2 × 90 ngày) · hiện có 60 ngày");
     expect(sim).toHaveBeenLastCalledWith(SHOP_ID, 90);
+  });
+
+  it("D28.1: each cell shows the window-mean band; hover / click shows the daily band", async () => {
+    const sim = vi.fn(async (_id: string, w: number) => {
+      if (w !== 7) return SIMULATION;
+      // Same daily spread, 7 days: the window band is wider (÷√7 instead of ÷√30).
+      return {
+        ...SIMULATION,
+        window: 7,
+        status: SIMULATION.windows[0],
+        streams: SIMULATION.streams.map((s) => ({
+          ...s,
+          cells: s.cells.map((c) => ({ ...c, band: c.band && c.daily_band ? { ...c.band, band_pct: Math.round(((c.daily_band.band_pct ?? 0) / Math.sqrt(7)) * 10) / 10, days: 7 } : c.band })),
+        })),
+      };
+    });
+    render(<OpsSimulate api={{ simulation: sim, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
+    const cell = await screen.findByTestId("sim-cell-product_card-ctor");
+    expect(within(cell).getByTestId("cell-band")).toHaveTextContent("Dao động TB 30 ngày: ±2,6 %");
+    expect(within(screen.getByTestId("sim-cell-seller_video-impressions")).getByTestId("cell-band")).toHaveTextContent("Dao động TB 30 ngày: ±8,8 %");
+    expect(within(screen.getByTestId("sim-cell-product_card-aov")).getByTestId("cell-band")).toHaveTextContent("Dao động TB 30 ngày: ±0,7 %");
+    expect(within(cell).queryByTestId("cell-daily")).toBeNull();
+    const toggle = within(cell).getByRole("button", { name: "Thẻ sản phẩm CTOR: xem dao động mỗi ngày" });
+    expect(toggle).toHaveAttribute("title", "Mỗi ngày: ±14 %");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(within(cell).getByTestId("cell-daily")).toHaveTextContent("Mỗi ngày: ±14 %");
+    fireEvent.click(toggle);
+    expect(within(cell).queryByTestId("cell-daily")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "7 ngày" }));
+    await waitFor(() => expect(within(screen.getByTestId("sim-cell-product_card-ctor")).getByTestId("cell-band")).toHaveTextContent("Dao động TB 7 ngày: ±5,3 %"));
+    // +5 % now sits inside the wider 7-day band.
+    fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % Thẻ sản phẩm CTOR" }));
+    expect(within(screen.getByTestId("sim-cell-product_card-ctor")).getByTestId("cell-verdict")).toHaveTextContent("Trong dao động");
+  });
+
+  it("D28.2: a low-data cell is grey with a *, a dashed box, a ~ chip, its count, and reads Ít dữ liệu", async () => {
+    render(<OpsSimulate api={{ simulation: async () => SIMULATION, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
+    const cell = await screen.findByTestId("sim-cell-seller_live-ctor");
+    expect(cell).toHaveAttribute("data-low-data", "true");
+    expect(cell).toHaveStyle({ border: "1px dashed #d9c3a5", background: "#fbfaf7" });
+    expect(within(cell).getByTestId("cell-value")).toHaveStyle({ color: "#8a8a94" });
+    expect(within(cell).getByTestId("low-mark")).toHaveTextContent("*");
+    expect(within(cell).getByTestId("low-mark")).toHaveStyle({ color: "#a3622a" });
+    expect(within(cell).getByTestId("trend-chip")).toHaveTextContent("~ 3,8 %");
+    expect(within(cell).getByTestId("trend-chip")).not.toHaveTextContent("▼");
+    expect(within(cell).getByTestId("cell-low")).toHaveTextContent("ít dữ liệu · 18 đơn");
+    expect(within(cell).getByRole("button", { name: "LIVE CTOR: xem dao động mỗi ngày" })).toHaveAttribute("title", "Mỗi ngày: ±20 % · ít dữ liệu: 18 đơn trong 30 ngày");
+    // The CTR of the same stream has enough clicks; the locked AOV keeps its lock.
+    expect(screen.getByTestId("sim-cell-seller_live-ctr")).toHaveAttribute("data-low-data", "false");
+    expect(within(screen.getByTestId("sim-cell-seller_live-ctr")).queryByTestId("low-mark")).toBeNull();
+    const aov = screen.getByTestId("sim-cell-seller_live-aov");
+    expect(within(aov).getByText("Khoá · phụ thuộc trang sản phẩm")).toBeInTheDocument();
+    expect(within(aov).getByTestId("low-mark")).toBeInTheDocument();
+    expect(screen.getByTestId("sim-low-legend")).toHaveTextContent(
+      "* ít dữ liệu: dưới 30 click (CTR) hoặc dưới 30 đơn (CTOR, AOV) trong khoảng · bấm hoặc rê chuột vào ô để xem dao động mỗi ngày",
+    );
+    // A target on it is "Ít dữ liệu" however large.
+    for (let i = 0; i < 8; i++) fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % LIVE CTOR" }));
+    expect(within(cell).getByTestId("cell-verdict")).toHaveTextContent("Ít dữ liệu");
+  });
+
+  it("D28: an older backend without the new fields still renders the cell", async () => {
+    const legacy: SimulationPage = {
+      ...SIMULATION,
+      streams: SIMULATION.streams.map((s) => ({
+        ...s,
+        cells: s.cells.map(({ kpi, label, value, trend_pct, daily_band, locked, indirect, actions }) => ({ kpi, label, value, trend_pct, band: daily_band ?? null, locked, indirect, actions })),
+      })),
+    };
+    render(<OpsSimulate api={{ simulation: async () => legacy, createScenario: vi.fn(), setTarget: vi.fn() }} me={ME} shopId={SHOP_ID} />);
+    const cell = await screen.findByTestId("sim-cell-product_card-ctor");
+    expect(within(cell).getByTestId("cell-band")).toHaveTextContent("Dao động thường: ±14 %");
+    expect(within(cell).queryByTestId("low-mark")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Tăng 5 % Thẻ sản phẩm CTOR" }));
+    expect(within(cell).getByTestId("cell-verdict")).toHaveTextContent("Trong dao động");
   });
 
   it("dims the table and says which window is loading, and drops a slower earlier answer", async () => {
