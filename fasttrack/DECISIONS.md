@@ -543,5 +543,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      changes appear on the product timeline; a measured card overlapping one reads "bị ảnh
      hưởng bởi thay đổi khác" instead of crediting Juli. Unknown webhook types are already
      acknowledged (200) and stored raw, so events from today can be replayed.
-  5. **Ops only first (18.5B):** Quality Score, prediction ranges and the change timeline
-     show in Juli Ops for the team to tune; the seller app gets them later.
+  5. **Internal only (18.5B, amended by owner 19):** Quality Score and Performance
+     Prediction are internal algorithms that pick, rank and size cards (D29 KPI range and
+     confidence); no Ops tab or monitoring screen. What surfaces is only their effect on
+     the cards (ranking, "Độ tin cậy", KPI range) and, on a measured card, "bị ảnh hưởng
+     bởi thay đổi khác" when an external change overlaps. Scores stay queryable in the
+     database / logs for debugging.
