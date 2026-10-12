@@ -4,8 +4,10 @@ ONE storage for every reader, like the OpenAI cap (``openai_cap``): a
 ``shop_rules`` row with ``rule_key = "diag_tunables"`` (shop-wide, ``scope_ref =
 ''``), value a JSON object holding only the keys an Ops Admin overrode
 (``diag_windows``, ``diag_min_events``, ``kpi_min_band_mult``,
-``kpi_max_band_mult``, ``guard_band_mult``, ``volatile_cv``). No row = every
-default (``optimize_product.tunables.DiagTunables``).
+``kpi_max_band_mult``, ``guard_band_mult``, ``volatile_cv``; D33 adds the
+opt-in quota mode ``card_quota_mode``, ``card_quota_per_cell``,
+``card_quota_max_open``). No row = every default
+(``optimize_product.tunables.DiagTunables``).
 
 It is a TEAM setting: deliberately NOT in ``rules.RULE_KEYS``, so the seller's
 ``/v1/demo/rules`` refuses it; Juli Ops "Cài đặt shop" writes it (audited)

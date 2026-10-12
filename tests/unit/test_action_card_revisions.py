@@ -602,7 +602,8 @@ def test_budget_reasons_and_revision_reasons_are_disjoint():
     """
     assert SUPPRESSED_REASONS == frozenset(
         # P16 (D25.4): `ops_disabled` -- the card's stream / action is off in Juli Ops.
-        {"active_cap", "cooldown", "daily_cap", "weekly_novelty_cap", "ops_disabled"}
+        # P28 (D33): `cell_cap` -- quota mode, the card's metric × channel cell is full.
+        {"active_cap", "cooldown", "daily_cap", "weekly_novelty_cap", "ops_disabled", "cell_cap"}
     )
     assert REVISION_SUPPRESSED_REASONS == frozenset(
         # P23 (D29.4): `other_metric_active` -- one target metric per product.

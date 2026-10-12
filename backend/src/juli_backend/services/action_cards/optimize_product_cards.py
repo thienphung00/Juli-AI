@@ -114,6 +114,7 @@ from juli_backend.services.optimize_product.decision_cards import (
     ShopCardPlan,
     plan_shop_cards,
 )
+from juli_backend.services.optimize_product.diagnosis import PageLevers
 from juli_backend.services.optimize_product.eligibility import (
     GIFT_PRODUCT,
     stored_product_gift_reason,
@@ -374,6 +375,11 @@ async def plan_optimize_product_cards(
     last30 = {pid: last_window(series, as_of=as_of) for pid, series in days.items()}
     history = await lever_history(session, shop_id, now=now)
     shop_stats, fleet_stats = await calibration_stats(session, shop_id)
+    facts = (
+        await price_lever_facts(session, shop_id, now=now)
+        if tunables.card_quota_mode
+        else PriceLeverFacts()
+    )
     plan = plan_shop_cards(
         funnels,
         catalog,
@@ -387,9 +393,22 @@ async def plan_optimize_product_cards(
         tunables=tunables,
         calibration=shop_stats,
         fleet_calibration=fleet_stats,
+        discount_cap_set=facts.discount_cap_set,
+        page_levers=facts.page_levers,
+        active_bmsm=facts.active_bmsm,
     )
+    # The counts go in the message too: journald keeps the text, not the extras.
     logger.info(
-        "optimize_product_cards_planned",
+        "optimize_product_cards_planned shop_id=%s as_of=%s products_scored=%d excluded=%d "
+        "proposals=%d overflow=%d quota_mode=%s discount_cap_set=%s",
+        shop_id,
+        as_of.isoformat(),
+        plan.products_scored,
+        len(plan.excluded),
+        len(plan.proposals),
+        plan.overflow,
+        tunables.card_quota_mode,
+        facts.discount_cap_set,
         extra={
             "shop_id": str(shop_id),
             "as_of": as_of.isoformat(),
@@ -405,6 +424,74 @@ async def plan_optimize_product_cards(
         products=products,
         days=days,
         funnels={f.product_id: f for f in funnels},
+    )
+
+
+@dataclass(frozen=True)
+class PriceLeverFacts:
+    """D33: what stored data says about the price levers (quota mode only).
+
+    ``discount_cap_set``: the shop has a maximum discount rule
+    (``default_max_discount_pct`` or any SKU ``max_discount_pct``).
+    ``page_levers``: TikTok product id -> a product discount (Giảm giá / Flash
+    sale) already runs on it per ``promotion_activities``. ``active_bmsm``:
+    products already in a running Mua nhiều giảm nhiều. Empty = nothing known.
+    """
+
+    discount_cap_set: bool = False
+    page_levers: dict[str, PageLevers] = field(default_factory=dict)
+    active_bmsm: frozenset[str] = frozenset()
+
+
+#: TikTok activity types that put a product discount on the product.
+_DISCOUNT_ACTIVITY_TYPES = frozenset({"FIXED_PRICE", "DIRECT_DISCOUNT", "FLASHSALE"})
+_BMSM_ACTIVITY_TYPE = "BUY_MORE_SAVE_MORE"
+_ENDED_ACTIVITY_STATUSES = frozenset({"EXPIRED", "DEACTIVATED", "NOT_EFFECTIVE"})
+
+
+async def price_lever_facts(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+) -> PriceLeverFacts:
+    """D33: the discount cap (shop rules) and running promotions (stored activities)."""
+    from juli_backend.models.history import PromotionActivity, PromotionActivityProduct
+    from juli_backend.services.shop_rules.rules import get_rules
+
+    rules = await get_rules(session, shop_id)
+    cap_set = rules.default_max_discount_pct is not None or bool(rules.max_discount_pct)
+    moment = _as_aware(now).astimezone(UTC).replace(tzinfo=None)
+    rows = await session.execute(
+        select(
+            PromotionActivity.activity_type,
+            PromotionActivity.status,
+            PromotionActivityProduct.tiktok_product_id,
+        )
+        .join(
+            PromotionActivityProduct,
+            (PromotionActivityProduct.shop_id == PromotionActivity.shop_id)
+            & (PromotionActivityProduct.activity_id == PromotionActivity.activity_id),
+        )
+        .where(
+            PromotionActivity.shop_id == shop_id,
+            PromotionActivityProduct.removed_at.is_(None),
+            PromotionActivity.deactivated_at.is_(None),
+            (PromotionActivity.begin_time.is_(None)) | (PromotionActivity.begin_time <= moment),
+            (PromotionActivity.end_time.is_(None)) | (PromotionActivity.end_time > moment),
+        )
+    )
+    discounted: set[str] = set()
+    bmsm: set[str] = set()
+    for activity_type, status, product_id in rows.all():
+        if str(status or "").upper() in _ENDED_ACTIVITY_STATUSES:
+            continue
+        kind = str(activity_type or "").upper()
+        if kind in _DISCOUNT_ACTIVITY_TYPES:
+            discounted.add(str(product_id))
+        elif kind == _BMSM_ACTIVITY_TYPE:
+            bmsm.add(str(product_id))
+    return PriceLeverFacts(
+        discount_cap_set=cap_set,
+        page_levers={pid: PageLevers(product_discount_active=True) for pid in sorted(discounted)},
+        active_bmsm=frozenset(bmsm),
     )
 
 
@@ -599,6 +686,8 @@ def d29_payload(proposal: CardProposal) -> dict[str, Any]:
         "gmv_estimate": {"per_month_min": float(round(low)), "per_month_max": float(round(high))},
         "sibling_cards": proposal.sibling_cards,
         **({"quality": proposal.quality.to_json()} if proposal.quality is not None else {}),
+        # D33 (S28B): set only on a "below shop level" card (quota mode).
+        **({"reason_code": proposal.reason_code} if proposal.reason_code is not None else {}),
     }
 
 
@@ -955,7 +1044,9 @@ async def rescore_pending_cards(
     if rescored:
         await session.flush()
         logger.info(
-            "optimize_product_cards_rescored_d29",
+            "optimize_product_cards_rescored_d29 shop_id=%s rescored=%d",
+            shop_id,
+            len(rescored),
             extra={"shop_id": str(shop_id), "rescored": len(rescored)},
         )
     return rescored
@@ -1110,7 +1201,10 @@ def _withdraw(card: ActionCard, shop_id: uuid.UUID, *, why: str) -> None:
     # ``gift_product``), so Ops can see why it left; other withdrawals clear it.
     card.suppressed_reason = WITHDRAW_GIFT_PRODUCT if why == WITHDRAW_GIFT_PRODUCT else None
     logger.info(
-        "optimize_product_card_withdrawn",
+        "optimize_product_card_withdrawn shop_id=%s card_id=%s why=%s",
+        shop_id,
+        card.id,
+        why,
         extra={"shop_id": str(shop_id), "card_id": str(card.id), "why": why},
     )
 

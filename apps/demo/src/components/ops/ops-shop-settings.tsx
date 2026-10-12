@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
-import { ACTION_NAMES, DIAG_KEYS, STREAM_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
+import { ACTION_NAMES, DIAG_KEYS, QUOTA_KEYS, STREAM_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
 import type { DiagKey, OpsMe, OverrideKey, ShopSettingsPage, StageId } from "../../lib/ops/types";
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
 import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
@@ -445,6 +445,9 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
           {DIAG_KEYS.some((k) => s.defaults[k] !== undefined) ? (
             <DiagSection canEdit={canEdit} change={change} eff={eff} epoch={epoch} isSet={isSet} onEpoch={() => setEpoch((e) => e + 1)} />
           ) : null}
+          {QUOTA_KEYS.some((k) => s.defaults[k] !== undefined) ? (
+            <QuotaSection canEdit={canEdit} cells={page.card_cells ?? null} change={change} eff={eff} epoch={epoch} isSet={isSet} onEpoch={() => setEpoch((e) => e + 1)} />
+          ) : null}
           <OpsRules canEdit={canEdit} shopName={shopName} shopId={shopId} />
         </section>
         <aside style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -689,6 +692,86 @@ function DiagSection({
             </SettingRow>
           ))}
         </>
+      ) : null}
+    </div>
+  );
+}
+
+/** Cell id ("ctr@product_card") in the team's words. */
+const CELL_METRIC: Record<string, string> = { impressions: "Lượt hiển thị", ctr: "CTR", ctor: "CTOR", aov: "AOV" };
+const CELL_CHANNEL: Record<string, string> = { product_card: "Thẻ sản phẩm", total: "tất cả kênh" };
+const CELL_NAMES: Record<string, string> = { content_video: "Video (nội dung)", content_live: "LIVE (nội dung)", other: "Khác" };
+
+function cellName(cell: string): string {
+  if (CELL_NAMES[cell]) return CELL_NAMES[cell];
+  const [metric, channel] = cell.split("@");
+  return `${CELL_METRIC[metric] ?? metric} · ${CELL_CHANNEL[channel] ?? channel}`;
+}
+
+/** P28 (D33): "Nhiều thẻ mỗi ô" — opt-in per shop (Admin); the open cards per cell while on. */
+function QuotaSection({
+  canEdit,
+  cells,
+  eff,
+  isSet,
+  change,
+  epoch,
+  onEpoch,
+}: {
+  readonly canEdit: boolean;
+  readonly cells: Readonly<Record<string, number>> | null;
+  readonly eff: (key: OverrideKey) => unknown;
+  readonly isSet: (key: OverrideKey) => boolean;
+  readonly change: (patch: Draft) => void;
+  readonly epoch: number;
+  readonly onEpoch: () => void;
+}) {
+  const on = Boolean(eff("card_quota_mode"));
+  const perCell = Number(eff("card_quota_per_cell") ?? 5);
+  return (
+    <div data-testid="ops-quota" style={card}>
+      <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Nhiều thẻ mỗi ô (thử nghiệm)</h2>
+      <SettingRow
+        disabled={!canEdit}
+        help="Thay 3/1/1 thẻ mỗi ngày bằng tối đa N thẻ mở cho mỗi chỉ số × kênh"
+        onDefault={() => change({ card_quota_mode: null })}
+        overridden={isSet("card_quota_mode")}
+        summary={on ? "Bật" : "Tắt"}
+        title="Nhiều thẻ mỗi ô"
+      >
+        <Toggle label="Nhiều thẻ mỗi ô" on={on} onChange={(v) => change({ card_quota_mode: v })} />
+      </SettingRow>
+      {(
+        [
+          ["card_quota_per_cell", "Thẻ mở mỗi ô", "Mỗi chỉ số × kênh (và Video, LIVE)", "thẻ/ô"],
+          ["card_quota_max_open", "Thẻ mở tối đa (nhiều thẻ)", "Quy tắc Số thẻ mở cùng lúc của người bán vẫn thắng", "thẻ"],
+        ] as const
+      ).map(([key, title, help, unit]) => (
+        <SettingRow
+          disabled={!canEdit}
+          help={help}
+          key={key}
+          onDefault={() => {
+            change({ [key]: null });
+            onEpoch();
+          }}
+          overridden={isSet(key)}
+          summary={fmtSetting(key, eff(key))}
+          title={title}
+        >
+          <NumEditor integer key={`${key}-${epoch}`} label={title} onChange={(v) => change({ [key]: v })} scale={1} step={1} unit={unit} value={eff(key) as number | null} />
+        </SettingRow>
+      ))}
+      {on && cells ? (
+        <div data-testid="ops-quota-cells" style={{ borderTop: `1px solid ${C.lineSoft}`, paddingTop: 10, fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
+          <b>Thẻ đang mở theo ô</b>
+          {Object.keys(cells).length === 0 ? <span style={{ color: C.muted2 }}>Chưa có thẻ mở.</span> : null}
+          {Object.entries(cells).map(([cell, count]) => (
+            <span key={cell}>
+              {cellName(cell)}: {count}/{perCell}
+            </span>
+          ))}
+        </div>
       ) : null}
     </div>
   );

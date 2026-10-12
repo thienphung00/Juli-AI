@@ -66,8 +66,12 @@ export interface Overview extends Freshness {
 /** P23 (D29.11): per-shop diagnosis & KPI tunables; optional until the backend sends them. */
 export type DiagKey = "diag_windows" | "diag_min_events" | "kpi_min_band_mult" | "kpi_max_band_mult" | "guard_band_mult" | "volatile_cv";
 
+/** P28 (D33): the per-shop "many cards" quota mode; optional until the backend sends them. */
+export type QuotaKey = "card_quota_mode" | "card_quota_per_cell" | "card_quota_max_open";
+
 export type OverrideKey =
   | DiagKey
+  | QuotaKey
   | "card_daily_limit"
   | "card_weekly_limit"
   | "card_open_limit"
@@ -78,7 +82,9 @@ export type OverrideKey =
   | "openai_model"
   | "openai_monthly_cap_usd";
 
-export type Overrides = { readonly [K in Exclude<OverrideKey, DiagKey>]: unknown } & { readonly [K in DiagKey]?: unknown };
+export type Overrides = { readonly [K in Exclude<OverrideKey, DiagKey | QuotaKey>]: unknown } & {
+  readonly [K in DiagKey | QuotaKey]?: unknown;
+};
 
 export interface ShopSettings {
   readonly shop_id: string;
@@ -137,6 +143,8 @@ export interface ShopSettingsPage {
   readonly settings: ShopSettings;
   readonly invites: readonly Invite[];
   readonly audit: readonly AuditEntry[];
+  /** P28 (D33): open cards per cell ("ctr@product_card" → 3); only while the quota mode is on. */
+  readonly card_cells?: Readonly<Record<string, number>> | null;
 }
 
 export interface ViewSession {

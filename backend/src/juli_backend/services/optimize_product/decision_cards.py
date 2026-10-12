@@ -49,12 +49,14 @@ from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.daily_funnel import ProductDay, product_funnel
 from juli_backend.services.optimize_product.diagnosis import (
     BRANCH_ORDER,
+    NO_LEVERS,
     Angle,
     BmsmProposal,
     Branch,
     Diagnosis,
     Gap,
     Label,
+    PageLevers,
     Skip,
     Trigger,
     _angles_with_evidence,
@@ -64,6 +66,8 @@ from juli_backend.services.optimize_product.diagnosis import (
 from juli_backend.services.optimize_product.eligibility import gift_reason
 from juli_backend.services.optimize_product.funnel import FunnelWindow, ProductFunnel, ShopMedians
 from juli_backend.services.optimize_product.kpi_channel import (
+    CHANNEL_LABELS_VI,
+    CHANNEL_TOTAL,
     channel_days,
     channel_gmv_per_day,
     kpi_window,
@@ -93,7 +97,9 @@ from juli_backend.services.optimize_product.shop_report import (
 )
 from juli_backend.services.optimize_product.tunables import DiagTunables
 from juli_backend.services.optimize_product.volatility import (
+    CONFIDENCE_LOW,
     STABILITY_ORDER,
+    STATUS_NO_DROP,
     Assessment,
     Kpi,
     MetricWindow,
@@ -250,6 +256,9 @@ class CardProposal:
     #: D32: "Độ tin cậy" of a KPI read on the lever's channel (its events and
     #: impressions CV); ``None`` keeps the product's all-channel confidence.
     kpi_confidence: str | None = None
+    #: D33 (S28B): why the card exists when it is not the D29 GMV-drop branch
+    #: (:data:`REASON_BELOW_SHOP_LEVEL`); ``None`` for every D29 card.
+    reason_code: str | None = None
 
     @property
     def confidence(self) -> str | None:
@@ -584,8 +593,15 @@ def plan_shop_cards(
     fleet_calibration: dict[str, CalibrationStats] | None = None,
     listing_facts: dict[str, ListingFacts] | None = None,
     benchmarks: dict[str, dict[str, float]] | None = None,
+    page_levers: dict[str, PageLevers] | None = None,
+    active_bmsm: frozenset[str] = frozenset(),
 ) -> ShopCardPlan:
     """Score the catalog, compose the ranked proposals, keep the top ``top_k``.
+
+    D33 quota mode (``tunables.card_quota_mode``, D29 path only): ``page_levers``
+    (product id -> the promotion facts read from stored data) gates the price
+    levers per product, ``active_bmsm`` holds products already running a
+    Mua nhiều giảm nhiều; see :func:`_plan_d29` for the rest of the mode.
 
     ``history`` (lever code -> :class:`LeverHistory`, D24.6) weights the
     ranking; a lever absent from it is neutral. ``tiktok_evidence`` (product id
@@ -638,6 +654,8 @@ def plan_shop_cards(
             fleet_calibration=fleet_calibration or {},
             listing_facts=listing_facts or {},
             benchmarks=benchmarks or {},
+            page_levers=page_levers or {},
+            active_bmsm=active_bmsm,
         )
     by_id = {d.product_id: d for d in diagnoses}
     funnel_by_id = {f.product_id: f for f in funnels}
@@ -773,6 +791,8 @@ def _d29_levers(
     discount_cap_set: bool,
     funnel: ProductFunnel,
     config: StageDiagnosisConfig,
+    levers: PageLevers = NO_LEVERS,
+    bmsm_running: bool = False,
 ) -> tuple[str | None, list[Angle], BmsmProposal | None]:
     """(status code, levers, BMSM) for the target metric; ``(None, [], None)`` = no lever.
 
@@ -780,9 +800,13 @@ def _d29_levers(
     discount needs the seller's cap and no description code, BMSM needs a
     reachable basket threshold. A target metric with no evidence yet is a
     pending card ("Chưa hỏi TikTok" / "Cần mức giảm giá tối đa") on its first lever.
+    D33: ``levers`` (stored promotion facts) and ``bmsm_running`` (a Mua nhiều
+    giảm nhiều already runs on the product); both default to "nothing known".
     """
     branch = METRIC_BRANCH[metric]
     if metric == "aov":
+        if bmsm_running:
+            return None, [], None
         basket = basket_threshold(None, funnel.current.items_per_order, config)
         if not basket.reached:
             return None, [], None
@@ -796,7 +820,7 @@ def _d29_levers(
         )
         return STATUS_CODE_RULE, [Angle.MUA_NHIEU_GIAM_NHIEU], bmsm
     angles = _angles_with_evidence(
-        branch, evidence, discount_cap_set=discount_cap_set, active_promotion=False
+        branch, evidence, discount_cap_set=discount_cap_set, active_promotion=False, levers=levers
     )
     if metric == "impressions":
         angles = [a for a in angles if a is Angle.TIEU_DE]
@@ -809,6 +833,77 @@ def _d29_levers(
     if branch is Branch.PAGE and not codes_for_angle(Angle.MO_TA, codes) and not discount_cap_set:
         return STATUS_CODE_NEEDS_CAP, [Angle.GIAM_GIA], None
     return None, [], None
+
+
+#: D33 (S28B): a card for a product whose GMV did not fall but whose target
+#: metric sits below the shop's level on the lever's channel (quota mode only).
+REASON_BELOW_SHOP_LEVEL = "below_shop_level"
+#: Metrics S28B compares with the shop median (Lượt hiển thị has no shop median).
+S28B_METRICS: tuple[str, ...] = ("ctr", "ctor", "aov")
+#: D33: candidates kept per cell (target metric × KPI channel) in quota mode,
+#: as a multiple of the cell's open-card quota (room for cooldowns and D29.4).
+QUOTA_CANDIDATES_PER_CELL_MULT = 3
+
+
+def _median_of(medians: ShopMedians, metric: str) -> float | None:
+    value = {"ctr": medians.ctr, "ctor": medians.ctor, "aov": medians.aov}.get(metric)
+    return float(value) if value is not None and value > 0 else None
+
+
+def _clearly_below(value: float | None, band_pct: float | None, median: float | None) -> bool:
+    """Below the median by more than one band of its own window (not noise)."""
+    if value is None or value <= 0 or band_pct is None or median is None:
+        return False
+    return value * (1 + band_pct / 100) < median
+
+
+def below_shop_metric(assessment: Assessment, medians: ShopMedians) -> str | None:
+    """S28B: the metric furthest below the shop median, with enough data, else ``None``."""
+    best: tuple[float, str] | None = None
+    for metric in S28B_METRICS:
+        window = assessment.metrics.get(metric)
+        median = _median_of(medians, metric)
+        if window is None or window.low_data or median is None:
+            continue
+        if not _clearly_below(window.value, window.band_pct, median):
+            continue
+        gap = 1 - (window.value or 0.0) / median
+        if best is None or gap > best[0]:
+            best = (gap, metric)
+    return best[1] if best is not None else None
+
+
+def _rate_text(metric: str, value: float) -> str:
+    if metric == "aov":
+        return f"{round(value):,}".replace(",", ".") + " ₫"
+    return f"{value * 100:.2f}".replace(".", ",") + " %"
+
+
+def below_shop_reason(metric: str, channel: str, current: float, median: float) -> str:
+    """S28B seller copy: the metric sits below the shop's usual level; sales did not fall."""
+    where = (
+        "trên tất cả kênh"
+        if channel == CHANNEL_TOTAL or channel not in CHANNEL_LABELS_VI
+        else f"trên kênh {CHANNEL_LABELS_VI[channel]}"
+    )
+    return (
+        f"{METRIC_LABELS_VI[metric]} của sản phẩm {where} thấp hơn mức chung của shop "
+        f"({_rate_text(metric, current)} so với {_rate_text(metric, median)}); doanh thu "
+        "không giảm, đây là cơ hội tăng thêm"
+    )
+
+
+def keep_top_per_cell(ordered: list[CardProposal], top_k: int) -> list[CardProposal]:
+    """D33: the best ``top_k`` of each cell (target metric × KPI channel), re-ranked 1..n."""
+    per_cell: dict[tuple[str | None, str], int] = {}
+    selected: list[CardProposal] = []
+    for proposal in ordered:
+        cell = (proposal.target_metric, proposal.kpi.channel if proposal.kpi else CHANNEL_TOTAL)
+        if per_cell.get(cell, 0) >= top_k:
+            continue
+        per_cell[cell] = per_cell.get(cell, 0) + 1
+        selected.append(proposal)
+    return [replace(p, rank=index) for index, p in enumerate(selected, start=1)]
 
 
 @dataclass(frozen=True)
@@ -940,8 +1035,22 @@ def _plan_d29(
     fleet_calibration: dict[str, CalibrationStats],
     listing_facts: dict[str, ListingFacts],
     benchmarks: dict[str, dict[str, float]],
+    page_levers: dict[str, PageLevers] | None = None,
+    active_bmsm: frozenset[str] = frozenset(),
 ) -> ShopCardPlan:
-    """D29 + D30.2–3 over the catalog (see :func:`plan_shop_cards`)."""
+    """D29 + D30.2–3 over the catalog (see :func:`plan_shop_cards`).
+
+    D33 quota mode (``tunables.card_quota_mode``; off = everything below is
+    skipped): price levers read the stored promotion facts (``page_levers``,
+    ``active_bmsm``); a product whose GMV did not fall but whose metric sits
+    clearly below the shop median gets an S28B card (:func:`below_shop_metric`:
+    KPI = the minimum clamp only, "Độ tin cậy" Thấp, ranked after the GMV-drop
+    cards, ``reason_code`` :data:`REASON_BELOW_SHOP_LEVEL`); the Quality-Score
+    lever weight is neutral (price levers rank like listing levers); and the
+    top candidates are kept per cell instead of per executor type.
+    """
+    quota_mode = tunables.card_quota_mode
+    page_levers = page_levers or {}
     skips: list[Skip] = []
     groups: dict[str, list[CardProposal]] = {
         STATUS_CODE_RULE: [],
@@ -954,10 +1063,19 @@ def _plan_d29(
         if pid in excluded:
             continue
         assessment = assess_product(pid, daily.get(pid, []), as_of=as_of, tunables=tunables)
+        below = False
         if not assessment.candidate or assessment.target_metric is None:
-            skips.append(Skip(pid, funnel.title, f"d29:{assessment.status}"))
-            continue
-        metric = assessment.target_metric
+            s28b_metric = (
+                below_shop_metric(assessment, medians)
+                if quota_mode and assessment.status == STATUS_NO_DROP
+                else None
+            )
+            if s28b_metric is None:
+                skips.append(Skip(pid, funnel.title, f"d29:{assessment.status}"))
+                continue
+            metric, below = s28b_metric, True
+        else:
+            metric = assessment.target_metric
         window = assessment.metrics[metric]
         current = window.value
         if current is None or current <= 0 or window.band_pct is None:
@@ -971,6 +1089,8 @@ def _plan_d29(
             discount_cap_set=discount_cap_set,
             funnel=funnel,
             config=config,
+            levers=page_levers.get(pid, NO_LEVERS) if quota_mode else NO_LEVERS,
+            bmsm_running=quota_mode and pid in active_bmsm,
         )
         if status is None:
             skips.append(Skip(pid, funnel.title, f"d29:{SKIP_NO_LEVER}"))
@@ -981,7 +1101,7 @@ def _plan_d29(
         )
         quality = quality_score(facts, evidence)
         gaps = compute_gaps(funnel, medians, config)
-        reason = d29_reason(assessment, metric)
+        reason = "" if below else d29_reason(assessment, metric)
         rows = daily.get(pid, [])
         for angle in angles:
             lever = LEVER_CODES[angle]
@@ -1001,6 +1121,18 @@ def _plan_d29(
                 benchmark=(benchmarks.get(pid) or {}).get(metric),
             )
             current = basis.window.value or 0.0
+            card_reason = reason
+            kpi_tunables = tunables
+            if below:
+                # S28B: only when the metric is clearly below the shop's level on
+                # the lever's own channel; the KPI is the minimum clamp alone.
+                channel_median = _median_of(basis.medians, metric)
+                if not _clearly_below(current, basis.window.band_pct, channel_median):
+                    continue
+                card_reason = below_shop_reason(
+                    metric, basis.channel, current, channel_median or 0.0
+                )
+                kpi_tunables = replace(tunables, kpi_max_band_mult=tunables.kpi_min_band_mult)
             target_gap = _target_gap(
                 metric, current, basis.medians, basis.window.earlier, basis.window.low_data
             )
@@ -1025,7 +1157,7 @@ def _plan_d29(
                 band_pct=basis.window.band_pct or 0.0,
                 reference=basis.reference,
                 window_days=basis.window.window_days,
-                tunables=tunables,
+                tunables=kpi_tunables,
                 volatile=basis.volatile,
                 low_data=basis.window.low_data,
                 predicted=prediction.metric_range(current),
@@ -1040,7 +1172,8 @@ def _plan_d29(
                 recoverable
                 * Decimal(str(prediction.factor))
                 * penalty
-                * Decimal(str(lever_weight(quality, lever)))
+                # D33 quota mode: price levers rank like listing levers.
+                * Decimal(str(1.0 if quota_mode else lever_weight(quality, lever)))
             )
             diag = Diagnosis(
                 product_id=pid,
@@ -1056,7 +1189,7 @@ def _plan_d29(
                 channel_scope=funnel.channel_scope,
                 bmsm=bmsm,
             )
-            proposal = _rule_proposal(diag, reason, config)
+            proposal = _rule_proposal(diag, card_reason, config)
             if status != STATUS_CODE_RULE:
                 proposal = replace(
                     proposal,
@@ -1088,7 +1221,8 @@ def _plan_d29(
                     assessment=assessment,
                     target_metric=metric,
                     kpi=kpi,
-                    kpi_confidence=basis.confidence,
+                    kpi_confidence=CONFIDENCE_LOW if below else basis.confidence,
+                    reason_code=REASON_BELOW_SHOP_LEVEL if below else None,
                     quality=quality,
                     prediction=prediction,
                     gmv_estimate=(low, high),
@@ -1100,6 +1234,8 @@ def _plan_d29(
         level = p.assessment.stability if p.assessment is not None else "unknown"
         value = p.ranking_gmv_per_day
         return (
+            # D33: S28B cards after every GMV-drop card (always False when off).
+            p.reason_code is not None,
             STABILITY_ORDER.get(level, 9),
             value is None,
             -(value or Decimal(0)),
@@ -1120,7 +1256,11 @@ def _plan_d29(
             continue
         seen.add(key)
         unique.append(proposal)
-    kept = keep_top_per_type(unique, top_k)
+    if quota_mode:
+        per_cell = tunables.card_quota_per_cell * QUOTA_CANDIDATES_PER_CELL_MULT
+        kept = keep_top_per_cell(unique, max(per_cell, 1))
+    else:
+        kept = keep_top_per_type(unique, top_k)
     per_product: dict[str, int] = {}
     for proposal in kept:
         per_product[proposal.product_id] = per_product.get(proposal.product_id, 0) + 1

@@ -1,4 +1,4 @@
-import type { DiagKey, OverrideKey, ShopSettings } from "./types";
+import type { DiagKey, OverrideKey, QuotaKey, ShopSettings } from "./types";
 
 /**
  * D27.5: a settings change as "before → after" rows (artboard OpsConfirm.dc.html),
@@ -43,7 +43,13 @@ export const SETTING_KEYS: readonly OverrideKey[] = [
   "kpi_max_band_mult",
   "guard_band_mult",
   "volatile_cv",
+  "card_quota_mode",
+  "card_quota_per_cell",
+  "card_quota_max_open",
 ];
+
+/** P28 (D33): the "Nhiều thẻ mỗi ô" keys, in row order. */
+export const QUOTA_KEYS: readonly QuotaKey[] = ["card_quota_mode", "card_quota_per_cell", "card_quota_max_open"];
 
 /** P23 (D29.11): the "Chẩn đoán & KPI" keys, in row order. */
 export const DIAG_KEYS: readonly DiagKey[] = [
@@ -72,6 +78,9 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   kpi_max_band_mult: "KPI tối đa",
   guard_band_mult: "Ngưỡng giữ ổn định",
   volatile_cv: "Ngưỡng lưu lượng ổn định",
+  card_quota_mode: "Nhiều thẻ mỗi ô",
+  card_quota_per_cell: "Thẻ mở mỗi ô",
+  card_quota_max_open: "Thẻ mở tối đa (nhiều thẻ)",
 };
 
 const MULT_KEYS = new Set(["kpi_min_band_mult", "kpi_max_band_mult", "guard_band_mult"]);
@@ -105,6 +114,8 @@ export function fmtSetting(key: string, value: unknown): string {
   if (MULT_KEYS.has(key)) return `×${comma(Number(value))} dao động`;
   if (key === "volatile_cv") return `CV > ${comma(Math.round(Number(value) * 1000) / 10)} %`;
   if (key === "diag_min_events") return `${String(value)} lượt nhấp/đơn`;
+  if (key === "card_quota_per_cell") return `${String(value)} thẻ/ô`;
+  if (key === "card_quota_max_open") return `${String(value)} thẻ mở`;
   if (typeof value === "boolean") return value ? "Bật" : "Tắt";
   if (Array.isArray(value)) {
     const names = LIST_NAMES[key] ?? {};
