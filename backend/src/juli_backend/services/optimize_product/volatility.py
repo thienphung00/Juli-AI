@@ -8,7 +8,8 @@ gap against the shop median is mostly noise. D29 replaces "gap ≥ 20 %" with:
    none → "ít dữ liệu" and that metric is not diagnosed. Hiển thị never is low-data.
 2. **GMV first (29.2).** A product is a candidate only when its GMV/day over its
    window fell versus its earlier stable level (the same-length window just before)
-   by more than its own window-mean GMV band. Then
+   by more than its own window-mean GMV band (of the difference of the two means:
+   both windows' bands combined). Then
    ``ln(GMV now / GMV before) = Σ ln(metric now / metric before)`` over Hiển thị/day,
    CTR, CTOR and AOV; the metric with the most negative term (not low-data) is the
    TARGET metric.
@@ -150,6 +151,11 @@ def window_counts(
         gmv=sum(d[3] for d in daily),
         daily=tuple(daily),
     )
+
+
+def _half_width(values: Iterable[float]) -> float:
+    band = mean_band(values)
+    return 0.0 if band is None else band.p90 - band.mean
 
 
 def window_band_pct(values: Iterable[float]) -> float | None:
@@ -442,8 +448,10 @@ def assess_product(
     if before.days_with_data * 2 < window or before.value("gmv") is None:
         return Assessment(status=STATUS_NO_REFERENCE, **base)
     gmv_now, gmv_before = now.value("gmv") or 0.0, before.value("gmv") or 0.0
-    band = mean_band(now.daily_values("gmv"))
-    half = (band.p90 - band.mean) if band is not None else 0.0
+    # The fall is a difference of two window means, so its band combines both
+    # windows' window-mean bands (√(a² + b²)); one window's band alone would call
+    # ~1 in 5 flat products "fallen" on noise.
+    half = math.hypot(_half_width(now.daily_values("gmv")), _half_width(before.daily_values("gmv")))
     half = max(half, gmv_now * MIN_BAND_PCT / 100)
     base.update(gmv_current=gmv_now, gmv_earlier=gmv_before, gmv_band_abs=half)
     if gmv_before - gmv_now <= half:
