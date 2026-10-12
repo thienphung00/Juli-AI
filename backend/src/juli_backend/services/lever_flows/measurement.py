@@ -536,6 +536,57 @@ def daily_metric_series(
     return out
 
 
+#: Aliases the seller rules payload also carries (the card's metric names).
+_BAND_ALIASES: Mapping[str, str] = {"conversion_rate": "ctor", "gmv_per_order": "aov"}
+
+
+async def shop_band_defaults(
+    session: AsyncSession, shop_id: uuid.UUID, *, days: int = 14
+) -> dict[str, float]:
+    """D29.9 for the seller's "Ngưỡng giữ ổn định": metric -> default ± % band.
+
+    The shop's products summed per day over the last ``days`` stored days, each
+    metric's window-mean band × ``guard_band_mult``. Keyed by the band metrics
+    (``impressions``, ``ctr``, ``conversion_rate``, ...) plus the card metric
+    aliases ``ctor`` and ``aov``. A card's own measurement computes the same
+    band on its product (``measure_run``); this is the shop-wide default shown
+    before any card exists.
+    """
+    last = (
+        await session.execute(
+            select(func.max(AnalyticsPerformanceInterval.start_date)).where(
+                AnalyticsPerformanceInterval.shop_id == shop_id,
+                AnalyticsPerformanceInterval.grain == _DAILY_PRODUCT_GRAIN,
+            )
+        )
+    ).scalar_one_or_none()
+    if last is None:
+        return {}
+    last_day = last.date() if isinstance(last, datetime) else last
+    first = last_day - timedelta(days=days - 1)
+    rows = (
+        await session.execute(
+            select(AnalyticsPerformanceInterval).where(
+                AnalyticsPerformanceInterval.shop_id == shop_id,
+                AnalyticsPerformanceInterval.grain == _DAILY_PRODUCT_GRAIN,
+                AnalyticsPerformanceInterval.hour_index.is_(None),
+                AnalyticsPerformanceInterval.start_date >= first,
+                AnalyticsPerformanceInterval.start_date <= last_day,
+            )
+        )
+    ).scalars()
+    tunables = await diag_tunables(session, shop_id)
+    bands = default_bands(
+        daily_metric_series(list(rows), first, last_day),
+        guard_band_mult=tunables.guard_band_mult,
+    )
+    out = {metric: float(band) for metric, band in bands.items()}
+    for metric, alias in _BAND_ALIASES.items():
+        if metric in out:
+            out[alias] = out[metric]
+    return out
+
+
 def _moved_bands(before: Decimal | None, after: Decimal | None, band_pct: Decimal | None) -> bool:
     """The window mean moved up by more than ``band_pct`` % of the before value."""
     if before is None or after is None or band_pct is None or before <= 0:
@@ -985,6 +1036,7 @@ __all__ = [
     "current_calibration",
     "fleet_calibration_stats",
     "shop_calibration_stats",
+    "shop_band_defaults",
     "shop_calibrations",
     "final_label",
     "format_value",

@@ -17,6 +17,16 @@ from juli_backend.repositories._base import utc_now_naive
 from juli_backend.services.ops import audit
 from juli_backend.services.ops import overrides as ov
 from juli_backend.services.ops.access import ops_role
+from juli_backend.services.optimize_product.tunables import (
+    TUNABLE_KEYS,
+    DiagTunables,
+    TunableError,
+    validate_tunable,
+)
+from juli_backend.services.shop_rules.diag_tunables import (
+    set_tunable_overrides,
+    tunable_overrides,
+)
 from juli_backend.services.shop_rules.openai_cap import (
     CapValidationError,
     OpenAICap,
@@ -38,10 +48,18 @@ OVERRIDE_FIELDS: tuple[str, ...] = (
     "promotion_api_enabled",
     "openai_model",
     "openai_monthly_cap_usd",
+    # D29.11 (P23): the diagnosis / KPI tunables, Admin-only.
+    *TUNABLE_KEYS,
 )
 #: Stored on ``ops_shop_settings``; the cap lives in ``shop_rules`` (shared with P15).
 CAP_FIELD = "openai_monthly_cap_usd"
-ROW_FIELDS: tuple[str, ...] = tuple(f for f in OVERRIDE_FIELDS if f != CAP_FIELD)
+#: D29.11: stored in one team ``shop_rules`` row (``shop_rules.diag_tunables``), no
+#: migration; only an Admin may change them (``ADMIN_ONLY_FIELDS``).
+TUNABLE_FIELDS: tuple[str, ...] = TUNABLE_KEYS
+ADMIN_ONLY_FIELDS: frozenset[str] = frozenset(TUNABLE_KEYS)
+ROW_FIELDS: tuple[str, ...] = tuple(
+    f for f in OVERRIDE_FIELDS if f != CAP_FIELD and f not in TUNABLE_FIELDS
+)
 #: Other settable fields (not "overrides": they have no default to return to).
 OTHER_FIELDS: tuple[str, ...] = ("stage",)
 LIMIT_RANGE = (1, 100)
@@ -89,6 +107,7 @@ def defaults() -> dict[str, Any]:
         "promotion_api_enabled": False,
         "openai_model": ov.DEFAULT_OPENAI_MODEL,
         "openai_monthly_cap_usd": float(default_cap_usd()),
+        **DiagTunables().to_json(),
     }
 
 
@@ -101,9 +120,16 @@ def _value(row: OpsShopSettings | None, name: str) -> Any:
     return value
 
 
-def _view(shop_id: uuid.UUID, row: OpsShopSettings | None, cap: OpenAICap) -> ShopSettingsView:
+def _view(
+    shop_id: uuid.UUID,
+    row: OpsShopSettings | None,
+    cap: OpenAICap,
+    tunables: dict[str, Any] | None = None,
+) -> ShopSettingsView:
     overrides = {name: _value(row, name) for name in ROW_FIELDS}
     overrides[CAP_FIELD] = None if cap.is_default else float(cap.usd)
+    for name in TUNABLE_FIELDS:
+        overrides[name] = (tunables or {}).get(name)
     return ShopSettingsView(
         shop_id=shop_id,
         stage=row.stage if row is not None else "trial",
@@ -113,11 +139,15 @@ def _view(shop_id: uuid.UUID, row: OpsShopSettings | None, cap: OpenAICap) -> Sh
     )
 
 
-def snapshot(row: OpsShopSettings | None, cap: OpenAICap) -> dict[str, Any]:
+def snapshot(
+    row: OpsShopSettings | None, cap: OpenAICap, tunables: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Every settable key's stored value (``None`` = Mặc định); the audit diffs two."""
     data = {name: _value(row, name) for name in ROW_FIELDS}
     data["stage"] = row.stage if row is not None else "trial"
     data[CAP_FIELD] = None if cap.is_default else float(cap.usd)
+    for name in TUNABLE_FIELDS:
+        data[name] = (tunables or {}).get(name)
     return data
 
 
@@ -126,6 +156,15 @@ async def _cap(
 ) -> OpenAICap:
     async with with_shop_scope(session, shop_id, restore_role=restore_role):
         return await openai_monthly_cap_usd(session, shop_id)
+
+
+async def _cap_and_tunables(
+    session: AsyncSession, shop_id: uuid.UUID, *, restore_role: str | None = None
+) -> tuple[OpenAICap, dict[str, Any]]:
+    """Both ``shop_rules`` reads under one shop scope."""
+    async with with_shop_scope(session, shop_id, restore_role=restore_role):
+        cap = await openai_monthly_cap_usd(session, shop_id)
+        return cap, await tunable_overrides(session, shop_id)
 
 
 async def get_settings(session: AsyncSession, shop_id: uuid.UUID) -> ShopSettingsView:
@@ -151,12 +190,18 @@ async def view_of(
     ops block it already holds and pay for one role switch, not two;
     ``restore_role`` is that block's handed-over restore (``OpsRoleBlock``).
     """
-    return view_from(shop_id, row, await _cap(session, shop_id, restore_role=restore_role))
+    cap, tunables = await _cap_and_tunables(session, shop_id, restore_role=restore_role)
+    return view_from(shop_id, row, cap, tunables)
 
 
-def view_from(shop_id: uuid.UUID, row: OpsShopSettings | None, cap: OpenAICap) -> ShopSettingsView:
-    """The settings view from a row and a cap the caller already read."""
-    return _view(shop_id, row, cap)
+def view_from(
+    shop_id: uuid.UUID,
+    row: OpsShopSettings | None,
+    cap: OpenAICap,
+    tunables: dict[str, Any] | None = None,
+) -> ShopSettingsView:
+    """The settings view from a row and a cap (and D29 tunables) the caller already read."""
+    return _view(shop_id, row, cap, tunables)
 
 
 def _limit(name: str, value: Any) -> int | None:
@@ -204,6 +249,13 @@ def _validated(name: str, value: Any) -> Any:
                 f"openai_model must be one of {', '.join(ov.allowed_openai_models())}"
             )
         return value
+    if name in TUNABLE_FIELDS:
+        if value is None:
+            return None
+        try:
+            return validate_tunable(name, value)
+        except TunableError as exc:
+            raise SettingsError(str(exc)) from None
     if name == CAP_FIELD:
         if value is None:
             return None
@@ -234,8 +286,17 @@ async def update_settings(
     if "stage" in changes and stage not in STAGES:
         raise SettingsError(f"stage must be one of {', '.join(STAGES)}")
     moment = now or utc_now_naive()
-    cap_before = await _cap(session, shop_id)
-    cap_after = cap_before
+    cap_before, tunables_before = await _cap_and_tunables(session, shop_id)
+    cap_after, tunables_after = cap_before, tunables_before
+    tunable_changes = {k: v for k, v in clean.items() if k in TUNABLE_FIELDS}
+    if tunable_changes:
+        merged = {**tunables_before, **{k: v for k, v in tunable_changes.items()}}
+        low = merged.get("kpi_min_band_mult", DiagTunables().kpi_min_band_mult)
+        high = merged.get("kpi_max_band_mult", DiagTunables().kpi_max_band_mult)
+        if high is not None and low is not None and high < low:
+            raise SettingsError("kpi_max_band_mult must be ≥ kpi_min_band_mult")
+        async with with_shop_scope(session, shop_id):
+            tunables_after = await set_tunable_overrides(session, shop_id, tunable_changes)
     if CAP_FIELD in clean:
         async with with_shop_scope(session, shop_id):
             if clean[CAP_FIELD] is None:
@@ -245,10 +306,10 @@ async def update_settings(
                     session, shop_id, clean[CAP_FIELD], set_by_user_id=None
                 )
             cap_after = await openai_monthly_cap_usd(session, shop_id)
-    row_changes = {k: v for k, v in clean.items() if k != CAP_FIELD}
+    row_changes = {k: v for k, v in clean.items() if k != CAP_FIELD and k not in TUNABLE_FIELDS}
     async with ops_role(session):
         row = await session.get(OpsShopSettings, shop_id)
-        before = snapshot(row, cap_before)
+        before = snapshot(row, cap_before, tunables_before)
         if row is None and (row_changes or isinstance(stage, str)):
             row = OpsShopSettings(shop_id=shop_id, stage="trial")
             session.add(row)
@@ -258,7 +319,7 @@ async def update_settings(
             if isinstance(stage, str):
                 row.stage = stage
             row.updated_at = moment
-        after = snapshot(row, cap_after)
+        after = snapshot(row, cap_after, tunables_after)
     changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
     if changed:
         # D27.5/27.6: one save = one row listing every changed key; a save of a
@@ -272,20 +333,29 @@ async def update_settings(
             after={k: after.get(k) for k in changed},
             field=changed[0] if len(changed) == 1 else None,
         )
-    return _view(shop_id, row, cap_after)
+    return _view(shop_id, row, cap_after, tunables_after)
 
 
 async def reset_overrides(
-    session: AsyncSession, actor: audit.Actor, shop_id: uuid.UUID
+    session: AsyncSession,
+    actor: audit.Actor,
+    shop_id: uuid.UUID,
+    *,
+    include_admin_fields: bool = True,
 ) -> ShopSettingsView:
     """ "Về mặc định": every override back to NULL (stage kept). Audited.
 
-    The OpenAI cap goes back to its default ($5/month) too.
+    The OpenAI cap goes back to its default ($5/month) too. The D29 tunables
+    (Admin-only) are reset only when ``include_admin_fields``.
     """
     return await update_settings(
         session,
         actor,
         shop_id,
-        {name: None for name in OVERRIDE_FIELDS},
+        {
+            name: None
+            for name in OVERRIDE_FIELDS
+            if include_admin_fields or name not in ADMIN_ONLY_FIELDS
+        },
         action="settings_reset",
     )

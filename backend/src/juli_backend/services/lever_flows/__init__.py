@@ -41,6 +41,7 @@ from juli_backend.services.lever_flows.measurement import (
     NotMeasurable,
     final_label,
     measure_run,
+    shop_band_defaults,
 )
 from juli_backend.services.lever_flows.photo_checks import (
     MAX_PHOTO_BYTES,
@@ -127,6 +128,7 @@ __all__ = [
     "instructions",
     "is_promotion_lever",
     "measure_run",
+    "shop_band_defaults",
     "parse_multipart_file",
     "photo_by_token",
     "photo_url",
