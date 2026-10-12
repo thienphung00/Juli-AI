@@ -323,3 +323,37 @@ class TestWebhookDocsContract:
         assert "Webhook vs polling" in text
         assert "authoritative reconciliation" in text
         assert "polling remains the backstop" in text.lower() or "backstop" in text
+
+
+class TestLegacyReverseStatusUpdate:
+    """Type 2 (REVERSE_STATUS_UPDATE) is legacy v1; 11 + 12 replace it (apiwatch 2026-10-12)."""
+
+    def test_type_2_still_routes_for_shops_still_subscribed(self):
+        entry = resolve_catalog_entry("2")
+        assert entry is not None and entry.handler_name == "reverse_status_update"
+        assert resolve_catalog_entry("REVERSE_STATUS_UPDATE") is entry
+
+    def test_replacements_cover_type_2_workflows_and_fetches(self):
+        from juli_backend.services.cdp_speed.targeted_fetch_planner import (
+            _MATERIAL_FETCH_MATRIX,
+        )
+        from juli_backend.services.tiktok.webhook_catalog import (
+            LEGACY_SUPERSEDED_BY,
+            MATERIAL_CATALOG_IDS,
+            PHASE2_CATALOG,
+        )
+
+        for legacy, replacements in LEGACY_SUPERSEDED_BY.items():
+            assert set(replacements) <= set(PHASE2_CATALOG)
+            assert set(replacements) <= MATERIAL_CATALOG_IDS
+            covered_workflows = {
+                key for r in replacements for key in PHASE2_CATALOG[r].workflow_keys
+            }
+            assert set(PHASE2_CATALOG[legacy].workflow_keys) <= covered_workflows
+            covered_fetch = {name for r in replacements for name in _MATERIAL_FETCH_MATRIX[r]}
+            assert set(_MATERIAL_FETCH_MATRIX[legacy]) <= covered_fetch
+
+    def test_replacement_types_are_confirmed(self):
+        assert resolve_catalog_entry("11").confirmed
+        assert resolve_catalog_entry("12").confirmed
+        assert "prevent_refund_8c" in resolve_catalog_entry("RETURN_STATUS_CHANGE").workflow_keys

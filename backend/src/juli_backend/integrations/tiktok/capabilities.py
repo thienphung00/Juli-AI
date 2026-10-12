@@ -13,6 +13,7 @@ from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_SHOP_PERFORMANCE_PATH,
     ANALYTICS_SHOP_PRODUCTS_PERFORMANCE_PATH,
     ANALYTICS_SHOP_SKUS_PERFORMANCE_PATH,
+    ANALYTICS_SHOP_VIDEOS_BATCH_PERFORMANCE_PATH,
     ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH,
     AUTHORIZED_SHOPS_PATH,
     CANCELLATION_SEARCH_PATH,
@@ -92,6 +93,9 @@ PRODUCTION_READ_GET_EXACT: frozenset[str] = frozenset(
         ANALYTICS_LIVE_OVERVIEW_PERFORMANCE_PATH,  # A-29 overview for backfill (#468)
         # Shop video list (carries each video's products), report enrichment.
         ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH,
+        # Get Shop Videos Performance Details 202609 (batch, GET, analytics only):
+        # replaces the per-video details pattern below (changelog 2026-09-28).
+        ANALYTICS_SHOP_VIDEOS_BATCH_PERFORMANCE_PATH,
     }
 )
 
@@ -121,8 +125,9 @@ PRODUCTION_READ_GET_PATTERNS: tuple[re.Pattern[str], ...] = (
     # Shop video / LIVE product performance (GET, analytics only): one video's
     # or one LIVE session's per-product numbers for the optimization report.
     re.compile(r"^/analytics/\d+/shop_videos/[^/]+/products/performance$"),
-    # Shop video performance details (GET, analytics only): one video's daily
+    # Shop video performance details 202509 (GET, analytics only): one video's daily
     # product impressions / clicks / GMV for the 30-vs-30 video ranking (P8-B).
+    # Retiring by 2026-12-28; only the batch adapter's scope fallback calls it.
     re.compile(r"^/analytics/\d+/shop_videos/[^/]+/performance$"),
     re.compile(r"^/analytics/\d+/shop/[^/]+/products_performance$"),
     # A-25 Get Promotion Activity (production-read)

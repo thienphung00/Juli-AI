@@ -127,3 +127,52 @@ thêm field hoặc nâng version, cập nhật file đó; test
 snapshot tài liệu. Client Shopee / Juli Connector dùng cùng helper khi được viết.
 
 Tìm log: `journalctl -u <service> | grep api_schema_drift` trên VPS (log JSON ra stdout).
+
+## 7. Đã xử lý
+
+### 2026-10-12 — Get Shop Video Performance Details bị thay (changelog Analytics 2026-09-28)
+
+- **Nguồn:** changelog `docv2/page/6az7iwe9` ("Analytics API Changelog: Enhanced Shop,
+  Video, and LIVE Analytics"). API cũ `GET /analytics/202509/shop_videos/{video_id}/performance`
+  bị retire **chậm nhất 2026-12-28**; thay bằng **Get Shop Videos Performance Details
+  202609** `GET /analytics/202609/shop_videos/batch_performance` (`video_ids` dạng
+  `[]int`, tối đa 500; cửa sổ ngày ≤ 60 ngày).
+- **Field:** `data.performance` → `data.videos[].performance` (intervals, `sales.overall`,
+  `traffic`, `viewer_profile` giữ tên); `latest_available_date` giữ ở gốc; thêm
+  `videos[].video_id`, `video{…}`, `error{code,message}` (lỗi riêng từng video).
+  `sales.breakdowns[]` bị bỏ (chuyển sang Get Shop Video Product Performance List) — Juli
+  không đọc field này.
+- **Scope:** không đổi — cả hai đều `data.shop_analytics.public.read` (gói "TikTok Shop
+  Analytics"). Không cần xin scope mới.
+- **Juli:** chỉ một chỗ gọi — `services/shop_diagnosis_daily/video_windows.py` (xếp hạng
+  video 30/30, P8-B) qua `AnalyticsResource.get_video_performance`. Hàm này giờ gọi API
+  batch (một id mỗi lần) và trả lại đúng shape 202509. Nếu API mới bị từ chối vì
+  scope/quyền (`PermissionDeniedError`, mã `105005`, HTTP 403/404) thì dùng API cũ tới hết
+  2026-12-28 và ghi log `tiktok_endpoint_fallback` **một lần mỗi process**. Thấy log này
+  trên production → kiểm tra scope/app trong Partner Center trước 2026-12-28.
+- Drift: `schema_expectations.py` có mục "shop videos performance details". apiwatch tự
+  đọc path mới từ `constants.py`; path cũ vẫn được theo dõi tới khi gỡ fallback.
+- **Cần kiểm tra live (owner):** cách mã hoá `video_ids` (Juli gửi `[id]` như request mẫu
+  trong doc). Nếu TikTok trả `invalid request params`, sửa `get_videos_performance`.
+- Sau 2026-12-28: xoá `get_video_performance_legacy`, pattern 202509 trong
+  `capabilities.py` và hằng số `ANALYTICS_VIDEO_DETAILS_LEGACY_*`.
+
+### 2026-10-12 — Webhook 2 (`REVERSE_STATUS_UPDATE`) không còn trong tài liệu
+
+- Cây docv2 (workspace 3) không có trang type 2. Trang duy nhất là bản **docv1** "Reverse
+  Status Update" (`/doc/page/63fd7459715d622a338c5437`, keyword `v1_deprecated`, sửa lần
+  cuối 2024-01-29). Changelog "Introducing API version 202309" (2023-09-19) giới thiệu
+  **11 Cancellation status change** và **12 Return status change** thay cho luồng này.
+  Không có changelog nào ghi ngày retire riêng cho type 2.
+- `REVERSE_STATUS_UPDATE` **vẫn** nằm trong enum `event_type` của Update/Get Shop Webhook
+  202309 và bảng Overview (sửa 2026-07-06), nhưng link của nó trỏ về trang docv1 → coi là
+  legacy, có thể vẫn được gửi cho shop đã đăng ký.
+- **Juli:** giữ mục 2 trong catalog (vẫn route, vẫn ack 200 và lưu raw như mọi type).
+  11 thành *material* (fetch `orders`, `analytics_shop`); 12 thêm workflow `prevent_refund_8c`
+  (refund-only giờ đến qua 12, `return_type = REFUND`) và fetch `orders`. 11 + 12 phủ đủ
+  những gì type 2 từng kích hoạt (`LEGACY_SUPERSEDED_BY`, test trong
+  `tests/unit/test_webhook_catalog.py`).
+- **Owner, Partner Center:** đăng ký **11** (`CANCELLATION_STATUS_CHANGE`) và **12**
+  (`RETURN_STATUS_CHANGE`) nếu chưa có; giữ **2** tới khi thấy 11/12 về production, rồi
+  huỷ **2**. Các type hậu mãi mới **64** (Aftersales Request Status Update), **65** (RMA),
+  **67** (Refund Success) đã có trong catalog, đăng ký tuỳ nhu cầu.

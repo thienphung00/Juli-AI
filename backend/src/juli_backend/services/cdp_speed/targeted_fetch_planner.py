@@ -99,9 +99,12 @@ _STATIC_RESOURCES: dict[str, FetchResource] = {
 # Material catalog id → named resource keys (see MODULE.md for rationale).
 _MATERIAL_FETCH_MATRIX: dict[int, tuple[str, ...]] = {
     1: ("orders", "analytics_shop"),
+    # 2 is legacy (REVERSE_STATUS_UPDATE); 11 + 12 replace it and together keep
+    # its returns + orders + shop-analytics refresh.
     2: ("returns", "orders", "analytics_shop"),
     5: ("products", "analytics_shop", "ctor"),
-    12: ("returns", "analytics_shop"),
+    11: ("orders", "analytics_shop"),
+    12: ("returns", "orders", "analytics_shop"),
     27: ("inventory", "products", "analytics_shop"),
     39: ("promotion_activity", "analytics_shop"),
     67: ("returns", "orders", "analytics_shop"),

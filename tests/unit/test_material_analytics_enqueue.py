@@ -35,7 +35,6 @@ from juli_backend.services.webhook.material_handoff import make_material_etl_han
 NON_MATERIAL_TYPES = (
     "RECIPIENT_ADDRESS_UPDATE",  # 3
     "PACKAGE_UPDATE",  # 4
-    "CANCELLATION_STATUS_CHANGE",  # 11
     "INBOUND_FBT_ORDER_STATUS_CHANGE",  # 21
     "FBT_INVENTORY_UPDATE",  # 24
     "PRODUCT_AUDIT_STATUS_CHANGE",  # 37
@@ -48,6 +47,7 @@ MATERIAL_TYPES = (
     "ORDER_STATUS_CHANGE",  # 1
     "REVERSE_STATUS_UPDATE",  # 2
     "PRODUCT_STATUS_CHANGE",  # 5
+    "CANCELLATION_STATUS_CHANGE",  # 11 (replaces legacy 2 with 12)
     "RETURN_STATUS_CHANGE",  # 12
     "INVENTORY_STATUS_CHANGE",  # 27
     "ACTIVITY_STATUS_CHANGE",  # 39
@@ -90,7 +90,7 @@ def _event_payload(event_type: str, shop_id: str = "tiktok_shop_532") -> bytes:
 
 class TestMaterialCatalogClassification:
     def test_material_catalog_ids_match_issue_scope(self):
-        assert MATERIAL_CATALOG_IDS == frozenset({1, 2, 5, 12, 27, 39, 67, 68})
+        assert MATERIAL_CATALOG_IDS == frozenset({1, 2, 5, 11, 12, 27, 39, 67, 68})
 
     @pytest.mark.parametrize("event_type", MATERIAL_TYPES)
     def test_material_event_types_classified(self, event_type: str):
