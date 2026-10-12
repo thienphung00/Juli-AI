@@ -8,11 +8,13 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import decision_emission_config
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ops import STAGE_LABELS, STAGES, OpsShopSettings
+from juli_backend.models.run_changes import ShopRule
 from juli_backend.repositories._base import utc_now_naive
 from juli_backend.services.ops import audit
 from juli_backend.services.ops import overrides as ov
@@ -24,12 +26,15 @@ from juli_backend.services.optimize_product.tunables import (
     validate_tunable,
 )
 from juli_backend.services.shop_rules.diag_tunables import (
+    DIAG_TUNABLES,
+    overrides_from_row,
     set_tunable_overrides,
-    tunable_overrides,
 )
 from juli_backend.services.shop_rules.openai_cap import (
+    OPENAI_MONTHLY_CAP_USD,
     CapValidationError,
     OpenAICap,
+    cap_from_row,
     clear_openai_monthly_cap,
     default_cap_usd,
     openai_monthly_cap_usd,
@@ -161,10 +166,21 @@ async def _cap(
 async def _cap_and_tunables(
     session: AsyncSession, shop_id: uuid.UUID, *, restore_role: str | None = None
 ) -> tuple[OpenAICap, dict[str, Any]]:
-    """Both ``shop_rules`` reads under one shop scope."""
+    """Both team ``shop_rules`` rows in ONE statement, under one shop scope."""
     async with with_shop_scope(session, shop_id, restore_role=restore_role):
-        cap = await openai_monthly_cap_usd(session, shop_id)
-        return cap, await tunable_overrides(session, shop_id)
+        rows = (
+            await session.execute(
+                select(ShopRule).where(
+                    ShopRule.shop_id == shop_id,
+                    ShopRule.rule_key.in_((OPENAI_MONTHLY_CAP_USD, DIAG_TUNABLES)),
+                    ShopRule.scope_ref == "",
+                )
+            )
+        ).scalars()
+        by_key = {row.rule_key: row for row in rows}
+        return cap_from_row(by_key.get(OPENAI_MONTHLY_CAP_USD)), overrides_from_row(
+            by_key.get(DIAG_TUNABLES)
+        )
 
 
 async def get_settings(session: AsyncSession, shop_id: uuid.UUID) -> ShopSettingsView:

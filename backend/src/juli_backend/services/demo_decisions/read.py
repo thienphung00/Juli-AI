@@ -52,6 +52,14 @@ _RECOMMENDATION_ALLOWLIST: tuple[str, ...] = (
     "sibling_cards",
 )
 
+_P23_CARD_FIELDS: tuple[str, ...] = (
+    "target_metric",
+    "confidence",
+    "kpi",
+    "gmv_estimate",
+    "sibling_cards",
+)
+
 _EXPECTED_IMPACT_ALLOWLIST: tuple[str, ...] = ("metric", "value", "confidence")
 
 _REASONING_ALLOWLIST: tuple[str, ...] = (
@@ -203,6 +211,11 @@ def mask_decision_payload(
 
         card_block = build_content_card_block(card, raw_payload, card_context)
     if card_block is not None:
+        # P23 (D29): the card UI reads the target metric, confidence, KPI band,
+        # GMV range and sibling count from the card block.
+        for key in _P23_CARD_FIELDS:
+            if key in recommendation:
+                card_block[key] = recommendation[key]
         recommendation["card"] = card_block
 
     return {

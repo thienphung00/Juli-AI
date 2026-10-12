@@ -88,7 +88,11 @@ async def _row(session: AsyncSession, shop_id: uuid.UUID) -> ShopRule | None:
 
 async def openai_monthly_cap_usd(session: AsyncSession, shop_id: uuid.UUID) -> OpenAICap:
     """The shop's cap (its row, else the default). Caller holds the shop's scope."""
-    row = await _row(session, shop_id)
+    return cap_from_row(await _row(session, shop_id))
+
+
+def cap_from_row(row: ShopRule | None) -> OpenAICap:
+    """The cap a stored row holds (``None`` or an invalid value: the default)."""
     if row is not None:
         try:
             return OpenAICap(usd=validate_cap(row.value), is_default=False, set_at=row.set_at)

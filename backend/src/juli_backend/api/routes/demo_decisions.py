@@ -287,6 +287,12 @@ class DemoDecisionCard(BaseModel):
     content: DemoDecisionCardContent | None = None
     #: P17 (D26): a quick-scan card ("Đề xuất nhanh · dựa trên 14 ngày", "Tham khảo").
     quick_scan: DemoDecisionQuickScan | None = None
+    #: P23 (D29): mirrored from the recommendation for the card UI.
+    target_metric: str | None = None
+    confidence: str | None = None
+    kpi: DemoDecisionKpi | None = None
+    gmv_estimate: DemoDecisionGmvEstimate | None = None
+    sibling_cards: int | None = None
 
 
 class DemoDecisionKpi(BaseModel):

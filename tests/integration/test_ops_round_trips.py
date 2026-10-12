@@ -146,8 +146,9 @@ BOUNDS: dict[str, int] = {
     "view_decisions": 12,
     "view_runs": 13,
     "view_analysis": 11,
-    "view_rules": 11,
-    "rules": 11,
+    # P23 (D29.9): +1 for the seller's default bands (one fused statement).
+    "view_rules": 12,
+    "rules": 12,
 }
 
 

@@ -46,7 +46,11 @@ async def _row(session: AsyncSession, shop_id: uuid.UUID) -> ShopRule | None:
 
 async def tunable_overrides(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:
     """The stored overrides (only the valid ones); ``{}`` when none. Caller holds the scope."""
-    row = await _row(session, shop_id)
+    return overrides_from_row(await _row(session, shop_id))
+
+
+def overrides_from_row(row: ShopRule | None) -> dict[str, Any]:
+    """The valid overrides a stored row holds; ``{}`` when none."""
     if row is None or not isinstance(row.value, dict):
         return {}
     out: dict[str, Any] = {}
@@ -109,4 +113,10 @@ async def set_tunable_overrides(
     return current
 
 
-__all__ = ["DIAG_TUNABLES", "diag_tunables", "set_tunable_overrides", "tunable_overrides"]
+__all__ = [
+    "DIAG_TUNABLES",
+    "diag_tunables",
+    "overrides_from_row",
+    "set_tunable_overrides",
+    "tunable_overrides",
+]

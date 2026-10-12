@@ -552,32 +552,35 @@ async def shop_band_defaults(
     band on its product (``measure_run``); this is the shop-wide default shown
     before any card exists.
     """
-    last = (
-        await session.execute(
-            select(func.max(AnalyticsPerformanceInterval.start_date)).where(
-                AnalyticsPerformanceInterval.shop_id == shop_id,
-                AnalyticsPerformanceInterval.grain == _DAILY_PRODUCT_GRAIN,
-            )
+    # One statement: the last stored day and the ``days`` before it.
+    last_day_sq = (
+        select(func.max(AnalyticsPerformanceInterval.start_date))
+        .where(
+            AnalyticsPerformanceInterval.shop_id == shop_id,
+            AnalyticsPerformanceInterval.grain == _DAILY_PRODUCT_GRAIN,
         )
-    ).scalar_one_or_none()
-    if last is None:
+        .scalar_subquery()
+    )
+    rows = list(
+        (
+            await session.execute(
+                select(AnalyticsPerformanceInterval).where(
+                    AnalyticsPerformanceInterval.shop_id == shop_id,
+                    AnalyticsPerformanceInterval.grain == _DAILY_PRODUCT_GRAIN,
+                    AnalyticsPerformanceInterval.hour_index.is_(None),
+                    AnalyticsPerformanceInterval.start_date > last_day_sq - timedelta(days=days),
+                    AnalyticsPerformanceInterval.start_date <= last_day_sq,
+                )
+            )
+        ).scalars()
+    )
+    if not rows:
         return {}
-    last_day = last.date() if isinstance(last, datetime) else last
+    last_day = max(r.start_date for r in rows)
     first = last_day - timedelta(days=days - 1)
-    rows = (
-        await session.execute(
-            select(AnalyticsPerformanceInterval).where(
-                AnalyticsPerformanceInterval.shop_id == shop_id,
-                AnalyticsPerformanceInterval.grain == _DAILY_PRODUCT_GRAIN,
-                AnalyticsPerformanceInterval.hour_index.is_(None),
-                AnalyticsPerformanceInterval.start_date >= first,
-                AnalyticsPerformanceInterval.start_date <= last_day,
-            )
-        )
-    ).scalars()
     tunables = await diag_tunables(session, shop_id)
     bands = default_bands(
-        daily_metric_series(list(rows), first, last_day),
+        daily_metric_series(rows, first, last_day),
         guard_band_mult=tunables.guard_band_mult,
     )
     out = {metric: float(band) for metric, band in bands.items()}
