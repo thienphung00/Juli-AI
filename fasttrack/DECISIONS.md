@@ -549,3 +549,44 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      the cards (ranking, "Độ tin cậy", KPI range) and, on a measured card, "bị ảnh hưởng
      bởi thay đổi khác" when an external change overlaps. Scores stay queryable in the
      database / logs for debugging.
+
+- **D31** — Shopee data, the Juli Connector extension, and change strength
+  (owner, 2026-10-12). Research: Open Platform corpus (455 APIs, push codes) in
+  `~/shopee-corpus/open-platform/`, Seller Centre internal data calls in
+  `~/shopee-corpus/seller-centre-internal/`, Shopee Uni VN (1,387 docs, SQLite FTS,
+  `query.py`) in `~/shopee-corpus/edu/`. Boards: "Shopee · 4 luồng × chỉ số",
+  "Shopee · hành động theo chỉ số", "Shopee · nguồn dữ liệu".
+  1. **Scope (S1A, S4A, S5A, S8A, S9A, S11A, S12B):** Shopee VN only; the same frame as
+     TikTok: 4 streams Thẻ sản phẩm / Video / Live / Tiếp thị liên kết, Dịch vụ Hiển thị
+     (ads, lever Q) as an overlay row; the same 4 KPIs (Hiển thị, CTR, Tỉ lệ chuyển đổi,
+     AOV → GMV), funnel steps only for diagnosis; a separate "Sức khoẻ shop" band (V, U);
+     the same lever letters A–U.
+  2. **Official API (S2, S6B, S7B):** the owner registers an Open Platform partner account
+     and applies for all five app types now (ERP, Ads Service, AMS, Video Management,
+     Livestream Management); Juli writes its own thin Python client (HMAC signing, 4 h /
+     30 d token rotation, the shared per-shop rate limiter).
+  3. **One ingest gateway (S13 → given):** every source (official API, the extension, a
+     file upload fallback, data vendors) lands through one normalized ingest contract,
+     tagged with its source and confidence; diagnosis and cards read only the normalized
+     form.
+  4. **Juli Connector, a Chrome extension (S14 → main source, S17B, S18A):** the primary
+     source for what the API lacks (per-source and per-product × source traffic,
+     funnel). It runs in the seller's own logged-in Seller Centre session with the
+     seller's consent, never stores a password, and syncs on its own once a day while the
+     browser is open, at a human-like low rate. Released Unlisted on the Chrome Web Store
+     to pilot shops first, Public later. File upload stays only as a fallback.
+  5. **Later / never (S15A, S16A):** a Juli MCP server comes after cards and measurement
+     are stable (read-only first); a server-side bot logging in as the seller is never
+     built.
+  6. **Recon (S20):** the gateway and the extension skeleton start now; a second Seller
+     Centre pass on a shop with orders (item rows, level-2 sources, Ads / Live / Video /
+     AMS / shop-health / finance pages) is pending and gates the per-item readers.
+  7. **Change strength (owner, after the volatility explainer):** a change is compared
+     with the COMBINED band of both windows, √(a² + b²); because daily values are not
+     independent (weekday effect, runs), the band is optimistic, so one shared rule grades
+     every comparison: |change| ≥ 2 × band → "Thay đổi rõ"; 1–2 × band → "Có thể thay
+     đổi"; below → "Trong dao động". "Not random" is not "caused by Juli": a day-14 result
+     still needs no overlapping external change and holding guard metrics (D29/D30).
+  8. **Copy (owner):** one vocabulary across the system, the Ops guide and the seller
+     guide: the seller guide uses the on-screen labels only, never backend, endpoint or
+     team terms.
