@@ -511,3 +511,34 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
       approving; **Juli Ops Admins may change every level per shop** (bands, KPI range
       multipliers, guard thresholds, data minimums) — Ops is where each shop is tuned
       before the seller uses demo.app-juli.com.
+
+- **D30** — Baselines, external changes, Quality Score and Performance Prediction
+  (owner, 2026-10-12). What Juli has today: daily per-product performance since
+  2026-03-16 (reconstructable); price / title / description / images / promotions are
+  current-state only (no history) except Juli's own writes (`run_write_values`).
+  1. **Record history from now (18.1A):** (a) a daily product content + SKU price snapshot
+     (only products whose TikTok `update_time` moved are re-read), with a content hash;
+     (b) promotions persisted in tables (activities incl. expired/deactivated, with dates
+     and per-SKU activity price), backfilled once from the Promotion API; (c) a full
+     baseline frozen at approval and again at execution: 14-day metric pre-series, price,
+     active promotions, Quality Score, TikTok listing codes, content hash.
+  2. **Quality Score, layer 1 (18.2A):** 0–100 per product, rule-based, daily, no OpenAI:
+     completeness (title length, description ≥ 200 chars with sections/images, ≥ 3
+     sub-images, video, attributes), search fit (SEO words / Opportunities keywords in the
+     title, category vs Recommend Category), TikTok listing diagnosis codes, and a rule
+     list of risky claims. An OpenAI truthfulness check runs only when the seller approves
+     a content card (D24 unchanged).
+  3. **Performance Prediction, layer 2 (18.3A):** per (lever, Quality-Score gap) a prior
+     lift from TikTok Academy guidance, calibrated by measured day-14 results — shop-level
+     when the shop has enough results, otherwise fleet-level (shrinkage) — output as a
+     range CTR/CTOR → GMV with confidence, feeding the D29 KPI.
+  4. **External changes (18.4):** subscribe TikTok webhooks **15 Product information
+     change** (`changed_fields`, `update_time`) and **39 Activity status change**, plus
+     18 / 5 / 37 / 27 / 68 already available; on an event Juli re-reads the product, diffs
+     it against the snapshot and records an "external change". A daily `update_time`
+     reconciliation catches missed webhooks and price changes (no price webhook). External
+     changes appear on the product timeline; a measured card overlapping one reads "bị ảnh
+     hưởng bởi thay đổi khác" instead of crediting Juli. Unknown webhook types are already
+     acknowledged (200) and stored raw, so events from today can be replayed.
+  5. **Ops only first (18.5B):** Quality Score, prediction ranges and the change timeline
+     show in Juli Ops for the team to tune; the seller app gets them later.
