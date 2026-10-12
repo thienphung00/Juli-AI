@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+import statistics
 from datetime import date, timedelta
 
 import pytest
@@ -110,8 +112,13 @@ def test_baseline_window_and_trend_on_fixture():
     imp = card["cells"][0]
     assert imp["value"] == pytest.approx(1030.0)  # mean of 1000..1060
     assert imp["trend_pct"] == pytest.approx((1030 - 1100) / 1100 * 100)
-    assert imp["band"]["p10"] == pytest.approx(1006.0)
-    assert imp["band"]["p90"] == pytest.approx(1054.0)
+    # D28.1: the daily p10–p90 moved to daily_band; band is that of the window mean.
+    assert imp["daily_band"]["p10"] == pytest.approx(1006.0)
+    assert imp["daily_band"]["p90"] == pytest.approx(1054.0)
+    daily = [1000.0 + 10 * i for i in range(7)]
+    half = 1.2816 * statistics.stdev(daily) / math.sqrt(7)
+    assert imp["band"]["band_pct"] == pytest.approx(half / 1030 * 100)
+    assert imp["band"]["p10"] == pytest.approx(1030 - half)
     assert imp["indirect"] is True
     video = next(s for s in payload["streams"] if s["stream"] == "seller_video")
     assert [c["locked"] for c in video["cells"]] == [False, False, True, True]
@@ -153,3 +160,82 @@ def test_volatility_rows_sorted_stable_first():
 def test_unknown_window_is_refused():
     with pytest.raises(sim.SimulationError):
         sim.baseline(sim.merge_reports([]), 60)
+
+
+# -- D28: band of the window mean, low-data cells -------------------------------
+
+
+def _cell(payload: dict, stream: str, kpi: str) -> dict:
+    row = next(s for s in payload["streams"] if s["stream"] == stream)
+    return next(c for c in row["cells"] if c["kpi"] == kpi)
+
+
+def test_window_band_shrinks_with_sqrt_of_days():
+    # Alternating 800 / 1200 impressions: the daily spread is the same in 7 and 30 days.
+    history = sim.merge_reports([_report(60, imp=lambda i: 800.0 if i % 2 else 1200.0)])
+    b7 = _cell(sim.baseline(history, 7), "product_card", "impressions")
+    b30 = _cell(sim.baseline(history, 30), "product_card", "impressions")
+    for b, n in ((b7, 7), (b30, 30)):
+        daily = [800.0 if i % 2 else 1200.0 for i in range(n)]
+        expected = 1.2816 * statistics.stdev(daily) / math.sqrt(n) / statistics.fmean(daily) * 100
+        assert b["band"]["band_pct"] == pytest.approx(expected)
+        assert b["band"]["days"] == n
+    assert b30["band"]["band_pct"] < b7["band"]["band_pct"] / 2
+    # The daily band barely moves with the window; the mean band shrinks ~ √(30/7).
+    assert b30["daily_band"]["band_pct"] == pytest.approx(b7["daily_band"]["band_pct"], rel=0.15)
+
+
+def test_mean_band_needs_two_days_and_a_positive_mean():
+    assert sim.mean_band([]) is None
+    assert sim.mean_band([5.0]).band_pct is None
+    assert sim.mean_band([0.0, 0.0]).band_pct is None
+    assert sim.mean_band([10.0, 10.0]).band_pct == 0
+
+
+def test_daily_band_equals_the_old_band():
+    history = sim.merge_reports([_report(60, imp=lambda i: 1000.0 + 37 * (i % 5))])
+    payload = sim.baseline(history, 14)
+    for row in payload["streams"]:
+        days = sim._present(history.streams[row["stream"]], sim._days(history.last_day, 14))
+        for cell in row["cells"]:
+            old = sim.band(d.kpi(cell["kpi"]) for d in days)
+            assert cell["daily_band"] == old.to_json()
+
+
+@pytest.mark.parametrize(("orders_per_day", "low"), [(29 / 30, True), (1.0, False)])
+def test_low_data_threshold_on_orders(orders_per_day, low):
+    # 30 days × orders_per_day → 29 vs 30 SKU orders in the window.
+    report = _report(30)
+    for i, day in enumerate(sorted(report["daily_streams"]["product_card"])):
+        report["daily_streams"]["product_card"][day] = [
+            1000.0,
+            100.0,
+            (1 if i else 0) if low else 1,
+            150_000.0,
+        ]
+    payload = sim.baseline(sim.merge_reports([report]), 30)
+    for kpi in ("ctor", "aov"):
+        cell = _cell(payload, "product_card", kpi)
+        assert cell["event_kind"] == "order"
+        assert cell["events"] == (29 if low else 30)
+        assert cell["low_data"] is low
+    ctr = _cell(payload, "product_card", "ctr")
+    assert (ctr["event_kind"], ctr["events"], ctr["low_data"]) == ("click", 3000, False)
+
+
+def test_low_data_threshold_on_clicks_and_impressions_never_low():
+    report = _report(7, imp=lambda i: 80.0)  # 4 clicks/day → 28 clicks in 7 days
+    payload = sim.baseline(sim.merge_reports([report]), 7)
+    ctr = _cell(payload, "shop_tab", "ctr")
+    assert (ctr["events"], ctr["low_data"]) == (28, True)
+    imp = _cell(payload, "shop_tab", "impressions")
+    assert (imp["events"], imp["event_kind"], imp["low_data"]) == (None, None, False)
+
+
+def test_cell_verdict_uses_the_window_band_and_low_data():
+    cell = {"band": {"band_pct": 7.4}, "low_data": False}
+    assert sim.cell_verdict(cell, 0) is None
+    assert sim.cell_verdict(cell, 5) == "in_noise"
+    assert sim.cell_verdict(cell, -10) == "measurable"
+    assert sim.cell_verdict({**cell, "low_data": True}, 50) == "low_data"
+    assert sim.cell_verdict({"band": None, "low_data": False}, 50) == "in_noise"
