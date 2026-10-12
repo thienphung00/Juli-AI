@@ -1,12 +1,13 @@
 import logging
 import uuid
+from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config.runtime import require_env
-from juli_backend.core.security.claims import verified_identity
+from juli_backend.core.security.claims import VerifiedIdentity, verified_identity
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.jwt import verify_supabase_jwt
 from juli_backend.database import NotFound, User, UsersRepo
@@ -15,13 +16,31 @@ from juli_backend.database.database import get_session
 logger = logging.getLogger(__name__)
 
 _bearer = HTTPBearer(auto_error=False)
+#: The same bearer scheme object, for a dependency outside this module (P29).
+bearer_scheme = _bearer
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    session: AsyncSession = Depends(get_session),
-) -> User:
-    """FastAPI dependency: validates Supabase JWT → returns authenticated User."""
+@dataclass(frozen=True)
+class VerifiedToken:
+    """A Supabase JWT that passed verification: its ``sub`` and identity claims.
+
+    Holding one proves the signature, audience and expiry were checked on THIS
+    request; it says nothing about the ``users`` row yet.
+    """
+
+    user_id: uuid.UUID
+    identity: VerifiedIdentity
+
+
+async def verify_bearer_token(
+    credentials: HTTPAuthorizationCredentials | None,
+) -> VerifiedToken:
+    """The JWT half of authentication: no database. 401 on anything wrong.
+
+    Split out of :func:`get_current_user` (P29) so a caller that caches the
+    ``users`` read (the Ops console, ``api/routes/ops.get_ops_user``) still
+    verifies the token on every request through exactly this code.
+    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -59,8 +78,18 @@ async def get_current_user(
     # keeps this module to the auth decision, and a repository must not learn
     # the shape of a Supabase payload -- so what crosses into the repository is
     # two optional strings and no vendor shape.
-    identity = verified_identity(payload)
+    return VerifiedToken(user_id=user_id, identity=verified_identity(payload))
 
+
+async def load_authenticated_user(session: AsyncSession, token: VerifiedToken) -> User:
+    """The database half: read (or provision) the ``users`` row, then COMMIT.
+
+    Exactly what :func:`get_current_user` does after the token is verified --
+    including the unconditional commit, which also ends the user GUC's
+    transaction (see below). Callers must not hold other work in the session's
+    transaction when calling this.
+    """
+    user_id, identity = token.user_id, token.identity
     try:
         # The scoped read (#1691): `users` is policy-gated on a GUC that
         # authentication has not set yet, and the repository owns knowing that.
@@ -118,3 +147,11 @@ async def get_current_user(
     # the scope's own restore.
     await session.commit()
     return user
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """FastAPI dependency: validates Supabase JWT → returns authenticated User."""
+    return await load_authenticated_user(session, await verify_bearer_token(credentials))

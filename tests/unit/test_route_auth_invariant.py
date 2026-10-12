@@ -13,6 +13,9 @@ Only two dependencies count as "session/ownership resolved":
   Supabase JWT and returns the authenticated ``User``.
 - ``get_active_shop`` (api/dependencies.py) — additionally resolves the
   ``X-Shop-Id`` header to a ``Shop`` the authenticated user actually owns.
+- ``get_ops_user`` (api/routes/ops.py, P29) — the Ops console's twin of
+  ``get_current_user``: the same ``verify_bearer_token`` on every request, with
+  the ``users`` read behind it cached for an active staff member.
 
 Every other product route must depend on one of these, directly or
 transitively (``get_active_shop`` itself depends on ``get_current_user``, so
@@ -35,6 +38,7 @@ from typing import Any
 
 from juli_backend.api.dependencies import get_active_shop
 from juli_backend.api.main import app
+from juli_backend.api.routes.ops import get_ops_user
 from juli_backend.core.security.dependencies import get_current_user
 
 try:
@@ -154,7 +158,7 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
     ),
 }
 
-_SESSION_DEPENDENCIES = frozenset({get_current_user, get_active_shop})
+_SESSION_DEPENDENCIES = frozenset({get_current_user, get_active_shop, get_ops_user})
 
 # Sanity floor for the live route walk. The app currently exposes 25 APIRoutes
 # (verified locally against both fastapi 0.128.0/starlette 0.50.0 and, via a

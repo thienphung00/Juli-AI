@@ -8,7 +8,13 @@ from juli_backend.core.security.credential_resolver import (
     resolve_read_credential_for_shop,
     resolve_sandbox_write_credential,
 )
-from juli_backend.core.security.dependencies import get_current_user
+from juli_backend.core.security.dependencies import (
+    VerifiedToken,
+    bearer_scheme,
+    get_current_user,
+    load_authenticated_user,
+    verify_bearer_token,
+)
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.jwks import JwksUnavailableError, supabase_jwks_url
 from juli_backend.core.security.jwt import verify_supabase_jwt
@@ -49,6 +55,12 @@ __all__ = [
     "TikTokOAuthService",
     "Unauthorized",
     "get_current_user",
+    # P29: the two halves of get_current_user, for the Ops console's cached
+    # users read (api/routes/ops.get_ops_user; api is capped at depth 2).
+    "VerifiedToken",
+    "bearer_scheme",
+    "load_authenticated_user",
+    "verify_bearer_token",
     "mint_oauth_state",
     # #1293: exported at the package root so services/action_cards/refresh.py --
     # capped at cross-package depth 2 by `.importlinter.toml` -- can resolve the

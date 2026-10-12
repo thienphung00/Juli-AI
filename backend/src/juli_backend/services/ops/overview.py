@@ -24,6 +24,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.tenant_context import with_shop_scope
@@ -121,7 +122,8 @@ class ShopRow:
             "permissions": self.extra.get("permissions"),
         }
 
-    def load_numbers(self, summary: OpsShopDailySummary) -> None:
+    def load_numbers(self, summary: Any) -> None:
+        """From an ``OpsShopDailySummary`` (or anything with its three columns)."""
         data = summary.payload if isinstance(summary.payload, dict) else {}
         self.connection = str(data.get("connection") or CONN_NONE)
         self.last_poll_at = _parse_dt(data.get("last_poll_at"))
@@ -247,6 +249,105 @@ async def find_shop(session: AsyncSession, shop_id: uuid.UUID) -> ShopListing | 
         )
         row = result.mappings().first()
     return None if row is None else _listing_from_row(row)
+
+
+_FIND_SHOP_COLUMNS = (
+    "out_shop_id",
+    "out_shop_name",
+    "out_tiktok_shop_id",
+    "out_is_active",
+    "out_owner_user_id",
+    "out_owner_email",
+    "out_owner_consent_at",
+)
+
+
+async def find_shop_and_settings(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> tuple[ShopListing | None, OpsShopSettings | None]:
+    """The listing AND the ``ops_shop_settings`` row in ONE statement (P29).
+
+    ``ops_find_shop`` LEFT JOIN the settings row: the two reads every per-shop
+    Ops page made back to back, ~395 ms each from the VPS. Both are ops reads
+    (``juli_ops``); nothing tenant-scoped is touched. The settings row comes
+    back as an ORM entity, exactly what ``ops_settings.settings_row`` returns.
+    """
+    if is_sqlite(session):
+        listing = await find_shop(session, shop_id)
+        if listing is None:
+            return None, None
+        async with ops_role(session):
+            return listing, await session.get(OpsShopSettings, shop_id)
+    found = func.ops_find_shop(shop_id).table_valued(*_FIND_SHOP_COLUMNS).alias("f")
+    stmt = select(found, OpsShopSettings).outerjoin(
+        OpsShopSettings, OpsShopSettings.shop_id == found.c.out_shop_id
+    )
+    async with ops_role(session):
+        row = (await session.execute(stmt)).first()
+    if row is None:
+        return None, None
+    return _listing_from_row(row._mapping), row._mapping[OpsShopSettings]
+
+
+# Find the shop AND enter the seller's own tenant scope, in ONE statement (P29).
+#
+# "Xem như shop" used to read the listing as ``juli_ops`` and then, in a second
+# statement, switch the role back and set the shop + owner GUCs from it. The
+# FROM clause here runs ``ops_find_shop`` -- its EXECUTE privilege is checked at
+# executor start, while the transaction is still ``juli_ops`` -- and the
+# projection, evaluated only once the function scan has produced the row, does
+# exactly what ``_apply_tenant_context_to_session(restore_role=...)`` does with
+# the values just read. No row (unknown shop) means no ``set_config`` ran at
+# all: the caller restores the role itself before answering 404.
+_FIND_AND_ENTER_SQL = (
+    "SELECT f.out_shop_id, f.out_shop_name, f.out_tiktok_shop_id, f.out_is_active, "  # nosec B608
+    "f.out_owner_user_id, f.out_owner_email, f.out_owner_consent_at, "
+    "set_config('role', :role, true), "
+    "set_config(:shop_key, f.out_shop_id::text, true), "
+    "set_config(:user_key, coalesce(f.out_owner_user_id::text, ''), true) "
+    "FROM public.ops_find_shop(:shop_id) AS f"
+)
+
+
+async def find_shop_entering_seller_scope(
+    session: AsyncSession, shop_id: uuid.UUID, *, restore_role: str
+) -> ShopListing | None:
+    """``find_shop``, then the seller's scope (shop + owner) and ``restore_role``.
+
+    For a caller inside an ``ops_role`` block whose restore it took over
+    (``OpsRoleBlock.hand_over``). On ``None`` the role is STILL ``juli_ops``
+    and the GUCs are untouched; :func:`leave_ops_role` puts the role back.
+    """
+    from juli_backend.database.tenant_context import (
+        _SHOP_GUC,
+        _USER_GUC,
+        _require_tenant_context,
+    )
+
+    row = (
+        (
+            await session.execute(
+                text(_FIND_AND_ENTER_SQL).bindparams(
+                    role=restore_role, shop_key=_SHOP_GUC, user_key=_USER_GUC, shop_id=shop_id
+                )
+            )
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        return None
+    listing = _listing_from_row(row)
+    # The same fail-closed decision `_apply_tenant_context_to_session` makes; a
+    # shop with no owner would have left the user GUC empty (every user-keyed
+    # policy denies), and is refused here before any tenant read runs.
+    _require_tenant_context(listing.shop_id, listing.owner_user_id)
+    return listing
+
+
+async def leave_ops_role(session: AsyncSession, role: str) -> None:
+    """Switch back from ``juli_ops`` after a handed-over block found nothing."""
+    await session.execute(text("SELECT set_config('role', :role, true)").bindparams(role=role))
 
 
 async def _shop_numbers(session: AsyncSession, row: ShopRow, now: datetime) -> None:
@@ -416,15 +517,104 @@ async def refresh_shop_summary(
         return _store_summary(session, shop_id, row, current, summary)
 
 
+# Tổng quan's four ops reads -- the shop list, every stage, the pending
+# invites, every stored summary -- as ONE statement (P29; they were four, ~1.2 s
+# more from the VPS). ``WITH ORDINALITY`` keeps ``ops_list_shops()``'s own order
+# (by shop creation) through the joins.
+_OVERVIEW_SQL = """
+SELECT f.out_shop_id, f.out_shop_name, f.out_tiktok_shop_id, f.out_is_active,
+       f.out_owner_user_id, f.out_owner_email, f.out_owner_consent_at,
+       s.stage AS stage,
+       EXISTS (
+           SELECT 1 FROM public.ops_shop_invites i
+           WHERE i.shop_id = f.out_shop_id AND i.accepted_at IS NULL
+             AND i.revoked_at IS NULL AND i.expires_at > :now
+       ) AS invite_pending,
+       d.shop_id IS NOT NULL AS has_summary,
+       d.payload AS payload, d.data_through AS data_through, d.generated_at AS generated_at
+FROM public.ops_list_shops() WITH ORDINALITY AS f(
+    out_shop_id, out_shop_name, out_tiktok_shop_id, out_is_active, out_created_at,
+    out_owner_user_id, out_owner_email, out_owner_consent_at, ord)
+LEFT JOIN public.ops_shop_settings s ON s.shop_id = f.out_shop_id
+LEFT JOIN public.ops_shop_daily_summary d ON d.shop_id = f.out_shop_id
+ORDER BY f.ord
+"""
+
+
+@dataclass(frozen=True)
+class _StoredSummary:
+    """A summary row's three columns, read without loading the ORM entity."""
+
+    payload: Any
+    data_through: date | None
+    generated_at: datetime | None
+
+
+async def _overview_fused(
+    session: AsyncSession, current: datetime, *, transaction_ends_after: bool
+) -> tuple[list[ShopListing], dict[uuid.UUID, str], set[uuid.UUID], dict[uuid.UUID, Any]]:
+    """The four ops reads in one statement.
+
+    Leaves ``juli_ops`` before returning unless nothing else will run in this
+    transaction (``transaction_ends_after`` and every shop has a summary).
+    """
+    stmt = text(_OVERVIEW_SQL).columns(payload=JSONB)
+    async with ops_role(session) as block:
+        rows = list((await session.execute(stmt, {"now": current})).mappings())
+        previous_role = block.hand_over()
+    listings: list[ShopListing] = []
+    stages: dict[uuid.UUID, str] = {}
+    pending: set[uuid.UUID] = set()
+    summaries: dict[uuid.UUID, Any] = {}
+    for row in rows:
+        listing = _listing_from_row(row)
+        listings.append(listing)
+        if row["stage"] is not None:
+            stages[listing.shop_id] = row["stage"]
+        if row["invite_pending"]:
+            pending.add(listing.shop_id)
+        if row["has_summary"]:
+            summaries[listing.shop_id] = _StoredSummary(
+                payload=row["payload"],
+                data_through=row["data_through"],
+                generated_at=row["generated_at"],
+            )
+    missing = any(listing.shop_id not in summaries for listing in listings)
+    if previous_role is not None and (missing or not transaction_ends_after):
+        # More statements follow (a missing summary is computed under the
+        # shop's own scope, as juli_app): leave juli_ops first.
+        await leave_ops_role(session, previous_role)
+    return listings, stages, pending, summaries
+
+
 async def build_overview(
-    session: AsyncSession, *, now: datetime | None = None, refresh: bool = False
+    session: AsyncSession,
+    *,
+    now: datetime | None = None,
+    refresh: bool = False,
+    transaction_ends_after: bool = False,
 ) -> dict[str, Any]:
     """Tổng quan from the stored daily summaries (D27.1); ``refresh`` recomputes every shop.
 
     Writes a summary for any shop that has none (and every shop on refresh):
-    the caller commits.
+    the caller commits. ``transaction_ends_after`` (P29): the caller commits
+    right after, so a final ``juli_ops`` role restore is skipped.
     """
     current = _naive_utc(now)
+    if not refresh and not is_sqlite(session):
+        listings, stage_of, pending, summaries = await _overview_fused(
+            session, current, transaction_ends_after=transaction_ends_after
+        )
+        computed = {
+            listing.shop_id: await _computed_row(session, listing.shop_id, current)
+            for listing in listings
+            if listing.shop_id not in summaries
+        }
+        if computed:
+            async with ops_role(session, transaction_ends_after=transaction_ends_after):
+                for shop_id, numbers in computed.items():
+                    summaries[shop_id] = _store_summary(session, shop_id, numbers, current, None)
+        return _overview_body(listings, stage_of, pending, summaries, current)
     # ONE ops block for the listing and the three ops tables (P22): ops_role is
     # re-entrant, so list_shops' own block costs nothing in here.
     async with ops_role(session):
@@ -464,12 +654,24 @@ async def build_overview(
                 summaries[shop_id] = _store_summary(
                     session, shop_id, numbers, current, summaries.get(shop_id)
                 )
+    return _overview_body(
+        listings, {k: v.stage for k, v in settings.items()}, pending, summaries, current
+    )
+
+
+def _overview_body(
+    listings: list[ShopListing],
+    stage_of: dict[uuid.UUID, str],
+    pending: set[uuid.UUID],
+    summaries: dict[uuid.UUID, Any],
+    current: datetime,
+) -> dict[str, Any]:
     rows: list[ShopRow] = []
     for listing in listings:
         row = ShopRow(listing=listing)
-        cfg = settings.get(listing.shop_id)
-        if cfg is not None:
-            row.stage = cfg.stage
+        stage = stage_of.get(listing.shop_id)
+        if stage is not None:
+            row.stage = stage
         row.invite_pending = listing.shop_id in pending
         row.load_numbers(summaries[listing.shop_id])
         rows.append(row)

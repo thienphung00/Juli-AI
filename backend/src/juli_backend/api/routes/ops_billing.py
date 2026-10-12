@@ -49,10 +49,11 @@ from juli_backend.api.routes.ops import (
     _shop,
     _shop_json,
     admin,
+    shop_then_scope,
     viewer,
 )
 from juli_backend.database import get_session
-from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.database.tenant_context import sequential_shop_scopes, with_shop_scope
 from juli_backend.models.ops import STAGE_LABELS, STAGE_TRIAL, OpsShopSettings
 from juli_backend.services import subscriptions
 from juli_backend.services.ops import audit, overview, system_cap
@@ -84,14 +85,32 @@ def _days_left_in_month(today: date) -> int:
     return (first_next - today).days
 
 
+async def _stages_and_shops(
+    session: AsyncSession,
+) -> tuple[dict[uuid.UUID, str], list[Any], str | None]:
+    """Stages and the shop list in ONE ops block (P29); returns its handed-over restore."""
+    async with ops_role(session) as block:
+        stages = await _stages(session)
+        listings = await overview.list_shops(session)
+        previous_role = block.hand_over()
+    return stages, listings, previous_role
+
+
 async def costs_body(session: AsyncSession) -> dict[str, Any]:
-    status_now = await system_cap.system_status(session)
-    stages = await _stages(session)
+    """Chi phí. P29: the banner figure first (it may roll back on a failed
+    fused read, so nothing may precede it), one ops block, then each shop under
+    its own scope with ONE fused read -- 2 round trips per shop, was 4."""
+    status_now, alert_sent = await system_cap.system_banner(session)
+    stages, listings, previous_role = await _stages_and_shops(session)
     shops: list[dict[str, Any]] = []
-    for listing in await overview.list_shops(session):
-        async with with_shop_scope(session, listing.shop_id):
-            spent = await openai_cap.openai_spend_this_month(session, listing.shop_id)
-            cap = await openai_cap.openai_monthly_cap_usd(session, listing.shop_id)
+    async with sequential_shop_scopes(
+        session, restore_role=previous_role, transaction_ends_after=True
+    ) as scopes:
+        numbers = []
+        for listing in listings:
+            await scopes.enter(listing.shop_id)
+            numbers.append(await openai_cap.openai_spend_and_cap(session, listing.shop_id))
+    for listing, (spent, cap) in zip(listings, numbers, strict=True):
         if status_now.reached:
             state = SHOP_CAP_STATE_SYSTEM
         elif spent >= cap.usd:
@@ -114,10 +133,7 @@ async def costs_body(session: AsyncSession) -> dict[str, Any]:
     shops.sort(key=lambda s: (-s["used_usd"], s["shop_name"]))
     today = subscriptions.shop_today()
     return {
-        "system": {
-            **status_now.to_json(),
-            "alert_sent": await system_cap.alert_sent_for(session, status_now.month),
-        },
+        "system": {**status_now.to_json(), "alert_sent": alert_sent},
         "warn_pct": float(system_cap.WARN_PCT),
         "days_left_in_month": _days_left_in_month(today),
         "default_shop_cap_usd": float(openai_cap.default_cap_usd()),
@@ -137,13 +153,9 @@ async def ops_costs(
 async def ops_costs_system(
     ctx: OpsContext = Depends(viewer), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
-    status_now = await system_cap.system_status(session)
-    return {
-        "system": {
-            **status_now.to_json(),
-            "alert_sent": await system_cap.alert_sent_for(session, status_now.month),
-        }
-    }
+    # P29: cached for 30 s (the banner on every Ops page), else ONE statement.
+    status_now, alert_sent = await system_cap.system_banner(session)
+    return {"system": {**status_now.to_json(), "alert_sent": alert_sent}}
 
 
 class CapWrite(BaseModel):
@@ -168,6 +180,7 @@ async def ops_put_system_cap(
         await session.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from None
     await session.commit()
+    system_cap.forget_banner()
     return {"system": (await system_cap.system_status(session)).to_json()}
 
 
@@ -192,6 +205,7 @@ async def ops_put_shop_cap(
         await session.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from None
     await session.commit()
+    ops_settings.forget_cap_and_tunables(shop_id)
     await _refresh_summary_quietly(session, shop_id)
     override = view.overrides.get(ops_settings.CAP_FIELD)
     return {
@@ -227,11 +241,18 @@ async def ops_terms(
     ctx: OpsContext = Depends(viewer), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
     today = subscriptions.shop_today()
-    stages = await _stages(session)
+    stages, listings, previous_role = await _stages_and_shops(session)
     rows: list[dict[str, Any]] = []
-    for listing in await overview.list_shops(session):
-        async with with_shop_scope(session, listing.shop_id):
-            periods = await subscriptions.list_periods(session, listing.shop_id)
+    # P29: one scope moving shop to shop (ADR-089: one shop at a time), 2 round
+    # trips per shop instead of 3, and no restore at the end of the request.
+    async with sequential_shop_scopes(
+        session, restore_role=previous_role, transaction_ends_after=True
+    ) as scopes:
+        per_shop = []
+        for listing in listings:
+            await scopes.enter(listing.shop_id)
+            per_shop.append(await subscriptions.list_periods(session, listing.shop_id))
+    for listing, periods in zip(listings, per_shop, strict=True):
         expires = max((p.ends_on for p in periods), default=None)
         latest = max(periods, key=lambda p: (p.ends_on, p.starts_on)) if periods else None
         rows.append(
@@ -252,11 +273,12 @@ async def ops_terms(
 
 
 async def _shop_terms_body(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:
-    listing = await _shop(session, shop_id)
     today = subscriptions.shop_today()
-    async with with_shop_scope(session, shop_id):
+    # P29: the role switch back rides on the scope's statement; the request ends here.
+    async with shop_then_scope(session, shop_id, transaction_ends_after=True) as listing:
         periods = await subscriptions.list_periods(session, shop_id)
-        term = await subscriptions.shop_term(session, shop_id, today)
+        # == subscriptions.shop_term (max ends_on), from the rows just read.
+        term = subscriptions.term_for(max((p.ends_on for p in periods), default=None), today)
     return {
         "shop": _shop_json(listing),
         "today": today.isoformat(),
@@ -342,7 +364,6 @@ async def ops_view_term(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """ "Xem như shop": the seller's ``/v1/shops/me/term`` payload for this shop."""
-    await _shop(session, shop_id)
-    async with with_shop_scope(session, shop_id):
+    async with shop_then_scope(session, shop_id, transaction_ends_after=True):
         term = await subscriptions.shop_term(session, shop_id)
     return {"data": term.to_json()}

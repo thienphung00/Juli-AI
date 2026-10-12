@@ -12,9 +12,10 @@ from juli_backend.api.app import create_app
 from juli_backend.core.config.runtime import async_database_url, cors_allow_origins, require_env
 from juli_backend.core.observability import configure_logging
 from juli_backend.database.database import (
-    create_engine,
+    create_api_engine,
     create_session_factory,
     init_session_factory,
+    start_api_pool,
 )
 from juli_backend.workers.agent_runtime_boot import assert_agent_runtime_config
 
@@ -76,14 +77,20 @@ async def lifespan(app: FastAPI):
     assert_agent_runtime_config(app=app)
 
     database_url = async_database_url(require_env("DATABASE_URL"))
-    engine = create_engine(database_url)
+    # P29: the tuned pool (no pre-ping, idle guard, keep-warm); see database.py.
+    engine = create_api_engine(database_url)
     init_session_factory(create_session_factory(engine))
     # Warm shared Redis client when REDIS_URL is set (fail-open if unset).
     get_shared_redis_client()
+    # P29: open the pool's connections now (in parallel) rather than on the
+    # first requests, then keep idle ones warm. Best effort: a failure is logged.
+    keepwarm = await start_api_pool(engine)
     logger.info("api_startup_complete")
     try:
         yield
     finally:
+        if keepwarm is not None:
+            await keepwarm.stop()
         await close_shared_redis_client()
         await engine.dispose()
         logger.info("api_shutdown_complete")

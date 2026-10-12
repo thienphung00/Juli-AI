@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 import pytest
 from sqlalchemy import func, select
 
+from juli_backend.api.routes.ops import get_ops_user
 from juli_backend.core.security import get_current_user
 from juli_backend.models.models import Shop, User
 from juli_backend.models.ops import OpsAuditLog, OpsShopSettings, OpsSimScenario, OpsStaff
@@ -60,6 +61,8 @@ def _client_as(session, user: User):
         return user
 
     app.dependency_overrides[get_current_user] = current
+
+    app.dependency_overrides[get_ops_user] = current
     return client_for(app)
 
 

@@ -93,9 +93,16 @@ async def openai_monthly_cap_usd(session: AsyncSession, shop_id: uuid.UUID) -> O
 
 def cap_from_row(row: ShopRule | None) -> OpenAICap:
     """The cap a stored row holds (``None`` or an invalid value: the default)."""
-    if row is not None:
+    if row is None:
+        return cap_from_value(None, None, present=False)
+    return cap_from_value(row.value, row.set_at, present=True)
+
+
+def cap_from_value(value: Any, set_at: datetime | None, *, present: bool) -> OpenAICap:
+    """``cap_from_row`` from the row's two columns (``present``: a row exists)."""
+    if present:
         try:
-            return OpenAICap(usd=validate_cap(row.value), is_default=False, set_at=row.set_at)
+            return OpenAICap(usd=validate_cap(value), is_default=False, set_at=set_at)
         except CapValidationError:
             pass
     return OpenAICap(usd=default_cap_usd(), is_default=True)
@@ -167,3 +174,37 @@ async def openai_spend_this_month(
     )
     runs, analyses = (await session.execute(select(runs_sum, analyses_sum))).one()
     return Decimal(str(runs or 0)) + Decimal(str(analyses or 0))
+
+
+async def openai_spend_and_cap(
+    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime | None = None
+) -> tuple[Decimal, OpenAICap]:
+    """:func:`openai_spend_this_month` and :func:`openai_monthly_cap_usd` in ONE statement.
+
+    P29: Chi phí reads both for every shop, back to back, under the shop's
+    scope; fused they cost one round trip per shop instead of two. Same rows,
+    same scope -- the caller holds it.
+    """
+    since = month_start_utc(now)
+    rule = (
+        ShopRule.shop_id == shop_id,
+        ShopRule.rule_key == OPENAI_MONTHLY_CAP_USD,
+        ShopRule.scope_ref == "",
+    )
+    runs, analyses, present, value, set_at = (
+        await session.execute(
+            select(
+                select(func.coalesce(func.sum(WorkflowRun.cost_usd), 0))
+                .where(WorkflowRun.shop_id == shop_id, WorkflowRun.created_at >= since)
+                .scalar_subquery(),
+                select(func.coalesce(func.sum(ContentAnalysis.cost_usd), 0))
+                .where(ContentAnalysis.shop_id == shop_id, ContentAnalysis.created_at >= since)
+                .scalar_subquery(),
+                select(func.count()).select_from(ShopRule).where(*rule).scalar_subquery(),
+                select(ShopRule.value).where(*rule).scalar_subquery(),
+                select(ShopRule.set_at).where(*rule).scalar_subquery(),
+            )
+        )
+    ).one()
+    spent = Decimal(str(runs or 0)) + Decimal(str(analyses or 0))
+    return spent, cap_from_value(value, set_at, present=bool(present))

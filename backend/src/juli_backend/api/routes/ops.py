@@ -25,13 +25,15 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,10 +48,12 @@ from juli_backend.api.routes import (
 from juli_backend.core.security import (
     CF_ACCESS_HEADER,
     Unauthorized,
-    get_current_user,
+    bearer_scheme,
+    load_authenticated_user,
     verify_access_jwt,
+    verify_bearer_token,
 )
-from juli_backend.database import Shop, User, get_session
+from juli_backend.database import Shop, get_session
 from juli_backend.database.tenant_context import (
     _apply_tenant_context_to_session,
     with_shop_scope,
@@ -118,7 +122,7 @@ router = APIRouter(prefix="/ops", tags=["ops"], route_class=MaskedRoute)
 @dataclass(frozen=True)
 class OpsContext:
     staff: ops_staff.StaffMember
-    user: User
+    user: ops_staff.OpsUser
 
 
 async def require_cf_access(
@@ -133,9 +137,30 @@ async def require_cf_access(
     return identity.email
 
 
+async def get_ops_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    session: AsyncSession = Depends(get_session),
+) -> ops_staff.OpsUser:
+    """Gate 2: the Supabase JWT, verified on EVERY request; the users row cached.
+
+    P29: the token goes through ``verify_bearer_token`` -- the very code
+    ``get_current_user`` runs -- every time. Only the ``users`` read behind it
+    (four round trips, ~1.6 s from the VPS) is skipped when this verified
+    ``sub`` resolved to an active staff member in the last 60 s
+    (``ops_staff.cached_user``). On a miss it is ``get_current_user``'s own
+    database half, commit included.
+    """
+    token = await verify_bearer_token(credentials)
+    hit = ops_staff.cached_user(token.user_id)
+    if hit is not None:
+        return hit
+    user = await load_authenticated_user(session, token)
+    return ops_staff.OpsUser(id=user.id, email=user.email)
+
+
 async def get_ops_context(
     access_email: str | None = Depends(require_cf_access),
-    user: User = Depends(get_current_user),
+    user: ops_staff.OpsUser = Depends(get_ops_user),
     session: AsyncSession = Depends(get_session),
 ) -> OpsContext:
     """Gates 2–3: a signed-in user with an active staff row matching Access.
@@ -145,10 +170,18 @@ async def get_ops_context(
     no database call here at all. On a miss the read stays in the request's
     transaction and is committed only when it wrote (a first-sight
     ``user_id`` binding); a read-only resolution costs no COMMIT.
+
+    P29: with the users read cached too (``get_ops_user``), a warm Ops request
+    reaches its route having made no round trip at all. The user is cached
+    only here, once the request resolved to an active member.
     """
-    # Read before any rollback below: a rollback expires `user`, and touching an
-    # expired attribute afterwards is a lazy load an async session cannot do.
+    # Plain values, read once: a rollback below would expire an ORM `User`
+    # (tests pass one), and an expired attribute is a lazy load an async
+    # session cannot do.
     user_id, user_email = user.id, user.email
+    ops_user = ops_staff.OpsUser(
+        id=user_id, email=user_email, cached=bool(getattr(user, "cached", False))
+    )
     member = ops_staff.cached_staff(user_id, user_email)
     if member is None:
         member = await ops_staff.resolve_staff(session, user_id=user_id, email=user_email)
@@ -166,7 +199,9 @@ async def get_ops_context(
     elif access_email is not None and access_email != member.email:
         logger.warning("ops_access_email_mismatch", extra={"staff_id": str(member.id)})
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-    return OpsContext(staff=member, user=user)
+    if member.active:
+        ops_staff.remember_user(ops_user)
+    return OpsContext(staff=member, user=ops_user)
 
 
 def require_role(role: str) -> Callable[..., Awaitable[OpsContext]]:
@@ -190,6 +225,36 @@ async def _shop(session: AsyncSession, shop_id: uuid.UUID) -> ShopListing:
     return listing
 
 
+async def _shop_and_settings(session: AsyncSession, shop_id: uuid.UUID) -> tuple[ShopListing, Any]:
+    """The listing and its ``ops_shop_settings`` row in one statement (P29); 404 if none."""
+    listing, row = await overview.find_shop_and_settings(session, shop_id)
+    if listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop not found")
+    return listing, row
+
+
+@asynccontextmanager
+async def shop_then_scope(
+    session: AsyncSession, shop_id: uuid.UUID, *, transaction_ends_after: bool = False
+) -> AsyncIterator[ShopListing]:
+    """``_shop`` (404), then the shop's own scope -- one round trip fewer (P29).
+
+    The ops block hands its role restore to the scope's first statement, as
+    ``_view_shop`` does. ``transaction_ends_after``: see ``with_shop_scope``;
+    only when the block is the request's last database work.
+    """
+    async with ops_role(session) as block:
+        listing = await _shop(session, shop_id)
+        previous_role = block.hand_over()
+    async with with_shop_scope(
+        session,
+        shop_id,
+        restore_role=previous_role,
+        transaction_ends_after=transaction_ends_after,
+    ):
+        yield listing
+
+
 # -- me, overview, staff, audit ----------------------------------------------------
 
 
@@ -207,7 +272,7 @@ async def ops_overview(
     ctx: OpsContext = Depends(viewer), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
     """Tổng quan from the daily summaries (D27.1); a shop without one is computed once."""
-    body = await overview.build_overview(session)
+    body = await overview.build_overview(session, transaction_ends_after=True)
     await session.commit()
     return body
 
@@ -247,7 +312,10 @@ def _staff_json(member: ops_staff.StaffMember) -> dict[str, Any]:
 async def ops_list_staff(
     ctx: OpsContext = Depends(admin), session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
-    return {"data": [_staff_json(m) for m in await ops_staff.list_staff(session)]}
+    # P29: the request's last statement; the role dies with the transaction.
+    async with ops_role(session, transaction_ends_after=True):
+        members = await ops_staff.list_staff(session)
+    return {"data": [_staff_json(m) for m in members]}
 
 
 @router.put("/staff")
@@ -290,7 +358,8 @@ async def ops_audit(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    rows = await audit.list_entries(session, shop_id=shop_id, kind=kind, limit=limit)
+    async with ops_role(session, transaction_ends_after=True):
+        rows = await audit.list_entries(session, shop_id=shop_id, kind=kind, limit=limit)
     return {"data": [_audit_json(r) for r in rows]}
 
 
@@ -315,17 +384,24 @@ async def ops_get_settings(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    # One ops block for the four ops reads (P22): ops_role is re-entrant, so
-    # each service's own block is free in here. Only the cap needs the shop's
-    # scope, after.
+    # One ops block for the ops reads (P22): ops_role is re-entrant, so each
+    # service's own block is free in here. P29: the listing and the settings
+    # row are one statement. Only the cap needs the shop's scope, after.
     async with ops_role(session) as block:
-        listing = await _shop(session, shop_id)
-        row = await ops_settings.settings_row(session, shop_id)
+        listing, row = await _shop_and_settings(session, shop_id)
         shop_invites = await invites.list_invites(session, shop_id)
         log = await audit.list_entries(session, shop_id=shop_id, limit=20)
         previous_role = block.hand_over()
-    # The role switch back rides on the scope's first statement.
-    view = await ops_settings.view_of(session, shop_id, row, restore_role=previous_role)
+    # P29: the cap and tunables are cached for 30 s per shop. On a miss the
+    # role switch back rides on the scope's first statement, and the scope is
+    # not restored: the only statement that can follow is the card-cell read,
+    # under its own scope for this same shop. On a hit no statement runs and
+    # the role is still juli_ops -- harmless when the transaction ends here,
+    # handed to the card-cell scope otherwise.
+    cap, tunables, used_restore = await ops_settings.cap_and_tunables(
+        session, shop_id, restore_role=previous_role, transaction_ends_after=True
+    )
+    view = ops_settings.view_from(shop_id, row, cap, tunables)
     body: dict[str, Any] = {
         "shop": _shop_json(listing),
         "settings": view.to_json(),
@@ -334,16 +410,26 @@ async def ops_get_settings(
     }
     if view.overrides.get("card_quota_mode") is True:
         # D33: open cards per cell, read only for a shop in the quota mode.
-        body["card_cells"] = await _card_cells_quietly(session, shop_id)
+        body["card_cells"] = await _card_cells_quietly(
+            session, shop_id, restore_role=None if used_restore else previous_role
+        )
     return body
 
 
-async def _card_cells_quietly(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, int] | None:
-    """Cell (target metric × channel) -> open cards; ``None`` when the read fails."""
+async def _card_cells_quietly(
+    session: AsyncSession, shop_id: uuid.UUID, *, restore_role: str | None = None
+) -> dict[str, int] | None:
+    """Cell (target metric × channel) -> open cards; ``None`` when the read fails.
+
+    The request's last database work (P29: no scope restore on the way out).
+    ``restore_role``: an ``ops_role`` restore nobody has run yet.
+    """
     from juli_backend.services.action_cards.emission_budget import open_cell_counts
 
     try:
-        async with with_shop_scope(session, shop_id):
+        async with with_shop_scope(
+            session, shop_id, restore_role=restore_role, transaction_ends_after=True
+        ):
             return await open_cell_counts(session, shop_id)
     except Exception:
         logger.warning("ops_card_cells_read_failed", extra={"shop_id": str(shop_id)})
@@ -376,6 +462,7 @@ async def ops_put_settings(
         await session.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from None
     await session.commit()
+    ops_settings.forget_cap_and_tunables(shop_id)  # P29: after the COMMIT too
     await _refresh_summary_quietly(session, shop_id)
     return {"settings": view.to_json()}
 
@@ -404,6 +491,7 @@ async def ops_reset_settings(
         include_admin_fields=ctx.staff.at_least(ROLE_ADMIN),
     )
     await session.commit()
+    ops_settings.forget_cap_and_tunables(shop_id)  # P29: after the COMMIT too
     await _refresh_summary_quietly(session, shop_id)
     return {"settings": view.to_json()}
 
@@ -417,8 +505,7 @@ async def ops_list_runs(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    await _shop(session, shop_id)
-    async with with_shop_scope(session, shop_id):
+    async with shop_then_scope(session, shop_id, transaction_ends_after=True):
         data = await runs.list_runs(session, shop_id)
     return {"data": data}
 
@@ -430,9 +517,8 @@ async def ops_run_detail(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    await _shop(session, shop_id)
     try:
-        async with with_shop_scope(session, shop_id):
+        async with shop_then_scope(session, shop_id, transaction_ends_after=True):
             data = await runs.run_detail(session, shop_id, run_id)
     except runs.RunNotFound:
         raise HTTPException(status_code=404, detail="Run not found") from None
@@ -460,9 +546,9 @@ async def ops_view_session(
     block, the audit row committed at the end. A failure anywhere rolls the
     audit row back with it -- and then no session was opened to log.
     """
-    async with ops_role(session):
-        listing = await _shop(session, shop_id)
-        row = await ops_settings.settings_row(session, shop_id)
+    # P29: the COMMIT below ends the transaction -- no role restore before it.
+    async with ops_role(session, transaction_ends_after=True):
+        listing, row = await _shop_and_settings(session, shop_id)
         await audit.record(
             session,
             ctx.staff.actor,
@@ -492,12 +578,29 @@ async def _seller_scope(
 
 
 async def _view_shop(session: AsyncSession, shop_id: uuid.UUID) -> Shop:
-    # The ops read and the switch back to the seller's scope share a statement
-    # (P22): the block hands its role restore to the GUC write that follows.
+    # P29: the ops read, the switch back from juli_ops AND the seller's tenant
+    # GUCs are ONE statement (``overview.find_shop_entering_seller_scope``):
+    # the GUC values come from the very row the function returned. (P22 had
+    # them as two: the read, then the role restore riding on the GUC write.)
     async with ops_role(session) as block:
-        listing = await _shop(session, shop_id)
         previous_role = block.hand_over()
-    return await _seller_scope(session, listing, restore_role=previous_role)
+        if previous_role is None:
+            # SQLite, or already juli_ops: no switch to undo -- the plain path.
+            listing = await _shop(session, shop_id)
+        else:
+            found = await overview.find_shop_entering_seller_scope(
+                session, shop_id, restore_role=previous_role
+            )
+            if found is None:
+                await overview.leave_ops_role(session, previous_role)
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop not found")
+            listing = found
+    if previous_role is None:
+        return await _seller_scope(session, listing)
+    shop = await session.get(Shop, listing.shop_id)
+    if shop is None:
+        raise HTTPException(status_code=404, detail="Shop not found")
+    return shop
 
 
 @router.get("/shops/{shop_id}/view/analysis")
@@ -846,17 +949,19 @@ async def _simulation_body(
     from datetime import date, timedelta
 
     from juli_backend.services.shop_diagnosis_daily import compact
-    from juli_backend.services.shop_rules.openai_cap import openai_monthly_cap_usd
 
     async with ops_role(session) as block:
-        listing = await _shop(session, shop_id)
-        row = await ops_settings.settings_row(session, shop_id)
+        listing, row = await _shop_and_settings(session, shop_id)  # P29: one statement
         saved = await scenarios.list_scenarios(session, shop_id)
         window = _window(window)  # after the 404, as before
         previous_role = block.hand_over()
     written = 0
-    # The role switch back rides on the scope's first statement.
-    async with with_shop_scope(session, shop_id, restore_role=previous_role):
+    # The role switch back rides on the scope's first statement. P29: the
+    # scope is the request's last database work (a fill commits right after),
+    # so it is not restored.
+    async with with_shop_scope(
+        session, shop_id, restore_role=previous_role, transaction_ends_after=True
+    ):
         payload = simulation.baseline(await simulation.load_history(session, shop_id), window)
         if payload["status"]["history_days"] == 0:
             # Reports stored before migration 085 are not in the compact table yet:
@@ -868,7 +973,8 @@ async def _simulation_body(
             if written:
                 history = await simulation.load_history(session, shop_id)
                 payload = simulation.baseline(history, window)
-        cap = await openai_monthly_cap_usd(session, shop_id)
+        # P29: cached 30 s per shop (shared with the settings page), else one read.
+        cap, _tunables = await ops_settings.cap_and_tunables_in_scope(session, shop_id)
     if written:
         await session.commit()
     settings_view = ops_settings.view_from(shop_id, row, cap)
@@ -1078,5 +1184,8 @@ async def ops_list_invites(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    await _shop(session, shop_id)
-    return {"data": [invites.invite_json(i) for i in await invites.list_invites(session, shop_id)]}
+    # P29: one ops block for both reads, no restore -- the request ends here.
+    async with ops_role(session, transaction_ends_after=True):
+        await _shop(session, shop_id)
+        rows = await invites.list_invites(session, shop_id)
+    return {"data": [invites.invite_json(i) for i in rows]}

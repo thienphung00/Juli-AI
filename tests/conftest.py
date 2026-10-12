@@ -514,9 +514,20 @@ def tiktok_config(app_key, app_secret):
 
 @pytest.fixture(autouse=True)
 def _forget_cached_ops_staff():
-    """The resolved-staff cache (P22) is process-wide; no test may inherit one."""
-    from juli_backend.services.ops.staff import clear_staff_cache
+    """The Ops caches are process-wide; no test may inherit one.
 
-    clear_staff_cache()
+    P22: the resolved staff. P29: the signed-in user (cleared with the staff),
+    each shop's cap + tunables, and the system banner figure.
+    """
+    from juli_backend.services.ops.settings import forget_cap_and_tunables
+    from juli_backend.services.ops.staff import clear_staff_cache
+    from juli_backend.services.ops.system_cap import forget_banner
+
+    def forget() -> None:
+        clear_staff_cache()
+        forget_cap_and_tunables()
+        forget_banner()
+
+    forget()
     yield
-    clear_staff_cache()
+    forget()

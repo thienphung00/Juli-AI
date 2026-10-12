@@ -18,6 +18,7 @@ import pytest
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.routes.ops import get_ops_user
 from juli_backend.core.security import get_current_user
 from juli_backend.models.models import User
 from juli_backend.models.ops import OpsStaff
@@ -160,6 +161,8 @@ async def test_ops_route_returns_503_with_the_grant_and_logs_once(
         return user
 
     app.dependency_overrides[get_current_user] = current
+
+    app.dependency_overrides[get_ops_user] = current
     with caplog.at_level("ERROR", logger="juli_backend.api.routes.ops"):
         async with client_for(app) as client:
             response = await client.get("/v1/ops/overview")

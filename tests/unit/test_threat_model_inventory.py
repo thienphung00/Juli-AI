@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from juli_backend.api.app import create_app
 from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.routes.ops import get_ops_user
 from juli_backend.core.security import get_current_user
 from juli_backend.services.agent.composition import build_product_tool_registry
 
@@ -40,8 +41,10 @@ def _requires_auth(route: APIRoute) -> bool:
                 return True
     # P16: the Juli Ops routes authenticate through their own dependency
     # (`get_ops_context`, which itself depends on get_current_user); walk the
-    # resolved dependency tree so a transitive auth dependency counts.
-    return _depends_transitively(route.dependant, (get_current_user, get_active_shop))
+    # resolved dependency tree so a transitive auth dependency counts. P29:
+    # `get_ops_context` now reaches the JWT through `get_ops_user`, which runs
+    # get_current_user's own token verification with the users read cached.
+    return _depends_transitively(route.dependant, (get_current_user, get_active_shop, get_ops_user))
 
 
 def _depends_transitively(dependant, targets) -> bool:

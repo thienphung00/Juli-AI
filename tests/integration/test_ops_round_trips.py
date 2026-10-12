@@ -1,16 +1,18 @@
 """P22: how many database round trips each Juli Ops request makes, on real Postgres.
 
-Production pays ~220 ms per round trip (VPS -> Supabase pooler in us-west-2),
-so these counts ARE the latency budget. Every request here runs the real auth
+Production pays ~395 ms per round trip (VPS in Asia -> Supabase pooler in
+us-west-2, measured 2026-10-12; ~220 ms when P22 was written), so these counts
+ARE the latency budget. Every request here runs the real auth
 path (a signed Supabase JWT through ``get_current_user``, then the ops staff
 gate) on a fresh ``juli_app`` session per request -- the production shape,
 with RLS, the ``juli_ops`` role switch and the tenant GUCs all live.
 
 Each endpoint is called twice and the SECOND call is counted: the first warms
-asyncpg's per-connection prepared-statement cache and the in-process staff
-cache, which is the steady state a staff member's browser sees. The cold
-(first) call of ``/me`` is asserted separately so a cache-miss regression shows
-too.
+asyncpg's per-connection prepared-statement cache and the in-process caches
+(the staff row and the signed-in user, 60 s; a shop's cap + tunables and the
+system banner, 30 s), which is the steady state a staff member's browser sees.
+The cache-MISS paths are asserted separately (``*_cold*``) so a regression in
+either shows.
 
 Run with ``-s`` to print every endpoint's statement list.
 """
@@ -46,11 +48,17 @@ def _env(monkeypatch):
     from juli_backend.workers.tasks import shop_diagnosis as diagnosis_tasks
 
     monkeypatch.setattr(diagnosis_tasks, "enqueue_shop_diagnosis", lambda *a, **k: None)
-    from juli_backend.services.ops import staff as ops_staff
+    _forget_caches()
 
-    clear = getattr(ops_staff, "clear_staff_cache", None)
-    if clear is not None:
-        clear()
+
+def _forget_caches() -> None:
+    from juli_backend.services.ops import settings as ops_settings
+    from juli_backend.services.ops import staff as ops_staff
+    from juli_backend.services.ops import system_cap
+
+    ops_staff.clear_staff_cache()
+    ops_settings.forget_cap_and_tunables()
+    system_cap.forget_banner()
 
 
 @pytest.fixture(scope="module")
@@ -132,23 +140,45 @@ async def probe(two_tenants, staff_user) -> AsyncIterator[Probe]:
 
 # Upper bounds, in round trips (statements + BEGIN/COMMIT/ROLLBACK). Each was
 # measured on this branch and given no slack beyond what a data-dependent
-# branch can add; raising one is a latency regression of ~220 ms per unit.
+# branch can add; raising one is a latency regression of ~395 ms per unit.
 #
 # Before P22 (same data, same harness): me 12, overview 24, settings 35,
 # simulation 44, view_session 33, view_decisions 23, view_runs 28 (+2 per
 # extra run), view_analysis 22, view_rules 22, rules 22.
+#
+# Before P29 (P22 bounds; savepoints now counted once): me 4, overview 12,
+# settings 14, simulation 16, view_session 11, view_decisions 12, view_runs 13,
+# view_analysis 11, view_rules 12, rules 12, costs_system 13, costs 27 (two
+# shops; 4 per shop), terms 18 (3 per shop), staff 9, audit 9, shop_terms 13,
+# shop_invites 12, shop_runs 12, shop_view_term 12.
+#
+# P29: the signed-in user is cached beside the staff row (-4 everywhere: no
+# auth transaction at all on a warm request), the listing + settings row and
+# Tổng quan's four ops reads are one statement each, "Xem như shop" finds the
+# shop and enters the seller's scope in one statement, the fleet pages move one
+# scope from shop to shop, and a request's last scope / role block skips its
+# restore (the transaction's end discards SET LOCAL anyway).
 BOUNDS: dict[str, int] = {
-    "me": 4,
-    "overview": 12,
-    "settings": 14,
-    "simulation": 16,
-    "view_session": 11,
-    "view_decisions": 12,
-    "view_runs": 13,
-    "view_analysis": 11,
+    "me": 0,
+    "overview": 4,
+    "settings": 6,  # cap + tunables cached; the miss is test_ops_settings_cold_cap
+    "simulation": 9,
+    "view_session": 5,
+    "view_decisions": 7,
+    "view_runs": 8,
+    "view_analysis": 6,
     # P23 (D29.9): +1 for the seller's default bands (one fused statement).
-    "view_rules": 12,
-    "rules": 12,
+    "view_rules": 7,
+    "rules": 7,
+    "costs_system": 0,  # cached 30 s; the miss is test_ops_costs_system_cold
+    "costs": 9,  # two shops: 2 per shop
+    "terms": 9,  # two shops: 2 per shop
+    "staff": 4,
+    "audit": 4,
+    "shop_terms": 6,
+    "shop_invites": 5,
+    "shop_runs": 6,
+    "shop_view_term": 6,
 }
 
 
@@ -171,12 +201,73 @@ async def test_ops_me_cold_cache(probe):
     role restore, ROLLBACK -- and no COMMIT for a read-only resolution.
     """
     await probe.once("GET", "/v1/ops/me")  # warm asyncpg's statement cache
-    from juli_backend.services.ops import staff as ops_staff
-
-    ops_staff.clear_staff_cache()
+    _forget_caches()
     seen = await probe.once("GET", "/v1/ops/me")
     print(f"\n== GET /v1/ops/me (cold staff cache)\n{seen.describe()}")
     assert seen.round_trips <= 9, seen.describe()
+
+
+async def test_ops_costs_system_cold(probe):
+    """The banner figure on a cache miss: the spend and both settings rows in
+    ONE statement (was the spend plus two SAVEPOINT-wrapped reads: 9)."""
+    await probe.once("GET", "/v1/ops/costs/system")
+    _forget_caches()
+    await probe.once("GET", "/v1/ops/me")  # re-warm the user + staff caches only
+    seen = await probe.once("GET", "/v1/ops/costs/system")
+    print(f"\n== GET /v1/ops/costs/system (cold banner)\n{seen.describe()}")
+    assert seen.round_trips <= 3, seen.describe()
+
+
+async def test_ops_settings_cold_cap(probe, two_tenants):
+    """Settings on a cap/tunables cache miss: + the scope (carrying the role
+    switch back) and the read; no restore after it."""
+    from juli_backend.services.ops import settings as ops_settings
+
+    shop = two_tenants[0].shop_id
+    await probe.once("GET", f"/v1/ops/shops/{shop}/settings")
+    ops_settings.forget_cap_and_tunables()
+    seen = await probe.once("GET", f"/v1/ops/shops/{shop}/settings")
+    print(f"\n== GET settings (cold cap cache)\n{seen.describe()}")
+    assert seen.round_trips <= 8, seen.describe()
+
+
+async def test_ops_user_cache_never_serves_another_user(probe, owner_engine, two_tenants):
+    """The users read is cached per VERIFIED ``sub``: a second staff member's
+    token resolves to that member, never to the first one's cached entry; and a
+    signed-in seller who is not staff is never cached (403, users re-read)."""
+    probe_email = (await probe.client.get("/v1/ops/me", headers=probe.headers)).json()["email"]
+    other_id = uuid.uuid4()
+    other_email = f"rt2-{other_id.hex[:8]}@app-juli.com"
+    now = datetime.now(UTC).replace(tzinfo=None)
+    with owner_engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO public.users (id, phone, email, display_name, created_at, updated_at)"
+                " VALUES (:id, :phone, :email, 'Ops 2', :now, :now)"
+            ),
+            {"id": other_id, "phone": f"+1557{other_id.hex[:7]}", "email": other_email, "now": now},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO public.ops_staff (id, email, role, active, user_id)"
+                " VALUES (:id, :email, 'viewer', true, :user_id)"
+            ),
+            {"id": uuid.uuid4(), "email": other_email, "user_id": other_id},
+        )
+    other = {"Authorization": f"Bearer {_token(other_id, other_email)}"}
+    for _ in range(2):
+        body = (await probe.client.get("/v1/ops/me", headers=other)).json()
+        assert body["email"] == other_email and body["role"] == "viewer"
+        mine = (await probe.client.get("/v1/ops/me", headers=probe.headers)).json()
+        assert mine["email"] == probe_email and mine["role"] == "admin"
+
+    seller = two_tenants[0]
+    seller_headers = {"Authorization": f"Bearer {_token(seller.user_id, 'seller@example.com')}"}
+    for _ in range(2):
+        with probe.counter.measure() as seen:
+            response = await probe.client.get("/v1/ops/me", headers=seller_headers)
+        assert response.status_code == 403
+        assert any(e.startswith("SELECT users.id") for e in seen.events), seen.describe()
 
 
 async def test_ops_overview(probe):
@@ -213,6 +304,26 @@ async def test_ops_view_as(probe, two_tenants, tail):
 async def test_ops_rules(probe, two_tenants):
     shop = two_tenants[0].shop_id
     await _check(probe, "rules", "GET", f"/v1/ops/shops/{shop}/rules")
+
+
+@pytest.mark.parametrize(
+    "name,path",
+    [
+        ("costs_system", "/v1/ops/costs/system"),
+        ("costs", "/v1/ops/costs"),
+        ("terms", "/v1/ops/terms"),
+        ("staff", "/v1/ops/staff"),
+        ("audit", "/v1/ops/audit"),
+    ],
+)
+async def test_ops_fleet_pages(probe, name, path):
+    await _check(probe, name, "GET", path)
+
+
+@pytest.mark.parametrize("tail", ["terms", "invites", "runs", "view/term"])
+async def test_ops_shop_pages(probe, two_tenants, tail):
+    shop = two_tenants[0].shop_id
+    await _check(probe, f"shop_{tail.replace('/', '_')}", "GET", f"/v1/ops/shops/{shop}/{tail}")
 
 
 async def test_one_shop_summary_refresh(two_tenants):

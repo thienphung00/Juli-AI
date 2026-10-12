@@ -17,6 +17,7 @@ import uuid
 
 import pytest
 
+from juli_backend.api.routes.ops import get_ops_user
 from juli_backend.core.security import get_current_user
 from juli_backend.models.models import User
 from juli_backend.models.ops import OpsStaff
@@ -47,6 +48,8 @@ def _client_as(session, user: User):
         return user
 
     app.dependency_overrides[get_current_user] = current
+
+    app.dependency_overrides[get_ops_user] = current
     return client_for(app)
 
 
@@ -122,3 +125,60 @@ async def test_view_runs_statement_count_does_not_grow_with_runs(session):
     one = await _view_runs_statements(session, 1)
     five = await _view_runs_statements(session, 5)
     assert five == one, f"1 run: {one} statements, 5 runs: {five}"
+
+
+# -- P29: the signed-in user cache ---------------------------------------------------
+
+
+def test_user_cache_is_per_sub_and_never_refreshed_by_hits(monkeypatch):
+    from juli_backend.services.ops import staff as ops_staff
+
+    clock = [1000.0]
+    monkeypatch.setattr(ops_staff.time, "monotonic", lambda: clock[0])
+    a, b = uuid.uuid4(), uuid.uuid4()
+    ops_staff.remember_user(ops_staff.OpsUser(id=a, email="a@app-juli.com"))
+    hit = ops_staff.cached_user(a)
+    assert hit is not None and hit.email == "a@app-juli.com" and hit.cached
+    assert ops_staff.cached_user(b) is None  # another sub never sees a's entry
+    clock[0] += 40
+    ops_staff.remember_user(hit)  # a cache hit is not re-stored: no TTL refresh
+    clock[0] += 25  # 65 s after the read
+    assert ops_staff.cached_user(a) is None
+
+
+def test_clear_staff_cache_forgets_users_too():
+    from juli_backend.services.ops import staff as ops_staff
+
+    user_id = uuid.uuid4()
+    ops_staff.remember_user(ops_staff.OpsUser(id=user_id, email="x@app-juli.com"))
+    ops_staff.clear_staff_cache()
+    assert ops_staff.cached_user(user_id) is None
+
+
+async def test_put_staff_drops_the_user_cache(session):
+    """A staff change made through this process re-reads everyone at once."""
+    from juli_backend.services.ops import staff as ops_staff
+
+    admin = await _staff(session, "admin")
+    ops_staff.remember_user(ops_staff.OpsUser(id=admin.id, email=admin.email))
+    async with _client_as(session, admin) as client:
+        response = await client.put(
+            "/v1/ops/staff", json={"email": "new-1@app-juli.com", "role": "viewer"}
+        )
+    assert response.status_code == 200
+    assert ops_staff.cached_user(admin.id) is None
+
+
+async def test_a_settings_change_is_seen_through_the_cap_cache(session):
+    """P29: GET settings caches the cap + tunables for 30 s; a PUT through this
+    process forgets the shop's entry, so the next GET shows the new value."""
+    admin = await _staff(session, "admin")
+    _, shop = await make_tenant(session)
+    url = f"/v1/ops/shops/{shop.id}/settings"
+    async with _client_as(session, admin) as client:
+        first = (await client.get(url)).json()["settings"]["overrides"]
+        assert first["openai_monthly_cap_usd"] is None
+        put = await client.put(url, json={"changes": {"openai_monthly_cap_usd": 7}})
+        assert put.status_code == 200, put.text
+        again = (await client.get(url)).json()["settings"]["overrides"]
+    assert again["openai_monthly_cap_usd"] == 7.0

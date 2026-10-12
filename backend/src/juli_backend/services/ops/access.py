@@ -108,15 +108,26 @@ class OpsRoleBlock:
 
 
 @asynccontextmanager
-async def ops_role(session: AsyncSession) -> AsyncIterator[OpsRoleBlock]:
+async def ops_role(
+    session: AsyncSession, *, transaction_ends_after: bool = False
+) -> AsyncIterator[OpsRoleBlock]:
     """Run the block as ``juli_ops``; restore the previous role on the way out.
 
     Re-entrant at no cost (P22): a block opened inside another block of the
     same transaction runs in the role the outer one already set, so a route can
     wrap several ops reads in one outer block and pay for one switch and one
     restore instead of one pair per read.
+
+    ``transaction_ends_after=True`` (P29) is the caller's promise that the
+    transaction ends (COMMIT, or the session's close-time ROLLBACK) right after
+    the block, with no statement in between: ``SET LOCAL ROLE`` dies with it, so
+    the restore -- a round trip, ~395 ms from the VPS -- is skipped. Only for a
+    route's LAST database work; anything after it would still run as
+    ``juli_ops``.
     """
     block = OpsRoleBlock()
+    if transaction_ends_after:
+        block.handed_over = True
     if is_sqlite(session):
         yield block
         return
