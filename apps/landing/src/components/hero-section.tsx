@@ -22,10 +22,7 @@ export function HeroSection() {
   return (
     <section aria-labelledby="hero-heading" className="lp-hero">
       <div className="lp-hero__copy">
-        <p className="lp-hero__badge">
-          TikTok Shop Partner ✓
-          <span className="lp-hero__badge-soon">Shopee · sắp ra mắt</span>
-        </p>
+        <p className="lp-hero__badge">Dành cho người bán TikTok Shop</p>
         <p className="lp-hero__eyebrow">
           Chi phí vận hành và hoa hồng sàn ngày càng tăng?
         </p>
@@ -34,7 +31,7 @@ export function HeroSection() {
         </h1>
         <p className="lp-hero__body">
           Juli là trợ lý giúp bạn tăng trưởng ổn định và tối ưu vận hành TikTok
-          Shop và Shopee. Juli tìm luồng truy cập cần tối ưu → chỉ số cần cải
+          Shop. Juli tìm luồng truy cập cần tối ưu → chỉ số cần cải
           thiện → sản phẩm và nội dung cần sửa, rồi đề xuất và thực hiện cùng
           bạn.
         </p>

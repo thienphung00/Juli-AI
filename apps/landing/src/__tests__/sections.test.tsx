@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import LandingPage from "../app/page";
 
 describe("landing sections (PRD 2.7)", () => {
-  it("renders the hero with GMV-led heading, promise triplet, hook, reassurance line, and partner badge", () => {
+  it("renders the hero with GMV-led heading, promise triplet, hook, reassurance line, and audience badge", () => {
     render(<LandingPage />);
 
     expect(
@@ -16,9 +16,11 @@ describe("landing sections (PRD 2.7)", () => {
         name: /tăng trưởng GMV ổn định — mở rộng mà không cần đổ thêm ngân sách/i,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Shopee · sắp ra mắt")).toBeInTheDocument();
-    // Hero badge + footer both carry the partner line.
-    expect(screen.getAllByText(/TikTok Shop Partner/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Dành cho người bán TikTok Shop")).toBeInTheDocument();
+    // No unverified partner claim, no "coming soon" placeholder: TikTok's
+    // developer review rejected the site as unfinished (ticket 4486401).
+    expect(screen.queryByText(/TikTok Shop Partner/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sắp ra mắt/i)).not.toBeInTheDocument();
     // The outcome triplet is three separate lines, not one run-on sentence.
     for (const promise of [
       "Hướng đến +1–3% GMV mỗi tháng",
