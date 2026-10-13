@@ -757,3 +757,42 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      listings with price, sold, rating, badges, position) instead of one client shop; public
      pages carry sales but no impressions or clicks, so that calibration fits sales shares, and
      CTR / CTOR calibration needs a connected shop's analytics.
+
+- **D37** — The product-card funnel simulator by shopper segment (grill I1–I7, product owner,
+  2026-10-13). Scope: the product-card flow only; Video / LIVE later. Full design (rubric,
+  model, data needs) is kept with the local pilot (`research/d37_funnel_design.md`); research
+  notes (`vn_shopper_segments.md`, `funnel_model_evidence.md`) sit beside it.
+  1. **Segments (I1, research-led):** four axes drawn jointly — spend archetype (Cimigo 2025),
+     discovery mode (search / feed / shop-category), trust orientation, deal behaviour — plus
+     traits (new vs returning, COD, hidden-fee sensitivity) and an FMCG overlay (stock-up,
+     one-off trial, replenisher). Shares are priors with ranges, each labelled sourced or
+     inferred; reviews never define segments.
+  2. **Stages (I2A):** Chú ý (stop and look; a proxy, never the impression count, which the
+     algorithm decides) → Bấm (CTR) → Chốt đơn (CTOR) → Số lượng (AOV).
+  3. **Rubric (I3A):** each stage lists minimum requirements (1 point each) and "better" levels
+     (+1 each), measured by rule from data where possible and by fixed yes/no AI questions
+     otherwise; points sum per criterion group (0–1). The AI never decides click or order.
+  4. **Model:** per-stage logit, one weight per criterion group (4–6 parameters per stage),
+     a fixed position offset, segment deviations shrunk to the shared weights (hierarchical);
+     the click stage is a multinomial choice in the grid with a "no click" option; AOV is a
+     choice among the order options actually on the page.
+  5. **Reviews (I4A):** a separate feature R per stage (card stars / count / sold; page aspect
+     sentiment by true star mix), its contribution capped at 10 % of the stage's utility range;
+     every run has a review-blind and a review-on arm; the cap and weight update after each
+     real A/B wave (D34).
+  6. **Proposals (I5A):** labelled "không phụ thuộc đánh giá" (listing facts) or "phụ thuộc
+     đánh giá" (answers review objections) and reported apart, in both arms.
+  7. **Guards (I6A):** rubric per category frozen before a run and versioned; parameters
+     versioned; calibration / hold-out split fixed by product-id hash and locked; every run
+     writes a manifest (code commit, rubric and parameter versions, category, data hash,
+     seeds, split, stopping, cost, validation).
+  8. **AOV (I7, revised):** only observable inputs — pack options and unit prices, buy-more
+     tiers, combos, free-ship and voucher thresholds, shipping fee by quantity, purchase
+     limits — and an effective price per customer type (list price minus the vouchers that type
+     can use: new buyer, follower, platform-funded, Mall). Research found no per-user list-price
+     personalisation, only vouchers.
+  9. **Data needs:** third-party data for 3 categories × ≥ 150 products from ≥ 40 shops (≤ 10
+     each), 90 days daily (prices, promotions, free ship, units / GMV by day and by channel if
+     available, rating, reviews, listing attributes, Mall, SKUs) + ≥ 50 reviews per product;
+     CTR / CTOR need first-party analytics: ≥ 15 connected shops, ≥ 300 products with ≥ 800
+     product-card impressions / 30 days (CTOR: ≥ 150 clicks).
