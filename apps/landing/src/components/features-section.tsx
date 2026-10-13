@@ -66,6 +66,7 @@ export function FeaturesSection() {
         Mỗi luồng truy cập có chỉ số riêng: Hiển thị, CTR, CTOR, AOV. Juli tìm
         đúng chỉ số đang kéo GMV xuống và đề xuất cách sửa.
       </p>
+      <p className="lp-features__note">Hình minh hoạ sử dụng dữ liệu mẫu.</p>
       <div className="lp-features__grid">
         {FEATURES.map((feature) => (
           <article className="lp-features__card" key={feature.key}>

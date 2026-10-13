@@ -7,7 +7,7 @@ import { HeroSection } from "../components/hero-section";
 import { LandingHeader } from "../components/landing-header";
 
 describe("landing sections (PRD 2.7)", () => {
-  it("renders the hero with GMV-led heading, promise triplet, reassurance line, and partner badge", () => {
+  it("renders the hero with GMV-led heading, promise triplet, reassurance line, and audience badge", () => {
     render(<LandingPage />);
 
     expect(
@@ -19,9 +19,11 @@ describe("landing sections (PRD 2.7)", () => {
         name: /tăng trưởng GMV ổn định và mở rộng mà không cần chi thêm nhiều ngân sách/i,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Shopee · sắp ra mắt")).toBeInTheDocument();
-    // Hero badge + footer both carry the partner line.
-    expect(screen.getAllByText(/TikTok Shop Partner/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Dành cho người bán TikTok Shop")).toBeInTheDocument();
+    // No unverified partner claim, no "coming soon" placeholder: TikTok's
+    // developer review rejected the site as unfinished (ticket 4486401).
+    expect(screen.queryByText(/TikTok Shop Partner/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sắp ra mắt/i)).not.toBeInTheDocument();
     // The outcome triplet is three separate lines, not one run-on sentence.
     for (const promise of [
       "Hướng đến +1–3% GMV mỗi tháng",
@@ -136,11 +138,11 @@ describe("owner copy edits (2026-10-10)", () => {
     expect(screen.getByText("Tiến độ hợp tác chậm")).toBeInTheDocument();
   });
 
-  it("header nav follows the page order: Giải pháp before Tính năng", () => {
+  it("header nav links the public pages in order (TikTok developer review, ticket 4486401)", () => {
     render(<LandingHeader />);
     const labels = within(screen.getByRole("navigation", { name: "Điều hướng chính" }))
       .getAllByRole("link")
       .map((link) => link.textContent);
-    expect(labels).toEqual(["Giải pháp", "Tính năng", "Liên hệ"]);
+    expect(labels).toEqual(["Sản phẩm", "Giới thiệu", "Liên hệ"]);
   });
 });

@@ -2,28 +2,31 @@ import Link from "next/link";
 
 import { JuliLogo } from "@juli/brand";
 
-import { DEMO_URL, SECTION_IDS } from "../lib/site";
+import { COMPANY, DEMO_URL, SITE_PAGES } from "../lib/site";
 
 export function SiteFooter() {
   return (
-    <footer className="lp-footer" id={SECTION_IDS.contact}>
+    <footer className="lp-footer">
       <div className="lp-footer__brand">
         <JuliLogo size={26} />
         <p className="lp-footer__tagline">Trợ lý AI cho người bán TikTok Shop</p>
-        <p className="lp-footer__partner">TikTok Shop Partner ✓</p>
+        <address className="lp-footer__company" data-testid="footer-company">
+          <strong>{COMPANY.name}</strong>
+          <span>Mã số thuế: {COMPANY.taxId}</span>
+          <span>{COMPANY.address}</span>
+        </address>
       </div>
       <nav aria-label="Liên kết chân trang" className="lp-footer__nav">
+        {SITE_PAGES.map((page) => (
+          <Link className="lp-footer__link" href={page.href} key={page.href}>
+            {page.label}
+          </Link>
+        ))}
         <a className="lp-footer__link" href={DEMO_URL}>
           Trải nghiệm Demo
         </a>
-        <a className="lp-footer__link" href={`#${SECTION_IDS.features}`}>
-          Tính năng
-        </a>
-        <a className="lp-footer__link" href={`#${SECTION_IDS.comparison}`}>
-          Giải pháp
-        </a>
-        <a className="lp-footer__link" href="mailto:lienhe@app-juli.com">
-          lienhe@app-juli.com
+        <a className="lp-footer__link" href={`mailto:${COMPANY.email}`}>
+          {COMPANY.email}
         </a>
       </nav>
       <nav aria-label="Liên kết pháp lý" className="lp-footer__nav lp-footer__nav--legal">

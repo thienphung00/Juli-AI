@@ -15,7 +15,7 @@ const LAST_UPDATED = "10/10/2026";
 export default function TermsOfServicePage() {
   return (
     <>
-      <LandingHeader showSectionNav={false} />
+      <LandingHeader />
       <main className="lp-main">
         <article className="lp-legal">
           <p className="lp-legal__eyebrow">Pháp lý</p>

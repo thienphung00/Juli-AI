@@ -20,6 +20,13 @@ route it owns (`/api/tt/event`) talks to TikTok, not to `juli-api`.
   `/privacy#du-lieu-nguoi-dung-google` (§3) is the Google OAuth brand-verification
   section: scopes, data accessed, use, Limited Use, sharing, protection,
   retention/deletion/revocation, plus an English summary; tests pin each item.
+- `/product`, `/about`, `/contact` — public, no-login pages describing the
+  product (features, TikTok Shop data use, pricing, FAQ) and the operating
+  company (`COMPANY`). Required by TikTok's developer review, which rejected a
+  site that was only a landing page plus a login (2026-10, ticket 4486401).
+  Header and footer link them from every page (`SITE_PAGES`); the footer
+  carries the legal entity, tax ID and address.
+- `/sitemap.xml` — every public page.
 - `DEMO_URL` (`src/lib/site.ts`) — the one CTA destination
   (`demo.app-juli.com`, Mock mode; `NEXT_PUBLIC_DEMO_URL` overrides for preview).
 - `POST /api/tt/event` — the TikTok Events API relay. Same-origin, so an ad
@@ -38,7 +45,10 @@ route it owns (`/api/tt/event`) talks to TikTok, not to `juli-api`.
 
 - **The Demo is the primary CTA everywhere** — header, hero, mid-page, closing.
   "Đăng ký" never appears as a primary action (CONTEXT.md `apps/landing`).
-- No pricing section until packaging is decided.
+- Pricing lives on `/product` only, and must match `/terms` section 5; the home
+  page states price only as the "từ 500K" entry point.
+- No unverifiable claims (partner badges) and no "coming soon" copy on any
+  public page.
 - User-visible copy is Vietnamese with correct diacritics (ADR-028 voice).
 - No hardcoded colors — semantic `--juli-*` tokens only.
 - Identical content across web and mobile-web breakpoints; only layout adapts.

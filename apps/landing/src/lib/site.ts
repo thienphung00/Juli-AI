@@ -14,12 +14,23 @@ export const DEMO_URL =
 export const LOGIN_URL =
   process.env.NEXT_PUBLIC_LOGIN_URL ?? "https://demo.app-juli.com/";
 
-/** In-page anchors used by header nav and secondary CTAs. */
+/** In-page anchors on `/` used by secondary CTAs. */
 export const SECTION_IDS = {
   features: "tinh-nang",
   comparison: "giai-phap",
-  contact: "lien-he",
 } as const;
+
+/**
+ * The public, no-login pages describing the product and the company — the
+ * header and footer link them from every page. TikTok's developer review
+ * rejects a site that is only a landing page plus a login (2026-10 ticket
+ * 4486401), so these must stay reachable without an account.
+ */
+export const SITE_PAGES = [
+  { href: "/product", label: "Sản phẩm" },
+  { href: "/about", label: "Giới thiệu" },
+  { href: "/contact", label: "Liên hệ" },
+] as const;
 
 /**
  * The origins this site is actually served from, and the only ones whose
