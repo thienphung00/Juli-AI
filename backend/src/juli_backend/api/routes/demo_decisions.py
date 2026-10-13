@@ -293,6 +293,8 @@ class DemoDecisionCard(BaseModel):
     kpi: DemoDecisionKpi | None = None
     gmv_estimate: DemoDecisionGmvEstimate | None = None
     sibling_cards: int | None = None
+    #: P30 (D34.8): one plain sentence about the card's group, once measured.
+    group_result: str | None = None
 
 
 class DemoDecisionKpi(BaseModel):

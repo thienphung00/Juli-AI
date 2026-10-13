@@ -1,5 +1,6 @@
 """Action Card persistence and manual refresh — P2-B1 (#303, ADR-021)."""
 
+from juli_backend.services.action_cards.card_groups import group_views
 from juli_backend.services.action_cards.dispatch import (
     enqueue_action_card_refresh,
     get_refresh_dispatcher,
@@ -28,6 +29,7 @@ __all__ = [
     "enqueue_action_card_refresh",
     "get_refresh_cooldown_gate",
     "get_refresh_dispatcher",
+    "group_views",
     "maybe_poll_tiktok_data",
     "persist_legacy_recommendations",
     "persist_scoring_result",

@@ -36,6 +36,7 @@ Có câu hỏi, bạn cứ nhắn đội ngũ Juli ({Kênh liên hệ}) hoặc e
 | **GMV dự kiến** | Doanh thu mỗi tháng có thể lấy lại nếu đạt mục tiêu — là ước tính |
 | **N thay đổi cho CTR** | Nhiều thẻ của cùng một sản phẩm, cùng nhắm một con số (ví dụ "2 thay đổi cho CTR") |
 | **Duyệt** | Bạn đồng ý để Juli thực hiện thẻ (một thẻ, hoặc "Duyệt N thẻ" cho cả nhóm) |
+| **Kết quả nhóm** | Một câu về các sản phẩm đã thử cùng thay đổi này, so với các sản phẩm chưa đổi (ví dụ "Nhóm 6 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 7 % so với các sản phẩm chưa đổi") |
 | **Ngày 7 · kiểm tra** | Lần kiểm tra sơ bộ, 7 ngày sau khi áp dụng |
 | **Đang lên** | Ngày 7: con số mục tiêu đã tăng rõ, doanh thu vẫn giữ được |
 | **Chưa rõ** | Ngày 7: chưa thấy tăng rõ — cứ chờ đến ngày 14 |
@@ -140,6 +141,13 @@ sản phẩm trên kênh Thẻ sản phẩm thấp hơn mức chung của shop (
 được) và đứng sau các thẻ về một bước giảm. Ở chế độ này bạn có thể thấy tối đa 5 thẻ mở cho mỗi con
 số trên mỗi kênh (ví dụ 5 thẻ CTR trên Thẻ sản phẩm), thay vì vài thẻ mới mỗi ngày; quy tắc **Số thẻ mở
 cùng lúc** bạn đặt vẫn được giữ.
+
+**Thử theo nhóm.** Khi có từ 3 sản phẩm cần cùng một thay đổi cho cùng một con số (ví dụ đổi ảnh bìa
+để tăng CTR), Juli có thể thử theo nhóm: khoảng 1/3 sản phẩm, chọn ngẫu nhiên, nhận thẻ **sau 14 ngày**
+để làm mốc so sánh. Nhờ vậy Juli biết thay đổi có thật sự hiệu quả hay chỉ do sàn, mùa vụ hoặc may mắn.
+Sau 14 ngày, các thẻ cùng loại hiện dòng **Kết quả nhóm**, ví dụ "Nhóm 6 sản phẩm đổi ảnh bìa: lượt nhấp
+tăng khoảng 7 % so với các sản phẩm chưa đổi" ("(sơ bộ)" khi nhóm còn nhỏ). Khi nhóm quá nhỏ để kết luận,
+Juli không hiện câu nào.
 
 Ngay sau khi bạn kết nối shop, Juli tạo vài thẻ **Đề xuất nhanh · dựa trên 14 ngày** (tiêu đề, mô tả,
 ảnh bìa) để bạn bắt đầu ngay; độ tin cậy của chúng là "Tham khảo".

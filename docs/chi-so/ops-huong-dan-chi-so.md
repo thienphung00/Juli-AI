@@ -44,6 +44,7 @@ Nguồn: `fasttrack/DECISIONS.md` D25–D31; `services/ops/simulation.py`;
 | **GMV dự kiến** | GMV có thể lấy lại mỗi tháng nếu đạt mục tiêu | GMV lấy lại được/ngày × 30 (ước tính theo quy tắc), hoặc khoảng từ dự đoán hiệu quả, nhân hệ số hiệu chỉnh của shop |
 | **N thay đổi cho CTR** | Nhóm thẻ cùng sản phẩm, cùng một chỉ số mục tiêu (ví dụ "2 thay đổi cho CTR") | Một sản phẩm chỉ có một chỉ số mục tiêu tại một thời điểm (D29.4) |
 | **Duyệt** | Người bán đồng ý cho Juli thực hiện thẻ; "Duyệt N thẻ" duyệt cả nhóm | Chỉ người bán duyệt; Ops không duyệt thay |
+| **Kết quả nhóm** | Một câu trên thẻ về nhóm sản phẩm cùng chỉ số × thay đổi × kênh, khi nhóm đã đo xong ngày 14 (ví dụ "Nhóm 6 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 7 % so với các sản phẩm chưa đổi") | D34: trung vị thay đổi nhóm áp dụng − trung vị nhóm đối chứng (chọn ngẫu nhiên, nhận thẻ sau 14 ngày); không hiện khi "Chưa đủ cơ sở" (mục 5.2) |
 | **Ngày 7 · kiểm tra** | Mốc đo sơ bộ, 7 ngày sau khi áp dụng | Trung bình 7 ngày sau so với 14 ngày trước ngày áp dụng |
 | **Đang lên** | Ngày 7: chỉ số mục tiêu đã tăng rõ hơn dao động, GMV giữ được | Mục tiêu tăng > 1 × dao động VÀ GMV không giảm quá dao động của GMV |
 | **Chưa rõ** | Ngày 7: chưa thấy tăng vượt dao động | Ngược lại với "Đang lên" |
@@ -308,6 +309,41 @@ và loại trừ quà tặng giữ nguyên; thẻ bị chặn vì ô đầy có 
 Ô có thể có thẻ với dữ liệu hiện lưu: Lượt hiển thị và CTR (Thẻ sản phẩm hoặc tất cả kênh), CTOR và
 AOV (chỉ tất cả kênh), Video, LIVE.
 
+### 5.2 "Nhóm thử nghiệm (đối chứng chậm)" (Admin, D34 / D39.3)
+
+Vì sao: thẻ được chọn **vì** sản phẩm vừa giảm, nên so trước/sau đơn thuần hay "ăn may" (sản phẩm tự
+hồi lại), và thuật toán sàn, mùa vụ, đối thủ đều làm số lên xuống. Chỉ chia ngẫu nhiên mới tách được
+hiệu quả thật của một loại thay đổi.
+
+| Nhãn | Mặc định | Giới hạn | Tác dụng |
+|---|---|---|---|
+| Nhóm thử nghiệm (đối chứng chậm) | Theo Nhiều thẻ mỗi ô | Bật / Tắt | Bật: chia nhóm và giữ đối chứng như dưới đây. Tắt: thẻ ra như trước, không giữ thẻ nào |
+
+- **Nhóm** = chỉ số mục tiêu × thay đổi × kênh đo trong một shop (ví dụ "CTR · Ảnh bìa · Thẻ sản phẩm").
+- Khi có **≥ 3 thẻ chờ** của cùng nhóm (3 sản phẩm khác nhau, chưa thuộc nhóm cùng loại nào trong 44 ngày qua — thẻ đối chứng đã trả không
+  bao giờ bị giữ lần hai), Juli
+  mở một nhóm: xáo trộn các sản phẩm bằng một **seed** ngẫu nhiên (lưu lại — cùng seed cho ra đúng
+  cách chia đó), khoảng **1/3** (làm tròn, ít nhất 1) là **đối chứng**. Thẻ đối chứng bị giữ (lý do
+  `group_control`) và **trả lại sau 14 ngày** kể từ ngày mở nhóm — không người bán nào mất thẻ hẳn.
+  Dưới 3 thẻ: không có nhóm, thẻ ra như bình thường.
+- **Nhóm áp dụng** được ưu tiên trong 3 ngày đầu, vẫn theo giới hạn thẻ (3/1/1 mỗi ngày, hoặc số thẻ mỗi ô).
+- **Ngày 14** (khi số liệu đã đủ 14 ngày kể từ ngày mở): với từng sản phẩm, chỉ số mục tiêu trên kênh
+  của nhóm, trung bình 14 ngày từ ngày mở so với 14 ngày trước đó (%). **Kết quả = trung vị nhóm áp
+  dụng − trung vị nhóm đối chứng** (điểm %), khoảng 80 % bằng bootstrap (lặp 2.000 lần, seed của nhóm),
+  đọc theo quy tắc D31.7 so với nửa độ rộng khoảng: **Thay đổi rõ / Có thể thay đổi / Trong dao động**.
+  Tính theo **cách chia** (cả thẻ người bán không duyệt); "Chỉ thẻ đã duyệt" là số phụ.
+- Nhãn: ≥ 3 áp dụng + ≥ 2 đối chứng có số liệu → **"Sơ bộ"**; ≥ 5 + ≥ 3 → không nhãn; ít hơn →
+  **"Chưa đủ cơ sở"** (không có con số, người bán không thấy câu nào).
+- Trang Cài đặt shop hiện **"Nhóm thử nghiệm (đối chứng chậm)"**: từng nhóm, trạng thái (Đang chạy /
+  Đã đo), ngày bắt đầu, ngày trả thẻ đối chứng, số áp dụng · đối chứng, kết quả ngày 14 với khoảng,
+  số "Chỉ thẻ đã duyệt", câu người bán thấy, seed; bấm vào nhóm để xem từng sản phẩm (nhóm, thẻ đang
+  giữ / đã trả / đã hiện / đã duyệt, thay đổi %).
+- Người bán chỉ thấy **Kết quả nhóm**: một câu trên các thẻ cùng nhóm (cùng chỉ số × thay đổi × kênh)
+  khi nhóm gần nhất đã có kết quả, ví dụ "Nhóm 6 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 7 % so
+  với các sản phẩm chưa đổi" (thêm "(sơ bộ)" khi nhãn Sơ bộ).
+- Chưa làm: kết quả của các shop tương tự cho shop quá nhỏ (D34.6) và bảng hiệu quả theo loại thay đổi
+  thay trọng số xếp hạng (D34.7).
+
 ## 6. Các màn hình Ops khác
 
 - **Tổng quan**: Đã kết nối / Đang hoạt động / Mất kết nối (Token hết hạn); từng shop: Giai đoạn, Kết
@@ -336,6 +372,11 @@ sản phẩm giảm chưa quá dao động của nó; chỉ số đó "Ít dữ 
 không có lỗi tiêu đề nào. Shop đặt "GMV giảm (cũ)" thì vẫn chỉ mở thẻ khi GMV giảm. Trả lời: "Lượt
 hiển thị của shop giảm thật, nhưng ở từng sản phẩm mức giảm chưa vượt mức lên xuống thường ngày (hoặc
 Juli chưa có thay đổi phù hợp), nên Juli chưa đề xuất. Khi một sản phẩm giảm rõ, Juli sẽ đề xuất."
+
+**"Sao sản phẩm của tôi nhận thẻ muộn hơn các sản phẩm khác?"**
+Nội bộ: sản phẩm rơi vào nhóm đối chứng (D34, mục 5.2). Trả lời: "Juli thử thay đổi này trên một nhóm
+sản phẩm trước và giữ vài sản phẩm chọn ngẫu nhiên để so sánh, nhờ đó biết thay đổi có thật sự hiệu
+quả không. Sản phẩm của bạn nhận đề xuất sau 14 ngày, kèm kết quả của nhóm."
 
 **"Doanh thu không giảm, sao Juli vẫn đề xuất?"**
 Một chỉ số của sản phẩm giảm thật nhưng chỉ số khác tăng bù. Trả lời: "CTOR của sản phẩm giảm rõ,

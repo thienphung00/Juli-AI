@@ -2,6 +2,7 @@ import { readAuthSession } from "../supabase-auth";
 import type {
   AuditEntry,
   AuditKind,
+  CardGroupsPage,
   CostsPage,
   Deltas,
   DisconnectResult,
@@ -148,6 +149,8 @@ export const opsApi = {
   /** D28.3 per-shop "Sửa" (Admin); `null` = back to the default. */
   putShopCap: (shopId: string, usd: number | null, o?: OpsRequestOptions) =>
     opsRequest<{ shop_id: string; cap_usd: number; is_custom: boolean }>(`${shopPath(shopId)}/openai-cap`, { method: "PUT", body: { usd } }, o),
+  /** P30 (D34 / D39.3): the shop's card groups with their arms and day-14 verdicts. */
+  groups: (shopId: string, o?: OpsRequestOptions) => opsRequest<CardGroupsPage>(`${shopPath(shopId)}/groups`, {}, o),
   /** D28.4 tab Thời hạn. */
   terms: (o?: OpsRequestOptions) => opsRequest<TermsPage>("/terms", {}, o),
   shopTerms: (shopId: string, o?: OpsRequestOptions) => opsRequest<ShopTermsPage>(`${shopPath(shopId)}/terms`, {}, o),

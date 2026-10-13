@@ -75,7 +75,12 @@ export type DiagKey =
   | "diag_trigger";
 
 /** P28 (D33): the per-shop "many cards" quota mode; optional until the backend sends them. */
-export type QuotaKey = "card_quota_mode" | "card_quota_per_cell" | "card_quota_max_open";
+export type QuotaKey =
+  | "card_quota_mode"
+  | "card_quota_per_cell"
+  | "card_quota_max_open"
+  /** P30 (D34 / D39.3): group A/B with a delayed control; null follows card_quota_mode. */
+  | "card_groups";
 
 export type OverrideKey =
   | DiagKey
@@ -355,4 +360,70 @@ export interface ShopTermsPage {
   readonly periods: readonly SubscriptionPeriod[];
   readonly created?: boolean;
   readonly period?: SubscriptionPeriod;
+}
+
+/** P30 (D34 / D39.3): one product of a card group and its arm (intent-to-treat). */
+export interface CardGroupMember {
+  readonly product_id: string;
+  readonly product_title: string | null;
+  readonly arm: "treated" | "control";
+  readonly card_id: string | null;
+  readonly card_status: string | null;
+  readonly surfaced_at: string | null;
+  readonly approved: boolean;
+  readonly released_at: string | null;
+}
+
+/** Median change treated − control (points of %), its 80 % bootstrap interval and wording. */
+export interface CardGroupComparison {
+  readonly n_treated: number;
+  readonly n_control: number;
+  /** null: a full verdict; "Sơ bộ"; "Chưa đủ cơ sở" (no numbers). */
+  readonly label: string | null;
+  readonly median_treated: number | null;
+  readonly median_control: number | null;
+  readonly difference: number | null;
+  readonly interval: readonly [number, number] | null;
+  readonly strength: "clear" | "likely" | "noise" | null;
+  readonly strength_label: string | null;
+}
+
+export interface CardGroupVerdict {
+  readonly as_of: string;
+  readonly window_days: number;
+  readonly primary: CardGroupComparison;
+  readonly approved_only: CardGroupComparison;
+  readonly products: readonly {
+    readonly product_id: string;
+    readonly arm: "treated" | "control";
+    readonly approved: boolean;
+    readonly before: number | null;
+    readonly after: number | null;
+    readonly change_pct: number | null;
+  }[];
+}
+
+export interface CardGroup {
+  readonly id: string;
+  readonly key: string;
+  /** "CTR · Ảnh bìa · Thẻ sản phẩm". */
+  readonly label: string;
+  readonly metric: string;
+  readonly lever: string;
+  readonly channel: string;
+  readonly launched_on: string;
+  readonly release_on: string;
+  readonly seed: number;
+  readonly status: "open" | "measured";
+  readonly treated: number;
+  readonly control: number;
+  readonly members: readonly CardGroupMember[];
+  readonly verdict: CardGroupVerdict | null;
+  readonly seller_sentence: string | null;
+}
+
+/** `GET /v1/ops/shops/{id}/groups`. */
+export interface CardGroupsPage {
+  readonly enabled: boolean;
+  readonly groups: readonly CardGroup[];
 }

@@ -895,4 +895,4 @@ def test_migration_079_is_short_chained_and_tenant_scoped():
     deferred = (migrations / "deferred/074_users_placeholder_phone_cleanup.py").read_text(
         encoding="utf-8"
     )
-    assert 'down_revision: str | None = "088_ingest_gateway"' in deferred
+    assert 'down_revision: str | None = "089_card_groups"' in deferred

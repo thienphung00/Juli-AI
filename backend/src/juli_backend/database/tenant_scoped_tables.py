@@ -120,6 +120,10 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ingest_raw_payloads"): "tenant_direct",
     ("public", "platform_daily_metrics"): "tenant_direct",
     ("public", "ingest_dataset_status"): "tenant_direct",
+    # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
+    # delayed control and their members (arm per product).
+    ("public", "card_groups"): "tenant_direct",
+    ("public", "card_group_members"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",

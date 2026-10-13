@@ -525,6 +525,25 @@ async def ops_run_detail(
     return {"data": data}
 
 
+# -- card groups (P30, D34 / D39.3; read-only) -------------------------------------------
+
+
+@router.get("/shops/{shop_id}/groups")
+async def ops_card_groups(
+    shop_id: uuid.UUID,
+    ctx: OpsContext = Depends(viewer),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """The shop's card groups: key, arms, launch / release, seed and day-14 verdict."""
+    from juli_backend.services.action_cards import group_views
+    from juli_backend.services.shop_rules import diag_tunables
+
+    async with shop_then_scope(session, shop_id, transaction_ends_after=True):
+        tunables = await diag_tunables(session, shop_id)
+        groups = await group_views(session, shop_id)
+    return {"enabled": tunables.groups_enabled, "groups": groups}
+
+
 # -- "Xem như shop" (D25.3, amended 2026-10-10: ALWAYS read-only) ------------------------
 
 

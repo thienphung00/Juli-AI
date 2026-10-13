@@ -405,3 +405,24 @@ describe("P23 hold thresholds (D29.9)", () => {
     expect(screen.queryByText(/Juli gợi ý/)).toBeNull();
   });
 });
+
+describe("P30 (D34.8): Kết quả nhóm", () => {
+  const SENTENCE = "Nhóm 6 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 7 % so với các sản phẩm chưa đổi";
+
+  it("shows the group sentence once the card carries one (desktop and phone)", () => {
+    const view = cardView(item("1", { ...P23, group_result: SENTENCE }));
+    expect(view.groupResult).toBe(SENTENCE);
+    const { unmount } = renderCard(view);
+    expect(screen.getByTestId("group-result")).toHaveTextContent(SENTENCE);
+    expect(screen.getByText("Kết quả nhóm")).toBeInTheDocument();
+    unmount();
+    renderCard(view, true);
+    expect(screen.getByTestId("group-result-mobile")).toHaveTextContent(SENTENCE);
+  });
+
+  it("shows nothing without a verdict", () => {
+    renderCard(cardView(item("1", { ...P23, group_result: null })));
+    expect(screen.queryByTestId("group-result")).toBeNull();
+    expect(screen.queryByText("Kết quả nhóm")).toBeNull();
+  });
+});

@@ -47,10 +47,11 @@ export const SETTING_KEYS: readonly OverrideKey[] = [
   "card_quota_mode",
   "card_quota_per_cell",
   "card_quota_max_open",
+  "card_groups",
 ];
 
 /** P28 (D33): the "Nhiều thẻ mỗi ô" keys, in row order. */
-export const QUOTA_KEYS: readonly QuotaKey[] = ["card_quota_mode", "card_quota_per_cell", "card_quota_max_open"];
+export const QUOTA_KEYS: readonly QuotaKey[] = ["card_quota_mode", "card_quota_per_cell", "card_quota_max_open", "card_groups"];
 
 /** P23 (D29.11): the "Chẩn đoán & KPI" keys, in row order. */
 export const DIAG_KEYS: readonly DiagKey[] = [
@@ -84,6 +85,7 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   card_quota_mode: "Nhiều thẻ mỗi ô",
   card_quota_per_cell: "Thẻ mở mỗi ô",
   card_quota_max_open: "Thẻ mở tối đa (nhiều thẻ)",
+  card_groups: "Nhóm thử nghiệm (đối chứng chậm)",
 };
 
 /** P30 (D39.1): what opens a card, in the team's words. */
@@ -118,6 +120,7 @@ function usd(n: number): string {
 export function fmtSetting(key: string, value: unknown): string {
   if (key === "stage") return STAGE_NAMES[String(value)] ?? String(value ?? "—");
   if (key === "openai_monthly_cap_usd") return value === null || value === undefined ? "Không giới hạn" : `${usd(Number(value))} / tháng`;
+  if (key === "card_groups" && (value === null || value === undefined)) return "Theo Nhiều thẻ mỗi ô";
   if (value === null || value === undefined) return "Mặc định";
   if (key === "diag_windows" && Array.isArray(value)) return value.length ? `${[...value].sort((a, b) => Number(a) - Number(b)).join(" · ")} ngày` : "Không có";
   if (MULT_KEYS.has(key)) return `×${comma(Number(value))} dao động`;

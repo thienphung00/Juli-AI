@@ -56,7 +56,7 @@ describe("Nhiều thẻ mỗi ô (D33)", () => {
     const a = await open(page(null));
     const section = screen.getByTestId("ops-quota");
     const rows = within(section).getAllByTestId("ops-setting");
-    expect(rows.map((r) => within(r).getByRole("button", { name: /^Sửa / }).textContent)).toEqual(["Tắt", "5 thẻ/ô", "40 thẻ mở"]);
+    expect(rows.map((r) => within(r).getByRole("button", { name: /^Sửa / }).textContent)).toEqual(["Tắt", "5 thẻ/ô", "40 thẻ mở", "Theo Nhiều thẻ mỗi ô (Tắt)"]);
     expect(within(section).queryByTestId("ops-quota-cells")).toBeNull();
     fireEvent.click(within(section).getByRole("button", { name: "Sửa Nhiều thẻ mỗi ô" }));
     fireEvent.click(within(section).getByRole("button", { name: "Nhiều thẻ mỗi ô" }));
