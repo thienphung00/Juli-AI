@@ -937,3 +937,29 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      embedding (download approved by the owner) and a "contrast with niche" cover as a D34 #2
      candidate, read by shopper segment (simulation: discovery shoppers chose the banner cover
      73.6 % / 63.3 % vs specific-need 66.2 % / 56.2 %).
+  10. **Implementation notes (fast track P31, 2026-10-13).**
+      - *T2A:* `optimize_product/shrinkage.py`. Per product and window (now / the same-length
+        window before, on the metric's D32 channel) CTR = clicks / impressions and CTOR = orders /
+        clicks are replaced by the posterior mean (s + α) / (n + α + β) before the D39.1 1 × band
+        comparison. α, β by method of moments over the shop's products of the same category, same
+        channel and calendar window: m = Σs / Σn, τ² = (Σ n_i (p_i − m)² − (k − 1) m (1 − m)) /
+        (Σn − Σn_i² / Σn), κ = m (1 − m) / τ² − 1 clipped to [1, Σn] (κ = Σn when τ² ≤ 0); a
+        category with < 5 products uses the shop-wide prior (≥ 3 products, else raw). The band,
+        GMV cost, ranking, KPI and copy keep the raw values; the card's
+        `diagnosis.metric_trigger.drops[].shrinkage` records both rates and priors. Tunable
+        `kpi_shrinkage` = `on` (default) | `off` in the D29.11 team row; Ops → Chẩn đoán & KPI →
+        "Lọc nhiễu CTR / CTOR". Not on `gmv_first`.
+      - *T3A:* `action_cards/group_stats.py`, called by `card_groups.build_verdict`. 90 % (p5–p95)
+        bootstrap interval; with < 5 controls the change counts only if an exact permutation test
+        over the assignment (every choice of the controls, ≤ 20 000, else 10 000 random) gives
+        p ≤ 0.10 for median treated − median control AND the bootstrap grade is not noise. CUPED
+        on the log scale: θ = pooled slope of ln after on ln before over all the group's products
+        (clipped [0, 2]; 1 with < 3 products or no spread), adjusted change = e^((y − x̄) − θ(x − x̄))
+        − 1; θ = 1 is the plain change. False alarm: 500 replays (seed = the group's) of the whole
+        rule on the group's own no-effect pairs (days −28..−15 vs −14..−1 before launch, permuted;
+        fallback: arm-centred changes); rate above 10 % beyond a one-sided 90 % Monte-Carlo margin
+        (≈ 11.7 %) → label "Đang đo", no strength, no seller sentence (applied to full verdicts
+        too: a weaker result never gets a stronger label). Stored per comparison (`false_alarm`,
+        `test`, `permutation`, `rule_strength`), at the verdict top (`false_alarm`, `cuped`) and
+        in `GET /v1/ops/shops/{id}/groups` (`false_alarm`). No migration (verdict is JSON). Not
+        checked with the v0.3 power simulator yet (DEBT).

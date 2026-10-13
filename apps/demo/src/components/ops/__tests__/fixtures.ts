@@ -92,6 +92,7 @@ export const SETTINGS: ShopSettingsPage = {
       guard_band_mult: null,
       volatile_cv: null,
       diag_trigger: null,
+      kpi_shrinkage: null,
     },
     defaults: {
       card_daily_limit: 5,
@@ -112,6 +113,8 @@ export const SETTINGS: ShopSettingsPage = {
       volatile_cv: 0.3,
       // P30 (D39.1)
       diag_trigger: "metric_first",
+      // P31 (D41.2)
+      kpi_shrinkage: "on",
     },
     updated_at: null,
     options: {

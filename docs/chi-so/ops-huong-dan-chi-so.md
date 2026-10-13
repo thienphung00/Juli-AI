@@ -177,6 +177,13 @@ Lưu ý: Mô phỏng so mục tiêu với dao động của MỘT khoảng (dao 
    nếu cải thiện CTOR, doanh thu có thể tăng thêm khoảng 1.200.000 ₫/tháng" (GMV giảm: "… và kéo
    doanh thu giảm 12 %; nếu cải thiện CTR, doanh thu có thể lấy lại khoảng …"). Ops thấy chi tiết
    (các chỉ số giảm, dao động gộp, phần GMV, chỉ số giữ GMV) trong `diagnosis.metric_trigger` của thẻ.
+   **Lọc nhiễu CTR / CTOR (D41.2, mặc định Bật):** trước khi so với dao động, CTR và CTOR của sản
+   phẩm được kéo về mức chung của ngành hàng trong shop, càng ít dữ liệu càng kéo mạnh (beta-binomial
+   thực nghiệm: tỉ lệ = (lượt thành công + α) ÷ (lượt thử + α + β), α và β ước lượng từ các sản phẩm
+   cùng ngành hàng trong cùng khoảng ngày; ngành hàng dưới 5 sản phẩm dùng mức chung của cả shop).
+   Sản phẩm 70 lượt hiển thị/ngày "giảm" CTR 4 % → 3 % không còn mở thẻ; sản phẩm nhiều dữ liệu gần
+   như không đổi. Chỉ ảnh hưởng việc mở thẻ: KPI, dao động, GMV mất và câu cho người bán vẫn dùng số
+   thô. Chi tiết trong `diagnosis.metric_trigger.drops[].shrinkage`.
    **Cách cũ (GMV trước, D29.2)** vẫn chọn được cho từng shop ở "Điều kiện mở thẻ" (mục 5): sản phẩm
    chỉ thành ứng viên khi GMV/ngày giảm nhiều hơn dao động gộp của GMV, rồi chỉ số kéo xuống nhiều
    nhất là chỉ số mục tiêu, xếp hạng theo Lưu lượng ổn định trước. Sản phẩm không có chỉ số nào giảm
@@ -266,6 +273,7 @@ Mỗi hàng là một bản nháp, lưu qua hộp xác nhận trước → sau, 
 | Cửa sổ chẩn đoán | 14 · 30 · 60 ngày | 1–5 khoảng, mỗi khoảng 7–90 ngày | Ngắn nhất đủ dữ liệu được dùng. Bỏ 14 → thẻ chậm phản ứng nhưng ổn định hơn |
 | Dữ liệu tối thiểu | 30 lượt nhấp/đơn | 5–1000 | Dưới mức này chỉ số là "Ít dữ liệu", không chẩn đoán. Cao hơn → ít thẻ hơn nhưng chắc hơn; cũng là mốc Độ tin cậy Cao (≥ 3 ×) |
 | Điều kiện mở thẻ | Một chỉ số giảm | Một chỉ số giảm / GMV giảm (cũ) | Một chỉ số giảm (D39.1): mở thẻ khi bất kỳ chỉ số nào giảm quá dao động, kể cả khi GMV giữ được, xếp theo GMV chỉ số đó làm mất. GMV giảm (cũ, D29.2): chỉ khi GMV giảm quá dao động — để quay lại cách cũ cho một shop |
+| Lọc nhiễu CTR / CTOR | Bật | Bật / Tắt | Bật (D41.2): CTR / CTOR kéo về mức chung của ngành hàng theo lượng dữ liệu trước khi so với dao động — bớt thẻ mở vì may rủi ở sản phẩm ít dữ liệu. Tắt: so số thô như trước |
 | KPI tối thiểu | 1 × dao động | 0,5–10 | Mục tiêu ≥ hiện tại + N × dao động. Dưới 1 → mục tiêu có thể không đo được |
 | KPI tối đa | 3 × dao động | 0,5–10 (không nhỏ hơn KPI tối thiểu) | Mục tiêu ≤ hiện tại + N × dao động. Cao hơn → hứa nhiều hơn |
 | Ngưỡng giữ ổn định | 1 × dao động | 0,5–10 | Ngưỡng mặc định (Juli gợi ý) của chỉ số không phải mục tiêu. Nhỏ hơn → hỏi "Hoàn tác?" thường hơn |
@@ -329,11 +337,20 @@ hiệu quả thật của một loại thay đổi.
 - **Nhóm áp dụng** được ưu tiên trong 3 ngày đầu, vẫn theo giới hạn thẻ (3/1/1 mỗi ngày, hoặc số thẻ mỗi ô).
 - **Ngày 14** (khi số liệu đã đủ 14 ngày kể từ ngày mở): với từng sản phẩm, chỉ số mục tiêu trên kênh
   của nhóm, trung bình 14 ngày từ ngày mở so với 14 ngày trước đó (%). **Kết quả = trung vị nhóm áp
-  dụng − trung vị nhóm đối chứng** (điểm %), khoảng 80 % bằng bootstrap (lặp 2.000 lần, seed của nhóm),
+  dụng − trung vị nhóm đối chứng** (điểm %), khoảng 90 % bằng bootstrap (lặp 2.000 lần, seed của nhóm),
   đọc theo quy tắc D31.7 so với nửa độ rộng khoảng: **Thay đổi rõ / Có thể thay đổi / Trong dao động**.
+- **Chặt hơn từ D41.3:** (a) thay đổi của từng sản phẩm được điều chỉnh theo 14 ngày trước đó của chính
+  nó (kiểu CUPED, θ chung của nhóm, xem `group_stats.py`) để phần "hồi lại sau khi tụt" không bị tính
+  cho thay đổi; (b) khi đối chứng dưới 5 sản phẩm, phải qua thêm kiểm định hoán vị (thử mọi cách chọn
+  đối chứng, p ≤ 0,10), không thì là Trong dao động; (c) hệ thống chạy lại quy tắc 500 lần trên số liệu
+  trước đó của chính nhóm (không có thay đổi nào) để đo **tỉ lệ báo động giả**; trên 10 % (sau sai số mô
+  phỏng ≈ 1,7 điểm) thì nhãn là **"Đang đo"**, không nói mạnh yếu, người bán không thấy câu nào. Tỉ lệ
+  này hiện cạnh kết quả ("báo động giả x %"). Nhóm nhỏ (ví dụ 5 + 3 với trung vị) gần như luôn là
+  Trong dao động hoặc Đang đo — đó là chủ ý.
   Tính theo **cách chia** (cả thẻ người bán không duyệt); "Chỉ thẻ đã duyệt" là số phụ.
 - Nhãn: ≥ 3 áp dụng + ≥ 2 đối chứng có số liệu → **"Sơ bộ"**; ≥ 5 + ≥ 3 → không nhãn; ít hơn →
-  **"Chưa đủ cơ sở"** (không có con số, người bán không thấy câu nào).
+  **"Chưa đủ cơ sở"** (không có con số, người bán không thấy câu nào); báo động giả trên 10 % →
+  **"Đang đo"** (có con số cho Ops, không có độ mạnh, người bán không thấy câu nào).
 - Trang Cài đặt shop hiện **"Nhóm thử nghiệm (đối chứng chậm)"**: từng nhóm, trạng thái (Đang chạy /
   Đã đo), ngày bắt đầu, ngày trả thẻ đối chứng, số áp dụng · đối chứng, kết quả ngày 14 với khoảng,
   số "Chỉ thẻ đã duyệt", câu người bán thấy, seed; bấm vào nhóm để xem từng sản phẩm (nhóm, thẻ đang

@@ -748,3 +748,27 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   site in `tests/unit/test_juli_app_grants_cover_mutations.py` — same as the P8–P24 tables
   already listed for `test_no_public_table_holds_update_beyond_its_call_site` (Postgres only).
 - [ ] No Playwright e2e for the Ops group view or the seller "Kết quả nhóm" line (vitest only).
+
+## P31 — shrink before the trigger, stricter group verdict (2026-10-13)
+
+- [ ] D41.3 says "checked with the v0.3 power simulator first": not done here (the simulator
+  lives in the private pilot). The in-process replay shows the new rule is very strict on small
+  groups: a difference of medians over ≤ 8 products rarely reaches p ≤ 0.10 in the permutation
+  test (5 + 3 perfectly separated: p = 6/56), and 5 + 5 / 4 + 6 groups often read "Đang đo".
+  Run the v0.3 simulator on the P31 rule (power at the D34 #1 size, 17 + 9) before relying on it.
+- [ ] The false-alarm gate allows a one-sided 90 % Monte-Carlo margin (≈ 11.7 % at 500 draws)
+  so that a permutation-path group (exactly ≤ 10 % by construction) does not flip on simulation
+  noise. Owner to confirm, or raise the draws instead.
+- [ ] The false-alarm replay costs ≈ 1–3 s per measured comparison (500 draws × 200 bootstrap
+  resamples) inside `apply_emission_budget`; fine for a few groups a night, move to a nightly
+  task with more groups.
+- [ ] The null data are each product's (days −28..−15, days −14..−1) pair: products with less
+  than 7 days in the earlier window fall back to the arm-centred changes. A group launched on a
+  newly connected shop gets the weaker fallback.
+- [ ] Verdicts stored before P31 keep their 80 % interval and no `false_alarm`; they are not
+  re-measured (a group is measured once).
+- [ ] Shrinkage priors are fit per (category, channel, calendar window) over every product the
+  planner sees, gifts and excluded products included; categories are TikTok's leaf names as
+  stored (`CatalogProduct.category`), which may be too fine — products with no category use the
+  shop-wide prior. Not applied to the `gmv_first` path, Lượt hiển thị or AOV (not binomial).
+- [ ] No Playwright e2e for the "Lọc nhiễu CTR / CTOR" row or the false-alarm text (vitest only).

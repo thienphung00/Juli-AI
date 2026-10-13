@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
-import { ACTION_NAMES, DIAG_KEYS, QUOTA_KEYS, STREAM_NAMES, TRIGGER_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
+import { ACTION_NAMES, DIAG_KEYS, QUOTA_KEYS, SHRINKAGE_NAMES, STREAM_NAMES, TRIGGER_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
 import type { DiagKey, OpsMe, OverrideKey, ShopSettingsPage, StageId } from "../../lib/ops/types";
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
 import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
@@ -709,6 +709,24 @@ function DiagSection({
               ))}
             </select>
           </SettingRow>
+          {eff("kpi_shrinkage") !== undefined ? (
+            <SettingRow
+              disabled={!canEdit}
+              help="Bật: CTR và CTOR của sản phẩm ít lượt hiển thị / lượt nhấp được kéo về mức chung của ngành hàng trong shop trước khi so với dao động, nên một lần giảm do may rủi không mở thẻ. Sản phẩm nhiều dữ liệu gần như không đổi. Chỉ ảnh hưởng việc mở thẻ, không đổi KPI"
+              onDefault={() => change({ kpi_shrinkage: null })}
+              overridden={isSet("kpi_shrinkage")}
+              summary={fmtSetting("kpi_shrinkage", eff("kpi_shrinkage"))}
+              title="Lọc nhiễu CTR / CTOR"
+            >
+              <select aria-label="Lọc nhiễu CTR / CTOR" onChange={(e) => change({ kpi_shrinkage: e.target.value })} value={String(eff("kpi_shrinkage") ?? "on")}>
+                {Object.entries(SHRINKAGE_NAMES).map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+          ) : null}
         </>
       ) : null}
     </div>

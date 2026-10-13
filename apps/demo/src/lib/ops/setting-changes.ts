@@ -44,6 +44,7 @@ export const SETTING_KEYS: readonly OverrideKey[] = [
   "guard_band_mult",
   "volatile_cv",
   "diag_trigger",
+  "kpi_shrinkage",
   "card_quota_mode",
   "card_quota_per_cell",
   "card_quota_max_open",
@@ -62,6 +63,7 @@ export const DIAG_KEYS: readonly DiagKey[] = [
   "guard_band_mult",
   "volatile_cv",
   "diag_trigger",
+  "kpi_shrinkage",
 ];
 
 export const SETTING_LABELS: Readonly<Record<string, string>> = {
@@ -82,6 +84,7 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   guard_band_mult: "Ngưỡng giữ ổn định",
   volatile_cv: "Ngưỡng lưu lượng ổn định",
   diag_trigger: "Điều kiện mở thẻ",
+  kpi_shrinkage: "Lọc nhiễu CTR / CTOR",
   card_quota_mode: "Nhiều thẻ mỗi ô",
   card_quota_per_cell: "Thẻ mở mỗi ô",
   card_quota_max_open: "Thẻ mở tối đa (nhiều thẻ)",
@@ -92,6 +95,12 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
 export const TRIGGER_NAMES: Readonly<Record<string, string>> = {
   metric_first: "Một chỉ số giảm",
   gmv_first: "GMV giảm (cũ)",
+};
+
+/** P31 (D41.2): shrink CTR / CTOR toward the category before the trigger. */
+export const SHRINKAGE_NAMES: Readonly<Record<string, string>> = {
+  on: "Bật (kéo về mức của ngành hàng)",
+  off: "Tắt (so số thô)",
 };
 
 const MULT_KEYS = new Set(["kpi_min_band_mult", "kpi_max_band_mult", "guard_band_mult"]);
@@ -126,6 +135,7 @@ export function fmtSetting(key: string, value: unknown): string {
   if (MULT_KEYS.has(key)) return `×${comma(Number(value))} dao động`;
   if (key === "volatile_cv") return `CV > ${comma(Math.round(Number(value) * 1000) / 10)} %`;
   if (key === "diag_trigger") return TRIGGER_NAMES[String(value)] ?? String(value);
+  if (key === "kpi_shrinkage") return SHRINKAGE_NAMES[String(value)] ?? String(value);
   if (key === "diag_min_events") return `${String(value)} lượt nhấp/đơn`;
   if (key === "card_quota_per_cell") return `${String(value)} thẻ/ô`;
   if (key === "card_quota_max_open") return `${String(value)} thẻ mở`;
