@@ -796,3 +796,28 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      available, rating, reviews, listing attributes, Mall, SKUs) + ≥ 50 reviews per product;
      CTR / CTOR need first-party analytics: ≥ 15 connected shops, ≥ 300 products with ≥ 800
      product-card impressions / 30 days (CTOR: ≥ 150 clicks).
+
+- **D38** — Iterative variant optimisation with simulated buyers (grill L1–L3, M1–M5, product
+  owner, 2026-10-13). Context: the grid design counted rare clicks and could not separate
+  variants (an A/A pair differed 2×); the pairwise design fixed that (A/A within 1–2 points) and
+  showed, pooled over 10 products, buyers prefer Juli's description (60–67 %) but the original
+  card (≈ 40 % chose Juli's), mostly because Juli's "less text" cover dropped the original's
+  promotion banner.
+  1. **Measurement (L1A–L3):** forced-choice pairwise comparisons (card pair, page pair, A/A),
+     sides randomised, labels blind, both review arms; results are preference shares with
+     intervals and the personas needed to conclude. Simulated absolute CTR / CTOR are never
+     reported as predictions; real rates come from the calibrated model (D37).
+  2. **Search (M1A):** champion–challenger rounds; challengers get personas by Thompson
+     sampling; stop after 2 rounds with no challenger beating the champion beyond the A/A noise,
+     at most 6 rounds. The card starts from the original, the description from Juli's version.
+  3. **Challengers (M2A):** each changes exactly one tagged component of one lever, so wins
+     accumulate as component knowledge per category and platform.
+  4. **Anti-overfit (M3A):** the final champion must also win on a held-out persona panel, in
+     both review arms, and with a second model as judge, before it becomes a card proposal;
+     the real test stays D34.
+  5. **Scope (M4A):** title (cover kept), cover choice among the shop's own images, cover with a
+     price / promotion / voucher overlay that is actually running (rendered as a still with
+     Remotion in juli-content-engine), description. Combos are out of scope; no generated
+     imagery and no claim or promotion that is not real.
+  6. **Budget (M5A):** ≈ $0.4–0.8 per product with early stopping and bandit allocation, a hard
+     cap per run.
