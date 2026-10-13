@@ -873,3 +873,29 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
        code). Not built: D34.6 cross-shop result for small shops, D34.7 lever-effect table,
        late joiners (a draft arriving after launch joins a new group only when 3 such drafts
        of its key are waiting together; otherwise it surfaces as before, ungrouped).
+
+- **D40** — Learning levers from little data (grill R1–R8, product owner, 2026-10-13). Context:
+  v0.1 found no stable lever on a one-shot cross-section; Fujiwa's ~60 days of daily first-party
+  data (impressions, clicks, orders, GMV by channel) were not used for lever effects.
+  1. **Denoise first (R1A):** empirical-Bayes beta-binomial shrinkage of per-product CTR / CTOR
+     toward the category, in proportion to each product's events, before any modelling.
+  2. **Within-product variation (R2A):** a panel model with product and day fixed effects on
+     Fujiwa's daily data, so a lever is learned from a product's own changes (price, promotion,
+     cover / title edits) rather than from differences between products; the same frame takes
+     TikTok snapshot differences when they arrive.
+  3. **Borrow strength (R3A):** hierarchical Bayes — shared effect + category and platform
+     deviations shrunk to 0 — with priors from the D37 research and the simulated pairwise
+     results, updated after each real A/B wave (D34).
+  4. **Few, relative features (R4A):** a domain-chosen pool of ≈ 10–12 candidates expressed
+     relative to the niche (price vs niche median, shown discount / price banner, pack stated,
+     social proof shown), with sign constraints; selection by stability selection and a
+     sparsity prior (horseshoe) down to 3–5 per stage; the rest only for checks.
+  5. **Easier targets (R5A):** rank within niche (pairwise / learning-to-rank) or ordinal tiers;
+     ordinal regression on Shopee's "k+" sold buckets.
+  6. **Simulation as weak labels (R6A):** simulated pairwise outcomes enter with a low weight
+     (start ≈ 0.1 of a real observation), recalibrated from real A/B agreement.
+  7. **Design the next experiments (R7A):** the next A/B is chosen where the model is most
+     uncertain about a lever with the most GMV at stake (bandit / optimal design).
+  8. **Small-data evaluation (R8A):** GBM only as a benchmark; leave-one-shop-out and
+     bootstrap; a lever counts as learned only when its sign is stable across folds, its
+     interval excludes 0 and the simulation agrees in direction.
