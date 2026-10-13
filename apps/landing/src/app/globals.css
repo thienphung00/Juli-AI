@@ -1068,3 +1068,8 @@ a {
 .lp-page-faq__answer {
   color: var(--juli-muted-foreground);
 }
+
+.lp-page-hero--center {
+  min-height: 50vh;
+  align-content: center;
+}
