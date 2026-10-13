@@ -3,6 +3,7 @@ import Link from "next/link";
 import { JuliLogo } from "@juli/brand";
 
 import { COMPANY, DEMO_URL, SITE_PAGES } from "../lib/site";
+import { CookieSettingsButton } from "./cookie-settings-button";
 
 export function SiteFooter() {
   return (
@@ -36,6 +37,7 @@ export function SiteFooter() {
         <Link className="lp-footer__link" href="/terms">
           Điều khoản dịch vụ
         </Link>
+        <CookieSettingsButton />
       </nav>
       <p className="lp-footer__legal">© 2026 Juli AI</p>
     </footer>

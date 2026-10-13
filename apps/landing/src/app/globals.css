@@ -1097,3 +1097,55 @@ a {
   min-height: 50vh;
   align-content: center;
 }
+
+/* ————— Cookie consent ————— */
+
+.lp-consent {
+  position: fixed;
+  right: var(--juli-space-4);
+  bottom: var(--juli-space-4);
+  left: var(--juli-space-4);
+  z-index: 20;
+  display: grid;
+  gap: var(--juli-space-3);
+  max-width: 34rem;
+  margin-inline: auto;
+  border: 1px solid var(--juli-border-accent);
+  border-radius: var(--juli-radius-large);
+  background: var(--juli-surface);
+  box-shadow: var(--juli-shadow-medium);
+  padding: var(--juli-space-5);
+}
+
+.lp-consent__text {
+  margin: 0;
+  color: var(--juli-foreground);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.lp-consent__link {
+  color: var(--juli-primary-text);
+}
+
+.lp-consent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--juli-space-3);
+}
+
+.lp-footer__button {
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.lp-footer__button:focus-visible {
+  border-radius: 0.5rem;
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 2px;
+}
