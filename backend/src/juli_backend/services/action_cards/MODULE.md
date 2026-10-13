@@ -72,6 +72,18 @@ slice — see "Out of scope".
   `_WEEKLY_CAP` (= `_WEEKLY_NOVELTY_CAP`, `weekly_novelty_cap`) /
   `_ACTIVE_CAP` (`active_cap`, the open limit) / `_COOLDOWN` — the
   `ActionCard.suppressed_reason` values
+- `emission_budget.SUPPRESSED_REASON_GROUP_CONTROL` (`group_control`, fast track P30,
+  D34 / D39.3) — the draft is its group's delayed control, held until launch + 14 days;
+  only while the shop's grouping is on (team tunable `card_groups`, unset = the quota mode)
+- `card_groups.apply_groups(session, shop_id, drafts, *, now)` → `GroupPass` (eligible
+  drafts in order, held controls, launched groups); `card_groups.measure_due_groups(...)`
+  (day-14 verdicts: median change treated − control, 80 % bootstrap interval, D31.7
+  wording, "Sơ bộ" / "Chưa đủ cơ sở"); `card_groups.group_views(...)` (Ops);
+  `card_groups.seller_sentences(...)` (Quyết định "Kết quả nhóm"); pure
+  `assign_arms(products, seed)`, `compare(...)`, `build_verdict(...)`,
+  `seller_sentence(...)`, `card_group_key(card)`, `payload_group_key(payload)`,
+  `control_count(n)`, `new_seed()`, `GroupKey`; tables `card_groups` /
+  `card_group_members` (migration 089). Called by `apply_emission_budget` only when on
 - `emission_budget.EXPIRED_STATUS`, `CAMPAIGN_PLAN_WORKFLOW_KEYS` (outside the
   limits; hook), `CONTENT_WORKFLOW_KEYS` (daily content slot; hook),
   `executor_slot(card)`, `daily_slot(card)`, `daily_slot_pick(...)`,

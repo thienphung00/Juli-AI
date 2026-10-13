@@ -840,3 +840,36 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      channel; ≈ 1/3 of eligible products drawn at random as a delayed control (card 14 days
      later); a group launches within ≈ 3 days; verdict by difference-in-differences ("Sơ bộ" at
      ≥ 3 treated + ≥ 2 control); Ops sees the detail, the seller one sentence.
+  4. **Implementation notes (fast track P30, 2026-10-13).**
+     - *N1A:* `optimize_product/metric_trigger.py`. A metric "drops" when its adaptive-window mean
+       (D29.1, `min_events` kept) on the lever's channel (D32 `kpi_window`: Lượt hiển thị / CTR on
+       Thẻ sản phẩm when it has enough data, CTOR / AOV all-channel) is below the same-length window
+       before it by more than 1 × the combined band (D31.7, as the GMV gate). Its GMV cost per day =
+       GMV now × (e^(−c) − 1), c = the metric's D29.2 log term on that channel; a product keeps its
+       costliest metric (D29.4); ranking value = cost × the D30.3 factor × reason penalty × lever
+       weight (as before), stability only breaks ties. GMV read product-wide says "held" (and by
+       which rising metric) or "fell" in the seller copy. Skip reason `d39:no_metric_drop`; S28B
+       still needs GMV not fallen and no metric drop. Per-shop tunable `diag_trigger`
+       (`metric_first` default, `gmv_first` = the D29.2 path unchanged), Ops → Chẩn đoán & KPI →
+       "Điều kiện mở thẻ". Growth branch: `growth_candidates()` returns nothing (TODO D39.1). With 4
+       metrics tested at 1 × band, noise opens more cards than the GMV gate did (Fujiwa-like
+       fixture: 2 instead of 1).
+     - *O2A (D34 in the card system):* `action_cards/card_groups.py`, migration `089_card_groups`
+       (`card_groups`, `card_group_members`, RLS, juli_app SELECT/INSERT/UPDATE). Key =
+       `metric|lever|channel` from the card payload. Run inside the emission budget after the
+       cooldown / Ops filters: ≥ 3 drafts of one key from distinct products not in a group of that key
+       launched in the last 44 days (a released control is never held twice) → a group (launch = shop day, release = launch + 14, `secrets` seed stored), arms =
+       sorted ids shuffled by `random.Random(seed)`, the first round(n/3) (≥ 1) control; control
+       drafts suppressed `group_control` until release; treated drafts first during 3 days; the
+       budget (D24.21 slots or D33 quota) still caps. Day 14 = newest analytics day ≥ launch + 13:
+       per product the target metric on the group's channel, 14 days from launch vs 14 before
+       (`measurement.window_totals` / `channel_rows`), ≥ 7 days each; verdict = median treated −
+       median control (points of %), 80 % bootstrap interval (2,000 resamples, the group's seed),
+       strength by D31.7 against the interval's half-width; "Sơ bộ" ≥ 3 + 2, none ≥ 5 + 3, else
+       "Chưa đủ cơ sở" without numbers; approved-only secondary. Ops: `GET /v1/ops/shops/{id}/groups`
+       and "Nhóm thử nghiệm (đối chứng chậm)" in Cài đặt shop. Seller: `card.group_result`
+       ("Kết quả nhóm") on cards of the same key once their latest group has a verdict. Tunable
+       `card_groups` (unset = follows `card_quota_mode`; off = the budget never calls the group
+       code). Not built: D34.6 cross-shop result for small shops, D34.7 lever-effect table,
+       late joiners (a draft arriving after launch joins a new group only when 3 such drafts
+       of its key are waiting together; otherwise it surfaces as before, ungrouped).

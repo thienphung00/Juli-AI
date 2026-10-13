@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
@@ -442,7 +443,15 @@ def test_no_below_shop_level_card_when_the_mode_is_off():
     daily = _shop_with({"low": _flat(card_ctr=0.025)})
     plan = _plan(daily, {"low": _tiktok("MAIN_IMG_DUPLICATE")}, tunables=DiagTunables())
     assert plan.proposals == []
-    assert any(s.product_id == "low" and s.reason == "d29:no_gmv_drop" for s in plan.skips)
+    # D39.1 metric-first: no metric fell beyond its band either.
+    assert any(s.product_id == "low" and s.reason == "d39:no_metric_drop" for s in plan.skips)
+    gmv_first = _plan(
+        daily,
+        {"low": _tiktok("MAIN_IMG_DUPLICATE")},
+        tunables=DiagTunables(diag_trigger="gmv_first"),
+    )
+    assert gmv_first.proposals == []
+    assert any(s.product_id == "low" and s.reason == "d29:no_gmv_drop" for s in gmv_first.skips)
 
 
 def test_off_mode_planner_is_unchanged_by_quota_inputs():
@@ -490,7 +499,12 @@ def test_d29_4_one_metric_per_product_and_drop_cards_first():
     assert all(len(metrics) == 1 for metrics in by_product.values())
     first = plan.proposals[0]
     assert first.product_id == "fall" and first.reason_code is None
-    assert first.reason.startswith("GMV mỗi ngày giảm")
+    # D39.1 metric-first copy: the metric that fell, then what GMV did.
+    assert first.reason.startswith("CTR trên kênh Thẻ sản phẩm giảm")
+    gmv_first = _plan(
+        daily, evidence, discount_cap_set=True, tunables=replace(QUOTA, diag_trigger="gmv_first")
+    )
+    assert gmv_first.proposals[0].reason.startswith("GMV mỗi ngày giảm")
     assert all(
         p.reason_code == REASON_BELOW_SHOP_LEVEL for p in plan.proposals if p.product_id == "low"
     )
@@ -523,6 +537,16 @@ def test_lever_weight_is_neutral_in_quota_mode():
     plan = _plan(daily, {"fall": _tiktok("MAIN_IMG_DUPLICATE")})
     [card] = [p for p in plan.proposals if p.product_id == "fall"]
     assert card.prediction is not None and card.d29_ranking_value is not None
+    # D39.1 metric-first: ranked on the GMV the CTR fall costs, no lever weight.
+    assert card.metric_trigger is not None and card.metric_trigger.target is not None
+    cost = Decimal(str(round(card.metric_trigger.target.gmv_cost_per_day, 4)))
+    assert card.d29_ranking_value == cost * Decimal(str(card.prediction.factor))
+    old = _plan(
+        daily,
+        {"fall": _tiktok("MAIN_IMG_DUPLICATE")},
+        tunables=replace(QUOTA, diag_trigger="gmv_first"),
+    )
+    [card] = [p for p in old.proposals if p.product_id == "fall"]
     expected = card.recoverable_gmv_per_day * Decimal(str(card.prediction.factor))
     assert card.d29_ranking_value == expected
 

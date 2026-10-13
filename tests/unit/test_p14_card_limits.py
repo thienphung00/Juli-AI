@@ -550,6 +550,11 @@ def test_reason_penalty_fades_over_sixty_days_with_a_floor():
 
 @pytest.mark.asyncio
 async def test_calibration_and_reasons_reorder_the_ranking(session, shop_a):
+    # D39.1: this ranking is the GMV-first one (recoverable × calibration); the
+    # metric-first ranking (the GMV a metric's fall costs) is tested in P30.
+    from juli_backend.services.shop_rules.diag_tunables import set_tunable_overrides
+
+    await set_tunable_overrides(session, shop_a.id, {"diag_trigger": "gmv_first"})
     base = await plan_optimize_product_cards(session, shop_a.id, now=COMPUTED_AT)
     assert base is not None
     order = [(p.product_id, p.lever.value) for p in base.plan.proposals]

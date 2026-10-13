@@ -108,6 +108,8 @@ export interface CardView {
   readonly gmvMethod: string | null;
   /** P14-B: rank adjusted by this shop's previous results ("đã điều chỉnh theo kết quả trước"). */
   readonly adjustedByHistory: boolean;
+  /** P30 (D34.8): "Nhóm 6 sản phẩm đổi ảnh bìa: …" once the card's group has a verdict. */
+  readonly groupResult?: string | null;
   readonly leverCode: string | null;
   readonly leverLabel: string | null;
   readonly executor: LeverExecutor;
@@ -366,6 +368,7 @@ function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardV
     beforeAfter: card.before_after.map(beforeAfterView),
     gmvMethod: text(card.gmv_method),
     adjustedByHistory: card.adjusted_by_history === true,
+    groupResult: text(card.group_result),
     leverCode: card.lever.code,
     leverLabel: card.lever.label,
     executor: card.content ? "juli_drafts" : card.lever.executor,

@@ -64,7 +64,10 @@ read the same predicate rather than each deciding for itself.
 `fasttrack/contracts/p10-quyet-dinh.md` §1) for ADR-106 cards at read time:
 `load_card_contexts(session, shop_id, cards)` reads, shop-scoped, the cards'
 products, their SKUs (`inventory_items.seller_sku`), the latest run per card and
-its `run_write_values`; `build_card_block(card, payload, context)` is pure. The
+its `run_write_values`, and (fast track P30, D34.8) the seller sentence of the
+card's metric × lever × channel group once it was measured
+(`action_cards.card_groups.seller_sentences`, one query, only when a card has a
+group key) -> `card.group_result`; `build_card_block(card, payload, context)` is pure. The
 block is computed, not copied from the stored JSON, so it is outside the
 allowlist below; `mask_decision_payload(..., card_context=...)` attaches it.
 

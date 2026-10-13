@@ -73,6 +73,8 @@ export interface RecommendationCardPayload {
   readonly gmv_estimate?: CardGmvEstimate | null;
   /** P23 (D29.4): other active cards of the same product + target metric. */
   readonly sibling_cards?: number | null;
+  /** P30 (D34.8): one plain sentence about the card's group, once its day-14 verdict exists. */
+  readonly group_result?: string | null;
 }
 
 export type CardTargetMetric = "ctr" | "ctor" | "aov" | "impressions";

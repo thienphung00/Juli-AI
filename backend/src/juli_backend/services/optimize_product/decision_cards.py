@@ -78,6 +78,15 @@ from juli_backend.services.optimize_product.listing_signals import (
     is_title_code,
     listing_signals_from_product,
 )
+from juli_backend.services.optimize_product.metric_trigger import (
+    GMV_FELL,
+    GMV_HELD,
+    STATUS_NO_METRIC_DROP,
+    MetricDrop,
+    MetricTrigger,
+    growth_candidates,
+    metric_trigger,
+)
 from juli_backend.services.optimize_product.prediction import (
     CalibrationStats,
     Prediction,
@@ -99,6 +108,7 @@ from juli_backend.services.optimize_product.tunables import DiagTunables
 from juli_backend.services.optimize_product.volatility import (
     CONFIDENCE_LOW,
     STABILITY_ORDER,
+    STATUS_LOW_DATA,
     STATUS_NO_DROP,
     Assessment,
     Kpi,
@@ -259,6 +269,9 @@ class CardProposal:
     #: D33 (S28B): why the card exists when it is not the D29 GMV-drop branch
     #: (:data:`REASON_BELOW_SHOP_LEVEL`); ``None`` for every D29 card.
     reason_code: str | None = None
+    #: D39.1 (metric-first, internal): the metrics that fell beyond their band,
+    #: what each costs, and whether GMV held; ``None`` on the GMV-first path.
+    metric_trigger: MetricTrigger | None = None
 
     @property
     def confidence(self) -> str | None:
@@ -355,6 +368,11 @@ class CardProposal:
             # behind the target metric and the calibrated lift.
             **({"volatility": self.assessment.to_json()} if self.assessment is not None else {}),
             **({"prediction": self.prediction.to_json()} if self.prediction is not None else {}),
+            **(
+                {"metric_trigger": self.metric_trigger.to_json()}
+                if self.metric_trigger is not None
+                else {}
+            ),
         }
 
 
@@ -609,8 +627,9 @@ def plan_shop_cards(
     is added to the local title evidence, and those products count as asked.
 
     With ``daily`` (product id -> daily rows) and ``as_of`` the D29 pipeline
-    runs instead of ADR-106's gap threshold (:func:`_plan_d29`): GMV-first
-    trigger, one target metric per product, one proposal per (product, lever)
+    runs instead of ADR-106's gap threshold (:func:`_plan_d29`): the D39.1
+    metric-first trigger (``tunables.diag_trigger``, default; ``gmv_first`` keeps
+    D29.2's GMV gate), one target metric per product, one proposal per (product, lever)
     within it, stable-first ranking, KPI and Quality Score / Performance
     Prediction (D30.2–3). Without them, the ADR-106 behaviour is unchanged.
     """
@@ -751,6 +770,53 @@ def d29_reason(assessment: Assessment, metric: str) -> str:
         f"vượt mức dao động bình thường; nguyên nhân chính: {METRIC_LABELS_VI[metric]} "
         f"giảm {_pct_text(metric_fall)}"
     )
+
+
+#: D39.1 copy: the metric that held GMV, mid-sentence.
+METRIC_NAMES_INLINE_VI: dict[str, str] = {
+    "impressions": "lượt hiển thị",
+    "ctr": "CTR",
+    "ctor": "CTOR",
+    "aov": "AOV",
+}
+
+
+def _vnd_text(value: float) -> str:
+    """Rounded to the thousand, Vietnamese grouping: 1234567 -> "1.235.000 ₫"."""
+    thousands = max(round(value / 1000), 0) * 1000
+    return f"{thousands:,}".replace(",", ".") + " ₫"
+
+
+def metric_first_reason(drop: MetricDrop, trigger: MetricTrigger) -> str:
+    """D39.1 seller copy: which metric fell, whether GMV held (and thanks to what), and
+    what improving it may bring per month -- plain words, the on-screen metric labels."""
+    label = METRIC_LABELS_VI[drop.metric]
+    where = (
+        f" trên kênh {CHANNEL_LABELS_VI[drop.channel]}"
+        if drop.channel != CHANNEL_TOTAL and drop.channel in CHANNEL_LABELS_VI
+        else ""
+    )
+    head = (
+        f"{label}{where} giảm {_pct_text(drop.drop_pct / 100)} so với {drop.window_days} ngày trước"
+    )
+    monthly = _vnd_text(drop.gmv_cost_per_day * 30)
+    inline = METRIC_NAMES_INLINE_VI[drop.metric]
+    if trigger.gmv == GMV_HELD:
+        held = (
+            f"doanh thu được giữ nhờ {METRIC_NAMES_INLINE_VI[trigger.held_by]} tăng"
+            if trigger.held_by is not None
+            else "doanh thu vẫn giữ được"
+        )
+        return (
+            f"{head} nhưng {held}; nếu cải thiện {inline}, doanh thu có thể tăng thêm "
+            f"khoảng {monthly}/tháng"
+        )
+    if trigger.gmv == GMV_FELL and trigger.gmv_change_pct is not None:
+        return (
+            f"{head} và kéo doanh thu giảm {_pct_text(-trigger.gmv_change_pct / 100)}; nếu "
+            f"cải thiện {inline}, doanh thu có thể lấy lại khoảng {monthly}/tháng"
+        )
+    return f"{head}; nếu cải thiện {inline}, doanh thu có thể tăng thêm khoảng {monthly}/tháng"
 
 
 def _target_gap(
@@ -906,6 +972,17 @@ def keep_top_per_cell(ordered: list[CardProposal], top_k: int) -> list[CardPropo
     return [replace(p, rank=index) for index, p in enumerate(selected, start=1)]
 
 
+def _skip_reason(assessment: Assessment, metric_first: bool) -> str:
+    """Why a product got no D29 / D39.1 proposal (the plan's ``skips``)."""
+    if not metric_first:
+        return f"d29:{assessment.status}"
+    # Every event-based metric thin (Lượt hiển thị is never low-data): nothing to read.
+    thin = all(w.low_data for m, w in assessment.metrics.items() if m != "impressions")
+    if assessment.status == STATUS_LOW_DATA and thin:
+        return f"d29:{STATUS_LOW_DATA}"
+    return f"d39:{STATUS_NO_METRIC_DROP}"
+
+
 @dataclass(frozen=True)
 class _KpiBasis:
     """What one (product, lever) KPI is built on (D29 on the D32 channel)."""
@@ -1050,6 +1127,7 @@ def _plan_d29(
     top candidates are kept per cell instead of per executor type.
     """
     quota_mode = tunables.card_quota_mode
+    metric_first = tunables.metric_first
     page_levers = page_levers or {}
     skips: list[Skip] = []
     groups: dict[str, list[CardProposal]] = {
@@ -1064,18 +1142,30 @@ def _plan_d29(
             continue
         assessment = assess_product(pid, daily.get(pid, []), as_of=as_of, tunables=tunables)
         below = False
-        if not assessment.candidate or assessment.target_metric is None:
+        # D39.1: metric-first (default) -- any funnel metric beyond its own band;
+        # gmv_first keeps the D29.2 gate (GMV fell beyond its band).
+        drops = (
+            metric_trigger(
+                daily.get(pid, []), as_of=as_of, tunables=tunables, assessment=assessment
+            )
+            if metric_first
+            else None
+        )
+        drop = drops.target if drops is not None else None
+        if drop is not None:
+            metric = drop.metric
+        elif not metric_first and assessment.candidate and assessment.target_metric is not None:
+            metric = assessment.target_metric
+        else:
             s28b_metric = (
                 below_shop_metric(assessment, medians)
                 if quota_mode and assessment.status == STATUS_NO_DROP
                 else None
             )
             if s28b_metric is None:
-                skips.append(Skip(pid, funnel.title, f"d29:{assessment.status}"))
+                skips.append(Skip(pid, funnel.title, _skip_reason(assessment, metric_first)))
                 continue
             metric, below = s28b_metric, True
-        else:
-            metric = assessment.target_metric
         window = assessment.metrics[metric]
         current = window.value
         if current is None or current <= 0 or window.band_pct is None:
@@ -1101,7 +1191,12 @@ def _plan_d29(
         )
         quality = quality_score(facts, evidence)
         gaps = compute_gaps(funnel, medians, config)
-        reason = "" if below else d29_reason(assessment, metric)
+        if below:
+            reason = ""
+        elif drop is not None and drops is not None:
+            reason = metric_first_reason(drop, drops)
+        else:
+            reason = d29_reason(assessment, metric)
         rows = daily.get(pid, [])
         for angle in angles:
             lever = LEVER_CODES[angle]
@@ -1168,8 +1263,14 @@ def _plan_d29(
             low, high = gmv_range_per_month(gmv_day, current, kpi.target_min, kpi.target_max)
             lever_history = history.get(lever)
             penalty = lever_history.reason_penalty if lever_history is not None else Decimal(1)
+            # D39.1: a metric-first card ranks on what its metric's fall costs.
+            ranked_on = (
+                Decimal(str(round(drop.gmv_cost_per_day, 4)))
+                if drop is not None and not below
+                else recoverable
+            )
             ranking = (
-                recoverable
+                ranked_on
                 * Decimal(str(prediction.factor))
                 * penalty
                 # D33 quota mode: price levers rank like listing levers.
@@ -1223,6 +1324,7 @@ def _plan_d29(
                     kpi=kpi,
                     kpi_confidence=CONFIDENCE_LOW if below else basis.confidence,
                     reason_code=REASON_BELOW_SHOP_LEVEL if below else None,
+                    metric_trigger=drops if drop is not None and not below else None,
                     quality=quality,
                     prediction=prediction,
                     gmv_estimate=(low, high),
@@ -1233,6 +1335,17 @@ def _plan_d29(
     def _key(p: CardProposal) -> tuple:
         level = p.assessment.stability if p.assessment is not None else "unknown"
         value = p.ranking_gmv_per_day
+        if metric_first:
+            # D39.1: by the GMV the target metric's fall costs; stability breaks ties.
+            return (
+                p.reason_code is not None,
+                value is None,
+                -(value or Decimal(0)),
+                STABILITY_ORDER.get(level, 9),
+                -p.rank_score,
+                p.product_id,
+                LEVER_CODES[p.lever],
+            )
         return (
             # D33: S28B cards after every GMV-drop card (always False when off).
             p.reason_code is not None,
@@ -1244,6 +1357,9 @@ def _plan_d29(
             LEVER_CODES[p.lever],
         )
 
+    # D39.1 seam: products with no metric drop get a card only from a simulated
+    # winner (D38), which lives outside the backend -- none until it is stored.
+    groups[STATUS_CODE_RULE].extend(growth_candidates(skips=skips, as_of=as_of))
     ordered: list[CardProposal] = []
     for status_code in (STATUS_CODE_RULE, STATUS_CODE_NEEDS_CAP, STATUS_CODE_NOT_ASKED):
         ordered.extend(sorted(groups[status_code], key=_key))

@@ -43,6 +43,15 @@ explicitly for the shop, and the seller's own "Số thẻ mở cùng lúc" (whic
 only lowers the open cap). A draft whose cell is full is suppressed
 ``cell_cap``. With the mode off nothing here changes.
 
+**D34 / D39.3 groups (P30).** With the shop's grouping on (team tunable
+``card_groups``; unset follows the quota mode), :mod:`.card_groups` runs on the
+eligible drafts before the slots / quota pick: day-14 verdicts of due groups;
+each group's control drafts are held ``group_control`` until launch + 14 days;
+three or more drafts of one metric × lever × channel from distinct products,
+not in a running group, launch a new group (≈ 1/3 drawn as control, seed
+stored); a launching group's treated drafts go first for 3 days. Off: the
+group code is never called and nothing here changes.
+
 **Surfacing ledger.** ``decision_emission_novelty_ledger`` (the #716 weekly
 novelty ledger) now holds one row per surfacing: ``workflow_key`` carries
 ``<card id hex>@<shop day yyyymmdd>`` and ``week_start`` the shop week's
@@ -85,6 +94,7 @@ from juli_backend.services.content_cards.constants import (
 from juli_backend.services.content_cards.constants import EXECUTOR_JULI_DRAFTS
 from juli_backend.services.ops import overrides as ops_overrides
 from juli_backend.services.ops.overrides import ShopOverrides
+from juli_backend.services.optimize_product.tunables import DiagTunables
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +115,9 @@ SUPPRESSED_REASON_OPS_DISABLED = "ops_disabled"
 #: D33 quota mode: the draft's cell (target metric × channel) already holds
 #: ``card_quota_per_cell`` open cards.
 SUPPRESSED_REASON_CELL_CAP = "cell_cap"
+#: D34 / D39.3 (P30): the draft is its group's delayed control, held until the
+#: group's release day (launch + 14). Only while the shop's grouping is on.
+SUPPRESSED_REASON_GROUP_CONTROL = "group_control"
 
 SUPPRESSED_REASONS: frozenset[str] = frozenset(
     {
@@ -114,6 +127,7 @@ SUPPRESSED_REASONS: frozenset[str] = frozenset(
         SUPPRESSED_REASON_DAILY_CAP,
         SUPPRESSED_REASON_WEEKLY_CAP,
         SUPPRESSED_REASON_CELL_CAP,
+        SUPPRESSED_REASON_GROUP_CONTROL,
     }
 )
 
@@ -376,7 +390,10 @@ async def shop_card_quota(session: AsyncSession, shop_id: uuid.UUID) -> CardQuot
     """The shop's D33 quota when its team turned the mode on, else ``None``."""
     from juli_backend.services.shop_rules.diag_tunables import diag_tunables
 
-    tunables = await diag_tunables(session, shop_id)
+    return _quota_of(await diag_tunables(session, shop_id))
+
+
+def _quota_of(tunables: DiagTunables) -> CardQuota | None:
     if not tunables.card_quota_mode:
         return None
     return CardQuota(per_cell=tunables.card_quota_per_cell, max_open=tunables.card_quota_max_open)
@@ -546,9 +563,13 @@ async def apply_emission_budget(
     Every newly surfaced card adds one ledger row. Performs no commit; the
     caller controls the transaction.
     """
+    from juli_backend.services.shop_rules.diag_tunables import diag_tunables
+
     now = _as_aware(now) if now is not None else datetime.now(UTC)
     overrides = await ops_overrides.shop_overrides(session, shop_id)
-    quota = await shop_card_quota(session, shop_id)
+    tunables = await diag_tunables(session, shop_id)
+    quota = _quota_of(tunables)
+    groups_on = tunables.groups_enabled
     config = await _with_shop_card_cap(
         session, shop_id, config or decision_emission_config(), overrides, quota
     )
@@ -584,11 +605,13 @@ async def apply_emission_budget(
         card.suppressed_reason = None
         open_cards.append(card)
 
-    # ``cell_cap`` exists only in the D33 quota mode (off: the outcome is unchanged).
+    # ``cell_cap`` exists only in the D33 quota mode, ``group_control`` only with
+    # grouping on (off: the outcome is unchanged).
     suppressed: dict[str, list[ActionCard]] = {
         reason: []
         for reason in SUPPRESSED_REASONS
-        if quota is not None or reason != SUPPRESSED_REASON_CELL_CAP
+        if (quota is not None or reason != SUPPRESSED_REASON_CELL_CAP)
+        and (groups_on or reason != SUPPRESSED_REASON_GROUP_CONTROL)
     }
     open_counted = sum(1 for c in open_cards if c.workflow_key not in CAMPAIGN_PLAN_WORKFLOW_KEYS)
     # On a tie the earlier limit names the suppression: daily, weekly, open.
@@ -617,6 +640,19 @@ async def apply_emission_budget(
             campaign_drafts.append(card)
         else:
             eligible.append(card)
+
+    if groups_on:
+        # D34 / D39.3: day-14 verdicts, then hold each group's control drafts until
+        # their release and put a launching group's treated drafts first.
+        from juli_backend.services.action_cards import card_groups
+
+        await card_groups.measure_due_groups(session, shop_id, now=now)
+        group_pass = await card_groups.apply_groups(session, shop_id, eligible, now=now)
+        for card in group_pass.held:
+            card.suppressed_reason = SUPPRESSED_REASON_GROUP_CONTROL
+            suppressed[SUPPRESSED_REASON_GROUP_CONTROL].append(card)
+            _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_GROUP_CONTROL)
+        eligible = group_pass.eligible
 
     if quota is None:
         used_today = await _surfaced_today_by_slot(session, week_rows, day_start)
@@ -690,6 +726,13 @@ async def apply_emission_budget(
                     "suppressed_cell_cap": len(suppressed[SUPPRESSED_REASON_CELL_CAP]),
                 }
                 if quota is not None
+                else {}
+            ),
+            **(
+                {
+                    "suppressed_group_control": len(suppressed[SUPPRESSED_REASON_GROUP_CONTROL]),
+                }
+                if groups_on
                 else {}
             ),
         },

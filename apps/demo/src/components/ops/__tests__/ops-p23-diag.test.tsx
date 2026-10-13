@@ -34,14 +34,14 @@ function section() {
 }
 
 describe("Chẩn đoán & KPI (D29.11)", () => {
-  it("is collapsed; opened it lists the six tunables at their defaults", async () => {
+  it("is collapsed; opened it lists the seven tunables at their defaults", async () => {
     await open();
     const toggle = within(section()).getByRole("button", { name: /Chẩn đoán & KPI/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(within(section()).queryAllByTestId("ops-setting")).toHaveLength(0);
     fireEvent.click(toggle);
     const rows = within(section()).getAllByTestId("ops-setting");
-    expect(rows).toHaveLength(6);
+    expect(rows).toHaveLength(7);
     expect(rows.map((r) => within(r).getByRole("button", { name: /^Sửa / }).textContent)).toEqual([
       "14 · 30 · 60 ngày",
       "30 lượt nhấp/đơn",
@@ -49,8 +49,24 @@ describe("Chẩn đoán & KPI (D29.11)", () => {
       "×3 dao động",
       "×1 dao động",
       "CV > 30 %",
+      "Một chỉ số giảm",
     ]);
     for (const row of rows) expect(row).toHaveTextContent("Mặc định");
+  });
+
+  it("P30 (D39.1): the card trigger rolls back to GMV giảm (cũ) through the draft", async () => {
+    const a = await open();
+    fireEvent.click(within(section()).getByRole("button", { name: /Chẩn đoán & KPI/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Sửa Điều kiện mở thẻ" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Điều kiện mở thẻ" }), { target: { value: "gmv_first" } });
+    const bar = screen.getByRole("region", { name: "Thay đổi chưa lưu" });
+    fireEvent.click(within(bar).getByRole("button", { name: "Lưu thay đổi (1)" }));
+    const dialog = screen.getByRole("dialog", { name: "Lưu 1 thay đổi cho Mỹ phẩm Thảo Nhi?" });
+    expect(within(dialog).getAllByTestId("confirm-row").map((r) => r.textContent)).toEqual([
+      "Điều kiện mở thẻMột chỉ số giảm → GMV giảm (cũ)",
+    ]);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xác nhận lưu" }));
+    await waitFor(() => expect(a.putSettings).toHaveBeenCalledWith(SHOP_ID, { diag_trigger: "gmv_first" }));
   });
 
   it("changes are a draft; Lưu confirms each before → after and sends ONE PUT", async () => {
@@ -117,7 +133,7 @@ describe("Chẩn đoán & KPI (D29.11)", () => {
 
   it("an older backend without the keys shows no section", async () => {
     const defaults: Record<string, unknown> = { ...SETTINGS.settings.defaults };
-    for (const k of ["diag_windows", "diag_min_events", "kpi_min_band_mult", "kpi_max_band_mult", "guard_band_mult", "volatile_cv"]) delete defaults[k];
+    for (const k of ["diag_windows", "diag_min_events", "kpi_min_band_mult", "kpi_max_band_mult", "guard_band_mult", "volatile_cv", "diag_trigger"]) delete defaults[k];
     await open(api({ ...SETTINGS, settings: { ...SETTINGS.settings, defaults: defaults as ShopSettingsPage["settings"]["defaults"] } }));
     expect(screen.queryByTestId("ops-diag")).toBeNull();
   });

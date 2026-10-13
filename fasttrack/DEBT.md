@@ -731,3 +731,20 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [x] ~~`test_ops_round_trips.py` fleet bounds (costs/terms, 2 round trips per shop) failed when an
   earlier module in the same pytest process left shops in the shared database~~ — repaid: the module
   is on `_SHARED_STATE_MODULES` (own database), so it sees only its two tenants.
+
+## P30 — metric-first trigger and card groups (2026-10-13)
+
+- [ ] D39.1 tests four metrics per product at 1 × combined band, so noise alone opens more
+  cards than the GMV gate (Fujiwa-like fixture: 2 cards instead of 1). Watch the first
+  metric-first nights on Fujiwa; if too many, raise the trigger to the 2 × "clear" rule for
+  metrics other than the GMV-explaining one, or roll a shop back with `diag_trigger = gmv_first`.
+- [ ] Group verdicts are computed inside `apply_emission_budget` (the surfacing cadence). A shop
+  whose budget stops running (no scoring) gets no day-14 verdict until it runs again; move to a
+  nightly task if that matters.
+- [ ] Late joiners: a draft of a key that arrives after its group launched is not added; it
+  surfaces ungrouped unless 3 such drafts wait together. D34.6 (cross-shop result for small
+  shops) and D34.7 (lever-effect table replacing ranking weights) are not built.
+- [ ] `card_groups` / `card_group_members` grant juli_app UPDATE without a `GRANT_REQUIRED` call
+  site in `tests/unit/test_juli_app_grants_cover_mutations.py` — same as the P8–P24 tables
+  already listed for `test_no_public_table_holds_update_beyond_its_call_site` (Postgres only).
+- [ ] No Playwright e2e for the Ops group view or the seller "Kết quả nhóm" line (vitest only).

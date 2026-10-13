@@ -76,9 +76,9 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: P10-B onto `080_lever_flows`, P14-C onto `081_order_cost_data`, P15 onto
 #: `082_content_analysis`, P16 onto `083_ops_console`, and P17 onto
 #: `084_onboarding_speed`, P18 onto `085_ops_daily_precompute`, P20 onto
-#: `086_ops_cost_and_terms`, P23 onto `087_history_and_baselines`, and P24 onto
-#: `088_ingest_gateway`.
-PHONE_REVISION = "088_ingest_gateway"
+#: `086_ops_cost_and_terms`, P23 onto `087_history_and_baselines`, P24 onto
+#: `088_ingest_gateway`, and P30 onto `089_card_groups`.
+PHONE_REVISION = "089_card_groups"
 
 _SCHEMA = "phone_cleanup_074"
 

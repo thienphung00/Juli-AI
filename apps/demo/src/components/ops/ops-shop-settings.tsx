@@ -5,10 +5,11 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
-import { ACTION_NAMES, DIAG_KEYS, QUOTA_KEYS, STREAM_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
+import { ACTION_NAMES, DIAG_KEYS, QUOTA_KEYS, STREAM_NAMES, TRIGGER_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
 import type { DiagKey, OpsMe, OverrideKey, ShopSettingsPage, StageId } from "../../lib/ops/types";
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
 import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
+import { OpsCardGroups } from "./ops-card-groups";
 import { OpsRules } from "./ops-rules";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
 import { OpsSkeleton } from "./ops-skeleton";
@@ -27,7 +28,7 @@ const STAGES: [StageId, string, string][] = [
 const STREAM_LABEL: Record<string, string> = { product_card: "Thẻ SP", shop_tab: "Tab", seller_video: "Video", seller_live: "LIVE" };
 const OWN: CSSProperties = { background: "#fff7fa", borderColor: "#f8b9d3", fontWeight: 600 };
 
-type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite">;
+type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "groups">>;
 
 function SettingRow({
   title,
@@ -448,6 +449,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
           {QUOTA_KEYS.some((k) => s.defaults[k] !== undefined) ? (
             <QuotaSection canEdit={canEdit} cells={page.card_cells ?? null} change={change} eff={eff} epoch={epoch} isSet={isSet} onEpoch={() => setEpoch((e) => e + 1)} />
           ) : null}
+          <OpsCardGroups load={api.groups} shopId={shopId} />
           <OpsRules canEdit={canEdit} shopName={shopName} shopId={shopId} />
         </section>
         <aside style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -691,6 +693,22 @@ function DiagSection({
               />
             </SettingRow>
           ))}
+          <SettingRow
+            disabled={!canEdit}
+            help="Một chỉ số giảm: mở thẻ khi Lượt hiển thị, CTR, CTOR hoặc AOV giảm quá dao động, kể cả khi GMV giữ được. GMV giảm (cũ): chỉ khi GMV giảm"
+            onDefault={() => change({ diag_trigger: null })}
+            overridden={isSet("diag_trigger")}
+            summary={fmtSetting("diag_trigger", eff("diag_trigger"))}
+            title="Điều kiện mở thẻ"
+          >
+            <select aria-label="Điều kiện mở thẻ" onChange={(e) => change({ diag_trigger: e.target.value })} value={String(eff("diag_trigger") ?? "metric_first")}>
+              {Object.entries(TRIGGER_NAMES).map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </SettingRow>
         </>
       ) : null}
     </div>
@@ -762,6 +780,20 @@ function QuotaSection({
           <NumEditor integer key={`${key}-${epoch}`} label={title} onChange={(v) => change({ [key]: v })} scale={1} step={1} unit={unit} value={eff(key) as number | null} />
         </SettingRow>
       ))}
+      <SettingRow
+        disabled={!canEdit}
+        help="Mỗi nhóm (chỉ số × thay đổi × kênh) từ 3 thẻ: khoảng 1/3 sản phẩm chọn ngẫu nhiên nhận thẻ sau 14 ngày để so sánh. Mặc định theo Nhiều thẻ mỗi ô"
+        onDefault={() => change({ card_groups: null })}
+        overridden={isSet("card_groups")}
+        summary={isSet("card_groups") ? fmtSetting("card_groups", eff("card_groups")) : `Theo Nhiều thẻ mỗi ô (${on ? "Bật" : "Tắt"})`}
+        title="Nhóm thử nghiệm (đối chứng chậm)"
+      >
+        <Toggle
+          label="Nhóm thử nghiệm"
+          on={isSet("card_groups") ? Boolean(eff("card_groups")) : on}
+          onChange={(v) => change({ card_groups: v })}
+        />
+      </SettingRow>
       {on && cells ? (
         <div data-testid="ops-quota-cells" style={{ borderTop: `1px solid ${C.lineSoft}`, paddingTop: 10, fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
           <b>Thẻ đang mở theo ô</b>

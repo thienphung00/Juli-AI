@@ -91,6 +91,7 @@ export const SETTINGS: ShopSettingsPage = {
       kpi_max_band_mult: null,
       guard_band_mult: null,
       volatile_cv: null,
+      diag_trigger: null,
     },
     defaults: {
       card_daily_limit: 5,
@@ -109,6 +110,8 @@ export const SETTINGS: ShopSettingsPage = {
       kpi_max_band_mult: 3,
       guard_band_mult: 1,
       volatile_cv: 0.3,
+      // P30 (D39.1)
+      diag_trigger: "metric_first",
     },
     updated_at: null,
     options: {

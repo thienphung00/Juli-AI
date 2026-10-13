@@ -29,6 +29,16 @@ CARD_QUOTA_MAX_OPEN = "card_quota_max_open"
 
 #: The D33 quota keys (stored in the same team row as the D29 tunables).
 QUOTA_KEYS: tuple[str, ...] = (CARD_QUOTA_MODE, CARD_QUOTA_PER_CELL, CARD_QUOTA_MAX_OPEN)
+#: D39.1 (N1A): what opens a card -- any funnel metric falling beyond its own band
+#: (``metric_first``, the default since P30) or the product's GMV (``gmv_first``,
+#: D29.2, kept per shop for rollback).
+DIAG_TRIGGER = "diag_trigger"
+TRIGGER_METRIC_FIRST = "metric_first"
+TRIGGER_GMV_FIRST = "gmv_first"
+DIAG_TRIGGERS: tuple[str, ...] = (TRIGGER_METRIC_FIRST, TRIGGER_GMV_FIRST)
+#: D34 / D39.3 (P30): group A/B with a randomised delayed control. Unset (``None``)
+#: follows ``card_quota_mode`` -- on only when the quota mode is on.
+CARD_GROUPS = "card_groups"
 
 TUNABLE_KEYS: tuple[str, ...] = (
     DIAG_WINDOWS,
@@ -38,6 +48,8 @@ TUNABLE_KEYS: tuple[str, ...] = (
     GUARD_BAND_MULT,
     VOLATILE_CV,
     *QUOTA_KEYS,
+    DIAG_TRIGGER,
+    CARD_GROUPS,
 )
 
 #: Bounds an Admin may set (inclusive).
@@ -64,6 +76,10 @@ class DiagTunables:
     overall open cap of ``card_quota_max_open`` (40); in that mode the nightly
     planner also proposes price levers from stored facts, adds the "below shop
     level" branch (S28B) and drops the Quality-Score lever weight.
+
+    D39.1 (P30): ``diag_trigger`` -- ``metric_first`` (default) opens a card when
+    any funnel metric falls beyond its own band on its channel, even when GMV
+    holds; ``gmv_first`` keeps the D29.2 GMV gate (per-shop rollback).
     """
 
     windows: tuple[int, ...] = (14, 30, 60)
@@ -75,6 +91,19 @@ class DiagTunables:
     card_quota_mode: bool = False
     card_quota_per_cell: int = 5
     card_quota_max_open: int = 40
+    #: D39.1: ``metric_first`` (default) or ``gmv_first`` (the D29.2 gate, rollback).
+    diag_trigger: str = TRIGGER_METRIC_FIRST
+    #: D34 / D39.3: ``None`` = follow ``card_quota_mode``; ``True`` / ``False`` = set.
+    card_groups: bool | None = None
+
+    @property
+    def metric_first(self) -> bool:
+        return self.diag_trigger == TRIGGER_METRIC_FIRST
+
+    @property
+    def groups_enabled(self) -> bool:
+        """Group A/B on: the explicit switch, else the D33 quota mode."""
+        return self.card_quota_mode if self.card_groups is None else self.card_groups
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -87,6 +116,8 @@ class DiagTunables:
             CARD_QUOTA_MODE: self.card_quota_mode,
             CARD_QUOTA_PER_CELL: self.card_quota_per_cell,
             CARD_QUOTA_MAX_OPEN: self.card_quota_max_open,
+            DIAG_TRIGGER: self.diag_trigger,
+            CARD_GROUPS: self.card_groups,
         }
 
     @classmethod
@@ -115,6 +146,8 @@ class DiagTunables:
             card_quota_mode=bool(values[CARD_QUOTA_MODE]),
             card_quota_per_cell=int(values[CARD_QUOTA_PER_CELL]),
             card_quota_max_open=int(values[CARD_QUOTA_MAX_OPEN]),
+            diag_trigger=str(values[DIAG_TRIGGER]),
+            card_groups=None if values[CARD_GROUPS] is None else bool(values[CARD_GROUPS]),
         )
 
 
@@ -136,9 +169,13 @@ def _whole(name: str, value: Any, low: int, high: int) -> int:
 
 def validate_tunable(name: str, value: Any) -> Any:
     """The clean value for one key, or :class:`TunableError`."""
-    if name == CARD_QUOTA_MODE:
+    if name in (CARD_QUOTA_MODE, CARD_GROUPS):
         if not isinstance(value, bool):
             raise TunableError(f"{name} must be true or false")
+        return value
+    if name == DIAG_TRIGGER:
+        if value not in DIAG_TRIGGERS:
+            raise TunableError(f"{name} must be one of {', '.join(DIAG_TRIGGERS)}")
         return value
     if name == CARD_QUOTA_PER_CELL:
         return _whole(name, value, *QUOTA_PER_CELL_RANGE)
@@ -171,15 +208,20 @@ def validate_tunable(name: str, value: Any) -> Any:
 
 
 __all__ = [
+    "CARD_GROUPS",
     "CARD_QUOTA_MAX_OPEN",
     "CARD_QUOTA_MODE",
     "CARD_QUOTA_PER_CELL",
     "DIAG_MIN_EVENTS",
+    "DIAG_TRIGGER",
+    "DIAG_TRIGGERS",
     "DIAG_WINDOWS",
     "GUARD_BAND_MULT",
     "KPI_MAX_BAND_MULT",
     "KPI_MIN_BAND_MULT",
     "QUOTA_KEYS",
+    "TRIGGER_GMV_FIRST",
+    "TRIGGER_METRIC_FIRST",
     "TUNABLE_KEYS",
     "VOLATILE_CV",
     "DiagTunables",

@@ -120,6 +120,8 @@ class CardContext:
     sku_count: int = 0
     latest_run: WorkflowRun | None = None
     writes: list[RunWriteValue] = field(default_factory=list)
+    #: P30 (D34.8): the seller sentence of the card's group key, once measured.
+    group_result: str | None = None
 
 
 def _product_uuid(card: ActionCard) -> uuid.UUID | None:
@@ -179,8 +181,10 @@ async def load_card_contexts(
         )
         for row in write_rows.scalars():
             writes[row.workflow_run_id].append(row)
+    sentences = await _group_sentences(session, shop_id, cards)
     for card in cards:
         context = contexts[card.id]
+        context.group_result = sentences.get(card.id)
         pid = _product_uuid(card)
         context.product = products.get(pid) if pid is not None else None
         if context.product is not None:
@@ -191,6 +195,22 @@ async def load_card_contexts(
         if context.latest_run is not None:
             context.writes = writes.get(context.latest_run.id, [])
     return contexts
+
+
+async def _group_sentences(
+    session: AsyncSession, shop_id: uuid.UUID, cards: list[ActionCard]
+) -> dict[uuid.UUID, str]:
+    """Card id -> its group key's seller sentence (P30, D34.8), when a group was measured.
+
+    One query on ``card_groups`` and only when a card carries a D29 group key.
+    """
+    from juli_backend.services.action_cards.card_groups import card_group_key, seller_sentences
+
+    keyed = {card.id: info[0].text for card in cards if (info := card_group_key(card))}
+    if not keyed:
+        return {}
+    by_key = await seller_sentences(session, shop_id)
+    return {card_id: by_key[key] for card_id, key in keyed.items() if key in by_key}
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -432,6 +452,8 @@ def build_card_block(
         ),
         "quick_scan": quick,
         "adjusted_by_history": diagnosis.get("adjusted_by_history") is True,
+        # P30 (D34.8): "Nhóm 6 sản phẩm đổi ảnh bìa: …" once the group has a verdict.
+        "group_result": context.group_result,
     }
 
 

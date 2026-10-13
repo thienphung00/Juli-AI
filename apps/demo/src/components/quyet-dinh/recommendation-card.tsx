@@ -381,6 +381,12 @@ function DesktopCard({
       <dl className="qv-facts">
         <dt>Lý do</dt>
         <dd>{card.reasonShort}</dd>
+        {card.groupResult ? (
+          <>
+            <dt>Kết quả nhóm</dt>
+            <dd data-testid="group-result">{card.groupResult}</dd>
+          </>
+        ) : null}
         <dt>{card.content ? ACTION_ROW_LABEL : "Thay đổi đề xuất"}</dt>
         <dd className="qv-field-chips">
           {card.content ? (
@@ -524,6 +530,12 @@ function MobileCard({
         <div className="qv-mfact__label">Lý do</div>
         <div>{card.reasonMobile}</div>
       </div>
+      {card.groupResult ? (
+        <div className="qv-mfact" data-testid="group-result-mobile">
+          <div className="qv-mfact__label">Kết quả nhóm</div>
+          <div>{card.groupResult}</div>
+        </div>
+      ) : null}
 
       <div className="qv-mfact qv-mfact--changes">
         <div className="qv-mfact__label">{card.content ? ACTION_ROW_LABEL : "Thay đổi đề xuất"}</div>
