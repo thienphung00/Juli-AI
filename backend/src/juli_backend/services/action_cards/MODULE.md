@@ -77,8 +77,10 @@ slice — see "Out of scope".
   only while the shop's grouping is on (team tunable `card_groups`, unset = the quota mode)
 - `card_groups.apply_groups(session, shop_id, drafts, *, now)` → `GroupPass` (eligible
   drafts in order, held controls, launched groups); `card_groups.measure_due_groups(...)`
-  (day-14 verdicts: median change treated − control, 80 % bootstrap interval, D31.7
-  wording, "Sơ bộ" / "Chưa đủ cơ sở"); `card_groups.group_views(...)` (Ops);
+  (day-14 verdicts: median CUPED-adjusted change treated − control, 90 % bootstrap
+  interval, a permutation test below 5 controls, D31.7 wording, "Sơ bộ" / "Chưa đủ cơ sở"
+  / "Đang đo" when the group's simulated false-alarm rate is above 10 % -- D41.3, P31,
+  pure maths in `group_stats.py`); `card_groups.group_views(...)` (Ops);
   `card_groups.seller_sentences(...)` (Quyết định "Kết quả nhóm"); pure
   `assign_arms(products, seed)`, `compare(...)`, `build_verdict(...)`,
   `seller_sentence(...)`, `card_group_key(card)`, `payload_group_key(payload)`,

@@ -22,12 +22,16 @@ only design that removes both. In the card system:
 4. **Verdict (D34.4/5).** At day 14 (the newest analytics day ≥ launch + 13) every
    member's target metric is read on the group's channel over the 14 days from launch
    against the 14 days before (``lever_flows.measurement``'s window totals), the change
-   in %; verdict = median change of the treated − median change of the control, an 80 %
+   in %; verdict = median change of the treated − median change of the control, a 90 %
    bootstrap interval (seeded by the group's seed), graded with D31.7's rule against the
    interval's half-width (``clear`` / ``likely`` / ``noise``). By assignment
    (intent-to-treat); the approved-only comparison is a secondary number. "Sơ bộ" with
    ≥ 3 treated + ≥ 2 control measured products, no label from ≥ 5 + ≥ 3, else
-   "Chưa đủ cơ sở" (no numbers).
+   "Chưa đủ cơ sở" (no numbers). **D41.3 (P31, :mod:`.group_stats`):** each change is
+   CUPED-adjusted by the product's own previous 14 days; with fewer than 5 controls a
+   permutation test over the random assignment must also reject (p ≤ 0.10); and when
+   the rule's simulated false-alarm rate on the group's own no-effect data is above
+   10 %, the verdict makes no strength claim and reads "Đang đo".
 5. **Who sees it (D34.8).** Ops sees groups, arms, seeds, intervals
    (:func:`group_views`); the seller one plain sentence on the cards of the same group
    key once a verdict exists (:func:`seller_sentences`), e.g. "Nhóm 6 sản phẩm đổi ảnh
@@ -65,7 +69,19 @@ from juli_backend.models.card_groups import (
 )
 from juli_backend.models.models import ActionCard
 from juli_backend.services.action_cards.emission_budget import SUPPRESSED_REASON_GROUP_CONTROL
-from juli_backend.services.change_strength import STRENGTH_LABELS_VI, change_strength
+from juli_backend.services.action_cards.group_stats import (
+    ALPHA,
+    INTERVAL_HIGH,
+    INTERVAL_LOW,
+    FalseAlarm,
+    Unit,
+    assess,
+    cuped_adjust,
+    false_alarm_rate,
+    null_pool,
+    unit_from_change,
+)
+from juli_backend.services.change_strength import STRENGTH_LABELS_VI
 
 logger = logging.getLogger(__name__)
 
@@ -81,14 +97,16 @@ MEMBER_MEMORY_DAYS = CONTROL_DELAY_DAYS + 30
 #: A product needs this many days with data in each window to be measured.
 MIN_DAYS_MEASURED = 7
 BOOTSTRAP_SAMPLES = 2000
-#: The interval: p10–p90 of the bootstrap (80 %, the Z_80 of D28.1's band).
-INTERVAL_LOW, INTERVAL_HIGH = 0.10, 0.90
+#: The interval: p5–p95 of the bootstrap (90 %, D41.3; P30 used 80 %).
+INTERVAL_LEVEL = round(INTERVAL_HIGH - INTERVAL_LOW, 2)
 
 #: D34.4 thresholds (treated, control) of measured products.
 PRELIMINARY_MIN = (3, 2)
 FULL_MIN = (5, 3)
 LABEL_PRELIMINARY = "Sơ bộ"
 LABEL_NOT_ENOUGH = "Chưa đủ cơ sở"
+#: D41.3: the group's simulated false-alarm rate is above 10 % -- no strength claim.
+LABEL_MEASURING = "Đang đo"
 
 _WORKFLOW_KEY = "optimize_product_2"
 _ACTIVE = "active"
@@ -226,16 +244,6 @@ def new_seed() -> int:
     return secrets.randbits(31)
 
 
-def _quantile(values: Sequence[float], q: float) -> float:
-    ordered = sorted(values)
-    if len(ordered) == 1:
-        return ordered[0]
-    pos = q * (len(ordered) - 1)
-    low = int(pos)
-    high = min(low + 1, len(ordered) - 1)
-    return ordered[low] + (ordered[high] - ordered[low]) * (pos - low)
-
-
 def _label(n_treated: int, n_control: int) -> str | None:
     """``None`` (full), ``Sơ bộ`` or ``Chưa đủ cơ sở`` from the measured counts."""
     if n_treated >= FULL_MIN[0] and n_control >= FULL_MIN[1]:
@@ -251,12 +259,17 @@ def compare(
     *,
     seed: int,
     samples: int = BOOTSTRAP_SAMPLES,
+    false_alarm: FalseAlarm | None = None,
 ) -> dict[str, Any]:
     """Median change treated − median change control (points of %), with its interval.
 
-    The interval is the p10–p90 of ``samples`` bootstrap resamples (each arm resampled
-    with replacement, ``random.Random(seed)``); the strength grades the difference with
-    D31.7's rule against the interval's half-width. Too few products: the label
+    The interval is the p5–p95 (90 %) of ``samples`` bootstrap resamples (each arm
+    resampled with replacement, ``random.Random(seed)``); the strength grades the
+    difference with D31.7's rule against the interval's half-width. With fewer than 5
+    controls a permutation test over the assignment must also reject at p ≤ 0.10, else
+    the strength is ``noise`` (:func:`.group_stats.assess`). ``false_alarm`` (the
+    group's simulated rate, :func:`.group_stats.false_alarm_rate`): above 10 % the
+    label is "Đang đo" and no strength is claimed. Too few products: the label
     "Chưa đủ cơ sở" and no numbers.
     """
     n_t, n_c = len(treated), len(control)
@@ -273,23 +286,28 @@ def compare(
         )
         return out
     med_t, med_c = statistics.median(treated), statistics.median(control)
-    diff = med_t - med_c
-    rng = random.Random(seed)
-    boots = [
-        statistics.median(rng.choices(treated, k=n_t))
-        - statistics.median(rng.choices(control, k=n_c))
-        for _ in range(samples)
-    ]
-    low, high = _quantile(boots, INTERVAL_LOW), _quantile(boots, INTERVAL_HIGH)
-    half = (high - low) / 2
-    strength = change_strength(diff, half, 0.0)
+    call = assess(treated, control, rng=random.Random(seed), samples=samples)
+    low, high = call.interval
+    strength = call.strength
+    gated = false_alarm is not None and not false_alarm.acceptable
+    if gated:
+        out["label"] = LABEL_MEASURING
+        strength = None
     out.update(
         median_treated=round(med_t, 2),
         median_control=round(med_c, 2),
-        difference=round(diff, 2),
+        difference=round(call.difference, 2),
         interval=[round(low, 2), round(high, 2)],
         strength=strength,
         strength_label=STRENGTH_LABELS_VI.get(strength) if strength else None,
+        interval_level=INTERVAL_LEVEL,
+        test=call.test,
+        alpha=ALPHA,
+        permutation=call.permutation.to_json() if call.permutation is not None else None,
+        detected=call.detected and not gated,
+        #: What the rule would have claimed without the false-alarm gate (Ops only).
+        rule_strength=call.strength,
+        false_alarm=false_alarm.to_json() if false_alarm is not None else None,
     )
     return out
 
@@ -305,7 +323,10 @@ def seller_sentence(
     if not isinstance(verdict, Mapping):
         return None
     primary = verdict.get("primary")
-    if not isinstance(primary, Mapping) or primary.get("label") == LABEL_NOT_ENOUGH:
+    if not isinstance(primary, Mapping) or primary.get("label") in (
+        LABEL_NOT_ENOUGH,
+        LABEL_MEASURING,
+    ):
         return None
     diff = primary.get("difference")
     strength = primary.get("strength")
@@ -324,26 +345,82 @@ def seller_sentence(
     return body
 
 
+def _units(measured: Sequence[Mapping[str, Any]]) -> tuple[list[Unit], bool]:
+    """CUPED units of the measured rows: (before, after) when every row has both > 0,
+    else change-only units (CUPED then leaves the changes as they are)."""
+    full = all(
+        isinstance(c.get("before"), int | float)
+        and isinstance(c.get("after"), int | float)
+        and c["before"] > 0
+        and c["after"] > 0
+        for c in measured
+    )
+    if full:
+        return [Unit(c["arm"], float(c["before"]), float(c["after"])) for c in measured], True
+    units = []
+    for c in measured:
+        unit = unit_from_change(c["arm"], float(c["change_pct"]))
+        units.append(unit if unit is not None else Unit(c["arm"], 1.0, 1e-6))
+    return units, False
+
+
+def _false_alarm(
+    pre_pairs: Sequence[tuple[float, float]],
+    adjusted: Sequence[tuple[str, float]],
+    n_treated: int,
+    n_control: int,
+    seed: int,
+) -> FalseAlarm | None:
+    if _label(n_treated, n_control) == LABEL_NOT_ENOUGH:
+        return None
+    pool, source = null_pool(pre_pairs, adjusted)
+    return false_alarm_rate(pool, n_treated, n_control, seed=seed, source=source)
+
+
 def build_verdict(
     changes: Sequence[Mapping[str, Any]], *, seed: int, as_of: date
 ) -> dict[str, Any]:
-    """The stored verdict from per-product rows ``{product_id, arm, approved, change_pct}``.
+    """The stored verdict from per-product rows ``{product_id, arm, approved, change_pct}``
+    (plus ``before`` / ``after`` / ``pre_before`` when measured from data).
 
     ``primary``: by assignment (intent-to-treat). ``approved_only``: treated products
-    whose card the seller approved, against the same control (secondary).
+    whose card the seller approved, against the same control (secondary). D41.3: the
+    changes compared are CUPED-adjusted (``adjusted_change_pct`` per product, ``cuped``
+    with ``θ``); each comparison carries its simulated ``false_alarm`` rate, the
+    primary one also at the top level.
     """
     measured = [c for c in changes if isinstance(c.get("change_pct"), int | float)]
-    treated = [float(c["change_pct"]) for c in measured if c["arm"] == ARM_TREATED]
-    control = [float(c["change_pct"]) for c in measured if c["arm"] == ARM_CONTROL]
+    units, cuped_used = _units(measured)
+    adjusted, theta = cuped_adjust(units)
+    adjusted_by_id = {id(c): round(v, 2) for c, v in zip(measured, adjusted, strict=True)}
+    treated = [v for c, v in zip(measured, adjusted, strict=True) if c["arm"] == ARM_TREATED]
+    control = [v for c, v in zip(measured, adjusted, strict=True) if c["arm"] == ARM_CONTROL]
     approved = [
-        float(c["change_pct"]) for c in measured if c["arm"] == ARM_TREATED and c.get("approved")
+        v
+        for c, v in zip(measured, adjusted, strict=True)
+        if c["arm"] == ARM_TREATED and c.get("approved")
     ]
+    pre_pairs = [
+        (float(c["pre_before"]), float(c["before"]))
+        for c in measured
+        if isinstance(c.get("pre_before"), int | float) and isinstance(c.get("before"), int | float)
+    ]
+    arm_changes = [(c["arm"], v) for c, v in zip(measured, adjusted, strict=True)]
+    fa_primary = _false_alarm(pre_pairs, arm_changes, len(treated), len(control), seed)
+    fa_approved = _false_alarm(pre_pairs, arm_changes, len(approved), len(control), seed)
+    products = []
+    for c in changes:
+        row = dict(c)
+        row["adjusted_change_pct"] = adjusted_by_id.get(id(c))
+        products.append(row)
     return {
         "as_of": as_of.isoformat(),
         "window_days": MEASURE_DAYS,
-        "primary": compare(treated, control, seed=seed),
-        "approved_only": compare(approved, control, seed=seed),
-        "products": [dict(c) for c in changes],
+        "primary": compare(treated, control, seed=seed, false_alarm=fa_primary),
+        "approved_only": compare(approved, control, seed=seed, false_alarm=fa_approved),
+        "cuped": {"theta": round(theta, 4), "from_before_after": cuped_used},
+        "false_alarm": fa_primary.to_json() if fa_primary is not None else None,
+        "products": products,
     }
 
 
@@ -521,14 +598,18 @@ async def _member_change(
 
     launch = group.launched_on
     before_start = launch - timedelta(days=MEASURE_DAYS)
+    pre_start = before_start - timedelta(days=MEASURE_DAYS)
     after_end = launch + timedelta(days=MEASURE_DAYS - 1)
-    rows: list[Any] = await _daily_rows(session, shop_id, product, before_start, after_end)
+    rows: list[Any] = await _daily_rows(session, shop_id, product, pre_start, after_end)
     if group.channel != "total":
         rows = channel_rows(rows, group.channel)
+    pre = window_totals(rows, pre_start, before_start - timedelta(days=1))
     before = window_totals(rows, before_start, launch - timedelta(days=1))
     after = window_totals(rows, launch, after_end)
     name = MEASURE_METRIC.get(group.metric, group.metric)
     b, a = before.value(name), after.value(name)
+    # D41.3: the 14 days before "before" -- the no-effect pair for the false-alarm replay.
+    p = pre.value(name) if pre.days >= MIN_DAYS_MEASURED else None
     change: float | None = None
     if (
         b is not None
@@ -541,6 +622,7 @@ async def _member_change(
     return {
         "before": None if b is None else float(b),
         "after": None if a is None else float(a),
+        "pre_before": None if p is None or p <= 0 else float(p),
         "change_pct": change,
     }
 
@@ -721,6 +803,8 @@ async def group_views(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[st
                 "control": sum(1 for r in rows if r["arm"] == ARM_CONTROL),
                 "members": rows,
                 "verdict": verdict,
+                #: D41.3: the primary verdict's simulated false-alarm rate (None before).
+                "false_alarm": (verdict or {}).get("false_alarm"),
                 "seller_sentence": seller_sentence(key, len(rows), verdict),
             }
         )
@@ -729,6 +813,7 @@ async def group_views(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[st
 
 __all__ = [
     "CONTROL_DELAY_DAYS",
+    "LABEL_MEASURING",
     "LABEL_NOT_ENOUGH",
     "LABEL_PRELIMINARY",
     "LAUNCH_WINDOW_DAYS",

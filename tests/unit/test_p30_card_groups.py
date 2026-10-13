@@ -3,7 +3,9 @@
 Groups = target metric × lever × channel per shop; from 3 eligible drafts ≈ 1/3 are drawn
 (seeded, recorded) as a delayed control, held ``group_control`` and released 14 days
 after launch; at day 14 the verdict is the median change treated − control with a
-bootstrap interval. Synthetic data only.
+bootstrap interval. Synthetic data only. D41.3 (P31) made the verdict stricter (90 %
+interval, a permutation test below 5 controls, CUPED, the false-alarm gate); the cases
+here are updated to it, its own tests are in ``test_p31_group_verdict.py``.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from juli_backend.models.card_groups import ARM_CONTROL, ARM_TREATED, CardGroup,
 from juli_backend.models.models import ActionCard, AnalyticsPerformanceInterval
 from juli_backend.services.action_cards import card_groups
 from juli_backend.services.action_cards.card_groups import (
+    LABEL_MEASURING,
     LABEL_NOT_ENOUGH,
     LABEL_PRELIMINARY,
     SUPPRESSED_REASON_GROUP_CONTROL,
@@ -74,14 +77,22 @@ def test_assignment_is_reproducible_from_the_seed():
 
 def test_verdict_is_the_difference_of_medians_with_a_bootstrap_interval():
     treated = [8.0, 9.0, 10.0, 11.0, 12.0]
-    control = [1.0, 2.0, 3.0]
+    control = [1.0, 2.0, 3.0, 4.0, 5.0]
     out = compare(treated, control, seed=7)
     assert out["label"] is None  # ≥ 5 treated + ≥ 3 control: no label
-    assert out["difference"] == pytest.approx(10.0 - 2.0)
+    assert out["difference"] == pytest.approx(10.0 - 3.0)
+    assert out["interval_level"] == 0.9 and out["test"] == "bootstrap"
     low, high = out["interval"]
     assert low <= out["difference"] <= high
     assert out["strength"] == "clear" and out["strength_label"] == "Thay đổi rõ"
     assert compare(treated, control, seed=7) == out  # seeded: reproducible
+
+    # D41.3: with 3 controls the permutation test decides; a median difference over
+    # 5 + 3 products cannot reach p ≤ 0.10 here (6 of 56 draws are as far), so noise.
+    strict = compare(treated, [1.0, 2.0, 3.0], seed=7)
+    assert strict["test"] == "permutation"
+    assert strict["permutation"]["p_value"] == pytest.approx(6 / 56, abs=1e-4)
+    assert strict["strength"] == "noise"
 
     noisy = compare([5.0, -6.0, 1.0, 9.0, -4.0], [3.0, -2.0, 0.0], seed=7)
     assert noisy["strength"] == "noise" and noisy["strength_label"] == "Trong dao động"
@@ -100,38 +111,32 @@ def test_a_small_group_has_no_verdict():
 
 
 def test_seller_sentence_is_one_plain_sentence():
-    verdict = build_verdict(
-        [
-            *(
-                {"product_id": f"t{i}", "arm": ARM_TREATED, "change_pct": v}
-                for i, v in enumerate([6.0, 7.0, 8.0, 9.0, 10.0])
-            ),
-            *(
-                {"product_id": f"c{i}", "arm": ARM_CONTROL, "change_pct": v}
-                for i, v in enumerate([0.0, 1.0, 2.0])
-            ),
-        ],
-        seed=3,
-        as_of=LAUNCH,
-    )
-    assert verdict["primary"]["difference"] == pytest.approx(7.0)
+    def verdict(label, diff, strength):
+        return {"primary": {"label": label, "difference": diff, "strength": strength}}
+
     assert (
-        seller_sentence(KEY, 8, verdict)
+        seller_sentence(KEY, 8, verdict(None, 7.0, "clear"))
         == "Nhóm 8 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 7 % so với các sản phẩm chưa đổi"
     )
-    prelim = build_verdict(
+    assert seller_sentence(KEY, 5, verdict(LABEL_PRELIMINARY, 7.0, "likely")).endswith(
+        "so với các sản phẩm chưa đổi (sơ bộ)"
+    )
+    # D41.3: "Đang đo" makes no claim, so the seller is told nothing yet.
+    assert seller_sentence(KEY, 5, verdict(LABEL_MEASURING, 7.0, None)) is None
+    assert seller_sentence(KEY, 5, None) is None
+    built = build_verdict(
         [
             {"product_id": "t1", "arm": ARM_TREATED, "change_pct": 6.0},
             {"product_id": "t2", "arm": ARM_TREATED, "change_pct": 7.0},
             {"product_id": "t3", "arm": ARM_TREATED, "change_pct": 8.0},
             {"product_id": "c1", "arm": ARM_CONTROL, "change_pct": 0.0},
-            {"product_id": "c2", "arm": ARM_CONTROL, "change_pct": 0.0},
+            {"product_id": "c2", "arm": ARM_CONTROL, "change_pct": 0.5},
         ],
         seed=3,
         as_of=LAUNCH,
     )
-    assert seller_sentence(KEY, 5, prelim).endswith("so với các sản phẩm chưa đổi (sơ bộ)")
-    assert seller_sentence(KEY, 5, None) is None
+    assert built["primary"]["label"] in (LABEL_PRELIMINARY, LABEL_MEASURING)
+    assert built["false_alarm"]["draws"] == 500
 
 
 def test_card_groups_tunable_follows_the_quota_mode_unless_set():
@@ -325,7 +330,11 @@ def _day_row(shop_id: uuid.UUID, product: str, day: date, impressions: int, clic
 async def _group_with_data(
     session, shop_id: uuid.UUID, lifts: dict[str, tuple[str, float]], *, seed: int = 99
 ) -> CardGroup:
-    """A group launched LAUNCH with members ``product -> (arm, CTR lift)`` and 28 days of rows."""
+    """A group launched LAUNCH with members ``product -> (arm, CTR lift)`` and 42 days of rows.
+
+    The 14 days before the "before" window wobble a little per product (±2 %), the
+    no-effect data D41.3's false-alarm replay draws from.
+    """
     group = CardGroup(
         id=uuid.uuid4(),
         shop_id=shop_id,
@@ -339,7 +348,7 @@ async def _group_with_data(
         status="open",
     )
     session.add(group)
-    for product, (arm, lift) in lifts.items():
+    for index, (product, (arm, lift)) in enumerate(lifts.items()):
         card = _draft(shop_id, 1, product)
         session.add(card)
         await session.flush()
@@ -354,9 +363,13 @@ async def _group_with_data(
                 assigned_at=datetime(2026, 10, 13),
             )
         )
-        for offset in range(-14, 14):
+        wobble = ((index * 37) % 9 - 4) / 200
+        for offset in range(-28, 14):
             day = LAUNCH + timedelta(days=offset)
-            clicks = 400 if offset < 0 else round(400 * (1 + lift))
+            if offset < -14:
+                clicks = round(400 * (1 + wobble))
+            else:
+                clicks = 400 if offset < 0 else round(400 * (1 + lift))
             session.add(_day_row(shop_id, product, day, 10_000, clicks))
     await session.flush()
     return group
@@ -379,19 +392,24 @@ async def test_day_14_verdict_on_synthetic_data(session, shop):
     assert primary["median_treated"] == pytest.approx(10.0, abs=0.1)
     assert primary["median_control"] == pytest.approx(2.0, abs=0.1)
     assert primary["difference"] == pytest.approx(8.0, abs=0.2)
-    assert primary["strength"] == "clear"
+    # D41.3: 3 controls -> the permutation test decides; a median difference over 5 + 3
+    # products cannot reach p ≤ 0.10 (6 of 56 draws are as far): no claim of change.
+    assert primary["test"] == "permutation"
+    assert primary["permutation"]["p_value"] == pytest.approx(6 / 56, abs=1e-4)
+    assert primary["strength"] == "noise"
+    assert all(p["pre_before"] is not None for p in measured.verdict["products"])
+    assert measured.verdict["false_alarm"]["source"] == "pre_period"
     # Approved-only (secondary): no treated card approved -> not enough.
     assert measured.verdict["approved_only"]["label"] == LABEL_NOT_ENOUGH
     # The seller sentence, for cards of the same group key.
     sentences = await seller_sentences(session, shop.id)
     assert sentences == {
-        KEY.text: (
-            "Nhóm 8 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 8 % so với các sản phẩm chưa đổi"
-        )
+        KEY.text: "Nhóm 8 sản phẩm đổi ảnh bìa: lượt nhấp chưa khác rõ so với các sản phẩm chưa đổi"
     }
     # Ops view: arms, seed, interval.
     [view] = await group_views(session, shop.id)
     assert (view["treated"], view["control"], view["seed"]) == (5, 3, 99)
+    assert view["false_alarm"] == measured.verdict["false_alarm"]
     assert (
         view["verdict"]["primary"]["interval"][0]
         <= 8.0
@@ -410,12 +428,17 @@ async def test_a_small_measured_group_reads_not_enough_and_tells_the_seller_noth
     assert await seller_sentences(session, shop.id) == {}
 
 
+#: 12 treated products up ≈ 28 %, 2 controls flat: clear even under D41.3 ("Sơ bộ").
+CLEAR_LIFTS = {
+    **{f"t{i:02d}": (ARM_TREATED, 0.25 + 0.005 * i) for i in range(12)},
+    "c0": (ARM_CONTROL, 0.0),
+    "c1": (ARM_CONTROL, 0.01),
+}
+
+
 @pytest.mark.asyncio
 async def test_the_seller_card_carries_the_group_sentence_once_measured(session, shop):
-    lifts = {
-        **{f"t{i}": (ARM_TREATED, 0.07) for i in range(5)},
-        **{f"c{i}": (ARM_CONTROL, 0.0) for i in range(3)},
-    }
+    lifts = CLEAR_LIFTS
     await _group_with_data(session, shop.id, lifts)
     card = _draft(shop.id, 1, "new-product")
     session.add(card)
@@ -429,7 +452,8 @@ async def test_the_seller_card_carries_the_group_sentence_once_measured(session,
     after = await load_card_contexts(session, shop.id, [card])
     block = build_card_block(card, payload, after[card.id])
     assert block["group_result"] == (
-        "Nhóm 8 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 7 % so với các sản phẩm chưa đổi"
+        "Nhóm 14 sản phẩm đổi ảnh bìa: lượt nhấp tăng khoảng 27 % so với các sản phẩm chưa đổi"
+        " (sơ bộ)"
     )
     # Another group key (title) gets no sentence.
     other = _draft(shop.id, 2, "other", lever="title")
@@ -457,10 +481,7 @@ async def test_ops_group_view_route(session, shop, monkeypatch):
 
     monkeypatch.setenv("OPS_CF_ACCESS_BYPASS", "1")
     monkeypatch.setenv("ENVIRONMENT", "development")
-    lifts = {
-        **{f"t{i}": (ARM_TREATED, 0.07) for i in range(5)},
-        **{f"c{i}": (ARM_CONTROL, 0.0) for i in range(3)},
-    }
+    lifts = CLEAR_LIFTS
     await _group_with_data(session, shop.id, lifts)
     await measure_due_groups(session, shop.id, now=START + timedelta(days=15))
     email = f"viewer-{uuid.uuid4().hex[:6]}@app-juli.com"
@@ -481,9 +502,13 @@ async def test_ops_group_view_route(session, shop, monkeypatch):
     body = response.json()
     assert body["enabled"] is False  # quota mode off, grouping not set
     [group] = body["groups"]
-    assert (group["treated"], group["control"], group["status"]) == (5, 3, "measured")
-    assert group["verdict"]["primary"]["difference"] == pytest.approx(7.0, abs=0.2)
-    assert group["seller_sentence"].startswith("Nhóm 8 sản phẩm đổi ảnh bìa: lượt nhấp tăng")
+    assert (group["treated"], group["control"], group["status"]) == (12, 2, "measured")
+    assert group["verdict"]["primary"]["difference"] == pytest.approx(27.25, abs=0.5)
+    assert group["verdict"]["primary"]["label"] == LABEL_PRELIMINARY
+    # D41.3: the group's simulated false-alarm rate is in the route output.
+    assert group["false_alarm"]["acceptable"] is True
+    assert 0 <= group["false_alarm"]["rate"] <= group["false_alarm"]["max"] + 0.02
+    assert group["seller_sentence"].startswith("Nhóm 14 sản phẩm đổi ảnh bìa: lượt nhấp tăng")
 
 
 @pytest.mark.asyncio
