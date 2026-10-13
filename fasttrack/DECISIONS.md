@@ -899,3 +899,41 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   8. **Small-data evaluation (R8A):** GBM only as a benchmark; leave-one-shop-out and
      bootstrap; a lever counts as learned only when its sign is stable across folds, its
      interval excludes 0 and the simulation agrees in direction.
+
+- **D41** — Acting on the D40 v0.2 / v0.3 results (grill T1–T9, product owner, 2026-10-13).
+  Context: v0.2 / v0.3 (`juli-sim-pilot`, private) learned no lever; Fujiwa's CTR drifts ≈ ±15 %
+  a week with nothing changed (σ week 0.15); per-product CTOR is mostly noise (91 % shrink);
+  the D39.3 verdict on a 4 + 2 group raises a false alarm 18 % of the time. Findings with their
+  re-measure triggers live in the pilot's `research/findings_ledger.md`; gift-with-purchase
+  (negative within Fujiwa, 2 windows) is parked by the owner.
+  1. **Targets unchanged until D34 #1 (T1C):** the KPI target keeps the D29 band clamp; the owner
+     lowers `kpi_max_band_mult` 3 → 2 in Ops.
+  2. **Shrink before the trigger (T2A, P31):** per-product CTR / CTOR are shrunk toward the
+     category (empirical-Bayes beta-binomial, by each product's events) before the D39.1
+     metric-first comparison with the band; tunable in Ops to switch off.
+  3. **Stricter group verdict (T3A, P31):** 90 % interval instead of 80 %; a permutation test
+     over the random assignment when control < 5; adjust each product's change by what its
+     previous 14 days predicted (CUPED-style). "Sơ bộ" only when the group's own simulated
+     false-alarm rate ≤ 10 %, otherwise "Đang đo"; checked with the v0.3 power simulator first.
+  4. **D34 #1 = price-banner cover (T4A):** every eligible Fujiwa product with a real promotion
+     (≈ 26, ≈ 17 treated + 9 control by the group's draw), 28 days, rule 3; purpose = calibrate
+     the simulator (pre-registered), secondary = the lever. Covers rendered with Remotion; the
+     owner uploads them; treated covers stay fixed for the 28 days.
+  5. **Simulator fixes before D38 (T5A):** cards named X / Y, the persona notes price, sold and
+     promotion of both before choosing (left-pick 69 % today); description dropped from the
+     simulator (split-half −0.33); D38 runs on title and cover only, after an A/A + position
+     check (left < 58 %, A/A ≈ 50 %) the owner approves.
+  6. **Feature audit (T6A):** Shopee delivery (−11 %) and pack value (−6 %) re-checked with
+     shop-size / unit-price controls; kept as "dig deeper" if the sign survives, fixed if a bug.
+  7. **No model numbers for Ory / Shopee cards (T7A):** within-niche pairwise accuracy 50 %;
+     cards use rule diagnostics and group tests only; the model is used at niche / shop level;
+     reopen when within-niche pairwise accuracy > 58 %.
+  8. **Next data (T8A):** FastMoss snapshot 2 ≈ 2026-10-20 (same 46 keywords); join Fujiwa's
+     channel impressions with its video / live posting days (C3); niche cover images for C6,
+     each download approved by the owner.
+  9. **Visual distinctiveness on TikTok (T9A):** simple local image features first (colour
+     distance to the niche's average cover, contrast / saturation, text-or-banner area) in the
+     TikTok hierarchical model within keyword; only if there is a signal, a local image
+     embedding (download approved by the owner) and a "contrast with niche" cover as a D34 #2
+     candidate, read by shopper segment (simulation: discovery shoppers chose the banner cover
+     73.6 % / 63.3 % vs specific-need 66.2 % / 56.2 %).
