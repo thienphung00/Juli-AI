@@ -400,7 +400,7 @@ async def plan_optimize_product_cards(
     # The counts go in the message too: journald keeps the text, not the extras.
     logger.info(
         "optimize_product_cards_planned shop_id=%s as_of=%s products_scored=%d excluded=%d "
-        "proposals=%d overflow=%d quota_mode=%s discount_cap_set=%s",
+        "proposals=%d overflow=%d quota_mode=%s discount_cap_set=%s diag_trigger=%s",
         shop_id,
         as_of.isoformat(),
         plan.products_scored,
@@ -409,6 +409,7 @@ async def plan_optimize_product_cards(
         plan.overflow,
         tunables.card_quota_mode,
         facts.discount_cap_set,
+        tunables.diag_trigger,
         extra={
             "shop_id": str(shop_id),
             "as_of": as_of.isoformat(),

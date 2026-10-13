@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
-import { ACTION_NAMES, DIAG_KEYS, QUOTA_KEYS, STREAM_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
+import { ACTION_NAMES, DIAG_KEYS, QUOTA_KEYS, STREAM_NAMES, TRIGGER_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
 import type { DiagKey, OpsMe, OverrideKey, ShopSettingsPage, StageId } from "../../lib/ops/types";
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
 import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
@@ -691,6 +691,22 @@ function DiagSection({
               />
             </SettingRow>
           ))}
+          <SettingRow
+            disabled={!canEdit}
+            help="Một chỉ số giảm: mở thẻ khi Lượt hiển thị, CTR, CTOR hoặc AOV giảm quá dao động, kể cả khi GMV giữ được. GMV giảm (cũ): chỉ khi GMV giảm"
+            onDefault={() => change({ diag_trigger: null })}
+            overridden={isSet("diag_trigger")}
+            summary={fmtSetting("diag_trigger", eff("diag_trigger"))}
+            title="Điều kiện mở thẻ"
+          >
+            <select aria-label="Điều kiện mở thẻ" onChange={(e) => change({ diag_trigger: e.target.value })} value={String(eff("diag_trigger") ?? "metric_first")}>
+              {Object.entries(TRIGGER_NAMES).map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </SettingRow>
         </>
       ) : null}
     </div>

@@ -64,7 +64,15 @@ export interface Overview extends Freshness {
 }
 
 /** P23 (D29.11): per-shop diagnosis & KPI tunables; optional until the backend sends them. */
-export type DiagKey = "diag_windows" | "diag_min_events" | "kpi_min_band_mult" | "kpi_max_band_mult" | "guard_band_mult" | "volatile_cv";
+export type DiagKey =
+  | "diag_windows"
+  | "diag_min_events"
+  | "kpi_min_band_mult"
+  | "kpi_max_band_mult"
+  | "guard_band_mult"
+  | "volatile_cv"
+  /** P30 (D39.1): "metric_first" (default) | "gmv_first" (rollback). */
+  | "diag_trigger";
 
 /** P28 (D33): the per-shop "many cards" quota mode; optional until the backend sends them. */
 export type QuotaKey = "card_quota_mode" | "card_quota_per_cell" | "card_quota_max_open";

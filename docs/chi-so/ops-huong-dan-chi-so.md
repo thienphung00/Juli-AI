@@ -160,11 +160,27 @@ Lưu ý: Mô phỏng so mục tiêu với dao động của MỘT khoảng (dao 
 1. **Khoảng thích ứng.** Với từng sản phẩm và từng chỉ số, Juli lấy khoảng ngắn nhất trong
    Cửa sổ chẩn đoán (mặc định 14 → 30 → 60 ngày) có ≥ Dữ liệu tối thiểu (mặc định 30 lượt nhấp / 30
    đơn). Không khoảng nào đủ → "Ít dữ liệu", không chẩn đoán. Khoảng này hiện trên thẻ: "· 30 ngày".
-2. **Bắt đầu từ GMV.** Sản phẩm chỉ thành ứng viên khi GMV/ngày của khoảng hiện tại thấp hơn khoảng
-   liền trước (cùng độ dài) **nhiều hơn dao động gộp** √(a² + b²) của hai trung bình GMV. Khoảng trước
-   cần ít nhất nửa số ngày có dữ liệu.
-3. **Tìm chỉ số gây ra.** Tách: ln(GMV nay / GMV trước) = Σ ln(chỉ số nay / chỉ số trước) trên Lượt
-   hiển thị/ngày, CTR, CTOR, AOV. Chỉ số kéo xuống nhiều nhất (không ít dữ liệu) là **chỉ số mục tiêu**.
+2. **Bắt đầu từ một chỉ số (D39.1, mặc định từ P30).** Sản phẩm thành ứng viên khi **bất kỳ** chỉ số
+   nào trong Lượt hiển thị/ngày, CTR, CTOR, AOV giảm **nhiều hơn dao động gộp** √(a² + b²) của chính
+   nó (khoảng hiện tại so với khoảng liền trước cùng độ dài, khoảng trước có ít nhất nửa số ngày có dữ
+   liệu), **kể cả khi GMV giữ được**. Mỗi chỉ số đọc trên kênh của nó (D32): Lượt hiển thị và CTR trên
+   Thẻ sản phẩm khi kênh đủ dữ liệu, CTOR và AOV trên tất cả kênh. Chỉ số "Ít dữ liệu" không bao giờ mở
+   thẻ. Sản phẩm bán chạy cũng được xét.
+3. **Chỉ số mục tiêu = chỉ số tốn GMV nhiều nhất.** Tách: ln(GMV nay / GMV trước) = Σ ln(chỉ số nay /
+   chỉ số trước). Phần GMV chỉ riêng chỉ số đó làm mất mỗi ngày = GMV/ngày hiện tại × (e^(−c) − 1),
+   với c = ln(chỉ số nay / chỉ số trước) trên kênh của nó (GMV của kênh khi có, không thì của sản
+   phẩm). Một sản phẩm chỉ có một chỉ số mục tiêu (D29.4): chỉ số giảm tốn GMV nhiều nhất. Thẻ được
+   **xếp hạng theo phần GMV này** (nhân hệ số hiệu chỉnh và lý do của người bán như trước); Lưu lượng
+   ổn định chỉ còn để phân định khi bằng nhau. Lý do trên thẻ nói chỉ số nào giảm và GMV có giữ được
+   không, ví dụ "CTOR giảm 20 % so với 30 ngày trước nhưng doanh thu được giữ nhờ lượt hiển thị tăng;
+   nếu cải thiện CTOR, doanh thu có thể tăng thêm khoảng 1.200.000 ₫/tháng" (GMV giảm: "… và kéo
+   doanh thu giảm 12 %; nếu cải thiện CTR, doanh thu có thể lấy lại khoảng …"). Ops thấy chi tiết
+   (các chỉ số giảm, dao động gộp, phần GMV, chỉ số giữ GMV) trong `diagnosis.metric_trigger` của thẻ.
+   **Cách cũ (GMV trước, D29.2)** vẫn chọn được cho từng shop ở "Điều kiện mở thẻ" (mục 5): sản phẩm
+   chỉ thành ứng viên khi GMV/ngày giảm nhiều hơn dao động gộp của GMV, rồi chỉ số kéo xuống nhiều
+   nhất là chỉ số mục tiêu, xếp hạng theo Lưu lượng ổn định trước. Sản phẩm không có chỉ số nào giảm
+   chỉ có thẻ "tăng trưởng" khi mô phỏng người mua tìm được phương án thắng rõ (D38) — chưa xây trong
+   hệ thống.
 4. **Mức tham chiếu** = cao nhất trong: trung vị của shop, mức ổn định trước đây của chính sản phẩm,
    chuẩn ngành hàng (khi có).
 5. **Mục tiêu (Chỉ số chính)** = mức tham chiếu, kẹp vào [hiện tại + KPI tối thiểu × dao động,
@@ -172,8 +188,9 @@ Lưu ý: Mô phỏng so mục tiêu với dao động của MỘT khoảng (dao 
    quá. Dự đoán hiệu quả (D30.3) chỉ được thu hẹp khoảng này, không nới rộng.
 6. **Sản phẩm dao động cao** (CV lượt hiển thị > Ngưỡng lưu lượng ổn định, mặc định 30 %): vẫn có thẻ,
    mục tiêu hiện dạng khoảng, Độ tin cậy Thấp, chỉ chốt ở ngày 14.
-7. **Ưu tiên sản phẩm có Lưu lượng ổn định** khi xếp hạng; Quality Score và dự đoán hiệu quả là thuật
-   toán nội bộ, chỉ lộ ra qua thứ hạng thẻ, Độ tin cậy và khoảng mục tiêu.
+7. **Lưu lượng ổn định** được ưu tiên khi hai thẻ tốn GMV như nhau (cách cũ "GMV giảm": ưu tiên trước
+   hết); Quality Score và dự đoán hiệu quả là thuật toán nội bộ, chỉ lộ ra qua thứ hạng thẻ, Độ tin
+   cậy và khoảng mục tiêu.
 8. **Kênh đo (D32).** Chỉ số mục tiêu, khoảng thích ứng, dao động trung bình, mức kẹp KPI, Độ tin
    cậy, mức tham chiếu, GMV dự kiến và kết quả ngày 7 / ngày 14 đều tính trên **kênh mà thay đổi tác
    động**: Ảnh bìa, Tiêu đề, Mô tả → Thẻ sản phẩm (gồm tab Cửa hàng); Giảm giá, Flash sale, Giảm phí vận
@@ -247,6 +264,7 @@ Mỗi hàng là một bản nháp, lưu qua hộp xác nhận trước → sau, 
 |---|---|---|---|
 | Cửa sổ chẩn đoán | 14 · 30 · 60 ngày | 1–5 khoảng, mỗi khoảng 7–90 ngày | Ngắn nhất đủ dữ liệu được dùng. Bỏ 14 → thẻ chậm phản ứng nhưng ổn định hơn |
 | Dữ liệu tối thiểu | 30 lượt nhấp/đơn | 5–1000 | Dưới mức này chỉ số là "Ít dữ liệu", không chẩn đoán. Cao hơn → ít thẻ hơn nhưng chắc hơn; cũng là mốc Độ tin cậy Cao (≥ 3 ×) |
+| Điều kiện mở thẻ | Một chỉ số giảm | Một chỉ số giảm / GMV giảm (cũ) | Một chỉ số giảm (D39.1): mở thẻ khi bất kỳ chỉ số nào giảm quá dao động, kể cả khi GMV giữ được, xếp theo GMV chỉ số đó làm mất. GMV giảm (cũ, D29.2): chỉ khi GMV giảm quá dao động — để quay lại cách cũ cho một shop |
 | KPI tối thiểu | 1 × dao động | 0,5–10 | Mục tiêu ≥ hiện tại + N × dao động. Dưới 1 → mục tiêu có thể không đo được |
 | KPI tối đa | 3 × dao động | 0,5–10 (không nhỏ hơn KPI tối thiểu) | Mục tiêu ≤ hiện tại + N × dao động. Cao hơn → hứa nhiều hơn |
 | Ngưỡng giữ ổn định | 1 × dao động | 0,5–10 | Ngưỡng mặc định (Juli gợi ý) của chỉ số không phải mục tiêu. Nhỏ hơn → hỏi "Hoàn tác?" thường hơn |
@@ -278,7 +296,8 @@ và loại trừ quà tặng giữ nguyên; thẻ bị chặn vì ô đầy có 
   xuất khi sản phẩm đang có giảm giá / flash sale đang chạy (bảng khuyến mãi đã lưu); Mua nhiều giảm
   nhiều không đề xuất khi đang chạy. Flash sale và Giảm phí vận chuyển vẫn tắt (chưa có dữ liệu cho
   điều kiện của chúng).
-- **Thấp hơn mức shop (S28B):** sản phẩm có GMV không giảm (`no_gmv_drop`) nhưng CTR / CTOR / AOV thấp
+- **Thấp hơn mức shop (S28B):** sản phẩm có GMV không giảm (`no_gmv_drop`) và (với "Một chỉ số giảm")
+  không chỉ số nào giảm quá dao động, nhưng CTR / CTOR / AOV thấp
   hơn trung vị của shop quá 1 × dao động (đủ dữ liệu), và cũng thấp hơn trung vị trên kênh của thay đổi,
   nhận thẻ: mục tiêu = KPI tối thiểu (1 ×) thôi, Độ tin cậy Thấp, xếp sau mọi thẻ GMV giảm, mã
   `reason_code = below_shop_level`. Lý do hiện cho người bán: "CTR của sản phẩm trên kênh Thẻ sản phẩm
@@ -310,10 +329,18 @@ AOV (chỉ tất cả kênh), Video, LIVE.
 ## 7. Câu hỏi thường gặp
 
 **"Sao Phân tích báo lượt hiển thị giảm 24,6 % mà Juli không đề xuất gì?"**
-Nội bộ: thẻ bắt đầu từ GMV; nếu GMV không giảm quá dao động gộp, hoặc chỉ số gây ra là "Ít dữ liệu",
-thì không có thẻ. Lượt hiển thị là gián tiếp. Trả lời: "Lượt hiển thị giảm thật (thay đổi rõ), nhưng
-doanh thu của sản phẩm chưa giảm quá mức lên xuống thường ngày, nên Juli chưa đề xuất thay đổi. Juli sẽ
-đề xuất khi doanh thu bị ảnh hưởng."
+Nội bộ (D39.1): một chỉ số giảm quá dao động gộp của chính nó là đủ mở thẻ, kể cả khi GMV giữ được.
+Không có thẻ khi: con số trên Phân tích là của cả shop hoặc cả luồng chứ không của từng sản phẩm; từng
+sản phẩm giảm chưa quá dao động của nó; chỉ số đó "Ít dữ liệu"; sản phẩm đã có thẻ cho chỉ số khác
+(D29.4) hoặc đang trong thời gian chờ; hoặc chỉ có thay đổi Tiêu đề mới tác động được lượt hiển thị mà
+không có lỗi tiêu đề nào. Shop đặt "GMV giảm (cũ)" thì vẫn chỉ mở thẻ khi GMV giảm. Trả lời: "Lượt
+hiển thị của shop giảm thật, nhưng ở từng sản phẩm mức giảm chưa vượt mức lên xuống thường ngày (hoặc
+Juli chưa có thay đổi phù hợp), nên Juli chưa đề xuất. Khi một sản phẩm giảm rõ, Juli sẽ đề xuất."
+
+**"Doanh thu không giảm, sao Juli vẫn đề xuất?"**
+Một chỉ số của sản phẩm giảm thật nhưng chỉ số khác tăng bù. Trả lời: "CTOR của sản phẩm giảm rõ,
+nhưng nhờ lượt hiển thị tăng nên doanh thu chưa giảm. Nếu cải thiện CTOR, doanh thu có thể tăng thêm
+— con số trên thẻ là ước tính."
 
 **"Hôm qua giảm 20 %, có sao không?"**
 Một ngày dao động ±25 % là bình thường. Trả lời: "Một ngày lên xuống 20–25 % là bình thường với sản

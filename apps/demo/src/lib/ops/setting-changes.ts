@@ -43,6 +43,7 @@ export const SETTING_KEYS: readonly OverrideKey[] = [
   "kpi_max_band_mult",
   "guard_band_mult",
   "volatile_cv",
+  "diag_trigger",
   "card_quota_mode",
   "card_quota_per_cell",
   "card_quota_max_open",
@@ -59,6 +60,7 @@ export const DIAG_KEYS: readonly DiagKey[] = [
   "kpi_max_band_mult",
   "guard_band_mult",
   "volatile_cv",
+  "diag_trigger",
 ];
 
 export const SETTING_LABELS: Readonly<Record<string, string>> = {
@@ -78,9 +80,16 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   kpi_max_band_mult: "KPI tối đa",
   guard_band_mult: "Ngưỡng giữ ổn định",
   volatile_cv: "Ngưỡng lưu lượng ổn định",
+  diag_trigger: "Điều kiện mở thẻ",
   card_quota_mode: "Nhiều thẻ mỗi ô",
   card_quota_per_cell: "Thẻ mở mỗi ô",
   card_quota_max_open: "Thẻ mở tối đa (nhiều thẻ)",
+};
+
+/** P30 (D39.1): what opens a card, in the team's words. */
+export const TRIGGER_NAMES: Readonly<Record<string, string>> = {
+  metric_first: "Một chỉ số giảm",
+  gmv_first: "GMV giảm (cũ)",
 };
 
 const MULT_KEYS = new Set(["kpi_min_band_mult", "kpi_max_band_mult", "guard_band_mult"]);
@@ -113,6 +122,7 @@ export function fmtSetting(key: string, value: unknown): string {
   if (key === "diag_windows" && Array.isArray(value)) return value.length ? `${[...value].sort((a, b) => Number(a) - Number(b)).join(" · ")} ngày` : "Không có";
   if (MULT_KEYS.has(key)) return `×${comma(Number(value))} dao động`;
   if (key === "volatile_cv") return `CV > ${comma(Math.round(Number(value) * 1000) / 10)} %`;
+  if (key === "diag_trigger") return TRIGGER_NAMES[String(value)] ?? String(value);
   if (key === "diag_min_events") return `${String(value)} lượt nhấp/đơn`;
   if (key === "card_quota_per_cell") return `${String(value)} thẻ/ô`;
   if (key === "card_quota_max_open") return `${String(value)} thẻ mở`;

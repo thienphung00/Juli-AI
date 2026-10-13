@@ -74,8 +74,8 @@ Doanh thu mỗi ngày của một luồng được tách thành 4 bước:
 > **GMV/ngày** = **Lượt hiển thị/ngày** × **CTR** × **CTOR** × **AOV**
 
 Có nghĩa là: bao nhiêu khách **thấy** → bao nhiêu **lượt nhấp** → bao nhiêu lượt nhấp **thành đơn** →
-mỗi đơn **bao nhiêu tiền**. Khi doanh thu giảm, Juli tìm xem bước nào kéo xuống nhiều nhất, rồi đề xuất
-thay đổi cho đúng bước đó: ví dụ ảnh bìa và tiêu đề cho CTR; mô tả, giá, voucher cho CTOR; mua nhiều
+mỗi đơn **bao nhiêu tiền**. Khi một bước giảm rõ, Juli đề xuất thay đổi cho đúng bước đó, kể cả khi
+doanh thu chưa giảm nhờ bước khác tăng bù: ví dụ ảnh bìa và tiêu đề cho CTR; mô tả, giá, voucher cho CTOR; mua nhiều
 giảm nhiều, combo cho AOV.
 
 Lượt hiển thị do TikTok quyết định, nên chỉ có thể tác động gián tiếp (quảng cáo, chiến dịch, nội dung).
@@ -118,21 +118,26 @@ hiện nhưng không dựa vào nó để đề xuất.
 
 Juli không đề xuất chỉ vì một con số trông thấp. Một sản phẩm nhận thẻ khi:
 
-1. **Doanh thu giảm thật.** Doanh thu trung bình mỗi ngày của sản phẩm thấp hơn khoảng trước đó nhiều
-   hơn mức lên xuống thường ngày của nó. Juli dùng khoảng ngắn nhất (14, 30 hoặc 60 ngày) có đủ ít nhất
-   30 lượt nhấp hoặc 30 đơn — khoảng này hiện trên thẻ, ví dụ "· 30 ngày".
-2. **Tìm được bước gây ra.** Trong 4 bước (hiển thị, nhấp, thành đơn, giá trị đơn), Juli chọn bước kéo
-   doanh thu xuống nhiều nhất. Đó là **Chỉ số chính** của thẻ.
+1. **Một bước giảm thật.** Trong 4 bước (hiển thị, nhấp, thành đơn, giá trị đơn), ít nhất một con số
+   của sản phẩm thấp hơn khoảng trước đó nhiều hơn mức lên xuống thường ngày của chính nó — **kể cả khi
+   doanh thu chưa giảm** vì một bước khác tăng bù. Juli dùng khoảng ngắn nhất (14, 30 hoặc 60 ngày) có
+   đủ ít nhất 30 lượt nhấp hoặc 30 đơn — khoảng này hiện trên thẻ, ví dụ "· 30 ngày". Sản phẩm bán chạy
+   cũng được xét.
+2. **Chọn bước làm mất nhiều doanh thu nhất.** Nếu vài bước cùng giảm, Juli chọn bước mà riêng nó làm
+   mất nhiều doanh thu nhất. Đó là **Chỉ số chính** của thẻ, và lý do trên thẻ nói rõ, ví dụ: "CTOR giảm
+   20 % so với 30 ngày trước nhưng doanh thu được giữ nhờ lượt hiển thị tăng; nếu cải thiện CTOR, doanh
+   thu có thể tăng thêm khoảng 1.200.000 ₫/tháng". Thẻ làm mất nhiều doanh thu hơn đứng trước.
 3. **Mỗi sản phẩm chỉ nhắm một con số mỗi lúc.** Có thể có vài thay đổi cùng lúc cho cùng một con số
    (nhóm **N thay đổi cho CTR**, ví dụ ảnh bìa + tiêu đề), nhưng không bao giờ CTR và CTOR cùng lúc —
    để biết chắc thay đổi nào mang lại kết quả. Mỗi thẻ trong nhóm bạn vẫn duyệt riêng.
-4. **Sản phẩm có Lưu lượng ổn định được ưu tiên**, vì kết quả đo trên chúng chính xác hơn.
+4. **Khi hai thẻ ngang nhau, sản phẩm có Lưu lượng ổn định đứng trước**, vì kết quả đo trên chúng chính
+   xác hơn.
 
-Với một số shop đang thử chế độ **nhiều thẻ**, Juli còn đề xuất cả khi doanh thu không giảm nhưng một
+Với một số shop đang thử chế độ **nhiều thẻ**, Juli còn đề xuất cả khi không bước nào giảm nhưng một
 con số của sản phẩm (CTR, CTOR hoặc AOV) thấp hơn hẳn mức chung của shop trên cùng kênh, ví dụ "CTR của
 sản phẩm trên kênh Thẻ sản phẩm thấp hơn mức chung của shop (2,50 % so với 5,00 %); doanh thu không giảm,
 đây là cơ hội tăng thêm". Những thẻ này luôn có Độ tin cậy **Thấp**, mục tiêu khiêm tốn (vừa đủ để đo
-được) và đứng sau các thẻ về doanh thu giảm. Ở chế độ này bạn có thể thấy tối đa 5 thẻ mở cho mỗi con
+được) và đứng sau các thẻ về một bước giảm. Ở chế độ này bạn có thể thấy tối đa 5 thẻ mở cho mỗi con
 số trên mỗi kênh (ví dụ 5 thẻ CTR trên Thẻ sản phẩm), thay vì vài thẻ mới mỗi ngày; quy tắc **Số thẻ mở
 cùng lúc** bạn đặt vẫn được giữ.
 

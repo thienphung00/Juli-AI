@@ -252,6 +252,10 @@ def _plan(daily: dict[str, list[ProductDay]], **kwargs):
     return plan_shop_cards(funnels, catalog, CONFIG, daily=daily, as_of=AS_OF, **kwargs)
 
 
+#: D39.1: the D29.2 GMV gate, kept per shop for rollback (``diag_trigger``).
+GMV_FIRST = DiagTunables(diag_trigger="gmv_first")
+
+
 def test_stable_products_rank_first():
     daily = {
         # Volatile but a bigger fall.
@@ -259,7 +263,8 @@ def test_stable_products_rank_first():
         # Stable, smaller.
         "stable": _series(60, impressions=3000, noise=0.03, seed=12, change={"ctor": 0.035}),
     }
-    plan = _plan(daily)
+    # D29.5 stable-first is the GMV-first ranking; metric-first ranks on GMV cost.
+    plan = _plan(daily, tunables=GMV_FIRST)
     order = [p.product_id for p in plan.proposals]
     assert order.index("stable") < order.index("volatile")
     by_id = {p.product_id: p for p in plan.proposals}
@@ -769,7 +774,8 @@ def fujiwa_like_daily() -> dict[str, list[ProductDay]]:
 
 def test_fujiwa_like_shop_gets_few_honest_cards():
     daily = fujiwa_like_daily()
-    plan = _plan(daily)
+    # The GMV-first gate (D29.2), as before D39.1.
+    plan = _plan(daily, tunables=GMV_FIRST)
     reasons = {s.product_id: s.reason for s in plan.skips}
     proposed = {p.product_id for p in plan.proposals}
     # Only the product whose GMV really fell beyond its band is proposed.
