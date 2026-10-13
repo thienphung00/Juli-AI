@@ -11,9 +11,10 @@ const PROMISES = [
 ] as const;
 
 /**
- * The sales demo (juli-content-engine `sales-demo-01`, re-encoded to 720p).
- * `preload="none"` keeps the ~15MB file off the critical path until the
- * visitor presses play; the poster is the 5-traffic-source GMV table frame.
+ * The sales demo (juli-content-engine `sales-demo-02` final, 1080p, ~9.5MB,
+ * shipped as rendered). `preload="none"` keeps it off the critical path until
+ * the visitor presses play; the poster is the 12 s brand card (+5–10% GMV,
+ * 29 giờ).
  */
 const DEMO_VIDEO_SRC = "/videos/juli-demo.mp4";
 const DEMO_VIDEO_POSTER = "/videos/juli-demo-poster.jpg";
@@ -22,10 +23,7 @@ export function HeroSection() {
   return (
     <section aria-labelledby="hero-heading" className="lp-hero">
       <div className="lp-hero__copy">
-        <p className="lp-hero__badge">
-          TikTok Shop Partner ✓
-          <span className="lp-hero__badge-soon">Shopee · sắp ra mắt</span>
-        </p>
+        <p className="lp-hero__badge">Dành cho người bán TikTok Shop</p>
         <p className="lp-hero__eyebrow">
           Chi phí vận hành và hoa hồng sàn ngày càng tăng?
         </p>
@@ -34,7 +32,7 @@ export function HeroSection() {
         </h1>
         <p className="lp-hero__body">
           Juli là trợ lý giúp bạn tăng trưởng ổn định và tối ưu vận hành TikTok
-          Shop và Shopee. Juli tìm luồng truy cập cần tối ưu → chỉ số cần cải
+          Shop. Juli tìm luồng truy cập cần tối ưu → chỉ số cần cải
           thiện → sản phẩm và nội dung cần sửa, rồi đề xuất và thực hiện cùng
           bạn.
         </p>
@@ -78,7 +76,7 @@ export function HeroSection() {
       </div>
       <div className="lp-hero__visual">
         <video
-          aria-label="Video demo Juli phân tích GMV theo 5 luồng truy cập của một TikTok Shop"
+          aria-label="Video giới thiệu Juli: cách Juli theo dõi shop, phân tích GMV theo từng luồng truy cập và đề xuất hành động"
           className="lp-hero__video"
           controls
           data-testid="hero-demo-video"
