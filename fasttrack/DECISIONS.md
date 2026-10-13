@@ -821,3 +821,22 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      imagery and no claim or promotion that is not real.
   6. **Budget (M5A):** ≈ $0.4–0.8 per product with early stopping and bandit allocation, a hard
      cap per run.
+
+- **D39** — Metric-first trigger, group proposals with simulated group tests, and D34 in the
+  card system (grill N1, O1, O2, product owner, 2026-10-13). Context: Fujiwa's best sellers got
+  no card because D29 opens a card only when GMV drops beyond its band; a product whose CTOR fell
+  20 % while impressions rose 25 % kept GMV flat and was never proposed.
+  1. **Metric first (N1A):** a card is proposed when ANY funnel metric (Lượt hiển thị, CTR, CTOR,
+     AOV) drops beyond its own band (on its channel, D32), even when GMV holds. Candidates are
+     ranked by the GMV that metric alone costs, from the D29.2 decomposition. Best sellers are
+     included. D29.4 (one metric per product at a time) stays. For products with no metric
+     drop, a "growth" branch is opened only by a simulated winner (D38) — Độ tin cậy Thấp,
+     target 1× band.
+  2. **Simulated group test (O1A):** one change (e.g. "pack size in the first 20 characters of
+     the title") is applied to every product of a group (metric × lever × channel) and compared
+     pairwise per product; pooled into a group effect with an interval and the spread across
+     products. Only a change that wins clearly at group level becomes a group proposal.
+  3. **D34 in the card system (O2A, fast track P30):** cards grouped by metric × lever ×
+     channel; ≈ 1/3 of eligible products drawn at random as a delayed control (card 14 days
+     later); a group launches within ≈ 3 days; verdict by difference-in-differences ("Sơ bộ" at
+     ≥ 3 treated + ≥ 2 control); Ops sees the detail, the seller one sentence.
