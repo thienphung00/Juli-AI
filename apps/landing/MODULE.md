@@ -55,6 +55,11 @@ route it owns (`/api/tt/event`) talks to TikTok, not to `juli-api`.
   never shipped as flattened UI bitmaps.
 - The Events API token is read from the server process environment and never
   becomes a `NEXT_PUBLIC_*` value — that would publish it in the bundle.
+- Analytics runs only with consent (Nghị định 13/2023): `CookieConsent` loads
+  the TikTok Pixel and mounts `TikTokTracking` (and so the Events API relay)
+  only after the visitor clicks "Đồng ý"; refusing or not answering loads and
+  sends nothing. The footer's "Cài đặt cookie" reopens the choice; withdrawing
+  clears the pixel's first-party cookies and reloads.
 - Analytics never breaks the page: no call into the pixel or the relay may
   throw, and a missing token produces a logged 503, never a silent no-op.
 
