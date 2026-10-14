@@ -164,6 +164,10 @@ export function DemoLanding() {
               <div hidden={!emailOpen} id="landing-email-sign-in">
                 {emailOpen ? <EmailSignIn autoFocus /> : null}
               </div>
+              {/* P32-A: team-created partner trial accounts sign in with a password on /auth/email. */}
+              <a className="demo-landing__partner" href="/auth/email#doi-tac">
+                Tài khoản đối tác (đăng nhập bằng mật khẩu)
+              </a>
             </>
           ) : (
             <>

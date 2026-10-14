@@ -6706,3 +6706,97 @@ h4 {
 [data-read-only]:not(.qv-btn--primary):not(.qv-btn--secondary) {
   opacity: 0.55;
 }
+
+/* ── P32-A: partner trial account (D42) ── */
+
+.reviewer-banner {
+  border-color: var(--juli-border);
+}
+
+.reviewer-banner__meta {
+  font-weight: 400;
+}
+
+.partner-sign-in {
+  margin-top: var(--juli-space-5, 1.5rem);
+  border-top: 1px solid var(--juli-border);
+  padding-top: var(--juli-space-4);
+}
+
+.partner-sign-in__toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: var(--juli-touch-target);
+  color: var(--juli-muted-foreground, inherit);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.partner-sign-in__help {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.demo-landing__door .demo-landing__partner {
+  display: inline-block;
+  margin-top: var(--juli-space-3);
+  font-size: 0.85rem;
+}
+
+.reviewer-sim__label {
+  margin: 0 0 var(--juli-space-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reviewer-sim__steps {
+  display: flex;
+  gap: var(--juli-space-4);
+  margin: var(--juli-space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reviewer-sim__steps li[data-done="false"] {
+  opacity: 0.55;
+}
+
+.reviewer-sim__facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--juli-space-1) var(--juli-space-3);
+  margin: 0 0 var(--juli-space-3);
+}
+
+.reviewer-sim__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.reviewer-sim__request code {
+  overflow-wrap: anywhere;
+}
+
+.reviewer-sim__fields {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.reviewer-sim__fields th,
+.reviewer-sim__fields td {
+  border-top: 1px solid var(--juli-border);
+  padding: var(--juli-space-2);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.reviewer-sim__guarantee {
+  margin: var(--juli-space-3) 0 0;
+  font-size: 0.85rem;
+}
