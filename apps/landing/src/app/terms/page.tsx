@@ -112,8 +112,8 @@ export default function TermsOfServicePage() {
               6. Phí dịch vụ, thanh toán và hoá đơn
             </h2>
             <p>
-              6.1. Phí dịch vụ Juli là 500.000đ/tháng, đã bao gồm thuế giá trị gia tăng (nếu
-              có). Phí được thanh toán trước cho mỗi kỳ sử dụng.
+              6.1. Phí dịch vụ Juli là 500.000đ/tháng, chưa bao gồm thuế giá trị gia tăng
+              (GTGT) 10%. Phí được thanh toán trước cho mỗi kỳ sử dụng.
             </p>
             <p>6.2. Bạn thanh toán bằng chuyển khoản ngân hàng.</p>
             <p>
