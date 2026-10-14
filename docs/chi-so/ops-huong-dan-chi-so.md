@@ -350,7 +350,7 @@ hiệu quả thật của một loại thay đổi.
   12 %, báo động giả thật vẫn ≤ 9,6 %) thì nhãn là **"Đang đo"**, không nói mạnh yếu, người bán không
   thấy câu nào. Nhóm "Đang đo" được đo lại mỗi 7 ngày (ngày 21, 28, … đến ngày 56) với số liệu mới nhất:
   khoảng so sánh vẫn là 14 ngày đầu, nhưng số liệu không thay đổi của đối chứng nhiều thêm nên nhóm có
-  thể ra khỏi "Đang đo". Tỉ lệ này hiện cạnh kết quả ("báo động giả x %"). Nhóm nhỏ (ví dụ 5 + 3 với trung vị) gần như luôn là
+  thể ra khỏi "Đang đo". Con số báo động giả này hiện cạnh kết quả ("báo động giả x %"). Nhóm nhỏ (ví dụ 5 + 3 với trung vị) gần như luôn là
   Trong dao động hoặc Đang đo — đó là chủ ý.
   Tính theo **cách chia** (cả thẻ người bán không duyệt); "Chỉ thẻ đã duyệt" là số phụ.
 - Nhãn: ≥ 3 áp dụng + ≥ 2 đối chứng có số liệu → **"Sơ bộ"**; ≥ 5 + ≥ 3 → không nhãn; ít hơn →
