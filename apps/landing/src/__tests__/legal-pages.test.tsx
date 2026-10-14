@@ -32,9 +32,13 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     }
     // Identity: Google or email-code sign-in, no password.
     expect(screen.getByText(/đăng nhập với google, hoặc bằng\s+email/i)).toBeInTheDocument();
-    // Write path: default-off, sandbox-only today, owner-authorized per listing.
+    // Shop access: official API authorization or a seller-granted sub-account.
+    const access = screen.getByRole("list", { name: "Cách Juli truy cập dữ liệu shop" });
+    expect(access).toHaveTextContent(/ủy quyền chính thức qua API của sàn/);
+    expect(access).toHaveTextContent(/Tài khoản phụ do bạn cấp/);
+    // Write path: default read-only, sandbox where available, owner-approved per action.
     expect(
-      screen.getByText(/không thay đổi bất kỳ điều gì trên shop tiktok shop thật/i),
+      screen.getByText(/chỉ đọc dữ liệu và không thay đổi bất kỳ điều gì trên shop thật/i),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/sandbox/i).length).toBeGreaterThan(0);
   });
@@ -167,7 +171,7 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
       expect(notice).toHaveTextContent(`tax ID ${COMPANY.taxId}`);
       expect(notice).toHaveTextContent("Website: app-juli.com");
       expect(notice).toHaveTextContent(COMPANY.email);
-      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 10, 2026/);
+      expect(notice).toHaveTextContent(/Version: 2\.0\. Last updated \(effective date\): October 14, 2026/);
     });
 
     it("translates every section 1–12", () => {
@@ -245,10 +249,19 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     render(<PrivacyPolicyPage />);
 
     const list = screen.getByRole("list", { name: "Bên xử lý dữ liệu" });
-    for (const processor of ["Supabase", "TikTok Shop API", "OpenAI", "Zalo", "Firebase", "TikTok Pixel"]) {
+    for (const processor of [
+      "Supabase",
+      "TikTok Shop API",
+      "Shopee",
+      "OpenAI",
+      "Zalo",
+      "Firebase",
+      "Viettel-CA",
+      "TikTok Pixel",
+    ]) {
       expect(list, processor).toHaveTextContent(processor);
     }
-    expect(screen.getByText(/không bán dữ liệu của bạn/i)).toBeInTheDocument();
+    expect(screen.getByText(/không bán, không tiết lộ và không chuyển giao dữ liệu của bạn/i)).toBeInTheDocument();
   });
 
   it("publishes no unfinished drafts: no placeholders, no 'pending legal review' banner", () => {
@@ -260,16 +273,44 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     }
   });
 
-  it("renders /terms with the entity, the fee terms, and AI suggestions run only on consent", () => {
+  it("renders /terms v2.0 with the entity, the fee terms, and AI suggestions run only on consent", () => {
     render(<TermsOfServicePage />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Điều khoản dịch vụ" }),
     ).toBeInTheDocument();
+    expect(screen.getByText(/Phiên bản: 2\.0 — Cập nhật lần cuối: 14\/10\/2026/)).toBeInTheDocument();
     expect(screen.getAllByText(new RegExp(COMPANY.name)).length).toBeGreaterThan(0);
-    expect(screen.getByText(/500\.000đ\/tháng.*huỷ bất cứ lúc nào/i)).toBeInTheDocument();
+    expect(screen.getByText(/6\.1\. Phí dịch vụ Juli là 500\.000đ\/tháng/)).toBeInTheDocument();
+    expect(screen.getByText(/huỷ gia hạn bất cứ lúc nào/i)).toBeInTheDocument();
     expect(screen.getByText(/chỉ thực hiện một hành động khi bạn đồng ý/i)).toBeInTheDocument();
-    expect(screen.queryByText(/GMV/)).not.toBeInTheDocument();
+    // GMV appears only inside the no-guarantee disclaimer (13.1), never as a promise.
+    expect(screen.getByText(/không cam kết và không bảo đảm tăng\s+GMV/)).toBeInTheDocument();
+  });
+
+  it("/terms carries all 16 sections of v2.0", () => {
+    render(<TermsOfServicePage />);
+    const headings = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual([
+      "1. Giới thiệu",
+      "2. Juli AI là gì",
+      "3. Tài khoản của bạn",
+      "4. Kết nối shop",
+      "5. Hợp đồng",
+      "6. Phí dịch vụ, thanh toán và hoá đơn",
+      "7. Nghiệm thu",
+      "8. Đề xuất của Juli",
+      "9. Sử dụng hợp lệ",
+      "10. Dữ liệu của bạn",
+      "11. Bảo mật thông tin",
+      "12. Chấm dứt",
+      "13. Giới hạn trách nhiệm",
+      "14. Thay đổi điều khoản",
+      "15. Luật áp dụng và giải quyết tranh chấp",
+      "16. Liên hệ",
+    ]);
   });
 
   it("/terms links back to /privacy for the data-handling detail", () => {

@@ -9,7 +9,8 @@ import { COMPANY } from "../../lib/site";
 
 export const ENGLISH_SECTION_ID = "english";
 export const ENGLISH_GOOGLE_SECTION_ID = "google-user-data";
-export const LAST_UPDATED_EN = "October 10, 2026";
+export const VERSION_EN = "2.0";
+export const LAST_UPDATED_EN = "October 14, 2026";
 export const GOOGLE_USER_DATA_POLICY_URL =
   "https://developers.google.com/terms/api-services-user-data-policy";
 export const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
@@ -33,12 +34,14 @@ export function PrivacyPolicyEnglish() {
       <h2 className="lp-legal__heading" id="privacy-english-heading">
         Privacy Policy — Juli AI (English)
       </h2>
-      <p className="lp-legal__updated">Last updated (effective date): {LAST_UPDATED_EN}</p>
+      <p className="lp-legal__updated">
+        Version: {VERSION_EN} — Last updated (effective date): {LAST_UPDATED_EN}
+      </p>
 
       <p className="lp-legal__intro">
         This policy explains how Juli AI collects, uses, shares and protects data when you
-        use the website app-juli.com, the Demo and the Juli app, in accordance with Decree
-        13/2023/NĐ-CP on personal data protection (Vietnam).
+        use the website app-juli.com, the Demo and the Juli app, in accordance with the Law
+        on Personal Data Protection (Vietnam) and its implementing regulations.
       </p>
       <p className="lp-legal__intro">
         This English version is a translation of the Vietnamese policy above. If the two
@@ -53,7 +56,14 @@ export function PrivacyPolicyEnglish() {
           Juli AI is operated by <span lang="vi">{COMPANY.name}</span> (tax ID{" "}
           {COMPANY.taxId}), with its registered office at{" "}
           <span lang="vi">{COMPANY.address}</span>. <span lang="vi">{COMPANY.name}</span> is
-          the controller and processor of the personal data described in this policy.
+          the controller and processor of the personal data described in this policy. For
+          buyers&rsquo; personal data contained in shop data, however, the seller is the
+          controller and Juli processes that data on the seller&rsquo;s behalf, under section
+          10 of the{" "}
+          <a className="lp-legal__contact-link" href="/terms">
+            Terms of Service
+          </a>
+          .
         </p>
         <p>
           You can contact us by email at <ContactLink />.
@@ -77,6 +87,11 @@ export function PrivacyPolicyEnglish() {
             Optional: your Zalo phone number or Zalo user ID, only if you turn on Zalo alerts
           </li>
           <li>Optional: a device token, only if you turn on push notifications on your phone</li>
+          <li>
+            Invoicing information: business/household business name or your full name, tax
+            ID or personal identification number, address, and the email address for
+            invoices &mdash; only when you pay
+          </li>
         </ul>
       </section>
 
@@ -133,8 +148,8 @@ export function PrivacyPolicyEnglish() {
           this data except with your consent (for example, when you ask for support, or to
           support and operate the service &mdash; which you accept when you connect a shop),
           when needed for security purposes (for example, investigating abuse), or when
-          required by law. Staff see shop data only, never buyer data, and every access is
-          logged.
+          required by law. Staff view only the shop data needed for support, do not copy or
+          store buyer data, and every access is logged.
         </p>
 
         <h4 className="lp-legal__subheading">3.3. Limited Use</h4>
@@ -232,8 +247,28 @@ export function PrivacyPolicyEnglish() {
       <section className="lp-legal__section">
         <h3 className="lp-legal__section-heading">4. Information we read from your shop</h3>
         <p>
-          After you connect your TikTok Shop shop, Juli periodically syncs the following data
-          from the TikTok Shop API, to analyze your shop and make recommendations for it:
+          Juli supports shops on TikTok Shop and Shopee. Juli accesses shop data in one of two
+          ways, depending on the marketplace and on your choice:
+        </p>
+        <ul aria-label="How Juli accesses shop data">
+          <li>
+            (a) Official authorization through the marketplace&rsquo;s API: you click an
+            authorization link, the marketplace shows the list of permissions Juli requests,
+            and you approve them. This applies to TikTok Shop, and to Shopee once Juli&rsquo;s
+            app has been approved by Shopee.
+          </li>
+          <li>
+            (b) A sub-account you provide: you create a sub-account in the
+            marketplace&rsquo;s Seller Center (for example, Shopee), choose that
+            sub-account&rsquo;s permission scope yourself, and give it to Juli. You can
+            change the password, narrow the permissions or lock the sub-account at any time.
+            Juli keeps the sub-account&rsquo;s login credentials confidential, uses the
+            sub-account only to serve your shop, and does not share it with third parties.
+          </li>
+        </ul>
+        <p>
+          Juli periodically reads the following data, to analyze your shop and make
+          recommendations for it:
         </p>
         <ul aria-label="Shop data Juli reads">
           <li>
@@ -244,16 +279,17 @@ export function PrivacyPolicyEnglish() {
           <li>Inventory per product/SKU and warehouse</li>
           <li>Returns/cancellations (return type, reason, refund amount)</li>
           <li>
-            Shop performance metrics provided by TikTok Shop (revenue, views, conversion rate
-            by traffic source)
+            Shop performance metrics provided by the marketplace (revenue, views, conversion
+            rate by traffic source)
           </li>
           <li>Performance of the shop&rsquo;s videos and LIVEs, and the products tagged in them</li>
-          <li>The shop&rsquo;s promotions and discount codes</li>
+          <li>The shop&rsquo;s promotions, discount codes and advertising metrics</li>
         </ul>
         <p>
-          Juli does not read your personal messages, and does not store buyers&rsquo; contact
-          information beyond the identifiers needed to process orders. Shopee support is in
-          development; this policy will be updated before Juli reads any data from Shopee.
+          Juli does not read your personal messages, and does not collect or store
+          buyers&rsquo; contact information (name, phone number, address) beyond the
+          identifiers needed to process orders &mdash; even when that information is visible
+          in the Seller Center that the sub-account has permission to view.
         </p>
       </section>
 
@@ -262,15 +298,18 @@ export function PrivacyPolicyEnglish() {
           5. What Juli records or changes on your shop
         </h3>
         <p>
-          By default, Juli does not change anything on your live TikTok Shop shop. Trial
-          actions (for example, creating a product discount code) run in the test environment
-          (sandbox) provided by TikTok, separate from your live shop.
+          By default, Juli only reads data and does not change anything on your live shop.
+          Trial actions (for example, creating a product discount code) run in the test
+          environment (sandbox) provided by the marketplace, where available, separate from
+          your live shop.
         </p>
         <p>
           An action on your live shop is carried out only when (a) you have actively approved
-          that recommendation, and (b) write permission has been granted separately for
-          exactly one product and exactly one type of action, is time-limited, and can be
-          used only once.
+          that recommendation, and (b) the action is limited to exactly the products and
+          exactly the type of action you approved. With an API connection, each action uses
+          a separate write permission that is time-limited and can be used only once. With a
+          sub-account, Juli carries out only the action you approved, within the permissions
+          you granted to that sub-account.
         </p>
       </section>
 
@@ -282,27 +321,65 @@ export function PrivacyPolicyEnglish() {
           <li>To send the alerts and notifications you have turned on</li>
           <li>To measure the effectiveness of Juli&rsquo;s advertising on TikTok</li>
           <li>To provide support and announce important changes to the service</li>
+          <li>
+            To issue invoices, keep payment records and meet accounting and tax obligations
+            as required by law
+          </li>
+          <li>
+            To optimize Juli&rsquo;s analysis algorithms and the quality of its suggestions,
+            including fine-tuning a language model, using only anonymized data in structured
+            form (see below)
+          </li>
         </ul>
+        <p>
+          For algorithm optimization, Juli uses only anonymized shop data, and only in
+          structured form (for example, metric types, correlations between metrics,
+          recommendation types and the results after they were applied). This data does not
+          contain shop names, product names or content, images, scripts, titles, business
+          figures that could identify a shop, buyer information or Google user data, and it
+          is not disclosed to other customers. You can ask us to stop using your data for
+          this purpose at any time by emailing <ContactLink />.
+        </p>
+        <p>
+          Script, title and content suggestions are processed separately for each shop, based
+          on that shop&rsquo;s own data and wording; a shop&rsquo;s own content is used only
+          to create suggestions for that same shop.
+        </p>
       </section>
 
       <section className="lp-legal__section">
         <h3 className="lp-legal__section-heading">7. Who we share data with</h3>
         <p>
-          Juli does not sell your data to any third party. We share data only with the
-          following data processors, to the extent necessary to operate the product:
+          Juli does not sell, disclose or transfer your data to any third party, and does
+          not use your data for any other purpose (including not using data that could
+          identify your shop to serve other customers). We share data only with the following
+          data processors, to the extent necessary to operate the product:
         </p>
         <ul aria-label="Data processors">
           <li>Supabase — sign-in authentication (Google) and database hosting</li>
-          <li>TikTok Shop API — the source of your shop data</li>
           <li>
-            OpenAI — the AI model that analyzes shop data and creates recommendations. Data
-            sent through OpenAI&rsquo;s API is not used to train models
+            TikTok Shop API and Shopee (API or Seller Center) — the source of your shop data
+          </li>
+          <li>
+            OpenAI — a third-party language model (AI) used to analyze shop data and create
+            recommendations. Juli sends OpenAI only the shop information that the marketplace
+            (TikTok Shop, Shopee) has granted access to, at the level needed for each
+            analysis; it does not send buyers&rsquo; contact information and does not send
+            Google user data. Data sent through OpenAI&rsquo;s API is not used by OpenAI to
+            train OpenAI&rsquo;s general models and is retained only temporarily under
+            OpenAI&rsquo;s API data policy; a fine-tuned model (if any) is Juli&rsquo;s own
+            model and uses only the anonymized data described in section 6. Juli limits the
+            scope and level of model usage for each account
           </li>
           <li>Server (VPS) provider — where the Juli app runs</li>
           <li>Amazon Web Services (AWS) — management of system secret keys</li>
           <li>
             Zalo (Zalo OA) and Google Firebase — sending the alerts and push notifications you
             have turned on
+          </li>
+          <li>
+            Viettel-CA — issuing, sending and storing electronic invoices, and transmitting
+            invoice data to the tax authority as required by law
           </li>
           <li>
             TikTok Pixel and Events API — measuring advertising effectiveness. They receive
@@ -324,29 +401,38 @@ export function PrivacyPolicyEnglish() {
         <h3 className="lp-legal__section-heading">8. Security and retention</h3>
         <p>
           Data is encrypted in transit (HTTPS/TLS) and encrypted at rest by our database
-          provider (Supabase). Access to data is limited per account and per shop, and TikTok
-          Shop access keys are kept in a managed secret store, not in source code. Details
-          specific to Google user data are in sections 3.5 and 3.6.
+          provider (Supabase). Access to data is limited per account and per shop.
+          Marketplace access keys and sub-account login credentials are kept in a managed
+          secret store, not in source code. Details specific to Google user data are in
+          sections 3.5 and 3.6.
         </p>
         <p>
-          We keep data for as long as you use Juli. When you disconnect a shop, Juli
-          immediately stops syncing new data from that shop. When you request account
-          deletion, your account data and shop data are deleted within 30 days, except data
-          the law requires us to keep (for example, payment records).
+          Juli strictly complies with TikTok Shop&rsquo;s and Shopee&rsquo;s policies on data
+          access, processing and protection: it accesses data only within the permissions you
+          have granted and as needed for analysis, and does not store data outside
+          Juli&rsquo;s systems.
+        </p>
+        <p>
+          We keep data for as long as you use Juli. When you disconnect a shop or lock the
+          sub-account, Juli immediately stops syncing new data from that shop, and deletes
+          the shop data already synced within 30 days. When you request account deletion,
+          your account data and shop data are deleted within 30 days, except data the law
+          requires us to keep: invoices, payment records and invoicing information are kept
+          for the period required by accounting law (at least 10 years).
         </p>
       </section>
 
       <section className="lp-legal__section">
         <h3 className="lp-legal__section-heading">9. Your rights</h3>
-        <p>Under Decree 13/2023/NĐ-CP, you have the right to:</p>
+        <p>Under personal data protection law, you have the right to:</p>
         <ul>
           <li>Be informed about and access your personal data</li>
           <li>Request correction of inaccurate data</li>
           <li>Request an exported copy of your data</li>
           <li>Request deletion of your data or restriction of its processing</li>
           <li>
-            Withdraw your consent at any time (for example, by disconnecting your shop or
-            turning off alerts)
+            Withdraw your consent at any time (for example, by disconnecting your shop,
+            locking the sub-account or turning off alerts)
           </li>
           <li>Complain about the processing of your data</li>
         </ul>
@@ -367,7 +453,8 @@ export function PrivacyPolicyEnglish() {
       <section className="lp-legal__section">
         <h3 className="lp-legal__section-heading">11. Changes to this policy</h3>
         <p>
-          When this policy changes, we update the date at the top of this page. For
+          When this policy changes, we update the version number and date at the top of
+          this page. For
           significant changes, we notify you by email at least 7 days before the change takes
           effect. If Juli changes how it accesses, uses, stores or shares Google user data,
           we will notify you and ask for your consent again before applying the change.

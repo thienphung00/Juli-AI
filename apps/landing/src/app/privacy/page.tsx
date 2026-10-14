@@ -9,15 +9,17 @@ import {
   GOOGLE_USER_DATA_POLICY_URL,
   LAST_UPDATED_EN,
   PrivacyPolicyEnglish,
+  VERSION_EN,
 } from "./privacy-policy-english";
 
 export const metadata: Metadata = {
   title: "Chính sách bảo mật / Privacy Policy — Juli AI",
   description:
-    "Juli AI thu thập gì, đọc gì từ shop TikTok Shop của bạn, chia sẻ với ai, lưu trong bao lâu, và quyền của bạn với dữ liệu đó. Full English version included: what data Juli AI collects (including Google user data), how it is used, shared, protected, retained and deleted.",
+    "Juli AI thu thập gì, đọc gì từ shop TikTok Shop và Shopee của bạn, chia sẻ với ai, lưu trong bao lâu, và quyền của bạn với dữ liệu đó. Full English version included: what data Juli AI collects (including Google user data), how it is used, shared, protected, retained and deleted.",
 };
 
-const LAST_UPDATED = "10/10/2026";
+const VERSION = "2.0";
+const LAST_UPDATED = "14/10/2026";
 
 /** Anchor for §3, so the Google OAuth consent screen can deep-link to it. */
 const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
@@ -30,7 +32,9 @@ export default function PrivacyPolicyPage() {
         <article className="lp-legal">
           <p className="lp-legal__eyebrow">Pháp lý</p>
           <h1 className="lp-legal__heading">Chính sách bảo mật</h1>
-          <p className="lp-legal__updated">Cập nhật lần cuối: {LAST_UPDATED}</p>
+          <p className="lp-legal__updated">
+            Phiên bản: {VERSION} — Cập nhật lần cuối: {LAST_UPDATED}
+          </p>
 
           <div className="lp-legal__en-notice" lang="en" data-testid="privacy-en-notice">
             <p>
@@ -40,7 +44,7 @@ export default function PrivacyPolicyPage() {
               <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
                 {COMPANY.email}
               </a>
-              . Last updated (effective date): {LAST_UPDATED_EN}.
+              . Version: {VERSION_EN}. Last updated (effective date): {LAST_UPDATED_EN}.
             </p>
             <p>
               <a className="lp-legal__contact-link" href={`#${ENGLISH_SECTION_ID}`}>
@@ -52,7 +56,7 @@ export default function PrivacyPolicyPage() {
           <p className="lp-legal__intro">
             Chính sách này giải thích cách Juli AI thu thập, sử dụng, chia sẻ và bảo vệ dữ
             liệu khi bạn sử dụng website app-juli.com, bản Demo và ứng dụng Juli, phù hợp
-            với Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.
+            với Luật Bảo vệ dữ liệu cá nhân và các văn bản hướng dẫn thi hành.
           </p>
           <p className="lp-legal__intro">
             Trang này có bản tiếng Anh đầy đủ ở phía dưới. Nếu hai bản có khác biệt, bản
@@ -67,7 +71,13 @@ export default function PrivacyPolicyPage() {
             <p>
               Juli AI được vận hành bởi {COMPANY.name} (mã số thuế {COMPANY.taxId}), trụ sở
               tại {COMPANY.address}. {COMPANY.name} là bên kiểm soát và xử lý dữ liệu cá
-              nhân được mô tả trong chính sách này.
+              nhân được mô tả trong chính sách này. Riêng đối với dữ liệu cá nhân của người
+              mua có trong dữ liệu shop, người bán là bên kiểm soát dữ liệu và Juli xử lý dữ
+              liệu đó thay mặt người bán, theo mục 10 của{" "}
+              <a className="lp-legal__contact-link" href="/terms">
+                Điều khoản dịch vụ
+              </a>
+              .
             </p>
             <p>
               Bạn có thể liên hệ chúng tôi qua email{" "}
@@ -97,6 +107,11 @@ export default function PrivacyPolicyPage() {
               </li>
               <li>
                 Tuỳ chọn: mã thiết bị, chỉ khi bạn bật thông báo đẩy trên điện thoại
+              </li>
+              <li>
+                Thông tin xuất hoá đơn: tên doanh nghiệp/hộ kinh doanh hoặc họ tên, mã số
+                thuế hoặc số định danh cá nhân, địa chỉ, email nhận hoá đơn — chỉ khi bạn
+                thanh toán
               </li>
             </ul>
           </section>
@@ -151,8 +166,8 @@ export default function PrivacyPolicyPage() {
               Nhân viên Juli không đọc dữ liệu này, trừ khi bạn đồng ý (ví dụ: khi bạn nhờ hỗ
               trợ, hoặc để hỗ trợ và vận hành dịch vụ — bạn đồng ý điều này khi kết nối shop),
               khi cần cho mục đích bảo mật (ví dụ: điều tra lạm dụng), hoặc khi pháp luật yêu
-              cầu. Nhân viên chỉ xem dữ liệu shop, không bao giờ xem dữ liệu người mua, và mọi
-              lần truy cập đều được ghi nhật ký.
+              cầu. Nhân viên chỉ xem dữ liệu shop cần thiết cho việc hỗ trợ, không sao chép hay
+              lưu trữ dữ liệu người mua, và mọi lần truy cập đều được ghi nhật ký.
             </p>
             <p>
               Việc Juli sử dụng và chuyển cho bất kỳ ứng dụng nào khác thông tin nhận được từ
@@ -254,23 +269,41 @@ export default function PrivacyPolicyPage() {
               4. Thông tin chúng tôi đọc từ shop của bạn
             </h2>
             <p>
-              Sau khi bạn kết nối shop TikTok Shop, Juli đồng bộ định kỳ các dữ liệu sau từ
-              API của TikTok Shop, dùng để phân tích và đưa ra đề xuất cho shop của bạn:
+              Juli hỗ trợ shop trên TikTok Shop và Shopee. Juli truy cập dữ liệu shop theo
+              một trong hai cách, tuỳ sàn và tuỳ lựa chọn của bạn:
+            </p>
+            <ul aria-label="Cách Juli truy cập dữ liệu shop">
+              <li>
+                (a) Kết nối ủy quyền chính thức qua API của sàn: bạn bấm đường dẫn ủy quyền,
+                sàn hiển thị danh sách quyền Juli yêu cầu và bạn chấp thuận. Áp dụng cho
+                TikTok Shop, và cho Shopee sau khi ứng dụng của Juli được Shopee cấp phép.
+              </li>
+              <li>
+                (b) Tài khoản phụ do bạn cấp: bạn tạo một tài khoản phụ trong Kênh Người Bán
+                của sàn (ví dụ: Shopee), tự chọn phạm vi quyền của tài khoản đó và cấp cho
+                Juli. Bạn có thể đổi mật khẩu, thu hẹp quyền hoặc khoá tài khoản phụ bất kỳ
+                lúc nào. Juli bảo mật thông tin đăng nhập của tài khoản phụ, chỉ dùng tài
+                khoản này để phục vụ shop của bạn và không chia sẻ cho bên thứ ba.
+              </li>
+            </ul>
+            <p>
+              Juli định kỳ đọc các dữ liệu sau, dùng để phân tích và đưa ra đề xuất cho shop
+              của bạn:
             </p>
             <ul aria-label="Dữ liệu shop Juli đọc">
               <li>Đơn hàng và chi tiết từng đơn hàng (mã đơn, trạng thái, giá trị, thời gian thanh toán/giao hàng)</li>
               <li>Sản phẩm (tên, danh mục, giá bán, doanh thu, số lượng đã bán)</li>
               <li>Tồn kho theo từng sản phẩm/SKU và kho hàng</li>
               <li>Đơn hoàn/hủy (loại hoàn, lý do, số tiền hoàn)</li>
-              <li>Số liệu hiệu suất shop do TikTok Shop cung cấp (doanh thu, lượt xem, tỷ lệ chuyển đổi theo từng luồng truy cập)</li>
+              <li>Số liệu hiệu suất shop do sàn cung cấp (doanh thu, lượt xem, tỷ lệ chuyển đổi theo từng luồng truy cập)</li>
               <li>Hiệu suất video và LIVE của shop, cùng các sản phẩm được gắn trong đó</li>
-              <li>Chương trình khuyến mãi và mã giảm giá của shop</li>
+              <li>Chương trình khuyến mãi, mã giảm giá và số liệu quảng cáo của shop</li>
             </ul>
             <p>
-              Juli không đọc tin nhắn cá nhân của bạn, và không lưu thông tin liên hệ của
-              người mua ngoài mã định danh cần thiết để xử lý đơn hàng. Hỗ trợ Shopee đang
-              được phát triển; chính sách này sẽ được cập nhật trước khi Juli đọc dữ liệu
-              từ Shopee.
+              Juli không đọc tin nhắn cá nhân của bạn, và không thu thập hay lưu trữ thông
+              tin liên hệ của người mua (tên, số điện thoại, địa chỉ) ngoài mã định danh cần
+              thiết để xử lý đơn hàng — kể cả khi các thông tin này hiển thị trong Kênh Người
+              Bán mà tài khoản phụ có quyền xem.
             </p>
           </section>
 
@@ -279,14 +312,18 @@ export default function PrivacyPolicyPage() {
               5. Những gì Juli ghi lại hoặc thay đổi trên shop của bạn
             </h2>
             <p>
-              Mặc định, Juli không thay đổi bất kỳ điều gì trên shop TikTok Shop thật của
-              bạn. Việc thử nghiệm các hành động (ví dụ: tạo mã giảm giá sản phẩm) chạy trên
-              môi trường thử nghiệm (sandbox) do TikTok cung cấp, tách biệt khỏi shop thật.
+              Mặc định, Juli chỉ đọc dữ liệu và không thay đổi bất kỳ điều gì trên shop thật
+              của bạn. Việc thử nghiệm các hành động (ví dụ: tạo mã giảm giá sản phẩm) chạy
+              trên môi trường thử nghiệm (sandbox) do sàn cung cấp, khi có, tách biệt khỏi
+              shop thật.
             </p>
             <p>
               Một thao tác trên shop thật chỉ được thực hiện khi (a) bạn đã chủ động phê
-              duyệt đề xuất đó, và (b) quyền ghi được cấp riêng cho đúng một sản phẩm và
-              đúng một loại thao tác, có thời hạn và chỉ dùng được một lần.
+              duyệt đề xuất đó, và (b) thao tác được giới hạn đúng sản phẩm và đúng loại
+              thao tác bạn đã phê duyệt. Với kết nối API, mỗi thao tác dùng một quyền ghi
+              riêng, có thời hạn và chỉ dùng được một lần. Với tài khoản phụ, Juli chỉ thực
+              hiện đúng thao tác bạn đã phê duyệt, trong phạm vi quyền bạn đã cấp cho tài
+              khoản đó.
             </p>
           </section>
 
@@ -298,26 +335,69 @@ export default function PrivacyPolicyPage() {
               <li>Gửi cảnh báo và thông báo mà bạn đã bật</li>
               <li>Đo lường hiệu quả quảng cáo của Juli trên TikTok</li>
               <li>Liên hệ hỗ trợ và thông báo các thay đổi quan trọng về dịch vụ</li>
+              <li>
+                Xuất hoá đơn, lưu chứng từ thanh toán và thực hiện nghĩa vụ kế toán, thuế
+                theo quy định pháp luật
+              </li>
+              <li>
+                Tối ưu thuật toán phân tích và chất lượng gợi ý của Juli, bao gồm tinh chỉnh
+                (fine-tune) mô hình ngôn ngữ, chỉ với dữ liệu đã ẩn danh hoá ở dạng cấu trúc
+                (xem bên dưới)
+              </li>
             </ul>
+            <p>
+              Với mục đích tối ưu thuật toán, Juli chỉ sử dụng dữ liệu shop đã được ẩn danh
+              hoá, chỉ ở dạng cấu trúc dữ liệu (ví dụ: loại chỉ số, mối tương quan giữa các
+              chỉ số, loại đề xuất và kết quả sau khi áp dụng). Dữ liệu này không chứa tên
+              shop, tên hoặc nội dung sản phẩm, hình ảnh, kịch bản, tiêu đề, số liệu kinh
+              doanh có thể nhận diện shop, thông tin người mua hay dữ liệu người dùng Google,
+              và không được tiết lộ cho khách hàng khác. Bạn có thể yêu cầu ngừng sử dụng dữ
+              liệu của mình cho mục đích này bất kỳ lúc nào qua email{" "}
+              <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+                {COMPANY.email}
+              </a>
+              .
+            </p>
+            <p>
+              Gợi ý kịch bản, tiêu đề và nội dung được xử lý riêng cho từng shop, dựa trên dữ
+              liệu và cách dùng từ ngữ của chính shop đó; nội dung riêng của shop chỉ dùng để
+              tạo gợi ý cho chính shop đó.
+            </p>
           </section>
 
           <section className="lp-legal__section">
             <h2 className="lp-legal__section-heading">7. Chúng tôi chia sẻ dữ liệu với ai</h2>
             <p>
-              Juli không bán dữ liệu của bạn cho bất kỳ bên thứ ba nào. Chúng tôi chỉ chia
-              sẻ dữ liệu với các bên xử lý dữ liệu sau, trong phạm vi cần thiết để vận hành
-              sản phẩm:
+              Juli không bán, không tiết lộ và không chuyển giao dữ liệu của bạn cho bất kỳ
+              bên thứ ba nào, và không sử dụng dữ liệu của bạn sai mục đích (bao gồm không
+              dùng dữ liệu có thể nhận diện shop của bạn để phục vụ khách hàng khác). Chúng
+              tôi chỉ chia sẻ dữ liệu với các bên xử lý dữ liệu sau, trong phạm vi cần thiết
+              để vận hành sản phẩm:
             </p>
             <ul aria-label="Bên xử lý dữ liệu">
               <li>Supabase — xác thực đăng nhập (Google) và lưu trữ cơ sở dữ liệu</li>
-              <li>TikTok Shop API — nguồn dữ liệu shop của bạn</li>
               <li>
-                OpenAI — mô hình AI phân tích dữ liệu shop và tạo đề xuất. Dữ liệu gửi qua
-                API của OpenAI không được dùng để huấn luyện mô hình
+                TikTok Shop API và Shopee (API hoặc Kênh Người Bán) — nguồn dữ liệu shop của
+                bạn
+              </li>
+              <li>
+                OpenAI — mô hình ngôn ngữ (AI) do bên thứ ba cung cấp, dùng để phân tích dữ
+                liệu shop và tạo đề xuất. Juli chỉ gửi cho OpenAI thông tin gian hàng mà nền
+                tảng (TikTok Shop, Shopee) đã cấp quyền truy cập, ở mức cần thiết cho từng
+                phân tích; không gửi thông tin liên hệ của người mua và không gửi dữ liệu
+                người dùng Google. Dữ liệu gửi qua API của OpenAI không được OpenAI dùng để
+                huấn luyện các mô hình chung của OpenAI và chỉ được lưu tạm thời theo chính
+                sách dữ liệu API của OpenAI; mô hình tinh chỉnh (nếu có) là mô hình riêng của
+                Juli và chỉ dùng dữ liệu đã ẩn danh hoá theo mục 6. Juli giới hạn phạm vi và
+                mức sử dụng mô hình cho từng tài khoản
               </li>
               <li>Nhà cung cấp máy chủ (VPS) — nơi chạy ứng dụng Juli</li>
               <li>Amazon Web Services (AWS) — quản lý khoá bí mật của hệ thống</li>
               <li>Zalo (Zalo OA) và Google Firebase — gửi cảnh báo và thông báo đẩy mà bạn đã bật</li>
+              <li>
+                Viettel-CA — xuất, gửi và lưu trữ hoá đơn điện tử, và chuyển dữ liệu hoá đơn
+                tới cơ quan thuế theo quy định
+              </li>
               <li>
                 TikTok Pixel và Events API — đo lường hiệu quả quảng cáo. Nhận địa chỉ
                 IP, thông tin trình duyệt, trang bạn xem trên website này, và mã định
@@ -339,27 +419,39 @@ export default function PrivacyPolicyPage() {
             <p>
               Dữ liệu được mã hoá khi truyền (HTTPS/TLS) và được nhà cung cấp cơ sở dữ liệu
               (Supabase) mã hoá khi lưu trữ. Quyền truy cập dữ liệu được giới hạn theo từng
-              tài khoản và từng shop, và khoá truy cập TikTok Shop được lưu trong hệ thống quản
-              lý khoá bí mật, không lưu trong mã nguồn. Chi tiết riêng cho dữ liệu người dùng
-              Google nằm ở mục 3.4 và 3.5.
+              tài khoản và từng shop. Khoá truy cập của sàn và thông tin đăng nhập tài khoản
+              phụ được lưu trong hệ thống quản lý khoá bí mật, không lưu trong mã nguồn. Chi
+              tiết riêng cho dữ liệu người dùng Google nằm ở mục 3.4 và 3.5.
+            </p>
+            <p>
+              Juli tuân thủ nghiêm ngặt các chính sách về truy cập, xử lý và bảo vệ dữ liệu
+              của TikTok Shop và Shopee: chỉ truy cập dữ liệu trong phạm vi quyền bạn đã cấp
+              và cần thiết cho việc phân tích, và không lưu trữ dữ liệu ngoài hệ thống của
+              Juli.
             </p>
             <p>
               Chúng tôi lưu dữ liệu trong thời gian bạn sử dụng Juli. Khi bạn ngắt kết nối
-              shop, Juli ngừng đồng bộ dữ liệu mới từ shop đó ngay lập tức. Khi bạn yêu cầu
-              xoá tài khoản, dữ liệu tài khoản và dữ liệu shop được xoá trong vòng 30 ngày,
-              trừ những dữ liệu pháp luật yêu cầu phải lưu giữ (ví dụ: chứng từ thanh toán).
+              shop hoặc khoá tài khoản phụ, Juli ngừng đồng bộ dữ liệu mới từ shop đó ngay
+              lập tức, và xoá dữ liệu shop đã đồng bộ trong vòng 30 ngày. Khi bạn yêu cầu xoá
+              tài khoản, dữ liệu tài khoản và dữ liệu shop được xoá trong vòng 30 ngày, trừ
+              những dữ liệu pháp luật yêu cầu phải lưu giữ: hoá đơn, chứng từ thanh toán và
+              thông tin xuất hoá đơn được lưu trong thời hạn theo pháp luật về kế toán (tối
+              thiểu 10 năm).
             </p>
           </section>
 
           <section className="lp-legal__section">
             <h2 className="lp-legal__section-heading">9. Quyền của bạn</h2>
-            <p>Theo Nghị định 13/2023/NĐ-CP, bạn có quyền:</p>
+            <p>Theo pháp luật về bảo vệ dữ liệu cá nhân, bạn có quyền:</p>
             <ul>
               <li>Được biết và truy cập dữ liệu cá nhân của mình</li>
               <li>Yêu cầu chỉnh sửa dữ liệu không chính xác</li>
               <li>Yêu cầu xuất bản sao dữ liệu của mình</li>
               <li>Yêu cầu xoá dữ liệu hoặc hạn chế xử lý dữ liệu</li>
-              <li>Rút lại sự đồng ý bất kỳ lúc nào (ví dụ: ngắt kết nối shop, tắt cảnh báo)</li>
+              <li>
+                Rút lại sự đồng ý bất kỳ lúc nào (ví dụ: ngắt kết nối shop, khoá tài khoản
+                phụ, tắt cảnh báo)
+              </li>
               <li>Khiếu nại về việc xử lý dữ liệu của mình</li>
             </ul>
             <p>
@@ -383,7 +475,8 @@ export default function PrivacyPolicyPage() {
           <section className="lp-legal__section">
             <h2 className="lp-legal__section-heading">11. Thay đổi chính sách này</h2>
             <p>
-              Khi chính sách thay đổi, chúng tôi cập nhật ngày ở đầu trang này. Với những
+              Khi chính sách thay đổi, chúng tôi cập nhật số phiên bản và ngày ở đầu trang
+              này. Với những
               thay đổi quan trọng, chúng tôi thông báo qua email ít nhất 7 ngày trước khi
               thay đổi có hiệu lực. Nếu Juli thay đổi cách truy cập, sử dụng, lưu trữ hoặc
               chia sẻ dữ liệu người dùng Google, chúng tôi sẽ thông báo cho bạn và xin lại sự
