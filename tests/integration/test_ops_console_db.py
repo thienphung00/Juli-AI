@@ -75,6 +75,8 @@ def test_every_ops_table_is_classified_and_rls_enabled(owner_engine):
             "ops_shop_invites",
             # P18 (D27.1, migration 085)
             "ops_shop_daily_summary",
+            # P32-A (D42, migration 090)
+            "ops_reviewer_accounts",
         ]
     )
     with owner_engine.connect() as conn:
