@@ -1,10 +1,11 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.reviewer import enter_reviewer_shop, reviewer_context
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, ShopsRepo, User, get_session
 
@@ -51,12 +52,18 @@ class ShopResponse(BaseModel):
 
 @router.get("", response_model=list[ShopResponse])
 async def list_shops(
+    request: Request,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     limit: int = Query(default=DEFAULT_PAGE_LIMIT, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> list[Shop]:
     """Return all shops belonging to the authenticated user."""
+    reviewer = reviewer_context(request)
+    if reviewer is not None:
+        # P32-A (D42): the reviewer's one shop is the pinned reference shop,
+        # served under its alias id (the response mask swaps id and name).
+        return [await enter_reviewer_shop(session, reviewer, None)]
     shops = await ShopsRepo(session).list(user.id)
     return shops[offset : offset + limit]
 

@@ -1,9 +1,10 @@
 import logging
 import uuid
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.api.reviewer import enter_reviewer_shop, reviewer_context
 from juli_backend.core.security import get_current_user
 from juli_backend.database import (
     Shop,
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 async def get_active_shop(
+    request: Request,
     x_shop_id: str = Header(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -29,6 +31,12 @@ async def get_active_shop(
     app.current_shop_id is applied transparently to every route depending
     on this resolver, without requiring opt-in via a new dependency.
     """
+    # P32-A (D42): a partner reviewer owns no shop; the session is pinned to the
+    # reference shop and only its alias id is accepted (``api/reviewer.py``).
+    reviewer = reviewer_context(request)
+    if reviewer is not None:
+        return await enter_reviewer_shop(session, reviewer, x_shop_id)
+
     try:
         shop_id = uuid.UUID(x_shop_id)
     except ValueError:
