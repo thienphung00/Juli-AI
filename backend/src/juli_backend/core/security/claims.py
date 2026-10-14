@@ -133,3 +133,36 @@ def verified_identity(payload: dict) -> VerifiedIdentity:
             break
 
     return VerifiedIdentity(email=email, display_name=display_name)
+
+
+#: P32-A (D42): the ``app_metadata`` mark the reviewer provisioning command sets.
+#: ``app_metadata`` is writable only with the Supabase service-role key; a user
+#: cannot set it on themselves.
+REVIEWER_ROLE_CLAIM = "juli_role"
+REVIEWER_PLATFORM_CLAIM = "juli_platform"
+REVIEWER_ROLE = "reviewer"
+#: A reviewer mark without a usable platform is still a reviewer (fail closed);
+#: the gate then finds no matching account row and refuses everything.
+UNKNOWN_PLATFORM = "unknown"
+_MAX_PLATFORM = 32
+_MAX_SESSION_ID = 64
+
+
+def reviewer_platform(payload: dict) -> str | None:
+    """The partner platform of a reviewer token, or None for every other token.
+
+    Same contract as :func:`verified_identity`: ``payload`` is a verified JWT
+    payload. Only an exact ``juli_role == "reviewer"`` in ``app_metadata``
+    marks a reviewer; anything in ``user_metadata`` (which the user can write)
+    is ignored.
+    """
+    metadata = payload.get("app_metadata")
+    if not isinstance(metadata, dict) or metadata.get(REVIEWER_ROLE_CLAIM) != REVIEWER_ROLE:
+        return None
+    platform = _text(metadata.get(REVIEWER_PLATFORM_CLAIM), limit=_MAX_PLATFORM)
+    return platform.lower() if platform else UNKNOWN_PLATFORM
+
+
+def session_id(payload: dict) -> str | None:
+    """Supabase's per-sign-in ``session_id`` claim (used to audit each sign-in once)."""
+    return _text(payload.get("session_id"), limit=_MAX_SESSION_ID)

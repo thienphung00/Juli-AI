@@ -1,13 +1,19 @@
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config.runtime import require_env
-from juli_backend.core.security.claims import VerifiedIdentity, verified_identity
+from juli_backend.core.security.claims import (
+    VerifiedIdentity,
+    reviewer_platform,
+    session_id,
+    verified_identity,
+)
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.jwt import verify_supabase_jwt
 from juli_backend.database import NotFound, User, UsersRepo
@@ -30,6 +36,15 @@ class VerifiedToken:
 
     user_id: uuid.UUID
     identity: VerifiedIdentity
+    #: P32-A (D42): the partner platform when the token carries the reviewer
+    #: ``app_metadata`` mark, else None (every seller and staff token).
+    reviewer_platform: str | None = None
+    #: Supabase's per-sign-in ``session_id`` claim, when present.
+    session_id: str | None = None
+
+    @property
+    def is_reviewer(self) -> bool:
+        return self.reviewer_platform is not None
 
 
 async def verify_bearer_token(
@@ -78,7 +93,45 @@ async def verify_bearer_token(
     # keeps this module to the auth decision, and a repository must not learn
     # the shape of a Supabase payload -- so what crosses into the repository is
     # two optional strings and no vendor shape.
-    return VerifiedToken(user_id=user_id, identity=verified_identity(payload))
+    return VerifiedToken(
+        user_id=user_id,
+        identity=verified_identity(payload),
+        reviewer_platform=reviewer_platform(payload),
+        session_id=session_id(payload),
+    )
+
+
+#: P32-A (D42): the reviewer gate, bound by the API (``api/reviewer.py``) when
+#: the app is built. ``core`` may not import the API or services, so the gate is
+#: a port. It runs for every reviewer token before the ``users`` read and before
+#: any route code; it raises an HTTPException to refuse, or returns to allow.
+ReviewerGate = Callable[[Request, AsyncSession, VerifiedToken], Awaitable[None]]
+_reviewer_gate: ReviewerGate | None = None
+
+#: Header naming why a reviewer request was refused (the demo maps it to copy).
+REVIEWER_DENIED_HEADER = "X-Juli-Reviewer-Denied"
+
+
+def bind_reviewer_gate(gate: ReviewerGate | None) -> None:
+    global _reviewer_gate
+    _reviewer_gate = gate
+
+
+async def enforce_reviewer_gate(
+    request: Request, session: AsyncSession, token: VerifiedToken
+) -> None:
+    """Run the bound gate for a reviewer token; refuse when none is bound (fail closed)."""
+    if not token.is_reviewer:
+        return
+    gate = _reviewer_gate
+    if gate is None:
+        logger.error("reviewer_gate_unbound", extra={"path": request.url.path})
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tài khoản dùng thử tạm thời không dùng được",
+            headers={REVIEWER_DENIED_HEADER: "unavailable"},
+        )
+    await gate(request, session, token)
 
 
 async def load_authenticated_user(session: AsyncSession, token: VerifiedToken) -> User:
@@ -150,8 +203,16 @@ async def load_authenticated_user(session: AsyncSession, token: VerifiedToken) -
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     session: AsyncSession = Depends(get_session),
 ) -> User:
-    """FastAPI dependency: validates Supabase JWT → returns authenticated User."""
-    return await load_authenticated_user(session, await verify_bearer_token(credentials))
+    """FastAPI dependency: validates Supabase JWT → returns authenticated User.
+
+    P32-A (D42): a partner reviewer's token goes through the reviewer gate
+    first -- route allowlist, account expiry / revocation, sign-in audit --
+    so a refused reviewer request never reaches the ``users`` read or the route.
+    """
+    token = await verify_bearer_token(credentials)
+    await enforce_reviewer_gate(request, session, token)
+    return await load_authenticated_user(session, token)

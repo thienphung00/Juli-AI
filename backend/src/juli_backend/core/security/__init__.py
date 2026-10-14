@@ -9,8 +9,11 @@ from juli_backend.core.security.credential_resolver import (
     resolve_sandbox_write_credential,
 )
 from juli_backend.core.security.dependencies import (
+    REVIEWER_DENIED_HEADER,
+    ReviewerGate,
     VerifiedToken,
     bearer_scheme,
+    bind_reviewer_gate,
     get_current_user,
     load_authenticated_user,
     verify_bearer_token,
@@ -61,6 +64,10 @@ __all__ = [
     "bearer_scheme",
     "load_authenticated_user",
     "verify_bearer_token",
+    # P32-A (D42): the reviewer gate port, bound by api/reviewer.py.
+    "REVIEWER_DENIED_HEADER",
+    "ReviewerGate",
+    "bind_reviewer_gate",
     "mint_oauth_state",
     # #1293: exported at the package root so services/action_cards/refresh.py --
     # capped at cross-package depth 2 by `.importlinter.toml` -- can resolve the
