@@ -60,8 +60,10 @@ reviewer cannot mint) cannot be driven with a reviewer's identity at all.
 The gate, in order: account state (§1 table) → route allowlist → sign-in audit (§5) → sets
 `request.state.juli_reviewer` (platform, account, pinned shop id and its alias).
 
-**Allowlist** (`(method, route template)`, matched on the route FastAPI resolved — not on the
-raw URL); anything else → **403** `Tài khoản dùng thử chỉ xem · thao tác này bị chặn`,
+**Allowlist** (`(method, endpoint)` — the endpoint function FastAPI matched, as
+`module:function`, never the raw URL; FastAPI ≥ 0.13x keeps only the innermost router's prefix
+in `route.path`, so the template alone is ambiguous. `test_allowlist_is_pinned_to_real_routes`
+pins each entry to the URL template below); anything else → **403** `Tài khoản dùng thử chỉ xem · thao tác này bị chặn`,
 `X-Juli-Reviewer-Denied: read_only`, audited when the method is not GET:
 
 | Method | Route | Page |
