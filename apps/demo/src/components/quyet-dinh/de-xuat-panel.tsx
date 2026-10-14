@@ -21,7 +21,7 @@ import { num } from "../../lib/vn-format";
 import { REJECT_DIALOG_BODY, ReasonDialog } from "./reason-dialog";
 import { RecommendationCard } from "./recommendation-card";
 import { useNarrow } from "./use-narrow";
-import { useWriteControl } from "../seller-view-context";
+import { useSimulateApprove, useWriteControl } from "../seller-view-context";
 
 /**
  * Đề xuất (ADR-109 Amendment 1; `Main.dc.html`, `Mobile.dc.html`,
@@ -103,6 +103,9 @@ export function DeXuatPanel({
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [rejectReasons, setRejectReasons] = useState<Readonly<Record<string, string>>>({});
   const bandsSet = bandsAreSet(rules);
+  // P32-A: a simulated Duyệt writes nothing, so the stability-band gate (which
+  // protects real listing writes) does not block the partner trial account.
+  const simulateApprove = useSimulateApprove();
 
   const statusOf = (card: CardView): CardStatus => statusOverrides[card.id] ?? card.status;
   const blockReason = !bandsSet ? (rulesStatus === "loading" ? "Đang tải quy tắc của shop…" : BANDS_MISSING_PROMPT) : null;
@@ -122,7 +125,7 @@ export function DeXuatPanel({
         const gmv = gmvMonthText(group.gmvPerMonth);
         // P14-E: content cards change nothing on the listing, so the stability bands
         // do not gate them, and each one is filmed separately (no batch approve).
-        const cardBlock = group.content ? null : blockReason;
+        const cardBlock = group.content || simulateApprove ? null : blockReason;
         const groupBlock =
           blockReason ?? (runnable.length === 0 ? "Không còn thẻ nào Juli tự thực hiện được trong nhóm này." : null);
         const renderCard = (view: CardView) => {

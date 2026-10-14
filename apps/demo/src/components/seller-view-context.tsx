@@ -97,6 +97,11 @@ export function useWriteControl(): (disabled?: boolean, title?: string) => Write
   return (disabled, title) => writeControl(readOnly, disabled, title, readOnlyTitle);
 }
 
+/** P32-A: true in the partner trial account, where "Duyệt" runs a simulation. */
+export function useSimulateApprove(): boolean {
+  return useContext(SellerViewContext).simulateApprove;
+}
+
 /**
  * The single-card "Duyệt" control: like {@link useWriteControl}, except in the
  * partner trial account (P32-A), where it stays enabled — the click runs the
