@@ -183,6 +183,7 @@ export default function ProductPage() {
             <h3 className="lp-page-card__title">Juli AI</h3>
             <p className="lp-page-card__price">500.000đ/tháng</p>
             <ul className="lp-page-list">
+              <li>Chưa bao gồm thuế GTGT 10%</li>
               <li>Miễn phí thử nghiệm 3 tháng đầu</li>
               <li>Đầy đủ tính năng phân tích, đề xuất và thực hiện</li>
               <li>Huỷ bất cứ lúc nào</li>

@@ -52,7 +52,7 @@ describe("public product and company pages", () => {
     ]) {
       expect(screen.getByRole("heading", { level: 2, name }), name).toBeInTheDocument();
     }
-    // Pricing matches /terms section 5.
+    // Pricing matches /terms section 6.1.
     expect(screen.getByTestId("product-pricing")).toHaveTextContent("500.000đ/tháng");
     expect(screen.getByTestId("product-demo-cta")).toHaveAttribute("href", DEMO_URL);
   });
