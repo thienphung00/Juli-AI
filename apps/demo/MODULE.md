@@ -283,7 +283,24 @@ Invariants below.
   `auth.email.*`), never GoTrue text or the code; resend locked 60 s (or the
   wait GoTrue names). Unconfigured env → disabled with
   `auth.email.unavailable`. The replay module-graph guard allows
-  `supabase-auth.ts`'s fetch, pinned to `/auth/v1/otp` and `/auth/v1/verify`.
+  `supabase-auth.ts`'s fetch, pinned to `/auth/v1/otp`, `/auth/v1/verify` and
+  (P32-A) `/auth/v1/token`.
+- Partner trial account (fast track P32-A, D42, contract
+  `fasttrack/contracts/p32-reviewer-access.md`): `components/partner-sign-in.tsx`
+  ("Tài khoản đối tác", `/auth/email#doi-tac` only — the landing links to it)
+  runs `signInWithPassword` (GoTrue password grant, dictionary `auth.password.*`)
+  then `GET /v1/reviewer/me` (`lib/reviewer/api-client.ts`); a reviewer gets the
+  aliased reference shop as active shop and a record under `juli_demo_reviewer`
+  (`lib/reviewer/session.ts`). `ReviewerProvider` (`lib/reviewer/reviewer-context.tsx`,
+  in `DemoShell`) re-confirms on every load (expired / revoked → signed out, back
+  to the form with the reason); `lib/reviewer/mode.tsx` is the network-free
+  context. Reviewer mode: `ReviewerBanner` (`reviewer.banner`, also on the
+  run-focus layout), every page under `SellerViewProvider readOnly simulateApprove`
+  (`reviewer.read_only_title`), no connect / reconnect / upload entry, no run SSE;
+  a card's Duyệt (`useApproveControl`) opens `ReviewerSimulation`
+  (`POST /v1/reviewer/decisions/{id}/simulate`, approve then execute,
+  `reviewer.simulated`) and never the real approve. Presentation only: the API
+  refuses every reviewer write on its own.
 - `ConnectShopView`'s "Kết nối TikTok Shop" control is LIVE from issue #1970,
   where it used to be `aria-disabled` beside a disclaimer saying it did
   nothing. It calls `lib/tiktok-connect-client.ts`'s bearer-authenticated
