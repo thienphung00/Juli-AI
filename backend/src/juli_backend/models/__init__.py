@@ -27,6 +27,7 @@ from juli_backend.models.lever_flows import (
 from juli_backend.models.models import *  # noqa: F403
 from juli_backend.models.ops import (
     OpsAuditLog,
+    OpsReviewerAccount,
     OpsShopDailySummary,
     OpsShopInvite,
     OpsShopSettings,
@@ -76,6 +77,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopDailyStream,
     ShopDailyProduct,
     OpsSystemSetting,
+    OpsReviewerAccount,
     ShopSubscriptionPeriod,
     ProductSnapshot,
     PromotionActivity,

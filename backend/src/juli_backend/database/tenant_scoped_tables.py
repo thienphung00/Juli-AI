@@ -144,6 +144,8 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ops_sim_scenarios"): "ops_only",
     ("public", "ops_shop_invites"): "ops_only",
     ("public", "ops_shop_daily_summary"): "ops_only",
+    # Fast track P32-A (D42, migration 090): partner reviewer trial accounts.
+    ("public", "ops_reviewer_accounts"): "ops_only",
 }
 
 #: Metadata about via-parent relationships (child_table -> (parent_table, fk_col, pk_col))

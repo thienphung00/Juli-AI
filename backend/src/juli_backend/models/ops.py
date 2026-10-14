@@ -195,3 +195,45 @@ class OpsSystemSetting(Base):
     value: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_by: Mapped[str | None] = mapped_column(String(320), nullable=True)
+
+
+#: P32-A (D42): the only reviewer role. A partner platform's reviewer reads the
+#: reference shop masked; approval and execution are simulated.
+REVIEWER_ROLE = "reviewer"
+
+
+class OpsReviewerAccount(Base):
+    """A partner reviewer trial account (fast track P32-A, D42, migration 090).
+
+    Written only by the provisioning command (``services/reviewer/cli.py``)
+    through ``juli_ops``; read by the API gate (``api/reviewer.py``). The
+    Supabase user carries the matching ``app_metadata`` mark. Revoking keeps
+    the row. Timestamps naive UTC.
+    """
+
+    __tablename__ = "ops_reviewer_accounts"
+    __table_args__ = (
+        CheckConstraint("role IN ('reviewer')", name="ck_ops_reviewer_accounts_role"),
+        CheckConstraint("email = lower(email)", name="ck_ops_reviewer_accounts_email_lower"),
+        CheckConstraint(
+            "platform = lower(platform) AND length(platform) > 0",
+            name="ck_ops_reviewer_accounts_platform",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    #: The Supabase auth user id (``sub``).
+    user_id: Mapped[uuid.UUID] = mapped_column(unique=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True)
+    role: Mapped[str] = mapped_column(String(16), default=REVIEWER_ROLE, server_default="reviewer")
+    #: The partner platform, lower case (``shopee``).
+    platform: Mapped[str] = mapped_column(String(32))
+    expires_at: Mapped[datetime] = mapped_column()
+    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    #: The staff e-mail that ran the provisioning command.
+    created_by: Mapped[str] = mapped_column(String(320))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    #: The Supabase ``session_id`` of the last audited sign-in.
+    last_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_sign_in_at: Mapped[datetime | None] = mapped_column(nullable=True)
