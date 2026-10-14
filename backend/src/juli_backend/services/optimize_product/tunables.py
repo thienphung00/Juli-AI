@@ -39,6 +39,13 @@ DIAG_TRIGGERS: tuple[str, ...] = (TRIGGER_METRIC_FIRST, TRIGGER_GMV_FIRST)
 #: D34 / D39.3 (P30): group A/B with a randomised delayed control. Unset (``None``)
 #: follows ``card_quota_mode`` -- on only when the quota mode is on.
 CARD_GROUPS = "card_groups"
+#: D41.2 (T2A, P31): shrink per-product CTR / CTOR toward the category
+#: (empirical-Bayes beta-binomial) before the D39.1 metric-first comparison.
+#: ``on`` (default) | ``off`` (the raw window means, as in P30).
+KPI_SHRINKAGE = "kpi_shrinkage"
+SHRINKAGE_ON = "on"
+SHRINKAGE_OFF = "off"
+KPI_SHRINKAGE_VALUES: tuple[str, ...] = (SHRINKAGE_ON, SHRINKAGE_OFF)
 
 TUNABLE_KEYS: tuple[str, ...] = (
     DIAG_WINDOWS,
@@ -50,6 +57,7 @@ TUNABLE_KEYS: tuple[str, ...] = (
     *QUOTA_KEYS,
     DIAG_TRIGGER,
     CARD_GROUPS,
+    KPI_SHRINKAGE,
 )
 
 #: Bounds an Admin may set (inclusive).
@@ -80,6 +88,10 @@ class DiagTunables:
     D39.1 (P30): ``diag_trigger`` -- ``metric_first`` (default) opens a card when
     any funnel metric falls beyond its own band on its channel, even when GMV
     holds; ``gmv_first`` keeps the D29.2 GMV gate (per-shop rollback).
+
+    D41.2 (P31): ``kpi_shrinkage`` -- ``on`` (default) shrinks per-product CTR /
+    CTOR toward the category rate before that comparison (detection only; the
+    KPI target is unchanged, D41.1); ``off`` compares the raw window means.
     """
 
     windows: tuple[int, ...] = (14, 30, 60)
@@ -95,6 +107,12 @@ class DiagTunables:
     diag_trigger: str = TRIGGER_METRIC_FIRST
     #: D34 / D39.3: ``None`` = follow ``card_quota_mode``; ``True`` / ``False`` = set.
     card_groups: bool | None = None
+    #: D41.2: ``on`` (default) or ``off``.
+    kpi_shrinkage: str = SHRINKAGE_ON
+
+    @property
+    def shrinkage_on(self) -> bool:
+        return self.kpi_shrinkage == SHRINKAGE_ON
 
     @property
     def metric_first(self) -> bool:
@@ -118,6 +136,7 @@ class DiagTunables:
             CARD_QUOTA_MAX_OPEN: self.card_quota_max_open,
             DIAG_TRIGGER: self.diag_trigger,
             CARD_GROUPS: self.card_groups,
+            KPI_SHRINKAGE: self.kpi_shrinkage,
         }
 
     @classmethod
@@ -148,6 +167,7 @@ class DiagTunables:
             card_quota_max_open=int(values[CARD_QUOTA_MAX_OPEN]),
             diag_trigger=str(values[DIAG_TRIGGER]),
             card_groups=None if values[CARD_GROUPS] is None else bool(values[CARD_GROUPS]),
+            kpi_shrinkage=str(values[KPI_SHRINKAGE]),
         )
 
 
@@ -176,6 +196,10 @@ def validate_tunable(name: str, value: Any) -> Any:
     if name == DIAG_TRIGGER:
         if value not in DIAG_TRIGGERS:
             raise TunableError(f"{name} must be one of {', '.join(DIAG_TRIGGERS)}")
+        return value
+    if name == KPI_SHRINKAGE:
+        if value not in KPI_SHRINKAGE_VALUES:
+            raise TunableError(f"{name} must be one of {', '.join(KPI_SHRINKAGE_VALUES)}")
         return value
     if name == CARD_QUOTA_PER_CELL:
         return _whole(name, value, *QUOTA_PER_CELL_RANGE)
@@ -218,8 +242,12 @@ __all__ = [
     "DIAG_WINDOWS",
     "GUARD_BAND_MULT",
     "KPI_MAX_BAND_MULT",
+    "KPI_SHRINKAGE",
+    "KPI_SHRINKAGE_VALUES",
     "KPI_MIN_BAND_MULT",
     "QUOTA_KEYS",
+    "SHRINKAGE_OFF",
+    "SHRINKAGE_ON",
     "TRIGGER_GMV_FIRST",
     "TRIGGER_METRIC_FIRST",
     "TUNABLE_KEYS",

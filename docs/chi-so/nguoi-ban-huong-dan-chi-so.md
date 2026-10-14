@@ -147,7 +147,7 @@ cùng lúc** bạn đặt vẫn được giữ.
 để làm mốc so sánh. Nhờ vậy Juli biết thay đổi có thật sự hiệu quả hay chỉ do sàn, mùa vụ hoặc may mắn.
 Sau 14 ngày, các thẻ cùng loại hiện dòng **Kết quả nhóm**, ví dụ "Nhóm 6 sản phẩm đổi ảnh bìa: lượt nhấp
 tăng khoảng 7 % so với các sản phẩm chưa đổi" ("(sơ bộ)" khi nhóm còn nhỏ). Khi nhóm quá nhỏ để kết luận,
-Juli không hiện câu nào.
+hoặc kết quả còn dễ do may rủi, Juli chưa hiện câu nào và tiếp tục theo dõi.
 
 Ngay sau khi bạn kết nối shop, Juli tạo vài thẻ **Đề xuất nhanh · dựa trên 14 ngày** (tiêu đề, mô tả,
 ảnh bìa) để bạn bắt đầu ngay; độ tin cậy của chúng là "Tham khảo".

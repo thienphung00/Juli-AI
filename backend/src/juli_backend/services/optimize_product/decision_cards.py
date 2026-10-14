@@ -104,6 +104,7 @@ from juli_backend.services.optimize_product.shop_report import (
     STATUS_NOT_ASKED,
     STATUS_RULE,
 )
+from juli_backend.services.optimize_product.shrinkage import ShrinkageContext
 from juli_backend.services.optimize_product.tunables import DiagTunables
 from juli_backend.services.optimize_product.volatility import (
     CONFIDENCE_LOW,
@@ -1136,6 +1137,15 @@ def _plan_d29(
         STATUS_CODE_NOT_ASKED: [],
     }
     channel_medians: dict[str, ShopMedians] = {}
+    shrink_context = (
+        ShrinkageContext(
+            daily=daily,
+            categories={pid: product.category for pid, product in catalog.items()},
+            as_of=as_of,
+        )
+        if metric_first and tunables.shrinkage_on
+        else None
+    )
     for funnel in funnels:
         pid = funnel.product_id
         if pid in excluded:
@@ -1143,10 +1153,15 @@ def _plan_d29(
         assessment = assess_product(pid, daily.get(pid, []), as_of=as_of, tunables=tunables)
         below = False
         # D39.1: metric-first (default) -- any funnel metric beyond its own band;
-        # gmv_first keeps the D29.2 gate (GMV fell beyond its band).
+        # gmv_first keeps the D29.2 gate (GMV fell beyond its band). D41.2: CTR /
+        # CTOR shrunk toward the category first (``kpi_shrinkage``, default on).
         drops = (
             metric_trigger(
-                daily.get(pid, []), as_of=as_of, tunables=tunables, assessment=assessment
+                daily.get(pid, []),
+                as_of=as_of,
+                tunables=tunables,
+                assessment=assessment,
+                shrinkage=shrink_context.for_product(pid) if shrink_context else None,
             )
             if metric_first
             else None

@@ -25,6 +25,7 @@ export function comparisonText(c: CardGroupComparison | null | undefined): strin
   const parts = [`${num(c.difference)} điểm % (khoảng ${num(c.interval[0])} → ${num(c.interval[1])})`];
   if (c.strength_label) parts.push(c.strength_label);
   if (c.label) parts.push(c.label);
+  if (c.false_alarm) parts.push(`báo động giả ${Math.round(c.false_alarm.rate * 100)} %`);
   parts.push(`${c.n_treated} áp dụng · ${c.n_control} đối chứng`);
   return parts.join(" · ");
 }

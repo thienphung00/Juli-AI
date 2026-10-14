@@ -72,7 +72,9 @@ export type DiagKey =
   | "guard_band_mult"
   | "volatile_cv"
   /** P30 (D39.1): "metric_first" (default) | "gmv_first" (rollback). */
-  | "diag_trigger";
+  | "diag_trigger"
+  /** P31 (D41.2): "on" (default) | "off" -- shrink CTR / CTOR toward the category before the trigger. */
+  | "kpi_shrinkage";
 
 /** P28 (D33): the per-shop "many cards" quota mode; optional until the backend sends them. */
 export type QuotaKey =
@@ -374,11 +376,22 @@ export interface CardGroupMember {
   readonly released_at: string | null;
 }
 
-/** Median change treated − control (points of %), its 80 % bootstrap interval and wording. */
+/** P31 (D41.3): the group's simulated false-alarm rate (500 no-effect replays). */
+export interface CardGroupFalseAlarm {
+  readonly rate: number;
+  readonly max: number;
+  readonly acceptable: boolean;
+  readonly draws: number;
+  /** P31 T3.1: pre-period pairs, plus the control's untouched post-launch pairs once measured. */
+  readonly source: "pre_period" | "pre_period+control_after" | "centred_changes";
+  readonly pool: number;
+}
+
+/** Median change treated − control (points of %), its 90 % (P31; 80 % before) bootstrap interval and wording. */
 export interface CardGroupComparison {
   readonly n_treated: number;
   readonly n_control: number;
-  /** null: a full verdict; "Sơ bộ"; "Chưa đủ cơ sở" (no numbers). */
+  /** null: a full verdict; "Sơ bộ"; "Đang đo" (P31: false-alarm rate > 10 %, no strength); "Chưa đủ cơ sở" (no numbers). */
   readonly label: string | null;
   readonly median_treated: number | null;
   readonly median_control: number | null;
@@ -386,6 +399,10 @@ export interface CardGroupComparison {
   readonly interval: readonly [number, number] | null;
   readonly strength: "clear" | "likely" | "noise" | null;
   readonly strength_label: string | null;
+  /** P31 (D41.3): optional, absent on verdicts stored before P31. */
+  readonly test?: "permutation" | "bootstrap";
+  readonly permutation?: { readonly p_value: number; readonly draws: number; readonly exact: boolean } | null;
+  readonly false_alarm?: CardGroupFalseAlarm | null;
 }
 
 export interface CardGroupVerdict {
@@ -419,6 +436,8 @@ export interface CardGroup {
   readonly control: number;
   readonly members: readonly CardGroupMember[];
   readonly verdict: CardGroupVerdict | null;
+  /** P31 (D41.3): the primary verdict's simulated false-alarm rate; absent before P31. */
+  readonly false_alarm?: CardGroupFalseAlarm | null;
   readonly seller_sentence: string | null;
 }
 

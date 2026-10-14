@@ -27,6 +27,13 @@ its own band, on its channel (D32), even when GMV holds:
    beyond its band -> "held", and the metric whose rise held it is the largest
    positive term of the product-wide decomposition. The card's copy says so.
 
+**Shrink first (D41.2, P31).** With the shop's ``kpi_shrinkage`` on (default),
+CTR / CTOR are shrunk toward the category rate (:mod:`.shrinkage`,
+empirical-Bayes beta-binomial) before step 2: the fall that is compared with
+the band is the fall of the shrunk rates, so a product with few clicks or
+orders needs a larger fall to open a card. The band, the cost (step 3) and the
+seller copy keep the raw values; ``drop_pct`` stays the raw fall.
+
 The "growth" branch for products with no metric drop (a simulated winner,
 D38 / D39.1) lives outside the backend; :func:`growth_candidates` is its seam.
 """
@@ -42,6 +49,7 @@ from typing import Any
 from juli_backend.services.change_strength import LIKELY_MULT, combined_band
 from juli_backend.services.optimize_product.daily_funnel import ProductDay
 from juli_backend.services.optimize_product.kpi_channel import channel_gmv_per_day, kpi_window
+from juli_backend.services.optimize_product.shrinkage import ProductShrinkage, Shrunk
 from juli_backend.services.optimize_product.tunables import DiagTunables
 from juli_backend.services.optimize_product.volatility import (
     METRICS,
@@ -92,9 +100,18 @@ class MetricDrop:
     gmv_per_day: float
     #: What the fall alone costs, VND per day: ``gmv × (e^(−c) − 1)``.
     gmv_cost_per_day: float
+    #: D41.2: both windows' shrunk rates (``None`` = compared raw: off, not a
+    #: rate, or no prior). The trigger compared ``shrunk_drop_pct`` with the band.
+    shrunk: Shrunk | None = None
+
+    @property
+    def shrunk_drop_pct(self) -> float | None:
+        if self.shrunk is None or self.shrunk.earlier <= 0:
+            return None
+        return (self.shrunk.earlier - self.shrunk.current) / self.shrunk.earlier * 100
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        out = {
             "metric": self.metric,
             "channel": self.channel,
             "window_days": self.window_days,
@@ -106,6 +123,12 @@ class MetricDrop:
             "gmv_per_day": round(self.gmv_per_day, 2),
             "gmv_cost_per_day": round(self.gmv_cost_per_day, 2),
         }
+        if self.shrunk is not None:
+            shrunk = self.shrunk.to_json()
+            drop = self.shrunk_drop_pct
+            shrunk["drop_pct"] = None if drop is None else round(drop, 2)
+            out["shrinkage"] = shrunk
+        return out
 
 
 @dataclass(frozen=True)
@@ -146,8 +169,13 @@ def metric_drop(
     metric: str,
     tunables: DiagTunables,
     assessment: Assessment,
+    shrinkage: ProductShrinkage | None = None,
 ) -> MetricDrop | None:
-    """``metric``'s fall beyond its band on its channel, else ``None`` (steps 1–3)."""
+    """``metric``'s fall beyond its band on its channel, else ``None`` (steps 1–3).
+
+    ``shrinkage`` (D41.2): when given, CTR / CTOR are compared with the band as
+    shrunk rates; ``None`` compares the raw window means (P30 behaviour).
+    """
     total = assessment.metrics.get(metric)
     kw = kpi_window(
         rows,
@@ -170,7 +198,13 @@ def metric_drop(
     if combined is None:
         return None
     drop_pct = (earlier - now_value) / earlier * 100
-    if drop_pct <= LIKELY_MULT * combined:
+    shrunk = (
+        shrinkage.shrink(metric, kw.channel, length, now, before) if shrinkage is not None else None
+    )
+    compared = drop_pct
+    if shrunk is not None and shrunk.earlier > 0:
+        compared = (shrunk.earlier - shrunk.current) / shrunk.earlier * 100
+    if compared <= LIKELY_MULT * combined:
         return None
     contribution = decompose(now, before).get(metric)
     if contribution is None or contribution >= 0:
@@ -191,6 +225,7 @@ def metric_drop(
         contribution=contribution,
         gmv_per_day=gmv,
         gmv_cost_per_day=gmv * (math.exp(-contribution) - 1),
+        shrunk=shrunk,
     )
 
 
@@ -200,14 +235,23 @@ def metric_trigger(
     as_of: date,
     tunables: DiagTunables,
     assessment: Assessment,
+    shrinkage: ProductShrinkage | None = None,
 ) -> MetricTrigger:
-    """D39.1 for one product: its falling metrics, costliest first, and its GMV."""
+    """D39.1 for one product: its falling metrics, costliest first, and its GMV.
+
+    ``shrinkage``: the product's view of the shop's priors (D41.2), or ``None``.
+    """
     drops = [
         drop
         for metric in METRICS
         if (
             drop := metric_drop(
-                rows, as_of=as_of, metric=metric, tunables=tunables, assessment=assessment
+                rows,
+                as_of=as_of,
+                metric=metric,
+                tunables=tunables,
+                assessment=assessment,
+                shrinkage=shrinkage,
             )
         )
         is not None
@@ -243,13 +287,20 @@ def metric_trigger(
 
 
 def growth_candidates(*_args: Any, **_kwargs: Any) -> list[Any]:
-    """The "growth" branch for products with NO metric drop -- not built here.
+    """**Shrink first (D41.2, P31).** With the shop's ``kpi_shrinkage`` on (default),
+    CTR / CTOR are shrunk toward the category rate (:mod:`.shrinkage`,
+    empirical-Bayes beta-binomial) before step 2: the fall that is compared with
+    the band is the fall of the shrunk rates, so a product with few clicks or
+    orders needs a larger fall to open a card. The band, the cost (step 3) and the
+    seller copy keep the raw values; ``drop_pct`` stays the raw fall.
 
-    TODO(D39.1): a product whose funnel metrics all hold gets a card only from a
-    simulated winner (D38 champion beating the original beyond the A/A noise):
-    "Độ tin cậy" Thấp, target = current + 1 × band. The simulator lives outside
-    the backend (the local pilot folder, D36.6 / D38), so there is nothing to
-    read yet; this seam returns no proposals until its results are stored.
+    The "growth" branch for products with NO metric drop -- not built here.
+
+        TODO(D39.1): a product whose funnel metrics all hold gets a card only from a
+        simulated winner (D38 champion beating the original beyond the A/A noise):
+        "Độ tin cậy" Thấp, target = current + 1 × band. The simulator lives outside
+        the backend (the local pilot folder, D36.6 / D38), so there is nothing to
+        read yet; this seam returns no proposals until its results are stored.
     """
     return []
 
