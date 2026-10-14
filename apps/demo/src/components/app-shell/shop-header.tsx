@@ -57,6 +57,8 @@ export interface ShopHeaderProps {
   readonly googleHref: string | null | undefined;
   readonly onRefreshDemo: () => void;
   readonly onSignOut: () => void;
+  /** P32-A: a partner trial account — no connect / switch shop entry. */
+  readonly reviewer?: boolean;
 }
 
 function shopNameOf(state: ShopReportState): string | null {
@@ -77,7 +79,7 @@ function shopNameOf(state: ShopReportState): string | null {
   }
 }
 
-export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut }: ShopHeaderProps) {
+export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut, reviewer = false }: ShopHeaderProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -141,11 +143,13 @@ export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut }: Shop
             </li>
             {signedIn ? (
               <>
-                <li>
-                  <Link className="shop-menu__item" href={CONNECT_SHOP_HREF} onClick={close}>
-                    {state.status === "no-shop" ? "Kết nối TikTok Shop" : "Đổi shop"}
-                  </Link>
-                </li>
+                {reviewer ? null : (
+                  <li>
+                    <Link className="shop-menu__item" href={CONNECT_SHOP_HREF} onClick={close}>
+                      {state.status === "no-shop" ? "Kết nối TikTok Shop" : "Đổi shop"}
+                    </Link>
+                  </li>
+                )}
                 <li>
                   <button
                     className="shop-menu__item"

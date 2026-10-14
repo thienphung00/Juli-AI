@@ -11,6 +11,7 @@ import {
   type ContentAnalysis,
   type ContentAnalysisClients,
 } from "../../lib/content-analysis/types";
+import { useReviewer } from "../../lib/reviewer/mode";
 
 /**
  * P15 "Phân tích video" (contract `p15-content-analysis.md` §5). NO ARTBOARD
@@ -98,6 +99,8 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { kind, contentRef, productId, runId } = target;
+  // P32-A: a partner trial account reads existing analyses but cannot upload.
+  const reviewer = useReviewer() !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -182,7 +185,7 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
           {latest.error.message}
         </p>
       ) : null}
-      {!loading && !latest && !uploading ? (
+      {!loading && !latest && !uploading && !reviewer ? (
         <p className="qv-va__muted">Tải {what} của bạn lên để Juli xem hook, giây sản phẩm xuất hiện, lời kêu gọi mua và nhịp cắt.</p>
       ) : null}
 
@@ -198,6 +201,7 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
         </p>
       ) : null}
 
+      {reviewer ? null : (
       <div className="qv-va__upload">
         <label className={`qv-btn qv-btn--secondary qv-va__pick${clients.sample || uploading || working ? " qv-va__pick--off" : ""}`} htmlFor={inputId}>
           {latest ? `Tải ${what} khác` : `Tải ${what} lên`}
@@ -217,6 +221,7 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
           {clients.sample ? "Bản minh họa: đăng nhập và kết nối shop để tải video lên." : `${limits}. Juli xoá tệp ngay sau khi phân tích.`}
         </span>
       </div>
+      )}
     </section>
   );
 }

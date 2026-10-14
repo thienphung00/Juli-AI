@@ -5,7 +5,7 @@ import { useId } from "react";
 import { ACTION_ROW_LABEL, CARD_STATUS_LABELS, EXECUTOR_COPY, REJECTED_NOTICE, type CardView } from "../../lib/quyet-dinh/card-model";
 import type { CardStatus, LeverExecutor } from "../../lib/quyet-dinh/p10-types";
 import { REJECT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
-import { useSellerHref, useWriteControl } from "../seller-view-context";
+import { useApproveControl, useSellerHref, useWriteControl } from "../seller-view-context";
 import { ReasonDone } from "./reason-dialog";
 
 /**
@@ -271,6 +271,7 @@ function ContentActions({
   readonly onToggle: () => void;
 }) {
   const write = useWriteControl();
+  const approveWrite = useApproveControl();
   return (
     <div className="qv-card__actions qv-card__actions--content">
       {status === "pending" ? (
@@ -279,7 +280,7 @@ function ContentActions({
             aria-describedby={blockedReason ? blockId : undefined}
             className="qv-btn qv-btn--primary"
             onClick={onApprove}
-            {...write(Boolean(blockedReason) || busy)}
+            {...approveWrite(Boolean(blockedReason) || busy)}
             type="button"
           >
             Duyệt
@@ -318,6 +319,7 @@ function DesktopCard({
   rejectReason = null,
 }: RecommendationCardProps) {
   const write = useWriteControl();
+  const approveWrite = useApproveControl();
   const titleId = useId();
   const blockId = useId();
   const showWho = card.executor !== "juli" && card.content === null;
@@ -427,7 +429,7 @@ function DesktopCard({
               aria-describedby={blockedReason ? blockId : undefined}
               className="qv-btn qv-btn--primary"
               onClick={onApprove}
-              {...write(Boolean(blockedReason) || busy)}
+              {...approveWrite(Boolean(blockedReason) || busy)}
               type="button"
             >
               Duyệt
@@ -475,6 +477,7 @@ function MobileCard({
   rejectReason = null,
 }: RecommendationCardProps) {
   const write = useWriteControl();
+  const approveWrite = useApproveControl();
   const titleId = useId();
   const blockId = useId();
   const showWho = card.executor !== "juli" && card.content === null;
@@ -568,7 +571,7 @@ function MobileCard({
             aria-describedby={blockedReason ? blockId : undefined}
             className="qv-btn qv-btn--primary"
             onClick={onApprove}
-            {...write(Boolean(blockedReason) || busy)}
+            {...approveWrite(Boolean(blockedReason) || busy)}
             type="button"
           >
             Duyệt

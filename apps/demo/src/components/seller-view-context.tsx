@@ -21,24 +21,43 @@ export const READ_ONLY_TITLE = "Chế độ xem: không thể thao tác thay sel
 
 export interface SellerViewMode {
   readonly readOnly: boolean;
+  /** Tooltip of a disabled write control (P32-A: the partner trial account has its own). */
+  readonly readOnlyTitle: string;
+  /**
+   * P32-A: the partner trial account — "Duyệt" stays enabled and runs a
+   * simulation instead of the real approve; every other write is read-only.
+   */
+  readonly simulateApprove: boolean;
   /** Maps a seller href (`/analytics?…`, `/decisions?…`, `/`) to where it lives in this mode. */
   readonly href: (sellerHref: string) => string;
 }
 
-const SELLER_MODE: SellerViewMode = { readOnly: false, href: (h) => h };
+const SELLER_MODE: SellerViewMode = {
+  readOnly: false,
+  readOnlyTitle: READ_ONLY_TITLE,
+  simulateApprove: false,
+  href: (h) => h,
+};
 
 const SellerViewContext = createContext<SellerViewMode>(SELLER_MODE);
 
 export function SellerViewProvider({
   readOnly,
   href,
+  readOnlyTitle = READ_ONLY_TITLE,
+  simulateApprove = false,
   children,
 }: {
   readonly readOnly: boolean;
   readonly href?: (sellerHref: string) => string;
+  readonly readOnlyTitle?: string;
+  readonly simulateApprove?: boolean;
   readonly children: ReactNode;
 }) {
-  const value = useMemo<SellerViewMode>(() => ({ readOnly, href: href ?? SELLER_MODE.href }), [readOnly, href]);
+  const value = useMemo<SellerViewMode>(
+    () => ({ readOnly, readOnlyTitle, simulateApprove, href: href ?? SELLER_MODE.href }),
+    [readOnly, readOnlyTitle, simulateApprove, href],
+  );
   return <SellerViewContext.Provider value={value}>{children}</SellerViewContext.Provider>;
 }
 
@@ -62,13 +81,28 @@ export interface WriteControlProps {
  * disabled with the view-as title and `data-read-only` (greyed by
  * `globals.css`); otherwise it keeps its own `disabled`.
  */
-export function writeControl(readOnly: boolean, disabled?: boolean, title?: string): WriteControlProps {
-  if (readOnly) return { disabled: true, title: READ_ONLY_TITLE, "data-read-only": "" };
+export function writeControl(
+  readOnly: boolean,
+  disabled?: boolean,
+  title?: string,
+  readOnlyTitle: string = READ_ONLY_TITLE,
+): WriteControlProps {
+  if (readOnly) return { disabled: true, title: readOnlyTitle, "data-read-only": "" };
   return title === undefined ? { disabled } : { disabled, title };
 }
 
 /** Hook form of {@link writeControl}: `const write = useWriteControl(); <button {...write(busy)}>`. */
 export function useWriteControl(): (disabled?: boolean, title?: string) => WriteControlProps {
-  const readOnly = useReadOnly();
-  return (disabled, title) => writeControl(readOnly, disabled, title);
+  const { readOnly, readOnlyTitle } = useContext(SellerViewContext);
+  return (disabled, title) => writeControl(readOnly, disabled, title, readOnlyTitle);
+}
+
+/**
+ * The single-card "Duyệt" control: like {@link useWriteControl}, except in the
+ * partner trial account (P32-A), where it stays enabled — the click runs the
+ * simulated Duyệt → Thực thi instead of the real approve.
+ */
+export function useApproveControl(): (disabled?: boolean, title?: string) => WriteControlProps {
+  const { readOnly, readOnlyTitle, simulateApprove } = useContext(SellerViewContext);
+  return (disabled, title) => writeControl(readOnly && !simulateApprove, disabled, title, readOnlyTitle);
 }

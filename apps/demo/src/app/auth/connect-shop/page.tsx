@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { ConnectShopView } from "../../../components/connect-shop-view";
+import { readReviewerRecord } from "../../../lib/reviewer/session";
 import { readAuthSession, type AuthSession } from "../../../lib/supabase-auth";
 
 /**
@@ -18,6 +19,11 @@ export default function ConnectShopPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      // P32-A: a partner trial account has no shop to connect — back to Trang chủ.
+      if (readReviewerRecord() !== null) {
+        window.location.replace("/");
+        return;
+      }
       setSession(readAuthSession());
     }, 0);
 
