@@ -79,7 +79,8 @@ slice — see "Out of scope".
   drafts in order, held controls, launched groups); `card_groups.measure_due_groups(...)`
   (day-14 verdicts: median CUPED-adjusted change treated − control, 90 % bootstrap
   interval, a permutation test below 5 controls, D31.7 wording, "Sơ bộ" / "Chưa đủ cơ sở"
-  / "Đang đo" when the group's simulated false-alarm rate is above 10 % -- D41.3, P31,
+  / "Đang đo" when the group's simulated false-alarm rate is above 15 % (T3.1; re-gated
+  weekly to day 56 with the control's untouched post-launch pairs) -- D41.3, P31,
   pure maths in `group_stats.py`); `card_groups.group_views(...)` (Ops);
   `card_groups.seller_sentences(...)` (Quyết định "Kết quả nhóm"); pure
   `assign_arms(products, seed)`, `compare(...)`, `build_verdict(...)`,

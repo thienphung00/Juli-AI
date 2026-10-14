@@ -3,32 +3,43 @@
 90 % bootstrap interval; below 5 controls an exact permutation test over the random
 assignment must also reject; each change CUPED-adjusted by the product's previous 14
 days; "Sơ bộ" (or a full verdict) only when the group's own simulated false-alarm rate
-is not above 10 %, else "Đang đo" with no strength claim. Synthetic fixtures only.
+is not above 15 % (T3.1), else "Đang đo" with no strength claim -- re-gated at every
+measurement as the control's untouched post-launch data join the null pool. Synthetic
+fixtures only.
 """
 
 from __future__ import annotations
 
+import json
 import math
 import random
-from datetime import date
+import uuid
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from itertools import combinations
 from statistics import median
 
 import pytest
+import pytest_asyncio
 
+from juli_backend.models.card_groups import CardGroup, CardGroupMember
+from juli_backend.models.models import ActionCard, AnalyticsPerformanceInterval
 from juli_backend.services.action_cards.card_groups import (
     LABEL_MEASURING,
     LABEL_PRELIMINARY,
     GroupKey,
     build_verdict,
     compare,
+    measure_due_groups,
     seller_sentence,
 )
 from juli_backend.services.action_cards.group_stats import (
     FALSE_ALARM_DRAWS,
+    FALSE_ALARM_MAX,
     INTERVAL_HIGH,
     INTERVAL_LOW,
     NULL_CENTRED,
+    NULL_PRE_AND_CONTROL,
     NULL_PRE_PERIOD,
     FalseAlarm,
     Unit,
@@ -160,7 +171,7 @@ def test_a_noisy_small_group_reads_dang_do():
     primary = verdict["primary"]
     fa = verdict["false_alarm"]
     assert fa["source"] == NULL_PRE_PERIOD and fa["draws"] == FALSE_ALARM_DRAWS
-    assert fa["acceptable"] is False and fa["rate"] > 0.10
+    assert fa["acceptable"] is False and fa["rate"] > FALSE_ALARM_MAX
     assert primary["label"] == LABEL_MEASURING
     assert primary["strength"] is None and primary["strength_label"] is None
     assert primary["false_alarm"] == fa
@@ -174,7 +185,7 @@ def test_a_large_clean_group_with_a_big_effect_reads_so_bo():
     verdict = build_verdict(rows, seed=11, as_of=AS_OF)
     primary = verdict["primary"]
     assert verdict["false_alarm"]["acceptable"] is True
-    assert verdict["false_alarm"]["rate"] <= 0.10
+    assert verdict["false_alarm"]["rate"] <= FALSE_ALARM_MAX
     assert primary["label"] == LABEL_PRELIMINARY  # 2 controls: still preliminary
     assert primary["test"] == "permutation" and primary["permutation"]["p_value"] <= 0.1
     assert primary["strength"] == "clear" and primary["detected"] is True
@@ -215,3 +226,203 @@ def test_rows_without_before_and_after_are_left_unadjusted():
         [p["change_pct"] for p in rows]
     )
     assert verdict["false_alarm"]["source"] == NULL_CENTRED
+
+
+def test_the_gate_is_a_flat_15_percent():
+    assert FALSE_ALARM_MAX == 0.15
+    assert FalseAlarm(0.15, 500, NULL_PRE_PERIOD, 10).acceptable is True
+    assert FalseAlarm(0.152, 500, NULL_PRE_PERIOD, 10).acceptable is False
+    assert "margin" not in FalseAlarm(0.1, 500, NULL_PRE_PERIOD, 10).to_json()
+
+
+# =========================================================================== T3.1 re-gating
+
+#: A 5 + 5 group (found by a seeded search): the treated rose ≈ 32 %, the control held.
+#: Its pre-period pairs are mostly flat with three large swings, so at day 14 the
+#: replayed rule over-calls (> 15 %) -> "Đang đo"; the control's days 14–27 add five
+#: moderate no-effect pairs, the pool looks like ordinary noise and the gate passes.
+PRE = [0.01, 0.001, 0.561, 0.006, -0.003, 0.0, -0.593, -0.007, 0.007, -0.316]
+LIFTS = [0.3, 0.31, 0.32, 0.33, 0.34, 0.008, 0.003, 0.005, 0.004, 0.005]
+LATER = [-0.2737, 0.2889, 0.274, -0.148, -0.1991]  # control, days 14–27 vs 0–13
+
+
+def _rows_5_5():
+    rows = []
+    for i, (pre, lift) in enumerate(zip(PRE, LIFTS, strict=True)):
+        rows.append(
+            {
+                "product_id": f"p{i:02d}",
+                "arm": "treated" if i < 5 else "control",
+                "approved": False,
+                "pre_before": 0.04 * (1 + pre),
+                "before": 0.04,
+                "after": 0.04 * (1 + lift),
+                "change_pct": round(lift * 100, 2),
+            }
+        )
+    return rows
+
+
+def test_a_group_gated_at_day_14_can_pass_once_its_control_pool_grows():
+    rows = _rows_5_5()
+    controls = rows[5:]
+    day14 = [(c["before"], c["after"]) for c in controls]
+    day28 = [*day14, *((c["after"], c["after"] * (1 + d)) for c, d in zip(controls, LATER))]
+    first = build_verdict(rows, seed=99, as_of=AS_OF, control_pairs=day14)
+    assert first["false_alarm"]["source"] == NULL_PRE_AND_CONTROL
+    assert first["null_pool"] == {"pre_period": 10, "control_after": 5}
+    assert first["false_alarm"]["rate"] > FALSE_ALARM_MAX
+    assert first["primary"]["label"] == LABEL_MEASURING
+    later = build_verdict(
+        rows,
+        seed=99,
+        as_of=AS_OF + timedelta(days=14),
+        control_pairs=day28,
+        history=first["checks"],
+    )
+    assert later["null_pool"] == {"pre_period": 10, "control_after": 10}
+    assert later["false_alarm"]["rate"] <= FALSE_ALARM_MAX
+    assert later["primary"]["label"] is None  # 5 + 5: a full verdict
+    assert later["primary"]["strength"] == "clear"
+    assert [c["label"] for c in later["checks"]] == [LABEL_MEASURING, None]
+
+
+# --------------------------------------------------------------------------- with the DB
+
+START = datetime(2026, 10, 13, 2, 0, tzinfo=UTC)
+LAUNCH = date(2026, 10, 13)
+IMPRESSIONS = 100_000
+
+
+@pytest_asyncio.fixture
+async def shop(session):
+    from tests.support.builders import make_tenant
+
+    _user, shop = await make_tenant(session)
+    return shop
+
+
+def _ctr_row(shop_id, product, day, ctr):
+    clicks = round(IMPRESSIONS * ctr)
+    return AnalyticsPerformanceInterval(
+        id=uuid.uuid4(),
+        shop_id=shop_id,
+        snapshot_key=f"t:{product}:{day.isoformat()}",
+        grain="product",
+        start_date=day,
+        end_date=day + timedelta(days=1),
+        tiktok_product_id=product,
+        impressions=IMPRESSIONS,
+        clicks=clicks,
+        sku_orders=clicks // 20,
+        items_sold=clicks // 20,
+        gmv=Decimal(clicks // 20 * 100_000),
+        update_time=datetime(2026, 10, 1),
+    )
+
+
+async def _gated_group(session, shop_id):
+    group = CardGroup(
+        id=uuid.uuid4(),
+        shop_id=shop_id,
+        group_key="ctr|cover_image|total",
+        metric="ctr",
+        lever="cover_image",
+        channel="total",
+        launched_on=LAUNCH,
+        release_on=LAUNCH + timedelta(days=14),
+        seed=99,
+        status="open",
+    )
+    session.add(group)
+    for i, (pre, lift) in enumerate(zip(PRE, LIFTS, strict=True)):
+        product = f"p{i:02d}"
+        arm = "treated" if i < 5 else "control"
+        payload = {
+            "target_metric": "ctr",
+            "kpi": {"metric": "ctr", "channel": "total"},
+            "diagnosis": {"lever": {"code": "cover_image"}, "tiktok_product_id": product},
+        }
+        card = ActionCard(
+            id=uuid.uuid4(),
+            shop_id=shop_id,
+            workflow_key="optimize_product_2",
+            subject_type="product_lever",
+            subject_id=f"{product}:cover_image",
+            priority=1,
+            severity="warning",
+            title=f"card {product}",
+            description="",
+            recommendation_payload=json.dumps(payload),
+            status="active",
+        )
+        session.add(card)
+        await session.flush()
+        session.add(
+            CardGroupMember(
+                id=uuid.uuid4(),
+                shop_id=shop_id,
+                group_id=group.id,
+                tiktok_product_id=product,
+                action_card_id=card.id,
+                arm=arm,
+                assigned_at=datetime(2026, 10, 13),
+            )
+        )
+        later = LATER[i - 5] if arm == "control" else 0.0
+        for offset in range(-28, 28):
+            if offset < -14:
+                ctr = 0.04 * (1 + pre)
+            elif offset < 0:
+                ctr = 0.04
+            elif offset < 14:
+                ctr = 0.04 * (1 + lift)
+            else:
+                ctr = 0.04 * (1 + lift) * (1 + later)
+            session.add(_ctr_row(shop_id, product, LAUNCH + timedelta(days=offset), ctr))
+    await session.flush()
+    return group
+
+
+@pytest.mark.asyncio
+async def test_dang_do_is_re_gated_with_the_controls_later_data(session, shop):
+    group = await _gated_group(session, shop.id)
+    [first] = await measure_due_groups(session, shop.id, now=START + timedelta(days=13))
+    assert first.id == group.id
+    assert first.verdict["primary"]["label"] == LABEL_MEASURING
+    assert first.verdict["null_pool"] == {"pre_period": 10, "control_after": 5}
+    # Day 20: not a week since the last check -> nothing; day 21: re-gated, but no new
+    # complete 14-day window yet, so the pool and the label are the same.
+    assert await measure_due_groups(session, shop.id, now=START + timedelta(days=19)) == []
+    [again] = await measure_due_groups(session, shop.id, now=START + timedelta(days=20))
+    assert again.verdict["null_pool"]["control_after"] == 5
+    assert again.verdict["primary"]["label"] == LABEL_MEASURING
+    # Day 28: the control's days 14–27 join the pool and the gate lets it out.
+    [last] = await measure_due_groups(session, shop.id, now=START + timedelta(days=27))
+    assert last.verdict["null_pool"] == {"pre_period": 10, "control_after": 10}
+    assert last.verdict["false_alarm"]["rate"] <= FALSE_ALARM_MAX
+    assert last.verdict["primary"]["label"] is None
+    assert [c["label"] for c in last.verdict["checks"]] == [LABEL_MEASURING] * 2 + [None]
+    # Out of "Đang đo": no more re-checks.
+    assert await measure_due_groups(session, shop.id, now=START + timedelta(days=34)) == []
+
+
+@pytest.mark.asyncio
+async def test_an_approved_control_stops_feeding_the_null_pool(session, shop):
+    group = await _gated_group(session, shop.id)
+    from sqlalchemy import select
+
+    members = (
+        (await session.execute(select(CardGroupMember).where(CardGroupMember.group_id == group.id)))
+        .scalars()
+        .all()
+    )
+    for member in members:
+        if member.arm == "control":
+            card = await session.get(ActionCard, member.action_card_id)
+            card.approved_at = datetime(2026, 10, 28, 3, 0)  # day 15: touched from then on
+    await session.flush()
+    await measure_due_groups(session, shop.id, now=START + timedelta(days=13))
+    [last] = await measure_due_groups(session, shop.id, now=START + timedelta(days=27))
+    assert last.verdict["null_pool"]["control_after"] == 5  # days 14–27 are not no-effect
+    assert last.verdict["primary"]["label"] == LABEL_MEASURING

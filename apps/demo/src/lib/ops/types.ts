@@ -380,10 +380,10 @@ export interface CardGroupMember {
 export interface CardGroupFalseAlarm {
   readonly rate: number;
   readonly max: number;
-  readonly margin?: number;
   readonly acceptable: boolean;
   readonly draws: number;
-  readonly source: "pre_period" | "centred_changes";
+  /** P31 T3.1: pre-period pairs, plus the control's untouched post-launch pairs once measured. */
+  readonly source: "pre_period" | "pre_period+control_after" | "centred_changes";
   readonly pool: number;
 }
 

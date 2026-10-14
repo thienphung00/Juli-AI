@@ -398,7 +398,7 @@ async def test_day_14_verdict_on_synthetic_data(session, shop):
     assert primary["permutation"]["p_value"] == pytest.approx(6 / 56, abs=1e-4)
     assert primary["strength"] == "noise"
     assert all(p["pre_before"] is not None for p in measured.verdict["products"])
-    assert measured.verdict["false_alarm"]["source"] == "pre_period"
+    assert measured.verdict["false_alarm"]["source"] == "pre_period+control_after"
     # Approved-only (secondary): no treated card approved -> not enough.
     assert measured.verdict["approved_only"]["label"] == LABEL_NOT_ENOUGH
     # The seller sentence, for cards of the same group key.

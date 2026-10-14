@@ -31,7 +31,8 @@ only design that removes both. In the card system:
    CUPED-adjusted by the product's own previous 14 days; with fewer than 5 controls a
    permutation test over the random assignment must also reject (p ≤ 0.10); and when
    the rule's simulated false-alarm rate on the group's own no-effect data is above
-   10 %, the verdict makes no strength claim and reads "Đang đo".
+   15 % (T3.1), the verdict makes no strength claim and reads "Đang đo" -- re-gated
+   weekly to day 56 as the control's untouched data join the null pool.
 5. **Who sees it (D34.8).** Ops sees groups, arms, seeds, intervals
    (:func:`group_views`); the seller one plain sentence on the cards of the same group
    key once a verdict exists (:func:`seller_sentences`), e.g. "Nhóm 6 sản phẩm đổi ảnh
@@ -105,8 +106,12 @@ PRELIMINARY_MIN = (3, 2)
 FULL_MIN = (5, 3)
 LABEL_PRELIMINARY = "Sơ bộ"
 LABEL_NOT_ENOUGH = "Chưa đủ cơ sở"
-#: D41.3: the group's simulated false-alarm rate is above 10 % -- no strength claim.
+#: D41.3 / T3.1: the group's simulated false-alarm rate is above 15 % -- no strength claim.
 LABEL_MEASURING = "Đang đo"
+#: T3.1: a "Đang đo" group is re-gated weekly with the latest data, until this many
+#: days after launch (four 14-day windows: the controls are usually approved by then).
+RECHECK_EVERY_DAYS = 7
+RECHECK_UNTIL_DAYS = 56
 
 _WORKFLOW_KEY = "optimize_product_2"
 _ACTIVE = "active"
@@ -268,7 +273,7 @@ def compare(
     difference with D31.7's rule against the interval's half-width. With fewer than 5
     controls a permutation test over the assignment must also reject at p ≤ 0.10, else
     the strength is ``noise`` (:func:`.group_stats.assess`). ``false_alarm`` (the
-    group's simulated rate, :func:`.group_stats.false_alarm_rate`): above 10 % the
+    group's simulated rate, :func:`.group_stats.false_alarm_rate`): above 15 % the
     label is "Đang đo" and no strength is claimed. Too few products: the label
     "Chưa đủ cơ sở" and no numbers.
     """
@@ -370,15 +375,21 @@ def _false_alarm(
     n_treated: int,
     n_control: int,
     seed: int,
+    control_pairs: Sequence[tuple[float, float]] = (),
 ) -> FalseAlarm | None:
     if _label(n_treated, n_control) == LABEL_NOT_ENOUGH:
         return None
-    pool, source = null_pool(pre_pairs, adjusted)
+    pool, source = null_pool(pre_pairs, adjusted, control_pairs)
     return false_alarm_rate(pool, n_treated, n_control, seed=seed, source=source)
 
 
 def build_verdict(
-    changes: Sequence[Mapping[str, Any]], *, seed: int, as_of: date
+    changes: Sequence[Mapping[str, Any]],
+    *,
+    seed: int,
+    as_of: date,
+    control_pairs: Sequence[tuple[float, float]] = (),
+    history: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """The stored verdict from per-product rows ``{product_id, arm, approved, change_pct}``
     (plus ``before`` / ``after`` / ``pre_before`` when measured from data).
@@ -387,7 +398,9 @@ def build_verdict(
     whose card the seller approved, against the same control (secondary). D41.3: the
     changes compared are CUPED-adjusted (``adjusted_change_pct`` per product, ``cuped``
     with ``θ``); each comparison carries its simulated ``false_alarm`` rate, the
-    primary one also at the top level.
+    primary one also at the top level. T3.1: ``control_pairs`` (the control members'
+    untouched post-launch window pairs) join the pre-period pairs in the null pool;
+    ``history`` = the earlier checks of this group, ``checks`` = history + this one.
     """
     measured = [c for c in changes if isinstance(c.get("change_pct"), int | float)]
     units, cuped_used = _units(measured)
@@ -406,20 +419,33 @@ def build_verdict(
         if isinstance(c.get("pre_before"), int | float) and isinstance(c.get("before"), int | float)
     ]
     arm_changes = [(c["arm"], v) for c, v in zip(measured, adjusted, strict=True)]
-    fa_primary = _false_alarm(pre_pairs, arm_changes, len(treated), len(control), seed)
-    fa_approved = _false_alarm(pre_pairs, arm_changes, len(approved), len(control), seed)
+    fa_primary = _false_alarm(
+        pre_pairs, arm_changes, len(treated), len(control), seed, control_pairs
+    )
+    fa_approved = _false_alarm(
+        pre_pairs, arm_changes, len(approved), len(control), seed, control_pairs
+    )
     products = []
     for c in changes:
         row = dict(c)
         row["adjusted_change_pct"] = adjusted_by_id.get(id(c))
         products.append(row)
+    primary = compare(treated, control, seed=seed, false_alarm=fa_primary)
+    check = {
+        "as_of": as_of.isoformat(),
+        "label": primary["label"],
+        "false_alarm_rate": fa_primary.rate if fa_primary is not None else None,
+        "pool": fa_primary.pool if fa_primary is not None else None,
+    }
     return {
         "as_of": as_of.isoformat(),
         "window_days": MEASURE_DAYS,
-        "primary": compare(treated, control, seed=seed, false_alarm=fa_primary),
+        "primary": primary,
         "approved_only": compare(approved, control, seed=seed, false_alarm=fa_approved),
         "cuped": {"theta": round(theta, 4), "from_before_after": cuped_used},
         "false_alarm": fa_primary.to_json() if fa_primary is not None else None,
+        "null_pool": {"pre_period": len(pre_pairs), "control_after": len(control_pairs)},
+        "checks": [*(dict(h) for h in history), check],
         "products": products,
     }
 
@@ -586,10 +612,46 @@ async def apply_groups(
     return GroupPass(eligible=first + rest, held=held, launched=launched)
 
 
+def _window_pairs(
+    rows: Sequence[Any], name: str, launch: date, untouched_through: date
+) -> list[tuple[float, float]]:
+    """Consecutive 14-day window pairs from day −14 ending on or before ``untouched_through``.
+
+    (−14..−1, 0..13), (0..13, 14..27), … -- a control member's no-effect pairs (T3.1).
+    """
+    from juli_backend.services.lever_flows.measurement import window_totals
+
+    def value(start: date) -> float | None:
+        totals = window_totals(rows, start, start + timedelta(days=MEASURE_DAYS - 1))
+        v = totals.value(name)
+        if v is None or totals.days < MIN_DAYS_MEASURED or v <= 0:
+            return None
+        return float(v)
+
+    pairs: list[tuple[float, float]] = []
+    start = launch - timedelta(days=MEASURE_DAYS)
+    while start + timedelta(days=2 * MEASURE_DAYS - 1) <= untouched_through:
+        b, a = value(start), value(start + timedelta(days=MEASURE_DAYS))
+        if b is not None and a is not None:
+            pairs.append((b, a))
+        start += timedelta(days=MEASURE_DAYS)
+    return pairs
+
+
 async def _member_change(
-    session: AsyncSession, shop_id: uuid.UUID, group: CardGroup, product: str
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    group: CardGroup,
+    product: str,
+    *,
+    untouched_through: date | None = None,
 ) -> dict[str, Any]:
-    """One member's before (14 days before launch) / after (14 days from launch) values."""
+    """One member's before (14 days before launch) / after (14 days from launch) values.
+
+    ``untouched_through`` (control members only): the last day no lever ran on the
+    product -- its consecutive post-launch window pairs up to then are returned as
+    ``null_pairs`` for the false-alarm pool (T3.1).
+    """
     from juli_backend.services.lever_flows.measurement import (
         _daily_rows,
         channel_rows,
@@ -600,7 +662,8 @@ async def _member_change(
     before_start = launch - timedelta(days=MEASURE_DAYS)
     pre_start = before_start - timedelta(days=MEASURE_DAYS)
     after_end = launch + timedelta(days=MEASURE_DAYS - 1)
-    rows: list[Any] = await _daily_rows(session, shop_id, product, pre_start, after_end)
+    rows_end = max(after_end, untouched_through) if untouched_through else after_end
+    rows: list[Any] = await _daily_rows(session, shop_id, product, pre_start, rows_end)
     if group.channel != "total":
         rows = channel_rows(rows, group.channel)
     pre = window_totals(rows, pre_start, before_start - timedelta(days=1))
@@ -624,13 +687,25 @@ async def _member_change(
         "after": None if a is None else float(a),
         "pre_before": None if p is None or p <= 0 else float(p),
         "change_pct": change,
+        "null_pairs": (
+            _window_pairs(rows, name, launch, untouched_through)
+            if untouched_through is not None
+            else []
+        ),
     }
 
 
 async def measure_due_groups(
     session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
 ) -> list[CardGroup]:
-    """Day-14 verdicts for the shop's open groups whose 14 days of data are in (step 4)."""
+    """Day-14 verdicts for the shop's open groups whose 14 days of data are in (step 4).
+
+    T3.1: a measured group whose verdict reads "Đang đo" is measured again every
+    :data:`RECHECK_EVERY_DAYS` (day 21, 28, …, up to :data:`RECHECK_UNTIL_DAYS` after
+    launch) with the latest data: the comparison window stays the 14 days from launch,
+    but the null pool grows with the control members' untouched post-launch pairs, so
+    the false-alarm gate can let the verdict out of "Đang đo".
+    """
     from juli_backend.services.action_cards.optimize_product_cards import (
         latest_product_analytics_day,
     )
@@ -649,6 +724,18 @@ async def measure_due_groups(
             )
         ).scalars()
     )
+    rechecks = list(
+        (
+            await session.execute(
+                select(CardGroup).where(
+                    CardGroup.shop_id == shop_id,
+                    CardGroup.status == GROUP_MEASURED,
+                    CardGroup.launched_on >= as_of - timedelta(days=RECHECK_UNTIL_DAYS),
+                )
+            )
+        ).scalars()
+    )
+    due.extend(group for group in rechecks if _recheck_due(group, as_of))
     measured: list[CardGroup] = []
     for group in due:
         members = list(
@@ -662,10 +749,10 @@ async def measure_due_groups(
             ).scalars()
         )
         card_ids = [m.action_card_id for m in members if m.action_card_id is not None]
-        approved: set[uuid.UUID] = set()
+        approved_on: dict[uuid.UUID, date] = {}
         if card_ids:
-            approved = {
-                card.id
+            approved_on = {
+                card.id: shop_day(card.approved_at)
                 for card in (
                     await session.execute(
                         select(ActionCard).where(
@@ -675,9 +762,19 @@ async def measure_due_groups(
                 ).scalars()
                 if card.approved_at is not None
             }
+        approved = set(approved_on)
         changes = []
+        control_pairs: list[tuple[float, float]] = []
         for member in sorted(members, key=lambda m: m.tiktok_product_id):
-            values = await _member_change(session, shop_id, group, member.tiktok_product_id)
+            untouched: date | None = None
+            if member.arm == ARM_CONTROL:
+                # A control is untouched until the seller approves its released card.
+                touched = approved_on.get(member.action_card_id) if member.action_card_id else None
+                untouched = as_of if touched is None else min(as_of, touched - timedelta(days=1))
+            values = await _member_change(
+                session, shop_id, group, member.tiktok_product_id, untouched_through=untouched
+            )
+            control_pairs.extend(values.pop("null_pairs"))
             changes.append(
                 {
                     "product_id": member.tiktok_product_id,
@@ -686,7 +783,14 @@ async def measure_due_groups(
                     **values,
                 }
             )
-        group.verdict = build_verdict(changes, seed=group.seed, as_of=as_of)
+        previous = group.verdict if isinstance(group.verdict, dict) else {}
+        group.verdict = build_verdict(
+            changes,
+            seed=group.seed,
+            as_of=as_of,
+            control_pairs=control_pairs,
+            history=previous.get("checks") or [],
+        )
         group.status = GROUP_MEASURED
         group.measured_at = _naive(now)
         measured.append(group)
@@ -702,6 +806,19 @@ async def measure_due_groups(
     if measured:
         await session.flush()
     return measured
+
+
+def _recheck_due(group: CardGroup, as_of: date) -> bool:
+    """A measured "Đang đo" group whose last check is ≥ :data:`RECHECK_EVERY_DAYS` old."""
+    verdict = group.verdict if isinstance(group.verdict, dict) else {}
+    primary = verdict.get("primary")
+    if not isinstance(primary, Mapping) or primary.get("label") != LABEL_MEASURING:
+        return False
+    try:
+        last = date.fromisoformat(str(verdict.get("as_of")))
+    except ValueError:
+        return False
+    return as_of >= last + timedelta(days=RECHECK_EVERY_DAYS)
 
 
 async def seller_sentences(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, str]:
@@ -815,6 +932,8 @@ __all__ = [
     "CONTROL_DELAY_DAYS",
     "LABEL_MEASURING",
     "LABEL_NOT_ENOUGH",
+    "RECHECK_EVERY_DAYS",
+    "RECHECK_UNTIL_DAYS",
     "LABEL_PRELIMINARY",
     "LAUNCH_WINDOW_DAYS",
     "MIN_GROUP_SIZE",

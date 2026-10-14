@@ -751,14 +751,17 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P31 — shrink before the trigger, stricter group verdict (2026-10-13)
 
-- [ ] D41.3 says "checked with the v0.3 power simulator first": not done here (the simulator
-  lives in the private pilot). The in-process replay shows the new rule is very strict on small
-  groups: a difference of medians over ≤ 8 products rarely reaches p ≤ 0.10 in the permutation
-  test (5 + 3 perfectly separated: p = 6/56), and 5 + 5 / 4 + 6 groups often read "Đang đo".
-  Run the v0.3 simulator on the P31 rule (power at the D34 #1 size, 17 + 9) before relying on it.
-- [ ] The false-alarm gate allows a one-sided 90 % Monte-Carlo margin (≈ 11.7 % at 500 draws)
-  so that a permutation-path group (exactly ≤ 10 % by construction) does not flip on simulation
-  noise. Owner to confirm, or raise the draws instead.
+- [x] ~~D41.3 "checked with the v0.3 power simulator first"~~ — done by the owner
+  (`p31-power` report): false alarms ≤ 9.6 % in every design; power stays low on small groups
+  (a median over ≤ 8 products rarely reaches p ≤ 0.10: 5 + 3 perfectly separated gives p = 6/56).
+- [x] ~~Monte-Carlo margin on the 10 % gate~~ — replaced by T3.1: a flat 15 % gate, re-run at
+  every measurement with the control's untouched post-launch pairs in the null pool.
+- [ ] T3.1 re-gating stops at day 56 and only while the verdict reads "Đang đo"; a group whose
+  controls are all approved by day 14 gains no new no-effect pairs and can stay "Đang đo".
+  The comparison window stays days 0–13 (the only window the control is guaranteed untouched);
+  a 28-day comparison as in the D34 #1 plan (D41.4) is not built.
+- [ ] "Untouched" = the control's card not approved (`approved_at`); an external change on the
+  product (D30.4) does not stop its pairs from joining the null pool.
 - [ ] The false-alarm replay costs ≈ 1–3 s per measured comparison (500 draws × 200 bootstrap
   resamples) inside `apply_emission_budget`; fine for a few groups a night, move to a nightly
   task with more groups.
@@ -766,7 +769,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   than 7 days in the earlier window fall back to the arm-centred changes. A group launched on a
   newly connected shop gets the weaker fallback.
 - [ ] Verdicts stored before P31 keep their 80 % interval and no `false_alarm`; they are not
-  re-measured (a group is measured once).
+  re-measured (only "Đang đo" verdicts are re-gated).
 - [ ] Shrinkage priors are fit per (category, channel, calendar window) over every product the
   planner sees, gifts and excluded products included; categories are TikTok's leaf names as
   stored (`CatalogProduct.category`), which may be too fine — products with no category use the

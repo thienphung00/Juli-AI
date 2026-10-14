@@ -343,13 +343,18 @@ hiệu quả thật của một loại thay đổi.
   nó (kiểu CUPED, θ chung của nhóm, xem `group_stats.py`) để phần "hồi lại sau khi tụt" không bị tính
   cho thay đổi; (b) khi đối chứng dưới 5 sản phẩm, phải qua thêm kiểm định hoán vị (thử mọi cách chọn
   đối chứng, p ≤ 0,10), không thì là Trong dao động; (c) hệ thống chạy lại quy tắc 500 lần trên số liệu
-  trước đó của chính nhóm (không có thay đổi nào) để đo **tỉ lệ báo động giả**; trên 10 % (sau sai số mô
-  phỏng ≈ 1,7 điểm) thì nhãn là **"Đang đo"**, không nói mạnh yếu, người bán không thấy câu nào. Tỉ lệ
-  này hiện cạnh kết quả ("báo động giả x %"). Nhóm nhỏ (ví dụ 5 + 3 với trung vị) gần như luôn là
+  không có thay đổi nào của chính nhóm để đo **tỉ lệ báo động giả**: cặp 14 ngày trước-trước / 14 ngày
+  trước của mọi sản phẩm, cộng các cặp 14 ngày liền nhau sau ngày mở của sản phẩm đối chứng khi chúng còn
+  chưa được duyệt thẻ (đối chứng chưa bị đổi gì). Trên **15 %** (T3.1, chủ shop chốt sau kiểm tra công
+  suất v0.3: ở 17 + 9 sản phẩm × 28 ngày, ngưỡng ≈ 11,7 % để 27 % nhóm kẹt "Đang đo", ngưỡng 15 % chỉ
+  12 %, báo động giả thật vẫn ≤ 9,6 %) thì nhãn là **"Đang đo"**, không nói mạnh yếu, người bán không
+  thấy câu nào. Nhóm "Đang đo" được đo lại mỗi 7 ngày (ngày 21, 28, … đến ngày 56) với số liệu mới nhất:
+  khoảng so sánh vẫn là 14 ngày đầu, nhưng số liệu không thay đổi của đối chứng nhiều thêm nên nhóm có
+  thể ra khỏi "Đang đo". Tỉ lệ này hiện cạnh kết quả ("báo động giả x %"). Nhóm nhỏ (ví dụ 5 + 3 với trung vị) gần như luôn là
   Trong dao động hoặc Đang đo — đó là chủ ý.
   Tính theo **cách chia** (cả thẻ người bán không duyệt); "Chỉ thẻ đã duyệt" là số phụ.
 - Nhãn: ≥ 3 áp dụng + ≥ 2 đối chứng có số liệu → **"Sơ bộ"**; ≥ 5 + ≥ 3 → không nhãn; ít hơn →
-  **"Chưa đủ cơ sở"** (không có con số, người bán không thấy câu nào); báo động giả trên 10 % →
+  **"Chưa đủ cơ sở"** (không có con số, người bán không thấy câu nào); báo động giả trên 15 % →
   **"Đang đo"** (có con số cho Ops, không có độ mạnh, người bán không thấy câu nào).
 - Trang Cài đặt shop hiện **"Nhóm thử nghiệm (đối chứng chậm)"**: từng nhóm, trạng thái (Đang chạy /
   Đã đo), ngày bắt đầu, ngày trả thẻ đối chứng, số áp dụng · đối chứng, kết quả ngày 14 với khoảng,

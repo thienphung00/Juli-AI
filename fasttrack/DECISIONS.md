@@ -956,10 +956,20 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
         on the log scale: θ = pooled slope of ln after on ln before over all the group's products
         (clipped [0, 2]; 1 with < 3 products or no spread), adjusted change = e^((y − x̄) − θ(x − x̄))
         − 1; θ = 1 is the plain change. False alarm: 500 replays (seed = the group's) of the whole
-        rule on the group's own no-effect pairs (days −28..−15 vs −14..−1 before launch, permuted;
-        fallback: arm-centred changes); rate above 10 % beyond a one-sided 90 % Monte-Carlo margin
-        (≈ 11.7 %) → label "Đang đo", no strength, no seller sentence (applied to full verdicts
-        too: a weaker result never gets a stronger label). Stored per comparison (`false_alarm`,
-        `test`, `permutation`, `rule_strength`), at the verdict top (`false_alarm`, `cuped`) and
-        in `GET /v1/ops/shops/{id}/groups` (`false_alarm`). No migration (verdict is JSON). Not
-        checked with the v0.3 power simulator yet (DEBT).
+        rule on the group's own no-effect pairs, permuted (fallback: arm-centred changes); rate
+        above the gate → label "Đang đo", no strength, no seller sentence (applied to full
+        verdicts too: a weaker result never gets a stronger label). Stored per comparison
+        (`false_alarm`, `test`, `permutation`, `rule_strength`), at the verdict top
+        (`false_alarm`, `cuped`, `null_pool`, `checks`) and in `GET /v1/ops/shops/{id}/groups`
+        (`false_alarm`). No migration (verdict is JSON).
+      - *T3.1 (owner, 2026-10-14, after the v0.3 power check of the P31 rule,
+        `juli-sim-pilot/v03/results/20261013-191329-p31-power`):* the gate is a flat
+        `FALSE_ALARM_MAX` = 15 % (no Monte-Carlo margin). At 17 + 9 × 28 days the first gate
+        (10 % + 1.7-point margin ≈ 11.7 %) left 27 % of groups in "Đang đo" for good; at 15 %
+        12 %, while the rule's real false-alarm rate stayed ≤ 9.6 % in every design (4+2, 5+3,
+        5+5, 4+6, 17+9; 14 / 28 days). "Đang đo" is re-gated every 7 days (day 21, 28, … up to
+        day 56) with the latest data: the comparison stays on days 0–13, the null pool = every
+        member's pre-period pair (days −28..−15 vs −14..−1) + every control member's consecutive
+        14-day pairs from day −14 that end before the seller approves its released card (−14..−1
+        vs 0..13 at day 14; + 0..13 vs 14..27 from day 28) -- no lever ran on an untouched
+        control, so they are no-effect by construction and the pool grows as data accrue.

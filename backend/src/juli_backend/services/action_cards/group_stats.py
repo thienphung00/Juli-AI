@@ -36,16 +36,26 @@ a bootstrap of a median over 2–5 products is far too optimistic. D41.3:
 4. **The group's own false-alarm rate.** :func:`false_alarm_rate` replays the
    whole rule (CUPED, interval, permutation) :data:`FALSE_ALARM_DRAWS` (500)
    times on data with no effect, seeded by the group's seed: each draw takes
-   ``n_t + n_c`` products from the group's own pre-period pairs (a random
-   permutation of the pool; with replacement only when the pool is smaller)
-   (the 14 days before the "before" window against the "before" window: no lever
-   ran in either, so the effect is zero by construction), re-draws the arms the
-   way the group was drawn, and counts a false alarm when the rule calls a change.
-   Without enough pre-period data (fewer than 3 products) the null pool is the
-   group's own adjusted changes with each arm's median removed. A verdict whose
-   false-alarm rate is above :data:`FALSE_ALARM_MAX` (10 %) -- beyond the
-   simulation's own error, ``1.2816 × √(0.1 × 0.9 / draws)`` ≈ 1.7 points at 500
-   draws -- makes no strength claim and reads "Đang đo".
+   ``n_t + n_c`` (before, after) pairs from the group's null pool (a random
+   permutation of the pool; with replacement only when the pool is smaller),
+   re-draws the arms the way the group was drawn, and counts a false alarm when
+   the rule calls a change. A verdict whose rate is above
+   :data:`FALSE_ALARM_MAX` (15 %, T3.1) makes no strength claim and reads
+   "Đang đo".
+5. **The null pool (T3.1)** holds only pairs of two consecutive 14-day windows
+   in which no lever ran, so the effect is zero by construction:
+
+   - every member's **pre-period pair**: days −28..−15 against −14..−1 before
+     launch;
+   - every control member's **post-launch pairs**: the control is untouched
+     until the seller approves its released card, so each consecutive pair of
+     14-day windows from day −14 that ends on or before its last untouched
+     day (−14..−1 vs 0..13 at day 14; + 0..13 vs 14..27 from day 28; …) is
+     added. The pool grows as data accrues, and a group in "Đang đo" is
+     re-gated at every measurement (day 14, 21, 28, …), so it can leave it.
+
+   Each window needs ≥ 7 days with data. With fewer than 3 usable pairs, the
+   pool is the group's own adjusted changes with each arm's median removed.
 """
 
 from __future__ import annotations
@@ -69,11 +79,12 @@ PERMUTATION_EXACT_MAX = 20_000
 PERMUTATION_RANDOM = 10_000
 #: The false-alarm simulation (cheap, in-process).
 FALSE_ALARM_DRAWS = 500
-FALSE_ALARM_MAX = 0.10
-#: 500 draws estimate a 10 % rate ± 1.3 points; a rule that is exactly at 10 % by
-#: construction (the exact permutation test) must not flip on that noise, so the
-#: gate reads "above 10 % beyond a one-sided 90 % Monte-Carlo margin".
-MC_Z = 1.2816
+#: T3.1 (owner, after the v0.3 power check of P31, 2026-10-13): above this simulated
+#: false-alarm rate the verdict reads "Đang đo". At 17 + 9 products × 28 days a gate at
+#: 10 % (+ a 1.7-point Monte-Carlo margin, ≈ 11.7 %) sent 27 % of groups to "Đang đo"
+#: for good; at 15 % only 12 %, while the rule's real false-alarm rate stayed ≤ 9.6 %
+#: in every design checked (4+2, 5+3, 5+5, 4+6, 17+9; 14 and 28 days). Flat, no margin.
+FALSE_ALARM_MAX = 0.15
 SIM_BOOTSTRAP = 200
 SIM_PERMUTATION_EXACT_MAX = 500
 SIM_PERMUTATION_RANDOM = 200
@@ -83,6 +94,8 @@ THETA_RANGE = (0.0, 2.0)
 
 NULL_PRE_PERIOD = "pre_period"
 NULL_CENTRED = "centred_changes"
+#: Pre-period pairs plus the control arm's post-launch pairs (T3.1).
+NULL_PRE_AND_CONTROL = "pre_period+control_after"
 TEST_PERMUTATION = "permutation"
 TEST_BOOTSTRAP = "bootstrap"
 
@@ -271,20 +284,14 @@ class FalseAlarm:
     pool: int
 
     @property
-    def margin(self) -> float:
-        """The simulation's own error at the threshold (one-sided 90 %: 1.2816 × SE)."""
-        return MC_Z * math.sqrt(FALSE_ALARM_MAX * (1 - FALSE_ALARM_MAX) / self.draws)
-
-    @property
     def acceptable(self) -> bool:
-        """Not above 10 % beyond the simulation's own error (≈ 11.7 % at 500 draws)."""
-        return self.rate <= FALSE_ALARM_MAX + self.margin + 1e-12
+        """Not above :data:`FALSE_ALARM_MAX` (15 %)."""
+        return self.rate <= FALSE_ALARM_MAX + 1e-12
 
     def to_json(self) -> dict[str, Any]:
         return {
             "rate": round(self.rate, 4),
             "max": FALSE_ALARM_MAX,
-            "margin": round(self.margin, 4),
             "acceptable": self.acceptable,
             "draws": self.draws,
             "source": self.source,
@@ -293,16 +300,20 @@ class FalseAlarm:
 
 
 def null_pool(
-    pre_pairs: Sequence[tuple[float, float]], adjusted: Sequence[tuple[str, float]]
+    pre_pairs: Sequence[tuple[float, float]],
+    adjusted: Sequence[tuple[str, float]],
+    control_pairs: Sequence[tuple[float, float]] = (),
 ) -> tuple[list[tuple[float, float]], str]:
-    """No-effect (before, after) pairs: the pre-period pairs, else the centred changes.
+    """No-effect (before, after) pairs (module docstring step 5), else the centred changes.
 
-    ``pre_pairs``: per product (the 14 days before "before", "before"), both > 0.
+    ``pre_pairs``: per member (days −28..−15, days −14..−1), both > 0.
+    ``control_pairs``: the control members' consecutive untouched post-launch pairs.
     ``adjusted``: per product (arm, adjusted change %), the fallback.
     """
-    usable = [(b, a) for b, a in pre_pairs if b > 0 and a > 0]
-    if len(usable) >= MIN_NULL_POOL:
-        return usable, NULL_PRE_PERIOD
+    pre = [(b, a) for b, a in pre_pairs if b > 0 and a > 0]
+    post = [(b, a) for b, a in control_pairs if b > 0 and a > 0]
+    if len(pre) + len(post) >= MIN_NULL_POOL:
+        return [*pre, *post], (NULL_PRE_AND_CONTROL if post else NULL_PRE_PERIOD)
     out: list[tuple[float, float]] = []
     for arm in (ARM_TREATED, ARM_CONTROL):
         logs = [math.log1p(c / 100) for a, c in adjusted if a == arm and c > -100]
@@ -360,6 +371,7 @@ __all__ = [
     "INTERVAL_HIGH",
     "INTERVAL_LOW",
     "NULL_CENTRED",
+    "NULL_PRE_AND_CONTROL",
     "NULL_PRE_PERIOD",
     "PERMUTATION_BELOW_CONTROL",
     "TEST_BOOTSTRAP",
