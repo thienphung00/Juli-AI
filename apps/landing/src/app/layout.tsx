@@ -1,8 +1,7 @@
-import { TikTokPixel } from "@juli/tiktok-events";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { TikTokTracking } from "../components/tiktok-tracking";
+import { CookieConsent } from "../components/cookie-consent";
 
 import "./globals.css";
 
@@ -16,9 +15,8 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="vi">
       <body>
-        <TikTokPixel />
-        <TikTokTracking />
         {children}
+        <CookieConsent />
       </body>
     </html>
   );

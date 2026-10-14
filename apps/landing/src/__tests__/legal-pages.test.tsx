@@ -281,10 +281,10 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     expect(privacyLinks.length).toBeGreaterThan(0);
   });
 
-  it("neither legal page repeats the home page's in-page section nav (its anchors don't exist there)", () => {
+  it("legal pages carry the same page nav as every other page", () => {
     render(<PrivacyPolicyPage />);
-    expect(screen.queryByRole("navigation", { name: "Điều hướng chính" })).not.toBeInTheDocument();
-    // The brand + Demo CTA still render.
+    const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
+    expect(within(nav).getByRole("link", { name: "Giới thiệu" })).toHaveAttribute("href", "/about");
     expect(screen.getByRole("link", { name: "Juli AI, trang chủ" })).toBeInTheDocument();
     expect(screen.getByTestId("header-demo-cta")).toBeInTheDocument();
   });

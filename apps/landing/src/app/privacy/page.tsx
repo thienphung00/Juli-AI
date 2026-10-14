@@ -25,7 +25,7 @@ const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
 export default function PrivacyPolicyPage() {
   return (
     <>
-      <LandingHeader showSectionNav={false} />
+      <LandingHeader />
       <main className="lp-main">
         <article className="lp-legal">
           <p className="lp-legal__eyebrow">Pháp lý</p>

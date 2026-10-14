@@ -2,6 +2,7 @@
 
 import {
   captureTikTokClickId,
+  loadTikTokPixel,
   TikTokEvents,
   trackTikTokEvent,
 } from "@juli/tiktok-events";
@@ -13,14 +14,16 @@ const CONTENT_TYPE = "product";
 const PAGE_CONTENT_NAME = "landing";
 
 /**
- * The landing page's two conversions. Renders nothing; mount once in the root
- * layout.
+ * Loads the TikTok Pixel and records the landing page's two conversions.
+ * Renders nothing; `CookieConsent` mounts it only once the visitor has accepted
+ * analytics cookies.
  *
- * `Pageview` is not here — the base pixel code fires it in the initial HTML,
- * before this component hydrates.
+ * `Pageview` is not here — the base pixel code fires it when it loads.
  */
 export function TikTokTracking() {
   useEffect(() => {
+    // Idempotent, and first: the events below queue on the `ttq` stub it installs.
+    loadTikTokPixel();
     // Before the first event, so it carries the click that produced it. The
     // `ttclid` parameter is on the ad landing URL and nowhere else.
     captureTikTokClickId();
