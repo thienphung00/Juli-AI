@@ -24,6 +24,9 @@ export function HeroSection() {
     <section aria-labelledby="hero-heading" className="lp-hero">
       <div className="lp-hero__copy">
         <p className="lp-hero__badge">Dành cho người bán TikTok Shop</p>
+        <p className="lp-hero__platforms">
+          TikTok Shop · Shopee (đang tích hợp qua Shopee Open Platform)
+        </p>
         <p className="lp-hero__eyebrow">
           Chi phí vận hành và hoa hồng sàn ngày càng tăng?
         </p>
