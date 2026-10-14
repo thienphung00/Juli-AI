@@ -98,6 +98,16 @@ payload directly — which is exactly what this seam exists to prevent.
   channel anyone can be reached on. Values are trimmed to the columns that hold them
   (320 / 100), so a long name cannot fail the INSERT inside the auth path
 
+### Partner reviewer gate port (fast track P32-A, D42)
+
+- ``VerifiedToken`` — also carries ``reviewer_platform`` (from ``app_metadata`` ``juli_role`` /
+  ``juli_platform``, read by ``claims.reviewer_platform``; ``REVIEWER_ROLE``,
+  ``REVIEWER_ROLE_CLAIM``, ``REVIEWER_PLATFORM_CLAIM``, ``UNKNOWN_PLATFORM``) and ``session_id``
+  (``claims.session_id``).
+- ``ReviewerGate`` / ``bind_reviewer_gate`` / ``enforce_reviewer_gate`` — ``get_current_user``
+  runs the bound gate for a reviewer token before the ``users`` read; with no gate bound a
+  reviewer is refused (403). ``REVIEWER_DENIED_HEADER`` names the refusal.
+
 ## Dependencies
 - `juli_backend.database` — `UsersRepo`, `User` model, and `tenant_context.with_shop_scope`
   (#2019: `credential_resolver` enumerates the configured merchant's owning shop through

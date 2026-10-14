@@ -265,8 +265,7 @@ class ReviewerMaskMiddleware:
                 chunks.append(message.get("body", b""))
                 if message.get("more_body", False):
                     return
-                state = scope.get("state")
-                context = state[STATE_KEY]
+                context = scope["state"][STATE_KEY]
                 override, body = masked_body(context, b"".join(chunks))
                 headers = _headers_without_length(list(start.get("headers", [])))
                 headers.append((b"content-length", str(len(body)).encode()))

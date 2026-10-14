@@ -24,7 +24,7 @@ from collections.abc import Callable, Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from juli_backend.core.config.runtime import async_database_url
+from juli_backend.core.async_db import async_database_url
 from juli_backend.services.reviewer import accounts
 from juli_backend.services.reviewer.gotrue import BAN_FOREVER, UNBAN, GoTrueAdmin
 
@@ -100,12 +100,12 @@ async def run(
         if renewed is None:
             out("not found")
             return 1
-        password = generate_password() if args.rotate_password else None
-        gotrue_factory().update(renewed.user_id, password=password, ban=UNBAN)
+        new_password = generate_password() if args.rotate_password else None
+        gotrue_factory().update(renewed.user_id, password=new_password, ban=UNBAN)
         await session.commit()
         out(_describe(renewed))
-        if password:
-            out(f"new password (shown once; not stored): {password}")
+        if new_password:
+            out(f"new password (shown once; not stored): {new_password}")
         return 0
     if args.command == "revoke":
         revoked = await accounts.revoke_account(session, args.email, by=by)

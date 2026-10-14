@@ -76,6 +76,16 @@ from juli_backend.api.dependencies import get_active_shop
   Mounted from `juli_backend.services.webhook`; see `api/routes/webhook_tiktok.py` and
   `services/webhook/MODULE.md`.
 
+### Partner reviewer (fast track P32-A, D42; contract `fasttrack/contracts/p32-reviewer-access.md`)
+
+- `api/reviewer.py` — `reviewer_gate` (bound into `get_current_user` by `install`):
+  `ALLOWED_ENDPOINTS` (method + `module:function`, matched by `endpoint_key` / `is_allowed`),
+  account state, sign-in audit; `ReviewerContext` on `request.state` (`STATE_KEY`,
+  `reviewer_context`); `enter_reviewer_shop` (alias-only `X-Shop-Id`, pinned shop through
+  the ops view-as scope); `ReviewerMaskMiddleware` / `masked_body` (identity mask, fail closed).
+- `api/routes/reviewer.py` — `GET /v1/reviewer/me` (`reviewer_me`),
+  `POST /v1/reviewer/decisions/{id}/simulate` (`simulate_decision`, `SimulateRequest`).
+
 ## Removed in the matching pivot
 `orders`, `inventory`, `settlements`, `analytics`, `livestreams`, and `alerts`
 routers were deleted as misaligned with Phase 1 (inventory/finance/order management,
@@ -101,7 +111,8 @@ analytics, and threshold alerting). See `docs/adr/006-matching-pivot.md`.
   routes to fall under this rule was `GET /v1/demo/decisions` /
   `GET /v1/demo/decisions/{id}` (#1283, ADR-075 decision 3; approve was
   already authenticated as of #1222)
-- X-Shop-Id header is validated against user ownership (403 on mismatch)
+- X-Shop-Id header is validated against user ownership (403 on mismatch); a partner
+  reviewer (P32-A) may send only its pinned shop's alias id and reaches only allowlisted reads
 - No endpoint leaks data across tenants — all queries scoped by authenticated user
 - All list endpoints use cursor-based pagination with `limit` + `after` params
 

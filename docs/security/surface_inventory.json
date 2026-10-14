@@ -804,6 +804,22 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/reviewer/decisions/{action_card_id}/simulate",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": true
+    },
+    {
+      "path": "/v1/reviewer/me",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/shop-invites/accept",
       "methods": [
         "POST"
