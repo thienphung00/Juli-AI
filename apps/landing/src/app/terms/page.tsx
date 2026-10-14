@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Điều khoản sử dụng Juli AI, trợ lý tăng trưởng và tối ưu vận hành cho người bán TikTok Shop.",
 };
 
-const LAST_UPDATED = "10/10/2026";
+const LAST_UPDATED = "14/10/2026";
 
 export default function TermsOfServicePage() {
   return (
@@ -70,6 +70,25 @@ export default function TermsOfServicePage() {
               kết nối. Bạn có thể ngắt kết nối bất kỳ lúc nào; khi đó Juli ngừng đồng bộ dữ
               liệu mới và không thể tiếp tục đề xuất cho shop đó.
             </p>
+            <p id="shopee">
+              Shopee đang được tích hợp qua Shopee Open Platform; hiện Juli chưa đọc dữ liệu
+              hay thay đổi gì trên shop Shopee. Khi tính năng này sẵn sàng và bạn kết nối
+              shop Shopee, các điều khoản này áp dụng tương tự như với TikTok Shop, đồng
+              thời điều khoản và chính sách của Shopee và Shopee Open Platform vẫn áp dụng.
+              Dữ liệu Shopee được xử lý theo mục 4A của{" "}
+              <a className="lp-legal__contact-link" href="/privacy">
+                Chính sách bảo mật
+              </a>
+              .
+            </p>
+            <p lang="en">
+              <em>English:</em> Shopee is being integrated through Shopee Open Platform; Juli
+              does not yet read data from, or change anything on, any Shopee shop. Once
+              available and you connect a Shopee shop, these terms apply as they do to
+              TikTok Shop, and Shopee&rsquo;s and Shopee Open Platform&rsquo;s own terms and
+              policies also apply. Shopee data is handled as described in section 4A of the
+              Privacy Policy.
+            </p>
           </section>
 
           <section className="lp-legal__section">
@@ -93,7 +112,7 @@ export default function TermsOfServicePage() {
             <h2 className="lp-legal__section-heading">7. Sử dụng hợp lệ</h2>
             <p>
               Bạn đồng ý không sử dụng Juli để vi phạm pháp luật hoặc chính sách của TikTok
-              Shop, không truy cập trái phép vào hệ thống hay dữ liệu của người khác, và
+              Shop hoặc Shopee, không truy cập trái phép vào hệ thống hay dữ liệu của người khác, và
               không sao chép, dịch ngược hoặc khai thác Juli ngoài mục đích vận hành shop
               của bạn.
             </p>
