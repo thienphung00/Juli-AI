@@ -1160,3 +1160,17 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
 - Live demo check: Google + email-OTP sign-in work after hydration (the SSR HTML shows the
   "chưa sẵn sàng" fallback); a new account lands on the P13 sample — the reviewer never saw a
   connected shop.
+
+## 2026-10-14 — P32-B agent (Claude Sonnet) — Shopee status copy (AC-32.9)
+
+- Landing hero: new line "TikTok Shop · Shopee (đang tích hợp qua Shopee Open Platform)" under
+  the unchanged TikTok badge. `/privacy`: removed the "in development" sentence (VN + EN), added
+  section 4A (VN + EN: data, purpose, retention mirror, Shopee Open Platform Data Protection
+  Policy, write-back only after approval, effective when a Shopee shop is connected); dated
+  14/10/2026. `/terms`: Shopee paragraph in section 4 (VN + English note), "TikTok Shop hoặc
+  Shopee" in the lawful-use clause. Tests extended; privacy wording avoids a second "never
+  buyer data" match so `privacy-staff-access` still pins exactly the D25.6 sentence.
+- Gates (Node 20.20.2): landing lint, type-check, vitest 63/63, `next build` OK. Under Node 26
+  the localStorage tests fail (pre-existing, environment only).
+- Branch not merged, not deployed. A SHA touching `apps/landing` is refused by the deploy
+  workflow (no landing artifact) - the owner needs to handle the landing deploy for this to go live.

@@ -469,9 +469,14 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   tên · thao tác chỉ mô phỏng" (dictionary), simulated result screen, no connect / invite / upload
   entry points for a reviewer.
 - [ ] **AC-32.8** Every reviewer sign-in and action is audited with the platform label.
-- [ ] **AC-32.9** Landing names Shopee in text ("đang tích hợp qua Shopee Open Platform");
+- [x] **AC-32.9** Landing names Shopee in text ("đang tích hợp qua Shopee Open Platform");
   `/privacy` and `/terms` (VN + EN) carry a Shopee section and no longer say Shopee support is
   "in development"; no claim the trial account cannot show.
+  Evidence: d5b1c276 (hero) + 767e9797 (privacy 4A VN/EN, terms VN+EN). Tests (landing vitest,
+  Node 20, 63/63): `sections.test.tsx` hero names Shopee in text; `legal-pages.test.tsx`
+  "/privacy has a Shopee section (VN + EN) and no 'in development' line", "/terms covers Shopee
+  as 'đang tích hợp' in VN and EN", "translates every section 1–12" (now incl. 4A). Landing lint,
+  type-check, `next build` clean; built HTML contains the Shopee text on /, /privacy, /terms.
 - [ ] **AC-32.10** `fasttrack/shopee-isv-services-information.md`: English description +
   numbered reviewer steps matching what shipped, the account's expiry noted, no video.
 - [ ] **AC-32.11** `check.sh` green on the integrated branch; deployed; a fresh browser signs in
