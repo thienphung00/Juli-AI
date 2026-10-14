@@ -973,3 +973,37 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
         14-day pairs from day −14 that end before the seller approves its released card (−14..−1
         vs 0..13 at day 14; + 0..13 vs 14..27 from day 28) -- no lever ran on an untouched
         control, so they are no-effect by construction and the pool grows as data accrue.
+
+- **D42** — Shopee ISV resubmission: a reviewer trial account (grill, product owner,
+  2026-10-14; full record in `main`'s `docs/adr/109-shopee-isv-resubmission-reviewer-trial-account.md`,
+  merged as #2134 before this branch's D4/ADR-109 numbering was noticed — that file is
+  renumbered when this branch merges back). Context: Shopee rejected the Third-party Partner
+  Platform profile — "unable to identify the actual service you provide via Test URL". Shopee
+  §3.2 (open.shopee.com/developer-guide/12) wants a live product whose **existing** ecommerce
+  integration is identifiable via a **trial account** with all features enabled; Platform Partner
+  Rules §4 (developer-guide/34) penalise services that differ from the submitted description. A
+  reviewer who signed in on demo.app-juli.com got a fresh account with no shop → the P13 sample.
+  1. The reviewer sees the **live TikTok Shop integration**; Shopee is presented as the
+     integration being applied for. No Shopee connection is built before approval.
+  2. **Email + password** sign-in for reviewer accounts (the form asks username / password; a
+     reviewer cannot receive our OTP). Accounts are created by the team — no password sign-up.
+     Google and email-OTP sign-in for sellers are unchanged.
+  3. The reviewer reads **Fujiwa, masked** (D25.6 / ADR-038 aliases: shop name, ids, titles;
+     real magnitudes) through the real read path — Trang chủ, Phân tích, Quyết định.
+  4. **Approval and execution are simulated and never reach Fujiwa.** The reviewer walks
+     Duyệt → Thực thi and sees the change that would be sent, labelled as a trial
+     simulation. The guarantee is server-side (a reviewer session cannot reach any executor,
+     TikTok write or write-capable credential), proven by a test that fails on any write
+     attempt for a reviewer session — hiding buttons is not the guarantee. Same spirit as
+     D25.3's "all writes blocked".
+  5. **One reviewer account per platform, expiring**: role `reviewer`, e.g.
+     `shopee-review@app-juli.com`, default lifetime **30 days**, renew / revoke by the team,
+     every reviewer session audited per platform.
+  6. Public pages say Shopee's status honestly: landing names Shopee **in text** as
+     "đang tích hợp qua Shopee Open Platform"; `/privacy` and `/terms` replace "Shopee support
+     is in development…" with a Shopee section (which data, why, retention, Shopee's Data
+     Protection Policy; effective when a seller connects a Shopee shop).
+  7. Services Information text: English prose + numbered reviewer steps, no video, kept in
+     `fasttrack/` for reuse by later platform reviews.
+  8. TLS already meets Shopee's bar (SSL Labs A+, TLS 1.0/1.1 refused, HSTS 6 months, nosniff;
+     verified 2026-10-14). Never crawl Shopee (Rules §3).

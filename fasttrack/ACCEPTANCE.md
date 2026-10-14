@@ -442,3 +442,37 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   `apps/demo/src/__tests__/onboarding-strip.test.tsx` (15),
   `quyet-dinh-p10.test.tsx` ("P17: a quick-scan card shows its label chip…", "P17: a full
   card … shows no quick chip"), `e2e/onboarding/onboarding-strip.spec.ts` (3 × projects).
+
+## P32 — Shopee ISV reviewer access (D42; contract `contracts/p32-reviewer-access.md`)
+
+- [ ] **AC-32.1** Contract `contracts/p32-reviewer-access.md` written before code: where the
+  role lives, how the session is pinned to Fujiwa, every write path the reviewer must not reach
+  (listing / image / price / promotion / content publish / Hoàn tác / rules / settings / shop
+  connect / invites / uploads / ops) and how each is barred, the simulated execute response, and
+  the provisioning command.
+- [ ] **AC-32.2** Email + password sign-in on demo.app-juli.com for team-created accounts
+  (GoTrue password grant); wrong password / expired / revoked → Vietnamese errors; no password
+  sign-up; Google and OTP doors unchanged.
+- [ ] **AC-32.3** Reviewer accounts: role `reviewer`, platform label, `expires_at` (default 30
+  days); a provisioning command creates / renews / revokes one; an expired or revoked reviewer
+  gets 401/403 on every `/v1` route.
+- [ ] **AC-32.4** A reviewer session is pinned to Fujiwa (cannot read another shop, cannot pick
+  a shop id) and every name / id / title it receives is masked (D25.6); Trang chủ, Phân tích,
+  Quyết định render real Fujiwa magnitudes.
+- [ ] **AC-32.5** Duyệt → Thực thi works end to end for a reviewer: the response shows the
+  change that would be sent, marked simulated; nothing is enqueued, no TikTok write client is
+  built, no card / run / rule row of Fujiwa changes.
+- [ ] **AC-32.6** **No-write proof**: a test drives every write route as a reviewer and fails if
+  any TikTok write, executor enqueue or Fujiwa row change happens; a two-tenant test shows a
+  reviewer never sees another shop.
+- [ ] **AC-32.7** UI: a persistent banner "Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn
+  tên · thao tác chỉ mô phỏng" (dictionary), simulated result screen, no connect / invite / upload
+  entry points for a reviewer.
+- [ ] **AC-32.8** Every reviewer sign-in and action is audited with the platform label.
+- [ ] **AC-32.9** Landing names Shopee in text ("đang tích hợp qua Shopee Open Platform");
+  `/privacy` and `/terms` (VN + EN) carry a Shopee section and no longer say Shopee support is
+  "in development"; no claim the trial account cannot show.
+- [ ] **AC-32.10** `fasttrack/shopee-isv-services-information.md`: English description +
+  numbered reviewer steps matching what shipped, the account's expiry noted, no video.
+- [ ] **AC-32.11** `check.sh` green on the integrated branch; deployed; a fresh browser signs in
+  as the Shopee reviewer and walks the steps.

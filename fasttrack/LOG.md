@@ -1148,3 +1148,15 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   errors (7 pre-existing warnings), type-check clean, vitest 132 files 1771 passed,
   Playwright (port 3327, example Supabase env) 160 passed / 140 skipped incl. the new
   onboarding spec, `pnpm build:demo --force` OK.
+
+## 2026-10-14 — orchestrator (Claude Opus) — P32 opened (D42)
+
+- Shopee rejected the ISV profile ("unable to identify the actual service via Test URL").
+  Grill with the owner → D42; ACs 32.1–32.11; P32-A (reviewer access, Opus) and P32-B
+  (Shopee copy, Sonnet) dispatched in parallel from this commit; P32-C after them.
+- Noted: the decisions were first recorded on `main` as ADR-109 (#2134) and GitHub issues
+  #2135–#2139 before D2/D4 were noticed; `main`'s ADR-109 collides with this branch's ADR-109
+  and is renumbered at merge-back.
+- Live demo check: Google + email-OTP sign-in work after hydration (the SSR HTML shows the
+  "chưa sẵn sàng" fallback); a new account lands on the P13 sample — the reviewer never saw a
+  connected shop.

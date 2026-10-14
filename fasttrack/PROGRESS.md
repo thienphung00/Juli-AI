@@ -150,6 +150,15 @@ Status: `todo` / `doing` / `done` / `blocked`. Owner = who's on it.
 
 Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deployed.
 
+## P32 — Shopee ISV reviewer access (D42)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P32-A Contract + reviewer access: password sign-in, reviewer role / expiry / provisioning, Fujiwa pin + mask, server-side write barrier, simulated Duyệt → Thực thi, audit, banner + UI | 32.1–32.8 | todo — branch `fasttrack/p32a-reviewer-access`, worktree `~/juli-fasttrack-p32a` | P32-A agent (Opus) |
+| P32-B Landing / privacy / terms: Shopee status in text (VN + EN) | 32.9 | todo — branch `fasttrack/p32b-shopee-copy`, worktree `~/juli-fasttrack-p32b` | P32-B agent (Sonnet) |
+| P32-C Services Information text + reviewer steps | 32.10 | todo — after P32-A / B | orchestrator |
+| P32 integration + deploy + provision `shopee-review@app-juli.com` + resubmit | 32.11 | todo | orchestrator + owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
