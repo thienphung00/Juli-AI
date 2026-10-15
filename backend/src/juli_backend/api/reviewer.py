@@ -10,7 +10,9 @@ Contract ``fasttrack/contracts/p32-reviewer-access.md`` §2-§3. Three pieces:
   :class:`ReviewerContext` on ``request.state``.
 - :func:`enter_reviewer_shop` -- what ``get_active_shop`` does for a reviewer:
   only the alias id is accepted in ``X-Shop-Id``; the pinned shop
-  (``REVIEWER_SHOP_ID``) is entered through the ops view-as machinery.
+  (``REVIEWER_SHOP_ID``) is entered through the ops view-as machinery. With
+  no pin (D42 amendment, 2026-10-15: the reviewer uses the demo's sample shop,
+  which needs no API) the reviewer has no shop at all: 403 ``shop``.
 - :class:`ReviewerMaskMiddleware` -- masks every JSON body of a reviewer
   request (D25.6 / ADR-038 §8); a non-JSON body becomes 502 (fail closed).
 
@@ -91,9 +93,10 @@ _DENIED_DETAIL = {
 class ReviewerContext:
     account: ReviewerAccount
     platform: str
-    #: The pinned (real) shop id -- never sent to the reviewer.
-    shop_id: uuid.UUID
-    alias_id: uuid.UUID
+    #: The pinned (real) shop id -- never sent to the reviewer. None: no pin
+    #: (``REVIEWER_SHOP_ID`` unset), the reviewer sees the demo's sample shop.
+    shop_id: uuid.UUID | None
+    alias_id: uuid.UUID | None
     dictionary: MaskDictionary | None = None
     shop: Shop | None = field(default=None, repr=False)
 
@@ -142,11 +145,9 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
         await session.rollback()
         logger.info("reviewer_denied", extra={"user_id": str(token.user_id), "state": state})
         raise _deny(state)
+    # D42 amendment (2026-10-15): the pin is optional. Unset, the reviewer has
+    # no shop (sample mode in the UI); the allowlist below is unchanged.
     shop_id = reviewer_service.config.reviewer_shop_id()
-    if shop_id is None:
-        await session.rollback()
-        logger.error("reviewer_shop_unconfigured")
-        raise _deny("unconfigured", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
     if not is_allowed(method, template):
         action = (
             audit.ACTION_REVIEWER_READ_REFUSED
@@ -194,7 +195,9 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
             account=account,
             platform=account.platform,
             shop_id=shop_id,
-            alias_id=reviewer_service.config.shop_alias_id(shop_id),
+            alias_id=(
+                reviewer_service.config.shop_alias_id(shop_id) if shop_id is not None else None
+            ),
         ),
     )
 
@@ -203,6 +206,8 @@ async def enter_reviewer_shop(
     session: AsyncSession, context: ReviewerContext, x_shop_id: str | None
 ) -> Shop:
     """The pinned shop, in its read scope; ``X-Shop-Id`` must be the alias (None: skip check)."""
+    if context.shop_id is None:
+        raise _deny("shop")
     if x_shop_id is not None and x_shop_id.strip().lower() != str(context.alias_id):
         logger.warning("reviewer_shop_refused", extra={"platform": context.platform})
         raise _deny("shop")

@@ -117,12 +117,54 @@ async def test_reviewer_mark_without_account_row_is_refused(session, world):
     assert response.headers["x-juli-reviewer-denied"] == "unknown"
 
 
-async def test_unconfigured_reference_shop_is_503(session, world, monkeypatch):
+async def test_no_pin_reviewer_gets_sample_mode(session, world, monkeypatch):
+    """D42 amendment (2026-10-15): ``REVIEWER_SHOP_ID`` unset → ``shop: null``, no shop at all."""
+    ref, _ = world
     monkeypatch.delenv("REVIEWER_SHOP_ID")
     user_id = await rv.make_reviewer(session)
     async with client_for(build_app(session)) as client:
+        me = await client.get("/v1/reviewer/me", headers=_headers(user_id))
+        shops = await client.get("/v1/shops", headers=_headers(user_id))
+        reads = [
+            await client.get(path, headers=_headers(user_id, shop=shop))
+            for path in ("/v1/demo/decisions", "/v1/shops/me", "/v1/demo/analysis")
+            for shop in (shop_alias_id(ref.shop.id), ref.shop.id)
+        ]
+        simulate = await client.post(
+            f"/v1/reviewer/decisions/{ref.card.id}/simulate",
+            json={"step": "execute"},
+            headers=_headers(user_id, shop=shop_alias_id(ref.shop.id)),
+        )
+        approve = await client.post(
+            f"/v1/demo/decisions/{ref.card.id}/approve", json={}, headers=_headers(user_id)
+        )
+    assert me.status_code == 200, me.text
+    body = me.json()
+    assert body["reviewer"] is True and body["platform"] == "shopee" and body["shop"] is None
+    assert body["expires_at"].endswith("Z")
+    assert shops.status_code == 200 and shops.json() == []
+    for response in [*reads, simulate]:
+        assert response.status_code == 403, response.text
+        _assert_masked(response.text)
+    assert approve.status_code == 403
+    assert approve.headers["x-juli-reviewer-denied"] == "read_only"
+    for response in (me, shops):
+        _assert_masked(response.text)
+        assert str(ref.shop.id) not in response.text
+    refused = await _audit(session, "reviewer_write_refused")
+    assert len(refused) == 1 and refused[0].shop_id is None
+
+
+@pytest.mark.parametrize("kwargs", [{"expires_in": timedelta(seconds=-1)}, {"revoked": True}])
+async def test_no_pin_still_refuses_expired_and_revoked(session, world, monkeypatch, kwargs):
+    monkeypatch.delenv("REVIEWER_SHOP_ID")
+    user_id = await rv.make_reviewer(session, **kwargs)
+    async with client_for(build_app(session)) as client:
         response = await client.get("/v1/reviewer/me", headers=_headers(user_id))
-    assert response.status_code == 503
+        unknown = await client.get("/v1/reviewer/me", headers=_headers(uuid.uuid4()))
+    assert response.status_code == 403
+    assert unknown.status_code == 403
+    assert unknown.headers["x-juli-reviewer-denied"] == "unknown"
 
 
 async def test_renew_and_revoke_take_effect(session, world):

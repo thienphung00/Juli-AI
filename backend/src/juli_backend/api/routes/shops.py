@@ -63,6 +63,9 @@ async def list_shops(
     if reviewer is not None:
         # P32-A (D42): the reviewer's one shop is the pinned reference shop,
         # served under its alias id (the response mask swaps id and name).
+        # No pin (D42 amendment): no shop -- the UI shows the sample shop.
+        if reviewer.shop_id is None:
+            return []
         return [await enter_reviewer_shop(session, reviewer, None)]
     shops = await ShopsRepo(session).list(user.id)
     return shops[offset : offset + limit]

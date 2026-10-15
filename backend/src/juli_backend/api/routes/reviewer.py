@@ -1,7 +1,8 @@
 """Partner reviewer routes (fast track P32-A, D42; contract p32-reviewer-access.md §4, §6).
 
 - ``GET /v1/reviewer/me`` -- who is signed in: a reviewer gets its platform,
-  expiry and the (aliased) reference shop; anyone else ``{"reviewer": false}``.
+  expiry and the (aliased) reference shop, or ``shop: null`` when no shop is
+  pinned (the UI then shows the sample shop); anyone else ``{"reviewer": false}``.
 - ``POST /v1/reviewer/decisions/{id}/simulate`` -- the simulated Duyệt / Thực
   thi. Reads the card exactly as ``GET /v1/demo/decisions/{id}`` does, writes
   ONLY the audit row: no run, no card change, no queue, no TikTok client.
@@ -48,12 +49,16 @@ async def reviewer_me(
     context = reviewer_context(request)
     if context is None:
         return {"reviewer": False}
-    shop = await enter_reviewer_shop(session, context, None)
+    shop_body: dict[str, str] | None = None
+    if context.shop_id is not None:
+        shop = await enter_reviewer_shop(session, context, None)
+        shop_body = {"id": str(shop.id), "name": shop.shop_name}
     return {
         "reviewer": True,
         "platform": context.platform,
         "expires_at": context.account.expires_at.isoformat() + "Z",
-        "shop": {"id": str(shop.id), "name": shop.shop_name},
+        # None: no pinned shop (D42 amendment) -- the UI shows the sample shop.
+        "shop": shop_body,
     }
 
 

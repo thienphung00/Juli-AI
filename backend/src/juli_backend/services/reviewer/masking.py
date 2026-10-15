@@ -149,8 +149,9 @@ def brand_terms(shop_name: str | None, extra: Iterable[str] = ()) -> tuple[str, 
 class MaskDictionary:
     """What is known about the pinned shop before reading the response."""
 
-    shop_id: uuid.UUID
-    alias_id: uuid.UUID
+    #: None: no pinned shop (D42 amendment) -- nothing shop-specific to swap.
+    shop_id: uuid.UUID | None
+    alias_id: uuid.UUID | None
     shop_name: str | None = None
     tiktok_shop_id: str | None = None
     #: raw title -> kind (product / video / live)
@@ -166,10 +167,11 @@ class ReviewerMasker:
     def __init__(self, dictionary: MaskDictionary) -> None:
         self._dictionary = dictionary
         self._replacements: dict[str, str] = {}
-        real = str(dictionary.shop_id)
-        alias = str(dictionary.alias_id)
-        self._replacements[real] = alias
-        self._replacements[real.upper()] = alias
+        if dictionary.shop_id is not None and dictionary.alias_id is not None:
+            real = str(dictionary.shop_id)
+            alias = str(dictionary.alias_id)
+            self._replacements[real] = alias
+            self._replacements[real.upper()] = alias
         if dictionary.shop_name:
             self._add_title("shop", dictionary.shop_name)
         if dictionary.tiktok_shop_id:
