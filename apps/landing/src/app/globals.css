@@ -129,6 +129,12 @@ a {
   font-weight: 600;
 }
 
+.lp-hero__platforms {
+  margin: calc(-1 * var(--juli-space-2)) 0 var(--juli-space-3);
+  color: var(--juli-muted-foreground);
+  font-size: 0.85rem;
+}
+
 .lp-hero__eyebrow {
   margin: 0 0 var(--juli-space-2);
   color: var(--juli-primary-strong);

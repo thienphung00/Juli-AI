@@ -154,8 +154,8 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P32-A Contract + reviewer access: password sign-in, reviewer role / expiry / provisioning, Fujiwa pin + mask, server-side write barrier, simulated Duyệt → Thực thi, audit, banner + UI | 32.1–32.8 | done on branch `fasttrack/p32a-reviewer-access` (pushed) — not merged, not deployed; migration `090_reviewer_accounts` | P32-A agent (Opus) |
-| P32-B Landing / privacy / terms: Shopee status in text (VN + EN) | 32.9 | todo — branch `fasttrack/p32b-shopee-copy`, worktree `~/juli-fasttrack-p32b` | P32-B agent (Sonnet) |
+| P32-A Contract + reviewer access: password sign-in, reviewer role / expiry / provisioning, Fujiwa pin + mask, server-side write barrier, simulated Duyệt → Thực thi, audit, banner + UI | 32.1–32.8 | done, merged into `fasttrack/optimize-product` 2026-10-15 — not deployed; migration `090_reviewer_accounts` | P32-A agent (Opus) |
+| P32-B Landing / privacy / terms: Shopee status in text (VN + EN) | 32.9 | done on branch `fasttrack/p32b-shopee-copy` (d5b1c276, 767e9797) — merged into `fasttrack/optimize-product` 2026-10-15, not deployed | P32-B agent (Sonnet) |
 | P32-C Services Information text + reviewer steps | 32.10 | todo — after P32-A / B | orchestrator |
 | P32 integration + deploy + provision `shopee-review@app-juli.com` + resubmit | 32.11 | todo | orchestrator + owner |
 

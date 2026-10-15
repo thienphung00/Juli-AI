@@ -167,7 +167,7 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
       expect(notice).toHaveTextContent(`tax ID ${COMPANY.taxId}`);
       expect(notice).toHaveTextContent("Website: app-juli.com");
       expect(notice).toHaveTextContent(COMPANY.email);
-      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 10, 2026/);
+      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 14, 2026/);
     });
 
     it("translates every section 1–12", () => {
@@ -180,6 +180,7 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
         "2. Account information",
         "3. Google user data",
         "4. Information we read from your shop",
+        "4A. Shopee data (when you connect a Shopee shop)",
         "5. What Juli records or changes on your shop",
         "6. Purposes of data use",
         "7. Who we share data with",
@@ -315,5 +316,27 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
       "href",
       "/privacy",
     );
+  });
+});
+
+describe("Shopee status is stated honestly on the public pages (D42.6, AC-32.9)", () => {
+  it("/privacy has a Shopee section (VN + EN) and no 'in development' line", () => {
+    const { container } = render(<PrivacyPolicyPage />);
+    expect(screen.getByText(/4A\. Dữ liệu Shopee/)).toBeInTheDocument();
+    expect(screen.getByText(/4A\. Shopee data/)).toBeInTheDocument();
+    expect(screen.getByText(/Shopee đang được tích hợp qua Shopee Open Platform/)).toBeInTheDocument();
+    expect(screen.getByText(/Shopee is being integrated through Shopee Open Platform/)).toBeInTheDocument();
+    expect(container).toHaveTextContent(/Chính sách bảo vệ dữ liệu \(Data Protection Policy\) của\s+Shopee Open Platform/);
+    expect(container).toHaveTextContent(/Shopee Open Platform Data Protection Policy/);
+    expect(container).not.toHaveTextContent(/đang\s+được phát triển/);
+    expect(container).not.toHaveTextContent(/Shopee support is in\s+development/i);
+    expect(container).not.toHaveTextContent(/will be updated before Juli reads/i);
+  });
+
+  it("/terms covers Shopee as 'đang tích hợp' in VN and EN", () => {
+    const { container } = render(<TermsOfServicePage />);
+    expect(screen.getByText(/Shopee đang được tích hợp qua Shopee Open Platform/)).toBeInTheDocument();
+    expect(screen.getByText(/Shopee is being integrated through Shopee Open Platform/)).toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/đang\s+được phát triển/);
   });
 });

@@ -9,7 +9,7 @@ import { COMPANY } from "../../lib/site";
 
 export const ENGLISH_SECTION_ID = "english";
 export const ENGLISH_GOOGLE_SECTION_ID = "google-user-data";
-export const LAST_UPDATED_EN = "October 10, 2026";
+export const LAST_UPDATED_EN = "October 14, 2026";
 export const GOOGLE_USER_DATA_POLICY_URL =
   "https://developers.google.com/terms/api-services-user-data-policy";
 export const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
@@ -252,8 +252,31 @@ export function PrivacyPolicyEnglish() {
         </ul>
         <p>
           Juli does not read your personal messages, and does not store buyers&rsquo; contact
-          information beyond the identifiers needed to process orders. Shopee support is in
-          development; this policy will be updated before Juli reads any data from Shopee.
+          information beyond the identifiers needed to process orders.
+        </p>
+      </section>
+
+      <section className="lp-legal__section" id="shopee-data-en">
+        <h3 className="lp-legal__section-heading">
+          4A. Shopee data (when you connect a Shopee shop)
+        </h3>
+        <p>
+          Shopee is being integrated through Shopee Open Platform. This section takes effect
+          when you connect a Shopee shop to Juli; until then, Juli reads no data from Shopee.
+        </p>
+        <p>
+          After you connect and authorize, Juli reads through Shopee Open Platform: shop
+          information, products/listings, orders and the performance metrics needed to
+          analyze your shop and make recommendations for it, similar to the TikTok Shop data
+          in section 4. Buyers&rsquo; personal information is processed only as far as needed
+          to process orders, and Juli staff see shop data only, not buyer data (section 3).
+        </p>
+        <p>
+          Purpose and retention are the same as for TikTok Shop data (sections 6 and 8): data
+          is kept while you use Juli, syncing stops immediately when you disconnect the
+          shop, and data is deleted within 30 days of your account deletion request. Juli
+          adheres to the Shopee Open Platform Data Protection Policy. Changes to your Shopee
+          shop are written only after you have actively approved them.
         </p>
       </section>
 

@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     "Juli AI thu thập gì, đọc gì từ shop TikTok Shop của bạn, chia sẻ với ai, lưu trong bao lâu, và quyền của bạn với dữ liệu đó. Full English version included: what data Juli AI collects (including Google user data), how it is used, shared, protected, retained and deleted.",
 };
 
-const LAST_UPDATED = "10/10/2026";
+const LAST_UPDATED = "14/10/2026";
 
 /** Anchor for §3, so the Google OAuth consent screen can deep-link to it. */
 const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
@@ -268,9 +268,34 @@ export default function PrivacyPolicyPage() {
             </ul>
             <p>
               Juli không đọc tin nhắn cá nhân của bạn, và không lưu thông tin liên hệ của
-              người mua ngoài mã định danh cần thiết để xử lý đơn hàng. Hỗ trợ Shopee đang
-              được phát triển; chính sách này sẽ được cập nhật trước khi Juli đọc dữ liệu
-              từ Shopee.
+              người mua ngoài mã định danh cần thiết để xử lý đơn hàng.
+            </p>
+          </section>
+
+          <section className="lp-legal__section" id="shopee-data">
+            <h2 className="lp-legal__section-heading">
+              4A. Dữ liệu Shopee (khi bạn kết nối shop Shopee)
+            </h2>
+            <p>
+              Shopee đang được tích hợp qua Shopee Open Platform. Mục này có hiệu lực từ khi
+              bạn kết nối một shop Shopee với Juli; trước đó Juli không đọc dữ liệu nào từ
+              Shopee.
+            </p>
+            <p>
+              Sau khi bạn kết nối và cấp quyền, Juli đọc qua Shopee Open Platform: thông tin
+              shop, sản phẩm/danh sách sản phẩm, đơn hàng và các số liệu hiệu suất cần thiết
+              để phân tích và đưa ra đề xuất cho shop của bạn, tương tự dữ liệu TikTok Shop ở
+              mục 4. Thông tin cá nhân của người mua chỉ được xử lý trong phạm vi cần thiết
+              để xử lý đơn hàng, và nhân viên Juli chỉ thấy dữ liệu shop, không xem
+              dữ liệu người mua (mục 3).
+            </p>
+            <p>
+              Mục đích sử dụng và thời gian lưu trữ giống dữ liệu TikTok Shop (mục 6 và 8):
+              dữ liệu được lưu trong thời gian bạn sử dụng Juli, ngừng đồng bộ ngay khi bạn
+              ngắt kết nối shop, và xoá trong vòng 30 ngày kể từ khi bạn yêu cầu xoá tài
+              khoản. Juli tuân thủ Chính sách bảo vệ dữ liệu (Data Protection Policy) của
+              Shopee Open Platform. Thay đổi trên shop Shopee chỉ được ghi khi bạn đã chủ
+              động phê duyệt.
             </p>
           </section>
 

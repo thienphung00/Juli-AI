@@ -20,6 +20,10 @@ describe("landing sections (PRD 2.7)", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Dành cho người bán TikTok Shop")).toBeInTheDocument();
+    // Shopee is named in text with its honest status (D42.6, AC-32.9).
+    expect(
+      screen.getByText("TikTok Shop · Shopee (đang tích hợp qua Shopee Open Platform)"),
+    ).toBeInTheDocument();
     // No unverified partner claim, no "coming soon" placeholder: TikTok's
     // developer review rejected the site as unfinished (ticket 4486401).
     expect(screen.queryByText(/TikTok Shop Partner/)).not.toBeInTheDocument();
