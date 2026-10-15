@@ -1,3 +1,4 @@
+import { blogCover } from "./covers";
 import type { BlogPostMeta, BlogSource } from "./types";
 
 /**
@@ -28,6 +29,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     breadcrumbName: "Chỉ số TikTok Shop",
     publishedAt: "2026-10-15",
     updatedAt: "2026-10-15",
+    category: "metrics",
+    cover: blogCover("chi-so-ctr-ctor-aov-v1", "Minh hoạ: bốn cột biểu đồ trên nền hồng nhạt, cột thứ ba thấp nhất tô màu hồng"),
     author: AUTHOR,
     related: ["toi-uu-the-san-pham-tiktok-shop", "cong-cu-cho-nha-ban-tiktok-shop-2026"],
     faq: [
@@ -73,6 +76,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     breadcrumbName: "Tối ưu thẻ sản phẩm",
     publishedAt: "2026-10-15",
     updatedAt: "2026-10-15",
+    category: "optimize",
+    cover: blogCover("the-san-pham-v1", "Minh hoạ: một thẻ sản phẩm viền đen trên nền xanh lá nhạt, dòng giá tô màu xanh lá"),
     author: AUTHOR,
     related: ["chi-so-tiktok-shop-ctr-ctor-aov", "cong-cu-cho-nha-ban-tiktok-shop-2026"],
     faq: [
@@ -120,6 +125,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     breadcrumbName: "Công cụ cho nhà bán 2026",
     publishedAt: "2026-10-15",
     updatedAt: "2026-10-15",
+    category: "tools",
+    cover: blogCover("cong-cu-2026-v1", "Minh hoạ: sáu ô công cụ xếp hai hàng trên nền xanh dương nhạt, một ô tô màu xanh dương"),
     author: AUTHOR,
     related: ["chi-so-tiktok-shop-ctr-ctor-aov", "toi-uu-the-san-pham-tiktok-shop"],
     faq: [

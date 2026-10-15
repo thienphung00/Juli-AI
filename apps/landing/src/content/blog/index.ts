@@ -3,7 +3,15 @@ import { BLOG_POSTS } from "./posts";
 import type { BlogPost, BlogPostMeta } from "./types";
 
 export { BLOG_POSTS } from "./posts";
-export type { BlogPost, BlogPostMeta, BlogPostStatus, BlogSource } from "./types";
+export { BLOG_CATEGORIES, BLOG_CATEGORY_ORDER, blogCover } from "./covers";
+export type {
+  BlogCategory,
+  BlogCover,
+  BlogPost,
+  BlogPostMeta,
+  BlogPostStatus,
+  BlogSource,
+} from "./types";
 
 export function isPublished(post: Pick<BlogPostMeta, "status">): boolean {
   return post.status === "published";
