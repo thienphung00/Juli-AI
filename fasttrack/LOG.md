@@ -1416,3 +1416,16 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   yet set; confirm the PROPOSED items. No nginx change.
 - Next: integration with P33-B/C/D (expect doc-file conflicts in ACCEPTANCE/PROGRESS/LOG/DEBT/
   DECISIONS only), then deploy.
+
+## 2026-10-15 — orchestrator (Claude Opus) — P33 integrated (A–F)
+
+- Merged `fasttrack/p33a-seo-foundation`, `p33b-homepage`, `p33c-capabilities`, `p33d-blog`,
+  `p33e-gsc-monitor`, `p33f-trial-signup` into `fasttrack/optimize-product` (owner: "deploy website
+  ngay"); fasttrack doc conflicts resolved by union (ticked rows win). Integration fixes 8e0f66ee:
+  blog test no longer allow-lists the P33-C pages; `/ket-noi/tiktok-shop` disconnect copy = contact
+  Juli (owner decision 3).
+- Gates (Node 20.20.2): landing lint / type-check / vitest 152 / build / check:seo PASS; demo lint /
+  type-check / build PASS, vitest 1917 / 1918 (one load-sensitive test, passes alone — DEBT);
+  `check.sh --since 7486edf1` 5/5 (migrations at `091_trial_signups`, pytest 398).
+- Owner decision 2026-10-15: deploy now; real-shop writes (P5) must ship before real customers are
+  onboarded (the trial form routes every new seller through the team).

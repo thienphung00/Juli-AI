@@ -922,3 +922,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   P33-B §2 says no trial tracking or billing is built; "Đã kết nối shop" on a sign-up is set by hand.
 - [ ] The no-JS fallback shows a generic "Thông tin chưa đúng" notice (`/dang-ky#loi-du-lieu`)
   without per-field messages; browsers' own constraint validation catches nearly all of it first.
+- [ ] Load-sensitive demo test (seen 2026-10-15, P33 integration): `connect-shop-page.test.tsx >
+  renders the connect-shop screen for a real signed-in session` failed once in the full demo run
+  (1917 / 1918) on a loaded host and passes 3 / 3 alone — same family as the P33-A/B timeouts.
