@@ -14,16 +14,16 @@ describe("public product and company pages", () => {
     for (const Page of [LandingPage, ProductPage, AboutPage, ContactPage]) {
       const { unmount } = render(<Page />);
       const header = screen.getByRole("navigation", { name: "Điều hướng chính" });
-      const footer = screen.getByRole("navigation", { name: "Liên kết chân trang" });
       for (const page of SITE_PAGES) {
         expect(within(header).getByRole("link", { name: page.label })).toHaveAttribute(
           "href",
           page.href,
         );
-        expect(within(footer).getByRole("link", { name: page.label })).toHaveAttribute(
-          "href",
-          page.href,
-        );
+        // The footer's "Sản phẩm" column links /san-pham as "Tổng quan sản phẩm".
+        const footerHrefs = within(screen.getByRole("contentinfo"))
+          .getAllByRole("link")
+          .map((link) => link.getAttribute("href"));
+        expect(footerHrefs, page.href).toContain(page.href);
       }
       unmount();
     }
@@ -45,8 +45,10 @@ describe("public product and company pages", () => {
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/Juli AI/);
     for (const name of [
-      "Tính năng chính",
-      "Kết nối TikTok Shop và dữ liệu",
+      "Juli AI là gì",
+      "Ba năng lực chính",
+      "Kết nối và tích hợp",
+      "Dữ liệu và quyền kiểm soát",
       "Bảng giá",
       "Câu hỏi thường gặp",
     ]) {
