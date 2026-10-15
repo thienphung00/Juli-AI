@@ -3,7 +3,7 @@
 Mounted beside ``api/routes/ops.py`` under ``/v1/ops`` with the same gates, in
 the same order, fail closed: Cloudflare Access → Supabase JWT → active
 ``ops_staff`` row matching Access → role. Both routes need **Vận hành**
-(operator) or Admin: the list carries the prospect's phone and e-mail, which the
+(operator) or Admin: the list carries the prospect's contact number and e-mail, which the
 team needs to call them back.
 
 - ``GET   /v1/ops/trial-signups?status=&limit=`` -- newest first + count per status.
@@ -34,7 +34,7 @@ from juli_backend.api.routes.ops import OpsContext, operator
 from juli_backend.database import get_session
 from juli_backend.models.trial_signups import SIGNUP_STATUS_LABELS, SIGNUP_STATUSES
 from juli_backend.services import trial_signups as signups
-from juli_backend.services.ops.access import OpsRoleMissing
+from juli_backend.services.ops import OpsRoleMissing
 
 logger = logging.getLogger(__name__)
 

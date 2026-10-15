@@ -189,9 +189,8 @@ def validate(raw: dict[str, Any]) -> Validated:
         errors["note"] = MSG_NOTE
     if not _truthy(raw.get("consent", False)):
         errors["consent"] = MSG_CONSENT
-    if errors:
+    if errors or phone is None:
         return Validated(errors=errors)
-    assert phone is not None  # noqa: S101 - narrowed by the errors check above
     return Validated(
         data=SignupInput(
             full_name=name,

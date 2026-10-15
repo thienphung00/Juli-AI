@@ -261,6 +261,11 @@ ALLOWED_PHONE_MENTIONS = {
     "core/observability/logging.py",
     "services/tiktok/webhook_redaction.py",
     "services/analytics_kpi_masking/mask.py",
+    # P33-F (D43): the free-trial sign-up's OWN contact number, stored in the
+    # ops-only `trial_signups` table and shown to Juli staff to call the
+    # prospect back. Never `users.phone`: no user exists yet at sign-up.
+    "models/trial_signups.py",
+    "services/trial_signups.py",
 }
 
 

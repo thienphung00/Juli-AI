@@ -5,8 +5,9 @@ landing's own server route (``apps/landing/src/app/dang-ky/gui/route.ts``) posts
 here; with the shared ``TRIAL_SIGNUP_RELAY_KEY`` it also forwards the visitor's
 IP (``X-Juli-Client-Ip``), otherwise the connection's address is used.
 
-- JSON body ``{full_name, phone, email, shop, role, note?, consent, website?,
-  source?{utm_*, referrer}}``; at most 16 KB.
+- JSON body: the form fields (name, contact number, e-mail, shop, role, optional
+  note, consent, honeypot ``website``, optional ``source`` utm_* / referrer); at
+  most 16 KB.
 - 201 ``{"ok": true}`` -- stored and the team notified (after the response).
   A filled honeypot (``website``) gets the very same 201 and nothing is stored.
 - 422 ``{"detail": "invalid", "errors": {field: Vietnamese message}}`` -- values
@@ -14,7 +15,7 @@ IP (``X-Juli-Client-Ip``), otherwise the connection's address is used.
 - 429 ``{"detail": "<Vietnamese>"}`` -- per IP / e-mail / site-wide limit.
 - 400 malformed JSON, 413 too large.
 
-Logs carry the outcome and the row id only -- never the phone, e-mail or name.
+Logs carry the outcome and the row id only -- never the contact number, e-mail or name.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database import get_session
 from juli_backend.services import trial_signups as signups
-from juli_backend.services.ops.access import OpsRoleMissing
+from juli_backend.services.ops import OpsRoleMissing
 
 logger = logging.getLogger(__name__)
 

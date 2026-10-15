@@ -16,8 +16,8 @@ import { NOTICES, SIGNUP_PATH, SIGNUP_THANKS_PATH } from "./signup-content";
  * `https://api.app-juli.com`), `TRIAL_SIGNUP_RELAY_KEY`.
  */
 
-export const API_PATH = "/v1/trial-signups";
-export const DEFAULT_API_URL = "https://api.app-juli.com";
+const API_PATH = "/v1/trial-signups";
+const DEFAULT_API_URL = "https://api.app-juli.com";
 const TIMEOUT_MS = 10_000;
 const MAX_BODY_BYTES = 16 * 1024;
 
@@ -31,12 +31,12 @@ const SOURCE_KEYS = [
   "referrer",
 ] as const;
 
-export interface RelayEnv {
+interface RelayEnv {
   apiUrl?: string;
   relayKey?: string;
 }
 
-export interface RelayDeps {
+interface RelayDeps {
   fetchImpl?: typeof fetch;
   env?: RelayEnv;
   allowedOrigins: readonly string[];

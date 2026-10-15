@@ -58,7 +58,7 @@ type Notice = keyof typeof NOTICES | null;
 
 const subscribeNothing = () => () => undefined;
 
-export interface SignupFormProps {
+interface SignupFormProps {
   /** Test seam: where to go on success (default: a full navigation). */
   readonly onDone?: (path: string) => void;
   readonly fetchImpl?: typeof fetch;

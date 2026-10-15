@@ -39,8 +39,6 @@ export const FIELDS = {
   honeypot: "website",
 } as const;
 
-export type FieldName = (typeof FIELDS)[keyof typeof FIELDS];
-
 export const ROLE_OPTIONS: readonly { value: string; label: string }[] = [
   { value: "seller", label: "Nhà bán" },
   { value: "affiliate", label: "Affiliate" },
