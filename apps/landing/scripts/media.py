@@ -83,7 +83,9 @@ def og_image(dest: Path) -> None:
 
     glyph = Image.open(BRAND_ASSETS / "bird-glyph.png").convert("RGBA")
     glyph_h = 300
-    glyph = glyph.resize((round(glyph.width * glyph_h / glyph.height), glyph_h), Image.Resampling.LANCZOS)
+    glyph = glyph.resize(
+        (round(glyph.width * glyph_h / glyph.height), glyph_h), Image.Resampling.LANCZOS
+    )
     # White silhouette of the bird: readable on the pink band.
     white = Image.new("RGBA", glyph.size, (255, 255, 255, 255))
     white.putalpha(glyph.getchannel("A"))
@@ -127,26 +129,38 @@ def brand() -> None:
     square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
     square.paste(glyph, ((side - glyph.width) // 2, (side - glyph.height) // 2), glyph)
     square.save(LANDING / "src" / "app" / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)])
-    square.resize((192, 192), Image.Resampling.LANCZOS).save(LANDING / "src" / "app" / "icon.png", optimize=True)
+    square.resize((192, 192), Image.Resampling.LANCZOS).save(
+        LANDING / "src" / "app" / "icon.png", optimize=True
+    )
     apple = Image.new("RGBA", (180, 180), (255, 255, 255, 255))
     small = square.resize((150, 150), Image.Resampling.LANCZOS)
     apple.paste(small, (15, 15), small)
     apple.convert("RGB").save(LANDING / "src" / "app" / "apple-icon.png", optimize=True)
     print("src/app/favicon.ico, icon.png (192), apple-icon.png (180)")
     # Organization logo for JSON-LD: square, >= 112px, stable URL.
-    square.resize((512, 512), Image.Resampling.LANCZOS).save(PUBLIC / "media" / "juli-ai-logo-512-v1.png", optimize=True)
+    square.resize((512, 512), Image.Resampling.LANCZOS).save(
+        PUBLIC / "media" / "juli-ai-logo-512-v1.png", optimize=True
+    )
     print("public/media/juli-ai-logo-512-v1.png  512x512")
 
     # Hero video poster (D43.6: the poster is the LCP candidate once P33-B ships it).
-    optimize(PUBLIC / "videos" / "juli-demo-poster.jpg", PUBLIC / "media" / "juli-demo-poster-v1", [640, 1280])
+    optimize(
+        PUBLIC / "videos" / "juli-demo-poster.jpg",
+        PUBLIC / "media" / "juli-demo-poster-v1",
+        [640, 1280],
+    )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     opt = sub.add_parser("optimize", help="write AVIF + WebP variants of one image")
     opt.add_argument("src", type=Path)
-    opt.add_argument("--out", type=Path, required=True, help="output path stem, e.g. public/media/foo-v1")
+    opt.add_argument(
+        "--out", type=Path, required=True, help="output path stem, e.g. public/media/foo-v1"
+    )
     opt.add_argument("--widths", default="640,1280", help="comma-separated target widths")
     sub.add_parser("brand", help="regenerate OG image, logo, favicon and poster")
     args = parser.parse_args()
