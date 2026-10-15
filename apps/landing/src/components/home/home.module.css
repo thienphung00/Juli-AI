@@ -499,6 +499,7 @@
   width: min(960px, calc(100vw - 2 * var(--lp-gutter)));
   max-width: none;
   max-height: calc(100dvh - 2 * var(--lp-gutter));
+  margin: auto; /* the global reset zeroes the UA centring */
   padding: 0;
   border: 0;
   border-radius: var(--lp-radius-lg);
