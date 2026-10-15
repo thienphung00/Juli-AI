@@ -2720,6 +2720,11 @@ a {
   border-color: color-mix(in srgb, var(--juli-primary) 35%, var(--juli-border-accent));
 }
 
+/* Trial sign-up door (D43 additions): the existing-account line under the body. */
+.demo-landing__trial-existing {
+  font-size: 0.9rem;
+}
+
 .demo-landing__google-link {
   text-decoration: none;
 }

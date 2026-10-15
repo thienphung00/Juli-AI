@@ -330,6 +330,21 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Không thể bắt đầu kết nối TikTok. Vui lòng thử lại.
 - Definition: Shown when `GET /v1/auth/tiktok/start` does not return an authorize URL (issue #1970) — the seller stays on the page with the control still usable. Never falls back to a hand-built TikTok URL: the authorize URL is only trustworthy with the server-signed state in it.
 
+**`auth.trial_signup`**
+- EN: Sign up for a free 3-month trial
+- VI: Đăng ký dùng thử miễn phí 3 tháng
+- Definition: Heading of the Demo landing's sign-in door when opened with `/?dang-ky=dung-thu` — the self-connect path from the "Tự kết nối shop ngay" button on app-juli.com's trial thank-you page (`/dang-ky`, P33-F; D43 additions, owner 2026-10-15). Eyebrow "Tài khoản mới". Same `auth.google` / `auth.email` buttons; without the query the door keeps "Đăng nhập".
+
+**`auth.trial_signup.body`**
+- EN: Create your account with Google or email, then connect TikTok Shop. Free for 3 months, then from 500,000 VND/month. No payment card needed.
+- VI: Tạo tài khoản bằng Google hoặc email, rồi kết nối TikTok Shop. Miễn phí 3 tháng, sau đó từ 500.000đ/tháng. Không cần thẻ thanh toán.
+- Definition: Body under `auth.trial_signup`. "No payment card" is literal: Juli has no payment integration (terms are granted by contract in Ops, D28.4/D28.5). Revisit when payments ship.
+
+**`auth.trial_signup.existing`**
+- EN: Already have an account? Sign in with the same Google account or email you used.
+- VI: Đã có tài khoản? Đăng nhập bằng đúng Google hoặc email bạn đã dùng.
+- Definition: Line under `auth.trial_signup.body`, so an existing seller arriving from the trial CTA knows the same buttons sign them in.
+
 **`auth.google.unavailable`**
 - EN: Sign in with Google is not available in this environment.
 - VI: Đăng nhập với Google chưa sẵn sàng trong môi trường này.
