@@ -42,11 +42,12 @@ class GoTrueAdmin:
         if not supabase_url or not service_role_key:
             raise GoTrueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
         self._base = supabase_url.rstrip("/") + "/auth/v1/admin"
-        self._headers = {
-            "apikey": service_role_key,
-            "Authorization": f"Bearer {service_role_key}",
-            "Content-Type": "application/json",
-        }
+        self._headers = {"apikey": service_role_key, "Content-Type": "application/json"}
+        # A legacy service_role key is a JWT and also goes in the Bearer header. Supabase's
+        # newer secret keys (``sb_secret_…``) are not JWTs: sent as Bearer they get a 401, so
+        # they travel in ``apikey`` only.
+        if not service_role_key.startswith("sb_"):
+            self._headers["Authorization"] = f"Bearer {service_role_key}"
         self._client = client or httpx.Client(timeout=20)
 
     def _call(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
