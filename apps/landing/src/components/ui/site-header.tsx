@@ -51,7 +51,9 @@ export function SiteHeader({ variant = "default", pathname }: SiteHeaderProps) {
             Đăng nhập
           </a>
           <LinkButton data-testid="header-trial-cta" href={SIGNUP_URL} size="md">
-            Dùng thử<span className="ui-header__cta-long"> miễn phí</span>
+            <span>
+              Dùng thử<span className="ui-header__cta-long"> miễn phí</span>
+            </span>
           </LinkButton>
           <HeaderMenu>
             <summary aria-label="Menu" className="ui-header__menu-button">

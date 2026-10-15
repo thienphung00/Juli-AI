@@ -524,18 +524,20 @@ body {
 
 .ui-footer__inner {
   display: grid;
-  gap: var(--lp-space-10);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lp-space-8) var(--lp-space-4);
   padding-top: var(--lp-space-16);
   padding-bottom: var(--lp-space-10);
+}
+
+.ui-footer__brand {
+  grid-column: 1 / -1;
 }
 
 @media (min-width: 640px) {
   .ui-footer__inner {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .ui-footer__brand {
-    grid-column: 1 / -1;
+    gap: var(--lp-space-10);
   }
 }
 
