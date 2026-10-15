@@ -8,11 +8,14 @@ for content, no MDX dependency).
 | `posts.ts` | Every post's metadata: **`status`**, title, SEO title/description, dates, author, FAQ, sources, related posts |
 | `bodies/<slug>.ts` | The post body (Markdown subset, starts at `##`; the H1 is `title`) |
 | `bodies/index.ts` | slug → body map |
-| `types.ts` | `BlogPostMeta`, `BlogPost`, `BlogPostStatus` |
+| `types.ts` | `BlogPostMeta`, `BlogPost`, `BlogPostStatus`, `BlogCategory`, `BlogCover` |
+| `covers.ts` | `BLOG_CATEGORIES` (topic labels, pill order) and `blogCover(name, alt)` |
 | `index.ts` | helpers: `getPost`, `relatedPosts`, `showDraftsOnIndex`, … |
 
-Pages: `src/app/blog/page.tsx` (index), `src/app/blog/[slug]/page.tsx` (post),
-`src/app/blog/blog.css`. Renderer: `src/components/blog/markdown.tsx`. Routes:
+Pages: `src/app/blog/page.tsx` (index: H1, topic pills, featured card, 3-up grid),
+`src/app/blog/[slug]/page.tsx` (post: cover, side TOC, FAQ, sources, related cards,
+dark CTA), `src/app/blog/blog.css`. Renderer: `src/components/blog/markdown.tsx`;
+cards `post-card.tsx`; pills `category-filter.tsx` (the only client JS). Routes:
 `src/lib/seo/routes/blog.ts` derives `/blog` and one route per post from
 `posts.ts` — nothing to register by hand.
 
@@ -63,3 +66,27 @@ becomes noindex and leaves the sitemap and the index.
   `/san-pham/de-xuat-va-thuc-thi`, `/san-pham/do-luong-gmv`,
   `/ket-noi/tiktok-shop`). `blog.test.tsx` checks every internal link resolves
   and every post is 3,000+ words.
+
+## Topic and cover (D44.3, P34-D)
+
+Every post has a `category` (`metrics` Chỉ số · `optimize` Tối ưu sản phẩm ·
+`tools` Công cụ · `guide` Hướng dẫn) and a `cover`. The cover is a flat
+category tint with one simple outlined object and exactly one accent, **no
+text**, rendered from HTML by Playwright; the same render is the post's
+Open Graph / Twitter image (1200×630) and goes into the Article JSON-LD.
+
+To make a cover for a new post:
+
+1. Add an entry to `COVERS` in `apps/landing/scripts/blog-covers.mjs`:
+   `{ name: "<short-name>-v1", category: "tools", accent: 2 }` (`motif` defaults to
+   the category's: bars / card / tiles / checklist; `accent` picks which element
+   carries the accent colour, so two posts in one topic differ).
+2. From the repo root (Node 20):
+   `PYTHON=juli/.venv/bin/python node apps/landing/scripts/blog-covers.mjs`
+   → `public/media/blog-<name>-{600,1200}.{avif,webp}` + `blog-<name>-og.png`.
+   Existing files are skipped, never overwritten (`immutable` cache): to change a
+   cover, bump `-v2`. Preview every motif without touching `public/`:
+   `node apps/landing/scripts/blog-covers.mjs --samples /tmp/covers`.
+3. In `posts.ts`: `category: "tools"`, `cover: blogCover("<short-name>-v1", "Minh hoạ: …")`
+   (the alt describes the picture; cards render it with `alt=""` because the title
+   is right there). `blog.test.tsx` checks the files exist and the OG image is set.
