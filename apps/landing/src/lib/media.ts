@@ -20,8 +20,11 @@ export const LOGO_WORDMARK = {
 } as const;
 
 /**
- * Sales demo video (hero). P33-B turns the hero into poster + click-to-load
- * (D43.6) and renders `videoObjectSchema(HERO_VIDEO_SCHEMA)`.
+ * Sales demo video (hero): poster + click-to-load (D43.6, `HeroVideo`) and
+ * `videoObjectSchema(HERO_VIDEO_SCHEMA)` on `/`. The poster is the video's
+ * "GMV = Hiển thị × CTR × CTOR × AOV" frame (t = 19 s), chosen because it
+ * carries no outcome figure (D43.3); the old `juli-demo-poster-v1-*` brand card
+ * showed "+1–3% GMV mỗi tháng" and is no longer referenced.
  */
 export const HERO_VIDEO = {
   src: "/videos/juli-demo.mp4",
@@ -30,14 +33,14 @@ export const HERO_VIDEO = {
   uploadDate: "2026-10-09",
   poster: {
     small: {
-      avif: "/media/juli-demo-poster-v1-640.avif",
-      webp: "/media/juli-demo-poster-v1-640.webp",
+      avif: "/media/home-demo-poster-v1-640.avif",
+      webp: "/media/home-demo-poster-v1-640.webp",
       width: 640,
       height: 360,
     },
     large: {
-      avif: "/media/juli-demo-poster-v1-1280.avif",
-      webp: "/media/juli-demo-poster-v1-1280.webp",
+      avif: "/media/home-demo-poster-v1-1280.avif",
+      webp: "/media/home-demo-poster-v1-1280.webp",
       width: 1280,
       height: 720,
     },
