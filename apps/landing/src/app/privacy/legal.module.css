@@ -124,10 +124,16 @@
 /* ————— Summary card ————— */
 
 .summary {
-  padding: var(--lp-space-6) 26px;
+  padding: var(--lp-space-5);
   border: 1px solid var(--lp-hairline);
   border-radius: 18px;
   background: var(--lp-alt);
+}
+
+@media (min-width: 640px) {
+  .summary {
+    padding: var(--lp-space-6) 26px;
+  }
 }
 
 .summaryTitle {
@@ -144,6 +150,7 @@
   gap: var(--lp-space-2);
   margin: 0;
   padding-left: 18px;
+  list-style: disc;
   color: var(--lp-strong);
   font-size: 16px;
   line-height: 1.6;
@@ -201,6 +208,7 @@
 }
 
 .section ul {
+  list-style: disc;
   display: flex;
   flex-direction: column;
   gap: var(--lp-space-2);
