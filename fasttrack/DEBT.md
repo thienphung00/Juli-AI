@@ -809,3 +809,8 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   builds its card with `update_time=datetime(2026, 10, 1)`, so since ~2026-10-08 the card reads
   `expired` instead of `pending`; it fails on `fasttrack/optimize-product` @ 0e80c18b too. Pin the
   clock or build the card relative to now.
+- [ ] Flaky isolation seed (pre-existing, seen 2026-10-15 in 1 of 4 `check.sh` runs):
+  `test_two_tenant_isolation_proof.py::_seed_tenant_data` builds the user's phone from 4 hex chars
+  of the uuid; a collision with another seeded user makes `ON CONFLICT DO NOTHING` skip the user
+  and the shop insert then fails on `shops_user_id_fkey`. Use the full uuid in the phone. Can fail
+  a deploy run — re-run if it is this test.

@@ -1189,3 +1189,13 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
 - Branch not merged, not deployed. (Orchestrator correction: `fasttrack-deploy.yml` does build and
   ship the landing artifact since 2026-10-08 — DEBT repaid; the README sentence saying landing SHAs
   are refused is stale and is fixed in the P32 integration commit.)
+
+## 2026-10-15 — orchestrator (Claude Opus) — P32 integrated
+
+- Merged `fasttrack/p32a-reviewer-access` (d28161bd) and `fasttrack/p32b-shopee-copy` (3a582b9f)
+  into `fasttrack/optimize-product` (owner approved in the P33 grill); fasttrack doc conflicts
+  resolved by keeping both sides. Repaid the p10a time bomb (card surfaced now in the test);
+  README landing-lane sentence corrected (landing ships since 2026-10-08).
+- `fasttrack/check.sh --since 0e80c18b` (docker PG16): 5/5 PASS twice (migrations at 090,
+  isolation 12, gitleaks, ruff 44 files, pytest 544); one earlier run hit a flaky isolation seed
+  (DEBT). Not deployed — owner tags.
