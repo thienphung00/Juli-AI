@@ -7,6 +7,7 @@ import SignupPage, { metadata as signupMetadata } from "../app/dang-ky/page";
 import sitemap from "../app/sitemap";
 import { SignupConversion, SIGNUP_CONVERSION } from "../components/signup/signup-conversion";
 import {
+  NEXT_STEPS,
   NOTICES,
   SELF_CONNECT_URL,
   SIGNUP_DONE_FLAG,
@@ -49,13 +50,21 @@ async function fillValid(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("/dang-ky page", () => {
-  it("has one H1, the value list, and every field labelled", () => {
+  it("has one H1, the 'Sau khi bạn đăng ký' steps and shot, and every field labelled", () => {
     render(<SignupPage />);
     const main = screen.getByRole("main");
     const h1s = within(main).getAllByRole("heading", { level: 1 });
     expect(h1s).toHaveLength(1);
     expect(h1s[0]).toHaveTextContent(SIGNUP_H1);
-    expect(screen.getByTestId("signup-values").querySelectorAll("li").length).toBeGreaterThanOrEqual(3);
+    expect(main).toHaveTextContent("Miễn phí 3 tháng · không cần thẻ thanh toán");
+    // Signup.dc.html (P34-E): the aside replaces P33-F's value list.
+    const aside = screen.getByRole("complementary", { name: "Sau khi bạn đăng ký" });
+    const steps = within(aside).getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(steps).toEqual(NEXT_STEPS.map((step) => step.title));
+    expect(within(aside).getByRole("img")).toHaveAccessibleName(/\(dữ liệu mẫu\)$/);
+    expect(aside).toHaveTextContent("Dữ liệu mẫu");
+    expect(screen.getByTestId("signup-self-connect-link")).toHaveAttribute("href", SELF_CONNECT_URL);
+    expect(screen.getByTestId("signup-submit").tagName).toBe("BUTTON");
     for (const label of [/Họ và tên/, /Số điện thoại \/ Zalo/, /^Email/, /Tên hoặc link shop TikTok/, /Ghi chú/]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
@@ -331,6 +340,15 @@ describe("/dang-ky/cam-on", () => {
     expect(cta).toHaveTextContent("Tự kết nối shop ngay");
     expect(cta).toHaveAttribute("href", SELF_CONNECT_URL);
     expect(SELF_CONNECT_URL).toBe("https://demo.app-juli.com/?dang-ky=dung-thu");
+  });
+
+  it("is a calm confirmation: bird mark and the same 3 next steps", () => {
+    render(<SignupThanksPage />);
+    const main = screen.getByRole("main");
+    expect(main.querySelector("img.ui-bird")).not.toBeNull();
+    expect(within(main).getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(
+      NEXT_STEPS.map((step) => step.title),
+    );
   });
 
   it("is noindex and kept out of the sitemap", () => {
