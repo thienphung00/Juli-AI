@@ -1199,3 +1199,16 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
 - `fasttrack/check.sh --since 0e80c18b` (docker PG16): 5/5 PASS twice (migrations at 090,
   isolation 12, gitleaks, ruff 44 files, pytest 544); one earlier run hit a flaky isolation seed
   (DEBT). Not deployed — owner tags.
+
+## 2026-10-15 — orchestrator (Claude Opus) — P33-E Search Console scripts
+
+- Read the Search Console API guides (overview, limits, prereqs, authorizing, performance, batch,
+  search analytics, all-your-data) and reference (searchanalytics.query, sitemaps, sites,
+  urlInspection.index.inspect + UrlInspectionResult, errors). Key facts: OAuth 2.0 only;
+  Removals is UI-only (no API), Indexing API is JobPosting / livestream only; URL Inspection
+  2,000 / day / site and reports BLOCKED_BY_META_TAG vs BLOCKED_BY_HTTP_HEADER; Search Analytics
+  final after 2-3 days, 25k rows / page, page×query grouping is the most expensive.
+- `scripts/seo/` written (see AC-33.10). Pitfall found: `RobotFileParser.read()` sends
+  `Python-urllib`, Cloudflare answers 403 and the parser turns that into "disallow all" — the
+  live check fetches robots.txt with its own UA.
+- Baseline (production, before P33-A): 10 / 14 URLs failing.
