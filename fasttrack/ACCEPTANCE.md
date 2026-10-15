@@ -678,8 +678,21 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 - [ ] **AC-34.2** (B) Homepage matches `Main.dc.html` / `HomeMobile.dc.html`.
 - [ ] **AC-34.3** (C) `/san-pham`, the 3 capability pages and `/ket-noi/tiktok-shop` match
   `Product.dc.html` (diagrams built in markup, one framed shot per H2, mobile crops readable).
-- [ ] **AC-34.4** (D) Blog index + post template match `Blog.dc.html`; per-category covers and OG
+- [x] **AC-34.4** (D) Blog index + post template match `Blog.dc.html`; per-category covers and OG
   images rendered from HTML; `BlogPostMeta` gains a cover.
+  Evidence (P34-D, branch `fasttrack/p34d-blog`, 2026-10-15): `BlogPostMeta.category` + `.cover`
+  (`blogCover()`: AVIF/WebP 600/1200 with sizes, alt, 1200×630 PNG OG); generator
+  `apps/landing/scripts/blog-covers.mjs` (Playwright, HTML template, colours read from `tokens.css`,
+  never overwrites); 3 covers `public/media/blog-{chi-so-ctr-ctor-aov,the-san-pham,cong-cu-2026}-v1-*`;
+  OG via `buildMetadata(…, { ogImage })` + Article JSON-LD image. Index: H1 + lead + topic toggle
+  pills (`aria-pressed`, live count), featured card, 3-up grid, drafts only in dev (badge). Post:
+  category · reading time, 32→48 px title, standfirst, meta, full-width cover, `TocNav` "Mục lục"
+  (disclosure < 960 px), 720 px prose 17/30 → 18/30, `FaqList`, sources, related cards, dark CTA;
+  Article/Breadcrumb/FAQPage kept. `blog.test.tsx` 31 tests (covers/OG/alt, filter, heading order,
+  draft/noindex kept); landing lint 0, type-check clean, vitest 13 files / 186 passed, build OK,
+  `check:seo` 17/17; Playwright 1440 + 390, no horizontal overflow:
+  `fasttrack/design/p34/evidence/p34d/` (index in dev, empty prod index, post top/end, filter, covers,
+  OG); `check.sh --since c95231e0` 5/5 PASS.
 - [ ] **AC-34.5** (E) Privacy, terms, about, contact, `/dang-ky`, `/dang-ky/cam-on` match
   `Legal.dc.html` / `Signup.dc.html` (legal content unchanged).
 - [ ] **AC-34.6** (F) Demo sign-in / trial / OTP / partner screens match `Auth.dc.html` /

@@ -1520,3 +1520,26 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   `check.sh --since 64f7f913` 5/5 PASS.
 - For B–E: read `apps/landing/src/components/ui/README.md`. Next: B–E build pages on this branch's
   merge; orchestrator merges P34-A first.
+## 2026-10-15 — P34-D agent (Claude Opus) — blog redesign + covers (D44, AC-34.4)
+
+- Branch `fasttrack/p34d-blog` from P34-A c95231e0. Commits 7b7ef53e (covers + meta), the page
+  rebuild, 751103eb (fixes, README, evidence) + this docs commit.
+- **Covers**: `apps/landing/scripts/blog-covers.mjs` renders an HTML template with Playwright at
+  400×225 CSS px × DSF 3 → 1200×675 (so the 3 px outline reads as 3 px on a ~370 px card), encodes
+  AVIF/WebP 600/1200 through `media.py optimize`, and renders the same template at 1200×630 as the
+  OG PNG. Motifs from Blog.dc.html (bars / product card / tiles) + a checklist for "Hướng dẫn";
+  colours parsed from `tokens.css`; existing files are skipped (immutable cache, bump `-vN`).
+  Covers for the 3 posts; OG wired through `buildMetadata` options and the Article JSON-LD image.
+- **Index**: "Blog Juli" H1 + lead + pills (toggle buttons, `aria-pressed`, polite live count;
+  mockup used `role=tab` without panels), featured card (2:1 crop anchored at the bottom), 3-up
+  grid (`auto-fill`, so 2 cards stay card-sized). Cards: title link stretched over the card,
+  cover `alt=""`. Drafts appear (badge "Bản nháp") only under `next dev`.
+- **Post**: breadcrumb, draft note, category · minutes, title 32→48, standfirst, meta, cover,
+  `TocNav title="Mục lục"` (H2s + FAQ), prose 720 px 17→18 / 30 px with styled H2/H3, lists
+  (restored markers Tailwind preflight strips), callouts, focusable scrollable tables (`role=region`,
+  "Bảng n"), `FaqList` (page-level `faqPageSchema` kept), sources, related `PostCard`s (h3), dark
+  CTA band (`blog-cta-trial` → SIGNUP_URL, `blog-cta-demo` → DEMO_URL; both tracked by the listener).
+- **Gates (Node 20.20.2)**: landing lint 0, type-check clean, vitest 13 files / 186 passed (blog 31),
+  build OK, `check:seo` 17/17; Playwright `/blog` (dev, prod-empty, filter) + the metrics post at
+  1440/390, no overflow, font Be Vietnam Pro → `fasttrack/design/p34/evidence/p34d/`;
+  `check.sh --since c95231e0` 5/5 PASS. Deviations and follow-ups in DEBT (P34-D).
