@@ -16,6 +16,9 @@ import type {
   SimulationPage,
   SystemCost,
   TermsPage,
+  TrialSignup,
+  TrialSignupStatus,
+  TrialSignupsPage,
   ViewSession,
 } from "./types";
 
@@ -157,6 +160,12 @@ export const opsApi = {
   /** D28.4 "Gói 30 / 365 ngày" (Admin): source = contract, reference = số hợp đồng. */
   addTerm: (shopId: string, days: 30 | 365, reference: string, o?: OpsRequestOptions) =>
     opsRequest<ShopTermsPage>(`${shopPath(shopId)}/terms`, { method: "POST", body: { days, reference } }, o),
+  /** P33-F tab "Đăng ký dùng thử" (Vận hành / Admin; Xem gets 403). */
+  trialSignups: (status: TrialSignupStatus | null, o?: OpsRequestOptions) =>
+    opsRequest<TrialSignupsPage>(status ? `/trial-signups?status=${status}` : "/trial-signups", {}, o),
+  /** P33-F: set a sign-up's status (audited `trial_signup_status`). */
+  setTrialSignupStatus: (id: string, status: TrialSignupStatus, o?: OpsRequestOptions) =>
+    opsRequest<{ data: TrialSignup }>(`/trial-signups/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } }, o),
 };
 
 export type OpsApi = typeof opsApi;

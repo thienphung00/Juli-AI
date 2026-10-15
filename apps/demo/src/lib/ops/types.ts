@@ -446,3 +446,30 @@ export interface CardGroupsPage {
   readonly enabled: boolean;
   readonly groups: readonly CardGroup[];
 }
+
+/* -- P33-F (D43): tab "Đăng ký dùng thử" — app-juli.com/dang-ky sign-ups ------------- */
+
+export type TrialSignupStatus = "new" | "contacted" | "converted" | "spam";
+
+export interface TrialSignup {
+  readonly id: string;
+  readonly created_at: string | null;
+  readonly full_name: string;
+  readonly phone: string;
+  readonly email: string;
+  readonly shop: string;
+  readonly role: string;
+  readonly role_label: string;
+  readonly note: string | null;
+  readonly source: Readonly<Record<string, string>>;
+  readonly status: TrialSignupStatus;
+  readonly status_label: string;
+  readonly handled_by: string | null;
+  readonly handled_at: string | null;
+}
+
+export interface TrialSignupsPage {
+  readonly data: readonly TrialSignup[];
+  readonly counts: Readonly<Record<TrialSignupStatus, number>>;
+  readonly statuses: readonly { readonly value: TrialSignupStatus; readonly label: string }[];
+}

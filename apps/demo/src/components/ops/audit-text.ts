@@ -26,6 +26,13 @@ function capText(value: unknown): string {
 
 const SOURCE_LABELS: Readonly<Record<string, string>> = { contract: "hợp đồng", payment: "thanh toán" };
 const ROLE_LABELS: Readonly<Record<string, string>> = { viewer: "Xem", operator: "Vận hành", admin: "Admin" };
+/** P33-F: `trial_signups.status` (backend `models/trial_signups.SIGNUP_STATUS_LABELS`). */
+export const SIGNUP_STATUS_LABELS: Readonly<Record<string, string>> = {
+  new: "Mới",
+  contacted: "Đã liên hệ",
+  converted: "Đã kết nối shop",
+  spam: "Spam",
+};
 
 /** One audit row as a sentence (artboard "Nhật ký"). */
 export function auditWho(entry: AuditEntry): string {
@@ -49,7 +56,7 @@ function periodText(after: Obj): string {
  * openai_shop_cap_set, openai_system_cap_set, system_openai_alert_sent,
  * view_as_view, view_as_exit, data_refresh, shop_disconnect, invite_create,
  * invite_accept, scenario_*, rule_set, rule_unset, staff_upsert,
- * subscription_period_added. An unknown action still reads as a sentence.
+ * subscription_period_added, trial_signup_status. An unknown action still reads as a sentence.
  */
 export function auditWhat(entry: AuditEntry): string {
   const after = obj(entry.after);
@@ -100,6 +107,11 @@ export function auditWhat(entry: AuditEntry): string {
     }
     case "subscription_period_added":
       return periodText(after);
+    case "trial_signup_status": {
+      const from = SIGNUP_STATUS_LABELS[String(before.status)] ?? String(before.status ?? "—");
+      const to = SIGNUP_STATUS_LABELS[String(after.status)] ?? String(after.status ?? "—");
+      return `Đăng ký dùng thử: ${from} → ${to}`;
+    }
     default:
       return `Thao tác khác (${entry.action})`;
   }
