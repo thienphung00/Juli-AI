@@ -1,8 +1,18 @@
-import { CtaLink } from "../../components/cta-link";
-import { SiteHeader } from "../../components/ui/site-header";
+import {
+  Card,
+  Container,
+  Eyebrow,
+  Heading,
+  Icon,
+  LinkButton,
+  Section,
+  SectionIntro,
+} from "../../components/ui";
 import { SiteFooter } from "../../components/ui/site-footer";
+import { SiteHeader } from "../../components/ui/site-header";
 import { breadcrumbSchema, buildMetadata, JsonLd } from "../../lib/seo";
 import { COMPANY, DEMO_URL } from "../../lib/site";
+import styles from "../about/info.module.css";
 
 export const metadata = buildMetadata("/contact");
 
@@ -13,7 +23,8 @@ const TOPICS = [
   },
   {
     title: "Hỗ trợ tài khoản",
-    body: "Câu hỏi về tài khoản, thanh toán, ngắt kết nối shop hoặc yêu cầu xoá dữ liệu.",
+    // D43 additions 3: there is no seller disconnect button — the Juli team disconnects on request.
+    body: "Câu hỏi về tài khoản, thanh toán, ngắt kết nối shop hoặc yêu cầu xoá dữ liệu. Để ngắt kết nối shop, bạn gửi email và đội ngũ Juli sẽ ngắt kết nối giúp bạn.",
   },
   {
     title: "Hợp tác",
@@ -21,76 +32,92 @@ const TOPICS = [
   },
 ] as const;
 
+/** `/contact` (D43, redesigned to D44 by P34-E). */
 export default function ContactPage() {
   return (
     <>
       <JsonLd data={breadcrumbSchema("/contact")} />
       <SiteHeader />
-      <main className="lp-main">
-        <section aria-labelledby="contact-heading" className="lp-page-hero">
-          <p className="lp-page-hero__eyebrow">Liên hệ</p>
-          <h1 className="lp-page-hero__heading" id="contact-heading">
-            Liên hệ Juli AI
-          </h1>
-          <p className="lp-page-hero__lead">
-            Gửi email cho chúng tôi về mọi câu hỏi liên quan đến sản phẩm, tài khoản hoặc
-            hợp tác. Vui lòng ghi rõ tên shop (nếu có) để chúng tôi hỗ trợ nhanh hơn.
-          </p>
+      <main>
+        <section aria-labelledby="contact-heading" className={styles.hero}>
+          <Container>
+            <div className={styles.heroInner}>
+              <Eyebrow>Liên hệ</Eyebrow>
+              <Heading id="contact-heading" level={1} size="page">
+                Liên hệ Juli AI
+              </Heading>
+              <p className={styles.lead}>
+                Gửi email cho chúng tôi về mọi câu hỏi liên quan đến sản phẩm, tài khoản hoặc
+                hợp tác. Vui lòng ghi rõ tên shop (nếu có) để chúng tôi hỗ trợ nhanh hơn.
+              </p>
+            </div>
+          </Container>
         </section>
 
-        <section aria-labelledby="channels-heading" className="lp-page-section">
-          <h2 className="lp-page-section__heading" id="channels-heading">
+        <Section labelledBy="channels-heading" spacing="compact">
+          <Heading id="channels-heading" level={2} size="feature">
             Thông tin liên hệ
-          </h2>
-          <div className="lp-page-grid">
-            <article className="lp-page-card" data-testid="contact-email">
-              <h3 className="lp-page-card__title">Email</h3>
-              <p className="lp-page-card__body">
-                <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
-                  {COMPANY.email}
-                </a>
-              </p>
-            </article>
-            <article className="lp-page-card" data-testid="contact-address">
-              <h3 className="lp-page-card__title">Địa chỉ</h3>
-              <p className="lp-page-card__body">
+          </Heading>
+          <ul className={`${styles.grid} ${styles.gridTwo}`}>
+            <Card as="li" data-testid="contact-email">
+              <span className={styles.iconWrap}>
+                <Icon name="mail" size={22} strokeWidth={1.8} />
+              </span>
+              <Heading level={3} size="card">
+                Email
+              </Heading>
+              <a className={styles.cardLink} href={`mailto:${COMPANY.email}`}>
+                {COMPANY.email}
+              </a>
+            </Card>
+            <Card as="li" data-testid="contact-address">
+              <span className={styles.iconWrap}>
+                <Icon name="shield-check" size={22} strokeWidth={1.8} />
+              </span>
+              <Heading level={3} size="card">
+                Địa chỉ
+              </Heading>
+              <p className={styles.cardText}>
                 {COMPANY.name}
                 <br />
                 {COMPANY.address}
                 <br />
                 Mã số thuế: {COMPANY.taxId}
               </p>
-            </article>
-          </div>
-        </section>
+            </Card>
+          </ul>
+        </Section>
 
-        <section aria-labelledby="topics-heading" className="lp-page-section">
-          <h2 className="lp-page-section__heading" id="topics-heading">
-            Chúng tôi có thể giúp gì
-          </h2>
-          <div className="lp-page-grid lp-page-grid--three">
+        <Section labelledBy="topics-heading" tone="alt">
+          <SectionIntro title="Chúng tôi có thể giúp gì" titleId="topics-heading" />
+          <ul className={styles.grid}>
             {TOPICS.map((item) => (
-              <article className="lp-page-card" key={item.title}>
-                <h3 className="lp-page-card__title">{item.title}</h3>
-                <p className="lp-page-card__body">{item.body}</p>
-              </article>
+              <Card as="li" key={item.title}>
+                <Heading level={3} size="card">
+                  {item.title}
+                </Heading>
+                <p>{item.body}</p>
+              </Card>
             ))}
-          </div>
-        </section>
+          </ul>
+        </Section>
 
-        <section aria-labelledby="contact-cta-heading" className="lp-page-section lp-page-section--cta">
-          <h2 className="lp-page-section__heading" id="contact-cta-heading">
-            Muốn xem trước khi liên hệ?
-          </h2>
-          <p className="lp-page-section__body">
-            Bản Demo chạy trên dữ liệu mẫu, không cần đăng ký.
-          </p>
-          <div className="lp-page-hero__actions">
-            <CtaLink href={DEMO_URL} size="large">
-              Trải nghiệm Demo
-            </CtaLink>
+        <Section labelledBy="contact-cta-heading" spacing="compact" tone="dark">
+          <div className={styles.ctaIntro}>
+            <SectionIntro
+              lead="Bản Demo chạy trên dữ liệu mẫu, không cần đăng ký."
+              onDark
+              size="feature"
+              title="Muốn xem trước khi liên hệ?"
+              titleId="contact-cta-heading"
+            />
+            <div className={styles.actions}>
+              <LinkButton blockOnMobile data-testid="contact-demo-cta" href={DEMO_URL} variant="on-dark">
+                Trải nghiệm Demo
+              </LinkButton>
+            </div>
           </div>
-        </section>
+        </Section>
       </main>
       <SiteFooter />
     </>
