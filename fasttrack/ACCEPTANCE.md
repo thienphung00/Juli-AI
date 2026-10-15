@@ -575,6 +575,13 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   hợp · sign-in, data control, audiences, pricing `#bang-gia` 500.000đ/tháng, 6-question FAQ,
   CTA); visible breadcrumb + BreadcrumbList, SoftwareApplication + Offer, FAQPage. Test
   `info-pages.test.tsx`; `check:seo` 7/7.
+  — D43 additions (owner 2026-10-15), P33-B 2e37f3c0..4c7788ea: every "Dùng thử miễn phí 3 tháng"
+  CTA (home hero / pricing / final, `/san-pham` hero / pricing card / final) → `SIGNUP_URL` =
+  `/dang-ky` (P33-F), Pixel-tracked (`cta.test.tsx`, `info-pages.test.tsx`,
+  `tiktok-tracking.test.tsx` 6 StartDemo); `/terms` §5 trial sentence (`legal-pages.test.tsx`);
+  disconnect copy = contact Juli, team disconnects, no "thu hồi quyền" (`sections.test.tsx`);
+  demo door at `/?dang-ky=dung-thu` reads "Đăng ký dùng thử miễn phí 3 tháng"
+  (`demo-landing.test.tsx` +4, copy in `dictionary.md` `auth.trial_signup*`).
 - [ ] **AC-33.7** (C) Three capability pages (~2,500 words each) + `/ket-noi/tiktok-shop`, H1 → H2 →
   H3, one labelled real UI screenshot per H2 (AVIF/WebP, width/height), FAQ, internal links, schema.
 - [ ] **AC-33.8** (D) `/blog` index + post template (Article, BreadcrumbList, author, dates) + 3

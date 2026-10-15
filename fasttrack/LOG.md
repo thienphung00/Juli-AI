@@ -1284,3 +1284,26 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
 - **Owner questions**: re-cut or replace the hero video (figures + a discount run Juli does not
   do); confirm "Dùng thử 3 tháng" is free (landing said so; /terms §5 is silent); add an in-app
   disconnect.
+
+## 2026-10-15 — P33-B agent (Claude Opus) — owner's D43 additions (trial, disconnect, video, poster)
+
+- Recorded **D43 additions** in DECISIONS (video stays; free 3-month trial via `/dang-ky` (P33-F);
+  no disconnect button, the team disconnects on request; keep old poster files).
+- **Landing** (2df45c3e, 7c7a6b22): `SIGNUP_URL` = `/dang-ky` (env `NEXT_PUBLIC_SIGNUP_URL`),
+  `TRIAL_CTA_LABEL` "Dùng thử miễn phí 3 tháng" on home hero / pricing / final and `/san-pham`
+  hero / pricing card / final; `TikTokTracking` now also fires StartDemo for clicks to
+  `SIGNUP_URL` (content_name = testid). `/terms` §5: "Tài khoản mới được dùng thử miễn phí 3
+  tháng kể từ ngày đăng ký, không cần thẻ thanh toán. Sau thời gian dùng thử, phí dịch vụ Juli là
+  500.000đ/tháng." (dated 15/10/2026; **owner's legal review**). Homepage / FAQ / `/san-pham`
+  disconnect copy: contact Juli by email or `/contact`, the Juli team disconnects. `/san-pham`
+  FAQ +2 (trial, disconnect).
+- **Demo** (2e37f3c0): `DemoLanding` at `/?dang-ky=dung-thu` forces the doors and the sign-in
+  door reads "Đăng ký dùng thử miễn phí 3 tháng" (eyebrow "Tài khoản mới"; body + existing-account
+  line); buttons and the P32-A partner door unchanged. "Không cần thẻ thanh toán" verified: no
+  payment integration (Ops "Thanh toán · tự động, sắp có" is disabled; terms granted by contract).
+- **Gates (Node 20.20.2)**: landing lint 0, type-check clean, vitest 81/81, build OK, `check:seo`
+  7/7; demo lint 0 errors (7 pre-existing warnings), type-check clean, vitest 1909/1912 in the full
+  run at load avg ~35 (3 load flakes in `quyet-dinh-p10`, `ops-pages`; 70/70 in isolation with
+  `demo-landing`), `pnpm build:demo --force` OK (example Supabase env); `fasttrack/check.sh
+  --since f55809fd` 5/5 PASS.
+- `/dang-ky` 404s until P33-F integrates (DEBT); `check:seo` does not check links, so no allow-list.
