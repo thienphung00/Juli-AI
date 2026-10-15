@@ -122,4 +122,26 @@ describe("public product and company pages", () => {
       unmount();
     }
   });
+
+  it("/about (D44): bird mark, the company card with every fact, and the demo / contact CTAs", () => {
+    render(<AboutPage />);
+    const card = screen.getByTestId("about-company-card");
+    expect(card.querySelector("img.ui-bird")).not.toBeNull();
+    for (const value of [COMPANY.name, COMPANY.taxId, COMPANY.address, COMPANY.email, "app-juli.com"]) {
+      expect(card, value).toHaveTextContent(value);
+    }
+    expect(screen.getByTestId("about-demo-cta")).toHaveAttribute("href", DEMO_URL);
+    expect(screen.getByTestId("about-contact-cta")).toHaveAttribute("href", "/contact");
+  });
+
+  it("/contact (D44): icon cards, and disconnecting a shop means asking the Juli team (D43 additions 3)", () => {
+    render(<ContactPage />);
+    for (const id of ["contact-email", "contact-address"]) {
+      expect(screen.getByTestId(id).querySelector("svg"), id).not.toBeNull();
+    }
+    const main = screen.getByRole("main");
+    expect(main).toHaveTextContent(/Để ngắt kết nối shop, bạn gửi email và đội ngũ Juli sẽ ngắt kết nối giúp bạn/);
+    expect(main).not.toHaveTextContent(/Seller Center/);
+    expect(screen.getByTestId("contact-demo-cta")).toHaveAttribute("href", DEMO_URL);
+  });
 });

@@ -1,7 +1,7 @@
-import { SiteHeader } from "../../components/ui/site-header";
-import { SiteFooter } from "../../components/ui/site-footer";
 import { breadcrumbSchema, buildMetadata, JsonLd } from "../../lib/seo";
 import { COMPANY } from "../../lib/site";
+
+import { legal, LegalPage, LegalSection } from "./legal-template";
 import {
   ENGLISH_SECTION_ID,
   GOOGLE_PERMISSIONS_URL,
@@ -20,40 +20,74 @@ const TRIAL_SIGNUP_SECTION_ID = "dang-ky-dung-thu";
 /** Anchor for §3, so the Google OAuth consent screen can deep-link to it. */
 const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
 
+/**
+ * "Tóm tắt dễ hiểu" (D44): each line restates what a numbered section below
+ * already says (§4, §5, §3 + staff access, §3.2/§7, §9 + §8). It adds no
+ * commitment; the full text governs.
+ */
+const SUMMARY = [
+  "Sau khi bạn kết nối shop, Juli đọc dữ liệu shop (đơn hàng, sản phẩm, tồn kho, đơn hoàn, hiệu suất) qua API của TikTok Shop để phân tích và đề xuất cho shop của bạn.",
+  "Mặc định Juli không thay đổi gì trên shop thật; một thao tác chỉ được thực hiện sau khi bạn đã duyệt đề xuất đó.",
+  "Nhân viên Juli chỉ xem dữ liệu shop để hỗ trợ và vận hành dịch vụ, không xem dữ liệu người mua, và mọi lần truy cập đều được ghi nhật ký.",
+  "Juli không bán dữ liệu, và không dùng dữ liệu người dùng Google cho quảng cáo hay để huấn luyện các mô hình AI tổng quát.",
+  "Để ngắt kết nối shop hoặc xoá tài khoản, bạn gửi email cho Juli; dữ liệu tài khoản và dữ liệu shop được xoá trong vòng 30 ngày, trừ dữ liệu pháp luật yêu cầu lưu giữ.",
+] as const;
+
+const TOC = [
+  { id: "muc-1", label: "1. Chúng tôi là ai" },
+  { id: "muc-2", label: "2. Thông tin tài khoản" },
+  { id: GOOGLE_SECTION_ID, label: "3. Dữ liệu người dùng Google" },
+  { id: "muc-4", label: "4. Dữ liệu đọc từ shop" },
+  { id: "shopee-data", label: "4A. Dữ liệu Shopee" },
+  { id: "muc-5", label: "5. Thay đổi trên shop" },
+  { id: "muc-6", label: "6. Mục đích sử dụng" },
+  { id: "muc-7", label: "7. Chia sẻ dữ liệu" },
+  { id: "muc-8", label: "8. Bảo mật và lưu trữ" },
+  { id: "muc-9", label: "9. Quyền của bạn" },
+  { id: "muc-10", label: "10. Độ tuổi sử dụng" },
+  { id: "muc-11", label: "11. Thay đổi chính sách" },
+  { id: "muc-12", label: "12. Liên hệ" },
+  { id: ENGLISH_SECTION_ID, label: "English version" },
+  { id: "lien-he-quyen-rieng-tu", label: "Liên hệ về quyền riêng tư" },
+] as const;
+
 export default function PrivacyPolicyPage() {
   return (
     <>
       <JsonLd data={breadcrumbSchema("/privacy")} />
-      <SiteHeader />
-      <main className="lp-main">
-        <article className="lp-legal">
-          <p className="lp-legal__eyebrow">Pháp lý</p>
-          <h1 className="lp-legal__heading">Chính sách bảo mật</h1>
-          <p className="lp-legal__updated">Cập nhật lần cuối: {LAST_UPDATED}</p>
-
-          <div className="lp-legal__en-notice" lang="en" data-testid="privacy-en-notice">
+      <LegalPage
+        contactId="lien-he-quyen-rieng-tu"
+        contactTitle="Liên hệ về quyền riêng tư"
+        effective={LAST_UPDATED}
+        englishHref={`#${ENGLISH_SECTION_ID}`}
+        summary={SUMMARY}
+        title="Chính sách bảo mật"
+        toc={TOC}
+        updated={LAST_UPDATED}
+      >
+          <div className={legal.enNotice} lang="en" data-testid="privacy-en-notice">
             <p>
               <strong>Privacy Policy — Juli AI.</strong> App name: Juli AI. Operator:{" "}
               <span lang="vi">{COMPANY.name}</span> (tax ID {COMPANY.taxId}). Website:
               app-juli.com. Contact:{" "}
-              <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+              <a href={`mailto:${COMPANY.email}`}>
                 {COMPANY.email}
               </a>
               . Last updated (effective date): {LAST_UPDATED_EN}.
             </p>
             <p>
-              <a className="lp-legal__contact-link" href={`#${ENGLISH_SECTION_ID}`}>
+              <a href={`#${ENGLISH_SECTION_ID}`}>
                 English version ↓
               </a>
             </p>
           </div>
 
-          <p className="lp-legal__intro">
+          <p className={legal.intro}>
             Chính sách này giải thích cách Juli AI thu thập, sử dụng, chia sẻ và bảo vệ dữ
             liệu khi bạn sử dụng website app-juli.com, bản Demo và ứng dụng Juli, phù hợp
             với Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.
           </p>
-          <p className="lp-legal__intro">
+          <p className={legal.intro}>
             Trang này có bản tiếng Anh đầy đủ ở phía dưới. Nếu hai bản có khác biệt, bản
             tiếng Việt được ưu tiên áp dụng, trừ trường hợp điều đó mâu thuẫn với các cam
             kết của Juli AI theo Chính sách dữ liệu người dùng của Google API Services, bao
@@ -61,8 +95,7 @@ export default function PrivacyPolicyPage() {
             được áp dụng.
           </p>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">1. Chúng tôi là ai</h2>
+          <LegalSection headingId="muc-1" num="1." title="Chúng tôi là ai">
             <p>
               Juli AI được vận hành bởi {COMPANY.name} (mã số thuế {COMPANY.taxId}), trụ sở
               tại {COMPANY.address}. {COMPANY.name} là bên kiểm soát và xử lý dữ liệu cá
@@ -70,15 +103,14 @@ export default function PrivacyPolicyPage() {
             </p>
             <p>
               Bạn có thể liên hệ chúng tôi qua email{" "}
-              <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+              <a href={`mailto:${COMPANY.email}`}>
                 {COMPANY.email}
               </a>
               .
             </p>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">2. Thông tin tài khoản</h2>
+          <LegalSection headingId="muc-2" num="2." title="Thông tin tài khoản">
             <p>
               Bạn tạo và truy cập tài khoản Juli bằng cách đăng nhập với Google, hoặc bằng
               email với mã xác thực gửi tới hộp thư của bạn (thông qua Supabase Auth). Chúng
@@ -98,7 +130,7 @@ export default function PrivacyPolicyPage() {
                 Tuỳ chọn: mã thiết bị, chỉ khi bạn bật thông báo đẩy trên điện thoại
               </li>
             </ul>
-            <h3 className="lp-legal__subheading" id={TRIAL_SIGNUP_SECTION_ID}>
+            <h3 className={legal.subheading} id={TRIAL_SIGNUP_SECTION_ID}>
               Đăng ký dùng thử
             </h3>
             <p data-testid="privacy-trial-signup">
@@ -112,21 +144,14 @@ export default function PrivacyPolicyPage() {
               ngũ. Nếu bạn không bắt đầu dùng Juli, thông tin được lưu tối đa 12 tháng kể từ
               ngày đăng ký rồi xoá; nếu bạn dùng Juli, thông tin trở thành thông tin tài khoản
               theo chính sách này. Bạn có thể yêu cầu xoá bất cứ lúc nào qua{" "}
-              <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+              <a href={`mailto:${COMPANY.email}`}>
                 {COMPANY.email}
               </a>
               ; chúng tôi xoá trong vòng 30 ngày.
             </p>
-          </section>
+          </LegalSection>
 
-          <section
-            className="lp-legal__section"
-            id={GOOGLE_SECTION_ID}
-            aria-labelledby="google-user-data-heading"
-          >
-            <h2 className="lp-legal__section-heading" id="google-user-data-heading">
-              3. Dữ liệu người dùng Google (Google user data)
-            </h2>
+          <LegalSection headingId="google-user-data-heading" num="3." sectionId={GOOGLE_SECTION_ID} title="Dữ liệu người dùng Google (Google user data)">
             <p>
               Mục này áp dụng khi bạn chọn &ldquo;Đăng nhập với Google&rdquo; trên Juli AI
               (app-juli.com và demo.app-juli.com), do {COMPANY.name} vận hành. Việc đăng
@@ -136,7 +161,7 @@ export default function PrivacyPolicyPage() {
               Drive, Danh bạ, Lịch hay bất kỳ dịch vụ hoặc dữ liệu Google nào khác.
             </p>
 
-            <h3 className="lp-legal__subheading">3.1. Dữ liệu Juli truy cập</h3>
+            <h3 className={legal.subheading}>3.1. Dữ liệu Juli truy cập</h3>
             <ul aria-label="Dữ liệu người dùng Google Juli truy cập">
               <li>Địa chỉ email của tài khoản Google và trạng thái đã xác thực của email đó</li>
               <li>Tên hiển thị (họ tên) trên tài khoản Google</li>
@@ -149,7 +174,7 @@ export default function PrivacyPolicyPage() {
               Google nào thay mặt bạn sau khi đăng nhập.
             </p>
 
-            <h3 className="lp-legal__subheading">3.2. Cách Juli sử dụng dữ liệu này</h3>
+            <h3 className={legal.subheading}>3.2. Cách Juli sử dụng dữ liệu này</h3>
             <ul aria-label="Cách Juli sử dụng dữ liệu người dùng Google">
               <li>Tạo tài khoản Juli cho bạn và đăng nhập cho bạn ở những lần sau</li>
               <li>
@@ -176,7 +201,6 @@ export default function PrivacyPolicyPage() {
               Việc Juli sử dụng và chuyển cho bất kỳ ứng dụng nào khác thông tin nhận được từ
               Google API tuân thủ{" "}
               <a
-                className="lp-legal__contact-link"
                 href={GOOGLE_USER_DATA_POLICY_URL}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -187,7 +211,7 @@ export default function PrivacyPolicyPage() {
               , bao gồm các yêu cầu về Sử dụng giới hạn (Limited Use).
             </p>
 
-            <h3 className="lp-legal__subheading">3.3. Juli chia sẻ dữ liệu này với ai</h3>
+            <h3 className={legal.subheading}>3.3. Juli chia sẻ dữ liệu này với ai</h3>
             <p>
               Juli không bán, không cho thuê và không trao đổi dữ liệu người dùng Google. Juli
               chỉ chuyển hoặc tiết lộ dữ liệu này trong các trường hợp sau:
@@ -209,7 +233,7 @@ export default function PrivacyPolicyPage() {
               nêu trên.
             </p>
 
-            <h3 className="lp-legal__subheading">3.4. Cách Juli bảo vệ dữ liệu này</h3>
+            <h3 className={legal.subheading}>3.4. Cách Juli bảo vệ dữ liệu này</h3>
             <ul aria-label="Cách Juli bảo vệ dữ liệu người dùng Google">
               <li>
                 Mã hoá khi truyền: kết nối giữa trình duyệt của bạn và Juli, và giữa máy chủ
@@ -235,7 +259,7 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
 
-            <h3 className="lp-legal__subheading">3.5. Lưu trữ, xoá dữ liệu và thu hồi quyền truy cập</h3>
+            <h3 className={legal.subheading}>3.5. Lưu trữ, xoá dữ liệu và thu hồi quyền truy cập</h3>
             <ul aria-label="Lưu trữ và xoá dữ liệu người dùng Google">
               <li>
                 Lưu trữ: Juli giữ dữ liệu người dùng Google nêu ở mục 3.1 trong thời gian tài
@@ -243,7 +267,7 @@ export default function PrivacyPolicyPage() {
               </li>
               <li>
                 Yêu cầu xoá: gửi email tới{" "}
-                <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+                <a href={`mailto:${COMPANY.email}`}>
                   {COMPANY.email}
                 </a>{" "}
                 từ địa chỉ email của tài khoản. Chúng tôi xác nhận trong vòng 72 giờ và xoá tài
@@ -253,7 +277,6 @@ export default function PrivacyPolicyPage() {
               <li>
                 Thu hồi quyền truy cập: bạn có thể gỡ quyền truy cập của Juli bất kỳ lúc nào tại{" "}
                 <a
-                  className="lp-legal__contact-link"
                   href={GOOGLE_PERMISSIONS_URL}
                   rel="noopener noreferrer"
                   target="_blank"
@@ -265,12 +288,9 @@ export default function PrivacyPolicyPage() {
                 để xoá, hãy gửi yêu cầu xoá như trên
               </li>
             </ul>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">
-              4. Thông tin chúng tôi đọc từ shop của bạn
-            </h2>
+          <LegalSection headingId="muc-4" num="4." title="Thông tin chúng tôi đọc từ shop của bạn">
             <p>
               Sau khi bạn kết nối shop TikTok Shop, Juli đồng bộ định kỳ các dữ liệu sau từ
               API của TikTok Shop, dùng để phân tích và đưa ra đề xuất cho shop của bạn:
@@ -288,12 +308,9 @@ export default function PrivacyPolicyPage() {
               Juli không đọc tin nhắn cá nhân của bạn, và không lưu thông tin liên hệ của
               người mua ngoài mã định danh cần thiết để xử lý đơn hàng.
             </p>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section" id="shopee-data">
-            <h2 className="lp-legal__section-heading">
-              4A. Dữ liệu Shopee (khi bạn kết nối shop Shopee)
-            </h2>
+          <LegalSection headingId="shopee-data-heading" num="4A." sectionId="shopee-data" title="Dữ liệu Shopee (khi bạn kết nối shop Shopee)">
             <p>
               Shopee đang được tích hợp qua Shopee Open Platform. Mục này có hiệu lực từ khi
               bạn kết nối một shop Shopee với Juli; trước đó Juli không đọc dữ liệu nào từ
@@ -315,12 +332,9 @@ export default function PrivacyPolicyPage() {
               Shopee Open Platform. Thay đổi trên shop Shopee chỉ được ghi khi bạn đã chủ
               động phê duyệt.
             </p>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">
-              5. Những gì Juli ghi lại hoặc thay đổi trên shop của bạn
-            </h2>
+          <LegalSection headingId="muc-5" num="5." title="Những gì Juli ghi lại hoặc thay đổi trên shop của bạn">
             <p>
               Mặc định, Juli không thay đổi bất kỳ điều gì trên shop TikTok Shop thật của
               bạn. Việc thử nghiệm các hành động (ví dụ: tạo mã giảm giá sản phẩm) chạy trên
@@ -331,10 +345,9 @@ export default function PrivacyPolicyPage() {
               duyệt đề xuất đó, và (b) quyền ghi được cấp riêng cho đúng một sản phẩm và
               đúng một loại thao tác, có thời hạn và chỉ dùng được một lần.
             </p>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">6. Mục đích sử dụng dữ liệu</h2>
+          <LegalSection headingId="muc-6" num="6." title="Mục đích sử dụng dữ liệu">
             <ul>
               <li>Cung cấp, vận hành và bảo mật tài khoản và dịch vụ Juli</li>
               <li>Phân tích hiệu suất shop và tạo đề xuất tối ưu cho shop của bạn</li>
@@ -342,10 +355,9 @@ export default function PrivacyPolicyPage() {
               <li>Đo lường hiệu quả quảng cáo của Juli trên TikTok</li>
               <li>Liên hệ hỗ trợ và thông báo các thay đổi quan trọng về dịch vụ</li>
             </ul>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">7. Chúng tôi chia sẻ dữ liệu với ai</h2>
+          <LegalSection headingId="muc-7" num="7." title="Chúng tôi chia sẻ dữ liệu với ai">
             <p>
               Juli không bán dữ liệu của bạn cho bất kỳ bên thứ ba nào. Chúng tôi chỉ chia
               sẻ dữ liệu với các bên xử lý dữ liệu sau, trong phạm vi cần thiết để vận hành
@@ -375,10 +387,9 @@ export default function PrivacyPolicyPage() {
               mục đích nêu tại mục 6. Chúng tôi cũng có thể cung cấp dữ liệu khi cơ quan nhà
               nước có thẩm quyền yêu cầu theo quy định pháp luật.
             </p>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">8. Bảo mật và thời gian lưu trữ</h2>
+          <LegalSection headingId="muc-8" num="8." title="Bảo mật và thời gian lưu trữ">
             <p>
               Dữ liệu được mã hoá khi truyền (HTTPS/TLS) và được nhà cung cấp cơ sở dữ liệu
               (Supabase) mã hoá khi lưu trữ. Quyền truy cập dữ liệu được giới hạn theo từng
@@ -392,10 +403,9 @@ export default function PrivacyPolicyPage() {
               xoá tài khoản, dữ liệu tài khoản và dữ liệu shop được xoá trong vòng 30 ngày,
               trừ những dữ liệu pháp luật yêu cầu phải lưu giữ (ví dụ: chứng từ thanh toán).
             </p>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">9. Quyền của bạn</h2>
+          <LegalSection headingId="muc-9" num="9." title="Quyền của bạn">
             <p>Theo Nghị định 13/2023/NĐ-CP, bạn có quyền:</p>
             <ul>
               <li>Được biết và truy cập dữ liệu cá nhân của mình</li>
@@ -407,24 +417,22 @@ export default function PrivacyPolicyPage() {
             </ul>
             <p>
               Để thực hiện các quyền này, gửi yêu cầu tới{" "}
-              <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+              <a href={`mailto:${COMPANY.email}`}>
                 {COMPANY.email}
               </a>
               . Chúng tôi phản hồi trong vòng 72 giờ.
             </p>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">10. Độ tuổi sử dụng</h2>
+          <LegalSection headingId="muc-10" num="10." title="Độ tuổi sử dụng">
             <p>
               Juli là dịch vụ dành cho người bán hàng và doanh nghiệp. Bạn phải từ 18 tuổi
               trở lên để sử dụng Juli. Chúng tôi không cố ý thu thập dữ liệu của người dưới
               18 tuổi.
             </p>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">11. Thay đổi chính sách này</h2>
+          <LegalSection headingId="muc-11" num="11." title="Thay đổi chính sách này">
             <p>
               Khi chính sách thay đổi, chúng tôi cập nhật ngày ở đầu trang này. Với những
               thay đổi quan trọng, chúng tôi thông báo qua email ít nhất 7 ngày trước khi
@@ -432,23 +440,20 @@ export default function PrivacyPolicyPage() {
               chia sẻ dữ liệu người dùng Google, chúng tôi sẽ thông báo cho bạn và xin lại sự
               đồng ý của bạn trước khi áp dụng.
             </p>
-          </section>
+          </LegalSection>
 
-          <section className="lp-legal__section">
-            <h2 className="lp-legal__section-heading">12. Liên hệ</h2>
+          <LegalSection headingId="muc-12" num="12." title="Liên hệ">
             <p>
               Mọi câu hỏi về chính sách này, vui lòng liên hệ {COMPANY.name} qua{" "}
-              <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+              <a href={`mailto:${COMPANY.email}`}>
                 {COMPANY.email}
               </a>
               .
             </p>
-          </section>
+          </LegalSection>
 
           <PrivacyPolicyEnglish />
-        </article>
-      </main>
-      <SiteFooter />
+      </LegalPage>
     </>
   );
 }

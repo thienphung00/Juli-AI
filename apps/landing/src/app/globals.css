@@ -320,110 +320,12 @@ a {
   font-weight: 800;
 }
 
-/* ————— Legal pages (/privacy, /terms) ————— */
+/* ————— Legal-style inline link ————— */
 
-.lp-legal {
-  display: flex;
-  flex-direction: column;
-  gap: var(--juli-space-6);
-  max-width: 44rem;
-  margin-inline: auto;
-  padding-block: clamp(2rem, 6vw, 4rem);
-}
-
-.lp-legal__eyebrow {
-  margin: 0;
-  color: var(--juli-primary-text);
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.lp-legal__heading {
-  margin: 0;
-  color: var(--juli-foreground);
-  font-size: clamp(1.75rem, 4vw, 2.25rem);
-  line-height: 1.2;
-}
-
-.lp-legal__updated {
-  margin: 0;
-  color: var(--juli-muted-foreground);
-  font-size: 0.9rem;
-}
-
-.lp-legal__intro {
-  margin: 0;
-  color: var(--juli-foreground);
-  font-size: 0.98rem;
-  line-height: 1.7;
-}
-
-.lp-legal__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--juli-space-3);
-}
-
-.lp-legal__section-heading {
-  margin: 0;
-  color: var(--juli-foreground);
-  font-size: 1.15rem;
-  line-height: 1.4;
-}
-
-.lp-legal__subheading {
-  margin: var(--juli-space-2) 0 0;
-  color: var(--juli-foreground);
-  font-size: 1rem;
-  line-height: 1.5;
-}
-
-.lp-legal__section p,
-.lp-legal__section li {
-  margin: 0;
-  color: var(--juli-foreground);
-  font-size: 0.98rem;
-  line-height: 1.7;
-}
-
-.lp-legal__section ul {
-  display: flex;
-  flex-direction: column;
-  gap: var(--juli-space-2);
-  margin: 0;
-  padding-inline-start: 1.25rem;
-}
-
+/* /privacy and /terms moved to app/privacy/legal.module.css (P34-E). This one
+   class is still used by /ket-noi/tiktok-shop and the capability pages (P34-C). */
 .lp-legal__contact-link {
   color: var(--juli-primary-text);
-}
-
-/* /privacy: the English notice near the top and the full English version. */
-.lp-legal__en-notice {
-  display: flex;
-  flex-direction: column;
-  gap: var(--juli-space-2);
-  padding-inline-start: var(--juli-space-3);
-  border-inline-start: 3px solid var(--juli-primary-text);
-}
-
-.lp-legal__en-notice p {
-  margin: 0;
-  color: var(--juli-foreground);
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
-
-.lp-legal__part {
-  display: flex;
-  flex-direction: column;
-  gap: var(--juli-space-6);
-  margin-top: var(--juli-space-6);
-  padding-top: var(--juli-space-6);
-  border-top: 1px solid var(--juli-border);
-  scroll-margin-top: var(--juli-space-6);
 }
 
 /* ————— Info pages (/product, /about, /contact) ————— */

@@ -1,5 +1,7 @@
 import { COMPANY } from "../../lib/site";
 
+import { legal } from "./legal-template";
+
 /**
  * The complete English version of /privacy (sections 1–12), rendered on the
  * same URL below the authoritative Vietnamese text. It is a faithful
@@ -16,7 +18,7 @@ export const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions"
 
 function ContactLink() {
   return (
-    <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+    <a href={`mailto:${COMPANY.email}`}>
       {COMPANY.email}
     </a>
   );
@@ -25,30 +27,30 @@ function ContactLink() {
 export function PrivacyPolicyEnglish() {
   return (
     <div
-      className="lp-legal__part"
+      className={legal.part}
       id={ENGLISH_SECTION_ID}
       lang="en"
       aria-labelledby="privacy-english-heading"
     >
-      <h2 className="lp-legal__heading" id="privacy-english-heading">
+      <h2 className={legal.partHeading} id="privacy-english-heading">
         Privacy Policy — Juli AI (English)
       </h2>
-      <p className="lp-legal__updated">Last updated (effective date): {LAST_UPDATED_EN}</p>
+      <p className={legal.partUpdated}>Last updated (effective date): {LAST_UPDATED_EN}</p>
 
-      <p className="lp-legal__intro">
+      <p className={legal.intro}>
         This policy explains how Juli AI collects, uses, shares and protects data when you
         use the website app-juli.com, the Demo and the Juli app, in accordance with Decree
         13/2023/NĐ-CP on personal data protection (Vietnam).
       </p>
-      <p className="lp-legal__intro">
+      <p className={legal.intro}>
         This English version is a translation of the Vietnamese policy above. If the two
         versions differ, the Vietnamese version prevails, except where that would conflict
         with Juli AI&rsquo;s commitments under the Google API Services User Data Policy,
         including the Limited Use requirements (section 3), which always apply.
       </p>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">1. Who we are</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>1. Who we are</h3>
         <p>
           Juli AI is operated by <span lang="vi">{COMPANY.name}</span> (tax ID{" "}
           {COMPANY.taxId}), with its registered office at{" "}
@@ -60,8 +62,8 @@ export function PrivacyPolicyEnglish() {
         </p>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">2. Account information</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>2. Account information</h3>
         <p>
           You create and access your Juli account by signing in with Google, or with your
           email address and a verification code sent to your inbox (via Supabase Auth). We
@@ -78,7 +80,7 @@ export function PrivacyPolicyEnglish() {
           </li>
           <li>Optional: a device token, only if you turn on push notifications on your phone</li>
         </ul>
-        <h4 className="lp-legal__subheading" id="free-trial-sign-up">
+        <h4 className={legal.subheading} id="free-trial-sign-up">
           Free-trial sign-up
         </h4>
         <p data-testid="privacy-trial-signup-en">
@@ -96,11 +98,11 @@ export function PrivacyPolicyEnglish() {
       </section>
 
       <section
-        className="lp-legal__section"
+        className={legal.section}
         id={ENGLISH_GOOGLE_SECTION_ID}
         aria-labelledby="google-user-data-heading-en"
       >
-        <h3 className="lp-legal__section-heading" id="google-user-data-heading-en">
+        <h3 className={legal.sectionHeading} id="google-user-data-heading-en">
           3. Google user data
         </h3>
         <p>
@@ -112,7 +114,7 @@ export function PrivacyPolicyEnglish() {
           to Gmail, Google Drive, Contacts, Calendar or any other Google service or data.
         </p>
 
-        <h4 className="lp-legal__subheading">3.1. Data Juli accesses</h4>
+        <h4 className={legal.subheading}>3.1. Data Juli accesses</h4>
         <ul aria-label="Google user data Juli accesses">
           <li>Your Google account email address and whether that email is verified</li>
           <li>Your display name (full name) on your Google account</li>
@@ -125,7 +127,7 @@ export function PrivacyPolicyEnglish() {
           sign in.
         </p>
 
-        <h4 className="lp-legal__subheading">3.2. How Juli uses this data</h4>
+        <h4 className={legal.subheading}>3.2. How Juli uses this data</h4>
         <ul aria-label="How Juli uses Google user data">
           <li>To create your Juli account and sign you in on later visits</li>
           <li>
@@ -152,12 +154,11 @@ export function PrivacyPolicyEnglish() {
           logged.
         </p>
 
-        <h4 className="lp-legal__subheading">3.3. Limited Use</h4>
+        <h4 className={legal.subheading}>3.3. Limited Use</h4>
         <p>
           Juli AI&rsquo;s use and transfer to any other app of information received from
           Google APIs will adhere to the{" "}
           <a
-            className="lp-legal__contact-link"
             href={GOOGLE_USER_DATA_POLICY_URL}
             rel="noopener noreferrer"
             target="_blank"
@@ -167,7 +168,7 @@ export function PrivacyPolicyEnglish() {
           ({GOOGLE_USER_DATA_POLICY_URL}), including the Limited Use requirements.
         </p>
 
-        <h4 className="lp-legal__subheading">3.4. Who Juli shares this data with</h4>
+        <h4 className={legal.subheading}>3.4. Who Juli shares this data with</h4>
         <p>
           Juli does not sell, rent or trade Google user data. Juli transfers or discloses
           this data only in the following cases:
@@ -188,7 +189,7 @@ export function PrivacyPolicyEnglish() {
           transfer it to any other party for any purpose other than those listed above.
         </p>
 
-        <h4 className="lp-legal__subheading">3.5. How Juli protects this data</h4>
+        <h4 className={legal.subheading}>3.5. How Juli protects this data</h4>
         <ul aria-label="How Juli protects Google user data">
           <li>
             Encryption in transit: connections between your browser and Juli, and between
@@ -213,7 +214,7 @@ export function PrivacyPolicyEnglish() {
           </li>
         </ul>
 
-        <h4 className="lp-legal__subheading">
+        <h4 className={legal.subheading}>
           3.6. Retention, deletion and revoking access
         </h4>
         <ul aria-label="Retention and deletion of Google user data">
@@ -230,7 +231,6 @@ export function PrivacyPolicyEnglish() {
           <li>
             Revoking access: you can remove Juli&rsquo;s access at any time on your{" "}
             <a
-              className="lp-legal__contact-link"
               href={GOOGLE_PERMISSIONS_URL}
               rel="noopener noreferrer"
               target="_blank"
@@ -244,8 +244,8 @@ export function PrivacyPolicyEnglish() {
         </ul>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">4. Information we read from your shop</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>4. Information we read from your shop</h3>
         <p>
           After you connect your TikTok Shop shop, Juli periodically syncs the following data
           from the TikTok Shop API, to analyze your shop and make recommendations for it:
@@ -271,8 +271,8 @@ export function PrivacyPolicyEnglish() {
         </p>
       </section>
 
-      <section className="lp-legal__section" id="shopee-data-en">
-        <h3 className="lp-legal__section-heading">
+      <section className={legal.section} id="shopee-data-en">
+        <h3 className={legal.sectionHeading}>
           4A. Shopee data (when you connect a Shopee shop)
         </h3>
         <p>
@@ -295,8 +295,8 @@ export function PrivacyPolicyEnglish() {
         </p>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>
           5. What Juli records or changes on your shop
         </h3>
         <p>
@@ -312,8 +312,8 @@ export function PrivacyPolicyEnglish() {
         </p>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">6. Purposes of data use</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>6. Purposes of data use</h3>
         <ul>
           <li>To provide, operate and secure your Juli account and the Juli service</li>
           <li>To analyze shop performance and create optimization recommendations for your shop</li>
@@ -323,8 +323,8 @@ export function PrivacyPolicyEnglish() {
         </ul>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">7. Who we share data with</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>7. Who we share data with</h3>
         <p>
           Juli does not sell your data to any third party. We share data only with the
           following data processors, to the extent necessary to operate the product:
@@ -358,8 +358,8 @@ export function PrivacyPolicyEnglish() {
         </p>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">8. Security and retention</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>8. Security and retention</h3>
         <p>
           Data is encrypted in transit (HTTPS/TLS) and encrypted at rest by our database
           provider (Supabase). Access to data is limited per account and per shop, and TikTok
@@ -374,8 +374,8 @@ export function PrivacyPolicyEnglish() {
         </p>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">9. Your rights</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>9. Your rights</h3>
         <p>Under Decree 13/2023/NĐ-CP, you have the right to:</p>
         <ul>
           <li>Be informed about and access your personal data</li>
@@ -394,16 +394,16 @@ export function PrivacyPolicyEnglish() {
         </p>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">10. Age requirement</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>10. Age requirement</h3>
         <p>
           Juli is a service for sellers and businesses. You must be 18 or older to use Juli.
           We do not knowingly collect data from anyone under 18.
         </p>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">11. Changes to this policy</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>11. Changes to this policy</h3>
         <p>
           When this policy changes, we update the date at the top of this page. For
           significant changes, we notify you by email at least 7 days before the change takes
@@ -412,8 +412,8 @@ export function PrivacyPolicyEnglish() {
         </p>
       </section>
 
-      <section className="lp-legal__section">
-        <h3 className="lp-legal__section-heading">12. Contact</h3>
+      <section className={legal.section}>
+        <h3 className={legal.sectionHeading}>12. Contact</h3>
         <p>
           For any questions about this policy, please contact{" "}
           <span lang="vi">{COMPANY.name}</span> at <ContactLink />.

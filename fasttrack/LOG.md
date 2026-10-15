@@ -1628,3 +1628,48 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   build OK, `check:seo` 17/17; Playwright `/blog` (dev, prod-empty, filter) + the metrics post at
   1440/390, no overflow, font Be Vietnam Pro → `fasttrack/design/p34/evidence/p34d/`;
   `check.sh --since c95231e0` 5/5 PASS. Deviations and follow-ups in DEBT (P34-D).
+## 2026-10-15 — P34-E agent (Claude Opus) — legal, about, contact, sign-up to the D44 mockups (AC-34.5)
+Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c95231e0 (not merged).
+- **Legal template** (`app/privacy/legal-template.tsx`, `legal.module.css`), used by /privacy and
+  /terms: header block (muted "Pháp lý", H1 44 px, "Cập nhật lần cuối: … · Có hiệu lực từ …"),
+  VN/EN switch on /privacy only (two anchor links, "English" → `#english`, the jump the old
+  "English version ↓" link does — kept too; /terms has no English version, so no switch);
+  "Tóm tắt dễ hiểu" card (privacy 5 bullets, terms 4, each restating a numbered section, with
+  "Tóm tắt này không thay thế nội dung đầy đủ bên dưới."); 720 px column at 17/30; numbered H2s
+  (muted number) with ids `muc-*` / `dieu-*`, existing anchors kept (`du-lieu-nguoi-dung-google`,
+  `dang-ky-dung-thu`, `shopee-data`, `english`, `google-user-data`); `TocNav variant="rule"` on the
+  right, `<details>` on mobile; closing block with company, MST, address, email. **No legal sentence
+  changed**: the rewrite was scripted (heading text moved into a prop, classes swapped) and
+  `git diff -w` shows markup only; the English part only changed class names. Bullets restored on
+  legal lists (Tailwind preflight had removed them).
+- **/about**: bird mark, H1, lead, mission split, 4 principle `Card`s on alt, company card (bird +
+  name + the 6 facts as a `dl`), dark CTA (Demo, /contact). Facts unchanged.
+- **/contact**: icon cards (Email `mail`, Address `shield-check`), 3 topic cards — "Hỗ trợ tài
+  khoản" now says disconnecting = email the Juli team (D43 additions 3) — dark Demo CTA.
+- **/dang-ky** (`Signup.dc.html`): eyebrow "Miễn phí 3 tháng · không cần thẻ thanh toán", H1
+  "Đăng ký dùng thử Juli" (route title unchanged), 2-col grid ≥ 640 px (phone | email), role
+  tiles (2 px ink when checked via `:has`), consent, full-width dark submit (`buttonClassName`),
+  "Muốn tự kết nối ngay? Tạo tài khoản và kết nối shop →" (→ `SELF_CONNECT_URL`,
+  `signup-self-connect-link`), aside "Sau khi bạn đăng ký" (3 ink-circle steps, `NEXT_STEPS`) +
+  `ShotFrame` cap-kn-ket-noi. Form logic untouched: field names, POST `/dang-ky/gui`, no-JS
+  `:target` notices, inline errors + focus, honeypot, consent links; Pixel CompleteRegistration
+  untouched. P33-F's value list (`SIGNUP_VALUES`) removed — the aside replaces it.
+- **/dang-ky/cam-on**: bird, eyebrow, H1, lead, "Tiếp theo" card with the same 3 steps, "Tự kết nối
+  shop ngay" (`self-connect-cta`) + "Về trang chủ"; still noindex, out of the sitemap.
+- **Deviations from the mockups**: the optional "Ghi chú" textarea and the field hints stay (form
+  behaviour; mockup has neither, uses placeholders); role label stays "Đội vận hành sàn" (mockup
+  "Đội vận hành"); the summary bullets are worded from the policy rather than the mockup's (the
+  mockup's "Juli không biết mật khẩu shop" is not stated in the policy); the English notice block
+  stays at the top of /privacy (Google verification); TOC adds "English version" and the contact
+  block; the aside shot is the mobile crop.
+- **Tests** (intentional changes): `legal-pages` Shopee check asserts the 4A H2 (the TOC repeats the
+  label) + 4 new template tests (summary + disclaimer, dates, company block, every TOC link resolves,
+  numbered H2 ids, VN/EN switch, deep links); `info-pages` +2 (about company card + bird + CTAs,
+  contact icons + disconnect copy); `signup` value-list check → aside steps / shot alt / self-connect
+  link / real submit button, + thank-you bird + steps. All earlier guarantees kept.
+- **Gates** (Node 20.20.2): landing lint 0, type-check clean, vitest 13 files / 185 passed, build
+  OK, `check:seo` 17/17; Playwright on `next start`: 6 pages at 1440 and 390, horizontal overflow 0
+  everywhere, screenshots looked at, `fasttrack/design/p34/evidence/p34e/` (privacy full pages cut
+  to the first 6000 px: WebP height limit); `check.sh --since c95231e0` 5/5 PASS.
+- DEBT: signup header wraps at 390 (shared header), template location, leftover `lp-page-*` /
+  `.lp-legal__contact-link`, no map-pin icon, aside crop.

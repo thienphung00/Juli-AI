@@ -997,3 +997,18 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] P34-D: the cover generator encodes AVIF/WebP through `media.py optimize` (needs Pillow with
   AVIF: `PYTHON=juli/.venv/bin/python`); the "Hướng dẫn" (guide) motif (checklist) is my design —
   the mockup shows only its grey tint — and its accent token is ink, so the ticked box is black.
+- [ ] P34-E: `SiteHeader variant="signup"` wraps at 390 px ("Juli / AI" and "Đã có tài khoản? /
+  Đăng nhập" on two lines each, see `evidence/p34e/dang-ky-390-top.webp`). Shared component
+  (`components/ui/site-header`), not P34-E's to edit: shorten to "Đăng nhập" below 640 px or
+  `white-space: nowrap` the brand.
+- [ ] P34-E: the legal template lives in `app/privacy/legal-template.tsx` (+ `legal.module.css`)
+  and /terms imports it from there, because P34-E owns only the page folders. Move it to
+  `components/legal/` when convenient.
+- [ ] P34-E: `globals.css` keeps `.lp-legal__contact-link` (still used by `/ket-noi/tiktok-shop`
+  and `components/product/capability-page.tsx`, P34-C) and all `lp-page-*` rules (used by
+  `/san-pham`, `/ket-noi`, `/blog`, `not-found`, home). Delete them once B–D no longer use them.
+- [ ] P34-E: `Icon` has no map-pin / building icon, so /contact's address card uses
+  `shield-check`. Add a `map-pin` to `components/ui/icon.tsx` (P34-A owner) and swap it in.
+- [ ] P34-E: the `/dang-ky` aside uses the mobile crop `cap-kn-ket-noi-m-v1-627` at every width
+  (the 1280×341 desktop strip is unreadable in a ~460 px panel); on phones its text is small.
+  A purpose-made crop of the connect card would read better.

@@ -1,0 +1,180 @@
+/* /about and /contact — editorial pages in the D44 system (P34-E). Tokens only. */
+
+.hero {
+  padding-block: var(--lp-space-12) var(--lp-space-10);
+}
+
+@media (min-width: 960px) {
+  .hero {
+    padding-block: var(--lp-space-18) var(--lp-space-14);
+  }
+}
+
+.heroInner {
+  display: flex;
+  max-width: 760px;
+  flex-direction: column;
+  gap: var(--lp-space-4);
+}
+
+.bird {
+  margin-bottom: var(--lp-space-2);
+}
+
+.heroInner > .lead {
+  max-width: 680px;
+}
+
+.lead {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: var(--lp-text-lead);
+  line-height: 1.65;
+}
+
+/* Two columns ≥ 960 px: heading left, content right (mission, company). */
+.split {
+  display: grid;
+  gap: var(--lp-space-6);
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .split {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: var(--lp-space-14);
+  }
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lp-space-4);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--lp-space-4);
+  margin: var(--lp-space-8) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 960px) {
+  .gridTwo {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.iconWrap {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--lp-radius-md);
+  background: var(--lp-pink-tint);
+  color: var(--lp-pink-text);
+}
+
+.cardText {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: var(--lp-text-body-small);
+  line-height: 1.6;
+}
+
+.cardLink {
+  color: var(--lp-pink-text);
+  font-size: var(--lp-text-body);
+  font-weight: var(--lp-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.cardLink:hover {
+  color: var(--lp-pink-text-hover);
+}
+
+/* Company card (the home "transparency" card's dl). */
+.company {
+  overflow: hidden;
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-2xl);
+  background: var(--lp-bg);
+}
+
+.companyHead {
+  display: flex;
+  align-items: center;
+  gap: var(--lp-space-3);
+  padding: var(--lp-space-5) var(--lp-space-6);
+  border-bottom: 1px solid var(--lp-hairline);
+}
+
+.companyName {
+  margin: 0;
+  color: var(--lp-ink);
+  font-size: var(--lp-text-body);
+  font-weight: var(--lp-weight-semibold);
+}
+
+.facts {
+  margin: 0;
+  padding: var(--lp-space-2) var(--lp-space-6);
+  background: var(--lp-alt);
+}
+
+.fact {
+  display: grid;
+  gap: var(--lp-space-1);
+  padding-block: var(--lp-space-3);
+}
+
+.fact + .fact {
+  border-top: 1px solid var(--lp-hairline);
+}
+
+@media (min-width: 640px) {
+  .fact {
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: var(--lp-space-4);
+  }
+}
+
+.fact dt {
+  color: var(--lp-muted);
+  font-size: var(--lp-text-label);
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--lp-strong);
+  font-size: var(--lp-text-body-small);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.fact a,
+.inlineLink {
+  color: var(--lp-pink-text);
+}
+
+.fact a:hover,
+.inlineLink:hover {
+  color: var(--lp-pink-text-hover);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lp-space-3);
+  margin-top: var(--lp-space-6);
+}
+
+.ctaIntro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lp-space-3);
+}
