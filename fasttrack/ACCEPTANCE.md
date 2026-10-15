@@ -512,8 +512,11 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   "/privacy has a Shopee section (VN + EN) and no 'in development' line", "/terms covers Shopee
   as 'đang tích hợp' in VN and EN", "translates every section 1–12" (now incl. 4A). Landing lint,
   type-check, `next build` clean; built HTML contains the Shopee text on /, /privacy, /terms.
-- [ ] **AC-32.10** `fasttrack/shopee-isv-services-information.md`: English description +
-  numbered reviewer steps matching what shipped, the account's expiry noted, no video.
+- [x] **AC-32.10** `fasttrack/shopee-isv-services-information.md`: English description +
+  numbered reviewer steps matching what shipped, the account's expiry noted, no video. — evidence:
+  `fasttrack/shopee-isv-services-information.md` (2026-10-15; written for the D42 amendment sample
+  shop, labels checked against `partner-sign-in.tsx` and `dictionary.md` `reviewer.*`).
+
 - [ ] **AC-32.11** `check.sh` green on the integrated branch; deployed; a fresh browser signs in
   as the Shopee reviewer and walks the steps.
 
