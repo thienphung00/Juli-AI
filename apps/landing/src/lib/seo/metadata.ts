@@ -8,7 +8,7 @@ import {
   SITE_NAME,
   SITE_URL,
 } from "./config";
-import { getRoute } from "./routes";
+import { getRoute, type SiteRoute } from "./routes";
 
 export interface BuildMetadataOptions {
   /** Override the registry's social image (1200×630). */
@@ -30,7 +30,14 @@ export interface BuildMetadataOptions {
  * No `alternates.languages` (hreflang) — the site is Vietnamese only (D43.8).
  */
 export function buildMetadata(path: string, options: BuildMetadataOptions = {}): Metadata {
-  const route = getRoute(path);
+  return metadataForRoute(getRoute(path), options);
+}
+
+/**
+ * `buildMetadata` for a route object (tests build routes that are not in the
+ * registry). A `noindex` route (blog draft) gets robots `noindex, follow`.
+ */
+export function metadataForRoute(route: SiteRoute, options: BuildMetadataOptions = {}): Metadata {
   const url = absoluteUrl(route.path);
   const image = options.ogImage ?? route.ogImage ?? DEFAULT_OG_IMAGE;
   const imageEntry = {
@@ -52,6 +59,7 @@ export function buildMetadata(path: string, options: BuildMetadataOptions = {}):
     title: { absolute: route.title },
     description: route.description,
     alternates: { canonical: url },
+    ...(route.noindex ? { robots: { index: false, follow: true } } : {}),
     openGraph:
       route.ogType === "article"
         ? {

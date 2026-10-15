@@ -14,7 +14,13 @@ export {
   TITLE_SUFFIX,
 } from "./config";
 export { JsonLd, serializeJsonLd } from "./json-ld";
-export { buildMetadata, type BuildMetadataOptions, ROOT_METADATA } from "./metadata";
+export {
+  buildMetadata,
+  type BuildMetadataOptions,
+  metadataForRoute,
+  ROOT_METADATA,
+} from "./metadata";
+export { sitemapEntries } from "./sitemap";
 export {
   type BreadcrumbItem,
   breadcrumbTrail,

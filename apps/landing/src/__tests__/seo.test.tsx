@@ -89,7 +89,10 @@ describe("route registry (AC-33.1)", () => {
 
   it("feeds the sitemap with absolute URLs and lastmod", () => {
     const entries = sitemap();
-    expect(entries.map((entry) => entry.url)).toEqual(SITE_ROUTES.map((r) => absoluteUrl(r.path)));
+    // Every indexable route; `noindex` ones (blog drafts, P33-D) are left out.
+    expect(entries.map((entry) => entry.url)).toEqual(
+      SITE_ROUTES.filter((r) => !r.noindex).map((r) => absoluteUrl(r.path)),
+    );
     for (const entry of entries) expect(entry.lastModified).toBeTruthy();
   });
 

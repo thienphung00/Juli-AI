@@ -4,7 +4,8 @@
  * - exactly one <h1>, the first heading is the h1, no skipped level (h2 → h4);
  * - <title>, meta description and canonical present, equal to the registry,
  *   and unique across routes; canonical is the absolute self URL;
- * - Open Graph image + Twitter card present; no hreflang; not noindex;
+ * - Open Graph image + Twitter card present; no hreflang; not noindex — except
+ *   a `noindex` route (blog draft awaiting owner approval), which must be;
  * - every JSON-LD block parses; Organization + WebSite on every page,
  *   BreadcrumbList on every inner page; FAQPage questions are visible on the
  *   page; no `sameAs` (D43.8).
@@ -101,7 +102,17 @@ describe("built site SEO (every registered route)", () => {
       );
       expect(doc.querySelector('link[rel="alternate"][hreflang]'), `${where}: no hreflang`).toBeNull();
       const robots = doc.querySelector('meta[name="robots"]')?.getAttribute("content") ?? "";
-      expect(robots, `${where}: indexable`).not.toMatch(/noindex/);
+      if (route.noindex) {
+        // Blog draft awaiting owner approval (P33-D): rendered, never indexed.
+        expect(robots, `${where}: draft is noindex`).toMatch(/noindex/);
+      } else {
+        expect(robots, `${where}: indexable`).not.toMatch(/noindex/);
+        // …and an indexable page never links to one (the /blog index lists published posts only).
+        const hrefs = [...doc.querySelectorAll("a[href]")].map((a) => a.getAttribute("href") ?? "");
+        for (const hidden of SITE_ROUTES.filter((r) => r.noindex)) {
+          expect(hrefs, `${where}: links the noindex page ${hidden.path}`).not.toContain(hidden.path);
+        }
+      }
       facts.push({ path: route.path, title, description, canonical });
 
       // JSON-LD.

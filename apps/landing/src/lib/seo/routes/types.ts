@@ -27,4 +27,11 @@ export interface SiteRoute {
   ogImage?: OgImage;
   /** `article` for blog posts (adds published/modified times to OG). */
   ogType?: "website" | "article";
+  /**
+   * Rendered but kept out of search: robots `noindex, follow` and no sitemap
+   * entry. Blog drafts awaiting owner approval set it (P33-D,
+   * `src/content/blog/README.md`); `check:seo` then asserts the noindex
+   * instead of its absence.
+   */
+  noindex?: boolean;
 }

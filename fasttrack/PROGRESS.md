@@ -166,7 +166,7 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 | P33-A Technical SEO + shared helpers, redirects, demo/ops noindex, PageSpeed fixes | 33.1–33.4 | done on branch `fasttrack/p33a-seo-foundation` (875fb83b..HEAD, pushed) — not merged, not deployed; helper API in `apps/landing/src/lib/seo/README.md` | P33-A agent (Opus) |
 | P33-B Homepage + `/san-pham` overview | 33.5, 33.6 | done on branch `fasttrack/p33b-homepage` (2f16f2eb..HEAD, pushed) — not merged, not deployed; links C/D pages, so integrate with C and D | P33-B agent (Opus) |
 | P33-C Three capability pages + `/ket-noi/tiktok-shop` | 33.7 | done on branch `fasttrack/p33c-capabilities` (9f8a03b4..HEAD, pushed) — not merged, not deployed | P33-C agent (Opus) |
-| P33-D Blog + 3 pillar drafts (owner approves) | 33.8 | todo — after A | P33-D agent (Opus) |
+| P33-D Blog + 3 pillar drafts (owner approves) | 33.8 | done on branch `fasttrack/p33d-blog` (7ef53a7a..HEAD, pushed) — not merged; 3 drafts noindex, **owner approval pending** (`apps/landing/src/content/blog/README.md`) | P33-D agent (Opus) |
 | P33 integration + deploy + PageSpeed re-run | 33.9 | todo | orchestrator + owner |
 
 ## P2–P6

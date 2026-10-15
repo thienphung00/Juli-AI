@@ -884,3 +884,21 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] The FAQ H2 on each page has no screenshot (AC-33.7 "one per H2" read as per content H2).
 - [ ] Measurement page explains delayed-control groups as "đang thử nghiệm" (opt-in per shop,
   default off); update the wording when groups become default.
+## P33-D shortcuts (2026-10-15)
+- [ ] **Owner approval of the three posts is pending** (AC-33.8): they deploy as noindex drafts.
+  Flip `status` in `apps/landing/src/content/blog/posts.ts` per post and record it.
+- [ ] Post 3 (tools) vendor facts came from WebFetch summaries of vendor homepages (2026-10-15);
+  re-read by hand before publishing: BigSeller paid tiers (not found), KiotViet "TikTok" in the
+  channel list (site says "TikTok", not "TikTok Shop"), Sapo / Haravan / FastMoss / Kalodata trial
+  lengths (7 / 14 / 7 / 7 days), FastMoss and Kalodata Vietnam coverage (not stated on the pages
+  read). Juli's own claims to confirm with the owner: "Juli không in vận đơn / không quản lý kho
+  đa sàn", "hiện chỉ kết nối TikTok Shop".
+- [ ] `blog.test.tsx` allow-lists P33-C's four pages (`PENDING_PAGES`) because they do not exist
+  on this branch; remove the allow-list at integration so every post link must resolve.
+- [ ] No per-post OG image or in-article images (posts use the default 1200×630 card; no
+  `public/media/blog-*`). Add a cover per post when the owner publishes.
+- [ ] "3,000+ words" counts space-separated tokens (Vietnamese syllables), the same way Word and
+  most SEO tools count Vietnamese text.
+- [ ] Blog drafts are linked from nowhere in production, but their URLs are guessable and render
+  (noindex). If the owner wants them unreachable before approval, gate them with a 404 in
+  production instead (would also drop them from `check:seo`).

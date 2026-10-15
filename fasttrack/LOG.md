@@ -1328,3 +1328,30 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
 - **Gates (Node 20.20.2)**: landing lint 0, type-check clean, vitest 10 files 91 passed (new
   `capability-pages.test.tsx` 16), build OK, `check:seo` 11/11; `check.sh --since f55809fd` 5/5.
 - Next: P33 integration merges B/C/D; owner confirms the real-shop write wording (DEBT).
+## 2026-10-15 — P33-D agent (Claude Opus) — blog + three pillar drafts (AC-33.8)
+- Branch `fasttrack/p33d-blog` from P33-A f55809fd. Commits 7ef53a7a (infra), dad5460c (drafts),
+  efb19ca7 (READMEs) + this docs commit.
+- **Blog architecture**: posts are typed TS — metadata in `apps/landing/src/content/blog/posts.ts`
+  (one `status` field per post), bodies in `content/blog/bodies/<slug>.ts` as a small Markdown
+  subset parsed and rendered on the server (`src/components/blog/markdown.tsx`; no MDX, no new
+  dependency, no client JS for content). `/blog` index + `/blog/[slug]` (SSG,
+  `dynamicParams = false`), blog CSS in `src/app/blog/blog.css` (kept out of `globals.css` to
+  avoid conflicts with P33-B/C). Routes derived from `posts.ts` in `src/lib/seo/routes/blog.ts`.
+- **Draft mechanism** (touches P33-A helpers, small): `SiteRoute.noindex`; `metadataForRoute`
+  adds robots `noindex, follow`; `sitemapEntries()` drops noindex routes; `check:seo` asserts a
+  noindex route IS noindex and that no indexable page links one. A published post renders links
+  to drafts as plain text and hides them from "Bài viết liên quan". Drafts are listed on `/blog`
+  only under `next dev`.
+- **Drafts** (Vietnamese, H1 → H2 → H3, sources section, FAQ): metrics 4,882 words, product card
+  4,579, tools 3,700 (space-separated tokens). TikTok facts from Academy VN pages cited by title;
+  method from ADR-106/108; worked examples labelled "số giả định"; no customer data (Fujiwa
+  numbers deliberately not used). Tool facts from vendors' own sites, checked 2026-10-15 via a
+  Sonnet research sub-agent (WebFetch summaries); no third-party prices quoted.
+- **Gates (Node 20.20.2)**: landing lint 0, type-check clean, vitest 10 files 98 passed (blog 23),
+  `next build` OK, `check:seo` 11/11 (also 11/11 with one post temporarily flipped to published:
+  it entered the sitemap, its links to drafts were unlinked); `fasttrack/check.sh --since
+  f55809fd`: 5/5 PASS.
+- **Owner**: approve each post by flipping `status` to `"published"` (README in
+  `apps/landing/src/content/blog/`); re-check the tool facts flagged in DEBT before publishing
+  post 3. After integration, P33-B's header/footer link `/blog`; P33-C's four pages make the
+  posts' product links resolve (the blog test allow-lists them until then).
