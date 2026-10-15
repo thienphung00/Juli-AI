@@ -931,3 +931,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   connect strip, simulated Duyệt → Thực thi, the only request is `GET /v1/reviewer/me`). The
   in-browser sample simulation (`lib/reviewer/sample-simulation.ts`) is a hand port of
   `services/reviewer/simulation.py`; a change to one must be mirrored in the other.
+- [ ] P32-E (all features simulated in sample mode): the reviewer's sample store is module state —
+  a full page reload (not client-side navigation) starts the sample over, as does sign-out; not
+  persisted to browser storage on purpose (nothing to clean, nothing stale). Still no Playwright
+  e2e for sample mode (see P32-D above); coverage is the vitest full-session test
+  `reviewer-all-features.test.tsx` through the real shell. The day-7 / day-14 "tua nhanh" values are
+  invented from the card's own target (`sampleSimulatedMeasurement`), always "Đạt" — not a model of
+  a real outcome. `/decisions/in-progress/<run id>` and `/decisions/recommendations/<id>` are not
+  reviewer-sample-aware (sample run ids never route there).

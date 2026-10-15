@@ -1457,3 +1457,25 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
 - Owner: nothing to set for the sample-shop reviewer (leave `REVIEWER_SHOP_ID` unset); still
   provision `shopee-review@app-juli.com` with the CLI after deploy (contract §8.3). DEBT: no
   Playwright e2e for sample mode.
+
+## 2026-10-15 — P32-E agent (Claude Opus) — every feature simulated for the reviewer (D42 amendment 2)
+
+- Owner decision 2026-10-15 (D42 amendment 2): Shopee wants "all features enabled for Shopee
+  testing"; the sample-shop reviewer had only Duyệt. Branch `fasttrack/p32e-reviewer-all-features`
+  from 9d6352b3 (deployed).
+- Demo only, no backend change: `DemoShell` wraps only the pinned reviewer in the read-only
+  provider. Sample mode runs every write on `lib/reviewer/sample-store.ts` (the P11 in-memory store,
+  one per tab, shared by Quyết định and `/settings`): Từ chối, Duyệt → Thực thi → "Theo dõi lượt
+  chạy (mô phỏng) ›" into the sample run (consent edits, photo, Seller Center, content drafts,
+  Hoàn tác), Đo lường day-7 / day-14 "tua nhanh" (`simulateMeasurement`), Quy tắc (P14-F fields
+  editable too), "Phân tích video" (file never read: canned P15 analysis). `SimulatedLabel`
+  prints "Mô phỏng · không gửi tới TikTok" / "Mô phỏng · không lưu" for the sample reviewer only;
+  the banner gets "Đặt lại dữ liệu mẫu". Connect / invites / ops stay hidden.
+- Tests: `reviewer-all-features.test.tsx` (full session through the real shell — the only request
+  is `GET /v1/reviewer/me`; labels absent for the signed-out sample; pinned reviewer unchanged);
+  `reviewer-sample-mode.test.tsx` updated (Từ chối enabled).
+- Gates (Node 20.20.2): see the P32-E commit message / final report. Docs: DECISIONS D42 amendment
+  2, contract header + §4 + §6, dictionary `reviewer.*`, MODULE.md, Services Information steps 6–9,
+  ACCEPTANCE AC-32.12, PROGRESS P32-E, DEBT.
+- Next: orchestrator merges, deploys, resubmits to Shopee with the updated Services Information.
+
