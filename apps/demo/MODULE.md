@@ -301,6 +301,14 @@ Invariants below.
   (`POST /v1/reviewer/decisions/{id}/simulate`, approve then execute,
   `reviewer.simulated`) and never the real approve. Presentation only: the API
   refuses every reviewer write on its own.
+  P32-D (D42 amendment, 2026-10-15): when `/v1/reviewer/me` says `shop: null`
+  (no `REVIEWER_SHOP_ID`), sign-in stores no active shop and the record carries
+  `sample: true`, so every page takes P13's no-shop door (the bundled sample
+  "Cửa hàng Mẫu Hoa Mai", no shop API) under the banner `reviewer.banner_sample`;
+  the no-shop strip stays hidden. `SampleQuyetDinh` opens `SimulationDialog`
+  (shared with `ReviewerSimulation`, `components/quyet-dinh/simulation-dialog.tsx`)
+  over `lib/reviewer/sample-simulation.ts` — the API's simulation ported to the
+  sample cards, in memory, nothing sent.
 - `ConnectShopView`'s "Kết nối TikTok Shop" control is LIVE from issue #1970,
   where it used to be `aria-disabled` beside a disclaimer saying it did
   nothing. It calls `lib/tiktok-connect-client.ts`'s bearer-authenticated

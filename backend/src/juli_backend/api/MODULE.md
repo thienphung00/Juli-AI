@@ -83,6 +83,9 @@ from juli_backend.api.dependencies import get_active_shop
   account state, sign-in audit; `ReviewerContext` on `request.state` (`STATE_KEY`,
   `reviewer_context`); `enter_reviewer_shop` (alias-only `X-Shop-Id`, pinned shop through
   the ops view-as scope); `ReviewerMaskMiddleware` / `masked_body` (identity mask, fail closed).
+  P32-D (D42 amendment): `REVIEWER_SHOP_ID` is optional. Unset, the context has no shop:
+  `/v1/reviewer/me` → `shop: null`, `/v1/shops` → `[]`, every shop-scoped route 403 `shop`;
+  the allowlist and the write barrier are the same in both modes.
 - `api/routes/reviewer.py` — `GET /v1/reviewer/me` (`reviewer_me`),
   `POST /v1/reviewer/decisions/{id}/simulate` (`simulate_decision`, `SimulateRequest`).
 

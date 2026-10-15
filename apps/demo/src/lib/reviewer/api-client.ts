@@ -3,7 +3,8 @@
  * `fasttrack/contracts/p32-reviewer-access.md` §4 and §6):
  *
  * - `GET /v1/reviewer/me` — is this session a reviewer, which platform, until
- *   when, which (aliased) shop;
+ *   when, which (aliased) shop — or `shop: null` when none is pinned (P32-D,
+ *   D42 amendment: the reviewer then sees the bundled sample shop);
  * - `POST /v1/reviewer/decisions/{id}/simulate` — Duyệt / Thực thi as a
  *   simulation: the change Juli would send, nothing sent.
  *
@@ -11,13 +12,16 @@
  * unknown, read_only, unavailable) or 503 (unconfigured).
  */
 
+import type { SimulationResult, SimulationStep } from "./simulation-types";
+
 export type ReviewerDenial = "expired" | "revoked" | "unknown" | "read_only" | "unavailable" | "unconfigured";
 
 export interface ReviewerMe {
   readonly reviewer: true;
   readonly platform: string;
   readonly expiresAt: string | null;
-  readonly shop: { readonly id: string; readonly name: string };
+  /** null: no pinned shop — sample mode (P32-D). */
+  readonly shop: { readonly id: string; readonly name: string } | null;
 }
 
 export type ReviewerMeResult =
@@ -58,52 +62,20 @@ export async function fetchReviewerMe(token: string, fetchImpl: FetchLike = (i, 
     return { status: "error" };
   }
   if (body?.reviewer !== true) return { status: "not_reviewer" };
-  const shop = body.shop as { id?: unknown; name?: unknown } | undefined;
-  if (!shop || typeof shop.id !== "string" || !shop.id) return { status: "error" };
+  const shop = body.shop as { id?: unknown; name?: unknown } | null | undefined;
+  if (shop !== null && (!shop || typeof shop.id !== "string" || !shop.id)) return { status: "error" };
   return {
     status: "reviewer",
     me: {
       reviewer: true,
       platform: typeof body.platform === "string" ? body.platform : "",
       expiresAt: typeof body.expires_at === "string" ? body.expires_at : null,
-      shop: { id: shop.id, name: typeof shop.name === "string" ? shop.name : "" },
+      shop: shop === null ? null : { id: shop.id as string, name: typeof shop.name === "string" ? shop.name : "" },
     },
   };
 }
 
-export type SimulationStep = "approve" | "execute";
-
-export interface SimulatedField {
-  readonly field: string;
-  readonly label: string;
-  readonly before: string | null;
-  readonly after: string | null;
-}
-
-export interface SimulatedRequest {
-  readonly method: string;
-  readonly path: string;
-  readonly operation: string;
-  readonly fields: readonly string[];
-}
-
-export interface SimulationResult {
-  readonly simulated: true;
-  readonly step: SimulationStep;
-  readonly action_card_id: string;
-  readonly label: string;
-  readonly steps: readonly { readonly key: string; readonly label: string; readonly done: boolean }[];
-  readonly change: {
-    readonly executor: string;
-    readonly lever: { readonly code: string; readonly label: string };
-    readonly product: { readonly title: string | null; readonly tiktok_product_id: string | null };
-    readonly request: SimulatedRequest | null;
-    readonly fields: readonly SimulatedField[];
-    readonly note: string | null;
-  };
-  readonly enqueued: false;
-  readonly tiktok_write: false;
-}
+export type { SimulatedField, SimulatedRequest, SimulationResult, SimulationStep } from "./simulation-types";
 
 export class ReviewerSimulationError extends Error {
   constructor(

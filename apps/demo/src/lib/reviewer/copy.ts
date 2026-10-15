@@ -7,6 +7,13 @@
 export const REVIEWER_BANNER_COPY =
   "Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn tên · thao tác chỉ mô phỏng";
 
+/**
+ * dictionary.md `reviewer.banner_sample` — the strip when no shop is pinned
+ * (P32-D, D42 amendment): the reviewer sees the bundled sample shop.
+ */
+export const REVIEWER_SAMPLE_BANNER_COPY =
+  "Tài khoản dùng thử cho đối tác · dữ liệu mẫu · thao tác chỉ mô phỏng";
+
 /** dictionary.md `reviewer.read_only_title` — tooltip of a write control. */
 export const REVIEWER_READ_ONLY_TITLE = "Tài khoản dùng thử: thao tác chỉ mô phỏng";
 

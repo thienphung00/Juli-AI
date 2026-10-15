@@ -1,8 +1,9 @@
 """Reviewer configuration from the environment (P32-A, D42).
 
 ``REVIEWER_SHOP_ID`` -- the reference shop (Fujiwa's ``shops.id``). Never a
-literal in code: the seller paths do not know it exists. Unset means the
-reviewer door is closed (503 ``unconfigured``).
+literal in code: the seller paths do not know it exists. Optional (D42
+amendment, 2026-10-15): unset, a reviewer has no shop and the demo shows its
+sample shop; set, the reviewer is pinned to that shop, masked.
 ``REVIEWER_MASK_TERMS`` -- extra brand words to hide, comma-separated.
 """
 

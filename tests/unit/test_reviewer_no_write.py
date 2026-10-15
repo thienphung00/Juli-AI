@@ -213,8 +213,14 @@ def test_allowlist_is_pinned_to_real_routes():
     ]
 
 
-async def test_every_route_as_reviewer_writes_nothing(session, world, tripwire):
+@pytest.mark.parametrize("pinned", [True, False], ids=["fujiwa_pin", "sample_no_pin"])
+async def test_every_route_as_reviewer_writes_nothing(
+    session, world, tripwire, pinned, monkeypatch
+):
+    """Both modes (D42 amendment): pinned to the reference shop, and no pin (sample shop)."""
     ref, other, run, reviewer_id = world
+    if not pinned:
+        monkeypatch.delenv("REVIEWER_SHOP_ID")
     alias = str(shop_alias_id(ref.shop.id))
     values = {
         "action_card_id": str(ref.card.id),
@@ -264,6 +270,13 @@ async def test_every_route_as_reviewer_writes_nothing(session, world, tripwire):
                 checked.append(f"{method} {route.path} -> {response.status_code}")
                 allowed = reviewer_gate.is_allowed(method, endpoint)
                 if allowed:
+                    if not pinned and route.path not in ("/v1/shops", "/v1/reviewer/me"):
+                        # No pin: every shop-scoped allowed route has no shop to read.
+                        if response.status_code != 403:
+                            problems.append(
+                                f"{method} {route.path}: {response.status_code} (want 403, no pin)"
+                            )
+                        continue
                     if response.status_code >= 500:
                         problems.append(
                             f"{method} {route.path}: allowed read failed {response.status_code}"
@@ -299,7 +312,8 @@ async def test_every_route_as_reviewer_writes_nothing(session, world, tripwire):
         "POST /v1/shops/shopee -> 403",
         "POST /v1/ingest/pairing-codes -> 403",
         "GET /v1/demo/runs/{run_id}/events -> 403",
-        "POST /v1/reviewer/decisions/{action_card_id}/simulate -> 200",
+        "GET /v1/reviewer/me -> 200",
+        "POST /v1/reviewer/decisions/{action_card_id}/simulate -> " + ("200" if pinned else "403"),
     ):
         assert needle in checked, (needle, checked)
     # Every refused write left an audit row; nothing else was written.

@@ -925,3 +925,9 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Load-sensitive demo test (seen 2026-10-15, P33 integration): `connect-shop-page.test.tsx >
   renders the connect-shop screen for a real signed-in session` failed once in the full demo run
   (1917 / 1918) on a loaded host and passes 3 / 3 alone — same family as the P33-A/B timeouts.
+- [ ] P32-D (reviewer on the sample shop): no Playwright e2e for the `shop: null` reviewer — the
+  existing `apps/demo/e2e/auth/reviewer-sign-in.spec.ts` covers the Fujiwa-pin mode only. Sample mode
+  is covered in vitest through the real `DemoShell` (`reviewer-sample-mode.test.tsx`: banner, no
+  connect strip, simulated Duyệt → Thực thi, the only request is `GET /v1/reviewer/me`). The
+  in-browser sample simulation (`lib/reviewer/sample-simulation.ts`) is a hand port of
+  `services/reviewer/simulation.py`; a change to one must be mirrored in the other.
