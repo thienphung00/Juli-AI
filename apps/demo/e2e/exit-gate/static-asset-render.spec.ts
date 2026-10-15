@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+  enterReplayDemo,
   expectFourDestinationShell,
   navigatePrimaryDestination,
 } from "../helpers/demo-navigation";
@@ -42,7 +43,8 @@ async function expectBrandedComputedStyles(page: Page) {
 
 test.describe("Phase 2.6 exit gate — static asset render (ADR-035)", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    // P34-F (D44.5): a signed-out `/` is the bare auth screen; Home's shell is the sample's.
+    await enterReplayDemo(page);
     await page.evaluate(() => localStorage.clear());
     await page.reload();
   });

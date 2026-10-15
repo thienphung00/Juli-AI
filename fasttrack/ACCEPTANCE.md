@@ -674,9 +674,18 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   images rendered from HTML; `BlogPostMeta` gains a cover.
 - [ ] **AC-34.5** (E) Privacy, terms, about, contact, `/dang-ky`, `/dang-ky/cam-on` match
   `Legal.dc.html` / `Signup.dc.html` (legal content unchanged).
-- [ ] **AC-34.6** (F) Demo sign-in / trial / OTP / partner screens match `Auth.dc.html` /
+- [x] **AC-34.6** (F) Demo sign-in / trial / OTP / partner screens match `Auth.dc.html` /
   `AuthMobile.dc.html`; flows and tests unchanged in behaviour (Google, OTP, partner password,
   `?dang-ky=dung-thu`, sample demo entry); no app shell when signed out.
+  Evidence (branch `fasttrack/p34f-auth-screen`, 808acbc6..HEAD): `demo-landing.test.tsx` 19
+  (hierarchy, one filled button, consent links, footer, panel, sample entry, `?entry=door`, trial
+  copy + toggle, unconfigured Supabase, copy ⊂ dictionary), `email-sign-in.test.tsx` 14 (OTP view,
+  paste fills all + auto-submits, typing/backspace, loading, wrong/expired → "Gửi mã mới", rate
+  limit, network, session shape, connect-shop handover, ← Đổi email, trial OTP copy),
+  `auth-email-page.test.tsx` 5 (partner view toggle, `#doi-tac`, denial alert, sample entry),
+  `demo-shell.test.tsx` "Signed-out auth screen renders WITHOUT the shell" 6; e2e
+  `landing-doors.spec.ts` "Auth screen (P34-F)" + `auth/*.spec.ts` green at 960 and 390;
+  screenshots 1440 + 390 of sign-in / trial / OTP / OTP error / partner in the P34-F LOG entry.
 - [ ] **AC-34.7** Integration: landing + demo gates green, `check:seo` and `seo_live_check` pass,
   Lighthouse mobile ≥ 95 / LCP < 2.5 s re-measured after deploy, screenshots desktop + 390 of every
   page attached to LOG.

@@ -178,7 +178,7 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P34-A Foundation: font, tokens, shared components | 34.1 | todo — first | P34-A agent (Opus) |
-| P34-F Demo auth screen | 34.6 | todo — parallel with A | P34-F agent (Opus) |
+| P34-F Demo auth screen | 34.6 | done on branch `fasttrack/p34f-auth-screen` (from 64f7f913, pushed) — not merged, not deployed | P34-F agent (Opus) |
 | P34-B Homepage | 34.2 | todo — after A | agent |
 | P34-C Product pages | 34.3 | todo — after A | agent |
 | P34-D Blog + covers | 34.4 | todo — after A | agent |

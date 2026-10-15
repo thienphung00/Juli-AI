@@ -1482,3 +1482,50 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   ACCEPTANCE AC-32.12, PROGRESS P32-E, DEBT.
 - Next: orchestrator merges, deploys, resubmits to Shopee with the updated Services Information.
 
+## 2026-10-15 — P34-F agent (Claude Opus) — demo sign-in / sign-up screen (D44.5, AC-34.6)
+
+- Branch `fasttrack/p34f-auth-screen` from 64f7f913 (pushed, not merged). Demo only; `apps/landing` untouched.
+- **No shell when signed out.** `DemoShell` renders bare on `/auth/email`, and on `/` whenever the
+  visitor is signed out and not in the sample demo (and while that is still resolving). The entry read
+  (sessionStorage "replay", `?entry=door`, `?dang-ky=dung-thu`) moved from `DemoLanding` into
+  `components/landing-entry.tsx`, shared by the shell and the landing. The sample demo and signed-in
+  pages keep the shell.
+- **`components/auth/auth-screen.tsx`** follows `Auth.dc.html` / `AuthMobile.dc.html`. Logo top-left, a 400 px
+  column, footer (Tài khoản đối tác · Điều khoản · Chính sách bảo mật · ©), and a right panel at
+  ≥1024 px (the cap-dx-the shot in AVIF/WebP at 640/1186 under `apps/demo/public/auth/`, captioned
+  "Dữ liệu mẫu", plus 3 proof lines). "Tiếp tục với Google" is the only ink button. Under it: the
+  "hoặc dùng email" rule, the email field, an outline "Gửi mã đăng nhập" with a loading state, and the
+  consent line ("Bằng việc tiếp tục…"). Below the column: "Xem thử với dữ liệu mẫu…" and the trial ↔
+  sign-in switch (copy only, URL updated in place).
+- **OTP view:** 6 boxes (`otp-code-input.tsx`: one-time-code on box 1, numeric). A paste or autofill
+  fills every box and auto-submits; Backspace and the arrow keys move between boxes. The view shows
+  the masked email, "← Đổi email", and the resend countdown. Errors are icon + `role="alert"`; a
+  wrong/expired code adds "Gửi mã mới" once the 60 s floor passes. The email OTP state machine is
+  now `auth/use-email-otp.ts`, and `email-sign-in.tsx` is removed. GoTrue calls, cooldowns,
+  errors and session storage are unchanged.
+- **Partner:** `PartnerSignIn` is now just the form (with the dark submit; errors unchanged) inside the
+  partner view on `/auth/email` (footer link, `#doi-tac`, the shell's denial). From `/` the footer
+  link navigates there, because the landing's module graph stays free of `/v1/*`.
+- **Style:** `app/auth-screen.css`, scoped to `.auth-screen`. Be Vietnam Pro comes from the root
+  layout's existing `next/font/google` variable (latin + vietnamese). Ink buttons are 18.9:1, with
+  44 px targets and focus rings, and `lang="vi"` is kept. The old landing / email / partner CSS is
+  deleted from `globals.css`.
+- **Copy:** `lib/auth-screen-copy.ts` + `lib/trial-signup-copy.ts`. In `dictionary.md`: new
+  `auth.screen` and `auth.consent`; `auth.trial_signup(.body)` rewritten; `demo.try`,
+  `auth.google`, `auth.email` and `auth.password` updated. A test checks that every exported
+  string is in the dictionary.
+- **Gates (Node 20.20.2):** `pnpm install --frozen-lockfile` OK. Demo lint has 0 errors and the 7
+  pre-existing warnings; type-check is clean; vitest is 153 files / 1944 passed. `build:demo --force`
+  (example Supabase env) is OK. Playwright against the local build: auth, landing-doors,
+  locale-and-assistance, replay journey, tiktok-ad-visitor, static-asset-render and manual-refresh all
+  pass. The full suite was 197 passed / 11 failed; after the two specs were fixed, only ops.spec's 5
+  pre-existing failures remain (DEBT). `check.sh --since 64f7f913` is 5/5 PASS.
+- **Tests updated on purpose** (they pinned the old copy or the shell on a signed-out `/`):
+  demo-landing, email-sign-in (rewritten against the auth screen), reviewer-mode,
+  reviewer-sample-mode, home, no-shop-sample, demo-shell ("/" left the full-shell list); e2e
+  landing-doors, email-sign-in, demo-navigation (`SAMPLE_ENTRY`), replay-run-journey,
+  tiktok-ad-visitor, locale-and-assistance, static-asset-render, manual-refresh.
+- **Screenshots** (local build, 1440 + 390): `/private/tmp/claude-501/-Users-macos-Juli-AI-v2/5dd670f3-89e7-4e6b-adf6-912db2866737/scratchpad/p34f/shots/{signin,trial,otp,otp-error,partner}-{1440,390}.png`.
+- **Next:** in P34 integration, align the font loading with P34-A's choice (DEBT). The owner can
+  review the darker input borders (DEBT).
+

@@ -942,3 +942,26 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Load-sensitive demo test (seen 2026-10-15, P32-E gates): `ops-pages.test.tsx > saves the
   scenario and sets it as the shop target` timed out once (5.6 s) in a full demo run (1925 / 1926)
   and passes 3 / 3 alone; the previous full run on the same code was 1926 / 1926. Untouched by P32-E.
+- [ ] P34-F (demo auth screen, D44.5): the OTP view cannot say "Còn N lần thử" or tell a wrong code
+  from an expired one — GoTrue answers both with `otp_expired` (403) and exposes no attempt count, so
+  one message ("Mã không đúng hoặc đã hết hạn…") carries "Gửi mã mới" once the 60 s resend floor
+  passes. The mockup's "Mã có hiệu lực trong 10 phút" is left out: the project's OTP expiry is not
+  pinned in the repo.
+- [ ] P34-F: Be Vietnam Pro on the auth screen comes from the demo root layout's existing
+  `next/font/google` variable (latin + vietnamese, `display: swap`, no `adjustFontFallback`, set up for
+  Quyết định); P34-A had not chosen the landing's loading approach when P34-F finished. If the landing
+  self-hosts or changes weights/fallback metrics, align the demo in P34 integration.
+- [ ] P34-F: input / outline-button borders are `#8b8b94`, darker than the mockup's `#cfcfd6`, to
+  reach 3:1 non-text contrast (WCAG 1.4.11). Owner may prefer the lighter mockup value.
+- [ ] P34-F: `/` now renders bare (no shell) while the session and the sample-entry choice resolve,
+  so a signed-in seller or a returning sample visitor sees a blank "Đang tải…" for one tick before
+  the shell appears (previously the shell framed it). The auth screen itself never flashes the shell.
+- [ ] P34-F: from `/`, "Tài khoản đối tác" is a full navigation to `/auth/email#doi-tac` (same layout,
+  partner view) rather than an in-page swap: the partner form calls `GET /v1/reviewer/me`, and the
+  landing's module graph must stay free of `/v1/*` (`replay-module-graph.test.ts`). On `/auth/email`
+  the swap is in place.
+- [ ] Pre-existing, seen during P34-F (not caused by it — no diff under ops): `e2e/ops/ops.spec.ts`
+  fails 1 test on desktop and 4 on mobile against a local build. "Chẩn đoán & KPI" expects 6
+  `ops-setting` rows and gets 8 (the spec is stale against the code), and three mobile tests time
+  out at 1.5 min.
+

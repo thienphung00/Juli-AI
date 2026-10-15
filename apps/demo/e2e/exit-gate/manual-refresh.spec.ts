@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { enterReplayDemo } from "../helpers/demo-navigation";
 import { resetDemo } from "../helpers/workflow-journey";
 
 /**
@@ -40,7 +41,8 @@ test.describe("Phase 2.6 exit gate — Manual Refresh", () => {
 
   test("from Home, refresh returns to Decisions Đề xuất with every card pending again", async ({ page }) => {
     await rejectCard(page, "Mặt nạ đất sét 100g");
-    await page.goto("/");
+    // P34-F (D44.5): Home's shell (and its avatar menu) is the sample Home's.
+    await enterReplayDemo(page);
     await resetDemo(page);
     await expect(page).toHaveURL(/\/decisions$/);
     await expect(sampleCard(page, "Mặt nạ đất sét 100g").getByTestId("card-status")).toHaveText("Chờ duyệt");
