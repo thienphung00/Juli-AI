@@ -116,6 +116,8 @@ export function Heading({ level, size, onDark, className, ...rest }: HeadingProp
 
 export interface SectionIntroProps {
   eyebrow?: ReactNode;
+  /** `muted` for "Pháp lý"-style grey eyebrows. Default pink. */
+  eyebrowVariant?: "default" | "muted";
   title: ReactNode;
   /** id for the heading (pass the same to `<Section labelledBy>`). */
   titleId?: string;
@@ -133,6 +135,7 @@ export interface SectionIntroProps {
 /** Eyebrow + heading + lead, the top of most sections. Heading max 720 px. */
 export function SectionIntro({
   eyebrow,
+  eyebrowVariant = "default",
   title,
   titleId,
   level = 2,
@@ -144,7 +147,7 @@ export function SectionIntro({
 }: SectionIntroProps) {
   return (
     <div className={cx("ui-intro", align === "center" && "ui-intro--center", className)}>
-      {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
+      {eyebrow ? <Eyebrow variant={eyebrowVariant}>{eyebrow}</Eyebrow> : null}
       <Heading id={titleId} level={level} onDark={onDark} size={size}>
         {title}
       </Heading>
