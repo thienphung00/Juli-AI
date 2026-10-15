@@ -37,7 +37,7 @@ export const CORE_ROUTES: readonly SiteRoute[] = [
     title: "Chính sách bảo mật dữ liệu shop | Juli AI",
     description:
       "Juli AI thu thập gì, đọc gì từ TikTok Shop của bạn, chia sẻ với ai và lưu bao lâu; quyền của bạn với dữ liệu. Có bản tiếng Anh (English version).",
-    lastModified: "2026-10-14",
+    lastModified: "2026-10-15",
     breadcrumbName: "Chính sách bảo mật",
     changeFrequency: "yearly",
     priority: 0.3,

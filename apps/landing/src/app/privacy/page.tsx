@@ -12,7 +12,10 @@ import {
 
 export const metadata = buildMetadata("/privacy");
 
-const LAST_UPDATED = "14/10/2026";
+const LAST_UPDATED = "15/10/2026";
+
+/** Anchor for the trial sign-up paragraph in §2 (P33-F), linked from /dang-ky's consent. */
+const TRIAL_SIGNUP_SECTION_ID = "dang-ky-dung-thu";
 
 /** Anchor for §3, so the Google OAuth consent screen can deep-link to it. */
 const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
@@ -95,6 +98,25 @@ export default function PrivacyPolicyPage() {
                 Tuỳ chọn: mã thiết bị, chỉ khi bạn bật thông báo đẩy trên điện thoại
               </li>
             </ul>
+            <h3 className="lp-legal__subheading" id={TRIAL_SIGNUP_SECTION_ID}>
+              Đăng ký dùng thử
+            </h3>
+            <p data-testid="privacy-trial-signup">
+              Khi bạn đăng ký dùng thử tại trang <a href="/dang-ky">Đăng ký dùng thử</a>, chúng
+              tôi thu thập họ tên, số điện thoại/Zalo, email, tên hoặc đường dẫn shop TikTok,
+              vai trò của bạn, ghi chú bạn viết (nếu có), nguồn truy cập (tham số utm và trang
+              giới thiệu) và thời điểm bạn đồng ý. Chúng tôi không lưu địa chỉ IP của bạn, chỉ
+              lưu một mã băm của nó để chống gửi lặp và spam. Mục đích duy nhất là liên hệ với
+              bạn và thiết lập kết nối shop cho đợt dùng thử; chỉ đội ngũ Juli xem được thông
+              tin này, và nhà cung cấp gửi email của chúng tôi chuyển thông báo đăng ký tới đội
+              ngũ. Nếu bạn không bắt đầu dùng Juli, thông tin được lưu tối đa 12 tháng kể từ
+              ngày đăng ký rồi xoá; nếu bạn dùng Juli, thông tin trở thành thông tin tài khoản
+              theo chính sách này. Bạn có thể yêu cầu xoá bất cứ lúc nào qua{" "}
+              <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
+                {COMPANY.email}
+              </a>
+              ; chúng tôi xoá trong vòng 30 ngày.
+            </p>
           </section>
 
           <section

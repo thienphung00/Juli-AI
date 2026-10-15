@@ -2,19 +2,21 @@ import { BLOG_ROUTES } from "./blog";
 import { CAPABILITY_ROUTES } from "./capabilities";
 import { CORE_ROUTES } from "./core";
 import { PRODUCT_ROUTES } from "./product";
+import { SIGNUP_ROUTES } from "./signup";
 import type { SiteRoute } from "./types";
 
 export type { SiteRoute } from "./types";
 
 /**
  * Every indexable page, in sitemap order. Split by owner (core / product /
- * capabilities / blog) so parallel agents append to different files.
+ * capabilities / blog / signup) so parallel agents append to different files.
  */
 export const SITE_ROUTES: readonly SiteRoute[] = [
   ...CORE_ROUTES,
   ...PRODUCT_ROUTES,
   ...CAPABILITY_ROUTES,
   ...BLOG_ROUTES,
+  ...SIGNUP_ROUTES,
 ];
 
 const BY_PATH = new Map(SITE_ROUTES.map((route) => [route.path, route]));

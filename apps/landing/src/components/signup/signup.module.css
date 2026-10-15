@@ -1,0 +1,258 @@
+/* /dang-ky and /dang-ky/cam-on (P33-F). Mobile first, tokens only. */
+
+.layout {
+  display: grid;
+  gap: var(--juli-space-6);
+  padding-block: clamp(1.5rem, 5vw, 3.5rem);
+}
+
+@media (min-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 30rem);
+    align-items: start;
+    gap: clamp(2rem, 5vw, 4rem);
+  }
+}
+
+.intro {
+  display: grid;
+  gap: var(--juli-space-4);
+  max-width: 36rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--juli-primary-text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 6vw, 2.6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.lead {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.values {
+  display: grid;
+  gap: var(--juli-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.values li {
+  position: relative;
+  padding-left: 1.75rem;
+  line-height: 1.55;
+}
+
+.values li::before {
+  position: absolute;
+  top: 0.1em;
+  left: 0;
+  color: var(--juli-success);
+  font-weight: 800;
+  content: "✓";
+}
+
+.card {
+  border: 1px solid var(--juli-border);
+  border-radius: var(--juli-radius-large);
+  padding: clamp(1rem, 4vw, 1.75rem);
+  background: var(--juli-surface);
+  box-shadow: var(--juli-shadow-small);
+}
+
+.form {
+  display: grid;
+  gap: var(--juli-space-4);
+}
+
+.required {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.85rem;
+}
+
+.field {
+  display: grid;
+  gap: var(--juli-space-1);
+}
+
+.field label,
+.fieldset legend {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  min-height: var(--juli-touch-target);
+  border: 1px solid var(--juli-border);
+  border-radius: var(--juli-radius);
+  padding: 0.6rem 0.75rem;
+  background: var(--juli-background);
+  color: var(--juli-foreground);
+  font: inherit;
+  font-size: 1rem; /* ≥ 16px: no zoom-on-focus on iOS */
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field input:focus-visible,
+.field textarea:focus-visible,
+.choice input:focus-visible,
+.consent input:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 2px;
+}
+
+.field input[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
+  border-color: var(--juli-destructive);
+}
+
+.hint {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.85rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--juli-destructive);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.fieldset {
+  display: grid;
+  gap: var(--juli-space-2);
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--juli-space-2);
+}
+
+.choice {
+  display: flex;
+  min-height: var(--juli-touch-target);
+  align-items: center;
+  gap: var(--juli-space-2);
+  border: 1px solid var(--juli-border);
+  border-radius: var(--juli-radius);
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--juli-primary);
+  background: var(--juli-primary-soft);
+}
+
+.choice input,
+.consent input {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+  accent-color: var(--juli-primary);
+}
+
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--juli-space-2);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.consent input {
+  margin-top: 0.2rem;
+}
+
+.consent a {
+  color: var(--juli-primary-text);
+}
+
+/* Off-screen, not display:none: some bots skip hidden inputs. */
+.honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.notice,
+.targetNotice {
+  margin: 0;
+  border: 1px solid var(--juli-destructive);
+  border-radius: var(--juli-radius);
+  padding: 0.75rem 0.9rem;
+  background: var(--juli-destructive-tint);
+  color: var(--juli-foreground);
+  font-size: 0.95rem;
+}
+
+.targetNotice {
+  display: none;
+}
+
+.targetNotice:target {
+  display: block;
+}
+
+.thanks {
+  display: grid;
+  max-width: 40rem;
+  gap: var(--juli-space-4);
+  margin-inline: auto;
+  padding-block: clamp(2rem, 7vw, 5rem);
+  text-align: left;
+}
+
+.steps {
+  display: grid;
+  gap: var(--juli-space-2);
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.6;
+}
+
+.h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--juli-space-3);
+}
+
+.small {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+  font-size: 0.9rem;
+}
