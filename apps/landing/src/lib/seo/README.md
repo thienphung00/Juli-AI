@@ -10,7 +10,10 @@ Every public page of app-juli.com goes through these helpers. Import from
    - `core.ts` — `/`, `/about`, `/contact`, `/privacy`, `/terms`
    - `product.ts` — `/san-pham`
    - `capabilities.ts` — `/san-pham/<slug>` (`parent: "/san-pham"`), `/ket-noi/tiktok-shop`
-   - `blog.ts` — `/blog`, `/blog/<slug>` (`parent: "/blog"`, `ogType: "article"`)
+   - `blog.ts` — `/blog`, `/blog/<slug>` (`parent: "/blog"`, `ogType: "article"`), derived
+     from `src/content/blog/posts.ts`; a draft post gets `noindex: true` (robots
+     `noindex, follow`, no sitemap entry, `check:seo` asserts the noindex and that no
+     indexable page links it). See `src/content/blog/README.md`.
 
    ```ts
    {
@@ -73,7 +76,7 @@ Every public page of app-juli.com goes through these helpers. Import from
    ```
    `check:seo` (`src/seo-check/built-site.check.ts`) fails on: ≠ 1 h1, skipped heading
    level, title/description/canonical missing, different from the registry or
-   duplicated, no OG image / Twitter card, hreflang, noindex, JSON-LD that does
+   duplicated, no OG image / Twitter card, hreflang, noindex (a `noindex` blog draft must be noindex instead), JSON-LD that does
    not parse, missing Organization/WebSite/BreadcrumbList, an FAQPage question
    not visible on the page, any `sameAs`. `SEO_BASE_URL=http://localhost:3007`
    checks a running server instead of `.next/server/app/*.html`.
