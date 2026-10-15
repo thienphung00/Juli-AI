@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 
+import { buttonClassName } from "../ui/button";
+
 import {
   FIELDS,
   LABELS,
@@ -189,7 +191,7 @@ export function SignupForm({ onDone, fetchImpl }: SignupFormProps = {}) {
         {fieldError("full_name")}
       </div>
 
-      <div className={styles.field}>
+      <div className={`${styles.field} ${styles.half}`}>
         <label htmlFor="signup-phone">
           {LABELS.phone} <span aria-hidden="true">*</span>
         </label>
@@ -211,7 +213,7 @@ export function SignupForm({ onDone, fetchImpl }: SignupFormProps = {}) {
         {fieldError("phone")}
       </div>
 
-      <div className={styles.field}>
+      <div className={`${styles.field} ${styles.half}`}>
         <label htmlFor="signup-email">
           {LABELS.email} <span aria-hidden="true">*</span>
         </label>
@@ -312,7 +314,7 @@ export function SignupForm({ onDone, fetchImpl }: SignupFormProps = {}) {
 
       <button
         aria-disabled={pending || undefined}
-        className="juli-btn juli-btn--primary juli-btn--large"
+        className={buttonClassName({ className: styles.submit })}
         data-testid="signup-submit"
         type="submit"
       >

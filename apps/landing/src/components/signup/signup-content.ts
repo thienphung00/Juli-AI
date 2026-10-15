@@ -15,16 +15,30 @@ export const SIGNUP_SUBMIT_PATH = "/dang-ky/gui";
 export const SELF_CONNECT_URL =
   process.env.NEXT_PUBLIC_SIGNUP_SELF_CONNECT_URL ?? "https://demo.app-juli.com/?dang-ky=dung-thu";
 
-export const SIGNUP_H1 = "Đăng ký dùng thử miễn phí 3 tháng";
+export const SIGNUP_EYEBROW = "Miễn phí 3 tháng · không cần thẻ thanh toán";
+export const SIGNUP_H1 = "Đăng ký dùng thử Juli";
 
 export const SIGNUP_LEAD =
   "Để lại thông tin, đội ngũ Juli sẽ liên hệ qua điện thoại hoặc Zalo và cùng bạn kết nối TikTok Shop.";
 
-export const SIGNUP_VALUES: readonly string[] = [
-  "Miễn phí 3 tháng đầu, không cần thanh toán trước.",
-  "Đội ngũ Juli kết nối TikTok Shop cùng bạn rồi bàn giao tài khoản cho bạn.",
-  "Juli phân tích shop theo từng luồng truy cập, đề xuất việc cần làm và chỉ thực hiện khi bạn duyệt.",
-  "Dữ liệu shop chỉ dùng để vận hành dịch vụ cho chính shop của bạn.",
+/** "Muốn tự kết nối ngay?" under the form → the demo's trial door ({@link SELF_CONNECT_URL}). */
+export const SELF_CONNECT_PROMPT = "Muốn tự kết nối ngay?";
+export const SELF_CONNECT_LINK_LABEL = "Tạo tài khoản và kết nối shop →";
+
+/** "Sau khi bạn đăng ký" (Signup.dc.html) — also the thank-you page's next steps. */
+export const NEXT_STEPS: readonly { title: string; body: string }[] = [
+  {
+    title: "Juli gọi hoặc nhắn Zalo cho bạn",
+    body: "Trong giờ làm việc, để hiểu shop và cách bạn vận hành.",
+  },
+  {
+    title: "Cùng kết nối TikTok Shop",
+    body: "Uỷ quyền chính thức qua TikTok, không cần mật khẩu shop.",
+  },
+  {
+    title: "Nhận đề xuất đầu tiên",
+    body: "Juli quét nhanh shop và gửi những thẻ đề xuất đầu tiên để bạn duyệt.",
+  },
 ];
 
 /** Field names: identical to the API body (`POST /v1/trial-signups`). */
