@@ -1,0 +1,554 @@
+/*
+ * Homepage-only layout (D44, P34-B) — fasttrack/design/p34/Main.dc.html (desktop)
+ * and HomeMobile.dc.html (390 px). Shared looks come from components/ui (ui.css);
+ * this file only composes them. Tokens only (design-tokens.test.ts).
+ */
+
+/* ————— Hero ————— */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.heroInner {
+  display: grid;
+  gap: var(--lp-space-8);
+  padding-block: 36px var(--lp-space-6);
+}
+
+.heroCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.heroCopy > * {
+  margin: 0;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lp-space-3);
+}
+
+.heroNote,
+.heroConsent {
+  color: var(--lp-muted);
+  font-size: var(--lp-text-caption);
+  line-height: 1.5;
+}
+
+.heroNoteLink,
+.heroConsent a {
+  color: var(--lp-pink-text);
+  font-weight: var(--lp-weight-semibold);
+}
+
+.heroNoteLink:hover,
+.heroConsent a:hover {
+  color: var(--lp-pink-text-hover);
+}
+
+.heroConsent {
+  font-size: var(--lp-text-micro);
+}
+
+.heroMedia {
+  position: relative;
+  min-width: 0;
+}
+
+/* Phone: one framed shot on the tinted backdrop (HomeMobile), no flourish. */
+.heroMain {
+  margin: 0;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--lp-backdrop);
+}
+
+.heroMainCaption {
+  margin-top: var(--lp-space-2);
+  color: var(--lp-muted);
+  font-size: var(--lp-text-micro);
+}
+
+.heroPath,
+.heroBird,
+.heroFloat {
+  display: none;
+}
+
+@media (min-width: 641px) {
+  .heroActions {
+    margin-top: var(--lp-space-2);
+  }
+
+  .heroNote {
+    font-size: var(--lp-text-label);
+  }
+
+  .heroCopy {
+    gap: var(--lp-space-6);
+  }
+}
+
+@media (min-width: 960px) {
+  .heroInner {
+    grid-template-columns: minmax(0, 480fr) minmax(0, 520fr);
+    gap: var(--lp-space-14);
+    align-items: center;
+    padding-block: var(--lp-space-22) 96px;
+  }
+
+  /* Desktop: the big framed card + an overlapping funnel card, bird + dashed path above. */
+  .heroMedia {
+    margin-bottom: 40px;
+  }
+
+  .heroMain {
+    padding: 0;
+    background: none;
+  }
+
+  .heroMainCaption {
+    display: none;
+  }
+
+  .heroPath {
+    position: absolute;
+    top: -56px;
+    left: -24px;
+    display: block;
+    width: 70%;
+    height: auto;
+  }
+
+  .heroBird {
+    position: absolute;
+    top: -78px;
+    left: 58%;
+    display: block;
+    transform: rotate(-8deg);
+  }
+
+  .heroFloat {
+    position: absolute;
+    bottom: -40px;
+    left: -36px;
+    display: block;
+    width: 62%;
+  }
+}
+
+/* ————— Marketplace strip ————— */
+
+.stripInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lp-space-3);
+  padding: var(--lp-space-4);
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-lg);
+}
+
+.stripHeading {
+  margin: 0;
+  color: var(--lp-muted);
+  font-size: var(--lp-text-caption);
+  font-weight: var(--lp-weight-semibold);
+}
+
+.markets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lp-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.market {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lp-space-3);
+}
+
+.marketName {
+  color: var(--lp-ink);
+  font-size: var(--lp-text-label);
+  font-weight: var(--lp-weight-bold);
+}
+
+.marketNote {
+  display: none;
+  color: var(--lp-muted);
+  font-size: var(--lp-text-label);
+}
+
+/* Phone: the strip is a bordered card on white (HomeMobile). */
+@media (max-width: 640px) {
+  .strip {
+    margin-top: 28px;
+    border-block: 0;
+    background: none;
+  }
+}
+
+@media (min-width: 641px) {
+  .stripInner {
+    flex-flow: row wrap;
+    align-items: center;
+    gap: var(--lp-space-6) var(--lp-space-12);
+    padding: 28px 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .stripHeading {
+    font-size: var(--lp-text-label);
+  }
+
+  .markets {
+    flex-flow: row wrap;
+    gap: var(--lp-space-6) var(--lp-space-12);
+  }
+
+  .market {
+    justify-content: flex-start;
+  }
+
+  .marketName {
+    font-size: var(--lp-text-body);
+  }
+
+  .marketNote {
+    display: inline;
+  }
+}
+
+/* ————— Loop ————— */
+
+.steps {
+  margin-top: var(--lp-space-5);
+}
+
+@media (min-width: 641px) {
+  .steps {
+    margin-top: var(--lp-space-12);
+  }
+}
+
+/* ————— Capabilities (zig-zag) ————— */
+
+.capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lp-section-y);
+  padding-block: var(--lp-space-10) var(--lp-section-y);
+}
+
+@media (min-width: 960px) {
+  .capabilities {
+    gap: 144px;
+    padding-block: var(--lp-space-18) 112px;
+  }
+}
+
+/* ————— Data safety ————— */
+
+.safetyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--lp-space-4);
+  margin: var(--lp-space-8) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.safetyGrid :global(.ui-heading--card) {
+  font-size: var(--lp-text-h3-small);
+}
+
+@media (min-width: 641px) {
+  .safetyGrid {
+    margin-top: var(--lp-space-12);
+  }
+}
+
+/* ————— Two-column split (audiences, FAQ) ————— */
+
+.split {
+  display: grid;
+  gap: var(--lp-space-8);
+}
+
+.splitTitle {
+  margin-top: var(--lp-space-3);
+}
+
+@media (min-width: 960px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: var(--lp-space-12);
+  }
+}
+
+/* ————— Audiences ————— */
+
+.audience {
+  padding-bottom: var(--lp-space-6);
+}
+
+@media (min-width: 960px) {
+  .audience {
+    padding-bottom: var(--lp-space-14);
+  }
+}
+
+.audienceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 28px var(--lp-space-10);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audienceGrid :global(.ui-heading--card) {
+  margin-bottom: var(--lp-space-2);
+  font-size: var(--lp-text-h3-small);
+}
+
+.audienceGrid p {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: var(--lp-text-body-small);
+  line-height: 1.6;
+}
+
+/* ————— Transparency + company ————— */
+
+.transparency {
+  padding-top: var(--lp-space-10);
+}
+
+@media (min-width: 960px) {
+  .transparency {
+    padding-top: var(--lp-space-14);
+  }
+}
+
+.transparencyCard {
+  display: grid;
+  gap: var(--lp-space-8);
+  padding: var(--lp-space-6);
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-2xl);
+}
+
+.transparencyText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.transparencyText p {
+  margin: 0;
+  color: var(--lp-body);
+  font-size: 1rem;
+  line-height: var(--lp-leading-body);
+}
+
+.company {
+  display: grid;
+  gap: var(--lp-space-3);
+  margin: 0;
+  padding: var(--lp-space-6);
+  border-radius: var(--lp-radius-lg);
+  background: var(--lp-alt);
+  font-size: var(--lp-text-label);
+}
+
+.company dt {
+  color: var(--lp-muted);
+}
+
+.company dd {
+  margin: 2px 0 0;
+  color: var(--lp-ink);
+  font-weight: var(--lp-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.company a {
+  color: inherit;
+}
+
+@media (min-width: 960px) {
+  .transparencyCard {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--lp-space-10);
+    padding: var(--lp-space-10);
+  }
+}
+
+/* ————— Pricing (the dark band) ————— */
+
+.pricing {
+  display: grid;
+  gap: var(--lp-space-8);
+  align-items: center;
+}
+
+.pricingCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--lp-space-6);
+}
+
+.pricingActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lp-space-3);
+}
+
+.priceCard {
+  gap: 14px;
+  padding: 28px;
+  border-radius: 20px;
+}
+
+.priceCard > p {
+  margin: 0;
+}
+
+.priceCard > .priceLabel {
+  color: var(--lp-on-dark-body);
+  font-size: var(--lp-text-label);
+}
+
+.priceCard > .price {
+  color: var(--lp-on-dark);
+  font-size: 2.5rem;
+  font-weight: var(--lp-weight-semibold);
+  letter-spacing: var(--lp-tracking-display);
+  line-height: 1.2;
+}
+
+.priceUnit {
+  color: var(--lp-on-dark-body);
+  font-size: 1rem;
+  font-weight: var(--lp-weight-medium);
+  letter-spacing: 0;
+}
+
+.priceCard > .priceNote {
+  color: var(--lp-on-dark-pink);
+  font-size: var(--lp-text-label);
+}
+
+.priceList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: var(--lp-space-2) 0 0;
+  padding: 0;
+  color: var(--lp-on-dark-list);
+  font-size: var(--lp-text-body-small);
+  list-style: none;
+}
+
+@media (min-width: 960px) {
+  .pricing {
+    grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+    gap: var(--lp-space-12);
+  }
+}
+
+/* ————— FAQ ————— */
+
+.faqContact {
+  margin: 14px 0 0;
+  color: var(--lp-body);
+  font-size: 1rem;
+}
+
+.faqContact a {
+  color: var(--lp-pink-text);
+  font-weight: var(--lp-weight-semibold);
+}
+
+/* ————— Video dialog (HeroVideo) ————— */
+
+.videoDialog {
+  width: min(960px, calc(100vw - 2 * var(--lp-gutter)));
+  max-width: none;
+  max-height: calc(100dvh - 2 * var(--lp-gutter));
+  padding: 0;
+  border: 0;
+  border-radius: var(--lp-radius-lg);
+  background: var(--lp-dark);
+  color: var(--lp-on-dark);
+}
+
+.videoDialog::backdrop {
+  background: color-mix(in srgb, var(--lp-ink) 72%, transparent);
+}
+
+.videoPanel {
+  display: flex;
+  flex-direction: column;
+}
+
+.videoBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lp-space-3);
+  padding: var(--lp-space-2) var(--lp-space-2) var(--lp-space-2) var(--lp-space-4);
+}
+
+.videoTitle {
+  margin: 0;
+  font-size: var(--lp-text-label);
+  font-weight: var(--lp-weight-semibold);
+}
+
+.videoClose {
+  display: inline-flex;
+  width: var(--lp-touch);
+  height: var(--lp-touch);
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--lp-radius-sm);
+  background: transparent;
+  color: var(--lp-on-dark);
+  cursor: pointer;
+}
+
+.videoClose:focus-visible {
+  outline: 2px solid var(--lp-on-dark);
+  outline-offset: -4px;
+}
+
+.videoMedia {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: var(--lp-dark);
+}
+
+.videoCaption {
+  margin: 0;
+  padding: var(--lp-space-3) var(--lp-space-4) var(--lp-space-4);
+  color: var(--lp-on-dark-body);
+  font-size: var(--lp-text-caption);
+}

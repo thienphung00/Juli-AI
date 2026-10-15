@@ -1,368 +1,384 @@
 import Link from "next/link";
 
+import { COMPANY, DEMO_URL, PRODUCT_PAGES, SECTION_IDS, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../lib/site";
 import {
-  COMPANY,
-  DEMO_URL,
-  PRODUCT_PAGES,
-  SECTION_IDS,
-  SIGNUP_URL,
-  TRIAL_CTA_LABEL,
-} from "../../lib/site";
-import { CtaLink } from "../cta-link";
+  CAP_DL_TANG_THEM,
+  CAP_DL_TANG_THEM_MOBILE,
+  CAP_DX_THE,
+  CAP_PT_LUONG,
+  CAP_PT_LUONG_MOBILE,
+  CAP_PT_PHEU,
+  CAP_PT_XEP_HANG,
+  CAP_PT_XEP_HANG_MOBILE,
+} from "../product/screens";
 import {
-  AUDIENCES,
-  CAPABILITIES,
-  HOME_FAQ,
-  HOW_IT_WORKS,
-  PROBLEMS,
-  SAFETY,
-} from "./home-content";
+  BirdGlyph,
+  Card,
+  CheckList,
+  Container,
+  Eyebrow,
+  FaqList,
+  FeatureRow,
+  Heading,
+  Icon,
+  LinkButton,
+  Section,
+  SectionIntro,
+  Shot,
+  ShotFrame,
+  StatusPill,
+  StepList,
+  TextLink,
+} from "../ui";
+import { AUDIENCES, CAPABILITY_ROWS, HOME_FAQ, PRICING_POINTS, SAFETY } from "./home-content";
 import { HeroVideo } from "./hero-video";
+import styles from "./home.module.css";
 
 /**
- * Homepage sections (D43.2, AC-33.5). Heading outline: one H1 in the hero, one
- * H2 per section, H3 for items inside a section — never deeper.
+ * Homepage sections, built to the approved mockups (D44, P34-B):
+ * fasttrack/design/p34/Main.dc.html (desktop) and HomeMobile.dc.html (390 px).
+ * Heading outline: one H1 in the hero, one H2 per section, H3 inside — never
+ * deeper. Every CTA carries a `data-testid` (TikTok listener `content_name`).
  */
-
-const CAPABILITY_LINKS = {
-  analysis: PRODUCT_PAGES.analysis,
-  actions: PRODUCT_PAGES.actions,
-  measurement: PRODUCT_PAGES.measurement,
-} as const;
 
 export function HomeHero() {
   return (
-    <section aria-labelledby="hero-heading" className="lp-home-hero">
-      <div className="lp-home-hero__copy">
-        <h1 className="lp-home-hero__heading" id="hero-heading">
-          Juli AI — trợ lý AI vận hành cho nhà bán TikTok Shop: phân tích, đề xuất, thực thi sau
-          khi bạn duyệt, đo GMV
-        </h1>
-        <p className="lp-home-hero__lead">
-          Juli đọc dữ liệu shop qua TikTok Shop Open API, tìm sản phẩm và chỉ số đang làm hụt
-          GMV, rồi đề xuất việc cụ thể. Bạn duyệt, Juli cập nhật trang sản phẩm và đo kết quả
-          sau 7 và 14 ngày.
-        </p>
-        <div className="lp-home-hero__actions">
-          <CtaLink data-testid="hero-trial-cta" href={SIGNUP_URL} size="large">
-            {TRIAL_CTA_LABEL}
-          </CtaLink>
-          <CtaLink data-testid="hero-demo-cta" href={DEMO_URL} size="large" variant="secondary">
-            Xem demo
-          </CtaLink>
+    <section aria-labelledby="hero-heading" className={styles.hero}>
+      <Container className={styles.heroInner}>
+        <div className={styles.heroCopy}>
+          <Eyebrow variant="badge">Kết nối chính thức qua TikTok Shop Open API</Eyebrow>
+          <Heading id="hero-heading" level={1}>
+            Trợ lý AI vận hành TikTok Shop: tìm chỗ GMV hụt, đề xuất cách sửa, đo kết quả.
+          </Heading>
+          <p className="ui-lead">
+            Juli đọc dữ liệu shop của bạn, chỉ ra luồng truy cập và sản phẩm đang kéo GMV xuống,
+            rồi chỉ thực hiện thay đổi khi bạn đã duyệt.
+          </p>
+          <div className={styles.heroActions}>
+            <LinkButton blockOnMobile data-testid="hero-trial-cta" href={SIGNUP_URL}>
+              {TRIAL_CTA_LABEL}
+            </LinkButton>
+            <HeroVideo />
+          </div>
+          <p className={styles.heroNote}>
+            Không cần thẻ thanh toán · sau đó từ 500.000đ/tháng ·{" "}
+            <a className={styles.heroNoteLink} data-testid="hero-demo-cta" href={DEMO_URL}>
+              Xem demo
+            </a>{" "}
+            với dữ liệu mẫu
+          </p>
+          <p className={styles.heroConsent} data-testid="hero-consent-note">
+            Khi đăng ký, bạn đồng ý với <Link href="/terms">Điều khoản dịch vụ</Link> và{" "}
+            <Link href="/privacy">Chính sách bảo mật</Link> của Juli.
+          </p>
         </div>
-        <p className="lp-home-hero__note">
-          Không cần thẻ thanh toán · sau đó từ 500K/tháng · Demo dùng dữ liệu mẫu, không cần đăng ký
-        </p>
-        <p className="lp-home-hero__consent" data-testid="hero-consent-note">
-          Khi đăng ký, bạn đồng ý với{" "}
-          <Link className="lp-home-hero__consent-link" href="/terms">
-            Điều khoản dịch vụ
-          </Link>{" "}
-          và{" "}
-          <Link className="lp-home-hero__consent-link" href="/privacy">
-            Chính sách bảo mật
-          </Link>{" "}
-          của Juli.
-        </p>
-      </div>
-      <div className="lp-home-hero__visual">
-        <HeroVideo />
-      </div>
+        <div className={styles.heroMedia}>
+          <svg aria-hidden="true" className={styles.heroPath} fill="none" viewBox="0 0 560 120">
+            <path
+              d="M8 104 C 140 20, 300 120, 470 34"
+              stroke="var(--lp-pink)"
+              strokeDasharray="2 9"
+              strokeLinecap="round"
+              strokeWidth="2"
+            />
+          </svg>
+          <BirdGlyph className={styles.heroBird} height={39} />
+          <figure className={styles.heroMain}>
+            <ShotFrame
+              chrome="Quyết định · Juli"
+              elevation="hero"
+              images={{
+                variants: CAP_DX_THE,
+                alt: "Thẻ đề xuất của Juli: chỉ số mục tiêu, lý do và thay đổi trước–sau (dữ liệu mẫu)",
+                crop: 7 / 5,
+              }}
+              priority
+              sizes="(min-width: 1200px) 600px, (min-width: 960px) 50vw, 100vw"
+            />
+            <figcaption className={styles.heroMainCaption}>Dữ liệu mẫu</figcaption>
+          </figure>
+          <ShotFrame
+            as="figure"
+            caption="Dữ liệu mẫu"
+            className={styles.heroFloat}
+            elevation="float"
+            images={{
+              variants: CAP_PT_PHEU,
+              alt: "Phễu của luồng Thẻ sản phẩm: Lượt hiển thị, CTR, CTOR, AOV (dữ liệu mẫu)",
+            }}
+            sizes="(min-width: 1200px) 380px, 32vw"
+          />
+        </div>
+      </Container>
     </section>
   );
 }
 
-/** D42.6: TikTok Shop is live; Shopee is named in text as being integrated, never as live. */
+/** D42.6: TikTok Shop is live; Shopee is "đang tích hợp", never live. */
 export function MarketplaceStrip() {
   return (
-    <section aria-labelledby="marketplace-heading" className="lp-home-band">
-      <div className="lp-home-inner">
-        <h2 className="lp-home-band__heading" id="marketplace-heading">
-          Sàn thương mại điện tử Juli kết nối
+    <Section labelledBy="marketplace-heading" spacing="none" tone="alt" className={styles.strip}>
+      <div className={styles.stripInner}>
+        <h2 className={styles.stripHeading} id="marketplace-heading">
+          Sàn Juli kết nối
         </h2>
-        <ul className="lp-home-markets">
-          <li className="lp-home-market" data-testid="market-tiktok">
-            <h3 className="lp-home-market__name">TikTok Shop</h3>
-            <p className="lp-home-market__status lp-home-market__status--live">Đang hoạt động</p>
-            <p className="lp-home-market__body">
-              Kết nối chính thức qua TikTok Shop Open API. Bạn cấp quyền trên trang của TikTok
-              Shop.{" "}
-              <Link className="lp-home-link" href={PRODUCT_PAGES.tiktokShop.href}>
-                Cách kết nối TikTok Shop
-              </Link>
-            </p>
+        <ul className={styles.markets}>
+          <li className={styles.market} data-testid="market-tiktok">
+            <span className={styles.marketName}>TikTok Shop</span>
+            <StatusPill status="live" />
+            <span className={styles.marketNote}>TikTok Shop Open API</span>
           </li>
-          <li className="lp-home-market" data-testid="market-shopee">
-            <h3 className="lp-home-market__name">Shopee</h3>
-            <p className="lp-home-market__status">Đang tích hợp</p>
-            <p className="lp-home-market__body">
-              Shopee đang tích hợp qua Shopee Open Platform. Hiện chưa kết nối được shop Shopee.
-            </p>
+          <li className={styles.market} data-testid="market-shopee">
+            <span className={styles.marketName}>Shopee</span>
+            <StatusPill status="integrating" />
+            <span className={styles.marketNote}>qua Shopee Open Platform</span>
           </li>
         </ul>
       </div>
-    </section>
+    </Section>
   );
 }
 
-export function ProblemSection() {
+export function LoopSection() {
   return (
-    <section aria-labelledby="problem-heading" className="lp-home-section">
-      <div className="lp-home-inner">
-        <h2 className="lp-home-section__heading" id="problem-heading">
-          GMV giảm, nhưng hụt ở đâu?
-        </h2>
-        <p className="lp-home-section__lead">
-          Nhà bán TikTok Shop thường phải đoán. Juli thay phần đoán bằng số liệu của chính shop.
-        </p>
-        <div className="lp-home-grid lp-home-grid--three">
-          {PROBLEMS.map((item) => (
-            <article className="lp-home-card" key={item.title}>
-              <h3 className="lp-home-card__title">{item.title}</h3>
-              <p className="lp-home-card__body">{item.body}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
+    <Section id={SECTION_IDS.howItWorks} labelledBy="loop-heading">
+      <SectionIntro
+        eyebrow="Cách Juli làm việc"
+        title="Năm bước, và bạn luôn là người quyết định."
+        titleId="loop-heading"
+      />
+      <StepList className={styles.steps} />
+    </Section>
   );
 }
 
-export function HowItWorksSection() {
+export function CapabilityRows() {
+  const { analysis, actions, measurement } = CAPABILITY_ROWS;
   return (
-    <section
-      aria-labelledby="how-heading"
-      className="lp-home-section lp-home-section--tinted"
-      id={SECTION_IDS.howItWorks}
-    >
-      <div className="lp-home-inner">
-        <h2 className="lp-home-section__heading" id="how-heading">
-          Juli làm việc thế nào: Phân tích → Đề xuất → Duyệt → Thực thi → Đo lường
-        </h2>
-        <ol className="lp-home-steps">
-          {HOW_IT_WORKS.map((step, index) => (
-            <li className="lp-home-step" key={step.key}>
-              <span aria-hidden="true" className="lp-home-step__number">
-                {index + 1}
-              </span>
-              <h3 className="lp-home-step__title">{step.title}</h3>
-              <p className="lp-home-step__body">{step.body}</p>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </section>
-  );
-}
-
-export function CapabilitiesSection() {
-  return (
-    <section
-      aria-labelledby="capabilities-heading"
-      className="lp-home-section"
-      id={SECTION_IDS.capabilities}
-    >
-      <div className="lp-home-inner">
-        <h2 className="lp-home-section__heading" id="capabilities-heading">
-          Ba năng lực chính của Juli
-        </h2>
-        <div className="lp-home-grid lp-home-grid--three">
-          {CAPABILITIES.map((item) => {
-            const page = CAPABILITY_LINKS[item.key];
-            return (
-              <article className="lp-home-card lp-home-card--capability" key={item.key}>
-                <h3 className="lp-home-card__title">{item.title}</h3>
-                <p className="lp-home-card__body">{item.body}</p>
-                <ul className="lp-home-list">
-                  {item.points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-                <Link
-                  className="lp-home-link lp-home-card__more"
-                  data-testid={`capability-link-${item.key}`}
-                  href={page.href}
-                >
-                  Xem chi tiết: {page.label} ›
-                </Link>
-              </article>
-            );
-          })}
-        </div>
-      </div>
-    </section>
+    <Container className={styles.capabilities} id={SECTION_IDS.capabilities}>
+      <FeatureRow
+        eyebrow={analysis.eyebrow}
+        media={
+          <Shot
+            caption="Dữ liệu mẫu · Cửa hàng Mẫu Hoa Mai"
+            images={[
+              {
+                variants: CAP_PT_LUONG,
+                mobileVariants: CAP_PT_LUONG_MOBILE,
+                alt: "Phân tích: GMV chia theo 5 luồng truy cập (dữ liệu mẫu)",
+              },
+              {
+                variants: CAP_PT_XEP_HANG,
+                mobileVariants: CAP_PT_XEP_HANG_MOBILE,
+                alt: "Xếp hạng sản phẩm kéo CTOR xuống (dữ liệu mẫu)",
+              },
+            ]}
+          />
+        }
+        title={analysis.title}
+        titleId="cap-analysis"
+      >
+        <p className="ui-body">{analysis.body}</p>
+        <CheckList items={analysis.points} />
+        <TextLink data-testid="capability-link-analysis" href={PRODUCT_PAGES.analysis.href}>
+          Xem {PRODUCT_PAGES.analysis.label}
+        </TextLink>
+      </FeatureRow>
+      <FeatureRow
+        eyebrow={actions.eyebrow}
+        media={
+          <Shot
+            images={{
+              variants: CAP_DX_THE,
+              alt: "Thẻ đề xuất với thay đổi trước–sau (dữ liệu mẫu)",
+              crop: 3 / 2,
+            }}
+          />
+        }
+        reverse
+        title={actions.title}
+        titleId="cap-actions"
+      >
+        <p className="ui-body">{actions.body}</p>
+        <CheckList items={actions.points} />
+        <TextLink data-testid="capability-link-actions" href={PRODUCT_PAGES.actions.href}>
+          Xem {PRODUCT_PAGES.actions.label}
+        </TextLink>
+      </FeatureRow>
+      <FeatureRow
+        eyebrow={measurement.eyebrow}
+        media={
+          <Shot
+            images={{
+              variants: CAP_DL_TANG_THEM,
+              mobileVariants: CAP_DL_TANG_THEM_MOBILE,
+              alt: "Kết quả đo của một thay đổi: chỉ số trước, mục tiêu và thực tế (dữ liệu mẫu)",
+            }}
+          />
+        }
+        title={measurement.title}
+        titleId="cap-measurement"
+      >
+        <p className="ui-body">{measurement.body}</p>
+        <TextLink data-testid="capability-link-measurement" href={PRODUCT_PAGES.measurement.href}>
+          Xem {PRODUCT_PAGES.measurement.label}
+        </TextLink>
+      </FeatureRow>
+    </Container>
   );
 }
 
 export function SafetySection() {
   return (
-    <section aria-labelledby="safety-heading" className="lp-home-section lp-home-section--tinted">
-      <div className="lp-home-inner">
-        <h2 className="lp-home-section__heading" id="safety-heading">
-          Dữ liệu an toàn, quyền quyết định là của bạn
-        </h2>
-        <div className="lp-home-grid">
-          {SAFETY.map((item) => (
-            <article className="lp-home-card" key={item.title}>
-              <h3 className="lp-home-card__title">{item.title}</h3>
-              <p className="lp-home-card__body">{item.body}</p>
-            </article>
-          ))}
-        </div>
-        <p className="lp-home-section__lead">
-          Juli đọc gì, lưu bao lâu và chia sẻ với ai được nêu đầy đủ tại{" "}
-          <Link className="lp-home-link" href="/privacy">
-            Chính sách bảo mật
-          </Link>
-          .
-        </p>
-      </div>
-    </section>
+    <Section labelledBy="safety-heading" tone="alt">
+      <SectionIntro
+        eyebrow="Dữ liệu và quyền quyết định"
+        lead={
+          <>
+            Dữ liệu shop chỉ dùng để phục vụ chính shop của bạn và không được bán. Juli đọc gì,
+            lưu bao lâu và chia sẻ với ai được nêu tại{" "}
+            <Link href="/privacy">Chính sách bảo mật</Link>.
+          </>
+        }
+        title="Shop là của bạn. Juli chỉ đọc những gì cần và chỉ làm khi bạn đồng ý."
+        titleId="safety-heading"
+      />
+      <ul className={styles.safetyGrid}>
+        {SAFETY.map((item) => (
+          <Card as="li" key={item.title}>
+            <Icon name={item.icon} size={28} strokeWidth={1.8} />
+            <Heading level={3}>{item.title}</Heading>
+            <p>{item.body}</p>
+          </Card>
+        ))}
+      </ul>
+    </Section>
   );
 }
 
 export function AudienceSection() {
   return (
-    <section aria-labelledby="audience-heading" className="lp-home-section">
-      <div className="lp-home-inner">
-        <h2 className="lp-home-section__heading" id="audience-heading">
-          Juli dành cho ai
-        </h2>
-        <div className="lp-home-grid lp-home-grid--four">
-          {AUDIENCES.map((item) => (
-            <article className="lp-home-card" key={item.title}>
-              <h3 className="lp-home-card__title">{item.title}</h3>
-              <p className="lp-home-card__body">{item.body}</p>
-            </article>
-          ))}
+    <Section className={styles.audience} labelledBy="audience-heading">
+      <div className={styles.split}>
+        <div>
+          <Eyebrow>Dành cho ai</Eyebrow>
+          <Heading className={styles.splitTitle} id="audience-heading" level={2} size="feature">
+            Cho người bán và những đội vận hành shop.
+          </Heading>
         </div>
+        <ul className={styles.audienceGrid}>
+          {AUDIENCES.map((item) => (
+            <li key={item.title}>
+              <Heading level={3}>{item.title}</Heading>
+              <p>{item.body}</p>
+            </li>
+          ))}
+        </ul>
       </div>
-    </section>
+    </Section>
   );
 }
 
 /** D43.3: transparency instead of proof — method, labelled sample data, company. */
 export function TransparencySection() {
   return (
-    <section
-      aria-labelledby="transparency-heading"
-      className="lp-home-section lp-home-section--tinted"
-    >
-      <div className="lp-home-inner">
-        <h2 className="lp-home-section__heading" id="transparency-heading">
-          Minh bạch thay cho lời quảng cáo
-        </h2>
-        <p className="lp-home-section__lead">
-          Juli còn mới. Chúng tôi chưa đăng lời chứng thực hay con số kết quả nào: chỉ công bố
-          khi đo được trên shop thật, bằng cách đo dưới đây.
-        </p>
-        <div className="lp-home-grid lp-home-grid--three">
-          <article className="lp-home-card">
-            <h3 className="lp-home-card__title">Cách Juli đo GMV tăng thêm</h3>
-            <p className="lp-home-card__body">
-              Mỗi thay đổi có một mức GMV dự kiến được ghi lại trước khi thực thi. Juli so sản
-              phẩm đã thay đổi với các sản phẩm tương tự chưa thay đổi trong cùng shop, đọc sơ bộ
-              ở ngày 7 và chốt ở ngày 14. Kết quả được ghi là &quot;Thay đổi rõ&quot;, &quot;Có
-              thể thay đổi&quot; hoặc &quot;Trong dao động&quot;, không làm tròn thành thành công.
-            </p>
-            <Link className="lp-home-link" href={PRODUCT_PAGES.measurement.href}>
-              Chi tiết cách đo ›
-            </Link>
-          </article>
-          <article className="lp-home-card">
-            <h3 className="lp-home-card__title">Dữ liệu mẫu được ghi rõ</h3>
-            <p className="lp-home-card__body">
-              Bản Demo chạy trên một shop mẫu, có nhãn &quot;dữ liệu mẫu&quot;. Ảnh giao diện trên
-              website cũng dùng dữ liệu mẫu. Không có con số nào trên trang này là kết quả của một
-              khách hàng.
-            </p>
-            <a className="lp-home-link" href={DEMO_URL}>
-              Mở bản Demo ›
-            </a>
-          </article>
-          <article className="lp-home-card" data-testid="home-company">
-            <h3 className="lp-home-card__title">Ai đứng sau Juli</h3>
-            <p className="lp-home-card__body">
-              Juli AI do {COMPANY.name} phát triển và vận hành. Mã số thuế {COMPANY.taxId}. Trụ sở:{" "}
-              {COMPANY.address}. Liên hệ:{" "}
-              <a className="lp-home-link" href={`mailto:${COMPANY.email}`}>
-                {COMPANY.email}
-              </a>
-              .
-            </p>
-            <Link className="lp-home-link" href="/about">
-              Về công ty ›
-            </Link>
-          </article>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function PricingFaqSection() {
-  return (
-    <>
-      <section aria-labelledby="pricing-heading" className="lp-home-section">
-        <div className="lp-home-inner lp-home-pricing">
-          <h2 className="lp-home-section__heading" id="pricing-heading">
-            Chi phí: dùng thử miễn phí 3 tháng, sau đó từ 500K/tháng
-          </h2>
-          <p className="lp-home-section__lead">
-            Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, với đầy đủ phân tích,
-            đề xuất, thực thi và đo lường. Không cần thẻ thanh toán. Sau đó từ 500K/tháng, huỷ bất
-            cứ lúc nào.{" "}
-            <Link className="lp-home-link" href="/san-pham#bang-gia">
-              Xem chi tiết bảng giá
-            </Link>
+    <Section className={styles.transparency} labelledBy="transparency-heading">
+      <div className={styles.transparencyCard}>
+        <div className={styles.transparencyText}>
+          <Heading id="transparency-heading" level={2} size="article">
+            Minh bạch thay cho lời quảng cáo
+          </Heading>
+          <p>
+            Juli là sản phẩm mới. Thay vì con số hứa hẹn, chúng tôi công khai cách đo: mỗi thay đổi
+            có chỉ số mục tiêu, được so với sản phẩm tương tự không đổi, đọc sơ bộ ở ngày 7 và chốt
+            ở ngày 14. Mọi hình trên trang này dùng dữ liệu mẫu và được ghi rõ; chưa có con số nào
+            là kết quả của một khách hàng.
           </p>
-          <CtaLink data-testid="pricing-trial-cta" href={SIGNUP_URL} size="large">
-            {TRIAL_CTA_LABEL}
-          </CtaLink>
+          <TextLink href={PRODUCT_PAGES.measurement.href}>Cách Juli đo GMV tăng thêm</TextLink>
         </div>
-      </section>
-      <section
-        aria-labelledby="faq-heading"
-        className="lp-home-section lp-home-section--tinted"
-        id={SECTION_IDS.faq}
-      >
-        <div className="lp-home-inner">
-          <h2 className="lp-home-section__heading" id="faq-heading">
-            Câu hỏi thường gặp
-          </h2>
-          <dl className="lp-page-faq">
-            {HOME_FAQ.map((item) => (
-              <div className="lp-page-faq__item" key={item.question}>
-                <dt className="lp-page-faq__question">{item.question}</dt>
-                <dd className="lp-page-faq__answer">{item.answer}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </section>
-    </>
+        <dl className={styles.company} data-testid="home-company">
+          <div>
+            <dt>Doanh nghiệp</dt>
+            <dd>{COMPANY.name}</dd>
+          </div>
+          <div>
+            <dt>Mã số thuế</dt>
+            <dd>{COMPANY.taxId}</dd>
+          </div>
+          <div>
+            <dt>Địa chỉ</dt>
+            <dd>{COMPANY.address}</dd>
+          </div>
+          <div>
+            <dt>Liên hệ</dt>
+            <dd>
+              <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </Section>
   );
 }
 
-export function FinalCta() {
+/** The page's one dark band: free trial + price (/terms §5) + both CTAs. */
+export function PricingBand() {
   return (
-    <section aria-labelledby="final-cta-heading" className="lp-home-final">
-      <h2 className="lp-home-final__heading" id="final-cta-heading">
-        Xem shop của bạn đang hụt GMV ở đâu
-      </h2>
-      <p className="lp-home-final__body">
-        Dành cho Nhà bán hàng · Affiliate · Đội vận hành sàn · Agency. Miễn phí 3 tháng, không cần
-        thẻ thanh toán, sau đó từ 500K/tháng.
-      </p>
-      <div className="lp-home-hero__actions lp-home-final__actions">
-        <CtaLink data-testid="trial-signup-cta" href={SIGNUP_URL} size="large">
-          {TRIAL_CTA_LABEL}
-        </CtaLink>
-        <CtaLink data-testid="trial-demo-cta" href={DEMO_URL} size="large" variant="secondary">
-          Xem demo
-        </CtaLink>
+    <Section labelledBy="pricing-heading" tone="dark">
+      <div className={styles.pricing}>
+        <div className={styles.pricingCopy}>
+          <SectionIntro
+            lead="Đầy đủ phân tích, đề xuất, thực thi và đo lường. Không cần thẻ thanh toán. Sau đó từ 500.000đ/tháng, huỷ bất cứ lúc nào."
+            onDark
+            title="Dùng thử miễn phí 3 tháng."
+            titleId="pricing-heading"
+          />
+          <div className={styles.pricingActions}>
+            <LinkButton blockOnMobile data-testid="pricing-trial-cta" href={SIGNUP_URL} variant="on-dark">
+              Đăng ký dùng thử
+            </LinkButton>
+            <LinkButton
+              blockOnMobile
+              data-testid="trial-demo-cta"
+              href={DEMO_URL}
+              variant="on-dark-secondary"
+            >
+              Xem demo với dữ liệu mẫu
+            </LinkButton>
+          </div>
+        </div>
+        <Card className={styles.priceCard} data-testid="home-pricing" tone="dark">
+          <p className={styles.priceLabel}>Juli AI</p>
+          <p className={styles.price}>
+            500.000đ<span className={styles.priceUnit}> /tháng</span>
+          </p>
+          <p className={styles.priceNote}>Sau 3 tháng dùng thử miễn phí</p>
+          <ul className={styles.priceList}>
+            {PRICING_POINTS.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+        </Card>
       </div>
-    </section>
+    </Section>
+  );
+}
+
+/** FAQ; its FAQPage JSON-LD is emitted once, by the page (`faqPageSchema(HOME_FAQ)`). */
+export function FaqSection() {
+  return (
+    <Section id={SECTION_IDS.faq} labelledBy="faq-heading">
+      <div className={styles.split}>
+        <div>
+          <Heading id="faq-heading" level={2} size="feature">
+            Câu hỏi thường gặp
+          </Heading>
+          <p className={styles.faqContact}>
+            Chưa thấy câu trả lời? <Link href="/contact">Liên hệ Juli</Link>
+          </p>
+        </div>
+        <FaqList items={HOME_FAQ} />
+      </div>
+    </Section>
   );
 }

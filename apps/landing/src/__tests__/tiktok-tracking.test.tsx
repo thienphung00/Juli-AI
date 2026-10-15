@@ -84,7 +84,6 @@ describe("StartDemo", () => {
       "trial-demo-cta",
       "hero-trial-cta",
       "pricing-trial-cta",
-      "trial-signup-cta",
     ]) {
       await user.click(screen.getByTestId(testId));
 
@@ -95,7 +94,7 @@ describe("StartDemo", () => {
       );
     }
 
-    expect(trackedEvents("StartDemo")).toHaveLength(7);
+    expect(trackedEvents("StartDemo")).toHaveLength(6);
   });
 
   it("gives each click its own deduplication id", async () => {
