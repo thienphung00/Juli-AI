@@ -113,7 +113,6 @@ export function OtpCodeInput({ legend, disabled, autoFocus, describedBy, invalid
             aria-label={authOtpDigitLabel(index)}
             autoComplete={index === 0 ? "one-time-code" : "off"}
             // The view swaps in after "Gửi mã": focus belongs on box 1.
-            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus={autoFocus && index === 0}
             className="auth-otp__box"
             disabled={disabled}

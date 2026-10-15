@@ -346,7 +346,6 @@ export function AuthScreen({
             aria-invalid={emailError?.kind === "invalid_email" ? true : undefined}
             autoComplete="email"
             // `/auth/email` is reached by choosing "Đăng nhập bằng email".
-            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus={focusEmail}
             className="auth-input"
             disabled={unavailable}
@@ -446,7 +445,6 @@ export function AuthScreen({
               srcSet="/auth/cap-dx-the-v1-640.webp 640w, /auth/cap-dx-the-v1-1186.webp 1186w"
               type="image/webp"
             />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               alt={AUTH_PANEL_IMAGE_ALT}
               className="auth-panel__img"

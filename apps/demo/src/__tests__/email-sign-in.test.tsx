@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthScreen } from "../components/auth/auth-screen";
 import { maskEmail } from "../lib/auth-screen-copy";
-import { AUTH_SESSION_STORAGE_KEY, readAuthSession } from "../lib/supabase-auth";
+import { AUTH_SESSION_STORAGE_KEY, readAuthSession, type AuthSession } from "../lib/supabase-auth";
 import { reportTikTokRegistration } from "../lib/tiktok-registration";
 
 vi.mock("../lib/tiktok-registration", () => ({
@@ -60,7 +60,7 @@ function routeSupabase(handlers: { otp?: () => Response; verify?: () => Response
   });
 }
 
-function renderScreen(onSignedIn: ReturnType<typeof vi.fn> = vi.fn(), trial = false) {
+function renderScreen(onSignedIn: (session: AuthSession) => void = vi.fn(), trial = false) {
   return render(
     <AuthScreen onEnterSample={vi.fn()} onSignedIn={onSignedIn} onTrialChange={vi.fn()} trial={trial} />,
   );
