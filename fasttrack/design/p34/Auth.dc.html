@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Juli — Đăng nhập</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#ffffff;color:#121214;font-family:"Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#b0386a}a:hover{color:#8c2d54}
+</style>
+</helmet>
+<div style="min-height: 900px; display: flex; flex-wrap: wrap; background: #ffffff;">
+
+  <main style="flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; padding: 28px 40px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+      <a href="#" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #121214;">
+        <img src="/_blob/691da35fead2e41659c471a4627f0523" alt="" style="width: 30px; height: 26px;">
+        <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.4px;">Juli AI</span>
+      </a>
+      <div style="display: flex; gap: 6px; background: #f4f4f6; padding: 4px; border-radius: 10px;" role="group" aria-label="Xem trạng thái mockup">
+        <button type="button" onClick="{{ showSignin }}" style="border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; background: {{ tabSignin }}; color: #121214;">Đăng nhập</button>
+        <button type="button" onClick="{{ showTrial }}" style="border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; background: {{ tabTrial }}; color: #121214;">Dùng thử</button>
+        <button type="button" onClick="{{ showOtp }}" style="border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; background: {{ tabOtp }}; color: #121214;">Nhập mã</button>
+        <button type="button" onClick="{{ showPartner }}" style="border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; background: {{ tabPartner }}; color: #121214;">Đối tác</button>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; padding: 48px 0;">
+      <div style="width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 22px;">
+
+        <sc-if value="{{ isEntry }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 22px;">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <h1 style="margin: 0; font-size: 30px; line-height: 1.2; font-weight: 600; letter-spacing: -0.6px;">{{ heading }}</h1>
+              <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #4a4a52;">{{ sub }}</p>
+            </div>
+            <a href="#" style="display: flex; align-items: center; justify-content: center; gap: 10px; background: #121214; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; height: 50px; border-radius: 12px;">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48"><path fill="#ffffff" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"></path></svg>
+              {{ googleLabel }}
+            </a>
+            <div style="display: flex; align-items: center; gap: 12px; color: #6b6b74; font-size: 13px;">
+              <span style="flex-grow: 1; height: 1px; background: #e4e4e8;"></span>hoặc dùng email<span style="flex-grow: 1; height: 1px; background: #e4e4e8;"></span>
+            </div>
+            <form style="display: flex; flex-direction: column; gap: 10px;">
+              <label for="email" style="font-size: 14px; font-weight: 600;">Email</label>
+              <input id="email" type="email" autocomplete="email" placeholder="ten@shopcuaban.vn" style="height: 48px; padding: 0 14px; border: 1px solid #cfcfd6; border-radius: 12px; font: inherit; font-size: 16px; color: #121214;">
+              <button type="button" onClick="{{ showOtp }}" style="height: 48px; border-radius: 12px; border: 1px solid #cfcfd6; background: #ffffff; font: inherit; font-size: 16px; font-weight: 600; color: #121214; cursor: pointer;">{{ emailLabel }}</button>
+            </form>
+            <p style="margin: 0; font-size: 13px; line-height: 1.55; color: #6b6b74;">Bằng việc tiếp tục, bạn đồng ý với <a href="#">Điều khoản dịch vụ</a> và <a href="#">Chính sách bảo mật</a> của Juli.</p>
+            <div style="border-top: 1px solid #ececf0; padding-top: 18px; display: flex; flex-direction: column; gap: 10px; font-size: 14px;">
+              <a href="#" style="font-weight: 600; text-decoration: none;">Xem thử với dữ liệu mẫu, không cần tài khoản →</a>
+              <p style="margin: 0; color: #4a4a52;">{{ switchText }} <a href="#" onClick="{{ toggleMode }}" style="font-weight: 600;">{{ switchLink }}</a></p>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isOtp }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 22px;">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <h1 style="margin: 0; font-size: 30px; line-height: 1.2; font-weight: 600; letter-spacing: -0.6px;">Nhập mã 6 chữ số</h1>
+              <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #4a4a52;">Juli đã gửi mã tới <strong style="color: #121214;">ch***@vi-du.vn</strong>. Mã có hiệu lực trong 10 phút.</p>
+            </div>
+            <fieldset style="border: 0; margin: 0; padding: 0;">
+              <legend style="font-size: 14px; font-weight: 600; margin-bottom: 10px;">Mã đăng nhập</legend>
+              <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px;">
+                <input aria-label="Số 1" inputmode="numeric" value="4" style="height: 56px; text-align: center; font: inherit; font-size: 22px; font-weight: 600; border: 1px solid #cfcfd6; border-radius: 12px;">
+                <input aria-label="Số 2" inputmode="numeric" value="8" style="height: 56px; text-align: center; font: inherit; font-size: 22px; font-weight: 600; border: 1px solid #cfcfd6; border-radius: 12px;">
+                <input aria-label="Số 3" inputmode="numeric" value="1" style="height: 56px; text-align: center; font: inherit; font-size: 22px; font-weight: 600; border: 1px solid #cfcfd6; border-radius: 12px;">
+                <input aria-label="Số 4" inputmode="numeric" value="" style="height: 56px; text-align: center; font: inherit; font-size: 22px; font-weight: 600; border: 2px solid #121214; border-radius: 12px;">
+                <input aria-label="Số 5" inputmode="numeric" value="" style="height: 56px; text-align: center; font: inherit; font-size: 22px; font-weight: 600; border: 1px solid #cfcfd6; border-radius: 12px;">
+                <input aria-label="Số 6" inputmode="numeric" value="" style="height: 56px; text-align: center; font: inherit; font-size: 22px; font-weight: 600; border: 1px solid #cfcfd6; border-radius: 12px;">
+              </div>
+            </fieldset>
+            <p role="alert" style="margin: 0; display: flex; gap: 8px; align-items: flex-start; font-size: 14px; color: #a1262b;">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a1262b" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="12.5"></line><line x1="12" y1="16" x2="12" y2="16"></line></svg>
+              Ví dụ trạng thái lỗi: Mã chưa đúng. Còn 4 lần thử.
+            </p>
+            <div style="display: flex; justify-content: space-between; font-size: 14px;">
+              <a href="#" onClick="{{ showSignin }}" style="font-weight: 600;">← Đổi email</a>
+              <span style="color: #6b6b74;">Gửi lại mã sau 45 giây</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isPartner }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 22px;">
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <p style="margin: 0; font-size: 13px; font-weight: 600; color: #b0386a;">Tài khoản đối tác</p>
+              <h1 style="margin: 0; font-size: 30px; line-height: 1.2; font-weight: 600; letter-spacing: -0.6px;">Đăng nhập bằng mật khẩu</h1>
+              <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #4a4a52;">Dành cho đối tác và đơn vị thẩm định được Juli cấp tài khoản. Người bán đăng nhập bằng Google hoặc email.</p>
+            </div>
+            <form style="display: flex; flex-direction: column; gap: 12px;">
+              <label for="pemail" style="font-size: 14px; font-weight: 600;">Email</label>
+              <input id="pemail" type="email" autocomplete="username" style="height: 48px; padding: 0 14px; border: 1px solid #cfcfd6; border-radius: 12px; font: inherit; font-size: 16px;">
+              <label for="ppass" style="font-size: 14px; font-weight: 600;">Mật khẩu</label>
+              <input id="ppass" type="password" autocomplete="current-password" style="height: 48px; padding: 0 14px; border: 1px solid #cfcfd6; border-radius: 12px; font: inherit; font-size: 16px;">
+              <button type="button" style="margin-top: 6px; height: 50px; border-radius: 12px; border: 0; background: #121214; color: #ffffff; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;">Đăng nhập</button>
+            </form>
+            <a href="#" onClick="{{ showSignin }}" style="font-size: 14px; font-weight: 600;">← Quay lại đăng nhập cho người bán</a>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: #6b6b74;">
+      <a href="#" onClick="{{ showPartner }}" style="color: #6b6b74;">Tài khoản đối tác</a>
+      <a href="#" style="color: #6b6b74;">Điều khoản</a>
+      <a href="#" style="color: #6b6b74;">Chính sách bảo mật</a>
+      <span>© 2026 Công ty TNHH Công Nghệ Juli AI</span>
+    </div>
+  </main>
+
+  <aside aria-label="Juli làm gì" style="flex: 1 1 520px; min-width: 0; background: #f6f4f6; padding: 56px; display: flex; flex-direction: column; justify-content: center; gap: 28px;">
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 520px;">
+      <p style="margin: 0; font-size: 14px; font-weight: 600; color: #b0386a;">Sau khi kết nối TikTok Shop</p>
+      <p style="margin: 0; font-size: 28px; line-height: 1.3; font-weight: 600; letter-spacing: -0.5px;">Juli chỉ ra luồng và sản phẩm đang kéo GMV xuống, kèm một thay đổi cụ thể để bạn duyệt.</p>
+    </div>
+    <figure style="margin: 0; background: #ffffff; border: 1px solid #ececf0; border-radius: 16px; box-shadow: 0 24px 50px -24px rgba(18,18,20,0.28); overflow: hidden; max-width: 560px;">
+      <img src="/_blob/b1d7d46a00d73e20b9c47f6097c573ee" alt="Thẻ đề xuất của Juli (dữ liệu mẫu)" style="display: block; width: 100%; height: 360px; object-fit: cover; object-position: top;">
+      <figcaption style="padding: 10px 14px; font-size: 12px; color: #6b6b74; border-top: 1px solid #f0f0f3;">Dữ liệu mẫu</figcaption>
+    </figure>
+    <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 14px; color: #3f3f46;">
+      <li>Kết nối chính thức qua TikTok Shop Open API</li>
+      <li>Chỉ thực hiện khi bạn duyệt</li>
+      <li>Miễn phí 3 tháng</li>
+    </ul>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { view: 'signin' }; }
+  renderVals() {
+    const v = this.state.view;
+    const trial = v === 'trial';
+    const on = '#ffffff', off = 'transparent';
+    const go = (view) => (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ view }); };
+    return {
+      isEntry: v === 'signin' || v === 'trial',
+      isOtp: v === 'otp',
+      isPartner: v === 'partner',
+      heading: trial ? 'Dùng thử Juli miễn phí 3 tháng' : 'Đăng nhập vào Juli',
+      sub: trial ? 'Không cần thẻ thanh toán. Sau 3 tháng, từ 500.000đ/tháng.' : 'Chưa có tài khoản? Juli tự tạo cho bạn ở bước này.',
+      googleLabel: trial ? 'Đăng ký bằng Google' : 'Tiếp tục với Google',
+      emailLabel: trial ? 'Gửi mã đăng ký' : 'Gửi mã đăng nhập',
+      switchText: trial ? 'Đã có tài khoản?' : 'Mới dùng Juli?',
+      switchLink: trial ? 'Đăng nhập' : 'Dùng thử miễn phí 3 tháng',
+      toggleMode: go(trial ? 'signin' : 'trial'),
+      showSignin: go('signin'), showTrial: go('trial'), showOtp: go('otp'), showPartner: go('partner'),
+      tabSignin: v === 'signin' ? on : off, tabTrial: trial ? on : off, tabOtp: v === 'otp' ? on : off, tabPartner: v === 'partner' ? on : off,
+    };
+  }
+}
+</script>
+</body>
+</html>

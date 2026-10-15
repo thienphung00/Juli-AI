@@ -660,3 +660,23 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   via `juli_ops` and restores the role, Xem 403, Vận hành list + PATCH + one audit row);
   landing `signup.test.tsx` 32 passed; demo `ops-trial-signups.test.tsx` 6 passed;
   `fasttrack/check.sh --since f55809fd` 5/5 PASS (migrations at `091_trial_signups`; pytest 18 files 390 passed).
+
+## P34 — public UI redesign (D44; spec `fasttrack/design/p34/`)
+
+- [ ] **AC-34.1** (A) Be Vietnam Pro loaded (Vietnamese subset, no layout shift), landing tokens
+  (colour, type scale, spacing, containers) and shared components: header/nav (mobile menu),
+  footer, buttons, framed screenshot (`<Shot>` with caption + mobile crop), section/eyebrow/
+  heading primitives, icon set; existing pages still pass `check:seo`.
+- [ ] **AC-34.2** (B) Homepage matches `Main.dc.html` / `HomeMobile.dc.html`.
+- [ ] **AC-34.3** (C) `/san-pham`, the 3 capability pages and `/ket-noi/tiktok-shop` match
+  `Product.dc.html` (diagrams built in markup, one framed shot per H2, mobile crops readable).
+- [ ] **AC-34.4** (D) Blog index + post template match `Blog.dc.html`; per-category covers and OG
+  images rendered from HTML; `BlogPostMeta` gains a cover.
+- [ ] **AC-34.5** (E) Privacy, terms, about, contact, `/dang-ky`, `/dang-ky/cam-on` match
+  `Legal.dc.html` / `Signup.dc.html` (legal content unchanged).
+- [ ] **AC-34.6** (F) Demo sign-in / trial / OTP / partner screens match `Auth.dc.html` /
+  `AuthMobile.dc.html`; flows and tests unchanged in behaviour (Google, OTP, partner password,
+  `?dang-ky=dung-thu`, sample demo entry); no app shell when signed out.
+- [ ] **AC-34.7** Integration: landing + demo gates green, `check:seo` and `seo_live_check` pass,
+  Lighthouse mobile ≥ 95 / LCP < 2.5 s re-measured after deploy, screenshots desktop + 390 of every
+  page attached to LOG.

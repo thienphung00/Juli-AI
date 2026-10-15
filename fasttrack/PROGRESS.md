@@ -173,6 +173,18 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 | P33-F Free-trial sign-up `/dang-ky` + `/dang-ky/cam-on`, `trial_signups` (091), public endpoint, Ops tab "Đăng ký dùng thử", privacy paragraph | 33.11 | done on branch `fasttrack/p33f-trial-signup` (cut from P33-A f55809fd, pushed) — not merged, not deployed; owner sets `TRIAL_SIGNUP_*` env | P33-F agent (Opus) |
 | P33 integration + deploy + PageSpeed re-run | 33.9 | todo | orchestrator + owner |
 
+## P34 — public UI redesign (D44)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P34-A Foundation: font, tokens, shared components | 34.1 | todo — first | P34-A agent (Opus) |
+| P34-F Demo auth screen | 34.6 | todo — parallel with A | P34-F agent (Opus) |
+| P34-B Homepage | 34.2 | todo — after A | agent |
+| P34-C Product pages | 34.3 | todo — after A | agent |
+| P34-D Blog + covers | 34.4 | todo — after A | agent |
+| P34-E Legal, about, contact, sign-up | 34.5 | todo — after A | agent |
+| P34 integration + deploy | 34.7 | todo | orchestrator + owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

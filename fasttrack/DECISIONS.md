@@ -1104,3 +1104,35 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      are answered 201 and not stored.
   5. The landing forwards the visitor IP with a shared `TRIAL_SIGNUP_RELAY_KEY`; without it every
      sign-up counts against the landing server's own IP (5 / hour in total) — the owner must set it.
+
+- **D44** — Public UI redesign (owner approved the mockups, 2026-10-15). Scope: every page of
+  app-juli.com and the demo's sign-in / sign-up screen; NOT the demo app's inner UI. Research:
+  3 agents (large SaaS marketing sites, SaaS auth screens, audit of Juli's pages and assets).
+  Spec = the approved mockups, copied to `fasttrack/design/p34/*.dc.html` (canvas
+  https://claude.ai/artifact/1jCTG7NxQP9fRP6Ur1o2nk; `/_blob/<id>` images there map to the repo
+  files: bird-glyph, logo-wordmark, cap-* screenshots).
+  1. **Type**: Be Vietnam Pro (Vietnamese-native) for the landing and the auth screen, actually
+     loaded (today Inter is named but never loaded). h1 56/62 (mobile 34/41), h2 36–44, body 17/28;
+     weight 600 headings / 400 body; letter-spacing never tighter than −2 % (stacked diacritics).
+  2. **Colour**: ink `#121214` for primary buttons and headings; body `#4a4a52`; muted `#6b6b74`;
+     hairlines `#ececf0`; alt sections `#fbfbfc`; screenshot backdrops `#f6f4f6`; pink `#f86ba5`
+     is accent only (dots, the "Duyệt" step, one flourish), pink text only `#b0386a`; one dark
+     band per page (pricing / final CTA). `packages/theme/tokens.css` stays byte-pinned —
+     landing tokens live in the landing app.
+  3. **Imagery**: real Juli UI screenshots (sample data, always captioned "Dữ liệu mẫu") in
+     hairline / browser-chrome frames on a tinted backdrop, cropped to the point; mobile gets its
+     own crops; block-built diagrams (funnel, 5 streams, 5-step loop); one line-icon set; the
+     bird + dashed flight path as the single hero flourish. No stock photos, no invented numbers,
+     no `hero-mascot.webp` (bakes in invented figures), none of the sales-video frames with figures.
+  4. **Pages** follow the mockups: home (hero with product shot, marketplace strip, loop,
+     zig-zag capabilities, data safety, audiences, transparency + company card, dark pricing band,
+     FAQ, footer); capability pages (breadcrumb, split hero, framed shot, TOC + one image per H2,
+     diagram, FAQ, next links, dark CTA); blog (featured + 3-up grid, flat tinted covers per
+     category, no text in images, HTML-rendered covers also used as OG images); legal (720 px
+     column, plain-language summary, numbered sections, side TOC → disclosure on mobile, VN/EN
+     switch); `/dang-ky` (2-col form + "Sau khi bạn đăng ký" panel).
+  5. **Auth screen** (demo): no app shell; one 400 px column; "Tiếp tục với Google" the only
+     filled button, email OTP second, "Xem thử với dữ liệu mẫu" a link, "Tài khoản đối tác" a
+     footer link to its own form; right panel with a product shot on desktop; trial variant
+     (`?dang-ky=dung-thu`) = same layout, copy only; OTP 6-box entry with error / expired / resend
+     states.
