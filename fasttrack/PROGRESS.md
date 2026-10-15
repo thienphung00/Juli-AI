@@ -181,7 +181,7 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 | P34-F Demo auth screen | 34.6 | todo — parallel with A | P34-F agent (Opus) |
 | P34-B Homepage | 34.2 | done 2026-10-15, branch `fasttrack/p34b-home` (from P34-A c95231e0, not merged) | P34-B agent (Opus) |
 | P34-C Product pages | 34.3 | done 2026-10-15, branch `fasttrack/p34c-product-pages` (not merged; based on P34-A c95231e0) | P34-C agent (Opus) |
-| P34-D Blog + covers | 34.4 | todo — after A | agent |
+| P34-D Blog + covers | 34.4 | done 2026-10-15, branch `fasttrack/p34d-blog` (not merged) | P34-D agent (Opus) |
 | P34-E Legal, about, contact, sign-up | 34.5 | todo — after A | agent |
 | P34 integration + deploy | 34.7 | todo | orchestrator + owner |
 

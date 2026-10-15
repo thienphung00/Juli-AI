@@ -1,4 +1,5 @@
-import type { FaqItem } from "../../lib/seo";
+import type { MediaSource } from "../../lib/media";
+import type { FaqItem, OgImage } from "../../lib/seo";
 
 /**
  * `draft`: rendered at its URL (so the owner can review it and `check:seo`
@@ -7,6 +8,26 @@ import type { FaqItem } from "../../lib/seo";
  * field is how the owner approves a post — see ./README.md.
  */
 export type BlogPostStatus = "draft" | "published";
+
+/**
+ * Blog topic (Blog.dc.html filter pills + cover tint): Chỉ số = pink,
+ * Tối ưu sản phẩm = green, Công cụ = blue, Hướng dẫn = grey. Labels and
+ * colours: `BLOG_CATEGORIES` (./covers.ts) and the `--lp-cat-<key>-*` tokens.
+ */
+export type BlogCategory = "metrics" | "optimize" | "tools" | "guide";
+
+/**
+ * A post's cover (D44.3): flat tint + one outlined object, no text, rendered
+ * from HTML by `scripts/blog-covers.mjs`. Build it with `blogCover()`.
+ */
+export interface BlogCover {
+  /** 16:9 AVIF + WebP, 600 and 1200 wide, with their intrinsic sizes. */
+  variants: readonly MediaSource[];
+  /** What the picture shows (the post page renders it with this alt; cards use alt=""). */
+  alt: string;
+  /** 1200×630 PNG of the same cover for Open Graph / Twitter. */
+  og: OgImage;
+}
 
 export interface BlogSource {
   /** Page title as the source shows it (TikTok Academy title, vendor page name). */
@@ -39,6 +60,10 @@ export interface BlogPostMeta {
   publishedAt: string;
   /** `YYYY-MM-DD`, ≥ publishedAt. Bump on every content change (sitemap lastmod). */
   updatedAt: string;
+  /** Topic: filter pill, label colour and cover tint. */
+  category: BlogCategory;
+  /** Cover image + its OG variant. */
+  cover: BlogCover;
   /** "Đội ngũ Juli AI" unless the owner names a person. */
   author: string;
   /** Slugs of related posts (only published ones are shown on a published post). */

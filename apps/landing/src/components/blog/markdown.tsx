@@ -229,7 +229,14 @@ export function MarkdownBlocks({
             );
           case "table":
             return (
-              <div className="lp-blog__table-wrap" key={key}>
+              // Scrolls sideways on phones: a focusable, uniquely named region so keyboard users can scroll it.
+              <div
+                aria-label={`Bảng ${blocks.slice(0, index).filter((b) => b.kind === "table").length + 1}`}
+                className="lp-blog__table-wrap"
+                key={key}
+                role="region"
+                tabIndex={0}
+              >
                 <table className="lp-blog__table">
                   <thead>
                     <tr>

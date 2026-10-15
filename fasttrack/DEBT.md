@@ -982,3 +982,18 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] P34-C: capability hero shots reuse section screenshots (Phân tích hero = the luồng + phễu
   shots, as in the mockup; Đo lường = mục tiêu + tăng thêm), so those images appear twice on the page.
   A dedicated wide hero capture per page would avoid the repeat.
+- [ ] P34-D (blog): all three posts are drafts, so production `/blog` shows only the H1 and the
+  "đang được biên tập" empty state (no pills, no cards) until the owner publishes one; the mockup
+  look is visible under `pnpm dev`. The mockup's dashed "Bài tiếp theo · 2 bài mỗi tháng" card and
+  the "Mẫu ảnh bìa" spec band were not built (a cadence promise / a design note, not page content);
+  the old "Juli AI làm gì cho shop của bạn" product-links list on `/blog` was dropped.
+- [ ] P34-D: topic pills filter client-side (toggle buttons + CSS on `data-filter`); no per-topic
+  URL (`/blog/chu-de/…` would need new registry routes in `lib/seo`) — add when there are enough
+  posts to be worth indexing per topic. Without JS all posts show and the pills do nothing.
+- [ ] P34-D: shared-file notes for the orchestrator — `components/ui/README.md` Blog recipe should
+  point at `components/blog/post-card.tsx` / `category-filter.tsx` and `content/blog/README.md`
+  ("Topic and cover"); the post page still uses `.lp-blog__h2` (blog.css) rather than a `Heading`
+  size for in-body H2s (24→30 px, smaller than `article` 24→34, chosen for the 720 px column).
+- [ ] P34-D: the cover generator encodes AVIF/WebP through `media.py optimize` (needs Pillow with
+  AVIF: `PYTHON=juli/.venv/bin/python`); the "Hướng dẫn" (guide) motif (checklist) is my design —
+  the mockup shows only its grey tint — and its accent token is ink, so the ticked box is black.
