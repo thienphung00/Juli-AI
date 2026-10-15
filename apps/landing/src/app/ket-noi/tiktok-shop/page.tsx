@@ -48,7 +48,7 @@ const FAQ = [
   {
     question: "Làm sao để ngắt kết nối?",
     answer:
-      "Bạn có thể thu hồi uỷ quyền của ứng dụng Juli trong TikTok Shop, hoặc gửi email đến lienhe@app-juli.com để đội Juli huỷ kết nối giúp bạn. Khi đó Juli ngừng lấy dữ liệu và ngừng tạo đề xuất cho shop.",
+      "Bạn liên hệ Juli qua email lienhe@app-juli.com hoặc trang Liên hệ; đội Juli ngắt kết nối shop giúp bạn. Khi đó Juli ngừng lấy dữ liệu và ngừng tạo đề xuất cho shop.",
   },
   {
     question: "Juli có hỗ trợ Shopee không?",
@@ -237,11 +237,11 @@ export default function KetNoiTikTokShopPage() {
         </P>
         <H3>Ngắt kết nối</H3>
         <P>
-          Bạn có thể thu hồi uỷ quyền của ứng dụng Juli trong TikTok Shop, hoặc gửi email đến{" "}
+          Bạn liên hệ Juli qua email{" "}
           <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
             {COMPANY.email}
           </a>{" "}
-          để đội Juli huỷ kết nối. Juli ngừng lấy dữ liệu mới và ngừng tạo đề xuất cho shop đó ngay. Lịch
+          hoặc trang Liên hệ; đội Juli ngắt kết nối shop giúp bạn. Juli ngừng lấy dữ liệu mới và ngừng tạo đề xuất cho shop đó ngay. Lịch
           sử, quy tắc và kết quả đo được giữ lại để bạn kết nối lại khi cần; nếu bạn yêu cầu xoá tài khoản,
           dữ liệu tài khoản và dữ liệu shop được xoá trong vòng 30 ngày, trừ dữ liệu pháp luật yêu cầu lưu.
         </P>

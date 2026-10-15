@@ -10,8 +10,8 @@ import type { BlogPostMeta } from "../content/blog/types";
 import { absoluteUrl, getRoute, metadataForRoute, SITE_ROUTES, sitemapEntries } from "../lib/seo";
 import { blogPostPath, buildBlogRoutes } from "../lib/seo/routes/blog";
 
-/** Pages P33-C builds on its own branch; they exist after integration (AC-33.9). */
-const PENDING_PAGES = new Set([
+/** P33-C product pages every pillar post links to (all registered since integration). */
+const PRODUCT_PAGES = new Set([
   "/san-pham/phan-tich-shop",
   "/san-pham/de-xuat-va-thuc-thi",
   "/san-pham/do-luong-gmv",
@@ -177,9 +177,9 @@ describe("pillar posts content (D43.7)", () => {
       const internal = markdownLinks(post.body).filter((href) => href.startsWith("/"));
       const registered = new Set(SITE_ROUTES.map((route) => route.path));
       for (const href of internal) {
-        expect(registered.has(href) || PENDING_PAGES.has(href), href).toBe(true);
+        expect(registered.has(href), href).toBe(true);
       }
-      for (const page of ["/san-pham", ...PENDING_PAGES]) {
+      for (const page of ["/san-pham", ...PRODUCT_PAGES]) {
         expect(internal, page).toContain(page);
       }
     });
