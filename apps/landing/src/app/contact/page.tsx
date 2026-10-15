@@ -1,6 +1,6 @@
 import { CtaLink } from "../../components/cta-link";
-import { LandingHeader } from "../../components/landing-header";
-import { SiteFooter } from "../../components/site-footer";
+import { SiteHeader } from "../../components/ui/site-header";
+import { SiteFooter } from "../../components/ui/site-footer";
 import { breadcrumbSchema, buildMetadata, JsonLd } from "../../lib/seo";
 import { COMPANY, DEMO_URL } from "../../lib/site";
 
@@ -25,7 +25,7 @@ export default function ContactPage() {
   return (
     <>
       <JsonLd data={breadcrumbSchema("/contact")} />
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main">
         <section aria-labelledby="contact-heading" className="lp-page-hero">
           <p className="lp-page-hero__eyebrow">Liên hệ</p>

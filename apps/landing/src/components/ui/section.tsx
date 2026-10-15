@@ -23,7 +23,7 @@ export function Container({ width = "wide", className, ...rest }: ContainerProps
 
 export interface SectionProps extends Omit<ComponentPropsWithoutRef<"section">, "title"> {
   /**
-   * `default` white · `alt` #fbfbfc with top/bottom hairlines (marketplace
+   * `default` white · `alt` (--lp-alt) with top/bottom hairlines (marketplace
    * strip, data safety) · `dark` the ONE dark band per page (pricing / final CTA).
    */
   tone?: "default" | "alt" | "dark";
@@ -154,7 +154,7 @@ export function SectionIntro({
 }
 
 export interface CardProps extends ComponentPropsWithoutRef<"div"> {
-  /** `default` hairline on white · `alt` on #fbfbfc · `highlight` pink tint · `dark` on the dark band. */
+  /** `default` hairline on white · `alt` on (--lp-alt) · `highlight` pink tint · `dark` on the dark band. */
   tone?: "default" | "alt" | "highlight" | "dark";
   as?: "div" | "li" | "article";
 }

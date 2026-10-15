@@ -12,13 +12,6 @@ export interface MediaSource {
   height: number;
 }
 
-/** Header/footer wordmark: 183×60 WebP rendered at 30px / 26px height. */
-export const LOGO_WORDMARK = {
-  src: "/media/juli-logo-wordmark-v1.webp",
-  width: 183,
-  height: 60,
-} as const;
-
 /**
  * Sales demo video (hero): poster + click-to-load (D43.6, `HeroVideo`) and
  * `videoObjectSchema(HERO_VIDEO_SCHEMA)` on `/`. The poster is the video's

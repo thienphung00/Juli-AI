@@ -28,7 +28,7 @@ function srcSet(variants: readonly MediaSource[], format: "avif" | "webp"): stri
 
 /**
  * AVIF → WebP `<picture>` with explicit width/height (D43.4). Server component.
- * Use for screenshots and posters; the logo has its own `SiteLogo`.
+ * Use for screenshots and posters; the logo mark has its own `BirdGlyph` (components/ui).
  */
 export function Picture({
   variants,

@@ -19,7 +19,6 @@ export function BirdGlyph({ height, loading = "eager", className }: BirdGlyphPro
     <picture>
       <source srcSet={`${small.avif} 64w, ${large.avif} 96w`} sizes={`${width}px`} type="image/avif" />
       <source srcSet={`${small.webp} 64w, ${large.webp} 96w`} sizes={`${width}px`} type="image/webp" />
-      {/* eslint-disable-next-line @next/next/no-img-element -- pre-generated AVIF/WebP (scripts/media.py glyph) */}
       <img
         alt=""
         className={["ui-bird", className].filter(Boolean).join(" ")}

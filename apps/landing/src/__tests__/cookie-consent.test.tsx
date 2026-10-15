@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TIKTOK_PIXEL_SCRIPT_ID } from "@juli/tiktok-events";
 
 import { CookieConsent } from "../components/cookie-consent";
-import { SiteFooter } from "../components/site-footer";
+import { SiteFooter } from "../components/ui/site-footer";
 import { CONSENT_STORAGE_KEY } from "../lib/consent";
 
 let sendBeacon: ReturnType<typeof vi.fn>;

@@ -2,10 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import LandingPage from "../app/page";
-import { DEMO_URL, SIGNUP_URL } from "../lib/site";
+import { DEMO_URL, LOGIN_URL, SIGNUP_URL } from "../lib/site";
 
 /** Homepage CTAs (D43.2 + additions): "Dùng thử miễn phí 3 tháng" (sign-up) + "Xem demo". */
-const HOME_DEMO_CTAS = ["header-demo-cta", "hero-demo-cta", "trial-demo-cta"] as const;
+const HOME_DEMO_CTAS = ["hero-demo-cta", "trial-demo-cta"] as const;
 
 describe("homepage CTA wiring", () => {
   it("points every Demo CTA at the Demo Mock-mode entry", () => {
@@ -26,6 +26,15 @@ describe("homepage CTA wiring", () => {
       expect(trial, testId).toHaveTextContent("Dùng thử miễn phí 3 tháng");
       expect(trial, testId).toHaveAttribute("href", SIGNUP_URL);
     }
+  });
+
+  it("header (D44): 'Đăng nhập' goes to the Demo's sign-in, 'Dùng thử miễn phí' to the sign-up", () => {
+    render(<LandingPage />);
+
+    expect(screen.getByTestId("header-login-link")).toHaveAttribute("href", LOGIN_URL);
+    expect(screen.getByTestId("header-login-link")).toHaveTextContent("Đăng nhập");
+    expect(screen.getByTestId("header-trial-cta")).toHaveAttribute("href", SIGNUP_URL);
+    expect(screen.getByTestId("header-trial-cta")).toHaveTextContent("Dùng thử miễn phí");
   });
 
   it("closes with the CTA naming the audience and the 3-month free offer", () => {

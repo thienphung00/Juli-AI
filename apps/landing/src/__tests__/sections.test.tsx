@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { HOME_FAQ } from "../components/home/home-content";
-import { LandingHeader } from "../components/landing-header";
+import { SiteHeader } from "../components/ui/site-header";
 import LandingPage from "../app/page";
 import { HERO_VIDEO } from "../lib/media";
 import { PRODUCT_PAGES } from "../lib/site";
@@ -177,12 +177,12 @@ describe("hero video (D43.6)", () => {
 
 describe("site header", () => {
   it("links the public pages in order, on desktop and in the mobile menu", () => {
-    render(<LandingHeader />);
+    render(<SiteHeader />);
     for (const name of ["Điều hướng chính", "Menu trên điện thoại"]) {
       const labels = within(screen.getByRole("navigation", { name }))
         .getAllByRole("link")
         .map((link) => link.textContent);
-      expect(labels, name).toEqual(["Sản phẩm", "Blog", "Giới thiệu", "Liên hệ"]);
+      expect(labels, name).toEqual(["Sản phẩm", "Kết nối TikTok Shop", "Blog", "Giới thiệu"]);
     }
   });
 

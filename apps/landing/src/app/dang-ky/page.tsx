@@ -1,5 +1,5 @@
-import { LandingHeader } from "../../components/landing-header";
-import { SiteFooter } from "../../components/site-footer";
+import { SiteHeader } from "../../components/ui/site-header";
+import { SiteFooter } from "../../components/ui/site-footer";
 import {
   SIGNUP_H1,
   SIGNUP_LEAD,
@@ -16,7 +16,7 @@ export default function SignupPage() {
   return (
     <>
       <JsonLd data={breadcrumbSchema("/dang-ky")} />
-      <LandingHeader />
+      <SiteHeader variant="signup" />
       <main className="lp-main">
         <section aria-labelledby="signup-heading" className={styles.layout}>
           <div className={styles.intro}>

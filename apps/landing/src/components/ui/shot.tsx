@@ -128,7 +128,7 @@ export interface ShotProps {
   layout?: "stacked" | "joined";
   /** Browser-chrome bar title on the (first) frame. */
   chrome?: string;
-  /** Tinted #f6f4f6 backdrop around the frame. Default true. */
+  /** Tinted (--lp-backdrop) backdrop around the frame. Default true. */
   backdrop?: boolean;
   /** Backdrop padding: `md` 28 px (default) · `lg` 32 px (product hero) · `sm` 14 px. Mobile always 14 px. */
   padding?: "sm" | "md" | "lg";

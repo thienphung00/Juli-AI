@@ -13,12 +13,16 @@ describe("public product and company pages", () => {
   it("links /san-pham, /about and /contact from every page's header and footer", () => {
     for (const Page of [LandingPage, ProductPage, AboutPage, ContactPage]) {
       const { unmount } = render(<Page />);
-      const header = screen.getByRole("navigation", { name: "Điều hướng chính" });
+      // D44 header: Sản phẩm · Kết nối TikTok Shop · Blog · Giới thiệu; /contact
+      // is in the mobile menu and the footer.
+      const header = screen.getByRole("banner");
       for (const page of SITE_PAGES) {
-        expect(within(header).getByRole("link", { name: page.label })).toHaveAttribute(
-          "href",
+        expect(
+          within(header)
+            .getAllByRole("link", { name: page.label })
+            .map((link) => link.getAttribute("href")),
           page.href,
-        );
+        ).toContain(page.href);
         // The footer's "Sản phẩm" column links /san-pham as "Tổng quan sản phẩm".
         const footerHrefs = within(screen.getByRole("contentinfo"))
           .getAllByRole("link")

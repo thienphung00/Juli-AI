@@ -11,8 +11,8 @@ import {
   SafetySection,
   TransparencySection,
 } from "../components/home/home-sections";
-import { LandingHeader } from "../components/landing-header";
-import { SiteFooter } from "../components/site-footer";
+import { SiteHeader } from "../components/ui/site-header";
+import { SiteFooter } from "../components/ui/site-footer";
 import { HERO_VIDEO_SCHEMA } from "../lib/media";
 import { buildMetadata, faqPageSchema, JsonLd, videoObjectSchema } from "../lib/seo";
 
@@ -26,7 +26,7 @@ export default function LandingPage() {
   return (
     <>
       <JsonLd data={[videoObjectSchema(HERO_VIDEO_SCHEMA), faqPageSchema(HOME_FAQ)]} />
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main lp-home">
         <HomeHero />
         <MarketplaceStrip />

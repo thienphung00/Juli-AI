@@ -12,9 +12,9 @@ import {
 } from "../../lib/seo";
 import { DEMO_URL, LOGIN_URL } from "../../lib/site";
 import { CtaLink } from "../cta-link";
-import { LandingHeader } from "../landing-header";
+import { SiteHeader } from "../ui/site-header";
 import { Picture } from "../picture";
-import { SiteFooter } from "../site-footer";
+import { SiteFooter } from "../ui/site-footer";
 import styles from "./capability.module.css";
 
 /**
@@ -76,7 +76,7 @@ export function CapabilityPage({
           faqPageSchema(faq),
         ]}
       />
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main">
         <section aria-labelledby="cap-heading" className="lp-page-hero">
           <nav aria-label="Đường dẫn">

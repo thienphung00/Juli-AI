@@ -1,5 +1,5 @@
-import { LandingHeader } from "../../components/landing-header";
-import { SiteFooter } from "../../components/site-footer";
+import { SiteHeader } from "../../components/ui/site-header";
+import { SiteFooter } from "../../components/ui/site-footer";
 import { breadcrumbSchema, buildMetadata, JsonLd } from "../../lib/seo";
 import { COMPANY } from "../../lib/site";
 import {
@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
   return (
     <>
       <JsonLd data={breadcrumbSchema("/privacy")} />
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main">
         <article className="lp-legal">
           <p className="lp-legal__eyebrow">Pháp lý</p>
