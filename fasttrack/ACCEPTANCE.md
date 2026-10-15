@@ -563,8 +563,21 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 - [ ] **AC-33.6** (B) `/san-pham` overview (~1,500 words) + SoftwareApplication / Offer + breadcrumbs.
 - [ ] **AC-33.7** (C) Three capability pages (~2,500 words each) + `/ket-noi/tiktok-shop`, H1 → H2 →
   H3, one labelled real UI screenshot per H2 (AVIF/WebP, width/height), FAQ, internal links, schema.
-- [ ] **AC-33.8** (D) `/blog` index + post template (Article, BreadcrumbList, author, dates) + 3
+- [x] **AC-33.8** (D) `/blog` index + post template (Article, BreadcrumbList, author, dates) + 3
   pillar drafts of 3,000+ words with internal links; **owner approval recorded before deploy**.
+  — P33-D 7ef53a7a, dad5460c, efb19ca7 (branch `fasttrack/p33d-blog`): `/blog` + `/blog/[slug]`
+  (SSG, server-rendered Markdown subset, TOC from H2s, breadcrumbs, author "Đội ngũ Juli AI",
+  published/updated dates, reading time, FAQ, sources, related posts, links to all five product
+  pages); Article + BreadcrumbList + FAQPage JSON-LD. Drafts (word counts, space-separated):
+  chi-so-tiktok-shop-ctr-ctor-aov 4,882, toi-uu-the-san-pham-tiktok-shop 4,579,
+  cong-cu-cho-nha-ban-tiktok-shop-2026 3,700. All three `status: "draft"` → robots
+  `noindex, follow`, not in sitemap.xml, not listed on `/blog` in production. `blog.test.tsx`
+  (23 tests: draft noindex + out of sitemap, published indexable + in sitemap, index links no
+  draft in production, 3,000+ words, internal links resolve); `check:seo` 11/11 (asserts drafts
+  noindex and no indexable page links a draft; also passed with one post flipped to published).
+  **Approval: PENDING** — the owner flips `status` per post in
+  `apps/landing/src/content/blog/posts.ts` and records it (commit + LOG line), steps in
+  `apps/landing/src/content/blog/README.md`. Until then the posts ship as noindex drafts.
 - [ ] **AC-33.9** Integration: landing lint / type-check / tests / build green; heading-outline and
   schema checks (a test or script) pass on every route; `check.sh` green; deployed by owner tag;
   PageSpeed re-run recorded.
