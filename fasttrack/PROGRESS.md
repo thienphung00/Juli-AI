@@ -159,6 +159,16 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 | P32-C Services Information text + reviewer steps | 32.10 | todo — after P32-A / B | orchestrator |
 | P32 integration + deploy + provision `shopee-review@app-juli.com` + resubmit | 32.11 | todo | orchestrator + owner |
 
+## P33 — app-juli.com business site and indexing (D43)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P33-A Technical SEO + shared helpers, redirects, demo/ops noindex, PageSpeed fixes | 33.1–33.4 | todo — branch `fasttrack/p33a-seo-foundation`, worktree `~/juli-fasttrack-p33a` | P33-A agent (Opus) |
+| P33-B Homepage + `/san-pham` overview | 33.5, 33.6 | todo — after A | P33-B agent (Opus) |
+| P33-C Three capability pages + `/ket-noi/tiktok-shop` | 33.7 | todo — after A | P33-C agent (Opus) |
+| P33-D Blog + 3 pillar drafts (owner approves) | 33.8 | todo — after A | P33-D agent (Opus) |
+| P33 integration + deploy + PageSpeed re-run | 33.9 | todo | orchestrator + owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

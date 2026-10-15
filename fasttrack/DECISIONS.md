@@ -1007,3 +1007,39 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `fasttrack/` for reuse by later platform reviews.
   8. TLS already meets Shopee's bar (SSL Labs A+, TLS 1.0/1.1 refused, HSTS 6 months, nosniff;
      verified 2026-10-14). Never crawl Shopee (Rules §3).
+
+- **D43** — app-juli.com as a business site that passes ISV review and indexes cleanly (grill,
+  product owner, 2026-10-15). Inputs: an SEO expert's review (recording 2026-10-14: site too
+  small, product page ~700 words and URL `/product` not descriptive, missing canonical, homepage
+  should present the company while product pages sell, a demo on a subdomain must be noindex,
+  heavy JS, needs a blog of long well-structured articles with internal links, Base.vn as the
+  local benchmark); PageSpeed mobile 2026-10-14 (Perf 93, A11y 96, BP 100, SEO 100; LCP 2.9 s,
+  SI 4.1 s; image delivery 71 KiB, legacy JS, unused JS, images without width/height, one
+  contrast failure; no CrUX field data); index audit (robots + sitemap present; no canonical, no
+  OG, no JSON-LD, no lastmod; demo.app-juli.com indexable); benchmark of 18 SaaS sites.
+  1. **IA**: `/san-pham` (overview) + `/san-pham/phan-tich-shop`, `/san-pham/de-xuat-va-thuc-thi`,
+     `/san-pham/do-luong-gmv`, `/ket-noi/tiktok-shop`, `/blog`; `/product` → 301 `/san-pham`.
+  2. **Homepage = company + product overview**: H1 states the service in one sentence; marketplace
+     strip (TikTok Shop live via Open API, Shopee "đang tích hợp", D42); three capability blocks
+     linking to the product pages; how it works; data safety; who it is for; price "từ 500K" +
+     FAQ; company identity. Detailed selling lives on the product pages.
+  3. **Proof = transparency only**: method, labelled sample data, data commitments, company and
+     team. No case study, no testimonial, no invented number until real customers exist.
+  4. **Capability pages ~2,500 words each** (overview ~1,500), H1 → H2 → H3, one real UI
+     screenshot per H2 (sample data, labelled), AVIF/WebP with width/height, FAQ.
+  5. **Technical SEO**: unique title / description, absolute self canonical, OG + Twitter (1200×630
+     image), JSON-LD Organization (address, MST 0319617654, ContactPoint) + WebSite everywhere,
+     SoftwareApplication + Offer (500000 VND) on product pages, FAQPage only where an FAQ is shown,
+     BreadcrumbList on inner pages, Article on posts; sitemap with lastmod; **demo and ops
+     noindex** (`X-Robots-Tag` + meta; robots.txt keeps them crawlable so noindex is seen);
+     PageSpeed fixes. Target mobile LCP < 2.5 s, Performance ≥ 95.
+  6. **Hero video**: poster image (AVIF/WebP) with ▶; the video loads only on click
+     (`preload="none"`); VideoObject schema.
+  7. **Blog**: `/blog` index + 3 pillar posts of 3,000+ words — (1) TikTok Shop metrics
+     (Hiển thị, CTR, CTOR, AOV) and how to read them, (2) optimising the TikTok Shop product card
+     A–Z, (3) top tools for TikTok Shop sellers 2026 — drafted by Claude from internal knowledge,
+     **owner approves before deploy**; then 2 posts / month. Internal links to product pages.
+  8. **No social links** (no footer icons, no `sameAs`). **Vietnamese only** (no `/en`, no
+     hreflang; privacy / terms keep their EN sections).
+  9. Delivery: P33-A (technical SEO + shared helpers) first, then P33-B (homepage + overview),
+     P33-C (capability pages), P33-D (blog) in parallel on top of A.

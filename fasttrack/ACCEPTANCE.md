@@ -516,3 +516,28 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   numbered reviewer steps matching what shipped, the account's expiry noted, no video.
 - [ ] **AC-32.11** `check.sh` green on the integrated branch; deployed; a fresh browser signs in
   as the Shopee reviewer and walks the steps.
+
+## P33 — app-juli.com business site and indexing (D43)
+
+- [ ] **AC-33.1** (A) Shared helpers in `apps/landing`: per-page metadata (title, description,
+  absolute canonical, OG / Twitter with a 1200×630 image), JSON-LD component, Organization +
+  WebSite on every page, BreadcrumbList helper, a route registry feeding `sitemap.ts` with
+  lastmod; existing pages migrated.
+- [ ] **AC-33.2** (A) `/product` → 301 `/san-pham` (stub page until P33-B), and any other renamed
+  URL redirected; 404s stay 404.
+- [ ] **AC-33.3** (A) demo.app-juli.com and ops.app-juli.com send `X-Robots-Tag: noindex, nofollow`
+  and `<meta name="robots" content="noindex">` on every page; their robots.txt does not block
+  crawling.
+- [ ] **AC-33.4** (A) PageSpeed fixes: images with width/height, contrast failure fixed, legacy JS
+  (modern browserslist) and unused JS reduced, cache headers for static assets documented for the
+  VPS; Lighthouse mobile on a production build recorded (target Perf ≥ 95, LCP < 2.5 s).
+- [ ] **AC-33.5** (B) Homepage per D43.2, H1 → H2 → H3 valid, hero poster + click-to-load video
+  (D43.6) with VideoObject, FAQ + FAQPage, no testimonial or invented number.
+- [ ] **AC-33.6** (B) `/san-pham` overview (~1,500 words) + SoftwareApplication / Offer + breadcrumbs.
+- [ ] **AC-33.7** (C) Three capability pages (~2,500 words each) + `/ket-noi/tiktok-shop`, H1 → H2 →
+  H3, one labelled real UI screenshot per H2 (AVIF/WebP, width/height), FAQ, internal links, schema.
+- [ ] **AC-33.8** (D) `/blog` index + post template (Article, BreadcrumbList, author, dates) + 3
+  pillar drafts of 3,000+ words with internal links; **owner approval recorded before deploy**.
+- [ ] **AC-33.9** Integration: landing lint / type-check / tests / build green; heading-outline and
+  schema checks (a test or script) pass on every route; `check.sh` green; deployed by owner tag;
+  PageSpeed re-run recorded.
