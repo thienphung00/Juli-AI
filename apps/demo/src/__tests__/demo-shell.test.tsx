@@ -372,7 +372,6 @@ describe("Run route framing (#1910) — the run owns the region right of the rai
   it("keeps the full shell on a legacy mock execution detail and on every destination", () => {
     for (const pathname of [
       "/decisions/in-progress/exec-optimize-1",
-      "/",
       "/decisions",
       "/analytics",
       "/settings",
@@ -384,5 +383,66 @@ describe("Run route framing (#1910) — the run owns the region right of the rai
       expect(container.querySelector(".app-nav"), `nav missing on ${pathname}`).not.toBeNull();
       unmount();
     }
+  });
+});
+
+describe("Signed-out auth screen renders WITHOUT the shell (P34-F, D44.5)", () => {
+  function shellParts(container: HTMLElement) {
+    return {
+      nav: container.querySelector(".app-nav"),
+      header: container.querySelector(".shop-header"),
+    };
+  }
+
+  it("/ signed out: no rail / tab bar, no sample-shop header — only the page", async () => {
+    vi.mocked(usePathname).mockReturnValue("/");
+    const { container } = render(<DemoShell>Màn đăng nhập</DemoShell>);
+
+    // Before and after the session and the entry choice resolve: never the shell.
+    expect(shellParts(container)).toEqual({ nav: null, header: null });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByText("Màn đăng nhập")).toBeInTheDocument();
+    expect(shellParts(container)).toEqual({ nav: null, header: null });
+    expect(screen.queryByRole("navigation", { name: "Điều hướng chính" })).toBeNull();
+    expect(screen.queryByTestId("shop-header")).toBeNull();
+  });
+
+  it("/auth/email is bare too, signed out or not", async () => {
+    vi.mocked(usePathname).mockReturnValue("/auth/email");
+    const { container } = render(<DemoShell>Email</DemoShell>);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(shellParts(container)).toEqual({ nav: null, header: null });
+  });
+
+  it("/ with the sample demo chosen keeps the shell", async () => {
+    vi.mocked(usePathname).mockReturnValue("/");
+    window.sessionStorage.setItem("juli_demo_entry_mode", "replay");
+    const { container } = render(<DemoShell>Trang chủ mẫu</DemoShell>);
+
+    await waitFor(() => expect(shellParts(container).nav).not.toBeNull());
+    expect(shellParts(container).header).not.toBeNull();
+  });
+
+  it("/?entry=door with the sample stored is bare again", async () => {
+    vi.mocked(usePathname).mockReturnValue("/");
+    window.sessionStorage.setItem("juli_demo_entry_mode", "replay");
+    window.history.replaceState(null, "", "/?entry=door");
+    const { container } = render(<DemoShell>Màn đăng nhập</DemoShell>);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(shellParts(container)).toEqual({ nav: null, header: null });
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("/ signed in keeps the shell", async () => {
+    vi.mocked(usePathname).mockReturnValue("/");
+    signIn();
+    const { container } = render(<DemoShell>Shop thật</DemoShell>);
+    await waitFor(() => expect(shellParts(container).nav).not.toBeNull());
+  });
+
+  it("other pages keep the shell while signed out", () => {
+    vi.mocked(usePathname).mockReturnValue("/decisions");
+    const { container } = render(<DemoShell>Quyết định</DemoShell>);
+    expect(shellParts(container).nav).not.toBeNull();
   });
 });

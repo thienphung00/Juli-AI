@@ -181,9 +181,9 @@ describe("/ — anonymous and signed-in doors", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("a first anonymous visit still gets the two doors", async () => {
+  it("a first anonymous visit gets the auth screen", async () => {
     renderHome();
-    expect(await screen.findByRole("button", { name: "Dùng thử Demo" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Xem thử với dữ liệu mẫu, không cần tài khoản →" })).toBeInTheDocument();
   });
 
   it("a signed-in seller lands on their own shop's report, never the sample", async () => {
@@ -202,7 +202,7 @@ describe("/ — anonymous and signed-in doors", () => {
     expect(await screen.findByRole("region", { name: "Ma trận 5 luồng truy cập" })).toBeInTheDocument();
     expect(loadAnalysis).toHaveBeenCalledWith({ token: "token-1", shopId: "shop-1" });
     expect(screen.queryByTestId("mock-data-notice")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Dùng thử Demo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Xem thử với dữ liệu mẫu, không cần tài khoản →" })).toBeNull();
   });
 
   it("a signed-in shop with no report yet gets an honest empty state", async () => {

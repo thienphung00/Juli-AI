@@ -299,9 +299,10 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Ẩn mật khẩu
 
 **`demo.try`**
-- EN: Try the Demo
-- VI: Dùng thử Demo
-- Definition: The landing's sessionless, dataless client-replay entry (ADR-094 decision 1, PUI-DESIGN §1). Mints no session, calls no `/v1/*` route.
+- EN: Look around with sample data, no account needed →
+- VI: Xem thử với dữ liệu mẫu, không cần tài khoản →
+- _Formerly_: "Dùng thử Demo" (the two-door landing, retired by P34-F / D44.5)
+- Definition: The auth screen's text link under the column — the sessionless, dataless client-replay entry (ADR-094 decision 1, PUI-DESIGN §1). Mints no session, calls no `/v1/*` route.
 
 **`demo.mode.replay`**
 - EN: Illustrative example (replay mode indicator)
@@ -312,7 +313,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`auth.google`**
 - EN: Sign in with Google
 - VI: Đăng nhập với Google
-- Definition: The landing's other entry — Supabase Auth (Google provider) to a real, distinct identity, then the connect-shop screen (ADR-094 decision 3).
+- Definition: The shop-avatar menu's sign-in item for a signed-out sample visitor. On the auth screen (P34-F) the same link reads "Tiếp tục với Google" (`auth.screen`). The landing's other entry — Supabase Auth (Google provider) to a real, distinct identity, then the connect-shop screen (ADR-094 decision 3).
 
 **`auth.connect_shop`**
 - EN: Connect TikTok Shop
@@ -331,19 +332,29 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: Shown when `GET /v1/auth/tiktok/start` does not return an authorize URL (issue #1970) — the seller stays on the page with the control still usable. Never falls back to a hand-built TikTok URL: the authorize URL is only trustworthy with the server-signed state in it.
 
 **`auth.trial_signup`**
-- EN: Sign up for a free 3-month trial
-- VI: Đăng ký dùng thử miễn phí 3 tháng
-- Definition: Heading of the Demo landing's sign-in door when opened with `/?dang-ky=dung-thu` — the self-connect path from the "Tự kết nối shop ngay" button on app-juli.com's trial thank-you page (`/dang-ky`, P33-F; D43 additions, owner 2026-10-15). Eyebrow "Tài khoản mới". Same `auth.google` / `auth.email` buttons; without the query the door keeps "Đăng nhập".
+- EN: Try Juli free for 3 months
+- VI: Dùng thử Juli miễn phí 3 tháng
+- Definition: h1 of the demo auth screen when opened with `/?dang-ky=dung-thu` — the self-connect path from the "Tự kết nối shop ngay" button on app-juli.com's trial thank-you page (`/dang-ky`, P33-F; D43 additions). Since P34-F (D44.5) the trial variant is the same layout as sign-in, copy only: Google "Đăng ký bằng Google", email "Gửi mã đăng ký"; the OTP view adds the eyebrow "Dùng thử miễn phí 3 tháng", legend "Mã đăng ký" and "Xác nhận và tạo tài khoản". Under the column: "Đã có tài khoản? Đăng nhập" (back to sign-in). The same flows sign an existing seller in.
 
 **`auth.trial_signup.body`**
-- EN: Create your account with Google or email, then connect TikTok Shop. Free for 3 months, then from 500,000 VND/month. No payment card needed.
-- VI: Tạo tài khoản bằng Google hoặc email, rồi kết nối TikTok Shop. Miễn phí 3 tháng, sau đó từ 500.000đ/tháng. Không cần thẻ thanh toán.
-- Definition: Body under `auth.trial_signup`. "No payment card" is literal: Juli has no payment integration (terms are granted by contract in Ops, D28.4/D28.5). Revisit when payments ship.
+- EN: No payment card needed. After 3 months, from 500,000 VND/month.
+- VI: Không cần thẻ thanh toán. Sau 3 tháng, từ 500.000đ/tháng.
+- Definition: Sub-line under `auth.trial_signup`. "No payment card" is literal: Juli has no payment integration (terms are granted by contract in Ops, D28.4/D28.5). Revisit when payments ship.
 
-**`auth.trial_signup.existing`**
-- EN: Already have an account? Sign in with the same Google account or email you used.
-- VI: Đã có tài khoản? Đăng nhập bằng đúng Google hoặc email bạn đã dùng.
-- Definition: Line under `auth.trial_signup.body`, so an existing seller arriving from the trial CTA knows the same buttons sign them in.
+**`auth.screen`** (P34-F, D44.5 — the demo's sign-in / sign-up screen, no app shell; spec `fasttrack/design/p34/Auth.dc.html`; code `apps/demo/src/lib/auth-screen-copy.ts`)
+- h1 "Đăng nhập vào Juli"; sub "Chưa có tài khoản? Juli tự tạo cho bạn ở bước này." (EN: Sign in to Juli / No account yet? Juli creates one for you at this step.)
+- The only filled button: "Tiếp tục với Google" (EN: Continue with Google) — `auth.google` on this screen.
+- Divider "hoặc dùng email"; field label "Email", placeholder "ten@shopcuaban.vn"; outline button "Gửi mã đăng nhập" (EN: Send sign-in code); pending "Đang gửi mã…"; locked "Gửi mã sau {n} giây".
+- Under the column: "Xem thử với dữ liệu mẫu, không cần tài khoản →" (EN: Look around with sample data, no account needed →) enters the sample demo (`demo.try`); "Mới dùng Juli? Dùng thử miễn phí 3 tháng" switches to the trial variant.
+- OTP view: h1 "Nhập mã 6 chữ số"; "Juli đã gửi mã tới {masked email}. Nhập mã bên dưới, hoặc bấm nút đăng nhập trong email."; legend "Mã đăng nhập", boxes "Số 1"…"Số 6"; filled button "Xác nhận" (pending "Đang xác nhận…"); "Nhập đủ 6 chữ số trong email."; "← Đổi email"; "Gửi lại mã" / "Gửi lại mã sau {n} giây"; on a wrong/expired code the alert offers "Gửi mã mới"; success "Đăng nhập thành công. Đang chuyển tới Kết nối TikTok Shop…".
+- Partner view (footer link "Tài khoản đối tác"): eyebrow "Tài khoản đối tác", h1 "Đăng nhập bằng mật khẩu", sub "Dành cho đối tác và đơn vị thẩm định được Juli cấp tài khoản. Người bán đăng nhập bằng Google hoặc email.", back "← Quay lại đăng nhập cho người bán".
+- Right panel (desktop, label "Juli làm gì"): eyebrow "Sau khi kết nối TikTok Shop"; "Juli chỉ ra luồng và sản phẩm đang kéo GMV xuống, kèm một thay đổi cụ thể để bạn duyệt."; shot alt "Thẻ đề xuất của Juli (dữ liệu mẫu)", caption "Dữ liệu mẫu"; proof lines "Kết nối chính thức qua TikTok Shop Open API" · "Chỉ thực hiện khi bạn duyệt" · "Miễn phí 3 tháng".
+- Logo label "Juli AI — về trang chủ app-juli.com"; footer "Tài khoản đối tác" · "Điều khoản" · "Chính sách bảo mật" · "© 2026 Công ty TNHH Công Nghệ Juli AI".
+
+**`auth.consent`**
+- EN: By continuing, you agree to Juli's Terms of Service and Privacy Policy.
+- VI: Bằng việc tiếp tục, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của Juli.
+- Definition: Under the email form on the auth screen ("tiếp tục" since P34-F: one screen signs in and signs up). Both links go to app-juli.com (Google OAuth policy).
 
 **`auth.google.unavailable`**
 - EN: Sign in with Google is not available in this environment.
@@ -354,7 +365,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`auth.email`**
 - EN: Sign in with email
 - VI: Đăng nhập bằng email
-- Definition: The sign-in door's second option beside `auth.google` (AC-9.1): Supabase Auth email OTP. The seller enters an email, presses "Gửi mã", types the 6-digit code ("Mã đăng nhập (6 chữ số)", "Xác nhận"); the same email's magic link lands on `/auth/callback`. Same session and connect-shop screen as Google. Also the shop-avatar menu item (→ `/auth/email`).
+- Definition: The sign-in door's second option beside `auth.google` (AC-9.1): Supabase Auth email OTP. Since P34-F (D44.5) the auth screen's second option under "hoặc dùng email": the seller enters an email, presses "Gửi mã đăng nhập", types the code in 6 boxes (paste fills all and submits; `auth.screen` OTP view); the same email's magic link lands on `/auth/callback`. Same session and connect-shop screen as Google. Also the shop-avatar menu item (→ `/auth/email`).
 
 **`auth.email.sent`**
 - EN: Sent a 6-digit code to {email}. Enter it below, or press the sign-in button in the email.
@@ -405,7 +416,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: Sign in with password / Partner account (sign in with password)
 - VI: Đăng nhập bằng mật khẩu / Tài khoản đối tác (đăng nhập bằng mật khẩu)
 - _Avoid_: "Đăng ký", "Quên mật khẩu" (there is no password sign-up or reset — accounts are created by the Juli team)
-- Definition: Fast track P32-A (D42): e-mail + password for the partner trial accounts the Juli team creates (e.g. Shopee's ISV reviewer, who cannot receive our OTP). A secondary disclosure on `/auth/email` (`#doi-tac`), linked from the landing door. GoTrue password grant, then `GET /v1/reviewer/me`; a reviewer lands on Trang chủ with the reference shop. Help line: "Chỉ dành cho tài khoản dùng thử Juli cấp cho đối tác."
+- Definition: Fast track P32-A (D42): e-mail + password for the partner trial accounts the Juli team creates (e.g. Shopee's ISV reviewer, who cannot receive our OTP). Since P34-F (D44.5) its own view of the auth screen on `/auth/email` (`#doi-tac`), opened from the footer link "Tài khoản đối tác" (from `/` the link navigates there); see `auth.screen`. GoTrue password grant, then `GET /v1/reviewer/me`; a reviewer lands on Trang chủ with the reference shop. Help line: `auth.screen` partner sub.
 
 **`auth.password.wrong`**
 - EN: Wrong email or password.

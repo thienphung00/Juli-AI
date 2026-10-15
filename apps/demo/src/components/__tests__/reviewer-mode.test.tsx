@@ -65,7 +65,6 @@ const SIMULATION_EXECUTE: SimulationResult = {
 describe("password sign-in (Tài khoản đối tác)", () => {
   async function open(props: Parameters<typeof PartnerSignIn>[0]) {
     render(<PartnerSignIn {...props} />);
-    await userEvent.click(screen.getByRole("button", { name: "Tài khoản đối tác (đăng nhập bằng mật khẩu)" }));
     await userEvent.type(screen.getByLabelText("Email"), "shopee-review@app-juli.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "s3cret");
     await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
@@ -111,7 +110,6 @@ describe("password sign-in (Tài khoản đối tác)", () => {
 
   it("offers no sign-up and no password reset", async () => {
     render(<PartnerSignIn />);
-    await userEvent.click(screen.getByRole("button", { name: "Tài khoản đối tác (đăng nhập bằng mật khẩu)" }));
     expect(screen.queryByText(/đăng ký/i)).toBeNull();
     expect(screen.queryByText(/quên mật khẩu/i)).toBeNull();
   });

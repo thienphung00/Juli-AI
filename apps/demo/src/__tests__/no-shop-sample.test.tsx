@@ -81,7 +81,7 @@ describe("signed in, no TikTok Shop → the sample under the connect strip", () 
     expect(screen.getByTestId("mock-data-notice")).toHaveTextContent(SAMPLE_SHOP.name);
     expect(screen.getByRole("region", { name: "Ma trận 5 luồng truy cập" })).toBeInTheDocument();
     expect(screen.queryByText(/Bạn chưa chọn shop/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Dùng thử Demo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Xem thử với dữ liệu mẫu, không cần tài khoản →" })).toBeNull();
     expect(loadAnalysis).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
