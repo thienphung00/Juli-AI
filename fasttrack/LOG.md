@@ -1245,3 +1245,26 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   submit `https://app-juli.com/sitemap.xml`; for demo.app-juli.com use Removals only if old URLs
   linger after the noindex is crawled. (4) No nginx change needed.
 - Next: P33-B / C / D branch from this branch's head.
+
+## 2026-10-15 — P33-C capability pages (agent: Claude Opus, branch `fasttrack/p33c-capabilities`)
+
+- **Pages** (Vietnamese, D43.1/D43.4): `/san-pham/phan-tich-shop`, `/san-pham/de-xuat-va-thuc-thi`,
+  `/san-pham/do-luong-gmv` (parent `/san-pham`, SoftwareApplication + Offer) and
+  `/ket-noi/tiktok-shop` (parent home, no SoftwareApplication). Shared frame
+  `src/components/product/capability-page.tsx` (+ CSS module, tokens only): breadcrumb, one H1,
+  ToC, H2 sections each with one `<Picture>` + "Dữ liệu mẫu" caption, FAQ rendered = FAQPage,
+  related links, "Dùng thử 3 tháng" (LOGIN_URL) / "Xem demo" (DEMO_URL). Routes in
+  `routes/capabilities.ts`.
+- **Screenshots**: 24 crops (`public/media/cap-*-v1-{640,1280}.{avif,webp}`,
+  `components/product/screens.ts`) from the demo's signed-out sample "Cửa hàng Mẫu Hoa Mai"
+  (Phân tích, Quyết định: Đề xuất / Đang thực hiện / Đo lường, reject / undo dialogs, confirm step)
+  plus connect-shop and the P17 onboarding strip rendered with mocked API responses. The sales-demo
+  stills were not used (marketing frames with promised uplift numbers).
+- **Accuracy**: facts from D13/D14/D22/D24/D26/D29–D32/D39/D41, ADR-106/108, `/privacy`, and code
+  (scope list, revert rules, card limits in `decision_emission.py`, onboarding labels). Left out
+  on purpose: product attributes as an executed field, exact OAuth scope names, a seller
+  disconnect button, daily email / Zalo reports, cross-shop learned effects or any result number,
+  Liên kết in Phân tích, time estimates beyond what the app shows.
+- **Gates (Node 20.20.2)**: landing lint 0, type-check clean, vitest 10 files 91 passed (new
+  `capability-pages.test.tsx` 16), build OK, `check:seo` 11/11; `check.sh --since f55809fd` 5/5.
+- Next: P33 integration merges B/C/D; owner confirms the real-shop write wording (DEBT).

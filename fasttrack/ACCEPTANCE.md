@@ -561,8 +561,18 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 - [ ] **AC-33.5** (B) Homepage per D43.2, H1 → H2 → H3 valid, hero poster + click-to-load video
   (D43.6) with VideoObject, FAQ + FAQPage, no testimonial or invented number.
 - [ ] **AC-33.6** (B) `/san-pham` overview (~1,500 words) + SoftwareApplication / Offer + breadcrumbs.
-- [ ] **AC-33.7** (C) Three capability pages (~2,500 words each) + `/ket-noi/tiktok-shop`, H1 → H2 →
+- [x] **AC-33.7** (C) Three capability pages (~2,500 words each) + `/ket-noi/tiktok-shop`, H1 → H2 →
   H3, one labelled real UI screenshot per H2 (AVIF/WebP, width/height), FAQ, internal links, schema.
+  — P33-C 9f8a03b4 (24 screenshots), 2109ac66 (pages): rendered `<main>` words incl. FAQ
+  2,776 / 3,114 / 2,495 / 1,572 (phan-tich-shop / de-xuat-va-thuc-thi / do-luong-gmv /
+  ket-noi); 6 / 8 / 6 / 4 content H2, each with one `<picture>` (AVIF + WebP 640/1280, width/height,
+  alt "… (dữ liệu mẫu)", caption "Dữ liệu mẫu") of the demo's signed-out sample shop (connect /
+  onboarding states rendered with mocked API, fictional shop); the FAQ H2 has no screenshot.
+  `capability-pages.test.tsx` (16 tests: one h1, a labelled sized screenshot per content H2 with
+  files on disk, FAQ dt = FAQPage, Breadcrumb + SoftwareApplication on `/san-pham/*` only, links to
+  sibling pages + `/blog` + `/privacy`|`/san-pham`, both CTAs, Shopee only "đang tích hợp").
+  Node 20.20.2: landing lint 0, type-check clean, vitest 10 files 91 passed, build OK, `check:seo`
+  11/11; `fasttrack/check.sh --since f55809fd` 5/5 PASS. `/blog` links 404 until P33-D (DEBT).
 - [ ] **AC-33.8** (D) `/blog` index + post template (Article, BreadcrumbList, author, dates) + 3
   pillar drafts of 3,000+ words with internal links; **owner approval recorded before deploy**.
 - [ ] **AC-33.9** Integration: landing lint / type-check / tests / build green; heading-outline and
