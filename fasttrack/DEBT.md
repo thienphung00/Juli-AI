@@ -829,7 +829,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   font path for the OG card) instead of `next/image`, so the VPS artifact needs no `sharp`. The
   script is not run in CI; `brand` rewrites the `-v1` files in place — bump names before
   regenerating.
-- [ ] Hero `<video>` still renders with `controls` and a 1280 px WebP poster on mobile (D43.6
+- [x] (repaid by P33-B 512c3993: `<Picture>` poster with srcset 640/1280 + click-to-load `HeroVideo`, VideoObject on `/`) Hero `<video>` still renders with `controls` and a 1280 px WebP poster on mobile (D43.6
   poster + click-to-load + VideoObject is P33-B's; helpers `HERO_VIDEO`, `HERO_VIDEO_SCHEMA`,
   `<Picture>` are ready).
 - [ ] `/product/` (trailing slash) goes 308 → `/product` → 301 → `/san-pham` (two hops). Nothing
@@ -839,3 +839,25 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   P33-A, watch in CI.
 - [ ] `@juli/brand` `JuliLogo` still renders the 50 KB PNG with `width: auto` and no
   width/height attributes (the demo uses it); the landing switched to `SiteLogo`.
+
+## P33-B shortcuts (2026-10-15)
+
+- [ ] The sales demo video itself still shows unsourced figures ("+5–10%", "+1–3% GMV mỗi
+  tháng", "29 giờ") and a run where Juli applies "Giảm giá sản phẩm 30 ngày" (contradicts D13 /
+  D24.5: promotions are the seller's). The page labels it "Số liệu trong video là minh hoạ";
+  owner decides: re-cut the video (juli-content-engine `sales-demo-02`) or drop it from the hero.
+- [ ] No seller-facing "Ngắt kết nối" in the app (only Ops Admin "Huỷ kết nối", D25.13). Public
+  copy says the seller revokes Juli in TikTok Seller Center or emails Juli. Add an in-app
+  disconnect, then simplify the copy.
+- [ ] Old `public/media/juli-demo-poster-v1-*` files (poster with "+1–3%") are unreferenced but
+  kept (immutable-cached URLs); `scripts/media.py brand` still regenerates them. Delete after
+  the next deploy.
+- [ ] Homepage / `/san-pham` link `/san-pham/phan-tich-shop`, `/san-pham/de-xuat-va-thuc-thi`,
+  `/san-pham/do-luong-gmv`, `/ket-noi/tiktok-shop`, `/blog`, which 404 on this branch alone;
+  they exist only after P33-C / P33-D integrate. Integration must not ship B without C and D.
+- [ ] Lighthouse not re-run for the new homepage (host loaded by parallel agents); AC-33.9 runs
+  PageSpeed after deploy. The poster `<img>` (priority, 640/1280 srcset, 7–15 KB AVIF) should be
+  the LCP element.
+- [ ] Commit 2f16f2eb alone fails `sections.test.tsx` (old poster path pinned); green from
+  512c3993. Squash-irrelevant, noted for bisects.
+

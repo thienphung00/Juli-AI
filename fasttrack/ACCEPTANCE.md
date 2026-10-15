@@ -558,9 +558,23 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   (28 KiB) is react-dom — neither removable by config (DEBT). Cache: `/media/*` immutable 1 y,
   `/og`, `/videos` 1 week (next.config.ts), documented in `infra/nginx/app-juli.com.conf`.
   PageSpeed re-run after deploy is AC-33.9.
-- [ ] **AC-33.5** (B) Homepage per D43.2, H1 → H2 → H3 valid, hero poster + click-to-load video
+- [x] **AC-33.5** (B) Homepage per D43.2, H1 → H2 → H3 valid, hero poster + click-to-load video
   (D43.6) with VideoObject, FAQ + FAQPage, no testimonial or invented number.
-- [ ] **AC-33.6** (B) `/san-pham` overview (~1,500 words) + SoftwareApplication / Offer + breadcrumbs.
+  — P33-B 2f16f2eb..512c3993 (`fasttrack/p33b-homepage`): one H1, 10 H2 / 24 H3 (marketplace strip,
+  problem, 5-step loop, 3 capability blocks → product pages, data safety, audiences, transparency
+  with method + sample-data label + company MST/address, pricing teaser, 7-question FAQ, final
+  CTA); `HeroVideo` = `<Picture>` AVIF/WebP poster 640/1280 with width/height + ▶, `<video
+  preload="none">` mounted only on click; JSON-LD VideoObject + FAQPage = rendered questions.
+  Tests `sections.test.tsx` (outline, section order, Shopee status, capability links, D13 scope,
+  "no outcome figure / no %", company identity, FAQ ↔ schema, poster-then-video), `cta.test.tsx`;
+  `pnpm check:seo` 7/7 on the built site. Removed: "+1–3% GMV", "~1,7 giờ/ngày", "ROI cao",
+  "tạo đơn nhập / đồng bộ tồn kho / tạo mã giảm giá"; poster changed to a figure-free frame.
+- [x] **AC-33.6** (B) `/san-pham` overview (~1,500 words) + SoftwareApplication / Offer + breadcrumbs.
+  — P33-B 512c3993: ~1,680 words in `<main>` (whitespace tokens), H1 + 10 H2 (what Juli is, loop,
+  capabilities linking the 3 pages, does / does not do, integrations TikTok live · Shopee đang tích
+  hợp · sign-in, data control, audiences, pricing `#bang-gia` 500.000đ/tháng, 6-question FAQ,
+  CTA); visible breadcrumb + BreadcrumbList, SoftwareApplication + Offer, FAQPage. Test
+  `info-pages.test.tsx`; `check:seo` 7/7.
 - [ ] **AC-33.7** (C) Three capability pages (~2,500 words each) + `/ket-noi/tiktok-shop`, H1 → H2 →
   H3, one labelled real UI screenshot per H2 (AVIF/WebP, width/height), FAQ, internal links, schema.
 - [ ] **AC-33.8** (D) `/blog` index + post template (Article, BreadcrumbList, author, dates) + 3
