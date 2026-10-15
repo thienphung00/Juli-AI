@@ -21,8 +21,17 @@ def main(argv: list[str] | None = None) -> int:
 
     gsc = GSC(write=args.submit)
     if args.sites:
-        for s in gsc.sites():
+        print("Google account:", gsc.account())
+        sites = gsc.sites()
+        for s in sites:
             print(f"{s['siteUrl']}  ({s['permissionLevel']})")
+        if not any(s["siteUrl"] == config.SITE_URL for s in sites):
+            print(
+                f"✗ this account cannot read {config.SITE_URL} — re-run after deleting "
+                f"{config.TOKEN_PATH} and choose the account that owns the property, or add "
+                "this account as a user in Search Console > Settings > Users and permissions."
+            )
+            return 1
         return 0
     if args.submit:
         gsc.submit_sitemap(config.SITEMAP_URL)

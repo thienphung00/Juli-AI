@@ -1212,3 +1212,11 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   `Python-urllib`, Cloudflare answers 403 and the parser turns that into "disallow all" — the
   live check fetches robots.txt with its own UA.
 - Baseline (production, before P33-A): 10 / 14 URLs failing.
+- 2026-10-15 follow-up: the OAuth token now also asks `openid email` so `gsc_sitemaps --sites`
+  names the Google account (an account without the property silently got `{}`). Owner moved the
+  property to the company account: `thien.phung@app-juli.com` is siteOwner of
+  `sc-domain:app-juli.com` (a Domain property also covers demo. / ops.; no separate property).
+- First real run: sitemap not submitted under this account; URL Inspection — `/`, `/privacy`,
+  `/terms` indexed; `/product`, `/about`, `/contact` unknown to Google; **demo `/`, `/decisions`,
+  `/analytics` indexed** (crawled 2026-08-20..10-02); ops unknown (Access). Search Analytics: ~1
+  click / 5 impressions a week, data through 2026-10-10.

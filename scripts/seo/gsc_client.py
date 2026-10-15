@@ -24,6 +24,8 @@ from scripts.seo import config
 WEBMASTERS = "https://www.googleapis.com/webmasters/v3"
 INSPECT = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"
 RETRYABLE = {429, 500, 502, 503, 504}
+IDENTITY_SCOPES = ("openid", "https://www.googleapis.com/auth/userinfo.email")
+USERINFO = "https://openidconnect.googleapis.com/v1/userinfo"
 
 
 def _credentials(write: bool):
@@ -31,15 +33,18 @@ def _credentials(write: bool):
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
 
-    scopes = [config.SCOPE_READWRITE if write else config.SCOPE_READONLY]
+    # openid + email only so the scripts can say WHICH Google account the token belongs to —
+    # an account without the property silently gets an empty site list.
+    scopes = [config.SCOPE_READWRITE if write else config.SCOPE_READONLY, *IDENTITY_SCOPES]
     creds = None
     if config.TOKEN_PATH.exists():
         creds = Credentials.from_authorized_user_file(str(config.TOKEN_PATH))
         granted = set(creds.scopes or [])
         # read/write covers read-only; a read-only token cannot submit a sitemap.
-        if not (
-            config.SCOPE_READWRITE in granted or (not write and config.SCOPE_READONLY in granted)
-        ):
+        gsc_ok = config.SCOPE_READWRITE in granted or (
+            not write and config.SCOPE_READONLY in granted
+        )
+        if not (gsc_ok and set(IDENTITY_SCOPES) <= granted):
             creds = None
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
@@ -87,6 +92,10 @@ class GSC:
 
     def _site_path(self) -> str:
         return f"{WEBMASTERS}/sites/{quote(self.site, safe='')}"
+
+    def account(self) -> str:
+        """E-mail of the Google account behind the token."""
+        return self._call("GET", USERINFO).get("email", "?")
 
     # ---- sites / sitemaps -------------------------------------------------------------
     def sites(self) -> list[dict[str, Any]]:
