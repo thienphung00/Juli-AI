@@ -75,14 +75,15 @@ describe("StartDemo", () => {
     );
     const user = userEvent.setup();
 
-    // The two "Dùng thử 3 tháng" CTAs land in the Demo's sign-in too, so they
-    // are tracked as well, under their own content_name.
+    // The "Dùng thử miễn phí 3 tháng" CTAs go to the internal /dang-ky page
+    // (SIGNUP_URL); the listener tracks them too, by content_name.
     for (const testId of [
       "header-demo-cta",
       "hero-demo-cta",
       "trial-demo-cta",
-      "hero-login-cta",
-      "trial-login-cta",
+      "hero-trial-cta",
+      "pricing-trial-cta",
+      "trial-signup-cta",
     ]) {
       await user.click(screen.getByTestId(testId));
 
@@ -93,7 +94,7 @@ describe("StartDemo", () => {
       );
     }
 
-    expect(trackedEvents("StartDemo")).toHaveLength(5);
+    expect(trackedEvents("StartDemo")).toHaveLength(6);
   });
 
   it("gives each click its own deduplication id", async () => {

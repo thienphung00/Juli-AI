@@ -8,7 +8,7 @@ import {
 } from "@juli/tiktok-events";
 import { useEffect } from "react";
 
-import { DEMO_URL } from "../lib/site";
+import { DEMO_URL, SIGNUP_URL } from "../lib/site";
 
 const CONTENT_TYPE = "product";
 const PAGE_CONTENT_NAME = "landing";
@@ -42,6 +42,11 @@ export function TikTokTracking() {
     // somebody adds. `DEMO_URL` stays the single source of truth for what "the
     // demo" is, exactly as it already is for the hrefs themselves.
     const demoHost = new URL(DEMO_URL, window.location.href).host;
+    // The free-trial CTAs go to the internal sign-up page (`SIGNUP_URL`,
+    // "/dang-ky", built by P33-F). They keep the StartDemo event they had when
+    // they pointed at the Demo's sign-in, so Events Manager stays continuous;
+    // the form's own submit is P33-F's to track.
+    const signup = new URL(SIGNUP_URL, window.location.href);
 
     function handleClick(event: MouseEvent) {
       if (!(event.target instanceof Element)) {
@@ -62,7 +67,9 @@ export function TikTokTracking() {
         return;
       }
 
-      if (destination.host !== demoHost) {
+      const isSignup =
+        destination.host === signup.host && destination.pathname === signup.pathname;
+      if (destination.host !== demoHost && !isSignup) {
         return;
       }
 

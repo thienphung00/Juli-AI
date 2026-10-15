@@ -39,7 +39,7 @@ describe("homepage (D43.2)", () => {
       "Dữ liệu an toàn, quyền quyết định là của bạn",
       "Juli dành cho ai",
       "Minh bạch thay cho lời quảng cáo",
-      "Chi phí: từ 500K/tháng, dùng thử 3 tháng",
+      "Chi phí: dùng thử miễn phí 3 tháng, sau đó từ 500K/tháng",
       "Câu hỏi thường gặp",
       "Xem shop của bạn đang hụt GMV ở đâu",
     ]);
@@ -227,5 +227,23 @@ describe("site footer", () => {
       .getAllByRole("link")
       .map((link) => link.getAttribute("href") ?? "");
     expect(hrefs.join(" ")).not.toMatch(/facebook|tiktok\.com|youtube|zalo|linkedin|instagram/i);
+  });
+});
+
+describe("owner decisions 2026-10-15 (D43 additions)", () => {
+  it("disconnecting goes through the Juli team, never 'revoke in Seller Center'", () => {
+    const { container } = render(<LandingPage />);
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("bạn liên hệ Juli qua email hoặc trang Liên hệ; đội Juli ngắt kết nối");
+    expect(text).not.toMatch(/thu hồi quyền/);
+  });
+
+  it("states the free trial the way /terms §5 does", () => {
+    render(<LandingPage />);
+
+    expect(
+      screen.getAllByText(/dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ thanh toán/).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 });

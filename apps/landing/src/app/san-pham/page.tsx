@@ -11,7 +11,7 @@ import {
   JsonLd,
   softwareApplicationSchema,
 } from "../../lib/seo";
-import { COMPANY, DEMO_URL, LOGIN_URL, PRODUCT_PAGES } from "../../lib/site";
+import { COMPANY, DEMO_URL, PRODUCT_PAGES, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../lib/site";
 
 /**
  * `/san-pham` — product overview (D43.1, D43.4 ~1,500 words, AC-33.6). Rewritten
@@ -138,6 +138,16 @@ const FAQ: readonly FaqItem[] = [
       "Nếu kết quả ngày 7 kém rõ rệt so với dự kiến, Juli đề xuất hoàn tác về giá trị cũ đã lưu. Kết quả này cũng làm Juli ưu tiên thấp hơn cho cùng loại hành động ở shop của bạn.",
   },
   {
+    question: "Dùng thử miễn phí thế nào, khi nào bắt đầu tính phí?",
+    answer:
+      "Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ thanh toán. Sau thời gian dùng thử, phí dịch vụ là 500.000đ/tháng và bạn huỷ được bất cứ lúc nào.",
+  },
+  {
+    question: "Làm sao để ngắt kết nối shop?",
+    answer:
+      "Bạn liên hệ Juli qua email lienhe@app-juli.com hoặc trang Liên hệ. Đội Juli ngắt kết nối shop, và Juli ngừng đồng bộ dữ liệu mới ngay sau đó.",
+  },
+  {
     question: "Dữ liệu của tôi được bảo vệ ra sao?",
     answer:
       "Dữ liệu được mã hoá khi truyền và khi lưu, mỗi tài khoản chỉ xem được dữ liệu của shop mình. Juli chỉ dùng dữ liệu để phục vụ chính shop của bạn và không bán cho bên thứ ba.",
@@ -171,8 +181,8 @@ export default function ProductPage() {
               cụ thể, thực thi khi bạn duyệt và đo kết quả của từng thay đổi.
             </p>
             <div className="lp-home-hero__actions">
-              <CtaLink data-testid="product-trial-cta" href={LOGIN_URL} size="large">
-                Dùng thử 3 tháng
+              <CtaLink data-testid="product-trial-cta" href={SIGNUP_URL} size="large">
+                {TRIAL_CTA_LABEL}
               </CtaLink>
               <CtaLink
                 data-testid="product-demo-cta"
@@ -327,7 +337,13 @@ export default function ProductPage() {
             <ul className="lp-home-list lp-home-list--loose">
               <li>Kết nối qua trang uỷ quyền chính thức của TikTok Shop; Juli không nhận mật khẩu shop.</li>
               <li>Mỗi thay đổi ghi lên shop cần bạn duyệt riêng, và giá trị cũ được lưu để hoàn tác.</li>
-              <li>Bạn có thể thu hồi quyền của Juli trong Seller Center bất cứ lúc nào; Juli ngừng đồng bộ dữ liệu mới ngay sau đó.</li>
+              <li>
+                Muốn ngắt kết nối shop, bạn liên hệ Juli qua email {COMPANY.email} hoặc{" "}
+                <Link className="lp-home-link" href="/contact">
+                  trang Liên hệ
+                </Link>
+                ; đội Juli ngắt kết nối và Juli ngừng đồng bộ dữ liệu mới ngay sau đó.
+              </li>
               <li>Khi bạn yêu cầu xoá tài khoản, dữ liệu tài khoản và dữ liệu shop được xoá trong vòng 30 ngày.</li>
             </ul>
             <p className="lp-home-section__body">
@@ -371,10 +387,14 @@ export default function ProductPage() {
               <h3 className="lp-home-card__title">Juli AI</h3>
               <p className="lp-home-price">500.000đ/tháng</p>
               <ul className="lp-home-list">
-                <li>Miễn phí dùng thử 3 tháng đầu</li>
+                <li>Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký</li>
+                <li>Không cần thẻ thanh toán khi đăng ký</li>
                 <li>Đầy đủ phân tích, đề xuất, thực thi và đo lường</li>
                 <li>Huỷ bất cứ lúc nào</li>
               </ul>
+              <CtaLink data-testid="product-pricing-trial-cta" href={SIGNUP_URL} size="large">
+                {TRIAL_CTA_LABEL}
+              </CtaLink>
             </article>
           </div>
         </section>
@@ -400,11 +420,11 @@ export default function ProductPage() {
             Bắt đầu với dữ liệu thật của shop bạn
           </h2>
           <p className="lp-home-final__body">
-            Dùng thử miễn phí 3 tháng, hoặc xem bản Demo với dữ liệu mẫu trước.
+            Dùng thử miễn phí 3 tháng, không cần thẻ thanh toán, hoặc xem bản Demo với dữ liệu mẫu trước.
           </p>
           <div className="lp-home-hero__actions lp-home-final__actions">
-            <CtaLink href={LOGIN_URL} size="large">
-              Dùng thử 3 tháng
+            <CtaLink data-testid="product-final-trial-cta" href={SIGNUP_URL} size="large">
+              {TRIAL_CTA_LABEL}
             </CtaLink>
             <CtaLink href={DEMO_URL} size="large" variant="secondary">
               Xem demo

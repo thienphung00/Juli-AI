@@ -2,9 +2,9 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import LandingPage from "../app/page";
-import { DEMO_URL, LOGIN_URL } from "../lib/site";
+import { DEMO_URL, SIGNUP_URL } from "../lib/site";
 
-/** Homepage CTAs (D43.2): "Dùng thử 3 tháng" (sign-up) + "Xem demo" (sample data). */
+/** Homepage CTAs (D43.2 + additions): "Dùng thử miễn phí 3 tháng" (sign-up) + "Xem demo". */
 const HOME_DEMO_CTAS = ["header-demo-cta", "hero-demo-cta", "trial-demo-cta"] as const;
 
 describe("homepage CTA wiring", () => {
@@ -17,13 +17,14 @@ describe("homepage CTA wiring", () => {
     }
   });
 
-  it("offers the 3-month trial beside the hero and closing Demo CTAs, pointing at one sign-in entry", () => {
+  it("sends the free-trial CTAs (hero, pricing, final) straight to the trial sign-up door", () => {
     render(<LandingPage />);
 
-    for (const testId of ["hero-login-cta", "trial-login-cta"]) {
+    expect(SIGNUP_URL).toBe("/dang-ky");
+    for (const testId of ["hero-trial-cta", "pricing-trial-cta", "trial-signup-cta"]) {
       const trial = screen.getByTestId(testId);
-      expect(trial, testId).toHaveTextContent("Dùng thử 3 tháng");
-      expect(trial, testId).toHaveAttribute("href", LOGIN_URL);
+      expect(trial, testId).toHaveTextContent("Dùng thử miễn phí 3 tháng");
+      expect(trial, testId).toHaveAttribute("href", SIGNUP_URL);
     }
   });
 
@@ -32,7 +33,7 @@ describe("homepage CTA wiring", () => {
 
     expect(
       screen.getByText(
-        "Dành cho Nhà bán hàng · Affiliate · Đội vận hành sàn · Agency. Miễn phí 3 tháng, sau đó từ 500K/tháng.",
+        "Dành cho Nhà bán hàng · Affiliate · Đội vận hành sàn · Agency. Miễn phí 3 tháng, không cần thẻ thanh toán, sau đó từ 500K/tháng.",
       ),
     ).toBeInTheDocument();
   });

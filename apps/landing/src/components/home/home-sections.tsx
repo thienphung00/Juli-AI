@@ -1,6 +1,13 @@
 import Link from "next/link";
 
-import { COMPANY, DEMO_URL, LOGIN_URL, PRODUCT_PAGES, SECTION_IDS } from "../../lib/site";
+import {
+  COMPANY,
+  DEMO_URL,
+  PRODUCT_PAGES,
+  SECTION_IDS,
+  SIGNUP_URL,
+  TRIAL_CTA_LABEL,
+} from "../../lib/site";
 import { CtaLink } from "../cta-link";
 import {
   AUDIENCES,
@@ -37,15 +44,15 @@ export function HomeHero() {
           sau 7 và 14 ngày.
         </p>
         <div className="lp-home-hero__actions">
-          <CtaLink data-testid="hero-login-cta" href={LOGIN_URL} size="large">
-            Dùng thử 3 tháng
+          <CtaLink data-testid="hero-trial-cta" href={SIGNUP_URL} size="large">
+            {TRIAL_CTA_LABEL}
           </CtaLink>
           <CtaLink data-testid="hero-demo-cta" href={DEMO_URL} size="large" variant="secondary">
             Xem demo
           </CtaLink>
         </div>
         <p className="lp-home-hero__note">
-          Miễn phí 3 tháng, sau đó từ 500K/tháng · Demo dùng dữ liệu mẫu, không cần đăng ký
+          Không cần thẻ thanh toán · sau đó từ 500K/tháng · Demo dùng dữ liệu mẫu, không cần đăng ký
         </p>
         <p className="lp-home-hero__consent" data-testid="hero-consent-note">
           Khi đăng ký, bạn đồng ý với{" "}
@@ -300,15 +307,19 @@ export function PricingFaqSection() {
       <section aria-labelledby="pricing-heading" className="lp-home-section">
         <div className="lp-home-inner lp-home-pricing">
           <h2 className="lp-home-section__heading" id="pricing-heading">
-            Chi phí: từ 500K/tháng, dùng thử 3 tháng
+            Chi phí: dùng thử miễn phí 3 tháng, sau đó từ 500K/tháng
           </h2>
           <p className="lp-home-section__lead">
-            Dùng thử miễn phí 3 tháng với đầy đủ tính năng phân tích, đề xuất, thực thi và đo
-            lường. Sau đó từ 500K/tháng, huỷ bất cứ lúc nào.{" "}
+            Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, với đầy đủ phân tích,
+            đề xuất, thực thi và đo lường. Không cần thẻ thanh toán. Sau đó từ 500K/tháng, huỷ bất
+            cứ lúc nào.{" "}
             <Link className="lp-home-link" href="/san-pham#bang-gia">
               Xem chi tiết bảng giá
             </Link>
           </p>
+          <CtaLink data-testid="pricing-trial-cta" href={SIGNUP_URL} size="large">
+            {TRIAL_CTA_LABEL}
+          </CtaLink>
         </div>
       </section>
       <section
@@ -341,12 +352,12 @@ export function FinalCta() {
         Xem shop của bạn đang hụt GMV ở đâu
       </h2>
       <p className="lp-home-final__body">
-        Dành cho Nhà bán hàng · Affiliate · Đội vận hành sàn · Agency. Miễn phí 3 tháng, sau đó
-        từ 500K/tháng.
+        Dành cho Nhà bán hàng · Affiliate · Đội vận hành sàn · Agency. Miễn phí 3 tháng, không cần
+        thẻ thanh toán, sau đó từ 500K/tháng.
       </p>
       <div className="lp-home-hero__actions lp-home-final__actions">
-        <CtaLink data-testid="trial-login-cta" href={LOGIN_URL} size="large">
-          Dùng thử 3 tháng
+        <CtaLink data-testid="trial-signup-cta" href={SIGNUP_URL} size="large">
+          {TRIAL_CTA_LABEL}
         </CtaLink>
         <CtaLink data-testid="trial-demo-cta" href={DEMO_URL} size="large" variant="secondary">
           Xem demo

@@ -100,8 +100,8 @@ export const SAFETY = [
     body: "Mỗi thay đổi trên shop cần bạn duyệt riêng. Juli không tự đổi giá, không tự tạo khuyến mãi và không đăng nội dung thay bạn.",
   },
   {
-    title: "Hoàn tác và ngắt kết nối bất cứ lúc nào",
-    body: "Giá trị cũ được lưu trước mỗi thay đổi để bạn hoàn tác. Bạn có thể thu hồi quyền của Juli trong Seller Center bất cứ lúc nào; Juli ngừng đồng bộ dữ liệu mới ngay lập tức.",
+    title: "Hoàn tác, và ngắt kết nối khi bạn yêu cầu",
+    body: "Giá trị cũ được lưu trước mỗi thay đổi để bạn hoàn tác. Muốn ngắt kết nối shop, bạn liên hệ Juli qua email hoặc trang Liên hệ; đội Juli ngắt kết nối và Juli ngừng đồng bộ dữ liệu mới ngay lập tức.",
   },
   {
     title: "Không bán dữ liệu",
@@ -158,11 +158,11 @@ export const HOME_FAQ: readonly FaqItem[] = [
   {
     question: "Chi phí bao nhiêu và dùng thử thế nào?",
     answer:
-      "Bạn được dùng thử miễn phí 3 tháng, sau đó từ 500K/tháng. Bạn cũng có thể xem bản Demo với dữ liệu mẫu mà không cần đăng ký.",
+      "Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ thanh toán. Sau đó từ 500K/tháng. Bạn cũng có thể xem bản Demo với dữ liệu mẫu mà không cần đăng ký.",
   },
   {
     question: "Tôi muốn ngừng dùng thì sao?",
     answer:
-      "Bạn huỷ bất cứ lúc nào. Để ngắt kết nối, bạn thu hồi quyền của Juli trong Seller Center của TikTok Shop hoặc email cho Juli; Juli ngừng đồng bộ dữ liệu mới ngay sau đó. Khi bạn yêu cầu xoá tài khoản, dữ liệu được xoá trong vòng 30 ngày, trừ chứng từ pháp luật yêu cầu lưu.",
+      "Bạn huỷ bất cứ lúc nào. Để ngắt kết nối shop, bạn liên hệ Juli qua email lienhe@app-juli.com hoặc trang Liên hệ; đội Juli ngắt kết nối shop và Juli ngừng đồng bộ dữ liệu mới ngay sau đó. Khi bạn yêu cầu xoá tài khoản, dữ liệu được xoá trong vòng 30 ngày, trừ chứng từ pháp luật yêu cầu lưu.",
   },
 ];

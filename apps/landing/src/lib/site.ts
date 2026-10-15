@@ -14,6 +14,18 @@ export const DEMO_URL =
 export const LOGIN_URL =
   process.env.NEXT_PUBLIC_LOGIN_URL ?? "https://demo.app-juli.com/";
 
+/**
+ * The free 3-month trial sign-up (D43 additions, owner 2026-10-15): an internal
+ * fast form page on app-juli.com, `/dang-ky`, built by P33-F
+ * (`fasttrack/p33f-trial-signup`) with its thank-you page; it exists after
+ * integration. The Pixel listener (`TikTokTracking`) tracks clicks to it.
+ * Overridable per environment.
+ */
+export const SIGNUP_URL = process.env.NEXT_PUBLIC_SIGNUP_URL ?? "/dang-ky";
+
+/** The trial CTA label, everywhere on the site. */
+export const TRIAL_CTA_LABEL = "Dùng thử miễn phí 3 tháng";
+
 /** In-page anchors on `/`. */
 export const SECTION_IDS = {
   howItWorks: "cach-hoat-dong",
