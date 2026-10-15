@@ -1,6 +1,6 @@
 "use client";
 
-import { TIKTOK_PIXEL_SCRIPT_ID } from "@juli/tiktok-events";
+import { TIKTOK_PIXEL_SCRIPT_ID } from "@juli/tiktok-events/pixel-id";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
