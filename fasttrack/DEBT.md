@@ -839,3 +839,25 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   P33-A, watch in CI.
 - [ ] `@juli/brand` `JuliLogo` still renders the 50 KB PNG with `width: auto` and no
   width/height attributes (the demo uses it); the landing switched to `SiteLogo`.
+
+## P33-F shortcuts (2026-10-15)
+
+- [ ] No retention job for `trial_signups`: the privacy text promises deletion after 12 months for
+  prospects who never became customers and within 30 days on request. Today deletion is manual
+  (`DELETE FROM trial_signups WHERE …` as `juli_ops`, or an Admin action that does not exist yet).
+  Add a nightly purge (like `ops-audit-retention`) and an Ops "Xoá" button.
+- [ ] `TRIAL_SIGNUP_IP_SALT` falls back to a fixed in-code constant when unset, so the IP hash is
+  only as private as that constant (an IPv4 HMAC with a known key is brute-forceable). Set the env
+  in production; then make it required.
+- [ ] Without `TRIAL_SIGNUP_RELAY_KEY` on both the API and the landing, the per-IP limit counts the
+  landing server's address for every visitor (5 sign-ups / hour site-wide). Set it before launch.
+- [ ] The landing calls `https://api.app-juli.com` through Cloudflare server-to-server
+  (`TRIAL_SIGNUP_API_URL` overrides). If a Cloudflare bot rule ever challenges it, the form answers
+  "Chưa gửi được"; a loopback URL is not usable today because the API lane alternates 8000/8020.
+- [ ] The team e-mail is sent after the response (FastAPI background task) through the ops SMTP
+  mailer; a crash between commit and send loses the mail but not the row (the Ops tab still lists
+  it). No retry.
+- [ ] The trial itself is not tracked (who is in a 3-month trial, when it ends) — D43 additions
+  P33-B §2 says no trial tracking or billing is built; "Đã kết nối shop" on a sign-up is set by hand.
+- [ ] The no-JS fallback shows a generic "Thông tin chưa đúng" notice (`/dang-ky#loi-du-lieu`)
+  without per-field messages; browsers' own constraint validation catches nearly all of it first.

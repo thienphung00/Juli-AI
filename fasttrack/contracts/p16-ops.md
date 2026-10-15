@@ -210,3 +210,24 @@ without SMTP it logs `openai_system_alert_unsent` and does not mark).
 | POST | `/v1/ops/shops/{id}/terms` | Admin | `{days: 30\|365, reference}` → the GET body + `{created, period}`; source `contract`; audit `subscription_period_added` (kind config); a repeated reference returns `created: false` and writes nothing |
 | GET | `/v1/ops/shops/{id}/view/term` | Xem | "Xem như shop": the seller's `/v1/shops/me/term` body |
 | GET | `/v1/shops/me/term` | seller | `{data: {state, expires_on, days_left, grace_days_left}}` — the seller strip (grace amber, read_only grey) |
+
+## 10. P33-F — free-trial sign-ups (D43 additions, AC-33.11)
+
+Migration **`091_trial_signups`** (onto `090_reviewer_accounts`; the deferred
+`074_users_placeholder_phone_cleanup` is re-parented onto it and stays the tail). One table,
+`trial_signups`, `ops_only` like §2: RLS on, one policy `FOR ALL TO juli_ops`, `juli_ops`
+SELECT / INSERT / UPDATE / DELETE, nothing for `juli_app`, `anon`, `authenticated`. Columns:
+`full_name`, `phone` (`0xxxxxxxxx`), `email` (lower), `shop`, `role`
+(`seller|affiliate|shop_operator|agency`), `note`, `source` JSON (utm_* / referrer),
+`ip_hash` (HMAC-SHA256 with `TRIAL_SIGNUP_IP_SALT`, never the IP), `consent_at`, `status`
+(`new|contacted|converted|spam`), `handled_by`, `handled_at`, `created_at`.
+
+| Method + path | Auth | Notes |
+|---|---|---|
+| POST `/v1/trial-signups` | **none** (public; in the threat-model allowlist) | JSON ≤ 16 KB. 201 `{ok:true}` (stored, team e-mail to `TRIAL_SIGNUP_NOTIFY_TO` via the ops mailer after the response); honeypot `website` filled → same 201, nothing stored; 422 `{detail:"invalid", errors:{field: VN message}}`; 429 (5 / IP-hash / h, 3 / e-mail / day, 120 site-wide / h — counted from the table); 400 / 413. `X-Juli-Client-Ip` is trusted only with `X-Juli-Relay-Key` = `TRIAL_SIGNUP_RELAY_KEY`. Logs never carry phone, e-mail or name. |
+| GET `/v1/ops/trial-signups?status=&limit=` | Vận hành | `{data[], counts{status:n}, statuses[]}`, newest first; **not** PII-masked (prospect contact data, D43 additions P33-F §2); 503 on a missing `juli_ops` grant like every Ops route |
+| PATCH `/v1/ops/trial-signups/{id}` | Vận hành | `{status}`; stamps `handled_by` / `handled_at`; audited `trial_signup_status` (`field = "trial_signup:<id>"`, before/after = `{status}` only); a no-op writes nothing; 404 / 422 |
+
+Landing: `POST /dang-ky/gui` (apps/landing) relays to the public endpoint server-side
+(`TRIAL_SIGNUP_API_URL`, default `https://api.app-juli.com`; `TRIAL_SIGNUP_RELAY_KEY`). Ops UI:
+`/ops/dang-ky-dung-thu`.

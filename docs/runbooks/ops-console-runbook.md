@@ -113,6 +113,9 @@ after a deploy. So every Ops key lives **in the secret**:
 | `OPS_INVITE_ACCEPT_BASE_URL` | No | `https://demo.app-juli.com` |
 | `OPENAI_MONTHLY_CAP_USD_DEFAULT` | No (default `5`) | shared with P15: the monthly OpenAI cap when a shop has none set |
 | `OPENAI_SYSTEM_CAP_USD_DEFAULT` | No (default `50`) | D28.3: the whole system's monthly OpenAI limit until an Admin saves one in Ops → Chi phí |
+| `TRIAL_SIGNUP_NOTIFY_TO` | No (unset = no e-mail; the Ops tab "Đăng ký dùng thử" still lists every sign-up) | P33-F: the team inbox(es), comma-separated; sent through `OPS_SMTP_*` |
+| `TRIAL_SIGNUP_IP_SALT` | Yes before launch (DEBT) | P33-F: long random string, the HMAC key of the stored IP hash |
+| `TRIAL_SIGNUP_RELAY_KEY` | Yes before launch (DEBT) | P33-F: long random string; the SAME value goes in `juli/frontend/production` (landing) |
 
 `put-secret-value` **replaces the whole JSON** — merge the new keys into the current
 value, never send only the new ones. From the admin workstation (values never printed):
