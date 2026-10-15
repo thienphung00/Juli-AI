@@ -75,12 +75,14 @@ describe("StartDemo", () => {
     );
     const user = userEvent.setup();
 
+    // The two "Dùng thử 3 tháng" CTAs land in the Demo's sign-in too, so they
+    // are tracked as well, under their own content_name.
     for (const testId of [
       "header-demo-cta",
       "hero-demo-cta",
-      "comparison-demo-cta",
-      "features-demo-cta",
       "trial-demo-cta",
+      "hero-login-cta",
+      "trial-login-cta",
     ]) {
       await user.click(screen.getByTestId(testId));
 
