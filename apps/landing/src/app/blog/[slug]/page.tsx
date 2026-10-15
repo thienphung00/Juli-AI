@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
@@ -9,24 +8,28 @@ import {
   readingMinutes,
   tableOfContents,
 } from "../../../components/blog/markdown";
+import { CategoryLine, PostCard } from "../../../components/blog/post-card";
 import { PostMetaLine } from "../../../components/blog/post-meta-line";
-import { SiteHeader } from "../../../components/ui/site-header";
+import { Picture } from "../../../components/picture";
+import { Breadcrumb, FaqList, Heading, LinkButton, Section, TocNav } from "../../../components/ui";
 import { SiteFooter } from "../../../components/ui/site-footer";
+import { SiteHeader } from "../../../components/ui/site-header";
 import { BLOG_POSTS, getPost, getPostMeta, isPublished, relatedPosts } from "../../../content/blog";
 import {
   articleSchema,
   breadcrumbSchema,
-  breadcrumbTrail,
   buildMetadata,
   faqPageSchema,
   JsonLd,
 } from "../../../lib/seo";
-import { blogPostPath } from "../../../lib/seo/routes/blog";
+import { BLOG_INDEX_PATH, blogPostPath } from "../../../lib/seo/routes/blog";
+import { DEMO_URL, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../../lib/site";
 
 /**
- * `/blog/<slug>` — one post (D43.7). Every post is prerendered, drafts too (so
- * the owner can review them and `check:seo` covers them); a draft is noindex
- * through the route registry and shows a banner. Unknown slugs are 404.
+ * `/blog/<slug>` — one post (D43.7; layout P34-D, D44). Every post is
+ * prerendered, drafts too (so the owner can review them and `check:seo` covers
+ * them); a draft is noindex through the route registry and shows a banner.
+ * Unknown slugs are 404.
  */
 export const dynamicParams = false;
 
@@ -43,6 +46,7 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
   const post = getPostMeta(slug);
   if (!post) return {};
   return buildMetadata(blogPostPath(post.slug), {
+    ogImage: post.cover.og,
     publishedTime: post.publishedAt,
     modifiedTime: post.updatedAt,
     authors: [post.author],
@@ -60,6 +64,10 @@ function linkFilterFor(published: boolean) {
   };
 }
 
+function minutesFor(slug: string): number {
+  return readingMinutes(countWords(getPost(slug)?.body ?? ""));
+}
+
 export default async function BlogPostPage({ params }: PostPageProps) {
   const { slug } = await params;
   const post = getPost(slug);
@@ -71,8 +79,11 @@ export default async function BlogPostPage({ params }: PostPageProps) {
   const toc = tableOfContents(blocks);
   const minutes = readingMinutes(countWords(post.body));
   const related = relatedPosts(post);
-  const trail = breadcrumbTrail(path);
   const faq = post.faq ?? [];
+  const tocItems = [
+    ...toc.map((entry) => ({ id: entry.id, label: entry.text })),
+    ...(faq.length > 0 ? [{ id: "cau-hoi-thuong-gap", label: "Câu hỏi thường gặp" }] : []),
+  ];
 
   return (
     <>
@@ -85,111 +96,113 @@ export default async function BlogPostPage({ params }: PostPageProps) {
             description: post.description,
             datePublished: post.publishedAt,
             dateModified: post.updatedAt,
+            image: [post.cover.og.url, post.cover.variants.at(-1)!.webp],
           }),
           ...(faq.length > 0 ? [faqPageSchema(faq)] : []),
         ]}
       />
       <SiteHeader />
-      <main className="lp-main">
-        <article className="lp-blog">
-          <nav aria-label="Breadcrumb" className="lp-blog__breadcrumb">
-            <ol>
-              {trail.map((item, index) => (
-                <li key={item.path}>
-                  {index < trail.length - 1 ? (
-                    <Link href={item.path}>{item.path === "/" ? "Trang chủ" : item.name}</Link>
-                  ) : (
-                    <span aria-current="page">{item.name}</span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </nav>
-
-          {published ? null : (
-            <p className="lp-blog__draft" role="note">
-              Bản nháp đang chờ duyệt: trang này không được lập chỉ mục và không có trong sitemap.
-            </p>
-          )}
-
-          <header className="lp-blog__header">
-            <h1 className="lp-blog__title">{post.title}</h1>
+      <main className="lp-blog-main">
+        <article className="lp-post">
+          <header className="ui-container lp-post__header">
+            <Breadcrumb current={post.breadcrumbName} items={[{ href: BLOG_INDEX_PATH, label: "Blog" }]} />
+            {published ? null : (
+              <p className="lp-post__draft" role="note">
+                Bản nháp đang chờ duyệt: trang này không được lập chỉ mục và không có trong sitemap.
+              </p>
+            )}
+            <CategoryLine minutes={minutes} post={post} />
+            <Heading className="lp-post__title" level={1} size="page">
+              {post.title}
+            </Heading>
+            <p className="lp-post__standfirst">{post.excerpt}</p>
             <PostMetaLine
               author={post.author}
               minutes={minutes}
               publishedAt={post.publishedAt}
               updatedAt={post.updatedAt}
             />
-            <p className="lp-blog__lead">{post.excerpt}</p>
+            <div className="lp-post__cover">
+              <Picture
+                alt={post.cover.alt}
+                priority
+                sizes="(min-width: 1200px) 1152px, 100vw"
+                variants={post.cover.variants}
+              />
+            </div>
           </header>
 
-          {toc.length > 0 ? (
-            <nav aria-label="Mục lục" className="lp-blog__toc">
-              <p className="lp-blog__toc-label">Mục lục</p>
-              <ol>
-                {toc.map((entry) => (
-                  <li key={entry.id}>
-                    <a href={`#${entry.id}`}>{entry.text}</a>
-                  </li>
-                ))}
-              </ol>
-            </nav>
-          ) : null}
-
-          <div className="lp-blog__body">
-            <MarkdownBlocks blocks={blocks} isLinkable={linkFilterFor(published)} />
-          </div>
-
-          {faq.length > 0 ? (
-            <section aria-labelledby="cau-hoi-thuong-gap" className="lp-blog__section">
-              <h2 className="lp-blog__h2" id="cau-hoi-thuong-gap">
-                Câu hỏi thường gặp
-              </h2>
-              {faq.map((item) => (
-                <div className="lp-blog__faq-item" key={item.question}>
-                  <h3 className="lp-blog__h3">{item.question}</h3>
-                  <p>{item.answer}</p>
+          <div className="ui-container">
+            <div className="ui-toc-layout lp-post__layout">
+              {tocItems.length > 0 ? <TocNav items={tocItems} title="Mục lục" /> : <div />}
+              <div className="lp-post__column">
+                <div className="lp-prose">
+                  <MarkdownBlocks blocks={blocks} isLinkable={linkFilterFor(published)} />
                 </div>
-              ))}
-            </section>
-          ) : null}
 
-          {post.sources.length > 0 ? (
-            <section aria-labelledby="nguon-tham-khao" className="lp-blog__section lp-blog__sources">
-              <h2 className="lp-blog__h2" id="nguon-tham-khao">
-                Nguồn tham khảo
-              </h2>
-              <ul>
-                {post.sources.map((source) => (
-                  <li key={source.url + source.title}>
-                    <a className="lp-blog__link" href={source.url} rel="noopener noreferrer">
-                      {source.title}
-                    </a>
-                    {source.note ? <span className="lp-blog__source-note"> ({source.note})</span> : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+                {faq.length > 0 ? (
+                  <section aria-labelledby="cau-hoi-thuong-gap" className="lp-post__section">
+                    <h2 className="lp-blog__h2" id="cau-hoi-thuong-gap">
+                      Câu hỏi thường gặp
+                    </h2>
+                    <FaqList items={faq} />
+                  </section>
+                ) : null}
 
-          {related.length > 0 ? (
-            <section aria-labelledby="bai-viet-lien-quan" className="lp-blog__section">
-              <h2 className="lp-blog__h2" id="bai-viet-lien-quan">
-                Bài viết liên quan
-              </h2>
-              <ul className="lp-blog__related">
-                {related.map((item) => (
-                  <li key={item.slug}>
-                    <Link className="lp-blog__link" href={blogPostPath(item.slug)}>
-                      {item.title}
-                    </Link>
-                    <p>{item.excerpt}</p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+                {post.sources.length > 0 ? (
+                  <section aria-labelledby="nguon-tham-khao" className="lp-post__section lp-post__sources">
+                    <h2 className="lp-blog__h2" id="nguon-tham-khao">
+                      Nguồn tham khảo
+                    </h2>
+                    <ul>
+                      {post.sources.map((source) => (
+                        <li key={source.url + source.title}>
+                          <a className="lp-blog__link" href={source.url} rel="noopener noreferrer">
+                            {source.title}
+                          </a>
+                          {source.note ? <span className="lp-post__source-note"> ({source.note})</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+              </div>
+            </div>
+          </div>
         </article>
+
+        {related.length > 0 ? (
+          <section aria-labelledby="bai-viet-lien-quan" className="ui-container lp-post__related">
+            <h2 className="lp-blog__h2" id="bai-viet-lien-quan">
+              Bài viết liên quan
+            </h2>
+            <div className="lp-blog-index__grid lp-post__related-grid">
+              {related.map((item) => (
+                <PostCard headingLevel={3} key={item.slug} minutes={minutesFor(item.slug)} post={item} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <Section labelledBy="blog-cta" spacing="compact" tone="dark">
+          <div className="lp-post__cta">
+            <Heading id="blog-cta" level={2} onDark size="feature">
+              Để Juli đọc các chỉ số này cho shop của bạn mỗi ngày.
+            </Heading>
+            <p className="lp-post__cta-lead">
+              Juli phân tích GMV theo từng luồng truy cập, đề xuất việc nên làm kèm lý do và chỉ thực hiện
+              khi bạn phê duyệt.
+            </p>
+            <div className="lp-post__cta-actions">
+              <LinkButton data-testid="blog-cta-trial" href={SIGNUP_URL} variant="on-dark">
+                {TRIAL_CTA_LABEL}
+              </LinkButton>
+              <LinkButton data-testid="blog-cta-demo" href={DEMO_URL} variant="on-dark-secondary">
+                Xem demo với dữ liệu mẫu
+              </LinkButton>
+            </div>
+          </div>
+        </Section>
       </main>
       <SiteFooter />
     </>
