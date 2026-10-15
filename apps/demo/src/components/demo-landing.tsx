@@ -11,6 +11,13 @@ import {
   GOOGLE_SIGN_IN_UNAVAILABLE_COPY,
   buildGoogleAuthorizeUrl,
 } from "../lib/supabase-auth";
+import {
+  TRIAL_SIGNUP_BODY,
+  TRIAL_SIGNUP_EXISTING_NOTE,
+  TRIAL_SIGNUP_EYEBROW,
+  TRIAL_SIGNUP_HEADING,
+  isTrialSignupSearch,
+} from "../lib/trial-signup-copy";
 import { EmailSignIn } from "./email-sign-in";
 import { LegalConsentNote } from "./legal-consent-note";
 import { SampleHome } from "./home/sample-home";
@@ -40,9 +47,15 @@ import { SampleHome } from "./home/sample-home";
  * fresh navigations (a typed URL or the header's full-page links); a
  * same-page client-side query change would not re-run the mount effect,
  * and no such internal link exists.
+ *
+ * `/?dang-ky=dung-thu` (D43 additions, owner 2026-10-15) is app-juli.com's
+ * "Dùng thử miễn phí 3 tháng" CTA: it also forces the doors, and the sign-in
+ * door reads as the trial sign-up (`lib/trial-signup-copy.ts`). The buttons are
+ * the same, so an existing seller still signs in there.
  */
 export function DemoLanding() {
   const [forceDoorEntry, setForceDoorEntry] = useState(false);
+  const [trialSignup, setTrialSignup] = useState(false);
   const [hasEnteredReplay, setHasEnteredReplay] = useState(false);
   const [googleHref, setGoogleHref] = useState<string | null | undefined>(
     undefined,
@@ -57,8 +70,10 @@ export function DemoLanding() {
       // Both reads land in the same deferred callback (one React batch), so
       // the launcher-vs-doors decision below is made once — never a flash
       // of the sample Home before the escape param is honoured.
+      const trial = isTrialSignupSearch(window.location.search);
+      setTrialSignup(trial);
       setForceDoorEntry(
-        new URLSearchParams(window.location.search).get("entry") === "door",
+        trial || new URLSearchParams(window.location.search).get("entry") === "door",
       );
       if (readEntryMode() === "replay") {
         setHasEnteredReplay(true);
@@ -116,12 +131,23 @@ export function DemoLanding() {
         </article>
 
         <article className="demo-landing__door demo-landing__door--google">
-          <p className="demo-landing__door-eyebrow">Tài khoản thật của bạn</p>
-          <h2>Đăng nhập</h2>
-          <p>
-            Tạo tài khoản Juli thật bằng Google hoặc email, sau đó đến màn
-            hình Kết nối TikTok Shop.
-          </p>
+          {trialSignup ? (
+            <>
+              <p className="demo-landing__door-eyebrow">{TRIAL_SIGNUP_EYEBROW}</p>
+              <h2>{TRIAL_SIGNUP_HEADING}</h2>
+              <p>{TRIAL_SIGNUP_BODY}</p>
+              <p className="demo-landing__trial-existing">{TRIAL_SIGNUP_EXISTING_NOTE}</p>
+            </>
+          ) : (
+            <>
+              <p className="demo-landing__door-eyebrow">Tài khoản thật của bạn</p>
+              <h2>Đăng nhập</h2>
+              <p>
+                Tạo tài khoản Juli thật bằng Google hoặc email, sau đó đến màn
+                hình Kết nối TikTok Shop.
+              </p>
+            </>
+          )}
           {googleConfigured ? (
             <a className="demo-landing__google-link juli-btn juli-btn--secondary juli-btn--default" href={googleHref}>
               Đăng nhập với Google

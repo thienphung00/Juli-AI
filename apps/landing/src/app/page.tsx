@@ -1,24 +1,43 @@
-import { ComparisonSection } from "../components/comparison-section";
-import { FeaturesSection } from "../components/features-section";
-import { HeroSection } from "../components/hero-section";
+import { HOME_FAQ } from "../components/home/home-content";
+import {
+  AudienceSection,
+  CapabilitiesSection,
+  FinalCta,
+  HomeHero,
+  HowItWorksSection,
+  MarketplaceStrip,
+  PricingFaqSection,
+  ProblemSection,
+  SafetySection,
+  TransparencySection,
+} from "../components/home/home-sections";
 import { LandingHeader } from "../components/landing-header";
 import { SiteFooter } from "../components/site-footer";
-import { StepsSection } from "../components/steps-section";
-import { TrialCtaSection } from "../components/trial-cta-section";
-import { buildMetadata } from "../lib/seo";
+import { HERO_VIDEO_SCHEMA } from "../lib/media";
+import { buildMetadata, faqPageSchema, JsonLd, videoObjectSchema } from "../lib/seo";
 
 export const metadata = buildMetadata("/");
 
+/**
+ * Homepage = company + product overview (D43.2, AC-33.5). Detailed selling
+ * lives on `/san-pham` and the capability pages it links to.
+ */
 export default function LandingPage() {
   return (
     <>
+      <JsonLd data={[videoObjectSchema(HERO_VIDEO_SCHEMA), faqPageSchema(HOME_FAQ)]} />
       <LandingHeader />
-      <main className="lp-main">
-        <HeroSection />
-        <StepsSection />
-        <ComparisonSection />
-        <FeaturesSection />
-        <TrialCtaSection />
+      <main className="lp-main lp-home">
+        <HomeHero />
+        <MarketplaceStrip />
+        <ProblemSection />
+        <HowItWorksSection />
+        <CapabilitiesSection />
+        <SafetySection />
+        <AudienceSection />
+        <TransparencySection />
+        <PricingFaqSection />
+        <FinalCta />
       </main>
       <SiteFooter />
     </>

@@ -1043,3 +1043,19 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      hreflang; privacy / terms keep their EN sections).
   9. Delivery: P33-A (technical SEO + shared helpers) first, then P33-B (homepage + overview),
      P33-C (capability pages), P33-D (blog) in parallel on top of A.
+- **D43 additions** (owner, 2026-10-15, answers to P33-B's questions):
+  1. **Hero video stays** as is; the caption "Số liệu trong video là minh hoạ" is enough. No re-cut.
+  2. **The 3-month trial is real and free.** Every "Dùng thử miễn phí 3 tháng" CTA on app-juli.com
+     (homepage hero, pricing, final CTA; `/san-pham` hero, pricing card, final CTA) goes to
+     `SIGNUP_URL` = `/dang-ky`, an internal fast form page built by P33-F
+     (`fasttrack/p33f-trial-signup`, with its thank-you page and backend); TikTok Pixel tracking
+     stays on these CTAs. The thank-you page's "Tự kết nối shop ngay" opens the Demo at
+     `/?dang-ky=dung-thu`, where the sign-in door reads "Đăng ký dùng thử miễn phí 3 tháng"
+     (create the account with Google or email, then connect TikTok Shop; free 3 months, then from
+     500.000đ/tháng; no payment card — verified: Juli has no payment integration, D28.4/D28.5).
+     "Đăng nhập" stays for existing users; the partner password door (P32-A) is untouched. `/terms`
+     §5 states the trial. No trial tracking or billing is built.
+  3. **No seller disconnect button.** Public copy: to disconnect, the seller contacts Juli (email /
+     `/contact`) and the Juli team disconnects the shop (Ops Admin "Huỷ kết nối", D25.13). No
+     "revoke in Seller Center" instruction.
+  4. **Keep** the old `public/media/juli-demo-poster-v1-*` files.

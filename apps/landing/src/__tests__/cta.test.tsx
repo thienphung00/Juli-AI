@@ -2,55 +2,40 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import LandingPage from "../app/page";
-import { DEMO_URL, LOGIN_URL } from "../lib/site";
+import { DEMO_URL, SIGNUP_URL } from "../lib/site";
 
-describe("Demo CTA wiring (PRD 2.7 + CONTEXT.md apps/landing)", () => {
+/** Homepage CTAs (D43.2 + additions): "Dùng thử miễn phí 3 tháng" (sign-up) + "Xem demo". */
+const HOME_DEMO_CTAS = ["header-demo-cta", "hero-demo-cta", "trial-demo-cta"] as const;
+
+describe("homepage CTA wiring", () => {
   it("points every Demo CTA at the Demo Mock-mode entry", () => {
     render(<LandingPage />);
 
-    for (const testId of [
-      "header-demo-cta",
-      "hero-demo-cta",
-      "comparison-demo-cta",
-      "features-demo-cta",
-      "trial-demo-cta",
-    ]) {
+    for (const testId of HOME_DEMO_CTAS) {
       expect(screen.getByTestId(testId), testId).toHaveAttribute("href", DEMO_URL);
+      expect(screen.getByTestId(testId), testId).toHaveTextContent("Xem demo");
     }
   });
 
-  it("offers Login/Signup beside the hero and closing Demo CTAs, pointing at one shared entry", () => {
+  it("sends the free-trial CTAs (hero, pricing, final) straight to the trial sign-up door", () => {
     render(<LandingPage />);
 
-    for (const testId of ["hero-login-cta", "trial-login-cta"]) {
-      const login = screen.getByTestId(testId);
-      expect(login, testId).toHaveTextContent("Đăng nhập / Đăng ký");
-      expect(login, testId).toHaveAttribute("href", LOGIN_URL);
+    expect(SIGNUP_URL).toBe("/dang-ky");
+    for (const testId of ["hero-trial-cta", "pricing-trial-cta", "trial-signup-cta"]) {
+      const trial = screen.getByTestId(testId);
+      expect(trial, testId).toHaveTextContent("Dùng thử miễn phí 3 tháng");
+      expect(trial, testId).toHaveAttribute("href", SIGNUP_URL);
     }
   });
 
-  it("closes with the trial CTA naming the audience and the 3-month free offer", () => {
+  it("closes with the CTA naming the audience and the 3-month free offer", () => {
     render(<LandingPage />);
 
     expect(
-      screen.getByText("Dành cho Nhà bán hàng · Affiliate · Đội vận hành sàn · Agency"),
+      screen.getByText(
+        "Dành cho Nhà bán hàng · Affiliate · Đội vận hành sàn · Agency. Miễn phí 3 tháng, không cần thẻ thanh toán, sau đó từ 500K/tháng.",
+      ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Miễn phí thử nghiệm 3 tháng, sau đó chỉ từ 500K/tháng."),
-    ).toBeInTheDocument();
-  });
-
-  it('renders "Đăng ký" only as the paired Login/Signup CTA, never standalone', () => {
-    render(<LandingPage />);
-
-    // Signup appears in the hero and the closing trial CTA, always paired with
-    // Đăng nhập and always beside a Demo CTA.
-    const signupLinks = screen.getAllByRole("link", { name: /đăng ký/i });
-    expect(signupLinks).toHaveLength(2);
-    for (const link of signupLinks) {
-      expect(link).toHaveTextContent("Đăng nhập / Đăng ký");
-    }
-    expect(screen.queryByRole("button", { name: /đăng ký/i })).not.toBeInTheDocument();
   });
 
   it("states price only as the 'từ 500K' entry point, never a pricing table", () => {

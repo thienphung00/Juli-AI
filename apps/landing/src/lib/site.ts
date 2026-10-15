@@ -14,10 +14,23 @@ export const DEMO_URL =
 export const LOGIN_URL =
   process.env.NEXT_PUBLIC_LOGIN_URL ?? "https://demo.app-juli.com/";
 
-/** In-page anchors on `/` used by secondary CTAs. */
+/**
+ * The free 3-month trial sign-up (D43 additions, owner 2026-10-15): an internal
+ * fast form page on app-juli.com, `/dang-ky`, built by P33-F
+ * (`fasttrack/p33f-trial-signup`) with its thank-you page; it exists after
+ * integration. The Pixel listener (`TikTokTracking`) tracks clicks to it.
+ * Overridable per environment.
+ */
+export const SIGNUP_URL = process.env.NEXT_PUBLIC_SIGNUP_URL ?? "/dang-ky";
+
+/** The trial CTA label, everywhere on the site. */
+export const TRIAL_CTA_LABEL = "Dùng thử miễn phí 3 tháng";
+
+/** In-page anchors on `/`. */
 export const SECTION_IDS = {
-  features: "tinh-nang",
-  comparison: "giai-phap",
+  howItWorks: "cach-hoat-dong",
+  capabilities: "tinh-nang",
+  faq: "cau-hoi",
 } as const;
 
 /**
@@ -28,8 +41,30 @@ export const SECTION_IDS = {
  */
 export const SITE_PAGES = [
   { href: "/san-pham", label: "Sản phẩm" },
+  { href: "/blog", label: "Blog" },
   { href: "/about", label: "Giới thiệu" },
   { href: "/contact", label: "Liên hệ" },
+] as const;
+
+/**
+ * The capability pages under `/san-pham` and the TikTok Shop integration page
+ * (D43.1, built by P33-C). Linked from the footer, the homepage capability
+ * blocks and the `/san-pham` overview.
+ */
+export const PRODUCT_PAGES = {
+  analysis: { href: "/san-pham/phan-tich-shop", label: "Phân tích shop" },
+  actions: { href: "/san-pham/de-xuat-va-thuc-thi", label: "Đề xuất và thực thi" },
+  measurement: { href: "/san-pham/do-luong-gmv", label: "Đo lường GMV" },
+  tiktokShop: { href: "/ket-noi/tiktok-shop", label: "Kết nối TikTok Shop" },
+} as const;
+
+/** Footer "Sản phẩm" column, in reading order. */
+export const FOOTER_PRODUCT_LINKS = [
+  { href: "/san-pham", label: "Tổng quan sản phẩm" },
+  PRODUCT_PAGES.analysis,
+  PRODUCT_PAGES.actions,
+  PRODUCT_PAGES.measurement,
+  PRODUCT_PAGES.tiktokShop,
 ] as const;
 
 /**

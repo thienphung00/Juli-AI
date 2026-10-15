@@ -286,3 +286,60 @@ describe("DemoLanding — the two doors", () => {
   });
 });
 
+
+describe("DemoLanding — trial sign-up door (D43 additions, /?dang-ky=dung-thu)", () => {
+  it("reads as the free 3-month trial sign-up, keeps the same buttons and the existing-account line", async () => {
+    window.history.replaceState(null, "", "/?dang-ky=dung-thu");
+    render(<DemoLanding />);
+
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Đăng ký dùng thử miễn phí 3 tháng" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Tạo tài khoản bằng Google hoặc email, rồi kết nối TikTok Shop. Miễn phí 3 tháng, sau đó từ 500.000đ/tháng. Không cần thẻ thanh toán.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Đã có tài khoản? Đăng nhập bằng đúng Google hoặc email bạn đã dùng."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Đăng nhập" })).toBeNull();
+    expect(screen.getByRole("link", { name: /Đăng nhập với Google/ })).toBeInTheDocument();
+    // The P32-A partner password door is untouched.
+    expect(
+      screen.getByRole("link", { name: "Tài khoản đối tác (đăng nhập bằng mật khẩu)" }),
+    ).toHaveAttribute("href", "/auth/email#doi-tac");
+  });
+
+  it("shows the doors even when replay is stored, like ?entry=door", async () => {
+    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
+    window.history.replaceState(null, "", "/?dang-ky=dung-thu");
+    render(<DemoLanding />);
+
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Đăng ký dùng thử miễn phí 3 tháng" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the plain Đăng nhập door without the query", () => {
+    render(<DemoLanding />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "Đăng nhập" })).toBeInTheDocument();
+    expect(screen.queryByText(/Đăng ký dùng thử miễn phí/)).toBeNull();
+  });
+
+  it("every trial string is in dictionary.md", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const copy = await import("../lib/trial-signup-copy");
+    const dictionary = readFileSync(join(__dirname, "..", "..", "..", "..", "dictionary.md"), "utf8");
+    for (const text of [
+      copy.TRIAL_SIGNUP_HEADING,
+      copy.TRIAL_SIGNUP_BODY,
+      copy.TRIAL_SIGNUP_EXISTING_NOTE,
+      copy.TRIAL_SIGNUP_EYEBROW,
+    ]) {
+      expect(dictionary, text).toContain(text);
+    }
+  });
+});

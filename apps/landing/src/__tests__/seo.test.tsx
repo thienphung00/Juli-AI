@@ -182,7 +182,7 @@ describe("JSON-LD builders (AC-33.1)", () => {
     expect(videoObjectSchema(HERO_VIDEO_SCHEMA)).toMatchObject({
       "@type": "VideoObject",
       contentUrl: "https://app-juli.com/videos/juli-demo.mp4",
-      thumbnailUrl: ["https://app-juli.com/media/juli-demo-poster-v1-1280.webp"],
+      thumbnailUrl: ["https://app-juli.com/media/home-demo-poster-v1-1280.webp"],
       duration: "PT1M4S",
     });
   });

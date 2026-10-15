@@ -5,7 +5,7 @@ import AboutPage from "../app/about/page";
 import ContactPage from "../app/contact/page";
 import LandingPage from "../app/page";
 import ProductPage from "../app/san-pham/page";
-import { COMPANY, DEMO_URL, SITE_PAGES } from "../lib/site";
+import { COMPANY, DEMO_URL, SIGNUP_URL, SITE_PAGES } from "../lib/site";
 
 // TikTok's developer review (ticket 4486401) requires business content about
 // the product and the company that is reachable without logging in.
@@ -14,16 +14,16 @@ describe("public product and company pages", () => {
     for (const Page of [LandingPage, ProductPage, AboutPage, ContactPage]) {
       const { unmount } = render(<Page />);
       const header = screen.getByRole("navigation", { name: "Điều hướng chính" });
-      const footer = screen.getByRole("navigation", { name: "Liên kết chân trang" });
       for (const page of SITE_PAGES) {
         expect(within(header).getByRole("link", { name: page.label })).toHaveAttribute(
           "href",
           page.href,
         );
-        expect(within(footer).getByRole("link", { name: page.label })).toHaveAttribute(
-          "href",
-          page.href,
-        );
+        // The footer's "Sản phẩm" column links /san-pham as "Tổng quan sản phẩm".
+        const footerHrefs = within(screen.getByRole("contentinfo"))
+          .getAllByRole("link")
+          .map((link) => link.getAttribute("href"));
+        expect(footerHrefs, page.href).toContain(page.href);
       }
       unmount();
     }
@@ -45,8 +45,10 @@ describe("public product and company pages", () => {
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/Juli AI/);
     for (const name of [
-      "Tính năng chính",
-      "Kết nối TikTok Shop và dữ liệu",
+      "Juli AI là gì",
+      "Ba năng lực chính",
+      "Kết nối và tích hợp",
+      "Dữ liệu và quyền kiểm soát",
       "Bảng giá",
       "Câu hỏi thường gặp",
     ]) {
@@ -55,6 +57,11 @@ describe("public product and company pages", () => {
     // Pricing matches /terms section 5.
     expect(screen.getByTestId("product-pricing")).toHaveTextContent("500.000đ/tháng");
     expect(screen.getByTestId("product-demo-cta")).toHaveAttribute("href", DEMO_URL);
+    for (const testId of ["product-trial-cta", "product-pricing-trial-cta", "product-final-trial-cta"]) {
+      expect(screen.getByTestId(testId), testId).toHaveAttribute("href", SIGNUP_URL);
+      expect(screen.getByTestId(testId), testId).toHaveTextContent("Dùng thử miễn phí 3 tháng");
+    }
+    expect(screen.getByRole("main")).not.toHaveTextContent(/thu hồi quyền/);
   });
 
   it("/about names the company with its legal details", () => {

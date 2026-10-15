@@ -1,152 +1,249 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import LandingPage from "../app/page";
-import { ComparisonSection } from "../components/comparison-section";
-import { HeroSection } from "../components/hero-section";
+import { HOME_FAQ } from "../components/home/home-content";
 import { LandingHeader } from "../components/landing-header";
+import LandingPage from "../app/page";
+import { HERO_VIDEO } from "../lib/media";
+import { PRODUCT_PAGES } from "../lib/site";
 
-describe("landing sections (PRD 2.7)", () => {
-  it("renders the hero with GMV-led heading, promise triplet, reassurance line, and audience badge", () => {
+/** Homepage = company + product overview (D43.2, AC-33.5, P33-B). */
+describe("homepage (D43.2)", () => {
+  it("states the service in one H1 and keeps H1 → H2 → H3 without skipping a level", () => {
+    const { container } = render(<LandingPage />);
+
+    const h1s = screen.getAllByRole("heading", { level: 1 });
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]).toHaveTextContent(
+      "Juli AI — trợ lý AI vận hành cho nhà bán TikTok Shop: phân tích, đề xuất, thực thi sau khi bạn duyệt, đo GMV",
+    );
+    const levels = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((h) =>
+      Number(h.tagName[1]),
+    );
+    expect(levels[0]).toBe(1);
+    levels.forEach((level, i) => {
+      if (i > 0) expect(level).toBeLessThanOrEqual(levels[i - 1]! + 1);
+    });
+    expect(levels.some((level) => level > 3)).toBe(false);
+  });
+
+  it("has the D43.2 sections, in order", () => {
     render(<LandingPage />);
 
-    expect(
-      screen.getByText("Chi phí vận hành và hoa hồng sàn ngày càng tăng?"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        level: 1,
-        name: /tăng trưởng GMV ổn định và mở rộng mà không cần chi thêm nhiều ngân sách/i,
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Dành cho người bán TikTok Shop")).toBeInTheDocument();
-    // Shopee is named in text with its honest status (D42.6, AC-32.9).
-    expect(
-      screen.getByText("TikTok Shop · Shopee (đang tích hợp qua Shopee Open Platform)"),
-    ).toBeInTheDocument();
-    // No unverified partner claim, no "coming soon" placeholder: TikTok's
-    // developer review rejected the site as unfinished (ticket 4486401).
+    const h2s = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(h2s).toEqual([
+      "Sàn thương mại điện tử Juli kết nối",
+      "GMV giảm, nhưng hụt ở đâu?",
+      "Juli làm việc thế nào: Phân tích → Đề xuất → Duyệt → Thực thi → Đo lường",
+      "Ba năng lực chính của Juli",
+      "Dữ liệu an toàn, quyền quyết định là của bạn",
+      "Juli dành cho ai",
+      "Minh bạch thay cho lời quảng cáo",
+      "Chi phí: dùng thử miễn phí 3 tháng, sau đó từ 500K/tháng",
+      "Câu hỏi thường gặp",
+      "Xem shop của bạn đang hụt GMV ở đâu",
+    ]);
+    for (const step of ["Phân tích", "Đề xuất", "Duyệt", "Thực thi", "Đo lường"]) {
+      expect(screen.getByRole("heading", { level: 3, name: step })).toBeInTheDocument();
+    }
+  });
+
+  it("names TikTok Shop as live via the Open API and Shopee only as being integrated (D42.6)", () => {
+    render(<LandingPage />);
+
+    const tiktok = screen.getByTestId("market-tiktok");
+    expect(tiktok).toHaveTextContent("Đang hoạt động");
+    expect(tiktok).toHaveTextContent("TikTok Shop Open API");
+    const shopee = screen.getByTestId("market-shopee");
+    expect(shopee).toHaveTextContent("đang tích hợp qua Shopee Open Platform");
+    expect(shopee).toHaveTextContent("Hiện chưa kết nối được shop Shopee");
+    expect(shopee).not.toHaveTextContent("Đang hoạt động");
     expect(screen.queryByText(/TikTok Shop Partner/)).not.toBeInTheDocument();
     expect(screen.queryByText(/sắp ra mắt/i)).not.toBeInTheDocument();
-    // The outcome triplet is three separate lines, not one run-on sentence.
-    for (const promise of [
-      "Hướng đến +1–3% GMV mỗi tháng",
-      "Tiết kiệm ~1,7 giờ/ngày mỗi nhân sự",
-      "Mở rộng tinh gọn, ROI cao (chi phí từ 500K)",
-    ]) {
-      expect(screen.getByText(promise)).toBeInTheDocument();
+  });
+
+  it("links each capability block to its product page", () => {
+    render(<LandingPage />);
+
+    expect(screen.getByTestId("capability-link-analysis")).toHaveAttribute(
+      "href",
+      PRODUCT_PAGES.analysis.href,
+    );
+    expect(screen.getByTestId("capability-link-actions")).toHaveAttribute(
+      "href",
+      PRODUCT_PAGES.actions.href,
+    );
+    expect(screen.getByTestId("capability-link-measurement")).toHaveAttribute(
+      "href",
+      PRODUCT_PAGES.measurement.href,
+    );
+  });
+
+  it("claims only what Juli executes (D13, D24.5): listings yes; price and promotions stay the seller's", () => {
+    const { container } = render(<LandingPage />);
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("Juli thực thi: tiêu đề, mô tả, thuộc tính sản phẩm");
+    expect(text).toContain("Giá và khuyến mãi: Juli đề xuất, bạn làm trong Seller Center");
+    // The old copy promised things Juli does not do.
+    expect(text).not.toMatch(/tạo đơn nhập|đồng bộ tồn kho|tạo mã giảm giá/i);
+  });
+
+  it("shows no testimonial, case study or outcome figure (D43.3)", () => {
+    const { container } = render(<LandingPage />);
+    const text = container.textContent ?? "";
+
+    expect(text).not.toMatch(/1–3%|1-3%|5–10%|1,7 giờ|29 giờ|ROI cao/);
+    expect(text).not.toMatch(/khách hàng nói|đánh giá của khách|case study/i);
+    // Every percentage on the page would need a source; there are none.
+    expect(text).not.toMatch(/\d\s?%/);
+  });
+
+  it("names the operating company with its tax id and address", () => {
+    render(<LandingPage />);
+
+    const company = screen.getByTestId("home-company");
+    expect(company).toHaveTextContent("Công ty TNHH Công Nghệ Juli AI");
+    expect(company).toHaveTextContent("0319617654");
+    expect(company).toHaveTextContent("1B Đường số 30 Trần Não");
+  });
+
+  it("renders every FAQ question that goes into FAQPage, and 5–8 of them", () => {
+    render(<LandingPage />);
+
+    expect(HOME_FAQ.length).toBeGreaterThanOrEqual(5);
+    expect(HOME_FAQ.length).toBeLessThanOrEqual(8);
+    for (const item of HOME_FAQ) {
+      expect(screen.getByText(item.question)).toBeInTheDocument();
     }
-    expect(
-      screen.getByText(/miễn phí thử nghiệm 3 tháng · dành cho điện thoại/i),
-    ).toBeInTheDocument();
   });
 
-  it("shows the sales demo video in the hero, loaded only on play", () => {
-    render(<LandingPage />);
+  it("emits VideoObject and FAQPage JSON-LD for exactly the shown FAQ", () => {
+    const { container } = render(<LandingPage />);
 
-    const video = screen.getByTestId("hero-demo-video");
-    expect(video).toHaveAttribute("src", "/videos/juli-demo.mp4");
-    expect(video).toHaveAttribute("poster", "/media/juli-demo-poster-v1-1280.webp");
-    expect(video).toHaveAttribute("preload", "none");
-    expect(video).toHaveAttribute("controls");
-    expect(video).not.toHaveAttribute("autoplay");
-  });
-
-  it("renders the four-step story strip", () => {
-    render(<LandingPage />);
-
-    expect(
-      screen.getByRole("region", { name: "Juli làm việc như thế nào" }),
-    ).toBeInTheDocument();
-    for (const label of ["Phân tích", "Gợi ý", "Thực hiện", "Theo dõi"]) {
-      // Each label appears in the strip and again as a feature card title.
-      expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(2);
-    }
-  });
-
-  it("renders the market comparison with Juli highlighted between the two alternatives", () => {
-    render(<LandingPage />);
-
-    expect(
-      screen.getByRole("heading", { name: "Giải pháp trên thị trường" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Tự vận hành")).toBeInTheDocument();
-    expect(screen.getByText("→ Juli ←")).toBeInTheDocument();
-    expect(screen.getByText("Thuê Agency")).toBeInTheDocument();
-    expect(screen.getByText("Không thay thế người bán")).toBeInTheDocument();
-  });
-
-  it("renders feature cards with code-rebuilt mockup content (no flattened bitmaps)", () => {
-    render(<LandingPage />);
-
-    expect(screen.getByText("Sức khỏe tồn kho")).toBeInTheDocument();
-    expect(screen.getByText(/dự báo doanh thu/i)).toBeInTheDocument();
-    expect(screen.getByText("Bổ sung tồn kho kịp thời")).toBeInTheDocument();
-    expect(screen.getByText("Tạo đơn nhập kho tự động")).toBeInTheDocument();
-    expect(screen.getByText("Đẩy khuyến mãi mùa hè")).toBeInTheDocument();
-  });
-
-  it("renders the closing trial CTA section", () => {
-    render(<LandingPage />);
-
-    expect(
-      screen.getByRole("heading", {
-        name: "Tăng trưởng tinh gọn và ổn định, bắt đầu miễn phí.",
-      }),
-    ).toBeInTheDocument();
-  });
-
-  it("renders the footer with brand lockup and contact link", () => {
-    render(<LandingPage />);
-
-    const footer = screen.getByRole("contentinfo");
-    expect(within(footer).getByText("© 2026 Juli AI")).toBeInTheDocument();
-    expect(
-      within(footer).getByRole("link", { name: "lienhe@app-juli.com" }),
-    ).toHaveAttribute("href", "mailto:lienhe@app-juli.com");
-  });
-
-  it("serves one DOM for all breakpoints — layout adapts via CSS only (PRD story 6)", () => {
-    // jsdom applies no media queries; everything the mobile viewport shows must
-    // already be in this single render, and nothing may branch on matchMedia.
-    render(<LandingPage />);
-
-    expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
-    expect(screen.getByRole("contentinfo")).toBeInTheDocument();
-    // Full section census — identical content regardless of viewport.
-    expect(screen.getByText("Giải pháp trên thị trường")).toBeInTheDocument();
-    expect(
-      screen.getByText(/tối ưu từng luồng truy cập, từ thẻ sản phẩm đến live/i),
-    ).toBeInTheDocument();
+    const nodes = [...container.querySelectorAll('script[type="application/ld+json"]')].flatMap(
+      (script) => {
+        const parsed = JSON.parse(script.textContent ?? "{}") as Record<string, unknown>;
+        return (parsed["@graph"] as Record<string, unknown>[] | undefined) ?? [parsed];
+      },
+    );
+    const video = nodes.find((node) => node["@type"] === "VideoObject");
+    expect(video).toMatchObject({
+      contentUrl: "https://app-juli.com/videos/juli-demo.mp4",
+      duration: "PT1M4S",
+    });
+    const faq = nodes.find((node) => node["@type"] === "FAQPage") as {
+      mainEntity: { name: string }[];
+    };
+    expect(faq.mainEntity.map((q) => q.name)).toEqual(HOME_FAQ.map((q) => q.question));
   });
 });
 
-describe("owner copy edits (2026-10-10)", () => {
-  it("hero: no '3 điều' hook, new body line, reassurance above the consent note", () => {
-    const { container } = render(<HeroSection />);
-    expect(screen.queryByText(/Đăng nhập ngay để biết chính xác 3 điều/)).toBeNull();
-    expect(container.textContent).toContain(
-      "Juli giúp mang lại hiệu suất cho các Lượt hiển thị, tỷ lệ bấm, tỷ lệ đặt hàng, giá trị mỗi đơn từ đó:",
-    );
-    const reassurance = container.querySelector(".lp-hero__reassurance");
-    const consent = container.querySelector(".lp-hero__consent");
-    expect(reassurance && consent).toBeTruthy();
-    expect(reassurance!.compareDocumentPosition(consent!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+describe("hero video (D43.6)", () => {
+  it("shows a sized AVIF/WebP poster with a play button and no <video> until clicked", () => {
+    const { container } = render(<LandingPage />);
+
+    expect(screen.queryByTestId("hero-demo-video")).toBeNull();
+    expect(container.querySelector("video")).toBeNull();
+    const play = screen.getByTestId("hero-video-play");
+    expect(play).toHaveAccessibleName(/Phát video giới thiệu Juli/);
+    const img = within(play).getByRole("img");
+    expect(img).toHaveAttribute("width", String(HERO_VIDEO.poster.large.width));
+    expect(img).toHaveAttribute("height", String(HERO_VIDEO.poster.large.height));
+    expect(img).toHaveAttribute("src", "/media/home-demo-poster-v1-1280.webp");
+    expect(img).toHaveAttribute("fetchpriority", "high");
+    expect(play.querySelector('source[type="image/avif"]')).not.toBeNull();
   });
 
-  it("comparison: Juli no longer lists 'Tối ưu từng luồng truy cập'; Agency reads 'Tiến độ hợp tác chậm'", () => {
-    render(<ComparisonSection />);
-    expect(screen.queryByText("Tối ưu từng luồng truy cập")).toBeNull();
-    expect(screen.queryByText("Khó đánh giá hiệu quả thực tế")).toBeNull();
-    expect(screen.getByText("Tiến độ hợp tác chậm")).toBeInTheDocument();
+  it("mounts the video with preload=none only after the click, then plays it", () => {
+    render(<LandingPage />);
+
+    fireEvent.click(screen.getByTestId("hero-video-play"));
+    const video = screen.getByTestId("hero-demo-video");
+    expect(video).toHaveAttribute("src", "/videos/juli-demo.mp4");
+    expect(video).toHaveAttribute("preload", "none");
+    expect(video).toHaveAttribute("controls");
+    expect(video).toHaveAttribute("poster", "/media/home-demo-poster-v1-1280.webp");
+    expect(video).toHaveProperty("autoplay", true);
+    expect(screen.queryByTestId("hero-video-play")).toBeNull();
   });
 
-  it("header nav links the public pages in order (TikTok developer review, ticket 4486401)", () => {
+  it("labels the figures inside the video as illustrative", () => {
+    render(<LandingPage />);
+
+    expect(screen.getByText(/Số liệu trong video là minh hoạ/)).toBeInTheDocument();
+  });
+});
+
+describe("site header", () => {
+  it("links the public pages in order, on desktop and in the mobile menu", () => {
     render(<LandingHeader />);
-    const labels = within(screen.getByRole("navigation", { name: "Điều hướng chính" }))
+    for (const name of ["Điều hướng chính", "Menu trên điện thoại"]) {
+      const labels = within(screen.getByRole("navigation", { name }))
+        .getAllByRole("link")
+        .map((link) => link.textContent);
+      expect(labels, name).toEqual(["Sản phẩm", "Blog", "Giới thiệu", "Liên hệ"]);
+    }
+  });
+
+  it("serves one DOM for all breakpoints — layout adapts via CSS only", () => {
+    render(<LandingPage />);
+
+    expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
+    expect(screen.getByRole("contentinfo")).toBeInTheDocument();
+  });
+});
+
+describe("site footer", () => {
+  it("links the overview, the three capability pages, the TikTok Shop page, blog and company pages", () => {
+    render(<LandingPage />);
+
+    const footer = screen.getByRole("contentinfo");
+    const hrefs = within(footer)
       .getAllByRole("link")
-      .map((link) => link.textContent);
-    expect(labels).toEqual(["Sản phẩm", "Giới thiệu", "Liên hệ"]);
+      .map((link) => link.getAttribute("href"));
+    for (const href of [
+      "/san-pham",
+      "/san-pham/phan-tich-shop",
+      "/san-pham/de-xuat-va-thuc-thi",
+      "/san-pham/do-luong-gmv",
+      "/ket-noi/tiktok-shop",
+      "/blog",
+      "/about",
+      "/contact",
+      "/privacy",
+      "/terms",
+      "mailto:lienhe@app-juli.com",
+    ]) {
+      expect(hrefs, href).toContain(href);
+    }
+    expect(within(footer).getByText("© 2026 Công ty TNHH Công Nghệ Juli AI")).toBeInTheDocument();
+  });
+
+  it("has no social links (D43.8)", () => {
+    render(<LandingPage />);
+
+    const hrefs = within(screen.getByRole("contentinfo"))
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href") ?? "");
+    expect(hrefs.join(" ")).not.toMatch(/facebook|tiktok\.com|youtube|zalo|linkedin|instagram/i);
+  });
+});
+
+describe("owner decisions 2026-10-15 (D43 additions)", () => {
+  it("disconnecting goes through the Juli team, never 'revoke in Seller Center'", () => {
+    const { container } = render(<LandingPage />);
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("bạn liên hệ Juli qua email hoặc trang Liên hệ; đội Juli ngắt kết nối");
+    expect(text).not.toMatch(/thu hồi quyền/);
+  });
+
+  it("states the free trial the way /terms §5 does", () => {
+    render(<LandingPage />);
+
+    expect(
+      screen.getAllByText(/dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ thanh toán/).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 });

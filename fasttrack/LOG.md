@@ -1245,3 +1245,65 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   submit `https://app-juli.com/sitemap.xml`; for demo.app-juli.com use Removals only if old URLs
   linger after the noindex is crawled. (4) No nginx change needed.
 - Next: P33-B / C / D branch from this branch's head.
+
+## 2026-10-15 — P33-B agent (Claude Opus) — homepage + `/san-pham` overview (AC-33.5, AC-33.6)
+
+- Branch `fasttrack/p33b-homepage` from P33-A f55809fd (2f16f2eb..HEAD, pushed; not merged, not
+  deployed).
+- **Homepage** (`app/page.tsx`, `components/home/`): H1 "Juli AI — trợ lý AI vận hành cho nhà bán
+  TikTok Shop: phân tích, đề xuất, thực thi sau khi bạn duyệt, đo GMV"; marketplace strip (TikTok
+  Shop live via Open API · Shopee "đang tích hợp qua Shopee Open Platform", never live), problem,
+  Phân tích → Đề xuất → Duyệt → Thực thi → Đo lường, three capability blocks linking
+  `/san-pham/{phan-tich-shop,de-xuat-va-thuc-thi,do-luong-gmv}`, data safety, audiences,
+  transparency (measurement method, sample-data label, company + MST + address), "từ 500K/tháng
+  · dùng thử 3 tháng", 7-question FAQ + FAQPage, final CTA. CTAs: "Dùng thử 3 tháng" (LOGIN_URL)
+  + "Xem demo" (DEMO_URL); all five still tracked by the pixel.
+- **Hero video**: new poster `public/media/home-demo-poster-v1-{640,1280}.{avif,webp}` (video frame
+  t=19 s, GMV formula, no figure — the old card said "+1–3% GMV"); `<video preload="none">`
+  mounted only on click; VideoObject.
+- **Claims**: "+1–3% GMV mỗi tháng" and "~1,7 giờ/ngày" had no source beyond CONTEXT.md's
+  2026-10-09 hero framing → dropped (D43.3). Also dropped: "ROI cao", the comparison table, and
+  copy promising things Juli does not do (tạo đơn nhập, đồng bộ tồn kho, tạo mã giảm giá on
+  `/san-pham`, alerts via Zalo). Scope now per D13 / D24.5. The video still shows figures →
+  captioned "minh hoạ" + DEBT.
+- **`/san-pham`** rewritten (~1,680 words): what Juli is, the loop, capabilities, does / does
+  not do, integrations, data control, audiences, pricing (`#bang-gia`), FAQ, CTA; breadcrumb
+  (visible + JSON-LD), SoftwareApplication + Offer, FAQPage. Registry titles/descriptions for `/`
+  and `/san-pham` updated.
+- **Header/footer**: header Sản phẩm · Blog · Giới thiệu · Liên hệ + CSS-only mobile menu;
+  footer columns Sản phẩm (overview, 3 capability pages, Kết nối TikTok Shop) / Công ty / Pháp lý,
+  © company name, no social links. `SITE_PAGES` gained `/blog`; `PRODUCT_PAGES`,
+  `FOOTER_PRODUCT_LINKS` in `lib/site.ts`.
+- Deleted the old hero/steps/comparison/features/mockup/trial components and their CSS
+  (`lp-hero*`, `lp-steps*`, `lp-comparison*`, `lp-features*`, `lp-mockup*`, `lp-curiosity*`);
+  new classes `lp-home-*` in `globals.css` (replaces that block). `lp-page-*` untouched for C/D.
+- **Gates (Node 20.20.2)**: landing lint 0, type-check clean, vitest 9 files 79 passed, `next
+  build` OK, `check:seo` 7/7; no horizontal overflow at 390 px (Playwright) on `/`, `/san-pham`,
+  `/about`; `fasttrack/check.sh --since f55809fd`: 5/5 PASS. Lighthouse not run (loaded host).
+- **Integration note**: the new links 404 until P33-C/D merge; merge B with C and D.
+- **Owner questions**: re-cut or replace the hero video (figures + a discount run Juli does not
+  do); confirm "Dùng thử 3 tháng" is free (landing said so; /terms §5 is silent); add an in-app
+  disconnect.
+
+## 2026-10-15 — P33-B agent (Claude Opus) — owner's D43 additions (trial, disconnect, video, poster)
+
+- Recorded **D43 additions** in DECISIONS (video stays; free 3-month trial via `/dang-ky` (P33-F);
+  no disconnect button, the team disconnects on request; keep old poster files).
+- **Landing** (2df45c3e, 7c7a6b22): `SIGNUP_URL` = `/dang-ky` (env `NEXT_PUBLIC_SIGNUP_URL`),
+  `TRIAL_CTA_LABEL` "Dùng thử miễn phí 3 tháng" on home hero / pricing / final and `/san-pham`
+  hero / pricing card / final; `TikTokTracking` now also fires StartDemo for clicks to
+  `SIGNUP_URL` (content_name = testid). `/terms` §5: "Tài khoản mới được dùng thử miễn phí 3
+  tháng kể từ ngày đăng ký, không cần thẻ thanh toán. Sau thời gian dùng thử, phí dịch vụ Juli là
+  500.000đ/tháng." (dated 15/10/2026; **owner's legal review**). Homepage / FAQ / `/san-pham`
+  disconnect copy: contact Juli by email or `/contact`, the Juli team disconnects. `/san-pham`
+  FAQ +2 (trial, disconnect).
+- **Demo** (2e37f3c0): `DemoLanding` at `/?dang-ky=dung-thu` forces the doors and the sign-in
+  door reads "Đăng ký dùng thử miễn phí 3 tháng" (eyebrow "Tài khoản mới"; body + existing-account
+  line); buttons and the P32-A partner door unchanged. "Không cần thẻ thanh toán" verified: no
+  payment integration (Ops "Thanh toán · tự động, sắp có" is disabled; terms granted by contract).
+- **Gates (Node 20.20.2)**: landing lint 0, type-check clean, vitest 81/81, build OK, `check:seo`
+  7/7; demo lint 0 errors (7 pre-existing warnings), type-check clean, vitest 1909/1912 in the full
+  run at load avg ~35 (3 load flakes in `quyet-dinh-p10`, `ops-pages`; 70/70 in isolation with
+  `demo-landing`), `pnpm build:demo --force` OK (example Supabase env); `fasttrack/check.sh
+  --since f55809fd` 5/5 PASS.
+- `/dang-ky` 404s until P33-F integrates (DEBT); `check:seo` does not check links, so no allow-list.
