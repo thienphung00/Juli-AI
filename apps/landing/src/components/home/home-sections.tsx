@@ -232,6 +232,7 @@ export function SafetySection() {
   return (
     <Section labelledBy="safety-heading" tone="alt">
       <SectionIntro
+        className={styles.introWithLink}
         eyebrow="Dữ liệu và quyền quyết định"
         lead={
           <>

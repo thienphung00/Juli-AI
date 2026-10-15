@@ -254,11 +254,20 @@
 @media (min-width: 960px) {
   .capabilities {
     gap: 144px;
-    padding-block: var(--lp-space-18) 112px;
+    padding-block: var(--lp-space-8) 112px;
   }
 }
 
 /* ————— Data safety ————— */
+
+.introWithLink a {
+  color: var(--lp-pink-text);
+  font-weight: var(--lp-weight-semibold);
+}
+
+.introWithLink a:hover {
+  color: var(--lp-pink-text-hover);
+}
 
 .safetyGrid {
   display: grid;
