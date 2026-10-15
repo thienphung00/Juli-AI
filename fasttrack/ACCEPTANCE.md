@@ -675,7 +675,16 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   landing lint 0, type-check clean, vitest 13 files / 178 passed, build OK, `check:seo` 17/17;
   Playwright `/`, `/san-pham`, `/dang-ky` at 1440 + 390, no horizontal overflow,
   `fasttrack/design/p34/evidence/p34a/*.webp`; `check.sh --since 64f7f913` 5/5 PASS.
-- [ ] **AC-34.2** (B) Homepage matches `Main.dc.html` / `HomeMobile.dc.html`.
+- [x] **AC-34.2** (B) Homepage matches `Main.dc.html` / `HomeMobile.dc.html`.
+  Evidence (P34-B, branch `fasttrack/p34b-home`, 2026-10-15): `app/page.tsx` + `components/home/*`
+  built from the P34-A components, section for section (hero shot pair + bird/flight path, strip
+  with `StatusPill`, `StepList`, 3 `FeatureRow`s with `cap-*` shots + mobile crops, safety cards,
+  audiences, transparency + company `dl`, dark pricing band, `FaqList`); "Xem video 1 phút" opens
+  the click-to-load video in a `<dialog>`, VideoObject + one FAQPage JSON-LD; trial CTAs →
+  `SIGNUP_URL`, every CTA keeps a `data-testid`. Deviations (sourced copy over mockup copy, consent
+  line, D13 bullets on cap2) listed in LOG. Landing lint 0, type-check clean, vitest 13 files / 179
+  passed, build OK, `check:seo` 17/17; Playwright 1440 + 390 with no horizontal overflow,
+  `fasttrack/design/p34/evidence/p34b/*.webp`; `check.sh --since c95231e0` 5/5 PASS.
 - [ ] **AC-34.3** (C) `/san-pham`, the 3 capability pages and `/ket-noi/tiktok-shop` match
   `Product.dc.html` (diagrams built in markup, one framed shot per H2, mobile crops readable).
 - [ ] **AC-34.4** (D) Blog index + post template match `Blog.dc.html`; per-category covers and OG

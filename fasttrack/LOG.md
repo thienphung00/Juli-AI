@@ -1520,3 +1520,44 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   `check.sh --since 64f7f913` 5/5 PASS.
 - For B–E: read `apps/landing/src/components/ui/README.md`. Next: B–E build pages on this branch's
   merge; orchestrator merges P34-A first.
+
+## 2026-10-15 — P34-B agent (Claude Opus) — homepage to the D44 mockups (AC-34.2)
+
+- Branch `fasttrack/p34b-home` from `fasttrack/p34a-ui-foundation` @ c95231e0 (see `git log c95231e0..`).
+- **Built** (`app/page.tsx`, `components/home/{home-sections.tsx,home.module.css,hero-video.tsx,home-content.ts}`),
+  section by section from `Main.dc.html` with the P34-A components: hero (badge eyebrow, H1, lead,
+  `hero-trial-cta` → `SIGNUP_URL`, "Xem video 1 phút", note, `ShotFrame` pair `cap-dx-the` 7:5 +
+  floating `cap-pt-pheu`, bird + dashed flight path) · marketplace strip (`StatusPill` live /
+  integrating) · `StepList` loop · 3 `FeatureRow`s (cap-pt-luong + xep-hang stacked, cap-dx-the 3:2
+  reversed, cap-dl-tang-them; mobile crops where they exist) · 4 data-safety `Card`s with `Icon` ·
+  audiences · transparency card + company `dl` · dark pricing band (on-dark CTAs + 500.000đ card) ·
+  FAQ split with `FaqList` (FAQPage JSON-LD only from the page) · header/footer as before.
+  HomeMobile: hero shot on its backdrop with "Dữ liệu mẫu", no flourish/float; strip as a bordered
+  card; stacked full-width CTAs; StepList rows.
+- **Video** (D43.6 kept): "Xem video 1 phút" is a client `<button>` opening a modal `<dialog>`; the
+  `<video preload="none" autoplay controls>` mounts on click and unmounts on close; the caption "Số
+  liệu trong video là minh hoạ" sits under it. VideoObject schema unchanged.
+- **Deviations from the mockup, on purpose**: (1) "Kết nối chính thức" card says sellers authorise on
+  TikTok Shop's page, not "Partner Center" (that is the developer console; the old test forbids it).
+  (2) Cap2 gets the D13/D24.5 bullets (Juli executes title/description/attributes; cover only from
+  the seller's photo; price + promotions by the seller; video/LIVE scripted). (3) FAQ keeps the six
+  sourced `HOME_FAQ` items + "Juli đo hiệu quả…" (7, not the mockup's 6 shortened questions).
+  (4) Hero keeps the consent line (Điều khoản / Chính sách, `hero-consent-note`, TikTok review) and
+  turns "Demo dùng dữ liệu mẫu" into a "Xem demo" link (`hero-demo-cta`). (5) Safety lead adds "not
+  sold" + the privacy link (the dropped "Không bán dữ liệu" card). (6) Audiences keep the sourced
+  longer bodies. (7) The old "GMV giảm, nhưng hụt ở đâu?" problem section and final CTA band are
+  gone (not in the mockup; the dark band is the final CTA).
+- **Tests changed intentionally**: `sections.test.tsx` (new H1 + H2 order, landmarks, StatusPill
+  status, screenshots alt "(dữ liệu mẫu)" + sized + LCP priority, D13 strings, no `%`, company `dl`
+  with mailto, FAQ question + answer shown, exactly one FAQPage, video dialog open/close),
+  `cta.test.tsx` (2 trial CTAs; price stated as 500.000đ/tháng, no "500K", no table),
+  `tiktok-tracking.test.tsx` (6 tracked CTAs). Old home-only `lp-home-*` CSS removed from
+  `globals.css` (26 rules); rules `/san-pham` still uses stay.
+- **Gates** (Node 20.20.2): `pnpm install --frozen-lockfile` OK; landing lint 0, type-check clean,
+  vitest 13 files / 179 passed, `next build` OK, `check:seo` 17/17. Playwright on the production
+  build: `/` at 1440 (6,664 px tall) and 390, `scrollWidth == clientWidth` at both, every image
+  loaded; dialog opened at 1440. Screenshots `fasttrack/design/p34/evidence/p34b/home-{1440,390}-{top,full}.webp`,
+  `home-1440-video.webp`.
+  `PYTHON=… fasttrack/check.sh --since c95231e0` 5/5 PASS (migrations, isolation 12 passed, gitleaks,
+  ruff and pytest n/a — no Python changed).
+- Next: orchestrator merges P34-A, then this branch; owner to confirm the "500.000đ" price wording (DEBT).
