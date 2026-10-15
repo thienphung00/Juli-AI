@@ -10,7 +10,7 @@ import {
   REPLAY_SCENARIO_WORKFLOW_SUBJECT,
   REPLAY_SCENARIO_WORKFLOW_TITLE,
 } from "../fixtures/replay-scenario";
-import { HOME_MATRIX_REGION, navigatePrimaryDestination } from "../helpers/demo-navigation";
+import { HOME_MATRIX_REGION, navigatePrimaryDestination, SAMPLE_ENTRY } from "../helpers/demo-navigation";
 
 /**
  * Issue #1321 (ADR-076 decision 7, PUI-DESIGN.md §9) — the deterministic
@@ -130,7 +130,7 @@ test.describe("Replay journey — issue #1321 (ADR-076 decision 7)", () => {
 
     await test.step("Dùng thử Demo enters the replay — no auth, no session", async () => {
       await page
-        .getByRole("button", { name: "Dùng thử Demo" })
+        .getByRole("button", { name: SAMPLE_ENTRY })
         .click();
       await expect(
         page.getByRole("region", { name: HOME_MATRIX_REGION }),

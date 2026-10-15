@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { SAMPLE_ENTRY } from "../helpers/demo-navigation";
+
 /**
  * The Demo loads the TikTok pixel only for a visitor who arrived from a TikTok
  * ad (owner decision, 2026-09-21). `exit-gate/locale-and-assistance.spec.ts`
@@ -77,7 +79,7 @@ test.describe("TikTok pixel on the Demo", () => {
     const requests = await captureTikTokRequests(page);
 
     await page.goto("/");
-    await expect(page.getByRole("button", { name: "Dùng thử Demo" })).toBeVisible();
+    await expect(page.getByRole("button", { name: SAMPLE_ENTRY })).toBeVisible();
 
     expect(requests).toEqual([]);
     expect(
