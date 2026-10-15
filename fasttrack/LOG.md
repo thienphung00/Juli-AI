@@ -1732,3 +1732,9 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   /dang-ky (390): no horizontal overflow.
 - Open for the owner: hero H1 length (5 lines at 1440), price wording "500.000đ/tháng" vs D43
   "từ 500K", sample figures inside the hero screenshot; 3 blog posts still drafts.
+- P34 deploy run 38733326029 stopped at `check.sh` (CI scope since 0739f4da):
+  `test_issue_397_demo_workspace_contract::test_theme_and_shared_home_primitives_are_consumed_by_demo`
+  pinned `@juli/ui` on the home surface; P34-F's auth screen (D44.5) dropped that import. The test
+  now asserts the demo app still consumes `@juli/ui` (it does: Quyết định, Cài đặt, panels).
+  Local `check.sh --since 0739f4da` (CI scope): 5/5, pytest 206 files / 2990 passed. Lesson:
+  run the integration `check.sh` with the last deploy tag as `--since`, not the phase base.

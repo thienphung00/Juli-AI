@@ -196,7 +196,16 @@ def test_theme_and_shared_home_primitives_are_consumed_by_demo() -> None:
 
     assert '@import "@juli/theme/tokens.css";' in globals_css
     assert '@import "@juli/ui/styles.css";' in globals_css
-    assert 'from "@juli/ui"' in home
+    # The shared primitives are consumed by the app's working surfaces
+    # (Quyết định, Cài đặt, recommendation panels). D44.5 (P34-F) moved the
+    # signed-out entry to its own auth screen with ink buttons, so the home
+    # surface itself no longer has to import `@juli/ui`.
+    consumers = [
+        path
+        for path in _source_files(demo_root)
+        if "__tests__" not in path.parts and 'from "@juli/ui"' in path.read_text(encoding="utf-8")
+    ]
+    assert consumers, "apps/demo no longer consumes @juli/ui anywhere"
     # AC-8.5: Home's figures come from the ADR-108 report and are formatted
     # by `lib/vn-format.ts`, which mirrors the report page's own formatters
     # (backend `shop_diagnosis/render.py`) — not `@juli/utils`, whose mock-era
