@@ -329,7 +329,10 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
 describe("Shopee status is stated honestly on the public pages (D42.6, AC-32.9)", () => {
   it("/privacy has a Shopee section (VN + EN) and no 'in development' line", () => {
     const { container } = render(<PrivacyPolicyPage />);
-    expect(screen.getByText(/4A\. Dữ liệu Shopee/)).toBeInTheDocument();
+    // The heading, not the TOC entry "4A. Dữ liệu Shopee" (P34-E side TOC).
+    expect(
+      screen.getByRole("heading", { level: 2, name: /4A\. Dữ liệu Shopee \(khi bạn kết nối shop Shopee\)/ }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/4A\. Shopee data/)).toBeInTheDocument();
     expect(screen.getByText(/Shopee đang được tích hợp qua Shopee Open Platform/)).toBeInTheDocument();
     expect(screen.getByText(/Shopee is being integrated through Shopee Open Platform/)).toBeInTheDocument();
@@ -345,5 +348,58 @@ describe("Shopee status is stated honestly on the public pages (D42.6, AC-32.9)"
     expect(screen.getByText(/Shopee đang được tích hợp qua Shopee Open Platform/)).toBeInTheDocument();
     expect(screen.getByText(/Shopee is being integrated through Shopee Open Platform/)).toBeInTheDocument();
     expect(container).not.toHaveTextContent(/đang\s+được phát triển/);
+  });
+});
+
+describe("legal template (Legal.dc.html, D44, P34-E)", () => {
+  it.each([
+    ["/privacy", PrivacyPolicyPage],
+    ["/terms", TermsOfServicePage],
+  ])("%s: summary card with its disclaimer, dates, company block, every TOC link resolves", (_path, Page) => {
+    const { container } = render(<Page />);
+    const summary = screen.getByRole("region", { name: "Tóm tắt dễ hiểu" });
+    expect(within(summary).getAllByRole("listitem").length).toBeGreaterThanOrEqual(4);
+    expect(summary).toHaveTextContent("Tóm tắt này không thay thế nội dung đầy đủ bên dưới.");
+    expect(screen.getByText(/Cập nhật lần cuối: 15\/10\/2026 · Có hiệu lực từ 15\/10\/2026/)).toBeInTheDocument();
+    const company = screen.getByTestId("legal-company");
+    for (const value of [COMPANY.name, COMPANY.taxId, COMPANY.address, COMPANY.email]) {
+      expect(company, value).toHaveTextContent(value);
+    }
+    const toc = screen.getByRole("navigation", { name: "Trên trang này" });
+    const targets = within(toc)
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href")?.slice(1) ?? "");
+    expect(targets.length).toBeGreaterThan(8);
+    for (const id of targets) expect(container.querySelector(`#${CSS.escape(id)}`), id).not.toBeNull();
+  });
+
+  it("numbers every Vietnamese H2 and gives it an anchor", () => {
+    render(<TermsOfServicePage />);
+    const numbered = screen
+      .getAllByRole("heading", { level: 2 })
+      .filter((h) => /^\d+[A-Z]?\. /.test(h.textContent ?? ""));
+    expect(numbered.map((h) => h.textContent)).toEqual([
+      "1. Giới thiệu",
+      "2. Juli AI là gì",
+      "3. Tài khoản của bạn",
+      "4. Kết nối shop",
+      "5. Phí dịch vụ",
+      "6. Đề xuất của Juli",
+      "7. Sử dụng hợp lệ",
+      "8. Chấm dứt",
+      "9. Thay đổi điều khoản",
+      "10. Liên hệ",
+    ]);
+    for (const heading of numbered) expect(heading.id).toMatch(/^dieu-\d+$/);
+  });
+
+  it("/privacy keeps its deep links and offers the VN/EN switch (jump to the English version)", () => {
+    const { container } = render(<PrivacyPolicyPage />);
+    for (const id of ["du-lieu-nguoi-dung-google", "dang-ky-dung-thu", "shopee-data", "english", "google-user-data"]) {
+      expect(container.querySelector(`#${id}`), id).not.toBeNull();
+    }
+    const lang = screen.getByRole("navigation", { name: "Ngôn ngữ" });
+    expect(within(lang).getByRole("link", { name: "Tiếng Việt" })).toHaveAttribute("aria-current", "true");
+    expect(within(lang).getByRole("link", { name: "English" })).toHaveAttribute("href", "#english");
   });
 });
