@@ -1,8 +1,34 @@
 import Link from "next/link";
 
-import { CtaLink } from "../../components/cta-link";
-import { SiteHeader } from "../../components/ui/site-header";
+import {
+  CAP_DL_TANG_THEM,
+  CAP_DL_TANG_THEM_MOBILE,
+  CAP_DX_QUY_TAC,
+  CAP_DX_QUY_TAC_MOBILE,
+  CAP_DX_THE,
+  CAP_PT_PHEU,
+  CAP_PT_PHEU_MOBILE,
+} from "../../components/product/screens";
+import {
+  Breadcrumb,
+  Card,
+  CheckList,
+  Container,
+  Eyebrow,
+  FaqList,
+  Heading,
+  LinkButton,
+  Section,
+  SectionIntro,
+  Shot,
+  type ShotImage,
+  StatusPill,
+  type Step,
+  StepList,
+  TextLink,
+} from "../../components/ui";
 import { SiteFooter } from "../../components/ui/site-footer";
+import { SiteHeader } from "../../components/ui/site-header";
 import {
   breadcrumbSchema,
   buildMetadata,
@@ -12,74 +38,102 @@ import {
   softwareApplicationSchema,
 } from "../../lib/seo";
 import { COMPANY, DEMO_URL, PRODUCT_PAGES, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../lib/site";
+import styles from "./overview.module.css";
 
 /**
- * `/san-pham` — product overview (D43.1, D43.4 ~1,500 words, AC-33.6). Rewritten
- * by P33-B from the former `/product` content (`/product` 301s here). Facts:
- * D13 (what Juli executes), D24.4/5/17 (content cards, promotions by the
- * seller, at most 5 new cards a day), D12/D14 (day 7 / day 14, revert),
- * ADR-077 + D34 (comparison with unchanged products, delayed control groups),
- * D42.6 (Shopee being integrated), /privacy §4 (data read), /terms §5 (price).
- * The capability pages it links are P33-C's.
+ * `/san-pham` — product overview (D43.1, D43.4 ~1,500 words, AC-33.6; layout
+ * P34-C, D44 / Product.dc.html). Content by P33-B from the former `/product`
+ * (`/product` 301s here). Facts: D13 (what Juli executes), D24.4/5/17 (content
+ * cards, promotions by the seller, at most 5 new cards a day), D12/D14 (day 7 /
+ * day 14, revert), ADR-077 + D34 (comparison with unchanged products, delayed
+ * control groups — opt-in, being tested), D42.6 (Shopee being integrated),
+ * /privacy §4 (data read), /terms §5 (price).
  */
 export const metadata = buildMetadata("/san-pham");
 
-const LOOP = [
+/** The loop, long form (the home page uses the short `LOOP_STEPS`). */
+const LOOP: readonly Step[] = [
   {
-    title: "1. Phân tích",
-    body: "Mỗi ngày, khi TikTok Shop có số liệu mới, Juli tính lại GMV của từng sản phẩm theo công thức của TikTok: GMV = Lượt hiển thị × CTR × CTOR × AOV. Juli tách số liệu theo luồng truy cập (Thẻ sản phẩm, Video, LIVE) và so với 30 ngày trước cũng như với các sản phẩm khác trong shop. Bước nào thấp hơn mức tham chiếu là bước đang làm hụt GMV.",
+    title: "Phân tích",
+    body: "Mỗi ngày, khi TikTok Shop có số liệu mới, Juli tính lại GMV của từng sản phẩm theo công thức của TikTok: GMV = Lượt hiển thị × CTR × CTOR × AOV. Juli tách số liệu theo năm luồng truy cập (Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết) và so với 30 ngày trước cũng như với các sản phẩm khác trong shop. Bước nào thấp hơn mức tham chiếu là bước đang làm hụt GMV.",
   },
   {
-    title: "2. Đề xuất",
+    title: "Đề xuất",
     body: "Từ bước yếu nhất, Juli chọn việc cần làm. CTR thấp thường là chuyện ảnh bìa và tiêu đề. CTOR thấp thường là mô tả, thuộc tính, giá hoặc khuyến mãi. Mỗi thẻ đề xuất ghi rõ sản phẩm, chỉ số, lý do và mức GMV có thể lấy lại mỗi ngày. Juli đưa ra tối đa 5 đề xuất mới mỗi ngày, xếp theo GMV có thể tăng thêm.",
   },
   {
-    title: "3. Duyệt",
+    title: "Duyệt",
     body: "Bạn mở thẻ, xem nội dung Juli soạn và so với nội dung hiện tại. Bạn có thể sửa câu chữ, đặt câu hỏi, hoặc từ chối kèm lý do. Lý do từ chối giúp Juli xếp hạng những đề xuất sau cho đúng với shop của bạn hơn.",
+    you: true,
   },
   {
-    title: "4. Thực thi",
+    title: "Thực thi",
     body: "Khi bạn duyệt một thẻ tiêu đề, mô tả hoặc thuộc tính, Juli gửi thay đổi lên TikTok Shop qua API chính thức và lưu lại giá trị cũ. TikTok Shop có thể duyệt lại trang sản phẩm như mọi lần chỉnh sửa khác. Với giá, khuyến mãi và video, Juli chuẩn bị sẵn và bạn thực hiện.",
   },
   {
-    title: "5. Đo lường",
-    body: "Juli ghi mức GMV dự kiến trước khi thay đổi, đọc kết quả sơ bộ ở ngày 7 và kết quả chốt ở ngày 14. Kết quả được so với các sản phẩm tương tự chưa thay đổi. Nếu ở ngày 7 kết quả kém rõ rệt so với dự kiến, Juli đề xuất hoàn tác ngay.",
+    title: "Đo lường",
+    body: "Juli ghi mức GMV dự kiến trước khi thay đổi, đọc kết quả sơ bộ ở ngày 7 và kết quả chốt ở ngày 14, đặt mức thay đổi cạnh mức dao động bình thường của chỉ số. Nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác không.",
   },
-] as const;
+];
 
-const CAPABILITIES = [
+const CAPABILITIES: ReadonlyArray<{
+  page: { href: string; label: string };
+  eyebrow: string;
+  title: string;
+  body: string;
+  points: readonly string[];
+  shot: ShotImage;
+}> = [
   {
     page: PRODUCT_PAGES.analysis,
+    eyebrow: "Phân tích",
     title: "Phân tích shop theo luồng truy cập",
-    body: "Trang Phân tích cho bạn thấy GMV của shop đến từ đâu: Thẻ sản phẩm, Video hay LIVE, và trong mỗi luồng, bước nào của phễu đang yếu. Bạn không cần ghép nhiều báo cáo từ Seller Center; Juli dùng đúng tên chỉ số của TikTok Shop để bạn đối chiếu.",
+    body: "Trang Phân tích cho bạn thấy GMV của shop đến từ đâu: Thẻ sản phẩm, Tab cửa hàng, Video, LIVE hay Liên kết, và trong mỗi luồng, bước nào của phễu đang yếu. Bạn không cần ghép nhiều báo cáo từ Seller Center; Juli dùng đúng tên chỉ số của TikTok Shop để bạn đối chiếu.",
     points: [
       "Lượt hiển thị, CTR, CTOR, AOV và GMV theo từng sản phẩm",
       "So với 30 ngày trước và với các sản phẩm cùng shop",
       "Ước tính GMV có thể lấy lại mỗi ngày ở từng bước",
     ],
+    shot: {
+      alt: "Phễu luồng Thẻ sản phẩm: Lượt hiển thị, CTR, CTOR, AOV và GMV mỗi ngày, ô CTOR được Juli đánh dấu (dữ liệu mẫu)",
+      mobileVariants: CAP_PT_PHEU_MOBILE,
+      variants: CAP_PT_PHEU,
+    },
   },
   {
     page: PRODUCT_PAGES.actions,
+    eyebrow: "Đề xuất và thực thi",
     title: "Đề xuất và thực thi sau khi bạn duyệt",
-    body: "Trang Quyết định gom các việc nên làm thành thẻ, mỗi thẻ một sản phẩm và một hành động. Juli soạn sẵn nội dung mới; bạn duyệt là Juli cập nhật lên TikTok Shop. Việc cần bạn tự làm được ghi rõ là việc của bạn.",
+    body: "Trang Quyết định gom các việc nên làm thành thẻ, mỗi thẻ một sản phẩm và một hành động. Juli soạn sẵn nội dung mới; bạn duyệt và xác nhận là Juli cập nhật lên TikTok Shop. Việc cần bạn tự làm được ghi rõ là việc của bạn.",
     points: [
       "Juli tự cập nhật: tiêu đề, mô tả, thuộc tính",
       "Ảnh bìa: Juli phân tích và đề xuất, chỉ tải lên ảnh do bạn cung cấp",
       "Giá và khuyến mãi: Juli đề xuất trong giới hạn biên lợi nhuận bạn đặt",
       "Video và LIVE: Juli soạn kịch bản, bạn quay hoặc lên LIVE",
     ],
+    shot: {
+      alt: "Thẻ đề xuất cho Son môi số 12: chỉ số mục tiêu CTOR Thẻ sản phẩm, GMV dự kiến, lý do và tiêu đề trước và sau (dữ liệu mẫu)",
+      crop: 4 / 3,
+      variants: CAP_DX_THE,
+    },
   },
   {
     page: PRODUCT_PAGES.measurement,
+    eyebrow: "Đo lường",
     title: "Đo lường GMV tăng thêm",
-    body: "Trang Đo lường theo dõi từng thay đổi đã thực thi. Juli không chỉ so trước và sau, vì GMV có thể tăng do mùa vụ, do thuật toán hay do đối thủ. Juli so với nhóm sản phẩm tương tự chưa thay đổi để ước tính phần GMV tăng thêm thật sự do thay đổi tạo ra.",
+    body: "Trang Đo lường theo dõi từng thay đổi đã thực thi. Juli không chỉ so trước và sau, vì GMV có thể tăng do mùa vụ, do thuật toán hay do đối thủ. Juli đặt mỗi mức thay đổi cạnh mức dao động bình thường của chỉ số, ghi chú những thay đổi bên ngoài Juli, và đang thử nghiệm so với nhóm sản phẩm tương tự chưa thay đổi.",
     points: [
       "Kết quả sơ bộ ngày 7, kết quả chốt ngày 14",
       "Tuỳ chọn nhóm thử nghiệm có đối chứng chậm khi shop đủ sản phẩm",
       "Kết quả đo được dùng để điều chỉnh thứ tự đề xuất sau",
     ],
+    shot: {
+      alt: "Bảng kết quả ngày 7: chỉ số chính Đang lên, các chỉ số khác Giữ ổn định, GMV mỗi ngày ghi Sơ bộ (dữ liệu mẫu)",
+      mobileVariants: CAP_DL_TANG_THEM_MOBILE,
+      variants: CAP_DL_TANG_THEM,
+    },
   },
-] as const;
+];
 
 const SCOPE = [
   {
@@ -129,13 +183,12 @@ const FAQ: readonly FaqItem[] = [
   },
   {
     question: "Juli có hỗ trợ Shopee không?",
-    answer:
-      "Juli đang tích hợp qua Shopee Open Platform. Hiện bạn chỉ kết nối được TikTok Shop.",
+    answer: "Juli đang tích hợp qua Shopee Open Platform. Hiện bạn chỉ kết nối được TikTok Shop.",
   },
   {
     question: "Một thay đổi bị đo là kém hiệu quả thì sao?",
     answer:
-      "Nếu kết quả ngày 7 kém rõ rệt so với dự kiến, Juli đề xuất hoàn tác về giá trị cũ đã lưu. Kết quả này cũng làm Juli ưu tiên thấp hơn cho cùng loại hành động ở shop của bạn.",
+      "Nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác về giá trị cũ đã lưu; Juli không tự hoàn tác. Kết quả này cũng làm Juli ưu tiên thấp hơn cho cùng loại hành động ở shop của bạn.",
   },
   {
     question: "Dùng thử miễn phí thế nào, khi nào bắt đầu tính phí?",
@@ -165,275 +218,283 @@ export default function ProductPage() {
         ]}
       />
       <SiteHeader />
-      <main className="lp-main lp-home">
-        <section aria-labelledby="product-heading" className="lp-home-hero lp-home-hero--single">
-          <div className="lp-home-inner">
-            <nav aria-label="Đường dẫn" className="lp-breadcrumb">
-              <Link href="/">Trang chủ</Link> <span aria-hidden="true">›</span>{" "}
-              <span aria-current="page">Sản phẩm</span>
-            </nav>
-            <h1 className="lp-home-hero__heading" id="product-heading">
-              Juli AI: phần mềm AI vận hành TikTok Shop, từ phân tích đến đo GMV tăng thêm
-            </h1>
-            <p className="lp-home-hero__lead">
-              Juli AI là phần mềm dạng dịch vụ (SaaS) do {COMPANY.name} phát triển cho nhà bán
-              TikTok Shop tại Việt Nam. Juli đọc dữ liệu shop, tìm chỗ GMV đang hụt, đề xuất việc
-              cụ thể, thực thi khi bạn duyệt và đo kết quả của từng thay đổi.
-            </p>
-            <div className="lp-home-hero__actions">
-              <CtaLink data-testid="product-trial-cta" href={SIGNUP_URL} size="large">
-                {TRIAL_CTA_LABEL}
-              </CtaLink>
-              <CtaLink
-                data-testid="product-demo-cta"
-                href={DEMO_URL}
-                size="large"
-                variant="secondary"
-              >
-                Xem demo
-              </CtaLink>
-            </div>
-          </div>
-        </section>
-
-        <section aria-labelledby="what-heading" className="lp-home-section">
-          <div className="lp-home-inner">
-            <h2 className="lp-home-section__heading" id="what-heading">
-              Juli AI là gì
-            </h2>
-            <p className="lp-home-section__body">
-              Người bán TikTok Shop có rất nhiều số liệu nhưng ít thời gian để đọc chúng. Mỗi
-              sản phẩm có Lượt hiển thị, CTR, CTOR và AOV riêng, lại chia theo Thẻ sản phẩm,
-              Video và LIVE. Khi GMV giảm, câu hỏi khó nhất là: giảm ở bước nào, ở sản phẩm nào,
-              và nên sửa gì trước.
-            </p>
-            <p className="lp-home-section__body">
-              Juli trả lời câu hỏi đó mỗi ngày. Juli là một trợ lý AI vận hành: Juli phân tích dữ
-              liệu của chính shop bạn, chọn những việc có khả năng mang lại nhiều GMV nhất, soạn
-              sẵn nội dung, và chỉ gửi thay đổi lên shop sau khi bạn duyệt. Sau đó Juli đo xem
-              thay đổi đó có thật sự giúp GMV tăng hay không.
-            </p>
-            <p className="lp-home-section__body">
-              Juli không thay thế người bán. Những quyết định về giá, khuyến mãi và nội dung
-              video vẫn là của bạn. Juli làm phần việc tốn thời gian: đọc số liệu, tìm nguyên
-              nhân, soạn nội dung và theo dõi kết quả.
-            </p>
-          </div>
-        </section>
-
-        <section
-          aria-labelledby="loop-heading"
-          className="lp-home-section lp-home-section--tinted"
-        >
-          <div className="lp-home-inner">
-            <h2 className="lp-home-section__heading" id="loop-heading">
-              Vòng làm việc: Phân tích → Đề xuất → Duyệt → Thực thi → Đo lường
-            </h2>
-            <ol className="lp-home-steps lp-home-steps--wide">
-              {LOOP.map((step) => (
-                <li className="lp-home-step" key={step.title}>
-                  <h3 className="lp-home-step__title">{step.title}</h3>
-                  <p className="lp-home-step__body">{step.body}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        <section aria-labelledby="capabilities-heading" className="lp-home-section">
-          <div className="lp-home-inner">
-            <h2 className="lp-home-section__heading" id="capabilities-heading">
-              Ba năng lực chính
-            </h2>
-            <div className="lp-home-grid lp-home-grid--three">
-              {CAPABILITIES.map((item) => (
-                <article className="lp-home-card lp-home-card--capability" key={item.page.href}>
-                  <h3 className="lp-home-card__title">{item.title}</h3>
-                  <p className="lp-home-card__body">{item.body}</p>
-                  <ul className="lp-home-list">
-                    {item.points.map((point) => (
-                      <li key={point}>{point}</li>
-                    ))}
-                  </ul>
-                  <Link className="lp-home-link lp-home-card__more" href={item.page.href}>
-                    Xem chi tiết: {item.page.label} ›
-                  </Link>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section
-          aria-labelledby="scope-heading"
-          className="lp-home-section lp-home-section--tinted"
-        >
-          <div className="lp-home-inner">
-            <h2 className="lp-home-section__heading" id="scope-heading">
-              Juli làm gì và không làm gì trên shop của bạn
-            </h2>
-            <div className="lp-home-grid lp-home-grid--three">
-              {SCOPE.map((group) => (
-                <article className="lp-home-card" key={group.title}>
-                  <h3 className="lp-home-card__title">{group.title}</h3>
-                  <ul className="lp-home-list">
-                    {group.items.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section aria-labelledby="integrations-heading" className="lp-home-section">
-          <div className="lp-home-inner">
-            <h2 className="lp-home-section__heading" id="integrations-heading">
-              Kết nối và tích hợp
-            </h2>
-            <div className="lp-home-grid lp-home-grid--three">
-              <article className="lp-home-card">
-                <h3 className="lp-home-card__title">TikTok Shop: đang hoạt động</h3>
-                <p className="lp-home-card__body">
-                  Kết nối chính thức qua TikTok Shop Open API. Juli đọc đơn hàng, sản phẩm, tồn
-                  kho, đơn hoàn và huỷ, số liệu hiệu suất theo luồng truy cập, hiệu suất video và
-                  LIVE, chương trình khuyến mãi của shop.
+      <main className={styles.main}>
+        <section aria-labelledby="product-heading" className={styles.hero}>
+          <Container>
+            <Breadcrumb current="Sản phẩm" items={[{ href: "/", label: "Trang chủ" }]} />
+            <div className={styles.heroSplit}>
+              <div className={styles.heroTitle}>
+                <Eyebrow>Sản phẩm</Eyebrow>
+                <Heading id="product-heading" level={1} size="page">
+                  Juli AI: phần mềm AI vận hành TikTok Shop, từ phân tích đến đo GMV tăng thêm
+                </Heading>
+              </div>
+              <div className={styles.heroAside}>
+                <p className="ui-lead">
+                  Juli AI là phần mềm dạng dịch vụ (SaaS) do {COMPANY.name} phát triển cho nhà bán
+                  TikTok Shop tại Việt Nam. Juli đọc dữ liệu shop, tìm chỗ GMV đang hụt, đề xuất việc
+                  cụ thể, thực thi khi bạn duyệt và đo kết quả của từng thay đổi.
                 </p>
-                <Link className="lp-home-link" href={PRODUCT_PAGES.tiktokShop.href}>
-                  Cách kết nối TikTok Shop ›
-                </Link>
-              </article>
-              <article className="lp-home-card">
-                <h3 className="lp-home-card__title">Shopee: đang tích hợp</h3>
-                <p className="lp-home-card__body">
-                  Juli đang tích hợp qua Shopee Open Platform. Hiện chưa kết nối được shop Shopee.
-                  Cách Juli sẽ dùng dữ liệu Shopee đã được nêu trước trong Chính sách bảo mật.
-                </p>
-                <Link className="lp-home-link" href="/privacy#shopee-data">
-                  Dữ liệu Shopee trong Chính sách bảo mật ›
-                </Link>
-              </article>
-              <article className="lp-home-card">
-                <h3 className="lp-home-card__title">Đăng nhập và thiết bị</h3>
-                <p className="lp-home-card__body">
-                  Đăng nhập bằng Google hoặc mã gửi qua email. Giao diện thiết kế cho điện thoại
-                  trước, nên chủ shop và đội vận hành duyệt đề xuất được ở bất cứ đâu, trên điện
-                  thoại hoặc máy tính.
-                </p>
-              </article>
-            </div>
-          </div>
-        </section>
-
-        <section
-          aria-labelledby="data-heading"
-          className="lp-home-section lp-home-section--tinted"
-        >
-          <div className="lp-home-inner">
-            <h2 className="lp-home-section__heading" id="data-heading">
-              Dữ liệu và quyền kiểm soát
-            </h2>
-            <ul className="lp-home-list lp-home-list--loose">
-              <li>Kết nối qua trang uỷ quyền chính thức của TikTok Shop; Juli không nhận mật khẩu shop.</li>
-              <li>Mỗi thay đổi ghi lên shop cần bạn duyệt riêng, và giá trị cũ được lưu để hoàn tác.</li>
-              <li>
-                Muốn ngắt kết nối shop, bạn liên hệ Juli qua email {COMPANY.email} hoặc{" "}
-                <Link className="lp-home-link" href="/contact">
-                  trang Liên hệ
-                </Link>
-                ; đội Juli ngắt kết nối và Juli ngừng đồng bộ dữ liệu mới ngay sau đó.
-              </li>
-              <li>Khi bạn yêu cầu xoá tài khoản, dữ liệu tài khoản và dữ liệu shop được xoá trong vòng 30 ngày.</li>
-            </ul>
-            <p className="lp-home-section__body">
-              Chi tiết xem tại{" "}
-              <Link className="lp-home-link" href="/privacy">
-                Chính sách bảo mật
-              </Link>{" "}
-              và{" "}
-              <Link className="lp-home-link" href="/terms">
-                Điều khoản dịch vụ
-              </Link>
-              .
-            </p>
-          </div>
-        </section>
-
-        <section aria-labelledby="audience-heading" className="lp-home-section">
-          <div className="lp-home-inner">
-            <h2 className="lp-home-section__heading" id="audience-heading">
-              Dành cho ai
-            </h2>
-            <p className="lp-home-section__body">
-              Juli dành cho nhà bán TikTok Shop nhỏ và vừa muốn tăng GMV mà không thêm người
-              phân tích; cho đội vận hành sàn muốn bớt thời gian tổng hợp số liệu; cho người làm
-              affiliate cùng shop cần biết sản phẩm nào đang chuyển đổi tốt qua Video và LIVE; và
-              cho agency cần một cách đo thống nhất khi báo cáo cho nhiều shop.
-            </p>
-          </div>
-        </section>
-
-        <section
-          aria-labelledby="pricing-heading"
-          className="lp-home-section lp-home-section--tinted"
-          id="bang-gia"
-        >
-          <div className="lp-home-inner">
-            <h2 className="lp-home-section__heading" id="pricing-heading">
-              Bảng giá
-            </h2>
-            <article className="lp-home-card lp-home-card--price" data-testid="product-pricing">
-              <h3 className="lp-home-card__title">Juli AI</h3>
-              <p className="lp-home-price">500.000đ/tháng</p>
-              <ul className="lp-home-list">
-                <li>Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký</li>
-                <li>Không cần thẻ thanh toán khi đăng ký</li>
-                <li>Đầy đủ phân tích, đề xuất, thực thi và đo lường</li>
-                <li>Huỷ bất cứ lúc nào</li>
-              </ul>
-              <CtaLink data-testid="product-pricing-trial-cta" href={SIGNUP_URL} size="large">
-                {TRIAL_CTA_LABEL}
-              </CtaLink>
-            </article>
-          </div>
-        </section>
-
-        <section aria-labelledby="faq-heading" className="lp-home-section">
-          <div className="lp-home-inner">
-            <h2 className="lp-home-section__heading" id="faq-heading">
-              Câu hỏi thường gặp
-            </h2>
-            <dl className="lp-page-faq">
-              {FAQ.map((item) => (
-                <div className="lp-page-faq__item" key={item.question}>
-                  <dt className="lp-page-faq__question">{item.question}</dt>
-                  <dd className="lp-page-faq__answer">{item.answer}</dd>
+                <div className={styles.actions}>
+                  <LinkButton data-testid="product-trial-cta" href={SIGNUP_URL} size="md">
+                    {TRIAL_CTA_LABEL}
+                  </LinkButton>
+                  <LinkButton data-testid="product-demo-cta" href={DEMO_URL} size="md" variant="secondary">
+                    Xem demo
+                  </LinkButton>
                 </div>
-              ))}
-            </dl>
-          </div>
+              </div>
+            </div>
+            <Shot
+              caption="Dữ liệu mẫu · Cửa hàng Mẫu Hoa Mai"
+              chrome="Quyết định · Juli"
+              className={styles.heroShot}
+              images={{
+                alt: "Đầu trang Quyết định: 4 thẻ tối ưu để nâng CTOR Thẻ sản phẩm, ngưỡng giữ ổn định và quy tắc do bạn đặt (dữ liệu mẫu)",
+                mobileVariants: CAP_DX_QUY_TAC_MOBILE,
+                variants: CAP_DX_QUY_TAC,
+              }}
+              padding="lg"
+              priority
+              sizes="(min-width: 1200px) 1088px, 100vw"
+            />
+          </Container>
         </section>
 
-        <section aria-labelledby="start-heading" className="lp-home-final">
-          <h2 className="lp-home-final__heading" id="start-heading">
-            Bắt đầu với dữ liệu thật của shop bạn
-          </h2>
-          <p className="lp-home-final__body">
-            Dùng thử miễn phí 3 tháng, không cần thẻ thanh toán, hoặc xem bản Demo với dữ liệu mẫu trước.
-          </p>
-          <div className="lp-home-hero__actions lp-home-final__actions">
-            <CtaLink data-testid="product-final-trial-cta" href={SIGNUP_URL} size="large">
-              {TRIAL_CTA_LABEL}
-            </CtaLink>
-            <CtaLink href={DEMO_URL} size="large" variant="secondary">
-              Xem demo
-            </CtaLink>
-            <CtaLink href="/contact" size="large" variant="ghost">
-              Liên hệ tư vấn
-            </CtaLink>
+        <Section labelledBy="what-heading" width="reading">
+          <div className={styles.prose}>
+            <Heading id="what-heading" level={2} size="feature">
+              Juli AI là gì
+            </Heading>
+            <p className="ui-body">
+              Người bán TikTok Shop có rất nhiều số liệu nhưng ít thời gian để đọc chúng. Mỗi sản phẩm có
+              Lượt hiển thị, CTR, CTOR và AOV riêng, lại chia theo Thẻ sản phẩm, Video và LIVE. Khi GMV
+              giảm, câu hỏi khó nhất là: giảm ở bước nào, ở sản phẩm nào, và nên sửa gì trước.
+            </p>
+            <p className="ui-body">
+              Juli trả lời câu hỏi đó mỗi ngày. Juli là một trợ lý AI vận hành: Juli phân tích dữ liệu của
+              chính shop bạn, chọn những việc có khả năng mang lại nhiều GMV nhất, soạn sẵn nội dung, và
+              chỉ gửi thay đổi lên shop sau khi bạn duyệt. Sau đó Juli đo xem thay đổi đó có thật sự giúp
+              GMV tăng hay không.
+            </p>
+            <p className="ui-body">
+              Juli không thay thế người bán. Những quyết định về giá, khuyến mãi và nội dung video vẫn là
+              của bạn. Juli làm phần việc tốn thời gian: đọc số liệu, tìm nguyên nhân, soạn nội dung và
+              theo dõi kết quả.
+            </p>
           </div>
-        </section>
+        </Section>
+
+        <Section labelledBy="loop-heading" tone="alt">
+          <SectionIntro
+            eyebrow="Cách Juli làm việc"
+            title="Vòng làm việc: Phân tích → Đề xuất → Duyệt → Thực thi → Đo lường"
+            titleId="loop-heading"
+          />
+          <StepList className={styles.loop} steps={LOOP} />
+        </Section>
+
+        <Section labelledBy="capabilities-heading">
+          <SectionIntro
+            eyebrow="Năng lực"
+            lead="Mỗi năng lực có một trang riêng, giải thích cách Juli làm và ảnh màn hình thật với dữ liệu mẫu."
+            title="Ba năng lực chính"
+            titleId="capabilities-heading"
+          />
+          <div className={styles.capGrid}>
+            {CAPABILITIES.map((item) => (
+              <Card as="article" className={styles.capCard} key={item.page.href}>
+                <Shot backdrop={false} images={item.shot} sizes="(min-width: 960px) 360px, 100vw" />
+                <Eyebrow>{item.eyebrow}</Eyebrow>
+                <Heading level={3} size="card">
+                  {item.title}
+                </Heading>
+                <p>{item.body}</p>
+                <CheckList items={item.points} />
+                <TextLink className={styles.capLink} href={item.page.href}>
+                  {`Xem ${item.page.label}`}
+                </TextLink>
+              </Card>
+            ))}
+          </div>
+        </Section>
+
+        <Section labelledBy="scope-heading" tone="alt">
+          <SectionIntro title="Juli làm gì và không làm gì trên shop của bạn" titleId="scope-heading" />
+          <div className={styles.grid3}>
+            {SCOPE.map((group) => (
+              <Card key={group.title}>
+                <Heading level={3} size="card">
+                  {group.title}
+                </Heading>
+                <ul className={styles.list}>
+                  {group.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </Card>
+            ))}
+          </div>
+        </Section>
+
+        <Section labelledBy="integrations-heading">
+          <SectionIntro
+            eyebrow="Tích hợp"
+            title="Kết nối và tích hợp"
+            titleId="integrations-heading"
+          />
+          <div className={styles.grid3}>
+            <Card>
+              <div className={styles.integrationHead}>
+                <Heading level={3} size="card">
+                  TikTok Shop
+                </Heading>
+                <StatusPill status="live" />
+              </div>
+              <p>
+                Kết nối chính thức qua TikTok Shop Open API. Juli đọc đơn hàng, sản phẩm, tồn kho, đơn
+                hoàn và huỷ, số liệu hiệu suất theo luồng truy cập, hiệu suất video và LIVE, chương trình
+                khuyến mãi của shop.
+              </p>
+              <TextLink href={PRODUCT_PAGES.tiktokShop.href}>Cách kết nối TikTok Shop</TextLink>
+            </Card>
+            <Card>
+              <div className={styles.integrationHead}>
+                <Heading level={3} size="card">
+                  Shopee
+                </Heading>
+                <StatusPill status="integrating" />
+              </div>
+              <p>
+                Juli đang tích hợp qua Shopee Open Platform. Hiện chưa kết nối được shop Shopee. Cách Juli
+                sẽ dùng dữ liệu Shopee đã được nêu trước trong Chính sách bảo mật.
+              </p>
+              <TextLink href="/privacy#shopee-data">Dữ liệu Shopee trong Chính sách bảo mật</TextLink>
+            </Card>
+            <Card>
+              <Heading level={3} size="card">
+                Đăng nhập và thiết bị
+              </Heading>
+              <p>
+                Đăng nhập bằng Google hoặc mã gửi qua email. Giao diện thiết kế cho điện thoại trước, nên
+                chủ shop và đội vận hành duyệt đề xuất được ở bất cứ đâu, trên điện thoại hoặc máy tính.
+              </p>
+            </Card>
+          </div>
+        </Section>
+
+        <Section labelledBy="data-heading" tone="alt">
+          <div className={styles.split}>
+            <SectionIntro eyebrow="An toàn dữ liệu" title="Dữ liệu và quyền kiểm soát" titleId="data-heading" />
+            <div className={styles.prose}>
+              <CheckList
+                items={[
+                  "Kết nối qua trang uỷ quyền chính thức của TikTok Shop; Juli không nhận mật khẩu shop.",
+                  "Mỗi thay đổi ghi lên shop cần bạn duyệt riêng, và giá trị cũ được lưu để hoàn tác.",
+                  <>
+                    Muốn ngắt kết nối shop, bạn liên hệ Juli qua email {COMPANY.email} hoặc{" "}
+                    <Link className={styles.a} href="/contact">
+                      trang Liên hệ
+                    </Link>
+                    ; đội Juli ngắt kết nối và Juli ngừng đồng bộ dữ liệu mới ngay sau đó.
+                  </>,
+                  "Khi bạn yêu cầu xoá tài khoản, dữ liệu tài khoản và dữ liệu shop được xoá trong vòng 30 ngày.",
+                ]}
+              />
+              <p className="ui-body">
+                Chi tiết xem tại{" "}
+                <Link className={styles.a} href="/privacy">
+                  Chính sách bảo mật
+                </Link>{" "}
+                và{" "}
+                <Link className={styles.a} href="/terms">
+                  Điều khoản dịch vụ
+                </Link>
+                .
+              </p>
+            </div>
+          </div>
+        </Section>
+
+        <Section labelledBy="audience-heading" width="reading">
+          <div className={styles.prose}>
+            <Heading id="audience-heading" level={2} size="feature">
+              Dành cho ai
+            </Heading>
+            <p className="ui-body">
+              Juli dành cho nhà bán TikTok Shop nhỏ và vừa muốn tăng GMV mà không thêm người phân tích;
+              cho đội vận hành sàn muốn bớt thời gian tổng hợp số liệu; cho người làm affiliate cùng shop
+              cần biết sản phẩm nào đang chuyển đổi tốt qua Video và LIVE; và cho agency cần một cách đo
+              thống nhất khi báo cáo cho nhiều shop.
+            </p>
+          </div>
+        </Section>
+
+        <Section className={styles.pricingSection} id="bang-gia" labelledBy="pricing-heading" tone="alt">
+          <div className={styles.split}>
+            <SectionIntro
+              lead="Một gói, đầy đủ tính năng. Giá giống nhau cho mọi shop."
+              title="Bảng giá"
+              titleId="pricing-heading"
+            />
+            <Card className={styles.price} data-testid="product-pricing" tone="highlight">
+              <Heading level={3} size="card">
+                Juli AI
+              </Heading>
+              <p className={styles.priceValue}>500.000đ/tháng</p>
+              <CheckList
+                items={[
+                  "Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký",
+                  "Không cần thẻ thanh toán khi đăng ký",
+                  "Đầy đủ phân tích, đề xuất, thực thi và đo lường",
+                  "Huỷ bất cứ lúc nào",
+                ]}
+              />
+              <LinkButton blockOnMobile data-testid="product-pricing-trial-cta" href={SIGNUP_URL}>
+                {TRIAL_CTA_LABEL}
+              </LinkButton>
+            </Card>
+          </div>
+        </Section>
+
+        <Section labelledBy="faq-heading">
+          <div className={styles.faq}>
+            <div className={styles.faqIntro}>
+              <Heading id="faq-heading" level={2} size="feature">
+                Câu hỏi thường gặp
+              </Heading>
+              <p className="ui-body">
+                Chưa thấy câu trả lời? <TextLink href="/contact">Liên hệ Juli</TextLink>
+              </p>
+            </div>
+            <FaqList items={FAQ} openFirst />
+          </div>
+        </Section>
+
+        <Section labelledBy="start-heading" spacing="compact" tone="dark">
+          <div className={styles.band}>
+            <div className={styles.bandText}>
+              <Heading id="start-heading" level={2} onDark size="article">
+                Bắt đầu với dữ liệu thật của shop bạn
+              </Heading>
+              <p className="ui-lead ui-lead--on-dark">
+                Dùng thử miễn phí 3 tháng, không cần thẻ thanh toán, hoặc xem bản Demo với dữ liệu mẫu
+                trước.
+              </p>
+            </div>
+            <div className={styles.actions}>
+              <LinkButton data-testid="product-final-trial-cta" href={SIGNUP_URL} variant="on-dark">
+                {TRIAL_CTA_LABEL}
+              </LinkButton>
+              <LinkButton data-testid="product-final-demo-cta" href={DEMO_URL} variant="on-dark-secondary">
+                Xem demo
+              </LinkButton>
+              <LinkButton data-testid="product-contact-cta" href="/contact" variant="on-dark-secondary">
+                Liên hệ tư vấn
+              </LinkButton>
+            </div>
+          </div>
+        </Section>
       </main>
       <SiteFooter />
     </>

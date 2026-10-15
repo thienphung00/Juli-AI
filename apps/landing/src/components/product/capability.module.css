@@ -117,8 +117,9 @@
   max-width: var(--lp-reading);
   gap: var(--lp-space-2);
   margin: 0;
-  padding-inline-start: 1.25rem;
+  padding-inline-start: 1.4rem;
   color: var(--lp-body);
+  list-style: disc;
   font-size: var(--lp-text-body);
   line-height: var(--lp-leading-body);
 }
@@ -127,6 +128,14 @@
 .p strong {
   color: var(--lp-strong);
   font-weight: var(--lp-weight-semibold);
+}
+
+ol.list {
+  list-style: decimal;
+}
+
+.list li {
+  padding-inline-start: 2px;
 }
 
 .list li::marker {
@@ -169,8 +178,13 @@
 
 .next {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
+}
+
+@media (min-width: 641px) {
+  .next {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .nextCard {
