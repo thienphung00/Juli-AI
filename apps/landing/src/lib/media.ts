@@ -57,3 +57,15 @@ export const HERO_VIDEO_SCHEMA = {
   contentUrl: HERO_VIDEO.src,
   duration: HERO_VIDEO.durationIso,
 };
+
+/**
+ * The bird glyph (D44.3): logo mark in the header/footer and the single hero
+ * flourish. 512×451 source → 64/96 px AVIF + WebP (`media.py glyph`).
+ */
+export const BIRD_GLYPH = {
+  ratio: 512 / 451,
+  variants: [
+    { avif: "/media/bird-glyph-v1-64.avif", webp: "/media/bird-glyph-v1-64.webp", width: 64, height: 56 },
+    { avif: "/media/bird-glyph-v1-96.avif", webp: "/media/bird-glyph-v1-96.webp", width: 96, height: 85 },
+  ],
+} as const;

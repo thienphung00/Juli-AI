@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@juli/theme/tokens.css";
 @import "@juli/ui/styles.css";
+@import "../styles/tokens.css";
 
 /* ————— Base ————— */
 
