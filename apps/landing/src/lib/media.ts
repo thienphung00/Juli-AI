@@ -12,13 +12,6 @@ export interface MediaSource {
   height: number;
 }
 
-/** Header/footer wordmark: 183×60 WebP rendered at 30px / 26px height. */
-export const LOGO_WORDMARK = {
-  src: "/media/juli-logo-wordmark-v1.webp",
-  width: 183,
-  height: 60,
-} as const;
-
 /**
  * Sales demo video (hero): poster + click-to-load (D43.6, `HeroVideo`) and
  * `videoObjectSchema(HERO_VIDEO_SCHEMA)` on `/`. The poster is the video's
@@ -57,3 +50,15 @@ export const HERO_VIDEO_SCHEMA = {
   contentUrl: HERO_VIDEO.src,
   duration: HERO_VIDEO.durationIso,
 };
+
+/**
+ * The bird glyph (D44.3): logo mark in the header/footer and the single hero
+ * flourish. 512×451 source → 64/96 px AVIF + WebP (`media.py glyph`).
+ */
+export const BIRD_GLYPH = {
+  ratio: 512 / 451,
+  variants: [
+    { avif: "/media/bird-glyph-v1-64.avif", webp: "/media/bird-glyph-v1-64.webp", width: 64, height: 56 },
+    { avif: "/media/bird-glyph-v1-96.avif", webp: "/media/bird-glyph-v1-96.webp", width: 96, height: 85 },
+  ],
+} as const;

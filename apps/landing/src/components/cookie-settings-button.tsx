@@ -6,7 +6,7 @@ import { OPEN_CONSENT_EVENT } from "../lib/consent";
 export function CookieSettingsButton() {
   return (
     <button
-      className="lp-footer__link lp-footer__button"
+      className="ui-footer__link ui-footer__button"
       onClick={() => window.dispatchEvent(new Event(OPEN_CONSENT_EVENT))}
       type="button"
     >

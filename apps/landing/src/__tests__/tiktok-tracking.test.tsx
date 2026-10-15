@@ -78,12 +78,12 @@ describe("StartDemo", () => {
     // The "Dùng thử miễn phí 3 tháng" CTAs go to the internal /dang-ky page
     // (SIGNUP_URL); the listener tracks them too, by content_name.
     for (const testId of [
-      "header-demo-cta",
+      "header-login-link",
+      "header-trial-cta",
       "hero-demo-cta",
       "trial-demo-cta",
       "hero-trial-cta",
       "pricing-trial-cta",
-      "trial-signup-cta",
     ]) {
       await user.click(screen.getByTestId(testId));
 
@@ -107,7 +107,7 @@ describe("StartDemo", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("hero-demo-cta"));
-    await user.click(screen.getByTestId("header-demo-cta"));
+    await user.click(screen.getByTestId("header-trial-cta"));
 
     const [first, second] = trackedEvents("StartDemo").map(
       ([, , options]) => (options as { event_id: string }).event_id,

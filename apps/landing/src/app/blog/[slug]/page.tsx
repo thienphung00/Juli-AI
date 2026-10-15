@@ -10,8 +10,8 @@ import {
   tableOfContents,
 } from "../../../components/blog/markdown";
 import { PostMetaLine } from "../../../components/blog/post-meta-line";
-import { LandingHeader } from "../../../components/landing-header";
-import { SiteFooter } from "../../../components/site-footer";
+import { SiteHeader } from "../../../components/ui/site-header";
+import { SiteFooter } from "../../../components/ui/site-footer";
 import { BLOG_POSTS, getPost, getPostMeta, isPublished, relatedPosts } from "../../../content/blog";
 import {
   articleSchema,
@@ -89,7 +89,7 @@ export default async function BlogPostPage({ params }: PostPageProps) {
           ...(faq.length > 0 ? [faqPageSchema(faq)] : []),
         ]}
       />
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main">
         <article className="lp-blog">
           <nav aria-label="Breadcrumb" className="lp-blog__breadcrumb">

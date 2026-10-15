@@ -2,8 +2,8 @@ import Link from "next/link";
 
 import { PostMetaLine } from "../../components/blog/post-meta-line";
 import { countWords, readingMinutes } from "../../components/blog/markdown";
-import { LandingHeader } from "../../components/landing-header";
-import { SiteFooter } from "../../components/site-footer";
+import { SiteHeader } from "../../components/ui/site-header";
+import { SiteFooter } from "../../components/ui/site-footer";
 import {
   BLOG_POSTS,
   type BlogPostMeta,
@@ -54,7 +54,7 @@ export default function BlogIndexPage() {
   return (
     <>
       <JsonLd data={breadcrumbSchema("/blog")} />
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main">
         <section aria-labelledby="blog-heading" className="lp-page-hero">
           <p className="lp-page-hero__eyebrow">Blog</p>

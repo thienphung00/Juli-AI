@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 import { CtaLink } from "../components/cta-link";
-import { LandingHeader } from "../components/landing-header";
-import { SiteFooter } from "../components/site-footer";
+import { SiteHeader } from "../components/ui/site-header";
+import { SiteFooter } from "../components/ui/site-footer";
 
 export const metadata: Metadata = {
   title: { absolute: "Không tìm thấy trang | Juli AI" },
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function NotFound() {
   return (
     <>
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main">
         <section aria-labelledby="not-found-heading" className="lp-page-hero lp-page-hero--center">
           <p className="lp-page-hero__eyebrow">Lỗi 404</p>

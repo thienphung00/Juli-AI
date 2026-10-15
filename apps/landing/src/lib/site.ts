@@ -96,3 +96,22 @@ export const COMPANY = {
     addressCountry: "VN",
   },
 } as const;
+
+/**
+ * The header's primary nav (D44, `Main.dc.html`): product, the TikTok Shop
+ * integration, blog, company. `/contact` lives in the footer and the mobile
+ * menu. `match` marks the item active for that path and everything under it.
+ */
+export const HEADER_NAV = [
+  { href: "/san-pham", label: "Sản phẩm", match: "/san-pham" },
+  { href: "/ket-noi/tiktok-shop", label: "Kết nối TikTok Shop", match: "/ket-noi" },
+  { href: "/blog", label: "Blog", match: "/blog" },
+  { href: "/about", label: "Giới thiệu", match: "/about" },
+] as const;
+
+/** Footer "Công ty" column (D44 footer): company pages, then the Demo. */
+export const FOOTER_COMPANY_LINKS = [
+  { href: "/about", label: "Giới thiệu" },
+  { href: "/blog", label: "Blog" },
+  { href: "/contact", label: "Liên hệ" },
+] as const;

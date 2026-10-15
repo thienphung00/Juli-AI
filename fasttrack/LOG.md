@@ -1482,3 +1482,82 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   ACCEPTANCE AC-32.12, PROGRESS P32-E, DEBT.
 - Next: orchestrator merges, deploys, resubmits to Shopee with the updated Services Information.
 
+
+## 2026-10-15 — P34-A agent (Claude Opus) — UI foundation for the public redesign (D44, AC-34.1)
+
+- Branch `fasttrack/p34a-ui-foundation` from 64f7f913. Commits 3380f3cf … (see `git log 64f7f913..`).
+- **Font**: Be Vietnam Pro 400/500/600/700 self-hosted with `next/font/local` (`apps/landing/src/app/fonts.ts`);
+  one woff2 per weight (~30 KB) holding Google's Latin + Vietnamese unicode ranges, subset with
+  fonttools from the upstream OFL TTFs (licence `src/app/fonts/OFL.txt`). No build-time fetch, so
+  `build-release-artifact.sh` / `fasttrack-deploy.yml` need nothing new. `display: swap` +
+  metric-matched Arial fallback (no CLS). `--juli-font-sans` is re-pointed to it in the landing, so
+  the `@juli/ui` buttons and `html` use it too. The landing used to name Inter and never load it.
+- **Tokens**: `apps/landing/src/styles/tokens.css` (`--lp-*`: colour incl. status pairs, dark band and
+  blog category tints; responsive type scale D44.1; 4 px spacing + section rhythm; containers 1200/720;
+  radii 10–24; frame/hero/float shadows). The only landing file allowed raw colours
+  (`design-tokens.test.ts` allowlists it). Contrast measured: every text pair ≥ 4.5:1 (list in the
+  file header); `--lp-pink` is accent-only (2.75:1). `packages/theme/tokens.css` untouched.
+- **Components** `apps/landing/src/components/ui/` (barrel `index.ts`, styles `ui.css`, docs `README.md`
+  with props, tokens and a recipe per mockup): SiteHeader (active state, `<details>` mobile menu,
+  `signup` variant), SiteFooter, LinkButton/Button/TextLink, Section/Container/Eyebrow/Heading/
+  SectionIntro/Card/CheckList, Shot/ShotFrame (chrome bar, backdrop, "Dữ liệu mẫu", mobile crop via
+  `<picture media>` with its own width/height, top crop), FeatureRow, StatusPill, StepList
+  (`LOOP_STEPS`), FunnelDiagram, FaqList (optional FAQPage JSON-LD), TocNav + `.ui-toc-layout`,
+  Breadcrumb, Icon (12 line icons), BirdGlyph/BrandMark. `Picture` gained `mobileVariants`.
+- **Assets** (`scripts/media.py glyph`, `mobile-crops`): bird glyph 64/96 AVIF+WebP; 18 mobile crops
+  `cap-*-m-v1-*` (+ `*_MOBILE` in `components/product/screens.ts`), eyeballed at 390. Six shots with
+  large text need none.
+- **Migration**: every page now renders `SiteHeader`/`SiteFooter` (`/dang-ky` uses the signup
+  header); old `landing-header.tsx`, `site-footer.tsx`, `site-logo.tsx`, `LOGO_WORDMARK` and the
+  `lp-header*`/`lp-footer*`/`lp-logo` CSS removed (globals.css 1,077 → 844 lines). Header CTA changed
+  per mockup: `header-demo-cta` → `header-login-link` (Demo) + `header-trial-cta` (/dang-ky); tests
+  (cta, tracking: 7 tracked CTAs, sections, info, legal) updated. Page bodies untouched (B–E).
+- **Gates** (Node 20.20.2): `pnpm install --frozen-lockfile` OK; landing lint 0 problems, type-check
+  clean, vitest 13 files / 178 passed, `next build` OK (all pages static), `check:seo` 17/17;
+  Playwright on the production build: `/`, `/san-pham`, `/dang-ky` at 1440 and 390, no horizontal
+  overflow, computed font Be Vietnam Pro; header menu opened at 390; a throwaway preview page of every
+  component at both widths (not committed). Screenshots: `fasttrack/design/p34/evidence/p34a/`.
+  `check.sh --since 64f7f913` 5/5 PASS.
+- For B–E: read `apps/landing/src/components/ui/README.md`. Next: B–E build pages on this branch's
+  merge; orchestrator merges P34-A first.
+
+## 2026-10-15 — P34-B agent (Claude Opus) — homepage to the D44 mockups (AC-34.2)
+
+- Branch `fasttrack/p34b-home` from `fasttrack/p34a-ui-foundation` @ c95231e0 (see `git log c95231e0..`).
+- **Built** (`app/page.tsx`, `components/home/{home-sections.tsx,home.module.css,hero-video.tsx,home-content.ts}`),
+  section by section from `Main.dc.html` with the P34-A components: hero (badge eyebrow, H1, lead,
+  `hero-trial-cta` → `SIGNUP_URL`, "Xem video 1 phút", note, `ShotFrame` pair `cap-dx-the` 7:5 +
+  floating `cap-pt-pheu`, bird + dashed flight path) · marketplace strip (`StatusPill` live /
+  integrating) · `StepList` loop · 3 `FeatureRow`s (cap-pt-luong + xep-hang stacked, cap-dx-the 3:2
+  reversed, cap-dl-tang-them; mobile crops where they exist) · 4 data-safety `Card`s with `Icon` ·
+  audiences · transparency card + company `dl` · dark pricing band (on-dark CTAs + 500.000đ card) ·
+  FAQ split with `FaqList` (FAQPage JSON-LD only from the page) · header/footer as before.
+  HomeMobile: hero shot on its backdrop with "Dữ liệu mẫu", no flourish/float; strip as a bordered
+  card; stacked full-width CTAs; StepList rows.
+- **Video** (D43.6 kept): "Xem video 1 phút" is a client `<button>` opening a modal `<dialog>`; the
+  `<video preload="none" autoplay controls>` mounts on click and unmounts on close; the caption "Số
+  liệu trong video là minh hoạ" sits under it. VideoObject schema unchanged.
+- **Deviations from the mockup, on purpose**: (1) "Kết nối chính thức" card says sellers authorise on
+  TikTok Shop's page, not "Partner Center" (that is the developer console; the old test forbids it).
+  (2) Cap2 gets the D13/D24.5 bullets (Juli executes title/description/attributes; cover only from
+  the seller's photo; price + promotions by the seller; video/LIVE scripted). (3) FAQ keeps the six
+  sourced `HOME_FAQ` items + "Juli đo hiệu quả…" (7, not the mockup's 6 shortened questions).
+  (4) Hero keeps the consent line (Điều khoản / Chính sách, `hero-consent-note`, TikTok review) and
+  turns "Demo dùng dữ liệu mẫu" into a "Xem demo" link (`hero-demo-cta`). (5) Safety lead adds "not
+  sold" + the privacy link (the dropped "Không bán dữ liệu" card). (6) Audiences keep the sourced
+  longer bodies. (7) The old "GMV giảm, nhưng hụt ở đâu?" problem section and final CTA band are
+  gone (not in the mockup; the dark band is the final CTA).
+- **Tests changed intentionally**: `sections.test.tsx` (new H1 + H2 order, landmarks, StatusPill
+  status, screenshots alt "(dữ liệu mẫu)" + sized + LCP priority, D13 strings, no `%`, company `dl`
+  with mailto, FAQ question + answer shown, exactly one FAQPage, video dialog open/close),
+  `cta.test.tsx` (2 trial CTAs; price stated as 500.000đ/tháng, no "500K", no table),
+  `tiktok-tracking.test.tsx` (6 tracked CTAs). Old home-only `lp-home-*` CSS removed from
+  `globals.css` (26 rules); rules `/san-pham` still uses stay.
+- **Gates** (Node 20.20.2): `pnpm install --frozen-lockfile` OK; landing lint 0, type-check clean,
+  vitest 13 files / 179 passed, `next build` OK, `check:seo` 17/17. Playwright on the production
+  build: `/` at 1440 (6,664 px tall) and 390, `scrollWidth == clientWidth` at both, every image
+  loaded; dialog opened at 1440. Screenshots `fasttrack/design/p34/evidence/p34b/home-{1440,390}-{top,full}.webp`,
+  `home-1440-video.webp`.
+  `PYTHON=… fasttrack/check.sh --since c95231e0` 5/5 PASS (migrations, isolation 12 passed, gitleaks,
+  ruff and pytest n/a — no Python changed).
+- Next: orchestrator merges P34-A, then this branch; owner to confirm the "500.000đ" price wording (DEBT).

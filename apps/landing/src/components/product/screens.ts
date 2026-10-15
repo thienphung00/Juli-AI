@@ -124,3 +124,81 @@ export const CAP_PT_XEP_HANG: readonly MediaSource[] = [
   { avif: "/media/cap-pt-xep-hang-v1-1280.avif", webp: "/media/cap-pt-xep-hang-v1-1280.webp", width: 1280, height: 551 },
   { avif: "/media/cap-pt-xep-hang-v1-640.avif", webp: "/media/cap-pt-xep-hang-v1-640.webp", width: 640, height: 275 },
 ];
+
+/**
+ * Mobile crops (P34-A, D44.3): taller, narrower regions of the shots above so
+ * their UI text stays readable at a 390 px viewport (`scripts/media.py
+ * mobile-crops`). Pass as `<Shot mobileImage>`; shots with large text already
+ * (dx-hang-cho, dx-hoan-tac, dx-tu-choi, dx-seller-center, dx-the, kn-ghi) have none.
+ */
+export const CAP_DL_HOC_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-hoc-m-v1-614.avif", webp: "/media/cap-dl-hoc-m-v1-614.webp", width: 614, height: 454 },
+];
+
+export const CAP_DL_MUC_TIEU_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-muc-tieu-m-v1-720.avif", webp: "/media/cap-dl-muc-tieu-m-v1-720.webp", width: 720, height: 506 },
+];
+
+export const CAP_DL_NGAY_14_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-ngay-14-m-v1-720.avif", webp: "/media/cap-dl-ngay-14-m-v1-720.webp", width: 720, height: 350 },
+];
+
+export const CAP_DL_NGAY_7_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-ngay-7-m-v1-720.avif", webp: "/media/cap-dl-ngay-7-m-v1-720.webp", width: 720, height: 875 },
+];
+
+export const CAP_DL_TANG_THEM_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-tang-them-m-v1-720.avif", webp: "/media/cap-dl-tang-them-m-v1-720.webp", width: 720, height: 350 },
+];
+
+export const CAP_DL_TIN_CAY_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-tin-cay-m-v1-640.avif", webp: "/media/cap-dl-tin-cay-m-v1-640.webp", width: 640, height: 527 },
+];
+
+export const CAP_DX_LUOT_CHAY_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dx-luot-chay-m-v1-640.avif", webp: "/media/cap-dx-luot-chay-m-v1-640.webp", width: 640, height: 560 },
+];
+
+export const CAP_DX_QUY_TAC_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dx-quy-tac-m-v1-640.avif", webp: "/media/cap-dx-quy-tac-m-v1-640.webp", width: 640, height: 324 },
+];
+
+export const CAP_DX_XAC_NHAN_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dx-xac-nhan-m-v1-640.avif", webp: "/media/cap-dx-xac-nhan-m-v1-640.webp", width: 640, height: 501 },
+];
+
+export const CAP_KN_DANG_NHAP_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-kn-dang-nhap-m-v1-589.avif", webp: "/media/cap-kn-dang-nhap-m-v1-589.webp", width: 589, height: 452 },
+];
+
+export const CAP_KN_KET_NOI_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-kn-ket-noi-m-v1-627.avif", webp: "/media/cap-kn-ket-noi-m-v1-627.webp", width: 627, height: 324 },
+];
+
+export const CAP_KN_QUET_NHANH_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-kn-quet-nhanh-m-v1-614.avif", webp: "/media/cap-kn-quet-nhanh-m-v1-614.webp", width: 614, height: 406 },
+];
+
+export const CAP_PT_KHUYEN_MAI_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-pt-khuyen-mai-m-v1-704.avif", webp: "/media/cap-pt-khuyen-mai-m-v1-704.webp", width: 704, height: 499 },
+];
+
+export const CAP_PT_LICH_SALE_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-pt-lich-sale-m-v1-720.avif", webp: "/media/cap-pt-lich-sale-m-v1-720.webp", width: 720, height: 322 },
+];
+
+export const CAP_PT_LUONG_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-pt-luong-m-v1-678.avif", webp: "/media/cap-pt-luong-m-v1-678.webp", width: 678, height: 240 },
+];
+
+export const CAP_PT_NGHEN_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-pt-nghen-m-v1-525.avif", webp: "/media/cap-pt-nghen-m-v1-525.webp", width: 525, height: 464 },
+];
+
+export const CAP_PT_PHEU_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-pt-pheu-m-v1-720.avif", webp: "/media/cap-pt-pheu-m-v1-720.webp", width: 720, height: 171 },
+];
+
+export const CAP_PT_XEP_HANG_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-pt-xep-hang-m-v1-720.avif", webp: "/media/cap-pt-xep-hang-m-v1-720.webp", width: 720, height: 517 },
+];

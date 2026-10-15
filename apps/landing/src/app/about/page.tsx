@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { CtaLink } from "../../components/cta-link";
-import { LandingHeader } from "../../components/landing-header";
-import { SiteFooter } from "../../components/site-footer";
+import { SiteHeader } from "../../components/ui/site-header";
+import { SiteFooter } from "../../components/ui/site-footer";
 import { breadcrumbSchema, buildMetadata, JsonLd } from "../../lib/seo";
 import { COMPANY, DEMO_URL } from "../../lib/site";
 
@@ -40,7 +40,7 @@ export default function AboutPage() {
   return (
     <>
       <JsonLd data={breadcrumbSchema("/about")} />
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main">
         <section aria-labelledby="about-heading" className="lp-page-hero">
           <p className="lp-page-hero__eyebrow">Giới thiệu</p>

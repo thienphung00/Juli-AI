@@ -1,0 +1,143 @@
+/*
+ * Landing design tokens (D44, P34-A). The ONE file in apps/landing allowed to
+ * hold raw colour values (design-tokens.test.ts allowlists it); everything else
+ * uses these custom properties. `packages/theme/tokens.css` stays byte-pinned
+ * (#1314) — these live in the landing app only.
+ *
+ * Source: the approved mockups, fasttrack/design/p34/*.dc.html.
+ * Contrast (WCAG 2.x, text ≥ 4.5:1), measured P34-A:
+ *   ink/white 18.7 · body/white 8.8 · muted/white 5.3 · muted/alt 5.1 ·
+ *   muted/backdrop 4.8 · nav/white 10.4 · pink-text/white 5.8 · pink-text/tint 5.5 ·
+ *   live-fg/live-bg 6.8 · integrating-fg/integrating-bg 6.1 ·
+ *   on-dark-body/dark 11.4 · on-dark-pink/dark-raised 9.3 · white/ink 18.7 ·
+ *   cat-green-text/white 6.5 · cat-blue-text/white 7.9.
+ *   `--lp-pink` (#f86ba5) is 2.75:1 on white: accent ONLY (dots, borders, the
+ *   flight path), never text.
+ */
+
+:root {
+  /* ————— Colour ————— */
+  --lp-ink: #121214; /* headings, primary buttons, the dark band */
+  --lp-body: #4a4a52; /* body copy */
+  --lp-strong: #2a2a30; /* list text, legal copy */
+  --lp-nav: #3f3f46; /* header nav links */
+  --lp-muted: #6b6b74; /* captions, meta, eyebrows on neutral */
+  --lp-bg: #ffffff;
+  --lp-alt: #fbfbfc; /* alt sections, footer, browser-chrome bar */
+  --lp-backdrop: #f6f4f6; /* screenshot backdrop, signup aside */
+  --lp-hairline: #ececf0; /* borders, dividers */
+  --lp-hairline-soft: #f0f0f3; /* inside frames (chrome bar, figcaption) */
+  --lp-border: #dcdce2; /* secondary button outline, blog chips */
+  --lp-border-input: #cfcfd6; /* form inputs */
+  --lp-chrome-dot: #e4e4e8; /* browser-chrome dots, diagram box border */
+  --lp-segment-bg: #f4f4f6; /* segmented control (VN/EN switch) */
+
+  --lp-pink: #f86ba5; /* accent only — see contrast note */
+  --lp-pink-text: #b0386a; /* eyebrows, links, highlighted labels */
+  --lp-pink-text-hover: #8c2d54;
+  --lp-pink-tint: #fff7fa; /* highlighted step / badge fill */
+  --lp-pink-line: #f3d3df; /* highlighted step / badge border */
+
+  --lp-live-fg: #15603a; /* StatusPill "Đang hoạt động" */
+  --lp-live-bg: #e8f6ee;
+  --lp-integrating-fg: #8a4b0b; /* StatusPill "Đang tích hợp" */
+  --lp-integrating-bg: #fdf1e2;
+
+  --lp-dark: #121214; /* the one dark band per page */
+  --lp-dark-raised: #1c1c20; /* card on the dark band */
+  --lp-dark-line: #2c2c33;
+  --lp-dark-line-strong: #3a3a42; /* outline button on dark */
+  --lp-on-dark: #ffffff;
+  --lp-on-dark-body: #c9c9d1;
+  --lp-on-dark-list: #e4e4ea;
+  --lp-on-dark-pink: #f9a8c8;
+
+  /* Blog category covers (Blog.dc.html): tint + text + one accent each. */
+  --lp-cat-metrics-bg: #fdeef4;
+  --lp-cat-metrics-text: #b0386a;
+  --lp-cat-metrics-accent: #f86ba5;
+  --lp-cat-optimize-bg: #e8f4ec;
+  --lp-cat-optimize-text: #1d6b3d;
+  --lp-cat-optimize-accent: #2f9e5c;
+  --lp-cat-tools-bg: #eaf1fd;
+  --lp-cat-tools-text: #1f4f9e;
+  --lp-cat-tools-accent: #2f6fdc;
+  --lp-cat-guide-bg: #f1f1f4;
+  --lp-cat-guide-text: #4a4a52;
+  --lp-cat-guide-accent: #121214;
+
+  --lp-focus-ring: #b0386a;
+
+  /* ————— Type (D44.1) ————— */
+  --lp-font-sans: var(--font-be-vietnam-pro), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  /* Responsive heading sizes, 390 px → 1440 px. Letter-spacing never tighter
+     than −2 % (stacked Vietnamese diacritics). */
+  --lp-text-display: clamp(2.125rem, 1.6rem + 2.2vw, 3.5rem); /* h1: 34 → 56 */
+  --lp-leading-display: 1.13;
+  --lp-tracking-display: -0.018em;
+  --lp-text-h1-page: clamp(2.125rem, 1.7rem + 1.8vw, 3.125rem); /* inner-page h1: 34 → 50 */
+  --lp-text-h2: clamp(1.625rem, 1.3rem + 1.35vw, 2.625rem); /* section h2: 26 → 42 */
+  --lp-text-h2-feature: clamp(1.625rem, 1.4rem + 0.95vw, 2.25rem); /* feature / FAQ h2: 26 → 36 */
+  --lp-text-h2-article: clamp(1.5rem, 1.3rem + 0.85vw, 2.125rem); /* article h2: 24 → 34 */
+  --lp-leading-heading: 1.2;
+  --lp-tracking-heading: -0.012em;
+  --lp-text-h3: 1.1875rem; /* 19 */
+  --lp-text-h3-small: 1.125rem; /* 18 */
+  --lp-text-lead: clamp(1rem, 0.93rem + 0.3vw, 1.1875rem); /* 16 → 19 */
+  --lp-text-body: 1.0625rem; /* 17 */
+  --lp-leading-body: 1.65; /* 17/28 */
+  --lp-text-body-small: 0.9375rem; /* 15 */
+  --lp-text-label: 0.875rem; /* 14: eyebrow, meta */
+  --lp-text-caption: 0.8125rem; /* 13 */
+  --lp-text-micro: 0.75rem; /* 12: chrome title, pill */
+  --lp-weight-regular: 400;
+  --lp-weight-medium: 500;
+  --lp-weight-semibold: 600; /* headings */
+  --lp-weight-bold: 700; /* wordmark only */
+
+  /* ————— Spacing (4 px base) ————— */
+  --lp-space-1: 0.25rem; /* 4 */
+  --lp-space-2: 0.5rem; /* 8 */
+  --lp-space-3: 0.75rem; /* 12 */
+  --lp-space-4: 1rem; /* 16 */
+  --lp-space-5: 1.25rem; /* 20 */
+  --lp-space-6: 1.5rem; /* 24 */
+  --lp-space-7: 1.75rem; /* 28 */
+  --lp-space-8: 2rem; /* 32 */
+  --lp-space-10: 2.5rem; /* 40 */
+  --lp-space-12: 3rem; /* 48 */
+  --lp-space-14: 3.5rem; /* 56 */
+  --lp-space-16: 4rem; /* 64 */
+  --lp-space-18: 4.5rem; /* 72 */
+  --lp-space-22: 5.5rem; /* 88 */
+  --lp-space-26: 6.5rem; /* 104 */
+  /* Vertical section rhythm: 56 → 104 (default), 40 → 72 (compact). */
+  --lp-section-y: clamp(3.5rem, 2.4rem + 4.5vw, 6.5rem);
+  --lp-section-y-compact: clamp(2.5rem, 1.9rem + 2.5vw, 4.5rem);
+
+  /* ————— Layout ————— */
+  --lp-container: 1200px; /* includes the gutters */
+  --lp-reading: 720px; /* legal, article column */
+  --lp-gutter: clamp(1.25rem, 0.9rem + 1.2vw, 1.5rem); /* 20 → 24 */
+  --lp-touch: 44px;
+
+  /* ————— Radii ————— */
+  --lp-radius-sm: 10px; /* header button, small frames on mobile */
+  --lp-radius-md: 12px; /* buttons, inputs, diagram boxes */
+  --lp-radius-frame: 14px; /* screenshot frame */
+  --lp-radius-lg: 16px; /* cards */
+  --lp-radius-xl: 22px; /* screenshot backdrop */
+  --lp-radius-2xl: 24px; /* big cards, product hero backdrop */
+  --lp-radius-pill: 999px;
+
+  /* ————— Shadows ————— */
+  --lp-shadow-frame: 0 18px 40px -22px rgba(18, 18, 20, 0.25);
+  --lp-shadow-hero: 0 30px 70px -28px rgba(18, 18, 20, 0.28), 0 2px 6px rgba(18, 18, 20, 0.05);
+  --lp-shadow-float: 0 20px 44px -20px rgba(18, 18, 20, 0.3);
+  --lp-shadow-menu: 0 16px 40px -16px rgba(18, 18, 20, 0.22);
+
+  /* Theme bridge: everything that still reads `--juli-font-sans` (html, the
+     `@juli/ui` buttons) gets Be Vietnam Pro too. */
+  --juli-font-sans: var(--lp-font-sans);
+}

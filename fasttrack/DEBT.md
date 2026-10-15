@@ -942,3 +942,31 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Load-sensitive demo test (seen 2026-10-15, P32-E gates): `ops-pages.test.tsx > saves the
   scenario and sets it as the shop target` timed out once (5.6 s) in a full demo run (1925 / 1926)
   and passes 3 / 3 alone; the previous full run on the same code was 1926 / 1926. Untouched by P32-E.
+- [ ] P34-A (UI foundation): mobile crops of the `cap-*` screenshots are cut from the published
+  1280 WebP (the original PNG captures are not in the repo), so they are re-encoded from a lossy
+  source; crop boxes are fractions in `MOBILE_CROPS` (`scripts/media.py`), eyeballed once at 390.
+  Re-capture the six large-text shots or any crop at native mobile size if a page needs sharper text.
+- [ ] P34-A: all four font weights are preloaded (~123 KB woff2); `next/font/local` cannot preload a
+  subset of one family's files. Re-measure LCP in AC-34.7; if needed drop 500 or 700 (700 is used only
+  by the "Juli AI" wordmark) or set `preload: false`.
+- [ ] P34-A: `TocNav` active state is static (`activeId` prop), no scroll-spy; the TOC renders its
+  link list twice (desktop list + mobile `<details>`), one hidden by CSS.
+- [ ] P34-A: `ui.css` sets body to 17 px / 1.65 site-wide; old `lp-*` page sections (until B–E
+  redesign them) inherit it, so some legacy blocks render slightly larger than before.
+- [ ] P34-B (homepage): `cap-dx-the` (hero card + "Đề xuất và thực thi" row) has no mobile crop, so
+  at 390 px it shows the whole card scaled to ~322 px wide (legible, small). A native mobile capture
+  (`MOBILE_CROPS` in `scripts/media.py` + `*_MOBILE` in `components/product/screens.ts`, P34-A/C files)
+  would match HomeMobile's "ảnh cắt riêng cho mobile" caption better.
+- [ ] P34-B: the homepage now states the price as "500.000đ/tháng" (hero note, dark band card, FAQ),
+  as the approved mockup and /terms §5 do; D43.2 had said "từ 500K". `cta.test.tsx` was changed on
+  purpose (no "500K", price card present). Owner to confirm the wording at integration.
+- [ ] P34-B: `trial-signup-cta` (old final CTA) and the hero "Xem demo" button are gone: the mockup
+  merges pricing + final CTA into one dark band (`pricing-trial-cta` "Đăng ký dùng thử",
+  `trial-demo-cta` "Xem demo với dữ liệu mẫu"); `hero-demo-cta` is now the "Xem demo" link in the
+  hero note. TikTok reports lose the `trial-signup-cta` content_name from deploy on (6 tracked CTAs
+  on `/`, was 7).
+- [ ] P34-B: `globals.css` still holds the `lp-home-*` rules `/san-pham` uses (hero, section, grid,
+  card, steps, final, link, list, price); remove them when P34-C's redesign drops those classes.
+- [ ] P34-B: the hero product shot is the approved mockup's `cap-dx-the` image, which shows sample
+  figures ("+2,1 tr đ/tháng", "▲9,3 %") inside the screenshot; captioned "Dữ liệu mẫu" (D44.3), but
+  it is an image, so the page's "no % in text" test does not see it.

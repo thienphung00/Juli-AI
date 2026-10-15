@@ -1,6 +1,6 @@
 import { CtaLink } from "../../../components/cta-link";
-import { LandingHeader } from "../../../components/landing-header";
-import { SiteFooter } from "../../../components/site-footer";
+import { SiteHeader } from "../../../components/ui/site-header";
+import { SiteFooter } from "../../../components/ui/site-footer";
 import { SignupConversion } from "../../../components/signup/signup-conversion";
 import {
   SELF_CONNECT_LABEL,
@@ -19,7 +19,7 @@ export default function SignupThanksPage() {
     <>
       <JsonLd data={breadcrumbSchema("/dang-ky/cam-on")} />
       <SignupConversion />
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main">
         <section aria-labelledby="thanks-heading" className={styles.thanks}>
           <p className={styles.eyebrow}>Đã nhận đăng ký</p>

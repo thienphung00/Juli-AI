@@ -16,6 +16,12 @@ Usage (Pillow >= 11.2 with AVIF + WebP; the repo venv has it):
     # regenerate the brand assets this script owns (OG image, logo, favicon, poster)
     python apps/landing/scripts/media.py brand
 
+    # P34-A: the bird glyph for the header/footer/hero (AVIF + WebP, 64/96 wide)
+    python apps/landing/scripts/media.py glyph
+
+    # P34-A: taller, narrower mobile crops of the cap-* screenshots (MOBILE_CROPS)
+    python apps/landing/scripts/media.py mobile-crops
+
 Hex colours are allowed here (a build script, not `src/`); they mirror
 `@juli/theme` tokens.
 """
@@ -151,6 +157,65 @@ def brand() -> None:
     )
 
 
+def glyph() -> None:
+    """Bird glyph (D44.3, the site's single flourish + logo mark): 64 / 96 px wide.
+
+    Rendered at 30x26 (header), 28x25 (footer) and 44x39 (hero flourish); the
+    two widths cover those at 2x. Alpha is kept (AVIF + WebP both support it).
+    """
+    optimize(BRAND_ASSETS / "bird-glyph.png", PUBLIC / "media" / "bird-glyph-v1", [64, 96])
+
+
+# Mobile crops (D44.3 "mobile gets its own crops"): the 1280-wide cap-* shots
+# shrink to ~28 % at a 390 px viewport, where their UI text is unreadable. Each
+# entry crops a narrower, taller region (fractions of the source: left, top,
+# right, bottom) around the point of the shot. The originals are not in the
+# repo, so the crops come from the largest published WebP (DEBT, P34-A).
+# Shots whose text is already large (dialogs and cards captured at 2x:
+# dx-hang-cho, dx-hoan-tac, dx-tu-choi, dx-seller-center, dx-the, kn-ghi) need
+# no crop and are not listed.
+MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
+    "cap-dl-hoc-v1-1280": (0.0, 0.0, 0.48, 1.0),
+    "cap-dl-muc-tieu-v1-1280": (0.0, 0.0, 0.62, 1.0),
+    "cap-dl-ngay-14-v1-1280": (0.0, 0.0, 0.62, 1.0),
+    "cap-dl-ngay-7-v1-1280": (0.0, 0.35, 0.62, 1.0),
+    "cap-dl-tang-them-v1-1280": (0.0, 0.0, 0.82, 1.0),
+    "cap-dl-tin-cay-v1-1280": (0.0, 0.0, 0.5, 1.0),
+    "cap-dx-luot-chay-v1-1280": (0.0, 0.0, 0.5, 0.75),
+    "cap-dx-quy-tac-v1-1280": (0.0, 0.0, 0.5, 0.64),
+    "cap-dx-xac-nhan-v1-1280": (0.0, 0.0, 0.5, 0.55),
+    "cap-kn-dang-nhap-v1-1280": (0.06, 0.0, 0.52, 0.8),
+    "cap-kn-ket-noi-v1-1280": (0.06, 0.0, 0.55, 0.95),
+    "cap-kn-quet-nhanh-v1-1280": (0.07, 0.05, 0.55, 1.0),
+    "cap-pt-khuyen-mai-v1-1280": (0.0, 0.0, 0.55, 1.0),
+    "cap-pt-lich-sale-v1-1280": (0.0, 0.0, 0.6, 1.0),
+    "cap-pt-luong-v1-1280": (0.07, 0.25, 0.6, 1.0),
+    "cap-pt-nghen-v1-1280": (0.4, 0.0, 0.81, 1.0),
+    "cap-pt-pheu-v1-1280": (0.0, 0.0, 0.6, 1.0),
+    "cap-pt-xep-hang-v1-1280": (0.0, 0.0, 0.6, 1.0),
+}
+
+#: Mobile crops are written at most this wide: ~2x of a 358 px column.
+MOBILE_CROP_MAX_WIDTH = 720
+
+
+def mobile_crops() -> None:
+    """Write `<name>-m-v1-<width>.avif/.webp` for every MOBILE_CROPS entry."""
+    media = PUBLIC / "media"
+    for name, (left, top, right, bottom) in MOBILE_CROPS.items():
+        source = Image.open(media / f"{name}.webp").convert("RGB")
+        box = (
+            round(source.width * left),
+            round(source.height * top),
+            round(source.width * right),
+            round(source.height * bottom),
+        )
+        crop = source.crop(box)
+        stem = name.rsplit("-v1-", 1)[0]
+        w, h = save_modern(crop, media / f"{stem}-m-v1", MOBILE_CROP_MAX_WIDTH)
+        print(f"{stem}-m-v1-{w}.avif/.webp  width={w} height={h}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -163,9 +228,15 @@ def main() -> None:
     )
     opt.add_argument("--widths", default="640,1280", help="comma-separated target widths")
     sub.add_parser("brand", help="regenerate OG image, logo, favicon and poster")
+    sub.add_parser("glyph", help="write the bird glyph (AVIF + WebP, 64/96 px)")
+    sub.add_parser("mobile-crops", help="write the cap-* mobile crops (MOBILE_CROPS)")
     args = parser.parse_args()
     if args.command == "optimize":
         optimize(args.src, args.out, [int(w) for w in args.widths.split(",")])
+    elif args.command == "glyph":
+        glyph()
+    elif args.command == "mobile-crops":
+        mobile_crops()
     else:
         brand()
 

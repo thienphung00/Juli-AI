@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { CtaLink } from "../../components/cta-link";
-import { LandingHeader } from "../../components/landing-header";
-import { SiteFooter } from "../../components/site-footer";
+import { SiteHeader } from "../../components/ui/site-header";
+import { SiteFooter } from "../../components/ui/site-footer";
 import {
   breadcrumbSchema,
   buildMetadata,
@@ -164,7 +164,7 @@ export default function ProductPage() {
           faqPageSchema(FAQ),
         ]}
       />
-      <LandingHeader />
+      <SiteHeader />
       <main className="lp-main lp-home">
         <section aria-labelledby="product-heading" className="lp-home-hero lp-home-hero--single">
           <div className="lp-home-inner">

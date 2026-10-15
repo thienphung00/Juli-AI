@@ -294,7 +294,7 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
     expect(within(nav).getByRole("link", { name: "Giới thiệu" })).toHaveAttribute("href", "/about");
     expect(screen.getByRole("link", { name: "Juli AI, trang chủ" })).toBeInTheDocument();
-    expect(screen.getByTestId("header-demo-cta")).toBeInTheDocument();
+    expect(screen.getByTestId("header-trial-cta")).toHaveAttribute("href", "/dang-ky");
   });
 
   it("links both pages from the footer, present on every landing page", () => {
