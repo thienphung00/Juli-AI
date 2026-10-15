@@ -676,8 +676,23 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   Playwright `/`, `/san-pham`, `/dang-ky` at 1440 + 390, no horizontal overflow,
   `fasttrack/design/p34/evidence/p34a/*.webp`; `check.sh --since 64f7f913` 5/5 PASS.
 - [ ] **AC-34.2** (B) Homepage matches `Main.dc.html` / `HomeMobile.dc.html`.
-- [ ] **AC-34.3** (C) `/san-pham`, the 3 capability pages and `/ket-noi/tiktok-shop` match
+- [x] **AC-34.3** (C) `/san-pham`, the 3 capability pages and `/ket-noi/tiktok-shop` match
   `Product.dc.html` (diagrams built in markup, one framed shot per H2, mobile crops readable).
+  Evidence (P34-C, branch `fasttrack/p34c-product-pages` from c95231e0, 2026-10-15): shared template
+  `components/product/capability-page.tsx` (breadcrumb, split hero eyebrow+H1 | lead+CTAs, framed
+  `Shot` with chrome on the backdrop, `TocNav` side TOC → disclosure on mobile, one `Shot` per content
+  H2 with its `*_MOBILE` crop where one exists, `FaqList`, next/see-also cards, one dark CTA band);
+  diagrams in markup `components/product/diagrams.tsx` + `FunnelDiagram`: Phân tích = funnel with CTOR
+  "Đang nghẽn" + five-stream grid, Đề xuất = flow Duyệt → Thực thi → Hoàn tác, Đo lường = timeline
+  Trước → Ngày 7 → Ngày 14; `/san-pham` rebuilt on `components/ui` (loop `StepList`, 3 capability
+  cards with shots + links, `StatusPill` integrations, pricing card, FAQ, dark CTA). P33-C/P33-B words
+  kept (corrections in LOG). Tests: `capability-pages.test.tsx` 23 (per-H2 sized labelled shot with
+  "Dữ liệu mẫu" caption, FAQ = FAQPage, links, CTAs by test id → SIGNUP_URL / DEMO_URL, TOC targets,
+  mobile `<source media>`, one dark band, the three diagrams, Shopee only "đang tích hợp"),
+  `info-pages.test.tsx` 7 (+ `/san-pham` capability links, StatusPill, FAQ = FAQPage). Gates (Node
+  20.20.2): lint 0, type-check clean, vitest 13 files / 186 passed, `next build` OK, `check:seo`
+  17/17; Playwright on `next start`: 5 pages × 1440 / 390, no horizontal overflow,
+  `fasttrack/design/p34/evidence/p34c/*.webp`; `check.sh --since c95231e0` 5/5 PASS.
 - [ ] **AC-34.4** (D) Blog index + post template match `Blog.dc.html`; per-category covers and OG
   images rendered from HTML; `BlogPostMeta` gains a cover.
 - [ ] **AC-34.5** (E) Privacy, terms, about, contact, `/dang-ky`, `/dang-ky/cam-on` match

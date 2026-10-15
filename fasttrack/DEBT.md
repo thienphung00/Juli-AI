@@ -953,3 +953,15 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   link list twice (desktop list + mobile `<details>`), one hidden by CSS.
 - [ ] P34-A: `ui.css` sets body to 17 px / 1.65 site-wide; old `lp-*` page sections (until B–E
   redesign them) inherit it, so some legacy blocks render slightly larger than before.
+- [ ] P34-C (product pages): `.ui-card > p` (ui.css) overrides `Eyebrow` (a `<p>`) inside a `Card` —
+  it renders grey 15 px. `/san-pham` works around it in `overview.module.css`; fix in `ui.css`
+  (e.g. `.ui-card > p:not(.ui-eyebrow)`) — P34-A owns it.
+- [ ] P34-C: `FunnelDiagram` wraps awkwardly at 390 px (the `=` and the dark GMV box drop to their
+  own rows); a vertical layout ≤ 640 px in `ui.css` would read better. Shared component, not changed.
+- [ ] P34-C: the TOC (`.ui-toc` sticky) and the sticky header disappear / repeat in Playwright
+  full-page captures; the evidence script forces them `position: static` (evidence only, not shipped).
+- [ ] P34-C: `globals.css` `.lp-breadcrumb` is now unused (it was only `/san-pham`); `.lp-page-faq`,
+  `lp-home-*` stay used by the homepage until P34-B lands. Remove dead `lp-*` rules at integration.
+- [ ] P34-C: capability hero shots reuse section screenshots (Phân tích hero = the luồng + phễu
+  shots, as in the mockup; Đo lường = mục tiêu + tăng thêm), so those images appear twice on the page.
+  A dedicated wide hero capture per page would avoid the repeat.

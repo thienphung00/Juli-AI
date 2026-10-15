@@ -117,6 +117,12 @@
   margin-bottom: var(--lp-space-2);
 }
 
+/* `.ui-card > p` would grey the eyebrow (shared rule, see DEBT). */
+.capCard > :global(.ui-eyebrow) {
+  color: var(--lp-pink-text);
+  font-size: var(--lp-text-label);
+}
+
 .capLink {
   margin-top: auto;
   padding-top: var(--lp-space-2);
