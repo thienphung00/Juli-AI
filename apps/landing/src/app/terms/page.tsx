@@ -5,7 +5,7 @@ import { COMPANY } from "../../lib/site";
 
 export const metadata = buildMetadata("/terms");
 
-const LAST_UPDATED = "14/10/2026";
+const LAST_UPDATED = "15/10/2026";
 
 export default function TermsOfServicePage() {
   return (
@@ -90,8 +90,9 @@ export default function TermsOfServicePage() {
           <section className="lp-legal__section">
             <h2 className="lp-legal__section-heading">5. Phí dịch vụ</h2>
             <p>
-              Phí dịch vụ Juli là 500.000đ/tháng. Bạn có thể huỷ bất cứ lúc nào. Phí đã
-              thanh toán không thể hoàn lại.
+              Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ
+              thanh toán. Sau thời gian dùng thử, phí dịch vụ Juli là 500.000đ/tháng. Bạn có
+              thể huỷ bất cứ lúc nào. Phí đã thanh toán không thể hoàn lại.
             </p>
           </section>
 

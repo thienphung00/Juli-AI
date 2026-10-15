@@ -269,6 +269,12 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText(new RegExp(COMPANY.name)).length).toBeGreaterThan(0);
     expect(screen.getByText(/500\.000đ\/tháng.*huỷ bất cứ lúc nào/i)).toBeInTheDocument();
+    // Owner 2026-10-15: the free 3-month trial is a term of service.
+    expect(
+      screen.getByText(
+        /Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ thanh toán\. Sau thời gian dùng thử, phí dịch vụ Juli là 500\.000đ\/tháng\./,
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText(/chỉ thực hiện một hành động khi bạn đồng ý/i)).toBeInTheDocument();
     // The terms make no GMV promise (the shared footer's "Đo lường GMV" page link is navigation).
     expect(within(screen.getByRole("main")).queryByText(/GMV/)).not.toBeInTheDocument();

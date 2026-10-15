@@ -47,7 +47,7 @@ export const CORE_ROUTES: readonly SiteRoute[] = [
     title: "Điều khoản dịch vụ | Juli AI",
     description:
       "Điều khoản sử dụng Juli AI: tài khoản, kết nối TikTok Shop và Shopee, phí dịch vụ 500.000đ/tháng, đề xuất của Juli, chấm dứt và liên hệ.",
-    lastModified: "2026-10-14",
+    lastModified: "2026-10-15",
     breadcrumbName: "Điều khoản dịch vụ",
     changeFrequency: "yearly",
     priority: 0.3,
