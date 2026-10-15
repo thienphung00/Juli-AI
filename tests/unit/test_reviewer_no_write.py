@@ -234,6 +234,7 @@ async def test_every_route_as_reviewer_writes_nothing(session, world, tripwire):
         "creator_id": str(uuid.uuid4()),
         "scenario_id": str(uuid.uuid4()),
         "invite_id": str(uuid.uuid4()),
+        "signup_id": str(uuid.uuid4()),
         "rest": "anything",
         "workflow_key": "optimize_product_2",
     }

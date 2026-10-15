@@ -167,7 +167,7 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
       expect(notice).toHaveTextContent(`tax ID ${COMPANY.taxId}`);
       expect(notice).toHaveTextContent("Website: app-juli.com");
       expect(notice).toHaveTextContent(COMPANY.email);
-      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 14, 2026/);
+      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 15, 2026/);
     });
 
     it("translates every section 1–12", () => {

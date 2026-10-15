@@ -1374,3 +1374,45 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   `/terms` indexed; `/product`, `/about`, `/contact` unknown to Google; **demo `/`, `/decisions`,
   `/analytics` indexed** (crawled 2026-08-20..10-02); ops unknown (Access). Search Analytics: ~1
   click / 5 impressions a week, data through 2026-10-10.
+## 2026-10-15 — P33-F agent (Claude Opus) — free-trial sign-up (AC-33.11)
+- **Branch** `fasttrack/p33f-trial-signup`, cut from P33-A `f55809fd`; siblings B/C/D untouched.
+- **Landing**: `/dang-ky` (registered, indexable; one H1, value list, form) and
+  `/dang-ky/cam-on` (registered `noindex: true`, out of the sitemap). To register a noindex route
+  the branch takes **P33-D's noindex plumbing verbatim** (`git checkout fasttrack/p33d-blog --` on
+  types.ts, metadata.ts, lib/seo/sitemap.ts, app/sitemap.ts, lib/seo/index.ts, seo.test.tsx,
+  built-site.check.ts — byte-identical, so the integration merge of those files is clean). New
+  registry file `routes/signup.ts`. Form: `components/signup/*` (CSS module, no globals.css edit:
+  P33-B rewrote it). No-JS: `POST /dang-ky/gui` → 303 to the thank-you page or
+  `/dang-ky#loi-…` (`:target` notice). JS: fetch + inline Vietnamese errors (validate.ts twins the
+  API rules). The relay forwards `X-Real-IP` as `X-Juli-Client-Ip` with `TRIAL_SIGNUP_RELAY_KEY`,
+  refuses foreign `Origin`. CompleteRegistration fires on the thank-you page only when the form set
+  a sessionStorage flag AND analytics consent is granted (lazy import of the pixel package).
+  `/privacy` VN §2 + EN §2 gain a "Đăng ký dùng thử" paragraph (what, why, 12-month retention,
+  deletion on request in 30 days); effective date 15/10/2026.
+- **Backend**: migration `091_trial_signups` (ops_only; deferred 074 re-parented, pins moved),
+  `services/trial_signups.py`, public `POST /v1/trial-signups` (threat-model allowlist + surface
+  inventory regenerated), `GET/PATCH /v1/ops/trial-signups` (Vận hành+, audited, NOT masked —
+  route class keeps the 503 on a missing juli_ops grant). Rate limits are counted from the table.
+- **Ops UI** (`apps/demo`): `/ops/dang-ky-dung-thu`, nav item after Thời hạn (ops-d27 nav
+  assertion updated), audit sentence "Đăng ký dùng thử: Mới → Đã liên hệ".
+- **Docs**: D43 additions P33-F (PROPOSED: Vận hành-only + unmasked, 12-month retention, relay
+  key), contract p16-ops §10, runbook env rows, api/frontend env templates, DEBT section.
+- **Gates (Node 20.20.2)**: landing lint 0, type-check clean, vitest 10 files 107 passed, build OK
+  (`/dang-ky` static, `/dang-ky/gui` dynamic), `check:seo` 9/9 (cam-on asserted noindex); demo lint
+  0 errors (7 pre-existing warnings), type-check clean, vitest 150 files 1914 passed after the nav
+  assertion update, build OK (example Supabase env); backend `test_trial_signups.py` 38 passed,
+  PG16 `test_trial_signups_two_tenant.py` + `test_ops_console_db.py` 31 passed;
+  `fasttrack/check.sh --since f55809fd` 5/5 PASS. Smoke: `next start` + fake API — no-JS post 303
+  → `/dang-ky/cam-on`, invalid → `/dang-ky#loi-du-lieu`, relay key + client IP forwarded.
+- **Full backend unit suite** (SQLite, no DB): after fixing the invariants this branch tripped
+  (route-auth allowlist, users.phone reviewed list, reviewer sweep `{signup_id}`, import
+  boundaries, ratchet suppression/exports) the remaining failures are all on the base f55809fd
+  too: `test_agent_workflow_task_wiring` (7), `test_cross_tenant_probe` (1, needs a DB URL),
+  `test_destructive_migration_isolation` (fasttrack-deploy.yml), `test_import_boundaries` (6
+  grandfathered ops.py deep imports), `test_ratchets` (branch-wide baseline drift),
+  `test_test_quality` (corpus count drift). Not touched here.
+- **Owner**: set `TRIAL_SIGNUP_NOTIFY_TO`, `TRIAL_SIGNUP_IP_SALT`, `TRIAL_SIGNUP_RELAY_KEY` in
+  `juli/api/production`, the same relay key in `juli/frontend/production`, and `OPS_SMTP_*` if not
+  yet set; confirm the PROPOSED items. No nginx change.
+- Next: integration with P33-B/C/D (expect doc-file conflicts in ACCEPTANCE/PROGRESS/LOG/DEBT/
+  DECISIONS only), then deploy.

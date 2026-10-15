@@ -1059,3 +1059,19 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `/contact`) and the Juli team disconnects the shop (Ops Admin "Huỷ kết nối", D25.13). No
      "revoke in Seller Center" instruction.
   4. **Keep** the old `public/media/juli-demo-poster-v1-*` files.
+- **D43 additions — P33-F free-trial sign-up** (owner 2026-10-15: a fast sign-up form on
+  app-juli.com and a backend that stores it; details below chosen by the P33-F agent, **PROPOSED**
+  until the owner confirms 2, 3 and 5):
+  1. `/dang-ky` (indexable) posts server-side through the landing's own `POST /dang-ky/gui` to the
+     public `POST /v1/trial-signups` (no CORS change). `/dang-ky/cam-on` is noindex, out of the
+     sitemap; "Tự kết nối shop ngay" opens `https://demo.app-juli.com/?dang-ky=dung-thu`.
+  2. **Ops tab "Đăng ký dùng thử" needs Vận hành or Admin** (list and status change); Xem gets 403.
+     Its responses are **not** buyer-PII-masked: D25.6 masks connected shops' buyers; a sign-up is a
+     prospect who gave these details to be called back.
+  3. **Retention (privacy text):** a sign-up that does not become a customer is kept at most
+     12 months, then deleted; deletion on request within 30 days. No purge job yet (DEBT).
+  4. `trial_signups` is `ops_only` (migration 091); the visitor IP is stored only as an HMAC.
+     Limits: 5 stored sign-ups / IP / hour, 3 / e-mail / day, 120 site-wide / hour; honeypot hits
+     are answered 201 and not stored.
+  5. The landing forwards the visitor IP with a shared `TRIAL_SIGNUP_RELAY_KEY`; without it every
+     sign-up counts against the landing server's own IP (5 / hour in total) — the owner must set it.

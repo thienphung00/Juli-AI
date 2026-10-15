@@ -48,6 +48,7 @@ from juli_backend.models.shop_diagnosis import (
     ShopMetricRanking,
 )
 from juli_backend.models.subscriptions import ShopSubscriptionPeriod
+from juli_backend.models.trial_signups import TrialSignup
 
 #: Imported for their side effect: register `shop_ingestion_state`,
 #: `shop_diagnosis_reports`, `shop_metric_rankings`, the P8-C tables, P10-A's
@@ -91,4 +92,5 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     IngestDatasetStatus,
     CardGroup,
     CardGroupMember,
+    TrialSignup,
 )

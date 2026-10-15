@@ -292,6 +292,9 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for fast track P32-A (the partner
         # reviewer pinned to one shop, read as juli_app through the real app).
         "test_reviewer_two_tenant.py",
+        # Reason 2 again: seeds two tenants for fast track P33-F (the ops-only
+        # trial_signups table refused to juli_app under each scope).
+        "test_trial_signups_two_tenant.py",
     }
 )
 

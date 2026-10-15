@@ -197,6 +197,10 @@ UNAUTHENTICATED_ALLOWLIST = {
     "/v1/ingest/token/rotate",
     "/v1/ingest/status",
     "/v1/ingest/{platform}/{dataset}",
+    # Fast track P33-F (D43): the public free-trial sign-up from app-juli.com/dang-ky.
+    # A visitor has no session by definition; bounded by validation, a honeypot and
+    # per-IP / per-e-mail / site-wide limits counted in the ops-only table.
+    "/v1/trial-signups",
 }
 
 REGENERATION_COMMAND = (

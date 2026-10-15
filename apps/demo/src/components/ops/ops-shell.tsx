@@ -51,7 +51,7 @@ const OPS_NARROW_CSS = `@media (max-width: 900px) {
   .ops-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }`;
 
-export type OpsNavKey = "overview" | "staff" | "audit" | "simulate" | "costs" | "terms" | "settings";
+export type OpsNavKey = "overview" | "staff" | "audit" | "simulate" | "costs" | "terms" | "signups" | "settings";
 
 export function OpsHeader({
   me,
@@ -75,7 +75,7 @@ export function OpsHeader({
       </Link>
     );
   // D27.8: Mô phỏng lives only in the main nav (it opens the shop chosen in Tổng quan).
-  // D28: Tổng quan · Mô phỏng · Chi phí · Thời hạn · Nhân viên · Nhật ký.
+  // D28: Tổng quan · Mô phỏng · Chi phí · Thời hạn · Nhân viên · Nhật ký; P33-F adds Đăng ký dùng thử.
   const items = shopId
     ? [link("overview", "/ops", "Tổng quan"), link("settings", `/ops/shops/${shopId}`, "Cài đặt shop")]
     : [
@@ -83,6 +83,7 @@ export function OpsHeader({
         link("simulate", "/ops/mo-phong", "Mô phỏng"),
         link("costs", "/ops/chi-phi", "Chi phí"),
         link("terms", "/ops/thoi-han", "Thời hạn"),
+        link("signups", "/ops/dang-ky-dung-thu", "Đăng ký dùng thử"),
         link("staff", "/ops/nhan-vien", "Nhân viên"),
         link("audit", "/ops/nhat-ky", "Nhật ký"),
       ];

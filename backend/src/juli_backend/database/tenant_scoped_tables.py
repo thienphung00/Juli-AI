@@ -146,6 +146,8 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ops_shop_daily_summary"): "ops_only",
     # Fast track P32-A (D42, migration 090): partner reviewer trial accounts.
     ("public", "ops_reviewer_accounts"): "ops_only",
+    # Fast track P33-F (D43, migration 091): free-trial sign-ups from app-juli.com.
+    ("public", "trial_signups"): "ops_only",
 }
 
 #: Metadata about via-parent relationships (child_table -> (parent_table, fk_col, pk_col))

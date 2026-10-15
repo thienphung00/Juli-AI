@@ -142,6 +142,12 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
         "which names exactly one shop; writes only under that shop's RLS scope, "
         "rate-limited per shop."
     ),
+    ("POST", "/v1/trial-signups"): (
+        "Fast track P33-F (D43): the public free-trial sign-up from app-juli.com/dang-ky. "
+        "A visitor has no session by definition. Writes only the ops-only trial_signups "
+        "table (through juli_ops), reads nothing back; bounded by validation, a honeypot "
+        "and per-IP / per-e-mail / site-wide limits counted in that table."
+    ),
     ("GET", "/v1/auth/tiktok/callback"): (
         "TikTok Shop OAuth redirect callback — authenticated by a signed OAuth `state` "
         "token (TikTokOAuthInfrastructureService.verify_state), which binds the callback "

@@ -9,7 +9,7 @@ import { COMPANY } from "../../lib/site";
 
 export const ENGLISH_SECTION_ID = "english";
 export const ENGLISH_GOOGLE_SECTION_ID = "google-user-data";
-export const LAST_UPDATED_EN = "October 14, 2026";
+export const LAST_UPDATED_EN = "October 15, 2026";
 export const GOOGLE_USER_DATA_POLICY_URL =
   "https://developers.google.com/terms/api-services-user-data-policy";
 export const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
@@ -78,6 +78,21 @@ export function PrivacyPolicyEnglish() {
           </li>
           <li>Optional: a device token, only if you turn on push notifications on your phone</li>
         </ul>
+        <h4 className="lp-legal__subheading" id="free-trial-sign-up">
+          Free-trial sign-up
+        </h4>
+        <p data-testid="privacy-trial-signup-en">
+          When you sign up for the free trial on our <a href="/dang-ky">trial sign-up page</a>,
+          we collect your name, phone/Zalo number, email address, TikTok shop name or link, your
+          role, any note you write, how you reached us (utm parameters and referring page) and
+          the time you gave consent. We do not store your IP address, only a hash of it to
+          prevent repeated submissions and spam. We use this solely to contact you and set up
+          your shop connection for the trial; only the Juli team can see it, and our email
+          provider delivers the sign-up notice to the team. If you do not go on to use Juli, it
+          is kept for at most 12 months from the sign-up date and then deleted; if you do, it
+          becomes account information under this policy. You can ask us to delete it at any time
+          at <ContactLink />; we delete it within 30 days.
+        </p>
       </section>
 
       <section

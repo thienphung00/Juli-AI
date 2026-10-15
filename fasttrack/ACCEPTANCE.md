@@ -622,3 +622,23 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   2026-10-15: 10 / 14 URLs failing (no canonical / OG / JSON-LD on 6 main pages; demo without
   noindex), ops behind Cloudflare Access counted as out of the index.
 
+- [x] **AC-33.11** (F) Free-trial sign-up (owner 2026-10-15, D43 additions P33-F): `/dang-ky`
+  (one H1 "Đăng ký dùng thử miễn phí 3 tháng", value list, accessible mobile-first form: họ tên,
+  số điện thoại/Zalo (VN mobile), email, tên/link shop TikTok, vai trò nhà bán / affiliate / đội
+  vận hành sàn / agency, optional ghi chú, required consent linking `/terms` + `/privacy`,
+  honeypot; works without JS via `POST /dang-ky/gui` + 303) → `/dang-ky/cam-on` (noindex, not in
+  the sitemap; "Tự kết nối shop ngay" → `https://demo.app-juli.com/?dang-ky=dung-thu`,
+  env-overridable; CompleteRegistration only behind analytics consent). Backend: migration
+  `091_trial_signups` (ops_only), public `POST /v1/trial-signups` (validation, honeypot, per-IP /
+  e-mail / site-wide limits, IP stored as HMAC only, team e-mail to `TRIAL_SIGNUP_NOTIFY_TO` via
+  the ops mailer, succeeds without SMTP, no PII in logs); Ops tab "Đăng ký dùng thử"
+  (`GET/PATCH /v1/ops/trial-signups`, Vận hành+, audited); `/privacy` VN + EN paragraph.
+  — evidence: commits 64ab3b0a, 6a88d0c5, 4d0eb765, 09b6720b, 7120dbec, 95f428e7, c4a5f0ba,
+  3b74c001;
+  `tests/unit/test_trial_signups.py` 38 passed (validation, honeypot, rate limits, one row + one
+  mail, no SMTP / no recipients, no PII in logs, Ops roles + audit, migration shape);
+  `tests/integration/test_trial_signups_two_tenant.py` 14 passed on PG16 (`juli_app` refused
+  SELECT/INSERT/UPDATE/DELETE under tenant A, B and no scope; real app as `juli_app`: POST stores
+  via `juli_ops` and restores the role, Xem 403, Vận hành list + PATCH + one audit row);
+  landing `signup.test.tsx` 32 passed; demo `ops-trial-signups.test.tsx` 6 passed;
+  `fasttrack/check.sh --since f55809fd` 5/5 PASS (migrations at `091_trial_signups`; pytest 18 files 390 passed).
