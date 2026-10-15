@@ -6,6 +6,7 @@ import { SAMPLE_MAIN_CARD, SAMPLE_MANUAL_CARD } from "../../lib/quyet-dinh/sampl
 import { fetchReviewerMe } from "../../lib/reviewer/api-client";
 import { REVIEWER_BANNER_COPY, REVIEWER_SAMPLE_BANNER_COPY, REVIEWER_SIMULATED_LABEL } from "../../lib/reviewer/copy";
 import { simulateSampleDecision } from "../../lib/reviewer/sample-simulation";
+import { resetReviewerSample } from "../../lib/reviewer/sample-store";
 import { readReviewerRecord, storeReviewerRecord } from "../../lib/reviewer/session";
 import { readActiveShop, storeActiveShop } from "../../lib/shop-session";
 import { storeAuthSession } from "../../lib/supabase-auth";
@@ -35,7 +36,10 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 
-beforeEach(() => window.localStorage.clear());
+beforeEach(() => {
+  window.localStorage.clear();
+  resetReviewerSample({ stepMs: 0 });
+});
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -109,7 +113,8 @@ describe("the sample shop for a reviewer, in the real shell", () => {
     expect(screen.queryByText("Kết nối TikTok Shop ›")).toBeNull();
 
     const card = cards.find((element) => element.textContent?.includes(SAMPLE_MAIN_CARD.name)) ?? cards[0];
-    expect(within(card).getByRole("button", { name: "Từ chối" })).toBeDisabled();
+    // P32-E: nothing is read-only in the sample shop any more.
+    expect(within(card).getByRole("button", { name: "Từ chối" })).toBeEnabled();
     await userEvent.click(within(card).getByRole("button", { name: "Duyệt" }));
     const panel = await screen.findByTestId("reviewer-simulation");
     expect(panel).toHaveTextContent(REVIEWER_SIMULATED_LABEL);

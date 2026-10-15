@@ -517,6 +517,21 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   `fasttrack/shopee-isv-services-information.md` (2026-10-15; written for the D42 amendment sample
   shop, labels checked against `partner-sign-in.tsx` and `dictionary.md` `reviewer.*`).
 
+- [x] **AC-32.12** (P32-E, D42 amendment 2) In sample mode every seller write is usable as a
+  labelled browser-side simulation ("Mô phỏng · không gửi tới TikTok"; settings "Mô phỏng · không
+  lưu"): Từ chối with reasons, Duyệt → Thực thi → the sample run (consent edits, cover photo,
+  Seller Center, content drafts use / redraft / published), the run timeline, Đo lường day 7 / day
+  14, Hoàn tác, Quy tắc (Quyết định + Cài đặt), Phân tích video; connect / invites / ops stay
+  hidden; a full session's only request is `GET /v1/reviewer/me`; the pinned reviewer, a seller
+  and the signed-out sample are unchanged; no backend change. — a278a3b5;
+  `apps/demo/src/components/__tests__/reviewer-all-features.test.tsx::
+  a full session uses every simulated write and sends nothing but GET /v1/reviewer/me` (real
+  `DemoShell` + `DecisionsPageClient` / `SettingsPageClient`; fetch, XMLHttpRequest, EventSource
+  and sendBeacon spied; `expect(requests).toEqual(["GET /v1/reviewer/me"])`), `::the labels belong
+  to the reviewer's sample only`, `::a reviewer pinned to a real shop stays read-only`;
+  `reviewer-sample-mode.test.tsx` (Từ chối now enabled); existing `sample-quyet-dinh`,
+  `quyet-dinh-content`, `reviewer-mode`, `replay-module-graph` tests unchanged and green (demo
+  vitest 152 files / 1926 passed).
 - [ ] **AC-32.11** `check.sh` green on the integrated branch; deployed; a fresh browser signs in
   as the Shopee reviewer and walks the steps.
 

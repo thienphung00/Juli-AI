@@ -502,6 +502,58 @@ export function sampleWaitingMeasurement(completedMs: number, spec: SampleCardSp
   };
 }
 
+/**
+ * P32-E (D42 amendment 2): the partner trial account's "tua nhanh" — the same
+ * measurement moved to its day-7 reading or its day-14 verdict, computed from
+ * what the run already shows (target, bands, dates). Invented, labelled
+ * "Mô phỏng" by the screen; magnitudes follow the card's own target.
+ */
+export function sampleSimulatedMeasurement(base: Measurement, stage: "day7" | "final"): Measurement {
+  const { current, target } = base.target;
+  const from = current ?? 0;
+  const to = target ?? from;
+  const day7Actual = from + (to - from) * 0.6;
+  const finalActual = to + (to - from) * 0.1;
+  const gmv = base.expected_gmv_per_day;
+  const vnd = base.target.unit === "vnd";
+  const pct = (value: number) => (vnd ? `${Math.round(value / 1000)}k ₫` : `${(value * 100).toFixed(1).replace(".", ",")} %`);
+  const main = {
+    key: "main",
+    label: `${base.target.label} (chỉ số chính)`,
+    before: current,
+    expected: pct(to),
+    actual: stage === "day7" ? day7Actual : finalActual,
+    verdict: stage === "day7" ? "Đang lên" : "Đạt",
+    tone: "ok" as const,
+  };
+  const bandRows = base.bands.map((band) => ({
+    key: band.key,
+    label: band.label,
+    before: band.before,
+    expected:
+      band.low === null || band.high === null
+        ? "—"
+        : band.unit === "ratio"
+          ? `${pct(band.low)} – ${pct(band.high)}`
+          : `${Math.round(band.low).toLocaleString("vi-VN")} – ${Math.round(band.high).toLocaleString("vi-VN")}`,
+    actual: band.before,
+    verdict: "Giữ ổn định",
+    tone: "muted" as const,
+  }));
+  return {
+    ...base,
+    stage,
+    verdict: stage === "day7" ? { day7: "rising" } : { day7: "rising", day14: "met", strength: "clear" },
+    target: { ...base.target, progress_from: current },
+    rows: [main, ...bandRows],
+    day7: { within_band: true, question_id: null },
+    final:
+      stage === "final"
+        ? { label: "dat", gmv_actual_per_day: gmv === null ? null : Math.round(gmv * 0.9), pct_of_expected: 90, calibration: { lever: "listing", from: 1, to: 0.95 } }
+        : null,
+  };
+}
+
 // -- P14-E content cards ("Juli soạn · bạn làm", ContentCards.dc.html / ContentRun.dc.html) --
 
 export type SampleContentKind = "video" | "live";

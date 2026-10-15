@@ -309,6 +309,19 @@ Invariants below.
   (shared with `ReviewerSimulation`, `components/quyet-dinh/simulation-dialog.tsx`)
   over `lib/reviewer/sample-simulation.ts` — the API's simulation ported to the
   sample cards, in memory, nothing sent.
+  P32-E (D42 amendment 2, 2026-10-15): in sample mode nothing is read-only —
+  `DemoShell` wraps only the pinned reviewer in `SellerViewProvider readOnly`.
+  Every seller write runs on `lib/reviewer/sample-store.ts` (one
+  `createSampleQdClients` store per tab, shared by `SampleQuyetDinh` and
+  `/settings`' rules; reset by the banner's "Đặt lại dữ liệu mẫu" and sign-out):
+  Từ chối, the run after the dialog's "Theo dõi lượt chạy (mô phỏng) ›" (consent
+  edits, photo, Seller Center, content drafts, Hoàn tác), Đo lường's day-7 /
+  day-14 "tua nhanh" (`simulateMeasurement`), Quy tắc, and "Phân tích video"
+  (file picked, never read: canned P15 analysis). `SimulatedLabel`
+  (`components/app-shell/simulated-label.tsx`) prints `reviewer.simulated` /
+  `reviewer.simulated_settings` only for the sample reviewer. Proof:
+  `reviewer-all-features.test.tsx` — one full session through the real shell,
+  the only request `GET /v1/reviewer/me`.
 - `ConnectShopView`'s "Kết nối TikTok Shop" control is LIVE from issue #1970,
   where it used to be `aria-disabled` beside a disclaimer saying it did
   nothing. It calls `lib/tiktok-connect-client.ts`'s bearer-authenticated

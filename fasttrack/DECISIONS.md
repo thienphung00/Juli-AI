@@ -1020,6 +1020,23 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   the Fujiwa pin + mask of decision 3 applies unchanged. Decision 4's server-side guarantee
   (allowlist, write barrier, no-write proof) is the same in both modes. (P32-D)
 
+  **D42 amendment 2 (owner 2026-10-15): all features simulated in sample mode.** Shopee's ISV
+  criteria ask for a trial account with "all features enabled for Shopee testing"; with only
+  Duyệt usable the reviewer saw mostly disabled controls. In sample mode (no pin) **every** seller
+  write is usable as a visible simulation computed in the browser over the sample fixtures, on one
+  in-memory store kept for the browser tab (a reload, sign-out or "Đặt lại dữ liệu mẫu" starts it
+  over): Từ chối with its reasons; Duyệt → Thực thi, then "Theo dõi lượt chạy (mô phỏng)" into the
+  sample run — consent with "Sửa nội dung trước khi áp dụng", the cover-photo step, the Seller
+  Center step, content cards "Juli soạn · bạn làm" (Soạn lại / Dùng / Tôi đã đăng, canned
+  drafts); the run timeline; Đo lường with a day-7 / day-14 "tua nhanh"; Hoàn tác; Quy tắc
+  (Quyết định and Cài đặt, same store); "Phân tích video" (the file is never read or sent — a
+  canned analysis is shown). Labels: "Mô phỏng · không gửi tới TikTok", settings "Mô phỏng ·
+  không lưu". Still hidden for a reviewer: connect / disconnect shop, invites, ops. The pinned
+  (Fujiwa) mode is unchanged (read-only, API simulation). No backend change: in sample mode the
+  demo calls no shop route at all, so the allowlist and write barrier are untouched; the only
+  request of a reviewer session is `GET /v1/reviewer/me` (proved by `reviewer-all-features.test.tsx`).
+  (P32-E)
+
 - **D43** — app-juli.com as a business site that passes ISV review and indexes cleanly (grill,
   product owner, 2026-10-15). Inputs: an SEO expert's review (recording 2026-10-14: site too
   small, product page ~700 words and URL `/product` not descriptive, missing canonical, homepage

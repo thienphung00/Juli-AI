@@ -9,6 +9,9 @@ magnitudes), ADR-038 §9 (demo execution is a dry run), D13 (what a real execute
 > in production: the reviewer lands on the demo's **sample shop** ("Cửa hàng Mẫu Hoa Mai",
 > P11/P13, bundled, no network) and the Fujiwa pin below applies only when the env is set.
 > See §1 (no-pin row), §3 and §8.
+>
+> **D42 amendment 2 (owner, 2026-10-15, P32-E).** In sample mode every seller write is usable as a
+> browser-side simulation over the sample fixtures (§4 note, §6). Server side nothing changes.
 
 A partner platform's reviewer signs in on demo.app-juli.com with a **team-created e-mail +
 password**, lands on the reference shop **Fujiwa, masked** (only when pinned, see the amendment), reads Trang chủ / Phân tích /
@@ -185,6 +188,15 @@ card's stored proposal when one exists, else `"Juli soạn nội dung mới sau 
 call, D24.1). `step: "approve"` returns the same body with only the first step done. Nothing is
 enqueued, no run row, no card status change, no TikTok client.
 
+**Sample mode (P32-E, D42 amendment 2).** With no pin the demo never calls this route: the same
+body is computed in the browser (`lib/reviewer/sample-simulation.ts`). After "Thực thi (mô
+phỏng)" the dialog offers "Theo dõi lượt chạy (mô phỏng) ›", which plays the card through the
+P11 in-memory sample store (`lib/reviewer/sample-store.ts`, one per browser tab): consent with
+edits, cover photo (object URL, never uploaded), Seller Center checklist, content drafts, Hoàn
+tác, Đo lường day 7 / day 14 ("tua nhanh"). Every write of §2's table that a seller has —
+except shop connect, invites and ops, which stay hidden — is usable this way; none reaches the
+API. The pinned mode keeps the read-only UI and this route.
+
 ## 5. Audit (`ops_audit_log`, D25.2)
 
 Actor `reviewer:<platform>:<email>` (no staff id), `shop_id` = the pinned shop, `after` carries
@@ -211,7 +223,12 @@ cleared), the reviewer record carries `sample: true`, and every page takes P13's
 the sample shop over fixtures, no shop request — with the banner `reviewer.banner_sample` ("…
 dữ liệu mẫu …"), no "Kết nối TikTok Shop" strip, and Duyệt → Thực thi as the same labelled
 simulation computed in the browser from the sample card (`lib/reviewer/sample-simulation.ts`, a
-port of §4; no request, no run, not even in the sample store).
+port of §4; no request). P32-E (D42 amendment 2): in sample mode nothing is read-only — every
+other write (Từ chối, the run after "Theo dõi lượt chạy (mô phỏng)", consent edits, photo,
+Seller Center, content cards, Hoàn tác, Đo lường day 7 / day 14, Quy tắc on Quyết định and
+`/settings`, "Phân tích video") runs on the tab's in-memory sample store, labelled "Mô phỏng ·
+không gửi tới TikTok" (settings: "Mô phỏng · không lưu"); the banner carries "Đặt lại dữ liệu
+mẫu". Still the only request of the session: `GET /v1/reviewer/me`.
 Errors (dictionary `auth.password.*`): wrong e-mail or password (GoTrue `invalid_credentials` /
 `invalid_grant`), revoked (`user_banned`, or `X-Juli-Reviewer-Denied: revoked`), expired
 (`expired`), not a trial account (`/v1/reviewer/me` → `reviewer: false`: signed out again),

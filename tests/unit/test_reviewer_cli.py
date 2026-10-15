@@ -140,3 +140,23 @@ def test_gotrue_create_takes_over_an_existing_user():
     assert put[2]["app_metadata"] == {"juli_role": "reviewer", "juli_platform": "shopee"}
     assert put[2]["ban_duration"] == "none" and put[2]["email_confirm"] is True
     assert seen[0][2]["app_metadata"]["juli_role"] == "reviewer"
+
+
+def test_new_style_secret_key_is_sent_in_apikey_only():
+    """`sb_secret_…` keys are not JWTs; Supabase answers 401 when they are sent as Bearer."""
+    headers: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        headers.append(dict(request.headers))
+        return httpx.Response(200, json={"id": str(uuid.uuid4()), "email": "r@app-juli.com"})
+
+    for key, bearer in (("sb_secret_abc123", False), ("eyJhbGciOiJIUzI1NiJ9.e30.sig", True)):
+        headers.clear()
+        admin = GoTrueAdmin(
+            "https://x.supabase.co",
+            key,
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+        admin.create_or_update("r@app-juli.com", "pw-123456789", "shopee")
+        assert headers and all(h["apikey"] == key for h in headers)
+        assert all(("authorization" in h) is bearer for h in headers)

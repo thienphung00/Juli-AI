@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { createSampleQdClients, type SampleQdClients } from "../../lib/quyet-dinh/sample-clients";
 import { SAMPLE_SHOP, SAMPLE_TOKEN } from "../../lib/quyet-dinh/sample-data";
 import { useReviewer } from "../../lib/reviewer/mode";
 import { simulateSampleDecision } from "../../lib/reviewer/sample-simulation";
+import { reviewerSampleClients, reviewerSampleEpoch, subscribeReviewerSample } from "../../lib/reviewer/sample-store";
 import { QuyetDinhView, type QdQuery } from "./quyet-dinh-view";
 import { SimulationDialog } from "./simulation-dialog";
 
@@ -18,9 +19,16 @@ import { SimulationDialog } from "./simulation-dialog";
  * `replay-module-graph.test.ts`).
  *
  * P32-D (D42 amendment): a partner trial account with no pinned shop lands
- * here too. Its shell makes every write control read-only except "Duyệt",
- * which opens the reviewer's simulated Duyệt → Thực thi over the sample card
- * ("Mô phỏng · không gửi tới TikTok") — computed in memory, nothing sent.
+ * here too; "Duyệt" opens the reviewer's simulated Duyệt → Thực thi over the
+ * sample card ("Mô phỏng · không gửi tới TikTok") — computed in memory,
+ * nothing sent.
+ *
+ * P32-E (D42 amendment 2): for that reviewer every other write works too —
+ * on the session's shared sample store (`lib/reviewer/sample-store.ts`), so a
+ * run started here survives a visit to Trang chủ and Cài đặt's rules are the
+ * same ones. After "Thực thi (mô phỏng)" the dialog offers "Theo dõi lượt
+ * chạy (mô phỏng)": the sample run (consent with edits, photo, Seller Center,
+ * content drafts, Hoàn tác, Đo lường) — still in memory, still nothing sent.
  */
 export function SampleQuyetDinh({
   query,
@@ -32,22 +40,41 @@ export function SampleQuyetDinh({
   /** Tests inject a store with `stepMs: 0`. */
   readonly clients?: SampleQdClients;
 }) {
-  const [store] = useState<SampleQdClients>(() => clients ?? createSampleQdClients());
   const reviewer = useReviewer();
-  const [simulating, setSimulating] = useState<string | null>(null);
+  const simulated = reviewer?.sample === true;
+  const [own] = useState<SampleQdClients | null>(() => clients ?? null);
+  const [anonymous] = useState<SampleQdClients>(() => createSampleQdClients());
+  const epoch = useSyncExternalStore(subscribeReviewerSample, reviewerSampleEpoch, reviewerSampleEpoch);
+  const store = own ?? (simulated ? reviewerSampleClients() : anonymous);
+  const [simulating, setSimulating] = useState<{ cardId: string; proceed: () => void } | null>(null);
   return (
     <>
       <QuyetDinhView
         clients={store}
+        key={simulated && !own ? `reviewer-${epoch}` : "sample"}
         onNavigate={onNavigate}
-        onSimulateApprove={reviewer ? setSimulating : undefined}
+        onSimulateApprove={reviewer ? (cardIds, proceed) => setSimulating({ cardId: cardIds[0], proceed }) : undefined}
+        onSimulateMeasure={simulated ? (stage) => store.simulateMeasurement(stage) : undefined}
         query={query}
         sample
         shop={SAMPLE_SHOP}
+        simulated={simulated}
         token={SAMPLE_TOKEN}
       />
       {reviewer && simulating ? (
-        <SimulationDialog cardId={simulating} onClose={() => setSimulating(null)} simulate={simulateSampleDecision} />
+        <SimulationDialog
+          cardId={simulating.cardId}
+          onClose={() => setSimulating(null)}
+          onContinue={
+            simulated
+              ? () => {
+                  setSimulating(null);
+                  simulating.proceed();
+                }
+              : undefined
+          }
+          simulate={simulateSampleDecision}
+        />
       ) : null}
     </>
   );

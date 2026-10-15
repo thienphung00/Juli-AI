@@ -43,6 +43,7 @@ import {
   sampleDay7Measurement,
   sampleDecision,
   sampleRules,
+  sampleSimulatedMeasurement,
   sampleWaitingMeasurement,
   toEvents,
   writeAndReview,
@@ -85,6 +86,11 @@ export interface SampleClientsOptions {
 export interface SampleQdClients extends QdClients {
   /** Test seam: every run currently in the store. */
   readonly snapshotRuns: () => readonly QdRun[];
+  /**
+   * P32-E (partner trial account): "tua nhanh" every measured run to its
+   * day-7 reading or day-14 verdict, in this store only. Returns how many moved.
+   */
+  readonly simulateMeasurement: (stage: "day7" | "final") => number;
 }
 
 const EMPTY_EVENTS: readonly AgentEvent[] = [];
@@ -324,8 +330,22 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
     return { events, streamStatus: "open" };
   }
 
+  const simulateMeasurement = (stage: "day7" | "final"): number => {
+    let moved = 0;
+    for (const run of runs.values()) {
+      if (run.kind === "revert" || !run.measurement || run.changes.reverts_run_id) continue;
+      if (run.changes.revert.runs.length > 0) continue;
+      if (run.measurement.stage === "final" || run.measurement.stage === stage) continue;
+      run.measurement = sampleSimulatedMeasurement(run.measurement, stage);
+      moved += 1;
+    }
+    if (moved > 0) emit();
+    return moved;
+  };
+
   return {
     snapshotRuns,
+    simulateMeasurement,
     useRunEvents: useSampleRunEvents,
     analysisClients: () => SAMPLE_ANALYSIS_CLIENTS,
 

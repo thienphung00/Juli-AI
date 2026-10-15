@@ -11,7 +11,10 @@ import {
   type ContentAnalysis,
   type ContentAnalysisClients,
 } from "../../lib/content-analysis/types";
+import { SAMPLE_ANALYSES } from "../../lib/content-analysis/sample";
+import { REVIEWER_VIDEO_SIMULATED_NOTE } from "../../lib/reviewer/copy";
 import { useReviewer } from "../../lib/reviewer/mode";
+import { SimulatedLabel } from "../app-shell/simulated-label";
 
 /**
  * P15 "Phân tích video" (contract `p15-content-analysis.md` §5). NO ARTBOARD
@@ -24,6 +27,8 @@ import { useReviewer } from "../../lib/reviewer/mode";
  */
 
 const POLL_MS = 5_000;
+/** P32-E: the simulated upload's progress ticks (ms) — the file is never read. */
+const SIMULATED_TICK_MS = 150;
 
 function errorText(error: unknown, fallback: string): string {
   return error instanceof Error && error.message && !error.message.startsWith("Request failed") ? error.message : fallback;
@@ -99,8 +104,13 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { kind, contentRef, productId, runId } = target;
-  // P32-A: a partner trial account reads existing analyses but cannot upload.
-  const reviewer = useReviewer() !== null;
+  // P32-A: a partner trial account pinned to a real shop reads existing
+  // analyses but cannot upload. P32-E (D42 amendment 2): in the sample shop it
+  // picks a file and gets the canned sample analysis — no byte leaves the browser.
+  const reviewerRecord = useReviewer();
+  const simulated = reviewerRecord?.sample === true && clients.sample;
+  const reviewer = reviewerRecord !== null && !simulated;
+  const [simulatedFile, setSimulatedFile] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +151,20 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
     }
     setError(null);
     setProgress(0);
+    if (simulated) {
+      // Only the name is kept; the file is never read, uploaded or stored.
+      const name = file.name;
+      [0.35, 0.7, 1].forEach((fraction, index) =>
+        window.setTimeout(() => setProgress(fraction), SIMULATED_TICK_MS * (index + 1)),
+      );
+      window.setTimeout(() => {
+        setLatest({ ...SAMPLE_ANALYSES[kind], id: `simulated-${kind}`, file_name: name, run_id: runId ?? null });
+        setSimulatedFile(name);
+        setProgress(null);
+        if (inputRef.current) inputRef.current.value = "";
+      }, SIMULATED_TICK_MS * 4);
+      return;
+    }
     clients
       .upload(target, file, (fraction) => setProgress(fraction))
       .then((analysis) => setLatest(analysis))
@@ -160,7 +184,7 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
         <h3 className="qv-va__title" id={headingId}>
           Phân tích video
         </h3>
-        {clients.sample ? <span className="qv-va__badge">Bản minh họa</span> : null}
+        {clients.sample && !simulated ? <span className="qv-va__badge">Bản minh họa</span> : null}
         {latest && !uploading ? (
           <span className="qv-va__status" data-status={latest.status} data-testid="video-analysis-status">
             {latest.status_label}
@@ -168,6 +192,11 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
         ) : null}
       </div>
 
+      {simulated ? (
+        <SimulatedLabel>
+          {simulatedFile ? `${simulatedFile} · ${REVIEWER_VIDEO_SIMULATED_NOTE}` : REVIEWER_VIDEO_SIMULATED_NOTE}
+        </SimulatedLabel>
+      ) : null}
       {loading ? (
         <p className="qv-va__muted" role="status">
           Đang tải…
@@ -203,7 +232,10 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
 
       {reviewer ? null : (
       <div className="qv-va__upload">
-        <label className={`qv-btn qv-btn--secondary qv-va__pick${clients.sample || uploading || working ? " qv-va__pick--off" : ""}`} htmlFor={inputId}>
+        <label
+          className={`qv-btn qv-btn--secondary qv-va__pick${(clients.sample && !simulated) || uploading || working ? " qv-va__pick--off" : ""}`}
+          htmlFor={inputId}
+        >
           {latest ? `Tải ${what} khác` : `Tải ${what} lên`}
         </label>
         <input
@@ -211,14 +243,18 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
           aria-label={`Chọn ${what} để phân tích`}
           className="qv-va__input"
           data-testid="video-analysis-input"
-          disabled={clients.sample || uploading || working}
+          disabled={(clients.sample && !simulated) || uploading || working}
           id={inputId}
           onChange={(event) => onFile(event.target.files?.[0])}
           ref={inputRef}
           type="file"
         />
         <span className="qv-va__hint">
-          {clients.sample ? "Bản minh họa: đăng nhập và kết nối shop để tải video lên." : `${limits}. Juli xoá tệp ngay sau khi phân tích.`}
+          {simulated
+            ? `${limits}. Mô phỏng: tệp không được tải lên.`
+            : clients.sample
+              ? "Bản minh họa: đăng nhập và kết nối shop để tải video lên."
+              : `${limits}. Juli xoá tệp ngay sau khi phân tích.`}
         </span>
       </div>
       )}

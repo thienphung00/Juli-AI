@@ -50,8 +50,12 @@ connects the seller's shop with them.
 **About the trial account.** It is a partner account that opens the full product on a **sample
 shop** ("Cửa hàng Mẫu Hoa Mai", sample data, labelled as such), so no real seller's data is shown
 to third parties. Approving and executing a recommendation is **simulated**: the screen shows the
-exact change Juli would send to the marketplace API, but nothing is sent. The interface is in
-Vietnamese; the steps below give the English meaning of each label.
+exact change Juli would send to the marketplace API, but nothing is sent. Every other feature a
+seller has — rejecting a recommendation, editing a draft before applying it, the photo and Seller
+Center steps, video / LIVE scripts, reverting a change, the day-7 / day-14 measurement, shop
+rules, video analysis — is enabled the same way: it runs in the browser on the sample data and is
+labelled "Mô phỏng" (simulation). "Đặt lại dữ liệu mẫu" in the banner resets the sample. The
+interface is in Vietnamese; the steps below give the English meaning of each label.
 
 ## Steps for the reviewer
 
@@ -70,7 +74,21 @@ Vietnamese; the steps below give the English meaning of each label.
    không gửi tới TikTok" (Simulation · not sent to TikTok), shows the API call Juli would make
    (for example `update_product_listing`) with the field before and after. For a connected seller
    this is when Juli writes the approved change through the Open API.
-6. Product and integration details: https://app-juli.com/san-pham ·
+6. Press **"Theo dõi lượt chạy (mô phỏng)"** (Follow the run): the **Đang thực hiện** (In
+   progress) tab shows each step of the run. Use **"✎ Sửa nội dung trước khi áp dụng"** (Edit
+   before applying) to change the draft, then **"Xác nhận thay đổi này"** (Confirm this change).
+   Once applied, **"Hoàn tác"** (Revert) restores the old content, with a reason.
+7. Back on **Đề xuất** (Recommendations): **"Từ chối"** (Reject) asks for a reason; the
+   cover-image card asks for a photo; the promotion card shows the Seller Center checklist and
+   **"Tôi đã áp dụng"** (I have applied it); the video / LIVE cards ("Juli soạn · bạn làm") show
+   Juli's script with **"Soạn lại"** (Redraft) and **"Dùng kịch bản này"** (Use this script), and
+   a **"Phân tích video"** (Video analysis) block — picking a file shows a sample analysis; the
+   file is not uploaded.
+8. **Đo lường** (Measurement): **"Ngày 7 (mô phỏng)"** / **"Ngày 14 (mô phỏng)"** preview the
+   day-7 check and the day-14 verdict on the runs you completed.
+9. **Quy tắc** (Rules — "Sửa" on Quyết định, or Cài đặt in the shop menu): edit and save the
+   shop's rules, labelled "Mô phỏng · không lưu" (simulation · not saved).
+10. Product and integration details: https://app-juli.com/san-pham ·
    https://app-juli.com/ket-noi/tiktok-shop · trial sign-up https://app-juli.com/dang-ky.
 
 Contact: lienhe@app-juli.com · https://app-juli.com/contact

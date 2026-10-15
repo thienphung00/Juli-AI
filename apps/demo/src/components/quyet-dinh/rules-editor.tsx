@@ -18,6 +18,7 @@ import {
 } from "../../lib/quyet-dinh/off-api-rules";
 import { vnDate } from "../../lib/quyet-dinh/timeline";
 import { bandDefault, type RuleKey, type RuleValueItem, type SetBy, type ShopRules } from "../../lib/quyet-dinh/types";
+import { SimulatedLabel } from "../app-shell/simulated-label";
 import { useWriteControl } from "../seller-view-context";
 
 /**
@@ -626,6 +627,7 @@ export function RulesEditor({
 
   return (
     <section aria-labelledby="qd-rules-editor" className="card qd-rules-editor" data-testid="rules-editor">
+      <SimulatedLabel kind="settings">Quy tắc chỉ giữ trong phiên này, không gửi đi đâu.</SimulatedLabel>
       <div className="qd-rules-editor__head">
         <div>
           <Heading className="qd-side-card__title" id="qd-rules-editor">

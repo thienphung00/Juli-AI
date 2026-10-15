@@ -7,6 +7,7 @@ import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analyt
 import { looksLikeRunId } from "../lib/run-surface/run-id";
 import { REVIEWER_READ_ONLY_TITLE } from "../lib/reviewer/copy";
 import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/reviewer/reviewer-context";
+import { resetReviewerSample } from "../lib/reviewer/sample-store";
 import { clearActiveShop } from "../lib/shop-session";
 import { ShopReportProvider, useShopReport } from "../lib/shop-report/shop-report-context";
 import { buildGoogleAuthorizeUrl, clearAuthSession } from "../lib/supabase-auth";
@@ -69,7 +70,14 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     router.replace("/decisions");
   };
 
+  // P32-E: "Đặt lại dữ liệu mẫu" — a fresh sample store, every sample view remounts.
+  const handleResetSample = () => {
+    resetReviewerSample();
+    resetMockState();
+  };
+
   const handleSignOut = () => {
+    resetReviewerSample();
     clearAuthSession();
     clearActiveShop();
     clearReviewerSignIn();
@@ -77,9 +85,12 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     window.location.assign("/?entry=door");
   };
 
-  // P32-A: in the partner trial account every write control of every page is
-  // read-only (Duyệt runs a simulation); the API refuses the writes anyway.
-  const page = reviewer ? (
+  // P32-A: in the partner trial account pinned to a real shop every write
+  // control of every page is read-only (Duyệt runs a simulation); the API
+  // refuses the writes anyway. P32-E (D42 amendment 2): in the sample shop
+  // (no pin) nothing is read-only — every write runs in the in-memory sample
+  // store, labelled "Mô phỏng", and no shop route is ever called.
+  const page = reviewer && !reviewer.sample ? (
     <SellerViewProvider readOnly readOnlyTitle={REVIEWER_READ_ONLY_TITLE} simulateApprove>
       {children}
     </SellerViewProvider>
@@ -92,7 +103,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
       <div className="app-shell app-shell--run">
         <AppNavigation activePath={pathname} />
         <div className="app-shell__main">
-          {reviewer ? <ReviewerBanner reviewer={reviewer} /> : null}
+          {reviewer ? <ReviewerBanner onReset={handleResetSample} reviewer={reviewer} /> : null}
           <main className="app-content app-content--run">{page}</main>
         </div>
       </div>
@@ -110,7 +121,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
           reviewer={reviewer !== null}
           state={state}
         />
-        {reviewer ? <ReviewerBanner reviewer={reviewer} /> : null}
+        {reviewer ? <ReviewerBanner onReset={handleResetSample} reviewer={reviewer} /> : null}
         <p aria-label="Phản hồi Demo" aria-live="polite" className="juli-sr-only" role="status">
           {feedback}
         </p>

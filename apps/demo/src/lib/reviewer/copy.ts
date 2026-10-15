@@ -36,3 +36,26 @@ export function platformLabel(platform: string): string {
   if (!platform) return "";
   return platform.charAt(0).toUpperCase() + platform.slice(1);
 }
+
+/**
+ * dictionary.md `reviewer.simulated_settings` — P32-E (D42 amendment 2): the
+ * label of a simulated settings save (Quy tắc) in the sample shop.
+ */
+export const REVIEWER_SIMULATED_SETTINGS_LABEL = "Mô phỏng · không lưu";
+
+/** dictionary.md `reviewer.sample_notice` — P32-E: Quyết định's notice in the sample shop. */
+export const REVIEWER_SAMPLE_NOTICE =
+  "Mọi thao tác ở đây — duyệt, từ chối, sửa nội dung, ảnh, Seller Center, kịch bản, hoàn tác — chạy trong trình duyệt trên dữ liệu mẫu.";
+
+/** dictionary.md `reviewer.reset` — P32-E: start the sample shop over. */
+export const REVIEWER_RESET_LABEL = "Đặt lại dữ liệu mẫu";
+
+/** dictionary.md `reviewer.continue_run` — P32-E: from the simulated Thực thi to the sample run. */
+export const REVIEWER_CONTINUE_LABEL = "Theo dõi lượt chạy (mô phỏng) ›";
+
+/** dictionary.md `reviewer.fast_forward` — P32-E: Đo lường's day-7 / day-14 preview. */
+export const REVIEWER_FAST_FORWARD_COPY = "Xem trước kết quả đo trên lượt chạy mô phỏng:";
+
+/** dictionary.md `reviewer.video_simulated` — P32-E: the canned "Phân tích video". */
+export const REVIEWER_VIDEO_SIMULATED_NOTE =
+  "Tệp không được tải lên — Juli hiển thị một phân tích mẫu, tệp không rời trình duyệt.";

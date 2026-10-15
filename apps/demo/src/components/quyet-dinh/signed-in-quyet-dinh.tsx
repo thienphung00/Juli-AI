@@ -129,7 +129,7 @@ export function SignedInQuyetDinh({
           cardsRefresh={cardsRefresh}
           clients={reviewerClients}
           onNavigate={onNavigate}
-          onSimulateApprove={setSimulating}
+          onSimulateApprove={(cardIds) => setSimulating(cardIds[0])}
           query={query}
           shop={shop}
           token={token}
