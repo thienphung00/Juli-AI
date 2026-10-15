@@ -942,3 +942,14 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Load-sensitive demo test (seen 2026-10-15, P32-E gates): `ops-pages.test.tsx > saves the
   scenario and sets it as the shop target` timed out once (5.6 s) in a full demo run (1925 / 1926)
   and passes 3 / 3 alone; the previous full run on the same code was 1926 / 1926. Untouched by P32-E.
+- [ ] P34-A (UI foundation): mobile crops of the `cap-*` screenshots are cut from the published
+  1280 WebP (the original PNG captures are not in the repo), so they are re-encoded from a lossy
+  source; crop boxes are fractions in `MOBILE_CROPS` (`scripts/media.py`), eyeballed once at 390.
+  Re-capture the six large-text shots or any crop at native mobile size if a page needs sharper text.
+- [ ] P34-A: all four font weights are preloaded (~123 KB woff2); `next/font/local` cannot preload a
+  subset of one family's files. Re-measure LCP in AC-34.7; if needed drop 500 or 700 (700 is used only
+  by the "Juli AI" wordmark) or set `preload: false`.
+- [ ] P34-A: `TocNav` active state is static (`activeId` prop), no scroll-spy; the TOC renders its
+  link list twice (desktop list + mobile `<details>`), one hidden by CSS.
+- [ ] P34-A: `ui.css` sets body to 17 px / 1.65 site-wide; old `lp-*` page sections (until B–E
+  redesign them) inherit it, so some legacy blocks render slightly larger than before.

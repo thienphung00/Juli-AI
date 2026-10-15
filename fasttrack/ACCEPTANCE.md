@@ -663,10 +663,18 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 
 ## P34 — public UI redesign (D44; spec `fasttrack/design/p34/`)
 
-- [ ] **AC-34.1** (A) Be Vietnam Pro loaded (Vietnamese subset, no layout shift), landing tokens
+- [x] **AC-34.1** (A) Be Vietnam Pro loaded (Vietnamese subset, no layout shift), landing tokens
   (colour, type scale, spacing, containers) and shared components: header/nav (mobile menu),
   footer, buttons, framed screenshot (`<Shot>` with caption + mobile crop), section/eyebrow/
   heading primitives, icon set; existing pages still pass `check:seo`.
+  Evidence (P34-A, branch `fasttrack/p34a-ui-foundation`, 2026-10-15): font `app/fonts.ts`
+  (`next/font/local`, 4 woff2 Latin+Vietnamese, `display: swap`, metric fallback; built HTML
+  preloads the 4 files, computed body font `beVietnamPro` at 1440 and 390); tokens
+  `src/styles/tokens.css` (+ `design-tokens.test.ts`); components `src/components/ui/*` with
+  `README.md`, tested in `ui-components.test.tsx` (25 tests); every page on `SiteHeader`/`SiteFooter`;
+  landing lint 0, type-check clean, vitest 13 files / 178 passed, build OK, `check:seo` 17/17;
+  Playwright `/`, `/san-pham`, `/dang-ky` at 1440 + 390, no horizontal overflow,
+  `fasttrack/design/p34/evidence/p34a/*.webp`; `check.sh --since 64f7f913` 5/5 PASS.
 - [ ] **AC-34.2** (B) Homepage matches `Main.dc.html` / `HomeMobile.dc.html`.
 - [ ] **AC-34.3** (C) `/san-pham`, the 3 capability pages and `/ket-noi/tiktok-shop` match
   `Product.dc.html` (diagrams built in markup, one framed shot per H2, mobile crops readable).

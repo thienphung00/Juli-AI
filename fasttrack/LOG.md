@@ -1482,3 +1482,41 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   ACCEPTANCE AC-32.12, PROGRESS P32-E, DEBT.
 - Next: orchestrator merges, deploys, resubmits to Shopee with the updated Services Information.
 
+
+## 2026-10-15 — P34-A agent (Claude Opus) — UI foundation for the public redesign (D44, AC-34.1)
+
+- Branch `fasttrack/p34a-ui-foundation` from 64f7f913. Commits 3380f3cf … (see `git log 64f7f913..`).
+- **Font**: Be Vietnam Pro 400/500/600/700 self-hosted with `next/font/local` (`apps/landing/src/app/fonts.ts`);
+  one woff2 per weight (~30 KB) holding Google's Latin + Vietnamese unicode ranges, subset with
+  fonttools from the upstream OFL TTFs (licence `src/app/fonts/OFL.txt`). No build-time fetch, so
+  `build-release-artifact.sh` / `fasttrack-deploy.yml` need nothing new. `display: swap` +
+  metric-matched Arial fallback (no CLS). `--juli-font-sans` is re-pointed to it in the landing, so
+  the `@juli/ui` buttons and `html` use it too. The landing used to name Inter and never load it.
+- **Tokens**: `apps/landing/src/styles/tokens.css` (`--lp-*`: colour incl. status pairs, dark band and
+  blog category tints; responsive type scale D44.1; 4 px spacing + section rhythm; containers 1200/720;
+  radii 10–24; frame/hero/float shadows). The only landing file allowed raw colours
+  (`design-tokens.test.ts` allowlists it). Contrast measured: every text pair ≥ 4.5:1 (list in the
+  file header); `--lp-pink` is accent-only (2.75:1). `packages/theme/tokens.css` untouched.
+- **Components** `apps/landing/src/components/ui/` (barrel `index.ts`, styles `ui.css`, docs `README.md`
+  with props, tokens and a recipe per mockup): SiteHeader (active state, `<details>` mobile menu,
+  `signup` variant), SiteFooter, LinkButton/Button/TextLink, Section/Container/Eyebrow/Heading/
+  SectionIntro/Card/CheckList, Shot/ShotFrame (chrome bar, backdrop, "Dữ liệu mẫu", mobile crop via
+  `<picture media>` with its own width/height, top crop), FeatureRow, StatusPill, StepList
+  (`LOOP_STEPS`), FunnelDiagram, FaqList (optional FAQPage JSON-LD), TocNav + `.ui-toc-layout`,
+  Breadcrumb, Icon (12 line icons), BirdGlyph/BrandMark. `Picture` gained `mobileVariants`.
+- **Assets** (`scripts/media.py glyph`, `mobile-crops`): bird glyph 64/96 AVIF+WebP; 18 mobile crops
+  `cap-*-m-v1-*` (+ `*_MOBILE` in `components/product/screens.ts`), eyeballed at 390. Six shots with
+  large text need none.
+- **Migration**: every page now renders `SiteHeader`/`SiteFooter` (`/dang-ky` uses the signup
+  header); old `landing-header.tsx`, `site-footer.tsx`, `site-logo.tsx`, `LOGO_WORDMARK` and the
+  `lp-header*`/`lp-footer*`/`lp-logo` CSS removed (globals.css 1,077 → 844 lines). Header CTA changed
+  per mockup: `header-demo-cta` → `header-login-link` (Demo) + `header-trial-cta` (/dang-ky); tests
+  (cta, tracking: 7 tracked CTAs, sections, info, legal) updated. Page bodies untouched (B–E).
+- **Gates** (Node 20.20.2): `pnpm install --frozen-lockfile` OK; landing lint 0 problems, type-check
+  clean, vitest 13 files / 178 passed, `next build` OK (all pages static), `check:seo` 17/17;
+  Playwright on the production build: `/`, `/san-pham`, `/dang-ky` at 1440 and 390, no horizontal
+  overflow, computed font Be Vietnam Pro; header menu opened at 390; a throwaway preview page of every
+  component at both widths (not committed). Screenshots: `fasttrack/design/p34/evidence/p34a/`.
+  `check.sh --since 64f7f913` 5/5 PASS.
+- For B–E: read `apps/landing/src/components/ui/README.md`. Next: B–E build pages on this branch's
+  merge; orchestrator merges P34-A first.
