@@ -842,16 +842,14 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P33-B shortcuts (2026-10-15)
 
-- [ ] The sales demo video itself still shows unsourced figures ("+5–10%", "+1–3% GMV mỗi
+- [x] (owner, D43 additions 1: video stays, caption is enough) The sales demo video itself still shows unsourced figures ("+5–10%", "+1–3% GMV mỗi
   tháng", "29 giờ") and a run where Juli applies "Giảm giá sản phẩm 30 ngày" (contradicts D13 /
   D24.5: promotions are the seller's). The page labels it "Số liệu trong video là minh hoạ";
   owner decides: re-cut the video (juli-content-engine `sales-demo-02`) or drop it from the hero.
-- [ ] No seller-facing "Ngắt kết nối" in the app (only Ops Admin "Huỷ kết nối", D25.13). Public
-  copy says the seller revokes Juli in TikTok Seller Center or emails Juli. Add an in-app
-  disconnect, then simplify the copy.
-- [ ] Old `public/media/juli-demo-poster-v1-*` files (poster with "+1–3%") are unreferenced but
-  kept (immutable-cached URLs); `scripts/media.py brand` still regenerates them. Delete after
-  the next deploy.
+- [x] (owner, D43 additions 3: no disconnect button; copy now says contact Juli, the team
+  disconnects) No seller-facing "Ngắt kết nối" in the app.
+- [x] (owner, D43 additions 4: keep them) Old `public/media/juli-demo-poster-v1-*` files are
+  unreferenced but kept.
 - [ ] Homepage / `/san-pham` link `/san-pham/phan-tich-shop`, `/san-pham/de-xuat-va-thuc-thi`,
   `/san-pham/do-luong-gmv`, `/ket-noi/tiktok-shop`, `/blog`, which 404 on this branch alone;
   they exist only after P33-C / P33-D integrate. Integration must not ship B without C and D.
@@ -860,4 +858,10 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   the LCP element.
 - [ ] Commit 2f16f2eb alone fails `sections.test.tsx` (old poster path pinned); green from
   512c3993. Squash-irrelevant, noted for bisects.
+- [ ] Every "Dùng thử miễn phí 3 tháng" CTA links `/dang-ky` (P33-F's page), which 404s on this
+  branch alone; `check:seo` does not check links, so nothing was allow-listed. Integrate with P33-F.
+- [ ] Trial CTA clicks to `/dang-ky` reuse the custom `StartDemo` Pixel event (content_name =
+  the CTA's testid) for continuity; a dedicated event for the form submit is P33-F's.
+- [ ] Demo vitest under host load avg ~35: `quyet-dinh-p10` and `ops-pages` (3 tests) failed in the
+  full run, passed 70/70 together with `demo-landing` alone — the known load flake, not P33-B.
 
