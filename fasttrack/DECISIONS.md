@@ -1008,6 +1008,18 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   8. TLS already meets Shopee's bar (SSL Labs A+, TLS 1.0/1.1 refused, HSTS 6 months, nosniff;
      verified 2026-10-14). Never crawl Shopee (Rules §3).
 
+  **D42 amendment (owner, 2026-10-15)** — amends decision 3. The Shopee ISV rejection was about
+  the product page and the trial sign-up, not the data, so the partner reviewer uses the
+  **sample shop** ("Cửa hàng Mẫu Hoa Mai", the demo's P11/P13 no-network sample) instead of
+  Fujiwa. `REVIEWER_SHOP_ID` is **optional** and is **not** set in production: unset, a valid
+  reviewer session gets `GET /v1/reviewer/me` → `{reviewer: true, platform, expires_at, shop:
+  null}` (no more 503), `/v1/shops` → `[]`, every shop-scoped route 403; the demo then shows
+  Trang chủ / Phân tích / Quyết định over the sample fixtures under the reviewer banner ("dữ liệu
+  mẫu"), no connect / invite / upload entry, and Duyệt → Thực thi as the same labelled
+  simulation ("Mô phỏng · không gửi tới TikTok"), computed in the browser, nothing sent. Set,
+  the Fujiwa pin + mask of decision 3 applies unchanged. Decision 4's server-side guarantee
+  (allowlist, write barrier, no-write proof) is the same in both modes. (P32-D)
+
 - **D43** — app-juli.com as a business site that passes ISV review and indexes cleanly (grill,
   product owner, 2026-10-15). Inputs: an SEO expert's review (recording 2026-10-14: site too
   small, product page ~700 words and URL `/product` not descriptive, missing canonical, homepage

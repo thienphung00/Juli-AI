@@ -5,8 +5,13 @@ always read-only, every write refused server-side), D25.6 / ADR-038 §8 (identit
 magnitudes), ADR-038 §9 (demo execution is a dry run), D13 (what a real execute writes), D8
 (database, credentials, tenant isolation and TikTok writes need tests).
 
+> **D42 amendment (owner, 2026-10-15, P32-D).** `REVIEWER_SHOP_ID` is optional and is not set
+> in production: the reviewer lands on the demo's **sample shop** ("Cửa hàng Mẫu Hoa Mai",
+> P11/P13, bundled, no network) and the Fujiwa pin below applies only when the env is set.
+> See §1 (no-pin row), §3 and §8.
+
 A partner platform's reviewer signs in on demo.app-juli.com with a **team-created e-mail +
-password**, lands on the reference shop **Fujiwa, masked**, reads Trang chủ / Phân tích /
+password**, lands on the reference shop **Fujiwa, masked** (only when pinned, see the amendment), reads Trang chủ / Phân tích /
 Quyết định through the real read path, and walks **Duyệt → Thực thi** as a simulation that
 shows the change Juli would send. Nothing a reviewer does can reach an executor, a Celery
 queue, a TikTok write client or a write to any Fujiwa row. The guarantee is an allowlist at the
@@ -36,8 +41,12 @@ A token that carries the reviewer mark is a reviewer session. Fail closed everyw
 | row `revoked_at` set | 403, `revoked` |
 | row `expires_at` ≤ now | 403, `expired` |
 | gate not bound in the process (wiring bug) | 403, `unavailable` |
-| `REVIEWER_SHOP_ID` unset / shop missing | 503, `unconfigured` |
-| active | §2 allowlist |
+| `REVIEWER_SHOP_ID` set but the shop row missing | 503, `unconfigured` (on the shop-reading routes) |
+| active, `REVIEWER_SHOP_ID` set (Fujiwa pin) | §2 allowlist, §3 pin + mask |
+| active, `REVIEWER_SHOP_ID` **unset** (P32-D, sample mode) | §2 allowlist unchanged; `/v1/reviewer/me` → 200 `shop: null`, `/v1/shops` → `[]`, every other allowlisted (shop-scoped) route → 403 `shop`, `simulate` included |
+
+Before P32-D an unset `REVIEWER_SHOP_ID` answered 503 `unconfigured` on every route; it no longer
+does — the demo shows a `shop: null` reviewer the bundled sample shop and calls no shop route.
 
 Account rows are cached in-process for **15 s** (`REVIEWER_ACCOUNT_CACHE_SECONDS`), so a revoke
 takes effect within 15 s on every API worker; the revoke also bans the Supabase user, so no new
@@ -109,7 +118,8 @@ any change to any table except the audit log and the reviewer's own account row 
 
 ## 3. Pin + mask (D25.6 / ADR-038 §8)
 
-**Pin.** The reference shop is `REVIEWER_SHOP_ID` (env, the Fujiwa `shops.id`; no shop id in
+**Pin.** Optional (P32-D). Unset: no pin, no shop, nothing to mask (the audit rows carry
+`shop_id = NULL`). Set: the reference shop is `REVIEWER_SHOP_ID` (env, the Fujiwa `shops.id`; no shop id in
 code). A reviewer never sees the real id: the shop is presented as the **alias id**
 `uuid5(REVIEWER_ALIAS_NAMESPACE, "reviewer-shop:<id>")`. `get_active_shop` for a reviewer
 accepts **only** that alias in `X-Shop-Id` (any other value — the real Fujiwa id, another shop's
@@ -196,6 +206,12 @@ Reads on the allowlist are logged (`reviewer_request`, structured log), not audi
 /auth/v1/token?grant_type=password` with the anon key; session stored exactly like Google / OTP.
 No sign-up form, no "forgot password". Then `GET /v1/reviewer/me` → `{reviewer: true, platform,
 expires_at, shop: {id: <alias>, name}}`, the active shop is stored, and the browser goes to `/`.
+With no pin (P32-D) it answers `shop: null`: **no** active shop is stored (a stale one is
+cleared), the reviewer record carries `sample: true`, and every page takes P13's no-shop door —
+the sample shop over fixtures, no shop request — with the banner `reviewer.banner_sample` ("…
+dữ liệu mẫu …"), no "Kết nối TikTok Shop" strip, and Duyệt → Thực thi as the same labelled
+simulation computed in the browser from the sample card (`lib/reviewer/sample-simulation.ts`, a
+port of §4; no request, no run, not even in the sample store).
 Errors (dictionary `auth.password.*`): wrong e-mail or password (GoTrue `invalid_credentials` /
 `invalid_grant`), revoked (`user_banned`, or `X-Juli-Reviewer-Denied: revoked`), expired
 (`expired`), not a trial account (`/v1/reviewer/me` → `reviewer: false`: signed out again),
@@ -235,7 +251,9 @@ kind). No password in the repository, in a log line or in the database.
    uses the same provider; nothing else to switch on. Keep "Allow new users to sign up" as P9-A
    needs it for OTP — a self-signed-up password user is an ordinary seller (no mark), never a
    reviewer.
-2. API env: `REVIEWER_SHOP_ID=<Fujiwa shops.id>`; optional `REVIEWER_MASK_TERMS`.
+2. API env: **nothing** for the sample-shop reviewer (D42 amendment, 2026-10-15 — production
+   leaves `REVIEWER_SHOP_ID` unset). Only to pin the reviewer to Fujiwa instead:
+   `REVIEWER_SHOP_ID=<Fujiwa shops.id>`, optional `REVIEWER_MASK_TERMS`.
 3. On the VPS after deploy: `python -m juli_backend.services.reviewer.cli create --email
    shopee-review@app-juli.com --platform shopee --by <you>@app-juli.com`; hand the printed
    password to Shopee in the Services Information form; renew / revoke as needed.

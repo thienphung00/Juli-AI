@@ -1429,3 +1429,31 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   `check.sh --since 7486edf1` 5/5 (migrations at `091_trial_signups`, pytest 398).
 - Owner decision 2026-10-15: deploy now; real-shop writes (P5) must ship before real customers are
   onboarded (the trial form routes every new seller through the team).
+
+## 2026-10-15 — P32-D agent (Claude Opus) — reviewer on the sample shop (D42 amendment)
+
+- Owner decision 2026-10-15 amends D42.3: the Shopee rejection was about the product page and the
+  trial sign-up, not the data, so the partner reviewer sees the sample shop ("Cửa hàng Mẫu Hoa Mai")
+  instead of Fujiwa; `REVIEWER_SHOP_ID` stays unset in production. Branch
+  `fasttrack/p32d-reviewer-sample` from f3c84b55.
+- Backend: the gate no longer answers 503 when the pin is unset. `ReviewerContext.shop_id` /
+  `alias_id` may be None: `/v1/reviewer/me` → `shop: null`, `/v1/shops` → `[]`,
+  `enter_reviewer_shop` → 403 `shop` (every shop-scoped route, `simulate` included). Allowlist,
+  write barrier, account-state checks (expired / revoked / unknown → 403) unchanged; refused-write
+  audit rows carry `shop_id = NULL`. Pin set → unchanged behaviour, unchanged tests.
+- Demo: `shop: null` → sign-in stores no active shop and `sample: true` in the reviewer record →
+  P13's no-shop door on every page (no shop request), banner `reviewer.banner_sample` (dictionary),
+  no-shop connect strip hidden as before. `SampleQuyetDinh` opens the reviewer's simulation dialog
+  (split out of `ReviewerSimulation` as `simulation-dialog.tsx`, so the sample module graph stays
+  request-free) over `lib/reviewer/sample-simulation.ts`, an in-memory port of the API simulation.
+  A stored stale shop is cleared (and the page reloaded) if `/me` later says `shop: null`.
+- Tests: backend `test_no_pin_reviewer_gets_sample_mode`, `test_no_pin_still_refuses_expired_and_revoked`
+  (replace the old 503 test); the every-route no-write sweep is parametrised over both modes.
+  Demo `reviewer-sample-mode.test.tsx` (real `DemoShell` + `DecisionsPageClient`: banner, no strip,
+  simulated execute, the only request is `GET /v1/reviewer/me`).
+- Gates (Node 20.20.2): demo lint 0 errors (7 pre-existing warnings), type-check clean, vitest
+  151 files / 1923 passed, build OK (example Supabase env); reviewer pytest 32 passed (PG
+  integration included via check.sh); `check.sh --since f3c84b55` 5/5 PASS.
+- Owner: nothing to set for the sample-shop reviewer (leave `REVIEWER_SHOP_ID` unset); still
+  provision `shopee-review@app-juli.com` with the CLI after deploy (contract §8.3). DEBT: no
+  Playwright e2e for sample mode.
