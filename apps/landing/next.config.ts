@@ -33,6 +33,12 @@ export const STATIC_CACHE_HEADERS = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@juli/ui", "@juli/brand", "@juli/tiktok-events"],
+  experimental: {
+    // The whole stylesheet is ~10 KB gzipped: inlining it removes the one
+    // render-blocking request in front of the first paint (PageSpeed
+    // "render-blocking requests", LCP render delay; D43.5).
+    inlineCss: true,
+  },
   async redirects() {
     return RENAMED_PATHS.map(({ source, destination }) => ({ source, destination, statusCode: 301 }));
   },
