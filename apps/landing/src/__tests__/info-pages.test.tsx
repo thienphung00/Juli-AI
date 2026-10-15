@@ -4,13 +4,13 @@ import { describe, expect, it } from "vitest";
 import AboutPage from "../app/about/page";
 import ContactPage from "../app/contact/page";
 import LandingPage from "../app/page";
-import ProductPage from "../app/product/page";
+import ProductPage from "../app/san-pham/page";
 import { COMPANY, DEMO_URL, SITE_PAGES } from "../lib/site";
 
 // TikTok's developer review (ticket 4486401) requires business content about
 // the product and the company that is reachable without logging in.
 describe("public product and company pages", () => {
-  it("links /product, /about and /contact from every page's header and footer", () => {
+  it("links /san-pham, /about and /contact from every page's header and footer", () => {
     for (const Page of [LandingPage, ProductPage, AboutPage, ContactPage]) {
       const { unmount } = render(<Page />);
       const header = screen.getByRole("navigation", { name: "Điều hướng chính" });
@@ -40,7 +40,7 @@ describe("public product and company pages", () => {
     }
   });
 
-  it("/product describes the product, its TikTok Shop data use, pricing and FAQ", () => {
+  it("/san-pham describes the product, its TikTok Shop data use, pricing and FAQ", () => {
     render(<ProductPage />);
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/Juli AI/);

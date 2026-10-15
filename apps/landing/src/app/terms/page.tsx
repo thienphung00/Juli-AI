@@ -1,20 +1,16 @@
-import type { Metadata } from "next";
-
 import { LandingHeader } from "../../components/landing-header";
 import { SiteFooter } from "../../components/site-footer";
+import { breadcrumbSchema, buildMetadata, JsonLd } from "../../lib/seo";
 import { COMPANY } from "../../lib/site";
 
-export const metadata: Metadata = {
-  title: "Điều khoản dịch vụ — Juli AI",
-  description:
-    "Điều khoản sử dụng Juli AI, trợ lý tăng trưởng và tối ưu vận hành cho người bán TikTok Shop.",
-};
+export const metadata = buildMetadata("/terms");
 
 const LAST_UPDATED = "14/10/2026";
 
 export default function TermsOfServicePage() {
   return (
     <>
+      <JsonLd data={breadcrumbSchema("/terms")} />
       <LandingHeader />
       <main className="lp-main">
         <article className="lp-legal">

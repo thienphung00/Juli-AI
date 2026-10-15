@@ -1,7 +1,6 @@
-import type { Metadata } from "next";
-
 import { LandingHeader } from "../../components/landing-header";
 import { SiteFooter } from "../../components/site-footer";
+import { breadcrumbSchema, buildMetadata, JsonLd } from "../../lib/seo";
 import { COMPANY } from "../../lib/site";
 import {
   ENGLISH_SECTION_ID,
@@ -11,11 +10,7 @@ import {
   PrivacyPolicyEnglish,
 } from "./privacy-policy-english";
 
-export const metadata: Metadata = {
-  title: "Chính sách bảo mật / Privacy Policy — Juli AI",
-  description:
-    "Juli AI thu thập gì, đọc gì từ shop TikTok Shop của bạn, chia sẻ với ai, lưu trong bao lâu, và quyền của bạn với dữ liệu đó. Full English version included: what data Juli AI collects (including Google user data), how it is used, shared, protected, retained and deleted.",
-};
+export const metadata = buildMetadata("/privacy");
 
 const LAST_UPDATED = "14/10/2026";
 
@@ -25,6 +20,7 @@ const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
 export default function PrivacyPolicyPage() {
   return (
     <>
+      <JsonLd data={breadcrumbSchema("/privacy")} />
       <LandingHeader />
       <main className="lp-main">
         <article className="lp-legal">

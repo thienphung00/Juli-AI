@@ -1,17 +1,24 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CtaLink } from "../../components/cta-link";
 import { LandingHeader } from "../../components/landing-header";
 import { SiteFooter } from "../../components/site-footer";
 import { StepsSection } from "../../components/steps-section";
+import {
+  breadcrumbSchema,
+  buildMetadata,
+  faqPageSchema,
+  JsonLd,
+  softwareApplicationSchema,
+} from "../../lib/seo";
 import { COMPANY, DEMO_URL } from "../../lib/site";
 
-export const metadata: Metadata = {
-  title: "Sản phẩm — Juli AI",
-  description:
-    "Juli AI theo dõi TikTok Shop, phân tích hiệu suất theo từng luồng truy cập và đề xuất hành động. Bạn phê duyệt, Juli thực hiện.",
-};
+/**
+ * `/san-pham` — the product overview (D43.1). This is the former `/product`
+ * content moved as-is (P33-A); P33-B rewrites it (~1,500 words, D43.4).
+ * `/product` 301s here (next.config.ts).
+ */
+export const metadata = buildMetadata("/san-pham");
 
 const CAPABILITIES = [
   {
@@ -81,6 +88,13 @@ const FAQ = [
 export default function ProductPage() {
   return (
     <>
+      <JsonLd
+        data={[
+          breadcrumbSchema("/san-pham"),
+          softwareApplicationSchema({ path: "/san-pham" }),
+          faqPageSchema(FAQ),
+        ]}
+      />
       <LandingHeader />
       <main className="lp-main">
         <section aria-labelledby="product-heading" className="lp-page-hero">

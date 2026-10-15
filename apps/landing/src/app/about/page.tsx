@@ -1,15 +1,12 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CtaLink } from "../../components/cta-link";
 import { LandingHeader } from "../../components/landing-header";
 import { SiteFooter } from "../../components/site-footer";
+import { breadcrumbSchema, buildMetadata, JsonLd } from "../../lib/seo";
 import { COMPANY, DEMO_URL } from "../../lib/site";
 
-export const metadata: Metadata = {
-  title: "Giới thiệu — Juli AI",
-  description: `Juli AI được phát triển và vận hành bởi ${COMPANY.name}, công ty công nghệ tại Thành phố Hồ Chí Minh.`,
-};
+export const metadata = buildMetadata("/about");
 
 const PRINCIPLES = [
   {
@@ -37,11 +34,12 @@ export default function AboutPage() {
     { label: "Trụ sở", value: COMPANY.address },
     { label: "Email", value: COMPANY.email, href: `mailto:${COMPANY.email}` },
     { label: "Website", value: "app-juli.com", href: "https://app-juli.com" },
-    { label: "Sản phẩm", value: "Juli AI — trợ lý tăng trưởng cho người bán TikTok Shop", href: "/product" },
+    { label: "Sản phẩm", value: "Juli AI — trợ lý tăng trưởng cho người bán TikTok Shop", href: "/san-pham" },
   ];
 
   return (
     <>
+      <JsonLd data={breadcrumbSchema("/about")} />
       <LandingHeader />
       <main className="lp-main">
         <section aria-labelledby="about-heading" className="lp-page-hero">

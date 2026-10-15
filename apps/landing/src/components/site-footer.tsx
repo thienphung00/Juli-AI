@@ -1,15 +1,14 @@
 import Link from "next/link";
 
-import { JuliLogo } from "@juli/brand";
-
 import { COMPANY, DEMO_URL, SITE_PAGES } from "../lib/site";
 import { CookieSettingsButton } from "./cookie-settings-button";
+import { SiteLogo } from "./site-logo";
 
 export function SiteFooter() {
   return (
     <footer className="lp-footer">
       <div className="lp-footer__brand">
-        <JuliLogo size={26} />
+        <SiteLogo height={26} />
         <p className="lp-footer__tagline">Trợ lý AI cho người bán TikTok Shop</p>
         <address className="lp-footer__company" data-testid="footer-company">
           <strong>{COMPANY.name}</strong>

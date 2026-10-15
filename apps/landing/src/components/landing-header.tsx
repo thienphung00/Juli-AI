@@ -1,9 +1,8 @@
 import Link from "next/link";
 
-import { JuliLogo } from "@juli/brand";
-
 import { DEMO_URL, SITE_PAGES } from "../lib/site";
 import { CtaLink } from "./cta-link";
+import { SiteLogo } from "./site-logo";
 
 /**
  * One header for every page: links to real pages (not `/` anchors), so the
@@ -13,7 +12,7 @@ export function LandingHeader() {
   return (
     <header className="lp-header">
       <Link aria-label="Juli AI, trang chủ" className="lp-header__brand" href="/">
-        <JuliLogo size={30} />
+        <SiteLogo height={30} />
       </Link>
       <nav aria-label="Điều hướng chính" className="lp-header__nav">
         {SITE_PAGES.map((page) => (

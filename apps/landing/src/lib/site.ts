@@ -27,7 +27,7 @@ export const SECTION_IDS = {
  * 4486401), so these must stay reachable without an account.
  */
 export const SITE_PAGES = [
-  { href: "/product", label: "Sản phẩm" },
+  { href: "/san-pham", label: "Sản phẩm" },
   { href: "/about", label: "Giới thiệu" },
   { href: "/contact", label: "Liên hệ" },
 ] as const;
@@ -53,4 +53,11 @@ export const COMPANY = {
   address:
     "1B Đường số 30 Trần Não, Phường An Khánh, Thành phố Hồ Chí Minh, Việt Nam",
   email: "lienhe@app-juli.com",
+  /** `address` split for schema.org `PostalAddress` (JSON-LD, D43.5). */
+  postalAddress: {
+    streetAddress: "1B Đường số 30 Trần Não",
+    addressLocality: "Phường An Khánh",
+    addressRegion: "Thành phố Hồ Chí Minh",
+    addressCountry: "VN",
+  },
 } as const;
