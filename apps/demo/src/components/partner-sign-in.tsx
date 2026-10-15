@@ -2,8 +2,6 @@
 
 import { useEffect, useId, useState, type FormEvent } from "react";
 
-import { Button, TextField } from "@juli/ui";
-
 import { fetchReviewerMe, type ReviewerMeResult } from "../lib/reviewer/api-client";
 import { storeReviewerRecord } from "../lib/reviewer/session";
 import { clearReviewerSignIn } from "../lib/reviewer/mode";
@@ -16,22 +14,25 @@ import {
   type PasswordSignInErrorKind,
   type PasswordSignInResult,
 } from "../lib/supabase-auth";
+import { AuthAlert, AuthSpinner } from "./auth/auth-alert";
 
 /**
  * "Tài khoản đối tác" (fast track P32-A, D42, AC-32.2): e-mail + password for
  * the trial accounts the Juli team creates for a partner platform's reviewer.
  * No sign-up and no "forgot password" here or anywhere. After GoTrue's
  * password grant the account is confirmed with `GET /v1/reviewer/me`: a
- * reviewer lands on Trang chủ with the reference shop selected; an expired or
- * revoked account, or a password user who is not a trial account, is signed
- * out again with the reason (dictionary.md `auth.password.*`).
+ * reviewer lands on Trang chủ (with the reference shop selected when one is
+ * pinned); an expired or revoked account, or a password user who is not a
+ * trial account, is signed out again with the reason (dictionary.md
+ * `auth.password.*`).
  *
- * Lives only on `/auth/email` — never on the anonymous landing, whose module
- * graph must not reach a `/v1/*` route (`replay-module-graph.test.ts`); the
- * landing links here instead.
+ * Since P34-F (D44.5) this is only the form; the auth screen's partner view
+ * (`auth/auth-screen.tsx`) wraps it with its heading and "← Quay lại". It is
+ * handed to that screen only on `/auth/email` — never on the anonymous
+ * landing, whose module graph must not reach a `/v1/*` route
+ * (`replay-module-graph.test.ts`); the landing's footer links to
+ * `/auth/email#doi-tac` instead.
  */
-
-export const PARTNER_SIGN_IN_TITLE = "Tài khoản đối tác (đăng nhập bằng mật khẩu)";
 
 export interface PartnerSignInProps {
   readonly signIn?: (email: string, password: string) => Promise<PasswordSignInResult>;
@@ -57,7 +58,6 @@ export function PartnerSignIn({
   onSignedIn = () => window.location.assign("/"),
 }: PartnerSignInProps) {
   const baseId = useId();
-  const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
@@ -67,7 +67,6 @@ export function PartnerSignIn({
     const timer = window.setTimeout(() => {
       const denial = denialFromLocation(window.location.search);
       if (denial) setError(PASSWORD_SIGN_IN_ERROR_COPY[denial]);
-      if (denial || window.location.hash === "#doi-tac") setOpen(true);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -108,53 +107,50 @@ export function PartnerSignIn({
     if (!pending) void submit();
   };
 
+  const errorId = `${baseId}-error`;
+
   return (
-    <section aria-labelledby={`${baseId}-title`} className="partner-sign-in" id="doi-tac">
+    <form aria-label={PASSWORD_SIGN_IN_LABEL} className="auth-form" noValidate onSubmit={onSubmit}>
+      <label className="auth-label" htmlFor={`${baseId}-email`}>
+        Email
+      </label>
+      <input
+        autoComplete="username"
+        className="auth-input"
+        id={`${baseId}-email`}
+        inputMode="email"
+        name="email"
+        onChange={(event) => setEmail(event.target.value)}
+        type="email"
+        value={email}
+      />
+      <label className="auth-label auth-label--spaced" htmlFor={`${baseId}-password`}>
+        Mật khẩu
+      </label>
+      <input
+        aria-describedby={error ? errorId : undefined}
+        aria-invalid={error ? true : undefined}
+        autoComplete="current-password"
+        className="auth-input"
+        id={`${baseId}-password`}
+        name="password"
+        onChange={(event) => {
+          setPassword(event.target.value);
+          if (error) setError(null);
+        }}
+        type="password"
+        value={password}
+      />
+      {error ? <AuthAlert id={errorId}>{error}</AuthAlert> : null}
       <button
-        aria-controls={`${baseId}-form`}
-        aria-expanded={open}
-        className="partner-sign-in__toggle"
-        id={`${baseId}-title`}
-        onClick={() => setOpen((value) => !value)}
-        type="button"
+        aria-busy={pending || undefined}
+        className="auth-btn auth-btn--ink auth-form__submit"
+        disabled={pending}
+        type="submit"
       >
-        {PARTNER_SIGN_IN_TITLE}
+        {pending ? <AuthSpinner /> : null}
+        {pending ? "Đang đăng nhập…" : "Đăng nhập"}
       </button>
-      <div hidden={!open} id={`${baseId}-form`}>
-        {open ? (
-          <form aria-label={PASSWORD_SIGN_IN_LABEL} className="email-sign-in" noValidate onSubmit={onSubmit}>
-            <p className="partner-sign-in__help">Chỉ dành cho tài khoản dùng thử Juli cấp cho đối tác.</p>
-            <TextField
-              autoComplete="username"
-              id={`${baseId}-email`}
-              inputMode="email"
-              label="Email"
-              name="email"
-              onChange={(event) => setEmail(event.target.value)}
-              type="email"
-              value={email}
-            />
-            <TextField
-              autoComplete="current-password"
-              errorMessage={error ?? undefined}
-              id={`${baseId}-password`}
-              label="Mật khẩu"
-              name="password"
-              onChange={(event) => {
-                setPassword(event.target.value);
-                if (error) setError(null);
-              }}
-              type="password"
-              value={password}
-            />
-            <div className="email-sign-in__actions">
-              <Button disabled={pending} type="submit">
-                {pending ? "Đang đăng nhập…" : "Đăng nhập"}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </div>
-    </section>
+    </form>
   );
 }

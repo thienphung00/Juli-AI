@@ -7,7 +7,7 @@ import { openShopMenu } from "../helpers/demo-navigation";
 
 /**
  * "Đăng nhập bằng email" end to end (AC-9.1), Supabase stubbed with
- * page.route: landing door → email → "Gửi mã" → 6-digit code → signed in on
+ * page.route: auth screen → email → "Gửi mã đăng nhập" → 6 boxes → signed in on
  * /auth/connect-shop, whose `GET /v1/shops` and "Kết nối TikTok Shop"
  * (`GET /v1/auth/tiktok/start`) carry the email session's bearer — the same
  * path the Google door takes. Also: wrong code, rate limit, the magic link
@@ -114,12 +114,13 @@ test("landing → email → Gửi mã → code → signed in; connect-shop and T
   const bearers = await stubJuliApi(page);
   await freshLanding(page);
 
-  await page.getByRole("button", { name: "Đăng nhập bằng email" }).click();
   await page.getByLabel("Email", { exact: true }).fill("ban@shopcuaban.vn");
   await shoot(page, "landing-email");
-  await page.getByRole("button", { name: "Gửi mã" }).click();
+  await page.getByRole("button", { name: "Gửi mã đăng nhập" }).click();
 
-  await expect(page.getByRole("status").filter({ hasText: "Đã gửi mã 6 chữ số tới ban@shopcuaban.vn" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Nhập mã 6 chữ số" })).toBeVisible();
+  await expect(page.getByText("ba***@shopcuaban.vn")).toBeVisible();
+  await expect(page.getByLabel("Số 1")).toBeFocused();
   await expect(page.getByRole("button", { name: /^Gửi lại mã sau \d+ giây$/ })).toBeDisabled();
   expect(calls[0]).toMatchObject({
     path: "/auth/v1/otp",
@@ -127,11 +128,11 @@ test("landing → email → Gửi mã → code → signed in; connect-shop and T
   });
   expect(new URL(calls[0].redirectTo as string).pathname).toBe("/auth/callback");
 
-  const results = await new AxeBuilder({ page }).include("form[aria-label='Đăng nhập bằng email']").analyze();
+  const results = await new AxeBuilder({ page }).include(".auth-screen").analyze();
   expect(results.violations).toEqual([]);
-  await page.getByLabel("Mã đăng nhập (6 chữ số)").fill("123456");
   await shoot(page, "landing-code");
-  await page.getByRole("button", { name: "Xác nhận" }).click();
+  // Typing (or the OS autofill) into the boxes auto-submits on the sixth digit.
+  await page.keyboard.type("123456");
 
   await expect(page).toHaveURL(/\/auth\/connect-shop$/);
   await expect(page.getByText("Bạn đã đăng nhập bằng")).toContainText("ban@shopcuaban.vn");
@@ -160,25 +161,24 @@ test("a wrong code and a rate-limited send are told in Vietnamese, and the code 
   });
   await freshLanding(page);
 
-  await page.getByRole("button", { name: "Đăng nhập bằng email" }).click();
   await page.getByLabel("Email", { exact: true }).fill("không-phải-email");
-  await page.getByRole("button", { name: "Gửi mã" }).click();
+  await page.getByRole("button", { name: "Gửi mã đăng nhập" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Email chưa đúng định dạng");
   expect(otpCalls).toBe(0);
 
   await page.getByLabel("Email", { exact: true }).fill("ban@shopcuaban.vn");
-  await page.getByRole("button", { name: "Gửi mã" }).click();
-  await page.getByLabel("Mã đăng nhập (6 chữ số)").fill("654321");
-  await page.getByRole("button", { name: "Xác nhận" }).click();
+  await page.getByRole("button", { name: "Gửi mã đăng nhập" }).click();
+  await expect(page.getByLabel("Số 1")).toBeFocused();
+  await page.keyboard.type("654321");
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Mã không đúng hoặc đã hết hạn");
   await expect(page.locator("body")).not.toContainText("654321");
   await shoot(page, "wrong-code");
 
-  // The resend button is locked by the 60 s cooldown; "Dùng email khác" →
-  // "Gửi mã" is still locked too, so the rate limit is driven via a fresh form.
+  // The resend button is locked by the 60 s cooldown; "← Đổi email" →
+  // the send button is still locked too, so the rate limit is driven via a fresh form.
   await page.goto("/auth/email");
   await page.getByLabel("Email", { exact: true }).fill("ban@shopcuaban.vn");
-  await page.getByRole("button", { name: "Gửi mã" }).click();
+  await page.getByRole("button", { name: "Gửi mã đăng nhập" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Bạn đã yêu cầu quá nhiều lần");
   await expect(page.getByRole("button", { name: /^Gửi mã sau \d+ giây$/ })).toBeDisabled();
   await shoot(page, "rate-limited");
@@ -199,13 +199,16 @@ test("the email's magic link lands on /auth/callback and signs in like Google; a
 
 test("the anonymous avatar menu offers email sign-in beside Google", async ({ page }) => {
   await freshLanding(page);
-  await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+  await page.getByRole("button", { name: "Xem thử với dữ liệu mẫu, không cần tài khoản →" }).click();
   await openShopMenu(page);
   await expect(page.getByRole("link", { name: "Đăng nhập với Google", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Đăng nhập bằng email" }).click();
   await expect(page).toHaveURL(/\/auth\/email$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Đăng nhập bằng email" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Gửi mã" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" })).toBeVisible();
+  await expect(page.getByLabel("Email", { exact: true })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Gửi mã đăng nhập" })).toBeVisible();
+  // P34-F: the auth page carries no app shell.
+  await expect(page.getByRole("navigation", { name: "Điều hướng chính" })).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
   await shoot(page, "email-page");

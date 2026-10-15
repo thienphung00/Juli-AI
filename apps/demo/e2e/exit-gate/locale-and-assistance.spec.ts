@@ -97,7 +97,10 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
 test.describe("App shell regression (AC-8.5) — every destination", () => {
   for (const destination of DESTINATION_PATHS) {
     test(`${destination.label} keeps the rail and the shop header`, async ({ page }) => {
-      await page.goto(destination.path);
+      // P34-F (D44.5): a signed-out `/` is the auth screen, without the shell;
+      // Trang chủ's shell is the sample Home's, behind the sample entry.
+      if (destination.path === "/") await enterReplayDemo(page);
+      else await page.goto(destination.path);
       await expectFourDestinationShell(page);
       await expectShopHeader(page);
     });
@@ -126,7 +129,7 @@ test.describe("App shell regression (AC-8.5) — every destination", () => {
   test("primary navigation has exactly four destinations (no fifth tab)", async ({
     page,
   }) => {
-    await page.goto("/");
+    await enterReplayDemo(page);
     await expectFourDestinationShell(page);
     await navigatePrimaryDestination(page, "Phân tích");
     await expect(page).toHaveURL(/\/analytics/);

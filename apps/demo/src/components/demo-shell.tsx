@@ -17,6 +17,7 @@ import { ReviewerBanner } from "./app-shell/reviewer-banner";
 import { TermStrip } from "./app-shell/term-strip";
 import { ShopHeader } from "./app-shell/shop-header";
 import { DemoStateProvider, useDemoState } from "./demo-state";
+import { LandingEntryProvider, showsSampleDemo, useLandingEntry, type LandingEntry } from "./landing-entry";
 import { SellerViewProvider } from "./seller-view-context";
 
 /**
@@ -38,6 +39,29 @@ import { SellerViewProvider } from "./seller-view-context";
  * only the rail; the run surface owns everything to its right.
  */
 
+/** The auth screen's own page: always bare (P34-F, D44.5). */
+const AUTH_SCREEN_PATHS = new Set(["/auth/email"]);
+
+/**
+ * P34-F (D44.5): the signed-out sign-in screen renders WITHOUT the app shell
+ * (no rail, no sample-shop header, no bottom tab bar). On `/` that is every
+ * signed-out visit that is not showing the sample demo, and the moment before
+ * the session and the entry choice are known (so the auth screen never
+ * flashes inside the shell; a signed-in seller or a sample visitor gets the
+ * shell one tick later, as they used to get "Đang tải…" inside it).
+ */
+export function rendersBare(
+  pathname: string,
+  status: string,
+  entry: Pick<LandingEntry, "resolved" | "enteredReplay" | "forceDoor">,
+): boolean {
+  if (AUTH_SCREEN_PATHS.has(pathname)) return true;
+  if (pathname !== "/") return false;
+  if (status === "resolving") return true;
+  if (status !== "anonymous") return false;
+  return !entry.resolved || !showsSampleDemo(entry);
+}
+
 const RUN_DETAIL_PATH_PATTERN = /^\/decisions\/in-progress\/([^/]+)\/?$/;
 
 function isRunFocusRoute(pathname: string): boolean {
@@ -52,6 +76,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const { refreshAnalytics } = useAnalyticsData();
   const { state } = useShopReport();
   const reviewer = useReviewer();
+  const entry = useLandingEntry();
 
   // Đăng nhập (issue #1907) stays a real link to Supabase Auth, resolved on
   // mount (never during SSR) with the same builder the landing door uses.
@@ -97,6 +122,10 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   ) : (
     children
   );
+
+  if (rendersBare(pathname, state.status, entry)) {
+    return <>{children}</>;
+  }
 
   if (isRunFocusRoute(pathname)) {
     return (
@@ -148,7 +177,9 @@ export function DemoShell({ children }: { children: ReactNode }) {
       <AnalyticsDataProvider>
         <ShopReportProvider>
           <ReviewerProvider>
-            <DemoShellContent>{children}</DemoShellContent>
+            <LandingEntryProvider readKey={pathname}>
+              <DemoShellContent>{children}</DemoShellContent>
+            </LandingEntryProvider>
           </ReviewerProvider>
         </ShopReportProvider>
       </AnalyticsDataProvider>

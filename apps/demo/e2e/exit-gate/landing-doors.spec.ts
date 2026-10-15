@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { HOME_MATRIX_REGION, openShopMenu } from "../helpers/demo-navigation";
+import { HOME_MATRIX_REGION, openShopMenu, SAMPLE_ENTRY } from "../helpers/demo-navigation";
 
 /**
  * Issue #1905's decisive acceptance criterion -- the one #1319 lacked, and
@@ -35,7 +35,7 @@ test.describe("Landing doors — the Google door is a real link in the artifact,
   test("the Google control is an <a> with an href whose origin is a Supabase project host", async ({
     page,
   }) => {
-    const link = page.getByRole("link", { name: "Đăng nhập với Google" });
+    const link = page.getByRole("link", { name: "Tiếp tục với Google" });
     await expect(link).toBeVisible();
 
     // A build without the env renders role="link" on a <span> -- the
@@ -64,7 +64,7 @@ test.describe("Landing doors — the Google door is a real link in the artifact,
   test("clicking the Google control targets a full-page navigation off the demo origin", async ({
     page,
   }) => {
-    const link = page.getByRole("link", { name: "Đăng nhập với Google" });
+    const link = page.getByRole("link", { name: "Tiếp tục với Google" });
     await expect(link).toBeVisible();
 
     const href = await link.getAttribute("href");
@@ -81,7 +81,7 @@ test.describe("Landing doors — the Google door is a real link in the artifact,
 });
 
 /**
- * Issue #1907 -- once a visitor clicked "Dùng thử Demo", the header's only
+ * Issue #1907 -- once a visitor clicked "Dùng thử Demo" (now the sample entry), the header's only
  * sign-in affordance (`<Link href="/">`) landed back on `/`, which
  * immediately short-circuited to the replay Home: the door became unreachable
  * for the rest of the tab session, by any navigation. Same artifact-level
@@ -102,7 +102,7 @@ test.describe("The header's sign-in door stays reachable after entering the repl
   test("after entering the replay demo, the header's Đăng nhập control is a real <a> to a Supabase project host, not a dead link back to /", async ({
     page,
   }) => {
-    await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+    await page.getByRole("button", { name: SAMPLE_ENTRY }).click();
     // AC-8.5: the header's Đăng nhập lives in the shop-avatar menu.
     await openShopMenu(page);
 
@@ -126,7 +126,7 @@ test.describe("The header's sign-in door stays reachable after entering the repl
   test("/?entry=door renders both doors even with the replay entry stored", async ({
     page,
   }) => {
-    await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+    await page.getByRole("button", { name: SAMPLE_ENTRY }).click();
     await expect(
       page.getByRole("region", { name: HOME_MATRIX_REGION }),
     ).toBeVisible();
@@ -134,10 +134,10 @@ test.describe("The header's sign-in door stays reachable after entering the repl
     await page.goto("/?entry=door");
 
     await expect(
-      page.getByRole("button", { name: "Dùng thử Demo" }),
+      page.getByRole("button", { name: SAMPLE_ENTRY }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Đăng nhập với Google" }),
+      page.getByRole("link", { name: "Tiếp tục với Google" }),
     ).toBeVisible();
     await expect(
       page.getByRole("region", { name: HOME_MATRIX_REGION }),
@@ -147,7 +147,7 @@ test.describe("The header's sign-in door stays reachable after entering the repl
   test("a bare / with the replay entry stored still renders the sample Home — existing behaviour preserved", async ({
     page,
   }) => {
-    await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+    await page.getByRole("button", { name: SAMPLE_ENTRY }).click();
     await expect(
       page.getByRole("region", { name: HOME_MATRIX_REGION }),
     ).toBeVisible();
@@ -158,7 +158,54 @@ test.describe("The header's sign-in door stays reachable after entering the repl
       page.getByRole("region", { name: HOME_MATRIX_REGION }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Dùng thử Demo" }),
+      page.getByRole("button", { name: SAMPLE_ENTRY }),
     ).not.toBeVisible();
+  });
+});
+
+/**
+ * P34-F (D44.5): the signed-out auth screen has no app shell, one filled
+ * button, and the trial variant changes copy only.
+ */
+test.describe("Auth screen (P34-F)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+    await page.reload();
+  });
+
+  test("no rail, no sample-shop header, no bottom tab bar; Google is the one filled button; no horizontal scroll", async ({ page }) => {
+    await expect(page.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Điều hướng chính" })).toHaveCount(0);
+    await expect(page.getByTestId("shop-header")).toHaveCount(0);
+    await expect(page.locator(".auth-btn--ink")).toHaveCount(1);
+    await expect(page.locator(".auth-btn--ink")).toHaveText("Tiếp tục với Google");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+    expect(await page.evaluate(() => document.documentElement.lang)).toBe("vi");
+  });
+
+  test("the sample entry brings the shell back with the sample Home", async ({ page }) => {
+    await page.getByRole("button", { name: SAMPLE_ENTRY }).click();
+    await expect(page.getByRole("region", { name: HOME_MATRIX_REGION })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Điều hướng chính" })).toBeVisible();
+  });
+
+  test("/?dang-ky=dung-thu: the trial copy on the same layout", async ({ page }) => {
+    await page.goto("/?dang-ky=dung-thu");
+    await expect(page.getByRole("heading", { level: 1, name: "Dùng thử Juli miễn phí 3 tháng" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Đăng ký bằng Google" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Gửi mã đăng ký" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Điều hướng chính" })).toHaveCount(0);
+  });
+
+  test("the footer's Tài khoản đối tác opens the partner view on /auth/email", async ({ page }) => {
+    await page.getByRole("contentinfo").getByRole("link", { name: "Tài khoản đối tác" }).click();
+    await expect(page).toHaveURL(/\/auth\/email#doi-tac$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Đăng nhập bằng mật khẩu" })).toBeVisible();
+    await page.getByRole("button", { name: "← Quay lại đăng nhập cho người bán" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" })).toBeVisible();
   });
 });

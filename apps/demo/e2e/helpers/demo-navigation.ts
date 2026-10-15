@@ -15,7 +15,10 @@ const PRIMARY_DESTINATIONS = [
 
 type NavigableDestination = "Trang chủ" | "Quyết định" | "Phân tích";
 
-/** The sample Home's 5-stream matrix — what "Dùng thử Demo" reveals since AC-8.5. */
+/** The auth screen's sample-demo entry (P34-F, D44.5; formerly "Dùng thử Demo"). */
+export const SAMPLE_ENTRY = "Xem thử với dữ liệu mẫu, không cần tài khoản →";
+
+/** The sample Home's 5-stream matrix — what the sample entry reveals since AC-8.5. */
 export const HOME_MATRIX_REGION = "Ma trận 5 luồng truy cập";
 
 /**
@@ -28,7 +31,7 @@ export const HOME_MATRIX_REGION = "Ma trận 5 luồng truy cập";
  */
 export async function enterReplayDemo(page: Page) {
   await page.goto("/");
-  await page.getByRole("button", { name: "Dùng thử Demo" }).click();
+  await page.getByRole("button", { name: SAMPLE_ENTRY }).click();
   await expect(page.getByRole("region", { name: HOME_MATRIX_REGION })).toBeVisible();
 }
 

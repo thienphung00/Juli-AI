@@ -66,7 +66,6 @@ describe("shop: null from /v1/reviewer/me", () => {
         signIn={vi.fn().mockResolvedValue({ ok: true, session: SESSION })}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Tài khoản đối tác (đăng nhập bằng mật khẩu)" }));
     await userEvent.type(screen.getByLabelText("Email"), "shopee-review@app-juli.com");
     await userEvent.type(screen.getByLabelText("Mật khẩu"), "s3cret");
     await userEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
