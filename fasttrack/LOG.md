@@ -1199,3 +1199,49 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
 - `fasttrack/check.sh --since 0e80c18b` (docker PG16): 5/5 PASS twice (migrations at 090,
   isolation 12, gitleaks, ruff 44 files, pytest 544); one earlier run hit a flaky isolation seed
   (DEBT). Not deployed — owner tags.
+
+## 2026-10-15 — P33-A agent (Claude Opus) — technical SEO foundation (AC-33.1–33.4)
+
+- Branch `fasttrack/p33a-seo-foundation` (875fb83b..HEAD, pushed; not merged, not deployed).
+- **Helpers** `apps/landing/src/lib/seo/` (API + how-to in its README): route registry split by
+  owner (`routes/core.ts`, `product.ts`, `capabilities.ts` (P33-C), `blog.ts` (P33-D)) feeding
+  `sitemap.ts` with lastmod; `buildMetadata(path, opts?)` (absolute title, description, absolute
+  self canonical, OG vi_VN 1200×630 + Twitter); `<JsonLd data>` + builders (Organization with
+  legal name / taxID / PostalAddress / ContactPoint lienhe@app-juli.com, WebSite — both on every
+  page from the layout — BreadcrumbList, SoftwareApplication + Offer 500000 VND, FAQPage,
+  Article, VideoObject). No sameAs, no hreflang. `src/lib/media.ts` (`LOGO_WORDMARK`,
+  `HERO_VIDEO`, `HERO_VIDEO_SCHEMA`), `<Picture>` (AVIF/WebP + width/height), `SiteLogo`,
+  `scripts/media.py` (optimize / brand: OG card, favicon + icons, logo WebP, poster AVIF/WebP).
+  Home canonical is the bare origin (Next strips the slash).
+- **Pages**: home, about, contact, privacy, terms migrated; `/product` content moved verbatim to
+  `/san-pham` (Breadcrumb + SoftwareApplication + FAQPage for its rendered FAQ); `/product` 301
+  (`RENAMED_PATHS`, `statusCode: 301`). Nav, about, 404 link `/san-pham`.
+- **Demo/ops noindex**: X-Robots-Tag from next.config headers() + middleware on every host,
+  layout robots meta, `app/robots.ts` Allow: / (no sitemap). `@juli/tiktok-events/pixel-id`
+  subpath added so the landing consent banner no longer bundles the pixel snippet.
+- **PageSpeed**: mockup contrast fixed with landing-local `color-mix` tokens (theme `tokens.css`
+  is byte-pinned by #1314, so not touched); logo 50 KB PNG → 6 KB WebP with width/height;
+  poster → WebP; favicon/icon/apple-icon; pixel tracking via next/dynamic after consent;
+  explicit modern browserslist; cache headers for `/media` (immutable), `/og`, `/videos`.
+  `experimental.inlineCss` measured and dropped (TBT ×3). Lighthouse A/B numbers in AC-33.4:
+  A11y and BP 1.00, page 282 → 229 KB, Perf/LCP target not demonstrated on this loaded host.
+- **Check for B/C/D**: `pnpm --filter @juli/landing build && pnpm --filter @juli/landing check:seo`
+  (one h1, no skipped level, title/description/canonical = registry and unique, OG/Twitter,
+  JSON-LD parses, Org/WebSite everywhere, Breadcrumb on inner pages, FAQ visible, no sameAs,
+  no hreflang, not noindex).
+- **Gates (Node 20.20.2)**: landing lint 0, type-check clean, vitest 9 files 75 passed,
+  `next build` OK, `check:seo` 7/7; tiktok-events vitest 89 passed; demo lint 0 errors (7
+  pre-existing warnings), type-check clean, vitest 149 files 1903 passed / 5 failed in one run
+  under load avg ~25 (timeouts + `no-shop-sample` race; passes 3/3 alone and on the base; DEBT),
+  `pnpm build:demo --force` OK (example Supabase env); nginx/landing/demo packaging pytest 160
+  passed; `fasttrack/check.sh --since e1c6d68f` (docker PG16): 5/5 PASS.
+- **Owner steps** (after deploy): (1) Cloudflare → demo.app-juli.com: keep the managed
+  robots.txt / AI Crawl Control from adding any `Disallow` for search crawlers (today it only
+  prepends content-signal comments; origin now serves `User-Agent: * / Allow: /`); check
+  `curl -sI https://demo.app-juli.com/ | grep -i x-robots` shows `noindex, nofollow` (Cloudflare
+  must not strip it). (2) Cloudflare Browser Cache TTL "Respect existing headers" for
+  app-juli.com (today `/videos/*.jpg` shows `max-age=14400`, a CF override of Next's
+  `max-age=0`; with the new longer origin TTLs CF keeps the origin value). (3) Search Console:
+  submit `https://app-juli.com/sitemap.xml`; for demo.app-juli.com use Removals only if old URLs
+  linger after the noindex is crawled. (4) No nginx change needed.
+- Next: P33-B / C / D branch from this branch's head.

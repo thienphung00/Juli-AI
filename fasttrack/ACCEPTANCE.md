@@ -519,18 +519,45 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 
 ## P33 — app-juli.com business site and indexing (D43)
 
-- [ ] **AC-33.1** (A) Shared helpers in `apps/landing`: per-page metadata (title, description,
+- [x] **AC-33.1** (A) Shared helpers in `apps/landing`: per-page metadata (title, description,
   absolute canonical, OG / Twitter with a 1200×630 image), JSON-LD component, Organization +
   WebSite on every page, BreadcrumbList helper, a route registry feeding `sitemap.ts` with
   lastmod; existing pages migrated.
-- [ ] **AC-33.2** (A) `/product` → 301 `/san-pham` (stub page until P33-B), and any other renamed
+  — P33-A 875fb83b, 70323acb: `apps/landing/src/lib/seo/` (README = API for P33-B/C/D);
+  `seo.test.tsx` (12 tests: every page registered, titles ≤ 60 / descriptions ≤ 155 unique,
+  sitemap = registry with lastmod, Organization taxID/address/ContactPoint, no sameAs, Offer
+  500000 VND); `pnpm check:seo` on the built site: 7/7 (6 routes + uniqueness); local
+  `curl /sitemap.xml` lists 6 URLs with `<lastmod>`.
+- [x] **AC-33.2** (A) `/product` → 301 `/san-pham` (stub page until P33-B), and any other renamed
   URL redirected; 404s stay 404.
-- [ ] **AC-33.3** (A) demo.app-juli.com and ops.app-juli.com send `X-Robots-Tag: noindex, nofollow`
+  — P33-A 875fb83b: `RENAMED_PATHS` in `apps/landing/next.config.ts` (`statusCode: 301`); local
+  `next start`: `curl -I /product` → `301 location: /san-pham`, `/nope` → 404; nginx proxies
+  every path (no override; comment added in `infra/nginx/app-juli.com.conf`); test "301s each
+  renamed URL to a registered page". `/product/` takes Next's 308 to `/product` first.
+- [x] **AC-33.3** (A) demo.app-juli.com and ops.app-juli.com send `X-Robots-Tag: noindex, nofollow`
   and `<meta name="robots" content="noindex">` on every page; their robots.txt does not block
   crawling.
-- [ ] **AC-33.4** (A) PageSpeed fixes: images with width/height, contrast failure fixed, legacy JS
+  — P33-A 93d8455c: `next.config.ts` headers() on `/:path*` + middleware on every host;
+  layout `robots: noindex, nofollow`; `app/robots.ts` = `Allow: /`. Tests `noindex.test.ts` (3)
+  + middleware "noindex on every response of every host". Local `next start` (Host header):
+  demo `/`, `/decisions`, `/robots.txt`, 404s and ops `/` (307), `/ops`, `/decisions` (404) all
+  carry `X-Robots-Tag: noindex, nofollow`; HTML has `<meta name="robots" content="noindex,
+  nofollow">`. Live today: demo robots.txt is Cloudflare's content-signal comments only (no rules),
+  ops is behind Cloudflare Access (302 to login, never crawlable). Owner step in LOG.
+- [x] **AC-33.4** (A) PageSpeed fixes: images with width/height, contrast failure fixed, legacy JS
   (modern browserslist) and unused JS reduced, cache headers for static assets documented for the
   VPS; Lighthouse mobile on a production build recorded (target Perf ≥ 95, LCP < 2.5 s).
+  — P33-A 875fb83b..HEAD. Lighthouse 12.8.2 mobile, local `next start`, A/B interleaved with
+  e1c6d68f (5 runs each, host load avg 9–18 from parallel agents, so Perf/TBT are noisy):
+  A11y 0.96 → **1.00** (contrast + unsized images pass), Best Practices 0.96 → **1.00**
+  (favicon 404 gone), SEO 1.00; page weight 282 → **229 KB**, images 76 → **17 KB**
+  (image-delivery savings 71 → 14 KiB, the rest is the hero poster P33-B replaces). Perf median
+  0.78 → 0.73 (run spread 0.40–0.91 both sides; best new run 0.95, LCP 2.46 s); LCP median
+  2.77 → 2.66 s. **Target not demonstrated locally** — LCP is the hero text, render-delay bound by
+  framework JS; legacy-JS (13 KiB est.) is Next's built-in 1.4 KB polyfill-module and unused-JS
+  (28 KiB) is react-dom — neither removable by config (DEBT). Cache: `/media/*` immutable 1 y,
+  `/og`, `/videos` 1 week (next.config.ts), documented in `infra/nginx/app-juli.com.conf`.
+  PageSpeed re-run after deploy is AC-33.9.
 - [ ] **AC-33.5** (B) Homepage per D43.2, H1 → H2 → H3 valid, hero poster + click-to-load video
   (D43.6) with VideoObject, FAQ + FAQPage, no testimonial or invented number.
 - [ ] **AC-33.6** (B) `/san-pham` overview (~1,500 words) + SoftwareApplication / Offer + breadcrumbs.
