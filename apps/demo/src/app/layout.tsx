@@ -7,9 +7,11 @@ import { TikTokTracking } from "../components/tiktok-tracking";
 import "./globals.css";
 import "./quyet-dinh.css";
 import "./phan-tich.css";
+import "./auth-screen.css";
 
-/** Quyết định's typeface (AC-10.3 artboards); exposed as a variable so only
- *  those screens use it — the shell keeps Inter. */
+/** Quyết định's typeface (AC-10.3 artboards) and the auth screen's (P34-F,
+ *  D44.1); exposed as a variable so only those screens use it — the shell
+ *  keeps Inter. */
 const beVietnamPro = Be_Vietnam_Pro({
   subsets: ["latin", "vietnamese"],
   weight: ["400", "500", "600", "700"],

@@ -1,27 +1,25 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DemoLanding } from "../components/demo-landing";
+import * as authCopy from "../lib/auth-screen-copy";
 import { ENTRY_MODE_STORAGE_KEY } from "../lib/entry-mode";
 import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
+import * as trialCopy from "../lib/trial-signup-copy";
 
 /**
- * DemoLanding's own responsibility is branching on whatever
- * buildGoogleAuthorizeUrl returns, not on whether a given
- * NEXT_PUBLIC_SUPABASE_* combination maps to a URL or to null -- that
- * mapping is supabase-auth.ts's own concern and is already covered
- * exhaustively by supabase-auth.test.ts. This file used to mutate
- * process.env directly (set real-looking values in beforeEach, `delete`
- * them in the two "unconfigured" cases) to drive that branching, which
- * quietly depended on the demo's real build-time env being ABSENT
- * wherever this test ran -- true only until #1905 got CI's Supabase
- * secrets configured, at which point deleting the runtime process.env key
- * stopped being able to force the unconfigured branch (whatever mechanism
- * produced that in a given CI run, mutating process.env after the fact is
- * not a reliable way to control it -- controlling the seam directly is).
- * Mocking the module instead makes both branches deterministic regardless
- * of what CI's actual env looks like when this file runs.
+ * `/` signed out (P34-F, D44.5; spec `fasttrack/design/p34/Auth.dc.html`):
+ * the auth screen, or the sample demo once chosen. Supersedes the two-door
+ * landing's tests (#1319, #1905, #1907, AC-9.1, D43): every behaviour they
+ * pinned is still pinned here, against the new structure and copy.
+ *
+ * `buildGoogleAuthorizeUrl` is mocked (the seam), never NEXT_PUBLIC_SUPABASE_*
+ * — see the #1905 note this file used to carry: mutating process.env cannot
+ * force the unconfigured branch once CI has real secrets.
  */
 const SUPABASE_ORIGIN_AUTHORIZE_URL =
   "https://placeholder-project-ref.supabase.co/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%2Fauth%2Fcallback&apikey=anon-key-for-tests";
@@ -29,18 +27,19 @@ const SUPABASE_ORIGIN_AUTHORIZE_URL =
 vi.mock("../lib/supabase-auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/supabase-auth")>()),
   buildGoogleAuthorizeUrl: vi.fn(),
-  GOOGLE_SIGN_IN_UNAVAILABLE_COPY:
-    "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",
+  GOOGLE_SIGN_IN_UNAVAILABLE_COPY: "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",
 }));
 
 const mockedBuildGoogleAuthorizeUrl = vi.mocked(buildGoogleAuthorizeUrl);
 
+const SAMPLE_ENTRY = "Xem thử với dữ liệu mẫu, không cần tài khoản →";
+const MATRIX = "Ma trận 5 luồng truy cập";
+
 beforeEach(() => {
   window.sessionStorage.clear();
-  // DemoLanding reads `?entry=door` from window.location.search (not
-  // useSearchParams — see the component's own comment on the
-  // missing-suspense-with-csr-bailout build error), so tests drive the
-  // real URL. Reset it to a bare `/` between tests.
+  // The entry read uses window.location.search (not useSearchParams — that
+  // would force a Suspense boundary around the prerendered landing), so tests
+  // drive the real URL. Reset it to a bare `/` between tests.
   window.history.replaceState(null, "", "/");
   mockedBuildGoogleAuthorizeUrl.mockReturnValue(SUPABASE_ORIGIN_AUTHORIZE_URL);
 });
@@ -49,297 +48,226 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("DemoLanding — the two doors", () => {
-  it("shows both entries on a first visit, each honestly labelled", () => {
+async function googleLink(name: RegExp | string = "Tiếp tục với Google") {
+  return waitFor(() => {
+    const link = screen.getByRole("link", { name });
+    expect(link).toHaveAttribute("href");
+    return link;
+  });
+}
+
+describe("auth screen — hierarchy (D44.5)", () => {
+  it("has one h1, Google first, then the 'hoặc dùng email' rule, the email field and its outline button", async () => {
     render(<DemoLanding />);
+    const google = await googleLink();
 
-    expect(
-      screen.getByRole("button", { name: /Dùng thử Demo/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /Đăng nhập với Google/ }),
-    ).toBeInTheDocument();
-
-    // The demo door must say, in its own copy, that it is a demonstration —
-    // never implying the visitor is looking at their own shop's data.
-    const doors = screen.getByRole("group", { name: "Chọn lối vào" });
-    expect(within(doors).getByText(/minh họa|dữ liệu mẫu/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByText("Chưa có tài khoản? Juli tự tạo cho bạn ở bước này.")).toBeInTheDocument();
+    expect(screen.getByText("hoặc dùng email")).toBeInTheDocument();
+    const email = screen.getByLabelText("Email");
+    expect(email).toHaveAttribute("type", "email");
+    expect(email).toHaveAttribute("autocomplete", "email");
+    const send = screen.getByRole("button", { name: "Gửi mã đăng nhập" });
+    // Document order: Google → email field → send.
+    expect(google.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(email.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("links the privacy policy and terms right where the seller signs in", () => {
-    render(<DemoLanding />);
+  it("Tiếp tục với Google is the ONLY filled (ink) button on the screen", async () => {
+    const { container } = render(<DemoLanding />);
+    const google = await googleLink();
 
-    const note = screen.getByTestId("legal-consent-note");
-    expect(within(note).getByRole("link", { name: "Chính sách bảo mật" })).toHaveAttribute(
-      "href",
-      "https://app-juli.com/privacy",
-    );
-    expect(within(note).getByRole("link", { name: "Điều khoản dịch vụ" })).toHaveAttribute(
-      "href",
-      "https://app-juli.com/terms",
-    );
+    const filled = container.querySelectorAll(".auth-btn--ink");
+    expect(filled).toHaveLength(1);
+    expect(filled[0]).toBe(google);
+    expect(screen.getByRole("button", { name: "Gửi mã đăng nhập" })).toHaveClass("auth-btn--outline");
   });
 
-  it("never issues a fetch merely by rendering the landing", () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-
+  it("the Google button is a real link to the Supabase authorize endpoint, not a disabled stub", async () => {
     render(<DemoLanding />);
+    const link = await googleLink();
 
-    expect(fetchSpy).not.toHaveBeenCalled();
-    fetchSpy.mockRestore();
-  });
-
-  it("the Google door is a real link to the Supabase authorize endpoint, not a disabled stub", async () => {
-    render(<DemoLanding />);
-
-    await waitFor(() => {
-      const link = screen.getByRole("link", {
-        name: /Đăng nhập với Google/,
-      });
-      expect(link).toHaveAttribute(
-        "href",
-        expect.stringContaining("placeholder-project-ref.supabase.co/auth/v1/authorize"),
-      );
-    });
-
-    const link = screen.getByRole("link", { name: /Đăng nhập với Google/ });
-    expect(link).toHaveAttribute(
-      "href",
-      expect.stringContaining("provider=google"),
-    );
+    expect(link).toHaveAttribute("href", expect.stringContaining("placeholder-project-ref.supabase.co/auth/v1/authorize"));
+    expect(link).toHaveAttribute("href", expect.stringContaining("provider=google"));
     expect(link.getAttribute("aria-disabled")).toBeNull();
   });
 
-  it("clicking Dùng thử Demo reveals the replay content with no navigation and no fetch", async () => {
-    const user = userEvent.setup();
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-
+  it("links the terms and the privacy policy in the consent line", () => {
     render(<DemoLanding />);
-    await user.click(screen.getByRole("button", { name: /Dùng thử Demo/ }));
 
-    expect(
-      screen.getByRole("region", { name: "Ma trận 5 luồng truy cập" }),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("mock-data-notice")).toBeInTheDocument();
+    const note = screen.getByTestId("legal-consent-note");
+    expect(note).toHaveTextContent("Bằng việc tiếp tục, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của Juli.");
+    expect(within(note).getByRole("link", { name: "Chính sách bảo mật" })).toHaveAttribute("href", "https://app-juli.com/privacy");
+    expect(within(note).getByRole("link", { name: "Điều khoản dịch vụ" })).toHaveAttribute("href", "https://app-juli.com/terms");
+  });
+
+  it("the footer: Tài khoản đối tác (to /auth/email#doi-tac), Điều khoản, Chính sách bảo mật, ©", () => {
+    render(<DemoLanding />);
+
+    const footer = screen.getByRole("contentinfo");
+    expect(within(footer).getByRole("link", { name: "Tài khoản đối tác" })).toHaveAttribute("href", "/auth/email#doi-tac");
+    expect(within(footer).getByRole("link", { name: "Điều khoản" })).toHaveAttribute("href", "https://app-juli.com/terms");
+    expect(within(footer).getByRole("link", { name: "Chính sách bảo mật" })).toHaveAttribute("href", "https://app-juli.com/privacy");
+    expect(footer).toHaveTextContent("© 2026 Công ty TNHH Công Nghệ Juli AI");
+  });
+
+  it("the desktop panel: product shot captioned Dữ liệu mẫu and three proof lines", () => {
+    render(<DemoLanding />);
+
+    const panel = screen.getByRole("complementary", { name: "Juli làm gì" });
+    expect(within(panel).getByRole("img", { name: "Thẻ đề xuất của Juli (dữ liệu mẫu)" })).toBeInTheDocument();
+    expect(within(panel).getByText("Dữ liệu mẫu")).toBeInTheDocument();
+    expect(within(panel).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "Kết nối chính thức qua TikTok Shop Open API",
+      "Chỉ thực hiện khi bạn duyệt",
+      "Miễn phí 3 tháng",
+    ]);
+  });
+
+  it("never issues a fetch merely by rendering", () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(<DemoLanding />);
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(ENTRY_MODE_STORAGE_KEY)).toBe(
-      "replay",
-    );
     fetchSpy.mockRestore();
   });
 
-  it("skips straight to the replay content on a later render within the same session", async () => {
-    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
-
-    render(<DemoLanding />);
-
-    expect(
-      await screen.findByRole("region", { name: "Ma trận 5 luồng truy cập" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Dùng thử Demo/ }),
-    ).not.toBeInTheDocument();
-  });
-
-  // Issue #1907: the sign-in door was unreachable once a visitor entered the
-  // replay demo, by any navigation, because `/` always short-circuited back
-  // to the replay Home. `/?entry=door` is the explicit escape.
-  it("renders both doors at /?entry=door even with replay stored — the explicit escape from the short-circuit", async () => {
-    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
-    window.history.replaceState(null, "", "/?entry=door");
-
-    render(<DemoLanding />);
-
-    // Both the `hasEnteredReplay` read and the Google-href resolution are
-    // deferred one macrotask (setTimeout(0)); wait for the latter so the
-    // assertions below run AFTER the deferred replay-mode read has settled,
-    // not merely during the synchronous pre-effect first paint (which would
-    // pass trivially regardless of whether the escape actually works).
-    await waitFor(() => {
-      expect(
-        screen.getByRole("link", { name: /Đăng nhập với Google/ }),
-      ).toHaveAttribute("href");
-    });
-
-    expect(
-      screen.getByRole("button", { name: /Dùng thử Demo/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /Đăng nhập với Google/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("region", { name: "Ma trận 5 luồng truy cập" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("still renders the sample Home (AC-8.5) on a bare / with replay stored — existing behaviour preserved, not replaced", async () => {
-    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
-
-    render(<DemoLanding />);
-
-    expect(
-      await screen.findByRole("region", { name: "Ma trận 5 luồng truy cập" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Dùng thử Demo/ }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("keyboard focus can reach both doors in order", async () => {
-    const user = userEvent.setup();
-
-    render(<DemoLanding />);
-
-    // Wait for the Google door's href to resolve — the disabled placeholder
-    // state (a non-focusable span) would otherwise break tab order.
-    await waitFor(() => {
-      expect(
-        screen.getByRole("link", { name: /Đăng nhập với Google/ }),
-      ).toHaveAttribute("href");
-    });
-
-    await user.tab();
-    expect(screen.getByRole("button", { name: /Dùng thử Demo/ })).toHaveFocus();
-
-    await user.tab();
-    expect(
-      screen.getByRole("link", { name: /Đăng nhập với Google/ }),
-    ).toHaveFocus();
-  });
-
-  it("renders an honest, non-broken Google door when buildGoogleAuthorizeUrl reports unconfigured (null)", () => {
-    mockedBuildGoogleAuthorizeUrl.mockReturnValue(null);
-
-    render(<DemoLanding />);
-
-    const link = screen.getByRole("link", { name: /Đăng nhập với Google/ });
-    expect(link).toHaveAttribute("aria-disabled", "true");
-  });
-
-  // Issue #1905: the disabled state's explanation must be VISIBLE copy, not
-  // only the aria-label above -- that is exactly what shipped a defect no
-  // sighted, non-screen-reader visitor could see any explanation for.
-  it("shows visible Vietnamese copy explaining the disabled Google door when buildGoogleAuthorizeUrl reports unconfigured (null), resolved from dictionary.md `auth.google.unavailable`", async () => {
-    mockedBuildGoogleAuthorizeUrl.mockReturnValue(null);
-
-    render(<DemoLanding />);
-
-    // Retry on the COPY, not on aria-disabled: the disabled span renders
-    // aria-disabled="true" in the transient pre-effect state too
-    // (googleHref === undefined), while the visible copy is deliberately
-    // deferred until the door's fate is decided (googleHref === null) --
-    // waiting on aria-disabled could therefore resolve BEFORE the
-    // component's setTimeout(0) committed, and the synchronous getByText
-    // that followed raced it. Lost on PR #1975's cold CI runner (job
-    // 104236594784): the DOM dump showed exactly the transient state.
-    // findByText retries until the final state renders; the assertions
-    // after it are then deterministic. Nothing formerly asserted was
-    // dropped: visibility AND the disabled state are both still checked.
-    expect(
-      await screen.findByText(
-        "Đăng nhập với Google chưa sẵn sàng trong môi trường này.",
-      ),
-    ).toBeVisible();
-
-    expect(
-      screen.getByRole("link", { name: /Đăng nhập với Google/ }),
-    ).toHaveAttribute("aria-disabled", "true");
-  });
-
-  it("never shows the unavailable copy once the Google door is actually configured", async () => {
-    render(<DemoLanding />);
-
-    await waitFor(() => {
-      const link = screen.getByRole("link", { name: /Đăng nhập với Google/ });
-      expect(link).toHaveAttribute("href");
-    });
-
-    expect(
-      screen.queryByText("Đăng nhập với Google chưa sẵn sàng trong môi trường này."),
-    ).not.toBeInTheDocument();
-  });
-
-  it("offers Đăng nhập bằng email beside Google, revealing the email form in place (AC-9.1)", async () => {
+  it("keyboard order: logo, Google, email", async () => {
     const user = userEvent.setup();
     render(<DemoLanding />);
+    await googleLink();
 
-    const toggle = await screen.findByRole("button", { name: "Đăng nhập bằng email" });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByLabelText("Email")).toBeNull();
-
-    await user.click(toggle);
-
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("form", { name: "Đăng nhập bằng email" })).toBeInTheDocument();
+    await user.tab();
+    expect(screen.getByRole("link", { name: /Juli AI/ })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("link", { name: "Tiếp tục với Google" })).toHaveFocus();
+    await user.tab();
     expect(screen.getByLabelText("Email")).toHaveFocus();
-    expect(screen.getByRole("button", { name: "Gửi mã" })).toBeInTheDocument();
-  });
-
-  it("disables the email door with its own honest copy when Supabase is not configured", async () => {
-    mockedBuildGoogleAuthorizeUrl.mockReturnValue(null);
-    render(<DemoLanding />);
-
-    expect(
-      await screen.findByText("Đăng nhập bằng email chưa sẵn sàng trong môi trường này."),
-    ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Đăng nhập bằng email" })).toBeDisabled();
   });
 });
 
-
-describe("DemoLanding — trial sign-up door (D43 additions, /?dang-ky=dung-thu)", () => {
-  it("reads as the free 3-month trial sign-up, keeps the same buttons and the existing-account line", async () => {
-    window.history.replaceState(null, "", "/?dang-ky=dung-thu");
+describe("auth screen — the sample demo entry", () => {
+  it("is a text-link button under the column; clicking it reveals the sample Home with no navigation and no fetch", async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
     render(<DemoLanding />);
 
-    expect(
-      await screen.findByRole("heading", { level: 2, name: "Đăng ký dùng thử miễn phí 3 tháng" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Tạo tài khoản bằng Google hoặc email, rồi kết nối TikTok Shop. Miễn phí 3 tháng, sau đó từ 500.000đ/tháng. Không cần thẻ thanh toán.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Đã có tài khoản? Đăng nhập bằng đúng Google hoặc email bạn đã dùng."),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: "Đăng nhập" })).toBeNull();
-    expect(screen.getByRole("link", { name: /Đăng nhập với Google/ })).toBeInTheDocument();
-    // The P32-A partner password door is untouched.
-    expect(
-      screen.getByRole("link", { name: "Tài khoản đối tác (đăng nhập bằng mật khẩu)" }),
-    ).toHaveAttribute("href", "/auth/email#doi-tac");
+    const entry = screen.getByRole("button", { name: SAMPLE_ENTRY });
+    expect(entry).toHaveClass("auth-link");
+    await user.click(entry);
+
+    expect(screen.getByRole("region", { name: MATRIX })).toBeInTheDocument();
+    expect(screen.getByTestId("mock-data-notice")).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem(ENTRY_MODE_STORAGE_KEY)).toBe("replay");
+    fetchSpy.mockRestore();
   });
 
-  it("shows the doors even when replay is stored, like ?entry=door", async () => {
+  it("skips straight to the sample Home on a later render within the same session", async () => {
+    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
+    render(<DemoLanding />);
+
+    expect(await screen.findByRole("region", { name: MATRIX })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: SAMPLE_ENTRY })).not.toBeInTheDocument();
+  });
+
+  // Issue #1907: `/?entry=door` is the explicit escape from the stored choice.
+  it("renders the auth screen at /?entry=door even with the sample stored", async () => {
+    window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
+    window.history.replaceState(null, "", "/?entry=door");
+    render(<DemoLanding />);
+
+    await googleLink();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByRole("button", { name: SAMPLE_ENTRY })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: MATRIX })).not.toBeInTheDocument();
+  });
+});
+
+describe("auth screen — Supabase not configured (#1905)", () => {
+  it("renders an honest, non-broken Google button and visible copy explaining it", async () => {
+    mockedBuildGoogleAuthorizeUrl.mockReturnValue(null);
+    render(<DemoLanding />);
+
+    expect(await screen.findByText("Đăng nhập với Google chưa sẵn sàng trong môi trường này.")).toBeVisible();
+    expect(screen.getByRole("link", { name: /Tiếp tục với Google/ })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Đăng nhập bằng email chưa sẵn sàng trong môi trường này.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Gửi mã đăng nhập" })).toBeDisabled();
+  });
+
+  it("never shows the unavailable copy once configured", async () => {
+    render(<DemoLanding />);
+    await googleLink();
+    expect(screen.queryByText("Đăng nhập với Google chưa sẵn sàng trong môi trường này.")).not.toBeInTheDocument();
+  });
+});
+
+describe("auth screen — trial variant (/?dang-ky=dung-thu, D43 additions)", () => {
+  it("same layout, copy only: heading, no-card line, Đăng ký bằng Google, Gửi mã đăng ký, Đã có tài khoản? Đăng nhập", async () => {
+    window.history.replaceState(null, "", "/?dang-ky=dung-thu");
+    const { container } = render(<DemoLanding />);
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Dùng thử Juli miễn phí 3 tháng" })).toBeInTheDocument();
+    expect(screen.getByText("Không cần thẻ thanh toán. Sau 3 tháng, từ 500.000đ/tháng.")).toBeInTheDocument();
+    const google = await googleLink("Đăng ký bằng Google");
+    expect(google).toHaveAttribute("href", expect.stringContaining("provider=google"));
+    expect(screen.getByRole("button", { name: "Gửi mã đăng ký" })).toBeInTheDocument();
+    expect(screen.getByText("Đã có tài khoản?")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Đăng nhập" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Đăng nhập vào Juli" })).toBeNull();
+    // Same layout: one filled button, the sample entry, the partner link.
+    expect(container.querySelectorAll(".auth-btn--ink")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: SAMPLE_ENTRY })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Tài khoản đối tác" })).toHaveAttribute("href", "/auth/email#doi-tac");
+  });
+
+  it("shows the auth screen even when the sample is stored, like ?entry=door", async () => {
     window.sessionStorage.setItem(ENTRY_MODE_STORAGE_KEY, "replay");
     window.history.replaceState(null, "", "/?dang-ky=dung-thu");
     render(<DemoLanding />);
 
-    expect(
-      await screen.findByRole("heading", { level: 2, name: "Đăng ký dùng thử miễn phí 3 tháng" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Dùng thử Juli miễn phí 3 tháng" })).toBeInTheDocument();
   });
 
-  it("keeps the plain Đăng nhập door without the query", () => {
+  it("Mới dùng Juli? Dùng thử miễn phí 3 tháng ↔ Đã có tài khoản? Đăng nhập swaps the copy in place and the URL", async () => {
+    const user = userEvent.setup();
     render(<DemoLanding />);
+    await googleLink();
 
-    expect(screen.getByRole("heading", { level: 2, name: "Đăng nhập" })).toBeInTheDocument();
-    expect(screen.queryByText(/Đăng ký dùng thử miễn phí/)).toBeNull();
+    expect(screen.getByText("Mới dùng Juli?")).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "Dùng thử miễn phí 3 tháng" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Dùng thử Juli miễn phí 3 tháng" })).toBeInTheDocument();
+    expect(window.location.search).toBe("?dang-ky=dung-thu");
+
+    await user.click(screen.getByRole("link", { name: "Đăng nhập" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" })).toBeInTheDocument();
+    expect(window.location.search).toBe("?entry=door");
   });
 
-  it("every trial string is in dictionary.md", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const copy = await import("../lib/trial-signup-copy");
-    const dictionary = readFileSync(join(__dirname, "..", "..", "..", "..", "dictionary.md"), "utf8");
-    for (const text of [
-      copy.TRIAL_SIGNUP_HEADING,
-      copy.TRIAL_SIGNUP_BODY,
-      copy.TRIAL_SIGNUP_EXISTING_NOTE,
-      copy.TRIAL_SIGNUP_EYEBROW,
-    ]) {
+  it("keeps the plain sign-in without the query", () => {
+    render(<DemoLanding />);
+    expect(screen.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" })).toBeInTheDocument();
+    expect(screen.queryByText(/Dùng thử Juli miễn phí/)).toBeNull();
+  });
+});
+
+describe("auth screen copy is in dictionary.md", () => {
+  const dictionary = readFileSync(join(__dirname, "..", "..", "..", "..", "dictionary.md"), "utf8");
+
+  it("every string in auth-screen-copy.ts and trial-signup-copy.ts", () => {
+    const strings = [...Object.values(authCopy), ...Object.values(trialCopy)].flatMap((value) =>
+      typeof value === "string" ? [value] : Array.isArray(value) ? (value as string[]) : [],
+    );
+    const skip = new Set(["https://app-juli.com", authCopy.AUTH_PARTNER_HREF, "dang-ky", "dung-thu"]);
+    expect(strings.length).toBeGreaterThan(30);
+    for (const text of strings) {
+      if (skip.has(text)) continue;
       expect(dictionary, text).toContain(text);
     }
+  });
+
+  it("the templated strings too", () => {
+    expect(dictionary).toContain("Gửi mã sau {n} giây");
+    expect(dictionary).toContain("Gửi lại mã sau {n} giây");
   });
 });
