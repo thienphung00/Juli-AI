@@ -656,7 +656,7 @@ body {
   color: var(--lp-on-dark);
 }
 
-.ui-card > p {
+.ui-card > p:not(.ui-eyebrow) {
   margin: 0;
   color: var(--lp-body);
   font-size: var(--lp-text-body-small);
@@ -1245,5 +1245,17 @@ body {
   .ui-button,
   .ui-faq__chevron {
     transition: none;
+  }
+}
+
+/* Signup header at phone width: keep logo and "Đăng nhập" on one line (P34 integration). */
+.ui-header__brand,
+.ui-header__login--always {
+  white-space: nowrap;
+}
+
+@media (max-width: 29.99rem) {
+  .ui-header__login-prefix {
+    display: none;
   }
 }

@@ -32,7 +32,7 @@ export function SiteHeader({ variant = "default", pathname }: SiteHeaderProps) {
           </Link>
           <span className="ui-header__spacer" />
           <a className="ui-header__login ui-header__login--always" data-testid="header-login-link" href={LOGIN_URL}>
-            Đã có tài khoản? Đăng nhập
+            <span className="ui-header__login-prefix">Đã có tài khoản? </span>Đăng nhập
           </a>
         </div>
       </header>

@@ -1718,3 +1718,17 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
 - **Screenshots** (local build, 1440 + 390): `/private/tmp/claude-501/-Users-macos-Juli-AI-v2/5dd670f3-89e7-4e6b-adf6-912db2866737/scratchpad/p34f/shots/{signin,trial,otp,otp-error,partner}-{1440,390}.png`.
 - **Next:** in P34 integration, align the font loading with P34-A's choice (DEBT). The owner can
   review the darker input borders (DEBT).
+
+## 2026-10-15 — orchestrator (Claude Opus) — P34 integrated (A–F)
+
+- Merged `fasttrack/p34b-home`, `p34c-product-pages`, `p34d-blog`, `p34e-legal-signup` (all on
+  P34-A c95231e0) and `p34f-auth-screen` into `fasttrack/optimize-product`; only fasttrack doc
+  conflicts (union-resolved), no code conflicts.
+- Integration fixes: signup header keeps logo + "Đăng nhập" on one line at 390 (prefix hidden
+  < 480 px); `.ui-card > p` no longer greys an `Eyebrow`; dead `.lp-breadcrumb` removed; cookie
+  banner on the new buttons/tokens (its "Đồng ý" was white on light pink).
+- Gates (Node 20.20.2): landing lint / type-check / vitest 202 / build / check:seo 17; demo lint /
+  type-check / vitest 1944 / build. Screenshots of /, /san-pham/phan-tich-shop, /privacy (1440),
+  /dang-ky (390): no horizontal overflow.
+- Open for the owner: hero H1 length (5 lines at 1440), price wording "500.000đ/tháng" vs D43
+  "từ 500K", sample figures inside the hero screenshot; 3 blog posts still drafts.

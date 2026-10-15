@@ -13,6 +13,7 @@ import {
   subscribeConsent,
   writeConsent,
 } from "../lib/consent";
+import { buttonClassName } from "./ui";
 
 /**
  * The pixel loader is its own chunk, fetched only after consent: a visitor who
@@ -86,14 +87,14 @@ export function CookieConsent() {
           </p>
           <div className="lp-consent__actions">
             <button
-              className="juli-btn juli-btn--secondary juli-btn--default"
+              className={buttonClassName({ variant: "secondary", size: "md" })}
               onClick={() => decide("denied")}
               type="button"
             >
               Từ chối
             </button>
             <button
-              className="juli-btn juli-btn--primary juli-btn--default"
+              className={buttonClassName({ variant: "primary", size: "md" })}
               onClick={() => decide("granted")}
               type="button"
             >
