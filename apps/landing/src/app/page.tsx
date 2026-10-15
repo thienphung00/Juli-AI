@@ -5,6 +5,9 @@ import { LandingHeader } from "../components/landing-header";
 import { SiteFooter } from "../components/site-footer";
 import { StepsSection } from "../components/steps-section";
 import { TrialCtaSection } from "../components/trial-cta-section";
+import { buildMetadata } from "../lib/seo";
+
+export const metadata = buildMetadata("/");
 
 export default function LandingPage() {
   return (

@@ -27,4 +27,18 @@ describe("ops host middleware (D25.1)", () => {
     expect(middleware(req("demo.app-juli.com", "/ops")).status).toBe(404);
     expect(middleware(req("demo.app-juli.com", "/decisions")).status).toBe(200);
   });
+  it("noindex on every response of every host (D43.5, AC-33.3)", () => {
+    for (const [host, path] of [
+      ["demo.app-juli.com", "/"],
+      ["demo.app-juli.com", "/decisions"],
+      ["demo.app-juli.com", "/ops"],
+      ["ops.app-juli.com", "/"],
+      ["ops.app-juli.com", "/decisions"],
+      ["127.0.0.1:3326", "/analytics"],
+    ]) {
+      expect(middleware(req(host, path)).headers.get("X-Robots-Tag"), `${host}${path}`).toBe(
+        "noindex, nofollow",
+      );
+    }
+  });
 });

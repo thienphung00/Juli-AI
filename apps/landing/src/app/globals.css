@@ -57,6 +57,24 @@ a {
   backdrop-filter: blur(16px);
 }
 
+/* Status colours as small text (mockup chips, deltas). The theme's base status
+   colours fail AA as text on white / their tint (PageSpeed 2026-10-14 contrast
+   audit); these darken them toward the foreground token, tokens only:
+   success 5.4:1, warning 5.7:1, info 5.3:1, destructive 5.6:1 on their tint. */
+:root {
+  --lp-success-text: color-mix(in srgb, var(--juli-success) 65%, var(--juli-foreground));
+  --lp-warning-text: color-mix(in srgb, var(--juli-warning) 50%, var(--juli-foreground));
+  --lp-info-text: color-mix(in srgb, var(--juli-info) 75%, var(--juli-foreground));
+  --lp-destructive-text: color-mix(in srgb, var(--juli-destructive) 75%, var(--juli-foreground));
+}
+
+/* Size comes from the width/height attributes (SiteLogo); preflight's
+   `height: auto` keeps the aspect ratio. Do not set width: auto here — it would
+   render the 2x file at its intrinsic 183×60. */
+.lp-logo {
+  display: block;
+}
+
 .lp-header__brand {
   display: inline-flex;
   min-width: var(--juli-touch-target);
@@ -512,17 +530,17 @@ a {
 
 .lp-mockup__chip--info {
   background: var(--juli-info-tint);
-  color: var(--juli-info);
+  color: var(--lp-info-text);
 }
 
 .lp-mockup__chip--success {
   background: var(--juli-success-tint);
-  color: var(--juli-success);
+  color: var(--lp-success-text);
 }
 
 .lp-mockup__chip--warning {
   background: var(--juli-warning-tint);
-  color: var(--juli-warning);
+  color: var(--lp-warning-text);
 }
 
 .lp-mockup__donut-row {
@@ -600,7 +618,7 @@ a {
 }
 
 .lp-mockup__delta {
-  color: var(--juli-success);
+  color: var(--lp-success-text);
   font-size: 0.9rem;
   font-weight: 700;
 }
@@ -641,7 +659,8 @@ a {
   display: inline-block;
   margin-top: var(--juli-space-3);
   border-radius: 999px;
-  background: var(--juli-primary);
+  /* primary-text, not primary: white on the primary pink is 2.7:1 (PageSpeed 2026-10-14). */
+  background: var(--juli-primary-text);
   color: var(--juli-surface);
   font-size: 0.8rem;
   font-weight: 600;
@@ -677,7 +696,7 @@ a {
 }
 
 .lp-mockup__time {
-  color: var(--juli-destructive);
+  color: var(--lp-destructive-text);
   font-size: 1.1rem;
   font-weight: 800;
 }

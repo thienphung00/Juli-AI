@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -48,10 +48,11 @@ describe("cookie consent (Nghị định 13/2023)", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Đồng ý" }));
 
     expect(window.localStorage.getItem(CONSENT_STORAGE_KEY)).toBe("granted");
-    expect(pixelScript()).not.toBeNull();
     expect(screen.queryByTestId("cookie-consent")).not.toBeInTheDocument();
+    // The tracking chunk is lazy (next/dynamic): it lands after the click.
+    await waitFor(() => expect(pixelScript()).not.toBeNull());
     // ViewContent's server copy goes out once tracking mounts.
-    expect(sendBeacon).toHaveBeenCalled();
+    await waitFor(() => expect(sendBeacon).toHaveBeenCalled());
   });
 
   it("keeps everything off after the visitor refuses, and remembers it", async () => {
@@ -67,12 +68,12 @@ describe("cookie consent (Nghị định 13/2023)", () => {
     expect(sendBeacon).not.toHaveBeenCalled();
   });
 
-  it("loads the pixel straight away for a visitor who accepted before", () => {
+  it("loads the pixel straight away for a visitor who accepted before", async () => {
     window.localStorage.setItem(CONSENT_STORAGE_KEY, "granted");
     render(<CookieConsent />);
 
     expect(screen.queryByTestId("cookie-consent")).not.toBeInTheDocument();
-    expect(pixelScript()).not.toBeNull();
+    await waitFor(() => expect(pixelScript()).not.toBeNull());
   });
 
   it("lets the visitor change their choice from the footer", async () => {

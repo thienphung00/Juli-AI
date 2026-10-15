@@ -1,14 +1,10 @@
-import type { Metadata } from "next";
-
 import { CtaLink } from "../../components/cta-link";
 import { LandingHeader } from "../../components/landing-header";
 import { SiteFooter } from "../../components/site-footer";
+import { breadcrumbSchema, buildMetadata, JsonLd } from "../../lib/seo";
 import { COMPANY, DEMO_URL } from "../../lib/site";
 
-export const metadata: Metadata = {
-  title: "Liên hệ — Juli AI",
-  description: `Liên hệ ${COMPANY.name} để được tư vấn, hỗ trợ sử dụng Juli AI hoặc hợp tác.`,
-};
+export const metadata = buildMetadata("/contact");
 
 const TOPICS = [
   {
@@ -28,6 +24,7 @@ const TOPICS = [
 export default function ContactPage() {
   return (
     <>
+      <JsonLd data={breadcrumbSchema("/contact")} />
       <LandingHeader />
       <main className="lp-main">
         <section aria-labelledby="contact-heading" className="lp-page-hero">

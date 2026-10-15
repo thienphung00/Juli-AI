@@ -5,7 +5,7 @@ import { LandingHeader } from "../components/landing-header";
 import { SiteFooter } from "../components/site-footer";
 
 export const metadata: Metadata = {
-  title: "Không tìm thấy trang — Juli AI",
+  title: { absolute: "Không tìm thấy trang | Juli AI" },
 };
 
 export default function NotFound() {
@@ -26,7 +26,7 @@ export default function NotFound() {
             <CtaLink href="/" size="large">
               Về trang chủ
             </CtaLink>
-            <CtaLink href="/product" size="large" variant="secondary">
+            <CtaLink href="/san-pham" size="large" variant="secondary">
               Xem sản phẩm
             </CtaLink>
           </div>

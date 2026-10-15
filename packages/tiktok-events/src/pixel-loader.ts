@@ -1,8 +1,9 @@
 import { TIKTOK_DATA_SOURCE_ID } from "./data-source";
+import { TIKTOK_PIXEL_SCRIPT_ID } from "./pixel-id";
 import { tiktokPixelSnippet } from "./pixel-snippet";
 
 /** Shared with the `TikTokPixel` component so the two can never both install one. */
-export const TIKTOK_PIXEL_SCRIPT_ID = "tiktok-pixel";
+export { TIKTOK_PIXEL_SCRIPT_ID };
 
 /**
  * Install the base pixel code at runtime instead of rendering it into the HTML.

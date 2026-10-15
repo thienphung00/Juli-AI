@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./pixel-id": "./src/pixel-id.ts",
     "./server": "./src/server/index.ts"
   },
   "scripts": {
