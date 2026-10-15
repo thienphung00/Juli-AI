@@ -25,6 +25,9 @@ const beVietnamPro = Be_Vietnam_Pro({
 export const metadata: Metadata = {
   title: "Juli Demo",
   description: "Trải nghiệm cách Juli giúp bạn hiểu shop và đưa ra quyết định.",
+  // Never indexed (D43.5): <meta name="robots" content="noindex, nofollow">,
+  // alongside the X-Robots-Tag header (next.config.ts + middleware).
+  robots: { index: false, follow: false, googleBot: { index: false, follow: false } },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
