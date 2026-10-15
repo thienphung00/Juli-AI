@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { HERO_VIDEO } from "../lib/media";
 import { DEMO_URL, LOGIN_URL } from "../lib/site";
 import { CtaLink } from "./cta-link";
 
@@ -16,8 +17,10 @@ const PROMISES = [
  * the visitor presses play; the poster is the 12 s brand card (+5–10% GMV,
  * 29 giờ).
  */
-const DEMO_VIDEO_SRC = "/videos/juli-demo.mp4";
-const DEMO_VIDEO_POSTER = "/videos/juli-demo-poster.jpg";
+const DEMO_VIDEO_SRC = HERO_VIDEO.src;
+// WebP poster (10 KB vs the 24 KB JPEG); P33-B replaces this element with a
+// poster image + click-to-load (D43.6).
+const DEMO_VIDEO_POSTER = HERO_VIDEO.poster.large.webp;
 
 export function HeroSection() {
   return (

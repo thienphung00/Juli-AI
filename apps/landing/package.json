@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:seo": "vitest run --config vitest.seo.config.ts"
   },
   "dependencies": {
     "@juli/brand": "workspace:*",
@@ -36,5 +37,11 @@
     "jsdom": "^26.0.0",
     "typescript": "^5.4.0",
     "vitest": "4.1.10"
-  }
+  },
+  "browserslist": [
+    "chrome 111",
+    "edge 111",
+    "firefox 111",
+    "safari 16.4"
+  ]
 }

@@ -68,9 +68,11 @@ a {
   --lp-destructive-text: color-mix(in srgb, var(--juli-destructive) 75%, var(--juli-foreground));
 }
 
+/* Size comes from the width/height attributes (SiteLogo); preflight's
+   `height: auto` keeps the aspect ratio. Do not set width: auto here — it would
+   render the 2x file at its intrinsic 183×60. */
 .lp-logo {
   display: block;
-  width: auto;
 }
 
 .lp-header__brand {

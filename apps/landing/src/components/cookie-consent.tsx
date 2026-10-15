@@ -1,6 +1,7 @@
 "use client";
 
 import { TIKTOK_PIXEL_SCRIPT_ID } from "@juli/tiktok-events";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
@@ -12,7 +13,15 @@ import {
   subscribeConsent,
   writeConsent,
 } from "../lib/consent";
-import { TikTokTracking } from "./tiktok-tracking";
+
+/**
+ * The pixel loader is its own chunk, fetched only after consent: a visitor who
+ * never accepts (and every first visit) downloads none of it (D43.4 unused JS).
+ */
+const TikTokTracking = dynamic(
+  () => import("./tiktok-tracking").then((module) => module.TikTokTracking),
+  { ssr: false },
+);
 
 /** Distinguishes "not hydrated yet" from "no choice made" (`null`). */
 const NOT_HYDRATED = "not-hydrated" as const;

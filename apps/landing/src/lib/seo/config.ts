@@ -44,9 +44,13 @@ export const ORGANIZATION_LOGO = {
   height: 512,
 } as const;
 
-/** Absolute URL for a site path (`/san-pham` → `https://app-juli.com/san-pham`). */
+/**
+ * Absolute URL for a site path (`/san-pham` → `https://app-juli.com/san-pham`).
+ * Home is the bare origin, `https://app-juli.com` — Next prints the canonical
+ * that way, so the sitemap, og:url and JSON-LD use the same string.
+ */
 export function absoluteUrl(pathOrUrl: string): string {
   if (/^https?:\/\//.test(pathOrUrl)) return pathOrUrl;
   const path = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
-  return path === "/" ? `${SITE_URL}/` : `${SITE_URL}${path}`;
+  return path === "/" ? SITE_URL : `${SITE_URL}${path}`;
 }

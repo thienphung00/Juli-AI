@@ -32,7 +32,7 @@ export function organizationSchema(): JsonLdObject {
     "@id": ORGANIZATION_ID,
     name: SITE_NAME,
     legalName: COMPANY.name,
-    url: `${SITE_URL}/`,
+    url: SITE_URL,
     logo: {
       "@type": "ImageObject",
       url: absoluteUrl(ORGANIZATION_LOGO.url),
@@ -56,7 +56,7 @@ export function websiteSchema(): JsonLdObject {
   return {
     "@type": "WebSite",
     "@id": WEBSITE_ID,
-    url: `${SITE_URL}/`,
+    url: SITE_URL,
     name: SITE_NAME,
     inLanguage: CONTENT_LANGUAGE,
     publisher: { "@id": ORGANIZATION_ID },

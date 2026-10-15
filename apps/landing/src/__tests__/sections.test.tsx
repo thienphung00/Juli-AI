@@ -46,7 +46,7 @@ describe("landing sections (PRD 2.7)", () => {
 
     const video = screen.getByTestId("hero-demo-video");
     expect(video).toHaveAttribute("src", "/videos/juli-demo.mp4");
-    expect(video).toHaveAttribute("poster", "/videos/juli-demo-poster.jpg");
+    expect(video).toHaveAttribute("poster", "/media/juli-demo-poster-v1-1280.webp");
     expect(video).toHaveAttribute("preload", "none");
     expect(video).toHaveAttribute("controls");
     expect(video).not.toHaveAttribute("autoplay");
