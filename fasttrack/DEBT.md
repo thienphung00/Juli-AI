@@ -865,3 +865,22 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Demo vitest under host load avg ~35: `quyet-dinh-p10` and `ops-pages` (3 tests) failed in the
   full run, passed 70/70 together with `demo-landing` alone — the known load flake, not P33-B.
 
+## P33-C shortcuts (2026-10-15)
+- [ ] `/blog` is linked from all four capability pages (`BLOG_PATH` in
+  `apps/landing/src/components/product/capability-page.tsx`) and 404s until P33-D's `/blog` merges.
+  If P33-D ships a different path, change the constant.
+- [ ] **Owner check before deploy**: the pages describe Juli writing title / description (and the
+  cover with the seller's photo) to the seller's shop after Duyệt + xác nhận, as `/privacy` does.
+  In code, agent writes still resolve to the sandbox merchant (`factories.py`, DEBT above, P5 not
+  started), so confirm real-shop writes are live (or accept the wording as the product's flow)
+  before publishing. Attributes are deliberately NOT claimed (`update_product_listing` writes
+  title / description / main_images only).
+- [ ] Seller self-serve disconnect: the copy says "thu hồi uỷ quyền trong TikTok Shop hoặc email
+  lienhe@app-juli.com"; there is no seller-side button in the app (only Ops "Huỷ kết nối").
+- [ ] Screenshots are crops of the demo sample at a fixed date (cards dated 15/10/2026); the
+  connect and onboarding shots render real components over a mocked `/v1/shops` and
+  `/v1/shops/me/onboarding` (fictional "Shop Mỹ Phẩm Ví Dụ", chushop@vi-du.vn). Re-shoot (`-v2`)
+  when the app UI changes; the capture scripts were ad hoc (scratch Playwright), not committed.
+- [ ] The FAQ H2 on each page has no screenshot (AC-33.7 "one per H2" read as per content H2).
+- [ ] Measurement page explains delayed-control groups as "đang thử nghiệm" (opt-in per shop,
+  default off); update the wording when groups become default.
