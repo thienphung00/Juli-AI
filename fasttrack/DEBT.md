@@ -939,3 +939,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   invented from the card's own target (`sampleSimulatedMeasurement`), always "Đạt" — not a model of
   a real outcome. `/decisions/in-progress/<run id>` and `/decisions/recommendations/<id>` are not
   reviewer-sample-aware (sample run ids never route there).
+- [ ] Load-sensitive demo test (seen 2026-10-15, P32-E gates): `ops-pages.test.tsx > saves the
+  scenario and sets it as the shop target` timed out once (5.6 s) in a full demo run (1925 / 1926)
+  and passes 3 / 3 alone; the previous full run on the same code was 1926 / 1926. Untouched by P32-E.

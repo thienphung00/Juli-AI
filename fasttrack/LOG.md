@@ -1474,7 +1474,10 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
 - Tests: `reviewer-all-features.test.tsx` (full session through the real shell — the only request
   is `GET /v1/reviewer/me`; labels absent for the signed-out sample; pinned reviewer unchanged);
   `reviewer-sample-mode.test.tsx` updated (Từ chối enabled).
-- Gates (Node 20.20.2): see the P32-E commit message / final report. Docs: DECISIONS D42 amendment
+- Gates (Node 20.20.2): `pnpm install --frozen-lockfile` OK; demo lint 0 errors (7 pre-existing
+  warnings), type-check clean, vitest 152 files / 1926 passed (a later re-run: 1925 / 1926, the
+  load-sensitive `ops-pages.test.tsx` timeout — passes 3 / 3 alone, DEBT); `build:demo --force` OK
+  (example Supabase env); `check.sh --since 9d6352b3` 5/5 PASS. Landing untouched. Docs: DECISIONS D42 amendment
   2, contract header + §4 + §6, dictionary `reviewer.*`, MODULE.md, Services Information steps 6–9,
   ACCEPTANCE AC-32.12, PROGRESS P32-E, DEBT.
 - Next: orchestrator merges, deploys, resubmits to Shopee with the updated Services Information.
