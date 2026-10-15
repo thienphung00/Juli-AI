@@ -764,6 +764,22 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/trial-signups",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/trial-signups/{signup_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/orders",
       "methods": [
         "GET"
@@ -881,6 +897,14 @@
         "POST"
       ],
       "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/trial-signups",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": false,
       "tenant_scoped": false
     },
     {
