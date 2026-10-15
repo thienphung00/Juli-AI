@@ -42,8 +42,8 @@ builds the demo artifact itself (`infra/scripts/build-release-artifact.sh`, the
 `NEXT_PUBLIC_SUPABASE_*` repo secrets inlined at build, verified by
 `verify-supabase-env-in-build.mjs`); if the demo lane changed, that tarball is
 copied to the VPS and `deploy.sh` runs the demo lane after the API lane via
-`DEMO_ARTIFACT_TARBALL`. A SHA that changes `apps/landing` is still refused
-(no landing artifact) before anything deploys:
+`DEMO_ARTIFACT_TARBALL`. The landing artifact is built and handed over the same
+way (`LANDING_ARTIFACT_TARBALL`; DEBT repaid 2026-10-08):
 
 ```bash
 git tag fasttrack-deploy-$(date -u +%Y%m%dT%H%MZ) <full-sha> && git push origin <that-tag>

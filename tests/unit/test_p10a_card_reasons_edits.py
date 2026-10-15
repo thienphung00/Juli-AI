@@ -108,6 +108,9 @@ async def test_the_decisions_list_carries_the_card_block(session, shop_a):
     await _score(session, shop_a)
     user = await session.get(User, shop_a.user_id)
     top = next(c for c in await _optimize_cards(session, shop_a.id) if c.priority == 1)
+    # The scoring clock is pinned (COMPUTED_AT); surface the card now so the 7-day
+    # proposal validity never turns this test red as the calendar moves on.
+    top.surfaced_at = datetime.now(UTC)
     product = await session.get(Product, card_product_uuid(top))
     for sku_id, seller_sku in (("s-2", "SM-013"), ("s-1", "SM-012"), ("s-3", None)):
         session.add(

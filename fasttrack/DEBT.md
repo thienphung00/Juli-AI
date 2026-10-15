@@ -805,7 +805,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   6,417 recorded vs ~6,700 live (`test_test_quality`, `test_quality_reconcile`),
   `test_module_md_sync_parser` allowlist, 6 import-boundary deep imports in ops / workers,
   `test_no_public_table_holds_update_beyond_its_call_site`.
-- [ ] Pre-existing time bomb (not P32): `test_p10a_card_reasons_edits.py::test_the_decisions_list_carries_the_card_block`
+- [x] ~~Pre-existing time bomb (not P32):~~ repaid 2026-10-15 (card surfaced now in the test): `test_p10a_card_reasons_edits.py::test_the_decisions_list_carries_the_card_block`
   builds its card with `update_time=datetime(2026, 10, 1)`, so since ~2026-10-08 the card reads
   `expired` instead of `pending`; it fails on `fasttrack/optimize-product` @ 0e80c18b too. Pin the
   clock or build the card relative to now.
