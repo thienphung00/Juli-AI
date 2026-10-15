@@ -9,13 +9,20 @@ import {
   P,
   Ul,
 } from "../../../components/product/capability-page";
+import { ProcessDiagram } from "../../../components/product/diagrams";
 import {
   CAP_DL_HOC,
+  CAP_DL_HOC_MOBILE,
   CAP_DL_MUC_TIEU,
+  CAP_DL_MUC_TIEU_MOBILE,
   CAP_DL_NGAY_14,
+  CAP_DL_NGAY_14_MOBILE,
   CAP_DL_NGAY_7,
+  CAP_DL_NGAY_7_MOBILE,
   CAP_DL_TANG_THEM,
+  CAP_DL_TANG_THEM_MOBILE,
   CAP_DL_TIN_CAY,
+  CAP_DL_TIN_CAY_MOBILE,
 } from "../../../components/product/screens";
 import { buildMetadata } from "../../../lib/seo";
 
@@ -65,13 +72,27 @@ export default function DoLuongGmvPage() {
       eyebrow="Đo lường"
       faq={FAQ}
       heading="Đo lường GMV sau mỗi thay đổi: kiểm tra ngày 7, chốt kết quả ngày 14"
+      ctaTitle="Biết mỗi thay đổi đã làm gì cho GMV của shop."
+      heroChrome="Đo lường · Juli"
+      heroShot={[
+        {
+          alt: "Mục tiêu và ngưỡng giữ ổn định của một thay đổi: chỉ số mục tiêu CTOR Thẻ sản phẩm, GMV dự kiến, các chỉ số không được lệch (dữ liệu mẫu)",
+          mobileVariants: CAP_DL_MUC_TIEU_MOBILE,
+          variants: CAP_DL_MUC_TIEU,
+        },
+        {
+          alt: "Bảng kết quả ngày 7: chỉ số chính Đang lên, các chỉ số khác Giữ ổn định, GMV mỗi ngày ghi Sơ bộ (dữ liệu mẫu)",
+          mobileVariants: CAP_DL_TANG_THEM_MOBILE,
+          variants: CAP_DL_TANG_THEM,
+        },
+      ]}
       lead={
-        <p>
+        <>
           Một đề xuất chỉ có giá trị khi biết nó có tác dụng hay không. Sau mỗi thay đổi, Juli so sánh chỉ
           số mục tiêu với mốc 14 ngày trước khi áp dụng, kiểm tra giữa chừng ở ngày 7, chốt ở ngày 14 và
           ghi rõ mức chắc chắn của kết quả. Kết quả đó quay lại quyết định thứ tự đề xuất tiếp theo cho shop
           của bạn.
-        </p>
+        </>
       }
       path={PATH}
       related={[
@@ -114,12 +135,35 @@ export default function DoLuongGmvPage() {
         heading="Trước khi áp dụng: mục tiêu, mốc so sánh và ngưỡng giữ ổn định"
         id="truoc-khi-ap-dung"
         image={CAP_DL_MUC_TIEU}
+        mobileImage={CAP_DL_MUC_TIEU_MOBILE}
       >
         <P>
           Việc đo bắt đầu trước khi thay đổi được ghi lên shop. Khi bạn duyệt và khi Juli thực hiện, Juli
           chụp lại trạng thái của sản phẩm: chuỗi số liệu 14 ngày trước đó, giá, các khuyến mãi đang chạy và
           nội dung trang sản phẩm. Đó là <strong>mốc so sánh</strong>, cố định từ thời điểm áp dụng.
         </P>
+        <ProcessDiagram
+          caption="Mọi con số là trung bình mỗi ngày, so với mốc 14 ngày trước khi áp dụng. Ngày 7 là kiểm tra giữa chừng, ngày 14 là kết quả chốt."
+          label="Lịch đo một thay đổi"
+          steps={[
+            {
+              body: "Juli chụp lại mốc so sánh: 14 ngày số liệu, giá, khuyến mãi và nội dung trang sản phẩm.",
+              marker: "Trước khi áp dụng",
+              title: "Mốc so sánh",
+            },
+            {
+              body: "Kiểm tra giữa chừng: Đang lên hoặc Chưa rõ. Nếu một chỉ số ra ngoài ngưỡng, Juli hỏi bạn có muốn hoàn tác không.",
+              marker: "Ngày 7",
+              title: "Kết quả sơ bộ",
+            },
+            {
+              body: "Đạt, Đạt · chưa chắc chắn, Một phần hoặc Không đạt, đặt cạnh GMV dự kiến ban đầu.",
+              marker: "Ngày 14",
+              title: "Kết quả chốt",
+            },
+          ]}
+          variant="timeline"
+        />
         <H3>Một chỉ số mục tiêu, trên đúng luồng</H3>
         <P>
           Mỗi thay đổi có một chỉ số mục tiêu, ví dụ CTOR trên luồng Thẻ sản phẩm, với giá trị hiện tại và
@@ -160,6 +204,7 @@ export default function DoLuongGmvPage() {
         heading="Ngày 7: kiểm tra giữa chừng"
         id="ngay-7"
         image={CAP_DL_NGAY_7}
+        mobileImage={CAP_DL_NGAY_7_MOBILE}
         narrow
       >
         <P>Bảy ngày sau khi áp dụng, Juli chạy một lượt kiểm tra gồm các bước:</P>
@@ -193,6 +238,7 @@ export default function DoLuongGmvPage() {
         heading="Ngày 14: kết quả chốt"
         id="ngay-14"
         image={CAP_DL_NGAY_14}
+        mobileImage={CAP_DL_NGAY_14_MOBILE}
       >
         <P>
           Ở ngày 14, Juli đọc lại toàn bộ 14 ngày sau thay đổi, so với mốc 14 ngày trước, và gắn một trong
@@ -233,6 +279,7 @@ export default function DoLuongGmvPage() {
         heading="Tác động tăng thêm, không chỉ là trước và sau"
         id="tang-them"
         image={CAP_DL_TANG_THEM}
+        mobileImage={CAP_DL_TANG_THEM_MOBILE}
       >
         <P>
           So sánh trước và sau là bước đầu, nhưng chưa đủ. Juli đặt mỗi mức thay đổi cạnh mức dao động bình
@@ -268,6 +315,7 @@ export default function DoLuongGmvPage() {
         heading="Nhãn độ tin cậy: đọc thế nào"
         id="do-tin-cay"
         image={CAP_DL_TIN_CAY}
+        mobileImage={CAP_DL_TIN_CAY_MOBILE}
       >
         <P>
           Juli không giấu sự không chắc chắn. Ở mỗi nơi có một kết luận, Juli ghi kèm mức tin cậy của nó, và
@@ -299,6 +347,7 @@ export default function DoLuongGmvPage() {
         heading="Juli học từ kết quả đã đo"
         id="hoc"
         image={CAP_DL_HOC}
+        mobileImage={CAP_DL_HOC_MOBILE}
       >
         <P>
           Mỗi kết quả ngày 14 quay lại quyết định đề xuất tiếp theo. Cách học hiện nay đơn giản và minh bạch,

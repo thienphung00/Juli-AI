@@ -11,9 +11,12 @@ import {
 } from "../../../components/product/capability-page";
 import {
   CAP_KN_DANG_NHAP,
+  CAP_KN_DANG_NHAP_MOBILE,
   CAP_KN_GHI,
   CAP_KN_KET_NOI,
+  CAP_KN_KET_NOI_MOBILE,
   CAP_KN_QUET_NHANH,
+  CAP_KN_QUET_NHANH_MOBILE,
 } from "../../../components/product/screens";
 import { buildMetadata } from "../../../lib/seo";
 import { COMPANY } from "../../../lib/site";
@@ -63,12 +66,26 @@ export default function KetNoiTikTokShopPage() {
       eyebrow="Kết nối"
       faq={FAQ}
       heading="Kết nối TikTok Shop với Juli: uỷ quyền chính thức, chỉ ghi khi bạn duyệt"
+      ctaTitle="Kết nối shop và xem Juli đọc dữ liệu của bạn."
+      heroChrome="Kết nối · Juli"
+      heroShot={[
+        {
+          alt: "Màn hình Kết nối TikTok Shop với nút Kết nối TikTok Shop (dữ liệu mẫu)",
+          mobileVariants: CAP_KN_KET_NOI_MOBILE,
+          variants: CAP_KN_KET_NOI,
+        },
+        {
+          alt: "Dải tiến trình Juli đang đọc dữ liệu shop: quét nhanh, đọc 60 ngày, tải lịch sử nền (dữ liệu mẫu)",
+          mobileVariants: CAP_KN_QUET_NHANH_MOBILE,
+          variants: CAP_KN_QUET_NHANH,
+        },
+      ]}
       lead={
-        <p>
+        <>
           Juli kết nối với TikTok Shop qua trang uỷ quyền chính thức của TikTok, như một ứng dụng của TikTok
           Shop Partner Center. Trang này giải thích bạn cấp quyền gì, Juli đọc dữ liệu nào, khi nào Juli được
           ghi lên shop, điều gì xảy ra trong giờ đầu sau khi kết nối và cách ngắt kết nối.
-        </p>
+        </>
       }
       path={PATH}
       related={[
@@ -107,6 +124,7 @@ export default function KetNoiTikTokShopPage() {
         heading="Kết nối hoạt động thế nào"
         id="cach-ket-noi"
         image={CAP_KN_KET_NOI}
+        mobileImage={CAP_KN_KET_NOI_MOBILE}
       >
         <Ol>
           <li>Đăng nhập Juli bằng Google hoặc email.</li>
@@ -187,6 +205,7 @@ export default function KetNoiTikTokShopPage() {
         heading="Sau khi kết nối: quét nhanh, rồi đọc đầy đủ"
         id="sau-ket-noi"
         image={CAP_KN_QUET_NHANH}
+        mobileImage={CAP_KN_QUET_NHANH_MOBILE}
       >
         <P>
           Bạn không cần bấm gì thêm. Ngay khi TikTok đưa bạn trở lại, Juli chạy ba bước và hiện tiến trình
@@ -222,6 +241,7 @@ export default function KetNoiTikTokShopPage() {
         heading="Bảo mật và ngắt kết nối"
         id="bao-mat"
         image={CAP_KN_DANG_NHAP}
+        mobileImage={CAP_KN_DANG_NHAP_MOBILE}
       >
         <H3>Mã truy cập được mã hoá</H3>
         <P>
@@ -238,10 +258,9 @@ export default function KetNoiTikTokShopPage() {
         <H3>Ngắt kết nối</H3>
         <P>
           Bạn liên hệ Juli qua email{" "}
-          <a className="lp-legal__contact-link" href={`mailto:${COMPANY.email}`}>
-            {COMPANY.email}
-          </a>{" "}
-          hoặc trang Liên hệ; đội Juli ngắt kết nối shop giúp bạn. Juli ngừng lấy dữ liệu mới và ngừng tạo đề xuất cho shop đó ngay. Lịch
+          <A href={`mailto:${COMPANY.email}`}>{COMPANY.email}</A> hoặc{" "}
+          <A href="/contact">trang Liên hệ</A>; đội Juli ngắt kết nối shop giúp bạn. Juli ngừng lấy dữ
+          liệu mới và ngừng tạo đề xuất cho shop đó ngay. Lịch
           sử, quy tắc và kết quả đo được giữ lại để bạn kết nối lại khi cần; nếu bạn yêu cầu xoá tài khoản,
           dữ liệu tài khoản và dữ liệu shop được xoá trong vòng 30 ngày, trừ dữ liệu pháp luật yêu cầu lưu.
         </P>

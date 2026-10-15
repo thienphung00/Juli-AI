@@ -1,0 +1,186 @@
+/* Capability-page diagrams (P34-C, D44.3): block-built, tokens only. */
+
+.figure {
+  margin: 0;
+  padding: var(--lp-space-5);
+  border: 1px solid var(--lp-hairline);
+  border-radius: 20px;
+  background: var(--lp-alt);
+}
+
+@media (min-width: 641px) {
+  .figure {
+    padding: var(--lp-space-7);
+  }
+}
+
+.caption {
+  margin-top: var(--lp-space-4);
+  color: var(--lp-muted);
+  font-size: var(--lp-text-caption);
+  line-height: 1.45;
+}
+
+.meta {
+  color: var(--lp-muted);
+  font-size: var(--lp-text-micro);
+  font-weight: var(--lp-weight-semibold);
+}
+
+/* ————— Five streams ————— */
+
+.streams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--lp-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stream {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--lp-space-4);
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-frame);
+  background: var(--lp-bg);
+}
+
+.streamName {
+  color: var(--lp-ink);
+  font-size: 1rem;
+  font-weight: var(--lp-weight-semibold);
+}
+
+.where {
+  color: var(--lp-muted);
+  font-size: var(--lp-text-micro);
+}
+
+/* ————— Flow / timeline ————— */
+
+.steps {
+  display: grid;
+  gap: var(--lp-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--lp-space-4);
+  border: 1px solid var(--lp-chrome-dot);
+  border-radius: var(--lp-radius-md);
+  background: var(--lp-bg);
+}
+
+.stepYou {
+  border: 2px solid var(--lp-pink);
+  background: var(--lp-pink-tint);
+  padding: 15px;
+}
+
+.stepYou .meta {
+  color: var(--lp-pink-text);
+}
+
+.stepTitle {
+  color: var(--lp-ink);
+  font-size: 1rem;
+  font-weight: var(--lp-weight-semibold);
+}
+
+.stepBody {
+  color: var(--lp-body);
+  font-size: var(--lp-text-body-small);
+  line-height: 1.5;
+}
+
+.dot {
+  display: none;
+}
+
+/* Flow: arrows between the cards (down on phones, right on wide screens). */
+.flow .step:not(:last-child)::after {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  z-index: 1;
+  color: var(--lp-muted);
+  content: "↓";
+  font-size: 1rem;
+  line-height: 1;
+  transform: translateX(-50%);
+}
+
+.flow .steps {
+  gap: var(--lp-space-6);
+}
+
+/* Timeline: a vertical rule with dots on phones, a horizontal one above. */
+.timeline .steps {
+  gap: var(--lp-space-4);
+  padding-left: var(--lp-space-6);
+  border-left: 2px solid var(--lp-hairline);
+}
+
+.timeline .step {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.timeline .dot {
+  position: absolute;
+  top: 4px;
+  left: calc(-1 * var(--lp-space-6) - 7px);
+  display: block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--lp-ink);
+  border-radius: var(--lp-radius-pill);
+  background: var(--lp-bg);
+}
+
+.timeline .step:last-child .dot {
+  background: var(--lp-ink);
+}
+
+@media (min-width: 760px) {
+  .steps {
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+  }
+
+  .flow .steps {
+    gap: var(--lp-space-8);
+  }
+
+  .flow .step:not(:last-child)::after {
+    top: 50%;
+    right: -24px;
+    bottom: auto;
+    left: auto;
+    content: "→";
+    transform: translateY(-50%);
+  }
+
+  .timeline .steps {
+    gap: var(--lp-space-6);
+    padding-top: var(--lp-space-6);
+    padding-left: 0;
+    border-top: 2px solid var(--lp-hairline);
+    border-left: 0;
+  }
+
+  .timeline .dot {
+    top: calc(-1 * var(--lp-space-6) - 7px);
+    left: 0;
+  }
+}
