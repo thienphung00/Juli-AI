@@ -7,7 +7,7 @@ import { Button, TextField } from "@juli/ui";
 import { fetchReviewerMe, type ReviewerMeResult } from "../lib/reviewer/api-client";
 import { storeReviewerRecord } from "../lib/reviewer/session";
 import { clearReviewerSignIn } from "../lib/reviewer/mode";
-import { storeActiveShop } from "../lib/shop-session";
+import { clearActiveShop, storeActiveShop } from "../lib/shop-session";
 import {
   PASSWORD_SIGN_IN_ERROR_COPY,
   PASSWORD_SIGN_IN_LABEL,
@@ -89,8 +89,11 @@ export function PartnerSignIn({
     storeAuthSession(result.session);
     const me = await fetchMe(result.session.accessToken);
     if (me.status === "reviewer") {
-      storeActiveShop({ id: me.me.shop.id, name: me.me.shop.name });
-      storeReviewerRecord({ platform: me.me.platform, expiresAt: me.me.expiresAt });
+      // P32-D (D42 amendment): no pinned shop → no active shop, so every page
+      // shows the bundled sample shop (P13's no-shop door) and calls no shop API.
+      if (me.me.shop) storeActiveShop({ id: me.me.shop.id, name: me.me.shop.name });
+      else clearActiveShop();
+      storeReviewerRecord({ platform: me.me.platform, expiresAt: me.me.expiresAt, sample: me.me.shop === null });
       onSignedIn();
       return;
     }

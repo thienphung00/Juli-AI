@@ -1,33 +1,15 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
-
-import {
-  simulateDecision,
-  type SimulationResult,
-  type SimulationStep,
-} from "../../lib/reviewer/api-client";
-import { REVIEWER_EXECUTE_LABEL, REVIEWER_SIMULATED_LABEL } from "../../lib/reviewer/copy";
+import { simulateDecision } from "../../lib/reviewer/api-client";
+import { SimulationDialog, type Simulate } from "./simulation-dialog";
 
 /**
- * The partner trial account's Duyệt → Thực thi (fast track P32-A, contract
- * p32-reviewer-access.md §4, AC-32.5 / AC-32.7). "Duyệt" on a card opens this
- * screen: the approve step is simulated at once, then "Thực thi (mô phỏng)"
- * shows the exact change Juli would send to TikTok — operation, method +
- * path, product (masked), each field before → after — and sends nothing. The
- * real approve route is never called; the server refuses it for a reviewer.
+ * The partner trial account's Duyệt → Thực thi over the API (fast track
+ * P32-A, contract p32-reviewer-access.md §4): the pinned (masked) shop's card
+ * through `POST /v1/reviewer/decisions/{id}/simulate`. The real approve route
+ * is never called; the server refuses it for a reviewer. The dialog itself is
+ * `simulation-dialog.tsx` (shared with the sample shop, P32-D).
  */
-
-type Simulate = (cardId: string, step: SimulationStep) => Promise<SimulationResult>;
-
-type State =
-  | { status: "loading"; step: SimulationStep; previous: SimulationResult | null }
-  | { status: "ready"; result: SimulationResult }
-  | { status: "error"; message: string; previous: SimulationResult | null };
-
-const ERROR_COPY = "Chưa mô phỏng được thẻ này. Vui lòng thử lại.";
-const GONE_COPY = "Thẻ này không còn trong danh sách đề xuất.";
-
 export function ReviewerSimulation({
   cardId,
   token,
@@ -41,123 +23,11 @@ export function ReviewerSimulation({
   readonly onClose: () => void;
   readonly simulate?: Simulate;
 }) {
-  const titleId = useId();
-  const [state, setState] = useState<State>({ status: "loading", step: "approve", previous: null });
-
-  const run = (step: SimulationStep, previous: SimulationResult | null) => {
-    setState({ status: "loading", step, previous });
-    const call: Simulate = simulate ?? ((id, s) => simulateDecision(id, s, { token, shopId }));
-    call(cardId, step)
-      .then((result) => setState({ status: "ready", result }))
-      .catch((error: unknown) => {
-        const status = (error as { status?: number } | null)?.status;
-        setState({ status: "error", message: status === 404 ? GONE_COPY : ERROR_COPY, previous });
-      });
-  };
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => run("approve", null), 0);
-    return () => window.clearTimeout(timer);
-    // One simulation per opened card.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardId]);
-
-  const result = state.status === "ready" ? state.result : state.previous;
-  const executed = state.status === "ready" && state.result.step === "execute";
-  const change = result?.change ?? null;
-
   return (
-    <div className="qv-overlay" data-testid="reviewer-simulation">
-      <div aria-labelledby={titleId} aria-modal="true" className="qv-dialog reviewer-sim" role="dialog">
-        <p className="reviewer-sim__label" data-testid="reviewer-simulation-label">
-          {REVIEWER_SIMULATED_LABEL}
-        </p>
-        <h3 className="qv-dialog__title" id={titleId}>
-          {executed ? "Thay đổi Juli sẽ gửi" : "Đã duyệt (mô phỏng)"}
-        </h3>
-
-        <ol className="reviewer-sim__steps">
-          <li data-done={result ? "true" : "false"}>{result ? "✓ " : ""}Duyệt</li>
-          <li data-done={executed ? "true" : "false"}>{executed ? "✓ " : ""}Thực thi</li>
-        </ol>
-
-        {change ? (
-          <dl className="reviewer-sim__facts">
-            <dt>Thao tác</dt>
-            <dd>{change.lever.label}</dd>
-            {change.product.title ? (
-              <>
-                <dt>Sản phẩm</dt>
-                <dd>{change.product.title}</dd>
-              </>
-            ) : null}
-          </dl>
-        ) : null}
-
-        {executed && change ? (
-          <div className="reviewer-sim__change" data-testid="reviewer-simulation-change">
-            {change.request ? (
-              <p className="reviewer-sim__request">
-                <code>
-                  {change.request.method} {change.request.path}
-                </code>{" "}
-                <span>({change.request.operation})</span>
-              </p>
-            ) : (
-              <p className="reviewer-sim__request">Không có lệnh ghi lên TikTok: seller tự làm trên Seller Center, Juli đo kết quả.</p>
-            )}
-            {change.fields.length > 0 ? (
-              <table className="reviewer-sim__fields">
-                <thead>
-                  <tr>
-                    <th scope="col">Trường</th>
-                    <th scope="col">Trước</th>
-                    <th scope="col">Sau</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {change.fields.map((field) => (
-                    <tr key={field.field}>
-                      <th scope="row">{field.label}</th>
-                      <td>{field.before ?? "—"}</td>
-                      <td>{field.after ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : null}
-            {change.note ? <p className="qv-dialog__body">{change.note}</p> : null}
-            <p className="reviewer-sim__guarantee">Không có thay đổi nào được gửi tới TikTok Shop. Không có tác vụ nào được tạo.</p>
-          </div>
-        ) : null}
-
-        {state.status === "loading" ? (
-          <p className="qv-status-line" role="status">
-            {state.step === "approve" ? "Đang mô phỏng Duyệt…" : "Đang mô phỏng Thực thi…"}
-          </p>
-        ) : null}
-        {state.status === "error" ? (
-          <p className="qv-inline-error" role="alert">
-            {state.message}
-          </p>
-        ) : null}
-
-        <div className="qv-dialog__actions">
-          {!executed ? (
-            <button
-              className="qv-btn qv-btn--primary"
-              disabled={state.status !== "ready" || state.result.step !== "approve"}
-              onClick={() => state.status === "ready" && run("execute", state.result)}
-              type="button"
-            >
-              {REVIEWER_EXECUTE_LABEL}
-            </button>
-          ) : null}
-          <button className="qv-btn qv-btn--secondary" onClick={onClose} type="button">
-            Đóng
-          </button>
-        </div>
-      </div>
-    </div>
+    <SimulationDialog
+      cardId={cardId}
+      onClose={onClose}
+      simulate={simulate ?? ((id, step) => simulateDecision(id, step, { token, shopId }))}
+    />
   );
 }

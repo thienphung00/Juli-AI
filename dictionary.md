@@ -436,6 +436,11 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn tên · thao tác chỉ mô phỏng
 - Definition: P32-A (AC-32.7): the persistent strip on every page of a partner trial account (also the run-focus layout), followed by "Đối tác {Platform} · Hết hạn {dd/mm/yyyy}" (`reviewer.expires`).
 
+**`reviewer.banner_sample`**
+- EN: Partner trial account · sample data · actions are simulated only
+- VI: Tài khoản dùng thử cho đối tác · dữ liệu mẫu · thao tác chỉ mô phỏng
+- Definition: P32-D (D42 amendment, 2026-10-15): `reviewer.banner` when no reference shop is pinned (`GET /v1/reviewer/me` → `shop: null`): the reviewer sees the sample shop "Cửa hàng Mẫu Hoa Mai" (P11/P13, bundled, no network), not a masked real shop. Same placement and suffix as `reviewer.banner`.
+
 **`reviewer.read_only_title`**
 - EN: Trial account: actions are simulated only
 - VI: Tài khoản dùng thử: thao tác chỉ mô phỏng

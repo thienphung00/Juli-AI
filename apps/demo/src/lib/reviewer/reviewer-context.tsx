@@ -14,6 +14,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
+import { clearActiveShop, readActiveShop } from "../shop-session";
 import { readAuthSession } from "../supabase-auth";
 import { fetchReviewerMe, type ReviewerMeResult } from "./api-client";
 import { ReviewerContext, clearReviewerSignIn, reviewerSignInHref } from "./mode";
@@ -50,9 +51,16 @@ export function ReviewerProvider({
     void fetchMe(session.accessToken).then((result) => {
       if (cancelled) return;
       if (result.status === "reviewer") {
-        const next = { platform: result.me.platform, expiresAt: result.me.expiresAt };
+        const sample = result.me.shop === null;
+        const next = { platform: result.me.platform, expiresAt: result.me.expiresAt, sample };
         storeReviewerRecord(next);
         setReviewer(next);
+        // P32-D: the pin was removed since sign-in — drop the stale shop and
+        // reload into the sample (its alias would only be refused now).
+        if (sample && readActiveShop()) {
+          clearActiveShop();
+          redirect("/");
+        }
       } else if (result.status === "not_reviewer") {
         clearReviewerRecord();
         setReviewer(null);

@@ -13,6 +13,11 @@ export const REVIEWER_STORAGE_KEY = "juli_demo_reviewer";
 export interface ReviewerRecord {
   readonly platform: string;
   readonly expiresAt: string | null;
+  /**
+   * P32-D (D42 amendment): no reference shop pinned (reviewer "me" says
+   * `shop: null`) — the reviewer sees the bundled sample shop, no shop API.
+   */
+  readonly sample?: boolean;
 }
 
 export function storeReviewerRecord(record: ReviewerRecord): void {
@@ -27,7 +32,11 @@ export function readReviewerRecord(): ReviewerRecord | null {
   try {
     const parsed = JSON.parse(raw) as Partial<ReviewerRecord>;
     if (typeof parsed.platform !== "string" || !parsed.platform) return null;
-    return { platform: parsed.platform, expiresAt: typeof parsed.expiresAt === "string" ? parsed.expiresAt : null };
+    return {
+      platform: parsed.platform,
+      expiresAt: typeof parsed.expiresAt === "string" ? parsed.expiresAt : null,
+      ...(parsed.sample === true ? { sample: true } : {}),
+    };
   } catch {
     return null;
   }
