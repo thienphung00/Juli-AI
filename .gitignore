@@ -106,3 +106,6 @@ apps/demo/blob-report/
 # will put them back.
 apps/*/AGENTS.md
 apps/*/CLAUDE.md
+
+# P33-E SEO scripts venv
+.venv-seo/

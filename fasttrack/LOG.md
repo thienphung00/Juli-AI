@@ -1355,3 +1355,22 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   `apps/landing/src/content/blog/`); re-check the tool facts flagged in DEBT before publishing
   post 3. After integration, P33-B's header/footer link `/blog`; P33-C's four pages make the
   posts' product links resolve (the blog test allow-lists them until then).
+## 2026-10-15 — orchestrator (Claude Opus) — P33-E Search Console scripts
+- Read the Search Console API guides (overview, limits, prereqs, authorizing, performance, batch,
+  search analytics, all-your-data) and reference (searchanalytics.query, sitemaps, sites,
+  urlInspection.index.inspect + UrlInspectionResult, errors). Key facts: OAuth 2.0 only;
+  Removals is UI-only (no API), Indexing API is JobPosting / livestream only; URL Inspection
+  2,000 / day / site and reports BLOCKED_BY_META_TAG vs BLOCKED_BY_HTTP_HEADER; Search Analytics
+  final after 2-3 days, 25k rows / page, page×query grouping is the most expensive.
+- `scripts/seo/` written (see AC-33.10). Pitfall found: `RobotFileParser.read()` sends
+  `Python-urllib`, Cloudflare answers 403 and the parser turns that into "disallow all" — the
+  live check fetches robots.txt with its own UA.
+- Baseline (production, before P33-A): 10 / 14 URLs failing.
+- 2026-10-15 follow-up: the OAuth token now also asks `openid email` so `gsc_sitemaps --sites`
+  names the Google account (an account without the property silently got `{}`). Owner moved the
+  property to the company account: `thien.phung@app-juli.com` is siteOwner of
+  `sc-domain:app-juli.com` (a Domain property also covers demo. / ops.; no separate property).
+- First real run: sitemap not submitted under this account; URL Inspection — `/`, `/privacy`,
+  `/terms` indexed; `/product`, `/about`, `/contact` unknown to Google; **demo `/`, `/decisions`,
+  `/analytics` indexed** (crawled 2026-08-20..10-02); ops unknown (Access). Search Analytics: ~1
+  click / 5 impressions a week, data through 2026-10-10.

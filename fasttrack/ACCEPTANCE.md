@@ -612,3 +612,13 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 - [ ] **AC-33.9** Integration: landing lint / type-check / tests / build green; heading-outline and
   schema checks (a test or script) pass on every route; `check.sh` green; deployed by owner tag;
   PageSpeed re-run recorded.
+- [x] **AC-33.10** (E) Search Console monitoring scripts (`scripts/seo/`, owner 2026-10-15: "de-index
+  the subdomains, Google indexes only the main domain"): `seo_live_check` (no credentials: on-page
+  D43 rules per sitemap URL + noindex on demo / ops with robots.txt still crawlable),
+  `gsc_index_audit` (URL Inspection: main pages PASS with self canonical, subdomain pages not
+  indexed), `gsc_pull` (one final day per run into SQLite, 25k paging), `gsc_report` (weekly
+  actions), `gsc_sitemaps` (list / submit); README with owner setup and the de-index procedure.
+  — evidence: `tests/unit/test_seo_scripts.py` (8 passed); `seo_live_check` against production
+  2026-10-15: 10 / 14 URLs failing (no canonical / OG / JSON-LD on 6 main pages; demo without
+  noindex), ops behind Cloudflare Access counted as out of the index.
+

@@ -167,6 +167,7 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 | P33-B Homepage + `/san-pham` overview | 33.5, 33.6 | done on branch `fasttrack/p33b-homepage` (2f16f2eb..HEAD, pushed) — not merged, not deployed; links C/D pages, so integrate with C and D | P33-B agent (Opus) |
 | P33-C Three capability pages + `/ket-noi/tiktok-shop` | 33.7 | done on branch `fasttrack/p33c-capabilities` (9f8a03b4..HEAD, pushed) — not merged, not deployed | P33-C agent (Opus) |
 | P33-D Blog + 3 pillar drafts (owner approves) | 33.8 | done on branch `fasttrack/p33d-blog` (7ef53a7a..HEAD, pushed) — not merged; 3 drafts noindex, **owner approval pending** (`apps/landing/src/content/blog/README.md`) | P33-D agent (Opus) |
+| P33-E Search Console monitoring scripts + de-index procedure | 33.10 | done on branch `fasttrack/p33e-gsc-monitor` — not merged; owner: GSC Domain property + OAuth client | orchestrator |
 | P33 integration + deploy + PageSpeed re-run | 33.9 | todo | orchestrator + owner |
 
 ## P2–P6
