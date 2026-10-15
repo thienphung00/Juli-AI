@@ -68,18 +68,12 @@ export default function KetNoiTikTokShopPage() {
       heading="Kết nối TikTok Shop với Juli: uỷ quyền chính thức, chỉ ghi khi bạn duyệt"
       ctaTitle="Kết nối shop và xem Juli đọc dữ liệu của bạn."
       heroChrome="Kết nối · Juli"
-      heroShot={[
-        {
-          alt: "Màn hình Kết nối TikTok Shop với nút Kết nối TikTok Shop (dữ liệu mẫu)",
-          mobileVariants: CAP_KN_KET_NOI_MOBILE,
-          variants: CAP_KN_KET_NOI,
-        },
-        {
-          alt: "Dải tiến trình Juli đang đọc dữ liệu shop: quét nhanh, đọc 60 ngày, tải lịch sử nền (dữ liệu mẫu)",
-          mobileVariants: CAP_KN_QUET_NHANH_MOBILE,
-          variants: CAP_KN_QUET_NHANH,
-        },
-      ]}
+      heroCaption="Dữ liệu mẫu · tài khoản và shop minh hoạ"
+      heroShot={{
+        alt: "Màn hình Kết nối TikTok Shop: bạn chưa kết nối shop TikTok nào, nút Kết nối TikTok Shop (dữ liệu mẫu)",
+        mobileVariants: CAP_KN_KET_NOI_MOBILE,
+        variants: CAP_KN_KET_NOI,
+      }}
       lead={
         <>
           Juli kết nối với TikTok Shop qua trang uỷ quyền chính thức của TikTok, như một ứng dụng của TikTok

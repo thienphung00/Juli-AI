@@ -152,7 +152,7 @@
   padding: var(--lp-space-8);
 }
 
-.priceValue {
+.price > .priceValue {
   margin: 0;
   color: var(--lp-ink);
   font-size: var(--lp-text-h2-feature);

@@ -68,6 +68,8 @@ export interface CapabilityPageProps {
   heroShot: ShotImage | readonly ShotImage[];
   /** Browser-chrome title of the hero shot, e.g. "Phân tích · Juli". */
   heroChrome: string;
+  /** Hero caption. Default "Dữ liệu mẫu · Cửa hàng Mẫu Hoa Mai". */
+  heroCaption?: string;
   toc: readonly TocEntry[];
   faq: readonly FaqItem[];
   /** The first is shown as "Tiếp theo", the others as "Cũng xem". */
@@ -88,6 +90,7 @@ export function CapabilityPage({
   lead,
   heroShot,
   heroChrome,
+  heroCaption = SAMPLE_SHOP,
   toc,
   faq,
   related,
@@ -135,7 +138,7 @@ export function CapabilityPage({
               </div>
             </div>
             <Shot
-              caption={SAMPLE_SHOP}
+              caption={heroCaption}
               chrome={heroChrome}
               className={styles.heroShot}
               images={heroShot}

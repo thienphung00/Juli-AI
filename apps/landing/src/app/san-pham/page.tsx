@@ -6,8 +6,8 @@ import {
   CAP_DX_QUY_TAC,
   CAP_DX_QUY_TAC_MOBILE,
   CAP_DX_THE,
-  CAP_PT_PHEU,
-  CAP_PT_PHEU_MOBILE,
+  CAP_PT_XEP_HANG,
+  CAP_PT_XEP_HANG_MOBILE,
 } from "../../components/product/screens";
 import {
   Breadcrumb,
@@ -76,6 +76,9 @@ const LOOP: readonly Step[] = [
   },
 ];
 
+/** One shape for the three card shots (cropped from the top on desktop). */
+const CARD_CROP = 2.4;
+
 const CAPABILITIES: ReadonlyArray<{
   page: { href: string; label: string };
   eyebrow: string;
@@ -95,9 +98,10 @@ const CAPABILITIES: ReadonlyArray<{
       "Ước tính GMV có thể lấy lại mỗi ngày ở từng bước",
     ],
     shot: {
-      alt: "Phễu luồng Thẻ sản phẩm: Lượt hiển thị, CTR, CTOR, AOV và GMV mỗi ngày, ô CTOR được Juli đánh dấu (dữ liệu mẫu)",
-      mobileVariants: CAP_PT_PHEU_MOBILE,
-      variants: CAP_PT_PHEU,
+      alt: "Bảng 5 sản phẩm kéo CTOR xuống, mỗi dòng có CTOR trước và nay, GMV mỗi ngày bị mất và nhãn tin cậy (dữ liệu mẫu)",
+      crop: CARD_CROP,
+      mobileVariants: CAP_PT_XEP_HANG_MOBILE,
+      variants: CAP_PT_XEP_HANG,
     },
   },
   {
@@ -113,7 +117,7 @@ const CAPABILITIES: ReadonlyArray<{
     ],
     shot: {
       alt: "Thẻ đề xuất cho Son môi số 12: chỉ số mục tiêu CTOR Thẻ sản phẩm, GMV dự kiến, lý do và tiêu đề trước và sau (dữ liệu mẫu)",
-      crop: 4 / 3,
+      crop: CARD_CROP,
       variants: CAP_DX_THE,
     },
   },
@@ -129,6 +133,7 @@ const CAPABILITIES: ReadonlyArray<{
     ],
     shot: {
       alt: "Bảng kết quả ngày 7: chỉ số chính Đang lên, các chỉ số khác Giữ ổn định, GMV mỗi ngày ghi Sơ bộ (dữ liệu mẫu)",
+      crop: CARD_CROP,
       mobileVariants: CAP_DL_TANG_THEM_MOBILE,
       variants: CAP_DL_TANG_THEM,
     },
@@ -433,7 +438,7 @@ export default function ProductPage() {
         <Section className={styles.pricingSection} id="bang-gia" labelledBy="pricing-heading" tone="alt">
           <div className={styles.split}>
             <SectionIntro
-              lead="Một gói, đầy đủ tính năng. Giá giống nhau cho mọi shop."
+              lead="Dùng thử miễn phí 3 tháng, sau đó 500.000đ/tháng."
               title="Bảng giá"
               titleId="pricing-heading"
             />

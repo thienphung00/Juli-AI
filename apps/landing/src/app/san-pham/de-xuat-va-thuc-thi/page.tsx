@@ -79,6 +79,7 @@ export default function DeXuatVaThucThiPage() {
       heroChrome="Quyết định · Juli"
       heroShot={{
         alt: "Lượt chạy dừng ở bước Xác nhận một lần: tiêu đề và mô tả cũ, nội dung mới, nút Xác nhận thay đổi này (dữ liệu mẫu)",
+        crop: 16 / 10,
         mobileVariants: CAP_DX_XAC_NHAN_MOBILE,
         variants: CAP_DX_XAC_NHAN,
       }}
