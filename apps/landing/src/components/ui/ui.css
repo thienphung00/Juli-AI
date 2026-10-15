@@ -287,6 +287,7 @@ body {
 .ui-text-link {
   display: inline-flex;
   align-self: flex-start;
+  gap: 0.3em;
   min-height: var(--lp-touch);
   align-items: center;
   color: var(--lp-pink-text);
@@ -1179,6 +1180,33 @@ body {
   .ui-toc--rule {
     border-left: 1px solid var(--lp-hairline);
     padding-left: var(--lp-space-6);
+  }
+}
+
+/* Page layout: side TOC + content (Product.dc.html: TOC left; Legal.dc.html:
+   `--end`, TOC right). One column below 960 px, TOC (disclosure) first. */
+.ui-toc-layout {
+  display: grid;
+  gap: var(--lp-space-8);
+  align-items: start;
+}
+
+.ui-toc-layout > * {
+  min-width: 0;
+}
+
+@media (min-width: 960px) {
+  .ui-toc-layout {
+    grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+    gap: var(--lp-space-14);
+  }
+
+  .ui-toc-layout--end {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+  }
+
+  .ui-toc-layout--end > .ui-toc {
+    order: 2;
   }
 }
 

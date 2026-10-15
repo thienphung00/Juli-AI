@@ -144,7 +144,7 @@ export function TextLink({
   const content = (
     <>
       {children}
-      {arrow ? <span aria-hidden="true"> →</span> : null}
+      {arrow ? <span aria-hidden="true">→</span> : null}
     </>
   );
   if (href.startsWith("/") && !href.startsWith("//")) {
