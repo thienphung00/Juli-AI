@@ -47,6 +47,7 @@ from juli_backend.api.routes import (
 )
 from juli_backend.core.security import (
     CF_ACCESS_HEADER,
+    REVIEWER_DENIED_HEADER,
     Unauthorized,
     bearer_scheme,
     load_authenticated_user,
@@ -54,10 +55,7 @@ from juli_backend.core.security import (
     verify_bearer_token,
 )
 from juli_backend.database import Shop, get_session
-from juli_backend.database.tenant_context import (
-    _apply_tenant_context_to_session,
-    with_shop_scope,
-)
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ops import ROLE_ADMIN, ROLE_OPERATOR, ROLE_VIEWER
 from juli_backend.services.ops import (
     ShopListing,
@@ -69,6 +67,7 @@ from juli_backend.services.ops import (
     runs,
     scenarios,
     simulation,
+    view_as,
 )
 from juli_backend.services.ops import settings as ops_settings
 from juli_backend.services.ops import staff as ops_staff
@@ -151,6 +150,15 @@ async def get_ops_user(
     database half, commit included.
     """
     token = await verify_bearer_token(credentials)
+    if token.is_reviewer:
+        # P32-A (D42): a partner reviewer never reaches the staff console, whatever
+        # its e-mail domain or staff table says.
+        logger.warning("ops_reviewer_refused", extra={"user_id": str(token.user_id)})
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden",
+            headers={REVIEWER_DENIED_HEADER: "read_only"},
+        )
     hit = ops_staff.cached_user(token.user_id)
     if hit is not None:
         return hit
@@ -580,45 +588,13 @@ async def ops_view_session(
     return {"shop": _shop_json(listing), "stage": stage, "read_only": True}
 
 
-async def _seller_scope(
-    session: AsyncSession, listing: ShopListing, *, restore_role: str | None = None
-) -> Shop:
-    """Apply the shop's own tenant scope (shop + owner) and load the shop row.
-
-    ``restore_role``: leave the ``juli_ops`` role in the same statement (P22).
-    """
-    await _apply_tenant_context_to_session(
-        session, listing.shop_id, listing.owner_user_id, restore_role=restore_role
-    )
-    shop = await session.get(Shop, listing.shop_id)
-    if shop is None:
-        raise HTTPException(status_code=404, detail="Shop not found")
-    return shop
-
-
 async def _view_shop(session: AsyncSession, shop_id: uuid.UUID) -> Shop:
     # P29: the ops read, the switch back from juli_ops AND the seller's tenant
-    # GUCs are ONE statement (``overview.find_shop_entering_seller_scope``):
-    # the GUC values come from the very row the function returned. (P22 had
-    # them as two: the read, then the role restore riding on the GUC write.)
-    async with ops_role(session) as block:
-        previous_role = block.hand_over()
-        if previous_role is None:
-            # SQLite, or already juli_ops: no switch to undo -- the plain path.
-            listing = await _shop(session, shop_id)
-        else:
-            found = await overview.find_shop_entering_seller_scope(
-                session, shop_id, restore_role=previous_role
-            )
-            if found is None:
-                await overview.leave_ops_role(session, previous_role)
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop not found")
-            listing = found
-    if previous_role is None:
-        return await _seller_scope(session, listing)
-    shop = await session.get(Shop, listing.shop_id)
+    # GUCs are ONE statement; shared with the partner reviewer path (P32-A,
+    # ``services/ops/view_as.py``).
+    shop = await view_as.enter_shop_read_scope(session, shop_id)
     if shop is None:
-        raise HTTPException(status_code=404, detail="Shop not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop not found")
     return shop
 
 

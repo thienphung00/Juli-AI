@@ -1,6 +1,6 @@
 /**
  * The acting shop for the signed-in door (issue #1909, #1319's surviving
- * criterion): every authenticated `/v1/*` call the demo makes is scoped by
+ * criterion): every authenticated backend call the demo makes is scoped by
  * an `X-Shop-Id` header the backend ownership-checks (`get_active_shop`),
  * and a seller with more than one shop must be able to tell which shop
  * they are acting as. The connect-shop screen writes this record when the
@@ -9,7 +9,7 @@
  * lifetime as the auth session it accompanies (`supabase-auth.ts`'s
  * `AUTH_SESSION_STORAGE_KEY`).
  *
- * Pure browser-storage module: no network call site, no `/v1/*` route
+ * Pure browser-storage module: no network call site, no backend route
  * literal — safe in any module graph, including the anonymous replay
  * door's (ADR-094 decision 1), though nothing on that door reads it.
  */

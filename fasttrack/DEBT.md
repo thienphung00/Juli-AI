@@ -775,3 +775,37 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   stored (`CatalogProduct.category`), which may be too fine — products with no category use the
   shop-wide prior. Not applied to the `gmv_first` path, Lượt hiển thị or AOV (not binomial).
 - [ ] No Playwright e2e for the "Lọc nhiễu CTR / CTOR" row or the false-alarm text (vitest only).
+
+## P32-A — partner reviewer trial account (2026-10-14)
+
+- [ ] Revocation lag: the API caches a reviewer's account row for 15 s per worker
+  (`REVIEWER_ACCOUNT_CACHE_SECONDS`); the Supabase ban stops new tokens at once, but an
+  already-issued access token keeps working for those ≤ 15 s.
+- [ ] The mask is a denylist over the response (entity keys + the shop's catalog + brand
+  words + long digit runs + external URLs). A product title that appears only in free text
+  and is NOT in `products` (e.g. a video caption quoting a product by a nickname) is only
+  covered by the brand-word scrub. Extra words go in `REVIEWER_MASK_TERMS`.
+- [ ] Product photos / video covers / any external URL become `null` for the reviewer (they
+  identify the shop); the UI shows its empty states. A placeholder image would read better.
+- [ ] The simulation shows the card's stored proposal when one exists, else "Juli soạn nội
+  dung mới sau khi duyệt" — no model call (D24.1), so the reviewer usually sees the field and
+  its current value, not a drafted new title.
+- [ ] A reviewer's `users` row is provisioned on first sign-in like any user (one write to
+  `users` per account, outside the no-write snapshot by design).
+- [ ] The reviewer's run-focus page `/decisions/in-progress/<id>` still opens its own SSE stream
+  if visited by URL; the server refuses it (403) and the page shows its error state.
+- [ ] Batch "Duyệt N thẻ" is disabled for a reviewer (single-card simulation only).
+- [ ] The no-write sweep posts `{}` bodies: a refused route answers 403 before the body is
+  read, so it proves the gate, not each handler; a future allowlist entry is caught by
+  `test_allowlist_is_pinned_to_real_routes` (only POST allowed is the simulation).
+- [ ] Not exercised live: password sign-in against the real Supabase project, the
+  provisioning command against production, the mask on real Fujiwa data (no deploy — P32
+  integration step).
+- [ ] Pre-existing guard drift not repaired here (fails at the base too): quality corpus
+  6,417 recorded vs ~6,700 live (`test_test_quality`, `test_quality_reconcile`),
+  `test_module_md_sync_parser` allowlist, 6 import-boundary deep imports in ops / workers,
+  `test_no_public_table_holds_update_beyond_its_call_site`.
+- [ ] Pre-existing time bomb (not P32): `test_p10a_card_reasons_edits.py::test_the_decisions_list_carries_the_card_block`
+  builds its card with `update_time=datetime(2026, 10, 1)`, so since ~2026-10-08 the card reads
+  `expired` instead of `pending`; it fails on `fasttrack/optimize-product` @ 0e80c18b too. Pin the
+  clock or build the card relative to now.

@@ -12,6 +12,7 @@
  */
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import {
   declineRun,
@@ -38,8 +39,12 @@ import { approveDemoDecision, fetchRecommendations } from "../../lib/recommendat
 import { fetchDemoRuns } from "../../lib/run-ledger/api-client";
 import { submitConfirmationDecision } from "../../lib/run-surface/confirmation-client";
 import { useRunStream } from "../../lib/run-surface/use-run-stream";
+import { REVIEWER_READ_ONLY_TITLE } from "../../lib/reviewer/copy";
+import { useReviewer } from "../../lib/reviewer/mode";
 import { AppPageHeader } from "../app-shell/page-header";
+import { SellerViewProvider } from "../seller-view-context";
 import { QuyetDinhView, type QdQuery } from "./quyet-dinh-view";
+import { ReviewerSimulation } from "./reviewer-simulation";
 
 export type { QdClients } from "../../lib/quyet-dinh/client-types";
 export { qdHref, resolveMeasureTab, type QdQuery } from "./quyet-dinh-view";
@@ -48,6 +53,11 @@ export { qdHref, resolveMeasureTab, type QdQuery } from "./quyet-dinh-view";
 function useLiveRunEvents(runId: string, auth: AuthedOptions, streamFetch?: typeof fetch): RunEventsState {
   const { events, streamStatus } = useRunStream(runId, { token: auth.token, shopId: auth.shopId, fetchImpl: streamFetch });
   return { events, streamStatus };
+}
+
+/** P32-A: a reviewer opens no run stream (the API refuses it); runs are read as they are. */
+function useNoRunEvents(): RunEventsState {
+  return { events: [], streamStatus: "closed" };
 }
 
 export const REAL_QD_CLIENTS: QdClients = {
@@ -92,17 +102,47 @@ export function SignedInQuyetDinh({
   /** P17: bumped by the onboarding poll — re-read the cards without a loading state. */
   readonly cardsRefresh?: number;
 }) {
+  const reviewer = useReviewer();
+  const [simulating, setSimulating] = useState<string | null>(null);
+  const reviewerClients = useMemo<QdClients>(() => ({ ...clients, useRunEvents: useNoRunEvents }), [clients]);
   if (!shop) {
     return (
       <section aria-labelledby="qd-title" className="qd-page">
         <AppPageHeader eyebrow="Quyết định" title="Việc cần bạn quyết định" titleId="qd-title" />
         <div className="qv-empty" role="status">
           <p>Bạn chưa chọn shop đang thao tác. Mở Kết nối TikTok Shop để chọn shop.</p>
-          <Link className="qv-link" href="/auth/connect-shop">
-            Kết nối TikTok Shop
-          </Link>
+          {reviewer ? null : (
+            <Link className="qv-link" href="/auth/connect-shop">
+              Kết nối TikTok Shop
+            </Link>
+          )}
         </div>
       </section>
+    );
+  }
+  if (reviewer) {
+    // P32-A (D42): the partner trial account — every write read-only, "Duyệt"
+    // runs the simulated Duyệt → Thực thi. The API refuses the rest anyway.
+    return (
+      <SellerViewProvider readOnly readOnlyTitle={REVIEWER_READ_ONLY_TITLE} simulateApprove>
+        <QuyetDinhView
+          cardsRefresh={cardsRefresh}
+          clients={reviewerClients}
+          onNavigate={onNavigate}
+          onSimulateApprove={setSimulating}
+          query={query}
+          shop={shop}
+          token={token}
+        />
+        {simulating ? (
+          <ReviewerSimulation
+            cardId={simulating}
+            onClose={() => setSimulating(null)}
+            shopId={shop.id}
+            token={token}
+          />
+        ) : null}
+      </SellerViewProvider>
     );
   }
   return (

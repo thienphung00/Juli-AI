@@ -37,8 +37,30 @@ KIND_SYSTEM = "system"
 KINDS: tuple[str, ...] = (KIND_CONFIG, KIND_VIEW, KIND_SYSTEM)
 #: Staff pressed "Làm mới" (D27.1): numbers recomputed, nothing configured.
 ACTION_DATA_REFRESH = "data_refresh"
+#: P32-A (D42): a partner reviewer's session -- sign-in, the simulated Duyệt /
+#: Thực thi, and every refused request. Actor ``reviewer:<platform>:<email>``.
+ACTION_REVIEWER_SIGN_IN = "reviewer_sign_in"
+ACTION_REVIEWER_SIMULATED_APPROVE = "reviewer_simulated_approve"
+ACTION_REVIEWER_SIMULATED_EXECUTE = "reviewer_simulated_execute"
+ACTION_REVIEWER_WRITE_REFUSED = "reviewer_write_refused"
+ACTION_REVIEWER_READ_REFUSED = "reviewer_read_refused"
+REVIEWER_ACTIONS: frozenset[str] = frozenset(
+    {
+        ACTION_REVIEWER_SIGN_IN,
+        ACTION_REVIEWER_SIMULATED_APPROVE,
+        ACTION_REVIEWER_SIMULATED_EXECUTE,
+        ACTION_REVIEWER_WRITE_REFUSED,
+        ACTION_REVIEWER_READ_REFUSED,
+    }
+)
+#: The provisioning command (config kind: an account was created / changed).
+ACTION_REVIEWER_ACCOUNT_CREATE = "reviewer_account_create"
+ACTION_REVIEWER_ACCOUNT_RENEW = "reviewer_account_renew"
+ACTION_REVIEWER_ACCOUNT_REVOKE = "reviewer_account_revoke"
 #: Actions that only look at data (no configuration changed).
-VIEW_ACTIONS: frozenset[str] = frozenset({"view_as_view", "view_as_exit", ACTION_DATA_REFRESH})
+VIEW_ACTIONS: frozenset[str] = frozenset(
+    {"view_as_view", "view_as_exit", ACTION_DATA_REFRESH} | REVIEWER_ACTIONS
+)
 SYSTEM_PREFIX = "system_"
 #: D27.4: how long each kind is kept.
 RETENTION_DAYS: dict[str, int] = {KIND_CONFIG: 365, KIND_VIEW: 90, KIND_SYSTEM: 90}

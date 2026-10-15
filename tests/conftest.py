@@ -289,6 +289,9 @@ _SHARED_STATE_MODULES = frozenset(
         # leftover shops in the shared database (e.g. test_fetch_executor_scope)
         # inflate the count, which is data drift, not a latency regression.
         "test_ops_round_trips.py",
+        # Reason 2 again: seeds two tenants for fast track P32-A (the partner
+        # reviewer pinned to one shop, read as juli_app through the real app).
+        "test_reviewer_two_tenant.py",
     }
 )
 

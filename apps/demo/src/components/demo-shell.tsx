@@ -5,14 +5,18 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
 import { looksLikeRunId } from "../lib/run-surface/run-id";
+import { REVIEWER_READ_ONLY_TITLE } from "../lib/reviewer/copy";
+import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/reviewer/reviewer-context";
 import { clearActiveShop } from "../lib/shop-session";
 import { ShopReportProvider, useShopReport } from "../lib/shop-report/shop-report-context";
 import { buildGoogleAuthorizeUrl, clearAuthSession } from "../lib/supabase-auth";
 import { AppNavigation } from "./app-shell/app-navigation";
 import { PermissionStrip } from "./app-shell/permission-strip";
+import { ReviewerBanner } from "./app-shell/reviewer-banner";
 import { TermStrip } from "./app-shell/term-strip";
 import { ShopHeader } from "./app-shell/shop-header";
 import { DemoStateProvider, useDemoState } from "./demo-state";
+import { SellerViewProvider } from "./seller-view-context";
 
 /**
  * The app shell (AC-8.5, ADR-109 decisions 1, 7, 8) — the layout every page
@@ -46,6 +50,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const { feedback, resetMockState } = useDemoState();
   const { refreshAnalytics } = useAnalyticsData();
   const { state } = useShopReport();
+  const reviewer = useReviewer();
 
   // Đăng nhập (issue #1907) stays a real link to Supabase Auth, resolved on
   // mount (never during SSR) with the same builder the landing door uses.
@@ -67,16 +72,28 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const handleSignOut = () => {
     clearAuthSession();
     clearActiveShop();
+    clearReviewerSignIn();
     // A full load, so every provider re-resolves the (now absent) session.
     window.location.assign("/?entry=door");
   };
+
+  // P32-A: in the partner trial account every write control of every page is
+  // read-only (Duyệt runs a simulation); the API refuses the writes anyway.
+  const page = reviewer ? (
+    <SellerViewProvider readOnly readOnlyTitle={REVIEWER_READ_ONLY_TITLE} simulateApprove>
+      {children}
+    </SellerViewProvider>
+  ) : (
+    children
+  );
 
   if (isRunFocusRoute(pathname)) {
     return (
       <div className="app-shell app-shell--run">
         <AppNavigation activePath={pathname} />
         <div className="app-shell__main">
-          <main className="app-content app-content--run">{children}</main>
+          {reviewer ? <ReviewerBanner reviewer={reviewer} /> : null}
+          <main className="app-content app-content--run">{page}</main>
         </div>
       </div>
     );
@@ -90,14 +107,16 @@ function DemoShellContent({ children }: { children: ReactNode }) {
           googleHref={googleHref}
           onRefreshDemo={handleManualRefresh}
           onSignOut={handleSignOut}
+          reviewer={reviewer !== null}
           state={state}
         />
+        {reviewer ? <ReviewerBanner reviewer={reviewer} /> : null}
         <p aria-label="Phản hồi Demo" aria-live="polite" className="juli-sr-only" role="status">
           {feedback}
         </p>
         {state.status === "ready" ? <TermStrip shopId={state.shop.id} token={state.token} /> : null}
-        {state.status === "ready" ? <PermissionStrip shopId={state.shop.id} token={state.token} /> : null}
-        <main className="app-content">{children}</main>
+        {state.status === "ready" && !reviewer ? <PermissionStrip shopId={state.shop.id} token={state.token} /> : null}
+        <main className="app-content">{page}</main>
       </div>
     </div>
   );
@@ -117,7 +136,9 @@ export function DemoShell({ children }: { children: ReactNode }) {
     <DemoStateProvider>
       <AnalyticsDataProvider>
         <ShopReportProvider>
-          <DemoShellContent>{children}</DemoShellContent>
+          <ReviewerProvider>
+            <DemoShellContent>{children}</DemoShellContent>
+          </ReviewerProvider>
         </ShopReportProvider>
       </AnalyticsDataProvider>
     </DemoStateProvider>

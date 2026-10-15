@@ -421,6 +421,99 @@ export async function verifyEmailOtp(
   };
 }
 
+/* ------------------------------------------------------------------------ *
+ * Partner trial accounts (fast track P32-A, D42) — e-mail + password.
+ *
+ * Only for accounts the Juli team creates (a platform reviewer, e.g. Shopee's
+ * ISV review team, cannot receive our OTP). GoTrue's password grant, same
+ * session shape and storage as the other doors. There is no password sign-up
+ * and no "forgot password" anywhere in the app. Copy: dictionary.md
+ * `auth.password.*`.
+ * ------------------------------------------------------------------------ */
+
+export const PASSWORD_SIGN_IN_LABEL = "Đăng nhập bằng mật khẩu";
+
+export type PasswordSignInErrorKind =
+  | "wrong"
+  | "revoked"
+  | "expired"
+  | "not_trial"
+  | "rate_limited"
+  | "unavailable"
+  | "network"
+  | "unknown";
+
+export type PasswordSignInResult =
+  | { ok: true; session: AuthSession }
+  | { ok: false; error: PasswordSignInErrorKind };
+
+export const PASSWORD_SIGN_IN_ERROR_COPY: Readonly<Record<PasswordSignInErrorKind, string>> = {
+  wrong: "Sai email hoặc mật khẩu.",
+  revoked: "Tài khoản dùng thử này đã bị thu hồi. Vui lòng liên hệ Juli.",
+  expired: "Tài khoản dùng thử này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.",
+  not_trial:
+    "Đăng nhập bằng mật khẩu chỉ dành cho tài khoản dùng thử của đối tác. Hãy đăng nhập bằng Google hoặc mã email.",
+  rate_limited: "Bạn đã thử quá nhiều lần. Vui lòng đợi một lát rồi thử lại.",
+  unavailable: "Đăng nhập bằng mật khẩu chưa sẵn sàng trong môi trường này.",
+  network: "Không kết nối được tới máy chủ đăng nhập. Kiểm tra mạng rồi thử lại.",
+  unknown: "Đăng nhập không thành công. Vui lòng thử lại.",
+};
+
+const WRONG_PASSWORD_CODES = new Set(["invalid_credentials", "invalid_grant"]);
+
+export async function signInWithPassword(
+  email: string,
+  password: string,
+  fetchImpl: FetchLike = (input, init) => fetch(input, init),
+): Promise<PasswordSignInResult> {
+  const trimmed = email.trim();
+  if (!isValidEmail(trimmed) || password.length === 0) return { ok: false, error: "wrong" };
+
+  let response: Response | null;
+  try {
+    response = await postGoTrue(
+      "/auth/v1/token",
+      { email: trimmed, password },
+      fetchImpl,
+      { grant_type: "password" },
+    );
+  } catch {
+    return { ok: false, error: "network" };
+  }
+
+  if (!response) return { ok: false, error: "unavailable" };
+
+  const body = (await readJson(response)) as (GoTrueErrorBody & Record<string, unknown>) | null;
+  if (!response.ok) {
+    const code =
+      typeof body?.error_code === "string"
+        ? body.error_code
+        : typeof body?.code === "string"
+          ? body.code
+          : typeof body?.error === "string"
+            ? body.error
+            : "";
+    if (response.status === 429 || RATE_LIMIT_CODES.has(code)) return { ok: false, error: "rate_limited" };
+    if (code === "user_banned") return { ok: false, error: "revoked" };
+    if (WRONG_PASSWORD_CODES.has(code)) return { ok: false, error: "wrong" };
+    if (UNAVAILABLE_CODES.has(code)) return { ok: false, error: "unavailable" };
+    return { ok: false, error: "unknown" };
+  }
+
+  const accessToken = body?.access_token;
+  if (typeof accessToken !== "string" || !accessToken) return { ok: false, error: "unknown" };
+
+  return {
+    ok: true,
+    session: {
+      accessToken,
+      refreshToken: typeof body?.refresh_token === "string" ? body.refresh_token : null,
+      expiresIn: typeof body?.expires_in === "number" ? body.expires_in : null,
+      tokenType: typeof body?.token_type === "string" ? body.token_type : "bearer",
+    },
+  };
+}
+
 /**
  * Vietnamese for a failed redirect into `/auth/callback` (Google or magic
  * link). GoTrue's `error_code=otp_expired` — an expired or already-used

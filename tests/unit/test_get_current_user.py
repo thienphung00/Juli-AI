@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt as pyjwt
 import pytest
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -191,7 +191,10 @@ class TestJwtSecretFailsClosed:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
         with pytest.raises(RuntimeError, match="SUPABASE_JWT_SECRET"):
-            await get_current_user(credentials=credentials, session=session)
+            # P32-A: get_current_user takes the request (the reviewer gate reads
+            # the matched route); a bare HTTP scope stands in for it here.
+            request = Request({"type": "http", "method": "GET", "path": "/me", "headers": []})
+            await get_current_user(request=request, credentials=credentials, session=session)
 
     async def test_empty_key_signed_token_rejected_with_401(self, session: AsyncSession, user_id):
         """Exit gate: a token signed with an empty-string key is rejected with

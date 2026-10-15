@@ -386,6 +386,51 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Liên kết đăng nhập đã hết hạn hoặc đã được dùng. Vui lòng gửi lại mã đăng nhập bằng email.
 - Definition: `/auth/callback` reached with `error_code=otp_expired` (hash or query) from a magic link.
 
+**`auth.password`**
+- EN: Sign in with password / Partner account (sign in with password)
+- VI: Đăng nhập bằng mật khẩu / Tài khoản đối tác (đăng nhập bằng mật khẩu)
+- _Avoid_: "Đăng ký", "Quên mật khẩu" (there is no password sign-up or reset — accounts are created by the Juli team)
+- Definition: Fast track P32-A (D42): e-mail + password for the partner trial accounts the Juli team creates (e.g. Shopee's ISV reviewer, who cannot receive our OTP). A secondary disclosure on `/auth/email` (`#doi-tac`), linked from the landing door. GoTrue password grant, then `GET /v1/reviewer/me`; a reviewer lands on Trang chủ with the reference shop. Help line: "Chỉ dành cho tài khoản dùng thử Juli cấp cho đối tác."
+
+**`auth.password.wrong`**
+- EN: Wrong email or password.
+- VI: Sai email hoặc mật khẩu.
+- Definition: GoTrue `invalid_credentials` (or legacy `invalid_grant`). The password field is cleared.
+
+**`auth.password.revoked`**
+- EN: This trial account has been revoked. Please contact Juli.
+- VI: Tài khoản dùng thử này đã bị thu hồi. Vui lòng liên hệ Juli.
+- Definition: GoTrue `user_banned` (the revoke command bans the user), or the API's `X-Juli-Reviewer-Denied: revoked`.
+
+**`auth.password.expired`**
+- EN: This trial account has expired. Please contact Juli to extend it.
+- VI: Tài khoản dùng thử này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.
+- Definition: The API's `X-Juli-Reviewer-Denied: expired` (default lifetime 30 days); the session is cleared.
+
+**`auth.password.not_trial`**
+- EN: Password sign-in is only for partner trial accounts. Please sign in with Google or an email code.
+- VI: Đăng nhập bằng mật khẩu chỉ dành cho tài khoản dùng thử của đối tác. Hãy đăng nhập bằng Google hoặc mã email.
+- Definition: The password was right but `GET /v1/reviewer/me` says the account is not a reviewer (or is unknown to Juli); signed out again.
+
+**`auth.password.rate_limited`** / **`auth.password.network`** / **`auth.password.failed`** / **`auth.password.unavailable`**
+- VI: Bạn đã thử quá nhiều lần. Vui lòng đợi một lát rồi thử lại. / Không kết nối được tới máy chủ đăng nhập. Kiểm tra mạng rồi thử lại. / Đăng nhập không thành công. Vui lòng thử lại. / Đăng nhập bằng mật khẩu chưa sẵn sàng trong môi trường này.
+- EN: Too many attempts, wait and retry. / Could not reach the sign-in server. / Sign-in did not succeed. / Password sign-in is not available in this environment.
+
+**`reviewer.banner`**
+- EN: Partner trial account · shop data anonymised · actions are simulated only
+- VI: Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn tên · thao tác chỉ mô phỏng
+- Definition: P32-A (AC-32.7): the persistent strip on every page of a partner trial account (also the run-focus layout), followed by "Đối tác {Platform} · Hết hạn {dd/mm/yyyy}" (`reviewer.expires`).
+
+**`reviewer.read_only_title`**
+- EN: Trial account: actions are simulated only
+- VI: Tài khoản dùng thử: thao tác chỉ mô phỏng
+- Definition: Tooltip of every disabled write control in a partner trial account (Từ chối, Hoàn tác, Quy tắc, Sửa…). Only a card's "Duyệt" stays enabled, and it runs `reviewer.simulated`.
+
+**`reviewer.simulated`**
+- EN: Simulation · nothing sent to TikTok
+- VI: Mô phỏng · không gửi tới TikTok
+- Definition: Label of the simulated Duyệt → Thực thi screen: "Đã duyệt (mô phỏng)", then "Thực thi (mô phỏng)" (`reviewer.execute`) shows "Thay đổi Juli sẽ gửi" — operation, method + path, product (masked), each field before → after — and "Không có thay đổi nào được gửi tới TikTok Shop. Không có tác vụ nào được tạo."
+
 ## Phrases
 
 **`home.tagline`**

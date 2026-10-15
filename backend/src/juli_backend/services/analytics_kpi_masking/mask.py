@@ -133,3 +133,34 @@ def mask_public_analytics_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
     result.pop("meta", None)
 
     return result
+
+
+# -- public aliases (P32-A, D42): the partner reviewer reuses ADR-038 §8 masking ---
+
+
+def stable_alias(prefix: str, raw: str) -> str:
+    """``demo-<prefix>-<hash8>``: a stable alias of an identifier (ADR-038 §8)."""
+    return _stable_alias(prefix, raw)
+
+
+def stable_shop_display_name(raw_name: str) -> str:
+    """``Demo Shop NNN`` for a shop name."""
+    return _stable_shop_display_name(raw_name)
+
+
+def stable_product_title(product_ref: str) -> str:
+    """``Demo Product NNN`` for a product (keyed by its id or title)."""
+    return _stable_product_title(product_ref)
+
+
+def stable_label(label: str, raw: str) -> str:
+    """``<label> NNN`` for any other titled entity (``Demo Video``, ``Demo LIVE``)."""
+    bucket = (
+        int(
+            hmac.new(_DEMO_MASK_KEY, f"{label}:{raw}".encode(), hashlib.sha256).hexdigest()[:4],
+            16,
+        )
+        % 900
+        + 100
+    )
+    return f"{label} {bucket}"

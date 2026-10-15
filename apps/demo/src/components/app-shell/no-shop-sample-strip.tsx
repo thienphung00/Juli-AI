@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 
 import { CONNECT_SHOP_HREF } from "../../lib/app-navigation";
+import { useReviewer } from "../../lib/reviewer/mode";
 
 export const NO_SHOP_SAMPLE_TEXT = "Bạn đang xem dữ liệu mẫu";
 export const NO_SHOP_CONNECT_LABEL = "Kết nối TikTok Shop ›";
@@ -13,6 +16,8 @@ export const NO_SHOP_CONNECT_LABEL = "Kết nối TikTok Shop ›";
  * written for the seller.
  */
 export function NoShopSampleStrip() {
+  // P32-A: a partner trial account never gets a connect entry point.
+  if (useReviewer()) return null;
   return (
     <p className="no-shop-strip" data-testid="no-shop-sample-strip">
       <span>{NO_SHOP_SAMPLE_TEXT}</span>

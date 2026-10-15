@@ -445,30 +445,65 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 
 ## P32 — Shopee ISV reviewer access (D42; contract `contracts/p32-reviewer-access.md`)
 
-- [ ] **AC-32.1** Contract `contracts/p32-reviewer-access.md` written before code: where the
+- [x] **AC-32.1** Contract `contracts/p32-reviewer-access.md` written before code: where the
   role lives, how the session is pinned to Fujiwa, every write path the reviewer must not reach
   (listing / image / price / promotion / content publish / Hoàn tác / rules / settings / shop
   connect / invites / uploads / ops) and how each is barred, the simulated execute response, and
-  the provisioning command.
-- [ ] **AC-32.2** Email + password sign-in on demo.app-juli.com for team-created accounts
+  the provisioning command. — 5e3c1410 (first commit of the branch, before any code); §2 table
+  lists every write path and its bar.
+- [x] **AC-32.2** Email + password sign-in on demo.app-juli.com for team-created accounts
   (GoTrue password grant); wrong password / expired / revoked → Vietnamese errors; no password
-  sign-up; Google and OTP doors unchanged.
-- [ ] **AC-32.3** Reviewer accounts: role `reviewer`, platform label, `expires_at` (default 30
+  sign-up; Google and OTP doors unchanged. — 23a9a77d (`signInWithPassword`,
+  `components/partner-sign-in.tsx` on `/auth/email#doi-tac`, dictionary `auth.password.*`),
+  f42d8521 `lib/__tests__/password-sign-in.test.ts` (success + each error), 5411b39c
+  `e2e/auth/reviewer-sign-in.spec.ts` 6/6; existing `e2e/auth` specs unchanged and green.
+  Live sign-in not exercised (no deploy; owner step in LOG).
+- [x] **AC-32.3** Reviewer accounts: role `reviewer`, platform label, `expires_at` (default 30
   days); a provisioning command creates / renews / revokes one; an expired or revoked reviewer
-  gets 401/403 on every `/v1` route.
-- [ ] **AC-32.4** A reviewer session is pinned to Fujiwa (cannot read another shop, cannot pick
+  gets 401/403 on every `/v1` route. — 62bd4c1d (migration `090_reviewer_accounts`, ops-only
+  table), 6f6d2729 (`python -m juli_backend.services.reviewer.cli`; password printed once, never
+  stored); `test_reviewer_cli.py` (3), `test_reviewer_access.py::
+  test_denied_reviewer_gets_403_everywhere[expired|revoked|unknown]`,
+  `::test_renew_and_revoke_take_effect`; a denied reviewer is refused inside
+  `get_current_user`, i.e. on every Supabase-authenticated route.
+- [x] **AC-32.4** A reviewer session is pinned to Fujiwa (cannot read another shop, cannot pick
   a shop id) and every name / id / title it receives is masked (D25.6); Trang chủ, Phân tích,
-  Quyết định render real Fujiwa magnitudes.
-- [ ] **AC-32.5** Duyệt → Thực thi works end to end for a reviewer: the response shows the
+  Quyết định render real Fujiwa magnitudes. — 89f7b3f5 (`REVIEWER_SHOP_ID`, alias-only
+  `X-Shop-Id`, ops view-as scope, `ReviewerMaskMiddleware`); `test_reviewer_access.py::
+  test_reviewer_cannot_pick_a_shop[real|other|garbage]`,
+  `::test_decisions_are_masked_with_real_magnitudes` (same numbers as the seller's own
+  response), `::test_mask_replaces_titles_in_free_text_brand_words_urls_and_long_ids`;
+  `test_reviewer_no_write.py::test_two_tenant_reviewer_never_sees_the_other_shop` (every
+  allowlisted read); PG: `tests/integration/test_reviewer_two_tenant.py`. Rendering checked
+  with mocked responses in the e2e spec, not against live Fujiwa data (no deploy).
+- [x] **AC-32.5** Duyệt → Thực thi works end to end for a reviewer: the response shows the
   change that would be sent, marked simulated; nothing is enqueued, no TikTok write client is
-  built, no card / run / rule row of Fujiwa changes.
-- [ ] **AC-32.6** **No-write proof**: a test drives every write route as a reviewer and fails if
+  built, no card / run / rule row of Fujiwa changes. — 89f7b3f5 (`POST
+  /v1/reviewer/decisions/{id}/simulate`, `services/reviewer/simulation.py` imports no TikTok
+  code), 3740b531 (UI `reviewer-simulation`); `test_reviewer_access.py::
+  test_simulated_approve_then_execute`, `test_reviewer_no_write.py::
+  test_simulated_approve_and_execute_change_nothing` (whole-DB snapshot + tripwires).
+- [x] **AC-32.6** **No-write proof**: a test drives every write route as a reviewer and fails if
   any TikTok write, executor enqueue or Fujiwa row change happens; a two-tenant test shows a
-  reviewer never sees another shop.
-- [ ] **AC-32.7** UI: a persistent banner "Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn
+  reviewer never sees another shop. — 7376840d `tests/unit/test_reviewer_no_write.py::
+  test_every_route_as_reviewer_writes_nothing` (every route of the real app, real token; trips
+  on `TikTokClient()` / client factories / httpx + requests network / `Task.apply_async` /
+  `Celery.send_task`; whole-DB snapshot; mutation-checked: allowlisting approve fails it on
+  `Task.apply_async`), `::test_allowlist_is_pinned_to_real_routes`,
+  `::test_two_tenant_reviewer_never_sees_the_other_shop`; d915fe2c
+  `tests/integration/test_reviewer_two_tenant.py` (PG16, `juli_app`, RLS) 2 passed.
+- [x] **AC-32.7** UI: a persistent banner "Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn
   tên · thao tác chỉ mô phỏng" (dictionary), simulated result screen, no connect / invite / upload
-  entry points for a reviewer.
-- [ ] **AC-32.8** Every reviewer sign-in and action is audited with the platform label.
+  entry points for a reviewer. — 3740b531 (`reviewer-banner`, `reviewer-simulation`, entry
+  points hidden, `/auth/connect-shop` → `/`, all writes read-only except Duyệt); dictionary
+  `reviewer.banner` / `reviewer.simulated` / `reviewer.read_only_title`; f42d8521
+  `components/__tests__/reviewer-mode.test.tsx`, 5411b39c e2e (no `/approve` request).
+- [x] **AC-32.8** Every reviewer sign-in and action is audited with the platform label. —
+  89f7b3f5 (`ops_audit_log`, actor `reviewer:<platform>:<email>`: `reviewer_sign_in` once per
+  Supabase session, `reviewer_simulated_approve/_execute`, `reviewer_write_refused`,
+  `reviewer_read_refused`; account create / renew / revoke); `test_reviewer_access.py::
+  test_sign_in_audited_once_per_session_with_platform`, `::test_refused_write_is_audited`;
+  the no-write sweep asserts one refused-write row per refused write.
 - [ ] **AC-32.9** Landing names Shopee in text ("đang tích hợp qua Shopee Open Platform");
   `/privacy` and `/terms` (VN + EN) carry a Shopee section and no longer say Shopee support is
   "in development"; no claim the trial account cannot show.

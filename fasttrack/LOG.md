@@ -1160,3 +1160,17 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
 - Live demo check: Google + email-OTP sign-in work after hydration (the SSR HTML shows the
   "chưa sẵn sàng" fallback); a new account lands on the P13 sample — the reviewer never saw a
   connected shop.
+
+## 2026-10-14 — P32-A agent (Claude Opus) + orchestrator — reviewer access (AC-32.1–32.8)
+
+- Branch `fasttrack/p32a-reviewer-access` (5e3c1410..ce38297b + this docs commit): contract,
+  migration `090_reviewer_accounts`, reviewer claim + gate bound in `get_current_user`
+  (allowlist by matched endpoint), Fujiwa pin via alias id + view-as read scope, response mask,
+  `POST /v1/reviewer/decisions/{id}/simulate`, ops audit, provisioning CLI, demo password mode on
+  `/auth/email`, banner, simulated Duyệt → Thực thi, e2e.
+- The agent was cut off twice by network errors (ENOTFOUND); the orchestrator finished: reviewer
+  unit tests 27 passed; `fasttrack/check.sh --since 0e80c18b` (docker PG16): migrations PASS at
+  090, isolation 12 passed, gitleaks PASS, ruff PASS (44 files), pytest 543 passed / 1 failed —
+  the failure is pre-existing (DEBT, fails on the base too).
+- Owner steps: `REVIEWER_SHOP_ID` (+ optional `REVIEWER_MASK_TERMS`) in the API env; after deploy
+  run the provisioning CLI on the VPS (contract §8).

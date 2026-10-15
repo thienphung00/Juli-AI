@@ -136,6 +136,7 @@ export function QuyetDinhView({
   clients,
   sample = false,
   cardsRefresh = 0,
+  onSimulateApprove,
 }: {
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string };
@@ -146,6 +147,11 @@ export function QuyetDinhView({
   readonly sample?: boolean;
   /** P17: a new value re-reads the cards in place (onboarding poll); a failed re-read keeps what is shown. */
   readonly cardsRefresh?: number;
+  /**
+   * P32-A: the partner trial account — "Duyệt" opens the simulated
+   * Duyệt → Thực thi for that card; the real approve is never called.
+   */
+  readonly onSimulateApprove?: (cardId: string) => void;
 }) {
   const auth: AuthedOptions = useMemo(() => ({ token, shopId: shop.id }), [token, shop.id]);
   const nowMs = useNow();
@@ -268,6 +274,10 @@ export function QuyetDinhView({
   const handleApprove = useCallback(
     (cardIds: readonly string[]) => {
       if (busy || cardIds.length === 0) return;
+      if (onSimulateApprove) {
+        onSimulateApprove(cardIds[0]);
+        return;
+      }
       const batch = cardIds.length > 1;
       setBusy(true);
       setApproveErrors([]);
@@ -300,7 +310,7 @@ export function QuyetDinhView({
         }
       });
     },
-    [busy, clients, token, shop.id, navigate, refreshRuns],
+    [busy, clients, token, shop.id, navigate, refreshRuns, onSimulateApprove],
   );
 
   const handleReject = useCallback(

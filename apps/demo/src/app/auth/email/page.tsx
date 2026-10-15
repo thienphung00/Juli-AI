@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { EmailSignIn } from "../../../components/email-sign-in";
 import { LegalConsentNote } from "../../../components/legal-consent-note";
+import { PartnerSignIn } from "../../../components/partner-sign-in";
 import { EMAIL_SIGN_IN_LABEL } from "../../../lib/supabase-auth";
 
 /**
@@ -22,6 +23,7 @@ export default function EmailSignInPage() {
       </p>
       <EmailSignIn autoFocus />
       <LegalConsentNote />
+      <PartnerSignIn />
       <Link className="demo-placeholder__recovery" href="/?entry=door">
         Đăng nhập với Google thay vì email
       </Link>
