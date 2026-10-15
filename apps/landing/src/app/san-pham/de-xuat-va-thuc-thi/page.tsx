@@ -10,15 +10,19 @@ import {
   P,
   Ul,
 } from "../../../components/product/capability-page";
+import { ProcessDiagram } from "../../../components/product/diagrams";
 import {
   CAP_DX_HANG_CHO,
   CAP_DX_HOAN_TAC,
   CAP_DX_LUOT_CHAY,
+  CAP_DX_LUOT_CHAY_MOBILE,
   CAP_DX_QUY_TAC,
+  CAP_DX_QUY_TAC_MOBILE,
   CAP_DX_SELLER_CENTER,
   CAP_DX_THE,
   CAP_DX_TU_CHOI,
   CAP_DX_XAC_NHAN,
+  CAP_DX_XAC_NHAN_MOBILE,
 } from "../../../components/product/screens";
 import { buildMetadata } from "../../../lib/seo";
 
@@ -71,13 +75,21 @@ export default function DeXuatVaThucThiPage() {
       eyebrow="Đề xuất và thực thi"
       faq={FAQ}
       heading="Đề xuất tối ưu cho từng sản phẩm TikTok Shop, chỉ thực hiện khi bạn duyệt"
+      ctaTitle="Để Juli chuẩn bị việc cần làm, bạn chỉ việc duyệt."
+      heroChrome="Quyết định · Juli"
+      heroShot={{
+        alt: "Lượt chạy dừng ở bước Xác nhận một lần: tiêu đề và mô tả cũ, nội dung mới, nút Xác nhận thay đổi này (dữ liệu mẫu)",
+        crop: 16 / 10,
+        mobileVariants: CAP_DX_XAC_NHAN_MOBILE,
+        variants: CAP_DX_XAC_NHAN,
+      }}
       lead={
-        <p>
+        <>
           Từ chỉ số đang kéo GMV xuống, Juli tạo thẻ đề xuất cho từng sản phẩm: vì sao, đổi gì, mục tiêu
           nào và GMV dự kiến bao nhiêu. Bạn duyệt hoặc từ chối. Với tiêu đề, mô tả và ảnh bìa, Juli thực
           hiện thay đổi trên TikTok Shop sau khi bạn xác nhận; với giá và khuyến mãi, Juli hướng dẫn để bạn
           tự làm trên Seller Center. Mọi thay đổi đều hoàn tác được.
-        </p>
+        </>
       }
       path={PATH}
       related={[
@@ -187,6 +199,7 @@ export default function DeXuatVaThucThiPage() {
         heading="Khi nào Juli mở một thẻ đề xuất"
         id="khi-nao"
         image={CAP_DX_QUY_TAC}
+        mobileImage={CAP_DX_QUY_TAC_MOBILE}
       >
         <P>
           Một thẻ bắt đầu từ dữ liệu, không từ một danh sách mẹo chung. Juli đọc từng sản phẩm trên từng
@@ -236,6 +249,28 @@ export default function DeXuatVaThucThiPage() {
           nhắm một chỉ số, bạn có thể duyệt cả nhóm bằng một lần bấm. Duyệt chưa làm thay đổi gì trên shop:
           nó chỉ cho phép Juli bắt đầu chuẩn bị.
         </P>
+        <ProcessDiagram
+          caption="Một thay đổi trên shop cần hai lần đồng ý của bạn: Duyệt trên thẻ và Xác nhận nội dung trong lượt chạy. Mọi thay đổi Juli ghi đều lưu giá trị cũ để hoàn tác."
+          label="Từ thẻ đề xuất đến thay đổi trên shop"
+          steps={[
+            {
+              body: "Bạn duyệt hoặc từ chối thẻ. Duyệt chưa làm thay đổi gì trên shop.",
+              marker: "Bước 1 · bạn",
+              title: "Duyệt",
+              you: true,
+            },
+            {
+              body: "Juli soạn nội dung, bạn xác nhận lần cuối, rồi Juli ghi lên TikTok Shop và lưu giá trị cũ.",
+              marker: "Bước 2",
+              title: "Thực thi",
+            },
+            {
+              body: "Bất cứ lúc nào, Juli khôi phục nội dung cũ đã lưu, cũng qua bước xác nhận của bạn.",
+              marker: "Bước 3",
+              title: "Hoàn tác",
+            },
+          ]}
+        />
         <H3>Từ chối kèm lý do</H3>
         <P>
           Khi từ chối, bạn chọn một lý do: thay đổi không hợp thương hiệu, số liệu chưa thuyết phục, bạn
@@ -296,6 +331,7 @@ export default function DeXuatVaThucThiPage() {
         heading="Xác nhận lần cuối, rồi Juli mới ghi lên TikTok Shop"
         id="xac-nhan"
         image={CAP_DX_XAC_NHAN}
+        mobileImage={CAP_DX_XAC_NHAN_MOBILE}
       >
         <P>
           Bấm Duyệt tạo ra một <strong>lượt chạy</strong>. Juli lần lượt đọc chẩn đoán của TikTok, đọc
@@ -331,6 +367,7 @@ export default function DeXuatVaThucThiPage() {
         heading="Theo dõi từng lượt chạy"
         id="luot-chay"
         image={CAP_DX_LUOT_CHAY}
+        mobileImage={CAP_DX_LUOT_CHAY_MOBILE}
       >
         <P>
           Trong tab <strong>Đang thực hiện</strong>, mỗi lượt chạy hiện thành một dòng thời gian: bước nào

@@ -1,0 +1,208 @@
+/* /san-pham overview (P34-C, D44; Product.dc.html language). Tokens only. */
+
+.main {
+  display: block;
+}
+
+/* ————— Hero (same split as the capability pages) ————— */
+
+.hero {
+  padding-top: var(--lp-space-10);
+}
+
+.heroSplit {
+  display: grid;
+  gap: var(--lp-space-6);
+  margin-top: var(--lp-space-7);
+}
+
+.heroTitle,
+.heroAside {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--lp-space-4);
+}
+
+.heroTitle {
+  gap: 18px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.heroShot {
+  margin-top: var(--lp-space-10);
+}
+
+@media (min-width: 960px) {
+  .heroSplit {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    gap: var(--lp-space-12);
+    align-items: end;
+  }
+
+  .heroShot {
+    margin-top: var(--lp-space-12);
+  }
+}
+
+@media (max-width: 640px) {
+  .actions > * {
+    flex: 1 1 100%;
+  }
+}
+
+/* ————— Prose blocks ————— */
+
+.prose {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.a {
+  color: var(--lp-pink-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.a:hover {
+  color: var(--lp-pink-text-hover);
+}
+
+.split {
+  display: grid;
+  gap: var(--lp-space-8);
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .split {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: var(--lp-space-14);
+  }
+}
+
+/* ————— Loop ————— */
+
+.loop {
+  margin-top: var(--lp-space-10);
+}
+
+/* ————— Capability cards ————— */
+
+.capGrid,
+.grid3 {
+  display: grid;
+  gap: var(--lp-space-4);
+  margin-top: var(--lp-space-10);
+}
+
+@media (min-width: 960px) {
+  .capGrid,
+  .grid3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.capCard {
+  gap: var(--lp-space-3);
+}
+
+.capCard > :first-child {
+  margin-bottom: var(--lp-space-2);
+}
+
+/* `.ui-card > p` would grey the eyebrow (shared rule, see DEBT). */
+.capCard > :global(.ui-eyebrow) {
+  color: var(--lp-pink-text);
+  font-size: var(--lp-text-label);
+}
+
+.capLink {
+  margin-top: auto;
+  padding-top: var(--lp-space-2);
+}
+
+.list {
+  display: grid;
+  gap: var(--lp-space-2);
+  margin: 0;
+  padding-inline-start: 1.2rem;
+  color: var(--lp-body);
+  font-size: var(--lp-text-body-small);
+  line-height: 1.55;
+  list-style: disc;
+}
+
+.list li::marker {
+  color: var(--lp-muted);
+}
+
+.integrationHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lp-space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ————— Pricing ————— */
+
+.price {
+  gap: var(--lp-space-4);
+  padding: var(--lp-space-8);
+}
+
+.price > .priceValue {
+  margin: 0;
+  color: var(--lp-ink);
+  font-size: var(--lp-text-h2-feature);
+  font-weight: var(--lp-weight-semibold);
+  letter-spacing: var(--lp-tracking-heading);
+}
+
+.pricingSection {
+  scroll-margin-top: 80px;
+}
+
+/* ————— FAQ ————— */
+
+.faq {
+  display: grid;
+  gap: var(--lp-space-8);
+}
+
+.faqIntro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lp-space-3);
+}
+
+@media (min-width: 960px) {
+  .faq {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+    gap: var(--lp-space-14);
+  }
+}
+
+/* ————— Dark CTA band ————— */
+
+.band {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lp-space-6);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bandText {
+  display: flex;
+  max-width: 640px;
+  flex-direction: column;
+  gap: var(--lp-space-3);
+}

@@ -7,12 +7,15 @@ import KetNoiPage from "../app/ket-noi/tiktok-shop/page";
 import DeXuatPage from "../app/san-pham/de-xuat-va-thuc-thi/page";
 import DoLuongPage from "../app/san-pham/do-luong-gmv/page";
 import PhanTichPage from "../app/san-pham/phan-tich-shop/page";
-import { DEMO_URL, LOGIN_URL } from "../lib/site";
+import { DEMO_URL, SIGNUP_URL, TRIAL_CTA_LABEL } from "../lib/site";
 
 /**
- * AC-33.7 (P33-C, D43.4): the three capability pages and /ket-noi/tiktok-shop —
- * one H1, one labelled sample screenshot (AVIF/WebP, sized) per content H2,
- * an FAQ that is exactly the FAQPage JSON-LD, internal links and both CTAs.
+ * AC-33.7 (P33-C, D43.4) + AC-34.3 (P34-C, D44): the three capability pages and
+ * /ket-noi/tiktok-shop — one H1, one labelled sample screenshot (AVIF/WebP,
+ * sized, captioned "Dữ liệu mẫu") per content H2, an FAQ that is exactly the
+ * FAQPage JSON-LD, internal links and both CTAs. Since P34-C the trial CTA is
+ * "Dùng thử miễn phí 3 tháng" → SIGNUP_URL (D43 additions 2), the FAQ is the
+ * `FaqList` accordion and each page carries its block-built diagram.
  */
 const PAGES = [
   { name: "/san-pham/phan-tich-shop", Page: PhanTichPage, software: true },
@@ -44,7 +47,10 @@ describe.each(PAGES)("$name (AC-33.7)", ({ Page, software }) => {
       expect(img.getAttribute("alt")).toMatch(/\(dữ liệu mẫu\)$/);
       expect(Number(img.getAttribute("width"))).toBeGreaterThan(0);
       expect(Number(img.getAttribute("height"))).toBeGreaterThan(0);
-      expect(section.querySelector("figcaption")).toHaveTextContent(/^Dữ liệu mẫu/);
+      // The screenshot's own caption (a section may also hold a diagram figure).
+      expect(img.closest("figure.ui-shot")?.querySelector(":scope > figcaption")).toHaveTextContent(
+        /^Dữ liệu mẫu/,
+      );
       const sources = [...section.querySelectorAll("picture source")].map((s) => s.getAttribute("type"));
       expect(sources).toContain("image/webp");
       for (const src of [img.getAttribute("src"), ...[...section.querySelectorAll("source")].flatMap((s) =>
@@ -64,7 +70,7 @@ describe.each(PAGES)("$name (AC-33.7)", ({ Page, software }) => {
     expect(types.includes("SoftwareApplication")).toBe(software);
     const faq = graph.find((entity) => entity["@type"] === "FAQPage");
     const questions = (faq?.mainEntity as Array<{ name: string }>).map((q) => q.name);
-    const shown = [...container.querySelectorAll("#cau-hoi dt")].map((dt) => dt.textContent);
+    const shown = [...container.querySelectorAll("#cau-hoi summary")].map((q) => q.textContent);
     expect(shown).toEqual(questions);
     unmount();
   });
@@ -76,9 +82,34 @@ describe.each(PAGES)("$name (AC-33.7)", ({ Page, software }) => {
     expect(hrefs.has("/privacy") || hrefs.has("/san-pham")).toBe(true);
     const capabilityLinks = PAGES.map((p) => p.name).filter((href) => hrefs.has(href));
     expect(capabilityLinks.length).toBeGreaterThanOrEqual(2);
-    const ctas = [...container.querySelectorAll("main a")];
-    expect(ctas.some((a) => a.textContent === "Dùng thử 3 tháng" && a.getAttribute("href") === LOGIN_URL)).toBe(true);
-    expect(ctas.some((a) => a.textContent === "Xem demo" && a.getAttribute("href") === DEMO_URL)).toBe(true);
+    for (const testId of ["cap-trial-cta", "cap-final-trial-cta"]) {
+      const cta = container.querySelector(`[data-testid="${testId}"]`);
+      expect(cta, testId).toHaveAttribute("href", SIGNUP_URL);
+      expect(cta, testId).toHaveTextContent(TRIAL_CTA_LABEL);
+    }
+    for (const testId of ["cap-demo-cta", "cap-final-demo-cta"]) {
+      const cta = container.querySelector(`[data-testid="${testId}"]`);
+      expect(cta, testId).toHaveAttribute("href", DEMO_URL);
+      expect(cta, testId).toHaveTextContent("Xem demo");
+    }
+    unmount();
+  });
+
+  it("follows Product.dc.html: breadcrumb, framed hero shot, side TOC to every section, mobile crops", () => {
+    const { container, unmount } = render(<Page />);
+    expect(container.querySelector('nav[aria-label="Breadcrumb"] [aria-current="page"]')).not.toBeNull();
+    const hero = container.querySelector('section[aria-labelledby="cap-heading"]');
+    expect(hero?.querySelector(".ui-shot__chrome")).not.toBeNull();
+    expect(hero?.querySelector("figcaption")).toHaveTextContent(/^Dữ liệu mẫu/);
+    const tocTargets = [...container.querySelectorAll(".ui-toc__desktop a")].map((a) =>
+      a.getAttribute("href")?.slice(1),
+    );
+    expect(tocTargets.length).toBeGreaterThanOrEqual(5);
+    for (const id of tocTargets) expect(container.querySelector(`[id="${id}"]`), id).not.toBeNull();
+    // At least the shots with a mobile crop in screens.ts serve it at ≤ 640 px.
+    expect(container.querySelectorAll('main section[id] picture source[media]').length).toBeGreaterThanOrEqual(3);
+    // One dark CTA band.
+    expect(container.querySelectorAll(".ui-section--dark")).toHaveLength(1);
     unmount();
   });
 
@@ -90,6 +121,45 @@ describe.each(PAGES)("$name (AC-33.7)", ({ Page, software }) => {
       const around = text.slice(Math.max(0, (match.index ?? 0) - 40), (match.index ?? 0) + 80);
       expect(around).toMatch(/tích hợp|Juli hỗ trợ Shopee/);
     }
+    unmount();
+  });
+});
+
+describe("capability-page diagrams (AC-34.3, built in markup)", () => {
+  it("Phân tích: the funnel with CTOR marked and the five streams", () => {
+    const { container, unmount } = render(<PhanTichPage />);
+    const funnel = container.querySelector("#pheu .ui-funnel [role=img]");
+    expect(funnel?.getAttribute("aria-label")).toMatch(/Đang nghẽn: CTOR/);
+    const streams = [...container.querySelectorAll('#nam-luong ul[aria-label="Năm luồng truy cập"] li')];
+    expect(streams.map((li) => li.textContent)).toEqual([
+      expect.stringContaining("Thẻ sản phẩm"),
+      expect.stringContaining("Tab cửa hàng"),
+      expect.stringContaining("Video"),
+      expect.stringContaining("LIVE"),
+      expect.stringContaining("Liên kết"),
+    ]);
+    unmount();
+  });
+
+  it("Đề xuất & thực thi: Duyệt → Thực thi → Hoàn tác", () => {
+    const { container, unmount } = render(<DeXuatPage />);
+    const steps = container.querySelectorAll('ol[aria-label="Từ thẻ đề xuất đến thay đổi trên shop"] > li');
+    expect([...steps].map((li) => li.textContent)).toEqual([
+      expect.stringContaining("Duyệt"),
+      expect.stringContaining("Thực thi"),
+      expect.stringContaining("Hoàn tác"),
+    ]);
+    unmount();
+  });
+
+  it("Đo lường: Trước → Ngày 7 → Ngày 14", () => {
+    const { container, unmount } = render(<DoLuongPage />);
+    const steps = container.querySelectorAll('ol[aria-label="Lịch đo một thay đổi"] > li');
+    expect([...steps].map((li) => li.textContent)).toEqual([
+      expect.stringContaining("Trước khi áp dụng"),
+      expect.stringContaining("Ngày 7"),
+      expect.stringContaining("Ngày 14"),
+    ]);
     unmount();
   });
 });

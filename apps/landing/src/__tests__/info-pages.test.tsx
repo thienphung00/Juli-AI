@@ -5,7 +5,7 @@ import AboutPage from "../app/about/page";
 import ContactPage from "../app/contact/page";
 import LandingPage from "../app/page";
 import ProductPage from "../app/san-pham/page";
-import { COMPANY, DEMO_URL, SIGNUP_URL, SITE_PAGES } from "../lib/site";
+import { COMPANY, DEMO_URL, PRODUCT_PAGES, SIGNUP_URL, SITE_PAGES } from "../lib/site";
 
 // TikTok's developer review (ticket 4486401) requires business content about
 // the product and the company that is reachable without logging in.
@@ -66,6 +66,34 @@ describe("public product and company pages", () => {
       expect(screen.getByTestId(testId), testId).toHaveTextContent("Dùng thử miễn phí 3 tháng");
     }
     expect(screen.getByRole("main")).not.toHaveTextContent(/thu hồi quyền/);
+  });
+
+  it("/san-pham (AC-34.3) links each capability page, marks Shopee only as Đang tích hợp, FAQ = FAQPage", () => {
+    const { container } = render(<ProductPage />);
+    const main = screen.getByRole("main");
+    const hrefs = within(main)
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href"));
+    for (const page of Object.values(PRODUCT_PAGES)) expect(hrefs, page.href).toContain(page.href);
+    // The five-step loop, "Duyệt" marked as the seller's step.
+    const steps = main.querySelectorAll(".ui-steps > li");
+    expect(steps).toHaveLength(5);
+    expect(main.querySelector(".ui-step--you")).toHaveTextContent("Duyệt");
+    // Integrations: TikTok Shop live, Shopee integrating — and Shopee never next to "hoạt động".
+    expect(main.querySelector('[data-status="live"]')?.closest(".ui-card")).toHaveTextContent("TikTok Shop");
+    expect(main.querySelector('[data-status="integrating"]')?.closest(".ui-card")).toHaveTextContent("Shopee");
+    const text = main.textContent ?? "";
+    for (const match of text.matchAll(/Shopee/g)) {
+      const around = text.slice(Math.max(0, (match.index ?? 0) - 40), (match.index ?? 0) + 80);
+      expect(around).toMatch(/tích hợp|Chính sách bảo mật|Juli sẽ dùng|chưa kết nối/i);
+    }
+    // One FAQ source: the questions shown are exactly the FAQPage JSON-LD.
+    const node = container.querySelector('script[type="application/ld+json"]');
+    const graph = (JSON.parse(node?.textContent ?? "{}")["@graph"] ?? []) as Array<Record<string, unknown>>;
+    const faq = graph.find((entity) => entity["@type"] === "FAQPage");
+    const questions = (faq?.mainEntity as Array<{ name: string }>).map((q) => q.name);
+    expect([...main.querySelectorAll(".ui-faq summary")].map((q) => q.textContent)).toEqual(questions);
+    expect(container.querySelectorAll(".ui-section--dark")).toHaveLength(1);
   });
 
   it("/about names the company with its legal details", () => {

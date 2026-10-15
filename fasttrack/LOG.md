@@ -1561,3 +1561,48 @@ agent). Contract `contracts/p17-onboarding-speed.md`. Not merged, not deployed.
   `PYTHON=… fasttrack/check.sh --since c95231e0` 5/5 PASS (migrations, isolation 12 passed, gitleaks,
   ruff and pytest n/a — no Python changed).
 - Next: orchestrator merges P34-A, then this branch; owner to confirm the "500.000đ" price wording (DEBT).
+## 2026-10-15 — P34-C agent (Claude Opus) — product pages to the approved mockup (D44, AC-34.3)
+- Branch `fasttrack/p34c-product-pages` from `fasttrack/p34a-ui-foundation` @ c95231e0 (see
+  `git log c95231e0..`). Owned files only: `app/san-pham/**`, `app/ket-noi/**`, `components/product/**`.
+- **Template** (`components/product/capability-page.tsx`, `capability.module.css`, tokens only):
+  breadcrumb (full registry trail incl. "Trang chủ") · split hero (eyebrow + H1 `page` | `ui-lead` +
+  `LinkButton` ×2) · hero `Shot` (chrome, `joined`, `padding="lg"`, `priority`, "Dữ liệu mẫu · Cửa hàng
+  Mẫu Hoa Mai") · `.ui-toc-layout` with `TocNav` + `<article>`: each `CapSection` = H2 `article` +
+  opening paragraphs + one `Shot` (alt "… (dữ liệu mẫu)", caption "Dữ liệu mẫu · …", `mobileVariants`)
+  placed before the first H3 + the rest · FAQ `FaqList` (one source: the page's `FAQ` const → visible
+  list and `faqPageSchema`) · next/see-also cards (first "Tiếp theo") · one dark band (`Section
+  tone="dark" spacing="compact"`). `heroShot`, `heroChrome`, `heroCaption`, `ctaTitle` are new props.
+- **Diagrams** (`components/product/diagrams.tsx`, markup, real list text): `StreamGrid` (5 streams,
+  group + where Juli shows each), `ProcessDiagram` `flow` / `timeline`. Phân tích: `StreamGrid` in
+  "Năm luồng" + `FunnelDiagram highlight="ctor"` replacing the old formula box (formula text kept in
+  its caption). Đề xuất: flow Duyệt (bạn, pink) → Thực thi → Hoàn tác in "Duyệt hoặc từ chối".
+  Đo lường: timeline Trước khi áp dụng → Ngày 7 → Ngày 14 in "Trước khi áp dụng". No numbers added.
+- **Pages**: hero shots — Phân tích luồng + phễu (as the mockup), Đề xuất xác nhận (cropped 16:10),
+  Đo lường mục tiêu + tăng thêm, Kết nối the connect screen only ("lighter"; the second shot showed a
+  different sample shop). `/san-pham` rebuilt on `components/ui`: hero + Quyết định shot, "Juli AI là
+  gì" (reading column), loop `StepList` (long P33-B bodies, Duyệt = "03 · bạn"), 3 capability cards
+  (shot cropped 2.4:1 + eyebrow + CheckList + `TextLink`), scope cards, integrations with `StatusPill`
+  (TikTok Shop live, Shopee integrating), data safety CheckList, audiences, pricing `Card
+  tone="highlight"`, two-column FAQ, dark CTA band. All test ids kept (`product-*`, `cap-*`) plus
+  `cap-final-trial-cta`, `cap-final-demo-cta`, `product-final-demo-cta`, `product-contact-cta`.
+- **Deviations from the mockup**: breadcrumb shows "Trang chủ /" first (matches BreadcrumbList);
+  capability CTAs are `md` size (mockup 15 px buttons); the dark band adds the price line and a "Xem
+  demo" button; the five-stream labels are `<p>`s, not `<h3>` (keeps the outline to the article's own
+  H3s); FAQ first item open; the next/see-also block has 4 cards (2×2) instead of 2.
+- **Copy changes (words kept otherwise)**: capability trial CTA "Dùng thử 3 tháng" → LOGIN_URL became
+  `TRIAL_CTA_LABEL` "Dùng thử miễn phí 3 tháng" → `SIGNUP_URL` (D43 additions 2, mockup). `/san-pham`
+  corrections to match the capability pages / D14 / D34: loop "Phân tích" names the five streams (was
+  three); loop "Đo lường" and FAQ "kém hiệu quả" now say Juli *asks* whether to revert when a guarded
+  metric leaves its band at day 7 (was "Juli đề xuất hoàn tác ngay"); the "Đo lường GMV tăng thêm"
+  card says the comparison with unchanged products is being tested (was stated as done). Kết nối:
+  "trang Liên hệ" is now a link to `/contact` (D43 additions 3).
+- **Tests** (intentional updates): `capability-pages.test.tsx` — FAQ read from `#cau-hoi summary`;
+  the shot's caption checked on its own `figure.ui-shot` (a section may also hold a diagram figure);
+  CTAs by test id (trial → SIGNUP_URL, demo → DEMO_URL); new: breadcrumb + chrome hero + TOC targets
+  exist + ≥ 3 mobile `<source media>` + one dark band; the three diagrams. `info-pages.test.tsx` — new
+  `/san-pham` test: links to all 4 product pages, 5-step loop with Duyệt marked, StatusPill live =
+  TikTok Shop / integrating = Shopee, Shopee wording, FAQ = FAQPage, one dark band.
+  vitest 13 files / 186 passed, `next build` OK, `check:seo` 17/17; Playwright on `next start`, 5 pages
+  at 1440 and 390, no horizontal overflow, looked at section by section (hero, diagrams at both widths,
+  cards, FAQ, dark band): `fasttrack/design/p34/evidence/p34c/*.webp` (full page; the TOC and header
+  are forced static for the capture). `check.sh --since c95231e0` 5/5 PASS. DEBT: 5 items (P34-C).

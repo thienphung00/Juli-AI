@@ -3,20 +3,27 @@ import {
   BLOG_PATH,
   CapabilityPage,
   CapSection,
-  Formula,
   H3,
   Note,
   P,
   Ul,
 } from "../../../components/product/capability-page";
+import { StreamGrid } from "../../../components/product/diagrams";
 import {
   CAP_PT_KHUYEN_MAI,
+  CAP_PT_KHUYEN_MAI_MOBILE,
   CAP_PT_LICH_SALE,
+  CAP_PT_LICH_SALE_MOBILE,
   CAP_PT_LUONG,
+  CAP_PT_LUONG_MOBILE,
   CAP_PT_NGHEN,
+  CAP_PT_NGHEN_MOBILE,
   CAP_PT_PHEU,
+  CAP_PT_PHEU_MOBILE,
   CAP_PT_XEP_HANG,
+  CAP_PT_XEP_HANG_MOBILE,
 } from "../../../components/product/screens";
+import { FunnelDiagram } from "../../../components/ui";
 import { buildMetadata } from "../../../lib/seo";
 
 /**
@@ -67,12 +74,26 @@ export default function PhanTichShopPage() {
       eyebrow="Phân tích"
       faq={FAQ}
       heading="Phân tích TikTok Shop theo từng luồng truy cập: biết GMV tăng hay giảm vì đâu"
+      ctaTitle="Xem shop của bạn đang hụt GMV ở đâu."
+      heroChrome="Phân tích · Juli"
+      heroShot={[
+        {
+          alt: "GMV chia theo 5 luồng truy cập (dữ liệu mẫu)",
+          mobileVariants: CAP_PT_LUONG_MOBILE,
+          variants: CAP_PT_LUONG,
+        },
+        {
+          alt: "Phễu luồng Thẻ sản phẩm, ô CTOR được đánh dấu (dữ liệu mẫu)",
+          mobileVariants: CAP_PT_PHEU_MOBILE,
+          variants: CAP_PT_PHEU,
+        },
+      ]}
       lead={
-        <p>
+        <>
           Juli tách GMV của shop thành năm luồng truy cập mà TikTok Shop ghi nhận, dựng phễu của từng
           luồng từ Lượt hiển thị đến GMV và chỉ ra chỉ số đang kéo GMV xuống, kèm danh sách sản phẩm và
           nội dung gây ra nhiều nhất. Báo cáo được dựng lại mỗi ngày từ dữ liệu của chính shop bạn.
-        </p>
+        </>
       }
       path={PATH}
       related={[
@@ -115,6 +136,7 @@ export default function PhanTichShopPage() {
         heading="Năm luồng truy cập tạo nên GMV của shop"
         id="nam-luong"
         image={CAP_PT_LUONG}
+        mobileImage={CAP_PT_LUONG_MOBILE}
       >
         <P>
           TikTok Shop ghi nhận mỗi đơn hàng đến từ đâu. Trong mục Lưu lượng truy cập sản phẩm của Trung
@@ -123,6 +145,7 @@ export default function PhanTichShopPage() {
           tạo). Juli dùng đúng cách chia đó, vì mỗi luồng có người xem khác nhau, lý do mua khác nhau và
           cách cải thiện khác nhau.
         </P>
+        <StreamGrid />
         <P>
           Một shop có thể tăng GMV tổng trong khi một luồng quan trọng đang đi xuống. Nếu chỉ nhìn số tổng,
           bạn sẽ không thấy điều đó cho đến khi luồng tăng trưởng chững lại. Vì vậy, mọi phép so sánh
@@ -158,12 +181,16 @@ export default function PhanTichShopPage() {
         heading="Phễu của từng luồng: từ Lượt hiển thị đến GMV"
         id="pheu"
         image={CAP_PT_PHEU}
+        mobileImage={CAP_PT_PHEU_MOBILE}
       >
         <P>
           Với mỗi luồng, Juli dựng phễu theo cách TikTok Shop định nghĩa trong Học viện người bán (bài
           “Lưu lượng truy cập sản phẩm”). GMV của một luồng là tích của bốn chỉ số:
         </P>
-        <Formula>GMV = Lượt hiển thị sản phẩm × CTR × CTOR × AOV (SKU)</Formula>
+        <FunnelDiagram
+          caption="GMV = Lượt hiển thị sản phẩm × CTR × CTOR × AOV (SKU). Ví dụ minh hoạ: Juli đánh dấu bước có chênh lệch lớn nhất so với kỳ trước."
+          highlight="ctor"
+        />
         <Ul>
           <li>
             <strong>Lượt hiển thị sản phẩm</strong>: số lần sản phẩm xuất hiện trước người mua trên luồng
@@ -220,6 +247,7 @@ export default function PhanTichShopPage() {
         heading="Tìm chỉ số nghẽn: chỉ số nào đang kéo GMV xuống"
         id="chi-so-nghen"
         image={CAP_PT_NGHEN}
+        mobileImage={CAP_PT_NGHEN_MOBILE}
       >
         <P>
           Sau khi tách GMV thành bốn phần, Juli đánh dấu “Juli gợi ý” lên chỉ số lấy đi nhiều GMV nhất của
@@ -255,6 +283,7 @@ export default function PhanTichShopPage() {
         heading="Xếp hạng sản phẩm và nội dung theo tác động lên GMV"
         id="xep-hang"
         image={CAP_PT_XEP_HANG}
+        mobileImage={CAP_PT_XEP_HANG_MOBILE}
       >
         <P>
           Biết CTOR của Thẻ sản phẩm đang giảm mới là một nửa câu trả lời. Bấm vào một ô, Juli mở bảng chia
@@ -299,6 +328,7 @@ export default function PhanTichShopPage() {
         heading="Khuyến mãi và ngày sale trong cùng bức tranh"
         id="khuyen-mai"
         image={CAP_PT_KHUYEN_MAI}
+        mobileImage={CAP_PT_KHUYEN_MAI_MOBILE}
       >
         <P>
           Rất nhiều biến động của CTOR và AOV đến từ khuyến mãi: một đợt flash sale bắt đầu, một voucher hết
@@ -326,6 +356,7 @@ export default function PhanTichShopPage() {
         heading="Báo cáo cập nhật mỗi ngày: số liệu mới đến đâu"
         id="cap-nhat"
         image={CAP_PT_LICH_SALE}
+        mobileImage={CAP_PT_LICH_SALE_MOBILE}
       >
         <P>
           Báo cáo Phân tích không phải một tệp bạn phải tải về. Nó nằm ngay trong Juli, ở Trang chủ và trang
