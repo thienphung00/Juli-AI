@@ -680,8 +680,20 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   `Product.dc.html` (diagrams built in markup, one framed shot per H2, mobile crops readable).
 - [ ] **AC-34.4** (D) Blog index + post template match `Blog.dc.html`; per-category covers and OG
   images rendered from HTML; `BlogPostMeta` gains a cover.
-- [ ] **AC-34.5** (E) Privacy, terms, about, contact, `/dang-ky`, `/dang-ky/cam-on` match
+- [x] **AC-34.5** (E) Privacy, terms, about, contact, `/dang-ky`, `/dang-ky/cam-on` match
   `Legal.dc.html` / `Signup.dc.html` (legal content unchanged).
+  Evidence (P34-E, branch `fasttrack/p34e-legal-signup`, 2026-10-15): legal template
+  `app/privacy/legal-template.tsx` + `legal.module.css` (eyebrow "Pháp lý", H1, "Cập nhật lần cuối ·
+  Có hiệu lực từ", VN/EN switch on /privacy = anchor links to `#english`, "Tóm tắt dễ hiểu" card +
+  "không thay thế" note, 720 px column at 17/30, numbered H2s with ids, `TocNav variant="rule"` →
+  disclosure < 960 px, company contact block); legal wording unchanged (`git diff -w` shows markup
+  only; every pinned sentence test passes); /about (bird mark, principle cards, company card, dark
+  CTA), /contact (icon cards, disconnect = email the Juli team); /dang-ky (2-col form, role tiles,
+  consent, dark submit, "Muốn tự kết nối ngay?", aside with 3 steps + `cap-kn-ket-noi` ShotFrame,
+  ≤ 1200 px; form behaviour unchanged); /dang-ky/cam-on (bird, 3 steps, "Tự kết nối shop ngay",
+  noindex). Landing lint 0, type-check clean, vitest 13 files / 185 passed, build OK, `check:seo`
+  17/17; Playwright 6 pages × 1440/390, no horizontal overflow,
+  `fasttrack/design/p34/evidence/p34e/*.webp`; `check.sh --since c95231e0` 5/5 PASS.
 - [ ] **AC-34.6** (F) Demo sign-in / trial / OTP / partner screens match `Auth.dc.html` /
   `AuthMobile.dc.html`; flows and tests unchanged in behaviour (Google, OTP, partner password,
   `?dang-ky=dung-thu`, sample demo entry); no app shell when signed out.
