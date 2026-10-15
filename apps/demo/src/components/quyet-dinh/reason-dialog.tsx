@@ -10,6 +10,7 @@ import {
   type ReasonChoice,
   type ReasonOption,
 } from "../../lib/quyet-dinh/reasons";
+import { SimulatedLabel } from "../app-shell/simulated-label";
 
 /**
  * The reason dialogs of ADR-109 Amendment 1 d.7 (`Revert.dc.html`,
@@ -137,6 +138,7 @@ export function ReasonDialog({ mode, open, body, submitLabel, busy = false, erro
         className={`qv-dialog${mode === "revert" ? " qv-dialog--revert" : ""}`}
         role="dialog"
       >
+        <SimulatedLabel />
         <h3 className="qv-dialog__title" id={titleId}>
           {copy.title}
         </h3>

@@ -6805,3 +6805,23 @@ h4 {
   margin: var(--juli-space-3) 0 0;
   font-size: 0.85rem;
 }
+
+/* P32-E: the partner trial account's sample shop — simulated writes. */
+.simulated-label__more {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.reviewer-banner__reset {
+  margin-left: var(--juli-space-3);
+  font-size: 0.85rem;
+}
+
+.reviewer-fast-forward {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--juli-space-2);
+  margin: 0 0 var(--juli-space-3);
+}

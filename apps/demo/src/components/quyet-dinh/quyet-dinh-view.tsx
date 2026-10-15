@@ -44,7 +44,9 @@ import { buildRunTimeline, type RunKind } from "../../lib/quyet-dinh/timeline";
 import type { RevertQuestion, RunChanges, ShopRules } from "../../lib/quyet-dinh/types";
 import { RUN_LEDGER_POLL_INTERVAL_MS } from "../../lib/run-ledger/panel-config";
 import { groupRunsIntoLedgerSections } from "../../lib/run-ledger/sections";
+import { REVIEWER_FAST_FORWARD_COPY, REVIEWER_SAMPLE_NOTICE } from "../../lib/reviewer/copy";
 import { AppPageHeader } from "../app-shell/page-header";
+import { SimulatedLabel } from "../app-shell/simulated-label";
 import { queueRuns, RunQueue } from "./dang-thuc-hien-panel";
 import { DeXuatPanel } from "./de-xuat-panel";
 import {
@@ -137,6 +139,8 @@ export function QuyetDinhView({
   sample = false,
   cardsRefresh = 0,
   onSimulateApprove,
+  simulated = false,
+  onSimulateMeasure,
 }: {
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string };
@@ -151,7 +155,14 @@ export function QuyetDinhView({
    * P32-A: the partner trial account — "Duyệt" opens the simulated
    * Duyệt → Thực thi for that card; the real approve is never called.
    */
-  readonly onSimulateApprove?: (cardId: string) => void;
+  readonly onSimulateApprove?: (cardIds: readonly string[], proceed: () => void) => void;
+  /**
+   * P32-E (D42 amendment 2): the partner trial account in the sample shop —
+   * every write runs on the in-memory sample store, labelled "Mô phỏng".
+   */
+  readonly simulated?: boolean;
+  /** P32-E: "tua nhanh" the sample runs' measurement to day 7 / day 14 (returns how many moved). */
+  readonly onSimulateMeasure?: (stage: "day7" | "final") => number;
 }) {
   const auth: AuthedOptions = useMemo(() => ({ token, shopId: shop.id }), [token, shop.id]);
   const nowMs = useNow();
@@ -232,6 +243,7 @@ export function QuyetDinhView({
   const [changesByRun, setChangesByRun] = useState<Record<string, ChangesState>>({});
   const [measureByRun, setMeasureByRun] = useState<Record<string, MeasurementState>>({});
   const requested = useRef(new Set<string>());
+  const [measureKey, setMeasureKey] = useState(0);
   useEffect(() => {
     if (query.tab !== "do-luong") return;
     for (const run of runList.filter(isExecutedRun)) {
@@ -246,7 +258,13 @@ export function QuyetDinhView({
         .then((measurement) => setMeasureByRun((map) => ({ ...map, [run.id]: { status: "ready", measurement } })))
         .catch(() => setMeasureByRun((map) => ({ ...map, [run.id]: { status: "ready", measurement: null } })));
     }
-  }, [clients, auth, query.tab, runList]);
+  }, [clients, auth, query.tab, runList, measureKey]);
+  const simulateMeasure = (stage: "day7" | "final") => {
+    if (!onSimulateMeasure) return;
+    onSimulateMeasure(stage);
+    requested.current.clear();
+    setMeasureKey((key) => key + 1);
+  };
 
   // -- cards ---------------------------------------------------------------------
   const items = useMemo(() => (decisions.status === "ready" ? (decisions.data as P10DecisionItem[]) : []), [decisions]);
@@ -271,13 +289,8 @@ export function QuyetDinhView({
 
   const navigate = useCallback((next: Partial<QdQuery>) => onNavigate(qdHref({ ...query, ...next })), [onNavigate, query]);
 
-  const handleApprove = useCallback(
-    (cardIds: readonly string[]) => {
-      if (busy || cardIds.length === 0) return;
-      if (onSimulateApprove) {
-        onSimulateApprove(cardIds[0]);
-        return;
-      }
+  const approveNow = useCallback(
+    (cardIds: readonly string[], openRun = false) => {
       const batch = cardIds.length > 1;
       setBusy(true);
       setApproveErrors([]);
@@ -306,11 +319,25 @@ export function QuyetDinhView({
           }));
         if (ok.length > 0) {
           refreshRuns();
-          if (batch) navigate({ tab: "dang-thuc-hien", run: ok[0].runId, rulesOpen: false });
+          if (batch || openRun) navigate({ tab: "dang-thuc-hien", run: ok[0].runId, rulesOpen: false });
         }
       });
     },
-    [busy, clients, token, shop.id, navigate, refreshRuns, onSimulateApprove],
+    [clients, token, shop.id, navigate, refreshRuns],
+  );
+
+  const handleApprove = useCallback(
+    (cardIds: readonly string[]) => {
+      if (busy || cardIds.length === 0) return;
+      if (onSimulateApprove) {
+        // P32-A / P32-D: the simulated Duyệt → Thực thi first; P32-E: in the
+        // sample shop `proceed` then runs the in-memory approve and opens the run.
+        onSimulateApprove(cardIds, () => approveNow(cardIds, true));
+        return;
+      }
+      approveNow(cardIds);
+    },
+    [busy, approveNow, onSimulateApprove],
   );
 
   const handleReject = useCallback(
@@ -437,7 +464,8 @@ export function QuyetDinhView({
   return (
     <section aria-labelledby="qd-title" className="qd-page">
       <AppPageHeader eyebrow={eyebrow} title={title} titleId="qd-title" />
-      {sample ? (
+      {simulated ? <SimulatedLabel>{REVIEWER_SAMPLE_NOTICE}</SimulatedLabel> : null}
+      {sample && !simulated ? (
         <p className="demo-notice sample-notice" data-testid="mock-data-notice">
           Dữ liệu mẫu · {shop.name} là shop minh họa. Duyệt, từ chối hay xác nhận ở đây chỉ đổi trên trang này, không ghi gì lên TikTok Shop.
         </p>
@@ -461,7 +489,7 @@ export function QuyetDinhView({
       {query.rulesOpen ? (
         rules.status === "ready" ? (
           <RulesEditor
-            offApiReadOnly={sample}
+            offApiReadOnly={sample && !simulated}
             onClose={() => navigate({ rulesOpen: false })}
             onDelete={onDeleteRule}
             onSave={onSaveRule}
@@ -574,6 +602,18 @@ export function QuyetDinhView({
             selectedChip={selectedState && selectedState.runId === selectedRun?.id ? selectedState.chip : null}
             selectedId={selectedRun?.id ?? null}
           />
+        </div>
+      ) : null}
+
+      {query.tab === "do-luong" && onSimulateMeasure ? (
+        <div className="reviewer-fast-forward" data-testid="reviewer-fast-forward">
+          <SimulatedLabel>{REVIEWER_FAST_FORWARD_COPY}</SimulatedLabel>
+          <button className="qv-btn qv-btn--secondary" onClick={() => simulateMeasure("day7")} type="button">
+            Ngày 7 (mô phỏng)
+          </button>
+          <button className="qv-btn qv-btn--secondary" onClick={() => simulateMeasure("final")} type="button">
+            Ngày 14 (mô phỏng)
+          </button>
         </div>
       ) : null}
 

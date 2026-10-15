@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 
-import { REVIEWER_EXECUTE_LABEL, REVIEWER_SIMULATED_LABEL } from "../../lib/reviewer/copy";
+import { REVIEWER_CONTINUE_LABEL, REVIEWER_EXECUTE_LABEL, REVIEWER_SIMULATED_LABEL } from "../../lib/reviewer/copy";
 import type { SimulationResult, SimulationStep } from "../../lib/reviewer/simulation-types";
 
 /**
@@ -31,10 +31,16 @@ const GONE_COPY = "Thẻ này không còn trong danh sách đề xuất.";
 export function SimulationDialog({
   cardId,
   onClose,
+  onContinue,
   simulate,
 }: {
   readonly cardId: string;
   readonly onClose: () => void;
+  /**
+   * P32-E (sample shop only): after the simulated Thực thi, follow the card
+   * through the in-memory sample run ("Theo dõi lượt chạy (mô phỏng) ›").
+   */
+  readonly onContinue?: () => void;
   readonly simulate: Simulate;
 }) {
   const titleId = useId();
@@ -146,6 +152,11 @@ export function SimulationDialog({
               type="button"
             >
               {REVIEWER_EXECUTE_LABEL}
+            </button>
+          ) : null}
+          {executed && onContinue ? (
+            <button className="qv-btn qv-btn--primary" onClick={onContinue} type="button">
+              {REVIEWER_CONTINUE_LABEL}
             </button>
           ) : null}
           <button className="qv-btn qv-btn--secondary" onClick={onClose} type="button">
