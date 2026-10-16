@@ -1234,3 +1234,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      → 2 treated / 1 control. The owner confirms against the banner group already in Ops and
      creates the 2× SKUs on TikTok; the result is read for learning (90 % interval ≈ ±54 %),
      not as a firm verdict.
+  9. **Priors follow the cross-section (owner, 2026-10-16, option A):** the leave-Fujiwa-out
+     run (`funnel/results/generalise/20261016-112135`) found priors that the pooled
+     cross-section (~2,400 listings) contradicts. Free ship: prior +0.20 → about 0; title
+     volume: about 0 → about +0.16/SD; the quantity step for a new shop becomes more
+     conservative (unit-price drop held in only 2/6 categories). Uncertainty stays wide, priors
+     are versioned, and the change applies to the simulator and Ops only.
