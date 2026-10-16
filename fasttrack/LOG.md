@@ -1963,3 +1963,33 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   resolved by keeping both sides. No code overlap (that branch is Ops + backend). Post-merge demo
   gates re-run below.
 - Post-merge (5da55516): demo `tsc` clean, eslint 0 errors, vitest 156 files / 1977 passed.
+
+## 2026-10-16 — P40 agent (Claude Opus) — partner sign-in entry at the top of the auth screen (D47.6)
+- Branch `fasttrack/partner-top` from `fasttrack/optimize-product` 12e692a1. Demo only. Phase P40
+  (P38 = run-reactivate, P39 = search-intent are taken).
+- `components/auth/auth-screen.tsx`: the entry view (plain and trial share it) opens with one link
+  above the h1, an outline pill "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác →" (muted lead,
+  pink action, arrow `aria-hidden`; hairline border, no fill, so Google stays the only filled
+  control). Same href and click handler as the footer link, which stays: in-page `#doi-tac` on
+  `/auth/email`, else `/auth/email#doi-tac`. Not shown in the OTP or partner views. Keyboard order:
+  logo → partner entry → Google → email. Copy `AUTH_PARTNER_TOP_LEAD` / `AUTH_PARTNER_TOP_ACTION`
+  (`lib/auth-screen-copy.ts`, `dictionary.md` `auth.screen` / `auth.password`), CSS
+  `.auth-partner-top` (`app/auth-screen.css`).
+- Tests: `demo-landing` (+1 D47.6 test: href, before the h1, before Google, in `main`, not ink,
+  footer kept; trial test checks the entry too; "keyboard order" now includes it),
+  `auth-email-page` (+1: in-page `#doi-tac`, click opens the partner view, focus on its heading),
+  `reviewer-mode` (+1: the reviewer reaches the password form from the top entry), e2e
+  `landing-doors` (+2: in viewport without scrolling and above the h1 on `/` and the trial variant,
+  no horizontal scroll; click → `/auth/email#doi-tac`).
+- Docs: `shopee-isv-services-information.md` step 1 gives `https://demo.app-juli.com/auth/email#doi-tac`
+  and the top link; `apps/demo/MODULE.md`; D47 implementation note (P40); PROGRESS.
+- Gates (Node 20.20.2; Node 26 breaks jsdom `localStorage` in vitest, so not used): `pnpm install
+  --frozen-lockfile` OK. Demo vitest 156 files / 1983 passed; `tsc` clean; eslint 0 errors (7
+  pre-existing warnings elsewhere). `build:demo --force` (placeholder Supabase env) OK; Playwright
+  `landing-doors.spec.ts` on the local build 22/22 (desktop 960 + mobile 390).
+- `check.sh` (default `--since origin/main`; Docker unresponsive, so CHECK_DATABASE_URL = a
+  throwaway local Postgres 16 in UTC, dropped after): migrations / isolation / gitleaks / ruff PASS;
+  pytest 207 files 3003 passed, 9 failed + 1 error, all pytest timeouts under host load ~35 (no
+  Python diff on this branch); the 11 tests rerun alone all pass.
+- Screenshots (local build, 2x): `/tmp/partner-top-shots/{signin,trial,auth-email}-{1440,390}.png`.
+  At 390 px the pill wraps to two lines (lead / action), still above the heading.
