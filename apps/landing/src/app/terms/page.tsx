@@ -4,7 +4,8 @@ import { LegalPage, LegalSection } from "../privacy/legal-template";
 
 export const metadata = buildMetadata("/terms");
 
-const LAST_UPDATED = "15/10/2026";
+const VERSION = "2.1";
+const LAST_UPDATED = "16/10/2026";
 
 /**
  * "Tóm tắt dễ hiểu" (D44): each line restates a numbered section below
@@ -43,6 +44,7 @@ export default function TermsOfServicePage() {
         title="Điều khoản dịch vụ"
         toc={TOC}
         updated={LAST_UPDATED}
+        version={VERSION}
       >
           <LegalSection headingId="dieu-1" num="1." title="Giới thiệu">
             <p>
@@ -59,8 +61,8 @@ export default function TermsOfServicePage() {
 
           <LegalSection headingId="dieu-2" num="2." title="Juli AI là gì">
             <p>
-              Juli AI là trợ lý giúp người bán TikTok Shop tăng trưởng và tối ưu vận hành:
-              theo dõi shop, phân tích dữ liệu (đơn hàng, sản phẩm, tồn kho, đơn hoàn, hiệu
+              Juli AI là trợ lý giúp người bán TMĐT tăng trưởng và tối ưu vận hành (hiện kết
+              nối TikTok Shop, Shopee đang tích hợp): theo dõi shop, phân tích dữ liệu (đơn hàng, sản phẩm, tồn kho, đơn hoàn, hiệu
               suất theo từng luồng truy cập) và đề xuất hành động phù hợp. Bạn phê duyệt,
               Juli mới thực hiện — Juli không tự động thay đổi shop thật của bạn nếu chưa có
               sự đồng ý của bạn, và mỗi thao tác trên shop thật (ví dụ: tạo mã giảm giá) cần
@@ -71,9 +73,9 @@ export default function TermsOfServicePage() {
           <LegalSection headingId="dieu-3" num="3." title="Tài khoản của bạn">
             <p>
               Bạn phải từ 18 tuổi trở lên để sử dụng Juli. Bạn tạo và truy cập tài khoản
-              Juli bằng cách đăng nhập với Google. Bạn chịu trách nhiệm bảo mật tài khoản
-              Google của mình; mọi hoạt động qua tài khoản Google đã đăng nhập được xem là
-              hoạt động của bạn.
+              Juli bằng cách đăng nhập với Google hoặc bằng email với mã xác thực. Bạn chịu
+              trách nhiệm bảo mật tài khoản Google và hộp thư email của mình; mọi hoạt động
+              qua tài khoản đã đăng nhập được xem là hoạt động của bạn.
             </p>
           </LegalSection>
 

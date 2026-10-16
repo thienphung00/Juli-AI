@@ -1830,7 +1830,7 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   AOV and items per order on every verdict, CTR guard (> 15 % drop warns, even if AOV rose);
   pre-period rule by group size (D45.6); drift floor + traffic needed under each group (D45.4);
   one-line "lý do chọn thử nghiệm" (D45.3, manual). Tunables `group_two_window_min` (15),
-  `group_guard_ctr_drop` (15), `group_drift_sigma` (0.15). Details: DECISIONS D45 item 9.
+  `group_guard_ctr_drop` (15), `group_drift_sigma` (0.15). Details: DECISIONS D45 item 10.
 - **Scope decision:** a card-drawn group's primary verdict feeds the seller's "Kết quả nhóm", so it
   keeps the P31 rule; the D45.6 reading is stored beside it (`verdict.ops_rule`) and shown in Ops
   only. Ops groups and the new metrics use D45.6. Card groups switched off → only Ops groups are
@@ -1860,3 +1860,14 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   Owner decision suggested: keep θ = 1 below 15 (as D45.6 says) or set it back to the P31 θ.
 - Gates: see the hand-back (full `fasttrack/check.sh`, `test_chi_so_docs_vocabulary.py`, demo
   vitest / tsc / eslint on the Ops files).
+
+- D46.8 terms 2.1 (owner, 2026-10-16): /terms shows "Phiên bản 2.1 · Cập nhật lần cuối: 16/10/2026";
+  §2 "người bán TMĐT … (hiện kết nối TikTok Shop, Shopee đang tích hợp)" (site without the
+  "tên gọi khác JustLiveAI" alias, owner's call); §3 sign-in "với Google hoặc bằng email với mã xác
+  thực" as in the md. md `~/Downloads/b2b_document/md/01_Dieu_khoan_dich_vu_v2.md` → 2.1 / 16/10/2026
+  with the same §2 sentence (alias kept); backup in `_luu_tru/…bak-2026-10-16`. Not synced (owner
+  informed): the site /terms is a 10-section text that never carried md v2.0's §5 contract, §6
+  VAT/auto-renew/invoices, §7 acceptance, §10 data, §11 confidentiality, §13 liability cap, §15
+  governing law; the md lacks the site's 3-month trial and Shopee paragraph; the Ory contract cites
+  "phiên bản 2.0 (ngày 14/10/2026)". /privacy also differs from its md (~20 blocks).
+  Landing gates: lint / type-check / vitest 227 / build / check:seo PASS.

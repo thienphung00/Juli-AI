@@ -23,6 +23,8 @@ export interface LegalPageProps {
   /** dd/mm/yyyy */
   updated: string;
   effective: string;
+  /** Shown before the dates, e.g. "2.1" (the terms are versioned, §9). */
+  version?: string;
   /** Plain-language summary bullets — only what the full text already says. */
   summary: readonly ReactNode[];
   /** TOC entries after "Tóm tắt dễ hiểu" (the summary entry is added here). */
@@ -39,6 +41,7 @@ export function LegalPage({
   title,
   updated,
   effective,
+  version,
   summary,
   toc,
   englishHref,
@@ -59,7 +62,8 @@ export function LegalPage({
                 {title}
               </Heading>
               <p className={styles.dates}>
-                Cập nhật lần cuối: {updated} · Có hiệu lực từ {effective}
+                {version ? `Phiên bản ${version} · ` : null}Cập nhật lần cuối: {updated} · Có
+                hiệu lực từ {effective}
               </p>
             </div>
             {englishHref ? (
