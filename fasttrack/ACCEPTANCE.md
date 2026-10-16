@@ -766,6 +766,9 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 - [ ] **AC-35.6** (D45.5) `/san-pham` hero copy in one left column (eyebrow → H1 → intro → CTAs),
   shot on the right, stacked on phones; homepage H1 = "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện
   GMV."; home `<title>` / description still name TikTok Shop; price card untouched.
+- [ ] **AC-35.7** (D45.6) "Sàn Juli kết nối" is a non-heading label; heading guard (one H1 first,
+  no skipped level, no empty heading, none in header / nav / footer) passes on every public page in
+  vitest and in `check:seo`.
 - [ ] **AC-35.5** Gates: landing lint / type-check / vitest / build / `check:seo`;
   `check.sh --since 8c03c6a5` 5/5; local Lighthouse mobile (3 runs) `/` and `/san-pham` perf ≥ 95,
   LCP ≤ 2.5 s, a11y 100; screenshots 1440 + 390 under `.p35-logs/shots/`.

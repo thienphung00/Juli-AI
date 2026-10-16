@@ -118,10 +118,11 @@ export function MarketplaceStrip() {
   return (
     <Section labelledBy="marketplace-heading" spacing="none" tone="alt" className={styles.strip}>
       <div className={styles.stripInner}>
-        <h2 className={styles.stripHeading} id="marketplace-heading">
+        {/* A label, not a section heading (D45.6): it names the strip region and the list. */}
+        <p className={styles.stripHeading} id="marketplace-heading">
           Sàn Juli kết nối
-        </h2>
-        <ul className={styles.markets}>
+        </p>
+        <ul aria-labelledby="marketplace-heading" className={styles.markets}>
           <li className={styles.market} data-testid="market-tiktok">
             <span className={styles.marketName}>TikTok Shop</span>
             <StatusPill status="live" />

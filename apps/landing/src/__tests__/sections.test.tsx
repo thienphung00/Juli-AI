@@ -30,8 +30,11 @@ describe("homepage (D43.2 + D44)", () => {
     render(<LandingPage />);
 
     const h2s = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    // "Sàn Juli kết nối" is the marketplace strip's label, not a heading (D45.6).
+    const strip = screen.getByRole("region", { name: "Sàn Juli kết nối" });
+    expect(strip.querySelector("h1, h2, h3, h4, h5, h6")).toBeNull();
+    expect(within(strip).getByRole("list", { name: "Sàn Juli kết nối" })).toBeInTheDocument();
     expect(h2s).toEqual([
-      "Sàn Juli kết nối",
       "Năm bước, và bạn luôn là người quyết định.",
       CAPABILITY_ROWS.analysis.title,
       CAPABILITY_ROWS.actions.title,

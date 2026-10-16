@@ -1168,3 +1168,8 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      runs to 5 lines at 1440). "TikTok Shop" stays in the home `<title>` and meta description
      (unchanged). The P34 mockups in `fasttrack/design/p34/` keep the old H1 as the historical
      spec. (c) The home price card is not touched (fixed in 8c03c6a5).
+  6. **Heading outline** (owner follow-up, 2026-10-16): the home marketplace strip's "Sàn Juli kết
+     nối" is a label (`<p>` naming the strip region and its list), not an H2. Guard on every public
+     page, both rendered (`__tests__/heading-outline.test.tsx`) and built (`check:seo`): exactly one
+     H1 and it comes first, no skipped level, no empty heading, no heading inside the site header
+     (incl. the dropdown), any nav, or the footer.
