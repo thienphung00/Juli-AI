@@ -45,6 +45,9 @@ export const COVERS = [
   { name: "chi-so-ctr-ctor-aov-v1", category: "metrics", motif: "bars", accent: 2 },
   { name: "the-san-pham-v1", category: "optimize", motif: "card" },
   { name: "cong-cu-2026-v1", category: "tools", motif: "tiles", accent: 4 },
+  { name: "gmv-la-gi-v1", category: "metrics", motif: "bars", accent: 0 },
+  { name: "khong-ra-don-v1", category: "guide", motif: "checklist", accent: 0 },
+  { name: "doanh-thu-giam-v1", category: "metrics", motif: "bars", accent: 3 },
 ];
 
 const MOTIF_BY_CATEGORY = { metrics: "bars", optimize: "card", tools: "tiles", guide: "checklist" };
