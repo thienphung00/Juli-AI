@@ -1,6 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { BLOG_FIGURES } from "../../content/blog/figures";
+import { BlogFigureView } from "./figure";
+
 /**
  * A deliberately small Markdown subset for blog bodies, parsed and rendered on
  * the server (no client JS, no dependency). Supported:
@@ -11,6 +14,7 @@ import type { ReactNode } from "react";
  *   > callout line          (consecutive lines join into one callout)
  *   | a | b |               table: header row, `|---|---|` row, body rows
  *   **bold**   [text](/internal-or-https-url)
+ *   {{hinh:gmv-pheu}}       figure on a line of its own (id from content/blog/figures.ts)
  *
  * Anything else is plain text. No raw HTML.
  */
@@ -20,7 +24,11 @@ export type Block =
   | { kind: "p"; text: string }
   | { kind: "ul" | "ol"; items: string[] }
   | { kind: "callout"; lines: string[] }
-  | { kind: "table"; header: string[]; rows: string[][] };
+  | { kind: "table"; header: string[]; rows: string[][] }
+  | { kind: "figure"; id: string };
+
+/** `{{hinh:<id>}}` on a line of its own: an inline figure (D48 additions 7). */
+const FIGURE_LINE = /^\{\{hinh:([a-z0-9-]+)\}\}$/;
 
 export interface TocEntry {
   id: string;
@@ -76,6 +84,15 @@ export function parseMarkdown(source: string): Block[] {
       i += 1;
       continue;
     }
+    const figure = FIGURE_LINE.exec(trimmed);
+    if (figure) {
+      blocks.push({ kind: "figure", id: figure[1]! });
+      i += 1;
+      continue;
+    }
+    if (trimmed.startsWith("{{")) {
+      throw new Error(`Blog markdown: a figure line is {{hinh:<id>}} ("${trimmed.slice(0, 40)}")`);
+    }
     if (/^#\s/.test(trimmed) || /^#{4,}\s/.test(trimmed)) {
       throw new Error(`Blog markdown: only ## and ### headings are allowed ("${trimmed.slice(0, 40)}")`);
     }
@@ -114,7 +131,7 @@ export function parseMarkdown(source: string): Block[] {
     const paragraph: string[] = [];
     while (i < lines.length) {
       const next = lines[i]!.trim();
-      if (next === "" || /^(#{1,6}\s|\||>|[-*]\s|\d+\.\s)/.test(next)) break;
+      if (next === "" || /^(#{1,6}\s|\||>|[-*]\s|\d+\.\s|\{\{)/.test(next)) break;
       paragraph.push(next);
       i += 1;
     }
@@ -135,6 +152,7 @@ export function markdownLinks(source: string): string[] {
 /** Visible words (space-separated tokens) after stripping Markdown syntax. */
 export function countWords(source: string): number {
   const text = source
+    .replace(/^\s*\{\{hinh:[^}]*\}\}\s*$/gm, "")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/\*\*/g, "")
     .replace(/^#{2,3}\s+/gm, "")
@@ -198,6 +216,11 @@ export function MarkdownBlocks({
       {blocks.map((block, index) => {
         const key = `b${index}`;
         switch (block.kind) {
+          case "figure": {
+            const figure = BLOG_FIGURES[block.id];
+            if (!figure) throw new Error(`Blog markdown: unknown figure "${block.id}" (content/blog/figures.ts)`);
+            return <BlogFigureView figure={figure} key={key} />;
+          }
           case "h2":
             return (
               <h2 className="lp-blog__h2" id={block.id} key={key}>

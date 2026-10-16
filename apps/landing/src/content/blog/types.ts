@@ -29,6 +29,29 @@ export interface BlogCover {
   og: OgImage;
 }
 
+/**
+ * An inline figure in a post body (D48 additions 7, P39-C), placed with a
+ * `{{hinh:<id>}}` line and defined in `./figures.ts`. Always lazy-loaded and
+ * never prioritised: the post's H1 stays the LCP.
+ */
+export interface BlogFigure {
+  /**
+   * `diagram`: rendered from HTML by `scripts/blog-diagrams.mjs` (any number in
+   * it is labelled "Ví dụ giả định"). `screenshot`: a real Juli screen on the
+   * sample shop "Cửa hàng Mẫu Hoa Mai" (`public/media/cap-*`), framed and
+   * captioned "Dữ liệu mẫu" like the product pages.
+   */
+  kind: "diagram" | "screenshot";
+  /** Desktop variants (AVIF + WebP, intrinsic width/height). */
+  variants: readonly MediaSource[];
+  /** Phone variants (≤ 640 px): own layout or crop so the text stays legible. */
+  mobileVariants: readonly MediaSource[];
+  /** Vietnamese; says everything the picture says (it carries text). */
+  alt: string;
+  /** Visible Vietnamese caption. A screenshot's starts with "Dữ liệu mẫu · ". */
+  caption: string;
+}
+
 export interface BlogSource {
   /** Page title as the source shows it (TikTok Academy title, vendor page name). */
   title: string;

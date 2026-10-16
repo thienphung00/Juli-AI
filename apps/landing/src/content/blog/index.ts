@@ -4,9 +4,11 @@ import type { BlogPost, BlogPostMeta } from "./types";
 
 export { BLOG_POSTS } from "./posts";
 export { BLOG_CATEGORIES, BLOG_CATEGORY_ORDER, blogCover } from "./covers";
+export { BLOG_FIGURES } from "./figures";
 export type {
   BlogCategory,
   BlogCover,
+  BlogFigure,
   BlogPost,
   BlogPostMeta,
   BlogPostStatus,

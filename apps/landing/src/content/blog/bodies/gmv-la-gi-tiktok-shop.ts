@@ -107,6 +107,8 @@ Giả sử một sản phẩm trong 30 ngày có các số sau (số giả đị
 
 Đọc theo từng hàng: 50.000 lượt hiển thị nhân 3 % ra 1.500 lượt nhấp; 1.500 nhân 4 % ra 60 đơn hàng SKU; 60 nhân 180.000 ₫ ra 10.800.000 ₫. Mỗi hàng là một câu hỏi riêng: có đủ người nhìn thấy sản phẩm không, người thấy có nhấp không, người nhấp có mua không, và mỗi lần mua được bao nhiêu tiền.
 
+{{hinh:gmv-pheu}}
+
 ### Vì sao công thức này giúp tăng GMV
 
 Công thức phễu biến câu hỏi mơ hồ "làm sao tăng GMV" thành bốn câu hỏi cụ thể. Nếu CTR tăng từ 3 % lên 3,6 % trong ví dụ trên, trong khi ba chỉ số còn lại giữ nguyên, GMV tăng đúng 20 %, lên 12.960.000 ₫. Nếu AOV tăng từ 180.000 ₫ lên 198.000 ₫, GMV cũng tăng 20 %. Hai thay đổi cho cùng một kết quả nhưng đòi hỏi hai loại việc khác hẳn nhau: một bên là ảnh bìa, tiêu đề và giá hiển thị, bên kia là chương trình mua nhiều hay cơ cấu quy cách. Biết bước nào đang yếu giúp bạn chọn đúng việc.
@@ -131,6 +133,8 @@ Theo bài "Thẻ Sản Phẩm" của Học viện TikTok Shop, doanh thu "đư�
 
 Một lưu ý về Tab cửa hàng: trong bảng khía cạnh của TikTok, Tab Cửa hàng có Lượt nhấp, CTR và CTOR nhưng không nằm trong danh sách khía cạnh của Lượt hiển thị sản phẩm. Với luồng này, hãy tính từ Lượt nhấp: GMV = Lượt nhấp × CTOR × AOV.
 
+{{hinh:nam-luong}}
+
 ### Ví dụ giả định: GMV của một shop theo năm luồng
 
 Giả sử một shop trong 30 ngày có (toàn bộ là số giả định):
@@ -153,6 +157,8 @@ CTOR toàn shop trong ví dụ là khoảng 5,1 %, nhưng không luồng nào c�
 ## Tìm bước yếu nhất trong phễu
 
 Có công thức và bảng theo luồng, việc tìm chỗ cần sửa trở thành một quy trình bốn bước. Mục tiêu là tìm một điểm nghẽn cụ thể, ở một luồng cụ thể, trên một vài sản phẩm cụ thể, thay vì sửa mọi thứ cùng lúc.
+
+{{hinh:buoc-yeu-nhat}}
 
 ### Bước 1: luồng nào thay đổi nhiều nhất
 
@@ -228,6 +234,8 @@ Tăng GMV không kết thúc ở lúc bạn bấm lưu. Nếu không đo lại, 
 2. **So sánh cửa sổ trước và sau.** Juli dùng 14 ngày trước thay đổi, đọc sơ bộ sau 7 ngày và kết luận sau 14 ngày.
 3. **Đo đúng hệ số mà thay đổi nhắm tới, và so với nhóm sản phẩm không thay đổi.** Đổi ảnh bìa thì đọc CTR trước. Thêm Mua Sỉ Giá Hời thì đọc AOV. Nếu các sản phẩm không sửa cũng tăng như sản phẩm đã sửa, có thể cả shop đang được hưởng một đợt traffic chung, không phải nhờ thay đổi của bạn.
 
+{{hinh:dl-tang-them}}
+
 Ghi lại cả những kết quả "không đổi". Chúng cho biết thành phần đó không phải điểm nghẽn, và lần sau bạn có thể bỏ qua.
 
 ## Juli AI giúp gì trong việc tăng GMV
@@ -237,6 +245,8 @@ Juli AI là trợ lý AI cho nhà bán TMĐT do chúng tôi phát triển, hiệ
 - **Phân tích**: [phân tích shop theo từng luồng truy cập](/san-pham/phan-tich-shop), tách GMV theo năm luồng (Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết) và theo bốn hệ số Lượt hiển thị × CTR × CTOR × AOV, rồi chỉ ra sản phẩm nào đang mất khách ở bước nào.
 - **Đề xuất**: [đề xuất cách sửa kèm lý do bằng số](/san-pham/de-xuat-va-thuc-thi). Juli chỉ ghi tiêu đề và mô tả sản phẩm lên shop sau khi bạn duyệt; những thay đổi khác như giá hay khuyến mãi là đề xuất để bạn tự quyết định và thực hiện.
 - **Đo lường**: [đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 (sơ bộ) và ngày 14 (chốt), bằng đúng công thức phễu.
+
+{{hinh:pt-luong}}
 
 Juli không chạy quảng cáo và không quản lý đơn hàng hay tồn kho; Juli đọc dữ liệu qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop). Xem tổng quan tại trang [sản phẩm Juli AI](/san-pham).
 
