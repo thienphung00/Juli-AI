@@ -108,7 +108,6 @@ describe("public product and company pages", () => {
     expect(img.getAttribute("alt")).toMatch(/\(dữ liệu mẫu\)$/);
     expect(img).toHaveAttribute("loading", "lazy");
     expect(img.getAttribute("fetchpriority") ?? "auto").not.toBe("high");
-    expect(figure.querySelector('source[media]'), "mobile crop").not.toBeNull();
     // The H1 and both CTAs sit next to the shot, in the same hero.
     expect(within(hero).getByRole("heading", { level: 1 })).toBeInTheDocument();
     expect(within(hero).getByTestId("product-trial-cta")).toBeInTheDocument();

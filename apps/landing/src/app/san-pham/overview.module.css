@@ -43,8 +43,13 @@
     padding-bottom: var(--lp-space-12);
   }
 
+  /* Two columns: a little smaller than the page H1 so it holds in four lines. */
+  .heroCopy .heroHeading {
+    font-size: 2.75rem;
+  }
+
   .heroSplit {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
     gap: var(--lp-space-12);
     align-items: center;
   }

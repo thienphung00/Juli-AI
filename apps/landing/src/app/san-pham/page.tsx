@@ -3,8 +3,7 @@ import Link from "next/link";
 import {
   CAP_DL_TANG_THEM,
   CAP_DL_TANG_THEM_MOBILE,
-  CAP_DX_LUOT_CHAY,
-  CAP_DX_LUOT_CHAY_MOBILE,
+  CAP_DX_LUOT_CHAY_MOBILE as CAP_DX_LUOT_CHAY_CROP,
   CAP_DX_THE,
   CAP_PT_XEP_HANG,
   CAP_PT_XEP_HANG_MOBILE,
@@ -244,7 +243,7 @@ export default function ProductPage() {
             <div className={styles.heroSplit}>
               <div className={styles.heroCopy}>
                 <Eyebrow>Sản phẩm</Eyebrow>
-                <Heading id="product-heading" level={1} size="page">
+                <Heading className={styles.heroHeading} id="product-heading" level={1} size="page">
                   Juli AI: phần mềm AI vận hành TikTok Shop, từ phân tích đến đo GMV tăng thêm
                 </Heading>
                 <p className="ui-lead">
@@ -267,11 +266,12 @@ export default function ProductPage() {
                 chrome="Quyết định · Juli"
                 className={styles.heroShot}
                 images={{
-                  alt: "Lượt chạy của một thẻ đề xuất: đã qua Phân tích, Đề xuất, Duyệt và Thực thi, từng bước có giờ thực hiện, giá trị cũ đã lưu và lịch đo ngày 7, ngày 14 (dữ liệu mẫu)",
-                  mobileVariants: CAP_DX_LUOT_CHAY_MOBILE,
-                  variants: CAP_DX_LUOT_CHAY,
+                  alt: "Lượt chạy của một thẻ đề xuất: Phân tích, Đề xuất, Duyệt và Thực thi đã xong, Đo lường đang chờ; Juli đã ghi tiêu đề lên TikTok Shop và lưu giá trị cũ (dữ liệu mẫu)",
+                  // The 640 px crop at every width: the full 1280 capture shrinks its text
+                  // below readable in a half-width hero column.
+                  variants: CAP_DX_LUOT_CHAY_CROP,
                 }}
-                sizes="(min-width: 1200px) 640px, (min-width: 960px) 55vw, 100vw"
+                sizes="(min-width: 960px) 600px, 100vw"
               />
             </div>
           </Container>
