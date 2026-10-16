@@ -1254,8 +1254,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      pending; 7 days untouched → expired; Seller Center / promotion runs with no recorded write
      stay running as in the real `_status`. Home and Phân tích sample views follow the same
      store.
-  3. **Reviewer on the pinned, masked Fujiwa (amends D42, Q2 yes):** Duyệt moves the card to
-     "Đang thực hiện" and walks the simulated run like the sample shop, still with no real run
-     and no TikTok write. The owner asked how the reviewer can sign in without a code — options
-     to be proposed, no auth change without approval.
+  3. **Reviewer (Q2 yes; D42 amendments 1–2 unchanged):** production keeps the reviewer on the
+     **sample shop** (REVIEWER_SHOP_ID unset, so Fujiwa's products are never shown). The reviewer
+     shares the sample store, so item 2's lifecycle applies to the reviewer too; the pinned
+     Fujiwa mode is not changed. Sign-in stays D42.2: team-created **email + password**
+     reviewer accounts, no OTP code needed.
   4. **Shopee connection status in Ops (Q3):** not needed now.
