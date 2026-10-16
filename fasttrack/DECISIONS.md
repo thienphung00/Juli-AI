@@ -1295,6 +1295,10 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      failed run today, a run that ends `cancelled` or `timed_out` puts its approved card back to
      `active` (clears `approved_at`), so the seller sees "Chờ duyệt" again instead of a card stuck
      on "Đang thực hiện"; the demo sample (P37) already does this.
+  6. **Partner sign-in visible at the top (owner, 2026-10-16; amends D44.5):** the demo auth
+     screen shows the "Tài khoản đối tác" entry at the top of the sign-in column (above the
+     heading, clearly secondary to "Tiếp tục với Google"), so a partner reviewer finds it without
+     scrolling; the footer link stays.
 
   **D47 implementation note (P37, 2026-10-16, branch `fasttrack/demo-lifecycle`).** Item 2 lives in
   `apps/demo/src/lib/quyet-dinh/sample-clients.ts`: each card keeps a desk status like
@@ -1333,3 +1337,49 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   `surfaced_at` is kept: a reactivated card older than 7 days is "Hết hạn" on the next read and is
   expired by the next emission-budget pass; a younger one counts as open again (it did not while
   approved). Logged as `action_card_reactivated_after_run`.
+
+- **D48** — Search-intent brand priorities on app-juli.com (owner, 2026-10-16: "áp 5 brand
+  priorities lên trang", using the Semrush numbers). Evidence: Semrush Keyword Magic, database
+  Vietnam, free plan (10 rows per seed, 10 requests/day), 2026-10-16. Volume / KD / intent:
+  `gmv là gì` 4,400 / 21 / I; `gmv` 1,600 / 25 / I; `cách bán hàng trên tiktok shop` 1,300 / 28 / I;
+  `bán hàng trên tiktok shop` 1,000 / 34 / I; `cách chạy quảng cáo tiktok` 1,600 / 22 / I;
+  `tiktok shop` 135,000 / 40. No Semrush data (volume too small for the VN database, but present in
+  Google autocomplete): phần mềm / quản lý / phân tích / tối ưu tiktok shop, gmv max, tăng doanh số
+  tiktok, không ra đơn, ctr tiktok. The five priorities and where each lands:
+  1. **Phần mềm AI phân tích và vận hành TikTok Shop** (commercial) → `/san-pham` title and meta.
+     Home title and H1 stay as the owner set them (D46, f7337452).
+  2. **Cách tăng GMV TikTok Shop** (informational; `gmv là gì` is the biggest term) → a home FAQ
+     "GMV là gì, tăng GMV TikTok Shop bằng cách nào?" (in FAQPage schema) and
+     `/san-pham/phan-tich-shop` title / meta / one H2 worded around tăng GMV.
+  3. **TikTok Shop không ra đơn: tìm nguyên nhân qua CTR, CTOR, AOV** → `/san-pham/phan-tich-shop`
+     H2 or FAQ "Vì sao shop TikTok không ra đơn?".
+  4. **Tối ưu sản phẩm TikTok Shop** → `/san-pham/de-xuat-va-thuc-thi` title / meta / H2, naming
+     only what Juli actually writes (title, description) per SPEC; no claim it edits images.
+  5. **ROI và ngân sách GMV Max** → **no page copy**: Juli does not run ads, and an AI tool must
+     not read it as an ads manager. Blog-only, later (DEBT).
+  ISV truth rules (D42, D46) hold: TMĐT-first positioning, "hiện kết nối TikTok Shop, Shopee đang
+  tích hợp", no Lazada / Tiki, no invented numbers, no "—" in visible copy. Also fixes the `/terms`
+  meta description, which still said "kết nối TikTok Shop và Shopee" (terms 2.1 says Shopee is in
+  progress). Blog drafts stay drafts (owner approves posts). Implemented in P39.
+- **D48 additions** (owner, 2026-10-16, after the Semrush Site Audit of app-juli.com, crawl
+  2026-10-16 12:50, 18 pages, Site Health 91 %, ships in the same deploy as P39):
+  1. **AI tiêu đề / mô tả section** on `/san-pham/de-xuat-va-thuc-thi` (competitor research:
+     Sapo help ranks #3 for "viết mô tả sản phẩm shopee bằng AI"; FastMoss has an AI title tool):
+     Juli drafts the title and description, writes them only after the seller approves, measures at
+     day 7 / 14. No claim beyond SPEC.
+  2. **Structured data error** (4 pages): `SoftwareApplication` on `/san-pham` and the three
+     capability pages fails Google's required `aggregateRating` or `review`. Juli has no real
+     reviews (D43.3), so ratings are **never** invented: switch the type (e.g. `Service` with
+     provider + offers on `/san-pham`, capability pages reference it by `@id`), keep Organization,
+     WebSite, BreadcrumbList, FAQPage.
+  3. **Broken internal links / 4XX** (13 links, 1 URL): Cloudflare Email Address Obfuscation
+     rewrites every `mailto:` into `/cdn-cgi/l/email-protection` (404 without JS). Fix is a
+     Cloudflare setting for app-juli.com (owner action, not code).
+  4. **`/llms.txt`** (notice, 404 today): add a short Vietnamese llms.txt listing the public pages.
+  5. Not fixed, with reason: low text-HTML ratio (Next.js payload, not thin copy); low word count
+     on `/blog` (grows as posts are published), `/contact`, `/dang-ky` (task pages); `/privacy`
+     long paragraphs (legal text must stay in sync with the md and contract, juli legal sync).
+  6. **Three new blog posts, in Vietnamese** (no English body text; TikTok's own Vietnamese metric
+     labels such as CTR, CTOR, AOV stay as TikTok writes them), status `draft` until the owner
+     approves: "GMV là gì" (Semrush VN 4,400/month, KD 21), "TikTok Shop không ra đơn", "Doanh thu
+     TikTok Shop giảm: checklist". Branch `fasttrack/p39b-blog` (P39-B).

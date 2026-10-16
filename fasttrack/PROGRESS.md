@@ -197,6 +197,15 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 |---|---|---|---|
 | P38 One shared helper (`services/agent/card_reactivation.py`) puts an approved card back to `active` when its run ends `failed`, `cancelled` or `timed_out` (runner persist, crash handler, reaper); seller declines / reverts stay `dismissed` | D47.5 | done on branch `fasttrack/run-reactivate` (from 175e85ef, `fasttrack/optimize-product` merged in) — not merged, not deployed | P38 agent (Opus) |
 
+## P39 — search-intent brand priorities on the pages (D48)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P39 Titles, meta, H2s and FAQs for D48 items 1–4; `/terms` meta fix | D48 | in progress, branch `fasttrack/p39-search-intent` | P39 agent (Opus) |
+| P39 additions: AI tiêu đề/mô tả section, structured data type, llms.txt | D48 additions 1, 2, 4 | in progress, branch `fasttrack/p39-search-intent` | P39 agent (Opus) |
+| P39-B Three Vietnamese blog posts (draft) | D48 additions 6 | in progress, branch `fasttrack/p39b-blog` | P39-B agent (Opus) |
+| Owner: turn off Cloudflare Email Address Obfuscation for app-juli.com | D48 additions 3 | todo | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
