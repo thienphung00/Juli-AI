@@ -6,8 +6,8 @@ export const CORE_ROUTES: readonly SiteRoute[] = [
     path: "/",
     title: "Trợ lý AI vận hành TMĐT cho nhà bán TikTok Shop | Juli AI",
     description:
-      "Trợ lý AI cho nhà bán TMĐT, hiện kết nối TikTok Shop: đọc CTR, CTOR, AOV, đề xuất việc cần làm, thực thi khi bạn duyệt, đo GMV tăng thêm.",
-    lastModified: "2026-10-15",
+      "Trợ lý AI cho nhà bán TMĐT, hiện kết nối TikTok Shop: phân tích CTR, CTOR, AOV, đề xuất việc cần làm, thực thi khi bạn duyệt, đo GMV tăng thêm.",
+    lastModified: "2026-10-16",
     breadcrumbName: "Trang chủ",
     changeFrequency: "weekly",
     priority: 1,
@@ -46,7 +46,7 @@ export const CORE_ROUTES: readonly SiteRoute[] = [
     path: "/terms",
     title: "Điều khoản dịch vụ | Juli AI",
     description:
-      "Điều khoản sử dụng Juli AI: tài khoản, kết nối TikTok Shop và Shopee, phí dịch vụ 500.000đ/tháng, đề xuất của Juli, chấm dứt và liên hệ.",
+      "Điều khoản sử dụng Juli AI: tài khoản, kết nối (hiện TikTok Shop, Shopee đang tích hợp), phí dịch vụ 500.000đ/tháng, đề xuất của Juli, chấm dứt và liên hệ.",
     lastModified: "2026-10-16",
     breadcrumbName: "Điều khoản dịch vụ",
     changeFrequency: "yearly",
