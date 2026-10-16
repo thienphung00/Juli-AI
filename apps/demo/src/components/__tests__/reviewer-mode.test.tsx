@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import EmailSignInPage from "../../app/auth/email/page";
 import type { SimulationResult } from "../../lib/reviewer/api-client";
 import { REVIEWER_BANNER_COPY, REVIEWER_READ_ONLY_TITLE, REVIEWER_SIMULATED_LABEL } from "../../lib/reviewer/copy";
 import { StaticReviewerProvider } from "../../lib/reviewer/mode";
@@ -106,6 +107,25 @@ describe("password sign-in (Tài khoản đối tác)", () => {
     await open({ signIn: vi.fn().mockResolvedValue({ ok: false, error: "wrong" }), fetchMe });
     expect(await screen.findByText("Sai email hoặc mật khẩu.")).toBeInTheDocument();
     expect(fetchMe).not.toHaveBeenCalled();
+  });
+
+  it("D47.6: a reviewer reaches this form from the entry at the top of /auth/email, no scrolling to the footer", async () => {
+    window.history.replaceState(null, "", "/auth/email");
+    const user = userEvent.setup();
+    render(<EmailSignInPage />);
+
+    const top = screen.getByRole("link", { name: "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác" });
+    // The first control of the column, ahead of the seller heading.
+    expect(
+      top.compareDocumentPosition(screen.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await user.click(top);
+
+    expect(screen.getByRole("form", { name: "Đăng nhập bằng mật khẩu" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Mật khẩu")).toHaveAttribute("autocomplete", "current-password");
+    window.history.replaceState(null, "", "/");
   });
 
   it("offers no sign-up and no password reset", async () => {
