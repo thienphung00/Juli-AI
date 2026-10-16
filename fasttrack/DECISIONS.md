@@ -1136,3 +1136,33 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      footer link to its own form; right panel with a product shot on desktop; trial variant
      (`?dang-ky=dung-thu`) = same layout, copy only; OTP 6-box entry with error / expired / resend
      states.
+
+- **D45** — Putting the simulator research priorities into Ops (grill G1–G6, product owner,
+  2026-10-16). Source: `~/juli-sim-pilot/research/funnel_priorities.md` (token-free segment
+  funnel simulator v1 + research run `20261015-212942` + literature review). **Scope rule:**
+  everything simulator-related lives in **Ops only**, for internal use and testing; the
+  client-facing app is unchanged until the method is optimised and the owner decides to ship it.
+  1. **Pack group (G1A):** a D34 group testing "add a 2× pack at −5 % per unit", run in parallel
+     with the D34 #1 price-banner group on **different products**: 4 treated + 2 control among
+     the busiest products, 4 weeks. The owner creates the SKU on TikTok; Juli never writes it.
+  2. **Pack metric (G2A):** primary = AOV and items per order on **all channels**; product-card
+     CTR is a guard (warn when it falls > 15 % even if AOV rises). The P31 group verdict gains
+     AOV (90 % interval, false-alarm replay, pre-period adjustment). Research: all-channel order
+     value SE 0.16 vs product-card GMV/impression 0.90.
+  3. **Test selection (G3A):** pick the next group by knowledge gradient (6 simulated waves:
+     loss vs true best 5.2 % → 3.2 %, vs 4.7 % for "top predicted"), only among proposals
+     predicted no worse than the original; each group shows a one-line reason in Ops. The
+     simulator suggests and the owner approves in Ops; backend selection only after 2–3 D34
+     groups have results.
+  4. **Drift floor (G4B):** Ops shows the weekly-drift floor of a group's 90 % interval
+     (σ 0.15/week: 6 products × 2 weeks ±10.1 %, 26 × 2 weeks ±4.8 %) next to the impressions
+     needed; no label, no gate.
+  5. **New SKU prior (G5B):** the simulator gives a new pack option an attractiveness offset of
+     −1 by default (2× pack: +15 % GMV/impression instead of +37 %), learns the real offset from
+     the pack group by re-weighting posterior draws, and uses the nested quantity model
+     (`--qty-nest`, nest 0.58 [0.33; 0.79]).
+  6. **Pre-period adjustment (G6A):** in the same phase as item 2, Ops-only: groups with ≥ 15
+     products use two pre-period windows (days −28…−15 and −14…−1; CTR variance −17 %, power at
+     +40 % 58 → 70 %); groups < 15 use the plain change score (θ = 1), because the fitted θ made
+     4+2 groups worse (SE 0.17 → 0.26). Applies to CTR, CTOR and AOV; re-run the P31 power check
+     and keep false alarms < 15 %.
