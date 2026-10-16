@@ -2080,6 +2080,43 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
 - Screenshots (local build, 2x): `/tmp/partner-top-shots/{signin,trial,auth-email}-{1440,390}.png`.
   At 390 px the pill wraps to two lines (lead / action), still above the heading.
 
+## 2026-10-16 — P39-B agent (Claude Opus) — three Vietnamese blog drafts (D48 additions 6)
+
+- Branch `fasttrack/p39b-blog` from `fasttrack/optimize-product` at 6f92934c. Not pushed, not merged.
+- c5772320: covers `gmv-la-gi-v1` (metrics, bars, accent 0), `khong-ra-don-v1` (guide, checklist,
+  accent 0), `doanh-thu-giam-v1` (metrics, bars, accent 3) added to `scripts/blog-covers.mjs`
+  `COVERS` and rendered (`PYTHON=<main checkout>/juli/.venv/bin/python`; this worktree has no
+  `juli/.venv`).
+- 1988f93d: three posts, all `status: "draft"`, appended to `posts.ts` (featured post unchanged),
+  bodies in `bodies/` + `bodies/index.ts`:
+  - `gmv-la-gi-tiktok-shop` "GMV là gì? Cách tính và cách tăng GMV TikTok Shop" (4,524 words);
+  - `tiktok-shop-khong-ra-don` "TikTok Shop không ra đơn: đọc phễu để tìm nguyên nhân" (4,078);
+  - `doanh-thu-tiktok-shop-giam` "Doanh thu TikTok Shop giảm: checklist tìm nguyên nhân theo
+    từng luồng" (3,709).
+  Facts from TikTok Academy VN (header comment + `sources` in each): "Lưu lượng truy cập sản
+  phẩm" (17/06/2026), "Tài Chính cho Người Mới Bắt Đầu…" (knowledge_id 825773561448193,
+  01/12/2023: balance after all fees, "Quyết toán", (D+6)+1, accrual), "Quản lý Sản phẩm"
+  (10008556, 27/08/2026: Trực tuyến / Đã vô hiệu hóa / Đã tạm ngưng / Bản nháp), plus the pages
+  the existing drafts already cite. New pages fetched read-only with WebFetch on 16/10/2026. No
+  fee rates quoted. Every number is a labelled "Ví dụ giả định". Ads only as "check CTR / CTOR
+  before raising the budget; Juli does not run ads" (D48.5). Shopee only as "đang tích hợp". No
+  "—" in body, meta or built HTML of the three pages. One soft `/dang-ky` CTA at the end of each.
+- Gates (landing): lint PASS (eslint 0 problems); `tsc --noEmit` clean; vitest **under Node 20**
+  14 files / 242 passed; build PASS (6 blog pages prerendered, new drafts `noindex, follow`);
+  `check:seo` 1 file / 20 passed. Under the host's default Node 26.8.1 vitest fails 48 tests in
+  cookie-consent / signup / tracking (`TypeError: Cannot read properties of undefined (reading
+  'clear')`, jsdom localStorage) plus one 5 s timeout, none in blog code; repo engines say
+  `>=20` and nvm has v20.20.2, so the gates were run on 20. A first Node 20 run had one
+  `info-pages` timeout under host load; it passes alone and on the next full run.
+- `fasttrack/check.sh` (Node 20): migrations FAIL "no throwaway database" and isolation FAIL "no
+  migrated database" (known local limitation: `docker info` hung on this host, killed after ~10
+  min so the script fell through); gitleaks PASS; ruff PASS (480 files); pytest 207 files: 7
+  failed, 2857 passed, 150 skipped. All 7 in `tests/unit/test_agent_workflow_task_wiring.py`
+  with `sqlalchemy.exc.ArgumentError: Could not parse SQLAlchemy URL` (check.sh pins the DB URL
+  empty when there is no throwaway DB); this branch has no Python diff.
+- Next: owner reviews the three drafts (`pnpm --filter @juli/landing dev`, `/blog`) and flips
+  `status` per README. A published post may link these slugs only once they are published too.
+
 ## 2026-10-16 — P41 agent (Claude Opus) — D47.7: short simulation copy, no backend internals
 
 - Owner request 2026-10-16 (live demo, reviewer sample shop): the simulated Thực thi showed
