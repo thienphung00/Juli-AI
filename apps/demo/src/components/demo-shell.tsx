@@ -91,6 +91,8 @@ function DemoShellContent({ children }: { children: ReactNode }) {
 
   const handleManualRefresh = () => {
     void refreshAnalytics();
+    // P37: the sample store is tab-wide now — "Làm mới Demo" starts it over too.
+    resetReviewerSample();
     resetMockState();
     router.replace("/decisions");
   };

@@ -1918,3 +1918,48 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
 - **Open contradiction:** research run `20261015-212942` §4a found the fitted θ *worse* for 4+2
   (SE 0.17 → 0.26) while this simulator finds θ = 1 worse. Both readings are kept; re-check on the
   first real D34 groups (the Ops "Cách tính" line and `verdict.adjustment` record the rule used).
+## 2026-10-16 — P37 agent (Claude Opus) — demo sample mirrors the real card lifecycle (D47.2, D47.3)
+- Branch `fasttrack/demo-lifecycle` (worktree `~/juli-fasttrack-demo-lifecycle`) from
+  `fasttrack/optimize-product` 91e7f450, merged 5b1a85f5 (D47.3 rewrite: reviewer stays on the sample
+  shop; pinned Fujiwa `ReviewerSimulation` NOT changed). Phase number P37 (P35 polish, P36 sim-ops taken).
+- Code (demo only, no backend change): `lib/quyet-dinh/sample-clients.ts` keeps a desk status per card
+  (as `ActionCard.status`) and derives the seller status like `card_view._status`; runs start
+  `queued`; close-card paths (Từ chối, declined consent, Không thực hiện, Hoàn tác at start) →
+  "Đã từ chối" + 7-day cooldown; failed / cancelled / timed-out → "Chờ duyệt"; 7 days untouched →
+  "Hết hạn"; Seller Center and content runs (no recorded write) stay "Đang thực hiện". Seams
+  `advanceTime` / `failRun`. One tab-wide store (`lib/reviewer/sample-store.ts`) for signed out, no
+  shop and the sample reviewer; "Làm mới Demo" resets it. `QdClients.subscribeDecisions` (sample only)
+  re-reads cards + runs in `QuyetDinhView`; Phân tích reads `fetchDeskDecisions`. Trang chủ shows no
+  cards (signed in or sample) — nothing to follow there (the brief's "static SAMPLE_CARDS on home" was
+  not the case).
+- Divergences from the brief's findings, verified in code: the revert closes the card at its START
+  (`demo_run_changes.start_revert` → `close_card`), not on completion; "Không thực hiện" on a wait
+  is `cancelled` / `cancelled_by_seller` (was `completed` in the sample); the real backend reactivates
+  a card only on `failed` (DEBT P37).
+- Tests: `src/__tests__/sample-card-lifecycle.test.ts` (21, one per D47.2 transition),
+  `src/components/__tests__/sample-lifecycle-views.test.tsx` (6, UI + Phân tích on the shared store),
+  `reviewer-all-features.test.tsx` +1 (reviewer store: running → failed → Chờ duyệt → Hết hạn, the
+  only request still `GET /v1/reviewer/me`). `phan-tich.test.tsx` "Xem 4 đề xuất" → 3 (the applied
+  TN-021 is off the desk, as in the real list); one `sample-quyet-dinh` assertion now waits (flaked
+  under host load). Demo vitest 155 files / 1972 passed; `tsc` clean; eslint 0 errors (7
+  pre-existing warnings elsewhere); `replay-module-graph.test.ts` PASS.
+- `check.sh` (default `--since origin/main`, Docker unresponsive on this host so CHECK_DATABASE_URL =
+  a throwaway local DB, dropped after): migrations / isolation / gitleaks / ruff PASS; pytest 206
+  files 2988 passed, **2 failed**, both outside this branch (no Python diff): 
+  `test_reaper_two_tenant.py::test_each_run_is_reaped_by_its_own_workflows_policy_as_juli_app` fails
+  deterministically on a fresh DB on the base too (pre-existing, for the orchestrator);
+  `test_shop_ingestion.py::TestHistoryPhase::test_is_resumable…` timed out at 30 s under load 30 and
+  passes alone.
+- Reviewer sign-in (D47.3, investigated, nothing changed): D42.2 already gives team-created email +
+  password accounts. Demo: auth screen footer "Tài khoản đối tác" → `/auth/email#doi-tac`
+  (`PartnerSignIn`, Supabase password grant, then `GET /v1/reviewer/me`); expired / revoked /
+  non-trial users are signed out with the reason. Tests `password-sign-in.test.ts`,
+  `reviewer-mode.test.tsx`, `reviewer-sample-mode.test.tsx` PASS (31). Owner creates the account with
+  `python -m juli_backend.services.reviewer.cli create --email shopee-review@app-juli.com --platform
+  shopee --by <you>@app-juli.com [--days 30]` (env DATABASE_URL, SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY; password printed once); `renew [--rotate-password]`, `revoke`, `show`.
+- Merge note: `fasttrack/p35-sim-ops` was merged into the integration branch meanwhile (52441f8e);
+  merged `fasttrack/optimize-product` back into this branch, DEBT.md / LOG.md append-only conflicts
+  resolved by keeping both sides. No code overlap (that branch is Ops + backend). Post-merge demo
+  gates re-run below.
+- Post-merge (5da55516): demo `tsc` clean, eslint 0 errors, vitest 156 files / 1977 passed.

@@ -203,7 +203,7 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
     renderSample("/decisions?tab=do-luong");
     const panel = await screen.findByTestId("measure-panel");
     await waitFor(() => expect(panel).toHaveTextContent(SAMPLE_APPLIED_CARD.name));
-    expect(screen.getByRole("tab", { name: "Ngày 7 · kiểm tra" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Ngày 7 · kiểm tra" })).toHaveAttribute("aria-selected", "true"));
     expect(screen.getByTestId("measure-target")).toContainHTML("9.613 – 10.207");
   });
 });

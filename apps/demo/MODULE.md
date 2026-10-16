@@ -144,7 +144,23 @@ Invariants below.
   store seeded from `lib/quyet-dinh/sample-data.ts` in the P10 contract
   shapes). Approve / reject / confirm / photo / "Tôi đã áp dụng" / Hoàn tác
   change that store only and play the run's next events on a timer; "Làm
-  mới Demo" remounts it (`useDemoResetEpoch`). `QuyetDinhView` and
+  mới Demo" starts it over (`resetReviewerSample` + `useDemoResetEpoch`).
+  P37 (D47.2, 2026-10-16): the store is the tab-wide one of
+  `lib/reviewer/sample-store.ts` (signed out, no shop and the sample reviewer
+  alike; Phân tích reads its cards via `fetchDeskDecisions`, Trang chủ shows no
+  cards) and walks the real card lifecycle: desk status as `ActionCard.status`
+  (active / approved / dismissed / expired), seller status derived like
+  `card_view._status` — approved is "Đã áp dụng" only when the latest run
+  completed with a recorded write (Seller Center / promotion and content runs
+  stay "Đang thực hiện"); Từ chối, a declined consent, "Không thực hiện" and
+  Hoàn tác (at its start) close the card ("Đã từ chối", 7-day cooldown); a
+  failed / cancelled / timed-out run puts it back to "Chờ duyệt"; runs start
+  `queued`; 7 days after surfacing an untouched card reads "Hết hạn". Seams:
+  `advanceTime` (consent lapses after 4 h → cancelled, external waits after 3
+  days → timed_out, expiry) and `failRun`. `QdClients.subscribeDecisions`
+  (sample only) makes `QuyetDinhView` re-read cards + runs from the store and
+  drop its local status overrides. Proof: `sample-card-lifecycle.test.ts`,
+  `sample-lifecycle-views.test.tsx`, `reviewer-all-features.test.tsx`. `QuyetDinhView` and
   `lib/quyet-dinh/client-types.ts` (the `QdClients` contract, `QdApiError`
   and pure helpers) hold no fetch call site or backend route literal — the
   sample door is an entry of `replay-module-graph.test.ts`.
