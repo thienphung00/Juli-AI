@@ -90,3 +90,31 @@ To make a cover for a new post:
 3. In `posts.ts`: `category: "tools"`, `cover: blogCover("<short-name>-v1", "Minh hoạ: …")`
    (the alt describes the picture; cards render it with `alt=""` because the title
    is right there). `blog.test.tsx` checks the files exist and the OG image is set.
+
+## Inline figures (D48 additions 7, P39-C)
+
+A body line `{{hinh:<id>}}` renders the figure `<id>` of `figures.ts`
+(`BLOG_FIGURES`): a `<figure>` with a visible `<figcaption>`, AVIF/WebP with
+width/height, a phone variant below 640 px, always `loading="lazy"` and never
+`priority` (the H1 stays the LCP). The Article JSON-LD `image` stays the cover.
+Renderer: `src/components/blog/figure.tsx`.
+
+- **Diagram** (`diagram(name, height, mobileHeight, { alt, caption })`): built in
+  HTML by `scripts/blog-diagrams.mjs` (Be Vietnam Pro, landing tokens, Vietnamese
+  only) in a 720 px desktop layout and a 360 px phone layout, so the text in the
+  image stays legible on both. Any number in it is hypothetical and the image
+  carries the pill "Ví dụ giả định" (say so in the alt and caption too). To add
+  one: add an entry to `DIAGRAMS` (name ends `-v1`), run
+  `PYTHON=juli/.venv/bin/python node apps/landing/scripts/blog-diagrams.mjs`
+  (preview first with `--samples <dir>`), copy the printed heights into
+  `figures.ts`. Existing files are never overwritten: bump `-vN` to change one.
+- **Screenshot** (`screenshot(variants, mobileVariants, { alt, caption })`): only
+  real Juli screens on the sample shop (the `public/media/cap-*` files and their
+  mobile crops in `components/product/screens.ts`), in the product pages' framed
+  `Shot`. The caption starts "Dữ liệu mẫu · ", the alt ends "(dữ liệu mẫu)".
+- Never stock photos, TikTok or Shopee screenshots, logos or UI copies, invented
+  results, or "—" in alt or caption. The alt says everything the picture says.
+
+`blog.test.tsx` checks each figure's files and their real sizes, the alt and
+caption, that every figure renders lazy with a phone source, and that only the
+cover is eager; `check:seo` repeats the eager / sized check on the built posts.

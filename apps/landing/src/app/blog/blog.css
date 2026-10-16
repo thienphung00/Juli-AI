@@ -431,6 +431,33 @@
   margin-top: var(--lp-space-2);
 }
 
+/* Inline figures (D48 additions 7, P39-C): diagrams in a hairline frame,
+   screenshots in the product pages' framed Shot. Captions 14 px, body colour. */
+.lp-prose .lp-blog__figure {
+  margin: var(--lp-space-8) 0;
+}
+
+.lp-blog__figure-media {
+  overflow: hidden;
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-lg);
+  background: var(--lp-alt);
+}
+
+.lp-blog__figure-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.lp-prose .lp-blog__figure-caption,
+.lp-prose .lp-blog__figure--shot .ui-shot__caption {
+  margin-top: var(--lp-space-3);
+  color: var(--lp-body);
+  font-size: var(--lp-text-label);
+  line-height: 1.5;
+}
+
 .lp-blog__table-wrap {
   max-width: 100%;
   margin: var(--lp-space-7) 0;
