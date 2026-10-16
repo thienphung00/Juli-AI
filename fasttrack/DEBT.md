@@ -1046,3 +1046,20 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   daily totals have no per-order values); items per order has no traffic formula.
 - [ ] P36: `e2e/ops/ops.spec.ts` "Chẩn đoán & KPI" row count (already stale, see P34-F) grows by the
   three group tunables (`group_two_window_min`, `group_guard_ctr_drop`, `group_drift_sigma`).
+- [ ] P37 (owner): D47.2 says a failed / cancelled / timed-out run puts the card back to "Chờ duyệt";
+  the sample does that. The real backend only does it for `failed`
+  (`services/agent/runner/conversation_store.py` ~381, `workers/tasks/agent_workflow.py` ~932);
+  `cancelled` (e.g. `confirmation_expired`) and `timed_out` (`external_wait_expired`) leave the card
+  `approved`, so `card_view._status` would show "Đang thực hiện" for good. Decide whether the
+  backend should reactivate on those two as well.
+- [ ] P37 (owner): content cards ("Juli soạn · bạn làm") record no listing write, so after "Tôi đã
+  đăng" the sample card stays "Đang thực hiện" — the same as the real `_status` (P14-E sample used to
+  say "Đã áp dụng"). If content should read "Đã áp dụng", change `_status` and the sample together.
+- [ ] P37: the real `GET /v1/demo/decisions` lists only `active` cards, so a decided card leaves the
+  real Đề xuất on the next load; the sample Quyết định keeps every card with its chip (what the real
+  screen shows in-session through its local overrides). Phân tích's sample uses the desk list.
+- [ ] P37: `advanceTime` / `failRun` are store seams (tests); no UI exposes them. A reviewer "tua
+  nhanh 7 ngày" on Đề xuất (or a seeded failing card) would let a partner see expiry / failure.
+- [ ] P37: `fasttrack/shopee-isv-services-information.md` step 1 says to choose "Tài khoản đối tác
+  (đăng nhập bằng mật khẩu)"; the auth screen's footer link reads only "Tài khoản đối tác". Giving
+  the direct URL `https://demo.app-juli.com/auth/email#doi-tac` would be clearer for the reviewer.

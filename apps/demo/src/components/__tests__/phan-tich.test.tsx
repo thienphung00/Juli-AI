@@ -187,7 +187,8 @@ describe("Phân tích view", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Thẻ sản phẩm: CTOR giảm/);
     expect(screen.getByTestId("mock-data-notice")).toBeInTheDocument();
     expect(screen.getByTestId("juli-suggestion")).toHaveTextContent("✦ Juli gợi ý · CTOR kéo GMV −250k ₫/ngày");
-    expect(await screen.findByRole("link", { name: "Xem 4 đề xuất ›" })).toHaveAttribute("href", "/decisions?tab=de-xuat&nhom=ctor");
+    // P37: only cards on the desk (the applied TN-021 is not, as in the real list).
+    expect(await screen.findByRole("link", { name: "Xem 3 đề xuất ›" })).toHaveAttribute("href", "/decisions?tab=de-xuat&nhom=ctor");
     expect(screen.getByTestId("pa-caption")).toHaveTextContent("Sản phẩm:Thẻ sản phẩm · Tab cửa hàng|Nội dung:Video · LIVE|Liên kết:chỉ theo dõi ởTrang chủ ›");
     expect(within(stream("Thẻ sản phẩm")).getByRole("button", { name: "Thu gọn" })).toHaveAttribute("aria-expanded", "true");
     expect(within(stream("Tab cửa hàng")).getByText("Yếu nhất: AOV −31k ₫/ngày")).toBeInTheDocument();

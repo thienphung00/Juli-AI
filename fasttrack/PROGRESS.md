@@ -185,6 +185,12 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 | P34-E Legal, about, contact, sign-up | 34.5 | done 2026-10-15, branch `fasttrack/p34e-legal-signup` (not merged) | P34-E agent (Opus) |
 | P34 integration + deploy | 34.7 | todo | orchestrator + owner |
 
+## P37 — demo sample mirrors the real card lifecycle (D47.2, D47.3)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P37 Sample store lifecycle (queued → running → applied / rejected / pending / expired), Quyết định + Phân tích on one tab-wide store, reviewer sample shares it | D47.2, D47.3 | done on branch `fasttrack/demo-lifecycle` (from 5b1a85f5) — not merged, not deployed | P37 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

@@ -1295,3 +1295,23 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      failed run today, a run that ends `cancelled` or `timed_out` puts its approved card back to
      `active` (clears `approved_at`), so the seller sees "Chờ duyệt" again instead of a card stuck
      on "Đang thực hiện"; the demo sample (P37) already does this.
+
+  **D47 implementation note (P37, 2026-10-16, branch `fasttrack/demo-lifecycle`).** Item 2 lives in
+  `apps/demo/src/lib/quyet-dinh/sample-clients.ts`: each card keeps a desk status like
+  `ActionCard.status` (active / approved / dismissed / expired) and the seller status is derived
+  like `card_view._status` (approved → "Đã áp dụng" only when the latest run completed with a
+  recorded write, else "Đang thực hiện"; active → "Hết hạn" 7 days after `surfaced_at`). Runs start
+  `queued`; Từ chối, a declined consent, "Không thực hiện" (a wait it stops ends `cancelled` /
+  `cancelled_by_seller`) and Hoàn tác (at its start, like `start_revert` + `close_card`) close the
+  card with the 7-day cooldown; a failed / cancelled / timed-out run puts it back to "Chờ duyệt".
+  Two sample-only seams reach what a click cannot: `advanceTime` (consent lapses after 4 h →
+  `confirmation_expired`, external waits after 3 days → `external_wait_expired`, expiry) and
+  `failRun`. The store is the tab-wide `lib/reviewer/sample-store.ts` (signed out, no shop and the
+  sample reviewer); Quyết định re-reads it on every card change (`QdClients.subscribeDecisions`,
+  sample only — the real clients are unchanged) and Phân tích reads its on-desk cards. Trang chủ has
+  no card surface (signed in or sample), so nothing there changes. Item 3: no code beyond the
+  shared store; the pinned Fujiwa `ReviewerSimulation` is untouched; the reviewer's only request is
+  still `GET /v1/reviewer/me` (`reviewer-all-features.test.tsx`). Two readings differ from the real
+  backend and are in DEBT (P37): the backend reactivates the card only for `failed`
+  (`cancelled` / `timed_out` stay approved → "Đang thực hiện"; fixed by item 5, P38), and content runs record no write so
+  their card stays "Đang thực hiện" after "Tôi đã đăng".
