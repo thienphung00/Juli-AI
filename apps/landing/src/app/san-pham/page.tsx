@@ -3,8 +3,8 @@ import Link from "next/link";
 import {
   CAP_DL_TANG_THEM,
   CAP_DL_TANG_THEM_MOBILE,
-  CAP_DX_QUY_TAC,
-  CAP_DX_QUY_TAC_MOBILE,
+  CAP_DX_LUOT_CHAY,
+  CAP_DX_LUOT_CHAY_MOBILE,
   CAP_DX_THE,
   CAP_PT_XEP_HANG,
   CAP_PT_XEP_HANG_MOBILE,
@@ -51,28 +51,42 @@ import styles from "./overview.module.css";
  */
 export const metadata = buildMetadata("/san-pham");
 
-/** The loop, long form (the home page uses the short `LOOP_STEPS`). */
+/**
+ * The loop as a compact stepper (D45.3): a short title and one line each. The
+ * long explanations live on the capability pages (lever per metric, TikTok's
+ * re-review, rejection reasons, the five streams, the measurement method).
+ * Facts: D13 (what Juli writes), D24.5/D24.17 (5 new cards a day, promotions
+ * by the seller), D14 + P34-C (day 7 / day 14, Juli asks before a revert).
+ */
 const LOOP: readonly Step[] = [
   {
     title: "Phân tích",
-    body: "Mỗi ngày, khi TikTok Shop có số liệu mới, Juli tính lại GMV của từng sản phẩm theo công thức của TikTok: GMV = Lượt hiển thị × CTR × CTOR × AOV. Juli tách số liệu theo năm luồng truy cập (Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết) và so với 30 ngày trước cũng như với các sản phẩm khác trong shop. Bước nào thấp hơn mức tham chiếu là bước đang làm hụt GMV.",
+    icon: "chart",
+    body: "Mỗi ngày, Juli tính lại GMV = Lượt hiển thị × CTR × CTOR × AOV cho từng luồng.",
+    note: "Năm luồng: Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết",
   },
   {
     title: "Đề xuất",
-    body: "Từ bước yếu nhất, Juli chọn việc cần làm. CTR thấp thường là chuyện ảnh bìa và tiêu đề. CTOR thấp thường là mô tả, thuộc tính, giá hoặc khuyến mãi. Mỗi thẻ đề xuất ghi rõ sản phẩm, chỉ số, lý do và mức GMV có thể lấy lại mỗi ngày. Juli đưa ra tối đa 5 đề xuất mới mỗi ngày, xếp theo GMV có thể tăng thêm.",
+    icon: "bulb",
+    body: "Tối đa 5 đề xuất mới mỗi ngày, xếp theo GMV có thể lấy lại.",
   },
   {
     title: "Duyệt",
-    body: "Bạn mở thẻ, xem nội dung Juli soạn và so với nội dung hiện tại. Bạn có thể sửa câu chữ, đặt câu hỏi, hoặc từ chối kèm lý do. Lý do từ chối giúp Juli xếp hạng những đề xuất sau cho đúng với shop của bạn hơn.",
+    icon: "check-square",
+    body: "Bạn duyệt, sửa nội dung hoặc từ chối kèm lý do.",
     you: true,
   },
   {
     title: "Thực thi",
-    body: "Khi bạn duyệt một thẻ tiêu đề, mô tả hoặc thuộc tính, Juli gửi thay đổi lên TikTok Shop qua API chính thức và lưu lại giá trị cũ. TikTok Shop có thể duyệt lại trang sản phẩm như mọi lần chỉnh sửa khác. Với giá, khuyến mãi và video, Juli chuẩn bị sẵn và bạn thực hiện.",
+    icon: "send",
+    body: "Juli cập nhật tiêu đề, mô tả, thuộc tính qua API chính thức và lưu giá trị cũ.",
+    note: "Giá, khuyến mãi và video: Juli chuẩn bị, bạn thực hiện",
   },
   {
     title: "Đo lường",
-    body: "Juli ghi mức GMV dự kiến trước khi thay đổi, đọc kết quả sơ bộ ở ngày 7 và kết quả chốt ở ngày 14, đặt mức thay đổi cạnh mức dao động bình thường của chỉ số. Nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác không.",
+    icon: "target",
+    body: "Đọc kết quả sơ bộ ở ngày 7, kết quả chốt ở ngày 14.",
+    note: "Nếu ngày 7 có chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác không",
   },
 ];
 
@@ -228,13 +242,11 @@ export default function ProductPage() {
           <Container>
             <Breadcrumb current="Sản phẩm" items={[{ href: "/", label: "Trang chủ" }]} />
             <div className={styles.heroSplit}>
-              <div className={styles.heroTitle}>
+              <div className={styles.heroCopy}>
                 <Eyebrow>Sản phẩm</Eyebrow>
                 <Heading id="product-heading" level={1} size="page">
                   Juli AI: phần mềm AI vận hành TikTok Shop, từ phân tích đến đo GMV tăng thêm
                 </Heading>
-              </div>
-              <div className={styles.heroAside}>
                 <p className="ui-lead">
                   Juli AI là phần mềm dạng dịch vụ (SaaS) do {COMPANY.name} phát triển cho nhà bán
                   TikTok Shop tại Việt Nam. Juli đọc dữ liệu shop, tìm chỗ GMV đang hụt, đề xuất việc
@@ -249,19 +261,19 @@ export default function ProductPage() {
                   </LinkButton>
                 </div>
               </div>
+              {/* Not `priority`: on phones the H1 is the LCP; an eager hero shot cost 0.9 s (P34 LOG, D45.2). */}
+              <Shot
+                caption="Dữ liệu mẫu"
+                chrome="Quyết định · Juli"
+                className={styles.heroShot}
+                images={{
+                  alt: "Lượt chạy của một thẻ đề xuất: đã qua Phân tích, Đề xuất, Duyệt và Thực thi, từng bước có giờ thực hiện, giá trị cũ đã lưu và lịch đo ngày 7, ngày 14 (dữ liệu mẫu)",
+                  mobileVariants: CAP_DX_LUOT_CHAY_MOBILE,
+                  variants: CAP_DX_LUOT_CHAY,
+                }}
+                sizes="(min-width: 1200px) 640px, (min-width: 960px) 55vw, 100vw"
+              />
             </div>
-            <Shot
-              caption="Dữ liệu mẫu · Cửa hàng Mẫu Hoa Mai"
-              chrome="Quyết định · Juli"
-              className={styles.heroShot}
-              images={{
-                alt: "Đầu trang Quyết định: 4 thẻ tối ưu để nâng CTOR Thẻ sản phẩm, ngưỡng giữ ổn định và quy tắc do bạn đặt (dữ liệu mẫu)",
-                mobileVariants: CAP_DX_QUY_TAC_MOBILE,
-                variants: CAP_DX_QUY_TAC,
-              }}
-              padding="lg"
-              sizes="(min-width: 1200px) 1088px, 100vw"
-            />
           </Container>
         </section>
 
@@ -292,10 +304,11 @@ export default function ProductPage() {
         <Section labelledBy="loop-heading" tone="alt">
           <SectionIntro
             eyebrow="Cách Juli làm việc"
-            title="Vòng làm việc: Phân tích → Đề xuất → Duyệt → Thực thi → Đo lường"
+            lead="Mỗi thay đổi đi qua năm bước. Không có gì được ghi lên shop khi bạn chưa duyệt."
+            title="Vòng làm việc của Juli"
             titleId="loop-heading"
           />
-          <StepList className={styles.loop} steps={LOOP} />
+          <StepList className={styles.loop} steps={LOOP} variant="stepper" />
         </Section>
 
         <Section labelledBy="capabilities-heading">

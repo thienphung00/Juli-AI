@@ -1093,6 +1093,134 @@ body {
   }
 }
 
+/* The default card layout ignores the wrapper (same boxes as before P35). */
+.ui-step__main {
+  display: contents;
+}
+
+.ui-step__note {
+  margin: 0;
+  color: var(--lp-muted);
+  font-size: var(--lp-text-caption);
+  line-height: 1.5;
+}
+
+/* Stepper (D45.3, /san-pham): phones = vertical timeline, icon chips joined by
+   a hairline; ≥ 960 px = one row of five connected cards. */
+.ui-steps--stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ui-steps--stepper .ui-step,
+.ui-steps--stepper .ui-step:last-child {
+  position: relative;
+  flex-direction: row;
+  gap: var(--lp-space-4);
+  padding: 0 0 var(--lp-space-6);
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.ui-steps--stepper .ui-step:last-child {
+  padding-bottom: 0;
+}
+
+/* The line from one chip down to the next. */
+.ui-steps--stepper .ui-step:not(:last-child)::before {
+  position: absolute;
+  top: 44px;
+  bottom: 4px;
+  left: 21px;
+  width: 1px;
+  background: var(--lp-border);
+  content: "";
+}
+
+.ui-step__icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-md);
+  background: var(--lp-bg);
+  color: var(--lp-ink);
+}
+
+.ui-step--you .ui-step__icon {
+  border-color: var(--lp-pink-line);
+  background: var(--lp-pink-tint);
+  color: var(--lp-pink-text);
+}
+
+.ui-steps--stepper .ui-step__main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.ui-steps--stepper .ui-step__text {
+  gap: var(--lp-space-1);
+}
+
+.ui-steps--stepper .ui-step__title {
+  font-size: var(--lp-text-h3-small);
+}
+
+.ui-steps--stepper .ui-step__body {
+  font-size: var(--lp-text-body-small);
+}
+
+@media (min-width: 960px) {
+  .ui-steps--stepper {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--lp-space-5);
+  }
+
+  .ui-steps--stepper .ui-step,
+  .ui-steps--stepper .ui-step:last-child {
+    flex-direction: column;
+    gap: var(--lp-space-4);
+    padding: var(--lp-space-5);
+    border: 1px solid var(--lp-hairline);
+    border-radius: var(--lp-radius-lg);
+    background: var(--lp-bg);
+  }
+
+  .ui-steps--stepper .ui-step--you,
+  .ui-steps--stepper .ui-step--you:last-child {
+    border-color: var(--lp-pink-line);
+    background: var(--lp-pink-tint);
+  }
+
+  /* Connector to the next card, across the gap, level with the chip. */
+  .ui-steps--stepper .ui-step:not(:last-child)::before {
+    top: 41px;
+    right: calc(-1 * var(--lp-space-5) - 1px);
+    bottom: auto;
+    left: auto;
+    width: var(--lp-space-5);
+    height: 1px;
+  }
+
+  .ui-steps--stepper .ui-step__main {
+    gap: var(--lp-space-1);
+    padding-top: 0;
+  }
+
+  .ui-steps--stepper .ui-step__title {
+    font-size: var(--lp-text-h3);
+  }
+}
+
 /* ————— FunnelDiagram ————— */
 
 .ui-funnel {
