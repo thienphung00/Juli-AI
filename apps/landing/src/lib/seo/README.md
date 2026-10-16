@@ -43,14 +43,16 @@ Every public page of app-juli.com goes through these helpers. Import from
 3. **JSON-LD** in the page body (Organization + WebSite are already on every
    page from `app/layout.tsx` — do not repeat them):
    ```tsx
-   import { breadcrumbSchema, faqPageSchema, JsonLd, softwareApplicationSchema } from "../../lib/seo";
+   import { breadcrumbSchema, faqPageSchema, JsonLd, servicePageSchema } from "../../lib/seo";
 
    <JsonLd data={[
      breadcrumbSchema("/san-pham/phan-tich-shop"),          // every inner page
-     softwareApplicationSchema({ path: "/san-pham/phan-tich-shop" }), // product pages
+     servicePageSchema({ path: "/san-pham/phan-tich-shop" }), // capability pages (WebPage about the Service)
      faqPageSchema(FAQ),                                    // ONLY the FAQ rendered on this page
    ]} />
    ```
+   `/san-pham` itself emits `serviceSchema({ path: "/san-pham" })` (Service + Offer). Never
+   `SoftwareApplication`: Google requires a rating or review on it and Juli has none (D43.3).
    Other builders: `articleSchema({ path, datePublished, dateModified?, image?, authorName? })`,
    `videoObjectSchema(input)` (`HERO_VIDEO_SCHEMA` in `src/lib/media.ts` is ready-made
    for the hero video), `organizationSchema()`, `websiteSchema()`.

@@ -1071,3 +1071,10 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] P38 (D47.5): the reactivation writes a structured log line
   (`action_card_reactivated_after_run`), not a card-event row — there is no card event log on this
   branch (the `docs/card-event-log` grill is separate). Same as the failed path before.
+
+- [ ] P39 (D48.5): "ROI và ngân sách GMV Max" has no page copy by design (Juli runs no ads); it is
+  owed as a blog post later, owner-approved like the other drafts.
+- [ ] P39: the `/san-pham` title had to fit 60 characters with the " | Juli AI" suffix, so it reads
+  "Phần mềm AI phân tích, vận hành TMĐT TikTok Shop" (no "và", no "cho nhà bán"); the meta
+  description carries the full "phân tích và vận hành cho nhà bán TMĐT". Owner may prefer another
+  ≤ 50-character wording.

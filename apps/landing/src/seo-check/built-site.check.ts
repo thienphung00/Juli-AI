@@ -9,7 +9,8 @@
  *   a `noindex` route (blog draft awaiting owner approval), which must be;
  * - every JSON-LD block parses; Organization + WebSite on every page,
  *   BreadcrumbList on every inner page; FAQPage questions are visible on the
- *   page; no `sameAs` (D43.8).
+ *   page; no `sameAs` (D43.8); no `SoftwareApplication` and no rating or review
+ *   anywhere (D48 additions 2, D43.3), `/san-pham` carries the Service.
  *
  *     pnpm build && pnpm check:seo                      # reads .next/server/app/*.html
  *     SEO_BASE_URL=http://localhost:3007 pnpm check:seo  # or fetches a running server
@@ -19,7 +20,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { absoluteUrl, SITE_ROUTES } from "../lib/seo";
+import { absoluteUrl, llmsTxt, SITE_ROUTES } from "../lib/seo";
 
 const BUILT_APP = join(__dirname, "..", "..", ".next", "server", "app");
 const BASE_URL = process.env.SEO_BASE_URL?.replace(/\/$/, "");
@@ -129,6 +130,11 @@ describe("built site SEO (every registered route)", () => {
       expect(types, `${where}: WebSite`).toContain("WebSite");
       if (route.path !== "/") expect(types, `${where}: BreadcrumbList`).toContain("BreadcrumbList");
       expect(JSON.stringify(nodes), `${where}: no sameAs (D43.8)`).not.toContain("sameAs");
+      expect(types, `${where}: no SoftwareApplication (D48 additions 2)`).not.toContain("SoftwareApplication");
+      expect(JSON.stringify(nodes), `${where}: no rating or review (D43.3)`).not.toMatch(
+        /aggregateRating|"review"/,
+      );
+      if (route.path === "/san-pham") expect(types, `${where}: Service`).toContain("Service");
       const visibleText = (doc.querySelector("main")?.textContent ?? "").replace(/\s+/g, " ");
       for (const faq of nodes.filter((node) => node["@type"] === "FAQPage")) {
         for (const question of faq.mainEntity as Json[]) {
@@ -137,6 +143,21 @@ describe("built site SEO (every registered route)", () => {
       }
     });
   }
+
+  it("serves /llms.txt from the registry (D48 additions 4)", async () => {
+    let text: string;
+    if (BASE_URL) {
+      const response = await fetch(`${BASE_URL}/llms.txt`);
+      expect(response.status, "/llms.txt status").toBe(200);
+      expect(response.headers.get("content-type")).toMatch(/^text\/plain/);
+      text = await response.text();
+    } else {
+      const file = join(BUILT_APP, "llms.txt.body");
+      expect(existsSync(file), `${file} not found: run \`pnpm build\` first`).toBe(true);
+      text = readFileSync(file, "utf8");
+    }
+    expect(text).toBe(llmsTxt(SITE_ROUTES));
+  });
 
   it("titles, descriptions and canonicals are unique", () => {
     expect(facts).toHaveLength(SITE_ROUTES.length);

@@ -201,8 +201,8 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P39 Titles, meta, H2s and FAQs for D48 items 1–4; `/terms` meta fix | D48 | in progress, branch `fasttrack/p39-search-intent` | P39 agent (Opus) |
-| P39 additions: AI tiêu đề/mô tả section, structured data type, llms.txt | D48 additions 1, 2, 4 | in progress, branch `fasttrack/p39-search-intent` | P39 agent (Opus) |
+| P39 Titles, meta, H2s and FAQs for D48 items 1–4; `/terms` meta fix | D48 | done on branch `fasttrack/p39-search-intent` (dd95c145…c73e489a) — not merged, not deployed | P39 agent (Opus) |
+| P39 additions: AI tiêu đề/mô tả section, structured data type, llms.txt | D48 additions 1, 2, 4 | done on branch `fasttrack/p39-search-intent` (89491255, 005d643b, 873bf675) — not merged, not deployed | P39 agent (Opus) |
 | P39-B Three Vietnamese blog posts (draft) | D48 additions 6 | in progress, branch `fasttrack/p39b-blog` | P39-B agent (Opus) |
 | Owner: turn off Cloudflare Email Address Obfuscation for app-juli.com | D48 additions 3 | todo | owner |
 

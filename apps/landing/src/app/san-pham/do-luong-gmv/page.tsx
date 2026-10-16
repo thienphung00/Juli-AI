@@ -118,7 +118,7 @@ export default function DoLuongGmvPage() {
         },
       ]}
       screenshot={CAP_DL_NGAY_7[0]?.webp}
-      software
+      service
       toc={[
         { id: "truoc-khi-ap-dung", label: "Trước khi áp dụng" },
         { id: "ngay-7", label: "Ngày 7" },

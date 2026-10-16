@@ -2012,3 +2012,40 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   `test_quality_reconcile` errors ×3 — the same files fail on `fasttrack/optimize-product`
   (6f92934c: 9 failed + 3 errors over those files with node_modules present).
 
+## 2026-10-16 — P39 agent (Claude Opus) — search-intent priorities on the pages (D48 1–4, D48 additions 1, 2, 4)
+
+Branch `fasttrack/p39-search-intent` (from 226fdbc5; merged `fasttrack/optimize-product` at 6f92934c
+for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Python change.
+- D48.1 `/san-pham` (dd95c145): title "Phần mềm AI phân tích, vận hành TMĐT TikTok Shop | Juli AI"
+  (60-char limit with the suffix forced dropping "và" / "cho nhà bán"; DEBT), meta "Phần mềm AI phân
+  tích và vận hành cho nhà bán TMĐT: …". H1 unchanged.
+- D48.2 home (826c13af): first FAQ "GMV là gì, tăng GMV TikTok Shop bằng cách nào?" (8 items, in
+  FAQPage via HOME_FAQ); home meta "đọc" → "phân tích" (c73e489a). Title / H1 unchanged.
+- D48.2–3 `/san-pham/phan-tich-shop` (3d8118ea, c73e489a): title "Phân tích GMV TikTok Shop theo 5
+  luồng truy cập", meta "Tăng GMV TikTok Shop từ đúng chỗ nghẽn: …", H2 "Tăng GMV từ chỉ số nghẽn: …",
+  FAQ "Vì sao shop TikTok không ra đơn?" (first item; Lượt hiển thị, CTR, CTOR, AOV).
+- D48.4 `/san-pham/de-xuat-va-thuc-thi` (523dfa54, c73e489a): title "Tối ưu sản phẩm TikTok Shop: đề
+  xuất và thực thi", meta names only tiêu đề, mô tả; first H2 "Tối ưu sản phẩm TikTok Shop bằng thẻ đề
+  xuất: …".
+- `/terms` meta: "kết nối (hiện TikTok Shop, Shopee đang tích hợp)". lastModified 2026-10-16 on /,
+  /san-pham, /san-pham/phan-tich-shop, /san-pham/de-xuat-va-thuc-thi (/terms already was).
+- Additions 1 (005d643b): the H3 "Tiêu đề và mô tả: Juli cập nhật sau khi bạn xác nhận" under "Phần
+  nào Juli làm, phần nào bạn làm" became "AI viết tiêu đề và mô tả, chỉ áp dụng khi bạn duyệt" + a day
+  7 / 14 paragraph. An H3, not a new H2: every content H2 needs its own screenshot (D43.4, test) and
+  all eight Đề xuất shots are already used.
+- Additions 2 (89491255): `softwareApplicationSchema` removed; `/san-pham` emits `Service`
+  (`#service`, provider Organization, Offer 500000 VND/tháng, areaServed VN); the three capability
+  pages emit `WebPage` (`isPartOf` WebSite, `about` `#service`, `primaryImageOfPage`). No rating or
+  review anywhere; seo.test, capability-pages.test and `check:seo` assert it.
+- Additions 4 (873bf675): `/llms.txt` (static route) built by `llmsTxt(SITE_ROUTES)`: TMĐT-first
+  summary, "Hiện kết nối TikTok Shop, Shopee đang tích hợp", price, company, then every indexable
+  route grouped (noindex drafts / cam-on excluded). `llms-txt.test.ts` + `check:seo` compare.
+- Gates (Node 26, vitest `NODE_OPTIONS=--no-experimental-webstorage`): lint 0, tsc clean, vitest 15
+  files / 230 passed (with `--testTimeout=30000`; at the default 5 s 1–3 render tests timed out
+  under host load 30, pass alone), build OK (`○ /llms.txt`), `check:seo` 18 passed.
+- `check.sh` (Docker unresponsive: `docker info` hung, so CHECK_DATABASE_URL = throwaway local DB,
+  dropped after): migrations PASS (head 092), gitleaks PASS, ruff PASS; isolation FAIL (12 fixture
+  timeouts > 30 s) and pytest FAIL (32 timeouts then INTERNALERROR), host load ~30 from other agents'
+  pytest runs. Isolation re-run alone on a fresh migrated throwaway DB with `--timeout=600`: 12
+  passed. This branch has no Python diff vs `fasttrack/optimize-product`. Environmental.
+- Next: owner review of the wording (esp. the /san-pham title), merge, deploy; GMV Max stays blog-only.

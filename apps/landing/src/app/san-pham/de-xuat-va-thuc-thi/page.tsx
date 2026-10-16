@@ -115,7 +115,7 @@ export default function DeXuatVaThucThiPage() {
         },
       ]}
       screenshot={CAP_DX_THE[0]?.webp}
-      software
+      service
       toc={[
         { id: "the-de-xuat", label: "Thẻ đề xuất" },
         { id: "khi-nao", label: "Khi nào có thẻ" },
@@ -131,7 +131,7 @@ export default function DeXuatVaThucThiPage() {
       <CapSection
         alt="Thẻ đề xuất cho sản phẩm Son môi số 12 đã mở rộng: CTOR Thẻ sản phẩm từ 5,4 % lên mục tiêu 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do khách thêm giỏ rồi bỏ, tiêu đề cũ bị gạch và tiêu đề mới, mô tả hiện tại và mô tả đề xuất, công thức tính GMV dự kiến"
         caption="Một thẻ đề xuất đã mở “Xem thêm”: lý do đầy đủ, nội dung trước và sau, và cách tính GMV dự kiến."
-        heading="Thẻ đề xuất: một sản phẩm, một chỉ số, một thay đổi"
+        heading="Tối ưu sản phẩm TikTok Shop bằng thẻ đề xuất: một sản phẩm, một chỉ số, một thay đổi"
         id="the-de-xuat"
         image={CAP_DX_THE}
         narrow
@@ -297,11 +297,17 @@ export default function DeXuatVaThucThiPage() {
           Juli chỉ tự thực hiện những thay đổi có thể kiểm soát và hoàn tác an toàn qua TikTok Shop Open
           API. Phần còn lại, Juli chuẩn bị sẵn để bạn làm nhanh nhất có thể.
         </P>
-        <H3>Tiêu đề và mô tả: Juli cập nhật sau khi bạn xác nhận</H3>
+        <H3>AI viết tiêu đề và mô tả, chỉ áp dụng khi bạn duyệt</H3>
         <P>
-          Sau khi bạn duyệt, Juli đọc thông tin sản phẩm, chẩn đoán của TikTok và từ khoá liên quan, soạn
-          nội dung mới rồi đưa bạn xem bản trước và sau. Khi bạn xác nhận, Juli ghi tiêu đề hoặc mô tả mới
-          lên TikTok Shop qua Open API và lưu lại nội dung cũ để có thể hoàn tác.
+          Với thẻ nhắm tiêu đề hoặc mô tả, Juli dùng AI để viết lại. Sau khi bạn duyệt thẻ, Juli đọc thông
+          tin sản phẩm, chẩn đoán của TikTok và từ khoá liên quan, soạn tiêu đề hoặc mô tả sản phẩm mới
+          rồi đưa bạn xem bản trước và sau; bạn sửa được nội dung trước khi áp dụng. Chỉ khi bạn xác nhận,
+          Juli mới ghi tiêu đề hoặc mô tả mới lên TikTok Shop qua Open API và lưu lại nội dung cũ để có thể
+          hoàn tác.
+        </P>
+        <P>
+          Sau khi áp dụng, Juli đo thay đổi đó trên đúng luồng mà tiêu đề hay mô tả tác động: kiểm tra ở
+          ngày 7 và chốt ở ngày 14, cách đo ở trang <A href="/san-pham/do-luong-gmv">Đo lường GMV</A>.
         </P>
         <H3>Ảnh bìa: chỉ với ảnh của bạn</H3>
         <P>

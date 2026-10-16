@@ -8,10 +8,10 @@ import type { SiteRoute } from "./types";
 export const CAPABILITY_ROUTES: readonly SiteRoute[] = [
   {
     path: "/san-pham/phan-tich-shop",
-    title: "Phân tích TikTok Shop theo 5 luồng truy cập | Juli AI",
+    title: "Phân tích GMV TikTok Shop theo 5 luồng truy cập | Juli AI",
     description:
-      "Tách GMV TikTok Shop theo Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết; tìm chỉ số nghẽn và xếp hạng sản phẩm theo tác động GMV.",
-    lastModified: "2026-10-15",
+      "Tăng GMV TikTok Shop từ đúng chỗ nghẽn: Juli tách GMV theo 5 luồng truy cập, tìm chỉ số kéo GMV xuống và xếp hạng sản phẩm theo tác động GMV.",
+    lastModified: "2026-10-16",
     breadcrumbName: "Phân tích shop",
     parent: "/san-pham",
     changeFrequency: "monthly",
@@ -19,10 +19,10 @@ export const CAPABILITY_ROUTES: readonly SiteRoute[] = [
   },
   {
     path: "/san-pham/de-xuat-va-thuc-thi",
-    title: "Đề xuất tối ưu, thực hiện khi bạn duyệt | Juli AI",
+    title: "Tối ưu sản phẩm TikTok Shop: đề xuất và thực thi | Juli AI",
     description:
-      "Thẻ đề xuất cho từng sản phẩm TikTok Shop: lý do, mục tiêu, GMV dự kiến. Juli chỉ ghi tiêu đề, mô tả khi bạn duyệt; hoàn tác được.",
-    lastModified: "2026-10-15",
+      "Tối ưu sản phẩm TikTok Shop: thẻ đề xuất có lý do, mục tiêu, GMV dự kiến. Juli chỉ ghi tiêu đề, mô tả lên shop khi bạn duyệt; hoàn tác được.",
+    lastModified: "2026-10-16",
     breadcrumbName: "Đề xuất và thực thi",
     parent: "/san-pham",
     changeFrequency: "monthly",
