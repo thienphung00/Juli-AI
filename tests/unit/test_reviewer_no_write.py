@@ -241,6 +241,7 @@ async def test_every_route_as_reviewer_writes_nothing(
         "scenario_id": str(uuid.uuid4()),
         "invite_id": str(uuid.uuid4()),
         "signup_id": str(uuid.uuid4()),
+        "group_id": str(uuid.uuid4()),  # P36: PATCH /v1/ops/shops/{shop_id}/groups/{group_id}
         "rest": "anything",
         "workflow_key": "optimize_product_2",
     }
