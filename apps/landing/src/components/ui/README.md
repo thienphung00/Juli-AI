@@ -14,7 +14,7 @@ import { Section, SectionIntro, LinkButton, Shot, FeatureRow /* … */ } from ".
   Page-specific CSS goes in a CSS module next to the page, using the tokens below.
 - **Tokens**: `src/styles/tokens.css`, the ONLY file in the landing allowed to hold
   a raw colour (`design-tokens.test.ts` enforces it). Use `var(--lp-*)` everywhere else.
-- **Font**: Be Vietnam Pro 400/500/600/700 (Latin + Vietnamese), self-hosted via
+- **Font**: Be Vietnam Pro 400/500/600 (Latin + Vietnamese; 700 dropped in P34 for LCP), self-hosted via
   `next/font/local` (`app/fonts.ts`), applied to `<html>`. Nothing to do per page.
 - **Server components** everywhere except `HeaderNav`/`HeaderMenu` (tiny client
   parts of the header). No page needs `"use client"` to use them.
@@ -53,8 +53,15 @@ by `ui.css`: **640** (phone), **900** (header), **960** (two columns).
 <SiteHeader />                    // logo · Sản phẩm · Kết nối TikTok Shop · Blog · Giới thiệu · Đăng nhập · [Dùng thử miễn phí]
 <SiteHeader variant="signup" />   // /dang-ky: logo · "Đã có tài khoản? Đăng nhập"
 ```
-Sticky, white, hairline bottom. Active item (`aria-current="page"`) from the router
-(`/san-pham/*` lights "Sản phẩm"). Below 900 px: logo · "Dùng thử" · menu button
+Sticky, white, hairline bottom. Active item (`aria-current="page"`) from the router.
+**"Sản phẩm" is a dropdown** (D45.1, P35): a `<button aria-expanded aria-controls>` +
+chevron opening a small panel of `PRODUCT_MENU` (`lib/site.ts`: Tổng quan sản phẩm,
+Phân tích shop, Đề xuất và thực thi, Đo lường GMV, each with an icon and a ≤ 8-word
+description). The panel is always in the server HTML (crawlable) and shown by
+`[data-open]` in CSS; Escape closes it and refocuses the button; a click outside,
+Tab past the last item or a route change closes it. The button gets `data-active`
+on every `/san-pham*` page, the exact page link `aria-current="page"`. In the
+mobile menu (`HeaderNav variant="panel"`) it is an inline expandable group. Below 900 px: logo · "Dùng thử" · menu button
 (`<details>`, no JS needed; it closes itself after navigation). Test ids:
 `header-login-link` (→ `LOGIN_URL`, the Demo), `header-trial-cta` (→ `SIGNUP_URL`),
 `menu-login-link`. Both are tracked by `TikTokTracking` (StartDemo, by test id).
@@ -203,6 +210,12 @@ becomes one `<p class="ui-body">`; pass elements for more paragraphs. Default
 <StepList steps={[{ title, body, you? }]} level={4} />
 ```
 5-up cards ≥ 760 px; ruled rows on phones (HomeMobile). Titles are `<h3>` by default.
+```tsx
+<StepList variant="stepper" steps={[{ title: "Phân tích", icon: "chart", body: "…", note: "…" }, …]} />
+```
+`variant="stepper"` (P35, `/san-pham`): icon chips joined by a hairline in a vertical
+timeline on phones, one row of five connected cards ≥ 960 px. `icon` (any `IconName`)
+and `note` (a short muted caveat line) are optional on every step.
 
 ### `FunnelDiagram`
 ```tsx
@@ -247,7 +260,8 @@ of the content. `activeId` is static (no scroll-spy).
 <Icon name="alert" label="Cảnh báo" />                      // meaningful: role="img" + name
 ```
 Names: `shield-check`, `check-square`, `undo`, `mail`, `play`, `menu`, `close`,
-`chevron-down`, `chevron-right`, `arrow-right`, `alert`, `check`. Stroke =
+`chevron-down`, `chevron-right`, `arrow-right`, `alert`, `check`, `grid`, `chart`,
+`bulb`, `send`, `target` (the last five added in P35 for the product menu and stepper). Stroke =
 `currentColor` (set colour on the parent).
 
 ### `BirdGlyph`, `BrandMark`
