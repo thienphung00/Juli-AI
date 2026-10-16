@@ -20,7 +20,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { absoluteUrl, SITE_ROUTES } from "../lib/seo";
+import { absoluteUrl, llmsTxt, SITE_ROUTES } from "../lib/seo";
 
 const BUILT_APP = join(__dirname, "..", "..", ".next", "server", "app");
 const BASE_URL = process.env.SEO_BASE_URL?.replace(/\/$/, "");
@@ -143,6 +143,21 @@ describe("built site SEO (every registered route)", () => {
       }
     });
   }
+
+  it("serves /llms.txt from the registry (D48 additions 4)", async () => {
+    let text: string;
+    if (BASE_URL) {
+      const response = await fetch(`${BASE_URL}/llms.txt`);
+      expect(response.status, "/llms.txt status").toBe(200);
+      expect(response.headers.get("content-type")).toMatch(/^text\/plain/);
+      text = await response.text();
+    } else {
+      const file = join(BUILT_APP, "llms.txt.body");
+      expect(existsSync(file), `${file} not found: run \`pnpm build\` first`).toBe(true);
+      text = readFileSync(file, "utf8");
+    }
+    expect(text).toBe(llmsTxt(SITE_ROUTES));
+  });
 
   it("titles, descriptions and canonicals are unique", () => {
     expect(facts).toHaveLength(SITE_ROUTES.length);

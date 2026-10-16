@@ -49,3 +49,4 @@ export {
   WEBSITE_ID,
   websiteSchema,
 } from "./schema";
+export { llmsTxt } from "./llms";
