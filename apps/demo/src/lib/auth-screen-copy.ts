@@ -41,12 +41,19 @@ export const AUTH_OTP_SENT_SUFFIX = ". Nhập mã bên dưới, hoặc bấm nú
 
 /* Partner view ------------------------------------------------------------ */
 export const AUTH_PARTNER_LINK = "Tài khoản đối tác";
+/**
+ * The partner entry at the TOP of the sign-in column (D47.6, amends D44.5): a
+ * quiet pill above the heading, so a partner reviewer (Shopee ISV) finds it
+ * without scrolling. One link; its accessible name is lead + action.
+ */
+export const AUTH_PARTNER_TOP_LEAD = "Đối tác thẩm định?";
+export const AUTH_PARTNER_TOP_ACTION = "Đăng nhập bằng tài khoản đối tác";
 export const AUTH_PARTNER_EYEBROW = "Tài khoản đối tác";
 export const AUTH_PARTNER_HEADING = "Đăng nhập bằng mật khẩu";
 export const AUTH_PARTNER_SUB =
   "Dành cho đối tác và đơn vị thẩm định được Juli cấp tài khoản. Người bán đăng nhập bằng Google hoặc email.";
 export const AUTH_PARTNER_BACK = "← Quay lại đăng nhập cho người bán";
-/** Where the footer link goes when the partner form is not on this page (`/`). */
+/** Where the top and footer links go when the partner form is not on this page (`/`). */
 export const AUTH_PARTNER_HREF = "/auth/email#doi-tac";
 
 /* Right-hand panel (desktop) ---------------------------------------------- */

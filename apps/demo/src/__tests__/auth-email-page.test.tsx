@@ -9,7 +9,8 @@ import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
 /**
  * `/auth/email` (P34-F, D44.5): the same auth screen, email focused, and the
  * only page carrying the partner password form — a view of its own, opened
- * from the footer "Tài khoản đối tác", replacing the column, with
+ * from the pill above the heading (D47.6) or the footer "Tài khoản đối tác",
+ * replacing the column, with
  * "← Quay lại". The shell's reviewer denial (`?doi-tac=<reason>#doi-tac`)
  * lands straight in that view with the reason shown.
  */
@@ -59,6 +60,29 @@ describe("/auth/email — the auth screen with the partner view", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Mật khẩu")).toBeNull();
     expect(window.location.hash).toBe("");
+  });
+
+  it("D47.6: the top entry (above the h1) opens the same in-page partner view as the footer link", async () => {
+    const user = userEvent.setup();
+    render(<EmailSignInPage />);
+
+    const top = screen.getByRole("link", { name: "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác" });
+    const heading = screen.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" });
+    expect(top.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The partner form is on this page → an in-page link, like the footer's.
+    expect(top).toHaveAttribute("href", "#doi-tac");
+    expect(within(screen.getByRole("contentinfo")).getByRole("link", { name: "Tài khoản đối tác" })).toHaveAttribute(
+      "href",
+      "#doi-tac",
+    );
+
+    await user.click(top);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Đăng nhập bằng mật khẩu" })).toHaveFocus();
+    expect(screen.getByLabelText("Mật khẩu")).toBeInTheDocument();
+    expect(window.location.hash).toBe("#doi-tac");
+    // The partner view does not repeat the entry.
+    expect(screen.queryByRole("link", { name: "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác" })).toBeNull();
   });
 
   it("#doi-tac opens the partner view directly", async () => {

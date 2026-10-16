@@ -342,12 +342,13 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: Sub-line under `auth.trial_signup`. "No payment card" is literal: Juli has no payment integration (terms are granted by contract in Ops, D28.4/D28.5). Revisit when payments ship.
 
 **`auth.screen`** (P34-F, D44.5 — the demo's sign-in / sign-up screen, no app shell; spec `fasttrack/design/p34/Auth.dc.html`; code `apps/demo/src/lib/auth-screen-copy.ts`)
+- Above the h1 (D47.6, amends D44.5; plain and trial variants): an outline pill, one link to the partner view, "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác →" (EN: Partner reviewer? Sign in with a partner account →); lead "Đối tác thẩm định?" muted, action "Đăng nhập bằng tài khoản đối tác" pink. Same target as the footer link.
 - h1 "Đăng nhập vào Juli"; sub "Chưa có tài khoản? Juli tự tạo cho bạn ở bước này." (EN: Sign in to Juli / No account yet? Juli creates one for you at this step.)
 - The only filled button: "Tiếp tục với Google" (EN: Continue with Google) — `auth.google` on this screen.
 - Divider "hoặc dùng email"; field label "Email", placeholder "ten@shopcuaban.vn"; outline button "Gửi mã đăng nhập" (EN: Send sign-in code); pending "Đang gửi mã…"; locked "Gửi mã sau {n} giây".
 - Under the column: "Xem thử với dữ liệu mẫu, không cần tài khoản →" (EN: Look around with sample data, no account needed →) enters the sample demo (`demo.try`); "Mới dùng Juli? Dùng thử miễn phí 3 tháng" switches to the trial variant.
 - OTP view: h1 "Nhập mã 6 chữ số"; "Juli đã gửi mã tới {masked email}. Nhập mã bên dưới, hoặc bấm nút đăng nhập trong email."; legend "Mã đăng nhập", boxes "Số 1"…"Số 6"; filled button "Xác nhận" (pending "Đang xác nhận…"); "Nhập đủ 6 chữ số trong email."; "← Đổi email"; "Gửi lại mã" / "Gửi lại mã sau {n} giây"; on a wrong/expired code the alert offers "Gửi mã mới"; success "Đăng nhập thành công. Đang chuyển tới Kết nối TikTok Shop…".
-- Partner view (footer link "Tài khoản đối tác"): eyebrow "Tài khoản đối tác", h1 "Đăng nhập bằng mật khẩu", sub "Dành cho đối tác và đơn vị thẩm định được Juli cấp tài khoản. Người bán đăng nhập bằng Google hoặc email.", back "← Quay lại đăng nhập cho người bán".
+- Partner view (the top pill or the footer link "Tài khoản đối tác"): eyebrow "Tài khoản đối tác", h1 "Đăng nhập bằng mật khẩu", sub "Dành cho đối tác và đơn vị thẩm định được Juli cấp tài khoản. Người bán đăng nhập bằng Google hoặc email.", back "← Quay lại đăng nhập cho người bán".
 - Right panel (desktop, label "Juli làm gì"): eyebrow "Sau khi kết nối TikTok Shop"; "Juli chỉ ra luồng và sản phẩm đang kéo GMV xuống, kèm một thay đổi cụ thể để bạn duyệt."; shot alt "Thẻ đề xuất của Juli (dữ liệu mẫu)", caption "Dữ liệu mẫu"; proof lines "Kết nối chính thức qua TikTok Shop Open API" · "Chỉ thực hiện khi bạn duyệt" · "Miễn phí 3 tháng".
 - Logo label "Juli AI — về trang chủ app-juli.com"; footer "Tài khoản đối tác" · "Điều khoản" · "Chính sách bảo mật" · "© 2026 Công ty TNHH Công Nghệ Juli AI".
 
@@ -416,7 +417,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: Sign in with password / Partner account (sign in with password)
 - VI: Đăng nhập bằng mật khẩu / Tài khoản đối tác (đăng nhập bằng mật khẩu)
 - _Avoid_: "Đăng ký", "Quên mật khẩu" (there is no password sign-up or reset — accounts are created by the Juli team)
-- Definition: Fast track P32-A (D42): e-mail + password for the partner trial accounts the Juli team creates (e.g. Shopee's ISV reviewer, who cannot receive our OTP). Since P34-F (D44.5) its own view of the auth screen on `/auth/email` (`#doi-tac`), opened from the footer link "Tài khoản đối tác" (from `/` the link navigates there); see `auth.screen`. GoTrue password grant, then `GET /v1/reviewer/me`; a reviewer lands on Trang chủ with the reference shop. Help line: `auth.screen` partner sub.
+- Definition: Fast track P32-A (D42): e-mail + password for the partner trial accounts the Juli team creates (e.g. Shopee's ISV reviewer, who cannot receive our OTP). Since P34-F (D44.5) its own view of the auth screen on `/auth/email` (`#doi-tac`), opened from the pill above the heading "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác →" (D47.6) or the footer link "Tài khoản đối tác" (from `/` both navigate there); see `auth.screen`. GoTrue password grant, then `GET /v1/reviewer/me`; a reviewer lands on Trang chủ with the reference shop. Help line: `auth.screen` partner sub.
 
 **`auth.password.wrong`**
 - EN: Wrong email or password.

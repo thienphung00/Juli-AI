@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 
 import { HOME_MATRIX_REGION, openShopMenu, SAMPLE_ENTRY } from "../helpers/demo-navigation";
 
+/** D47.6: the partner entry above the auth screen heading (accessible name). */
+const PARTNER_TOP = "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác";
+
 /**
  * Issue #1905's decisive acceptance criterion -- the one #1319 lacked, and
  * lacking it is exactly how a dead door shipped and stayed shipped: assert
@@ -199,6 +202,25 @@ test.describe("Auth screen (P34-F)", () => {
     await expect(page.getByRole("link", { name: "Đăng ký bằng Google" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Gửi mã đăng ký" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Điều hướng chính" })).toHaveCount(0);
+  });
+
+  test("D47.6: the partner entry is above the heading and on screen without scrolling (/ and the trial variant)", async ({ page }) => {
+    for (const path of ["/", "/?dang-ky=dung-thu"]) {
+      await page.goto(path);
+      const top = page.getByRole("link", { name: PARTNER_TOP });
+      await expect(top).toBeInViewport();
+      await expect(top).toHaveAttribute("href", "/auth/email#doi-tac");
+      const topBox = await top.boundingBox();
+      const headingBox = await page.getByRole("heading", { level: 1 }).boundingBox();
+      expect(topBox && headingBox && topBox.y + topBox.height <= headingBox.y).toBe(true);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+  });
+
+  test("D47.6: the top partner entry opens the partner view on /auth/email", async ({ page }) => {
+    await page.getByRole("link", { name: PARTNER_TOP }).click();
+    await expect(page).toHaveURL(/\/auth\/email#doi-tac$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Đăng nhập bằng mật khẩu" })).toBeVisible();
   });
 
   test("the footer's Tài khoản đối tác opens the partner view on /auth/email", async ({ page }) => {

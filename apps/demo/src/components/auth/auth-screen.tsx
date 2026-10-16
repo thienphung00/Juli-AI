@@ -36,6 +36,8 @@ import {
   AUTH_PARTNER_HREF,
   AUTH_PARTNER_LINK,
   AUTH_PARTNER_SUB,
+  AUTH_PARTNER_TOP_ACTION,
+  AUTH_PARTNER_TOP_LEAD,
   AUTH_SAMPLE_ENTRY,
   AUTH_SUB,
   AUTH_SWITCH_LINK,
@@ -76,8 +78,11 @@ import { defaultOnSignedIn, useEmailOtp } from "./use-email-otp";
  *
  * Hierarchy: "Tiếp tục với Google" is the only filled button; the email code
  * is second ("hoặc dùng email", an outline "Gửi mã đăng nhập"); the sample
- * demo is a text link under the column; "Tài khoản đối tác" is a footer link
- * to its own view. `trial` (`?dang-ky=dung-thu`) changes copy only.
+ * demo is a text link under the column; the partner view is reached from a
+ * quiet pill at the top of the entry column ("Đối tác thẩm định? Đăng nhập
+ * bằng tài khoản đối tác →", D47.6, so a reviewer sees it without scrolling)
+ * and from the footer link "Tài khoản đối tác". `trial` (`?dang-ky=dung-thu`)
+ * changes copy only.
  *
  * Flows are the pre-P34 ones, unchanged: Google is a real full-page link to
  * Supabase Auth resolved on mount (never during SSR; an honest disabled state
@@ -93,7 +98,7 @@ export interface AuthScreenProps {
   readonly onTrialChange: (trial: boolean) => void;
   /** "Xem thử với dữ liệu mẫu": enters the existing sample demo. */
   readonly onEnterSample: () => void;
-  /** The partner password form. Absent → the footer link goes to `/auth/email#doi-tac`. */
+  /** The partner password form. Absent → the top and footer links go to `/auth/email#doi-tac`. */
   readonly renderPartner?: () => ReactNode;
   readonly initialView?: AuthView;
   /** Focus the email field on mount (`/auth/email`, the avatar menu's "Đăng nhập bằng email"). */
@@ -181,6 +186,9 @@ export function AuthScreen({
     window.history.replaceState(window.history.state, "", "#doi-tac");
     setView("partner");
   };
+
+  // The top pill and the footer link: same target, same in-page behaviour.
+  const partnerHref = renderPartner ? "#doi-tac" : AUTH_PARTNER_HREF;
 
   const closePartner = () => {
     const url = new URL(window.location.href);
@@ -297,6 +305,15 @@ export function AuthScreen({
     const emailError = flow.error;
     column = (
       <section aria-labelledby={`${baseId}-title`} className="auth-view">
+        {/* D47.6: above the heading, secondary to Google (outline pill, no fill). */}
+        <a className="auth-partner-top" data-auth-partner-top="" href={partnerHref} onClick={openPartner}>
+          <span className="auth-partner-top__lead">{AUTH_PARTNER_TOP_LEAD}</span>{" "}
+          <span className="auth-partner-top__action">
+            {AUTH_PARTNER_TOP_ACTION}
+            <span aria-hidden="true"> →</span>
+          </span>
+        </a>
+
         <div className="auth-head">
           <h1 className="auth-title" id={`${baseId}-title`}>
             {trial ? TRIAL_SIGNUP_HEADING : AUTH_HEADING}
@@ -410,11 +427,7 @@ export function AuthScreen({
 
         <footer className="auth-footer">
           <nav aria-label="Liên kết phụ" className="auth-footer__links">
-            <a
-              className="auth-footer__link"
-              href={renderPartner ? "#doi-tac" : AUTH_PARTNER_HREF}
-              onClick={openPartner}
-            >
+            <a className="auth-footer__link" href={partnerHref} onClick={openPartner}>
               {AUTH_PARTNER_LINK}
             </a>
             <a className="auth-footer__link" href={TERMS_OF_SERVICE_URL}>
