@@ -323,14 +323,14 @@ function figureIds(body: string): string[] {
 }
 
 describe("inline figures (D48 additions 7, P39-C)", () => {
-  it("each of the three P39-B drafts has 3–5 figures, stays a draft, and every figure is defined and used", () => {
+  it("each of the three P39-B drafts has 3–8 figures, stays a draft, and every figure is defined and used", () => {
     const used = new Set<string>();
     for (const slug of FIGURE_POSTS) {
       const post = getPost(slug)!;
       expect(post.status, slug).toBe("draft");
       const ids = figureIds(post.body);
       expect(ids.length, slug).toBeGreaterThanOrEqual(3);
-      expect(ids.length, slug).toBeLessThanOrEqual(5);
+      expect(ids.length, slug).toBeLessThanOrEqual(8);
       expect(new Set(ids).size, `${slug}: a figure twice`).toBe(ids.length);
       for (const id of ids) {
         expect(BLOG_FIGURES[id], `${slug}: {{hinh:${id}}}`).toBeDefined();

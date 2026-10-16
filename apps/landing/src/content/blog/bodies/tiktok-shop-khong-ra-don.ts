@@ -62,6 +62,8 @@ Một sản phẩm Trực tuyến vẫn có thể không ra đơn nếu các bi�
 
 Bài "Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 1" giải thích rằng thẻ sản phẩm cần đạt ngưỡng tối thiểu để vào nhóm đề xuất, và hoạt động của cửa hàng như vận chuyển đúng hạn, phản hồi nhanh đơn hàng mới ảnh hưởng đến việc giữ được vị trí đó. Nếu gần đây shop giao trễ nhiều hay để đơn mới chờ lâu, đó là điều cần sửa trước khi nghĩ đến ảnh bìa hay giá.
 
+{{hinh:truoc-khi-doc-pheu}}
+
 ## Đọc phễu ở đâu và đọc thế nào cho đúng
 
 Phễu của từng sản phẩm nằm tại Trung tâm nhà bán hàng, mục La bàn dữ liệu, phần Số liệu phân tích sản phẩm, trang Lưu lượng truy cập sản phẩm. TikTok mô tả mô-đun này giúp người bán hiểu lưu lượng truy cập đến từ đâu và hiệu quả chuyển đổi của từng giai đoạn trong phễu.
@@ -79,6 +81,8 @@ Với shop mới hoặc shop ít đơn, một ngày hay ba ngày là quá ngắn
 ### Đủ dữ liệu chưa
 
 Với 15 lượt nhấp, CTOR 0 % không có nghĩa là trang sản phẩm hỏng; nó có nghĩa là chưa đủ dữ liệu để kết luận. Juli dùng ngưỡng tối thiểu trên luồng thẻ sản phẩm, tính trung bình mỗi ngày trong cửa sổ đo: từ 50 lượt hiển thị để đọc CTR, từ 20 lượt nhấp để đọc CTOR. Đây là quy tắc của Juli, không phải quy định của TikTok. Dưới ngưỡng này, vấn đề gần như luôn nằm ở bước đầu tiên: sản phẩm chưa có đủ người nhìn thấy.
+
+{{hinh:doc-pheu-o-dau}}
 
 ## Bước 1: Lượt hiển thị thấp, không ai nhìn thấy sản phẩm
 
@@ -203,6 +207,8 @@ Nếu sau đó bạn mới tăng traffic, mỗi lượt hiển thị mua thêm s
 - **Liên kết không ra đơn**: kết quả phụ thuộc chủ yếu vào nhà sáng tạo và khán giả của họ. Một nhà sáng tạo có khán giả không khớp với sản phẩm sẽ tạo lượt hiển thị nhưng ít đơn.
 
 Dù luồng nội dung có vấn đề, trang sản phẩm vẫn là điểm đến cuối cùng của mọi lượt nhấp. Nếu CTOR ở luồng thẻ sản phẩm cũng thấp, hãy sửa trang trước khi đầu tư thêm vào nội dung.
+
+{{hinh:luong-noi-dung}}
 
 ## Danh sách kiểm tra khi TikTok Shop không ra đơn
 
