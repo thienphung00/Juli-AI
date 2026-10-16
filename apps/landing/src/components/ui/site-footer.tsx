@@ -16,7 +16,7 @@ export function SiteFooter() {
       <div className="ui-footer__inner ui-container">
         <div className="ui-footer__brand">
           <BrandMark size="footer" />
-          <p className="ui-footer__about">Trợ lý AI vận hành cho nhà bán TikTok Shop.</p>
+          <p className="ui-footer__about">Trợ lý AI vận hành cho nhà bán TMĐT.</p>
           <address className="ui-footer__company" data-testid="footer-company">
             <span>
               {COMPANY.name} · MST {COMPANY.taxId}

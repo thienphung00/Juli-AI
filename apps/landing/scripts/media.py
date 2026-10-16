@@ -103,12 +103,19 @@ def og_image(dest: Path) -> None:
     logo = logo.resize((round(logo.width * logo_h / logo.height), logo_h), Image.Resampling.LANCZOS)
     canvas.paste(logo, (72, 72), logo)
 
-    draw.text((72, 210), "Trợ lý AI tăng trưởng", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
-    draw.text((72, 276), "cho người bán TikTok Shop", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
+    # D46 (P35): positioning is e-commerce (TMĐT); only TikTok Shop is connected today.
+    draw.text((72, 210), "Trợ lý AI vận hành", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
+    draw.text((72, 276), "cho nhà bán TMĐT", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
     draw.text(
         (72, 382),
         "Phân tích shop · Đề xuất hành động · Đo GMV",
         font=_font(FONT_REGULAR, 30),
+        fill=MUTED,
+    )
+    draw.text(
+        (72, 430),
+        "Hiện kết nối TikTok Shop · Shopee đang tích hợp",
+        font=_font(FONT_REGULAR, 26),
         fill=MUTED,
     )
     draw.text((72, 520), "app-juli.com", font=_font(FONT_BOLD, 34), fill=PRIMARY_TEXT)
@@ -118,7 +125,8 @@ def og_image(dest: Path) -> None:
 
 
 def brand() -> None:
-    og_image(PUBLIC / "og" / "juli-ai-default.png")
+    # New name, never an overwrite (cached); v1 kept for old shares.
+    og_image(PUBLIC / "og" / "juli-ai-default-v2.png")
 
     # Header/footer logo: 2x of the 30px header height, WebP only (tiny file).
     logo = Image.open(BRAND_ASSETS / "logo-wordmark.png").convert("RGBA")
@@ -183,6 +191,9 @@ MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
     "cap-dl-tin-cay-v1-1280": (0.0, 0.0, 0.5, 1.0),
     "cap-dx-luot-chay-v1-1280": (0.0, 0.0, 0.5, 0.75),
     "cap-dx-quy-tac-v1-1280": (0.0, 0.0, 0.5, 0.64),
+    # P35 (D46): home hero on phones, the card header only (SKU, CTOR before → after, GMV dự kiến),
+    # so the hero shot stays smaller than the H1 and the H1 remains the mobile LCP element.
+    "cap-dx-the-v1-1186": (0.0, 0.0, 1.0, 0.285),
     "cap-dx-xac-nhan-v1-1280": (0.0, 0.0, 0.5, 0.55),
     "cap-kn-dang-nhap-v1-1280": (0.06, 0.0, 0.52, 0.8),
     "cap-kn-ket-noi-v1-1280": (0.06, 0.0, 0.55, 0.95),
@@ -212,6 +223,8 @@ def mobile_crops() -> None:
         )
         crop = source.crop(box)
         stem = name.rsplit("-v1-", 1)[0]
+        if any(media.glob(f"{stem}-m-v1-*")):
+            continue  # published crops are cached immutable: never overwrite one
         w, h = save_modern(crop, media / f"{stem}-m-v1", MOBILE_CROP_MAX_WIDTH)
         print(f"{stem}-m-v1-{w}.avif/.webp  width={w} height={h}")
 

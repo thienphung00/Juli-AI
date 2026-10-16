@@ -306,7 +306,7 @@ export default function DeXuatVaThucThiPage() {
         <H3>Ảnh bìa: chỉ với ảnh của bạn</H3>
         <P>
           Juli phân tích ảnh bìa hiện tại và đề xuất cần đổi gì, nhưng không tự tạo ảnh. Thẻ ảnh bìa ghi
-          “Juli tải lên — cần ảnh từ bạn”: Juli hỏi ảnh, bạn tải ảnh lên, xác nhận, rồi Juli thay ảnh bìa.
+          rõ Juli cần ảnh từ bạn: Juli hỏi ảnh, bạn tải ảnh lên, xác nhận, rồi Juli thay ảnh bìa.
         </P>
         <H3>Giá và khuyến mãi: Juli đề xuất, bạn áp dụng trên Seller Center</H3>
         <P>

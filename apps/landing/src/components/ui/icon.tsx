@@ -60,6 +60,43 @@ const PATHS = {
     </>
   ),
   check: <polyline points="20 6 9 17 4 12" />,
+  /* P35: the product menu and the overview's loop stepper. */
+  grid: (
+    <>
+      <rect height="7" rx="2" width="7" x="4" y="4" />
+      <rect height="7" rx="2" width="7" x="13" y="4" />
+      <rect height="7" rx="2" width="7" x="4" y="13" />
+      <rect height="7" rx="2" width="7" x="13" y="13" />
+    </>
+  ),
+  chart: (
+    <>
+      <polyline points="4 4 4 20 20 20" />
+      <line x1="9" x2="9" y1="16" y2="12" />
+      <line x1="13" x2="13" y1="16" y2="8" />
+      <line x1="17" x2="17" y1="16" y2="11" />
+    </>
+  ),
+  bulb: (
+    <>
+      <path d="M9 18h6" />
+      <path d="M10 21h4" />
+      <path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" />
+    </>
+  ),
+  send: (
+    <>
+      <path d="M21 3L10 14" />
+      <path d="M21 3l-7 18-4-7-7-4z" />
+    </>
+  ),
+  target: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.5" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

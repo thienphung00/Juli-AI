@@ -5,6 +5,7 @@ import AboutPage from "../app/about/page";
 import ContactPage from "../app/contact/page";
 import LandingPage from "../app/page";
 import ProductPage from "../app/san-pham/page";
+import { getRoute } from "../lib/seo";
 import { COMPANY, DEMO_URL, PRODUCT_PAGES, SIGNUP_URL, SITE_PAGES } from "../lib/site";
 
 // TikTok's developer review (ticket 4486401) requires business content about
@@ -14,12 +15,14 @@ describe("public product and company pages", () => {
     for (const Page of [LandingPage, ProductPage, AboutPage, ContactPage]) {
       const { unmount } = render(<Page />);
       // D44 header: Sản phẩm · Kết nối TikTok Shop · Blog · Giới thiệu; /contact
-      // is in the mobile menu and the footer.
+      // is in the mobile menu and the footer. "Sản phẩm" is a dropdown (D46.1)
+      // whose first link, "Tổng quan sản phẩm", is /san-pham.
       const header = screen.getByRole("banner");
       for (const page of SITE_PAGES) {
+        const name = page.href === "/san-pham" ? /^Tổng quan sản phẩm/ : page.label;
         expect(
           within(header)
-            .getAllByRole("link", { name: page.label })
+            .getAllByRole("link", { name })
             .map((link) => link.getAttribute("href")),
           page.href,
         ).toContain(page.href);
@@ -94,6 +97,75 @@ describe("public product and company pages", () => {
     const questions = (faq?.mainEntity as Array<{ name: string }>).map((q) => q.name);
     expect([...main.querySelectorAll(".ui-faq summary")].map((q) => q.textContent)).toEqual(questions);
     expect(container.querySelectorAll(".ui-section--dark")).toHaveLength(1);
+  });
+
+  it("/san-pham hero (D46.2): copy + one framed sample-data shot, not prioritised, not repeated", () => {
+    const { container } = render(<ProductPage />);
+    const hero = container.querySelector('section[aria-labelledby="product-heading"]') as HTMLElement;
+    const figure = hero.querySelector("figure.ui-shot") as HTMLElement;
+    expect(figure).not.toBeNull();
+    expect(figure.querySelector("figcaption")).toHaveTextContent("Dữ liệu mẫu");
+    const img = figure.querySelector("img") as HTMLImageElement;
+    expect(img.getAttribute("alt")).toMatch(/\(dữ liệu mẫu\)$/);
+    expect(img).toHaveAttribute("loading", "lazy");
+    expect(img.getAttribute("fetchpriority") ?? "auto").not.toBe("high");
+    // The H1 and both CTAs sit next to the shot, in the same hero.
+    expect(within(hero).getByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(within(hero).getByTestId("product-trial-cta")).toBeInTheDocument();
+    // The hero capture appears once on the page.
+    const file = (img.getAttribute("src") ?? "").replace(/-v\d+-\d+\.\w+$/, "");
+    const uses = [...container.querySelectorAll("img")].filter((node) =>
+      (node.getAttribute("src") ?? "").startsWith(file),
+    );
+    expect(uses, file).toHaveLength(1);
+  });
+
+  it("/san-pham loop (D46.3): five compact steps with icons, short lines, claims kept", () => {
+    render(<ProductPage />);
+    const section = screen.getByRole("region", { name: "Vòng làm việc của Juli" });
+    const list = section.querySelector("ol.ui-steps--stepper") as HTMLElement;
+    const steps = [...list.querySelectorAll(":scope > li")];
+    expect(steps.map((step) => step.querySelector(".ui-step__title")?.textContent)).toEqual([
+      "Phân tích",
+      "Đề xuất",
+      "Duyệt",
+      "Thực thi",
+      "Đo lường",
+    ]);
+    for (const step of steps) {
+      expect(step.querySelector(".ui-step__icon svg")).not.toBeNull();
+      // One short line: ≤ 18 syllables (Vietnamese words are 1–2 syllables, so ≈ 15 words or fewer).
+      const body = step.querySelector(".ui-step__body")?.textContent ?? "";
+      expect(body.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length, body).toBeLessThanOrEqual(18);
+    }
+    const text = list.textContent ?? "";
+    for (const claim of [
+      "GMV = Lượt hiển thị × CTR × CTOR × AOV",
+      "Tối đa 5 đề xuất mới mỗi ngày",
+      "từ chối kèm lý do",
+      "API chính thức",
+      "lưu giá trị cũ",
+      "Giá, khuyến mãi và video",
+      "ngày 7",
+      "ngày 14",
+      "hoàn tác",
+    ]) {
+      expect(text, claim).toContain(claim);
+    }
+  });
+
+  it("positioning (D46.7): Juli is for TMĐT sellers, TikTok Shop is the platform connected today", () => {
+    for (const path of ["/", "/san-pham"]) {
+      const route = getRoute(path);
+      expect(route.title, path).toMatch(/TMĐT/);
+      expect(route.title, path).toMatch(/TikTok Shop/);
+    }
+    const { container } = render(<ProductPage />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("phần mềm AI vận hành TMĐT");
+    expect(screen.getByRole("main")).toHaveTextContent("hiện Juli kết nối TikTok Shop và đang tích hợp Shopee");
+    expect(within(screen.getByRole("contentinfo")).getByText("Trợ lý AI vận hành cho nhà bán TMĐT.")).toBeInTheDocument();
+    // No marketplace Juli is not integrating with.
+    expect(container.textContent ?? "").not.toMatch(/Lazada|Tiki\b|Sendo/);
   });
 
   it("/about names the company with its legal details", () => {

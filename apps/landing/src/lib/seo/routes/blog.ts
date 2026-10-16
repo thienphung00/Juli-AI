@@ -23,9 +23,9 @@ export function buildBlogRoutes(posts: readonly BlogPostMeta[]): SiteRoute[] {
   return [
     {
       path: BLOG_INDEX_PATH,
-      title: "Blog kiến thức bán hàng TikTok Shop | Juli AI",
+      title: "Blog kiến thức TMĐT và TikTok Shop | Juli AI",
       description:
-        "Bài viết chuyên sâu cho nhà bán TikTok Shop: đọc đúng Lượt hiển thị, CTR, CTOR, AOV, tối ưu thẻ sản phẩm và chọn công cụ phù hợp.",
+        "Bài viết chuyên sâu cho nhà bán TMĐT, bắt đầu từ TikTok Shop: đọc đúng Lượt hiển thị, CTR, CTOR, AOV, tối ưu thẻ sản phẩm, chọn công cụ.",
       lastModified: indexLastModified,
       breadcrumbName: "Blog",
       changeFrequency: "weekly",

@@ -82,7 +82,7 @@ export const NOTICES = {
   },
   rateLimited: {
     id: "loi-gioi-han",
-    text: "Bạn đã gửi đăng ký nhiều lần. Đội ngũ Juli đã nhận thông tin và sẽ liên hệ — hoặc email lienhe@app-juli.com.",
+    text: "Bạn đã gửi đăng ký nhiều lần. Đội ngũ Juli đã nhận thông tin và sẽ liên hệ với bạn, hoặc bạn có thể gửi email tới lienhe@app-juli.com.",
   },
   failed: {
     id: "loi-he-thong",

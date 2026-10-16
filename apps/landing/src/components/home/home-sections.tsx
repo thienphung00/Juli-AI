@@ -5,6 +5,7 @@ import {
   CAP_DL_TANG_THEM,
   CAP_DL_TANG_THEM_MOBILE,
   CAP_DX_THE,
+  CAP_DX_THE_MOBILE,
   CAP_PT_LUONG,
   CAP_PT_LUONG_MOBILE,
   CAP_PT_PHEU,
@@ -48,7 +49,7 @@ export function HomeHero() {
         <div className={styles.heroCopy}>
           <Eyebrow variant="badge">Kết nối chính thức qua TikTok Shop Open API</Eyebrow>
           <Heading id="hero-heading" level={1}>
-            Trợ lý AI vận hành TikTok Shop: tìm chỗ GMV hụt, đề xuất cách sửa, đo kết quả.
+            Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV.
           </Heading>
           <p className="ui-lead">
             Juli đọc dữ liệu shop của bạn, chỉ ra luồng truy cập và sản phẩm đang kéo GMV xuống,
@@ -89,7 +90,10 @@ export function HomeHero() {
               elevation="hero"
               images={{
                 variants: CAP_DX_THE,
-                alt: "Thẻ đề xuất của Juli: chỉ số mục tiêu, lý do và thay đổi trước–sau (dữ liệu mẫu)",
+                // Phones: the card header only (D46, AC-35.5). A smaller shot keeps the H1 the LCP
+                // element; the full card made the lazy shot the LCP (3.2 s vs 2.6 s).
+                mobileVariants: CAP_DX_THE_MOBILE,
+                alt: "Thẻ đề xuất của Juli cho Son môi số 12: CTOR Thẻ sản phẩm 5,4 % lên 5,9 % và GMV dự kiến (dữ liệu mẫu)",
                 crop: 7 / 5,
               }}
               sizes="(min-width: 1200px) 600px, (min-width: 960px) 50vw, 100vw"
@@ -118,10 +122,11 @@ export function MarketplaceStrip() {
   return (
     <Section labelledBy="marketplace-heading" spacing="none" tone="alt" className={styles.strip}>
       <div className={styles.stripInner}>
-        <h2 className={styles.stripHeading} id="marketplace-heading">
+        {/* A label, not a section heading (D46.6): it names the strip region and the list. */}
+        <p className={styles.stripHeading} id="marketplace-heading">
           Sàn Juli kết nối
-        </h2>
-        <ul className={styles.markets}>
+        </p>
+        <ul aria-labelledby="marketplace-heading" className={styles.markets}>
           <li className={styles.market} data-testid="market-tiktok">
             <span className={styles.marketName}>TikTok Shop</span>
             <StatusPill status="live" />
