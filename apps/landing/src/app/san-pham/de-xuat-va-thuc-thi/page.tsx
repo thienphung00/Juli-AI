@@ -115,7 +115,7 @@ export default function DeXuatVaThucThiPage() {
         },
       ]}
       screenshot={CAP_DX_THE[0]?.webp}
-      software
+      service
       toc={[
         { id: "the-de-xuat", label: "Thẻ đề xuất" },
         { id: "khi-nao", label: "Khi nào có thẻ" },

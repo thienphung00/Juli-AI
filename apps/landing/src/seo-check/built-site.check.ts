@@ -9,7 +9,8 @@
  *   a `noindex` route (blog draft awaiting owner approval), which must be;
  * - every JSON-LD block parses; Organization + WebSite on every page,
  *   BreadcrumbList on every inner page; FAQPage questions are visible on the
- *   page; no `sameAs` (D43.8).
+ *   page; no `sameAs` (D43.8); no `SoftwareApplication` and no rating or review
+ *   anywhere (D48 additions 2, D43.3), `/san-pham` carries the Service.
  *
  *     pnpm build && pnpm check:seo                      # reads .next/server/app/*.html
  *     SEO_BASE_URL=http://localhost:3007 pnpm check:seo  # or fetches a running server
@@ -129,6 +130,11 @@ describe("built site SEO (every registered route)", () => {
       expect(types, `${where}: WebSite`).toContain("WebSite");
       if (route.path !== "/") expect(types, `${where}: BreadcrumbList`).toContain("BreadcrumbList");
       expect(JSON.stringify(nodes), `${where}: no sameAs (D43.8)`).not.toContain("sameAs");
+      expect(types, `${where}: no SoftwareApplication (D48 additions 2)`).not.toContain("SoftwareApplication");
+      expect(JSON.stringify(nodes), `${where}: no rating or review (D43.3)`).not.toMatch(
+        /aggregateRating|"review"/,
+      );
+      if (route.path === "/san-pham") expect(types, `${where}: Service`).toContain("Service");
       const visibleText = (doc.querySelector("main")?.textContent ?? "").replace(/\s+/g, " ");
       for (const faq of nodes.filter((node) => node["@type"] === "FAQPage")) {
         for (const question of faq.mainEntity as Json[]) {

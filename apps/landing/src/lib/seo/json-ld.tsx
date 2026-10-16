@@ -17,7 +17,7 @@ export function serializeJsonLd(data: JsonLdObject | readonly JsonLdObject[]): s
  * Renders one `<script type="application/ld+json">`. Pass one builder result,
  * or an array (emitted as an `@graph`). Server component; no client JS.
  *
- *     <JsonLd data={[breadcrumbSchema("/san-pham"), softwareApplicationSchema({ path: "/san-pham" })]} />
+ *     <JsonLd data={[breadcrumbSchema("/san-pham"), serviceSchema({ path: "/san-pham" })]} />
  */
 export function JsonLd({ data }: { data: JsonLdObject | readonly JsonLdObject[] }) {
   return (

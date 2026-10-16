@@ -21,7 +21,7 @@ export type JsonLdObject = { "@type": string } & Record<string, unknown>;
 
 export const ORGANIZATION_ID = `${SITE_URL}/#organization`;
 export const WEBSITE_ID = `${SITE_URL}/#website`;
-export const SOFTWARE_ID = `${SITE_URL}/#software`;
+export const SERVICE_ID = `${SITE_URL}/#service`;
 
 /** Monthly list price (D43.5, `/terms` §5). */
 export const PRICE_VND = 500000;
@@ -80,33 +80,36 @@ export function breadcrumbSchema(path: string): JsonLdObject {
   };
 }
 
-export interface SoftwareApplicationInput {
-  /** The page that describes the product (registry path). */
+/**
+ * What Juli sells, as a schema.org `Service` (D48 additions 2). Not
+ * `SoftwareApplication`: Google requires `aggregateRating` or `review` on that
+ * type, and Juli has no real reviews (D43.3), so none is ever invented.
+ */
+export interface ServiceInput {
+  /** The page that describes the service (registry path). */
   path: string;
   name?: string;
   description?: string;
-  /** Optional screenshot URL(s), site-relative or absolute. */
-  screenshot?: string | string[];
 }
 
-/** SoftwareApplication + Offer (BusinessApplication, 500000 VND / month). Product pages only. */
-export function softwareApplicationSchema(input: SoftwareApplicationInput): JsonLdObject {
+/** Service + Offer (500000 VND / month), provided by the Organization. `/san-pham` only. */
+export function serviceSchema(input: ServiceInput): JsonLdObject {
   const route = getRoute(input.path);
   const url = absoluteUrl(route.path);
-  const screenshots = input.screenshot
-    ? (Array.isArray(input.screenshot) ? input.screenshot : [input.screenshot]).map(absoluteUrl)
-    : undefined;
   return {
-    "@type": "SoftwareApplication",
-    "@id": SOFTWARE_ID,
+    "@type": "Service",
+    "@id": SERVICE_ID,
     name: input.name ?? SITE_NAME,
+    serviceType: "Phần mềm AI phân tích và vận hành TMĐT",
     description: input.description ?? route.description,
     url,
-    applicationCategory: "BusinessApplication",
-    operatingSystem: "Web",
-    inLanguage: CONTENT_LANGUAGE,
-    ...(screenshots ? { screenshot: screenshots } : {}),
-    publisher: { "@id": ORGANIZATION_ID },
+    provider: { "@id": ORGANIZATION_ID },
+    areaServed: { "@type": "Country", name: "Việt Nam" },
+    availableChannel: {
+      "@type": "ServiceChannel",
+      serviceUrl: url,
+      availableLanguage: CONTENT_LANGUAGE,
+    },
     offers: {
       "@type": "Offer",
       price: PRICE_VND,
@@ -122,6 +125,35 @@ export function softwareApplicationSchema(input: SoftwareApplicationInput): Json
         unitText: "tháng",
       },
     },
+  };
+}
+
+export interface ServicePageInput {
+  /** Registry path of the capability page. */
+  path: string;
+  /** Optional screenshot URL, site-relative or absolute. */
+  screenshot?: string;
+}
+
+/**
+ * WebPage for a capability page: part of the WebSite, `about` the Service of
+ * `/san-pham` (by `@id`, so the offer is stated once).
+ */
+export function servicePageSchema(input: ServicePageInput): JsonLdObject {
+  const route = getRoute(input.path);
+  const url = absoluteUrl(route.path);
+  return {
+    "@type": "WebPage",
+    "@id": `${url}#webpage`,
+    url,
+    name: route.title.replace(/ \| Juli AI$/, ""),
+    description: route.description,
+    inLanguage: CONTENT_LANGUAGE,
+    isPartOf: { "@id": WEBSITE_ID },
+    about: { "@id": SERVICE_ID },
+    ...(input.screenshot
+      ? { primaryImageOfPage: { "@type": "ImageObject", url: absoluteUrl(input.screenshot) } }
+      : {}),
   };
 }
 

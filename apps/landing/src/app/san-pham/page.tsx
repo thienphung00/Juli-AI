@@ -34,7 +34,7 @@ import {
   type FaqItem,
   faqPageSchema,
   JsonLd,
-  softwareApplicationSchema,
+  serviceSchema,
 } from "../../lib/seo";
 import { COMPANY, DEMO_URL, PRODUCT_PAGES, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../lib/site";
 import styles from "./overview.module.css";
@@ -231,7 +231,7 @@ export default function ProductPage() {
       <JsonLd
         data={[
           breadcrumbSchema("/san-pham"),
-          softwareApplicationSchema({ path: "/san-pham" }),
+          serviceSchema({ path: "/san-pham" }),
           faqPageSchema(FAQ),
         ]}
       />

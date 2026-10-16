@@ -124,7 +124,7 @@ export default function PhanTichShopPage() {
         },
       ]}
       screenshot={CAP_PT_LUONG[0]?.webp}
-      software
+      service
       toc={[
         { id: "nam-luong", label: "Năm luồng truy cập" },
         { id: "pheu", label: "Phễu từng luồng" },
