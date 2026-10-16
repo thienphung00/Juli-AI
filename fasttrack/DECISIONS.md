@@ -1291,3 +1291,7 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      Fujiwa mode is not changed. Sign-in stays D42.2: team-created **email + password**
      reviewer accounts, no OTP code needed.
   4. **Shopee connection status in Ops (Q3):** not needed now.
+  5. **Cancelled / timed-out runs reactivate the card (owner, 2026-10-16, option A):** like a
+     failed run today, a run that ends `cancelled` or `timed_out` puts its approved card back to
+     `active` (clears `approved_at`), so the seller sees "Chờ duyệt" again instead of a card stuck
+     on "Đang thực hiện"; the demo sample (P37) already does this.
