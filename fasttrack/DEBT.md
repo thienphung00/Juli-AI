@@ -1046,12 +1046,14 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   daily totals have no per-order values); items per order has no traffic formula.
 - [ ] P36: `e2e/ops/ops.spec.ts` "Chẩn đoán & KPI" row count (already stale, see P34-F) grows by the
   three group tunables (`group_two_window_min`, `group_guard_ctr_drop`, `group_drift_sigma`).
-- [ ] P37 (owner): D47.2 says a failed / cancelled / timed-out run puts the card back to "Chờ duyệt";
+- [x] P37 (owner): D47.2 says a failed / cancelled / timed-out run puts the card back to "Chờ duyệt";
   the sample does that. The real backend only does it for `failed`
   (`services/agent/runner/conversation_store.py` ~381, `workers/tasks/agent_workflow.py` ~932);
   `cancelled` (e.g. `confirmation_expired`) and `timed_out` (`external_wait_expired`) leave the card
   `approved`, so `card_view._status` would show "Đang thực hiện" for good. Decide whether the
   backend should reactivate on those two as well.
+  **Closed by D47.5 / P38** (branch `fasttrack/run-reactivate`): one helper,
+  `services/agent/card_reactivation.py`, for all three statuses.
 - [ ] P37 (owner): content cards ("Juli soạn · bạn làm") record no listing write, so after "Tôi đã
   đăng" the sample card stays "Đang thực hiện" — the same as the real `_status` (P14-E sample used to
   say "Đã áp dụng"). If content should read "Đã áp dụng", change `_status` and the sample together.
@@ -1063,6 +1065,19 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] P37: `fasttrack/shopee-isv-services-information.md` step 1 says to choose "Tài khoản đối tác
   (đăng nhập bằng mật khẩu)"; the auth screen's footer link reads only "Tài khoản đối tác". Giving
   the direct URL `https://demo.app-juli.com/auth/email#doi-tac` would be clearer for the reviewer.
+- [ ] P38 (D47.5): a run Ops cancels by disconnecting the shop (`ops/disconnect.py` sets
+  `cancel_requested`) also puts its card back to `active` when it ends `cancelled`; the shop is
+  inactive, so nothing shows it, and a reconnect would see the card "Chờ duyệt" again.
+- [ ] P38 (D47.5): the reactivation writes a structured log line
+  (`action_card_reactivated_after_run`), not a card-event row — there is no card event log on this
+  branch (the `docs/card-event-log` grill is separate). Same as the failed path before.
+
+- [ ] P39 (D48.5): "ROI và ngân sách GMV Max" has no page copy by design (Juli runs no ads); it is
+  owed as a blog post later, owner-approved like the other drafts.
+- [ ] P39: the `/san-pham` title had to fit 60 characters with the " | Juli AI" suffix, so it reads
+  "Phần mềm AI phân tích, vận hành TMĐT TikTok Shop" (no "và", no "cho nhà bán"); the meta
+  description carries the full "phân tích và vận hành cho nhà bán TMĐT". Owner may prefer another
+  ≤ 50-character wording.
 - [ ] P41: legacy pre-P10 routes `/decisions/recommendations/*`, `/decisions/in-progress/*` and
   `/settings/workflows/*` (`lib/workflows/*`, `lib/recommendations.ts`) still word steps with API
   identifiers (`activity_id`, `category_id`, `package_id`, "no-op", "Ship by Seller — gửi

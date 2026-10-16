@@ -8,7 +8,7 @@ import {
   faqPageSchema,
   type FaqItem,
   JsonLd,
-  softwareApplicationSchema,
+  servicePageSchema,
 } from "../../lib/seo";
 import { DEMO_URL, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../lib/site";
 import {
@@ -76,9 +76,9 @@ export interface CapabilityPageProps {
   related: readonly RelatedLink[];
   /** Heading of the dark CTA band. */
   ctaTitle: string;
-  /** SoftwareApplication + Offer — the three `/san-pham/*` pages. */
-  software?: boolean;
-  /** Screenshot URL for the SoftwareApplication schema. */
+  /** WebPage `about` the `/san-pham` Service (D48 additions 2): the three `/san-pham/*` pages. */
+  service?: boolean;
+  /** Screenshot URL for the WebPage schema (`primaryImageOfPage`). */
   screenshot?: string;
   children: ReactNode;
 }
@@ -95,7 +95,7 @@ export function CapabilityPage({
   faq,
   related,
   ctaTitle,
-  software = false,
+  service = false,
   screenshot,
   children,
 }: CapabilityPageProps) {
@@ -106,7 +106,7 @@ export function CapabilityPage({
       <JsonLd
         data={[
           breadcrumbSchema(path),
-          ...(software ? [softwareApplicationSchema({ path, screenshot })] : []),
+          ...(service ? [servicePageSchema({ path, screenshot })] : []),
           faqPageSchema(faq),
         ]}
       />

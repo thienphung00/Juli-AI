@@ -1963,3 +1963,89 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   resolved by keeping both sides. No code overlap (that branch is Ops + backend). Post-merge demo
   gates re-run below.
 - Post-merge (5da55516): demo `tsc` clean, eslint 0 errors, vitest 156 files / 1977 passed.
+
+## 2026-10-16 — P38 agent (Claude Opus) — D47.5: cancelled / timed-out runs reactivate the card
+
+- Branch `fasttrack/run-reactivate` from `fasttrack/optimize-product` 175e85ef (phase P38: P35–P37
+  taken); `fasttrack/optimize-product` (6cfd2851, with P37 `fasttrack/demo-lifecycle`) merged in
+  before the docs. Backend only; `apps/demo` untouched.
+- New `services/agent/card_reactivation.py::reactivate_card_for_ended_run` — the one writer of
+  `approved` → `active` (`approved_at` cleared) for `failed` / `cancelled` / `timed_out`. Callers:
+  `runner/conversation_store.py::persist` (replaces the FAILED-only block), the crash handler in
+  `workers/tasks/agent_workflow.py` (replaces its inline copy) and `workers/tasks/reaper.py`'s sink
+  (new). Idempotent, card must be the run's own shop, `surfaced_at` kept.
+- Every path a run ends `cancelled` / `timed_out` (and how it behaves now):
+  - seller `POST /v1/agent-runs/{id}/cancel` and Ops shop disconnect (`cancel_requested`) → runner
+    checkpoint `cancelled_by_seller` → `cancelled` → card active;
+  - wall clock / iteration cap (runner) → `timed_out` → card active;
+  - reaper consent lapse `confirmation_expired` → `cancelled` → card active;
+  - reaper `external_wait_expired` (photo 3 d, promotion, content waits) → `timed_out` → card active;
+  - reaper `worker_lost` → `failed` → card active (did not reactivate before; now "like failed");
+  - "Không thực hiện" while a lever flow waits (`lever_flows.end_wait_by_seller` →
+    `cancelled_by_seller`): unchanged — the route's `close_card` dismisses (7-day cooldown);
+  - "Không thực hiện" at the consent step (run ends `completed` / `confirmation_declined`), Từ chối,
+    Hoàn tác (its revert run carries the same card): unchanged, dismissed. The helper only moves an
+    `approved` card, so it cannot undo a dismissal (tested: decline, then the reaper lapses the
+    consent → still dismissed; revert run cancelled → still dismissed).
+- Emission budget: a reactivated card is `active` with its old `surfaced_at`, so it counts toward
+  the open limit / cells again and expires 7 days after first surfacing (tested with
+  `apply_emission_budget`). Cooldown: `approved_at` cleared, as for failed.
+- Tests: `tests/unit/test_card_reactivation.py` (16: runner cancelled / timed_out ×2 / failed,
+  completed + waiting keep approved, idempotent double transition, other shop's card untouched,
+  reaper consent lapse / external wait / worker_lost, 7-day expiry, declined consent, lever-flow
+  decline, revert, one-helper AST guard); `tests/integration/test_reaper_two_tenant.py` +1 (two
+  tenants as `juli_app` under RLS, cross-tenant card link not followed). The #1305 test class
+  docstring said CANCELLED / TIMED_OUT do not revert (no test asserted it); corrected.
+- Gates: Docker Desktop hung (`docker info` no answer) → throwaway Homebrew Postgres 16 in UTC
+  (`TZ=UTC`, `timezone='UTC'`, port 55438, trust, `/tmp`), removed after. `CHECK_DATABASE_URL=…
+  fasttrack/check.sh --since fasttrack-deploy-20261016T0625Z` (= 6cfd2851, the deploy scope)
+  **5/5 PASS** (migrations to 092, isolation 12, gitleaks, ruff 6 files, pytest 11 files / 104).
+  `test_reaper_two_tenant.py` alone on that DB: 5 passed. mypy clean on the 4 source files.
+  Pre-existing, not touched: `test_import_boundaries` strict-baseline (8 grandfathered deep
+  imports in ops / workers files) and `test_agent_workflow_task_wiring` (7 fail without a DB on
+  the base too).
+- Full backend unit suite (SQLite, no DB, this worktree): 7456 passed, 43 failed, 3 errors. All
+  pre-existing / environmental: 27 `test_agent_events_contract` (no `packages/contracts/
+  node_modules` in a fresh worktree), 7 `test_agent_workflow_task_wiring`, `test_import_boundaries`,
+  `test_ratchets` (30 s timeout on base too), `test_test_quality` ×3, `test_cross_tenant_probe`,
+  `test_destructive_migration_isolation`, `test_three_tier_ci_contract`, `test_trial_signups`,
+  `test_quality_reconcile` errors ×3 — the same files fail on `fasttrack/optimize-product`
+  (6f92934c: 9 failed + 3 errors over those files with node_modules present).
+
+## 2026-10-16 — P39 agent (Claude Opus) — search-intent priorities on the pages (D48 1–4, D48 additions 1, 2, 4)
+
+Branch `fasttrack/p39-search-intent` (from 226fdbc5; merged `fasttrack/optimize-product` at 6f92934c
+for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Python change.
+- D48.1 `/san-pham` (dd95c145): title "Phần mềm AI phân tích, vận hành TMĐT TikTok Shop | Juli AI"
+  (60-char limit with the suffix forced dropping "và" / "cho nhà bán"; DEBT), meta "Phần mềm AI phân
+  tích và vận hành cho nhà bán TMĐT: …". H1 unchanged.
+- D48.2 home (826c13af): first FAQ "GMV là gì, tăng GMV TikTok Shop bằng cách nào?" (8 items, in
+  FAQPage via HOME_FAQ); home meta "đọc" → "phân tích" (c73e489a). Title / H1 unchanged.
+- D48.2–3 `/san-pham/phan-tich-shop` (3d8118ea, c73e489a): title "Phân tích GMV TikTok Shop theo 5
+  luồng truy cập", meta "Tăng GMV TikTok Shop từ đúng chỗ nghẽn: …", H2 "Tăng GMV từ chỉ số nghẽn: …",
+  FAQ "Vì sao shop TikTok không ra đơn?" (first item; Lượt hiển thị, CTR, CTOR, AOV).
+- D48.4 `/san-pham/de-xuat-va-thuc-thi` (523dfa54, c73e489a): title "Tối ưu sản phẩm TikTok Shop: đề
+  xuất và thực thi", meta names only tiêu đề, mô tả; first H2 "Tối ưu sản phẩm TikTok Shop bằng thẻ đề
+  xuất: …".
+- `/terms` meta: "kết nối (hiện TikTok Shop, Shopee đang tích hợp)". lastModified 2026-10-16 on /,
+  /san-pham, /san-pham/phan-tich-shop, /san-pham/de-xuat-va-thuc-thi (/terms already was).
+- Additions 1 (005d643b): the H3 "Tiêu đề và mô tả: Juli cập nhật sau khi bạn xác nhận" under "Phần
+  nào Juli làm, phần nào bạn làm" became "AI viết tiêu đề và mô tả, chỉ áp dụng khi bạn duyệt" + a day
+  7 / 14 paragraph. An H3, not a new H2: every content H2 needs its own screenshot (D43.4, test) and
+  all eight Đề xuất shots are already used.
+- Additions 2 (89491255): `softwareApplicationSchema` removed; `/san-pham` emits `Service`
+  (`#service`, provider Organization, Offer 500000 VND/tháng, areaServed VN); the three capability
+  pages emit `WebPage` (`isPartOf` WebSite, `about` `#service`, `primaryImageOfPage`). No rating or
+  review anywhere; seo.test, capability-pages.test and `check:seo` assert it.
+- Additions 4 (873bf675): `/llms.txt` (static route) built by `llmsTxt(SITE_ROUTES)`: TMĐT-first
+  summary, "Hiện kết nối TikTok Shop, Shopee đang tích hợp", price, company, then every indexable
+  route grouped (noindex drafts / cam-on excluded). `llms-txt.test.ts` + `check:seo` compare.
+- Gates (Node 26, vitest `NODE_OPTIONS=--no-experimental-webstorage`): lint 0, tsc clean, vitest 15
+  files / 230 passed (with `--testTimeout=30000`; at the default 5 s 1–3 render tests timed out
+  under host load 30, pass alone), build OK (`○ /llms.txt`), `check:seo` 18 passed.
+- `check.sh` (Docker unresponsive: `docker info` hung, so CHECK_DATABASE_URL = throwaway local DB,
+  dropped after): migrations PASS (head 092), gitleaks PASS, ruff PASS; isolation FAIL (12 fixture
+  timeouts > 30 s) and pytest FAIL (32 timeouts then INTERNALERROR), host load ~30 from other agents'
+  pytest runs. Isolation re-run alone on a fresh migrated throwaway DB with `--timeout=600`: 12
+  passed. This branch has no Python diff vs `fasttrack/optimize-product`. Environmental.
+- Next: owner review of the wording (esp. the /san-pham title), merge, deploy; GMV Max stays blog-only.

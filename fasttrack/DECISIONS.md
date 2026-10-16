@@ -1330,6 +1330,24 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   (`cancelled` / `timed_out` stay approved → "Đang thực hiện"; fixed by item 5, P38), and content runs record no write so
   their card stays "Đang thực hiện" after "Tôi đã đăng".
 
+  **D47.5 implementation note (P38, 2026-10-16, branch `fasttrack/run-reactivate`).** One helper,
+  `services/agent/card_reactivation.py::reactivate_card_for_ended_run`, is the only writer of
+  `approved` → `active` (`approved_at` cleared) and runs for `failed`, `cancelled` and `timed_out`
+  (`completed` and the waiting states never). Its callers are every terminal writer of a run:
+  the runner's `JsonbConversationStore.persist` (seller / Ops `cancel_requested` →
+  `cancelled_by_seller`, wall clock / iteration cap → `timed_out`, errors → `failed`), the worker
+  crash handler (`failed`) and the reaper sink (consent lapse `confirmation_expired` → `cancelled`,
+  `external_wait_expired` → `timed_out`, and `worker_lost` → `failed`, which until now did NOT
+  reactivate — closed as part of "exactly like failed"). Seller declines are unchanged: Từ chối,
+  "Không thực hiện" (consent step, or a lever-flow wait via `end_wait_by_seller` → `cancelled` /
+  `cancelled_by_seller`) and Hoàn tác dismiss the card through `close_card` in the decline's own
+  transaction, and the helper moves only an `approved` card, so a dismissed card stays dismissed
+  (also when the reaper lapses a consent the seller already declined). Idempotent; the card must
+  belong to the run's shop (read under the run's RLS scope; a mismatch is logged and skipped).
+  `surfaced_at` is kept: a reactivated card older than 7 days is "Hết hạn" on the next read and is
+  expired by the next emission-budget pass; a younger one counts as open again (it did not while
+  approved). Logged as `action_card_reactivated_after_run`.
+
   **D47 implementation note (P41, 2026-10-16, branch `fasttrack/sim-copy`).** Item 7. The
   simulated Thực thi (`components/quyet-dinh/simulation-dialog.tsx`) drops the request line
   (`PUT /product/202309/products/{product_id} (update_product_listing)`, or "Không có lệnh ghi lên
@@ -1384,3 +1402,25 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   tích hợp", no Lazada / Tiki, no invented numbers, no "—" in visible copy. Also fixes the `/terms`
   meta description, which still said "kết nối TikTok Shop và Shopee" (terms 2.1 says Shopee is in
   progress). Blog drafts stay drafts (owner approves posts). Implemented in P39.
+- **D48 additions** (owner, 2026-10-16, after the Semrush Site Audit of app-juli.com, crawl
+  2026-10-16 12:50, 18 pages, Site Health 91 %, ships in the same deploy as P39):
+  1. **AI tiêu đề / mô tả section** on `/san-pham/de-xuat-va-thuc-thi` (competitor research:
+     Sapo help ranks #3 for "viết mô tả sản phẩm shopee bằng AI"; FastMoss has an AI title tool):
+     Juli drafts the title and description, writes them only after the seller approves, measures at
+     day 7 / 14. No claim beyond SPEC.
+  2. **Structured data error** (4 pages): `SoftwareApplication` on `/san-pham` and the three
+     capability pages fails Google's required `aggregateRating` or `review`. Juli has no real
+     reviews (D43.3), so ratings are **never** invented: switch the type (e.g. `Service` with
+     provider + offers on `/san-pham`, capability pages reference it by `@id`), keep Organization,
+     WebSite, BreadcrumbList, FAQPage.
+  3. **Broken internal links / 4XX** (13 links, 1 URL): Cloudflare Email Address Obfuscation
+     rewrites every `mailto:` into `/cdn-cgi/l/email-protection` (404 without JS). Fix is a
+     Cloudflare setting for app-juli.com (owner action, not code).
+  4. **`/llms.txt`** (notice, 404 today): add a short Vietnamese llms.txt listing the public pages.
+  5. Not fixed, with reason: low text-HTML ratio (Next.js payload, not thin copy); low word count
+     on `/blog` (grows as posts are published), `/contact`, `/dang-ky` (task pages); `/privacy`
+     long paragraphs (legal text must stay in sync with the md and contract, juli legal sync).
+  6. **Three new blog posts, in Vietnamese** (no English body text; TikTok's own Vietnamese metric
+     labels such as CTR, CTOR, AOV stay as TikTok writes them), status `draft` until the owner
+     approves: "GMV là gì" (Semrush VN 4,400/month, KD 21), "TikTok Shop không ra đơn", "Doanh thu
+     TikTok Shop giảm: checklist". Branch `fasttrack/p39b-blog` (P39-B).

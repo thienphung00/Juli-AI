@@ -37,6 +37,11 @@ export const metadata = buildMetadata(PATH);
 
 const FAQ = [
   {
+    question: "Vì sao shop TikTok không ra đơn?",
+    answer:
+      "Thường là vì một bước trong phễu đang nghẽn, và mỗi bước có nguyên nhân khác nhau. Lượt hiển thị thấp: ít người mua thấy sản phẩm. CTR thấp: người mua thấy nhưng không bấm, thường do ảnh bìa, tiêu đề hoặc giá hiển thị. CTOR thấp: người mua bấm vào nhưng không đặt hàng, do giá, mô tả, đánh giá, voucher hay phí vận chuyển. Khi đã có đơn mà GMV vẫn thấp, hãy xem AOV. Juli đọc bốn chỉ số này theo từng luồng truy cập và từng sản phẩm, so với mức dao động bình thường của chính shop, để chỉ ra bước cần sửa trước.",
+  },
+  {
     question: "Juli lấy số liệu phân tích từ đâu?",
     answer:
       "Từ chính TikTok Shop của bạn, qua API chính thức mà bạn uỷ quyền khi kết nối: số liệu hiệu suất sản phẩm theo từng kênh, đơn hàng, sản phẩm, video, LIVE và khuyến mãi. Juli không cào dữ liệu từ trang web và không dùng số liệu ước đoán của bên thứ ba cho phần Phân tích.",
@@ -119,7 +124,7 @@ export default function PhanTichShopPage() {
         },
       ]}
       screenshot={CAP_PT_LUONG[0]?.webp}
-      software
+      service
       toc={[
         { id: "nam-luong", label: "Năm luồng truy cập" },
         { id: "pheu", label: "Phễu từng luồng" },
@@ -244,7 +249,7 @@ export default function PhanTichShopPage() {
       <CapSection
         alt="Khối Tab cửa hàng trong Phân tích: ô AOV 167 nghìn đồng giảm 2,1 % được đánh dấu Juli gợi ý, kéo GMV giảm 31 nghìn đồng mỗi ngày, bên dưới là bảng sản phẩm kéo AOV xuống với nhãn Rõ"
         caption="Ở luồng Tab cửa hàng, chỉ số kéo GMV xuống nhiều nhất là AOV; bảng bên dưới cho biết sản phẩm nào gây ra."
-        heading="Tìm chỉ số nghẽn: chỉ số nào đang kéo GMV xuống"
+        heading="Tăng GMV từ chỉ số nghẽn: chỉ số nào đang kéo GMV xuống"
         id="chi-so-nghen"
         image={CAP_PT_NGHEN}
         mobileImage={CAP_PT_NGHEN_MOBILE}

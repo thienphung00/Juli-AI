@@ -39,11 +39,14 @@ export {
   ORGANIZATION_ID,
   organizationSchema,
   PRICE_VND,
-  SOFTWARE_ID,
-  softwareApplicationSchema,
-  type SoftwareApplicationInput,
+  SERVICE_ID,
+  type ServiceInput,
+  servicePageSchema,
+  type ServicePageInput,
+  serviceSchema,
   videoObjectSchema,
   type VideoObjectInput,
   WEBSITE_ID,
   websiteSchema,
 } from "./schema";
+export { llmsTxt } from "./llms";

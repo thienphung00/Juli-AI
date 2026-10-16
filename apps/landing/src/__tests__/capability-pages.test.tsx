@@ -18,10 +18,10 @@ import { DEMO_URL, SIGNUP_URL, TRIAL_CTA_LABEL } from "../lib/site";
  * `FaqList` accordion and each page carries its block-built diagram.
  */
 const PAGES = [
-  { name: "/san-pham/phan-tich-shop", Page: PhanTichPage, software: true },
-  { name: "/san-pham/de-xuat-va-thuc-thi", Page: DeXuatPage, software: true },
-  { name: "/san-pham/do-luong-gmv", Page: DoLuongPage, software: true },
-  { name: "/ket-noi/tiktok-shop", Page: KetNoiPage, software: false },
+  { name: "/san-pham/phan-tich-shop", Page: PhanTichPage, service: true },
+  { name: "/san-pham/de-xuat-va-thuc-thi", Page: DeXuatPage, service: true },
+  { name: "/san-pham/do-luong-gmv", Page: DoLuongPage, service: true },
+  { name: "/ket-noi/tiktok-shop", Page: KetNoiPage, service: false },
 ] as const;
 
 const PUBLIC_DIR = join(__dirname, "..", "..", "public");
@@ -32,7 +32,7 @@ function jsonLd(container: HTMLElement): Array<Record<string, unknown>> {
   return ((parsed["@graph"] as Array<Record<string, unknown>> | undefined) ?? [parsed]);
 }
 
-describe.each(PAGES)("$name (AC-33.7)", ({ Page, software }) => {
+describe.each(PAGES)("$name (AC-33.7)", ({ Page, service }) => {
   it("has one H1 and a labelled, sized sample screenshot under every content H2", () => {
     const { container, unmount } = render(<Page />);
     expect(container.querySelectorAll("h1")).toHaveLength(1);
@@ -67,7 +67,10 @@ describe.each(PAGES)("$name (AC-33.7)", ({ Page, software }) => {
     const graph = jsonLd(container);
     const types = graph.map((entity) => entity["@type"]);
     expect(types).toContain("BreadcrumbList");
-    expect(types.includes("SoftwareApplication")).toBe(software);
+    expect(types).not.toContain("SoftwareApplication");
+    const page = graph.find((entity) => entity["@type"] === "WebPage");
+    expect(Boolean(page)).toBe(service);
+    if (page) expect(page.about).toEqual({ "@id": "https://app-juli.com/#service" });
     const faq = graph.find((entity) => entity["@type"] === "FAQPage");
     const questions = (faq?.mainEntity as Array<{ name: string }>).map((q) => q.name);
     const shown = [...container.querySelectorAll("#cau-hoi summary")].map((q) => q.textContent);

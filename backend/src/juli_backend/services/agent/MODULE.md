@@ -206,6 +206,28 @@ of the symbol scanner, not a claim that the names are unused: the
 module-boundary gate reads this same section and refuses the import without
 them.
 
+Card reactivation after an unsuccessful run (fast track D47.5 / P38,
+`card_reactivation.py`, reached by `workers` as `from juli_backend.services.agent
+import card_reactivation`):
+
+```python
+from juli_backend.services.agent.card_reactivation import (
+    REACTIVATING_RUN_STATUSES,
+    reactivate_card_for_ended_run,
+)
+```
+
+- `reactivate_card_for_ended_run(session, run, status) -> bool` — the ONE
+  writer of `approved` -> `active` (`approved_at` cleared) for the card behind a
+  run that ends `failed`, `cancelled` or `timed_out`. Called by
+  `runner/conversation_store.py::JsonbConversationStore.persist`, the worker
+  crash handler and the reaper sink. Idempotent (only an `approved` card moves),
+  shop-scoped (a card of another shop is left alone and logged), keeps
+  `surfaced_at` so the 7-day validity still expires an old card. A seller
+  decline never reaches it: "Từ chối" / "Không thực hiện" / "Hoàn tác" dismiss
+  the card first (`decision_reasons.close_card`).
+- `REACTIVATING_RUN_STATUSES` — `{failed, cancelled, timed_out}`.
+
 Approve-is-run-creation (approval.py, reached as `from
 juli_backend.services.agent import approval`):
 

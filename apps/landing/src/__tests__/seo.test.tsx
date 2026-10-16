@@ -18,7 +18,8 @@ import {
   organizationSchema,
   serializeJsonLd,
   SITE_ROUTES,
-  softwareApplicationSchema,
+  servicePageSchema,
+  serviceSchema,
   TITLE_MAX_LENGTH,
   TITLE_SUFFIX,
   videoObjectSchema,
@@ -168,11 +169,26 @@ describe("JSON-LD builders (AC-33.1)", () => {
     });
   });
 
-  it("prices the software at 500000 VND as a BusinessApplication", () => {
-    expect(softwareApplicationSchema({ path: "/san-pham" })).toMatchObject({
-      "@type": "SoftwareApplication",
-      applicationCategory: "BusinessApplication",
+  it("offers the service at 500000 VND/month as a Service, never a rated SoftwareApplication", () => {
+    const service = serviceSchema({ path: "/san-pham" });
+    expect(service).toMatchObject({
+      "@type": "Service",
+      "@id": "https://app-juli.com/#service",
+      provider: { "@id": "https://app-juli.com/#organization" },
       offers: { "@type": "Offer", price: 500000, priceCurrency: "VND" },
+    });
+    // D48 additions 2 / D43.3: no invented ratings or reviews, ever.
+    expect(JSON.stringify(service)).not.toMatch(/aggregateRating|"review"/);
+    expect(servicePageSchema({ path: "/san-pham/phan-tich-shop", screenshot: "/x.webp" })).toEqual({
+      "@type": "WebPage",
+      "@id": "https://app-juli.com/san-pham/phan-tich-shop#webpage",
+      url: "https://app-juli.com/san-pham/phan-tich-shop",
+      name: "Phân tích GMV TikTok Shop theo 5 luồng truy cập",
+      description: expect.any(String),
+      inLanguage: "vi-VN",
+      isPartOf: { "@id": "https://app-juli.com/#website" },
+      about: { "@id": "https://app-juli.com/#service" },
+      primaryImageOfPage: { "@type": "ImageObject", url: "https://app-juli.com/x.webp" },
     });
   });
 

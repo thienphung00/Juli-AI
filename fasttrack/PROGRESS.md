@@ -191,11 +191,20 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 |---|---|---|---|
 | P37 Sample store lifecycle (queued → running → applied / rejected / pending / expired), Quyết định + Phân tích on one tab-wide store, reviewer sample shares it | D47.2, D47.3 | done on branch `fasttrack/demo-lifecycle` (from 5b1a85f5) — not merged, not deployed | P37 agent (Opus) |
 
+## P38 — cancelled / timed-out runs reactivate the card (D47.5)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P38 One shared helper (`services/agent/card_reactivation.py`) puts an approved card back to `active` when its run ends `failed`, `cancelled` or `timed_out` (runner persist, crash handler, reaper); seller declines / reverts stay `dismissed` | D47.5 | done on branch `fasttrack/run-reactivate` (from 175e85ef, `fasttrack/optimize-product` merged in) — not merged, not deployed | P38 agent (Opus) |
+
 ## P39 — search-intent brand priorities on the pages (D48)
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P39 Titles, meta, H2s and FAQs for D48 items 1–4; `/terms` meta fix | D48 | in progress, branch `fasttrack/p39-search-intent` | P39 agent (Opus) |
+| P39 Titles, meta, H2s and FAQs for D48 items 1–4; `/terms` meta fix | D48 | done on branch `fasttrack/p39-search-intent` (dd95c145…c73e489a) — not merged, not deployed | P39 agent (Opus) |
+| P39 additions: AI tiêu đề/mô tả section, structured data type, llms.txt | D48 additions 1, 2, 4 | done on branch `fasttrack/p39-search-intent` (89491255, 005d643b, 873bf675) — not merged, not deployed | P39 agent (Opus) |
+| P39-B Three Vietnamese blog posts (draft) | D48 additions 6 | in progress, branch `fasttrack/p39b-blog` | P39-B agent (Opus) |
+| Owner: turn off Cloudflare Email Address Obfuscation for app-juli.com | D48 additions 3 | todo | owner |
 
 ## P41 — short simulation copy, no backend internals (D47.7)
 

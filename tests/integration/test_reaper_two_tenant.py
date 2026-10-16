@@ -324,3 +324,87 @@ async def test_each_run_is_reaped_by_its_own_workflows_policy_as_juli_app(
         )
     assert statuses[test_run_id] == "failed"
     assert statuses[prod_run_id] == "running"
+
+
+async def test_reaped_runs_reactivate_only_their_own_tenants_cards_as_juli_app(
+    two_tenants, owner_engine
+):
+    """Fast track D47.5 (P38), through the real RLS path.
+
+    Each tenant's expired consent (-> ``cancelled``) and stale run (-> ``failed``,
+    ``worker_lost``) puts its approved card back to ``active`` under that run's
+    own shop scope -- for BOTH tenants, so a reaper that reactivated under one
+    shared context would fail. Tenant 1's stale run is linked to a card of
+    TENANT 2: the run is reaped, and tenant 2's card stays approved (RLS hides it
+    under tenant 1's scope; the helper also refuses a shop mismatch).
+    """
+    tenant1, tenant2 = two_tenants
+    now = datetime.now(UTC)
+    naive = now.replace(tzinfo=None)
+
+    def _card(conn, shop_id: uuid.UUID) -> uuid.UUID:
+        card_id = uuid.uuid4()
+        conn.execute(
+            text(
+                "INSERT INTO public.action_cards (id, shop_id, workflow_key, subject_type, "
+                " subject_id, priority, severity, title, description, recommendation_payload, "
+                " status, approved_at, surfaced_at, created_at, updated_at) "
+                "VALUES (:id, :shop_id, 'optimize_product_2', 'product', :subject, 1, "
+                " 'warning', 'D47.5 card', '', '{}', 'approved', :now, :surfaced, :now, :now)"
+            ),
+            {
+                "id": str(card_id),
+                "shop_id": str(shop_id),
+                "subject": card_id.hex[:12],
+                "now": naive,
+                "surfaced": now - timedelta(days=1),
+            },
+        )
+        return card_id
+
+    with owner_engine.begin() as conn:
+        consent_cards = {t.shop_id: _card(conn, t.shop_id) for t in (tenant1, tenant2)}
+        stale_cards = {t.shop_id: _card(conn, t.shop_id) for t in (tenant1, tenant2)}
+        foreign_card = _card(conn, tenant2.shop_id)
+        for tenant in (tenant1, tenant2):
+            for run_id, card_id in (
+                (tenant.expired_approval_run_id, consent_cards[tenant.shop_id]),
+                (tenant.stale_run_id, stale_cards[tenant.shop_id]),
+            ):
+                conn.execute(
+                    text("UPDATE public.workflow_runs SET action_card_id = :c WHERE id = :r"),
+                    {"c": str(card_id), "r": str(run_id)},
+                )
+        # Tenant 1's stale run is re-pointed at tenant 2's card after all: a
+        # corrupt cross-tenant link the reaper must not follow.
+        conn.execute(
+            text("UPDATE public.workflow_runs SET action_card_id = :c WHERE id = :r"),
+            {"c": str(foreign_card), "r": str(tenant1.stale_run_id)},
+        )
+
+    async with juli_app_session() as session:
+        result = await reaper.reap_workflow_runs(session, now=now, has_live_task=_never_live)
+        await session.commit()
+
+    assert {tenant1.expired_approval_run_id, tenant2.expired_approval_run_id} <= set(
+        result.expired_approvals_reaped
+    )
+    assert {tenant1.stale_run_id, tenant2.stale_run_id} <= set(result.stale_runs_reaped)
+
+    with owner_engine.connect() as conn:
+        cards = {
+            row[0]: (row[1], row[2])
+            for row in conn.execute(
+                text("SELECT id, status, approved_at FROM public.action_cards")
+            ).all()
+        }
+
+    for tenant in (tenant1, tenant2):
+        assert cards[consent_cards[tenant.shop_id]] == ("active", None), (
+            f"{tenant.shop_id}: the consent-lapse card must be active again"
+        )
+    assert cards[stale_cards[tenant2.shop_id]] == ("active", None)
+    # Tenant 1's own stale card was unlinked, so it is untouched.
+    assert cards[stale_cards[tenant1.shop_id]][0] == "approved"
+    # Tenant 2's card behind tenant 1's run: invisible under tenant 1's scope.
+    assert cards[foreign_card][0] == "approved", "a run reactivated another tenant's card"

@@ -525,8 +525,8 @@ class TestActionCardRevertOnTerminalFailure:
     AC:
     - FAILED status reverts an approved card to active
     - COMPLETED status does NOT revert the card
-    - CANCELLED status does NOT revert the card
-    - TIMED_OUT status does NOT revert the card
+    - CANCELLED / TIMED_OUT revert it too since fast track D47.5 (P38) --
+      tests/unit/test_card_reactivation.py
     - WAITING_APPROVAL status does NOT revert the card
     - Non-approved card is not touched even on FAILED
     - Run with no action_card_id does not error on FAILED

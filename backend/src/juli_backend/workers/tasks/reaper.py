@@ -23,6 +23,10 @@ silently gone on next poll:
    approval sweep never to select it. `waiting_external` is not in that
    sweep's status filter, and this sweep's filter contains nothing else.
 
+Every closure ends the run unsuccessfully, so the sink also hands the run's
+approved action card back to `active` (fast track D47.5, through the shared
+`services/agent/card_reactivation.py`), in the same commit as the event row.
+
 No closure ever emits `stop_reason: tool_error_unrecoverable`. ADR-074
 d.4 is explicit about why: infrastructure death (`worker_lost`) and
 task-logic failure (`tool_error_unrecoverable`) are different facts feeding
@@ -119,6 +123,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.models.models import WorkflowRun
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from juli_backend.services.agent import card_reactivation as _card_reactivation
 from juli_backend.services.agent import events as _agent_events
 from juli_backend.services.agent import playbooks as _agent_playbooks
 from juli_backend.services.agent import runner as _agent_runner
@@ -338,6 +343,14 @@ class _ReaperEventSink:
         run.required_steps_completed = required_steps_completed(
             conversation_window,
             _agent_playbooks.get_termination_policy(run.workflow_key).required_steps,
+        )
+        # Fast track D47.5: every reaped run is unsuccessful (worker_lost ->
+        # failed, an expired consent -> cancelled, an expired external wait ->
+        # timed_out), so its approved card goes back to active -- the same
+        # helper the runner's own terminal persist and the crash handler call,
+        # under this run's shop scope.
+        await _card_reactivation.reactivate_card_for_ended_run(
+            self._session, run, event.payload.status
         )
 
         await self._session.commit()
