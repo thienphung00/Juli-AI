@@ -137,6 +137,43 @@
   font-weight: 600;
 }
 
+/* Partner entry at the top of the entry column (D47.6, amends D44.5):
+   a hairline outline pill, muted lead + pink action text. No fill, so
+   "Tiếp tục với Google" stays the only filled control. The radius stays
+   rounded (not 999px) so a two-line wrap on a narrow phone still reads as
+   one control. */
+
+.auth-screen a.auth-partner-top {
+  display: inline-flex;
+  min-height: 40px;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0 4px;
+  border: 1px solid var(--auth-hairline);
+  border-radius: 20px;
+  padding: 8px 14px;
+  background: #ffffff;
+  color: var(--auth-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.auth-screen a.auth-partner-top:hover {
+  border-color: #c2c2ca;
+  color: var(--auth-muted);
+}
+
+.auth-partner-top__action {
+  color: var(--auth-pink-text);
+  font-weight: 600;
+}
+
+.auth-screen a.auth-partner-top:hover .auth-partner-top__action {
+  color: var(--auth-pink-text-hover);
+}
+
 /* Buttons ------------------------------------------------------------- */
 
 .auth-btn {

@@ -206,6 +206,12 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 | P39-B Three Vietnamese blog posts (draft) | D48 additions 6 | in progress, branch `fasttrack/p39b-blog` | P39-B agent (Opus) |
 | Owner: turn off Cloudflare Email Address Obfuscation for app-juli.com | D48 additions 3 | todo | owner |
 
+## P40 — partner sign-in entry at the top of the auth screen (D47.6)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P40 "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác →" above the auth heading (plain + trial), footer link kept; ISV reviewer step 1 | D47.6 | done on branch `fasttrack/partner-top` (from 12e692a1) — not merged, not deployed | P40 agent (Opus) |
+
 ## P41 — short simulation copy, no backend internals (D47.7)
 
 | Task | ACs | Status | Owner |

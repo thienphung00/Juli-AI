@@ -59,8 +59,11 @@ interface is in Vietnamese; the steps below give the English meaning of each lab
 
 ## Steps for the reviewer
 
-1. Open https://demo.app-juli.com and choose **"Tài khoản đối tác (đăng nhập bằng mật khẩu)"**
-   (Partner account — sign in with password); enter the username and password above. A banner at
+1. Open https://demo.app-juli.com/auth/email#doi-tac (opens the partner sign-in form directly),
+   or open https://demo.app-juli.com and choose the link at the **top** of the sign-in column,
+   above the heading: **"Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác →"** (Partner
+   reviewer? Sign in with a partner account →; the same link is also in the footer as "Tài khoản
+   đối tác"). Enter the username and password above. A banner at
    the top reads "Tài khoản dùng thử cho đối tác · dữ liệu mẫu · thao tác chỉ mô phỏng" (partner
    trial account · sample data · actions are simulated only).
 2. **Trang chủ** (Home): the shop's GMV and its traffic sources (product card, video, LIVE, …),

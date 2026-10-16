@@ -1348,6 +1348,20 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   expired by the next emission-budget pass; a younger one counts as open again (it did not while
   approved). Logged as `action_card_reactivated_after_run`.
 
+  **D47 implementation note (P40, 2026-10-16, branch `fasttrack/partner-top`).** Item 6 lives in
+  `apps/demo/src/components/auth/auth-screen.tsx`: the entry view (shared by the plain and trial
+  variants, so both get it; not the OTP or partner views) opens with one link above the h1, an
+  outline pill (hairline #ececf0, white, no fill so "Tiếp tục với Google" stays the only filled
+  control): muted lead "Đối tác thẩm định?" + pink action "Đăng nhập bằng tài khoản đối tác →" (arrow
+  `aria-hidden`; accessible name "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác"). It shares
+  the footer link's href and click handler (in-page `#doi-tac` when `renderPartner` is passed, i.e.
+  `/auth/email`; else `/auth/email#doi-tac`). Keyboard order is now logo → partner entry → Google →
+  email. Copy `AUTH_PARTNER_TOP_LEAD` / `AUTH_PARTNER_TOP_ACTION` in `lib/auth-screen-copy.ts`, CSS
+  `.auth-partner-top` in `app/auth-screen.css`; at 390 px the pill wraps to two lines (radius 20 px,
+  not 999, so it still reads as one control). The footer link stays. The ISV reviewer steps
+  (`fasttrack/shopee-isv-services-information.md` step 1) now give the direct URL
+  `https://demo.app-juli.com/auth/email#doi-tac` and the top link.
+
   **D47 implementation note (P41, 2026-10-16, branch `fasttrack/sim-copy`).** Item 7. The
   simulated Thực thi (`components/quyet-dinh/simulation-dialog.tsx`) drops the request line
   (`PUT /product/202309/products/{product_id} (update_product_listing)`, or "Không có lệnh ghi lên

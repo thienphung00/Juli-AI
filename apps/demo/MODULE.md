@@ -303,7 +303,11 @@ Invariants below.
   (P32-A) `/auth/v1/token`.
 - Partner trial account (fast track P32-A, D42, contract
   `fasttrack/contracts/p32-reviewer-access.md`): `components/partner-sign-in.tsx`
-  ("Tài khoản đối tác", `/auth/email#doi-tac` only — the landing links to it)
+  ("Tài khoản đối tác", `/auth/email#doi-tac` only — the landing links to it from
+  the pill above the auth heading, "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác →"
+  (D47.6, plain and trial entry view), and from the footer link; both share one href / click
+  handler in `auth-screen.tsx`: in-page `#doi-tac` view where the form is rendered, else
+  `/auth/email#doi-tac`)
   runs `signInWithPassword` (GoTrue password grant, dictionary `auth.password.*`)
   then `GET /v1/reviewer/me` (`lib/reviewer/api-client.ts`); a reviewer gets the
   aliased reference shop as active shop and a record under `juli_demo_reviewer`

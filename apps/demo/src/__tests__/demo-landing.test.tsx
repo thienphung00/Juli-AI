@@ -34,6 +34,7 @@ const mockedBuildGoogleAuthorizeUrl = vi.mocked(buildGoogleAuthorizeUrl);
 
 const SAMPLE_ENTRY = "Xem thử với dữ liệu mẫu, không cần tài khoản →";
 const MATRIX = "Ma trận 5 luồng truy cập";
+const PARTNER_TOP = "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác";
 
 beforeEach(() => {
   window.sessionStorage.clear();
@@ -72,6 +73,24 @@ describe("auth screen — hierarchy (D44.5)", () => {
     // Document order: Google → email field → send.
     expect(google.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(email.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("D47.6: the partner entry sits at the top of the column, before the h1, secondary to Google, to /auth/email#doi-tac", async () => {
+    render(<DemoLanding />);
+    const google = await googleLink();
+
+    const top = screen.getByRole("link", { name: PARTNER_TOP });
+    const heading = screen.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" });
+    // No partner form on `/` → a real link to the page that carries it.
+    expect(top).toHaveAttribute("href", "/auth/email#doi-tac");
+    // Document order: top entry → h1 → Google; inside the sign-in column.
+    expect(top.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heading.compareDocumentPosition(google) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(screen.getByRole("main")).getByRole("link", { name: PARTNER_TOP })).toBe(top);
+    // Secondary: not a filled button; the footer link stays.
+    expect(top).not.toHaveClass("auth-btn--ink");
+    expect(within(screen.getByRole("contentinfo")).getByRole("link", { name: "Tài khoản đối tác" })).toBeInTheDocument();
+    // Focus order is pinned in "keyboard order" below.
   });
 
   it("Tiếp tục với Google is the ONLY filled (ink) button on the screen", async () => {
@@ -132,13 +151,15 @@ describe("auth screen — hierarchy (D44.5)", () => {
     fetchSpy.mockRestore();
   });
 
-  it("keyboard order: logo, Google, email", async () => {
+  it("keyboard order: logo, the partner entry (D47.6), Google, email", async () => {
     const user = userEvent.setup();
     render(<DemoLanding />);
     await googleLink();
 
     await user.tab();
     expect(screen.getByRole("link", { name: /Juli AI/ })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("link", { name: PARTNER_TOP })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("link", { name: "Tiếp tục với Google" })).toHaveFocus();
     await user.tab();
@@ -219,6 +240,12 @@ describe("auth screen — trial variant (/?dang-ky=dung-thu, D43 additions)", ()
     expect(container.querySelectorAll(".auth-btn--ink")).toHaveLength(1);
     expect(screen.getByRole("button", { name: SAMPLE_ENTRY })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Tài khoản đối tác" })).toHaveAttribute("href", "/auth/email#doi-tac");
+    // D47.6: the top partner entry too, still above the heading.
+    const top = screen.getByRole("link", { name: PARTNER_TOP });
+    expect(top).toHaveAttribute("href", "/auth/email#doi-tac");
+    expect(
+      top.compareDocumentPosition(screen.getByRole("heading", { level: 1 })) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("shows the auth screen even when the sample is stored, like ?entry=door", async () => {
