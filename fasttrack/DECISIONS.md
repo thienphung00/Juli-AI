@@ -1320,6 +1320,24 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   (`cancelled` / `timed_out` stay approved → "Đang thực hiện"; fixed by item 5, P38), and content runs record no write so
   their card stays "Đang thực hiện" after "Tôi đã đăng".
 
+  **D47.5 implementation note (P38, 2026-10-16, branch `fasttrack/run-reactivate`).** One helper,
+  `services/agent/card_reactivation.py::reactivate_card_for_ended_run`, is the only writer of
+  `approved` → `active` (`approved_at` cleared) and runs for `failed`, `cancelled` and `timed_out`
+  (`completed` and the waiting states never). Its callers are every terminal writer of a run:
+  the runner's `JsonbConversationStore.persist` (seller / Ops `cancel_requested` →
+  `cancelled_by_seller`, wall clock / iteration cap → `timed_out`, errors → `failed`), the worker
+  crash handler (`failed`) and the reaper sink (consent lapse `confirmation_expired` → `cancelled`,
+  `external_wait_expired` → `timed_out`, and `worker_lost` → `failed`, which until now did NOT
+  reactivate — closed as part of "exactly like failed"). Seller declines are unchanged: Từ chối,
+  "Không thực hiện" (consent step, or a lever-flow wait via `end_wait_by_seller` → `cancelled` /
+  `cancelled_by_seller`) and Hoàn tác dismiss the card through `close_card` in the decline's own
+  transaction, and the helper moves only an `approved` card, so a dismissed card stays dismissed
+  (also when the reaper lapses a consent the seller already declined). Idempotent; the card must
+  belong to the run's shop (read under the run's RLS scope; a mismatch is logged and skipped).
+  `surfaced_at` is kept: a reactivated card older than 7 days is "Hết hạn" on the next read and is
+  expired by the next emission-budget pass; a younger one counts as open again (it did not while
+  approved). Logged as `action_card_reactivated_after_run`.
+
 - **D48** — Search-intent brand priorities on app-juli.com (owner, 2026-10-16: "áp 5 brand
   priorities lên trang", using the Semrush numbers). Evidence: Semrush Keyword Magic, database
   Vietnam, free plan (10 rows per seed, 10 requests/day), 2026-10-16. Volume / KD / intent:

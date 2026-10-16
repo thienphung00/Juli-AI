@@ -100,7 +100,8 @@ from typing import Protocol, runtime_checkable
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.exceptions import NotFound
-from juli_backend.models.models import ActionCard, RunConfirmation, WorkflowRun
+from juli_backend.models.models import RunConfirmation, WorkflowRun
+from juli_backend.services.agent.card_reactivation import reactivate_card_for_ended_run
 from juli_backend.services.agent.events.payloads import ConfirmationOptionPayload
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.status import (
@@ -371,16 +372,11 @@ class JsonbConversationStore:
                 run.waiting_external_since = now
                 run.external_wait_reason = state.external_wait_reason
 
-            # Issue #1305 / AGT-W5A: auto-revert consumed action card when run
-            # fails cleanly (terminal FAILED status, same guard as crash handler
-            # at workers/tasks/agent_workflow.py:557-561 for AC3 recoverability).
-            # Only applies to terminal FAILED status, never COMPLETED/CANCELLED/
-            # TIMED_OUT/WAITING_APPROVAL, and only when card is currently approved.
-            if status is WorkflowRunStatus.FAILED and run.action_card_id:
-                card = await self._session.get(ActionCard, run.action_card_id)
-                if card and card.status == "approved":
-                    card.status = "active"
-                    card.approved_at = None
+            # Issue #1305 / AGT-W5A, widened by fast track D47.5: a run that ends
+            # FAILED, CANCELLED or TIMED_OUT puts its approved card back to
+            # active (approved_at cleared). Never COMPLETED / suspended. The
+            # one shared helper the crash handler and the reaper also call.
+            await reactivate_card_for_ended_run(self._session, run, status)
         if pending_confirmation is not None:
             # `proposed_change` round-trips byte-identically: each option
             # is dumped via Pydantic's own `model_dump(mode="json")`, the

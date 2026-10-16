@@ -170,6 +170,7 @@ from juli_backend.database.tenant_context import (
 )
 from juli_backend.models.models import Product, WorkflowRun
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
+from juli_backend.services.agent import card_reactivation as card_reactivation_module
 from juli_backend.services.agent import crash_classification as crash_module
 from juli_backend.services.agent import events as events_module
 from juli_backend.services.agent import runner as runner_module
@@ -875,8 +876,6 @@ async def _emit_crash_terminal_event(
     factory = _crash_terminal_session_factory(shop_id, run_id)
     async with factory() as fresh_session:
         try:
-            from juli_backend.models.models import ActionCard
-
             run = await fresh_session.get(WorkflowRun, run_id)
             if run is None:
                 logger.warning(
@@ -926,12 +925,11 @@ async def _emit_crash_terminal_event(
             run.completed_at = now
             run.required_steps_completed = False
 
-            # AC3: Auto-revert consumed action card for recoverability
-            if run.action_card_id:
-                card = await fresh_session.get(ActionCard, run.action_card_id)
-                if card and card.status == "approved":
-                    card.status = "active"
-                    card.approved_at = None
+            # AC3: Auto-revert consumed action card for recoverability -- the
+            # shared helper every terminal writer calls (fast track D47.5).
+            await card_reactivation_module.reactivate_card_for_ended_run(
+                fresh_session, run, WorkflowRunStatus.FAILED
+            )
 
             await fresh_session.commit()
 
