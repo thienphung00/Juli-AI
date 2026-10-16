@@ -1295,6 +1295,10 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      failed run today, a run that ends `cancelled` or `timed_out` puts its approved card back to
      `active` (clears `approved_at`), so the seller sees "Chờ duyệt" again instead of a card stuck
      on "Đang thực hiện"; the demo sample (P37) already does this.
+  6. **Partner sign-in visible at the top (owner, 2026-10-16; amends D44.5):** the demo auth
+     screen shows the "Tài khoản đối tác" entry at the top of the sign-in column (above the
+     heading, clearly secondary to "Tiếp tục với Google"), so a partner reviewer finds it without
+     scrolling; the footer link stays.
 
   **D47 implementation note (P37, 2026-10-16, branch `fasttrack/demo-lifecycle`).** Item 2 lives in
   `apps/demo/src/lib/quyet-dinh/sample-clients.ts`: each card keeps a desk status like
