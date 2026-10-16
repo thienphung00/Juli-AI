@@ -2004,3 +2004,11 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   Pre-existing, not touched: `test_import_boundaries` strict-baseline (8 grandfathered deep
   imports in ops / workers files) and `test_agent_workflow_task_wiring` (7 fail without a DB on
   the base too).
+- Full backend unit suite (SQLite, no DB, this worktree): 7456 passed, 43 failed, 3 errors. All
+  pre-existing / environmental: 27 `test_agent_events_contract` (no `packages/contracts/
+  node_modules` in a fresh worktree), 7 `test_agent_workflow_task_wiring`, `test_import_boundaries`,
+  `test_ratchets` (30 s timeout on base too), `test_test_quality` ×3, `test_cross_tenant_probe`,
+  `test_destructive_migration_isolation`, `test_three_tier_ci_contract`, `test_trial_signups`,
+  `test_quality_reconcile` errors ×3 — the same files fail on `fasttrack/optimize-product`
+  (6f92934c: 9 failed + 3 errors over those files with node_modules present).
+
