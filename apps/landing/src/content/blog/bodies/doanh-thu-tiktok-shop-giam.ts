@@ -148,6 +148,8 @@ Khi đã biết luồng nào giảm, đây là các câu hỏi nên đi qua cho 
 - Lượt hiển thị sản phẩm từ video giảm (video ít được phân phối) hay CTR giảm (video vẫn được xem nhưng ít người nhấp vào sản phẩm)?
 - Sản phẩm trong các video bán chạy cũ có còn được gắn đúng, còn hàng, còn cùng mức giá không?
 
+{{hinh:pt-video}}
+
 ### LIVE
 
 - Số buổi LIVE, thời lượng và khung giờ có thay đổi không?
@@ -196,6 +198,8 @@ Tách CTOR làm hai nửa bằng **Tỷ lệ thêm vào giỏ hàng**, mà TikTo
 - Bạn có vừa giảm giá sâu hơn không? GMV có thể giảm dù số đơn tăng.
 - Một ưu đãi theo gói hay quà tặng kèm có vừa tắt không?
 
+{{hinh:kiem-tra-theo-chi-so}}
+
 ## Nguyên nhân nằm ngoài phễu
 
 Không phải mọi mức giảm đều do khách mua ít đi. Hãy kiểm tra thêm:
@@ -204,6 +208,8 @@ Không phải mọi mức giảm đều do khách mua ít đi. Hãy kiểm tra t
 - **Đơn hủy và hoàn tiền tăng**: GMV vẫn tính chúng, nhưng tiền về thì không. Nếu tiền về giảm mạnh hơn GMV, hãy xem lý do hủy và hoàn.
 - **Hoàn tiền đến muộn**: theo trang "Lưu lượng truy cập sản phẩm", khoản hoàn tiền được ghi vào thời điểm yêu cầu được xử lý, có thể muộn hơn ngày mua. Vì vậy tỷ lệ hoàn tiền của tuần gần nhất thường trông thấp hơn thực tế, và một kỳ cũ có thể trông "xấu đi" khi các khoản hoàn của nó dần được ghi nhận.
 - **Một sản phẩm chủ lực ngừng bán**: hết hàng dài ngày, ngừng nhập, hoặc bị tạm ngưng.
+
+{{hinh:ngoai-pheu}}
 
 ## Một vài sản phẩm hay cả shop
 
