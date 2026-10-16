@@ -46,7 +46,7 @@ export default function AboutPage() {
     { label: "Trụ sở", value: COMPANY.address },
     { label: "Email", value: COMPANY.email, href: `mailto:${COMPANY.email}` },
     { label: "Website", value: "app-juli.com", href: "https://app-juli.com" },
-    { label: "Sản phẩm", value: "Juli AI — trợ lý tăng trưởng cho người bán TikTok Shop", href: "/san-pham" },
+    { label: "Sản phẩm", value: "Juli AI, trợ lý tăng trưởng cho người bán TikTok Shop", href: "/san-pham" },
   ];
 
   return (

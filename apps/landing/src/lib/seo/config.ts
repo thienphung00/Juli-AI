@@ -34,7 +34,7 @@ export const DEFAULT_OG_IMAGE: OgImage = {
   url: "/og/juli-ai-default.png",
   width: 1200,
   height: 630,
-  alt: "Juli AI — trợ lý AI tăng trưởng cho người bán TikTok Shop",
+  alt: "Juli AI, trợ lý AI tăng trưởng cho người bán TikTok Shop",
 };
 
 /** The bird mark used as the Organization logo in JSON-LD (square, ≥ 112px, raster). */

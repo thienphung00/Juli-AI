@@ -42,7 +42,7 @@ export const HERO_VIDEO = {
 
 /** Ready-made input for `videoObjectSchema()`. */
 export const HERO_VIDEO_SCHEMA = {
-  name: "Juli AI — trợ lý tăng trưởng cho người bán TikTok Shop",
+  name: "Juli AI, trợ lý tăng trưởng cho người bán TikTok Shop",
   description:
     "Video giới thiệu Juli: cách Juli theo dõi shop, phân tích GMV theo từng luồng truy cập và đề xuất hành động.",
   thumbnailUrl: [HERO_VIDEO.poster.large.webp],
