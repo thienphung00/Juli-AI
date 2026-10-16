@@ -2282,3 +2282,39 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   (`test_agent_workflow_task_wiring.py`, known local limitation; no Python touched).
 - Next: owner review, merge `--no-ff`. Note: 6d595c27 on its own fails the registry test (route
   without page); the branch tip is green.
+
+## 2026-10-16 — P44 agent (Claude Opus) — three tools listicles naming competitors (D49.2)
+
+- Branch `fasttrack/p44-tools-listicles` (from `fasttrack/optimize-product` e20e5394). Not merged, not pushed.
+- **Posts (all `status: "draft"`, category `tools`, Vietnamese only)**:
+  a. `phan-mem-quan-ly-ban-hang-da-kenh-2026`: BigSeller, Haravan, KiotViet, MISA eShop, Nhanh.vn,
+     Pancake POS, Sapo (alphabetical). MISA eShop added to the owner's six: Google VN autocomplete
+     "phần mềm quản lý bán hàng đa kênh misa eshop" and MISA pages lead the SERP for "phần mềm
+     quản lý bán hàng tiktok shop" (this session's competitor research). No Juli in the body.
+  b. `cong-cu-phan-tich-tiktok-shop-2026`: La bàn dữ liệu (TikTok Academy 10008597, 10015238),
+     market research FastMoss, Kalodata, Metric; own-shop group: Juli once ("sản phẩm của chúng
+     tôi", no superlatives), plus reports of multichannel software. Left out with reason in the
+     post: EchoTik and Shoplus (no Vietnam on their public pages), Kalowave (Kalodata's operator,
+     per Kalodata's FAQ, not a tool).
+  c. `cong-cu-ai-tao-anh-video-san-pham-tiktok-shop`: Canva, CapCut, Higgsfield, Photoroom, Pippit
+     ("do CapCut cung cấp"), TikTok Symphony Creative Studio (VN help article). Kling left out (plan
+     page rendered no text). No Juli in the body.
+  Each: selection criteria up front, a comparison table (who for, main functions, platforms, free
+  tier as published), every tool section ends "Thông tin kiểm tra ngày 16/10/2026 trên trang chính
+  thức của …", prices only as published (plan, currency, period; promos noted), no scores / stars /
+  winner / rating schema, no "—", header comment lists sources. 3,3xx–3,6xx words each.
+- Vendor pages read with curl text dumps and Chrome page text (read-only, no sign-up or log-in).
+  Unreadable prices stated as such: MISA eShop (Báo giá only), Pancake POS (no table found),
+  Kalodata (/pricing redirects to log-in).
+- **Hub** `cong-cu-cho-nha-ban-tiktok-shop-2026`: one line each in sections 2, 3 and the AI section
+  linking a, b, c; `updatedAt` 2026-10-16; still draft.
+- **Covers**: `da-kenh-2026-v1`, `phan-tich-2026-v1`, `ai-anh-video-v1` (tiles, accents 0 / 2 / 5).
+- **Test change** (`blog.test.tsx`): posts a and c (D49.2 "no Juli") are exempt from "links every
+  product page"; instead they must link the hub, link no `/san-pham*` or `/ket-noi*`, and never
+  contain "Juli". New per-post check: no "—" in body, title, seoTitle, description, excerpt, cover alt.
+- Gates (Node 20.20.2): lint 0, `tsc --noEmit` 0, vitest 16 files / 298 passed, build OK,
+  `check:seo` 24 passed. `check.sh`: migrations / isolation FAIL (no throwaway DB; `docker info`
+  hung and was killed), gitleaks PASS, ruff PASS, pytest 7 failed / 2889 passed
+  (`test_agent_workflow_task_wiring.py`, SQLAlchemy URL parse: known local limitation; no Python touched).
+- Next: owner reviews the three drafts (`pnpm dev`, `/blog/<slug>`), re-checks prices before
+  publishing (several are promotional), merge `--no-ff`.
