@@ -191,6 +191,12 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 |---|---|---|---|
 | P37 Sample store lifecycle (queued → running → applied / rejected / pending / expired), Quyết định + Phân tích on one tab-wide store, reviewer sample shares it | D47.2, D47.3 | done on branch `fasttrack/demo-lifecycle` (from 5b1a85f5) — not merged, not deployed | P37 agent (Opus) |
 
+## P39 — search-intent brand priorities on the pages (D48)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P39 Titles, meta, H2s and FAQs for D48 items 1–4; `/terms` meta fix | D48 | in progress, branch `fasttrack/p39-search-intent` | P39 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

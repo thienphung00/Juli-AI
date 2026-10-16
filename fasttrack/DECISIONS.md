@@ -1315,3 +1315,27 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   backend and are in DEBT (P37): the backend reactivates the card only for `failed`
   (`cancelled` / `timed_out` stay approved → "Đang thực hiện"; fixed by item 5, P38), and content runs record no write so
   their card stays "Đang thực hiện" after "Tôi đã đăng".
+
+- **D48** — Search-intent brand priorities on app-juli.com (owner, 2026-10-16: "áp 5 brand
+  priorities lên trang", using the Semrush numbers). Evidence: Semrush Keyword Magic, database
+  Vietnam, free plan (10 rows per seed, 10 requests/day), 2026-10-16. Volume / KD / intent:
+  `gmv là gì` 4,400 / 21 / I; `gmv` 1,600 / 25 / I; `cách bán hàng trên tiktok shop` 1,300 / 28 / I;
+  `bán hàng trên tiktok shop` 1,000 / 34 / I; `cách chạy quảng cáo tiktok` 1,600 / 22 / I;
+  `tiktok shop` 135,000 / 40. No Semrush data (volume too small for the VN database, but present in
+  Google autocomplete): phần mềm / quản lý / phân tích / tối ưu tiktok shop, gmv max, tăng doanh số
+  tiktok, không ra đơn, ctr tiktok. The five priorities and where each lands:
+  1. **Phần mềm AI phân tích và vận hành TikTok Shop** (commercial) → `/san-pham` title and meta.
+     Home title and H1 stay as the owner set them (D46, f7337452).
+  2. **Cách tăng GMV TikTok Shop** (informational; `gmv là gì` is the biggest term) → a home FAQ
+     "GMV là gì, tăng GMV TikTok Shop bằng cách nào?" (in FAQPage schema) and
+     `/san-pham/phan-tich-shop` title / meta / one H2 worded around tăng GMV.
+  3. **TikTok Shop không ra đơn: tìm nguyên nhân qua CTR, CTOR, AOV** → `/san-pham/phan-tich-shop`
+     H2 or FAQ "Vì sao shop TikTok không ra đơn?".
+  4. **Tối ưu sản phẩm TikTok Shop** → `/san-pham/de-xuat-va-thuc-thi` title / meta / H2, naming
+     only what Juli actually writes (title, description) per SPEC; no claim it edits images.
+  5. **ROI và ngân sách GMV Max** → **no page copy**: Juli does not run ads, and an AI tool must
+     not read it as an ads manager. Blog-only, later (DEBT).
+  ISV truth rules (D42, D46) hold: TMĐT-first positioning, "hiện kết nối TikTok Shop, Shopee đang
+  tích hợp", no Lazada / Tiki, no invented numbers, no "—" in visible copy. Also fixes the `/terms`
+  meta description, which still said "kết nối TikTok Shop và Shopee" (terms 2.1 says Shopee is in
+  progress). Blog drafts stay drafts (owner approves posts). Implemented in P39.
