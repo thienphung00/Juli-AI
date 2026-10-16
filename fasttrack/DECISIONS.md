@@ -1438,3 +1438,10 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      labels such as CTR, CTOR, AOV stay as TikTok writes them), status `draft` until the owner
      approves: "GMV là gì" (Semrush VN 4,400/month, KD 21), "TikTok Shop không ra đơn", "Doanh thu
      TikTok Shop giảm: checklist". Branch `fasttrack/p39b-blog` (P39-B).
+  7. **Inline images in blog posts** (owner, 2026-10-16: "Thêm hình"), starting with the three
+     P39-B drafts. The body renderer gains a figure block (responsive avif/webp, width/height,
+     Vietnamese alt and caption, lazy-loaded, never the LCP). Images are either real Juli
+     screenshots on the sample shop captioned "Dữ liệu mẫu" (reuse `public/media/cap-*`) or
+     diagrams built as HTML/SVG like the covers (GMV funnel, five traffic sources, checklists);
+     any number in a diagram is labelled "Ví dụ giả định". No stock photos, no TikTok or Shopee
+     screenshots or logos. P39-C, branch `fasttrack/p39c-blog-images`.

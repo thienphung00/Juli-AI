@@ -204,7 +204,8 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 | P39 Titles, meta, H2s and FAQs for D48 items 1–4; `/terms` meta fix | D48 | done, merged into `fasttrack/optimize-product` (a8916adb), owner approved the copy 2026-10-16; not deployed | P39 agent (Opus) |
 | P39 additions: AI tiêu đề/mô tả section, structured data type, llms.txt | D48 additions 1, 2, 4 | done, merged (a8916adb); not deployed | P39 agent (Opus) |
 | P39-B Three Vietnamese blog posts (draft) | D48 additions 6 | done, merged (c5772320, 1988f93d); posts stay `draft` until the owner approves | P39-B agent (Opus) |
-| Owner: turn off Cloudflare Email Address Obfuscation for app-juli.com | D48 additions 3 | todo | owner |
+| P39-C Inline images in the three P39-B drafts | D48 additions 7 | in progress, branch `fasttrack/p39c-blog-images` | P39-C agent (Opus) |
+| Owner: turn off Cloudflare Email Address Obfuscation for app-juli.com | D48 additions 3 | done 2026-10-16 (live /contact has no cdn-cgi links) | owner |
 
 ## P40 — partner sign-in entry at the top of the auth screen (D47.6)
 
