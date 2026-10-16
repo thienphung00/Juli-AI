@@ -2147,3 +2147,43 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   DECISIONS append conflicts kept both): `check.sh` (Docker hung > 10 s → throwaway Homebrew
   Postgres 16 in UTC as CHECK_DATABASE_URL, dropped after) migrations / isolation (12) / gitleaks /
   ruff (484 files) PASS, pytest 209 files 3045 passed, 2 skipped. `check.sh: OK`.
+
+## 2026-10-16 — P42 agent (Claude Opus) — legal pages: data rights + processing layers (branch `fasttrack/legal-data`)
+- Scope (owner, mid-task): live site only — `/terms` and `/privacy` (VI + EN). The md sources in
+  `~/Downloads/b2b_document/md/` and the Ory contract were NOT touched (no backup, no clause file).
+  Commercial terms (3-month trial, 500.000đ) unchanged. Deletion / disconnect promises unchanged.
+- 6ef17dbf: `/terms` 2.2 (16/10/2026) new §8 "Dữ liệu của bạn" (8.1 ownership, 8.2 seller warrants
+  the right to let Juli process shop + buyer data, 8.3 seller = controller / Juli = processor with
+  commitments a–g incl. 72 h notice and no buyer identifiers to the AI provider, 8.4 third-party
+  content in uploads + buyer reviews de-identified, 8.5 third-party secrets + market data, 8.6 the
+  md's fine-tune clause verbatim, 8.7 per-shop suggestions, 8.8 pointer to Privacy §7); old §8–10 →
+  §9–11. `/privacy` 2.1 (16/10/2026, version now shown): §1 controller split; §4 "Nội dung bạn tự cung
+  cấp" + "Đánh giá của người mua và dữ liệu thị trường"; §6 purpose limit + fine-tune + per-shop; §7
+  one processor list, "Dữ liệu gửi cho nhà cung cấp AI (OpenAI)", "Chuyển dữ liệu ra nước ngoài"
+  (counsel marker is a JSX comment, not rendered); §8 72 h incident notice. EN mirrors all of it.
+  Sitemap lastmod /privacy → 2026-10-16. New `legal-data-layers.test.tsx` (8 tests).
+- Evidence for the processor list: OpenAI only LLM (`agent/llm/openai_adapter.py` `"store": False`;
+  no other LLM host in backend/src); vision = product photos (`agent/vision.py`) + keyframes and
+  listing images, ASR = audio slices (`content_analysis/openai_media.py`, "never the uploaded file");
+  uploads on VPS disk, deleted at end, hourly sweep > 24 h (`content_analysis/storage.py`,
+  `celery_app.py` content-analysis-sweep); no `buyer` provenance origin (`agent/sanitize/provenance.py`).
+  Supabase (auth + DB); Cloudflare proxied DNS for app/api + Access for ops (`docs/runbooks/vps-wiring-
+  runbook.md`, D25.1); AWS Secrets Manager us-east-2 (runbooks); Google Workspace `smtp.gmail.com`
+  (`docs/runbooks/ops-console-runbook.md`, `services/ops/mailer.py`); Zalo OA / FCM adapters exist but
+  nothing imports `services/alerts` → "(dự kiến)"; Viettel-CA has no code → "(dự kiến)"; FastMoss has
+  no backend client (manual/agent look-ups, D24.5/15) → market-data source, not a processor; TikTok
+  Pixel/Events API (`components/tiktok-tracking.tsx`, consent-gated). Ads: only the Business OAuth
+  callback, awaiting TikTok approval — no ad data read, so the site lists none. Buyer review text is
+  not ingested (only review counts) → the review sentences are conditional ("Nếu Juli sử dụng…").
+- Not verifiable in the repo (owner): who sends Supabase email OTPs (Google Workspace as custom SMTP?);
+  OpenAI org data-sharing setting is off; VPS provider name and Supabase region; Viettel-CA contract;
+  counsel on the cross-border legal basis (marker in `privacy/page.tsx`).
+- Contradiction for the owner: D24.8 plans SFT on seller-edited final text per category; the
+  fine-tune clause (md, contract §5.4, now the site) allows only anonymised structural data with no
+  titles / scripts / content. Text left restrictive.
+- Gates (Node 26, `NODE_OPTIONS=--no-experimental-webstorage`): lint 0, tsc 0, vitest 16 files / 238
+  passed, build OK, `check:seo` 18 passed. `check.sh --since fasttrack/optimize-product` (Docker
+  unresponsive → throwaway local Postgres 16, UTC, dropped after): migrations PASS (head 092),
+  isolation PASS (12), gitleaks PASS, ruff PASS (no Python), pytest PASS (none touched) → OK.
+- Next: owner review of wording, merge `--no-ff`, deploy; then decide md/contract sync (md ToS is 2.1,
+  Privacy 2.0; contract §8.3 cites v2.0 14/10/2026).

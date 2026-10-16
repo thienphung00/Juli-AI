@@ -20,6 +20,15 @@ route it owns (`/api/tt/event`) talks to TikTok, not to `juli-api`.
   `/privacy#du-lieu-nguoi-dung-google` (§3) is the Google OAuth brand-verification
   section: scopes, data accessed, use, Limited Use, sharing, protection,
   retention/deletion/revocation, plus an English summary; tests pin each item.
+  Data rights and processing (P42, ToS 2.2 / Privacy 2.1, 16/10/2026): `/terms` §8
+  "Dữ liệu của bạn" (ownership, the seller's warranty, seller = controller / Juli =
+  processor of buyer data, third-party content, market data, the anonymised
+  fine-tune clause); `/privacy` §1 (controller split), §4 (uploads, buyer reviews,
+  FastMoss as a market-data source), §6 (purpose limit + fine-tune), §7 (one
+  processor list, identical VI/EN, what goes to OpenAI, cross-border safeguards),
+  §8 (72 h incident notice). Every processor and AI input was checked against the
+  code; `src/__tests__/legal-data-layers.test.tsx` pins them. When a processor
+  changes, edit both languages and that test's lists together.
 - `/san-pham`, `/about`, `/contact` — public, no-login pages describing the
   product (features, TikTok Shop data use, pricing, FAQ) and the operating
   company (`COMPANY`). `/product` 301s to `/san-pham` (D43.1, `RENAMED_PATHS`

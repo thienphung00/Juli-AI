@@ -218,6 +218,15 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 |---|---|---|---|
 | P41 Simulated Thực thi without endpoint / second disclaimer; short reviewer labels; plain TikTok-flag wording (demo + backend summaries); sample runs match their product; queue chip follows events | D47.7 | done on branch `fasttrack/sim-copy` (from 12e692a1) — not merged, not deployed | P41 agent (Opus) |
 
+## P42 — legal pages: data rights and processing layers (owner, 2026-10-16)
+
+Reason: the website legal text lacked layer 1 (data rights) and layer 2 (processing, processors, AI provider, cross-border). Website only; the md sources and the Ory contract are out of scope for this task (owner).
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| `/terms` 2.2 §8 "Dữ liệu của bạn"; `/privacy` 2.1 §1, §4, §6, §7, §8 (VI + EN); processor list and OpenAI inputs verified in code; `legal-data-layers.test.tsx` | owner brief 2026-10-16 | done on branch `fasttrack/legal-data` (6ef17dbf) — not merged, not deployed | P42 agent (Opus) |
+| Owner: confirm the unverifiable facts in LOG P42 (sign-in email sender, OpenAI data-sharing setting, Viettel-CA, counsel on cross-border basis) | — | todo | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

@@ -11,7 +11,8 @@ import { legal } from "./legal-template";
 
 export const ENGLISH_SECTION_ID = "english";
 export const ENGLISH_GOOGLE_SECTION_ID = "google-user-data";
-export const LAST_UPDATED_EN = "October 15, 2026";
+export const VERSION_EN = "2.1";
+export const LAST_UPDATED_EN = "October 16, 2026";
 export const GOOGLE_USER_DATA_POLICY_URL =
   "https://developers.google.com/terms/api-services-user-data-policy";
 export const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
@@ -35,7 +36,9 @@ export function PrivacyPolicyEnglish() {
       <h2 className={legal.partHeading} id="privacy-english-heading">
         Privacy Policy — Juli AI (English)
       </h2>
-      <p className={legal.partUpdated}>Last updated (effective date): {LAST_UPDATED_EN}</p>
+      <p className={legal.partUpdated}>
+        Version {VERSION_EN} · Last updated (effective date): {LAST_UPDATED_EN}
+      </p>
 
       <p className={legal.intro}>
         This policy explains how Juli AI collects, uses, shares and protects data when you
@@ -55,7 +58,10 @@ export function PrivacyPolicyEnglish() {
           Juli AI is operated by <span lang="vi">{COMPANY.name}</span> (tax ID{" "}
           {COMPANY.taxId}), with its registered office at{" "}
           <span lang="vi">{COMPANY.address}</span>. <span lang="vi">{COMPANY.name}</span> is
-          the controller and processor of the personal data described in this policy.
+          the controller and processor of the personal data described in this policy. For
+          buyers&rsquo; personal data contained in shop data, however, the seller is the
+          controller and Juli processes that data on the seller&rsquo;s behalf, under section
+          8 of the <a href="/terms">Terms of Service</a>.
         </p>
         <p>
           You can contact us by email at <ContactLink />.
@@ -269,6 +275,39 @@ export function PrivacyPolicyEnglish() {
           Juli does not read your personal messages, and does not store buyers&rsquo; contact
           information beyond the identifiers needed to process orders.
         </p>
+
+        <h4 className={legal.subheading} id="content-you-provide">
+          Content you provide
+        </h4>
+        <p>
+          Besides the data read from the marketplace, Juli processes content you actively
+          enter or upload: your shop&rsquo;s Rules (for example cost price, profit margin,
+          tone of voice, banned words) and the videos or LIVE recordings you upload for Juli
+          to analyze. Uploaded files are stored temporarily on Juli&rsquo;s server and deleted
+          when the analysis ends; any file left over (for example an unfinished upload) is
+          deleted automatically after about 24 hours. Juli keeps only the analysis results
+          (for example the transcribed speech and scores). You warrant that you have the
+          rights to this content, including the consent of the people who appear in it
+          (section 8.4 of the <a href="/terms">Terms of Service</a>).
+        </p>
+
+        <h4 className={legal.subheading} id="buyer-reviews-and-market-data">
+          Buyer reviews and market data
+        </h4>
+        <p>
+          If Juli uses the text of buyers&rsquo; product reviews (for example to understand
+          how buyers describe a product), Juli removes the buyer&rsquo;s name and identifying
+          information before processing it, including before sending it to an AI model.
+        </p>
+        <p>
+          Market and competitor data (for example selling prices, best-selling products and
+          videos by category, keywords) comes from public sources and from FastMoss, a TikTok
+          Shop market data provider. Juli collects this data itself; it does not come from
+          the private data of other shops that use Juli. Juli does not send your shop data
+          (orders, business figures, buyer data) to FastMoss; when looking data up, Juli uses
+          only information that is already public on TikTok Shop, such as a shop or product
+          name.
+        </p>
       </section>
 
       <section className={legal.section} id="shopee-data-en">
@@ -320,27 +359,76 @@ export function PrivacyPolicyEnglish() {
           <li>To send the alerts and notifications you have turned on</li>
           <li>To measure the effectiveness of Juli&rsquo;s advertising on TikTok</li>
           <li>To provide support and announce important changes to the service</li>
+          <li>
+            To improve Juli&rsquo;s analysis algorithms and the quality of its suggestions,
+            including fine-tuning a language model, using only anonymized data in structural
+            form (see below)
+          </li>
         </ul>
+        <p>
+          Juli stores, analyzes and shares your data only for the purposes above. Juli does
+          not sell data, and does not use data that can identify your shop to serve other
+          customers; your data is used outside your own shop only in anonymized, structural
+          form, as described below.
+        </p>
+        <p>
+          To improve its algorithms, Juli uses only shop data that has been anonymized, and
+          only in structural form (for example the type of metric, correlations between
+          metrics, the type of recommendation and the result after it was applied). This data
+          contains no shop name, product names or content, images, scripts, titles, business
+          figures that could identify a shop, buyer information or Google user data, and is
+          not disclosed to other customers. You can ask us at any time to stop using your
+          data for this purpose by emailing <ContactLink />; Juli stops doing so for data
+          created from the time it receives the request.
+        </p>
+        <p>
+          Script, title and content suggestions are processed separately for each shop, based
+          on that shop&rsquo;s own data and wording; a shop&rsquo;s own content is used only to
+          create suggestions for that shop.
+        </p>
       </section>
 
       <section className={legal.section}>
         <h3 className={legal.sectionHeading}>7. Who we share data with</h3>
         <p>
-          Juli does not sell your data to any third party. We share data only with the
-          following data processors, to the extent necessary to operate the product:
+          Juli does not sell your data to any third party, and does not disclose or transfer
+          your data beyond the parties below. We share data only with the following data
+          processors, each receiving only the data its role requires:
         </p>
         <ul aria-label="Data processors">
-          <li>Supabase — sign-in authentication (Google) and database hosting</li>
-          <li>TikTok Shop API — the source of your shop data</li>
           <li>
-            OpenAI — the AI model that analyzes shop data and creates recommendations. Data
-            sent through OpenAI&rsquo;s API is not used to train models
+            Supabase — sign-in authentication (Google and email verification codes) and
+            database hosting
           </li>
-          <li>Server (VPS) provider — where the Juli app runs</li>
+          <li>
+            TikTok Shop API — the source of your shop data; Shopee Open Platform — when you
+            connect a Shopee shop (section 4A)
+          </li>
+          <li>
+            OpenAI — the provider of the AI (language) models Juli uses to analyze shop data
+            and create recommendations (details below)
+          </li>
+          <li>
+            Server (VPS) provider — where the Juli app runs and where files you upload for
+            analysis are stored temporarily
+          </li>
+          <li>
+            Cloudflare — domain management, routing and protection of connections (HTTPS) to
+            app-juli.com and its subdomains; access control for the Juli team&rsquo;s internal
+            tool
+          </li>
           <li>Amazon Web Services (AWS) — management of system secret keys</li>
           <li>
-            Zalo (Zalo OA) and Google Firebase — sending the alerts and push notifications you
-            have turned on
+            Google Workspace — the email service Juli uses to send you sign-in codes,
+            notifications and account messages
+          </li>
+          <li>
+            Zalo (Zalo OA) and Google Firebase (planned) — sending alerts and push
+            notifications, only if you turn them on
+          </li>
+          <li>
+            Viettel-CA (planned) — issuing, sending and storing e-invoices when you pay, and
+            transmitting invoice data to the tax authority as required
           </li>
           <li>
             TikTok Pixel and Events API — measuring advertising effectiveness. They receive
@@ -351,9 +439,50 @@ export function PrivacyPolicyEnglish() {
           </li>
         </ul>
         <p>
-          Some of the processors above host their servers outside Vietnam (for example, in
-          the United States), so data may be transferred abroad. We transfer only the data
-          necessary for the purposes in section 6. We may also provide data when a competent
+          FastMoss (section 4) is a market data source Juli looks data up in, not a processor
+          of your shop data.
+        </p>
+
+        <h4 className={legal.subheading} id="ai-provider">
+          Data sent to the AI provider (OpenAI)
+        </h4>
+        <p>
+          Juli uses OpenAI&rsquo;s models through the OpenAI API, a service for businesses and
+          developers, not through the consumer ChatGPT app. The specific model may change
+          among OpenAI&rsquo;s models. Juli sends only the data each analysis needs:
+        </p>
+        <ul aria-label="Data sent to OpenAI">
+          <li>Product information (name, description, category, price) and shop performance figures</li>
+          <li>Product images, to check that an image matches the product&rsquo;s content</li>
+          <li>The Rules and content you enter (for example tone of voice, banned words)</li>
+          <li>
+            For videos or LIVE recordings you upload: extracted frames (small images) and
+            audio segments for speech-to-text; Juli never sends the whole file
+          </li>
+          <li>The text of buyer reviews, if used, after buyer identifiers have been removed</li>
+        </ul>
+        <p>
+          Juli does not send OpenAI buyers&rsquo; contact information or identifiers, Google
+          user data, or marketplace account sign-in details. Under OpenAI&rsquo;s API terms and
+          data policy, data sent through the API is not used by OpenAI to train OpenAI&rsquo;s
+          models. Juli sends its analysis requests with OpenAI&rsquo;s response storage turned
+          off; under OpenAI&rsquo;s API data policy, OpenAI may still keep API data for a
+          limited period to monitor for abuse. A fine-tuned model (if any) is Juli&rsquo;s own
+          model and uses only data anonymized as described in section 6. Juli limits the
+          scope and volume of model use for each shop.
+        </p>
+
+        <h4 className={legal.subheading} id="cross-border-transfer">
+          Transfers outside Vietnam
+        </h4>
+        <p>
+          Some of the processors above (for example OpenAI and Amazon Web Services) process
+          or store data outside Vietnam, mainly in the United States, so data may be
+          transferred abroad. We transfer only the data necessary for the purposes in section
+          6, and protect it by: using only providers that operate under their terms of
+          service and data protection commitments; encrypting data in transit (HTTPS/TLS);
+          sending only the data each task needs; and removing buyer identifiers before
+          anything is sent to an AI model. We may also provide data when a competent
           government authority requests it in accordance with the law.
         </p>
       </section>
@@ -365,6 +494,10 @@ export function PrivacyPolicyEnglish() {
           provider (Supabase). Access to data is limited per account and per shop, and TikTok
           Shop access keys are kept in a managed secret store, not in source code. Details
           specific to Google user data are in sections 3.5 and 3.6.
+        </p>
+        <p>
+          If we discover a data leak or loss that affects your data, Juli notifies you no
+          later than 72 hours after discovering it.
         </p>
         <p>
           We keep data for as long as you use Juli. When you disconnect a shop, Juli
