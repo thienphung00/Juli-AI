@@ -38,9 +38,26 @@ only design that removes both. In the card system:
    key once a verdict exists (:func:`seller_sentences`), e.g. "Nhóm 6 sản phẩm đổi ảnh
    bìa: CTR tăng khoảng 7 % so với các sản phẩm chưa đổi".
 
+6. **Ops groups and more metrics (D45, fast track P36 -- Ops only).** Juli Ops can
+   create a group by hand (:func:`create_ops_group`) for a lever Juli never proposes
+   as a card -- ``pack_option``, a new pack / variant option the owner creates on
+   TikTok (Juli never writes it) -- with the same seeded ≈ 1/3 control draw. Such a
+   group has no cards, declares its primary metric (default AOV, all channels) and
+   reads the product-card CTR as a **guard**: Ops warns when the treated products'
+   CTR falls more than 15 % against the control (``group_guard_ctr_drop``), even if
+   AOV rose. Every group's verdict also carries all-channel AOV and items per order
+   (``verdict.metrics``, same rule: 90 % interval, false-alarm replay, pre-period
+   adjustment). D45.6: the pre-period adjustment follows the group size
+   (:func:`.group_stats.adjust_changes`: plain change below 15 measured products,
+   two pre-period windows from 15, ``group_two_window_min``). Each group shows its
+   weekly-drift floor and the traffic needed (:mod:`.group_design`) and an optional
+   one-line "lý do chọn thử nghiệm" (``design.reason``). The seller never sees an
+   Ops group: no seller sentence, no card.
+
 Switch: the team tunable ``card_groups`` (``DiagTunables.groups_enabled``): unset
-follows D33's quota mode (on only when the quota mode is on); off = nothing here runs
-and the emission budget is unchanged.
+follows D33's quota mode (on only when the quota mode is on); off = no card is drawn
+into a group and the emission budget is unchanged -- only groups already made (e.g.
+by Ops) are still measured at day 14.
 """
 
 from __future__ import annotations
@@ -68,21 +85,28 @@ from juli_backend.models.card_groups import (
     CardGroup,
     CardGroupMember,
 )
-from juli_backend.models.models import ActionCard
+from juli_backend.models.models import ActionCard, AnalyticsPerformanceInterval, Product
 from juli_backend.services.action_cards.emission_budget import SUPPRESSED_REASON_GROUP_CONTROL
+from juli_backend.services.action_cards.group_design import (
+    DRIFT_SIGMA_WEEK,
+    drift_floor,
+    traffic_needed,
+)
 from juli_backend.services.action_cards.group_stats import (
     ALPHA,
     INTERVAL_HIGH,
     INTERVAL_LOW,
+    TWO_WINDOW_MIN_PRODUCTS,
     FalseAlarm,
     Unit,
+    adjust_changes,
     assess,
-    cuped_adjust,
     false_alarm_rate,
     null_pool,
     unit_from_change,
 )
 from juli_backend.services.change_strength import STRENGTH_LABELS_VI
+from juli_backend.services.optimize_product.tunables import DiagTunables
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +147,8 @@ MEASURE_METRIC: Mapping[str, str] = {
     "ctr": "ctr",
     "ctor": "conversion_rate",
     "aov": "gmv_per_order",
+    #: D45.2 (P36): items sold / SKU orders (computed here, not a WindowTotals value).
+    "items_per_order": "items_per_order",
 }
 
 METRIC_LABELS_VI: Mapping[str, str] = {
@@ -130,6 +156,7 @@ METRIC_LABELS_VI: Mapping[str, str] = {
     "ctr": "CTR",
     "ctor": "CTOR",
     "aov": "AOV",
+    "items_per_order": "Số món mỗi đơn",
 }
 LEVER_LABELS_VI: Mapping[str, str] = {
     "cover_image": "Ảnh bìa",
@@ -139,6 +166,9 @@ LEVER_LABELS_VI: Mapping[str, str] = {
     "flash_sale": "Flash sale",
     "shipping_discount": "Giảm phí vận chuyển",
     "buy_more_save_more": "Mua nhiều giảm nhiều",
+    #: D45.1 (P36): a new pack / variant option (e.g. 2× at −5 % per unit) the owner
+    #: creates on TikTok. Never a card -- only an Ops group.
+    "pack_option": "Quy cách mới",
 }
 CHANNEL_LABELS_VI: Mapping[str, str] = {
     "product_card": "Thẻ sản phẩm",
@@ -155,13 +185,30 @@ _LEVER_DID_VI: Mapping[str, str] = {
     "flash_sale": "chạy flash sale",
     "shipping_discount": "giảm phí vận chuyển",
     "buy_more_save_more": "thêm mua nhiều giảm nhiều",
+    "pack_option": "thêm quy cách mới",
 }
 _METRIC_MOVED_VI: Mapping[str, str] = {
     "impressions": "lượt hiển thị",
     "ctr": "lượt nhấp",
     "ctor": "đơn hàng trên mỗi lượt nhấp",
     "aov": "giá trị mỗi đơn",
+    "items_per_order": "số món mỗi đơn",
 }
+
+#: D45 (P36): who made a group.
+SOURCE_CARDS = "cards"
+SOURCE_OPS = "ops"
+#: D45.2: every group's verdict also reads these (metric, channel) -- all channels.
+EXTRA_METRICS: tuple[tuple[str, str], ...] = (("aov", "total"), ("items_per_order", "total"))
+#: D45.2: the guard of a group whose primary metric is not CTR (e.g. pack → AOV).
+GUARD_METRIC: tuple[str, str] = ("ctr", "product_card")
+#: D45.2: warn when the guard's treated − control change is below −this (points of %).
+GUARD_DROP_PCT = 15.0
+#: D45.3: the "lý do chọn thử nghiệm" is one line.
+REASON_MAX_CHARS = 200
+#: An Ops group: this many products at most (a whole small shop).
+OPS_GROUP_MAX_PRODUCTS = 60
+CHANNELS: tuple[str, ...] = ("product_card", "video", "live", "total")
 
 
 # =========================================================================== pure
@@ -191,6 +238,53 @@ class GroupKey:
     def parse(cls, text: str) -> GroupKey:
         metric, lever, channel = text.split("|", 2)
         return cls(metric, lever, channel)
+
+
+@dataclass(frozen=True)
+class GroupDesign:
+    """``card_groups.design`` (D45, migration 092); ``None`` in the row = a card group."""
+
+    source: str = SOURCE_CARDS
+    #: The one-line "lý do chọn thử nghiệm" (D45.3), typed in Ops.
+    reason: str | None = None
+    #: Read the product-card CTR as a guard (D45.2).
+    guard: bool = False
+    created_by: str | None = None
+
+    @classmethod
+    def of(cls, group: CardGroup) -> GroupDesign:
+        raw = group.design if isinstance(group.design, dict) else {}
+        reason = raw.get("reason")
+        return cls(
+            source=SOURCE_OPS if raw.get("source") == SOURCE_OPS else SOURCE_CARDS,
+            reason=reason if isinstance(reason, str) and reason.strip() else None,
+            guard=bool(raw.get("guard")),
+            created_by=raw.get("created_by") if isinstance(raw.get("created_by"), str) else None,
+        )
+
+    @property
+    def ops(self) -> bool:
+        return self.source == SOURCE_OPS
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "source": self.source,
+            "reason": self.reason,
+            "guard": self.guard,
+            "created_by": self.created_by,
+        }
+
+
+def metric_specs(key: GroupKey, design: GroupDesign) -> list[tuple[str, str]]:
+    """The extra (metric, channel) pairs a group reads besides its primary (D45.2)."""
+    specs = [spec for spec in EXTRA_METRICS if spec != (key.metric, key.channel)]
+    if design.guard and GUARD_METRIC != (key.metric, key.channel):
+        specs.append(GUARD_METRIC)
+    return specs
+
+
+def spec_key(metric: str, channel: str) -> str:
+    return f"{metric}|{channel}"
 
 
 def _payload(card: ActionCard) -> dict[str, Any]:
@@ -350,9 +444,14 @@ def seller_sentence(
     return body
 
 
+def _positive(value: Any) -> float | None:
+    return float(value) if isinstance(value, int | float) and value > 0 else None
+
+
 def _units(measured: Sequence[Mapping[str, Any]]) -> tuple[list[Unit], bool]:
     """CUPED units of the measured rows: (before, after) when every row has both > 0,
-    else change-only units (CUPED then leaves the changes as they are)."""
+    else change-only units (CUPED then leaves the changes as they are). D45.6: a row's
+    ``pre_before`` (days −28..−15) rides along as ``Unit.pre``."""
     full = all(
         isinstance(c.get("before"), int | float)
         and isinstance(c.get("after"), int | float)
@@ -361,7 +460,10 @@ def _units(measured: Sequence[Mapping[str, Any]]) -> tuple[list[Unit], bool]:
         for c in measured
     )
     if full:
-        return [Unit(c["arm"], float(c["before"]), float(c["after"])) for c in measured], True
+        return [
+            Unit(c["arm"], float(c["before"]), float(c["after"]), _positive(c.get("pre_before")))
+            for c in measured
+        ], True
     units = []
     for c in measured:
         unit = unit_from_change(c["arm"], float(c["change_pct"]))
@@ -370,17 +472,20 @@ def _units(measured: Sequence[Mapping[str, Any]]) -> tuple[list[Unit], bool]:
 
 
 def _false_alarm(
-    pre_pairs: Sequence[tuple[float, float]],
+    pre_pairs: Sequence[Sequence[float]],
     adjusted: Sequence[tuple[str, float]],
     n_treated: int,
     n_control: int,
     seed: int,
-    control_pairs: Sequence[tuple[float, float]] = (),
+    control_pairs: Sequence[Sequence[float]] = (),
+    two_window_min: int | None = TWO_WINDOW_MIN_PRODUCTS,
 ) -> FalseAlarm | None:
     if _label(n_treated, n_control) == LABEL_NOT_ENOUGH:
         return None
     pool, source = null_pool(pre_pairs, adjusted, control_pairs)
-    return false_alarm_rate(pool, n_treated, n_control, seed=seed, source=source)
+    return false_alarm_rate(
+        pool, n_treated, n_control, seed=seed, source=source, two_window_min=two_window_min
+    )
 
 
 def build_verdict(
@@ -388,8 +493,9 @@ def build_verdict(
     *,
     seed: int,
     as_of: date,
-    control_pairs: Sequence[tuple[float, float]] = (),
+    control_pairs: Sequence[Sequence[float]] = (),
     history: Sequence[Mapping[str, Any]] = (),
+    two_window_min: int = TWO_WINDOW_MIN_PRODUCTS,
 ) -> dict[str, Any]:
     """The stored verdict from per-product rows ``{product_id, arm, approved, change_pct}``
     (plus ``before`` / ``after`` / ``pre_before`` when measured from data).
@@ -401,10 +507,15 @@ def build_verdict(
     primary one also at the top level. T3.1: ``control_pairs`` (the control members'
     untouched post-launch window pairs) join the pre-period pairs in the null pool;
     ``history`` = the earlier checks of this group, ``checks`` = history + this one.
+    D45.6 (P36): the adjustment follows the group size (``adjustment``: plain change
+    below ``two_window_min`` measured products, two pre-period windows from it); a
+    row's ``pre_pre_before`` (days −42..−29) makes its pre-period pair a triple, so
+    the false-alarm replay can apply the same rule.
     """
     measured = [c for c in changes if isinstance(c.get("change_pct"), int | float)]
     units, cuped_used = _units(measured)
-    adjusted, theta = cuped_adjust(units)
+    adjustment = adjust_changes(units, two_window_min=two_window_min)
+    adjusted, theta = adjustment.changes, adjustment.theta
     adjusted_by_id = {id(c): round(v, 2) for c, v in zip(measured, adjusted, strict=True)}
     treated = [v for c, v in zip(measured, adjusted, strict=True) if c["arm"] == ARM_TREATED]
     control = [v for c, v in zip(measured, adjusted, strict=True) if c["arm"] == ARM_CONTROL]
@@ -413,17 +524,22 @@ def build_verdict(
         for c, v in zip(measured, adjusted, strict=True)
         if c["arm"] == ARM_TREATED and c.get("approved")
     ]
-    pre_pairs = [
-        (float(c["pre_before"]), float(c["before"]))
-        for c in measured
-        if isinstance(c.get("pre_before"), int | float) and isinstance(c.get("before"), int | float)
-    ]
+    pre_pairs: list[tuple[float, ...]] = []
+    for c in measured:
+        if not (
+            isinstance(c.get("pre_before"), int | float)
+            and isinstance(c.get("before"), int | float)
+        ):
+            continue
+        earlier = _positive(c.get("pre_pre_before"))
+        pair = (float(c["pre_before"]), float(c["before"]))
+        pre_pairs.append((earlier, *pair) if earlier is not None else pair)
     arm_changes = [(c["arm"], v) for c, v in zip(measured, adjusted, strict=True)]
     fa_primary = _false_alarm(
-        pre_pairs, arm_changes, len(treated), len(control), seed, control_pairs
+        pre_pairs, arm_changes, len(treated), len(control), seed, control_pairs, two_window_min
     )
     fa_approved = _false_alarm(
-        pre_pairs, arm_changes, len(approved), len(control), seed, control_pairs
+        pre_pairs, arm_changes, len(approved), len(control), seed, control_pairs, two_window_min
     )
     products = []
     for c in changes:
@@ -443,11 +559,80 @@ def build_verdict(
         "primary": primary,
         "approved_only": compare(approved, control, seed=seed, false_alarm=fa_approved),
         "cuped": {"theta": round(theta, 4), "from_before_after": cuped_used},
+        #: D45.6: which pre-period rule ran (``change`` / ``one_window`` / ``two_windows``).
+        "adjustment": {**adjustment.to_json(), "two_window_min": two_window_min},
         "false_alarm": fa_primary.to_json() if fa_primary is not None else None,
         "null_pool": {"pre_period": len(pre_pairs), "control_after": len(control_pairs)},
         "checks": [*(dict(h) for h in history), check],
         "products": products,
     }
+
+
+def metric_summary(metric: str, channel: str, verdict: Mapping[str, Any]) -> dict[str, Any]:
+    """One extra metric's comparison for ``verdict.metrics`` (D45.2): same rule as the primary."""
+    return {
+        "metric": metric,
+        "channel": channel,
+        "label": (
+            f"{METRIC_LABELS_VI.get(metric, metric)} · {CHANNEL_LABELS_VI.get(channel, channel)}"
+        ),
+        "primary": verdict.get("primary"),
+        "adjustment": verdict.get("adjustment"),
+        "false_alarm": verdict.get("false_alarm"),
+        "null_pool": verdict.get("null_pool"),
+        "products": [
+            {
+                "product_id": p.get("product_id"),
+                "arm": p.get("arm"),
+                "change_pct": p.get("change_pct"),
+                "adjusted_change_pct": p.get("adjusted_change_pct"),
+            }
+            for p in verdict.get("products") or []
+        ],
+    }
+
+
+def guard_check(
+    key: GroupKey,
+    primary: Mapping[str, Any] | None,
+    guard: Mapping[str, Any] | None,
+    *,
+    max_drop_pct: float = GUARD_DROP_PCT,
+) -> dict[str, Any]:
+    """D45.2: warn in Ops when the guard metric (product-card CTR) fell more than
+    ``max_drop_pct`` points of % treated vs control -- whatever the primary did.
+
+    ``primary`` / ``guard``: the two comparisons (``compare`` output). The point
+    estimate decides (no interval, no strength): it is a warning to look, not a verdict.
+    """
+    metric, channel = GUARD_METRIC
+    diff = guard.get("difference") if isinstance(guard, Mapping) else None
+    primary_diff = primary.get("difference") if isinstance(primary, Mapping) else None
+    out: dict[str, Any] = {
+        "metric": metric,
+        "channel": channel,
+        "max_drop_pct": max_drop_pct,
+        "difference": diff,
+        "primary_difference": primary_diff,
+        "warning": False,
+    }
+    guard_name = f"{METRIC_LABELS_VI[metric]} {CHANNEL_LABELS_VI[channel].lower()}"
+    if not isinstance(diff, int | float):
+        out["text"] = f"Chưa đủ dữ liệu {guard_name} để kiểm tra"
+        return out
+    if diff < -max_drop_pct:
+        out["warning"] = True
+        text = (
+            f"Cảnh báo: {guard_name} của nhóm áp dụng giảm {abs(diff):.0f} % so với đối chứng "
+            f"(ngưỡng {max_drop_pct:.0f} %)"
+        )
+        if isinstance(primary_diff, int | float) and primary_diff > 0:
+            name = METRIC_LABELS_VI.get(key.metric, key.metric)
+            text += f" dù {name} tăng {primary_diff:.0f} %"
+        out["text"] = text
+        return out
+    out["text"] = f"{guard_name} không giảm quá {max_drop_pct:.0f} % so với đối chứng"
+    return out
 
 
 # =========================================================================== storage
@@ -522,9 +707,15 @@ async def apply_groups(
     today = shop_day(now)
     groups, members = await _active_groups(session, shop_id, today)
     by_member: dict[tuple[str, str], tuple[CardGroup, CardGroupMember]] = {}
+    #: D45.1: a product in an Ops group (e.g. the pack test) is never drawn into a new
+    #: card group -- two experiments on one product would read each other's change.
+    in_ops_group: set[str] = set()
     for group in sorted(groups, key=lambda g: g.launched_on):
+        ops_group = GroupDesign.of(group).ops
         for member in members.get(group.id, []):
             by_member[(group.group_key, member.tiktok_product_id)] = (group, member)
+            if ops_group:
+                in_ops_group.add(member.tiktok_product_id)
 
     held: list[ActionCard] = []
     first: list[ActionCard] = []
@@ -538,7 +729,8 @@ async def apply_groups(
         key, product = info
         hit = by_member.get((key.text, product))
         if hit is None:
-            free[key.text].append((card, product))
+            if product not in in_ops_group:
+                free[key.text].append((card, product))
             rest.append(card)
             continue
         group, member = hit
@@ -612,67 +804,69 @@ async def apply_groups(
     return GroupPass(eligible=first + rest, held=held, launched=launched)
 
 
+def _value(totals: Any, name: str) -> float | None:
+    """A window's metric: ``WindowTotals.value`` plus items per order (D45.2)."""
+    if name == "items_per_order":
+        orders = totals.sku_orders
+        return float(totals.items_sold / orders) if totals.days > 0 and orders > 0 else None
+    v = totals.value(name)
+    return None if v is None else float(v)
+
+
+def _window_value(rows: Sequence[Any], name: str, start: date) -> float | None:
+    """The metric over the 14 days from ``start``; ``None`` below 7 days with data or ≤ 0."""
+    from juli_backend.services.lever_flows.measurement import window_totals
+
+    totals = window_totals(rows, start, start + timedelta(days=MEASURE_DAYS - 1))
+    v = _value(totals, name)
+    if v is None or totals.days < MIN_DAYS_MEASURED or v <= 0:
+        return None
+    return v
+
+
 def _window_pairs(
     rows: Sequence[Any], name: str, launch: date, untouched_through: date
-) -> list[tuple[float, float]]:
+) -> list[tuple[float, ...]]:
     """Consecutive 14-day window pairs from day −14 ending on or before ``untouched_through``.
 
     (−14..−1, 0..13), (0..13, 14..27), … -- a control member's no-effect pairs (T3.1).
+    D45.6: a pair whose preceding 14 days have data is a triple (w − 1, w, w + 1), so
+    the replay can run the two-window rule.
     """
-    from juli_backend.services.lever_flows.measurement import window_totals
-
-    def value(start: date) -> float | None:
-        totals = window_totals(rows, start, start + timedelta(days=MEASURE_DAYS - 1))
-        v = totals.value(name)
-        if v is None or totals.days < MIN_DAYS_MEASURED or v <= 0:
-            return None
-        return float(v)
-
-    pairs: list[tuple[float, float]] = []
+    pairs: list[tuple[float, ...]] = []
     start = launch - timedelta(days=MEASURE_DAYS)
     while start + timedelta(days=2 * MEASURE_DAYS - 1) <= untouched_through:
-        b, a = value(start), value(start + timedelta(days=MEASURE_DAYS))
+        b = _window_value(rows, name, start)
+        a = _window_value(rows, name, start + timedelta(days=MEASURE_DAYS))
         if b is not None and a is not None:
-            pairs.append((b, a))
+            p = _window_value(rows, name, start - timedelta(days=MEASURE_DAYS))
+            pairs.append((p, b, a) if p is not None else (b, a))
         start += timedelta(days=MEASURE_DAYS)
     return pairs
 
 
-async def _member_change(
-    session: AsyncSession,
-    shop_id: uuid.UUID,
-    group: CardGroup,
-    product: str,
-    *,
-    untouched_through: date | None = None,
+def _spec_values(
+    raw_rows: Sequence[Any],
+    launch: date,
+    metric: str,
+    channel: str,
+    untouched_through: date | None,
 ) -> dict[str, Any]:
-    """One member's before (14 days before launch) / after (14 days from launch) values.
+    """One metric × channel of one member: before / after / pre-periods / change (pure)."""
+    from juli_backend.services.lever_flows.measurement import channel_rows, window_totals
 
-    ``untouched_through`` (control members only): the last day no lever ran on the
-    product -- its consecutive post-launch window pairs up to then are returned as
-    ``null_pairs`` for the false-alarm pool (T3.1).
-    """
-    from juli_backend.services.lever_flows.measurement import (
-        _daily_rows,
-        channel_rows,
-        window_totals,
-    )
-
-    launch = group.launched_on
+    rows: Sequence[Any] = raw_rows if channel == "total" else channel_rows(raw_rows, channel)
     before_start = launch - timedelta(days=MEASURE_DAYS)
     pre_start = before_start - timedelta(days=MEASURE_DAYS)
     after_end = launch + timedelta(days=MEASURE_DAYS - 1)
-    rows_end = max(after_end, untouched_through) if untouched_through else after_end
-    rows: list[Any] = await _daily_rows(session, shop_id, product, pre_start, rows_end)
-    if group.channel != "total":
-        rows = channel_rows(rows, group.channel)
-    pre = window_totals(rows, pre_start, before_start - timedelta(days=1))
     before = window_totals(rows, before_start, launch - timedelta(days=1))
     after = window_totals(rows, launch, after_end)
-    name = MEASURE_METRIC.get(group.metric, group.metric)
-    b, a = before.value(name), after.value(name)
-    # D41.3: the 14 days before "before" -- the no-effect pair for the false-alarm replay.
-    p = pre.value(name) if pre.days >= MIN_DAYS_MEASURED else None
+    name = MEASURE_METRIC.get(metric, metric)
+    b, a = _value(before, name), _value(after, name)
+    # D41.3: the 14 days before "before" -- the no-effect pair for the false-alarm replay;
+    # D45.6: the 14 days before those -- the replay's own earlier window (a triple).
+    p = _window_value(rows, name, pre_start)
+    pp = _window_value(rows, name, pre_start - timedelta(days=MEASURE_DAYS))
     change: float | None = None
     if (
         b is not None
@@ -681,11 +875,12 @@ async def _member_change(
         and before.days >= MIN_DAYS_MEASURED
         and after.days >= MIN_DAYS_MEASURED
     ):
-        change = round((float(a) / float(b) - 1) * 100, 2)
+        change = round((a / b - 1) * 100, 2)
     return {
-        "before": None if b is None else float(b),
-        "after": None if a is None else float(a),
-        "pre_before": None if p is None or p <= 0 else float(p),
+        "before": b,
+        "after": a,
+        "pre_before": p,
+        "pre_pre_before": pp,
         "change_pct": change,
         "null_pairs": (
             _window_pairs(rows, name, launch, untouched_through)
@@ -695,8 +890,47 @@ async def _member_change(
     }
 
 
+async def _member_change(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    group: CardGroup,
+    product: str,
+    *,
+    untouched_through: date | None = None,
+    specs: Sequence[tuple[str, str]] = (),
+) -> dict[str, Any]:
+    """One member's before (14 days before launch) / after (14 days from launch) values.
+
+    ``untouched_through`` (control members only): the last day no lever ran on the
+    product -- its consecutive post-launch window pairs up to then are returned as
+    ``null_pairs`` for the false-alarm pool (T3.1). ``specs`` (D45.2): extra
+    (metric, channel) pairs, returned under ``metrics`` keyed ``metric|channel``.
+    """
+    from juli_backend.services.lever_flows.measurement import _daily_rows
+
+    launch = group.launched_on
+    # Days −42..−1 before launch (three pre-period windows, D45.6) and the after window.
+    first = launch - timedelta(days=3 * MEASURE_DAYS)
+    after_end = launch + timedelta(days=MEASURE_DAYS - 1)
+    rows_end = max(after_end, untouched_through) if untouched_through else after_end
+    rows: list[Any] = await _daily_rows(session, shop_id, product, first, rows_end)
+    out = _spec_values(rows, launch, group.metric, group.channel, untouched_through)
+    if specs:
+        out["metrics"] = {
+            spec_key(metric, channel): _spec_values(
+                rows, launch, metric, channel, untouched_through
+            )
+            for metric, channel in specs
+        }
+    return out
+
+
 async def measure_due_groups(
-    session: AsyncSession, shop_id: uuid.UUID, *, now: datetime
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    now: datetime,
+    tunables: DiagTunables | None = None,
 ) -> list[CardGroup]:
     """Day-14 verdicts for the shop's open groups whose 14 days of data are in (step 4).
 
@@ -705,7 +939,13 @@ async def measure_due_groups(
     launch) with the latest data: the comparison window stays the 14 days from launch,
     but the null pool grows with the control members' untouched post-launch pairs, so
     the false-alarm gate can let the verdict out of "Đang đo".
+
+    D45 (P36): every verdict also reads all-channel AOV and items per order
+    (``metrics``) and, for a group with a CTR guard, the product-card CTR
+    (``guard``); the pre-period rule follows the group size
+    (``tunables.group_two_window_min``).
     """
+    tun = tunables if tunables is not None else DiagTunables()
     from juli_backend.services.action_cards.optimize_product_cards import (
         latest_product_analytics_day,
     )
@@ -763,8 +1003,13 @@ async def measure_due_groups(
                 if card.approved_at is not None
             }
         approved = set(approved_on)
+        key = GroupKey.parse(group.group_key)
+        design = GroupDesign.of(group)
+        specs = metric_specs(key, design)
         changes = []
-        control_pairs: list[tuple[float, float]] = []
+        control_pairs: list[tuple[float, ...]] = []
+        extra_changes: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        extra_pairs: dict[str, list[tuple[float, ...]]] = defaultdict(list)
         for member in sorted(members, key=lambda m: m.tiktok_product_id):
             untouched: date | None = None
             if member.arm == ARM_CONTROL:
@@ -772,25 +1017,54 @@ async def measure_due_groups(
                 touched = approved_on.get(member.action_card_id) if member.action_card_id else None
                 untouched = as_of if touched is None else min(as_of, touched - timedelta(days=1))
             values = await _member_change(
-                session, shop_id, group, member.tiktok_product_id, untouched_through=untouched
+                session,
+                shop_id,
+                group,
+                member.tiktok_product_id,
+                untouched_through=untouched,
+                specs=specs,
             )
             control_pairs.extend(values.pop("null_pairs"))
-            changes.append(
-                {
-                    "product_id": member.tiktok_product_id,
-                    "arm": member.arm,
-                    "approved": member.action_card_id in approved,
-                    **values,
-                }
-            )
+            base = {
+                "product_id": member.tiktok_product_id,
+                "arm": member.arm,
+                "approved": member.action_card_id in approved,
+            }
+            for name, extra in (values.pop("metrics", None) or {}).items():
+                extra_pairs[name].extend(extra.pop("null_pairs"))
+                extra_changes[name].append({**base, **extra})
+            changes.append({**base, **values})
         previous = group.verdict if isinstance(group.verdict, dict) else {}
-        group.verdict = build_verdict(
+        verdict = build_verdict(
             changes,
             seed=group.seed,
             as_of=as_of,
             control_pairs=control_pairs,
             history=previous.get("checks") or [],
+            two_window_min=tun.group_two_window_min,
         )
+        metrics: dict[str, Any] = {}
+        for metric, channel in specs:
+            name = spec_key(metric, channel)
+            extra_verdict = build_verdict(
+                extra_changes[name],
+                seed=group.seed,
+                as_of=as_of,
+                control_pairs=extra_pairs[name],
+                two_window_min=tun.group_two_window_min,
+            )
+            metrics[name] = metric_summary(metric, channel, extra_verdict)
+        verdict["metrics"] = metrics
+        if design.guard:
+            guard_primary = (
+                verdict["primary"]
+                if (key.metric, key.channel) == GUARD_METRIC
+                else (metrics.get(spec_key(*GUARD_METRIC)) or {}).get("primary")
+            )
+            verdict["guard"] = guard_check(
+                key, verdict["primary"], guard_primary, max_drop_pct=tun.group_guard_ctr_drop
+            )
+        group.verdict = verdict
         group.status = GROUP_MEASURED
         group.measured_at = _naive(now)
         measured.append(group)
@@ -834,6 +1108,8 @@ async def seller_sentences(session: AsyncSession, shop_id: uuid.UUID) -> dict[st
     )
     out: dict[str, str] = {}
     for group in groups:
+        if GroupDesign.of(group).ops:
+            continue  # D45: an Ops group is Ops-only -- the seller never sees it.
         verdict = group.verdict if isinstance(group.verdict, dict) else None
         size = len(verdict.get("products") or []) if verdict else 0
         sentence = seller_sentence(GroupKey.parse(group.group_key), size, verdict)
@@ -846,8 +1122,93 @@ def _iso(value: Any) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-async def group_views(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[str, Any]]:
-    """Every group of the shop for Ops (D34.8): members, arms, launch, verdict, newest first."""
+async def _before_totals(
+    session: AsyncSession, shop_id: uuid.UUID, group: CardGroup, arms: Mapping[str, str]
+) -> dict[str, dict[str, float]]:
+    """Per arm: impressions / clicks (on the group's channel) and orders / GMV (all channels)
+    over the 14 days before launch -- the traffic the group has (D45.4). One query."""
+    from juli_backend.services.lever_flows.measurement import channel_rows
+
+    start = group.launched_on - timedelta(days=MEASURE_DAYS)
+    end = group.launched_on - timedelta(days=1)
+    out = {
+        arm: {"impressions": 0.0, "clicks": 0.0, "orders": 0.0, "gmv": 0.0}
+        for arm in (ARM_TREATED, ARM_CONTROL)
+    }
+    if not arms:
+        return out
+    rows = (
+        await session.execute(
+            select(AnalyticsPerformanceInterval).where(
+                AnalyticsPerformanceInterval.shop_id == shop_id,
+                AnalyticsPerformanceInterval.grain == "product",
+                AnalyticsPerformanceInterval.tiktok_product_id.in_(list(arms)),
+                AnalyticsPerformanceInterval.start_date >= start,
+                AnalyticsPerformanceInterval.start_date <= end,
+            )
+        )
+    ).scalars()
+    by_product: dict[str, list[AnalyticsPerformanceInterval]] = defaultdict(list)
+    for row in rows:
+        if row.tiktok_product_id:
+            by_product[row.tiktok_product_id].append(row)
+    for product, product_rows in by_product.items():
+        arm = arms.get(product)
+        if arm not in out:
+            continue
+        traffic: Sequence[Any] = (
+            product_rows if group.channel == "total" else channel_rows(product_rows, group.channel)
+        )
+        out[arm]["impressions"] += float(sum((r.impressions or 0) for r in traffic))
+        out[arm]["clicks"] += float(sum((r.clicks or 0) for r in traffic))
+        out[arm]["orders"] += float(sum((r.sku_orders or 0) for r in product_rows))
+        out[arm]["gmv"] += float(sum((r.gmv or 0) for r in product_rows))
+    return out
+
+
+def plan_view(
+    group: CardGroup,
+    n_treated: int,
+    n_control: int,
+    have: Mapping[str, Mapping[str, float]],
+    *,
+    sigma_week: float = DRIFT_SIGMA_WEEK,
+) -> dict[str, Any]:
+    """D45.4: the weekly-drift floor of the 90 % interval next to the traffic needed. No
+    label, no gate -- numbers for Ops to read (pure)."""
+    weeks = MEASURE_DAYS / 7
+    floor = drift_floor(n_treated, n_control, weeks, sigma_week)
+    pooled = {
+        k: sum(float(have.get(arm, {}).get(k) or 0) for arm in (ARM_TREATED, ARM_CONTROL))
+        for k in ("impressions", "clicks", "orders")
+    }
+    return {
+        "weeks": weeks,
+        "sigma_week": sigma_week,
+        "n_treated": n_treated,
+        "n_control": n_control,
+        "floor": floor.to_json() if floor is not None else None,
+        "needed_per_arm": traffic_needed(group.metric, pooled, floor=floor),
+        "have_before": {
+            arm: {k: round(v) for k, v in (have.get(arm) or {}).items()}
+            for arm in (ARM_TREATED, ARM_CONTROL)
+        },
+        "have_window": [
+            (group.launched_on - timedelta(days=MEASURE_DAYS)).isoformat(),
+            (group.launched_on - timedelta(days=1)).isoformat(),
+        ],
+    }
+
+
+async def group_views(
+    session: AsyncSession, shop_id: uuid.UUID, *, tunables: DiagTunables | None = None
+) -> list[dict[str, Any]]:
+    """Every group of the shop for Ops (D34.8): members, arms, launch, verdict, newest first.
+
+    D45 (P36): each group also carries its ``design`` (source, reason, CTR guard) and its
+    ``plan`` -- the weekly-drift floor and the traffic needed (:func:`plan_view`).
+    """
+    tun = tunables if tunables is not None else DiagTunables()
     groups = list(
         (
             await session.execute(
@@ -882,9 +1243,24 @@ async def group_views(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[st
                 )
             ).scalars()
         }
+    # Ops groups have no card: their titles come from the catalogue.
+    cardless = sorted(
+        {m.tiktok_product_id for ms in members.values() for m in ms if m.action_card_id is None}
+    )
+    titles: dict[str, str] = {}
+    if cardless:
+        for product in (
+            await session.execute(
+                select(Product).where(
+                    Product.shop_id == shop_id, Product.tiktok_product_id.in_(cardless)
+                )
+            )
+        ).scalars():
+            titles[product.tiktok_product_id] = product.title or product.name
     out: list[dict[str, Any]] = []
     for group in groups:
         key = GroupKey.parse(group.group_key)
+        design = GroupDesign.of(group)
         rows = []
         for member in sorted(members.get(group.id, []), key=lambda m: (m.arm, m.tiktok_product_id)):
             card = cards.get(member.action_card_id) if member.action_card_id else None
@@ -894,7 +1270,7 @@ async def group_views(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[st
             rows.append(
                 {
                     "product_id": member.tiktok_product_id,
-                    "product_title": title,
+                    "product_title": title or titles.get(member.tiktok_product_id),
                     "arm": member.arm,
                     "card_id": str(member.action_card_id) if member.action_card_id else None,
                     "card_status": card.status if card is not None else None,
@@ -904,6 +1280,10 @@ async def group_views(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[st
                 }
             )
         verdict = group.verdict if isinstance(group.verdict, dict) else None
+        n_treated = sum(1 for r in rows if r["arm"] == ARM_TREATED)
+        n_control = sum(1 for r in rows if r["arm"] == ARM_CONTROL)
+        arms = {m.tiktok_product_id: m.arm for m in members.get(group.id, [])}
+        have = await _before_totals(session, shop_id, group, arms)
         out.append(
             {
                 "id": str(group.id),
@@ -916,20 +1296,185 @@ async def group_views(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[st
                 "release_on": group.release_on.isoformat(),
                 "seed": group.seed,
                 "status": group.status,
-                "treated": sum(1 for r in rows if r["arm"] == ARM_TREATED),
-                "control": sum(1 for r in rows if r["arm"] == ARM_CONTROL),
+                "treated": n_treated,
+                "control": n_control,
                 "members": rows,
                 "verdict": verdict,
                 #: D41.3: the primary verdict's simulated false-alarm rate (None before).
                 "false_alarm": (verdict or {}).get("false_alarm"),
-                "seller_sentence": seller_sentence(key, len(rows), verdict),
+                "seller_sentence": (
+                    None if design.ops else seller_sentence(key, len(rows), verdict)
+                ),
+                #: D45 (P36): who made it, the "lý do chọn thử nghiệm", the CTR guard.
+                "design": design.to_json(),
+                #: D45.4: weekly-drift floor of the 90 % interval + traffic needed.
+                "plan": plan_view(
+                    group, n_treated, n_control, have, sigma_week=tun.group_drift_sigma
+                ),
             }
         )
     return out
 
 
+# =========================================================================== Ops groups (D45)
+
+
+class GroupError(ValueError):
+    """An Ops group request Juli refuses; the message is Vietnamese, shown in Ops."""
+
+
+def clean_reason(reason: str | None) -> str | None:
+    """One line, trimmed, at most :data:`REASON_MAX_CHARS`; empty → ``None``."""
+    if reason is None:
+        return None
+    if not isinstance(reason, str):
+        raise GroupError("Lý do phải là chữ")
+    line = " ".join(reason.split())
+    if len(line) > REASON_MAX_CHARS:
+        raise GroupError(f"Lý do tối đa {REASON_MAX_CHARS} ký tự")
+    return line or None
+
+
+async def create_ops_group(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    lever: str,
+    metric: str,
+    channel: str,
+    product_ids: Sequence[str],
+    reason: str | None,
+    guard: bool | None,
+    created_by: str,
+    now: datetime,
+) -> CardGroup:
+    """D45.1: a D34 group made in Ops (no cards), e.g. a new pack option on 4 + 2 products.
+
+    Same draw as a card group (sorted ids shuffled by a fresh recorded seed, the first
+    round(n/3) the delayed control; launch = the shop's day, control "released" at day
+    14). The owner makes the change on TikTok for the treated products only -- Juli never
+    writes it. ``guard`` (D45.2; default: on unless the primary metric is CTR) reads the
+    product-card CTR alongside. A product already in a group launched within
+    :data:`MEMBER_MEMORY_DAYS` is refused, so two experiments never share a product.
+    Writes the group and members; no commit.
+    """
+    if lever not in LEVER_LABELS_VI:
+        raise GroupError(f"Đòn bẩy không hợp lệ: {lever}")
+    if metric not in METRIC_LABELS_VI:
+        raise GroupError(f"Chỉ số không hợp lệ: {metric}")
+    if channel not in CHANNELS:
+        raise GroupError(f"Kênh không hợp lệ: {channel}")
+    products = sorted({p.strip() for p in product_ids if isinstance(p, str) and p.strip()})
+    if len(products) < MIN_GROUP_SIZE:
+        raise GroupError(f"Cần ít nhất {MIN_GROUP_SIZE} sản phẩm khác nhau")
+    if len(products) > OPS_GROUP_MAX_PRODUCTS:
+        raise GroupError(f"Tối đa {OPS_GROUP_MAX_PRODUCTS} sản phẩm mỗi nhóm")
+    clean = clean_reason(reason)
+    known = set(
+        (
+            await session.execute(
+                select(Product.tiktok_product_id).where(
+                    Product.shop_id == shop_id, Product.tiktok_product_id.in_(products)
+                )
+            )
+        ).scalars()
+    )
+    unknown = [p for p in products if p not in known]
+    if unknown:
+        raise GroupError("Không có trong shop: " + ", ".join(unknown))
+    today = shop_day(now)
+    groups, members = await _active_groups(session, shop_id, today)
+    taken = sorted(
+        {
+            m.tiktok_product_id
+            for g in groups
+            for m in members.get(g.id, [])
+            if m.tiktok_product_id in set(products)
+        }
+    )
+    if taken:
+        raise GroupError("Đang ở một nhóm thử nghiệm khác: " + ", ".join(taken))
+    key = GroupKey(metric, lever, channel)
+    seed = new_seed()
+    arms = assign_arms(products, seed)
+    design = GroupDesign(
+        source=SOURCE_OPS,
+        reason=clean,
+        guard=(metric != GUARD_METRIC[0]) if guard is None else bool(guard),
+        created_by=created_by,
+    )
+    group = CardGroup(
+        id=uuid.uuid4(),
+        shop_id=shop_id,
+        group_key=key.text,
+        metric=metric,
+        lever=lever,
+        channel=channel,
+        launched_on=today,
+        release_on=today + timedelta(days=CONTROL_DELAY_DAYS),
+        seed=seed,
+        status=GROUP_OPEN,
+        design=design.to_json(),
+    )
+    session.add(group)
+    for product in products:
+        session.add(
+            CardGroupMember(
+                id=uuid.uuid4(),
+                shop_id=shop_id,
+                group_id=group.id,
+                tiktok_product_id=product,
+                action_card_id=None,
+                arm=arms[product],
+                assigned_at=_naive(now),
+            )
+        )
+    await session.flush()
+    logger.info(
+        "card_group_created_in_ops",
+        extra={
+            "shop_id": str(shop_id),
+            "group_key": key.text,
+            "members": len(products),
+            "controls": sum(1 for a in arms.values() if a == ARM_CONTROL),
+            "seed": seed,
+        },
+    )
+    return group
+
+
+async def set_group_reason(
+    session: AsyncSession, shop_id: uuid.UUID, group_id: uuid.UUID, reason: str | None
+) -> tuple[CardGroup, str | None, str | None]:
+    """D45.3: set (or clear) a group's one-line "lý do chọn thử nghiệm" -- any group.
+
+    Returns (group, before, after); raises :class:`LookupError` when the shop has no
+    such group. No commit.
+    """
+    group = (
+        await session.execute(
+            select(CardGroup).where(CardGroup.shop_id == shop_id, CardGroup.id == group_id)
+        )
+    ).scalar_one_or_none()
+    if group is None:
+        raise LookupError(str(group_id))
+    clean = clean_reason(reason)
+    current = GroupDesign.of(group)
+    design = dict(group.design) if isinstance(group.design, dict) else current.to_json()
+    design["reason"] = clean
+    group.design = design
+    await session.flush()
+    return group, current.reason, clean
+
+
 __all__ = [
+    "CHANNELS",
     "CONTROL_DELAY_DAYS",
+    "EXTRA_METRICS",
+    "GUARD_DROP_PCT",
+    "GUARD_METRIC",
+    "SOURCE_CARDS",
+    "SOURCE_OPS",
     "LABEL_MEASURING",
     "LABEL_NOT_ENOUGH",
     "RECHECK_EVERY_DAYS",
@@ -938,18 +1483,26 @@ __all__ = [
     "LAUNCH_WINDOW_DAYS",
     "MIN_GROUP_SIZE",
     "SUPPRESSED_REASON_GROUP_CONTROL",
+    "GroupDesign",
+    "GroupError",
     "GroupKey",
     "GroupPass",
     "apply_groups",
     "assign_arms",
     "build_verdict",
     "card_group_key",
+    "clean_reason",
     "compare",
     "control_count",
+    "create_ops_group",
+    "guard_check",
     "group_views",
     "measure_due_groups",
+    "metric_specs",
     "new_seed",
     "payload_group_key",
+    "plan_view",
     "seller_sentence",
     "seller_sentences",
+    "set_group_reason",
 ]

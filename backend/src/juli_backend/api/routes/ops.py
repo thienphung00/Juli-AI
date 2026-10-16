@@ -28,6 +28,7 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
@@ -533,7 +534,21 @@ async def ops_run_detail(
     return {"data": data}
 
 
-# -- card groups (P30, D34 / D39.3; read-only) -------------------------------------------
+# -- card groups (P30, D34 / D39.3; P36, D45: Ops groups) ------------------------------
+
+
+ACTION_CARD_GROUP_CREATE = "card_group_create"
+ACTION_CARD_GROUP_REASON = "card_group_reason"
+
+
+async def _groups_body(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:
+    from juli_backend.services.action_cards import group_views
+    from juli_backend.services.shop_rules import diag_tunables
+
+    async with shop_then_scope(session, shop_id, transaction_ends_after=True):
+        tunables = await diag_tunables(session, shop_id)
+        groups = await group_views(session, shop_id, tunables=tunables)
+    return {"enabled": tunables.groups_enabled, "groups": groups}
 
 
 @router.get("/shops/{shop_id}/groups")
@@ -542,14 +557,127 @@ async def ops_card_groups(
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """The shop's card groups: key, arms, launch / release, seed and day-14 verdict."""
-    from juli_backend.services.action_cards import group_views
-    from juli_backend.services.shop_rules import diag_tunables
+    """The shop's card groups: key, arms, launch / release, seed and day-14 verdict.
 
-    async with shop_then_scope(session, shop_id, transaction_ends_after=True):
-        tunables = await diag_tunables(session, shop_id)
-        groups = await group_views(session, shop_id)
-    return {"enabled": tunables.groups_enabled, "groups": groups}
+    D45 (P36): plus each group's design (source, reason, CTR guard) and plan (the
+    weekly-drift floor of the 90 % interval and the traffic needed).
+    """
+    return await _groups_body(session, shop_id)
+
+
+class GroupCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    lever: str = "pack_option"
+    metric: str = "aov"
+    channel: str = "total"
+    product_ids: list[str]
+    reason: str | None = None
+    #: The product-card CTR guard (D45.2); ``None`` = on unless the metric is CTR.
+    guard: bool | None = None
+
+
+@router.post("/shops/{shop_id}/groups")
+async def ops_create_card_group(
+    shop_id: uuid.UUID,
+    body: GroupCreate,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """D45.1: create a D34 group in Ops (e.g. "Quy cách mới" on 4 + 2 products).
+
+    The seeded ≈ 1/3 control draw as for card groups; no card is made and nothing is
+    written to TikTok -- the owner changes the treated products himself. Audited.
+    """
+    from juli_backend.services.action_cards import card_groups
+    from juli_backend.services.action_cards.card_groups import GroupError
+
+    await _shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id):
+            group = await card_groups.create_ops_group(
+                session,
+                shop_id,
+                lever=body.lever,
+                metric=body.metric,
+                channel=body.channel,
+                product_ids=body.product_ids,
+                reason=body.reason,
+                guard=body.guard,
+                created_by=ctx.staff.email,
+                now=datetime.now(UTC),
+            )
+            after = {
+                "group_id": str(group.id),
+                "key": group.group_key,
+                "launched_on": group.launched_on.isoformat(),
+                "seed": group.seed,
+                "products": sorted(body.product_ids),
+                "reason": (group.design or {}).get("reason"),
+                "guard": (group.design or {}).get("guard"),
+            }
+        await audit.record(
+            session, ctx.staff.actor, ACTION_CARD_GROUP_CREATE, shop_id=shop_id, after=after
+        )
+        await session.commit()
+    except GroupError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from None
+    except Exception:
+        await session.rollback()
+        raise
+    payload = await _groups_body(session, shop_id)
+    payload["created"] = after["group_id"]
+    return payload
+
+
+class GroupReasonWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str | None = None
+
+
+@router.patch("/shops/{shop_id}/groups/{group_id}")
+async def ops_set_card_group_reason(
+    shop_id: uuid.UUID,
+    group_id: uuid.UUID,
+    body: GroupReasonWrite,
+    ctx: OpsContext = Depends(operator),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """D45.3: the group's one-line "lý do chọn thử nghiệm" (manual entry). Audited."""
+    from juli_backend.services.action_cards import card_groups
+    from juli_backend.services.action_cards.card_groups import GroupError
+
+    await _shop(session, shop_id)
+    try:
+        async with with_shop_scope(session, shop_id):
+            _group, before, after = await card_groups.set_group_reason(
+                session, shop_id, group_id, body.reason
+            )
+        if before != after:
+            await audit.record(
+                session,
+                ctx.staff.actor,
+                ACTION_CARD_GROUP_REASON,
+                shop_id=shop_id,
+                field=f"group:{group_id}",
+                before={"group_id": str(group_id), "reason": before},
+                after={"group_id": str(group_id), "reason": after},
+            )
+        await session.commit()
+    except LookupError:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail="Group not found") from None
+    except GroupError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from None
+    except Exception:
+        await session.rollback()
+        raise
+    return await _groups_body(session, shop_id)
 
 
 # -- "Xem như shop" (D25.3, amended 2026-10-10: ALWAYS read-only) ------------------------

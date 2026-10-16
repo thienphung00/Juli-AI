@@ -256,13 +256,14 @@ async def _surface_run(session, shop_id: uuid.UUID) -> tuple:
 @pytest.mark.asyncio
 async def test_groups_off_leaves_the_budget_unchanged(session, monkeypatch):
     """Off (quota mode off by default, or explicitly off with the quota on): the budget
-    never reaches the group code, writes no group and has no group_control reason."""
+    never draws or holds a card (``apply_groups`` never runs), writes no group and has
+    no group_control reason. D45.1 (P36): only the day-14 measurement still runs, for
+    groups made in Ops -- with none, it writes nothing."""
 
     async def _boom(*_a, **_k):
         raise AssertionError("group code ran while off")
 
     monkeypatch.setattr(card_groups, "apply_groups", _boom)
-    monkeypatch.setattr(card_groups, "measure_due_groups", _boom)
 
     _u1, plain = await make_tenant(session)
     await _seed_six(session, plain.id)
