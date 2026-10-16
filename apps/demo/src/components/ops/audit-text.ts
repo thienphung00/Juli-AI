@@ -56,7 +56,8 @@ function periodText(after: Obj): string {
  * openai_shop_cap_set, openai_system_cap_set, system_openai_alert_sent,
  * view_as_view, view_as_exit, data_refresh, shop_disconnect, invite_create,
  * invite_accept, scenario_*, rule_set, rule_unset, staff_upsert,
- * subscription_period_added, trial_signup_status. An unknown action still reads as a sentence.
+ * subscription_period_added, trial_signup_status, card_group_create, card_group_reason. An
+ * unknown action still reads as a sentence.
  */
 export function auditWhat(entry: AuditEntry): string {
   const after = obj(entry.after);
@@ -112,6 +113,12 @@ export function auditWhat(entry: AuditEntry): string {
       const to = SIGNUP_STATUS_LABELS[String(after.status)] ?? String(after.status ?? "—");
       return `Đăng ký dùng thử: ${from} → ${to}`;
     }
+    case "card_group_create": {
+      const products = Array.isArray(after.products) ? after.products.length : 0;
+      return `Tạo nhóm thử nghiệm ${String(after.key ?? "")}${products ? ` · ${products} sản phẩm` : ""}`;
+    }
+    case "card_group_reason":
+      return `Lý do chọn thử nghiệm: ${after.reason ? `“${String(after.reason)}”` : "xoá"}`;
     default:
       return `Thao tác khác (${entry.action})`;
   }

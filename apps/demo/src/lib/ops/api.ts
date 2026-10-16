@@ -2,6 +2,7 @@ import { readAuthSession } from "../supabase-auth";
 import type {
   AuditEntry,
   AuditKind,
+  CardGroupCreate,
   CardGroupsPage,
   CostsPage,
   Deltas,
@@ -154,6 +155,12 @@ export const opsApi = {
     opsRequest<{ shop_id: string; cap_usd: number; is_custom: boolean }>(`${shopPath(shopId)}/openai-cap`, { method: "PUT", body: { usd } }, o),
   /** P30 (D34 / D39.3): the shop's card groups with their arms and day-14 verdicts. */
   groups: (shopId: string, o?: OpsRequestOptions) => opsRequest<CardGroupsPage>(`${shopPath(shopId)}/groups`, {}, o),
+  /** P36 (D45.1): a group made in Ops (e.g. "Quy cách mới"); Vận hành / Admin; audited `card_group_create`. */
+  createGroup: (shopId: string, body: CardGroupCreate, o?: OpsRequestOptions) =>
+    opsRequest<CardGroupsPage & { created: string }>(`${shopPath(shopId)}/groups`, { method: "POST", body }, o),
+  /** P36 (D45.3): the group's one-line "lý do chọn thử nghiệm" (`null` clears); audited `card_group_reason`. */
+  setGroupReason: (shopId: string, groupId: string, reason: string | null, o?: OpsRequestOptions) =>
+    opsRequest<CardGroupsPage>(`${shopPath(shopId)}/groups/${encodeURIComponent(groupId)}`, { method: "PATCH", body: { reason } }, o),
   /** D28.4 tab Thời hạn. */
   terms: (o?: OpsRequestOptions) => opsRequest<TermsPage>("/terms", {}, o),
   shopTerms: (shopId: string, o?: OpsRequestOptions) => opsRequest<ShopTermsPage>(`${shopPath(shopId)}/terms`, {}, o),

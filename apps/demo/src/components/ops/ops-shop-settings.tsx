@@ -28,7 +28,7 @@ const STAGES: [StageId, string, string][] = [
 const STREAM_LABEL: Record<string, string> = { product_card: "Thẻ SP", shop_tab: "Tab", seller_video: "Video", seller_live: "LIVE" };
 const OWN: CSSProperties = { background: "#fff7fa", borderColor: "#f8b9d3", fontWeight: 600 };
 
-type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "groups">>;
+type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "groups" | "createGroup" | "setGroupReason">>;
 
 function SettingRow({
   title,
@@ -449,7 +449,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
           {QUOTA_KEYS.some((k) => s.defaults[k] !== undefined) ? (
             <QuotaSection canEdit={canEdit} cells={page.card_cells ?? null} change={change} eff={eff} epoch={epoch} isSet={isSet} onEpoch={() => setEpoch((e) => e + 1)} />
           ) : null}
-          <OpsCardGroups load={api.groups} shopId={shopId} />
+          <OpsCardGroups canEdit={canEdit} create={api.createGroup} load={api.groups} setReason={api.setGroupReason} shopId={shopId} />
           <OpsRules canEdit={canEdit} shopName={shopName} shopId={shopId} />
         </section>
         <aside style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -616,6 +616,32 @@ const DIAG_NUMBERS: readonly {
   { key: "volatile_cv", title: "Ngưỡng lưu lượng ổn định", help: "Lượt hiển thị dao động (CV) trên ngưỡng: KPI dạng khoảng, độ tin cậy Thấp", unit: "% CV", step: 5, scale: 100 },
 ];
 
+/** P36 (D45): the D34 group verdict / design tunables -- shown only when the backend sends them. */
+const GROUP_NUMBERS: typeof DIAG_NUMBERS = [
+  {
+    key: "group_two_window_min",
+    title: "Nhóm thử nghiệm: hai cửa sổ tiền kỳ từ",
+    help: "Nhóm từ ngần này sản phẩm: điều chỉnh theo hai cửa sổ 14 ngày trước khi bắt đầu; nhóm nhỏ hơn: so thay đổi thường",
+    unit: "sản phẩm",
+    step: 1,
+    integer: true,
+  },
+  {
+    key: "group_guard_ctr_drop",
+    title: "Nhóm thử nghiệm: cảnh báo CTR giảm quá",
+    help: "Nhóm có kiểm tra CTR thẻ sản phẩm (vd. quy cách mới): cảnh báo khi CTR nhóm áp dụng giảm hơn ngần này so với đối chứng, kể cả khi AOV tăng",
+    unit: "%",
+    step: 1,
+  },
+  {
+    key: "group_drift_sigma",
+    title: "Nhóm thử nghiệm: trôi tuần (σ)",
+    help: "Dao động tuần-qua-tuần khi không đổi gì (Fujiwa: 0,15); dùng để tính sàn của khoảng 90 % hiện ở mỗi nhóm",
+    unit: "σ / tuần",
+    step: 0.01,
+  },
+];
+
 /** P23 (D29.11): "Chẩn đoán & KPI" — collapsed; every row is part of the D27 draft. */
 function DiagSection({
   canEdit,
@@ -727,6 +753,31 @@ function DiagSection({
               </select>
             </SettingRow>
           ) : null}
+          {GROUP_NUMBERS.filter((row) => eff(row.key) !== undefined).map((row) => (
+            <SettingRow
+              disabled={!canEdit}
+              help={row.help}
+              key={row.key}
+              onDefault={() => {
+                change({ [row.key]: null });
+                onEpoch();
+              }}
+              overridden={isSet(row.key)}
+              summary={fmtSetting(row.key, eff(row.key))}
+              title={row.title}
+            >
+              <NumEditor
+                integer={row.integer}
+                key={`${row.key}-${epoch}`}
+                label={row.title}
+                onChange={(v) => change({ [row.key]: v })}
+                scale={row.scale ?? 1}
+                step={row.step}
+                unit={row.unit}
+                value={eff(row.key) as number | null}
+              />
+            </SettingRow>
+          ))}
         </>
       ) : null}
     </div>

@@ -74,7 +74,13 @@ export type DiagKey =
   /** P30 (D39.1): "metric_first" (default) | "gmv_first" (rollback). */
   | "diag_trigger"
   /** P31 (D41.2): "on" (default) | "off" -- shrink CTR / CTOR toward the category before the trigger. */
-  | "kpi_shrinkage";
+  | "kpi_shrinkage"
+  /** P36 (D45.6): from this many measured products a group reads two pre-period windows (15). */
+  | "group_two_window_min"
+  /** P36 (D45.2): warn when a group's product-card CTR falls more than this, points of % (15). */
+  | "group_guard_ctr_drop"
+  /** P36 (D45.4): weekly drift σ behind a group's drift floor (0.15). */
+  | "group_drift_sigma";
 
 /** P28 (D33): the per-shop "many cards" quota mode; optional until the backend sends them. */
 export type QuotaKey =
@@ -405,11 +411,45 @@ export interface CardGroupComparison {
   readonly false_alarm?: CardGroupFalseAlarm | null;
 }
 
+/** P36 (D45.6): which pre-period rule adjusted the changes. */
+export interface CardGroupAdjustment {
+  readonly method: "change" | "one_window" | "two_windows";
+  readonly theta: number;
+  readonly theta_pre: number | null;
+  readonly two_window_min: number;
+}
+
+/** P36 (D45.2): one more metric read the same way as the primary (all-channel AOV, items per order, card CTR). */
+export interface CardGroupMetric {
+  readonly metric: string;
+  readonly channel: string;
+  /** "AOV · tất cả kênh". */
+  readonly label: string;
+  readonly primary: CardGroupComparison | null;
+  readonly adjustment?: CardGroupAdjustment | null;
+  readonly false_alarm?: CardGroupFalseAlarm | null;
+}
+
+/** P36 (D45.2): the product-card CTR guard of a group whose primary metric is not CTR. */
+export interface CardGroupGuard {
+  readonly metric: string;
+  readonly channel: string;
+  readonly max_drop_pct: number;
+  readonly difference: number | null;
+  readonly primary_difference: number | null;
+  readonly warning: boolean;
+  readonly text: string;
+}
+
 export interface CardGroupVerdict {
   readonly as_of: string;
   readonly window_days: number;
   readonly primary: CardGroupComparison;
   readonly approved_only: CardGroupComparison;
+  /** P36: optional, absent on verdicts stored before P36. */
+  readonly adjustment?: CardGroupAdjustment;
+  readonly metrics?: Readonly<Record<string, CardGroupMetric>>;
+  readonly guard?: CardGroupGuard;
   readonly products: readonly {
     readonly product_id: string;
     readonly arm: "treated" | "control";
@@ -439,6 +479,48 @@ export interface CardGroup {
   /** P31 (D41.3): the primary verdict's simulated false-alarm rate; absent before P31. */
   readonly false_alarm?: CardGroupFalseAlarm | null;
   readonly seller_sentence: string | null;
+  /** P36 (D45): who made the group, the one-line reason, the CTR guard; optional until the backend sends it. */
+  readonly design?: CardGroupDesign;
+  /** P36 (D45.4): the weekly-drift floor of the 90 % interval and the traffic needed. */
+  readonly plan?: CardGroupPlan;
+}
+
+export interface CardGroupDesign {
+  /** "cards": drawn from Optimize Product drafts; "ops": made in Ops (no cards, the seller never sees it). */
+  readonly source: "cards" | "ops";
+  readonly reason: string | null;
+  readonly guard: boolean;
+  readonly created_by: string | null;
+}
+
+export interface CardGroupPlan {
+  readonly weeks: number;
+  readonly sigma_week: number;
+  readonly n_treated: number;
+  readonly n_control: number;
+  /** % half-widths: whole group before vs after (the research's number), and treated − control. */
+  readonly floor: { readonly pooled_pct: number; readonly difference_pct: number | null } | null;
+  readonly needed_per_arm: {
+    readonly unit: "impressions" | "orders";
+    readonly half_width_pct: number;
+    readonly no_drift: number;
+    readonly with_drift: number | null;
+    readonly reachable: boolean;
+  } | null;
+  /** The 14 days before launch, per arm. */
+  readonly have_before: Readonly<Record<"treated" | "control", { readonly impressions: number; readonly clicks: number; readonly orders: number; readonly gmv: number }>>;
+  readonly have_window: readonly [string, string];
+}
+
+/** `POST /v1/ops/shops/{id}/groups` (P36, D45.1). */
+export interface CardGroupCreate {
+  readonly lever: string;
+  readonly metric: string;
+  readonly channel: string;
+  readonly product_ids: readonly string[];
+  readonly reason: string | null;
+  /** null: on unless the metric is CTR. */
+  readonly guard: boolean | null;
 }
 
 /** `GET /v1/ops/shops/{id}/groups`. */
