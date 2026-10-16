@@ -746,3 +746,23 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 - [ ] **AC-34.7** Integration: landing + demo gates green, `check:seo` and `seo_live_check` pass,
   Lighthouse mobile ≥ 95 / LCP < 2.5 s re-measured after deploy, screenshots desktop + 390 of every
   page attached to LOG.
+
+## P35 — product polish (D45; branch `fasttrack/p35-product-polish`)
+
+- [ ] **AC-35.1** (D45.1) Header "Sản phẩm" dropdown: button + chevron with `aria-expanded` /
+  `aria-controls`; panel lists Tổng quan sản phẩm, Phân tích shop, Đề xuất và thực thi, Đo lường
+  GMV with one-line descriptions; Escape closes and refocuses the button, click outside and route
+  change close it; the 4 links are in the server HTML when closed; `aria-current="page"` on the
+  current page; mobile menu has an expandable "Sản phẩm" group, ≥ 44 px targets, no horizontal
+  overflow at 390; signup header variant unchanged; unit tests for open / close / Escape / aria.
+- [ ] **AC-35.2** (D45.2) `/san-pham` hero: two-column on desktop with a framed product shot
+  (caption "Dữ liệu mẫu", alt ends "(dữ liệu mẫu)", mobile crop), stacked on phones, no
+  `priority`; the shot appears once on the page.
+- [ ] **AC-35.3** (D45.3) "Vòng làm việc" = 5 compact steps (number + icon, short title, one line
+  ≲ 15 words), horizontal on desktop, vertical on phones; claims match D13 / D24.5 / P34-C.
+- [ ] **AC-35.4** (D45.4) No "—" in the rendered text of any public route except `/privacy` and
+  `/terms` (built HTML scanned route by route, residual count reported); titles use " | ";
+  tests pinning changed copy updated.
+- [ ] **AC-35.5** Gates: landing lint / type-check / vitest / build / `check:seo`;
+  `check.sh --since 8c03c6a5` 5/5; local Lighthouse mobile (3 runs) `/` and `/san-pham` perf ≥ 95,
+  LCP ≤ 2.5 s, a11y 100; screenshots 1440 + 390 under `.p35-logs/shots/`.

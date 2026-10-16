@@ -1136,3 +1136,26 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      footer link to its own form; right panel with a product shot on desktop; trial variant
      (`?dang-ky=dung-thu`) = same layout, copy only; OTP 6-box entry with error / expired / resend
      states.
+- **D45** — Product polish on app-juli.com (owner, 2026-10-16, Vietnamese request, paraphrased):
+  1. **Header "Sản phẩm" is a dropdown** (SaaS-style, small): Tổng quan sản phẩm (`/san-pham`),
+     Phân tích shop, Đề xuất và thực thi, Đo lường GMV, each with a one-line description. A
+     disclosure button (`aria-expanded` / `aria-controls`, Escape returns focus, click outside and
+     route change close it); the four links are always in the server HTML (hidden by CSS, so they
+     stay crawlable); on phones the menu shows "Sản phẩm" as an expandable group. "Kết nối TikTok
+     Shop", Blog and Giới thiệu stay top-level.
+  2. **`/san-pham` hero gets a framed product screenshot** in a two-column hero (stacked under the
+     copy on phones), captioned "Dữ liệu mẫu", **not** prioritised: on mobile the H1 is the LCP and
+     an eager hero image regressed LCP 2.5 s → 3.4 s (P34 LOG). The same shot is not repeated
+     lower on the page.
+  3. **"Vòng làm việc" is a compact 5-step stepper** (number + icon, 1–3 word title, one short
+     line each). Facts stay as P34-C corrected them (five traffic sources; at day 7 Juli *asks*
+     whether to revert when a guarded metric leaves its band; comparison with similar unchanged
+     products is being tested); the longer explanations live on the capability pages.
+  4. **No em dash "—" in visible copy** (page text, alt text, `<title>`, meta / OG text, JSON-LD
+     names): a comma where it reads naturally, otherwise ":" or a rephrase. `<title>` suffixes
+     use " | " ("Phân tích shop | Juli AI"), never a comma. En dashes in ranges ("7–14",
+     "trước–sau") stay. Code comments, CSS, READMEs and docs are not copy and are untouched.
+     **Exception: `/privacy` and `/terms`** (incl. `privacy-policy-english.tsx`,
+     `legal-template.tsx`) are left word-for-word as they are, because their text must match the
+     signed contract and the legal markdown (memory: legal docs sync); a dash change there goes
+     through the contract first.
