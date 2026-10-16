@@ -1188,7 +1188,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
        z·√(2σ²/weeks·(1/n_t + 1/n_c)), σ = `group_drift_sigma` 0.15; traffic needed per arm for
        ±10 % (research `impressions_needed`; AOV in orders with order-value CV 0.6), with and
        without drift; shown under each group, no label, no gate.
-     - *6:* `group_stats.adjust_changes`: < `group_two_window_min` (15) measured products θ = 1;
+     - *6 (amended by D47.1):* `group_stats.adjust_changes`: < `group_two_window_min` (15)
+       measured products the P31 fitted θ (one window; θ = 1 was built first and dropped after
+       the power check);
        from 15 OLS on ln(−14..−1) and ln(−28..−15) (θ₁ ∈ [0, 2], θ₂ ∈ [−1, 1]); from 15 without
        the earlier window the P31 θ. The replay's pool entries become triples when the window
        before is known, so the gate runs the same rule. **Scope:** a card-drawn group's primary

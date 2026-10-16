@@ -31,7 +31,7 @@ const PACK: CardGroup = {
     window_days: 14,
     primary: { n_treated: 4, n_control: 2, label: "Đang đo", median_treated: 25, median_control: 0, difference: 25, interval: [18, 31], strength: null, strength_label: null },
     approved_only: { n_treated: 0, n_control: 2, label: "Chưa đủ cơ sở", median_treated: null, median_control: null, difference: null, interval: null, strength: null, strength_label: null },
-    adjustment: { method: "change", theta: 1, theta_pre: null, two_window_min: 15 },
+    adjustment: { method: "one_window", theta: 0.8, theta_pre: null, two_window_min: 15 },
     metrics: {
       "items_per_order|total": {
         metric: "items_per_order",
@@ -85,7 +85,7 @@ describe("Nhóm thử nghiệm tạo trong Ops (D45)", () => {
     expect(within(group).getByTestId("ops-group-plan")).toHaveTextContent(
       "Sàn trôi tuần của khoảng 90 %: ±10,1 % (6 sp × 2 tuần; áp dụng − đối chứng ±21,4 %) · Cần mỗi nhánh cho ±10,0 %: 195 đơn (không tính trôi) · không đạt được khi tính trôi tuần",
     );
-    expect(group).toHaveTextContent("Cách tính: thay đổi thường (nhóm nhỏ)");
+    expect(group).toHaveTextContent("Cách tính: điều chỉnh theo một cửa sổ tiền kỳ");
     expect(group).toHaveTextContent("Số món mỗi đơn · tất cả kênh: +24,0 điểm %");
     // The guard metric shows once, as the guard line.
     expect(group).not.toHaveTextContent("CTR · Thẻ sản phẩm: ");

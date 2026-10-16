@@ -48,7 +48,7 @@ only design that removes both. In the card system:
    AOV rose. Every group's verdict also carries all-channel AOV and items per order
    (``verdict.metrics``, same rule: 90 % interval, false-alarm replay, pre-period
    adjustment). D45.6: the pre-period adjustment follows the group size
-   (:func:`.group_stats.adjust_changes`: plain change below 15 measured products,
+   (:func:`.group_stats.adjust_changes`: the P31 θ below 15 measured products (D47.1),
    two pre-period windows from 15, ``group_two_window_min``). Each group shows its
    weekly-drift floor and the traffic needed (:mod:`.group_design`) and an optional
    one-line "lý do chọn thử nghiệm" (``design.reason``). The seller never sees an
@@ -560,8 +560,8 @@ def build_verdict(
     primary one also at the top level. T3.1: ``control_pairs`` (the control members'
     untouched post-launch window pairs) join the pre-period pairs in the null pool;
     ``history`` = the earlier checks of this group, ``checks`` = history + this one.
-    D45.6 (P36): the adjustment follows the group size (``adjustment``: plain change
-    below ``two_window_min`` measured products, two pre-period windows from it;
+    D45.6 (P36): the adjustment follows the group size (``adjustment``: the P31 θ
+    below ``two_window_min`` measured products (D47.1), two pre-period windows from it;
     ``None`` = the P31 rule, one fitted θ at every size); a
     row's ``pre_pre_before`` (days −42..−29) makes its pre-period pair a triple, so
     the false-alarm replay can apply the same rule.

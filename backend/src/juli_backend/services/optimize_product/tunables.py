@@ -48,7 +48,7 @@ SHRINKAGE_OFF = "off"
 KPI_SHRINKAGE_VALUES: tuple[str, ...] = (SHRINKAGE_ON, SHRINKAGE_OFF)
 #: D45 (P36, Ops only) -- the D34 group verdict and its design numbers:
 #: from this many measured products the change is adjusted on two pre-period windows
-#: (days −28..−15 and −14..−1); below it the plain change (θ = 1) (D45.6).
+#: (days −28..−15 and −14..−1); below it the P31 fitted θ (D45.6, D47.1).
 GROUP_TWO_WINDOW_MIN = "group_two_window_min"
 #: Warn when a group's product-card CTR falls more than this (points of %) treated vs
 #: control, whatever its primary metric did (D45.2).
@@ -110,7 +110,7 @@ class DiagTunables:
 
     D45 (P36, Ops only): ``group_two_window_min`` (15) -- from this many measured
     products a D34 group's change is adjusted on two pre-period windows, below it
-    the plain change; ``group_guard_ctr_drop`` (15) -- warn when the product-card
+    the P31 fitted θ (D47.1); ``group_guard_ctr_drop`` (15) -- warn when the product-card
     CTR falls more than this many points of % treated vs control;
     ``group_drift_sigma`` (0.15) -- the weekly drift behind the drift floor.
     """

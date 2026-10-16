@@ -387,8 +387,10 @@ Mọi thứ ở mục này chỉ có trong Ops; ứng dụng người bán khôn
   báo động giả, điều chỉnh tiền kỳ. CTR thẻ sản phẩm là **chỉ số canh**: khi nhóm áp dụng giảm hơn
   **15 %** so với đối chứng (chỉnh ở "Nhóm thử nghiệm: cảnh báo CTR giảm quá") Ops hiện dòng đỏ "Cảnh
   báo: … dù AOV tăng …". Đây là lời nhắc xem lại, không phải kết luận.
-- **Điều chỉnh tiền kỳ theo cỡ nhóm** (D45.6): dưới **15** sản phẩm có số liệu, so thay đổi thường
-  (θ = 1, vì θ tự khớp làm nhóm 4 + 2 kém hơn); từ 15 sản phẩm, điều chỉnh theo **hai cửa sổ 14 ngày
+- **Điều chỉnh tiền kỳ theo cỡ nhóm** (D45.6, sửa bởi D47.1): dưới **15** sản phẩm có số liệu, giữ
+  cách P31 (một cửa sổ, θ tự khớp của nhóm) — kiểm tra công suất P36 thấy θ = 1 làm nhóm nhỏ yếu đi
+  (4 + 2 · 28 ngày ở +40 %: 35 → 25 %), ngược với nghiên cứu §4a, nên sẽ kiểm lại trên các nhóm D34
+  thật đầu tiên; từ 15 sản phẩm, điều chỉnh theo **hai cửa sổ 14 ngày
   trước** (ngày −28…−15 và −14…−1); lần chạy lại báo động giả dùng đúng cách này. Dòng "Cách tính" ghi
   cách nào đã chạy. Nhóm thẻ: kết quả chính (câu người bán thấy) **giữ cách P31** cho tới khi chủ shop
   quyết định; cách mới hiện ngay dưới, dòng "Theo cách tính mới (…, chỉ Ops)". Chỉnh ngưỡng 15 ở "Nhóm

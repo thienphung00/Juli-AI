@@ -56,14 +56,16 @@ a bootstrap of a median over 2–5 products is far too optimistic. D41.3:
 
    Each window needs ≥ 7 days with data. With fewer than 3 usable pairs, the
    pool is the group's own adjusted changes with each arm's median removed.
-6. **Pre-period rule by group size (D45.6, fast track P36).** The power research
-   (``juli-sim-pilot`` funnel run ``20261015-212942`` §4a) found the fitted ``θ``
-   of step 3 makes small groups worse (4 + 2: SE 0.17 → 0.26, it spends degrees
-   of freedom) while large groups gain from a second pre-period window (17 + 9
-   CTR: SE −17 %, power at +40 % 58 → 70 %). :func:`adjust_changes` therefore:
+6. **Pre-period rule by group size (D45.6 as amended by D47.1, fast track P36).**
+   Large groups gain from a second pre-period window (research run
+   ``20261015-212942`` §4a: 17 + 9 CTR SE −17 %). D45.6 also put small groups on the
+   plain change (θ = 1), but the P36 v0.3 power check found that lowered their power
+   (4 + 2 · 28 d at +40 %: 35 → 25 %), contradicting §4a, so D47.1 keeps step 3's
+   fitted θ below 15 (to be re-checked on the first real D34 groups).
+   :func:`adjust_changes`:
 
-   - fewer than :data:`TWO_WINDOW_MIN_PRODUCTS` (15) measured products: the plain
-     change score, ``θ = 1`` (``method = change``);
+   - fewer than :data:`TWO_WINDOW_MIN_PRODUCTS` (15) measured products: step 3's
+     single fitted ``θ`` -- the P31 rule (``method = one_window``);
    - from 15 products, when every product has its days −28..−15 (``Unit.pre``):
      ANCOVA on two pre-period windows, pooled over the group like step 3::
 
@@ -117,8 +119,8 @@ MIN_NULL_POOL = 3
 THETA_RANGE = (0.0, 2.0)
 #: D45.6: the second pre-period window's slope is clipped to this range.
 THETA_PRE_RANGE = (-1.0, 1.0)
-#: D45.6 (P36): from this many measured products the change is adjusted on two
-#: pre-period windows; below it the plain change (θ = 1). ``DiagTunables``
+#: D45.6 / D47.1 (P36): from this many measured products the change is adjusted on two
+#: pre-period windows; below it the P31 fitted θ (one window). ``DiagTunables``
 #: ``group_two_window_min`` overrides it per shop.
 TWO_WINDOW_MIN_PRODUCTS = 15
 ADJUST_CHANGE = "change"
@@ -253,8 +255,9 @@ def adjust_changes(
     if two_window_min is None:
         changes, theta = cuped_adjust(units)
         return Adjustment(changes, ADJUST_ONE_WINDOW, theta)
-    if len(units) < two_window_min:
-        return Adjustment([u.change_pct for u in units], ADJUST_CHANGE, 1.0)
+    if len(units) < two_window_min:  # D47.1: small groups keep the P31 θ
+        changes, theta = cuped_adjust(units)
+        return Adjustment(changes, ADJUST_ONE_WINDOW, theta)
     if all(u.pre is not None and u.pre > 0 for u in units):
         xs = [math.log(u.before) for u in units]
         zs = [math.log(u.pre) for u in units if u.pre is not None]

@@ -1,6 +1,6 @@
 """D45 (fast track P36, Ops only): simulator research priorities in the D34 group code.
 
-- D45.6: the pre-period adjustment follows the group size -- plain change (θ = 1)
+- D45.6 / D47.1: the pre-period adjustment follows the group size -- the P31 fitted θ
   below 15 measured products, ANCOVA on two pre-period windows from 15 (the P31
   single fitted θ when the second window is missing); the false-alarm replay runs
   the same rule (pool entries may be triples).
@@ -99,14 +99,18 @@ def _units(n: int, *, seed: int, with_pre: bool = True) -> list[Unit]:
     return out
 
 
-def test_a_small_group_reads_the_plain_change():
+def test_a_small_group_keeps_the_p31_theta():
+    """D47.1: below 15 products the fitted P31 θ (one window), not θ = 1."""
     units = _units(6, seed=1)
     adj = adjust_changes(units)
-    assert adj.method == ADJUST_CHANGE and adj.theta == 1.0 and adj.theta_pre is None
-    assert adj.changes == pytest.approx([u.change_pct for u in units])
+    changes, theta = cuped_adjust(units)
+    assert adj.method == ADJUST_ONE_WINDOW and adj.theta_pre is None
+    assert adj.theta == pytest.approx(theta) and adj.changes == pytest.approx(changes)
+    assert adj == adjust_changes(units, two_window_min=None)  # identical to P31
     # 14 products is still "small" (the threshold is 15).
     assert TWO_WINDOW_MIN_PRODUCTS == 15
-    assert adjust_changes(_units(14, seed=2)).method == ADJUST_CHANGE
+    assert adjust_changes(_units(14, seed=2)).method == ADJUST_ONE_WINDOW
+    assert adjust_changes([]).method == ADJUST_CHANGE  # nothing to fit
 
 
 def test_a_large_group_uses_two_pre_period_windows():
@@ -198,9 +202,9 @@ def _rows(n_t: int, n_c: int, *, seed: int, lift: float) -> list[dict]:
 
 def test_the_verdict_records_which_rule_ran():
     small = build_verdict(_rows(4, 2, seed=1, lift=0.2), seed=5, as_of=AS_OF)
-    assert small["adjustment"]["method"] == ADJUST_CHANGE
+    assert small["adjustment"]["method"] == ADJUST_ONE_WINDOW
     assert small["adjustment"]["two_window_min"] == 15
-    assert small["cuped"]["theta"] == 1.0  # the P31 field keeps its shape
+    assert small["cuped"]["theta"] == small["adjustment"]["theta"]  # P31 field, same θ
     large = build_verdict(_rows(17, 9, seed=2, lift=0.4), seed=5, as_of=AS_OF)
     assert large["adjustment"]["method"] == ADJUST_TWO_WINDOWS
     assert large["adjustment"]["theta_pre"] is not None
@@ -443,12 +447,13 @@ async def test_a_pack_group_measures_aov_items_and_warns_on_ctr(session, shop, m
     assert measured.id == group.id
     verdict = measured.verdict
     assert verdict["primary"]["difference"] == pytest.approx(25, abs=3)
-    assert verdict["adjustment"]["method"] == ADJUST_CHANGE  # 6 products: plain change
+    assert verdict["adjustment"]["method"] == ADJUST_ONE_WINDOW  # 6 products: P31 θ (D47.1)
     assert set(verdict["metrics"]) == {"items_per_order|total", "ctr|product_card"}
     items = verdict["metrics"]["items_per_order|total"]
     assert items["label"] == "Số món mỗi đơn · tất cả kênh"
     assert items["primary"]["difference"] == pytest.approx(25, abs=4)
-    assert items["false_alarm"] is not None and items["adjustment"]["method"] == ADJUST_CHANGE
+    assert items["false_alarm"] is not None
+    assert items["adjustment"]["method"] == ADJUST_ONE_WINDOW
     guard = verdict["guard"]
     assert guard["warning"] is True and guard["difference"] == pytest.approx(-20, abs=3)
     assert "dù AOV tăng" in guard["text"]

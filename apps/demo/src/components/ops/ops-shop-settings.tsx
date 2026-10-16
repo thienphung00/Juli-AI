@@ -621,7 +621,7 @@ const GROUP_NUMBERS: typeof DIAG_NUMBERS = [
   {
     key: "group_two_window_min",
     title: "Nhóm thử nghiệm: hai cửa sổ tiền kỳ từ",
-    help: "Nhóm từ ngần này sản phẩm: điều chỉnh theo hai cửa sổ 14 ngày trước khi bắt đầu; nhóm nhỏ hơn: so thay đổi thường",
+    help: "Nhóm từ ngần này sản phẩm: điều chỉnh theo hai cửa sổ 14 ngày trước khi bắt đầu; nhóm nhỏ hơn: điều chỉnh theo một cửa sổ (như P31)",
     unit: "sản phẩm",
     step: 1,
     integer: true,

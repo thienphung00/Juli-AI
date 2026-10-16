@@ -99,7 +99,7 @@ slice — see "Out of scope".
   `metric_summary`, `plan_view` (drift floor + traffic needed). Every verdict carries
   `metrics` (all-channel AOV, items per order) and, with a guard, `guard`; a card group's
   primary verdict keeps the P31 rule (seller sentence unchanged) and adds `ops_rule` (the
-  D45.6 reading). Pure `group_stats.adjust_changes(units, *, two_window_min)` (plain change
+  D45.6 reading). Pure `group_stats.adjust_changes(units, *, two_window_min)` (P31 fitted θ, D47.1,
   below 15 products, two pre-period windows from 15; `None` = P31) and
   `group_design.drift_floor(...)` / `traffic_needed(...)`. Tunables `group_two_window_min`,
   `group_guard_ctr_drop`, `group_drift_sigma` in `DiagTunables`. Routes
