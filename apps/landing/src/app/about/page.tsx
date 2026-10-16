@@ -46,7 +46,7 @@ export default function AboutPage() {
     { label: "Trụ sở", value: COMPANY.address },
     { label: "Email", value: COMPANY.email, href: `mailto:${COMPANY.email}` },
     { label: "Website", value: "app-juli.com", href: "https://app-juli.com" },
-    { label: "Sản phẩm", value: "Juli AI, trợ lý tăng trưởng cho người bán TikTok Shop", href: "/san-pham" },
+    { label: "Sản phẩm", value: "Juli AI, trợ lý tăng trưởng cho nhà bán TMĐT", href: "/san-pham" },
   ];
 
   return (
@@ -64,9 +64,9 @@ export default function AboutPage() {
               </Heading>
               <p className={styles.lead}>
                 Juli AI được phát triển và vận hành bởi {COMPANY.name}, một công ty công nghệ
-                có trụ sở tại Thành phố Hồ Chí Minh. Chúng tôi xây dựng phần mềm giúp người bán
-                hàng trên TikTok Shop tăng trưởng ổn định và vận hành tinh gọn hơn nhờ phân tích
-                dữ liệu và AI.
+                có trụ sở tại Thành phố Hồ Chí Minh. Chúng tôi xây dựng phần mềm giúp nhà bán TMĐT
+                tăng trưởng ổn định và vận hành tinh gọn hơn nhờ phân tích dữ liệu và AI. Hiện Juli
+                kết nối TikTok Shop và đang tích hợp Shopee.
               </p>
             </div>
           </Container>

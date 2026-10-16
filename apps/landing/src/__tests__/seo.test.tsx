@@ -119,7 +119,7 @@ describe("buildMetadata (AC-33.1)", () => {
       type: "website",
       locale: "vi_VN",
       siteName: "Juli AI",
-      images: [{ url: "https://app-juli.com/og/juli-ai-default.png", width: 1200, height: 630 }],
+      images: [{ url: "https://app-juli.com/og/juli-ai-default-v2.png", width: 1200, height: 630 }],
     });
     expect(metadata.twitter).toMatchObject({ card: "summary_large_image", title: route.title });
   });

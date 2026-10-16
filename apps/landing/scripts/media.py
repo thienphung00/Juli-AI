@@ -103,12 +103,19 @@ def og_image(dest: Path) -> None:
     logo = logo.resize((round(logo.width * logo_h / logo.height), logo_h), Image.Resampling.LANCZOS)
     canvas.paste(logo, (72, 72), logo)
 
-    draw.text((72, 210), "Trợ lý AI tăng trưởng", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
-    draw.text((72, 276), "cho người bán TikTok Shop", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
+    # D45 (P35): positioning is e-commerce (TMĐT); only TikTok Shop is connected today.
+    draw.text((72, 210), "Trợ lý AI vận hành", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
+    draw.text((72, 276), "cho nhà bán TMĐT", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
     draw.text(
         (72, 382),
         "Phân tích shop · Đề xuất hành động · Đo GMV",
         font=_font(FONT_REGULAR, 30),
+        fill=MUTED,
+    )
+    draw.text(
+        (72, 430),
+        "Hiện kết nối TikTok Shop · Shopee đang tích hợp",
+        font=_font(FONT_REGULAR, 26),
         fill=MUTED,
     )
     draw.text((72, 520), "app-juli.com", font=_font(FONT_BOLD, 34), fill=PRIMARY_TEXT)
@@ -118,7 +125,8 @@ def og_image(dest: Path) -> None:
 
 
 def brand() -> None:
-    og_image(PUBLIC / "og" / "juli-ai-default.png")
+    # New name, never an overwrite (cached); v1 kept for old shares.
+    og_image(PUBLIC / "og" / "juli-ai-default-v2.png")
 
     # Header/footer logo: 2x of the 30px header height, WebP only (tiny file).
     logo = Image.open(BRAND_ASSETS / "logo-wordmark.png").convert("RGBA")

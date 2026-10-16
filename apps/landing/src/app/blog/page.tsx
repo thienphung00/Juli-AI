@@ -48,8 +48,8 @@ export default function BlogIndexPage() {
                 Blog Juli
               </Heading>
               <p className="lp-blog-index__lead">
-                Hướng dẫn đọc chỉ số, tối ưu thẻ sản phẩm và vận hành TikTok Shop, viết từ dữ liệu và tài
-                liệu chính thức của TikTok.
+                Kiến thức vận hành shop TMĐT, bắt đầu từ TikTok Shop: cách đọc chỉ số, tối ưu thẻ sản
+                phẩm, viết từ dữ liệu và tài liệu chính thức của TikTok.
               </p>
             </>
           }

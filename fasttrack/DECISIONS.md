@@ -1173,3 +1173,16 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      page, both rendered (`__tests__/heading-outline.test.tsx`) and built (`check:seo`): exactly one
      H1 and it comes first, no skipped level, no empty heading, no heading inside the site header
      (incl. the dropdown), any nav, or the footer.
+  7. **Positioning: TMĐT, not only TikTok Shop** (owner follow-up #3, 2026-10-16). Sentences that
+     say what Juli AI *is* or *does* name e-commerce sellers ("nhà bán TMĐT"): /san-pham H1 and
+     intro, "Juli AI là gì", audience line, about lead + company row, footer tagline, OG alt and a new
+     OG image (`/og/juli-ai-default-v2.png`, v1 kept), VideoObject name, home / product / blog /
+     signup titles and descriptions (which flow into SoftwareApplication JSON-LD), blog index lead.
+     Accuracy (Shopee / TikTok partner rules): where a platform is named, only TikTok Shop is
+     connected and Shopee is "đang tích hợp"; no other marketplace is named. "TikTok Shop" stays
+     wherever the fact is TikTok-specific (connect page, Open API, OAuth, traffic sources, TikTok's
+     formula, capability page titles / descriptions about TikTok data, the TikTok Pixel cookie text,
+     blog posts about TikTok) and in the home and /san-pham `<title>` for search. `/privacy` and
+     `/terms` unchanged (D45.4): /terms §2 "Juli AI là trợ lý giúp người bán TikTok Shop tăng trưởng
+     …" now disagrees and goes through contract + md + site together. Outside the landing,
+     `dictionary.md` `landing.footer.tagline` still reads "Trợ lý AI cho người bán TikTok Shop".

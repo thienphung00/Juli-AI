@@ -769,6 +769,9 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
 - [ ] **AC-35.7** (D45.6) "Sàn Juli kết nối" is a non-heading label; heading guard (one H1 first,
   no skipped level, no empty heading, none in header / nav / footer) passes on every public page in
   vitest and in `check:seo`.
+- [ ] **AC-35.8** (D45.7) Positioning sentences say "nhà bán TMĐT"; platform mentions say TikTok Shop
+  connected, Shopee đang tích hợp, nothing else; home and /san-pham titles keep "TikTok Shop";
+  TikTok-specific facts unchanged; legal pages unchanged with the disagreeing sentence listed.
 - [ ] **AC-35.5** Gates: landing lint / type-check / vitest / build / `check:seo`;
   `check.sh --since 8c03c6a5` 5/5; local Lighthouse mobile (3 runs) `/` and `/san-pham` perf ≥ 95,
   LCP ≤ 2.5 s, a11y 100; screenshots 1440 + 390 under `.p35-logs/shots/`.

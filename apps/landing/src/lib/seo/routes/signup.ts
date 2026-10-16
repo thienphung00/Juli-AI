@@ -6,7 +6,7 @@ export const SIGNUP_ROUTES: readonly SiteRoute[] = [
     path: "/dang-ky",
     title: "Đăng ký dùng thử miễn phí 3 tháng | Juli AI",
     description:
-      "Đăng ký dùng thử Juli AI miễn phí 3 tháng cho TikTok Shop: để lại số điện thoại hoặc Zalo, đội ngũ Juli liên hệ và cùng bạn kết nối shop.",
+      "Đăng ký dùng thử Juli AI miễn phí 3 tháng: để lại số điện thoại hoặc Zalo, đội ngũ Juli liên hệ và cùng bạn kết nối TikTok Shop.",
     lastModified: "2026-10-15",
     breadcrumbName: "Đăng ký dùng thử",
     changeFrequency: "monthly",

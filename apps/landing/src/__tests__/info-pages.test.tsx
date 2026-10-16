@@ -5,6 +5,7 @@ import AboutPage from "../app/about/page";
 import ContactPage from "../app/contact/page";
 import LandingPage from "../app/page";
 import ProductPage from "../app/san-pham/page";
+import { getRoute } from "../lib/seo";
 import { COMPANY, DEMO_URL, PRODUCT_PAGES, SIGNUP_URL, SITE_PAGES } from "../lib/site";
 
 // TikTok's developer review (ticket 4486401) requires business content about
@@ -151,6 +152,20 @@ describe("public product and company pages", () => {
     ]) {
       expect(text, claim).toContain(claim);
     }
+  });
+
+  it("positioning (D45.7): Juli is for TMĐT sellers, TikTok Shop is the platform connected today", () => {
+    for (const path of ["/", "/san-pham"]) {
+      const route = getRoute(path);
+      expect(route.title, path).toMatch(/TMĐT/);
+      expect(route.title, path).toMatch(/TikTok Shop/);
+    }
+    const { container } = render(<ProductPage />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("phần mềm AI vận hành TMĐT");
+    expect(screen.getByRole("main")).toHaveTextContent("hiện Juli kết nối TikTok Shop và đang tích hợp Shopee");
+    expect(within(screen.getByRole("contentinfo")).getByText("Trợ lý AI vận hành cho nhà bán TMĐT.")).toBeInTheDocument();
+    // No marketplace Juli is not integrating with.
+    expect(container.textContent ?? "").not.toMatch(/Lazada|Tiki\b|Sendo/);
   });
 
   it("/about names the company with its legal details", () => {

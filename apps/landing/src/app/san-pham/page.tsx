@@ -244,11 +244,11 @@ export default function ProductPage() {
               <div className={styles.heroCopy}>
                 <Eyebrow>Sản phẩm</Eyebrow>
                 <Heading className={styles.heroHeading} id="product-heading" level={1} size="page">
-                  Juli AI: phần mềm AI vận hành TikTok Shop, từ phân tích đến đo GMV tăng thêm
+                  Juli AI: phần mềm AI vận hành TMĐT, từ phân tích đến đo GMV tăng thêm
                 </Heading>
                 <p className="ui-lead">
                   Juli AI là phần mềm dạng dịch vụ (SaaS) do {COMPANY.name} phát triển cho nhà bán
-                  TikTok Shop tại Việt Nam. Juli đọc dữ liệu shop, tìm chỗ GMV đang hụt, đề xuất việc
+                  TMĐT tại Việt Nam; hiện Juli kết nối TikTok Shop và đang tích hợp Shopee. Juli đọc dữ liệu shop, tìm chỗ GMV đang hụt, đề xuất việc
                   cụ thể, thực thi khi bạn duyệt và đo kết quả của từng thay đổi.
                 </p>
                 <div className={styles.actions}>
@@ -283,8 +283,8 @@ export default function ProductPage() {
               Juli AI là gì
             </Heading>
             <p className="ui-body">
-              Người bán TikTok Shop có rất nhiều số liệu nhưng ít thời gian để đọc chúng. Mỗi sản phẩm có
-              Lượt hiển thị, CTR, CTOR và AOV riêng, lại chia theo Thẻ sản phẩm, Video và LIVE. Khi GMV
+              Nhà bán TMĐT có rất nhiều số liệu nhưng ít thời gian để đọc chúng. Trên TikTok Shop, mỗi sản
+              phẩm có Lượt hiển thị, CTR, CTOR và AOV riêng, lại chia theo Thẻ sản phẩm, Video và LIVE. Khi GMV
               giảm, câu hỏi khó nhất là: giảm ở bước nào, ở sản phẩm nào, và nên sửa gì trước.
             </p>
             <p className="ui-body">
@@ -439,7 +439,7 @@ export default function ProductPage() {
               Dành cho ai
             </Heading>
             <p className="ui-body">
-              Juli dành cho nhà bán TikTok Shop nhỏ và vừa muốn tăng GMV mà không thêm người phân tích;
+              Juli dành cho nhà bán TMĐT nhỏ và vừa muốn tăng GMV mà không thêm người phân tích;
               cho đội vận hành sàn muốn bớt thời gian tổng hợp số liệu; cho người làm affiliate cùng shop
               cần biết sản phẩm nào đang chuyển đổi tốt qua Video và LIVE; và cho agency cần một cách đo
               thống nhất khi báo cáo cho nhiều shop.
