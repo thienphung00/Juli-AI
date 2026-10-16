@@ -103,6 +103,11 @@ export const AUDIENCES = [
 /** Rendered on `/` and passed verbatim to `faqPageSchema` (D43.5: only shown questions). */
 export const HOME_FAQ: readonly FaqItem[] = [
   {
+    question: "GMV là gì, tăng GMV TikTok Shop bằng cách nào?",
+    answer:
+      "GMV (tổng giá trị hàng hoá) là tổng giá trị các đơn hàng của shop trong một kỳ; theo cách TikTok tính, GMV gồm cả đơn đã huỷ và hoàn tiền. TikTok Shop tách GMV thành bốn chỉ số: GMV = Lượt hiển thị × CTR × CTOR × AOV. Muốn tăng GMV, hãy tìm bước yếu nhất: ít người thấy sản phẩm, thấy mà không bấm, bấm mà không mua, hay đơn có giá trị thấp. Juli đọc bốn chỉ số này theo từng luồng truy cập và từng sản phẩm, chỉ ra bước đang kéo GMV xuống và đề xuất việc cần làm.",
+  },
+  {
     question: "Juli đọc những dữ liệu nào của shop?",
     answer:
       "Sau khi bạn cấp quyền, Juli đọc qua TikTok Shop Open API: đơn hàng, sản phẩm, tồn kho, đơn hoàn và huỷ, số liệu hiệu suất theo luồng truy cập, hiệu suất video và LIVE, chương trình khuyến mãi. Juli không đọc tin nhắn của bạn. Chi tiết ở Chính sách bảo mật.",
