@@ -10,7 +10,9 @@
  * - every JSON-LD block parses; Organization + WebSite on every page,
  *   BreadcrumbList on every inner page; FAQPage questions are visible on the
  *   page; no `sameAs` (D43.8); no `SoftwareApplication` and no rating or review
- *   anywhere (D48 additions 2, D43.3), `/san-pham` carries the Service.
+ *   anywhere (D48 additions 2, D43.3), `/san-pham` carries the Service;
+ * - on a blog post, every image is sized and only the cover is eager (the inline
+ *   figures are lazy, D48 additions 7).
  *
  *     pnpm build && pnpm check:seo                      # reads .next/server/app/*.html
  *     SEO_BASE_URL=http://localhost:3007 pnpm check:seo  # or fetches a running server
@@ -95,6 +97,19 @@ describe("built site SEO (every registered route)", () => {
           `${where}: "${previous.text}" (h${previous.level}) → "${heading.text}" (h${heading.level}) skips a level`,
         ).toBeLessThanOrEqual(previous.level + 1);
       });
+
+      // Blog post images (D48 additions 7): every one sized; only the cover is eager, so the
+      // inline figures never compete with the H1 for LCP.
+      if (route.path.startsWith("/blog/")) {
+        const images = [...doc.querySelectorAll(".lp-post img")];
+        for (const img of images) {
+          expect(img.getAttribute("width"), `${where}: img width`).toMatch(/^\d+$/);
+          expect(img.getAttribute("height"), `${where}: img height`).toMatch(/^\d+$/);
+        }
+        const eager = images.filter((img) => img.getAttribute("loading") !== "lazy");
+        expect(eager.length, `${where}: only the cover is eager`).toBeLessThanOrEqual(1);
+        expect(doc.querySelectorAll(".lp-prose img:not([loading=lazy])"), `${where}: inline figure not lazy`).toHaveLength(0);
+      }
 
       // Head.
       const title = doc.querySelector("title")?.textContent ?? "";

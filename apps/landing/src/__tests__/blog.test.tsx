@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -8,7 +8,15 @@ import BlogPostPage, { generateMetadata, generateStaticParams } from "../app/blo
 import BlogIndexPage from "../app/blog/page";
 import sitemap from "../app/sitemap";
 import { countWords, markdownLinks, parseMarkdown, slugify, tableOfContents } from "../components/blog/markdown";
-import { BLOG_CATEGORIES, BLOG_POSTS, blogCover, getPost, relatedPosts, showDraftsOnIndex } from "../content/blog";
+import {
+  BLOG_CATEGORIES,
+  BLOG_FIGURES,
+  BLOG_POSTS,
+  blogCover,
+  getPost,
+  relatedPosts,
+  showDraftsOnIndex,
+} from "../content/blog";
 import type { BlogPostMeta } from "../content/blog/types";
 import { absoluteUrl, getRoute, metadataForRoute, SITE_ROUTES, sitemapEntries } from "../lib/seo";
 import { blogPostPath, buildBlogRoutes } from "../lib/seo/routes/blog";
@@ -292,7 +300,130 @@ describe("pillar posts content (D43.7)", () => {
   }
 });
 
+/** Intrinsic size of a WebP file (VP8X, lossy VP8 or lossless VP8L header). */
+function webpSize(file: string): { width: number; height: number } {
+  const buf = readFileSync(file);
+  expect(buf.toString("ascii", 0, 4) + buf.toString("ascii", 8, 12), file).toBe("RIFFWEBP");
+  const chunk = buf.toString("ascii", 12, 16);
+  if (chunk === "VP8X") {
+    return { width: 1 + buf.readUIntLE(24, 3), height: 1 + buf.readUIntLE(27, 3) };
+  }
+  if (chunk === "VP8 ") {
+    return { width: buf.readUInt16LE(26) & 0x3fff, height: buf.readUInt16LE(28) & 0x3fff };
+  }
+  const bits = buf.readUInt32LE(21);
+  return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+}
+
+const VIETNAMESE = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
+const FIGURE_POSTS = ["gmv-la-gi-tiktok-shop", "tiktok-shop-khong-ra-don", "doanh-thu-tiktok-shop-giam"];
+
+function figureIds(body: string): string[] {
+  return parseMarkdown(body).flatMap((block) => (block.kind === "figure" ? [block.id] : []));
+}
+
+describe("inline figures (D48 additions 7, P39-C)", () => {
+  it("each of the three P39-B drafts has 3–5 figures, stays a draft, and every figure is defined and used", () => {
+    const used = new Set<string>();
+    for (const slug of FIGURE_POSTS) {
+      const post = getPost(slug)!;
+      expect(post.status, slug).toBe("draft");
+      const ids = figureIds(post.body);
+      expect(ids.length, slug).toBeGreaterThanOrEqual(3);
+      expect(ids.length, slug).toBeLessThanOrEqual(5);
+      expect(new Set(ids).size, `${slug}: a figure twice`).toBe(ids.length);
+      for (const id of ids) {
+        expect(BLOG_FIGURES[id], `${slug}: {{hinh:${id}}}`).toBeDefined();
+        used.add(id);
+      }
+    }
+    for (const post of BLOG_POSTS.filter((p) => !FIGURE_POSTS.includes(p.slug))) {
+      expect(figureIds(getPost(post.slug)!.body), post.slug).toEqual([]);
+    }
+    expect([...used].sort()).toEqual(Object.keys(BLOG_FIGURES).sort());
+  });
+
+  for (const [id, figure] of Object.entries(BLOG_FIGURES)) {
+    it(`${id}: files exist with their width/height, Vietnamese alt and caption`, () => {
+      for (const variant of [...figure.variants, ...figure.mobileVariants]) {
+        expect(variant.avif, `${id}: avif`).toBeDefined();
+        for (const file of [variant.avif!, variant.webp]) {
+          expect(existsSync(join(PUBLIC_DIR, file)), file).toBe(true);
+        }
+        expect(webpSize(join(PUBLIC_DIR, variant.webp)), variant.webp).toEqual({
+          width: variant.width,
+          height: variant.height,
+        });
+      }
+      expect(figure.variants.length).toBeGreaterThan(0);
+      expect(figure.mobileVariants.length, `${id}: a phone variant`).toBeGreaterThan(0);
+      for (const text of [figure.alt, figure.caption]) {
+        expect(text.trim().length).toBeGreaterThan(20);
+        expect(text).toMatch(VIETNAMESE);
+        expect(text, `${id}: no em dash (D46.4)`).not.toContain("—");
+      }
+      if (figure.kind === "screenshot") {
+        expect(figure.caption.startsWith("Dữ liệu mẫu · "), id).toBe(true);
+        expect(figure.alt).toMatch(/\(dữ liệu mẫu\)$/);
+        expect(figure.variants[0]!.webp).toMatch(/^\/media\/cap-/);
+      } else {
+        expect(figure.variants[0]!.webp).toMatch(/^\/media\/blog-fig-[a-z0-9-]+-v\d+-720\.webp$/);
+        // A diagram with figures in it says they are hypothetical (the image carries the same pill).
+        if (/\d[\d.]{2,}|\d %/.test(figure.alt)) expect(figure.alt.toLowerCase(), id).toContain("ví dụ giả định");
+      }
+    });
+  }
+
+  for (const slug of FIGURE_POSTS) {
+    it(`${slug}: renders every figure lazy, sized, captioned; only the cover is eager`, async () => {
+      render(await BlogPostPage({ params: Promise.resolve({ slug }) }));
+      const post = getPost(slug)!;
+      const ids = figureIds(post.body);
+      const figures = [...document.querySelectorAll(".lp-prose figure")];
+      expect(figures).toHaveLength(ids.length);
+      figures.forEach((element, index) => {
+        const figure = BLOG_FIGURES[ids[index]!]!;
+        const img = element.querySelector("img")!;
+        const largest = [...figure.variants].sort((a, b) => b.width - a.width)[0]!;
+        expect(img).toHaveAttribute("alt", figure.alt);
+        expect(img).toHaveAttribute("loading", "lazy");
+        expect(img.getAttribute("fetchpriority") ?? "auto").not.toBe("high");
+        expect(img).toHaveAttribute("width", String(largest.width));
+        expect(img).toHaveAttribute("height", String(largest.height));
+        expect(element.querySelector("figcaption")).toHaveTextContent(figure.caption);
+        const mobile = element.querySelector('source[media="(max-width: 640px)"]');
+        expect(mobile, `${ids[index]}: phone source`).not.toBeNull();
+        expect(mobile).toHaveAttribute("width");
+        expect(mobile).toHaveAttribute("height");
+      });
+      // In the post (the header / footer logo mark is outside it): only the cover is eager.
+      const eager = [...document.querySelectorAll(".lp-post img")].filter((img) => img.getAttribute("loading") !== "lazy");
+      expect(eager.map((img) => img.getAttribute("alt"))).toEqual([post.cover.alt]);
+    });
+  }
+
+  it("keeps the Article JSON-LD image to the cover (existing pattern)", async () => {
+    render(await BlogPostPage({ params: Promise.resolve({ slug: FIGURE_POSTS[0]! }) }));
+    const json = [...document.querySelectorAll('script[type="application/ld+json"]')]
+      .map((script) => script.textContent ?? "")
+      .join(" ");
+    expect(json).not.toContain("blog-fig-");
+    expect(json).not.toContain("/media/cap-");
+  });
+});
+
 describe("markdown subset", () => {
+  it("parses a {{hinh:<id>}} line as a figure, not a word, and rejects a malformed one", () => {
+    const blocks = parseMarkdown("đoạn một\n{{hinh:gmv-pheu}}\nđoạn hai");
+    expect(blocks).toEqual([
+      { kind: "p", text: "đoạn một" },
+      { kind: "figure", id: "gmv-pheu" },
+      { kind: "p", text: "đoạn hai" },
+    ]);
+    expect(countWords("một hai\n\n{{hinh:gmv-pheu}}\n\nba")).toBe(3);
+    expect(() => parseMarkdown("{{hinh: Sai}}")).toThrow();
+  });
+
   it("slugifies Vietnamese headings", () => {
     expect(slugify("Đọc chỉ số theo năm kênh")).toBe("doc-chi-so-theo-nam-kenh");
     expect(slugify("CTOR thấp: trước giỏ hay sau giỏ")).toBe("ctor-thap-truoc-gio-hay-sau-gio");
