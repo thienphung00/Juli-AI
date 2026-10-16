@@ -216,10 +216,21 @@ describe("site header", () => {
   it("links the public pages in order, on desktop and in the mobile menu", () => {
     render(<SiteHeader />);
     for (const name of ["Điều hướng chính", "Menu trên điện thoại"]) {
-      const labels = within(screen.getByRole("navigation", { name }))
+      const nav = screen.getByRole("navigation", { name });
+      // "Sản phẩm" is a dropdown button (D45.1) whose links lead the list.
+      expect(within(nav).getByRole("button", { name: "Sản phẩm" }), name).toBeInTheDocument();
+      const labels = within(nav)
         .getAllByRole("link")
-        .map((link) => link.textContent);
-      expect(labels, name).toEqual(["Sản phẩm", "Kết nối TikTok Shop", "Blog", "Giới thiệu"]);
+        .map((link) => link.querySelector(".ui-navmenu__label")?.textContent ?? link.textContent);
+      expect(labels, name).toEqual([
+        "Tổng quan sản phẩm",
+        "Phân tích shop",
+        "Đề xuất và thực thi",
+        "Đo lường GMV",
+        "Kết nối TikTok Shop",
+        "Blog",
+        "Giới thiệu",
+      ]);
     }
   });
 

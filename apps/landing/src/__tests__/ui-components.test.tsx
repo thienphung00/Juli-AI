@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { CAP_PT_LUONG, CAP_PT_LUONG_MOBILE, CAP_PT_PHEU } from "../components/product/screens";
@@ -28,7 +28,7 @@ import {
   TocNav,
 } from "../components/ui";
 import { isActiveNav } from "../components/ui/header-nav";
-import { COMPANY, DEMO_URL, LOGIN_URL, SIGNUP_URL } from "../lib/site";
+import { COMPANY, DEMO_URL, LOGIN_URL, PRODUCT_MENU, SIGNUP_URL } from "../lib/site";
 
 const SHOT = { variants: CAP_PT_LUONG, alt: "GMV theo 5 luồng (dữ liệu mẫu)" };
 
@@ -36,8 +36,10 @@ describe("SiteHeader", () => {
   it("has the D44 nav, 'Đăng nhập' and the dark trial button", () => {
     render(<SiteHeader pathname="/" />);
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
+    // "Sản phẩm" is a dropdown button (D45.1); its 4 links come first in the DOM.
+    expect(within(nav).getByRole("button", { name: "Sản phẩm" })).toHaveAttribute("aria-expanded", "false");
     expect(within(nav).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([
-      "/san-pham",
+      ...PRODUCT_MENU.map((item) => item.href),
       "/ket-noi/tiktok-shop",
       "/blog",
       "/about",
@@ -52,8 +54,15 @@ describe("SiteHeader", () => {
   it("marks the current section with aria-current, including sub-pages", () => {
     render(<SiteHeader pathname="/san-pham/phan-tich-shop" />);
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
-    expect(within(nav).getByRole("link", { name: "Sản phẩm" })).toHaveAttribute("aria-current", "page");
+    // The "Sản phẩm" button lights up on every /san-pham/* page; the exact page link carries aria-current.
+    expect(within(nav).getByRole("button", { name: "Sản phẩm" })).toHaveAttribute("data-active");
+    expect(within(nav).getByRole("link", { name: /^Phân tích shop/ })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: /^Tổng quan sản phẩm/ })).not.toHaveAttribute("aria-current");
     expect(within(nav).getByRole("link", { name: "Blog" })).not.toHaveAttribute("aria-current");
+    render(<SiteHeader pathname="/ket-noi/tiktok-shop" />);
+    const navs = screen.getAllByRole("navigation", { name: "Điều hướng chính" });
+    expect(within(navs[1]).getByRole("button", { name: "Sản phẩm" })).not.toHaveAttribute("data-active");
+    expect(within(navs[1]).getByRole("link", { name: "Kết nối TikTok Shop" })).toHaveAttribute("aria-current", "page");
   });
 
   it("isActiveNav matches the path and its children only", () => {
@@ -70,6 +79,88 @@ describe("SiteHeader", () => {
     expect(within(menu as HTMLElement).getByLabelText("Menu").tagName).toBe("SUMMARY");
     expect(within(menu as HTMLElement).getByRole("link", { name: "Liên hệ" })).toHaveAttribute("href", "/contact");
     expect(screen.getByTestId("menu-login-link")).toHaveAttribute("href", LOGIN_URL);
+  });
+
+  it("product dropdown (D45.1): disclosure button, 4 described links in the DOM while closed", () => {
+    render(<SiteHeader pathname="/" />);
+    const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
+    const button = within(nav).getByRole("button", { name: "Sản phẩm" });
+    const panel = document.getElementById(button.getAttribute("aria-controls") ?? "");
+    expect(panel).not.toBeNull();
+    expect(nav).toContainElement(panel);
+    // Closed: links are rendered (crawlable), the panel is hidden by CSS via [data-open].
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(button.closest(".ui-navmenu")).not.toHaveAttribute("data-open");
+    const links = within(panel as HTMLElement).getAllByRole("link");
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(PRODUCT_MENU.map((item) => item.href));
+    PRODUCT_MENU.forEach((item, index) => {
+      expect(links[index]).toHaveTextContent(item.label);
+      expect(links[index]).toHaveTextContent(item.description);
+      expect(item.description.split(/\s+/).length, item.description).toBeLessThanOrEqual(8);
+    });
+    expect(links[0]).toHaveTextContent("Tổng quan sản phẩm");
+  });
+
+  it("product dropdown opens on click, closes on a second click, Escape (focus back) and click outside", () => {
+    render(<SiteHeader pathname="/" />);
+    const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
+    const button = within(nav).getByRole("button", { name: "Sản phẩm" });
+    const root = button.closest(".ui-navmenu") as HTMLElement;
+
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(root).toHaveAttribute("data-open");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(button);
+    const first = within(root).getAllByRole("link")[0];
+    first.focus();
+    fireEvent.keyDown(first, { key: "Escape" });
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(document.activeElement).toBe(button);
+
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    fireEvent.pointerDown(document.body);
+    expect(button).toHaveAttribute("aria-expanded", "false");
+
+    // Focus leaving the desktop panel (Tab past the last item) closes it.
+    fireEvent.click(button);
+    fireEvent.blur(button, { relatedTarget: within(nav).getByRole("link", { name: "Blog" }) });
+    expect(button).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("product dropdown closes when the route changes", () => {
+    const { rerender } = render(<SiteHeader pathname="/" />);
+    const button = within(screen.getByRole("navigation", { name: "Điều hướng chính" })).getByRole("button", {
+      name: "Sản phẩm",
+    });
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    rerender(<SiteHeader pathname="/san-pham/do-luong-gmv" />);
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(within(screen.getByRole("navigation", { name: "Điều hướng chính" })).getByRole("link", { name: /^Đo lường GMV/ }))
+      .toHaveAttribute("aria-current", "page");
+  });
+
+  it("mobile menu shows Sản phẩm as an expandable group with the same 4 links", () => {
+    render(<SiteHeader pathname="/" />);
+    const nav = screen.getByRole("navigation", { name: "Menu trên điện thoại" });
+    const button = within(nav).getByRole("button", { name: "Sản phẩm" });
+    expect(button.closest(".ui-navmenu")).toHaveClass("ui-navmenu--panel");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    const panel = document.getElementById(button.getAttribute("aria-controls") ?? "") as HTMLElement;
+    expect(within(panel).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(
+      PRODUCT_MENU.map((item) => item.href),
+    );
+    // Two dropdowns on the page, two distinct panel ids.
+    const desktop = within(screen.getByRole("navigation", { name: "Điều hướng chính" })).getByRole("button", {
+      name: "Sản phẩm",
+    });
+    expect(desktop.getAttribute("aria-controls")).not.toBe(button.getAttribute("aria-controls"));
+    expect(desktop).toHaveAttribute("aria-expanded", "false");
   });
 
   it("signup variant: logo + 'Đã có tài khoản? Đăng nhập' only", () => {

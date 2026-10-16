@@ -109,6 +109,18 @@ export const HEADER_NAV = [
   { href: "/about", label: "Giới thiệu", match: "/about" },
 ] as const;
 
+/**
+ * The header's "Sản phẩm" dropdown (D45.1): overview first, then the three
+ * capability pages, each with a one-line description (≤ 8 words, facts as on
+ * the pages). `/ket-noi/tiktok-shop` stays a top-level header item.
+ */
+export const PRODUCT_MENU = [
+  { href: "/san-pham", label: "Tổng quan sản phẩm", description: "Juli làm gì, cách làm và bảng giá" },
+  { ...PRODUCT_PAGES.analysis, description: "GMV theo luồng truy cập và phễu" },
+  { ...PRODUCT_PAGES.actions, description: "Thẻ đề xuất, thực thi khi bạn duyệt" },
+  { ...PRODUCT_PAGES.measurement, description: "Đo kết quả ngày 7 và ngày 14" },
+] as const;
+
 /** Footer "Công ty" column (D44 footer): company pages, then the Demo. */
 export const FOOTER_COMPANY_LINKS = [
   { href: "/about", label: "Giới thiệu" },

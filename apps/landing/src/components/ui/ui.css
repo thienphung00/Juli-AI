@@ -210,6 +210,7 @@ body {
 .ui-header__login:focus-visible,
 .ui-header__brand:focus-visible,
 .ui-header__menu-button:focus-visible,
+.ui-navmenu__item:focus-visible,
 .ui-footer__link:focus-visible,
 .ui-toc__link:focus-visible,
 .ui-toc__summary:focus-visible,
@@ -476,6 +477,134 @@ body {
 
 .ui-header__panel .ui-header__link {
   font-size: 1rem;
+}
+
+/* "Sản phẩm" dropdown (D45.1). The panel is always in the DOM (crawlable
+   links) and shown by [data-open]; `bar` floats under the button on desktop,
+   `panel` opens inline inside the mobile menu. */
+.ui-navmenu {
+  position: relative;
+}
+
+.ui-navmenu__button {
+  gap: 4px;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ui-navmenu__button[data-active] {
+  color: var(--lp-ink);
+  font-weight: var(--lp-weight-semibold);
+}
+
+.ui-navmenu__chevron {
+  flex: none;
+  color: var(--lp-muted);
+  transition: transform 150ms ease;
+}
+
+.ui-navmenu[data-open] .ui-navmenu__chevron {
+  transform: rotate(180deg);
+}
+
+.ui-navmenu__panel {
+  display: none;
+}
+
+.ui-navmenu[data-open] .ui-navmenu__panel {
+  display: block;
+}
+
+.ui-navmenu__list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-navmenu__item {
+  display: flex;
+  min-height: var(--lp-touch);
+  align-items: center;
+  gap: var(--lp-space-3);
+  padding: 10px;
+  border-radius: var(--lp-radius-md);
+  color: var(--lp-ink);
+  text-decoration: none;
+}
+
+.ui-navmenu__item:hover {
+  background: var(--lp-alt);
+}
+
+.ui-navmenu__item[aria-current="page"] {
+  background: var(--lp-pink-tint);
+}
+
+.ui-navmenu__icon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-sm);
+  background: var(--lp-bg);
+  color: var(--lp-pink-text);
+}
+
+.ui-navmenu__text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ui-navmenu__label {
+  font-size: var(--lp-text-body-small);
+  font-weight: var(--lp-weight-semibold);
+  line-height: 1.35;
+}
+
+.ui-navmenu__desc {
+  color: var(--lp-muted);
+  font-size: var(--lp-text-caption);
+  line-height: 1.4;
+}
+
+.ui-navmenu--bar .ui-navmenu__panel {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + var(--lp-space-2));
+  left: calc(-1 * var(--lp-space-2));
+  width: 22rem;
+  padding: var(--lp-space-2);
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-lg);
+  background: var(--lp-bg);
+  box-shadow: var(--lp-shadow-menu);
+}
+
+.ui-navmenu--panel .ui-navmenu__button {
+  width: 100%;
+  justify-content: space-between;
+  font-size: 1rem;
+}
+
+.ui-navmenu--panel .ui-navmenu__panel {
+  padding: 2px 0 var(--lp-space-1) var(--lp-space-2);
+}
+
+.ui-navmenu--panel .ui-navmenu__icon {
+  display: none;
+}
+
+.ui-navmenu--panel .ui-navmenu__item {
+  padding-block: 8px;
 }
 
 @media (min-width: 900px) {
@@ -1249,6 +1378,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .ui-button,
+  .ui-navmenu__chevron,
   .ui-faq__chevron {
     transition: none;
   }

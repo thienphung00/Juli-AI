@@ -17,8 +17,9 @@ export interface SiteHeaderProps {
 }
 
 /**
- * Site header (D44, Main.dc.html). Desktop: logo · nav · "Đăng nhập" ·
- * dark "Dùng thử miễn phí". Below 900 px: logo · "Dùng thử" · menu button
+ * Site header (D44, Main.dc.html). Desktop: logo · nav ("Sản phẩm" opens a
+ * dropdown of the four product pages, D45.1) · "Đăng nhập" · dark "Dùng thử
+ * miễn phí". Below 900 px: logo · "Dùng thử" · menu button
  * (a `<details>` panel with the same nav + "Đăng nhập" + "Liên hệ").
  * The header has no headings (seo README rule 4).
  */
@@ -61,7 +62,12 @@ export function SiteHeader({ variant = "default", pathname }: SiteHeaderProps) {
               <Icon className="ui-header__menu-close" name="close" />
             </summary>
             <div className="ui-header__panel">
-              <HeaderNav className="ui-header__panel-nav" label="Menu trên điện thoại" pathname={pathname} />
+              <HeaderNav
+                className="ui-header__panel-nav"
+                label="Menu trên điện thoại"
+                pathname={pathname}
+                variant="panel"
+              />
               <div className="ui-header__panel-extra">
                 <Link className="ui-header__link" href="/contact">
                   Liên hệ
