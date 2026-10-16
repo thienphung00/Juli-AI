@@ -279,6 +279,112 @@ const DIAGRAMS = [
         .join("")}</div>`;
     },
   },
+  /* ————— P39-D (D48 additions 8) ————— */
+  {
+    name: "truoc-khi-doc-pheu-v1",
+    html: () => {
+      const statuses = [
+        ["Trực tuyến", "Khách mua được", true],
+        ["Đã vô hiệu hóa", "Người bán cho ngừng hiển thị"],
+        ["Đã tạm ngưng", "Ví dụ bị từ chối khi duyệt"],
+        ["Bản nháp", "Chưa gửi đi"],
+      ];
+      return `${head("Ba kiểm tra trước khi đọc phễu")}
+<div class="box sect"><div class="sect-head">${num(1)}<strong>Trạng thái sản phẩm</strong></div>
+<div class="statuses">${statuses
+        .map(
+          ([name, what, ok]) =>
+            `<div class="status${ok ? " status--ok" : ""}"><span class="verdict">${ok ? "Bán được" : "Không bán được"}</span><strong>${name}</strong><span class="small">${what}</span></div>`,
+        )
+        .join("")}</div></div>
+<div class="grid2">
+  <div class="box step">${num(2)}<div><strong>Tồn kho từng biến thể</strong><span>Biến thể khách chọn nhiều nhất còn hàng, không chỉ tổng tồn kho của sản phẩm.</span></div></div>
+  <div class="box step">${num(3)}<div><strong>Vận hành shop</strong><span>Giao đúng hạn, xử lý nhanh đơn mới, để thẻ sản phẩm giữ vị trí trong nhóm đề xuất.</span></div></div>
+</div>
+<div class="result">Cả ba đều ổn mới bắt đầu đọc phễu</div>`;
+    },
+  },
+  {
+    name: "doc-pheu-o-dau-v1",
+    html: () => {
+      const path = ["Trung tâm nhà bán hàng", "La bàn dữ liệu", "Số liệu phân tích sản phẩm", "Lưu lượng truy cập sản phẩm"];
+      const rules = [
+        ["Chọn luồng", "Đọc Thẻ sản phẩm trước: không có người dẫn LIVE hay nhà sáng tạo bán hộ."],
+        ["Chọn khoảng thời gian", "Ít nhất 14 ngày, tốt hơn 28 hoặc 30 ngày. Cộng tổng cả kỳ rồi mới chia ra tỷ lệ."],
+        ["Đủ dữ liệu chưa", "Juli đọc CTR từ 50 lượt hiển thị mỗi ngày, CTOR từ 20 lượt nhấp mỗi ngày."],
+      ];
+      return `${head("Phễu của từng sản phẩm nằm ở đâu")}
+<div class="path">${path
+        .map((p, i) => `<span class="crumb${i === path.length - 1 ? " crumb--ink" : ""}">${p}</span>`)
+        .join(`<span class="sep">›</span>`)}</div>
+<p class="label">Rồi đọc theo ba quy tắc</p>
+<div class="grid3">${rules
+        .map(([t, d], i) => `<div class="box col">${num(i + 1)}<strong>${t}</strong><span class="desc">${d}</span></div>`)
+        .join("")}</div>
+<p class="note">Ngưỡng ở mục 3 là quy tắc của Juli, không phải quy định của TikTok. Dưới ngưỡng, ghi “chưa đủ dữ liệu”: vấn đề thường nằm ở Lượt hiển thị.</p>`;
+    },
+  },
+  {
+    name: "luong-noi-dung-v1",
+    html: () => {
+      const cards = [
+        ["Video", "Có lượt xem, ít lượt nhấp vào sản phẩm", ["Video cho thấy rõ sản phẩm, công dụng, giá", "Sản phẩm được gắn đúng"]],
+        ["LIVE", "Có người xem, không ra đơn", ["Thời điểm giới thiệu sản phẩm", "Ưu đãi trong phiên", "Sản phẩm được ghim còn hàng"]],
+        ["Liên kết", "Có lượt hiển thị, ít đơn", ["Khán giả của nhà sáng tạo có khớp với sản phẩm"]],
+      ];
+      return `${head("Luồng nội dung không ra đơn: xem gì trước")}
+<div class="grid3 cards">${cards
+        .map(
+          ([name, sign, checks]) =>
+            `<div class="box col"><span class="tag">${name}</span><strong>${sign}</strong><span class="label">Kiểm tra</span><ul class="hang">${checks.map((c) => `<li>${c}</li>`).join("")}</ul></div>`,
+        )
+        .join("")}</div>
+<p class="note">Ở ba luồng này, chỉ số chính là Lượt hiển thị sản phẩm và GMV; CTOR chỉ để tham khảo.</p>
+<div class="result">Mọi lượt nhấp đều về trang sản phẩm: nếu CTOR ở Thẻ sản phẩm cũng thấp, sửa trang trước</div>`;
+    },
+  },
+  {
+    name: "kiem-tra-theo-chi-so-v1",
+    html: () => {
+      const metrics = [
+        ["Lượt hiển thị sản phẩm giảm", ["Trạng thái, hết hàng, tiêu đề mất từ khóa", "Ít video, buổi LIVE, nhà sáng tạo hơn", "Kỳ trước có ngày sale, kỳ này không", "Vận hành xấu đi, tụt khỏi nhóm đề xuất"]],
+        ["CTR giảm", ["Traffic loãng: kiểm tra đầu tiên", "Ảnh bìa, tiêu đề, giá hiển thị vừa đổi", "Chiết khấu hay nhãn khuyến mãi vừa hết", "Sản phẩm cạnh tranh mới, giá thấp hơn"]],
+        ["CTOR giảm", ["Tỷ lệ thêm vào giỏ hàng giảm: giá, bộ ảnh, mô tả, đánh giá mới", "Thêm vào giỏ vẫn vậy mà ít đơn: phí vận chuyển, voucher, khách chờ ưu đãi"]],
+        ["AOV giảm", ["Mua Sỉ Giá Hời vừa kết thúc", "Khách chuyển sang biến thể rẻ hơn", "Vừa giảm giá sâu hơn", "Ưu đãi theo gói, quà tặng kèm vừa tắt"]],
+      ];
+      return `<div class="chain"><span class="chip">Lượt hiển thị</span><span class="x">×</span><span class="chip">CTR</span><span class="x">×</span><span class="chip">CTOR</span><span class="x">×</span><span class="chip">AOV</span><span class="x">=</span><span class="chip chip--ink">GMV</span></div>
+<p class="title center">Chỉ số nào giảm nhiều nhất, tìm nguyên nhân ở đó</p>
+<div class="grid2">${metrics
+        .map(
+          ([metric, items]) =>
+            `<div class="box half"><strong class="metric">${metric}</strong><span class="label">Xem lại</span><ul class="hang">${items.map((i) => `<li>${i}</li>`).join("")}</ul></div>`,
+        )
+        .join("")}</div>`;
+    },
+  },
+  {
+    name: "ngoai-pheu-v1",
+    html: () => {
+      const causes = [
+        ["Mùa vụ", "Ngành hàng có tháng cao điểm và tháng thấp điểm.", "So với cùng kỳ năm trước, nếu shop đủ lâu."],
+        ["Đơn hủy, hoàn tiền tăng", "Tiền về giảm mạnh hơn GMV.", "Lý do hủy và lý do hoàn."],
+        ["Hoàn tiền đến muộn", "Ghi vào ngày yêu cầu được xử lý, không phải ngày mua.", "Tỷ lệ hoàn của tuần gần nhất, thường trông thấp hơn thực tế."],
+        ["Sản phẩm chủ lực ngừng bán", "Hết hàng dài ngày, ngừng nhập, bị tạm ngưng.", "Trạng thái và tồn kho của sản phẩm đó."],
+      ];
+      return `${head("Nguyên nhân nằm ngoài phễu")}
+<div class="grid2 vs">
+  <div class="box"><strong>GMV</strong><span class="small">Tính cả đơn đã hủy và hoàn tiền</span></div>
+  <div class="box"><strong>Tiền về</strong><span class="small">Sau hủy, hoàn và các khoản phí</span></div>
+</div>
+<div class="grid2">${causes
+        .map(
+          ([t, sign, check], i) =>
+            `<div class="box step">${num(i + 1)}<div><strong>${t}</strong><span>${sign}</span><span class="look"><b>Xem:</b> ${check}</span></div></div>`,
+        )
+        .join("")}</div>
+<p class="note">Bốn nguyên nhân này không nằm ở trang sản phẩm: kiểm tra trước khi sửa phễu.</p>`;
+    },
+  },
 ];
 
 function pageHtml(diagram, t, layout) {
@@ -414,6 +520,34 @@ strong{font-weight:600}
 .bval{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
 .bval em{display:block;font-style:normal;font-weight:500;font-size:12px;color:${t["pink-text"]}}
 .brow--total{padding-top:10px;border-top:1px solid ${t.hairline}}
+/* P39-D */
+.center{text-align:center}
+.sect{display:flex;flex-direction:column;gap:10px}
+.sect-head{display:flex;align-items:center;gap:10px}
+.statuses{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.m .statuses{grid-template-columns:1fr 1fr}
+.status{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px dashed ${t["chrome-dot"]};border-radius:10px;background:${t.alt}}
+.status strong{color:${t.body}}
+.status--ok{border:1px solid ${t.pink};box-shadow:0 0 0 1px ${t.pink} inset;background:${t["pink-tint"]}}
+.status--ok strong{color:${t.ink}}
+.verdict{font-size:12px;font-weight:600;color:${t.muted}}
+.status--ok .verdict{color:${t["pink-text"]}}
+.path{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;align-items:stretch;gap:6px}
+.d .crumb{display:flex;align-items:center;justify-content:center;text-align:center}
+.d .sep{align-self:center}
+.m .path{display:flex;flex-direction:column;align-items:stretch;gap:2px}
+.crumb{padding:7px 12px;border:1px solid ${t.hairline};border-radius:10px;background:${t.bg};font-weight:500;font-size:14px}
+.crumb--ink{background:${t.ink};border-color:${t.ink};color:${t.bg}}
+.sep{color:${t["pink-text"]};font-weight:600}
+.m .sep{transform:rotate(90deg);align-self:flex-start;margin-left:18px;line-height:1}
+.desc{color:${t.body};font-size:14px}
+.m .cards .col{display:flex}
+ul.hang li{padding-left:14px;text-indent:-14px}
+.half .metric{color:${t["pink-text"]}}
+.vs .box{display:flex;flex-direction:column;gap:2px;background:${t.backdrop}}
+.m .vs{grid-template-columns:1fr 1fr}
+.look{margin-top:2px;color:${t.ink}!important}
+.look b{font-weight:600}
 </style></head><body class="${layout === "mobile" ? "m" : "d"}"><div class="fig">${diagram.html(t)}</div></body></html>`;
 }
 
