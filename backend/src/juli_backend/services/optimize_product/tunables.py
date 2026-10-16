@@ -46,6 +46,16 @@ KPI_SHRINKAGE = "kpi_shrinkage"
 SHRINKAGE_ON = "on"
 SHRINKAGE_OFF = "off"
 KPI_SHRINKAGE_VALUES: tuple[str, ...] = (SHRINKAGE_ON, SHRINKAGE_OFF)
+#: D45 (P36, Ops only) -- the D34 group verdict and its design numbers:
+#: from this many measured products the change is adjusted on two pre-period windows
+#: (days −28..−15 and −14..−1); below it the P31 fitted θ (D45.6, D47.1).
+GROUP_TWO_WINDOW_MIN = "group_two_window_min"
+#: Warn when a group's product-card CTR falls more than this (points of %) treated vs
+#: control, whatever its primary metric did (D45.2).
+GROUP_GUARD_CTR_DROP = "group_guard_ctr_drop"
+#: Week-to-week drift σ (log scale) behind the drift floor Ops shows (D45.4).
+GROUP_DRIFT_SIGMA = "group_drift_sigma"
+GROUP_KEYS: tuple[str, ...] = (GROUP_TWO_WINDOW_MIN, GROUP_GUARD_CTR_DROP, GROUP_DRIFT_SIGMA)
 
 TUNABLE_KEYS: tuple[str, ...] = (
     DIAG_WINDOWS,
@@ -58,6 +68,7 @@ TUNABLE_KEYS: tuple[str, ...] = (
     DIAG_TRIGGER,
     CARD_GROUPS,
     KPI_SHRINKAGE,
+    *GROUP_KEYS,
 )
 
 #: Bounds an Admin may set (inclusive).
@@ -68,6 +79,10 @@ CV_RANGE = (0.05, 2.0)
 #: D33: open cards per cell (target metric × channel) and the overall open cap.
 QUOTA_PER_CELL_RANGE = (1, 20)
 QUOTA_MAX_OPEN_RANGE = (5, 100)
+#: D45: group verdict / design tunables.
+TWO_WINDOW_MIN_RANGE = (4, 200)
+GUARD_DROP_RANGE = (1.0, 90.0)
+DRIFT_SIGMA_RANGE = (0.0, 1.0)
 
 
 class TunableError(ValueError):
@@ -92,6 +107,12 @@ class DiagTunables:
     D41.2 (P31): ``kpi_shrinkage`` -- ``on`` (default) shrinks per-product CTR /
     CTOR toward the category rate before that comparison (detection only; the
     KPI target is unchanged, D41.1); ``off`` compares the raw window means.
+
+    D45 (P36, Ops only): ``group_two_window_min`` (15) -- from this many measured
+    products a D34 group's change is adjusted on two pre-period windows, below it
+    the P31 fitted θ (D47.1); ``group_guard_ctr_drop`` (15) -- warn when the product-card
+    CTR falls more than this many points of % treated vs control;
+    ``group_drift_sigma`` (0.15) -- the weekly drift behind the drift floor.
     """
 
     windows: tuple[int, ...] = (14, 30, 60)
@@ -109,6 +130,10 @@ class DiagTunables:
     card_groups: bool | None = None
     #: D41.2: ``on`` (default) or ``off``.
     kpi_shrinkage: str = SHRINKAGE_ON
+    #: D45.6 / D45.2 / D45.4.
+    group_two_window_min: int = 15
+    group_guard_ctr_drop: float = 15.0
+    group_drift_sigma: float = 0.15
 
     @property
     def shrinkage_on(self) -> bool:
@@ -137,6 +162,9 @@ class DiagTunables:
             DIAG_TRIGGER: self.diag_trigger,
             CARD_GROUPS: self.card_groups,
             KPI_SHRINKAGE: self.kpi_shrinkage,
+            GROUP_TWO_WINDOW_MIN: self.group_two_window_min,
+            GROUP_GUARD_CTR_DROP: self.group_guard_ctr_drop,
+            GROUP_DRIFT_SIGMA: self.group_drift_sigma,
         }
 
     @classmethod
@@ -168,6 +196,9 @@ class DiagTunables:
             diag_trigger=str(values[DIAG_TRIGGER]),
             card_groups=None if values[CARD_GROUPS] is None else bool(values[CARD_GROUPS]),
             kpi_shrinkage=str(values[KPI_SHRINKAGE]),
+            group_two_window_min=int(values[GROUP_TWO_WINDOW_MIN]),
+            group_guard_ctr_drop=float(values[GROUP_GUARD_CTR_DROP]),
+            group_drift_sigma=float(values[GROUP_DRIFT_SIGMA]),
         )
 
 
@@ -201,6 +232,12 @@ def validate_tunable(name: str, value: Any) -> Any:
         if value not in KPI_SHRINKAGE_VALUES:
             raise TunableError(f"{name} must be one of {', '.join(KPI_SHRINKAGE_VALUES)}")
         return value
+    if name == GROUP_TWO_WINDOW_MIN:
+        return _whole(name, value, *TWO_WINDOW_MIN_RANGE)
+    if name == GROUP_GUARD_CTR_DROP:
+        return _number(name, value, *GUARD_DROP_RANGE)
+    if name == GROUP_DRIFT_SIGMA:
+        return _number(name, value, *DRIFT_SIGMA_RANGE)
     if name == CARD_QUOTA_PER_CELL:
         return _whole(name, value, *QUOTA_PER_CELL_RANGE)
     if name == CARD_QUOTA_MAX_OPEN:
@@ -240,6 +277,10 @@ __all__ = [
     "DIAG_TRIGGER",
     "DIAG_TRIGGERS",
     "DIAG_WINDOWS",
+    "GROUP_DRIFT_SIGMA",
+    "GROUP_GUARD_CTR_DROP",
+    "GROUP_KEYS",
+    "GROUP_TWO_WINDOW_MIN",
     "GUARD_BAND_MULT",
     "KPI_MAX_BAND_MULT",
     "KPI_SHRINKAGE",

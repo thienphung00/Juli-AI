@@ -56,8 +56,11 @@ export function websiteSchema(): JsonLdObject {
   return {
     "@type": "WebSite",
     "@id": WEBSITE_ID,
-    url: SITE_URL,
+    // Google's site-name signal: the home page URL exactly as canonicalised
+    // (trailing slash) plus the name and a short alternate.
+    url: `${SITE_URL}/`,
     name: SITE_NAME,
+    alternateName: "Juli",
     inLanguage: CONTENT_LANGUAGE,
     publisher: { "@id": ORGANIZATION_ID },
   };

@@ -1034,6 +1034,18 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   fails 1 test on desktop and 4 on mobile against a local build. "Chẩn đoán & KPI" expects 6
   `ops-setting` rows and gets 8 (the spec is stale against the code), and three mobile tests time
   out at 1.5 min.
+
+- [ ] P36 (D45.6): a card-drawn group's client-facing verdict keeps the P31 rule (one fitted θ);
+  the D45.6 group-size rule is only stored beside it (`verdict.ops_rule`) and shown in Ops. Switching
+  card groups to D45.6 changes the seller's "Kết quả nhóm" sentence, so it waits for the owner.
+- [ ] P36: the v0.3 power check (`juli-sim-pilot/v03/power_p31.py`) simulates CTR only and has no
+  days −42..−29 window, so for ≥ 15 products the simulated false-alarm replay runs the one-window θ
+  while the verdict runs two windows (the backend's replay uses triples when the data has them).
+  CTOR / AOV power is not simulated; the research run `20261015-212942` §4a is the only estimate.
+- [ ] P36 (D45.4): traffic needed for AOV assumes an order-value CV of 0.6 (research assumption;
+  daily totals have no per-order values); items per order has no traffic formula.
+- [ ] P36: `e2e/ops/ops.spec.ts` "Chẩn đoán & KPI" row count (already stale, see P34-F) grows by the
+  three group tunables (`group_two_window_min`, `group_guard_ctr_drop`, `group_drift_sigma`).
 - [ ] P37 (owner): D47.2 says a failed / cancelled / timed-out run puts the card back to "Chờ duyệt";
   the sample does that. The real backend only does it for `failed`
   (`services/agent/runner/conversation_store.py` ~381, `workers/tasks/agent_workflow.py` ~932);

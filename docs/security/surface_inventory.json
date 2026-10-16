@@ -481,6 +481,22 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/groups",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/groups/{group_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/invites",
       "methods": [
         "GET"

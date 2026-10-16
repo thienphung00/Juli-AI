@@ -646,13 +646,22 @@ async def apply_emission_budget(
         # their release and put a launching group's treated drafts first.
         from juli_backend.services.action_cards import card_groups
 
-        await card_groups.measure_due_groups(session, shop_id, now=now)
+        await card_groups.measure_due_groups(session, shop_id, now=now, tunables=tunables)
         group_pass = await card_groups.apply_groups(session, shop_id, eligible, now=now)
         for card in group_pass.held:
             card.suppressed_reason = SUPPRESSED_REASON_GROUP_CONTROL
             suppressed[SUPPRESSED_REASON_GROUP_CONTROL].append(card)
             _log_suppressed(shop_id_str, card, SUPPRESSED_REASON_GROUP_CONTROL)
         eligible = group_pass.eligible
+    else:
+        # D45.1 (P36): a group made in Ops (e.g. the pack test) is measured at day 14
+        # even when card groups are off for the shop; nothing is drawn or held, and a
+        # card-drawn group left from before the switch is not touched.
+        from juli_backend.services.action_cards import card_groups
+
+        await card_groups.measure_due_groups(
+            session, shop_id, now=now, tunables=tunables, only_ops=True
+        )
 
     if quota is None:
         used_today = await _surfaced_today_by_slot(session, week_rows, day_start)

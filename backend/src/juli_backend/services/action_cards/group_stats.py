@@ -56,6 +56,32 @@ a bootstrap of a median over 2–5 products is far too optimistic. D41.3:
 
    Each window needs ≥ 7 days with data. With fewer than 3 usable pairs, the
    pool is the group's own adjusted changes with each arm's median removed.
+6. **Pre-period rule by group size (D45.6 as amended by D47.1, fast track P36).**
+   Large groups gain from a second pre-period window (research run
+   ``20261015-212942`` §4a: 17 + 9 CTR SE −17 %). D45.6 also put small groups on the
+   plain change (θ = 1), but the P36 v0.3 power check found that lowered their power
+   (4 + 2 · 28 d at +40 %: 35 → 25 %), contradicting §4a, so D47.1 keeps step 3's
+   fitted θ below 15 (to be re-checked on the first real D34 groups).
+   :func:`adjust_changes`:
+
+   - fewer than :data:`TWO_WINDOW_MIN_PRODUCTS` (15) measured products: step 3's
+     single fitted ``θ`` -- the P31 rule (``method = one_window``);
+   - from 15 products, when every product has its days −28..−15 (``Unit.pre``):
+     ANCOVA on two pre-period windows, pooled over the group like step 3::
+
+         (θ₁, θ₂) = OLS slopes of y on (x, z)   with x = ln(days −14..−1),
+                                                     z = ln(days −28..−15)
+         d_i = (y_i − x̄) − θ₁ (x_i − x̄) − θ₂ (z_i − z̄)
+
+     (``method = two_windows``; ``θ₁`` clipped to [0, 2], ``θ₂`` to [−1, 1]);
+   - from 15 products without the second window: step 3's single fitted ``θ``
+     (``method = one_window``).
+
+   The same rule runs inside the false-alarm replay (pool entries carry the
+   earlier window when it is known: (days −42..−29, −28..−15, −14..−1) for the
+   pre-period and (w − 1, w, w + 1) for a control's untouched windows), so the
+   gate measures the rule that is applied. Applies to every group metric (CTR,
+   CTOR, AOV, items per order).
 """
 
 from __future__ import annotations
@@ -91,6 +117,15 @@ SIM_PERMUTATION_RANDOM = 200
 #: Fewer usable pre-period pairs than this: the null pool is the centred changes.
 MIN_NULL_POOL = 3
 THETA_RANGE = (0.0, 2.0)
+#: D45.6: the second pre-period window's slope is clipped to this range.
+THETA_PRE_RANGE = (-1.0, 1.0)
+#: D45.6 / D47.1 (P36): from this many measured products the change is adjusted on two
+#: pre-period windows; below it the P31 fitted θ (one window). ``DiagTunables``
+#: ``group_two_window_min`` overrides it per shop.
+TWO_WINDOW_MIN_PRODUCTS = 15
+ADJUST_CHANGE = "change"
+ADJUST_ONE_WINDOW = "one_window"
+ADJUST_TWO_WINDOWS = "two_windows"
 
 NULL_PRE_PERIOD = "pre_period"
 NULL_CENTRED = "centred_changes"
@@ -123,11 +158,15 @@ def median_difference(treated: Sequence[float], control: Sequence[float]) -> flo
 
 @dataclass(frozen=True)
 class Unit:
-    """One product's metric before (14 days) and after (14 days); both > 0."""
+    """One product's metric before (14 days) and after (14 days); both > 0.
+
+    ``pre`` (D45.6): the 14 days before ``before`` (days −28..−15), when known and > 0.
+    """
 
     arm: str
     before: float
     after: float
+    pre: float | None = None
 
     @property
     def change_pct(self) -> float:
@@ -166,6 +205,75 @@ def cuped_adjust(units: Sequence[Unit]) -> tuple[list[float], float]:
         d = (math.log(u.after) - x_bar) - theta * (math.log(u.before) - x_bar)
         out.append((math.exp(d) - 1) * 100)
     return out, theta
+
+
+@dataclass(frozen=True)
+class Adjustment:
+    """The adjusted changes of a group (module docstring step 6)."""
+
+    changes: list[float]
+    method: str
+    #: Slope on days −14..−1 (1 for the plain change).
+    theta: float
+    #: Slope on days −28..−15 (two windows only).
+    theta_pre: float | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "method": self.method,
+            "theta": round(self.theta, 4),
+            "theta_pre": None if self.theta_pre is None else round(self.theta_pre, 4),
+        }
+
+
+def _two_window_slopes(
+    xs: Sequence[float], zs: Sequence[float], ys: Sequence[float]
+) -> tuple[float, float] | None:
+    """OLS slopes of ``y`` on ``(x, z)`` with an intercept; ``None`` when singular."""
+    mx, mz, my = statistics.fmean(xs), statistics.fmean(zs), statistics.fmean(ys)
+    sxx = sum((x - mx) ** 2 for x in xs)
+    szz = sum((z - mz) ** 2 for z in zs)
+    sxz = sum((x - mx) * (z - mz) for x, z in zip(xs, zs, strict=True))
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=True))
+    szy = sum((z - mz) * (y - my) for z, y in zip(zs, ys, strict=True))
+    det = sxx * szz - sxz**2
+    if det <= 1e-12 * max(sxx * szz, 1e-300) or sxx <= 1e-12 or szz <= 1e-12:
+        return None
+    return (szz * sxy - sxz * szy) / det, (sxx * szy - sxz * sxy) / det
+
+
+def adjust_changes(
+    units: Sequence[Unit], *, two_window_min: int | None = TWO_WINDOW_MIN_PRODUCTS
+) -> Adjustment:
+    """D45.6: each unit's adjusted change (points of %) by the group-size rule (step 6).
+
+    ``two_window_min = None`` is the P31 rule (step 3's fitted ``θ`` at every size),
+    kept for the power check's "before" column.
+    """
+    if not units:
+        return Adjustment([], ADJUST_CHANGE, 1.0)
+    if two_window_min is None:
+        changes, theta = cuped_adjust(units)
+        return Adjustment(changes, ADJUST_ONE_WINDOW, theta)
+    if len(units) < two_window_min:  # D47.1: small groups keep the P31 θ
+        changes, theta = cuped_adjust(units)
+        return Adjustment(changes, ADJUST_ONE_WINDOW, theta)
+    if all(u.pre is not None and u.pre > 0 for u in units):
+        xs = [math.log(u.before) for u in units]
+        zs = [math.log(u.pre) for u in units if u.pre is not None]
+        ys = [math.log(u.after) for u in units]
+        slopes = _two_window_slopes(xs, zs, ys)
+        if slopes is not None:
+            t1 = min(max(slopes[0], THETA_RANGE[0]), THETA_RANGE[1])
+            t2 = min(max(slopes[1], THETA_PRE_RANGE[0]), THETA_PRE_RANGE[1])
+            mx, mz = statistics.fmean(xs), statistics.fmean(zs)
+            out = [
+                (math.exp((y - mx) - t1 * (x - mx) - t2 * (z - mz)) - 1) * 100
+                for x, z, y in zip(xs, zs, ys, strict=True)
+            ]
+            return Adjustment(out, ADJUST_TWO_WINDOWS, t1, t2)
+    changes, theta = cuped_adjust(units)
+    return Adjustment(changes, ADJUST_ONE_WINDOW, theta)
 
 
 # --------------------------------------------------------------------------- tests
@@ -299,22 +407,40 @@ class FalseAlarm:
         }
 
 
+#: A no-effect pair (before, after), or a triple (pre, before, after) when the window
+#: before "before" is known too (D45.6: the two-window rule needs it in the replay).
+NullEntry = tuple[float, ...]
+
+
+def _usable(entry: Sequence[float]) -> NullEntry | None:
+    """``(b, a)`` or ``(p, b, a)``, every value > 0; a triple with a bad ``p`` keeps ``(b, a)``."""
+    if len(entry) == 3:
+        p, b, a = entry
+        if b > 0 and a > 0:
+            return (p, b, a) if p is not None and p > 0 else (b, a)
+        return None
+    b, a = entry[-2], entry[-1]
+    return (b, a) if b > 0 and a > 0 else None
+
+
 def null_pool(
-    pre_pairs: Sequence[tuple[float, float]],
+    pre_pairs: Sequence[Sequence[float]],
     adjusted: Sequence[tuple[str, float]],
-    control_pairs: Sequence[tuple[float, float]] = (),
-) -> tuple[list[tuple[float, float]], str]:
+    control_pairs: Sequence[Sequence[float]] = (),
+) -> tuple[list[NullEntry], str]:
     """No-effect (before, after) pairs (module docstring step 5), else the centred changes.
 
-    ``pre_pairs``: per member (days −28..−15, days −14..−1), both > 0.
-    ``control_pairs``: the control members' consecutive untouched post-launch pairs.
+    ``pre_pairs``: per member (days −28..−15, days −14..−1), both > 0 -- or the triple
+    (days −42..−29, −28..−15, −14..−1) when the earlier window is known (step 6).
+    ``control_pairs``: the control members' consecutive untouched post-launch pairs
+    (or triples with the window before).
     ``adjusted``: per product (arm, adjusted change %), the fallback.
     """
-    pre = [(b, a) for b, a in pre_pairs if b > 0 and a > 0]
-    post = [(b, a) for b, a in control_pairs if b > 0 and a > 0]
+    pre = [e for e in (_usable(tuple(x)) for x in pre_pairs) if e is not None]
+    post = [e for e in (_usable(tuple(x)) for x in control_pairs) if e is not None]
     if len(pre) + len(post) >= MIN_NULL_POOL:
         return [*pre, *post], (NULL_PRE_AND_CONTROL if post else NULL_PRE_PERIOD)
-    out: list[tuple[float, float]] = []
+    out: list[NullEntry] = []
     for arm in (ARM_TREATED, ARM_CONTROL):
         logs = [math.log1p(c / 100) for a, c in adjusted if a == arm and c > -100]
         if not logs:
@@ -325,15 +451,20 @@ def null_pool(
 
 
 def false_alarm_rate(
-    pool: Sequence[tuple[float, float]],
+    pool: Sequence[Sequence[float]],
     n_treated: int,
     n_control: int,
     *,
     seed: int,
     source: str,
     draws: int = FALSE_ALARM_DRAWS,
+    two_window_min: int | None = TWO_WINDOW_MIN_PRODUCTS,
 ) -> FalseAlarm | None:
-    """Share of ``draws`` no-effect replays in which the rule calls a change (step 4)."""
+    """Share of ``draws`` no-effect replays in which the rule calls a change (step 4).
+
+    Each replay adjusts with the same group-size rule as the verdict (step 6,
+    :func:`adjust_changes`); a triple's first value is the unit's ``pre``.
+    """
     if not pool or n_treated < 1 or n_control < 1:
         return None
     rng = random.Random(f"false-alarm:{seed}")
@@ -345,10 +476,15 @@ def false_alarm_rate(
         else:
             picks = [rng.choice(pool) for _ in range(n)]  # too few: bootstrap it
         units = [
-            Unit(ARM_CONTROL if i < n_control else ARM_TREATED, b, a)
-            for i, (b, a) in enumerate(picks)
+            Unit(
+                ARM_CONTROL if i < n_control else ARM_TREATED,
+                entry[-2],
+                entry[-1],
+                entry[0] if len(entry) == 3 else None,
+            )
+            for i, entry in enumerate(picks)
         ]
-        adjusted, _theta = cuped_adjust(units)
+        adjusted = adjust_changes(units, two_window_min=two_window_min).changes
         control = adjusted[:n_control]
         treated = adjusted[n_control:]
         call = assess(
@@ -365,6 +501,9 @@ def false_alarm_rate(
 
 
 __all__ = [
+    "ADJUST_CHANGE",
+    "ADJUST_ONE_WINDOW",
+    "ADJUST_TWO_WINDOWS",
     "ALPHA",
     "FALSE_ALARM_DRAWS",
     "FALSE_ALARM_MAX",
@@ -376,10 +515,14 @@ __all__ = [
     "PERMUTATION_BELOW_CONTROL",
     "TEST_BOOTSTRAP",
     "TEST_PERMUTATION",
+    "TWO_WINDOW_MIN_PRODUCTS",
+    "Adjustment",
     "Assessment",
     "FalseAlarm",
     "Permutation",
+    "NullEntry",
     "Unit",
+    "adjust_changes",
     "assess",
     "bootstrap_interval",
     "cuped_adjust",

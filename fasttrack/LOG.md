@@ -1816,6 +1816,51 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   P35 agent's final gate run and the terms 2.1 edit were blocked by the permission classifier;
   gates now done here, terms 2.1 (D46.8) waits for the owner. AC-35.5 stays open: home mobile LCP
   median 2.60 s on a loaded host (H1 is the LCP element again); re-measure live after deploy.
+
+## 2026-10-16 — P36 agent (Claude Opus) — simulator research priorities into Ops (D45.1–D45.4, D45.6, D45.8)
+
+- Branch `fasttrack/p35-sim-ops` (worktree `~/juli-fasttrack-p35-sim-ops`; the branch name was
+  kept, the phase number is **P36** because P35 = product polish). `fasttrack/optimize-product`
+  merged in first (`35513e08`) for D45.7 / D45.8. Not merged, not deployed. Resumed from an
+  interrupted agent's uncommitted work: the 13 test edits and the deferred 074 edit are the usual
+  "074 follows the head" re-parenting onto `092_card_group_design` (checked: no other fasttrack
+  branch has a 092; revision id 21 chars; single head).
+- **Built:** migration 092 (`card_groups.design` JSON); Ops "Tạo nhóm thử nghiệm" with lever
+  "Quy cách mới" and an optional order-volume stratified draw (D45.8: 3 + 3 → 2 + 1 per stratum);
+  AOV and items per order on every verdict, CTR guard (> 15 % drop warns, even if AOV rose);
+  pre-period rule by group size (D45.6); drift floor + traffic needed under each group (D45.4);
+  one-line "lý do chọn thử nghiệm" (D45.3, manual). Tunables `group_two_window_min` (15),
+  `group_guard_ctr_drop` (15), `group_drift_sigma` (0.15). Details: DECISIONS D45 item 10.
+- **Scope decision:** a card-drawn group's primary verdict feeds the seller's "Kết quả nhóm", so it
+  keeps the P31 rule; the D45.6 reading is stored beside it (`verdict.ops_rule`) and shown in Ops
+  only. Ops groups and the new metrics use D45.6. Card groups switched off → only Ops groups are
+  measured.
+- **Power check** (`juli-sim-pilot/v03/power_p31.py`, 500 reps, CTR only; before =
+  `20261013-191329-p31-power` at the flat 15 % gate, after = `20261016-111445-p31-power`, same
+  seeds). Real false alarm (two-sided, δ = 0) and power for "tăng" at +22 / +40 / +65 %:
+
+  | Design | False alarm before → after | +22 % | +40 % | +65 % | "Đang đo" |
+  |---|---|---|---|---|---|
+  | 4+2 · 14d | 7.2 → 7.0 % | 14 → 13 % | 27 → 21 % | 46 → 39 % | 0 → 0 % |
+  | 5+3 · 14d | 4.2 → 5.8 % | 7 → 4 % | 13 → 6 % | 15 → 13 % | 0 → 0 % |
+  | 5+5 · 14d | 4.4 → 4.4 % | 11 → 7 % | 19 → 12 % | 33 → 25 % | 20 → 13 % |
+  | 4+6 · 14d | 5.4 → 6.4 % | 11 → 7 % | 24 → 19 % | 38 → 30 % | 26 → 20 % |
+  | 17+9 · 14d | 8.6 → 8.0 % | 29 → 27 % | 55 → 56 % | 79 → 79 % | 9 → 9 % |
+  | 4+2 · 28d | 7.8 → 6.8 % | 20 → 12 % | 35 → 25 % | 56 → 47 % | 0 → 0 % |
+  | 5+3 · 28d | 4.6 → 3.2 % | 7 → 3 % | 15 → 9 % | 25 → 14 % | 0 → 0 % |
+  | 5+5 · 28d | 5.4 → 5.0 % | 15 → 9 % | 26 → 15 % | 47 → 33 % | 18 → 13 % |
+  | 4+6 · 28d | 8.0 → 6.8 % | 15 → 10 % | 34 → 23 % | 50 → 39 % | 21 → 19 % |
+  | 17+9 · 28d | 9.6 → 9.2 % | 30 → 33 % | 64 → 67 % | 82 → 83 % | 12 → 12 % |
+
+  False alarms stay < 15 % everywhere (max 9.2 %). **In this simulator the plain change (θ = 1)
+  costs small groups power** (4+2 at +40 %: 27 → 21 % / 35 → 25 %), the opposite of research run
+  `20261015-212942` §4a (which compared with a different ANCOVA); the two windows add a little at
+  17+9 (+1 to +3 points, not the research's 58 → 70 %). The simulator has no days −42..−29, so
+  its 17+9 replay runs one window (DEBT). CTOR / AOV power is not simulated by `power_p31.py`.
+  Owner decision suggested: keep θ = 1 below 15 (as D45.6 says) or set it back to the P31 θ.
+- Gates: see the hand-back (full `fasttrack/check.sh`, `test_chi_so_docs_vocabulary.py`, demo
+  vitest / tsc / eslint on the Ops files).
+
 - D46.8 terms 2.1 (owner, 2026-10-16): /terms shows "Phiên bản 2.1 · Cập nhật lần cuối: 16/10/2026";
   §2 "người bán TMĐT … (hiện kết nối TikTok Shop, Shopee đang tích hợp)" (site without the
   "tên gọi khác JustLiveAI" alias, owner's call); §3 sign-in "với Google hoặc bằng email với mã xác
@@ -1838,6 +1883,41 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
 - Owner (2026-10-16): home H1 keeps the old tail → "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV,
   đề xuất cách sửa, đo kết quả." (was "…TikTok Shop: tìm chỗ GMV hụt, đề xuất cách sửa, đo kết
   quả." before D46.5). Landing gates PASS.
+- Owner (2026-10-16): final home H1 "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV, đề xuất chiến
+  lược, đo kết quả." (f7337452).
+- Google result (owner screenshot 2026-10-16) still shows the pre-redesign title/snippet and a generic
+  globe icon: URL Inspection says last crawl 2026-10-08. Favicon/meta/JSON-LD are correct live
+  (favicon.ico 48×48, icon.png 192, Organization logo 512). WebSite JSON-LD now `url` with the
+  trailing slash + `alternateName: "Juli"` (site-name signal). Owner to "Request indexing" for / in
+  Search Console (UI-only; the API cannot).
+
+## 2026-10-16 — P36 agent (Claude Opus) — D47.1: small groups back on the P31 θ
+
+- `fasttrack/optimize-product` (D47) merged in (`e08f00ee`). `group_stats.adjust_changes`: below
+  15 measured products the fitted P31 θ (one window) again; from 15 the two pre-period windows.
+  Applies to the primary, the extra metrics (AOV, items per order), the CTR guard and the
+  false-alarm replay. The original P31 verdict test fixtures are restored.
+- Power check re-run (`juli-sim-pilot/v03/results/20261016-123329-p31-power`, 500 reps, CTR, same
+  seeds, 15 % gate). Columns: P31 (`20261013-191329`) / D45.6 θ = 1 (`20261016-111445`) / D47.1:
+
+  | Design | False alarm | +22 % | +40 % | +65 % | "Đang đo" |
+  |---|---|---|---|---|---|
+  | 4+2 · 14d | 7.2 / 7.0 / 7.2 % | 14 / 13 / 14 % | 27 / 21 / 27 % | 46 / 39 / 46 % | 0 / 0 / 0 % |
+  | 5+3 · 14d | 4.2 / 5.8 / 4.2 % | 7 / 4 / 7 % | 13 / 6 / 13 % | 15 / 13 / 15 % | 0 / 0 / 0 % |
+  | 5+5 · 14d | 4.4 / 4.4 / 4.4 % | 11 / 7 / 11 % | 19 / 12 / 19 % | 33 / 25 / 33 % | 20 / 13 / 20 % |
+  | 4+6 · 14d | 5.4 / 6.4 / 5.4 % | 11 / 7 / 11 % | 24 / 19 / 24 % | 38 / 30 / 38 % | 26 / 20 / 26 % |
+  | 17+9 · 14d | 8.6 / 8.0 / 8.0 % | 29 / 27 / 27 % | 55 / 56 / 56 % | 79 / 79 / 79 % | 9 / 9 / 9 % |
+  | 4+2 · 28d | 7.8 / 6.8 / 7.8 % | 20 / 12 / 20 % | 35 / 25 / 35 % | 56 / 47 / 56 % | 0 / 0 / 0 % |
+  | 5+3 · 28d | 4.6 / 3.2 / 4.6 % | 7 / 3 / 7 % | 15 / 9 / 15 % | 25 / 14 / 25 % | 0 / 0 / 0 % |
+  | 5+5 · 28d | 5.4 / 5.0 / 5.4 % | 15 / 9 / 15 % | 26 / 15 / 26 % | 47 / 33 / 47 % | 18 / 13 / 18 % |
+  | 4+6 · 28d | 8.0 / 6.8 / 8.0 % | 15 / 10 / 15 % | 34 / 23 / 34 % | 50 / 39 / 50 % | 21 / 19 / 21 % |
+  | 17+9 · 28d | 9.6 / 9.2 / 9.2 % | 30 / 33 / 33 % | 64 / 67 / 67 % | 82 / 83 / 83 % | 12 / 12 / 12 % |
+
+  Every small design is back to the P31 numbers exactly; 17+9 keeps the two-window gain
+  (+1 to +3 points at +22 / +40 %); false alarms ≤ 9.2 % everywhere.
+- **Open contradiction:** research run `20261015-212942` §4a found the fitted θ *worse* for 4+2
+  (SE 0.17 → 0.26) while this simulator finds θ = 1 worse. Both readings are kept; re-check on the
+  first real D34 groups (the Ops "Cách tính" line and `verdict.adjustment` record the rule used).
 ## 2026-10-16 — P37 agent (Claude Opus) — demo sample mirrors the real card lifecycle (D47.2, D47.3)
 - Branch `fasttrack/demo-lifecycle` (worktree `~/juli-fasttrack-demo-lifecycle`) from
   `fasttrack/optimize-product` 91e7f450, merged 5b1a85f5 (D47.3 rewrite: reviewer stays on the sample

@@ -45,6 +45,9 @@ export const SETTING_KEYS: readonly OverrideKey[] = [
   "volatile_cv",
   "diag_trigger",
   "kpi_shrinkage",
+  "group_two_window_min",
+  "group_guard_ctr_drop",
+  "group_drift_sigma",
   "card_quota_mode",
   "card_quota_per_cell",
   "card_quota_max_open",
@@ -64,6 +67,9 @@ export const DIAG_KEYS: readonly DiagKey[] = [
   "volatile_cv",
   "diag_trigger",
   "kpi_shrinkage",
+  "group_two_window_min",
+  "group_guard_ctr_drop",
+  "group_drift_sigma",
 ];
 
 export const SETTING_LABELS: Readonly<Record<string, string>> = {
@@ -85,6 +91,9 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   volatile_cv: "Ngưỡng lưu lượng ổn định",
   diag_trigger: "Điều kiện mở thẻ",
   kpi_shrinkage: "Lọc nhiễu CTR / CTOR",
+  group_two_window_min: "Nhóm thử nghiệm: hai cửa sổ tiền kỳ từ",
+  group_guard_ctr_drop: "Nhóm thử nghiệm: cảnh báo CTR giảm quá",
+  group_drift_sigma: "Nhóm thử nghiệm: trôi tuần (σ)",
   card_quota_mode: "Nhiều thẻ mỗi ô",
   card_quota_per_cell: "Thẻ mở mỗi ô",
   card_quota_max_open: "Thẻ mở tối đa (nhiều thẻ)",
@@ -137,6 +146,9 @@ export function fmtSetting(key: string, value: unknown): string {
   if (key === "diag_trigger") return TRIGGER_NAMES[String(value)] ?? String(value);
   if (key === "kpi_shrinkage") return SHRINKAGE_NAMES[String(value)] ?? String(value);
   if (key === "diag_min_events") return `${String(value)} lượt nhấp/đơn`;
+  if (key === "group_two_window_min") return `${String(value)} sản phẩm`;
+  if (key === "group_guard_ctr_drop") return `${comma(Number(value))} %`;
+  if (key === "group_drift_sigma") return `σ ${comma(Number(value))} / tuần`;
   if (key === "card_quota_per_cell") return `${String(value)} thẻ/ô`;
   if (key === "card_quota_max_open") return `${String(value)} thẻ mở`;
   if (typeof value === "boolean") return value ? "Bật" : "Tắt";
