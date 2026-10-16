@@ -1217,3 +1217,11 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `/terms` unchanged (D46.4): /terms §2 "Juli AI là trợ lý giúp người bán TikTok Shop tăng trưởng
      …" now disagrees and goes through contract + md + site together. Outside the landing,
      `dictionary.md` `landing.footer.tagline` still reads "Trợ lý AI cho người bán TikTok Shop".
+  7. **Generalise beyond Fujiwa (owner, 2026-10-16):** every simulator parameter carries a
+     scope (platform / category / niche / shop / product); one shop's fitted values only set
+     that shop's deviations, and a new shop starts from category / platform values. Each
+     proposal type declares eligibility from product attributes (consumable vs durable, unit /
+     pack structure, price vs niche, variants, order volume, platform); one lever type ≤ 40 %
+     of a shop's suggested tests; a lever becomes a default only if its effect holds in ≥ 3
+     categories of the cross-section; D34 results pool by lever type across shops with a
+     between-shop variance (one shop = one draw). Checked by a leave-Fujiwa-out run.
