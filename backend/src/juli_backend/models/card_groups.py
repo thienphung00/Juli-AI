@@ -13,6 +13,12 @@ Two tenant-direct tables (each row carries ``shop_id``; RLS by ``app_current_sho
   released. Intent-to-treat: the arm never changes after the draw.
 
 Timestamps naive UTC; ``launched_on`` / ``release_on`` are the shop's (UTC+7) days.
+
+Migration 092 (fast track P36, D45) adds ``card_groups.design`` (JSON, nullable):
+who made the group (``source`` = ``cards`` -- drawn from Optimize Product drafts --
+or ``ops`` -- created in Juli Ops for a lever Juli does not propose, e.g. a new pack
+option), the optional one-line "lý do chọn thử nghiệm", and whether the
+product-card CTR guard is read. ``NULL`` = a card-drawn group without a reason.
 """
 
 from __future__ import annotations
@@ -66,6 +72,8 @@ class CardGroup(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=GROUP_OPEN)
     #: The day-14 verdict (``card_groups.verdict_json``); ``None`` until measured.
     verdict: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    #: D45 (P36, migration 092): ``{source, reason, guard, created_by}``; ``None`` = cards.
+    design: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     measured_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
 
