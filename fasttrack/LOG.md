@@ -2187,3 +2187,40 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   isolation PASS (12), gitleaks PASS, ruff PASS (no Python), pytest PASS (none touched) → OK.
 - Next: owner review of wording, merge `--no-ff`, deploy; then decide md/contract sync (md ToS is 2.1,
   Privacy 2.0; contract §8.3 cites v2.0 14/10/2026).
+
+## 2026-10-16 — P39-C agent (Claude Opus) — inline images in the three P39-B drafts (D48 additions 7)
+
+- Branch `fasttrack/p39c-blog-images` (from `fasttrack/optimize-product` 464c18fa). Not merged, not pushed.
+- **Figure syntax**: a body line `{{hinh:<id>}}`, parsed by `components/blog/markdown.tsx` into a
+  `figure` block (malformed `{{…}}` throws; not counted as a word); `<id>` is a key of
+  `content/blog/figures.ts` (`BLOG_FIGURES`, type `BlogFigure` in `types.ts`); unknown id throws at
+  render. Renderer `components/blog/figure.tsx`: `<figure>` + visible `<figcaption>` (14 px, body
+  colour), AVIF/WebP with width/height, a phone `<source>` below 640 px, always `loading="lazy"`,
+  never `priority`. Screenshots go through the product pages' `Shot` (backdrop + frame, caption
+  "Dữ liệu mẫu · …"); diagrams sit in a hairline frame. Article JSON-LD `image` stays the cover
+  (existing pattern); OG cover unchanged.
+- **Diagrams**: new `scripts/blog-diagrams.mjs` (Playwright, tokens from `tokens.css`, Be Vietnam
+  Pro inlined from `src/app/fonts`, `media.py optimize`): each diagram in a 720 px desktop layout
+  (720/1440 w) and its own 360 px phone layout (540/1080 w), so text reads at 13–17 px on both.
+  Ten diagrams, every one with numbers carries the "Ví dụ giả định" pill. Screenshots reuse
+  `cap-pt-luong`, `cap-pt-pheu`, `cap-pt-xep-hang`, `cap-dl-tang-them` and their mobile crops.
+  `cap-pt-nghen` was rejected (shows Lượt hiển thị for Tab cửa hàng, which the posts say TikTok does
+  not split) and `cap-dx-the` too (an "—" in the new title and the old "mã chẩn đoán" wording).
+- Figures (5 per post): GMV là gì: gmv-pheu, nam-luong, buoc-yeu-nhat, dl-tang-them, pt-luong;
+  không ra đơn: ba-buoc-nghen, truoc-gio-sau-gio, quang-cao-ab, checklist-khong-ra-don, pt-xep-hang;
+  doanh thu giảm: so-sanh-hai-ky, giam-theo-luong, pt-pheu, pt-xep-hang-doanh-thu, quy-trinh-30-phut.
+  New files: 80 (10 diagrams × 2 layouts × 2 widths × 2 formats), 2,400 KB on disk; a reader
+  downloads one AVIF per figure (≈ 14 KB desktop / 35 KB phone per diagram).
+- Tests: `blog.test.tsx` +21 (each figure's files exist and the WebP header matches the declared
+  width/height, Vietnamese alt and caption, no "—", screenshot caption "Dữ liệu mẫu · ", numbers →
+  "ví dụ giả định"; each draft has 3–5 figures and stays draft; rendered figures lazy, sized,
+  captioned, with a phone source; only the cover is eager; JSON-LD unchanged; parser cases).
+  `check:seo` gains: on `/blog/*` every image sized, at most one eager, no eager inline figure.
+- Gates (Node 20.20.2): lint 0, `tsc --noEmit` 0, vitest 16 files / 274 passed (one run under load
+  from a parallel build had 2 timeouts; two reruns clean), build OK, `check:seo` 21 passed. Viewed
+  the built posts (`next start`) at 390 and 1440 px: phone layouts served below 640 px, desktop
+  720 w at 1440, captions 14 px, no horizontal overflow. `check.sh`: migrations / isolation FAIL
+  (no throwaway database; `docker info` hung and was killed), gitleaks PASS, ruff PASS, pytest 7
+  failed / 2889 passed (`test_agent_workflow_task_wiring.py`, SQLAlchemy URL parse: the known local
+  limitation; no Python touched).
+- Next: owner reviews the figures with the drafts (`pnpm dev`, `/blog/<slug>`), merge `--no-ff`.
