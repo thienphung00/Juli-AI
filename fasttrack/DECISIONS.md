@@ -1225,3 +1225,12 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      of a shop's suggested tests; a lever becomes a default only if its effect holds in ≥ 3
      categories of the cross-section; D34 results pool by lever type across shops with a
      between-shop variance (one shop = one draw). Checked by a leave-Fujiwa-out run.
+  8. **Pack group membership (owner, 2026-10-16, option A):** the Ion Kiềm listings are split
+     between the two groups so both have high-order products. Proposed (orders / 30 days):
+     price-banner group keeps Ion Kiềm 450 mL (495) and 680 mL (153); the pack group pool is
+     Ion Kiềm 300 mL (331), Ion Kiềm 1250 mL (229), Tinh Khiết 450 mL (32), Súc miệng 680 mL
+     single (13), Canxi 12 túi (6), Xịt thơm 14 mL (8). Randomisation is stratified by order
+     volume: high stratum (the two Ion Kiềm + Tinh Khiết) → 2 treated / 1 control, low stratum
+     → 2 treated / 1 control. The owner confirms against the banner group already in Ops and
+     creates the 2× SKUs on TikTok; the result is read for learning (90 % interval ≈ ±54 %),
+     not as a firm verdict.
