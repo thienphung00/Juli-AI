@@ -251,6 +251,35 @@ describe("P32-E — every feature simulated for the reviewer in the sample shop"
     expect(requests).toEqual(["GET /v1/reviewer/me"]);
   }, 30_000);
 
+  it("P37 (D47.2/D47.3): the reviewer's store walks the real lifecycle — running, failed → Chờ duyệt, expired — with only GET /v1/reviewer/me", async () => {
+    const requests = spyNetwork();
+    storeAuthSession(SESSION);
+    storeReviewerRecord({ platform: "shopee", expiresAt: EXPIRES, sample: true });
+    render(
+      <Shell>
+        <DecisionsPageClient />
+      </Shell>,
+    );
+    await screen.findByTestId("reviewer-banner");
+    await waitFor(() => expect(productCard(SAMPLE_MAIN_CARD.name)).toBeDefined());
+    await approveAndFollow(productCard(SAMPLE_MAIN_CARD.name));
+    await screen.findByTestId("consent-block");
+    const store = reviewerSampleClients();
+    expect(store.cardStatus(SAMPLE_MAIN_CARD.id)).toBe("running");
+    const run = store.snapshotRuns().find((entry) => entry.product_name === SAMPLE_MAIN_CARD.name)!;
+    expect(run.status).toBe("waiting_approval");
+    act(() => {
+      store.failRun(run.id);
+    });
+    await openTab("Đề xuất");
+    await waitFor(() => expect(within(productCard(SAMPLE_MAIN_CARD.name)).getByTestId("card-status")).toHaveTextContent("Chờ duyệt"));
+    act(() => {
+      store.advanceTime(7 * 86_400_000);
+    });
+    await waitFor(() => expect(within(productCard(SAMPLE_MAIN_CARD.name)).getByTestId("card-status")).toHaveTextContent("Hết hạn"));
+    expect(requests).toEqual(["GET /v1/reviewer/me"]);
+  }, 30_000);
+
   it("the labels belong to the reviewer's sample only: signed-out sample and a seller see none", async () => {
     const requests = spyNetwork();
     render(

@@ -153,4 +153,12 @@ export interface QdClients {
   readonly analysisClients?: (auth: AuthedOptions) => ContentAnalysisClients;
   /** SSE transport override (tests); the real one is same-origin `fetch`. */
   readonly streamFetch?: typeof fetch;
+  /**
+   * P37 (D47.2): the in-memory sample store only — called whenever a card's
+   * status may have moved (approve, reject, a run ending, a revert, expiry).
+   * When present, Quyết định re-reads the cards and runs from the store and
+   * the store is the only source of a card's status (no local overrides).
+   * The real clients leave it out: their cards are read as before.
+   */
+  readonly subscribeDecisions?: (listener: () => void) => () => void;
 }

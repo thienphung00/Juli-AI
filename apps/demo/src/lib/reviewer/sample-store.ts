@@ -10,6 +10,10 @@
  * no request call site in this module's graph (`replay-module-graph.test.ts`
  * walks it from the sample Quyết định). A full reload, sign-out or
  * "Đặt lại dữ liệu mẫu" starts the sample over.
+ *
+ * P37 (D47.2): the one sample store of the tab — the signed-out visitor and a
+ * seller with no shop use it too, and Phân tích reads its cards
+ * (`fetchDeskDecisions`), so every sample view follows the same lifecycle.
  */
 
 import { createSampleQdClients, type SampleClientsOptions, type SampleQdClients } from "../quyet-dinh/sample-clients";

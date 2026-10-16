@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 
-import { createSampleQdClients, type SampleQdClients } from "../../lib/quyet-dinh/sample-clients";
+import type { SampleQdClients } from "../../lib/quyet-dinh/sample-clients";
 import { SAMPLE_SHOP, SAMPLE_TOKEN } from "../../lib/quyet-dinh/sample-data";
 import { useReviewer } from "../../lib/reviewer/mode";
 import { simulateSampleDecision } from "../../lib/reviewer/sample-simulation";
@@ -29,6 +29,11 @@ import { SimulationDialog } from "./simulation-dialog";
  * same ones. After "Thực thi (mô phỏng)" the dialog offers "Theo dõi lượt
  * chạy (mô phỏng)": the sample run (consent with edits, photo, Seller Center,
  * content drafts, Hoàn tác, Đo lường) — still in memory, still nothing sent.
+ *
+ * P37 (D47.2): the signed-out visitor uses the same tab-wide store, so Trang
+ * chủ / Phân tích / Quyết định agree on every card, and the store walks the
+ * real card lifecycle (queued → running → applied / rejected / back to
+ * pending / expired; `sample-clients.ts`).
  */
 export function SampleQuyetDinh({
   query,
@@ -43,15 +48,14 @@ export function SampleQuyetDinh({
   const reviewer = useReviewer();
   const simulated = reviewer?.sample === true;
   const [own] = useState<SampleQdClients | null>(() => clients ?? null);
-  const [anonymous] = useState<SampleQdClients>(() => createSampleQdClients());
   const epoch = useSyncExternalStore(subscribeReviewerSample, reviewerSampleEpoch, reviewerSampleEpoch);
-  const store = own ?? (simulated ? reviewerSampleClients() : anonymous);
+  const store = own ?? reviewerSampleClients();
   const [simulating, setSimulating] = useState<{ cardId: string; proceed: () => void } | null>(null);
   return (
     <>
       <QuyetDinhView
         clients={store}
-        key={simulated && !own ? `reviewer-${epoch}` : "sample"}
+        key={own ? "sample" : `sample-${epoch}`}
         onNavigate={onNavigate}
         onSimulateApprove={reviewer ? (cardIds, proceed) => setSimulating({ cardId: cardIds[0], proceed }) : undefined}
         onSimulateMeasure={simulated ? (stage) => store.simulateMeasurement(stage) : undefined}

@@ -291,6 +291,14 @@ const completed = (id: string, name: string, summary: string): EventDraft => ({
 });
 const status = (text: string): EventDraft => ({ event_type: "workflow.status", payload: { phase_narration: text } });
 export const endDraft = (stop: string): EventDraft => ({ event_type: "workflow.completed", payload: { stop_reason: stop } });
+/**
+ * P37 (D47.2): a run that ended without success — the contract's
+ * `workflow.failed` (status = `WORKFLOW_FAILED_STOP_REASON_TO_STATUS[stop]`).
+ */
+export const failDraft = (status: "failed" | "cancelled" | "timed_out", stop: string): EventDraft => ({
+  event_type: "workflow.failed",
+  payload: { status, stop_reason: stop },
+});
 
 function approval(id: string, toolName: string, change: Record<string, unknown>, expiresAt: string, rationale: string): EventDraft {
   return {

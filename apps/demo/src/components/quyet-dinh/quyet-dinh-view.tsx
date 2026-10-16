@@ -69,6 +69,9 @@ export type { QdClients } from "../../lib/quyet-dinh/client-types";
 
 type Load<T> = { status: "loading" } | { status: "error" } | { status: "ready"; data: T };
 
+/** P37: with a live sample store the store's own status is the card's status. */
+const NO_OVERRIDES: Readonly<Record<string, CardStatus>> = {};
+
 export interface QdQuery {
   readonly tab: QdTabSlug;
   readonly run: string | null;
@@ -223,6 +226,26 @@ export function QuyetDinhView({
     };
   }, [clients, token, shop.id, polling, runsKey]);
   const refreshRuns = useCallback(() => setRunsKey((key) => key + 1), []);
+  // P37 (D47.2): the sample store tells us when a card's status may have moved
+  // (a run ended, a revert, expiry); re-read its cards and runs in place.
+  const [storeTick, setStoreTick] = useState(0);
+  const liveStore = clients.subscribeDecisions !== undefined;
+  useEffect(() => clients.subscribeDecisions?.(() => setStoreTick((tick) => tick + 1)), [clients]);
+  useEffect(() => {
+    if (!storeTick) return;
+    let cancelled = false;
+    clients
+      .fetchDecisions({ token, shopId: shop.id })
+      .then((items) => !cancelled && setDecisions({ status: "ready", data: items }))
+      .catch(() => undefined);
+    clients
+      .fetchRuns({ token, shopId: shop.id })
+      .then((data) => !cancelled && setRuns({ status: "ready", data: data as QdRun[] }))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [clients, token, shop.id, storeTick]);
 
   const [questions, setQuestions] = useState<readonly RevertQuestion[]>([]);
   useEffect(() => {
@@ -552,7 +575,7 @@ export function QuyetDinhView({
             rules={rules.status === "ready" ? rules.data : null}
             rulesStatus={rules.status}
             runByCard={runByCard}
-            statusOverrides={statusOverrides}
+            statusOverrides={liveStore ? NO_OVERRIDES : statusOverrides}
           />
         )
       ) : null}
