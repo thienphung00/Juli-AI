@@ -1765,7 +1765,7 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   at day 7 Juli *asks* whether to revert when a metric leaves the band you allow (not "đề xuất hoàn
   tác ngay"); the comparison with similar unchanged products is not claimed in the loop (it is
   "đang thử nghiệm" on the measurement card). The dropped long text is on the capability pages
-  (lever per metric: de-xuat §"Chọn thay đổi"; TikTok re-review: de-xuat lượt chạy; rejection
+  (lever per metric, TikTok re-review and rejection reasons: `/san-pham/de-xuat-va-thuc-thi`; rejection
   reasons: de-xuat FAQ / do-luong).
 - **Em dashes** (D45.4): 6 visible strings had one (OG alt, VideoObject name, about company row,
   de-xuat quote, two signup messages; the backend mirrors of the signup messages changed too).
