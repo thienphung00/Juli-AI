@@ -366,6 +366,45 @@ hiệu quả thật của một loại thay đổi.
 - Chưa làm: kết quả của các shop tương tự cho shop quá nhỏ (D34.6) và bảng hiệu quả theo loại thay đổi
   thay trọng số xếp hạng (D34.7).
 
+### 5.3 Nhóm tạo trong Ops, AOV, cảnh báo CTR, sàn trôi tuần (Admin, D45, P36 — chỉ Ops)
+
+Mọi thứ ở mục này chỉ có trong Ops; ứng dụng người bán không đổi.
+
+- **Tạo nhóm thử nghiệm** (nút trong "Nhóm thử nghiệm (đối chứng chậm)", quyền Operator): cho một thay
+  đổi Juli không đề xuất thành thẻ, trước hết **"Quy cách mới"** (ví dụ thêm gói 2× giảm 5 % mỗi đơn
+  vị). Dán mã sản phẩm TikTok (ít nhất 3, tối đa 60, đều phải thuộc shop, không sản phẩm nào đang ở
+  nhóm khác trong 44 ngày). Juli chia ngẫu nhiên như nhóm thẻ (seed lưu lại, khoảng 1/3 đối chứng),
+  không tạo thẻ, không ghi gì lên TikTok: **chủ shop tự tạo SKU trên TikTok cho nhóm áp dụng**. Người
+  bán không thấy nhóm này (không câu "Kết quả nhóm"). Sản phẩm trong nhóm Ops không bị rút vào nhóm thẻ.
+  Nhóm Ops vẫn được đo ngày 14 khi "Nhóm thử nghiệm (đối chứng chậm)" đang tắt.
+- **Chia tầng theo số đơn 30 ngày** (ô chọn khi tạo, D45.8): sản phẩm xếp theo số đơn mọi kênh 30 ngày
+  qua, nửa nhiều đơn (làm tròn lên) là tầng "nhiều đơn", còn lại "ít đơn"; chia ngẫu nhiên trong từng
+  tầng (3 sản phẩm → 2 áp dụng + 1 đối chứng). Cần ít nhất 6 sản phẩm. Ví dụ nhóm quy cách D45.8: tầng
+  nhiều đơn = Ion Kiềm 300 mL, 1250 mL, Tinh Khiết 450 mL; tầng ít đơn = ba sản phẩm còn lại. Chủ shop
+  đối chiếu với nhóm băng giá đang chạy trước khi tạo.
+- **Chỉ số chính và cảnh báo CTR** (D45.2): nhóm quy cách đọc **AOV mọi kênh** là chỉ số chính, kèm
+  **Số món mỗi đơn** mọi kênh; mọi nhóm (kể cả nhóm thẻ) có thêm hai số này, cùng cách đọc: khoảng 90 %,
+  báo động giả, điều chỉnh tiền kỳ. CTR thẻ sản phẩm là **chỉ số canh**: khi nhóm áp dụng giảm hơn
+  **15 %** so với đối chứng (chỉnh ở "Nhóm thử nghiệm: cảnh báo CTR giảm quá") Ops hiện dòng đỏ "Cảnh
+  báo: … dù AOV tăng …". Đây là lời nhắc xem lại, không phải kết luận.
+- **Điều chỉnh tiền kỳ theo cỡ nhóm** (D45.6, sửa bởi D47.1): dưới **15** sản phẩm có số liệu, giữ
+  cách P31 (một cửa sổ, θ tự khớp của nhóm) — kiểm tra công suất P36 thấy θ = 1 làm nhóm nhỏ yếu đi
+  (4 + 2 · 28 ngày ở +40 %: 35 → 25 %), ngược với nghiên cứu §4a, nên sẽ kiểm lại trên các nhóm D34
+  thật đầu tiên; từ 15 sản phẩm, điều chỉnh theo **hai cửa sổ 14 ngày
+  trước** (ngày −28…−15 và −14…−1); lần chạy lại báo động giả dùng đúng cách này. Dòng "Cách tính" ghi
+  cách nào đã chạy. Nhóm thẻ: kết quả chính (câu người bán thấy) **giữ cách P31** cho tới khi chủ shop
+  quyết định; cách mới hiện ngay dưới, dòng "Theo cách tính mới (…, chỉ Ops)". Chỉnh ngưỡng 15 ở "Nhóm
+  thử nghiệm: hai cửa sổ tiền kỳ từ".
+- **Sàn trôi tuần** (D45.4): mỗi nhóm hiện sàn của nửa độ rộng khoảng 90 % do số liệu tự trôi tuần
+  qua tuần (σ 0,15 mỗi tuần, chỉnh ở "Nhóm thử nghiệm: trôi tuần (σ)"): z · √(2σ² / số tuần / số sản
+  phẩm), và cho hiệu áp dụng − đối chứng z · √(2σ² / số tuần · (1/n áp dụng + 1/n đối chứng)). Ví dụ:
+  6 sản phẩm × 2 tuần ±10,1 %, 26 × 2 tuần ±4,8 %, 4 + 2 cửa sổ 2 tuần ±21,4 %, 4 tuần ±15,1 %. Cạnh đó
+  là lượng cần mỗi nhánh cho ±10 % (lượt hiển thị với CTR / CTOR, đơn với AOV) có và không tính trôi,
+  và lượng có trong 14 ngày trước khi bắt đầu. Không nhãn, không chặn gì.
+- **Lý do chọn thử nghiệm** (D45.3): một dòng tự gõ (tối đa 200 ký tự), sửa được trên mọi nhóm; mỗi lần
+  sửa vào Nhật ký. Chọn thử nghiệm tự động (knowledge gradient) chưa làm: chỉ sau khi 2–3 nhóm D34 có
+  kết quả.
+
 ## 6. Các màn hình Ops khác
 
 - **Tổng quan**: Đã kết nối / Đang hoạt động / Mất kết nối (Token hết hạn); từng shop: Giai đoạn, Kết
