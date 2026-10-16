@@ -1445,3 +1445,28 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      diagrams built as HTML/SVG like the covers (GMV funnel, five traffic sources, checklists);
      any number in a diagram is labelled "Ví dụ giả định". No stock photos, no TikTok or Shopee
      screenshots or logos. P39-C, branch `fasttrack/p39c-blog-images`.
+  8. **More images** (owner, 2026-10-16) in `tiktok-shop-khong-ra-don` and
+     `doanh-thu-tiktok-shop-giam`: three more figures each, in the H2 sections that have none yet,
+     same rules as item 7. P39-D, branch `fasttrack/p39d-more-figures`.
+
+- **D49** — Search-led tools content and a free GMV calculator (owner, 2026-10-16). Backlinks:
+  owner checked, no problem, no disavow.
+  1. **GMV calculator** at `/cong-cu/tinh-gmv` (P43): runs in the browser, no sign-in, no data
+     leaves the page, no tracking beyond the site's existing consent rules. Inputs Lượt hiển thị,
+     CTR, CTOR, AOV (or Lượt nhấp / Đơn hàng), shows GMV, the weakest step and what +X % on each
+     step does to GMV; numbers are the user's own, nothing invented. Links to the "GMV là gì"
+     post and `/san-pham/phan-tich-shop`; indexable, in the sitemap and llms.txt; WebApplication
+     schema is **not** used (needs ratings); `WebPage` + FAQ only.
+  2. **Listicle posts that name competitors** (P44), drafts until the owner approves:
+     a. "Phần mềm quản lý bán hàng đa kênh 2026" (KiotViet, Sapo, Nhanh.vn, BigSeller, Haravan,
+        Pancake): **Juli not listed**, it is not in this category.
+     b. "Công cụ phân tích TikTok Shop 2026" (La bàn dữ liệu, FastMoss, Kalodata and others found in
+        research): Juli listed once, disclosed as our product, in its own-shop analysis niche.
+     c. "Công cụ AI tạo ảnh, video sản phẩm cho nhà bán TikTok Shop" (e.g. Higgsfield, CapCut,
+        Canva and others found in research): **no Juli mention** beyond the site byline.
+     Rules: every vendor fact from the vendor's own public pages, dated "kiểm tra ngày …"; prices
+     only where the vendor publishes them; no "tốt nhất" ranking without stated criteria; no
+     rating/review schema, no invented scores, no negative claims we cannot source, names used
+     only to identify the product (no logos or screenshots of their UI). The existing pillar post
+     "Top công cụ cho nhà bán TikTok Shop 2026" becomes the hub that links to a–c, so the posts do
+     not compete for the same query.
