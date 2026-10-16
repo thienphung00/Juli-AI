@@ -12,6 +12,7 @@ import { PRICE_VND } from "./schema";
 const SECTIONS: ReadonlyArray<{ heading: string; matches: (path: string) => boolean }> = [
   { heading: "Sản phẩm", matches: (p) => p === "/san-pham" || p.startsWith("/san-pham/") },
   { heading: "Kết nối", matches: (p) => p.startsWith("/ket-noi/") },
+  { heading: "Công cụ miễn phí", matches: (p) => p.startsWith("/cong-cu/") },
   { heading: "Blog", matches: (p) => p === "/blog" || p.startsWith("/blog/") },
   { heading: "Dùng thử", matches: (p) => p === "/dang-ky" || p.startsWith("/dang-ky/") },
   { heading: "Công ty và pháp lý", matches: () => true },

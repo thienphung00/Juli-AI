@@ -47,6 +47,7 @@ export {
   videoObjectSchema,
   type VideoObjectInput,
   WEBSITE_ID,
+  webPageSchema,
   websiteSchema,
 } from "./schema";
 export { llmsTxt } from "./llms";
