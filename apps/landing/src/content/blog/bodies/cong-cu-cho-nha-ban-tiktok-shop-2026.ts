@@ -65,6 +65,8 @@ TikTok Shop có nơi để tìm và ủy quyền cho ứng dụng và đối tá
 
 Nếu bạn bán trên TikTok Shop và ít nhất một kênh khác (sàn thương mại điện tử khác, website, mạng xã hội hay cửa hàng offline), bạn sẽ sớm gặp vấn đề tồn kho lệch giữa các kênh và đơn hàng nằm rải rác ở nhiều nơi. Đây là việc của nhóm phần mềm quản lý bán hàng đa kênh. Dưới đây là bốn cái tên phổ biến với người bán Việt Nam, theo thứ tự chữ cái.
 
+Bảng so sánh đầy đủ hơn, với bảy phần mềm, giá công bố và câu hỏi nên kiểm tra khi dùng thử, có trong bài [Phần mềm quản lý bán hàng đa kênh 2026](/blog/phan-mem-quan-ly-ban-hang-da-kenh-2026).
+
 ### BigSeller
 
 Theo website bigseller.com (kiểm tra 15/10/2026), BigSeller tự giới thiệu là phần mềm quản lý bán hàng đa kênh miễn phí cho thương mại điện tử và là đối tác chính thức của hơn 20 nền tảng thương mại điện tử, trong đó có TikTok Shop. Các tính năng website nêu: quản lý sản phẩm trên nhiều kênh, quản lý đơn hàng và tồn kho, công cụ marketing, POS, phân tích dữ liệu và ứng dụng di động. Website ghi có văn phòng tại Hà Nội và TP. Hồ Chí Minh.
@@ -104,6 +106,8 @@ Nhóm phần mềm này giải quyết bài toán **vận hành**: đơn, kho, s
 ## 3. Công cụ phân tích thị trường TikTok
 
 Nhóm này nhìn ra bên ngoài shop của bạn: sản phẩm nào đang bán chạy, đối thủ đang làm gì, nhà sáng tạo nào mang về doanh số trong ngành hàng của bạn. Chúng hữu ích nhất ở hai thời điểm: khi chọn sản phẩm mới và khi chọn nhà sáng tạo để hợp tác.
+
+Bài [Công cụ phân tích TikTok Shop 2026](/blog/cong-cu-phan-tich-tiktok-shop-2026) so sánh chi tiết hơn các công cụ soi thị trường và công cụ đọc dữ liệu shop của bạn.
 
 ### FastMoss
 
@@ -153,6 +157,8 @@ Bạn có thể xem tổng quan tại trang [sản phẩm Juli AI](/san-pham).
 ### Tính năng AI tích hợp trong các công cụ khác
 
 Nhiều công cụ ở các nhóm trên đã thêm tính năng AI. Ví dụ, Công cụ Tối Ưu Hoá Sản Phẩm của TikTok hỗ trợ tối ưu tiêu đề và mô tả bằng AI và có nút "Tối ưu hóa bằng AI" để cắt ảnh và đổi nền; FastMoss nêu các công cụ AI phân tích đánh giá và video; Sapo và Haravan nêu chat có AI. Các tính năng này hữu ích cho từng tác vụ cụ thể (viết lại tiêu đề, trả lời tin nhắn), nhưng thường không trả lời câu hỏi tổng thể: shop đang tăng hay giảm vì đâu.
+
+Nếu việc bạn cần là hình ảnh và video, bài [Công cụ AI tạo ảnh và video sản phẩm cho nhà bán TikTok Shop](/blog/cong-cu-ai-tao-anh-video-san-pham-tiktok-shop) mô tả các công cụ AI cho phần đó.
 
 ### Chatbot AI đa năng
 
