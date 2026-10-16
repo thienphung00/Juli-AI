@@ -73,6 +73,8 @@ export interface SampleCardSpec {
   readonly status?: "pending" | "running" | "applied" | "rejected" | "expired";
   /** The listing a `juli` run proposes at the consent step (title / description). */
   readonly proposal?: Readonly<Record<string, string>>;
+  /** P41: the run's keyword step ("Tìm được N từ khoá: …"), worded for this product. */
+  readonly keywords?: string;
 }
 
 /** A `GET /v1/demo/decisions` item (contract §1), `updated_at` relative to `nowMs`. */
@@ -170,6 +172,7 @@ export const SAMPLE_MAIN_CARD: SampleCardSpec = {
     },
   ],
   proposal: { title: "Son môi lì cao cấp số 12 — màu đỏ ruby", description: SON_MOI_DESCRIPTION },
+  keywords: "Tìm được 6 từ khoá: son lì, đỏ ruby…",
 };
 
 /** Levers.dc.html's cover-image card — Juli uploads the seller's photo (`juli_with_photo`). */
@@ -218,6 +221,7 @@ export const SAMPLE_DESCRIPTION_CARD: SampleCardSpec = {
     description:
       "Thành phần: đất sét kaolin, bentonite, chiết xuất trà xanh.\nCách dùng: thoa lớp mỏng lên da sạch, để 10 phút rồi rửa sạch với nước ấm, 2–3 lần mỗi tuần.\nBảo quản: đậy nắp kín, để nơi khô ráo, tránh ánh nắng trực tiếp.",
   },
+  keywords: "Tìm được 5 từ khoá: mặt nạ đất sét, se khít lỗ chân lông…",
 };
 
 /** The applied card behind the sample's finished run (Đo lường has something to show). */
@@ -313,15 +317,21 @@ function approval(id: string, toolName: string, change: Record<string, unknown>,
   };
 }
 
+/**
+ * P41 (D47.7): the diagnoses step names what TikTok flagged in plain words
+ * (the backend's `tool_completed_summary`), never "mã".
+ */
+export const NO_TIKTOK_FLAG_SUMMARY = "TikTok không báo lỗi nào";
+
 /** Run.dc.html up to the consent (title / description written by Juli). */
 export function listingUntilConsent(spec: SampleCardSpec, expiresAt: string): EventDraft[] {
   const change = spec.proposal ?? { description: spec.reasonFull };
   const code = spec.codes?.[0];
   return [
     begin,
-    ...tool("c0", "get_product_diagnoses", code ? `Có mã: "${code}"` : "Không có mã chẩn đoán"),
+    ...tool("c0", "get_product_diagnoses", code ?? NO_TIKTOK_FLAG_SUMMARY),
     ...tool("c1", "get_product_information", "Hoàn tất"),
-    ...tool("c2", "get_seo_keywords", "Tìm được 6 từ khoá: son lì, đỏ ruby…"),
+    ...tool("c2", "get_seo_keywords", spec.keywords ?? `Tìm được 4 từ khoá cho ${spec.name}`),
     ...tool("c3", "inspect_product_image", "Ảnh bìa đạt chuẩn — không đổi"),
     approval("w1", "update_product_listing", change, expiresAt, "Đủ ý, dễ đọc"),
   ];
@@ -340,7 +350,7 @@ export function writeAndReview(toolCallId: string, written: string, reviewed: st
 export function photoUntilUpload(spec: SampleCardSpec): EventDraft[] {
   return [
     begin,
-    ...tool("p0", "get_product_diagnoses", `Có mã: "${spec.codes?.[0] ?? "Ảnh chính chất lượng thấp"}"`),
+    ...tool("p0", "get_product_diagnoses", spec.codes?.[0] ?? "Ảnh chính chất lượng thấp"),
     ...tool("p1", "inspect_product_image", "Nền rối · sản phẩm chiếm 35 % khung · 600 × 600 px"),
     status("Đang chờ ảnh từ bạn"),
   ];
@@ -391,7 +401,7 @@ export function finishedListingEvents(runId: string, nowMs: number, daysAgo: num
   const change = { title: "Toner rau má cấp ẩm, làm dịu da 200ml" };
   const drafts: EventDraft[] = [
     begin,
-    ...tool("c0", "get_product_diagnoses", "Không có mã chẩn đoán"),
+    ...tool("c0", "get_product_diagnoses", NO_TIKTOK_FLAG_SUMMARY),
     ...tool("c1", "get_product_information", "Hoàn tất"),
     ...tool("c2", "get_seo_keywords", "Tìm được 4 từ khoá: toner rau má, cấp ẩm…"),
     ...tool("c3", "inspect_product_image", "Ảnh bìa đạt chuẩn — không đổi"),
@@ -706,7 +716,7 @@ export const SAMPLE_CONTENT_COPY: Readonly<Record<SampleContentKind, ContentCopy
     steps: [
       ["Đọc số liệu video và sản phẩm", "3 video gắn MN-015 · CTR 1,9 % · giỏ hàng xuất hiện giây 20"],
       ["Đọc thông tin sản phẩm, từ khoá", 'Mô tả, ảnh, từ khoá "mặt nạ đất sét", "se khít lỗ chân lông"'],
-      ["Soạn kịch bản", "gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra"],
+      ["Soạn kịch bản", "Đã soạn và kiểm tra"],
       ["Bạn xem, sửa và chọn", ""],
       ["Bạn quay và đăng video gắn MN-015", ""],
       ["Đo CTR trên video mới · ngày 7, ngày 14", ""],
@@ -738,7 +748,7 @@ export const SAMPLE_CONTENT_COPY: Readonly<Record<SampleContentKind, ContentCopy
       ["get_content_performance", "3 video gắn MN-015 · CTR 1,9 % · giỏ hàng xuất hiện giây 20"],
       ["get_product_information", "Hoàn tất"],
       ["get_seo_keywords", 'Từ khoá "mặt nạ đất sét", "se khít lỗ chân lông"'],
-      ["get_seller_content_rules", "Không có từ cấm · 0 từ bảo vệ"],
+      ["get_seller_content_rules", "2 từ cấm · 0 từ bảo vệ"],
     ],
   },
   live: {
@@ -747,7 +757,7 @@ export const SAMPLE_CONTENT_COPY: Readonly<Record<SampleContentKind, ContentCopy
     steps: [
       ["Đọc số liệu các phiên LIVE", "Phiên 27/09: CTOR SM-012 5,9 % · vị trí 9 trong giỏ, không ghim"],
       ["Đọc sản phẩm, giá, khuyến mãi, Quy tắc", "Trần giảm giá 10 % · biên tối thiểu 30 %"],
-      ["Soạn kịch bản host và thứ tự giỏ", "gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra"],
+      ["Soạn kịch bản host và thứ tự giỏ", "Đã soạn và kiểm tra"],
       ["Bạn xem, sửa và chọn", ""],
       ["Bạn LIVE theo kịch bản", ""],
       ["Đo CTOR ở 3 phiên kế tiếp", ""],
@@ -849,7 +859,7 @@ export function contentUntilChoice(spec: SampleContentSpec): EventDraft[] {
   return [
     { event_type: "workflow.started", payload: { workflow_key: `content_${spec.kind}`, product_ref: "sample", prompt_version: "v1" } },
     ...copy.readTools.flatMap(([name, summary], index) => tool(`k${index}`, name, summary)),
-    { event_type: "assistant.text", payload: { text: "Đã soạn kịch bản (bản 1) · gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra" } },
+    { event_type: "assistant.text", payload: { text: "Đã soạn kịch bản (bản 1) · đã kiểm tra" } },
     status("Đang chờ bạn xem kịch bản"),
   ];
 }
@@ -858,7 +868,7 @@ export function contentUntilChoice(spec: SampleContentSpec): EventDraft[] {
 export function contentRedraft(): EventDraft[] {
   return [
     status("Juli đang soạn lại kịch bản"),
-    { event_type: "assistant.text", payload: { text: "Đã soạn kịch bản (bản 2) · gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra" } },
+    { event_type: "assistant.text", payload: { text: "Đã soạn kịch bản (bản 2) · đã kiểm tra" } },
     status("Đang chờ bạn xem kịch bản"),
   ];
 }

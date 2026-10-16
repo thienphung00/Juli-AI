@@ -26,7 +26,7 @@ export interface LiveSlotWire {
 
 export const OFF_API_SECTION_TITLE = "Thông tin TikTok không cung cấp";
 export const OFF_API_SECTION_LEDE =
-  "TikTok không trả các thông tin này qua API. Bạn điền thì Juli tính lợi nhuận và đề xuất sát hơn; để trống thì Juli không đoán.";
+  "TikTok không cung cấp các thông tin này cho Juli. Bạn điền thì Juli tính lợi nhuận và đề xuất sát hơn; để trống thì Juli không đoán.";
 export const OFF_API_SAMPLE_NOTE = "Bản minh họa: đây là giá trị mẫu. Đăng nhập để đặt các ô này cho shop của bạn.";
 
 /** Label and one-line help per field, in the editor's order. */
@@ -54,7 +54,7 @@ export const OFF_API_FIELDS: ReadonlyArray<{ readonly key: OffApiRuleKey; readon
   {
     key: "joins_platform_campaigns",
     label: "Tham gia chiến dịch sàn",
-    help: "TikTok chưa có API cho biết shop đăng ký chiến dịch nào.",
+    help: "TikTok chưa cho Juli biết shop đăng ký chiến dịch nào.",
   },
   {
     key: "platform_campaign_note",
@@ -69,7 +69,7 @@ export const OFF_API_FIELDS: ReadonlyArray<{ readonly key: OffApiRuleKey; readon
   {
     key: "gmv_max_daily_budget",
     label: "Ngân sách GMV Max hằng ngày",
-    help: "Juli chưa đọc được tài khoản quảng cáo (chưa có Business API).",
+    help: "Juli chưa đọc được tài khoản quảng cáo.",
   },
   {
     key: "live_schedule",

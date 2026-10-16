@@ -460,17 +460,22 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`reviewer.simulated`**
 - EN: Simulation · nothing sent to TikTok
 - VI: Mô phỏng · không gửi tới TikTok
-- Definition: Label of the simulated Duyệt → Thực thi screen: "Đã duyệt (mô phỏng)", then "Thực thi (mô phỏng)" (`reviewer.execute`) shows "Thay đổi Juli sẽ gửi" — operation, method + path, product (masked), each field before → after — and "Không có thay đổi nào được gửi tới TikTok Shop. Không có tác vụ nào được tạo." P32-E (D42 amendment 2): in the sample shop also the label of every other simulated write — Quyết định's page notice (with `reviewer.sample_notice`), the Từ chối / Không thực hiện / Hoàn tác dialogs, Đo lường's `reviewer.fast_forward`, "Phân tích video" (with `reviewer.video_simulated`).
+- Definition: Label of the simulated Duyệt → Thực thi screen: "Đã duyệt (mô phỏng)", then "Thực thi (mô phỏng)" (`reviewer.execute`) shows "Thay đổi Juli sẽ gửi" — operation, product (masked), each field before → after (columns "Mục" / "Trước" / "Sau") — and one line, `reviewer.simulation_note`. P41 (D47.7): this label is the screen's single "simulation" disclaimer; no endpoint, method or operation name is shown (the API response still carries `request`). P32-E (D42 amendment 2): in the sample shop also the label of every other simulated write — Quyết định's page notice (with `reviewer.sample_notice`), the Từ chối / Không thực hiện / Hoàn tác dialogs, Đo lường's `reviewer.fast_forward`, "Phân tích video" (with `reviewer.video_simulated`).
 
 **`reviewer.simulated_settings`**
 - EN: Simulation · not saved
 - VI: Mô phỏng · không lưu
-- Definition: P32-E: label of the rules editor (Quyết định's "Sửa" and Cài đặt) for a partner trial account in the sample shop, followed by "Quy tắc chỉ giữ trong phiên này, không gửi đi đâu." Rules are kept in the tab's in-memory sample store.
+- Definition: P32-E: label of the rules editor (Quyết định's "Sửa" and Cài đặt) for a partner trial account in the sample shop, followed by "· chỉ giữ trong phiên này" (P41; was "Quy tắc chỉ giữ trong phiên này, không gửi đi đâu."). Rules are kept in the tab's in-memory sample store.
+
+**`reviewer.simulation_note`**
+- VI: juli: "Với shop thật, Juli ghi thay đổi này lên TikTok Shop sau khi bạn xác nhận, rồi đo ở ngày 7 và 14." / juli_with_photo: "Với shop thật, Juli đổi ảnh bìa trên TikTok Shop sau khi bạn gửi ảnh và xác nhận, rồi đo ở ngày 7 và 14." / juli_drafts: "Với shop thật, Juli soạn kịch bản, bạn quay và đăng; Juli không ghi gì lên TikTok, chỉ đo ở ngày 7 và 14." / seller_center: "Bạn tự áp dụng trên Seller Center; Juli không ghi gì lên TikTok, chỉ đo ở ngày 7 và 14."
+- EN: For a real shop, Juli writes this change to TikTok Shop after you confirm, then measures on day 7 and 14. (and the photo / script / Seller Center variants)
+- Definition: P41 (D47.7, owner 2026-10-16): the one line under the simulated Thực thi, per lever executor; `change.note` of the simulate response (backend `services/reviewer/simulation.py` `_NOTES`, sample `lib/reviewer/copy.ts` `REVIEWER_SIMULATION_NOTES`). Replaces the long "Với seller thật: … Tài khoản dùng thử chỉ hiển thị yêu cầu — không có gì được gửi." paragraphs.
 
 **`reviewer.sample_notice`**
-- EN: Everything here — approve, reject, edit, photo, Seller Center, scripts, revert — runs in your browser on sample data.
-- VI: Mọi thao tác ở đây — duyệt, từ chối, sửa nội dung, ảnh, Seller Center, kịch bản, hoàn tác — chạy trong trình duyệt trên dữ liệu mẫu.
-- Definition: P32-E: Quyết định's notice under `reviewer.simulated` in the sample shop (replaces the signed-out "Dữ liệu mẫu · …" notice for the reviewer).
+- EN: runs on sample data
+- VI: chạy trên dữ liệu mẫu
+- Definition: P32-E: Quyết định's notice after `reviewer.simulated` in the sample shop, one line: "Mô phỏng · không gửi tới TikTok · chạy trên dữ liệu mẫu" (replaces the signed-out "Dữ liệu mẫu · …" notice for the reviewer). P41 (D47.7): shortened from "Mọi thao tác ở đây — duyệt, từ chối, sửa nội dung, ảnh, Seller Center, kịch bản, hoàn tác — chạy trong trình duyệt trên dữ liệu mẫu."
 
 **`reviewer.continue_run`**
 - EN: Follow the run (simulation) ›
@@ -478,13 +483,13 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: P32-E: the simulation dialog's button after "Thực thi (mô phỏng)" in the sample shop: plays the card through the sample run (Đang thực hiện), in memory.
 
 **`reviewer.fast_forward`**
-- EN: Preview the measurement on the simulated runs: Day 7 (simulation) / Day 14 (simulation)
-- VI: Xem trước kết quả đo trên lượt chạy mô phỏng: Ngày 7 (mô phỏng) / Ngày 14 (mô phỏng)
+- EN: Preview the measurement: Day 7 (simulation) / Day 14 (simulation)
+- VI: Xem trước kết quả đo: Ngày 7 (mô phỏng) / Ngày 14 (mô phỏng)
 - Definition: P32-E: Đo lường's control in the sample shop — moves every measured sample run to an invented day-7 reading or day-14 verdict ("Đạt"), so the reviewer sees both views on their own simulated results.
 
 **`reviewer.video_simulated`**
-- EN: The file is not uploaded — Juli shows a sample analysis; the file never leaves the browser.
-- VI: Tệp không được tải lên — Juli hiển thị một phân tích mẫu, tệp không rời trình duyệt.
+- EN: the file is not uploaded, this is a sample analysis
+- VI: tệp không được tải lên, đây là phân tích mẫu
 - Definition: P32-E: "Phân tích video" in the sample shop: picking a file shows the canned sample analysis (P15) under its name; the file is never read or sent.
 
 **`reviewer.reset`**

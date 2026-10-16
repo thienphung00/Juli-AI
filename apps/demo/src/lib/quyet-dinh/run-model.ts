@@ -67,6 +67,15 @@ function terminalPhaseFromStatus(run: QdRun): RunPhase | null {
   return "ended";
 }
 
+/** The run's events show it was picked up: a tool ran or a consent is waiting. */
+function runStarted(timeline: RunTimeline): boolean {
+  return (
+    timeline.pendingConsent !== null ||
+    timeline.runningTool !== null ||
+    timeline.steps.some((step) => (step.kind === "tool" || step.kind === "consent") && step.status === "done")
+  );
+}
+
 export function runPhase(
   run: QdRun,
   kind: RunKind,
@@ -85,7 +94,10 @@ export function runPhase(
   const ended = isTerminalRun(run) ? terminalPhaseFromStatus(run) : null;
   if (ended) return ended;
   if (local.declined) return "declined";
-  if (run.status === "queued") return "queued";
+  // P41: a polled list row can still say `queued` after the run's events moved
+  // on (a consent is up, a tool ran) — the events win, so the chip never says
+  // "Trong hàng đợi" next to "Xác nhận một lần — Đang chờ bạn".
+  if (run.status === "queued" && !runStarted(timeline)) return "queued";
   if (run.awaiting === "photo") return "photo";
   if (run.awaiting === "seller_action") return local.appliedPosted ? "verify" : "guide";
   if (timeline.pendingConsent) return "consent";

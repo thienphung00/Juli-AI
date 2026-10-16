@@ -9,8 +9,10 @@ import type { SimulationResult, SimulationStep } from "../../lib/reviewer/simula
  * The partner trial account's simulated Duyệt → Thực thi dialog (fast track
  * P32-A, contract p32-reviewer-access.md §4, AC-32.5 / AC-32.7). "Duyệt" on a
  * card opens it: the approve step is simulated at once, then "Thực thi (mô
- * phỏng)" shows the exact change Juli would send to TikTok — operation, method
- * + path, product, each field before → after — and sends nothing.
+ * phỏng)" shows the change Juli would make — operation, product, each field
+ * before → after, one short line — and sends nothing. P41 (D47.7): no endpoint,
+ * method or operation name on screen (the response still carries `request`);
+ * the label "Mô phỏng · không gửi tới TikTok" is the single disclaimer.
  *
  * No call site of its own: `simulate` is the API simulation for a pinned shop
  * (`reviewer-simulation.tsx`) or the in-memory sample one (P32-D,
@@ -97,21 +99,11 @@ export function SimulationDialog({
 
         {executed && change ? (
           <div className="reviewer-sim__change" data-testid="reviewer-simulation-change">
-            {change.request ? (
-              <p className="reviewer-sim__request">
-                <code>
-                  {change.request.method} {change.request.path}
-                </code>{" "}
-                <span>({change.request.operation})</span>
-              </p>
-            ) : (
-              <p className="reviewer-sim__request">Không có lệnh ghi lên TikTok: seller tự làm trên Seller Center, Juli đo kết quả.</p>
-            )}
             {change.fields.length > 0 ? (
               <table className="reviewer-sim__fields">
                 <thead>
                   <tr>
-                    <th scope="col">Trường</th>
+                    <th scope="col">Mục</th>
                     <th scope="col">Trước</th>
                     <th scope="col">Sau</th>
                   </tr>
@@ -127,8 +119,7 @@ export function SimulationDialog({
                 </tbody>
               </table>
             ) : null}
-            {change.note ? <p className="qv-dialog__body">{change.note}</p> : null}
-            <p className="reviewer-sim__guarantee">Không có thay đổi nào được gửi tới TikTok Shop. Không có tác vụ nào được tạo.</p>
+            {change.note ? <p className="qv-dialog__body reviewer-sim__note">{change.note}</p> : null}
           </div>
         ) : null}
 

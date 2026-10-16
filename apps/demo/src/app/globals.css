@@ -6637,10 +6637,6 @@ h4 {
   overflow-wrap: anywhere;
 }
 
-.reviewer-sim__request code {
-  overflow-wrap: anywhere;
-}
-
 .reviewer-sim__fields {
   width: 100%;
   border-collapse: collapse;
@@ -6656,7 +6652,7 @@ h4 {
   overflow-wrap: anywhere;
 }
 
-.reviewer-sim__guarantee {
+.reviewer-sim__note {
   margin: var(--juli-space-3) 0 0;
   font-size: 0.85rem;
 }

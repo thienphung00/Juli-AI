@@ -131,7 +131,7 @@ const CHANGE = { title: "Son môi lì cao cấp số 12 — màu đỏ ruby", de
 const CONSENT_RUN: AgentEvent[] = [
   ev(1, "workflow.started", { workflow_key: "optimize_product_2", product_ref: "p", prompt_version: "v3" }),
   ev(2, "tool.started", { tool_call_id: "c0", tool_name: "get_product_diagnoses" }),
-  ev(3, "tool.completed", { tool_call_id: "c0", tool_name: "get_product_diagnoses", ok: true, summary: 'Có mã: "Mô tả quá ngắn"' }),
+  ev(3, "tool.completed", { tool_call_id: "c0", tool_name: "get_product_diagnoses", ok: true, summary: "Mô tả quá ngắn" }),
   ev(4, "workflow.approval_required", {
     tool_call_id: "w1",
     tool_name: "update_product_listing",
@@ -306,7 +306,7 @@ describe("the recommendation card (Main.dc.html)", () => {
     renderCard({ expanded: true });
     const more = screen.getByRole("region", { name: "Chi tiết đề xuất" });
     expect(more).toHaveTextContent(
-      "Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop (38,9 % so với 56,4 %). TikTok báo mã chẩn đoán: “Mô tả quá ngắn”.",
+      "Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop (38,9 % so với 56,4 %). TikTok báo: “Mô tả quá ngắn”.",
     );
     expect(more).toHaveTextContent("Trước: Son môi số 12");
     expect(more).toHaveTextContent("Sau: Son môi lì cao cấp số 12 — màu đỏ ruby");

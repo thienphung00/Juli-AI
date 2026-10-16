@@ -9,7 +9,7 @@
  */
 
 import { SAMPLE_CARDS, SAMPLE_CONTENT_CARDS, sampleContentDecision, sampleDecision } from "../quyet-dinh/sample-data";
-import { REVIEWER_SIMULATED_LABEL } from "./copy";
+import { REVIEWER_SIMULATED_LABEL, REVIEWER_SIMULATION_NOTES } from "./copy";
 import type { SimulatedField, SimulatedRequest, SimulationResult, SimulationStep } from "./simulation-types";
 
 /** `integrations.tiktok.constants.product_edit_path("{product_id}")` (D13). */
@@ -20,17 +20,14 @@ const STEP_LABELS = [
   ["execute", "Thực thi"],
 ] as const;
 
-const NOTES: Readonly<Record<string, string>> = {
-  juli:
-    "Với seller thật: sau khi duyệt, Juli soạn nội dung, seller xác nhận, rồi Juli gửi " +
-    "thay đổi này tới TikTok Shop và đo kết quả ở ngày 7 và ngày 14. Tài khoản dùng thử " +
-    "chỉ hiển thị yêu cầu — không có gì được gửi.",
-  juli_with_photo:
-    "Với seller thật: seller gửi ảnh, Juli kiểm tra ảnh, tải ảnh lên TikTok rồi đổi ảnh " +
-    "bìa của sản phẩm. Tài khoản dùng thử chỉ hiển thị yêu cầu — không có gì được gửi.",
-  seller_center:
-    "Khuyến mãi do seller tạo trên Seller Center; Juli không ghi lên TikTok, chỉ đo kết " +
-    "quả. Tài khoản dùng thử chỉ hiển thị hướng dẫn.",
+/** P41 (D47.7): one short line per executor, the same as the backend's `_NOTES`. */
+const NOTES = REVIEWER_SIMULATION_NOTES;
+/** The "Sau" cell when the card has no proposal yet (the backend's `_AFTER_DEFAULT`). */
+const AFTER_DEFAULT: Readonly<Record<string, string>> = {
+  juli: NOTE_DRAFT_AFTER_APPROVAL,
+  juli_with_photo: "Ảnh mới bạn gửi, sau khi Juli kiểm tra",
+  juli_drafts: "Juli soạn kịch bản sau khi duyệt",
+  seller_center: "Bạn áp dụng trên Seller Center",
 };
 
 type Loose = Record<string, unknown>;
@@ -77,7 +74,7 @@ export function simulateItem(item: unknown, step: SimulationStep): SimulationRes
       field: code,
       label: str(entry.label) ?? code,
       before: str(proposal.before),
-      after: str(proposal.after) ?? NOTE_DRAFT_AFTER_APPROVAL,
+      after: str(proposal.after) ?? AFTER_DEFAULT[executor] ?? NOTE_DRAFT_AFTER_APPROVAL,
     };
   });
   const done = step === "approve" ? new Set(["approve"]) : new Set(["approve", "execute"]);

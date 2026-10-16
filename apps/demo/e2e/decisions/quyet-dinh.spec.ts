@@ -98,7 +98,7 @@ function ev(seq: number, event_type: string, payload: Record<string, unknown>) {
 const EVENTS = [
   ev(1, "workflow.started", { workflow_key: "optimize_product_2", product_ref: "p", prompt_version: "v3" }),
   ev(2, "tool.started", { tool_call_id: "c0", tool_name: "get_product_diagnoses" }),
-  ev(3, "tool.completed", { tool_call_id: "c0", tool_name: "get_product_diagnoses", ok: true, summary: 'Có mã: "Mô tả quá ngắn"' }),
+  ev(3, "tool.completed", { tool_call_id: "c0", tool_name: "get_product_diagnoses", ok: true, summary: "Mô tả quá ngắn" }),
   ev(4, "tool.started", { tool_call_id: "c1", tool_name: "get_product_information" }),
   ev(5, "tool.completed", { tool_call_id: "c1", tool_name: "get_product_information", ok: true, summary: "Hoàn tất" }),
   ev(6, "tool.started", { tool_call_id: "c2", tool_name: "get_seo_keywords" }),
@@ -231,7 +231,7 @@ test("signed-in: bands gate → rules editor → Duyệt 2 thẻ → SSE timelin
   expect(state.approvals).toEqual(["1", "2"]);
   const timeline = page.getByTestId("run-timeline");
   await expect(timeline).toContainText("Đọc chẩn đoán TikTok");
-  await expect(timeline).toContainText('Có mã: "Mô tả quá ngắn"');
+  await expect(timeline).toContainText("Mô tả quá ngắn");
   await expect(timeline.locator('[aria-current="step"]')).toContainText("Xác nhận một lần");
   // AC-10.3: the consent block sits under the timeline (Run.dc.html); the queue is one flat list.
   await expect(page.getByTestId("consent-block").getByRole("button", { name: "Xác nhận thay đổi này" })).toBeVisible();

@@ -269,7 +269,8 @@ from juli_backend.services.agent.runner import ExternalWaitNotPermitted
   its prefix / generic fallbacks; a non-token string is never treated as a code.
 - `tool_completed_summary(tool_name, result) -> str` (`runner/seller_facing_copy.py`) —
   the seller-facing `tool.completed.summary`: `Hoàn tất` for every tool except
-  `get_product_diagnoses` (`Có mã: "…"` / `Không có mã chẩn đoán`).
+  `get_product_diagnoses` (the flagged labels in plain words, `A, B, C và N lỗi khác` /
+  `TikTok không báo lỗi nào`; P41 dropped "Có mã").
 
 ## Dependencies
 

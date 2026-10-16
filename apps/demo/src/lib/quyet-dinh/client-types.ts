@@ -50,7 +50,7 @@ export function describeRevertError(error: unknown): string {
     if (error.status === 429) return "Bạn vừa gửi quá nhiều yêu cầu. Vui lòng thử lại sau ít phút.";
     if (error.status === 404) return "Không tìm thấy lượt chạy này trong shop bạn đang thao tác.";
     if (error.status === 401) return "Phiên đăng nhập của bạn không còn hiệu lực. Vui lòng đăng nhập lại.";
-    return `Chưa thể hoàn tác lúc này (lỗi ${error.status}). Vui lòng thử lại.`;
+    return "Chưa thể hoàn tác lúc này. Vui lòng thử lại.";
   }
   return "Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.";
 }

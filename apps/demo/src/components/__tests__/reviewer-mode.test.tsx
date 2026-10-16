@@ -279,10 +279,13 @@ describe("Quyết định for a reviewer: simulated Duyệt → Thực thi", () 
     await userEvent.click(within(panel).getByRole("button", { name: "Thực thi (mô phỏng)" }));
     const change = await within(panel).findByTestId("reviewer-simulation-change");
     expect(simulate).toHaveBeenLastCalledWith("card-1", "execute");
-    expect(change).toHaveTextContent("PUT /product/202309/products/{product_id}");
-    expect(change).toHaveTextContent("update_product_listing");
     expect(change).toHaveTextContent("Juli soạn nội dung mới sau khi duyệt");
-    expect(change).toHaveTextContent("Không có thay đổi nào được gửi tới TikTok Shop.");
+    // P41 (D47.7): no endpoint, method or operation name; the label is the only disclaimer.
+    expect(panel).not.toHaveTextContent("/product/");
+    expect(panel).not.toHaveTextContent("PUT");
+    expect(panel).not.toHaveTextContent("update_product_listing");
+    expect(panel).not.toHaveTextContent("Không có tác vụ nào được tạo");
+    expect(change).toHaveTextContent(SIMULATION_EXECUTE.change.note!);
     expect(panel).toHaveTextContent("Demo Product 123");
     await userEvent.click(within(panel).getByRole("button", { name: "Đóng" }));
     expect(onClose).toHaveBeenCalled();
@@ -296,7 +299,9 @@ describe("Quyết định for a reviewer: simulated Duyệt → Thực thi", () 
     const simulate = vi.fn(async (_id: string, step: "approve" | "execute") => (step === "approve" ? SIMULATION_APPROVE : promo));
     render(<ReviewerSimulation cardId="card-1" onClose={vi.fn()} shopId="alias-1" simulate={simulate} token="t" />);
     await userEvent.click(await screen.findByRole("button", { name: "Thực thi (mô phỏng)" }));
-    expect(await screen.findByTestId("reviewer-simulation-change")).toHaveTextContent("Không có lệnh ghi lên TikTok");
+    const change = await screen.findByTestId("reviewer-simulation-change");
+    expect(change).toHaveTextContent("Nội dung mới do Juli soạn sau khi duyệt.");
+    expect(change).not.toHaveTextContent("Không có lệnh ghi");
   });
 
   it("Duyệt on a card opens the simulation and never calls the real approve; other writes are read-only", async () => {

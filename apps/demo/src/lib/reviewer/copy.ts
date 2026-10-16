@@ -43,9 +43,12 @@ export function platformLabel(platform: string): string {
  */
 export const REVIEWER_SIMULATED_SETTINGS_LABEL = "Mô phỏng · không lưu";
 
-/** dictionary.md `reviewer.sample_notice` — P32-E: Quyết định's notice in the sample shop. */
-export const REVIEWER_SAMPLE_NOTICE =
-  "Mọi thao tác ở đây — duyệt, từ chối, sửa nội dung, ảnh, Seller Center, kịch bản, hoàn tác — chạy trong trình duyệt trên dữ liệu mẫu.";
+/**
+ * dictionary.md `reviewer.sample_notice` — P32-E: Quyết định's notice in the
+ * sample shop, after `reviewer.simulated` ("Mô phỏng · không gửi tới TikTok ·
+ * chạy trên dữ liệu mẫu"). P41 (D47.7): short, one line.
+ */
+export const REVIEWER_SAMPLE_NOTICE = "chạy trên dữ liệu mẫu";
 
 /** dictionary.md `reviewer.reset` — P32-E: start the sample shop over. */
 export const REVIEWER_RESET_LABEL = "Đặt lại dữ liệu mẫu";
@@ -54,8 +57,23 @@ export const REVIEWER_RESET_LABEL = "Đặt lại dữ liệu mẫu";
 export const REVIEWER_CONTINUE_LABEL = "Theo dõi lượt chạy (mô phỏng) ›";
 
 /** dictionary.md `reviewer.fast_forward` — P32-E: Đo lường's day-7 / day-14 preview. */
-export const REVIEWER_FAST_FORWARD_COPY = "Xem trước kết quả đo trên lượt chạy mô phỏng:";
+export const REVIEWER_FAST_FORWARD_COPY = "Xem trước kết quả đo:";
 
 /** dictionary.md `reviewer.video_simulated` — P32-E: the canned "Phân tích video". */
-export const REVIEWER_VIDEO_SIMULATED_NOTE =
-  "Tệp không được tải lên — Juli hiển thị một phân tích mẫu, tệp không rời trình duyệt.";
+export const REVIEWER_VIDEO_SIMULATED_NOTE = "tệp không được tải lên, đây là phân tích mẫu";
+
+/** dictionary.md `reviewer.simulated_settings_note` — P41 (D47.7): after "Mô phỏng · không lưu" on Quy tắc. */
+export const REVIEWER_SIMULATED_SETTINGS_NOTE = "chỉ giữ trong phiên này";
+
+/**
+ * dictionary.md `reviewer.simulation_note` — P41 (D47.7): the one line under the
+ * simulated Thực thi, per executor (mirrors the backend's
+ * `services/reviewer/simulation.py` `_NOTES`). No endpoint, no method name: the
+ * dialog's label is the single "simulation" disclaimer.
+ */
+export const REVIEWER_SIMULATION_NOTES: Readonly<Record<string, string>> = {
+  juli: "Với shop thật, Juli ghi thay đổi này lên TikTok Shop sau khi bạn xác nhận, rồi đo ở ngày 7 và 14.",
+  juli_with_photo: "Với shop thật, Juli đổi ảnh bìa trên TikTok Shop sau khi bạn gửi ảnh và xác nhận, rồi đo ở ngày 7 và 14.",
+  juli_drafts: "Với shop thật, Juli soạn kịch bản, bạn quay và đăng; Juli không ghi gì lên TikTok, chỉ đo ở ngày 7 và 14.",
+  seller_center: "Bạn tự áp dụng trên Seller Center; Juli không ghi gì lên TikTok, chỉ đo ở ngày 7 và 14.",
+};

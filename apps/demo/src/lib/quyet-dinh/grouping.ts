@@ -98,8 +98,8 @@ function diagnosisLine(item: DemoDecisionItem): string {
     .filter((entry) => entry.source !== "tiktok")
     .map((entry) => text(entry.detail))
     .filter((detail): detail is string => detail !== null);
-  if (local.length > 0) return `Không có mã TikTok · Juli kiểm: ${local.join("; ")}`;
-  return "Không có mã chẩn đoán";
+  if (local.length > 0) return `TikTok không báo lỗi · Juli kiểm: ${local.join("; ")}`;
+  return "TikTok không báo lỗi nào";
 }
 
 export function isManualCard(item: DemoDecisionItem): boolean {

@@ -338,6 +338,16 @@ Invariants below.
   `reviewer.simulated_settings` only for the sample reviewer. Proof:
   `reviewer-all-features.test.tsx` — one full session through the real shell,
   the only request `GET /v1/reviewer/me`.
+  P41 (D47.7, owner 2026-10-16): simulation copy is short and shows no backend
+  internals. `SimulationDialog` shows Thao tác, Sản phẩm, the Mục / Trước / Sau
+  table and `change.note` (one line per executor, `reviewer.simulation_note`) —
+  never `change.request` (method, path, operation) and no second disclaimer;
+  its label is the one "Mô phỏng · không gửi tới TikTok". The page label reads
+  "Mô phỏng · không gửi tới TikTok · chạy trên dữ liệu mẫu". Sample runs carry
+  per-product keyword lines and plain TikTok-flag wording ("Mô tả quá ngắn",
+  never "Có mã"); `runPhase` says "queued" only while the events show no tool or
+  consent. Proof: `sim-copy-p41.test.tsx` (no `/product/`, `PUT`,
+  `update_product`, `gpt-`, "Có mã" anywhere in the reviewer's session).
 - `ConnectShopView`'s "Kết nối TikTok Shop" control is LIVE from issue #1970,
   where it used to be `aria-disabled` beside a disclaimer saying it did
   nothing. It calls `lib/tiktok-connect-client.ts`'s bearer-authenticated

@@ -280,6 +280,7 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
     const last = run.events.length > 0 ? Date.parse(run.events[run.events.length - 1].timestamp) : -Infinity;
     const start = Math.max(clock() - (drafts.length - 1) * 1000, last + 1000);
     const next = toEvents(run.id, drafts, run.events.length + 1, start);
+    const statusBefore = run.item.status;
     run.events = [...run.events, ...next];
     for (const event of next) {
       if (event.event_type === "workflow.completed") {
@@ -306,6 +307,9 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
       }
     }
     emit();
+    // P41: the queue's rows read the run list — re-read it when a run's status moved.
+    // (An ended run already told its listeners above.)
+    if (run.item.status !== statusBefore && isLive(run)) notifyCards();
   };
 
   /**

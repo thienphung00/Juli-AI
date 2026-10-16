@@ -592,7 +592,7 @@ async def test_a_video_run_drafts_waits_redrafts_uses_detects_and_measures(sessi
     assert summaries[0] == "1 video gắn sản phẩm · CTR 1,9 %"
     texts = [e.payload.text for e in _of(sink, "assistant.text")]
     assert texts[0].startswith("Quy tắc của bạn: Chưa đặt trần giảm giá")
-    assert texts[1] == "Đã soạn kịch bản (bản 1) · gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra"
+    assert texts[1] == "Đã soạn kịch bản (bản 1) · đã kiểm tra"
     assert _of(sink, "workflow.status")[-1].payload.phase_narration == "Đang chờ bạn xem kịch bản"
     assert row.input_tokens == 1000 and row.output_tokens == 300
     assert len(drafter.calls) == 1

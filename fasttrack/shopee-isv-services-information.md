@@ -71,9 +71,9 @@ interface is in Vietnamese; the steps below give the English meaning of each lab
 4. **Quyết định** (Decisions): Juli's recommendation cards. Open one to see the product, the
    target metric, the evidence and the proposed change.
 5. Press **"Duyệt"** (Approve), then **"Thực thi"** (Execute). The result, labelled "Mô phỏng ·
-   không gửi tới TikTok" (Simulation · not sent to TikTok), shows the API call Juli would make
-   (for example `update_product_listing`) with the field before and after. For a connected seller
-   this is when Juli writes the approved change through the Open API.
+   không gửi tới TikTok" (Simulation · not sent to TikTok), shows the change Juli would make —
+   each field before and after — and one line on what happens for a real shop. For a connected
+   seller this is when Juli writes the approved change through the Open API.
 6. Press **"Theo dõi lượt chạy (mô phỏng)"** (Follow the run): the **Đang thực hiện** (In
    progress) tab shows each step of the run. Use **"✎ Sửa nội dung trước khi áp dụng"** (Edit
    before applying) to change the draft, then **"Xác nhận thay đổi này"** (Confirm this change).

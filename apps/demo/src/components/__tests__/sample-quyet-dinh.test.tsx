@@ -92,7 +92,7 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
     expect(within(cardOf(SAMPLE_APPLIED_CARD.name)).getByTestId("card-status")).toHaveTextContent("Đã áp dụng");
     await userEvent.click(within(main).getByRole("button", { name: /Xem thêm/ }));
     expect(main).toHaveTextContent("Lý do đầy đủ");
-    expect(main).toHaveTextContent("TikTok báo mã chẩn đoán: “Mô tả quá ngắn”.");
+    expect(main).toHaveTextContent("TikTok báo: “Mô tả quá ngắn”.");
   });
 
   it("Duyệt creates a local run; Từ chối needs one reason and only changes local state", async () => {

@@ -240,7 +240,7 @@ const LISTING_CHANGE = {
 export function listingEvents(phase: "consent" | "writing" | "review" | "done" | "declined") {
   const list: Ev[] = [
     begin(vn("10:01:05")),
-    ...tool("c0", "get_product_diagnoses", 'Có mã: "Mô tả quá ngắn"', vn("10:01:09")),
+    ...tool("c0", "get_product_diagnoses", "Mô tả quá ngắn", vn("10:01:09")),
     ...tool("c1", "get_product_information", "Hoàn tất", vn("10:01:15")),
     ...tool("c2", "get_seo_keywords", "Tìm được 6 từ khoá: son lì, đỏ ruby…", vn("10:01:21")),
     ...tool("c3", "inspect_product_image", "Ảnh bìa đạt chuẩn — không đổi", vn("10:01:27")),
@@ -261,7 +261,7 @@ export function listingEvents(phase: "consent" | "writing" | "review" | "done" |
 export function photoEvents(phase: "upload" | "consent" | "writing" | "review" | "done" | "declined") {
   const list: Ev[] = [
     begin(vn("10:01:05")),
-    ...tool("p0", "get_product_diagnoses", 'Có mã: "Ảnh chính chất lượng thấp"', vn("10:01:09")),
+    ...tool("p0", "get_product_diagnoses", "Ảnh chính chất lượng thấp", vn("10:01:09")),
     ...tool("p1", "inspect_product_image", "Nền rối · sản phẩm chiếm 35 % khung · 600 × 600 px", vn("10:01:14")),
     status("Đang chờ ảnh từ bạn", vn("10:01:15")),
   ];
