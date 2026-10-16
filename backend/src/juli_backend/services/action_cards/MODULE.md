@@ -87,6 +87,23 @@ slice — see "Out of scope".
   `seller_sentence(...)`, `card_group_key(card)`, `payload_group_key(payload)`,
   `control_count(n)`, `new_seed()`, `GroupKey`; tables `card_groups` /
   `card_group_members` (migration 089). Called by `apply_emission_budget` only when on
+  (off: `measure_due_groups(..., only_ops=True)` still measures groups made in Ops)
+- Ops groups and design numbers (fast track P36, D45, **Ops only**):
+  `card_groups.create_ops_group(session, shop_id, *, lever, metric, channel, product_ids,
+  reason, guard, created_by, now, stratify=False)` (lever `pack_option` "Quy cách mới" etc.;
+  no card, nothing written to TikTok; `stratify` = D45.8 draw within high / low 30-day order
+  strata via pure `order_strata(...)` / `assign_arms_stratified(...)`),
+  `set_group_reason(...)` (one-line "lý do chọn thử nghiệm"), `GroupDesign`
+  (`card_groups.design`, migration 092: source / reason / guard / created_by / strata),
+  `guard_check(...)` (product-card CTR falls > `group_guard_ctr_drop` 15 %), `metric_specs`,
+  `metric_summary`, `plan_view` (drift floor + traffic needed). Every verdict carries
+  `metrics` (all-channel AOV, items per order) and, with a guard, `guard`; a card group's
+  primary verdict keeps the P31 rule (seller sentence unchanged) and adds `ops_rule` (the
+  D45.6 reading). Pure `group_stats.adjust_changes(units, *, two_window_min)` (plain change
+  below 15 products, two pre-period windows from 15; `None` = P31) and
+  `group_design.drift_floor(...)` / `traffic_needed(...)`. Tunables `group_two_window_min`,
+  `group_guard_ctr_drop`, `group_drift_sigma` in `DiagTunables`. Routes
+  `POST /v1/ops/shops/{id}/groups`, `PATCH /v1/ops/shops/{id}/groups/{group_id}` (audited)
 - `emission_budget.EXPIRED_STATUS`, `CAMPAIGN_PLAN_WORKFLOW_KEYS` (outside the
   limits; hook), `CONTENT_WORKFLOW_KEYS` (daily content slot; hook),
   `executor_slot(card)`, `daily_slot(card)`, `daily_slot_pick(...)`,

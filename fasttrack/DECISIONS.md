@@ -1166,6 +1166,35 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      +40 % 58 → 70 %); groups < 15 use the plain change score (θ = 1), because the fitted θ made
      4+2 groups worse (SE 0.17 → 0.26). Applies to CTR, CTOR and AOV; re-run the P31 power check
      and keep false alarms < 15 %.
+  9. **Implementation notes (fast track P36, 2026-10-16; branch `fasttrack/p35-sim-ops`).**
+     Items 1, 2, 3 (Ops display only), 4, 6, 8; all Ops-only (migration `092_card_group_design`
+     adds the nullable JSON `card_groups.design`).
+     - *1 / 8:* Ops → "Tạo nhóm thử nghiệm" (`POST /v1/ops/shops/{id}/groups`, Operator, audited
+       `card_group_create`): lever `pack_option` "Quy cách mới" (never a card), 3–60 shop products
+       not in another group, seeded ≈ 1/3 control; optional "Chia tầng theo số đơn 30 ngày" =
+       the busier half (rounded up) by all-channel 30-day SKU orders is `high`, the rest `low`,
+       each drawn separately (3 + 3 → 2 treated + 1 control each, ≥ 6 products). The owner
+       creates the SKUs on TikTok; Juli writes nothing there. No seller sentence for an Ops
+       group; its products are never drawn into a card group; it is measured even with card
+       groups off (`only_ops`).
+     - *2:* every verdict gains `metrics` for AOV and items per order (items sold / SKU orders)
+       on all channels, through the same `build_verdict` (90 % interval, false-alarm replay,
+       pre-period rule). A group's `design.guard` (default on unless the primary is CTR) adds
+       product-card CTR and `verdict.guard`: warning when treated − control < −15 points of %
+       (`group_guard_ctr_drop`), point estimate only, worded "… dù AOV tăng …".
+     - *3:* the one-line "lý do chọn thử nghiệm" (`design.reason`, ≤ 200 chars, `PATCH
+       …/groups/{group_id}`, audited `card_group_reason`); selection itself not built (D45.3).
+     - *4:* `group_design.drift_floor`: pooled z·√(2σ²/weeks/n) and difference
+       z·√(2σ²/weeks·(1/n_t + 1/n_c)), σ = `group_drift_sigma` 0.15; traffic needed per arm for
+       ±10 % (research `impressions_needed`; AOV in orders with order-value CV 0.6), with and
+       without drift; shown under each group, no label, no gate.
+     - *6:* `group_stats.adjust_changes`: < `group_two_window_min` (15) measured products θ = 1;
+       from 15 OLS on ln(−14..−1) and ln(−28..−15) (θ₁ ∈ [0, 2], θ₂ ∈ [−1, 1]); from 15 without
+       the earlier window the P31 θ. The replay's pool entries become triples when the window
+       before is known, so the gate runs the same rule. **Scope:** a card-drawn group's primary
+       verdict (behind the seller's "Kết quả nhóm") keeps the P31 rule so the client app does not
+       change; its D45.6 reading is stored beside it (`verdict.ops_rule`) and shown in Ops.
+       Ops groups and every extra metric use D45.6. Power check: see LOG (P36).
 
 - **D46** — Product polish on app-juli.com (owner, 2026-10-16, Vietnamese request, paraphrased):
   1. **Header "Sản phẩm" is a dropdown** (SaaS-style, small): Tổng quan sản phẩm (`/san-pham`),
