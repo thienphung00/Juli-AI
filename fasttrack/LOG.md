@@ -1883,3 +1883,31 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
 - Owner (2026-10-16): home H1 keeps the old tail → "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV,
   đề xuất cách sửa, đo kết quả." (was "…TikTok Shop: tìm chỗ GMV hụt, đề xuất cách sửa, đo kết
   quả." before D46.5). Landing gates PASS.
+
+## 2026-10-16 — P36 agent (Claude Opus) — D47.1: small groups back on the P31 θ
+
+- `fasttrack/optimize-product` (D47) merged in (`e08f00ee`). `group_stats.adjust_changes`: below
+  15 measured products the fitted P31 θ (one window) again; from 15 the two pre-period windows.
+  Applies to the primary, the extra metrics (AOV, items per order), the CTR guard and the
+  false-alarm replay. The original P31 verdict test fixtures are restored.
+- Power check re-run (`juli-sim-pilot/v03/results/20261016-123329-p31-power`, 500 reps, CTR, same
+  seeds, 15 % gate). Columns: P31 (`20261013-191329`) / D45.6 θ = 1 (`20261016-111445`) / D47.1:
+
+  | Design | False alarm | +22 % | +40 % | +65 % | "Đang đo" |
+  |---|---|---|---|---|---|
+  | 4+2 · 14d | 7.2 / 7.0 / 7.2 % | 14 / 13 / 14 % | 27 / 21 / 27 % | 46 / 39 / 46 % | 0 / 0 / 0 % |
+  | 5+3 · 14d | 4.2 / 5.8 / 4.2 % | 7 / 4 / 7 % | 13 / 6 / 13 % | 15 / 13 / 15 % | 0 / 0 / 0 % |
+  | 5+5 · 14d | 4.4 / 4.4 / 4.4 % | 11 / 7 / 11 % | 19 / 12 / 19 % | 33 / 25 / 33 % | 20 / 13 / 20 % |
+  | 4+6 · 14d | 5.4 / 6.4 / 5.4 % | 11 / 7 / 11 % | 24 / 19 / 24 % | 38 / 30 / 38 % | 26 / 20 / 26 % |
+  | 17+9 · 14d | 8.6 / 8.0 / 8.0 % | 29 / 27 / 27 % | 55 / 56 / 56 % | 79 / 79 / 79 % | 9 / 9 / 9 % |
+  | 4+2 · 28d | 7.8 / 6.8 / 7.8 % | 20 / 12 / 20 % | 35 / 25 / 35 % | 56 / 47 / 56 % | 0 / 0 / 0 % |
+  | 5+3 · 28d | 4.6 / 3.2 / 4.6 % | 7 / 3 / 7 % | 15 / 9 / 15 % | 25 / 14 / 25 % | 0 / 0 / 0 % |
+  | 5+5 · 28d | 5.4 / 5.0 / 5.4 % | 15 / 9 / 15 % | 26 / 15 / 26 % | 47 / 33 / 47 % | 18 / 13 / 18 % |
+  | 4+6 · 28d | 8.0 / 6.8 / 8.0 % | 15 / 10 / 15 % | 34 / 23 / 34 % | 50 / 39 / 50 % | 21 / 19 / 21 % |
+  | 17+9 · 28d | 9.6 / 9.2 / 9.2 % | 30 / 33 / 33 % | 64 / 67 / 67 % | 82 / 83 / 83 % | 12 / 12 / 12 % |
+
+  Every small design is back to the P31 numbers exactly; 17+9 keeps the two-window gain
+  (+1 to +3 points at +22 / +40 %); false alarms ≤ 9.2 % everywhere.
+- **Open contradiction:** research run `20261015-212942` §4a found the fitted θ *worse* for 4+2
+  (SE 0.17 → 0.26) while this simulator finds θ = 1 worse. Both readings are kept; re-check on the
+  first real D34 groups (the Ops "Cách tính" line and `verdict.adjustment` record the rule used).
