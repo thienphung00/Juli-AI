@@ -2049,3 +2049,34 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   pytest runs. Isolation re-run alone on a fresh migrated throwaway DB with `--timeout=600`: 12
   passed. This branch has no Python diff vs `fasttrack/optimize-product`. Environmental.
 - Next: owner review of the wording (esp. the /san-pham title), merge, deploy; GMV Max stays blog-only.
+
+## 2026-10-16 — P41 agent (Claude Opus) — D47.7: short simulation copy, no backend internals
+
+- Owner request 2026-10-16 (live demo, reviewer sample shop): the simulated Thực thi showed
+  `PUT /product/202309/products/{product_id} (update_product_listing)`, a long "Với seller thật: …"
+  paragraph and a second disclaimer; the run said `Có mã: "Mô tả quá ngắn"`; MN-015's keyword step
+  said "son lì, đỏ ruby"; the queue said "Trong hàng đợi" next to "Xác nhận một lần — Đang chờ bạn";
+  the page label repeated a long list. D47 item 7 added; implementation note in DECISIONS.
+- Root cause of the queue mismatch: `runPhase` returned "queued" from the polled list row before
+  looking at the events (the sample store starts runs `queued` and the list was read once). Fixed in
+  `run-model.ts` (events win) and the sample store re-reads the list when a run's status moves.
+- Sweep (apps/demo/src, seller- and reviewer-visible, ops excluded): endpoint / method / operation
+  only in the dialog's request line (removed); model name + "JSON schema" in content runs (sample and
+  backend `MODEL_STEP_RESULT`); "Có mã" / "mã chẩn đoán" (sample, backend tool summary, card "Xem
+  thêm", grouping line); "công thức D22" in the quick-scan tooltip; "(lỗi {status})" in three error
+  lines; "API" in three Quy tắc helps; canned-text mismatches (MN-015 keywords; video rules read
+  "Không có từ cấm" vs two sample banned terms; promotion / photo "Sau" cells said "Juli soạn nội
+  dung"; content cards got the Seller Center note). Left: legacy unlinked routes, LIVE caps vs sample
+  rules (DEBT P41). All other `/v1/` hits are fetch call sites, not text.
+- Verified in the real UI: `next dev` (before: base checkout on :3151, after: this branch on :3152),
+  reviewer sample session via local storage (no backend; `/v1/reviewer/me` fails → record kept),
+  Duyệt → Thực thi → Theo dõi on MN-015. Before: request line, two disclaimers, "Có mã", "son lì",
+  "Trong hàng đợi" on both chips. After: Mục/Trước/Sau + one line, "Mô tả quá ngắn", "mặt nạ đất sét,
+  se khít lỗ chân lông", "Đang chờ bạn" on header and queue. Screenshots in /tmp/simcopy-screens.
+- Gates (Node 20.20.2; Node 26 breaks jsdom localStorage): demo vitest 157 files / 1982 passed
+  (`--maxWorkers=4`; an unthrottled run under load 32 had 34 timeouts, all 17 files re-run alone
+  passed 268/268); `tsc` clean; eslint 0 errors (7 pre-existing warnings); `replay-module-graph` and
+  `reviewer-all-features` PASS. After merging `fasttrack/optimize-product` (P38, P39; DEBT /
+  DECISIONS append conflicts kept both): `check.sh` (Docker hung > 10 s → throwaway Homebrew
+  Postgres 16 in UTC as CHECK_DATABASE_URL, dropped after) migrations / isolation (12) / gitleaks /
+  ruff (484 files) PASS, pytest 209 files 3045 passed, 2 skipped. `check.sh: OK`.
