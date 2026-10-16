@@ -69,7 +69,7 @@ The existing approve endpoint creates an ordinary `workflow_runs` row
    `find_product_promotions` (`flash_sale`, LIVE); then `assistant.text` with the
    seller's rules read from the database ("Quy tắc của bạn: Trần giảm giá 10 % · …") —
    the rules are not a TikTok tool, so they are narrated, not a `tool.*` pair
-3. `assistant.text` "Đã soạn kịch bản (bản 1) · gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra" (VI)
+3. `assistant.text` "Đã soạn kịch bản (bản 1) · đã kiểm tra" (VI; P41 dropped the model name)
 4. `workflow.status` "Đang chờ bạn xem kịch bản" (VI) — `awaiting = "content_choice"`
 5. after Dùng kịch bản này: `workflow.status` "Đang chờ bạn đăng video" /
    "Đang chờ phiên LIVE kế tiếp" (VI) — `awaiting = "content_publish"`
@@ -103,7 +103,7 @@ The choice wait lasts 3 days, the publish wait 7 days (then `timed_out`).
     {"key": "read_content", "label": "Đọc số liệu video và sản phẩm",
      "result": "3 video gắn MN-015 · CTR 1,9 % · giỏ hàng xuất hiện giây 20", "at": "2026-10-10T02:01:00Z"},
     {"key": "read_product", "label": "Đọc thông tin sản phẩm, từ khoá", "result": "…", "at": "…"},
-    {"key": "draft", "label": "Soạn kịch bản", "result": "gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra", "at": "…"},
+    {"key": "draft", "label": "Soạn kịch bản", "result": "Đã soạn và kiểm tra", "at": "…"},
     {"key": "choose", "label": "Bạn xem, sửa và chọn", "result": null, "at": null},
     {"key": "publish", "label": "Bạn quay và đăng video gắn MN-015", "result": null, "at": null},
     {"key": "measure", "label": "Đo CTR trên video mới · ngày 7, ngày 14", "result": null, "at": null}

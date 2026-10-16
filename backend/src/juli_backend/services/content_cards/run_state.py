@@ -55,7 +55,8 @@ CHOICE_WAIT_HOURS = CONTENT_CHOICE_WAIT_HOURS
 PUBLISH_WAIT_HOURS = CONTENT_PUBLISH_WAIT_HOURS
 
 MAX_VERSIONS = 2
-MODEL_STEP_RESULT = "gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra"
+#: P41 (D47.7): seller-facing -- no model name or output format.
+MODEL_STEP_RESULT = "Đã soạn và kiểm tra"
 
 NARRATION_CHOICE = "Đang chờ bạn xem kịch bản"
 NARRATION_PUBLISH: dict[ContentKind, str] = {

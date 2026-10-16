@@ -23,20 +23,32 @@ SIMULATED_LABEL = "Mô phỏng · không gửi tới TikTok"
 NOTE_DRAFT_AFTER_APPROVAL = "Juli soạn nội dung mới sau khi duyệt"
 _STEP_LABELS = (("approve", "Duyệt"), ("execute", "Thực thi"))
 
+#: P41 (D47.7, owner 2026-10-16): one short line per executor, no endpoint or
+#: method name -- the label is the single "simulation" disclaimer. Mirrored in
+#: apps/demo/src/lib/reviewer/copy.ts `REVIEWER_SIMULATION_NOTES`.
 _NOTES: Mapping[str, str] = {
     "juli": (
-        "Với seller thật: sau khi duyệt, Juli soạn nội dung, seller xác nhận, rồi Juli gửi "
-        "thay đổi này tới TikTok Shop và đo kết quả ở ngày 7 và ngày 14. Tài khoản dùng thử "
-        "chỉ hiển thị yêu cầu — không có gì được gửi."
+        "Với shop thật, Juli ghi thay đổi này lên TikTok Shop sau khi bạn xác nhận, "
+        "rồi đo ở ngày 7 và 14."
     ),
     "juli_with_photo": (
-        "Với seller thật: seller gửi ảnh, Juli kiểm tra ảnh, tải ảnh lên TikTok rồi đổi ảnh "
-        "bìa của sản phẩm. Tài khoản dùng thử chỉ hiển thị yêu cầu — không có gì được gửi."
+        "Với shop thật, Juli đổi ảnh bìa trên TikTok Shop sau khi bạn gửi ảnh và xác nhận, "
+        "rồi đo ở ngày 7 và 14."
+    ),
+    "juli_drafts": (
+        "Với shop thật, Juli soạn kịch bản, bạn quay và đăng; Juli không ghi gì lên TikTok, "
+        "chỉ đo ở ngày 7 và 14."
     ),
     "seller_center": (
-        "Khuyến mãi do seller tạo trên Seller Center; Juli không ghi lên TikTok, chỉ đo kết "
-        "quả. Tài khoản dùng thử chỉ hiển thị hướng dẫn."
+        "Bạn tự áp dụng trên Seller Center; Juli không ghi gì lên TikTok, chỉ đo ở ngày 7 và 14."
     ),
+}
+#: The "Sau" cell when the card has no proposal yet, per executor (P41).
+_AFTER_DEFAULT: Mapping[str, str] = {
+    "juli": NOTE_DRAFT_AFTER_APPROVAL,
+    "juli_with_photo": "Ảnh mới bạn gửi, sau khi Juli kiểm tra",
+    "juli_drafts": "Juli soạn kịch bản sau khi duyệt",
+    "seller_center": "Bạn áp dụng trên Seller Center",
 }
 
 
@@ -79,7 +91,8 @@ def simulate(card_item: Mapping[str, Any], step: Step) -> dict[str, Any]:
                 "field": code,
                 "label": str(item.get("label") or code),
                 "before": proposal.get("before"),
-                "after": proposal.get("after") or NOTE_DRAFT_AFTER_APPROVAL,
+                "after": proposal.get("after")
+                or _AFTER_DEFAULT.get(executor, NOTE_DRAFT_AFTER_APPROVAL),
             }
         )
     done = {"approve"} if step == "approve" else {"approve", "execute"}

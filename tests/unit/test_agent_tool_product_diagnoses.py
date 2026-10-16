@@ -216,21 +216,17 @@ class TestPlaybook:
 class TestCompletedSummary:
     def test_one_code(self):
         result = {"codes": [{"label_vi": "Giá kém cạnh tranh"}], "count": 1}
-        assert tool_completed_summary("get_product_diagnoses", result) == (
-            'Có mã: "Giá kém cạnh tranh"'
-        )
+        assert tool_completed_summary("get_product_diagnoses", result) == "Giá kém cạnh tranh"
 
     def test_several_codes_are_capped_at_three(self):
         labels = ["A", "B", "C", "D", "E"]
         result = {"codes": [{"label_vi": x} for x in labels]}
-        assert tool_completed_summary("get_product_diagnoses", result) == (
-            'Có mã: "A", "B", "C" và 2 mã khác'
-        )
+        assert tool_completed_summary("get_product_diagnoses", result) == "A, B, C và 2 lỗi khác"
 
     def test_no_codes(self):
         assert (
             tool_completed_summary("get_product_diagnoses", {"codes": [], "count": 0})
-            == "Không có mã chẩn đoán"
+            == "TikTok không báo lỗi nào"
         )
 
     def test_unavailable_summary(self):
@@ -374,9 +370,9 @@ class _CannedExecutor:
     [
         (
             {"codes": [{"label_vi": "Tiêu đề quá ngắn"}], "count": 1},
-            'Có mã: "Tiêu đề quá ngắn"',
+            "Tiêu đề quá ngắn",
         ),
-        ({"codes": [], "count": 0}, "Không có mã chẩn đoán"),
+        ({"codes": [], "count": 0}, "TikTok không báo lỗi nào"),
     ],
 )
 async def test_runner_emits_started_then_completed_with_the_vietnamese_summary(result, expected):

@@ -18,6 +18,7 @@ import {
 } from "../../lib/quyet-dinh/off-api-rules";
 import { vnDate } from "../../lib/quyet-dinh/timeline";
 import { bandDefault, type RuleKey, type RuleValueItem, type SetBy, type ShopRules } from "../../lib/quyet-dinh/types";
+import { REVIEWER_SIMULATED_SETTINGS_NOTE } from "../../lib/reviewer/copy";
 import { SimulatedLabel } from "../app-shell/simulated-label";
 import { useWriteControl } from "../seller-view-context";
 
@@ -63,7 +64,7 @@ function describeError(ruleKey: RuleKey, error: unknown): string {
   if (error instanceof QdApiError) {
     if (error.status === 422) return RULE_ERROR_COPY[ruleKey];
     if (error.status === 404) return "Quy tắc này chưa được đặt.";
-    return `Chưa lưu được (lỗi ${error.status}). Vui lòng thử lại.`;
+    return "Chưa lưu được. Vui lòng thử lại.";
   }
   if (error instanceof Error && error.message.startsWith("vi:")) return error.message.slice(3);
   return "Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.";
@@ -627,7 +628,7 @@ export function RulesEditor({
 
   return (
     <section aria-labelledby="qd-rules-editor" className="card qd-rules-editor" data-testid="rules-editor">
-      <SimulatedLabel kind="settings">Quy tắc chỉ giữ trong phiên này, không gửi đi đâu.</SimulatedLabel>
+      <SimulatedLabel kind="settings">{REVIEWER_SIMULATED_SETTINGS_NOTE}</SimulatedLabel>
       <div className="qd-rules-editor__head">
         <div>
           <Heading className="qd-side-card__title" id="qd-rules-editor">

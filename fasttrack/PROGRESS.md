@@ -212,6 +212,12 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 |---|---|---|---|
 | P40 "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác →" above the auth heading (plain + trial), footer link kept; ISV reviewer step 1 | D47.6 | done on branch `fasttrack/partner-top` (from 12e692a1) — not merged, not deployed | P40 agent (Opus) |
 
+## P41 — short simulation copy, no backend internals (D47.7)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P41 Simulated Thực thi without endpoint / second disclaimer; short reviewer labels; plain TikTok-flag wording (demo + backend summaries); sample runs match their product; queue chip follows events | D47.7 | done on branch `fasttrack/sim-copy` (from 12e692a1) — not merged, not deployed | P41 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

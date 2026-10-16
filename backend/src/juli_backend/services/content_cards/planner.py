@@ -394,7 +394,7 @@ class ContentPlanner:
         if outcome.ok:
             self.state["stage"] = run_state.STAGE_CHOICE
             return _turn(
-                TextBlock(text=f"Đã soạn kịch bản (bản {version}) · {run_state.MODEL_STEP_RESULT}"),
+                TextBlock(text=f"Đã soạn kịch bản (bản {version}) · đã kiểm tra"),
                 usage=outcome.usage,
             )
         if version < run_state.MAX_VERSIONS:

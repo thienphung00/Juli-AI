@@ -1299,6 +1299,16 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      screen shows the "Tài khoản đối tác" entry at the top of the sign-in column (above the
      heading, clearly secondary to "Tiếp tục với Google"), so a partner reviewer finds it without
      scrolling; the footer link stays.
+  7. **Simulation copy is short and shows no backend internals (owner, 2026-10-16):** every
+     seller- and partner-reviewer-visible screen (the simulated Duyệt → Thực thi, the run
+     timeline, the queue, the reviewer's page label, Đo lường's preview, Quy tắc, Phân tích
+     video, the sample runs) shows no endpoint path, HTTP method, API operation or tool name,
+     model name, output format, decision id, status code or internal "mã" wording. The label
+     "Mô phỏng · không gửi tới TikTok" is the single simulation disclaimer per surface, with at
+     most one short line beside it; the D42 amendment 2 promises are unchanged (every write
+     visibly simulated and labelled, nothing sent). The sample's canned run text matches its
+     product, and a run's chip follows its events (never "Trong hàng đợi" next to a waiting
+     consent). Ops pages are internal and out of scope.
 
   **D47 implementation note (P37, 2026-10-16, branch `fasttrack/demo-lifecycle`).** Item 2 lives in
   `apps/demo/src/lib/quyet-dinh/sample-clients.ts`: each card keeps a desk status like
@@ -1351,6 +1361,37 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   not 999, so it still reads as one control). The footer link stays. The ISV reviewer steps
   (`fasttrack/shopee-isv-services-information.md` step 1) now give the direct URL
   `https://demo.app-juli.com/auth/email#doi-tac` and the top link.
+
+  **D47 implementation note (P41, 2026-10-16, branch `fasttrack/sim-copy`).** Item 7. The
+  simulated Thực thi (`components/quyet-dinh/simulation-dialog.tsx`) drops the request line
+  (`PUT /product/202309/products/{product_id} (update_product_listing)`, or "Không có lệnh ghi lên
+  TikTok…") and the second disclaimer ("Không có thay đổi nào được gửi tới TikTok Shop. Không có
+  tác vụ nào được tạo."); it keeps Thao tác / Sản phẩm and the Mục / Trước / Sau table and shows
+  `change.note`, now one line per executor (`_NOTES` in `services/reviewer/simulation.py`, mirrored
+  by `REVIEWER_SIMULATION_NOTES` in `lib/reviewer/copy.ts`; `juli_drafts` added — content cards had
+  the Seller Center text). The response still carries `request` (contract p32 §4 unchanged); only
+  the screen stops showing it. The "Sau" cell without a proposal is per executor
+  (`_AFTER_DEFAULT`: a promotion says "Bạn áp dụng trên Seller Center", not "Juli soạn nội dung").
+  Reviewer page label → "Mô phỏng · không gửi tới TikTok · chạy trên dữ liệu mẫu"; Đo lường "Xem
+  trước kết quả đo:"; Quy tắc "· chỉ giữ trong phiên này"; Phân tích video "· tệp không được tải
+  lên, đây là phân tích mẫu" (the duplicate hint "Mô phỏng: tệp không được tải lên." removed);
+  signed-out notice "Dữ liệu mẫu · {shop} là shop minh họa · không ghi gì lên TikTok Shop.".
+  Plain wording for TikTok's flags: the backend's `tool_completed_summary` (real runs) and the
+  sample say "Mô tả quá ngắn" / "A, B, C và 2 lỗi khác" / "TikTok không báo lỗi nào" (was `Có mã:
+  "…"` / "Không có mã chẩn đoán"); card "Xem thêm" "TikTok báo: “…”" (was "TikTok báo mã chẩn
+  đoán"); content runs "Đã soạn và kiểm tra" / "Đã soạn kịch bản (bản N) · đã kiểm tra" (was
+  "gpt-5.4-nano · đầu ra JSON schema · đã kiểm tra", backend `MODEL_STEP_RESULT` too); quick-scan
+  tooltip without "công thức D22"; error lines without "(lỗi {status})"; Quy tắc helps without
+  "API". Sample data: each listing card carries its own keyword line (MN-015 said "son lì, đỏ
+  ruby"); the video card's rules read says "2 từ cấm" (the sample rules have two). Queue: `runPhase`
+  answers "queued" only while the events show no tool or consent (a polled row could still say
+  `queued` after the consent was up), and the sample store re-reads the run list when a run's
+  status moves. Tests: `src/components/__tests__/sim-copy-p41.test.tsx` (5; the two chip tests fail
+  without the fix), `test_reviewer_access.py` +4 (note per executor), updated pins in
+  `reviewer-mode`, `reviewer-sample-mode`, `sample-quyet-dinh`, `quyet-dinh-p10`,
+  `test_agent_tool_product_diagnoses.py`, `test_p14_content_flow.py`. Legacy pre-P10 routes
+  (`/decisions/recommendations/*`, `/settings/workflows/*`, `lib/workflows/*`) are not linked from
+  the current UI and were left as they are (DEBT P41).
 
 - **D48** — Search-intent brand priorities on app-juli.com (owner, 2026-10-16: "áp 5 brand
   priorities lên trang", using the Semrush numbers). Evidence: Semrush Keyword Magic, database

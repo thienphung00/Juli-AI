@@ -297,7 +297,7 @@ function reasonFullText(card: RecommendationCardPayload): string {
   const codes = card.tiktok_codes.filter((code) => code.trim());
   if (codes.length === 0 || full.includes("TikTok báo")) return full;
   const quoted = codes.map((code) => `“${code}”`).join(", ");
-  return `${sentence(full)} TikTok báo mã chẩn đoán: ${quoted}.`;
+  return `${sentence(full)} TikTok báo: ${quoted}.`;
 }
 
 /** "Khách thêm giỏ rồi bỏ: Đơn/thêm giỏ … trung vị shop" (Mobile.dc.html). */

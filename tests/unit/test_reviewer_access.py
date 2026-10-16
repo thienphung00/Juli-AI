@@ -18,7 +18,7 @@ from juli_backend.models.ops import OpsAuditLog, OpsReviewerAccount
 from juli_backend.services.reviewer import accounts as reviewer_accounts
 from juli_backend.services.reviewer.config import shop_alias_id
 from juli_backend.services.reviewer.masking import MaskDictionary, mask_payload
-from juli_backend.services.reviewer.simulation import PRODUCT_EDIT_PATH
+from juli_backend.services.reviewer.simulation import PRODUCT_EDIT_PATH, simulate
 from tests.support import reviewer as rv
 from tests.support.api import build_app, client_for
 
@@ -297,6 +297,28 @@ def test_mask_replaces_titles_in_free_text_brand_words_urls_and_long_ids():
 
 
 # -- simulated Duyệt → Thực thi ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("executor", ["juli", "juli_with_photo", "juli_drafts", "seller_center"])
+def test_simulation_note_is_one_short_line_without_internals(executor):
+    """P41 (D47.7): one short line, no endpoint / method / operation name."""
+    item = {
+        "id": "c1",
+        "recommendation": {
+            "card": {
+                "lever": {"code": "x", "label": "X", "executor": executor},
+                "change_fields": [{"field": "x", "label": "X"}],
+            }
+        },
+    }
+    change = simulate(item, "execute")["change"]
+    note = change["note"]
+    assert len(note) <= 120
+    for internal in ("/product/", "PUT", "update_", "upload_", "Tài khoản dùng thử", "Không có"):
+        assert internal not in note
+    after = change["fields"][0]["after"]
+    if executor == "seller_center":
+        assert after == "Bạn áp dụng trên Seller Center"
 
 
 async def test_simulated_approve_then_execute(session, world):

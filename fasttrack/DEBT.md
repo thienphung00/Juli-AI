@@ -1078,3 +1078,14 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   "Phần mềm AI phân tích, vận hành TMĐT TikTok Shop" (no "và", no "cho nhà bán"); the meta
   description carries the full "phân tích và vận hành cho nhà bán TMĐT". Owner may prefer another
   ≤ 50-character wording.
+- [ ] P41: legacy pre-P10 routes `/decisions/recommendations/*`, `/decisions/in-progress/*` and
+  `/settings/workflows/*` (`lib/workflows/*`, `lib/recommendations.ts`) still word steps with API
+  identifiers (`activity_id`, `category_id`, `package_id`, "no-op", "Ship by Seller — gửi
+  self_shipment"). No current screen links to them; a seller reaches them only by typing the URL.
+  Remove the routes or reword them if they come back.
+- [ ] P41: the sample LIVE card says "Trần giảm giá 10 % · biên tối thiểu 30 %" and the Seller
+  Center summary "≥ 30 % bạn đặt · trần giảm 10 % bạn đặt", while the sample rules hold
+  `default_max_discount_pct` 15 and no `min_margin_pct`. Align the sample rules or the canned text.
+- [ ] P41: the simulate response (`POST /v1/reviewer/decisions/{id}/simulate`, contract p32 §4) still
+  carries `request` (method, path, operation); the dialog no longer shows it. Drop it from the
+  contract if nothing else reads it.

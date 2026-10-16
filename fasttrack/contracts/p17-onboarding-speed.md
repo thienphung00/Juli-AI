@@ -62,7 +62,7 @@ in the masked read):
 ```json
 {"label": "Đề xuất nhanh · dựa trên 14 ngày", "confidence": "Tham khảo",
  "window_days": 14, "scanned_at": "2026-10-10T08:01:00+00:00",
- "basis": "GMV dự kiến theo công thức D22 trên 14 ngày gần nhất (trung bình/ngày), mã chẩn đoán TikTok"}
+ "basis": "GMV dự kiến tính trên 14 ngày gần nhất (trung bình/ngày) và chẩn đoán của TikTok"}
 ```
 
 and `expected_impact.confidence = "reference"` (instead of

@@ -12,7 +12,7 @@ export function describeApproveError(error: unknown): string {
     if (error.status === 409) {
       return "Đề xuất này đã được xử lý, hoặc sản phẩm đang có luồng khác chạy. Hãy kiểm tra tab Đang thực hiện.";
     }
-    return `Chưa thể duyệt đề xuất này lúc này (lỗi ${error.status}). Vui lòng thử lại.`;
+    return "Chưa thể duyệt đề xuất này lúc này. Vui lòng thử lại.";
   }
   return "Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.";
 }

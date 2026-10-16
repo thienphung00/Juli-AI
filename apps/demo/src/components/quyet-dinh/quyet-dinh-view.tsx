@@ -490,7 +490,7 @@ export function QuyetDinhView({
       {simulated ? <SimulatedLabel>{REVIEWER_SAMPLE_NOTICE}</SimulatedLabel> : null}
       {sample && !simulated ? (
         <p className="demo-notice sample-notice" data-testid="mock-data-notice">
-          Dữ liệu mẫu · {shop.name} là shop minh họa. Duyệt, từ chối hay xác nhận ở đây chỉ đổi trên trang này, không ghi gì lên TikTok Shop.
+          Dữ liệu mẫu · {shop.name} là shop minh họa · không ghi gì lên TikTok Shop.
         </p>
       ) : null}
 

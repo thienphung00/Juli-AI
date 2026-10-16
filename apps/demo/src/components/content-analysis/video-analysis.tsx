@@ -251,7 +251,7 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
         />
         <span className="qv-va__hint">
           {simulated
-            ? `${limits}. Mô phỏng: tệp không được tải lên.`
+            ? `${limits}.`
             : clients.sample
               ? "Bản minh họa: đăng nhập và kết nối shop để tải video lên."
               : `${limits}. Juli xoá tệp ngay sau khi phân tích.`}

@@ -59,7 +59,7 @@ class SellerFacingDeclinedReason(StrEnum):
 EDITED_BY_SELLER_SUMMARY = "Hoàn tất theo bản bạn sửa"
 
 _DIAGNOSES_TOOL = "get_product_diagnoses"
-_DIAGNOSES_NONE_SUMMARY = "Không có mã chẩn đoán"
+_DIAGNOSES_NONE_SUMMARY = "TikTok không báo lỗi nào"
 _DIAGNOSES_SHOWN_LABELS = 3
 _DIAGNOSES_UNAVAILABLE_SUMMARY = "Không đọc được chẩn đoán TikTok — tiếp tục với thông tin sản phẩm"
 
@@ -92,8 +92,9 @@ def tool_completed_summary(tool_name: str, result: Mapping[str, Any]) -> str:
     """The seller-facing `ToolCompletedPayload.summary` for a successful tool.
 
     `Hoàn tất` for every tool except `get_product_diagnoses`, whose summary
-    names what TikTok flagged (AC-8.4): `Có mã: "Giá kém cạnh tranh"` /
-    `Không có mã chẩn đoán`. Reads only the tool's own `label_vi` values,
+    names what TikTok flagged (AC-8.4) in plain words -- P41 (D47.7) dropped
+    the internal "mã" wording: `Giá kém cạnh tranh` / `A, B, C và 2 lỗi khác`
+    / `TikTok không báo lỗi nào`. Reads only the tool's own `label_vi` values,
     never a raw code or vendor text. Anything unexpected falls back to
     `Hoàn tất` -- a summary must never fail a run.
     """
@@ -117,6 +118,6 @@ def tool_completed_summary(tool_name: str, result: Mapping[str, Any]) -> str:
     ]
     if not labels:
         return _DIAGNOSES_NONE_SUMMARY
-    shown = ", ".join(f'"{label}"' for label in labels[:_DIAGNOSES_SHOWN_LABELS])
+    shown = ", ".join(labels[:_DIAGNOSES_SHOWN_LABELS])
     extra = len(labels) - _DIAGNOSES_SHOWN_LABELS
-    return f"Có mã: {shown}" + (f" và {extra} mã khác" if extra > 0 else "")
+    return shown + (f" và {extra} lỗi khác" if extra > 0 else "")

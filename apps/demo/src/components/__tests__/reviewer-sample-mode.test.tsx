@@ -120,8 +120,11 @@ describe("the sample shop for a reviewer, in the real shell", () => {
     expect(await within(panel).findByText("Đã duyệt (mô phỏng)")).toBeInTheDocument();
     await userEvent.click(within(panel).getByRole("button", { name: "Thực thi (mô phỏng)" }));
     const change = await within(panel).findByTestId("reviewer-simulation-change");
-    expect(change).toHaveTextContent("PUT /product/202309/products/{product_id}");
-    expect(change).toHaveTextContent("Không có thay đổi nào được gửi tới TikTok Shop.");
+    // P41 (D47.7): Trước/Sau and one short line — no endpoint, no second disclaimer.
+    expect(change).toHaveTextContent("Với shop thật, Juli ghi thay đổi này lên TikTok Shop sau khi bạn xác nhận, rồi đo ở ngày 7 và 14.");
+    expect(panel).not.toHaveTextContent("/product/");
+    expect(panel).not.toHaveTextContent("update_product_listing");
+    expect(panel).not.toHaveTextContent("Không có thay đổi nào được gửi tới TikTok Shop.");
 
     // The card stays pending in the sample: no run was started, not even in memory.
     await userEvent.click(within(panel).getByRole("button", { name: "Đóng" }));

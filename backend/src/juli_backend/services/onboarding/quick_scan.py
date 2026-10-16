@@ -81,8 +81,9 @@ logger = logging.getLogger(__name__)
 #: Shown on the card (D26).
 QUICK_SCAN_LABEL = "Đề xuất nhanh · dựa trên 14 ngày"
 QUICK_SCAN_CONFIDENCE = "Tham khảo"
+#: The chip's tooltip -- seller-facing, so no decision ids or "mã" (P41, D47.7).
 QUICK_SCAN_BASIS = (
-    "GMV dự kiến theo công thức D22 trên 14 ngày gần nhất (trung bình/ngày), mã chẩn đoán TikTok"
+    "GMV dự kiến tính trên 14 ngày gần nhất (trung bình/ngày) và chẩn đoán của TikTok"
 )
 WINDOW_DAYS = 14
 #: The levers a quick card may carry: what Juli does itself on the listing.
