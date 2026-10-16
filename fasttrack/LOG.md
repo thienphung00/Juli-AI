@@ -1816,3 +1816,47 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   P35 agent's final gate run and the terms 2.1 edit were blocked by the permission classifier;
   gates now done here, terms 2.1 (D46.8) waits for the owner. AC-35.5 stays open: home mobile LCP
   median 2.60 s on a loaded host (H1 is the LCP element again); re-measure live after deploy.
+
+## 2026-10-16 — P36 agent (Claude Opus) — simulator research priorities into Ops (D45.1–D45.4, D45.6, D45.8)
+
+- Branch `fasttrack/p35-sim-ops` (worktree `~/juli-fasttrack-p35-sim-ops`; the branch name was
+  kept, the phase number is **P36** because P35 = product polish). `fasttrack/optimize-product`
+  merged in first (`35513e08`) for D45.7 / D45.8. Not merged, not deployed. Resumed from an
+  interrupted agent's uncommitted work: the 13 test edits and the deferred 074 edit are the usual
+  "074 follows the head" re-parenting onto `092_card_group_design` (checked: no other fasttrack
+  branch has a 092; revision id 21 chars; single head).
+- **Built:** migration 092 (`card_groups.design` JSON); Ops "Tạo nhóm thử nghiệm" with lever
+  "Quy cách mới" and an optional order-volume stratified draw (D45.8: 3 + 3 → 2 + 1 per stratum);
+  AOV and items per order on every verdict, CTR guard (> 15 % drop warns, even if AOV rose);
+  pre-period rule by group size (D45.6); drift floor + traffic needed under each group (D45.4);
+  one-line "lý do chọn thử nghiệm" (D45.3, manual). Tunables `group_two_window_min` (15),
+  `group_guard_ctr_drop` (15), `group_drift_sigma` (0.15). Details: DECISIONS D45 item 9.
+- **Scope decision:** a card-drawn group's primary verdict feeds the seller's "Kết quả nhóm", so it
+  keeps the P31 rule; the D45.6 reading is stored beside it (`verdict.ops_rule`) and shown in Ops
+  only. Ops groups and the new metrics use D45.6. Card groups switched off → only Ops groups are
+  measured.
+- **Power check** (`juli-sim-pilot/v03/power_p31.py`, 500 reps, CTR only; before =
+  `20261013-191329-p31-power` at the flat 15 % gate, after = `20261016-111445-p31-power`, same
+  seeds). Real false alarm (two-sided, δ = 0) and power for "tăng" at +22 / +40 / +65 %:
+
+  | Design | False alarm before → after | +22 % | +40 % | +65 % | "Đang đo" |
+  |---|---|---|---|---|---|
+  | 4+2 · 14d | 7.2 → 7.0 % | 14 → 13 % | 27 → 21 % | 46 → 39 % | 0 → 0 % |
+  | 5+3 · 14d | 4.2 → 5.8 % | 7 → 4 % | 13 → 6 % | 15 → 13 % | 0 → 0 % |
+  | 5+5 · 14d | 4.4 → 4.4 % | 11 → 7 % | 19 → 12 % | 33 → 25 % | 20 → 13 % |
+  | 4+6 · 14d | 5.4 → 6.4 % | 11 → 7 % | 24 → 19 % | 38 → 30 % | 26 → 20 % |
+  | 17+9 · 14d | 8.6 → 8.0 % | 29 → 27 % | 55 → 56 % | 79 → 79 % | 9 → 9 % |
+  | 4+2 · 28d | 7.8 → 6.8 % | 20 → 12 % | 35 → 25 % | 56 → 47 % | 0 → 0 % |
+  | 5+3 · 28d | 4.6 → 3.2 % | 7 → 3 % | 15 → 9 % | 25 → 14 % | 0 → 0 % |
+  | 5+5 · 28d | 5.4 → 5.0 % | 15 → 9 % | 26 → 15 % | 47 → 33 % | 18 → 13 % |
+  | 4+6 · 28d | 8.0 → 6.8 % | 15 → 10 % | 34 → 23 % | 50 → 39 % | 21 → 19 % |
+  | 17+9 · 28d | 9.6 → 9.2 % | 30 → 33 % | 64 → 67 % | 82 → 83 % | 12 → 12 % |
+
+  False alarms stay < 15 % everywhere (max 9.2 %). **In this simulator the plain change (θ = 1)
+  costs small groups power** (4+2 at +40 %: 27 → 21 % / 35 → 25 %), the opposite of research run
+  `20261015-212942` §4a (which compared with a different ANCOVA); the two windows add a little at
+  17+9 (+1 to +3 points, not the research's 58 → 70 %). The simulator has no days −42..−29, so
+  its 17+9 replay runs one window (DEBT). CTOR / AOV power is not simulated by `power_p31.py`.
+  Owner decision suggested: keep θ = 1 below 15 (as D45.6 says) or set it back to the P31 θ.
+- Gates: see the hand-back (full `fasttrack/check.sh`, `test_chi_so_docs_vocabulary.py`, demo
+  vitest / tsc / eslint on the Ops files).
