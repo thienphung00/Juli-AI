@@ -1320,6 +1320,20 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   (`cancelled` / `timed_out` stay approved → "Đang thực hiện"; fixed by item 5, P38), and content runs record no write so
   their card stays "Đang thực hiện" after "Tôi đã đăng".
 
+  **D47 implementation note (P40, 2026-10-16, branch `fasttrack/partner-top`).** Item 6 lives in
+  `apps/demo/src/components/auth/auth-screen.tsx`: the entry view (shared by the plain and trial
+  variants, so both get it; not the OTP or partner views) opens with one link above the h1, an
+  outline pill (hairline #ececf0, white, no fill so "Tiếp tục với Google" stays the only filled
+  control): muted lead "Đối tác thẩm định?" + pink action "Đăng nhập bằng tài khoản đối tác →" (arrow
+  `aria-hidden`; accessible name "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác"). It shares
+  the footer link's href and click handler (in-page `#doi-tac` when `renderPartner` is passed, i.e.
+  `/auth/email`; else `/auth/email#doi-tac`). Keyboard order is now logo → partner entry → Google →
+  email. Copy `AUTH_PARTNER_TOP_LEAD` / `AUTH_PARTNER_TOP_ACTION` in `lib/auth-screen-copy.ts`, CSS
+  `.auth-partner-top` in `app/auth-screen.css`; at 390 px the pill wraps to two lines (radius 20 px,
+  not 999, so it still reads as one control). The footer link stays. The ISV reviewer steps
+  (`fasttrack/shopee-isv-services-information.md` step 1) now give the direct URL
+  `https://demo.app-juli.com/auth/email#doi-tac` and the top link.
+
 - **D48** — Search-intent brand priorities on app-juli.com (owner, 2026-10-16: "áp 5 brand
   priorities lên trang", using the Semrush numbers). Evidence: Semrush Keyword Magic, database
   Vietnam, free plan (10 rows per seed, 10 requests/day), 2026-10-16. Volume / KD / intent:

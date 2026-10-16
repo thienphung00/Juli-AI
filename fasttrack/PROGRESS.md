@@ -197,6 +197,12 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 |---|---|---|---|
 | P39 Titles, meta, H2s and FAQs for D48 items 1–4; `/terms` meta fix | D48 | in progress, branch `fasttrack/p39-search-intent` | P39 agent (Opus) |
 
+## P40 — partner sign-in entry at the top of the auth screen (D47.6)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P40 "Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác →" above the auth heading (plain + trial), footer link kept; ISV reviewer step 1 | D47.6 | done on branch `fasttrack/partner-top` (from 12e692a1) — not merged, not deployed | P40 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
