@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { COMPANY, DEMO_URL, PRODUCT_PAGES, SECTION_IDS, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../lib/site";
+import { COMPANY, DEMO_URL, FREE_TOOLS, PRODUCT_PAGES, SECTION_IDS, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../lib/site";
 import {
   CAP_DL_TANG_THEM,
   CAP_DL_TANG_THEM_MOBILE,
@@ -380,6 +380,10 @@ export function FaqSection() {
           </Heading>
           <p className={styles.faqContact}>
             Chưa thấy câu trả lời? <Link href="/contact">Liên hệ Juli</Link>
+          </p>
+          <p className={styles.faqContact}>
+            Muốn tự tính GMV theo bốn chỉ số?{" "}
+            <Link href={FREE_TOOLS.gmvCalculator.href}>Dùng công cụ tính GMV miễn phí</Link>
           </p>
         </div>
         <FaqList items={HOME_FAQ} />

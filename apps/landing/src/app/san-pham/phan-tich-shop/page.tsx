@@ -25,6 +25,7 @@ import {
 } from "../../../components/product/screens";
 import { FunnelDiagram } from "../../../components/ui";
 import { buildMetadata } from "../../../lib/seo";
+import { FREE_TOOLS } from "../../../lib/site";
 
 /**
  * `/san-pham/phan-tich-shop` — capability page "Phân tích" (D43.1, D43.4, P33-C).
@@ -216,6 +217,10 @@ export default function PhanTichShopPage() {
           Vì GMV là tích của bốn chỉ số, mỗi thay đổi về GMV có thể được tách thành bốn phần: phần do lượt
           hiển thị, phần do CTR, phần do CTOR và phần do AOV. Đây là cách Juli trả lời câu hỏi “GMV giảm vì
           ít người thấy, vì ít người bấm, hay vì người bấm vào không mua”.
+        </P>
+        <P>
+          Muốn thử với số của một sản phẩm? <A href={FREE_TOOLS.gmvCalculator.href}>Công cụ tính GMV miễn phí</A>{" "}
+          dựng phễu này từ bốn chỉ số ngay trên trình duyệt, không cần tài khoản.
         </P>
         <H3>Cách Juli tính, để số khớp với TikTok</H3>
         <Ul>
