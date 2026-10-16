@@ -166,7 +166,8 @@ def _group(n_treated, n_control, *, lift, noise, seed_data):
 
 
 def test_a_noisy_small_group_reads_dang_do():
-    rows = _group(3, 5, lift=0.0, noise=0.3, seed_data=2)
+    # D45.6 (P36): a group this small reads the plain change; seed found for it.
+    rows = _group(3, 5, lift=0.0, noise=0.3, seed_data=26)
     verdict = build_verdict(rows, seed=11, as_of=AS_OF)
     primary = verdict["primary"]
     fa = verdict["false_alarm"]
@@ -238,12 +239,13 @@ def test_the_gate_is_a_flat_15_percent():
 # =========================================================================== T3.1 re-gating
 
 #: A 5 + 5 group (found by a seeded search): the treated rose ≈ 32 %, the control held.
-#: Its pre-period pairs are mostly flat with three large swings, so at day 14 the
-#: replayed rule over-calls (> 15 %) -> "Đang đo"; the control's days 14–27 add five
-#: moderate no-effect pairs, the pool looks like ordinary noise and the gate passes.
-PRE = [0.01, 0.001, 0.561, 0.006, -0.003, 0.0, -0.593, -0.007, 0.007, -0.316]
+#: D45.6 (P36): 10 products read the plain change (θ = 1). Its pre-period pairs swing
+#: ± ≈ 13 % in two clusters, so at day 14 the replayed rule over-calls (> 15 %) ->
+#: "Đang đo"; the control's days 14–27 add five spread-out no-effect pairs, the pool
+#: looks like ordinary noise and the gate passes.
+PRE = [-0.14, 0.116, -0.133, 0.119, -0.144, 0.146, -0.144, 0.14, -0.132, 0.132]
 LIFTS = [0.3, 0.31, 0.32, 0.33, 0.34, 0.008, 0.003, 0.005, 0.004, 0.005]
-LATER = [-0.2737, 0.2889, 0.274, -0.148, -0.1991]  # control, days 14–27 vs 0–13
+LATER = [-0.0487, -0.6495, -0.337, 0.1002, 0.0295]  # control, days 14–27 vs 0–13
 
 
 def _rows_5_5():
