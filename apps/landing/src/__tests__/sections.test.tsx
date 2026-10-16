@@ -16,7 +16,7 @@ describe("homepage (D43.2 + D44)", () => {
     expect(h1s).toHaveLength(1);
     // Owner's wording (D46.5); "TikTok Shop" stays in the home <title> and meta description.
     expect(h1s[0]).toHaveTextContent(
-      "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV, đề xuất cách sửa, đo kết quả.",
+      "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV, đề xuất chiến lược, đo kết quả.",
     );
     const levels = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((h) =>
       Number(h.tagName[1]),
