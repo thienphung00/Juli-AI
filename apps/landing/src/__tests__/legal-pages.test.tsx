@@ -352,6 +352,17 @@ describe("Shopee status is stated honestly on the public pages (D42.6, AC-32.9)"
 });
 
 describe("legal template (Legal.dc.html, D44, P34-E)", () => {
+  it("/terms is version 2.1 (16/10/2026): TMĐT positioning (§2) and both sign-in methods (§3), as in the md", () => {
+    render(<TermsOfServicePage />);
+    expect(
+      screen.getByText(/Phiên bản 2\.1 · Cập nhật lần cuối: 16\/10\/2026 · Có hiệu lực từ 16\/10\/2026/),
+    ).toBeInTheDocument();
+    expect(document.body).toHaveTextContent(
+      "Juli AI là trợ lý giúp người bán TMĐT tăng trưởng và tối ưu vận hành (hiện kết nối TikTok Shop, Shopee đang tích hợp)",
+    );
+    expect(document.body).toHaveTextContent("đăng nhập với Google hoặc bằng email với mã xác thực");
+  });
+
   it.each([
     ["/privacy", PrivacyPolicyPage],
     ["/terms", TermsOfServicePage],
@@ -360,7 +371,9 @@ describe("legal template (Legal.dc.html, D44, P34-E)", () => {
     const summary = screen.getByRole("region", { name: "Tóm tắt dễ hiểu" });
     expect(within(summary).getAllByRole("listitem").length).toBeGreaterThanOrEqual(4);
     expect(summary).toHaveTextContent("Tóm tắt này không thay thế nội dung đầy đủ bên dưới.");
-    expect(screen.getByText(/Cập nhật lần cuối: 15\/10\/2026 · Có hiệu lực từ 15\/10\/2026/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Cập nhật lần cuối: \d\d\/\d\d\/2026 · Có hiệu lực từ \d\d\/\d\d\/2026/),
+    ).toBeInTheDocument();
     const company = screen.getByTestId("legal-company");
     for (const value of [COMPANY.name, COMPANY.taxId, COMPANY.address, COMPANY.email]) {
       expect(company, value).toHaveTextContent(value);
