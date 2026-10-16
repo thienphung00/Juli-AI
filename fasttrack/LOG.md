@@ -1810,3 +1810,9 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
 - Screenshots: `~/juli-fasttrack-p35/.p35-logs/shots/` (san-pham hero / loop / full 1440 + 390,
   dropdown-open-1440, mobile-menu-open-390, home-hero 1440 + 390, dang-ky-header 1440 + 390); no
   horizontal overflow on /, /san-pham, /san-pham/phan-tich-shop, /dang-ky, /about at 1440 and 390.
+- P35 merged into the integration branch (b7d0e9a9). Its decision renumbered D45 → D46: D45 was
+  taken by the simulator grill (efe3105d) committed here in parallel. Gates on the merge: landing
+  lint / type-check / vitest 226 / build / check:seo PASS; `check.sh --since b936bf56` 5/5. The
+  P35 agent's final gate run and the terms 2.1 edit were blocked by the permission classifier;
+  gates now done here, terms 2.1 (D46.8) waits for the owner. AC-35.5 stays open: home mobile LCP
+  median 2.60 s on a loaded host (H1 is the LCP element again); re-measure live after deploy.
