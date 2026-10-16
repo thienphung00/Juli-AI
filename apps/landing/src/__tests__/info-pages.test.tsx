@@ -15,7 +15,7 @@ describe("public product and company pages", () => {
     for (const Page of [LandingPage, ProductPage, AboutPage, ContactPage]) {
       const { unmount } = render(<Page />);
       // D44 header: Sản phẩm · Kết nối TikTok Shop · Blog · Giới thiệu; /contact
-      // is in the mobile menu and the footer. "Sản phẩm" is a dropdown (D45.1)
+      // is in the mobile menu and the footer. "Sản phẩm" is a dropdown (D46.1)
       // whose first link, "Tổng quan sản phẩm", is /san-pham.
       const header = screen.getByRole("banner");
       for (const page of SITE_PAGES) {
@@ -99,7 +99,7 @@ describe("public product and company pages", () => {
     expect(container.querySelectorAll(".ui-section--dark")).toHaveLength(1);
   });
 
-  it("/san-pham hero (D45.2): copy + one framed sample-data shot, not prioritised, not repeated", () => {
+  it("/san-pham hero (D46.2): copy + one framed sample-data shot, not prioritised, not repeated", () => {
     const { container } = render(<ProductPage />);
     const hero = container.querySelector('section[aria-labelledby="product-heading"]') as HTMLElement;
     const figure = hero.querySelector("figure.ui-shot") as HTMLElement;
@@ -120,7 +120,7 @@ describe("public product and company pages", () => {
     expect(uses, file).toHaveLength(1);
   });
 
-  it("/san-pham loop (D45.3): five compact steps with icons, short lines, claims kept", () => {
+  it("/san-pham loop (D46.3): five compact steps with icons, short lines, claims kept", () => {
     render(<ProductPage />);
     const section = screen.getByRole("region", { name: "Vòng làm việc của Juli" });
     const list = section.querySelector("ol.ui-steps--stepper") as HTMLElement;
@@ -154,7 +154,7 @@ describe("public product and company pages", () => {
     }
   });
 
-  it("positioning (D45.7): Juli is for TMĐT sellers, TikTok Shop is the platform connected today", () => {
+  it("positioning (D46.7): Juli is for TMĐT sellers, TikTok Shop is the platform connected today", () => {
     for (const path of ["/", "/san-pham"]) {
       const route = getRoute(path);
       expect(route.title, path).toMatch(/TMĐT/);

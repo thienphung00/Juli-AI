@@ -27,7 +27,7 @@ vi.mock("@juli/tiktok-events", () => ({
 afterEach(cleanup);
 
 /**
- * Heading outline guard for every public page (D45.6; the built-HTML twin is
+ * Heading outline guard for every public page (D46.6; the built-HTML twin is
  * in `seo-check/built-site.check.ts`): exactly one H1 and it comes first, no
  * skipped level (H2 → H4), no empty heading, and no heading inside the site
  * header (incl. the "Sản phẩm" dropdown), any nav, or the footer.

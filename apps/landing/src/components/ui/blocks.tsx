@@ -124,7 +124,7 @@ export interface StepListProps {
   /**
    * `cards` (default): 5-up cards ≥ 760 px, ruled rows on phones (home).
    * `stepper`: a vertical timeline with icon chips on phones, one row of five
-   * connected cards ≥ 960 px (`/san-pham`, D45.3).
+   * connected cards ≥ 960 px (`/san-pham`, D46.3).
    */
   variant?: "cards" | "stepper";
   className?: string;

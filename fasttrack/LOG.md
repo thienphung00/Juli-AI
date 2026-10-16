@@ -1750,16 +1750,16 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   lazy-load; desktop stays 98–100 (Lighthouse flags `lcp-lazy-loaded` there, accepted).
   Local Node 26 needs `NODE_OPTIONS=--no-experimental-webstorage` for vitest (CI pins Node 20).
 
-## 2026-10-16 — P35 agent (Claude Opus) — product polish (D45, AC-35.x)
+## 2026-10-16 — P35 agent (Claude Opus) — product polish (D46, AC-35.x)
 
 - Branch `fasttrack/p35-product-polish` from `8c03c6a5` (worktree `~/juli-fasttrack-p35`), not
   merged, not deployed. Commits `3b80d45e..` (see `git log 8c03c6a5..`).
-- **Header dropdown** (D45.1): `ProductMenu` in `components/ui/header-nav.tsx`, items from
+- **Header dropdown** (D46.1): `ProductMenu` in `components/ui/header-nav.tsx`, items from
   `PRODUCT_MENU` (`lib/site.ts`): Tổng quan sản phẩm "Juli làm gì, cách làm và bảng giá" · Phân
   tích shop "GMV theo luồng truy cập và phễu" · Đề xuất và thực thi "Thẻ đề xuất, thực thi khi bạn
   duyệt" · Đo lường GMV "Đo kết quả ngày 7 và ngày 14". Click / keyboard only (no hover-open).
   New icons `grid`, `chart`, `bulb`, `send`, `target`.
-- **/san-pham** (D45.2, D45.3, D45.5a): two-column hero (copy | `CAP_DX_LUOT_CHAY_MOBILE` run crop,
+- **/san-pham** (D46.2, D46.3, D46.5a): two-column hero (copy | `CAP_DX_LUOT_CHAY_MOBILE` run crop,
   lazy), H1 44 px at ≥ 960 px; loop = `StepList variant="stepper"`. Loop facts follow the P34-C
   corrections, not the stale reference text in the P35 brief: five traffic sources (not three);
   at day 7 Juli *asks* whether to revert when a metric leaves the band you allow (not "đề xuất hoàn
@@ -1767,12 +1767,12 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   "đang thử nghiệm" on the measurement card). The dropped long text is on the capability pages
   (lever per metric, TikTok re-review and rejection reasons: `/san-pham/de-xuat-va-thuc-thi`; rejection
   reasons: de-xuat FAQ / do-luong).
-- **Em dashes** (D45.4): 6 visible strings had one (OG alt, VideoObject name, about company row,
+- **Em dashes** (D46.4): 6 visible strings had one (OG alt, VideoObject name, about company row,
   de-xuat quote, two signup messages; the backend mirrors of the signup messages changed too).
   Built-site scan: 0 outside `/privacy` (21) and `/terms` (1).
-- **Home** (D45.5b, D45.6): H1 "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV." (3 lines at 1440);
+- **Home** (D46.5b, D46.6): H1 "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV." (3 lines at 1440);
   "Sàn Juli kết nối" is a `<p>` label; heading guard in vitest + `check:seo`.
-- **Positioning** (D45.7), before → after:
+- **Positioning** (D46.7), before → after:
 
   | Where | Before | After |
   | --- | --- | --- |

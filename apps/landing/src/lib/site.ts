@@ -110,7 +110,7 @@ export const HEADER_NAV = [
 ] as const;
 
 /**
- * The header's "Sản phẩm" dropdown (D45.1): overview first, then the three
+ * The header's "Sản phẩm" dropdown (D46.1): overview first, then the three
  * capability pages, each with a one-line description (≤ 8 words, facts as on
  * the pages). `/ket-noi/tiktok-shop` stays a top-level header item.
  */

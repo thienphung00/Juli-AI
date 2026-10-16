@@ -747,9 +747,9 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   Lighthouse mobile ≥ 95 / LCP < 2.5 s re-measured after deploy, screenshots desktop + 390 of every
   page attached to LOG.
 
-## P35 — product polish (D45; branch `fasttrack/p35-product-polish`)
+## P35 — product polish (D46; branch `fasttrack/p35-product-polish`)
 
-- [x] **AC-35.1** (D45.1) Header "Sản phẩm" dropdown: button + chevron with `aria-expanded` /
+- [x] **AC-35.1** (D46.1) Header "Sản phẩm" dropdown: button + chevron with `aria-expanded` /
   `aria-controls`; panel lists Tổng quan sản phẩm, Phân tích shop, Đề xuất và thực thi, Đo lường
   GMV with one-line descriptions; Escape closes and refocuses the button, click outside and route
   change close it; the 4 links are in the server HTML when closed; `aria-current="page"` on the
@@ -762,39 +762,39 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   "Kết nối TikTok Shop" (panel closes), Escape refocuses, navigating via the menu closes it with
   `aria-current="page"`; the 4 hrefs are in the SSR HTML of `/`; mobile targets 44–56 px, no overflow
   at 390; signup header unchanged (`.p35-logs/shots/dang-ky-header-390.png`).
-- [x] **AC-35.2** (D45.2) `/san-pham` hero: two-column on desktop with a framed product shot
+- [x] **AC-35.2** (D46.2) `/san-pham` hero: two-column on desktop with a framed product shot
   (caption "Dữ liệu mẫu", alt ends "(dữ liệu mẫu)", mobile crop), stacked on phones, no
   `priority`; the shot appears once on the page.
   Evidence: hero = copy column | `Shot` of `CAP_DX_LUOT_CHAY_MOBILE` (the 640 px run crop at every
   width: the full 1280 capture is unreadable at half width), caption "Dữ liệu mẫu", alt "… (dữ liệu
   mẫu)", `loading="lazy"`, no `fetchpriority=high`; the old `CAP_DX_QUY_TAC` full-width shot is gone;
-  test "/san-pham hero (D45.2)" asserts all of it and that the capture appears once.
-- [x] **AC-35.3** (D45.3) "Vòng làm việc" = 5 compact steps (number + icon, short title, one line
+  test "/san-pham hero (D46.2)" asserts all of it and that the capture appears once.
+- [x] **AC-35.3** (D46.3) "Vòng làm việc" = 5 compact steps (number + icon, short title, one line
   ≲ 15 words), horizontal on desktop, vertical on phones; claims match D13 / D24.5 / P34-C.
   Evidence: `StepList variant="stepper"` (+ `icon`, `note`); 5 steps, bodies ≤ 18 syllables; test
-  "/san-pham loop (D45.3)" pins titles, icons, line length and the claims; screenshots
+  "/san-pham loop (D46.3)" pins titles, icons, line length and the claims; screenshots
   `san-pham-loop-{1440,390}.png`.
-- [x] **AC-35.4** (D45.4) No "—" in the rendered text of any public route except `/privacy` and
+- [x] **AC-35.4** (D46.4) No "—" in the rendered text of any public route except `/privacy` and
   `/terms` (built HTML scanned route by route, residual count reported); titles use " | ";
   tests pinning changed copy updated.
   Evidence: `.p35-logs/scan_dash.py` over 15 routes of the built site (text, alt / content / title /
   aria-label attributes, JSON-LD): residual 0 outside `/privacy` (21) and `/terms` (1), which are
   unchanged on purpose; titles already used " | ".
-- [x] **AC-35.6** (D45.5) `/san-pham` hero copy in one left column (eyebrow → H1 → intro → CTAs),
+- [x] **AC-35.6** (D46.5) `/san-pham` hero copy in one left column (eyebrow → H1 → intro → CTAs),
   shot on the right, stacked on phones; homepage H1 = "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện
   GMV."; home `<title>` / description still name TikTok Shop; price card untouched.
   Evidence: `sections.test.tsx` pins the new H1; home H1 3 lines at 1440 and 390
   (`home-hero-{1440,390}.png`); title / description in `lib/seo/routes/core.ts` keep "TikTok Shop".
-- [x] **AC-35.7** (D45.6) "Sàn Juli kết nối" is a non-heading label; heading guard (one H1 first,
+- [x] **AC-35.7** (D46.6) "Sàn Juli kết nối" is a non-heading label; heading guard (one H1 first,
   no skipped level, no empty heading, none in header / nav / footer) passes on every public page in
   vitest and in `check:seo`.
   Evidence: `__tests__/heading-outline.test.tsx` (16 pages incl. 3 blog posts, privacy, terms) and
   the extended `seo-check/built-site.check.ts` (17/17); `sections.test.tsx` checks the strip region
   and list are named by the label and contain no heading.
-- [x] **AC-35.8** (D45.7) Positioning sentences say "nhà bán TMĐT"; platform mentions say TikTok Shop
+- [x] **AC-35.8** (D46.7) Positioning sentences say "nhà bán TMĐT"; platform mentions say TikTok Shop
   connected, Shopee đang tích hợp, nothing else; home and /san-pham titles keep "TikTok Shop";
   TikTok-specific facts unchanged; legal pages unchanged with the disagreeing sentence listed.
-  Evidence: test "positioning (D45.7)" in `info-pages.test.tsx`; OG image
+  Evidence: test "positioning (D46.7)" in `info-pages.test.tsx`; OG image
   `public/og/juli-ai-default-v2.png` from `scripts/media.py`; before → after table in the P35 LOG
   entry.
 - [ ] **AC-35.5** Gates: landing lint / type-check / vitest / build / `check:seo`;
@@ -802,7 +802,7 @@ Contract: `fasttrack/contracts/p14-rules-and-cost.md`. Branch `fasttrack/p14-dat
   LCP ≤ 2.5 s, a11y 100; screenshots 1440 + 390 under `.p35-logs/shots/`.
   Evidence (open): landing lint 0, type-check clean, vitest 14 files / 225 passed, build OK,
   `check:seo` 17/17; `check.sh --since 8c03c6a5` 5/5 PASS; Lighthouse mobile `/san-pham` perf 97–98,
-  LCP median 2.49 s, a11y 100. **Home misses**: with the D45.5 H1 the mobile LCP element is the hero
+  LCP median 2.49 s, a11y 100. **Home misses**: with the D46.5 H1 the mobile LCP element is the hero
   shot (the shorter H1 is no longer the largest), LCP median 3.2 s / perf 93 over 5 runs vs 2.57 s /
   97 for the same build with the old H1; `priority` on the shot was worse (median 3.44 s). Needs an
   owner call (see LOG).

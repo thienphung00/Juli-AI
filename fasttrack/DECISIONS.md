@@ -1136,7 +1136,7 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      footer link to its own form; right panel with a product shot on desktop; trial variant
      (`?dang-ky=dung-thu`) = same layout, copy only; OTP 6-box entry with error / expired / resend
      states.
-- **D45** — Product polish on app-juli.com (owner, 2026-10-16, Vietnamese request, paraphrased):
+- **D46** — Product polish on app-juli.com (owner, 2026-10-16, Vietnamese request, paraphrased):
   1. **Header "Sản phẩm" is a dropdown** (SaaS-style, small): Tổng quan sản phẩm (`/san-pham`),
      Phân tích shop, Đề xuất và thực thi, Đo lường GMV, each with a one-line description. A
      disclosure button (`aria-expanded` / `aria-controls`, Escape returns focus, click outside and
@@ -1183,6 +1183,6 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      wherever the fact is TikTok-specific (connect page, Open API, OAuth, traffic sources, TikTok's
      formula, capability page titles / descriptions about TikTok data, the TikTok Pixel cookie text,
      blog posts about TikTok) and in the home and /san-pham `<title>` for search. `/privacy` and
-     `/terms` unchanged (D45.4): /terms §2 "Juli AI là trợ lý giúp người bán TikTok Shop tăng trưởng
+     `/terms` unchanged (D46.4): /terms §2 "Juli AI là trợ lý giúp người bán TikTok Shop tăng trưởng
      …" now disagrees and goes through contract + md + site together. Outside the landing,
      `dictionary.md` `landing.footer.tagline` still reads "Trợ lý AI cho người bán TikTok Shop".

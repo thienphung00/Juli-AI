@@ -51,7 +51,7 @@ import styles from "./overview.module.css";
 export const metadata = buildMetadata("/san-pham");
 
 /**
- * The loop as a compact stepper (D45.3): a short title and one line each. The
+ * The loop as a compact stepper (D46.3): a short title and one line each. The
  * long explanations live on the capability pages (lever per metric, TikTok's
  * re-review, rejection reasons, the five streams, the measurement method).
  * Facts: D13 (what Juli writes), D24.5/D24.17 (5 new cards a day, promotions
@@ -260,7 +260,7 @@ export default function ProductPage() {
                   </LinkButton>
                 </div>
               </div>
-              {/* Not `priority`: on phones the H1 is the LCP; an eager hero shot cost 0.9 s (P34 LOG, D45.2). */}
+              {/* Not `priority`: on phones the H1 is the LCP; an eager hero shot cost 0.9 s (P34 LOG, D46.2). */}
               <Shot
                 caption="Dữ liệu mẫu"
                 chrome="Quyết định · Juli"

@@ -103,7 +103,7 @@ def og_image(dest: Path) -> None:
     logo = logo.resize((round(logo.width * logo_h / logo.height), logo_h), Image.Resampling.LANCZOS)
     canvas.paste(logo, (72, 72), logo)
 
-    # D45 (P35): positioning is e-commerce (TMĐT); only TikTok Shop is connected today.
+    # D46 (P35): positioning is e-commerce (TMĐT); only TikTok Shop is connected today.
     draw.text((72, 210), "Trợ lý AI vận hành", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
     draw.text((72, 276), "cho nhà bán TMĐT", font=_font(FONT_BOLD, 52), fill=FOREGROUND)
     draw.text(
@@ -191,7 +191,7 @@ MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
     "cap-dl-tin-cay-v1-1280": (0.0, 0.0, 0.5, 1.0),
     "cap-dx-luot-chay-v1-1280": (0.0, 0.0, 0.5, 0.75),
     "cap-dx-quy-tac-v1-1280": (0.0, 0.0, 0.5, 0.64),
-    # P35 (D45): home hero on phones, the card header only (SKU, CTOR before → after, GMV dự kiến),
+    # P35 (D46): home hero on phones, the card header only (SKU, CTOR before → after, GMV dự kiến),
     # so the hero shot stays smaller than the H1 and the H1 remains the mobile LCP element.
     "cap-dx-the-v1-1186": (0.0, 0.0, 1.0, 0.285),
     "cap-dx-xac-nhan-v1-1280": (0.0, 0.0, 0.5, 0.55),

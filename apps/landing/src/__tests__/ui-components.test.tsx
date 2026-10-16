@@ -36,7 +36,7 @@ describe("SiteHeader", () => {
   it("has the D44 nav, 'Đăng nhập' and the dark trial button", () => {
     render(<SiteHeader pathname="/" />);
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
-    // "Sản phẩm" is a dropdown button (D45.1); its 4 links come first in the DOM.
+    // "Sản phẩm" is a dropdown button (D46.1); its 4 links come first in the DOM.
     expect(within(nav).getByRole("button", { name: "Sản phẩm" })).toHaveAttribute("aria-expanded", "false");
     expect(within(nav).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([
       ...PRODUCT_MENU.map((item) => item.href),
@@ -81,7 +81,7 @@ describe("SiteHeader", () => {
     expect(screen.getByTestId("menu-login-link")).toHaveAttribute("href", LOGIN_URL);
   });
 
-  it("product dropdown (D45.1): disclosure button, 4 described links in the DOM while closed", () => {
+  it("product dropdown (D46.1): disclosure button, 4 described links in the DOM while closed", () => {
     render(<SiteHeader pathname="/" />);
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
     const button = within(nav).getByRole("button", { name: "Sản phẩm" });

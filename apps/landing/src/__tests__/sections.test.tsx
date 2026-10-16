@@ -14,7 +14,7 @@ describe("homepage (D43.2 + D44)", () => {
 
     const h1s = screen.getAllByRole("heading", { level: 1 });
     expect(h1s).toHaveLength(1);
-    // Owner's wording (D45.5); "TikTok Shop" stays in the home <title> and meta description.
+    // Owner's wording (D46.5); "TikTok Shop" stays in the home <title> and meta description.
     expect(h1s[0]).toHaveTextContent("Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV.");
     const levels = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((h) =>
       Number(h.tagName[1]),
@@ -43,7 +43,7 @@ describe("homepage (D43.2 + D44)", () => {
     render(<LandingPage />);
 
     const h2s = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    // "Sàn Juli kết nối" is the marketplace strip's label, not a heading (D45.6).
+    // "Sàn Juli kết nối" is the marketplace strip's label, not a heading (D46.6).
     const strip = screen.getByRole("region", { name: "Sàn Juli kết nối" });
     expect(strip.querySelector("h1, h2, h3, h4, h5, h6")).toBeNull();
     expect(within(strip).getByRole("list", { name: "Sàn Juli kết nối" })).toBeInTheDocument();
@@ -232,7 +232,7 @@ describe("site header", () => {
     render(<SiteHeader />);
     for (const name of ["Điều hướng chính", "Menu trên điện thoại"]) {
       const nav = screen.getByRole("navigation", { name });
-      // "Sản phẩm" is a dropdown button (D45.1) whose links lead the list.
+      // "Sản phẩm" is a dropdown button (D46.1) whose links lead the list.
       expect(within(nav).getByRole("button", { name: "Sản phẩm" }), name).toBeInTheDocument();
       const labels = within(nav)
         .getAllByRole("link")

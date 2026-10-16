@@ -2,7 +2,7 @@
  * SEO check of the BUILT landing (P33-A, AC-33.9 relies on it). For every
  * route in the registry:
  * - exactly one <h1>, the first heading is the h1, no skipped level (h2 → h4),
- *   no empty heading, no heading inside header / nav / footer (D45.6);
+ *   no empty heading, no heading inside header / nav / footer (D46.6);
  * - <title>, meta description and canonical present, equal to the registry,
  *   and unique across routes; canonical is the absolute self URL;
  * - Open Graph image + Twitter card present; no hreflang; not noindex — except
@@ -79,7 +79,7 @@ describe("built site SEO (every registered route)", () => {
         text: (h.textContent ?? "").trim().slice(0, 60),
       }));
       expect(headings.filter((h) => h.level === 1), `${where}: exactly one h1`).toHaveLength(1);
-      // No empty heading, and none in the header / nav / footer (the "Sản phẩm" dropdown included, D45.6).
+      // No empty heading, and none in the header / nav / footer (the "Sản phẩm" dropdown included, D46.6).
       for (const heading of headings) expect(heading.text, `${where}: empty h${heading.level}`).not.toBe("");
       expect(
         doc.querySelectorAll(".ui-header :is(h1, h2, h3, h4, h5, h6), nav :is(h1, h2, h3, h4, h5, h6), .ui-footer :is(h1, h2, h3, h4, h5, h6)"),

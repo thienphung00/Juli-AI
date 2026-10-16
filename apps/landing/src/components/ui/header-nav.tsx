@@ -65,7 +65,7 @@ interface ProductMenuProps {
 }
 
 /**
- * "Sản phẩm" dropdown (D45.1): a disclosure button + a panel of the four
+ * "Sản phẩm" dropdown (D46.1): a disclosure button + a panel of the four
  * product pages. The panel is always rendered (the links are in the server
  * HTML, crawlable) and shown by `data-open` in CSS. Escape closes it and
  * returns focus to the button; a click outside, focus leaving it (desktop) or

@@ -90,7 +90,7 @@ export function HomeHero() {
               elevation="hero"
               images={{
                 variants: CAP_DX_THE,
-                // Phones: the card header only (D45, AC-35.5). A smaller shot keeps the H1 the LCP
+                // Phones: the card header only (D46, AC-35.5). A smaller shot keeps the H1 the LCP
                 // element; the full card made the lazy shot the LCP (3.2 s vs 2.6 s).
                 mobileVariants: CAP_DX_THE_MOBILE,
                 alt: "Thẻ đề xuất của Juli cho Son môi số 12: CTOR Thẻ sản phẩm 5,4 % lên 5,9 % và GMV dự kiến (dữ liệu mẫu)",
@@ -122,7 +122,7 @@ export function MarketplaceStrip() {
   return (
     <Section labelledBy="marketplace-heading" spacing="none" tone="alt" className={styles.strip}>
       <div className={styles.stripInner}>
-        {/* A label, not a section heading (D45.6): it names the strip region and the list. */}
+        {/* A label, not a section heading (D46.6): it names the strip region and the list. */}
         <p className={styles.stripHeading} id="marketplace-heading">
           Sàn Juli kết nối
         </p>

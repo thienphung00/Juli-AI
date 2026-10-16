@@ -18,7 +18,7 @@ export interface SiteHeaderProps {
 
 /**
  * Site header (D44, Main.dc.html). Desktop: logo · nav ("Sản phẩm" opens a
- * dropdown of the four product pages, D45.1) · "Đăng nhập" · dark "Dùng thử
+ * dropdown of the four product pages, D46.1) · "Đăng nhập" · dark "Dùng thử
  * miễn phí". Below 900 px: logo · "Dùng thử" · menu button
  * (a `<details>` panel with the same nav + "Đăng nhập" + "Liên hệ").
  * The header has no headings (seo README rule 4).

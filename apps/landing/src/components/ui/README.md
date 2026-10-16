@@ -54,7 +54,7 @@ by `ui.css`: **640** (phone), **900** (header), **960** (two columns).
 <SiteHeader variant="signup" />   // /dang-ky: logo · "Đã có tài khoản? Đăng nhập"
 ```
 Sticky, white, hairline bottom. Active item (`aria-current="page"`) from the router.
-**"Sản phẩm" is a dropdown** (D45.1, P35): a `<button aria-expanded aria-controls>` +
+**"Sản phẩm" is a dropdown** (D46.1, P35): a `<button aria-expanded aria-controls>` +
 chevron opening a small panel of `PRODUCT_MENU` (`lib/site.ts`: Tổng quan sản phẩm,
 Phân tích shop, Đề xuất và thực thi, Đo lường GMV, each with an icon and a ≤ 8-word
 description). The panel is always in the server HTML (crawlable) and shown by

@@ -479,7 +479,7 @@ body {
   font-size: 1rem;
 }
 
-/* "Sản phẩm" dropdown (D45.1). The panel is always in the DOM (crawlable
+/* "Sản phẩm" dropdown (D46.1). The panel is always in the DOM (crawlable
    links) and shown by [data-open]; `bar` floats under the button on desktop,
    `panel` opens inline inside the mobile menu. */
 .ui-navmenu {
@@ -1105,7 +1105,7 @@ body {
   line-height: 1.5;
 }
 
-/* Stepper (D45.3, /san-pham): phones = vertical timeline, icon chips joined by
+/* Stepper (D46.3, /san-pham): phones = vertical timeline, icon chips joined by
    a hairline; ≥ 960 px = one row of five connected cards. */
 .ui-steps--stepper {
   display: flex;
