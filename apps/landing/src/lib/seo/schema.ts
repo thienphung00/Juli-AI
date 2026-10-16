@@ -157,6 +157,27 @@ export function servicePageSchema(input: ServicePageInput): JsonLdObject {
   };
 }
 
+/**
+ * Plain WebPage for a page that is not about the paid Service, e.g. a free
+ * tool (D49.1): part of the WebSite, published by the Organization. Never
+ * `WebApplication` / `SoftwareApplication`: Google wants ratings on those and
+ * Juli has none (D43.3, D48 additions 2).
+ */
+export function webPageSchema(path: string): JsonLdObject {
+  const route = getRoute(path);
+  const url = absoluteUrl(route.path);
+  return {
+    "@type": "WebPage",
+    "@id": `${url}#webpage`,
+    url,
+    name: route.title.replace(/ \| Juli AI$/, ""),
+    description: route.description,
+    inLanguage: CONTENT_LANGUAGE,
+    isPartOf: { "@id": WEBSITE_ID },
+    publisher: { "@id": ORGANIZATION_ID },
+  };
+}
+
 export interface FaqItem {
   question: string;
   answer: string;

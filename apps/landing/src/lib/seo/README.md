@@ -10,6 +10,7 @@ Every public page of app-juli.com goes through these helpers. Import from
    - `core.ts` — `/`, `/about`, `/contact`, `/privacy`, `/terms`
    - `product.ts` — `/san-pham`
    - `capabilities.ts` — `/san-pham/<slug>` (`parent: "/san-pham"`), `/ket-noi/tiktok-shop`
+   - `tools.ts` — free tools, `/cong-cu/<slug>` (P43: `/cong-cu/tinh-gmv`)
    - `blog.ts` — `/blog`, `/blog/<slug>` (`parent: "/blog"`, `ogType: "article"`), derived
      from `src/content/blog/posts.ts`; a draft post gets `noindex: true` (robots
      `noindex, follow`, no sitemap entry, `check:seo` asserts the noindex and that no

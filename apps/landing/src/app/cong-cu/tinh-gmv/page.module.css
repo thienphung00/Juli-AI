@@ -1,0 +1,74 @@
+/* `/cong-cu/tinh-gmv` (D49.1, P43). Tokens only. */
+
+.main {
+  overflow-x: clip;
+}
+
+.hero {
+  padding-top: var(--lp-space-6);
+}
+
+.heroText {
+  display: flex;
+  max-width: 760px;
+  flex-direction: column;
+  gap: var(--lp-space-4);
+  padding-top: var(--lp-space-8);
+}
+
+.privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lp-space-2);
+  margin: 0;
+  color: var(--lp-nav);
+  font-size: var(--lp-text-body-small);
+  line-height: 1.5;
+}
+
+.privacy svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--lp-live-fg);
+}
+
+.calcHeading {
+  margin-bottom: var(--lp-space-3);
+}
+
+.formula {
+  max-width: 720px;
+  margin: 0 0 var(--lp-space-8);
+}
+
+.h3 {
+  margin: var(--lp-space-8) 0 var(--lp-space-3);
+  color: var(--lp-ink);
+  font-size: var(--lp-text-h3);
+  font-weight: var(--lp-weight-semibold);
+  line-height: var(--lp-leading-heading);
+}
+
+.faq {
+  margin-top: var(--lp-space-6);
+}
+
+.next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lp-space-6);
+}
+
+.next p {
+  max-width: 640px;
+  margin: var(--lp-space-3) 0 var(--lp-space-4);
+}
+
+@media (min-width: 960px) {
+  .next {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lp-space-12);
+  }
+}

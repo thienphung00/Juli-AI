@@ -67,6 +67,7 @@
   --lp-cat-guide-accent: #121214;
 
   --lp-focus-ring: #b0386a;
+  --lp-error-text: #b42318; /* form error text (6.6:1 on white); --juli-destructive is 3.9:1 */
 
   /* ————— Type (D44.1) ————— */
   --lp-font-sans: var(--font-be-vietnam-pro), ui-sans-serif, system-ui, -apple-system,

@@ -58,13 +58,23 @@ export const PRODUCT_PAGES = {
   tiktokShop: { href: "/ket-noi/tiktok-shop", label: "Kết nối TikTok Shop" },
 } as const;
 
-/** Footer "Sản phẩm" column, in reading order. */
+/**
+ * Free tools (D49.1). Not product pages, so not in the header's "Sản phẩm"
+ * dropdown (D46.1 lists exactly four); linked from the footer, the home FAQ
+ * and `/san-pham/phan-tich-shop`.
+ */
+export const FREE_TOOLS = {
+  gmvCalculator: { href: "/cong-cu/tinh-gmv", label: "Công cụ tính GMV" },
+} as const;
+
+/** Footer "Sản phẩm" column, in reading order (the free tool last). */
 export const FOOTER_PRODUCT_LINKS = [
   { href: "/san-pham", label: "Tổng quan sản phẩm" },
   PRODUCT_PAGES.analysis,
   PRODUCT_PAGES.actions,
   PRODUCT_PAGES.measurement,
   PRODUCT_PAGES.tiktokShop,
+  FREE_TOOLS.gmvCalculator,
 ] as const;
 
 /**

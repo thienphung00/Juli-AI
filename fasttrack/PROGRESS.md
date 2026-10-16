@@ -233,7 +233,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P43 `/cong-cu/tinh-gmv` page, client-side calculator, links, sitemap, llms.txt | D49.1 | in progress, branch `fasttrack/p43-gmv-calculator` | P43 agent (Opus) |
+| P43 `/cong-cu/tinh-gmv` page, client-side calculator, links, sitemap, llms.txt | D49.1 | done on branch `fasttrack/p43-gmv-calculator` (6d595c27, e172df7d, 014b4e69) — not merged, not deployed | P43 agent (Opus) |
 
 ## P44 — tools listicles naming competitors (D49.2)
 

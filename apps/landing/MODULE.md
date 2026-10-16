@@ -36,6 +36,12 @@ route it owns (`/api/tt/event`) talks to TikTok, not to `juli-api`.
   site that was only a landing page plus a login (2026-10, ticket 4486401).
   Header and footer link them from every page (`SITE_PAGES`); the footer
   carries the legal entity, tax ID and address.
+- `/cong-cu/tinh-gmv` (D49.1, P43) — free GMV calculator: a client component
+  (`src/components/gmv-calculator/`, pure maths in `calc.ts`) that runs in the
+  browser only (no fetch, no storage, no tracking event). `WebPage` +
+  BreadcrumbList + FAQPage schema, never WebApplication. Links the "GMV là gì"
+  post only once it is published (`post-href.ts`). Footer, home FAQ and
+  `/san-pham/phan-tich-shop` link it; not in the header "Sản phẩm" dropdown.
 - `/sitemap.xml` — every page in the SEO route registry, with `lastmod`.
 - `src/lib/seo` — technical SEO (D43.5, P33-A): route registry,
   `buildMetadata()` (title, description, absolute canonical, OG `vi_VN`

@@ -2249,3 +2249,36 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   database), gitleaks PASS, ruff PASS, pytest 7 failed / 2889 passed (`test_agent_workflow_task_wiring.py`,
   the known local limitation; no Python touched).
 - Next: owner reviews the new figures with the drafts, merge `--no-ff`.
+
+## 2026-10-16 — P43 free GMV calculator `/cong-cu/tinh-gmv` (D49.1) — P43 agent (Claude Opus 5.5)
+
+- Branch `fasttrack/p43-gmv-calculator` from `fasttrack/optimize-product` e20e5394. Commits 6d595c27
+  (route `routes/tools.ts`, `webPageSchema()`, llms.txt section "Công cụ miễn phí", token
+  `--lp-error-text` #b42318, 6.6:1), e172df7d (page + calculator + tests), 014b4e69 (links).
+- Page: title "Công cụ tính GMV TikTok Shop miễn phí | Juli AI" (47), description 149 chars, H1 =
+  title without suffix; H2s "Tính GMV của bạn", "Cách đọc kết quả", "Câu hỏi thường gặp", "Muốn biết
+  GMV hụt ở luồng nào, sản phẩm nào?" (one soft CTA → `/dang-ky`, secondary button). JSON-LD
+  WebPage + BreadcrumbList (Trang chủ → Công cụ tính GMV) + FAQPage (6 questions); no
+  WebApplication / SoftwareApplication / rating. In the sitemap and `/llms.txt`.
+- Calculator (`components/gmv-calculator/`, client): mode Tỷ lệ (Lượt hiển thị, CTR %, CTOR %, AOV ₫)
+  or Số đếm (Lượt hiển thị, Lượt nhấp, Đơn hàng SKU, GMV or AOV; rates derived). VN number parsing
+  ("50.000", "3,5", "1.234,5", "₫", "%"; a lone "3.5" reads as 3,5, "1.500" as 1.500). Vietnamese
+  errors next to each field (`aria-invalid` + `aria-describedby`), focus to the first; empty state
+  shows no result; "Thử ví dụ giả định" fills the post's 50.000 × 3 % × 4 % × 180.000 ₫ and labels it.
+  Output: GMV in an `aria-live` region, funnel table, "+X % on each step" table (all four rows equal,
+  default 10 %, editable), "Bước nào yếu nhất?" says plainly that one period cannot call a CTR low
+  (no benchmark exists), then four step questions with where-to-look; a zero step is named as the
+  blocker; a "Thử một thay đổi cụ thể" what-if (pick a metric, new value). No fetch, no storage, no
+  new tracking (the CTA keeps the site's consent-gated listener). Privacy line under the H1.
+- Links: footer "Sản phẩm" column (`FREE_TOOLS`), home FAQ column, `/san-pham/phan-tich-shop` funnel
+  section. Not in the header dropdown (D46.1 lists four product pages). The "GMV là gì" post is a
+  draft, so its links (title + four "Tăng …" anchors) render only once published (DEBT).
+- Gates (Node 26 + `--no-experimental-webstorage`): lint 0, `tsc --noEmit` 0, vitest 17 files / 329
+  passed (+55: `gmv-calculator.test.tsx`, heading outline +1), build OK (`/cong-cu/tinh-gmv` static),
+  `check:seo` 22 passed. Playwright on `next start`: no horizontal overflow at 360 / 390 / 1440, zero
+  network requests after calculating. Screenshots in the P43 scratchpad `shots-p43/`
+  (tinh-gmv-{390,1440}-{empty,example}.png). `check.sh`: migrations / isolation FAIL (no throwaway
+  DB; `docker info` hung and was killed), gitleaks PASS, ruff PASS, pytest 7 failed / 2889 passed
+  (`test_agent_workflow_task_wiring.py`, known local limitation; no Python touched).
+- Next: owner review, merge `--no-ff`. Note: 6d595c27 on its own fails the registry test (route
+  without page); the branch tip is green.

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import AboutPage from "../app/about/page";
 import BlogIndexPage from "../app/blog/page";
 import BlogPostPage from "../app/blog/[slug]/page";
+import GmvCalculatorPage from "../app/cong-cu/tinh-gmv/page";
 import ContactPage from "../app/contact/page";
 import SignupThanksPage from "../app/dang-ky/cam-on/page";
 import SignupPage from "../app/dang-ky/page";
@@ -39,6 +40,7 @@ const PAGES: Array<[string, () => ReactElement | Promise<ReactElement>]> = [
   ["/san-pham/de-xuat-va-thuc-thi", () => <ActionsPage />],
   ["/san-pham/do-luong-gmv", () => <MeasurementPage />],
   ["/ket-noi/tiktok-shop", () => <TikTokShopPage />],
+  ["/cong-cu/tinh-gmv", () => <GmvCalculatorPage />],
   ["/about", () => <AboutPage />],
   ["/contact", () => <ContactPage />],
   ["/dang-ky", () => <SignupPage />],
