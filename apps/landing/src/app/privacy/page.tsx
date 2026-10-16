@@ -12,7 +12,8 @@ import {
 
 export const metadata = buildMetadata("/privacy");
 
-const LAST_UPDATED = "15/10/2026";
+const VERSION = "2.1";
+const LAST_UPDATED = "16/10/2026";
 
 /** Anchor for the trial sign-up paragraph in §2 (P33-F), linked from /dang-ky's consent. */
 const TRIAL_SIGNUP_SECTION_ID = "dang-ky-dung-thu";
@@ -64,6 +65,7 @@ export default function PrivacyPolicyPage() {
         title="Chính sách bảo mật"
         toc={TOC}
         updated={LAST_UPDATED}
+        version={VERSION}
       >
           <div className={legal.enNotice} lang="en" data-testid="privacy-en-notice">
             <p>
@@ -99,7 +101,13 @@ export default function PrivacyPolicyPage() {
             <p>
               Juli AI được vận hành bởi {COMPANY.name} (mã số thuế {COMPANY.taxId}), trụ sở
               tại {COMPANY.address}. {COMPANY.name} là bên kiểm soát và xử lý dữ liệu cá
-              nhân được mô tả trong chính sách này.
+              nhân được mô tả trong chính sách này. Riêng đối với dữ liệu cá nhân của người
+              mua có trong dữ liệu shop, người bán là bên kiểm soát dữ liệu và Juli xử lý dữ
+              liệu đó thay mặt người bán, theo mục 8 của{" "}
+              <a href="/terms">
+                Điều khoản dịch vụ
+              </a>
+              .
             </p>
             <p>
               Bạn có thể liên hệ chúng tôi qua email{" "}
@@ -308,6 +316,38 @@ export default function PrivacyPolicyPage() {
               Juli không đọc tin nhắn cá nhân của bạn, và không lưu thông tin liên hệ của
               người mua ngoài mã định danh cần thiết để xử lý đơn hàng.
             </p>
+
+            <h3 className={legal.subheading} id="noi-dung-ban-cung-cap">
+              Nội dung bạn tự cung cấp
+            </h3>
+            <p>
+              Ngoài dữ liệu đọc từ sàn, Juli xử lý nội dung bạn chủ động nhập hoặc tải lên:
+              Quy tắc của shop (ví dụ: giá vốn, biên lợi nhuận, giọng văn, từ không được dùng)
+              và video hoặc bản ghi LIVE bạn tải lên để Juli phân tích nội dung. File bạn tải
+              lên được lưu tạm trên máy chủ của Juli và xoá khi phân tích kết thúc; file còn
+              lại (ví dụ: tải lên dở dang) được xoá tự động sau khoảng 24 giờ. Juli chỉ giữ
+              kết quả phân tích (ví dụ: lời thoại đã chuyển thành văn bản, điểm đánh giá). Bạn
+              bảo đảm mình có quyền với nội dung này, bao gồm sự đồng ý của những người xuất
+              hiện trong đó (mục 8.4 của <a href="/terms">Điều khoản dịch vụ</a>).
+            </p>
+
+            <h3 className={legal.subheading} id="danh-gia-va-du-lieu-thi-truong">
+              Đánh giá của người mua và dữ liệu thị trường
+            </h3>
+            <p>
+              Nếu Juli sử dụng nội dung đánh giá sản phẩm của người mua (ví dụ: để hiểu cách
+              người mua mô tả sản phẩm), Juli loại bỏ tên và thông tin định danh của người mua
+              trước khi xử lý, kể cả trước khi gửi cho mô hình AI.
+            </p>
+            <p>
+              Dữ liệu thị trường và đối thủ (ví dụ: giá bán, sản phẩm và video bán chạy theo
+              ngành hàng, từ khoá) được Juli lấy từ nguồn công khai và từ nhà cung cấp dữ liệu
+              thị trường TikTok Shop là FastMoss. Đây là dữ liệu Juli tự thu thập, không lấy
+              từ dữ liệu riêng của các shop khác dùng Juli. Juli không gửi dữ liệu shop của
+              bạn (đơn hàng, số liệu kinh doanh, dữ liệu người mua) cho FastMoss; khi tra cứu,
+              Juli chỉ dùng thông tin đã công khai trên TikTok Shop, như tên shop hoặc sản
+              phẩm.
+            </p>
           </LegalSection>
 
           <LegalSection headingId="shopee-data-heading" num="4A." sectionId="shopee-data" title="Dữ liệu Shopee (khi bạn kết nối shop Shopee)">
@@ -354,25 +394,80 @@ export default function PrivacyPolicyPage() {
               <li>Gửi cảnh báo và thông báo mà bạn đã bật</li>
               <li>Đo lường hiệu quả quảng cáo của Juli trên TikTok</li>
               <li>Liên hệ hỗ trợ và thông báo các thay đổi quan trọng về dịch vụ</li>
+              <li>
+                Tối ưu thuật toán phân tích và chất lượng gợi ý của Juli, bao gồm tinh chỉnh
+                (fine-tune) mô hình ngôn ngữ, chỉ với dữ liệu đã ẩn danh hoá ở dạng cấu trúc
+                (xem bên dưới)
+              </li>
             </ul>
+            <p>
+              Juli chỉ lưu, phân tích và chia sẻ dữ liệu của bạn cho các mục đích trên. Juli
+              không bán dữ liệu, và không dùng dữ liệu có thể nhận diện shop của bạn để phục
+              vụ khách hàng khác; dữ liệu của bạn chỉ được dùng ngoài shop của bạn ở dạng ẩn
+              danh hoá, chỉ ở dạng cấu trúc, như nêu dưới đây.
+            </p>
+            <p>
+              Với mục đích tối ưu thuật toán, Juli chỉ sử dụng dữ liệu shop đã được ẩn danh
+              hoá, chỉ ở dạng cấu trúc dữ liệu (ví dụ: loại chỉ số, mối tương quan giữa các
+              chỉ số, loại đề xuất và kết quả sau khi áp dụng). Dữ liệu này không chứa tên
+              shop, tên hoặc nội dung sản phẩm, hình ảnh, kịch bản, tiêu đề, số liệu kinh
+              doanh có thể nhận diện shop, thông tin người mua hay dữ liệu người dùng Google,
+              và không được tiết lộ cho khách hàng khác. Bạn có thể yêu cầu ngừng sử dụng dữ
+              liệu của mình cho mục đích này bất kỳ lúc nào qua email{" "}
+              <a href={`mailto:${COMPANY.email}`}>
+                {COMPANY.email}
+              </a>
+              ; Juli ngừng áp dụng đối với dữ liệu phát sinh từ thời điểm nhận được yêu cầu.
+            </p>
+            <p>
+              Gợi ý kịch bản, tiêu đề và nội dung được xử lý riêng cho từng shop, dựa trên dữ
+              liệu và cách dùng từ ngữ của chính shop đó; nội dung riêng của shop chỉ dùng để
+              tạo gợi ý cho chính shop đó.
+            </p>
           </LegalSection>
 
           <LegalSection headingId="muc-7" num="7." title="Chúng tôi chia sẻ dữ liệu với ai">
             <p>
-              Juli không bán dữ liệu của bạn cho bất kỳ bên thứ ba nào. Chúng tôi chỉ chia
-              sẻ dữ liệu với các bên xử lý dữ liệu sau, trong phạm vi cần thiết để vận hành
-              sản phẩm:
+              Juli không bán dữ liệu của bạn cho bất kỳ bên thứ ba nào, không tiết lộ hay
+              chuyển giao dữ liệu của bạn ngoài các bên dưới đây. Chúng tôi chỉ chia sẻ dữ liệu
+              với các bên xử lý dữ liệu sau, mỗi bên chỉ nhận phần dữ liệu cần thiết cho vai
+              trò của mình:
             </p>
             <ul aria-label="Bên xử lý dữ liệu">
-              <li>Supabase — xác thực đăng nhập (Google) và lưu trữ cơ sở dữ liệu</li>
-              <li>TikTok Shop API — nguồn dữ liệu shop của bạn</li>
               <li>
-                OpenAI — mô hình AI phân tích dữ liệu shop và tạo đề xuất. Dữ liệu gửi qua
-                API của OpenAI không được dùng để huấn luyện mô hình
+                Supabase — xác thực đăng nhập (Google và mã xác thực qua email) và lưu trữ cơ
+                sở dữ liệu
               </li>
-              <li>Nhà cung cấp máy chủ (VPS) — nơi chạy ứng dụng Juli</li>
+              <li>
+                TikTok Shop API — nguồn dữ liệu shop của bạn; Shopee Open Platform — khi bạn
+                kết nối shop Shopee (mục 4A)
+              </li>
+              <li>
+                OpenAI — nhà cung cấp mô hình AI (mô hình ngôn ngữ) mà Juli dùng để phân tích
+                dữ liệu shop và tạo đề xuất (xem chi tiết bên dưới)
+              </li>
+              <li>
+                Nhà cung cấp máy chủ (VPS) — nơi chạy ứng dụng Juli và lưu tạm file bạn tải lên
+                để phân tích
+              </li>
+              <li>
+                Cloudflare — quản lý tên miền, chuyển tiếp và bảo vệ kết nối (HTTPS) tới
+                app-juli.com và các tên miền con; kiểm soát truy cập vào công cụ nội bộ của đội
+                ngũ Juli
+              </li>
               <li>Amazon Web Services (AWS) — quản lý khoá bí mật của hệ thống</li>
-              <li>Zalo (Zalo OA) và Google Firebase — gửi cảnh báo và thông báo đẩy mà bạn đã bật</li>
+              <li>
+                Google Workspace — dịch vụ email Juli dùng để gửi mã đăng nhập, thông báo và
+                thư liên hệ cho bạn
+              </li>
+              <li>
+                Zalo (Zalo OA) và Google Firebase (dự kiến) — gửi cảnh báo và thông báo đẩy,
+                chỉ khi bạn bật
+              </li>
+              <li>
+                Viettel-CA (dự kiến) — xuất, gửi và lưu trữ hoá đơn điện tử khi bạn thanh toán,
+                và chuyển dữ liệu hoá đơn tới cơ quan thuế theo quy định
+              </li>
               <li>
                 TikTok Pixel và Events API — đo lường hiệu quả quảng cáo. Nhận địa chỉ
                 IP, thông tin trình duyệt, trang bạn xem trên website này, và mã định
@@ -382,10 +477,63 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
             <p>
-              Một số bên xử lý trên đặt máy chủ ngoài Việt Nam (ví dụ: Hoa Kỳ), nên dữ liệu
-              có thể được chuyển ra nước ngoài. Chúng tôi chỉ chuyển dữ liệu cần thiết cho
-              mục đích nêu tại mục 6. Chúng tôi cũng có thể cung cấp dữ liệu khi cơ quan nhà
-              nước có thẩm quyền yêu cầu theo quy định pháp luật.
+              FastMoss (mục 4) là nguồn dữ liệu thị trường Juli tra cứu, không phải bên xử lý
+              dữ liệu shop của bạn.
+            </p>
+
+            <h3 className={legal.subheading} id="nha-cung-cap-ai">
+              Dữ liệu gửi cho nhà cung cấp AI (OpenAI)
+            </h3>
+            <p>
+              Juli dùng mô hình của OpenAI qua OpenAI API, dịch vụ dành cho doanh nghiệp và nhà
+              phát triển, không qua ứng dụng ChatGPT dành cho người dùng cá nhân. Mô hình cụ
+              thể có thể thay đổi giữa các mô hình của OpenAI. Juli chỉ gửi phần dữ liệu cần
+              thiết cho từng phân tích:
+            </p>
+            <ul aria-label="Dữ liệu gửi cho OpenAI">
+              <li>
+                Thông tin sản phẩm (tên, mô tả, danh mục, giá) và số liệu hiệu suất của shop
+              </li>
+              <li>Hình ảnh sản phẩm, để kiểm tra hình ảnh có khớp với nội dung sản phẩm</li>
+              <li>Quy tắc và nội dung bạn nhập (ví dụ: giọng văn, từ không được dùng)</li>
+              <li>
+                Với video hoặc bản ghi LIVE bạn tải lên: các khung hình trích ra (ảnh thu nhỏ)
+                và các đoạn âm thanh để chuyển giọng nói thành văn bản; Juli không gửi nguyên
+                file
+              </li>
+              <li>
+                Nội dung đánh giá của người mua, nếu được sử dụng, sau khi đã loại bỏ thông tin
+                định danh người mua
+              </li>
+            </ul>
+            <p>
+              Juli không gửi cho OpenAI thông tin liên hệ hay mã định danh của người mua, dữ
+              liệu người dùng Google, hay thông tin đăng nhập tài khoản sàn. Theo điều khoản và
+              chính sách dữ liệu API của OpenAI, dữ liệu gửi qua API không được OpenAI dùng để
+              huấn luyện các mô hình của OpenAI. Juli gửi các yêu cầu phân tích với chế độ lưu
+              trữ phản hồi của OpenAI được tắt; theo chính sách dữ liệu API của OpenAI, OpenAI
+              vẫn có thể lưu dữ liệu API trong một thời gian giới hạn để giám sát lạm dụng. Mô
+              hình tinh chỉnh (nếu có) là mô hình riêng của Juli và chỉ dùng dữ liệu đã ẩn danh
+              hoá theo mục 6. Juli giới hạn phạm vi và mức sử dụng mô hình cho từng shop.
+            </p>
+
+            <h3 className={legal.subheading} id="chuyen-du-lieu-ra-nuoc-ngoai">
+              Chuyển dữ liệu ra nước ngoài
+            </h3>
+            {/*
+              [cần luật sư xác nhận: căn cứ pháp lý] — the legal basis and any filing
+              requirement for cross-border transfer go here once counsel confirms them.
+              Do not add a statute number without that confirmation.
+            */}
+            <p>
+              Một số bên xử lý trên (ví dụ: OpenAI, Amazon Web Services) xử lý hoặc lưu dữ
+              liệu ngoài Việt Nam, chủ yếu tại Hoa Kỳ, nên dữ liệu có thể được chuyển ra nước
+              ngoài. Chúng tôi chỉ chuyển dữ liệu cần thiết cho mục đích nêu tại mục 6, và bảo
+              vệ dữ liệu khi chuyển bằng cách: chỉ dùng các nhà cung cấp hoạt động theo điều
+              khoản dịch vụ và cam kết bảo vệ dữ liệu của họ; mã hoá dữ liệu khi truyền
+              (HTTPS/TLS); chỉ gửi phần dữ liệu cần thiết cho từng việc; và loại bỏ thông tin
+              định danh người mua trước khi gửi cho mô hình AI. Chúng tôi cũng có thể cung cấp
+              dữ liệu khi cơ quan nhà nước có thẩm quyền yêu cầu theo quy định pháp luật.
             </p>
           </LegalSection>
 
@@ -396,6 +544,10 @@ export default function PrivacyPolicyPage() {
               tài khoản và từng shop, và khoá truy cập TikTok Shop được lưu trong hệ thống quản
               lý khoá bí mật, không lưu trong mã nguồn. Chi tiết riêng cho dữ liệu người dùng
               Google nằm ở mục 3.4 và 3.5.
+            </p>
+            <p>
+              Nếu phát hiện sự cố lộ hoặc mất dữ liệu ảnh hưởng tới dữ liệu của bạn, Juli
+              thông báo cho bạn chậm nhất 72 giờ sau khi phát hiện.
             </p>
             <p>
               Chúng tôi lưu dữ liệu trong thời gian bạn sử dụng Juli. Khi bạn ngắt kết nối
