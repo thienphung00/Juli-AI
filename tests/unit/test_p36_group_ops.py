@@ -467,8 +467,9 @@ async def test_a_pack_group_measures_aov_items_and_warns_on_ctr(session, shop, m
 
 @pytest.mark.asyncio
 async def test_a_large_card_group_uses_two_windows_and_reads_aov(session, shop):
-    """A 17 + 9 CTR group drawn from cards: two pre-period windows (days −42..−1 in
-    the data), plus all-channel AOV and items per order; no guard (CTR is primary)."""
+    """A 17 + 9 CTR group drawn from cards: its primary verdict (behind the seller's
+    sentence) keeps the P31 rule; the D45.6 two-window reading sits beside it as
+    ``ops_rule`` (Ops only), plus all-channel AOV and items per order; no guard."""
     group = CardGroup(
         id=uuid.uuid4(),
         shop_id=shop.id,
@@ -498,8 +499,13 @@ async def test_a_large_card_group_uses_two_windows_and_reads_aov(session, shop):
     await _pack_data(session, shop.id, arms, aov_lift=0.0, ctr_drop=-0.3)  # CTR +30 %
     [measured] = await measure_due_groups(session, shop.id, now=START + timedelta(days=13))
     verdict = measured.verdict
-    assert verdict["adjustment"]["method"] == ADJUST_TWO_WINDOWS
+    assert verdict["adjustment"]["method"] == ADJUST_ONE_WINDOW  # P31, client-facing
+    assert verdict["adjustment"]["two_window_min"] is None
     assert verdict["primary"]["difference"] == pytest.approx(30, abs=4)
+    ops_rule = verdict["ops_rule"]
+    assert ops_rule["adjustment"]["method"] == ADJUST_TWO_WINDOWS
+    assert ops_rule["primary"]["difference"] == pytest.approx(30, abs=4)
+    assert verdict["metrics"]["aov|total"]["adjustment"]["method"] == ADJUST_TWO_WINDOWS
     assert set(verdict["metrics"]) == {"aov|total", "items_per_order|total"}
     assert verdict["metrics"]["aov|total"]["primary"]["difference"] == pytest.approx(0, abs=3)
     assert "guard" not in verdict
@@ -660,3 +666,161 @@ async def test_ops_routes_create_and_annotate_a_group(session, shop, monkeypatch
         assert missing.status_code == 404
     actions = sorted(r.action for r in (await session.execute(select(OpsAuditLog))).scalars().all())
     assert actions == ["card_group_create", "card_group_reason"]
+
+
+# =========================================================================== D45.8 strata
+
+
+def test_order_strata_split_the_busier_half_high():
+    orders = {"a": 331, "b": 229, "c": 32, "d": 13, "e": 6, "f": 8}
+    assert card_groups.order_strata(orders) == {
+        "a": "high",
+        "b": "high",
+        "c": "high",
+        "f": "low",
+        "d": "low",
+        "e": "low",
+    }
+    # Ties break by id, odd counts put the extra product high.
+    assert card_groups.order_strata({"y": 1, "x": 1, "z": 0}) == {
+        "x": "high",
+        "y": "high",
+        "z": "low",
+    }
+
+
+def test_a_stratified_draw_is_two_plus_one_in_each_stratum():
+    strata = {p: ("high" if i < 3 else "low") for i, p in enumerate("abcdef")}
+    for seed in range(50):
+        arms = card_groups.assign_arms_stratified(strata, seed)
+        assert arms == card_groups.assign_arms_stratified(strata, seed)  # replayable
+        for name in ("high", "low"):
+            got = [arms[p] for p, s in strata.items() if s == name]
+            assert sorted(got) == [ARM_CONTROL, ARM_TREATED, ARM_TREATED]
+
+
+async def _orders(session, shop_id, orders: dict[str, int]) -> None:
+    for product, n in orders.items():
+        for offset in range(1, 31):
+            day = LAUNCH - timedelta(days=offset)
+            session.add(
+                _row(
+                    shop_id,
+                    product,
+                    day,
+                    impressions=1000,
+                    clicks=40,
+                    card_impr=500,
+                    card_clicks=20,
+                    orders=n if offset <= 10 else 0,
+                    items=n,
+                    gmv=n * 100_000,
+                )
+            )
+    await session.flush()
+
+
+@pytest.mark.asyncio
+async def test_ops_creates_a_stratified_pack_group(session, shop, monkeypatch):
+    """D45.8: 6 products split by 30-day orders into high / low, 2 + 1 in each."""
+    monkeypatch.setattr(card_groups, "new_seed", lambda: 4242)
+    products = await _products(session, shop, 6)
+    per_day = dict(zip(products, [33, 23, 3, 1, 1, 2], strict=True))
+    await _orders(session, shop.id, per_day)
+    group = await create_ops_group(
+        session,
+        shop.id,
+        lever="pack_option",
+        metric="aov",
+        channel="total",
+        product_ids=products,
+        reason=None,
+        guard=None,
+        created_by="x",
+        now=START,
+        stratify=True,
+    )
+    design = GroupDesign.of(group)
+    assert design.strata == {
+        "pk00": "high",
+        "pk01": "high",
+        "pk02": "high",
+        "pk05": "low",
+        "pk03": "low",
+        "pk04": "low",
+    }
+    assert design.strata_orders is not None and design.strata_orders["pk00"] == 330
+    assert group.design["stratified_by"] == "orders_30d"
+    members = (await session.execute(select(CardGroupMember))).scalars().all()
+    arms = {m.tiktok_product_id: m.arm for m in members}
+    assert arms == card_groups.assign_arms_stratified(design.strata, 4242)
+    for name in ("high", "low"):
+        assert sum(arms[p] == ARM_CONTROL for p, s in design.strata.items() if s == name) == 1
+    [view] = await group_views(session, shop.id)
+    assert {m["product_id"]: m["stratum"] for m in view["members"]} == design.strata
+    with pytest.raises(GroupError, match="ít nhất 6"):
+        await create_ops_group(
+            session,
+            shop.id,
+            lever="pack_option",
+            metric="aov",
+            channel="total",
+            product_ids=products[:5],
+            reason=None,
+            guard=None,
+            created_by="x",
+            now=START,
+            stratify=True,
+        )
+
+
+@pytest.mark.asyncio
+async def test_only_ops_measures_ops_groups_and_leaves_card_groups(session, shop, monkeypatch):
+    """Card groups switched off: the budget measures Ops groups only; a card-drawn group
+    left from before the switch stays open (its seller sentence never changes)."""
+    monkeypatch.setattr(card_groups, "new_seed", lambda: 777)
+    products = await _products(session, shop, 6)
+    ops_group = await create_ops_group(
+        session,
+        shop.id,
+        lever="pack_option",
+        metric="aov",
+        channel="total",
+        product_ids=products[:3],
+        reason=None,
+        guard=None,
+        created_by="x",
+        now=START,
+    )
+    card_group = CardGroup(
+        id=uuid.uuid4(),
+        shop_id=shop.id,
+        group_key="ctr|cover_image|product_card",
+        metric="ctr",
+        lever="cover_image",
+        channel="product_card",
+        launched_on=LAUNCH,
+        release_on=LAUNCH + timedelta(days=14),
+        seed=31,
+        status="open",
+    )
+    session.add(card_group)
+    for i, product in enumerate(products[3:]):
+        session.add(
+            CardGroupMember(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                group_id=card_group.id,
+                tiktok_product_id=product,
+                action_card_id=None,
+                arm=ARM_CONTROL if i == 0 else ARM_TREATED,
+                assigned_at=datetime(2026, 10, 16),
+            )
+        )
+    arms = {p: (ARM_CONTROL if i % 3 == 0 else ARM_TREATED) for i, p in enumerate(products)}
+    await _pack_data(session, shop.id, arms, aov_lift=0.1, ctr_drop=0.0)
+    measured = await measure_due_groups(
+        session, shop.id, now=START + timedelta(days=13), only_ops=True
+    )
+    assert [g.id for g in measured] == [ops_group.id]
+    assert card_group.status == "open" and card_group.verdict is None

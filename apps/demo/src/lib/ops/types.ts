@@ -380,6 +380,8 @@ export interface CardGroupMember {
   readonly surfaced_at: string | null;
   readonly approved: boolean;
   readonly released_at: string | null;
+  /** P36 (D45.8): "high" / "low" order-volume stratum of a stratified Ops group. */
+  readonly stratum?: string | null;
 }
 
 /** P31 (D41.3): the group's simulated false-alarm rate (500 no-effect replays). */
@@ -416,7 +418,8 @@ export interface CardGroupAdjustment {
   readonly method: "change" | "one_window" | "two_windows";
   readonly theta: number;
   readonly theta_pre: number | null;
-  readonly two_window_min: number;
+  /** null: the P31 rule (a card group's client-facing verdict). */
+  readonly two_window_min: number | null;
 }
 
 /** P36 (D45.2): one more metric read the same way as the primary (all-channel AOV, items per order, card CTR). */
@@ -450,6 +453,8 @@ export interface CardGroupVerdict {
   readonly adjustment?: CardGroupAdjustment;
   readonly metrics?: Readonly<Record<string, CardGroupMetric>>;
   readonly guard?: CardGroupGuard;
+  /** P36 (D45.6, Ops only): a card group's primary metric read with the group-size rule; the seller's sentence keeps the P31 rule. */
+  readonly ops_rule?: CardGroupMetric;
   readonly products: readonly {
     readonly product_id: string;
     readonly arm: "treated" | "control";
@@ -491,6 +496,9 @@ export interface CardGroupDesign {
   readonly reason: string | null;
   readonly guard: boolean;
   readonly created_by: string | null;
+  /** P36 (D45.8): product → "high" / "low" by 30-day orders; null = one draw. */
+  readonly strata?: Readonly<Record<string, string>> | null;
+  readonly strata_orders?: Readonly<Record<string, number>> | null;
 }
 
 export interface CardGroupPlan {
@@ -521,6 +529,8 @@ export interface CardGroupCreate {
   readonly reason: string | null;
   /** null: on unless the metric is CTR. */
   readonly guard: boolean | null;
+  /** D45.8: draw within high / low order-volume strata (2 treated + 1 control each for 3 + 3). */
+  readonly stratify?: boolean;
 }
 
 /** `GET /v1/ops/shops/{id}/groups`. */

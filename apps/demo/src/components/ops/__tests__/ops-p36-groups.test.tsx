@@ -119,10 +119,30 @@ describe("Nhóm thử nghiệm tạo trong Ops (D45)", () => {
       product_ids: ["pk00", "pk01", "pk02", "pk03", "pk04", "pk05"],
       reason: "KG chọn",
       guard: true,
+      stratify: false,
     });
     fireEvent.click(within(form).getByRole("button", { name: "Tạo nhóm (6 sản phẩm)" }));
     await screen.findByText("AOV · Quy cách mới · tất cả kênh");
     expect(screen.queryByTestId("ops-group-create")).toBeNull();
+  });
+
+  it("shows the strata of a stratified group and a card group's Ops-only reading (D45.8, D45.6)", async () => {
+    const stratified: CardGroup = {
+      ...PACK,
+      members: PACK.members.map((m, i) => ({ ...m, stratum: i === 0 ? "high" : "low" })),
+      design: { ...PACK.design!, strata: { pk00: "high", pk01: "low" }, strata_orders: { pk00: 331, pk01: 13 } },
+      verdict: {
+        ...PACK.verdict!,
+        ops_rule: { metric: "aov", channel: "total", label: "AOV · tất cả kênh", adjustment: { method: "two_windows", theta: 0.9, theta_pre: 0.1, two_window_min: 15 }, primary: PACK.verdict!.primary },
+      },
+    };
+    render(<OpsCardGroups load={vi.fn(async () => ({ enabled: true, groups: [stratified] }))} shopId="s1" />);
+    const [group] = await screen.findAllByTestId("ops-group");
+    expect(group).toHaveTextContent("Chia tầng theo số đơn 30 ngày");
+    expect(within(group).getByTestId("ops-group-ops-rule")).toHaveTextContent("Theo cách tính mới (điều chỉnh theo hai cửa sổ tiền kỳ, chỉ Ops): +25,0 điểm %");
+    fireEvent.click(within(group).getByRole("button", { name: /AOV · Quy cách mới/ }));
+    expect(within(group).getByText("nhiều đơn")).toBeInTheDocument();
+    expect(within(group).getByText("ít đơn")).toBeInTheDocument();
   });
 
   it("edits the one-line reason", async () => {

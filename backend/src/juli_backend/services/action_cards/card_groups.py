@@ -208,6 +208,14 @@ GUARD_DROP_PCT = 15.0
 REASON_MAX_CHARS = 200
 #: An Ops group: this many products at most (a whole small shop).
 OPS_GROUP_MAX_PRODUCTS = 60
+#: D45.8: an Ops group can be drawn within order-volume strata (high / low), each
+#: stratum drawn like a small group (3 products -> 2 treated + 1 control).
+STRATUM_HIGH = "high"
+STRATUM_LOW = "low"
+STRATIFY_ORDERS_DAYS = 30
+STRATIFIED_BY = "orders_30d"
+#: Each stratum needs this many products (a stratum of 3 = 2 treated + 1 control).
+STRATUM_MIN_PRODUCTS = MIN_GROUP_SIZE
 CHANNELS: tuple[str, ...] = ("product_card", "video", "live", "total")
 
 
@@ -250,6 +258,10 @@ class GroupDesign:
     #: Read the product-card CTR as a guard (D45.2).
     guard: bool = False
     created_by: str | None = None
+    #: D45.8: product -> ``high`` / ``low`` order-volume stratum (``None`` = one draw).
+    strata: Mapping[str, str] | None = None
+    #: D45.8: the 30-day all-channel SKU orders behind the strata (shown in Ops).
+    strata_orders: Mapping[str, float] | None = None
 
     @classmethod
     def of(cls, group: CardGroup) -> GroupDesign:
@@ -260,6 +272,8 @@ class GroupDesign:
             reason=reason if isinstance(reason, str) and reason.strip() else None,
             guard=bool(raw.get("guard")),
             created_by=raw.get("created_by") if isinstance(raw.get("created_by"), str) else None,
+            strata=_str_map(raw.get("strata")),
+            strata_orders=_num_map(raw.get("strata_orders")),
         )
 
     @property
@@ -272,7 +286,24 @@ class GroupDesign:
             "reason": self.reason,
             "guard": self.guard,
             "created_by": self.created_by,
+            "strata": dict(self.strata) if self.strata else None,
+            "strata_orders": dict(self.strata_orders) if self.strata_orders else None,
+            "stratified_by": STRATIFIED_BY if self.strata else None,
         }
+
+
+def _str_map(raw: Any) -> dict[str, str] | None:
+    if not isinstance(raw, dict):
+        return None
+    out = {str(k): v for k, v in raw.items() if isinstance(v, str)}
+    return out or None
+
+
+def _num_map(raw: Any) -> dict[str, float] | None:
+    if not isinstance(raw, dict):
+        return None
+    out = {str(k): float(v) for k, v in raw.items() if isinstance(v, int | float)}
+    return out or None
 
 
 def metric_specs(key: GroupKey, design: GroupDesign) -> list[tuple[str, str]]:
@@ -336,6 +367,28 @@ def assign_arms(product_ids: Iterable[str], seed: int) -> dict[str, str]:
     rng.shuffle(order)
     controls = set(order[: control_count(len(order))])
     return {pid: (ARM_CONTROL if pid in controls else ARM_TREATED) for pid in order}
+
+
+def order_strata(orders: Mapping[str, float]) -> dict[str, str]:
+    """D45.8: product -> ``high`` / ``low`` by order volume: the busier half (rounded
+    up) is ``high``; ties by product id, so the split is reproducible (pure)."""
+    ranked = sorted(orders, key=lambda p: (-float(orders[p]), p))
+    cut = (len(ranked) + 1) // 2
+    return {p: (STRATUM_HIGH if i < cut else STRATUM_LOW) for i, p in enumerate(ranked)}
+
+
+def assign_arms_stratified(strata: Mapping[str, str], seed: int) -> dict[str, str]:
+    """D45.8: :func:`assign_arms` within each stratum -- the stratum's sorted ids shuffled
+    with ``(seed, stratum)``, its first :func:`control_count` the control. A 3 + 3 split
+    gives 2 treated + 1 control in each. Same strata + seed = same arms."""
+    out: dict[str, str] = {}
+    for name in sorted(set(strata.values())):
+        order = sorted(p for p, s in strata.items() if s == name)
+        rng = random.Random(f"{seed}:{name}")
+        rng.shuffle(order)
+        controls = set(order[: control_count(len(order))])
+        out.update({p: (ARM_CONTROL if p in controls else ARM_TREATED) for p in order})
+    return out
 
 
 def new_seed() -> int:
@@ -495,7 +548,7 @@ def build_verdict(
     as_of: date,
     control_pairs: Sequence[Sequence[float]] = (),
     history: Sequence[Mapping[str, Any]] = (),
-    two_window_min: int = TWO_WINDOW_MIN_PRODUCTS,
+    two_window_min: int | None = TWO_WINDOW_MIN_PRODUCTS,
 ) -> dict[str, Any]:
     """The stored verdict from per-product rows ``{product_id, arm, approved, change_pct}``
     (plus ``before`` / ``after`` / ``pre_before`` when measured from data).
@@ -508,7 +561,8 @@ def build_verdict(
     untouched post-launch window pairs) join the pre-period pairs in the null pool;
     ``history`` = the earlier checks of this group, ``checks`` = history + this one.
     D45.6 (P36): the adjustment follows the group size (``adjustment``: plain change
-    below ``two_window_min`` measured products, two pre-period windows from it); a
+    below ``two_window_min`` measured products, two pre-period windows from it;
+    ``None`` = the P31 rule, one fitted θ at every size); a
     row's ``pre_pre_before`` (days −42..−29) makes its pre-period pair a triple, so
     the false-alarm replay can apply the same rule.
     """
@@ -931,6 +985,7 @@ async def measure_due_groups(
     *,
     now: datetime,
     tunables: DiagTunables | None = None,
+    only_ops: bool = False,
 ) -> list[CardGroup]:
     """Day-14 verdicts for the shop's open groups whose 14 days of data are in (step 4).
 
@@ -943,7 +998,11 @@ async def measure_due_groups(
     D45 (P36): every verdict also reads all-channel AOV and items per order
     (``metrics``) and, for a group with a CTR guard, the product-card CTR
     (``guard``); the pre-period rule follows the group size
-    (``tunables.group_two_window_min``).
+    (``tunables.group_two_window_min``) for an Ops group and for those extra metrics.
+    A card-drawn group's primary verdict -- the one behind the seller's sentence --
+    keeps the P31 rule (one fitted θ), because D45 is Ops-only; the D45.6 reading of
+    its primary metric is stored next to it as ``ops_rule`` for Ops to compare.
+    ``only_ops``: measure only groups made in Ops (card groups switched off).
     """
     tun = tunables if tunables is not None else DiagTunables()
     from juli_backend.services.action_cards.optimize_product_cards import (
@@ -976,6 +1035,8 @@ async def measure_due_groups(
         ).scalars()
     )
     due.extend(group for group in rechecks if _recheck_due(group, as_of))
+    if only_ops:
+        due = [group for group in due if GroupDesign.of(group).ops]
     measured: list[CardGroup] = []
     for group in due:
         members = list(
@@ -1041,8 +1102,21 @@ async def measure_due_groups(
             as_of=as_of,
             control_pairs=control_pairs,
             history=previous.get("checks") or [],
-            two_window_min=tun.group_two_window_min,
+            two_window_min=tun.group_two_window_min if design.ops else None,
         )
+        if not design.ops:
+            # D45.6, Ops only: the group-size rule on the same rows, beside the P31 verdict.
+            verdict["ops_rule"] = metric_summary(
+                key.metric,
+                key.channel,
+                build_verdict(
+                    changes,
+                    seed=group.seed,
+                    as_of=as_of,
+                    control_pairs=control_pairs,
+                    two_window_min=tun.group_two_window_min,
+                ),
+            )
         metrics: dict[str, Any] = {}
         for metric, channel in specs:
             name = spec_key(metric, channel)
@@ -1273,6 +1347,8 @@ async def group_views(
                     "product_title": title or titles.get(member.tiktok_product_id),
                     "arm": member.arm,
                     "card_id": str(member.action_card_id) if member.action_card_id else None,
+                    #: D45.8: the member's order-volume stratum (Ops groups drawn by strata).
+                    "stratum": (design.strata or {}).get(member.tiktok_product_id),
                     "card_status": card.status if card is not None else None,
                     "surfaced_at": _iso(card.surfaced_at) if card is not None else None,
                     "approved": bool(card is not None and card.approved_at is not None),
@@ -1346,6 +1422,7 @@ async def create_ops_group(
     reason: str | None,
     guard: bool | None,
     created_by: str,
+    stratify: bool = False,
     now: datetime,
 ) -> CardGroup:
     """D45.1: a D34 group made in Ops (no cards), e.g. a new pack option on 4 + 2 products.
@@ -1382,6 +1459,11 @@ async def create_ops_group(
     unknown = [p for p in products if p not in known]
     if unknown:
         raise GroupError("Không có trong shop: " + ", ".join(unknown))
+    if stratify and len(products) < 2 * STRATUM_MIN_PRODUCTS:
+        raise GroupError(
+            f"Chia tầng theo số đơn cần ít nhất {2 * STRATUM_MIN_PRODUCTS} sản phẩm "
+            f"({STRATUM_MIN_PRODUCTS} mỗi tầng)"
+        )
     today = shop_day(now)
     groups, members = await _active_groups(session, shop_id, today)
     taken = sorted(
@@ -1396,12 +1478,21 @@ async def create_ops_group(
         raise GroupError("Đang ở một nhóm thử nghiệm khác: " + ", ".join(taken))
     key = GroupKey(metric, lever, channel)
     seed = new_seed()
-    arms = assign_arms(products, seed)
+    strata: dict[str, str] | None = None
+    orders: dict[str, float] | None = None
+    if stratify:
+        orders = await _recent_orders(session, shop_id, products, today)
+        strata = order_strata(orders)
+        arms = assign_arms_stratified(strata, seed)
+    else:
+        arms = assign_arms(products, seed)
     design = GroupDesign(
         source=SOURCE_OPS,
         reason=clean,
         guard=(metric != GUARD_METRIC[0]) if guard is None else bool(guard),
         created_by=created_by,
+        strata=strata,
+        strata_orders=orders,
     )
     group = CardGroup(
         id=uuid.uuid4(),
@@ -1441,6 +1532,30 @@ async def create_ops_group(
         },
     )
     return group
+
+
+async def _recent_orders(
+    session: AsyncSession, shop_id: uuid.UUID, products: Sequence[str], today: date
+) -> dict[str, float]:
+    """D45.8: each product's all-channel SKU orders over the :data:`STRATIFY_ORDERS_DAYS`
+    days before ``today`` (0 without data). One query."""
+    start = today - timedelta(days=STRATIFY_ORDERS_DAYS)
+    out = dict.fromkeys(products, 0.0)
+    rows = (
+        await session.execute(
+            select(AnalyticsPerformanceInterval).where(
+                AnalyticsPerformanceInterval.shop_id == shop_id,
+                AnalyticsPerformanceInterval.grain == "product",
+                AnalyticsPerformanceInterval.tiktok_product_id.in_(list(products)),
+                AnalyticsPerformanceInterval.start_date >= start,
+                AnalyticsPerformanceInterval.start_date < today,
+            )
+        )
+    ).scalars()
+    for row in rows:
+        if row.tiktok_product_id in out:
+            out[row.tiktok_product_id] += float(row.sku_orders or 0)
+    return out
 
 
 async def set_group_reason(

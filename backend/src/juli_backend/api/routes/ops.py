@@ -574,6 +574,8 @@ class GroupCreate(BaseModel):
     reason: str | None = None
     #: The product-card CTR guard (D45.2); ``None`` = on unless the metric is CTR.
     guard: bool | None = None
+    #: D45.8: draw within order-volume strata (high / low, 30-day orders).
+    stratify: bool = False
 
 
 @router.post("/shops/{shop_id}/groups")
@@ -605,6 +607,7 @@ async def ops_create_card_group(
                 guard=body.guard,
                 created_by=ctx.staff.email,
                 now=datetime.now(UTC),
+                stratify=body.stratify,
             )
             after = {
                 "group_id": str(group.id),
@@ -614,6 +617,7 @@ async def ops_create_card_group(
                 "products": sorted(body.product_ids),
                 "reason": (group.design or {}).get("reason"),
                 "guard": (group.design or {}).get("guard"),
+                "strata": (group.design or {}).get("strata"),
             }
         await audit.record(
             session, ctx.staff.actor, ACTION_CARD_GROUP_CREATE, shop_id=shop_id, after=after

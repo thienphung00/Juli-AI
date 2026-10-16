@@ -19,6 +19,7 @@ import { C, card } from "./ops-shell";
  */
 
 const ARM_LABEL: Record<string, string> = { treated: "Áp dụng", control: "Đối chứng" };
+const STRATUM_LABEL: Record<string, string> = { high: "nhiều đơn", low: "ít đơn" };
 const STATUS_LABEL: Record<string, string> = { open: "Đang chạy", measured: "Đã đo" };
 const METHOD_LABEL: Record<string, string> = {
   change: "thay đổi thường (nhóm nhỏ)",
@@ -173,6 +174,12 @@ function GroupRow({
         Kết quả ngày 14: <b>{group.verdict ? comparisonText(group.verdict.primary) : "chưa đo"}</b>
       </div>
       {adjustment ? <div style={{ color: C.muted2, fontSize: 12 }}>Cách tính: {METHOD_LABEL[adjustment.method] ?? adjustment.method}</div> : null}
+      {group.verdict?.ops_rule ? (
+        <div data-testid="ops-group-ops-rule" style={{ color: C.muted2, fontSize: 12 }}>
+          Theo cách tính mới ({METHOD_LABEL[group.verdict.ops_rule.adjustment?.method ?? ""] ?? "—"}, chỉ Ops): {comparisonText(group.verdict.ops_rule.primary)}
+        </div>
+      ) : null}
+      {group.design?.strata ? <div style={{ color: C.muted2, fontSize: 12 }}>Chia tầng theo số đơn 30 ngày (mỗi tầng ≈ 1/3 đối chứng)</div> : null}
       {metrics.map((m) => (
         <div key={`${m.metric}|${m.channel}`} style={{ color: C.body }}>
           {m.label}: {comparisonText(m.primary)}
@@ -192,6 +199,7 @@ function GroupRow({
             <tr style={{ textAlign: "left", color: C.muted2 }}>
               <th>Sản phẩm</th>
               <th>Nhóm</th>
+              {group.design?.strata ? <th>Tầng</th> : null}
               <th>Thẻ</th>
               <th>Thay đổi</th>
             </tr>
@@ -204,6 +212,7 @@ function GroupRow({
                 <tr key={m.product_id}>
                   <td>{m.product_title ?? m.product_id}</td>
                   <td>{ARM_LABEL[m.arm] ?? m.arm}</td>
+                  {group.design?.strata ? <td>{m.stratum ? (STRATUM_LABEL[m.stratum] ?? m.stratum) : "—"}</td> : null}
                   <td>
                     {cardText}
                     {m.approved ? " · đã duyệt" : ""}
@@ -229,6 +238,7 @@ function CreateGroupForm({ onCreate }: { readonly onCreate: (body: CardGroupCrea
   const [ids, setIds] = useState("");
   const [reason, setReason] = useState("");
   const [guard, setGuard] = useState(true);
+  const [stratify, setStratify] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const products = ids
@@ -261,7 +271,7 @@ function CreateGroupForm({ onCreate }: { readonly onCreate: (body: CardGroupCrea
         e.preventDefault();
         setBusy(true);
         setError(null);
-        onCreate({ lever, metric, channel, product_ids: products, reason: reason.trim() || null, guard: metric === "ctr" ? false : guard })
+        onCreate({ lever, metric, channel, product_ids: products, reason: reason.trim() || null, guard: metric === "ctr" ? false : guard, stratify })
           .then(() => {
             setOpen(false);
             setIds("");
@@ -281,6 +291,9 @@ function CreateGroupForm({ onCreate }: { readonly onCreate: (body: CardGroupCrea
             <input checked={guard} onChange={(e) => setGuard(e.target.checked)} type="checkbox" /> Kiểm tra CTR thẻ sản phẩm
           </label>
         ) : null}
+        <label>
+          <input checked={stratify} onChange={(e) => setStratify(e.target.checked)} type="checkbox" /> Chia tầng theo số đơn 30 ngày (nhiều / ít đơn)
+        </label>
       </div>
       <textarea aria-label="Mã sản phẩm TikTok" onChange={(e) => setIds(e.target.value)} placeholder="Mã sản phẩm TikTok, mỗi dòng một mã (ít nhất 3)" rows={4} value={ids} />
       <input
@@ -294,7 +307,7 @@ function CreateGroupForm({ onCreate }: { readonly onCreate: (body: CardGroupCrea
         Juli chia ngẫu nhiên ≈ 1/3 làm đối chứng (ghi lại seed). Chủ shop tự tạo thay đổi trên TikTok cho nhóm áp dụng; Juli không ghi lên TikTok. Người bán không thấy nhóm này.
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <button disabled={busy || products.length < 3} type="submit">
+        <button disabled={busy || products.length < (stratify ? 6 : 3)} type="submit">
           Tạo nhóm ({products.length} sản phẩm)
         </button>
         <button onClick={() => setOpen(false)} type="button">
