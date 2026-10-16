@@ -1826,3 +1826,12 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   governing law; the md lacks the site's 3-month trial and Shopee paragraph; the Ory contract cites
   "phiên bản 2.0 (ngày 14/10/2026)". /privacy also differs from its md (~20 blocks).
   Landing gates: lint / type-check / vitest 227 / build / check:seo PASS.
+- Deployed 2026-10-16: runs 38850894312 (e869e06a) and 38850938826 (980735ec), both success.
+  Live: `seo_live_check` 20/20; heading audit 12/12 public routes OK (one H1, no skipped level);
+  /terms shows "Phiên bản 2.1"; home H1/title carry the TMĐT copy. PageSpeed Insights mobile
+  (Google's servers, 12:07–12:09 GMT+7): home perf 84 · a11y/BP/SEO 100 · FCP 2.3 s · LCP 3.4 s ·
+  TBT 200 ms · CLS 0.006; /san-pham perf 88 · a11y/BP/SEO 100 (was 71 / 75 live before
+  8c03c6a5). AC-34.7 / AC-35.5 stay open: ≥ 95 / LCP < 2.5 s not met live. The gap is now FCP
+  (2.3 s: TTFB + render-blocking CSS ~150 ms), not the LCP element; next lever is server/edge
+  caching of the HTML (Cloudflare) rather than more page changes. Local CLI Lighthouse on this
+  host is unusable while load is 15–48.
