@@ -1295,6 +1295,10 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      failed run today, a run that ends `cancelled` or `timed_out` puts its approved card back to
      `active` (clears `approved_at`), so the seller sees "Chờ duyệt" again instead of a card stuck
      on "Đang thực hiện"; the demo sample (P37) already does this.
+  6. **Partner sign-in visible at the top (owner, 2026-10-16; amends D44.5):** the demo auth
+     screen shows the "Tài khoản đối tác" entry at the top of the sign-in column (above the
+     heading, clearly secondary to "Tiếp tục với Google"), so a partner reviewer finds it without
+     scrolling; the footer link stays.
 
   **D47 implementation note (P37, 2026-10-16, branch `fasttrack/demo-lifecycle`).** Item 2 lives in
   `apps/demo/src/lib/quyet-dinh/sample-clients.ts`: each card keeps a desk status like
@@ -1339,3 +1343,25 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   tích hợp", no Lazada / Tiki, no invented numbers, no "—" in visible copy. Also fixes the `/terms`
   meta description, which still said "kết nối TikTok Shop và Shopee" (terms 2.1 says Shopee is in
   progress). Blog drafts stay drafts (owner approves posts). Implemented in P39.
+- **D48 additions** (owner, 2026-10-16, after the Semrush Site Audit of app-juli.com, crawl
+  2026-10-16 12:50, 18 pages, Site Health 91 %, ships in the same deploy as P39):
+  1. **AI tiêu đề / mô tả section** on `/san-pham/de-xuat-va-thuc-thi` (competitor research:
+     Sapo help ranks #3 for "viết mô tả sản phẩm shopee bằng AI"; FastMoss has an AI title tool):
+     Juli drafts the title and description, writes them only after the seller approves, measures at
+     day 7 / 14. No claim beyond SPEC.
+  2. **Structured data error** (4 pages): `SoftwareApplication` on `/san-pham` and the three
+     capability pages fails Google's required `aggregateRating` or `review`. Juli has no real
+     reviews (D43.3), so ratings are **never** invented: switch the type (e.g. `Service` with
+     provider + offers on `/san-pham`, capability pages reference it by `@id`), keep Organization,
+     WebSite, BreadcrumbList, FAQPage.
+  3. **Broken internal links / 4XX** (13 links, 1 URL): Cloudflare Email Address Obfuscation
+     rewrites every `mailto:` into `/cdn-cgi/l/email-protection` (404 without JS). Fix is a
+     Cloudflare setting for app-juli.com (owner action, not code).
+  4. **`/llms.txt`** (notice, 404 today): add a short Vietnamese llms.txt listing the public pages.
+  5. Not fixed, with reason: low text-HTML ratio (Next.js payload, not thin copy); low word count
+     on `/blog` (grows as posts are published), `/contact`, `/dang-ky` (task pages); `/privacy`
+     long paragraphs (legal text must stay in sync with the md and contract, juli legal sync).
+  6. **Three new blog posts, in Vietnamese** (no English body text; TikTok's own Vietnamese metric
+     labels such as CTR, CTOR, AOV stay as TikTok writes them), status `draft` until the owner
+     approves: "GMV là gì" (Semrush VN 4,400/month, KD 21), "TikTok Shop không ra đơn", "Doanh thu
+     TikTok Shop giảm: checklist". Branch `fasttrack/p39b-blog` (P39-B).
