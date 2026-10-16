@@ -239,7 +239,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P44 Three draft posts a–c, hub links from the existing tools post | D49.2 | in progress, branch `fasttrack/p44-tools-listicles` | P44 agent (Opus) |
+| P44 Three draft posts a–c, hub links from the existing tools post | D49.2 | done on branch `fasttrack/p44-tools-listicles` (78db1734, 7c1109f8, eaabd2c1; not merged), drafts await owner approval | P44 agent (Opus) |
 
 ## P2–P6
 
