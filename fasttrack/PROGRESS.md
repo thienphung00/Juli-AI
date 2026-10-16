@@ -191,6 +191,12 @@ Branch `fasttrack/p17-onboarding-speed` from 09960b20 — not merged, not deploy
 |---|---|---|---|
 | P37 Sample store lifecycle (queued → running → applied / rejected / pending / expired), Quyết định + Phân tích on one tab-wide store, reviewer sample shares it | D47.2, D47.3 | done on branch `fasttrack/demo-lifecycle` (from 5b1a85f5) — not merged, not deployed | P37 agent (Opus) |
 
+## P38 — cancelled / timed-out runs reactivate the card (D47.5)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P38 One shared helper (`services/agent/card_reactivation.py`) puts an approved card back to `active` when its run ends `failed`, `cancelled` or `timed_out` (runner persist, crash handler, reaper); seller declines / reverts stay `dismissed` | D47.5 | done on branch `fasttrack/run-reactivate` (from 175e85ef, `fasttrack/optimize-product` merged in) — not merged, not deployed | P38 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

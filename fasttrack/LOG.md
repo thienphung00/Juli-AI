@@ -1963,3 +1963,44 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   resolved by keeping both sides. No code overlap (that branch is Ops + backend). Post-merge demo
   gates re-run below.
 - Post-merge (5da55516): demo `tsc` clean, eslint 0 errors, vitest 156 files / 1977 passed.
+
+## 2026-10-16 — P38 agent (Claude Opus) — D47.5: cancelled / timed-out runs reactivate the card
+
+- Branch `fasttrack/run-reactivate` from `fasttrack/optimize-product` 175e85ef (phase P38: P35–P37
+  taken); `fasttrack/optimize-product` (6cfd2851, with P37 `fasttrack/demo-lifecycle`) merged in
+  before the docs. Backend only; `apps/demo` untouched.
+- New `services/agent/card_reactivation.py::reactivate_card_for_ended_run` — the one writer of
+  `approved` → `active` (`approved_at` cleared) for `failed` / `cancelled` / `timed_out`. Callers:
+  `runner/conversation_store.py::persist` (replaces the FAILED-only block), the crash handler in
+  `workers/tasks/agent_workflow.py` (replaces its inline copy) and `workers/tasks/reaper.py`'s sink
+  (new). Idempotent, card must be the run's own shop, `surfaced_at` kept.
+- Every path a run ends `cancelled` / `timed_out` (and how it behaves now):
+  - seller `POST /v1/agent-runs/{id}/cancel` and Ops shop disconnect (`cancel_requested`) → runner
+    checkpoint `cancelled_by_seller` → `cancelled` → card active;
+  - wall clock / iteration cap (runner) → `timed_out` → card active;
+  - reaper consent lapse `confirmation_expired` → `cancelled` → card active;
+  - reaper `external_wait_expired` (photo 3 d, promotion, content waits) → `timed_out` → card active;
+  - reaper `worker_lost` → `failed` → card active (did not reactivate before; now "like failed");
+  - "Không thực hiện" while a lever flow waits (`lever_flows.end_wait_by_seller` →
+    `cancelled_by_seller`): unchanged — the route's `close_card` dismisses (7-day cooldown);
+  - "Không thực hiện" at the consent step (run ends `completed` / `confirmation_declined`), Từ chối,
+    Hoàn tác (its revert run carries the same card): unchanged, dismissed. The helper only moves an
+    `approved` card, so it cannot undo a dismissal (tested: decline, then the reaper lapses the
+    consent → still dismissed; revert run cancelled → still dismissed).
+- Emission budget: a reactivated card is `active` with its old `surfaced_at`, so it counts toward
+  the open limit / cells again and expires 7 days after first surfacing (tested with
+  `apply_emission_budget`). Cooldown: `approved_at` cleared, as for failed.
+- Tests: `tests/unit/test_card_reactivation.py` (16: runner cancelled / timed_out ×2 / failed,
+  completed + waiting keep approved, idempotent double transition, other shop's card untouched,
+  reaper consent lapse / external wait / worker_lost, 7-day expiry, declined consent, lever-flow
+  decline, revert, one-helper AST guard); `tests/integration/test_reaper_two_tenant.py` +1 (two
+  tenants as `juli_app` under RLS, cross-tenant card link not followed). The #1305 test class
+  docstring said CANCELLED / TIMED_OUT do not revert (no test asserted it); corrected.
+- Gates: Docker Desktop hung (`docker info` no answer) → throwaway Homebrew Postgres 16 in UTC
+  (`TZ=UTC`, `timezone='UTC'`, port 55438, trust, `/tmp`), removed after. `CHECK_DATABASE_URL=…
+  fasttrack/check.sh --since fasttrack-deploy-20261016T0625Z` (= 6cfd2851, the deploy scope)
+  **5/5 PASS** (migrations to 092, isolation 12, gitleaks, ruff 6 files, pytest 11 files / 104).
+  `test_reaper_two_tenant.py` alone on that DB: 5 passed. mypy clean on the 4 source files.
+  Pre-existing, not touched: `test_import_boundaries` strict-baseline (8 grandfathered deep
+  imports in ops / workers files) and `test_agent_workflow_task_wiring` (7 fail without a DB on
+  the base too).
