@@ -4,9 +4,9 @@ import type { SiteRoute } from "./types";
 export const PRODUCT_ROUTES: readonly SiteRoute[] = [
   {
     path: "/san-pham",
-    title: "Phần mềm AI vận hành TikTok Shop: tính năng, giá | Juli AI",
+    title: "Phần mềm AI vận hành TMĐT cho nhà bán TikTok Shop | Juli AI",
     description:
-      "Juli AI phân tích GMV TikTok Shop theo Thẻ sản phẩm, Video, LIVE, đề xuất và thực thi khi bạn duyệt, đo kết quả ngày 7 và 14. Từ 500.000đ/tháng.",
+      "Phần mềm AI cho nhà bán TMĐT: phân tích GMV TikTok Shop theo Thẻ sản phẩm, Video, LIVE, thực thi khi bạn duyệt, đo ngày 7, 14. Từ 500.000đ/tháng.",
     lastModified: "2026-10-15",
     breadcrumbName: "Sản phẩm",
     changeFrequency: "monthly",

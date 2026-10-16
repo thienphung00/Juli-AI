@@ -1166,3 +1166,54 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      +40 % 58 → 70 %); groups < 15 use the plain change score (θ = 1), because the fitted θ made
      4+2 groups worse (SE 0.17 → 0.26). Applies to CTR, CTOR and AOV; re-run the P31 power check
      and keep false alarms < 15 %.
+
+- **D46** — Product polish on app-juli.com (owner, 2026-10-16, Vietnamese request, paraphrased):
+  1. **Header "Sản phẩm" is a dropdown** (SaaS-style, small): Tổng quan sản phẩm (`/san-pham`),
+     Phân tích shop, Đề xuất và thực thi, Đo lường GMV, each with a one-line description. A
+     disclosure button (`aria-expanded` / `aria-controls`, Escape returns focus, click outside and
+     route change close it); the four links are always in the server HTML (hidden by CSS, so they
+     stay crawlable); on phones the menu shows "Sản phẩm" as an expandable group. "Kết nối TikTok
+     Shop", Blog and Giới thiệu stay top-level.
+  2. **`/san-pham` hero gets a framed product screenshot** in a two-column hero (stacked under the
+     copy on phones), captioned "Dữ liệu mẫu", **not** prioritised: on mobile the H1 is the LCP and
+     an eager hero image regressed LCP 2.5 s → 3.4 s (P34 LOG). The same shot is not repeated
+     lower on the page.
+  3. **"Vòng làm việc" is a compact 5-step stepper** (number + icon, 1–3 word title, one short
+     line each). Facts stay as P34-C corrected them (five traffic sources; at day 7 Juli *asks*
+     whether to revert when a guarded metric leaves its band; comparison with similar unchanged
+     products is being tested); the longer explanations live on the capability pages.
+  4. **No em dash "—" in visible copy** (page text, alt text, `<title>`, meta / OG text, JSON-LD
+     names): a comma where it reads naturally, otherwise ":" or a rephrase. `<title>` suffixes
+     use " | " ("Phân tích shop | Juli AI"), never a comma. En dashes in ranges ("7–14",
+     "trước–sau") stay. Code comments, CSS, READMEs and docs are not copy and are untouched.
+     **Exception: `/privacy` and `/terms`** (incl. `privacy-policy-english.tsx`,
+     `legal-template.tsx`) are left word-for-word as they are, because their text must match the
+     signed contract and the legal markdown (memory: legal docs sync); a dash change there goes
+     through the contract first.
+  5. **Owner follow-up (2026-10-16):** (a) the `/san-pham` hero puts all its copy in one left
+     column in reading order (eyebrow → H1 → intro → CTAs, left-aligned) with the framed shot in
+     the right column, like the home hero; phones: copy, then image. The intro text is unchanged.
+     (b) The homepage H1 becomes the owner's line alone, **"Trợ lý AI vận hành TMĐT: tìm chỗ cải
+     thiện GMV."** (the old tail ", đề xuất cách sửa, đo kết quả." is dropped: the lead under it
+     already says Juli finds, proposes and changes only after approval, and the shorter H1 no longer
+     runs to 5 lines at 1440). "TikTok Shop" stays in the home `<title>` and meta description
+     (unchanged). The P34 mockups in `fasttrack/design/p34/` keep the old H1 as the historical
+     spec. (c) The home price card is not touched (fixed in 8c03c6a5).
+  6. **Heading outline** (owner follow-up, 2026-10-16): the home marketplace strip's "Sàn Juli kết
+     nối" is a label (`<p>` naming the strip region and its list), not an H2. Guard on every public
+     page, both rendered (`__tests__/heading-outline.test.tsx`) and built (`check:seo`): exactly one
+     H1 and it comes first, no skipped level, no empty heading, no heading inside the site header
+     (incl. the dropdown), any nav, or the footer.
+  7. **Positioning: TMĐT, not only TikTok Shop** (owner follow-up #3, 2026-10-16). Sentences that
+     say what Juli AI *is* or *does* name e-commerce sellers ("nhà bán TMĐT"): /san-pham H1 and
+     intro, "Juli AI là gì", audience line, about lead + company row, footer tagline, OG alt and a new
+     OG image (`/og/juli-ai-default-v2.png`, v1 kept), VideoObject name, home / product / blog /
+     signup titles and descriptions (which flow into SoftwareApplication JSON-LD), blog index lead.
+     Accuracy (Shopee / TikTok partner rules): where a platform is named, only TikTok Shop is
+     connected and Shopee is "đang tích hợp"; no other marketplace is named. "TikTok Shop" stays
+     wherever the fact is TikTok-specific (connect page, Open API, OAuth, traffic sources, TikTok's
+     formula, capability page titles / descriptions about TikTok data, the TikTok Pixel cookie text,
+     blog posts about TikTok) and in the home and /san-pham `<title>` for search. `/privacy` and
+     `/terms` unchanged (D46.4): /terms §2 "Juli AI là trợ lý giúp người bán TikTok Shop tăng trưởng
+     …" now disagrees and goes through contract + md + site together. Outside the landing,
+     `dictionary.md` `landing.footer.tagline` still reads "Trợ lý AI cho người bán TikTok Shop".

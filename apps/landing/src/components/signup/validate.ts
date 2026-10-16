@@ -8,7 +8,7 @@ import { FIELDS, ROLE_OPTIONS } from "./signup-content";
 
 export const MESSAGES = {
   full_name: "Vui lòng nhập họ tên (2–120 ký tự).",
-  phone: "Số điện thoại chưa đúng — nhập số di động Việt Nam, ví dụ 0912 345 678.",
+  phone: "Số điện thoại chưa đúng, hãy nhập số di động Việt Nam, ví dụ 0912 345 678.",
   email: "Email chưa đúng, ví dụ ten@congty.vn.",
   shop: "Vui lòng nhập tên hoặc link shop TikTok (2–300 ký tự).",
   role: "Vui lòng chọn vai trò.",

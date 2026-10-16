@@ -210,6 +210,7 @@ body {
 .ui-header__login:focus-visible,
 .ui-header__brand:focus-visible,
 .ui-header__menu-button:focus-visible,
+.ui-navmenu__item:focus-visible,
 .ui-footer__link:focus-visible,
 .ui-toc__link:focus-visible,
 .ui-toc__summary:focus-visible,
@@ -476,6 +477,134 @@ body {
 
 .ui-header__panel .ui-header__link {
   font-size: 1rem;
+}
+
+/* "Sản phẩm" dropdown (D46.1). The panel is always in the DOM (crawlable
+   links) and shown by [data-open]; `bar` floats under the button on desktop,
+   `panel` opens inline inside the mobile menu. */
+.ui-navmenu {
+  position: relative;
+}
+
+.ui-navmenu__button {
+  gap: 4px;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ui-navmenu__button[data-active] {
+  color: var(--lp-ink);
+  font-weight: var(--lp-weight-semibold);
+}
+
+.ui-navmenu__chevron {
+  flex: none;
+  color: var(--lp-muted);
+  transition: transform 150ms ease;
+}
+
+.ui-navmenu[data-open] .ui-navmenu__chevron {
+  transform: rotate(180deg);
+}
+
+.ui-navmenu__panel {
+  display: none;
+}
+
+.ui-navmenu[data-open] .ui-navmenu__panel {
+  display: block;
+}
+
+.ui-navmenu__list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-navmenu__item {
+  display: flex;
+  min-height: var(--lp-touch);
+  align-items: center;
+  gap: var(--lp-space-3);
+  padding: 10px;
+  border-radius: var(--lp-radius-md);
+  color: var(--lp-ink);
+  text-decoration: none;
+}
+
+.ui-navmenu__item:hover {
+  background: var(--lp-alt);
+}
+
+.ui-navmenu__item[aria-current="page"] {
+  background: var(--lp-pink-tint);
+}
+
+.ui-navmenu__icon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-sm);
+  background: var(--lp-bg);
+  color: var(--lp-pink-text);
+}
+
+.ui-navmenu__text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ui-navmenu__label {
+  font-size: var(--lp-text-body-small);
+  font-weight: var(--lp-weight-semibold);
+  line-height: 1.35;
+}
+
+.ui-navmenu__desc {
+  color: var(--lp-muted);
+  font-size: var(--lp-text-caption);
+  line-height: 1.4;
+}
+
+.ui-navmenu--bar .ui-navmenu__panel {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + var(--lp-space-2));
+  left: calc(-1 * var(--lp-space-2));
+  width: 22rem;
+  padding: var(--lp-space-2);
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-lg);
+  background: var(--lp-bg);
+  box-shadow: var(--lp-shadow-menu);
+}
+
+.ui-navmenu--panel .ui-navmenu__button {
+  width: 100%;
+  justify-content: space-between;
+  font-size: 1rem;
+}
+
+.ui-navmenu--panel .ui-navmenu__panel {
+  padding: 2px 0 var(--lp-space-1) var(--lp-space-2);
+}
+
+.ui-navmenu--panel .ui-navmenu__icon {
+  display: none;
+}
+
+.ui-navmenu--panel .ui-navmenu__item {
+  padding-block: 8px;
 }
 
 @media (min-width: 900px) {
@@ -964,6 +1093,134 @@ body {
   }
 }
 
+/* The default card layout ignores the wrapper (same boxes as before P35). */
+.ui-step__main {
+  display: contents;
+}
+
+.ui-step__note {
+  margin: 0;
+  color: var(--lp-muted);
+  font-size: var(--lp-text-caption);
+  line-height: 1.5;
+}
+
+/* Stepper (D46.3, /san-pham): phones = vertical timeline, icon chips joined by
+   a hairline; ≥ 960 px = one row of five connected cards. */
+.ui-steps--stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ui-steps--stepper .ui-step,
+.ui-steps--stepper .ui-step:last-child {
+  position: relative;
+  flex-direction: row;
+  gap: var(--lp-space-4);
+  padding: 0 0 var(--lp-space-6);
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.ui-steps--stepper .ui-step:last-child {
+  padding-bottom: 0;
+}
+
+/* The line from one chip down to the next. */
+.ui-steps--stepper .ui-step:not(:last-child)::before {
+  position: absolute;
+  top: 44px;
+  bottom: 4px;
+  left: 21px;
+  width: 1px;
+  background: var(--lp-border);
+  content: "";
+}
+
+.ui-step__icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--lp-hairline);
+  border-radius: var(--lp-radius-md);
+  background: var(--lp-bg);
+  color: var(--lp-ink);
+}
+
+.ui-step--you .ui-step__icon {
+  border-color: var(--lp-pink-line);
+  background: var(--lp-pink-tint);
+  color: var(--lp-pink-text);
+}
+
+.ui-steps--stepper .ui-step__main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.ui-steps--stepper .ui-step__text {
+  gap: var(--lp-space-1);
+}
+
+.ui-steps--stepper .ui-step__title {
+  font-size: var(--lp-text-h3-small);
+}
+
+.ui-steps--stepper .ui-step__body {
+  font-size: var(--lp-text-body-small);
+}
+
+@media (min-width: 960px) {
+  .ui-steps--stepper {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--lp-space-5);
+  }
+
+  .ui-steps--stepper .ui-step,
+  .ui-steps--stepper .ui-step:last-child {
+    flex-direction: column;
+    gap: var(--lp-space-4);
+    padding: var(--lp-space-5);
+    border: 1px solid var(--lp-hairline);
+    border-radius: var(--lp-radius-lg);
+    background: var(--lp-bg);
+  }
+
+  .ui-steps--stepper .ui-step--you,
+  .ui-steps--stepper .ui-step--you:last-child {
+    border-color: var(--lp-pink-line);
+    background: var(--lp-pink-tint);
+  }
+
+  /* Connector to the next card, across the gap, level with the chip. */
+  .ui-steps--stepper .ui-step:not(:last-child)::before {
+    top: 41px;
+    right: calc(-1 * var(--lp-space-5) - 1px);
+    bottom: auto;
+    left: auto;
+    width: var(--lp-space-5);
+    height: 1px;
+  }
+
+  .ui-steps--stepper .ui-step__main {
+    gap: var(--lp-space-1);
+    padding-top: 0;
+  }
+
+  .ui-steps--stepper .ui-step__title {
+    font-size: var(--lp-text-h3);
+  }
+}
+
 /* ————— FunnelDiagram ————— */
 
 .ui-funnel {
@@ -1249,6 +1506,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .ui-button,
+  .ui-navmenu__chevron,
   .ui-faq__chevron {
     transition: none;
   }

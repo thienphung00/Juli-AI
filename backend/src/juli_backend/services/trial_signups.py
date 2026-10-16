@@ -92,15 +92,15 @@ _PHONE_STRIP = re.compile(r"[\s.\-()]")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 
 MSG_NAME = "Vui lòng nhập họ tên (2–120 ký tự)."
-MSG_PHONE = "Số điện thoại chưa đúng — nhập số di động Việt Nam, ví dụ 0912 345 678."
+MSG_PHONE = "Số điện thoại chưa đúng, hãy nhập số di động Việt Nam, ví dụ 0912 345 678."
 MSG_EMAIL = "Email chưa đúng, ví dụ ten@congty.vn."
 MSG_SHOP = "Vui lòng nhập tên hoặc link shop TikTok (2–300 ký tự)."
 MSG_ROLE = "Vui lòng chọn vai trò."
 MSG_NOTE = "Ghi chú tối đa 1.000 ký tự."
 MSG_CONSENT = "Vui lòng đồng ý với Điều khoản dịch vụ và Chính sách bảo mật."
 MSG_RATE_LIMITED = (
-    "Bạn đã gửi đăng ký nhiều lần. Đội ngũ Juli đã nhận thông tin và sẽ liên hệ — "
-    "hoặc email lienhe@app-juli.com."
+    "Bạn đã gửi đăng ký nhiều lần. Đội ngũ Juli đã nhận thông tin và sẽ liên hệ với bạn, "
+    "hoặc bạn có thể gửi email tới lienhe@app-juli.com."
 )
 
 

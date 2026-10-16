@@ -1749,3 +1749,64 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   97 /san-pham, a11y 100. An eager (not high) hero shot put it back to 3.4 s, so the hero shots
   lazy-load; desktop stays 98–100 (Lighthouse flags `lcp-lazy-loaded` there, accepted).
   Local Node 26 needs `NODE_OPTIONS=--no-experimental-webstorage` for vitest (CI pins Node 20).
+
+## 2026-10-16 — P35 agent (Claude Opus) — product polish (D46, AC-35.x)
+
+- Branch `fasttrack/p35-product-polish` from `8c03c6a5` (worktree `~/juli-fasttrack-p35`), not
+  merged, not deployed. Commits `3b80d45e..` (see `git log 8c03c6a5..`).
+- **Header dropdown** (D46.1): `ProductMenu` in `components/ui/header-nav.tsx`, items from
+  `PRODUCT_MENU` (`lib/site.ts`): Tổng quan sản phẩm "Juli làm gì, cách làm và bảng giá" · Phân
+  tích shop "GMV theo luồng truy cập và phễu" · Đề xuất và thực thi "Thẻ đề xuất, thực thi khi bạn
+  duyệt" · Đo lường GMV "Đo kết quả ngày 7 và ngày 14". Click / keyboard only (no hover-open).
+  New icons `grid`, `chart`, `bulb`, `send`, `target`.
+- **/san-pham** (D46.2, D46.3, D46.5a): two-column hero (copy | `CAP_DX_LUOT_CHAY_MOBILE` run crop,
+  lazy), H1 44 px at ≥ 960 px; loop = `StepList variant="stepper"`. Loop facts follow the P34-C
+  corrections, not the stale reference text in the P35 brief: five traffic sources (not three);
+  at day 7 Juli *asks* whether to revert when a metric leaves the band you allow (not "đề xuất hoàn
+  tác ngay"); the comparison with similar unchanged products is not claimed in the loop (it is
+  "đang thử nghiệm" on the measurement card). The dropped long text is on the capability pages
+  (lever per metric, TikTok re-review and rejection reasons: `/san-pham/de-xuat-va-thuc-thi`; rejection
+  reasons: de-xuat FAQ / do-luong).
+- **Em dashes** (D46.4): 6 visible strings had one (OG alt, VideoObject name, about company row,
+  de-xuat quote, two signup messages; the backend mirrors of the signup messages changed too).
+  Built-site scan: 0 outside `/privacy` (21) and `/terms` (1).
+- **Home** (D46.5b, D46.6): H1 "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV." (3 lines at 1440);
+  "Sàn Juli kết nối" is a `<p>` label; heading guard in vitest + `check:seo`.
+- **Positioning** (D46.7), before → after:
+
+  | Where | Before | After |
+  | --- | --- | --- |
+  | `/` title | Trợ lý AI vận hành cho nhà bán TikTok Shop \| Juli AI | Trợ lý AI vận hành TMĐT cho nhà bán TikTok Shop \| Juli AI |
+  | `/` description | Juli AI phân tích TikTok Shop theo Lượt hiển thị, CTR, CTOR, AOV, đề xuất việc cần làm, thực thi khi bạn duyệt và đo GMV tăng thêm. Dùng thử 3 tháng. | Trợ lý AI cho nhà bán TMĐT, hiện kết nối TikTok Shop: đọc CTR, CTOR, AOV, đề xuất việc cần làm, thực thi khi bạn duyệt, đo GMV tăng thêm. |
+  | `/san-pham` title | Phần mềm AI vận hành TikTok Shop: tính năng, giá \| Juli AI | Phần mềm AI vận hành TMĐT cho nhà bán TikTok Shop \| Juli AI |
+  | `/san-pham` description | Juli AI phân tích GMV TikTok Shop theo Thẻ sản phẩm, Video, LIVE, đề xuất và thực thi khi bạn duyệt, đo kết quả ngày 7 và 14. Từ 500.000đ/tháng. | Phần mềm AI cho nhà bán TMĐT: phân tích GMV TikTok Shop theo Thẻ sản phẩm, Video, LIVE, thực thi khi bạn duyệt, đo ngày 7, 14. Từ 500.000đ/tháng. |
+  | `/san-pham` H1 | Juli AI: phần mềm AI vận hành TikTok Shop, từ phân tích đến đo GMV tăng thêm | Juli AI: phần mềm AI vận hành TMĐT, từ phân tích đến đo GMV tăng thêm |
+  | `/san-pham` intro | … phát triển cho nhà bán TikTok Shop tại Việt Nam. | … phát triển cho nhà bán TMĐT tại Việt Nam; hiện Juli kết nối TikTok Shop và đang tích hợp Shopee. |
+  | `/san-pham` "Juli AI là gì" | Người bán TikTok Shop có rất nhiều số liệu … Mỗi sản phẩm có Lượt hiển thị … | Nhà bán TMĐT có rất nhiều số liệu … Trên TikTok Shop, mỗi sản phẩm có Lượt hiển thị … |
+  | `/san-pham` "Dành cho ai" | Juli dành cho nhà bán TikTok Shop nhỏ và vừa … | Juli dành cho nhà bán TMĐT nhỏ và vừa … |
+  | `/about` lead | … giúp người bán hàng trên TikTok Shop tăng trưởng ổn định … AI. | … giúp nhà bán TMĐT tăng trưởng ổn định … AI. Hiện Juli kết nối TikTok Shop và đang tích hợp Shopee. |
+  | `/about` company row | Juli AI, trợ lý tăng trưởng cho người bán TikTok Shop | Juli AI, trợ lý tăng trưởng cho nhà bán TMĐT |
+  | Footer tagline | Trợ lý AI vận hành cho nhà bán TikTok Shop. | Trợ lý AI vận hành cho nhà bán TMĐT. |
+  | OG alt / image | Juli AI, trợ lý AI tăng trưởng cho người bán TikTok Shop (image "…cho người bán TikTok Shop") | Juli AI, trợ lý AI vận hành cho nhà bán TMĐT (`juli-ai-default-v2.png`: "Trợ lý AI vận hành cho nhà bán TMĐT", "Hiện kết nối TikTok Shop · Shopee đang tích hợp") |
+  | VideoObject name | Juli AI, trợ lý tăng trưởng cho người bán TikTok Shop | Juli AI, trợ lý tăng trưởng cho nhà bán TMĐT |
+  | `/blog` title | Blog kiến thức bán hàng TikTok Shop \| Juli AI | Blog kiến thức TMĐT và TikTok Shop \| Juli AI |
+  | `/blog` description | Bài viết chuyên sâu cho nhà bán TikTok Shop: … chọn công cụ phù hợp. | Bài viết chuyên sâu cho nhà bán TMĐT, bắt đầu từ TikTok Shop: … chọn công cụ. |
+  | `/blog` lead | Hướng dẫn đọc chỉ số, tối ưu thẻ sản phẩm và vận hành TikTok Shop, viết từ … TikTok. | Kiến thức vận hành shop TMĐT, bắt đầu từ TikTok Shop: cách đọc chỉ số, tối ưu thẻ sản phẩm, viết từ … TikTok. |
+  | `/dang-ky` description | Đăng ký dùng thử Juli AI miễn phí 3 tháng cho TikTok Shop: … kết nối shop. | Đăng ký dùng thử Juli AI miễn phí 3 tháng: … kết nối TikTok Shop. |
+
+  Unchanged on purpose: home hero lead (names no platform; badge + strip state TikTok Shop live,
+  Shopee integrating), TikTok-specific facts, capability page titles, cookie text, blog bodies.
+  Now disagreeing, left for the owner: `/terms` §2 "Juli AI là trợ lý giúp người bán TikTok Shop
+  tăng trưởng và tối ưu vận hành" (contract + md + site); `dictionary.md` `landing.footer.tagline`.
+- **Gates (local Node 26, vitest with `--no-experimental-webstorage`)**: landing lint 0,
+  type-check clean, vitest 14 files / 225 passed, build OK, `check:seo` 17/17;
+  `check.sh --since 8c03c6a5` (PYTHON = juli/.venv) 5/5 PASS (pytest 2 files / 52 passed).
+- **Lighthouse mobile (local `next start`)**: `/san-pham` 98 / 97 / 98, LCP 2.49 / 2.57 / 2.49 s,
+  a11y 100 (LCP = the intro paragraph). **`/` regressed with the new H1**: LCP element is now the
+  hero shot (the 3-line H1 is smaller than its visible part); 5 runs LCP 2.58 / 3.29 / 3.21 / 3.20 /
+  3.28 s, perf 93–97, a11y 100. Same build with the old H1: 2.57 / 2.79 / 2.49 / 2.56 / 3.29 s, LCP
+  element the H1. `priority` on the shot: 2.80 / 3.44 / 3.86 / 3.69 / 2.81 s (worse, reverted).
+  Open for the owner: accept, or shrink / move the mobile hero shot so the H1 stays the LCP.
+- Screenshots: `~/juli-fasttrack-p35/.p35-logs/shots/` (san-pham hero / loop / full 1440 + 390,
+  dropdown-open-1440, mobile-menu-open-390, home-hero 1440 + 390, dang-ky-header 1440 + 390); no
+  horizontal overflow on /, /san-pham, /san-pham/phan-tich-shop, /dang-ky, /about at 1440 and 390.

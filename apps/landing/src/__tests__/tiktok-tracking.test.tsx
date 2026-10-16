@@ -127,7 +127,7 @@ describe("StartDemo", () => {
     // A site page link and the Terms link: same page, same markup, different
     // destination. (Login/Signup lands in the Demo too, so it is tracked, under
     // its own content_name.)
-    await user.click(screen.getAllByRole("link", { name: "Sản phẩm" })[0]);
+    await user.click(screen.getAllByRole("link", { name: /^Tổng quan sản phẩm/ })[0]);
     await user.click(screen.getAllByRole("link", { name: "Điều khoản dịch vụ" })[0]);
 
     expect(trackedEvents("StartDemo")).toHaveLength(0);

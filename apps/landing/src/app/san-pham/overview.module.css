@@ -4,28 +4,28 @@
   display: block;
 }
 
-/* ————— Hero (same split as the capability pages) ————— */
+/* ————— Hero: copy | framed shot (like the home hero, D46.2) ————— */
 
 .hero {
   padding-top: var(--lp-space-10);
+  padding-bottom: var(--lp-space-6);
 }
 
 .heroSplit {
   display: grid;
-  gap: var(--lp-space-6);
+  gap: var(--lp-space-8);
   margin-top: var(--lp-space-7);
 }
 
-.heroTitle,
-.heroAside {
+.heroCopy {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--lp-space-4);
+  gap: 18px;
 }
 
-.heroTitle {
-  gap: 18px;
+.heroCopy > * {
+  margin: 0;
 }
 
 .actions {
@@ -35,18 +35,31 @@
 }
 
 .heroShot {
-  margin-top: var(--lp-space-10);
+  min-width: 0;
 }
 
 @media (min-width: 960px) {
-  .heroSplit {
-    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-    gap: var(--lp-space-12);
-    align-items: end;
+  .hero {
+    padding-bottom: var(--lp-space-12);
   }
 
-  .heroShot {
-    margin-top: var(--lp-space-12);
+  /* Two columns: a little smaller than the page H1 so it holds in four lines. */
+  .heroCopy .heroHeading {
+    font-size: 2.75rem;
+  }
+
+  .heroSplit {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    gap: var(--lp-space-12);
+    align-items: center;
+  }
+
+  .heroCopy {
+    gap: var(--lp-space-5);
+  }
+
+  .actions {
+    margin-top: var(--lp-space-2);
   }
 }
 

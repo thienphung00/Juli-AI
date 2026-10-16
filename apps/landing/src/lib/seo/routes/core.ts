@@ -4,9 +4,9 @@ import type { SiteRoute } from "./types";
 export const CORE_ROUTES: readonly SiteRoute[] = [
   {
     path: "/",
-    title: "Trợ lý AI vận hành cho nhà bán TikTok Shop | Juli AI",
+    title: "Trợ lý AI vận hành TMĐT cho nhà bán TikTok Shop | Juli AI",
     description:
-      "Juli AI phân tích TikTok Shop theo Lượt hiển thị, CTR, CTOR, AOV, đề xuất việc cần làm, thực thi khi bạn duyệt và đo GMV tăng thêm. Dùng thử 3 tháng.",
+      "Trợ lý AI cho nhà bán TMĐT, hiện kết nối TikTok Shop: đọc CTR, CTOR, AOV, đề xuất việc cần làm, thực thi khi bạn duyệt, đo GMV tăng thêm.",
     lastModified: "2026-10-15",
     breadcrumbName: "Trang chủ",
     changeFrequency: "weekly",

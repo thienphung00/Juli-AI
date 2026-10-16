@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { faqPageSchema, JsonLd, type FaqItem } from "../../lib/seo";
 import { TextLink } from "./button";
-import { Icon } from "./icon";
+import { Icon, type IconName } from "./icon";
 import { CheckList, Eyebrow, Heading, type HeadingSize } from "./section";
 
 function cx(...names: Array<string | false | null | undefined>): string {
@@ -100,6 +100,10 @@ export interface Step {
   body: string;
   /** The seller's step ("Duyệt"): pink tint, label "03 · bạn". */
   you?: boolean;
+  /** Line icon in a chip before the title (decorative). */
+  icon?: IconName;
+  /** One short muted line under the body (a caveat that must stay with the step). */
+  note?: string;
 }
 
 /** Juli's 5-step loop as in Main.dc.html "Cách Juli làm việc". */
@@ -117,6 +121,12 @@ export interface StepListProps {
   level?: 3 | 4;
   /** Suffix on the highlighted step's number. Default "bạn" → "03 · bạn". */
   youLabel?: string;
+  /**
+   * `cards` (default): 5-up cards ≥ 760 px, ruled rows on phones (home).
+   * `stepper`: a vertical timeline with icon chips on phones, one row of five
+   * connected cards ≥ 960 px (`/san-pham`, D46.3).
+   */
+  variant?: "cards" | "stepper";
   className?: string;
 }
 
@@ -124,20 +134,34 @@ export interface StepListProps {
  * Numbered steps: a 5-up card grid on desktop, a ruled list on mobile
  * (HomeMobile.dc.html). Same DOM at every width.
  */
-export function StepList({ steps = LOOP_STEPS, level = 3, youLabel = "bạn", className }: StepListProps) {
+export function StepList({
+  steps = LOOP_STEPS,
+  level = 3,
+  youLabel = "bạn",
+  variant = "cards",
+  className,
+}: StepListProps) {
   const Title = `h${level}` as "h3" | "h4";
   return (
-    <ol className={cx("ui-steps", className)}>
+    <ol className={cx("ui-steps", variant === "stepper" && "ui-steps--stepper", className)}>
       {steps.map((step, index) => {
         const number = String(index + 1).padStart(2, "0");
         return (
           <li className={cx("ui-step", step.you && "ui-step--you")} key={step.title}>
-            <span className="ui-step__number">
-              {step.you && youLabel ? `${number} · ${youLabel}` : number}
-            </span>
-            <div className="ui-step__text">
-              <Title className="ui-step__title">{step.title}</Title>
-              <p className="ui-step__body">{step.body}</p>
+            {step.icon ? (
+              <span className="ui-step__icon">
+                <Icon name={step.icon} size={20} strokeWidth={1.8} />
+              </span>
+            ) : null}
+            <div className="ui-step__main">
+              <span className="ui-step__number">
+                {step.you && youLabel ? `${number} · ${youLabel}` : number}
+              </span>
+              <div className="ui-step__text">
+                <Title className="ui-step__title">{step.title}</Title>
+                <p className="ui-step__body">{step.body}</p>
+                {step.note ? <p className="ui-step__note">{step.note}</p> : null}
+              </div>
             </div>
           </li>
         );
