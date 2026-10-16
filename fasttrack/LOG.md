@@ -2224,3 +2224,28 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   failed / 2889 passed (`test_agent_workflow_task_wiring.py`, SQLAlchemy URL parse: the known local
   limitation; no Python touched).
 - Next: owner reviews the figures with the drafts (`pnpm dev`, `/blog/<slug>`), merge `--no-ff`.
+
+## 2026-10-16 — P39-D agent (Claude Opus) — three more figures each in two P39-B drafts (D48 additions 8)
+
+- Branch `fasttrack/p39d-more-figures` (from `fasttrack/optimize-product` e20e5394). Not merged, not pushed.
+- **Không ra đơn** (5 → 8): `truoc-khi-doc-pheu` (diagram, H2 "Trước khi đọc phễu": four product
+  statuses, only Trực tuyến sells, then stock per variant and shop operations), `doc-pheu-o-dau`
+  (diagram, H2 "Đọc phễu ở đâu": the Seller Center path in words, no TikTok UI, plus the three
+  reading rules; the 50 / 20 floors are labelled as Juli's rule, not TikTok's), `luong-noi-dung`
+  (diagram, H2 "Luồng nội dung": Video / LIVE / Liên kết symptom and checks).
+- **Doanh thu giảm** (5 → 8): `pt-video` (screenshot `cap-dl-tin-cay` + mobile crop, the Video block
+  on the sample shop, placed after the Video checklist it matches: Lượt hiển thị +2,0 %, CTR −4,8 %),
+  `kiem-tra-theo-chi-so` (diagram, H2 "theo từng chỉ số": four metrics, four cause groups),
+  `ngoai-pheu` (diagram, H2 "Nguyên nhân nằm ngoài phễu": GMV vs tiền về, four causes).
+- None of the five diagrams shows hypothetical data, so none carries the "Ví dụ giả định" pill;
+  thresholds and day windows are rules from the post text. 40 new files, 1,756 KB on disk; a reader
+  downloads one AVIF per figure. Existing diagram files untouched (script skipped them; CSS added
+  under a `P39-D` block and new classes only, so the old diagrams re-render identically).
+- `blog.test.tsx` figure bound 3–5 → 3–8.
+- Gates (Node 26 with `--no-experimental-webstorage`): lint 0, `tsc --noEmit` 0, vitest 16 files /
+  280 passed, build OK, `check:seo` 21 passed. `next start` at 390 and 1440 px: 8 figures per post,
+  phone files below 640 px, desktop 720 w at 1440, no horizontal overflow; shots of the six new figures
+  in the session scratchpad `shots-p39d/`. `check.sh`: migrations / isolation FAIL (no throwaway
+  database), gitleaks PASS, ruff PASS, pytest 7 failed / 2889 passed (`test_agent_workflow_task_wiring.py`,
+  the known local limitation; no Python touched).
+- Next: owner reviews the new figures with the drafts, merge `--no-ff`.
