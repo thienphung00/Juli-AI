@@ -90,8 +90,12 @@ describe("homepage (D43.2 + D44)", () => {
       expect(img).toHaveAttribute("width");
       expect(img).toHaveAttribute("height");
     }
-    // The hero shot is the LCP image.
-    expect(shots[0]).toHaveAttribute("fetchpriority", "high");
+    // The hero shot is NOT prioritised: on mobile the H1 is the LCP, and an
+    // eager or high-priority hero image competes with the fonts it waits on
+    // (local Lighthouse mobile A/B, P34 AC-34.7: LCP 3.4 s eager vs 2.5 s lazy;
+    // desktop stays 98).
+    expect(shots[0]).toHaveAttribute("loading", "lazy");
+    expect(shots[0]).toHaveAttribute("fetchpriority", "auto");
     // No mascot with baked-in figures, no sales-video frame with numbers.
     expect(container.querySelector('img[src*="hero-mascot"]')).toBeNull();
   });

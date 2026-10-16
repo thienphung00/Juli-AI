@@ -138,7 +138,10 @@ export interface ShotProps {
   elevation?: "frame" | "hero";
   /** `sizes` for the desktop srcset. */
   sizes?: string;
-  /** The LCP image (home / product hero only). */
+  /**
+   * Eager + high priority. Not used by the home / product heroes: their H1 is
+   * the mobile LCP and a prioritised shot slows it (AC-34.7).
+   */
   priority?: boolean;
   className?: string;
 }

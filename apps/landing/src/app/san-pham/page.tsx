@@ -260,7 +260,6 @@ export default function ProductPage() {
                 variants: CAP_DX_QUY_TAC,
               }}
               padding="lg"
-              priority
               sizes="(min-width: 1200px) 1088px, 100vw"
             />
           </Container>

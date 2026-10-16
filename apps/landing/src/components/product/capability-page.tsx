@@ -144,7 +144,6 @@ export function CapabilityPage({
               images={heroShot}
               layout="joined"
               padding="lg"
-              priority
               sizes={HERO_SIZES}
             />
           </Container>

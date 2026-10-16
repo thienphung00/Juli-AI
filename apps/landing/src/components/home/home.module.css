@@ -180,7 +180,7 @@
 .marketName {
   color: var(--lp-ink);
   font-size: var(--lp-text-label);
-  font-weight: var(--lp-weight-bold);
+  font-weight: var(--lp-weight-semibold);
 }
 
 .marketNote {

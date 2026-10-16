@@ -1738,3 +1738,14 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   now asserts the demo app still consumes `@juli/ui` (it does: Quyết định, Cài đặt, panels).
   Local `check.sh --since 0739f4da` (CI scope): 5/5, pytest 206 files / 2990 passed. Lesson:
   run the integration `check.sh` with the last deploy tag as `--since`, not the phase base.
+- P34 deployed (run 38831471506, b936bf56). `seo_live_check` 20/20. Live Lighthouse mobile (local
+  CLI; PSI API quota exhausted): home perf 71 / LCP 5.1 s, /san-pham 75 / 4.9 s, a11y 96 — the
+  home price card was grey on dark (1.93:1): the P34 integration rule `.ui-card > p:not(.ui-eyebrow)`
+  (0,2,1) outranked `.priceCard > .price` (0,2,0), shrinking the price too. Now
+  `.ui-card > :where(p:not(.ui-eyebrow))` (0,1,0) + a dark-card body colour.
+- LCP on mobile is the H1 (render delay 85–89 %), not the hero shot. Local `next start` A/B, 3 runs
+  each: baseline 3.5 s → `preload: false` on fonts 2.9 s but FCP +0.7 s (rejected) → drop the
+  700 face (wordmark only, now 600) + no priority on the hero shots 2.5 s, perf 96–98 home /
+  97 /san-pham, a11y 100. An eager (not high) hero shot put it back to 3.4 s, so the hero shots
+  lazy-load; desktop stays 98–100 (Lighthouse flags `lcp-lazy-loaded` there, accepted).
+  Local Node 26 needs `NODE_OPTIONS=--no-experimental-webstorage` for vitest (CI pins Node 20).

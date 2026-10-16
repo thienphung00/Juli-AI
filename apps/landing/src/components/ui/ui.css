@@ -322,7 +322,7 @@ body {
 
 .ui-brand__name {
   font-size: 1.25rem;
-  font-weight: var(--lp-weight-bold);
+  font-weight: var(--lp-weight-semibold);
   letter-spacing: -0.02em;
   line-height: 1;
 }
@@ -656,11 +656,17 @@ body {
   color: var(--lp-on-dark);
 }
 
-.ui-card > p:not(.ui-eyebrow) {
+/* `:where()` keeps these at one class of specificity, so a page's own card
+   classes (e.g. the home price card, `.priceCard > .price`) still win. */
+.ui-card > :where(p:not(.ui-eyebrow)) {
   margin: 0;
   color: var(--lp-body);
   font-size: var(--lp-text-body-small);
   line-height: 1.55;
+}
+
+.ui-card--dark > :where(p:not(.ui-eyebrow)) {
+  color: var(--lp-on-dark-body);
 }
 
 .ui-checklist {

@@ -92,7 +92,6 @@ export function HomeHero() {
                 alt: "Thẻ đề xuất của Juli: chỉ số mục tiêu, lý do và thay đổi trước–sau (dữ liệu mẫu)",
                 crop: 7 / 5,
               }}
-              priority
               sizes="(min-width: 1200px) 600px, (min-width: 960px) 50vw, 100vw"
             />
             <figcaption className={styles.heroMainCaption}>Dữ liệu mẫu</figcaption>
