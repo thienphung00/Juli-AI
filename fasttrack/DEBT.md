@@ -1063,3 +1063,9 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] P37: `fasttrack/shopee-isv-services-information.md` step 1 says to choose "Tài khoản đối tác
   (đăng nhập bằng mật khẩu)"; the auth screen's footer link reads only "Tài khoản đối tác". Giving
   the direct URL `https://demo.app-juli.com/auth/email#doi-tac` would be clearer for the reviewer.
+- [ ] P39 (D48.5): "ROI và ngân sách GMV Max" has no page copy by design (Juli runs no ads); it is
+  owed as a blog post later, owner-approved like the other drafts.
+- [ ] P39: the `/san-pham` title had to fit 60 characters with the " | Juli AI" suffix, so it reads
+  "Phần mềm AI phân tích, vận hành TMĐT TikTok Shop" (no "và", no "cho nhà bán"); the meta
+  description carries the full "phân tích và vận hành cho nhà bán TMĐT". Owner may prefer another
+  ≤ 50-character wording.
