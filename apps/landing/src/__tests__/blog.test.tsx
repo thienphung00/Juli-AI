@@ -29,6 +29,13 @@ const PRODUCT_PAGES = new Set([
   "/ket-noi/tiktok-shop",
 ]);
 
+/** The tools hub (D49.2) and the listicles that link it instead of Juli's product pages. */
+const TOOLS_HUB = "cong-cu-cho-nha-ban-tiktok-shop-2026";
+const NO_JULI_IN_BODY = new Set([
+  "phan-mem-quan-ly-ban-hang-da-kenh-2026",
+  "cong-cu-ai-tao-anh-video-san-pham-tiktok-shop",
+]);
+
 const fixture = (slug: string, status: BlogPostMeta["status"]): BlogPostMeta => ({
   slug,
   status,
@@ -286,8 +293,21 @@ describe("pillar posts content (D43.7)", () => {
       for (const href of internal) {
         expect(registered.has(href), href).toBe(true);
       }
+      if (NO_JULI_IN_BODY.has(meta.slug)) {
+        // D49.2 a / c: listicles that must not mention Juli link the tools hub, not the product pages.
+        expect(internal).toContain(`/blog/${TOOLS_HUB}`);
+        expect(internal.filter((href) => href.startsWith("/san-pham") || href.startsWith("/ket-noi"))).toEqual([]);
+        expect(post.body).not.toMatch(/Juli/);
+        return;
+      }
       for (const page of ["/san-pham", ...PRODUCT_PAGES]) {
         expect(internal, page).toContain(page);
+      }
+    });
+
+    it(`${meta.slug}: no em dash in visible copy (D46.4)`, () => {
+      for (const text of [post.body, meta.title, meta.seoTitle, meta.description, meta.excerpt, meta.cover.alt]) {
+        expect(text).not.toContain("—");
       }
     });
 

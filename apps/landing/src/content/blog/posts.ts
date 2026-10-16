@@ -124,7 +124,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Công cụ có sẵn của TikTok, phần mềm quản lý đa kênh, công cụ phân tích thị trường và trợ lý AI: mỗi nhóm giải quyết việc gì, mô tả theo thông tin nhà cung cấp công bố (kiểm tra 15/10/2026).",
     breadcrumbName: "Công cụ cho nhà bán 2026",
     publishedAt: "2026-10-15",
-    updatedAt: "2026-10-15",
+    updatedAt: "2026-10-16",
     category: "tools",
     cover: blogCover("cong-cu-2026-v1", "Minh hoạ: sáu ô công cụ xếp hai hàng trên nền xanh dương nhạt, một ô tô màu xanh dương"),
     author: AUTHOR,
@@ -320,6 +320,162 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       academy("Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 1", "7894389511833345"),
       academy("Chẩn đoán giá", "7563289900353282"),
       academy("Mua Sỉ Giá Hời (BMSM)", "10013310"),
+    ],
+  },
+  {
+    slug: "phan-mem-quan-ly-ban-hang-da-kenh-2026",
+    status: "draft",
+    title: "Phần mềm quản lý bán hàng đa kênh 2026: 7 lựa chọn có kết nối TikTok Shop",
+    seoTitle: "Phần mềm quản lý bán hàng đa kênh 2026 | Juli AI",
+    description:
+      "So sánh 7 phần mềm bán hàng đa kênh 2026 có kết nối TikTok Shop, Shopee: tính năng, giá công bố, bản miễn phí và cách chọn theo mô hình bán hàng.",
+    excerpt:
+      "BigSeller, Haravan, KiotViet, MISA eShop, Nhanh.vn, Pancake POS và Sapo: mỗi phần mềm làm gì với TikTok Shop và các sàn, giá như nhà cung cấp công bố (kiểm tra 16/10/2026), và câu hỏi nên kiểm tra khi dùng thử.",
+    breadcrumbName: "Phần mềm bán hàng đa kênh 2026",
+    publishedAt: "2026-10-16",
+    updatedAt: "2026-10-16",
+    category: "tools",
+    cover: blogCover("da-kenh-2026-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền xanh dương nhạt, ô đầu tiên của hàng trên tô màu xanh dương"),
+    author: AUTHOR,
+    related: ["cong-cu-cho-nha-ban-tiktok-shop-2026", "cong-cu-phan-tich-tiktok-shop-2026", "cong-cu-ai-tao-anh-video-san-pham-tiktok-shop"],
+    faq: [
+      {
+        question: "Phần mềm quản lý bán hàng đa kênh nào có bản miễn phí?",
+        answer:
+          "Theo trang chính thức ngày 16/10/2026, BigSeller có phiên bản miễn phí lâu dài với 1.500 đơn mỗi tháng, và trang Pancake POS ghi là nền tảng miễn phí. Haravan cho dùng thử 14 ngày; Sapo và Nhanh.Ecom cho dùng thử 7 ngày; KiotViet và MISA eShop có dùng thử miễn phí.",
+      },
+      {
+        question: "Chỉ bán trên TikTok Shop có cần phần mềm quản lý bán hàng đa kênh không?",
+        answer:
+          "Thường là chưa cần trong giai đoạn đầu. Phần mềm đa kênh giải quyết đồng bộ đơn và tồn kho giữa nhiều kênh; nếu bạn chỉ bán trên TikTok Shop với một kho, Trung tâm nhà bán hàng có thể đủ cho phần vận hành.",
+      },
+      {
+        question: "Phần mềm quản lý Shopee, TikTok Shop kết nối với shop như thế nào?",
+        answer:
+          "Bạn chọn kênh trong phần mềm, đăng nhập tài khoản TikTok Shop hoặc Shopee rồi ủy quyền cho phần mềm. Ví dụ, tài liệu của Pancake POS mô tả các bước chọn kênh bán, cài đặt đồng bộ với kho, đăng nhập TikTok Shop và xác nhận ủy quyền. Hãy đọc kỹ danh sách quyền trước khi đồng ý.",
+      },
+      {
+        question: "Phần mềm đa kênh có cho biết vì sao doanh thu TikTok Shop giảm không?",
+        answer:
+          "Phần mềm đa kênh có báo cáo doanh thu, lợi nhuận và chi phí theo kênh và sản phẩm. Các chỉ số phễu như Lượt hiển thị sản phẩm, CTR và CTOR theo từng luồng truy cập nằm trong La bàn dữ liệu của TikTok Shop.",
+      },
+    ],
+    sources: [
+      { title: "BigSeller: Phần mềm quản lý bán hàng đa kênh miễn phí", url: "https://www.bigseller.com/vi/index.htm", note: "kiểm tra 16/10/2026" },
+      { title: "BigSeller: Bảng giá", url: "https://www.bigseller.com/vi/goods/price.htm", note: "kiểm tra 16/10/2026" },
+      { title: "Haravan", url: "https://www.haravan.com/", note: "kiểm tra 16/10/2026" },
+      { title: "Haravan: Bảng giá", url: "https://www.haravan.com/pages/pricing", note: "kiểm tra 16/10/2026" },
+      { title: "KiotViet: Giải pháp bán hàng đa kênh", url: "https://www.kiotviet.vn/giai-phap-ban-hang-da-kenh/", note: "kiểm tra 16/10/2026" },
+      { title: "KiotViet: Phí dịch vụ", url: "https://www.kiotviet.vn/phi-dich-vu", note: "kiểm tra 16/10/2026" },
+      { title: "MISA eShop", url: "https://eshop.misa.vn/", note: "kiểm tra 16/10/2026" },
+      { title: "Nhanh.vn: Bảng giá phần mềm", url: "https://nhanh.vn/bang-gia-phan-mem", note: "kiểm tra 16/10/2026" },
+      { title: "Nhanh.vn: Nhanh.Ecom", url: "https://nhanh.vn/ban-hang-tren-cac-san-thuong-mai-dien-tu", note: "kiểm tra 16/10/2026" },
+      { title: "Pancake POS", url: "https://pos.pancake.vn/", note: "kiểm tra 16/10/2026" },
+      { title: "Pancake POS: Kênh bán (tài liệu hướng dẫn)", url: "https://docs.pos.pages.fm/pos/thiet-lap-shop/kenh-ban", note: "kiểm tra 16/10/2026" },
+      { title: "Sapo: Giải pháp bán hàng trên TikTok Shop", url: "https://www.sapo.vn/ban-hang-tren-tiktokshop.html", note: "kiểm tra 16/10/2026" },
+      { title: "Sapo: Bảng giá", url: "https://www.sapo.vn/bang-gia.html", note: "kiểm tra 16/10/2026" },
+    ],
+  },
+  {
+    slug: "cong-cu-phan-tich-tiktok-shop-2026",
+    status: "draft",
+    title: "Công cụ phân tích TikTok Shop 2026: soi thị trường và đọc dữ liệu shop của bạn",
+    seoTitle: "Công cụ phân tích TikTok Shop 2026 | Juli AI",
+    description:
+      "Tool phân tích TikTok Shop 2026: La bàn dữ liệu, FastMoss, Kalodata, Metric. Công cụ soi thị trường khác gì công cụ đọc dữ liệu shop của bạn, giá công bố.",
+    excerpt:
+      "Hai nhóm công cụ phân tích dữ liệu TikTok Shop theo nguồn dữ liệu: soi thị trường và đối thủ (FastMoss, Kalodata, Metric) và đọc dữ liệu shop của bạn (La bàn dữ liệu, Juli AI), mô tả theo trang chính thức (kiểm tra 16/10/2026).",
+    breadcrumbName: "Công cụ phân tích TikTok Shop",
+    publishedAt: "2026-10-16",
+    updatedAt: "2026-10-16",
+    category: "tools",
+    cover: blogCover("phan-tich-2026-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền xanh dương nhạt, ô cuối của hàng trên tô màu xanh dương"),
+    author: AUTHOR,
+    related: ["cong-cu-cho-nha-ban-tiktok-shop-2026", "gmv-la-gi-tiktok-shop", "tiktok-shop-khong-ra-don"],
+    faq: [
+      {
+        question: "Công cụ phân tích thị trường có cho biết CTR, CTOR của shop đối thủ không?",
+        answer:
+          "Không. Các chỉ số phễu như Lượt hiển thị sản phẩm, CTR và CTOR hiển thị trong Trung tâm nhà bán hàng của chủ shop. Công cụ thị trường quan sát từ bên ngoài, nên doanh số của shop khác là số ước tính.",
+      },
+      {
+        question: "Tool phân tích TikTok Shop nào có dữ liệu Việt Nam?",
+        answer:
+          "Theo trang chính thức ngày 16/10/2026: gói thành viên FastMoss gồm sáu nước Đông Nam Á có Việt Nam; Kalodata có trang xếp hạng sản phẩm Việt Nam bằng tiếng Việt; Metric phân tích các sàn Shopee, Tiki, Lazada, Sendo và TikTok Shop tại Việt Nam.",
+      },
+      {
+        question: "Nên dùng công cụ soi thị trường hay công cụ phân tích shop trước?",
+        answer:
+          "Nếu shop đã có đơn, hãy đọc dữ liệu shop của bạn trước để tìm luồng và bước yếu nhất, rồi mới nhìn ra thị trường cho đúng câu hỏi đó. Nếu bạn đang chọn sản phẩm mới, công cụ thị trường là điểm bắt đầu.",
+      },
+      {
+        question: "Juli AI có cho xem doanh số của đối thủ không?",
+        answer:
+          "Không. Juli AI là sản phẩm của chúng tôi và chỉ đọc dữ liệu của shop bạn qua kết nối chính thức mà bạn ủy quyền. Để xem sản phẩm và doanh số ước tính của shop khác, hãy dùng công cụ phân tích thị trường.",
+      },
+    ],
+    sources: [
+      academy("Hướng dẫn sử dụng La bàn Dữ liệu trong Trung tâm Người bán", "10008597", "các mô-đun của La bàn dữ liệu (13/12/2022), kiểm tra 16/10/2026"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "đường dẫn và mục đích của mô-đun (17/06/2026), kiểm tra 16/10/2026"),
+      { title: "FastMoss (tiếng Việt)", url: "https://www.fastmoss.com/vi", note: "kiểm tra 16/10/2026" },
+      { title: "FastMoss: Bảng giá", url: "https://www.fastmoss.com/vi/pricing", note: "kiểm tra 16/10/2026" },
+      { title: "Kalodata", url: "https://www.kalodata.com/", note: "câu hỏi thường gặp, kiểm tra 16/10/2026" },
+      { title: "Kalodata: Bảng xếp hạng sản phẩm Việt Nam TikTok", url: "https://www.kalodata.com/product?region=VN&language=vi-VN", note: "kiểm tra 16/10/2026" },
+      { title: "Metric", url: "https://metric.vn/", note: "kiểm tra 16/10/2026" },
+      { title: "Metric Analytics: Bảng giá dịch vụ", url: "https://metric.vn/analytics/pricing", note: "kiểm tra 16/10/2026" },
+      { title: "Metric: Trung tâm hỗ trợ", url: "https://hotro.metric.vn/", note: "kiểm tra 16/10/2026" },
+      { title: "Juli AI", url: "https://app-juli.com", note: "sản phẩm của chúng tôi" },
+    ],
+  },
+  {
+    slug: "cong-cu-ai-tao-anh-video-san-pham-tiktok-shop",
+    status: "draft",
+    title: "Công cụ AI tạo ảnh và video sản phẩm cho nhà bán TikTok Shop",
+    seoTitle: "AI tạo ảnh, video sản phẩm cho TikTok Shop | Juli AI",
+    description:
+      "AI tạo ảnh sản phẩm và video sản phẩm cho nhà bán TikTok Shop: Canva, CapCut, Higgsfield, Photoroom, Pippit, Symphony. Tính năng, giá công bố, cách chọn.",
+    excerpt:
+      "Sáu công cụ AI cho người bán hàng: xóa nền, tạo cảnh sản phẩm, người mẫu ảo, video từ ảnh và đường liên kết, nhân vật đại diện. Mô tả theo trang chính thức (kiểm tra 16/10/2026), cách chọn theo việc cần làm và cách đo kết quả.",
+    breadcrumbName: "AI tạo ảnh, video sản phẩm",
+    publishedAt: "2026-10-16",
+    updatedAt: "2026-10-16",
+    category: "tools",
+    cover: blogCover("ai-anh-video-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền xanh dương nhạt, ô cuối của hàng dưới tô màu xanh dương"),
+    author: AUTHOR,
+    related: ["cong-cu-cho-nha-ban-tiktok-shop-2026", "toi-uu-the-san-pham-tiktok-shop", "phan-mem-quan-ly-ban-hang-da-kenh-2026"],
+    faq: [
+      {
+        question: "Có công cụ AI tạo video sản phẩm miễn phí không?",
+        answer:
+          "Có. Theo trang chính thức ngày 16/10/2026, CapCut, Pippit và Canva có gói miễn phí với giới hạn lượt dùng AI hoặc điểm tín dụng, và TikTok gọi Symphony Creative Studio là công cụ tạo miễn phí, có cơ chế tín dụng riêng.",
+      },
+      {
+        question: "Dùng ảnh tạo bằng AI cho thẻ sản phẩm TikTok Shop có được không?",
+        answer:
+          "Hãy đọc bản hiện hành của chính sách hình ảnh sản phẩm và quy định về nội dung do AI tạo của TikTok trước khi đăng. Dù dùng công cụ nào, ảnh phải đúng với sản phẩm giao cho khách: AI nên thay nền và bối cảnh, không thay màu sắc, kích thước hay số lượng của sản phẩm.",
+      },
+      {
+        question: "Nên làm lại ảnh bìa hay làm video trước?",
+        answer:
+          "Xem chỉ số trước. Nếu sản phẩm có nhiều lượt hiển thị mà CTR thấp, ảnh bìa là nơi đáng thử đầu tiên. Nếu CTR ổn mà CTOR thấp, hãy xem bộ ảnh chi tiết, mô tả, giá và đánh giá. Video ngắn là một luồng truy cập riêng, nên đọc chỉ số của luồng video.",
+      },
+    ],
+    sources: [
+      { title: "Canva: Mức giá", url: "https://www.canva.com/vi_vn/bang-gia/", note: "kiểm tra 16/10/2026" },
+      { title: "CapCut (tiếng Việt)", url: "https://www.capcut.com/vi-vn/", note: "kiểm tra 16/10/2026" },
+      { title: "CapCut: Giá", url: "https://www.capcut.com/vi-vn/pricing", note: "kiểm tra 16/10/2026" },
+      { title: "Higgsfield: Ads Studio", url: "https://higgsfield.ai/ads-studio", note: "kiểm tra 16/10/2026" },
+      { title: "Higgsfield: Marketing Studio", url: "https://higgsfield.ai/marketing-studio", note: "kiểm tra 16/10/2026" },
+      { title: "Higgsfield: Pricing", url: "https://higgsfield.ai/pricing", note: "kiểm tra 16/10/2026" },
+      { title: "Photoroom (tiếng Việt)", url: "https://www.photoroom.com/vi", note: "kiểm tra 16/10/2026" },
+      { title: "Photoroom: Bảng giá", url: "https://www.photoroom.com/vi/pricing", note: "kiểm tra 16/10/2026" },
+      { title: "Pippit (tiếng Việt)", url: "https://www.pippit.ai/vi-vn", note: "kiểm tra 16/10/2026" },
+      { title: "Pippit: Giá và gói", url: "https://www.pippit.ai/vi-vn/pricing", note: "kiểm tra 16/10/2026" },
+      {
+        title: "TikTok for Business: Giới thiệu về Symphony Creative Studio",
+        url: "https://ads.tiktok.com/help/article/about-symphony-creative-studio?lang=vi",
+        note: "cập nhật tháng 6/2026, kiểm tra 16/10/2026",
+      },
     ],
   },
 ];
