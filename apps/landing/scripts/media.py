@@ -191,6 +191,9 @@ MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
     "cap-dl-tin-cay-v1-1280": (0.0, 0.0, 0.5, 1.0),
     "cap-dx-luot-chay-v1-1280": (0.0, 0.0, 0.5, 0.75),
     "cap-dx-quy-tac-v1-1280": (0.0, 0.0, 0.5, 0.64),
+    # P35 (D45): home hero on phones, the card header only (SKU, CTOR before → after, GMV dự kiến),
+    # so the hero shot stays smaller than the H1 and the H1 remains the mobile LCP element.
+    "cap-dx-the-v1-1186": (0.0, 0.0, 1.0, 0.285),
     "cap-dx-xac-nhan-v1-1280": (0.0, 0.0, 0.5, 0.55),
     "cap-kn-dang-nhap-v1-1280": (0.06, 0.0, 0.52, 0.8),
     "cap-kn-ket-noi-v1-1280": (0.06, 0.0, 0.55, 0.95),
@@ -220,6 +223,8 @@ def mobile_crops() -> None:
         )
         crop = source.crop(box)
         stem = name.rsplit("-v1-", 1)[0]
+        if any(media.glob(f"{stem}-m-v1-*")):
+            continue  # published crops are cached immutable: never overwrite one
         w, h = save_modern(crop, media / f"{stem}-m-v1", MOBILE_CROP_MAX_WIDTH)
         print(f"{stem}-m-v1-{w}.avif/.webp  width={w} height={h}")
 

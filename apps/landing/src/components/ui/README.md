@@ -165,7 +165,7 @@ Alt text ends with "(dữ liệu mẫu)". `mobileVariants` is served at ≤ 640 
 `<picture><source media>` with its own width/height (no CLS); `crop` is not
 applied to it. **Mobile crops available** (`screens.ts`, `*_MOBILE`): every
 `cap-dl-*`, `cap-pt-*`, `cap-kn-dang-nhap/ket-noi/quet-nhanh`,
-`cap-dx-luot-chay/quy-tac/xac-nhan`. Shots with large text need none:
+`cap-dx-luot-chay/quy-tac/xac-nhan`, `cap-dx-the` (card header only, home hero, P35). Shots with large text need none:
 `cap-dx-hang-cho/hoan-tac/tu-choi/seller-center/the`, `cap-kn-ghi`.
 Regenerate / add crops: `MOBILE_CROPS` in `scripts/media.py`, then
 `python apps/landing/scripts/media.py mobile-crops` (new names, never overwrite).

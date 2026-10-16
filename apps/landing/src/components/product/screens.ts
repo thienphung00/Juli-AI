@@ -163,6 +163,11 @@ export const CAP_DX_QUY_TAC_MOBILE: readonly MediaSource[] = [
   { avif: "/media/cap-dx-quy-tac-m-v1-640.avif", webp: "/media/cap-dx-quy-tac-m-v1-640.webp", width: 640, height: 324 },
 ];
 
+/** Home hero on phones (P35, D45): the card header only, so the H1 stays the mobile LCP. */
+export const CAP_DX_THE_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dx-the-m-v1-720.avif", webp: "/media/cap-dx-the-m-v1-720.webp", width: 720, height: 212 },
+];
+
 export const CAP_DX_XAC_NHAN_MOBILE: readonly MediaSource[] = [
   { avif: "/media/cap-dx-xac-nhan-m-v1-640.avif", webp: "/media/cap-dx-xac-nhan-m-v1-640.webp", width: 640, height: 501 },
 ];

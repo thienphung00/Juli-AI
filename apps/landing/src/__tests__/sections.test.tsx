@@ -26,6 +26,19 @@ describe("homepage (D43.2 + D44)", () => {
     expect(levels.some((level) => level > 3)).toBe(false);
   });
 
+  it("hero shot: phones get the card-header crop, lazy, captioned (AC-35.5: the H1 stays the LCP)", () => {
+    const { container } = render(<LandingPage />);
+    const hero = container.querySelector('section[aria-labelledby="hero-heading"]') as HTMLElement;
+    const source = hero.querySelector('source[media][srcset*="cap-dx-the-m-v1-720"]');
+    expect(source).not.toBeNull();
+    expect(source).toHaveAttribute("width", "720");
+    expect(source).toHaveAttribute("height", "212");
+    const img = source?.closest("picture")?.querySelector("img") as HTMLImageElement;
+    expect(img).toHaveAttribute("loading", "lazy");
+    expect(img.getAttribute("fetchpriority") ?? "auto").not.toBe("high");
+    expect(img.closest("figure")?.textContent).toContain("Dữ liệu mẫu");
+  });
+
   it("has the Main.dc.html sections, in order", () => {
     render(<LandingPage />);
 
