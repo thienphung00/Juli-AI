@@ -1840,3 +1840,8 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   quả." before D46.5). Landing gates PASS.
 - Owner (2026-10-16): final home H1 "Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV, đề xuất chiến
   lược, đo kết quả." (f7337452).
+- Google result (owner screenshot 2026-10-16) still shows the pre-redesign title/snippet and a generic
+  globe icon: URL Inspection says last crawl 2026-10-08. Favicon/meta/JSON-LD are correct live
+  (favicon.ico 48×48, icon.png 192, Organization logo 512). WebSite JSON-LD now `url` with the
+  trailing slash + `alternateName: "Juli"` (site-name signal). Owner to "Request indexing" for / in
+  Search Console (UI-only; the API cannot).

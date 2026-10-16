@@ -150,7 +150,12 @@ describe("JSON-LD builders (AC-33.1)", () => {
       contactPoint: { "@type": "ContactPoint", email: COMPANY.email },
     });
     expect(JSON.stringify(org)).not.toMatch(/sameAs|telephone/);
-    expect(websiteSchema()).toMatchObject({ "@type": "WebSite", url: "https://app-juli.com" });
+    expect(websiteSchema()).toMatchObject({
+      "@type": "WebSite",
+      url: "https://app-juli.com/",
+      name: "Juli AI",
+      alternateName: "Juli",
+    });
   });
 
   it("builds breadcrumbs from the registry", () => {
