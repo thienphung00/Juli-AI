@@ -1240,3 +1240,22 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      volume: about 0 → about +0.16/SD; the quantity step for a new shop becomes more
      conservative (unit-price drop held in only 2/6 categories). Uncertainty stays wide, priors
      are versioned, and the change applies to the simulator and Ops only.
+
+- **D47** — Follow-ups to D45 and the demo card lifecycle (owner, 2026-10-16).
+  1. **Small groups keep the P31 θ (amends D45.6):** groups < 15 products go back to the
+     fitted P31 pre-period θ; groups ≥ 15 keep the two windows. The P36 power check (500 reps,
+     CTR) found θ = 1 lowered power (4+2 · 28 d 35 → 25 % at +40 %, false alarms ~7 % either
+     way), contradicting research §4a (fitted θ worse for 4+2). Both readings are kept and
+     re-checked against the first real D34 groups.
+  2. **Demo sample data mirrors the real card lifecycle (Q1 A):** pending → Duyệt → running
+     (run queued → running) → consent / waiting_external → completed → applied + measurement
+     waiting → day 7 → final; declined consent or "Không thực hiện" → rejected + 7-day
+     cooldown; Từ chối → rejected; revert → rejected; failed / cancelled / timed-out run →
+     pending; 7 days untouched → expired; Seller Center / promotion runs with no recorded write
+     stay running as in the real `_status`. Home and Phân tích sample views follow the same
+     store.
+  3. **Reviewer on the pinned, masked Fujiwa (amends D42, Q2 yes):** Duyệt moves the card to
+     "Đang thực hiện" and walks the simulated run like the sample shop, still with no real run
+     and no TikTok write. The owner asked how the reviewer can sign in without a code — options
+     to be proposed, no auth change without approval.
+  4. **Shopee connection status in Ops (Q3):** not needed now.
