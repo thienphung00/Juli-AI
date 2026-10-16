@@ -34,6 +34,8 @@ Trên Học viện TikTok Shop, trang "Lưu lượng truy cập sản phẩm" (c
 
 Đơn hàng SKU là số đơn tính theo từng phiên bản sản phẩm (SKU), nên một đơn có hai sản phẩm khác nhau tạo ra hai đơn hàng SKU. Ba bước này nhân với nhau: Lượt hiển thị × CTR × CTOR = Đơn hàng SKU. Nếu một hệ số gần bằng không, cả tích gần bằng không, dù hai hệ số kia tốt đến đâu.
 
+{{hinh:ba-buoc-nghen}}
+
 ### Vì sao phải biết bước nào nghẽn
 
 Mỗi bước có những đòn bẩy riêng, và đòn bẩy của bước này gần như vô dụng ở bước khác. Đổi ảnh bìa giúp khi người ta thấy mà không nhấp, nhưng không giúp khi chẳng ai thấy. Viết lại mô tả giúp khi người ta nhấp vào rồi bỏ đi vì thiếu thông tin, nhưng không giúp khi ảnh bìa không đủ hấp dẫn để ai nhấp vào. Mua thêm traffic giúp khi trang sản phẩm đã chuyển đổi tốt, nhưng chỉ làm tăng số người rời đi khi CTOR đang thấp. Tìm đúng bước trước, rồi mới chọn việc.
@@ -144,6 +146,8 @@ Chỉ số giúp tách CTOR là **Tỷ lệ thêm vào giỏ hàng**, mà TikTok
 
 Lưu ý: người xem video hay LIVE có thể đặt mua ngay mà không qua giỏ hàng, nên cách tách này chính xác nhất ở luồng thẻ sản phẩm và Tab cửa hàng.
 
+{{hinh:truoc-gio-sau-gio}}
+
 ### Nguyên nhân thường gặp trước giỏ
 
 Bài chẩn đoán số 4 của TikTok xếp các yếu tố tác động lên quyết định mua vào hai nhóm: **Lợi ích** (giá cạnh tranh, chiết khấu, voucher, ưu đãi chớp nhoáng, mua thêm tiết kiệm nhiều hơn, thanh toán khi giao hàng) và **Sự tin cậy** (thương hiệu, đánh giá, tỷ lệ trả hàng).
@@ -180,6 +184,8 @@ Một sản phẩm có (số giả định): 10.000 lượt hiển thị mỗi t
 
 Nếu sau đó bạn mới tăng traffic, mỗi lượt hiển thị mua thêm sinh ra nhiều đơn gấp ba so với trước khi sửa. Thứ tự đúng thường là sửa phễu trước, rồi mới mua thêm traffic.
 
+{{hinh:quang-cao-ab}}
+
 ### Năm câu hỏi trước khi tăng ngân sách quảng cáo
 
 1. **Sản phẩm có đang Trực tuyến và còn hàng ở các biến thể chính không?**
@@ -215,6 +221,8 @@ Dùng bảng này cho từng sản phẩm quan trọng, theo thứ tự từ tr�
 | 9 | Đủ dữ liệu ở mỗi kỳ | Ghi "chưa đủ dữ liệu", đo tiếp |
 | 10 | Một thay đổi có ngày bắt đầu | Đo sau 7 và 14 ngày |
 
+{{hinh:checklist-khong-ra-don}}
+
 ## Những hiểu lầm thường gặp
 
 ### "Shop mới bị bóp traffic"
@@ -240,6 +248,8 @@ Juli AI là trợ lý AI cho nhà bán TMĐT do chúng tôi phát triển, hiệ
 - **Tìm bước nghẽn**: [phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop), tách GMV và đơn hàng theo năm luồng (Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết) và theo Lượt hiển thị × CTR × CTOR × AOV, kiểm tra ngưỡng dữ liệu và traffic loãng trước khi kết luận.
 - **Đề xuất cách sửa**: [đề xuất thay đổi cụ thể kèm lý do bằng số](/san-pham/de-xuat-va-thuc-thi). Juli chỉ ghi tiêu đề và mô tả sản phẩm lên shop sau khi bạn duyệt; các việc khác như giá, khuyến mãi hay ảnh là đề xuất để bạn tự quyết định.
 - **Đo lại**: [đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 (sơ bộ) và ngày 14 (chốt).
+
+{{hinh:pt-xep-hang}}
 
 Juli không chạy quảng cáo và không quản lý đơn hàng hay tồn kho. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop). Bạn có thể xem tổng quan tại trang [sản phẩm Juli AI](/san-pham), hoặc đọc thêm bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-tiktok-shop) để hiểu cách Juli tách GMV theo luồng.
 

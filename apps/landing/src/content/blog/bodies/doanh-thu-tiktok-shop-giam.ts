@@ -40,6 +40,8 @@ Bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-
 - **Không đưa ngày hôm nay vào so sánh.** Một ngày chưa kết thúc luôn thấp hơn một ngày trọn vẹn.
 - **Cùng một loại GMV.** TikTok có các biến thể như GMV bao gồm thuế và GMV có đồng tài trợ của TTS (TikTok Shop). So hai loại khác nhau tạo ra một mức chênh không có thật.
 
+{{hinh:so-sanh-hai-ky}}
+
 ### Tổng trước, chia sau
 
 Nếu bạn xuất dữ liệu theo ngày và tự tính, hãy cộng tổng các đại lượng đếm được của cả kỳ (Lượt hiển thị sản phẩm, Lượt nhấp vào sản phẩm, Đơn hàng SKU, GMV) rồi mới chia để ra tỷ lệ. Lấy trung bình cộng của 30 tỷ lệ theo ngày sẽ tính ngày có 50 lượt hiển thị nặng như ngày có 5.000 lượt hiển thị, và cho ra một con số khác với con số TikTok hiển thị.
@@ -64,6 +66,8 @@ Giả sử một shop có GMV 30 ngày giảm từ 45 triệu xuống 42 triệu
 | LIVE | 12.000.000 ₫ | 12.400.000 ₫ | +400.000 ₫ |
 | Liên kết | 14.000.000 ₫ | 13.300.000 ₫ | −700.000 ₫ |
 | **Toàn shop** | **45.000.000 ₫** | **42.000.000 ₫** | **−3.000.000 ₫** |
+
+{{hinh:giam-theo-luong}}
 
 ### Đọc bảng theo số tuyệt đối
 
@@ -111,6 +115,8 @@ Một cách chia công bằng mức thay đổi GMV cho từng chỉ số là d�
 Câu chuyện chính là CTR: khoảng một nửa mức giảm của luồng đến từ việc người xem ít nhấp vào sản phẩm hơn. Lượt hiển thị gần như giữ nguyên, nên đây không phải chuyện sản phẩm bị ít người thấy, cũng không phải traffic loãng. Câu hỏi tiếp theo đã rất cụ thể: điều gì trên thẻ sản phẩm thay đổi trong kỳ này?
 
 Nếu GMV gần như không đổi giữa hai kỳ, phép chia cho ln(GMV mới ÷ GMV cũ) không còn ý nghĩa; khi đó hãy so sánh trực tiếp tỷ lệ thay đổi của từng chỉ số.
+
+{{hinh:pt-pheu}}
 
 ### Lưu ý với Tab cửa hàng
 
@@ -210,6 +216,8 @@ Sau khi biết luồng và chỉ số, hãy lặp lại phép tách cho từng s
 3. Sắp xếp theo mức giảm tuyệt đối. Thường năm sản phẩm đầu đã giải thích phần lớn mức giảm của luồng.
 4. Với từng sản phẩm đó, tách thành bốn chỉ số như ở trên.
 
+{{hinh:pt-xep-hang-doanh-thu}}
+
 ### Hai kiểu kết quả
 
 - **Mức giảm tập trung ở vài sản phẩm**: nguyên nhân thường nằm ở chính các sản phẩm đó, như hết hàng, đổi giá, đánh giá mới, chương trình kết thúc. Đây là trường hợp dễ xử lý nhất.
@@ -228,6 +236,8 @@ Khi thấy doanh thu giảm, đây là thứ tự nên làm:
 5. **Tìm năm sản phẩm** giải thích nhiều nhất mức giảm, tách từng sản phẩm.
 6. **Kiểm tra nguyên nhân ngoài phễu**: mùa vụ, hủy, hoàn, sản phẩm ngừng bán.
 7. **Ghi lại một kết luận và một hành động** cho mỗi sản phẩm, kèm ngày bắt đầu, để kỳ sau đo lại.
+
+{{hinh:quy-trinh-30-phut}}
 
 Bước 7 thường bị bỏ qua nhất nhưng lại quan trọng nhất. Không có ngày bắt đầu, bạn không biết thay đổi nào gây ra kết quả nào.
 
