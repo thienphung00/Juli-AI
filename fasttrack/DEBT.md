@@ -1089,3 +1089,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] P41: the simulate response (`POST /v1/reviewer/decisions/{id}/simulate`, contract p32 §4) still
   carries `request` (method, path, operation); the dialog no longer shows it. Drop it from the
   contract if nothing else reads it.
+- [ ] P43: `/cong-cu/tinh-gmv` links the "GMV là gì" post (and its four "Tăng …" sections) only once
+  the post is published (`components/gmv-calculator/post-href.ts`); while it is a draft the title shows
+  as plain text, because an indexable page never links a noindex draft (check:seo). Nothing to do on
+  publish, but re-run `check:seo` then. There is no `/cong-cu` index page (breadcrumb is Trang chủ →
+  Công cụ tính GMV); add one if a second tool ships.
+- [ ] P43: the calculator reads one period only, so it cannot name a weakest step from data. A
+  "so với kỳ trước" mode (two periods, log split of the GMV change as in the post's Bước 2) would make
+  that honest; not built (scope of D49.1).
