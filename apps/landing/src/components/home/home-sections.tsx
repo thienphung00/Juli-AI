@@ -48,7 +48,7 @@ export function HomeHero() {
         <div className={styles.heroCopy}>
           <Eyebrow variant="badge">Kết nối chính thức qua TikTok Shop Open API</Eyebrow>
           <Heading id="hero-heading" level={1}>
-            Trợ lý AI vận hành TikTok Shop: tìm chỗ GMV hụt, đề xuất cách sửa, đo kết quả.
+            Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV.
           </Heading>
           <p className="ui-lead">
             Juli đọc dữ liệu shop của bạn, chỉ ra luồng truy cập và sản phẩm đang kéo GMV xuống,

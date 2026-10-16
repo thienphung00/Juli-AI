@@ -1159,3 +1159,12 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `legal-template.tsx`) are left word-for-word as they are, because their text must match the
      signed contract and the legal markdown (memory: legal docs sync); a dash change there goes
      through the contract first.
+  5. **Owner follow-up (2026-10-16):** (a) the `/san-pham` hero puts all its copy in one left
+     column in reading order (eyebrow → H1 → intro → CTAs, left-aligned) with the framed shot in
+     the right column, like the home hero; phones: copy, then image. The intro text is unchanged.
+     (b) The homepage H1 becomes the owner's line alone, **"Trợ lý AI vận hành TMĐT: tìm chỗ cải
+     thiện GMV."** (the old tail ", đề xuất cách sửa, đo kết quả." is dropped: the lead under it
+     already says Juli finds, proposes and changes only after approval, and the shorter H1 no longer
+     runs to 5 lines at 1440). "TikTok Shop" stays in the home `<title>` and meta description
+     (unchanged). The P34 mockups in `fasttrack/design/p34/` keep the old H1 as the historical
+     spec. (c) The home price card is not touched (fixed in 8c03c6a5).

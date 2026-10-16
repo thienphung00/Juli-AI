@@ -14,9 +14,8 @@ describe("homepage (D43.2 + D44)", () => {
 
     const h1s = screen.getAllByRole("heading", { level: 1 });
     expect(h1s).toHaveLength(1);
-    expect(h1s[0]).toHaveTextContent(
-      "Trợ lý AI vận hành TikTok Shop: tìm chỗ GMV hụt, đề xuất cách sửa, đo kết quả.",
-    );
+    // Owner's wording (D45.5); "TikTok Shop" stays in the home <title> and meta description.
+    expect(h1s[0]).toHaveTextContent("Trợ lý AI vận hành TMĐT: tìm chỗ cải thiện GMV.");
     const levels = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((h) =>
       Number(h.tagName[1]),
     );
