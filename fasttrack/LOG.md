@@ -1958,5 +1958,8 @@ Branch `fasttrack/p34e-legal-signup` from `fasttrack/p34a-ui-foundation` @ c9523
   `python -m juli_backend.services.reviewer.cli create --email shopee-review@app-juli.com --platform
   shopee --by <you>@app-juli.com [--days 30]` (env DATABASE_URL, SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY; password printed once); `renew [--rotate-password]`, `revoke`, `show`.
-- Merge note: `fasttrack/p35-sim-ops` also appends to DEBT.md / LOG.md → append-only conflicts, keep
-  both sides; no code overlap (that branch is Ops + backend).
+- Merge note: `fasttrack/p35-sim-ops` was merged into the integration branch meanwhile (52441f8e);
+  merged `fasttrack/optimize-product` back into this branch, DEBT.md / LOG.md append-only conflicts
+  resolved by keeping both sides. No code overlap (that branch is Ops + backend). Post-merge demo
+  gates re-run below.
+- Post-merge (5da55516): demo `tsc` clean, eslint 0 errors, vitest 156 files / 1977 passed.
