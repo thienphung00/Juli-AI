@@ -1571,3 +1571,21 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   drop ≥ 5 %, warn only; (5) review text stays out of the main specs (H1/H2 found no added value
   on current data) and is kept for idea generation and a retry with more reviews. Next: steps
   9–12 on validation folds only, then Gate C before FastMoss snapshot 2 is opened.
+
+- **D55** — Overnight $0 research findings adopted (owner, 2026-10-17: "đồng ý tất cả"; list in
+  `~/juli-sim-pilot/research/overnight_findings_proposals.md`, items 1–12).
+  1. **Ops (fast-track phase):** TikTok GMV includes cancelled and refunded orders (Seller University
+     definition) — group-verdict AOV / revenue use net-of-cancel/refund values where the data has
+     them, else the label says so; the Ops / chi-số guides state that TikTok's "conversion rate"
+     (unique buyers / unique page views) is not Juli's CTOR, and that the product-card channel is the
+     remainder after LIVE and video. Ops-only; the seller-facing sentence is unchanged unless a
+     separate decision says otherwise.
+  2. **Simulator / v0.3 (step 7–8 changes, a new candidate configuration PRIORS_VERSION
+     2026-10-17c evaluated on validation next to the D54 configuration before Gate C; Rerun log
+     entries required; nothing fitted on frozen data):** exposure tiers by channel; SPS and the share
+     of 1–2★ reviews as context variables (not levers) with H1 re-tested as a threshold effect;
+     FastMoss creator / video counts tagged leakage-risk; price-banner prior narrowed to a small causal
+     effect (log 0.02–0.20); pack options kept conservative (mix shift, not new demand; offset −1 kept);
+     free-ship and social-proof priors confirmed as they are; stop-step priors replaced by the
+     intent × position ranges of `stop_step_evidence.md`; spend-archetype shares narrowed around
+     Cimigo 2025 leaving room for 45+.
