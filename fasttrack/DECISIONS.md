@@ -1560,3 +1560,14 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      data** (segment shares and simulator noise), proposed at Gate B. "A/A" keeps its meaning (two
      identical arms); "A vs A*" is a real test. The real D34 test measures the product's absolute
      metrics, not where clicks came from.
+
+- **D54** — Gate B approved for v0.3 and the funnel simulator (owner, 2026-10-17). Approved as in
+  each `ml_pipeline/GATE_B.md`: (1) v0.3 preprocessing `train` (training-fold medians) inside CV
+  and `snapshot` for the temporal test; (2) funnel selection `infold` (y_rel centring, default
+  levers, empirical-Bayes priors computed on training folds only); (3) step-10 candidates —
+  hierarchical CTOR pooling, KG with feasibility / cost, rank-independent content score, exposure
+  tiers A/B/C, KG on absolute expected GMV; (4) segment guardrail: a segment is large at ≥ 25 % of
+  the product's simulated GMV, a drop is clear when the 90 % interval is below 0 and the median
+  drop ≥ 5 %, warn only; (5) review text stays out of the main specs (H1/H2 found no added value
+  on current data) and is kept for idea generation and a retry with more reviews. Next: steps
+  9–12 on validation folds only, then Gate C before FastMoss snapshot 2 is opened.
