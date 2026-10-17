@@ -497,4 +497,107 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       },
     ],
   },
+  {
+    slug: "video-tiktok-nhieu-view-khong-ra-don",
+    status: "draft",
+    title: "Video nhiều view nhưng không ra đơn: đọc số từng bước để tìm chỗ gãy",
+    seoTitle: "Video TikTok nhiều view không ra đơn: vì sao | Juli AI",
+    description:
+      "Video TikTok nhiều view mà không ra đơn: đọc Lượt hiển thị sản phẩm, CTR, CTOR, AOV của luồng Video để biết đơn gãy ở bước nào và nên sửa gì trước.",
+    excerpt:
+      "Lượt xem video không nằm trong công thức GMV. Cách TikTok tính đơn cho video (trực tiếp và trong 7 ngày), bảng triệu chứng theo Lượt hiển thị sản phẩm, CTR, CTOR, AOV, cách nhận ra video sai tệp khách và đo lại sau 7, 14 ngày.",
+    breadcrumbName: "Video nhiều view không ra đơn",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
+    category: "guide",
+    format: "pain",
+    cover: blogCover("video-view-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xám nhạt, ô thứ hai được tô kín"),
+    author: AUTHOR,
+    related: ["live-tiktok-shop-khong-ra-don", "tiktok-shop-khong-ra-don", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    faq: [
+      {
+        question: "Video TikTok bao nhiêu view thì có đơn?",
+        answer:
+          "Không có con số chung. Lượt xem video không nằm trong công thức GMV: đơn hàng phụ thuộc vào Lượt hiển thị sản phẩm trong video, tỷ lệ người bấm vào sản phẩm (CTR) và tỷ lệ đặt hàng sau khi bấm (CTOR). Hãy so các tỷ lệ này với những video khác của chính shop gắn cùng sản phẩm.",
+      },
+      {
+        question: "Đơn từ video được tính thế nào?",
+        answer:
+          "Theo bài Tinh chỉnh GMV của Học viện TikTok Shop, đơn mua ngay sau khi xem video và bấm vào link sản phẩm là GMV video trực tiếp; đơn mua sau đó trong vòng 7 ngày là GMV video gián tiếp. Người xem chỉ xem mà không bấm vào link sản phẩm thì không được tính cho video.",
+      },
+      {
+        question: "Xem đơn và CTR của từng video ở đâu?",
+        answer:
+          "Trong Trung tâm nhà bán hàng, vào La bàn dữ liệu, Số liệu phân tích sản phẩm, Lưu lượng truy cập sản phẩm, chọn loại nội dung Video cá nhân. Danh sách video hiện ra kèm số liệu, và nút Xem mở trang Chi tiết video.",
+      },
+      {
+        question: "Có nên chạy quảng cáo cho video nhiều view nhưng ít đơn?",
+        answer:
+          "Hãy đọc CTR và CTOR trước. Quảng cáo đưa thêm người xem đến video nhưng không làm họ bấm vào sản phẩm nhiều hơn hay sửa được trang sản phẩm. Nếu CTR hoặc CTOR đang thấp, sửa bước đó trước. Juli AI không chạy quảng cáo.",
+      },
+      {
+        question: "Sửa xong bao lâu thì biết có hiệu quả?",
+        answer:
+          "Đọc sơ bộ ở ngày 7 và chốt ở ngày 14, mỗi lần chỉ một thay đổi. Đơn gián tiếp có thể đến trong 7 ngày sau khi khách xem video, nên đánh giá sau một hai ngày là quá sớm.",
+      },
+    ],
+    sources: [
+      academy("Tinh chỉnh GMV", "4851723979097858", "GMV trực tiếp và gián tiếp, 7 ngày, ghi nhận nội dung cuối cùng (11/05/2026), kiểm tra 17/10/2026"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "đường dẫn, chỉ số phễu, lọc theo Video cá nhân, AOV (SKU), Tỷ lệ thêm vào giỏ hàng (17/06/2026), kiểm tra 17/10/2026"),
+      academy("Hướng dẫn sử dụng La bàn Dữ liệu trong Trung tâm Người bán", "6837786452313858", "số liệu của mục Phân tích Video (13/12/2022), kiểm tra 17/10/2026"),
+      academy("Phân Tích Hiệu Suất Video - Hướng Dẫn cho Nhà Sáng Tạo", "6837828965697281", "hồ sơ người xem, nhận biết thương hiệu (22/03/2024), kiểm tra 17/10/2026"),
+    ],
+  },
+  {
+    slug: "live-tiktok-shop-khong-ra-don",
+    status: "draft",
+    title: "LIVE đông người xem mà ít đơn: đọc phễu LIVE từ lượt hiển thị đến đơn hàng",
+    seoTitle: "LIVE TikTok Shop không ra đơn: đọc phễu LIVE | Juli AI",
+    description:
+      "LIVE TikTok Shop đông người xem mà không ra đơn: đọc năm bước của phễu LIVE, ERR, CTR, CTOR, GPM hiển thị để tìm chỗ tụt và chọn điều chỉnh cho buổi sau.",
+    excerpt:
+      "Người xem không phải người mua. Năm bước của phễu LIVE theo TikTok, ba góc độ chỉ số trong Cẩm nang lưu lượng LIVE, vì sao CTR của LIVE khác CTR của thẻ sản phẩm, so các buổi bằng GPM hiển thị và đọc số theo từng phút.",
+    breadcrumbName: "LIVE đông người xem mà ít đơn",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
+    category: "guide",
+    format: "pain",
+    cover: blogCover("live-it-don-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xám nhạt, ô thứ ba được tô kín"),
+    author: AUTHOR,
+    related: ["video-tiktok-nhieu-view-khong-ra-don", "tiktok-shop-khong-ra-don", "gmv-la-gi-tiktok-shop"],
+    faq: [
+      {
+        question: "Tại sao LIVE đông người xem mà không chốt được đơn?",
+        answer:
+          "Người xem đang dừng ở một bước trước khi mua: vào phòng nhưng ít thấy sản phẩm, thấy sản phẩm nhưng không bấm vào, hoặc bấm vào rồi không đặt. So tỷ lệ giữa các bước của phễu LIVE với các buổi trước của chính bạn để tìm bước tụt mạnh nhất.",
+      },
+      {
+        question: "LIVE bao nhiêu người xem thì có đơn?",
+        answer:
+          "Không có con số chung. Hai buổi cùng số người xem có thể ra số đơn rất khác nhau. Cẩm nang lưu lượng LIVE của TikTok gợi ý so bằng GPM hiển thị, tức GMV trên mỗi 1.000 lượt hiển thị của buổi LIVE, thay vì chỉ đếm người xem.",
+      },
+      {
+        question: "GPM hiển thị và ERR là gì?",
+        answer:
+          "Theo Cẩm nang lưu lượng LIVE, GPM hiển thị là GMV tạo ra từ phòng LIVE trên mỗi 1.000 lượt hiển thị của buổi LIVE, còn Tỷ lệ vào phòng (ERR) là số lượt xem chia cho số lượt hiển thị của phòng LIVE. ERR cần khoảng 15 đến 30 phút đầu để ổn định.",
+      },
+      {
+        question: "TikTok có bóp LIVE không?",
+        answer:
+          "Học viện TikTok Shop không công bố cách phân phối lượt hiển thị cho buổi LIVE. Nếu nghi buổi LIVE bị ảnh hưởng do vi phạm, Cẩm nang lưu lượng LIVE hướng dẫn xem Tổng quan dữ liệu LIVE, Xu hướng hiệu suất, Chất lượng nội dung, và đối chiếu Chính sách nội dung TikTok Shop.",
+      },
+      {
+        question: "Bao lâu thì nên đánh giá lại cách LIVE?",
+        answer:
+          "Cẩm nang lưu lượng LIVE khuyên xem lại dữ liệu cấp tài khoản ít nhất 7 ngày một lần và so 3 chỉ số kém nhất với 5 buổi gần đây. Với một thay đổi cụ thể, Juli đọc sơ bộ ở ngày 7 và chốt ở ngày 14.",
+      },
+    ],
+    sources: [
+      academy("Phân tích dữ liệu LIVE của bạn", "6837840206563073", "phễu năm giai đoạn, phát lại theo thời gian, hồ sơ người dùng (03/01/2023), kiểm tra 17/10/2026"),
+      academy("Cẩm nang lưu lượng LIVE", "512121839519504", "ba góc độ chỉ số, ERR, CTR, CTOR, GPM hiển thị, quy trình trong và sau LIVE (24/07/2025), kiểm tra 17/10/2026"),
+      academy("Hiệu Suất LIVE", "5477287655884545", "đường dẫn, sáu chỉ số mặc định, khác biệt giữa trang nhà bán hàng và nhà sáng tạo (21/05/2024), kiểm tra 17/10/2026"),
+      academy("Hướng dẫn sử dụng La bàn Dữ liệu trong Trung tâm Người bán", "6837786452313858", "Lượt hiển thị sản phẩm trong LIVE, C_O (13/12/2022), kiểm tra 17/10/2026"),
+      academy("Tinh chỉnh GMV", "4851723979097858", "GMV trực tiếp và gián tiếp theo loại nội dung (11/05/2026), kiểm tra 17/10/2026"),
+    ],
+  },
 ];

@@ -160,4 +160,55 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     alt: "Sơ đồ quy trình 30 phút khi doanh thu giảm, bảy bước: 1 kiểm tra cách so sánh; 2 tách GMV theo năm luồng; 3 tách luồng đó thành bốn chỉ số Lượt hiển thị, CTR, CTOR, AOV; 4 đi qua danh sách kiểm tra của đúng luồng và chỉ số; 5 tìm năm sản phẩm giải thích nhiều nhất mức giảm; 6 kiểm tra ngoài phễu: mùa vụ, hủy, hoàn, sản phẩm ngừng bán; 7, được tô nổi bật, ghi một kết luận và một hành động kèm ngày bắt đầu.",
     caption: "Bảy bước theo thứ tự. Bước cuối hay bị bỏ qua nhất.",
   }),
+
+  /* ————— video-tiktok-nhieu-view-khong-ra-don (P46-B1) ————— */
+  "video-view-den-don": diagram("video-view-den-don", 504, 512, {
+    alt: "Sơ đồ ví dụ giả định cho một video trong 28 ngày: 100.000 lượt xem video, ghi chú đây là chỉ số của video và không có trong công thức GMV. Bên dưới là phễu: 20.000 lượt hiển thị sản phẩm nhân CTR 1 % ra 200 lượt nhấp vào sản phẩm, nhân CTOR 4 % ra 8 đơn hàng SKU, nhân AOV 150.000 đồng ra GMV 1.200.000 đồng. Bước CTR được tô nổi bật: cứ 100 lần sản phẩm hiện ra thì 99 lần không ai bấm vào.",
+    caption:
+      "Ví dụ giả định: lượt xem video đứng ngoài công thức GMV; đơn hàng đi qua bốn hệ số, và ở đây CTR là chỗ gãy.",
+  }),
+  "video-trieu-chung": diagram("video-trieu-chung", 516, 848, {
+    alt: "Bảng bốn triệu chứng khi video nhiều lượt xem mà ít đơn. 1, nhiều lượt xem nhưng ít Lượt hiển thị sản phẩm: sản phẩm ít được nhìn thấy, xem sản phẩm có được gắn đúng vào video và video có nói về sản phẩm hay chỉ giải trí. 2, Lượt hiển thị sản phẩm ổn nhưng CTR thấp: thấy mà không bấm, xem video có cho thấy rõ sản phẩm, công dụng, giá và người xem có phải người cần sản phẩm. 3, CTR ổn nhưng CTOR thấp: bấm vào mà không mua, xem ảnh, mô tả, đánh giá trên trang sản phẩm và giá, ưu đãi có khớp điều video nói. 4, có đơn nhưng GMV vẫn thấp: AOV thấp, xem khách có chọn biến thể rẻ nhất và có ưu đãi mua nhiều hay mua theo gói. Ghi chú: so với chính video đó ở kỳ trước và các video khác của shop, trên cùng luồng Video.",
+    caption:
+      "Bốn triệu chứng, bốn bước nghi ngờ: đọc số trước, rồi mới quyết định sửa video hay sửa trang sản phẩm.",
+  }),
+  "video-truc-tiep-gian-tiep": diagram("video-truc-tiep-gian-tiep", 354, 600, {
+    alt: "Sơ đồ ba trường hợp ghi nhận đơn cho video. 1, xem video, bấm vào sản phẩm, mua ngay: GMV video trực tiếp, được tô nổi bật. 2, xem video, bấm vào sản phẩm, vài ngày sau tự tìm lại và mua: GMV video gián tiếp, nếu mua trong 7 ngày. 3, chỉ xem video, không bấm vào sản phẩm: không ghi nhận cho video. Ghi chú theo bài Tinh chỉnh GMV của Học viện TikTok Shop: người mua phải xem và bấm vào link sản phẩm thì video mới được tính; nếu xem nhiều nội dung, đơn được ghi nhận cho nội dung cuối cùng.",
+    caption:
+      "Theo Học viện TikTok Shop: video chỉ được tính đơn khi người xem đã bấm vào sản phẩm, mua ngay hoặc trong 7 ngày sau.",
+  }),
+  "video-ctr-du-lieu-mau": screenshot(CAP_DL_TIN_CAY, CAP_DL_TIN_CAY_MOBILE, {
+    alt: "Khối Video trong Phân tích của Juli: GMV 1,9 triệu đồng mỗi ngày, giảm 6,1 %; Lượt hiển thị mỗi ngày 5.630, tăng 2,0 %; CTR 2,92 %, giảm 4,8 %, được đánh dấu Juli gợi ý; CTOR và AOV ghi Phụ thuộc sản phẩm; bên dưới là ba video tác động CTR nhiều nhất, mỗi dòng có ngày đăng, mã sản phẩm được gắn, CTR trước và nay, số đồng mất mỗi ngày, nhãn Rõ hoặc Tham khảo và liên kết Xem sản phẩm được gắn (dữ liệu mẫu)",
+    caption:
+      "Dữ liệu mẫu · Lượt hiển thị của luồng Video vẫn tăng nhưng CTR giảm: Juli chỉ ra những video kéo CTR xuống nhiều nhất.",
+  }),
+  "video-sua-va-do": diagram("video-sua-va-do", 398, 644, {
+    alt: "Sơ đồ sáu bước: 1, đọc luồng Video 28 ngày, cộng tổng cả kỳ rồi mới chia ra tỷ lệ; 2, tìm bước gãy, Lượt hiển thị sản phẩm, CTR, CTOR hay AOV; 3, chọn một thay đổi, video mới do bạn quay hoặc trang sản phẩm, không làm cả hai cùng lúc; 4, ghi ngày bắt đầu; 5, ngày 7 đọc sơ bộ chỉ số mục tiêu đang lên, đi ngang hay giảm; 6, được tô nổi bật, ngày 14 chốt: giữ thay đổi, sửa tiếp hoặc quay lại bản cũ.",
+    caption: "Sửa một chỗ mỗi lần, ghi ngày bắt đầu, đọc sơ bộ ở ngày 7 và chốt ở ngày 14.",
+  }),
+
+  /* ————— live-tiktok-shop-khong-ra-don (P46-B1) ————— */
+  "live-pheu": diagram("live-pheu", 534, 530, {
+    alt: "Sơ đồ ví dụ giả định cho một buổi LIVE theo năm bước của TikTok: 60.000 lượt hiển thị LIVE, tỷ lệ vào phòng ERR 8 % ra 4.800 lượt xem LIVE, qua sản phẩm được ghim và giỏ hàng ra 3.600 lượt hiển thị sản phẩm, còn 2,5 % ra 90 lượt nhấp vào sản phẩm, còn 6,7 % ra 6 đơn hàng đã thanh toán. Bước lượt nhấp được tô nổi bật: 4.800 lượt xem nhưng chỉ 90 lượt nhấp, chỗ tụt mạnh nhất là từ thấy sản phẩm đến bấm vào sản phẩm.",
+    caption: "Ví dụ giả định: năm bước của phễu LIVE, và bước tụt mạnh nhất là chỗ cần sửa trước.",
+  }),
+  "live-ba-goc-do": diagram("live-ba-goc-do", 358, 640, {
+    alt: "Sơ đồ ba góc độ của chỉ số LIVE theo Cẩm nang lưu lượng LIVE. Phạm vi tiếp cận: Lượt hiển thị, Lượt xem, Tỷ lệ vào phòng ERR, Thời lượng xem trung bình. Tương tác: Tỷ lệ bình luận, Tỷ lệ theo dõi, Tỷ lệ chia sẻ, Tỷ lệ thích. Chuyển đổi, được tô nổi bật: CTR, CTOR, GPM hiển thị, GPM lượt xem. Ghi chú: đông người xem chỉ nói về góc độ đầu tiên, đơn hàng nằm ở góc độ thứ ba; CTR của LIVE là lượt bấm vào sản phẩm chia cho lượt xem LIVE, khác cách tính CTR của thẻ sản phẩm.",
+    caption:
+      "Ba nhóm chỉ số LIVE của TikTok: người xem đông thuộc Phạm vi tiếp cận, còn đơn hàng nằm ở nhóm Chuyển đổi.",
+  }),
+  "live-gpm": diagram("live-gpm", 360, 562, {
+    alt: "Sơ đồ ví dụ giả định so sánh hai buổi LIVE của cùng một shop. Buổi A, đông người xem: 50.000 lượt hiển thị, 3.000 lượt xem, GMV 4.000.000 đồng, GPM hiển thị 80.000 đồng. Buổi B, ít người xem hơn, được tô nổi bật: 20.000 lượt hiển thị, 1.200 lượt xem, GMV 3.000.000 đồng, GPM hiển thị 150.000 đồng. Công thức: GPM hiển thị bằng GMV phòng LIVE chia cho lượt hiển thị nhân 1.000. Kết luận: buổi B ít người hơn nhưng mỗi 1.000 lượt hiển thị bán được gần gấp đôi.",
+    caption: "Ví dụ giả định: đếm người xem thì buổi A thắng, đo GPM hiển thị thì buổi B bán tốt hơn.",
+  }),
+  "live-trong-sau": diagram("live-trong-sau", 390, 572, {
+    alt: "Sơ đồ hai cột theo Cẩm nang lưu lượng LIVE. Trong khi LIVE, theo dõi: xu hướng Lượt hiển thị và ERR; chỉ số đổi ra sao khi đổi sản phẩm ghim, flash sale, tặng phẩm; ERR cần khoảng 15 đến 30 phút đầu để ổn định. Sau khi LIVE, xem lại: 3 chỉ số kém nhất so với các buổi gần đây; lúc chỉ số giảm thì sản phẩm nào đang ghim, ưu đãi nào đang chạy, có vi phạm không; dữ liệu cấp tài khoản ít nhất 7 ngày một lần. Kết luận: chọn một thay đổi cho buổi sau, rồi so lại trên cùng các chỉ số.",
+    caption:
+      "Trong buổi theo dõi xu hướng, sau buổi tìm ba chỉ số kém nhất: tóm tắt từ Cẩm nang lưu lượng LIVE của TikTok.",
+  }),
+  "live-luong-du-lieu-mau": screenshot(CAP_PT_LUONG, CAP_PT_LUONG_MOBILE, {
+    alt: "Màn hình Phân tích của Juli trên Cửa hàng Mẫu Hoa Mai: kết luận Thẻ sản phẩm: CTOR giảm 7 %, so 30 ngày với 30 ngày trước, hai tab Sản phẩm và Nội dung, dòng chia luồng Sản phẩm gồm Thẻ sản phẩm và Tab cửa hàng, Nội dung gồm Video và LIVE, Liên kết theo dõi ở Trang chủ (dữ liệu mẫu)",
+    caption:
+      "Dữ liệu mẫu · Juli đọc LIVE như một luồng riêng trong tab Nội dung, tách khỏi Thẻ sản phẩm và Tab cửa hàng.",
+  }),
 };
