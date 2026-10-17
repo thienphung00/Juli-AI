@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { OpsApiError, type OpsApi } from "../../lib/ops/api";
-import { fmtDate } from "../../lib/ops/format";
+import { fmtDate, fmtGmvShort } from "../../lib/ops/format";
 import type { CardGroup, CardGroupComparison, CardGroupCreate, CardGroupEb, CardGroupPlan, CardGroupsPage } from "../../lib/ops/types";
 import { C, card } from "./ops-shell";
 
@@ -20,6 +20,11 @@ import { C, card } from "./ops-shell";
  * P45 (D52, Ops only): beside each raw result, "Lift đã co (EB)" — the lift shrunk toward
  * groups of the same lever type (a winner's-curse guard), with the prior it used. The
  * seller's sentence and the verdict label do not change.
+ *
+ * P46 (D55.1, Ops only): TikTok's GMV includes cancelled and refunded orders. When the shop's
+ * orders cover the days read, AOV / items per order are read net ("đã trừ huỷ/hoàn") with the
+ * TikTok-GMV reading beside them ("gồm huỷ/hoàn"); otherwise the label says the numbers include
+ * them. The plan line shows "Doanh thu (đã trừ huỷ/hoàn)" next to "GMV TikTok (gồm huỷ/hoàn)".
  */
 
 const ARM_LABEL: Record<string, string> = { treated: "Áp dụng", control: "Đối chứng" };
@@ -100,6 +105,25 @@ export function planText(plan: CardGroupPlan | null | undefined): string | null 
   return parts.join(" · ");
 }
 
+/** P46 (D55.1): the Ops revenue labels. */
+export const REVENUE_NET_LABEL = "Doanh thu (đã trừ huỷ/hoàn)";
+export const GMV_GROSS_LABEL = "GMV TikTok (gồm huỷ/hoàn)";
+export const GMV_GROSS_ONLY_LABEL = "GMV (gồm đơn huỷ/hoàn, theo TikTok)";
+
+/**
+ * P46 (D55.1): "14 ngày trước khi bắt đầu · Doanh thu (đã trừ huỷ/hoàn): 41,2 tr áp dụng · 20,1 tr
+ * đối chứng · GMV TikTok (gồm huỷ/hoàn): 44,8 tr · 21,0 tr", or the TikTok GMV alone, labelled.
+ */
+export function revenueText(plan: CardGroupPlan | null | undefined): string | null {
+  if (!plan?.have_before) return null;
+  const { treated, control } = plan.have_before;
+  const gross = `${fmtGmvShort(treated.gmv)} áp dụng · ${fmtGmvShort(control.gmv)} đối chứng`;
+  if (plan.revenue_basis === "net" && treated.gmv_net !== undefined && control.gmv_net !== undefined) {
+    return `14 ngày trước khi bắt đầu · ${REVENUE_NET_LABEL}: ${fmtGmvShort(treated.gmv_net)} áp dụng · ${fmtGmvShort(control.gmv_net)} đối chứng · ${GMV_GROSS_LABEL}: ${gross}`;
+  }
+  return `14 ngày trước khi bắt đầu · ${GMV_GROSS_ONLY_LABEL}: ${gross}`;
+}
+
 function ReasonLine({
   group,
   canEdit,
@@ -170,7 +194,9 @@ function GroupRow({
   const guard = group.verdict?.guard;
   const metrics = Object.values(group.verdict?.metrics ?? {}).filter((m) => !(guard && m.metric === guard.metric && m.channel === guard.channel));
   const plan = planText(group.plan);
+  const revenue = revenueText(group.plan);
   const adjustment = group.verdict?.adjustment;
+  const basis = group.verdict?.basis;
   return (
     <div data-testid="ops-group" style={{ borderTop: `1px solid ${C.lineSoft}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
       <button
@@ -194,10 +220,31 @@ function GroupRow({
           {plan}
         </div>
       ) : null}
+      {revenue ? (
+        <div data-testid="ops-group-revenue" style={{ color: C.muted2 }}>
+          {revenue}
+        </div>
+      ) : null}
       <div>
         Kết quả ngày 14: <b>{group.verdict ? comparisonText(group.verdict.primary) : "chưa đo"}</b>
       </div>
       <EbLine comparison={group.verdict?.primary} />
+      {basis ? (
+        <div data-testid="ops-group-basis" style={{ color: C.muted2, fontSize: 12 }}>
+          {basis.text}
+        </div>
+      ) : null}
+      {group.verdict?.gross ? (
+        <div data-testid="ops-group-gross" style={{ color: C.muted2, fontSize: 12 }}>
+          {group.verdict.gross.label}: {comparisonText(group.verdict.gross.primary)}
+        </div>
+      ) : null}
+      {group.verdict?.net ? (
+        <div data-testid="ops-group-net" style={{ color: C.body }}>
+          {group.verdict.net.label} (chỉ Ops): {comparisonText(group.verdict.net.primary)}
+          <EbLine comparison={group.verdict.net.primary} />
+        </div>
+      ) : null}
       {adjustment ? <div style={{ color: C.muted2, fontSize: 12 }}>Cách tính: {METHOD_LABEL[adjustment.method] ?? adjustment.method}</div> : null}
       {group.verdict?.ops_rule ? (
         <div data-testid="ops-group-ops-rule" style={{ color: C.muted2, fontSize: 12 }}>
@@ -210,6 +257,11 @@ function GroupRow({
         <div key={`${m.metric}|${m.channel}`} style={{ color: C.body }}>
           {m.label}: {comparisonText(m.primary)}
           <EbLine comparison={m.primary} />
+          {m.gross ? (
+            <div data-testid="ops-group-metric-gross" style={{ color: C.muted2, fontSize: 12 }}>
+              {m.gross.label}: {comparisonText(m.gross.primary)}
+            </div>
+          ) : null}
         </div>
       ))}
       {guard ? (
