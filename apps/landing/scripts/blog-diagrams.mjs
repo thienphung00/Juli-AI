@@ -487,6 +487,131 @@ const DIAGRAMS = [
 <p class="note">Khi quyết toán, doanh thu trên sàn được tổng hợp cùng doanh thu bán ngoài sàn; số TNCN sàn đã trừ được trừ vào số phải nộp. Trên 1 tỷ đồng phải dùng hóa đơn điện tử.</p>`;
     },
   },
+  /* ————— P46-C2 (D56): ty-le-hoan-hang-tiktok-shop ————— */
+  {
+    name: "ba-loai-hoan-hang-v1",
+    html: () => {
+      const cols = [
+        ["Hủy đơn", "Trước khi đơn ở trạng thái đang vận chuyển", "SFCR, nếu do lỗi người bán: hết hàng, sai giá, không bàn giao kịp", "Hàng chưa rời shop"],
+        ["Giao không thành công", "Đơn hủy khi đang vận chuyển, hoặc khách COD từ chối nhận", "Không có chỉ số riêng", "Hàng quay về shop, người bán chịu phí chuyển hoàn"],
+        ["Trả hàng, hoàn tiền", "Sau khi đơn đã giao, khách gửi yêu cầu", "SFRR, nếu lý do liên quan người bán: không đúng mô tả, gửi sai, lỗi, thiếu", "Trả hàng về shop, hoặc chỉ hoàn tiền"],
+      ];
+      return `${head("“Hoàn hàng” là ba loại đơn khác nhau")}
+<div class="grid3">${cols
+        .map(
+          ([t, when, metric, goods], i) =>
+            `<div class="box col">${num(i + 1)}<strong>${t}</strong><span class="label">Khi nào</span><span class="desc">${when}</span><span class="label">Chỉ số</span><span class="desc">${metric}</span><span class="label">Hàng hóa</span><span class="desc">${goods}</span></div>`,
+        )
+        .join("")}</div>
+<div class="result">Tách ba loại trước, rồi mới xem loại nào đang tăng</div>`;
+    },
+  },
+  {
+    name: "dong-thoi-gian-tra-hang-v1",
+    html: () => {
+      const path = [
+        "Khách gửi yêu cầu: trong 15 ngày theo lịch sau khi nhận, 6 ngày với một số danh mục",
+        "Người bán xem xét yêu cầu: trong 1 ngày theo lịch",
+        "Người bán xem hàng trả về: trong 2 ngày theo lịch sau khi nhận",
+        "Khiếu nại nếu cần: trong 7 ngày, 15 ngày với trả hàng tự sắp xếp",
+      ];
+      const rules = [
+        ["Duyệt", "Yêu cầu hợp lệ thì duyệt sớm."],
+        ["Từ chối kèm bằng chứng", "Chỉ khi có lý do hợp lệ, ví dụ video đóng gói."],
+        ["Đề nghị hoàn một phần", "Khách chấp nhận thì đơn không tính vào SFRR."],
+      ];
+      return `${head("Một yêu cầu trả hàng, từng mốc thời gian")}
+<div class="path">${path
+        .map((p, i) => `<span class="crumb${i === 1 ? " crumb--ink" : ""}">${p}</span>`)
+        .join(`<span class="sep">›</span>`)}</div>
+<p class="label">Ở bước xem xét, người bán chọn một trong ba</p>
+<div class="grid3">${rules
+        .map(([t, d], i) => `<div class="box col">${num(i + 1)}<strong>${t}</strong><span class="desc">${d}</span></div>`)
+        .join("")}</div>
+<div class="result">Quá hạn ở bước xem xét yêu cầu hoặc xem hàng trả về: yêu cầu được tự động duyệt</div>`;
+    },
+  },
+  {
+    name: "ai-tra-phi-ship-v1",
+    html: () => {
+      const cases = [
+        ["Lỗi người bán", "Gửi sai, hàng giả, thiếu bộ phận, sản phẩm lỗi, đóng gói kém, không khớp mô tả.", "Người bán chịu phí trả hàng.", true],
+        ["Khách đổi ý", "Khách không còn muốn sản phẩm, hàng đủ điều kiện trả.", "Nền tảng trả phí trả hàng; người bán trả phí chiều đi đến mức trần, phần vượt nền tảng trả."],
+        ["Lỗi kho vận", "Ví dụ kiện bị hỏng trong lúc vận chuyển.", "Đơn vị kho vận chịu phí trả hàng; hoa hồng nền tảng liên quan được hoàn cho người bán."],
+        ["Giao không thành công", "Đơn bị hủy khi đang vận chuyển.", "Người bán chịu phí vận chuyển trả hàng."],
+      ];
+      return `${head("Ai trả phí ship khi hàng quay về")}
+<div class="grid2">${cases
+        .map(
+          ([t, d, who, accent]) =>
+            `<div class="box half${accent ? " box--accent" : ""}"><strong class="metric">${t}</strong><span class="desc">${d}</span><span class="label">Ai trả</span><span class="look">${who}</span></div>`,
+        )
+        .join("")}</div>
+<p class="note">TikTok quyết định bên nào có lỗi dựa trên bằng chứng các bên gửi.</p>`;
+    },
+  },
+  {
+    name: "chi-phi-mot-don-hoan-v1",
+    html: () => {
+      const cases = [
+        ["Khách đổi ý sau khi nhận", [["Phí xử lý đơn, không hoàn", "3.000 ₫"], ["Phí chiều đi người bán trả", "22.000 ₫"]], "25.000 ₫", "Không tính vào SFRR"],
+        ["Không đúng mô tả, lỗi người bán", [["Phí xử lý đơn, không hoàn", "3.000 ₫"], ["Phí trả hàng người bán chịu", "22.000 ₫"]], "25.000 ₫", "Tính vào SFRR", true],
+      ];
+      return `${head("Chi phí ngoài tiền hàng của một đơn 200.000 ₫ bị trả", true)}
+<div class="grid2">${cases
+        .map(
+          ([t, rows, total, sfrr, accent]) =>
+            `<div class="box half${accent ? " box--accent" : ""}"><strong class="metric">${t}</strong><ul class="costs">${rows
+              .map(([k, v]) => `<li><span>${k}</span><b>${v}</b></li>`)
+              .join("")}<li class="costs-total"><span>Cộng</span><b>${total}</b></li></ul><span class="small">${sfrr}</span></div>`,
+        )
+        .join("")}</div>
+<p class="note">Tiền hàng 200.000 ₫ hoàn cho khách; phần hoàn tiền không bị tính phí giao dịch. Hàng trả về đã mở có thể không bán lại được như hàng mới.</p>`;
+    },
+  },
+  /* ————— P46-C2 (D56): phi-san-tiktok-shop-2026 ————— */
+  {
+    name: "phi-mot-don-200k-v1",
+    html: () => {
+      const rows = [
+        ["Giá bán", "200.000 ₫", 0, 100, "ink"],
+        ["Phí hoa hồng 14 %", "−28.000 ₫", 86, 14, "neg"],
+        ["Phí giao dịch 6 %", "−13.200 ₫", 79.4, 6.6, "neg"],
+        ["Phí xử lý đơn", "−3.000 ₫", 77.9, 1.5, "neg"],
+        ["Còn lại sau phí sàn", "155.800 ₫", 0, 77.9, "ink"],
+        ["Giá vốn, đóng gói", "−114.000 ₫", 20.9, 57, "neg"],
+        ["Lãi trước quảng cáo, thuế", "41.800 ₫", 0, 20.9, "acc"],
+      ];
+      return `${head("Một đơn 200.000 ₫, phí suất mặc định, khách trả 20.000 ₫ ship", true)}
+<div class="wf">${rows
+        .map(
+          ([label, value, left, width, kind]) =>
+            `<div class="wrow${kind === "acc" ? " wrow--total" : ""}"><span class="blabel">${label}</span><span class="wtrack"><span class="wbar wbar--${kind}" style="left:${left}%;width:${width}%"></span></span><span class="bval">${value}</span></div>`,
+        )
+        .join("")}</div>
+<p class="note">Phí giao dịch tính trên 220.000 ₫ vì ship khách trả nằm trong cơ sở tính. Ba khoản phí sàn cộng lại 44.200 ₫, tức 22,1 % giá bán.</p>`;
+    },
+  },
+  {
+    name: "gmv-den-tien-ve-v1",
+    html: () => {
+      const path = [
+        "GMV: tổng tiền khách thanh toán, gồm cả đơn hủy và hoàn tiền",
+        "Trừ đơn hủy và hoàn tiền",
+        "Trừ phí sàn: hoa hồng, giao dịch, xử lý đơn, vận hành logistic nếu có",
+        "Tiền thực nhận, theo từng đơn đã quyết toán",
+      ];
+      return `${head("Từ GMV đến tiền thực nhận")}
+<div class="path">${path
+        .map((p, i) => `<span class="crumb${i === path.length - 1 ? " crumb--ink" : ""}">${p}</span>`)
+        .join(`<span class="sep">›</span>`)}</div>
+<div class="grid2">
+  <div class="box half"><strong>Đọc GMV để</strong><ul><li>Thấy nhu cầu của khách ngay trong ngày</li><li>Tìm luồng, sản phẩm, chỉ số đang kéo doanh thu xuống</li></ul></div>
+  <div class="box half"><strong>Đọc tiền thực nhận để</strong><ul><li>Biết lãi thật sau phí và hoàn tiền</li><li>Lên kế hoạch nhập hàng, giá bán</li></ul></div>
+</div>
+<p class="note">Hoàn tiền được ghi vào lúc yêu cầu được xử lý, không phải ngày mua: tuần gần nhất thường trông ít hoàn hơn thực tế.</p>`;
+    },
+  },
 ];
 
 function pageHtml(diagram, t, layout) {
@@ -650,6 +775,25 @@ ul.hang li{padding-left:14px;text-indent:-14px}
 .m .vs{grid-template-columns:1fr 1fr}
 .look{margin-top:2px;color:${t.ink}!important}
 .look b{font-weight:600}
+/* P46-C2 */
+.costs{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.costs li{display:flex;justify-content:space-between;gap:10px;color:${t.body};font-size:14px}
+.costs li::before{display:none!important}
+.costs b{font-weight:600;color:${t.ink};font-variant-numeric:tabular-nums;white-space:nowrap}
+.costs-total{padding-top:6px;border-top:1px solid ${t.hairline}}
+.costs-total span{color:${t.ink};font-weight:600}
+.wf{display:flex;flex-direction:column;gap:8px}
+.wrow{display:grid;grid-template-columns:220px 1fr 110px;align-items:center;gap:12px}
+.m .wrow{grid-template-columns:1fr auto;row-gap:4px}
+.m .wrow .blabel{grid-column:1;grid-row:1}
+.m .wrow .bval{grid-column:2;grid-row:1}
+.m .wrow .wtrack{grid-column:1/-1}
+.wtrack{position:relative;height:20px;background:${t.bg};border-radius:4px}
+.wbar{position:absolute;top:2px;height:16px;border-radius:3px;min-width:4px}
+.wbar--ink{background:${t.ink}}
+.wbar--neg{background:${t["pink-text"]}}
+.wbar--acc{background:${t.pink}}
+.wrow--total{padding-top:8px;border-top:1px solid ${t.hairline}}
 </style></head><body class="${layout === "mobile" ? "m" : "d"}"><div class="fig">${diagram.html(t)}</div></body></html>`;
 }
 
