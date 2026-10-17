@@ -53,6 +53,8 @@ export const COVERS = [
   { name: "ai-anh-video-v1", category: "tools", motif: "tiles", accent: 5 },
   { name: "luot-hien-thi-v1", category: "guide", motif: "checklist", accent: 1 },
   { name: "thue-ban-hang-v1", category: "guide", motif: "checklist", accent: 2 },
+  { name: "video-view-v1", category: "guide", motif: "checklist", accent: 1 },
+  { name: "live-it-don-v1", category: "guide", motif: "checklist", accent: 2 },
 ];
 
 const MOTIF_BY_CATEGORY = { metrics: "bars", optimize: "card", tools: "tiles", guide: "checklist" };

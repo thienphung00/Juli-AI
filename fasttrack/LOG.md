@@ -2416,3 +2416,32 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   both posts rendered at 390 / 1440 px, one H1, no horizontal overflow, figures loaded.
 - Next: owner reviews and approves; re-check the tax post whenever NĐ 252 / NĐ 68 / the laws
   change (G6).
+## 2026-10-17 — P46-B1 writer (Opus): week-1 posts 1–2, video and LIVE drafts
+
+- Branch `fasttrack/p46b1-week1-video-live` (worktree `/Users/macos/juli-fasttrack-p46b1`), from 848bb989.
+- Drafts (`format: "pain"`, category `guide`): `/blog/video-tiktok-nhieu-view-khong-ra-don`
+  (main "video tiktok nhiều view không ra đơn", 2,462 words, 11 H2, 5 FAQ, 5 figures) and
+  `/blog/live-tiktok-shop-khong-ra-don` (main "live tiktok shop không ra đơn", 2,443 words,
+  11 H2, 5 FAQ, 5 figures). Neither reuses "tiktok shop không ra đơn"; both link it and each other.
+- Sources re-opened 2026-10-17 in Chrome (TikTok Academy VN, cited with title + link): Tinh chỉnh
+  GMV (4851723979097858), Lưu lượng truy cập sản phẩm (10015238), Hướng dẫn sử dụng La bàn Dữ liệu
+  (6837786452313858), Phân Tích Hiệu Suất Video cho Nhà Sáng Tạo (6837828965697281), Phân tích dữ
+  liệu LIVE của bạn (6837840206563073), Cẩm nang lưu lượng LIVE (512121839519504), Hiệu Suất LIVE
+  (5477287655884545). Not claimed: how TikTok distributes views / LIVE impressions ("bóp" FAQ
+  answers with the Academy's own "Chất lượng nội dung" check only); category preferences in the
+  LIVE viewer profile (Academy: Indonesia / UK only).
+- Figures: 8 new diagrams (`video-view-den-don`, `video-trieu-chung`, `video-truc-tiep-gian-tiep`,
+  `video-sua-va-do`, `live-pheu`, `live-ba-goc-do`, `live-gpm`, `live-trong-sau`; "Ví dụ giả định"
+  where numbers appear) + 2 screenshots reused after opening them: `cap-dl-tin-cay` (Video block,
+  CTR down; id `video-ctr-du-lieu-mau`) and `cap-pt-luong` (tabs, LIVE under Nội dung; id
+  `live-luong-du-lieu-mau`). Covers `video-view-v1`, `live-it-don-v1` (guide checklist, accents 1, 2).
+- Juli copy follows /san-pham/* and D27: Juli drafts a video script / LIVE host script and basket
+  order, the seller films or goes live; title / description written only after approval; no ads,
+  no chat replies.
+- `keyword-map.md`: two rows (Draft), competition Medium with SERP / autocomplete evidence.
+- Gates: landing lint 0, `tsc --noEmit` 0, vitest 420 passed (`--maxWorkers=4`), build OK,
+  `check:seo` 27 passed. Rendered both posts at 390 / 1440 px (1 H1, 5 figures each, all images
+  loaded, no horizontal overflow, no "—"): screenshots in the session scratchpad `shots-p46b1/`.
+  `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
+  FAIL (no DB, `docker info` hung and was killed; known).
+- Next: owner reviews and merges; posts 3–4 of week 1.
