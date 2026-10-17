@@ -106,7 +106,9 @@ checks the ones marked (test).
 - **Internal links.** Link the product pages (`/san-pham`,
   `/san-pham/phan-tich-shop`, `/san-pham/de-xuat-va-thuc-thi`,
   `/san-pham/do-luong-gmv`, `/ket-noi/tiktok-shop`); every internal link must
-  resolve (test).
+  resolve (test). A `news` post (tax, fees, policy) needs only `/san-pham` plus
+  one other relevant internal link (P46-B2), e.g. the GMV post next to a "GMV vs
+  tiền thực nhận" line.
 - **After publishing.** The weekly Search Console report (`scripts/seo/gsc_report`,
   section 8) lists every `/blog/*` and `/cong-cu/*` URL with flags; at 8 weeks it
   flags the post for review. After the review, bump `updatedAt` (that clears the flag).

@@ -378,6 +378,13 @@ describe("post content (D43.7, D56 G5)", () => {
         expect(post.body).not.toMatch(/Juli/);
         return;
       }
+      if (meta.format === "news") {
+        // D56 G3: a TMĐT-change post (tax, fees, policy) links /san-pham plus one
+        // relevant page; forcing all product pages into it would read as an ad.
+        expect(internal, "/san-pham").toContain("/san-pham");
+        expect(internal.filter((href) => href !== "/san-pham" && href !== "/dang-ky").length).toBeGreaterThanOrEqual(1);
+        return;
+      }
       for (const page of ["/san-pham", ...PRODUCT_PAGES]) {
         expect(internal, page).toContain(page);
       }
@@ -414,7 +421,12 @@ function webpSize(file: string): { width: number; height: number } {
 }
 
 const VIETNAMESE = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
-const FIGURE_POSTS = ["gmv-la-gi-tiktok-shop", "tiktok-shop-khong-ra-don", "doanh-thu-tiktok-shop-giam"];
+const FIGURE_POSTS = [
+  "gmv-la-gi-tiktok-shop",
+  "tiktok-shop-khong-ra-don",
+  "doanh-thu-tiktok-shop-giam",
+  "san-pham-tiktok-shop-khong-co-luot-hien-thi",
+];
 
 function figureIds(body: string): string[] {
   return parseMarkdown(body).flatMap((block) => (block.kind === "figure" ? [block.id] : []));
