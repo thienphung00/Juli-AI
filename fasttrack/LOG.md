@@ -2394,3 +2394,25 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
 - Note for P46-B: the internal-link test still asks every non-listicle post (news too) to
   link `/san-pham` and the four product pages.
 - Next: owner merges; P46-B writers use `format` and `vendor()`.
+
+## 2026-10-17 — P46-B2 writer (Claude Opus 5.5): week-1 posts 3 and 4 (drafts)
+
+- Branch `fasttrack/p46b2-week1-hienthi-thue` from `fasttrack/optimize-product` 848bb989.
+  Commits ad494ff7 (6 diagrams desktop + phone, 2 covers), 6d214ca8 (test: news posts link
+  `/san-pham` + one relevant page; README), 003469b1 (both drafts, figures, keyword-map rows).
+- `/blog/san-pham-tiktok-shop-khong-co-luot-hien-thi` (pain, 2,478 words, 5 figures incl. the
+  `cap-dx-xac-nhan` screen, FAQ 5): bị ẩn (trạng thái per "Quản lý Sản phẩm" 27/08/2026) vs ít
+  người thấy (Lượt hiển thị by five flows, read with CTR), day 7 / 14. No claim on how TikTok
+  distributes impressions.
+- `/blog/thue-ban-hang-tiktok-shop` (news, 1,202 words, 2 figures, FAQ 4, "Cập nhật ngày
+  17/10/2026"): read from the official scans myself: NĐ 252/2026 Art. 43–46, 74; NĐ 68/2026
+  Art. 3, 4, 11–13, 19; **NĐ 141/2026 (29/04/2026, in force 01/01/2026) changed every
+  "500 triệu đồng" in NĐ 68 to "01 tỷ đồng"**, so the current threshold is 1 tỷ, not the
+  500 triệu the brief had; Luật 09/2026/QH16 (threshold set by the Government); Luật 109/2025
+  Art. 7.3.b (TNCN 0,5% for goods, on the part above the threshold), Luật 48/2024 Art. 12.2.b1
+  (GTGT 1% for goods, checked in 12/VBHN-VPQH). NĐ 252 itself gives no rate. Not covered (not
+  read): NĐ 174 / NQ 204 VAT reduction detail, Seller Center tax screens, chứng từ khấu trừ.
+- Gates: lint 0, tsc 0, vitest 417 passed (`--maxWorkers=4`), build OK, check:seo 27 passed;
+  both posts rendered at 390 / 1440 px, one H1, no horizontal overflow, figures loaded.
+- Next: owner reviews and approves; re-check the tax post whenever NĐ 252 / NĐ 68 / the laws
+  change (G6).
