@@ -2328,3 +2328,36 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   post's status instead of assuming the first post and the P39-B posts are drafts.
 - Gates (apps/landing, NODE_OPTIONS=--no-experimental-webstorage): vitest 17 files / 359
   passed, build OK, check:seo 25 passed. Not deployed yet.
+
+## 2026-10-17 — P45 agent (Claude Opus) — EB-shrunk group lift in Ops (D52)
+
+- Branch `fasttrack/eb-lift` (worktree `/Users/macos/juli-fasttrack-eb-lift`), from 4f8d4b38.
+  D52 added first (owner, 2026-10-17; Azevedo et al. 2019 winner's-curse guard).
+- **Maths** (`group_stats.py` step 7, pure): `log_lift_of` reads `y = ln(1 + diff / (100 + m_c))`
+  and `se` from the stored 90 % interval mapped the same way; `shrink_lift` gives
+  `w·y + (1 − w)·μ`, `w = τ² / (τ² + se²)`, var `w·se² + (1 − w)²·var μ`, a 90 % interval in %;
+  `estimate_prior` per lever × metric × channel: leave-one-out, a shop's groups combined by
+  inverse variance, DerSimonian–Laird from `group_eb_min_groups` (3) draws, else N(0, 0.15²).
+- **Stored**: `build_verdict` adds `primary.eb` (default prior; the pipeline runs in the shop's
+  scope), so `metrics.*.primary.eb` and `ops_rule.primary.eb` come with it.
+- **Cross-shop, Ops only**: migration `093_ops_group_lift_draws` adds `ops_group_lift_draws()`
+  (SECURITY DEFINER, EXECUTE to `juli_ops` only; primary + `metrics` comparisons, no product rows).
+  `GET /v1/ops/shops/{id}/groups` reads it inside the `ops_role` block `_shop` already opens (one
+  statement more), then `apply_pooled_eb` re-shrinks every comparison in the response; only μ, τ, n
+  leave it. The deferred phone cleanup re-parented onto 093 (12 test pins moved).
+- **Ops UI** (`ops-card-groups.tsx`): "Lift đã co (EB): +x % [lo; hi] · lift thô +y % · theo n nhóm
+  cùng loại / mức mặc định" under each result, tooltip "Điều chỉnh theo các nhóm cùng loại để tránh
+  tin nhầm kết quả may mắn"; two new tunables in Cài đặt shop. Label, strength and the seller
+  sentence untouched.
+- **Docs**: MODULE.md, `docs/chi-so/ops-huong-dan-chi-so.md` §5.4, DEBT (SE optimistic for tiny
+  groups; pooled prior not stored; per-shop tunables).
+- Gates: `tests/unit/test_p45_eb_lift.py` 19 passed; p30 / p31 / p36 group suites + chi-so vocabulary
+  passed; `test_ops_console_db.py` on Postgres 19 passed (juli_app refused on the new function; a
+  tenant scope sees only its own groups; `ops_role` reads both). Demo (Node 26): vitest
+  `src/components/ops` + `src/lib/ops` 14 files / 111 passed, `tsc --noEmit` 0, eslint 0 (needed
+  `pnpm install --offline` for apps/demo + packages). mypy clean on the 4 source files.
+  `check.sh --since fasttrack/optimize-product` on a throwaway Homebrew Postgres 16 in UTC
+  (port 55445, removed after): **5/5 PASS** (migrations to 093, isolation 12, gitleaks, ruff 20
+  files, pytest 26 files / 564 passed). Pre-existing, not touched: `test_import_boundaries`
+  strict-baseline (same 7 edges on the base).
+- Next: owner merges `--no-ff`, pushes, tags a deploy (the deploy runs migration 093).
