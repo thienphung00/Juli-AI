@@ -1097,3 +1097,14 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] P43: the calculator reads one period only, so it cannot name a weakest step from data. A
   "so với kỳ trước" mode (two periods, log split of the GMV change as in the post's Bước 2) would make
   that honest; not built (scope of D49.1).
+- [ ] P45 (D52): the EB SE comes from the verdict's 90 % bootstrap interval of the difference of
+  medians, which D41 found too optimistic for 2–5 products; a too-small SE makes the shrunk lift
+  stay close to the raw one for exactly the small groups the guard is for. Revisit with the first
+  real D34 groups (e.g. a permutation-based SE, or a floor from `group_design.drift_floor`).
+- [ ] P45 (D52): the stored `eb` always uses the default prior (the measuring pipeline runs in the
+  shop's tenant scope and cannot read other shops); the pooled prior is recomputed at read time on
+  the Ops groups page and is not stored. If a stored pooled value is wanted (e.g. for an audit
+  trail), add an Ops-run job that writes it under `juli_ops`.
+- [ ] P45 (D52): draws pool card groups (P31 rule) and Ops groups (D45.6 rule) of the same lever
+  × metric × channel alike; `group_eb_min_groups` / `group_eb_prior_sd` are read from the shop being
+  viewed, so two shops can show different priors for the same lever type.

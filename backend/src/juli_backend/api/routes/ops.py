@@ -542,12 +542,31 @@ ACTION_CARD_GROUP_REASON = "card_group_reason"
 
 
 async def _groups_body(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:
-    from juli_backend.services.action_cards import group_views
+    """The shop's groups; D52 (P45): every comparison's ``eb`` re-shrunk with the pooled prior.
+
+    The cross-shop draws are read in the ``juli_ops`` block (``ops_group_lift_draws()``,
+    migration 093) that ``_shop`` already opens -- one statement more -- then the shop's
+    own groups under its tenant scope. Only aggregates of the other shops' groups (prior
+    mean, spread, number of shops) reach the response.
+    """
+    from juli_backend.services.action_cards import card_groups, group_views
     from juli_backend.services.shop_rules import diag_tunables
 
-    async with shop_then_scope(session, shop_id, transaction_ends_after=True):
+    async with ops_role(session) as block:
+        await _shop(session, shop_id)
+        draws = await card_groups.lift_draws(session)
+        previous_role = block.hand_over()
+    async with with_shop_scope(
+        session, shop_id, restore_role=previous_role, transaction_ends_after=True
+    ):
         tunables = await diag_tunables(session, shop_id)
         groups = await group_views(session, shop_id, tunables=tunables)
+    groups = card_groups.apply_pooled_eb(
+        groups,
+        draws,
+        min_groups=tunables.group_eb_min_groups,
+        default_sd=tunables.group_eb_prior_sd,
+    )
     return {"enabled": tunables.groups_enabled, "groups": groups}
 
 

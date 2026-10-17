@@ -104,6 +104,18 @@ slice — see "Out of scope".
   `group_design.drift_floor(...)` / `traffic_needed(...)`. Tunables `group_two_window_min`,
   `group_guard_ctr_drop`, `group_drift_sigma` in `DiagTunables`. Routes
   `POST /v1/ops/shops/{id}/groups`, `PATCH /v1/ops/shops/{id}/groups/{group_id}` (audited)
+- EB-shrunk group lift (fast track P45, D52, **Ops only**): every verdict comparison
+  stores `eb` (`card_groups.eb_block` → pure `group_stats.log_lift_of` / `shrink_lift`:
+  `w·y + (1 − w)·μ`, `w = τ² / (τ² + se²)`, 90 % interval) with the default prior
+  N(0, `group_eb_prior_sd`²) -- the measuring pipeline runs in the shop's scope. The Ops
+  groups route re-shrinks with a pooled prior per lever × metric × channel:
+  `card_groups.lift_draws(session)` (inside `ops_role` only; Postgres reads
+  `public.ops_group_lift_draws()`, migration 093, SECURITY DEFINER, EXECUTE to `juli_ops`
+  only, comparisons without product rows) → pure `apply_pooled_eb(views, draws, *,
+  min_groups, default_sd)` (`group_stats.estimate_prior`: leave-one-out, a shop's groups
+  combined by inverse variance, DerSimonian–Laird from `group_eb_min_groups` (3) draws,
+  else the default). Only aggregates (μ, τ, n) reach the response. Label, strength,
+  `seller_sentence(s)` never read `eb`
 - `emission_budget.EXPIRED_STATUS`, `CAMPAIGN_PLAN_WORKFLOW_KEYS` (outside the
   limits; hook), `CONTENT_WORKFLOW_KEYS` (daily content slot; hook),
   `executor_slot(card)`, `daily_slot(card)`, `daily_slot_pick(...)`,

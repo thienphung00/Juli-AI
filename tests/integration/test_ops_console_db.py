@@ -7,6 +7,8 @@
   back, and the services (overview, settings + audit, handover) work end to end
   from a ``juli_app`` session -- the shape the API runs in.
 - The seller can stamp ``users.staff_access_consent_at`` on their own row only.
+- P45 (D52): ``ops_group_lift_draws()`` reads every shop's measured group comparisons
+  for the EB prior only under ``juli_ops``; a shop scope still sees only its own groups.
 """
 
 from __future__ import annotations
@@ -110,6 +112,8 @@ async def test_juli_app_cannot_read_ops_tables(two_tenants, table):
         "SELECT * FROM public.ops_list_shops()",
         "SELECT * FROM public.ops_transfer_shop(gen_random_uuid(), gen_random_uuid())",
         "SELECT * FROM public.ops_find_shop(gen_random_uuid())",
+        # P45 (D52, migration 093)
+        "SELECT * FROM public.ops_group_lift_draws()",
     ],
 )
 async def test_juli_app_cannot_call_ops_only_functions(two_tenants, call):
@@ -386,3 +390,44 @@ async def test_disconnect_as_juli_app_under_the_shops_scope(owner_engine):
             ).scalars()
         )
     assert active is False and statuses == {"needs_reauth"}
+
+
+async def test_group_lift_draws_read_every_shop_only_through_juli_ops(owner_engine, two_tenants):
+    """P45 (D52): the EB prior's cross-shop read is ops-only; tenants stay isolated."""
+    import json as _json
+
+    from juli_backend.services.action_cards.card_groups import lift_draws
+
+    tenant_a, tenant_b = two_tenants
+    comparison = {"difference": 3.0, "median_control": 0.0, "interval": [-1.0, 7.0]}
+    verdict = {
+        "primary": comparison,
+        "metrics": {"aov|total": {"metric": "aov", "channel": "total", "primary": comparison}},
+        "products": [{"product_id": "secret-product", "arm": "treated"}],
+    }
+    with owner_engine.begin() as conn:
+        for shop_id in (tenant_a.shop_id, tenant_b.shop_id):
+            conn.execute(
+                text(
+                    "INSERT INTO public.card_groups (id, shop_id, group_key, metric, lever, "
+                    "channel, launched_on, release_on, seed, status, verdict) VALUES "
+                    "(:id, :s, 'ctr|cover_image|total', 'ctr', 'cover_image', 'total', "
+                    "DATE '2026-09-01', DATE '2026-09-15', 1, 'measured', CAST(:v AS json))"
+                ),
+                {"id": uuid.uuid4(), "s": shop_id, "v": _json.dumps(verdict)},
+            )
+    async with app_session(tenant_a.shop_id) as session:
+        async with session.begin():
+            own = (await session.execute(text("SELECT shop_id FROM public.card_groups"))).scalars()
+            assert set(own) == {tenant_a.shop_id}
+            async with ops_role(session):
+                draws = await lift_draws(session)
+            after = (await session.execute(text("SELECT current_user"))).scalar_one()
+    assert after == RUNTIME_ROLE
+    shops = {d.shop_id for d in draws}
+    assert {str(tenant_a.shop_id), str(tenant_b.shop_id)} <= shops
+    types = {d.lever_type for d in draws}
+    assert {("cover_image", "ctr", "total"), ("cover_image", "aov", "total")} <= types
+    with owner_engine.connect() as conn:
+        rows = conn.execute(text("SELECT * FROM public.ops_group_lift_draws()")).mappings().all()
+    assert rows and all("secret-product" not in _json.dumps(r["out_comparison"]) for r in rows)

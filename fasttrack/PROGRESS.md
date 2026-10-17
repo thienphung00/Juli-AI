@@ -241,6 +241,12 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | P44 Three draft posts a–c, hub links from the existing tools post | D49.2 | done on branch `fasttrack/p44-tools-listicles` (78db1734, 7c1109f8, eaabd2c1; not merged), drafts await owner approval | P44 agent (Opus) |
 
+## P45 — EB-shrunk group lift in Ops (D52)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P45 `primary.eb` in every group comparison (default prior), pooled per-lever-type prior on the Ops groups page via `ops_group_lift_draws()` (migration 093, `juli_ops` only), Ops UI line + tooltip, tunables `group_eb_prior_sd` / `group_eb_min_groups` | D52 | done on branch `fasttrack/eb-lift` (fb0b0b7b, 2974482d + docs) — not merged, not deployed | P45 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
