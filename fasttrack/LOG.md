@@ -2445,3 +2445,28 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
   FAIL (no DB, `docker info` hung and was killed; known).
 - Next: owner reviews and merges; posts 3–4 of week 1.
+
+## 2026-10-17 — P46-C2 writer (Claude Opus 5.5): week-2 posts 7 and 8 (drafts)
+
+- Branch `fasttrack/p46c2-week2-huy-phi` from `fasttrack/optimize-product` 0e54c67b.
+  Commits 5dd4fd9e (6 diagrams desktop + phone, covers `hoan-hang-v1` metrics/bars accent 1,
+  `phi-san-2026-v1` guide/tiles accent 1), dbf0771a (both drafts, figures, keyword-map rows).
+- `/blog/ty-le-hoan-hang-tiktok-shop` (pain, 2,473 words, 5 figures incl. a `cap-dx-xac-nhan`
+  screen, FAQ 5): hủy đơn vs giao không thành công vs trả hàng / hoàn tiền; SFCR, SFRR, review
+  window, who pays return shipping, fees not refunded. All facts from Vietnamese Học viện pages
+  re-read 2026-10-17. Resolved: seller review window is "1 ngày theo lịch" ("Trả hàng và Hoàn
+  tiền" 15/10/2026 and "Quản lý yêu cầu trả hàng" 04/11/2025; the 2024 FAQ's "ngày làm việc" is
+  superseded). Left out: SFCR OVL tier thresholds (Vietnamese page starts at 10%, the brief's
+  English multi-country read said 15%). Juli part limited to GMV reading (GMV incl. cancelled /
+  refunded per TikTok) and title / description proposals written after approval; no claim on
+  returns, disputes or logistics.
+- `/blog/phi-san-tiktok-shop-2026` (news, 1,314 words, 2 figures, FAQ 4, "Cập nhật ngày
+  17/10/2026"): fee stack from the dated fee pages; the two commission PDFs compared row by row
+  (1,945 shared level-3 rows: 0 standard changes, 41 Mall decreases, all Sách). Real fee dates
+  are in text and tables, not in figure alt; only the worked example figure carries "Ví dụ giả
+  định". Main keyword switched to "phí sàn tiktok shop 2026" (autocomplete; the plan's term had
+  none).
+- Gates: lint 0, tsc 0, vitest 444 passed (`--maxWorkers=4`), build OK, check:seo 29 passed;
+  both posts rendered at 390 / 1440 px (one H1, no horizontal overflow, all figures loaded).
+- Next: owner reviews and approves; re-check post 8 after 20/10 and 21/10/2026 and whenever a
+  fee page changes (G6).

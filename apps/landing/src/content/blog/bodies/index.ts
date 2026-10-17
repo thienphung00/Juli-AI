@@ -5,12 +5,14 @@ import { body as phanTich } from "./cong-cu-phan-tich-tiktok-shop-2026";
 import { body as doanhThuGiam } from "./doanh-thu-tiktok-shop-giam";
 import { body as gmvLaGi } from "./gmv-la-gi-tiktok-shop";
 import { body as daKenh } from "./phan-mem-quan-ly-ban-hang-da-kenh-2026";
+import { body as phiSan } from "./phi-san-tiktok-shop-2026";
 import { body as luotHienThi } from "./san-pham-tiktok-shop-khong-co-luot-hien-thi";
 import { body as thueBanHang } from "./thue-ban-hang-tiktok-shop";
 import { body as liveKhongRaDon } from "./live-tiktok-shop-khong-ra-don";
 import { body as khongRaDon } from "./tiktok-shop-khong-ra-don";
 import { body as theSanPham } from "./toi-uu-the-san-pham-tiktok-shop";
 import { body as videoNhieuView } from "./video-tiktok-nhieu-view-khong-ra-don";
+import { body as hoanHang } from "./ty-le-hoan-hang-tiktok-shop";
 
 /**
  * Post bodies by slug. Only the post page imports this (the route registry
@@ -30,4 +32,6 @@ export const BLOG_BODIES: Readonly<Record<string, string>> = {
   "thue-ban-hang-tiktok-shop": thueBanHang,
   "video-tiktok-nhieu-view-khong-ra-don": videoNhieuView,
   "live-tiktok-shop-khong-ra-don": liveKhongRaDon,
+  "ty-le-hoan-hang-tiktok-shop": hoanHang,
+  "phi-san-tiktok-shop-2026": phiSan,
 };
