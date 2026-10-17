@@ -5,14 +5,19 @@ import type { BlogPost, BlogPostMeta } from "./types";
 export { BLOG_POSTS } from "./posts";
 export { BLOG_CATEGORIES, BLOG_CATEGORY_ORDER, blogCover } from "./covers";
 export { BLOG_FIGURES } from "./figures";
+export { COMPETITORS, COMPETITOR_DOMAINS, competitorNamesIn, isCompetitorUrl } from "./competitors";
+export type { Competitor, CompetitorRing } from "./competitors";
 export type {
   BlogCategory,
   BlogCover,
   BlogFigure,
   BlogPost,
+  BlogPostFormat,
   BlogPostMeta,
   BlogPostStatus,
   BlogSource,
+  LinkedBlogSource,
+  UnlinkedBlogSource,
 } from "./types";
 
 export function isPublished(post: Pick<BlogPostMeta, "status">): boolean {

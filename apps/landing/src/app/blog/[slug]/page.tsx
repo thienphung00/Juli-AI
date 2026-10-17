@@ -14,7 +14,16 @@ import { Picture } from "../../../components/picture";
 import { Breadcrumb, FaqList, Heading, LinkButton, Section, TocNav } from "../../../components/ui";
 import { SiteFooter } from "../../../components/ui/site-footer";
 import { SiteHeader } from "../../../components/ui/site-header";
-import { BLOG_POSTS, getPost, getPostMeta, isPublished, relatedPosts } from "../../../content/blog";
+import {
+  BLOG_POSTS,
+  type BlogSource,
+  formatDate,
+  getPost,
+  getPostMeta,
+  isCompetitorUrl,
+  isPublished,
+  relatedPosts,
+} from "../../../content/blog";
 import {
   articleSchema,
   breadcrumbSchema,
@@ -54,14 +63,26 @@ export async function generateMetadata({ params }: PostPageProps): Promise<Metad
 }
 
 /** Links to `/blog/<slug>` of a draft are rendered as plain text on a published post. */
+/**
+ * Which body links render as links. A competitor / vendor domain never does
+ * (D56 G2, `content/blog/competitors.ts`; `blog.test.tsx` keeps them out of the
+ * bodies, this is the backstop). A published post also unlinks drafts.
+ */
 function linkFilterFor(published: boolean) {
-  if (!published) return () => true;
   return (href: string) => {
+    if (isCompetitorUrl(href)) return false;
+    if (!published) return true;
     const match = /^\/blog\/([a-z0-9-]+)/.exec(href);
     if (!match) return true;
     const target = getPostMeta(match[1]!);
     return target ? isPublished(target) : false;
   };
+}
+
+/** "<note>, kiểm tra DD/MM/YYYY" for an unlinked source; the note alone for a linked one. */
+function sourceNote(source: BlogSource): string {
+  const checked = source.checkedAt ? `kiểm tra ${formatDate(source.checkedAt)}` : "";
+  return [source.note, checked].filter(Boolean).join(", ");
 }
 
 function minutesFor(slug: string): number {
@@ -156,11 +177,16 @@ export default async function BlogPostPage({ params }: PostPageProps) {
                     </h2>
                     <ul>
                       {post.sources.map((source) => (
-                        <li key={source.url + source.title}>
-                          <a className="lp-blog__link" href={source.url} rel="noopener noreferrer">
-                            {source.title}
-                          </a>
-                          {source.note ? <span className="lp-post__source-note"> ({source.note})</span> : null}
+                        <li key={(source.url ?? source.checkedAt) + source.title}>
+                          {source.url && !isCompetitorUrl(source.url) ? (
+                            <a className="lp-blog__link" href={source.url} rel="noopener noreferrer">
+                              {source.title}
+                            </a>
+                          ) : (
+                            // D56 G2: a competitor / vendor page is cited by name and check date, no link.
+                            <span className="lp-post__source-name">{source.title}</span>
+                          )}
+                          {sourceNote(source) ? <span className="lp-post__source-note"> ({sourceNote(source)})</span> : null}
                         </li>
                       ))}
                     </ul>

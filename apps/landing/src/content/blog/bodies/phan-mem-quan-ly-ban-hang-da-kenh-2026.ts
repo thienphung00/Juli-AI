@@ -152,7 +152,7 @@ Nếu bạn đã có quầy tính tiền, hãy bắt đầu từ phần mềm m�
 
 ### Bán nhiều qua fanpage, tin nhắn và livestream
 
-Nếu phần lớn đơn được chốt trong khung chat, phần chat đa kênh quan trọng không kém phần sàn. Pancake POS, Haravan (Harasocial, Haravan AI Chat), Sapo (chat hợp kênh có AI), Nhanh.vn (Vpage) và KiotViet (bán hàng trên mạng xã hội) đều mô tả việc gom tin nhắn và tạo đơn từ hội thoại.
+Nếu phần lớn đơn được chốt trong khung chat, phần chat đa kênh quan trọng không kém phần sàn. Pancake POS, Haravan (quản lý hội thoại, Haravan AI Chat), Sapo (chat hợp kênh có AI), Nhanh.vn (Vpage) và KiotViet (bán hàng trên mạng xã hội) đều mô tả việc gom tin nhắn và tạo đơn từ hội thoại.
 
 ### Xây thương hiệu với website riêng
 
