@@ -14,6 +14,9 @@ Each section ends in an action, so the report is a to-do list, not a dashboard:
 6. Sitemap pages with no impressions in 28 days — check indexing (gsc_index_audit) and
    internal links.
 7. Latest URL-inspection problems.
+8. Blog posts and tools pages (`/blog/*`, `/cong-cu/*`), 7 and 28 days, with per-post
+   flags: rewrite title / meta, strengthen content, merge overlapping intent, 8-week
+   review (D56 G6, `gsc_blog`).
 
     python -m scripts.seo.gsc_report                # prints and writes reports/<date>.md
 """
@@ -26,7 +29,7 @@ import sqlite3
 import urllib.request
 from datetime import date, timedelta
 
-from scripts.seo import config
+from scripts.seo import config, gsc_blog
 from scripts.seo.gsc_pull import connect
 
 #: Rough organic CTR expected at a given average position (rounded industry curve). Only
@@ -81,7 +84,12 @@ def sitemap_urls() -> list[str]:
         return []
 
 
-def build(db: sqlite3.Connection, min_impr: int) -> str:
+def build(
+    db: sqlite3.Connection,
+    min_impr: int,
+    today: date | None = None,
+    posts: dict[str, gsc_blog.Post] | None = None,
+) -> str:
     if not db.execute("SELECT 1 FROM daily_totals LIMIT 1").fetchone():
         return (
             "# SEO report\n\nNo data yet — run "
@@ -204,7 +212,10 @@ def build(db: sqlite3.Connection, min_impr: int) -> str:
             )
     else:
         out.append("Not run yet — `python -m scripts.seo.gsc_index_audit`.")
-    return "\n".join(out) + "\n"
+    out.append("")
+
+    out += gsc_blog.section(db, (s7, e7, s28, e28), today or date.today(), posts)
+    return "\n".join(out).rstrip("\n") + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:

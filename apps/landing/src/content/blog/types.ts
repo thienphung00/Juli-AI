@@ -52,13 +52,42 @@ export interface BlogFigure {
   caption: string;
 }
 
-export interface BlogSource {
+/**
+ * A cited source (D56 G2). Primary sources (TikTok Academy / Seller University,
+ * Shopee Seller Education, ads.tiktok.com help, laws, government portals) carry
+ * their `url` and render as a link. A competitor or vendor page (any domain in
+ * `./competitors.ts`) is cited WITHOUT a URL: name + `checkedAt`, rendered as
+ * plain text "<title> (<note>, kiểm tra DD/MM/YYYY)".
+ */
+export type BlogSource = LinkedBlogSource | UnlinkedBlogSource;
+
+interface BlogSourceBase {
   /** Page title as the source shows it (TikTok Academy title, vendor page name). */
   title: string;
-  url: string;
   /** What we took from it, or when it was checked (`kiểm tra 15/10/2026`). */
   note?: string;
 }
+
+export interface LinkedBlogSource extends BlogSourceBase {
+  url: string;
+  checkedAt?: undefined;
+}
+
+export interface UnlinkedBlogSource extends BlogSourceBase {
+  url?: undefined;
+  /** `YYYY-MM-DD` the page was read; shown as "kiểm tra DD/MM/YYYY". */
+  checkedAt: string;
+}
+
+/**
+ * Post type (D56 G5): decides the word range and the FAQ rule
+ * (`blog.test.tsx`, README "Writing a post").
+ * - `pillar`: a topic's main page, 3,000+ words.
+ * - `comparison`: tools hub and tool comparisons, 3,000+ words.
+ * - `pain`: a seller pain point / long-tail question, 1,500–2,500 words (soft cap 3,000).
+ * - `news`: a TMĐT change (fees, policy, tax, regulation), 800–1,500 words (soft cap 2,000).
+ */
+export type BlogPostFormat = "pillar" | "comparison" | "pain" | "news";
 
 /**
  * One blog post's metadata. Light on purpose: the route registry imports it,
@@ -85,6 +114,8 @@ export interface BlogPostMeta {
   updatedAt: string;
   /** Topic: filter pill, label colour and cover tint. */
   category: BlogCategory;
+  /** Post type (D56 G5): word range and FAQ rule. */
+  format: BlogPostFormat;
   /** Cover image + its OG variant. */
   cover: BlogCover;
   /** "Đội ngũ Juli AI" unless the owner names a person. */

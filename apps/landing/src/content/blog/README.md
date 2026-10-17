@@ -8,7 +8,8 @@ for content, no MDX dependency).
 | `posts.ts` | Every post's metadata: **`status`**, title, SEO title/description, dates, author, FAQ, sources, related posts |
 | `bodies/<slug>.ts` | The post body (Markdown subset, starts at `##`; the H1 is `title`) |
 | `bodies/index.ts` | slug → body map |
-| `types.ts` | `BlogPostMeta`, `BlogPost`, `BlogPostStatus`, `BlogCategory`, `BlogCover` |
+| `types.ts` | `BlogPostMeta`, `BlogPost`, `BlogPostStatus`, `BlogPostFormat`, `BlogSource`, `BlogCategory`, `BlogCover` |
+| `competitors.ts` | `COMPETITORS` (D56 G1 rings: direct, adjacent, not-competing; names and domains), `isCompetitorUrl`, `competitorNamesIn` |
 | `covers.ts` | `BLOG_CATEGORIES` (topic labels, pill order) and `blogCover(name, alt)` |
 | `index.ts` | helpers: `getPost`, `relatedPosts`, `showDraftsOnIndex`, … |
 
@@ -49,23 +50,66 @@ cards `post-card.tsx`; pills `category-filter.tsx` (the only client JS). Routes:
 To unpublish, set the status back to `"draft"`: the page stays reachable but
 becomes noindex and leaves the sitemap and the index.
 
-## Writing a post
+## Writing a post (D56 standard)
 
-- Add a meta entry to `posts.ts` (`seoTitle` ≤ 60 characters ending in
-  ` | Juli AI`, `description` 70–155 characters, both unique; `status: "draft"`),
-  a body file in `bodies/`, and its line in `bodies/index.ts`.
-- Body syntax: `##` / `###` headings only (no `#`, no `####`), paragraphs,
+The rules come from `fasttrack/content-plan.md` (G1, G2, G5); `blog.test.tsx`
+checks the ones marked (test).
+
+- **Files.** A meta entry in `posts.ts` (`seoTitle` ≤ 60 characters ending in
+  ` | Juli AI`, `description` 70–155 characters, both unique (test);
+  `status: "draft"`), a body file in `bodies/`, and its line in `bodies/index.ts`.
+- **Format and length** (`format` in `posts.ts`, test). Words are counted by
+  `countWords` (visible text, Markdown stripped):
+
+  | `format` | What | Words |
+  |---|---|---|
+  | `pillar` | a topic's main page (GMV, chỉ số, thẻ sản phẩm) | 3,000+ |
+  | `comparison` | tools hub and tool comparisons (category `tools`) | 3,000+ |
+  | `pain` | a seller pain point / long-tail question | 1,500–2,500 (fails above 3,000) |
+  | `news` | a TMĐT change: fees, policy, tax, regulation | 800–1,500 (fails above 2,000) |
+
+  The upper limits apply to posts written after D56; the posts listed in
+  `PRE_D56_POSTS` keep their length. At least 5 H2s (3 for `news`), H2 → H3
+  only, unique headings (test).
+- **Opening.** The first 2–3 sentences answer the pain in the seller's own
+  words; then explain with Juli's method (Lượt hiển thị × CTR × CTOR × AOV by
+  traffic source, change only after approval, measure day 7 / 14). H2 / H3 come
+  from real seller questions.
+- **Primary sources, linked.** TikTok Academy VN / Seller University, Shopee
+  Seller Education, ads.tiktok.com help, laws and decrees, government portals:
+  cited by title in the text and in `sources` with their `url`. A `news` post
+  uses only official sources found on the day, each dated.
+- **Competitor and vendor sources, unlinked** (test). Any domain in
+  `competitors.ts` (all three rings) is never linked, in the body or in
+  `sources`: cite it with `vendor("Sapo: Bảng giá", "2026-10-16")` (title +
+  `checkedAt`, no `url`), rendered as plain text "Sapo: Bảng giá (kiểm tra
+  16/10/2026)". The post page also unlinks such a URL if one slips in.
+- **Competitor names** (G1, test). `direct` ring (Sapo, Shopee "Tối ưu sản phẩm
+  bởi AI", Atosa, FastMoss, Kalodata, Metric): only in posts of category
+  `tools`, one factual line per tool, never a reason to choose them over Juli.
+  `adjacent` ring (AI chatbots / AI sales agents): never named; write
+  "chatbot trả lời tin nhắn". `not-competing` (CapCut, Canva, multichannel
+  software…): named normally, not linked. No copied feature lists or price
+  tables beyond one factual line per tool; prices only as the vendor publishes them.
+- **Figures.** 3–6 per new post (diagrams, "Dữ liệu mẫu" screenshots, see
+  below); the test allows 0–8 per post and every figure in `figures.ts` must
+  be used.
+- **FAQ.** 3–5 questions (test for new `pain` / `news` posts), they become
+  FAQPage JSON-LD. One soft CTA at the end.
+- **Words and numbers.** Vietnamese only; TikTok's own metric names (Lượt hiển
+  thị sản phẩm, CTR, CTOR, Đơn hàng SKU, AOV); numbers in examples marked "Ví dụ
+  giả định"; no invented statistics; no "—" (test); facts about Juli within SPEC.
+- **Body syntax.** `##` / `###` headings only (no `#`, no `####`), paragraphs,
   `- ` and `1. ` lists, `> ` callouts, `| a | b |` tables with a `|---|---|`
-  row, `**bold**`, `[text](/path)` or `[text](https://…)`. No backticks.
-- Use TikTok's own Vietnamese metric names (Lượt hiển thị sản phẩm, CTR, CTOR,
-  Đơn hàng SKU, AOV). Cite TikTok Academy pages by title in the text and in
-  `sources`. No invented statistics: a worked example says it is hypothetical.
-- Facts about third-party tools come from the vendor's own site, dated
-  ("kiểm tra 15/10/2026"); no prices unless the vendor publishes them.
-- Link the product pages (`/san-pham`, `/san-pham/phan-tich-shop`,
-  `/san-pham/de-xuat-va-thuc-thi`, `/san-pham/do-luong-gmv`,
-  `/ket-noi/tiktok-shop`). `blog.test.tsx` checks every internal link resolves
-  and every post is 3,000+ words.
+  row, `**bold**`, `[text](/path)` or `[text](https://…)`, `{{hinh:<id>}}`
+  figures. No backticks.
+- **Internal links.** Link the product pages (`/san-pham`,
+  `/san-pham/phan-tich-shop`, `/san-pham/de-xuat-va-thuc-thi`,
+  `/san-pham/do-luong-gmv`, `/ket-noi/tiktok-shop`); every internal link must
+  resolve (test).
+- **After publishing.** The weekly Search Console report (`scripts/seo/gsc_report`,
+  section 8) lists every `/blog/*` and `/cong-cu/*` URL with flags; at 8 weeks it
+  flags the post for review. After the review, bump `updatedAt` (that clears the flag).
 
 ## Topic and cover (D44.3, P34-D)
 

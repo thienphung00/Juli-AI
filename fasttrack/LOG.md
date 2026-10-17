@@ -2361,3 +2361,36 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   files, pytest 26 files / 564 passed). Pre-existing, not touched: `test_import_boundaries`
   strict-baseline (same 7 edges on the base).
 - Next: owner merges `--no-ff`, pushes, tags a deploy (the deploy runs migration 093).
+
+## 2026-10-17 — P46-A agent (Claude Opus) — blog rules in code (D56 G1/G2, G5, G6)
+
+- Branch `fasttrack/p46a-blog-rules` (worktree `/Users/macos/juli-fasttrack-p46a`), from fef8bfc7.
+- **G1/G2** `apps/landing/src/content/blog/competitors.ts`: three rings with names + domains
+  (direct: Sapo, Shopee "Tối ưu sản phẩm bởi AI" (no domain), Atosa, FastMoss, Kalodata, Metric;
+  adjacent: Preny, Fchat, Botcake, AhaChat, Smax, Hana, Bizfly Chat, Harasocial, Pancake Inbox;
+  not-competing: CapCut, Canva, Photoroom, Higgsfield, Pippit, KiotViet, Nhanh.vn, BigSeller,
+  Haravan, MISA eShop, Pancake POS). `BlogSource` is now linked (`url`) or unlinked
+  (`checkedAt`); the 36 vendor sources of the 4 tools posts use `vendor(title, checkedAt)` and
+  render as text "Sapo (kiểm tra 15/10/2026)"; the post page also unlinks any registry href.
+  Body: "Harasocial" dropped from the đa kênh post (adjacent ring). Pancake split by product
+  (Inbox adjacent, POS not competing; same domains, both unlinked). Tools drafts `updatedAt`
+  2026-10-17. Adjacent domains other than the listed vendors' were not verified (only used
+  to block links).
+- **G5** `format` on every post (pillar: gmv, chi-so, the-san-pham; pain: khong-ra-don,
+  doanh-thu-giam; comparison: hub + 3 tools). Floors pillar / comparison 3,000, pain 1,500,
+  news 800; caps pain 3,000 / news 2,000 hard for post-D56 posts only (the two pain posts are
+  4,078 / 3,709 words, written to the old floor); ≥ 5 H2 (news ≥ 3); FAQ 3–5 for new pain /
+  news posts; figures 0–8 per post. Tests: no registry link in body / sources, no direct name
+  outside category tools, no adjacent name anywhere. README "Writing a post" = D56 standard.
+- **G6** `scripts/seo/gsc_blog.py`, appended by `gsc_report.build` as section 8 (no launchd
+  change): `/blog/*`, `/cong-cu/*` + every published post, 7 / 28 days, new queries, flags
+  (≥ 100 impr & CTR < 1 %; position 11–20; query on ≥ 2 URLs; ≥ 56 days and `updatedAt`
+  before the mark). Dates from `posts.ts` by regex (`JULI_BLOG_POSTS_TS` overrides).
+- Gates: landing lint 0, `tsc --noEmit` 0, vitest 390 passed (`--maxWorkers=4`; full
+  parallelism times out one random render test at 5 s, a different one each run, passes
+  alone), build OK, `check:seo` 25 passed; pytest `test_gsc_blog.py` + `test_seo_scripts.py`
+  27 passed; ruff clean. `check.sh --since fasttrack/optimize-product`: gitleaks, ruff,
+  pytest PASS; migrations / isolation FAIL (no DB, `docker info` hung and was killed; known).
+- Note for P46-B: the internal-link test still asks every non-listicle post (news too) to
+  link `/san-pham` and the four product pages.
+- Next: owner merges; P46-B writers use `format` and `vendor()`.

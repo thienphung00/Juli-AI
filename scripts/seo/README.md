@@ -9,7 +9,7 @@ lượt hiển thị / nhấp.
 | `seo_live_check` | Không | Đọc sitemap, kiểm tra từng trang như Googlebot thấy (HTTP 200, 1 H1, heading không nhảy cấp, title ≤ 60, description ≤ 155, canonical tự trỏ, OG, JSON-LD Organization + WebSite, không trùng title/description) và kiểm tra subdomain có noindex mà robots.txt không chặn | Sau **mỗi** deploy |
 | `gsc_index_audit` | Có | URL Inspection API cho mọi URL trong sitemap (phải PASS, canonical Google chọn = canonical khai báo) và các URL mẫu của demo / ops (không được PASS) | Hằng tuần, và vài ngày sau deploy |
 | `gsc_pull` | Có | Kéo dữ liệu Hiệu suất 1 ngày đã chốt (mặc định 3 ngày trước) vào SQLite | Hằng ngày |
-| `gsc_report` | Có (dữ liệu đã kéo) | Báo cáo việc cần làm: tổng 7 ngày, rò rỉ subdomain, trang CTR thấp, truy vấn vị trí 8–20, trùng truy vấn, trang sitemap không có hiển thị, lỗi inspection | Hằng tuần |
+| `gsc_report` | Có (dữ liệu đã kéo) | Báo cáo việc cần làm: tổng 7 ngày, rò rỉ subdomain, trang CTR thấp, truy vấn vị trí 8–20, trùng truy vấn, trang sitemap không có hiển thị, lỗi inspection; mục 8 (`gsc_blog`, D56 G6): từng URL `/blog/*`, `/cong-cu/*` 7 / 28 ngày (hiển thị, nhấp, CTR, vị trí, truy vấn mới) và cờ: ≥ 100 hiển thị mà CTR < 1 % → viết lại title/meta; vị trí 11–20 → bổ sung nội dung, link nội bộ; một truy vấn trên ≥ 2 URL → trùng ý định; đăng ≥ 56 ngày → xem lại 8 tuần (ngày đăng đọc từ `posts.ts` bằng regex; tăng `updatedAt` sau khi xem lại) | Hằng tuần |
 | `gsc_sitemaps` | Có | Liệt kê sitemap (lỗi, cảnh báo), `--submit` để gửi lại | Sau deploy đổi URL |
 
 Chạy từ gốc repo: `python -m scripts.seo.<tên>`. `seo_live_check` chỉ dùng thư viện chuẩn.

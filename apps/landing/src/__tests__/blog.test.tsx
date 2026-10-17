@@ -13,11 +13,14 @@ import {
   BLOG_FIGURES,
   BLOG_POSTS,
   blogCover,
+  COMPETITORS,
+  competitorNamesIn,
   getPost,
+  isCompetitorUrl,
   relatedPosts,
   showDraftsOnIndex,
 } from "../content/blog";
-import type { BlogPostMeta } from "../content/blog/types";
+import type { BlogPostFormat, BlogPostMeta } from "../content/blog/types";
 import { absoluteUrl, getRoute, metadataForRoute, SITE_ROUTES, sitemapEntries } from "../lib/seo";
 import { blogPostPath, buildBlogRoutes } from "../lib/seo/routes/blog";
 
@@ -48,6 +51,7 @@ const fixture = (slug: string, status: BlogPostMeta["status"]): BlogPostMeta => 
   updatedAt: "2026-10-21",
   author: "Đội ngũ Juli AI",
   category: "guide",
+  format: "pain",
   cover: blogCover("fixture-v1", "Minh hoạ"),
   related: [],
   sources: [],
@@ -279,17 +283,86 @@ describe("post page", () => {
   });
 });
 
-describe("pillar posts content (D43.7)", () => {
+/**
+ * D56 G5: word range by post type. The targets are pain 1,500–2,500 and news
+ * 800–1,500; `max` is the tolerance above the target (pain 3,000, news 2,000)
+ * and applies only to posts written after D56: the two pre-D56 pain posts
+ * were written to the old 3,000+ floor and keep their length. Pillar and
+ * comparison posts have no upper bound. `minH2`: table-of-contents entries.
+ */
+const WORDS: Record<BlogPostFormat, { min: number; max?: number; minH2: number }> = {
+  pillar: { min: 3000, minH2: 5 },
+  comparison: { min: 3000, minH2: 5 },
+  pain: { min: 1500, max: 3000, minH2: 5 },
+  news: { min: 800, max: 2000, minH2: 3 },
+};
+
+/**
+ * Posts written before D56 (2026-10-17). The FAQ 3–5 rule and the word cap
+ * apply to every pain / news post written after them; these keep what they have.
+ */
+const PRE_D56_POSTS = new Set([
+  "chi-so-tiktok-shop-ctr-ctor-aov",
+  "toi-uu-the-san-pham-tiktok-shop",
+  "cong-cu-cho-nha-ban-tiktok-shop-2026",
+  "gmv-la-gi-tiktok-shop",
+  "tiktok-shop-khong-ra-don",
+  "doanh-thu-tiktok-shop-giam",
+  "phan-mem-quan-ly-ban-hang-da-kenh-2026",
+  "cong-cu-phan-tich-tiktok-shop-2026",
+  "cong-cu-ai-tao-anh-video-san-pham-tiktok-shop",
+]);
+
+describe("post content (D43.7, D56 G5)", () => {
   for (const meta of BLOG_POSTS) {
     const post = getPost(meta.slug)!;
 
-    it(`${meta.slug}: 3,000+ words, H2 → H3 only, unique headings`, () => {
-      expect(countWords(post.body)).toBeGreaterThanOrEqual(3000);
+    it(`${meta.slug}: length fits its format (${meta.format}), H2 → H3 only, unique headings`, () => {
+      const rule = WORDS[meta.format];
+      expect(rule, `unknown format ${meta.format}`).toBeDefined();
+      const words = countWords(post.body);
+      expect(words, `${meta.slug}: ${meta.format} needs ${rule.min}+ words`).toBeGreaterThanOrEqual(rule.min);
+      if (rule.max && !PRE_D56_POSTS.has(meta.slug)) {
+        expect(words, `${meta.slug}: over ${rule.max} words, trim it or make it a pillar`).toBeLessThanOrEqual(rule.max);
+      }
       const blocks = parseMarkdown(post.body);
       expect(blocks[0]?.kind).not.toBe("h3");
       const ids = blocks.flatMap((block) => ("id" in block ? [block.id] : []));
       expect(new Set(ids).size).toBe(ids.length);
-      expect(tableOfContents(blocks).length).toBeGreaterThanOrEqual(5);
+      expect(tableOfContents(blocks).length).toBeGreaterThanOrEqual(rule.minH2);
+    });
+
+    it(`${meta.slug}: FAQ 3–5 questions for a new pain / news post (D56 G5)`, () => {
+      const faq = meta.faq?.length ?? 0;
+      if (PRE_D56_POSTS.has(meta.slug) || (meta.format !== "pain" && meta.format !== "news")) return;
+      expect(faq).toBeGreaterThanOrEqual(3);
+      expect(faq).toBeLessThanOrEqual(5);
+    });
+
+    it(`${meta.slug}: no link to a competitor / vendor domain, in the body or the sources (D56 G2)`, () => {
+      const external = markdownLinks(post.body).filter((href) => /^https?:\/\//.test(href));
+      expect(external.filter(isCompetitorUrl), "body").toEqual([]);
+      const linked = meta.sources.flatMap((source) => (source.url ? [source.url] : []));
+      expect(linked.filter(isCompetitorUrl), "sources").toEqual([]);
+      for (const source of meta.sources) {
+        if (source.url === undefined) expect(source.checkedAt, source.title).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      }
+    });
+
+    it(`${meta.slug}: names competitors only where G1 allows`, () => {
+      const text = [
+        post.body,
+        meta.title,
+        meta.seoTitle,
+        meta.description,
+        meta.excerpt,
+        ...(meta.faq ?? []).flatMap((item) => [item.question, item.answer]),
+        ...meta.sources.map((source) => source.title),
+      ].join("\n");
+      // Adjacent ring (AI chatbots / sales agents): never named, in any post.
+      expect(competitorNamesIn(text, "adjacent")).toEqual([]);
+      // Direct ring: only in comparison posts (category "tools").
+      if (meta.category !== "tools") expect(competitorNamesIn(text, "direct")).toEqual([]);
     });
 
     it(`${meta.slug}: internal links resolve, and it links the product pages`, () => {
@@ -348,21 +421,17 @@ function figureIds(body: string): string[] {
 }
 
 describe("inline figures (D48 additions 7, P39-C)", () => {
-  it("each of the three P39-B posts has 3–8 figures and every figure is defined and used", () => {
+  it("each P39-B post has 3–8 figures, every post 0–8, and every figure is defined and used once per post", () => {
     const used = new Set<string>();
-    for (const slug of FIGURE_POSTS) {
-      const post = getPost(slug)!;
-      const ids = figureIds(post.body);
-      expect(ids.length, slug).toBeGreaterThanOrEqual(3);
-      expect(ids.length, slug).toBeLessThanOrEqual(8);
-      expect(new Set(ids).size, `${slug}: a figure twice`).toBe(ids.length);
+    for (const post of BLOG_POSTS) {
+      const ids = figureIds(getPost(post.slug)!.body);
+      expect(ids.length, post.slug).toBeGreaterThanOrEqual(FIGURE_POSTS.includes(post.slug) ? 3 : 0);
+      expect(ids.length, post.slug).toBeLessThanOrEqual(8);
+      expect(new Set(ids).size, `${post.slug}: a figure twice`).toBe(ids.length);
       for (const id of ids) {
-        expect(BLOG_FIGURES[id], `${slug}: {{hinh:${id}}}`).toBeDefined();
+        expect(BLOG_FIGURES[id], `${post.slug}: {{hinh:${id}}}`).toBeDefined();
         used.add(id);
       }
-    }
-    for (const post of BLOG_POSTS.filter((p) => !FIGURE_POSTS.includes(p.slug))) {
-      expect(figureIds(getPost(post.slug)!.body), post.slug).toEqual([]);
     }
     expect([...used].sort()).toEqual(Object.keys(BLOG_FIGURES).sort());
   });
@@ -398,7 +467,8 @@ describe("inline figures (D48 additions 7, P39-C)", () => {
     });
   }
 
-  for (const slug of FIGURE_POSTS) {
+  const postsWithFigures = BLOG_POSTS.map((p) => p.slug).filter((slug) => figureIds(getPost(slug)!.body).length > 0);
+  for (const slug of postsWithFigures) {
     it(`${slug}: renders every figure lazy, sized, captioned; only the cover is eager`, async () => {
       render(await BlogPostPage({ params: Promise.resolve({ slug }) }));
       const post = getPost(slug)!;
@@ -433,6 +503,63 @@ describe("inline figures (D48 additions 7, P39-C)", () => {
       .join(" ");
     expect(json).not.toContain("blog-fig-");
     expect(json).not.toContain("/media/cap-");
+  });
+});
+
+describe("competitor registry (D56 G1 / G2)", () => {
+  it("has the three rings, each name and domain once per ring", () => {
+    for (const ring of ["direct", "adjacent", "not-competing"] as const) {
+      const entries = COMPETITORS.filter((c) => c.ring === ring);
+      expect(entries.length, ring).toBeGreaterThan(0);
+      const names = entries.flatMap((c) => c.names);
+      expect(new Set(names).size, ring).toBe(names.length);
+    }
+    for (const name of ["Sapo", "FastMoss", "Kalodata", "Metric", "Atosa"]) {
+      expect(COMPETITORS.find((c) => c.names.includes(name))?.ring, name).toBe("direct");
+    }
+    for (const name of ["Preny", "Fchat", "Botcake", "AhaChat", "Smax", "Hana", "Harasocial"]) {
+      expect(COMPETITORS.find((c) => c.names.includes(name))?.ring, name).toBe("adjacent");
+    }
+    for (const name of ["CapCut", "Canva", "Photoroom", "Higgsfield", "Pippit", "KiotViet", "BigSeller", "Haravan", "MISA eShop"]) {
+      expect(COMPETITORS.find((c) => c.names.includes(name))?.ring, name).toBe("not-competing");
+    }
+  });
+
+  it("matches registry hosts and subdomains, and leaves primary sources linked", () => {
+    expect(isCompetitorUrl("https://www.sapo.vn/bang-gia.html")).toBe(true);
+    expect(isCompetitorUrl("https://pos.pancake.vn/")).toBe(true);
+    expect(isCompetitorUrl("https://hotro.metric.vn/")).toBe(true);
+    expect(isCompetitorUrl("https://notsapo.vn/")).toBe(false);
+    for (const primary of [
+      "https://seller-vn.tiktok.com/university/essay?knowledge_id=10008597",
+      "https://ads.tiktok.com/help/article/about-symphony-creative-studio?lang=vi",
+      "https://banhang.shopee.vn/edu/home",
+      "https://thuvienphapluat.vn/van-ban/Thuong-mai/Nghi-dinh-52-2013-ND-CP-thuong-mai-dien-tu-198578.aspx",
+      "https://www.gdt.gov.vn/",
+      "/san-pham",
+    ]) {
+      expect(isCompetitorUrl(primary), primary).toBe(false);
+    }
+  });
+
+  it("finds names as whole words only", () => {
+    expect(competitorNamesIn("So với Sapo và FastMoss", "direct")).toEqual(["Sapo", "FastMoss"]);
+    expect(competitorNamesIn("metrics, Metrics, Sapodilla", "direct")).toEqual([]);
+    expect(competitorNamesIn("chatbot trả lời tin nhắn", "adjacent")).toEqual([]);
+  });
+
+  it("renders a competitor source as plain text with its check date, a primary source as a link", async () => {
+    const slug = "cong-cu-cho-nha-ban-tiktok-shop-2026";
+    render(await BlogPostPage({ params: Promise.resolve({ slug }) }));
+    const sources = screen.getByRole("heading", { level: 2, name: "Nguồn tham khảo" }).closest("section")!;
+    const sapo = within(sources).getByText("Sapo").closest("li")!;
+    expect(sapo.querySelector("a")).toBeNull();
+    expect(sapo).toHaveTextContent("Sapo (kiểm tra 15/10/2026)");
+    const academy = within(sources).getByRole("link", { name: /Học viện TikTok Shop: Lưu lượng truy cập sản phẩm/ });
+    expect(academy.getAttribute("href")).toMatch(/^https:\/\/seller-vn\.tiktok\.com\//);
+    for (const link of within(sources).getAllByRole("link")) {
+      expect(isCompetitorUrl(link.getAttribute("href") ?? ""), link.getAttribute("href")!).toBe(false);
+    }
   });
 });
 
