@@ -116,6 +116,18 @@ slice — see "Out of scope".
   combined by inverse variance, DerSimonian–Laird from `group_eb_min_groups` (3) draws,
   else the default). Only aggregates (μ, τ, n) reach the response. Label, strength,
   `seller_sentence(s)` never read `eb`
+- Money metrics net of cancelled / refunded orders (fast track P46, D55.1, **Ops only**):
+  `group_net` -- TikTok's GMV includes orders later cancelled / refunded. `order_coverage(
+  session, shop_id, first, last)` (shop's `silver.orders` span days −42 … 13) →
+  `load_order_days(...)` (`silver.orders` + `order_items` + `silver.returns`; pure
+  `order_days(lines, refunds)`, `refund_counts(...)`) → pure `net_rows(rows, days)` (each
+  analytics day's `sku_orders` / `items_sold` / `gmv` × (1 − that day's cancel / refund
+  share)). `measure_due_groups` reads all-channel AOV / items per order on net rows
+  (`metrics.*`, an Ops group's primary, replay, EB, guard text) with the TikTok-GMV reading
+  under `gross`; a card group's primary stays gross (seller sentence) and adds `net`;
+  `verdict.basis` = `{money: net|gross, text}`; `metric_summary(..., basis=)` labels "AOV
+  (đã trừ huỷ/hoàn)" / "AOV (gồm đơn huỷ/hoàn, theo TikTok)". `plan_view` adds
+  `revenue_basis` and `have_before.*.gmv_net` / `orders_net`. No migration
 - `emission_budget.EXPIRED_STATUS`, `CAMPAIGN_PLAN_WORKFLOW_KEYS` (outside the
   limits; hook), `CONTENT_WORKFLOW_KEYS` (daily content slot; hook),
   `executor_slot(card)`, `daily_slot(card)`, `daily_slot_pick(...)`,

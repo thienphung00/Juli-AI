@@ -1589,3 +1589,24 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      free-ship and social-proof priors confirmed as they are; stop-step priors replaced by the
      intent × position ranges of `stop_step_evidence.md`; spend-archetype shares narrowed around
      Cimigo 2025 leaving room for 45+.
+
+  **D55.1 implementation note (P46, 2026-10-17, branch `fasttrack/gmv-net`).** Data check: the
+  daily product analytics rows every group verdict reads (`analytics_performance_intervals`:
+  `gmv`, `sku_orders`, `items_sold`) carry no cancel / refund field (the mapper drops A-34
+  `total_performance.refunds` and A-33 `cancel_and_refunds`), but the shop's own orders are
+  polled each cycle: `silver.orders` (`status`, `tiktok_created_at`), `order_items` (product,
+  quantity, `line_total`) and `silver.returns` (`refund_amount`, `status`). So net values are
+  derivable: `services/action_cards/group_net.py` turns them into per product-day shares of
+  orders / units / value cancelled or refunded (order day in shop time; a refund counts against
+  its order's day; partial refunds remove only their amount) and scales the analytics day by
+  them (shares, not order sums, because `order_items` keeps one row per order × SKU). Used only
+  when the shop's orders span days −42 … 13 of the group; otherwise TikTok's GMV, labelled. Net
+  feeds all-channel AOV and items per order in `verdict.metrics`, an Ops group's primary, the
+  false-alarm replay, the guard text and the EB lift, each with the TikTok-GMV reading under
+  `gross`; a card group's primary (the seller's "Kết quả nhóm") stays on TikTok's GMV and its
+  net reading is `verdict.net` (Ops only). Ops shows "… (đã trừ huỷ/hoàn)" with "… (gồm đơn
+  huỷ/hoàn, theo TikTok)" beside it, and "Doanh thu (đã trừ huỷ/hoàn)" vs "GMV TikTok (gồm
+  huỷ/hoàn)" for the 14 days before launch. The Ops chi-số guide §5.5 adds the three TikTok
+  definition notes (GMV incl. cancel / refund; TikTok "conversion rate" ≠ CTOR; Thẻ sản phẩm is
+  the remainder after LIVE and video). Seller copy and the seller guide unchanged; no migration.
+  Open points in DEBT (P46).

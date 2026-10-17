@@ -247,6 +247,12 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | P45 `primary.eb` in every group comparison (default prior), pooled per-lever-type prior on the Ops groups page via `ops_group_lift_draws()` (migration 093, `juli_ops` only), Ops UI line + tooltip, tunables `group_eb_prior_sd` / `group_eb_min_groups` | D52 | done on branch `fasttrack/eb-lift` (fb0b0b7b, 2974482d + docs) — not merged, not deployed | P45 agent (Opus) |
 
+## P46 — group-verdict money metrics net of cancelled / refunded orders (D55.1)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P46 `group_net` (shop orders → per product-day cancel / refund shares → net analytics rows); Ops group AOV / items per order / replay / guard / EB on net values when the shop's orders cover days −42 … 13, TikTok-GMV reading stored beside (`gross`); card-group primary + seller sentence unchanged (`net` beside it); Ops labels "đã trừ huỷ/hoàn" / "gồm đơn huỷ/hoàn, theo TikTok", plan line "Doanh thu (đã trừ huỷ/hoàn)" vs "GMV TikTok (gồm huỷ/hoàn)"; Ops guide §5.5 (three TikTok definition notes). No migration | D55.1 | done on branch `fasttrack/gmv-net` — not merged, not deployed | P46 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

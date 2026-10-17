@@ -1108,3 +1108,29 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] P45 (D52): draws pool card groups (P31 rule) and Ops groups (D45.6 rule) of the same lever
   × metric × channel alike; `group_eb_min_groups` / `group_eb_prior_sd` are read from the shop being
   viewed, so two shops can show different priors for the same lever type.
+- [ ] P46 (D55.1): the order-line store keys `order_items` by (order, SKU), so TikTok's per-unit
+  lines of one SKU collapse into one row (quantity 1, one unit's value). Net values therefore use
+  only *shares* (removed ÷ placed per product-day) applied to the analytics numbers, never order
+  sums; the shares are biased only if multi-unit orders are cancelled / refunded at a different
+  rate. Fix the store key (or sum lines before the upsert) before order sums are used anywhere.
+- [ ] P46: a refund counts when `silver.returns.status` contains COMPLETE / SUCCESS and the type is
+  not an exchange (`item_swap`); `derive_return_type` folds REFUND_ONLY / RETURN_AND_REFUND into
+  `other`. Status strings are TikTok's as stored and were not checked against a live read in P46.
+- [ ] P46: the poll cycle syncs orders and returns but not cancellations (`sync_cancellations` runs
+  only in Shared Compute targeted fetch); a whole cancelled order is seen through
+  `silver.orders.status`, but one SKU cancelled inside an order that is not cancelled is missed.
+- [ ] P46: refunds land after the order; at day 14 the after-window's late refunds are not in yet,
+  so its net values can still fall a little (both arms alike). A re-check (T3.1) picks them up.
+- [ ] P46: order coverage for Fujiwa was not checked (no live read): if the shop's orders do not
+  reach back to day −42 of a group, its verdict stays on TikTok's GMV and Ops says so.
+- [ ] P46: the EB pooled prior mixes a card group's primary AOV (TikTok GMV, it stays gross for the
+  seller) with net AOV of Ops groups / `metrics` of the same lever type
+  (`ops_group_lift_draws()` reads `primary` and `metrics.*.primary`); a new migration would be
+  needed to read `net` instead.
+- [ ] P46: only the group verdicts and their plan line use net values. Other Ops screens (Tổng
+  quan "GMV 30 ngày", Mô phỏng GMV/ngày, Chẩn đoán) still show TikTok's GMV without the "gồm đơn
+  huỷ/hoàn" note; the chi-số guide §5.5 and glossary say it. Label them if the owner wants.
+- [ ] P46: TikTok's analytics carry refund numbers the mapper drops (A-34
+  `total_performance.refunds`, A-33 `intervals[].cancel_and_refunds`, both "documented" in
+  `schema_expectations.py`, unverified live). Storing them (mapper + migration) would give per-day
+  refunds on the same rows, and could check the order-based shares.

@@ -19,16 +19,16 @@ Nguồn: `fasttrack/DECISIONS.md` D25–D31; `services/ops/simulation.py`;
 
 | Nhãn trên màn hình | Ý nghĩa | Cách tính |
 |---|---|---|
-| **Thẻ sản phẩm** | Luồng 1: khách thấy sản phẩm dạng thẻ (tìm kiếm, gợi ý, trang For You…) | Số liệu TikTok của nguồn "product card" |
+| **Thẻ sản phẩm** | Luồng 1: khách thấy sản phẩm dạng thẻ (tìm kiếm, gợi ý, trang For You…) | Số liệu TikTok của nguồn "product card"; TikTok tính kênh này là **phần còn lại** sau LIVE và video (mục 5.5) |
 | **Tab cửa hàng** | Luồng 2: khách vào trang cửa hàng của shop | Số liệu nguồn "shop tab"; đơn SKU ở luồng này là ước tính (CTOR × lượt nhấp) vì TikTok không trả |
 | **Video** | Luồng 3: video do chính shop đăng; tên dài "Video của người bán" chỉ hiện khi rê chuột | Số liệu nguồn "seller video" |
 | **LIVE** | Luồng 4: phiên LIVE do chính shop phát; tên dài "LIVE của người bán" chỉ hiện khi rê chuột | Số liệu nguồn "seller live" |
 | **Lượt hiển thị/ngày** | Trung bình mỗi ngày có bao nhiêu lượt khách thấy sản phẩm/nội dung | Tổng lượt hiển thị trong N ngày ÷ số ngày có dữ liệu |
 | **Lượt nhấp** | Số lần khách bấm vào sản phẩm (TikTok gọi là click) | Tổng trong khoảng |
 | **CTR** | Trong 100 lượt hiển thị, bao nhiêu lượt nhấp | Tổng lượt nhấp ÷ tổng lượt hiển thị (cộng cả khoảng rồi mới chia) |
-| **CTOR** | Trong 100 lượt nhấp, bao nhiêu thành đơn | Tổng đơn SKU ÷ tổng lượt nhấp |
-| **AOV** | Giá trị trung bình một đơn | Tổng GMV ÷ tổng đơn SKU |
-| **GMV/ngày** | Doanh thu trung bình mỗi ngày | Tổng GMV ÷ số ngày; = Lượt hiển thị/ngày × CTR × CTOR × AOV |
+| **CTOR** | Trong 100 lượt nhấp, bao nhiêu thành đơn | Tổng đơn SKU ÷ tổng lượt nhấp; **không phải** "tỷ lệ chuyển đổi" của TikTok (người mua ÷ lượt xem trang, mục 5.5) |
+| **AOV** | Giá trị trung bình một đơn | Tổng GMV ÷ tổng đơn SKU; GMV của TikTok gồm cả đơn sau đó bị huỷ/hoàn (mục 5.5) |
+| **GMV/ngày** | Doanh thu trung bình mỗi ngày | Tổng GMV ÷ số ngày; = Lượt hiển thị/ngày × CTR × CTOR × AOV; GMV theo TikTok, chưa trừ đơn huỷ/hoàn (mục 5.5) |
 | **▲▼** | Hướng thay đổi so với khoảng trước đó cùng độ dài | (N ngày gần nhất − N ngày trước đó) ÷ N ngày trước đó; xám khi \|Δ\| < 0,5 %; cần 2 × N ngày lịch sử |
 | **Dao động TB N ngày** | Con số trung bình N ngày tự nó lên xuống bao nhiêu chỉ vì ngẫu nhiên | ±1,2816 × độ lệch chuẩn các ngày ÷ √(số ngày) ÷ trung bình (khoảng 80 % của trung bình) |
 | **Dao động mỗi ngày** | Một ngày bình thường lệch khỏi trung bình bao nhiêu | max(p90 − TB, TB − p10) ÷ TB, trên các giá trị từng ngày trong N ngày |
@@ -426,6 +426,42 @@ theo các nhóm cùng loại để tránh tin nhầm kết quả may mắn".
   (μ, τ, số nhóm); không hiện tên, mã hay số liệu riêng của shop nào.
 - **Không đổi gì khác.** Nhãn kết quả, mức thay đổi và câu "Kết quả nhóm" người bán thấy vẫn theo lift
   thô như trước. Dòng này để Ops cân nhắc trước khi tin một kết quả lớn.
+
+### 5.5 GMV, "tỷ lệ chuyển đổi" và kênh Thẻ sản phẩm: định nghĩa của TikTok (D55.1, P46 — chỉ Ops)
+
+Ba điểm dễ nhầm khi so số của Juli với Seller Center (nguồn: TikTok Seller University, tổng hợp ở
+`~/juli-sim-pilot/research/metric_definitions.md`, 2026-10-17):
+
+1. **GMV của TikTok gồm đơn huỷ và đơn hoàn.** TikTok định nghĩa GMV là tổng tiền của các đơn trong
+   khoảng, *kể cả đơn sau đó bị huỷ hoặc hoàn tiền*. Mọi số GMV, GMV/ngày và AOV Juli lấy từ số liệu
+   TikTok đều theo nghĩa này. Câu người bán thấy không đổi (D55.1).
+   - **Nhóm thử nghiệm (chỉ Ops):** khi đơn hàng của shop (đồng bộ mỗi chu kỳ: trạng thái đơn, dòng
+     sản phẩm, yêu cầu hoàn/huỷ) phủ đủ mọi ngày nhóm đọc (ngày −42 đến ngày 13), **AOV** và **Số món
+     mỗi đơn** mọi kênh được đọc **đã trừ huỷ/hoàn**: mỗi ngày của từng sản phẩm, đơn SKU × (1 − tỷ lệ
+     đơn bị huỷ/hoàn hết), số món × (1 − tỷ lệ món bị huỷ/hoàn), GMV × (1 − tỷ lệ giá trị bị huỷ/hoàn;
+     hoàn một phần chỉ trừ số tiền hoàn). Đơn hoàn tính vào ngày đặt đơn. Ngày không có đơn của sản
+     phẩm giữ nguyên số TikTok. Chỉ tính yêu cầu hoàn/huỷ đã xong (không tính đang chờ, bị từ chối
+     hay đổi hàng). Khoảng 90 %, báo động giả, cảnh báo CTR ("… dù AOV tăng …") và Lift đã co (EB)
+     đều chạy trên số đã trừ.
+   - Ops hiện cả hai: nhãn **"AOV (đã trừ huỷ/hoàn) · tất cả kênh"** và ngay dưới **"AOV (gồm đơn
+     huỷ/hoàn, theo TikTok) · tất cả kênh"**; dòng 14 ngày trước khi bắt đầu ghi **"Doanh thu (đã trừ
+     huỷ/hoàn)"** cạnh **"GMV TikTok (gồm huỷ/hoàn)"**. Nhóm thẻ: kết quả chính (sau câu "Kết quả nhóm"
+     của người bán) vẫn theo GMV TikTok; số đã trừ hiện ở dòng "AOV (đã trừ huỷ/hoàn) · tất cả kênh
+     (chỉ Ops)".
+   - Khi đơn hàng chưa phủ đủ (shop mới kết nối, chưa đồng bộ đơn), nhãn ghi **"gồm đơn huỷ/hoàn, theo
+     TikTok"** và dòng 14 ngày ghi **"GMV (gồm đơn huỷ/hoàn, theo TikTok)"**.
+   - Giới hạn: đơn hoàn về sau (sau ngày đo) chưa bị trừ, nên số đã trừ của 14 ngày sau có thể còn
+     giảm nhẹ; hai nhánh cùng chịu nên chênh lệch áp dụng − đối chứng ít bị ảnh hưởng.
+2. **"Tỷ lệ chuyển đổi" của TikTok không phải CTOR của Juli.** Trong Product Analytics, TikTok tính
+   tỷ lệ chuyển đổi = số người mua duy nhất ÷ số lượt xem trang duy nhất (theo người). **CTOR** của
+   Juli = đơn SKU ÷ lượt nhấp (theo lượt), khớp chỉ số "CTOR (SKU Order)" mới của Seller Analytics.
+   Người bán so với ô "tỷ lệ chuyển đổi" cũ sẽ thấy hai số khác nhau: cả hai đều đúng, chỉ khác định
+   nghĩa. Trả lời: "CTOR của Juli là số đơn trên mỗi lượt nhấp, giống CTOR (SKU Order) trong Seller
+   Center."
+3. **Kênh "Thẻ sản phẩm" là phần còn lại.** TikTok: doanh thu không đến từ LIVE và không đến từ video
+   được tính là doanh thu thẻ sản phẩm. Vậy **Thẻ sản phẩm** là mọi nguồn không phải LIVE hay video
+   (tìm kiếm, gợi ý…), không phải một kênh thuần; khi LIVE hoặc video đo thiếu, phần thiếu dồn vào
+   Thẻ sản phẩm. Đọc thay đổi của Thẻ sản phẩm cùng với LIVE và video.
 
 ## 6. Các màn hình Ops khác
 
