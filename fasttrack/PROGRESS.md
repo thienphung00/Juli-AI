@@ -247,6 +247,16 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | P45 `primary.eb` in every group comparison (default prior), pooled per-lever-type prior on the Ops groups page via `ops_group_lift_draws()` (migration 093, `juli_ops` only), Ops UI line + tooltip, tunables `group_eb_prior_sd` / `group_eb_min_groups` | D52 | done on branch `fasttrack/eb-lift` (fb0b0b7b, 2974482d + docs) — not merged, not deployed | P45 agent (Opus) |
 
+## P46 — continuous SEO blog, month 1 (D56)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P46-A Blog rules in code: competitor sources unlinked, length by post type, weekly Search Console post report | D56 G2, G5, G6 | in progress, branch `fasttrack/p46a-blog-rules` | P46-A agent (Opus) |
+| P46-B Month-1 posts 1–4 (week 1) | D56 | todo (after P46-A) | writer agents |
+| P46-C Month-1 posts 5–8 (week 2) | D56 | todo | writer agents |
+| P46-D Month-1 posts 9–12 (week 3) | D56 | todo | writer agents |
+| P46-E Month-1 posts 13–14 (week 4) | D56 | todo | writer agents |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

@@ -1589,3 +1589,13 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      free-ship and social-proof priors confirmed as they are; stop-step priors replaced by the
      intent × position ranges of `stop_step_evidence.md`; spend-archetype shares narrowed around
      Cimigo 2025 leaving room for 45+.
+
+- **D56** — Continuous SEO blog plan (grill G1–G7, owner, 2026-10-17; `grill-content-plan.md`).
+  The plan and its rules are `fasttrack/content-plan.md`: competitors in three rings (direct ones
+  named only in comparison posts and never linked; no chatbot / "AI chốt đơn" listicles);
+  primary sources cited with title + link, competitor pages by name and date without a link;
+  posts framed from seller pain points plus a TMĐT-changes track; 3–4 drafts a week in month 1,
+  published gradually by the owner; length by intent (the 3,000-word floor is dropped except for
+  pillar / comparison posts); weekly automated Search Console report and an 8-week review per
+  post; brand signals (G7) deferred. Work: P46-A (source-link and length rules in code, weekly
+  report), P46-B… (month-1 posts).
