@@ -251,7 +251,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P46-A Blog rules in code: competitor sources unlinked, length by post type, weekly Search Console post report | D56 G2, G5, G6 | in progress, branch `fasttrack/p46a-blog-rules` | P46-A agent (Opus) |
+| P46-A Blog rules in code: competitor sources unlinked, length by post type, weekly Search Console post report | D56 G2, G5, G6 | done on branch `fasttrack/p46a-blog-rules` (3e075a9b, ededf556, 3a6a9d18), owner merges | P46-A agent (Opus) |
 | P46-B Month-1 posts 1–4 (week 1) | D56 | todo (after P46-A) | writer agents |
 | P46-C Month-1 posts 5–8 (week 2) | D56 | todo | writer agents |
 | P46-D Month-1 posts 9–12 (week 3) | D56 | todo | writer agents |
