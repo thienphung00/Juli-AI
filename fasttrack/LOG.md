@@ -2361,3 +2361,33 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   files, pytest 26 files / 564 passed). Pre-existing, not touched: `test_import_boundaries`
   strict-baseline (same 7 edges on the base).
 - Next: owner merges `--no-ff`, pushes, tags a deploy (the deploy runs migration 093).
+
+## 2026-10-17 — P46 agent (Claude Opus) — group-verdict money metrics net of cancel / refund (D55.1)
+
+- Branch `fasttrack/gmv-net` (worktree `/Users/macos/juli-fasttrack-gmv-net`) from 39fa0f04.
+- **Data check.** Group verdicts read `analytics_performance_intervals` (grain product, daily):
+  `gmv`, `sku_orders`, `items_sold` = TikTok GMV incl. cancelled / refunded orders; no cancel /
+  refund column (`integrations/tiktok/mapping.py` `expand_analytics_product_list_item` /
+  `expand_analytics_product_detail` drop A-34 `total_performance.refunds` and A-33
+  `cancel_and_refunds`). The poll cycle does sync `silver.orders` (status, `tiktok_created_at`),
+  `order_items` (product, quantity, `line_total`; keyed order × SKU) and `silver.returns`
+  (`refund_amount`, `status`, `return_type`) — `workers/services/polling/orchestrate.py`
+  `_FUJIWA_POLL_STEPS`, `sync.py` `sync_orders` / `sync_returns`. So net is derivable as shares.
+- **Built** `services/action_cards/group_net.py` + `card_groups.py` wiring (net AOV / items per
+  order for `metrics`, Ops-group primary, replay, guard, EB; `gross` beside; card-group primary
+  and seller sentence unchanged, `net` beside; `verdict.basis`; plan `revenue_basis`,
+  `gmv_net` / `orders_net`). Ops UI (`ops-card-groups.tsx`, `types.ts`). Ops chi-số guide §5.5 +
+  glossary "Cách tính" notes. No migration (head stays 093).
+- Gates: `test_p46_gmv_net.py` 13 passed; p30 / p31 / p36 / p45 / p46 + chi-số vocabulary 139
+  passed (p36 label assertion updated to the gross label). One earlier combined run had a p31
+  pytest-timeout (>30 s) while the disk briefly hit 0 bytes free and other agents loaded the host;
+  re-run alone and combined: passed. `test_import_boundaries` strict-baseline fails identically on
+  the base (pre-existing). mypy clean on the 2 source files. Demo (Node 26,
+  `NODE_OPTIONS=--no-experimental-webstorage`, `pnpm install --offline`): tsc 0, eslint 0 on
+  `src/components/ops` + `src/lib/ops`; vitest `src/components/ops` + `src/lib/ops` 15 files: 4
+  tests timed out (5 s) under host load + 2 files failed to import before `packages/*` were
+  installed; those files re-run alone 5/5 files 56 passed; touched files (p36, p46, pages) 25 passed.
+  `check.sh --since fasttrack/optimize-product`, throwaway Homebrew Postgres 16 in UTC (port 55446,
+  removed after): **5/5 PASS** (migrations to 093, isolation 12, gitleaks, ruff 4 files, pytest
+  2 files / 35 passed).
+- Next: owner merges `--no-ff`, pushes, tags a deploy (no migration).
