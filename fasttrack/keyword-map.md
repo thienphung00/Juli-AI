@@ -1,0 +1,77 @@
+# Keyword map — app-juli.com (D50)
+
+One main keyword per page, so pages do not compete for the same query. Review every quarter
+(next: **2027-01**) against Search Console: a query shared by two URLs, impressions without
+clicks (rewrite title / meta), positions 11–20 (strengthen content and internal links).
+
+Sources: Semrush Keyword Magic, database Vietnam, free plan, 2026-10-16 (volume / KD where
+shown); Google autocomplete VN; competitor SERP research 2026-10-16 (approximate positions);
+Search Console 2026-08-14 → 2026-10-09; Semrush blog research (keyword strategy, brand / AI
+search), 2026-10-17.
+
+## How keywords are classified
+
+- **Tail** (by specificity, not word count). Short-tail: platform or concept alone ("tiktok
+  shop", "gmv"). Mid-tail: concept + verb or object ("gmv là gì", "cách bán hàng trên tiktok
+  shop"). Long-tail: a situation, symptom or question ("vì sao … không ra đơn"). Anchors:
+  135,000/month = short, 1,000–4,400 = mid, under ~300 or no data = long.
+- **Competition**. Semrush KD where shown: ≤ 30 = low (our ceiling while the domain is new),
+  31–49 = medium, ≥ 50 = high. No KD: top 5 of Google VN; 3+ authority domains (TikTok
+  official, big media, big SaaS) = high, 2+ thin / old / off-intent pages = low, else medium.
+- **No volume ≠ no demand**: a long-tail with no Semrush volume is kept when autocomplete,
+  seller questions or sales calls show people use it.
+
+## Brand descriptor (identical everywhere)
+
+"Juli AI: trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop, Shopee đang tích hợp."
+Use it on every page, in Organization / Service schema, llms.txt and every external profile.
+
+## Brand identities
+
+Identity is stable and says how Juli differs; it reaches searchers through the search words
+in the second column (titles, H2s, FAQs), and is proven on the page in the third.
+
+| # | Identity | Search words that carry it | Page that proves it |
+|---|---|---|---|
+| 1 | Trợ lý AI vận hành TMĐT cho nhà bán TikTok Shop | trợ lý ai bán hàng, phần mềm ai bán hàng, juli ai | `/`, `/about` |
+| 2 | Tăng trưởng GMV: luồng và sản phẩm đang kéo GMV xuống (Lượt hiển thị × CTR × CTOR × AOV) | tăng gmv, doanh thu giảm, không ra đơn | `/san-pham/phan-tich-shop`, `/cong-cu/tinh-gmv`, diagnosis posts |
+| 3 | Tối ưu vận hành: đề xuất, chỉ ghi tiêu đề / mô tả khi người bán duyệt, hoàn tác được | tối ưu sản phẩm tiktok shop, ai viết mô tả sản phẩm | `/san-pham/de-xuat-va-thuc-thi` |
+| 4 | Đo kết quả ngày 7, ngày 14 | đo hiệu quả sau khi sửa sản phẩm | `/san-pham/do-luong-gmv` (method only, no results claimed) |
+| 5 | Phạm vi rõ: không chạy quảng cáo, không phải POS hay quản lý kho | khác phần mềm bán hàng, chatbot ai bán hàng | `/about` FAQ, tools posts |
+| 6 | Công cụ miễn phí và hướng dẫn công khai cho nhà bán TMĐT Việt Nam | công cụ tính gmv, cách tính gmv | `/cong-cu/tinh-gmv`, `/blog` |
+
+## Page map (one main keyword per URL)
+
+| URL | Main keyword | Supporting keywords | Intent | Tail | Competition (evidence) | Status |
+|---|---|---|---|---|---|---|
+| `/` | trợ lý ai vận hành tmđt tiktok shop | juli ai, trợ lý ai bán hàng | Navigational / Commercial | Long | Low (brand unclaimed in autocomplete; GSC "juli ai" pos 2.1) | Live |
+| `/san-pham` | phần mềm ai phân tích tiktok shop | phần mềm ai bán hàng, ai cho người bán tiktok shop | Commercial | Long | Low (no competitor in top results) | Live |
+| `/san-pham/phan-tich-shop` | phân tích gmv tiktok shop | phân tích dữ liệu tiktok shop, vì sao shop tiktok không ra đơn (FAQ) | Commercial | Long | Low | Live |
+| `/san-pham/de-xuat-va-thuc-thi` | tối ưu sản phẩm tiktok shop | viết mô tả sản phẩm bằng ai, tối ưu tiêu đề sản phẩm | Commercial | Mid | Medium (Sapo help #3 for the AI term) | Live |
+| `/san-pham/do-luong-gmv` | đo lường gmv sau thay đổi | đo hiệu quả sửa sản phẩm | Commercial | Long | Low | Live |
+| `/cong-cu/tinh-gmv` | công cụ tính gmv | cách tính gmv tiktok shop | Transactional | Mid | Low (autocomplete; no tool ranks) | Live |
+| `/blog/gmv-la-gi-tiktok-shop` (pillar) | gmv là gì | gmv, gmv tiktok shop là gì, cách tăng gmv / doanh thu tiktok shop | Informational | Mid | Low (4,400/mo, KD 21; gmv 1,600, KD 25) | Published 2026-10-17 |
+| `/blog/chi-so-tiktok-shop-ctr-ctor-aov` | ctr ctor tiktok shop là gì | ctr bao nhiêu là tốt, tăng tỷ lệ chuyển đổi tiktok shop, aov là gì | Informational | Long | Low (no competitor) | Published 2026-10-17 |
+| `/blog/tiktok-shop-khong-ra-don` | tiktok shop không ra đơn | vì sao bán hàng trên tiktok shop không ra đơn, quảng cáo tiktok shop không ra đơn | Informational | Long | Low (Sapo #4 off-intent) | Draft |
+| `/blog/doanh-thu-tiktok-shop-giam` | doanh thu tiktok shop giảm | phân tích doanh thu tiktok shop | Informational | Long | Low / medium (TikTok official pages on the head term) | Draft |
+| `/blog/toi-uu-the-san-pham-tiktok-shop` | tối ưu thẻ sản phẩm tiktok shop | tối ưu tiêu đề, mô tả sản phẩm tiktok shop | Informational | Long | Low (FastMoss tool page only) | Draft |
+| `/blog/cong-cu-cho-nha-ban-tiktok-shop-2026` (hub) | công cụ cho nhà bán tiktok shop | | Commercial | Mid | Medium | Draft |
+| `/blog/cong-cu-phan-tich-tiktok-shop-2026` | tool phân tích tiktok shop | công cụ phân tích dữ liệu tiktok shop | Commercial | Mid | Medium (Kalodata #4) | Draft |
+| `/blog/phan-mem-quan-ly-ban-hang-da-kenh-2026` | phần mềm quản lý bán hàng đa kênh | phần mềm quản lý bán hàng tiktok shop | Commercial | Mid | Medium / high (Nhanh.vn #4, MISA) | Draft |
+| `/blog/cong-cu-ai-tao-anh-video-san-pham-tiktok-shop` | ai tạo video sản phẩm | ai tạo ảnh sản phẩm, phần mềm ai tạo video bán hàng | Commercial | Mid | Medium (autocomplete) | Draft |
+
+Short-tail "tiktok shop" (135,000/mo, KD 40) is a topic label for the hub, not a ranking
+target until the first cluster ranks.
+
+## Not targeted
+
+cách chạy quảng cáo tiktok (1,600/mo, but Juli does not run ads) · tiktok shop seller center /
+đăng nhập (TikTok's own navigational) · gmv max, ROI quảng cáo (blog later, DEBT) · POS, quản
+lý kho, hoá đơn, chatbot · competitor brand terms.
+
+## Publishing order
+
+1. GMV cluster: `gmv-la-gi-tiktok-shop`, `chi-so-tiktok-shop-ctr-ctor-aov` (done 2026-10-17).
+2. Diagnosis: `tiktok-shop-khong-ra-don`, `doanh-thu-tiktok-shop-giam`, `toi-uu-the-san-pham-tiktok-shop`.
+3. Tools: the hub and its three posts, after re-checking vendor prices on the publishing day.
+4. After 8–12 weeks: Search Console review per the rules at the top.

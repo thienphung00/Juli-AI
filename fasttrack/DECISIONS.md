@@ -1470,3 +1470,12 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      only to identify the product (no logos or screenshots of their UI). The existing pillar post
      "Top công cụ cho nhà bán TikTok Shop 2026" becomes the hub that links to a–c, so the posts do
      not compete for the same query.
+
+- **D50** — Brand identities and the keyword map (owner, 2026-10-17, after Semrush blog
+  research on keyword strategy and brand / AI search). `fasttrack/keyword-map.md` is the source
+  of truth: one fixed brand descriptor, six identities (stable, each carried by search words
+  and proven by a page), one main keyword per URL, KD ≤ 30 ceiling while the domain is new,
+  quarterly review (next 2027-01). Owner approved publishing batch 1:
+  `gmv-la-gi-tiktok-shop` and `chi-so-tiktok-shop-ctr-ctor-aov` (2026-10-17). Research found
+  llms.txt is unconfirmed by AI providers (kept, low priority) and no special schema is needed
+  for AI Overviews; Organization `sameAs` and third-party mentions matter more.

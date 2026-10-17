@@ -2318,3 +2318,13 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   (`test_agent_workflow_task_wiring.py`, SQLAlchemy URL parse: known local limitation; no Python touched).
 - Next: owner reviews the three drafts (`pnpm dev`, `/blog/<slug>`), re-checks prices before
   publishing (several are promotional), merge `--no-ff`.
+
+## 2026-10-17 — orchestrator (Claude Opus) — D50 keyword map; batch 1 published
+
+- Two Sonnet research agents read the Semrush SEO blog (keyword strategy, brand / AI search);
+  notes kept outside the repo. Wrote `fasttrack/keyword-map.md` and D50.
+- Owner approved publishing `gmv-la-gi-tiktok-shop` and `chi-so-tiktok-shop-ctr-ctor-aov`:
+  status → published, publishedAt / updatedAt 2026-10-17. `blog.test.tsx` now follows each
+  post's status instead of assuming the first post and the P39-B posts are drafts.
+- Gates (apps/landing, NODE_OPTIONS=--no-experimental-webstorage): vitest 17 files / 359
+  passed, build OK, check:seo 25 passed. Not deployed yet.
