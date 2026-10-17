@@ -497,4 +497,129 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       },
     ],
   },
+  {
+    slug: "san-pham-tiktok-shop-khong-co-luot-hien-thi",
+    status: "draft",
+    title: "Sản phẩm TikTok Shop không có lượt hiển thị: bị ẩn hay chỉ ít người thấy",
+    seoTitle: "Sản phẩm TikTok Shop không có lượt hiển thị | Juli AI",
+    description:
+      "Sản phẩm đăng lên mà không ai thấy: kiểm tra trạng thái trước, rồi đọc Lượt hiển thị theo năm luồng cùng CTR, sửa đúng chỗ và đo lại ở ngày 7, ngày 14.",
+    excerpt:
+      "Tách hai trường hợp: sản phẩm không hiện với người mua (trạng thái, bị từ chối, vi phạm) và sản phẩm có hiện nhưng ít người thấy. Rồi đọc Lượt hiển thị theo luồng truy cập, đọc cùng CTR, và đo lại sau khi sửa.",
+    breadcrumbName: "Sản phẩm không có lượt hiển thị",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
+    category: "guide",
+    format: "pain",
+    cover: blogCover("luot-hien-thi-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xám nhạt, ô thứ hai được tô kín"),
+    author: AUTHOR,
+    related: ["tiktok-shop-khong-ra-don", "toi-uu-the-san-pham-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    faq: [
+      {
+        question: "Tại sao TikTok Shop không hiện sản phẩm của tôi?",
+        answer:
+          "Kiểm tra trạng thái trong Quản lý sản phẩm trước. Chỉ sản phẩm Trực tuyến mới đến được người mua; Bản nháp, Đã vô hiệu hóa và Đã tạm ngưng thì không. Nếu sản phẩm Trực tuyến và có Lượt hiển thị, sản phẩm đang hiện, chỉ là ít người thấy.",
+      },
+      {
+        question: "Lượt hiển thị sản phẩm bao nhiêu là thấp?",
+        answer:
+          "TikTok không công bố một mức chuẩn chung. Hãy so Lượt hiển thị của sản phẩm với chính nó ở kỳ trước và với các sản phẩm khác của shop trên cùng luồng, trên khoảng 28 đến 30 ngày.",
+      },
+      {
+        question: "Sản phẩm bị tạm ngưng thì làm sao?",
+        answer:
+          "Theo Học viện TikTok Shop, sản phẩm Đã tạm ngưng vì thông tin chưa tuân thủ thì sửa và gửi lại được; sản phẩm bị đóng băng vì hàng cấm hoặc hàng giả thì không. Đọc lý do trong Trung tâm nhà bán hàng, sửa đúng điểm đó rồi gửi lại.",
+      },
+      {
+        question: "Sửa tiêu đề bao lâu thì thấy thay đổi về lượt hiển thị?",
+        answer:
+          "Không có thời gian cố định. Juli so 14 ngày trước thay đổi, đọc sơ bộ ở ngày 7 và chốt ở ngày 14, so với các sản phẩm không thay đổi, để tách tác động của thay đổi khỏi dao động thường ngày.",
+      },
+      {
+        question: "Có nên xóa sản phẩm ít lượt hiển thị rồi đăng lại?",
+        answer:
+          "Không có trang chính thức nào của TikTok nói việc này giúp tăng lượt hiển thị, và bạn mất lịch sử đánh giá cùng số liệu để so sánh. Hãy tìm luồng đang thiếu và sửa đúng chỗ trước.",
+      },
+    ],
+    sources: [
+      academy("Quản lý Sản phẩm", "10008556", "trạng thái Trực tuyến, Đã vô hiệu hóa, Đã tạm ngưng, Bản nháp, Xóa (27/08/2026)"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "định nghĩa Lượt hiển thị sản phẩm, CTR, khía cạnh theo kênh (17/06/2026)"),
+      academy("Thẻ Sản Phẩm", "6901428203357954", "sản phẩm đủ điều kiện làm thẻ, doanh thu không đến từ LIVE, video"),
+      academy("Trình Tối Ưu Hoá Sản Phẩm", "6532499267012354", "vị trí công cụ, thông tin chất lượng cao giúp tăng lưu lượng (04/08/2025)"),
+      academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "Trung tâm chính sách, 23/04/2026"),
+      academy("Trình Tối Ưu Hóa Tiêu Đề Sản Phẩm", "8617918787323649"),
+    ],
+  },
+  {
+    slug: "thue-ban-hang-tiktok-shop",
+    status: "draft",
+    title: "Thuế bán hàng TikTok Shop 2026: sàn khấu trừ thế nào, người bán cần làm gì",
+    seoTitle: "Thuế bán hàng TikTok Shop 2026: sàn khấu trừ | Juli AI",
+    description:
+      "Từ 01/07/2026 sàn TMĐT khấu trừ thuế GTGT, TNCN cho người bán theo Nghị định 252/2026; ngưỡng 1 tỷ đồng, hoàn thuế, việc cần chuẩn bị.",
+    excerpt:
+      "Tóm tắt từ văn bản chính thức: sàn có chức năng đặt hàng và thanh toán khấu trừ, nộp thay thuế trên từng giao dịch; doanh thu năm từ 1 tỷ đồng trở xuống không chịu thuế; người bán cần cung cấp gì và khi nào phải tự quyết toán. Cập nhật ngày 17/10/2026.",
+    breadcrumbName: "Thuế bán hàng TikTok Shop",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
+    category: "guide",
+    format: "news",
+    cover: blogCover("thue-ban-hang-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xám nhạt, ô thứ ba được tô kín"),
+    author: AUTHOR,
+    related: ["gmv-la-gi-tiktok-shop", "doanh-thu-tiktok-shop-giam"],
+    faq: [
+      {
+        question: "Bán hàng trên TikTok Shop có phải đóng thuế không?",
+        answer:
+          "Hộ, cá nhân kinh doanh có doanh thu cả năm trên 1 tỷ đồng phải nộp thuế GTGT và TNCN; từ 1 tỷ đồng trở xuống thì không (Nghị định 68/2026/NĐ-CP, đã sửa bởi Nghị định 141/2026/NĐ-CP). Từ 01/07/2026, sàn có chức năng đặt hàng và thanh toán khấu trừ, nộp thay thuế trên từng giao dịch (Nghị định 252/2026/NĐ-CP).",
+      },
+      {
+        question: "Sàn đã khấu trừ rồi, tôi có phải khai thuế nữa không?",
+        answer:
+          "Sàn khai và nộp thay số thuế đã khấu trừ. Người có doanh thu cả năm trên 3 tỷ đồng, hoặc trên 1 tỷ đồng và chọn tính thuế theo thu nhập, vẫn phải tổng hợp doanh thu để quyết toán TNCN theo năm; số sàn đã trừ được trừ vào số phải nộp (Nghị định 68, Điều 11).",
+      },
+      {
+        question: "Doanh thu dưới 1 tỷ đồng mà đã bị trừ thuế thì lấy lại thế nào?",
+        answer:
+          "Nghị định 68, Điều 12 cho phép làm thủ tục bù trừ, hoàn trả số thuế nộp thừa. Người chỉ bán trên sàn đã được khấu trừ nộp hồ sơ tại cơ quan thuế quản lý nơi cư trú. Hãy hỏi cơ quan thuế về hồ sơ cụ thể.",
+      },
+      {
+        question: "Đơn hủy, hoàn hàng thì thuế đã trừ có được trả lại không?",
+        answer:
+          "Có. Theo Nghị định 252, sàn bù trừ số thuế của giao dịch bị hủy hoặc trả lại hàng khi khai theo tháng, và phải trả lại đầy đủ, kịp thời số thuế đã khấu trừ của các giao dịch đó.",
+      },
+    ],
+    sources: [
+      {
+        title: "Nghị định 252/2026/NĐ-CP ngày 30/06/2026 quy định chi tiết một số điều và biện pháp để tổ chức, hướng dẫn thi hành Luật Quản lý thuế",
+        url: "https://xdcs.cdnchinhphu.vn/446259493575335936/2026/7/15/252-ndcp-signed-17841052430171897600672.pdf",
+        note: "Điều 43 đến 46 (sàn khấu trừ, thời điểm, doanh thu, khai theo tháng, đơn hủy), Điều 74 (hiệu lực 01/07/2026, thay thế Nghị định 117/2025/NĐ-CP); đọc 17/10/2026",
+      },
+      {
+        title: "Nghị định 68/2026/NĐ-CP ngày 05/03/2026 quy định về chính sách thuế và quản lý thuế đối với hộ kinh doanh, cá nhân kinh doanh",
+        url: "https://xdcs.cdnchinhphu.vn/446259493575335936/2026/3/6/68-2026-nd-cp-05032026-signed-17727673940151875228819.pdf",
+        note: "Điều 3, 4 (ngưỡng, cách tính), 11 (khai, khấu trừ trên sàn), 12 (hoàn thuế), 13 (quyền, trách nhiệm người bán), 19 (hiệu lực); đọc 17/10/2026",
+      },
+      {
+        title: "Nghị định 141/2026/NĐ-CP ngày 29/04/2026 sửa đổi, bổ sung một số điều của Nghị định 68/2026/NĐ-CP và Nghị định 320/2025/NĐ-CP",
+        url: "https://xdcs.cdnchinhphu.vn/446259493575335936/2026/5/4/141-ndcp-signed-1777883675606599215477.pdf",
+        note: "Điều 1 (500 triệu đồng thành 1 tỷ đồng, hóa đơn điện tử), Điều 3 (hiệu lực 01/01/2026); đọc 17/10/2026",
+      },
+      {
+        title: "Luật 09/2026/QH16 ngày 24/04/2026 sửa đổi, bổ sung một số điều của Luật Thuế thu nhập cá nhân, Luật Thuế giá trị gia tăng, Luật Thuế thu nhập doanh nghiệp và Luật Thuế tiêu thụ đặc biệt",
+        url: "https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/5/09-qh.signed.pdf",
+        note: "Điều 1, 2 (ngưỡng doanh thu do Chính phủ quy định), Điều 5 (hiệu lực); đọc 17/10/2026",
+      },
+      {
+        title: "Luật Thuế thu nhập cá nhân 109/2025/QH15, thông qua ngày 10/12/2025",
+        url: "https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/01/luat109-2025.pdf",
+        note: "Điều 7 (thu nhập từ kinh doanh, thuế suất 0,5% với phân phối, cung cấp hàng hóa), Điều 29 (hiệu lực); đọc 17/10/2026",
+      },
+      {
+        title: "Luật Thuế giá trị gia tăng 48/2024/QH15, thông qua ngày 26/11/2024 (văn bản hợp nhất 12/VBHN-VPQH)",
+        url: "https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/02/12-vbhn-vpqh.pdf",
+        note: "Điều 12 khoản 2 (tỷ lệ 1% với phân phối, cung cấp hàng hóa); đọc 17/10/2026",
+      },
+    ],
+  },
 ];

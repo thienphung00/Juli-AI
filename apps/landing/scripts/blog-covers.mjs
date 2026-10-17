@@ -51,6 +51,8 @@ export const COVERS = [
   { name: "da-kenh-2026-v1", category: "tools", motif: "tiles", accent: 0 },
   { name: "phan-tich-2026-v1", category: "tools", motif: "tiles", accent: 2 },
   { name: "ai-anh-video-v1", category: "tools", motif: "tiles", accent: 5 },
+  { name: "luot-hien-thi-v1", category: "guide", motif: "checklist", accent: 1 },
+  { name: "thue-ban-hang-v1", category: "guide", motif: "checklist", accent: 2 },
 ];
 
 const MOTIF_BY_CATEGORY = { metrics: "bars", optimize: "card", tools: "tiles", guide: "checklist" };
