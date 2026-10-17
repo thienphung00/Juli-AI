@@ -385,6 +385,108 @@ const DIAGRAMS = [
 <p class="note">Bốn nguyên nhân này không nằm ở trang sản phẩm: kiểm tra trước khi sửa phễu.</p>`;
     },
   },
+  /* ————— P46-B2 (D56): san-pham-tiktok-shop-khong-co-luot-hien-thi ————— */
+  {
+    name: "an-hay-it-thay-v1",
+    html: () => `${head("Sản phẩm bị ẩn, hay chỉ ít người thấy?")}
+<div class="grid2">
+  <div class="box half"><strong>Không hiện với người mua</strong><span class="label">Dấu hiệu</span><ul><li>Trạng thái không phải Trực tuyến</li><li>Không có Lượt hiển thị ở luồng nào</li></ul><span class="label">Xem ở đâu</span><ul><li>Trạng thái và lý do trong Quản lý sản phẩm</li><li>Sửa theo chính sách rồi gửi lại</li></ul></div>
+  <div class="box half box--accent"><strong>Đang hiện, nhưng ít người thấy</strong><span class="label">Dấu hiệu</span><ul><li>Trực tuyến, còn hàng ở biến thể chính</li><li>Có Lượt hiển thị, nhưng thấp so với chính shop</li></ul><span class="label">Xem ở đâu</span><ul><li>Lượt hiển thị theo năm luồng</li><li>Luồng nào thiếu, luồng nào có mà ít nhấp</li></ul></div>
+</div>
+<div class="result">Sửa lỗi hiển thị trước, rồi mới đọc Lượt hiển thị</div>`,
+  },
+  {
+    name: "hien-thi-theo-luong-v1",
+    html: () => {
+      const rows = [
+        ["Thẻ sản phẩm", "Tìm kiếm, đề xuất, trang mua sắm. Tiêu đề có từ khóa người mua tìm, thuộc tính và ngành hàng đã đúng chưa?"],
+        ["Tab cửa hàng", "Khách tự vào trang shop. TikTok không chia Lượt hiển thị cho luồng này: đọc Lượt nhấp."],
+        ["Video", "Video của shop có gắn sản phẩm này không, có đăng đều không?"],
+        ["LIVE", "Sản phẩm có được giới thiệu và ghim trong buổi LIVE không?"],
+        ["Liên kết", "Có nhà sáng tạo nào đang gắn sản phẩm này trong video hay LIVE của họ không?", true],
+      ];
+      return `${head("Lượt hiển thị đến từ đâu: năm luồng, năm câu hỏi")}
+<div class="grid2 process">${rows
+        .map(
+          ([t, d, wide], i) =>
+            `<div class="box step${wide ? " step--wide" : ""}">${num(i + 1)}<div><strong>${t}</strong><span>${d}</span></div></div>`,
+        )
+        .join("")}</div>
+<div class="result">Luồng không có lượt hiển thị là chỗ thiếu; luồng có mà ít nhấp là chuyện của CTR</div>`;
+    },
+  },
+  {
+    name: "hien-thi-ctr-v1",
+    html: () => {
+      const cells = [
+        ["Ít hiển thị, CTR cao", "Người thấy thì nhấp: sản phẩm thiếu chỗ xuất hiện.", ["Từ khóa trong tiêu đề", "Video, LIVE, nhà sáng tạo"], true],
+        ["Ít hiển thị, CTR thấp", "Kéo thêm người xem lúc này dễ phí.", ["Ảnh bìa và tiêu đề trước", "Rồi mới thêm chỗ xuất hiện"]],
+        ["Hiển thị ổn, CTR thấp", "Lượt hiển thị không phải điểm nghẽn.", ["Ảnh bìa, tiêu đề", "Giá hiển thị"]],
+        ["Hiển thị ổn, CTR ổn", "Bước sau mới là chỗ cần xem.", ["CTOR: trang sản phẩm có thuyết phục người đã nhấp"]],
+      ];
+      return `${head("Đọc Lượt hiển thị cùng CTR")}
+<div class="grid2">${cells
+        .map(
+          ([t, d, items, accent]) =>
+            `<div class="box half${accent ? " box--accent" : ""}"><strong class="metric">${t}</strong><span class="desc">${d}</span><span class="label">Xem lại</span><ul class="hang">${items.map((i) => `<li>${i}</li>`).join("")}</ul></div>`,
+        )
+        .join("")}</div>
+<p class="note">“Ít” và “ổn” là so với chính sản phẩm đó ở kỳ trước và với sản phẩm khác trên cùng luồng: TikTok không công bố một mức chuẩn chung.</p>`;
+    },
+  },
+  {
+    name: "theo-doi-7-14-v1",
+    html: () => {
+      const path = ["14 ngày trước: mốc so sánh", "Ngày duyệt: thay đổi lên shop", "Ngày 7: đọc sơ bộ", "Ngày 14: chốt kết quả"];
+      const rules = [
+        ["Một thay đổi một lúc", "Trên một sản phẩm, để biết kết quả là của thay đổi nào."],
+        ["Đúng chỉ số được nhắm", "Sửa tiêu đề để thêm từ khóa thì đọc Lượt hiển thị ở Thẻ sản phẩm trước."],
+        ["So với sản phẩm không đổi", "Cả shop cùng tăng thì chưa chắc là nhờ thay đổi."],
+      ];
+      return `${head("Sau khi sửa: một thay đổi, một mốc thời gian")}
+<div class="path">${path
+        .map((p, i) => `<span class="crumb${i === path.length - 1 ? " crumb--ink" : ""}">${p}</span>`)
+        .join(`<span class="sep">›</span>`)}</div>
+<div class="grid3">${rules
+        .map(([t, d], i) => `<div class="box col">${num(i + 1)}<strong>${t}</strong><span class="desc">${d}</span></div>`)
+        .join("")}</div>
+<div class="result">Không sửa tiếp sản phẩm đó cho đến ngày 14</div>`;
+    },
+  },
+  /* ————— P46-B2 (D56): thue-ban-hang-tiktok-shop ————— */
+  {
+    name: "khau-tru-san-v1",
+    html: () => {
+      const path = ["Khách đặt hàng và thanh toán", "Giao dịch thành công, sàn chấp nhận thanh toán", "Sàn khấu trừ thuế GTGT và TNCN", "Người bán nhận phần còn lại"];
+      return `${head("Sàn khấu trừ thuế trên từng giao dịch")}
+<div class="path">${path
+        .map((p, i) => `<span class="crumb${i === path.length - 1 ? " crumb--ink" : ""}">${p}</span>`)
+        .join(`<span class="sep">›</span>`)}</div>
+<div class="grid2">
+  <div class="box half"><strong>Sàn làm</strong><ul><li>Khai và nộp thay số thuế đã khấu trừ, theo tháng</li><li>Bù trừ thuế của đơn bị hủy hoặc trả hàng</li><li>Trả lại cho người bán số thuế đã trừ của các đơn đó</li></ul></div>
+  <div class="box half"><strong>Người bán làm</strong><ul><li>Cung cấp cho sàn mã số thuế hoặc số định danh cá nhân</li><li>Báo cơ quan thuế các tài khoản thanh toán dùng để kinh doanh</li><li>Giữ sổ kế toán, dùng hóa đơn theo quy định</li></ul></div>
+</div>
+<p class="note">Tỷ lệ khấu trừ do luật thuế quy định, không do sàn tự đặt.</p>`;
+    },
+  },
+  {
+    name: "nguong-1-ty-v1",
+    html: () => {
+      const cols = [
+        ["Từ 1 tỷ đồng trở xuống", "Không chịu thuế GTGT, không nộp thuế TNCN. Đã bị sàn khấu trừ thì làm thủ tục bù trừ hoặc hoàn số nộp thừa.", true],
+        ["Trên 1 tỷ đến 3 tỷ đồng", "Tính thuế trên doanh thu, hoặc chọn tính TNCN theo thu nhập. Chọn theo thu nhập thì tổng hợp doanh thu, quyết toán TNCN theo năm."],
+        ["Trên 3 tỷ đồng", "Tính TNCN theo thu nhập (doanh thu trừ chi phí); tổng hợp doanh thu, quyết toán TNCN theo năm."],
+      ];
+      return `${head("Doanh thu cả năm của hộ, cá nhân kinh doanh")}
+<div class="grid3">${cols
+        .map(
+          ([t, d, accent], i) =>
+            `<div class="box col${accent ? " box--accent" : ""}">${num(i + 1, accent)}<strong>${t}</strong><span class="desc">${d}</span></div>`,
+        )
+        .join("")}</div>
+<p class="note">Khi quyết toán, doanh thu trên sàn được tổng hợp cùng doanh thu bán ngoài sàn; số TNCN sàn đã trừ được trừ vào số phải nộp. Trên 1 tỷ đồng phải dùng hóa đơn điện tử.</p>`;
+    },
+  },
 ];
 
 function pageHtml(diagram, t, layout) {
