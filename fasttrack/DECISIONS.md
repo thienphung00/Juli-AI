@@ -1504,3 +1504,24 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   6. **Pre-registered predictions (Q6 A):** for each D34 group, one simulator run before the group
      ends is recorded (run id, commit, PRIORS_VERSION, predictions with 90 % intervals); only that
      prediction is scored; recording it is that wave's Gate C.
+
+- **D52** — Ops shows an empirical-Bayes shrunk group lift next to the raw lift (owner,
+  2026-10-17; fast track P45). Winner's-curse guard after Azevedo et al. 2019 ("Empirical Bayes
+  Estimation of Treatment Effects with Many A/B Tests"): a group picked because its lift looks
+  big is, on average, luckier than it is good.
+  1. **What.** For each D34 group comparison (primary metric, the Ops-rule reading, all-channel
+     AOV / items per order, card CTR): observed log-lift `y` and its SE, shrunk
+     `w·y + (1 − w)·μ` with `w = τ² / (τ² + se²)`, plus a 90 % interval; stored in the verdict JSON
+     next to the raw numbers (`primary.eb`).
+  2. **Prior per lever type** (lever × metric × channel). With ≥ `group_eb_min_groups` (3) draws
+     from measured groups of that lever across all shops (several groups of one shop are
+     combined within the shop first, inverse-variance; the group being shrunk is left out):
+     μ and τ by DerSimonian–Laird. Otherwise the default N(0, `group_eb_prior_sd`² = 0.15²) on the
+     log-lift. Both tunable per shop in DiagTunables.
+  3. **Cross-tenant read only in Ops**, through a SECURITY DEFINER function executable by
+     `juli_ops` only; it returns verdict comparisons (no product rows), and only aggregate numbers
+     (μ, τ, n draws) leave the backend. The stored verdict (written by the seller-scoped pipeline)
+     always uses the default prior; the Ops groups page re-shrinks with the pooled prior when one
+     exists and says which prior it used.
+  4. **No change** to the verdict label, strength, the seller sentence ("Kết quả nhóm") or any
+     seller route (D45 scope rule).
