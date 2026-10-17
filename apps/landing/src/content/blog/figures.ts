@@ -18,6 +18,8 @@ import {
   CAP_DL_TANG_THEM_MOBILE,
   CAP_DL_TIN_CAY,
   CAP_DL_TIN_CAY_MOBILE,
+  CAP_DX_XAC_NHAN,
+  CAP_DX_XAC_NHAN_MOBILE,
   CAP_PT_LUONG,
   CAP_PT_LUONG_MOBILE,
   CAP_PT_PHEU,
@@ -159,5 +161,37 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   "quy-trinh-30-phut": diagram("quy-trinh-30-phut", 460, 682, {
     alt: "Sơ đồ quy trình 30 phút khi doanh thu giảm, bảy bước: 1 kiểm tra cách so sánh; 2 tách GMV theo năm luồng; 3 tách luồng đó thành bốn chỉ số Lượt hiển thị, CTR, CTOR, AOV; 4 đi qua danh sách kiểm tra của đúng luồng và chỉ số; 5 tìm năm sản phẩm giải thích nhiều nhất mức giảm; 6 kiểm tra ngoài phễu: mùa vụ, hủy, hoàn, sản phẩm ngừng bán; 7, được tô nổi bật, ghi một kết luận và một hành động kèm ngày bắt đầu.",
     caption: "Bảy bước theo thứ tự. Bước cuối hay bị bỏ qua nhất.",
+  }),
+
+  /* ————— san-pham-tiktok-shop-khong-co-luot-hien-thi (P46-B2) ————— */
+  "an-hay-it-thay": diagram("an-hay-it-thay", 380, 594, {
+    alt: "Sơ đồ hai trường hợp. Không hiện với người mua: dấu hiệu là trạng thái không phải Trực tuyến và không có Lượt hiển thị ở luồng nào; xem trạng thái và lý do trong Quản lý sản phẩm, sửa theo chính sách rồi gửi lại. Đang hiện nhưng ít người thấy, được tô nổi bật: dấu hiệu là sản phẩm Trực tuyến, còn hàng ở biến thể chính, có Lượt hiển thị nhưng thấp so với chính shop; xem Lượt hiển thị theo năm luồng, luồng nào thiếu, luồng nào có mà ít nhấp. Kết luận: sửa lỗi hiển thị trước, rồi mới đọc Lượt hiển thị.",
+    caption: "Hai vấn đề khác nhau: sản phẩm bị ẩn cần sửa trạng thái, sản phẩm ít người thấy cần đọc số liệu.",
+  }),
+  "hien-thi-theo-luong": diagram("hien-thi-theo-luong", 482, 746, {
+    alt: "Sơ đồ năm luồng của Lượt hiển thị và câu hỏi cho từng luồng. 1, Thẻ sản phẩm: tìm kiếm, đề xuất, trang mua sắm; tiêu đề có từ khóa người mua tìm, thuộc tính và ngành hàng đã đúng chưa. 2, Tab cửa hàng: khách tự vào trang shop; TikTok không chia Lượt hiển thị cho luồng này, đọc Lượt nhấp. 3, Video: video của shop có gắn sản phẩm này không, có đăng đều không. 4, LIVE: sản phẩm có được giới thiệu và ghim trong buổi LIVE không. 5, Liên kết: có nhà sáng tạo nào đang gắn sản phẩm này không. Kết luận: luồng không có lượt hiển thị là chỗ thiếu, luồng có mà ít nhấp là chuyện của CTR.",
+    caption: "Năm luồng, năm câu hỏi: tìm luồng đang thiếu trước khi sửa bất cứ thứ gì.",
+  }),
+  "hien-thi-ctr": diagram("hien-thi-ctr", 488, 784, {
+    alt: "Bảng bốn ô đọc Lượt hiển thị cùng CTR. Ít hiển thị, CTR cao, được tô nổi bật: người thấy thì nhấp, sản phẩm thiếu chỗ xuất hiện; xem từ khóa trong tiêu đề, video, LIVE, nhà sáng tạo. Ít hiển thị, CTR thấp: kéo thêm người xem lúc này dễ phí; sửa ảnh bìa và tiêu đề trước, rồi mới thêm chỗ xuất hiện. Hiển thị ổn, CTR thấp: Lượt hiển thị không phải điểm nghẽn; xem ảnh bìa, tiêu đề, giá hiển thị. Hiển thị ổn, CTR ổn: xem CTOR, trang sản phẩm có thuyết phục người đã nhấp. Ghi chú: ít và ổn là so với chính sản phẩm đó ở kỳ trước và sản phẩm khác cùng luồng, TikTok không công bố mức chuẩn chung.",
+    caption: "Lượt hiển thị chỉ có nghĩa khi đọc cùng CTR: bốn trường hợp, bốn việc khác nhau.",
+  }),
+  "dx-xac-nhan-tieu-de": screenshot(CAP_DX_XAC_NHAN, CAP_DX_XAC_NHAN_MOBILE, {
+    alt: "Màn hình một lượt chạy của Juli cho sản phẩm Son môi số 12: các bước đọc chẩn đoán TikTok, đọc thông tin sản phẩm, phân tích từ khóa, phân tích ảnh sản phẩm đã xong, bước Xác nhận một lần đang chờ người bán; bên dưới là đề xuất đổi tiêu đề từ Son môi số 12 thành Son môi lì cao cấp số 12 màu đỏ ruby và mô tả dài hơn, với nút Không thực hiện và Xác nhận thay đổi này (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Một lượt chạy của Juli dừng ở bước Xác nhận một lần: tiêu đề mới chỉ được ghi lên shop sau khi người bán xác nhận.",
+  }),
+  "theo-doi-7-14": diagram("theo-doi-7-14", 388, 698, {
+    alt: "Sơ đồ mốc thời gian sau khi sửa: 14 ngày trước làm mốc so sánh, ngày duyệt là ngày thay đổi lên shop, ngày 7 đọc sơ bộ, ngày 14 chốt kết quả. Ba quy tắc: một thay đổi một lúc trên một sản phẩm; đọc đúng chỉ số được nhắm, sửa tiêu đề để thêm từ khóa thì đọc Lượt hiển thị ở Thẻ sản phẩm trước; so với sản phẩm không đổi, cả shop cùng tăng thì chưa chắc là nhờ thay đổi. Kết luận: không sửa tiếp sản phẩm đó cho đến ngày 14 chốt kết quả.",
+    caption: "Một thay đổi, một ngày bắt đầu, hai lần đọc kết quả.",
+  }),
+
+  /* ————— thue-ban-hang-tiktok-shop (P46-B2) ————— */
+  "khau-tru-san": diagram("khau-tru-san", 414, 712, {
+    alt: "Sơ đồ khấu trừ thuế trên từng giao dịch: khách đặt hàng và thanh toán, giao dịch thành công và sàn chấp nhận thanh toán, sàn khấu trừ thuế GTGT và TNCN, người bán nhận phần còn lại. Sàn làm: khai và nộp thay số thuế đã khấu trừ theo tháng, bù trừ thuế của đơn bị hủy hoặc trả hàng, trả lại cho người bán số thuế đã trừ của các đơn đó. Người bán làm: cung cấp cho sàn mã số thuế hoặc số định danh cá nhân, báo cơ quan thuế các tài khoản thanh toán dùng để kinh doanh, giữ sổ kế toán và dùng hóa đơn theo quy định. Ghi chú: tỷ lệ khấu trừ do luật thuế quy định, không do sàn tự đặt.",
+    caption: "Ai làm gì khi sàn khấu trừ thuế, theo các nghị định đang có hiệu lực.",
+  }),
+  "nguong-1-ty": diagram("nguong-1-ty", 368, 584, {
+    alt: "Sơ đồ ba mức doanh thu cả năm của hộ, cá nhân kinh doanh. Từ 1 tỷ đồng trở xuống, được tô nổi bật: không chịu thuế GTGT, không nộp thuế TNCN; đã bị sàn khấu trừ thì làm thủ tục bù trừ hoặc hoàn số nộp thừa. Trên 1 tỷ đến 3 tỷ đồng: tính thuế trên doanh thu, hoặc chọn tính TNCN theo thu nhập; chọn theo thu nhập thì tổng hợp doanh thu, quyết toán TNCN theo năm. Trên 3 tỷ đồng: tính TNCN theo thu nhập, doanh thu trừ chi phí; tổng hợp doanh thu, quyết toán theo năm. Ghi chú: khi quyết toán, doanh thu trên sàn được tổng hợp cùng doanh thu bán ngoài sàn, số TNCN sàn đã trừ được trừ vào số phải nộp; trên 1 tỷ đồng phải dùng hóa đơn điện tử.",
+    caption: "Ngưỡng doanh thu năm áp dụng từ kỳ tính thuế 2026, sau khi Nghị định 141/2026/NĐ-CP nâng mức lên 1 tỷ đồng.",
   }),
 };
