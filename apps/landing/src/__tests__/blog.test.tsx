@@ -95,12 +95,12 @@ describe("blog drafts vs published posts (AC-33.8)", () => {
     expect(relatedPosts({ ...posts[1]!, related: ["a"] }, posts).map((post) => post.slug)).toEqual(["a"]);
   });
 
-  it("the three pillar drafts are registered, noindex, and absent from the real sitemap", () => {
+  it("every post is registered; drafts are noindex and out of the real sitemap, published posts are in it", () => {
     const urls = sitemap().map((entry) => entry.url);
     expect(urls).toContain(absoluteUrl("/blog"));
     for (const post of BLOG_POSTS) {
       const route = getRoute(blogPostPath(post.slug));
-      expect(route.noindex, post.slug).toBe(post.status !== "published");
+      expect(Boolean(route.noindex), post.slug).toBe(post.status !== "published");
       expect(urls.includes(absoluteUrl(route.path)), post.slug).toBe(post.status === "published");
     }
   });
@@ -196,7 +196,7 @@ describe("post page", () => {
   });
 
   it("renders title, author, dates, TOC from the H2s, FAQ, sources and the draft banner", async () => {
-    const post = BLOG_POSTS[0]!;
+    const post = BLOG_POSTS.find((p) => p.status === "draft")!;
     render(await BlogPostPage({ params: Promise.resolve({ slug: post.slug }) }));
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(post.title);
@@ -240,8 +240,13 @@ describe("post page", () => {
     expect(jsonLd).toContain('"@type":"FAQPage"');
   });
 
-  it("sets article metadata with published/modified times and noindex for a draft", async () => {
-    const post = BLOG_POSTS[0]!;
+  it("sets article metadata with published/modified times; noindex only for a draft", async () => {
+    for (const post of BLOG_POSTS) {
+      const metadata = await generateMetadata({ params: Promise.resolve({ slug: post.slug }) });
+      if (post.status === "draft") expect(metadata.robots, post.slug).toEqual({ index: false, follow: true });
+      else expect(metadata.robots, post.slug).not.toEqual({ index: false, follow: true });
+    }
+    const post = BLOG_POSTS.find((p) => p.status === "draft")!;
     const metadata = await generateMetadata({ params: Promise.resolve({ slug: post.slug }) });
     expect(metadata.openGraph).toMatchObject({
       type: "article",
@@ -343,11 +348,10 @@ function figureIds(body: string): string[] {
 }
 
 describe("inline figures (D48 additions 7, P39-C)", () => {
-  it("each of the three P39-B drafts has 3–8 figures, stays a draft, and every figure is defined and used", () => {
+  it("each of the three P39-B posts has 3–8 figures and every figure is defined and used", () => {
     const used = new Set<string>();
     for (const slug of FIGURE_POSTS) {
       const post = getPost(slug)!;
-      expect(post.status, slug).toBe("draft");
       const ids = figureIds(post.body);
       expect(ids.length, slug).toBeGreaterThanOrEqual(3);
       expect(ids.length, slug).toBeLessThanOrEqual(8);

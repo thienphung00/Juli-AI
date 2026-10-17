@@ -19,7 +19,7 @@ const academy = (title: string, knowledgeId: string, note?: string): BlogSource 
 export const BLOG_POSTS: readonly BlogPostMeta[] = [
   {
     slug: "chi-so-tiktok-shop-ctr-ctor-aov",
-    status: "draft",
+    status: "published",
     title: "Các chỉ số TikTok Shop: Lượt hiển thị, CTR, CTOR, AOV và cách đọc đúng",
     seoTitle: "Chỉ số TikTok Shop: CTR, CTOR, AOV đọc đúng | Juli AI",
     description:
@@ -27,8 +27,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Định nghĩa bốn chỉ số cốt lõi theo đúng cách TikTok công bố, công thức GMV = Lượt hiển thị × CTR × CTOR × AOV, cách đọc theo từng kênh và việc nên làm ở từng điểm nghẽn.",
     breadcrumbName: "Chỉ số TikTok Shop",
-    publishedAt: "2026-10-15",
-    updatedAt: "2026-10-15",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
     category: "metrics",
     cover: blogCover("chi-so-ctr-ctor-aov-v1", "Minh hoạ: bốn cột biểu đồ trên nền hồng nhạt, cột thứ ba thấp nhất tô màu hồng"),
     author: AUTHOR,
@@ -171,7 +171,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "gmv-la-gi-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "GMV là gì? Cách tính và cách tăng GMV TikTok Shop",
     seoTitle: "GMV là gì? Cách tính, cách tăng GMV TikTok Shop | Juli AI",
     description:
@@ -179,8 +179,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Định nghĩa GMV theo Học viện TikTok Shop, vì sao GMV lớn hơn số tiền về tài khoản, công thức GMV = Lượt hiển thị × CTR × CTOR × AOV theo năm luồng, và cách tìm bước yếu nhất để tăng GMV.",
     breadcrumbName: "GMV là gì",
-    publishedAt: "2026-10-16",
-    updatedAt: "2026-10-16",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
     category: "metrics",
     cover: blogCover("gmv-la-gi-v1", "Minh hoạ: bốn cột biểu đồ trên nền hồng nhạt, cột đầu tiên cao nhất tô màu hồng"),
     author: AUTHOR,
