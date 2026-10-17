@@ -622,4 +622,111 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       },
     ],
   },
+  {
+    slug: "ty-le-hoan-hang-tiktok-shop",
+    status: "draft",
+    title: "Đơn hủy, hoàn hàng tăng trên TikTok Shop: tách từng loại, đọc đúng tỷ lệ, tính đúng chi phí",
+    seoTitle: "Tỷ lệ hoàn hàng TikTok Shop: hủy, trả hàng, phí | Juli AI",
+    description:
+      "Đơn hủy, hoàn hàng tăng: tách hủy đơn, giao không thành công và trả hàng, đọc SFCR, SFRR, hạn xử lý 1 ngày, ai trả phí ship và phí nào không được hoàn.",
+    excerpt:
+      "Hoàn hàng là ba chuyện khác nhau: đơn hủy trước khi giao, đơn giao không thành công quay về shop, và đơn khách trả sau khi nhận. Mỗi loại một chỉ số, một hạn xử lý, một khoản phí; bài này tách từng loại theo trang chính thức của TikTok Shop. Cập nhật ngày 17/10/2026.",
+    breadcrumbName: "Tỷ lệ hoàn hàng TikTok Shop",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
+    category: "metrics",
+    format: "pain",
+    cover: blogCover("hoan-hang-v1", "Minh hoạ: bốn cột đứng trên nền nhạt, cột thứ hai được tô màu nhấn"),
+    author: AUTHOR,
+    related: ["doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop", "phi-san-tiktok-shop-2026"],
+    faq: [
+      {
+        question: "Hủy đơn trên TikTok Shop có sao không?",
+        answer:
+          "Tùy ai hủy. Khách hủy thì không ảnh hưởng người bán, trừ khi chọn lý do Giao hàng trễ. Người bán hủy, hoặc đơn bị tự động hủy vì không bàn giao kịp, thì tính vào Tỷ lệ hủy do lỗi của người bán (SFCR); mục tiêu là dưới 2,5% trong 7 ngày theo lịch. Người bán không được yêu cầu khách hủy đơn.",
+      },
+      {
+        question: "Hoàn hàng TikTok Shop có mất phí không?",
+        answer:
+          "Có, tùy trường hợp. Đơn đã giao rồi mới trả hàng vẫn bị thu phí xử lý đơn 3.000 đồng và không được hoàn. Người bán chịu phí trả hàng khi lỗi ở người bán, và phí chuyển hoàn của đơn giao không thành công. Phần tiền hoàn cho khách được trừ khỏi cơ sở tính phí giao dịch.",
+      },
+      {
+        question: "Không phản hồi yêu cầu trả hàng thì sao?",
+        answer:
+          "Theo trang Trả hàng và Hoàn tiền của Học viện TikTok Shop (cập nhật 15/10/2026), người bán phải xem xét yêu cầu trong 1 ngày theo lịch; quá hạn thì yêu cầu được tự động duyệt. Nếu trong một tháng hơn 90% yêu cầu không được xem đúng hạn, Công cụ phê duyệt tự động có thể được bật.",
+      },
+      {
+        question: "Trả hàng tính vào SFRR hay SFCR?",
+        answer:
+          "Trả hàng, hoàn tiền sau khi giao tính vào Tỷ lệ trả hàng/hoàn tiền do lỗi của người bán (SFRR), chỉ khi lý do liên quan người bán như không đúng mô tả, gửi sai, sản phẩm lỗi. Đổi ý, đặt sai kích thước không tính. SFCR chỉ dành cho đơn bị hủy trước khi giao.",
+      },
+      {
+        question: "Tỷ lệ hoàn hàng bao nhiêu là bình thường?",
+        answer:
+          "TikTok không công bố tỷ lệ chung của ngành. Mốc chính thức duy nhất là mục tiêu của chính nền tảng: SFCR dưới 2,5% và SFRR dưới 1,5%. Ngoài hai mốc đó, hãy so shop với chính nó qua các kỳ dài bằng nhau, theo từng loại và từng sản phẩm.",
+      },
+    ],
+    sources: [
+      academy("Chính sách hủy đơn hàng, trả hàng và hoàn tiền của khách hàng trên TikTok Shop", "10000852", "ai được hủy, phí ship khi trả hàng theo bên có lỗi, từ chối không hợp lệ (cập nhật 23/09/2026)"),
+      academy("Hủy đơn hàng", "578506941728513", "người bán hủy, giao không thành công, COD từ chối nhận, phí chuyển hoàn (cập nhật 22/09/2026)"),
+      academy("Trả hàng và Hoàn tiền", "1766935302801169", "thời hạn, lý do ảnh hưởng SFRR, Công cụ phê duyệt tự động (cập nhật 15/10/2026)"),
+      academy("Quản lý yêu cầu trả hàng và hoàn tiền", "6819122768905985", "xem xét trong 1 ngày dương lịch, hàng trả về trong 2 ngày (cập nhật 04/11/2025)"),
+      academy("Tỷ lệ hủy do lỗi của người bán (SFCR)", "6988439669442305", "định nghĩa 7 ngày, mục tiêu dưới 2,5%, ví dụ, điểm AHR (cập nhật 16/07/2026)"),
+      academy("Tỷ lệ trả hàng/hoàn tiền do lỗi của người bán", "89407391336193", "định nghĩa 30 ngày, mục tiêu dưới 1,5%, nơi xem (cập nhật 19/08/2026)"),
+      academy("Phí Xử Lý Đơn Hàng", "2968734088120080", "3.000 đồng, không hoàn khi đơn đã giao rồi trả (cập nhật 11/10/2025)"),
+      academy("Phí Giao Dịch", "753295858337537", "công thức trừ phần hoàn tiền (cập nhật 13/10/2026)"),
+      academy("Phí Vận Hành Logistic", "4723305845458708", "kiện trên 10 kg, chính sách hoàn phí (cập nhật 08/10/2026)"),
+      academy("Phí của Nhà Bán Hàng", "8858869405370113", "phí vận chuyển trả hàng thực tế (cập nhật 04/08/2026)"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "GMV gồm cả đơn đã hủy và hoàn tiền, thời điểm ghi nhận hoàn tiền (cập nhật 17/06/2026)"),
+    ],
+  },
+  {
+    slug: "phi-san-tiktok-shop-2026",
+    status: "draft",
+    title: "Phí sàn TikTok Shop 2026: các khoản phí hiện hành và mỗi đơn còn lại bao nhiêu",
+    seoTitle: "Phí sàn TikTok Shop 2026: một đơn còn bao nhiêu | Juli AI",
+    description:
+      "Phí bán hàng TikTok Shop tại 17/10/2026: hoa hồng 14% (Mall 16%), phí giao dịch 6%, phí xử lý 3.000đ, phí kiện trên 10kg, kèm ví dụ lợi nhuận một đơn.",
+    excerpt:
+      "Khung phí hiện hành theo các trang chính thức của TikTok Shop, kèm ngày hiệu lực: hoa hồng theo ngành, phí giao dịch, phí xử lý đơn, phí vận hành logistic, hai mốc 20/10 và 21/10, và một ví dụ giả định tính phần còn lại của một đơn. Cập nhật ngày 17/10/2026.",
+    breadcrumbName: "Phí sàn TikTok Shop 2026",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
+    category: "guide",
+    format: "news",
+    cover: blogCover("phi-san-2026-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền xám nhạt, ô thứ hai được tô màu nhấn"),
+    author: AUTHOR,
+    related: ["thue-ban-hang-tiktok-shop", "gmv-la-gi-tiktok-shop", "ty-le-hoan-hang-tiktok-shop"],
+    faq: [
+      {
+        question: "Phí hoa hồng TikTok Shop của ngành tôi là bao nhiêu?",
+        answer:
+          "Mỗi ngành hàng cấp 3 có một phí suất riêng, khác nhau giữa Nhà Bán Hàng Tiêu Chuẩn và Mall. Tải bảng phí suất PDF trên trang Phí Hoa Hồng Nền Tảng của Học viện TikTok Shop và tìm đúng ngành của sản phẩm. Ngành không có trong bảng dùng mức mặc định: 14% (Tiêu Chuẩn) và 16% (Mall).",
+      },
+      {
+        question: "Phí giao dịch 6% có tính cả tiền ship không?",
+        answer:
+          "Có. Cơ sở tính là số tiền khách thanh toán, gồm phí vận chuyển khách trả, cộng chiết khấu của nền tảng và trừ phần hoàn tiền. Ví dụ trên trang Phí Giao Dịch: cơ sở 105.600 đồng, phí 6.336 đồng.",
+      },
+      {
+        question: "Đơn bị trả hàng có được hoàn phí không?",
+        answer:
+          "Phí xử lý đơn 3.000 đồng không được hoàn nếu đơn đã giao thành công rồi mới trả hàng, hoàn tiền. Phí giao dịch thì trừ phần hoàn tiền khỏi cơ sở tính. Phí vận hành logistic cho kiện trên 10 kg cũng không hoàn khi đơn đã giao rồi khách trả.",
+      },
+      {
+        question: "Phí TikTok Shop đã bao gồm thuế chưa?",
+        answer:
+          "Với cá nhân, hộ kinh doanh và tổ chức chưa có mã số thuế được TikTok Shop xác minh: phí đã gồm thuế. Tổ chức có mã số thuế đã xác minh trả phí chưa gồm thuế và tự kê khai 10% GTGT, 5% TNDN. Bảng phí vận hành logistic ghi mức trước thuế.",
+      },
+    ],
+    sources: [
+      academy("Phí của Nhà Bán Hàng", "8858869405370113", "tổng quan các loại phí, phí vận chuyển, thuế trên phí (cập nhật 04/08/2026); đọc 17/10/2026"),
+      academy("Phí Hoa Hồng Nền Tảng", "3396736626312961", "công thức, phí suất mặc định 14% và 16%, bảng Mall ngành Sách từ 20/10/2026, chương trình hỗ trợ đến 30/09/2026, hai bảng phí suất PDF (cập nhật 30/09/2026); đọc 17/10/2026"),
+      academy("Phí Giao Dịch", "753295858337537", "6% cho đơn sau 00:00 ngày 09/05/2026, công thức, Chương trình Tiết Kiệm Phí Giao Dịch từ 21/10/2026 (cập nhật 13/10/2026); đọc 17/10/2026"),
+      academy("Phí Xử Lý Đơn Hàng", "2968734088120080", "3.000 đồng mỗi đơn giao thành công, thu từ 27/10/2025 (cập nhật 11/10/2025); đọc 17/10/2026"),
+      academy("Phí Vận Hành Logistic", "4723305845458708", "kiện trên 10 kg, 3.000 đến 65.000 VND, từ 12/10/2026 (cập nhật 08/10/2026); đọc 17/10/2026"),
+      academy("Thông Tin Cơ Bản về Thuế trên Phí Nền Tảng", "10011442", "10% GTGT, 5% TNDN, phí gồm hay chưa gồm thuế (cập nhật 30/09/2026); đọc 17/10/2026"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "GMV gồm cả đơn đã hủy và hoàn tiền (cập nhật 17/06/2026); đọc 17/10/2026"),
+    ],
+  },
 ];

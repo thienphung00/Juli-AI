@@ -194,4 +194,36 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     alt: "Sơ đồ ba mức doanh thu cả năm của hộ, cá nhân kinh doanh. Từ 1 tỷ đồng trở xuống, được tô nổi bật: không chịu thuế GTGT, không nộp thuế TNCN; đã bị sàn khấu trừ thì làm thủ tục bù trừ hoặc hoàn số nộp thừa. Trên 1 tỷ đến 3 tỷ đồng: tính thuế trên doanh thu, hoặc chọn tính TNCN theo thu nhập; chọn theo thu nhập thì tổng hợp doanh thu, quyết toán TNCN theo năm. Trên 3 tỷ đồng: tính TNCN theo thu nhập, doanh thu trừ chi phí; tổng hợp doanh thu, quyết toán theo năm. Ghi chú: khi quyết toán, doanh thu trên sàn được tổng hợp cùng doanh thu bán ngoài sàn, số TNCN sàn đã trừ được trừ vào số phải nộp; trên 1 tỷ đồng phải dùng hóa đơn điện tử.",
     caption: "Ngưỡng doanh thu năm áp dụng từ kỳ tính thuế 2026, sau khi Nghị định 141/2026/NĐ-CP nâng mức lên 1 tỷ đồng.",
   }),
+
+  /* ————— ty-le-hoan-hang-tiktok-shop (P46-C2) ————— */
+  "ba-loai-hoan-hang": diagram("ba-loai-hoan-hang", 480, 874, {
+    alt: "Sơ đồ ba loại đơn mà người bán hay gọi chung là hoàn hàng. 1, Hủy đơn: xảy ra trước khi đơn ở trạng thái đang vận chuyển; chỉ số SFCR nếu do lỗi người bán như hết hàng, sai giá, không bàn giao kịp; hàng chưa rời shop. 2, Giao không thành công: đơn hủy khi đang vận chuyển hoặc khách COD từ chối nhận; không có chỉ số riêng; hàng quay về shop, người bán chịu phí chuyển hoàn. 3, Trả hàng, hoàn tiền: sau khi đơn đã giao, khách gửi yêu cầu; chỉ số SFRR nếu lý do liên quan người bán như không đúng mô tả, gửi sai, lỗi, thiếu; trả hàng về shop hoặc chỉ hoàn tiền. Kết luận: tách ba loại trước, rồi mới xem loại nào đang tăng.",
+    caption: "Ba loại đơn không thành tiền, mỗi loại một chỉ số và một cách xử lý.",
+  }),
+  "dong-thoi-gian-tra-hang": diagram("dong-thoi-gian-tra-hang", 484, 770, {
+    alt: "Sơ đồ các mốc thời gian của một yêu cầu trả hàng theo Học viện TikTok Shop: khách gửi yêu cầu trong 15 ngày theo lịch sau khi nhận, 6 ngày với một số danh mục; người bán xem xét yêu cầu trong 1 ngày theo lịch, bước này được tô đậm; người bán xem hàng trả về trong 2 ngày theo lịch sau khi nhận; khiếu nại nếu cần trong 7 ngày, 15 ngày với trả hàng tự sắp xếp. Ở bước xem xét, người bán chọn một trong ba: duyệt yêu cầu hợp lệ; từ chối kèm bằng chứng hợp lệ như video đóng gói; đề nghị hoàn một phần, khách chấp nhận thì đơn không tính vào SFRR. Quá hạn ở bước xem xét yêu cầu hoặc xem hàng trả về thì yêu cầu được tự động duyệt.",
+    caption: "Các mốc theo trang Trả hàng và Hoàn tiền của Học viện TikTok Shop; ngày cập nhật ghi trong bài.",
+  }),
+  "ai-tra-phi-ship": diagram("ai-tra-phi-ship", 514, 784, {
+    alt: "Sơ đồ bốn trường hợp và bên trả phí ship khi hàng quay về. Lỗi người bán, được tô nổi bật, gồm gửi sai, hàng giả, thiếu bộ phận, sản phẩm lỗi, đóng gói kém, không khớp mô tả: người bán chịu phí trả hàng. Khách đổi ý: nền tảng trả phí trả hàng, người bán trả phí chiều đi đến mức trần, phần vượt nền tảng trả. Lỗi kho vận, ví dụ kiện hỏng khi vận chuyển: đơn vị kho vận chịu phí trả hàng, hoa hồng nền tảng liên quan được hoàn cho người bán. Giao không thành công, đơn bị hủy khi đang vận chuyển: người bán chịu phí vận chuyển trả hàng. Ghi chú: TikTok quyết định bên nào có lỗi dựa trên bằng chứng các bên gửi.",
+    caption: "Ai trả phí ship chiều về, theo chính sách hủy, trả hàng và hoàn tiền của TikTok Shop.",
+  }),
+  "chi-phi-mot-don-hoan": diagram("chi-phi-mot-don-hoan", 316, 548, {
+    alt: "Bảng ví dụ giả định chi phí ngoài tiền hàng của một đơn 200.000 đồng bị trả. Khách đổi ý sau khi nhận: phí xử lý đơn 3.000 đồng không hoàn, phí chiều đi người bán trả 22.000 đồng, cộng 25.000 đồng, không tính vào SFRR. Không đúng mô tả, lỗi người bán, được tô nổi bật: phí xử lý đơn 3.000 đồng không hoàn, phí trả hàng người bán chịu 22.000 đồng, cộng 25.000 đồng, tính vào SFRR. Ghi chú: tiền hàng 200.000 đồng hoàn cho khách, phần hoàn tiền không bị tính phí giao dịch; hàng trả về đã mở có thể không bán lại được như hàng mới.",
+    caption: "Ví dụ giả định: hai đơn trả cùng giá, cùng chi phí, nhưng chỉ đơn lỗi người bán tính vào SFRR.",
+  }),
+  "dx-xac-nhan-mo-ta": screenshot(CAP_DX_XAC_NHAN, CAP_DX_XAC_NHAN_MOBILE, {
+    alt: "Màn hình một lượt chạy của Juli cho sản phẩm Son môi số 12: các bước đọc chẩn đoán TikTok, đọc thông tin sản phẩm, phân tích từ khóa, phân tích ảnh sản phẩm đã xong, bước Xác nhận một lần đang chờ người bán; bên dưới là đề xuất đổi tiêu đề thành Son môi lì cao cấp số 12 màu đỏ ruby và mô tả dài hơn, với nút Không thực hiện và Xác nhận thay đổi này (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Juli đề xuất tiêu đề và mô tả mới, và chỉ ghi lên shop sau khi người bán xác nhận.",
+  }),
+
+  /* ————— phi-san-tiktok-shop-2026 (P46-C2) ————— */
+  "phi-mot-don-200k": diagram("phi-mot-don-200k", 370, 574, {
+    alt: "Biểu đồ thác nước ví dụ giả định cho một đơn 200.000 đồng ở phí suất mặc định, khách trả 20.000 đồng ship: giá bán 200.000 đồng; trừ phí hoa hồng 14 % là 28.000 đồng; trừ phí giao dịch 6 % là 13.200 đồng; trừ phí xử lý đơn 3.000 đồng; còn lại sau phí sàn 155.800 đồng; trừ giá vốn và đóng gói 114.000 đồng; lãi trước quảng cáo và thuế 41.800 đồng. Ghi chú: phí giao dịch tính trên 220.000 đồng vì ship khách trả nằm trong cơ sở tính; ba khoản phí sàn cộng lại 44.200 đồng, tức 22,1 % giá bán.",
+    caption: "Ví dụ giả định: từ giá bán đến phần lãi trước quảng cáo và thuế, theo khung phí hiện hành.",
+  }),
+  "gmv-den-tien-ve": diagram("gmv-den-tien-ve", 412, 646, {
+    alt: "Sơ đồ từ GMV đến tiền thực nhận: GMV là tổng tiền khách thanh toán, gồm cả đơn hủy và hoàn tiền; trừ đơn hủy và hoàn tiền; trừ phí sàn gồm hoa hồng, giao dịch, xử lý đơn, vận hành logistic nếu có; còn lại là tiền thực nhận theo từng đơn đã quyết toán. Đọc GMV để thấy nhu cầu của khách ngay trong ngày và tìm luồng, sản phẩm, chỉ số đang kéo doanh thu xuống. Đọc tiền thực nhận để biết lãi thật sau phí và hoàn tiền, lên kế hoạch nhập hàng và giá bán. Ghi chú: hoàn tiền được ghi vào lúc yêu cầu được xử lý, không phải ngày mua, nên tuần gần nhất thường trông ít hoàn hơn thực tế.",
+    caption: "GMV đo nhu cầu, tiền thực nhận đo tiền: đọc cả hai, mỗi số cho một việc.",
+  }),
 };
