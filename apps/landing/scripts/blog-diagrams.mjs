@@ -385,6 +385,152 @@ const DIAGRAMS = [
 <p class="note">Bốn nguyên nhân này không nằm ở trang sản phẩm: kiểm tra trước khi sửa phễu.</p>`;
     },
   },
+  /* ————— P46-B1 (D56): video-tiktok-nhieu-view-khong-ra-don ————— */
+  {
+    name: "video-view-den-don-v1",
+    html: () => {
+      const rows = [
+        ["Lượt hiển thị sản phẩm", "20.000", [100, 100]],
+        ["× CTR 1 %", true],
+        ["Lượt nhấp vào sản phẩm", "200", [80, 90], true],
+        ["× CTOR 4 %"],
+        ["Đơn hàng SKU", "8", [62, 80]],
+        ["× AOV 150.000 ₫"],
+        ["GMV", "1.200.000 ₫", [48, 72]],
+      ];
+      return `${head("Một video trong 28 ngày", true)}
+<div class="box vv"><div><span class="label">Lượt xem video</span><strong class="vv-num">100.000</strong></div><span class="small">Chỉ số của video. Không có trong công thức GMV.</span></div>
+<div class="funnel">${rows
+        .map(([label, value, widths, accent]) =>
+          typeof value !== "string"
+            ? `<div class="op${value ? " op--accent" : ""}">${label}</div>`
+            : `<div class="stage${accent ? " stage--accent" : ""}" style="--w:${widths[0]}%;--wm:${widths[1]}%"><span>${label}</span><strong>${value}</strong></div>`,
+        )
+        .join("")}</div>
+<p class="note">Chỗ gãy trong ví dụ là CTR: cứ 100 lần sản phẩm hiện ra thì 99 lần không ai bấm vào.</p>`;
+    },
+  },
+  {
+    name: "video-trieu-chung-v1",
+    html: () => {
+      const rows = [
+        ["Nhiều lượt xem, ít Lượt hiển thị sản phẩm", "Sản phẩm ít được nhìn thấy", ["Sản phẩm có được gắn đúng vào video", "Video có nói về sản phẩm hay chỉ giải trí"]],
+        ["Lượt hiển thị sản phẩm ổn, CTR thấp", "Thấy mà không bấm", ["Video cho thấy rõ sản phẩm, công dụng, giá", "Người xem có phải người cần sản phẩm này"]],
+        ["CTR ổn, CTOR thấp", "Bấm vào mà không mua", ["Ảnh, mô tả, đánh giá trên trang sản phẩm", "Giá và ưu đãi có khớp điều video nói"]],
+        ["Có đơn, GMV vẫn thấp", "AOV thấp", ["Khách chọn biến thể rẻ nhất", "Có ưu đãi mua nhiều hay mua theo gói"]],
+      ];
+      return `${head("Triệu chứng, bước nghi ngờ và việc cần xem")}
+<div class="grid2">${rows
+        .map(
+          ([sign, step, checks], i) =>
+            `<div class="box half"><div class="sect-head">${num(i + 1)}<strong>${sign}</strong></div><span class="metric">${step}</span><span class="label">Xem lại</span><ul class="hang">${checks.map((c) => `<li>${c}</li>`).join("")}</ul></div>`,
+        )
+        .join("")}</div>
+<p class="note">So với chính video đó ở kỳ trước và với các video khác của shop, trên cùng luồng Video.</p>`;
+    },
+  },
+  {
+    name: "video-truc-tiep-gian-tiep-v1",
+    html: () => {
+      const paths = [
+        ["Xem video, bấm vào sản phẩm, mua ngay", "GMV video trực tiếp", true],
+        ["Xem video, bấm vào sản phẩm, vài ngày sau tự tìm lại và mua", "GMV video gián tiếp, nếu mua trong 7 ngày"],
+        ["Chỉ xem video, không bấm vào sản phẩm", "Không ghi nhận cho video"],
+      ];
+      return `${head("Đơn nào được tính cho video")}
+<div class="grid3 cards paths">${paths
+        .map(
+          ([what, result, accent], i) =>
+            `<div class="box col${accent ? " box--accent" : ""}">${num(i + 1, accent)}<strong>${what}</strong><span class="label">Ghi nhận</span><span class="metric">${result}</span></div>`,
+        )
+        .join("")}</div>
+<p class="note">Theo Học viện TikTok Shop (bài Tinh chỉnh GMV): người mua phải xem và bấm vào link sản phẩm thì video mới được tính; nếu xem nhiều nội dung, đơn được ghi nhận cho nội dung cuối cùng.</p>`;
+    },
+  },
+  {
+    name: "video-sua-va-do-v1",
+    html: () => {
+      const steps = [
+        ["Đọc luồng Video 28 ngày", "Cộng tổng cả kỳ rồi mới chia ra tỷ lệ."],
+        ["Tìm bước gãy", "Lượt hiển thị sản phẩm, CTR, CTOR hay AOV."],
+        ["Chọn một thay đổi", "Video mới do bạn quay, hoặc trang sản phẩm, không làm cả hai cùng lúc."],
+        ["Ghi ngày bắt đầu", "Để biết số liệu nào là trước, số liệu nào là sau."],
+        ["Ngày 7: đọc sơ bộ", "Chỉ số mục tiêu đang lên, đi ngang hay giảm."],
+        ["Ngày 14: chốt", "Giữ thay đổi, sửa tiếp hoặc quay lại bản cũ.", true],
+      ];
+      return `${head("Sửa một chỗ, đo lại sau 7 và 14 ngày")}
+<div class="grid2 process">${steps
+        .map(
+          ([t, d, accent], i) =>
+            `<div class="box step${accent ? " box--accent" : ""}">${num(i + 1, accent)}<div><strong>${t}</strong><span>${d}</span></div></div>`,
+        )
+        .join("")}</div>`;
+    },
+  },
+  /* ————— P46-B1 (D56): live-tiktok-shop-khong-ra-don ————— */
+  {
+    name: "live-pheu-v1",
+    html: () => {
+      const rows = [
+        ["Lượt hiển thị LIVE", "60.000", [100, 100]],
+        ["Tỷ lệ vào phòng (ERR) 8 %"],
+        ["Lượt xem LIVE", "4.800", [86, 92]],
+        ["Sản phẩm được ghim, giỏ hàng"],
+        ["Lượt hiển thị sản phẩm", "3.600", [74, 86]],
+        ["Còn 2,5 %", true],
+        ["Lượt nhấp vào sản phẩm", "90", [60, 78], true],
+        ["Còn 6,7 %"],
+        ["Đơn hàng đã thanh toán", "6", [48, 70]],
+      ];
+      return `${head("Một buổi LIVE, năm bước của TikTok", true)}
+<div class="funnel">${rows
+        .map(([label, value, widths, accent]) =>
+          typeof value !== "string"
+            ? `<div class="op${value ? " op--accent" : ""}">${label}</div>`
+            : `<div class="stage${accent ? " stage--accent" : ""}" style="--w:${widths[0]}%;--wm:${widths[1]}%"><span>${label}</span><strong>${value}</strong></div>`,
+        )
+        .join("")}</div>
+<p class="note">4.800 lượt xem nhưng chỉ 90 lượt nhấp: trong ví dụ, chỗ tụt mạnh nhất là từ thấy sản phẩm đến bấm vào sản phẩm.</p>`;
+    },
+  },
+  {
+    name: "live-ba-goc-do-v1",
+    html: () => {
+      const groups = [
+        ["Phạm vi tiếp cận", ["Lượt hiển thị", "Lượt xem", "Tỷ lệ vào phòng (ERR)", "Thời lượng xem trung bình"]],
+        ["Tương tác", ["Tỷ lệ bình luận", "Tỷ lệ theo dõi", "Tỷ lệ chia sẻ", "Tỷ lệ thích"]],
+        ["Chuyển đổi", ["CTR", "CTOR", "GPM hiển thị", "GPM lượt xem"], true],
+      ];
+      return `${head("Ba góc độ của chỉ số LIVE")}
+<div class="grid3 cards paths">${groups
+        .map(
+          ([name, items, accent]) =>
+            `<div class="box col${accent ? " box--accent" : ""}"><strong>${name}</strong><ul class="hang">${items.map((m) => `<li>${m}</li>`).join("")}</ul></div>`,
+        )
+        .join("")}</div>
+<p class="note">Đông người xem chỉ nói về góc độ đầu tiên. Đơn hàng nằm ở góc độ thứ ba.</p>
+<p class="small">Trong Cẩm nang lưu lượng LIVE, CTR của LIVE là lượt bấm vào sản phẩm chia cho lượt xem LIVE, khác cách tính CTR của thẻ sản phẩm.</p>`;
+    },
+  },
+  {
+    name: "live-gpm-v1",
+    html: () => `${head("Hai buổi LIVE của cùng một shop", true)}
+<div class="grid2">
+  <div class="box option"><span class="label">Buổi A</span><strong>Đông người xem</strong><span class="eq">50.000 lượt hiển thị · 3.000 lượt xem</span><span class="eq">GMV 4.000.000 ₫</span><strong class="res">GPM hiển thị 80.000 ₫</strong></div>
+  <div class="box option box--accent"><span class="label">Buổi B</span><strong>Ít người xem hơn</strong><span class="eq">20.000 lượt hiển thị · 1.200 lượt xem</span><span class="eq">GMV 3.000.000 ₫</span><strong class="res">GPM hiển thị 150.000 ₫</strong></div>
+</div>
+<p class="formula">GPM hiển thị = GMV phòng LIVE ÷ Lượt hiển thị × 1.000</p>
+<div class="result">Buổi B ít người hơn nhưng mỗi 1.000 lượt hiển thị bán được gần gấp đôi</div>`,
+  },
+  {
+    name: "live-trong-sau-v1",
+    html: () => `${head("Đọc số liệu LIVE: trong buổi và sau buổi")}
+<div class="grid2">
+  <div class="box half"><strong>Trong khi LIVE</strong><span class="label">Theo dõi</span><ul class="hang"><li>Xu hướng Lượt hiển thị và ERR</li><li>Chỉ số đổi ra sao khi đổi sản phẩm ghim, flash sale, tặng phẩm</li><li>ERR cần khoảng 15 đến 30 phút đầu để ổn định</li></ul></div>
+  <div class="box half"><strong>Sau khi LIVE</strong><span class="label">Xem lại</span><ul class="hang"><li>3 chỉ số kém nhất, so với các buổi gần đây</li><li>Lúc chỉ số giảm: sản phẩm nào đang ghim, ưu đãi nào đang chạy, có vi phạm không</li><li>Dữ liệu cấp tài khoản ít nhất 7 ngày một lần</li></ul></div>
+</div>
+<div class="result">Chọn một thay đổi cho buổi sau, rồi so lại trên cùng các chỉ số</div>`,
+  },
 ];
 
 function pageHtml(diagram, t, layout) {
@@ -548,6 +694,14 @@ ul.hang li{padding-left:14px;text-indent:-14px}
 .m .vs{grid-template-columns:1fr 1fr}
 .look{margin-top:2px;color:${t.ink}!important}
 .look b{font-weight:600}
+/* P46-B1 */
+.vv{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 14px;border-style:dashed;border-color:${t.muted};background:${t.alt}}
+.vv div{display:flex;align-items:baseline;gap:10px}
+.vv-num{font-size:18px}
+.op--accent{padding:2px 10px;border-radius:999px;background:${t["pink-tint"]};border:1px solid ${t.pink}}
+.half .sect-head{gap:8px}
+.cards .metric{font-size:14px}
+.m .paths .col{align-items:flex-start}
 </style></head><body class="${layout === "mobile" ? "m" : "d"}"><div class="fig">${diagram.html(t)}</div></body></html>`;
 }
 
