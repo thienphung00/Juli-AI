@@ -20,6 +20,8 @@ import {
   CAP_DL_TIN_CAY_MOBILE,
   CAP_DX_XAC_NHAN,
   CAP_DX_XAC_NHAN_MOBILE,
+  CAP_PT_KHUYEN_MAI,
+  CAP_PT_KHUYEN_MAI_MOBILE,
   CAP_PT_LUONG,
   CAP_PT_LUONG_MOBILE,
   CAP_PT_PHEU,
@@ -244,5 +246,53 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     alt: "Màn hình Phân tích của Juli trên Cửa hàng Mẫu Hoa Mai: kết luận Thẻ sản phẩm: CTOR giảm 7 %, so 30 ngày với 30 ngày trước, hai tab Sản phẩm và Nội dung, dòng chia luồng Sản phẩm gồm Thẻ sản phẩm và Tab cửa hàng, Nội dung gồm Video và LIVE, Liên kết theo dõi ở Trang chủ (dữ liệu mẫu)",
     caption:
       "Dữ liệu mẫu · Juli đọc LIVE như một luồng riêng trong tab Nội dung, tách khỏi Thẻ sản phẩm và Tab cửa hàng.",
+  }),
+
+  /* ————— khach-xem-nhung-khong-mua-tiktok-shop (P46-C1) ————— */
+  "sau-cu-nhap": diagram("sau-cu-nhap", 552, 984, {
+    alt: "Sơ đồ đường đi sau cú nhấp: Lượt nhấp vào sản phẩm, Trang sản phẩm, Giỏ hàng, Thanh toán và thành đơn. Ba chỗ khách có thể rời đi. 1, Trang sản phẩm, đo bằng Tỷ lệ thêm vào giỏ hàng: ảnh thật, kích thước, chất liệu; biến thể khách cần còn hàng; đánh giá, điểm xếp hạng; giá sau giảm so với sản phẩm tương tự. 2, Giỏ hàng, từ giỏ đến đơn: voucher khách thấy có áp dụng được không, giỏ đã đạt mức chi tối thiểu chưa. 3, Thanh toán, từ giỏ đến đơn: phí vận chuyển, tổng tiền cuối cùng khách phải trả. Ghi chú: CTOR bằng Đơn hàng SKU chia cho Lượt nhấp vào sản phẩm và gộp cả ba chỗ; Tỷ lệ thêm vào giỏ hàng tách chỗ đầu khỏi hai chỗ sau; khách xem video hay LIVE có thể đặt ngay mà không qua giỏ, nên cách tách này rõ nhất ở Thẻ sản phẩm và Tab cửa hàng.",
+    caption: "Ba chỗ khách đi qua sau cú nhấp. Tỷ lệ thêm vào giỏ hàng cho biết khách rời đi ở trang sản phẩm hay ở bước thanh toán.",
+  }),
+  "ctor-hai-luong": diagram("ctor-hai-luong", 336, 536, {
+    alt: "Sơ đồ ví dụ giả định cho một sản phẩm ở hai nguồn, cùng một trang sản phẩm. Thẻ sản phẩm, khách tự tìm đến: 1.200 lượt nhấp, 60 đơn hàng SKU, CTOR 5 %. Video, được tô nổi bật, khách đến từ một video: 800 lượt nhấp, 8 đơn hàng SKU, CTOR 1 %. Gộp hai nguồn: 2.000 lượt nhấp, 68 đơn hàng SKU, CTOR 3,4 %. Kết luận: trang giữ được khách tự tìm đến, xem video hứa gì trước khi sửa trang.",
+    caption: "Ví dụ giả định: CTOR gộp 3,4 % che mất việc khách từ video gần như không mua, trong khi trang vẫn chốt tốt khách tự tìm đến.",
+  }),
+  "ctor-trieu-chung": diagram("ctor-trieu-chung", 600, 976, {
+    alt: "Bảng bốn triệu chứng sau cú nhấp. 1, Tỷ lệ thêm vào giỏ hàng thấp: trang sản phẩm chưa thuyết phục; xem ảnh, mô tả thiếu kích thước, chất liệu, cách dùng; ít đánh giá hoặc đánh giá mới bị chê; giá cao hơn sản phẩm tương tự theo Chẩn đoán giá. 2, Thêm vào giỏ nhiều mà ít đơn: vướng ở bước thanh toán; xem phí vận chuyển, voucher hết hạn hoặc giỏ chưa đạt mức chi tối thiểu, khách chờ một đợt giảm giá. 3, CTOR thấp ở một nguồn, ổn ở nguồn khác: nội dung hứa khác trang; xem giá, ưu đãi nói trong video, LIVE còn hiệu lực không, biến thể được giới thiệu có đúng biến thể trên trang. 4, CTOR thấp ở mọi nguồn: vấn đề nằm ở chính trang; sửa trang trước, một thay đổi mỗi lần. Ghi chú: so với chính sản phẩm đó ở kỳ trước và sản phẩm khác của shop trên cùng nguồn, TikTok không công bố một mức CTOR chuẩn chung.",
+    caption: "Bốn triệu chứng, bốn nhóm nghi phạm: đọc số trước, rồi mới quyết định sửa trang, sửa ưu đãi hay sửa nội dung.",
+  }),
+  "ctor-xep-hang-du-lieu-mau": screenshot(CAP_PT_XEP_HANG, CAP_PT_XEP_HANG_MOBILE, {
+    alt: "Bảng 5 sản phẩm kéo CTOR xuống trong Juli: Son môi số 12 từ 6,3 % xuống 5,4 %, mất 112 nghìn đồng GMV mỗi ngày; Mặt nạ đất sét 100g và Kem dưỡng ẩm ceramide tiếp theo; Kem chống nắng SPF50+ và Sữa rửa mặt amino 150ml nhãn Tham khảo; mỗi dòng có nhãn tin cậy Rõ hoặc Tham khảo và liên kết Xem đề xuất khi có; dòng tổng bằng số của ô CTOR (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Juli xếp sản phẩm theo số đồng GMV mỗi ngày mà CTOR giảm đang lấy đi, để bạn biết sửa trang nào trước.",
+  }),
+  "ctor-do-luong-du-lieu-mau": screenshot(CAP_DL_TANG_THEM, CAP_DL_TANG_THEM_MOBILE, {
+    alt: "Bảng kết quả ngày 7 trong Juli: CTOR là chỉ số chính, trước 5,4 %, mục tiêu 5,9 %, thực tế 5,7 %, đánh giá Đang lên; Lượt hiển thị mỗi ngày, CTR và AOV nằm trong khoảng cho phép, đánh giá Giữ ổn định; GMV mỗi ngày tăng 48 nghìn đồng, ghi Sơ bộ; nút Hoàn tác (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ngày 7 sau khi sửa trang: CTOR đang lên, các chỉ số còn lại phải giữ trong khoảng cho phép.",
+  }),
+
+  /* ————— tang-gia-tri-don-hang-trung-binh-tiktok-shop (P46-C1) ————— */
+  "aov-hai-shop": diagram("aov-hai-shop", 372, 584, {
+    alt: "Sơ đồ ví dụ giả định: Lượt hiển thị nhân CTR nhân CTOR nhân AOV bằng GMV, ô AOV được tô đậm. Shop A, nhiều đơn nhỏ: 1.000 đơn nhân 60.000 đồng bằng 60.000.000 đồng, phí xử lý đơn 1.000 nhân 3.000 đồng bằng 3.000.000 đồng. Shop B, được tô nổi bật, ít đơn hơn mà mỗi đơn lớn hơn: 400 đơn nhân 150.000 đồng bằng 60.000.000 đồng, phí xử lý đơn 1.200.000 đồng. Kết luận: cùng GMV, shop A cần gấp 2,5 lần số đơn và trả gấp 2,5 lần phí xử lý đơn.",
+    caption: "Ví dụ giả định: hai shop cùng GMV, nhưng shop có giá trị mỗi đơn thấp phải xử lý và trả phí cho nhiều đơn hơn.",
+  }),
+  "aov-phi-co-dinh": diagram("aov-phi-co-dinh", 310, 488, {
+    alt: "Biểu đồ thanh ví dụ giả định: phí xử lý đơn 3.000 đồng chiếm 6 % đơn 50.000 đồng, 3 % đơn 100.000 đồng, 1,5 % đơn 200.000 đồng và 0,75 % đơn 400.000 đồng. Ghi chú theo bài Phí Xử Lý Đơn Hàng của Học viện TikTok Shop: 3.000 đồng cố định cho mỗi đơn giao thành công, đã gồm thuế, với mọi giá trị đơn và số lượng hàng; hình chỉ tính khoản phí này, chưa có các khoản phí và chi phí khác.",
+    caption: "Ví dụ giả định: cùng 3.000 đồng phí xử lý, đơn càng nhỏ thì phần bị trừ càng lớn.",
+  }),
+  "aov-pheu-du-lieu-mau": screenshot(CAP_PT_PHEU, CAP_PT_PHEU_MOBILE, {
+    alt: "Khối Thẻ sản phẩm trong Phân tích của Juli: GMV 3,6 triệu đồng mỗi ngày, tăng 7,5 %; Lượt hiển thị mỗi ngày tăng 19,4 %, CTR giảm 0,3 %, CTOR giảm 6,9 % và được đánh dấu Juli gợi ý, AOV 160 nghìn đồng giảm 3,0 % và kéo GMV xuống 105 nghìn đồng mỗi ngày (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · AOV đứng cạnh ba chỉ số kia, kèm số đồng mỗi ngày mà nó kéo GMV của luồng lên hoặc xuống.",
+  }),
+  "aov-cong-cu": diagram("aov-cong-cu", 518, 834, {
+    alt: "Bảng bốn công cụ khuyến mãi mà Học viện TikTok Shop mô tả là để tăng giá trị đơn hàng trung bình. Voucher thông thường: giảm theo số tiền hoặc phần trăm khi giỏ đạt mức chi tối thiểu; mẹo của TikTok là đặt mức chi tối thiểu cao hơn 1,2 đến 1,5 lần AOV; mỗi đơn chỉ dùng một voucher của nhà bán hàng. Mua Sỉ Giá Hời: mua đủ số lượng thì được giảm phần trăm, tối đa hai bậc, hợp với hàng mua nhiều cái, nhiều màu. Ưu đãi theo gói: hai đến ba sản phẩm mua cùng nhau, giá cố định hoặc phần trăm giảm, giá ưu đãi của từng SKU phải thấp hơn giá gốc, không cộng dồn với Mua Sỉ Giá Hời. Quà tặng khi mua hàng: mua đủ số món hoặc chi đủ mức thì được quà, không giảm giá trực tiếp, khách trả phí vận chuyển cả quà nên chọn quà nhẹ. Ghi chú: cả bốn do nhà bán hàng trợ giá và tự tạo trong Trung tâm nhà bán hàng; tóm tắt từ Học viện TikTok Shop.",
+    caption: "Bốn công cụ, bốn cách để khách mua thêm, tóm tắt từ Học viện TikTok Shop.",
+  }),
+  "aov-cong-don": diagram("aov-cong-don", 488, 738, {
+    alt: "Sơ đồ ví dụ giả định về khuyến mãi cộng dồn theo ba lớp: giá sản phẩm, chỉ một mức có hiệu lực; khuyến mãi cấp giỏ hàng; voucher, một voucher mỗi đơn; rồi đến giá khách trả. Hai sản phẩm giá gốc 100.000 đồng mỗi cái là 200.000 đồng; giảm giá sản phẩm còn 90.000 đồng mỗi cái là 180.000 đồng; Mua Sỉ Giá Hời mua 2 giảm 10 % còn 162.000 đồng; voucher chi tối thiểu 150.000 đồng giảm 15.000 đồng còn 147.000 đồng. Kết luận: ba lớp cộng lại, khách trả 147.000 đồng cho 200.000 đồng giá gốc, tức giảm 26,5 %. Ghi chú theo bài Cách Tính Khuyến Mãi Cộng Dồn: các lớp khác nhau cộng dồn được, mức chi tối thiểu của voucher xét trên giá sau giảm giá sản phẩm.",
+    caption: "Ví dụ giả định: ba khuyến mãi nhỏ, mỗi cái trông vừa phải, cộng lại thành mức giảm hơn một phần tư.",
+  }),
+  "aov-khuyen-mai-du-lieu-mau": screenshot(CAP_PT_KHUYEN_MAI, CAP_PT_KHUYEN_MAI_MOBILE, {
+    alt: "Khối Khuyến mãi trong Phân tích của Juli, 60 ngày: flash sale 8 trên 60 ngày với 3 sản phẩm tham gia, giảm thật trung bình 9 % so với giá đang bán trước flash sale, voucher 14 % đơn đạt ngưỡng với 2 voucher đang chạy; bảng năm sản phẩm với loại khuyến mãi, mức giảm thật và GMV mỗi ngày trong và ngoài khuyến mãi, Son môi số 12 giảm 2 % bị đánh dấu quá nông (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Juli đọc khuyến mãi ở chế độ chỉ đọc: bao nhiêu đơn đạt ngưỡng voucher, mức giảm thật của từng đợt.",
   }),
 };

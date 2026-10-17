@@ -633,6 +633,128 @@ const DIAGRAMS = [
 </div>
 <div class="result">Chọn một thay đổi cho buổi sau, rồi so lại trên cùng các chỉ số</div>`,
   },
+  /* ————— P46-C1 (D56): khach-xem-nhung-khong-mua-tiktok-shop ————— */
+  {
+    name: "sau-cu-nhap-v1",
+    html: () => {
+      const path = ["Lượt nhấp vào sản phẩm", "Trang sản phẩm", "Giỏ hàng", "Thanh toán, thành đơn"];
+      const steps = [
+        ["Trang sản phẩm", "Tỷ lệ thêm vào giỏ hàng", ["Ảnh thật, kích thước, chất liệu", "Biến thể khách cần còn hàng", "Đánh giá, điểm xếp hạng", "Giá sau giảm so với sản phẩm tương tự"]],
+        ["Giỏ hàng", "Từ giỏ đến đơn", ["Voucher khách thấy có áp dụng được không", "Giỏ đã đạt mức chi tối thiểu chưa"]],
+        ["Thanh toán", "Từ giỏ đến đơn", ["Phí vận chuyển", "Tổng tiền cuối cùng khách phải trả"]],
+      ];
+      return `${head("Sau cú nhấp: khách đi qua ba chỗ trước khi thành đơn")}
+<div class="path">${path
+        .map((p, i) => `<span class="crumb${i === path.length - 1 ? " crumb--ink" : ""}">${p}</span>`)
+        .join(`<span class="sep">›</span>`)}</div>
+<div class="grid3 cards paths">${steps
+        .map(
+          ([t, metric, items], i) =>
+            `<div class="box col">${num(i + 1)}<strong>${t}</strong><span class="label">${metric}</span><ul class="hang">${items.map((m) => `<li>${m}</li>`).join("")}</ul></div>`,
+        )
+        .join("")}</div>
+<p class="note">CTOR = Đơn hàng SKU ÷ Lượt nhấp vào sản phẩm: nó gộp cả ba chỗ. Tỷ lệ thêm vào giỏ hàng tách chỗ đầu khỏi hai chỗ sau.</p>
+<p class="small">Khách xem video hay LIVE có thể đặt ngay mà không qua giỏ, nên cách tách này rõ nhất ở Thẻ sản phẩm và Tab cửa hàng.</p>`;
+    },
+  },
+  {
+    name: "ctor-hai-luong-v1",
+    html: () => `${head("Một sản phẩm, hai nguồn, cùng một trang sản phẩm", true)}
+<div class="grid2">
+  <div class="box option"><span class="label">Thẻ sản phẩm</span><strong>Khách tự tìm đến</strong><span class="eq">1.200 lượt nhấp · 60 đơn hàng SKU</span><strong class="res">CTOR 5 %</strong></div>
+  <div class="box option box--accent"><span class="label">Video</span><strong>Khách đến từ một video</strong><span class="eq">800 lượt nhấp · 8 đơn hàng SKU</span><strong class="res">CTOR 1 %</strong></div>
+</div>
+<p class="formula">Gộp hai nguồn: 2.000 lượt nhấp, 68 đơn hàng SKU, CTOR 3,4 %</p>
+<div class="result">Trang giữ được khách tự tìm đến: xem video hứa gì trước khi sửa trang</div>`,
+  },
+  {
+    name: "ctor-trieu-chung-v1",
+    html: () => {
+      const rows = [
+        ["Tỷ lệ thêm vào giỏ hàng thấp", "Trang sản phẩm chưa thuyết phục", ["Ảnh, mô tả thiếu kích thước, chất liệu, cách dùng", "Ít đánh giá, hoặc đánh giá mới bị chê", "Giá cao hơn sản phẩm tương tự (Chẩn đoán giá)"]],
+        ["Thêm vào giỏ nhiều, ít đơn", "Vướng ở bước thanh toán", ["Phí vận chuyển", "Voucher hết hạn, hoặc giỏ chưa đạt mức chi tối thiểu", "Khách chờ một đợt giảm giá"]],
+        ["CTOR thấp ở một nguồn, ổn ở nguồn khác", "Nội dung hứa khác trang", ["Giá, ưu đãi nói trong video, LIVE còn hiệu lực không", "Biến thể được giới thiệu có đúng biến thể trên trang"]],
+        ["CTOR thấp ở mọi nguồn", "Vấn đề nằm ở chính trang", ["Sửa trang trước, chưa cần sửa nội dung", "Một thay đổi mỗi lần"]],
+      ];
+      return `${head("Triệu chứng sau cú nhấp, nghi phạm và việc cần xem")}
+<div class="grid2">${rows
+        .map(
+          ([sign, step, checks], i) =>
+            `<div class="box half"><div class="sect-head">${num(i + 1)}<strong>${sign}</strong></div><span class="metric">${step}</span><span class="label">Xem lại</span><ul class="hang">${checks.map((c) => `<li>${c}</li>`).join("")}</ul></div>`,
+        )
+        .join("")}</div>
+<p class="note">So với chính sản phẩm đó ở kỳ trước và với sản phẩm khác của shop, trên cùng nguồn: TikTok không công bố một mức CTOR chuẩn chung.</p>`;
+    },
+  },
+  /* ————— P46-C1 (D56): tang-gia-tri-don-hang-trung-binh-tiktok-shop ————— */
+  {
+    name: "aov-hai-shop-v1",
+    html: () => `${head("Cùng GMV, hai cách đi đến đó", true)}
+<div class="chain"><span class="chip">Lượt hiển thị</span><span class="x">×</span><span class="chip">CTR</span><span class="x">×</span><span class="chip">CTOR</span><span class="x">×</span><span class="chip chip--ink">AOV</span><span class="x">=</span><span class="chip">GMV</span></div>
+<div class="grid2">
+  <div class="box option"><span class="label">Shop A</span><strong>Nhiều đơn nhỏ</strong><span class="eq">1.000 đơn × 60.000 ₫</span><strong class="res">60.000.000 ₫</strong><span class="small">Phí xử lý đơn: 1.000 × 3.000 ₫ = 3.000.000 ₫</span></div>
+  <div class="box option box--accent"><span class="label">Shop B</span><strong>Ít đơn hơn, mỗi đơn lớn hơn</strong><span class="eq">400 đơn × 150.000 ₫</span><strong class="res">60.000.000 ₫</strong><span class="small">Phí xử lý đơn: 400 × 3.000 ₫ = 1.200.000 ₫</span></div>
+</div>
+<div class="result">Cùng GMV, shop A cần gấp 2,5 lần số đơn và trả gấp 2,5 lần phí xử lý đơn</div>`,
+  },
+  {
+    name: "aov-phi-co-dinh-v1",
+    html: () => {
+      const rows = [
+        ["Đơn 50.000 ₫", "6 %", 100],
+        ["Đơn 100.000 ₫", "3 %", 50],
+        ["Đơn 200.000 ₫", "1,5 %", 25],
+        ["Đơn 400.000 ₫", "0,75 %", 12.5],
+      ];
+      return `${head("Phí xử lý đơn 3.000 ₫ chiếm bao nhiêu phần giá trị đơn", true)}
+<div class="bars">${rows
+        .map(
+          ([label, pct, w]) =>
+            `<div class="brow"><span class="blabel">${label}</span><div class="track"><div class="bar bar--ink bar--full" style="left:0;width:${w}%"></div></div><span class="bval">${pct}</span></div>`,
+        )
+        .join("")}</div>
+<p class="note">Theo Học viện TikTok Shop (bài Phí Xử Lý Đơn Hàng): 3.000 đồng cố định cho mỗi đơn giao thành công, đã gồm thuế, với mọi giá trị đơn và số lượng hàng trong đơn.</p>
+<p class="small">Chỉ tính phí xử lý đơn hàng. Các khoản phí và chi phí khác chưa có trong hình.</p>`;
+    },
+  },
+  {
+    name: "aov-cong-cu-v1",
+    html: () => {
+      const tools = [
+        ["Voucher thông thường", "Giảm theo số tiền hoặc phần trăm khi giỏ đạt mức chi tối thiểu.", ["Mẹo của TikTok: mức chi tối thiểu cao hơn 1,2 đến 1,5 lần AOV", "Mỗi đơn chỉ dùng một voucher của nhà bán hàng"]],
+        ["Mua Sỉ Giá Hời", "Mua đủ số lượng thì được giảm phần trăm.", ["Tối đa hai bậc", "Hợp với hàng mua nhiều cái, nhiều màu"]],
+        ["Ưu đãi theo gói", "Hai đến ba sản phẩm mua cùng nhau, giá cố định hoặc phần trăm giảm.", ["Giá ưu đãi của từng SKU phải thấp hơn giá gốc", "Không cộng dồn với Mua Sỉ Giá Hời"]],
+        ["Quà tặng khi mua hàng", "Mua đủ số món hoặc chi đủ mức thì được quà.", ["Không giảm giá trực tiếp", "Khách trả phí vận chuyển cả quà: chọn quà nhẹ"]],
+      ];
+      return `${head("Bốn công cụ khuyến mãi TikTok mô tả là để tăng giá trị đơn")}
+<div class="grid2">${tools
+        .map(
+          ([t, d, items]) =>
+            `<div class="box half"><strong>${t}</strong><span class="desc">${d}</span><ul class="hang">${items.map((m) => `<li>${m}</li>`).join("")}</ul></div>`,
+        )
+        .join("")}</div>
+<p class="note">Cả bốn do nhà bán hàng trợ giá và tự tạo trong Trung tâm nhà bán hàng. Tóm tắt từ Học viện TikTok Shop, kiểm tra 17/10/2026.</p>`;
+    },
+  },
+  {
+    name: "aov-cong-don-v1",
+    html: () => {
+      const path = ["Giá sản phẩm: chỉ một mức có hiệu lực", "Khuyến mãi cấp giỏ hàng", "Voucher: một voucher mỗi đơn", "Giá khách trả"];
+      const rows = [
+        ["Hai sản phẩm, giá gốc 100.000 ₫ mỗi cái", "200.000 ₫"],
+        ["Giảm giá sản phẩm còn 90.000 ₫ mỗi cái", "180.000 ₫"],
+        ["Mua Sỉ Giá Hời: mua 2 giảm 10 %", "162.000 ₫"],
+        ["Voucher: chi tối thiểu 150.000 ₫, giảm 15.000 ₫", "147.000 ₫"],
+      ];
+      return `${head("Khuyến mãi cộng dồn theo ba lớp", true)}
+<div class="path">${path
+        .map((p, i) => `<span class="crumb${i === path.length - 1 ? " crumb--ink" : ""}">${p}</span>`)
+        .join(`<span class="sep">›</span>`)}</div>
+<div class="box ledger">${rows.map(([t, v]) => `<div class="lrow"><span>${t.replace(/ (₫|%)/g, "&nbsp;$1")}</span><strong>${v}</strong></div>`).join("")}</div>
+<div class="result">Ba lớp cộng lại: khách trả 147.000 ₫ cho 200.000 ₫ giá gốc, tức giảm 26,5 %</div>
+<p class="small">Theo Học viện TikTok Shop (bài Cách Tính Khuyến Mãi Cộng Dồn): các lớp khác nhau cộng dồn được; mức chi tối thiểu của voucher xét trên giá sau giảm giá sản phẩm.</p>`;
+    },
+  },
 ];
 
 function pageHtml(diagram, t, layout) {
@@ -804,6 +926,14 @@ ul.hang li{padding-left:14px;text-indent:-14px}
 .half .sect-head{gap:8px}
 .cards .metric{font-size:14px}
 .m .paths .col{align-items:flex-start}
+/* P46-C1 */
+.bar--full{border-radius:4px}
+.ledger{display:flex;flex-direction:column;gap:0;padding:4px 14px}
+.lrow{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid ${t.hairline}}
+.lrow:last-child{border-bottom:0}
+.lrow span{color:${t.body}}
+.lrow strong{font-variant-numeric:tabular-nums;white-space:nowrap}
+.lrow:last-child strong{color:${t["pink-text"]}}
 </style></head><body class="${layout === "mobile" ? "m" : "d"}"><div class="fig">${diagram.html(t)}</div></body></html>`;
 }
 
