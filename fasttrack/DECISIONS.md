@@ -1525,3 +1525,38 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      exists and says which prior it used.
   4. **No change** to the verdict label, strength, the seller sentence ("Kết quả nhóm") or any
      seller route (D45 scope rule).
+
+- **D53** — Gate A amendment for the simulation models: causal scope, data roles, metrics,
+  objective (owner, 2026-10-17; amends D51).
+  1. **Estimand:** the effect of a content change (title, description, images, price
+     presentation, pack options) on per-impression rates (stop, CTR, CTOR, items per order,
+     GMV per impression), holding social proof (sold, review count, stars) and exposure (rank,
+     position) fixed. Causal loop recorded: sales → reviews → rank → impressions → sales, and
+     sold / stars shown on the card → CTR. Cross-section content coefficients are biased by
+     selection on rank (only search pages 1–3 were collected — a collider) and are weak priors only;
+     content-effect evidence comes from within-product D34 tests.
+  2. **Scope:** card-level simulation applies to products that are seen (tier A: enough card
+     impressions to read a test within 4 weeks, or pages 1–2 for the main keyword; TikTok judged
+     by real impressions per channel since most traffic is feed). Tier B (low visibility) gets
+     visibility recommendations (keywords / title SEO, video / LIVE / affiliate traffic), tier C
+     (almost no impressions) is monitored only. Thresholds are set from data at steps 9–12.
+  3. **Data roles:** (1) ideas — de-identified review text and competitors' sales generate
+     proposals; (2) priority — own sales / impressions set tier and expected GMV for test selection;
+     (3) fixed context — pre-period sold / reviews as CUPED covariates and as the standardised
+     context in the simulator; (4) outcome — new sales / reviews after a change. Rank is never a
+     feature (tiering only). **Review text** may be a feature as a product-quality control, only
+     from reviews dated before the prediction time and as shares (not counts). Hypotheses to test
+     on current data: H1 — within a niche, rank is explained by review count and stars and review
+     text adds nothing; H2 — time-cut review text predicts CTOR / sales beyond count and stars.
+     NLP: PhoBERT run locally (owner, 2026-10-17).
+  4. **Metrics:** no R² target. Use D51 metrics plus rank correlation ≥ 0.3 between predicted and
+     real D34 effects (G13), 90 % interval coverage, and R² relative to the split-half noise
+     ceiling for reporting only.
+  5. **Objective:** for each segment, the simulator compares the original A with the change A* on
+     the same page (same competitors B, C…, same position, same random numbers, plus "scroll
+     past"); Score = Σ_segments share × E_page[P(click) × CTOR × AOV] = expected GMV per
+     impression, compared with a 90 % interval; results reported per segment. A per-segment
+     guardrail (warn when A* clearly lowers a large segment) is decided **after looking at the
+     data** (segment shares and simulator noise), proposed at Gate B. "A/A" keeps its meaning (two
+     identical arms); "A vs A*" is a real test. The real D34 test measures the product's absolute
+     metrics, not where clicks came from.
