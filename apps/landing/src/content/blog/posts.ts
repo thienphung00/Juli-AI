@@ -725,4 +725,104 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       academy("Tinh chỉnh GMV", "4851723979097858", "GMV trực tiếp và gián tiếp theo loại nội dung (11/05/2026), kiểm tra 17/10/2026"),
     ],
   },
+  {
+    slug: "khach-xem-nhung-khong-mua-tiktok-shop",
+    status: "draft",
+    title: "Khách xem nhưng không mua trên TikTok Shop: kiểm tra từng bước sau cú nhấp",
+    seoTitle: "Khách xem nhưng không mua trên TikTok Shop | Juli AI",
+    description:
+      "Nhiều người bấm vào sản phẩm mà không ai đặt: đọc CTOR theo nguồn, tách trang sản phẩm khỏi bước thanh toán, sửa đúng một chỗ và đo lại ở ngày 7, 14.",
+    excerpt:
+      "Khách đã bấm vào sản phẩm rồi rời đi: đọc CTOR theo nguồn, dùng Tỷ lệ thêm vào giỏ hàng để tách trang sản phẩm khỏi voucher và phí vận chuyển, tính đến đơn gián tiếp trong 7 ngày, rồi sửa một chỗ và đo lại.",
+    breadcrumbName: "Khách xem nhưng không mua",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
+    category: "metrics",
+    format: "pain",
+    cover: blogCover("khach-xem-khong-mua-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền hồng nhạt, ô thứ hai tô màu hồng"),
+    author: AUTHOR,
+    related: ["tang-gia-tri-don-hang-trung-binh-tiktok-shop", "tiktok-shop-khong-ra-don", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    faq: [
+      {
+        question: "CTOR bao nhiêu là thấp?",
+        answer:
+          "TikTok không công bố một mức CTOR chuẩn chung. Hãy so CTOR của sản phẩm với chính nó ở kỳ trước và với các sản phẩm khác của shop trên cùng nguồn, trên khoảng 28 ngày, và chỉ kết luận khi mỗi kỳ có đủ lượt nhấp.",
+      },
+      {
+        question: "Khách thêm vào giỏ hàng nhưng không thanh toán có phải lỗi của shop không?",
+        answer:
+          "Không phải lúc nào cũng vậy, nhưng đáng kiểm tra. Khi Tỷ lệ thêm vào giỏ hàng ổn mà ít đơn, nghi phạm là bước thanh toán: phí vận chuyển, voucher hết hạn, hoặc giỏ chưa đạt mức chi tối thiểu vì voucher xét trên giá sau giảm giá sản phẩm. Một phần khách cũng có thể mua lại trong vài ngày sau.",
+      },
+      {
+        question: "Giảm giá có phải cách duy nhất để khách đặt hàng không?",
+        answer:
+          "Không. Nếu khách rời đi vì trang thiếu kích thước, chất liệu, cách dùng, vì biến thể hết hàng hay vì video hứa một ưu đãi đã hết, giảm giá không sửa được nguyên nhân mà chỉ lấy đi biên lợi nhuận. Theo Học viện TikTok Shop, không có hình phạt nào nếu bạn không đổi giá theo Chẩn đoán giá.",
+      },
+      {
+        question: "Sửa trang sản phẩm bao lâu thì biết có hiệu quả?",
+        answer:
+          "Đọc sơ bộ ở ngày 7 và chốt ở ngày 14, so với 14 ngày trước khi đổi, mỗi lần một thay đổi. Theo bài Tinh chỉnh GMV, đơn có thể đến muộn trong 7 ngày sau khi khách xem nội dung, nên đọc sau một hai ngày là quá sớm.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "CTOR, Tỷ lệ thêm vào giỏ hàng, khía cạnh theo kênh, Phí vận chuyển (17/06/2026), kiểm tra 17/10/2026"),
+      academy("Tinh chỉnh GMV", "4851723979097858", "GMV trực tiếp và gián tiếp, CTOR, 7 ngày (11/05/2026), kiểm tra 17/10/2026"),
+      academy("Voucher Thông Thường Của Nhà Bán Hàng", "5159633199597314", "mức chi tối thiểu, một voucher mỗi đơn, tỷ lệ đổi thấp (13/06/2025), kiểm tra 17/10/2026"),
+      academy("Cách Tính Khuyến Mãi Cộng Dồn", "2965628697724674", "mức chi tối thiểu xét trên giá sau giảm giá sản phẩm (29/10/2025), kiểm tra 17/10/2026"),
+      academy("Chiết Khấu Phí Vận Chuyển của Nhà Bán Hàng", "6837782308292353", "nhà bán hàng chịu toàn bộ hoặc một phần phí vận chuyển, điều kiện (24/01/2025), kiểm tra 17/10/2026"),
+      academy("Chẩn đoán giá", "7563289900353282", "sản phẩm tương tự, đặt lại giá, không có hình phạt (24/07/2026), kiểm tra 17/10/2026"),
+      academy("Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4", "7905983637079809", "Hiển thị, Lợi ích, Sự tin cậy (15/12/2023), kiểm tra 17/10/2026"),
+    ],
+  },
+  {
+    slug: "tang-gia-tri-don-hang-trung-binh-tiktok-shop",
+    status: "draft",
+    title: "Bán nhiều đơn mà vẫn ít tiền: cách tăng giá trị đơn hàng trung bình trên TikTok Shop",
+    seoTitle: "Tăng giá trị đơn hàng trung bình TikTok Shop | Juli AI",
+    description:
+      "Bán nhiều đơn mà vẫn ít tiền: đọc AOV theo nguồn, phí 3.000 đồng mỗi đơn, voucher theo bậc, ưu đãi theo gói, khuyến mãi cộng dồn và đo lại sau 7, 14 ngày.",
+    excerpt:
+      "Phí xử lý đơn tính theo từng đơn nên đơn nhỏ chịu phần trăm phí cao hơn. Đọc AOV theo nguồn, biết khi nào nên tăng giá trị đơn, chọn giữa voucher theo bậc, Mua Sỉ Giá Hời, Ưu đãi theo gói và quà tặng, tránh khuyến mãi chồng nhau và đo AOV cùng CTOR.",
+    breadcrumbName: "Tăng giá trị đơn hàng trung bình",
+    publishedAt: "2026-10-17",
+    updatedAt: "2026-10-17",
+    category: "metrics",
+    format: "pain",
+    cover: blogCover("gia-tri-don-v1", "Minh hoạ: bốn cột biểu đồ trên nền hồng nhạt, cột thứ hai tô màu hồng"),
+    author: AUTHOR,
+    related: ["khach-xem-nhung-khong-mua-tiktok-shop", "gmv-la-gi-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    faq: [
+      {
+        question: "AOV bao nhiêu là tốt?",
+        answer:
+          "TikTok không công bố một mức AOV chuẩn chung, và AOV khác nhau rất nhiều giữa các ngành hàng. Hãy so AOV của shop với chính nó ở kỳ trước, theo từng nguồn, và với các sản phẩm khác trong shop.",
+      },
+      {
+        question: "Nên làm combo hay voucher trước?",
+        answer:
+          "Tùy sản phẩm. Ưu đãi theo gói hợp với sản phẩm dùng cùng nhau (2 đến 3 sản phẩm), Mua Sỉ Giá Hời hợp với hàng khách hay mua nhiều cái, voucher theo bậc áp dụng cho cả shop. Học viện TikTok Shop gợi ý đặt mức chi tối thiểu của voucher cao hơn 1,2 đến 1,5 lần giá trị đơn hàng trung bình. Chạy một công cụ mỗi lần để đo được tác dụng.",
+      },
+      {
+        question: "Tăng giá trị đơn có làm giảm tỷ lệ chốt đơn không?",
+        answer:
+          "Có thể. Một điều kiện khó đạt khiến một số khách bỏ đi, nên AOV lên mà CTOR xuống. Hãy đọc AOV cùng CTOR và GMV ở ngày 7 và ngày 14: AOV lên 10 % mà CTOR giảm 15 % thì GMV của luồng đó vẫn giảm.",
+      },
+      {
+        question: "Phí cố định mỗi đơn trên TikTok Shop là bao nhiêu?",
+        answer:
+          "Theo bài Phí Xử Lý Đơn Hàng của Học viện TikTok Shop (cập nhật 11/10/2025), mỗi đơn giao thành công bị thu 3.000 đồng, đã gồm thuế, với mọi giá trị đơn và số lượng hàng trong đơn, từ ngày 27/10/2025. Đơn bị hoàn tiền hay trả hàng sau khi giao thành công vẫn bị thu.",
+      },
+    ],
+    sources: [
+      academy("Phí Xử Lý Đơn Hàng", "2968734088120080", "3.000 đồng mỗi đơn giao thành công, đã gồm thuế, từ 27/10/2025 (11/10/2025), kiểm tra 17/10/2026"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "định nghĩa AOV (SKU), khía cạnh theo kênh (17/06/2026), kiểm tra 17/10/2026"),
+      academy("Voucher Thông Thường Của Nhà Bán Hàng", "5159633199597314", "mức chi tối thiểu 1,2 đến 1,5 lần AOV, voucher nhiều bậc, một voucher mỗi đơn (13/06/2025), kiểm tra 17/10/2026"),
+      academy("Mua Sỉ Giá Hời (BMSM)", "10013310", "tối đa hai bậc, số mặt hàng trung bình trên mỗi đơn (09/12/2025), kiểm tra 17/10/2026"),
+      academy("Ưu Đãi Theo Gói", "1823467559126785", "2 đến 3 sản phẩm, giá gói thấp hơn giá gốc, không cộng dồn với BMSM (16/04/2024), kiểm tra 17/10/2026"),
+      academy("Quà Tặng Khi Mua Hàng", "338556929509122", "không trực tiếp giảm giá, phí vận chuyển của quà, ngưỡng 1.500.000 đồng (05/01/2026), kiểm tra 17/10/2026"),
+      academy("Chiết Khấu Phí Vận Chuyển của Nhà Bán Hàng", "6837782308292353", "mức chi tối thiểu cao hơn một chút so với AOV (24/01/2025), kiểm tra 17/10/2026"),
+      academy("Cách Tính Khuyến Mãi Cộng Dồn", "2965628697724674", "ba lớp khuyến mãi, Phân tích hiểu sâu về định giá (29/10/2025), kiểm tra 17/10/2026"),
+      academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "số lượng trong tiêu đề, không đưa khuyến mãi vào tiêu đề (23/04/2026), kiểm tra 17/10/2026"),
+    ],
+  },
 ];
