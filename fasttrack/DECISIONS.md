@@ -1479,3 +1479,28 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   `gmv-la-gi-tiktok-shop` and `chi-so-tiktok-shop-ctr-ctor-aov` (2026-10-17). Research found
   llms.txt is unconfirmed by AI providers (kept, low priority) and no special schema is needed
   for AI Overviews; Organization `sameAs` and third-party mentions matter more.
+
+- **D51** — Gate A for the usable simulation models (grill Q1–Q6, product owner, 2026-10-17).
+  Context: juli-sim-pilot adopted a 16-step ML pipeline (owner, 2026-10-17); PIPELINE.md /
+  CONTRACT.md exist only for v0.3 and the funnel simulator (with D36 as its click step); every
+  existing number is validation; frozen once-only test sets are registered in
+  `ml_pipeline/frozen_test.json` (`ml_guard.py`).
+  1. **v0.3 Step 14 metric (Q1 A):** both ELPD (> best baseline by 2 SE → model usable as priors)
+     and the D40.8 lever rule per lever (same sign, 90 % interval excludes 0), plus within-niche
+     rank correlation of real sales as a plain companion.
+  2. **FastMoss temporal test (Q2 A):** fit on the 2026-10-13 snapshot only, freeze, predict the
+     snapshot-2 7-day sales from snapshot-2 inputs; score products in both snapshots and new
+     products separately. Before the test the owner wants v0.3 and the funnel **re-run** on current
+     data with the audit's fixes (in-fold selection, shop-group splits, figures, Gate B rationale),
+     frozen at Gate C before snapshot 2 is opened.
+  3. **Fujiwa test after 2026-10-08 (Q3 A):** products treated in a D34 group are excluded from
+     their start date; only controls and untouched products are scored.
+  4. **Funnel Step 14 metrics (Q4 A):** on new Fujiwa days — CTR Spearman and MAE vs the category
+     median, quantity log-likelihood (1 / 2 / 3+); on D34 wave 1 — share of real effects inside the
+     frozen 90 % interval, sign agreement, mean z.
+  5. **D34 results are test first, training after (Q5 A):** each wave scores the frozen simulator
+     once; only then may `reweight.py` / `meta.py` / `sim_calib.py` learn from it (delays the D45.5
+     new-pack offset); later waves are new registered test sets.
+  6. **Pre-registered predictions (Q6 A):** for each D34 group, one simulator run before the group
+     ends is recorded (run id, commit, PRIORS_VERSION, predictions with 90 % intervals); only that
+     prediction is scored; recording it is that wave's Gate C.
