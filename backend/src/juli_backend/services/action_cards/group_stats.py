@@ -82,6 +82,24 @@ a bootstrap of a median over 2–5 products is far too optimistic. D41.3:
    pre-period and (w − 1, w, w + 1) for a control's untouched windows), so the
    gate measures the rule that is applied. Applies to every group metric (CTR,
    CTOR, AOV, items per order).
+7. **Empirical-Bayes shrunk lift, Ops only (D52, fast track P45).** A winner's-curse
+   guard (Azevedo et al. 2019): the observed log-lift of a comparison is pulled toward
+   what groups of the same lever type have shown. :func:`log_lift_of` reads it from the
+   stored comparison -- ``y = ln(1 + diff / (100 + median_control))`` (exactly
+   ``ln((100 + m_t) / (100 + m_c))``), and the 90 % interval of ``diff`` mapped through
+   the same monotone map gives ``se = (y_hi − y_lo) / (2 × 1.645)``. Then::
+
+       w     = τ² / (τ² + se²)
+       shrunk = w · y + (1 − w) · μ
+       var   = w · se² + (1 − w)² · var(μ)        (var(μ) = 0 for the default prior)
+
+   and the 90 % interval ``shrunk ± 1.645 √var``, shown as % (``100 (e^x − 1)``).
+   The prior (:func:`estimate_prior`) is per lever type (lever × metric × channel):
+   with at least ``min_groups`` draws (one per shop: a shop's several groups are
+   combined first by inverse variance; the group being shrunk is left out) μ and τ
+   come from DerSimonian–Laird (:func:`dersimonian_laird`); otherwise the default
+   N(0, 0.15²) on the log-lift (``DiagTunables.group_eb_prior_sd`` / ``group_eb_min_groups``).
+   It never changes the label, the strength or the seller's sentence.
 """
 
 from __future__ import annotations
@@ -500,11 +518,157 @@ def false_alarm_rate(
     return FalseAlarm(hits / draws, draws, source, len(pool))
 
 
+# --------------------------------------------------------------------------- EB lift (D52)
+
+#: z of the two-sided 90 % interval (the interval the verdict reports).
+Z90 = 1.6448536269514722
+#: D52 default prior on the log-lift: N(0, 0.15²); ``DiagTunables`` overrides both.
+EB_PRIOR_SD = 0.15
+EB_MIN_GROUPS = 3
+PRIOR_DEFAULT = "default"
+PRIOR_POOLED = "pooled"
+#: A comparison whose interval has no width carries no usable SE (computational floor).
+_MIN_SE = 1e-6
+
+
+@dataclass(frozen=True)
+class LogLift:
+    """One comparison's observed log-lift and its standard error (step 7)."""
+
+    value: float
+    se: float
+
+
+def log_lift_of(comparison: Any) -> LogLift | None:
+    """``y`` and ``se`` from a stored ``compare`` output; ``None`` without numbers."""
+    if not isinstance(comparison, dict):
+        return None
+    diff = comparison.get("difference")
+    med_c = comparison.get("median_control")
+    interval = comparison.get("interval")
+    if not (
+        isinstance(diff, int | float)
+        and isinstance(med_c, int | float)
+        and isinstance(interval, list | tuple)
+        and len(interval) == 2
+        and all(isinstance(v, int | float) for v in interval)
+    ):
+        return None
+    base = 100.0 + float(med_c)
+    low, high = float(interval[0]), float(interval[1])
+    if base <= 0 or base + diff <= 0 or base + low <= 0 or base + high <= 0:
+        return None
+    y = math.log1p(diff / base)
+    y_lo, y_hi = math.log1p(low / base), math.log1p(high / base)
+    se = (y_hi - y_lo) / (2 * Z90)
+    if not se > _MIN_SE:
+        return None
+    return LogLift(y, se)
+
+
+@dataclass(frozen=True)
+class Prior:
+    """The prior on a lever type's log-lift: N(mean, tau²), with var(mean)."""
+
+    mean: float
+    tau: float
+    source: str
+    #: Draws (shops) behind a pooled prior; 0 for the default.
+    n_groups: int = 0
+    mean_var: float = 0.0
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "source": self.source,
+            "mean": round(self.mean, 5),
+            "tau": round(self.tau, 5),
+            "n_groups": self.n_groups,
+        }
+
+
+def default_prior(sd: float = EB_PRIOR_SD) -> Prior:
+    return Prior(0.0, sd, PRIOR_DEFAULT)
+
+
+def combine_within_shop(draws: Sequence[LogLift]) -> LogLift:
+    """A shop's groups as one draw: the inverse-variance mean and its SE."""
+    weights = [1 / (d.se**2) for d in draws]
+    total = sum(weights)
+    value = sum(w * d.value for w, d in zip(weights, draws, strict=True)) / total
+    return LogLift(value, math.sqrt(1 / total))
+
+
+def dersimonian_laird(draws: Sequence[LogLift]) -> tuple[float, float, float]:
+    """Random-effects ``(μ, τ, var μ)`` by DerSimonian–Laird (method of moments)."""
+    weights = [1 / (d.se**2) for d in draws]
+    total = sum(weights)
+    fixed = sum(w * d.value for w, d in zip(weights, draws, strict=True)) / total
+    q = sum(w * (d.value - fixed) ** 2 for w, d in zip(weights, draws, strict=True))
+    c = total - sum(w**2 for w in weights) / total
+    tau2 = max(0.0, (q - (len(draws) - 1)) / c) if c > 0 else 0.0
+    re_weights = [1 / (d.se**2 + tau2) for d in draws]
+    re_total = sum(re_weights)
+    mean = sum(w * d.value for w, d in zip(re_weights, draws, strict=True)) / re_total
+    return mean, math.sqrt(tau2), 1 / re_total
+
+
+def estimate_prior(
+    draws: Sequence[tuple[str, str, LogLift]],
+    *,
+    exclude_group: str | None = None,
+    min_groups: int = EB_MIN_GROUPS,
+    default_sd: float = EB_PRIOR_SD,
+) -> Prior:
+    """The lever type's prior from ``(shop, group, log-lift)`` draws (step 7).
+
+    Leave-one-out: ``exclude_group`` is dropped; each shop's remaining groups are
+    combined into one draw; with fewer than ``min_groups`` draws, the default prior.
+    """
+    by_shop: dict[str, list[LogLift]] = {}
+    for shop, group, lift in draws:
+        if group == exclude_group:
+            continue
+        by_shop.setdefault(shop, []).append(lift)
+    if len(by_shop) < max(min_groups, 2):
+        return default_prior(default_sd)
+    shops = [combine_within_shop(v) for _, v in sorted(by_shop.items())]
+    mean, tau, mean_var = dersimonian_laird(shops)
+    return Prior(mean, tau, PRIOR_POOLED, len(shops), mean_var)
+
+
+def _pct(x: float) -> float:
+    return round((math.exp(x) - 1) * 100, 2)
+
+
+def shrink_lift(lift: LogLift, prior: Prior) -> dict[str, Any]:
+    """The EB block stored / shown next to a raw comparison (step 7)."""
+    tau2, se2 = prior.tau**2, lift.se**2
+    w = tau2 / (tau2 + se2) if tau2 + se2 > 0 else 0.0
+    mean = w * lift.value + (1 - w) * prior.mean
+    var = w * se2 + (1 - w) ** 2 * prior.mean_var
+    half = Z90 * math.sqrt(max(var, 0.0))
+    return {
+        "observed_log_lift": round(lift.value, 5),
+        "se": round(lift.se, 5),
+        "observed_pct": _pct(lift.value),
+        "weight": round(w, 4),
+        "shrunk_log_lift": round(mean, 5),
+        "shrunk_pct": _pct(mean),
+        "interval_pct": [_pct(mean - half), _pct(mean + half)],
+        "prior": prior.to_json(),
+    }
+
+
 __all__ = [
     "ADJUST_CHANGE",
     "ADJUST_ONE_WINDOW",
     "ADJUST_TWO_WINDOWS",
     "ALPHA",
+    "EB_MIN_GROUPS",
+    "EB_PRIOR_SD",
+    "PRIOR_DEFAULT",
+    "PRIOR_POOLED",
+    "Z90",
     "FALSE_ALARM_DRAWS",
     "FALSE_ALARM_MAX",
     "INTERVAL_HIGH",
@@ -517,6 +681,8 @@ __all__ = [
     "TEST_PERMUTATION",
     "TWO_WINDOW_MIN_PRODUCTS",
     "Adjustment",
+    "LogLift",
+    "Prior",
     "Assessment",
     "FalseAlarm",
     "Permutation",
@@ -525,6 +691,11 @@ __all__ = [
     "adjust_changes",
     "assess",
     "bootstrap_interval",
+    "combine_within_shop",
+    "default_prior",
+    "dersimonian_laird",
+    "estimate_prior",
+    "log_lift_of",
     "cuped_adjust",
     "cuped_theta",
     "false_alarm_rate",
@@ -532,5 +703,6 @@ __all__ = [
     "null_pool",
     "permutation_test",
     "quantile",
+    "shrink_lift",
     "unit_from_change",
 ]

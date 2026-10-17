@@ -48,6 +48,8 @@ export const SETTING_KEYS: readonly OverrideKey[] = [
   "group_two_window_min",
   "group_guard_ctr_drop",
   "group_drift_sigma",
+  "group_eb_prior_sd",
+  "group_eb_min_groups",
   "card_quota_mode",
   "card_quota_per_cell",
   "card_quota_max_open",
@@ -70,6 +72,8 @@ export const DIAG_KEYS: readonly DiagKey[] = [
   "group_two_window_min",
   "group_guard_ctr_drop",
   "group_drift_sigma",
+  "group_eb_prior_sd",
+  "group_eb_min_groups",
 ];
 
 export const SETTING_LABELS: Readonly<Record<string, string>> = {
@@ -94,6 +98,8 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   group_two_window_min: "Nhóm thử nghiệm: hai cửa sổ tiền kỳ từ",
   group_guard_ctr_drop: "Nhóm thử nghiệm: cảnh báo CTR giảm quá",
   group_drift_sigma: "Nhóm thử nghiệm: trôi tuần (σ)",
+  group_eb_prior_sd: "Nhóm thử nghiệm: độ lệch mặc định khi co lift (EB)",
+  group_eb_min_groups: "Nhóm thử nghiệm: số nhóm cùng loại tối thiểu để co lift",
   card_quota_mode: "Nhiều thẻ mỗi ô",
   card_quota_per_cell: "Thẻ mở mỗi ô",
   card_quota_max_open: "Thẻ mở tối đa (nhiều thẻ)",
@@ -149,6 +155,8 @@ export function fmtSetting(key: string, value: unknown): string {
   if (key === "group_two_window_min") return `${String(value)} sản phẩm`;
   if (key === "group_guard_ctr_drop") return `${comma(Number(value))} %`;
   if (key === "group_drift_sigma") return `σ ${comma(Number(value))} / tuần`;
+  if (key === "group_eb_prior_sd") return `σ ${comma(Number(value))}`;
+  if (key === "group_eb_min_groups") return `${String(value)} nhóm`;
   if (key === "card_quota_per_cell") return `${String(value)} thẻ/ô`;
   if (key === "card_quota_max_open") return `${String(value)} thẻ mở`;
   if (typeof value === "boolean") return value ? "Bật" : "Tắt";

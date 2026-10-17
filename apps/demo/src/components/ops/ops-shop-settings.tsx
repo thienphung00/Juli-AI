@@ -640,6 +640,21 @@ const GROUP_NUMBERS: typeof DIAG_NUMBERS = [
     unit: "σ / tuần",
     step: 0.01,
   },
+  {
+    key: "group_eb_prior_sd",
+    title: "Nhóm thử nghiệm: độ lệch mặc định khi co lift (EB)",
+    help: "Khi chưa đủ nhóm cùng loại, lift của nhóm được co về 0 với độ lệch này (thang log; 0,15 ≈ ±15 %). Chỉ Ops thấy",
+    unit: "σ",
+    step: 0.01,
+  },
+  {
+    key: "group_eb_min_groups",
+    title: "Nhóm thử nghiệm: số nhóm cùng loại tối thiểu để co lift",
+    help: "Từ ngần này nhóm cùng đòn bẩy đã đo (mỗi shop tính một), Juli co lift theo các nhóm đó thay cho mức mặc định",
+    unit: "nhóm",
+    step: 1,
+    integer: true,
+  },
 ];
 
 /** P23 (D29.11): "Chẩn đoán & KPI" — collapsed; every row is part of the D27 draft. */

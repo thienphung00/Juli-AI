@@ -53,6 +53,16 @@ only design that removes both. In the card system:
    weekly-drift floor and the traffic needed (:mod:`.group_design`) and an optional
    one-line "lý do chọn thử nghiệm" (``design.reason``). The seller never sees an
    Ops group: no seller sentence, no card.
+7. **EB-shrunk lift, Ops only (D52, fast track P45).** Each verdict comparison also
+   stores ``eb`` (:func:`.group_stats.shrink_lift`): the observed log-lift pulled
+   toward a prior for the lever type -- the default N(0, 0.15²) when measured (the
+   pipeline runs in the shop's own scope and cannot read other shops). The Ops groups
+   page re-shrinks every comparison with the pooled prior of measured groups of the
+   same lever × metric × channel across all shops (:func:`lift_draws`, read through
+   the ``juli_ops``-only ``ops_group_lift_draws()``; :func:`apply_pooled_eb`, leave-
+   one-out, a shop's groups combined first), when there are ≥ ``group_eb_min_groups``
+   draws. Only aggregate numbers leave it (prior mean, spread, number of shops). The
+   label, the strength and the seller's sentence never read ``eb``.
 
 Switch: the team tunable ``card_groups`` (``DiagTunables.groups_enabled``): unset
 follows D33's quota mode (on only when the quota mode is on); off = no card is drawn
@@ -74,7 +84,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.card_groups import (
@@ -94,15 +104,23 @@ from juli_backend.services.action_cards.group_design import (
 )
 from juli_backend.services.action_cards.group_stats import (
     ALPHA,
+    EB_MIN_GROUPS,
+    EB_PRIOR_SD,
     INTERVAL_HIGH,
     INTERVAL_LOW,
     TWO_WINDOW_MIN_PRODUCTS,
     FalseAlarm,
+    LogLift,
+    Prior,
     Unit,
     adjust_changes,
     assess,
+    default_prior,
+    estimate_prior,
     false_alarm_rate,
+    log_lift_of,
     null_pool,
+    shrink_lift,
     unit_from_change,
 )
 from juli_backend.services.change_strength import STRENGTH_LABELS_VI
@@ -549,6 +567,7 @@ def build_verdict(
     control_pairs: Sequence[Sequence[float]] = (),
     history: Sequence[Mapping[str, Any]] = (),
     two_window_min: int | None = TWO_WINDOW_MIN_PRODUCTS,
+    eb_prior_sd: float = EB_PRIOR_SD,
 ) -> dict[str, Any]:
     """The stored verdict from per-product rows ``{product_id, arm, approved, change_pct}``
     (plus ``before`` / ``after`` / ``pre_before`` when measured from data).
@@ -564,7 +583,9 @@ def build_verdict(
     below ``two_window_min`` measured products (D47.1), two pre-period windows from it;
     ``None`` = the P31 rule, one fitted θ at every size); a
     row's ``pre_pre_before`` (days −42..−29) makes its pre-period pair a triple, so
-    the false-alarm replay can apply the same rule.
+    the false-alarm replay can apply the same rule. D52 (P45, Ops only): ``primary.eb``
+    is the comparison's lift shrunk toward the default prior N(0, ``eb_prior_sd``²)
+    (:func:`eb_block`); nothing else reads it.
     """
     measured = [c for c in changes if isinstance(c.get("change_pct"), int | float)]
     units, cuped_used = _units(measured)
@@ -601,6 +622,7 @@ def build_verdict(
         row["adjusted_change_pct"] = adjusted_by_id.get(id(c))
         products.append(row)
     primary = compare(treated, control, seed=seed, false_alarm=fa_primary)
+    primary["eb"] = eb_block(primary, default_prior(eb_prior_sd))
     check = {
         "as_of": as_of.isoformat(),
         "label": primary["label"],
@@ -1103,6 +1125,7 @@ async def measure_due_groups(
             control_pairs=control_pairs,
             history=previous.get("checks") or [],
             two_window_min=tun.group_two_window_min if design.ops else None,
+            eb_prior_sd=tun.group_eb_prior_sd,
         )
         if not design.ops:
             # D45.6, Ops only: the group-size rule on the same rows, beside the P31 verdict.
@@ -1115,6 +1138,7 @@ async def measure_due_groups(
                     as_of=as_of,
                     control_pairs=control_pairs,
                     two_window_min=tun.group_two_window_min,
+                    eb_prior_sd=tun.group_eb_prior_sd,
                 ),
             )
         metrics: dict[str, Any] = {}
@@ -1126,6 +1150,7 @@ async def measure_due_groups(
                 as_of=as_of,
                 control_pairs=extra_pairs[name],
                 two_window_min=tun.group_two_window_min,
+                eb_prior_sd=tun.group_eb_prior_sd,
             )
             metrics[name] = metric_summary(metric, channel, extra_verdict)
         verdict["metrics"] = metrics
@@ -1392,6 +1417,158 @@ async def group_views(
     return out
 
 
+# =========================================================================== EB lift (D52)
+
+
+def eb_block(comparison: Mapping[str, Any] | None, prior: Prior) -> dict[str, Any] | None:
+    """The comparison's EB-shrunk lift (:func:`.group_stats.shrink_lift`), or ``None``."""
+    lift = log_lift_of(dict(comparison)) if isinstance(comparison, Mapping) else None
+    return None if lift is None else shrink_lift(lift, prior)
+
+
+@dataclass(frozen=True)
+class EbDraw:
+    """One measured group comparison of a lever type, as a draw for its prior."""
+
+    shop_id: str
+    group_id: str
+    lever: str
+    metric: str
+    channel: str
+    lift: LogLift
+
+    @property
+    def lever_type(self) -> tuple[str, str, str]:
+        return (self.lever, self.metric, self.channel)
+
+
+def draws_from_rows(rows: Iterable[Sequence[Any]]) -> list[EbDraw]:
+    """``(shop, group, lever, metric, channel, comparison)`` rows -> draws with a log-lift."""
+    out: list[EbDraw] = []
+    for shop_id, group_id, lever, metric, channel, comparison in rows:
+        if isinstance(comparison, str):
+            try:
+                comparison = json.loads(comparison)
+            except ValueError:
+                continue
+        lift = log_lift_of(comparison)
+        if lift is None or not (lever and metric and channel):
+            continue
+        out.append(EbDraw(str(shop_id), str(group_id), lever, metric, channel, lift))
+    return out
+
+
+def _verdict_rows(group: CardGroup) -> list[tuple[Any, ...]]:
+    """The rows ``ops_group_lift_draws()`` returns for one group (the SQLite path)."""
+    verdict = group.verdict if isinstance(group.verdict, dict) else None
+    if verdict is None:
+        return []
+    rows: list[tuple[Any, ...]] = []
+    if isinstance(verdict.get("primary"), dict):
+        rows.append(
+            (group.shop_id, group.id, group.lever, group.metric, group.channel, verdict["primary"])
+        )
+    metrics = verdict.get("metrics")
+    for entry in (metrics or {}).values() if isinstance(metrics, dict) else ():
+        if isinstance(entry, dict) and isinstance(entry.get("primary"), dict):
+            rows.append(
+                (
+                    group.shop_id,
+                    group.id,
+                    group.lever,
+                    entry.get("metric"),
+                    entry.get("channel"),
+                    entry["primary"],
+                )
+            )
+    return rows
+
+
+async def lift_draws(session: AsyncSession) -> list[EbDraw]:
+    """Every shop's measured group comparisons, as EB draws (D52). **Ops only.**
+
+    Call it inside an ``ops_role`` block: on Postgres it reads
+    ``public.ops_group_lift_draws()`` (migration 093, SECURITY DEFINER, EXECUTE to
+    ``juli_ops`` only -- a seller session is refused). The caller must return only
+    aggregates (:func:`apply_pooled_eb`), never another shop's rows. SQLite (unit
+    tests) has no RLS or roles: the same rows straight from ``card_groups``.
+    """
+    from juli_backend.services.ops.access import is_sqlite
+
+    if is_sqlite(session):
+        groups = (
+            await session.execute(select(CardGroup).where(CardGroup.status == GROUP_MEASURED))
+        ).scalars()
+        return draws_from_rows(row for group in groups for row in _verdict_rows(group))
+    result = await session.execute(text("SELECT * FROM public.ops_group_lift_draws()"))
+    return draws_from_rows(
+        (
+            r["out_shop_id"],
+            r["out_group_id"],
+            r["out_lever"],
+            r["out_metric"],
+            r["out_channel"],
+            r["out_comparison"],
+        )
+        for r in result.mappings()
+    )
+
+
+def _comparisons(
+    verdict: dict[str, Any], metric: str, channel: str
+) -> list[tuple[dict[str, Any], str, str]]:
+    """A verdict's comparisons that carry an ``eb``, each with its (metric, channel)."""
+    out: list[tuple[dict[str, Any], str, str]] = []
+    if isinstance(verdict.get("primary"), dict):
+        out.append((verdict["primary"], metric, channel))
+    ops_rule = verdict.get("ops_rule")
+    if isinstance(ops_rule, dict) and isinstance(ops_rule.get("primary"), dict):
+        out.append((ops_rule["primary"], metric, channel))
+    metrics = verdict.get("metrics")
+    for entry in metrics.values() if isinstance(metrics, dict) else ():
+        if isinstance(entry, dict) and isinstance(entry.get("primary"), dict):
+            out.append((entry["primary"], str(entry.get("metric")), str(entry.get("channel"))))
+    return out
+
+
+def apply_pooled_eb(
+    views: Sequence[dict[str, Any]],
+    draws: Sequence[EbDraw],
+    *,
+    min_groups: int = EB_MIN_GROUPS,
+    default_sd: float = EB_PRIOR_SD,
+) -> list[dict[str, Any]]:
+    """The Ops group views with every comparison's ``eb`` re-shrunk (D52). Pure.
+
+    Per comparison: the prior of its lever type (lever × metric × channel) from
+    ``draws`` without this group (leave-one-out), a shop's groups combined first;
+    fewer than ``min_groups`` draws -> the default prior. Each view's verdict is
+    copied (the stored JSON is not touched); only ``eb`` blocks change.
+    """
+    by_type: dict[tuple[str, str, str], list[tuple[str, str, LogLift]]] = defaultdict(list)
+    for d in draws:
+        by_type[d.lever_type].append((d.shop_id, d.group_id, d.lift))
+    out: list[dict[str, Any]] = []
+    for view in views:
+        if not isinstance(view.get("verdict"), dict):
+            out.append(view)
+            continue
+        verdict = json.loads(json.dumps(view["verdict"]))
+        lever, group_id = str(view.get("lever")), str(view.get("id"))
+        for comparison, metric, channel in _comparisons(
+            verdict, str(view.get("metric")), str(view.get("channel"))
+        ):
+            prior = estimate_prior(
+                by_type.get((lever, metric, channel), []),
+                exclude_group=group_id,
+                min_groups=min_groups,
+                default_sd=default_sd,
+            )
+            comparison["eb"] = eb_block(comparison, prior)
+        out.append({**view, "verdict": verdict})
+    return out
+
+
 # =========================================================================== Ops groups (D45)
 
 
@@ -1602,7 +1779,9 @@ __all__ = [
     "GroupError",
     "GroupKey",
     "GroupPass",
+    "EbDraw",
     "apply_groups",
+    "apply_pooled_eb",
     "assign_arms",
     "build_verdict",
     "card_group_key",
@@ -1610,8 +1789,11 @@ __all__ = [
     "compare",
     "control_count",
     "create_ops_group",
+    "draws_from_rows",
+    "eb_block",
     "guard_check",
     "group_views",
+    "lift_draws",
     "measure_due_groups",
     "metric_specs",
     "new_seed",

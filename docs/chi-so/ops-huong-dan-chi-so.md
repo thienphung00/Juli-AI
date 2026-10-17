@@ -405,6 +405,28 @@ Mọi thứ ở mục này chỉ có trong Ops; ứng dụng người bán khôn
   sửa vào Nhật ký. Chọn thử nghiệm tự động (knowledge gradient) chưa làm: chỉ sau khi 2–3 nhóm D34 có
   kết quả.
 
+### 5.4 Lift đã co (EB) (D52, P45 — chỉ Ops)
+
+Một nhóm được chú ý vì kết quả trông rất tốt thường may mắn hơn thực tế ("lời nguyền người thắng").
+Cạnh mỗi kết quả nhóm (chỉ số chính, cách tính mới, AOV, số món mỗi đơn) Ops hiện thêm một dòng:
+**"Lift đã co (EB): +x % [thấp; cao] · lift thô +y % · …"**. Rê chuột vào dòng sẽ thấy: "Điều chỉnh
+theo các nhóm cùng loại để tránh tin nhầm kết quả may mắn".
+
+- **Cách tính.** Lift thô đổi sang thang log: y = ln(1 + chênh lệch / (100 + thay đổi của đối chứng)),
+  sai số se lấy từ khoảng 90 % của chênh lệch. Lift đã co = w · y + (1 − w) · μ với w = τ² / (τ² + se²):
+  nhóm càng nhiễu (se lớn) càng được kéo về μ; nhóm đo chắc (se nhỏ) gần như giữ lift thô. Khoảng
+  [thấp; cao] là khoảng 90 % của lift đã co.
+- **Mốc so sánh (μ, τ) theo loại đòn bẩy** (cùng đòn bẩy × chỉ số × kênh). Khi đã có ít nhất **3** nhóm
+  cùng loại được đo ở các shop (mỗi shop tính là một; nhiều nhóm của một shop được gộp trước; không tính
+  chính nhóm đang xem), Juli ước lượng μ và τ từ các nhóm đó (DerSimonian–Laird); dòng ghi "theo n nhóm
+  cùng loại". Chưa đủ thì dùng mức mặc định μ = 0, τ = 0,15 (khoảng ±15 %); dòng ghi "mức mặc định".
+  Chỉnh ở "Nhóm thử nghiệm: độ lệch mặc định khi co lift (EB)" và "Nhóm thử nghiệm: số nhóm cùng loại
+  tối thiểu để co lift".
+- **Dữ liệu shop khác.** Chỉ Ops đọc kết quả nhóm của các shop khác, và chỉ hiện con số tổng hợp
+  (μ, τ, số nhóm); không hiện tên, mã hay số liệu riêng của shop nào.
+- **Không đổi gì khác.** Nhãn kết quả, mức thay đổi và câu "Kết quả nhóm" người bán thấy vẫn theo lift
+  thô như trước. Dòng này để Ops cân nhắc trước khi tin một kết quả lớn.
+
 ## 6. Các màn hình Ops khác
 
 - **Tổng quan**: Đã kết nối / Đang hoạt động / Mất kết nối (Token hết hạn); từng shop: Giai đoạn, Kết

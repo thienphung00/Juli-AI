@@ -55,7 +55,17 @@ GROUP_TWO_WINDOW_MIN = "group_two_window_min"
 GROUP_GUARD_CTR_DROP = "group_guard_ctr_drop"
 #: Week-to-week drift σ (log scale) behind the drift floor Ops shows (D45.4).
 GROUP_DRIFT_SIGMA = "group_drift_sigma"
-GROUP_KEYS: tuple[str, ...] = (GROUP_TWO_WINDOW_MIN, GROUP_GUARD_CTR_DROP, GROUP_DRIFT_SIGMA)
+#: D52 (P45, Ops only): the default prior of the EB-shrunk group lift, N(0, sd²) on the
+#: log-lift, and how many measured groups (shops) of a lever type replace it by a pooled one.
+GROUP_EB_PRIOR_SD = "group_eb_prior_sd"
+GROUP_EB_MIN_GROUPS = "group_eb_min_groups"
+GROUP_KEYS: tuple[str, ...] = (
+    GROUP_TWO_WINDOW_MIN,
+    GROUP_GUARD_CTR_DROP,
+    GROUP_DRIFT_SIGMA,
+    GROUP_EB_PRIOR_SD,
+    GROUP_EB_MIN_GROUPS,
+)
 
 TUNABLE_KEYS: tuple[str, ...] = (
     DIAG_WINDOWS,
@@ -83,6 +93,9 @@ QUOTA_MAX_OPEN_RANGE = (5, 100)
 TWO_WINDOW_MIN_RANGE = (4, 200)
 GUARD_DROP_RANGE = (1.0, 90.0)
 DRIFT_SIGMA_RANGE = (0.0, 1.0)
+#: D52: EB prior SD (log scale) and the pooled-prior minimum (DerSimonian–Laird needs ≥ 2).
+EB_PRIOR_SD_RANGE = (0.01, 1.0)
+EB_MIN_GROUPS_RANGE = (2, 50)
 
 
 class TunableError(ValueError):
@@ -113,6 +126,10 @@ class DiagTunables:
     the P31 fitted θ (D47.1); ``group_guard_ctr_drop`` (15) -- warn when the product-card
     CTR falls more than this many points of % treated vs control;
     ``group_drift_sigma`` (0.15) -- the weekly drift behind the drift floor.
+
+    D52 (P45, Ops only): ``group_eb_prior_sd`` (0.15) -- the default prior N(0, sd²) of
+    the EB-shrunk group log-lift; ``group_eb_min_groups`` (3) -- from this many measured
+    groups (one per shop) of a lever type the prior is pooled across shops instead.
     """
 
     windows: tuple[int, ...] = (14, 30, 60)
@@ -134,6 +151,9 @@ class DiagTunables:
     group_two_window_min: int = 15
     group_guard_ctr_drop: float = 15.0
     group_drift_sigma: float = 0.15
+    #: D52.
+    group_eb_prior_sd: float = 0.15
+    group_eb_min_groups: int = 3
 
     @property
     def shrinkage_on(self) -> bool:
@@ -165,6 +185,8 @@ class DiagTunables:
             GROUP_TWO_WINDOW_MIN: self.group_two_window_min,
             GROUP_GUARD_CTR_DROP: self.group_guard_ctr_drop,
             GROUP_DRIFT_SIGMA: self.group_drift_sigma,
+            GROUP_EB_PRIOR_SD: self.group_eb_prior_sd,
+            GROUP_EB_MIN_GROUPS: self.group_eb_min_groups,
         }
 
     @classmethod
@@ -199,6 +221,8 @@ class DiagTunables:
             group_two_window_min=int(values[GROUP_TWO_WINDOW_MIN]),
             group_guard_ctr_drop=float(values[GROUP_GUARD_CTR_DROP]),
             group_drift_sigma=float(values[GROUP_DRIFT_SIGMA]),
+            group_eb_prior_sd=float(values[GROUP_EB_PRIOR_SD]),
+            group_eb_min_groups=int(values[GROUP_EB_MIN_GROUPS]),
         )
 
 
@@ -238,6 +262,10 @@ def validate_tunable(name: str, value: Any) -> Any:
         return _number(name, value, *GUARD_DROP_RANGE)
     if name == GROUP_DRIFT_SIGMA:
         return _number(name, value, *DRIFT_SIGMA_RANGE)
+    if name == GROUP_EB_PRIOR_SD:
+        return _number(name, value, *EB_PRIOR_SD_RANGE)
+    if name == GROUP_EB_MIN_GROUPS:
+        return _whole(name, value, *EB_MIN_GROUPS_RANGE)
     if name == CARD_QUOTA_PER_CELL:
         return _whole(name, value, *QUOTA_PER_CELL_RANGE)
     if name == CARD_QUOTA_MAX_OPEN:
@@ -278,6 +306,8 @@ __all__ = [
     "DIAG_TRIGGERS",
     "DIAG_WINDOWS",
     "GROUP_DRIFT_SIGMA",
+    "GROUP_EB_MIN_GROUPS",
+    "GROUP_EB_PRIOR_SD",
     "GROUP_GUARD_CTR_DROP",
     "GROUP_KEYS",
     "GROUP_TWO_WINDOW_MIN",

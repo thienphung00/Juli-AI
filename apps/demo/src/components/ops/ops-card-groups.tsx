@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { OpsApiError, type OpsApi } from "../../lib/ops/api";
 import { fmtDate } from "../../lib/ops/format";
-import type { CardGroup, CardGroupComparison, CardGroupCreate, CardGroupPlan, CardGroupsPage } from "../../lib/ops/types";
+import type { CardGroup, CardGroupComparison, CardGroupCreate, CardGroupEb, CardGroupPlan, CardGroupsPage } from "../../lib/ops/types";
 import { C, card } from "./ops-shell";
 
 /**
@@ -16,6 +16,10 @@ import { C, card } from "./ops-shell";
  * mới" read on AOV with the product-card CTR as a guard); every group shows its weekly-drift
  * floor next to the traffic needed, all-channel AOV / items per order, the CTR guard warning,
  * and an editable one-line "lý do chọn thử nghiệm". The seller never sees an Ops group.
+ *
+ * P45 (D52, Ops only): beside each raw result, "Lift đã co (EB)" — the lift shrunk toward
+ * groups of the same lever type (a winner's-curse guard), with the prior it used. The
+ * seller's sentence and the verdict label do not change.
  */
 
 const ARM_LABEL: Record<string, string> = { treated: "Áp dụng", control: "Đối chứng" };
@@ -54,6 +58,26 @@ export function comparisonText(c: CardGroupComparison | null | undefined): strin
   if (c.false_alarm) parts.push(`báo động giả ${Math.round(c.false_alarm.rate * 100)} %`);
   parts.push(`${c.n_treated} áp dụng · ${c.n_control} đối chứng`);
   return parts.join(" · ");
+}
+
+/** P45 (D52): the one-line tooltip of the EB-shrunk lift, in plain Vietnamese. */
+export const EB_TOOLTIP = "Điều chỉnh theo các nhóm cùng loại để tránh tin nhầm kết quả may mắn";
+
+/** "Lift đã co (EB): +3,1 % [-2,0; +8,4] · lift thô +40,0 % · theo 3 nhóm cùng loại" or null. */
+export function ebText(eb: CardGroupEb | null | undefined): string | null {
+  if (!eb) return null;
+  const prior = eb.prior.source === "pooled" ? `theo ${eb.prior.n_groups} nhóm cùng loại` : "mức mặc định (chưa đủ nhóm cùng loại)";
+  return `Lift đã co (EB): ${num(eb.shrunk_pct)} % [${num(eb.interval_pct[0])}; ${num(eb.interval_pct[1])}] · lift thô ${num(eb.observed_pct)} % · ${prior}`;
+}
+
+function EbLine({ comparison }: { readonly comparison: CardGroupComparison | null | undefined }) {
+  const text = ebText(comparison?.eb);
+  if (!text) return null;
+  return (
+    <div data-testid="ops-group-eb" style={{ color: C.muted2, fontSize: 12 }} title={EB_TOOLTIP}>
+      {text} <span aria-label={EB_TOOLTIP}>ⓘ</span>
+    </div>
+  );
 }
 
 /**
@@ -173,16 +197,19 @@ function GroupRow({
       <div>
         Kết quả ngày 14: <b>{group.verdict ? comparisonText(group.verdict.primary) : "chưa đo"}</b>
       </div>
+      <EbLine comparison={group.verdict?.primary} />
       {adjustment ? <div style={{ color: C.muted2, fontSize: 12 }}>Cách tính: {METHOD_LABEL[adjustment.method] ?? adjustment.method}</div> : null}
       {group.verdict?.ops_rule ? (
         <div data-testid="ops-group-ops-rule" style={{ color: C.muted2, fontSize: 12 }}>
           Theo cách tính mới ({METHOD_LABEL[group.verdict.ops_rule.adjustment?.method ?? ""] ?? "—"}, chỉ Ops): {comparisonText(group.verdict.ops_rule.primary)}
         </div>
       ) : null}
+      {group.verdict?.ops_rule ? <EbLine comparison={group.verdict.ops_rule.primary} /> : null}
       {group.design?.strata ? <div style={{ color: C.muted2, fontSize: 12 }}>Chia tầng theo số đơn 30 ngày (mỗi tầng ≈ 1/3 đối chứng)</div> : null}
       {metrics.map((m) => (
         <div key={`${m.metric}|${m.channel}`} style={{ color: C.body }}>
           {m.label}: {comparisonText(m.primary)}
+          <EbLine comparison={m.primary} />
         </div>
       ))}
       {guard ? (

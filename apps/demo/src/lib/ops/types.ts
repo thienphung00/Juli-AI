@@ -80,7 +80,11 @@ export type DiagKey =
   /** P36 (D45.2): warn when a group's product-card CTR falls more than this, points of % (15). */
   | "group_guard_ctr_drop"
   /** P36 (D45.4): weekly drift σ behind a group's drift floor (0.15). */
-  | "group_drift_sigma";
+  | "group_drift_sigma"
+  /** P45 (D52): default prior SD of the EB-shrunk group log-lift (0.15). */
+  | "group_eb_prior_sd"
+  /** P45 (D52): from this many measured groups (shops) of a lever type the EB prior is pooled (3). */
+  | "group_eb_min_groups";
 
 /** P28 (D33): the per-shop "many cards" quota mode; optional until the backend sends them. */
 export type QuotaKey =
@@ -395,6 +399,22 @@ export interface CardGroupFalseAlarm {
   readonly pool: number;
 }
 
+/** P45 (D52, Ops only): the comparison's lift shrunk toward its lever type's prior (empirical Bayes). */
+export interface CardGroupEb {
+  readonly observed_log_lift: number;
+  readonly se: number;
+  /** The raw lift as a ratio, % (100 (e^y − 1)). */
+  readonly observed_pct: number;
+  /** w = τ² / (τ² + se²). */
+  readonly weight: number;
+  readonly shrunk_log_lift: number;
+  readonly shrunk_pct: number;
+  /** 90 % interval of the shrunk lift, %. */
+  readonly interval_pct: readonly [number, number];
+  /** "default": N(0, sd²); "pooled": DerSimonian–Laird over n_groups measured groups (one per shop). */
+  readonly prior: { readonly source: "default" | "pooled"; readonly mean: number; readonly tau: number; readonly n_groups: number };
+}
+
 /** Median change treated − control (points of %), its 90 % (P31; 80 % before) bootstrap interval and wording. */
 export interface CardGroupComparison {
   readonly n_treated: number;
@@ -411,6 +431,8 @@ export interface CardGroupComparison {
   readonly test?: "permutation" | "bootstrap";
   readonly permutation?: { readonly p_value: number; readonly draws: number; readonly exact: boolean } | null;
   readonly false_alarm?: CardGroupFalseAlarm | null;
+  /** P45 (D52, Ops only): absent on verdicts stored before P45 (the Ops route fills it); null without numbers. */
+  readonly eb?: CardGroupEb | null;
 }
 
 /** P36 (D45.6): which pre-period rule adjusted the changes. */
