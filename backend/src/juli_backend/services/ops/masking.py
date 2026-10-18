@@ -15,17 +15,15 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from juli_backend.core.privacy.deidentify import EMAIL_RE, PHONE_RE, PII_KEY_RE
+
 MASK = "•••"
 STAFF_DOMAIN = "app-juli.com"
 
-_PII_KEY = re.compile(
-    r"^(buyer.*|recipient.*|.*_address|address.*|shipping_address|phone.*|.*_phone"
-    r"|phone_number|customer_name|customer_email|customer_phone|buyer_message"
-    r"|buyer_email|buyer_nickname|user_message|full_name|name_of_buyer|id_number)$",
-    re.IGNORECASE,
-)
-_EMAIL = re.compile(r"([A-Za-z0-9._%+\-]+)@([A-Za-z0-9.\-]+\.[A-Za-z]{2,})")
-_PHONE = re.compile(r"(?<![\w.])(?:\+?84|0)(?:[\s.\-]?\d){8,10}(?![\w.])")
+# One source of truth for the patterns: the LLM boundary (P50-P) uses them too.
+_PII_KEY = PII_KEY_RE
+_EMAIL = EMAIL_RE
+_PHONE = PHONE_RE
 
 
 def mask_email(match: re.Match[str]) -> str:
