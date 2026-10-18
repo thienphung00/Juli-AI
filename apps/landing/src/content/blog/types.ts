@@ -138,6 +138,11 @@ export interface BlogPostMeta {
   author: string;
   /** Slugs of related posts (only published ones are shown on a published post). */
   related: readonly string[];
+  /**
+   * Reach posts only (D59 addition 4): the conversion guide the end-of-post box points to, with a
+   * neutral "Đọc hướng dẫn liên quan" line. Never linked from the body.
+   */
+  guide?: string;
   /** Questions rendered at the end of the post; they become FAQPage JSON-LD. */
   faq?: readonly FaqItem[];
   /** Rendered as "Nguồn tham khảo". */

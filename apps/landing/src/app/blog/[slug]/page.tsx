@@ -21,6 +21,7 @@ import {
   formatDate,
   getPost,
   getPostMeta,
+  guideFor,
   isCompetitorUrl,
   isPublished,
   relatedPosts,
@@ -95,7 +96,7 @@ function minutesFor(slug: string): number {
  * no "Juli", no product, sign-up or demo link; it offers the free GMV
  * calculator and the blog index instead.
  */
-function ReachCta() {
+function ReachCta({ guidePath }: { guidePath: string | null }) {
   return (
     <Section labelledBy="blog-cta" spacing="compact" tone="dark">
       <div className="lp-post__cta" data-testid="blog-cta-tool">
@@ -114,6 +115,13 @@ function ReachCta() {
             Đọc thêm bài viết
           </LinkButton>
         </div>
+        {guidePath ? (
+          <p className="lp-post__cta-guide">
+            <a data-testid="blog-cta-guide" href={guidePath}>
+              Đọc hướng dẫn liên quan
+            </a>
+          </p>
+        ) : null}
       </div>
     </Section>
   );
@@ -265,7 +273,11 @@ export default async function BlogPostPage({ params }: PostPageProps) {
           </section>
         ) : null}
 
-        {blogTier(post) === "reach" ? <ReachCta /> : <ConversionCta />}
+        {blogTier(post) === "reach" ? (
+          <ReachCta guidePath={guideFor(post) ? blogPostPath(post.guide!) : null} />
+        ) : (
+          <ConversionCta />
+        )}
       </main>
       <SiteFooter />
     </>

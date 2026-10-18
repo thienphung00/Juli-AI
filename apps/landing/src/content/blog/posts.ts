@@ -251,6 +251,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-tiktok-shop-khong-ra-don-v1", "Minh hoạ: chiếc chuông báo đơn trên quầy nằm im với chữ z z và một phiếu đơn trống viền nét đứt, nền xám nhạt, chữ “Shop không ra đơn”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["khach-xem-nhung-khong-mua-tiktok-shop", "san-pham-tiktok-shop-khong-co-luot-hien-thi", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -301,6 +302,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-doanh-thu-tiktok-shop-giam-v1", "Minh hoạ: biểu đồ đường đi ngang rồi rơi xuống, kính lúp soi điểm rơi màu hồng, nền xanh dương nhạt, chữ “Doanh thu giảm”"),
     author: AUTHOR,
+    guide: "tim-san-pham-keo-gmv-xuong-tiktok-shop",
     related: ["doanh-thu-sau-sale-tiktok-shop", "ty-le-hoan-hang-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -513,6 +515,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-san-pham-tiktok-shop-khong-co-luot-hien-thi-v1", "Minh hoạ: đèn chiếu rọi xuống một kệ trống chỉ có khung sản phẩm nét đứt và biểu tượng con mắt bị gạch, nền đen, chữ “Không ai nhìn thấy”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["tiktok-shop-khong-ra-don", "dat-ten-san-pham-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -566,6 +569,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "news",
     cover: blogCover("hero-thue-ban-hang-tiktok-shop-v1", "Minh hoạ: tờ văn bản có con dấu tròn đánh dấu đã kiểm, nền màu cát nhạt, chữ “Thuế bán hàng”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["phi-san-tiktok-shop-2026", "ty-le-hoan-hang-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -638,6 +642,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-video-tiktok-nhieu-view-khong-ra-don-v1", "Minh hoạ: khung video có nút phát và thanh tiến trình bên cạnh chiếc phễu bị gãy đôi làm rơi các giọt ra ngoài, nền hồng, chữ “Nhiều view, ít đơn”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["live-tiktok-shop-khong-ra-don", "khach-xem-nhung-khong-mua-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -689,6 +694,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-live-tiktok-shop-khong-ra-don-v1", "Minh hoạ: nhãn LIVE, một đám đông người xem và một đường chấm mảnh dẫn tới chiếc giỏ hàng nhỏ, nền xanh lá nhạt, chữ “LIVE đông, ít đơn”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["video-tiktok-nhieu-view-khong-ra-don", "quy-dinh-livestream-ban-hang", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -741,6 +747,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-ty-le-hoan-hang-tiktok-shop-v1", "Minh hoạ: thùng hàng các-tông với mũi tên vòng ngược lại phía người gửi, nền cam đào nhạt, chữ “Đơn hủy, hoàn hàng”"),
     author: AUTHOR,
+    guide: "ctor-thap-viet-lai-mo-ta-san-pham",
     related: ["phi-san-tiktok-shop-2026", "doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -799,6 +806,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "news",
     cover: blogCover("hero-phi-san-tiktok-shop-2026-v1", "Minh hoạ: đồng xu vàng bị cắt mất một miếng và chồng thẻ phí xếp bên cạnh, nền xám nhạt, chữ “Phí sàn mỗi đơn”"),
     author: AUTHOR,
+    guide: "tim-san-pham-keo-gmv-xuong-tiktok-shop",
     related: ["thue-ban-hang-tiktok-shop", "ty-le-hoan-hang-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -848,6 +856,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-khach-xem-nhung-khong-mua-tiktok-shop-v1", "Minh hoạ: con mắt có tròng là chiếc giỏ hàng trống và con trỏ chuột đang bấm, nền xanh ngọc đậm, chữ “Xem mà không mua”"),
     author: AUTHOR,
+    guide: "ctor-thap-viet-lai-mo-ta-san-pham",
     related: ["tang-gia-tri-don-hang-trung-binh-tiktok-shop", "tiktok-shop-khong-ra-don", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -897,6 +906,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-tang-gia-tri-don-hang-trung-binh-tiktok-shop-v1", "Minh hoạ: tờ hoá đơn dài bên cạnh ba hộp hàng xếp chồng và dấu cộng, nền hồng phấn, chữ “Tăng giá trị đơn”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["khach-xem-nhung-khong-mua-tiktok-shop", "gmv-la-gi-tiktok-shop", "doanh-thu-sau-sale-tiktok-shop"],
     faq: [
       {
@@ -948,6 +958,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-mo-ta-san-pham-tiktok-shop-v1", "Minh hoạ: bong bóng câu trả lời có dấu tích nằm phía trên bong bóng dấu hỏi của khách, nền trắng kẻ ô, chữ “Trả lời trước khi hỏi”"),
     author: AUTHOR,
+    guide: "ctor-thap-viet-lai-mo-ta-san-pham",
     related: ["khach-xem-nhung-khong-mua-tiktok-shop", "ty-le-hoan-hang-tiktok-shop", "dat-ten-san-pham-tiktok-shop"],
     faq: [
       {
@@ -1005,6 +1016,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "news",
     cover: blogCover("hero-quy-dinh-livestream-ban-hang-v1", "Minh hoạ: micro đứng và chiếc búa của toà gõ xuống bục, nền xanh lá đậm, chữ “Quy định livestream”"),
     author: AUTHOR,
+    guide: "duyet-de-xuat-toi-uu-san-pham-tiktok-shop",
     related: ["live-tiktok-shop-khong-ra-don", "thue-ban-hang-tiktok-shop", "mo-ta-san-pham-tiktok-shop"],
     faq: [
       {
@@ -1078,6 +1090,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-dat-ten-san-pham-tiktok-shop-v1", "Minh hoạ: nhãn tên treo bằng dây có dòng chữ chính được gạch chân hồng, nền màu cát, chữ “Đặt tên sản phẩm”"),
     author: AUTHOR,
+    guide: "ctr-the-san-pham-thap-doi-tieu-de-anh-bia",
     related: ["anh-bia-san-pham-tiktok-shop", "san-pham-tiktok-shop-khong-co-luot-hien-thi", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -1135,6 +1148,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-anh-bia-san-pham-tiktok-shop-v1", "Minh hoạ: khung ảnh núi và mặt trời với bốn góc lấy nét và tâm ngắm màu hồng, nền xanh da trời nhạt, chữ “Ảnh bìa sản phẩm”"),
     author: AUTHOR,
+    guide: "ctr-the-san-pham-thap-doi-tieu-de-anh-bia",
     related: ["dat-ten-san-pham-tiktok-shop", "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -1191,6 +1205,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop-v1", "Minh hoạ: cây thước phía trên tờ lịch có một tuần và thêm một ngày tô hồng, nền đen, chữ “Đo trước và sau”"),
     author: AUTHOR,
+    guide: "do-ket-qua-ngay-7-ngay-14-hoan-tac",
     related: ["doanh-thu-sau-sale-tiktok-shop", "doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -1242,6 +1257,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-doanh-thu-sau-sale-tiktok-shop-v1", "Minh hoạ: tờ lịch xé ghi 11.11 với vài mảnh giấy màu, nền hồng đậm, chữ “Đọc số sau sale”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop"],
     faq: [
       {

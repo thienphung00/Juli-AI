@@ -2859,3 +2859,16 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   `shots-p49a1/`); `check.sh --since fasttrack/optimize-product --skip-migrations` OK. Keyword SERP re-check on the
   writing day not done (plan's 2026-10-18 autocomplete used).
 - Next: owner review of the drafts; P49-L end-of-post guide line for reach posts.
+
+## 2026-10-18 — orchestrator (Claude Opus) — P49-L reach → guide link; P49 merged
+
+- P49-A1 / P49-A2 merged (8 conversion drafts: C1–C5 guides, C6–C8 problem posts, each with its
+  own hero rendered in juli-content-engine). Content engine: `blog-heroes` commits d980b58,
+  c81b11c, 4a67a65; local `main` fast-forwarded to 4a67a65, not pushed.
+- P49-L: `guide` on the 16 reach posts, `guideFor()`, the neutral box line
+  "Đọc hướng dẫn liên quan" (no "Juli"), README note, 3 tests. Gates: tsc, lint, vitest 742,
+  build, check:seo 47. Owner follow-ups from the writers (not done): sample day-7 / day-14 shots
+  show a title change on a CTOR target; sample "Kéo xuống" rows do not add up to the tile;
+  /san-pham/de-xuat-va-thuc-thi lists an AOV lever and implies cover upload without the seller's
+  photo; /san-pham/do-luong-gmv describes control groups as live; /privacy states the still
+  PROPOSED retention; "500.000đ/tháng" vs "từ 500.000đ/tháng".
