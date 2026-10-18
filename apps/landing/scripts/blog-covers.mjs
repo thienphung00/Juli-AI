@@ -59,6 +59,8 @@ export const COVERS = [
   { name: "phi-san-2026-v1", category: "guide", motif: "tiles", accent: 1 },
   { name: "khach-xem-khong-mua-v1", category: "metrics", motif: "checklist", accent: 1 },
   { name: "gia-tri-don-v1", category: "metrics", motif: "bars", accent: 1 },
+  { name: "dat-ten-san-pham-v1", category: "optimize", motif: "checklist", accent: 1 },
+  { name: "anh-bia-san-pham-v1", category: "optimize", motif: "tiles", accent: 0 },
 ];
 
 const MOTIF_BY_CATEGORY = { metrics: "bars", optimize: "card", tools: "tiles", guide: "checklist" };
