@@ -61,7 +61,7 @@ describe("marker copy constants stay in seller Vietnamese", () => {
 
   it("carries digit-free unprovenanced copy — never a fabricated figure", () => {
     expect(IMPACT_PROVENANCE_UNPROVENANCED_TEXT).toBe(
-      "Chưa rõ nguồn số liệu — không hiển thị như số đo thực",
+      "Chưa rõ nguồn số liệu, không hiển thị như số đo thực",
     );
     expect(IMPACT_PROVENANCE_UNPROVENANCED_TEXT).not.toMatch(/\d/);
   });

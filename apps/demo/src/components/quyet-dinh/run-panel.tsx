@@ -378,10 +378,10 @@ function ConsentBlock({
   };
 
   const title = isPhoto
-    ? "Thay ảnh bìa — chọn rồi xác nhận"
+    ? "Thay ảnh bìa: chọn rồi xác nhận"
     : isRevert
-      ? "Khôi phục về nội dung cũ — chọn rồi xác nhận"
-      : "Juli đề xuất thay đổi sau — chọn rồi xác nhận";
+      ? "Khôi phục về nội dung cũ: chọn rồi xác nhận"
+      : "Juli đề xuất thay đổi sau: chọn rồi xác nhận";
   const confirmLabel = isPhoto ? "Xác nhận thay ảnh" : isRevert ? "Xác nhận khôi phục" : "Xác nhận thay đổi này";
 
   return (
@@ -808,7 +808,7 @@ function DonePanel({
         </a>
         {kind === "manual" ? (
           <span className="qv-done__note">
-            Không có nút Hoàn tác: muốn dừng, bạn tắt khuyến mãi trên Seller Center — Juli tự ghi nhận.
+            Không có nút Hoàn tác: muốn dừng, bạn tắt khuyến mãi trên Seller Center, Juli tự ghi nhận.
           </span>
         ) : changes && !changes.reverts_run_id && changes.changes.length > 0 ? (
           <button

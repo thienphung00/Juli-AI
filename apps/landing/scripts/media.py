@@ -237,11 +237,13 @@ MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
     "cap-pt-xep-hang-v1-1280": (0.0, 0.0, 0.6, 1.0),
     # P49-S (D59 additions 5): fresh sample-shop shots for the Juli guide posts. The v2 crops
     # come from the v2 file's own largest WebP; the v1 crops above are untouched.
-    "cap-kn-dang-nhap-v2-1280": (0.12, 0.1, 0.88, 0.82),
     "cap-kn-quet-nhanh-v2-1280": (0.07, 0.08, 0.6, 1.0),
     "cap-pt-nghen-v2-1280": (0.0, 0.38, 0.7, 1.0),
     "cap-dl-ngay-7-v2-1280": (0.0, 0.66, 0.95, 0.93),
-    "cap-dl-ngay-14-v2-1280": (0.0, 0.8, 0.75, 0.94),
+    # P49-F: recaptures after the demo copy fixes replace the v2 sign-in and day-14 entries (files
+    # removed, never referenced by a page). cap-kn-dang-nhap-m-v3 is not listed: it was cut
+    # from the 2x raw capture (box 0.08, 0.13, 0.44, 0.80), since the 1280 WebP is 1x for that shot.
+    "cap-dl-ngay-14-v3-1280": (0.0, 0.8, 0.75, 0.94),
 }
 
 #: Mobile crops are written at most this wide: ~2x of a 358 px column.

@@ -49,7 +49,7 @@ export function getClearExcessPlanReview(): PlanReviewContent {
       summary: "Lô hàng “Áo khoác gió mùa hè” · 3 thông tin",
       disclosureQuestion: "Juli dựa vào thông tin nào?",
       detailLines: [
-        "Juli đang theo dõi lô “Áo khoác gió mùa hè” — 142 đơn vị, đã tồn 68 ngày.",
+        "Juli đang theo dõi lô “Áo khoác gió mùa hè”: 142 đơn vị, đã tồn 68 ngày.",
         "Điều kiện Flash Sale chưa được kiểm tra, nên Juli chưa đưa Flash Sale vào đề xuất này.",
         "Xoá tồn kho sàn về 0 là một bước riêng ở sau, không nằm trong lần duyệt này.",
       ],

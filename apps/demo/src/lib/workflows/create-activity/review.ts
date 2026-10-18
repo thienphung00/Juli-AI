@@ -24,7 +24,7 @@ const createActivityFixture = createActivityFixtureEntry;
 export function buildCreateActivityReviewInputDefaults(): Record<string, string> {
   return {
     activity_type: "Giảm giá trực tiếp",
-    skus: "PRD-77201 — Serum dưỡng ẩm; PRD-77202 — Kem chống nắng SPF50",
+    skus: "PRD-77201: Serum dưỡng ẩm; PRD-77202: Kem chống nắng SPF50",
     discount_config: "Giảm 15% từ giá gốc",
     promotion_start_date: "2026-08-10",
     promotion_end_date: "2026-08-24",
@@ -54,7 +54,7 @@ export function getCreateActivityReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body: [
-        "Loại khuyến mãi, SKU, giá/giảm giá và cửa sổ thời gian cần shop xác nhận — không có số tiền giảm giá mặc định.",
+        "Loại khuyến mãi, SKU, giá/giảm giá và cửa sổ thời gian cần shop xác nhận, không có số tiền giảm giá mặc định.",
         "SKU được điền sẵn từ tín hiệu; shop có thể bỏ SKU không muốn tham gia.",
         "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất này chưa được xác định.",
       ].join(" "),
@@ -70,7 +70,7 @@ export function getCreateActivityReviewStages(
           key: "skus",
           label: "SKU tham gia",
           prefillValue:
-            "PRD-77201 — Serum dưỡng ẩm; PRD-77202 — Kem chống nắng SPF50",
+            "PRD-77201: Serum dưỡng ẩm; PRD-77202: Kem chống nắng SPF50",
           required: true,
           editable: true,
         },

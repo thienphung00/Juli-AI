@@ -54,7 +54,12 @@ const STAGE = {
   aov: { code: "basket", label: "Giá trị đơn hàng" },
 } as const;
 const KPI_LABEL = { ctr: "CTR - Thẻ sản phẩm", ctor: "CTOR - Thẻ sản phẩm", aov: "AOV (SKU)" } as const;
-const GMV_METHOD = "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc";
+/** Per-KPI method text, copied from the backend's `_GMV_METHOD_VI` (`demo_decisions/card_view.py`). */
+const GMV_METHOD = {
+  ctr: "lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+  ctor: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+  aov: "đơn hàng SKU × (AOV mục tiêu − AOV hiện tại), trung bình 30 ngày, ước tính theo quy tắc",
+} as const;
 
 export interface SampleCardSpec {
   readonly id: string;
@@ -128,7 +133,7 @@ export function sampleDecision(spec: SampleCardSpec, nowMs: number): P10Decision
         lever: { code: spec.lever, label: LEVER_LABEL[spec.lever], executor: EXECUTOR[spec.lever] },
         change_fields: fields,
         before_after: spec.beforeAfter ?? [],
-        gmv_method: GMV_METHOD,
+        gmv_method: GMV_METHOD[spec.kpi],
       },
     },
   };
@@ -163,7 +168,7 @@ export const SAMPLE_MAIN_CARD: SampleCardSpec = {
     { field: "description", label: "Mô tả" },
   ],
   beforeAfter: [
-    { field: "title", label: "Tiêu đề", before: "Son môi số 12", after: "Son môi lì cao cấp số 12 — màu đỏ ruby" },
+    { field: "title", label: "Tiêu đề", before: "Son môi số 12", after: "Son môi lì cao cấp số 12, màu đỏ ruby" },
     {
       field: "description",
       label: "Mô tả",
@@ -171,7 +176,7 @@ export const SAMPLE_MAIN_CARD: SampleCardSpec = {
       after: "640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản, thêm từ khoá “son lì”, “đỏ ruby”",
     },
   ],
-  proposal: { title: "Son môi lì cao cấp số 12 — màu đỏ ruby", description: SON_MOI_DESCRIPTION },
+  proposal: { title: "Son môi lì cao cấp số 12, màu đỏ ruby", description: SON_MOI_DESCRIPTION },
   keywords: "Tìm được 6 từ khoá: son lì, đỏ ruby…",
 };
 
@@ -332,7 +337,7 @@ export function listingUntilConsent(spec: SampleCardSpec, expiresAt: string): Ev
     ...tool("c0", "get_product_diagnoses", code ?? NO_TIKTOK_FLAG_SUMMARY),
     ...tool("c1", "get_product_information", "Hoàn tất"),
     ...tool("c2", "get_seo_keywords", spec.keywords ?? `Tìm được 4 từ khoá cho ${spec.name}`),
-    ...tool("c3", "inspect_product_image", "Ảnh bìa đạt chuẩn — không đổi"),
+    ...tool("c3", "inspect_product_image", "Ảnh bìa đạt chuẩn, không đổi"),
     approval("w1", "update_product_listing", change, expiresAt, "Đủ ý, dễ đọc"),
   ];
 }
@@ -404,7 +409,7 @@ export function finishedListingEvents(runId: string, nowMs: number, daysAgo: num
     ...tool("c0", "get_product_diagnoses", NO_TIKTOK_FLAG_SUMMARY),
     ...tool("c1", "get_product_information", "Hoàn tất"),
     ...tool("c2", "get_seo_keywords", "Tìm được 4 từ khoá: toner rau má, cấp ẩm…"),
-    ...tool("c3", "inspect_product_image", "Ảnh bìa đạt chuẩn — không đổi"),
+    ...tool("c3", "inspect_product_image", "Ảnh bìa đạt chuẩn, không đổi"),
     approval("w1", "update_product_listing", change, new Date(start + 4 * HOUR_MS).toISOString(), "Thêm từ khoá"),
     ...writeAndReview("w1", "Đã ghi Tiêu đề · giá trị cũ đã lưu", "Phiên bản mới đã được duyệt").flat(),
   ];
@@ -452,7 +457,7 @@ export function sampleRules(): ShopRules {
     default_max_discount_pct: band(15),
     program_fee_pct: band(4),
     joins_platform_campaigns: band(true),
-    platform_campaign_note: band("11.11 — giảm 15 % cho Kem dưỡng ẩm ceramide"),
+    platform_campaign_note: band("11.11, giảm 15 % cho Kem dưỡng ẩm ceramide"),
     target_roas: band(6),
     gmv_max_daily_budget: band(500_000),
     live_schedule: band([{ days: ["tue", "thu"], start: "20:00", end: "22:00" }]),
@@ -553,7 +558,9 @@ export function sampleSimulatedMeasurement(base: Measurement, stage: "day7" | "f
         ? "—"
         : band.unit === "ratio"
           ? `${pct(band.low)} – ${pct(band.high)}`
-          : `${Math.round(band.low).toLocaleString("vi-VN")} – ${Math.round(band.high).toLocaleString("vi-VN")}`,
+          : band.unit === "vnd"
+            ? `${Math.round(band.low / 1000)}k – ${Math.round(band.high / 1000)}k ₫`
+            : `${Math.round(band.low).toLocaleString("vi-VN")} – ${Math.round(band.high).toLocaleString("vi-VN")}`,
     actual: band.before,
     verdict: "Giữ ổn định",
     tone: "muted" as const,

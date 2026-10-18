@@ -51,7 +51,7 @@ export function getDeleteActivityReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body: [
-        "Chương trình khuyến mãi đã biết được tải sẵn — không hỗ trợ tìm kiếm chương trình khuyến mãi.",
+        "Chương trình khuyến mãi đã biết được tải sẵn, không hỗ trợ tìm kiếm chương trình khuyến mãi.",
         "Kết thúc chương trình không có cấu hình thêm ngoài xác nhận rõ ràng của shop.",
         "Nếu chương trình đã ngừng, bước kết thúc sẽ không thay đổi gì thêm.",
       ].join(" "),
@@ -59,7 +59,7 @@ export function getDeleteActivityReviewStages(
         {
           key: "activity_id",
           label: "Chương trình khuyến mãi",
-          prefillValue: "ACT-7720 — Giảm giá trực tiếp mùa hè (đang hoạt động)",
+          prefillValue: "ACT-7720: Giảm giá trực tiếp mùa hè (đang hoạt động)",
           required: true,
           editable: false,
         },

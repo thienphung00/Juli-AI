@@ -23,13 +23,13 @@ export const defaultClearExcessAnalyticsMetricKey = "aov";
 
 export function buildClearExcessReviewInputDefaults(): Record<string, string> {
   return {
-    skus: "SKU-AKG-001 — Áo khoác gió mùa hè (142 đơn vị, 68 ngày tồn)",
+    skus: "SKU-AKG-001: Áo khoác gió mùa hè (142 đơn vị, 68 ngày tồn)",
     markdown_baseline: "30",
     activity_type: "Giảm giá trực tiếp",
     promotion_start_date: "2026-08-07",
     promotion_end_date: "2026-08-21",
-    flash_sale_eligibility: "Chưa kiểm tra — chờ xác minh điều kiện thật",
-    zero_floor_stock_ack: "Bước sau — chưa duyệt trước khi xả hàng",
+    flash_sale_eligibility: "Chưa kiểm tra, chờ xác minh điều kiện thật",
+    zero_floor_stock_ack: "Bước sau, chưa duyệt trước khi xả hàng",
   };
 }
 
@@ -58,11 +58,11 @@ export function getClearExcessReviewStages(
       title: "Thông tin cần xác nhận",
       body: [
         "SKU mặc định theo tín hiệu; shop có thể bỏ SKU không muốn xả.",
-        "Giảm giá cơ sở và loại khuyến mãi không có giá trị số mặc định — cần shop nhập sau khi xem dữ liệu thật.",
+        "Giảm giá cơ sở và loại khuyến mãi không có giá trị số mặc định, cần shop nhập sau khi xem dữ liệu thật.",
         "Cửa sổ khuyến mãi cần ngày bắt đầu và kết thúc rõ ràng.",
-        "Flash Sale chỉ chọn được sau khi có kết quả kiểm tra điều kiện thật — Demo hiển thị trạng thái chờ kiểm tra, không giả lập đủ điều kiện.",
+        "Flash Sale chỉ chọn được sau khi có kết quả kiểm tra điều kiện thật, Demo hiển thị trạng thái chờ kiểm tra, không giả lập đủ điều kiện.",
         "Ngưỡng tốc độ quay vòng/tuổi hàng để kích hoạt đề xuất này chưa được xác định.",
-        "Xoá tồn kho sàn về 0 là bước sau, không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế, không được duyệt ngầm ở bước này.",
+        "Xoá tồn kho sàn về 0 là bước sau, không thể hoàn tác, chỉ thực hiện sau khi có xác nhận thực tế, không được duyệt ngầm ở bước này.",
       ].join("\n\n"),
       inputFields: [
         {

@@ -249,7 +249,7 @@ function measuredTerminalDetail(day7: string | null, day14: string | null): stri
 
 function endedDetail(stopReason: string): string {
   if (stopReason === "concurrency_conflict") {
-    return "Trường này đã bị thay đổi bên ngoài sau khi Juli ghi — Juli không ghi đè.";
+    return "Trường này đã bị thay đổi bên ngoài sau khi Juli ghi, Juli không ghi đè.";
   }
   const key = resolveRunTerminalState(stopReason);
   return (key ? RUN_TERMINAL_STATE_COPY[key] : RUN_TERMINAL_STATE_UNKNOWN_COPY).body;
@@ -502,7 +502,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
       case "revertCheck": {
         if (conflict) {
           const fields = (options.revertFieldLabels ?? []).join(", ") || "Nội dung";
-          rows.push(pseudo(spec, "tool", "failed", terminal?.at ?? null, `${fields} đã bị sửa ngoài Juli — dừng`));
+          rows.push(pseudo(spec, "tool", "failed", terminal?.at ?? null, `${fields} đã bị sửa ngoài Juli, dừng`));
         } else if (consentEvent || assigned.has("write") || (ended && terminal?.kind === "completed")) {
           rows.push(pseudo(spec, "tool", "done", consentEvent?.at ?? null, STEP_COPY.revertNoConflict));
         } else if (assigned.has("read") && !ended) {

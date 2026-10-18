@@ -65,7 +65,7 @@ export function getPreventCancellationReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body:
-        "Mã yêu cầu/đơn và điều kiện là chỉ đọc. Shop phải chọn Duyệt hoặc Từ chối — không có mặc định. Lý do từ chối lấy từ danh sách chính thức, không tự điền.",
+        "Mã yêu cầu/đơn và điều kiện là chỉ đọc. Shop phải chọn Duyệt hoặc Từ chối, không có mặc định. Lý do từ chối lấy từ danh sách chính thức, không tự điền.",
       inputFields: [
         {
           key: "cancel_id",

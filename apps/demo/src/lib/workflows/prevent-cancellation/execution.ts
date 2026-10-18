@@ -61,7 +61,7 @@ export function createPreventCancellationTimeline(): ExecutionTimelineStep[] {
         "Shop chọn Duyệt hoặc Từ chối; Từ chối bắt buộc có lý do.",
       status: "pending",
       recoveryText:
-        "Thiếu lý do từ chối — quay lại bước lấy lý do và nhập lại.",
+        "Thiếu lý do từ chối, quay lại bước lấy lý do và nhập lại.",
     },
     {
       id: "approve-cancellation",
@@ -93,7 +93,7 @@ export function createPreventCancellationTimeline(): ExecutionTimelineStep[] {
         "Webhook #11 xác nhận trạng thái cuối; timeout thì làm mới yêu cầu, không tuyên bố thành công.",
       status: "pending",
       recoveryText:
-        "Làm mới yêu cầu huỷ đơn sau timeout webhook — không xác nhận hoàn tất sớm.",
+        "Làm mới yêu cầu huỷ đơn sau timeout webhook, không xác nhận hoàn tất sớm.",
     },
     {
       id: "cancellation-outcome",
@@ -101,7 +101,7 @@ export function createPreventCancellationTimeline(): ExecutionTimelineStep[] {
       kind: "outcome",
       title: "Đã duyệt / từ chối / hết hạn / thất bại",
       description:
-        "Giữ hàng chờ quyết định được giải phóng tự động — không gọi Update Inventory. Không hoàn tác sau từ chối cuối.",
+        "Giữ hàng chờ quyết định được giải phóng tự động, không gọi Update Inventory. Không hoàn tác sau từ chối cuối.",
       status: "pending",
       recoveryText:
         "Không có rollback tồn kho; chỉ hiển thị trạng thái cuối từ TikTok.",

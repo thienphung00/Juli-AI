@@ -51,7 +51,7 @@ export function createPreventReturnTimeline(): ExecutionTimelineStep[] {
       description:
         "Webhook #65 chờ giai đoạn vật lý bắt buộc; thiếu RMA thì chờ rõ ràng.",
       status: "pending",
-      recoveryText: "Giữ trạng thái chờ khi thiếu RMA — không bịa hoàn tất.",
+      recoveryText: "Giữ trạng thái chờ khi thiếu RMA, không bịa hoàn tất.",
     },
     {
       id: "review-aftersales",
@@ -77,7 +77,7 @@ export function createPreventReturnTimeline(): ExecutionTimelineStep[] {
       description:
         "Shop chọn Duyệt hoặc Từ chối; Từ chối bắt buộc có lý do.",
       status: "pending",
-      recoveryText: "Thiếu lý do từ chối — chặn gửi và quay lại nhập.",
+      recoveryText: "Thiếu lý do từ chối, chặn gửi và quay lại nhập.",
     },
     {
       id: "approve-return",
@@ -116,11 +116,11 @@ export function createPreventReturnTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Cập nhật tồn kho FBS (nhập lại kho)",
       description:
-        "Chỉ nhập lại số lượng FBS đã kiểm tra còn bán được — không tự động nhập lại. FBT intake (prevent_return_8b_fbt) không có bước seller Update Inventory.",
+        "Chỉ nhập lại số lượng FBS đã kiểm tra còn bán được, không tự động nhập lại. FBT intake (prevent_return_8b_fbt) không có bước seller Update Inventory.",
       status: "pending",
       recoveryText:
         "Giữ kết quả kiểm tra khi nhập kho thất bại; quyết định trả hàng không bị rollback.",
-      errorText: "Nhập lại kho thất bại — giữ số lượng đã kiểm tra.",
+      errorText: "Nhập lại kho thất bại, giữ số lượng đã kiểm tra.",
     },
     {
       id: "get-return-records",
@@ -139,7 +139,7 @@ export function createPreventReturnTimeline(): ExecutionTimelineStep[] {
         "Webhook #12 xác nhận trạng thái cuối; timeout thì làm mới, không bịa hoàn tất.",
       status: "pending",
       recoveryText:
-        "Làm mới bản ghi trả hàng sau timeout — không tuyên bố hoàn tất sớm.",
+        "Làm mới bản ghi trả hàng sau timeout, không tuyên bố hoàn tất sớm.",
     },
     {
       id: "return-outcome",

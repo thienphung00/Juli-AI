@@ -36,17 +36,17 @@ export const EXECUTOR_COPY: Readonly<Record<LeverExecutor, { chip: string; after
     chip: "Juli tự cập nhật sau khi bạn xác nhận",
     after: "Duyệt → lượt chạy → bạn xác nhận trước → sau → Juli ghi.",
     notice:
-      "Đã tạo lượt chạy. Juli đọc chẩn đoán TikTok và soạn nội dung — bạn xác nhận lần cuối trước khi Juli ghi lên TikTok Shop.",
+      "Đã tạo lượt chạy. Juli đọc chẩn đoán TikTok và soạn nội dung. Bạn xác nhận lần cuối trước khi Juli ghi lên TikTok Shop.",
   },
   juli_with_photo: {
-    chip: "Juli tải lên — cần ảnh từ bạn",
+    chip: "Juli tải lên · cần ảnh từ bạn",
     after: "Duyệt → Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.",
     notice: "Đã tạo lượt chạy. Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.",
   },
   juli_drafts: {
     chip: "Juli soạn · bạn làm",
     after: "Duyệt → Juli đọc số liệu và soạn kịch bản → bạn chọn → bạn quay hoặc LIVE → Juli đo.",
-    notice: "Đã tạo lượt chạy. Juli đọc số liệu và soạn kịch bản — bạn xem, chọn rồi quay hoặc LIVE.",
+    notice: "Đã tạo lượt chạy. Juli đọc số liệu và soạn kịch bản. Bạn xem, chọn rồi quay hoặc LIVE.",
   },
   seller_center: {
     chip: "Bạn thực hiện trên Seller Center",

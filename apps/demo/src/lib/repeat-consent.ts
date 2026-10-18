@@ -82,7 +82,7 @@ const REPEAT_CONSENT_RULES: Record<string, RepeatConsentRule> = {
     eligible: false,
     // Not a copy promise: the MVP upload exception requires seller-supplied
     // photos, so an unattended run has nothing to upload.
-    note: "Cần ảnh do shop cung cấp — không thể chạy khi thiếu ảnh.",
+    note: "Cần ảnh do shop cung cấp, không thể chạy khi thiếu ảnh.",
   },
   optimize_product_2: { eligible: true, note: "" },
   // gitleaks:allow — documented mock workflow key
@@ -92,7 +92,7 @@ const REPEAT_CONSENT_RULES: Record<string, RepeatConsentRule> = {
   },
   clear_excess_4: {
     eligible: false,
-    note: "không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế",
+    note: "không thể hoàn tác, chỉ thực hiện sau khi có xác nhận thực tế",
   },
   process_order_5: { eligible: true, note: "" },
   create_activity_7a: {
@@ -293,13 +293,13 @@ export const REPEAT_CONSENT_COPY = {
   grantedTitle: "Bạn đã cho phép Juli tự làm việc này",
   grantedTerms: [
     "Lần sau gặp lại đúng việc này, Juli tự làm mà không cần hỏi bạn trước.",
-    "Xong mỗi lần, Juli đều báo lại cho bạn — không có lần nào Juli làm mà bạn không biết.",
+    "Xong mỗi lần, Juli đều báo lại cho bạn, không có lần nào Juli làm mà bạn không biết.",
     "Chỉ áp dụng cho đúng loại việc này, không áp dụng cho việc khác.",
     "Bạn thu hồi được bất cứ lúc nào, và có hiệu lực ngay.",
   ],
   /** The notification line, also present in `grantedTerms`. */
   notificationTerm:
-    "Xong mỗi lần, Juli đều báo lại cho bạn — không có lần nào Juli làm mà bạn không biết.",
+    "Xong mỗi lần, Juli đều báo lại cho bạn, không có lần nào Juli làm mà bạn không biết.",
   withdrawLabel: "Thu hồi quyền này",
 
   withdrawnNotice:

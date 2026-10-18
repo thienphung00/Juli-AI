@@ -18,7 +18,7 @@ import type { PlanCaveat } from "../lib/plan-caveats";
  * each — the card must apply the rule from the class, never from the string.
  */
 const THRESHOLD_TEXT =
-  "Ngưỡng chính xác để tạo đề xuất này chưa được xác định — Juli không tự suy diễn con số này.";
+  "Ngưỡng chính xác để tạo đề xuất này chưa được xác định, Juli không tự suy diễn con số này.";
 const FULFILMENT_TEXT =
   "Luồng giao hàng do TikTok quản lý cho luồng này chưa được hỗ trợ.";
 const FEATURE_TEXT =

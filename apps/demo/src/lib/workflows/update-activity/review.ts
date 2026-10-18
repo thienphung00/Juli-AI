@@ -25,7 +25,7 @@ export function buildUpdateActivityReviewInputDefaults(): Record<string, string>
   return {
     activity_id: "ACT-8842",
     activity_type: "Flash Sale",
-    skus: "PRD-77201 — Serum dưỡng ẩm",
+    skus: "PRD-77201: Serum dưỡng ẩm",
     discount_config: "Giảm 25% từ giá gốc",
     promotion_start_date: "2026-08-12",
     promotion_end_date: "2026-08-19",
@@ -55,15 +55,15 @@ export function getUpdateActivityReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body: [
-        "Chương trình khuyến mãi đã biết được tải sẵn — không hỗ trợ tìm kiếm chương trình khuyến mãi.",
-        "Loại khuyến mãi, SKU, giá/giảm giá và cửa sổ thời gian cần shop xác nhận — không có số tiền giảm giá mặc định.",
+        "Chương trình khuyến mãi đã biết được tải sẵn, không hỗ trợ tìm kiếm chương trình khuyến mãi.",
+        "Loại khuyến mãi, SKU, giá/giảm giá và cửa sổ thời gian cần shop xác nhận, không có số tiền giảm giá mặc định.",
         "Cập nhật cấu hình khuyến mãi phụ thuộc môi trường đã đăng ký thông báo thay đổi.",
       ].join(" "),
       inputFields: [
         {
           key: "activity_id",
           label: "Chương trình khuyến mãi",
-          prefillValue: "ACT-8842 — Flash Sale chăm sóc da (đang hoạt động)",
+          prefillValue: "ACT-8842: Flash Sale chăm sóc da (đang hoạt động)",
           required: true,
           editable: false,
         },
@@ -77,7 +77,7 @@ export function getUpdateActivityReviewStages(
         {
           key: "skus",
           label: "SKU tham gia",
-          prefillValue: "PRD-77201 — Serum dưỡng ẩm",
+          prefillValue: "PRD-77201: Serum dưỡng ẩm",
           required: true,
           editable: true,
         },

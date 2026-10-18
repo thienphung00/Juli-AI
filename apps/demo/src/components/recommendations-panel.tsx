@@ -15,7 +15,7 @@ import { REPLAY_SCENARIO_RUN_ID } from "../lib/run-surface/replay-scenario";
 import { useDemoState } from "./demo-state";
 
 const APPROVE_DISABLED_REASON =
-  "Duyệt: luồng xem trước và điền thông tin trước khi thực thi chưa có trong Demo này — sẽ ra mắt ở bản cập nhật tiếp theo.";
+  "Duyệt: luồng xem trước và điền thông tin trước khi thực thi chưa có trong Demo này, sẽ ra mắt ở bản cập nhật tiếp theo.";
 
 interface RecommendationsPanelProps {
   initialLoadState?: "ready" | "error";

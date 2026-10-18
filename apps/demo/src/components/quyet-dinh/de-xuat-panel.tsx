@@ -390,7 +390,7 @@ function RulesChips({ rules, onOpenRules }: { readonly rules: ShopRules | null; 
       </h2>
       <p className="qv-side__text">Juli không tự chọn các con số này.</p>
       {chips.length === 0 ? (
-        <p className="qv-side__text">Chưa đặt quy tắc nào — Juli dùng mặc định.</p>
+        <p className="qv-side__text">Chưa đặt quy tắc nào, Juli dùng mặc định.</p>
       ) : (
         <ul className="qv-side__chips">
           {chips.map((chip) => (

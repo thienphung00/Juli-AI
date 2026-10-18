@@ -50,7 +50,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
         "Tải trạng thái hiện tại, loại fulfillment/vận chuyển và địa chỉ đã che mặt.",
       status: "pending",
       recoveryText:
-        "Cập nhật địa chỉ làm lỗi thời snapshot trước đó — tải lại chi tiết đơn.",
+        "Cập nhật địa chỉ làm lỗi thời snapshot trước đó, tải lại chi tiết đơn.",
     },
     {
       id: "address-stability-wait",
@@ -61,7 +61,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
         "Nếu webhook cập nhật địa chỉ (#3) kích hoạt thì quay lại bước chi tiết đơn.",
       status: "pending",
       recoveryText:
-        "Địa chỉ thay đổi — quay lại chi tiết đơn trước khi tiếp tục đóng gói.",
+        "Địa chỉ thay đổi, quay lại chi tiết đơn trước khi tiếp tục đóng gói.",
     },
     {
       id: "awaiting-shipment-wait",
@@ -72,7 +72,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
         "Webhook trạng thái đơn (#1) phải chuyển ON_HOLD sang AWAITING_SHIPMENT; không tạo/giao khi còn tạm giữ.",
       status: "pending",
       recoveryText:
-        "Đơn vẫn tạm giữ — làm mới trạng thái mà không bỏ qua điều kiện chờ.",
+        "Đơn vẫn tạm giữ, làm mới trạng thái mà không bỏ qua điều kiện chờ.",
     },
     {
       id: "ready-to-pack",
@@ -89,7 +89,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Lấy thuộc tính tách gói",
       description:
-        "Chỉ chạy khi ràng buộc đóng gói yêu cầu — tải ràng buộc nhóm gói được phép.",
+        "Chỉ chạy khi ràng buộc đóng gói yêu cầu, tải ràng buộc nhóm gói được phép.",
       status: "pending",
       recoveryText:
         "Bỏ qua toàn bộ luồng tách/gộp khi không cần thiết trước bước tạo gói.",
@@ -111,7 +111,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Tách đơn hàng",
       description:
-        "Chỉ chạy khi shop duyệt tách — tạo các nhóm gói đã được duyệt.",
+        "Chỉ chạy khi shop duyệt tách, tạo các nhóm gói đã được duyệt.",
       status: "pending",
       recoveryText: "Điều chỉnh nhóm tách rồi thử lại khi TikTok từ chối nhóm.",
     },
@@ -121,7 +121,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Tìm gói có thể gộp",
       description:
-        "Chỉ liệt kê các gói khớp có thẩm quyền — bỏ qua khi không gộp.",
+        "Chỉ liệt kê các gói khớp có thẩm quyền, bỏ qua khi không gộp.",
       status: "pending",
     },
     {
@@ -130,7 +130,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Gộp gói",
       description:
-        "Gộp các gói tương thích đã chọn — bỏ qua khi shop chọn không gộp.",
+        "Gộp các gói tương thích đã chọn, bỏ qua khi shop chọn không gộp.",
       status: "pending",
       recoveryText: "Thử lại chỉ các gói bị lỗi; giữ gói đã gộp thành công.",
     },
@@ -140,7 +140,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Bỏ gộp gói",
       description:
-        "Hoàn tác một tổ hợp đã chọn — bỏ qua khi không cần bỏ gộp.",
+        "Hoàn tác một tổ hợp đã chọn, bỏ qua khi không cần bỏ gộp.",
       status: "pending",
     },
     {
@@ -152,7 +152,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
         "Webhook cập nhật gói (#4) xác nhận mutation trước bước tạo gói cuối.",
       status: "pending",
       recoveryText:
-        "Làm mới thủ công khi webhook quá hạn — không bỏ qua xác nhận mutation.",
+        "Làm mới thủ công khi webhook quá hạn, không bỏ qua xác nhận mutation.",
     },
     {
       id: "create-packages",
@@ -171,11 +171,11 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Lấy tài liệu vận chuyển gói",
       description:
-        "Chỉ nhánh Ship by TikTok — tải pick list/nhãn; bỏ qua toàn bộ bước này với Ship by Seller.",
+        "Chỉ nhánh Ship by TikTok, tải pick list/nhãn; bỏ qua toàn bộ bước này với Ship by Seller.",
       status: "pending",
       recoveryText:
         "Thử lại tài liệu cho gói bị lỗi; không yêu cầu nhãn TikTok với Ship by Seller.",
-      errorText: "Tải tài liệu vận chuyển thất bại — thử lại gói bị lỗi.",
+      errorText: "Tải tài liệu vận chuyển thất bại, thử lại gói bị lỗi.",
     },
     {
       id: "own-carrier-ready",
@@ -183,7 +183,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "outcome",
       title: "Sẵn sàng vận chuyển tự giao",
       description:
-        "Chỉ nhánh Ship by Seller — bỏ qua tài liệu TikTok; yêu cầu mã vận đơn và mã nhà vận chuyển.",
+        "Chỉ nhánh Ship by Seller, bỏ qua tài liệu TikTok; yêu cầu mã vận đơn và mã nhà vận chuyển.",
       status: "pending",
       recoveryText:
         "Quay lại nhập mã vận đơn/nhà vận chuyển khi xác thực thất bại.",
@@ -194,7 +194,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Giao gói (Ship by TikTok)",
       description:
-        "Giao một gói hoặc dùng Batch Ship Packages cho lô nhiều gói đã duyệt — loại trừ nhánh Ship by Seller.",
+        "Giao một gói hoặc dùng Batch Ship Packages cho lô nhiều gói đã duyệt, loại trừ nhánh Ship by Seller.",
       status: "pending",
       recoveryText:
         "Thử lại từng gói bị lỗi trong lô; hiển thị kết quả từng phần khi batch một phần thành công.",
@@ -205,7 +205,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Giao lô tự vận chuyển",
       description:
-        "Chỉ nhánh Ship by Seller — gửi self_shipment với tracking và provider ID; loại trừ Ship by TikTok.",
+        "Chỉ nhánh Ship by Seller, gửi self_shipment với tracking và provider ID; loại trừ Ship by TikTok.",
       status: "pending",
       recoveryText:
         "Quay lại nhập tracking/provider khi xác thực thất bại; thử lại gói bị lỗi trong lô.",
@@ -218,7 +218,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
       description: "Đồng bộ qua Supply Chain API sau khi giao.",
       status: "pending",
       recoveryText:
-        "Không tuyên bố hoàn tác giao hàng khi xác nhận thất bại — thử lại idempotent.",
+        "Không tuyên bố hoàn tác giao hàng khi xác nhận thất bại, thử lại idempotent.",
     },
     {
       id: "get-package-detail",
@@ -237,7 +237,7 @@ export function createProcessOrderTimeline(): ExecutionTimelineStep[] {
         "Hiển thị kết quả từng gói và bước khôi phục tiếp theo; không có hoàn tác gói đã giao.",
       status: "pending",
       recoveryText:
-        "Một phần gói thất bại — xem kết quả từng gói và thử lại khôi phục được.",
+        "Một phần gói thất bại, xem kết quả từng gói và thử lại khôi phục được.",
     },
   ];
 }

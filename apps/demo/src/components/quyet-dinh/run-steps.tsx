@@ -70,7 +70,7 @@ export function StepList({
                     <span className={`qv-who-tag qv-who-tag--${row.who}`}>{row.who === "you" ? "Bạn" : "Juli"}</span>
                   </>
                 ) : null}
-                <span className="qv-sr"> — {STATUS_TEXT[row.status]}</span>
+                <span className="qv-sr">, {STATUS_TEXT[row.status]}</span>
               </span>
               <span className="qv-step__result">{row.result ?? ""}</span>
             </div>

@@ -325,7 +325,7 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
       return {
         tone: "warn",
         title: `Không đạt: ${metric} ${actualMetric === null ? "—" : fmt(actualMetric)}${lower}`,
-        body: "Juli đề xuất hoàn tác về nội dung cũ. Bạn quyết định — Juli không tự hoàn tác.",
+        body: "Juli đề xuất hoàn tác về nội dung cũ. Bạn quyết định, Juli không tự hoàn tác.",
         next: "Xem đề xuất khác cho sản phẩm này ›",
         offerRevert: true,
       };

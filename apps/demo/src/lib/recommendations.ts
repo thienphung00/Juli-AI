@@ -83,7 +83,7 @@ export const recommendationFixtures = [
       },
       {
         label: "Ảnh chính",
-        change: "Bạn cung cấp ảnh — Juli không tự chọn ảnh thay bạn",
+        change: "Bạn cung cấp ảnh, Juli không tự chọn ảnh thay bạn",
         kind: "keep",
       },
     ],
@@ -105,7 +105,7 @@ export const recommendationFixtures = [
     eligibility:
       "Cần shop đã được xác thực, khả năng tạo sản phẩm, danh mục xác định được, đủ thuộc tính/nhãn hiệu/hình ảnh bắt buộc, và một kho FBS được gán.",
     knownLimits:
-      "Ngưỡng chính xác để phát hiện khoảng trống danh mục chưa được xác định — Juli không tự suy diễn con số này. Luồng FBT (giao hàng do TikTok quản lý) cho sản phẩm mới chưa được hỗ trợ.",
+      "Ngưỡng chính xác để phát hiện khoảng trống danh mục chưa được xác định, Juli không tự suy diễn con số này. Luồng FBT (giao hàng do TikTok quản lý) cho sản phẩm mới chưa được hỗ trợ.",
     risks:
       "Nếu thiếu thuộc tính hoặc nhãn hiệu bắt buộc, sản phẩm sẽ cần bổ sung thông tin trước khi có thể tạo.",
   },
@@ -116,7 +116,7 @@ export const recommendationFixtures = [
       {
         label: "Tiêu đề SEO",
         change:
-          "“Son môi số 12” → “Son môi lì cao cấp số 12 — màu đỏ ruby”",
+          "“Son môi số 12” → “Son môi lì cao cấp số 12, màu đỏ ruby”",
         kind: "change",
       },
       {
@@ -126,7 +126,7 @@ export const recommendationFixtures = [
       },
       {
         label: "Giá bán",
-        change: "Giữ nguyên 159.000 ₫ — trong giới hạn lợi nhuận của bạn",
+        change: "Giữ nguyên 159.000 ₫, trong giới hạn lợi nhuận của bạn",
         kind: "keep",
       },
     ],
@@ -162,7 +162,7 @@ export const recommendationFixtures = [
       },
       {
         label: "Giá bán",
-        change: "Giữ nguyên — chỉ nhập thêm hàng",
+        change: "Giữ nguyên, chỉ nhập thêm hàng",
         kind: "keep",
       },
     ],
@@ -183,7 +183,7 @@ export const recommendationFixtures = [
     eligibility:
       "Cần một SKU đã xác thực, kho FBS xác định, số liệu tồn kho hiện tại, và số lượng đặt hàng lại được duyệt.",
     knownLimits:
-      "Ngưỡng hết hàng chính xác, khoảng thời gian dự báo, và hợp đồng với nhà cung cấp/ERP chưa được xác định — luồng FBT (giao hàng do TikTok quản lý) cho việc nhập hàng cũng chưa được hỗ trợ.",
+      "Ngưỡng hết hàng chính xác, khoảng thời gian dự báo, và hợp đồng với nhà cung cấp/ERP chưa được xác định, luồng FBT (giao hàng do TikTok quản lý) cho việc nhập hàng cũng chưa được hỗ trợ.",
     risks:
       "Việc cập nhật tồn kho cần xác nhận số lượng nhận hàng thực tế trước khi ghi nhận.",
   },
@@ -222,7 +222,7 @@ export const recommendationFixtures = [
     knownLimits:
       "Ngưỡng tốc độ quay vòng/tuổi hàng chính xác để kích hoạt đề xuất này chưa được xác định. Juli không tự suy diễn kết quả đủ điều kiện Flash Sale.",
     risks:
-      "Việc xoá tồn kho về 0 là bước không thể hoàn tác — chỉ thực hiện sau khi có xác nhận thực tế.",
+      "Việc xoá tồn kho về 0 là bước không thể hoàn tác, chỉ thực hiện sau khi có xác nhận thực tế.",
   },
   {
     workflowKey: "process_order_5",
@@ -257,7 +257,7 @@ export const recommendationFixtures = [
     eligibility:
       "Cần đơn hàng FBS đã xác thực, địa chỉ đầy đủ, trạng thái chờ giao hàng, và thông tin vận chuyển/lấy hàng hợp lệ.",
     knownLimits:
-      "Ngưỡng thời gian chính xác để tạo đề xuất này chưa được xác định. Luồng giao hàng do TikTok quản lý chưa được hỗ trợ — không thể tạo lô hàng, tạo nhãn vận chuyển, chia lô, hoặc hoàn tất cho đến khi TikTok cung cấp API hỗ trợ.",
+      "Ngưỡng thời gian chính xác để tạo đề xuất này chưa được xác định. Luồng giao hàng do TikTok quản lý chưa được hỗ trợ, không thể tạo lô hàng, tạo nhãn vận chuyển, chia lô, hoặc hoàn tất cho đến khi TikTok cung cấp API hỗ trợ.",
     risks:
       "Không thể tạo hoặc giao lô hàng khi đơn đang ở trạng thái tạm giữ; thông tin khách hàng chỉ hiển thị ở mức tối thiểu cần thiết.",
   },
@@ -272,7 +272,7 @@ export const recommendationFixtures = [
       },
       {
         label: "Mức giảm giá",
-        change: "Bạn quyết định — Juli không tự điền số tiền giảm",
+        change: "Bạn quyết định, Juli không tự điền số tiền giảm",
         kind: "keep",
       },
     ],
@@ -294,9 +294,9 @@ export const recommendationFixtures = [
     eligibility:
       "Cần shop đã xác thực, SKU/giá đã biết, và đủ điều kiện chạy khuyến mãi.",
     knownLimits:
-      "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất này chưa được xác định. Việc tìm chương trình khuyến mãi hiện có theo từ khoá chưa được hỗ trợ — cập nhật/kết thúc chương trình chỉ áp dụng cho một `activity_id` đã biết (nhánh update_activity_7c/delete_activity_7b). Luồng giao hàng do TikTok quản lý cho khuyến mãi chưa được hỗ trợ — không thể suy diễn tính nhất quán từ giao hàng của shop.",
+      "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất này chưa được xác định. Việc tìm chương trình khuyến mãi hiện có theo từ khoá chưa được hỗ trợ, cập nhật/kết thúc chương trình chỉ áp dụng cho một `activity_id` đã biết (nhánh update_activity_7c/delete_activity_7b). Luồng giao hàng do TikTok quản lý cho khuyến mãi chưa được hỗ trợ, không thể suy diễn tính nhất quán từ giao hàng của shop.",
     risks:
-      "Không có số tiền giảm giá hoặc tác động nào được tự suy diễn — mọi thay đổi cần shop xác nhận trước khi gửi.",
+      "Không có số tiền giảm giá hoặc tác động nào được tự suy diễn, mọi thay đổi cần shop xác nhận trước khi gửi.",
   },
   {
     workflowKey: "update_activity_7c",
@@ -318,7 +318,7 @@ export const recommendationFixtures = [
       'Chương trình "Flash Sale chăm sóc da" (ACT-8842) cần điều chỉnh SKU hoặc cửa sổ khuyến mãi.',
     expectedImpactLabel: "—",
     reasoning:
-      "Chương trình khuyến mãi đang hoạt động nhưng hiệu suất chưa đạt kỳ vọng — cần cập nhật cấu hình hoặc sản phẩm tham gia.",
+      "Chương trình khuyến mãi đang hoạt động nhưng hiệu suất chưa đạt kỳ vọng, cần cập nhật cấu hình hoặc sản phẩm tham gia.",
     sellerReason:
       "Điều chỉnh chương trình đang chạy có thể cải thiện hiệu suất bán.",
     evidence:
@@ -326,9 +326,9 @@ export const recommendationFixtures = [
     eligibility:
       "Cần shop đã xác thực, activity_id đã biết, SKU/giá hợp lệ, và đủ điều kiện cập nhật khuyến mãi.",
     knownLimits:
-      "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất cập nhật này chưa được xác định. Tìm kiếm chương trình khuyến mãi không khả dụng — chỉ cập nhật theo activity_id đã biết. Thông báo cập nhật chương trình khuyến mãi (#63) được đăng ký nhưng hỗ trợ hiển thị chưa xác định nếu môi trường chưa sẵn sàng. Luồng giao hàng do TikTok quản lý cho khuyến mãi chưa được hỗ trợ.",
+      "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất cập nhật này chưa được xác định. Tìm kiếm chương trình khuyến mãi không khả dụng, chỉ cập nhật theo activity_id đã biết. Thông báo cập nhật chương trình khuyến mãi (#63) được đăng ký nhưng hỗ trợ hiển thị chưa xác định nếu môi trường chưa sẵn sàng. Luồng giao hàng do TikTok quản lý cho khuyến mãi chưa được hỗ trợ.",
     risks:
-      "TikTok có thể từ chối cập nhật theo trường hoặc SKU — cần chỉnh lại đầu vào, không tự gửi lại.",
+      "TikTok có thể từ chối cập nhật theo trường hoặc SKU, cần chỉnh lại đầu vào, không tự gửi lại.",
   },
   {
     workflowKey: "delete_activity_7b",
@@ -351,7 +351,7 @@ export const recommendationFixtures = [
       'Chương trình "Giảm giá trực tiếp mùa hè" (ACT-7720) đã hết hiệu lực hoặc cần kết thúc sớm.',
     expectedImpactLabel: "—",
     reasoning:
-      "Cửa sổ khuyến mãi đã qua hoặc chiến lược thay đổi — shop nên vô hiệu hoá activity để tránh giảm giá ngoài ý muốn.",
+      "Cửa sổ khuyến mãi đã qua hoặc chiến lược thay đổi, shop nên vô hiệu hoá activity để tránh giảm giá ngoài ý muốn.",
     sellerReason:
       "Kết thúc chương trình hết hạn giúp tránh giảm giá ngoài ý muốn.",
     evidence:
@@ -361,7 +361,7 @@ export const recommendationFixtures = [
     knownLimits:
       "Ngưỡng tăng trưởng/hiệu suất để tạo đề xuất kết thúc này chưa được xác định. Tìm kiếm chương trình khuyến mãi không khả dụng. Luồng FBT cho khuyến mãi: Unresolved/Unfilled.",
     risks:
-      "Vô hiệu hoá thất bại sẽ giữ chương trình khuyến mãi hiển thị đang hoạt động — cho phép thử lại sau khi xác nhận.",
+      "Vô hiệu hoá thất bại sẽ giữ chương trình khuyến mãi hiển thị đang hoạt động, cho phép thử lại sau khi xác nhận.",
   },
   {
     workflowKey: "prevent_cancellation_8a",
@@ -390,9 +390,9 @@ export const recommendationFixtures = [
     eligibility:
       "Áp dụng trước khi giao hàng và trong thời gian shop còn được phép quyết định.",
     knownLimits:
-      "Chính sách tự động duyệt/từ chối chính xác chưa được xác định — mọi trường hợp chưa rõ ràng đều cần shop tự quyết định, Juli không tự động xử lý thay.",
+      "Chính sách tự động duyệt/từ chối chính xác chưa được xác định, mọi trường hợp chưa rõ ràng đều cần shop tự quyết định, Juli không tự động xử lý thay.",
     risks:
-      "Việc giữ hàng chờ quyết định sẽ tự động giải phóng theo kết quả — không có thao tác cập nhật tồn kho nào được thực hiện thủ công.",
+      "Việc giữ hàng chờ quyết định sẽ tự động giải phóng theo kết quả, không có thao tác cập nhật tồn kho nào được thực hiện thủ công.",
   },
   {
     workflowKey: "prevent_return_8b",
@@ -423,7 +423,7 @@ export const recommendationFixtures = [
     knownLimits:
       "Chính sách/ngưỡng gian lận tự động chưa được xác định và không hiển thị như một khả năng đang hoạt động. Luồng FBT (giao hàng do TikTok quản lý) chỉ ghi nhận, chưa hỗ trợ xử lý trực tiếp.",
     risks:
-      "Chỉ nhập lại kho sau khi có kết quả kiểm tra thực tế — không tự động nhập lại kho khi chưa xác minh.",
+      "Chỉ nhập lại kho sau khi có kết quả kiểm tra thực tế, không tự động nhập lại kho khi chưa xác minh.",
   },
   {
     workflowKey: "prevent_refund_8c",

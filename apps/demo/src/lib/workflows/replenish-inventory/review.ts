@@ -85,7 +85,7 @@ export function getReplenishInventoryReviewStages(
       title: "Thông tin cần xác nhận",
       body: [
         "SKU và tồn kho hiện tại được đọc từ kho giao hàng đã gán.",
-        "Số lượng đặt hàng lại cần shop xác nhận — chưa có mặc định khi chưa kết nối NCC/ERP.",
+        "Số lượng đặt hàng lại cần shop xác nhận, chưa có mặc định khi chưa kết nối NCC/ERP.",
         "Đường NCC hoặc ERP cần cấu hình thêm vì chưa có tích hợp có thẩm quyền.",
         "Cập nhật tồn kho chỉ chạy sau khi xác nhận số lượng nhận hàng thực tế.",
       ].join("\n\n"),
@@ -93,21 +93,21 @@ export function getReplenishInventoryReviewStages(
         {
           key: "sku_id",
           label: "SKU",
-          prefillValue: "SKU-SPF50-001 — Kem chống nắng SPF50",
+          prefillValue: "SKU-SPF50-001: Kem chống nắng SPF50",
           required: true,
           editable: false,
         },
         {
           key: "current_stock",
           label: "Tồn kho hiện tại",
-          prefillValue: "48 đơn vị — đủ cho khoảng 4 ngày bán",
+          prefillValue: "48 đơn vị, đủ cho khoảng 4 ngày bán",
           required: true,
           editable: false,
         },
         {
           key: "warehouse_id",
           label: "Kho giao hàng",
-          prefillValue: "WH-HCM-01 — Kho HCM (từ SKU, chỉ đọc)",
+          prefillValue: "WH-HCM-01: Kho HCM (từ SKU, chỉ đọc)",
           required: true,
           editable: false,
         },
@@ -116,14 +116,14 @@ export function getReplenishInventoryReviewStages(
           label: "Số lượng đặt hàng lại",
           prefillValue: computedReorderQuantity
             ? String(Math.ceil(computedReorderQuantity))
-            : "Chưa có mặc định — cần shop nhập sau khi xem dữ liệu",
+            : "Chưa có mặc định, cần shop nhập sau khi xem dữ liệu",
           required: true,
           editable: true,
         },
         {
           key: "external_path",
           label: "Đường bên ngoài (NCC hoặc ERP)",
-          prefillValue: "Chưa cấu hình — chọn NCC hoặc ERP khi có tích hợp",
+          prefillValue: "Chưa cấu hình, chọn NCC hoặc ERP khi có tích hợp",
           required: true,
           editable: true,
         },
@@ -136,7 +136,7 @@ export function getReplenishInventoryReviewStages(
       title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(replenishFixture, [
         "Juli sẽ theo dõi đặt hàng lại, chờ giao và cập nhật tồn kho sau khi bạn xác nhận số lượng nhận.",
-        "Đường NCC/ERP và tạo đơn mua cần cấu hình thêm — Demo ghi nhận bước này.",
+        "Đường NCC/ERP và tạo đơn mua cần cấu hình thêm, Demo ghi nhận bước này.",
       ]),
     },
     {

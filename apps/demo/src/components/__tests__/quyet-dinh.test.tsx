@@ -345,7 +345,7 @@ describe("run timeline from the SSE events", () => {
     const timeline = buildRunTimeline(REVERT_CONFLICT, { isRevert: true, revertFieldLabels: ["Tiêu đề"] });
     const check = timeline.steps.find((step) => step.label === "Kiểm tra có ai sửa ngoài Juli")!;
     expect(check.status).toBe("failed");
-    expect(check.detail).toBe("Tiêu đề đã bị sửa ngoài Juli — dừng");
+    expect(check.detail).toBe("Tiêu đề đã bị sửa ngoài Juli, dừng");
     expect(timeline.steps.at(-1)).toMatchObject({ label: "Kết thúc · dừng đo", status: "skipped", detail: "Bỏ qua" });
     expect(timeline.terminal?.day7).toBeNull();
   });

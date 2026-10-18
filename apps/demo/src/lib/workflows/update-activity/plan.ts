@@ -38,8 +38,8 @@ export function getUpdateActivityPlanReview(): PlanReviewContent {
       summary: "Chương trình “Flash Sale chăm sóc da” · 2 thông tin",
       disclosureQuestion: "Juli dựa vào thông tin nào?",
       detailLines: [
-        "Juli đang theo dõi chương trình ACT-8842 — “Flash Sale chăm sóc da”, hiện đang chạy trên shop.",
-        "Sản phẩm đang tham gia chương trình: PRD-77201 — Serum dưỡng ẩm, giá gốc đã được đối chiếu.",
+        "Juli đang theo dõi chương trình ACT-8842 “Flash Sale chăm sóc da”, hiện đang chạy trên shop.",
+        "Sản phẩm đang tham gia chương trình: PRD-77201 (Serum dưỡng ẩm), giá gốc đã được đối chiếu.",
       ],
       analyticsMetricHref: buildAnalyticsMetricHref(
         defaultUpdateActivityAnalyticsMetricKey,
@@ -59,7 +59,7 @@ export function getUpdateActivityPlanReview(): PlanReviewContent {
     },
     details: {
       detailLines: [
-        "Loại khuyến mãi giữ nguyên là Flash Sale, áp dụng cho PRD-77201 — Serum dưỡng ẩm.",
+        "Loại khuyến mãi giữ nguyên là Flash Sale, áp dụng cho PRD-77201 (Serum dưỡng ẩm).",
         "Cửa sổ khuyến mãi mới chạy từ ngày 12/08/2026 đến hết ngày 19/08/2026.",
       ],
     },

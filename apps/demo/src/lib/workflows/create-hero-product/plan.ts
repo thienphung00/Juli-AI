@@ -65,9 +65,9 @@ export function getCreateHeroProductPlanReview(): PlanReviewContent {
       summary: "Sản phẩm mới ngành chăm sóc da · 3 thông tin",
       disclosureQuestion: "Juli dựa vào thông tin nào?",
       detailLines: [
-        "Juli đang theo dõi nhu cầu ngành chăm sóc da — nhóm này đang tăng nhưng shop chưa có sản phẩm nào đáp ứng.",
+        "Juli đang theo dõi nhu cầu ngành chăm sóc da, nhóm này đang tăng nhưng shop chưa có sản phẩm nào đáp ứng.",
         "Danh mục Chăm sóc da / Serum (700648) với thuộc tính bắt buộc đã được xác định sẵn.",
-        "Kho giao hàng WH-HCM-01 — Kho HCM đã được gán cho sản phẩm mới.",
+        "Kho giao hàng WH-HCM-01 (Kho HCM) đã được gán cho sản phẩm mới.",
       ],
       analyticsMetricHref: buildAnalyticsMetricHref(
         defaultCreateHeroProductAnalyticsMetricKey,

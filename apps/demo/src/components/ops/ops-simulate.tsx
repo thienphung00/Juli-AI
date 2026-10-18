@@ -246,12 +246,12 @@ export function OpsSimulate({ me, shopId, api = opsApi }: { readonly me: OpsMe; 
         {page && status && status.history_days === 0 ? (
           <p data-testid="sim-no-history" role="status" style={{ margin: 0, fontSize: 13, color: C.amber, fontWeight: 600 }}>
             Shop chưa có dữ liệu theo ngày cho mô phỏng.
-            {page.rebuilding ? " Juli đang dựng lại báo cáo — tải lại trang sau khoảng 10 phút." : " Dữ liệu có sau lần đồng bộ kế tiếp."}
+            {page.rebuilding ? " Juli đang dựng lại báo cáo, tải lại trang sau khoảng 10 phút." : " Dữ liệu có sau lần đồng bộ kế tiếp."}
           </p>
         ) : page && status && !status.comparable ? (
           <p data-testid="window-insufficient" role="status" style={{ margin: 0, fontSize: 13, color: C.amber, fontWeight: 600 }}>
             Chưa đủ dữ liệu (cần 2 × {win} ngày) · hiện có {status.history_days} ngày
-            {available ? " — gốc dùng được, chưa so sánh được ▲▼" : ""}
+            {available ? " · gốc dùng được, chưa so sánh được ▲▼" : ""}
           </p>
         ) : null}
         {page ? (
@@ -556,7 +556,7 @@ function Cell({
             <span
               data-testid="cell-verdict"
               style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: 700, borderRadius: 6, padding: "2px 6px", ...VERDICT_STYLE[verdict] }}
-              title={verdict === "low_data" ? `Dưới 30 ${unit} trong ${days} ngày — chọn khoảng dài hơn` : undefined}
+              title={verdict === "low_data" ? `Dưới 30 ${unit} trong ${days} ngày, chọn khoảng dài hơn` : undefined}
             >
               {VERDICT_COPY[verdict]}
             </span>

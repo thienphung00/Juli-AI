@@ -276,7 +276,7 @@ function MeasurePanel({
             <div className="qv-orange qv-ask" data-testid="day7-ask">
               <div className="qv-orange__title">Hoàn tác?</div>
               <div className="qv-orange__text">
-                {breachSentence(m)} Juli không tự hoàn tác — bạn quyết định.
+                {breachSentence(m)} Juli không tự hoàn tác, bạn quyết định.
               </div>
               <div className="qv-buttons">
                 {canRevert ? (
@@ -300,7 +300,7 @@ function MeasurePanel({
             <div className="qv-orange qv-ask" data-testid="day7-ask">
               <div className="qv-orange__title">Hoàn tác?</div>
               <div className="qv-orange__text">
-                {item.question.breaches.map(breachLine).join(" · ")}. Juli không tự hoàn tác — bạn quyết định.
+                {item.question.breaches.map(breachLine).join(" · ")}. Juli không tự hoàn tác, bạn quyết định.
               </div>
               <div className="qv-buttons">
                 {canRevert ? (

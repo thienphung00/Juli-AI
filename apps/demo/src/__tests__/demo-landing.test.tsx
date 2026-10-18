@@ -135,7 +135,7 @@ describe("auth screen — hierarchy (D44.5)", () => {
     render(<DemoLanding />);
 
     const panel = screen.getByRole("complementary", { name: "Juli làm gì" });
-    expect(within(panel).getByRole("img", { name: "Thẻ đề xuất của Juli (dữ liệu mẫu)" })).toBeInTheDocument();
+    expect(within(panel).getByRole("img", { name: "Thẻ đề xuất của Juli: Mặt nạ đất sét 100g, CTOR 5,4 % lên 5,9 % (dữ liệu mẫu)" })).toBeInTheDocument();
     expect(within(panel).getByText("Dữ liệu mẫu")).toBeInTheDocument();
     expect(within(panel).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       "Kết nối chính thức qua TikTok Shop Open API",

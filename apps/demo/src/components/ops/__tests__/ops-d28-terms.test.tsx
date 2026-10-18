@@ -39,7 +39,7 @@ describe("seller term strip (D28.4)", () => {
     render(<TermStripView term={{ state: "grace", expires_on: "2026-10-09", days_left: -3, grace_days_left: 4 }} />);
     const strip = screen.getByTestId("term-strip");
     expect(strip).toHaveTextContent(
-      "Gói Juli của shop đã hết hạn ngày 09/10/2026. Juli vẫn chạy thêm 4 ngày — liên hệ lienhe@app-juli.com để gia hạn.",
+      "Gói Juli của shop đã hết hạn ngày 09/10/2026. Juli vẫn chạy thêm 4 ngày, liên hệ lienhe@app-juli.com để gia hạn.",
     );
     expect(strip).toHaveAttribute("data-tone", "grace");
     expect(strip).toHaveStyle({ background: "#fff4e0" });

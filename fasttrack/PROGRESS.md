@@ -276,6 +276,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P49-S Fresh sample-shop screenshots for the guides | D59 add. 5 | done on branch `fasttrack/p49s-screenshots` (798afcfc; lich-sale skipped, see LOG) | agent |
+| P49-F Demo copy fixes from P49-S + recapture | D46.4, D59 add. 5 | done on branch `fasttrack/p49f-demo-copy` (5e981b18 demo, 57260f97 landing) | agent |
 | P49-A Five guide posts | D59 add. 5 | todo (after P49-S) | writer agents |
 | P49-B Three problem posts | D59 add. 5 | todo (after P49-S) | writer agents |
 | P49-L End-of-post box "Đọc hướng dẫn liên quan" for reach posts | D59 add. 4 | todo (after P49-A/B) | agent |

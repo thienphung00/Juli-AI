@@ -61,7 +61,7 @@ export function LockIcon() {
 export function AppNavigation({ activePath }: { readonly activePath: string }) {
   return (
     <div className="app-rail">
-      <Link aria-label="Juli — Trang chủ" className="app-rail__wordmark" href="/">
+      <Link aria-label="Juli: Trang chủ" className="app-rail__wordmark" href="/">
         Juli<span aria-hidden="true">.</span>
       </Link>
       <nav aria-label="Điều hướng chính" className="app-nav">

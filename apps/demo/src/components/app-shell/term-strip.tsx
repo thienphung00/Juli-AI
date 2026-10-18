@@ -32,7 +32,7 @@ export function termStrip(term: SellerTerm | null | undefined): { readonly tone:
   if (term.state === "grace") {
     return {
       tone: "grace",
-      text: `Gói Juli của shop đã hết hạn ngày ${ddmmyyyy(term.expires_on)}. Juli vẫn chạy thêm ${term.grace_days_left ?? 0} ngày — liên hệ ${CONTACT_EMAIL} để gia hạn.`,
+      text: `Gói Juli của shop đã hết hạn ngày ${ddmmyyyy(term.expires_on)}. Juli vẫn chạy thêm ${term.grace_days_left ?? 0} ngày, liên hệ ${CONTACT_EMAIL} để gia hạn.`,
     };
   }
   if (term.state === "read_only") {

@@ -67,8 +67,8 @@ describe("app navigation — four destinations, Juli locked", () => {
 
   it("keeps the Juli. wordmark outside the nav, linking Home", () => {
     render(<AppNavigation activePath="/" />);
-    expect(screen.getByRole("link", { name: "Juli — Trang chủ" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Juli: Trang chủ" })).toHaveAttribute("href", "/");
     const nav = screen.getByRole("navigation", { name: "Điều hướng chính" });
-    expect(within(nav).queryByRole("link", { name: "Juli — Trang chủ" })).toBeNull();
+    expect(within(nav).queryByRole("link", { name: "Juli: Trang chủ" })).toBeNull();
   });
 });

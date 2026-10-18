@@ -94,7 +94,7 @@ function buildComparison(): PlanComparisonContent {
 
   return {
     reason:
-      "Tiêu đề hiện tại chưa đạt điểm chất lượng tối thiểu — tiêu đề và mô tả chuẩn SEO giúp sản phẩm được tìm thấy và nhấp xem nhiều hơn.",
+      "Tiêu đề hiện tại chưa đạt điểm chất lượng tối thiểu, tiêu đề và mô tả chuẩn SEO giúp sản phẩm được tìm thấy và nhấp xem nhiều hơn.",
     rows: [
       {
         fieldLabel: describeOptionField("seo_title"),
@@ -132,9 +132,9 @@ export function getOptimizeProductPlanReview(): PlanReviewContent {
       summary: "Sản phẩm “Son môi số 12” · 3 thông tin",
       disclosureQuestion: "Juli dựa vào thông tin nào?",
       detailLines: [
-        "Juli đang theo dõi sản phẩm PRD-88421 — “Son môi số 12” trên shop.",
+        "Juli đang theo dõi sản phẩm PRD-88421 “Son môi số 12” trên shop.",
         "Giá bán giữ ở 159.000 ₫, trong giới hạn lợi nhuận shop đã cấu hình.",
-        "Ảnh sản phẩm và tệp hỗ trợ giữ nguyên — Juli chỉ thay khi shop yêu cầu.",
+        "Ảnh sản phẩm và tệp hỗ trợ giữ nguyên, Juli chỉ thay khi shop yêu cầu.",
       ],
       analyticsMetricHref: buildAnalyticsMetricHref(
         defaultOptimizeProductAnalyticsMetricKey,

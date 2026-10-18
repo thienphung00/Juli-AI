@@ -89,7 +89,7 @@ export function getPreventRefundPlanReview(
         `Lý do yêu cầu: ${defaults.request_reason.toLowerCase()}.`,
         `Số tiền đã tính được là ${amount}.`,
         `Đây là ${refundType}.`,
-        `Không có trả hàng vật lý kèm theo — việc đó thuộc luồng trả hàng riêng.`,
+        `Không có trả hàng vật lý kèm theo, việc đó thuộc luồng trả hàng riêng.`,
         `Hạn quyết định là ${deadline}.`,
       ],
       analyticsMetricHref: buildAnalyticsMetricHref(

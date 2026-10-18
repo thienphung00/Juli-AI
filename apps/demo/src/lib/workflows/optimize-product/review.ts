@@ -24,7 +24,7 @@ const optimizeFixture = optimizeFixtureEntry;
 export function buildOptimizeProductReviewInputDefaults(): Record<string, string> {
   return {
     product_id: "PRD-88421",
-    seo_title: "Son môi lì cao cấp số 12 — màu đỏ ruby",
+    seo_title: "Son môi lì cao cấp số 12, màu đỏ ruby",
     seo_description:
       "Son môi lì lâu trôi, dưỡng ẩm môi, phù hợp trang điểm hàng ngày.",
     main_images: "",
@@ -57,28 +57,28 @@ export function getOptimizeProductReviewStages(
       title: "Thông tin cần xác nhận",
       body: [
         "Giá trị hiện tại được tải từ sản phẩm trên shop; tiêu đề/mô tả SEO điền sẵn từ gợi ý TikTok.",
-        "Thay ảnh/tệp mặc định tắt — chỉ bật khi shop chọn thay thế hoặc bổ sung.",
+        "Thay ảnh/tệp mặc định tắt, chỉ bật khi shop chọn thay thế hoặc bổ sung.",
         "Giá theo khuyến nghị T9 trong giới hạn sàn lợi nhuận đã cấu hình; mọi trường thay đổi vẫn có thể chỉnh trước khi duyệt.",
       ].join(" "),
       inputFields: [
         {
           key: "product_id",
           label: "Sản phẩm",
-          prefillValue: "PRD-88421 — Son môi số 12",
+          prefillValue: "PRD-88421: Son môi số 12",
           required: true,
           editable: false,
         },
         {
           key: "seo_title",
           label: "Tiêu đề SEO",
-          prefillValue: "Son môi lì cao cấp số 12 — màu đỏ ruby",
+          prefillValue: "Son môi lì cao cấp số 12, màu đỏ ruby",
           required: true,
           editable: true,
           kind: "option-list",
           options: [
             {
-              label: "Son môi lì cao cấp số 12 — màu đỏ ruby",
-              value: "Son môi lì cao cấp số 12 — màu đỏ ruby",
+              label: "Son môi lì cao cấp số 12, màu đỏ ruby",
+              value: "Son môi lì cao cấp số 12, màu đỏ ruby",
             },
             {
               label: "Serum môi cao cấp số 12 màu đỏ ruby",
@@ -140,7 +140,7 @@ export function getOptimizeProductReviewStages(
       stage: "preview",
       title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(optimizeFixture, [
-        "Giá phải ở trên mức sàn lợi nhuận đã cấu hình — thay đổi dưới sàn sẽ bị chặn khi duyệt.",
+        "Giá phải ở trên mức sàn lợi nhuận đã cấu hình, thay đổi dưới sàn sẽ bị chặn khi duyệt.",
         "Giao hàng do TikTok quản lý cho tối ưu sản phẩm chưa có trong Demo.",
       ]),
     },
