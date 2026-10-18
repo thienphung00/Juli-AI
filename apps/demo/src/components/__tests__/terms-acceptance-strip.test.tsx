@@ -47,7 +47,7 @@ describe("TermsAcceptanceStrip (P50, D60.8)", () => {
 
   it("asks, links both pages, and gates Đồng ý on the separate Điều 11 checkbox", async () => {
     const user = userEvent.setup();
-    const fetchImpl = vi.fn(async (_path: string, init?: RequestInit) =>
+    const fetchImpl = vi.fn(async (_path: RequestInfo | URL, init?: RequestInit) =>
       init?.method === "POST" ? json(body(false)) : json(body(true)),
     );
     render(<TermsAcceptanceStrip fetchImpl={fetchImpl} token="tok" />);
@@ -77,7 +77,7 @@ describe("TermsAcceptanceStrip (P50, D60.8)", () => {
 
   it("keeps the strip and says so when saving fails", async () => {
     const user = userEvent.setup();
-    const fetchImpl = vi.fn(async (_path: string, init?: RequestInit) =>
+    const fetchImpl = vi.fn(async (_path: RequestInfo | URL, init?: RequestInit) =>
       init?.method === "POST" ? json({ detail: "x" }, 409) : json(body(true)),
     );
     render(<TermsAcceptanceStrip fetchImpl={fetchImpl} token="tok" />);

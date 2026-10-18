@@ -13,7 +13,18 @@
  */
 
 import { readAuthSession } from "../supabase-auth";
-import { fetchPrivacy } from "./legal";
+
+/**
+ * The privacy client is loaded by dynamic `import()`, only once a session
+ * exists, the pattern of `components/impact-block.tsx`: this module is reached
+ * from the sign-in door (`tiktok-registration.ts`), and the replay's
+ * module-graph guard (`replay-module-graph.test.ts`) keeps every API
+ * client out of the static graph a signed-out visitor loads.
+ */
+async function readOptOut(accessToken: string, fetchImpl: typeof fetch): Promise<boolean> {
+  const { fetchPrivacy } = await import("./legal");
+  return (await fetchPrivacy(accessToken, fetchImpl)).ad_measurement_opt_out;
+}
 
 export type AdMeasurement = "unknown" | "allowed" | "blocked";
 
@@ -98,8 +109,8 @@ export function resolveAdMeasurementFor(
     notify();
   }
   pendingFor = accessToken;
-  pending = fetchPrivacy(accessToken, fetchImpl)
-    .then((state) => decide(accessToken, state.ad_measurement_opt_out ? "blocked" : "allowed"))
+  pending = readOptOut(accessToken, fetchImpl)
+    .then((optedOut) => decide(accessToken, optedOut ? "blocked" : "allowed"))
     .catch(() => decide(accessToken, "blocked"))
     .finally(() => {
       if (pendingFor === accessToken) {

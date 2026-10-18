@@ -189,13 +189,13 @@ describe("the signed-in seller's ad-measurement choice (P50, D60.6)", () => {
     expect(pixelScript()).not.toBeNull();
   });
 
-  it("loads nothing while the seller's choice is still being read", () => {
+  it("loads nothing while the seller's choice is still being read", async () => {
     signIn();
     privacyFetch.mockImplementation(() => new Promise<Response>(() => undefined));
 
     render(<TikTokTracking />);
 
-    expect(privacyFetch).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(privacyFetch).toHaveBeenCalledTimes(1));
     expect(pixelScript()).toBeNull();
   });
 
