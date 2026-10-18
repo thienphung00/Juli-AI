@@ -77,7 +77,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "toi-uu-the-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Tối ưu thẻ sản phẩm TikTok Shop từ A–Z",
     seoTitle: "Tối ưu thẻ sản phẩm TikTok Shop từ A–Z | Juli AI",
     description:
@@ -85,8 +85,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Ảnh bìa, tiêu đề, mô tả, thuộc tính, giá và khuyến mãi: quy định của TikTok, điều nên làm cho từng thành phần, và cách đo một thay đổi bằng cửa sổ trước/sau và ngưỡng dữ liệu.",
     breadcrumbName: "Tối ưu thẻ sản phẩm",
-    publishedAt: "2026-10-15",
-    updatedAt: "2026-10-15",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "optimize",
     format: "pillar",
     cover: blogCover("hero-toi-uu-the-san-pham-tiktok-shop-v1", "Minh hoạ: thẻ sản phẩm có ảnh chai, dòng tên và dòng giá xanh lá bên cạnh ba thanh trượt chỉnh, nền xanh lá nhạt, chữ “Tối ưu thẻ sản phẩm”"),
@@ -127,7 +127,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "cong-cu-cho-nha-ban-tiktok-shop-2026",
-    status: "draft",
+    status: "published",
     title: "Top công cụ cho nhà bán TikTok Shop 2026",
     seoTitle: "Top công cụ cho nhà bán TikTok Shop 2026 | Juli AI",
     description:
@@ -135,8 +135,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Công cụ có sẵn của TikTok, phần mềm quản lý đa kênh, công cụ phân tích thị trường và trợ lý AI: mỗi nhóm giải quyết việc gì, mô tả theo thông tin nhà cung cấp công bố (kiểm tra 15/10/2026).",
     breadcrumbName: "Công cụ cho nhà bán 2026",
-    publishedAt: "2026-10-15",
-    updatedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "tools",
     format: "comparison",
     cover: blogCover("hero-cong-cu-cho-nha-ban-tiktok-shop-2026-v1", "Minh hoạ: hộp đồ nghề xanh ngọc có thước, tua vít và cờ lê nhô lên, nền xanh ngọc nhạt, chữ “Bộ công cụ nhà bán”"),
@@ -237,7 +237,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "tiktok-shop-khong-ra-don",
-    status: "draft",
+    status: "published",
     title: "TikTok Shop không ra đơn: đọc phễu để tìm nguyên nhân",
     seoTitle: "TikTok Shop không ra đơn: đọc phễu tìm nguyên nhân | Juli AI",
     description:
@@ -245,7 +245,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Coi \"không ra đơn\" là triệu chứng: loại trừ trạng thái sản phẩm, tồn kho và vận hành, rồi đọc phễu Lượt hiển thị, CTR, CTOR để biết đơn hàng bị chặn ở bước nào, kèm danh sách kiểm tra và câu hỏi trước khi tăng ngân sách quảng cáo.",
     breadcrumbName: "TikTok Shop không ra đơn",
-    publishedAt: "2026-10-16",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
@@ -288,7 +288,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "doanh-thu-tiktok-shop-giam",
-    status: "draft",
+    status: "published",
     title: "Doanh thu TikTok Shop giảm: checklist tìm nguyên nhân theo từng luồng",
     seoTitle: "Doanh thu TikTok Shop giảm: checklist nguyên nhân | Juli AI",
     description:
@@ -296,7 +296,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "So sánh hai kỳ cho công bằng, tách mức giảm GMV theo năm luồng truy cập và theo Lượt hiển thị × CTR × CTOR × AOV, rồi đi qua danh sách nguyên nhân cho từng luồng, từng chỉ số và từng sản phẩm.",
     breadcrumbName: "Doanh thu TikTok Shop giảm",
-    publishedAt: "2026-10-16",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
@@ -342,7 +342,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "phan-mem-quan-ly-ban-hang-da-kenh-2026",
-    status: "draft",
+    status: "published",
     title: "Phần mềm quản lý bán hàng đa kênh 2026: 7 lựa chọn có kết nối TikTok Shop",
     seoTitle: "Phần mềm quản lý bán hàng đa kênh 2026 | Juli AI",
     description:
@@ -350,8 +350,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "BigSeller, Haravan, KiotViet, MISA eShop, Nhanh.vn, Pancake POS và Sapo: mỗi phần mềm làm gì với TikTok Shop và các sàn, giá như nhà cung cấp công bố (kiểm tra 16/10/2026), và câu hỏi nên kiểm tra khi dùng thử.",
     breadcrumbName: "Phần mềm bán hàng đa kênh 2026",
-    publishedAt: "2026-10-16",
-    updatedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "tools",
     format: "comparison",
     cover: blogCover("hero-phan-mem-quan-ly-ban-hang-da-kenh-2026-v1", "Minh hoạ: một nút trung tâm màu hồng nối với năm cửa hàng nhỏ, nền xanh dương đậm, chữ “Quản lý đa kênh”"),
@@ -397,7 +397,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "cong-cu-phan-tich-tiktok-shop-2026",
-    status: "draft",
+    status: "published",
     title: "Công cụ phân tích TikTok Shop 2026: soi thị trường và đọc dữ liệu shop của bạn",
     seoTitle: "Công cụ phân tích TikTok Shop 2026 | Juli AI",
     description:
@@ -405,8 +405,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Hai nhóm công cụ phân tích dữ liệu TikTok Shop theo nguồn dữ liệu: soi thị trường và đối thủ (FastMoss, Kalodata, Metric) và đọc dữ liệu shop của bạn (La bàn dữ liệu, Juli AI), mô tả theo trang chính thức (kiểm tra 16/10/2026).",
     breadcrumbName: "Công cụ phân tích TikTok Shop",
-    publishedAt: "2026-10-16",
-    updatedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "tools",
     format: "comparison",
     cover: blogCover("hero-cong-cu-phan-tich-tiktok-shop-2026-v1", "Minh hoạ: ống nhòm hướng về một đám chấm dữ liệu, một chấm tím nổi bật, nền tím nhạt, chữ “Soi thị trường”"),
@@ -449,7 +449,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "cong-cu-ai-tao-anh-video-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Công cụ AI tạo ảnh và video sản phẩm cho nhà bán TikTok Shop",
     seoTitle: "AI tạo ảnh, video sản phẩm cho TikTok Shop | Juli AI",
     description:
@@ -457,8 +457,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Sáu công cụ AI cho người bán hàng: xóa nền, tạo cảnh sản phẩm, người mẫu ảo, video từ ảnh và đường liên kết, nhân vật đại diện. Mô tả theo trang chính thức (kiểm tra 16/10/2026), cách chọn theo việc cần làm và cách đo kết quả.",
     breadcrumbName: "AI tạo ảnh, video sản phẩm",
-    publishedAt: "2026-10-16",
-    updatedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "tools",
     format: "comparison",
     cover: blogCover("hero-cong-cu-ai-tao-anh-video-san-pham-tiktok-shop-v1", "Minh hoạ: bảng clapper quay phim có nút phát hồng và cây đũa phép toả ánh sáng, nền tím mận đậm, chữ “Ảnh và video AI”"),
@@ -501,7 +501,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "san-pham-tiktok-shop-khong-co-luot-hien-thi",
-    status: "draft",
+    status: "published",
     title: "Sản phẩm TikTok Shop không có lượt hiển thị: bị ẩn hay chỉ ít người thấy",
     seoTitle: "Sản phẩm TikTok Shop không có lượt hiển thị | Juli AI",
     description:
@@ -509,7 +509,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Tách hai trường hợp: sản phẩm không hiện với người mua (trạng thái, bị từ chối, vi phạm) và sản phẩm có hiện nhưng ít người thấy. Rồi đọc Lượt hiển thị theo luồng truy cập, đọc cùng CTR, và đo lại sau khi sửa.",
     breadcrumbName: "Sản phẩm không có lượt hiển thị",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
@@ -555,7 +555,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "thue-ban-hang-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Thuế bán hàng TikTok Shop 2026: sàn khấu trừ thế nào, người bán cần làm gì",
     seoTitle: "Thuế bán hàng TikTok Shop 2026: sàn khấu trừ | Juli AI",
     description:
@@ -563,7 +563,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Tóm tắt từ văn bản chính thức: sàn có chức năng đặt hàng và thanh toán khấu trừ, nộp thay thuế trên từng giao dịch; doanh thu năm từ 1 tỷ đồng trở xuống không chịu thuế; người bán cần cung cấp gì và khi nào phải tự quyết toán. Cập nhật ngày 17/10/2026.",
     breadcrumbName: "Thuế bán hàng TikTok Shop",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "news",
@@ -628,7 +628,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "video-tiktok-nhieu-view-khong-ra-don",
-    status: "draft",
+    status: "published",
     title: "Video nhiều view nhưng không ra đơn: đọc số từng bước để tìm chỗ gãy",
     seoTitle: "Video TikTok nhiều view không ra đơn: vì sao | Juli AI",
     description:
@@ -636,7 +636,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Lượt xem video không nằm trong công thức GMV. Cách TikTok tính đơn cho video (trực tiếp và trong 7 ngày), bảng triệu chứng theo Lượt hiển thị sản phẩm, CTR, CTOR, AOV, cách nhận ra video sai tệp khách và đo lại sau 7, 14 ngày.",
     breadcrumbName: "Video nhiều view không ra đơn",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
@@ -680,7 +680,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "live-tiktok-shop-khong-ra-don",
-    status: "draft",
+    status: "published",
     title: "LIVE đông người xem mà ít đơn: đọc phễu LIVE từ lượt hiển thị đến đơn hàng",
     seoTitle: "LIVE TikTok Shop không ra đơn: đọc phễu LIVE | Juli AI",
     description:
@@ -688,7 +688,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Người xem không phải người mua. Năm bước của phễu LIVE theo TikTok, ba góc độ chỉ số trong Cẩm nang lưu lượng LIVE, vì sao CTR của LIVE khác CTR của thẻ sản phẩm, so các buổi bằng GPM hiển thị và đọc số theo từng phút.",
     breadcrumbName: "LIVE đông người xem mà ít đơn",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
@@ -733,7 +733,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "ty-le-hoan-hang-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Đơn hủy, hoàn hàng tăng trên TikTok Shop: tách từng loại, đọc đúng tỷ lệ, tính đúng chi phí",
     seoTitle: "Tỷ lệ hoàn hàng TikTok Shop: hủy, trả hàng, phí | Juli AI",
     description:
@@ -741,7 +741,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Hoàn hàng là ba chuyện khác nhau: đơn hủy trước khi giao, đơn giao không thành công quay về shop, và đơn khách trả sau khi nhận. Mỗi loại một chỉ số, một hạn xử lý, một khoản phí; bài này tách từng loại theo trang chính thức của TikTok Shop. Cập nhật ngày 17/10/2026.",
     breadcrumbName: "Tỷ lệ hoàn hàng TikTok Shop",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
@@ -792,7 +792,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "phi-san-tiktok-shop-2026",
-    status: "draft",
+    status: "published",
     title: "Phí sàn TikTok Shop 2026: các khoản phí hiện hành và mỗi đơn còn lại bao nhiêu",
     seoTitle: "Phí sàn TikTok Shop 2026: một đơn còn bao nhiêu | Juli AI",
     description:
@@ -800,7 +800,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Khung phí hiện hành theo các trang chính thức của TikTok Shop, kèm ngày hiệu lực: hoa hồng theo ngành, phí giao dịch, phí xử lý đơn, phí vận hành logistic, hai mốc 20/10 và 21/10, và một ví dụ giả định tính phần còn lại của một đơn. Cập nhật ngày 17/10/2026.",
     breadcrumbName: "Phí sàn TikTok Shop 2026",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "news",
@@ -842,7 +842,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "khach-xem-nhung-khong-mua-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Khách xem nhưng không mua trên TikTok Shop: kiểm tra từng bước sau cú nhấp",
     seoTitle: "Khách xem nhưng không mua trên TikTok Shop | Juli AI",
     description:
@@ -850,7 +850,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Khách đã bấm vào sản phẩm rồi rời đi: đọc CTOR theo nguồn, dùng Tỷ lệ thêm vào giỏ hàng để tách trang sản phẩm khỏi voucher và phí vận chuyển, tính đến đơn gián tiếp trong 7 ngày, rồi sửa một chỗ và đo lại.",
     breadcrumbName: "Khách xem nhưng không mua",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
@@ -892,7 +892,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "tang-gia-tri-don-hang-trung-binh-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Bán nhiều đơn mà vẫn ít tiền: cách tăng giá trị đơn hàng trung bình trên TikTok Shop",
     seoTitle: "Tăng giá trị đơn hàng trung bình TikTok Shop | Juli AI",
     description:
@@ -900,7 +900,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Phí xử lý đơn tính theo từng đơn nên đơn nhỏ chịu phần trăm phí cao hơn. Đọc AOV theo nguồn, biết khi nào nên tăng giá trị đơn, chọn giữa voucher theo bậc, Mua Sỉ Giá Hời, Ưu đãi theo gói và quà tặng, tránh khuyến mãi chồng nhau và đo AOV cùng CTOR.",
     breadcrumbName: "Tăng giá trị đơn hàng trung bình",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
@@ -944,7 +944,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "mo-ta-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Khách hỏi mãi một câu: viết mô tả sản phẩm TikTok Shop để trả lời trước khi khách hỏi",
     seoTitle: "Mô tả sản phẩm TikTok Shop: trả lời trước | Juli AI",
     description:
@@ -1002,7 +1002,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "quy-dinh-livestream-ban-hang",
-    status: "draft",
+    status: "published",
     title: "Quy định mới về livestream bán hàng và quảng cáo: người bán và người livestream cần biết gì",
     seoTitle: "Quy định livestream bán hàng mới nhất 2026 | Juli AI",
     description:
@@ -1076,7 +1076,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "dat-ten-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Ít người bấm vào sản phẩm: cách đặt tên sản phẩm TikTok Shop theo đúng chính sách",
     seoTitle: "Đặt tên sản phẩm TikTok Shop khi ít người bấm | Juli AI",
     description:
@@ -1134,7 +1134,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "anh-bia-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Ảnh bìa sản phẩm TikTok Shop khiến người mua lướt qua: đọc CTR và đổi hình ảnh chính",
     seoTitle: "Ảnh bìa sản phẩm TikTok Shop bị lướt qua | Juli AI",
     description:
@@ -1191,7 +1191,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Sửa sản phẩm xong, làm sao biết có hiệu quả: cách đo trước và sau một thay đổi trên TikTok Shop",
     seoTitle: "Đo hiệu quả sau khi sửa sản phẩm TikTok Shop | Juli AI",
     description:
@@ -1243,7 +1243,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "doanh-thu-sau-sale-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Trước và sau 11.11: đọc số liệu sale TikTok Shop cho đúng",
     seoTitle: "Sale 11.11 TikTok Shop: đọc doanh thu sau sale | Juli AI",
     description:
@@ -1295,7 +1295,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "dung-thu-juli-ai-mien-phi-3-thang",
-    status: "draft",
+    status: "published",
     title: "Dùng thử Juli AI miễn phí 3 tháng: đăng ký, kết nối shop và 14 ngày đầu tiên",
     seoTitle: "Dùng thử miễn phí 3 tháng: đăng ký, bắt đầu | Juli AI",
     description:
@@ -1341,7 +1341,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "tim-san-pham-keo-gmv-xuong-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Tìm sản phẩm đang kéo GMV TikTok Shop xuống: từ chỉ số nghẽn đến thẻ đề xuất",
     seoTitle: "Tìm sản phẩm kéo GMV TikTok Shop xuống | Juli AI",
     description:
@@ -1384,7 +1384,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "ctr-the-san-pham-thap-doi-tieu-de-anh-bia",
-    status: "draft",
+    status: "published",
     title: "CTR Thẻ sản phẩm thấp: Juli đề xuất đổi tiêu đề và ảnh bìa như thế nào, và bạn cần làm gì",
     seoTitle: "CTR Thẻ sản phẩm thấp: đề xuất tiêu đề, ảnh bìa | Juli AI",
     description:
@@ -1427,7 +1427,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "ctor-thap-viet-lai-mo-ta-san-pham",
-    status: "draft",
+    status: "published",
     title: "CTOR thấp, khách bấm vào mà không đặt hàng: Juli đề xuất mô tả sản phẩm như thế nào",
     seoTitle: "CTOR thấp: đề xuất mô tả sản phẩm | Juli AI",
     description:
@@ -1471,7 +1471,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "huong-dan-ket-noi-tiktok-shop-voi-juli",
-    status: "draft",
+    status: "published",
     title: "Hướng dẫn kết nối TikTok Shop với Juli: 4 bước và những gì diễn ra trong giờ đầu",
     seoTitle: "Hướng dẫn kết nối TikTok Shop với Juli | Juli AI",
     description:
@@ -1520,7 +1520,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
-    status: "draft",
+    status: "published",
     title: "Cách đọc màn hình Phân tích TikTok Shop theo luồng truy cập: Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết",
     seoTitle: "Đọc phân tích TikTok Shop theo luồng | Juli AI",
     description:
@@ -1569,7 +1569,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "duyet-de-xuat-toi-uu-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Duyệt một thẻ đề xuất của Juli: từ lý do, sửa nội dung đến xác nhận lần cuối",
     seoTitle: "Duyệt đề xuất tối ưu sản phẩm TikTok Shop | Juli AI",
     description:
@@ -1618,7 +1618,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "do-ket-qua-ngay-7-ngay-14-hoan-tac",
-    status: "draft",
+    status: "published",
     title: "Đo kết quả sau khi sửa sản phẩm: đọc ngày 7, ngày 14 và biết khi nào nên hoàn tác",
     seoTitle: "Đo kết quả ngày 7, ngày 14 và hoàn tác | Juli AI",
     description:
