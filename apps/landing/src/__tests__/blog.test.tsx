@@ -219,7 +219,7 @@ describe("post page", () => {
   });
 
   it("renders title, author, dates, TOC from the H2s, FAQ, sources and the draft banner", async () => {
-    const post = BLOG_POSTS.find((p) => p.status === "draft" && blogTier(p) === "conversion")!;
+    const post = BLOG_POSTS.find((p) => p.status === "draft" && blogTier(p) === "conversion") ?? BLOG_POSTS.find((p) => blogTier(p) === "conversion")!;
     render(await BlogPostPage({ params: Promise.resolve({ slug: post.slug }) }));
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(post.title);
@@ -253,7 +253,8 @@ describe("post page", () => {
       expect(level - prev, `h${prev} → h${level}`).toBeLessThanOrEqual(1);
       return level;
     }, 0);
-    expect(screen.getByRole("note")).toHaveTextContent(/Bản nháp/);
+    if (post.status === "draft") expect(screen.getByRole("note")).toHaveTextContent(/Bản nháp/);
+    else expect(screen.queryByText(/Bản nháp đang chờ duyệt/)).toBeNull();
 
     const jsonLd = [...document.querySelectorAll('script[type="application/ld+json"]')]
       .map((script) => JSON.stringify(JSON.parse(script.textContent ?? "")))
@@ -269,7 +270,7 @@ describe("post page", () => {
       if (post.status === "draft") expect(metadata.robots, post.slug).toEqual({ index: false, follow: true });
       else expect(metadata.robots, post.slug).not.toEqual({ index: false, follow: true });
     }
-    const post = BLOG_POSTS.find((p) => p.status === "draft")!;
+    const post = BLOG_POSTS[0]!;
     const metadata = await generateMetadata({ params: Promise.resolve({ slug: post.slug }) });
     expect(metadata.openGraph).toMatchObject({
       type: "article",
@@ -277,7 +278,6 @@ describe("post page", () => {
       modifiedTime: post.updatedAt,
       authors: [post.author],
     });
-    expect(metadata.robots).toEqual({ index: false, follow: true });
   });
 
   it("uses each post's cover as its Open Graph and Twitter image", async () => {
@@ -502,8 +502,8 @@ describe("reach vs conversion tier (D59)", () => {
     expect(guideFor({ ...reach, status: "draft" }, [reach, draftGuide])?.slug).toBe(reach.guide);
   });
 
-  it("a draft reach page shows the neutral guide line inside the box, with no Juli text", async () => {
-    const post = BLOG_POSTS.find((p) => blogTier(p) === "reach" && p.status === "draft")!;
+  it("a reach page shows the neutral guide line inside the box, with no Juli text", async () => {
+    const post = BLOG_POSTS.find((p) => blogTier(p) === "reach" && guideFor(p))!;
     render(await BlogPostPage({ params: Promise.resolve({ slug: post.slug }) }));
     const box = screen.getByTestId("blog-cta-tool");
     const link = within(box).getByTestId("blog-cta-guide");
