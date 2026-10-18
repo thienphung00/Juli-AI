@@ -1,10 +1,7 @@
 import { GOLDEN_DEMO_DECISION_EXECUTABLE } from "@juli/contracts";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  buildDecisionsHighlightHref,
-  buildRecommendationDetailHref,
-} from "../lib/recommendations";
+import { buildDecisionsHighlightHref } from "../lib/recommendations";
 import {
   DEMO_DECISIONS_API_PATH,
   DemoDecisionApproveError,
@@ -16,10 +13,7 @@ import {
 const AUTH = { token: "bearer-token-1", shopId: "shop-1" };
 
 describe("recommendations routing helpers", () => {
-  it("builds detail and highlight hrefs for list ↔ detail navigation", () => {
-    expect(buildRecommendationDetailHref("create_hero_product_1")).toBe(
-      "/decisions/recommendations/create_hero_product_1",
-    );
+  it("builds the highlight href (the detail href went with /decisions/recommendations/*, P53)", () => {
     expect(buildDecisionsHighlightHref("optimize_product_2")).toBe(
       "/decisions?highlight=optimize_product_2",
     );
