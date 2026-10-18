@@ -289,6 +289,15 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | P51-B Landing: Đề xuất page (AOV lever, cover wording), Đo lường page (control groups), price wording | D60.2, D60.3, D60.5 | done on branch `fasttrack/p51b-product-copy` (not merged) | agent |
 | Retention approved, purge job in DEBT | D60.4 | done | orchestrator |
 
+## P52 — no algorithm or model details in public content (D61)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P52-A Product pages, home, shared blocks, calculator, SEO / llms.txt; leak-pattern test | D61 | in progress, branch `fasttrack/p52a-leaks-pages` | agent |
+| P52-B Eight Juli guides (body, FAQ, figure captions) | D61 | in progress, branch `fasttrack/p52b-leaks-guides` | agent |
+| P52-C Reach posts, pillars, tools posts (body, FAQ, captions) | D61 | in progress, branch `fasttrack/p52c-leaks-posts` | agent |
+| Demo app + backend card copy, recapture (with P51-A) | D61 | in progress, branch `fasttrack/p51a-sample-data` | P51-A agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
