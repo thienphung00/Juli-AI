@@ -204,6 +204,8 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
     const panel = await screen.findByTestId("measure-panel");
     await waitFor(() => expect(panel).toHaveTextContent(SAMPLE_APPLIED_CARD.name));
     await waitFor(() => expect(screen.getByRole("tab", { name: "Ngày 7 · kiểm tra" })).toHaveAttribute("aria-selected", "true"));
-    expect(screen.getByTestId("measure-target")).toContainHTML("9.613 – 10.207");
+    // D60.1: a title change targets CTR on Thẻ sản phẩm; the guard bands are all-channel.
+    expect(screen.getByTestId("measure-target")).toHaveTextContent("Chỉ số mục tiêu · CTR · đo trên kênh Thẻ sản phẩm");
+    expect(screen.getByTestId("measure-target")).toContainHTML("3.376 – 3.584");
   });
 });

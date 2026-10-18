@@ -450,12 +450,12 @@ export function AuthScreen({
           <picture>
             <source
               sizes="(min-width: 1024px) 560px, 1px"
-              srcSet="/auth/cap-dx-the-v2-640.avif 640w, /auth/cap-dx-the-v2-1184.avif 1184w"
+              srcSet="/auth/cap-dx-the-v3-640.avif 640w, /auth/cap-dx-the-v3-1184.avif 1184w"
               type="image/avif"
             />
             <source
               sizes="(min-width: 1024px) 560px, 1px"
-              srcSet="/auth/cap-dx-the-v2-640.webp 640w, /auth/cap-dx-the-v2-1184.webp 1184w"
+              srcSet="/auth/cap-dx-the-v3-640.webp 640w, /auth/cap-dx-the-v3-1184.webp 1184w"
               type="image/webp"
             />
             <img
@@ -464,7 +464,7 @@ export function AuthScreen({
               decoding="async"
               height={868}
               loading="lazy"
-              src="/auth/cap-dx-the-v2-640.webp"
+              src="/auth/cap-dx-the-v3-640.webp"
               width={1184}
             />
           </picture>

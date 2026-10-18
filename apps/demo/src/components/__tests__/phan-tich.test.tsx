@@ -9,8 +9,10 @@ import { loadSampleDecisions, loadSampleRanking } from "../phan-tich/sample-phan
 import { SignedInPhanTich } from "../phan-tich/signed-in-phan-tich";
 import { SampleQuyetDinh } from "../quyet-dinh/sample-quyet-dinh";
 import { analysisHrefForDecision, decisionCardHref, indexCards } from "../../lib/phan-tich/cards";
+import { EMPTY_CARDS } from "../../lib/phan-tich/cards";
 import { calendarView, promoView } from "../../lib/phan-tich/extras";
 import { deltaChip, kMoney, signedKMoney } from "../../lib/phan-tich/format";
+import { tableView } from "../../lib/phan-tich/rows";
 import { analysisHref, defaultStream, pageTitle, resolveSelection, streamView, streamsOf, type QueryState } from "../../lib/phan-tich/model";
 import { DEMO_RANKINGS_API_PATH, fetchMetricRanking } from "../../lib/phan-tich/rankings-client";
 import { sampleEnvelope, sampleProductId, sampleRankings, sampleReport } from "../../lib/phan-tich/sample-data";
@@ -107,6 +109,33 @@ describe("Phân tích model", () => {
     expect(streamView(REPORT, "shop_tab").weakText).toBe("Yếu nhất: AOV −31k ₫/ngày");
   });
 
+  it("D60.1: listed rows + Còn lại = Tổng = the cell, Kéo xuống and Kéo lên, every product table", () => {
+    // "−264k ₫" / "+1,2 tr ₫" / "−250k ₫/ngày" → thousands of ₫.
+    const k = (text: string) => {
+      const value = text.replace("−", "-").replace("/ngày", "").replace(" ₫", "");
+      return value.endsWith(" tr") ? Number.parseFloat(value.replace(",", ".")) * 1000 : Number.parseInt(value, 10);
+    };
+    for (const stream of ["product_card", "shop_tab"] as const) {
+      for (const metric of ["impressions", "ctr", "ctor", "aov"] as const) {
+        const payload = (RANKINGS[stream]![metric] as RankingEnvelope).ranking;
+        for (const direction of ["down", "up"] as const) {
+          const table = tableView({ report: REPORT, stream, metric, direction, cards: EMPTY_CARDS }, payload);
+          const listed = table.rows.reduce((sum, row) => sum + k(row.gmv), 0);
+          expect(table.rest.reduce((sum, line) => sum + k(line.v), 0), `${stream} ${metric} ${direction} Còn lại lines`).toBe(k(table.restSum));
+          expect(listed + k(table.restSum), `${stream} ${metric} ${direction}`).toBe(k(table.total));
+          expect(k(table.total)).toBe(payload.stream_factor_gmv / 1000);
+        }
+      }
+    }
+    const down = tableView({ report: REPORT, stream: "product_card", metric: "ctor", direction: "down", cards: EMPTY_CARDS }, CTOR.ranking);
+    expect([down.rows.map((r) => r.gmv), down.restSum, down.total]).toEqual([
+      ["−112k ₫", "−64k ₫", "−58k ₫", "−21k ₫", "−9k ₫"],
+      "+14k ₫",
+      "−250k ₫/ngày",
+    ]);
+    expect(down.rest[0]).toEqual({ k: "1 sản phẩm kéo CTOR lên", v: "+28k ₫" });
+  });
+
   it("content streams grey the cells that depend on the product page", () => {
     const video = streamView(REPORT, "seller_video");
     expect(video.cells.filter((c) => c.grey && c.metric !== "gmv").map((c) => [c.metric, c.impact])).toEqual([
@@ -160,7 +189,9 @@ describe("Phân tích model", () => {
     expect(cards.find(SM012, "ctor")?.id).toBe("sample-sm-012");
     expect(cards.find(SM012, "ctr")).toBeNull();
     expect(cards.find(sampleProductId("SR-007"), "ctr")?.proposal).toBe("Ảnh bìa · +1,4 tr ₫/tháng");
-    expect(cards.countFor("ctor")).toBe(4);
+    // TN-021's title card is a CTR card (D60.1); SM-012, MN-015, KD-030 are CTOR.
+    expect(cards.countFor("ctor")).toBe(3);
+    expect(cards.countFor("ctr")).toBe(2);
     expect(decisionCardHref("sample-sm-012")).toBe("/decisions?tab=de-xuat&the=sample-sm-012");
     expect(analysisHrefForDecision(items[0])).toBe(`/analytics?tab=san-pham&stream=the-san-pham&metric=ctor&row=${SM012}`);
   });
@@ -232,14 +263,15 @@ describe("Phân tích view", () => {
     expect(within(rowOf("Sữa rửa mặt amino")).getByText("Chưa có đề xuất")).toBeInTheDocument();
   });
 
-  it("Kéo lên, Còn lại · 3 dòng", async () => {
+  it("Kéo lên, Còn lại · 4 dòng (the Kéo xuống rows are one of them)", async () => {
     renderView();
     await screen.findByTestId("ranking-table");
     await userEvent.click(screen.getByRole("button", { name: "Kéo lên" }));
     expect(screen.getByRole("heading", { name: "1 sản phẩm kéo CTOR lên" })).toBeInTheDocument();
     expect(rowOf("Toner rau má 200ml")).toBeTruthy();
-    const rest = screen.getByRole("button", { name: /Còn lại · 3 dòng/ });
+    const rest = screen.getByRole("button", { name: /Còn lại · 4 dòng/ });
     await userEvent.click(rest);
+    expect(screen.getByText("5 sản phẩm kéo CTOR xuống")).toBeInTheDocument();
     expect(screen.getByText("2 sản phẩm ít đơn")).toBeInTheDocument();
     expect(screen.getByText("Thay đổi cơ cấu sản phẩm")).toBeInTheDocument();
   });
@@ -316,7 +348,7 @@ describe("Đề xuất ← Phân tích", () => {
   it("nhom=ctor outlines the CTOR group", async () => {
     render(<QdHarness initial="/decisions?tab=de-xuat&nhom=ctor" />);
     await waitFor(() => expect(document.querySelector(".qv-group--focus")).not.toBeNull());
-    expect(document.querySelector(".qv-group--focus")?.getAttribute("data-group-key")).toBe("PRODUCT_CARD:page");
+    expect(document.querySelector(".qv-group--focus")?.getAttribute("data-group-key")).toBe("ALL_CHANNELS:page");
   });
 });
 
