@@ -25,7 +25,7 @@ OPS_AUDIT_RETENTION_TASK = "juli_backend.ops_audit_retention"
 
 async def run_ops_audit_retention(session_factory: Any, *, now: datetime | None = None) -> int:
     """Delete the expired rows and commit; returns how many were deleted."""
-    from juli_backend.services.ops.audit import purge_expired
+    from juli_backend.services.ops import purge_expired
 
     async with session_factory() as session:
         deleted = await purge_expired(session, now=now)
