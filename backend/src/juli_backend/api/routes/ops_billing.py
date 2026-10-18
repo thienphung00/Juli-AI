@@ -56,9 +56,8 @@ from juli_backend.database import get_session
 from juli_backend.database.tenant_context import sequential_shop_scopes, with_shop_scope
 from juli_backend.models.ops import STAGE_LABELS, STAGE_TRIAL, OpsShopSettings
 from juli_backend.services import subscriptions
-from juli_backend.services.ops import audit, overview, system_cap
+from juli_backend.services.ops import audit, ops_role, overview, system_cap
 from juli_backend.services.ops import settings as ops_settings
-from juli_backend.services.ops.access import ops_role
 from juli_backend.services.shop_rules import openai_cap
 
 logger = logging.getLogger(__name__)

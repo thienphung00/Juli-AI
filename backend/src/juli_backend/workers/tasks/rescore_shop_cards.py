@@ -37,7 +37,7 @@ async def rescore_shop_cards_async(
     shop_id: uuid.UUID, *, session_factory: Any, now: datetime | None = None
 ) -> dict[str, Any]:
     from juli_backend.database.tenant_context import with_shop_scope
-    from juli_backend.services.action_cards.optimize_product_cards import rescore_shop_cards
+    from juli_backend.services.action_cards import rescore_shop_cards
 
     moment = now or datetime.now(UTC)
     async with session_factory() as session:

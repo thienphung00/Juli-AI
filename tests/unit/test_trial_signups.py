@@ -520,4 +520,19 @@ def test_migration_091_is_ops_only_and_chained():
     assert "REVOKE ALL ON public.{TABLE} FROM {APP_ROLE}" in body
     assert "GRANT {APP_ROLE}" not in body and "TO {APP_ROLE}" not in body
     assert ("public", "trial_signups") in get_ops_only_tables()
-    assert 'down_revision: str | None = "093_ops_group_lift_draws"' in DEFERRED.read_text("utf-8")
+    # The deferred contract step must stay the chain's tail (its docstring): it is
+    # re-parented onto whatever `versions/` head is current, so read that head from the
+    # tree rather than pinning a revision every new migration would break (P53, D62).
+    head = _versions_head()
+    assert f'down_revision: str | None = "{head}"' in DEFERRED.read_text("utf-8"), (
+        f"deferred/074 must revise the current versions/ head {head!r}"
+    )
+
+
+def _versions_head() -> str:
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    heads = ScriptDirectory.from_config(Config(str(REPO / "alembic.ini"))).get_heads()
+    assert len(heads) == 1, f"versions/ must have exactly one head, found {heads!r}"
+    return heads[0]

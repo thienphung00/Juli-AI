@@ -152,3 +152,8 @@ dependency graph.
 - code: `src/integrations/tiktok/`
 - tests: `tests/unit/test_tiktok_*.py`, `tests/integration/test_tiktok_*.py`
 - docs: `docs/integrations/tiktok_api/`
+
+## Status: LEGACY (fast track P53, D62, 2026-10-18)
+
+Marker only — no behaviour changed, nothing moved or deleted (owner-approved audit cleanup,
+`juli-audit/backend.md`). `reactive_refresh.py` has no production importer (2 tests only). ADR-081 row 3 describes a reactive token-refresh layer, so it may be an unwired safety feature rather than dead code: kept, and flagged to the owner rather than deleted.

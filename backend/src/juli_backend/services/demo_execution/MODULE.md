@@ -172,3 +172,8 @@ silently drift from what the route now actually does.
   `emission_budget` — this module reads `ActionCard` directly via the ORM
   session (same pattern as `services/action_cards/emission_budget.py`) and
   does not call either of those modules' functions.
+
+## Status: LEGACY (fast track P53, D62, 2026-10-18)
+
+Marker only — no behaviour changed, nothing moved or deleted (owner-approved audit cleanup,
+`juli-audit/backend.md`). The route was retired (#1222) and the package left in place on purpose; the `demo_execution_records` table (migration 028) stays. Removing it needs a drop migration and is a Phase 2 owner decision.

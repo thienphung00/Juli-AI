@@ -14,3 +14,8 @@ fan-out across all shops.
 Implementation reuses `material_analytics_precompute_sync` (#532) so hourly
 reconciliation is idempotent with material-webhook compute (Postgres upsert +
 Redis cache refresh).
+
+## Status: LEGACY (fast track P53, D62, 2026-10-18)
+
+Marker only — no behaviour changed, nothing moved or deleted (owner-approved audit cleanup,
+`juli-audit/backend.md`). `tenant_context_wrapper.py` (`task_with_tenant_context`, ADR-085 d.2) is used by no task; tasks set their shop scope themselves. RLS-adjacent, so kept. `tasks/fujiwa_poll_beat.py` (`fujiwa_poll_cycle`) is registered but on no beat since `shop_poll_fanout` replaced it; deleting it (audit C4) waits for the fan-out to be proven in production (DEBT).

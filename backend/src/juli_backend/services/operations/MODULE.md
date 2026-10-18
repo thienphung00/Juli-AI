@@ -227,3 +227,8 @@ question gets a fourth answer, not a fourth term in an average.
 ### Out of scope
 
 - Producing, scheduling or backfilling an impact reading (#1339, an owner act)
+
+## Status: LEGACY (fast track P53, D62, 2026-10-18)
+
+Marker only — no behaviour changed, nothing moved or deleted (owner-approved audit cleanup,
+`juli-audit/backend.md`). Three modules here are test-only: `outcome_chain.py`, `business_impact.py` and `quality_metrics.py` (W8 observability, ADR-077; live wiring was deferred and never landed). The rest of the package is live; `production_write_authorizations_*` is security-relevant and stays untouched.

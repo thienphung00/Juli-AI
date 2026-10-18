@@ -351,6 +351,12 @@ jobs:
       - name: Run check.sh
         env:
           SINCE: ${{ inputs.since || 'origin/main' }}
+          # CHECK_DATABASE_URL above is this job's own postgres service, destroyed
+          # with the job. check.sh exports the same marker beside DATABASE_URL in
+          # use_db(); declaring it here too keeps the workflow-level parity that
+          # test_destructive_migration_isolation pins for every pytest workflow
+          # (P53, D62). It means nothing while DATABASE_URL is empty.
+          JULI_TEST_DATABASE_DISPOSABLE: "1"
         run: PYTHON="$(command -v python)" ./fasttrack/check.sh --since "${SINCE}"
 
   deploy:

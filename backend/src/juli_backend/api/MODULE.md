@@ -86,8 +86,8 @@ from juli_backend.api.dependencies import get_active_shop
   P32-D (D42 amendment): `REVIEWER_SHOP_ID` is optional. Unset, the context has no shop:
   `/v1/reviewer/me` → `shop: null`, `/v1/shops` → `[]`, every shop-scoped route 403 `shop`;
   the allowlist and the write barrier are the same in both modes.
-- `api/routes/reviewer.py` — `GET /v1/reviewer/me` (`reviewer_me`),
-  `POST /v1/reviewer/decisions/{id}/simulate` (`simulate_decision`, `SimulateRequest`).
+- `reviewer_me` — `GET /v1/reviewer/me`, and `simulate_decision` / `SimulateRequest` —
+  `POST /v1/reviewer/decisions/{id}/simulate` (both in `api/routes/reviewer.py`).
 
 ## Removed in the matching pivot
 `orders`, `inventory`, `settlements`, `analytics`, `livestreams`, and `alerts`

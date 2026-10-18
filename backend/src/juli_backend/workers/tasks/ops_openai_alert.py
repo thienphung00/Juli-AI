@@ -28,7 +28,7 @@ async def run_ops_openai_alert(
     session_factory: Any, *, mailer: Any = None, now: datetime | None = None
 ) -> bool:
     """Check once and commit; True when the e-mail went out on this run."""
-    from juli_backend.services.ops.system_cap import check_alert
+    from juli_backend.services.ops import check_alert
 
     async with session_factory() as session:
         sent = await check_alert(session, mailer=mailer, now=now)

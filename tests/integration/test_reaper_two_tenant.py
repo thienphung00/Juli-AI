@@ -248,6 +248,11 @@ async def test_each_run_is_reaped_by_its_own_workflows_policy_as_juli_app(
 
     tenant1, _tenant2 = two_tenants
     now = datetime.now(UTC)
+    # `workflow_runs.created_at` / `products.update_time` are `timestamp WITHOUT time
+    # zone`. An aware value is converted to the session's TimeZone before the zone is
+    # dropped, so under `Asia/Ho_Chi_Minh` a run 400 s old was stored 7 h in the future
+    # and never reaped. Naive UTC, as `two_tenant.seed_tenant` writes (P53, D62).
+    naive = now.replace(tzinfo=None)
     silence = timedelta(seconds=400)
 
     prod_run_id = uuid.uuid4()
@@ -266,7 +271,7 @@ async def test_each_run_is_reaped_by_its_own_workflows_policy_as_juli_app(
                 "id": str(subject_product_id),
                 "shop_id": str(tenant1.shop_id),
                 "tiktok_id": f"tt-{subject_product_id.hex[:10]}",
-                "now": now,
+                "now": naive,
             },
         )
         for run_id, workflow_key in (
@@ -289,7 +294,7 @@ async def test_each_run_is_reaped_by_its_own_workflows_policy_as_juli_app(
                     "product_id": str(subject_product_id),
                     "workflow_key": workflow_key,
                     "sha": "0" * 64,
-                    "created": now - silence,
+                    "created": naive - silence,
                 },
             )
 

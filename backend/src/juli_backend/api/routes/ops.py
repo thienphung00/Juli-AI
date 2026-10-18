@@ -59,11 +59,13 @@ from juli_backend.database import Shop, get_session
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ops import ROLE_ADMIN, ROLE_OPERATOR, ROLE_VIEWER
 from juli_backend.services.ops import (
+    OpsRoleMissing,
     ShopListing,
     audit,
     disconnect,
     invites,
     mask_pii,
+    ops_role,
     overview,
     runs,
     scenarios,
@@ -72,7 +74,6 @@ from juli_backend.services.ops import (
 )
 from juli_backend.services.ops import settings as ops_settings
 from juli_backend.services.ops import staff as ops_staff
-from juli_backend.services.ops.access import OpsRoleMissing, ops_role
 from juli_backend.services.shop_diagnosis import Channel, Metric, Ranking
 
 logger = logging.getLogger(__name__)
@@ -433,7 +434,7 @@ async def _card_cells_quietly(
     The request's last database work (P29: no scope restore on the way out).
     ``restore_role``: an ``ops_role`` restore nobody has run yet.
     """
-    from juli_backend.services.action_cards.emission_budget import open_cell_counts
+    from juli_backend.services.action_cards import open_cell_counts
 
     try:
         async with with_shop_scope(
@@ -609,8 +610,7 @@ async def ops_create_card_group(
     The seeded ≈ 1/3 control draw as for card groups; no card is made and nothing is
     written to TikTok -- the owner changes the treated products himself. Audited.
     """
-    from juli_backend.services.action_cards import card_groups
-    from juli_backend.services.action_cards.card_groups import GroupError
+    from juli_backend.services.action_cards import GroupError, card_groups
 
     await _shop(session, shop_id)
     try:
@@ -669,8 +669,7 @@ async def ops_set_card_group_reason(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """D45.3: the group's one-line "lý do chọn thử nghiệm" (manual entry). Audited."""
-    from juli_backend.services.action_cards import card_groups
-    from juli_backend.services.action_cards.card_groups import GroupError
+    from juli_backend.services.action_cards import GroupError, card_groups
 
     await _shop(session, shop_id)
     try:

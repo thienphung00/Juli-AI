@@ -1,5 +1,10 @@
 # Agent runtime
 
+> **LEGACY (fast track P53, D62, 2026-10-18).** The PRD → issue → slice loop this harness
+> drives was replaced by the fast track (`fasttrack/`, DECISIONS D4). Kept in place because
+> `fasttrack/check.sh`, `pr.yml`, `release.yml`, the daily architecture audit and ~84 tests still
+> read it — see [`LEGACY.md`](LEGACY.md).
+
 Meta Agent optimization loop — harness configuration, CI artifact generators, validate
 gates, and versioned runtime JSON ([ADR-003](../docs/adr/003-ai-native-cicd-policy.md)).
 
