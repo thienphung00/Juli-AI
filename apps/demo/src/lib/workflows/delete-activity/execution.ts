@@ -44,7 +44,7 @@ export function createDeleteActivityTimeline(): ExecutionTimelineStep[] {
         "Nếu activity đã inactive thì kết thúc như no-op; nếu còn active thì tiếp tục deactivate.",
       status: "pending",
       recoveryText:
-        "Activity đã inactive — không cần thao tác thêm; quay lại danh sách đề xuất.",
+        "Activity đã inactive, không cần thao tác thêm; quay lại danh sách đề xuất.",
     },
     {
       id: "deactivate-activity",
@@ -55,7 +55,7 @@ export function createDeleteActivityTimeline(): ExecutionTimelineStep[] {
         "Gửi yêu cầu deactivate sau khi shop duyệt rõ ràng.",
       status: "pending",
       recoveryText:
-        "Deactivate thất bại — activity vẫn hiển thị active; thử lại sau khi xác nhận.",
+        "Deactivate thất bại, activity vẫn hiển thị active; thử lại sau khi xác nhận.",
     },
     {
       id: "deactivation-wait",
@@ -75,7 +75,7 @@ export function createDeleteActivityTimeline(): ExecutionTimelineStep[] {
         "Hiển thị trạng thái cuối cùng; nếu vẫn active thì cho phép thử lại deactivate.",
       status: "pending",
       recoveryText:
-        "Activity vẫn active — thử lại deactivate hoặc làm mới qua Get Activity.",
+        "Activity vẫn active, thử lại deactivate hoặc làm mới qua Get Activity.",
     },
   ];
 }

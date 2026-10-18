@@ -61,7 +61,7 @@ export function createHeroProductTimeline(): ExecutionTimelineStep[] {
       description: "Tải từng ảnh đã duyệt và giữ URI trả về cho main_images.",
       status: "pending",
       recoveryText: "Thử lại chỉ ảnh bị lỗi; không ghi đè ảnh đã tải thành công.",
-      errorText: "Tải ảnh thất bại — thử lại ảnh bị lỗi.",
+      errorText: "Tải ảnh thất bại, thử lại ảnh bị lỗi.",
     },
     {
       id: "upload-file",

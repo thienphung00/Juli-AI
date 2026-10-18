@@ -50,7 +50,7 @@ export const RUN_TERMINAL_STATE_COPY: Readonly<
     body: "Juli đã hoàn tất và áp dụng thay đổi được duyệt.",
   },
   completed_after_decline: {
-    label: "Hoàn tất — không đổi",
+    label: "Hoàn tất, không đổi",
     chipVariant: "success",
     // `run.declined_note`
     body: "Bạn đã chọn không thay đổi giá",

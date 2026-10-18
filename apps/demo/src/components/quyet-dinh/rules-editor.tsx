@@ -555,7 +555,7 @@ function OffApiFields({ rules, setBy, onSave, onDelete }: FieldProps) {
         item={note}
         onDelete={onDelete}
         onSave={onSave}
-        placeholder="Ví dụ: 11.11 — giảm 15 % cho 5 sản phẩm chủ lực"
+        placeholder="Ví dụ: 11.11, giảm 15 % cho 5 sản phẩm chủ lực"
         ruleKey="platform_campaign_note"
         setBy={setBy}
         toValue={(text) => {
@@ -634,7 +634,7 @@ export function RulesEditor({
           <Heading className="qd-side-card__title" id="qd-rules-editor">
             Quy tắc của shop
           </Heading>
-          <p className="qd-muted">Mọi con số ở đây do bạn (hoặc đội ngũ Juli thay bạn) đặt — Juli không tự chọn.</p>
+          <p className="qd-muted">Mọi con số ở đây do bạn (hoặc đội ngũ Juli thay bạn) đặt, Juli không tự chọn.</p>
         </div>
         {onClose ? (
           <button className="btn-secondary" onClick={onClose} type="button">

@@ -138,7 +138,7 @@ export function SettingsThresholdsPanel() {
     >
       <h2 id="settings-thresholds-title">Ngưỡng</h2>
       <p className="settings-thresholds__intro">
-        Thay đổi ngưỡng chỉ ảnh hưởng đề xuất trong tương lai — không duyệt
+        Thay đổi ngưỡng chỉ ảnh hưởng đề xuất trong tương lai, không duyệt
         hay thực thi quyết định hiện có.
       </p>
 
@@ -179,7 +179,7 @@ export function SettingsThresholdsPanel() {
                     ("unresolvedReason" in threshold
                       ? threshold.unresolvedReason
                       : undefined) ??
-                    "Chưa xác định — không thể chỉnh sửa."
+                    "Chưa xác định: không thể chỉnh sửa."
                   }
                   id={`threshold-${threshold.key}`}
                   label={threshold.label}

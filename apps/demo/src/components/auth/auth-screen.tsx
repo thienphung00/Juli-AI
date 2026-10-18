@@ -330,7 +330,7 @@ export function AuthScreen({
           <div className="auth-stack">
             <span
               aria-disabled="true"
-              aria-label={`${googleLabel} — chưa cấu hình trong môi trường này`}
+              aria-label={`${googleLabel}: chưa cấu hình trong môi trường này`}
               className="auth-btn auth-btn--ink auth-btn--disabled"
               data-auth-primary=""
               role="link"
@@ -450,22 +450,22 @@ export function AuthScreen({
           <picture>
             <source
               sizes="(min-width: 1024px) 560px, 1px"
-              srcSet="/auth/cap-dx-the-v1-640.avif 640w, /auth/cap-dx-the-v1-1186.avif 1186w"
+              srcSet="/auth/cap-dx-the-v2-640.avif 640w, /auth/cap-dx-the-v2-1184.avif 1184w"
               type="image/avif"
             />
             <source
               sizes="(min-width: 1024px) 560px, 1px"
-              srcSet="/auth/cap-dx-the-v1-640.webp 640w, /auth/cap-dx-the-v1-1186.webp 1186w"
+              srcSet="/auth/cap-dx-the-v2-640.webp 640w, /auth/cap-dx-the-v2-1184.webp 1184w"
               type="image/webp"
             />
             <img
               alt={AUTH_PANEL_IMAGE_ALT}
               className="auth-panel__img"
               decoding="async"
-              height={1229}
+              height={868}
               loading="lazy"
-              src="/auth/cap-dx-the-v1-640.webp"
-              width={1186}
+              src="/auth/cap-dx-the-v2-640.webp"
+              width={1184}
             />
           </picture>
           <figcaption className="auth-panel__caption">{AUTH_PANEL_CAPTION}</figcaption>

@@ -67,7 +67,7 @@ export function getCreateHeroProductReviewStages(
         {
           key: "category_id",
           label: "Danh mục",
-          prefillValue: "700648 — Chăm sóc da / Serum",
+          prefillValue: "700648: Chăm sóc da / Serum",
           required: true,
           editable: false,
         },
@@ -81,7 +81,7 @@ export function getCreateHeroProductReviewStages(
         {
           key: "brand_id",
           label: "Nhãn hiệu",
-          prefillValue: "BR-1024 — Juli Skin Lab (đã khớp)",
+          prefillValue: "BR-1024: Juli Skin Lab (đã khớp)",
           required: true,
           editable: true,
         },
@@ -127,7 +127,7 @@ export function getCreateHeroProductReviewStages(
         {
           key: "warehouse_id",
           label: "Kho giao hàng",
-          prefillValue: "WH-HCM-01 — Kho HCM (đã gán)",
+          prefillValue: "WH-HCM-01: Kho HCM (đã gán)",
           required: true,
           editable: false,
         },
@@ -138,7 +138,7 @@ export function getCreateHeroProductReviewStages(
       title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(createHeroProductFixture, [
         "Shop cần đã xác thực, có đủ thuộc tính/nhãn hiệu/hình ảnh bắt buộc, và kho giao hàng đã được gán.",
-        "Ngưỡng chính xác để phát hiện khoảng trống danh mục chưa được xác định — Juli không tự suy diễn con số này.",
+        "Ngưỡng chính xác để phát hiện khoảng trống danh mục chưa được xác định, Juli không tự suy diễn con số này.",
       ]),
     },
     {

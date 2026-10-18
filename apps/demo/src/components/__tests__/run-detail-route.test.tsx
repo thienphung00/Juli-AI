@@ -259,7 +259,7 @@ describe("RunDetailRoute — replay path (no token, issue #1752)", () => {
       // run header's status chip and the Hoàn tất stage card -- at least
       // one occurrence is the assertion (same idiom as the §3 title check
       // in run-staged-view.test.tsx).
-      expect(screen.getAllByText("Hoàn tất — không đổi").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Hoàn tất, không đổi").length).toBeGreaterThan(0);
     });
 
     expect(fetchRuns).not.toHaveBeenCalled();

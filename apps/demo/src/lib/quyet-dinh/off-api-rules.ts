@@ -59,7 +59,7 @@ export const OFF_API_FIELDS: ReadonlyArray<{ readonly key: OffApiRuleKey; readon
   {
     key: "platform_campaign_note",
     label: "Chiến dịch đang đăng ký",
-    help: "Ví dụ: 11.11 — giảm 15 % cho 5 sản phẩm chủ lực.",
+    help: "Ví dụ: 11.11, giảm 15 % cho 5 sản phẩm chủ lực.",
   },
   {
     key: "target_roas",

@@ -84,7 +84,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
   create_hero_product_1: [
     {
       caveatClass: "threshold-undefined",
-      text: "Ngưỡng chính xác để phát hiện khoảng trống danh mục chưa được xác định — Juli không tự suy diễn con số này.",
+      text: "Ngưỡng chính xác để phát hiện khoảng trống danh mục chưa được xác định, Juli không tự suy diễn con số này.",
     },
     {
       caveatClass: "fulfilment-unsupported",
@@ -127,7 +127,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
     },
     {
       caveatClass: "fulfilment-unsupported",
-      text: "Luồng giao hàng do TikTok quản lý chưa được hỗ trợ — Juli chưa thể chuẩn bị hay hoàn tất đơn hàng theo luồng đó.",
+      text: "Luồng giao hàng do TikTok quản lý chưa được hỗ trợ, Juli chưa thể chuẩn bị hay hoàn tất đơn hàng theo luồng đó.",
     },
   ],
   create_activity_7a: [
@@ -137,7 +137,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
     },
     {
       caveatClass: "feature-unavailable",
-      text: "Juli chưa tìm được chương trình khuyến mãi hiện có theo từ khoá — chỉ làm việc với chương trình bạn đã biết.",
+      text: "Juli chưa tìm được chương trình khuyến mãi hiện có theo từ khoá, chỉ làm việc với chương trình bạn đã biết.",
     },
     {
       caveatClass: "fulfilment-unsupported",
@@ -151,7 +151,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
     },
     {
       caveatClass: "feature-unavailable",
-      text: "Juli chưa tìm được chương trình khuyến mãi hiện có theo từ khoá — chỉ cập nhật chương trình bạn đã biết.",
+      text: "Juli chưa tìm được chương trình khuyến mãi hiện có theo từ khoá, chỉ cập nhật chương trình bạn đã biết.",
     },
     {
       caveatClass: "feature-unavailable",
@@ -169,7 +169,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
     },
     {
       caveatClass: "feature-unavailable",
-      text: "Juli chưa tìm được chương trình khuyến mãi hiện có theo từ khoá — chỉ kết thúc chương trình bạn đã biết.",
+      text: "Juli chưa tìm được chương trình khuyến mãi hiện có theo từ khoá, chỉ kết thúc chương trình bạn đã biết.",
     },
     {
       caveatClass: "fulfilment-unsupported",
@@ -183,7 +183,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
     },
     {
       caveatClass: "reassurance",
-      text: "Với mọi trường hợp chưa rõ ràng, Juli không tự xử lý thay — bạn là người quyết định.",
+      text: "Với mọi trường hợp chưa rõ ràng, Juli không tự xử lý thay, bạn là người quyết định.",
     },
   ],
   prevent_return_8b: [
@@ -193,7 +193,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
     },
     {
       caveatClass: "reassurance",
-      text: "Juli không tự xử lý các trường hợp nghi ngờ gian lận — quyết định vẫn thuộc về bạn.",
+      text: "Juli không tự xử lý các trường hợp nghi ngờ gian lận, quyết định vẫn thuộc về bạn.",
     },
     {
       caveatClass: "fulfilment-unsupported",
@@ -207,7 +207,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
     },
     {
       caveatClass: "reassurance",
-      text: "Juli không tự xử lý hay chuyển tiếp yêu cầu hoàn tiền — bạn là người quyết định.",
+      text: "Juli không tự xử lý hay chuyển tiếp yêu cầu hoàn tiền, bạn là người quyết định.",
     },
   ],
 };

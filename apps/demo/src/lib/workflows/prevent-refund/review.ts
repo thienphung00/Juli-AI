@@ -34,7 +34,7 @@ export function buildPreventRefundReviewInputDefaults(): Record<string, string> 
     request_reason: "Hoàn tiền một phần sau khi đồng ý giảm giá",
     calculated_amount: "185000",
     refund_type: "partial",
-    physical_return_linked: "Không — thuộc luồng trả hàng riêng",
+    physical_return_linked: "Không, thuộc luồng trả hàng riêng",
     decision_deadline: "2026-07-19 09:00",
     seller_decision: "Duyệt",
     reject_reason: "",
@@ -64,7 +64,7 @@ export function getPreventRefundReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body:
-        "Số tiền tính toán chỉ đọc — không ước lượng. Không có mặc định Duyệt/Từ chối. Nếu thiếu kết quả tính toán, không duyệt. Hoàn tiền không gắn hành động tồn kho (thuộc luồng trả hàng).",
+        "Số tiền tính toán chỉ đọc, không ước lượng. Không có mặc định Duyệt/Từ chối. Nếu thiếu kết quả tính toán, không duyệt. Hoàn tiền không gắn hành động tồn kho (thuộc luồng trả hàng).",
       inputFields: [
         {
           key: "aftersale_id",
@@ -104,7 +104,7 @@ export function getPreventRefundReviewStages(
         {
           key: "physical_return_linked",
           label: "Có trả hàng vật lý kèm theo",
-          prefillValue: "Không — thuộc luồng trả hàng riêng",
+          prefillValue: "Không, thuộc luồng trả hàng riêng",
           required: true,
           editable: false,
         },

@@ -38,7 +38,7 @@ export function getCreateActivityPlanReview(): PlanReviewContent {
       summary: "Nhóm sản phẩm chăm sóc da · 1 thông tin",
       disclosureQuestion: "Juli dựa vào thông tin nào?",
       detailLines: [
-        "Juli đã chọn sẵn 2 sản phẩm chăm sóc da đủ điều kiện: PRD-77201 — Serum dưỡng ẩm và PRD-77202 — Kem chống nắng SPF50.",
+        "Juli đã chọn sẵn 2 sản phẩm chăm sóc da đủ điều kiện: PRD-77201 (Serum dưỡng ẩm) và PRD-77202 (Kem chống nắng SPF50).",
       ],
       analyticsMetricHref: buildAnalyticsMetricHref(
         defaultCreateActivityAnalyticsMetricKey,
@@ -58,7 +58,7 @@ export function getCreateActivityPlanReview(): PlanReviewContent {
     },
     details: {
       detailLines: [
-        "Giảm 15% từ giá gốc, áp dụng cho PRD-77201 — Serum dưỡng ẩm và PRD-77202 — Kem chống nắng SPF50.",
+        "Giảm 15% từ giá gốc, áp dụng cho PRD-77201 (Serum dưỡng ẩm) và PRD-77202 (Kem chống nắng SPF50).",
         "Chương trình chạy từ ngày 10/08/2026 đến hết ngày 24/08/2026.",
       ],
     },

@@ -32,10 +32,10 @@ export function createUpdateActivityTimeline(): ExecutionTimelineStep[] {
       kind: "outcome",
       title: "Chương trình đã biết được tải",
       description:
-        "Xác định activity theo activity_id đã theo dõi — không dùng tìm kiếm.",
+        "Xác định activity theo activity_id đã theo dõi, không dùng tìm kiếm.",
       status: "pending",
       recoveryText:
-        "Thiếu activity_id — không thể cập nhật; quay lại chọn đề xuất có ID đã biết.",
+        "Thiếu activity_id, không thể cập nhật; quay lại chọn đề xuất có ID đã biết.",
     },
     {
       id: "update-activity",
@@ -46,7 +46,7 @@ export function createUpdateActivityTimeline(): ExecutionTimelineStep[] {
         "Gửi thay đổi cấu hình/sản phẩm đã duyệt qua Update Activity Product.",
       status: "pending",
       recoveryText:
-        "TikTok từ chối cập nhật — quay lại bước nhập liệu và chỉnh trường/SKU bị lỗi.",
+        "TikTok từ chối cập nhật, quay lại bước nhập liệu và chỉnh trường/SKU bị lỗi.",
     },
     {
       id: "activity-changed-wait",

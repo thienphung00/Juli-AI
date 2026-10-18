@@ -32,7 +32,7 @@ export function getDeleteActivityPlanReview(): PlanReviewContent {
       summary: "Chương trình “Giảm giá trực tiếp mùa hè” · 1 thông tin",
       disclosureQuestion: "Juli dựa vào thông tin nào?",
       detailLines: [
-        "Juli đang theo dõi chương trình ACT-7720 — “Giảm giá trực tiếp mùa hè” (đang hoạt động).",
+        "Juli đang theo dõi chương trình ACT-7720 “Giảm giá trực tiếp mùa hè” (đang hoạt động).",
       ],
       analyticsMetricHref: buildAnalyticsMetricHref(
         defaultDeleteActivityAnalyticsMetricKey,

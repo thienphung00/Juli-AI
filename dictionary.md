@@ -241,7 +241,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 
 **`impact.provenance.unprovenanced`**
 - EN: Figure source not recorded — not shown as a real measurement
-- VI: Chưa rõ nguồn số liệu — không hiển thị như số đo thực
+- VI: Chưa rõ nguồn số liệu, không hiển thị như số đo thực
 - _Avoid_: Số liệu tạm thời
 - Definition: Fail-closed state for an impact reading that arrives without a valid `series_source` (issue #1958 AC3). The figure itself is withheld and this copy stands where the number would have been — the view layer never reintroduces the `measured` default the column deliberately refuses. "Số liệu tạm thời" is avoided because it implies the figure will firm up on its own; the honest state is that provenance was never declared.
 
@@ -349,8 +349,8 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Under the column: "Xem thử với dữ liệu mẫu, không cần tài khoản →" (EN: Look around with sample data, no account needed →) enters the sample demo (`demo.try`); "Mới dùng Juli? Dùng thử miễn phí 3 tháng" switches to the trial variant.
 - OTP view: h1 "Nhập mã 6 chữ số"; "Juli đã gửi mã tới {masked email}. Nhập mã bên dưới, hoặc bấm nút đăng nhập trong email."; legend "Mã đăng nhập", boxes "Số 1"…"Số 6"; filled button "Xác nhận" (pending "Đang xác nhận…"); "Nhập đủ 6 chữ số trong email."; "← Đổi email"; "Gửi lại mã" / "Gửi lại mã sau {n} giây"; on a wrong/expired code the alert offers "Gửi mã mới"; success "Đăng nhập thành công. Đang chuyển tới Kết nối TikTok Shop…".
 - Partner view (the top pill or the footer link "Tài khoản đối tác"): eyebrow "Tài khoản đối tác", h1 "Đăng nhập bằng mật khẩu", sub "Dành cho đối tác và đơn vị thẩm định được Juli cấp tài khoản. Người bán đăng nhập bằng Google hoặc email.", back "← Quay lại đăng nhập cho người bán".
-- Right panel (desktop, label "Juli làm gì"): eyebrow "Sau khi kết nối TikTok Shop"; "Juli chỉ ra luồng và sản phẩm đang kéo GMV xuống, kèm một thay đổi cụ thể để bạn duyệt."; shot alt "Thẻ đề xuất của Juli (dữ liệu mẫu)", caption "Dữ liệu mẫu"; proof lines "Kết nối chính thức qua TikTok Shop Open API" · "Chỉ thực hiện khi bạn duyệt" · "Miễn phí 3 tháng".
-- Logo label "Juli AI — về trang chủ app-juli.com"; footer "Tài khoản đối tác" · "Điều khoản" · "Chính sách bảo mật" · "© 2026 Công ty TNHH Công Nghệ Juli AI".
+- Right panel (desktop, label "Juli làm gì"): eyebrow "Sau khi kết nối TikTok Shop"; "Juli chỉ ra luồng và sản phẩm đang kéo GMV xuống, kèm một thay đổi cụ thể để bạn duyệt."; shot alt "Thẻ đề xuất của Juli: Mặt nạ đất sét 100g, CTOR 5,4 % lên 5,9 % (dữ liệu mẫu)", caption "Dữ liệu mẫu"; proof lines "Kết nối chính thức qua TikTok Shop Open API" · "Chỉ thực hiện khi bạn duyệt" · "Miễn phí 3 tháng".
+- Logo label "Juli AI, về trang chủ app-juli.com"; footer "Tài khoản đối tác" · "Điều khoản" · "Chính sách bảo mật" · "© 2026 Công ty TNHH Công Nghệ Juli AI".
 
 **`auth.consent`**
 - EN: By continuing, you agree to Juli's Terms of Service and Privacy Policy.
@@ -950,7 +950,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 
 **`run.terminal.completed_after_decline.label`**
 - EN: Complete — unchanged
-- VI: Hoàn tất — không đổi
+- VI: Hoàn tất, không đổi
 - Definition: `completed_after_decline` terminal-state chip label (same shared table as above) — distinct from the plain `completed` label so a declined-but-finished run is never dressed as a plain success. Landed by issue #1321.
 
 **`run.terminal.worker_lost.label`**

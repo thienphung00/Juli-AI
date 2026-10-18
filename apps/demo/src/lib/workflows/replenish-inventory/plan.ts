@@ -46,7 +46,7 @@ export function getReplenishInventoryPlanReview(): PlanReviewContent {
       summary: "Sản phẩm “Kem chống nắng SPF50” · 3 thông tin",
       disclosureQuestion: "Juli dựa vào thông tin nào?",
       detailLines: [
-        "Juli đang theo dõi SKU-SPF50-001 — “Kem chống nắng SPF50” trên shop.",
+        "Juli đang theo dõi SKU-SPF50-001 “Kem chống nắng SPF50” trên shop.",
         "Tồn kho còn 48 đơn vị, đủ cho khoảng 4 ngày bán theo tốc độ hiện tại.",
         "Hàng xuất từ kho HCM (WH-HCM-01) đang gán cho sản phẩm này.",
       ],

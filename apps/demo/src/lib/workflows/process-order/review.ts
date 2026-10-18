@@ -25,13 +25,13 @@ const processOrderFixture = processOrderFixtureEntry;
 
 export function buildProcessOrderReviewInputDefaults(): Record<string, string> {
   return {
-    order_priority: "Hàng đợi T5 — 6 đơn (chỉ đọc theo thứ hạng)",
+    order_priority: "Hàng đợi T5: 6 đơn (chỉ đọc theo thứ hạng)",
     shipping_type: "Ship by TikTok",
     document_type: "Hóa đơn thương mại",
     pickup_slot: "09:00 - 12:00",
     tracking_number: "TK-20260807-001",
     shipping_provider_id: "SP-TKT-01",
-    split_combine: "Tắt — chỉ bật khi ràng buộc đóng gói yêu cầu",
+    split_combine: "Tắt, chỉ bật khi ràng buộc đóng gói yêu cầu",
   };
 }
 
@@ -59,22 +59,22 @@ export function getProcessOrderReviewStages(
       title: "Thông tin cần xác nhận",
       body: [
         "Thứ tự ưu tiên đơn hàng mặc định theo thứ hạng T5 và chỉ đọc.",
-        "Loại vận chuyển mặc định từ đơn hàng — Ship by TikTok và Ship by Seller loại trừ lẫn nhau theo gói.",
+        "Loại vận chuyển mặc định từ đơn hàng, Ship by TikTok và Ship by Seller loại trừ lẫn nhau theo gói.",
         "Ship by TikTok cần loại tài liệu/lấy hàng được hợp đồng hỗ trợ; Ship by Seller cần mã vận đơn và mã nhà vận chuyển do shop nhập.",
-        "Tách/gộp gói mặc định tắt — chỉ hiện khi ràng buộc đóng gói yêu cầu.",
+        "Tách/gộp gói mặc định tắt, chỉ hiện khi ràng buộc đóng gói yêu cầu.",
       ].join(" "),
       inputFields: [
         {
           key: "order_priority",
           label: "Thứ tự ưu tiên đơn hàng (T5)",
-          prefillValue: "Hàng đợi T5 — 6 đơn (chỉ đọc theo thứ hạng)",
+          prefillValue: "Hàng đợi T5: 6 đơn (chỉ đọc theo thứ hạng)",
           required: true,
           editable: false,
         },
         {
           key: "shipping_type",
           label: "Loại vận chuyển",
-          prefillValue: "Ship by TikTok — từ đơn hàng",
+          prefillValue: "Ship by TikTok, từ đơn hàng",
           required: true,
           editable: true,
         },
@@ -109,7 +109,7 @@ export function getProcessOrderReviewStages(
         {
           key: "split_combine",
           label: "Tách/gộp gói",
-          prefillValue: "Tắt — chỉ bật khi ràng buộc đóng gói yêu cầu",
+          prefillValue: "Tắt, chỉ bật khi ràng buộc đóng gói yêu cầu",
           required: false,
           editable: true,
         },

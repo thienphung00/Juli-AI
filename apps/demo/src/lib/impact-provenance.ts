@@ -47,7 +47,7 @@ export const IMPACT_PROVENANCE_SYNTHETIC_MARKER_TEXT = "Số liệu minh hoạ";
  * `IMPACT_UNAVAILABLE_TEXT` in `impact-block-shell.tsx`).
  */
 export const IMPACT_PROVENANCE_UNPROVENANCED_TEXT =
-  "Chưa rõ nguồn số liệu — không hiển thị như số đo thực";
+  "Chưa rõ nguồn số liệu, không hiển thị như số đo thực";
 
 /**
  * Resolve a reading's provenance from its own `series_source`, exactly.

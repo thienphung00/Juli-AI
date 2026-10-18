@@ -34,7 +34,7 @@ export function createReplenishInventoryTimeline(): ExecutionTimelineStep[] {
       kind: "outcome",
       title: "Cần chọn đường bên ngoài",
       description:
-        "Shop chọn NCC hoặc ERP. Unresolved — chưa có hợp đồng tích hợp NCC/ERP có thẩm quyền; không tự suy diễn executor.",
+        "Shop chọn NCC hoặc ERP. Unresolved: chưa có hợp đồng tích hợp NCC/ERP có thẩm quyền; không tự suy diễn executor.",
       status: "pending",
       recoveryText:
         "Chọn NCC hoặc ERP khi hợp đồng sẵn sàng; nếu không có tích hợp thì giữ trạng thái Unresolved.",
@@ -43,9 +43,9 @@ export function createReplenishInventoryTimeline(): ExecutionTimelineStep[] {
       id: "create-po-unresolved",
       stepNumber: 4,
       kind: "action",
-      title: "Unresolved — Tạo đơn mua / Purchase Request",
+      title: "Unresolved: Tạo đơn mua / Purchase Request",
       description:
-        "Unresolved — chưa có hợp đồng API cho Create Purchase Order hoặc Purchase Request; demo không mô phỏng hành vi gửi đơn.",
+        "Unresolved: chưa có hợp đồng API cho Create Purchase Order hoặc Purchase Request; demo không mô phỏng hành vi gửi đơn.",
       status: "pending",
     },
     {
@@ -80,7 +80,7 @@ export function createReplenishInventoryTimeline(): ExecutionTimelineStep[] {
       status: "pending",
       recoveryText:
         "Giữ bằng chứng nhận hàng và thử lại idempotent khi cập nhật thất bại.",
-      errorText: "Cập nhật tồn kho thất bại — thử lại sau khi giữ bằng chứng nhận hàng.",
+      errorText: "Cập nhật tồn kho thất bại, thử lại sau khi giữ bằng chứng nhận hàng.",
     },
     {
       id: "inventory-reconciliation-wait",

@@ -183,7 +183,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
     // exactly the failure this action exists to undo.
     clearReplayDecision();
     setFeedback(
-      `Demo đã trở về trạng thái ban đầu tại ${ACTIONS_DESTINATION_LABEL} — Đề xuất.`,
+      `Demo đã trở về trạng thái ban đầu tại ${ACTIONS_DESTINATION_LABEL}, mục Đề xuất.`,
     );
   }, []);
 

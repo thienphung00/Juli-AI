@@ -60,7 +60,7 @@ const CARD: RecommendationCardPayload = {
     { field: "description", label: "Mô tả" },
   ],
   before_after: [
-    { field: "title", label: "Tiêu đề", before: "Son môi số 12", after: "Son môi lì cao cấp số 12 — màu đỏ ruby" },
+    { field: "title", label: "Tiêu đề", before: "Son môi số 12", after: "Son môi lì cao cấp số 12, màu đỏ ruby" },
     { field: "description", label: "Mô tả", before: "180 ký tự, một đoạn", after: "640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản" },
   ],
   gmv_method: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
@@ -126,7 +126,7 @@ function ev(seq: number, event_type: string, payload: Record<string, unknown>): 
   });
 }
 
-const CHANGE = { title: "Son môi lì cao cấp số 12 — màu đỏ ruby", description: "Thành phần: sáp ong.\nCách dùng: thoa đều.\nBảo quản: nơi khô ráo." };
+const CHANGE = { title: "Son môi lì cao cấp số 12, màu đỏ ruby", description: "Thành phần: sáp ong.\nCách dùng: thoa đều.\nBảo quản: nơi khô ráo." };
 
 const CONSENT_RUN: AgentEvent[] = [
   ev(1, "workflow.started", { workflow_key: "optimize_product_2", product_ref: "p", prompt_version: "v3" }),
@@ -309,7 +309,7 @@ describe("the recommendation card (Main.dc.html)", () => {
       "Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop (38,9 % so với 56,4 %). TikTok báo: “Mô tả quá ngắn”.",
     );
     expect(more).toHaveTextContent("Trước: Son môi số 12");
-    expect(more).toHaveTextContent("Sau: Son môi lì cao cấp số 12 — màu đỏ ruby");
+    expect(more).toHaveTextContent("Sau: Son môi lì cao cấp số 12, màu đỏ ruby");
     expect(more).toHaveTextContent("Hiện tại: 180 ký tự, một đoạn.");
     expect(more).toHaveTextContent("Đề xuất: 640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản.");
     expect(more).toHaveTextContent("GMV dự kiến tính theo cách của TikTok: lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV");
@@ -394,7 +394,7 @@ describe("the recommendation card (Main.dc.html)", () => {
     const { unmount } = render(
       <RecommendationCard card={photo} expanded={false} narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} status="pending" />,
     );
-    expect(screen.getByTestId("executor-chip")).toHaveTextContent("Juli tải lên — cần ảnh từ bạn");
+    expect(screen.getByTestId("executor-chip")).toHaveTextContent("Juli tải lên · cần ảnh từ bạn");
     expect(screen.getByTestId("recommendation-card")).toHaveTextContent("Duyệt → Juli hỏi ảnh → bạn tải ảnh → xác nhận → Juli thay ảnh bìa.");
     unmount();
     const promo = cardView(item("3", { lever: { code: "product_discount", label: "Giảm giá sản phẩm", executor: "seller_center" } }));
@@ -411,7 +411,7 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(card).toHaveTextContent("5,4 % → 5,9 %");
     expect(card).toHaveTextContent("ước tính");
     expect(card).toHaveTextContent("Khách thêm giỏ rồi bỏ: Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop");
-    expect(card).toHaveTextContent("Tiêu đề: “Son môi số 12” → “Son môi lì cao cấp số 12 — màu đỏ ruby”");
+    expect(card).toHaveTextContent("Tiêu đề: “Son môi số 12” → “Son môi lì cao cấp số 12, màu đỏ ruby”");
     expect(card).toHaveTextContent("Mô tả: 180 → 640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản");
     expect(screen.getByRole("button", { name: "Xem thêm ›" })).toBeInTheDocument();
   });
@@ -496,7 +496,7 @@ describe("consent with an edit (Run.dc.html)", () => {
     const c = clients();
     signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
     const consent = await screen.findByTestId("consent-block");
-    expect(consent).toHaveTextContent("Juli đề xuất thay đổi sau — chọn rồi xác nhận");
+    expect(consent).toHaveTextContent("Juli đề xuất thay đổi sau: chọn rồi xác nhận");
     const confirm = within(consent).getByRole("button", { name: "Xác nhận thay đổi này" });
     expect(confirm).toBeDisabled();
     await userEvent.click(within(consent).getByRole("button", { name: "✎ Sửa nội dung trước khi áp dụng" }));
@@ -778,7 +778,7 @@ describe("Đo lường panel", () => {
     expect(screen.getByTestId("measure-target")).toHaveTextContent("Mục tiêu và Ngưỡng giữ ổn định");
     expect(screen.getByTestId("day7-steps")).toHaveTextContent("Hỏi bạn: Hoàn tác?");
     const ask = screen.getByTestId("day7-ask");
-    expect(ask).toHaveTextContent("AOV còn 152k ₫ (−5,0 %), ngoài khoảng 155k – 165k ₫ bạn cho phép. Juli không tự hoàn tác — bạn quyết định.");
+    expect(ask).toHaveTextContent("AOV còn 152k ₫ (−5,0 %), ngoài khoảng 155k – 165k ₫ bạn cho phép. Juli không tự hoàn tác, bạn quyết định.");
     await userEvent.click(within(ask).getByRole("button", { name: "Giữ thay đổi" }));
     expect(onKeep).toHaveBeenCalled();
     await userEvent.click(within(ask).getByRole("button", { name: "Hoàn tác" }));

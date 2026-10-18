@@ -32,7 +32,7 @@ export function createPreventRefundTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Tính toán hoàn tiền",
       description:
-        "Lấy bản xem trước số tiền một phần/toàn bộ — không ước lượng.",
+        "Lấy bản xem trước số tiền một phần/toàn bộ, không ước lượng.",
       status: "pending",
       recoveryText:
         "Thử lại tính toán khi thất bại; chặn duyệt đến khi có kết quả hợp lệ.",
@@ -62,7 +62,7 @@ export function createPreventRefundTimeline(): ExecutionTimelineStep[] {
       description:
         "Shop chọn Duyệt hoặc Từ chối; Từ chối bắt buộc có lý do.",
       status: "pending",
-      recoveryText: "Thiếu lý do từ chối — quay lại bước nhập.",
+      recoveryText: "Thiếu lý do từ chối, quay lại bước nhập.",
     },
     {
       id: "approve-refund",
@@ -94,7 +94,7 @@ export function createPreventRefundTimeline(): ExecutionTimelineStep[] {
         "Webhook #67 xác nhận hoàn tất sau duyệt; từ chối chờ trạng thái yêu cầu chính thức.",
       status: "pending",
       recoveryText:
-        "Không xác nhận tiền đã chuyển trước khi webhook xác nhận — làm mới yêu cầu nếu timeout.",
+        "Không xác nhận tiền đã chuyển trước khi webhook xác nhận, làm mới yêu cầu nếu timeout.",
     },
     {
       id: "refund-outcome",

@@ -45,7 +45,7 @@ export function buildPreventReturnReviewInputDefaults(): Record<string, string> 
     return_reason: "Sản phẩm không đúng mô tả",
     decision_deadline: "2026-07-20 12:00",
     rma_state: "Đang chờ hàng về kho",
-    risk_evidence: "Quy tắc: lần trả đầu — không có dấu hiệu gian lận",
+    risk_evidence: "Quy tắc: lần trả đầu, không có dấu hiệu gian lận",
     seller_decision: "Duyệt",
     reject_reason: "",
     review_notes: "Khách hàng yêu cầu hoàn tiền, chúng tôi đồng ý",
@@ -76,7 +76,7 @@ export function getPreventReturnReviewStages(
       stage: "inputs",
       title: "Thông tin cần xác nhận",
       body:
-        "Không có mặc định Duyệt/Từ chối. Nhập lại kho mặc định tắt đến khi kiểm tra thực tế. Luồng trả hàng qua giao hàng do TikTok quản lý chỉ ghi nhận — không thực thi tại đây.",
+        "Không có mặc định Duyệt/Từ chối. Nhập lại kho mặc định tắt đến khi kiểm tra thực tế. Luồng trả hàng qua giao hàng do TikTok quản lý chỉ ghi nhận, không thực thi tại đây.",
       inputFields: [
         {
           key: "return_id",
@@ -116,7 +116,7 @@ export function getPreventReturnReviewStages(
         {
           key: "risk_evidence",
           label: "Bằng chứng rủi ro (theo quy tắc)",
-          prefillValue: "Quy tắc: lần trả đầu — không có dấu hiệu gian lận",
+          prefillValue: "Quy tắc: lần trả đầu, không có dấu hiệu gian lận",
           required: false,
           editable: false,
         },

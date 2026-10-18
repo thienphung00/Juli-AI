@@ -56,7 +56,7 @@ export function createCreateActivityTimeline(): ExecutionTimelineStep[] {
         "Đính kèm SKU và giá đã duyệt vào activity_id vừa tạo trước khi báo live.",
       status: "pending",
       recoveryText:
-        "Một phần SKU không gắn được — giữ activity hiện tại và thử lại SKU bị lỗi.",
+        "Một phần SKU không gắn được, giữ activity hiện tại và thử lại SKU bị lỗi.",
     },
     {
       id: "activity-live-wait",

@@ -55,7 +55,7 @@ export const PRODUCT_DOMAIN_ORDER = [
 ] as const satisfies readonly ProductDomainDefinition[];
 
 const FBS_BADGE = "Có thể thực thi qua FBS";
-const PARTIAL_BADGE = "Một phần — FBS";
+const PARTIAL_BADGE = "Một phần (FBS)";
 
 function settingsFieldKey(workflowKey: string, fieldKey: string) {
   return `${workflowKey}:${fieldKey}`;
@@ -99,12 +99,12 @@ export const workflowTemplateFixtures = [
     fbtFields: [
       {
         key: "fbt_new_listing",
-        label: "FBT — tạo sản phẩm mới",
+        label: "FBT: tạo sản phẩm mới",
         defaultValue: "",
         editable: false,
         unresolved: true,
         unresolvedReason:
-          "Chưa xác định — không có executor FBT cho sản phẩm mới.",
+          "Chưa xác định: không có executor FBT cho sản phẩm mới.",
       },
     ],
   },
@@ -159,12 +159,12 @@ export const workflowTemplateFixtures = [
     fbtFields: [
       {
         key: "fbt_replenish_intake",
-        label: "FBT — nhập hàng",
+        label: "FBT: nhập hàng",
         defaultValue: "",
         editable: false,
         unresolved: true,
         unresolvedReason:
-          "Chưa xác định — không có executor FBT cho việc nhập hàng.",
+          "Chưa xác định: không có executor FBT cho việc nhập hàng.",
       },
     ],
   },
@@ -194,12 +194,12 @@ export const workflowTemplateFixtures = [
     fbtFields: [
       {
         key: "fbt_stock_update",
-        label: "FBT — cập nhật tồn kho",
+        label: "FBT: cập nhật tồn kho",
         defaultValue: "",
         editable: false,
         unresolved: true,
         unresolvedReason:
-          "Chưa xác định — chỉ ghi nhận webhook cập nhật tồn kho FBT.",
+          "Chưa xác định: chỉ ghi nhận webhook cập nhật tồn kho FBT.",
       },
     ],
   },
@@ -234,7 +234,7 @@ export const workflowTemplateFixtures = [
         editable: false,
         unresolved: true,
         unresolvedReason:
-          "Chưa xác định — không hiển thị Create Packages, nhãn vận chuyển, ship, split, hoặc confirm cho FBT.",
+          "Chưa xác định: không hiển thị Create Packages, nhãn vận chuyển, ship, split, hoặc confirm cho FBT.",
       },
     ],
   },
@@ -264,12 +264,12 @@ export const workflowTemplateFixtures = [
     fbtFields: [
       {
         key: "fbt_promotion_parity",
-        label: "FBT — khuyến mãi",
+        label: "FBT: khuyến mãi",
         defaultValue: "",
         editable: false,
         unresolved: true,
         unresolvedReason:
-          "Chưa xác định — không suy diễn parity khuyến mãi từ FBS sang FBT.",
+          "Chưa xác định: không suy diễn parity khuyến mãi từ FBS sang FBT.",
       },
     ],
   },
@@ -299,11 +299,11 @@ export const workflowTemplateFixtures = [
     fbtFields: [
       {
         key: "fbt_promotion_update",
-        label: "FBT — cập nhật khuyến mãi",
+        label: "FBT: cập nhật khuyến mãi",
         defaultValue: "",
         editable: false,
         unresolved: true,
-        unresolvedReason: "Chưa xác định — luồng FBT cho khuyến mãi chưa có executor.",
+        unresolvedReason: "Chưa xác định: luồng FBT cho khuyến mãi chưa có executor.",
       },
     ],
   },
@@ -383,12 +383,12 @@ export const workflowTemplateFixtures = [
     fbtFields: [
       {
         key: "fbt_return_handling",
-        label: "FBT — xử lý trả hàng",
+        label: "FBT: xử lý trả hàng",
         defaultValue: "",
         editable: false,
         unresolved: true,
         unresolvedReason:
-          "Chưa xác định — luồng FBT chỉ ghi nhận, chưa hỗ trợ xử lý trực tiếp.",
+          "Chưa xác định: luồng FBT chỉ ghi nhận, chưa hỗ trợ xử lý trực tiếp.",
       },
     ],
   },
@@ -458,7 +458,7 @@ export const thresholdFixtures = [
     editable: false,
     unresolved: true,
     unresolvedReason:
-      "Chưa xác định — thay đổi ngưỡng không tạo trigger FBT mới.",
+      "Chưa xác định: thay đổi ngưỡng không tạo trigger FBT mới.",
     affectedWorkflowKeys: [
       "create_hero_product_1",
       "replenish_inventory_3", // gitleaks:allow

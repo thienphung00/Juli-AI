@@ -109,7 +109,7 @@ export const MANUAL_CARD_NOTE = "Bạn áp dụng trên Seller Center";
 export const RULE_BASED_ESTIMATE = "ước tính theo quy tắc";
 export const BANDS_MISSING_PROMPT = "Đặt ngưỡng giữ ổn định trước khi chạy";
 export const BANDS_MISSING_BODY =
-  "Juli cần biết mỗi chỉ số không phải mục tiêu được phép lệch bao nhiêu trước lượt chạy đầu tiên. Ngày thứ 7, chỉ số vượt ngưỡng thì Juli hỏi bạn có hoàn tác không — Juli không tự hoàn tác.";
+  "Juli cần biết mỗi chỉ số không phải mục tiêu được phép lệch bao nhiêu trước lượt chạy đầu tiên. Ngày thứ 7, chỉ số vượt ngưỡng thì Juli hỏi bạn có hoàn tác không, Juli không tự hoàn tác.";
 export const TEAM_TOGGLE_LABEL = "Điền thay Seller (đội ngũ Juli)";
 export const MEASURE_WAITING = (date: string) => `Đang chờ đủ 7 ngày dữ liệu · đo lúc ${date}`;
 export const MEASURE_NO_READING =

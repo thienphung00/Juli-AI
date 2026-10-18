@@ -42,7 +42,7 @@ type LoadState =
 function describeError(error: unknown): string {
   if (error instanceof ShopsFetchError) {
     if (error.status === 401) {
-      return "Không tìm thấy tài khoản của bạn trong hệ thống (Lỗi 401). Đây là hạn chế đã biết cho tài khoản Google mới — vui lòng thử lại sau hoặc liên hệ hỗ trợ.";
+      return "Không tìm thấy tài khoản của bạn trong hệ thống (Lỗi 401). Đây là hạn chế đã biết cho tài khoản Google mới, vui lòng thử lại sau hoặc liên hệ hỗ trợ.";
     }
     return `Không thể tải danh sách shop (Lỗi ${error.status}).`;
   }
@@ -269,7 +269,7 @@ function ConnectShopReady({
           it. The half that matters downstream still is: the Actions surface is
           replay, so nothing the seller does after this changes their shop. */}
       <p className="connect-shop__disclaimer">
-        Các thao tác ở {ACTIONS_DESTINATION_LABEL} vẫn là bản minh họa — chưa có
+        Các thao tác ở {ACTIONS_DESTINATION_LABEL} vẫn là bản minh họa, chưa có
         thao tác nào thay đổi shop thật của bạn.
       </p>
 

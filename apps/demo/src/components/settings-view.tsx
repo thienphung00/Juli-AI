@@ -19,7 +19,7 @@ export function SettingsView() {
         Cài đặt
       </h1>
       <p className="demo-intro">
-        Mẫu quy trình và ngưỡng ảnh hưởng đến đề xuất trong tương lai — không
+        Mẫu quy trình và ngưỡng ảnh hưởng đến đề xuất trong tương lai, không
         thay thế việc duyệt tại {ACTIONS_DESTINATION_LABEL}.
       </p>
 
