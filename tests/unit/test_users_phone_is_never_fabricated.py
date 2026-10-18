@@ -239,6 +239,9 @@ ALLOWED_PHONE_MENTIONS = {
     # P16 (D25.6): the ops masker REMOVES phone numbers from staff payloads; it
     # never reads users.phone.
     "services/ops/masking.py",
+    # P50-P (D60.2): the LLM-boundary de-identifier REMOVES phone numbers from
+    # provider requests (and owns the patterns ops masking uses); never reads users.phone.
+    "core/privacy/deidentify.py",
     # Writes, not reads. Both pass a fixed sentinel for an internal, non-seller
     # account (TikTok app review / advertiser), never a per-seller number.
     "services/tiktok/app_review_store.py",
