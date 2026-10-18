@@ -255,7 +255,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | P46-B Month-1 posts 1–4 (week 1) | D56 | done: posts 1–2 (`video-tiktok-nhieu-view-khong-ra-don`, `live-tiktok-shop-khong-ra-don`, branch `fasttrack/p46b1-week1-video-live`) and 3–4 (`san-pham-tiktok-shop-khong-co-luot-hien-thi`, `thue-ban-hang-tiktok-shop`, branch `fasttrack/p46b2-week1-hienthi-thue`), merged; drafts, not deployed | writer agents |
 | P46-C Month-1 posts 5–8 (week 2) | D56 | done, merged, drafts: 5 `khach-xem-nhung-khong-mua-tiktok-shop`, 6 `tang-gia-tri-don-hang-trung-binh-tiktok-shop`, 7 `ty-le-hoan-hang-tiktok-shop`, 8 `phi-san-tiktok-shop-2026` | writer agents |
 | P46-D Month-1 posts 9–12 (week 3) | D56 | todo | writer agents |
-| P46-E Month-1 posts 13–14 (week 4) | D56 | todo | writer agents |
+| P46-E Month-1 posts 13–14 (week 4) | D56 | done on branch `fasttrack/p46e-week4-do-luong-sale`, drafts: 13 `do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop`, 14 `doanh-thu-sau-sale-tiktok-shop` (publish before 03/11/2026) | writer agents |
 
 ## P2–P6
 

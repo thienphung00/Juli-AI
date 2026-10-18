@@ -2502,3 +2502,41 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
   FAIL (no DB; `docker info` hung and was killed; known).
 - Next: owner reviews and merges; posts 7–8 (P46-C2).
+
+## 2026-10-18 · P46-E writer (Claude Opus 5.5) · month-1 posts 13–14 (week 4, Measurement)
+
+- Branch `fasttrack/p46e-week4-do-luong-sale` (from `fasttrack/optimize-product` 017439b1). Two
+  `pain` drafts: `/blog/do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop` (main "đo hiệu quả sau khi
+  sửa sản phẩm", 2,479 words, 9 H2, 5 FAQ, 6 figures) and `/blog/doanh-thu-sau-sale-tiktok-shop`
+  (main "doanh thu sau sale tiktok shop", lead supporting "sale 11.11 tiktok shop" in H1 / title,
+  2,483 words, 10 H2, 5 FAQ, 6 figures). Autocomplete VN re-checked 2026-10-18: both main terms
+  empty; "sale 11.11 tiktok shop" → "tiktok shop 11.11 sale"; "lịch chiến dịch tiktok shop" →
+  "… 2026".
+- Method copy follows SPEC §4 P6, D14, D29, D30, D31.7, D34 and `/san-pham/do-luong-gmv`: 14-day
+  baseline frozen at apply, per-day averages, one target metric on the lever's channel, guard
+  bands, day 7 Đang lên / Chưa rõ, day 14 four labels, ≥ 2× / 1–2× / < 1× band, "Bị ảnh hưởng bởi
+  thay đổi khác", control groups experimental, Rõ / Tham khảo at ~30 orders. Nothing in SPEC / D30
+  handles platform sale days, so both posts say Juli does not detect or exclude them; the seller
+  marks them. No uplift figure quoted (SERP "+30 % / +25 %" excluded).
+- Sources re-opened 2026-10-18 (curl + text; Q4 calendar image downloaded and read): Lịch Chiến
+  Dịch TikTok Shop 2026 (16/10/2026: 10.10 07–10/10, giữa tháng 13–15/10, lương về 24–25,
+  11.11 03–15/11, Black Friday 26–27/11, 12.12 03–15/12; registration "Seller Center hoặc quản lý
+  gian hàng", rules not stated, so not written), Lưu lượng truy cập sản phẩm (17/06/2026), Trả hàng
+  và Hoàn tiền (15/10/2026), Phí Xử Lý Đơn Hàng (11/10/2025), Trình Tối Ưu Hoá Sản Phẩm
+  (04/08/2025), Chẩn Đoán Thẻ Sản Phẩm (21/02/2024).
+- Finding: from late October to mid December 2026 there is almost no 28-day window free of a big
+  sale; post 13 says so and points to the unchanged-product comparison.
+- Figures: 9 new diagrams (`do-lich-14-ngay`, `do-doc-sai-doc-dung`, `do-ba-ket-qua`,
+  `do-cua-so-sale`, `sale-ba-pha`, `sale-ghi-truoc`, `sale-theo-luong`, `sale-ba-nhom`,
+  `sale-gmv-con-lai`) + 3 Dữ liệu mẫu screens opened first (`cap-dl-muc-tieu`, `cap-dl-ngay-14`,
+  `cap-pt-khuyen-mai`). Real campaign dates kept in text, not in figure alts. Covers
+  `do-hieu-qua-v1` (metrics checklist accent 0) and `sau-sale-v1` (metrics tiles accent 3), both
+  unused pairs. Both slugs in `FIGURE_POSTS`. `doanh-thu-tiktok-shop-giam` sale bullet now links
+  post 14 (brief); week-3 posts 9–11 not linked (not on this branch).
+- `keyword-map.md`: two rows; "đo hiệu quả sửa sản phẩm" moved off `/san-pham/do-luong-gmv`.
+- Gates: landing lint 0, `tsc --noEmit` 0, vitest 537 passed (`--maxWorkers=4`), build OK,
+  `check:seo` 35 passed; both posts at 390 / 1440 px: 1 H1, 6 figures loaded, no horizontal
+  overflow. `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations /
+  isolation FAIL (no DB; hung `docker info` killed; known). Screenshots (390 / 1440 px, 24 figure shots) in the
+  session scratchpad `shots-p46e/`.
+- Next: owner reviews; post 14 must be approved before 03/11/2026 and revised after 15/11.
