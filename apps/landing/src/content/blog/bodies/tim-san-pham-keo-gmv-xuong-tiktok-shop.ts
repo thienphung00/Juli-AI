@@ -2,17 +2,15 @@
  * Conversion problem post C6 (D59 additions 5, P49-A2): "Tìm sản phẩm đang kéo GMV TikTok Shop
  * xuống". Main keyword "sản phẩm kéo gmv xuống tiktok shop" (long tail, no volume; the reach post
  * `doanh-thu-tiktok-shop-giam` keeps "doanh thu tiktok shop giảm" and the by-hand diagnosis; this
- * post shows only how Juli finds the product and turns it into a card). Facts: D22.1–2 (stage
- * diagnosis, recoverable GMV per day, CTR / CTOR stage formulas, reference = peer median else own
- * prior 30 days, rule-based estimate), D29.1–5 (adaptive 14 / 30 / 60-day window with ~30 clicks or
- * orders, a problem starts beyond the product's own band, stable first), `/san-pham/phan-tich-shop`
+ * post shows only how Juli finds the product and turns it into a card). Facts: `/san-pham/phan-tich-shop`
  * (Kéo xuống / Kéo lên, rows sum to the tile, "Còn lại", Rõ / Tham khảo, Xem đề xuất / Chưa có đề
- * xuất), `/san-pham/de-xuat-va-thuc-thi` (best-sellers considered, conditions before a card, card
- * limits D24.17). No AOV card is promised (D45 keeps AOV levers in Ops). Worked numbers are
- * hypothetical and say so; screenshot numbers are the sample shop's.
+ * xuất), `/san-pham/de-xuat-va-thuc-thi` (best-sellers considered, conditions before a card). D61:
+ * no expected-GMV formula, data floor, window search, peer reference, target bounds, ranking or card
+ * caps. No AOV card is promised (D45 keeps AOV levers in Ops). Worked numbers are hypothetical and
+ * say so; screenshot numbers are the sample shop's.
  */
 export const body = `
-Khi GMV của shop giảm, câu hỏi đầu tiên là "sản phẩm nào?". Nhưng sắp xếp sản phẩm theo doanh thu giảm nhiều nhất thường chỉ ra sai chỗ: một sản phẩm có thể giảm vì ít người thấy, vì ít người bấm, hay vì người bấm vào không mua, và mỗi trường hợp cần một cách sửa khác. Juli làm ngược lại: tìm luồng và chỉ số đang lấy đi nhiều GMV nhất trước, rồi mới chia con số đó cho từng sản phẩm, xếp theo số đồng mỗi ngày có thể lấy lại.
+Khi GMV của shop giảm, câu hỏi đầu tiên là "sản phẩm nào?". Nhưng sắp xếp sản phẩm theo doanh thu giảm nhiều nhất thường chỉ ra sai chỗ: một sản phẩm có thể giảm vì ít người thấy, vì ít người bấm, hay vì người bấm vào không mua, và mỗi trường hợp cần một cách sửa khác. Juli làm ngược lại: tìm luồng và chỉ số đang lấy đi nhiều GMV nhất trước, rồi mới chia con số đó cho từng sản phẩm theo số đồng mỗi ngày.
 
 Bài này đi qua cách đọc bảng "sản phẩm kéo xuống" trong trang Phân tích của Juli và cách một dòng trong bảng trở thành thẻ đề xuất. Nếu bạn muốn tự chẩn đoán bằng số liệu Seller Center, không dùng công cụ nào, bài [Doanh thu TikTok Shop giảm](/blog/doanh-thu-tiktok-shop-giam) đi qua từng bước bằng tay. Ảnh màn hình trong bài lấy từ "Cửa hàng Mẫu Hoa Mai", shop minh hoạ của Juli.
 
@@ -43,7 +41,7 @@ Câu đó đến từ hai bước. Trước hết, Juli tách GMV của shop the
 
 Trong ví dụ của shop mẫu, luồng Thẻ sản phẩm có lượt hiển thị tăng và GMV vẫn tăng, nhưng CTOR giảm và lấy đi khoảng 250.000đ mỗi ngày, nhiều hơn hẳn CTR hay AOV. Juli đánh dấu "Juli gợi ý" lên ô CTOR. Đây là chỗ mà một tổng GMV đang tăng che mất: shop vẫn lớn lên, nhưng để rơi một phần đáng kể ở bước từ cú nhấp đến đơn hàng.
 
-Một mức giảm chỉ được đánh dấu khi nó lớn hơn mức dao động bình thường của chính chỉ số đó trên chính luồng đó. Lượt hiển thị phụ thuộc nhiều vào cách TikTok phân phối và vào mùa vụ, nên khi tìm việc cụ thể để làm, Juli ưu tiên những chỉ số bạn thay đổi được trên trang sản phẩm: CTR và CTOR. Cách đọc từng luồng được giải thích ở trang [Phân tích shop](/san-pham/phan-tich-shop).
+Một mức giảm chỉ được đánh dấu khi nó lớn hơn mức dao động bình thường của chính chỉ số đó trên chính luồng đó. Lượt hiển thị phụ thuộc nhiều vào cách TikTok phân phối và vào mùa vụ, còn những gì bạn sửa được trên trang sản phẩm thường hiện ra ở CTR và CTOR. Cách đọc từng luồng được giải thích ở trang [Phân tích shop](/san-pham/phan-tich-shop).
 
 ## Đọc bảng sản phẩm kéo xuống
 
@@ -72,10 +70,10 @@ Bảng không phải một danh sách riêng. Nó là cùng một con số của
 
 Nhãn tin cậy cho biết một dòng có đủ cơ sở hay không.
 
-- **Rõ**: cả hai kỳ có đủ đơn hàng (khoảng 30 đơn mỗi bên trở lên) và mức thay đổi nằm ngoài vùng dao động ngẫu nhiên.
+- **Rõ**: cả hai kỳ có đủ đơn hàng và mức thay đổi nằm ngoài vùng dao động ngẫu nhiên.
 - **Tham khảo**: dữ liệu còn ít, hoặc thay đổi chưa vượt khỏi mức nhiễu. Juli gợi ý theo dõi thêm thay vì kết luận.
 
-Với một sản phẩm ít đơn, Juli tìm khoảng thời gian ngắn nhất (14, 30 rồi 60 ngày) có đủ khoảng 30 lượt nhấp hoặc 30 đơn để đánh giá. Nếu ngay cả 60 ngày cũng không đủ, sản phẩm được ghi là ít dữ liệu và không nhận chẩn đoán.
+Với sản phẩm quá ít dữ liệu, Juli ghi là ít dữ liệu và chưa đưa ra chẩn đoán, thay vì đọc một con số chưa đủ chắc.
 
 Một dòng Tham khảo không có nghĩa là sản phẩm ổn. Nó có nghĩa là sửa bây giờ thì sau 14 ngày bạn cũng khó biết thay đổi có tác dụng hay không, vì kết quả sẽ lẫn trong dao động. Trong bảng mẫu, hai sản phẩm Tham khảo ghi "Chưa có đề xuất".
 
@@ -91,7 +89,7 @@ Người bán hay để ý sản phẩm có tỷ lệ giảm "đáng sợ" nhấ
 | Đơn mất mỗi ngày | 800 × 0,6 % = 4,8 | 60 × 3,0 % = 1,8 |
 | GMV mất mỗi ngày | khoảng 720.000đ | khoảng 270.000đ |
 
-CTOR của B giảm một nửa, nhưng A lấy đi gần gấp ba số tiền. Vì vậy sản phẩm bán chạy cũng được xét, và thường đứng đầu bảng, dù mức giảm phần trăm trông nhỏ. Ngược lại, B với 60 lượt nhấp mỗi ngày đủ dữ liệu để có nhãn, còn một sản phẩm chỉ vài lượt nhấp mỗi ngày thì chưa.
+CTOR của B giảm một nửa, nhưng A lấy đi gần gấp ba số tiền. Vì vậy sản phẩm bán chạy cũng được xét, và thường đứng đầu bảng, dù mức giảm phần trăm trông nhỏ. Ngược lại, một sản phẩm chỉ vài lượt nhấp mỗi ngày có thể chưa đủ dữ liệu để kết luận.
 
 Bạn có thể thử phép tính này với số của chính sản phẩm mình bằng [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv), chạy ngay trên trình duyệt.
 
@@ -102,23 +100,15 @@ Bạn có thể thử phép tính này với số của chính sản phẩm mìn
 - **Xem đề xuất**: sản phẩm đã có thẻ đề xuất. Bấm vào, bạn sang thẳng trang Quyết định.
 - **Chưa có đề xuất**: sản phẩm chưa đủ cơ sở cho một thẻ.
 
-Một sản phẩm nhận thẻ khi qua đủ các điều kiện: có đủ dữ liệu, thay đổi đó hợp lệ với TikTok Shop và với Quy tắc của bạn, sản phẩm không có một thay đổi khác đang được đo, và cùng thay đổi chưa bị từ chối hay hoàn tác trong 7 ngày qua.
+Một sản phẩm nhận thẻ khi qua đủ các điều kiện: có đủ dữ liệu, thay đổi đó hợp lệ với TikTok Shop và với Quy tắc của bạn, sản phẩm không có một thay đổi khác đang được đo, và bạn chưa vừa từ chối hay hoàn tác cùng thay đổi đó.
 
 {{hinh:keo-xuong-the}}
 
 Thẻ của Mặt nạ đất sét 100g nối thẳng với dòng thứ hai của bảng: CTOR trên luồng Thẻ sản phẩm, mục tiêu từ 5,4 % lên 5,9 %. Lý do là mô tả quá ngắn, và TikTok cũng báo "Mô tả quá ngắn", nên thay đổi đề xuất là Mô tả.
 
-Con số **GMV dự kiến** trên thẻ dùng cùng phép tách GMV của TikTok. Với thẻ nhắm CTOR:
+Con số **GMV dự kiến** trên thẻ là phần GMV Juli ước tính có thể lấy lại nếu chỉ số đạt mục tiêu, tính từ số liệu hiện tại của chính sản phẩm. Với thẻ nhắm CTR, lượt nhấp tăng thêm chỉ thành GMV khi có người đặt hàng, nên con số còn phụ thuộc CTOR. Mục tiêu được đặt ở mức đủ rõ để đo được và không hứa quá tay. Thẻ ghi rõ đây là ước tính, không phải lời hứa.
 
-> GMV có thể lấy lại mỗi ngày = Lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV
-
-Với thẻ nhắm CTR, phép tính có thêm bước CTOR, vì lượt nhấp tăng thêm chỉ thành GMV khi có người đặt hàng:
-
-> Lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV
-
-Số liệu là trung bình mỗi ngày của 30 ngày. Mục tiêu dựa trên mức của các sản phẩm khác trong shop hoặc mức ổn định trước đó của chính sản phẩm, và không đặt tuỳ ý: nó phải cao hơn mức dao động bình thường để đo được, nhưng không vượt quá vài lần mức đó để không hứa quá tay. Thẻ ghi rõ đây là ước tính theo quy tắc, không phải lời hứa.
-
-Các ứng viên của cả shop được xếp theo cùng con số GMV có thể lấy lại mỗi ngày. Bạn nhận tối đa 5 thẻ mới mỗi ngày, 25 thẻ mỗi tuần và 30 thẻ đang mở cùng lúc. Sản phẩm có số liệu ổn định được ưu tiên, vì mục tiêu của chúng đo được chính xác hơn. Cách duyệt, xác nhận và những gì Juli làm hay bạn làm được mô tả ở trang [Đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi).
+Juli đưa lên trước những việc có khả năng mang lại nhiều GMV nhất, và giữ số thẻ mỗi ngày ở mức bạn duyệt kịp. Cách duyệt, xác nhận và những gì Juli làm hay bạn làm được mô tả ở trang [Đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi).
 
 ## Kéo lên: sản phẩm đang đóng góp
 
@@ -134,7 +124,7 @@ Bảng chỉ ra sản phẩm và chỉ số. Việc tiếp theo tuỳ chỉ số
 
 - **CTR thấp trên Thẻ sản phẩm** (người mua thấy mà không bấm): Juli đề xuất đổi tiêu đề hoặc ảnh bìa. Xem bài [CTR Thẻ sản phẩm thấp](/blog/ctr-the-san-pham-thap-doi-tieu-de-anh-bia).
 - **CTOR thấp** (người mua bấm vào mà không đặt): Juli tách tiếp trước hay sau giỏ hàng, rồi đề xuất mô tả hoặc hướng dẫn khuyến mãi. Xem bài [CTOR thấp: viết lại mô tả](/blog/ctor-thap-viet-lai-mo-ta-san-pham).
-- **Lượt hiển thị giảm**: thường do phân phối và mùa vụ; Juli vẫn hiển thị phần GMV do nó gây ra, nhưng ưu tiên những chỉ số bạn sửa được.
+- **Lượt hiển thị giảm**: thường do phân phối và mùa vụ; Juli vẫn hiển thị phần GMV do nó gây ra, để bạn biết mức giảm nằm ở đâu.
 
 Sau khi một thay đổi được áp dụng, Juli đo nó ở ngày 7 và chốt ở ngày 14 so với mốc 14 ngày trước khi áp dụng, cách đo ở trang [Đo lường GMV](/san-pham/do-luong-gmv). Định nghĩa từng chỉ số có ở bài [các chỉ số TikTok Shop](/blog/chi-so-tiktok-shop-ctr-ctor-aov).
 

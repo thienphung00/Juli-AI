@@ -7,8 +7,7 @@
  * SPEC §2.1 (OAuth, signed state), `/ket-noi/tiktok-shop` (steps, permission
  * groups, reads / writes, encryption, staff access, disconnect, Shopee wording),
  * D26 / D25.12 / P17 via that page (quick scan 14 days, reading 60 days,
- * nightly history to 180 days; SPEC §3.1 "30 days" is stale), D24.17 (day-1
- * slots), D25.15 (missing scopes strip), D43 additions 2 and 3 (sign-in door,
+ * nightly history to 180 days; SPEC §3.1 "30 days" is stale), D25.15 (missing scopes strip), D43 additions 2 and 3 (sign-in door,
  * trial, no seller disconnect button), D44.5 / D47.6 (auth screen). Durations
  * are not promised (SPEC §5 targets are estimates until measured).
  */
@@ -79,19 +78,19 @@ Ngay khi TikTok đưa bạn trở lại, Juli chạy ba bước và hiện tiế
 
 ### Bước 1/3: quét nhanh 14 ngày
 
-Trong vài phút đầu, Juli đọc hiệu suất sản phẩm của 14 ngày gần nhất và chẩn đoán sản phẩm mà TikTok trả về cho các sản phẩm bán chạy. Từ đó Juli có thể tạo 1 đến 3 **đề xuất nhanh** về ảnh bìa, tiêu đề hoặc mô tả. Các thẻ này mang nhãn "Đề xuất nhanh · dựa trên 14 ngày" và độ tin cậy **Tham khảo**, vì 14 ngày còn ngắn để chắc chắn. Không phải shop nào cũng nhận đủ ba thẻ nhanh: nếu chưa có sản phẩm nào đủ dữ liệu, ô đó để trống.
+Trong vài phút đầu, Juli đọc hiệu suất sản phẩm của 14 ngày gần nhất và chẩn đoán sản phẩm mà TikTok trả về cho các sản phẩm bán chạy. Từ đó Juli có thể đưa ra vài **đề xuất nhanh** về ảnh bìa, tiêu đề hoặc mô tả. Các thẻ này mang nhãn "Đề xuất nhanh · dựa trên 14 ngày" và độ tin cậy **Tham khảo**, vì 14 ngày còn ngắn để chắc chắn. Không phải shop nào cũng nhận được thẻ nhanh: nếu chưa có sản phẩm nào đủ dữ liệu, Juli chờ chẩn đoán đầy đủ.
 
-Đọc một thẻ nhanh như đọc mọi thẻ khác: chỉ số mục tiêu (ví dụ CTR trên kênh Thẻ sản phẩm, giá trị hiện tại và mục tiêu), GMV dự kiến ghi rõ "ước tính theo quy tắc", lý do và thay đổi đề xuất. Bạn có thể duyệt ngay, hoặc chờ chẩn đoán đầy đủ để xem thẻ còn đứng vững không.
+Đọc một thẻ nhanh như đọc mọi thẻ khác: chỉ số mục tiêu (ví dụ CTR trên kênh Thẻ sản phẩm, giá trị hiện tại và mục tiêu), GMV dự kiến ghi rõ là ước tính, lý do và thay đổi đề xuất. Bạn có thể duyệt ngay, hoặc chờ chẩn đoán đầy đủ để xem thẻ còn đứng vững không.
 
 ### Bước 2/3: đọc 60 ngày và chẩn đoán đầy đủ
 
-Juli đọc 60 ngày đơn hàng và số liệu phân tích, đủ để so 30 ngày gần nhất với 30 ngày trước đó, rồi dựng báo cáo Phân tích và các thẻ đề xuất đầy đủ. Dải tiến trình ghi phần trăm và thời gian ước tính còn lại. Thời gian thật tuỳ theo số sản phẩm của shop, nên con số "khoảng 9 phút" trong ảnh chỉ là của shop mẫu. Khi bước này xong, các thẻ nhanh còn hợp lệ được giữ lại và cập nhật số, các ô đề xuất còn lại trong ngày được lấp đầy.
+Juli đọc 60 ngày đơn hàng và số liệu phân tích, đủ để so 30 ngày gần nhất với 30 ngày trước đó, rồi dựng báo cáo Phân tích và các thẻ đề xuất đầy đủ. Dải tiến trình ghi phần trăm và thời gian ước tính còn lại. Thời gian thật tuỳ theo số sản phẩm của shop, nên con số "khoảng 9 phút" trong ảnh chỉ là của shop mẫu. Khi bước này xong, các thẻ nhanh còn hợp lệ được giữ lại và cập nhật số, và các đề xuất khác xuất hiện.
 
-Ngày đầu, thẻ mới được chia theo loại: đến 3 thẻ Juli thực hiện (tiêu đề, mô tả, hoặc ảnh bìa bằng ảnh bạn gửi), 1 thẻ bạn làm trên Seller Center và 1 thẻ nội dung video hoặc LIVE. Ô nào không có ứng viên tốt thì để trống, Juli không lấp bằng thẻ kém hơn.
+Ngày đầu, thẻ có thể gồm việc Juli làm (tiêu đề, mô tả, hoặc ảnh bìa bằng ảnh bạn gửi), việc bạn làm trên Seller Center và nội dung video hoặc LIVE. Không có việc đáng làm thì Juli không thêm thẻ cho đủ số.
 
 ### Bước 3/3: tải lịch sử nền
 
-Mỗi đêm, Juli tải thêm lịch sử cũ hơn, đến 180 ngày hoặc đến giới hạn TikTok cho phép, ở mức ưu tiên thấp để không làm chậm phần còn lại. Bạn không cần chờ bước này để dùng Juli.
+Mỗi đêm, Juli tải thêm lịch sử cũ hơn, đến 180 ngày hoặc đến giới hạn TikTok cho phép, chạy nền để không làm chậm phần còn lại. Bạn không cần chờ bước này để dùng Juli.
 
 ### Sau đó, mỗi ngày
 
@@ -103,7 +102,7 @@ Trong lúc chờ bước 2, có ba việc đáng làm:
 
 1. **Mở Phân tích và đọc dòng đầu trang.** Juli tóm tắt 30 ngày thành một câu, ví dụ "Thẻ sản phẩm: CTOR giảm 7 %", kèm luồng và chỉ số đang kéo GMV xuống. Bài [đọc màn hình Phân tích theo luồng truy cập](/blog/doc-phan-tich-tiktok-shop-theo-luong-truy-cap) giải thích từng ô.
 2. **Xem lại Quy tắc.** Giọng văn, những từ không được dùng, giá vốn hoặc biên lợi nhuận tối thiểu và số thẻ mở cùng lúc là con số của bạn; Juli không tự chọn chúng. Đặt trước khi duyệt thẻ đầu tiên giúp nội dung Juli soạn đúng ý bạn ngay từ lần đầu.
-3. **Đọc kỹ một thẻ trước khi duyệt.** Bấm "Xem thêm" để thấy lý do đầy đủ và công thức GMV dự kiến. Duyệt chưa đổi gì trên shop; bạn còn một bước xác nhận nữa.
+3. **Đọc kỹ một thẻ trước khi duyệt.** Bấm "Xem thêm" để thấy lý do đầy đủ và GMV dự kiến. Duyệt chưa đổi gì trên shop; bạn còn một bước xác nhận nữa.
 
 {{hinh:hd-kn-phan-tich-dau-tien}}
 
@@ -127,7 +126,7 @@ Về phía ghi, Juli thực hiện ba loại thay đổi: tiêu đề, mô tả 
 
 **Nhân viên Juli chỉ xem dữ liệu shop.** Dữ liệu shop chỉ dùng để cung cấp dịch vụ cho chính bạn. Nhân viên được xem dữ liệu shop để hỗ trợ và vận hành, ở chế độ chỉ xem; họ không bao giờ xem dữ liệu người mua, và mọi lần truy cập đều được ghi nhật ký.
 
-**Dữ liệu gửi đi soạn nội dung không dùng để huấn luyện.** Khi bạn duyệt một thẻ tiêu đề hay mô tả, Juli gửi thông tin cần thiết của sản phẩm đó đến OpenAI để soạn nội dung. Dữ liệu này không được dùng để huấn luyện mô hình. Trước khi bạn duyệt, không có lời gọi nào như vậy.
+**Dữ liệu gửi đi soạn nội dung không dùng để huấn luyện.** Khi bạn duyệt một thẻ tiêu đề hay mô tả, Juli gửi thông tin cần thiết của sản phẩm đó đến nhà cung cấp AI nêu trong [Chính sách bảo mật](/privacy) để soạn nội dung. Dữ liệu này không được dùng để huấn luyện mô hình. Trước khi bạn duyệt, thông tin sản phẩm không được gửi đi để soạn nội dung.
 
 ## Khi Juli báo thiếu quyền hoặc cần kết nối lại
 

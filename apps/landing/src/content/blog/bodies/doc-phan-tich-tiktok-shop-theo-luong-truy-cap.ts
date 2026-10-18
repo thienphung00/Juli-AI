@@ -8,8 +8,8 @@
  * cancelled / refunded, đồng mỗi ngày per tile summing to the stream, "Juli
  * gợi ý", fluctuation test, CTOR before / after cart, Rõ vs Tham khảo,
  * "Phụ thuộc sản phẩm", Khuyến mãi "giảm thật", sale days marked, cadence),
- * SPEC §3.3 (analytics once a day, self-heals gaps), D32 (lever channel),
- * D29.1 (≈ 30 clicks / orders). The product ranking table gets one paragraph
+ * SPEC §3.3 (analytics once a day, self-heals gaps), D32 (lever channel).
+ * D61: no data floors or window search, no priority rule. The product ranking table gets one paragraph
  * (its detail belongs to the problem post C6). The AOV lever is not promised
  * (D59 additions 5); no simulation, no control groups.
  */
@@ -69,7 +69,7 @@ Không phải luồng nào cũng có đủ chỉ số có nghĩa. Ở luồng Vi
 
 Sau khi tách GMV thành bốn phần, Juli đánh dấu "Juli gợi ý" lên chỉ số lấy đi nhiều GMV nhất của luồng. Nhưng không phải mức giảm nào cũng được đánh dấu. Chỉ số trên TikTok Shop dao động mạnh từ ngày này sang ngày khác, nhất là với shop ít đơn. Một mức giảm chỉ được coi là đáng chú ý khi nó lớn hơn mức dao động bình thường của chính chỉ số đó, trên chính luồng đó. Nhờ vậy một tuần xấu ngẫu nhiên không bị biến thành một "vấn đề".
 
-Lượt hiển thị được đối xử hơi khác. Nó phụ thuộc nhiều vào cách TikTok phân phối, vào mùa vụ và vào nội dung của nhà sáng tạo, trong khi chỉnh trang sản phẩm thường tác động rõ hơn đến CTR và CTOR. Juli vẫn hiện phần GMV do lượt hiển thị gây ra, nhưng khi tìm việc cụ thể để làm, Juli ưu tiên những chỉ số bạn thay đổi được.
+Lượt hiển thị được đối xử hơi khác. Nó phụ thuộc nhiều vào cách TikTok phân phối, vào mùa vụ và vào nội dung của nhà sáng tạo, trong khi chỉnh trang sản phẩm thường tác động rõ hơn đến CTR và CTOR. Juli vẫn hiện phần GMV do lượt hiển thị gây ra, nhưng phần lớn việc bạn sửa được trên trang sản phẩm sẽ hiện ra ở CTR và CTOR.
 
 ### CTOR giảm: trước hay sau giỏ hàng
 
@@ -77,7 +77,7 @@ Khi CTOR là chỉ số nghẽn, Juli tách tiếp thành hai bước. Nếu t�
 
 ## Từ ô chỉ số đến sản phẩm
 
-Bấm vào một ô, Juli mở bảng chia con số của ô đó cho từng sản phẩm: chỉ số trước và nay, số đồng GMV mỗi ngày sản phẩm đó làm mất hoặc mang thêm, nhãn tin cậy, và nút "Xem đề xuất" nếu sản phẩm đã có thẻ. Các dòng cộng lại bằng đúng con số trên ô, phần nhỏ được gộp vào dòng "Còn lại". Thứ tự trong bảng cũng là thứ tự ưu tiên: sản phẩm lấy đi nhiều GMV nhất là nơi một thay đổi có thể mang lại nhiều nhất. Sản phẩm chưa đủ cơ sở để đề xuất ghi "Chưa có đề xuất", và đó là tín hiệu chờ, không phải lỗi.
+Bấm vào một ô, Juli mở bảng chia con số của ô đó cho từng sản phẩm: chỉ số trước và nay, số đồng GMV mỗi ngày sản phẩm đó làm mất hoặc mang thêm, nhãn tin cậy, và nút "Xem đề xuất" nếu sản phẩm đã có thẻ. Các dòng cộng lại bằng đúng con số trên ô, phần nhỏ được gộp vào dòng "Còn lại". Sản phẩm lấy đi nhiều GMV nhất đứng đầu bảng, vì đó là nơi một thay đổi có thể mang lại nhiều nhất. Sản phẩm chưa đủ cơ sở để đề xuất ghi "Chưa có đề xuất", và đó là tín hiệu chờ, không phải lỗi.
 
 ## Tab Nội dung: video và LIVE
 
@@ -91,10 +91,10 @@ Từ một video, bạn mở được trang của sản phẩm được gắn tr
 
 Mỗi dòng trong bảng mang một nhãn tin cậy:
 
-- **Rõ**: cả hai kỳ có đủ đơn hàng, khoảng 30 đơn mỗi bên trở lên, và mức thay đổi nằm ngoài vùng dao động ngẫu nhiên.
+- **Rõ**: cả hai kỳ có đủ đơn hàng, và mức thay đổi nằm ngoài vùng dao động ngẫu nhiên.
 - **Tham khảo**: dữ liệu còn ít, hoặc thay đổi chưa vượt khỏi mức nhiễu. Juli gợi ý theo dõi thêm thay vì kết luận.
 
-Quy tắc thực hành: hành động trên dòng Rõ trước. Một dòng Tham khảo có thể đúng, nhưng nếu bạn sửa sản phẩm đó ngay, kết quả đo sau này cũng sẽ khó đọc. Với sản phẩm quá ít dữ liệu, Juli tìm khoảng thời gian ngắn nhất (14, 30 rồi 60 ngày) có đủ khoảng 30 lượt nhấp hoặc 30 đơn; nếu cả 60 ngày cũng không đủ, sản phẩm được ghi là ít dữ liệu và không có chẩn đoán.
+Quy tắc thực hành: hành động trên dòng Rõ trước. Một dòng Tham khảo có thể đúng, nhưng nếu bạn sửa sản phẩm đó ngay, kết quả đo sau này cũng sẽ khó đọc. Với sản phẩm quá ít dữ liệu, Juli ghi là ít dữ liệu và chưa đưa ra chẩn đoán, thay vì đọc một con số chưa đủ chắc.
 
 ## Khuyến mãi và ngày sale: đừng sửa trang khi nguyên nhân là lịch giảm giá
 

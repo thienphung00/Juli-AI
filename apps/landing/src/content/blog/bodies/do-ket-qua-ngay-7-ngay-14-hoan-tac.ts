@@ -7,17 +7,14 @@
  * "đo hiệu quả sau khi sửa sản phẩm"). Facts: D14 (day 7 check-in, next
  * proposal executes only after day 14, day 14 final), D29.8 (day 7 Đang lên /
  * Chưa rõ, day 14 Đạt / Một phần / Không đạt), D29.9 / D29.10 (guard bands,
- * volatile products judged at day 14), D31.7 (change strength, "Đạt · chưa
- * chắc chắn", never a stronger label), D30.1 (baseline frozen at approval and
- * execution), D30.4 (outside changes, "bị ảnh hưởng bởi thay đổi khác"), D32
- * (lever channel; CTOR and AOV on all channels), D22.3 / D24.6 (calibration,
- * reasons lower priority), D24.17 (7-day return after Hoàn tác),
+ * volatile products judged at day 14), D31.7 ("Đạt · chưa chắc chắn", never a
+ * stronger label), D30.1 (baseline frozen at approval and execution), D30.4
+ * (outside changes, "bị ảnh hưởng bởi thay đổi khác"), D32 (lever channel),
  * `/san-pham/do-luong-gmv` and `/san-pham/de-xuat-va-thuc-thi` (labels,
  * "Hoàn tác?", undo steps, outside-edit guard, what cannot be undone, Juli
- * never undoes by itself, no published averages). Day 7 wording follows the
- * product pages / D29 (Juli asks), not D14's "recommend a revert". Not
- * described: control groups (D34 not built), simulation (D35/D45), uplift
- * percentages.
+ * never undoes by itself, no published averages). D61: no verdict multiples,
+ * calibration, priority or cooldown numbers. Not described: control groups
+ * (D34 not built), simulation (D35/D45), uplift percentages.
  */
 export const body = `
 Sau khi một thay đổi được áp dụng, Juli đọc lại sản phẩm hai lần: ngày 7 là kiểm tra giữa chừng, chỉ báo chỉ số mục tiêu đang lên hay chưa rõ và các chỉ số khác có còn trong ngưỡng không; ngày 14 mới là kết quả chốt, với một trong bốn nhãn Đạt, Đạt · chưa chắc chắn, Một phần hoặc Không đạt. Juli không bao giờ tự hoàn tác. Nếu ở ngày 7 một chỉ số bạn muốn giữ ổn định ra ngoài ngưỡng, Juli hỏi "Hoàn tác?" kèm số liệu, và bạn quyết định. Bài này chỉ cách đọc từng nhãn, khi nào nên hoàn tác và khi nào nên chờ đến ngày 14.
@@ -28,7 +25,7 @@ Phương pháp đo được mô tả ở trang [Đo lường GMV](/san-pham/do-l
 
 Số liệu TikTok Shop dao động mạnh theo ngày trong tuần, theo ngày lương, theo đợt sale và theo cách TikTok phân phối. Một hai ngày tốt sau khi sửa gần như không nói gì. Có thêm một cái bẫy ít ai để ý: thẻ đề xuất thường được tạo đúng lúc một sản phẩm vừa giảm, và nhiều chỉ số sau một đợt giảm sẽ tự hồi lại phần nào dù không ai làm gì. Nếu chỉ so trước và sau, phần hồi tự nhiên đó dễ bị tính là tác dụng của thay đổi.
 
-Vì vậy Juli không dùng một phép trừ đơn giản. Mỗi kết luận dựa trên bốn thứ: một mốc so sánh cố định, một chỉ số mục tiêu trên đúng luồng, ngưỡng giữ ổn định cho các chỉ số còn lại, và mức thay đổi đặt cạnh mức dao động bình thường. Bài [đo hiệu quả sau khi sửa sản phẩm](/blog/do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop) giải thích phương pháp này cho người tự đo bằng bảng tính; bài này đọc đúng những gì Juli hiện trên màn hình.
+Vì vậy Juli không dùng một phép trừ đơn giản. Mỗi kết luận dựa trên bốn thứ: một mốc so sánh cố định, một chỉ số mục tiêu trên đúng luồng, ngưỡng giữ ổn định cho các chỉ số còn lại, và mức thay đổi đặt cạnh mức dao động bình thường. Bài [đo hiệu quả sau khi sửa sản phẩm](/blog/do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop) giải thích cách tự đo một lần sửa bằng bảng tính; bài này đọc đúng những gì Juli hiện trên màn hình.
 
 ## Mốc so sánh 14 ngày, chụp trước khi áp dụng
 
@@ -40,7 +37,7 @@ Mốc dài 14 ngày vì nó chứa hai tuần trọn vẹn, cả ngày thường
 
 Mỗi thay đổi có một chỉ số mục tiêu, với giá trị trước và giá trị mục tiêu. Một sản phẩm chỉ có một chỉ số mục tiêu tại một thời điểm: nếu cùng lúc đổi để tăng CTR và CTOR, không thể biết thay đổi nào tạo ra kết quả.
 
-Chỉ số đó được đo trên đúng luồng mà thay đổi tác động. Ảnh bìa, tiêu đề và mô tả chủ yếu được người mua thấy trên Thẻ sản phẩm, nên lượt hiển thị và CTR của các thay đổi này được đo trên luồng Thẻ sản phẩm, không bị pha loãng bởi lượt xem từ video hay LIVE. TikTok không tách đơn hàng SKU theo từng luồng cho từng sản phẩm, nên CTOR và AOV được đo trên tất cả các kênh. Khuyến mãi hiện ở mọi nơi nên cũng được đo trên tất cả các kênh. Khi luồng Thẻ sản phẩm của một sản phẩm có quá ít dữ liệu, Juli đo trên tất cả các kênh và ghi rõ điều đó trên thẻ.
+Chỉ số đó được đo trên đúng luồng mà thay đổi tác động. Ảnh bìa, tiêu đề và mô tả chủ yếu được người mua thấy trên Thẻ sản phẩm, nên lượt hiển thị và CTR của các thay đổi này được đo trên luồng Thẻ sản phẩm, không bị pha loãng bởi lượt xem từ video hay LIVE. TikTok không tách đơn hàng SKU theo từng luồng cho từng sản phẩm, nên CTOR và AOV được đo trên tất cả các kênh. Khuyến mãi hiện ở mọi nơi nên cũng được đo trên tất cả các kênh.
 
 ## Ngưỡng giữ ổn định cho các chỉ số còn lại
 
@@ -78,15 +75,15 @@ Kết quả ngày 7 luôn được ghi là sơ bộ. Với sản phẩm có số
 | Nhãn | Nghĩa là |
 |---|---|
 | **Đạt** | Chỉ số mục tiêu tăng rõ, chạm mục tiêu, và GMV giữ được |
-| **Đạt · chưa chắc chắn** | Chạm mục tiêu, nhưng mức tăng chỉ gấp một đến hai lần mức dao động bình thường, nên chưa loại trừ được may rủi |
+| **Đạt · chưa chắc chắn** | Chạm mục tiêu, nhưng mức tăng chưa đủ rõ để loại trừ may rủi |
 | **Một phần** | Chỉ tăng rõ hoặc chỉ chạm mục tiêu, hoặc dữ liệu quá ít để chốt rõ |
 | **Không đạt** | Không tăng rõ và không chạm mục tiêu |
 
-"Tăng rõ" có một nghĩa cụ thể. Juli tính mức dao động của trung bình mỗi ngày trong cả hai khoảng, trước và sau, rồi so mức thay đổi với nó: lớn hơn hai lần mức dao động là rõ; từ một đến hai lần là có thể đã thay đổi; dưới một lần là vẫn trong dao động bình thường. Một kết quả yếu không bao giờ được gắn nhãn mạnh hơn.
+"Tăng rõ" nghĩa là mức thay đổi vượt hẳn dao động bình thường của chỉ số trong cả hai khoảng, trước và sau, không chỉ là con số sau cao hơn con số trước. Một kết quả yếu không bao giờ được gắn nhãn mạnh hơn.
 
 {{hinh:hd-dl-ngay-14}}
 
-Thẻ mẫu ở ngày 14 cho thấy đủ các bước: đọc 14 ngày sau thay đổi, so chỉ số mục tiêu (CTOR lên 5,95 %, mục tiêu 5,9 %), tính GMV thực tế và đặt cạnh GMV dự kiến, chốt kết quả Đạt, cập nhật mức kỳ vọng cho loại thay đổi đó, rồi mở khoá đề xuất tiếp theo cho sản phẩm. Ô kết luận màu xanh nói gọn: chỉ số mục tiêu đã chạm mục tiêu, GMV thực tế so với GMV dự kiến bao nhiêu, và thay đổi được giữ.
+Thẻ mẫu ở ngày 14 cho thấy đủ các bước: đọc 14 ngày sau thay đổi, so chỉ số mục tiêu (CTOR lên 5,95 %, mục tiêu 5,9 %), tính GMV thực tế và đặt cạnh GMV dự kiến, chốt kết quả Đạt, rồi mở khoá đề xuất tiếp theo cho sản phẩm. Ô kết luận màu xanh nói gọn: chỉ số mục tiêu đã chạm mục tiêu, GMV thực tế so với GMV dự kiến bao nhiêu, và thay đổi được giữ.
 
 ## "Bị ảnh hưởng bởi thay đổi khác"
 
@@ -96,7 +93,7 @@ Juli theo dõi những thay đổi diễn ra bên ngoài Juli: bạn tự sửa 
 
 ## GMV dự kiến đặt cạnh kết quả thật
 
-GMV dự kiến tính ở thời điểm đề xuất được lưu cùng thay đổi. Đến ngày 14, kết quả thật được đặt cạnh con số này, để cả bạn và Juli biết ước tính đã sát đến đâu. GMV dự kiến không phải cam kết: nó là ước tính theo quy tắc, tính từ số liệu 30 ngày của sản phẩm. Một kết quả Đạt với GMV thực tế thấp hơn dự kiến vẫn là Đạt; nhãn dựa trên chỉ số mục tiêu và GMV có giữ được hay không, không dựa trên việc vượt con số dự kiến.
+GMV dự kiến tính ở thời điểm đề xuất được lưu cùng thay đổi. Đến ngày 14, kết quả thật được đặt cạnh con số này, để cả bạn và Juli biết ước tính đã sát đến đâu. GMV dự kiến không phải cam kết: nó là ước tính từ số liệu gần đây của sản phẩm. Một kết quả Đạt với GMV thực tế thấp hơn dự kiến vẫn là Đạt; nhãn dựa trên chỉ số mục tiêu và GMV có giữ được hay không, không dựa trên việc vượt con số dự kiến.
 
 ## Hoàn tác từng bước
 
@@ -113,7 +110,7 @@ Mọi thay đổi Juli ghi lên TikTok Shop đều được lưu giá trị cũ.
 
 **Những gì không hoàn tác qua Juli.** Khuyến mãi do bạn tạo: muốn dừng, bạn tắt khuyến mãi trên Seller Center, Juli tự ghi nhận. Thẻ "Juli soạn · bạn làm" cho video và LIVE: Juli không ghi gì lên TikTok Shop nên không có gì để hoàn tác.
 
-**Sau khi hoàn tác.** Thẻ được đóng, và cùng thay đổi cho cùng sản phẩm chỉ có thể quay lại sau ít nhất 7 ngày. Lý do bạn chọn làm loại thay đổi đó được ưu tiên thấp hơn cho shop trong thời gian sau, nhạt dần trong khoảng 60 ngày.
+**Sau khi hoàn tác.** Thẻ được đóng, và cùng thay đổi đó không quay lại ngay cho sản phẩm. Lý do bạn chọn được ghi lại để các đề xuất sau hợp với shop hơn.
 
 ## Khi nào nên hoàn tác, khi nào nên chờ đến ngày 14
 
@@ -132,13 +129,13 @@ Juli không đưa ra một con số để quyết định thay bạn, và bài n
 - Một chỉ số chỉ vừa chạm mép ngưỡng trong tuần có ngày sale hoặc ngày lương.
 - Sản phẩm có số liệu dao động mạnh, mà Juli chỉ đánh giá ở ngày 14.
 
-Nếu bạn hoàn tác sớm, thay đổi đó không có kết quả ngày 14 để Juli học. Đó không phải lý do để giữ một nội dung sai; đó là lý do để không hoàn tác chỉ vì một hai ngày xấu.
+Nếu bạn hoàn tác sớm, thay đổi đó không có kết quả ngày 14 để đọc. Đó không phải lý do để giữ một nội dung sai; đó là lý do để không hoàn tác chỉ vì một hai ngày xấu.
 
-## Juli học gì từ kết quả
+## Kết quả được lưu lại
 
-Mỗi kết quả ngày 14 quay lại quyết định đề xuất tiếp theo. Với mỗi loại thay đổi (ảnh bìa, tiêu đề, mô tả, giảm giá…), Juli giữ một hệ số so sánh GMV thực tế với GMV dự kiến của các lần đã đo trong shop của bạn. Loại chưa được đo đứng ở mức trung tính; loại đã mang lại đúng như dự kiến được xếp lên trước, loại thường không đạt được xếp xuống. Khi thứ tự đã được điều chỉnh, thẻ ghi "Thứ tự đề xuất đã điều chỉnh theo kết quả trước của shop". Con số GMV dự kiến trên thẻ vẫn là ước tính theo quy tắc, để còn so được với kết quả thật.
+Mỗi kết quả ngày 14 được lưu cùng GMV dự kiến ban đầu, để bạn xem lại loại thay đổi nào đã có tác dụng với shop của mình: ảnh bìa, tiêu đề, mô tả hay giảm giá. Lịch sử này nằm trong phần Đo lường, cùng nhãn kết quả và ngày chốt của từng thay đổi, nên bạn không cần tự ghi chép lại.
 
-Juli không chép lựa chọn của shop này sang shop khác. Một kết luận chung giữa các shop chỉ được dùng khi nó đứng vững qua nhiều shop; hiện chưa có loại thay đổi nào đạt chuẩn đó, nên Juli không công bố con số hiệu quả chung nào, trên trang web hay trong ứng dụng.
+Juli không chép lựa chọn của shop này sang shop khác, và kết quả đo chỉ dùng số liệu tổng hợp của sản phẩm, không dùng dữ liệu cá nhân của người mua. Juli cũng không công bố con số hiệu quả chung nào, trên trang web hay trong ứng dụng.
 
 Để đi lại cả vòng từ đầu: [kết nối TikTok Shop với Juli](/blog/huong-dan-ket-noi-tiktok-shop-voi-juli) và trang [Kết nối TikTok Shop](/ket-noi/tiktok-shop), [đọc màn hình Phân tích theo luồng](/blog/doc-phan-tich-tiktok-shop-theo-luong-truy-cap) và trang [Phân tích shop](/san-pham/phan-tich-shop), rồi trang [Đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi). Nếu chỉ số nào trong bài còn lạ, xem [CTR, CTOR, AOV trên TikTok Shop](/blog/chi-so-tiktok-shop-ctr-ctor-aov) và [GMV là gì](/blog/gmv-la-gi-tiktok-shop). Tổng quan sản phẩm và bảng giá ở trang [Sản phẩm](/san-pham).
 `;

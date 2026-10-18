@@ -3,12 +3,11 @@
  * Main keyword "viết lại mô tả sản phẩm tiktok shop khi ctor thấp" (long tail; "ctor thấp tiktok
  * shop" stays an H2 / FAQ term of the reach post `khach-xem-nhung-khong-mua-tiktok-shop`, and "mô tả
  * sản phẩm tiktok shop" belongs to `mo-ta-san-pham-tiktok-shop`). This post covers only Juli's CTOR
- * flow. Facts: D22.2 (CTOR = SKU orders ÷ clicks; CTOR-stage GMV = clicks × Δ × AOV),
+ * flow. Facts: D22.2 (CTOR = SKU orders ÷ clicks), D61 (no formula, floor, target rule),
  * `/san-pham/phan-tich-shop` (before / after cart split, Khuyến mãi "giảm thật", voucher threshold
  * share), `/san-pham/de-xuat-va-thuc-thi` (description drafted after approval, checked, confirmed;
  * price never written; promotions on Seller Center within the margin rule and only with a cost),
- * D13 / D24.5 (price recommendation only, promotion API later), D22 (competitor price optional
- * third-party data), `/san-pham/do-luong-gmv` (CTOR measured on all channels, day 7 / 14 labels,
+ * D13 / D24.5 (price recommendation only, promotion API later), `/san-pham/do-luong-gmv` (CTOR measured on all channels, day 7 / 14 labels,
  * Juli asks, never reverts by itself). No AOV lever, no simulation, no control groups. Worked
  * numbers are hypothetical and say so; screenshot numbers are the sample shop's.
  */
@@ -29,7 +28,7 @@ Theo bài "Lưu lượng truy cập sản phẩm" của Học viện TikTok Shop
 
 Trong trang Phân tích của Juli, CTOR là một ô trong phễu của từng luồng, với số đồng mỗi ngày mà thay đổi của nó kéo GMV xuống. Juli đánh dấu "Juli gợi ý" khi CTOR là chỉ số lấy đi nhiều GMV nhất của luồng, và bảng bên dưới chia con số đó cho từng sản phẩm. Ví dụ của shop mẫu: CTOR của Thẻ sản phẩm giảm, và ba sản phẩm đầu bảng giảm rõ nhất. Cách đọc bảng này ở bài [tìm sản phẩm kéo GMV xuống](/blog/tim-san-pham-keo-gmv-xuong-tiktok-shop).
 
-Một mức giảm chỉ được tính khi nó lớn hơn mức dao động bình thường của chính CTOR trên luồng đó, và khi có đủ dữ liệu, khoảng 30 đơn trở lên trong khoảng thời gian xét.
+Juli chỉ đánh dấu một mức giảm khi nó vượt rõ dao động thường ngày của CTOR trên luồng đó và số liệu đủ để đọc. Nhờ vậy một tuần ít đơn ngẫu nhiên không bị biến thành một thẻ đề xuất.
 
 ## Trước giỏ hàng hay sau giỏ hàng
 
@@ -44,15 +43,13 @@ Hai trường hợp dẫn đến hai loại thẻ rất khác nhau. Viết lại
 
 {{hinh:ctor-mo-ta-the}}
 
-Thẻ trên nhắm CTOR của một mặt nạ đất sét, từ 5,4 % lên mục tiêu 5,9 %. Lý do ngắn là "Mô tả quá ngắn"; lý do đầy đủ cho biết mô tả hiện chỉ có 180 ký tự trong một đoạn, và TikTok cũng báo "Mô tả quá ngắn". Thay đổi đề xuất là Mô tả. Dưới cùng là cách tính GMV dự kiến.
+Thẻ trên nhắm CTOR của một mặt nạ đất sét, từ 5,4 % lên mục tiêu 5,9 %. Lý do ngắn là "Mô tả quá ngắn"; lý do đầy đủ cho biết mô tả hiện chỉ có 180 ký tự trong một đoạn, và TikTok cũng báo "Mô tả quá ngắn". Thay đổi đề xuất là Mô tả, kèm GMV dự kiến nếu CTOR đạt mục tiêu.
 
 Lý do của một thẻ mô tả đến từ hai nguồn. Thứ nhất là chẩn đoán mà TikTok trả về cho sản phẩm, hiện trong lý do đầy đủ đúng như TikTok ghi. Thứ hai là những gì Juli kiểm tra được trên chính trang: mô tả quá ngắn, chỉ một đoạn, không có hình minh hoạ. Chính sách của TikTok yêu cầu mô tả không dưới 30 từ, nhưng một mô tả đủ dài vẫn có thể chưa trả lời câu khách hay hỏi.
 
-Có một nguồn thứ ba nhưng không phải lúc nào cũng có: khi có dữ liệu giá của các sản phẩm tương tự trên thị trường, lý do có thể nhắc đến chênh lệch giá. Đây là dữ liệu bên ngoài và tuỳ chọn, nên không có nó thì thẻ vẫn dựa trên hai nguồn đầu.
-
 ## Juli soạn mô tả thế nào, bạn xác nhận gì
 
-Juli chưa gọi mô hình AI nào khi tạo thẻ: chọn sản phẩm, chọn thay đổi và tính con số đều do quy tắc và phép tính. Chỉ sau khi bạn bấm **Duyệt**, Juli tạo một lượt chạy:
+Sau khi bạn bấm **Duyệt**, Juli tạo một lượt chạy:
 
 1. Đọc chẩn đoán của TikTok và thông tin sản phẩm, kể cả mô tả hiện tại.
 2. Phân tích từ khoá liên quan đến sản phẩm.
@@ -76,17 +73,9 @@ Trước khi nghĩ đến một đợt giảm mới, xem khối Khuyến mãi tr
 
 ## GMV dự kiến của thẻ CTOR
 
-Với thẻ nhắm CTOR, GMV có thể lấy lại mỗi ngày theo đúng phép tách GMV của TikTok là:
+GMV dự kiến là phần GMV Juli ước tính có thể lấy lại nếu CTOR đạt mục tiêu, tính từ số liệu hiện tại của chính sản phẩm. Một sản phẩm có nhiều lượt nhấp mà CTOR giảm thường có con số lớn hơn một sản phẩm ít lượt nhấp, dù mức giảm phần trăm trông nhỏ hơn. Muốn tự thử với số của sản phẩm mình, dùng [công cụ tính GMV](/cong-cu/tinh-gmv).
 
-> Lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV
-
-Một ví dụ giả định: sản phẩm có 300 lượt nhấp mỗi ngày, CTOR từ 4,0 % lên mục tiêu 4,6 %, AOV 180.000đ.
-
-- Đơn thêm mỗi ngày: 300 × 0,6 % = 1,8.
-- GMV thêm mỗi ngày: 1,8 × 180.000đ = 324.000đ.
-- Quy ra 30 ngày: khoảng 9,7 triệu đồng.
-
-Số liệu trên thẻ là trung bình 30 ngày. Mục tiêu phải cao hơn mức dao động bình thường của CTOR, để còn đo được, nhưng không vượt quá vài lần mức đó, để không hứa quá tay. Với sản phẩm có số liệu dao động mạnh, mục tiêu hiện dưới dạng một khoảng và độ tin cậy là Thấp. Thẻ ghi rõ GMV dự kiến là ước tính theo quy tắc, không phải lời hứa; kết quả thật được đo sau khi áp dụng.
+Mục tiêu được đặt ở mức đủ rõ để đo được và không hứa quá tay; với sản phẩm dao động mạnh, mục tiêu hiện dưới dạng một khoảng và độ tin cậy là Thấp. Thẻ ghi rõ đây là ước tính, không phải lời hứa; kết quả thật được đo sau khi áp dụng.
 
 ## Đo ở ngày 7 và ngày 14, trên mọi kênh
 
@@ -109,7 +98,7 @@ Ba tình huống nên cân nhắc hoàn tác:
 2. **Ngày 7, một chỉ số giữ ổn định ra ngoài ngưỡng.** Juli hỏi bạn có muốn hoàn tác không, kèm số liệu cụ thể. Bạn chọn Hoàn tác hoặc Giữ thay đổi; nếu giữ, Juli đo tiếp đến ngày 14 và ghi chú lại.
 3. **Khách phản hồi không tốt** về cách viết, hoặc mô tả không hợp giọng thương hiệu.
 
-Ngoài các trường hợp đó, một kết quả "Chưa rõ" ở ngày 7 không phải lý do để hoàn tác: đợi đến ngày 14. Juli không bao giờ tự hoàn tác. Lý do bạn chọn làm loại thay đổi đó được ưu tiên thấp hơn cho shop trong thời gian sau, nhạt dần trong khoảng 60 ngày.
+Ngoài các trường hợp đó, một kết quả "Chưa rõ" ở ngày 7 không phải lý do để hoàn tác: đợi đến ngày 14. Juli không bao giờ tự hoàn tác. Lý do bạn chọn được ghi lại để các đề xuất sau hợp với shop hơn.
 
 ## Chuẩn bị trước khi duyệt thẻ CTOR đầu tiên
 

@@ -4,8 +4,8 @@
  * The reach posts `dat-ten-san-pham-tiktok-shop` and `anh-bia-san-pham-tiktok-shop` own naming
  * rules and image sizes; this post covers only Juli's flow for a CTR card and its measurement.
  * Facts: D22.2 (CTR = clicks ÷ impressions; CTR-stage GMV includes CTOR), D13 (title executed;
- * cover uploaded only with the seller's photo; price off), D24.1–3 / D24.16 (rules choose, the
- * model writes only after approval, output checked for length, tone, banned words), D29.4 / the
+ * cover uploaded only with the seller's photo; price off), D24.16 (output checked for length,
+ * tone, banned words), D61 (no trigger, floor, cooldown, formula or architecture), D29.4 / the
  * product page (one change per product at a time), D32 (measured on Thẻ sản phẩm), D14 + D29.8
  * (day 7 Đang lên / Chưa rõ, Juli asks, never reverts by itself; day 14 labels as on
  * `/san-pham/do-luong-gmv`), `/san-pham/de-xuat-va-thuc-thi` (cover flow, undo guard). The
@@ -31,13 +31,13 @@ Trong trang Phân tích, mỗi luồng có phễu bốn ô, và dưới mỗi ô
 
 Một thẻ bắt đầu từ dữ liệu của chính sản phẩm, không từ danh sách mẹo chung. Juli mở thẻ CTR khi:
 
-- CTR của sản phẩm trên luồng đó giảm nhiều hơn mức dao động bình thường của chính nó.
-- Có đủ dữ liệu: khoảng 30 lượt nhấp trở lên trong khoảng thời gian xét. Juli thử 14, 30 rồi 60 ngày; không đủ thì sản phẩm được ghi là ít dữ liệu.
+- CTR của sản phẩm trên luồng đó yếu đi rõ rệt so với chính nó.
+- Có đủ dữ liệu để đọc được kết quả.
 - Thay đổi đó hợp lệ với TikTok Shop và với Quy tắc của bạn.
 - Sản phẩm không có một thay đổi khác đang được đo.
-- Cùng thay đổi chưa bị từ chối hay hoàn tác trong 7 ngày qua.
+- Bạn chưa vừa từ chối hay hoàn tác cùng thay đổi đó.
 
-Juli chọn tiêu đề hay ảnh bìa theo những gì đọc được về trang sản phẩm: chẩn đoán mà TikTok trả về cho sản phẩm (ví dụ ảnh chính chất lượng thấp), và những gì kiểm tra được trên chính tiêu đề và ảnh (thiếu từ khoá khách hay tìm, sản phẩm chiếm quá ít khung ảnh). Việc chọn sản phẩm, chọn thay đổi và tính con số do quy tắc và phép tính đảm nhận; mô hình AI chỉ được gọi sau khi bạn duyệt, để soạn nội dung, và không bao giờ tạo ra con số trên thẻ.
+Juli chọn tiêu đề hay ảnh bìa theo những gì đọc được về trang sản phẩm: chẩn đoán mà TikTok trả về cho sản phẩm (ví dụ ảnh chính chất lượng thấp), và những gì kiểm tra được trên chính tiêu đề và ảnh (thiếu từ khoá khách hay tìm, sản phẩm chiếm quá ít khung ảnh).
 
 ## Thẻ tiêu đề: Juli soạn, bạn xác nhận
 
@@ -75,23 +75,15 @@ Tiêu đề và ảnh bìa cùng tác động đến CTR, nên rất dễ muốn
 
 Một sản phẩm cũng chỉ có một chỉ số mục tiêu tại một thời điểm. Một thẻ CTR không chạy song song với một thẻ CTOR trên cùng sản phẩm. Đề xuất tiếp theo cho sản phẩm có thể hiện ra ở ngày 7, nhưng chỉ được thực hiện sau khi thay đổi trước đã chốt ở ngày 14.
 
-## GMV dự kiến của thẻ CTR tính cả CTOR
+## Vì sao GMV dự kiến của thẻ CTR phụ thuộc cả CTOR
 
-Lượt nhấp tăng thêm chỉ thành GMV khi có người đặt hàng. Vì vậy GMV dự kiến của một thẻ CTR đi qua cả bước CTOR, theo đúng phép tách GMV của TikTok:
+Lượt nhấp tăng thêm chỉ thành GMV khi có người đặt hàng. Vì vậy một sản phẩm có CTR thấp nhưng CTOR cũng thấp chưa chắc mang lại nhiều khi thêm người bấm vào: một trang chưa thuyết phục không giữ được họ. Ngược lại, một sản phẩm có trang sản phẩm tốt mà ít người bấm là nơi một tiêu đề hay ảnh bìa tốt hơn có thể mang lại nhiều nhất.
 
-> GMV có thể lấy lại mỗi ngày = Lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV
-
-Một ví dụ giả định: sản phẩm có 4.000 lượt hiển thị mỗi ngày trên Thẻ sản phẩm, CTR từ 3,0 % lên mục tiêu 3,5 %, CTOR 5 %, AOV 150.000đ.
-
-- Lượt nhấp thêm mỗi ngày: 4.000 × 0,5 % = 20.
-- Đơn thêm mỗi ngày: 20 × 5 % = 1.
-- GMV thêm mỗi ngày: 1 × 150.000đ = 150.000đ.
-
-Nếu CTOR của sản phẩm chỉ 1 %, cùng mức tăng CTR đó chỉ mang thêm khoảng 30.000đ mỗi ngày. Vì thế một sản phẩm có CTR thấp nhưng CTOR cũng thấp chưa chắc đứng đầu danh sách: thêm người bấm vào một trang chưa thuyết phục không mang lại nhiều. Số liệu trên thẻ là trung bình 30 ngày, và thẻ ghi rõ là ước tính theo quy tắc, không phải lời hứa.
+Điều này cũng giải thích vì sao hai sản phẩm có cùng mức giảm CTR có thể nhận hai con số GMV dự kiến rất khác nhau. GMV dự kiến trên thẻ là phần GMV Juli ước tính có thể lấy lại từ số liệu hiện tại của chính sản phẩm, trên luồng Thẻ sản phẩm. Muốn thử với số của sản phẩm mình, dùng [công cụ tính GMV](/cong-cu/tinh-gmv). GMV dự kiến trên thẻ là ước tính, không phải lời hứa.
 
 ## Đo trên đúng luồng Thẻ sản phẩm
 
-Ảnh bìa và tiêu đề chủ yếu được người mua nhìn thấy trên Thẻ sản phẩm, nên mục tiêu của thẻ CTR được đặt và đo trên luồng này, không bị pha loãng bởi lượt xem từ video hay LIVE. Khi luồng Thẻ sản phẩm của một sản phẩm có quá ít dữ liệu, Juli đo trên tất cả các kênh và ghi rõ điều đó trên thẻ.
+Ảnh bìa và tiêu đề chủ yếu được người mua nhìn thấy trên Thẻ sản phẩm, nên mục tiêu của thẻ CTR được đặt và đo trên luồng này, không bị pha loãng bởi lượt xem từ video hay LIVE.
 
 Trước khi áp dụng, Juli chụp lại mốc so sánh: chuỗi số liệu 14 ngày, giá, khuyến mãi đang chạy và nội dung trang sản phẩm. Các chỉ số không phải mục tiêu, như lượt hiển thị và CTOR, có một ngưỡng giữ ổn định. Một tiêu đề mới có thể tăng CTR nhưng kéo về những người không định mua, và ngưỡng này là nơi điều đó lộ ra.
 
@@ -108,7 +100,7 @@ Mọi thay đổi Juli ghi lên TikTok Shop đều được lưu giá trị cũ.
 
 Khi bấm, bạn chọn một lý do, rồi Juli tạo một lượt chạy mới để khôi phục tiêu đề hay ảnh bìa cũ. Lượt hoàn tác cũng dừng ở bước xác nhận trước khi ghi, và việc đo kết quả của thay đổi đó dừng lại. Trước khi khôi phục, Juli đọc lại sản phẩm trên TikTok Shop: nếu nội dung đã bị sửa bên ngoài Juli sau lần thay đổi, Juli không ghi đè và báo cho bạn.
 
-Juli không bao giờ tự hoàn tác, kể cả khi ngày 7 cho thấy một chỉ số ra ngoài ngưỡng. Juli hỏi, bạn quyết định. Lý do bạn chọn khi hoàn tác cũng làm loại thay đổi đó được ưu tiên thấp hơn cho shop trong thời gian sau.
+Juli không bao giờ tự hoàn tác, kể cả khi ngày 7 cho thấy một chỉ số ra ngoài ngưỡng. Juli hỏi, bạn quyết định. Lý do bạn chọn được ghi lại để các đề xuất sau hợp với shop hơn.
 
 ## Những gì tiêu đề và ảnh bìa không sửa được
 
