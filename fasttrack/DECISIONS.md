@@ -1726,3 +1726,22 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   5. **Price wording**: one plan, written "500.000đ/tháng" everywhere (home, `/san-pham`, FAQs,
      meta, JSON-LD offer text, llms.txt, blog), matching `/terms` §5; no "từ".
   Work: P51-A (demo sample data + recapture), P51-B (landing pages, items 2, 3, 5).
+
+- **D61** — Public content does not expose Juli's algorithms or models (owner, 2026-10-18: "chúng
+  ta không lộ chi tiết thuật toán và mô hình của Juli", then "sửa hết các lỗi lộ thuật toán").
+  Audit of 2026-10-18 (103 leaks, 35 borderline). On every public surface (landing pages, blog,
+  FAQs and their JSON-LD, figure alts and captions, llms.txt, demo screens and the seller-facing
+  card copy from the backend) remove or generalise: the recoverable / expected GMV formulas Juli
+  uses; numeric thresholds, data floors and verdict multiples; card caps, slots and validity
+  windows beyond "Juli đề xuất mỗi ngày một số thẻ"; priority, demotion, cooldown and learning
+  coefficients; trigger and ranking logic; the rules-vs-AI architecture; control groups and
+  simulation; peer medians; model names and versions. Keep: TikTok's public metric definitions and
+  GMV identity; the workflow (analyse → propose → approve → write title / description, cover only
+  with the seller's photo → measure day 7 / day 14 → undo); the 14-day baseline the seller sees;
+  data read / written and security commitments; naming the AI provider where data is sent
+  (`/ket-noi`, `/privacy`); result labels shown in the product. Reach posts keep do-it-yourself
+  advice but without Juli's exact rules (no 2×, 30-order or one-third holdback rules). Legal text
+  (`/terms`, `/privacy`) is owned by the legal/PDPL work and is acceptable as is. A test blocks the
+  known leak patterns from returning. Work: P52-A (product pages, home, calculator, SEO),
+  P52-B (guides), P52-C (reach posts, pillars, tools posts), P51-A extended (demo + backend card
+  copy, recapture).

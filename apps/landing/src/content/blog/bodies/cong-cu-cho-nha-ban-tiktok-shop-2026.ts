@@ -143,7 +143,7 @@ Juli AI là sản phẩm của chúng tôi, do Công ty TNHH Công Nghệ Juli A
 - **[Đề xuất và thực thi khi bạn phê duyệt](/san-pham/de-xuat-va-thuc-thi)**: đề xuất một hành động cụ thể cho từng sản phẩm, kèm lý do bằng số. Không có thay đổi nào trên shop nếu bạn chưa đồng ý.
 - **[Đo lường GMV](/san-pham/do-luong-gmv)**: đo lại tác động của từng hành động sau 7 và 14 ngày, so với nhóm sản phẩm không thay đổi.
 
-**Giá**: theo website app-juli.com, miễn phí thử nghiệm 3 tháng, sau đó từ 500.000 ₫ mỗi tháng.
+**Giá**: theo website app-juli.com, miễn phí thử nghiệm 3 tháng, sau đó 500.000đ/tháng.
 
 **Những việc Juli không làm**, để bạn chọn đúng:
 

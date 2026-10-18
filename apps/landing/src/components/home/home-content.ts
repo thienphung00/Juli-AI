@@ -44,7 +44,7 @@ export const CAPABILITY_ROWS = {
   measurement: {
     eyebrow: "Đo lường GMV",
     title: "Kiểm tra ngày 7, chốt kết quả ngày 14.",
-    body: "Juli so thay đổi với những sản phẩm tương tự không đổi, để tách tác động của đề xuất khỏi biến động chung. Nếu kết quả kém rõ rệt ở ngày 7, Juli đề xuất hoàn tác.",
+    body: "Juli so mỗi thay đổi với mốc 14 ngày trước khi áp dụng và đặt nó cạnh mức dao động bình thường của chỉ số. Nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác không.",
     points: [],
   },
 } as const;
@@ -130,12 +130,12 @@ export const HOME_FAQ: readonly FaqItem[] = [
   {
     question: "Juli đo hiệu quả của một thay đổi như thế nào?",
     answer:
-      "Juli so GMV của sản phẩm đã thay đổi với các sản phẩm tương tự trong shop chưa thay đổi, đọc sơ bộ ở ngày 7 và chốt ở ngày 14. Cách này loại bớt ảnh hưởng của mùa vụ và thuật toán so với chỉ nhìn trước và sau.",
+      "Juli so chỉ số mục tiêu của sản phẩm với mốc 14 ngày trước khi áp dụng, đọc sơ bộ ở ngày 7 và chốt ở ngày 14. Mỗi mức thay đổi được đặt cạnh mức dao động bình thường của chỉ số, và những thay đổi bên ngoài Juli trong thời gian đo được ghi rõ, để không ghi công nhầm cho đề xuất.",
   },
   {
     question: "Chi phí bao nhiêu và dùng thử thế nào?",
     answer:
-      "Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ thanh toán. Sau đó từ 500.000đ/tháng. Bạn cũng có thể xem bản Demo với dữ liệu mẫu mà không cần đăng ký.",
+      "Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ thanh toán. Sau đó 500.000đ/tháng. Bạn cũng có thể xem bản Demo với dữ liệu mẫu mà không cần đăng ký.",
   },
   {
     question: "Tôi muốn ngừng dùng thì sao?",

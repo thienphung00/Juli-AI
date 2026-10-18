@@ -17,7 +17,7 @@ Bài này đi qua từng bước, từ lúc điền biểu mẫu đến hết ha
 
 ## Dùng thử gồm những gì
 
-Theo Điều khoản dịch vụ của Juli (mục 5, Phí dịch vụ), tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký và không cần thẻ thanh toán. Sau thời gian dùng thử, phí dịch vụ là 500.000đ mỗi tháng, và bạn có thể huỷ bất cứ lúc nào. Đọc toàn văn ở trang [Điều khoản dịch vụ](/terms).
+Theo Điều khoản dịch vụ của Juli (mục 5, Phí dịch vụ), tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký và không cần thẻ thanh toán. Sau thời gian dùng thử, phí dịch vụ là 500.000đ/tháng, và bạn có thể huỷ bất cứ lúc nào. Đọc toàn văn ở trang [Điều khoản dịch vụ](/terms).
 
 Trong 3 tháng đó, bạn dùng đủ bốn phần của Juli trên shop thật của mình:
 
@@ -88,7 +88,7 @@ Ngay sau khi kết nối, Juli chạy ba bước và hiện dải tiến trình 
 
 Thẻ tạo từ lần quét nhanh ghi "Đề xuất nhanh · dựa trên 14 ngày" với độ tin cậy Tham khảo, vì 14 ngày còn ít dữ liệu. Khi lần đọc 60 ngày xong, các thẻ khác của ngày được lấp vào, và thẻ nhanh nào còn hợp lệ được giữ lại với số liệu mới.
 
-Mỗi ngày bạn nhận tối đa 5 thẻ mới: đến 3 thẻ Juli thực hiện (tiêu đề, mô tả, ảnh bìa), 1 thẻ bạn làm trên Seller Center và 1 thẻ nội dung video hoặc LIVE. Ô nào không có ứng viên tốt thì để trống. Mỗi thẻ có hiệu lực 7 ngày.
+Mỗi ngày bạn nhận tối đa 5 thẻ mới: đến 3 thẻ Juli thực hiện (tiêu đề, mô tả, hoặc ảnh bìa bằng ảnh bạn gửi), 1 thẻ bạn làm trên Seller Center và 1 thẻ nội dung video hoặc LIVE. Ô nào không có ứng viên tốt thì để trống. Mỗi thẻ có hiệu lực 7 ngày.
 
 ## Đọc thẻ đề xuất đầu tiên
 
@@ -126,7 +126,7 @@ Kết quả chốt quay lại quyết định thứ tự đề xuất tiếp the
 
 ## Sau 3 tháng dùng thử
 
-Hết 3 tháng kể từ ngày đăng ký, phí dịch vụ là 500.000đ mỗi tháng theo Điều khoản dịch vụ, và bạn có thể huỷ bất cứ lúc nào. Với 3 tháng, một sản phẩm có thể đi qua vài vòng đề xuất, áp dụng và đo trọn 14 ngày, đủ để bạn tự xem các thay đổi đã làm gì cho GMV của chính shop mình.
+Hết 3 tháng kể từ ngày đăng ký, phí dịch vụ là 500.000đ/tháng theo Điều khoản dịch vụ, và bạn có thể huỷ bất cứ lúc nào. Với 3 tháng, một sản phẩm có thể đi qua vài vòng đề xuất, áp dụng và đo trọn 14 ngày, đủ để bạn tự xem các thay đổi đã làm gì cho GMV của chính shop mình.
 
 Có câu hỏi về dùng thử, phí hay kết nối, bạn gửi email tới lienhe@app-juli.com. Khi đã sẵn sàng, bắt đầu ở trang [Đăng ký dùng thử](/dang-ky).
 `;

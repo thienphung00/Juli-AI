@@ -39,7 +39,7 @@ export function llmsTxt(routes: readonly SiteRoute[]): string {
     "",
     "- Juli ghi tiêu đề và mô tả sản phẩm lên shop chỉ sau khi người bán duyệt và xác nhận; giá và " +
       "khuyến mãi là đề xuất để người bán tự làm trong Seller Center. Juli không chạy quảng cáo.",
-    `- Giá: từ ${price}đ/tháng; tài khoản mới dùng thử miễn phí 3 tháng, không cần thẻ thanh toán.`,
+    `- Giá: ${price}đ/tháng (một gói); tài khoản mới dùng thử miễn phí 3 tháng, không cần thẻ thanh toán.`,
     `- Đơn vị phát triển: ${COMPANY.name}, MST ${COMPANY.taxId}, ${COMPANY.address}. ` +
       `Liên hệ: ${COMPANY.email}.`,
     "- Ngôn ngữ của trang: tiếng Việt.",

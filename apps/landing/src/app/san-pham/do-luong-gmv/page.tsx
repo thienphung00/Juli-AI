@@ -29,9 +29,10 @@ import { buildMetadata } from "../../../lib/seo";
 /**
  * `/san-pham/do-luong-gmv` — capability page "Đo lường" (D43.1, D43.4, P33-C).
  * Grounded in D14 (day 7 / day 14), D29 (bands, KPI, verdict labels), D30
- * (frozen baseline, external changes), D31.7 (change strength), D34 / D39 /
- * D41 (delayed-control groups, opt-in), D24.6 (per-shop calibration and
- * reasons) and D40.8 (when a lever counts as learned). No results are quoted:
+ * (frozen baseline, external changes), D31.7 (change strength), D24.6
+ * (per-shop calibration and reasons) and D40.8 (when a lever counts as
+ * learned). D34 control groups are not shipped to sellers, so the page makes
+ * no control-group claim (D60.3). No results are quoted:
  * there are none to quote yet (D43.3).
  */
 const PATH = "/san-pham/do-luong-gmv";
@@ -298,14 +299,6 @@ export default function DoLuongGmvPage() {
           hồi lại phần nào, dù không ai làm gì. Nếu chỉ so trước và sau, phần hồi tự nhiên đó dễ bị tính là
           tác dụng của thay đổi. Đó là lý do Juli dùng mức dao động, ngưỡng giữ ổn định và ghi chú thay đổi
           bên ngoài, thay vì một phép trừ đơn giản.
-        </P>
-        <H3>Nhóm đối chứng (đang thử nghiệm)</H3>
-        <P>
-          Cách chắc chắn hơn là so với những sản phẩm chưa được thay đổi. Juli đang thử nghiệm, theo từng
-          shop, việc gom các thẻ cùng chỉ số, cùng loại thay đổi và cùng luồng thành một nhóm, chọn ngẫu
-          nhiên khoảng một phần ba sản phẩm trong nhóm nhận thẻ muộn hơn 14 ngày làm nhóm đối chứng, rồi so
-          mức thay đổi của hai bên. Kết quả nhóm chỉ hiện khi có ít nhất 3 sản phẩm được đổi và 2 sản phẩm
-          đối chứng, ghi “Sơ bộ” khi nhóm còn nhỏ, và “Chưa đủ cơ sở” khi chưa đủ.
         </P>
       </CapSection>
 
