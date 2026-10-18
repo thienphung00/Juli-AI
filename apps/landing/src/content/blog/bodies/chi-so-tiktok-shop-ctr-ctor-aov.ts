@@ -110,15 +110,11 @@ Giả sử một sản phẩm trong 30 ngày có (số giả định, chỉ đ�
 
 Công thức phễu mạnh nhất khi so sánh hai kỳ. Giả sử 30 ngày tiếp theo, sản phẩm trên có Lượt hiển thị 22.000 (tăng 10 %), CTR giữ 4 %, CTOR giữ 5 %, nhưng AOV giảm còn 190.000 ₫ (giảm 5 %). GMV mới là 22.000 × 4 % × 5 % × 190.000 ₫ = 8.360.000 ₫, tăng 360.000 ₫.
 
-Nhìn GMV thì thấy tăng 4,5 %, tưởng là tốt. Nhưng tách ra thì thấy hai câu chuyện ngược chiều nhau: lượt hiển thị kéo GMV lên, còn AOV kéo xuống. Một cách tách công bằng là chia phần thay đổi GMV theo tỷ lệ logarit của từng hệ số: phần đóng góp của hệ số f bằng ΔGMV × ln(f mới ÷ f cũ) ÷ ln(GMV mới ÷ GMV cũ). Với ví dụ trên:
+Nhìn GMV thì thấy tăng 4,5 %, tưởng là tốt. Nhưng đọc từng hệ số thì thấy hai câu chuyện ngược chiều nhau: lượt hiển thị tăng 10 % kéo GMV lên, còn AOV giảm 5 % kéo xuống; CTR và CTOR đứng yên nên không góp phần nào. Vì GMV là tích của bốn hệ số, hệ số nào đổi nhiều nhất theo tỷ lệ là hệ số giải thích phần lớn mức thay đổi, và hai hệ số đi ngược chiều có thể che nhau trong con số GMV tổng.
 
-- Lượt hiển thị đóng góp khoảng **+779.000 ₫**
-- AOV đóng góp khoảng **−419.000 ₫**
-- CTR và CTOR đóng góp 0 ₫
+Câu hỏi tiếp theo trở nên cụ thể: vì sao AOV giảm 5 %? Có phải một chương trình mua nhiều giảm nhiều đã hết hạn, hay một biến thể rẻ hơn đang bán chạy hơn? Đó là việc của người bán; công thức chỉ cho bạn biết nên nhìn vào đâu.
 
-Hai phần cộng lại đúng bằng +360.000 ₫. Câu hỏi tiếp theo trở nên cụ thể: vì sao AOV giảm 5 %? Có phải một chương trình mua nhiều giảm nhiều đã hết hạn, hay một biến thể rẻ hơn đang bán chạy hơn? Đó là việc của người bán; công thức chỉ cho bạn biết nên nhìn vào đâu.
-
-Cách tách theo logarit có ưu điểm là thứ tự các hệ số không ảnh hưởng đến kết quả, và tổng các phần luôn bằng mức thay đổi thực. Nếu GMV gần như không đổi, phép chia cho ln(GMV mới ÷ GMV cũ) không còn ý nghĩa; khi đó chỉ cần so sánh trực tiếp tỷ lệ thay đổi của từng hệ số.
+Nếu GMV gần như không đổi, đừng vội kết luận là không có gì xảy ra: so tỷ lệ thay đổi của từng hệ số, vì một hệ số tăng có thể đang bù cho một hệ số giảm.
 
 ## Đọc chỉ số theo năm kênh
 
@@ -202,7 +198,7 @@ Cách phân biệt: so sánh CTR **theo từng kênh**. Nếu CTR giảm ở g�
 
 ### Kết luận trên quá ít dữ liệu
 
-Với 3 đơn hàng một tuần, CTOR có thể dao động từ 2 % lên 6 % chỉ vì ngẫu nhiên. Trước khi kết luận một chỉ số "giảm", hãy chắc rằng mỗi kỳ có đủ dữ liệu. Juli dùng ngưỡng tối thiểu cho từng chỉ số và gắn nhãn độ tin cậy cho mỗi so sánh: chỉ khi mỗi kỳ có từ 30 đơn hàng trở lên và chênh lệch vượt khỏi vùng nhiễu thống kê thì kết luận mới được coi là "rõ". Dưới mức đó, chênh lệch chỉ là "dấu hiệu" để theo dõi tiếp.
+Với 3 đơn hàng một tuần, CTOR có thể dao động từ 2 % lên 6 % chỉ vì ngẫu nhiên. Trước khi kết luận một chỉ số "giảm", hãy chắc rằng mỗi kỳ có đủ dữ liệu. Juli gắn nhãn độ tin cậy cho mỗi so sánh: chỉ khi mỗi kỳ có đủ dữ liệu và chênh lệch vượt khỏi vùng nhiễu thống kê thì kết luận mới được coi là "rõ". Dưới mức đó, chênh lệch chỉ là "dấu hiệu" để theo dõi tiếp.
 
 ## Làm gì ở từng điểm nghẽn
 
@@ -251,7 +247,7 @@ Bước 7 thường bị bỏ qua nhất nhưng lại quan trọng nhất. Khôn
 
 ## Juli AI đọc chỉ số này như thế nào
 
-Juli AI là trợ lý AI cho nhà bán TikTok Shop do chúng tôi phát triển. Juli làm tự động các bước trên: [phân tích shop theo từng luồng truy cập](/san-pham/phan-tich-shop), tách GMV theo năm kênh và bốn hệ số của phễu, gắn nhãn độ tin cậy cho mỗi so sánh, và chỉ ra sản phẩm nào đang mất khách ở bước nào. Từ đó Juli [đề xuất hành động và chỉ thực thi khi bạn phê duyệt](/san-pham/de-xuat-va-thuc-thi), rồi [đo tác động lên GMV](/san-pham/do-luong-gmv) bằng đúng công thức phễu trong bài này.
+Juli AI là trợ lý AI vận hành cho nhà bán TMĐT do chúng tôi phát triển, hiện kết nối TikTok Shop (Shopee đang tích hợp). Phần đọc số trong bài này Juli làm sẵn cho bạn: [phân tích shop theo từng luồng truy cập](/san-pham/phan-tich-shop), tách GMV theo năm kênh và bốn hệ số của phễu, gắn nhãn độ tin cậy cho mỗi so sánh, và chỉ ra sản phẩm nào đang mất khách ở bước nào. Từ đó Juli [đề xuất hành động và chỉ thực thi khi bạn phê duyệt](/san-pham/de-xuat-va-thuc-thi), rồi [đo tác động lên GMV](/san-pham/do-luong-gmv) sau 7 và 14 ngày.
 
 Juli dùng đúng tên và định nghĩa chỉ số của TikTok, đọc dữ liệu qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop), và không tự đặt ra một chỉ số mà bạn không tìm thấy trên Trung tâm nhà bán hàng. Bạn có thể xem tổng quan tại trang [sản phẩm Juli AI](/san-pham). Nếu bạn đang cân nhắc các công cụ khác, bài [Top công cụ cho nhà bán TikTok Shop 2026](/blog/cong-cu-cho-nha-ban-tiktok-shop-2026) so sánh các nhóm công cụ một cách trung lập.
 

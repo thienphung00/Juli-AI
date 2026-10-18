@@ -40,7 +40,7 @@ TikTok không công bố một mức CTR chuẩn. So với hai mốc:
 - **Chính sản phẩm đó trước đây**: 28 ngày gần nhất so với 28 ngày trước đó.
 - **Các sản phẩm khác của shop trên cùng luồng**: một sản phẩm có CTR bằng một nửa các sản phẩm cùng ngành trong shop là tín hiệu rõ hơn mọi ngưỡng chung.
 
-Cũng cần đủ dữ liệu. Với ít lượt hiển thị, vài lượt nhấp lẻ đã làm CTR nhảy mạnh. Chúng tôi chỉ đọc CTR của một sản phẩm khi nó có khoảng 50 lượt hiển thị ở Thẻ sản phẩm mỗi ngày trở lên, tính trung bình trong kỳ; đây là quy tắc thực hành của chúng tôi, không phải ngưỡng của TikTok.
+Cũng cần đủ dữ liệu. Với ít lượt hiển thị, vài lượt nhấp lẻ đã làm CTR nhảy mạnh. Chỉ đọc CTR của một sản phẩm khi lượt hiển thị ở Thẻ sản phẩm đủ nhiều để không bị nhiễu, cộng dồn cả kỳ, và giữ cùng một cách đọc cho mọi lần so sánh; TikTok không đưa ra ngưỡng chính thức.
 
 ### Xem TikTok đã gắn cờ tiêu đề chưa
 
@@ -122,7 +122,7 @@ Người mua thấy thẻ sản phẩm trên màn hình nhỏ, và phần cuối
 
 ### Tiêu đề sản phẩm TikTok Shop dài bao nhiêu ký tự
 
-Bài Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4 ghi "Tiêu đề phải dài hơn 25 ký tự". Các trang chính sách chúng tôi đọc lại ngày 18/10/2026 không nêu độ dài tối đa hay một độ dài "tốt nhất". Trong thực tế, một tiêu đề đủ năm thành phần hiếm khi ngắn hơn 40 ký tự. Chúng tôi dùng khoảng 40 ký tự làm mục tiêu và không viết tiêu đề dưới 25 ký tự; đây là quy tắc thực hành, không phải quy định của TikTok.
+Bài Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4 ghi "Tiêu đề phải dài hơn 25 ký tự". Các trang chính sách chúng tôi đọc lại ngày 18/10/2026 không nêu độ dài tối đa hay một độ dài "tốt nhất". Trong thực tế, một tiêu đề đủ năm thành phần hiếm khi ngắn hơn 40 ký tự; đừng viết dưới 25 ký tự vì TikTok yêu cầu dài hơn mức đó.
 
 ## Sửa tiêu đề xong, làm sao biết có hiệu quả
 
@@ -137,7 +137,7 @@ Bài Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4 ghi "Tiê
 ## Khi nào không nên sửa tiêu đề
 
 - **CTR đang tốt mà CTOR thấp.** Người mua đã hiểu và bấm vào; họ dừng lại ở trang sản phẩm hay ở bước thanh toán. Sửa tiêu đề lúc này là đụng vào phần đang hoạt động. Đọc bài [khách xem nhưng không mua](/blog/khach-xem-nhung-khong-mua-tiktok-shop).
-- **Sản phẩm chưa đủ dữ liệu.** Dưới khoảng 50 lượt hiển thị mỗi ngày ở Thẻ sản phẩm, một thay đổi khó đo được.
+- **Sản phẩm chưa đủ dữ liệu.** Khi lượt hiển thị ở Thẻ sản phẩm còn quá ít, một thay đổi khó đo được.
 - **Bạn vừa đổi ảnh bìa hay giá của chính sản phẩm đó.** Đợi đo xong thay đổi kia trước.
 
 ## Tự chọn tiêu đề cần sửa trước và giữ lại bản cũ
