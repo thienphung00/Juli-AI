@@ -567,6 +567,10 @@ const FIGURE_POSTS = [
   "anh-bia-san-pham-tiktok-shop",
   "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop",
   "doanh-thu-sau-sale-tiktok-shop",
+  "huong-dan-ket-noi-tiktok-shop-voi-juli",
+  "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
+  "duyet-de-xuat-toi-uu-san-pham-tiktok-shop",
+  "do-ket-qua-ngay-7-ngay-14-hoan-tac",
 ];
 
 function figureIds(body: string): string[] {
