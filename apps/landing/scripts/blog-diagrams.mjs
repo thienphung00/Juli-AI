@@ -965,16 +965,6 @@ const DIAGRAMS = [
     },
   },
   {
-    name: "anh-bia-yeu-cau-v1",
-    html: () => `${head("TikTok yêu cầu gì với hình ảnh sản phẩm")}
-<div class="grid2">
-  <div class="box half"><strong>Mọi hình ảnh</strong><ul class="hang"><li>Độ phân giải tối thiểu 600 × 600 pixel</li><li>Có màu, chất lượng cao, không mờ, không vỡ điểm ảnh</li><li>Sản phẩm không bị nhãn dán hay hình mờ che phía trước</li><li>Mỗi hình một góc khác nhau của sản phẩm</li><li>Tối đa 9 hình ảnh vuông</li></ul></div>
-  <div class="box half box--accent"><strong>Hình ảnh chính, ảnh đầu tiên</strong><ul class="hang"><li>Mặt trước của sản phẩm thực tế</li><li>Nền một màu đồng nhất, nên dùng màu trắng</li><li>Sản phẩm chiếm ít nhất 60 % khung hình</li><li>Hiển thị toàn bộ sản phẩm, không cắt xén</li></ul></div>
-</div>
-<div class="box vv"><div><span class="label">Khuyến nghị thêm, không bắt buộc</span></div><span class="desc">Lớn hơn 1200 × 1200 pixel, ít nhất 3 hình ảnh, thêm video, ảnh chính không lặp lại ảnh khác.</span></div>
-<p class="small">Yêu cầu: trang chính sách Tiêu đề, mô tả, hình ảnh và video về sản phẩm (23/04/2026). Khuyến nghị: bài Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4 (15/12/2023). Học viện TikTok Shop, kiểm tra 18/10/2026.</p>`,
-  },
-  {
     name: "anh-bia-ba-phuong-an-v1",
     html: () => {
       const bottles = (n, h, w) =>

@@ -58,6 +58,8 @@ Các công cụ này không thay được việc đọc phễu, nhưng chúng ch
 
 Ảnh bìa là phần chiếm nhiều diện tích nhất trên thẻ sản phẩm và là yếu tố đầu tiên quyết định người xem có nhấp hay không. Nó cũng là thay đổi dễ kiểm chứng nhất: bạn biết chính xác ngày đổi ảnh.
 
+Nếu sản phẩm có lượt hiển thị mà ít người bấm và bạn nghi ảnh bìa, bài [ảnh bìa khiến người mua lướt qua](/blog/anh-bia-san-pham-tiktok-shop) đi chi tiết từ cách đọc CTR đến cách đổi một ảnh rồi đo lại.
+
 ### Yêu cầu bắt buộc theo chính sách
 
 Trang chính sách "Tiêu đề, mô tả, hình ảnh và video về sản phẩm" (Trung tâm chính sách TikTok Shop, cập nhật 23/04/2026) nêu các yêu cầu kỹ thuật cho mọi hình ảnh:
@@ -100,6 +102,8 @@ TikTok cũng khuyên thêm hình ảnh khác nhau cho từng biến thể (SKU).
 ## Tiêu đề sản phẩm
 
 Tiêu đề có hai việc: giúp sản phẩm xuất hiện khi người mua tìm kiếm (lượt hiển thị) và giúp người xem hiểu ngay đây là gì (CTR).
+
+Cách viết lại tiêu đề từng bước khi CTR thấp, kèm những từ không được dùng, có trong bài [cách đặt tên sản phẩm TikTok Shop](/blog/dat-ten-san-pham-tiktok-shop).
 
 ### Cấu trúc tiêu đề theo chính sách
 

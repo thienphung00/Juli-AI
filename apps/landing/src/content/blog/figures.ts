@@ -18,6 +18,8 @@ import {
   CAP_DL_TANG_THEM_MOBILE,
   CAP_DL_TIN_CAY,
   CAP_DL_TIN_CAY_MOBILE,
+  CAP_DX_LUOT_CHAY,
+  CAP_DX_LUOT_CHAY_MOBILE,
   CAP_DX_XAC_NHAN,
   CAP_DX_XAC_NHAN_MOBILE,
   CAP_PT_KHUYEN_MAI,
@@ -325,5 +327,41 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   "aov-khuyen-mai-du-lieu-mau": screenshot(CAP_PT_KHUYEN_MAI, CAP_PT_KHUYEN_MAI_MOBILE, {
     alt: "Khối Khuyến mãi trong Phân tích của Juli, 60 ngày: flash sale 8 trên 60 ngày với 3 sản phẩm tham gia, giảm thật trung bình 9 % so với giá đang bán trước flash sale, voucher 14 % đơn đạt ngưỡng với 2 voucher đang chạy; bảng năm sản phẩm với loại khuyến mãi, mức giảm thật và GMV mỗi ngày trong và ngoài khuyến mãi, Son môi số 12 giảm 2 % bị đánh dấu quá nông (dữ liệu mẫu)",
     caption: "Dữ liệu mẫu · Juli đọc khuyến mãi ở chế độ chỉ đọc: bao nhiêu đơn đạt ngưỡng voucher, mức giảm thật của từng đợt.",
+  }),
+
+  /* ————— dat-ten-san-pham-tiktok-shop (P46-D1) ————— */
+  "tieu-de-hai-viec": diagram("tieu-de-hai-viec", 396, 590, {
+    alt: "Sơ đồ tiêu đề làm hai việc trên Thẻ sản phẩm. Chuỗi Lượt hiển thị nhân CTR nhân CTOR nhân AOV bằng GMV, hai ô Lượt hiển thị và CTR được tô đậm. Việc 1, Lượt hiển thị, được tìm ra: có những từ người mua thật sự gõ khi tìm; đúng loại sản phẩm, khớp ngành hàng và thuộc tính; không lặp từ, không nhồi từ khóa không liên quan. Việc 2, CTR, được tô nổi bật, được hiểu ngay: nhìn là biết đây là gì, loại nào, bao nhiêu; quy cách khớp với giá đang hiện trên thẻ; phần đầu tiêu đề nói điều quan trọng nhất. Ghi chú: đọc hai chỉ số cùng lúc trên riêng luồng Thẻ sản phẩm, vì tiêu đề mới có thể kéo thêm lượt hiển thị từ những người ít liên quan hơn nên CTR giảm dù tiêu đề không kém đi.",
+    caption: "Tiêu đề tác động đến hai hệ số đầu của phễu: được tìm ra và được hiểu ngay.",
+  }),
+  "tieu-de-nam-thanh-phan": diagram("tieu-de-nam-thanh-phan", 614, 940, {
+    alt: "Bảng ví dụ giả định năm thành phần chính sách TikTok gợi ý cho tiêu đề, cho một sản phẩm thời trang và một sản phẩm mỹ phẩm. Thương hiệu, chỉ khi được ủy quyền: thời trang không ghi vì chưa được ủy quyền, mỹ phẩm Thương hiệu X. Loại sản phẩm: áo thun nam cổ tròn, sữa rửa mặt. Chất liệu, thành phần chính, nếu có: cotton, trà xanh. Đặc điểm chính như màu, chức năng, biến thể: tay ngắn, đen, trắng, xám; dạng gel. Số lượng, quy cách, nêu đủ mọi tùy chọn: size M, L, XL; 100 ml và 150 ml. Hai tiêu đề ghép lại: Áo thun nam cổ tròn cotton tay ngắn, đen / trắng / xám, size M / L / XL, 71 ký tự; Sữa rửa mặt trà xanh dạng gel Thương hiệu X 100 ml / 150 ml, 59 ký tự. Ghi chú: thành phần theo trang chính sách Tiêu đề, mô tả, hình ảnh và video về sản phẩm, 23/04/2026; hai sản phẩm và tên Thương hiệu X là giả định.",
+    caption: "Ví dụ giả định: cùng năm thành phần của chính sách, ghép cho hai ngành hàng khác nhau.",
+  }),
+  "tieu-de-truoc-sau": diagram("tieu-de-truoc-sau", 482, 790, {
+    alt: "Ví dụ giả định một tiêu đề trước và sau khi viết lại. Trước, 54 ký tự: ngôi sao SALE SỐC ngôi sao Áo thun nam đẹp rẻ nhất Shop ABC FREESHIP. Các lỗi: hai ngôi sao là ký hiệu, ký tự đặc biệt; SALE SỐC, FREESHIP là khuyến mãi, không mô tả sản phẩm; rẻ nhất là khẳng định tuyệt đối không xác minh được; Shop ABC là tên người bán; thiếu chất liệu, màu, size nên người mua không biết đang mua gì. Sau, được tô nổi bật, 71 ký tự: Áo thun nam cổ tròn cotton tay ngắn, đen / trắng / xám, size M / L / XL; loại sản phẩm đứng đầu, chất liệu cotton, đặc điểm tay ngắn và ba màu, quy cách đủ ba size; ưu đãi đặt bằng công cụ khuyến mãi, không viết vào tiêu đề. Kết luận: bỏ những gì không mô tả sản phẩm, thêm những gì người mua cần để bấm.",
+    caption: "Ví dụ giả định: năm lỗi hay gặp trong một tiêu đề, và cùng sản phẩm đó sau khi viết lại theo chính sách.",
+  }),
+  "tieu-de-ghi-du-lieu-mau": screenshot(CAP_DX_LUOT_CHAY, CAP_DX_LUOT_CHAY_MOBILE, {
+    alt: "Màn hình lượt chạy TN-021 cho sản phẩm Toner rau má 200ml, trạng thái Đã áp dụng: các bước đọc chẩn đoán TikTok (không có mã chẩn đoán), đọc thông tin sản phẩm, phân tích từ khóa tìm được 4 từ khóa, phân tích ảnh sản phẩm với ảnh bìa đạt chuẩn và không đổi, xác nhận một lần (bạn đã xác nhận), ghi lên TikTok Shop (đã ghi tiêu đề, giá trị cũ đã lưu), TikTok duyệt lại trang sản phẩm, kết thúc và đặt lịch đo sơ bộ 14/10 ngày 7, chốt 21/10 ngày 14; hộp Đã áp dụng, thẻ chuyển sang Đo lường, nút Xem đo lường và Hoàn tác (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Tiêu đề mới chỉ được ghi sau khi người bán xác nhận; tiêu đề cũ được lưu để hoàn tác, ngày đo 7 và 14 được đặt ngay.",
+  }),
+
+  /* ————— anh-bia-san-pham-tiktok-shop (P46-D1) ————— */
+  "anh-bia-tren-the": diagram("anh-bia-tren-the", 552, 772, {
+    alt: "Hình vẽ minh họa, không phải giao diện thật, các thẻ sản phẩm trên trang tìm kiếm; thẻ đầu tiên được tô nổi bật với ba số. 1, hình ảnh chính: ảnh đầu tiên người dùng thấy, phần lớn nhất của thẻ, quyết định người lướt có dừng lại và bấm không, đó là CTR. 2, tiêu đề: trên thẻ nhỏ, phần cuối của tiêu đề dễ bị cắt. 3, giá: người mua đọc giá cùng với ảnh, ảnh 1 chai cạnh giá của 3 chai trông như đắt gấp ba. Ảnh thứ 2 đến 9 và video chỉ thấy sau khi bấm vào trang sản phẩm, chúng tác động đến CTOR. Ghi chú: ảnh bìa ở đây là hình ảnh chính của thẻ sản phẩm, không phải ảnh bìa của một video TikTok.",
+    caption: "Hình ảnh chính là phần người mua thấy đầu tiên trên thẻ; các ảnh còn lại chỉ hiện sau cú nhấp.",
+  }),
+  "anh-bia-ba-phuong-an": diagram("anh-bia-ba-phuong-an", 540, 968, {
+    alt: "Hình vẽ ví dụ giả định ba phương án hình ảnh chính cho một combo 3 chai dầu gội. A, một chai nhỏ giữa khung: chưa đạt, sản phẩm dưới 60 % khung và khách tưởng giá trên thẻ là của một chai. B, được tô nổi bật, đủ ba chai chiếm gần hết khung: đúng yêu cầu, nền trắng, thấy toàn bộ, cho thấy đúng quy cách đang bán. C, ba chai với dải chữ GIẢM 50 % phía trước: không nên, chữ che phía trước sản phẩm và thành sai khi đợt giảm giá kết thúc. Kết luận: lọc theo yêu cầu trước; kiểu ảnh nào được bấm nhiều hơn thì chỉ số của shop bạn mới trả lời được.",
+    caption: "Ví dụ giả định: chỉ một trong ba phương án vừa đúng yêu cầu vừa cho thấy đúng thứ khách sẽ nhận.",
+  }),
+  "anh-bia-doi-chung": diagram("anh-bia-doi-chung", 406, 630, {
+    alt: "Sơ đồ ví dụ giả định đọc CTR Thẻ sản phẩm sau khi đổi ảnh. Các mốc: 14 ngày trước là mốc so sánh; ngày bạn thay ảnh, ghi lại ngày này; ngày 7 đọc sơ bộ; ngày 14 chốt kết quả. Sản phẩm đổi ảnh: CTR từ 2,0 % lên 2,6 %, tăng 30 %. Nhóm không đổi: CTR từ 2,0 % lên 2,2 %, tăng 10 %. Kết luận: phần có thể gán cho ảnh mới khoảng 18 %, bằng 1,30 chia 1,10, không phải 30 %. Ghi chú: cả shop cùng tăng 10 % trong hai tuần đó, có thể do một đợt sale; chỉ phần vượt lên trên nhóm không đổi mới là của ảnh.",
+    caption: "Ví dụ giả định: so với nhóm sản phẩm không đổi ảnh, mức tăng thật của ảnh mới nhỏ hơn con số thô.",
+  }),
+  "anh-bia-pheu-du-lieu-mau": screenshot(CAP_PT_PHEU, CAP_PT_PHEU_MOBILE, {
+    alt: "Khối Thẻ sản phẩm trong Phân tích của Juli, GMV 3,6 triệu đồng mỗi ngày, tăng 7,5 %: Lượt hiển thị mỗi ngày 9.913, tăng 19,4 %, thêm 620 nghìn đồng mỗi ngày; CTR 4,44 %, giảm 0,3 %, bớt 12 nghìn đồng mỗi ngày; CTOR 5,14 %, giảm 6,9 %, bớt 250 nghìn đồng mỗi ngày, được đánh dấu Juli gợi ý; AOV 160 nghìn đồng, giảm 3,0 %, bớt 105 nghìn đồng mỗi ngày; GMV mỗi ngày là tổng của 4 ô (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · CTR của riêng luồng Thẻ sản phẩm, đứng cạnh Lượt hiển thị, CTOR và AOV: ở đây CTR gần như đứng yên, ảnh bìa chưa phải chỗ cần sửa.",
   }),
 };
