@@ -1142,3 +1142,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Cross-border transfer impact dossier (Mẫu 09, NĐ 356 Điều 18) not filed; the hidden counsel TODO in /privacy §7 stays — owner chose disclosure only (D60.7) — counsel + filing with Bộ Công an.
 - [ ] Resend not added; notices use the SMTP mailer (D60.15) — speed — add Resend if SMTP volume or deliverability is a problem.
 - [ ] online.gov.vn notification of app-juli.com as a selling e-commerce website (TT 47/2014, hợp nhất 2026) not done — owner action — verify NĐ 248/2026 first, then file.
+- [ ] **Supabase Auth user is not deleted at purge** — no service-role admin client in the backend; /privacy §3.5 promises deletion "khỏi hệ thống của Juli và Supabase" — add an admin client (service-role key as a secret) and call it from `privacy_account_purge`; until then delete by hand from the Supabase dashboard using the `auth_users_pending` count (P50-B).
+- [ ] Purge deletes database rows only; stored files (run_lever_photos, uploads) and Redis lock/marker keys stay (P50-B) — extend the purge.
+- [ ] Export is a capped synchronous summary (account, prefs, shops, products, action cards, rules; 5000 rows/table, `truncated`); no diagnosis reports, card groups, runs, analytics (P50-B) — async full export.
+- [ ] Purge keeps `ops_audit_log` rows until their 90/365-day retention and keeps `shop_subscription_periods` with `shop_id` NULL — counsel to confirm (P50-B). Downgrading 094 fails once a period row is detached (intended).
+- [ ] De-identifier alias key is the repo constant (`stable_alias`, ADR-038) — move to a secret env key (P50-P).
+- [ ] Free-text personal names, transcription audio and images reach the provider unscrubbed (P50-P).
+- [ ] Terms-notice sent state is a local hashed sent-list file, no DB column; it mails every user incl. staff/reviewer accounts (P50-E).
+- [ ] No e2e or browser check of the privacy tab, strip and dialog; partner trial accounts get neither; re-enabling ad measurement waits for a page reload (P50-U).
