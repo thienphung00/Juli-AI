@@ -2811,3 +2811,30 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   landing lint 0 errors (6 old warnings), tsc 0, vitest 17 files / 623 passed (Node 26,
   `NODE_OPTIONS=--no-experimental-webstorage --maxWorkers=4`), build OK (Node 20); ruff `media.py` clean.
 - Goes live on the next owner deploy tag.
+
+## 2026-10-18 — P49-A1 guide drafts C1–C4 (agent, Claude Opus 5.5)
+
+- Branch `fasttrack/p49a1-guides` from `fasttrack/optimize-product` d9f6dbaf. Four `format: "guide"` drafts,
+  natural Vietnamese, per the conversion plan C1–C4 and D59 additions 5: `huong-dan-ket-noi-tiktok-shop-voi-juli`
+  (2,576 words, 4 figures), `doc-phan-tich-tiktok-shop-theo-luong-truy-cap` (2,568, 4),
+  `duyet-de-xuat-toi-uu-san-pham-tiktok-shop` (2,726, 7), `do-ket-qua-ngay-7-ngay-14-hoan-tac` (2,451, 4); FAQ 5
+  each; links to `/san-pham`, the three capability pages, `/ket-noi/tiktok-shop`, `/dang-ky` (C1 only), the pillars
+  and each other. Figures are new `hd-*` screenshot entries in `figures.ts` (v2/v3 sample shots; no `cap-pt-nghen`
+  v1, `cap-dx-the` v1, `cap-kn-ghi`, `cap-dx-xac-nhan`, `cap-dx-luot-chay` because of the em dash / W4 issues; shots
+  with no mobile crop use their 640 file). No diagrams (avoids a merge clash in `blog-diagrams.mjs` with P49-A2).
+- Facts kept to the product pages + D13/D14/D22/D24/D29/D30/D31/D32: no control groups (PP-DL's "Nhóm đối chứng
+  (đang thử nghiệm)" not repeated), no simulation, no AOV lever, competitor price only "khi có", cover only with the
+  seller's photo, day 7 asks, Juli never undoes by itself. SPEC §3.1 (30 days) and §4 P4 (top-10 / ≤ 5) not used.
+- Heroes: new motifs `plug-socket`, `prism-rays`, `keys-padlock`, `hourglass-undo` added to the content engine
+  `motifs.tsx` / `spec.ts` (after P49-A2's four; a new metaphor needs a motif), spec
+  `projects/blog-heroes/heroes-p49a1.json`, rendered to the scratchpad, converted with `media.py blog-hero` (`-v1`).
+  Content-engine changes are uncommitted (coordinator commits).
+- Conflicts noted: sample day-7/14 shots target "CTOR Thẻ sản phẩm" after "Đã đổi Tiêu đề" (D32.2: CTOR is
+  all-channel; D22/PP-DX map title to CTR); PP-DX lists "mua nhiều giảm nhiều cho AOV" and its hero lead says Juli
+  changes the cover after confirmation (D13: only with the seller's photo); PP-DL describes control groups (D34 not
+  built); `cap-dx-luot-chay` / `cap-dl-muc-tieu` dates (07/10, chốt 21/10) disagree with `cap-dl-ngay-7-v2` (10/10, 24/10).
+- Gates: landing lint 0 errors (6 old warnings), `tsc --noEmit` 0, vitest 17 files / 682 passed, build OK, check:seo
+  43 passed; 390 / 1440 renders: one H1, all figures, no horizontal scroll (shots in the session scratchpad
+  `shots-p49a1/`); `check.sh --since fasttrack/optimize-product --skip-migrations` OK. Keyword SERP re-check on the
+  writing day not done (plan's 2026-10-18 autocomplete used).
+- Next: owner review of the drafts; P49-L end-of-post guide line for reach posts.
