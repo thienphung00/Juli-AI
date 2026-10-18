@@ -2872,3 +2872,13 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   /san-pham/de-xuat-va-thuc-thi lists an AOV lever and implies cover upload without the seller's
   photo; /san-pham/do-luong-gmv describes control groups as live; /privacy states the still
   PROPOSED retention; "500.000đ/tháng" vs "từ 500.000đ/tháng".
+
+## 2026-10-18 — orchestrator (Claude Opus) — all blog posts published
+
+- Owner: "Đăng tất cả ngay". 29 drafts → published (publishedAt / updatedAt 2026-10-18), 31
+  published in total; keyword-map statuses updated. Vendor prices in the four tools posts
+  re-checked 18/10/2026: only MISA eShop changed (now publishes prices; the post no longer says
+  it has none, no figures quoted) and the Nhanh.Ecom trial length could not be confirmed
+  (now "có dùng thử miễn phí"). Gates: vitest 742, build, check:seo 47.
+- Follow-ups: re-check `phi-san-tiktok-shop-2026` after the 20/10 and 21/10/2026 fee changes;
+  owner to request indexing in Search Console for the new URLs; weekly GSC blog report (G6).
