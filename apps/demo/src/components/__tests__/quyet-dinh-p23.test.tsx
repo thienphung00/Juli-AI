@@ -302,21 +302,21 @@ describe("P23 measurement verdicts and external changes (D29.8, D30.4)", () => {
     expect(measureHead(measurement("final", { verdict: { day14: "not_met" } })).chip).toEqual({ label: "Không đạt", tone: "warn" });
     expect(measureHead(measurement("final")).chip.label).toBe("Một phần");
     const partial = measurement("final", { verdict: { day14: "partial" } });
-    expect(finalBox(partial, "Tiêu đề")?.title).toBe("Một phần: 70 % GMV dự kiến");
-    expect(day14Steps(partial, "Tiêu đề")[3].result).toBe("Một phần");
-    expect(finalBox(measurement("final"), "Tiêu đề")?.title).toBe("Một phần: 70 % GMV dự kiến");
+    expect(finalBox(partial)?.title).toBe("Một phần: 70 % GMV dự kiến");
+    expect(day14Steps(partial)[3].result).toBe("Một phần");
+    expect(finalBox(measurement("final"))?.title).toBe("Một phần: 70 % GMV dự kiến");
   });
 
   it("D31.7: Đạt not clearly above both windows' noise reads Đạt · chưa chắc chắn", () => {
     for (const strength of ["likely", "noise"] as const) {
       const m = measurement("final", { verdict: { day14: "met", strength } });
       expect(measureHead(m)).toEqual({ headline: "Ngày 14: đạt mục tiêu", chip: { label: "Đạt · chưa chắc chắn", tone: "ok" } });
-      expect(day14Steps(m, "Tiêu đề")[3].result).toBe("Đạt · chưa chắc chắn");
-      expect(finalBox(m, "Tiêu đề")?.title).toMatch(/^Đạt · chưa chắc chắn: CTR /);
+      expect(day14Steps(m)[3].result).toBe("Đạt · chưa chắc chắn");
+      expect(finalBox(m)?.title).toMatch(/^Đạt · chưa chắc chắn: CTR /);
     }
     const clear = measurement("final", { verdict: { day14: "met", strength: "clear" } });
     expect(measureHead(clear).chip).toEqual({ label: "Đạt", tone: "ok" });
-    expect(finalBox(clear, "Tiêu đề")?.title).toMatch(/^Đạt: CTR /);
+    expect(finalBox(clear)?.title).toMatch(/^Đạt: CTR /);
     // Một phần / Không đạt keep their words whatever the strength.
     expect(measureHead(measurement("final", { verdict: { day14: "partial", strength: "likely" } })).chip.label).toBe("Một phần");
     expect(measureHead(measurement("final", { verdict: { day14: "not_met", strength: "noise" } })).chip.label).toBe("Không đạt");

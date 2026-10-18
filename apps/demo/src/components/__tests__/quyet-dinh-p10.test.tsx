@@ -749,20 +749,20 @@ describe("measurement model (Measure.dc.html, Day7, Day14)", () => {
   it("day-14 boxes per label; calibration not updated for chua_ket_luan", () => {
     const final = (label: "dat" | "gan_dat" | "khong_dat" | "chua_ket_luan") =>
       measurement("final", { final: { label, gmv_actual_per_day: 57_000, pct_of_expected: 82, calibration: label === "chua_ket_luan" ? null : { lever: "description", from: 0.5, to: 0.58 } } });
-    expect(finalBox(final("gan_dat"), "Mô tả")).toMatchObject({ tone: "info", title: "Một phần: 82 % GMV dự kiến", offerRevert: false });
-    expect(finalBox(final("khong_dat"), "Mô tả")).toMatchObject({ tone: "warn", offerRevert: true, next: "Xem đề xuất khác cho sản phẩm này ›" });
-    expect(finalBox(final("dat"), "Mô tả")?.tone).toBe("ok");
-    expect(finalBox(final("chua_ket_luan"), "Mô tả")?.tone).toBe("muted");
+    expect(finalBox(final("gan_dat"))).toMatchObject({ tone: "info", title: "Một phần: 82 % GMV dự kiến", offerRevert: false });
+    expect(finalBox(final("khong_dat"))).toMatchObject({ tone: "warn", offerRevert: true, next: "Xem đề xuất khác cho sản phẩm này ›" });
+    expect(finalBox(final("dat"))?.tone).toBe("ok");
+    expect(finalBox(final("chua_ket_luan"))?.tone).toBe("muted");
     // D61: the calibration coefficient is not a seller-facing step.
-    expect(day14Steps(final("gan_dat"), "Mô tả").map((s) => s.label)).toEqual([
+    expect(day14Steps(final("gan_dat")).map((s) => s.label)).toEqual([
       "Đọc dữ liệu 14 ngày sau thay đổi",
       "So chỉ số mục tiêu",
       "Tính GMV thực tế",
       "Chốt kết quả",
       "Mở khoá đề xuất tiếp theo",
     ]);
-    expect(JSON.stringify(day14Steps(final("chua_ket_luan"), "Mô tả"))).not.toMatch(/Hệ số|mức kỳ vọng/);
-    expect(finalBox(final("gan_dat"), "Mô tả")?.body).not.toMatch(/mức kỳ vọng|thận trọng/);
+    expect(JSON.stringify(day14Steps(final("chua_ket_luan")))).not.toMatch(/Hệ số|mức kỳ vọng/);
+    expect(finalBox(final("gan_dat"))?.body).not.toMatch(/mức kỳ vọng|thận trọng/);
   });
 });
 

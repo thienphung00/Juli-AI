@@ -218,7 +218,9 @@ export const CAP_PT_XEP_HANG_MOBILE: readonly MediaSource[] = [
  * P51-A (D60.1): the sample's title run (TN-021) targets CTR on Thẻ sản phẩm 3,2 % → 3,5 %, CTOR
  * cards read "CTOR" (all channels), Kéo xuống rows + Còn lại add up to Tổng, and one capture clock
  * dates the run 10/10 → 17/10 → 24/10 everywhere; the affected v1 and v2/v3 exports above and below
- * now point at the recaptured files (export names unchanged).
+ * now point at the recaptured files (export names unchanged). D61 (same recapture): card GMV line
+ * is a plain sentence, no calibration step or 1–2× note on day 14, no "ước tính theo quy tắc";
+ * CAP_DX_ANH_BIA (v3), CAP_DX_CTR_TIEU_DE (v2) and CAP_KN_QUET_NHANH_V2 (v3) follow.
  */
 export const CAP_KN_DANG_NHAP_V2: readonly MediaSource[] = [
   { avif: "/media/cap-kn-dang-nhap-v4-1280.avif", webp: "/media/cap-kn-dang-nhap-v4-1280.webp", width: 1280, height: 900 },
@@ -230,12 +232,12 @@ export const CAP_KN_DANG_NHAP_V2_MOBILE: readonly MediaSource[] = [
 ];
 
 export const CAP_KN_QUET_NHANH_V2: readonly MediaSource[] = [
-  { avif: "/media/cap-kn-quet-nhanh-v2-1280.avif", webp: "/media/cap-kn-quet-nhanh-v2-1280.webp", width: 1280, height: 869 },
-  { avif: "/media/cap-kn-quet-nhanh-v2-640.avif", webp: "/media/cap-kn-quet-nhanh-v2-640.webp", width: 640, height: 434 },
+  { avif: "/media/cap-kn-quet-nhanh-v3-1280.avif", webp: "/media/cap-kn-quet-nhanh-v3-1280.webp", width: 1280, height: 869 },
+  { avif: "/media/cap-kn-quet-nhanh-v3-640.avif", webp: "/media/cap-kn-quet-nhanh-v3-640.webp", width: 640, height: 434 },
 ];
 
 export const CAP_KN_QUET_NHANH_V2_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-kn-quet-nhanh-m-v2-678.avif", webp: "/media/cap-kn-quet-nhanh-m-v2-678.webp", width: 678, height: 799 },
+  { avif: "/media/cap-kn-quet-nhanh-m-v3-678.avif", webp: "/media/cap-kn-quet-nhanh-m-v3-678.webp", width: 678, height: 799 },
 ];
 
 export const CAP_PT_NGHEN_V2: readonly MediaSource[] = [
@@ -253,8 +255,8 @@ export const CAP_DX_THE_V2: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_ANH_BIA: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-anh-bia-v2-1184.avif", webp: "/media/cap-dx-anh-bia-v2-1184.webp", width: 1184, height: 1034 },
-  { avif: "/media/cap-dx-anh-bia-v2-640.avif", webp: "/media/cap-dx-anh-bia-v2-640.webp", width: 640, height: 559 },
+  { avif: "/media/cap-dx-anh-bia-v3-1184.avif", webp: "/media/cap-dx-anh-bia-v3-1184.webp", width: 1184, height: 1034 },
+  { avif: "/media/cap-dx-anh-bia-v3-640.avif", webp: "/media/cap-dx-anh-bia-v3-640.webp", width: 640, height: 559 },
 ];
 
 export const CAP_DX_ANH_BIA_TAI_LEN: readonly MediaSource[] = [
@@ -263,8 +265,8 @@ export const CAP_DX_ANH_BIA_TAI_LEN: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_CTR_TIEU_DE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-ctr-tieu-de-v1-1184.avif", webp: "/media/cap-dx-ctr-tieu-de-v1-1184.webp", width: 1184, height: 1046 },
-  { avif: "/media/cap-dx-ctr-tieu-de-v1-640.avif", webp: "/media/cap-dx-ctr-tieu-de-v1-640.webp", width: 640, height: 565 },
+  { avif: "/media/cap-dx-ctr-tieu-de-v2-1184.avif", webp: "/media/cap-dx-ctr-tieu-de-v2-1184.webp", width: 1184, height: 1046 },
+  { avif: "/media/cap-dx-ctr-tieu-de-v2-640.avif", webp: "/media/cap-dx-ctr-tieu-de-v2-640.webp", width: 640, height: 565 },
 ];
 
 export const CAP_DL_NGAY_7_V2: readonly MediaSource[] = [
@@ -277,12 +279,12 @@ export const CAP_DL_NGAY_7_V2_MOBILE: readonly MediaSource[] = [
 ];
 
 export const CAP_DL_NGAY_14_V2: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-14-v4-1280.avif", webp: "/media/cap-dl-ngay-14-v4-1280.webp", width: 1280, height: 1821 },
-  { avif: "/media/cap-dl-ngay-14-v4-640.avif", webp: "/media/cap-dl-ngay-14-v4-640.webp", width: 640, height: 911 },
+  { avif: "/media/cap-dl-ngay-14-v4-1280.avif", webp: "/media/cap-dl-ngay-14-v4-1280.webp", width: 1280, height: 1727 },
+  { avif: "/media/cap-dl-ngay-14-v4-640.avif", webp: "/media/cap-dl-ngay-14-v4-640.webp", width: 640, height: 864 },
 ];
 
 export const CAP_DL_NGAY_14_V2_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-14-m-v4-720.avif", webp: "/media/cap-dl-ngay-14-m-v4-720.webp", width: 720, height: 191 },
+  { avif: "/media/cap-dl-ngay-14-m-v4-720.avif", webp: "/media/cap-dl-ngay-14-m-v4-720.webp", width: 720, height: 181 },
 ];
 
 export const CAP_DX_HOAN_TAC_V2: readonly MediaSource[] = [

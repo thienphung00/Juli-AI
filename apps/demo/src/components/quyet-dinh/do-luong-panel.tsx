@@ -227,7 +227,7 @@ function MeasurePanel({
   const headingId = `measure-${run.id}`;
   const outside = m?.stage === "day7" && m.day7 !== null && m.day7.within_band === false;
   const answered: "revert" | "keep" | null = action.revertRunId ? "revert" : action.kept ? "keep" : null;
-  const box = m ? finalBox(m, card?.leverLabel ?? null) : null;
+  const box = m ? finalBox(m) : null;
   const waiting = !m || m.stage === "waiting";
   const day7Iso = run.completed_at ? addDays(run.completed_at, 7) : null;
   const pastDay7 = !m && day7Iso !== null && nowMs !== null && nowMs >= Date.parse(day7Iso);
@@ -261,7 +261,7 @@ function MeasurePanel({
 
           {m?.stage === "day7" ? <StepList label="Các bước kiểm tra ngày 7" rows={measureRows(day7Steps(m, answered))} testId="day7-steps" wide /> : null}
           {m?.stage === "final" ? (
-            <StepList label="Các bước chốt ngày 14" rows={measureRows(day14Steps(m, card?.leverLabel ?? null))} testId="day14-steps" wide />
+            <StepList label="Các bước chốt ngày 14" rows={measureRows(day14Steps(m))} testId="day14-steps" wide />
           ) : null}
 
           {waiting ? (

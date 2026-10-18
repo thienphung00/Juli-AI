@@ -287,8 +287,8 @@ export interface FinalBox {
   readonly offerRevert: boolean;
 }
 
-/** Day14.dc.html's box per label. `leverLabel` is the change type ("Mô tả"). */
-export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | null {
+/** Day14.dc.html's box per label. */
+export function finalBox(m: Measurement): FinalBox | null {
   const f = m.final;
   if (!f) return null;
   const metric = shortMetric(m.target.label);
@@ -342,9 +342,9 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
 
 /**
  * Day14.dc.html's steps, from the measurement. D61: the calibration step (the lever's
- * coefficient) is not shown to sellers; `leverLabel` is kept for the callers.
+ * coefficient) is not shown to sellers.
  */
-export function day14Steps(m: Measurement, _leverLabel: string | null): MeasureStep[] {
+export function day14Steps(m: Measurement): MeasureStep[] {
   const f = m.final;
   const metric = shortMetric(m.target.label);
   const fmt = (value: number | null) => valueText(value, m.target.unit);

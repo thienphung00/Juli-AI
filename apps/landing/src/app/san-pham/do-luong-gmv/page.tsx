@@ -335,7 +335,7 @@ export default function DoLuongGmvPage() {
       </CapSection>
 
       <CapSection
-        alt="Nhóm thẻ tối ưu để nâng CTOR trên mọi kênh với GMV dự kiến cộng 7,2 triệu đồng mỗi tháng ghi ước tính theo quy tắc, hai thẻ Son môi số 12 và Kem dưỡng ẩm ceramide"
+        alt="Nhóm thẻ tối ưu để nâng CTOR trên mọi kênh với GMV dự kiến cộng 7,2 triệu đồng mỗi tháng ghi là ước tính, hai thẻ Son môi số 12 và Kem dưỡng ẩm ceramide"
         caption="Thứ tự các thẻ trong một nhóm phản ánh GMV có thể lấy lại, đã điều chỉnh theo kết quả đo trước đó của shop."
         heading="Juli học từ kết quả đã đo"
         id="hoc"

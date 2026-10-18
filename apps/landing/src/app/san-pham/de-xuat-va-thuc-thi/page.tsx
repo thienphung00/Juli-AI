@@ -130,7 +130,7 @@ export default function DeXuatVaThucThiPage() {
       ]}
     >
       <CapSection
-        alt="Thẻ đề xuất cho sản phẩm Son môi số 12 đã mở rộng: CTOR từ 5,4 % lên mục tiêu 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do khách thêm giỏ rồi bỏ, tiêu đề cũ bị gạch và tiêu đề mới, mô tả hiện tại và mô tả đề xuất, công thức tính GMV dự kiến"
+        alt="Thẻ đề xuất cho sản phẩm Son môi số 12 đã mở rộng: CTOR từ 5,4 % lên mục tiêu 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do khách thêm giỏ rồi bỏ, tiêu đề cũ bị gạch và tiêu đề mới, mô tả hiện tại và mô tả đề xuất"
         caption="Một thẻ đề xuất đã mở “Xem thêm”: lý do đầy đủ, nội dung trước và sau, và cách tính GMV dự kiến."
         heading="Tối ưu sản phẩm TikTok Shop bằng thẻ đề xuất: một sản phẩm, một chỉ số, một thay đổi"
         id="the-de-xuat"
