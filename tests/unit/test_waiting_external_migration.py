@@ -387,7 +387,7 @@ class TestTheAdditiveGateAcceptsIt:
         body = deferred.read_text(encoding="utf-8")
         # Still the tail: its parent is the CURRENT head of versions/, which
         # moved past this revision when fast track P1-B added 074.
-        assert 'down_revision: str | None = "093_ops_group_lift_draws"' in body
+        assert 'down_revision: str | None = "094_user_privacy_and_consent"' in body
 
 
 # ---------------------------------------------------------------------------
