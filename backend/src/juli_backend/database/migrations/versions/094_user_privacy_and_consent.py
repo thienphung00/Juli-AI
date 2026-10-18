@@ -78,10 +78,13 @@ DUE_FN = "public.privacy_due_accounts(timestamptz)"
 PURGE_FN = "public.privacy_purge_account(uuid)"
 ENUM_FN = "public.enumerate_pollable_shops(text[], text)"
 
+# Both lists are compared with ``oid::regclass::text`` inside a function whose
+# search_path is pinned to ``pg_catalog, public``: a public table renders
+# UNQUALIFIED ("orders"), any other schema qualified ("silver.orders").
 #: Tables the purge keeps (D60.10 invoices; staff audit with its own retention).
-KEPT_TABLES = ("public.shop_subscription_periods", "public.ops_audit_log")
-#: Legacy read-only tables guarded by a no-write trigger (#607 silver cutover).
-GUARDED_TABLES = ("public.orders", "public.returns", "public.analytics_kpi_envelopes")
+KEPT_TABLES = ("shop_subscription_periods", "ops_audit_log")
+#: Legacy read-only public tables guarded by a no-write trigger (#607 silver cutover).
+GUARDED_TABLES = ("orders", "returns", "analytics_kpi_envelopes")
 
 
 def _sql_list(values: Sequence[str]) -> str:
