@@ -880,6 +880,204 @@ const DIAGRAMS = [
 <p class="small">Theo Học viện TikTok Shop (bài Cách Tính Khuyến Mãi Cộng Dồn): các lớp khác nhau cộng dồn được; mức chi tối thiểu của voucher xét trên giá sau giảm giá sản phẩm.</p>`;
     },
   },
+  /* ————— P46-E (D56): do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop ————— */
+  {
+    name: "do-lich-14-ngay-v1",
+    html: () => {
+      const items = [
+        ["seg seg--base", 1, "14 ngày trước khi sửa", "Mốc so sánh, chốt cố định từ ngày sửa"],
+        ["mark", 1, "Ngày sửa", "Ghi ngày, giá, khuyến mãi đang chạy, nội dung trang"],
+        ["seg", 2, "Ngày 1 đến 7", "Không sửa thêm gì trên sản phẩm này"],
+        ["mark", 2, "Ngày 7", "Sơ bộ: Đang lên hoặc Chưa rõ"],
+        ["seg", 3, "Ngày 8 đến 14", "Vẫn không sửa thêm"],
+        ["mark mark--ink", 3, "Ngày 14", "Chốt: Đạt, Đạt · chưa chắc chắn, Một phần hoặc Không đạt"],
+      ];
+      const rules = [
+        ["Trung bình mỗi ngày", "Hai khoảng dài bằng nhau, so bằng số trung bình mỗi ngày."],
+        ["Một chỉ số mục tiêu", "Chỉ số mà thay đổi nhắm tới, trên đúng luồng nó tác động."],
+        ["Chỉ số khác trong ngưỡng", "Các chỉ số còn lại không được lệch quá mức dao động bình thường."],
+      ];
+      return `${head("Lịch đo một thay đổi")}
+<div class="tl">${items
+        .map(([cls, col, t, d]) => `<div class="${cls}" style="--c:${col}"><strong>${t}</strong><span>${d}</span></div>`)
+        .join("")}</div>
+<div class="grid3">${rules
+        .map(([t, d], i) => `<div class="box col">${num(i + 1)}<strong>${t}</strong><span class="desc">${d}</span></div>`)
+        .join("")}</div>`;
+    },
+  },
+  {
+    name: "do-doc-sai-doc-dung-v1",
+    html: () => {
+      const before = [4, 3, 5, 4, 6, 3, 4, 5, 3, 4, 6, 4, 3, 4];
+      const after = [5, 3, 6, 4, 5, 6, 4, 5, 6, 4, 5, 7, 4, 5];
+      const max = 7;
+      const bars = (values, cls, mark = []) =>
+        values
+          .map((v, i) => `<i class="dbar ${cls}${mark.includes(i) ? " dbar--mark" : ""}" style="height:${(v / max) * 100}%"></i>`)
+          .join("");
+      const avgLine = (avg) => `<span class="avg" style="bottom:${(avg / max) * 100}%"></span>`;
+      return `${head("Số đơn mỗi ngày của một sản phẩm, 14 ngày trước và 14 ngày sau khi sửa", true)}
+<div class="dchart">
+  <div class="dgroup">${bars(before, "dbar--base")}${avgLine(58 / 14)}</div>
+  <div class="dsplit"><span>Ngày sửa</span></div>
+  <div class="dgroup">${bars(after, "dbar--after", [1, 2])}${avgLine(69 / 14)}</div>
+</div>
+<div class="dlabels"><span>14 ngày trước: trung bình 4,1 đơn mỗi ngày</span><span>14 ngày sau: trung bình 4,9 đơn mỗi ngày</span></div>
+<div class="grid2">
+  <div class="box half"><span class="label">Đọc sai</span><strong>“Ngày 2 có 3 đơn, ngày 3 có 6 đơn: tăng gấp đôi”</strong><span class="desc">Hai ngày lẻ nằm trong dao động thường ngày của sản phẩm.</span></div>
+  <div class="box half box--accent"><span class="label">Đọc đúng</span><strong>Tăng 0,8 đơn mỗi ngày, mức dao động khoảng 0,5 đơn</strong><span class="desc">Gấp khoảng 1,5 lần mức dao động: có thể đã thay đổi, chưa chắc chắn.</span></div>
+</div>`;
+    },
+  },
+  {
+    name: "do-ba-ket-qua-v1",
+    html: () => {
+      const cards = [
+        ["Đạt", "Sản phẩm A", "2,0 % → 2,6 %", "Chạm mục tiêu 2,5 %", "Gấp 2,4 lần mức dao động: rõ", "GMV giữ được", true],
+        ["Đạt · chưa chắc chắn", "Sản phẩm B", "2,0 % → 2,5 %", "Chạm mục tiêu 2,5 %", "Gấp 1,4 lần mức dao động: có thể", "GMV giữ được"],
+        ["Một phần", "Sản phẩm C", "2,0 % → 2,3 %", "Chưa chạm mục tiêu 2,5 %", "Gấp 2,1 lần mức dao động: rõ", "GMV giữ được"],
+        ["Không đạt", "Sản phẩm D", "2,0 % → 2,1 %", "Chưa chạm mục tiêu 2,5 %", "Gấp 0,6 lần mức dao động: trong dao động", "GMV giữ được"],
+      ];
+      return `${head("Bốn kết quả ngày 14, cùng chỉ số mục tiêu CTR Thẻ sản phẩm", true)}
+<div class="grid2">${cards
+        .map(
+          ([verdict, product, move, target, strength, gmv, accent]) =>
+            `<div class="box half${accent ? " box--accent" : ""}"><span class="label">${product}</span><strong class="metric">${verdict}</strong><span class="eq">CTR ${move}</span><ul class="hang"><li>${target}</li><li>${strength}</li><li>${gmv}</li></ul></div>`,
+        )
+        .join("")}</div>
+<p class="note">Một kết quả yếu không được gắn nhãn mạnh hơn. Nếu trong 14 ngày có thay đổi khác trên sản phẩm, kết quả ghi “Bị ảnh hưởng bởi thay đổi khác”.</p>`;
+    },
+  },
+  {
+    name: "do-cua-so-sale-v1",
+    html: () => {
+      const rows = [
+        ["Mốc so sánh chứa ngày sale", [8, 9, 10, 11], "Mốc bị đẩy lên: thay đổi dễ trông như thất bại"],
+        ["Thời gian đo chứa ngày sale", [20, 21, 22, 23], "Số sau khi sửa bị đẩy lên: thay đổi dễ trông như thành công"],
+        ["Cả hai khoảng đều là ngày thường", [], "So được với nhau", true],
+      ];
+      const cells = (sale) =>
+        Array.from({ length: 28 }, (_, i) => {
+          const cls = sale.includes(i) ? "cell--sale" : i < 14 ? "cell--base" : "cell--after";
+          return `<i class="cell ${cls}${i === 14 ? " cell--start" : ""}"></i>`;
+        }).join("");
+      return `${head("Ngày sale nằm ở đâu so với hai khoảng 14 ngày")}
+<div class="legend"><span><i class="sw sw--base"></i>14 ngày trước khi sửa</span><span><i class="sw sw--after"></i>14 ngày sau khi sửa</span><span><i class="sw sw--sale"></i>Ngày sale</span></div>
+<div class="wins">${rows
+        .map(
+          ([t, sale, verdict, ok]) =>
+            `<div class="win${ok ? " win--ok" : ""}"><strong>${t}</strong><div class="cells">${cells(sale)}</div><span class="verdict">${verdict}</span></div>`,
+        )
+        .join("")}</div>
+<div class="result">Sửa khi cả 14 ngày trước và 14 ngày sau đều không có đợt sale lớn</div>`;
+    },
+  },
+  /* ————— P46-E (D56): doanh-thu-sau-sale-tiktok-shop ————— */
+  {
+    name: "sale-ba-pha-v1",
+    html: () => {
+      const before = [9.6, 10.2, 9.8, 10.5, 10.9, 9.4, 9.7, 10.1, 9.9, 10.4, 10.8, 9.5, 9.6, 9.6];
+      const during = [14.2, 15.1, 16.0, 16.8, 17.5, 17.0, 18.2, 19.4, 26.5, 20.3, 19.1, 20.4, 20.0];
+      const after = [7.2, 7.8, 8.0, 8.3, 8.6, 8.9, 8.5, 9.4, 9.6, 9.9, 10.1, 9.8, 10.3, 10.0];
+      const max = 27;
+      const bars = (values, cls) =>
+        values.map((v) => `<i class="dbar ${cls}" style="height:${(v / max) * 100}%"></i>`).join("");
+      const phases = [
+        ["Trước đợt sale", "14 ngày làm mốc", "10,0 triệu ₫"],
+        ["Trong đợt sale", "13 ngày", "18,5 triệu ₫", true],
+        ["7 ngày đầu sau đợt", "dưới mốc", "8,2 triệu ₫"],
+        ["Ngày 8 đến 14 sau đợt", "gần về mốc", "9,9 triệu ₫"],
+      ];
+      return `${head("GMV mỗi ngày của một shop quanh một đợt sale", true)}
+<div class="pchart">
+  <div class="pgroup">${bars(before, "dbar--base")}<span class="avg" style="bottom:${(10 / max) * 100}%"></span></div>
+  <div class="pgroup pgroup--sale">${bars(during, "dbar--sale")}</div>
+  <div class="pgroup">${bars(after, "dbar--after")}<span class="avg avg--ref" style="bottom:${(10 / max) * 100}%"></span></div>
+</div>
+<div class="phases">${phases
+        .map(
+          ([t, d, v, accent]) =>
+            `<div class="box phase${accent ? " box--accent" : ""}"><span class="label">${t}</span><strong>${v}</strong><span class="small">trung bình mỗi ngày, ${d}</span></div>`,
+        )
+        .join("")}</div>
+<p class="note">Đường gạch ngang là mức trung bình của 14 ngày trước đợt. Đọc trung bình cả đợt, không đọc riêng ngày cao nhất.</p>`;
+    },
+  },
+  {
+    name: "sale-ghi-truoc-v1",
+    html: () => {
+      const groups = [
+        ["Trước ngày bắt đầu", ["Trung bình mỗi ngày của 14 ngày gần nhất, theo luồng", "Giá, khuyến mãi đang chạy của từng sản phẩm", "Danh sách sản phẩm tham gia đợt sale", "Tồn kho của các biến thể bán chạy"]],
+        ["Trong đợt", ["GMV theo luồng, mỗi ngày", "Ngày nào, sản phẩm nào hết hàng", "Không sửa tiêu đề, ảnh, mô tả để thử"]],
+        ["7 ngày đầu sau đợt", ["Đơn hủy, yêu cầu trả hàng", "Luồng nào về dưới mốc", "Chưa kết luận gì"]],
+        ["Ngày 14 sau đợt", ["So với mốc trước đợt", "Chia sản phẩm thành ba nhóm", "Chọn một thay đổi đầu tiên để đo"]],
+      ];
+      let n = 0;
+      return `${head("Ghi gì, vào lúc nào")}
+<div class="grid2 checklist">${groups
+        .map(
+          ([title, items], i) =>
+            `<div class="box col${i === 0 ? " box--accent" : ""}"><strong>${title}</strong><ul class="checks">${items
+              .map((item) => `<li><span class="check">${++n}</span>${item}</li>`)
+              .join("")}</ul></div>`,
+        )
+        .join("")}</div>`;
+    },
+  },
+  {
+    name: "sale-theo-luong-v1",
+    html: () => {
+      const rows = [
+        ["Thẻ sản phẩm", "4,0", "6,5", "3,5", "−12 %"],
+        ["Tab cửa hàng", "1,0", "2,4", "0,9", "−10 %"],
+        ["Video", "2,5", "4,0", "2,3", "−8 %"],
+        ["LIVE", "1,5", "4,0", "0,7", "−53 %", true],
+        ["Liên kết", "1,0", "1,6", "0,8", "−20 %"],
+      ];
+      const row = ([label, b, d, a, pct, accent], cls = "") =>
+        `<div class="trow${cls}${accent ? " trow--accent" : ""}"><span class="tlabel">${label}</span><span><em>Trước</em>${b}</span><span><em>Trong</em>${d}</span><span><em>7 ngày sau</em>${a}</span><span class="tpct"><em>So với mốc</em>${pct}</span></div>`;
+      return `${head("GMV mỗi ngày theo luồng, triệu ₫", true)}
+<div class="ttable">
+  <div class="trow trow--head"><span class="tlabel"></span><span>Trước đợt</span><span>Trong đợt</span><span>7 ngày sau</span><span>So với mốc</span></div>
+  ${rows.map((r) => row(r)).join("")}
+  ${row(["Toàn shop", "10,0", "18,5", "8,2", "−18 %"], " trow--total")}
+</div>
+<p class="note">Gần một nửa mức tụt (0,8 trong 1,8 triệu ₫ mỗi ngày) nằm ở LIVE: xem lịch LIVE sau đợt trước khi sửa trang sản phẩm.</p>`;
+    },
+  },
+  {
+    name: "sale-ba-nhom-v1",
+    html: () => {
+      const groups = [
+        ["Giữ nhịp", "1,0 → 2,2 → 1,2 triệu ₫", "CTR và CTOR sau đợt cao hơn mốc", "Giữ nguyên, ưu tiên cho đợt sale sau"],
+        ["Về mốc cũ", "1,0 → 2,0 → 1,0 triệu ₫", "Bán thêm nhờ ưu đãi, rồi về như trước", "Không cần sửa gấp"],
+        ["Dưới mốc cũ", "1,0 → 1,8 → 0,7 triệu ₫", "Thấp hơn cả trước đợt", "Kiểm tra hủy, hoàn, hết hàng, giá đã về chưa", true],
+      ];
+      return `${head("Ba nhóm sản phẩm sau đợt sale", true)}
+<p class="small">GMV mỗi ngày: trước đợt → trong đợt → ngày 8 đến 14 sau đợt</p>
+<div class="grid3">${groups
+        .map(
+          ([t, v, d, act, accent]) =>
+            `<div class="box half${accent ? " box--accent" : ""}"><strong class="metric">${t}</strong><span class="eq">${v}</span><span class="desc">${d}</span><span class="look"><b>Làm gì:</b> ${act}</span></div>`,
+        )
+        .join("")}</div>`;
+    },
+  },
+  {
+    name: "sale-gmv-con-lai-v1",
+    html: () => {
+      const rows = [
+        ["GMV trong đợt sale, gồm cả đơn hủy và hoàn tiền", "100.000.000 ₫"],
+        ["Đơn hủy trước khi giao", "−6.000.000 ₫"],
+        ["Trả hàng, hoàn tiền ghi nhận sau đợt", "−4.000.000 ₫"],
+        ["Tiền hàng còn lại, trước phí", "90.000.000 ₫"],
+      ];
+      return `${head("GMV của đợt sale và phần còn lại", true)}
+<div class="box ledger">${rows.map(([t, v]) => `<div class="lrow"><span>${t}</span><strong>${v}</strong></div>`).join("")}</div>
+<p class="note">Từ phần còn lại mới trừ phí sàn và phí xử lý đơn, khoản tính theo từng đơn giao thành công. Hoàn tiền thường ghi nhận sau ngày mua, nên con số này chỉ rõ sau vài tuần.</p>`;
+    },
+  },
 ];
 
 function pageHtml(diagram, t, layout) {
@@ -1078,6 +1276,78 @@ ul.hang li{padding-left:14px;text-indent:-14px}
 .lrow span{color:${t.body}}
 .lrow strong{font-variant-numeric:tabular-nums;white-space:nowrap}
 .lrow:last-child strong{color:${t["pink-text"]}}
+/* P46-E */
+.tl{display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px}
+.tl>div{display:flex;flex-direction:column;gap:2px;grid-column:var(--c)}
+.tl span{color:${t.body};font-size:13px}
+.seg{grid-row:1;padding:10px 12px;border:1px solid ${t.hairline};border-radius:10px;background:${t.bg}}
+.seg--base{background:${t.backdrop}}
+.mark{grid-row:2;padding:2px 10px 2px 0;border-right:3px solid ${t.pink};text-align:right}
+.mark strong{color:${t["pink-text"]}}
+.mark--ink{border-right-color:${t.ink}}
+.mark--ink strong{color:${t.ink}}
+.m .tl{display:flex;flex-direction:column}
+.m .mark{padding:2px 0 2px 10px;border-right:0;border-left:3px solid ${t.pink};text-align:left}
+.m .mark--ink{border-left-color:${t.ink}}
+.dchart{display:flex;align-items:stretch;gap:8px;height:150px;padding-top:20px}
+.m .dchart{height:130px;gap:6px}
+.dgroup{position:relative;flex:1;display:flex;align-items:flex-end;gap:3px;border-bottom:1px solid ${t.muted}}
+.m .dgroup{gap:2px}
+.dbar{flex:1;display:block;border-radius:3px 3px 0 0}
+.dbar--base{background:${t["chrome-dot"]}}
+.dbar--after{background:${t.pink}}
+.dbar--sale{background:${t["pink-text"]}}
+.dbar--mark{outline:2px solid ${t.ink};outline-offset:1px}
+.avg{position:absolute;left:0;right:0;border-top:2px dashed ${t.ink}}
+.avg--ref{border-top-color:${t.muted}}
+.dsplit{flex:none;width:2px;background:${t.ink};position:relative}
+.dsplit span{position:absolute;top:-20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:600;color:${t.ink}}
+.dlabels{display:grid;grid-template-columns:1fr 1fr;gap:12px;color:${t.body};font-size:13px;font-weight:500}
+.dlabels span:last-child{text-align:right}
+.m .dlabels{gap:8px;font-size:12px}
+.wins{display:flex;flex-direction:column;gap:12px}
+.win{display:grid;grid-template-columns:200px 1fr;grid-template-areas:"t c" "t v";column-gap:14px;row-gap:4px;align-items:center}
+.win strong{grid-area:t;font-size:14px}
+.win .cells{grid-area:c}
+.win .verdict{grid-area:v;font-size:13px}
+.m .win{grid-template-columns:1fr;grid-template-areas:"t" "c" "v"}
+.win--ok .verdict{color:${t["pink-text"]}}
+.cells{display:flex;gap:2px}
+.cell{flex:1;display:block;height:22px;border-radius:3px;border:1px solid transparent}
+.m .cell{height:18px;border-radius:2px}
+.cell--base{background:${t.backdrop};border-color:${t.hairline}}
+.cell--after{background:${t.bg};border-color:${t.hairline}}
+.cell--sale{background:${t["pink-tint"]};border-color:${t.pink}}
+.cell--start{margin-left:6px;position:relative}
+.cell--start::before{content:"";position:absolute;left:-6px;top:-4px;bottom:-4px;width:2px;background:${t.ink}}
+.sw--base{background:${t.backdrop};border-color:${t.hairline}}
+.sw--after{background:${t.bg};border-color:${t.hairline}}
+.pchart{display:grid;grid-template-columns:14fr 13fr 14fr;gap:8px;height:160px}
+.m .pchart{height:120px;gap:5px}
+.pgroup{position:relative;display:flex;align-items:flex-end;gap:2px;border-bottom:1px solid ${t.muted}}
+.m .pgroup{gap:1px}
+.pgroup--sale{background:${t["pink-tint"]};border-radius:6px 6px 0 0}
+.phases{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.m .phases{grid-template-columns:1fr 1fr}
+.phase{display:flex;flex-direction:column;gap:2px;padding:10px 12px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.m .grid4{grid-template-columns:1fr}
+.ttable{display:flex;flex-direction:column;gap:6px}
+.trow{display:grid;grid-template-columns:140px repeat(4,minmax(0,1fr));gap:8px;align-items:center;padding:8px 12px;border:1px solid ${t.hairline};border-radius:10px;background:${t.bg};font-variant-numeric:tabular-nums}
+.trow span{text-align:right;font-weight:600}
+.trow .tlabel{text-align:left;font-weight:500}
+.trow em{display:none;font-style:normal}
+.trow--head{border:0;background:none;padding-top:0;padding-bottom:0}
+.trow--head span{color:${t.muted};font-size:13px;font-weight:600}
+.trow--accent{border-color:${t.pink};box-shadow:0 0 0 1px ${t.pink} inset;background:${t["pink-tint"]}}
+.trow--accent .tpct{color:${t["pink-text"]}}
+.trow--total{background:${t.ink};border-color:${t.ink};color:${t.bg}}
+.m .trow{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:4px;padding:8px 10px}
+.m .trow .tlabel{grid-column:1/-1}
+.m .trow span{text-align:left;display:flex;flex-direction:column;font-size:14px}
+.m .trow em{display:block;color:${t.muted};font-size:11px;font-weight:500}
+.m .trow--total em{color:${t["chrome-dot"]}}
+.m .trow--head{display:none}
 </style></head><body class="${layout === "mobile" ? "m" : "d"}"><div class="fig">${diagram.html(t)}</div></body></html>`;
 }
 
