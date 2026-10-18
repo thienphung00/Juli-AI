@@ -932,4 +932,106 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "số lượng trong tiêu đề, không đưa khuyến mãi vào tiêu đề (23/04/2026), kiểm tra 17/10/2026"),
     ],
   },
+  {
+    slug: "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop",
+    status: "draft",
+    title: "Sửa sản phẩm xong, làm sao biết có hiệu quả: cách đo trước và sau một thay đổi trên TikTok Shop",
+    seoTitle: "Đo hiệu quả sau khi sửa sản phẩm TikTok Shop | Juli AI",
+    description:
+      "Sửa sản phẩm xong, làm sao biết có hiệu quả: chốt mốc 14 ngày, một chỉ số mục tiêu, đọc ngày 7, chốt ngày 14, so với mức dao động và tránh đợt sale.",
+    excerpt:
+      "So số hôm nay với hôm qua sau khi sửa gần như luôn cho kết luận sai. Ghi ngày sửa, chốt mốc 14 ngày, theo dõi một chỉ số mục tiêu trên đúng luồng, đọc sơ bộ ở ngày 7, kết luận ở ngày 14 và biết khi nào chưa đủ dữ liệu.",
+    breadcrumbName: "Đo hiệu quả sau khi sửa sản phẩm",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "metrics",
+    format: "pain",
+    cover: blogCover("do-hieu-qua-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền hồng nhạt, ô đầu tiên tô màu hồng"),
+    author: AUTHOR,
+    related: ["doanh-thu-sau-sale-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov", "doanh-thu-tiktok-shop-giam"],
+    faq: [
+      {
+        question: "Sửa sản phẩm bao lâu thì biết có hiệu quả?",
+        answer:
+          "Theo cách đo của Juli: đọc sơ bộ ở ngày 7 (Đang lên hoặc Chưa rõ) và chốt ở ngày 14, so với trung bình 14 ngày trước khi sửa. Đây là phương pháp của Juli, không phải quy định của TikTok. Sản phẩm ít đơn hay dao động mạnh cần lâu hơn, và kết quả ngày 14 của chúng chỉ để tham khảo.",
+      },
+      {
+        question: "Sửa nhiều thứ cùng lúc thì đo thế nào?",
+        answer:
+          "Không tách được tác dụng của từng thứ. Mỗi sản phẩm chỉ nên có một chỉ số mục tiêu tại một thời điểm: ảnh bìa và tiêu đề cùng nhắm CTR có thể đọc như một gói, nhưng đổi tiêu đề cùng lúc với giảm giá thì không biết phần nào của thay đổi nào.",
+      },
+      {
+        question: "Sửa tiêu đề xong lượt xem tăng mà đơn không tăng là sửa hỏng?",
+        answer:
+          "Chưa chắc. Nếu mục tiêu là CTR và CTR tăng rõ, xem tiếp CTOR và GMV có nằm trong ngưỡng giữ ổn định không. CTOR giảm quá mức dao động nghĩa là tiêu đề mới đưa đến khách không định mua; lúc đó cân nhắc quay lại bản cũ.",
+      },
+      {
+        question: "Cần bao nhiêu đơn để tin kết quả?",
+        answer:
+          "TikTok không đưa ra con số. Juli gắn nhãn Rõ khi mỗi kỳ có khoảng 30 đơn trở lên (khoảng 30 lượt nhấp với CTR) và mức thay đổi vượt vùng nhiễu; dưới đó chỉ là Tham khảo. Sản phẩm bán dưới khoảng 2 đơn mỗi ngày vì vậy cần hơn 14 ngày.",
+      },
+      {
+        question: "Nên sửa sản phẩm trước hay sau đợt sale 11.11?",
+        answer:
+          "Theo lịch TikTok Shop đăng ngày 16/10/2026, 11.11 chạy từ 03 đến 15/11 và 12.12 từ 03 đến 15/12. Một lần sửa để thử nên tránh để mốc 14 ngày hoặc 14 ngày đo chạm các đợt này; nếu phải sửa gần đợt sale, ghi chú lại và so thêm với các sản phẩm không sửa.",
+      },
+    ],
+    sources: [
+      academy("Lịch Chiến Dịch TikTok Shop 2026", "6210902215264001", "lịch chiến dịch cuối năm 2026: 10.10, giữa tháng, lương về, 11.11, Black Friday, 12.12 (16/10/2026), kiểm tra 18/10/2026"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "Lượt hiển thị, CTR, CTOR, GMV theo khoảng thời gian đã chọn và theo định dạng nội dung (17/06/2026), kiểm tra 18/10/2026"),
+      academy("Trình Tối Ưu Hoá Sản Phẩm", "6532499267012354", "hiển thị hiệu suất trước đây (số đơn, lượt xem) và điểm cần cải thiện, không nêu mức tăng sau tối ưu (04/08/2025), kiểm tra 18/10/2026"),
+      academy("Chẩn Đoán Thẻ Sản Phẩm", "5792290376255233", "nguồn lưu lượng của Thẻ sản phẩm, nút Xuất (21/02/2024), kiểm tra 18/10/2026"),
+    ],
+  },
+  {
+    slug: "doanh-thu-sau-sale-tiktok-shop",
+    status: "draft",
+    title: "Trước và sau 11.11: đọc số liệu sale TikTok Shop cho đúng",
+    seoTitle: "Sale 11.11 TikTok Shop: đọc doanh thu sau sale | Juli AI",
+    description:
+      "11.11 TikTok Shop chạy 03 đến 15/11/2026: ghi mốc gì trước sale, đọc GMV theo luồng, vì sao doanh thu tụt sau sale, đơn hủy, hoàn tiền và phí.",
+    excerpt:
+      "Theo lịch chính thức, 11.11 chạy từ 03 đến 15/11 và 12.12 từ 03 đến 15/12. Chốt mốc 14 ngày trước đợt, đọc GMV theo luồng trong đợt, chờ đủ 14 ngày sau đợt và tính cả đơn hủy, hoàn tiền đến muộn trước khi kết luận sản phẩm nào đáng giữ.",
+    breadcrumbName: "Doanh thu sau sale",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "metrics",
+    format: "pain",
+    cover: blogCover("sau-sale-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền hồng nhạt, ô đầu của hàng dưới tô màu hồng"),
+    author: AUTHOR,
+    related: ["do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "doanh-thu-tiktok-shop-giam", "ty-le-hoan-hang-tiktok-shop"],
+    faq: [
+      {
+        question: "Sale 11.11 trên TikTok Shop năm 2026 diễn ra khi nào?",
+        answer:
+          "Theo bài Lịch Chiến Dịch TikTok Shop 2026 của Học viện TikTok Shop (đăng 16/10/2026), TikTok Shop 11.11 chạy từ 03 đến 15/11/2026. Một số trang không chính thức ghi khác; hãy theo lịch của TikTok và kiểm tra lại trong Seller Center.",
+      },
+      {
+        question: "Sau sale doanh thu tụt có bình thường không?",
+        answer:
+          "TikTok không công bố một mức tụt chuẩn. Trước khi kết luận, chờ đủ 14 ngày sau đợt, so với mốc 14 ngày trước đợt chứ không với trong đợt, xem luồng nào tụt, giá đã về và hàng còn đủ chưa, và tính cả đơn hủy, hoàn tiền đến muộn.",
+      },
+      {
+        question: "Nên so 11.11 với 10.10 hay với tháng trước?",
+        answer:
+          "So đợt sale với đợt sale, kỳ thường với kỳ thường, bằng trung bình mỗi ngày. 10.10 năm 2026 dài 4 ngày, 11.11 dài 13 ngày, nên so tổng GMV của hai đợt sẽ sai.",
+      },
+      {
+        question: "Có nên sửa sản phẩm ngay trước sale không?",
+        answer:
+          "Nếu muốn biết lần sửa có tác dụng thì không: lượng khách tăng vì sale sẽ che mất tác dụng đó. Sửa vì thông tin sai thì cứ sửa, nhưng ghi lại ngày và đừng coi số liệu trong đợt là kết quả của lần sửa.",
+      },
+      {
+        question: "Đăng ký tham gia chiến dịch 11.11 ở đâu?",
+        answer:
+          "Theo trang lịch chiến dịch của TikTok Shop, người bán cập nhật thông tin chi tiết và đăng ký tại Seller Center hoặc liên hệ quản lý gian hàng. Điều kiện, hạn chót và mức ưu đãi của từng đợt xem trong Seller Center; bài này không nêu vì trang lịch không có các thông tin đó.",
+      },
+    ],
+    sources: [
+      academy("Lịch Chiến Dịch TikTok Shop 2026", "6210902215264001", "lịch chiến dịch cuối năm 2026: 10.10 07 đến 10/10, 11.11 03 đến 15/11, Black Friday 26 đến 27/11, 12.12 03 đến 15/12, lương về 24 đến 25; đăng ký tại Seller Center hoặc quản lý gian hàng (16/10/2026), kiểm tra 18/10/2026"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "GMV gồm cả đơn đã hủy và hoàn tiền, hoàn tiền phát sinh sau ngày mua (17/06/2026), kiểm tra 18/10/2026"),
+      academy("Trả hàng và Hoàn tiền", "1766935302801169", "yêu cầu trả hàng trong 15 ngày theo lịch, 6 ngày với một số danh mục (15/10/2026), kiểm tra 18/10/2026"),
+      academy("Phí Xử Lý Đơn Hàng", "2968734088120080", "khoản cố định cho mỗi đơn giao thành công (11/10/2025), kiểm tra 18/10/2026"),
+    ],
+  },
 ];

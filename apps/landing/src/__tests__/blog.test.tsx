@@ -431,6 +431,8 @@ const FIGURE_POSTS = [
   "ty-le-hoan-hang-tiktok-shop",
   "khach-xem-nhung-khong-mua-tiktok-shop",
   "tang-gia-tri-don-hang-trung-binh-tiktok-shop",
+  "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop",
+  "doanh-thu-sau-sale-tiktok-shop",
 ];
 
 function figureIds(body: string): string[] {
