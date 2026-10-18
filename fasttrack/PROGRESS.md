@@ -303,6 +303,12 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | Demo app + backend card copy, recapture (with P51-A) | D61 | done on branch `fasttrack/p51a-sample-data` (84dfaa0f copy, 524da0d6 recapture) | P51-A agent |
 | P52-D Leftovers: figure / page alts match the recaptured shots, sample reasons without peer median, SM-012 CTOR card proposes Mô tả only, 4 shots recaptured | D60.1, D61 | done on branch `fasttrack/p52d-leftovers` (not merged) | agent |
 
+## P54 — Dependabot pip bumps applied (D63)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Nine pip bumps in one constraints regeneration; pyproject / requirements floors in sync; pydantic-core deferred | D63 | done on branch `fasttrack/pip-bumps` (not merged) | agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
