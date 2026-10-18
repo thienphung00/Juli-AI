@@ -20,6 +20,7 @@ import {
   isCompetitorUrl,
   relatedPosts,
   showDraftsOnIndex,
+  guideFor,
 } from "../content/blog";
 import type { BlogPostFormat, BlogPostMeta } from "../content/blog/types";
 import { absoluteUrl, getRoute, metadataForRoute, SITE_ROUTES, sitemapEntries } from "../lib/seo";
@@ -479,6 +480,38 @@ function reachViolations(slug: string): string[] {
 }
 
 describe("reach vs conversion tier (D59)", () => {
+  it("every reach post names one conversion guide for its end-of-post box (D59 addition 4)", () => {
+    for (const post of BLOG_POSTS.filter((p) => blogTier(p) === "reach")) {
+      expect(post.guide, `${post.slug}: missing guide`).toBeDefined();
+      const guide = getPost(post.guide!);
+      expect(guide, `${post.slug}: unknown guide ${post.guide}`).toBeDefined();
+      expect(blogTier(guide!), `${post.slug} → ${post.guide}`).toBe("conversion");
+      expect(guide!.format, `${post.slug} → ${post.guide}`).toBe("guide");
+    }
+    for (const post of BLOG_POSTS.filter((p) => blogTier(p) === "conversion")) {
+      expect(post.guide, `${post.slug}: only reach posts point to a guide`).toBeUndefined();
+    }
+  });
+
+  it("guideFor never links a published reach post to a draft guide", () => {
+    const reach = { ...getPost("tiktok-shop-khong-ra-don")!, status: "published" as const };
+    const draftGuide = { ...getPost(reach.guide!)!, status: "draft" as const };
+    const publishedGuide = { ...draftGuide, status: "published" as const };
+    expect(guideFor(reach, [reach, draftGuide])).toBeNull();
+    expect(guideFor(reach, [reach, publishedGuide])?.slug).toBe(reach.guide);
+    expect(guideFor({ ...reach, status: "draft" }, [reach, draftGuide])?.slug).toBe(reach.guide);
+  });
+
+  it("a draft reach page shows the neutral guide line inside the box, with no Juli text", async () => {
+    const post = BLOG_POSTS.find((p) => blogTier(p) === "reach" && p.status === "draft")!;
+    render(await BlogPostPage({ params: Promise.resolve({ slug: post.slug }) }));
+    const box = screen.getByTestId("blog-cta-tool");
+    const link = within(box).getByTestId("blog-cta-guide");
+    expect(link).toHaveAttribute("href", blogPostPath(post.guide!));
+    expect(link).toHaveTextContent("Đọc hướng dẫn liên quan");
+    expect(box.textContent ?? "").not.toMatch(/juli/i);
+  });
+
   it("derives the tier from the format: pain / news reach, pillar / comparison / guide conversion", () => {
     expect(blogTier({ format: "pain" })).toBe("reach");
     expect(blogTier({ format: "news" })).toBe("reach");

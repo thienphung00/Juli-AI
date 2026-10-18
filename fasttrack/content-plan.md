@@ -90,3 +90,12 @@ Suggested release, 3–4 a week: week of 19/10 fees, sale 11.11, không ra đơn
 then lượt hiển thị, khách xem không mua, AOV, đặt tên; then ảnh bìa, mô tả, hoàn hàng, đo hiệu
 quả; tax and livestream rules whenever the owner approves (they carry "Cập nhật ngày").
 Month 2 is planned from the first weekly Search Console report and the 8-week reviews (G6).
+
+## Conversion tier (D59, 2026-10-18)
+
+Eight guides written as drafts: `huong-dan-ket-noi-tiktok-shop-voi-juli`,
+`doc-phan-tich-tiktok-shop-theo-luong-truy-cap`, `duyet-de-xuat-toi-uu-san-pham-tiktok-shop`,
+`do-ket-qua-ngay-7-ngay-14-hoan-tac`, `dung-thu-juli-ai-mien-phi-3-thang`,
+`tim-san-pham-keo-gmv-xuong-tiktok-shop`, `ctr-the-san-pham-thap-doi-tieu-de-anh-bia`,
+`ctor-thap-viet-lai-mo-ta-san-pham`. Each reach post's end box links one of them (P49-L) once
+the guide is published; publish a guide before or with the reach posts that point to it.

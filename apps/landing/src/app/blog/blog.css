@@ -546,6 +546,17 @@
   line-height: var(--lp-leading-body);
 }
 
+.lp-post__cta-guide {
+  margin: var(--lp-space-3) 0 0;
+  font-size: var(--lp-text-body);
+}
+
+.lp-post__cta-guide a {
+  color: var(--lp-on-dark-body);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
 .lp-post__cta-actions {
   display: flex;
   flex-wrap: wrap;
