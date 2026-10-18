@@ -1,6 +1,6 @@
 import { BLOG_BODIES } from "./bodies";
 import { BLOG_POSTS } from "./posts";
-import type { BlogPost, BlogPostMeta } from "./types";
+import type { BlogPost, BlogPostFormat, BlogPostMeta, BlogTier } from "./types";
 
 export { BLOG_POSTS } from "./posts";
 export { BLOG_CATEGORIES, BLOG_CATEGORY_ORDER, blogCover } from "./covers";
@@ -16,12 +16,31 @@ export type {
   BlogPostMeta,
   BlogPostStatus,
   BlogSource,
+  BlogTier,
   LinkedBlogSource,
   UnlinkedBlogSource,
 } from "./types";
 
 export function isPublished(post: Pick<BlogPostMeta, "status">): boolean {
   return post.status === "published";
+}
+
+/** D59: which tier each format belongs to. The tier is derived, never a field on a post. */
+export const FORMAT_TIER: Readonly<Record<BlogPostFormat, BlogTier>> = {
+  pain: "reach",
+  news: "reach",
+  pillar: "conversion",
+  comparison: "conversion",
+  guide: "conversion",
+};
+
+/** D59 tier of a post: `reach` (pain, news: no Juli) or `conversion` (pillar, comparison, guide). */
+export function blogTier(post: Pick<BlogPostMeta, "format">): BlogTier {
+  return FORMAT_TIER[post.format];
+}
+
+export function isReachPost(post: Pick<BlogPostMeta, "format">): boolean {
+  return blogTier(post) === "reach";
 }
 
 export function getPostMeta(slug: string, posts: readonly BlogPostMeta[] = BLOG_POSTS): BlogPostMeta | undefined {

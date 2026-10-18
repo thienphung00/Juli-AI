@@ -8,14 +8,14 @@ for content, no MDX dependency).
 | `posts.ts` | Every post's metadata: **`status`**, title, SEO title/description, dates, author, FAQ, sources, related posts |
 | `bodies/<slug>.ts` | The post body (Markdown subset, starts at `##`; the H1 is `title`) |
 | `bodies/index.ts` | slug → body map |
-| `types.ts` | `BlogPostMeta`, `BlogPost`, `BlogPostStatus`, `BlogPostFormat`, `BlogSource`, `BlogCategory`, `BlogCover` |
+| `types.ts` | `BlogPostMeta`, `BlogPost`, `BlogPostStatus`, `BlogPostFormat`, `BlogTier`, `BlogSource`, `BlogCategory`, `BlogCover` |
 | `competitors.ts` | `COMPETITORS` (D56 G1 rings: direct, adjacent, not-competing; names and domains), `isCompetitorUrl`, `competitorNamesIn` |
 | `covers.ts` | `BLOG_CATEGORIES` (topic labels, pill order) and `blogCover(name, alt)` |
-| `index.ts` | helpers: `getPost`, `relatedPosts`, `showDraftsOnIndex`, … |
+| `index.ts` | helpers: `getPost`, `relatedPosts`, `showDraftsOnIndex`, `blogTier` / `FORMAT_TIER`, … |
 
 Pages: `src/app/blog/page.tsx` (index: H1, topic pills, featured card, 3-up grid),
 `src/app/blog/[slug]/page.tsx` (post: cover, side TOC, FAQ, sources, related cards,
-dark CTA), `src/app/blog/blog.css`. Renderer: `src/components/blog/markdown.tsx`;
+dark end-of-post CTA by tier, see below), `src/app/blog/blog.css`. Renderer: `src/components/blog/markdown.tsx`;
 cards `post-card.tsx`; pills `category-filter.tsx` (the only client JS). Routes:
 `src/lib/seo/routes/blog.ts` derives `/blog` and one route per post from
 `posts.ts` — nothing to register by hand.
@@ -50,6 +50,37 @@ cards `post-card.tsx`; pills `category-filter.tsx` (the only client JS). Routes:
 To unpublish, set the status back to `"draft"`: the page stays reachable but
 becomes noindex and leaves the sitemap and the index.
 
+## Reach vs conversion (D59)
+
+Every post has a tier, derived from its `format` by `blogTier(post)`
+(`FORMAT_TIER` in `index.ts`); it is never a field of its own.
+
+| Tier | Formats | Juli in the post | End-of-post CTA |
+|---|---|---|---|
+| `reach` (search intent, top of funnel) | `pain`, `news` | **none** | neutral box `blog-cta-tool`: "Tự tính GMV và tìm bước yếu nhất", button to `/cong-cu/tinh-gmv`, link to `/blog` |
+| `conversion` | `pillar`, `comparison`, `guide` | may describe Juli and show its UI, within SPEC | Juli trial + demo (`blog-cta-trial`, `blog-cta-demo`) |
+
+Rules for a **reach** post (test, "reach vs conversion tier (D59)"):
+
+- No "Juli" (any case) in the body, `title`, `seoTitle` (apart from the site-wide
+  ` | Juli AI` suffix), `description`, `excerpt`, `breadcrumbName`, the cover alt,
+  the FAQ, or the alt / caption of its figures. No feature descriptions.
+- Figures are diagrams only: no "Dữ liệu mẫu" `cap-*` screenshots.
+- No links to `/san-pham*`, `/ket-noi/*`, `/dang-ky`, the demo (`DEMO_URL`) or
+  any `app-juli.com` URL. Instead it links at least two distinct onward targets
+  among other blog posts and the free GMV calculator `/cong-cu/tinh-gmv`.
+- The rendered page says "Juli" only in the site header and footer, the author
+  byline (organisation name) and the "Bài viết liên quan" cards (which may be
+  conversion posts).
+
+`REACH_JULI_PENDING` in `blog.test.tsx` is a **temporary** allow-list of the reach
+posts written before D59 that still mention Juli (P48-B/C strip them); the body
+rules and the onward-link minimum skip those slugs, and a test fails when a
+listed post is already clean, so remove a slug as soon as its post is stripped.
+The CTA is decided by the tier, so every reach post already ends with the
+neutral box. The two Juli-free comparison posts (đa kênh, AI ảnh/video) stay
+conversion-tier and keep their own `NO_JULI_IN_BODY` rule.
+
 ## Writing a post (D56 standard)
 
 The rules come from `fasttrack/content-plan.md` (G1, G2, G5); `blog.test.tsx`
@@ -67,12 +98,13 @@ checks the ones marked (test).
   | `comparison` | tools hub and tool comparisons (category `tools`) | 3,000+ |
   | `pain` | a seller pain point / long-tail question | 1,500–2,500 (fails above 3,000) |
   | `news` | a TMĐT change: fees, policy, tax, regulation | 800–1,500 (fails above 2,000) |
+  | `guide` | a Juli how-to / feature guide (D59, conversion tier) | 1,500–3,000 (fails above 3,000) |
 
   The upper limits apply to posts written after D56; the posts listed in
   `PRE_D56_POSTS` keep their length. At least 5 H2s (3 for `news`), H2 → H3
   only, unique headings (test).
 - **Opening.** The first 2–3 sentences answer the pain in the seller's own
-  words; then explain with Juli's method (Lượt hiển thị × CTR × CTOR × AOV by
+  words; then explain with the method (in a reach post without naming Juli) (Lượt hiển thị × CTR × CTOR × AOV by
   traffic source, change only after approval, measure day 7 / 14). H2 / H3 come
   from real seller questions.
 - **Primary sources, linked.** TikTok Academy VN / Seller University, Shopee
@@ -91,11 +123,12 @@ checks the ones marked (test).
   "chatbot trả lời tin nhắn". `not-competing` (CapCut, Canva, multichannel
   software…): named normally, not linked. No copied feature lists or price
   tables beyond one factual line per tool; prices only as the vendor publishes them.
-- **Figures.** 3–6 per new post (diagrams, "Dữ liệu mẫu" screenshots, see
-  below); the test allows 0–8 per post and every figure in `figures.ts` must
-  be used.
-- **FAQ.** 3–5 questions (test for new `pain` / `news` posts), they become
-  FAQPage JSON-LD. One soft CTA at the end.
+- **Figures.** 3–6 per new post (diagrams, and "Dữ liệu mẫu" screenshots in
+  conversion posts only, see below); the test allows 0–8 per post, 3–8 for a
+  `guide`, and every figure in `figures.ts` must be used.
+- **FAQ.** 3–5 questions (test for new `pain` / `news` posts and every `guide`),
+  they become FAQPage JSON-LD. The end-of-post CTA comes from the tier; a reach
+  post's body has no product CTA.
 - **Words and numbers.** Vietnamese only; TikTok's own metric names (Lượt hiển
   thị sản phẩm, CTR, CTOR, Đơn hàng SKU, AOV); numbers in examples marked "Ví dụ
   giả định"; no invented statistics; no "—" (test); facts about Juli within SPEC.
@@ -103,12 +136,11 @@ checks the ones marked (test).
   `- ` and `1. ` lists, `> ` callouts, `| a | b |` tables with a `|---|---|`
   row, `**bold**`, `[text](/path)` or `[text](https://…)`, `{{hinh:<id>}}`
   figures. No backticks.
-- **Internal links.** Link the product pages (`/san-pham`,
+- **Internal links.** A reach post: see "Reach vs conversion" above. A
+  conversion post links the product pages (`/san-pham`,
   `/san-pham/phan-tich-shop`, `/san-pham/de-xuat-va-thuc-thi`,
   `/san-pham/do-luong-gmv`, `/ket-noi/tiktok-shop`); every internal link must
-  resolve (test). A `news` post (tax, fees, policy) needs only `/san-pham` plus
-  one other relevant internal link (P46-B2), e.g. the GMV post next to a "GMV vs
-  tiền thực nhận" line.
+  resolve (test).
 - **After publishing.** The weekly Search Console report (`scripts/seo/gsc_report`,
   section 8) lists every `/blog/*` and `/cong-cu/*` URL with flags; at 8 weeks it
   flags the post for review. After the review, bump `updatedAt` (that clears the flag).

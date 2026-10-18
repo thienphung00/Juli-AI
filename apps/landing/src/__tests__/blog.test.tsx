@@ -13,6 +13,7 @@ import {
   BLOG_FIGURES,
   BLOG_POSTS,
   blogCover,
+  blogTier,
   COMPETITORS,
   competitorNamesIn,
   getPost,
@@ -22,7 +23,8 @@ import {
 } from "../content/blog";
 import type { BlogPostFormat, BlogPostMeta } from "../content/blog/types";
 import { absoluteUrl, getRoute, metadataForRoute, SITE_ROUTES, sitemapEntries } from "../lib/seo";
-import { blogPostPath, buildBlogRoutes } from "../lib/seo/routes/blog";
+import { BLOG_INDEX_PATH, blogPostPath, buildBlogRoutes } from "../lib/seo/routes/blog";
+import { DEMO_URL, FREE_TOOLS } from "../lib/site";
 
 /** P33-C product pages every pillar post links to (all registered since integration). */
 const PRODUCT_PAGES = new Set([
@@ -38,6 +40,38 @@ const NO_JULI_IN_BODY = new Set([
   "phan-mem-quan-ly-ban-hang-da-kenh-2026",
   "cong-cu-ai-tao-anh-video-san-pham-tiktok-shop",
 ]);
+
+/**
+ * D59 reach posts (pain / news) whose copy still mentions Juli, links the
+ * product pages or shows a `cap-*` screenshot. TEMPORARY: the reach rules
+ * below ("reach tier (D59)") skip these; each P48-B/C strip agent removes its
+ * slugs once the post is Juli-free, and a test fails if a listed post is
+ * already clean. The list must end empty.
+ */
+const REACH_JULI_PENDING = new Set([
+  "tiktok-shop-khong-ra-don",
+  "doanh-thu-tiktok-shop-giam",
+  "san-pham-tiktok-shop-khong-co-luot-hien-thi",
+  "thue-ban-hang-tiktok-shop",
+  "video-tiktok-nhieu-view-khong-ra-don",
+  "live-tiktok-shop-khong-ra-don",
+  "ty-le-hoan-hang-tiktok-shop",
+  "phi-san-tiktok-shop-2026",
+  "khach-xem-nhung-khong-mua-tiktok-shop",
+  "tang-gia-tri-don-hang-trung-binh-tiktok-shop",
+  "mo-ta-san-pham-tiktok-shop",
+  "quy-dinh-livestream-ban-hang",
+  "dat-ten-san-pham-tiktok-shop",
+  "anh-bia-san-pham-tiktok-shop",
+  "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop",
+  "doanh-thu-sau-sale-tiktok-shop",
+]);
+
+/** The site-wide `<title>` suffix (organisation name, like the header): the only "Juli" a reach post's meta may carry. */
+const SEO_TITLE_SUFFIX = " | Juli AI";
+
+/** Internal paths a reach post must not link (D59.1): product, connect, sign-up. The demo is external (`DEMO_URL`). */
+const REACH_FORBIDDEN_PREFIXES = ["/san-pham", "/ket-noi", "/dang-ky"];
 
 const fixture = (slug: string, status: BlogPostMeta["status"]): BlogPostMeta => ({
   slug,
@@ -200,7 +234,7 @@ describe("post page", () => {
   });
 
   it("renders title, author, dates, TOC from the H2s, FAQ, sources and the draft banner", async () => {
-    const post = BLOG_POSTS.find((p) => p.status === "draft")!;
+    const post = BLOG_POSTS.find((p) => p.status === "draft" && blogTier(p) === "conversion")!;
     render(await BlogPostPage({ params: Promise.resolve({ slug: post.slug }) }));
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(post.title);
@@ -295,7 +329,11 @@ const WORDS: Record<BlogPostFormat, { min: number; max?: number; minH2: number }
   comparison: { min: 3000, minH2: 5 },
   pain: { min: 1500, max: 3000, minH2: 5 },
   news: { min: 800, max: 2000, minH2: 3 },
+  guide: { min: 1500, max: 3000, minH2: 5 },
 };
+
+/** Figures per post by format (D59: a guide shows Juli's UI, 3–8 figures); others use FIGURE_POSTS. */
+const GUIDE_FIGURES = { min: 3, max: 8 };
 
 /**
  * Posts written before D56 (2026-10-17). The FAQ 3–5 rule and the word cap
@@ -332,9 +370,9 @@ describe("post content (D43.7, D56 G5)", () => {
       expect(tableOfContents(blocks).length).toBeGreaterThanOrEqual(rule.minH2);
     });
 
-    it(`${meta.slug}: FAQ 3–5 questions for a new pain / news post (D56 G5)`, () => {
+    it(`${meta.slug}: FAQ 3–5 questions for a new pain / news / guide post (D56 G5, D59)`, () => {
       const faq = meta.faq?.length ?? 0;
-      if (PRE_D56_POSTS.has(meta.slug) || (meta.format !== "pain" && meta.format !== "news")) return;
+      if (PRE_D56_POSTS.has(meta.slug) || !["pain", "news", "guide"].includes(meta.format)) return;
       expect(faq).toBeGreaterThanOrEqual(3);
       expect(faq).toBeLessThanOrEqual(5);
     });
@@ -365,7 +403,7 @@ describe("post content (D43.7, D56 G5)", () => {
       if (meta.category !== "tools") expect(competitorNamesIn(text, "direct")).toEqual([]);
     });
 
-    it(`${meta.slug}: internal links resolve, and it links the product pages`, () => {
+    it(`${meta.slug}: internal links resolve; conversion posts link the product pages, reach posts other posts`, () => {
       const internal = markdownLinks(post.body).filter((href) => href.startsWith("/"));
       const registered = new Set(SITE_ROUTES.map((route) => route.path));
       for (const href of internal) {
@@ -378,11 +416,20 @@ describe("post content (D43.7, D56 G5)", () => {
         expect(post.body).not.toMatch(/Juli/);
         return;
       }
-      if (meta.format === "news") {
-        // D56 G3: a TMĐT-change post (tax, fees, policy) links /san-pham plus one
-        // relevant page; forcing all product pages into it would read as an ad.
-        expect(internal, "/san-pham").toContain("/san-pham");
-        expect(internal.filter((href) => href !== "/san-pham" && href !== "/dang-ky").length).toBeGreaterThanOrEqual(1);
+      if (blogTier(meta) === "reach") {
+        // D59.1: a reach post links readers on, not to the product: at least two
+        // distinct targets among other blog posts and the free GMV calculator.
+        // (Its forbidden links are checked in "reach tier (D59)"; a post still
+        // in REACH_JULI_PENDING gets its onward links when it is stripped.)
+        if (REACH_JULI_PENDING.has(meta.slug)) return;
+        const onward = new Set(
+          internal.filter(
+            (href) =>
+              (href.startsWith("/blog/") && href !== blogPostPath(meta.slug)) ||
+              href === FREE_TOOLS.gmvCalculator.href,
+          ),
+        );
+        expect(onward.size, `${meta.slug}: link 2+ other posts or the calculator`).toBeGreaterThanOrEqual(2);
         return;
       }
       for (const page of ["/san-pham", ...PRODUCT_PAGES]) {
@@ -403,6 +450,106 @@ describe("post content (D43.7, D56 G5)", () => {
       expect(meta.updatedAt >= meta.publishedAt).toBe(true);
     });
   }
+});
+
+/** Every "Juli" a reach post's own copy carries (body, meta, FAQ, cover and figure text). */
+function juliMentions(slug: string): string[] {
+  const post = getPost(slug)!;
+  const seoTitle = post.seoTitle.endsWith(SEO_TITLE_SUFFIX)
+    ? post.seoTitle.slice(0, -SEO_TITLE_SUFFIX.length)
+    : post.seoTitle;
+  const figures = figureIds(post.body).flatMap((id) => [BLOG_FIGURES[id]?.alt ?? "", BLOG_FIGURES[id]?.caption ?? ""]);
+  const fields: [string, string][] = [
+    ["body", post.body],
+    ["title", post.title],
+    ["seoTitle", seoTitle],
+    ["description", post.description],
+    ["excerpt", post.excerpt],
+    ["breadcrumbName", post.breadcrumbName],
+    ["cover.alt", post.cover.alt],
+    ...(post.faq ?? []).flatMap((item, i): [string, string][] => [
+      [`faq[${i}].question`, item.question],
+      [`faq[${i}].answer`, item.answer],
+    ]),
+    ...figures.map((text, i): [string, string] => [`figure text ${i}`, text]),
+  ];
+  return fields.filter(([, text]) => /juli/i.test(text)).map(([field]) => field);
+}
+
+/** Why a reach post is not yet D59-clean (empty when it is). */
+function reachViolations(slug: string): string[] {
+  const post = getPost(slug)!;
+  const screenshots = figureIds(post.body).filter((id) => BLOG_FIGURES[id]?.kind === "screenshot");
+  const links = markdownLinks(post.body);
+  const forbidden = links.filter(
+    (href) =>
+      REACH_FORBIDDEN_PREFIXES.some((prefix) => href === prefix || href.startsWith(`${prefix}/`) || href.startsWith(`${prefix}#`)) ||
+      href.startsWith(DEMO_URL) ||
+      /(^|\.)app-juli\.com/.test(href.replace(/^https?:\/\//, "").split("/")[0] ?? ""),
+  );
+  return [
+    ...juliMentions(slug).map((field) => `"Juli" in ${field}`),
+    ...screenshots.map((id) => `screenshot figure ${id}`),
+    ...forbidden.map((href) => `link to ${href}`),
+  ];
+}
+
+describe("reach vs conversion tier (D59)", () => {
+  it("derives the tier from the format: pain / news reach, pillar / comparison / guide conversion", () => {
+    expect(blogTier({ format: "pain" })).toBe("reach");
+    expect(blogTier({ format: "news" })).toBe("reach");
+    expect(blogTier({ format: "pillar" })).toBe("conversion");
+    expect(blogTier({ format: "comparison" })).toBe("conversion");
+    expect(blogTier({ format: "guide" })).toBe("conversion");
+    for (const slug of ["gmv-la-gi-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov", "toi-uu-the-san-pham-tiktok-shop", TOOLS_HUB]) {
+      expect(blogTier(getPost(slug)!), slug).toBe("conversion");
+    }
+  });
+
+  it("REACH_JULI_PENDING lists only reach posts that still break the rules", () => {
+    for (const slug of REACH_JULI_PENDING) {
+      const post = getPost(slug);
+      expect(post, `${slug}: unknown slug`).toBeDefined();
+      expect(blogTier(post!), slug).toBe("reach");
+      expect(reachViolations(slug), `${slug} is Juli-free now: remove it from REACH_JULI_PENDING`).not.toEqual([]);
+    }
+  });
+
+  for (const meta of BLOG_POSTS.filter((post) => blogTier(post) === "reach")) {
+    const pending = REACH_JULI_PENDING.has(meta.slug);
+
+    it(`${meta.slug}: ends with the neutral calculator box, no trial / demo CTA, no "Juli" in it`, async () => {
+      render(await BlogPostPage({ params: Promise.resolve({ slug: meta.slug }) }));
+      const box = screen.getByTestId("blog-cta-tool");
+      expect(screen.queryByTestId("blog-cta-trial")).toBeNull();
+      expect(screen.queryByTestId("blog-cta-demo")).toBeNull();
+      expect(within(box).getByRole("heading", { level: 2 })).toHaveTextContent("Tự tính GMV và tìm bước yếu nhất");
+      expect(within(box).getByRole("link", { name: /công cụ tính GMV/i })).toHaveAttribute("href", FREE_TOOLS.gmvCalculator.href);
+      expect(within(box).getByRole("link", { name: /bài viết/i })).toHaveAttribute("href", BLOG_INDEX_PATH);
+      expect(box.textContent).not.toMatch(/juli/i);
+    });
+
+    it.skipIf(pending)(`${meta.slug}: no "Juli", no cap-* screenshot, no product / sign-up / demo link (D59.1)`, () => {
+      expect(reachViolations(meta.slug)).toEqual([]);
+    });
+
+    it.skipIf(pending)(`${meta.slug}: the rendered post says "Juli" only in the byline, header, footer and related cards`, async () => {
+      const { container } = render(await BlogPostPage({ params: Promise.resolve({ slug: meta.slug }) }));
+      const main = container.querySelector("main")!.cloneNode(true) as HTMLElement;
+      main.querySelector(".lp-post__related")?.remove();
+      main.querySelectorAll(".lp-blog__meta").forEach((line) => line.remove());
+      expect(main.textContent).not.toMatch(/juli/i);
+      const hrefs = [...main.querySelectorAll("a")].map((a) => a.getAttribute("href") ?? "");
+      expect(hrefs.filter((href) => REACH_FORBIDDEN_PREFIXES.some((prefix) => href.startsWith(prefix)) || href.startsWith(DEMO_URL))).toEqual([]);
+    });
+  }
+
+  it("a conversion post keeps the Juli trial and demo CTA, not the calculator box", async () => {
+    render(await BlogPostPage({ params: Promise.resolve({ slug: "gmv-la-gi-tiktok-shop" }) }));
+    expect(screen.getByTestId("blog-cta-trial")).toBeInTheDocument();
+    expect(screen.getByTestId("blog-cta-demo")).toBeInTheDocument();
+    expect(screen.queryByTestId("blog-cta-tool")).toBeNull();
+  });
 });
 
 /** Intrinsic size of a WebP file (VP8X, lossy VP8 or lossless VP8L header). */
@@ -447,8 +594,9 @@ describe("inline figures (D48 additions 7, P39-C)", () => {
     const used = new Set<string>();
     for (const post of BLOG_POSTS) {
       const ids = figureIds(getPost(post.slug)!.body);
-      expect(ids.length, post.slug).toBeGreaterThanOrEqual(FIGURE_POSTS.includes(post.slug) ? 3 : 0);
-      expect(ids.length, post.slug).toBeLessThanOrEqual(8);
+      const min = post.format === "guide" ? GUIDE_FIGURES.min : FIGURE_POSTS.includes(post.slug) ? 3 : 0;
+      expect(ids.length, post.slug).toBeGreaterThanOrEqual(min);
+      expect(ids.length, post.slug).toBeLessThanOrEqual(GUIDE_FIGURES.max);
       expect(new Set(ids).size, `${post.slug}: a figure twice`).toBe(ids.length);
       for (const id of ids) {
         expect(BLOG_FIGURES[id], `${post.slug}: {{hinh:${id}}}`).toBeDefined();

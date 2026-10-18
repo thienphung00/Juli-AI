@@ -2639,3 +2639,29 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   isolation FAIL (no DB; hung `docker info` killed; known). Screenshots (390 / 1440 px, 24 figure shots) in the
   session scratchpad `shots-p46e/`.
 - Next: owner reviews; post 14 must be approved before 03/11/2026 and revised after 15/11.
+
+## 2026-10-18 · P48-A reach / conversion tiers in code (D59.1, D59.2)
+
+- Branch `fasttrack/p48a-tiers` from `fasttrack/optimize-product` @ 1281cf1e. Infrastructure only:
+  no post body changed.
+- `blogTier(post)` / `FORMAT_TIER` (`content/blog/index.ts`): pain, news → `reach`; pillar,
+  comparison, new `guide` → `conversion`. Derived from `format`, not a field. `BlogTier` type;
+  `guide` format: 1,500–3,000 words, 5+ H2, FAQ 3–5, figures 3–8.
+- Post page: reach posts end with a neutral dark box `blog-cta-tool` ("Tự tính GMV và tìm bước yếu
+  nhất", lead about the free calculator, button "Mở công cụ tính GMV" → `/cong-cu/tinh-gmv`,
+  secondary "Đọc thêm bài viết" → `/blog`); conversion posts keep the Juli trial + demo CTA. No
+  other Juli copy in the template besides the byline (author) and related cards.
+- Tests (`blog.test.tsx`, "reach vs conversion tier (D59)"): tier mapping; every reach post renders
+  `blog-cta-tool`, no `blog-cta-trial` / `-demo`, no "Juli" in the box; for reach posts not in
+  `REACH_JULI_PENDING`: no "Juli" in body / title / seoTitle (minus " | Juli AI") / description /
+  excerpt / breadcrumb / cover alt / FAQ / figure alt+caption, no screenshot figures, no links to
+  `/san-pham*`, `/ket-noi*`, `/dang-ky`, the demo or app-juli.com, and the rendered `<main>` minus
+  byline and related cards has no "Juli". Internal-link test: reach posts need 2+ distinct onward
+  links (other posts or the calculator) instead of product pages. With the pending list empty, 33
+  tests failed (16 × body rules, 16 × rendered page, 1 onward-link: `thue-ban-hang-tiktok-shop`);
+  with all 16 reach slugs pending the suite is green. A pending slug that is already clean fails.
+- README: "Reach vs conversion (D59)" section; format table + figures / FAQ / links updated.
+- Gates: lint 0, `tsc --noEmit` 0, vitest 611 passed / 32 skipped (`--maxWorkers=4`), build OK,
+  `check:seo` 39 passed. `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS;
+  migrations / isolation FAIL (no DB; hung `docker info` killed; known).
+- Next: P48-B/C strip Juli from the reach posts and remove their slugs from `REACH_JULI_PENDING`.

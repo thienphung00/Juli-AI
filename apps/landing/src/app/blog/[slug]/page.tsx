@@ -16,6 +16,7 @@ import { SiteFooter } from "../../../components/ui/site-footer";
 import { SiteHeader } from "../../../components/ui/site-header";
 import {
   BLOG_POSTS,
+  blogTier,
   type BlogSource,
   formatDate,
   getPost,
@@ -32,7 +33,7 @@ import {
   JsonLd,
 } from "../../../lib/seo";
 import { BLOG_INDEX_PATH, blogPostPath } from "../../../lib/seo/routes/blog";
-import { DEMO_URL, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../../lib/site";
+import { DEMO_URL, FREE_TOOLS, SIGNUP_URL, TRIAL_CTA_LABEL } from "../../../lib/site";
 
 /**
  * `/blog/<slug>` — one post (D43.7; layout P34-D, D44). Every post is
@@ -87,6 +88,60 @@ function sourceNote(source: BlogSource): string {
 
 function minutesFor(slug: string): number {
   return readingMinutes(countWords(getPost(slug)?.body ?? ""));
+}
+
+/**
+ * End-of-post CTA of a reach post (D59: pain / news). Brand-neutral on purpose:
+ * no "Juli", no product, sign-up or demo link; it offers the free GMV
+ * calculator and the blog index instead.
+ */
+function ReachCta() {
+  return (
+    <Section labelledBy="blog-cta" spacing="compact" tone="dark">
+      <div className="lp-post__cta" data-testid="blog-cta-tool">
+        <Heading id="blog-cta" level={2} onDark size="feature">
+          Tự tính GMV và tìm bước yếu nhất
+        </Heading>
+        <p className="lp-post__cta-lead">
+          Nhập lượt hiển thị, CTR, CTOR và giá trị đơn trung bình vào công cụ tính GMV miễn phí để xem
+          bước nào trong phễu đang kéo doanh thu xuống. Không cần đăng ký.
+        </p>
+        <div className="lp-post__cta-actions">
+          <LinkButton data-testid="blog-cta-calculator" href={FREE_TOOLS.gmvCalculator.href} variant="on-dark">
+            Mở công cụ tính GMV
+          </LinkButton>
+          <LinkButton data-testid="blog-cta-index" href={BLOG_INDEX_PATH} variant="on-dark-secondary">
+            Đọc thêm bài viết
+          </LinkButton>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+/** End-of-post CTA of a conversion post (D59: pillar / comparison / guide): Juli trial + demo. */
+function ConversionCta() {
+  return (
+    <Section labelledBy="blog-cta" spacing="compact" tone="dark">
+      <div className="lp-post__cta">
+        <Heading id="blog-cta" level={2} onDark size="feature">
+          Để Juli đọc các chỉ số này cho shop của bạn mỗi ngày.
+        </Heading>
+        <p className="lp-post__cta-lead">
+          Juli phân tích GMV theo từng luồng truy cập, đề xuất việc nên làm kèm lý do và chỉ thực hiện
+          khi bạn phê duyệt.
+        </p>
+        <div className="lp-post__cta-actions">
+          <LinkButton data-testid="blog-cta-trial" href={SIGNUP_URL} variant="on-dark">
+            {TRIAL_CTA_LABEL}
+          </LinkButton>
+          <LinkButton data-testid="blog-cta-demo" href={DEMO_URL} variant="on-dark-secondary">
+            Xem demo với dữ liệu mẫu
+          </LinkButton>
+        </div>
+      </div>
+    </Section>
+  );
 }
 
 export default async function BlogPostPage({ params }: PostPageProps) {
@@ -210,25 +265,7 @@ export default async function BlogPostPage({ params }: PostPageProps) {
           </section>
         ) : null}
 
-        <Section labelledBy="blog-cta" spacing="compact" tone="dark">
-          <div className="lp-post__cta">
-            <Heading id="blog-cta" level={2} onDark size="feature">
-              Để Juli đọc các chỉ số này cho shop của bạn mỗi ngày.
-            </Heading>
-            <p className="lp-post__cta-lead">
-              Juli phân tích GMV theo từng luồng truy cập, đề xuất việc nên làm kèm lý do và chỉ thực hiện
-              khi bạn phê duyệt.
-            </p>
-            <div className="lp-post__cta-actions">
-              <LinkButton data-testid="blog-cta-trial" href={SIGNUP_URL} variant="on-dark">
-                {TRIAL_CTA_LABEL}
-              </LinkButton>
-              <LinkButton data-testid="blog-cta-demo" href={DEMO_URL} variant="on-dark-secondary">
-                Xem demo với dữ liệu mẫu
-              </LinkButton>
-            </div>
-          </div>
-        </Section>
+        {blogTier(post) === "reach" ? <ReachCta /> : <ConversionCta />}
       </main>
       <SiteFooter />
     </>
