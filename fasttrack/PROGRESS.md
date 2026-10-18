@@ -253,7 +253,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | P46-A Blog rules in code: competitor sources unlinked, length by post type, weekly Search Console post report | D56 G2, G5, G6 | done on branch `fasttrack/p46a-blog-rules` (3e075a9b, ededf556, 3a6a9d18), owner merges | P46-A agent (Opus) |
 | P46-B Month-1 posts 1–4 (week 1) | D56 | done: posts 1–2 (`video-tiktok-nhieu-view-khong-ra-don`, `live-tiktok-shop-khong-ra-don`, branch `fasttrack/p46b1-week1-video-live`) and 3–4 (`san-pham-tiktok-shop-khong-co-luot-hien-thi`, `thue-ban-hang-tiktok-shop`, branch `fasttrack/p46b2-week1-hienthi-thue`), merged; drafts, not deployed | writer agents |
-| P46-C Month-1 posts 5–8 (week 2) | D56 | posts 7–8 (`ty-le-hoan-hang-tiktok-shop`, `phi-san-tiktok-shop-2026`) done, merged, drafts; posts 5–6 in progress, branch `fasttrack/p46c1-week2-ctor-aov` | writer agents |
+| P46-C Month-1 posts 5–8 (week 2) | D56 | done, merged, drafts: 5 `khach-xem-nhung-khong-mua-tiktok-shop`, 6 `tang-gia-tri-don-hang-trung-binh-tiktok-shop`, 7 `ty-le-hoan-hang-tiktok-shop`, 8 `phi-san-tiktok-shop-2026` | writer agents |
 | P46-D Month-1 posts 9–12 (week 3) | D56 | todo | writer agents |
 | P46-E Month-1 posts 13–14 (week 4) | D56 | todo | writer agents |
 

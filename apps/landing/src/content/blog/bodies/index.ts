@@ -7,7 +7,9 @@ import { body as gmvLaGi } from "./gmv-la-gi-tiktok-shop";
 import { body as daKenh } from "./phan-mem-quan-ly-ban-hang-da-kenh-2026";
 import { body as phiSan } from "./phi-san-tiktok-shop-2026";
 import { body as luotHienThi } from "./san-pham-tiktok-shop-khong-co-luot-hien-thi";
+import { body as giaTriDon } from "./tang-gia-tri-don-hang-trung-binh-tiktok-shop";
 import { body as thueBanHang } from "./thue-ban-hang-tiktok-shop";
+import { body as khachXemKhongMua } from "./khach-xem-nhung-khong-mua-tiktok-shop";
 import { body as liveKhongRaDon } from "./live-tiktok-shop-khong-ra-don";
 import { body as khongRaDon } from "./tiktok-shop-khong-ra-don";
 import { body as theSanPham } from "./toi-uu-the-san-pham-tiktok-shop";
@@ -34,4 +36,6 @@ export const BLOG_BODIES: Readonly<Record<string, string>> = {
   "live-tiktok-shop-khong-ra-don": liveKhongRaDon,
   "ty-le-hoan-hang-tiktok-shop": hoanHang,
   "phi-san-tiktok-shop-2026": phiSan,
+  "khach-xem-nhung-khong-mua-tiktok-shop": khachXemKhongMua,
+  "tang-gia-tri-don-hang-trung-binh-tiktok-shop": giaTriDon,
 };

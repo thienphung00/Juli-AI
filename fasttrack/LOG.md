@@ -2470,3 +2470,35 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   both posts rendered at 390 / 1440 px (one H1, no horizontal overflow, all figures loaded).
 - Next: owner reviews and approves; re-check post 8 after 20/10 and 21/10/2026 and whenever a
   fee page changes (G6).
+## 2026-10-18 — P46-C1 writer (Opus): week-2 posts 5–6, CTOR and AOV drafts
+
+- Branch `fasttrack/p46c1-week2-ctor-aov` (worktree `/Users/macos/juli-fasttrack-p46c1`), from 20cc1429.
+- Drafts (`format: "pain"`, category `metrics`, because the guide checklist covers have no free accent):
+  `/blog/khach-xem-nhung-khong-mua-tiktok-shop` (main "khách xem nhưng không mua tiktok shop",
+  2,476 words, 11 H2, 4 FAQ, 5 figures; scope only the step after the click: CTOR by source,
+  add-to-cart vs checkout, vouchers, shipping, indirect GMV) and
+  `/blog/tang-gia-tri-don-hang-trung-binh-tiktok-shop` (main "tăng giá trị đơn hàng trung bình
+  tiktok shop", the brief's variant; 2,485 words, 11 H2, 4 FAQ, 6 figures). Each says in its intro
+  how it differs from `chi-so-tiktok-shop-ctr-ctor-aov` and `tiktok-shop-khong-ra-don`, links them,
+  the week-1 posts (video, LIVE, lượt hiển thị) and each other. No H2 copies those posts' H2s.
+- Sources re-opened 2026-10-17 (curl + text extraction, TikTok Academy VN, cited by title + link +
+  page date): Lưu lượng truy cập sản phẩm (17/06/2026), Tinh chỉnh GMV (11/05/2026), Voucher Thông
+  Thường (13/06/2025), Mua Sỉ Giá Hời (09/12/2025), Ưu Đãi Theo Gói (16/04/2024), Quà Tặng Khi Mua
+  Hàng (05/01/2026), Chiết Khấu Phí Vận Chuyển (24/01/2025), Cách Tính Khuyến Mãi Cộng Dồn
+  (29/10/2025), Phí Xử Lý Đơn Hàng (11/10/2025), Chẩn đoán giá (24/07/2026), Chẩn Đoán Thẻ Sản Phẩm 4
+  (15/12/2023), Tiêu đề, mô tả, hình ảnh và video về sản phẩm (23/04/2026). Not used: any CTOR / AOV
+  benchmark (none official), third-party "mua 2 giảm 5 %, freeship 499K" recipes.
+- Figures: 7 new diagrams (`sau-cu-nhap`, `ctor-hai-luong`, `ctor-trieu-chung`, `aov-hai-shop`,
+  `aov-phi-co-dinh`, `aov-cong-cu`, `aov-cong-don`) + 4 Dữ liệu mẫu screenshots opened before use
+  (`cap-pt-xep-hang`, `cap-dl-tang-them`, `cap-pt-pheu`, `cap-pt-khuyen-mai`). Covers
+  `khach-xem-khong-mua-v1` (metrics checklist, accent 1) and `gia-tri-don-v1` (metrics bars, accent 1).
+- Juli copy follows /san-pham/*: title / description written only after approval; price, vouchers,
+  bundles, shipping discounts are proposals the seller sets up in Seller Center; CTOR / AOV of a
+  change measured on all channels; no chat replies, no ads.
+- `keyword-map.md`: two rows (Draft). PROGRESS P46-C: posts 5–6 done on branch.
+- Gates: landing lint 0, `tsc --noEmit` 0, vitest 478 passed (`--maxWorkers=4`), build OK,
+  `check:seo` 31 passed. Rendered both posts at 390 / 1440 px (1 H1, all figures loaded, no
+  horizontal overflow, no "—", robots noindex): screenshots in the session scratchpad `shots-p46c1/`.
+  `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
+  FAIL (no DB; `docker info` hung and was killed; known).
+- Next: owner reviews and merges; posts 7–8 (P46-C2).
