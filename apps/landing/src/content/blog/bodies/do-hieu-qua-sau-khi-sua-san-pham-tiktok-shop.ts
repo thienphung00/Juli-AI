@@ -62,11 +62,11 @@ Số liệu theo sản phẩm có trong Trung tâm Nhà bán hàng: theo bài �
 
 Mỗi thay đổi nhắm vào một bước của phễu Lượt hiển thị × CTR × CTOR × AOV (xem bài [các chỉ số TikTok Shop](/blog/chi-so-tiktok-shop-ctr-ctor-aov)):
 
-- **Tiêu đề, ảnh bìa** được thấy trước khi bấm: mục tiêu là CTR, và Lượt hiển thị nếu tiêu đề thêm từ khóa.
+- **[Tiêu đề](/blog/dat-ten-san-pham-tiktok-shop), [ảnh bìa](/blog/anh-bia-san-pham-tiktok-shop)** được thấy trước khi bấm: mục tiêu là CTR, và Lượt hiển thị nếu tiêu đề thêm từ khóa.
 - **Mô tả, bộ ảnh chi tiết, giá** được thấy sau khi bấm: mục tiêu là CTOR (bài [khách xem nhưng không mua](/blog/khach-xem-nhung-khong-mua-tiktok-shop)).
 - **Mua nhiều giảm nhiều, gói sản phẩm**: mục tiêu là AOV (bài [tăng giá trị đơn hàng trung bình](/blog/tang-gia-tri-don-hang-trung-binh-tiktok-shop)).
 
-Tiêu đề, ảnh bìa và mô tả chủ yếu được thấy trên Thẻ sản phẩm, nên đo chúng trên luồng Thẻ sản phẩm, không gộp với khách từ video hay LIVE.
+Tiêu đề, ảnh bìa và [mô tả](/blog/mo-ta-san-pham-tiktok-shop) chủ yếu được thấy trên Thẻ sản phẩm, nên đo chúng trên luồng Thẻ sản phẩm, không gộp với khách từ video hay LIVE.
 
 “Mình đổi cả ảnh, tiêu đề, giá cùng lúc, giờ không biết cái nào có tác dụng.” Không tách ra được nữa. Một sản phẩm chỉ nên có một chỉ số mục tiêu tại một thời điểm: ảnh bìa và tiêu đề cùng nhắm CTR vẫn đọc được như một gói, nhưng đổi tiêu đề cùng lúc giảm giá thì không biết phần nào của thay đổi nào.
 

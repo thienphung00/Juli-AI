@@ -73,3 +73,20 @@ be verified, the post is replaced by the next pain-point topic.
 Published: `gmv-la-gi-tiktok-shop`, `chi-so-tiktok-shop-ctr-ctor-aov`. Drafts awaiting the
 owner: `tiktok-shop-khong-ra-don`, `doanh-thu-tiktok-shop-giam`, `toi-uu-the-san-pham-tiktok-shop`,
 the tools hub and its three posts (fix source links per G2 before publishing).
+
+## Status (2026-10-18)
+
+All 14 month-1 drafts are written and merged (P46-B…E), each `draft` until the owner approves:
+`video-tiktok-nhieu-view-khong-ra-don`, `live-tiktok-shop-khong-ra-don`,
+`san-pham-tiktok-shop-khong-co-luot-hien-thi`, `thue-ban-hang-tiktok-shop`,
+`khach-xem-nhung-khong-mua-tiktok-shop`, `tang-gia-tri-don-hang-trung-binh-tiktok-shop`,
+`ty-le-hoan-hang-tiktok-shop`, `phi-san-tiktok-shop-2026`, `dat-ten-san-pham-tiktok-shop`,
+`anh-bia-san-pham-tiktok-shop`, `mo-ta-san-pham-tiktok-shop`, `quy-dinh-livestream-ban-hang`,
+`do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop`, `doanh-thu-sau-sale-tiktok-shop`.
+
+Time-sensitive: `phi-san-tiktok-shop-2026` (fee changes 20/10 and 21/10 → re-check on 21/10),
+`doanh-thu-sau-sale-tiktok-shop` (publish before 11.11 starts on 03/11).
+Suggested release, 3–4 a week: week of 19/10 fees, sale 11.11, không ra đơn (video, LIVE);
+then lượt hiển thị, khách xem không mua, AOV, đặt tên; then ảnh bìa, mô tả, hoàn hàng, đo hiệu
+quả; tax and livestream rules whenever the owner approves (they carry "Cập nhật ngày").
+Month 2 is planned from the first weekly Search Console report and the 8-week reviews (G6).

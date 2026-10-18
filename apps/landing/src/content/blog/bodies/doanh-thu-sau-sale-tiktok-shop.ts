@@ -81,7 +81,7 @@ Cách đọc:
 
 ### Vì sao không đánh giá thay đổi trang trong lúc sale
 
-Trong đợt sale, người mua đến vì ưu đãi, CTR và CTOR của gần như mọi sản phẩm đều đổi. Một tiêu đề mới đổi vào ngày 05/11 rồi thấy CTR tăng thì không phân biệt được phần nào do tiêu đề, phần nào do sale. Giữ trang sản phẩm ổn định trong đợt; ghi lại ý tưởng sửa và làm sau 15/11.
+Trong đợt sale, người mua đến vì ưu đãi, CTR và CTOR của gần như mọi sản phẩm đều đổi. Một [tiêu đề mới](/blog/dat-ten-san-pham-tiktok-shop) đổi vào ngày 05/11 rồi thấy CTR tăng thì không phân biệt được phần nào do tiêu đề, phần nào do sale. Giữ trang sản phẩm ổn định trong đợt; ghi lại ý tưởng sửa và làm sau 15/11.
 
 ## Sale xong doanh thu tụt: kiểm tra gì trước khi lo
 
