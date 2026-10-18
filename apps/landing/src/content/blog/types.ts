@@ -86,8 +86,23 @@ export interface UnlinkedBlogSource extends BlogSourceBase {
  * - `comparison`: tools hub and tool comparisons, 3,000+ words.
  * - `pain`: a seller pain point / long-tail question, 1,500–2,500 words (soft cap 3,000).
  * - `news`: a TMĐT change (fees, policy, tax, regulation), 800–1,500 words (soft cap 2,000).
+ * - `guide`: a Juli how-to / feature guide (D59), 1,500–3,000 words, FAQ 3–5, 3–8 figures.
+ *
+ * The format also decides the post's tier (D59, `blogTier()` in ./index.ts):
+ * pain and news are `reach` (no Juli anywhere in the post), pillar, comparison
+ * and guide are `conversion` (may describe Juli and show its UI).
  */
-export type BlogPostFormat = "pillar" | "comparison" | "pain" | "news";
+export type BlogPostFormat = "pillar" | "comparison" | "pain" | "news" | "guide";
+
+/**
+ * D59 content tier, derived from `format` (never stored on a post):
+ * - `reach`: search intent, top of funnel. No "Juli" in body, FAQ, figures or
+ *   meta, no `cap-*` screenshots, no links to `/san-pham*`, `/ket-noi/*`,
+ *   `/dang-ky` or the demo; the page ends with the neutral calculator box.
+ * - `conversion`: may describe Juli and show its UI (within SPEC); the page
+ *   ends with the Juli trial / demo CTA.
+ */
+export type BlogTier = "reach" | "conversion";
 
 /**
  * One blog post's metadata. Light on purpose: the route registry imports it,
