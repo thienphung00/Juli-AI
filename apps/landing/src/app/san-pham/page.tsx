@@ -129,7 +129,7 @@ const CAPABILITIES: ReadonlyArray<{
       "Video và LIVE: Juli soạn kịch bản, bạn quay hoặc lên LIVE",
     ],
     shot: {
-      alt: "Thẻ đề xuất cho Son môi số 12: chỉ số mục tiêu CTOR Thẻ sản phẩm, GMV dự kiến, lý do và tiêu đề trước và sau (dữ liệu mẫu)",
+      alt: "Thẻ đề xuất cho Son môi số 12: chỉ số mục tiêu CTOR, GMV dự kiến, lý do và tiêu đề trước và sau (dữ liệu mẫu)",
       crop: CARD_CROP,
       variants: CAP_DX_THE,
     },

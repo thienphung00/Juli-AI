@@ -93,7 +93,7 @@ export function HomeHero() {
                 // Phones: the card header only (D46, AC-35.5). A smaller shot keeps the H1 the LCP
                 // element; the full card made the lazy shot the LCP (3.2 s vs 2.6 s).
                 mobileVariants: CAP_DX_THE_MOBILE,
-                alt: "Thẻ đề xuất của Juli cho Son môi số 12: CTOR Thẻ sản phẩm 5,4 % lên 5,9 % và GMV dự kiến (dữ liệu mẫu)",
+                alt: "Thẻ đề xuất của Juli cho Son môi số 12: CTOR 5,4 % lên 5,9 % và GMV dự kiến (dữ liệu mẫu)",
                 crop: 7 / 5,
               }}
               sizes="(min-width: 1200px) 600px, (min-width: 960px) 50vw, 100vw"

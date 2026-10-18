@@ -129,7 +129,7 @@ export default function DeXuatVaThucThiPage() {
       ]}
     >
       <CapSection
-        alt="Thẻ đề xuất cho sản phẩm Son môi số 12 đã mở rộng: CTOR Thẻ sản phẩm từ 5,4 % lên mục tiêu 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do khách thêm giỏ rồi bỏ, tiêu đề cũ bị gạch và tiêu đề mới, mô tả hiện tại và mô tả đề xuất, công thức tính GMV dự kiến"
+        alt="Thẻ đề xuất cho sản phẩm Son môi số 12 đã mở rộng: CTOR từ 5,4 % lên mục tiêu 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do khách thêm giỏ rồi bỏ, tiêu đề cũ bị gạch và tiêu đề mới, mô tả hiện tại và mô tả đề xuất, công thức tính GMV dự kiến"
         caption="Một thẻ đề xuất đã mở “Xem thêm”: lý do đầy đủ, nội dung trước và sau, và cách tính GMV dự kiến."
         heading="Tối ưu sản phẩm TikTok Shop bằng thẻ đề xuất: một sản phẩm, một chỉ số, một thay đổi"
         id="the-de-xuat"
@@ -142,7 +142,7 @@ export default function DeXuatVaThucThiPage() {
         </P>
         <Ul>
           <li>
-            <strong>Chỉ số mục tiêu</strong>, ví dụ “CTOR - Thẻ sản phẩm 5,4 % → 5,9 %”: giá trị hiện tại,
+            <strong>Chỉ số mục tiêu</strong>, ví dụ “CTOR 5,4 % → 5,9 %”: giá trị hiện tại,
             mục tiêu và mức tăng.
           </li>
           <li>
@@ -181,9 +181,9 @@ export default function DeXuatVaThucThiPage() {
         </P>
         <H3>Đo trên đúng luồng mà thay đổi tác động</H3>
         <P>
-          Ảnh bìa, tiêu đề và mô tả chủ yếu được người mua nhìn thấy trên Thẻ sản phẩm, nên mục tiêu của các
-          thẻ này được đặt và đo trên luồng Thẻ sản phẩm (thẻ ghi “đo trên kênh Thẻ sản phẩm”). Khuyến mãi
-          hiện ở mọi nơi nên được đo trên tất cả các kênh.
+          Ảnh bìa và tiêu đề chủ yếu được người mua nhìn thấy trên Thẻ sản phẩm, nên CTR của các thẻ này được
+          đặt và đo trên luồng Thẻ sản phẩm (thẻ ghi “đo trên kênh Thẻ sản phẩm”). Thẻ mô tả và khuyến mãi
+          nhắm CTOR; TikTok không tách đơn hàng SKU theo từng luồng, nên CTOR được đo trên tất cả các kênh.
         </P>
         <H3>Độ tin cậy</H3>
         <P>
@@ -194,7 +194,7 @@ export default function DeXuatVaThucThiPage() {
       </CapSection>
 
       <CapSection
-        alt="Đầu trang Quyết định: tiêu đề 4 thẻ tối ưu để nâng CTOR Thẻ sản phẩm, ô Giữ ổn định với ngưỡng Lượt hiển thị, CTR và AOV cộng trừ 3 %, ô Quy tắc do bạn đặt với giọng văn và từ không được dùng"
+        alt="Đầu trang Quyết định: tiêu đề 3 thẻ tối ưu để nâng CTOR (mọi kênh), ô Giữ ổn định với ngưỡng Lượt hiển thị, CTR và AOV cộng trừ 3 %, ô Quy tắc do bạn đặt với giọng văn và từ không được dùng"
         caption="Đầu trang Quyết định: ngưỡng giữ ổn định và quy tắc do người bán đặt, rồi các nhóm thẻ theo chỉ số."
         heading="Khi nào Juli mở một thẻ đề xuất"
         id="khi-nao"
@@ -286,7 +286,7 @@ export default function DeXuatVaThucThiPage() {
       </CapSection>
 
       <CapSection
-        alt="Thẻ đề xuất Kem dưỡng ẩm ceramide: CTOR Thẻ sản phẩm 4,2 % lên 5,0 %, lý do giá cao hơn đối thủ, thay đổi đề xuất giảm giá sản phẩm, nhãn Bạn thực hiện trên Seller Center và dòng hướng dẫn sau khi duyệt"
+        alt="Thẻ đề xuất Kem dưỡng ẩm ceramide: CTOR 4,2 % lên 5,0 %, lý do giá cao hơn đối thủ, thay đổi đề xuất giảm giá sản phẩm, nhãn Bạn thực hiện trên Seller Center và dòng hướng dẫn sau khi duyệt"
         caption="Một thẻ giảm giá: Juli không tạo khuyến mãi, mà hướng dẫn bạn làm trên Seller Center rồi bắt đầu đo khi bạn bấm “Đã áp dụng”."
         heading="Phần nào Juli làm, phần nào bạn làm"
         id="ai-lam"
