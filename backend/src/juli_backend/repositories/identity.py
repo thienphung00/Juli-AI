@@ -20,6 +20,17 @@ from juli_backend.database.tenant_context import with_user_scope
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories._base import SessionRepo, utc_now_naive
 
+#: The ``users`` columns the seller writes through the privacy API (migration 094).
+PRIVACY_COLUMNS: tuple[str, ...] = (
+    "marketing_opt_out",
+    "ad_measurement_opt_out",
+    "case_study_opt_in",
+    "terms_date_accepted",
+    "terms_accepted_at",
+    "liability_clause_accepted_at",
+    "deletion_scheduled_for",
+)
+
 
 class UsersRepo(SessionRepo):
     async def get(self, user_id: uuid.UUID) -> User:
@@ -130,6 +141,33 @@ class UsersRepo(SessionRepo):
             user = await self.get(user_id)
             user.staff_access_consent_at = at or utc_now_naive()
             await self._session.flush()
+
+    async def get_own(self, user_id: uuid.UUID) -> User:
+        """Read the caller's own row under ``with_user_scope`` (P50-B, D60).
+
+        ``users_select_public`` shows a row only to its own user GUC; the request
+        path has handed #1691's authentication scope back by the time a route runs.
+        """
+        async with with_user_scope(self._session, user_id):
+            return await self.get(user_id)
+
+    async def update_privacy(self, user_id: uuid.UUID, **values: object) -> User:
+        """Write the seller's privacy / consent / deletion columns on their own row.
+
+        Only :data:`PRIVACY_COLUMNS` -- exactly what migration 094 grants
+        ``juli_app`` -- and flushed inside the scope for
+        ``record_staff_access_consent``'s reason: ``users_update_public`` matches
+        only the caller's own row, and only while the user GUC is set.
+        """
+        unknown = set(values) - set(PRIVACY_COLUMNS)
+        if unknown:
+            raise ValueError(f"not a privacy column: {sorted(unknown)}")
+        async with with_user_scope(self._session, user_id):
+            user = await self.get(user_id)
+            for column, value in values.items():
+                setattr(user, column, value)
+            await self._session.flush()
+            return user
 
     @staticmethod
     def _record_first_known_identity(

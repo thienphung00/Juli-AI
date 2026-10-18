@@ -95,6 +95,7 @@ from juli_backend.models.models import (
     AnalyticsPerformanceInterval,
     Shop,
     TikTokCredential,
+    User,
 )
 from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRepo, utc_now_naive
 from juli_backend.services.ingestion import HandoffFn
@@ -1125,10 +1126,16 @@ async def enumerate_pollable_shops(session: AsyncSession) -> list[PollableShop]:
         )
         .exists()
     )
+    # P50-B (D60.10): a shop whose owner asked for deletion stops syncing.
+    owner_deleting = (
+        select(User.id)
+        .where(User.id == Shop.user_id, User.deletion_scheduled_for.is_not(None))
+        .exists()
+    )
     stmt = (
         select(Shop.id, ShopIngestionState.fast_done_at)
         .outerjoin(ShopIngestionState, ShopIngestionState.shop_id == Shop.id)
-        .where(Shop.is_active.is_not(False), credential_exists)
+        .where(Shop.is_active.is_not(False), credential_exists, ~owner_deleting)
         .order_by(Shop.id)
     )
     listed = (await session.execute(stmt)).all()
