@@ -2685,3 +2685,5 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
 - Gates: lint 0, `tsc --noEmit` 0, vitest 616 passed / 16 skipped (the 8 still-pending P48-B slugs),
   build OK, `check:seo` 39 passed; 390 px spot-render of `do-hieu-qua` and `anh-bia`: neutral
   calculator box, no "Juli" in `<main>` outside byline / related cards, no horizontal overflow.
+- `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
+  FAIL (no throwaway DB; one hung `docker info` killed after 2 min; known).
