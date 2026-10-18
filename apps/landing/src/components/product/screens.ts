@@ -7,8 +7,8 @@
 import type { MediaSource } from "../../lib/media";
 
 export const CAP_DL_HOC: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-hoc-v2-1280.avif", webp: "/media/cap-dl-hoc-v2-1280.webp", width: 1280, height: 455 },
-  { avif: "/media/cap-dl-hoc-v2-640.avif", webp: "/media/cap-dl-hoc-v2-640.webp", width: 640, height: 227 },
+  { avif: "/media/cap-dl-hoc-v3-1280.avif", webp: "/media/cap-dl-hoc-v3-1280.webp", width: 1280, height: 455 },
+  { avif: "/media/cap-dl-hoc-v3-640.avif", webp: "/media/cap-dl-hoc-v3-640.webp", width: 640, height: 227 },
 ];
 
 export const CAP_DL_MUC_TIEU: readonly MediaSource[] = [
@@ -61,8 +61,8 @@ export const CAP_DX_SELLER_CENTER: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_THE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-the-v4-1184.avif", webp: "/media/cap-dx-the-v4-1184.webp", width: 1184, height: 1224 },
-  { avif: "/media/cap-dx-the-v4-640.avif", webp: "/media/cap-dx-the-v4-640.webp", width: 640, height: 662 },
+  { avif: "/media/cap-dx-the-v5-1184.avif", webp: "/media/cap-dx-the-v5-1184.webp", width: 1184, height: 1082 },
+  { avif: "/media/cap-dx-the-v5-640.avif", webp: "/media/cap-dx-the-v5-640.webp", width: 640, height: 585 },
 ];
 
 export const CAP_DX_TU_CHOI: readonly MediaSource[] = [
@@ -71,8 +71,8 @@ export const CAP_DX_TU_CHOI: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_XAC_NHAN: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-xac-nhan-v1-1280.avif", webp: "/media/cap-dx-xac-nhan-v1-1280.webp", width: 1280, height: 910 },
-  { avif: "/media/cap-dx-xac-nhan-v1-640.avif", webp: "/media/cap-dx-xac-nhan-v1-640.webp", width: 640, height: 455 },
+  { avif: "/media/cap-dx-xac-nhan-v2-1280.avif", webp: "/media/cap-dx-xac-nhan-v2-1280.webp", width: 1280, height: 965 },
+  { avif: "/media/cap-dx-xac-nhan-v2-640.avif", webp: "/media/cap-dx-xac-nhan-v2-640.webp", width: 640, height: 482 },
 ];
 
 export const CAP_KN_DANG_NHAP: readonly MediaSource[] = [
@@ -81,8 +81,8 @@ export const CAP_KN_DANG_NHAP: readonly MediaSource[] = [
 ];
 
 export const CAP_KN_GHI: readonly MediaSource[] = [
-  { avif: "/media/cap-kn-ghi-v2-1184.avif", webp: "/media/cap-kn-ghi-v2-1184.webp", width: 1184, height: 814 },
-  { avif: "/media/cap-kn-ghi-v2-640.avif", webp: "/media/cap-kn-ghi-v2-640.webp", width: 640, height: 440 },
+  { avif: "/media/cap-kn-ghi-v3-1184.avif", webp: "/media/cap-kn-ghi-v3-1184.webp", width: 1184, height: 814 },
+  { avif: "/media/cap-kn-ghi-v3-640.avif", webp: "/media/cap-kn-ghi-v3-640.webp", width: 640, height: 440 },
 ];
 
 export const CAP_KN_KET_NOI: readonly MediaSource[] = [
@@ -132,7 +132,7 @@ export const CAP_PT_XEP_HANG: readonly MediaSource[] = [
  * (dx-hang-cho, dx-hoan-tac, dx-tu-choi, dx-seller-center, dx-the, kn-ghi) have none.
  */
 export const CAP_DL_HOC_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-hoc-m-v2-640.avif", webp: "/media/cap-dl-hoc-m-v2-640.webp", width: 640, height: 455 },
+  { avif: "/media/cap-dl-hoc-m-v3-640.avif", webp: "/media/cap-dl-hoc-m-v3-640.webp", width: 640, height: 455 },
 ];
 
 export const CAP_DL_MUC_TIEU_MOBILE: readonly MediaSource[] = [
@@ -165,11 +165,11 @@ export const CAP_DX_QUY_TAC_MOBILE: readonly MediaSource[] = [
 
 /** Home hero on phones (P35, D46): the card header only, so the H1 stays the mobile LCP. */
 export const CAP_DX_THE_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-the-m-v4-720.avif", webp: "/media/cap-dx-the-m-v4-720.webp", width: 720, height: 212 },
+  { avif: "/media/cap-dx-the-m-v5-720.avif", webp: "/media/cap-dx-the-m-v5-720.webp", width: 720, height: 212 },
 ];
 
 export const CAP_DX_XAC_NHAN_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-xac-nhan-m-v1-640.avif", webp: "/media/cap-dx-xac-nhan-m-v1-640.webp", width: 640, height: 501 },
+  { avif: "/media/cap-dx-xac-nhan-m-v2-640.avif", webp: "/media/cap-dx-xac-nhan-m-v2-640.webp", width: 640, height: 531 },
 ];
 
 export const CAP_KN_DANG_NHAP_MOBILE: readonly MediaSource[] = [
@@ -221,6 +221,9 @@ export const CAP_PT_XEP_HANG_MOBILE: readonly MediaSource[] = [
  * now point at the recaptured files (export names unchanged). D61 (same recapture): card GMV line
  * is a plain sentence, day-14 shot without the removed internal notes (D61);
  * CAP_DX_ANH_BIA (v3), CAP_DX_CTR_TIEU_DE (v2) and CAP_KN_QUET_NHANH_V2 (v3) follow.
+ * P52-D: SM-012's CTOR card proposes Mô tả only (title changes target CTR) and the sample reasons
+ * have no peer median (D61): CAP_DX_THE (v5, home phone crop m-v5), CAP_KN_GHI (v3), CAP_DL_HOC (v3)
+ * and CAP_DX_XAC_NHAN (v2, the SM-012 consent now shows only the description) were recaptured.
  */
 export const CAP_KN_DANG_NHAP_V2: readonly MediaSource[] = [
   { avif: "/media/cap-kn-dang-nhap-v4-1280.avif", webp: "/media/cap-kn-dang-nhap-v4-1280.webp", width: 1280, height: 900 },

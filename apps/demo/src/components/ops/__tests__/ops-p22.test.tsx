@@ -68,7 +68,7 @@ const CARD = {
   main_kpi: { key: "ctor", label: "CTOR - Thẻ sản phẩm", current: 0.054, target: 0.059, unit: "ratio" },
   expected_gmv_per_month: 2_100_000,
   reason_short: "Khách thêm giỏ rồi bỏ",
-  reason_full: "Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop.",
+  reason_full: "Đơn/thêm giỏ của sản phẩm thấp hơn các sản phẩm tương tự trong shop.",
   tiktok_codes: ["Mô tả quá ngắn"],
   lever: { code: "description", label: "Mô tả", executor: "juli" },
   change_fields: [{ field: "description", label: "Mô tả" }],

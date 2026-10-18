@@ -215,7 +215,6 @@ def glyph() -> None:
 # no crop and are not listed.
 MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
     "cap-dl-tin-cay-v1-1280": (0.0, 0.0, 0.5, 1.0),
-    "cap-dx-xac-nhan-v1-1280": (0.0, 0.0, 0.5, 0.55),
     "cap-kn-dang-nhap-v1-1280": (0.06, 0.0, 0.52, 0.8),
     "cap-kn-ket-noi-v1-1280": (0.06, 0.0, 0.55, 0.95),
     "cap-kn-quet-nhanh-v1-1280": (0.07, 0.05, 0.55, 1.0),
@@ -231,15 +230,13 @@ MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
     # P51-A (D60.1): the sample's title run now targets CTR on Thẻ sản phẩm, CTOR cards read
     # "CTOR" (all channels), the Kéo xuống rows + Còn lại add up to Tổng; one capture clock, so
     # every dated shot reads 10/10 -> 17/10 -> 24/10. Same framing as the shots they replace, whose
-    # files and entries are removed. cap-dx-the-v4 is still the P35 home hero on phones: the card
+    # files and entries are removed. cap-dx-the-v4 was the P35 home hero on phones (P52-D: v5): the card
     # header only (SKU, CTOR before → after, GMV dự kiến), so the H1 remains the mobile LCP element.
-    "cap-dl-hoc-v2-1280": (0.0, 0.0, 0.5, 1.0),
     "cap-dl-muc-tieu-v2-1280": (0.0, 0.0, 0.62, 1.0),
     "cap-dl-ngay-14-v5-1280": (0.0, 0.0, 0.62, 1.0),
     "cap-dl-ngay-7-v4-1280": (0.0, 0.35, 0.62, 1.0),
     "cap-dl-tang-them-v2-1280": (0.0, 0.0, 0.82, 1.0),
     "cap-dx-luot-chay-v2-1280": (0.0, 0.0, 0.5, 0.75),
-    "cap-dx-the-v4-1184": (0.0, 0.0, 1.0, 0.285),
     "cap-pt-nghen-v3-1280": (0.3, 0.0, 0.98, 1.0),
     "cap-pt-xep-hang-v2-1280": (0.0, 0.0, 0.72, 1.0),
     "cap-dl-ngay-7-v3-1280": (0.0, 0.66, 0.95, 0.93),
@@ -247,6 +244,12 @@ MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
     "cap-pt-luong-v2-1280": (0.07, 0.25, 0.6, 1.0),
     "cap-dx-quy-tac-v2-1280": (0.0, 0.0, 0.5, 0.64),
     "cap-kn-quet-nhanh-v3-1280": (0.07, 0.08, 0.6, 1.0),
+    # P52-D: SM-012's CTOR card proposes Mô tả only (a title change targets CTR) and its reason has
+    # no peer median (D61); same framing as the v1 / v2 / v4 entries they replace (files removed).
+    # cap-dx-the-v5 stays the P35 home hero on phones (card header only).
+    "cap-dl-hoc-v3-1280": (0.0, 0.0, 0.5, 1.0),
+    "cap-dx-the-v5-1184": (0.0, 0.0, 1.0, 0.322),
+    "cap-dx-xac-nhan-v2-1280": (0.0, 0.0, 0.5, 0.55),
 }
 
 #: Mobile crops are written at most this wide: ~2x of a 358 px column.
