@@ -44,7 +44,7 @@ Bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-
 
 ### Tổng trước, chia sau
 
-Nếu bạn xuất dữ liệu theo ngày và tự tính, hãy cộng tổng các đại lượng đếm được của cả kỳ (Lượt hiển thị sản phẩm, Lượt nhấp vào sản phẩm, Đơn hàng SKU, GMV) rồi mới chia để ra tỷ lệ. Lấy trung bình cộng của 30 tỷ lệ theo ngày sẽ tính ngày có 50 lượt hiển thị nặng như ngày có 5.000 lượt hiển thị, và cho ra một con số khác với con số TikTok hiển thị.
+Nếu bạn xuất dữ liệu theo ngày và tự tính, hãy cộng tổng các đại lượng đếm được của cả kỳ (Lượt hiển thị sản phẩm, Lượt nhấp vào sản phẩm, Đơn hàng SKU, GMV) rồi mới chia để ra tỷ lệ. Lấy trung bình cộng của 30 tỷ lệ theo ngày sẽ tính ngày có 40 lượt hiển thị nặng như ngày có 4.000 lượt hiển thị, và cho ra một con số khác với con số TikTok hiển thị.
 
 ### Mức giảm có vượt khỏi dao động bình thường không
 

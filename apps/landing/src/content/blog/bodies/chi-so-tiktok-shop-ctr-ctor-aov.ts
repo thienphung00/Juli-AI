@@ -180,7 +180,7 @@ Cách tránh: luôn đọc CTOR theo kênh, và với nhóm khách tự tìm đ�
 
 ### Lấy trung bình của các tỷ lệ theo ngày
 
-Nếu bạn xuất dữ liệu theo ngày rồi lấy trung bình cộng của 30 giá trị CTR, kết quả sẽ khác CTR mà Trung tâm nhà bán hàng hiển thị cho cả 30 ngày. Lý do: ngày có 50 lượt hiển thị và ngày có 5.000 lượt hiển thị được tính nặng như nhau. Cách đúng là **cộng tổng** các đại lượng đếm được (lượt hiển thị, lượt nhấp, đơn hàng SKU, GMV) trong cả kỳ, rồi mới chia để ra tỷ lệ. Đó cũng là cách La bàn dữ liệu tính khi bạn chọn một khoảng ngày.
+Nếu bạn xuất dữ liệu theo ngày rồi lấy trung bình cộng của 30 giá trị CTR, kết quả sẽ khác CTR mà Trung tâm nhà bán hàng hiển thị cho cả 30 ngày. Lý do: ngày có 40 lượt hiển thị và ngày có 4.000 lượt hiển thị được tính nặng như nhau. Cách đúng là **cộng tổng** các đại lượng đếm được (lượt hiển thị, lượt nhấp, đơn hàng SKU, GMV) trong cả kỳ, rồi mới chia để ra tỷ lệ. Đó cũng là cách La bàn dữ liệu tính khi bạn chọn một khoảng ngày.
 
 ### So sánh hai kỳ có ngày sale lớn
 
