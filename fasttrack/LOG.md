@@ -2502,3 +2502,34 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
   FAIL (no DB; `docker info` hung and was killed; known).
 - Next: owner reviews and merges; posts 7–8 (P46-C2).
+
+## 2026-10-18 — P46-D2 writer (Claude Opus 5.5): posts 11–12, week 3
+
+- Branch `fasttrack/p46d2-week3-mota-livestream` (from `fasttrack/optimize-product` at 017439b1).
+- Post 11 `mo-ta-san-pham-tiktok-shop` (pain, optimize, 2,227 words, 5 figures, FAQ 5): the
+  description as a pre-answer to repeated buyer questions. Main keyword "mô tả sản phẩm tiktok
+  shop" (autocomplete VN 2026-10-18), moved off the pillar's supporting list; the pillar's
+  description section now links down in one sentence. Facts re-opened 2026-10-18 on
+  seller-vn.tiktok.com: listing policy (23/04/2026), Hướng dẫn đăng bán 3.1.1–3.1.5 (05/10/2026),
+  phóng đại (29/06/2025), chuyển hướng truy cập (10/06/2026), SNAD (18/06/2025), bảng kích cỡ
+  thời trang (01/10/2026), thông tin sai lệch / AIGC (30/09/2026), Trình Tối Ưu Hoá (04/08/2025),
+  return policy (23/09/2026) and Trả hàng (15/10/2026). Juli copy per /san-pham/*: Juli does not read
+  buyer messages, so the seller lists the questions and return reasons; Juli drafts after a card is
+  approved, writes only after confirmation, keeps the old value for undo, measures CTOR day 7 / 14.
+- Post 12 `quy-dinh-livestream-ban-hang` (news, guide, 1,495 words, 2 figures, FAQ 5, "Cập nhật
+  ngày 18/10/2026", not legal advice): built from the Công báo PDFs re-read 2026-10-18 (Luật
+  122/2025/QH15 Art. 3, 22–24, 40; NĐ 248/2026 Art. 12, 52; Luật 75/2025 Art. 15a; NĐ 87/2026 Art. 6,
+  51, 93; Luật 19/2023 Art. 3.9, 22.3, 79) plus the TikTok Policy Center page (01/07/2026), labelled
+  as TikTok's policy. Left out: legal list of goods needing an ad-content certificate, who counts as
+  người có ảnh hưởng, fines for Art. 22–24. One Juli line (drafts LIVE host scripts, per
+  /san-pham/de-xuat-va-thuc-thi) + soft CTA.
+- Diagrams `mo-ta-nam-nhom-cau-hoi`, `mo-ta-truoc-sau`, `mo-ta-duoc-khong-duoc`,
+  `livestream-ba-vai`, `livestream-luat-va-tiktok` (desktop + phone); screenshots reuse
+  `cap-dl-tang-them`, `cap-dx-xac-nhan`. A fines diagram was dropped: legal numbers in an alt trip the
+  "Ví dụ giả định" rule, so the fines are a table in the text. Covers `mo-ta-san-pham-v1` (optimize
+  checklist, accent 1), `quy-dinh-livestream-v1` (guide tiles, accent 3). Post 11 added to FIGURE_POSTS.
+- Gates: lint 0, `tsc --noEmit` 0, vitest 532 passed, build OK, `check:seo` 35 passed; rendered at
+  390 / 1440 (1 H1, figures loaded, no overflow), screenshots in scratchpad `shots-p46d2/`.
+  `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
+  FAIL (no DB, known; a hung `docker info` was killed).
+- Next: owner review; merge with P46-D1 (posts 9–10; keyword-map pillar row touched by both).
