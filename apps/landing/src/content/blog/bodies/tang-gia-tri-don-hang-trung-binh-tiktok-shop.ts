@@ -14,9 +14,8 @@
  * (29/10/2025, three layers), Phí Xử Lý Đơn Hàng (11/10/2025, 3.000 đ per
  * delivered order, tax included), Lưu lượng truy cập sản phẩm (17/06/2026,
  * AOV (SKU)). Third-party "mua 2 giảm 5 %, freeship từ 499K" recipes are not
- * used. Juli facts follow /san-pham/*: Juli does not create vouchers, bundles,
- * prices or shipping discounts; those are proposals the seller sets up in
- * Seller Center; title and description written only after approval.
+ * used. D59 reach post (P48-C): no Juli, no product links; the last how-to
+ * section is a self-kept AOV-by-source and promotion sheet from Seller Center.
  */
 export const body = `
 Bán được nhiều đơn mà cuối tháng còn lại ít tiền thường là vì mỗi đơn có giá trị quá nhỏ. GMV bằng số đơn nhân giá trị trung bình mỗi đơn (AOV), nhưng có những khoản tính theo từng đơn chứ không theo giá trị đơn, như phí xử lý đơn hàng 3.000 đồng của TikTok Shop, nên đơn càng nhỏ thì phần bị trừ càng lớn. Tăng giá trị đơn hàng trung bình không có nghĩa là giảm giá sâu hơn: bài này chỉ cách đọc AOV theo từng nguồn, chọn đúng công cụ khuyến mãi chính thức để khách mua thêm, tránh giảm giá chồng giảm giá, rồi đo lại sau 7 và 14 ngày.
@@ -54,8 +53,6 @@ Bài "Lưu lượng truy cập sản phẩm" cho xem GMV, Đơn hàng SKU và S�
 - **Video và LIVE** thường đẩy một sản phẩm cụ thể, đôi khi là biến thể rẻ nhất để thu hút. AOV thấp ở đây hay đến từ việc chỉ giới thiệu một món.
 - **Thẻ sản phẩm và Tab cửa hàng** là nơi khách tự tìm và tự chọn. Nếu khách vào Tab cửa hàng mà vẫn chỉ mua một món, có thể shop chưa cho họ lý do để thêm món thứ hai.
 
-{{hinh:aov-pheu-du-lieu-mau}}
-
 Biết AOV thấp ở nguồn nào giúp chọn cách sửa: ở LIVE là giới thiệu thêm sản phẩm đi kèm, ở Tab cửa hàng là voucher theo bậc hay gói sản phẩm.
 
 ## Nên tăng giá trị đơn hay tăng số đơn
@@ -70,7 +67,7 @@ Trong ví dụ giả định ở trên, hai shop cùng GMV nhưng shop A phải 
 - **CTOR thấp**: khách bấm vào rồi không mua. Thêm điều kiện "mua 2 mới được giảm" có thể làm CTOR giảm thêm.
 - **Ba bước đầu ổn, AOV thấp**: đây là lúc tăng giá trị đơn đáng làm nhất, vì khách đã tin và đã mua.
 
-Thử [công cụ tính GMV](/cong-cu/tinh-gmv) để ước tính GMV đổi ra sao khi AOV đổi; bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop) giải thích cách tách GMV theo bốn hệ số.
+Thử [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv) để ước tính GMV đổi ra sao khi AOV đổi; bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop) giải thích cách tách GMV theo bốn hệ số.
 
 ## Voucher theo bậc: đặt mức chi tối thiểu từ AOV hiện tại
 
@@ -140,17 +137,22 @@ Khuyến mãi tăng giá trị đơn có thể làm khách đã mua mua nhiều 
 
 GMV đi ngang mà AOV lên, số đơn giảm vẫn có thể có lợi, vì ít đơn hơn là ít phí và chi phí theo đơn hơn.
 
-## Juli AI giúp gì khi giá trị mỗi đơn thấp
+## Tự lập bảng AOV theo nguồn và theo khuyến mãi
 
-Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp). Juli không tạo voucher, không tạo gói, không đặt giá và không chạy khuyến mãi. Với vấn đề trong bài này, Juli làm ba việc:
+Mọi con số ở đây đều có trong Trung tâm nhà bán hàng. Mỗi tuần một lần, hoặc trước và sau mỗi khuyến mãi, ghi hai bảng nhỏ:
 
-- **Đặt AOV cạnh ba chỉ số kia.** [Phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop) tách GMV theo năm luồng và theo Lượt hiển thị × CTR × CTOR × AOV, ghi số đồng mỗi ngày mà từng chỉ số kéo GMV lên hoặc xuống. Khối Khuyến mãi đọc flash sale, giảm giá và voucher ở chế độ chỉ đọc, kể cả tỷ lệ đơn đạt ngưỡng voucher.
-- **Đề xuất, bạn áp dụng.** [Đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi): khi AOV giảm, Juli có thể đề xuất một mức mua nhiều giảm nhiều nằm trong biên lợi nhuận bạn đặt trong Quy tắc; thẻ ghi "Bạn thực hiện trên Seller Center", bạn tự tạo khuyến mãi rồi bấm "Đã áp dụng". Khi trang cần nói rõ bộ, số lượng hay cách dùng cùng nhau, Juli soạn tiêu đề, mô tả mới và chỉ ghi lên shop sau khi bạn xác nhận.
-- **Đo lại.** [Đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 và ngày 14, với ngưỡng giữ ổn định cho các chỉ số không phải mục tiêu, để một AOV tăng không che mất một CTOR giảm. Juli không tự hoàn tác; với khuyến mãi, muốn dừng thì bạn tắt trên Seller Center.
+| Bảng | Cột | Lấy ở đâu |
+|---|---|---|
+| AOV theo nguồn | GMV, Đơn hàng SKU, Số món bán ra của từng khía cạnh; AOV = GMV ÷ Đơn hàng SKU; số món mỗi đơn = Số món bán ra ÷ Đơn hàng SKU | Lưu lượng truy cập sản phẩm, 28 ngày gần nhất |
+| Khuyến mãi đang chạy | Tên công cụ, ngày bắt đầu và kết thúc, mức chi tối thiểu hoặc số lượng, mức sử dụng, doanh thu, đơn hàng | Phân tích khuyến mãi; điều kiện thì bạn tự ghi lúc tạo |
 
-{{hinh:aov-khuyen-mai-du-lieu-mau}}
+Ba điều bảng này trả lời được mà một con số AOV của cả shop không trả lời được:
 
-Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop) mà bạn ủy quyền. Tổng quan ở trang [sản phẩm Juli AI](/san-pham). Nếu vấn đề là ít đơn chứ không phải đơn nhỏ, xem bài [sản phẩm không có lượt hiển thị](/blog/san-pham-tiktok-shop-khong-co-luot-hien-thi), [TikTok Shop không ra đơn](/blog/tiktok-shop-khong-ra-don), [video nhiều view không ra đơn](/blog/video-tiktok-nhieu-view-khong-ra-don) hoặc [LIVE đông người xem mà ít đơn](/blog/live-tiktok-shop-khong-ra-don).
+- **Số món mỗi đơn có nhích lên không.** Mua Sỉ Giá Hời và Ưu đãi theo gói nhắm vào số món, voucher theo bậc nhắm vào số tiền. Nếu số món mỗi đơn đứng yên sau khi chạy Mua Sỉ Giá Hời, ngưỡng có thể quá xa so với thói quen mua của khách.
+- **Khuyến mãi có được dùng không.** Mức sử dụng thấp ở một voucher theo bậc là tín hiệu mức chi tối thiểu quá cao, như bài voucher của Học viện TikTok Shop đã nói.
+- **AOV lên ở nguồn nào.** Ví dụ giả định: AOV của LIVE lên 15 % nhưng AOV của Thẻ sản phẩm đứng yên, thì gói sản phẩm đang được giới thiệu trong LIVE mà khách tự tìm đến chưa thấy nó.
+
+Ghi thêm một dòng "đã thay đổi gì, ngày nào" dưới mỗi bảng. Khi đọc lại ở ngày 14, dòng này cho biết mức thay đổi của AOV đến từ khuyến mãi nào. Nếu vấn đề là ít đơn chứ không phải đơn nhỏ, xem bài [sản phẩm không có lượt hiển thị](/blog/san-pham-tiktok-shop-khong-co-luot-hien-thi), [TikTok Shop không ra đơn](/blog/tiktok-shop-khong-ra-don), [video nhiều view không ra đơn](/blog/video-tiktok-nhieu-view-khong-ra-don) hoặc [LIVE đông người xem mà ít đơn](/blog/live-tiktok-shop-khong-ra-don).
 
 ## Những điểm chính
 
@@ -159,5 +161,5 @@ Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/k
 - Voucher theo bậc với mức chi tối thiểu 1,2 đến 1,5 lần AOV; Mua Sỉ Giá Hời cho hàng mua nhiều cái; Ưu đãi theo gói cho sản phẩm dùng cùng nhau; quà tặng khi không muốn giảm giá.
 - Mô phỏng khuyến mãi cộng dồn trước khi chạy. Đo AOV cùng CTOR ở ngày 7 và ngày 14.
 
-Nếu bạn muốn biết AOV đang kéo GMV xuống ở luồng nào và sản phẩm nào mà không phải tự cộng số trong bảng tính, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Khi khách bấm vào nhiều mà ít người đặt, vấn đề nằm ở bước trước AOV: bài [khách xem nhưng không mua](/blog/khach-xem-nhung-khong-mua-tiktok-shop) đi qua từng chỗ sau cú nhấp.
 `;

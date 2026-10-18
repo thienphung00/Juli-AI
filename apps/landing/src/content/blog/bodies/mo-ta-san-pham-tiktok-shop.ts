@@ -15,11 +15,9 @@
  * thị thông tin sai lệch và hướng dẫn về nội dung đăng bán tạo bởi AI
  * (30/09/2026); Trình Tối Ưu Hoá Sản Phẩm (04/08/2025); Hướng dẫn bảng kích cỡ
  * cho Nhà bán hàng Thời trang (01/10/2026). No official page gives an optimal
- * length or format: structure advice is labelled as Juli's. Juli facts follow
- * /san-pham/*: Juli does not read buyer messages (the seller lists the
- * questions), drafts after a card is approved, writes only after confirmation,
- * keeps the old value for undo, measures day 7 / 14. Example numbers are
- * hypothetical and say so.
+ * length or format: structure advice is labelled as ours. D59 reach post
+ * (P48-C): no Juli, no product links; the last how-to section is a per-product
+ * question log the seller keeps. Example numbers are hypothetical and say so.
  */
 export const body = `
 Khi khách nào cũng hỏi đúng một câu, "có size nào", "chất liệu gì", "trong hộp có gì", thì thường là trang sản phẩm chưa trả lời câu đó, và những người không muốn hỏi sẽ rời đi mà không đặt hàng. Mô tả sản phẩm là chỗ để trả lời trước, trong khuôn khổ chính sách của TikTok Shop: không dưới 30 từ, đúng với hàng thật, không phóng đại, không để số điện thoại hay đường dẫn ra ngoài. Bài này chỉ cách gom các câu hỏi lặp lại của chính shop, viết chúng thành mô tả và đo lại sau 7, 14 ngày.
@@ -78,7 +76,7 @@ Trang "Hướng dẫn bảng kích cỡ cho Nhà bán hàng Thời trang" (01/10
 
 ## Cách viết mô tả sản phẩm trên TikTok để trả lời trước câu hỏi
 
-Cấu trúc dưới đây là khuyến nghị của Juli, không phải quy định của TikTok:
+Cấu trúc dưới đây là khuyến nghị của chúng tôi, không phải quy định của TikTok:
 
 1. **Một câu mở**: sản phẩm là gì, dành cho ai.
 2. **Ba đến năm điểm chính kiểm chứng được**: điều bạn chứng minh được bằng nhãn, giấy công bố hay thông số.
@@ -118,14 +116,12 @@ Mô tả thiếu làm khách hỏi lại hoặc bỏ đi; mô tả sai làm khá
 
 ## Sửa mô tả xong, đo lại thế nào
 
-Cách đo Juli dùng, bạn có thể làm thủ công:
+Bạn tự đo được bằng trang Lưu lượng truy cập sản phẩm trong La bàn dữ liệu:
 
 - **Một thay đổi, một sản phẩm**: chỉ sửa mô tả, ghi lại ngày sửa.
 - **So với 14 ngày trước**: đọc CTOR sơ bộ ở ngày 7, chốt ở ngày 14.
-- **Đủ dữ liệu**: Juli chỉ đọc CTOR khi sản phẩm có từ 20 lượt nhấp mỗi ngày; đây là ngưỡng của Juli, không phải của TikTok.
+- **Đủ dữ liệu**: với vài chục lượt nhấp, một hai đơn đã làm CTOR nhảy mạnh. Sản phẩm ít lượt nhấp cần đo lâu hơn, và kết quả chỉ để tham khảo; TikTok không đưa ra một ngưỡng chính thức.
 - **So với nhóm đối chứng**: CTOR của sản phẩm không sửa cũng tăng thì mức tăng chưa chắc nhờ mô tả.
-
-{{hinh:mo-ta-do-luong-du-lieu-mau}}
 
 Ví dụ giả định: sản phẩm có 300 lượt nhấp mỗi ngày, CTOR 2,0 % trước khi sửa, 2,4 % ở ngày 14, các sản phẩm khác giữ nguyên. Chênh 0,4 điểm trên 300 lượt nhấp là khoảng 1,2 đơn mỗi ngày. Kết quả "không đổi" cũng có ích: mô tả không phải chỗ nghẽn của sản phẩm này.
 
@@ -136,17 +132,21 @@ Ví dụ giả định: sản phẩm có 300 lượt nhấp mỗi ngày, CTOR 2,
 - **Khách hỏi về điều LIVE đã hứa**: sửa lời nói ở buổi sau; bài [LIVE đông người xem mà ít đơn](/blog/live-tiktok-shop-khong-ra-don) chỉ cách đọc phễu LIVE.
 - **Câu hỏi đến từ chất lượng hàng**: "lần trước bị lỗi" không phải câu hỏi của mô tả.
 
-## Juli AI giúp gì khi khách hỏi mãi một câu
+## Một bảng ghi chép cho mỗi mô tả bạn sửa
 
-Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp). Với mô tả, Juli làm ba việc:
+Câu hỏi lặp lại là dữ liệu của chính shop, nên cách giữ nó cũng nên đơn giản. Với mỗi sản phẩm bạn định viết lại mô tả, mở một bảng tính và ghi:
 
-- **Tìm sản phẩm nhiều lượt nhấp mà ít đơn**: [phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop) đọc CTOR theo nguồn và xếp sản phẩm theo số đồng GMV mỗi ngày mà CTOR thấp đang lấy đi.
-- **Soạn mô tả, chỉ ghi khi bạn xác nhận**: Juli không đọc tin nhắn của bạn với người mua, nên danh sách câu hỏi lặp lại và lý do trả hàng là phần bạn mang đến. Khi bạn duyệt một thẻ, Juli soạn mô tả mới từ thông tin sản phẩm và chẩn đoán của TikTok; bạn đối chiếu với danh sách, sửa nội dung trước khi áp dụng, và Juli chỉ ghi lên TikTok Shop sau khi bạn xác nhận. Bạn đặt được những từ không được dùng, như "tốt nhất", trong Quy tắc; giá trị cũ được lưu để hoàn tác ([đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi)).
-- **Đo lại ở ngày 7 và 14**: [đo tác động lên GMV](/san-pham/do-luong-gmv); nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn đặt, Juli hỏi bạn có muốn hoàn tác không, Juli không tự hoàn tác.
+| Cột | Ghi gì |
+|---|---|
+| Câu hỏi | Năm câu nhiều nhất trong tuần gom, mỗi câu một dòng |
+| Số lần | Bao nhiêu lần câu đó xuất hiện, cộng cả tin nhắn, bình luận, đánh giá và lý do trả hàng |
+| Trả lời ở đâu | Phần nào của mô tả mới trả lời câu đó: mở đầu, thông số, cách dùng, trong hộp có gì, chính sách |
+| Ngày sửa | Ngày mô tả mới lên shop |
+| CTOR trước, CTOR ngày 14 | Đọc trên cùng luồng, cùng độ dài khoảng thời gian |
 
-{{hinh:mo-ta-xac-nhan-du-lieu-mau}}
+Sau 14 ngày, gom câu hỏi thêm một tuần nữa theo cùng cách. Ngoài CTOR, bảng này cho bạn một tín hiệu mà số liệu của TikTok không có: câu hỏi nào khách không còn hỏi nữa, và câu nào vẫn quay lại. Câu vẫn quay lại nghĩa là câu trả lời chưa đủ rõ hoặc nằm quá sâu trong mô tả; đưa nó lên vài dòng đầu là thay đổi tiếp theo, vẫn một thay đổi mỗi lần.
 
-Juli không trả lời tin nhắn của khách và không làm chatbot trả lời tin nhắn. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop) mà bạn ủy quyền; tổng quan ở trang [sản phẩm Juli AI](/san-pham), định nghĩa CTOR trong bài [các chỉ số TikTok Shop](/blog/chi-so-tiktok-shop-ctr-ctor-aov).
+Ví dụ giả định: trước khi sửa, câu "tuýp bao nhiêu ml" xuất hiện 9 lần trong tuần; tuần sau khi sửa còn 2 lần, trong khi câu "da dầu dùng được không" vẫn 7 lần. Phần trả lời cho câu thứ hai cần rõ hơn.
 
-Nếu bạn muốn biết sản phẩm nào đang có nhiều lượt nhấp mà ít đơn nhất, để biết nên viết lại mô tả nào trước, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Giữ thêm một dòng cho lý do trả hàng "không đúng mô tả" của sản phẩm đó trong cùng hai khoảng thời gian. Số này đến chậm vì khách cần thời gian nhận hàng, nên đọc nó sau khi chốt CTOR. Định nghĩa CTOR và các chỉ số khác có trong bài [các chỉ số TikTok Shop](/blog/chi-so-tiktok-shop-ctr-ctor-aov); khi cần ước tính GMV đổi ra sao nếu CTOR lên, thử [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv).
 `;

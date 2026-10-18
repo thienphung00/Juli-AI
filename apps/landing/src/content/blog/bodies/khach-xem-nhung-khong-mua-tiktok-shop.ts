@@ -12,11 +12,10 @@
  * Voucher Thông Thường Của Nhà Bán Hàng (13/06/2025), Cách Tính Khuyến Mãi Cộng
  * Dồn (29/10/2025), Chiết Khấu Phí Vận Chuyển của Nhà Bán Hàng (24/01/2025),
  * Chẩn đoán giá (24/07/2026), Chẩn Đoán Thẻ Sản Phẩm 4 (15/12/2023). No
- * official CTOR benchmark exists; none is given. Juli facts follow /san-pham/*:
- * title and description written only after approval; price, vouchers and
- * shipping discounts are proposals the seller sets up in Seller Center; CTOR is
- * measured on all channels (TikTok does not split SKU orders per stream per
- * product). Numbers in examples are hypothetical and say so.
+ * official CTOR benchmark exists; none is given. D59 reach post (P48-C): no
+ * Juli, no product links; the last how-to section is a weekly self-check sheet
+ * built from the Seller Center pages above. Numbers in examples are
+ * hypothetical and say so.
  */
 export const body = `
 Khi nhiều người đã bấm vào sản phẩm mà gần như không ai đặt hàng, chỗ đứt nằm ở bước từ cú nhấp đến đơn hàng (CTOR), không phải ở lượt xem hay ở nội dung. Ở bước này khách đã thấy sản phẩm và đủ quan tâm để mở trang, nên lý do họ rời đi thường là thứ họ gặp sau đó: thông tin trên trang sản phẩm, đánh giá, giá, voucher hoặc phí vận chuyển lúc thanh toán. Bài này chỉ cách tách từng nguyên nhân bằng số liệu của chính shop, sửa đúng một chỗ và đo lại sau 7, 14 ngày.
@@ -124,25 +123,30 @@ Thứ tự gợi ý khi CTOR của một sản phẩm thấp:
 
 Trong lúc đo, để ý các chỉ số còn lại: một voucher có thể tăng CTOR mà kéo giá trị mỗi đơn xuống. Thay đổi chỉ đáng giữ khi chỉ số mục tiêu lên mà các chỉ số khác vẫn trong mức dao động bình thường.
 
-{{hinh:ctor-do-luong-du-lieu-mau}}
-
 ## Những điều không nên làm khi chưa biết CTOR thấp ở nguồn nào
 
 - **Giảm giá hàng loạt.** Nếu khách rời đi vì trang thiếu thông tin hay vì video hứa một ưu đãi không còn, giảm giá chỉ lấy đi biên lợi nhuận. Muốn hiểu tác động của giảm giá lên giá trị mỗi đơn, đọc bài [bán nhiều đơn mà vẫn ít tiền](/blog/tang-gia-tri-don-hang-trung-binh-tiktok-shop).
 - **Xóa sản phẩm rồi đăng lại.** Bạn mất đánh giá và lịch sử số liệu để so sánh, và không có trang chính thức nào nói việc này giúp tăng đơn.
 - **Đổi giá, ảnh, mô tả và voucher trong cùng một tuần.** Khi số liệu thay đổi, bạn sẽ không biết điều gì có tác dụng.
 
-## Juli AI giúp gì khi khách bấm xem mà không mua
+## Tự theo dõi CTOR mỗi tuần bằng một bảng đơn giản
 
-Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp). Juli làm ba việc:
+Mỗi tuần một lần, mở trang Lưu lượng truy cập sản phẩm trong La bàn dữ liệu, chọn 28 ngày gần nhất và chép vào một bảng tính cho 10 đến 20 sản phẩm có nhiều lượt nhấp nhất:
 
-- **Tìm sản phẩm kéo CTOR xuống.** [Phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop) tách GMV theo năm luồng và bốn chỉ số, rồi xếp sản phẩm theo số đồng GMV mỗi ngày mà CTOR giảm đang lấy đi, kèm nhãn Rõ hoặc Tham khảo.
-- **Đề xuất, chờ bạn duyệt.** [Đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi): khi nguyên nhân là thông tin trên trang, Juli soạn mô tả hoặc tiêu đề mới kèm lý do và chỉ ghi lên shop sau khi bạn xác nhận; thay đổi hoàn tác được. Khi nguyên nhân là giá, voucher hay phí vận chuyển, đề xuất ghi "Bạn thực hiện trên Seller Center": bạn tự tạo khuyến mãi, Juli không đổi giá và không tạo khuyến mãi thay bạn.
-- **Đo lại.** [Đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 (sơ bộ) và ngày 14 (chốt), với ngưỡng giữ ổn định cho các chỉ số còn lại. TikTok không tách đơn hàng SKU theo từng luồng cho từng sản phẩm, nên Juli đo CTOR của một thay đổi trên tất cả các kênh.
+| Cột | Lấy ở đâu |
+|---|---|
+| Sản phẩm, nguồn | Tên sản phẩm; khía cạnh thẻ sản phẩm, video, LIVE, Liên kết hoặc Tab cửa hàng |
+| Lượt nhấp, Đơn hàng SKU | Phễu của sản phẩm trên trang Lưu lượng truy cập sản phẩm |
+| CTOR, Tỷ lệ thêm vào giỏ hàng | Cùng trang, cùng khoảng thời gian |
+| Thay đổi đã làm, ngày bắt đầu | Bạn tự ghi: sửa gì, sửa ngày nào |
 
-{{hinh:ctor-xep-hang-du-lieu-mau}}
+Rồi làm ba việc theo thứ tự:
 
-Juli không trả lời tin nhắn của khách, không xử lý đánh giá và không chạy quảng cáo. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop) mà bạn ủy quyền. Tổng quan ở trang [sản phẩm Juli AI](/san-pham); cách tách GMV theo luồng có trong bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop), và [công cụ tính GMV](/cong-cu/tinh-gmv) cho ước tính GMV đổi ra sao khi CTOR đổi.
+1. **Xếp sản phẩm theo số đơn có thể đang mất.** Lấy CTOR trung bình của các sản phẩm khác trên cùng nguồn, trừ đi CTOR của sản phẩm, nhân với lượt nhấp của nó. Ví dụ giả định: 600 lượt nhấp, CTOR 2 % trong khi các sản phẩm khác đạt 4 %, tức khoảng 12 đơn trong 28 ngày. Sản phẩm nhiều lượt nhấp mà CTOR thấp đứng đầu danh sách, không phải sản phẩm có CTOR thấp nhất.
+2. **Ghi một nghi phạm cho mỗi sản phẩm đầu bảng**: trước giỏ hay sau giỏ, một nguồn hay mọi nguồn, theo các mục ở trên.
+3. **Chọn một sản phẩm, một thay đổi**, ghi ngày bắt đầu vào bảng, và chưa đụng đến sản phẩm đó cho đến ngày 14.
+
+Dòng dưới khoảng 30 lượt nhấp trong kỳ thì chưa kết luận. Cách tách GMV theo luồng có trong bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop), và [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv) cho ước tính GMV đổi ra sao khi CTOR đổi.
 
 ## Ghi nhớ nhanh
 
@@ -151,5 +155,5 @@ Juli không trả lời tin nhắn của khách, không xử lý đánh giá và
 - Tách trước giỏ và sau giỏ bằng Tỷ lệ thêm vào giỏ hàng: trang sản phẩm hay voucher, phí vận chuyển.
 - Đơn có thể đến muộn trong 7 ngày. Sửa một chỗ, đọc ở ngày 7, chốt ở ngày 14.
 
-Nếu bạn muốn biết sản phẩm nào trong shop đang mất nhiều đơn nhất ở bước sau cú nhấp mà không phải tự lập bảng tính, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Muốn so CTOR với các bước còn lại của phễu, bài [TikTok Shop không ra đơn](/blog/tiktok-shop-khong-ra-don) đi qua từng bước từ lượt hiển thị đến đơn hàng.
 `;

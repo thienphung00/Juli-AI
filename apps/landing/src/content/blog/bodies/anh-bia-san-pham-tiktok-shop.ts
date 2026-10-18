@@ -19,12 +19,9 @@
  * Thủ thuật Clickbait (29/06/2025), Mô tả sản phẩm phóng đại (29/06/2025).
  * "900 × 900" and an image "5 MB" limit appear on no official page read (5 MB is
  * the video limit): the post says so and gives neither.
- * Juli scope per D13 and /san-pham/de-xuat-va-thuc-thi: Juli analyses the cover
- * and recommends; it does not shoot, edit or generate photos; when the seller
- * supplies a photo and confirms, Juli uploads it as the main image, keeps the
- * old value for Hoàn tác and measures from that date (day 7 / 14, D14). If the
- * seller swaps the image in Seller Center, they note the date. The 4-star rule
- * and the 50-impressions floor are Juli's rules and say so.
+ * D59 reach post (P48-C): no Juli, no product links; the last how-to section
+ * is a self-kept photo-test log. The 4-star rule and the 50-impressions floor
+ * are our practice rules and say so.
  */
 export const body = `
 "Ảnh bìa" ở đây là hình ảnh chính của sản phẩm, tức ảnh đầu tiên người mua thấy trên thẻ sản phẩm khi tìm kiếm hoặc lướt trang mua sắm, không phải ảnh bìa của một video. Khi sản phẩm có lượt hiển thị mà CTR ở Thẻ sản phẩm thấp, ảnh này là một trong hai thứ đầu tiên nên thử, cùng với tiêu đề, vì nó chiếm phần lớn nhất của thẻ. Bài này chỉ cách xác nhận ảnh đúng là nguyên nhân, TikTok yêu cầu gì với hình ảnh chính, những lỗi khiến ảnh bị lướt qua, và cách đổi một ảnh rồi đo lại sau 7 và 14 ngày.
@@ -44,8 +41,6 @@ Nếu gần như không ai thấy sản phẩm, vấn đề nằm trước ảnh
 ### CTR ổn mà ít đơn: không phải ảnh bìa
 
 Nếu người mua vẫn bấm vào như trước nhưng không đặt hàng, ảnh bìa đã làm xong việc của nó. Chỗ cần xem là trang sản phẩm, đánh giá, voucher và phí vận chuyển, ở bài [khách xem nhưng không mua](/blog/khach-xem-nhung-khong-mua-tiktok-shop). Đổi ảnh bìa lúc này là đụng vào phần đang hoạt động.
-
-{{hinh:anh-bia-pheu-du-lieu-mau}}
 
 ## Ảnh bìa sản phẩm TikTok Shop là ảnh nào
 
@@ -128,31 +123,37 @@ Theo bài "Đăng Sản Phẩm và Chỉnh Sửa Ảnh trên App" (06/06/2025), 
 
 "Đổi ảnh bìa xong mà CTR không đổi, lỗi ở đâu?": thường vì đọc quá sớm, đổi thêm thứ khác cùng lúc, hoặc không có mốc so sánh. Cách làm:
 
-1. **Ghi lại ngày thay ảnh**, và giữ ảnh cũ. Mọi phép so sánh đều tính từ ngày đó. Juli thay ảnh thì ngày được ghi tự động; bạn tự thay thì tự ghi.
+1. **Ghi lại ngày thay ảnh**, và giữ ảnh cũ. Mọi phép so sánh đều tính từ ngày đó, nên ghi nó ngay lúc bấm Xác nhận.
 2. **Chỉ đổi ảnh chính** trên sản phẩm đó. Không đổi tiêu đề, giá hay khuyến mãi của nó cho đến ngày 14.
 3. **Mốc là 14 ngày trước ngày đổi**, trên luồng Thẻ sản phẩm.
 4. **Đọc sơ bộ ở ngày 7, chốt ở ngày 14.** Đọc CTR trước. Đọc Lượt hiển thị bên cạnh: nếu lượt hiển thị tăng mạnh, CTR có thể giảm vì người xem loãng hơn, không phải vì ảnh mới kém.
 5. **So với các sản phẩm không đổi ảnh** trong cùng thời gian. Nếu cả shop cùng tăng, chỉ phần vượt lên mới là của ảnh.
-6. **Đủ dữ liệu.** Juli chỉ đọc CTR khi sản phẩm có từ 50 lượt hiển thị ở Thẻ sản phẩm mỗi ngày trở lên; đây là ngưỡng của Juli, không phải của TikTok.
+6. **Đủ dữ liệu.** Chúng tôi chỉ đọc CTR khi sản phẩm có khoảng 50 lượt hiển thị ở Thẻ sản phẩm mỗi ngày trở lên; đây là quy tắc thực hành của chúng tôi, không phải ngưỡng của TikTok.
 
 {{hinh:anh-bia-doi-chung}}
 
 ## Khi nào không nên đổi ảnh bìa
 
 - **CTR ở Thẻ sản phẩm đang tốt.** Người mua đã dừng lại và bấm vào; hãy tìm chỗ nghẽn ở bước sau.
-- **Điểm đánh giá của sản phẩm thấp.** Juli không đề xuất đổi ảnh bìa cho sản phẩm dưới 4 sao; đây là quy tắc của Juli. Kéo thêm người bấm vào một sản phẩm mà người mua trước đánh giá kém chỉ thêm người thất vọng. Hãy xử lý chất lượng hoặc mô tả sai lệch trước.
+- **Điểm đánh giá của sản phẩm thấp.** Với sản phẩm dưới 4 sao, chúng tôi không khuyên bắt đầu từ ảnh bìa; đây là quy tắc thực hành, không phải quy định của TikTok. Kéo thêm người bấm vào một sản phẩm mà người mua trước đánh giá kém chỉ thêm người thất vọng. Hãy xử lý chất lượng hoặc mô tả sai lệch trước.
 - **Bạn vừa đổi tiêu đề hay giá của chính sản phẩm đó.** Đợi đo xong thay đổi kia, nếu không sẽ không biết điều gì có tác dụng.
 
-## Juli AI giúp gì khi ảnh bìa bị lướt qua
+## Một bảng thử ảnh cho từng sản phẩm
 
-Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp). Với ảnh bìa, Juli phân tích và đề xuất, thay ảnh bằng ảnh của bạn khi bạn xác nhận, rồi đo; Juli không làm ảnh:
+Đổi ảnh là việc dễ làm lại nhiều lần mà không nhớ lần nào đã thử gì. Giữ một bảng nhỏ cho mỗi sản phẩm bạn thử ảnh:
 
-- **Chỉ ra sản phẩm nào có CTR thấp ở Thẻ sản phẩm.** [Phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop) đọc Lượt hiển thị và CTR theo từng luồng, so với mức dao động của chính shop, và cho biết CTR thấp đang lấy đi bao nhiêu GMV mỗi ngày.
-- **Đề xuất cần đổi gì.** Trong [Đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi), Juli xem ảnh chính hiện tại theo các yêu cầu ở trên và ghi rõ nên đổi gì, kèm lý do bằng số: ví dụ ảnh chưa cho thấy quy cách, hoặc sản phẩm quá nhỏ trong khung.
-- **Ảnh là của bạn, Juli thay khi bạn xác nhận.** Juli không chụp, không chỉnh sửa và không tạo ảnh. Bạn làm ảnh mới rồi tải lên thẻ đề xuất; sau khi bạn duyệt và xác nhận, Juli đặt ảnh đó làm hình ảnh chính. Ảnh cũ được lưu để bạn Hoàn tác, cũng qua bước xác nhận.
-- **Đo ở ngày 7 và ngày 14.** Khi Juli thay ảnh, ngày thay được ghi lại và [Đo lường GMV](/san-pham/do-luong-gmv) đọc CTR ở Thẻ sản phẩm từ đúng ngày đó, so với 14 ngày trước và với các sản phẩm không đổi. Nếu bạn tự thay trên Trung tâm nhà bán hàng, hãy ghi lại ngày thay.
+| Cột | Ghi gì |
+|---|---|
+| Ảnh cũ, ảnh mới | Tên tệp đã lưu của cả hai, để quay về được đúng ảnh cũ |
+| Điểm khác | Chỉ một điểm: góc chụp, quy cách hiển thị (1 hay 3 chai), hoặc mức cận cảnh |
+| Đúng yêu cầu chưa | Từ 600 × 600 pixel, nền đồng nhất, sản phẩm chiếm ít nhất 60 % khung, thấy toàn bộ, không có chữ hay nhãn dán che phía trước |
+| Ngày đổi | Ngày ảnh mới thành hình ảnh chính |
+| CTR Thẻ sản phẩm | 14 ngày trước, ngày 7, ngày 14 |
+| Nhóm không đổi | CTR của vài sản phẩm cùng ngành không đổi ảnh, cùng các ngày |
 
-Juli không hứa CTR sẽ tăng và không chạy quảng cáo. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop) mà bạn ủy quyền; tổng quan ở trang [sản phẩm Juli AI](/san-pham).
+Trước khi tải ảnh mới lên, làm một bước kiểm tra trên điện thoại: đặt ảnh mới cạnh ảnh cũ, thu nhỏ bằng cỡ thẻ trên trang tìm kiếm, và hỏi một người chưa biết sản phẩm xem họ nhận ra đây là gì, bao nhiêu cái, trong vài giây. Ảnh không qua được bước này thì chưa cần đo.
+
+Sau vài lần thử, bảng cho bạn biết kiểu ảnh nào hợp với khách của shop: ví dụ giả định, ba lần thử cho thấy ảnh hiện đủ quy cách combo luôn có CTR cao hơn ảnh một chai, còn ảnh cận cảnh thì không khác biệt. Điều đó có ích hơn mọi lời khuyên chung, vì nó đến từ chính người mua của bạn. Muốn ước tính một mức tăng CTR đáng bao nhiêu GMV, thử [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv).
 
 ## Ghi nhớ nhanh
 
@@ -160,5 +161,5 @@ Juli không hứa CTR sẽ tăng và không chạy quảng cáo. Dữ liệu đ�
 - Tối thiểu 600 × 600 pixel, tối đa 9 ảnh vuông; ảnh chính nền đồng nhất, sản phẩm chiếm ít nhất 60 % khung, không bị che.
 - Đổi một ảnh, ghi lại ngày, đọc ở ngày 7, chốt ở ngày 14, so với sản phẩm không đổi.
 
-Nếu bạn muốn biết sản phẩm nào trong shop đang bị lướt qua nhiều nhất ở Thẻ sản phẩm trước khi bỏ công chụp lại ảnh, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Khi ảnh đã đúng yêu cầu mà CTR vẫn thấp, xem tiếp tiêu đề trong bài [cách đặt tên sản phẩm khi ít người bấm vào](/blog/dat-ten-san-pham-tiktok-shop).
 `;

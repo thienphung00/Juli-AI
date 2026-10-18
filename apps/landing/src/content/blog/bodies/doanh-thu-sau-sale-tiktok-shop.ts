@@ -12,10 +12,9 @@
  * voucher pages are not used; registration rules, deadlines and discounts are
  * not on any official VN page found, so the post only says "Seller Center or
  * the account manager". Returns / refund timing from Academy "Trả hàng và Hoàn
- * tiền" (15/10/2026) and "Lưu lượng truy cập sản phẩm" (17/06/2026). Juli facts
- * follow /san-pham/phan-tich-shop and /san-pham/do-luong-gmv: Juli does not
- * detect or exclude platform sale days, does not forecast GMV, does not run
- * ads or vouchers. "Khách dồn đơn vào đợt sale" is framed as a check, not a
+ * tiền" (15/10/2026) and "Lưu lượng truy cập sản phẩm" (17/06/2026). D59 reach
+ * post (P48-C): no Juli, no product links; the last how-to section is a
+ * self-kept in / out of promotion sheet. "Khách dồn đơn vào đợt sale" is framed as a check, not a
  * cause. Shop-wide period comparison stays with `doanh-thu-tiktok-shop-giam`.
  */
 export const body = `
@@ -127,8 +126,6 @@ Các bước so hai kỳ cho công bằng có trong bài doanh thu giảm ở tr
 - **Về mốc cũ**: bán thêm nhờ ưu đãi rồi về như trước. Không cần sửa gấp.
 - **Dưới mốc cũ**: thấp hơn cả trước đợt. Kiểm tra theo thứ tự: hủy, hoàn có tăng không, biến thể chính còn hàng không, giá đã về đúng chưa, đánh giá mới có bị chê không. Chỉ khi các thứ đó ổn mới nghĩ đến sửa trang.
 
-{{hinh:sale-khuyen-mai-du-lieu-mau}}
-
 “Sale xong nên giảm giá tiếp hay trả giá về?” Nếu sản phẩm chỉ bán khi có ưu đãi, câu hỏi là giá gốc hay trang sản phẩm có vấn đề, không phải giảm thêm bao lâu; xem biên lợi nhuận trước khi kéo dài một mức giảm.
 
 ## Chuẩn bị cho 12.12: những gì làm lại, những gì dừng
@@ -140,15 +137,21 @@ Các bước so hai kỳ cho công bằng có trong bài doanh thu giảm ở tr
 3. **Chốt mốc mới trước 03/12**, giống như trước 11.11.
 4. **Giữ những gì nhóm “giữ nhịp” đang có**, đừng sửa trang của chúng ngay trước đợt.
 
-## Juli AI giúp gì quanh một đợt sale
+## Tự lập bảng trong và ngoài khuyến mãi
 
-Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp). Juli không dự đoán GMV của đợt sale, không chạy quảng cáo, không tạo voucher hay đăng ký chiến dịch cho bạn. Quanh một đợt sale, Juli làm những việc sau:
+Câu “sản phẩm này chỉ bán khi có sale?” trả lời được bằng một bảng nhỏ, làm một lần sau mỗi đợt. Với 10 đến 20 sản phẩm bán nhiều nhất trong đợt, ghi:
 
-- **Đọc GMV theo luồng và theo phễu.** Trang [phân tích shop](/san-pham/phan-tich-shop) tách GMV theo năm luồng và theo Lượt hiển thị × CTR × CTOR × AOV, tính trung bình mỗi ngày, so 30 ngày gần nhất với 30 ngày trước đó, và xếp sản phẩm theo số đồng GMV mỗi ngày mà chúng kéo lên hoặc xuống. Mỗi kết luận có nhãn **Rõ** (cả hai kỳ có khoảng 30 đơn trở lên và mức thay đổi vượt vùng nhiễu) hoặc **Tham khảo**. Lưu ý: trong 30 ngày sau 11.11, kỳ so sánh có chứa đợt sale; Juli không tự nhận ra hay loại ngày sale của nền tảng, nên hãy đọc với ghi chú đó.
-- **Đặt khuyến mãi cạnh số liệu.** Khối Khuyến mãi đọc flash sale, giảm giá và voucher của shop ở chế độ chỉ đọc, và so GMV mỗi ngày của sản phẩm trong và ngoài thời gian khuyến mãi.
-- **Đo thay đổi sau đợt.** Với một thay đổi bạn duyệt sau đợt, [đo lường GMV](/san-pham/do-luong-gmv) chụp mốc 14 ngày lúc áp dụng, đọc sơ bộ ngày 7 và chốt ngày 14 (nhớ rằng mốc của một thay đổi duyệt ngay sau 15/11 vẫn chứa đợt sale); nếu trong thời gian đo bạn tự mở, tắt một khuyến mãi hay đổi giá, kết quả ghi “Bị ảnh hưởng bởi thay đổi khác”. Tiêu đề, mô tả và ảnh bìa chỉ được ghi lên shop sau khi bạn xác nhận ([đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi)).
+| Cột | Ghi gì |
+|---|---|
+| GMV mỗi ngày trong đợt | Tổng GMV của sản phẩm trong đợt chia cho số ngày của đợt |
+| GMV mỗi ngày ngoài đợt | Trung bình 14 ngày trước đợt, và ngày 8 đến 14 sau đợt |
+| Mức giảm thật | Giá khách trả trong đợt so với giá đang bán ngay trước đợt, không so với giá gốc |
+| Hủy, hoàn sau đợt | Số đơn hủy và yêu cầu trả hàng của sản phẩm trong 14 ngày sau đợt |
+| Hết hàng | Ngày nào biến thể chính hết hàng, trong và sau đợt |
 
-Tổng quan ở trang [sản phẩm Juli AI](/san-pham); dữ liệu đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop). Shop gần như không có đơn kể cả trong đợt sale thì bắt đầu từ bài [TikTok Shop không ra đơn](/blog/tiktok-shop-khong-ra-don) và [khách xem nhưng không mua](/blog/khach-xem-nhung-khong-mua-tiktok-shop).
+Đọc bảng theo hai câu. Một: GMV ngoài đợt sau sale có về gần mốc trước đợt không; nếu có, sản phẩm không phụ thuộc vào sale. Hai: mức giảm thật có đủ lớn để giải thích phần GMV tăng trong đợt không. Ví dụ giả định: một sản phẩm giảm thật chỉ 2 % mà GMV trong đợt vẫn gấp đôi, thì phần tăng đến từ lượng khách của cả đợt nhiều hơn là từ mức giảm; giảm sâu hơn ở đợt sau chưa chắc bán thêm được bao nhiêu.
+
+Nhớ rằng mọi phép so “30 ngày gần nhất với 30 ngày trước” trong nửa cuối tháng 11 đều chứa đợt sale ở một phía. Nếu bạn dùng một bảng hay một công cụ so kỳ, ghi chú ngày sale bên cạnh, vì các trang số liệu không tự loại những ngày đó ra. Shop gần như không có đơn kể cả trong đợt sale thì bắt đầu từ bài [TikTok Shop không ra đơn](/blog/tiktok-shop-khong-ra-don) và [khách xem nhưng không mua](/blog/khach-xem-nhung-khong-mua-tiktok-shop).
 
 ## Những điểm chính
 
@@ -158,5 +161,5 @@ Tổng quan ở trang [sản phẩm Juli AI](/san-pham); dữ liệu đọc qua 
 - Sau đợt: chờ đủ 14 ngày, tính cả đơn hủy, hoàn tiền đến muộn và phí theo từng đơn trước khi kết luận.
 - So đợt sale với đợt sale bằng trung bình mỗi ngày; chia sản phẩm thành giữ nhịp, về mốc cũ, dưới mốc cũ.
 
-Nếu bạn muốn GMV theo luồng và sản phẩm kéo số liệu lên xuống sau 11.11 được tách sẵn mỗi ngày thay vì tự cộng trong bảng tính, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop trước khi đợt sale bắt đầu.
+Muốn biết một lần sửa sau đợt sale có tác dụng không, bài [đo hiệu quả sau khi sửa sản phẩm](/blog/do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop) đi qua cách chốt mốc và đọc ở ngày 7, ngày 14.
 `;
