@@ -213,14 +213,16 @@ export const CAP_PT_XEP_HANG_MOBILE: readonly MediaSource[] = [
  * the Juli guide posts, captured at 2x from the demo (signed-out sample, plus mocked signed-in
  * and partner-sample views for the quick scan, the CTR title card and day 14). New `-v2` names
  * replace the outdated v1 shots in new content; the v1 exports above stay for existing pages.
+ * P49-F: after the demo copy fixes, the sign-in shot (now with the right panel, v3), the SR-007
+ * cover card (chip and CTR formula, v2) and day 14 (AOV band "155k – 165k ₫", v3) were recaptured.
  */
 export const CAP_KN_DANG_NHAP_V2: readonly MediaSource[] = [
-  { avif: "/media/cap-kn-dang-nhap-v2-1280.avif", webp: "/media/cap-kn-dang-nhap-v2-1280.webp", width: 1280, height: 1745 },
-  { avif: "/media/cap-kn-dang-nhap-v2-640.avif", webp: "/media/cap-kn-dang-nhap-v2-640.webp", width: 640, height: 873 },
+  { avif: "/media/cap-kn-dang-nhap-v3-1280.avif", webp: "/media/cap-kn-dang-nhap-v3-1280.webp", width: 1280, height: 900 },
+  { avif: "/media/cap-kn-dang-nhap-v3-640.avif", webp: "/media/cap-kn-dang-nhap-v3-640.webp", width: 640, height: 450 },
 ];
 
 export const CAP_KN_DANG_NHAP_V2_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-kn-dang-nhap-m-v2-720.avif", webp: "/media/cap-kn-dang-nhap-m-v2-720.webp", width: 720, height: 931 },
+  { avif: "/media/cap-kn-dang-nhap-m-v3-720.avif", webp: "/media/cap-kn-dang-nhap-m-v3-720.webp", width: 720, height: 943 },
 ];
 
 export const CAP_KN_QUET_NHANH_V2: readonly MediaSource[] = [
@@ -247,8 +249,8 @@ export const CAP_DX_THE_V2: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_ANH_BIA: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-anh-bia-v1-1184.avif", webp: "/media/cap-dx-anh-bia-v1-1184.webp", width: 1184, height: 1034 },
-  { avif: "/media/cap-dx-anh-bia-v1-640.avif", webp: "/media/cap-dx-anh-bia-v1-640.webp", width: 640, height: 559 },
+  { avif: "/media/cap-dx-anh-bia-v2-1184.avif", webp: "/media/cap-dx-anh-bia-v2-1184.webp", width: 1184, height: 1034 },
+  { avif: "/media/cap-dx-anh-bia-v2-640.avif", webp: "/media/cap-dx-anh-bia-v2-640.webp", width: 640, height: 559 },
 ];
 
 export const CAP_DX_ANH_BIA_TAI_LEN: readonly MediaSource[] = [
@@ -271,12 +273,12 @@ export const CAP_DL_NGAY_7_V2_MOBILE: readonly MediaSource[] = [
 ];
 
 export const CAP_DL_NGAY_14_V2: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-14-v2-1280.avif", webp: "/media/cap-dl-ngay-14-v2-1280.webp", width: 1280, height: 1821 },
-  { avif: "/media/cap-dl-ngay-14-v2-640.avif", webp: "/media/cap-dl-ngay-14-v2-640.webp", width: 640, height: 911 },
+  { avif: "/media/cap-dl-ngay-14-v3-1280.avif", webp: "/media/cap-dl-ngay-14-v3-1280.webp", width: 1280, height: 1821 },
+  { avif: "/media/cap-dl-ngay-14-v3-640.avif", webp: "/media/cap-dl-ngay-14-v3-640.webp", width: 640, height: 911 },
 ];
 
 export const CAP_DL_NGAY_14_V2_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-14-m-v2-720.avif", webp: "/media/cap-dl-ngay-14-m-v2-720.webp", width: 720, height: 191 },
+  { avif: "/media/cap-dl-ngay-14-m-v3-720.avif", webp: "/media/cap-dl-ngay-14-m-v3-720.webp", width: 720, height: 191 },
 ];
 
 export const CAP_DX_HOAN_TAC_V2: readonly MediaSource[] = [
