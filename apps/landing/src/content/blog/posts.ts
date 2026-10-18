@@ -1360,12 +1360,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Juli xếp sản phẩm theo doanh thu giảm hay theo gì?",
         answer:
-          "Theo số GMV mỗi ngày mà chỉ số bị giảm của sản phẩm đang lấy đi, trên đúng luồng đó. Vì vậy một sản phẩm bán chạy mất vài phần trăm CTOR có thể đứng trên một sản phẩm nhỏ mất một nửa.",
+          "Theo số tiền GMV mỗi ngày mà sản phẩm mất ở chỉ số đó, trên đúng luồng đó. Vì vậy một sản phẩm bán chạy mất vài phần trăm CTOR có thể đứng trên một sản phẩm nhỏ mất một nửa.",
       },
       {
         question: "Vì sao sản phẩm của tôi ghi Chưa có đề xuất?",
         answer:
-          "Sản phẩm chưa đủ cơ sở cho một thẻ: thường là dữ liệu còn ít hoặc mức giảm chưa vượt mức dao động (nhãn Tham khảo), hoặc sản phẩm đang có một thay đổi khác được đo, hoặc cùng thay đổi vừa bị từ chối hay hoàn tác trong 7 ngày qua.",
+          "Sản phẩm chưa đủ cơ sở cho một thẻ: thường là dữ liệu còn ít hoặc mức giảm chưa vượt mức dao động (nhãn Tham khảo), hoặc sản phẩm đang có một thay đổi khác được đo, hoặc cùng thay đổi vừa bị từ chối hay hoàn tác gần đây.",
       },
       {
         question: "Các dòng trong bảng có cộng bằng con số trên ô không?",
@@ -1375,7 +1375,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Juli có xếp theo lợi nhuận không?",
         answer:
-          "Thứ tự dùng GMV có thể lấy lại mỗi ngày. Giá vốn hoặc biên lợi nhuận bạn nhập trong Quy tắc được dùng cho đề xuất giảm giá: một đề xuất như vậy chỉ xuất hiện khi Juli biết giá vốn và luôn nằm trong biên lợi nhuận bạn cho phép.",
+          "Không. Giá vốn hoặc biên lợi nhuận bạn nhập trong Quy tắc được dùng để giữ mọi đề xuất giảm giá trong biên lợi nhuận bạn cho phép; một đề xuất như vậy chỉ xuất hiện khi Juli biết giá vốn.",
       },
     ],
     sources: [
@@ -1454,9 +1454,9 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
           "Bản soạn được kiểm tra độ dài, từ không được dùng và đối chiếu với thông tin của chính sản phẩm trước khi bạn xem, nhưng bạn vẫn là người đọc lại và quyết định ở bước xác nhận. Nếu sai, bạn sửa trước khi áp dụng hoặc hoàn tác sau đó.",
       },
       {
-        question: "Vì sao lý do của thẻ đôi khi nhắc đến giá của sản phẩm tương tự?",
+        question: "Vì sao Juli không đề xuất giảm giá cho sản phẩm của tôi?",
         answer:
-          "Khi có dữ liệu giá thị trường của các sản phẩm tương tự, lý do có thể nhắc đến chênh lệch giá. Đây là dữ liệu bên ngoài, tuỳ chọn, không phải lúc nào cũng có.",
+          "Một đề xuất giảm giá chỉ xuất hiện khi Juli biết giá vốn của sản phẩm, và luôn nằm trong biên lợi nhuận bạn đặt trong Quy tắc. Nếu chưa nhập giá vốn, Juli chỉ đề xuất mô tả cho sản phẩm đó.",
       },
       {
         question: "CTOR được đo trên kênh nào?",
@@ -1554,7 +1554,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Shop ít đơn thì đọc Phân tích có ý nghĩa không?",
         answer:
-          "Có, nhưng Juli nói rõ mức chắc chắn. Khi số đơn ít, dòng sản phẩm mang nhãn Tham khảo thay vì Rõ và Juli gợi ý theo dõi thêm. Sản phẩm không đủ khoảng 30 lượt nhấp hoặc 30 đơn ngay cả trong 60 ngày được ghi là ít dữ liệu.",
+          "Có, nhưng Juli nói rõ mức chắc chắn. Khi số đơn ít, dòng sản phẩm mang nhãn Tham khảo thay vì Rõ và Juli gợi ý theo dõi thêm. Sản phẩm còn quá ít dữ liệu được ghi là ít dữ liệu.",
       },
       {
         question: "Có dùng luồng Liên kết để kết luận về một sản phẩm không?",
@@ -1573,7 +1573,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     title: "Duyệt một thẻ đề xuất của Juli: từ lý do, sửa nội dung đến xác nhận lần cuối",
     seoTitle: "Duyệt đề xuất tối ưu sản phẩm TikTok Shop | Juli AI",
     description:
-      "Đi qua một thẻ đề xuất của Juli: thẻ nói gì, GMV dự kiến tính ra sao, Duyệt rồi Xác nhận, phần Juli làm và phần bạn làm, từ chối kèm lý do, nhịp thẻ.",
+      "Đi qua một thẻ đề xuất của Juli: thẻ nói gì, GMV dự kiến nghĩa là gì, Duyệt rồi Xác nhận, phần Juli làm và phần bạn làm, từ chối kèm lý do, nhịp thẻ.",
     excerpt:
       "Duyệt chưa đổi gì trên shop: thay đổi chỉ được ghi khi bạn xem bản cũ, bản mới và xác nhận trong lượt chạy. Bài này đi qua một thẻ từ lý do đến bước xác nhận, kể cả ảnh bìa, giá và từ chối.",
     breadcrumbName: "Duyệt thẻ đề xuất",
@@ -1603,17 +1603,17 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Từ chối một thẻ thì nó có quay lại không?",
         answer:
-          "Cùng một thay đổi cho cùng một sản phẩm chỉ có thể quay lại sau ít nhất 7 ngày. Lý do bạn chọn khi từ chối còn làm loại thay đổi đó được ưu tiên thấp hơn cho shop trong khoảng hai tháng, nhạt dần theo thời gian.",
+          "Không quay lại ngay. Juli ghi nhận lý do bạn chọn để các đề xuất sau hợp với shop của bạn hơn.",
       },
       {
         question: "Mỗi ngày tôi nhận bao nhiêu thẻ đề xuất?",
         answer:
-          "Tối đa 5 thẻ mới mỗi ngày, 25 thẻ mỗi tuần và 30 thẻ đang mở cùng lúc; bạn có thể giảm số thẻ mở cùng lúc trong Quy tắc, từ 5 đến 30. Mỗi thẻ có hiệu lực 7 ngày.",
+          "Juli giữ số thẻ mới mỗi ngày ở mức bạn duyệt kịp, và chỉ đưa ra thẻ khi có việc đáng làm. Bạn có thể giảm số thẻ đang mở cùng lúc trong Quy tắc. Thẻ có thời hạn; hết hạn thì Juli đề xuất lại khi thay đổi đó vẫn còn phù hợp.",
       },
     ],
     sources: [
       academy("Chẩn Đoán Thẻ Sản Phẩm", "5792290376255233", "chẩn đoán TikTok trả về cho trang sản phẩm (21/02/2024), kiểm tra 18/10/2026"),
-      { title: "Juli AI: Đề xuất và thực thi", url: "https://app-juli.com/san-pham/de-xuat-va-thuc-thi", note: "thẻ đề xuất, hai bước đồng ý, giới hạn, hoàn tác" },
+      { title: "Juli AI: Đề xuất và thực thi", url: "https://app-juli.com/san-pham/de-xuat-va-thuc-thi", note: "thẻ đề xuất, hai bước đồng ý, hoàn tác" },
     ],
   },
   {
@@ -1652,7 +1652,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "GMV dự kiến trên thẻ có phải cam kết không?",
         answer:
-          "Không. GMV dự kiến là ước tính theo quy tắc, tính từ số liệu 30 ngày của sản phẩm. Kết quả thật đo được ở ngày 14 được đặt cạnh con số này để bạn so sánh.",
+          "Không. GMV dự kiến là ước tính từ số liệu gần đây của sản phẩm. Kết quả thật đo được ở ngày 14 được đặt cạnh con số này để bạn so sánh.",
       },
       {
         question: "Hoàn tác có xoá chỉnh sửa tôi tự làm không?",
@@ -1662,7 +1662,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     ],
     sources: [
       academy("Lưu lượng truy cập sản phẩm", "10015238", "chỉ số theo luồng dùng để đo, GMV gồm cả đơn huỷ và hoàn tiền (17/06/2026), kiểm tra 18/10/2026"),
-      { title: "Juli AI: Đo lường GMV", url: "https://app-juli.com/san-pham/do-luong-gmv", note: "mốc so sánh, ngày 7, ngày 14, nhãn kết quả, học từ kết quả" },
+      { title: "Juli AI: Đo lường GMV", url: "https://app-juli.com/san-pham/do-luong-gmv", note: "mốc so sánh, ngày 7, ngày 14, nhãn kết quả" },
     ],
   },
 ];

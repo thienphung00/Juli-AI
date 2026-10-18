@@ -7,7 +7,7 @@
  * (`signup-content.ts`: fields, call or Zalo in working hours, three next steps). The P33-F items
  * still PROPOSED (sign-up retention, Ops access, relay key) are left out on purpose. Connect and
  * first-day facts from `/ket-noi/tiktok-shop` and D26 / D25.12 (14-day quick scan, 60-day read,
- * history to 180 days); card limits D24.17; day 7 / day 14 from D14, D29 and `/san-pham/do-luong-gmv`
+ * history to 180 days); no card numbers (D61); day 7 / day 14 from D14, D29 and `/san-pham/do-luong-gmv`
  * (Juli asks, never reverts by itself). Numbers in screenshots are the sample shop's.
  */
 export const body = `
@@ -80,15 +80,15 @@ Kết nối chỉ cho phép Juli đọc dữ liệu và tạo đề xuất. Khô
 
 Ngay sau khi kết nối, Juli chạy ba bước và hiện dải tiến trình "Juli đang đọc dữ liệu shop" trên các màn hình chính:
 
-1. **Quét nhanh 14 ngày.** Trong vài phút, Juli đọc hiệu suất sản phẩm 14 ngày gần nhất và chẩn đoán của TikTok cho các sản phẩm bán chạy, rồi có thể tạo 1 đến 3 đề xuất nhanh về ảnh bìa, tiêu đề hoặc mô tả.
+1. **Quét nhanh 14 ngày.** Trong vài phút, Juli đọc hiệu suất sản phẩm 14 ngày gần nhất và chẩn đoán của TikTok cho các sản phẩm bán chạy, rồi có thể đưa ra vài đề xuất nhanh về ảnh bìa, tiêu đề hoặc mô tả.
 2. **Đọc 60 ngày và chẩn đoán đầy đủ.** Juli dựng báo cáo Phân tích và các thẻ đề xuất đầy đủ. Thời gian tuỳ theo số sản phẩm của shop; dải tiến trình ghi phần trăm và thời gian ước tính còn lại.
 3. **Tải lịch sử nền.** Mỗi đêm Juli tải thêm lịch sử cũ hơn, đến 180 ngày hoặc đến giới hạn TikTok cho phép.
 
 {{hinh:dung-thu-quet-nhanh}}
 
-Thẻ tạo từ lần quét nhanh ghi "Đề xuất nhanh · dựa trên 14 ngày" với độ tin cậy Tham khảo, vì 14 ngày còn ít dữ liệu. Khi lần đọc 60 ngày xong, các thẻ khác của ngày được lấp vào, và thẻ nhanh nào còn hợp lệ được giữ lại với số liệu mới.
+Thẻ tạo từ lần quét nhanh ghi "Đề xuất nhanh · dựa trên 14 ngày" với độ tin cậy Tham khảo, vì 14 ngày còn ít dữ liệu. Khi lần đọc 60 ngày xong, các đề xuất khác xuất hiện, và thẻ nhanh nào còn hợp lệ được giữ lại với số liệu mới.
 
-Mỗi ngày bạn nhận tối đa 5 thẻ mới: đến 3 thẻ Juli thực hiện (tiêu đề, mô tả, hoặc ảnh bìa bằng ảnh bạn gửi), 1 thẻ bạn làm trên Seller Center và 1 thẻ nội dung video hoặc LIVE. Ô nào không có ứng viên tốt thì để trống. Mỗi thẻ có hiệu lực 7 ngày.
+Mỗi ngày bạn nhận vài thẻ mới, gồm việc Juli làm (tiêu đề, mô tả, hoặc ảnh bìa bằng ảnh bạn gửi), việc bạn làm trên Seller Center và nội dung video hoặc LIVE. Không có việc đáng làm thì Juli không thêm thẻ cho đủ số.
 
 ## Đọc thẻ đề xuất đầu tiên
 
@@ -96,9 +96,9 @@ Một thẻ nói về một sản phẩm và trả lời bốn câu hỏi: chỉ
 
 {{hinh:dung-thu-the-dau-tien}}
 
-Trong ví dụ trên của shop mẫu, chỉ số mục tiêu là CTOR trên luồng Thẻ sản phẩm, từ 5,4 % lên 5,9 %. Lý do là mô tả quá ngắn, và chính TikTok cũng báo "Mô tả quá ngắn". Thay đổi đề xuất là Mô tả. GMV dự kiến ghi rõ cách tính theo cách của TikTok (lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày) và là ước tính theo quy tắc, không phải lời hứa.
+Trong ví dụ trên của shop mẫu, chỉ số mục tiêu là CTOR trên luồng Thẻ sản phẩm, từ 5,4 % lên 5,9 %. Lý do là mô tả quá ngắn, và chính TikTok cũng báo "Mô tả quá ngắn". Thay đổi đề xuất là Mô tả. GMV dự kiến là ước tính từ số liệu hiện tại của sản phẩm, không phải lời hứa.
 
-Bạn có hai nút: **Duyệt** và **Từ chối**. Duyệt chưa đổi gì trên shop; nó cho phép Juli bắt đầu soạn nội dung. Từ chối thì bạn chọn một lý do, và cùng thay đổi đó cho cùng sản phẩm chỉ quay lại sau ít nhất 7 ngày. Hai bài [tìm sản phẩm kéo GMV xuống](/blog/tim-san-pham-keo-gmv-xuong-tiktok-shop) và [viết lại mô tả khi CTOR thấp](/blog/ctor-thap-viet-lai-mo-ta-san-pham) giải thích kỹ hơn vì sao một sản phẩm nhận thẻ và Juli soạn mô tả thế nào.
+Bạn có hai nút: **Duyệt** và **Từ chối**. Duyệt chưa đổi gì trên shop; nó cho phép Juli bắt đầu soạn nội dung. Từ chối thì bạn chọn một lý do, và cùng thay đổi đó cho cùng sản phẩm không quay lại ngay. Hai bài [tìm sản phẩm kéo GMV xuống](/blog/tim-san-pham-keo-gmv-xuong-tiktok-shop) và [viết lại mô tả khi CTOR thấp](/blog/ctor-thap-viet-lai-mo-ta-san-pham) giải thích kỹ hơn vì sao một sản phẩm nhận thẻ và Juli soạn mô tả thế nào.
 
 ## Từ ngày 1 đến ngày 14: duyệt, xác nhận, rồi chờ
 
@@ -108,7 +108,7 @@ Ba điều nên nhớ trong hai tuần đầu:
 
 - **Một sản phẩm, một thay đổi tại một thời điểm.** Juli không thực hiện hai thay đổi cùng lúc trên một sản phẩm, vì khi chúng chồng lên nhau, không ai biết thay đổi nào tạo ra kết quả.
 - **Tự sửa sản phẩm thì ghi nhận lại.** Nếu bạn tự đổi tiêu đề, giá hay mở khuyến mãi trong lúc Juli đang đo, kết quả sẽ ghi rõ là bị ảnh hưởng bởi thay đổi khác, thay vì ghi công cho đề xuất.
-- **Không cần duyệt hết.** Thẻ ở lại ít nhất 3 ngày và có hiệu lực 7 ngày. Bắt đầu với một hai thẻ có độ tin cậy cao nhất là đủ.
+- **Không cần duyệt hết.** Thẻ ở lại vài ngày để bạn kịp xem; hết hạn thì Juli đề xuất lại khi thay đổi đó vẫn còn phù hợp. Bắt đầu với một hai thẻ có độ tin cậy cao nhất là đủ.
 
 ## Ngày 7 và ngày 14
 
@@ -122,7 +122,7 @@ Nếu một chỉ số bạn muốn giữ ổn định ra ngoài khoảng cho ph
 
 {{hinh:dung-thu-ngay-14}}
 
-Kết quả chốt quay lại quyết định thứ tự đề xuất tiếp theo cho shop của bạn. Đề xuất tiếp theo cho cùng sản phẩm có thể hiện ra ở ngày 7, nhưng chỉ được thực hiện sau khi thay đổi trước đã chốt ở ngày 14.
+Kết quả chốt được lưu lại cùng GMV dự kiến ban đầu. Đề xuất tiếp theo cho cùng sản phẩm có thể hiện ra ở ngày 7, nhưng chỉ được thực hiện sau khi thay đổi trước đã chốt ở ngày 14.
 
 ## Sau 3 tháng dùng thử
 

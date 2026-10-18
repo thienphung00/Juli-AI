@@ -417,7 +417,7 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     caption: "Dữ liệu mẫu · Ngày đầu: dải tiến trình ba bước và một đề xuất nhanh dựa trên 14 ngày, độ tin cậy Tham khảo.",
   }),
   "dung-thu-the-dau-tien": screenshot(CAP_DX_THE_V2, phone(CAP_DX_THE_V2), {
-    alt: "Thẻ đề xuất Mặt nạ đất sét 100g, chờ duyệt: CTOR Thẻ sản phẩm từ 5,4 % lên 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do mô tả quá ngắn, thay đổi đề xuất Mô tả, lý do đầy đủ mô tả 180 ký tự một đoạn và TikTok báo mô tả quá ngắn, cách tính GMV dự kiến, nút Duyệt và Từ chối (dữ liệu mẫu)",
+    alt: "Thẻ đề xuất Mặt nạ đất sét 100g, chờ duyệt: CTOR Thẻ sản phẩm từ 5,4 % lên 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do mô tả quá ngắn, thay đổi đề xuất Mô tả, lý do đầy đủ mô tả 180 ký tự một đoạn và TikTok báo mô tả quá ngắn, nút Duyệt và Từ chối (dữ liệu mẫu)",
     caption: "Dữ liệu mẫu · Một thẻ đề xuất: chỉ số mục tiêu, GMV dự kiến, lý do, thay đổi đề xuất và hai nút Duyệt, Từ chối.",
   }),
   "dung-thu-ngay-7": screenshot(CAP_DL_NGAY_7_V2, CAP_DL_NGAY_7_V2_MOBILE, {
@@ -425,7 +425,7 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     caption: "Dữ liệu mẫu · Ngày 7: chỉ số mục tiêu Đang lên, các chỉ số khác trong khoảng cho phép, kết quả còn là sơ bộ.",
   }),
   "dung-thu-ngay-14": screenshot(CAP_DL_NGAY_14_V2, CAP_DL_NGAY_14_V2_MOBILE, {
-    alt: "Kết quả chốt ngày 14 của Toner rau má 200ml, nhãn Đạt: CTOR 5,95 % so với mục tiêu 5,9 %, GMV thực tế 63 nghìn đồng mỗi ngày bằng 90 % dự kiến, hệ số hiệu chỉnh cập nhật, mở khoá đề xuất tiếp theo; hộp kết luận GMV thực tế 1,9 triệu đồng mỗi tháng so với dự kiến 2,1 triệu, thay đổi được giữ; dòng cách chốt các nhãn Đạt, Đạt chưa chắc chắn, Một phần, Không đạt (dữ liệu mẫu)",
+    alt: "Kết quả chốt ngày 14 của Toner rau má 200ml, nhãn Đạt: CTOR 5,95 % so với mục tiêu 5,9 %, GMV thực tế 63 nghìn đồng mỗi ngày bằng 90 % dự kiến, mở khoá đề xuất tiếp theo; hộp kết luận GMV thực tế 1,9 triệu đồng mỗi tháng so với dự kiến 2,1 triệu, thay đổi được giữ; dòng cách chốt các nhãn Đạt, Đạt chưa chắc chắn, Một phần, Không đạt (dữ liệu mẫu)",
     caption: "Dữ liệu mẫu · Ngày 14: nhãn chốt đặt cạnh GMV dự kiến ban đầu, kèm cách chốt từng nhãn.",
   }),
 
@@ -443,7 +443,7 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     caption: "Dữ liệu mẫu · Con số của ô CTOR chia cho từng sản phẩm, xếp theo số đồng mỗi ngày, kèm nhãn tin cậy.",
   }),
   "keo-xuong-the": screenshot(CAP_DX_THE_V2, phone(CAP_DX_THE_V2), {
-    alt: "Thẻ đề xuất Mặt nạ đất sét 100g mở từ bảng kéo xuống: CTOR Thẻ sản phẩm từ 5,4 % lên 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do mô tả quá ngắn, thay đổi đề xuất Mô tả, công thức lượt nhấp nhân chênh lệch CTOR nhân AOV trung bình 30 ngày, ước tính theo quy tắc (dữ liệu mẫu)",
+    alt: "Thẻ đề xuất Mặt nạ đất sét 100g mở từ bảng kéo xuống: CTOR Thẻ sản phẩm từ 5,4 % lên 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do mô tả quá ngắn, thay đổi đề xuất Mô tả (dữ liệu mẫu)",
     caption: "Dữ liệu mẫu · Từ dòng thứ hai của bảng đến thẻ đề xuất: cùng sản phẩm, cùng chỉ số, một thay đổi.",
   }),
 
@@ -453,7 +453,7 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     caption: "Dữ liệu mẫu · Ô CTR của luồng Thẻ sản phẩm, đọc riêng với video và LIVE.",
   }),
   "ctr-the-tieu-de": screenshot(CAP_DX_CTR_TIEU_DE, phone(CAP_DX_CTR_TIEU_DE), {
-    alt: "Thẻ đề xuất Kem dưỡng ẩm ceramide, chờ duyệt: CTR Thẻ sản phẩm từ 3,7 % lên 3,9 %, GMV dự kiến thêm 150 nghìn đồng mỗi tháng, lý do tiêu đề thiếu từ khoá, lý do đầy đủ CTR giảm từ 3,9 % xuống 3,7 % so với 30 ngày trước và tiêu đề chưa có từ khoá phục hồi da, da khô; tiêu đề cũ bị gạch và tiêu đề mới Kem dưỡng ẩm ceramide phục hồi da khô, cấp ẩm 50ml; công thức GMV dự kiến có CTOR (dữ liệu mẫu)",
+    alt: "Thẻ đề xuất Kem dưỡng ẩm ceramide, chờ duyệt: CTR Thẻ sản phẩm từ 3,7 % lên 3,9 %, GMV dự kiến thêm 150 nghìn đồng mỗi tháng, lý do tiêu đề thiếu từ khoá, lý do đầy đủ CTR giảm từ 3,9 % xuống 3,7 % so với 30 ngày trước và tiêu đề chưa có từ khoá phục hồi da, da khô; tiêu đề cũ bị gạch và tiêu đề mới Kem dưỡng ẩm ceramide phục hồi da khô, cấp ẩm 50ml (dữ liệu mẫu)",
     caption: "Dữ liệu mẫu · Thẻ tiêu đề nhắm CTR: lý do đầy đủ, tiêu đề cũ và tiêu đề đề xuất.",
   }),
   "ctr-the-anh-bia": screenshot(CAP_DX_ANH_BIA, phone(CAP_DX_ANH_BIA), {
@@ -475,7 +475,7 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     caption: "Dữ liệu mẫu · Ô CTOR được đánh dấu và bảng sản phẩm gây ra nó, ngay bên dưới.",
   }),
   "ctor-mo-ta-the": screenshot(CAP_DX_THE_V2, phone(CAP_DX_THE_V2), {
-    alt: "Thẻ đề xuất mô tả cho Mặt nạ đất sét 100g: CTOR Thẻ sản phẩm từ 5,4 % lên 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do mô tả quá ngắn, lý do đầy đủ mô tả 180 ký tự một đoạn và TikTok báo mô tả quá ngắn, công thức lượt nhấp nhân chênh lệch CTOR nhân AOV, nút Duyệt và Từ chối (dữ liệu mẫu)",
+    alt: "Thẻ đề xuất mô tả cho Mặt nạ đất sét 100g: CTOR Thẻ sản phẩm từ 5,4 % lên 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do mô tả quá ngắn, lý do đầy đủ mô tả 180 ký tự một đoạn và TikTok báo mô tả quá ngắn, nút Duyệt và Từ chối (dữ liệu mẫu)",
     caption: "Dữ liệu mẫu · Thẻ mô tả nhắm CTOR: lý do lấy từ chính trang sản phẩm và chẩn đoán của TikTok.",
   }),
   "ctor-mo-ta-khuyen-mai": screenshot(CAP_PT_KHUYEN_MAI, CAP_PT_KHUYEN_MAI_MOBILE, {
@@ -520,19 +520,19 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
 
   /* ————— duyet-de-xuat-toi-uu-san-pham-tiktok-shop (P49-A1, guide C3) ————— */
   "hd-dx-the-mo-ta": screenshot(CAP_DX_THE_V2, smallest(CAP_DX_THE_V2), {
-    alt: "Thẻ đề xuất của Juli đang mở: SKU MN-015 Mặt nạ đất sét 100g, nhãn Chờ duyệt, Tối ưu sản phẩm, cập nhật 18/10/2026; chỉ số mục tiêu CTOR Thẻ sản phẩm 5,4 % lên 5,9 %, tăng 9,3 %; GMV dự kiến +2,1 triệu đồng mỗi tháng; lý do Mô tả quá ngắn; thay đổi đề xuất Mô tả; lý do đầy đủ: mô tả 180 ký tự, một đoạn, TikTok báo Mô tả quá ngắn; GMV dự kiến tính theo cách của TikTok: lượt nhấp nhân chênh lệch CTOR mục tiêu và CTOR hiện tại nhân AOV, trung bình 30 ngày, ước tính theo quy tắc; nút Duyệt, Từ chối, Thu gọn và Xem phân tích (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Một sản phẩm, một chỉ số, một thay đổi: thẻ mô tả với lý do đầy đủ và cách tính GMV dự kiến.",
+    alt: "Thẻ đề xuất của Juli đang mở: SKU MN-015 Mặt nạ đất sét 100g, nhãn Chờ duyệt, Tối ưu sản phẩm, cập nhật 18/10/2026; chỉ số mục tiêu CTOR Thẻ sản phẩm 5,4 % lên 5,9 %, tăng 9,3 %; GMV dự kiến +2,1 triệu đồng mỗi tháng; lý do Mô tả quá ngắn; thay đổi đề xuất Mô tả; lý do đầy đủ: mô tả 180 ký tự, một đoạn, TikTok báo Mô tả quá ngắn; nút Duyệt, Từ chối, Thu gọn và Xem phân tích (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Một sản phẩm, một chỉ số, một thay đổi: thẻ mô tả với lý do đầy đủ và GMV dự kiến.",
   }),
   "hd-dx-quy-tac": screenshot(CAP_DX_QUY_TAC, CAP_DX_QUY_TAC_MOBILE, {
-    alt: "Đầu trang Quyết định của Juli: 4 thẻ tối ưu để nâng CTOR Thẻ sản phẩm, ghi chú dữ liệu mẫu, ba tab Đề xuất, Đang thực hiện, Đo lường; ô Giữ ổn định: ngày thứ 7, chỉ số nào lệch quá ngưỡng giữ ổn định thì Juli hỏi bạn có muốn hoàn tác không, với Lượt hiển thị, CTR và AOV ±3 %; ô Quy tắc do bạn đặt: Juli không tự chọn các con số này, giọng văn thân thiện, xưng mình, gọi khách là bạn, không nói quá, 2 từ không được dùng, nút Sửa quy tắc; nhóm thẻ với GMV dự kiến +9,3 triệu đồng mỗi tháng, ước tính theo quy tắc, nút Duyệt 2 thẻ và Sửa (dữ liệu mẫu)",
+    alt: "Đầu trang Quyết định của Juli: 4 thẻ tối ưu để nâng CTOR Thẻ sản phẩm, ghi chú dữ liệu mẫu, ba tab Đề xuất, Đang thực hiện, Đo lường; ô Giữ ổn định: ngày thứ 7, chỉ số nào lệch quá ngưỡng giữ ổn định thì Juli hỏi bạn có muốn hoàn tác không, với Lượt hiển thị, CTR và AOV ±3 %; ô Quy tắc do bạn đặt: Juli không tự chọn các con số này, giọng văn thân thiện, xưng mình, gọi khách là bạn, không nói quá, 2 từ không được dùng, nút Sửa quy tắc; nhóm thẻ với GMV dự kiến +9,3 triệu đồng mỗi tháng, nút Duyệt 2 thẻ và Sửa (dữ liệu mẫu)",
     caption: "Dữ liệu mẫu · Trước khi duyệt: ngưỡng giữ ổn định và quy tắc của bạn nằm ngay trên các thẻ.",
   }),
   "hd-dx-the-tieu-de": screenshot(CAP_DX_CTR_TIEU_DE, smallest(CAP_DX_CTR_TIEU_DE), {
-    alt: "Thẻ đề xuất tiêu đề của Juli: SKU KD-030 Kem dưỡng ẩm ceramide, Chờ duyệt; CTR Thẻ sản phẩm 3,7 % lên 3,9 %, tăng 5,4 %; GMV dự kiến +150 nghìn đồng mỗi tháng; lý do Tiêu đề thiếu từ khoá; thay đổi đề xuất Tiêu đề; lý do đầy đủ: CTR giảm từ 3,9 % xuống 3,7 % so với 30 ngày trước, tiêu đề chưa có từ khoá khách hay tìm: phục hồi da, da khô; tiêu đề cũ gạch ngang Kem dưỡng ẩm ceramide, tiêu đề mới Kem dưỡng ẩm ceramide phục hồi da khô, cấp ẩm 50ml; GMV dự kiến tính theo lượt hiển thị nhân chênh lệch CTR nhân CTOR nhân AOV, trung bình 30 ngày, ước tính theo quy tắc; nút Duyệt và Từ chối (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Thẻ nhắm CTR: GMV dự kiến tính thêm bước CTOR, vì lượt nhấp tăng thêm chỉ thành tiền khi có người đặt hàng.",
+    alt: "Thẻ đề xuất tiêu đề của Juli: SKU KD-030 Kem dưỡng ẩm ceramide, Chờ duyệt; CTR Thẻ sản phẩm 3,7 % lên 3,9 %, tăng 5,4 %; GMV dự kiến +150 nghìn đồng mỗi tháng; lý do Tiêu đề thiếu từ khoá; thay đổi đề xuất Tiêu đề; lý do đầy đủ: CTR giảm từ 3,9 % xuống 3,7 % so với 30 ngày trước, tiêu đề chưa có từ khoá khách hay tìm: phục hồi da, da khô; tiêu đề cũ gạch ngang Kem dưỡng ẩm ceramide, tiêu đề mới Kem dưỡng ẩm ceramide phục hồi da khô, cấp ẩm 50ml; nút Duyệt và Từ chối (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Thẻ nhắm CTR: GMV dự kiến còn phụ thuộc CTOR, vì lượt nhấp tăng thêm chỉ thành tiền khi có người đặt hàng.",
   }),
   "hd-dx-the-anh-bia": screenshot(CAP_DX_ANH_BIA, smallest(CAP_DX_ANH_BIA), {
-    alt: "Thẻ đề xuất ảnh bìa của Juli: SKU SR-007 Sữa rửa mặt amino 150ml, Chờ duyệt; CTR Thẻ sản phẩm 2,1 % lên 2,8 %, tăng 33,3 %; GMV dự kiến +1,4 triệu đồng mỗi tháng; lý do Ảnh bìa kém nổi bật; thay đổi đề xuất Ảnh bìa; lý do đầy đủ: ảnh bìa nền rối, sản phẩm chỉ chiếm 35 % khung, 600 × 600 px, TikTok báo Ảnh chính chất lượng thấp; công thức GMV dự kiến theo lượt hiển thị, CTR, CTOR và AOV; chip Juli tải lên, cần ảnh từ bạn; dòng cuối: Duyệt, Juli hỏi ảnh, bạn tải ảnh, xác nhận, Juli thay ảnh bìa (dữ liệu mẫu)",
+    alt: "Thẻ đề xuất ảnh bìa của Juli: SKU SR-007 Sữa rửa mặt amino 150ml, Chờ duyệt; CTR Thẻ sản phẩm 2,1 % lên 2,8 %, tăng 33,3 %; GMV dự kiến +1,4 triệu đồng mỗi tháng; lý do Ảnh bìa kém nổi bật; thay đổi đề xuất Ảnh bìa; lý do đầy đủ: ảnh bìa nền rối, sản phẩm chỉ chiếm 35 % khung, 600 × 600 px, TikTok báo Ảnh chính chất lượng thấp; chip Juli tải lên, cần ảnh từ bạn; dòng cuối: Duyệt, Juli hỏi ảnh, bạn tải ảnh, xác nhận, Juli thay ảnh bìa (dữ liệu mẫu)",
     caption: "Dữ liệu mẫu · Thẻ ảnh bìa ghi rõ Juli cần ảnh từ bạn: Juli phân tích ảnh hiện tại, không tự tạo ảnh mới.",
   }),
   "hd-dx-cho-anh": screenshot(CAP_DX_ANH_BIA_TAI_LEN, smallest(CAP_DX_ANH_BIA_TAI_LEN), {
@@ -558,8 +558,8 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     caption: "Dữ liệu mẫu · Ngày 7: chỉ số mục tiêu đang lên, các chỉ số khác trong ngưỡng, nên Juli chỉ báo kết quả sơ bộ và chờ ngày 14.",
   }),
   "hd-dl-ngay-14": screenshot(CAP_DL_NGAY_14_V2, CAP_DL_NGAY_14_V2_MOBILE, {
-    alt: "Thẻ Đo lường của Juli ở ngày 14: SKU TN-021 Toner rau má 200ml, thay đổi vào 10/10/2026, đã đổi Tiêu đề, nhãn Đạt. Mục tiêu CTOR Thẻ sản phẩm 5,4 % lên 5,9 %, GMV dự kiến +70 nghìn đồng mỗi ngày, +2,1 triệu đồng mỗi tháng, cùng bảng ngưỡng giữ ổn định. Các bước ngày 24/10: đọc dữ liệu 14 ngày sau thay đổi; so chỉ số mục tiêu, CTOR 5,4 % lên 5,95 %, mục tiêu 5,9 %; tính GMV thực tế, +63 nghìn đồng mỗi ngày, 90 % dự kiến; chốt kết quả Đạt; cập nhật mức kỳ vọng cho loại Tiêu đề, hệ số hiệu chỉnh 1,00 xuống 0,95; mở khoá đề xuất tiếp theo, sản phẩm có thể nhận thẻ mới ở Đề xuất. Bảng: CTOR thực tế 5,95 %, Đạt; Lượt hiển thị, CTR, AOV giữ ổn định. Ô kết luận: Đạt, CTOR 5,95 % từ mục tiêu 5,9 % trở lên, GMV thực tế +1,9 triệu đồng mỗi tháng so với dự kiến +2,1 triệu đồng mỗi tháng, thay đổi được giữ, liên kết Đề xuất tiếp theo cho sản phẩm này. Dòng cách chốt: Đạt khi chỉ số mục tiêu tăng rõ, chạm mục tiêu và GMV giữ được; Đạt chưa chắc chắn khi đạt nhưng mức tăng chỉ gấp 1 đến 2 lần mức dao động; Một phần khi chỉ tăng rõ hoặc chỉ chạm mục tiêu, hoặc khi dữ liệu quá ít; Không đạt khi không tăng rõ và không chạm mục tiêu (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Ngày 14: kết quả chốt, GMV thực tế đặt cạnh GMV dự kiến, và mức kỳ vọng của loại thay đổi được cập nhật.",
+    alt: "Thẻ Đo lường của Juli ở ngày 14: SKU TN-021 Toner rau má 200ml, thay đổi vào 10/10/2026, đã đổi Tiêu đề, nhãn Đạt. Mục tiêu CTOR Thẻ sản phẩm 5,4 % lên 5,9 %, GMV dự kiến +70 nghìn đồng mỗi ngày, +2,1 triệu đồng mỗi tháng, cùng bảng ngưỡng giữ ổn định. Các bước ngày 24/10: đọc dữ liệu 14 ngày sau thay đổi; so chỉ số mục tiêu, CTOR 5,4 % lên 5,95 %, mục tiêu 5,9 %; tính GMV thực tế, +63 nghìn đồng mỗi ngày, 90 % dự kiến; chốt kết quả Đạt; mở khoá đề xuất tiếp theo, sản phẩm có thể nhận thẻ mới ở Đề xuất. Bảng: CTOR thực tế 5,95 %, Đạt; Lượt hiển thị, CTR, AOV giữ ổn định. Ô kết luận: Đạt, CTOR 5,95 % từ mục tiêu 5,9 % trở lên, GMV thực tế +1,9 triệu đồng mỗi tháng so với dự kiến +2,1 triệu đồng mỗi tháng, thay đổi được giữ, liên kết Đề xuất tiếp theo cho sản phẩm này. Dòng cách chốt: Đạt khi chỉ số mục tiêu tăng rõ, chạm mục tiêu và GMV giữ được; Đạt chưa chắc chắn khi đạt nhưng mức tăng chưa đủ rõ; Một phần khi chỉ tăng rõ hoặc chỉ chạm mục tiêu, hoặc khi dữ liệu quá ít; Không đạt khi không tăng rõ và không chạm mục tiêu (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ngày 14: kết quả chốt, GMV thực tế đặt cạnh GMV dự kiến.",
   }),
   "hd-dl-hoan-tac": screenshot(CAP_DX_HOAN_TAC_V2, smallest(CAP_DX_HOAN_TAC_V2), {
     alt: "Hộp thoại Hoàn tác thay đổi này? của Juli: Juli sẽ khôi phục Tiêu đề cũ của Toner rau má 200ml, bạn xác nhận lần cuối trước khi Juli ghi, kết quả đo của thay đổi này sẽ dừng. Vì sao bạn muốn hoàn tác, chọn một, bắt buộc: doanh số hoặc chỉ số giảm; khách phản hồi không tốt; nội dung sai thông tin sản phẩm; không hợp giọng thương hiệu; TikTok cảnh báo sản phẩm; khác. Ô ghi chú thêm không bắt buộc, ví dụ khách nhắn hỏi về tên sản phẩm mới; nút Huỷ, giữ thay đổi và Bắt đầu hoàn tác (dữ liệu mẫu)",

@@ -4,21 +4,18 @@
  * phẩm tiktok shop" (commercial; the head term "tối ưu sản phẩm tiktok shop"
  * stays with `/san-pham/de-xuat-va-thuc-thi`, used here only in an H2 / FAQ).
  * Facts: D12, D13 (title, description executed; cover only with the seller's
- * photo; price off; promotions seller-executed), D24.1–3 (no OpenAI before
- * approval, rules choose, the model writes, never a number), D24.16 / D24.22
- * (drafts checked for length, tone, banned and protected terms), D24.17 and
- * D24.21 (5 / 25 / 30, slots 3 / 1 / 1, valid 7 days, stays 3 days, returns
- * after 7 days, seller rule 5–30), D24.6 (reasons lower priority, fade over
- * 60 days), D22.2 (expected GMV formula, "ước tính theo quy tắc"), D29.4 (one
- * target metric per product), D47.5 (lapsed consent puts the card back),
- * `/san-pham/de-xuat-va-thuc-thi` (card anatomy, conditions, two consents,
- * one-use write grant, run timeline, queue, Seller Center and content cards,
- * reject reasons, undo). SPEC §4 P4 "top-10 / ≤ 5 active" is stale (D24.17).
- * Not described: AOV / pack proposals (Ops only, D45), competitor prices as a
- * standing input (optional, D22), control groups (D34), simulation (D35/D45).
+ * photo; price off; promotions seller-executed), D24.16 / D24.22 (drafts
+ * checked for length, tone, banned and protected terms), D29.4 (one target
+ * metric per product), D47.5 (lapsed consent puts the card back),
+ * `/san-pham/de-xuat-va-thuc-thi` (card anatomy, two consents, one-use write
+ * grant, run timeline, queue, Seller Center and content cards, undo).
+ * D61: no card caps, slots, validity or cooldown numbers, no trigger, ranking
+ * or target rule, no expected-GMV formula, no rules-vs-model architecture.
+ * Not described: AOV / pack proposals (Ops only, D45), control groups (D34),
+ * simulation (D35/D45).
  */
 export const body = `
-Duyệt một thẻ đề xuất của Juli gồm hai lần đồng ý, không phải một: bấm **Duyệt** trên thẻ chỉ cho phép Juli bắt đầu chuẩn bị, còn thay đổi chỉ được ghi lên TikTok Shop khi bạn xem bản cũ và bản mới rồi bấm **Xác nhận thay đổi này** trong lượt chạy. Giữa hai lần đó, bạn đọc lý do, sửa nội dung nếu muốn, hoặc dừng lại bằng Không thực hiện. Bài này đi qua một thẻ từ đầu đến cuối: thẻ nói gì, GMV dự kiến tính ra sao, ai làm phần nào, và chuyện gì xảy ra khi bạn từ chối.
+Duyệt một thẻ đề xuất của Juli gồm hai lần đồng ý, không phải một: bấm **Duyệt** trên thẻ chỉ cho phép Juli bắt đầu chuẩn bị, còn thay đổi chỉ được ghi lên TikTok Shop khi bạn xem bản cũ và bản mới rồi bấm **Xác nhận thay đổi này** trong lượt chạy. Giữa hai lần đó, bạn đọc lý do, sửa nội dung nếu muốn, hoặc dừng lại bằng Không thực hiện. Bài này đi qua một thẻ từ đầu đến cuối: thẻ nói gì, GMV dự kiến nghĩa là gì, ai làm phần nào, và chuyện gì xảy ra khi bạn từ chối.
 
 Trang [Đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi) mô tả tính năng. Ở đây chúng ta đi từng bước trên các thẻ của Cửa hàng Mẫu Hoa Mai, một shop minh hoạ; số liệu và nội dung trong ảnh là dữ liệu mẫu, các phép tính khác ghi rõ là ví dụ giả định.
 
@@ -31,42 +28,34 @@ Mỗi đề xuất là một thẻ trong trang Quyết định. Một thẻ nói
 Đọc thẻ trong ảnh từ trên xuống:
 
 1. **Sản phẩm và trạng thái.** Mã SKU, tên sản phẩm, nhãn "Chờ duyệt" và ngày cập nhật số liệu. Số trên thẻ được cập nhật mỗi ngày.
-2. **Chỉ số mục tiêu.** Ở đây là CTOR, từ 5,4 % lên 5,9 %: giá trị hiện tại, mục tiêu và mức tăng. Mục tiêu không đặt tuỳ ý: nó phải cao hơn mức dao động bình thường của chỉ số, nếu không sẽ không đo được, và không vượt quá vài lần mức dao động đó, để không hứa quá tay. Với sản phẩm dao động mạnh, mục tiêu hiện dưới dạng một khoảng.
-3. **GMV dự kiến mỗi tháng** nếu đạt mục tiêu, ghi rõ là ước tính theo quy tắc.
+2. **Chỉ số mục tiêu.** Ở đây là CTOR, từ 5,4 % lên 5,9 %: giá trị hiện tại, mục tiêu và mức tăng. Mục tiêu được đặt ở mức đủ rõ để đo được và không hứa quá tay. Với sản phẩm dao động mạnh, mục tiêu hiện dưới dạng một khoảng.
+3. **GMV dự kiến mỗi tháng** nếu đạt mục tiêu, ghi rõ là ước tính.
 4. **Lý do ngắn** ("Mô tả quá ngắn") và **thay đổi đề xuất** (chip Mô tả).
-5. **Lý do đầy đủ**, khi bấm "Xem thêm": số liệu cụ thể của sản phẩm, điều TikTok báo về trang sản phẩm nếu có, và cách tính GMV dự kiến.
+5. **Lý do đầy đủ**, khi bấm "Xem thêm": số liệu cụ thể của sản phẩm, điều TikTok báo về trang sản phẩm nếu có, và GMV dự kiến của thẻ.
 6. **Hai nút**: Duyệt và Từ chối. "Xem phân tích" đưa bạn về đúng chỗ trong màn hình Phân tích nơi thẻ này bắt đầu.
 
 Một số thẻ còn mang nhãn "Độ tin cậy: Cao, Vừa hoặc Thấp", tính từ lượng dữ liệu và mức dao động của sản phẩm trên luồng đó. Thẻ tạo ngay sau khi kết nối ghi "Đề xuất nhanh · dựa trên 14 ngày" với độ tin cậy Tham khảo.
 
 ## Khi nào một thẻ xuất hiện
 
-Một thẻ bắt đầu từ dữ liệu, không từ danh sách mẹo chung. Juli đọc từng sản phẩm trên từng luồng và mở thẻ khi một chỉ số của phễu giảm nhiều hơn mức dao động bình thường của nó, kể cả khi GMV tổng của sản phẩm vẫn giữ được nhờ một chỉ số khác tăng. Rồi Juli chọn thay đổi phù hợp với chỉ số đó: ảnh bìa hoặc tiêu đề cho CTR, mô tả hoặc giá cho CTOR.
+Một thẻ bắt đầu từ dữ liệu, không từ danh sách mẹo chung. Juli đọc từng sản phẩm trên từng luồng. Khi một chỉ số của phễu trên một luồng yếu đi rõ rệt, kể cả khi GMV tổng của sản phẩm vẫn giữ được nhờ một chỉ số khác tăng, Juli đề xuất thay đổi hợp với chỉ số đó: ảnh bìa hoặc tiêu đề cho CTR, mô tả hoặc giá cho CTOR.
 
-Trước khi thẻ hiện ra, bốn điều kiện phải đúng:
+Trước khi thẻ hiện ra, Juli kiểm tra bốn điều:
 
-- Có đủ dữ liệu: khoảng 30 lượt nhấp hoặc 30 đơn trong khoảng thời gian xét.
+- Số liệu đủ để đọc được kết quả.
 - Thay đổi đó hợp lệ với TikTok Shop và với quy tắc của bạn.
 - Sản phẩm không có một thay đổi khác đang được đo.
-- Cùng thay đổi đó chưa bị từ chối hay hoàn tác trong 7 ngày qua.
+- Bạn chưa vừa từ chối hay hoàn tác cùng thay đổi đó.
 
-Các ứng viên được xếp theo số GMV mỗi ngày mà chỉ số bị giảm đang lấy đi. Sản phẩm bán chạy cũng được xét, vì một sản phẩm lớn mất vài phần trăm CTOR có thể mất nhiều tiền hơn một sản phẩm nhỏ mất một nửa. Bài [đọc màn hình Phân tích theo luồng truy cập](/blog/doc-phan-tich-tiktok-shop-theo-luong-truy-cap) giải thích bảng xếp hạng đó.
+Juli đưa lên trước những việc có khả năng mang lại nhiều GMV nhất. Sản phẩm bán chạy cũng được xét, vì một sản phẩm lớn mất vài phần trăm CTOR có thể mất nhiều tiền hơn một sản phẩm nhỏ mất một nửa. Bài [đọc màn hình Phân tích theo luồng truy cập](/blog/doc-phan-tich-tiktok-shop-theo-luong-truy-cap) giải thích cách đọc bảng sản phẩm trong màn hình đó.
 
-## GMV dự kiến được tính thế nào
+## GMV dự kiến là một ước tính
 
-Juli dùng chính phép phân tách GMV của TikTok, với số liệu trung bình 30 ngày của sản phẩm. Với một thẻ nhắm CTOR, phần GMV có thể lấy lại mỗi ngày là:
+Con số GMV dự kiến trên thẻ là phần GMV Juli ước tính có thể lấy lại từ số liệu hiện tại của sản phẩm, trên đúng luồng mà thẻ nhắm tới. Lượt nhấp tăng thêm chỉ thành GMV khi có người đặt hàng, nên GMV dự kiến của một thẻ CTR còn phụ thuộc vào CTOR của chính sản phẩm: một trang sản phẩm chưa thuyết phục thì thêm người bấm vào cũng không mang lại nhiều đơn.
 
-Lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV
+Muốn tự thử với số của mình, dùng [công cụ tính GMV](/cong-cu/tinh-gmv): công cụ cho thấy GMV thay đổi ra sao khi CTR, CTOR hay AOV của một sản phẩm tăng một mức bạn chọn.
 
-Ví dụ giả định: một sản phẩm có 40 lượt nhấp mỗi ngày trên kênh được đo, AOV 160.000 đồng, CTOR mục tiêu cao hơn hiện tại 0,5 điểm phần trăm. Phần lấy lại là 40 × 0,005 × 160.000 = 32.000 đồng mỗi ngày, khoảng 960.000 đồng mỗi tháng.
-
-Thẻ nhắm CTR tính thêm một bước, vì lượt nhấp tăng thêm chỉ thành GMV khi có người đặt hàng:
-
-Lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV
-
-Ví dụ giả định: 2.000 lượt hiển thị mỗi ngày, CTR mục tiêu cao hơn 0,7 điểm phần trăm, CTOR 5 %, AOV 150.000 đồng. Phần lấy lại là 2.000 × 0,007 × 0,05 × 150.000 = 105.000 đồng mỗi ngày.
-
-Đây là **ước tính theo quy tắc, không phải lời hứa**. Con số được lưu cùng thay đổi, và đến ngày 14 kết quả thật được đặt cạnh nó, như bài [đo kết quả ngày 7, ngày 14](/blog/do-ket-qua-ngay-7-ngay-14-hoan-tac) mô tả. Mô hình AI không bao giờ tạo ra con số trên thẻ: chọn sản phẩm, chọn thay đổi và tính toán đều do quy tắc và phép tính đảm nhận.
+Đây là **ước tính, không phải lời hứa**. Con số được lưu cùng thay đổi, và đến ngày 14 kết quả thật được đặt cạnh nó, như bài [đo kết quả ngày 7, ngày 14](/blog/do-ket-qua-ngay-7-ngay-14-hoan-tac) mô tả. Nếu kết quả thật thấp hơn, bạn thấy ngay điều đó trên thẻ đo lường, cùng lựa chọn giữ hay hoàn tác.
 
 ## Trước khi bấm Duyệt: đặt Quy tắc của bạn
 
@@ -80,7 +69,7 @@ Trong Quy tắc, bạn đặt giọng văn, những từ không được dùng, 
 
 ## Duyệt chưa đổi gì trên shop
 
-Bấm **Duyệt** tạo ra một **lượt chạy**. Lúc đó, và chỉ lúc đó, mô hình AI mới được gọi để soạn nội dung; thẻ chưa duyệt không tốn gì và không gửi dữ liệu sản phẩm đi đâu. Khi nhiều thẻ cùng nhắm một chỉ số, bạn có thể duyệt cả nhóm bằng một lần bấm, nhưng mỗi sản phẩm vẫn có bước xác nhận riêng trước khi Juli ghi.
+Bấm **Duyệt** tạo ra một **lượt chạy**, và từ đó Juli mới bắt đầu soạn nội dung. Khi nhiều thẻ cùng nhắm một chỉ số, bạn có thể duyệt cả nhóm bằng một lần bấm, nhưng mỗi sản phẩm vẫn có bước xác nhận riêng trước khi Juli ghi.
 
 Ví dụ với thẻ tiêu đề dưới đây: CTR của sản phẩm giảm so với 30 ngày trước, và lý do đầy đủ chỉ ra tiêu đề chưa có những từ khoá khách hay tìm. Bản tiêu đề mới ở thẻ này là bản Juli đề xuất để bạn hình dung; nội dung cuối cùng chỉ được chốt trong lượt chạy.
 
@@ -124,7 +113,7 @@ Sau khi bạn duyệt, lượt chạy đọc chẩn đoán của TikTok, phân t
 
 ### Giá và khuyến mãi: Juli đề xuất, bạn áp dụng
 
-Juli không thay đổi giá sản phẩm. Với giảm giá sản phẩm, flash sale hay giảm phí vận chuyển, thẻ ghi "Bạn thực hiện trên Seller Center". Sau khi duyệt, Juli đưa hướng dẫn từng bước với mức giảm cụ thể nằm trong quy tắc biên lợi nhuận của bạn. Bạn tạo khuyến mãi, bấm "Đã áp dụng", Juli kiểm tra lại trên TikTok bằng quyền chỉ đọc và bắt đầu đo. Khi một thẻ giá có lý do liên quan đến giá thị trường, đó là dữ liệu bổ sung khi có, không phải đầu vào luôn sẵn.
+Juli không thay đổi giá sản phẩm. Với giảm giá sản phẩm, flash sale hay giảm phí vận chuyển, thẻ ghi "Bạn thực hiện trên Seller Center". Sau khi duyệt, Juli đưa hướng dẫn từng bước với mức giảm cụ thể nằm trong quy tắc biên lợi nhuận của bạn. Bạn tạo khuyến mãi, bấm "Đã áp dụng", Juli kiểm tra lại trên TikTok bằng quyền chỉ đọc và bắt đầu đo.
 
 ### Video và LIVE: Juli soạn, bạn quay
 
@@ -136,16 +125,17 @@ Không phải thẻ nào cũng nên duyệt. Bấm **Từ chối**, bạn chọn
 
 {{hinh:hd-dx-tu-choi}}
 
-Sau khi từ chối, Juli không đề xuất lại cùng thay đổi cho sản phẩm đó trong 7 ngày. Những lý do như "không hợp thương hiệu hoặc giọng văn" hay "lý do hoặc số liệu chưa thuyết phục" còn làm loại thay đổi đó được ưu tiên thấp hơn cho shop của bạn trong khoảng hai tháng sau, và ảnh hưởng này nhạt dần theo thời gian. Những lý do mang tính hoàn cảnh, như đang tự sửa sản phẩm, sản phẩm sắp ngừng bán hay đang chạy chiến dịch khác, không bị tính. Ô ghi chú không bắt buộc, nhưng một câu như "shop không dùng từ cao cấp trong tên sản phẩm" là thứ nên chuyển vào danh sách từ không được dùng trong Quy tắc.
+Sau khi từ chối, cùng thay đổi đó không quay lại ngay cho sản phẩm. Lý do bạn chọn được ghi lại để các đề xuất sau hợp với shop hơn, dù đó là "không hợp thương hiệu hoặc giọng văn", "lý do hoặc số liệu chưa thuyết phục" hay một lý do hoàn cảnh như đang tự sửa sản phẩm. Ô ghi chú không bắt buộc, nhưng một câu như "shop không dùng từ cao cấp trong tên sản phẩm" là thứ nên chuyển vào danh sách từ không được dùng trong Quy tắc.
 
-## Nhịp thẻ: bao nhiêu thẻ mỗi ngày, hiệu lực bao lâu
+## Nhịp thẻ: vì sao mỗi ngày chỉ vài thẻ
 
-Quá nhiều đề xuất cùng lúc khiến người bán khó theo kịp và khó đo kết quả. Juli giữ nhịp bằng các giới hạn cố định, giống nhau cho mọi shop:
+Quá nhiều đề xuất cùng lúc khiến người bán khó theo kịp, và cũng khó đo kết quả. Vì vậy Juli giữ nhịp đề xuất vừa phải, giống nhau cho mọi shop:
 
-- Tối đa 5 thẻ mới mỗi ngày, 25 thẻ mỗi tuần và 30 thẻ đang mở cùng lúc. Bạn có thể giảm số thẻ mở cùng lúc trong Quy tắc, từ 5 đến 30.
-- Mỗi ngày, thẻ mới được chia theo loại: đến 3 thẻ Juli thực hiện, 1 thẻ Seller Center và 1 thẻ nội dung. Ô không có ứng viên tốt thì để trống.
-- Mỗi thẻ có hiệu lực 7 ngày, và ở lại ít nhất 3 ngày dù thứ hạng thay đổi. Thẻ bị rút sớm chỉ khi không còn hợp lệ: sản phẩm bị sửa bên ngoài Juli, hết hàng, hoặc chỉ số đã đạt mục tiêu.
-- Sau khi hết hạn, bị từ chối, không thực hiện hoặc hoàn tác, cùng thay đổi cho cùng sản phẩm chỉ quay lại sau ít nhất 7 ngày.
+- Mỗi ngày chỉ vài thẻ mới, gồm việc Juli làm, việc bạn làm trên Seller Center và nội dung video hoặc LIVE. Không có việc đáng làm thì Juli không thêm thẻ cho đủ số.
+- Bạn có thể giảm số thẻ mở cùng lúc trong Quy tắc.
+- Số liệu trên thẻ được cập nhật mỗi ngày. Thẻ có thời hạn; thẻ chưa duyệt tự hết hạn, và Juli đề xuất lại sau nếu thay đổi đó vẫn còn phù hợp.
+- Thẻ bị rút sớm chỉ khi không còn hợp lệ: sản phẩm bị sửa bên ngoài Juli, hết hàng, hoặc chỉ số đã đạt mục tiêu.
+- Thẻ đã hết hạn, bị từ chối, không thực hiện hoặc hoàn tác không quay lại ngay.
 
 ### Một sản phẩm, một thay đổi tại một thời điểm
 
