@@ -520,4 +520,6 @@ def test_migration_091_is_ops_only_and_chained():
     assert "REVOKE ALL ON public.{TABLE} FROM {APP_ROLE}" in body
     assert "GRANT {APP_ROLE}" not in body and "TO {APP_ROLE}" not in body
     assert ("public", "trial_signups") in get_ops_only_tables()
-    assert 'down_revision: str | None = "093_ops_group_lift_draws"' in DEFERRED.read_text("utf-8")
+    assert 'down_revision: str | None = "094_user_privacy_and_consent"' in DEFERRED.read_text(
+        "utf-8"
+    )
