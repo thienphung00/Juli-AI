@@ -52,7 +52,7 @@ const CARD: RecommendationCardPayload = {
   main_kpi: { key: "ctor", label: "CTOR - Thẻ sản phẩm", current: 0.054, target: 0.059, unit: "ratio" },
   expected_gmv_per_month: 2_100_000,
   reason_short: "Khách thêm giỏ rồi bỏ",
-  reason_full: "Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop (38,9 % so với 56,4 %).",
+  reason_full: "Đơn/thêm giỏ của sản phẩm là 38,9 %, thấp hơn các sản phẩm tương tự trong shop.",
   tiktok_codes: ["Mô tả quá ngắn"],
   lever: { code: "description", label: "Mô tả", executor: "juli" },
   change_fields: [
@@ -306,7 +306,7 @@ describe("the recommendation card (Main.dc.html)", () => {
     renderCard({ expanded: true });
     const more = screen.getByRole("region", { name: "Chi tiết đề xuất" });
     expect(more).toHaveTextContent(
-      "Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop (38,9 % so với 56,4 %). TikTok báo: “Mô tả quá ngắn”.",
+      "Đơn/thêm giỏ của sản phẩm là 38,9 %, thấp hơn các sản phẩm tương tự trong shop. TikTok báo: “Mô tả quá ngắn”.",
     );
     expect(more).toHaveTextContent("Trước: Son môi số 12");
     expect(more).toHaveTextContent("Sau: Son môi lì cao cấp số 12, màu đỏ ruby");
@@ -413,7 +413,7 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(card).toHaveTextContent("Chỉ số chính · CTOR Thẻ sản phẩm");
     expect(card).toHaveTextContent("5,4 % → 5,9 %");
     expect(card).toHaveTextContent("ước tính");
-    expect(card).toHaveTextContent("Khách thêm giỏ rồi bỏ: Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop");
+    expect(card).toHaveTextContent("Khách thêm giỏ rồi bỏ: Đơn/thêm giỏ của sản phẩm là 38,9 %, thấp hơn các sản phẩm tương tự trong shop");
     expect(card).toHaveTextContent("Tiêu đề: “Son môi số 12” → “Son môi lì cao cấp số 12, màu đỏ ruby”");
     expect(card).toHaveTextContent("Mô tả: 180 → 640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản");
     expect(screen.getByRole("button", { name: "Xem thêm ›" })).toBeInTheDocument();

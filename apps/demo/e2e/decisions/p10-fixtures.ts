@@ -122,7 +122,7 @@ export const MAIN_CARD: CardSpec = {
   target: 0.059,
   gmvMonth: 2_100_000,
   reasonShort: "Khách thêm giỏ rồi bỏ",
-  reasonFull: "Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop (38,9 % so với 56,4 %).",
+  reasonFull: "Đơn/thêm giỏ của sản phẩm là 38,9 %, thấp hơn các sản phẩm tương tự trong shop.",
   codes: ["Mô tả quá ngắn"],
   fields: [
     { field: "title", label: "Tiêu đề" },
@@ -144,7 +144,7 @@ export const LEVER_CARDS: CardSpec[] = [
   { id: "11", sku: "SR-007", name: "Sữa rửa mặt amino 150ml", lever: "cover_image", kpi: "ctr", current: 0.021, target: 0.028, gmvMonth: 1_400_000, reasonShort: "Ảnh bìa kém nổi bật", reasonFull: "Ảnh chính chất lượng thấp.", codes: ["Ảnh chính chất lượng thấp"] },
   { id: "12", sku: "SM-012", name: "Son môi số 12", lever: "title", kpi: "ctr", current: 0.03, target: 0.036, gmvMonth: 2_400_000, reasonShort: "Tiêu đề thiếu từ khoá", reasonFull: "Tiêu đề thiếu từ khoá son lì, đỏ ruby." },
   { id: "13", sku: "MN-015", name: "Mặt nạ đất sét 100g", lever: "description", kpi: "ctor", current: 0.054, target: 0.059, gmvMonth: 2_100_000, reasonShort: "Mô tả quá ngắn", reasonFull: "Mô tả 180 ký tự, một đoạn." },
-  { id: "14", sku: "KD-030", name: "Kem dưỡng ẩm ceramide", lever: "product_discount", kpi: "ctor", current: 0.042, target: 0.05, gmvMonth: 3_000_000, reasonShort: "Giá cao hơn đối thủ", reasonFull: "Giá 279k, trung vị đối thủ 259k." },
+  { id: "14", sku: "KD-030", name: "Kem dưỡng ẩm ceramide", lever: "product_discount", kpi: "ctor", current: 0.042, target: 0.05, gmvMonth: 3_000_000, reasonShort: "Giá cao hơn đối thủ", reasonFull: "Giá 279k, cao hơn các sản phẩm tương tự trên TikTok Shop." },
   { id: "15", sku: "TN-021", name: "Toner rau má 200ml", lever: "flash_sale", kpi: "ctor", current: 0.061, target: 0.068, gmvMonth: 1_200_000, reasonShort: "Khách bỏ giỏ, chưa có flash sale", reasonFull: "Chưa tham gia flash sale." },
   { id: "16", sku: "KC-004", name: "Kem chống nắng SPF50+", lever: "shipping_discount", kpi: "ctor", current: 0.05, target: 0.055, gmvMonth: 900_000, reasonShort: "Phí vận chuyển làm khách bỏ giỏ", reasonFull: "Phí vận chuyển làm khách bỏ giỏ." },
   { id: "17", sku: "TN-021", name: "Toner rau má 200ml", lever: "buy_more_save_more", kpi: "aov", current: 182_000, target: 205_000, gmvMonth: 1_600_000, reasonShort: "Phần lớn đơn chỉ 1 món", reasonFull: "68 % đơn hiện có 1 món." },
@@ -290,7 +290,7 @@ export function photoEvents(phase: "upload" | "consent" | "writing" | "review" |
 export function manualEvents(phase: "guide" | "verify" | "done" | "skipped") {
   const list: Ev[] = [
     begin(vn("10:01:05")),
-    ...tool("m0", "get_product_information", "Giá 279k · trung vị đối thủ 259k · chưa có khuyến mãi", vn("10:01:09")),
+    ...tool("m0", "get_product_information", "Giá 279k · cao hơn sản phẩm tương tự · chưa có khuyến mãi", vn("10:01:09")),
     ...tool("m1", "check_shop_rules", "Biên lợi nhuận sau giảm 35 % ≥ 30 % · giảm 7 % ≤ trần 10 %", vn("10:01:11")),
     ...tool("m2", "draft_seller_instructions", "4 bước trên Seller Center", vn("10:01:12")),
     status("Đang chờ bạn áp dụng trên Seller Center", vn("10:01:13")),

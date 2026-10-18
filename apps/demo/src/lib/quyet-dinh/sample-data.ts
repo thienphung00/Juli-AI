@@ -3,7 +3,7 @@
  * cards, runs, changes and measurement, each built in the exact P10 wire
  * shape (`fasttrack/contracts/p10-quyet-dinh.md` §1–§7) with the artboards'
  * illustrative numbers (`docs/product/design/quyet-dinh-flows/*.dc.html`:
- * SM-012 Son môi số 12, CTOR 5,4 % → 5,9 %, +2,1 tr ₫/tháng). Pure data and
+ * SM-012 Son môi số 12, CTOR 5,4 % → 5,9 % via Mô tả, +2,1 tr ₫/tháng). Pure data and
  * builders — bundled, never fetched (ADR-094 d.1); `sample-clients.ts` serves
  * them through the same `QdClients` interface the real door uses.
  */
@@ -173,14 +173,12 @@ export const SAMPLE_MAIN_CARD: SampleCardSpec = {
   target: 0.059,
   gmvMonth: 2_100_000,
   reasonShort: "Khách thêm giỏ rồi bỏ",
-  reasonFull: "Đơn/thêm giỏ của sản phẩm thấp hơn 31 % so với trung vị shop (38,9 % so với 56,4 %).",
+  // D61: a plain reason, no peer median.
+  reasonFull: "Đơn/thêm giỏ của sản phẩm là 38,9 %, thấp hơn các sản phẩm tương tự trong shop.",
   codes: ["Mô tả quá ngắn"],
-  fields: [
-    { field: "title", label: "Tiêu đề" },
-    { field: "description", label: "Mô tả" },
-  ],
+  // D22 / D32: a CTOR card proposes the description only (a title change targets CTR).
+  fields: [{ field: "description", label: "Mô tả" }],
   beforeAfter: [
-    { field: "title", label: "Tiêu đề", before: "Son môi số 12", after: "Son môi lì cao cấp số 12, màu đỏ ruby" },
     {
       field: "description",
       label: "Mô tả",
@@ -188,7 +186,7 @@ export const SAMPLE_MAIN_CARD: SampleCardSpec = {
       after: "640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản, thêm từ khoá “son lì”, “đỏ ruby”",
     },
   ],
-  proposal: { title: "Son môi lì cao cấp số 12, màu đỏ ruby", description: SON_MOI_DESCRIPTION },
+  proposal: { description: SON_MOI_DESCRIPTION },
   keywords: "Tìm được 6 từ khoá: son lì, đỏ ruby…",
 };
 
@@ -218,7 +216,7 @@ export const SAMPLE_MANUAL_CARD: SampleCardSpec = {
   target: 0.05,
   gmvMonth: 3_000_000,
   reasonShort: "Giá cao hơn đối thủ",
-  reasonFull: "Giá 279k, trung vị đối thủ 259k.",
+  reasonFull: "Giá 279k, cao hơn các sản phẩm tương tự trên TikTok Shop.",
 };
 
 /** Levers.dc.html's description card — a second Juli card in the same group. */
@@ -390,7 +388,7 @@ export function photoToConsent(expiresAt: string): EventDraft[] {
 export function manualUntilGuide(): EventDraft[] {
   return [
     begin,
-    ...tool("m0", "get_product_information", "Giá 279k · trung vị đối thủ 259k"),
+    ...tool("m0", "get_product_information", "Giá 279k · cao hơn sản phẩm tương tự"),
     ...tool("m1", "find_product_promotions", "Chưa có khuyến mãi"),
     { event_type: "assistant.text", payload: { text: "Biên lợi nhuận sau giảm 35 % ≥ 30 % · giảm 7 % ≤ trần 10 %" } },
     status("Đang chờ bạn áp dụng trên Seller Center"),
