@@ -302,9 +302,9 @@ describe("P23 measurement verdicts and external changes (D29.8, D30.4)", () => {
     expect(measureHead(measurement("final", { verdict: { day14: "not_met" } })).chip).toEqual({ label: "Không đạt", tone: "warn" });
     expect(measureHead(measurement("final")).chip.label).toBe("Một phần");
     const partial = measurement("final", { verdict: { day14: "partial" } });
-    expect(finalBox(partial, "Tiêu đề")?.title).toBe("Một phần: 70 % mức kỳ vọng");
+    expect(finalBox(partial, "Tiêu đề")?.title).toBe("Một phần: 70 % GMV dự kiến");
     expect(day14Steps(partial, "Tiêu đề")[3].result).toBe("Một phần");
-    expect(finalBox(measurement("final"), "Tiêu đề")?.title).toBe("Một phần: 70 % mức kỳ vọng");
+    expect(finalBox(measurement("final"), "Tiêu đề")?.title).toBe("Một phần: 70 % GMV dự kiến");
   });
 
   it("D31.7: Đạt not clearly above both windows' noise reads Đạt · chưa chắc chắn", () => {

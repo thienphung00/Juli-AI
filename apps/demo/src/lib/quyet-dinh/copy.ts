@@ -106,7 +106,7 @@ export function setByLabel(setBy: string | null | undefined): string {
 }
 
 export const MANUAL_CARD_NOTE = "Bạn áp dụng trên Seller Center";
-export const RULE_BASED_ESTIMATE = "ước tính theo quy tắc";
+export const RULE_BASED_ESTIMATE = "ước tính";
 export const BANDS_MISSING_PROMPT = "Đặt ngưỡng giữ ổn định trước khi chạy";
 export const BANDS_MISSING_BODY =
   "Juli cần biết mỗi chỉ số không phải mục tiêu được phép lệch bao nhiêu trước lượt chạy đầu tiên. Ngày thứ 7, chỉ số vượt ngưỡng thì Juli hỏi bạn có hoàn tác không, Juli không tự hoàn tác.";

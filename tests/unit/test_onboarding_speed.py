@@ -527,7 +527,8 @@ async def test_the_decisions_endpoint_labels_a_quick_card(app, session, session_
         card = item["recommendation"]["card"]
         assert card["quick_scan"]["label"] == "Đề xuất nhanh · dựa trên 14 ngày"
         assert card["quick_scan"]["confidence"] == "Tham khảo"
-        assert "14 ngày" in (card["gmv_method"] or "")
+        # D61: the GMV line is a plain sentence; the quick-scan label names the 14 days.
+        assert card["gmv_method"] and "×" not in card["gmv_method"]
         assert item["recommendation"]["diagnosis"]["quick_scan"]["window_days"] == 14
 
 

@@ -158,7 +158,11 @@ async def test_the_decisions_list_carries_the_card_block(session, shop_a):
     assert card["lever"] == {"code": "title", "label": "Tiêu đề", "executor": "juli"}
     assert card["change_fields"] == [{"field": "title", "label": "Tiêu đề"}]
     assert card["before_after"] == []
-    assert card["gmv_method"].startswith("lượt hiển thị × (CTR mục tiêu − CTR hiện tại)")
+    # D61: a plain sentence, never the formula.
+    assert (
+        card["gmv_method"] == "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR "
+        "và giá trị đơn hiện tại của sản phẩm"
+    )
     # Additive: the existing fields are unchanged.
     assert first["diagnosis"]["lever"]["code"] == "title"
     assert OPTIMIZE_PRODUCT_WORKFLOW_KEY not in resp.text
@@ -223,9 +227,10 @@ def test_card_block_fields_follow_the_contract():
     assert block["reason_short"] == "Khách xem nhưng ít đặt hàng"
     assert block["lever"] == {"code": "description", "label": "Mô tả", "executor": "juli"}
     assert block["gmv_method"] == (
-        "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, "
-        "ước tính theo quy tắc"
+        "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR "
+        "và giá trị đơn hiện tại của sản phẩm"
     )
+    assert "×" not in block["gmv_method"] and "theo quy tắc" not in block["gmv_method"]
     assert block["seller_sku"] is None and block["seller_sku_more"] == 0
     # A legacy card (no diagnosis) gets no block.
     assert build_card_block(_card(), {"workflow_name": "x"}, None) is None

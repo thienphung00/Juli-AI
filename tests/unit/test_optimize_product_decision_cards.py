@@ -353,7 +353,9 @@ async def test_scoring_writes_one_card_per_product_and_surfaces_at_most_five(ses
     assert diagnosis["stage"]["code"] in {"card", "page", "basket"}
     assert diagnosis["lever"]["label"]
     assert diagnosis["recoverable_gmv_per_day"] > 0
-    assert diagnosis["recoverable_gmv_basis"]["label"].startswith("Ước tính theo quy tắc")
+    assert (
+        diagnosis["recoverable_gmv_basis"]["label"] == "Ước tính từ số liệu hiện tại của sản phẩm"
+    )
     assert payload["expected_impact"]["metric"] == "recoverable_gmv_per_day"
     labels = [m["label"] for m in evidence["metrics"]]
     assert labels[:5] == [

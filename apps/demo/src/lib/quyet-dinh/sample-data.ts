@@ -66,12 +66,12 @@ const MEASURE_TARGET_LABEL = {
   ctor: "CTOR · đo trên tất cả kênh",
   aov: "AOV · đo trên tất cả kênh",
 } as const;
-/** Per-KPI method text, copied from the backend's `_GMV_METHOD_VI` (`demo_decisions/card_view.py`). */
-const GMV_METHOD = {
-  ctr: "lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV, trung bình 30 ngày, ước tính theo quy tắc",
-  ctor: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
-  aov: "đơn hàng SKU × (AOV mục tiêu − AOV hiện tại), trung bình 30 ngày, ước tính theo quy tắc",
-} as const;
+/**
+ * The card's GMV line, copied from the backend's `_GMV_METHOD_VI` (`demo_decisions/card_view.py`).
+ * D61: a plain sentence, never Juli's formula, window or rules.
+ */
+const GMV_SENTENCE = "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR và giá trị đơn hiện tại của sản phẩm";
+const GMV_METHOD = { ctr: GMV_SENTENCE, ctor: GMV_SENTENCE, aov: GMV_SENTENCE } as const;
 
 export interface SampleCardSpec {
   readonly id: string;
@@ -110,15 +110,14 @@ export function sampleDecision(spec: SampleCardSpec, nowMs: number): P10Decision
     recommendation: {
       source_kpi_ids: [],
       diagnosis: {
-        version: "adr106-v1",
+        version: "v1",
         as_of: at.slice(0, 10),
         rank: 1,
         status: "rule",
-        status_label: "Theo quy tắc",
         stage: STAGE[spec.kpi],
         lever: { code: spec.lever, label: LEVER_LABEL[spec.lever], action: LEVER_LABEL[spec.lever], evidence: [] },
         main_kpi: { key: spec.kpi, label: spec.kpi.toUpperCase(), value: "" },
-        trigger: { code: "below_median", gap: -0.3, sentence: spec.reasonShort },
+        trigger: { code: "metric_drop", gap: -0.3, sentence: spec.reasonShort },
         // D32: a CTR card works on Thẻ sản phẩm; CTOR / AOV cards are read on all channels.
         channel_scope: spec.kpi === "ctr" ? "PRODUCT_CARD" : "ALL_CHANNELS",
         recoverable_gmv_per_day: spec.gmvMonth / 30,
@@ -641,14 +640,14 @@ const CONTENT_KPI: Readonly<Record<SampleContentKind, { key: string; label: stri
     label: "CTR - Video",
     lever: "video_script",
     workflow: "Tối ưu nội dung · Video",
-    method: "lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+    method: GMV_SENTENCE,
   },
   live: {
     key: "live_ctor",
     label: "CTOR - LIVE",
     lever: "live_script",
     workflow: "Tối ưu nội dung · LIVE",
-    method: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+    method: GMV_SENTENCE,
   },
 };
 

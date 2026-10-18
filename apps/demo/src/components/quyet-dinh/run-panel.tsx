@@ -218,7 +218,7 @@ export function RunPanel(props: RunPanelProps) {
                 lines={[
                   "Không có gì được ghi lên TikTok Shop. Lần sau chỉ muốn sửa vài chữ, chọn Sửa nội dung ở bước xác nhận.",
                   kind === "listing"
-                    ? "Thẻ không quay lại Đề xuất ngay. Juli có thể đề xuất lại sản phẩm này sau 7 ngày với nội dung mới."
+                    ? "Thẻ không quay lại Đề xuất ngay. Juli có thể đề xuất lại sản phẩm này sau, với nội dung mới."
                     : declinedText(kind),
                 ]}
                 reason={reasonOption(DECLINE_REASONS, declinedReason)}
