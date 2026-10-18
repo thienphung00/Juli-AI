@@ -83,7 +83,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     description:
       "Tối ưu ảnh bìa, tiêu đề, mô tả, thuộc tính, giá và khuyến mãi cho thẻ sản phẩm TikTok Shop theo quy định của TikTok, và cách đo kết quả.",
     excerpt:
-      "Ảnh bìa, tiêu đề, mô tả, thuộc tính, giá và khuyến mãi: quy định của TikTok, điều nên làm cho từng thành phần, và cách đo một thay đổi bằng cửa sổ trước/sau và ngưỡng dữ liệu.",
+      "Ảnh bìa, tiêu đề, mô tả, thuộc tính, giá và khuyến mãi: quy định của TikTok, điều nên làm cho từng thành phần, và cách đo một thay đổi bằng cửa sổ trước/sau khi số liệu đủ để đọc.",
     breadcrumbName: "Tối ưu thẻ sản phẩm",
     publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
@@ -106,7 +106,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Sau khi sửa thẻ sản phẩm bao lâu thì đánh giá được kết quả?",
         answer:
-          "Juli so sánh 14 ngày trước thay đổi với 7 ngày sau (đọc sơ bộ) và 14 ngày sau (kết luận), chỉ khi sản phẩm đủ ngưỡng dữ liệu, và so với nhóm sản phẩm không thay đổi trong cùng thời gian.",
+          "Juli so sánh 14 ngày trước thay đổi với 7 ngày sau (đọc sơ bộ) và 14 ngày sau (kết luận), và chỉ kết luận khi số liệu đủ để đọc.",
       },
       {
         question: "Có bắt buộc giảm giá theo đề xuất của Chẩn đoán giá không?",
@@ -267,7 +267,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Shop mới bao lâu thì đọc được chỉ số?",
         answer:
-          "Hãy dùng cửa sổ ít nhất 14 ngày và chỉ đọc tỷ lệ khi đủ dữ liệu, theo một ngưỡng bạn tự đặt và giữ nguyên, ví dụ trung bình mỗi ngày từ 50 lượt hiển thị mới đọc CTR và từ 20 lượt nhấp mới đọc CTOR. Đó không phải quy định của TikTok; dưới ngưỡng, vấn đề thường là chưa đủ người nhìn thấy sản phẩm.",
+          "Hãy dùng cửa sổ ít nhất 14 ngày và chỉ đọc tỷ lệ khi số liệu đủ nhiều để không bị nhiễu, và giữ cùng một cách đọc cho mọi lần so sánh. TikTok không đưa ra ngưỡng chính thức; khi số liệu còn quá ít, vấn đề thường là chưa đủ người nhìn thấy sản phẩm.",
       },
       {
         question: "Giảm giá có giúp shop ra đơn không?",
@@ -323,7 +323,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Làm sao biết mức giảm là thật hay chỉ là dao động?",
         answer:
-          "So mức giảm với mức dao động thường thấy của shop trong vài kỳ gần đây. Chỉ coi một so sánh là rõ khi mỗi kỳ có đủ đơn, ví dụ từ 30 đơn hàng trở lên, và mức giảm lớn hơn mức chênh thường thấy; dưới mức đó là dấu hiệu để theo dõi tiếp.",
+          "So mức giảm với mức dao động thường thấy của shop trong vài kỳ gần đây. Chỉ coi một so sánh là rõ khi mỗi kỳ có số đơn đủ nhiều để không bị nhiễu và mức giảm lớn hơn mức chênh thường thấy; dưới mức đó là dấu hiệu để theo dõi tiếp.",
       },
     ],
     sources: [
@@ -1226,7 +1226,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Cần bao nhiêu đơn để tin kết quả?",
         answer:
-          "TikTok không đưa ra con số. Một quy tắc thực hành: chỉ coi kết quả là chắc khi mỗi kỳ có khoảng 30 đơn trở lên (khoảng 30 lượt nhấp nếu chỉ số là CTR) và mức thay đổi vượt mức dao động; dưới đó chỉ để tham khảo. Sản phẩm bán dưới khoảng 2 đơn mỗi ngày vì vậy cần hơn 14 ngày.",
+          "TikTok không đưa ra con số. Cách nghĩ hữu ích: chỉ coi kết quả là chắc khi mỗi kỳ có số đơn đủ nhiều để không bị nhiễu (số lượt nhấp nếu chỉ số là CTR) và mức thay đổi vượt mức dao động thường ngày của sản phẩm; dưới đó chỉ để tham khảo. Sản phẩm chỉ bán lẻ tẻ vài đơn mỗi tuần vì vậy thường cần hơn 14 ngày.",
       },
       {
         question: "Nên sửa sản phẩm trước hay sau đợt sale 11.11?",

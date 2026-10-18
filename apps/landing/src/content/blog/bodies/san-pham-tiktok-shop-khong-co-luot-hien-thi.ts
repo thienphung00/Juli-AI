@@ -86,7 +86,7 @@ Cách viết lại tiêu đề, mô tả và ảnh cho từng thành phần đư
 
 Lượt hiển thị chỉ có nghĩa khi đọc cùng CTR (Lượt nhấp vào sản phẩm chia cho Lượt hiển thị sản phẩm). Nếu một sản phẩm ít được thấy nhưng ai thấy cũng hay nhấp, sản phẩm đó không có vấn đề về ảnh bìa hay tiêu đề hiển thị; nó thiếu chỗ xuất hiện. Việc đúng là thêm chỗ: từ khóa trong tiêu đề, một video ngắn, một lần giới thiệu trong LIVE, một nhà sáng tạo phù hợp.
 
-Ví dụ giả định: trong 30 ngày, sản phẩm A có 900 lượt hiển thị ở luồng Thẻ sản phẩm và CTR 5 %, trong khi các sản phẩm cùng ngành của shop có trung vị 6.000 lượt hiển thị và CTR 3 %. Sản phẩm A được nhấp nhiều hơn mỗi lần xuất hiện, nhưng xuất hiện ít hơn hẳn. Sửa ảnh bìa của A lúc này là đụng vào đúng phần đang tốt.
+Ví dụ giả định: trong 30 ngày, sản phẩm A có 900 lượt hiển thị ở luồng Thẻ sản phẩm và CTR 5 %, trong khi phần lớn sản phẩm cùng ngành của shop có khoảng 6.000 lượt hiển thị và CTR 3 %. Sản phẩm A được nhấp nhiều hơn mỗi lần xuất hiện, nhưng xuất hiện ít hơn hẳn. Sửa ảnh bìa của A lúc này là đụng vào đúng phần đang tốt.
 
 ## Lượt hiển thị ổn nhưng CTR thấp: tiêu đề và ảnh bìa
 
@@ -121,7 +121,7 @@ Lượt hiển thị dao động theo ngày trong tuần, đợt sale, buổi LI
 - **Ngày 14** chốt kết quả.
 - **So với các sản phẩm không thay đổi** trong cùng shop: nếu cả shop cùng tăng, phần tăng chưa chắc là nhờ thay đổi của bạn.
 
-Với một thay đổi tiêu đề nhằm thêm từ khóa, chỉ số cần đọc trước là Lượt hiển thị ở luồng Thẻ sản phẩm, rồi mới đến CTR. Chỉ đọc tỷ lệ khi đủ dữ liệu, theo một ngưỡng bạn tự đặt và giữ nguyên (ví dụ giả định: CTR từ trung bình 50 lượt hiển thị mỗi ngày trên luồng Thẻ sản phẩm). Đây không phải quy định của TikTok; dưới ngưỡng, kết luận đúng nhất thường là "sản phẩm chưa đủ người thấy".
+Với một thay đổi tiêu đề nhằm thêm từ khóa, chỉ số cần đọc trước là Lượt hiển thị ở luồng Thẻ sản phẩm, rồi mới đến CTR. Chỉ đọc tỷ lệ khi số liệu đủ nhiều để không bị nhiễu, và giữ cùng một cách đọc cho mọi lần so sánh. TikTok không đưa ra ngưỡng chính thức; khi lượt hiển thị còn quá ít, kết luận đúng nhất thường là "sản phẩm chưa đủ người thấy".
 
 {{hinh:theo-doi-7-14}}
 

@@ -35,7 +35,7 @@ Trang tổng quan "Phí của Nhà Bán Hàng" (04/08/2026) còn nêu **phí v�
 
 Theo trang "Phí Hoa Hồng Nền Tảng", phí được trừ tự động sau khi đơn giao thành công, theo công thức **(Giá gốc sản phẩm trừ Chiết khấu của Nhà Bán Hàng) nhân Phí suất**. Phí suất khác nhau theo ngành hàng cấp 3 và giữa Nhà Bán Hàng Tiêu Chuẩn với Mall. Ngành không có trong bảng dùng mức mặc định: 14,00% (Tiêu Chuẩn, từ 03/07/2026) và 16,00% (Mall, từ 03/08/2026).
 
-Cách tra mức của ngành bạn: tải bảng phí suất PDF trên trang đó, tìm đúng ngành hàng cấp 3 của sản phẩm. Trong bảng áp dụng từ 03/07/2026, phí suất Tiêu Chuẩn đi từ 1,5% đến 16,0%, mức ở giữa (trung vị) là 14,0%.
+Cách tra mức của ngành bạn: tải bảng phí suất PDF trên trang đó, tìm đúng ngành hàng cấp 3 của sản phẩm. Trong bảng áp dụng từ 03/07/2026, phí suất Tiêu Chuẩn đi từ 1,5% đến 16,0%, mức ở giữa của bảng là 14,0%.
 
 ### Mốc 20/10/2026: chỉ một số ngành Sách của Mall
 
