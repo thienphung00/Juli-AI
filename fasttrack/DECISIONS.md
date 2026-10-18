@@ -1725,4 +1725,4 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      already says so. DEBT: build the purge job before 10/2027.
   5. **Price wording**: one plan, written "500.000đ/tháng" everywhere (home, `/san-pham`, FAQs,
      meta, JSON-LD offer text, llms.txt, blog), matching `/terms` §5; no "từ".
-  Work: P50-A (demo sample data + recapture), P50-B (landing pages, items 2, 3, 5).
+  Work: P51-A (demo sample data + recapture), P51-B (landing pages, items 2, 3, 5).

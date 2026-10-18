@@ -1136,4 +1136,4 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   refunds on the same rows, and could check the order-based shares.
 
 - **Trial sign-up purge job (D60.4, D43 additions 3)**: sign-ups that do not become customers must
-  be deleted after 12 months; no job exists yet. Due before 10/2027 (first sign-ups 10/2026).
+  be deleted after 12 months; no job exists yet. Due before 10/2027 (first sign-ups 10/2026). Another session's branch `fasttrack/p50b-privacy-api` adds a Postgres purge; check whether it covers `trial_signups` before building one.
