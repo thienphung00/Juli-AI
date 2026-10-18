@@ -2541,3 +2541,4 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation FAIL (no DB;
   hung `docker info` killed; known).
 - Next: owner reviews and merges; posts 11–12 (P46-D2).
+- Follow-up: cover-photo conflict resolved in favour of D13 (coordinator): post 10 now says Juli uploads the seller-supplied photo as the main image after confirmation, keeps the old one for Hoàn tác (per /san-pham/de-xuat-va-thuc-thi), records the date and measures day 7 / 14; a seller who swaps it in Seller Center notes the date.

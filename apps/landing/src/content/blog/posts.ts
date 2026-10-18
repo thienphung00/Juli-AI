@@ -1030,7 +1030,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Juli có đổi ảnh bìa giúp tôi không?",
         answer:
-          "Không. Juli chỉ ra sản phẩm có CTR thấp ở Thẻ sản phẩm và đề xuất nên đổi gì ở ảnh chính, nhưng không chụp, không chỉnh và không tải ảnh lên. Bạn tự thay ảnh, ghi lại ngày thay, và Juli đo CTR ở ngày 7 và ngày 14.",
+          "Có, với ảnh do bạn cung cấp. Juli phân tích ảnh bìa hiện tại và đề xuất nên đổi gì, nhưng không chụp, không chỉnh và không tạo ảnh. Khi bạn tải ảnh mới lên và xác nhận, Juli đặt ảnh đó làm hình ảnh chính, lưu ảnh cũ để hoàn tác, ghi lại ngày thay và đo CTR ở ngày 7 và ngày 14.",
       },
     ],
     sources: [

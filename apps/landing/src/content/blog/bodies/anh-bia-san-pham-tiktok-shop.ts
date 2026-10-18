@@ -19,10 +19,11 @@
  * Thủ thuật Clickbait (29/06/2025), Mô tả sản phẩm phóng đại (29/06/2025).
  * "900 × 900" and an image "5 MB" limit appear on no official page read (5 MB is
  * the video limit): the post says so and gives neither.
- * Juli scope (caller brief, P46-D): Juli does not shoot, edit or upload images;
- * it shows which product has a low product-card CTR and proposes what to
- * change; the seller replaces the image. SPEC does not say Juli records when an
- * image changed, so the post asks the seller to note the date. The 4-star rule
+ * Juli scope per D13 and /san-pham/de-xuat-va-thuc-thi: Juli analyses the cover
+ * and recommends; it does not shoot, edit or generate photos; when the seller
+ * supplies a photo and confirms, Juli uploads it as the main image, keeps the
+ * old value for Hoàn tác and measures from that date (day 7 / 14, D14). If the
+ * seller swaps the image in Seller Center, they note the date. The 4-star rule
  * and the 50-impressions floor are Juli's rules and say so.
  */
 export const body = `
@@ -127,7 +128,7 @@ Theo bài "Đăng Sản Phẩm và Chỉnh Sửa Ảnh trên App" (06/06/2025), 
 
 "Đổi ảnh bìa xong mà CTR không đổi, lỗi ở đâu?": thường vì đọc quá sớm, đổi thêm thứ khác cùng lúc, hoặc không có mốc so sánh. Cách làm:
 
-1. **Ghi lại ngày bạn thay ảnh**, và giữ ảnh cũ. Mọi phép so sánh đều tính từ ngày đó.
+1. **Ghi lại ngày thay ảnh**, và giữ ảnh cũ. Mọi phép so sánh đều tính từ ngày đó. Juli thay ảnh thì ngày được ghi tự động; bạn tự thay thì tự ghi.
 2. **Chỉ đổi ảnh chính** trên sản phẩm đó. Không đổi tiêu đề, giá hay khuyến mãi của nó cho đến ngày 14.
 3. **Mốc là 14 ngày trước ngày đổi**, trên luồng Thẻ sản phẩm.
 4. **Đọc sơ bộ ở ngày 7, chốt ở ngày 14.** Đọc CTR trước. Đọc Lượt hiển thị bên cạnh: nếu lượt hiển thị tăng mạnh, CTR có thể giảm vì người xem loãng hơn, không phải vì ảnh mới kém.
@@ -144,12 +145,12 @@ Theo bài "Đăng Sản Phẩm và Chỉnh Sửa Ảnh trên App" (06/06/2025), 
 
 ## Juli AI giúp gì khi ảnh bìa bị lướt qua
 
-Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp). Với ảnh bìa, vai trò của Juli là chỉ ra và đo, không phải làm ảnh:
+Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp). Với ảnh bìa, Juli phân tích và đề xuất, thay ảnh bằng ảnh của bạn khi bạn xác nhận, rồi đo; Juli không làm ảnh:
 
 - **Chỉ ra sản phẩm nào có CTR thấp ở Thẻ sản phẩm.** [Phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop) đọc Lượt hiển thị và CTR theo từng luồng, so với mức dao động của chính shop, và cho biết CTR thấp đang lấy đi bao nhiêu GMV mỗi ngày.
 - **Đề xuất cần đổi gì.** Trong [Đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi), Juli xem ảnh chính hiện tại theo các yêu cầu ở trên và ghi rõ nên đổi gì, kèm lý do bằng số: ví dụ ảnh chưa cho thấy quy cách, hoặc sản phẩm quá nhỏ trong khung.
-- **Bạn là người thay ảnh.** Juli không chụp, không chỉnh sửa, không tạo và không tải ảnh lên thay bạn. Bạn tự làm ảnh mới, bằng công cụ chỉnh ảnh của TikTok hay công cụ thiết kế bạn quen dùng, và tự thay trên Trung tâm nhà bán hàng.
-- **Đo ở ngày 7 và ngày 14.** Bạn ghi lại ngày thay ảnh; [Đo lường GMV](/san-pham/do-luong-gmv) đọc CTR ở Thẻ sản phẩm quanh đúng ngày đó, so với 14 ngày trước và với các sản phẩm không đổi.
+- **Ảnh là của bạn, Juli thay khi bạn xác nhận.** Juli không chụp, không chỉnh sửa và không tạo ảnh. Bạn làm ảnh mới rồi tải lên thẻ đề xuất; sau khi bạn duyệt và xác nhận, Juli đặt ảnh đó làm hình ảnh chính. Ảnh cũ được lưu để bạn Hoàn tác, cũng qua bước xác nhận.
+- **Đo ở ngày 7 và ngày 14.** Khi Juli thay ảnh, ngày thay được ghi lại và [Đo lường GMV](/san-pham/do-luong-gmv) đọc CTR ở Thẻ sản phẩm từ đúng ngày đó, so với 14 ngày trước và với các sản phẩm không đổi. Nếu bạn tự thay trên Trung tâm nhà bán hàng, hãy ghi lại ngày thay.
 
 Juli không hứa CTR sẽ tăng và không chạy quảng cáo. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop) mà bạn ủy quyền; tổng quan ở trang [sản phẩm Juli AI](/san-pham).
 
