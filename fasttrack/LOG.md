@@ -3019,3 +3019,25 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   0 errors (2 old warnings), tsc 0, vitest 18 / 748, build OK, check:seo 47; backend pytest 31 files touching the
   card code 536 passed, 1 pre-existing failure (`test_cross_tenant_probe` demo runs events 404, fails on the base too);
   ruff clean.
+## 2026-10-18 · P52-D leftovers: alts follow the recaptured shots, no peer median, SM-012 description only (D60.1, D61) (agent: Claude Opus, branch `fasttrack/p52d-leftovers`)
+- Branch from `fasttrack/optimize-product` 8e3884bb. Not merged, not pushed.
+- **Alts** (`figures.ts`, 17 replacements over 15 figures; P51-A's patch used for numbers / labels only): TN-021 day 7 /
+  day 14 now read CTR · đo trên kênh Thẻ sản phẩm 3,2 % → 3,5 % (day 7 3,4 % Đang lên, GMV +38k Sơ bộ vs +60k dự
+  kiến; day 14 3,53 % Đạt, +54k/ngày = 90 %, +1,6 tr vs +1,8 tr/tháng), guards Lượt hiển thị 3.480 / CTOR 6,6 % /
+  AOV 170k; CTOR cards "CTOR" (no "Thẻ sản phẩm"); Phân tích "Xem 3 đề xuất"; Quyết định "3 thẻ tối ưu để nâng CTOR
+  (mọi kênh)", group +7,2 tr; Kéo xuống "Còn lại 4 dòng +14k, Tổng −250k". The "đang tiến triển từ" figure and every
+  D61 pattern stay out. Pages: `/san-pham` card alt, `/san-pham/de-xuat-va-thuc-thi` card / consent alts (Mô tả only,
+  reason without median). Bodies next to the figures already carried the new values.
+- **Peer median** (D61): SM-012 reason "Đơn/thêm giỏ của sản phẩm là 38,9 %, thấp hơn các sản phẩm tương tự trong
+  shop."; KD-030 "Giá 279k, cao hơn các sản phẩm tương tự trên TikTok Shop." and its run step "Giá 279k · cao hơn sản
+  phẩm tương tự". Same text in the mirrored unit / e2e fixtures. No backend card copy had the string (only an internal
+  report note and Ops HTML, untouched).
+- **SM-012**: CTOR card proposes Mô tả only (change fields, before/after, run proposal); sample tests edit the
+  description. Legacy `lib/recommendations.ts` optimize fixture (not a CTOR card) untouched.
+- **Recapture** (scratchpad `p52d/shots/capture.mjs`, P51-A safety: localhost only, placeholder Supabase env,
+  signed-out sample, fixed clock): `cap-dx-the-v5` (+ home phone crop `m-v5`), `cap-kn-ghi-v3`, `cap-dl-hoc-v3`
+  (+ `m-v3`), `cap-dx-xac-nhan-v2` (+ `m-v2`, SM-012 consent shows only the description). Superseded v4 / v2 / v2 / v1
+  files and their MOBILE_CROPS entries removed (only screens.ts / sections.test referenced them).
+- Gates: landing lint 0 errors (2 old warnings), tsc 0, vitest 19 / 767 (also with `--no-experimental-webstorage`
+  on Node 26), build OK, check:seo 47, leak test green with empty pending list; demo lint 0 errors (7 old warnings),
+  tsc 0, vitest 159 / 1992, build OK (Node 20, placeholder Supabase env). Backend unchanged.

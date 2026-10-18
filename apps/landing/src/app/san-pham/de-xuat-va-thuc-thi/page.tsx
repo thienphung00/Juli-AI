@@ -77,7 +77,7 @@ export default function DeXuatVaThucThiPage() {
       ctaTitle="Để Juli chuẩn bị việc cần làm, bạn chỉ việc duyệt."
       heroChrome="Quyết định · Juli"
       heroShot={{
-        alt: "Lượt chạy dừng ở bước Xác nhận một lần: tiêu đề và mô tả cũ, nội dung mới, nút Xác nhận thay đổi này (dữ liệu mẫu)",
+        alt: "Lượt chạy dừng ở bước Xác nhận một lần: mô tả cũ và mô tả mới, nút Xác nhận thay đổi này (dữ liệu mẫu)",
         crop: 16 / 10,
         mobileVariants: CAP_DX_XAC_NHAN_MOBILE,
         variants: CAP_DX_XAC_NHAN,
@@ -129,7 +129,7 @@ export default function DeXuatVaThucThiPage() {
       ]}
     >
       <CapSection
-        alt="Thẻ đề xuất cho sản phẩm Son môi số 12 đã mở rộng: CTOR từ 5,4 % lên mục tiêu 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do khách thêm giỏ rồi bỏ, tiêu đề cũ bị gạch và tiêu đề mới, mô tả hiện tại và mô tả đề xuất"
+        alt="Thẻ đề xuất cho sản phẩm Son môi số 12 đã mở rộng: CTOR từ 5,4 % lên mục tiêu 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do khách thêm giỏ rồi bỏ, thay đổi đề xuất Mô tả, lý do đầy đủ đơn trên thêm giỏ 38,9 % thấp hơn các sản phẩm tương tự trong shop và TikTok báo mô tả quá ngắn, mô tả hiện tại và mô tả đề xuất"
         caption="Một thẻ đề xuất đã mở “Xem thêm”: lý do đầy đủ, nội dung trước và sau, và GMV dự kiến."
         heading="Tối ưu sản phẩm TikTok Shop bằng thẻ đề xuất: một sản phẩm, một chỉ số, một thay đổi"
         id="the-de-xuat"
@@ -318,7 +318,7 @@ export default function DeXuatVaThucThiPage() {
       </CapSection>
 
       <CapSection
-        alt="Lượt chạy cho Son môi số 12 đang chờ người bán: các bước đọc chẩn đoán TikTok, đọc thông tin sản phẩm, phân tích từ khoá, phân tích ảnh đã xong, bước xác nhận một lần đang chờ, hộp Juli đề xuất thay đổi sau với tiêu đề cũ và mới, mô tả cũ và mới, nút Không thực hiện và Xác nhận thay đổi này, thời gian còn hiệu lực"
+        alt="Lượt chạy cho Son môi số 12 đang chờ người bán: các bước đọc chẩn đoán TikTok, đọc thông tin sản phẩm, phân tích từ khoá, phân tích ảnh đã xong, bước xác nhận một lần đang chờ, hộp Juli đề xuất thay đổi sau với mô tả cũ và mô tả mới, nút Không thực hiện và Xác nhận thay đổi này, thời gian còn hiệu lực"
         caption="Lượt chạy dừng ở bước “Xác nhận một lần”: bạn thấy chính xác nội dung sẽ được ghi, sửa được trước khi áp dụng."
         heading="Xác nhận lần cuối, rồi Juli mới ghi lên TikTok Shop"
         id="xac-nhan"
