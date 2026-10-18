@@ -62,7 +62,7 @@ export function HomeHero() {
             <HeroVideo />
           </div>
           <p className={styles.heroNote}>
-            Không cần thẻ thanh toán · sau đó từ 500.000đ/tháng ·{" "}
+            Không cần thẻ thanh toán · sau đó 500.000đ/tháng ·{" "}
             <a className={styles.heroNoteLink} data-testid="hero-demo-cta" href={DEMO_URL}>
               Xem demo
             </a>{" "}
@@ -295,7 +295,7 @@ export function TransparencySection() {
           </Heading>
           <p>
             Juli là sản phẩm mới. Thay vì con số hứa hẹn, chúng tôi công khai cách đo: mỗi thay đổi
-            có chỉ số mục tiêu, được so với sản phẩm tương tự không đổi, đọc sơ bộ ở ngày 7 và chốt
+            có chỉ số mục tiêu, được so với mốc 14 ngày trước khi áp dụng, đọc sơ bộ ở ngày 7 và chốt
             ở ngày 14. Mọi hình trên trang này dùng dữ liệu mẫu và được ghi rõ; chưa có con số nào
             là kết quả của một khách hàng.
           </p>
@@ -333,7 +333,7 @@ export function PricingBand() {
       <div className={styles.pricing}>
         <div className={styles.pricingCopy}>
           <SectionIntro
-            lead="Đầy đủ phân tích, đề xuất, thực thi và đo lường. Không cần thẻ thanh toán. Sau đó từ 500.000đ/tháng, huỷ bất cứ lúc nào."
+            lead="Đầy đủ phân tích, đề xuất, thực thi và đo lường. Không cần thẻ thanh toán. Sau đó 500.000đ/tháng, huỷ bất cứ lúc nào."
             onDark
             title="Dùng thử miễn phí 3 tháng."
             titleId="pricing-heading"

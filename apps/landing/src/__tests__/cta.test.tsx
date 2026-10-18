@@ -49,6 +49,8 @@ describe("homepage CTA wiring", () => {
     expect(screen.queryByText(/\$50/)).not.toBeInTheDocument();
     expect(screen.queryByText(/500K/)).not.toBeInTheDocument();
     expect(screen.queryAllByRole("table")).toHaveLength(0);
-    expect(screen.getAllByText(/từ 500\.000đ\/tháng/).length).toBeGreaterThanOrEqual(1);
+    // D60.5: one plan, no "từ" ("from") before the price.
+    expect(screen.getAllByText(/sau đó 500\.000đ\/tháng/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/từ 500/i)).not.toBeInTheDocument();
   });
 });

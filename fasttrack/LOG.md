@@ -2882,3 +2882,27 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   (now "có dùng thử miễn phí"). Gates: vitest 742, build, check:seo 47.
 - Follow-ups: re-check `phi-san-tiktok-shop-2026` after the 20/10 and 21/10/2026 fee changes;
   owner to request indexing in Search Console for the new URLs; weekly GSC blog report (G6).
+
+## 2026-10-18 — P51-B agent (Claude Opus) — landing product copy (D60.2, D60.3, D60.5)
+
+- `/san-pham/de-xuat-va-thuc-thi`: "mua nhiều giảm nhiều" removed from the FAQ, the lever list
+  (and the AOV trigger: cards open on "một chỉ số của phễu", recoverable GMV is CTR / CTOR only per
+  SPEC P3) and the Seller Center promotion list (D45, Ops-only). Hero lead now splits title /
+  description (Juli writes after confirmation) from the cover (only the seller's photo, after
+  confirmation, old one kept for undo, D13); the cover H3 and the daily-slot line say the same.
+- `/san-pham/do-luong-gmv`: H3 "Nhóm đối chứng (đang thử nghiệm)" and its paragraph removed
+  (inside "Tác động tăng thêm"; TOC and FAQ unchanged, nothing else referenced it). Same claim
+  removed from `/san-pham` (Đo lường body + point), home measurement row, home transparency
+  paragraph, home FAQ (JSON-LD follows the constant), and the `toi-uu-the-san-pham` pillar's Juli
+  lines (also its "chương trình mua nhiều" lever). General seller advice about comparing with
+  unchanged products in Juli-free posts stays.
+- Price (D60.5): "từ" dropped and "mỗi tháng" normalised to "500.000đ/tháng" in home (3),
+  `/san-pham` meta (Service JSON-LD description), llms.txt, two tools posts, the trial guide (2)
+  and its FAQ. New `price-wording.test.ts` scans src (minus /terms, /privacy, tests) for
+  /từ\s*500/iu; `cta.test` no longer pins "từ 500.000đ/tháng"; D60 copy guards added to
+  `capability-pages.test`.
+- Gates: lint 0 errors (2 pre-existing warnings in figures.ts), tsc, vitest 748, build, check:seo
+  47, check.sh OK (migrations / isolation skipped). Screens at 390 / 1440 in the session scratchpad
+  `shots-p51b/`, no horizontal scroll, one H1.
+- Not changed (out of scope, noted): pillars `gmv-la-gi`, `chi-so…` and `toi-uu…` say "Juli làm
+  tự động các bước…"; `toi-uu…` still calls Juli "trợ lý AI cho nhà bán TikTok Shop" (D46.7).

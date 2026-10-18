@@ -131,7 +131,7 @@ Juli AI là sản phẩm của chúng tôi, do Công ty TNHH Công Nghệ Juli A
 
 **Juli không làm**: Juli không cho xem doanh số hay sản phẩm của shop khác, nên không thay cho các công cụ ở nhóm 1. Juli cũng không quản lý đơn hàng hay kho.
 
-**Giá**: theo app-juli.com, miễn phí 3 tháng, sau đó từ 500.000đ mỗi tháng. Xem tổng quan tại trang [sản phẩm Juli AI](/san-pham).
+**Giá**: theo app-juli.com, miễn phí 3 tháng, sau đó 500.000đ/tháng. Xem tổng quan tại trang [sản phẩm Juli AI](/san-pham).
 
 Thông tin kiểm tra ngày 16/10/2026 trên trang chính thức của Juli AI.
 

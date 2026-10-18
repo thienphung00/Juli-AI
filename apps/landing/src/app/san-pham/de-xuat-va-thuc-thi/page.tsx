@@ -45,7 +45,7 @@ const FAQ = [
   {
     question: "Juli có đổi giá sản phẩm không?",
     answer:
-      "Không. Với giá, Juli chỉ đưa ra đề xuất. Khuyến mãi như giảm giá sản phẩm, flash sale hay mua nhiều giảm nhiều do bạn tạo trên Seller Center theo hướng dẫn của Juli; Juli kiểm tra lại sau đó và bắt đầu đo.",
+      "Không. Với giá, Juli chỉ đưa ra đề xuất. Khuyến mãi như giảm giá sản phẩm hay flash sale do bạn tạo trên Seller Center theo hướng dẫn của Juli; Juli kiểm tra lại sau đó và bắt đầu đo.",
   },
   {
     question: "Nội dung do Juli viết có được kiểm tra trước không?",
@@ -86,9 +86,10 @@ export default function DeXuatVaThucThiPage() {
       lead={
         <>
           Từ chỉ số đang kéo GMV xuống, Juli tạo thẻ đề xuất cho từng sản phẩm: vì sao, đổi gì, mục tiêu
-          nào và GMV dự kiến bao nhiêu. Bạn duyệt hoặc từ chối. Với tiêu đề, mô tả và ảnh bìa, Juli thực
-          hiện thay đổi trên TikTok Shop sau khi bạn xác nhận; với giá và khuyến mãi, Juli hướng dẫn để bạn
-          tự làm trên Seller Center. Mọi thay đổi đều hoàn tác được.
+          nào và GMV dự kiến bao nhiêu. Bạn duyệt hoặc từ chối. Với tiêu đề và mô tả, Juli ghi thay đổi lên
+          TikTok Shop sau khi bạn xác nhận. Với ảnh bìa, Juli chỉ thay bằng ảnh do bạn gửi, sau khi bạn xác
+          nhận, và giữ ảnh cũ để hoàn tác. Với giá và khuyến mãi, Juli hướng dẫn để bạn tự làm trên Seller
+          Center. Mọi thay đổi Juli ghi đều hoàn tác được.
         </>
       }
       path={PATH}
@@ -203,10 +204,9 @@ export default function DeXuatVaThucThiPage() {
       >
         <P>
           Một thẻ bắt đầu từ dữ liệu, không từ một danh sách mẹo chung. Juli đọc từng sản phẩm trên từng
-          luồng và mở thẻ khi một trong bốn chỉ số của phễu (Lượt hiển thị, CTR, CTOR, AOV) giảm nhiều hơn
-          mức dao động bình thường của nó, kể cả khi GMV tổng của sản phẩm vẫn giữ được nhờ một chỉ số khác
+          luồng và mở thẻ khi một chỉ số của phễu giảm nhiều hơn mức dao động bình thường của nó, kể cả khi GMV tổng của sản phẩm vẫn giữ được nhờ một chỉ số khác
           tăng. Sau đó, Juli chọn thay đổi phù hợp với chỉ số đó: ảnh bìa hoặc tiêu đề cho CTR, mô tả hoặc
-          giá cho CTOR, mua nhiều giảm nhiều cho AOV.
+          giá cho CTOR.
         </P>
         <H3>Xếp hạng theo GMV có thể lấy lại</H3>
         <P>
@@ -312,12 +312,13 @@ export default function DeXuatVaThucThiPage() {
         <H3>Ảnh bìa: chỉ với ảnh của bạn</H3>
         <P>
           Juli phân tích ảnh bìa hiện tại và đề xuất cần đổi gì, nhưng không tự tạo ảnh. Thẻ ảnh bìa ghi
-          rõ Juli cần ảnh từ bạn: Juli hỏi ảnh, bạn tải ảnh lên, xác nhận, rồi Juli thay ảnh bìa.
+          rõ Juli cần ảnh từ bạn: Juli hỏi ảnh, bạn tải ảnh lên và xác nhận, rồi Juli mới thay ảnh bìa bằng
+          đúng ảnh đó và giữ ảnh cũ để bạn hoàn tác.
         </P>
         <H3>Giá và khuyến mãi: Juli đề xuất, bạn áp dụng trên Seller Center</H3>
         <P>
-          Juli không thay đổi giá sản phẩm. Với giảm giá sản phẩm, flash sale, mua nhiều giảm nhiều hay giảm
-          phí vận chuyển, thẻ ghi “Bạn thực hiện trên Seller Center”. Sau khi duyệt, Juli đưa hướng dẫn từng
+          Juli không thay đổi giá sản phẩm. Với giảm giá sản phẩm, flash sale hay giảm phí vận chuyển, thẻ
+          ghi “Bạn thực hiện trên Seller Center”. Sau khi duyệt, Juli đưa hướng dẫn từng
           bước với mức giảm cụ thể nằm trong quy tắc biên lợi nhuận của bạn. Bạn tạo khuyến mãi, bấm “Đã áp
           dụng”, Juli kiểm tra lại trên TikTok bằng quyền chỉ đọc và bắt đầu đo.
         </P>
@@ -435,8 +436,8 @@ export default function DeXuatVaThucThiPage() {
         <Ul>
           <li>Tối đa 5 thẻ mới mỗi ngày, 25 thẻ mỗi tuần, và 30 thẻ đang mở cùng lúc.</li>
           <li>
-            Mỗi ngày, thẻ mới được chia theo loại: đến 3 thẻ Juli thực hiện (tiêu đề, mô tả, ảnh bìa), 1 thẻ
-            bạn làm trên Seller Center và 1 thẻ nội dung video hoặc LIVE. Không có ứng viên tốt thì ô đó để
+            Mỗi ngày, thẻ mới được chia theo loại: đến 3 thẻ Juli thực hiện (tiêu đề, mô tả, hoặc ảnh bìa
+            bằng ảnh bạn gửi), 1 thẻ bạn làm trên Seller Center và 1 thẻ nội dung video hoặc LIVE. Không có ứng viên tốt thì ô đó để
             trống, Juli không lấp bằng thẻ kém hơn.
           </li>
           <li>Bạn có thể giảm số thẻ mở cùng lúc trong Quy tắc (từ 5 đến 30).</li>

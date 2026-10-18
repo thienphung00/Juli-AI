@@ -286,7 +286,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P51-A Demo sample data: lever ↔ target, Kéo xuống sums; recapture | D60.1 | in progress, branch `fasttrack/p51a-sample-data` | agent |
-| P51-B Landing: Đề xuất page (AOV lever, cover wording), Đo lường page (control groups), price wording | D60.2, D60.3, D60.5 | in progress, branch `fasttrack/p51b-product-copy` | agent |
+| P51-B Landing: Đề xuất page (AOV lever, cover wording), Đo lường page (control groups), price wording | D60.2, D60.3, D60.5 | done on branch `fasttrack/p51b-product-copy` (not merged) | agent |
 | Retention approved, purge job in DEBT | D60.4 | done | orchestrator |
 
 ## P2–P6

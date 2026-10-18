@@ -87,7 +87,7 @@ Trong vài phút đầu, Juli đọc hiệu suất sản phẩm của 14 ngày g
 
 Juli đọc 60 ngày đơn hàng và số liệu phân tích, đủ để so 30 ngày gần nhất với 30 ngày trước đó, rồi dựng báo cáo Phân tích và các thẻ đề xuất đầy đủ. Dải tiến trình ghi phần trăm và thời gian ước tính còn lại. Thời gian thật tuỳ theo số sản phẩm của shop, nên con số "khoảng 9 phút" trong ảnh chỉ là của shop mẫu. Khi bước này xong, các thẻ nhanh còn hợp lệ được giữ lại và cập nhật số, các ô đề xuất còn lại trong ngày được lấp đầy.
 
-Ngày đầu, thẻ mới được chia theo loại: đến 3 thẻ Juli thực hiện (tiêu đề, mô tả, ảnh bìa), 1 thẻ bạn làm trên Seller Center và 1 thẻ nội dung video hoặc LIVE. Ô nào không có ứng viên tốt thì để trống, Juli không lấp bằng thẻ kém hơn.
+Ngày đầu, thẻ mới được chia theo loại: đến 3 thẻ Juli thực hiện (tiêu đề, mô tả, hoặc ảnh bìa bằng ảnh bạn gửi), 1 thẻ bạn làm trên Seller Center và 1 thẻ nội dung video hoặc LIVE. Ô nào không có ứng viên tốt thì để trống, Juli không lấp bằng thẻ kém hơn.
 
 ### Bước 3/3: tải lịch sử nền
 

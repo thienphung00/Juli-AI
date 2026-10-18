@@ -255,7 +255,7 @@ Dưới các ngưỡng này, hãy ghi nhận "chưa đủ dữ liệu" thay vì 
 
 ### So với nhóm đối chứng
 
-Traffic chung của shop thay đổi theo mùa, theo chiến dịch của nền tảng, theo ngày sale. Nếu CTR của sản phẩm bạn sửa tăng 10 % nhưng CTR của các sản phẩm không sửa cũng tăng 10 % trong cùng thời gian, thay đổi của bạn có lẽ không tạo ra gì. Hãy so sánh mức thay đổi của sản phẩm đã sửa với mức thay đổi của một nhóm sản phẩm tương tự trong shop không bị sửa. Juli dùng cách so sánh "chênh lệch của chênh lệch" này và đánh dấu một kết quả là bị nhiễu nếu có thay đổi khác chạm vào sản phẩm trong cửa sổ đo.
+Traffic chung của shop thay đổi theo mùa, theo chiến dịch của nền tảng, theo ngày sale. Nếu CTR của sản phẩm bạn sửa tăng 10 % nhưng CTR của các sản phẩm không sửa cũng tăng 10 % trong cùng thời gian, thay đổi của bạn có lẽ không tạo ra gì. Hãy so sánh mức thay đổi của sản phẩm đã sửa với mức thay đổi của một nhóm sản phẩm tương tự trong shop không bị sửa. Khi đo một thay đổi, Juli ghi rõ kết quả bị ảnh hưởng nếu có thay đổi khác chạm vào sản phẩm trong cửa sổ đo.
 
 ### Đọc kết quả
 
@@ -282,8 +282,8 @@ Dùng danh sách này cho từng sản phẩm bán chạy:
 Juli AI là trợ lý AI cho nhà bán TikTok Shop do chúng tôi phát triển. Với thẻ sản phẩm, Juli làm ba việc trong bài này một cách tự động:
 
 - **Tìm bước yếu**: [phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop), đọc CTR và CTOR của kênh thẻ sản phẩm cho từng sản phẩm, so với chính nó và với các sản phẩm khác trong shop, kiểm tra traffic loãng trước khi đề xuất sửa ảnh bìa.
-- **Đề xuất một thay đổi cụ thể**: ảnh bìa, tiêu đề, mô tả, chiết khấu hay chương trình mua nhiều, kèm lý do bằng số. Juli [chỉ thực hiện khi bạn phê duyệt](/san-pham/de-xuat-va-thuc-thi), trong giới hạn giảm giá bạn đặt.
-- **Đo lại**: [đọc tác động lên GMV](/san-pham/do-luong-gmv) sau 7 và 14 ngày, so với nhóm đối chứng, với các ngưỡng dữ liệu nêu ở trên.
+- **Đề xuất một thay đổi cụ thể**: ảnh bìa, tiêu đề, mô tả hay chiết khấu, kèm lý do bằng số. Juli [chỉ thực hiện khi bạn phê duyệt](/san-pham/de-xuat-va-thuc-thi), trong giới hạn giảm giá bạn đặt.
+- **Đo lại**: [đọc tác động lên GMV](/san-pham/do-luong-gmv) sau 7 và 14 ngày, so với mốc 14 ngày trước khi áp dụng, với các ngưỡng dữ liệu nêu ở trên.
 
 Juli đọc dữ liệu qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop). Xem tổng quan tại trang [sản phẩm Juli AI](/san-pham), hoặc đọc bài [Top công cụ cho nhà bán TikTok Shop 2026](/blog/cong-cu-cho-nha-ban-tiktok-shop-2026) để so sánh với các lựa chọn khác.
 `;

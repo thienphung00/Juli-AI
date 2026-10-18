@@ -1319,7 +1319,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Sau 3 tháng dùng thử thì tính phí thế nào?",
         answer:
-          "Sau thời gian dùng thử, phí dịch vụ Juli là 500.000đ mỗi tháng, và bạn có thể huỷ bất cứ lúc nào. Câu hỏi về phí gửi tới lienhe@app-juli.com.",
+          "Sau thời gian dùng thử, phí dịch vụ Juli là 500.000đ/tháng, và bạn có thể huỷ bất cứ lúc nào. Câu hỏi về phí gửi tới lienhe@app-juli.com.",
       },
       {
         question: "Đăng ký xong có bắt buộc kết nối shop ngay không?",
