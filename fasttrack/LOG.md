@@ -2778,3 +2778,36 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   `--maxWorkers=4`), build OK (Node 20); ruff on `media.py` clean. Contact sheet in the session
   scratchpad `shots-p49s/contact.png`.
 - Next: P49-A/B writers use the `*_V2` / new exports; owner decides on the copy items above.
+
+## 2026-10-18 · P49-F demo copy fixes + recapture (agent: Claude Opus, branch `fasttrack/p49f-demo-copy`)
+- Branch from `fasttrack/optimize-product` 8eda6de8. Commits 5e981b18 (demo), 57260f97 (landing). Not merged.
+- **Em dashes (D46.4) in `apps/demo/src`**: every prose " — " in UI strings and sample data (≈200 lines,
+  58 files incl. the legacy recommendations / workflows / settings fixtures and Ops screens) became ", ",
+  ": " (IDs, "FBT", "Unresolved", "Chưa xác định", headings), parentheses for ID + name mid-sentence, or a
+  split sentence. Owner items: chip "Juli tải lên · cần ảnh từ bạn" (matches "Juli soạn · bạn làm");
+  "Ảnh bìa đạt chuẩn, không đổi"; "Son môi lì cao cấp số 12, màu đỏ ruby"; "Chưa đặt quy tắc nào, Juli
+  dùng mặc định."; also "Hoàn tất, không đổi", "Juli không tự hoàn tác, bạn quyết định.", aria "Juli:
+  Trang chủ", logo label "Juli AI, về trang chủ app-juli.com". Lone "—" empty-value placeholders (table
+  cells, `DASH` constants) are left: a glyph for "no value", not punctuation. Comments untouched.
+  `dictionary.md` entries (3) and 13 test assertions follow the new text.
+- **Formula**: sample `GMV_METHOD` is now per KPI (ctr / ctor / aov), text copied from the backend's
+  `_GMV_METHOD_VI` (`services/demo_decisions/card_view.py`); SR-007 shows the CTR formula.
+- **Day 14**: `sampleSimulatedMeasurement` writes vnd bands as "155k – 165k ₫" (count bands unchanged).
+- **Auth panel**: `public/auth/cap-dx-the-v1-{640,1186}` (old card with "—" and "TikTok báo mã chẩn
+  đoán") replaced by `cap-dx-the-v2-{640,1184}` (copied from landing media, 1184×868; the panel is
+  `object-fit: cover` 360 px high, so any ratio fits); `<img>` width/height updated; alt now "Thẻ đề xuất
+  của Juli: Mặt nạ đất sét 100g, CTOR 5,4 % lên 5,9 % (dữ liệu mẫu)".
+- **Recapture** (P49-S scripts, copied to the session scratchpad `p49f/shots/`; same safety: localhost
+  only, placeholder Supabase env, sample shop / mocks). All 10 shots re-run and pixel-diffed against the
+  published files: changed text only in sign-in, SR-007 cover card and day 14. New names (media is
+  cached immutable): `cap-kn-dang-nhap-v3` (full 1280 viewport with the right panel, 1280×900; mobile
+  crop `-m-v3` 720×943 cut from the 2x raw), `cap-dx-anh-bia-v2` (1184×1034), `cap-dl-ngay-14-v3`
+  (1280×1821, mobile `-m-v3` 720×191 via `media.py mobile-crops`). Superseded files were referenced only
+  by `screens.ts` and are removed; export names unchanged, paths/sizes updated. Unchanged, not
+  recaptured: `cap-dx-anh-bia-tai-len-v1` (timestamps only; the chip is not in the run view),
+  `cap-dx-ctr-tieu-de-v1` (its mocked card already had the CTR formula), dx-the-v2, dl-ngay-7-v2,
+  pt-nghen-v2, kn-quet-nhanh-v2, dx-hoan-tac-v2.
+- Gates: demo lint 0 errors (7 old warnings), `tsc --noEmit` 0, vitest 159 files / 1991 passed;
+  landing lint 0 errors (6 old warnings), tsc 0, vitest 17 files / 623 passed (Node 26,
+  `NODE_OPTIONS=--no-experimental-webstorage --maxWorkers=4`), build OK (Node 20); ruff `media.py` clean.
+- Goes live on the next owner deploy tag.
