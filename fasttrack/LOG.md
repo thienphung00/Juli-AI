@@ -2906,3 +2906,26 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   `shots-p51b/`, no horizontal scroll, one H1.
 - Not changed (out of scope, noted): pillars `gmv-la-gi`, `chi-so…` and `toi-uu…` say "Juli làm
   tự động các bước…"; `toi-uu…` still calls Juli "trợ lý AI cho nhà bán TikTok Shop" (D46.7).
+
+## 2026-10-18 · P52-B: algorithm details out of the eight Juli guides (D61)
+
+- Scope: the 8 guide bodies, their `posts.ts` entries (description, FAQ, source notes) and their
+  `figures.ts` alts / captions; header comments cleaned too. Audit items G1–G58 and F1–F8 applied,
+  borderlines resolved conservatively (G9, G52 market-price input dropped; G32 names "nhà cung cấp
+  AI nêu trong Chính sách bảo mật" instead of OpenAI; PB4 channel fallback cut; PB1 "dao động bình
+  thường" kept as concept).
+- Removed: expected / recoverable GMV formulas and worked examples, "trung bình 30 ngày", "ước tính
+  theo quy tắc", rules-vs-model and model-call timing, triggers, ranking key, target bounds, peer
+  reference, 30-click / 30-order floors and the 14 / 30 / 60 window search, the 2× / 1× verdict rule,
+  caps 5 / 25 / 30, slots 3 / 1 / 1, 7-day validity, 3-day stay, 7-day cooldown, priority demotion and
+  60-day fade, calibration coefficient, "Juli học" section (now "Kết quả được lưu lại").
+- Kept: TikTok definitions and GMV identity, workflow, labels (Rõ / Tham khảo, Đang lên / Chưa rõ,
+  four day-14 labels), 14-day baseline, calculator links; calculator anchors untouched.
+- Words (guide 1,500–3,000): ket-noi 2572, phan-tich 2536, duyet 2531, do-ket-qua 2292, dung-thu
+  2050, keo-xuong 1925, ctr 1890, ctor 1989; figures 4 / 4 / 7 / 4 / 5 / 4 / 5 / 3.
+- Pixels still show leaked text until P51-A recaptures: CAP_DX_THE_V2 (dung-thu-the-dau-tien,
+  keo-xuong-the, ctor-mo-ta-the, hd-dx-the-mo-ta), CAP_DX_CTR_TIEU_DE (ctr-the-tieu-de,
+  hd-dx-the-tieu-de), CAP_DX_ANH_BIA (ctr-the-anh-bia, hd-dx-the-anh-bia), CAP_DL_NGAY_14_V2
+  (dung-thu-ngay-14, hd-dl-ngay-14), CAP_DX_QUY_TAC (hd-dx-quy-tac, hd-dl-quy-tac-on-dinh).
+- Gates: lint 0 errors (2 pre-existing warnings in figures.ts), tsc, vitest 748, build, check:seo 47,
+  check.sh OK (migrations / isolation skipped). Self-grep of audit patterns: zero hits in the 8 files.
