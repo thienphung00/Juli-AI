@@ -1277,4 +1277,180 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       academy("Phí Xử Lý Đơn Hàng", "2968734088120080", "khoản cố định cho mỗi đơn giao thành công (11/10/2025), kiểm tra 18/10/2026"),
     ],
   },
+  {
+    slug: "dung-thu-juli-ai-mien-phi-3-thang",
+    status: "draft",
+    title: "Dùng thử Juli AI miễn phí 3 tháng: đăng ký, kết nối shop và 14 ngày đầu tiên",
+    seoTitle: "Dùng thử miễn phí 3 tháng: đăng ký, bắt đầu | Juli AI",
+    description:
+      "Dùng thử Juli AI 3 tháng miễn phí, không cần thẻ: điền đăng ký, chuẩn bị Quy tắc, kết nối TikTok Shop, đọc thẻ đề xuất đầu tiên, ngày 7 và ngày 14.",
+    excerpt:
+      "3 tháng miễn phí kể từ ngày đăng ký, không cần thẻ thanh toán, sau đó 500.000đ/tháng. Hai cách bắt đầu, những gì nên chuẩn bị trước cuộc gọi, ngày đầu sau khi kết nối và cách đọc kết quả ngày 7, ngày 14.",
+    breadcrumbName: "Dùng thử Juli AI",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-dung-thu-juli-ai-mien-phi-3-thang-v1", "Minh hoạ: ba chậu cây trên một kệ, mầm cây cao dần, chậu thứ ba nở một bông hoa hồng, nền hồng nhạt, chữ “Dùng thử miễn phí”"),
+    author: AUTHOR,
+    related: ["tim-san-pham-keo-gmv-xuong-tiktok-shop", "ctor-thap-viet-lai-mo-ta-san-pham", "gmv-la-gi-tiktok-shop"],
+    faq: [
+      {
+        question: "Dùng thử Juli có cần thẻ thanh toán không?",
+        answer:
+          "Không. Theo Điều khoản dịch vụ, tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ thanh toán.",
+      },
+      {
+        question: "Sau 3 tháng dùng thử thì tính phí thế nào?",
+        answer:
+          "Sau thời gian dùng thử, phí dịch vụ Juli là 500.000đ mỗi tháng, và bạn có thể huỷ bất cứ lúc nào. Câu hỏi về phí gửi tới lienhe@app-juli.com.",
+      },
+      {
+        question: "Đăng ký xong có bắt buộc kết nối shop ngay không?",
+        answer:
+          "Không. Bạn có thể chờ đội Juli gọi hoặc nhắn Zalo để kết nối cùng, hoặc tự kết nối từ trang cảm ơn. Trước khi kết nối, bạn cũng có thể xem bản dữ liệu mẫu, không cần tài khoản.",
+      },
+      {
+        question: "Dùng thử có thay đổi gì trên shop của tôi không?",
+        answer:
+          "Không, cho đến khi bạn duyệt một thẻ đề xuất và xác nhận nội dung cụ thể. Kết nối chỉ cho phép Juli đọc dữ liệu và tạo đề xuất. Juli không đổi giá và không tạo khuyến mãi.",
+      },
+      {
+        question: "Bản xem thử với dữ liệu mẫu khác gì dùng thử?",
+        answer:
+          "Bản xem thử chạy trên Cửa hàng Mẫu Hoa Mai, một shop minh hoạ, và không ghi gì lên TikTok Shop. Dùng thử chạy trên shop thật của bạn sau khi bạn kết nối.",
+      },
+    ],
+    sources: [],
+  },
+  {
+    slug: "tim-san-pham-keo-gmv-xuong-tiktok-shop",
+    status: "draft",
+    title: "Tìm sản phẩm đang kéo GMV TikTok Shop xuống: từ chỉ số nghẽn đến thẻ đề xuất",
+    seoTitle: "Tìm sản phẩm kéo GMV TikTok Shop xuống | Juli AI",
+    description:
+      "Cách Juli tìm sản phẩm đang kéo GMV TikTok Shop xuống: từ luồng và chỉ số nghẽn, bảng Kéo xuống theo đồng mỗi ngày, nhãn Rõ, Tham khảo đến thẻ đề xuất.",
+    excerpt:
+      "Sắp theo doanh thu giảm thường chỉ sai chỗ. Juli tìm luồng và chỉ số lấy đi nhiều GMV nhất, chia con số đó cho từng sản phẩm theo đồng mỗi ngày, rồi biến dòng đủ cơ sở thành thẻ đề xuất.",
+    breadcrumbName: "Sản phẩm kéo GMV xuống",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "metrics",
+    format: "guide",
+    cover: blogCover("hero-tim-san-pham-keo-gmv-xuong-tiktok-shop-v1", "Minh hoạ: hai quả bóng bay vàng và xanh bay lên, một quả bóng hồng bị một chiếc mỏ neo giữ thấp, nền xám đậm kẻ ô, chữ “Sản phẩm kéo GMV xuống”"),
+    author: AUTHOR,
+    related: ["doanh-thu-tiktok-shop-giam", "ctr-the-san-pham-thap-doi-tieu-de-anh-bia", "ctor-thap-viet-lai-mo-ta-san-pham"],
+    faq: [
+      {
+        question: "Juli xếp sản phẩm theo doanh thu giảm hay theo gì?",
+        answer:
+          "Theo số GMV mỗi ngày mà chỉ số bị giảm của sản phẩm đang lấy đi, trên đúng luồng đó. Vì vậy một sản phẩm bán chạy mất vài phần trăm CTOR có thể đứng trên một sản phẩm nhỏ mất một nửa.",
+      },
+      {
+        question: "Vì sao sản phẩm của tôi ghi Chưa có đề xuất?",
+        answer:
+          "Sản phẩm chưa đủ cơ sở cho một thẻ: thường là dữ liệu còn ít hoặc mức giảm chưa vượt mức dao động (nhãn Tham khảo), hoặc sản phẩm đang có một thay đổi khác được đo, hoặc cùng thay đổi vừa bị từ chối hay hoàn tác trong 7 ngày qua.",
+      },
+      {
+        question: "Các dòng trong bảng có cộng bằng con số trên ô không?",
+        answer:
+          "Có. Bảng chia con số của ô cho từng sản phẩm; các dòng đầu cộng với dòng Còn lại bằng đúng con số trên ô, nên không có đồng GMV nào bị đếm hai lần.",
+      },
+      {
+        question: "Juli có xếp theo lợi nhuận không?",
+        answer:
+          "Thứ tự dùng GMV có thể lấy lại mỗi ngày. Giá vốn hoặc biên lợi nhuận bạn nhập trong Quy tắc được dùng cho đề xuất giảm giá: một đề xuất như vậy chỉ xuất hiện khi Juli biết giá vốn và luôn nằm trong biên lợi nhuận bạn cho phép.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "GMV theo luồng, định nghĩa CTR, CTOR, AOV (SKU) (17/06/2026), kiểm tra 18/10/2026"),
+    ],
+  },
+  {
+    slug: "ctr-the-san-pham-thap-doi-tieu-de-anh-bia",
+    status: "draft",
+    title: "CTR Thẻ sản phẩm thấp: Juli đề xuất đổi tiêu đề và ảnh bìa như thế nào, và bạn cần làm gì",
+    seoTitle: "CTR Thẻ sản phẩm thấp: đề xuất tiêu đề, ảnh bìa | Juli AI",
+    description:
+      "CTR Thẻ sản phẩm TikTok Shop thấp: khi nào Juli mở thẻ, Juli soạn tiêu đề, ảnh bìa chỉ bằng ảnh của bạn, GMV dự kiến, đo ngày 7, 14 và hoàn tác.",
+    excerpt:
+      "Người mua thấy mà không bấm: Juli đề xuất đổi tiêu đề hoặc ảnh bìa. Tiêu đề do Juli soạn và chỉ ghi khi bạn xác nhận; ảnh bìa là ảnh bạn gửi, Juli tải lên sau khi bạn xác nhận và giữ ảnh cũ để hoàn tác.",
+    breadcrumbName: "CTR Thẻ sản phẩm thấp",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "optimize",
+    format: "guide",
+    cover: blogCover("hero-ctr-the-san-pham-thap-doi-tieu-de-anh-bia-v1", "Minh hoạ: một nam châm hình móng ngựa màu hồng đậm hút ba con trỏ chuột về phía nó, nền vàng, chữ “Nâng CTR thẻ sản phẩm”"),
+    author: AUTHOR,
+    related: ["dat-ten-san-pham-tiktok-shop", "anh-bia-san-pham-tiktok-shop", "ctor-thap-viet-lai-mo-ta-san-pham"],
+    faq: [
+      {
+        question: "Juli có tự tạo ảnh bìa cho sản phẩm không?",
+        answer:
+          "Không. Juli phân tích ảnh bìa hiện tại và nói cần đổi gì, nhưng ảnh mới là ảnh bạn gửi. Juli chỉ tải ảnh lên TikTok Shop sau khi bạn xác nhận, và giữ ảnh cũ để có thể hoàn tác.",
+      },
+      {
+        question: "Đổi tiêu đề có làm sản phẩm mất thứ hạng không?",
+        answer:
+          "Juli không hứa trước điều đó. Lượt hiển thị là một chỉ số giữ ổn định của thẻ CTR: nếu ở ngày 7 nó ra ngoài khoảng cho phép, Juli hỏi bạn có muốn hoàn tác về tiêu đề cũ không.",
+      },
+      {
+        question: "Bao lâu thì biết CTR có tăng không?",
+        answer:
+          "Ngày 7 là kiểm tra giữa chừng (Đang lên hoặc Chưa rõ), ngày 14 là kết quả chốt (Đạt, Đạt · chưa chắc chắn, Một phần hoặc Không đạt), so với mốc 14 ngày trước khi áp dụng, đo trên luồng Thẻ sản phẩm.",
+      },
+      {
+        question: "Có nên đổi cả tiêu đề và ảnh bìa cùng lúc không?",
+        answer:
+          "Không. Juli không thực hiện hai thay đổi cùng lúc trên một sản phẩm, vì khi chúng chồng lên nhau, không ai biết thay đổi nào tạo ra kết quả. Thay đổi tiếp theo chỉ được thực hiện sau khi thay đổi trước chốt ở ngày 14.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "CTR = lượt nhấp ÷ lượt hiển thị, theo từng luồng (17/06/2026), kiểm tra 18/10/2026"),
+    ],
+  },
+  {
+    slug: "ctor-thap-viet-lai-mo-ta-san-pham",
+    status: "draft",
+    title: "CTOR thấp, khách bấm vào mà không đặt hàng: Juli đề xuất mô tả sản phẩm như thế nào",
+    seoTitle: "CTOR thấp: đề xuất mô tả sản phẩm | Juli AI",
+    description:
+      "CTOR TikTok Shop thấp: Juli tách trước hay sau giỏ hàng, soạn mô tả mới chỉ ghi khi bạn xác nhận, khuyến mãi do bạn làm trên Seller Center, đo ngày 7, 14.",
+    excerpt:
+      "Khách bấm vào mà không đặt: trước giỏ hàng, Juli đề xuất viết lại mô tả và chỉ ghi sau khi bạn xác nhận; sau giỏ hàng, Juli hướng dẫn và bạn làm trên Seller Center. Đo ngày 7, chốt ngày 14, hoàn tác được.",
+    breadcrumbName: "CTOR thấp: viết lại mô tả",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "optimize",
+    format: "guide",
+    cover: blogCover("hero-ctor-thap-viet-lai-mo-ta-san-pham-v1", "Minh hoạ: một cuộn giấy mở, hai dòng cũ bị gạch, các dòng mới và một dòng hồng, cây bút đang viết, nền nâu chấm bi, chữ “Viết lại mô tả”"),
+    author: AUTHOR,
+    related: ["mo-ta-san-pham-tiktok-shop", "khach-xem-nhung-khong-mua-tiktok-shop", "ctr-the-san-pham-thap-doi-tieu-de-anh-bia"],
+    faq: [
+      {
+        question: "Juli có đổi giá sản phẩm để tăng CTOR không?",
+        answer:
+          "Không. Juli không thay đổi giá. Với giảm giá hay flash sale, Juli đề xuất mức giảm nằm trong biên lợi nhuận bạn đặt (chỉ khi biết giá vốn), bạn tạo trên Seller Center, rồi Juli kiểm tra lại bằng quyền chỉ đọc và bắt đầu đo.",
+      },
+      {
+        question: "Mô tả do AI soạn có thể sai thông tin sản phẩm không?",
+        answer:
+          "Bản soạn được kiểm tra độ dài, từ không được dùng và đối chiếu với thông tin của chính sản phẩm trước khi bạn xem, nhưng bạn vẫn là người đọc lại và quyết định ở bước xác nhận. Nếu sai, bạn sửa trước khi áp dụng hoặc hoàn tác sau đó.",
+      },
+      {
+        question: "Vì sao lý do của thẻ đôi khi nhắc đến giá của sản phẩm tương tự?",
+        answer:
+          "Khi có dữ liệu giá thị trường của các sản phẩm tương tự, lý do có thể nhắc đến chênh lệch giá. Đây là dữ liệu bên ngoài, tuỳ chọn, không phải lúc nào cũng có.",
+      },
+      {
+        question: "CTOR được đo trên kênh nào?",
+        answer:
+          "TikTok không tách đơn hàng SKU theo từng luồng cho từng sản phẩm, nên CTOR của một thay đổi được đo trên tất cả các kênh, so với mốc 14 ngày trước khi áp dụng.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "CTOR = đơn hàng SKU ÷ lượt nhấp, theo từng luồng (17/06/2026), kiểm tra 18/10/2026"),
+      academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "mô tả không dưới 30 từ (23/04/2026), kiểm tra 18/10/2026"),
+    ],
+  },
 ];
