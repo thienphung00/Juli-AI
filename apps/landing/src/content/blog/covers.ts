@@ -14,9 +14,9 @@ export const BLOG_CATEGORIES: Readonly<Record<BlogCategory, { label: string; slu
 export const BLOG_CATEGORY_ORDER = Object.keys(BLOG_CATEGORIES) as BlogCategory[];
 
 /**
- * The files `scripts/blog-covers.mjs` writes for the cover `name` (an entry of
- * its `COVERS`): `public/media/blog-<name>-{600,1200}.{avif,webp}` (16:9) and
- * `blog-<name>-og.png` (1200×630).
+ * The files `scripts/media.py blog-hero` writes for the cover `name`
+ * (`hero-<slug>-vN`): `public/media/blog-<name>-{600,1200}.{avif,webp}` (16:9)
+ * and `blog-<name>-og.png` (1200×630). See the blog README, "Hero images".
  */
 export function blogCover(name: string, alt: string): BlogCover {
   const base = `/media/blog-${name}`;

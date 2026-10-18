@@ -22,6 +22,11 @@ Usage (Pillow >= 11.2 with AVIF + WebP; the repo venv has it):
     # P34-A: taller, narrower mobile crops of the cap-* screenshots (MOBILE_CROPS)
     python apps/landing/scripts/media.py mobile-crops
 
+    # P48-H: a blog hero rendered by juli-content-engine (BlogHero still) ->
+    # public/media/blog-hero-<slug>-v1-{600,1200}.avif/.webp + -og.png
+    python apps/landing/scripts/media.py blog-hero <slug>-hero.png <slug>-og.png \
+        --name hero-<slug>-v1
+
 Hex colours are allowed here (a build script, not `src/`); they mirror
 `@juli/theme` tokens.
 """
@@ -67,6 +72,31 @@ def optimize(src: Path, out_stem: Path, widths: list[int]) -> None:
     for width in widths:
         w, h = save_modern(image, out_stem, width)
         print(f"{out_stem.name}-{w}.avif/.webp  width={w} height={h}")
+
+
+HERO_SIZE = (2400, 1350)
+OG_SIZE = (1200, 630)
+
+
+def blog_hero(hero: Path, og: Path, name: str) -> None:
+    """Blog cover from a BlogHero render: 600/1200 AVIF + WebP (16:9) and the OG PNG.
+
+    Refuses wrong sizes and never overwrites (files in public/media are immutable).
+    """
+    for src, size in ((hero, HERO_SIZE), (og, OG_SIZE)):
+        with Image.open(src) as image:
+            if image.size != size:
+                raise SystemExit(
+                    f"{src}: expected {size[0]}x{size[1]}, got {image.width}x{image.height}"
+                )
+    stem = PUBLIC / "media" / f"blog-{name}"
+    existing = sorted(stem.parent.glob(f"{stem.name}-*"))
+    if existing:
+        raise SystemExit(f"{stem.name}: already exists ({existing[0].name}); bump -vN")
+    optimize(hero, stem, [600, 1200])
+    with Image.open(og) as image:
+        image.convert("RGB").save(f"{stem}-og.png", optimize=True)
+    print(f"{stem.name}-og.png  width={OG_SIZE[0]} height={OG_SIZE[1]}")
 
 
 def _font(path: str, size: int) -> ImageFont.FreeTypeFont:
@@ -243,6 +273,10 @@ def main() -> None:
     sub.add_parser("brand", help="regenerate OG image, logo, favicon and poster")
     sub.add_parser("glyph", help="write the bird glyph (AVIF + WebP, 64/96 px)")
     sub.add_parser("mobile-crops", help="write the cap-* mobile crops (MOBILE_CROPS)")
+    hero = sub.add_parser("blog-hero", help="blog cover variants + OG from a BlogHero render")
+    hero.add_argument("hero", type=Path, help="<slug>-hero.png, 2400x1350")
+    hero.add_argument("og", type=Path, help="<slug>-og.png, 1200x630")
+    hero.add_argument("--name", required=True, help="cover name, e.g. hero-<slug>-v1")
     args = parser.parse_args()
     if args.command == "optimize":
         optimize(args.src, args.out, [int(w) for w in args.widths.split(",")])
@@ -250,6 +284,8 @@ def main() -> None:
         glyph()
     elif args.command == "mobile-crops":
         mobile_crops()
+    elif args.command == "blog-hero":
+        blog_hero(args.hero, args.og, args.name)
     else:
         brand()
 
