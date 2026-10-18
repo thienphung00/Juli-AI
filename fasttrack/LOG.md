@@ -2665,3 +2665,23 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   `check:seo` 39 passed. `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS;
   migrations / isolation FAIL (no DB; hung `docker info` killed; known).
 - Next: P48-B/C strip Juli from the reach posts and remove their slugs from `REACH_JULI_PENDING`.
+
+## 2026-10-18 · P48-C strip Juli from 8 reach posts (D59.1)
+
+- Branch `fasttrack/p48c-reach-strip-2` (from `fasttrack/optimize-product` 081dfca9), not merged.
+- Posts: `khach-xem-nhung-khong-mua-tiktok-shop`, `tang-gia-tri-don-hang-trung-binh-tiktok-shop`,
+  `mo-ta-san-pham-tiktok-shop`, `quy-dinh-livestream-ban-hang`, `dat-ten-san-pham-tiktok-shop`,
+  `anh-bia-san-pham-tiktok-shop`, `do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop`,
+  `doanh-thu-sau-sale-tiktok-shop`. Each "Juli AI giúp gì" section replaced by seller-side guidance
+  (self-kept Seller Center sheets / routines from the sources already cited); Juli trial CTA lines and
+  product / connect / sign-up links removed; "Juli's rule" thresholds reworded as our practice rules.
+  `do-hieu-qua` rewritten as a method the seller applies (no Juli labels: day 7 đang lên / đi ngang /
+  đang giảm, day 14 giữ / đo thêm / sửa tiếp / quay lại; mức mong đợi written before the change;
+  optional "sửa sau 14 ngày" group by lot). FAQs: Juli answers replaced (ảnh bìa, mô tả, đặt tên,
+  đo hiệu quả ×3). `related` favours reach posts + `gmv-la-gi-tiktok-shop`; updatedAt 2026-10-18.
+- Figures: 11 `cap-*` screenshot figures removed from `figures.ts` (used only by these posts; 4 unused
+  CAP_* imports dropped); `do-lich-14-ngay` and `do-ba-ket-qua` re-rendered as v2 without Juli labels
+  (v1 files deleted). Figure counts 3–5 per pain post, 2 for the news post.
+- Gates: lint 0, `tsc --noEmit` 0, vitest 616 passed / 16 skipped (the 8 still-pending P48-B slugs),
+  build OK, `check:seo` 39 passed; 390 px spot-render of `do-hieu-qua` and `anh-bia`: neutral
+  calculator box, no "Juli" in `<main>` outside byline / related cards, no horizontal overflow.

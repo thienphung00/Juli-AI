@@ -268,7 +268,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P48-A `tier` in code, neutral end-of-post CTA for reach posts, tests | D59.1, D59.2 | done on branch `fasttrack/p48a-tiers` (not merged); `REACH_JULI_PENDING` holds the 16 reach slugs for P48-B/C | agent |
-| P48-B/C Remove Juli from the 16 reach posts (body, FAQ, figures, links) | D59.1 | todo (after P48-A) | agents |
+| P48-B/C Remove Juli from the 16 reach posts (body, FAQ, figures, links) | D59.1 | P48-C half done on branch `fasttrack/p48c-reach-strip-2` (not merged): 8 posts stripped (khach-xem, AOV, mô tả, livestream, đặt tên, ảnh bìa, đo hiệu quả, sau sale), slugs out of `REACH_JULI_PENDING`; P48-B half by the other agent | agents |
 | P48-H Unique hero per post: content-engine still + landing covers | D59.3 | in progress (content engine first) | agent |
 
 ## P2–P6
