@@ -81,5 +81,9 @@ GMV trong La bàn dữ liệu là tổng tiền khách thanh toán, **gồm cả
 
 Vì vậy, khi phí tăng hay đơn hoàn nhiều, GMV có thể vẫn đẹp trong khi tiền về giảm. Bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop) giải thích khoảng cách này chi tiết hơn.
 
-[Juli AI](/san-pham) đọc GMV theo luồng truy cập và sản phẩm để tìm chỗ đang kéo doanh thu xuống. Juli không tính phí, không làm kế toán và không quyết định giá bán. Nếu bạn muốn biết luồng và sản phẩm nào đang kéo GMV xuống, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+### Tự đối chiếu phí mỗi tháng
+
+Mỗi tháng, mở mục Tài chính, Giao dịch và chọn vài đơn đã quyết toán ở các mức giá khác nhau. Với mỗi đơn, so từng dòng phí với cách tính ở trên: phí hoa hồng theo đúng ngành hàng của sản phẩm, phí giao dịch trên cơ sở có cả phí ship khách trả, phí xử lý đơn cố định. Một dòng lệch là dấu hiệu sản phẩm đang ở ngành hàng khác bạn nghĩ, hoặc một trang phí vừa được cập nhật. Ghi lại phần còn lại của mỗi đơn cạnh giá vốn để biết mức giá nào vẫn có lãi.
+
+Thuế được sàn khấu trừ trên từng giao dịch là một khoản khác, xem bài [Thuế bán hàng TikTok Shop 2026](/blog/thue-ban-hang-tiktok-shop); chi phí của đơn bị trả có trong bài [Tỷ lệ hoàn hàng TikTok Shop](/blog/ty-le-hoan-hang-tiktok-shop). Để xem GMV đổi ra sao khi một chỉ số của phễu tăng, thử [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv).
 `;

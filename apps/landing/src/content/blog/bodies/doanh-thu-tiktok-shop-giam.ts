@@ -9,8 +9,8 @@
  * (27/08/2026); recommendation threshold and shop operations from "Chẩn Đoán
  * Thẻ Sản Phẩm hoạt động như thế nào 1"; product card scope from "Thẻ Sản
  * Phẩm"; price states from "Chẩn đoán giá"; BMSM from "Mua Sỉ Giá Hời". The
- * log split (docs/adr/108) and the data floors (docs/adr/106) are Juli's method
- * and are labelled as such. Every number in a "Ví dụ giả định" is hypothetical.
+ * log split and the data floors are a method the seller applies, labelled as
+ * such (reach tier, D59: no Juli). Every number in a "Ví dụ giả định" is hypothetical.
  */
 export const body = `
 Doanh thu giảm là lúc nhà bán TikTok Shop dễ đưa ra quyết định vội nhất. Thấy GMV tuần này thấp hơn tuần trước, nhiều người lập tức giảm giá, đổi ảnh, đăng thêm video hay tăng ngân sách quảng cáo, rồi một tuần sau không biết việc nào đã giúp, việc nào đã làm tệ hơn. Trong khi đó, nguyên nhân thật có thể nằm ở một luồng truy cập duy nhất, ở hai ba sản phẩm, hoặc thậm chí ở cách so sánh hai kỳ.
@@ -48,11 +48,11 @@ Nếu bạn xuất dữ liệu theo ngày và tự tính, hãy cộng tổng cá
 
 ### Mức giảm có vượt khỏi dao động bình thường không
 
-Với shop vài đơn mỗi ngày, GMV giữa hai tuần có thể chênh nhau đáng kể chỉ vì ngẫu nhiên. Trước khi kết luận, hãy xem mức giảm có lớn hơn mức dao động thường thấy của shop trong vài kỳ gần đây không. Juli gắn nhãn độ tin cậy cho mỗi so sánh: chỉ khi mỗi kỳ có từ 30 đơn hàng trở lên và chênh lệch vượt khỏi vùng nhiễu thống kê thì kết luận mới được coi là "rõ"; dưới mức đó, chênh lệch chỉ là "dấu hiệu" để theo dõi tiếp. Đây là quy tắc của Juli, không phải quy định của TikTok.
+Với shop vài đơn mỗi ngày, GMV giữa hai tuần có thể chênh nhau đáng kể chỉ vì ngẫu nhiên. Trước khi kết luận, hãy xem mức giảm có lớn hơn mức dao động thường thấy của shop trong vài kỳ gần đây không. Một quy tắc đơn giản để tự áp dụng: chỉ coi một so sánh là "rõ" khi mỗi kỳ có đủ đơn (ví dụ giả định: từ 30 đơn hàng trở lên) và mức giảm lớn hơn mức chênh thường thấy giữa các kỳ gần đây; dưới mức đó, coi chênh lệch là "dấu hiệu" để theo dõi tiếp. Đây là quy tắc bạn tự đặt, không phải quy định của TikTok.
 
 ## Phân tích doanh thu TikTok Shop theo năm luồng
 
-Khi đã chắc doanh thu giảm thật, bước đầu tiên là tìm xem nó giảm ở đâu. Trang "Lưu lượng truy cập sản phẩm" cho phép xem GMV, Lượt nhấp, CTR và CTOR theo các khía cạnh: Tất cả, LIVE của người bán, video của người bán, thẻ sản phẩm của người bán, Liên kết (gồm LIVE liên kết và video liên kết) và Tab Cửa hàng. Juli gom thành năm luồng: **Thẻ sản phẩm**, **Tab cửa hàng**, **Video**, **LIVE** và **Liên kết**.
+Khi đã chắc doanh thu giảm thật, bước đầu tiên là tìm xem nó giảm ở đâu. Trang "Lưu lượng truy cập sản phẩm" cho phép xem GMV, Lượt nhấp, CTR và CTOR theo các khía cạnh: Tất cả, LIVE của người bán, video của người bán, thẻ sản phẩm của người bán, Liên kết (gồm LIVE liên kết và video liên kết) và Tab Cửa hàng. Bài này gom thành năm luồng: **Thẻ sản phẩm**, **Tab cửa hàng**, **Video**, **LIVE** và **Liên kết**.
 
 ### Ví dụ giả định: GMV hai kỳ theo luồng
 
@@ -116,8 +116,6 @@ Câu chuyện chính là CTR: khoảng một nửa mức giảm của luồng đ
 
 Nếu GMV gần như không đổi giữa hai kỳ, phép chia cho ln(GMV mới ÷ GMV cũ) không còn ý nghĩa; khi đó hãy so sánh trực tiếp tỷ lệ thay đổi của từng chỉ số.
 
-{{hinh:pt-pheu}}
-
 ### Lưu ý với Tab cửa hàng
 
 Trong bảng khía cạnh của TikTok, Tab Cửa hàng có Lượt nhấp, CTR và CTOR nhưng không nằm trong danh sách khía cạnh của Lượt hiển thị sản phẩm. Với luồng này, hãy tách GMV thành ba phần: Lượt nhấp × CTOR × AOV.
@@ -147,8 +145,6 @@ Khi đã biết luồng nào giảm, đây là các câu hỏi nên đi qua cho 
 - Số video đăng trong kỳ có ít hơn không?
 - Lượt hiển thị sản phẩm từ video giảm (video ít được phân phối) hay CTR giảm (video vẫn được xem nhưng ít người nhấp vào sản phẩm)?
 - Sản phẩm trong các video bán chạy cũ có còn được gắn đúng, còn hàng, còn cùng mức giá không?
-
-{{hinh:pt-video}}
 
 ### LIVE
 
@@ -222,8 +218,6 @@ Sau khi biết luồng và chỉ số, hãy lặp lại phép tách cho từng s
 3. Sắp xếp theo mức giảm tuyệt đối. Thường năm sản phẩm đầu đã giải thích phần lớn mức giảm của luồng.
 4. Với từng sản phẩm đó, tách thành bốn chỉ số như ở trên.
 
-{{hinh:pt-xep-hang-doanh-thu}}
-
 ### Hai kiểu kết quả
 
 - **Mức giảm tập trung ở vài sản phẩm**: nguyên nhân thường nằm ở chính các sản phẩm đó, như hết hàng, đổi giá, đánh giá mới, chương trình kết thúc. Đây là trường hợp dễ xử lý nhất.
@@ -252,18 +246,32 @@ Bước 7 thường bị bỏ qua nhất nhưng lại quan trọng nhất. Khôn
 - **Giảm giá toàn shop ngay lập tức.** Nếu mức giảm nằm ở CTR của vài sản phẩm do ảnh bìa, giảm giá toàn shop chỉ lấy đi biên lợi nhuận của mọi đơn.
 - **Tăng ngân sách quảng cáo khi chưa biết bước nào yếu.** Quảng cáo đưa thêm người xem đến sản phẩm, nhưng không sửa được CTOR thấp. Kiểm tra CTR và CTOR trước, rồi mới quyết định mua thêm traffic. Bài [TikTok Shop không ra đơn: đọc phễu để tìm nguyên nhân](/blog/tiktok-shop-khong-ra-don) có một ví dụ về thứ tự này.
 - **Sửa nhiều thứ cùng lúc.** Đổi ảnh, giá và mô tả trong một ngày khiến bạn không đo được việc nào có tác dụng.
-- **Kết luận sau hai ba ngày.** Chỉ số theo ngày dao động mạnh. Juli đọc sơ bộ một thay đổi sau 7 ngày và kết luận sau 14 ngày.
+- **Kết luận sau hai ba ngày.** Chỉ số theo ngày dao động mạnh. Hãy đọc sơ bộ một thay đổi sau 7 ngày và chỉ kết luận sau 14 ngày.
 - **Sửa trang sản phẩm vì CTOR toàn shop giảm.** CTOR toàn shop thay đổi theo tỷ trọng giữa các luồng. Nếu lượt nhấp từ LIVE (thường có CTOR cao) giảm, CTOR toàn shop giảm dù không trang nào kém đi.
 
-## Juli AI giúp gì khi doanh thu giảm
+## Bảng theo dõi doanh thu mỗi tuần
 
-Juli AI là trợ lý AI cho nhà bán TMĐT do chúng tôi phát triển, hiện kết nối TikTok Shop (Shopee đang tích hợp). Juli làm tự động phần phân tích doanh thu trong bài này:
+Phân tích ở trên nhanh hơn nhiều khi bạn đã có sẵn số của các tuần trước. Một bảng tính cập nhật mỗi thứ Hai, từ trang Lưu lượng truy cập sản phẩm trong La bàn dữ liệu, là đủ:
 
-- **Tách mức thay đổi**: [phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop), tách GMV theo năm luồng (Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết) và theo Lượt hiển thị × CTR × CTOR × AOV, gắn nhãn độ tin cậy cho mỗi so sánh, và chỉ ra sản phẩm nào giải thích nhiều nhất mức giảm.
-- **Đề xuất cách sửa**: [đề xuất thay đổi cụ thể kèm lý do bằng số](/san-pham/de-xuat-va-thuc-thi). Juli chỉ ghi tiêu đề và mô tả sản phẩm lên shop sau khi bạn duyệt; những việc khác như giá, khuyến mãi hay nội dung là đề xuất để bạn tự quyết định.
-- **Đo lại**: [đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 (sơ bộ) và ngày 14 (chốt).
+1. **Một dòng cho mỗi luồng**: Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết, và một dòng toàn shop.
+2. **Ba cột cho mỗi dòng**: GMV tuần vừa rồi, GMV tuần trước đó, và mức thay đổi tính bằng đồng. Đọc số đồng trước phần trăm, vì luồng nhỏ dễ có phần trăm lớn mà không đáng kể.
+3. **Với luồng giảm nhiều nhất**, thêm bốn cột: Lượt hiển thị sản phẩm (với Tab cửa hàng là Lượt nhấp), CTR, CTOR, AOV, mỗi chỉ số của hai tuần.
+4. **Cột ghi chú**: ngày sale, đợt khuyến mãi bắt đầu hay kết thúc, sản phẩm hết hàng, thay đổi bạn đã làm.
 
-Juli không chạy quảng cáo và không quản lý đơn hàng hay tồn kho. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop). Xem tổng quan tại trang [sản phẩm Juli AI](/san-pham), hoặc đọc bài [Tối ưu thẻ sản phẩm TikTok Shop từ A–Z](/blog/toi-uu-the-san-pham-tiktok-shop) nếu mức giảm nằm ở luồng thẻ sản phẩm.
+Ví dụ giả định cho một tuần:
+
+| Luồng | Tuần trước | Tuần này | Thay đổi | Ghi chú |
+|---|---|---|---|---|
+| Thẻ sản phẩm | 2.100.000 ₫ | 1.500.000 ₫ | −600.000 ₫ | Voucher hết hạn thứ Tư |
+| Tab cửa hàng | 300.000 ₫ | 300.000 ₫ | 0 ₫ | Không có |
+| Video | 1.000.000 ₫ | 1.100.000 ₫ | +100.000 ₫ | Hai video mới |
+| LIVE | 800.000 ₫ | 750.000 ₫ | −50.000 ₫ | Không có |
+| Liên kết | 200.000 ₫ | 200.000 ₫ | 0 ₫ | Không có |
+| Toàn shop | 4.400.000 ₫ | 3.850.000 ₫ | −550.000 ₫ | Không có |
+
+Ở đây gần như toàn bộ mức giảm nằm ở Thẻ sản phẩm và trùng với ngày voucher hết hạn, nên câu hỏi đầu tiên là CTOR hay AOV của luồng đó đã đổi chưa. Sau bốn đến sáu tuần, bảng còn cho bạn mức dao động thường thấy của shop, thứ cần có để biết một mức giảm có vượt khỏi dao động bình thường không.
+
+Để xem một chỉ số đổi thì GMV đổi bao nhiêu, nhập số của luồng vào [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv). Nếu mức giảm nằm ở luồng thẻ sản phẩm, đọc tiếp bài [Tối ưu thẻ sản phẩm TikTok Shop từ A–Z](/blog/toi-uu-the-san-pham-tiktok-shop); nếu doanh thu tụt ngay sau một đợt sale, xem bài [Doanh thu sau sale TikTok Shop](/blog/doanh-thu-sau-sale-tiktok-shop).
 
 ## Tóm tắt
 
@@ -273,5 +281,5 @@ Juli không chạy quảng cáo và không quản lý đơn hàng hay tồn kho.
 - **Đi qua danh sách kiểm tra** của đúng luồng và đúng chỉ số, rồi tìm vài sản phẩm giải thích phần lớn mức giảm.
 - **Một hành động, một ngày bắt đầu**, đo lại sau 7 và 14 ngày.
 
-Nếu bạn muốn mỗi lần doanh thu thay đổi đều có sẵn bảng tách theo luồng và theo chỉ số, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Nếu tiền về giảm mạnh hơn GMV, bài [Tỷ lệ hoàn hàng TikTok Shop](/blog/ty-le-hoan-hang-tiktok-shop) tách đơn hủy, giao không thành công và trả hàng, còn bài [Phí sàn TikTok Shop 2026](/blog/phi-san-tiktok-shop-2026) cho thấy một đơn còn lại bao nhiêu sau phí.
 `;

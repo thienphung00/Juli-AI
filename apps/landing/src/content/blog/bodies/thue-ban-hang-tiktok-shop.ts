@@ -77,7 +77,13 @@ Nghị định 68 (đã sửa bởi Nghị định 141) quy định ba mức the
 
 Trên La bàn dữ liệu của TikTok Shop, GMV tính cả đơn đã hủy và hoàn tiền, nên không phải con số để tính thuế. Theo Nghị định 252, doanh thu để khấu trừ là số tiền người bán được hưởng do sàn thu hộ, và thuế của đơn bị hủy, trả hàng được bù trừ. Bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-tiktok-shop) giải thích GMV khác tiền thực nhận ra sao.
 
-Juli AI là trợ lý AI vận hành cho nhà bán TikTok Shop: [Juli](/san-pham) đọc GMV theo luồng truy cập để tìm sản phẩm đang kéo doanh thu xuống. Juli không khai thuế, không tính thuế và không tư vấn thuế; với thuế, hãy dùng số liệu quyết toán của sàn và hỏi cơ quan thuế hoặc kế toán.
+### Theo dõi doanh thu cả năm
 
-Nếu bạn muốn biết luồng và sản phẩm nào đang kéo GMV xuống, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Ngưỡng 1 tỷ đồng và 3 tỷ đồng tính trên doanh thu cả năm, cộng cả trên sàn và ngoài sàn. Một bảng tính cập nhật mỗi tháng là đủ để biết mình đang ở mức nào:
+
+1. **Doanh thu trên sàn của tháng**, theo cách Nghị định 252 tính ở trên: số tiền bạn được hưởng do sàn thu hộ, đơn hủy và trả hàng đã bù trừ. Không lấy GMV.
+2. **Doanh thu bán ngoài sàn** của cùng tháng, nếu có.
+3. **Cộng dồn từ đầu năm**, để thấy sớm tháng nào doanh thu cả năm có thể vượt 1 tỷ đồng hay 3 tỷ đồng.
+
+Đơn hủy, trả hàng là một lý do GMV khác doanh thu này; bài [Tỷ lệ hoàn hàng TikTok Shop](/blog/ty-le-hoan-hang-tiktok-shop) tách các loại đơn này, còn bài [Phí sàn TikTok Shop 2026](/blog/phi-san-tiktok-shop-2026) cho thấy một đơn còn lại bao nhiêu sau phí. Với câu hỏi về trường hợp cụ thể, hãy hỏi cơ quan thuế hoặc kế toán.
 `;

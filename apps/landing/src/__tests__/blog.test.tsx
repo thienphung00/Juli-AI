@@ -49,14 +49,6 @@ const NO_JULI_IN_BODY = new Set([
  * already clean. The list must end empty.
  */
 const REACH_JULI_PENDING = new Set([
-  "tiktok-shop-khong-ra-don",
-  "doanh-thu-tiktok-shop-giam",
-  "san-pham-tiktok-shop-khong-co-luot-hien-thi",
-  "thue-ban-hang-tiktok-shop",
-  "video-tiktok-nhieu-view-khong-ra-don",
-  "live-tiktok-shop-khong-ra-don",
-  "ty-le-hoan-hang-tiktok-shop",
-  "phi-san-tiktok-shop-2026",
   "khach-xem-nhung-khong-mua-tiktok-shop",
   "tang-gia-tri-don-hang-trung-binh-tiktok-shop",
   "mo-ta-san-pham-tiktok-shop",

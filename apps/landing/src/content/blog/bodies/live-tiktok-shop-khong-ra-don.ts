@@ -17,8 +17,8 @@
  *   LIVE product impressions include the product list and its cards; C_O.
  * - "Tinh chỉnh GMV" (11/05/2026): direct / indirect GMV, click required, 7 days.
  * How TikTok distributes LIVE impressions is not published: the post says so
- * and claims nothing about it. Juli facts follow /san-pham/* (D27 cards: LIVE
- * host script and basket order drafted by Juli, the seller goes live).
+ * and claims nothing about it. Reach tier (D59): no Juli; the session log
+ * uses only the Cẩm nang metrics above.
  */
 export const body = `
 LIVE đông người vào xem mà chốt được rất ít đơn thường có nghĩa là người xem đang dừng lại ở một bước trước khi mua: vào phòng nhưng không thấy sản phẩm, thấy sản phẩm nhưng không bấm vào, hoặc bấm vào rồi không đặt hàng. Số người xem chỉ cho biết bước đầu tiên của phễu đang ổn. Bài này đi qua phễu LIVE theo đúng các bước TikTok dùng trong La bàn dữ liệu, để bạn tìm ra chỗ tụt mạnh nhất và sửa chỗ đó trước.
@@ -130,17 +130,19 @@ Một buổi LIVE là một mẫu nhỏ: giờ phát, ngày trong tuần, sản 
 
 Một câu hay gặp là "TikTok có bóp LIVE không". Học viện TikTok Shop không công bố cách phân phối lượt hiển thị cho buổi LIVE, nên bài này không kết luận về điều đó. Điều Cẩm nang có nêu: khi muốn đánh giá tác động lưu lượng do vi phạm, hãy xem Tổng quan dữ liệu LIVE, Xu hướng hiệu suất, Chất lượng nội dung, và đối chiếu với Chính sách nội dung TikTok Shop.
 
-## Juli AI giúp gì khi LIVE đông người xem mà ít đơn
+## Sổ theo dõi các buổi LIVE
 
-Juli AI là trợ lý AI cho nhà bán TMĐT do chúng tôi phát triển, hiện kết nối TikTok Shop (Shopee đang tích hợp). LIVE là một trong năm luồng Juli đọc khi [phân tích shop](/san-pham/phan-tich-shop): Thẻ sản phẩm, Tab cửa hàng, Video, LIVE và Liên kết, mỗi luồng tách theo Lượt hiển thị × CTR × CTOR × AOV.
+Lời khuyên "so 3 chỉ số kém nhất với 5 buổi gần đây" của Cẩm nang chỉ làm được khi bạn có số của các buổi trước. Một bảng tính đơn giản, mỗi buổi LIVE một dòng, ghi ngay sau buổi:
 
-{{hinh:live-luong-du-lieu-mau}}
+1. **Thông tin buổi**: ngày, khung giờ, thời lượng, các sản phẩm chính được ghim.
+2. **Năm bước của phễu**: Lượt hiển thị LIVE, Lượt xem, Lượt hiển thị sản phẩm, Lượt nhấp vào sản phẩm, Đơn hàng.
+3. **Các tỷ lệ**: ERR, CTR của LIVE, CTOR, GPM hiển thị.
+4. **Một cột thay đổi**: điều chỉnh duy nhất bạn thử ở buổi đó, ví dụ thứ tự giới thiệu sản phẩm hay ưu đãi có hạn.
+5. **Một cột ba chỉ số kém nhất** so với trung bình 5 buổi gần nhất.
 
-- **Tìm buổi và sản phẩm có vấn đề**: ở tab Nội dung, Juli liệt kê những phiên LIVE có người xem bấm vào sản phẩm nhưng ít chốt đơn.
-- **Đề xuất, bạn duyệt**: [đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi). Khi khả năng chốt đơn trong LIVE của một sản phẩm giảm, Juli soạn kịch bản cho người dẫn LIVE và thứ tự giỏ hàng; bạn chọn dùng, yêu cầu soạn lại hoặc bỏ qua, rồi tự lên LIVE. Juli không lên LIVE thay bạn, không trả lời bình luận hay tin nhắn của khách và không chạy quảng cáo. Khi vấn đề nằm ở trang sản phẩm, Juli chỉ ghi tiêu đề và mô tả lên shop sau khi bạn duyệt.
-- **Đo lại**: Juli nhận ra phiên LIVE tiếp theo bán sản phẩm đó và [đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 và ngày 14.
+Ví dụ giả định: ba buổi liền có CTR và CTOR kém nhất, còn Lượt xem vẫn như các buổi trước. Cả hai chỉ số thuộc nhóm Chuyển đổi, nên buổi sau giữ nguyên khung giờ và thử một điều chỉnh ở lời dẫn mời bấm, thay vì tìm cách kéo thêm người xem.
 
-Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop). Xem tổng quan tại trang [sản phẩm Juli AI](/san-pham). Nếu bạn bán chủ yếu bằng video ngắn, bài [video nhiều view nhưng không ra đơn](/blog/video-tiktok-nhieu-view-khong-ra-don) đi qua luồng Video theo cùng cách, còn bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop) giải thích cách tách GMV theo luồng.
+Sau một hai tuần, bảng cho bạn mốc của chính shop để đọc mọi buổi sau. Để ước tính GMV đổi bao nhiêu khi một bước của phễu tăng, thử [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv). Nếu bạn bán chủ yếu bằng video ngắn, bài [video nhiều view nhưng không ra đơn](/blog/video-tiktok-nhieu-view-khong-ra-don) đi qua luồng Video theo cùng cách, còn bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop) giải thích cách tách GMV theo luồng.
 
 ## Tóm tắt
 
@@ -150,5 +152,5 @@ Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/k
 - So các buổi LIVE bằng GPM hiển thị, không chỉ bằng số người xem.
 - Sau mỗi buổi, tìm 3 chỉ số kém nhất; chọn một điều chỉnh cho buổi sau và đo lại ở ngày 7, ngày 14.
 
-Nếu bạn muốn biết buổi LIVE và sản phẩm nào đang kéo GMV xuống mà không phải ghép số từ nhiều trang, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Trước khi lên LIVE bán hàng, bài [Quy định livestream bán hàng](/blog/quy-dinh-livestream-ban-hang) tóm tắt những gì luật và TikTok Shop yêu cầu với người bán và người livestream.
 `;

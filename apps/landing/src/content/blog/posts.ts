@@ -246,12 +246,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Coi \"không ra đơn\" là triệu chứng: loại trừ trạng thái sản phẩm, tồn kho và vận hành, rồi đọc phễu Lượt hiển thị, CTR, CTOR để biết đơn hàng bị chặn ở bước nào, kèm danh sách kiểm tra và câu hỏi trước khi tăng ngân sách quảng cáo.",
     breadcrumbName: "TikTok Shop không ra đơn",
     publishedAt: "2026-10-16",
-    updatedAt: "2026-10-16",
+    updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
     cover: blogCover("khong-ra-don-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xám nhạt, ô đầu tiên được tô kín"),
     author: AUTHOR,
-    related: ["gmv-la-gi-tiktok-shop", "toi-uu-the-san-pham-tiktok-shop", "doanh-thu-tiktok-shop-giam"],
+    related: ["khach-xem-nhung-khong-mua-tiktok-shop", "san-pham-tiktok-shop-khong-co-luot-hien-thi", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Vì sao bán hàng trên TikTok Shop không ra đơn?",
@@ -261,12 +261,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Chạy quảng cáo TikTok Shop mà không ra đơn thì nên làm gì?",
         answer:
-          "Trước khi tăng ngân sách, hãy đọc CTR và CTOR ở luồng thẻ sản phẩm. Quảng cáo đưa thêm người xem đến sản phẩm nhưng không sửa được trang sản phẩm; nếu CTOR đang thấp, sửa ảnh, mô tả, giá hay đánh giá trước rồi mới mua thêm traffic. Juli AI không chạy quảng cáo.",
+          "Trước khi tăng ngân sách, hãy đọc CTR và CTOR ở luồng thẻ sản phẩm. Quảng cáo đưa thêm người xem đến sản phẩm nhưng không sửa được trang sản phẩm; nếu CTOR đang thấp, sửa ảnh, mô tả, giá hay đánh giá trước rồi mới mua thêm traffic.",
       },
       {
         question: "Shop mới bao lâu thì đọc được chỉ số?",
         answer:
-          "Hãy dùng cửa sổ ít nhất 14 ngày và chỉ đọc tỷ lệ khi đủ dữ liệu. Juli dùng ngưỡng trung bình mỗi ngày từ 50 lượt hiển thị để đọc CTR và từ 20 lượt nhấp để đọc CTOR; dưới ngưỡng đó, vấn đề thường là chưa đủ người nhìn thấy sản phẩm.",
+          "Hãy dùng cửa sổ ít nhất 14 ngày và chỉ đọc tỷ lệ khi đủ dữ liệu, theo một ngưỡng bạn tự đặt và giữ nguyên, ví dụ trung bình mỗi ngày từ 50 lượt hiển thị mới đọc CTR và từ 20 lượt nhấp mới đọc CTOR. Đó không phải quy định của TikTok; dưới ngưỡng, vấn đề thường là chưa đủ người nhìn thấy sản phẩm.",
       },
       {
         question: "Giảm giá có giúp shop ra đơn không?",
@@ -296,12 +296,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "So sánh hai kỳ cho công bằng, tách mức giảm GMV theo năm luồng truy cập và theo Lượt hiển thị × CTR × CTOR × AOV, rồi đi qua danh sách nguyên nhân cho từng luồng, từng chỉ số và từng sản phẩm.",
     breadcrumbName: "Doanh thu TikTok Shop giảm",
     publishedAt: "2026-10-16",
-    updatedAt: "2026-10-16",
+    updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
     cover: blogCover("doanh-thu-giam-v1", "Minh hoạ: bốn cột biểu đồ trên nền hồng nhạt, cột cuối cùng tô màu hồng"),
     author: AUTHOR,
-    related: ["gmv-la-gi-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov", "tiktok-shop-khong-ra-don"],
+    related: ["doanh-thu-sau-sale-tiktok-shop", "ty-le-hoan-hang-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Doanh thu TikTok Shop giảm thì kiểm tra gì đầu tiên?",
@@ -321,7 +321,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Làm sao biết mức giảm là thật hay chỉ là dao động?",
         answer:
-          "So mức giảm với mức dao động thường thấy của shop trong vài kỳ gần đây. Juli chỉ coi một so sánh là rõ khi mỗi kỳ có từ 30 đơn hàng trở lên và chênh lệch vượt khỏi vùng nhiễu thống kê; dưới mức đó là dấu hiệu để theo dõi tiếp.",
+          "So mức giảm với mức dao động thường thấy của shop trong vài kỳ gần đây. Chỉ coi một so sánh là rõ khi mỗi kỳ có đủ đơn, ví dụ từ 30 đơn hàng trở lên, và mức giảm lớn hơn mức chênh thường thấy; dưới mức đó là dấu hiệu để theo dõi tiếp.",
       },
     ],
     sources: [
@@ -508,12 +508,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Tách hai trường hợp: sản phẩm không hiện với người mua (trạng thái, bị từ chối, vi phạm) và sản phẩm có hiện nhưng ít người thấy. Rồi đọc Lượt hiển thị theo luồng truy cập, đọc cùng CTR, và đo lại sau khi sửa.",
     breadcrumbName: "Sản phẩm không có lượt hiển thị",
     publishedAt: "2026-10-17",
-    updatedAt: "2026-10-17",
+    updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
     cover: blogCover("luot-hien-thi-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xám nhạt, ô thứ hai được tô kín"),
     author: AUTHOR,
-    related: ["tiktok-shop-khong-ra-don", "toi-uu-the-san-pham-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    related: ["tiktok-shop-khong-ra-don", "dat-ten-san-pham-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Tại sao TikTok Shop không hiện sản phẩm của tôi?",
@@ -533,7 +533,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Sửa tiêu đề bao lâu thì thấy thay đổi về lượt hiển thị?",
         answer:
-          "Không có thời gian cố định. Juli so 14 ngày trước thay đổi, đọc sơ bộ ở ngày 7 và chốt ở ngày 14, so với các sản phẩm không thay đổi, để tách tác động của thay đổi khỏi dao động thường ngày.",
+          "Không có thời gian cố định. Hãy lấy 14 ngày trước thay đổi làm mốc, đọc sơ bộ ở ngày 7 và chốt ở ngày 14, so với các sản phẩm không thay đổi, để tách tác động của thay đổi khỏi dao động thường ngày.",
       },
       {
         question: "Có nên xóa sản phẩm ít lượt hiển thị rồi đăng lại?",
@@ -561,12 +561,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Tóm tắt từ văn bản chính thức: sàn có chức năng đặt hàng và thanh toán khấu trừ, nộp thay thuế trên từng giao dịch; doanh thu năm từ 1 tỷ đồng trở xuống không chịu thuế; người bán cần cung cấp gì và khi nào phải tự quyết toán. Cập nhật ngày 17/10/2026.",
     breadcrumbName: "Thuế bán hàng TikTok Shop",
     publishedAt: "2026-10-17",
-    updatedAt: "2026-10-17",
+    updatedAt: "2026-10-18",
     category: "guide",
     format: "news",
     cover: blogCover("thue-ban-hang-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xám nhạt, ô thứ ba được tô kín"),
     author: AUTHOR,
-    related: ["gmv-la-gi-tiktok-shop", "doanh-thu-tiktok-shop-giam"],
+    related: ["phi-san-tiktok-shop-2026", "ty-le-hoan-hang-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Bán hàng trên TikTok Shop có phải đóng thuế không?",
@@ -633,12 +633,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Lượt xem video không nằm trong công thức GMV. Cách TikTok tính đơn cho video (trực tiếp và trong 7 ngày), bảng triệu chứng theo Lượt hiển thị sản phẩm, CTR, CTOR, AOV, cách nhận ra video sai tệp khách và đo lại sau 7, 14 ngày.",
     breadcrumbName: "Video nhiều view không ra đơn",
     publishedAt: "2026-10-17",
-    updatedAt: "2026-10-17",
+    updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
     cover: blogCover("video-view-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xám nhạt, ô thứ hai được tô kín"),
     author: AUTHOR,
-    related: ["live-tiktok-shop-khong-ra-don", "tiktok-shop-khong-ra-don", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    related: ["live-tiktok-shop-khong-ra-don", "khach-xem-nhung-khong-mua-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Video TikTok bao nhiêu view thì có đơn?",
@@ -658,7 +658,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Có nên chạy quảng cáo cho video nhiều view nhưng ít đơn?",
         answer:
-          "Hãy đọc CTR và CTOR trước. Quảng cáo đưa thêm người xem đến video nhưng không làm họ bấm vào sản phẩm nhiều hơn hay sửa được trang sản phẩm. Nếu CTR hoặc CTOR đang thấp, sửa bước đó trước. Juli AI không chạy quảng cáo.",
+          "Hãy đọc CTR và CTOR trước. Quảng cáo đưa thêm người xem đến video nhưng không làm họ bấm vào sản phẩm nhiều hơn hay sửa được trang sản phẩm. Nếu CTR hoặc CTOR đang thấp, sửa bước đó trước.",
       },
       {
         question: "Sửa xong bao lâu thì biết có hiệu quả?",
@@ -684,12 +684,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Người xem không phải người mua. Năm bước của phễu LIVE theo TikTok, ba góc độ chỉ số trong Cẩm nang lưu lượng LIVE, vì sao CTR của LIVE khác CTR của thẻ sản phẩm, so các buổi bằng GPM hiển thị và đọc số theo từng phút.",
     breadcrumbName: "LIVE đông người xem mà ít đơn",
     publishedAt: "2026-10-17",
-    updatedAt: "2026-10-17",
+    updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
     cover: blogCover("live-it-don-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xám nhạt, ô thứ ba được tô kín"),
     author: AUTHOR,
-    related: ["video-tiktok-nhieu-view-khong-ra-don", "tiktok-shop-khong-ra-don", "gmv-la-gi-tiktok-shop"],
+    related: ["video-tiktok-nhieu-view-khong-ra-don", "quy-dinh-livestream-ban-hang", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Tại sao LIVE đông người xem mà không chốt được đơn?",
@@ -714,7 +714,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Bao lâu thì nên đánh giá lại cách LIVE?",
         answer:
-          "Cẩm nang lưu lượng LIVE khuyên xem lại dữ liệu cấp tài khoản ít nhất 7 ngày một lần và so 3 chỉ số kém nhất với 5 buổi gần đây. Với một thay đổi cụ thể, Juli đọc sơ bộ ở ngày 7 và chốt ở ngày 14.",
+          "Cẩm nang lưu lượng LIVE khuyên xem lại dữ liệu cấp tài khoản ít nhất 7 ngày một lần và so 3 chỉ số kém nhất với 5 buổi gần đây. Với một thay đổi cụ thể, hãy đọc sơ bộ ở ngày 7 và chốt ở ngày 14.",
       },
     ],
     sources: [
@@ -736,12 +736,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Hoàn hàng là ba chuyện khác nhau: đơn hủy trước khi giao, đơn giao không thành công quay về shop, và đơn khách trả sau khi nhận. Mỗi loại một chỉ số, một hạn xử lý, một khoản phí; bài này tách từng loại theo trang chính thức của TikTok Shop. Cập nhật ngày 17/10/2026.",
     breadcrumbName: "Tỷ lệ hoàn hàng TikTok Shop",
     publishedAt: "2026-10-17",
-    updatedAt: "2026-10-17",
+    updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
     cover: blogCover("hoan-hang-v1", "Minh hoạ: bốn cột đứng trên nền nhạt, cột thứ hai được tô màu nhấn"),
     author: AUTHOR,
-    related: ["doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop", "phi-san-tiktok-shop-2026"],
+    related: ["phi-san-tiktok-shop-2026", "doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Hủy đơn trên TikTok Shop có sao không?",
@@ -794,12 +794,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Khung phí hiện hành theo các trang chính thức của TikTok Shop, kèm ngày hiệu lực: hoa hồng theo ngành, phí giao dịch, phí xử lý đơn, phí vận hành logistic, hai mốc 20/10 và 21/10, và một ví dụ giả định tính phần còn lại của một đơn. Cập nhật ngày 17/10/2026.",
     breadcrumbName: "Phí sàn TikTok Shop 2026",
     publishedAt: "2026-10-17",
-    updatedAt: "2026-10-17",
+    updatedAt: "2026-10-18",
     category: "guide",
     format: "news",
     cover: blogCover("phi-san-2026-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền xám nhạt, ô thứ hai được tô màu nhấn"),
     author: AUTHOR,
-    related: ["thue-ban-hang-tiktok-shop", "gmv-la-gi-tiktok-shop", "ty-le-hoan-hang-tiktok-shop"],
+    related: ["thue-ban-hang-tiktok-shop", "ty-le-hoan-hang-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Phí hoa hồng TikTok Shop của ngành tôi là bao nhiêu?",
