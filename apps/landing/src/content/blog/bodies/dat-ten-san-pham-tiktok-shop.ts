@@ -17,10 +17,10 @@
  * (29/06/2025), Mô tả sản phẩm phóng đại (29/06/2025), Cập nhật Chính sách mới
  * nhất (01/07/2026; brand-masking rule from 28/05/2026), Lưu lượng truy cập sản
  * phẩm (17/06/2026). No official page gives a maximum length or a "best"
- * length; none is stated. Juli facts follow /san-pham/de-xuat-va-thuc-thi:
- * the title is written only after approval, the old one is stored for undo,
- * measured at day 7 / 14. The 40-character target, the 25-character floor and
- * the 50-impressions-a-day floor are Juli's rules and say so.
+ * length; none is stated. D59 reach post (P48-C): no Juli, no
+ * product links; the last how-to section is a self-kept title log. The
+ * 40-character target, the 25-character floor and the 50-impressions-a-day
+ * floor are our practice rules and say so.
  */
 export const body = `
 Khi sản phẩm đã có lượt hiển thị mà ít người bấm vào, tiêu đề là một trong hai thứ đầu tiên nên kiểm tra, cùng với ảnh bìa, vì nó quyết định sản phẩm có hiện ra khi người mua tìm kiếm không và người xem có hiểu ngay đây là gì không. TikTok có quy định rõ về tiêu đề: năm thành phần nên có và những thứ không được đưa vào. Bài này chỉ cách xác nhận tiêu đề đúng là nguyên nhân bằng CTR của riêng luồng Thẻ sản phẩm, viết lại theo chính sách, rồi đo lại sau 7 và 14 ngày.
@@ -40,7 +40,7 @@ TikTok không công bố một mức CTR chuẩn. So với hai mốc:
 - **Chính sản phẩm đó trước đây**: 28 ngày gần nhất so với 28 ngày trước đó.
 - **Các sản phẩm khác của shop trên cùng luồng**: một sản phẩm có CTR bằng một nửa các sản phẩm cùng ngành trong shop là tín hiệu rõ hơn mọi ngưỡng chung.
 
-Cũng cần đủ dữ liệu. Juli chỉ đọc CTR của một sản phẩm khi nó có từ 50 lượt hiển thị ở Thẻ sản phẩm mỗi ngày trở lên, tính trung bình trong kỳ; đây là ngưỡng của Juli, không phải của TikTok.
+Cũng cần đủ dữ liệu. Với ít lượt hiển thị, vài lượt nhấp lẻ đã làm CTR nhảy mạnh. Chúng tôi chỉ đọc CTR của một sản phẩm khi nó có khoảng 50 lượt hiển thị ở Thẻ sản phẩm mỗi ngày trở lên, tính trung bình trong kỳ; đây là quy tắc thực hành của chúng tôi, không phải ngưỡng của TikTok.
 
 ### Xem TikTok đã gắn cờ tiêu đề chưa
 
@@ -122,7 +122,7 @@ Người mua thấy thẻ sản phẩm trên màn hình nhỏ, và phần cuối
 
 ### Tiêu đề sản phẩm TikTok Shop dài bao nhiêu ký tự
 
-Bài Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4 ghi "Tiêu đề phải dài hơn 25 ký tự". Các trang chính sách chúng tôi đọc lại ngày 18/10/2026 không nêu độ dài tối đa hay một độ dài "tốt nhất". Trong thực tế, một tiêu đề đủ năm thành phần hiếm khi ngắn hơn 40 ký tự. Juli dùng 40 ký tự làm mục tiêu khi đề xuất và không đề xuất tiêu đề dưới 25 ký tự; đây là quy tắc của Juli.
+Bài Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4 ghi "Tiêu đề phải dài hơn 25 ký tự". Các trang chính sách chúng tôi đọc lại ngày 18/10/2026 không nêu độ dài tối đa hay một độ dài "tốt nhất". Trong thực tế, một tiêu đề đủ năm thành phần hiếm khi ngắn hơn 40 ký tự. Chúng tôi dùng khoảng 40 ký tự làm mục tiêu và không viết tiêu đề dưới 25 ký tự; đây là quy tắc thực hành, không phải quy định của TikTok.
 
 ## Sửa tiêu đề xong, làm sao biết có hiệu quả
 
@@ -140,17 +140,25 @@ Bài Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4 ghi "Tiê
 - **Sản phẩm chưa đủ dữ liệu.** Dưới khoảng 50 lượt hiển thị mỗi ngày ở Thẻ sản phẩm, một thay đổi khó đo được.
 - **Bạn vừa đổi ảnh bìa hay giá của chính sản phẩm đó.** Đợi đo xong thay đổi kia trước.
 
-## Juli AI giúp gì khi ít người bấm vào sản phẩm
+## Tự chọn tiêu đề cần sửa trước và giữ lại bản cũ
 
-Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp). Với tiêu đề, Juli làm ba việc:
+Nếu shop có nhiều sản phẩm, đừng sửa tiêu đề theo cảm giác. Một bảng tính và 20 phút mỗi tuần là đủ:
 
-- **Tìm sản phẩm có CTR thấp ở Thẻ sản phẩm.** [Phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop) đọc Lượt hiển thị và CTR theo từng luồng và từng sản phẩm, so với mức dao động bình thường của chính shop, và cho biết CTR thấp đang lấy đi bao nhiêu GMV mỗi ngày.
-- **Soạn tiêu đề mới, chỉ ghi khi bạn duyệt.** [Đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi): Juli đọc thông tin sản phẩm, chẩn đoán của TikTok và từ khóa liên quan, soạn tiêu đề theo năm thành phần của chính sách kèm lý do bằng số, và cho bạn xem bản trước và sau; bạn sửa được trước khi áp dụng. Chỉ khi bạn xác nhận, Juli mới ghi tiêu đề mới lên TikTok Shop, và tiêu đề cũ được lưu để bạn hoàn tác bất cứ lúc nào.
-- **Đo ở ngày 7 và ngày 14.** [Đo lường GMV](/san-pham/do-luong-gmv) so với 14 ngày trước khi đổi, trên đúng luồng Thẻ sản phẩm, kèm ngưỡng giữ ổn định cho các chỉ số còn lại. Nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác không; Juli không tự hoàn tác.
+1. **Lập danh sách.** Trên trang Lưu lượng truy cập sản phẩm, chọn khía cạnh thẻ sản phẩm, 28 ngày gần nhất, chép Lượt hiển thị và CTR của 20 sản phẩm có nhiều lượt hiển thị nhất.
+2. **Đánh dấu ứng viên.** Sản phẩm đủ dữ liệu, có CTR thấp hơn hẳn các sản phẩm cùng ngành trong shop, và có đề xuất "Tiêu đề có thể được tối ưu hóa" trong Chẩn Đoán Thẻ Sản Phẩm, đứng đầu danh sách.
+3. **Ưu tiên theo lượt hiển thị.** Giữa hai sản phẩm có CTR thấp như nhau, sửa sản phẩm nhiều lượt hiển thị hơn trước: cùng một mức tăng CTR mang lại nhiều lượt nhấp hơn.
+4. **Viết bản mới cạnh bản cũ.** Ghi tiêu đề cũ nguyên văn, tiêu đề mới, số ký tự, và thành phần nào đã thêm hay bỏ (loại sản phẩm, chất liệu, đặc điểm, quy cách, thương hiệu).
+5. **Ghi ngày đổi và chỉ số mục tiêu.** Mục tiêu là CTR ở Thẻ sản phẩm; Lượt hiển thị đọc bên cạnh.
 
-{{hinh:tieu-de-ghi-du-lieu-mau}}
+| Cột | Ví dụ giả định |
+|---|---|
+| Tiêu đề cũ | Áo thun nam đẹp rẻ nhất FREESHIP |
+| Tiêu đề mới | Áo thun nam cổ tròn cotton tay ngắn, đen / trắng / xám, size M / L / XL |
+| Đã thay đổi | Bỏ khuyến mãi và khẳng định tuyệt đối; thêm chất liệu, màu, size |
+| Ngày đổi, CTR trước | 20/10, 1,6 % |
+| CTR ngày 7, ngày 14 | Điền khi đến ngày |
 
-Juli không hứa CTR sẽ tăng và không chạy quảng cáo. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop) mà bạn ủy quyền; tổng quan ở trang [sản phẩm Juli AI](/san-pham).
+Giữ nguyên văn tiêu đề cũ là phần hay bị bỏ qua nhất. Nếu ở ngày 14 CTR không lên hoặc Lượt hiển thị giảm rõ, bạn có thể quay lại đúng bản cũ thay vì phải nhớ lại nó. Muốn ước tính một mức tăng CTR đáng bao nhiêu GMV, thử [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv).
 
 ## Ghi nhớ nhanh
 
@@ -158,5 +166,5 @@ Juli không hứa CTR sẽ tăng và không chạy quảng cáo. Dữ liệu đ�
 - Năm thành phần, loại sản phẩm lên đầu; không khuyến mãi, tên shop, ký tự đặc biệt, khẳng định tuyệt đối.
 - Một thay đổi, ghi ngày, đọc ở ngày 7, chốt ở ngày 14.
 
-Nếu bạn muốn biết sản phẩm nào trong shop đang có CTR thấp nhất ở Thẻ sản phẩm và nhận một bản tiêu đề mới để duyệt, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Khi tiêu đề đã ổn mà CTR vẫn thấp, chỗ tiếp theo cần xem là hình ảnh chính: bài [ảnh bìa khiến người mua lướt qua](/blog/anh-bia-san-pham-tiktok-shop) đi qua yêu cầu ảnh của TikTok và cách đo lại.
 `;

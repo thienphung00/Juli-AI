@@ -11,8 +11,9 @@
  * is quoted as TikTok's own policy, never as law; only its 07/2026 item cites
  * the e-commerce law itself. Left out (unverified): the legal list of goods
  * needing an ad-content certificate, who exactly counts as "người có ảnh
- * hưởng" under the Government's rules, fines for Art. 22–24 of Luật 122. Not
- * legal advice. Update when one of these texts or the TikTok page changes (D56 G6).
+ * hưởng" under the Government's rules, fines for Art. 22–24 of Luật 122.
+ * D59 reach post (P48-C): no Juli, no product links. Not legal advice.
+ * Update when one of these texts or the TikTok page changes (D56 G6).
  */
 export const body = `
 Từ ngày 01/07/2026, livestream bán hàng có quy định riêng trong Luật Thương mại điện tử 122/2025/QH15: người bán phải đưa giấy tờ về điều kiện kinh doanh và chất lượng hàng cho người livestream trước buổi phát, người livestream không được nói sai về công dụng, giá, khuyến mại, và nền tảng phải lưu hình ảnh, âm thanh buổi livestream ít nhất 01 năm. Khi quảng cáo qua người có ảnh hưởng, Nghị định 87/2026/NĐ-CP (hiệu lực 15/05/2026) phạt cá nhân từ 40 đến 100 triệu đồng nếu không thông báo đang quảng cáo, không kiểm tra tài liệu sản phẩm, hoặc giới thiệu sản phẩm chưa dùng.
@@ -85,7 +86,7 @@ Các mục sau là chính sách của TikTok Shop, theo trang [Cập nhật Chí
 3. **Dặn người dẫn LIVE**: không nói "tốt nhất", "khỏi 100%", chỉ nói ưu đãi đã cài trong công cụ, nói rõ khi nội dung được tài trợ.
 4. **Đọc quy chế livestream** của TikTok Shop mỗi tháng.
 
-Lời nói trong LIVE nên khớp trang sản phẩm: xem bài [mô tả sản phẩm TikTok Shop](/blog/mo-ta-san-pham-tiktok-shop), và cách đọc số liệu buổi LIVE ở bài [LIVE đông người xem mà ít đơn](/blog/live-tiktok-shop-khong-ra-don). [Juli AI](/san-pham) có thể soạn kịch bản cho người dẫn LIVE khi khả năng chốt đơn trong LIVE của một sản phẩm giảm; bạn đối chiếu kịch bản với các quy định ở trên trước khi dùng. Juli không kiểm tra giấy tờ pháp lý và không tư vấn pháp lý.
+Trước mỗi buổi, giữ một dòng ghi chép cho từng sản phẩm sẽ lên LIVE: giấy tờ đã gửi cho người livestream ngày nào, ưu đãi nào đã cài trong công cụ, câu nào người dẫn không được nói. Khi có khiếu nại sau buổi phát, dòng ghi chép này cho biết ai đã nhận giấy tờ gì và từ lúc nào.
 
-Nếu bạn muốn biết sản phẩm nào đang mất đơn trong LIVE, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Lời nói trong LIVE nên khớp trang sản phẩm: xem bài [mô tả sản phẩm TikTok Shop](/blog/mo-ta-san-pham-tiktok-shop), và cách đọc số liệu buổi LIVE ở bài [LIVE đông người xem mà ít đơn](/blog/live-tiktok-shop-khong-ra-don).
 `;

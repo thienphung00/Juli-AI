@@ -1108,20 +1108,20 @@ const DIAGRAMS = [
   },
   /* ————— P46-E (D56): do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop ————— */
   {
-    name: "do-lich-14-ngay-v1",
+    name: "do-lich-14-ngay-v2",
     html: () => {
       const items = [
         ["seg seg--base", 1, "14 ngày trước khi sửa", "Mốc so sánh, chốt cố định từ ngày sửa"],
-        ["mark", 1, "Ngày sửa", "Ghi ngày, giá, khuyến mãi đang chạy, nội dung trang"],
+        ["mark", 1, "Ngày sửa", "Ghi ngày, giá, khuyến mãi, nội dung trang, mức mong đợi"],
         ["seg", 2, "Ngày 1 đến 7", "Không sửa thêm gì trên sản phẩm này"],
-        ["mark", 2, "Ngày 7", "Sơ bộ: Đang lên hoặc Chưa rõ"],
+        ["mark", 2, "Ngày 7", "Sơ bộ: đang lên, đi ngang hay đang giảm"],
         ["seg", 3, "Ngày 8 đến 14", "Vẫn không sửa thêm"],
-        ["mark mark--ink", 3, "Ngày 14", "Chốt: Đạt, Đạt · chưa chắc chắn, Một phần hoặc Không đạt"],
+        ["mark mark--ink", 3, "Ngày 14", "Chốt: giữ, đo thêm, sửa tiếp hay quay lại bản cũ"],
       ];
       const rules = [
         ["Trung bình mỗi ngày", "Hai khoảng dài bằng nhau, so bằng số trung bình mỗi ngày."],
         ["Một chỉ số mục tiêu", "Chỉ số mà thay đổi nhắm tới, trên đúng luồng nó tác động."],
-        ["Chỉ số khác trong ngưỡng", "Các chỉ số còn lại không được lệch quá mức dao động bình thường."],
+        ["Chỉ số khác giữ ổn định", "Các chỉ số còn lại không được lệch quá mức dao động bình thường."],
       ];
       return `${head("Lịch đo một thay đổi")}
 <div class="tl">${items
@@ -1157,13 +1157,13 @@ const DIAGRAMS = [
     },
   },
   {
-    name: "do-ba-ket-qua-v1",
+    name: "do-ba-ket-qua-v2",
     html: () => {
       const cards = [
-        ["Đạt", "Sản phẩm A", "2,0 % → 2,6 %", "Chạm mục tiêu 2,5 %", "Gấp 2,4 lần mức dao động: rõ", "GMV giữ được", true],
-        ["Đạt · chưa chắc chắn", "Sản phẩm B", "2,0 % → 2,5 %", "Chạm mục tiêu 2,5 %", "Gấp 1,4 lần mức dao động: có thể", "GMV giữ được"],
-        ["Một phần", "Sản phẩm C", "2,0 % → 2,3 %", "Chưa chạm mục tiêu 2,5 %", "Gấp 2,1 lần mức dao động: rõ", "GMV giữ được"],
-        ["Không đạt", "Sản phẩm D", "2,0 % → 2,1 %", "Chưa chạm mục tiêu 2,5 %", "Gấp 0,6 lần mức dao động: trong dao động", "GMV giữ được"],
+        ["Giữ thay đổi", "Sản phẩm A", "2,0 % → 2,6 %", "Chạm mức mong đợi 2,5 %", "Gấp 2,4 lần mức dao động: rõ", "GMV giữ được", true],
+        ["Giữ, đo thêm 14 ngày", "Sản phẩm B", "2,0 % → 2,5 %", "Chạm mức mong đợi 2,5 %", "Gấp 1,4 lần mức dao động: có thể", "GMV giữ được"],
+        ["Giữ, sửa tiếp cùng hướng", "Sản phẩm C", "2,0 % → 2,3 %", "Chưa chạm mức mong đợi 2,5 %", "Gấp 2,1 lần mức dao động: rõ", "GMV giữ được"],
+        ["Quay lại bản cũ", "Sản phẩm D", "2,0 % → 2,1 %", "Chưa chạm mức mong đợi 2,5 %", "Gấp 0,6 lần mức dao động: trong dao động", "GMV giữ được"],
       ];
       return `${head("Bốn kết quả ngày 14, cùng chỉ số mục tiêu CTR Thẻ sản phẩm", true)}
 <div class="grid2">${cards
@@ -1172,7 +1172,7 @@ const DIAGRAMS = [
             `<div class="box half${accent ? " box--accent" : ""}"><span class="label">${product}</span><strong class="metric">${verdict}</strong><span class="eq">CTR ${move}</span><ul class="hang"><li>${target}</li><li>${strength}</li><li>${gmv}</li></ul></div>`,
         )
         .join("")}</div>
-<p class="note">Một kết quả yếu không được gắn nhãn mạnh hơn. Nếu trong 14 ngày có thay đổi khác trên sản phẩm, kết quả ghi “Bị ảnh hưởng bởi thay đổi khác”.</p>`;
+<p class="note">Đừng đọc một kết quả yếu thành mạnh hơn. Nếu trong 14 ngày có thay đổi khác trên sản phẩm, kết quả không dùng được để quyết định: đo lại từ đầu.</p>`;
     },
   },
   {
