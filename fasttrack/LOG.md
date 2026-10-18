@@ -2026,3 +2026,26 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   flaky (agent_workflow_task_wiring ×7, cross_tenant_probe, destructive_migration_isolation,
   ratchets suppression baseline, import_boundaries baseline, test_quality / quality_reconcile
   ×6 fail on the base too; credentials_in_url ×2 and onboarding_speed pass alone).
+
+## 2026-10-18 — agent (Claude Opus) — P54 Dependabot pip bumps (D63)
+
+- One `pip-compile --upgrade-package` regeneration of `backend/constraints.txt`: pyjwt 2.15.1,
+  starlette 1.7.0, markupsafe 3.0.4, python-dotenv 1.2.4, tzdata 2026.5, amqp 5.4.1,
+  wcwidth 0.9.2, ast-serialize 0.12.1, librt 0.16.0; cloudpickle 3.1.2 newly pinned (was
+  installed unpinned via joblib). No other pin moved. pydantic-core 2.49.0 deferred (pairs only
+  with pydantic 2.14.0b2). `backend/pyproject.toml` and root `requirements.txt` now list identical
+  ranges (pyjwt `>=2.15.1`, python-dotenv `>=1.2.4`, plus five floors that had drifted).
+- Fresh Python 3.12 venv, `pip install -e "./backend[dev]" -c backend/constraints.txt`: resolves,
+  `pip check` clean, every installed package pinned; `pip install -r requirements.txt -c
+  backend/constraints.txt` (the deploy path) resolves. App and security modules import.
+- Base vs new, same worktree, PYTHONPATH pinned: `tests/unit -m "not live"` 42 failed / 7512
+  passed / 3 errors on both, same failing set (node_modules missing for contract tests, no
+  DATABASE_URL, import-boundaries / ratchet / quality-corpus drift — all pre-existing; two
+  timing tests flaked once each under parallel load and pass alone). Auth / JWT / JWKS / CF
+  Access / routes / Celery / trial-signup (BackgroundTasks) files: 602 tests, 0 failures on both.
+  `tests/integration -m "not live"` on a throwaway Postgres 16 (UTC): 356 passed, same 14
+  pre-existing failures/errors on both. mypy and ruff clean on both. `fasttrack/check.sh`
+  (throwaway Postgres 16, UTC): OK with `--since fasttrack/optimize-product` and with the deploy
+  default `origin/main` (212 files, 3098 passed).
+- Owner: close Dependabot PRs #2124, #2122, #2121, #2119, #2117, #2115, #2114, #2111, #2112
+  (applied here) and #2118 (pydantic-core, cannot apply alone) after the merge.

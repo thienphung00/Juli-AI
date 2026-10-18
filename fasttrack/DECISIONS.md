@@ -1347,3 +1347,22 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   approved here: A5, C3–C8, D (branch reunification), and anything on the frozen ML path or in
   auth / RLS / migrations / legal. Work: phase P53 — P53-A (A1–A4, B3, B4, B6, B7, branch
   `fasttrack/cleanup-a`), P53-C2 (branch `fasttrack/rm-legacy-routes`), C1 on its own branch.
+
+- **D63** — Apply the open Dependabot pip bumps on the fast-track branch (owner, 2026-10-18,
+  approved fast-track phase "apply the open Dependabot pip bumps properly"). The ten open
+  Dependabot pip PRs target the frozen `main` (D2, D3), so they are applied here as one set instead
+  of merged there. Applied (one `backend/constraints.txt` regeneration with
+  `pip-compile --upgrade-package`, no other pin moves): pyjwt 2.13.0 → 2.15.1 (security: 2.14.0
+  GHSA fixes for HMAC key confusion, JWKS redirects/refresh, malformed JWS; 2.15.0 recursion →
+  `DecodeError`), starlette 1.6.0 → 1.7.0 (FastAPI 0.141.1 needs only `starlette>=0.46.0`),
+  markupsafe 3.0.4, python-dotenv 1.2.4, tzdata 2026.5, amqp 5.4.1 (kombu 5.6.2 allows
+  `<6`), wcwidth 0.9.2, and mypy's ast-serialize 0.12.1 / librt 0.16.0. Also pinned
+  cloudpickle 3.1.2 (joblib dependency the old lock had missed; the same version was already
+  installed unpinned). Deferred: pydantic-core 2.49.0 — only pydantic 2.14.0b2 (a beta) pins it;
+  stable pydantic 2.14.x pins 2.50.x, and a pydantic minor is its own phase. Floors: pyjwt
+  `>=2.15.1` and python-dotenv `>=1.2.4` in `backend/pyproject.toml` and root
+  `requirements.txt`; the five floors Dependabot had raised only in `requirements.txt`
+  (uvicorn, sqlalchemy, psycopg2-binary, alembic, xgboost) raised in `pyproject.toml` to match,
+  so the two files are identical again. No code change. The Dependabot PRs are closed by the
+  owner after merge; `.github/dependabot.yml` is read from `main`, so its fix waits for the
+  merge back. Work: P54.

@@ -328,6 +328,12 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | Delete `apps/dashboard` + its CI job, dev scripts, review/provision scripts, guarding tests; docs marked historical | audit C1 | done on branch `fasttrack/rm-dashboard` (not merged) | agent |
 
+## P54 — Dependabot pip bumps applied (D63)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Nine pip bumps in one constraints regeneration; pyproject / requirements floors in sync; pydantic-core deferred | D63 | done on branch `fasttrack/pip-bumps` (not merged) | agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
