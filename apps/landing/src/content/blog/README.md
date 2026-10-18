@@ -148,26 +148,38 @@ checks the ones marked (test).
 ## Topic and cover (D44.3, P34-D)
 
 Every post has a `category` (`metrics` Chỉ số · `optimize` Tối ưu sản phẩm ·
-`tools` Công cụ · `guide` Hướng dẫn) and a `cover`. The cover is a flat
-category tint with one simple outlined object and exactly one accent, **no
-text**, rendered from HTML by Playwright; the same render is the post's
-Open Graph / Twitter image (1200×630) and goes into the Article JSON-LD.
+`tools` Công cụ · `guide` Hướng dẫn) and a `cover`. The cover is the post's own
+hero image (below); the same image is the post's Open Graph / Twitter image
+(1200×630) and goes into the Article JSON-LD.
 
-To make a cover for a new post:
+### Hero images (D59.3, P48-H)
 
-1. Add an entry to `COVERS` in `apps/landing/scripts/blog-covers.mjs`:
-   `{ name: "<short-name>-v1", category: "tools", accent: 2 }` (`motif` defaults to
-   the category's: bars / card / tiles / checklist; `accent` picks which element
-   carries the accent colour, so two posts in one topic differ).
-2. From the repo root (Node 20):
-   `PYTHON=juli/.venv/bin/python node apps/landing/scripts/blog-covers.mjs`
-   → `public/media/blog-<name>-{600,1200}.{avif,webp}` + `blog-<name>-og.png`.
-   Existing files are skipped, never overwritten (`immutable` cache): to change a
-   cover, bump `-v2`. Preview every motif without touching `public/`:
-   `node apps/landing/scripts/blog-covers.mjs --samples /tmp/covers`.
-3. In `posts.ts`: `category: "tools"`, `cover: blogCover("<short-name>-v1", "Minh hoạ: …")`
-   (the alt describes the picture; cards render it with `alt=""` because the title
-   is right there). `blog.test.tsx` checks the files exist and the OG image is set.
+Each post has its own illustration: one vector metaphor for the topic, its own
+palette from the landing tokens and its own composition, plus a 2–5-word
+Vietnamese kicker in Be Vietnam Pro. No Juli UI or logo, no platform logos or
+UI, no photos. They are not drawn here: they come from the sibling repo
+`juli-content-engine` (Remotion), still `BlogHero` in
+`my-video/src/stills/blog-hero/`, one spec per slug in
+`projects/blog-heroes/heroes.json`.
+
+To add one for a new post:
+
+1. In `juli-content-engine`, add an entry to `projects/blog-heroes/heroes.json`
+   (`slug`, `kicker`, `motif`, `layout`, `backdrop`, `palette`; a new metaphor
+   means a new motif in `motifs.tsx`). Pick a motif, palette and layout that no
+   other post uses.
+2. Render it: `cd my-video && npm run hero:render -- ../projects/blog-heroes/heroes.json --only <slug> --contact-sheet`
+   → `projects/blog-heroes/output/<slug>-hero.png` (2400×1350) and `<slug>-og.png`
+   (1200×630). Check the contact sheet, so no two heroes look alike.
+3. Here, from the repo root:
+   `juli/.venv/bin/python apps/landing/scripts/media.py blog-hero <slug>-hero.png <slug>-og.png --name hero-<slug>-v1`
+   → `public/media/blog-hero-<slug>-v1-{600,1200}.{avif,webp}` + `-og.png`. It
+   checks the sizes and refuses to overwrite (`immutable` cache): to change a
+   hero, render again and use `-v2`.
+4. In `posts.ts`: `cover: blogCover("hero-<slug>-v1", "Minh hoạ: …")`. The alt
+   describes the picture, kicker included (no "Juli" in a reach post); cards render
+   it with `alt=""` because the title is right there. `blog.test.tsx` checks the
+   files exist, the 16:9 sizes, one cover per post and the OG image.
 
 ## Inline figures (D48 additions 7, P39-C)
 

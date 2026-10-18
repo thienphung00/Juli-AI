@@ -17,8 +17,9 @@ export type BlogPostStatus = "draft" | "published";
 export type BlogCategory = "metrics" | "optimize" | "tools" | "guide";
 
 /**
- * A post's cover (D44.3): flat tint + one outlined object, no text, rendered
- * from HTML by `scripts/blog-covers.mjs`. Build it with `blogCover()`.
+ * A post's cover (D59.3): the post's own hero illustration, rendered by the
+ * `BlogHero` still in juli-content-engine and converted by `scripts/media.py
+ * blog-hero`. Build it with `blogCover()`.
  */
 export interface BlogCover {
   /** 16:9 AVIF + WebP, 600 and 1200 wide, with their intrinsic sizes. */
