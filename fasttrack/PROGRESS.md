@@ -271,6 +271,15 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | P48-B/C Remove Juli from the 16 reach posts (body, FAQ, figures, links) | D59.1 | done, merged: P48-B (8 posts) and P48-C (8 posts); `REACH_JULI_PENDING` empty | agents |
 | P48-H Unique hero per post: content-engine still + landing covers | D59.3 | in progress (content engine first) | agent |
 
+## P49 — conversion posts: Juli guides and problem posts (D59 additions 4, 5)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P49-S Fresh sample-shop screenshots for the guides | D59 add. 5 | todo | agent |
+| P49-A Five guide posts | D59 add. 5 | todo (after P49-S) | writer agents |
+| P49-B Three problem posts | D59 add. 5 | todo (after P49-S) | writer agents |
+| P49-L End-of-post box "Đọc hướng dẫn liên quan" for reach posts | D59 add. 4 | todo (after P49-A/B) | agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

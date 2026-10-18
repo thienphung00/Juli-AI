@@ -1679,3 +1679,20 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      landing cover variants (600 / 1200 at 16:9, OG 1200 × 630).
   Work: P48-A tiers in code + neutral CTA + tests; P48-B/C strip Juli from the reach posts;
   P48-H heroes (content engine + landing); then high-level guides (P49).
+- **D59 additions** (owner, 2026-10-18):
+  4. **Reach → conversion link only in the end-of-post box.** Reach post bodies never link to a
+     Juli page or a Juli guide. Once the matching guide exists, the neutral end-of-post box gets
+     one secondary line "Đọc hướng dẫn liên quan" to that guide, with no "Juli" in its text; each
+     reach post maps to one guide (P49).
+  5. **Conversion posts (P49)**, eight: guides `huong-dan-ket-noi-tiktok-shop-voi-juli`,
+     `doc-phan-tich-tiktok-shop-theo-luong-truy-cap`, `duyet-de-xuat-toi-uu-san-pham-tiktok-shop`,
+     `do-ket-qua-ngay-7-ngay-14-hoan-tac`, `dung-thu-juli-ai-mien-phi-3-thang`; problem posts
+     `tim-san-pham-keo-gmv-xuong-tiktok-shop`, `ctr-the-san-pham-thap-doi-tieu-de-anh-bia`,
+     `ctor-thap-viet-lai-mo-ta-san-pham`. Facts follow the newest decisions where SPEC lags
+     (quick scan 14 days / reading 60 days / history to 180 days, card limits per D24.17 and
+     D25.12); cover photos only with the seller's photo (D13); nothing about control groups
+     (D34), simulation (D35/D45) or the AOV lever, which are not live; competitor-price reasons
+     only as optional (D22). Before writing, fresh sample-shop screenshots replace the outdated
+     `cap-kn-dang-nhap`, `cap-kn-quet-nhanh`, `cap-pt-nghen`, `cap-dx-the`, `cap-dl-ngay-7`,
+     `cap-pt-lich-sale`, and add a cover-photo card, a CTR card, a day-14 final label and the
+     current sign-in screen (P49-S).
