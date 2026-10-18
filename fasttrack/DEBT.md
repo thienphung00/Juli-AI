@@ -1134,3 +1134,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `total_performance.refunds`, A-33 `intervals[].cancel_and_refunds`, both "documented" in
   `schema_expectations.py`, unverified live). Storing them (mapper + migration) would give per-day
   refunds on the same rows, and could check the order-based shares.
+
+## P50 — PDPL legal terms (D60)
+
+- [ ] md v2 sources (`~/Downloads/b2b_document/md/01_…`, `02_…`) and the Ory pilot contract not synced to the D60 website text — owner scoped P50 to the website (D60.14) — owner decides; give contract changes as paste-ready clause text.
+- [ ] Total liability exemption (/terms Điều 11) may be void under BLDS 2015 Điều 405.3 for a standard-form contract — owner accepted the risk (D60.4) — counsel to confirm the wording.
+- [ ] Cross-border transfer impact dossier (Mẫu 09, NĐ 356 Điều 18) not filed; the hidden counsel TODO in /privacy §7 stays — owner chose disclosure only (D60.7) — counsel + filing with Bộ Công an.
+- [ ] Resend not added; notices use the SMTP mailer (D60.15) — speed — add Resend if SMTP volume or deliverability is a problem.
+- [ ] online.gov.vn notification of app-juli.com as a selling e-commerce website (TT 47/2014, hợp nhất 2026) not done — owner action — verify NĐ 248/2026 first, then file.
