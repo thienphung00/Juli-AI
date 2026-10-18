@@ -29,6 +29,7 @@ Hex colours are allowed here (a build script, not `src/`); they mirror
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -204,6 +205,13 @@ MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
     "cap-pt-nghen-v1-1280": (0.4, 0.0, 0.81, 1.0),
     "cap-pt-pheu-v1-1280": (0.0, 0.0, 0.6, 1.0),
     "cap-pt-xep-hang-v1-1280": (0.0, 0.0, 0.6, 1.0),
+    # P49-S (D59 additions 5): fresh sample-shop shots for the Juli guide posts. The v2 crops
+    # come from the v2 file's own largest WebP; the v1 crops above are untouched.
+    "cap-kn-dang-nhap-v2-1280": (0.12, 0.1, 0.88, 0.82),
+    "cap-kn-quet-nhanh-v2-1280": (0.07, 0.08, 0.6, 1.0),
+    "cap-pt-nghen-v2-1280": (0.0, 0.38, 0.7, 1.0),
+    "cap-dl-ngay-7-v2-1280": (0.0, 0.66, 0.95, 0.93),
+    "cap-dl-ngay-14-v2-1280": (0.0, 0.8, 0.75, 0.94),
 }
 
 #: Mobile crops are written at most this wide: ~2x of a 358 px column.
@@ -211,7 +219,7 @@ MOBILE_CROP_MAX_WIDTH = 720
 
 
 def mobile_crops() -> None:
-    """Write `<name>-m-v1-<width>.avif/.webp` for every MOBILE_CROPS entry."""
+    """Write `<stem>-m-vN-<width>.avif/.webp` for every MOBILE_CROPS entry (`<stem>-vN-<w>`)."""
     media = PUBLIC / "media"
     for name, (left, top, right, bottom) in MOBILE_CROPS.items():
         source = Image.open(media / f"{name}.webp").convert("RGB")
@@ -222,11 +230,14 @@ def mobile_crops() -> None:
             round(source.height * bottom),
         )
         crop = source.crop(box)
-        stem = name.rsplit("-v1-", 1)[0]
-        if any(media.glob(f"{stem}-m-v1-*")):
+        match = re.fullmatch(r"(.+)-(v\d+)-\d+", name)
+        if match is None:
+            raise ValueError(f"MOBILE_CROPS key must look like <stem>-vN-<width>: {name}")
+        stem, version = match.groups()
+        if any(media.glob(f"{stem}-m-{version}-*")):
             continue  # published crops are cached immutable: never overwrite one
-        w, h = save_modern(crop, media / f"{stem}-m-v1", MOBILE_CROP_MAX_WIDTH)
-        print(f"{stem}-m-v1-{w}.avif/.webp  width={w} height={h}")
+        w, h = save_modern(crop, media / f"{stem}-m-{version}", MOBILE_CROP_MAX_WIDTH)
+        print(f"{stem}-m-{version}-{w}.avif/.webp  width={w} height={h}")
 
 
 def main() -> None:

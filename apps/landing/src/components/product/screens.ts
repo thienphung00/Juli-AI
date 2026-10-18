@@ -207,3 +207,79 @@ export const CAP_PT_PHEU_MOBILE: readonly MediaSource[] = [
 export const CAP_PT_XEP_HANG_MOBILE: readonly MediaSource[] = [
   { avif: "/media/cap-pt-xep-hang-m-v1-720.avif", webp: "/media/cap-pt-xep-hang-m-v1-720.webp", width: 720, height: 517 },
 ];
+
+/**
+ * P49-S (D59 additions 5, 2026-10-18): fresh shots of the sample shop "Cửa hàng Mẫu Hoa Mai" for
+ * the Juli guide posts, captured at 2x from the demo (signed-out sample, plus mocked signed-in
+ * and partner-sample views for the quick scan, the CTR title card and day 14). New `-v2` names
+ * replace the outdated v1 shots in new content; the v1 exports above stay for existing pages.
+ */
+export const CAP_KN_DANG_NHAP_V2: readonly MediaSource[] = [
+  { avif: "/media/cap-kn-dang-nhap-v2-1280.avif", webp: "/media/cap-kn-dang-nhap-v2-1280.webp", width: 1280, height: 1745 },
+  { avif: "/media/cap-kn-dang-nhap-v2-640.avif", webp: "/media/cap-kn-dang-nhap-v2-640.webp", width: 640, height: 873 },
+];
+
+export const CAP_KN_DANG_NHAP_V2_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-kn-dang-nhap-m-v2-720.avif", webp: "/media/cap-kn-dang-nhap-m-v2-720.webp", width: 720, height: 931 },
+];
+
+export const CAP_KN_QUET_NHANH_V2: readonly MediaSource[] = [
+  { avif: "/media/cap-kn-quet-nhanh-v2-1280.avif", webp: "/media/cap-kn-quet-nhanh-v2-1280.webp", width: 1280, height: 869 },
+  { avif: "/media/cap-kn-quet-nhanh-v2-640.avif", webp: "/media/cap-kn-quet-nhanh-v2-640.webp", width: 640, height: 434 },
+];
+
+export const CAP_KN_QUET_NHANH_V2_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-kn-quet-nhanh-m-v2-678.avif", webp: "/media/cap-kn-quet-nhanh-m-v2-678.webp", width: 678, height: 799 },
+];
+
+export const CAP_PT_NGHEN_V2: readonly MediaSource[] = [
+  { avif: "/media/cap-pt-nghen-v2-1280.avif", webp: "/media/cap-pt-nghen-v2-1280.webp", width: 1280, height: 595 },
+  { avif: "/media/cap-pt-nghen-v2-640.avif", webp: "/media/cap-pt-nghen-v2-640.webp", width: 640, height: 297 },
+];
+
+export const CAP_PT_NGHEN_V2_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-pt-nghen-m-v2-720.avif", webp: "/media/cap-pt-nghen-m-v2-720.webp", width: 720, height: 297 },
+];
+
+export const CAP_DX_THE_V2: readonly MediaSource[] = [
+  { avif: "/media/cap-dx-the-v2-1184.avif", webp: "/media/cap-dx-the-v2-1184.webp", width: 1184, height: 868 },
+  { avif: "/media/cap-dx-the-v2-640.avif", webp: "/media/cap-dx-the-v2-640.webp", width: 640, height: 469 },
+];
+
+export const CAP_DX_ANH_BIA: readonly MediaSource[] = [
+  { avif: "/media/cap-dx-anh-bia-v1-1184.avif", webp: "/media/cap-dx-anh-bia-v1-1184.webp", width: 1184, height: 1034 },
+  { avif: "/media/cap-dx-anh-bia-v1-640.avif", webp: "/media/cap-dx-anh-bia-v1-640.webp", width: 640, height: 559 },
+];
+
+export const CAP_DX_ANH_BIA_TAI_LEN: readonly MediaSource[] = [
+  { avif: "/media/cap-dx-anh-bia-tai-len-v1-1280.avif", webp: "/media/cap-dx-anh-bia-tai-len-v1-1280.webp", width: 1280, height: 1208 },
+  { avif: "/media/cap-dx-anh-bia-tai-len-v1-640.avif", webp: "/media/cap-dx-anh-bia-tai-len-v1-640.webp", width: 640, height: 604 },
+];
+
+export const CAP_DX_CTR_TIEU_DE: readonly MediaSource[] = [
+  { avif: "/media/cap-dx-ctr-tieu-de-v1-1184.avif", webp: "/media/cap-dx-ctr-tieu-de-v1-1184.webp", width: 1184, height: 1046 },
+  { avif: "/media/cap-dx-ctr-tieu-de-v1-640.avif", webp: "/media/cap-dx-ctr-tieu-de-v1-640.webp", width: 640, height: 565 },
+];
+
+export const CAP_DL_NGAY_7_V2: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-ngay-7-v2-1280.avif", webp: "/media/cap-dl-ngay-7-v2-1280.webp", width: 1280, height: 1565 },
+  { avif: "/media/cap-dl-ngay-7-v2-640.avif", webp: "/media/cap-dl-ngay-7-v2-640.webp", width: 640, height: 783 },
+];
+
+export const CAP_DL_NGAY_7_V2_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-ngay-7-m-v2-720.avif", webp: "/media/cap-dl-ngay-7-m-v2-720.webp", width: 720, height: 250 },
+];
+
+export const CAP_DL_NGAY_14_V2: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-ngay-14-v2-1280.avif", webp: "/media/cap-dl-ngay-14-v2-1280.webp", width: 1280, height: 1821 },
+  { avif: "/media/cap-dl-ngay-14-v2-640.avif", webp: "/media/cap-dl-ngay-14-v2-640.webp", width: 640, height: 911 },
+];
+
+export const CAP_DL_NGAY_14_V2_MOBILE: readonly MediaSource[] = [
+  { avif: "/media/cap-dl-ngay-14-m-v2-720.avif", webp: "/media/cap-dl-ngay-14-m-v2-720.webp", width: 720, height: 191 },
+];
+
+export const CAP_DX_HOAN_TAC_V2: readonly MediaSource[] = [
+  { avif: "/media/cap-dx-hoan-tac-v2-1040.avif", webp: "/media/cap-dx-hoan-tac-v2-1040.webp", width: 1040, height: 1060 },
+  { avif: "/media/cap-dx-hoan-tac-v2-640.avif", webp: "/media/cap-dx-hoan-tac-v2-640.webp", width: 640, height: 652 },
+];
