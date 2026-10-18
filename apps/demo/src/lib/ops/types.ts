@@ -448,11 +448,21 @@ export interface CardGroupAdjustment {
 export interface CardGroupMetric {
   readonly metric: string;
   readonly channel: string;
-  /** "AOV · tất cả kênh". */
+  /** "AOV · tất cả kênh"; P46 (D55.1): money metrics name the basis, "AOV (đã trừ huỷ/hoàn) · tất cả kênh". */
   readonly label: string;
   readonly primary: CardGroupComparison | null;
   readonly adjustment?: CardGroupAdjustment | null;
   readonly false_alarm?: CardGroupFalseAlarm | null;
+  /** P46 (D55.1): "net" (cancelled / refunded orders removed) or "gross" (TikTok GMV); null for CTR / CTOR. */
+  readonly basis?: "net" | "gross" | null;
+  /** P46 (D55.1): the same comparison on TikTok GMV (incl. cancelled / refunded orders), when this one is net. */
+  readonly gross?: CardGroupMetric;
+}
+
+/** P46 (D55.1, Ops only): which basis a verdict's money metrics (AOV, items per order) were read on. */
+export interface CardGroupBasis {
+  readonly money: "net" | "gross";
+  readonly text: string;
 }
 
 /** P36 (D45.2): the product-card CTR guard of a group whose primary metric is not CTR. */
@@ -477,6 +487,12 @@ export interface CardGroupVerdict {
   readonly guard?: CardGroupGuard;
   /** P36 (D45.6, Ops only): a card group's primary metric read with the group-size rule; the seller's sentence keeps the P31 rule. */
   readonly ops_rule?: CardGroupMetric;
+  /** P46 (D55.1, Ops only): absent on verdicts stored before P46. */
+  readonly basis?: CardGroupBasis;
+  /** P46: an Ops group's money primary read on TikTok GMV (the primary itself is net). */
+  readonly gross?: CardGroupMetric;
+  /** P46: a card group's money primary read net (the primary, behind the seller's sentence, stays on TikTok GMV). */
+  readonly net?: CardGroupMetric;
   readonly products: readonly {
     readonly product_id: string;
     readonly arm: "treated" | "control";
@@ -538,8 +554,24 @@ export interface CardGroupPlan {
     readonly reachable: boolean;
   } | null;
   /** The 14 days before launch, per arm. */
-  readonly have_before: Readonly<Record<"treated" | "control", { readonly impressions: number; readonly clicks: number; readonly orders: number; readonly gmv: number }>>;
+  readonly have_before: Readonly<
+    Record<
+      "treated" | "control",
+      {
+        readonly impressions: number;
+        readonly clicks: number;
+        readonly orders: number;
+        /** TikTok GMV: includes cancelled and refunded orders. */
+        readonly gmv: number;
+        /** P46 (D55.1): net of cancelled / refunded orders, when the shop's orders cover the window. */
+        readonly orders_net?: number;
+        readonly gmv_net?: number;
+      }
+    >
+  >;
   readonly have_window: readonly [string, string];
+  /** P46 (D55.1): "net" when have_before carries gmv_net / orders_net; absent before P46. */
+  readonly revenue_basis?: "net" | "gross";
 }
 
 /** `POST /v1/ops/shops/{id}/groups` (P36, D45.1). */

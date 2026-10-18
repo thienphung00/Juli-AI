@@ -257,6 +257,12 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | P46-D Month-1 posts 9–12 (week 3) | D56 | todo | writer agents |
 | P46-E Month-1 posts 13–14 (week 4) | D56 | todo | writer agents |
 
+## P47 — group-verdict money metrics net of cancelled / refunded orders (D55.1)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P47 `group_net` (shop orders → per product-day cancel / refund shares → net analytics rows); Ops group AOV / items per order / replay / guard / EB on net values when the shop's orders cover days −42 … 13, TikTok-GMV reading stored beside (`gross`); card-group primary + seller sentence unchanged (`net` beside it); Ops labels "đã trừ huỷ/hoàn" / "gồm đơn huỷ/hoàn, theo TikTok", plan line "Doanh thu (đã trừ huỷ/hoàn)" vs "GMV TikTok (gồm huỷ/hoàn)"; Ops guide §5.5 (three TikTok definition notes). No migration | D55.1 | done on branch `fasttrack/gmv-net` — not merged, not deployed | P47 agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

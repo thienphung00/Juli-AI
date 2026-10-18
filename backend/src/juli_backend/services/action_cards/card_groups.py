@@ -63,6 +63,15 @@ only design that removes both. In the card system:
    one-out, a shop's groups combined first), when there are ≥ ``group_eb_min_groups``
    draws. Only aggregate numbers leave it (prior mean, spread, number of shops). The
    label, the strength and the seller's sentence never read ``eb``.
+8. **Net of cancelled / refunded orders, Ops only (D55.1, fast track P46,
+   :mod:`.group_net`).** TikTok's GMV includes orders later cancelled or refunded. When
+   the shop's own orders cover every day a verdict reads, all-channel AOV and items per
+   order are read on net values (the analytics day scaled by that day's cancel / refund
+   share of the product's orders) -- ``verdict.metrics``, an Ops group's primary, the
+   false-alarm replay and the EB lift -- and the TikTok-GMV reading is stored beside
+   each one (``gross``). A card group's primary (behind the seller's sentence) stays on
+   TikTok's GMV; its net reading is ``verdict.net``. ``verdict.basis`` says which basis
+   ran; without the orders every label says "gồm đơn huỷ/hoàn, theo TikTok".
 
 Switch: the team tunable ``card_groups`` (``DiagTunables.groups_enabled``): unset
 follows D33's quota mode (on only when the quota mode is on); off = no card is drawn
@@ -101,6 +110,17 @@ from juli_backend.services.action_cards.group_design import (
     DRIFT_SIGMA_WEEK,
     drift_floor,
     traffic_needed,
+)
+from juli_backend.services.action_cards.group_net import (
+    BASIS_GROSS,
+    BASIS_NET,
+    BASIS_TEXT_VI,
+    OrderDay,
+    basis_label,
+    load_order_days,
+    needs_net,
+    net_rows,
+    order_coverage,
 )
 from juli_backend.services.action_cards.group_stats import (
     ALPHA,
@@ -644,14 +664,22 @@ def build_verdict(
     }
 
 
-def metric_summary(metric: str, channel: str, verdict: Mapping[str, Any]) -> dict[str, Any]:
-    """One extra metric's comparison for ``verdict.metrics`` (D45.2): same rule as the primary."""
+def metric_summary(
+    metric: str, channel: str, verdict: Mapping[str, Any], *, basis: str | None = None
+) -> dict[str, Any]:
+    """One extra metric's comparison for ``verdict.metrics`` (D45.2): same rule as the primary.
+
+    D55.1 (P46): ``basis`` (``net`` / ``gross``) of a money metric (AOV, items per order,
+    all channels) goes into the Ops label, e.g. "AOV (đã trừ huỷ/hoàn) · tất cả kênh".
+    """
+    name = METRIC_LABELS_VI.get(metric, metric)
+    if basis is not None and needs_net(metric, channel):
+        name = basis_label(name, basis)
     return {
         "metric": metric,
         "channel": channel,
-        "label": (
-            f"{METRIC_LABELS_VI.get(metric, metric)} · {CHANNEL_LABELS_VI.get(channel, channel)}"
-        ),
+        "label": f"{name} · {CHANNEL_LABELS_VI.get(channel, channel)}",
+        "basis": basis if needs_net(metric, channel) else None,
         "primary": verdict.get("primary"),
         "adjustment": verdict.get("adjustment"),
         "false_alarm": verdict.get("false_alarm"),
@@ -974,8 +1002,13 @@ async def _member_change(
     *,
     untouched_through: date | None = None,
     specs: Sequence[tuple[str, str]] = (),
+    net_days: Mapping[date, OrderDay] | None = None,
 ) -> dict[str, Any]:
     """One member's before (14 days before launch) / after (14 days from launch) values.
+
+    ``net_days`` (D55.1, P46): the product's order days when the group reads net values
+    (``None``: TikTok GMV only). A money spec is then read on the net rows, with the
+    TikTok-GMV reading under ``gross``; a money primary's net reading is ``net``.
 
     ``untouched_through`` (control members only): the last day no lever ran on the
     product -- its consecutive post-launch window pairs up to then are returned as
@@ -991,13 +1024,20 @@ async def _member_change(
     rows_end = max(after_end, untouched_through) if untouched_through else after_end
     rows: list[Any] = await _daily_rows(session, shop_id, product, first, rows_end)
     out = _spec_values(rows, launch, group.metric, group.channel, untouched_through)
+    net = net_rows(rows, net_days) if net_days is not None else None
+    if net is not None and needs_net(group.metric, group.channel):
+        out["net"] = _spec_values(net, launch, group.metric, group.channel, untouched_through)
     if specs:
-        out["metrics"] = {
-            spec_key(metric, channel): _spec_values(
-                rows, launch, metric, channel, untouched_through
-            )
-            for metric, channel in specs
-        }
+        metrics: dict[str, Any] = {}
+        for metric, channel in specs:
+            gross = _spec_values(rows, launch, metric, channel, untouched_through)
+            if net is not None and needs_net(metric, channel):
+                value = _spec_values(net, launch, metric, channel, untouched_through)
+                value["gross"] = gross
+            else:
+                value = gross
+            metrics[spec_key(metric, channel)] = value
+        out["metrics"] = metrics
     return out
 
 
@@ -1089,10 +1129,31 @@ async def measure_due_groups(
         key = GroupKey.parse(group.group_key)
         design = GroupDesign.of(group)
         specs = metric_specs(key, design)
+        # D55.1 (P46): money metrics net of cancelled / refunded orders when the shop's
+        # orders cover days −42 .. 13 (else TikTok's GMV, and Ops says so).
+        wants_net = needs_net(key.metric, key.channel) or any(needs_net(*s) for s in specs)
+        net_by_product: dict[str, dict[date, OrderDay]] | None = None
+        if wants_net and await order_coverage(
+            session,
+            shop_id,
+            group.launched_on - timedelta(days=3 * MEASURE_DAYS),
+            group.launched_on + timedelta(days=MEASURE_DAYS - 1),
+        ):
+            net_by_product = await load_order_days(
+                session,
+                shop_id,
+                [m.tiktok_product_id for m in members],
+                group.launched_on - timedelta(days=3 * MEASURE_DAYS),
+                as_of,
+            )
         changes = []
         control_pairs: list[tuple[float, ...]] = []
         extra_changes: dict[str, list[dict[str, Any]]] = defaultdict(list)
         extra_pairs: dict[str, list[tuple[float, ...]]] = defaultdict(list)
+        gross_changes: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        gross_pairs: dict[str, list[tuple[float, ...]]] = defaultdict(list)
+        net_changes: list[dict[str, Any]] = []
+        net_pairs: list[tuple[float, ...]] = []
         for member in sorted(members, key=lambda m: m.tiktok_product_id):
             untouched: date | None = None
             if member.arm == ARM_CONTROL:
@@ -1106,6 +1167,11 @@ async def measure_due_groups(
                 member.tiktok_product_id,
                 untouched_through=untouched,
                 specs=specs,
+                net_days=(
+                    net_by_product.get(member.tiktok_product_id, {})
+                    if net_by_product is not None
+                    else None
+                ),
             )
             control_pairs.extend(values.pop("null_pairs"))
             base = {
@@ -1114,19 +1180,62 @@ async def measure_due_groups(
                 "approved": member.action_card_id in approved,
             }
             for name, extra in (values.pop("metrics", None) or {}).items():
+                gross_extra = extra.pop("gross", None)
                 extra_pairs[name].extend(extra.pop("null_pairs"))
                 extra_changes[name].append({**base, **extra})
+                if gross_extra is not None:
+                    gross_pairs[name].extend(gross_extra.pop("null_pairs"))
+                    gross_changes[name].append({**base, **gross_extra})
+            net_primary = values.pop("net", None)
+            if net_primary is not None:
+                net_pairs.extend(net_primary.pop("null_pairs"))
+                net_changes.append({**base, **net_primary})
             changes.append({**base, **values})
         previous = group.verdict if isinstance(group.verdict, dict) else {}
+        basis = BASIS_NET if net_by_product is not None else BASIS_GROSS
+        primary_basis = basis if needs_net(key.metric, key.channel) else None
+        # D55.1: an Ops group's money primary is read net; a card group's stays on
+        # TikTok's GMV (the seller's sentence) with the net reading beside it.
+        ops_net = design.ops and bool(net_changes)
         verdict = build_verdict(
-            changes,
+            net_changes if ops_net else changes,
             seed=group.seed,
             as_of=as_of,
-            control_pairs=control_pairs,
+            control_pairs=net_pairs if ops_net else control_pairs,
             history=previous.get("checks") or [],
             two_window_min=tun.group_two_window_min if design.ops else None,
             eb_prior_sd=tun.group_eb_prior_sd,
         )
+        if wants_net:
+            verdict["basis"] = {"money": basis, "text": BASIS_TEXT_VI[basis]}
+        if ops_net:
+            verdict["gross"] = metric_summary(
+                key.metric,
+                key.channel,
+                build_verdict(
+                    changes,
+                    seed=group.seed,
+                    as_of=as_of,
+                    control_pairs=control_pairs,
+                    two_window_min=tun.group_two_window_min,
+                    eb_prior_sd=tun.group_eb_prior_sd,
+                ),
+                basis=BASIS_GROSS,
+            )
+        elif net_changes:
+            verdict["net"] = metric_summary(
+                key.metric,
+                key.channel,
+                build_verdict(
+                    net_changes,
+                    seed=group.seed,
+                    as_of=as_of,
+                    control_pairs=net_pairs,
+                    two_window_min=tun.group_two_window_min,
+                    eb_prior_sd=tun.group_eb_prior_sd,
+                ),
+                basis=BASIS_NET,
+            )
         if not design.ops:
             # D45.6, Ops only: the group-size rule on the same rows, beside the P31 verdict.
             verdict["ops_rule"] = metric_summary(
@@ -1140,6 +1249,7 @@ async def measure_due_groups(
                     two_window_min=tun.group_two_window_min,
                     eb_prior_sd=tun.group_eb_prior_sd,
                 ),
+                basis=BASIS_GROSS if primary_basis else None,
             )
         metrics: dict[str, Any] = {}
         for metric, channel in specs:
@@ -1152,7 +1262,22 @@ async def measure_due_groups(
                 two_window_min=tun.group_two_window_min,
                 eb_prior_sd=tun.group_eb_prior_sd,
             )
-            metrics[name] = metric_summary(metric, channel, extra_verdict)
+            spec_basis = basis if needs_net(metric, channel) else None
+            metrics[name] = metric_summary(metric, channel, extra_verdict, basis=spec_basis)
+            if name in gross_changes:
+                metrics[name]["gross"] = metric_summary(
+                    metric,
+                    channel,
+                    build_verdict(
+                        gross_changes[name],
+                        seed=group.seed,
+                        as_of=as_of,
+                        control_pairs=gross_pairs[name],
+                        two_window_min=tun.group_two_window_min,
+                        eb_prior_sd=tun.group_eb_prior_sd,
+                    ),
+                    basis=BASIS_GROSS,
+                )
         verdict["metrics"] = metrics
         if design.guard:
             guard_primary = (
@@ -1160,8 +1285,10 @@ async def measure_due_groups(
                 if (key.metric, key.channel) == GUARD_METRIC
                 else (metrics.get(spec_key(*GUARD_METRIC)) or {}).get("primary")
             )
+            # D55.1: "… dù AOV tăng …" reads the net AOV when there is one.
+            money_primary = (verdict.get("net") or {}).get("primary") or verdict["primary"]
             verdict["guard"] = guard_check(
-                key, verdict["primary"], guard_primary, max_drop_pct=tun.group_guard_ctr_drop
+                key, money_primary, guard_primary, max_drop_pct=tun.group_guard_ctr_drop
             )
         group.verdict = verdict
         group.status = GROUP_MEASURED
@@ -1225,7 +1352,11 @@ async def _before_totals(
     session: AsyncSession, shop_id: uuid.UUID, group: CardGroup, arms: Mapping[str, str]
 ) -> dict[str, dict[str, float]]:
     """Per arm: impressions / clicks (on the group's channel) and orders / GMV (all channels)
-    over the 14 days before launch -- the traffic the group has (D45.4). One query."""
+    over the 14 days before launch -- the traffic the group has (D45.4). One query.
+
+    D55.1 (P46): when the shop's orders cover those days, also ``orders_net`` /
+    ``gmv_net`` -- the same totals net of cancelled / refunded orders (:mod:`.group_net`);
+    ``gmv`` stays TikTok's GMV (cancelled and refunded orders included)."""
     from juli_backend.services.lever_flows.measurement import channel_rows
 
     start = group.launched_on - timedelta(days=MEASURE_DAYS)
@@ -1251,6 +1382,11 @@ async def _before_totals(
     for row in rows:
         if row.tiktok_product_id:
             by_product[row.tiktok_product_id].append(row)
+    net_days: dict[str, dict[date, OrderDay]] | None = None
+    if await order_coverage(session, shop_id, start, end):
+        net_days = await load_order_days(session, shop_id, list(arms), start, end)
+        for totals in out.values():
+            totals.update({"orders_net": 0.0, "gmv_net": 0.0})
     for product, product_rows in by_product.items():
         arm = arms.get(product)
         if arm not in out:
@@ -1262,6 +1398,10 @@ async def _before_totals(
         out[arm]["clicks"] += float(sum((r.clicks or 0) for r in traffic))
         out[arm]["orders"] += float(sum((r.sku_orders or 0) for r in product_rows))
         out[arm]["gmv"] += float(sum((r.gmv or 0) for r in product_rows))
+        if net_days is not None:
+            net = net_rows(product_rows, net_days.get(product, {}))
+            out[arm]["orders_net"] += float(sum((r.sku_orders or 0) for r in net))
+            out[arm]["gmv_net"] += float(sum((r.gmv or 0) for r in net))
     return out
 
 
@@ -1296,6 +1436,12 @@ def plan_view(
             (group.launched_on - timedelta(days=MEASURE_DAYS)).isoformat(),
             (group.launched_on - timedelta(days=1)).isoformat(),
         ],
+        #: D55.1 (P46): ``net`` when ``have_before`` carries ``gmv_net`` / ``orders_net``.
+        "revenue_basis": (
+            BASIS_NET
+            if all("gmv_net" in (have.get(arm) or {}) for arm in (ARM_TREATED, ARM_CONTROL))
+            else BASIS_GROSS
+        ),
     }
 
 
@@ -1524,6 +1670,10 @@ def _comparisons(
     ops_rule = verdict.get("ops_rule")
     if isinstance(ops_rule, dict) and isinstance(ops_rule.get("primary"), dict):
         out.append((ops_rule["primary"], metric, channel))
+    # D55.1 (P46): a card group's net money reading.
+    net = verdict.get("net")
+    if isinstance(net, dict) and isinstance(net.get("primary"), dict):
+        out.append((net["primary"], metric, channel))
     metrics = verdict.get("metrics")
     for entry in metrics.values() if isinstance(metrics, dict) else ():
         if isinstance(entry, dict) and isinstance(entry.get("primary"), dict):

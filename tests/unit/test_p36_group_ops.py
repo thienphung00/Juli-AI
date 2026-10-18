@@ -450,7 +450,8 @@ async def test_a_pack_group_measures_aov_items_and_warns_on_ctr(session, shop, m
     assert verdict["adjustment"]["method"] == ADJUST_ONE_WINDOW  # 6 products: P31 θ (D47.1)
     assert set(verdict["metrics"]) == {"items_per_order|total", "ctr|product_card"}
     items = verdict["metrics"]["items_per_order|total"]
-    assert items["label"] == "Số món mỗi đơn · tất cả kênh"
+    # D55.1 (P46): no shop orders here -> TikTok GMV, and the Ops label says so.
+    assert items["label"] == "Số món mỗi đơn (gồm đơn huỷ/hoàn, theo TikTok) · tất cả kênh"
     assert items["primary"]["difference"] == pytest.approx(25, abs=4)
     assert items["false_alarm"] is not None
     assert items["adjustment"]["method"] == ADJUST_ONE_WINDOW
