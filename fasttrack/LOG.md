@@ -1946,3 +1946,46 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   label (DEBT P53-C2), not touched here. `fasttrack/check.sh --since fasttrack/optimize-product` OK on a
   throwaway Postgres 16 (UTC): migrations, isolation 12, gitleaks, ruff, pytest 15.
 
+
+## 2026-10-18 · P53-A cleanup: A1–A4, B3, B4, B6, B7 (D62) (agent: Claude Opus, branch `fasttrack/cleanup-a`)
+- Branch from `fasttrack/optimize-product` 1f7dfe64, rebased onto 30cc88dc (P53-C2 merge). Not merged,
+  not pushed. Owner approval of A1–A4, B, C1, C2 recorded as **D62**.
+- **A1**: `workers/tasks/__init__.py` imports `product_history`. Proof: a fresh interpreter's
+  `celery_app.loader.import_default_modules()` listed 26 tasks and the beat entry
+  `product-history-fanout` was unregistered; now registered. `test_beat_schedule_registration`
+  builds the registry in a fresh interpreter: red without the import even when run after
+  `test_p23_product_history` (2 failed), green with it. **This turns the P23 nightly fan-out, the
+  webhook re-reads and the approval baselines on in production for the first time** — scope,
+  call volume and what to watch in DEBT P53-A.
+- **A2**: the 8 deep imports go through `services.ops` (`ops_role`; lazy `purge_expired`,
+  `check_alert`) and `services.action_cards` (`GroupError`; lazy `open_cell_counts`,
+  `rescore_shop_cards`). Boundary baseline re-derived: 54 rows (the 3 stale ones gone; it said 55
+  over 57). `check_import_boundaries --strict` with baseline PASS.
+- **A3**: `test_trial_signups` reads the `versions/` head (ScriptDirectory) instead of 093;
+  `test_ratchets`: the 7 new suppressions (all in tests) removed rather than baselined, so the
+  committed baseline equals the tree unchanged; `test_reaper_two_tenant`: red on a PG16 server in
+  Asia/Ho_Chi_Minh (aware stamps in naive columns), green after the fix in Asia/Ho_Chi_Minh, UTC,
+  America/Los_Angeles; module-drift allowlist regenerated from the tree (+ api MODULE.md
+  `reviewer_me` bullet); quality reconciliation re-derived (prose had drifted from the 6,417
+  constant) to 6,851 / 661 modules / layers 493·130·115·115·53·49. Still red, left for the owner:
+  `test_test_quality::test_reconciliation_reproduces_from_the_tree_it_describes` (prior-figure
+  drift 18 > 15, the 9 `test_ops_round_trips` helper-asserting tests).
+- **A4**: `JULI_TEST_DATABASE_DISPOSABLE: "1"` on the deploy workflow's check.sh step (check.sh
+  already exports it in `use_db`); `test_destructive_migration_isolation` 10 passed.
+- **B3** `services/etl/topics.py` deleted (0 importers). **B4** `apps/dashboard/tsconfig.tsbuildinfo`
+  untracked (`*.tsbuildinfo` already ignored); `apps/dashboard/package-lock.json` and `done.md`
+  **kept** — still read by pr.yml (`frontend` npm ci; blocking `check_done_md`). **B6** LEGACY
+  markers: `agent-runtime/LEGACY.md` (+README banner, what still reads it), `ios/LEGACY.md`,
+  `Design-md/LEGACY.md`, `EXECUTION.md` banner, Status sections in 7 backend MODULE.md files
+  (`ai/**` untouched, frozen). **B7** LOG (36 entries), DECISIONS (G1–G4, defaults, D20–D27, with an
+  index of D1–D27 left in place) and 26 closed DEBT items before 2026-10-12 moved verbatim to
+  `fasttrack/archive/`; no non-blank line lost; no test parses these files. Not done here: B1, B2, B5.
+- Gates: unit suite in 4 processes + harness: the only failures are the known environment ones
+  (`test_agent_workflow_task_wiring` 7, `test_cross_tenant_probe` 1 — empty DATABASE_URL), the
+  prior-figure check above, and load timeouts that pass alone (`test_credentials_in_url_guard`
+  46 s, `test_shop_ingestion`, `test_agent_run_event_stream`, `test_api`, `test_status_record_gate`
+  — 108 passed when re-run). Targeted: boundaries / ratchets / harness / quality / beat / trial
+  signups / migration isolation 173 passed, 1 known fail. `fasttrack/check.sh --since
+  fasttrack/optimize-product` OK on a throwaway Postgres 16 (UTC, port 55491, dropped after):
+  migrations, isolation 12, gitleaks, ruff 16 files, pytest 19 files / 362. Demo / landing not
+  touched (no file under apps/demo, apps/landing, packages changed).
