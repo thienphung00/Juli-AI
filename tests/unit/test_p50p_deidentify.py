@@ -23,6 +23,11 @@ def test_text_scrubs_emails_and_vn_phones() -> None:
     assert out.startswith("Khách Lan gọi ")
 
 
+def test_text_scrubs_a_phone_at_the_end_of_a_sentence() -> None:
+    assert deidentify_text("Hotline: 0912345678.") == f"Hotline: {REDACTED}."
+    assert deidentify_text("tỉ lệ 1.0912345678") == "tỉ lệ 1.0912345678"
+
+
 def test_text_keeps_prices_quantities_and_ids() -> None:
     text = "Giá 189.000đ, bán 1.234 đơn, GMV 45.600.000, đơn 576543210987654321, CTR 3,2%"
     assert deidentify_text(text) == text

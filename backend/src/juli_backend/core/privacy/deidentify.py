@@ -35,7 +35,9 @@ PII_KEY_RE = re.compile(
     re.IGNORECASE,
 )
 EMAIL_RE = re.compile(r"([A-Za-z0-9._%+\-]+)@([A-Za-z0-9.\-]+\.[A-Za-z]{2,})")
-PHONE_RE = re.compile(r"(?<![\w.])(?:\+?84|0)(?:[\s.\-]?\d){8,10}(?![\w.])")
+#: A sentence-ending period after the number still counts (``... 0912345678.``);
+#: a decimal point (``.5``) on either side does not.
+PHONE_RE = re.compile(r"(?<!\w)(?<!\d\.)(?:\+?84|0)(?:[\s.\-]?\d){8,10}(?!\w)(?!\.\d)")
 
 #: Seller / user contact keys the ops console shows staff but the provider never needs.
 _CONTACT_KEY_RE = re.compile(
