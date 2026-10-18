@@ -1620,3 +1620,15 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   pillar / comparison posts); weekly automated Search Console report and an 8-week review per
   post; brand signals (G7) deferred. Work: P46-A (source-link and length rules in code, weekly
   report), P46-B… (month-1 posts).
+
+- **D57** — D34 for now: no group test; independent tests with a synthetic control (owner,
+  2026-10-18; Gate C question (d), option B). Group tests wait until the shop is ready (the only
+  readable tier-A picks are pack options, which the owner deferred). Meanwhile every content change a
+  seller approves through a card (title, description, cover) is treated as an **independent test**:
+  a prediction is registered before the change (D51.6), the product is compared with untouched
+  products of the same shop / niche over the same days plus the CUPED pre-period adjustment, the
+  result is labelled "Tham khảo" in Ops while its interval is wider than the drift floor, and
+  results of the same lever type are pooled across products and shops by empirical Bayes (D52,
+  `meta.py`). Step 14 for the simulator's lever effects therefore scores these pooled independent
+  tests instead of a D34 wave, once enough exist. Gate C itself is not yet approved — the owner wants
+  further optimisation before the FastMoss snapshot-2 freeze (~2026-10-20).
