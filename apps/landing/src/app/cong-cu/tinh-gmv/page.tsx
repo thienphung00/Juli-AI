@@ -112,9 +112,9 @@ export default function GmvCalculatorPage() {
           </p>
           <h3 className={styles.h3}>Đủ dữ liệu chưa</h3>
           <p className="ui-body">
-            Một sản phẩm có vài đơn mỗi tuần có thể dao động CTOR rất mạnh chỉ vì ngẫu nhiên. Juli chỉ đọc một chỉ
-            số khi luồng thẻ sản phẩm có trung bình mỗi ngày từ 50 lượt hiển thị (để đọc CTR), từ 20 lượt nhấp (để
-            đọc CTOR) và từ 1 đơn hàng (để đọc AOV). Đây là quy tắc của Juli, không phải quy định của TikTok.
+            Một sản phẩm có vài đơn mỗi tuần có thể dao động CTOR rất mạnh chỉ vì ngẫu nhiên. Trước khi kết luận,
+            hãy chờ đến khi lượt hiển thị, lượt nhấp và đơn hàng đủ nhiều, hoặc gộp một khoảng thời gian dài hơn.
+            Juli cũng chỉ đọc một chỉ số khi số liệu đủ để đọc.
           </p>
           <h3 className={styles.h3}>GMV chưa phải tiền về tài khoản</h3>
           <p className="ui-body">

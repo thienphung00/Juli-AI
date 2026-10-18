@@ -67,7 +67,7 @@ const LOOP: readonly Step[] = [
   {
     title: "Đề xuất",
     icon: "bulb",
-    body: "Tối đa 5 đề xuất mới mỗi ngày, xếp theo GMV có thể lấy lại.",
+    body: "Mỗi ngày vài đề xuất mới, việc đáng làm nhất đứng trước.",
   },
   {
     title: "Duyệt",
@@ -142,7 +142,7 @@ const CAPABILITIES: ReadonlyArray<{
     points: [
       "Kết quả sơ bộ ngày 7, kết quả chốt ngày 14",
       "Mỗi kết quả ghi rõ mức chắc chắn và thay đổi bên ngoài Juli trong thời gian đo",
-      "Kết quả đo được dùng để điều chỉnh thứ tự đề xuất sau",
+      "Lịch sử kết quả của từng thay đổi luôn xem lại được",
     ],
     shot: {
       alt: "Bảng kết quả ngày 7: chỉ số chính Đang lên, các chỉ số khác Giữ ổn định, GMV mỗi ngày ghi Sơ bộ (dữ liệu mẫu)",
@@ -206,7 +206,7 @@ const FAQ: readonly FaqItem[] = [
   {
     question: "Một thay đổi bị đo là kém hiệu quả thì sao?",
     answer:
-      "Nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác về giá trị cũ đã lưu; Juli không tự hoàn tác. Kết quả này cũng làm Juli ưu tiên thấp hơn cho cùng loại hành động ở shop của bạn.",
+      "Nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác về giá trị cũ đã lưu; Juli không tự hoàn tác.",
   },
   {
     question: "Dùng thử miễn phí thế nào, khi nào bắt đầu tính phí?",

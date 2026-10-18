@@ -2929,3 +2929,38 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   (dung-thu-ngay-14, hd-dl-ngay-14), CAP_DX_QUY_TAC (hd-dx-quy-tac, hd-dl-quy-tac-on-dinh).
 - Gates: lint 0 errors (2 pre-existing warnings in figures.ts), tsc, vitest 748, build, check:seo 47,
   check.sh OK (migrations / isolation skipped). Self-grep of audit patterns: zero hits in the 8 files.
+## 2026-10-18 — P52-A agent (Claude Opus) — no algorithm details on product pages (D61)
+
+- `/san-pham/de-xuat-va-thuc-thi`: FAQ caps (5/25/30, 7-day validity) and cooldown/demotion
+  answers rewritten; H3 "GMV dự kiến được tính thế nào" + `<Formula>` + "trung bình 30 ngày" →
+  "GMV dự kiến là một ước tính" (Formula import dropped); target rule → "Mục tiêu đo được";
+  trigger and ranking ("Xếp hạng theo GMV có thể lấy lại" → "Việc đáng làm nhất đứng trước");
+  30-click / 30-order floor and 7-day cooldown in the conditions list; H3 "Quy tắc chọn, AI chỉ
+  viết" removed (blog link moved to the AI-writing H3); reasons/decay paragraph; section
+  "Giới hạn số thẻ…" → "Nhịp đề xuất và thời gian chờ" (id `gioi-han` kept, TOC "Nhịp đề xuất"),
+  no caps/slots/validity/cooldown numbers; "1 đến 3 đề xuất nhanh", "lấp đầy" → "vài", "các đề
+  xuất khác xuất hiện"; card alt/caption no longer mention the formula; "ước tính theo quy tắc"
+  → "ước tính".
+- `/san-pham/do-luong-gmv`: FAQ "ước tính theo quy tắc, 30 ngày" → "ước tính từ số liệu gần đây";
+  lead feedback-loop sentence removed; channel-fallback sentence cut (PB4, 14-day baseline kept);
+  verdict 1–2× → "chưa đủ rõ để loại trừ may rủi"; "Độ mạnh của thay đổi" 2×/1× rule → "Khi nào
+  một thay đổi là rõ"; "30 đơn mỗi bên, khoảng tin cậy không chứa 0" → "vượt khỏi vùng nhiễu";
+  adaptive 14/30/60 window → "khi số liệu đủ để đọc"; section `#hoc` "Juli học từ kết quả đã đo"
+  (coefficient, ranking, decay, cross-shop test) → "Lưu lại kết quả của từng thay đổi" (one
+  paragraph, screenshot kept; alt and caption cleaned). `CAP_DL_HOC` / `CAP_DX_THE` pixels still
+  show the demo copy: re-capture after P51-A.
+- `/san-pham`: stepper "Tối đa 5 đề xuất mới…" → "Mỗi ngày vài đề xuất mới, việc đáng làm nhất
+  đứng trước"; measurement point and FAQ demotion sentence. `/san-pham/phan-tich-shop`: "Thứ tự
+  trong bảng cũng là thứ tự ưu tiên… Juli dùng chính phép tính này" and PB3 priority clause.
+  `/ket-noi/tiktok-shop`: "1 đến 3" → "vài"; OpenAI named as data disclosure kept, no model name.
+  `/cong-cu/tinh-gmv`: 50/20/1 floors "quy tắc của Juli" → DIY advice. Home `LOOP_STEPS`: "so với
+  sản phẩm không đổi" → "hoàn tác được"; home-content comment no longer cites ADR-077 / D34.
+- Tests: `info-pages` pins "Mỗi ngày vài đề xuất mới"; D60 control-group regex also bans "sản
+  phẩm không (thay) đổi"; new `no-algorithm-leak.test.ts` (40-odd documented patterns, scans
+  app minus terms/privacy, components, lib/seo, content/blog; `LEAK_PENDING_FILES` holds the 20
+  blog files that still hit, with a stale check so P52-B/C must remove entries as they clean).
+  lastModified bumped for phan-tich-shop, ket-noi, tinh-gmv.
+- Gates: lint 0 errors (2 pre-existing warnings in figures.ts), tsc, vitest 767, build,
+  check:seo 47, check.sh OK (migrations/isolation skipped). Shots at 390 in scratchpad
+  `shots-p52a/`, one H1, no horizontal scroll. Note: port 3007 was taken by another agent's
+  server; screenshots used port 3127.

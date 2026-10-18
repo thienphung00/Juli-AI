@@ -208,7 +208,7 @@ export default function KetNoiTikTokShopPage() {
         <Ol>
           <li>
             <strong>Quét nhanh 14 ngày.</strong> Trong vài phút, Juli đọc hiệu suất sản phẩm 14 ngày gần nhất
-            và chẩn đoán sản phẩm của TikTok cho các sản phẩm bán chạy, rồi có thể tạo 1 đến 3 đề xuất nhanh
+            và chẩn đoán sản phẩm của TikTok cho các sản phẩm bán chạy, rồi có thể đưa ra vài đề xuất nhanh
             về ảnh bìa, tiêu đề hoặc mô tả, ghi “Đề xuất nhanh · dựa trên 14 ngày”.
           </li>
           <li>

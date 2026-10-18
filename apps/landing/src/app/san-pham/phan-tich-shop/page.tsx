@@ -275,8 +275,7 @@ export default function PhanTichShopPage() {
         <P>
           Lượt hiển thị phụ thuộc nhiều vào cách TikTok phân phối, vào mùa vụ và vào nội dung của nhà sáng
           tạo. Chỉnh trang sản phẩm thường tác động rõ hơn đến CTR và CTOR. Juli vẫn hiển thị phần GMV do
-          lượt hiển thị gây ra, nhưng khi tìm việc cụ thể để làm, Juli ưu tiên những chỉ số mà bạn thay đổi
-          được.
+          lượt hiển thị gây ra.
         </P>
         <H3>CTOR giảm: trước giỏ hàng hay sau giỏ hàng</H3>
         <P>
@@ -326,9 +325,8 @@ export default function PhanTichShopPage() {
         </P>
         <H3>Từ xếp hạng đến hành động</H3>
         <P>
-          Thứ tự trong bảng cũng là thứ tự ưu tiên: sản phẩm lấy đi nhiều GMV nhất là nơi một thay đổi có
-          thể mang lại nhiều nhất. Juli dùng chính phép tính này để chọn sản phẩm nào nhận{" "}
-          <A href="/san-pham/de-xuat-va-thuc-thi">thẻ đề xuất</A> trước.
+          Sản phẩm lấy đi nhiều GMV nhất đứng đầu bảng. Nếu sản phẩm đã có thẻ, bạn đi thẳng sang{" "}
+          <A href="/san-pham/de-xuat-va-thuc-thi">thẻ đề xuất</A> của sản phẩm đó.
         </P>
       </CapSection>
 

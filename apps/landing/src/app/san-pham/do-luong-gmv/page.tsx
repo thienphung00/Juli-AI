@@ -29,9 +29,8 @@ import { buildMetadata } from "../../../lib/seo";
 /**
  * `/san-pham/do-luong-gmv` — capability page "Đo lường" (D43.1, D43.4, P33-C).
  * Grounded in D14 (day 7 / day 14), D29 (bands, KPI, verdict labels), D30
- * (frozen baseline, external changes), D31.7 (change strength), D24.6
- * (per-shop calibration and reasons) and D40.8 (when a lever counts as
- * learned). D34 control groups are not shipped to sellers, so the page makes
+ * (frozen baseline, external changes) and D31.7 (change strength). Public
+ * copy follows D61: no thresholds, floors, calibration or ranking. D34 control groups are not shipped to sellers, so the page makes
  * no control-group claim (D60.3). No results are quoted:
  * there are none to quote yet (D43.3).
  */
@@ -58,7 +57,7 @@ const FAQ = [
   {
     question: "GMV dự kiến trên thẻ có phải cam kết không?",
     answer:
-      "Không. GMV dự kiến là ước tính theo quy tắc, tính từ số liệu 30 ngày của sản phẩm. Kết quả thật là số đo được ở ngày 14, và hai con số này được đặt cạnh nhau để bạn so sánh.",
+      "Không. GMV dự kiến là ước tính từ số liệu gần đây của sản phẩm. Kết quả thật là số đo được ở ngày 14, và hai con số này được đặt cạnh nhau để bạn so sánh.",
   },
   {
     question: "Juli có công bố kết quả trung bình của khách hàng không?",
@@ -91,8 +90,7 @@ export default function DoLuongGmvPage() {
         <>
           Một đề xuất chỉ có giá trị khi biết nó có tác dụng hay không. Sau mỗi thay đổi, Juli so sánh chỉ
           số mục tiêu với mốc 14 ngày trước khi áp dụng, kiểm tra giữa chừng ở ngày 7, chốt ở ngày 14 và
-          ghi rõ mức chắc chắn của kết quả. Kết quả đó quay lại quyết định thứ tự đề xuất tiếp theo cho shop
-          của bạn.
+          ghi rõ mức chắc chắn của kết quả.
         </>
       }
       path={PATH}
@@ -100,7 +98,7 @@ export default function DoLuongGmvPage() {
         {
           href: "/san-pham/de-xuat-va-thuc-thi",
           title: "Đề xuất và thực thi",
-          body: "Thẻ đề xuất, bước xác nhận, Hoàn tác và các giới hạn.",
+          body: "Thẻ đề xuất, bước xác nhận, Hoàn tác và nhịp đề xuất.",
         },
         {
           href: "/san-pham/phan-tich-shop",
@@ -126,7 +124,7 @@ export default function DoLuongGmvPage() {
         { id: "ngay-14", label: "Ngày 14" },
         { id: "tang-them", label: "Tác động tăng thêm" },
         { id: "do-tin-cay", label: "Nhãn độ tin cậy" },
-        { id: "hoc", label: "Juli học từ kết quả" },
+        { id: "hoc", label: "Lưu kết quả" },
         { id: "cau-hoi", label: "Câu hỏi thường gặp" },
       ]}
     >
@@ -176,8 +174,7 @@ export default function DoLuongGmvPage() {
           Ảnh bìa, tiêu đề và mô tả chủ yếu được người mua thấy trên Thẻ sản phẩm, nên lượt hiển thị và CTR
           của các thay đổi này được đo trên luồng Thẻ sản phẩm, không bị pha loãng bởi lượt xem từ video hay
           LIVE. TikTok không tách đơn hàng SKU theo từng luồng cho từng sản phẩm, nên CTOR và AOV được đo
-          trên tất cả các kênh. Khi luồng Thẻ sản phẩm của một sản phẩm có quá ít dữ liệu, Juli đo trên tất
-          cả các kênh và ghi rõ điều đó trên thẻ.
+          trên tất cả các kênh.
         </P>
         <H3>Ngưỡng giữ ổn định cho các chỉ số còn lại</H3>
         <P>
@@ -250,8 +247,8 @@ export default function DoLuongGmvPage() {
             <strong>Đạt</strong>: chỉ số mục tiêu tăng rõ, chạm mục tiêu và GMV giữ được.
           </li>
           <li>
-            <strong>Đạt · chưa chắc chắn</strong>: chạm mục tiêu, nhưng mức tăng chỉ gấp một đến hai lần mức
-            dao động bình thường, nên chưa loại trừ được may rủi.
+            <strong>Đạt · chưa chắc chắn</strong>: chạm mục tiêu, nhưng mức tăng chưa đủ rõ để loại trừ may
+            rủi.
           </li>
           <li>
             <strong>Một phần</strong>: chỉ tăng rõ hoặc chỉ chạm mục tiêu, hoặc dữ liệu quá ít để chốt rõ.
@@ -268,9 +265,8 @@ export default function DoLuongGmvPage() {
         </P>
         <H3>Sau ngày 14</H3>
         <P>
-          Kết quả chốt được lưu lại cùng GMV dự kiến ban đầu, và dùng để điều chỉnh thứ tự các đề xuất sau
-          (xem phần cuối trang). Sản phẩm có thể nhận đề xuất tiếp theo nếu dữ liệu cho thấy vẫn còn chỗ để
-          cải thiện.
+          Kết quả chốt được lưu lại cùng GMV dự kiến ban đầu. Sản phẩm có thể nhận đề xuất tiếp theo nếu dữ
+          liệu cho thấy vẫn còn chỗ để cải thiện.
         </P>
       </CapSection>
 
@@ -286,12 +282,11 @@ export default function DoLuongGmvPage() {
           So sánh trước và sau là bước đầu, nhưng chưa đủ. Juli đặt mỗi mức thay đổi cạnh mức dao động bình
           thường của chỉ số đó, rồi mới gọi nó là một tác động.
         </P>
-        <H3>Độ mạnh của thay đổi</H3>
+        <H3>Khi nào một thay đổi là rõ</H3>
         <P>
-          Juli tính mức dao động của trung bình mỗi ngày trong cả hai khoảng (trước và sau), rồi so mức thay
-          đổi với nó. Thay đổi lớn hơn hai lần mức dao động được coi là rõ; từ một đến hai lần là có thể đã
-          thay đổi; dưới một lần là vẫn trong dao động bình thường. Một kết quả yếu không bao giờ được gắn
-          nhãn mạnh hơn.
+          Juli đặt mức thay đổi cạnh dao động bình thường của chỉ số trong cả hai khoảng, trước và sau. Chỉ
+          khi mức thay đổi vượt hẳn dao động đó, kết quả mới được gọi là rõ. Một kết quả yếu không bao giờ
+          được gắn nhãn mạnh hơn.
         </P>
         <H3>Vì sao trước – sau dễ đánh giá quá cao</H3>
         <P>
@@ -316,8 +311,8 @@ export default function DoLuongGmvPage() {
         </P>
         <H3>Trong Phân tích: Rõ và Tham khảo</H3>
         <P>
-          <strong>Rõ</strong> khi cả hai kỳ có đủ đơn hàng (khoảng 30 đơn mỗi bên trở lên) và khoảng tin
-          cậy của mức thay đổi không chứa 0. <strong>Tham khảo</strong> khi dữ liệu ít hơn hoặc thay đổi vẫn
+          <strong>Rõ</strong> khi cả hai kỳ có đủ đơn hàng và mức thay đổi vượt khỏi vùng nhiễu.{" "}
+          <strong>Tham khảo</strong> khi dữ liệu ít hơn hoặc thay đổi vẫn
           nằm trong vùng nhiễu. Dòng Tham khảo đi kèm gợi ý theo dõi thêm.
         </P>
         <H3>Trên thẻ đề xuất: Cao, Vừa, Thấp</H3>
@@ -328,45 +323,24 @@ export default function DoLuongGmvPage() {
         </P>
         <H3>Khi chưa đủ dữ liệu</H3>
         <P>
-          Juli tìm khoảng thời gian ngắn nhất (14, 30 rồi 60 ngày) có đủ khoảng 30 lượt nhấp hoặc 30 đơn để
-          đánh giá một sản phẩm. Nếu ngay cả 60 ngày cũng không đủ, sản phẩm được ghi là ít dữ liệu và Juli
-          không đưa ra chẩn đoán cho nó.
+          Juli chỉ chẩn đoán một sản phẩm khi số liệu đủ để đọc. Sản phẩm còn quá ít dữ liệu được ghi là ít
+          dữ liệu, và Juli chưa đưa ra chẩn đoán cho nó.
         </P>
       </CapSection>
 
       <CapSection
-        alt="Nhóm thẻ tối ưu để nâng CTOR Thẻ sản phẩm với GMV dự kiến cộng 9,3 triệu đồng mỗi tháng ghi ước tính theo quy tắc, hai thẻ Son môi số 12 và Kem dưỡng ẩm ceramide"
-        caption="Thứ tự các thẻ trong một nhóm phản ánh GMV có thể lấy lại, đã điều chỉnh theo kết quả đo trước đó của shop."
-        heading="Juli học từ kết quả đã đo"
+        alt="Nhóm thẻ tối ưu để nâng CTOR Thẻ sản phẩm với GMV dự kiến cộng 9,3 triệu đồng mỗi tháng, hai thẻ Son môi số 12 và Kem dưỡng ẩm ceramide"
+        caption="Các thẻ cùng nhắm một chỉ số được gom thành một nhóm."
+        heading="Lưu lại kết quả của từng thay đổi"
         id="hoc"
         image={CAP_DL_HOC}
         mobileImage={CAP_DL_HOC_MOBILE}
       >
         <P>
-          Mỗi kết quả ngày 14 quay lại quyết định đề xuất tiếp theo. Cách học hiện nay đơn giản và minh bạch,
-          vì một shop chỉ có vài chục thay đổi được đo mỗi tháng.
-        </P>
-        <H3>Theo từng loại thay đổi, trong shop của bạn</H3>
-        <P>
-          Với mỗi loại thay đổi (ảnh bìa, tiêu đề, mô tả, giảm giá…), Juli giữ một hệ số so sánh GMV thực tế
-          với GMV dự kiến của các lần đã đo trong shop. Loại thay đổi chưa được đo đứng ở mức trung tính; loại
-          đã mang lại đúng như dự kiến được xếp lên trước, loại thường không đạt được xếp xuống. Khi thứ tự
-          đã được điều chỉnh, thẻ ghi “Thứ tự đề xuất đã điều chỉnh theo kết quả trước của shop”. Con số GMV
-          dự kiến trên thẻ vẫn là ước tính theo quy tắc, để còn so được với kết quả thật.
-        </P>
-        <H3>Theo lựa chọn của bạn</H3>
-        <P>
-          Lý do bạn chọn khi từ chối, không thực hiện hoặc hoàn tác làm loại thay đổi đó được ưu tiên thấp
-          hơn cho shop của bạn, nhạt dần trong khoảng 60 ngày. Juli không chép lựa chọn của shop này sang shop
-          khác.
-        </P>
-        <H3>Học giữa các shop: chỉ khi có bằng chứng</H3>
-        <P>
-          Học từ nhiều shop sẽ giúp những shop mới hay shop nhỏ có điểm xuất phát tốt hơn. Nhưng một kết luận
-          chung chỉ được dùng khi nó đứng vững: hướng tác động giống nhau khi bỏ lần lượt từng shop ra, và
-          khoảng tin cậy không chứa 0. Hiện chưa có loại thay đổi nào đạt chuẩn này, nên Juli không đưa ra
-          con số hiệu quả chung nào, trên trang này hay trong ứng dụng. Kết quả đo chỉ dùng số liệu tổng hợp
-          của sản phẩm, không dùng dữ liệu cá nhân của người mua.
+          Mỗi kết quả ngày 14 được lưu cùng GMV dự kiến ban đầu, để bạn xem lại loại thay đổi nào đã có tác
+          dụng với shop của mình. Juli không chép lựa chọn của shop này sang shop khác, và kết quả đo chỉ
+          dùng số liệu tổng hợp của sản phẩm, không dùng dữ liệu cá nhân của người mua. Juli chưa công bố
+          con số hiệu quả chung nào, trên trang này hay trong ứng dụng.
         </P>
         <P>
           Muốn hiểu thêm về cách đọc chỉ số và dao động, xem các bài trên <A href={BLOG_PATH}>blog</A>.
