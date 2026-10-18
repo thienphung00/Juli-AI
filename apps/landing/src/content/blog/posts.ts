@@ -1291,7 +1291,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     updatedAt: "2026-10-18",
     category: "guide",
     format: "guide",
-    cover: blogCover("hero-huong-dan-ket-noi-tiktok-shop-voi-juli-v1", "Minh hoạ: phích cắm và ổ cắm nối với nhau bằng một sợi dây cong, tia sáng hồng ở chỗ nối, nền chàm đậm, chữ “Kết nối shop”"),
+    cover: blogCover("hero-huong-dan-ket-noi-tiktok-shop-voi-juli-v1", "Minh hoạ: phích cắm màu tím nhạt có dây trắng cắm vào ổ điện, hai tia sáng hồng ở chỗ nối, nền chàm đậm với các vòng tròn, chữ “Kết nối shop”"),
     author: AUTHOR,
     related: ["doc-phan-tich-tiktok-shop-theo-luong-truy-cap", "duyet-de-xuat-toi-uu-san-pham-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
@@ -1340,7 +1340,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     updatedAt: "2026-10-18",
     category: "guide",
     format: "guide",
-    cover: blogCover("hero-doc-phan-tich-tiktok-shop-theo-luong-truy-cap-v1", "Minh hoạ: một tia sáng đi qua lăng kính và tách thành năm dải màu, nền xanh lá nhạt, chữ “Đọc theo từng luồng”"),
+    cover: blogCover("hero-doc-phan-tich-tiktok-shop-theo-luong-truy-cap-v1", "Minh hoạ: một tia sáng đi qua lăng kính tam giác và tách thành năm dải màu hồng, tím và đen, nền xanh chanh nhạt, chữ “Đọc theo từng luồng”"),
     author: AUTHOR,
     related: ["huong-dan-ket-noi-tiktok-shop-voi-juli", "duyet-de-xuat-toi-uu-san-pham-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov"],
     faq: [
@@ -1389,7 +1389,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     updatedAt: "2026-10-18",
     category: "guide",
     format: "guide",
-    cover: blogCover("hero-duyet-de-xuat-toi-uu-san-pham-tiktok-shop-v1", "Minh hoạ: hai chiếc chìa khoá cùng mở một ổ khoá móc, một dấu tích hồng phía trên, nền vàng nghệ, chữ “Duyệt rồi mới đổi”"),
+    cover: blogCover("hero-duyet-de-xuat-toi-uu-san-pham-tiktok-shop-v1", "Minh hoạ: hai chiếc chìa khoá từ hai bên cùng cắm vào một ổ khoá móc, dấu tích hồng phía trên, nền xanh bạc hà chấm bi, chữ “Duyệt rồi mới đổi”"),
     author: AUTHOR,
     related: ["do-ket-qua-ngay-7-ngay-14-hoan-tac", "doc-phan-tich-tiktok-shop-theo-luong-truy-cap", "toi-uu-the-san-pham-tiktok-shop"],
     faq: [
@@ -1438,7 +1438,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     updatedAt: "2026-10-18",
     category: "guide",
     format: "guide",
-    cover: blogCover("hero-do-ket-qua-ngay-7-ngay-14-hoan-tac-v1", "Minh hoạ: đồng hồ cát với một mũi tên vòng ngược bao quanh, nền nâu đậm, chữ “Đo xong mới chốt”"),
+    cover: blogCover("hero-do-ket-qua-ngay-7-ngay-14-hoan-tac-v1", "Minh hoạ: đồng hồ cát có mũi tên hồng vòng ngược bao quanh, nền xanh ô liu đậm, chữ “Đo xong mới chốt”"),
     author: AUTHOR,
     related: ["duyet-de-xuat-toi-uu-san-pham-tiktok-shop", "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "doc-phan-tich-tiktok-shop-theo-luong-truy-cap"],
     faq: [
