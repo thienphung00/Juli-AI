@@ -1134,3 +1134,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `total_performance.refunds`, A-33 `intervals[].cancel_and_refunds`, both "documented" in
   `schema_expectations.py`, unverified live). Storing them (mapper + migration) would give per-day
   refunds on the same rows, and could check the order-based shares.
+
+- **Trial sign-up purge job (D60.4, D43 additions 3)**: sign-ups that do not become customers must
+  be deleted after 12 months; no job exists yet. Due before 10/2027 (first sign-ups 10/2026).

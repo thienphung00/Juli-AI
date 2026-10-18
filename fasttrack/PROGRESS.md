@@ -281,6 +281,14 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | P49-B Three problem posts | D59 add. 5 | done, merged, drafts: C6–C8 (P49-A2) | writer agents |
 | P49-L End-of-post box "Đọc hướng dẫn liên quan" for reach posts | D59 add. 4 | done, merged: `guide` field on all 16 reach posts, `guideFor()`, tests | orchestrator |
 
+## P50 — five product and sample-data fixes (D60)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P50-A Demo sample data: lever ↔ target, Kéo xuống sums; recapture | D60.1 | in progress, branch `fasttrack/p50a-sample-data` | agent |
+| P50-B Landing: Đề xuất page (AOV lever, cover wording), Đo lường page (control groups), price wording | D60.2, D60.3, D60.5 | in progress, branch `fasttrack/p50b-product-copy` | agent |
+| Retention approved, purge job in DEBT | D60.4 | done | orchestrator |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

@@ -1708,3 +1708,21 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   `ml_guard.final_test`: FastMoss snapshot 2 (~2026-10-20), Ory new-shop set, Fujiwa after
   2026-10-08, pooled independent tests when enough exist. Metric.vn and FastMoss snapshot 2 feed
   the next optimisation round only after Step 14.
+
+- **D60** — Five product and sample-data fixes (owner, 2026-10-18, "Sửa 5 lỗi sản phẩm và dữ liệu
+  mẫu"; found by the P49 writers).
+  1. **Sample shop data**: the day-7 / day-14 sample shows a title change on a CTOR target — make
+     the lever match the target (title → CTR on Thẻ sản phẩm, description → CTOR measured on all
+     channels, D22 / D32); the "Kéo xuống" product rows plus "Còn lại" must add up exactly to the
+     tile and the "Tổng" row. Recapture the affected screenshots.
+  2. **`/san-pham/de-xuat-va-thuc-thi`**: remove the "mua nhiều giảm nhiều" AOV lever (Ops-only,
+     D45); the hero lead must say Juli replaces the cover only with the seller's photo, after
+     confirmation (D13).
+  3. **`/san-pham/do-luong-gmv`**: remove the "Nhóm đối chứng (đang thử nghiệm)" section and any
+     control-group claim; D34 groups are not shipped to sellers.
+  4. **Retention approved**: D43 additions 3 (a sign-up that does not become a customer is kept at
+     most 12 months, then deleted; deletion on request within 30 days) is confirmed; `/privacy`
+     already says so. DEBT: build the purge job before 10/2027.
+  5. **Price wording**: one plan, written "500.000đ/tháng" everywhere (home, `/san-pham`, FAQs,
+     meta, JSON-LD offer text, llms.txt, blog), matching `/terms` §5; no "từ".
+  Work: P50-A (demo sample data + recapture), P50-B (landing pages, items 2, 3, 5).
