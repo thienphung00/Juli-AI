@@ -293,7 +293,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P52-A Product pages, home, shared blocks, calculator, SEO / llms.txt; leak-pattern test | D61 | in progress, branch `fasttrack/p52a-leaks-pages` | agent |
+| P52-A Product pages, home, shared blocks, calculator, SEO / llms.txt; leak-pattern test | D61 | done on branch `fasttrack/p52a-leaks-pages` (not merged) | agent |
 | P52-B Eight Juli guides (body, FAQ, figure captions) | D61 | in progress, branch `fasttrack/p52b-leaks-guides` | agent |
 | P52-C Reach posts, pillars, tools posts (body, FAQ, captions) | D61 | in progress, branch `fasttrack/p52c-leaks-posts` | agent |
 | Demo app + backend card copy, recapture (with P51-A) | D61 | in progress, branch `fasttrack/p51a-sample-data` | P51-A agent |
