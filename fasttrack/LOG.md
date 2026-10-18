@@ -2502,3 +2502,42 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
   FAIL (no DB; `docker info` hung and was killed; known).
 - Next: owner reviews and merges; posts 7–8 (P46-C2).
+## 2026-10-18 — P46-D1 writer (Opus): week-3 posts 9–10, title and cover-image drafts
+
+- Branch `fasttrack/p46d1-week3-tieude-anhbia` (worktree `/Users/macos/juli-fasttrack-p46d1`), from 017439b1.
+- Drafts (`format: "pain"`, category `optimize`): `/blog/dat-ten-san-pham-tiktok-shop` (main "đặt tên
+  sản phẩm tiktok shop", per the brief; plan phrase "cách đặt tiêu đề…" kept in H1 / first H2 only;
+  2,404 words, 9 H2, 5 FAQ, 5 figures) and `/blog/anh-bia-san-pham-tiktok-shop` (main "ảnh bìa sản
+  phẩm tiktok shop"; opening separates the main product image from a video cover; 2,430 words,
+  10 H2, 5 FAQ, 4 figures). Autocomplete VN re-checked 2026-10-18. The pillar links down to both in
+  one sentence each; both link the pillar, each other, chỉ số, khách-xem-nhưng-không-mua, lượt hiển
+  thị and the product pages.
+- Sources re-opened 2026-10-18 (curl + text extraction, seller-vn.tiktok.com, title + link + page date):
+  Tiêu đề, mô tả, hình ảnh và video về sản phẩm (23/04/2026), Hướng dẫn đăng bán sản phẩm (05/10/2026),
+  Chẩn Đoán Thẻ Sản Phẩm 4 (15/12/2023), Chẩn Đoán Thẻ Sản Phẩm (21/02/2024), Trình Tối Ưu Hóa Tiêu Đề
+  (23/11/2023), Trình Tối Ưu Hoá Sản Phẩm (04/08/2025), Đăng Sản Phẩm và Chỉnh Sửa Ảnh trên App
+  (06/06/2025), nội dung tạo bởi AI (30/09/2026), Clickbait (29/06/2025), Mô tả phóng đại (29/06/2025),
+  Cập nhật Chính sách mới nhất (01/07/2026, brand-masking rule from 28/05/2026), Lưu lượng truy cập
+  sản phẩm (17/06/2026). Confirmed: "dài hơn 25 ký tự", "lớn hơn 1200*1200" + "ít nhất 3 hình ảnh"
+  (recommendations), 600 × 600, max 9 square images, 60 % of frame. Not found on any official page:
+  "900 × 900" and an image "5 MB" limit (5 MB is the video limit); the post says so, states neither.
+- Juli scope: title written only after approval, old title stored for undo, day 7 / 14. Cover image:
+  per the P46-D brief Juli does not shoot, edit or upload images, only proposes; SPEC does not say
+  Juli records when an image changed, so the post asks the seller to note the date. Note for the
+  owner: `/san-pham` and `/san-pham/de-xuat-va-thuc-thi` still say Juli uploads a seller-supplied
+  cover photo (D13); the post follows the brief, the two should be reconciled.
+- Figures: 6 new diagrams (`tieu-de-hai-viec`, `tieu-de-nam-thanh-phan`, `tieu-de-truoc-sau`,
+  `anh-bia-tren-the`, `anh-bia-ba-phuong-an`, `anh-bia-doi-chung`), reused `hien-thi-ctr`, and two
+  Dữ liệu mẫu screenshots opened before use (`cap-dx-luot-chay`: title written, old value stored,
+  day 7 / 14; `cap-pt-pheu`: product-card CTR). A seventh diagram (official image requirements) was
+  dropped: its official numbers trip the test's hypothetical-number rule; the body lists them.
+  Covers `dat-ten-san-pham-v1` (optimize checklist, accent 1), `anh-bia-san-pham-v1` (optimize
+  tiles, accent 0). Both slugs added to `FIGURE_POSTS`.
+- `keyword-map.md`: two rows (Draft); "tối ưu tiêu đề" moved from the pillar to post 9. PROGRESS
+  P46-D: posts 9–10 done on branch.
+- Gates: landing lint 0, `tsc --noEmit` 0, vitest 533 passed (`--maxWorkers=4`), build OK,
+  `check:seo` 35 passed. Rendered at 390 / 1440 px (1 H1, no horizontal overflow, all figures
+  loaded); figure screenshots in the session scratchpad `shots-p46d1/`. `check.sh --since
+  fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation FAIL (no DB;
+  hung `docker info` killed; known).
+- Next: owner reviews and merges; posts 11–12 (P46-D2).
