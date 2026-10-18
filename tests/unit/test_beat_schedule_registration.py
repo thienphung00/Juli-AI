@@ -11,17 +11,46 @@ workers/tasks/__init__.py, so its 02:00 schedule could never have run.
 
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+
 import pytest
+
+# What a worker does at boot, run in a FRESH interpreter. Reading `celery_app.tasks`
+# in this process would see every task module any earlier test imported, so a module
+# missing from workers/tasks/__init__.py still looks registered whenever the suite
+# happens to import it first. That is how `product_history` (P23's beat) went
+# unregistered in production while this test stayed green in the full run (fast
+# track P53, D62).
+_FRESH_WORKER_REGISTRY = """
+import json
+from juli_backend.workers.celery_app import celery_app
+celery_app.loader.import_default_modules()
+print(json.dumps(sorted(celery_app.tasks)))
+"""
 
 
 @pytest.fixture(scope="module")
 def registered_task_names() -> set[str]:
-    from juli_backend.workers.celery_app import celery_app
-
-    # This is what a worker does at boot; without it autodiscovery stays lazy
-    # and the registry looks empty.
-    celery_app.loader.import_default_modules()
-    return set(celery_app.tasks)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
+    # The fresh interpreter must not reach a real database or broker; the import
+    # path only needs the boot-time variables tests/conftest.py defaults.
+    env["DATABASE_URL"] = ""
+    env.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-collection-default")
+    env.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
+    out = subprocess.run(
+        [sys.executable, "-c", _FRESH_WORKER_REGISTRY],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=25,
+        check=False,
+    )
+    assert out.returncode == 0, f"fresh worker import failed:\n{out.stderr[-2000:]}"
+    return set(json.loads(out.stdout.strip().splitlines()[-1]))
 
 
 @pytest.fixture(scope="module")
@@ -57,6 +86,7 @@ def test_every_beat_task_is_registered(
         "juli_backend.mock_analytics_hourly_reconcile",
         "juli_backend.cdp_batch_staggered_reconcile",
         "juli_backend.analytics_backfill_topup",
+        "juli_backend.product_history_fanout",
     ],
 )
 def test_known_scheduled_tasks_register(task_name: str, registered_task_names: set[str]):
