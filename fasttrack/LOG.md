@@ -3041,3 +3041,17 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
 - Gates: landing lint 0 errors (2 old warnings), tsc 0, vitest 19 / 767 (also with `--no-experimental-webstorage`
   on Node 26), build OK, check:seo 47, leak test green with empty pending list; demo lint 0 errors (7 old warnings),
   tsc 0, vitest 159 / 1992, build OK (Node 20, placeholder Supabase env). Backend unchanged.
+
+## 2026-10-18 — orchestrator (Claude Opus) — D60 + D61 merged
+
+- Merged P51-A (D60.1 sample data, D61 demo + backend card copy, 20 recaptures), P51-B (D60.2,
+  .3, .5), P52-A/B/C (D61 landing, guides, posts) and P52-D (alts, peer median in sample
+  reasons, SM-012 CTOR card proposes Mô tả only, 4 more recaptures). `no-algorithm-leak.test.ts`
+  runs with an empty pending list. Gates at 735b3e10: landing tsc, lint, vitest 767, build,
+  check:seo 47; demo build. P51-A changed display logic in `apps/demo/src/lib/phan-tich/rows.ts`
+  (rows of the other direction fold into "Còn lại", so both views add up; affects real shops) —
+  kept, owner told.
+- Not changed: `backend/.../action_cards/card_groups.py` "so với các sản phẩm chưa đổi" is the
+  real result text of the D34 group experiment (Ops / shops with groups only), accurate, not
+  public content. Pre-existing backend failure `test_cross_tenant_probe` (demo runs events 404)
+  fails without these changes too.
