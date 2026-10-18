@@ -2715,3 +2715,26 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   calculator box, no "Juli" in `<main>` outside byline / related cards, no horizontal overflow.
 - `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
   FAIL (no throwaway DB; one hung `docker info` killed after 2 min; known).
+
+## 2026-10-18 · P48-H unique hero per blog post (D59.3)
+
+- Content engine (`juli-content-engine`, branch `blog-heroes`, not pushed): new still `BlogHero`
+  (1200×675 at `--scale=2` → 2400×1350) + `BlogHeroOG` (1200×630, own side-by-side layout), 23 vector
+  motifs (one metaphor per post, own palette from the landing tokens, left / right / centre), kicker in
+  Be Vietnam Pro latin + vietnamese; specs in `projects/blog-heroes/heroes.json`;
+  `npm run hero:render -- <heroes.json> [--only] [--contact-sheet]`. Commits d980b58, c81b11c.
+- Landing, branch `fasttrack/p48h-heroes` (from `fasttrack/optimize-product` 52f91f63), not merged:
+  `media.py blog-hero` (size check, never overwrites) wrote `blog-hero-<slug>-v1-{600,1200}.{avif,webp}`
+  + `-og.png` for all 23 posts; every `cover` points at it with a new Vietnamese alt describing the
+  illustration (no "Juli"). The 115 old shared-motif cover files and `scripts/blog-covers.mjs` are
+  removed (referenced only by `posts.ts` and history in this log). README "Hero images" section.
+- Weight: 600-wide AVIF set 41.7 KB → 136.9 KB for 23 cards (3.9–7.9 KB each; the published index
+  shows 2 cards); all new cover files 2.0 MB (old 0.49 MB), OG PNGs ~45 KB each.
+- Gates: lint 0 (6 old warnings), `tsc --noEmit` 0, vitest 623 passed (with `--testTimeout=30000`; at
+  5 s one or two render tests timed out at load ~25, pass in isolation), build OK, `check:seo` 39
+  passed; `/blog` and 2 posts rendered at 390 / 1440 px. `check.sh --since fasttrack/optimize-product`:
+  first run stuck in migrations (docker hung host-wide, stopped after 10 min); rerun with
+  `--skip-migrations`: gitleaks, ruff, pytest PASS, migrations / isolation SKIPPED.
+- Note: a `git stash` / `pop` probe popped an unrelated old stash (conflict in docs/adr/README.md);
+  undone with `git reset --merge`, the stash entry is still in the list (same trap as before).
+

@@ -269,7 +269,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | P48-A `tier` in code, neutral end-of-post CTA for reach posts, tests | D59.1, D59.2 | done on branch `fasttrack/p48a-tiers` (not merged); `REACH_JULI_PENDING` holds the 16 reach slugs for P48-B/C | agent |
 | P48-B/C Remove Juli from the 16 reach posts (body, FAQ, figures, links) | D59.1 | done, merged: P48-B (8 posts) and P48-C (8 posts); `REACH_JULI_PENDING` empty | agents |
-| P48-H Unique hero per post: content-engine still + landing covers | D59.3 | in progress (content engine first) | agent |
+| P48-H Unique hero per post: content-engine still + landing covers | D59.3 | done on branch `fasttrack/p48h-heroes` (not merged); content engine `blog-heroes` d980b58 + c81b11c (not pushed) | agent |
 
 ## P2–P6
 
