@@ -2715,3 +2715,43 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   calculator box, no "Juli" in `<main>` outside byline / related cards, no horizontal overflow.
 - `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS; migrations / isolation
   FAIL (no throwaway DB; one hung `docker info` killed after 2 min; known).
+## 2026-10-18 — P49-S fresh sample-shop screenshots (agent: Claude Opus, branch `fasttrack/p49s-screenshots`)
+- Branch from `fasttrack/optimize-product` b2b553f2; assets commit 798afcfc. Not merged.
+- **How**: `apps/demo` `next dev` (Node 20) with placeholder `NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co`
+  / anon key `example-anon-key-not-a-secret` (only so the auth buttons render as links; no request is
+  ever sent), driven by a scratchpad Playwright script at 1280 px, deviceScaleFactor 2, `vi-VN`,
+  Asia/Ho_Chi_Minh. Every request off localhost was aborted. Three views: (1) the signed-out sample
+  (most shots); (2) signed-in over Playwright `page.route` stubs, fake token, shop "Cửa hàng Mẫu Hoa
+  Mai", the bundled `sampleEnvelope()` for Phân tích, rules like the sample's, onboarding step 2/3 (the
+  P17 e2e pattern), for the quick scan and the CTR title card, which the bundled sample has no card
+  for (KD-030 title / CTR 3,7 → 3,9 %, matching the sample's CTR ranking; GMV method text = backend
+  `_GMV_METHOD_VI["ctr"]`); (3) the partner-reviewer sample (mocked `/v1/reviewer/me`, `shop: null`)
+  only to reach "Ngày 14 (mô phỏng)": the day-14 shot is the measure panel alone, no reviewer banner.
+  No production data, credentials or real shop.
+- **New files** (`public/media/`, `media.py optimize` 640 + largest; exports in
+  `components/product/screens.ts` after the v1 block): `cap-kn-dang-nhap-v2` (D44.5 / D47.6 sign-in
+  column only, 1280×1745; right panel left out, see below), `cap-kn-quet-nhanh-v2` (strip "bước 2/3",
+  quick-scan chip, 1280×869), `cap-pt-nghen-v2` (Thẻ sản phẩm, CTOR cell, the three rows with "Xem đề
+  xuất", cropped above the two "Chưa có đề xuất" rows, 1280×595), `cap-dx-the-v2` (MN-015 description
+  card expanded, 1184×868), `cap-dx-anh-bia-v1` (SR-007 cover card, 1184×1034),
+  `cap-dx-anh-bia-tai-len-v1` (run waiting for the seller's photo with the 3 requirements and "Chọn ảnh
+  từ máy", 1280×1208), `cap-dx-ctr-tieu-de-v1` (1184×1046), `cap-dl-ngay-7-v2` (1280×1565),
+  `cap-dl-ngay-14-v2` ("Đạt", final box, 1280×1821), `cap-dx-hoan-tac-v2` (undo dialog, rounded alpha
+  corners, 1040×1060). Mobile crops (`MOBILE_CROPS`, now any `-vN-` name): kn-dang-nhap-m-v2 720×931,
+  kn-quet-nhanh-m-v2 678×799, pt-nghen-m-v2 720×297, dl-ngay-7-m-v2 720×250, dl-ngay-14-m-v2 720×191;
+  cards and the dialog need none (2x, large text). v1 files and exports untouched.
+- **Skipped**: `cap-pt-lich-sale` v2. The sample report's `end` is fixed at 2026-10-06, so "Sắp tới"
+  is always "10.10, 11.11" (10.10 is past today); not capturable without changing the sample.
+- **App copy for the owner (not edited)**: (a) SR-007 cover card chip "Juli tải lên — cần ảnh từ bạn"
+  (em dash); (b) sample run step "Ảnh bìa đạt chuẩn — không đổi" (`sample-data.ts`); (c) sample
+  SM-012 proposal title "Son môi lì cao cấp số 12 — màu đỏ ruby", also baked into the demo auth
+  screen's right-panel image (`apps/demo/public/auth/`, the old cap-dx-the with "TikTok báo mã chẩn
+  đoán"), which is why the sign-in shot is the column only; (d) "Chưa đặt quy tắc nào — Juli dùng mặc
+  định." when rules are empty; (e) the sample's CTR card (SR-007) shows the CTOR formula — sample
+  `GMV_METHOD` is one string for every KPI, the backend has one per KPI; (f) day-14 sample band row
+  "155.000 – 165.000" vs "155k – 165k ₫" elsewhere (`sampleSimulatedMeasurement`).
+- Gates (landing): lint 0 errors (6 pre-existing unused-import warnings in `figures.ts`), `tsc
+  --noEmit` 0, vitest 17 files / 623 passed (Node 26, `NODE_OPTIONS=--no-experimental-webstorage`,
+  `--maxWorkers=4`), build OK (Node 20); ruff on `media.py` clean. Contact sheet in the session
+  scratchpad `shots-p49s/contact.png`.
+- Next: P49-A/B writers use the `*_V2` / new exports; owner decides on the copy items above.
