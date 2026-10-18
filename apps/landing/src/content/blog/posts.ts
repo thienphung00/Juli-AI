@@ -932,4 +932,134 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "số lượng trong tiêu đề, không đưa khuyến mãi vào tiêu đề (23/04/2026), kiểm tra 17/10/2026"),
     ],
   },
+  {
+    slug: "mo-ta-san-pham-tiktok-shop",
+    status: "draft",
+    title: "Khách hỏi mãi một câu: viết mô tả sản phẩm TikTok Shop để trả lời trước khi khách hỏi",
+    seoTitle: "Mô tả sản phẩm TikTok Shop: trả lời trước | Juli AI",
+    description:
+      "Khách hỏi mãi một câu về size, chất liệu, cách dùng: gom câu hỏi lặp lại, viết mô tả theo chính sách TikTok Shop, tránh lỗi bị gỡ và đo CTOR ngày 7, 14.",
+    excerpt:
+      "Câu hỏi lặp lại là thông tin còn thiếu trên trang sản phẩm. Cách gom câu hỏi trong một tuần, TikTok yêu cầu gì ở mô tả (không dưới 30 từ, phụ kiện, bảng kích cỡ), những gì không được viết, mô tả và trả hàng vì không đúng mô tả, và cách đo lại.",
+    breadcrumbName: "Mô tả sản phẩm TikTok Shop",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "optimize",
+    format: "pain",
+    cover: blogCover("mo-ta-san-pham-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xanh lá nhạt, ô thứ hai tô màu xanh lá"),
+    author: AUTHOR,
+    related: ["toi-uu-the-san-pham-tiktok-shop", "khach-xem-nhung-khong-mua-tiktok-shop", "ty-le-hoan-hang-tiktok-shop"],
+    faq: [
+      {
+        question: "Mô tả sản phẩm TikTok Shop phải dài ít nhất bao nhiêu từ?",
+        answer:
+          "Theo trang chính sách Tiêu đề, mô tả, hình ảnh và video về sản phẩm (cập nhật 23/04/2026), mô tả không dưới 30 từ. TikTok không công bố độ dài tối ưu; hãy viết đủ để trả lời các câu khách hay hỏi, không thêm câu quảng cáo cho dài.",
+      },
+      {
+        question: "Có được để số điện thoại hoặc Zalo trong mô tả cho khách hỏi thêm không?",
+        answer:
+          "Không. Trang Thông tin đặt hàng thay thế (Chuyển hướng truy cập) của TikTok Shop không cho phép liên kết, số điện thoại, tài khoản mạng xã hội, email hay mã QR có thể đưa khách rời nền tảng để đặt hàng hoặc liên hệ. Hãy trả lời câu hỏi ngay trong mô tả.",
+      },
+      {
+        question: "Có được ghi \"tốt nhất\", \"đảm bảo 100%\" trong mô tả không?",
+        answer:
+          "Không, trừ khi tuyên bố chính xác và xác minh được. Trang Mô tả sản phẩm phóng đại là gì? liệt kê \"số 1\", \"tốt nhất\", \"duy nhất\", \"100% tự nhiên\" và kết quả \"ngay tức thì\"; với tuyên bố tuyệt đối, người bán cần tài liệu của cơ quan có thẩm quyền ghi đúng tuyên bố đó.",
+      },
+      {
+        question: "Dùng AI viết mô tả sản phẩm có được không?",
+        answer:
+          "Được. Công cụ Tối Ưu Hoá Sản Phẩm của TikTok có tính năng Tối ưu hóa bằng AI cho tiêu đề và mô tả, nhưng người bán chịu trách nhiệm thông tin chính xác, trung thực. Hãy đọc lại từng câu và đối chiếu với hàng thật trước khi đăng.",
+      },
+      {
+        question: "Sửa mô tả bao lâu thì biết có hiệu quả?",
+        answer:
+          "Đọc CTOR sơ bộ ở ngày 7 và chốt ở ngày 14, so với 14 ngày trước khi sửa và với các sản phẩm không sửa, mỗi lần một thay đổi. Juli chỉ đọc CTOR khi sản phẩm có từ 20 lượt nhấp mỗi ngày; đây là ngưỡng của Juli, không phải của TikTok.",
+      },
+    ],
+    sources: [
+      academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "mô tả không dưới 30 từ, đặc điểm, an toàn, phụ kiện đi kèm, thương hiệu (cập nhật 23/04/2026); đọc 18/10/2026"),
+      academy("Hướng dẫn đăng bán sản phẩm tại TikTok Shop", "10008395", "mục 3.1.1 đến 3.1.5: thông tin sai, phóng đại, so sánh, giá khuyến mại, khẳng định sai (cập nhật 05/10/2026); đọc 18/10/2026"),
+      academy("Mô tả sản phẩm phóng đại là gì?", "6837770400581377", "ví dụ khẳng định tuyệt đối, tài liệu cơ quan có thẩm quyền, cách viết với dược mỹ phẩm (29/06/2025); đọc 18/10/2026"),
+      academy("Thông tin đặt hàng thay thế (Chuyển hướng truy cập)", "7213979802060545", "không để liên kết, số điện thoại, mạng xã hội, email, mã QR (10/06/2026); đọc 18/10/2026"),
+      academy("Mặt hàng khác biệt lớn so với mô tả (SNAD)", "6837791128831746", "định nghĩa SNAD, màu ngẫu nhiên, biểu đồ cỡ (18/06/2025); đọc 18/10/2026"),
+      academy("Hướng dẫn bảng kích cỡ cho Nhà bán hàng Thời trang", "7378934985099029", "số đo kèm đơn vị, phủ mọi SKU kích cỡ, tránh cụm mơ hồ (01/10/2026); đọc 18/10/2026"),
+      academy("Hiển thị thông tin sai lệch và hướng dẫn về nội dung đăng bán tạo bởi AI", "7224191560681232", "mô tả chính xác và trung thực, ví dụ thông tin sai lệch, AIGC (30/09/2026); đọc 18/10/2026"),
+      academy("Trình Tối Ưu Hoá Sản Phẩm", "6532499267012354", "Tối ưu hóa bằng AI cho tiêu đề và mô tả, mô tả quá ngắn (04/08/2025); đọc 18/10/2026"),
+      academy("Chính sách hủy đơn hàng, trả hàng và hoàn tiền của khách hàng trên TikTok Shop", "10000852", "không khớp mô tả là lỗi người bán, người bán chịu phí trả hàng (cập nhật 23/09/2026); đọc 18/10/2026"),
+      academy("Trả hàng và Hoàn tiền", "1766935302801169", "lý do Sản phẩm không đúng mô tả ảnh hưởng SFRR (cập nhật 15/10/2026); đọc 18/10/2026"),
+    ],
+  },
+  {
+    slug: "quy-dinh-livestream-ban-hang",
+    status: "draft",
+    title: "Quy định mới về livestream bán hàng và quảng cáo: người bán và người livestream cần biết gì",
+    seoTitle: "Quy định livestream bán hàng mới nhất 2026 | Juli AI",
+    description:
+      "Luật Thương mại điện tử từ 01/07/2026: việc của người bán, người livestream, nền tảng; mức phạt người có ảnh hưởng theo NĐ 87/2026; chính sách LIVE TikTok.",
+    excerpt:
+      "Tóm tắt từ văn bản gốc: Luật Thương mại điện tử 122/2025/QH15 và Nghị định 248/2026/NĐ-CP về livestream bán hàng, Luật Quảng cáo sửa đổi và Nghị định 87/2026/NĐ-CP về người có ảnh hưởng, và các chính sách LIVE riêng của TikTok Shop Việt Nam. Cập nhật ngày 18/10/2026.",
+    breadcrumbName: "Quy định livestream bán hàng",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "news",
+    cover: blogCover("quy-dinh-livestream-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền xám nhạt, ô thứ tư được tô màu nhấn"),
+    author: AUTHOR,
+    related: ["live-tiktok-shop-khong-ra-don", "thue-ban-hang-tiktok-shop", "mo-ta-san-pham-tiktok-shop"],
+    faq: [
+      {
+        question: "Livestream bán hàng trên TikTok Shop có phải xác thực danh tính không?",
+        answer:
+          "Luật Thương mại điện tử 122/2025/QH15 (Điều 22) yêu cầu nền tảng xác thực điện tử danh tính người livestream trước khi cho phát; Nghị định 248/2026/NĐ-CP đặt mốc 01/01/2027 cho nghĩa vụ này. Theo chính sách riêng của TikTok Shop, từ 01/07/2026 người bán mới quét NFC trên CCCD gắn chip, nhà sáng tạo xác minh NFC khi được yêu cầu.",
+      },
+      {
+        question: "Nền tảng lưu video livestream bán hàng bao lâu?",
+        answer:
+          "Ít nhất 01 năm từ thời điểm bắt đầu truyền phát, theo Điều 22 khoản 7 Luật Thương mại điện tử 122/2025/QH15, có hiệu lực từ 01/07/2026.",
+      },
+      {
+        question: "Bán thực phẩm bổ sung trên LIVE cần giấy gì?",
+        answer:
+          "Theo thông báo của TikTok Shop (hiệu lực 08/07/2026), với thực phẩm như thực phẩm bảo vệ sức khỏe, thực phẩm bổ sung và với sữa, dinh dưỡng cho trẻ từ 36 tháng tuổi trở xuống, người bán tải Giấy xác nhận nội dung quảng cáo do cơ quan có thẩm quyền cấp; không có thì có thể bị hạn chế quảng bá trong LIVE. Người bán tự xác định sản phẩm có thuộc diện không.",
+      },
+      {
+        question: "Người có ảnh hưởng giới thiệu sản phẩm chưa dùng bị phạt bao nhiêu?",
+        answer:
+          "Theo Điều 51 khoản 3 Nghị định 87/2026/NĐ-CP (hiệu lực 15/05/2026), 80 đến 100 triệu đồng với cá nhân; tổ chức bị phạt gấp 2 lần. Mức này áp dụng cho người thuộc diện người có ảnh hưởng theo quy định của Chính phủ.",
+      },
+      {
+        question: "Có được phát LIVE TikTok Shop đồng thời trên nền tảng khác không?",
+        answer:
+          "Không, theo chính sách của TikTok Shop: không phát cùng một phiên LIVE trên TikTok Shop và nền tảng khác cùng lúc, hay trên nhiều tài khoản TikTok Shop cùng lúc. LIVE ở nền tảng khác vào thời điểm khác thì được. Đây là quy định của nền tảng, không phải của luật.",
+      },
+    ],
+    sources: [
+      {
+        title: "Luật Thương mại điện tử số 122/2025/QH15, thông qua ngày 10/12/2025 (Công báo số 41, ngày 22/01/2026)",
+        url: "https://congbao.chinhphu.vn/van-ban/luat-so-122-2025-qh15-468683/61714.htm",
+        note: "Điều 3 khoản 10, 11 (định nghĩa), Điều 22, 23, 24 (nền tảng, người bán, người livestream; lưu dữ liệu ít nhất 01 năm), Điều 40 (hiệu lực 01/07/2026); đọc bản PDF 18/10/2026",
+      },
+      {
+        title: "Nghị định 248/2026/NĐ-CP ngày 30/06/2026 quy định chi tiết một số điều của Luật Thương mại điện tử (Công báo số 407, ngày 18/07/2026)",
+        url: "https://congbao.chinhphu.vn/van-ban/nghi-dinh-so-248-2026-nd-cp-469983/66872.htm",
+        note: "Điều 12 (quy chế livestream), Điều 52 (hiệu lực 01/07/2026, xác thực danh tính điện tử từ 01/01/2027, thay Nghị định 52/2013 và 85/2021); đọc bản PDF 18/10/2026",
+      },
+      {
+        title: "Luật số 75/2025/QH15 sửa đổi, bổ sung một số điều của Luật Quảng cáo, thông qua ngày 16/06/2025 (Công báo số 967 + 968, ngày 24/07/2025)",
+        url: "https://congbao.chinhphu.vn/van-ban/luat-so-75-2025-qh15-45566.htm",
+        note: "Điều 15a mới (người chuyển tải quảng cáo, người có ảnh hưởng), Điều 3 (hiệu lực 01/01/2026); đọc bản PDF 18/10/2026",
+      },
+      {
+        title: "Nghị định 87/2026/NĐ-CP ngày 27/03/2026 quy định xử phạt vi phạm hành chính trong lĩnh vực văn hóa và quảng cáo (Công báo số 243, ngày 22/04/2026)",
+        url: "https://congbao.chinhphu.vn/van-ban/nghi-dinh-so-87-2026-nd-cp-469359/64268.htm",
+        note: "Điều 6 (tổ chức gấp 2 lần), Điều 51 (40 đến 100 triệu đồng), Điều 93 (hiệu lực 15/05/2026, thay Nghị định 38/2021); đọc bản PDF 18/10/2026",
+      },
+      {
+        title: "Luật Bảo vệ quyền lợi người tiêu dùng số 19/2023/QH15, thông qua ngày 20/06/2023 (Công báo số 865 + 866, ngày 30/07/2023)",
+        url: "https://congbao.chinhphu.vn/van-ban/luat-so-19-2023-qh15-39843.htm",
+        note: "Điều 3 khoản 9 (người có ảnh hưởng), Điều 22 khoản 3 (thông báo được tài trợ), Điều 79 (hiệu lực 01/07/2024); đọc bản PDF 18/10/2026",
+      },
+      academy("Cập nhật Chính sách mới nhất", "8831988245645057", "chính sách của TikTok Shop, không phải luật: Giấy xác nhận nội dung quảng cáo từ 08/07/2026; NFC cho người bán mới và nhà sáng tạo, mã số thuế từ 01/07/2026; không phát song song; Mồi giá - đổi giá (cập nhật 01/07/2026); đọc 18/10/2026"),
+    ],
+  },
 ];

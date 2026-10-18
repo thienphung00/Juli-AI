@@ -880,6 +880,106 @@ const DIAGRAMS = [
 <p class="small">Theo Học viện TikTok Shop (bài Cách Tính Khuyến Mãi Cộng Dồn): các lớp khác nhau cộng dồn được; mức chi tối thiểu của voucher xét trên giá sau giảm giá sản phẩm.</p>`;
     },
   },
+  /* ————— P46-D2 (D56): mo-ta-san-pham-tiktok-shop ————— */
+  {
+    name: "mo-ta-nam-nhom-cau-hoi-v1",
+    html: () => {
+      const groups = [
+        ["Kích thước, biến thể", "“Cao 1m60, nặng 50kg mặc size nào?”", "“Chai này bao nhiêu ml?”", "Thông số, bảng kích cỡ"],
+        ["Chất liệu, thành phần", "“Vải có co giãn không?”", "“Có cồn, có hương liệu không?”", "Thông số, thành phần chính"],
+        ["Cách dùng, bảo quản", "“Giặt máy được không?”", "“Thoa trước hay sau kem dưỡng?”", "Cách dùng, lưu ý an toàn"],
+        ["Trong hộp có gì", "“Có kèm thắt lưng không?”", "“Mua 1 hay cả bộ 3 chai?”", "Trong hộp có gì"],
+        ["Giao nhận, đổi trả", "“Không vừa có đổi size được không?”", "“Hết hạn khi nào?”", "Chính sách của shop, hạn sử dụng"],
+      ];
+      return `${head("Năm nhóm câu hỏi lặp lại và chỗ trả lời trong mô tả", true)}
+<div class="grid2">${groups
+        .map(
+          ([t, fashion, beauty, where], i) =>
+            `<div class="box half"><div class="sect-head">${num(i + 1)}<strong>${t}</strong></div><span class="label">Thời trang</span><span class="desc">${fashion}</span><span class="label">Mỹ phẩm</span><span class="desc">${beauty}</span><span class="metric">Trả lời ở: ${where}</span></div>`,
+        )
+        .join("")}<div class="box half box--accent"><strong>Chưa cần vào mô tả</strong><ul class="hang"><li>Câu chỉ một người hỏi trong cả tuần</li><li>Câu về giá, mã giảm giá, phí vận chuyển</li><li>Câu về điều video hay LIVE đã hứa</li></ul></div></div>
+<p class="note">Gom câu hỏi từ tin nhắn, bình luận video và LIVE, đánh giá và lý do trả hàng trong 7 ngày; giữ năm câu nhiều nhất cho mỗi sản phẩm.</p>`;
+    },
+  },
+  {
+    name: "mo-ta-truoc-sau-v1",
+    html: () => {
+      const after = [
+        ["Mở đầu", "Kem chống nắng dạng sữa cho da dầu, dùng hằng ngày dưới lớp trang điểm.", true],
+        ["Thông số", "Dung tích 50 ml. Thành phần chính ghi trên nhãn. Xuất xứ ghi trên bao bì.", true],
+        ["Cách dùng", "Thoa sau kem dưỡng, trước trang điểm. Thoa lại sau khi ra mồ hôi nhiều.", true],
+        ["Lưu ý", "Tránh vùng mắt. Ngưng dùng nếu kích ứng. Bảo quản nơi khô, tránh nắng.", false],
+        ["Trong hộp có gì", "1 tuýp 50 ml, không kèm quà tặng.", true],
+      ];
+      return `${head("Một mô tả trước và sau khi trả lời câu hỏi lặp lại", true)}
+<div class="grid2"><div class="box half"><span class="label">Trước</span><span class="desc">Kem chống nắng thấm nhanh, không bết, ai dùng cũng thích. Giá tốt, mua ngay!</span><span class="label">Khách vẫn hỏi</span><ul class="hang"><li>Da dầu dùng được không?</li><li>Tuýp bao nhiêu ml?</li><li>Thoa trước hay sau kem dưỡng?</li><li>Có kèm quà không?</li></ul></div><div class="box half box--accent"><span class="label">Sau</span><ul class="costs">${after
+        .map(([k, v, added]) => `<li><span><b>${k}</b><br>${v}</span>${added ? `<b class="metric">Trả lời 1 câu hỏi</b>` : ""}</li>`)
+        .join("")}</ul></div></div>
+<p class="note">Bản sau bỏ câu “ai dùng cũng thích” vì không kiểm chứng được, và đưa câu trả lời cho câu hỏi hay gặp nhất lên dòng đầu.</p>`;
+    },
+  },
+  {
+    name: "mo-ta-duoc-khong-duoc-v1",
+    html: () => {
+      const yes = [
+        "Đặc điểm chính: đặc tính, chức năng, thành phần, số lượng",
+        "Độ dài không dưới 30 từ",
+        "Thông tin an toàn, thông số kỹ thuật, cảnh báo",
+        "Sản phẩm và tất cả phụ kiện đi kèm: trong hộp có gì",
+        "Bảng kích cỡ có số đo và đơn vị với hàng thời trang",
+        "Màu ngẫu nhiên thì nói rõ màu ngẫu nhiên",
+      ];
+      const no = [
+        "“Số 1”, “tốt nhất”, “duy nhất”, “100% tự nhiên”, “ngay tức thì”, trừ khi chính xác và xác minh được",
+        "So sánh với sản phẩm hoặc trang thương mại điện tử khác",
+        "Giá khuyến mại phóng đại, giải thưởng hay chứng nhận không có",
+        "Số điện thoại, Zalo, mạng xã hội, email, đường dẫn, mã QR",
+        "Thông tin không khớp tiêu đề, ảnh, thuộc tính hay hàng thật",
+      ];
+      return `${head("Trong mô tả sản phẩm: nên có và không được")}
+<div class="grid2"><div class="box half box--accent"><strong class="metric">Nên có, theo chính sách</strong><ul class="hang">${yes.map((m) => `<li>${m}</li>`).join("")}</ul></div><div class="box half"><strong>Không được</strong><ul class="hang">${no.map((m) => `<li>${m}</li>`).join("")}</ul></div></div>
+<p class="small">Tóm tắt từ Trung tâm chính sách TikTok Shop: Tiêu đề, mô tả, hình ảnh và video về sản phẩm; Hướng dẫn đăng bán sản phẩm; Mô tả sản phẩm phóng đại; Chuyển hướng truy cập; SNAD; Hướng dẫn bảng kích cỡ.</p>`;
+    },
+  },
+  /* ————— P46-D2 (D56): quy-dinh-livestream-ban-hang ————— */
+  {
+    name: "livestream-ba-vai-v1",
+    html: () => {
+      const roles = [
+        ["Nền tảng", "Luật Thương mại điện tử, Điều 22, và nghị định hướng dẫn", ["Công khai quy chế livestream", "Nhận, giải quyết khiếu nại của người xem trong và sau buổi phát", "Công cụ hiển thị cảnh báo hàng có nguy cơ mất an toàn", "Xác thực điện tử danh tính người livestream", "Dừng phát, gỡ nội dung vi phạm", "Lưu hình ảnh, âm thanh ít nhất 01 năm"]],
+        ["Người bán", "Luật Thương mại điện tử, Điều 23", ["Đưa giấy tờ điều kiện kinh doanh và chất lượng hàng cho người livestream trước buổi phát", "Đưa văn bản xác nhận nội dung quảng cáo cho nền tảng và người livestream khi luật yêu cầu", "Nội dung bán hàng khớp nội dung đã xác nhận", "Dừng hợp tác, gỡ thông tin khi có vi phạm"], true],
+        ["Người livestream", "Luật Thương mại điện tử, Điều 24", ["Cung cấp thông tin để xác thực danh tính", "Làm theo quy chế livestream của nền tảng", "Từ chối khi người bán không đưa đủ giấy tờ", "Không nói gian dối về công dụng, xuất xứ, chất lượng, giá, khuyến mại, bảo hành", "Không trái đạo đức xã hội, thuần phong mỹ tục"]],
+      ];
+      return `${head("Ba vai trong một buổi livestream bán hàng")}
+<div class="grid3">${roles
+        .map(
+          ([t, law, items, accent]) =>
+            `<div class="box col${accent ? " box--accent" : ""}"><strong>${t}</strong><span class="small">${law}</span><ul class="hang">${items.map((m) => `<li>${m}</li>`).join("")}</ul></div>`,
+        )
+        .join("")}</div>
+<div class="result">Người bán đưa giấy tờ, người livestream nói đúng, nền tảng lưu và xử lý khiếu nại</div>`;
+    },
+  },
+  {
+    name: "livestream-luat-va-tiktok-v1",
+    html: () => {
+      const law = [
+        "Livestream bán hàng có định nghĩa và trách nhiệm riêng cho nền tảng, người bán, người livestream",
+        "Văn bản xác nhận nội dung quảng cáo với hàng luật yêu cầu",
+        "Nền tảng xác thực điện tử danh tính người bán và người livestream",
+        "Người có ảnh hưởng thông báo quảng cáo, kiểm tra tài liệu, không giới thiệu sản phẩm chưa dùng",
+      ];
+      const tiktok = [
+        "Tải Giấy xác nhận nội dung quảng cáo cho thực phẩm, sữa và dinh dưỡng cho trẻ từ 36 tháng tuổi trở xuống; không có thì có thể bị hạn chế quảng bá trong LIVE",
+        "Quét NFC trên CCCD gắn chip cho người bán mới; nhà sáng tạo xác minh NFC và cung cấp mã số thuế khi được yêu cầu",
+        "Không phát cùng một phiên LIVE trên TikTok Shop và nền tảng khác cùng lúc",
+        "Flash sale trên LIVE chạy bằng công cụ Flash Sale; không hứa voucher không có, không bịa nhầm giá",
+      ];
+      return `${head("Luật nói gì, TikTok Shop quy định thêm gì")}
+<div class="grid2"><div class="box half"><strong>Luật và nghị định</strong><span class="small">Áp dụng cho mọi nền tảng</span><ul class="hang">${law.map((m) => `<li>${m}</li>`).join("")}</ul></div><div class="box half box--accent"><strong class="metric">Chính sách của TikTok Shop</strong><span class="small">Quy định của nền tảng, không phải của luật</span><ul class="hang">${tiktok.map((m) => `<li>${m}</li>`).join("")}</ul></div></div>
+<p class="small">Theo các văn bản đăng trên Công báo Chính phủ và trang Cập nhật Chính sách mới nhất của TikTok Shop Việt Nam; ngày hiệu lực ghi trong bài.</p>`;
+    },
+  },
 ];
 
 function pageHtml(diagram, t, layout) {
