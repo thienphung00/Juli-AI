@@ -63,6 +63,8 @@ export const COVERS = [
   { name: "quy-dinh-livestream-v1", category: "guide", motif: "tiles", accent: 3 },
   { name: "dat-ten-san-pham-v1", category: "optimize", motif: "checklist", accent: 1 },
   { name: "anh-bia-san-pham-v1", category: "optimize", motif: "tiles", accent: 0 },
+  { name: "do-hieu-qua-v1", category: "metrics", motif: "checklist", accent: 0 },
+  { name: "sau-sale-v1", category: "metrics", motif: "tiles", accent: 3 },
 ];
 
 const MOTIF_BY_CATEGORY = { metrics: "bars", optimize: "card", tools: "tiles", guide: "checklist" };

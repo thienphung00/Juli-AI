@@ -14,6 +14,10 @@
  */
 import type { MediaSource } from "../../lib/media";
 import {
+  CAP_DL_MUC_TIEU,
+  CAP_DL_MUC_TIEU_MOBILE,
+  CAP_DL_NGAY_14,
+  CAP_DL_NGAY_14_MOBILE,
   CAP_DL_TANG_THEM,
   CAP_DL_TANG_THEM_MOBILE,
   CAP_DL_TIN_CAY,
@@ -394,5 +398,56 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   "anh-bia-pheu-du-lieu-mau": screenshot(CAP_PT_PHEU, CAP_PT_PHEU_MOBILE, {
     alt: "Khối Thẻ sản phẩm trong Phân tích của Juli, GMV 3,6 triệu đồng mỗi ngày, tăng 7,5 %: Lượt hiển thị mỗi ngày 9.913, tăng 19,4 %, thêm 620 nghìn đồng mỗi ngày; CTR 4,44 %, giảm 0,3 %, bớt 12 nghìn đồng mỗi ngày; CTOR 5,14 %, giảm 6,9 %, bớt 250 nghìn đồng mỗi ngày, được đánh dấu Juli gợi ý; AOV 160 nghìn đồng, giảm 3,0 %, bớt 105 nghìn đồng mỗi ngày; GMV mỗi ngày là tổng của 4 ô (dữ liệu mẫu)",
     caption: "Dữ liệu mẫu · CTR của riêng luồng Thẻ sản phẩm, đứng cạnh Lượt hiển thị, CTOR và AOV: ở đây CTR gần như đứng yên, ảnh bìa chưa phải chỗ cần sửa.",
+  }),
+  /* ————— do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop (P46-E) ————— */
+  "do-lich-14-ngay": diagram("do-lich-14-ngay", 462, 790, {
+    alt: "Sơ đồ lịch đo một thay đổi. 14 ngày trước khi sửa là mốc so sánh, chốt cố định từ ngày sửa. Ngày sửa: ghi ngày, giá, khuyến mãi đang chạy, nội dung trang. Ngày 1 đến 7: không sửa thêm gì trên sản phẩm này; ngày 7 là kết quả sơ bộ, Đang lên hoặc Chưa rõ. Ngày 8 đến 14: vẫn không sửa thêm; ngày 14 là kết quả chốt, Đạt, Đạt · chưa chắc chắn, Một phần hoặc Không đạt. Ba nguyên tắc: so bằng trung bình mỗi ngày của hai khoảng dài bằng nhau; một chỉ số mục tiêu trên đúng luồng thay đổi tác động; các chỉ số còn lại không lệch quá mức dao động bình thường.",
+    caption: "Một thay đổi, một mốc 14 ngày, hai lần đọc: ngày 7 để kiểm tra, ngày 14 để chốt.",
+  }),
+  "do-doc-sai-doc-dung": diagram("do-doc-sai-doc-dung", 480, 612, {
+    alt: "Biểu đồ cột ví dụ giả định: số đơn mỗi ngày của một sản phẩm trong 14 ngày trước khi sửa, trung bình 4,1 đơn mỗi ngày, và 14 ngày sau khi sửa, trung bình 4,9 đơn mỗi ngày; đường gạch ngang là mức trung bình của từng khoảng. Đọc sai: ngày 2 có 3 đơn, ngày 3 có 6 đơn, gọi là tăng gấp đôi, trong khi hai ngày lẻ nằm trong dao động thường ngày. Đọc đúng: tăng 0,8 đơn mỗi ngày, mức dao động khoảng 0,5 đơn, gấp khoảng 1,5 lần mức dao động, nghĩa là có thể đã thay đổi nhưng chưa chắc chắn.",
+    caption: "Ví dụ giả định: so hai ngày lẻ cho ra “gấp đôi”, so hai trung bình 14 ngày cho ra một mức tăng còn chưa chắc chắn.",
+  }),
+  "do-ba-ket-qua": diagram("do-ba-ket-qua", 536, 960, {
+    alt: "Bốn thẻ ví dụ giả định về kết quả ngày 14 với chỉ số mục tiêu CTR Thẻ sản phẩm, mục tiêu 2,5 %. Sản phẩm A, Đạt, được tô nổi bật: CTR 2,0 % lên 2,6 %, chạm mục tiêu, gấp 2,4 lần mức dao động nên rõ, GMV giữ được. Sản phẩm B, Đạt · chưa chắc chắn: 2,0 % lên 2,5 %, chạm mục tiêu, gấp 1,4 lần mức dao động nên chỉ là có thể. Sản phẩm C, Một phần: 2,0 % lên 2,3 %, chưa chạm mục tiêu, gấp 2,1 lần mức dao động nên rõ. Sản phẩm D, Không đạt: 2,0 % lên 2,1 %, chưa chạm mục tiêu, gấp 0,6 lần, trong dao động. Ghi chú: một kết quả yếu không được gắn nhãn mạnh hơn; có thay đổi khác trong 14 ngày thì ghi Bị ảnh hưởng bởi thay đổi khác.",
+    caption: "Ví dụ giả định: cùng một mục tiêu, bốn nhãn khác nhau tùy chạm mục tiêu hay không và mức tăng so với dao động.",
+  }),
+  "do-cua-so-sale": diagram("do-cua-so-sale", 358, 472, {
+    alt: "Sơ đồ ba hàng, mỗi hàng 28 ô ngày: 14 ngày trước khi sửa và 14 ngày sau khi sửa, ngày sale tô hồng. Hàng một, mốc so sánh chứa ngày sale: mốc bị đẩy lên, thay đổi dễ trông như thất bại. Hàng hai, thời gian đo chứa ngày sale: số sau khi sửa bị đẩy lên, thay đổi dễ trông như thành công. Hàng ba, cả hai khoảng đều là ngày thường: so được với nhau. Kết luận: sửa khi cả 14 ngày trước và 14 ngày sau đều không có đợt sale lớn.",
+    caption: "Một đợt sale trong mốc hay trong thời gian đo đều làm lệch kết quả, theo hai hướng ngược nhau.",
+  }),
+  "do-muc-tieu-du-lieu-mau": screenshot(CAP_DL_MUC_TIEU, CAP_DL_MUC_TIEU_MOBILE, {
+    alt: "Khối Mục tiêu và Ngưỡng giữ ổn định của Toner rau má 200ml trong Juli, thay đổi vào 07/10/2026, đã đổi Tiêu đề: chỉ số mục tiêu CTOR Thẻ sản phẩm 5,4 % lên 5,9 %, GMV dự kiến cộng 70 nghìn đồng mỗi ngày; bảng chỉ số không được lệch gồm Lượt hiển thị mỗi ngày 9.910, CTR 4,44 % và AOV 160 nghìn đồng, mỗi chỉ số có ngưỡng cộng trừ 3 % và khoảng được phép dao động; ghi chú trung bình mỗi ngày, so với 14 ngày trước khi áp dụng (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Mốc so sánh được chụp lại ngay khi áp dụng: chỉ số mục tiêu, GMV dự kiến và ngưỡng của các chỉ số còn lại.",
+  }),
+  "do-ngay-14-du-lieu-mau": screenshot(CAP_DL_NGAY_14, CAP_DL_NGAY_14_MOBILE, {
+    alt: "Phần cuối một lượt chạy đã áp dụng trong Juli: bước TikTok duyệt lại trang sản phẩm, phiên bản mới đã được duyệt; bước kết thúc và đặt lịch đo, đo sơ bộ 14/10 ngày 7 và chốt 21/10 ngày 14; hộp Đã áp dụng, thẻ chuyển sang Đo lường, giá trị cũ đã được lưu, liên kết Xem Đo lường và nút Hoàn tác (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ngày đo sơ bộ và ngày chốt được đặt ngay khi thay đổi lên shop, tính từ ngày áp dụng.",
+  }),
+
+  /* ————— doanh-thu-sau-sale-tiktok-shop (P46-E) ————— */
+  "sale-ba-pha": diagram("sale-ba-pha", 462, 574, {
+    alt: "Biểu đồ cột ví dụ giả định: GMV mỗi ngày của một shop quanh một đợt sale. Trước đợt sale, 14 ngày làm mốc, trung bình 10,0 triệu đồng mỗi ngày. Trong đợt sale, 13 ngày, trung bình 18,5 triệu đồng, có một ngày cao điểm. 7 ngày đầu sau đợt, trung bình 8,2 triệu đồng, dưới mốc. Ngày 8 đến 14 sau đợt, trung bình 9,9 triệu đồng, gần về mốc. Đường gạch ngang là mức trung bình của 14 ngày trước đợt; đọc trung bình cả đợt, không đọc riêng ngày cao nhất.",
+    caption: "Ví dụ giả định: ba pha của một đợt sale. Tuần đầu sau đợt thấp hơn mốc chưa có nghĩa là shop có vấn đề.",
+  }),
+  "sale-ghi-truoc": diagram("sale-ghi-truoc", 428, 660, {
+    alt: "Danh sách kiểm tra bốn thời điểm. Trước ngày bắt đầu, được tô nổi bật: trung bình mỗi ngày của 14 ngày gần nhất theo luồng; giá và khuyến mãi đang chạy của từng sản phẩm; danh sách sản phẩm tham gia đợt sale; tồn kho của các biến thể bán chạy. Trong đợt: GMV theo luồng mỗi ngày; ngày nào, sản phẩm nào hết hàng; không sửa tiêu đề, ảnh, mô tả để thử. 7 ngày đầu sau đợt: đơn hủy, yêu cầu trả hàng; luồng nào về dưới mốc; chưa kết luận gì. Ngày 14 sau đợt: so với mốc trước đợt; chia sản phẩm thành ba nhóm; chọn một thay đổi đầu tiên để đo.",
+    caption: "Những gì cần ghi trước, trong và sau đợt sale, để lúc đọc lại còn có cái để so.",
+  }),
+  "sale-theo-luong": diagram("sale-theo-luong", 454, 686, {
+    alt: "Bảng ví dụ giả định GMV mỗi ngày theo luồng, triệu đồng, trước đợt, trong đợt, 7 ngày sau và so với mốc. Thẻ sản phẩm 4,0, 6,5, 3,5, giảm 12 %. Tab cửa hàng 1,0, 2,4, 0,9, giảm 10 %. Video 2,5, 4,0, 2,3, giảm 8 %. LIVE, được tô nổi bật, 1,5, 4,0, 0,7, giảm 53 %. Liên kết 1,0, 1,6, 0,8, giảm 20 %. Toàn shop 10,0, 18,5, 8,2, giảm 18 %. Ghi chú: gần một nửa mức tụt, 0,8 trong 1,8 triệu đồng mỗi ngày, nằm ở LIVE; xem lịch LIVE sau đợt trước khi sửa trang sản phẩm.",
+    caption: "Ví dụ giả định: mức tụt sau đợt sale thường dồn vào một hai luồng, không chia đều cho cả shop.",
+  }),
+  "sale-ba-nhom": diagram("sale-ba-nhom", 312, 602, {
+    alt: "Ba thẻ ví dụ giả định về nhóm sản phẩm sau đợt sale, GMV mỗi ngày trước đợt, trong đợt và ngày 8 đến 14 sau đợt. Giữ nhịp: 1,0, 2,2, 1,2 triệu đồng; CTR và CTOR sau đợt cao hơn mốc; giữ nguyên, ưu tiên cho đợt sale sau. Về mốc cũ: 1,0, 2,0, 1,0 triệu đồng; bán thêm nhờ ưu đãi rồi về như trước; không cần sửa gấp. Dưới mốc cũ, được tô nổi bật: 1,0, 1,8, 0,7 triệu đồng; thấp hơn cả trước đợt; kiểm tra hủy, hoàn, hết hàng, giá đã về chưa.",
+    caption: "Ví dụ giả định: chia sản phẩm theo chỗ chúng đứng sau đợt sale so với trước đợt, rồi mới quyết định làm gì.",
+  }),
+  "sale-gmv-con-lai": diagram("sale-gmv-con-lai", 332, 410, {
+    alt: "Bảng ví dụ giả định: GMV trong đợt sale, gồm cả đơn hủy và hoàn tiền, 100.000.000 đồng; trừ đơn hủy trước khi giao 6.000.000 đồng; trừ trả hàng, hoàn tiền ghi nhận sau đợt 4.000.000 đồng; tiền hàng còn lại trước phí 90.000.000 đồng. Ghi chú: từ phần còn lại mới trừ phí sàn và phí xử lý đơn tính theo từng đơn giao thành công; hoàn tiền thường ghi nhận sau ngày mua nên con số này chỉ rõ sau vài tuần.",
+    caption: "Ví dụ giả định: GMV của đợt sale chưa phải tiền về; đơn hủy và hoàn tiền đến sau còn trừ tiếp.",
+  }),
+  "sale-khuyen-mai-du-lieu-mau": screenshot(CAP_PT_KHUYEN_MAI, CAP_PT_KHUYEN_MAI_MOBILE, {
+    alt: "Khối Khuyến mãi trong Phân tích của Juli, 60 ngày: flash sale 8 trên 60 ngày với 3 sản phẩm tham gia, giảm thật trung bình 9 % so với giá đang bán trước flash sale, voucher 14 % đơn đạt ngưỡng với 2 voucher đang chạy; bảng năm sản phẩm với loại khuyến mãi, mức giảm thật và GMV mỗi ngày trong và ngoài khuyến mãi, ví dụ Toner rau má 200ml flash sale giảm 12 %, 1,1 triệu đồng trong và 0,7 triệu đồng ngoài; Son môi số 12 giảm 2 % bị đánh dấu quá nông (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · GMV mỗi ngày của từng sản phẩm trong và ngoài khuyến mãi của shop: sản phẩm nào chỉ bán khi có ưu đãi.",
   }),
 };

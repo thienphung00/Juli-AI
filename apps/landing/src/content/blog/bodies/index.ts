@@ -19,6 +19,8 @@ import { body as moTaSanPham } from "./mo-ta-san-pham-tiktok-shop";
 import { body as quyDinhLivestream } from "./quy-dinh-livestream-ban-hang";
 import { body as datTenSanPham } from "./dat-ten-san-pham-tiktok-shop";
 import { body as anhBiaSanPham } from "./anh-bia-san-pham-tiktok-shop";
+import { body as doHieuQua } from "./do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop";
+import { body as sauSale } from "./doanh-thu-sau-sale-tiktok-shop";
 
 /**
  * Post bodies by slug. Only the post page imports this (the route registry
@@ -46,4 +48,6 @@ export const BLOG_BODIES: Readonly<Record<string, string>> = {
   "quy-dinh-livestream-ban-hang": quyDinhLivestream,
   "dat-ten-san-pham-tiktok-shop": datTenSanPham,
   "anh-bia-san-pham-tiktok-shop": anhBiaSanPham,
+  "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop": doHieuQua,
+  "doanh-thu-sau-sale-tiktok-shop": sauSale,
 };

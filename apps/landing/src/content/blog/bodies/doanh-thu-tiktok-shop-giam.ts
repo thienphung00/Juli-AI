@@ -36,7 +36,7 @@ Bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-
 
 - **Hai kỳ dài bằng nhau.** 30 ngày so với 30 ngày, 7 ngày so với 7 ngày. So tháng 2 với tháng 3 đã lệch vài ngày.
 - **Cùng cơ cấu thứ trong tuần.** Nếu shop bán khác nhau giữa ngày thường và cuối tuần, kỳ 7 ngày nên bắt đầu cùng một thứ.
-- **Đánh dấu ngày sale lớn.** Các ngày như 9.9, 10.10, 11.11 có traffic và tỷ lệ đặt hàng khác hẳn ngày thường. So 30 ngày có 10.10 với 30 ngày không có 10.10 gần như chắc chắn cho thấy một mức "giảm" ở kỳ sau.
+- **Đánh dấu ngày sale lớn.** Các ngày như 9.9, 10.10, 11.11 có traffic và tỷ lệ đặt hàng khác hẳn ngày thường. So 30 ngày có 10.10 với 30 ngày không có 10.10 gần như chắc chắn cho thấy một mức "giảm" ở kỳ sau. Cách đọc số liệu trước, trong và sau một đợt sale có trong bài [trước và sau 11.11](/blog/doanh-thu-sau-sale-tiktok-shop).
 - **Không đưa ngày hôm nay vào so sánh.** Một ngày chưa kết thúc luôn thấp hơn một ngày trọn vẹn.
 - **Cùng một loại GMV.** TikTok có các biến thể như GMV bao gồm thuế và GMV có đồng tài trợ của TTS (TikTok Shop). So hai loại khác nhau tạo ra một mức chênh không có thật.
 
