@@ -1138,7 +1138,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - **Trial sign-up purge job (D60.4, D43 additions 3)**: sign-ups that do not become customers must
   be deleted after 12 months; no job exists yet. Due before 10/2027 (first sign-ups 10/2026). Another session's branch `fasttrack/p50b-privacy-api` adds a Postgres purge; check whether it covers `trial_signups` before building one.
 
-## P53 — legacy routes removed (2026-10-18)
+## P53-C2 — legacy routes removed (2026-10-18)
 
 - [ ] `lib/workflows/*` (11 folders), `lib/reviews.ts`, `lib/plan-reviews.ts`, `lib/executions.ts`,
   `lib/recommendations.ts` stay: `components/demo-state.tsx` still imports them (mock execution

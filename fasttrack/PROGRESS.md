@@ -303,7 +303,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | Demo app + backend card copy, recapture (with P51-A) | D61 | done on branch `fasttrack/p51a-sample-data` (84dfaa0f copy, 524da0d6 recapture) | P51-A agent |
 | P52-D Leftovers: figure / page alts match the recaptured shots, sample reasons without peer median, SM-012 CTOR card proposes Mô tả only, 4 shots recaptured | D60.1, D61 | done on branch `fasttrack/p52d-leftovers` (not merged) | agent |
 
-## P53 — remove the three legacy demo routes (owner C2, 2026-10-18)
+## P53-C2 — remove the three legacy demo routes (owner C2, 2026-10-18)
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|

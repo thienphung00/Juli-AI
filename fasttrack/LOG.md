@@ -3056,7 +3056,7 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   public content. Pre-existing backend failure `test_cross_tenant_probe` (demo runs events 404)
   fails without these changes too.
 
-## 2026-10-18 · P53 remove the three legacy demo routes (owner C2) (agent: Claude Opus, branch `fasttrack/rm-legacy-routes`)
+## 2026-10-18 · P53-C2 remove the three legacy demo routes (owner C2) (agent: Claude Opus, branch `fasttrack/rm-legacy-routes`)
 - Branch from `fasttrack/optimize-product` 1f7dfe64. Not merged, not pushed.
 - **Closure** by a TypeScript import graph (`ts.resolveModuleName`, every `app/**` page / layout /
   route / robots + `middleware.ts` + `next.config.ts` as live roots): 38 files reachable only from
@@ -3088,6 +3088,6 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
 - Gates (Node 20): demo tsc 0, lint 0 errors (1 old warning), vitest 117 files / 1157 (was 159 /
   1992), `@juli/ui` + `@juli/utils` tests green, `build:demo` OK (placeholder Supabase env),
   Playwright `e2e/exit-gate` 62 passed / 2 failed — the pre-existing `responsive-parity` wordmark
-  label (DEBT P53), not touched here. `fasttrack/check.sh --since fasttrack/optimize-product` OK on a
+  label (DEBT P53-C2), not touched here. `fasttrack/check.sh --since fasttrack/optimize-product` OK on a
   throwaway Postgres 16 (UTC): migrations, isolation 12, gitleaks, ruff, pytest 15.
 
