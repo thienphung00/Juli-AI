@@ -98,18 +98,6 @@ const LEAK_PATTERNS: readonly LeakPattern[] = [
  * remove a file from this list in the commit that cleans it. Target: empty.
  */
 const LEAK_PENDING_FILES: readonly string[] = [
-  "content/blog/bodies/anh-bia-san-pham-tiktok-shop.ts",
-  "content/blog/bodies/chi-so-tiktok-shop-ctr-ctor-aov.ts",
-  "content/blog/bodies/cong-cu-cho-nha-ban-tiktok-shop-2026.ts",
-  "content/blog/bodies/dat-ten-san-pham-tiktok-shop.ts",
-  "content/blog/bodies/do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop.ts",
-  "content/blog/bodies/gmv-la-gi-tiktok-shop.ts",
-  "content/blog/bodies/khach-xem-nhung-khong-mua-tiktok-shop.ts",
-  "content/blog/bodies/mo-ta-san-pham-tiktok-shop.ts",
-  "content/blog/bodies/san-pham-tiktok-shop-khong-co-luot-hien-thi.ts",
-  "content/blog/bodies/toi-uu-the-san-pham-tiktok-shop.ts",
-  "content/blog/figures.ts",
-  "content/blog/posts.ts",
 ];
 
 const SRC_ROOT = join(__dirname, "..");

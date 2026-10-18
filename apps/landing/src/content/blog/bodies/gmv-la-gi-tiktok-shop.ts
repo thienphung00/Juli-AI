@@ -166,7 +166,7 @@ So sánh GMV của từng luồng giữa hai kỳ dài bằng nhau, ví dụ 30 
 
 ### Bước 2: hệ số nào trong luồng đó
 
-Trong luồng đã chọn, so sánh từng hệ số giữa hai kỳ: Lượt hiển thị, CTR, CTOR và AOV. Hệ số thay đổi nhiều nhất theo tỷ lệ là câu chuyện chính. Bài [Các chỉ số TikTok Shop](/blog/chi-so-tiktok-shop-ctr-ctor-aov) trình bày một cách tách mức thay đổi GMV thành phần đóng góp của từng hệ số theo logarit, để các phần cộng lại đúng bằng mức thay đổi thật.
+Trong luồng đã chọn, so sánh từng hệ số giữa hai kỳ: Lượt hiển thị, CTR, CTOR và AOV. Hệ số thay đổi nhiều nhất theo tỷ lệ là câu chuyện chính. Bài [Các chỉ số TikTok Shop](/blog/chi-so-tiktok-shop-ctr-ctor-aov) có một ví dụ hai hệ số đi ngược chiều nhau và che nhau trong con số GMV tổng.
 
 Ví dụ giả định: GMV luồng thẻ sản phẩm giảm từ 8,64 triệu xuống 7,2 triệu. Lượt hiển thị giữ 40.000, CTR giữ 3 %, AOV giữ 180.000 ₫, còn CTOR giảm từ 4 % xuống khoảng 3,3 %. Bước yếu là CTOR: khách vẫn nhìn thấy và vẫn nhấp như cũ, nhưng ít người đặt hàng hơn.
 
@@ -175,11 +175,11 @@ Ví dụ giả định: GMV luồng thẻ sản phẩm giảm từ 8,64 triệu 
 Một chỉ số "thấp" chỉ có nghĩa khi có mốc so sánh. TikTok không công bố một mức CTR hay CTOR chuẩn cho mọi ngành, và các chỉ số này khác nhau nhiều giữa ngành hàng và giữa các luồng. Hãy dùng hai mốc:
 
 - **Chính sản phẩm đó ở kỳ trước**, trên cùng luồng truy cập.
-- **Các sản phẩm khác trong shop**, trên cùng luồng truy cập. Sản phẩm thấp hơn hẳn mức trung vị của các sản phẩm đủ dữ liệu là ứng viên cần xem trước.
+- **Các sản phẩm khác trong shop**, trên cùng luồng truy cập. Sản phẩm thấp hơn hẳn phần lớn sản phẩm khác cùng luồng là ứng viên cần xem trước.
 
 ### Bước 4: đủ dữ liệu để kết luận chưa
 
-Một sản phẩm có 3 đơn mỗi tuần có thể dao động CTOR từ 2 % lên 6 % chỉ vì ngẫu nhiên. Trước khi kết luận, hãy chắc rằng mỗi kỳ có đủ lượt hiển thị, lượt nhấp và đơn hàng. Juli dùng ngưỡng tối thiểu trên luồng thẻ sản phẩm, tính trung bình mỗi ngày: từ 50 lượt hiển thị để đọc CTR, từ 20 lượt nhấp để đọc CTOR, từ 1 đơn hàng để đọc AOV. Dưới các ngưỡng này, hãy ghi "chưa đủ dữ liệu" thay vì đọc một con số. Đây là quy tắc của Juli, không phải quy định của TikTok.
+Một sản phẩm có 3 đơn mỗi tuần có thể dao động CTOR từ 2 % lên 6 % chỉ vì ngẫu nhiên. Trước khi kết luận, hãy chắc rằng mỗi kỳ có đủ lượt hiển thị, lượt nhấp và đơn hàng. Juli chỉ đọc một chỉ số khi luồng thẻ sản phẩm có đủ lượt hiển thị, lượt nhấp và đơn hàng; dưới mức đó, Juli ghi "chưa đủ dữ liệu" thay vì đọc một con số. Nếu tự làm, hãy chờ đến khi số liệu đủ nhiều để không bị nhiễu, hoặc gộp một khoảng thời gian dài hơn, và giữ cùng một cách đọc cho mọi lần so sánh. TikTok không đưa ra ngưỡng chính thức cho việc này.
 
 ## Cách tăng GMV trên TikTok theo từng hệ số
 
@@ -232,7 +232,7 @@ Tăng GMV không kết thúc ở lúc bạn bấm lưu. Nếu không đo lại, 
 
 1. **Một thay đổi, một sản phẩm, một lúc.** Ghi lại ngày thay đổi và không chạm vào sản phẩm đó cho đến khi đo xong.
 2. **So sánh cửa sổ trước và sau.** Juli dùng 14 ngày trước thay đổi, đọc sơ bộ sau 7 ngày và kết luận sau 14 ngày.
-3. **Đo đúng hệ số mà thay đổi nhắm tới, và so với nhóm sản phẩm không thay đổi.** Đổi ảnh bìa thì đọc CTR trước. Thêm Mua Sỉ Giá Hời thì đọc AOV. Nếu các sản phẩm không sửa cũng tăng như sản phẩm đã sửa, có thể cả shop đang được hưởng một đợt traffic chung, không phải nhờ thay đổi của bạn.
+3. **Đo đúng hệ số mà thay đổi nhắm tới, và nếu tự đo, để vài sản phẩm chưa sửa làm mốc so sánh.** Đổi ảnh bìa thì đọc CTR trước. Thêm Mua Sỉ Giá Hời thì đọc AOV. Nếu các sản phẩm không sửa cũng tăng như sản phẩm đã sửa, có thể cả shop đang được hưởng một đợt traffic chung, không phải nhờ thay đổi của bạn.
 
 {{hinh:dl-tang-them}}
 
@@ -240,11 +240,11 @@ Ghi lại cả những kết quả "không đổi". Chúng cho biết thành ph�
 
 ## Juli AI giúp gì trong việc tăng GMV
 
-Juli AI là trợ lý AI cho nhà bán TMĐT do chúng tôi phát triển, hiện kết nối TikTok Shop (Shopee đang tích hợp). Với GMV, Juli làm tự động các bước trong bài này:
+Juli AI là trợ lý AI cho nhà bán TMĐT do chúng tôi phát triển, hiện kết nối TikTok Shop (Shopee đang tích hợp). Với GMV, phần đọc số trong bài này Juli làm sẵn cho bạn, còn mọi thay đổi trên shop chỉ diễn ra khi bạn duyệt:
 
 - **Phân tích**: [phân tích shop theo từng luồng truy cập](/san-pham/phan-tich-shop), tách GMV theo năm luồng (Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết) và theo bốn hệ số Lượt hiển thị × CTR × CTOR × AOV, rồi chỉ ra sản phẩm nào đang mất khách ở bước nào.
 - **Đề xuất**: [đề xuất cách sửa kèm lý do bằng số](/san-pham/de-xuat-va-thuc-thi). Juli chỉ ghi tiêu đề và mô tả sản phẩm lên shop sau khi bạn duyệt; những thay đổi khác như giá hay khuyến mãi là đề xuất để bạn tự quyết định và thực hiện.
-- **Đo lường**: [đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 (sơ bộ) và ngày 14 (chốt), bằng đúng công thức phễu.
+- **Đo lường**: [đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 (sơ bộ) và ngày 14 (chốt), so với mốc 14 ngày trước khi áp dụng.
 
 {{hinh:pt-luong}}
 

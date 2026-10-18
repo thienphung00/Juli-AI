@@ -128,14 +128,14 @@ Theo bài "Đăng Sản Phẩm và Chỉnh Sửa Ảnh trên App" (06/06/2025), 
 3. **Mốc là 14 ngày trước ngày đổi**, trên luồng Thẻ sản phẩm.
 4. **Đọc sơ bộ ở ngày 7, chốt ở ngày 14.** Đọc CTR trước. Đọc Lượt hiển thị bên cạnh: nếu lượt hiển thị tăng mạnh, CTR có thể giảm vì người xem loãng hơn, không phải vì ảnh mới kém.
 5. **So với các sản phẩm không đổi ảnh** trong cùng thời gian. Nếu cả shop cùng tăng, chỉ phần vượt lên mới là của ảnh.
-6. **Đủ dữ liệu.** Chúng tôi chỉ đọc CTR khi sản phẩm có khoảng 50 lượt hiển thị ở Thẻ sản phẩm mỗi ngày trở lên; đây là quy tắc thực hành của chúng tôi, không phải ngưỡng của TikTok.
+6. **Đủ dữ liệu.** Với ít lượt hiển thị, vài lượt nhấp lẻ đã làm CTR nhảy mạnh. Chỉ đọc CTR khi số liệu đủ nhiều để không bị nhiễu, và giữ cùng một cách đọc cho mọi lần thử; TikTok không đưa ra ngưỡng chính thức.
 
 {{hinh:anh-bia-doi-chung}}
 
 ## Khi nào không nên đổi ảnh bìa
 
 - **CTR ở Thẻ sản phẩm đang tốt.** Người mua đã dừng lại và bấm vào; hãy tìm chỗ nghẽn ở bước sau.
-- **Điểm đánh giá của sản phẩm thấp.** Với sản phẩm dưới 4 sao, chúng tôi không khuyên bắt đầu từ ảnh bìa; đây là quy tắc thực hành, không phải quy định của TikTok. Kéo thêm người bấm vào một sản phẩm mà người mua trước đánh giá kém chỉ thêm người thất vọng. Hãy xử lý chất lượng hoặc mô tả sai lệch trước.
+- **Điểm đánh giá của sản phẩm thấp.** Với sản phẩm bị người mua chấm điểm thấp, đừng bắt đầu từ ảnh bìa. Kéo thêm người bấm vào một sản phẩm mà người mua trước đánh giá kém chỉ thêm người thất vọng. Hãy xử lý chất lượng hoặc mô tả sai lệch trước.
 - **Bạn vừa đổi tiêu đề hay giá của chính sản phẩm đó.** Đợi đo xong thay đổi kia, nếu không sẽ không biết điều gì có tác dụng.
 
 ## Một bảng thử ảnh cho từng sản phẩm
@@ -159,7 +159,7 @@ Sau vài lần thử, bảng cho bạn biết kiểu ảnh nào hợp với khá
 
 - Ảnh bìa là hình ảnh chính: nó tác động đến CTR ở Thẻ sản phẩm, không phải CTOR.
 - Tối thiểu 600 × 600 pixel, tối đa 9 ảnh vuông; ảnh chính nền đồng nhất, sản phẩm chiếm ít nhất 60 % khung, không bị che.
-- Đổi một ảnh, ghi lại ngày, đọc ở ngày 7, chốt ở ngày 14, so với sản phẩm không đổi.
+- Đổi một ảnh, ghi lại ngày, đọc ở ngày 7, chốt ở ngày 14, và nhìn thêm vài sản phẩm bạn chưa đổi ảnh để biết cả shop có đang lên xuống hay không.
 
 Khi ảnh đã đúng yêu cầu mà CTR vẫn thấp, xem tiếp tiêu đề trong bài [cách đặt tên sản phẩm khi ít người bấm vào](/blog/dat-ten-san-pham-tiktok-shop).
 `;

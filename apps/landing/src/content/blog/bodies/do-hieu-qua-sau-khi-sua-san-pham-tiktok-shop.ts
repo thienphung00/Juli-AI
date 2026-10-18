@@ -9,9 +9,9 @@
  * the day of the change, per-day averages, one target metric on the lever's
  * channel, a normal range for the other metrics, a preliminary read at day 7,
  * the decision at day 14 (keep / watch longer / revert), change size against
- * the normal swing (≥ 2 × clear, 1 to 2 × maybe, < 1 × within the swing),
- * comparison with unchanged products and, optionally, a "sửa sau 14 ngày"
- * group picked by lot. The seller marks sale days.
+ * the product's own normal swing (no numeric multiples, D61), comparison with
+ * unchanged products and, optionally, a few products left unchanged by lot.
+ * The seller marks sale days.
  * +25 %" SEO claims seen in the SERP are not used). Campaign dates from the
  * TikTok Academy page "Lịch Chiến Dịch TikTok Shop 2026" (16/10/2026), image
  * re-read 2026-10-18. Shop-wide period comparison stays with
@@ -40,7 +40,7 @@ Sửa xong một sản phẩm rồi so số hôm nay với hôm qua gần như l
 
 {{hinh:do-doc-sai-doc-dung}}
 
-So hai ngày lẻ thì thấy “tăng gấp đôi”. So trung bình 14 ngày trước với 14 ngày sau thì mức tăng là 0,8 đơn mỗi ngày, chỉ gấp khoảng 1,5 lần mức dao động: có thể đã có tác dụng, nhưng chưa đủ chắc.
+So hai ngày lẻ thì thấy “tăng gấp đôi”. So trung bình 14 ngày trước với 14 ngày sau thì mức tăng là 0,8 đơn mỗi ngày, chưa vượt hẳn mức dao động thường ngày của sản phẩm: có thể đã có tác dụng, nhưng chưa đủ chắc.
 
 ## Trước khi sửa: ghi ngày và chốt mốc 14 ngày
 
@@ -85,9 +85,9 @@ Sản phẩm dao động mạnh thì chỉ đánh giá ở ngày 14.
 
 ## Ngày 14: đặt kết quả cạnh mức dao động
 
-So trung bình 14 ngày sau khi sửa với mốc. Mức thay đổi chỉ có nghĩa khi đặt cạnh mức dao động bình thường của chỉ số, tính trên cả hai khoảng. Một quy tắc đơn giản, bạn tự áp dụng được: lớn hơn **hai lần** mức dao động là thay đổi rõ; từ **một đến hai lần** là có thể đã thay đổi; **dưới một lần** là vẫn trong dao động.
+So trung bình 14 ngày sau khi sửa với mốc. Mức thay đổi chỉ có nghĩa khi đặt cạnh mức dao động bình thường của chỉ số, tính trên cả hai khoảng. Cách đọc đơn giản, bạn tự áp dụng được: mức thay đổi **vượt hẳn** dao động thường ngày của chính sản phẩm là thay đổi rõ; **nhỉnh hơn một chút** là có thể đã thay đổi; **nằm trong** dao động là chưa thấy gì. Hãy tự chọn mức "vượt hẳn" cho shop mình trước khi đo, và giữ nguyên nó cho mọi lần đọc.
 
-Rồi trả lời hai câu: chỉ số mục tiêu có tăng rõ không, và có chạm mức bạn đã ghi trước khi sửa không. **Giữ thay đổi** khi có cả hai và GMV không giảm. **Giữ và đo thêm 14 ngày** khi chạm mức mong đợi nhưng mức tăng chỉ gấp một đến hai lần dao động. **Giữ và sửa tiếp cùng hướng** khi tăng rõ mà chưa chạm mức mong đợi. **Quay lại bản cũ, hoặc thử một thay đổi khác** khi không có cả hai. Đừng đọc một kết quả yếu thành mạnh hơn.
+Rồi trả lời hai câu: chỉ số mục tiêu có tăng rõ không, và có chạm mức bạn đã ghi trước khi sửa không. **Giữ thay đổi** khi có cả hai và GMV không giảm. **Giữ và đo thêm 14 ngày** khi chạm mức mong đợi nhưng mức tăng chỉ nhỉnh hơn dao động một chút. **Giữ và sửa tiếp cùng hướng** khi tăng rõ mà chưa chạm mức mong đợi. **Quay lại bản cũ, hoặc thử một thay đổi khác** khi không có cả hai. Đừng đọc một kết quả yếu thành mạnh hơn.
 
 {{hinh:do-ba-ket-qua}}
 
@@ -95,7 +95,7 @@ Rõ ràng không có nghĩa là do bạn: kết quả chỉ được tính cho l
 
 ### Khi nào nói “chưa đủ để kết luận”
 
-“Shop mình ít đơn, bao nhiêu đơn thì đủ?” TikTok không đưa ra con số. Một quy tắc thực hành: chỉ coi mức thay đổi là chắc khi cả hai kỳ có khoảng 30 đơn trở lên (khoảng 30 lượt nhấp nếu chỉ số là CTR) và mức thay đổi vượt mức dao động; dưới đó, kết quả chỉ để tham khảo. Sản phẩm bán dưới khoảng 2 đơn mỗi ngày thì 14 ngày chưa có 30 đơn. Đó là chưa có câu trả lời, không phải thất bại: đừng sửa tiếp chỉ vì “chưa thấy gì”.
+“Shop mình ít đơn, bao nhiêu đơn thì đủ?” TikTok không đưa ra con số. Cách nghĩ hữu ích: chỉ coi mức thay đổi là chắc khi cả hai kỳ có số đơn đủ nhiều để không bị nhiễu (với chỉ số CTR là số lượt nhấp) và mức thay đổi vượt mức dao động; dưới đó, kết quả chỉ để tham khảo. Sản phẩm chỉ bán lẻ tẻ vài đơn mỗi tuần thì 14 ngày thường chưa đủ. Đó là chưa có câu trả lời, không phải thất bại: đừng sửa tiếp chỉ vì “chưa thấy gì”.
 
 ## Những thứ làm hỏng phép đo
 
@@ -124,7 +124,7 @@ Tính thử: sửa vào khoảng 20/10 thì ngày 14 rơi đúng 03/11, ngày đ
 
 “Có cách nào so với sản phẩm mình không sửa không?” Có, và đây là cách chắc hơn trước và sau. Chọn 2 đến 3 sản phẩm tương tự (cùng nhóm hàng, cùng mức bán, cùng luồng chính) mà bạn không sửa, tính mức thay đổi của chúng trong đúng 28 ngày đó. Sản phẩm bạn sửa tăng CTR 20 % mà các sản phẩm không sửa cũng tăng 15 % thì phần có thể là của lần sửa chỉ khoảng 5 %; phần còn lại là cả shop cùng lên.
 
-Cách này chưa loại hết may rủi vì bạn tự chọn sản phẩm để so. Chắc hơn là bốc thăm: khi định sửa cùng một kiểu cho nhiều sản phẩm cùng loại, chọn ngẫu nhiên khoảng một phần ba để sửa sau 14 ngày. Trong 14 ngày chờ, nhóm này là nhóm so sánh; sau đó bạn sửa nốt.
+Cách này chưa loại hết may rủi vì bạn tự chọn sản phẩm để so. Chắc hơn là bốc thăm: khi định sửa cùng một kiểu cho nhiều sản phẩm cùng loại, để vài sản phẩm chưa sửa làm mốc so sánh, chọn chúng bằng cách bốc thăm thay vì tự chọn. Trong 14 ngày chờ, nhóm này là nhóm so sánh; sau đó bạn sửa nốt.
 
 ## Bảng theo dõi tự làm
 

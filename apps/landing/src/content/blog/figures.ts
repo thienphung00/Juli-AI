@@ -141,13 +141,13 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   }),
   "doc-pheu-o-dau": diagram(
     "doc-pheu-o-dau",
-    462,
-    820,
+    440,
+    800,
     {
-      alt: "Sơ đồ ví dụ giả định về đường dẫn đến phễu của từng sản phẩm: Trung tâm nhà bán hàng, rồi La bàn dữ liệu, rồi Số liệu phân tích sản phẩm, rồi trang Lưu lượng truy cập sản phẩm. Rồi đọc theo ba quy tắc: 1, chọn luồng, đọc Thẻ sản phẩm trước vì không có người dẫn LIVE hay nhà sáng tạo bán hộ; 2, chọn khoảng thời gian, ít nhất 14 ngày, tốt hơn 28 hoặc 30 ngày, cộng tổng cả kỳ rồi mới chia ra tỷ lệ; 3, đủ dữ liệu chưa, tự đặt một ngưỡng và giữ nguyên, ví dụ CTR từ 50 lượt hiển thị mỗi ngày và CTOR từ 20 lượt nhấp mỗi ngày. Ngưỡng này là quy tắc bạn tự đặt, không phải quy định của TikTok.",
-      caption: "Đường dẫn đến phễu trong Trung tâm nhà bán hàng, mô tả bằng chữ, và ba quy tắc khi đọc; ngưỡng ở mục 3 là ví dụ giả định.",
+      alt: "Sơ đồ ví dụ giả định về đường dẫn đến phễu của từng sản phẩm: Trung tâm nhà bán hàng, rồi La bàn dữ liệu, rồi Số liệu phân tích sản phẩm, rồi trang Lưu lượng truy cập sản phẩm. Rồi đọc theo ba quy tắc: 1, chọn luồng, đọc Thẻ sản phẩm trước vì không có người dẫn LIVE hay nhà sáng tạo bán hộ; 2, chọn khoảng thời gian, ít nhất 14 ngày, tốt hơn 28 hoặc 30 ngày, cộng tổng cả kỳ rồi mới chia ra tỷ lệ; 3, đủ dữ liệu chưa, chỉ đọc tỷ lệ khi số liệu đủ nhiều để không bị nhiễu và giữ cùng một cách đọc cho mọi lần so sánh. Ghi chú: TikTok không đưa ra ngưỡng chính thức; khi số liệu còn quá ít, ghi chưa đủ dữ liệu.",
+      caption: "Đường dẫn đến phễu trong Trung tâm nhà bán hàng, mô tả bằng chữ, và ba quy tắc khi đọc.",
     },
-    2,
+    3,
   ),
   "luong-noi-dung": diagram("luong-noi-dung", 456, 732, {
     alt: "Sơ đồ ba luồng nội dung không ra đơn và việc cần kiểm tra. Video có lượt xem nhưng ít lượt nhấp vào sản phẩm: kiểm tra video có cho thấy rõ sản phẩm, công dụng, giá và sản phẩm có được gắn đúng. LIVE có người xem nhưng không ra đơn: thời điểm giới thiệu sản phẩm, ưu đãi trong phiên, sản phẩm được ghim còn hàng. Liên kết có lượt hiển thị nhưng ít đơn: khán giả của nhà sáng tạo có khớp với sản phẩm. Ở ba luồng này chỉ số chính là Lượt hiển thị sản phẩm và GMV, CTOR chỉ để tham khảo. Mọi lượt nhấp đều về trang sản phẩm: nếu CTOR ở Thẻ sản phẩm cũng thấp, sửa trang trước.",
@@ -353,7 +353,7 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   }),
   "anh-bia-doi-chung": diagram("anh-bia-doi-chung", 406, 630, {
     alt: "Sơ đồ ví dụ giả định đọc CTR Thẻ sản phẩm sau khi đổi ảnh. Các mốc: 14 ngày trước là mốc so sánh; ngày bạn thay ảnh, ghi lại ngày này; ngày 7 đọc sơ bộ; ngày 14 chốt kết quả. Sản phẩm đổi ảnh: CTR từ 2,0 % lên 2,6 %, tăng 30 %. Nhóm không đổi: CTR từ 2,0 % lên 2,2 %, tăng 10 %. Kết luận: phần có thể gán cho ảnh mới khoảng 18 %, bằng 1,30 chia 1,10, không phải 30 %. Ghi chú: cả shop cùng tăng 10 % trong hai tuần đó, có thể do một đợt sale; chỉ phần vượt lên trên nhóm không đổi mới là của ảnh.",
-    caption: "Ví dụ giả định: so với nhóm sản phẩm không đổi ảnh, mức tăng thật của ảnh mới nhỏ hơn con số thô.",
+    caption: "Ví dụ giả định: khi những sản phẩm chưa đổi ảnh cũng tăng, phần tăng nhờ ảnh mới nhỏ hơn con số thô.",
   }),
   /* ————— do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop (P46-E) ————— */
   "do-lich-14-ngay": diagram(
@@ -366,19 +366,25 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     },
     2,
   ),
-  "do-doc-sai-doc-dung": diagram("do-doc-sai-doc-dung", 480, 612, {
-    alt: "Biểu đồ cột ví dụ giả định: số đơn mỗi ngày của một sản phẩm trong 14 ngày trước khi sửa, trung bình 4,1 đơn mỗi ngày, và 14 ngày sau khi sửa, trung bình 4,9 đơn mỗi ngày; đường gạch ngang là mức trung bình của từng khoảng. Đọc sai: ngày 2 có 3 đơn, ngày 3 có 6 đơn, gọi là tăng gấp đôi, trong khi hai ngày lẻ nằm trong dao động thường ngày. Đọc đúng: tăng 0,8 đơn mỗi ngày, mức dao động khoảng 0,5 đơn, gấp khoảng 1,5 lần mức dao động, nghĩa là có thể đã thay đổi nhưng chưa chắc chắn.",
-    caption: "Ví dụ giả định: so hai ngày lẻ cho ra “gấp đôi”, so hai trung bình 14 ngày cho ra một mức tăng còn chưa chắc chắn.",
-  }),
-  "do-ba-ket-qua": diagram(
-    "do-ba-ket-qua",
-    536,
-    960,
+  "do-doc-sai-doc-dung": diagram(
+    "do-doc-sai-doc-dung",
+    500,
+    632,
     {
-      alt: "Bốn thẻ ví dụ giả định về kết quả ngày 14 với chỉ số mục tiêu CTR Thẻ sản phẩm, mức mong đợi 2,5 %. Sản phẩm A, giữ thay đổi, được tô nổi bật: CTR 2,0 % lên 2,6 %, chạm mức mong đợi, gấp 2,4 lần mức dao động nên rõ, GMV giữ được. Sản phẩm B, giữ và đo thêm 14 ngày: 2,0 % lên 2,5 %, chạm mức mong đợi, gấp 1,4 lần mức dao động nên chỉ là có thể. Sản phẩm C, giữ và sửa tiếp cùng hướng: 2,0 % lên 2,3 %, chưa chạm mức mong đợi, gấp 2,1 lần mức dao động nên rõ. Sản phẩm D, quay lại bản cũ: 2,0 % lên 2,1 %, chưa chạm mức mong đợi, gấp 0,6 lần, trong dao động. Ghi chú: đừng đọc một kết quả yếu thành mạnh hơn; có thay đổi khác trong 14 ngày thì kết quả không dùng được để quyết định, đo lại từ đầu.",
-      caption: "Ví dụ giả định: cùng một mức mong đợi, bốn quyết định khác nhau tùy chạm mức đó hay không và mức tăng so với dao động.",
+      alt: "Biểu đồ cột ví dụ giả định: số đơn mỗi ngày của một sản phẩm trong 14 ngày trước khi sửa, trung bình 4,1 đơn mỗi ngày, và 14 ngày sau khi sửa, trung bình 4,9 đơn mỗi ngày; đường gạch ngang là mức trung bình của từng khoảng. Đọc sai: ngày 2 có 3 đơn, ngày 3 có 6 đơn, gọi là tăng gấp đôi, trong khi hai ngày lẻ nằm trong dao động thường ngày. Đọc đúng: so hai trung bình 14 ngày thì tăng 0,8 đơn mỗi ngày, chưa vượt hẳn dao động thường ngày của sản phẩm, nghĩa là có thể đã thay đổi nhưng chưa chắc chắn.",
+      caption: "Ví dụ giả định: so hai ngày lẻ cho ra “gấp đôi”, so hai trung bình 14 ngày cho ra một mức tăng còn chưa chắc chắn.",
     },
     2,
+  ),
+  "do-ba-ket-qua": diagram(
+    "do-ba-ket-qua",
+    516,
+    938,
+    {
+      alt: "Bốn thẻ ví dụ giả định về kết quả ngày 14 với chỉ số mục tiêu CTR Thẻ sản phẩm, mức mong đợi 2,5 %. Sản phẩm A, giữ thay đổi, được tô nổi bật: CTR 2,0 % lên 2,6 %, chạm mức mong đợi, vượt hẳn mức dao động nên rõ, GMV giữ được. Sản phẩm B, giữ và đo thêm 14 ngày: 2,0 % lên 2,5 %, chạm mức mong đợi, chỉ nhỉnh hơn dao động nên chỉ là có thể. Sản phẩm C, giữ và sửa tiếp cùng hướng: 2,0 % lên 2,3 %, chưa chạm mức mong đợi, vượt hẳn mức dao động nên rõ. Sản phẩm D, quay lại bản cũ: 2,0 % lên 2,1 %, chưa chạm mức mong đợi, nằm trong mức dao động. Ghi chú: đừng đọc một kết quả yếu thành mạnh hơn; có thay đổi khác trong 14 ngày thì kết quả không dùng được để quyết định, đo lại từ đầu.",
+      caption: "Ví dụ giả định: cùng một mức mong đợi, bốn quyết định khác nhau tùy chạm mức đó hay không và mức tăng so với dao động.",
+    },
+    3,
   ),
   "do-cua-so-sale": diagram("do-cua-so-sale", 358, 472, {
     alt: "Sơ đồ ba hàng, mỗi hàng 28 ô ngày: 14 ngày trước khi sửa và 14 ngày sau khi sửa, ngày sale tô hồng. Hàng một, mốc so sánh chứa ngày sale: mốc bị đẩy lên, thay đổi dễ trông như thất bại. Hàng hai, thời gian đo chứa ngày sale: số sau khi sửa bị đẩy lên, thay đổi dễ trông như thành công. Hàng ba, cả hai khoảng đều là ngày thường: so được với nhau. Kết luận: sửa khi cả 14 ngày trước và 14 ngày sau đều không có đợt sale lớn.",

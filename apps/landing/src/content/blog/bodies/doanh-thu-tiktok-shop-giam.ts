@@ -9,8 +9,8 @@
  * (27/08/2026); recommendation threshold and shop operations from "Chẩn Đoán
  * Thẻ Sản Phẩm hoạt động như thế nào 1"; product card scope from "Thẻ Sản
  * Phẩm"; price states from "Chẩn đoán giá"; BMSM from "Mua Sỉ Giá Hời". The
- * log split and the data floors are a method the seller applies, labelled as
- * such (reach tier, D59: no Juli). Every number in a "Ví dụ giả định" is hypothetical.
+ * per-metric reading is plain percentage change, with no numeric data floor
+ * (D61); reach tier, D59: no Juli. Every number in a "Ví dụ giả định" is hypothetical.
  */
 export const body = `
 Doanh thu giảm là lúc nhà bán TikTok Shop dễ đưa ra quyết định vội nhất. Thấy GMV tuần này thấp hơn tuần trước, nhiều người lập tức giảm giá, đổi ảnh, đăng thêm video hay tăng ngân sách quảng cáo, rồi một tuần sau không biết việc nào đã giúp, việc nào đã làm tệ hơn. Trong khi đó, nguyên nhân thật có thể nằm ở một luồng truy cập duy nhất, ở hai ba sản phẩm, hoặc thậm chí ở cách so sánh hai kỳ.
@@ -44,11 +44,11 @@ Bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-
 
 ### Tổng trước, chia sau
 
-Nếu bạn xuất dữ liệu theo ngày và tự tính, hãy cộng tổng các đại lượng đếm được của cả kỳ (Lượt hiển thị sản phẩm, Lượt nhấp vào sản phẩm, Đơn hàng SKU, GMV) rồi mới chia để ra tỷ lệ. Lấy trung bình cộng của 30 tỷ lệ theo ngày sẽ tính ngày có 50 lượt hiển thị nặng như ngày có 5.000 lượt hiển thị, và cho ra một con số khác với con số TikTok hiển thị.
+Nếu bạn xuất dữ liệu theo ngày và tự tính, hãy cộng tổng các đại lượng đếm được của cả kỳ (Lượt hiển thị sản phẩm, Lượt nhấp vào sản phẩm, Đơn hàng SKU, GMV) rồi mới chia để ra tỷ lệ. Lấy trung bình cộng của 30 tỷ lệ theo ngày sẽ tính ngày có 40 lượt hiển thị nặng như ngày có 4.000 lượt hiển thị, và cho ra một con số khác với con số TikTok hiển thị.
 
 ### Mức giảm có vượt khỏi dao động bình thường không
 
-Với shop vài đơn mỗi ngày, GMV giữa hai tuần có thể chênh nhau đáng kể chỉ vì ngẫu nhiên. Trước khi kết luận, hãy xem mức giảm có lớn hơn mức dao động thường thấy của shop trong vài kỳ gần đây không. Một quy tắc đơn giản để tự áp dụng: chỉ coi một so sánh là "rõ" khi mỗi kỳ có đủ đơn (ví dụ giả định: từ 30 đơn hàng trở lên) và mức giảm lớn hơn mức chênh thường thấy giữa các kỳ gần đây; dưới mức đó, coi chênh lệch là "dấu hiệu" để theo dõi tiếp. Đây là quy tắc bạn tự đặt, không phải quy định của TikTok.
+Với shop vài đơn mỗi ngày, GMV giữa hai tuần có thể chênh nhau đáng kể chỉ vì ngẫu nhiên. Trước khi kết luận, hãy xem mức giảm có lớn hơn mức dao động thường thấy của shop trong vài kỳ gần đây không. Một cách đọc đơn giản để tự áp dụng: chỉ coi một so sánh là "rõ" khi mỗi kỳ có số đơn đủ nhiều để không bị nhiễu và mức giảm lớn hơn mức chênh thường thấy giữa các kỳ gần đây; dưới mức đó, coi chênh lệch là "dấu hiệu" để theo dõi tiếp. TikTok không đưa ra ngưỡng chính thức cho việc này.
 
 ## Phân tích doanh thu TikTok Shop theo năm luồng
 
@@ -105,16 +105,11 @@ Cả bốn chỉ số đều giảm, nhưng không giảm như nhau. CTR giảm 
 
 ### Chia mức giảm cho từng chỉ số
 
-Một cách chia công bằng mức thay đổi GMV cho từng chỉ số là dùng logarit: phần đóng góp của chỉ số f bằng ΔGMV × ln(f mới ÷ f cũ) ÷ ln(GMV mới ÷ GMV cũ). Cách chia này không phụ thuộc thứ tự các chỉ số, và các phần cộng lại luôn đúng bằng mức thay đổi thật. Với ví dụ trên, mức giảm 2,7 triệu chia ra:
-
-- CTR: khoảng **−1.380.000 ₫**
-- AOV: khoảng **−522.000 ₫**
-- CTOR: khoảng **−489.000 ₫**
-- Lượt hiển thị: khoảng **−309.000 ₫**
+Vì GMV là tích của bốn chỉ số, chỉ số nào giảm nhiều nhất theo tỷ lệ là chỉ số kéo GMV xuống nhiều nhất. Trong ví dụ trên, CTR giảm 17 %, gần bằng ba chỉ số còn lại cộng lại: AOV giảm 7 %, CTOR giảm 6 %, Lượt hiển thị giảm 4 %.
 
 Câu chuyện chính là CTR: khoảng một nửa mức giảm của luồng đến từ việc người xem ít nhấp vào sản phẩm hơn. Lượt hiển thị gần như giữ nguyên, nên đây không phải chuyện sản phẩm bị ít người thấy, cũng không phải traffic loãng. Câu hỏi tiếp theo đã rất cụ thể: điều gì trên thẻ sản phẩm thay đổi trong kỳ này?
 
-Nếu GMV gần như không đổi giữa hai kỳ, phép chia cho ln(GMV mới ÷ GMV cũ) không còn ý nghĩa; khi đó hãy so sánh trực tiếp tỷ lệ thay đổi của từng chỉ số.
+Nếu GMV gần như không đổi giữa hai kỳ, vẫn nên so tỷ lệ thay đổi của từng chỉ số: một chỉ số tăng và một chỉ số giảm có thể triệt tiêu nhau, và GMV đứng yên che mất cả hai câu chuyện.
 
 ### Lưu ý với Tab cửa hàng
 

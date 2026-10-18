@@ -1,8 +1,8 @@
 /**
  * Pillar post 2 (D43.7): the TikTok Shop product card A–Z. Listing rules are
  * from TikTok Academy VN policy and feature pages named in the text; the
- * measurement method (windows, floors) is Juli's (docs/adr/106, ADR-077) and
- * is presented as Juli's rule, not TikTok's.
+ * measurement section is a do-it-yourself method with no numeric data floors
+ * or Juli rules (D61).
  */
 export const body = `
 Thẻ sản phẩm là thứ đầu tiên khách hàng nhìn thấy khi tìm kiếm hoặc lướt trang mua sắm trên TikTok Shop, và là thứ duy nhất "bán hàng" thay bạn khi không có video hay buổi LIVE nào. Một thẻ sản phẩm tốt không cần đẹp nhất; nó cần làm đúng việc ở từng bước: khiến người xem nhấp vào, khiến người nhấp thêm vào giỏ, và khiến người thêm vào giỏ thanh toán.
@@ -27,7 +27,7 @@ Sai lầm phổ biến nhất khi tối ưu thẻ sản phẩm là sửa theo m�
 Mở La bàn dữ liệu → Số liệu phân tích sản phẩm → Lưu lượng truy cập sản phẩm, chọn một sản phẩm và lọc theo kênh thẻ sản phẩm của người bán. Bạn sẽ thấy phễu: Lượt hiển thị sản phẩm → Lượt nhấp vào sản phẩm → Đơn hàng SKU, cùng CTR và CTOR. So sánh với hai mốc:
 
 - **Với chính sản phẩm đó trước đây**: CTR hay CTOR của 14 ngày gần nhất có giảm rõ so với 28 ngày trước đó không?
-- **Với các sản phẩm khác của shop**: sản phẩm này có thấp hơn hẳn mức trung vị của các sản phẩm đủ dữ liệu trong shop không?
+- **Với các sản phẩm khác của shop**: sản phẩm này có thấp hơn hẳn phần lớn sản phẩm khác trong shop trên cùng luồng không?
 
 Nếu CTR yếu, hãy bắt đầu từ những gì hiển thị trên thẻ: ảnh bìa và tiêu đề. Nếu CTR ổn nhưng CTOR yếu, vấn đề nằm trên trang chi tiết: bộ ảnh, mô tả, giá, khuyến mãi, đánh giá. Đừng sửa ảnh bìa của một sản phẩm có CTR đang tốt chỉ vì CTOR của nó giảm; bạn sẽ đụng vào đúng phần đang hoạt động.
 
@@ -136,7 +136,7 @@ Nguyên tắc chọn từ khóa: chỉ thêm từ khóa mô tả đúng sản ph
 
 ### Độ dài
 
-Bài chẩn đoán thẻ sản phẩm của TikTok ghi "tiêu đề phải dài hơn 25 ký tự". Trong thực tế, một tiêu đề có đủ năm thành phần ở trên hiếm khi ngắn hơn 40 ký tự. Juli dùng mức 40 ký tự làm mục tiêu khi đề xuất sửa tiêu đề và không bao giờ đề xuất tiêu đề dưới 25 ký tự. Phần đầu tiêu đề quan trọng nhất vì trên thẻ nhỏ, phần cuối thường bị cắt: hãy đặt loại sản phẩm và đặc điểm chính lên trước.
+Bài chẩn đoán thẻ sản phẩm của TikTok ghi "tiêu đề phải dài hơn 25 ký tự". Trong thực tế, một tiêu đề có đủ năm thành phần ở trên hiếm khi ngắn hơn 40 ký tự. Hãy nhắm khoảng 40 ký tự và không viết dưới 25 ký tự. Phần đầu tiêu đề quan trọng nhất vì trên thẻ nhỏ, phần cuối thường bị cắt: hãy đặt loại sản phẩm và đặc điểm chính lên trước.
 
 ## Mô tả sản phẩm
 
@@ -216,7 +216,7 @@ Học viện TikTok Shop mô tả Mua Sỉ Giá Hời là công cụ khuyến m�
 - Tối đa 30 chương trình BMSM đang và sắp diễn ra.
 - Khách mua vượt bậc cao nhất được hưởng mức giảm của bậc đó cho tất cả sản phẩm.
 
-TikTok gợi ý theo dõi "số lượng mặt hàng trung bình trên mỗi đơn hàng" để chọn ngưỡng. Cách Juli chọn ngưỡng: lấy số món phổ biến nhất mà khách đang mua trong một đơn, cộng thêm một, và chỉ đề xuất khi đã có ít nhất một phần nhỏ khách hiện tại mua đến mức đó. Một ngưỡng mà gần như không ai đạt tới chỉ làm thẻ sản phẩm thêm rối.
+TikTok gợi ý theo dõi "số lượng mặt hàng trung bình trên mỗi đơn hàng" để chọn ngưỡng. Một cách chọn ngưỡng: đặt ngay trên số món khách hay mua trong một đơn, ở mức mà một phần khách hiện tại đã đạt. Một ngưỡng mà gần như không ai đạt tới chỉ làm thẻ sản phẩm thêm rối.
 
 ### Ưu đãi theo gói và quà tặng
 
@@ -224,11 +224,11 @@ Nếu dữ liệu đơn hàng cho thấy hai sản phẩm thường được mua
 
 ### Đánh giá và độ tin cậy
 
-Đánh giá không phải là trường bạn chỉnh sửa trong niêm yết, nhưng nó ảnh hưởng lớn đến CTOR. TikTok xếp đánh giá tiêu cực và tỷ lệ trả hàng cao vào nhóm Sự tin cậy. Một nguyên tắc Juli áp dụng: không đề xuất giảm giá hay đổi ảnh bìa cho sản phẩm có điểm đánh giá thấp (dưới 4 sao). Đưa thêm khách đến một sản phẩm mà người mua trước đánh giá kém chỉ làm tăng số người thất vọng. Hãy xử lý chất lượng sản phẩm hoặc mô tả sai lệch trước.
+Đánh giá không phải là trường bạn chỉnh sửa trong niêm yết, nhưng nó ảnh hưởng lớn đến CTOR. TikTok xếp đánh giá tiêu cực và tỷ lệ trả hàng cao vào nhóm Sự tin cậy. Một nguyên tắc nên áp dụng: với sản phẩm bị người mua chấm điểm thấp, đừng bắt đầu bằng giảm giá hay đổi ảnh bìa. Đưa thêm khách đến một sản phẩm mà người mua trước đánh giá kém chỉ làm tăng số người thất vọng. Hãy xử lý chất lượng sản phẩm hoặc mô tả sai lệch trước.
 
 ## Đo lường một thay đổi đúng cách
 
-Tối ưu mà không đo thì chỉ là thay đổi. Phần này mô tả cách Juli đo một thay đổi trên thẻ sản phẩm. Bạn có thể áp dụng thủ công với một bảng tính.
+Tối ưu mà không đo thì chỉ là thay đổi. Phần này mô tả một cách đo một thay đổi trên thẻ sản phẩm, bạn áp dụng được với một bảng tính.
 
 ### Một thay đổi, một sản phẩm, một lúc
 
@@ -241,21 +241,21 @@ Nếu bạn đổi ảnh bìa và giảm giá cùng một ngày, rồi CTR tăng
 
 Đừng kết luận sau 2–3 ngày. Chỉ số theo ngày của một sản phẩm dao động mạnh, và vài ngày đầu sau thay đổi có thể chưa phản ánh hành vi ổn định.
 
-### Ngưỡng dữ liệu tối thiểu
+### Đủ dữ liệu mới đo
 
-Một chỉ số chỉ đáng để tối ưu nếu nó đủ dữ liệu để đo lại sau đó. Juli dùng các ngưỡng sau trên kênh thẻ sản phẩm, tính trung bình mỗi ngày trong cửa sổ:
+Một chỉ số chỉ đáng để tối ưu nếu nó đủ dữ liệu để đo lại sau đó. Mỗi chỉ số cần một loại số liệu riêng trên kênh thẻ sản phẩm:
 
-| Chỉ số | Ngưỡng tối thiểu |
+| Chỉ số | Cần đủ nhiều |
 |---|---|
-| CTR | Từ 50 lượt hiển thị sản phẩm mỗi ngày |
-| CTOR | Từ 20 lượt nhấp vào sản phẩm mỗi ngày |
-| AOV | Từ 1 đơn hàng mỗi ngày |
+| CTR | Lượt hiển thị sản phẩm |
+| CTOR | Lượt nhấp vào sản phẩm |
+| AOV | Đơn hàng |
 
-Dưới các ngưỡng này, hãy ghi nhận "chưa đủ dữ liệu" thay vì đọc một con số. Một sản phẩm có CTOR 0 % trên 24 lượt nhấp trong 14 ngày không phải là sản phẩm "không bán được"; nó là sản phẩm chưa đủ dữ liệu để kết luận.
+Chỉ đọc một chỉ số khi số liệu tương ứng đủ nhiều để không bị nhiễu, hoặc gộp một cửa sổ dài hơn, và giữ cùng một cách đọc cho mọi lần so sánh; TikTok không đưa ra ngưỡng chính thức. Khi số liệu còn quá ít, hãy ghi nhận "chưa đủ dữ liệu" thay vì đọc một con số. Một sản phẩm có CTOR 0 % trên 24 lượt nhấp trong 14 ngày không phải là sản phẩm "không bán được"; nó là sản phẩm chưa đủ dữ liệu để kết luận.
 
-### So với nhóm đối chứng
+### Nhìn thêm những sản phẩm bạn chưa sửa
 
-Traffic chung của shop thay đổi theo mùa, theo chiến dịch của nền tảng, theo ngày sale. Nếu CTR của sản phẩm bạn sửa tăng 10 % nhưng CTR của các sản phẩm không sửa cũng tăng 10 % trong cùng thời gian, thay đổi của bạn có lẽ không tạo ra gì. Hãy so sánh mức thay đổi của sản phẩm đã sửa với mức thay đổi của một nhóm sản phẩm tương tự trong shop không bị sửa. Khi đo một thay đổi, Juli ghi rõ kết quả bị ảnh hưởng nếu có thay đổi khác chạm vào sản phẩm trong cửa sổ đo.
+Traffic chung của shop thay đổi theo mùa, theo chiến dịch của nền tảng, theo ngày sale. Nếu CTR của sản phẩm bạn sửa tăng 10 % nhưng CTR của các sản phẩm không sửa cũng tăng 10 % trong cùng thời gian, thay đổi của bạn có lẽ không tạo ra gì. Vì vậy, hãy nhìn thêm vài sản phẩm tương tự trong shop mà bạn chưa sửa: nếu chúng cũng tăng gần như vậy, phần tăng đó đến từ cả shop chứ chưa chắc từ thay đổi của bạn. Khi đo một thay đổi, Juli ghi rõ kết quả bị ảnh hưởng nếu có thay đổi khác chạm vào sản phẩm trong cửa sổ đo.
 
 ### Đọc kết quả
 
@@ -275,15 +275,15 @@ Dùng danh sách này cho từng sản phẩm bán chạy:
 - **Thuộc tính**: Đầy đủ, đúng ngành hàng; thông tin nhãn hiệu nếu được ủy quyền.
 - **Giá**: Đã xem Chẩn đoán giá; có mức giảm tối đa cho phép của riêng mình.
 - **Khuyến mãi**: Flash sale không liên tục và không quá nông; BMSM có ngưỡng dựa trên số món khách đang mua.
-- **Đo lường**: Ghi ngày thay đổi; một thay đổi mỗi sản phẩm; đọc sau 7 và 14 ngày; đủ ngưỡng dữ liệu.
+- **Đo lường**: Ghi ngày thay đổi; một thay đổi mỗi sản phẩm; đọc sau 7 và 14 ngày; chỉ kết luận khi đủ dữ liệu.
 
 ## Juli AI hỗ trợ ở đâu
 
-Juli AI là trợ lý AI cho nhà bán TikTok Shop do chúng tôi phát triển. Với thẻ sản phẩm, Juli làm ba việc trong bài này một cách tự động:
+Juli AI là trợ lý AI vận hành cho nhà bán TMĐT do chúng tôi phát triển, hiện kết nối TikTok Shop (Shopee đang tích hợp). Với thẻ sản phẩm, Juli hỗ trợ ba việc trong bài này, và mọi thay đổi trên shop chỉ diễn ra khi bạn duyệt:
 
 - **Tìm bước yếu**: [phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop), đọc CTR và CTOR của kênh thẻ sản phẩm cho từng sản phẩm, so với chính nó và với các sản phẩm khác trong shop, kiểm tra traffic loãng trước khi đề xuất sửa ảnh bìa.
-- **Đề xuất một thay đổi cụ thể**: ảnh bìa, tiêu đề, mô tả hay chiết khấu, kèm lý do bằng số. Juli [chỉ thực hiện khi bạn phê duyệt](/san-pham/de-xuat-va-thuc-thi), trong giới hạn giảm giá bạn đặt.
-- **Đo lại**: [đọc tác động lên GMV](/san-pham/do-luong-gmv) sau 7 và 14 ngày, so với mốc 14 ngày trước khi áp dụng, với các ngưỡng dữ liệu nêu ở trên.
+- **Đề xuất một thay đổi cụ thể**: ảnh bìa, tiêu đề, mô tả hay chiết khấu, kèm lý do bằng số. Juli [chỉ thực hiện khi bạn phê duyệt](/san-pham/de-xuat-va-thuc-thi): tiêu đề và mô tả do Juli viết, ảnh bìa dùng ảnh bạn gửi, còn giá và khuyến mãi là đề xuất để bạn tự quyết định trong giới hạn bạn đặt.
+- **Đo lại**: [đọc tác động lên GMV](/san-pham/do-luong-gmv) sau 7 và 14 ngày, so với mốc 14 ngày trước khi áp dụng, khi số liệu đủ để đọc.
 
 Juli đọc dữ liệu qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop). Xem tổng quan tại trang [sản phẩm Juli AI](/san-pham), hoặc đọc bài [Top công cụ cho nhà bán TikTok Shop 2026](/blog/cong-cu-cho-nha-ban-tiktok-shop-2026) để so sánh với các lựa chọn khác.
 `;

@@ -2964,3 +2964,22 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   check:seo 47, check.sh OK (migrations/isolation skipped). Shots at 390 in scratchpad
   `shots-p52a/`, one H1, no horizontal scroll. Note: port 3007 was taken by another agent's
   server; screenshots used port 3127.
+## 2026-10-18 — P52-C agent (Claude Opus) — reach posts, pillars, tools posts (D61)
+
+- Reach posts (Juli-free, D59): removed the first-person "quy tắc thực hành của chúng tôi" data
+  floors (50 impressions / 30 clicks / 30 orders, 50 / 20 examples) from `anh-bia`, `dat-ten`,
+  `khach-xem`, `tiktok-shop-khong-ra-don`, `san-pham-…-khong-co-luot-hien-thi`, `doanh-thu-…-giam`,
+  `do-hieu-qua…`; the 2× / 1–2× verdict multiples and the one-third holdback in `do-hieu-qua…`
+  (now "vượt hẳn / nhỉnh hơn / nằm trong" the product's own swing, "để vài sản phẩm chưa sửa làm
+  mốc so sánh"); the 4-star rule and Juli's 40 / 25-character rule (TikTok's 25-character minimum
+  kept); the clicks × peer-CTOR-gap ranking in `khach-xem`; peer medians; the log decomposition
+  in `doanh-thu-…-giam` (plain "which metric fell most in percentage"). FAQs in posts.ts follow.
+- Pillars: `chi-so…` log formula removed (GMV identity and a plain reading kept), 30-order floor
+  removed; `gmv-la-gi` 50 / 20 / 1 floors and median removed (calculator anchor H3 untouched);
+  `toi-uu…` 40-character, BMSM "+1", 4-star and 50 / 20 / 1 table removed. All three: TMĐT
+  descriptor (D46.7) and no "Juli làm tự động" (changes happen only on approval). Tools hub:
+  comparison-group claim (also in the toi-uu FAQ) replaced by the 14-day baseline.
+- Diagrams re-rendered with the generator: `doc-pheu-o-dau-v3`, `do-doc-sai-doc-dung-v2`,
+  `do-ba-ket-qua-v3` (old files deleted); alts and heights in figures.ts.
+- Word counts stay in range (pain posts 2,448–2,509; pillars 4,548–4,845). Gates: lint 0 errors
+  (2 pre-existing warnings), tsc, vitest 748, build, check:seo 47, check.sh OK.
