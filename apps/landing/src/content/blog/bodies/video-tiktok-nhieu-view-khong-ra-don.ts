@@ -14,9 +14,8 @@
  * - "Phân Tích Hiệu Suất Video - Hướng Dẫn cho Nhà Sáng Tạo" (22/03/2024):
  *   Tỷ lệ xem hết, viewer profile, "GMV đến từ" = last clicked content type.
  * Nothing here describes how TikTok distributes views or impressions (not
- * published). Juli facts follow /san-pham/* (D27 "Juli soạn · bạn làm" cards,
- * title / description written only after approval). Numbers in examples are
- * hypothetical and say so.
+ * published). Reach tier (D59): no Juli; the weekly sheet uses only the
+ * Seller Center fields above. Numbers in examples are hypothetical and say so.
  */
 export const body = `
 Video lên cả trăm nghìn lượt xem mà shop gần như không có đơn thường không phải vì video dở, mà vì lượt xem chưa phải là đơn hàng. Giữa một lượt xem và một đơn hàng còn bốn bước: sản phẩm có hiện ra trước người xem không (Lượt hiển thị sản phẩm), người xem có bấm vào sản phẩm không (CTR), bấm vào rồi có đặt hàng không (CTOR), và mỗi đơn đáng bao nhiêu tiền (AOV). Bài này giúp bạn đọc số liệu của chính video đó để biết nó đang gãy ở bước nào, rồi mới quyết định sửa video hay sửa trang sản phẩm.
@@ -27,7 +26,7 @@ Mọi con số trong các ví dụ là ví dụ giả định. Nếu shop của 
 
 "Video viral mà doanh thu không tăng", "người ta vào xem, bình luận đủ thứ mà không ai hỏi mua": lý do đầu tiên là lượt xem video và đơn hàng nằm ở hai chỗ khác nhau trong La bàn dữ liệu.
 
-Trang "Hướng dẫn sử dụng La bàn Dữ liệu trong Trung tâm Người bán" của Học viện TikTok Shop mô tả mục Phân tích Video với các số liệu lưu lượng truy cập gồm VV (lượt xem video), lượt thích, bình luận, lượt chia sẻ, **Lượt hiển thị Sản phẩm** và **Lượt nhấp vào Sản phẩm**. Cùng một video có con số của nội dung (xem, thích, bình luận) và con số của sản phẩm gắn trong video. Đơn hàng chỉ đi theo nhánh thứ hai, theo công thức Juli dùng cho mỗi luồng truy cập:
+Trang "Hướng dẫn sử dụng La bàn Dữ liệu trong Trung tâm Người bán" của Học viện TikTok Shop mô tả mục Phân tích Video với các số liệu lưu lượng truy cập gồm VV (lượt xem video), lượt thích, bình luận, lượt chia sẻ, **Lượt hiển thị Sản phẩm** và **Lượt nhấp vào Sản phẩm**. Cùng một video có con số của nội dung (xem, thích, bình luận) và con số của sản phẩm gắn trong video. Đơn hàng chỉ đi theo nhánh thứ hai, theo công thức GMV của mỗi luồng truy cập:
 
 **GMV = Lượt hiển thị sản phẩm × CTR × CTOR × AOV**
 
@@ -91,8 +90,6 @@ Những câu hỏi nên tự đặt khi xem lại video:
 
 Ở bước này, sửa trang sản phẩm ít giúp, vì người xem chưa vào tới trang. Việc cần làm nằm ở video: cách mở đầu, thời điểm giới thiệu sản phẩm, lời nói về công dụng và giá. Bài [các chỉ số TikTok Shop: Lượt hiển thị, CTR, CTOR, AOV](/blog/chi-so-tiktok-shop-ctr-ctor-aov) giải thích kỹ hơn vì sao CTR của từng luồng phải đọc riêng.
 
-{{hinh:video-ctr-du-lieu-mau}}
-
 ## Bấm vào nhiều nhưng không mua
 
 Nếu CTR của video ổn mà CTOR thấp, nghĩa là video đã làm tốt việc của nó: người xem đủ quan tâm để bấm vào. Họ rời đi ở trang sản phẩm. Mọi lượt bấm, dù từ video, LIVE hay tìm kiếm, đều dẫn về cùng một trang sản phẩm, nên hãy kiểm tra xem CTOR ở luồng Thẻ sản phẩm có thấp tương tự không. Nếu có, vấn đề nằm ở trang chứ không ở video.
@@ -142,15 +139,18 @@ Khi đã biết bước gãy, hãy sửa **một chỗ** mỗi lần: làm video
 
 Nếu video bán hàng của bạn chủ yếu là LIVE chứ không phải video ngắn, bài [LIVE đông người xem mà ít đơn](/blog/live-tiktok-shop-khong-ra-don) đi qua phễu riêng của LIVE.
 
-## Juli AI giúp gì khi video nhiều view mà ít đơn
+## Bảng theo dõi video mỗi tuần
 
-Juli AI là trợ lý AI cho nhà bán TMĐT do chúng tôi phát triển, hiện kết nối TikTok Shop (Shopee đang tích hợp). Juli làm phần đọc số trong bài này một cách tự động:
+Bạn có thể tự làm phần đọc số trong bài này bằng một bảng tính, cập nhật mỗi tuần từ mục Phân tích Video và trang Chi tiết video trong La bàn dữ liệu:
 
-- **Tìm bước gãy theo luồng**: [phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop) tách GMV theo năm luồng (Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết) và theo Lượt hiển thị × CTR × CTOR × AOV. Ở tab Nội dung, Juli liệt kê những video làm CTR giảm nhiều nhất, ngày đăng và sản phẩm được gắn.
-- **Đề xuất, rồi bạn duyệt**: [đề xuất và thực thi](/san-pham/de-xuat-va-thuc-thi). Khi CTR của video giảm, Juli soạn kịch bản video mới để bạn chọn dùng, yêu cầu soạn lại hoặc bỏ qua; bạn tự quay, Juli không sửa hay đăng video thay bạn. Khi vấn đề nằm ở trang sản phẩm, Juli chỉ ghi tiêu đề và mô tả lên shop sau khi bạn duyệt; giá và khuyến mãi là đề xuất để bạn tự áp dụng trên Trung tâm nhà bán hàng.
-- **Đo lại**: [đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 (sơ bộ) và ngày 14 (chốt).
+1. **Mỗi video một dòng**: ngày đăng và sản phẩm được gắn.
+2. **Các cột số của 7 ngày**: lượt xem video, Lượt hiển thị sản phẩm, Lượt nhấp vào sản phẩm, Đơn hàng SKU. Tự tính CTR và CTOR từ tổng, không lấy trung bình theo ngày.
+3. **Một cột so sánh**: CTR của video so với các video khác gắn cùng sản phẩm. Video có CTR thấp hơn hẳn là video cần xem lại trước.
+4. **Một cột kết luận**: "sửa video" khi CTR thấp, "sửa trang" khi CTOR thấp ở mọi video của sản phẩm đó, "xem AOV" khi có đơn mà GMV vẫn thấp.
 
-Juli không chạy quảng cáo và không trả lời tin nhắn của khách. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop) mà bạn ủy quyền. Xem tổng quan tại trang [sản phẩm Juli AI](/san-pham), hoặc đọc [GMV là gì](/blog/gmv-la-gi-tiktok-shop) để hiểu cách tách GMV theo luồng.
+Ví dụ giả định: video A có 80.000 lượt xem, 12.000 Lượt hiển thị sản phẩm và CTR 0,8 %; video B gắn cùng sản phẩm có 15.000 lượt xem, 4.000 Lượt hiển thị sản phẩm và CTR 2,5 %. Video A nhiều view hơn, nhưng video B mới là cách nói về sản phẩm mà người xem chịu bấm. Video tiếp theo nên học từ B.
+
+Thêm một cột ngày cho mỗi thay đổi bạn làm, để lúc đọc ở ngày 7 và ngày 14 biết đang đo thay đổi nào. Cách tách GMV theo luồng và theo bốn chỉ số có trong bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop).
 
 ## Tóm tắt
 
@@ -159,5 +159,5 @@ Juli không chạy quảng cáo và không trả lời tin nhắn của khách. 
 - View cao mà CTR thấp: sửa video. CTR ổn mà CTOR thấp: sửa trang sản phẩm. Có đơn mà GMV thấp: xem AOV.
 - Kiểm tra tệp khách, sửa một chỗ mỗi lần, đo lại ở ngày 7 và ngày 14.
 
-Nếu bạn muốn biết video nào đang kéo CTR của sản phẩm xuống mà không phải tự cộng số trong bảng tính, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Nếu người xem bấm vào sản phẩm mà vẫn không mua, bài [Khách xem nhưng không mua](/blog/khach-xem-nhung-khong-mua-tiktok-shop) đi sâu vào phần sau cú nhấp.
 `;

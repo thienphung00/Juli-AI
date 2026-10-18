@@ -7,8 +7,9 @@
  * "Quản lý Sản phẩm" (27/08/2026); metric definitions and channel dimensions:
  * "Lưu lượng truy cập sản phẩm" (17/06/2026); product optimiser: "Trình Tối Ưu
  * Hoá Sản Phẩm" (04/08/2025). Nothing here describes how TikTok distributes
- * impressions (no primary source publishes it). The data floors and the
- * day-7 / day-14 method are Juli's (SPEC), labelled as such.
+ * impressions (no primary source publishes it). The data floor is an example
+ * the seller sets and the day-7 / day-14 routine is a self-check method,
+ * labelled as such (reach tier, D59: no Juli).
  */
 export const body = `
 Sản phẩm đăng lên nhiều ngày mà không ai thấy thường rơi vào một trong hai trường hợp: sản phẩm chưa được hiển thị cho người mua (đang ở trạng thái khác Trực tuyến, bị từ chối hoặc vi phạm chính sách), hoặc đã hiển thị nhưng rất ít nơi đưa người xem đến nó. Hai trường hợp này có cách sửa hoàn toàn khác nhau, nên việc đầu tiên là tách chúng ra. Sau đó, đọc Lượt hiển thị sản phẩm theo từng luồng truy cập để biết luồng nào đang thiếu, rồi mới quyết định sửa gì.
@@ -53,7 +54,7 @@ Ba điều cần nhớ khi đọc con số này:
 
 ## Lượt hiển thị đến từ luồng nào
 
-Juli gom các khía cạnh của TikTok thành năm luồng truy cập. Với mỗi luồng, câu hỏi khi Lượt hiển thị thấp là khác nhau:
+Bài này gom các khía cạnh của TikTok thành năm luồng truy cập. Với mỗi luồng, câu hỏi khi Lượt hiển thị thấp là khác nhau:
 
 | Luồng | Khách thấy sản phẩm ở đâu | Câu hỏi khi Lượt hiển thị thấp |
 |---|---|---|
@@ -113,28 +114,27 @@ Những việc nên tránh khi chưa biết nguyên nhân:
 
 ## Đo kết quả sau khi sửa: ngày 7 và ngày 14
 
-Lượt hiển thị dao động theo ngày trong tuần, đợt sale, buổi LIVE. Nhìn ba ngày sau khi đổi tiêu đề dễ nhầm dao động với kết quả. Cách Juli đo một thay đổi:
+Lượt hiển thị dao động theo ngày trong tuần, đợt sale, buổi LIVE. Nhìn ba ngày sau khi đổi tiêu đề dễ nhầm dao động với kết quả. Một cách tự đo một thay đổi:
 
 - **Mốc so sánh** là 14 ngày trước khi thay đổi.
 - **Ngày 7** đọc sơ bộ: chỉ số được nhắm đang lên, đứng yên hay đi xuống.
 - **Ngày 14** chốt kết quả.
 - **So với các sản phẩm không thay đổi** trong cùng shop: nếu cả shop cùng tăng, phần tăng chưa chắc là nhờ thay đổi của bạn.
 
-Với một thay đổi tiêu đề nhằm thêm từ khóa, chỉ số cần đọc trước là Lượt hiển thị ở luồng Thẻ sản phẩm, rồi mới đến CTR. Juli chỉ đọc tỷ lệ khi đủ dữ liệu: CTR từ trung bình 50 lượt hiển thị mỗi ngày trên luồng Thẻ sản phẩm. Đây là quy tắc của Juli, không phải quy định của TikTok; dưới ngưỡng này, kết luận đúng nhất thường là "sản phẩm chưa đủ người thấy".
+Với một thay đổi tiêu đề nhằm thêm từ khóa, chỉ số cần đọc trước là Lượt hiển thị ở luồng Thẻ sản phẩm, rồi mới đến CTR. Chỉ đọc tỷ lệ khi đủ dữ liệu, theo một ngưỡng bạn tự đặt và giữ nguyên (ví dụ giả định: CTR từ trung bình 50 lượt hiển thị mỗi ngày trên luồng Thẻ sản phẩm). Đây không phải quy định của TikTok; dưới ngưỡng, kết luận đúng nhất thường là "sản phẩm chưa đủ người thấy".
 
 {{hinh:theo-doi-7-14}}
 
-## Juli AI giúp gì khi sản phẩm ít lượt hiển thị
+## Tự kiểm tra lượt hiển thị mỗi tuần
 
-Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp). Với vấn đề trong bài này, Juli làm ba việc:
+Một bảng tính nhỏ, cập nhật mỗi tuần từ trang Lưu lượng truy cập sản phẩm, giúp bạn thấy sớm sản phẩm nào đang thiếu người thấy:
 
-- **Đọc số liệu theo luồng.** [Phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop): Lượt hiển thị, CTR, CTOR, AOV của từng sản phẩm ở năm luồng, chỉ ra sản phẩm nào thiếu Lượt hiển thị và sản phẩm nào có Lượt hiển thị mà CTR thấp.
-- **Đề xuất, chờ bạn duyệt.** [Đề xuất tiêu đề và mô tả mới](/san-pham/de-xuat-va-thuc-thi) kèm lý do. Juli chỉ ghi lên shop sau khi bạn xác nhận, và thay đổi hoàn tác được.
-- **Đo lại.** [Đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 và ngày 14, so với các sản phẩm không thay đổi.
+1. **Mỗi sản phẩm một dòng**, gồm cả sản phẩm mới đăng. Ghi trạng thái trong Quản lý sản phẩm trước tiên: không phải Trực tuyến thì dừng ở đó và sửa.
+2. **Lượt hiển thị sản phẩm của 7 ngày theo từng luồng**, không chỉ tổng. Ô trống ở luồng nào là luồng đó đang thiếu.
+3. **CTR của luồng Thẻ sản phẩm** khi đủ dữ liệu, để biết sản phẩm thuộc ô nào trong bảng bốn trường hợp ở trên.
+4. **Cột thay đổi**: ngày bạn sửa tiêu đề, thuộc tính, ngành hàng, hay đăng video, LIVE có sản phẩm.
 
-{{hinh:dx-xac-nhan-tieu-de}}
-
-Juli không hứa tăng lượt hiển thị, không can thiệp vào cách TikTok phân phối, không đăng sản phẩm hộ và không chạy quảng cáo. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop); tổng quan sản phẩm ở trang [Juli AI](/san-pham), và cách Juli tách GMV theo luồng có trong bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-tiktok-shop).
+Mỗi tuần chọn một sản phẩm và một việc, ghi ngày bắt đầu, và để yên sản phẩm đó cho đến ngày 14. Để ước tính thêm lượt hiển thị thì GMV đổi bao nhiêu, nhập số vào [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv). Nếu sản phẩm có người thấy, có người nhấp mà vẫn không có đơn, đọc tiếp bài [TikTok Shop không ra đơn](/blog/tiktok-shop-khong-ra-don).
 
 ## Tóm tắt
 
@@ -142,5 +142,5 @@ Juli không hứa tăng lượt hiển thị, không can thiệp vào cách TikT
 - Đọc Lượt hiển thị theo năm luồng và cùng CTR: ít hiển thị mà CTR cao thì thêm chỗ xuất hiện, CTR thấp thì sửa ảnh bìa, tiêu đề.
 - Một thay đổi một lúc, đọc sơ bộ ngày 7, chốt ngày 14.
 
-Nếu bạn muốn biết sản phẩm nào trong shop đang thiếu lượt hiển thị ở luồng nào mà không phải tự lập bảng tính, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Cách GMV được tách theo luồng và theo bốn chỉ số có trong bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-tiktok-shop).
 `;

@@ -2665,3 +2665,32 @@ for the D48 additions). Landing only; no blog, /privacy, /terms body, demo or Py
   `check:seo` 39 passed. `check.sh --since fasttrack/optimize-product`: gitleaks, ruff, pytest PASS;
   migrations / isolation FAIL (no DB; hung `docker info` killed; known).
 - Next: P48-B/C strip Juli from the reach posts and remove their slugs from `REACH_JULI_PENDING`.
+
+## 2026-10-18 · P48-B strip Juli from 8 reach posts (D59.1)
+
+Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca9), not merged.
+
+- Posts: `tiktok-shop-khong-ra-don`, `doanh-thu-tiktok-shop-giam`,
+  `san-pham-tiktok-shop-khong-co-luot-hien-thi`, `thue-ban-hang-tiktok-shop`,
+  `video-tiktok-nhieu-view-khong-ra-don`, `live-tiktok-shop-khong-ra-don`,
+  `ty-le-hoan-hang-tiktok-shop`, `phi-san-tiktok-shop-2026`. Every Juli mention (body, FAQ),
+  each "Juli AI giúp gì" section, trial CTA line and link to `/san-pham*`, `/ket-noi*`, `/dang-ky`
+  removed. Juli's data floors (CTR 50 lượt hiển thị / CTOR 20 lượt nhấp / 30 đơn) are now "a
+  threshold you set", given as a "Ví dụ giả định".
+- New seller-side sections: "Tự theo dõi phễu mỗi tuần", "Bảng theo dõi doanh thu mỗi tuần",
+  "Tự kiểm tra lượt hiển thị mỗi tuần", "Theo dõi doanh thu cả năm" (H3), "Bảng theo dõi video
+  mỗi tuần", "Sổ theo dõi các buổi LIVE", "Bảng theo dõi hủy và hoàn mỗi tuần", "Tự đối chiếu phí
+  mỗi tháng" (H3). Only Seller Center fields and facts already cited in each post.
+- Figures: 8 `cap-*` screenshot figures deleted from `figures.ts` (pt-xep-hang, pt-pheu, pt-video,
+  pt-xep-hang-doanh-thu, dx-xac-nhan-tieu-de, video-ctr-du-lieu-mau, live-luong-du-lieu-mau,
+  dx-xac-nhan-mo-ta; unused `CAP_DL_TIN_CAY` import dropped); `checklist-khong-ra-don` diagram
+  dropped (duplicated the table; 7 → 6 figures); `doc-pheu-o-dau` re-rendered as v2 (image said
+  "Juli"), v1 files and the checklist files deleted.
+- `related` now favours reach posts + the GMV pillar; `updatedAt` 2026-10-18; 8 slugs out of
+  `REACH_JULI_PENDING` (8 left for P48-C).
+- Words: khong-ra-don 4,245; doanh-thu-giam 3,868; khong-co-luot-hien-thi 2,464; thue 1,283;
+  video 2,445; live 2,423; ty-le-hoan 2,460; phi-san 1,417. Onward links 3–8 per post.
+- Gates: lint 0, `tsc --noEmit` 0, vitest 618 passed / 16 skipped, build OK, `check:seo` 39
+  passed; 390 px render of khong-ra-don and phi-san: neutral calculator box, no "Juli" in `<main>`
+  outside byline / related, no horizontal scroll. `check.sh --since fasttrack/optimize-product`:
+  gitleaks, ruff, pytest PASS; migrations / isolation FAIL (no DB; hung `docker info` killed; known).

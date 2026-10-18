@@ -188,26 +188,6 @@ const DIAGRAMS = [
 <div class="result">Sửa phễu trước, rồi mới mua thêm traffic</div>`,
   },
   {
-    name: "checklist-khong-ra-don-v1",
-    html: () => {
-      const groups = [
-        ["Sản phẩm có bán được không", ["Trạng thái Trực tuyến", "Biến thể chính còn hàng", "Giao đúng hạn, xử lý đơn nhanh"]],
-        ["Phễu nghẽn ở bước nào", ["Lượt hiển thị đủ ngưỡng", "CTR so với chính nó và sản phẩm khác", "CTR chỉ giảm ở luồng vừa tăng traffic", "Tỷ lệ thêm vào giỏ hàng", "Đơn trên mỗi lượt thêm vào giỏ"]],
-        ["Đo cho đúng", ["Đủ dữ liệu ở mỗi kỳ", "Một thay đổi, một ngày bắt đầu"]],
-      ];
-      let n = 0;
-      return `${head(`Kiểm tra theo thứ tự, <span class="only-d">từ trái sang phải</span><span class="only-m">từ trên xuống</span>`)}
-<div class="grid3 checklist">${groups
-        .map(
-          ([title, items]) =>
-            `<div class="box col"><strong>${title}</strong><ul class="checks">${items
-              .map((item) => `<li><span class="check">${++n}</span>${item}</li>`)
-              .join("")}</ul></div>`,
-        )
-        .join("")}</div>`;
-    },
-  },
-  {
     name: "so-sanh-hai-ky-v1",
     html: () => {
       const days = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -305,15 +285,15 @@ const DIAGRAMS = [
     },
   },
   {
-    name: "doc-pheu-o-dau-v1",
+    name: "doc-pheu-o-dau-v2",
     html: () => {
       const path = ["Trung tâm nhà bán hàng", "La bàn dữ liệu", "Số liệu phân tích sản phẩm", "Lưu lượng truy cập sản phẩm"];
       const rules = [
         ["Chọn luồng", "Đọc Thẻ sản phẩm trước: không có người dẫn LIVE hay nhà sáng tạo bán hộ."],
         ["Chọn khoảng thời gian", "Ít nhất 14 ngày, tốt hơn 28 hoặc 30 ngày. Cộng tổng cả kỳ rồi mới chia ra tỷ lệ."],
-        ["Đủ dữ liệu chưa", "Juli đọc CTR từ 50 lượt hiển thị mỗi ngày, CTOR từ 20 lượt nhấp mỗi ngày."],
+        ["Đủ dữ liệu chưa", "Tự đặt một ngưỡng và giữ nguyên. Ví dụ: CTR từ 50 lượt hiển thị mỗi ngày, CTOR từ 20 lượt nhấp mỗi ngày."],
       ];
-      return `${head("Phễu của từng sản phẩm nằm ở đâu")}
+      return `${head("Phễu của từng sản phẩm nằm ở đâu", true)}
 <div class="path">${path
         .map((p, i) => `<span class="crumb${i === path.length - 1 ? " crumb--ink" : ""}">${p}</span>`)
         .join(`<span class="sep">›</span>`)}</div>
@@ -321,7 +301,7 @@ const DIAGRAMS = [
 <div class="grid3">${rules
         .map(([t, d], i) => `<div class="box col">${num(i + 1)}<strong>${t}</strong><span class="desc">${d}</span></div>`)
         .join("")}</div>
-<p class="note">Ngưỡng ở mục 3 là quy tắc của Juli, không phải quy định của TikTok. Dưới ngưỡng, ghi “chưa đủ dữ liệu”: vấn đề thường nằm ở Lượt hiển thị.</p>`;
+<p class="note">Ngưỡng ở mục 3 là quy tắc bạn tự đặt, không phải quy định của TikTok. Dưới ngưỡng, ghi “chưa đủ dữ liệu”: vấn đề thường nằm ở Lượt hiển thị.</p>`;
     },
   },
   {

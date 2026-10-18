@@ -2,7 +2,7 @@
  * Post (D48 additions 6, P39-B): "TikTok Shop không ra đơn". Target queries:
  * "tiktok shop không ra đơn", "vì sao bán hàng trên tiktok shop không ra đơn",
  * "quảng cáo tiktok shop không ra đơn" (funnel angle only: read CTR / CTOR
- * before raising an ad budget; Juli does not run ads, D48.5). Metric facts are
+ * before raising an ad budget; no ad how-to, D48.5). Metric facts are
  * from TikTok Academy VN, "Lưu lượng truy cập sản phẩm" (17/06/2026); product
  * statuses from "Quản lý Sản phẩm" (27/08/2026); recommendation threshold and
  * shop operations from "Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 1"; the
@@ -10,7 +10,7 @@
  * price states from "Chẩn đoán giá"; listing rules from "Tiêu đề, mô tả, hình ảnh
  * và video về sản phẩm". Nothing here describes TikTok's ad products. Every
  * number in a "Ví dụ giả định" is hypothetical and says so; the data floors are
- * Juli's rule (docs/adr/106) and are labelled as such.
+ * an example the seller sets, not a TikTok rule. Reach tier (D59): no Juli.
  */
 export const body = `
 "Shop mở mấy tuần rồi mà không ra đơn", "tuần trước còn đều đơn, tuần này im hẳn", "chạy quảng cáo mà vẫn không ra đơn". Đây là những câu than quen thuộc nhất trong các nhóm nhà bán TikTok Shop. Lời khuyên đi kèm thường là một danh sách dài: đổi ảnh, giảm giá, đăng thêm video, chạy thêm quảng cáo, mời nhà sáng tạo. Mỗi lời khuyên có thể đúng với một shop, nhưng làm hết cùng lúc vừa tốn tiền vừa không cho bạn biết điều gì thật sự có tác dụng.
@@ -70,7 +70,7 @@ Phễu của từng sản phẩm nằm tại Trung tâm nhà bán hàng, mục L
 
 ### Chọn luồng truy cập
 
-Các chỉ số trên trang này xem được theo khía cạnh: Tất cả, LIVE của người bán, video của người bán, thẻ sản phẩm của người bán, Liên kết (LIVE và video của nhà sáng tạo tiếp thị liên kết) và Tab Cửa hàng. Juli gom thành năm luồng: Thẻ sản phẩm, Tab cửa hàng, Video, LIVE và Liên kết.
+Các chỉ số trên trang này xem được theo khía cạnh: Tất cả, LIVE của người bán, video của người bán, thẻ sản phẩm của người bán, Liên kết (LIVE và video của nhà sáng tạo tiếp thị liên kết) và Tab Cửa hàng. Bài này gom thành năm luồng: Thẻ sản phẩm, Tab cửa hàng, Video, LIVE và Liên kết.
 
 Khi chẩn đoán vì sao không ra đơn, hãy đọc luồng **thẻ sản phẩm** trước. Theo bài "Thẻ Sản Phẩm" của Học viện TikTok Shop, doanh thu không đến từ LIVE hay video được tính là doanh thu từ thẻ sản phẩm, tức khách tự tìm đến qua tìm kiếm, đề xuất, trang mua sắm. Đây là luồng phản ánh trung thực nhất chất lượng của chính trang sản phẩm, vì không có người dẫn LIVE hay nhà sáng tạo nào bán hộ. Các luồng nội dung được bàn riêng ở phần sau.
 
@@ -80,7 +80,7 @@ Với shop mới hoặc shop ít đơn, một ngày hay ba ngày là quá ngắn
 
 ### Đủ dữ liệu chưa
 
-Với 15 lượt nhấp, CTOR 0 % không có nghĩa là trang sản phẩm hỏng; nó có nghĩa là chưa đủ dữ liệu để kết luận. Juli dùng ngưỡng tối thiểu trên luồng thẻ sản phẩm, tính trung bình mỗi ngày trong cửa sổ đo: từ 50 lượt hiển thị để đọc CTR, từ 20 lượt nhấp để đọc CTOR. Đây là quy tắc của Juli, không phải quy định của TikTok. Dưới ngưỡng này, vấn đề gần như luôn nằm ở bước đầu tiên: sản phẩm chưa có đủ người nhìn thấy.
+Với 15 lượt nhấp, CTOR 0 % không có nghĩa là trang sản phẩm hỏng; nó có nghĩa là chưa đủ dữ liệu để kết luận. Hãy tự đặt một ngưỡng tối thiểu trên luồng thẻ sản phẩm, tính trung bình mỗi ngày trong cửa sổ đo, và giữ nguyên ngưỡng đó mỗi lần đọc. Ví dụ giả định: từ 50 lượt hiển thị mỗi ngày mới đọc CTR, từ 20 lượt nhấp mỗi ngày mới đọc CTOR. Đây là quy tắc bạn tự đặt, không phải quy định của TikTok. Dưới ngưỡng, vấn đề gần như luôn nằm ở bước đầu tiên: sản phẩm chưa có đủ người nhìn thấy.
 
 {{hinh:doc-pheu-o-dau}}
 
@@ -173,7 +173,7 @@ Mở hộp tin nhắn và phần đánh giá, liệt kê 5 câu hỏi khách hay
 
 ## Quảng cáo TikTok Shop không ra đơn: đọc phễu trước khi tăng ngân sách
 
-Nhiều người bán gặp tình huống: đã chạy quảng cáo, có lượt xem, có lượt nhấp, nhưng vẫn không ra đơn. Phản xạ thường gặp là tăng ngân sách, đổi nhóm đối tượng, hoặc đổi sang hình thức quảng cáo khác. Phần này không hướng dẫn cách chạy quảng cáo; Juli không chạy quảng cáo. Phần này chỉ nói về điều cần kiểm tra trên phễu trước khi quyết định chi thêm.
+Nhiều người bán gặp tình huống: đã chạy quảng cáo, có lượt xem, có lượt nhấp, nhưng vẫn không ra đơn. Phản xạ thường gặp là tăng ngân sách, đổi nhóm đối tượng, hoặc đổi sang hình thức quảng cáo khác. Phần này không hướng dẫn cách chạy quảng cáo, chỉ nói về điều cần kiểm tra trên phễu trước khi quyết định chi thêm.
 
 ### Quảng cáo mua thêm người xem, không sửa trang sản phẩm
 
@@ -227,8 +227,6 @@ Dùng bảng này cho từng sản phẩm quan trọng, theo thứ tự từ tr�
 | 9 | Đủ dữ liệu ở mỗi kỳ | Ghi "chưa đủ dữ liệu", đo tiếp |
 | 10 | Một thay đổi có ngày bắt đầu | Đo sau 7 và 14 ngày |
 
-{{hinh:checklist-khong-ra-don}}
-
 ## Những hiểu lầm thường gặp
 
 ### "Shop mới bị bóp traffic"
@@ -247,17 +245,26 @@ CTOR toàn shop là trung bình của năm luồng có hành vi khác nhau. Mộ
 
 Với sản phẩm vài đơn mỗi tuần, ba ngày không có đơn có thể chỉ là ngẫu nhiên. Hãy nhìn cửa sổ 14 đến 30 ngày và kiểm tra ngưỡng dữ liệu trước khi kết luận.
 
-## Juli AI giúp gì khi shop không ra đơn
+## Tự theo dõi phễu mỗi tuần
 
-Juli AI là trợ lý AI cho nhà bán TMĐT do chúng tôi phát triển, hiện kết nối TikTok Shop (Shopee đang tích hợp). Juli làm tự động phần chẩn đoán trong bài này:
+Phần chẩn đoán trong bài này làm được bằng một bảng tính và khoảng 20 phút mỗi tuần, với số liệu có sẵn trong Trung tâm nhà bán hàng. Điều quan trọng là làm đều, cùng một cách, để tuần này so được với tuần trước.
 
-- **Tìm bước nghẽn**: [phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop), tách GMV và đơn hàng theo năm luồng (Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết) và theo Lượt hiển thị × CTR × CTOR × AOV, kiểm tra ngưỡng dữ liệu và traffic loãng trước khi kết luận.
-- **Đề xuất cách sửa**: [đề xuất thay đổi cụ thể kèm lý do bằng số](/san-pham/de-xuat-va-thuc-thi). Juli chỉ ghi tiêu đề và mô tả sản phẩm lên shop sau khi bạn duyệt; các việc khác như giá, khuyến mãi hay ảnh là đề xuất để bạn tự quyết định.
-- **Đo lại**: [đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 (sơ bộ) và ngày 14 (chốt).
+1. **Chọn sản phẩm.** Lấy 5 đến 10 sản phẩm mang lại nhiều GMV nhất, cộng các sản phẩm mới đăng chưa có đơn.
+2. **Chép số của 7 ngày vừa qua** từ trang Lưu lượng truy cập sản phẩm, khía cạnh thẻ sản phẩm của người bán: Lượt hiển thị sản phẩm, Lượt nhấp vào sản phẩm, Tỷ lệ thêm vào giỏ hàng, Đơn hàng SKU.
+3. **Tự tính CTR và CTOR từ tổng cả tuần**, không lấy trung bình các tỷ lệ theo ngày.
+4. **Ghi cột "đủ dữ liệu"** theo ngưỡng bạn đã đặt ở phần đọc phễu.
+5. **Ghi cột "thay đổi"**: ngày bạn sửa ảnh, tiêu đề, mô tả, giá hay khuyến mãi của sản phẩm đó.
 
-{{hinh:pt-xep-hang}}
+Ví dụ giả định cho một sản phẩm qua hai tuần:
 
-Juli không chạy quảng cáo và không quản lý đơn hàng hay tồn kho. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop). Bạn có thể xem tổng quan tại trang [sản phẩm Juli AI](/san-pham), hoặc đọc thêm bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-tiktok-shop) để hiểu cách Juli tách GMV theo luồng.
+| Tuần | Lượt hiển thị | Lượt nhấp | CTR | Đơn hàng SKU | CTOR | Đủ dữ liệu | Thay đổi |
+|---|---|---|---|---|---|---|---|
+| 1 | 4.200 | 168 | 4,0 % | 5 | 3,0 % | Có | Không |
+| 2 | 4.410 | 150 | 3,4 % | 2 | 1,3 % | Có | Không |
+
+Đọc bảng này theo thứ tự của bài: Lượt hiển thị vẫn vậy, CTR giảm nhẹ, CTOR giảm mạnh. Bước cần xem là sau cú nhấp, và Tỷ lệ thêm vào giỏ hàng cho biết khách rời đi trước giỏ hay sau giỏ. Mỗi tuần chỉ khoanh một sản phẩm và một bước yếu nhất, sửa một thứ, ghi ngày bắt đầu, rồi đọc lại sau 7 và 14 ngày.
+
+Muốn ước tính một bước yếu đang làm mất bao nhiêu GMV, hãy nhập số của sản phẩm vào [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv): công cụ cho thấy phễu từng bước và GMV thay đổi ra sao khi một chỉ số tăng. Bài [GMV là gì? Cách tính và cách tăng GMV TikTok Shop](/blog/gmv-la-gi-tiktok-shop) giải thích đường đi từ GMV đến tiền về, còn bài [Doanh thu TikTok Shop giảm](/blog/doanh-thu-tiktok-shop-giam) đi qua trường hợp shop đang có đơn rồi tụt.
 
 ## Tóm tắt
 
@@ -267,5 +274,5 @@ Juli không chạy quảng cáo và không quản lý đơn hàng hay tồn kho.
 - CTOR thấp thì tách trước giỏ và sau giỏ bằng Tỷ lệ thêm vào giỏ hàng.
 - Quảng cáo không ra đơn: kiểm tra CTR và CTOR trước khi tăng ngân sách; sửa phễu trước, mua traffic sau.
 
-Nếu bạn muốn biết shop mình đang nghẽn ở bước nào mà không phải tự lập bảng tính, bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Nếu sản phẩm có người nhấp nhưng ít người mua, bài [Khách xem nhưng không mua](/blog/khach-xem-nhung-khong-mua-tiktok-shop) đi sâu vào phần sau cú nhấp; nếu sản phẩm gần như không ai thấy, xem bài [Sản phẩm TikTok Shop không có lượt hiển thị](/blog/san-pham-tiktok-shop-khong-co-luot-hien-thi).
 `;

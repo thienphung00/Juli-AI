@@ -12,9 +12,8 @@
  * phẩm" (17/06/2026, GMV incl. cancelled / refunded). Resolved: review window is
  * "1 ngày theo lịch" (15/10/2026 and 04/11/2025 pages; the 2024 FAQ said working
  * day). Left out: the SFCR order-limit (OVL) tier thresholds, which differ between
- * the Vietnamese page and the English multi-country page. Juli's part stays
- * within SPEC: GMV reading by stream, title / description proposals written
- * after approval, day-7 / day-14 measurement; no returns, disputes or logistics.
+ * the Vietnamese page and the English multi-country page. Reach tier (D59): no
+ * Juli; the weekly sheet uses only the Seller Center data named above.
  */
 export const body = `
 Khi đơn hủy và hoàn hàng tăng, việc đầu tiên là tách ra ba chuyện khác nhau: đơn bị hủy trước khi giao, đơn giao không thành công rồi quay về shop, và đơn khách đã nhận rồi yêu cầu trả hàng, hoàn tiền. TikTok Shop theo dõi mỗi loại bằng một chỉ số riêng, với hạn xử lý và chi phí riêng, nên gộp chung thành "tỷ lệ hoàn hàng" sẽ không chỉ ra được phải sửa gì. Tách xong, bạn mới biết shop đang tăng ở loại nào, ở sản phẩm nào, và phần nào nằm trong tay mình.
@@ -136,16 +135,16 @@ Không có trang chính thức nào công bố tỷ lệ hủy hay hoàn "bình 
 
 Trang sản phẩm thiếu thông tin cũng làm khách nhấp vào mà không mua, xem bài [TikTok Shop không ra đơn](/blog/tiktok-shop-khong-ra-don); sản phẩm ít người thấy thì xem bài [Sản phẩm TikTok Shop không có lượt hiển thị](/blog/san-pham-tiktok-shop-khong-co-luot-hien-thi).
 
-## Juli AI giúp được phần nào
+## Bảng theo dõi hủy và hoàn mỗi tuần
 
-**Juli không xử lý** đơn hủy, yêu cầu trả hàng, hoàn tiền, khiếu nại, vận chuyển hay kho; những việc đó bạn làm trong Trung tâm nhà bán hàng. Juli AI là trợ lý AI vận hành TMĐT cho nhà bán, hiện kết nối TikTok Shop (Shopee đang tích hợp), và giúp ở hai chỗ:
+Ba loại đơn ở đầu bài chỉ tách được nếu bạn ghi chúng riêng. Một bảng tính cập nhật mỗi tuần từ Trung tâm nhà bán hàng là đủ:
 
-- **Đọc GMV cho đúng.** [Phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop) tách GMV theo luồng và sản phẩm. GMV ở đây theo định nghĩa của TikTok, gồm cả đơn hủy và hoàn tiền, nên nó là thước đo nhu cầu, không phải tiền thực nhận; tiền thực nhận vẫn đọc ở mục Tài chính.
-- **Sửa thông tin sản phẩm, có duyệt.** Khi lý do trả hàng chỉ ra trang sản phẩm (không đúng mô tả, sai kích thước), Juli có thể [đề xuất tiêu đề và mô tả mới](/san-pham/de-xuat-va-thuc-thi), ví dụ thêm bảng kích thước, chất liệu, cách dùng. Juli chỉ ghi lên shop sau khi bạn xác nhận, và thay đổi hoàn tác được. Sau đó Juli [đo tác động lên GMV](/san-pham/do-luong-gmv) ở ngày 7 và ngày 14.
+1. **Ba nhóm cột, mỗi loại một nhóm**: đơn hủy, đơn giao không thành công, yêu cầu trả hàng và hoàn tiền. Với mỗi nhóm, ghi số đơn và lý do đứng đầu.
+2. **SFCR và SFRR** đúng như trang chỉ số hiển thị, cạnh mục tiêu của TikTok (dưới 2,5% và dưới 1,5%).
+3. **Một dòng cho mỗi sản phẩm** đứng đầu trong mục Chi tiết của SFRR, kèm lý do trả hàng chính.
+4. **Một cột thay đổi**: ngày bạn sửa mô tả, ảnh, bảng kích thước, cách đóng gói hay đơn vị vận chuyển.
 
-{{hinh:dx-xac-nhan-mo-ta}}
+Ví dụ giả định: trong ba tuần liền, cùng một chiếc áo đứng đầu danh sách trả hàng với lý do sai kích thước. Việc đầu tiên là thêm bảng kích cỡ có số đo vào mô tả và ảnh, ghi ngày sửa, rồi theo dõi số yêu cầu trả hàng của riêng sản phẩm đó trong các tuần sau. Vì hoàn tiền được ghi vào lúc yêu cầu được xử lý, hãy đọc kết quả sau vài tuần, không đọc ngay tuần sau.
 
-Juli không hứa giảm tỷ lệ hoàn hay tỷ lệ hủy. Dữ liệu được đọc qua [kết nối chính thức với TikTok Shop](/ket-noi/tiktok-shop); tổng quan sản phẩm ở trang [Juli AI](/san-pham).
-
-Nếu bạn muốn biết sản phẩm và luồng nào đang kéo GMV xuống, và để Juli đề xuất mô tả rõ hơn cho những sản phẩm khách hay trả vì "không đúng mô tả", bạn có thể [đăng ký dùng thử Juli AI](/dang-ky) và kết nối shop khi sẵn sàng.
+Cách viết mô tả trả lời đúng câu hỏi khách hay hỏi có trong bài [Mô tả sản phẩm TikTok Shop](/blog/mo-ta-san-pham-tiktok-shop). Để xem một đơn còn lại bao nhiêu sau phí và hoàn, đối chiếu với ví dụ trong bài phí sàn ở trên.
 `;
