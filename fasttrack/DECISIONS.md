@@ -1660,3 +1660,22 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   6. **Time box (P6 A):** deadline evening 2026-10-19, in the P1 order; unfinished weaknesses move to
      the next round; morning of 2026-10-20: score the development-test fold once and re-present Gate
      C; FastMoss snapshot 2 is frozen on arrival and scored only after Gate C.
+
+- **D59** — Two tiers of blog content and a unique hero per post (owner, 2026-10-18; amends D56).
+  1. **Low-level = reach** (search intent, top of funnel): `format` pain and news. **No mention of
+     Juli** in body, FAQ, figures or meta; no Juli UI screenshots ("Dữ liệu mẫu" `cap-*`), no
+     feature descriptions, no links to `/san-pham*`, `/ket-noi/*`, `/dang-ky` or the demo. The
+     page's end-of-post CTA becomes a neutral box (free GMV calculator `/cong-cu/tinh-gmv`, related
+     posts); site header and footer stay. Posts: the 13 pain posts (incl. pre-D56
+     `tiktok-shop-khong-ra-don`, `doanh-thu-tiktok-shop-giam`) and the 3 news posts.
+  2. **High-level = conversion**: Juli how-to / feature guides, "the specific problem Juli solves"
+     posts, and TMĐT expertise pillars (`gmv-la-gi-tiktok-shop`, `chi-so-tiktok-shop-ctr-ctor-aov`,
+     `toi-uu-the-san-pham-tiktok-shop`), the tools hub and the analytics-tools comparison. These
+     may describe Juli and show its UI, within SPEC. New `format: "guide"` for Juli how-to posts.
+     The two Juli-free comparison posts (đa kênh, AI ảnh/video) stay as they are.
+  3. **Hero images**: every post gets its own hero, distinct in composition and colour, not a Juli
+     UI and not a shared motif; rendered with a new still in `juli-content-engine`
+     (Remotion, Be Vietnam Pro with the Vietnamese subset, site tokens), then converted into the
+     landing cover variants (600 / 1200 at 16:9, OG 1200 × 630).
+  Work: P48-A tiers in code + neutral CTA + tests; P48-B/C strip Juli from the reach posts;
+  P48-H heroes (content engine + landing); then high-level guides (P49).

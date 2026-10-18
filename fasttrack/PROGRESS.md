@@ -263,6 +263,14 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | P47 `group_net` (shop orders → per product-day cancel / refund shares → net analytics rows); Ops group AOV / items per order / replay / guard / EB on net values when the shop's orders cover days −42 … 13, TikTok-GMV reading stored beside (`gross`); card-group primary + seller sentence unchanged (`net` beside it); Ops labels "đã trừ huỷ/hoàn" / "gồm đơn huỷ/hoàn, theo TikTok", plan line "Doanh thu (đã trừ huỷ/hoàn)" vs "GMV TikTok (gồm huỷ/hoàn)"; Ops guide §5.5 (three TikTok definition notes). No migration | D55.1 | done on branch `fasttrack/gmv-net` — not merged, not deployed | P47 agent (Opus) |
 
+## P48 — reach vs conversion tiers, unique heroes (D59)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P48-A `tier` in code, neutral end-of-post CTA for reach posts, tests | D59.1, D59.2 | in progress, branch `fasttrack/p48a-tiers` | agent |
+| P48-B/C Remove Juli from the 16 reach posts (body, FAQ, figures, links) | D59.1 | todo (after P48-A) | agents |
+| P48-H Unique hero per post: content-engine still + landing covers | D59.3 | in progress (content engine first) | agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
