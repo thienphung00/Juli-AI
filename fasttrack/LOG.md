@@ -3055,3 +3055,39 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   real result text of the D34 group experiment (Ops / shops with groups only), accurate, not
   public content. Pre-existing backend failure `test_cross_tenant_probe` (demo runs events 404)
   fails without these changes too.
+
+## 2026-10-18 · P53-C2 remove the three legacy demo routes (owner C2) (agent: Claude Opus, branch `fasttrack/rm-legacy-routes`)
+- Branch from `fasttrack/optimize-product` 1f7dfe64. Not merged, not pushed.
+- **Closure** by a TypeScript import graph (`ts.resolveModuleName`, every `app/**` page / layout /
+  route / robots + `middleware.ts` + `next.config.ts` as live roots): 38 files reachable only from
+  the 3 pages; removed 37 (kept `repeat-consent-block.tsx`, consent / TOO-RISKY) plus 4 dead
+  components that imported the closure (`recommendations-view`, `recommendations-panel`,
+  `settings-thresholds-panel`, `settings-workflow-list`), `lib/run-surface/run-id.ts` (only user left
+  was demo-shell's run branch) and `scripts/verify-replay-scenario-in-build.mjs` (checked the removed
+  golden scenario; dropped from `build`). 106 shared modules stay (`lib/workflows/*`, `lib/reviews`,
+  `lib/executions`, `lib/recommendations`, `lib/run-ledger/{api-client,copy,…}`,
+  `lib/run-surface/{reduce-run-view,option-diff,use-run-stream,confirmation-*}`, `lib/analytics/{api-client,
+  analytics-data-context,fallback-envelope,main-kpis}`, `lib/repeat-consent`, `lib/plan-caveats`, …).
+  Non-test: 46 files, −7,156 lines; tests / e2e: −13,106 lines.
+- **Links**: no live UI, landing page, backend / email copy or sitemap points at the 3 paths
+  (git grep; robots allows all, no sitemap; middleware has no rule for them), so no redirect: they
+  now 404. `lib/recommendations.ts` `buildRecommendationDetailHref` removed (only user deleted).
+- **demo-shell**: `RUN_DETAIL_PATH_PATTERN` / run-focus branch removed; test now pins that the
+  retired run path gets the full shell. `replay-module-graph.test.ts` entries for the review page and
+  `replay-run-detail` removed (remaining signed-out entries unchanged, still green).
+- **Tests**: 46 test files deleted (only covered removed code); trimmed to their live parts:
+  `demo-shell`, `destination-naming`, `dictionary-and-banned-pattern-coverage`, `repeat-consent`
+  (pure eligibility / gates), `recommendations-copy-guard` (fixture guard, now `.ts`),
+  `recommendations-routing`. e2e: `decisions-journey`, `replay-fixture-presence`,
+  `replay-run-accessibility`, `replay-run-journey`, `fixtures/{replay-scenario,workflow-keys}`,
+  `helpers/workflow-journey` deleted (`resetDemo` moved to `helpers/demo-navigation`);
+  `accessibility.spec` drops the review-route test. `tests/unit/test_phase_2_6_demo_exit_gate.py`
+  no longer requires `decisions-journey.spec.ts`.
+- **Route inventory** (`next build`): 25 → 22, the diff is exactly the 3 routes; API route
+  `/api/tt/event` unchanged.
+- Gates (Node 20): demo tsc 0, lint 0 errors (1 old warning), vitest 117 files / 1157 (was 159 /
+  1992), `@juli/ui` + `@juli/utils` tests green, `build:demo` OK (placeholder Supabase env),
+  Playwright `e2e/exit-gate` 62 passed / 2 failed — the pre-existing `responsive-parity` wordmark
+  label (DEBT P53-C2), not touched here. `fasttrack/check.sh --since fasttrack/optimize-product` OK on a
+  throwaway Postgres 16 (UTC): migrations, isolation 12, gitleaks, ruff, pytest 15.
+

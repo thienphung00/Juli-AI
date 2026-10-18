@@ -303,6 +303,12 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | Demo app + backend card copy, recapture (with P51-A) | D61 | done on branch `fasttrack/p51a-sample-data` (84dfaa0f copy, 524da0d6 recapture) | P51-A agent |
 | P52-D Leftovers: figure / page alts match the recaptured shots, sample reasons without peer median, SM-012 CTOR card proposes Mô tả only, 4 shots recaptured | D60.1, D61 | done on branch `fasttrack/p52d-leftovers` (not merged) | agent |
 
+## P53-C2 — remove the three legacy demo routes (owner C2, 2026-10-18)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Remove `/decisions/in-progress/[executionId]`, `/decisions/recommendations/[recommendationId]`, `/settings/workflows/[workflowKey]` and their import-graph closure; demo-shell run framing; tests / e2e | C2 (audit apps.md items 6–7, TOP 15 #2, #3, #7–#11) | done on branch `fasttrack/rm-legacy-routes` (not merged) | agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

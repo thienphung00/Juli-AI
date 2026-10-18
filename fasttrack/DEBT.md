@@ -1137,3 +1137,27 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 - **Trial sign-up purge job (D60.4, D43 additions 3)**: sign-ups that do not become customers must
   be deleted after 12 months; no job exists yet. Due before 10/2027 (first sign-ups 10/2026). Another session's branch `fasttrack/p50b-privacy-api` adds a Postgres purge; check whether it covers `trial_signups` before building one.
+
+## P53-C2 — legacy routes removed (2026-10-18)
+
+- [ ] `lib/workflows/*` (11 folders), `lib/reviews.ts`, `lib/plan-reviews.ts`, `lib/executions.ts`,
+  `lib/recommendations.ts` stay: `components/demo-state.tsx` still imports them (mock execution
+  records, replenish payloads). Phase 2: cut demo-state's dependency, then delete them.
+- [ ] `RepeatConsentBlock` (`components/repeat-consent-block.tsx`) is mounted nowhere now (its only
+  hosts were the in-progress detail view and `InProgressPanel`); kept with `lib/repeat-consent.ts`
+  because consent code is TOO-RISKY. Its rendered tests went with the hosts; the pure eligibility /
+  gate tests stay. Owner: delete or re-host.
+- [ ] `globals.css` still carries rules for removed components (`.option-picker*`, `.run-*`,
+  `.app-shell--run`, `.app-content--run`, `.demo-plan*`, `.demo-review*`, `.repeat-consent*` …) and
+  imports `@juli/theme/run-surface-tokens.css`; nothing in the demo sets `data-juli-surface="run"`
+  any more. Prune with a CSS-coverage pass (TOP 15 #10 css part).
+- [ ] `packages/ui` `RecommendationCard` has no app consumer now (only its own test).
+- [ ] Still-orphan demo files not touched here (no closure dependency, audit TOP 15 #4–#6):
+  `decision-evidence-block.tsx`, `lib/decision-evidence.ts`, `home-activity-tracker.tsx`,
+  `impact-reading-figure.tsx`, `lib/impact-provenance.ts`, `lib/shop-analysis/sample-*.json`.
+- [ ] Pre-existing, not from P53: `e2e/exit-gate/responsive-parity.spec.ts:69` expects the rail
+  wordmark link "Juli — Trang chủ"; 5e981b18 renamed it to "Juli: Trang chủ" (em-dash sweep), so the
+  test fails on desktop and mobile-web. One-line spec fix.
+- [ ] `agent-runtime/config/slice-routing.yml` (lines 915, 1724) still lists the deleted
+  `e2e/exit-gate/decisions-journey.spec.ts` under `loadWhenNeeded` (harmless hint, no test reads it).
+

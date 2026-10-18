@@ -10,7 +10,6 @@ import {
   DEFAULT_MUTABLE_MOCK_STATE,
   useDemoState,
 } from "../components/demo-state";
-import { DestinationPlaceholder } from "../components/destination-placeholder";
 import { shopInitials, shopSubline } from "../components/app-shell/shop-header";
 import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
 
@@ -295,49 +294,7 @@ describe("Shop-avatar menu", () => {
   });
 });
 
-describe("Placeholders inside the shell", () => {
-  it("labels preview content truthfully without trapping navigation", () => {
-    render(
-      <DemoShell>
-        <DestinationPlaceholder
-          title="Phân tích"
-          description="KPI sẽ xuất hiện trong lát cắt Phân tích tiếp theo."
-        />
-      </DemoShell>,
-    );
-
-    expect(screen.getByRole("status", { name: "Phân tích" })).toHaveTextContent(
-      "lát cắt Phân tích tiếp theo",
-    );
-    expect(screen.getByRole("link", { name: "Về Trang chủ" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
-  });
-
-  it("keeps loading, empty, and error placeholders truthful and recoverable", () => {
-    for (const [state, expectedLabel] of [
-      ["loading", "Đang tải"],
-      ["empty", "Chưa có dữ liệu"],
-      ["error", "Chưa thể tải nội dung"],
-    ] as const) {
-      const { unmount } = render(
-        <DemoShell>
-          <DestinationPlaceholder
-            title="Phân tích"
-            description="Dữ liệu mẫu tạm thời chưa sẵn sàng."
-            recoveryHref="/"
-            recoveryLabel="Về Trang chủ"
-            state={state}
-          />
-        </DemoShell>,
-      );
-
-      const placeholder = screen.getByText(expectedLabel).closest("section");
-      expect(placeholder).toHaveTextContent("Dữ liệu mẫu tạm thời chưa sẵn sàng.");
-      expect(screen.getByRole("link", { name: "Về Trang chủ" })).toHaveAttribute("href", "/");
-      unmount();
-    }
-  });
-
+describe("Shell stylesheet", () => {
   it("the stylesheet keeps the rail ↔ bottom-bar switch at 768px, touch targets, focus-visible and reduced motion", () => {
     const css = readFileSync("src/app/globals.css", "utf8");
 
@@ -350,28 +307,10 @@ describe("Placeholders inside the shell", () => {
   });
 });
 
-describe("Run route framing (#1910) — the run owns the region right of the rail", () => {
-  const RUN_PATH = "/decisions/in-progress/00000000-0000-0000-0000-00000000b453";
-
-  it("sheds the shop header and the feedback region on the run route", () => {
-    vi.mocked(usePathname).mockReturnValue(RUN_PATH);
-    const { container } = render(<DemoShell>Nội dung luồng</DemoShell>);
-
-    expect(container.querySelector(".shop-header")).toBeNull();
-    expect(screen.queryByRole("status", { name: "Phản hồi Demo" })).toBeNull();
-    expect(screen.getByText("Nội dung luồng")).toBeInTheDocument();
-  });
-
-  it("KEEPS the nav rail on the run route — owner amendment 2026-09-14; removing it would strand the seller", () => {
-    vi.mocked(usePathname).mockReturnValue(RUN_PATH);
-    render(<DemoShell>Nội dung luồng</DemoShell>);
-
-    expect(screen.getByRole("navigation", { name: "Điều hướng chính" })).toBeInTheDocument();
-  });
-
-  it("keeps the full shell on a legacy mock execution detail and on every destination", () => {
+describe("No run-focus framing (P53): the legacy run route is gone, every page gets the full shell", () => {
+  it("keeps the shop header and the nav on every destination and on the retired run path", () => {
     for (const pathname of [
-      "/decisions/in-progress/exec-optimize-1",
+      "/decisions/in-progress/00000000-0000-0000-0000-00000000b453",
       "/decisions",
       "/analytics",
       "/settings",

@@ -46,10 +46,6 @@ export interface RecommendationFixture {
  * docstring for the full reasoning.
  */
 
-export function buildRecommendationDetailHref(workflowKey: string): string {
-  return `/decisions/recommendations/${workflowKey}`;
-}
-
 export function buildDecisionsHighlightHref(workflowKey: string): string {
   return `/decisions?highlight=${encodeURIComponent(workflowKey)}`;
 }
