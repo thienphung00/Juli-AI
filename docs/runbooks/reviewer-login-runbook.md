@@ -1,5 +1,9 @@
 # Reviewer login runbook — App Review (#260)
 
+> **HISTORICAL (2026-10-18).** The UI-only reviewer login described here lived in the
+> old `apps/dashboard`, deleted in fast-track P53 (C1); `build-frontend-review.sh` went
+> with it. Reviewer access now lives in `apps/demo` (`lib/reviewer/*`).
+
 > **Parent:** [#249](https://github.com/thienphung00/Juli-AI/issues/249) · **Issue:** [#260](https://github.com/thienphung00/Juli-AI/issues/260)  
 > **Prerequisites:** [#257](frontend-deploy-runbook.md) (frontend) · [#258](backend-deploy-runbook.md) (backend)  
 > **Next:** [#254](https://github.com/thienphung00/Juli-AI/issues/254) (E2E verification)

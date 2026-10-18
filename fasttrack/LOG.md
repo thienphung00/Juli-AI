@@ -1989,3 +1989,40 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   fasttrack/optimize-product` OK on a throwaway Postgres 16 (UTC, port 55491, dropped after):
   migrations, isolation 12, gitleaks, ruff 16 files, pytest 19 files / 362. Demo / landing not
   touched (no file under apps/demo, apps/landing, packages changed).
+
+## 2026-10-18 · P53-C1 delete apps/dashboard (owner C1) (agent: Claude Opus, branch `fasttrack/rm-dashboard`)
+
+- Re-verified nothing deployed builds or serves it: not in `deploy.sh` lanes,
+  `fasttrack-deploy.yml`, `release.yml` matrix or `build-release-artifact.sh` DEPLOYABLES; no
+  nginx vhost or `server_name` for it (`dashboard.app-juli.com` exists only in old docs; no
+  config); not a pnpm workspace member and absent from `pnpm-lock.yaml` (lockfile unchanged,
+  `pnpm install --frozen-lockfile --offline` OK). Live only via pr.yml `frontend` job (+ its
+  `dashboard` path filter, dependency-validation npm step, status-check / deployment-checks
+  wiring), dependabot npm entry, `build-frontend-review.sh` / `provision-frontend.sh`, root
+  `dev:dashboard` / `setup`, `.claude/launch.json`, and ~10 Python tests.
+- Removed: `apps/dashboard/` (345 tracked files, ~2.0 MB source, 2.7 MB on disk), the two VPS
+  review scripts, `tests/unit/test_phase_2_5_frontend_deploy.py`, the pr.yml `frontend` job
+  and every `dashboard` output/needs/require, the dependabot npm entry, root `dev:dashboard`,
+  `setup` → `pnpm install`, launch config, gitignore line, clean-local paths, the
+  public-release classifier prefix. Tests updated to guard the deletion instead (343, 397,
+  main-domain, 2.5 docs/reviewer/workspace, three-tier CI, public-release).
+- Docs: README, apps/README, infra READMEs, nginx comment, architecture map/MODULES (dead
+  links unlinked), agent skills/rules (.claude/.cursor; `sync_claude_skill_pointers.py`
+  regenerates the same pointers), runbooks with a HISTORICAL banner. ADRs, product docs,
+  handoffs, artifacts, slice routing left as records. Ratchet `check`: same 292 violations as
+  1f7dfe64, no new ones.
+- Kept on purpose (VPS-live, see DEBT P53-C1): `juli-web.service`, `web.env.example`, and the
+  `juli-web` lines in fetch/refresh-secrets and rollback-release.
+- Gates (Node 20, placeholder Supabase env): check:demo — lint 0 errors (7 old warnings), tsc,
+  vitest 159 files / 1992, ui + utils tests, build OK; check:landing — lint 0 errors (2 old
+  warnings), tsc, vitest 19 / 767, build OK. Under Node 26 both suites fail on localStorage
+  (pre-existing, environment). `apps/demo`, `apps/landing`, `apps/connector`, `packages/`,
+  `pnpm-lock.yaml`, `turbo.json`: zero diff; route files identical (demo 24, landing 20).
+- check.sh --since fasttrack/optimize-product (throwaway PG16, UTC, port 55473, dropped
+  after): OK — migrations up/down/up at 093, isolation 12, gitleaks, ruff 12 files, pytest
+  8 files / 107. Two ruff-format fixes were whole-file formatting of touched files
+  (`public_release_classification.py`, `sync_claude_skill_pointers.py`).
+- tests/unit (no DATABASE_URL): 18 failed / 7515 passed / 3 errors; all pre-existing or
+  flaky (agent_workflow_task_wiring ×7, cross_tenant_probe, destructive_migration_isolation,
+  ratchets suppression baseline, import_boundaries baseline, test_quality / quality_reconcile
+  ×6 fail on the base too; credentials_in_url ×2 and onboarding_speed pass alone).

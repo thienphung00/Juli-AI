@@ -2,7 +2,7 @@
 name: ui-ux-executor
 description: >-
   Executor Agent domain skill for web and iOS UI work. Use when implementing
-  GitHub issues that touch apps/dashboard, apps/demo, ios/, shared packages,
+  GitHub issues that touch apps/demo, apps/landing, ios/, shared packages,
   components, pages, forms, or visual interaction behavior.
 ---
 
@@ -15,7 +15,7 @@ Interface work for Juli web apps and iOS. TDD + artifact handoff:
 
 | Signal | Also load |
 |--------|-----------|
-| `apps/dashboard` / `apps/demo` route or component | `ui-ux-design`, `nextjs`, `react-best-practices` |
+| `apps/demo` / `apps/landing` route or component | `ui-ux-design`, `nextjs`, `react-best-practices` |
 | shadcn registry primitive | `shadcn` (registry adds only) |
 | Copy / visual language | `dictionary.md`, `docs/product/design/` |
 | `ios/` SwiftUI | [`swift-patterns`](../testing-patterns/swift-patterns.md), `ios/MODULE.md` |
@@ -28,7 +28,7 @@ loading/empty/error states, a11y, Vietnamese copy with diacritics, SwiftUI views
 **Does not own:** **`backend`** — `/v1/*` routes, scoring, auth; **`integrations`** —
 vendor clients/webhooks/backfill; **`data-platform`** — schema, migrations, ETL.
 
-Primary apps: `apps/dashboard` (live), `apps/demo` (workflow demo). Legacy `web/` removed.
+Primary apps: `apps/demo` (demo + ops), `apps/landing` (public site). Legacy `web/` and `apps/dashboard` removed.
 Shared: `packages/ui`, `packages/theme`, `packages/contracts`. iOS: `ios/`.
 
 ## Required context
@@ -39,8 +39,8 @@ Shared: `packages/ui`, `packages/theme`, `packages/contracts`. iOS: `ios/`.
 
 ## Juli recipes
 
-**Dashboard** — `apps/dashboard/src/app/` file routes; Server Components default;
-`'use client'` for interactivity; `<Suspense>` + skeletons; `@/` alias per Jest config.
+**Landing** — `apps/landing/src/app/` file routes; Server Components default;
+`'use client'` for interactivity.
 
 **Demo** — `apps/demo/src/app/` workflow slices; Vitest + RTL in `src/__tests__/` and
 colocated `__tests__/`.
@@ -55,7 +55,7 @@ Keychain/JWT rules in `ios/MODULE.md`.
 
 ## Domain test surfaces
 
-- Dashboard: Jest + RTL — `apps/dashboard/src/__tests__/**/*.test.{ts,tsx}`
+- Landing: Vitest + RTL — `apps/landing/src/**/__tests__/*`
 - Demo: Vitest + RTL — `apps/demo/src/**/__tests__/*`
 - a11y: `getByRole` first; jest-axe when AC requires it
 - E2E: Playwright only when issue scopes browser E2E
@@ -74,8 +74,7 @@ Schema: [`implementation-artifact.schema.json`](../../../agent-runtime/docs/sche
 
 ## Validation & must not
 
-Dashboard: `npm run lint`, `type-check`, `test` in `apps/dashboard/`. Demo: same in
-`apps/demo/`. Map AC → named test. For visually-facing changes, capture rendered
+`pnpm check:demo` / `pnpm check:landing` (lint, type-check, test, build). Map AC → named test. For visually-facing changes, capture rendered
 screenshots per `ui-ux-design` § Visual check and reference their paths in the
 implementation artifact. No vendor clients, backend `/v1` routes, schema/ETL
 changes, or ship/validate — hand off to Review Agent.

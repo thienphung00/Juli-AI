@@ -123,7 +123,7 @@ else
     done < <(printf '%s' "${login_html}" | grep -oE '/_next/static/chunks/[^"]+\.js' | sort -u)
 
     if [ "${login_demo_ok}" != true ]; then
-        bad "login did not serve demo entry markers in any client chunk (rebuild with ./infra/scripts/build-frontend-review.sh)"
+        bad "login did not serve demo entry markers in any client chunk (redeploy the landing lane: infra/scripts/deploy.sh)"
     else
         ok "login serves demo entry"
     fi
@@ -136,7 +136,7 @@ else
     else
         home_chunk_code="$(curl -s -o /dev/null -w '%{http_code}' "https://${APP_DOMAIN}${home_page_chunk}")"
         if [ "${home_chunk_code}" != "200" ]; then
-            bad "home chunk ${home_page_chunk} returned ${home_chunk_code} (stale build — run ./infra/scripts/build-frontend-review.sh && sudo systemctl restart juli-web)"
+            bad "home chunk ${home_page_chunk} returned ${home_chunk_code} (stale build — redeploy the landing lane: infra/scripts/deploy.sh)"
         else
             ok "home route chunk loads"
         fi
@@ -152,7 +152,7 @@ else
         fi
     done < <(printf '%s' "${home_html}" | grep -oE '/_next/static/chunks/[^"]+\.js' | sort -u)
     if [ -n "${stale_chunk}" ]; then
-        bad "home HTML references stale chunk ${stale_chunk} (rebuild with ./infra/scripts/build-frontend-review.sh)"
+        bad "home HTML references stale chunk ${stale_chunk} (redeploy the landing lane: infra/scripts/deploy.sh)"
     else
         ok "all home JS chunks return 200"
     fi

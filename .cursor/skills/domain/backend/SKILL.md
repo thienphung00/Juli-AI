@@ -28,7 +28,7 @@ product services (scoring, copy, action cards, aggregates, execution, alerts,
 feedback, operations), Celery workers for product orchestration.
 
 **Does not own:** **`integrations`** (vendor I/O), **`data-platform`** (schema/repos/ETL),
-**`machine-learning`** (`backend/src/juli_backend/ai/`), **`ui-ux`** (`apps/dashboard`, `apps/demo`).
+**`machine-learning`** (`backend/src/juli_backend/ai/`), **`ui-ux`** (`apps/demo`, `apps/landing`).
 
 ## Required context + load map
 

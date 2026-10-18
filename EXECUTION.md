@@ -217,8 +217,8 @@ backend runtime in `backend/`. (**Superseded 2026-07-10:** `web/` was consolidat
 `apps/dashboard/`; the `web/` directory is now empty.)
 Sign-off: [`docs/runbooks/smoke-checklist-runbook.md`](docs/runbooks/smoke-checklist-runbook.md).
 
-**Naming collision:** Top-level `apps/` holds product deployables (landing, demo, dashboard,
-mobile). Backend entrypoints live under `backend/api/` and `backend/workers/` — not top-level
+**Naming collision:** Top-level `apps/` holds product deployables (landing, demo, connector;
+`apps/dashboard` was deleted in fast-track P53). Backend entrypoints live under `backend/api/` and `backend/workers/` — not top-level
 `apps/`. See [`architecture/migration-plan.md`](docs/architecture/migration-plan.md).
 
 ### Exit gate → Phase 3

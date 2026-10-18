@@ -322,6 +322,12 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | B6 LEGACY markers: `ios/`, `agent-runtime/`, `EXECUTION.md`, `Design-md/`, test-only backend modules | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
 | B7 Archive LOG / DECISIONS / closed DEBT before 2026-10-12 to `fasttrack/archive/` | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
 
+## P53-C1 — delete apps/dashboard (owner C1, 2026-10-18)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Delete `apps/dashboard` + its CI job, dev scripts, review/provision scripts, guarding tests; docs marked historical | audit C1 | done on branch `fasttrack/rm-dashboard` (not merged) | agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

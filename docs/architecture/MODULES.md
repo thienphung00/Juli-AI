@@ -129,7 +129,7 @@ registry.
 ## 1. Frontend
 
 - **Status:** as-built
-- **Path:** `apps/demo`, `apps/dashboard`, `packages/{theme,ui,utils,contracts}`, `ios/`
+- **Path:** `apps/demo`, `apps/landing`, `packages/{theme,ui,utils,contracts}`, `ios/` (`apps/dashboard` deleted in fast-track P53)
 - **Purpose:** Seller-facing and public UI surfaces (web + iOS) over shared design tokens
   and contracts.
 - **Goals:**
@@ -146,7 +146,7 @@ registry.
 - **Related EXECUTION slices:** Phase 2.6 / 2.7 / 2.10 / 3 / 3.5 frontend themes
 - **Out of scope:** Backend scoring logic; TikTok HTTP client internals; Seller Center scraping UI.
 - **Links:** [`map.md`](map.md) · [`apps/demo/MODULE.md`](../../apps/demo/MODULE.md) ·
-  [`apps/dashboard/MODULE.md`](../../apps/dashboard/MODULE.md) · ADR-014, ADR-023, ADR-024,
+  `apps/dashboard/MODULE.md` *(deleted, fast-track P53)* · ADR-014, ADR-023, ADR-024,
   ADR-025, ADR-037, ADR-038
 
 ### 1.1 Demo (`apps/demo`)
@@ -159,9 +159,9 @@ registry.
 - **Features:** Shipped four-destination shell; **Planned:** 2.10-A Analytics wire;
   2.10-B Decisions wire (Home/Settings stay mock); Phase 3 Sign-in.
 
-### 1.2 Dashboard (`apps/dashboard`)
+### 1.2 Dashboard (`apps/dashboard`) — historical
 
-- **Status:** as-built · **Path:** `apps/dashboard`
+- **Status:** deleted from the repo in fast-track P53 (C1, 2026-10-18); retired from production by #842/#891 · **Path:** `apps/dashboard` (git history only)
 - **Purpose:** Seller dashboard / App Review web surface; workflows and decision UI heritage.
 - **Goals:** TBD (Architect) relative to Demo consolidation in later phases.
 - **Features:** Shipped workflow panels + App Review paths; Planned Phase 3.5 production app role.

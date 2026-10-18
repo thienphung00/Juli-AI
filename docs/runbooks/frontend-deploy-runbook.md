@@ -1,5 +1,10 @@
 # Frontend deploy runbook — App Review (#257)
 
+> **HISTORICAL (2026-10-18).** This runbook deploys the old `apps/dashboard` (`juli-web`).
+> The dashboard was retired from production by #842 and deleted from the repo in
+> fast-track P53 (C1), together with `build-frontend-review.sh` and `provision-frontend.sh`.
+> `app-juli.com` now serves `apps/landing`; see `infra/scripts/deploy.sh`.
+
 > **Parent:** [#249](https://github.com/thienphung00/Juli-AI/issues/249) · **Issue:** [#257](https://github.com/thienphung00/Juli-AI/issues/257)  
 > **Prerequisite:** [#256](https://github.com/thienphung00/Juli-AI/issues/256) — DNS, Nginx, and HTTPS wired  
 > **Next:** [#258](backend-deploy-runbook.md) (backend) → [#254](https://github.com/thienphung00/Juli-AI/issues/254) (E2E)

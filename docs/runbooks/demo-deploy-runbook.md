@@ -54,7 +54,7 @@ in-flight request is dropped.
 
 | Surface | Service | Port |
 |---------|---------|------|
-| `app-juli.com` | `juli-web` | 3000 |
+| `app-juli.com` | `juli-landing` (was `juli-web` until #842) | 3007 / 3027 (candidate) |
 | `api.app-juli.com` | `juli-api` | 8000 |
 | `demo.app-juli.com` | `juli-demo` | 3001 / 3021 (alternating) |
 

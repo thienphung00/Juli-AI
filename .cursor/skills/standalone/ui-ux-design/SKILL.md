@@ -3,12 +3,12 @@ name: ui-ux-design
 description: >-
   Builds production-grade Next.js UI for Juli product apps with strong UX,
   accessibility, and brand consistency. Use when creating or refining components,
-  pages, dashboards, forms, modals, or layouts under apps/demo or apps/dashboard,
+  pages, dashboards, forms, modals, or layouts under apps/demo or apps/landing,
   or when the user asks to improve how something looks or feels.
 catalog:
   pluginIndex: skill-catalog
   loadWhen:
-    - apps/demo apps/dashboard next.js component page layout form modal dashboard
+    - apps/demo apps/landing next.js component page layout form modal dashboard
     - ui ux visual polish accessibility vietnamese
   companionSkills:
     - frontend-design
@@ -31,7 +31,7 @@ hooks:
 
 # UI/UX Design (Juli product apps)
 
-Working code in `apps/demo/` (primary) and `apps/dashboard/` (legacy/prod path) —
+Working code in `apps/demo/` (primary) and `apps/landing/` —
 not mockups. Follow existing patterns before inventing new ones.
 
 ## When to invoke
@@ -51,8 +51,8 @@ not mockups. Follow existing patterns before inventing new ones.
 
 Before editing:
 
-1. [`apps/demo/MODULE.md`](../../../../apps/demo/MODULE.md) or [`apps/dashboard/MODULE.md`](../../../../apps/dashboard/MODULE.md) — routes, invariants, locale
-2. Nearest existing component (grep `apps/demo/src/components/` or `apps/dashboard/src/components/` for similar UI)
+1. [`apps/demo/MODULE.md`](../../../../apps/demo/MODULE.md) — routes, invariants, locale
+2. Nearest existing component (grep `apps/demo/src/components/` or `apps/landing/src/components/` for similar UI)
 3. [REFERENCE.md](REFERENCE.md) — tokens, primitives, layout, copy
 
 Load plugin skills when Focus selects them: `frontend-design` for aesthetic/creative direction on new or visually-generic surfaces (run it before this skill — its guidance is generic anti-templated design thinking; this skill's Juli brand tokens/IA win on any conflict), `nextjs`, `react-best-practices`; `shadcn` only when introducing registry components (prefer `@juli/ui` and existing `.card`, `.btn-*` classes first).
@@ -75,7 +75,7 @@ Vary **layout, density, motion, and hierarchy** — not the core palette or type
 | Requirement | Standard |
 |-------------|----------|
 | Copy | Vietnamese with proper diacritics |
-| Money/dates | `formatVND`, `formatDate`, `formatDateTime` from `@/lib/format` (dashboard) or `@juli/utils` (demo) |
+| Money/dates | `formatVND`, `formatDate`, `formatDateTime` from `@juli/utils` |
 | Theming | `var(--*)` and `@layer components` utilities in `globals.css` or `@juli/theme` tokens |
 | Structure | Semantic HTML (`header`, `nav`, `main`, `article`, `button`) |
 | States | default · hover (color shift/shadow lift) · active (scale 0.98) · focus-visible (3px ring + offset) · disabled (muted, not-allowed) · loading (inline spinner) · error/empty |
@@ -87,7 +87,7 @@ Vary **layout, density, motion, and hierarchy** — not the core palette or type
 ### 4. Verify
 
 ```
-- [ ] apps/demo/MODULE.md or apps/dashboard/MODULE.md invariants respected (API auth, locale, dual theme)
+- [ ] apps/demo/MODULE.md invariants respected (API auth, locale, dual theme)
 - [ ] Tokens from globals.css / @juli/theme — no stray hex for theme surfaces
 - [ ] Vietnamese copy; VND/date formatting via shared format helpers
 - [ ] Interactive + empty/loading/error states
@@ -100,8 +100,7 @@ Vary **layout, density, motion, and hierarchy** — not the core palette or type
 
 The Verify checklist catches token drift, not flat design. After it passes, render and look:
 
-1. Run the app (`pnpm --filter @juli/demo dev` → http://localhost:3100; dashboard dev
-   holds 3000) and capture each changed screen with
+1. Run the app (`pnpm --filter @juli/demo dev` → http://localhost:3100) and capture each changed screen with
    `npx playwright screenshot --viewport-size=390,844 <url> <out.png>` (repeat at `960,900`).
 2. View the screenshots and judge against [`docs/product/design/design.md`](../../../../docs/product/design/design.md)
    and `ux_principles.md`: hierarchy obvious? spacing rhythm consistent? motion where the
@@ -123,10 +122,10 @@ The Verify checklist catches token drift, not flat design. After it passes, rend
 
 | Issue | Action |
 |-------|--------|
-| Looks off-brand | Re-read REFERENCE tokens; copy patterns from dashboard `TaskCard`, `LoginForm`, `PageHeader` or demo `DemoShell`, `RecommendationsPanel` |
+| Looks off-brand | Re-read REFERENCE tokens; copy patterns from demo `DemoShell` and the nearest existing demo/landing component |
 | Too generic | Load `frontend-design` for a creative-direction pass (hierarchy, spacing rhythm, micro-interactions, one deliberate signature element) — stay on-brand |
 | a11y gap | Contrast check, `focus-visible:ring-*`, associate labels |
-| Missing states | Walk checklist; mirror `LoginForm` error/loading pattern (dashboard) |
+| Missing states | Walk checklist; mirror the nearest existing demo form's error/loading pattern |
 
 ## See also
 
@@ -134,4 +133,3 @@ The Verify checklist catches token drift, not flat design. After it passes, rend
 - [`.cursor/rules/ui-ux-design.mdc`](../../../rules/ui-ux-design.mdc) — Ramp-inspired product patterns on Juli brand (Focus Tier 2)
 - [REFERENCE.md](REFERENCE.md) — tokens, primitives, file layout, examples
 - [`apps/demo/src/app/globals.css`](../../../../apps/demo/src/app/globals.css) — demo app styles (imports `@juli/theme`)
-- [`apps/dashboard/src/app/globals.css`](../../../../apps/dashboard/src/app/globals.css) — dashboard token source (legacy/prod)

@@ -3,7 +3,7 @@ name: ui-ux-design
 description: >-
   Builds production-grade Next.js UI for Juli product apps with strong UX, accessibility,
   and brand consistency. Use when creating or refining components, pages, dashboards,
-  forms, modals, or layouts under apps/demo or apps/dashboard, or when the user asks to
+  forms, modals, or layouts under apps/demo or apps/landing, or when the user asks to
   improve how something looks or feels.
 ---
 

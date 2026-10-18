@@ -1,6 +1,7 @@
 """Rules-based shop profile classifier (P2-A3).
 
-Ported from apps/dashboard/src/lib/operations/classification.ts — reference only.
+Ported from apps/dashboard/src/lib/operations/classification.ts — reference only
+(apps/dashboard was deleted in fast-track P53; the file is in git history).
 """
 
 from __future__ import annotations
