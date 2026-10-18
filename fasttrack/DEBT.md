@@ -2,6 +2,8 @@
 
 Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to repay`.
 
+> Closed items from the sections before 2026-10-12 (P0–P17) are in [`archive/DEBT-pre-2026-10-12.md`](archive/DEBT-pre-2026-10-12.md) (moved verbatim, P53 / D62); every open item is still here.
+
 ## Gates skipped by design (D4, D8)
 
 - [ ] `pr.yml` does not run on this branch (typecheck, architecture/import-linter,
@@ -13,7 +15,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] `.claude` edit hooks and executor-cache pre-commit gate disabled —
   speed — restore `.claude/settings.json` hooks and `.pre-commit-config.yaml`
   entry from `main` in the merge PR.
-- [x] ~~`fasttrack-deploy.yml` refuses demo/landing lanes~~ — repaid: demo by AC-7.9, landing on 2026-10-08 after the first real run failed its landing preflight (packages/contracts + pnpm-lock.yaml changed). The workflow now builds both artifacts with `build-release-artifact.sh` and hands them to deploy.sh.
 - [ ] Deploy leaves the VPS clone `~/Juli-AI-v2` detached at the fast-track SHA
   — `release.yml`/`rollback.yml` re-checkout `main` first, but verify after the
   first fast-track deploy.
@@ -51,21 +52,9 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   script's "days on disk are not refetched" cache is lost with the temp dir —
   cache daily A-34 rows (they are aggregates) or build from
   `analytics_performance_intervals` once its channel blocks are stored.
-- [x] ~~The diagnosis fetch paces with `sleep 0.4 s` + 429 backoff, not the shared
-  Redis per-endpoint rate limiter the poll path uses~~ — repaid (P7 integration,
-  ebbe4df0): `shop_diagnosis_daily/pacing.py` takes each read's token from the
-  poll's window (same key), waits instead of skipping, stops at 8 of 10.
-- [x] ~~No per-shop lock on `build_shop_diagnosis`~~ — repaid (P7 integration,
-  ebbe4df0): Redis lock `ingest:diagnosis:{shop}`, skip when held; a timed-out
-  build keeps it until the TTL (budget + 300 s).
 - [ ] The build task now skips (logs `shop_diagnosis_skipped reason=no_redis`)
   when `REDIS_URL` is unset — lock and rate limit live in Redis — the poll needs
   Redis too, so only a misconfigured worker hits it.
-- [x] ~~`fasttrack/check.sh` gitleaks step not run locally~~ — run in P7
-  integration (gitleaks 8.30.1): clean over origin/main..HEAD (the deploy's
-  default range). With `--since 0332c405` it flags one `generic-api-key` false
-  positive in `tests/unit/test_traffic_source_check.py:577` (a fake
-  `access_token=` string in a test, commit 686efe02 from `main` #2106).
 - [ ] That false positive fails a local `check.sh --since <pre-sync ref>` —
   it came from main — allowlist it in `.gitleaks.toml` on the merge PR.
 - [ ] The timeout (`SHOP_DIAGNOSIS_BUDGET_SECONDS`, default 1800 s) cancels the
@@ -104,25 +93,12 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P7-C UI (2026-10-08)
 
-- [x] ~~Decision evidence field names are assumed~~ — repaid (P7 integration,
-  c446bb2d): mapper reads `recommendation.diagnosis/evidence` (typed in
-  `@juli/contracts`), tested on a fixture captured from the backend endpoint test.
-  The fixture is a copy — re-capture it if `demo_decisions.py` models change.
 - [ ] "Từ chối" on a signed-in card only hides it for the session (no reject
   route) — no backend endpoint — add `POST /v1/demo/decisions/{id}/reject` and
   call it; the on-screen copy says the choice is not saved.
-- [x] ~~Anonymous Phân tích sample is a 100 KB bundled JSON, generator kept
-  out of the repo~~ — repaid by P8-E: `scripts/demo_analysis_sample.py`
-  regenerates it byte-for-byte (plus `sample-rankings.json`); `--check` fails
-  when stale. Still ~100 KB + 32 KB, lazy-loaded by the shell.
 - [ ] Inter font is named in the stack but not loaded (mock imports Google
   Fonts) — no network at build — add `next/font` if the owner wants Inter
   everywhere.
-- [x] ~~Demo header keeps the old mode switcher / "Làm mới Demo" controls inside
-  the kit header~~ — repaid by P8-D (AC-8.5): header follows ADR-109 d.7; the
-  mode switcher is gone, Đăng nhập / Làm mới Demo / Cài đặt sit in the
-  shop-avatar menu.
-- [x] ~~e2e: static-asset-render ×3 and accessibility "Analytics chart…" failed after the D21 restyle~~ — repaid: specs follow D21 (flat kit background, gradient wordmark, KPI dashboard at `/analytics/gmv-tiktok`); 18/18 pass on both projects.
 - [ ] vitest needs Node 20 locally: under Node 26 jsdom's `localStorage` is
   shadowed (270 failures on untouched main) — env — pin `.nvmrc` to 20.
 
@@ -133,13 +109,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   the next analytics day, or a `force=True` rebuild — idempotency key kept
   on the report — add a "rankings missing" check to `_plan` if the first day
   matters.
-- [x] ~~`video_metrics` (P8-B's per-video window metrics) is a parameter of
-  `build_and_store_shop_diagnosis` only; the worker task
-  (`workers/tasks/shop_diagnosis.py`) does not pass it yet, so production
-  stores no video rankings — P8-B / integration wires it.~~ — repaid (P8
-  integration, fe21ec7b): the worker body passes `fetch_ranking_videos`; tests
-  `test_the_worker_body_fetches_video_windows_with_the_snapshots_resources`,
-  `test_a_failed_video_fetch_stores_the_report_and_the_other_13`.
 - [ ] Interpretations of ADR-109 d.5 made without the owner: impressions use a
   single 1,000 floor for both "listed" and "Rõ" (ADR-108's 10 / 30 floors scaled
   to one number); "not listed" = under the floor on BOTH sides (max), "Rõ" =
@@ -163,9 +132,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Date-range answer is from the spec only — no live call from the agent —
   owner runs `python scripts/shop_diagnosis_fetch.py --shop fujiwa --end 2026-10-06 --video-windows`
   and checks `basis=date_range` and plausible per-window impressions.
-- [x] ~~`fetch_video_windows` is not called by `job.py` yet — P8-A owns the ranking
-  job — orchestrator wires it after `fetch_snapshot` (same resources, same
-  `load_snapshot`), passes the result to the ranking.~~ — repaid (P8 integration, fe21ec7b): `job.fetch_ranking_videos` calls it in the fetch thread with the snapshot's rate-limited resources; `video_windows.ranking_videos` converts to the ranking's `VideoWindowCounts`.
 - [ ] Whole run falls back to `posted_in_window` when the FIRST details call
   fails (assumed to mean scope/endpoint refused); a single bad first video
   therefore degrades the day — heuristic — fall back only on scope/permission
@@ -205,7 +171,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P8-G get_product_diagnoses (2026-10-08)
 
-- [x] ~~A TikTok API error in `get_product_diagnoses` fails the run~~ — repaid: vendor/guard errors soft-fail to `unavailable=True` + WARNING log; programming errors still propagate.
 - [ ] Label table covers only the codes in `listing_signals.py` plus prefix fallbacks
   (TITLE_/DESC_/MAIN_IMG_/PRICE); no price-diagnosis code is confirmed in the corpus,
   so "Giá kém cạnh tranh" is only the example wording — add exact labels once a
@@ -223,11 +188,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Header subline shows only "TikTok Shop": no API exposes the shop's ngành
   or SKU count — no data — add both to `GET /v1/demo/analysis` (or `/v1/shops`)
   and pass them to `shopSubline`.
-- [x] ~~Signed-in Trang chủ + header read `/v1/demo/analysis` once in the shell;
-  Phân tích still fetches its own copy (ranking toggle) — two requests on a
-  visit to /analytics~~ — repaid by P8-E (AC-8.6): Phân tích reads
-  `useShopReport()`; pinned by vitest "/analytics reads the report once" and the
-  signed-in e2e (`analysisCalls` length 1).
 - [ ] Dead code after the shell swap: `recommendationContext` in `demo-state`
   (fed only the retired assistance aside), the persisted `juli_demo_mode`, and
   the old `.demo-header/.demo-assistance/.demo-mode-switcher/.juli-primary-nav/
@@ -304,14 +264,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `.change-pill` are scoped to `.pt-page`; the kit rules themselves (used on
   Home, Quyết định) still use the raw status hue — scope — darken them in the
   kit block and re-run axe app-wide.
-- [x] ~~Pre-existing, not P8-E: vitest `replay-scenario.test.ts` "is
-  byte-identical to the fixture the capture tool produced" fails on the merge
-  base (41584c55) too — the client copy of the golden scenario drifted from
-  `tests/fixtures/golden_scenarios/optimize_product_confirm_pause.json` (likely
-  P8-G's playbook change) — re-copy the fixture in the integration.~~ —
-  repaid by P8-F (d1695f17): fixture re-copied (only `prompt_sha256` moved);
-  `expires_at` is rebased at runtime by `replay-scenario.ts` already.
-
 
 ## P8-F Quyết định UI (2026-10-09)
 
@@ -398,31 +350,13 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   arguments; only the tool result carries the edited values the model reads next.
 - [ ] "Không thực hiện" on a *revert* run's consent records a `decline` reason against
   the original card's lever too (cools it down) — harmless, not intended.
-- [x] (P10-C sends `{reason_code, note?}`; verified at integration) `POST /v1/demo/runs/{id}/revert` now 422s without a body: the current demo UI
-  (Hoàn tác button) breaks until P10-C sends `{reason_code, note?}`.
 
 ## P10-C — Quyết định UI to the artboards (AC-10.3)
 
-- [x] (P10 integration 9849f24a: wired to the merged backend; decline fallback removed) Built against the contract with fixtures; P10-A/P10-B not merged here.
-  Live until then: no `recommendation.card` → card degrades to the P7-B
-  diagnosis (no SKU chip, KPI current only); `/decline` 404/405 falls back to
-  the consent decline; `/measurement` 404 → completion-based waiting line + P8
-  `revert-questions`. Re-check every screen against the merged backend.
-- [x] (P10 integration 9849f24a: rows mapped to P10-B's tools, contract §7) Manual (promotion) timeline: P10-B's promotion tool names are unknown,
-  so tools before the pause fill the three Juli rows in order and tools after
-  it are "Kiểm tra trên TikTok"; the pause is the first `workflow.status`
-  starting "Đang chờ" (contract only names "Đang chờ ảnh từ bạn"). Pin the
-  names/narration with P10-B.
-- [x] (P10 integration 8ba4e9ff: `decision_id` on runs list + detail) Runs carry no decision id: a run is joined to its card by this visit's
-  approve response, else by product title (SKU in run titles / queue depends
-  on it). Ask P10-B for `decision_id` on the runs list.
 - [ ] Production router: on a page first loaded with a query
   (`/decisions?tab=…`) `router.replace` never commits; `DecisionsPageClient`
   now follows the requested href itself, but the URL bar may lag in that
   case. Root-cause (Next 16 static page + useSearchParams) before merge.
-- [x] (owner 2026-10-09: darken) a11y: the artboards' greyed not-yet-reached stage chips / step labels
-  (#8a8a94 on #f0eef0 / white, ~3.3:1) failed AA contrast; `--qd-faint` is now
-  #6b6b76 and the e2e axe check no longer excludes them.
 - [ ] Photo consent captions are "Hiện tại" / "Mới" only (the artboard adds
   size and background, which the contract does not carry).
 - [ ] Old P8-F CSS (`.qd-card`, `.qd-run`, `.qd-step`, `.qd-queue`, …) in
@@ -532,20 +466,16 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Vitest needs Node 20/22: Node 26's built-in `localStorage` shadows jsdom's
   (undefined without `--localstorage-file`), failing ~243 storage tests locally.
 
-
 ## P12 Phân tích redesign (2026-10-10)
 
-- [x] (P13) Home's signed-out sample is still the household shop of `lib/shop-analysis/sample-report.json`; Phân tích and Quyết định show the cosmetics sample shop. — repaid: Home (and the shell header) now read `lib/phan-tich/sample-data.ts`'s `sampleEnvelope()`; `sample-report.json` stays only as a signed-in report stub in two Quyết định e2e specs.
 - [ ] `scripts/demo_analysis_sample.py --check` fails at HEAD before P12 (`ImportError: VideoWindowMetrics` from `rankings`); `sample-rankings.json` is no longer read by the app and is kept only for that script.
 - [ ] Row facts with no data source: AOV rows show "Đơn hàng SKU 30 ngày" instead of the artboard's "Món mỗi đơn" / "Đơn 1 món"; "Kênh khác" only for hero products (5-channel profile); "Lý do" on Kéo lên rows is not shown; Video "Nguồn" (traffic source) and LIVE duration are not available.
 - [ ] Voucher stat reads the share of orders at or above a running voucher's threshold (`above_after`), not redemptions; "Sắp tới" omits "chưa đăng ký" (no campaign-registration data).
 - [ ] `nhom=<metric>` scrolls to and outlines the metric's group; it does not filter the other groups out.
 - [ ] Old `.pt-*` rules in `globals.css` are now unused (no component emits them).
-- [x] Reason completion message (a0382006) shows the reason box only in the visit the reason was given; the backend stores `reason_code` but no read returns it, so after a reload the older text (no reason box) shows. — **accepted by the owner, won't fix** (2026-10-10): reasons are for Juli's learning; the seller need not see them again.
 
 ## P13 signed-in, no shop → sample (2026-10-10)
 
-- [x] (owner 2026-10-10: show the sample name) The shell header in the no-shop state still names "Chưa chọn shop" (no "cập nhật HH:MM" line) above the sample, while the page's notice names the sample shop "Cửa hàng Mẫu Hoa Mai". Deliberate (the header is the seller's identity), revisit if the owner wants the sample name there.
 - [ ] The sample's daily GMV bars (Lịch sale) average 6,31 tr ₫/ngày in the prior window vs the streams' summed 6,95 tr ₫/ngày (last window agrees: 7,12 vs 7,16 tr). Only the bars show it (no total is printed from them); left as the P12 artboard values.
 - [ ] `SignedInQuyetDinh`'s own `!shop` empty state is now unreachable from `/decisions` (the page client routes no-shop to the sample); kept for direct callers / tests.
 
@@ -571,13 +501,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P14-E content cards (2026-10-10)
 
-- [x] *(resolved by the P14 integration, aace1159 — the budget counts them; the ≤ 5/week creation sub-limit stays.)* Day-1 content slot: emission surfaces content cards like any other candidate
-  until the card-limits work counts them (`workflow_key in
-  content_cards.CONTENT_WORKFLOW_KEYS`, or payload `card_executor == "juli_drafts"`).
-  The ≤ 5/week sub-limit is enforced at creation (new rows per ISO week), not at
-  surfacing.
-- [x] Seller tone and banned words: resolved by D24.21 (5) — validated rule keys
-  `content_tone` / `banned_terms`; the run reads exactly them (aliases dropped).
 - [ ] LIVE candidate CTOR is the SESSION's (the ranking has no per-product split);
   a session featuring N products shares its loss 1/N. The run and the measurement use
   the product's own per-session CTOR (`get_live_products_performance`).
@@ -599,10 +522,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P14 integration (2026-10-10)
 
-- [x] Ranking across producers: resolved by D24.21 (4) — fixed daily slots per executor type, each type ranked by its own priority; no shared scale needed.
-- [x] P14-E's ≤ 5/week sub-limit now counts in the shop's week (Asia/Ho_Chi_Minh, Monday), like the card limits.
 - [ ] P14-E expires an open card at > 7 days (withdrawn + `expired_at`), the budget at ≥ 7 days (`expired` + `expired_at`); both now give the 7-day return, but the stored status differs by which ran first.
-- [x] PROGRESS cited AC `14E.6` for the P14-E UI row; now cites AC-14E.5 (the UI + samples AC; ACCEPTANCE has 14E.1–14E.5).
 - [ ] 37 test/backend files fail `ruff format --check` when run over the whole tree from the repo root — the same 37 at ddef3245 (check.sh's changed-files ruff step is clean).
 - [ ] `tests/integration/test_migrations.py::test_no_public_table_holds_update_beyond_its_call_site` (Postgres only) fails at ddef3245 already (7 tables granted UPDATE without a `GRANT_REQUIRED` call site: P8/P10 tables); P14-C's `081_order_cost_data` adds 3 more (`order_cost_fetches`, `order_finance_transactions`, `order_price_details`). Either register the call sites in `tests/unit/test_juli_app_grants_cover_mutations.py` or revoke the grants — owner/agent decision, not done in the integration.
   **D24.21 pass:** P14-C's three are gone from the list — `081` no longer grants UPDATE on `order_price_details` / `order_finance_transactions` (replaced by delete + insert), and `order_cost_fetches`' UPDATE is registered (`store.py` attempt counter). Still listed (7, pre-existing): `lever_calibrations`, `run_lever_flows`, `run_lever_photos`, `run_revert_questions`, `shop_diagnosis_reports`, `shop_metric_rankings`, `shop_rules`.
@@ -615,7 +535,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Content-card priority now multiplies expected GMV by the lever's calibration × reason penalty (`video_script` / `live_script`); no content calibration is measured yet, so only seller reasons move it today.
 - [ ] Banned terms are checked on the listing write at approve (Juli's proposal and the seller's edit) — the agent's drafting prompt does not receive them yet, so a proposal containing one must be edited by the seller before approval.
 - [ ] A `max_open_cards` value stored under the old 1..5 range reads as 5 (clamped); no data migration.
-
 
 ## P15 content analysis (2026-10-10)
 
@@ -648,7 +567,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `/var/lib/juli/content-uploads` (0700), reinstall the worker unit and nginx vhosts.
 - [ ] Demo vitest `rules-editor-off-api.test.tsx` failed 2 tests once in the full parallel run and
   passes alone (13/13) — timing flake under load, not P15 code.
-
 
 ## P16 Juli Ops (2026-10-10)
 
