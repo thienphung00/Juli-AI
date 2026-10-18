@@ -57,14 +57,6 @@ const REACH_JULI_PENDING = new Set([
   "live-tiktok-shop-khong-ra-don",
   "ty-le-hoan-hang-tiktok-shop",
   "phi-san-tiktok-shop-2026",
-  "khach-xem-nhung-khong-mua-tiktok-shop",
-  "tang-gia-tri-don-hang-trung-binh-tiktok-shop",
-  "mo-ta-san-pham-tiktok-shop",
-  "quy-dinh-livestream-ban-hang",
-  "dat-ten-san-pham-tiktok-shop",
-  "anh-bia-san-pham-tiktok-shop",
-  "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop",
-  "doanh-thu-sau-sale-tiktok-shop",
 ]);
 
 /** The site-wide `<title>` suffix (organisation name, like the header): the only "Juli" a reach post's meta may carry. */

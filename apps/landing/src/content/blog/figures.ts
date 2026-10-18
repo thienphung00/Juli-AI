@@ -14,20 +14,12 @@
  */
 import type { MediaSource } from "../../lib/media";
 import {
-  CAP_DL_MUC_TIEU,
-  CAP_DL_MUC_TIEU_MOBILE,
-  CAP_DL_NGAY_14,
-  CAP_DL_NGAY_14_MOBILE,
   CAP_DL_TANG_THEM,
   CAP_DL_TANG_THEM_MOBILE,
   CAP_DL_TIN_CAY,
   CAP_DL_TIN_CAY_MOBILE,
-  CAP_DX_LUOT_CHAY,
-  CAP_DX_LUOT_CHAY_MOBILE,
   CAP_DX_XAC_NHAN,
   CAP_DX_XAC_NHAN_MOBILE,
-  CAP_PT_KHUYEN_MAI,
-  CAP_PT_KHUYEN_MAI_MOBILE,
   CAP_PT_LUONG,
   CAP_PT_LUONG_MOBILE,
   CAP_PT_PHEU,
@@ -298,14 +290,6 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     alt: "Bảng bốn triệu chứng sau cú nhấp. 1, Tỷ lệ thêm vào giỏ hàng thấp: trang sản phẩm chưa thuyết phục; xem ảnh, mô tả thiếu kích thước, chất liệu, cách dùng; ít đánh giá hoặc đánh giá mới bị chê; giá cao hơn sản phẩm tương tự theo Chẩn đoán giá. 2, Thêm vào giỏ nhiều mà ít đơn: vướng ở bước thanh toán; xem phí vận chuyển, voucher hết hạn hoặc giỏ chưa đạt mức chi tối thiểu, khách chờ một đợt giảm giá. 3, CTOR thấp ở một nguồn, ổn ở nguồn khác: nội dung hứa khác trang; xem giá, ưu đãi nói trong video, LIVE còn hiệu lực không, biến thể được giới thiệu có đúng biến thể trên trang. 4, CTOR thấp ở mọi nguồn: vấn đề nằm ở chính trang; sửa trang trước, một thay đổi mỗi lần. Ghi chú: so với chính sản phẩm đó ở kỳ trước và sản phẩm khác của shop trên cùng nguồn, TikTok không công bố một mức CTOR chuẩn chung.",
     caption: "Bốn triệu chứng, bốn nhóm nghi phạm: đọc số trước, rồi mới quyết định sửa trang, sửa ưu đãi hay sửa nội dung.",
   }),
-  "ctor-xep-hang-du-lieu-mau": screenshot(CAP_PT_XEP_HANG, CAP_PT_XEP_HANG_MOBILE, {
-    alt: "Bảng 5 sản phẩm kéo CTOR xuống trong Juli: Son môi số 12 từ 6,3 % xuống 5,4 %, mất 112 nghìn đồng GMV mỗi ngày; Mặt nạ đất sét 100g và Kem dưỡng ẩm ceramide tiếp theo; Kem chống nắng SPF50+ và Sữa rửa mặt amino 150ml nhãn Tham khảo; mỗi dòng có nhãn tin cậy Rõ hoặc Tham khảo và liên kết Xem đề xuất khi có; dòng tổng bằng số của ô CTOR (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Juli xếp sản phẩm theo số đồng GMV mỗi ngày mà CTOR giảm đang lấy đi, để bạn biết sửa trang nào trước.",
-  }),
-  "ctor-do-luong-du-lieu-mau": screenshot(CAP_DL_TANG_THEM, CAP_DL_TANG_THEM_MOBILE, {
-    alt: "Bảng kết quả ngày 7 trong Juli: CTOR là chỉ số chính, trước 5,4 %, mục tiêu 5,9 %, thực tế 5,7 %, đánh giá Đang lên; Lượt hiển thị mỗi ngày, CTR và AOV nằm trong khoảng cho phép, đánh giá Giữ ổn định; GMV mỗi ngày tăng 48 nghìn đồng, ghi Sơ bộ; nút Hoàn tác (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Ngày 7 sau khi sửa trang: CTOR đang lên, các chỉ số còn lại phải giữ trong khoảng cho phép.",
-  }),
 
   /* ————— tang-gia-tri-don-hang-trung-binh-tiktok-shop (P46-C1) ————— */
   "aov-hai-shop": diagram("aov-hai-shop", 372, 584, {
@@ -316,10 +300,6 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     alt: "Biểu đồ thanh ví dụ giả định: phí xử lý đơn 3.000 đồng chiếm 6 % đơn 50.000 đồng, 3 % đơn 100.000 đồng, 1,5 % đơn 200.000 đồng và 0,75 % đơn 400.000 đồng. Ghi chú theo bài Phí Xử Lý Đơn Hàng của Học viện TikTok Shop: 3.000 đồng cố định cho mỗi đơn giao thành công, đã gồm thuế, với mọi giá trị đơn và số lượng hàng; hình chỉ tính khoản phí này, chưa có các khoản phí và chi phí khác.",
     caption: "Ví dụ giả định: cùng 3.000 đồng phí xử lý, đơn càng nhỏ thì phần bị trừ càng lớn.",
   }),
-  "aov-pheu-du-lieu-mau": screenshot(CAP_PT_PHEU, CAP_PT_PHEU_MOBILE, {
-    alt: "Khối Thẻ sản phẩm trong Phân tích của Juli: GMV 3,6 triệu đồng mỗi ngày, tăng 7,5 %; Lượt hiển thị mỗi ngày tăng 19,4 %, CTR giảm 0,3 %, CTOR giảm 6,9 % và được đánh dấu Juli gợi ý, AOV 160 nghìn đồng giảm 3,0 % và kéo GMV xuống 105 nghìn đồng mỗi ngày (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · AOV đứng cạnh ba chỉ số kia, kèm số đồng mỗi ngày mà nó kéo GMV của luồng lên hoặc xuống.",
-  }),
   "aov-cong-cu": diagram("aov-cong-cu", 518, 834, {
     alt: "Bảng bốn công cụ khuyến mãi mà Học viện TikTok Shop mô tả là để tăng giá trị đơn hàng trung bình. Voucher thông thường: giảm theo số tiền hoặc phần trăm khi giỏ đạt mức chi tối thiểu; mẹo của TikTok là đặt mức chi tối thiểu cao hơn 1,2 đến 1,5 lần AOV; mỗi đơn chỉ dùng một voucher của nhà bán hàng. Mua Sỉ Giá Hời: mua đủ số lượng thì được giảm phần trăm, tối đa hai bậc, hợp với hàng mua nhiều cái, nhiều màu. Ưu đãi theo gói: hai đến ba sản phẩm mua cùng nhau, giá cố định hoặc phần trăm giảm, giá ưu đãi của từng SKU phải thấp hơn giá gốc, không cộng dồn với Mua Sỉ Giá Hời. Quà tặng khi mua hàng: mua đủ số món hoặc chi đủ mức thì được quà, không giảm giá trực tiếp, khách trả phí vận chuyển cả quà nên chọn quà nhẹ. Ghi chú: cả bốn do nhà bán hàng trợ giá và tự tạo trong Trung tâm nhà bán hàng; tóm tắt từ Học viện TikTok Shop.",
     caption: "Bốn công cụ, bốn cách để khách mua thêm, tóm tắt từ Học viện TikTok Shop.",
@@ -327,10 +307,6 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   "aov-cong-don": diagram("aov-cong-don", 488, 738, {
     alt: "Sơ đồ ví dụ giả định về khuyến mãi cộng dồn theo ba lớp: giá sản phẩm, chỉ một mức có hiệu lực; khuyến mãi cấp giỏ hàng; voucher, một voucher mỗi đơn; rồi đến giá khách trả. Hai sản phẩm giá gốc 100.000 đồng mỗi cái là 200.000 đồng; giảm giá sản phẩm còn 90.000 đồng mỗi cái là 180.000 đồng; Mua Sỉ Giá Hời mua 2 giảm 10 % còn 162.000 đồng; voucher chi tối thiểu 150.000 đồng giảm 15.000 đồng còn 147.000 đồng. Kết luận: ba lớp cộng lại, khách trả 147.000 đồng cho 200.000 đồng giá gốc, tức giảm 26,5 %. Ghi chú theo bài Cách Tính Khuyến Mãi Cộng Dồn: các lớp khác nhau cộng dồn được, mức chi tối thiểu của voucher xét trên giá sau giảm giá sản phẩm.",
     caption: "Ví dụ giả định: ba khuyến mãi nhỏ, mỗi cái trông vừa phải, cộng lại thành mức giảm hơn một phần tư.",
-  }),
-  "aov-khuyen-mai-du-lieu-mau": screenshot(CAP_PT_KHUYEN_MAI, CAP_PT_KHUYEN_MAI_MOBILE, {
-    alt: "Khối Khuyến mãi trong Phân tích của Juli, 60 ngày: flash sale 8 trên 60 ngày với 3 sản phẩm tham gia, giảm thật trung bình 9 % so với giá đang bán trước flash sale, voucher 14 % đơn đạt ngưỡng với 2 voucher đang chạy; bảng năm sản phẩm với loại khuyến mãi, mức giảm thật và GMV mỗi ngày trong và ngoài khuyến mãi, Son môi số 12 giảm 2 % bị đánh dấu quá nông (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Juli đọc khuyến mãi ở chế độ chỉ đọc: bao nhiêu đơn đạt ngưỡng voucher, mức giảm thật của từng đợt.",
   }),
 
   /* ————— mo-ta-san-pham-tiktok-shop (P46-D2) ————— */
@@ -345,14 +321,6 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   "mo-ta-duoc-khong-duoc": diagram("mo-ta-duoc-khong-duoc", 444, 774, {
     alt: "Bảng hai cột về mô tả sản phẩm. Nên có, theo chính sách, được tô nổi bật: đặc điểm chính gồm đặc tính, chức năng, thành phần, số lượng; độ dài không dưới 30 từ; thông tin an toàn, thông số kỹ thuật, cảnh báo; sản phẩm và tất cả phụ kiện đi kèm; bảng kích cỡ có số đo và đơn vị với hàng thời trang; màu ngẫu nhiên thì nói rõ. Không được: số 1, tốt nhất, duy nhất, một trăm phần trăm tự nhiên, ngay tức thì, trừ khi chính xác và xác minh được; so sánh với sản phẩm hoặc trang thương mại điện tử khác; giá khuyến mại phóng đại, giải thưởng hay chứng nhận không có; số điện thoại, Zalo, mạng xã hội, email, đường dẫn, mã QR; thông tin không khớp tiêu đề, ảnh, thuộc tính hay hàng thật. Nguồn: các trang của Trung tâm chính sách TikTok Shop về tiêu đề, mô tả, hình ảnh, hướng dẫn đăng bán, mô tả phóng đại, chuyển hướng truy cập, SNAD và bảng kích cỡ.",
     caption: "Những gì nên có và không được viết trong mô tả, tóm tắt từ Trung tâm chính sách TikTok Shop.",
-  }),
-  "mo-ta-do-luong-du-lieu-mau": screenshot(CAP_DL_TANG_THEM, CAP_DL_TANG_THEM_MOBILE, {
-    alt: "Bảng kết quả ngày 7 của một thay đổi trong Juli: CTOR là chỉ số chính, trước 5,4 %, mục tiêu 5,9 %, thực tế 5,7 %, đánh giá Đang lên; Lượt hiển thị mỗi ngày, CTR và AOV nằm trong khoảng cho phép, đánh giá Giữ ổn định; GMV mỗi ngày tăng 48 nghìn đồng, ghi Sơ bộ; nút Hoàn tác (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Sau khi sửa mô tả, CTOR là chỉ số chính; các chỉ số khác phải giữ trong khoảng cho phép.",
-  }),
-  "mo-ta-xac-nhan-du-lieu-mau": screenshot(CAP_DX_XAC_NHAN, CAP_DX_XAC_NHAN_MOBILE, {
-    alt: "Màn hình một lượt chạy của Juli cho sản phẩm Son môi số 12: bước đọc chẩn đoán TikTok có mã Mô tả quá ngắn, các bước đọc thông tin sản phẩm, phân tích từ khóa, phân tích ảnh đã xong, bước Xác nhận một lần đang chờ người bán; đề xuất đổi mô tả từ 180 ký tự một đoạn thành 655 ký tự gồm thành phần, cách dùng, bảo quản, liên kết Sửa nội dung trước khi áp dụng, nút Không thực hiện và Xác nhận thay đổi này (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Juli soạn mô tả mới; bạn sửa nội dung nếu cần và Juli chỉ ghi lên shop sau khi bạn xác nhận.",
   }),
 
   /* ————— quy-dinh-livestream-ban-hang (P46-D2) ————— */
@@ -377,10 +345,6 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     alt: "Ví dụ giả định một tiêu đề trước và sau khi viết lại. Trước, 54 ký tự: ngôi sao SALE SỐC ngôi sao Áo thun nam đẹp rẻ nhất Shop ABC FREESHIP. Các lỗi: hai ngôi sao là ký hiệu, ký tự đặc biệt; SALE SỐC, FREESHIP là khuyến mãi, không mô tả sản phẩm; rẻ nhất là khẳng định tuyệt đối không xác minh được; Shop ABC là tên người bán; thiếu chất liệu, màu, size nên người mua không biết đang mua gì. Sau, được tô nổi bật, 71 ký tự: Áo thun nam cổ tròn cotton tay ngắn, đen / trắng / xám, size M / L / XL; loại sản phẩm đứng đầu, chất liệu cotton, đặc điểm tay ngắn và ba màu, quy cách đủ ba size; ưu đãi đặt bằng công cụ khuyến mãi, không viết vào tiêu đề. Kết luận: bỏ những gì không mô tả sản phẩm, thêm những gì người mua cần để bấm.",
     caption: "Ví dụ giả định: năm lỗi hay gặp trong một tiêu đề, và cùng sản phẩm đó sau khi viết lại theo chính sách.",
   }),
-  "tieu-de-ghi-du-lieu-mau": screenshot(CAP_DX_LUOT_CHAY, CAP_DX_LUOT_CHAY_MOBILE, {
-    alt: "Màn hình lượt chạy TN-021 cho sản phẩm Toner rau má 200ml, trạng thái Đã áp dụng: các bước đọc chẩn đoán TikTok (không có mã chẩn đoán), đọc thông tin sản phẩm, phân tích từ khóa tìm được 4 từ khóa, phân tích ảnh sản phẩm với ảnh bìa đạt chuẩn và không đổi, xác nhận một lần (bạn đã xác nhận), ghi lên TikTok Shop (đã ghi tiêu đề, giá trị cũ đã lưu), TikTok duyệt lại trang sản phẩm, kết thúc và đặt lịch đo sơ bộ 14/10 ngày 7, chốt 21/10 ngày 14; hộp Đã áp dụng, thẻ chuyển sang Đo lường, nút Xem đo lường và Hoàn tác (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Tiêu đề mới chỉ được ghi sau khi người bán xác nhận; tiêu đề cũ được lưu để hoàn tác, ngày đo 7 và 14 được đặt ngay.",
-  }),
 
   /* ————— anh-bia-san-pham-tiktok-shop (P46-D1) ————— */
   "anh-bia-tren-the": diagram("anh-bia-tren-the", 552, 772, {
@@ -395,34 +359,34 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     alt: "Sơ đồ ví dụ giả định đọc CTR Thẻ sản phẩm sau khi đổi ảnh. Các mốc: 14 ngày trước là mốc so sánh; ngày bạn thay ảnh, ghi lại ngày này; ngày 7 đọc sơ bộ; ngày 14 chốt kết quả. Sản phẩm đổi ảnh: CTR từ 2,0 % lên 2,6 %, tăng 30 %. Nhóm không đổi: CTR từ 2,0 % lên 2,2 %, tăng 10 %. Kết luận: phần có thể gán cho ảnh mới khoảng 18 %, bằng 1,30 chia 1,10, không phải 30 %. Ghi chú: cả shop cùng tăng 10 % trong hai tuần đó, có thể do một đợt sale; chỉ phần vượt lên trên nhóm không đổi mới là của ảnh.",
     caption: "Ví dụ giả định: so với nhóm sản phẩm không đổi ảnh, mức tăng thật của ảnh mới nhỏ hơn con số thô.",
   }),
-  "anh-bia-pheu-du-lieu-mau": screenshot(CAP_PT_PHEU, CAP_PT_PHEU_MOBILE, {
-    alt: "Khối Thẻ sản phẩm trong Phân tích của Juli, GMV 3,6 triệu đồng mỗi ngày, tăng 7,5 %: Lượt hiển thị mỗi ngày 9.913, tăng 19,4 %, thêm 620 nghìn đồng mỗi ngày; CTR 4,44 %, giảm 0,3 %, bớt 12 nghìn đồng mỗi ngày; CTOR 5,14 %, giảm 6,9 %, bớt 250 nghìn đồng mỗi ngày, được đánh dấu Juli gợi ý; AOV 160 nghìn đồng, giảm 3,0 %, bớt 105 nghìn đồng mỗi ngày; GMV mỗi ngày là tổng của 4 ô (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · CTR của riêng luồng Thẻ sản phẩm, đứng cạnh Lượt hiển thị, CTOR và AOV: ở đây CTR gần như đứng yên, ảnh bìa chưa phải chỗ cần sửa.",
-  }),
   /* ————— do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop (P46-E) ————— */
-  "do-lich-14-ngay": diagram("do-lich-14-ngay", 462, 790, {
-    alt: "Sơ đồ lịch đo một thay đổi. 14 ngày trước khi sửa là mốc so sánh, chốt cố định từ ngày sửa. Ngày sửa: ghi ngày, giá, khuyến mãi đang chạy, nội dung trang. Ngày 1 đến 7: không sửa thêm gì trên sản phẩm này; ngày 7 là kết quả sơ bộ, Đang lên hoặc Chưa rõ. Ngày 8 đến 14: vẫn không sửa thêm; ngày 14 là kết quả chốt, Đạt, Đạt · chưa chắc chắn, Một phần hoặc Không đạt. Ba nguyên tắc: so bằng trung bình mỗi ngày của hai khoảng dài bằng nhau; một chỉ số mục tiêu trên đúng luồng thay đổi tác động; các chỉ số còn lại không lệch quá mức dao động bình thường.",
-    caption: "Một thay đổi, một mốc 14 ngày, hai lần đọc: ngày 7 để kiểm tra, ngày 14 để chốt.",
-  }),
+  "do-lich-14-ngay": diagram(
+    "do-lich-14-ngay",
+    440,
+    772,
+    {
+      alt: "Sơ đồ lịch đo một thay đổi. 14 ngày trước khi sửa là mốc so sánh, chốt cố định từ ngày sửa. Ngày sửa: ghi ngày, giá, khuyến mãi, nội dung trang và mức mong đợi. Ngày 1 đến 7: không sửa thêm gì trên sản phẩm này; ngày 7 đọc sơ bộ, chỉ số đang lên, đi ngang hay đang giảm. Ngày 8 đến 14: vẫn không sửa thêm; ngày 14 chốt: giữ, đo thêm, sửa tiếp hay quay lại bản cũ. Ba nguyên tắc: so bằng trung bình mỗi ngày của hai khoảng dài bằng nhau; một chỉ số mục tiêu trên đúng luồng thay đổi tác động; các chỉ số còn lại giữ ổn định, không lệch quá mức dao động bình thường.",
+      caption: "Một thay đổi, một mốc 14 ngày, hai lần đọc: ngày 7 để kiểm tra, ngày 14 để quyết định.",
+    },
+    2,
+  ),
   "do-doc-sai-doc-dung": diagram("do-doc-sai-doc-dung", 480, 612, {
     alt: "Biểu đồ cột ví dụ giả định: số đơn mỗi ngày của một sản phẩm trong 14 ngày trước khi sửa, trung bình 4,1 đơn mỗi ngày, và 14 ngày sau khi sửa, trung bình 4,9 đơn mỗi ngày; đường gạch ngang là mức trung bình của từng khoảng. Đọc sai: ngày 2 có 3 đơn, ngày 3 có 6 đơn, gọi là tăng gấp đôi, trong khi hai ngày lẻ nằm trong dao động thường ngày. Đọc đúng: tăng 0,8 đơn mỗi ngày, mức dao động khoảng 0,5 đơn, gấp khoảng 1,5 lần mức dao động, nghĩa là có thể đã thay đổi nhưng chưa chắc chắn.",
     caption: "Ví dụ giả định: so hai ngày lẻ cho ra “gấp đôi”, so hai trung bình 14 ngày cho ra một mức tăng còn chưa chắc chắn.",
   }),
-  "do-ba-ket-qua": diagram("do-ba-ket-qua", 536, 960, {
-    alt: "Bốn thẻ ví dụ giả định về kết quả ngày 14 với chỉ số mục tiêu CTR Thẻ sản phẩm, mục tiêu 2,5 %. Sản phẩm A, Đạt, được tô nổi bật: CTR 2,0 % lên 2,6 %, chạm mục tiêu, gấp 2,4 lần mức dao động nên rõ, GMV giữ được. Sản phẩm B, Đạt · chưa chắc chắn: 2,0 % lên 2,5 %, chạm mục tiêu, gấp 1,4 lần mức dao động nên chỉ là có thể. Sản phẩm C, Một phần: 2,0 % lên 2,3 %, chưa chạm mục tiêu, gấp 2,1 lần mức dao động nên rõ. Sản phẩm D, Không đạt: 2,0 % lên 2,1 %, chưa chạm mục tiêu, gấp 0,6 lần, trong dao động. Ghi chú: một kết quả yếu không được gắn nhãn mạnh hơn; có thay đổi khác trong 14 ngày thì ghi Bị ảnh hưởng bởi thay đổi khác.",
-    caption: "Ví dụ giả định: cùng một mục tiêu, bốn nhãn khác nhau tùy chạm mục tiêu hay không và mức tăng so với dao động.",
-  }),
+  "do-ba-ket-qua": diagram(
+    "do-ba-ket-qua",
+    536,
+    960,
+    {
+      alt: "Bốn thẻ ví dụ giả định về kết quả ngày 14 với chỉ số mục tiêu CTR Thẻ sản phẩm, mức mong đợi 2,5 %. Sản phẩm A, giữ thay đổi, được tô nổi bật: CTR 2,0 % lên 2,6 %, chạm mức mong đợi, gấp 2,4 lần mức dao động nên rõ, GMV giữ được. Sản phẩm B, giữ và đo thêm 14 ngày: 2,0 % lên 2,5 %, chạm mức mong đợi, gấp 1,4 lần mức dao động nên chỉ là có thể. Sản phẩm C, giữ và sửa tiếp cùng hướng: 2,0 % lên 2,3 %, chưa chạm mức mong đợi, gấp 2,1 lần mức dao động nên rõ. Sản phẩm D, quay lại bản cũ: 2,0 % lên 2,1 %, chưa chạm mức mong đợi, gấp 0,6 lần, trong dao động. Ghi chú: đừng đọc một kết quả yếu thành mạnh hơn; có thay đổi khác trong 14 ngày thì kết quả không dùng được để quyết định, đo lại từ đầu.",
+      caption: "Ví dụ giả định: cùng một mức mong đợi, bốn quyết định khác nhau tùy chạm mức đó hay không và mức tăng so với dao động.",
+    },
+    2,
+  ),
   "do-cua-so-sale": diagram("do-cua-so-sale", 358, 472, {
     alt: "Sơ đồ ba hàng, mỗi hàng 28 ô ngày: 14 ngày trước khi sửa và 14 ngày sau khi sửa, ngày sale tô hồng. Hàng một, mốc so sánh chứa ngày sale: mốc bị đẩy lên, thay đổi dễ trông như thất bại. Hàng hai, thời gian đo chứa ngày sale: số sau khi sửa bị đẩy lên, thay đổi dễ trông như thành công. Hàng ba, cả hai khoảng đều là ngày thường: so được với nhau. Kết luận: sửa khi cả 14 ngày trước và 14 ngày sau đều không có đợt sale lớn.",
     caption: "Một đợt sale trong mốc hay trong thời gian đo đều làm lệch kết quả, theo hai hướng ngược nhau.",
-  }),
-  "do-muc-tieu-du-lieu-mau": screenshot(CAP_DL_MUC_TIEU, CAP_DL_MUC_TIEU_MOBILE, {
-    alt: "Khối Mục tiêu và Ngưỡng giữ ổn định của Toner rau má 200ml trong Juli, thay đổi vào 07/10/2026, đã đổi Tiêu đề: chỉ số mục tiêu CTOR Thẻ sản phẩm 5,4 % lên 5,9 %, GMV dự kiến cộng 70 nghìn đồng mỗi ngày; bảng chỉ số không được lệch gồm Lượt hiển thị mỗi ngày 9.910, CTR 4,44 % và AOV 160 nghìn đồng, mỗi chỉ số có ngưỡng cộng trừ 3 % và khoảng được phép dao động; ghi chú trung bình mỗi ngày, so với 14 ngày trước khi áp dụng (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Mốc so sánh được chụp lại ngay khi áp dụng: chỉ số mục tiêu, GMV dự kiến và ngưỡng của các chỉ số còn lại.",
-  }),
-  "do-ngay-14-du-lieu-mau": screenshot(CAP_DL_NGAY_14, CAP_DL_NGAY_14_MOBILE, {
-    alt: "Phần cuối một lượt chạy đã áp dụng trong Juli: bước TikTok duyệt lại trang sản phẩm, phiên bản mới đã được duyệt; bước kết thúc và đặt lịch đo, đo sơ bộ 14/10 ngày 7 và chốt 21/10 ngày 14; hộp Đã áp dụng, thẻ chuyển sang Đo lường, giá trị cũ đã được lưu, liên kết Xem Đo lường và nút Hoàn tác (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · Ngày đo sơ bộ và ngày chốt được đặt ngay khi thay đổi lên shop, tính từ ngày áp dụng.",
   }),
 
   /* ————— doanh-thu-sau-sale-tiktok-shop (P46-E) ————— */
@@ -445,9 +409,5 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   "sale-gmv-con-lai": diagram("sale-gmv-con-lai", 332, 410, {
     alt: "Bảng ví dụ giả định: GMV trong đợt sale, gồm cả đơn hủy và hoàn tiền, 100.000.000 đồng; trừ đơn hủy trước khi giao 6.000.000 đồng; trừ trả hàng, hoàn tiền ghi nhận sau đợt 4.000.000 đồng; tiền hàng còn lại trước phí 90.000.000 đồng. Ghi chú: từ phần còn lại mới trừ phí sàn và phí xử lý đơn tính theo từng đơn giao thành công; hoàn tiền thường ghi nhận sau ngày mua nên con số này chỉ rõ sau vài tuần.",
     caption: "Ví dụ giả định: GMV của đợt sale chưa phải tiền về; đơn hủy và hoàn tiền đến sau còn trừ tiếp.",
-  }),
-  "sale-khuyen-mai-du-lieu-mau": screenshot(CAP_PT_KHUYEN_MAI, CAP_PT_KHUYEN_MAI_MOBILE, {
-    alt: "Khối Khuyến mãi trong Phân tích của Juli, 60 ngày: flash sale 8 trên 60 ngày với 3 sản phẩm tham gia, giảm thật trung bình 9 % so với giá đang bán trước flash sale, voucher 14 % đơn đạt ngưỡng với 2 voucher đang chạy; bảng năm sản phẩm với loại khuyến mãi, mức giảm thật và GMV mỗi ngày trong và ngoài khuyến mãi, ví dụ Toner rau má 200ml flash sale giảm 12 %, 1,1 triệu đồng trong và 0,7 triệu đồng ngoài; Son môi số 12 giảm 2 % bị đánh dấu quá nông (dữ liệu mẫu)",
-    caption: "Dữ liệu mẫu · GMV mỗi ngày của từng sản phẩm trong và ngoài khuyến mãi của shop: sản phẩm nào chỉ bán khi có ưu đãi.",
   }),
 };

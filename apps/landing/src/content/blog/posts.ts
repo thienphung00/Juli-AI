@@ -843,12 +843,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Khách đã bấm vào sản phẩm rồi rời đi: đọc CTOR theo nguồn, dùng Tỷ lệ thêm vào giỏ hàng để tách trang sản phẩm khỏi voucher và phí vận chuyển, tính đến đơn gián tiếp trong 7 ngày, rồi sửa một chỗ và đo lại.",
     breadcrumbName: "Khách xem nhưng không mua",
     publishedAt: "2026-10-17",
-    updatedAt: "2026-10-17",
+    updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
     cover: blogCover("khach-xem-khong-mua-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền hồng nhạt, ô thứ hai tô màu hồng"),
     author: AUTHOR,
-    related: ["tang-gia-tri-don-hang-trung-binh-tiktok-shop", "tiktok-shop-khong-ra-don", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    related: ["tang-gia-tri-don-hang-trung-binh-tiktok-shop", "tiktok-shop-khong-ra-don", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "CTOR bao nhiêu là thấp?",
@@ -892,12 +892,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       "Phí xử lý đơn tính theo từng đơn nên đơn nhỏ chịu phần trăm phí cao hơn. Đọc AOV theo nguồn, biết khi nào nên tăng giá trị đơn, chọn giữa voucher theo bậc, Mua Sỉ Giá Hời, Ưu đãi theo gói và quà tặng, tránh khuyến mãi chồng nhau và đo AOV cùng CTOR.",
     breadcrumbName: "Tăng giá trị đơn hàng trung bình",
     publishedAt: "2026-10-17",
-    updatedAt: "2026-10-17",
+    updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
     cover: blogCover("gia-tri-don-v1", "Minh hoạ: bốn cột biểu đồ trên nền hồng nhạt, cột thứ hai tô màu hồng"),
     author: AUTHOR,
-    related: ["khach-xem-nhung-khong-mua-tiktok-shop", "gmv-la-gi-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    related: ["khach-xem-nhung-khong-mua-tiktok-shop", "gmv-la-gi-tiktok-shop", "doanh-thu-sau-sale-tiktok-shop"],
     faq: [
       {
         question: "AOV bao nhiêu là tốt?",
@@ -948,7 +948,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("mo-ta-san-pham-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xanh lá nhạt, ô thứ hai tô màu xanh lá"),
     author: AUTHOR,
-    related: ["toi-uu-the-san-pham-tiktok-shop", "khach-xem-nhung-khong-mua-tiktok-shop", "ty-le-hoan-hang-tiktok-shop"],
+    related: ["khach-xem-nhung-khong-mua-tiktok-shop", "ty-le-hoan-hang-tiktok-shop", "dat-ten-san-pham-tiktok-shop"],
     faq: [
       {
         question: "Mô tả sản phẩm TikTok Shop phải dài ít nhất bao nhiêu từ?",
@@ -973,7 +973,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Sửa mô tả bao lâu thì biết có hiệu quả?",
         answer:
-          "Đọc CTOR sơ bộ ở ngày 7 và chốt ở ngày 14, so với 14 ngày trước khi sửa và với các sản phẩm không sửa, mỗi lần một thay đổi. Juli chỉ đọc CTOR khi sản phẩm có từ 20 lượt nhấp mỗi ngày; đây là ngưỡng của Juli, không phải của TikTok.",
+          "Đọc CTOR sơ bộ ở ngày 7 và chốt ở ngày 14, so với 14 ngày trước khi sửa và với các sản phẩm không sửa, mỗi lần một thay đổi. Sản phẩm ít lượt nhấp cần đo lâu hơn, và kết quả chỉ để tham khảo. Gom câu hỏi thêm một tuần sau khi sửa cũng cho biết câu nào khách không còn phải hỏi.",
       },
     ],
     sources: [
@@ -1078,7 +1078,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("dat-ten-san-pham-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xanh lá nhạt, ô thứ hai tô màu xanh lá"),
     author: AUTHOR,
-    related: ["anh-bia-san-pham-tiktok-shop", "toi-uu-the-san-pham-tiktok-shop", "khach-xem-nhung-khong-mua-tiktok-shop"],
+    related: ["anh-bia-san-pham-tiktok-shop", "san-pham-tiktok-shop-khong-co-luot-hien-thi", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Tiêu đề sản phẩm TikTok Shop dài bao nhiêu ký tự?",
@@ -1098,7 +1098,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Dùng AI viết tiêu đề sản phẩm được không?",
         answer:
-          "Được, Công cụ Tối Ưu Hoá Sản Phẩm của TikTok có sẵn tính năng Tối ưu hóa bằng AI cho tiêu đề và mô tả. Bạn vẫn chịu trách nhiệm tiêu đề mô tả chính xác sản phẩm, nên hãy đọc lại trước khi gửi. Juli cũng soạn tiêu đề bằng AI và chỉ ghi lên shop khi bạn xác nhận.",
+          "Được, Công cụ Tối Ưu Hoá Sản Phẩm của TikTok có sẵn tính năng Tối ưu hóa bằng AI cho tiêu đề và mô tả. Bạn vẫn chịu trách nhiệm tiêu đề mô tả chính xác sản phẩm, nên hãy đọc lại trước khi gửi và giữ nguyên văn tiêu đề cũ để quay lại được.",
       },
       {
         question: "Sửa tiêu đề bao lâu thì biết có hiệu quả?",
@@ -1135,7 +1135,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("anh-bia-san-pham-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền xanh lá nhạt, ô đầu tiên của hàng trên tô màu xanh lá"),
     author: AUTHOR,
-    related: ["dat-ten-san-pham-tiktok-shop", "toi-uu-the-san-pham-tiktok-shop", "khach-xem-nhung-khong-mua-tiktok-shop"],
+    related: ["dat-ten-san-pham-tiktok-shop", "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Kích thước ảnh sản phẩm TikTok Shop là bao nhiêu?",
@@ -1158,9 +1158,9 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
           "Được, nhưng bạn chịu trách nhiệm. Theo hướng dẫn về nội dung đăng bán tạo bởi AI (30/09/2026), ảnh AI phải phản ánh chính xác sản phẩm thực tế, gồm SKU, chất liệu, số lượng, đặc điểm và tình trạng khi giao, không phóng đại sản phẩm, và phải được kiểm tra trước khi đăng.",
       },
       {
-        question: "Juli có đổi ảnh bìa giúp tôi không?",
+        question: "Đổi ảnh bìa bao lâu thì biết ảnh mới tốt hơn?",
         answer:
-          "Có, với ảnh do bạn cung cấp. Juli phân tích ảnh bìa hiện tại và đề xuất nên đổi gì, nhưng không chụp, không chỉnh và không tạo ảnh. Khi bạn tải ảnh mới lên và xác nhận, Juli đặt ảnh đó làm hình ảnh chính, lưu ảnh cũ để hoàn tác, ghi lại ngày thay và đo CTR ở ngày 7 và ngày 14.",
+          "Đọc CTR ở Thẻ sản phẩm sơ bộ ở ngày 7 và chốt ở ngày 14, so với 14 ngày trước ngày đổi và với các sản phẩm không đổi ảnh trong cùng thời gian. Trong 14 ngày đó đừng đổi tiêu đề, giá hay khuyến mãi của sản phẩm, và lưu lại ảnh cũ để quay về nếu ảnh mới không tốt hơn.",
       },
     ],
     sources: [
@@ -1191,12 +1191,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("do-hieu-qua-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền hồng nhạt, ô đầu tiên tô màu hồng"),
     author: AUTHOR,
-    related: ["doanh-thu-sau-sale-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov", "doanh-thu-tiktok-shop-giam"],
+    related: ["doanh-thu-sau-sale-tiktok-shop", "doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Sửa sản phẩm bao lâu thì biết có hiệu quả?",
         answer:
-          "Theo cách đo của Juli: đọc sơ bộ ở ngày 7 (Đang lên hoặc Chưa rõ) và chốt ở ngày 14, so với trung bình 14 ngày trước khi sửa. Đây là phương pháp của Juli, không phải quy định của TikTok. Sản phẩm ít đơn hay dao động mạnh cần lâu hơn, và kết quả ngày 14 của chúng chỉ để tham khảo.",
+          "Đọc sơ bộ ở ngày 7 (đang lên, đi ngang hay đang giảm) và quyết định ở ngày 14, so với trung bình 14 ngày trước khi sửa. Đây là một phương pháp thực hành, không phải quy định của TikTok. Sản phẩm ít đơn hay dao động mạnh cần lâu hơn, và kết quả ngày 14 của chúng chỉ để tham khảo.",
       },
       {
         question: "Sửa nhiều thứ cùng lúc thì đo thế nào?",
@@ -1206,12 +1206,12 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Sửa tiêu đề xong lượt xem tăng mà đơn không tăng là sửa hỏng?",
         answer:
-          "Chưa chắc. Nếu mục tiêu là CTR và CTR tăng rõ, xem tiếp CTOR và GMV có nằm trong ngưỡng giữ ổn định không. CTOR giảm quá mức dao động nghĩa là tiêu đề mới đưa đến khách không định mua; lúc đó cân nhắc quay lại bản cũ.",
+          "Chưa chắc. Nếu mục tiêu là CTR và CTR tăng rõ, xem tiếp CTOR và GMV có nằm trong mức dao động bình thường không. CTOR giảm quá mức dao động nghĩa là tiêu đề mới đưa đến khách không định mua; lúc đó cân nhắc quay lại bản cũ.",
       },
       {
         question: "Cần bao nhiêu đơn để tin kết quả?",
         answer:
-          "TikTok không đưa ra con số. Juli gắn nhãn Rõ khi mỗi kỳ có khoảng 30 đơn trở lên (khoảng 30 lượt nhấp với CTR) và mức thay đổi vượt vùng nhiễu; dưới đó chỉ là Tham khảo. Sản phẩm bán dưới khoảng 2 đơn mỗi ngày vì vậy cần hơn 14 ngày.",
+          "TikTok không đưa ra con số. Một quy tắc thực hành: chỉ coi kết quả là chắc khi mỗi kỳ có khoảng 30 đơn trở lên (khoảng 30 lượt nhấp nếu chỉ số là CTR) và mức thay đổi vượt mức dao động; dưới đó chỉ để tham khảo. Sản phẩm bán dưới khoảng 2 đơn mỗi ngày vì vậy cần hơn 14 ngày.",
       },
       {
         question: "Nên sửa sản phẩm trước hay sau đợt sale 11.11?",
@@ -1242,7 +1242,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("sau-sale-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền hồng nhạt, ô đầu của hàng dưới tô màu hồng"),
     author: AUTHOR,
-    related: ["do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "doanh-thu-tiktok-shop-giam", "ty-le-hoan-hang-tiktok-shop"],
+    related: ["do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
         question: "Sale 11.11 trên TikTok Shop năm 2026 diễn ra khi nào?",
