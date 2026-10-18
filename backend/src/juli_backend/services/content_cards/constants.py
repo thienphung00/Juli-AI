@@ -88,8 +88,8 @@ VIDEO_SPEC = KindSpec(
     stream="seller_video",
     metric="ctr",
     gmv_method=(
-        "lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV của video trong shop, "
-        "trung bình 30 ngày, ước tính theo quy tắc"
+        "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR "
+        "và giá trị đơn hiện tại của sản phẩm"
     ),
 )
 
@@ -105,8 +105,8 @@ LIVE_SPEC = KindSpec(
     stream="seller_live",
     metric="ctor",
     gmv_method=(
-        "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV của LIVE trong shop, "
-        "trung bình 30 ngày, ước tính theo quy tắc"
+        "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR "
+        "và giá trị đơn hiện tại của sản phẩm"
     ),
 )
 

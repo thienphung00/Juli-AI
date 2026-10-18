@@ -2983,3 +2983,39 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   `do-ba-ket-qua-v3` (old files deleted); alts and heights in figures.ts.
 - Word counts stay in range (pain posts 2,448–2,509; pillars 4,548–4,845). Gates: lint 0 errors
   (2 pre-existing warnings), tsc, vitest 748, build, check:seo 47, check.sh OK.
+## 2026-10-18 · P51-A sample data (D60.1) + demo/backend card copy (D61) + recapture (agent: Claude Opus, branch `fasttrack/p51a-sample-data`)
+- Branch from `fasttrack/optimize-product` 371a0d3e, merged e5cfc47d (D61). Commits 2247eb13 (demo D60.1), 5bad50fa
+  (landing shots + captions), 84dfaa0f (D61 demo + backend copy), a9d98166 (figures.ts alts reverted to P52-B's),
+  524da0d6 (D61 recapture). Not merged, not pushed.
+- **Lever ↔ target**: TN-021's title run now targets **CTR on Thẻ sản phẩm 3,2 % → 3,5 %** (1.770 channel
+  impressions × 0,3 pt × CTOR 6,6 % × AOV 170k ≈ +60k ₫/ngày, +1,8 tr/tháng); guard bands are the other three
+  metrics, product-wide: Lượt hiển thị 3.480, CTOR 6,6 %, AOV 170k (±3 %), GMV/ngày 1,6 tr. Day 7: CTR 3,4 % Đang lên,
+  GMV +38k Sơ bộ; day 14 (simulated): CTR 3,53 % Đạt, +54k/ngày = 90 %. Target labels follow the backend
+  ("CTR · đo trên kênh Thẻ sản phẩm", "CTOR · đo trên tất cả kênh"); main row "CTR (chỉ số chính)"; simulated band
+  text = the day-7 format; day 14 keeps the 20 % progress mark. CTOR cards read "CTOR" (D32.5), group "nâng CTOR
+  (mọi kênh)" (channel_scope ALL_CHANNELS for CTOR/AOV); waiting measurements drop their own target from the guards.
+  SM-012 still proposes Tiêu đề + Mô tả on a CTOR card (artboard card; owner call).
+- **Kéo xuống sums**: not a data error. The payload is down + up + closing = cell, but a view showed one direction +
+  closing. `phan-tich/rows.ts` now folds the other direction's rows into Còn lại ("1 sản phẩm kéo CTOR lên +28k"):
+  Thẻ sản phẩm CTOR Kéo xuống −112 −64 −58 −21 −9 = −264k + Còn lại +14k (4 dòng) = −250k = tile = Tổng; Kéo lên
+  +28k + Còn lại −278k = −250k. Test asserts it for every product table and both directions (also fixes real shops).
+- **Dates**: one capture clock (2026-10-18 09:33 +07), so every run shot reads 10/10 → 17/10 → 24/10.
+- **D61 copy** (audit §8): card GMV line = "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR và giá trị
+  đơn hiện tại của sản phẩm" (backend `_GMV_METHOD_VI` / 14-day map, content cards, sample, no "theo cách của
+  TikTok" prefix); "Thứ tự đề xuất đã điều chỉnh…" not rendered; day 14 without the calibration step, "Một phần:
+  N % GMV dự kiến", no "mức kỳ vọng" lines, FINAL_RULE_NOTE without 1–2×; rules editor without 5/25/3·1·1; reasons,
+  run and content panels without "sau 7 ngày"; "ước tính theo quy tắc (chưa phải mô hình)" → "ước tính" (demo
+  RULE_BASED_ESTIMATE, evidence block, backend impact sentences, RECOVERABLE_LABEL); sample codes v1 / metric_drop,
+  no status_label. Kept (borderline, owner): "trung vị shop / đối thủ" in sample reasons, legacy plan-caveats.
+- **Recapture** (scratchpad `p51a/shots/capture.mjs`, P49 safety: localhost only, placeholder Supabase env, sample
+  shop / mocks): new files cap-dl-hoc-v2, dl-muc-tieu-v2, dl-ngay-7-v3 (+m-v3), dl-ngay-7-v4, dl-ngay-14-v4 (+m-v4),
+  dl-ngay-14-v5, dl-tang-them-v2, dx-luot-chay-v2, dx-seller-center-v2, dx-the-v3, dx-the-v4 (+m-v4 home hero),
+  kn-ghi-v2, pt-nghen-v3, pt-xep-hang-v2, pt-luong-v2, dx-quy-tac-v2, kn-dang-nhap-v4, dx-anh-bia-v3,
+  dx-ctr-tieu-de-v2, kn-quet-nhanh-v3 (+ their m- crops); exports keep their names; superseded files and their
+  MOBILE_CROPS entries removed (only screens.ts referenced them). Demo auth panel `cap-dx-the-v3`.
+- Captions: product pages / home alts follow the new shots; blog figures.ts alts left to P52-B (my alt diff saved in
+  the scratchpad `p51a/figures-alts-d60.patch`).
+- Gates: demo lint 0 errors (7 old warnings), tsc 0, vitest 159 files / 1992; demo build OK (Node 20); landing lint
+  0 errors (2 old warnings), tsc 0, vitest 18 / 748, build OK, check:seo 47; backend pytest 31 files touching the
+  card code 536 passed, 1 pre-existing failure (`test_cross_tenant_probe` demo runs events 404, fails on the base too);
+  ruff clean.

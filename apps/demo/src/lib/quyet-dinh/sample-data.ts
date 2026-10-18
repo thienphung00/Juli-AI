@@ -21,6 +21,7 @@ import type {
   PhotoCheck,
   SellerInstructions,
 } from "./p10-types";
+import { shortMetric } from "./measure-model";
 import type { FieldChange, RunChanges, ShopRules } from "./types";
 
 export const SAMPLE_SHOP = { id: "sample-shop", name: "Cửa hàng Mẫu Hoa Mai" } as const;
@@ -53,13 +54,24 @@ const STAGE = {
   ctor: { code: "page", label: "Lượt nhấp → Đặt hàng" },
   aov: { code: "basket", label: "Giá trị đơn hàng" },
 } as const;
-const KPI_LABEL = { ctr: "CTR - Thẻ sản phẩm", ctor: "CTOR - Thẻ sản phẩm", aov: "AOV (SKU)" } as const;
-/** Per-KPI method text, copied from the backend's `_GMV_METHOD_VI` (`demo_decisions/card_view.py`). */
-const GMV_METHOD = {
-  ctr: "lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV, trung bình 30 ngày, ước tính theo quy tắc",
-  ctor: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
-  aov: "đơn hàng SKU × (AOV mục tiêu − AOV hiện tại), trung bình 30 ngày, ước tính theo quy tắc",
+/**
+ * D32.5: a CTR card is set and measured on Thẻ sản phẩm (title, cover); CTOR and AOV
+ * have no per-channel orders, so their cards (description, price) are all-channel and
+ * the label is the metric alone.
+ */
+const KPI_LABEL = { ctr: "CTR - Thẻ sản phẩm", ctor: "CTOR", aov: "AOV (SKU)" } as const;
+/** D32.5: Đo lường's target label names the channel (the backend's `_KPI_SHORT · measured_on_vi`). */
+const MEASURE_TARGET_LABEL = {
+  ctr: "CTR · đo trên kênh Thẻ sản phẩm",
+  ctor: "CTOR · đo trên tất cả kênh",
+  aov: "AOV · đo trên tất cả kênh",
 } as const;
+/**
+ * The card's GMV line, copied from the backend's `_GMV_METHOD_VI` (`demo_decisions/card_view.py`).
+ * D61: a plain sentence, never Juli's formula, window or rules.
+ */
+const GMV_SENTENCE = "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR và giá trị đơn hiện tại của sản phẩm";
+const GMV_METHOD = { ctr: GMV_SENTENCE, ctor: GMV_SENTENCE, aov: GMV_SENTENCE } as const;
 
 export interface SampleCardSpec {
   readonly id: string;
@@ -98,16 +110,16 @@ export function sampleDecision(spec: SampleCardSpec, nowMs: number): P10Decision
     recommendation: {
       source_kpi_ids: [],
       diagnosis: {
-        version: "adr106-v1",
+        version: "v1",
         as_of: at.slice(0, 10),
         rank: 1,
         status: "rule",
-        status_label: "Theo quy tắc",
         stage: STAGE[spec.kpi],
         lever: { code: spec.lever, label: LEVER_LABEL[spec.lever], action: LEVER_LABEL[spec.lever], evidence: [] },
         main_kpi: { key: spec.kpi, label: spec.kpi.toUpperCase(), value: "" },
-        trigger: { code: "below_median", gap: -0.3, sentence: spec.reasonShort },
-        channel_scope: "PRODUCT_CARD",
+        trigger: { code: "metric_drop", gap: -0.3, sentence: spec.reasonShort },
+        // D32: a CTR card works on Thẻ sản phẩm; CTOR / AOV cards are read on all channels.
+        channel_scope: spec.kpi === "ctr" ? "PRODUCT_CARD" : "ALL_CHANNELS",
         recoverable_gmv_per_day: spec.gmvMonth / 30,
         product_title: spec.name,
         tiktok_product_id: `1729000${spec.sku.replace(/\D/g, "")}`,
@@ -229,16 +241,20 @@ export const SAMPLE_DESCRIPTION_CARD: SampleCardSpec = {
   keywords: "Tìm được 5 từ khoá: mặt nạ đất sét, se khít lỗ chân lông…",
 };
 
-/** The applied card behind the sample's finished run (Đo lường has something to show). */
+/**
+ * The applied card behind the sample's finished run (Đo lường has something to show).
+ * A title change, so CTR on Thẻ sản phẩm (D32): 1.770 lượt hiển thị/ngày on that channel
+ * × (3,5 % − 3,2 %) × CTOR 6,6 % × AOV 170k ≈ +60k ₫/ngày (`GMV_METHOD.ctr`).
+ */
 export const SAMPLE_APPLIED_CARD: SampleCardSpec = {
   id: "sample-tn-021",
   sku: "TN-021",
   name: "Toner rau má 200ml",
   lever: "title",
-  kpi: "ctor",
-  current: 0.054,
-  target: 0.059,
-  gmvMonth: 2_100_000,
+  kpi: "ctr",
+  current: 0.032,
+  target: 0.035,
+  gmvMonth: 1_800_000,
   reasonShort: "Tiêu đề thiếu từ khoá",
   reasonFull: "Tiêu đề thiếu từ khoá “rau má”, “cấp ẩm”.",
   status: "applied",
@@ -480,24 +496,43 @@ function isoDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-/** Measure.dc.html / Day7.dc.html "within band": the day-7 check of a run completed at `completedMs`. */
+type GuardBand = Measurement["bands"][number];
+
+/**
+ * TN-021's 14 days before the change, all channels (guard bands stay product-wide, D32.3):
+ * 3.480 lượt hiển thị × CTR 4,0 % × CTOR 6,6 % × AOV 170k ≈ 1,56 tr ₫ GMV/ngày; ±3 % each.
+ */
+const GUARD_BANDS: Readonly<Record<"impressions" | "ctr" | "ctor" | "aov", GuardBand>> = {
+  impressions: { key: "impressions", label: "Lượt hiển thị/ngày", before: 3480, band_pct: 3, low: 3376, high: 3584, unit: "count", source: "default" },
+  ctr: { key: "ctr", label: "CTR", before: 0.04, band_pct: 3, low: 0.0388, high: 0.0412, unit: "ratio", source: "default" },
+  ctor: { key: "conversion_rate", label: "CTOR", before: 0.066, band_pct: 3, low: 0.064, high: 0.068, unit: "ratio", source: "default" },
+  aov: { key: "aov", label: "AOV", before: 170_000, band_pct: 3, low: 165_000, high: 175_000, unit: "vnd", source: "default" },
+};
+
+/** The guard bands of a card: every metric but its own target (the backend skips `target_metric`). */
+function guardBands(kpi: SampleCardSpec["kpi"]): GuardBand[] {
+  return (["impressions", "ctr", "ctor", "aov"] as const).filter((metric) => metric !== kpi).map((metric) => GUARD_BANDS[metric]);
+}
+
+/**
+ * Measure.dc.html / Day7.dc.html "within band": the day-7 check of the sample's finished
+ * title run (TN-021, CTR on Thẻ sản phẩm 3,2 % → 3,5 %), completed at `completedMs`.
+ */
 export function sampleDay7Measurement(completedMs: number): Measurement {
+  const card = SAMPLE_APPLIED_CARD;
   return {
     stage: "day7",
     dates: { day7: isoDay(completedMs + 7 * DAY_MS), day14: isoDay(completedMs + 14 * DAY_MS) },
-    target: { label: "CTOR Thẻ sản phẩm", current: 0.054, target: 0.059, progress_from: 0.055, unit: "ratio" },
-    expected_gmv_per_day: 70_000,
-    bands: [
-      { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, band_pct: 3, low: 9613, high: 10207, unit: "count", source: "default" },
-      { key: "ctr", label: "CTR", before: 0.0444, band_pct: 3, low: 0.0431, high: 0.0457, unit: "ratio", source: "default" },
-      { key: "aov", label: "AOV", before: 160_000, band_pct: 3, low: 155_000, high: 165_000, unit: "vnd", source: "default" },
-    ],
+    // progress_from = current + 20 % of the gap (the backend's PROGRESS_SHARE).
+    target: { label: MEASURE_TARGET_LABEL[card.kpi], current: card.current, target: card.target, progress_from: 0.0326, unit: "ratio" },
+    expected_gmv_per_day: Math.round(card.gmvMonth / 30),
+    bands: guardBands(card.kpi),
     rows: [
-      { key: "ctor", label: "CTOR (chỉ số chính)", before: 0.054, expected: "5,9 %", actual: 0.057, verdict: "Đang lên", tone: "ok" },
-      { key: "impressions", label: "Lượt hiển thị/ngày", before: 9910, expected: "9.613 – 10.207", actual: 10029, verdict: "Giữ ổn định", tone: "muted" },
-      { key: "ctr", label: "CTR", before: 0.0444, expected: "4,31 – 4,57 %", actual: 0.044, verdict: "Giữ ổn định", tone: "muted" },
-      { key: "aov", label: "AOV", before: 160_000, expected: "155k – 165k ₫", actual: 161_000, verdict: "Giữ ổn định", tone: "muted" },
-      { key: "gmv_per_day", label: "GMV/ngày", before: 3_600_000, expected: "+70k ₫", actual: 48_000, verdict: "Sơ bộ", tone: "muted" },
+      { key: "ctr", label: "CTR (chỉ số chính)", before: 0.032, expected: "3,5 %", actual: 0.034, verdict: "Đang lên", tone: "ok" },
+      { key: "impressions", label: "Lượt hiển thị/ngày", before: 3480, expected: "3.376 – 3.584", actual: 3521, verdict: "Giữ ổn định", tone: "muted" },
+      { key: "conversion_rate", label: "CTOR", before: 0.066, expected: "6,4 – 6,8 %", actual: 0.0654, verdict: "Giữ ổn định", tone: "muted" },
+      { key: "aov", label: "AOV", before: 170_000, expected: "165k – 175k ₫", actual: 171_000, verdict: "Giữ ổn định", tone: "muted" },
+      { key: "gmv_per_day", label: "GMV/ngày", before: 1_560_000, expected: "+60k ₫", actual: 38_000, verdict: "Sơ bộ", tone: "muted" },
     ],
     day7: { within_band: true, question_id: null },
     final: null,
@@ -511,14 +546,14 @@ export function sampleWaitingMeasurement(completedMs: number, spec: SampleCardSp
     stage: "waiting",
     dates: { day7: isoDay(completedMs + 7 * DAY_MS), day14: isoDay(completedMs + 14 * DAY_MS) },
     target: {
-      label: KPI_LABEL[spec.kpi].replace(" - ", " "),
+      label: MEASURE_TARGET_LABEL[spec.kpi],
       current: spec.current,
       target: spec.target,
       progress_from: spec.current,
       unit: ratio ? "ratio" : "vnd",
     },
     expected_gmv_per_day: Math.round(spec.gmvMonth / 30),
-    bands: sampleDay7Measurement(completedMs).bands,
+    bands: guardBands(spec.kpi),
     rows: [],
     day7: null,
     final: null,
@@ -540,9 +575,11 @@ export function sampleSimulatedMeasurement(base: Measurement, stage: "day7" | "f
   const gmv = base.expected_gmv_per_day;
   const vnd = base.target.unit === "vnd";
   const pct = (value: number) => (vnd ? `${Math.round(value / 1000)}k ₫` : `${(value * 100).toFixed(1).replace(".", ",")} %`);
+  const ratioBand = (value: number) => String(Number((value * 100).toFixed(2))).replace(".", ",");
   const main = {
     key: "main",
-    label: `${base.target.label} (chỉ số chính)`,
+    // The backend's main row names the metric alone ("CTR (chỉ số chính)").
+    label: `${shortMetric(base.target.label)} (chỉ số chính)`,
     before: current,
     expected: pct(to),
     actual: stage === "day7" ? day7Actual : finalActual,
@@ -557,7 +594,7 @@ export function sampleSimulatedMeasurement(base: Measurement, stage: "day7" | "f
       band.low === null || band.high === null
         ? "—"
         : band.unit === "ratio"
-          ? `${pct(band.low)} – ${pct(band.high)}`
+          ? `${ratioBand(band.low)} – ${ratioBand(band.high)} %`
           : band.unit === "vnd"
             ? `${Math.round(band.low / 1000)}k – ${Math.round(band.high / 1000)}k ₫`
             : `${Math.round(band.low).toLocaleString("vi-VN")} – ${Math.round(band.high).toLocaleString("vi-VN")}`,
@@ -569,7 +606,6 @@ export function sampleSimulatedMeasurement(base: Measurement, stage: "day7" | "f
     ...base,
     stage,
     verdict: stage === "day7" ? { day7: "rising" } : { day7: "rising", day14: "met", strength: "clear" },
-    target: { ...base.target, progress_from: current },
     rows: [main, ...bandRows],
     day7: { within_band: true, question_id: null },
     final:
@@ -604,14 +640,14 @@ const CONTENT_KPI: Readonly<Record<SampleContentKind, { key: string; label: stri
     label: "CTR - Video",
     lever: "video_script",
     workflow: "Tối ưu nội dung · Video",
-    method: "lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+    method: GMV_SENTENCE,
   },
   live: {
     key: "live_ctor",
     label: "CTOR - LIVE",
     lever: "live_script",
     workflow: "Tối ưu nội dung · LIVE",
-    method: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+    method: GMV_SENTENCE,
   },
 };
 

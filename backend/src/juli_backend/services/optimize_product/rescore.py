@@ -85,7 +85,7 @@ def _num(value: Any) -> float | None:
 
 def _impact_sentence(value: float) -> str:
     vnd = f"{round(value):,}".replace(",", ".")
-    return f"Có thể lấy lại khoảng {vnd} ₫ GMV mỗi ngày (ước tính theo quy tắc, chưa phải mô hình)"
+    return f"Có thể lấy lại khoảng {vnd} ₫ GMV mỗi ngày (ước tính)"
 
 
 def rescore_legacy_payload(

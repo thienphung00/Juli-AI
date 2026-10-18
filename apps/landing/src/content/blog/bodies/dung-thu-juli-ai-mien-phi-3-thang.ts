@@ -96,7 +96,7 @@ Một thẻ nói về một sản phẩm và trả lời bốn câu hỏi: chỉ
 
 {{hinh:dung-thu-the-dau-tien}}
 
-Trong ví dụ trên của shop mẫu, chỉ số mục tiêu là CTOR trên luồng Thẻ sản phẩm, từ 5,4 % lên 5,9 %. Lý do là mô tả quá ngắn, và chính TikTok cũng báo "Mô tả quá ngắn". Thay đổi đề xuất là Mô tả. GMV dự kiến là ước tính từ số liệu hiện tại của sản phẩm, không phải lời hứa.
+Trong ví dụ trên của shop mẫu, chỉ số mục tiêu là CTOR, đo trên tất cả các kênh, từ 5,4 % lên 5,9 %. Lý do là mô tả quá ngắn, và chính TikTok cũng báo "Mô tả quá ngắn". Thay đổi đề xuất là Mô tả. GMV dự kiến là ước tính từ số liệu hiện tại của sản phẩm, không phải lời hứa.
 
 Bạn có hai nút: **Duyệt** và **Từ chối**. Duyệt chưa đổi gì trên shop; nó cho phép Juli bắt đầu soạn nội dung. Từ chối thì bạn chọn một lý do, và cùng thay đổi đó cho cùng sản phẩm không quay lại ngay. Hai bài [tìm sản phẩm kéo GMV xuống](/blog/tim-san-pham-keo-gmv-xuong-tiktok-shop) và [viết lại mô tả khi CTOR thấp](/blog/ctor-thap-viet-lai-mo-ta-san-pham) giải thích kỹ hơn vì sao một sản phẩm nhận thẻ và Juli soạn mô tả thế nào.
 

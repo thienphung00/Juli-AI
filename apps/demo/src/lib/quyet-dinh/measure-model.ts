@@ -287,8 +287,8 @@ export interface FinalBox {
   readonly offerRevert: boolean;
 }
 
-/** Day14.dc.html's box per label. `leverLabel` is the change type ("Mô tả"). */
-export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | null {
+/** Day14.dc.html's box per label. */
+export function finalBox(m: Measurement): FinalBox | null {
   const f = m.final;
   if (!f) return null;
   const metric = shortMetric(m.target.label);
@@ -299,7 +299,6 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
   const actualMonth = f.gmv_actual_per_day === null ? null : signedVnd(f.gmv_actual_per_day * 30);
   const gmvLine =
     actualMonth && expectedMonth ? `GMV thực tế ${actualMonth}/tháng so với dự kiến ${expectedMonth}/tháng.` : "";
-  const lever = leverLabel ? `"${leverLabel}"` : "này";
   const next = "Đề xuất tiếp theo cho sản phẩm này ›";
   const v = m.verdict?.day14;
   const label: FinalLabel = v === "met" ? "dat" : v === "partial" ? "gan_dat" : v === "not_met" ? "khong_dat" : f.label;
@@ -315,8 +314,8 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
     case "gan_dat":
       return {
         tone: "info",
-        title: `Một phần: ${f.pct_of_expected ?? "—"} % mức kỳ vọng`,
-        body: `${gmvLine} Thay đổi được giữ; mức kỳ vọng của đề xuất ${lever} sau sẽ thận trọng hơn.`.trim(),
+        title: `Một phần: ${f.pct_of_expected ?? "—"} % GMV dự kiến`,
+        body: `${gmvLine} Thay đổi được giữ.`.trim(),
         next,
         offerRevert: false,
       };
@@ -334,17 +333,18 @@ export function finalBox(m: Measurement, leverLabel: string | null): FinalBox | 
       return {
         tone: "muted",
         title: "Một phần: chưa đủ dữ liệu để chốt rõ",
-        body: "Quá ít dữ liệu để tách tác động của thay đổi khỏi dao động thường ngày. Thay đổi được giữ; kết quả này không dùng để điều chỉnh mức kỳ vọng.",
+        body: "Quá ít dữ liệu để tách tác động của thay đổi khỏi dao động thường ngày. Thay đổi được giữ.",
         next,
         offerRevert: false,
       };
   }
 }
 
-const COEF = (value: number) => value.toFixed(2).replace(".", ",");
-
-/** Day14.dc.html's six steps, from the measurement. */
-export function day14Steps(m: Measurement, leverLabel: string | null): MeasureStep[] {
+/**
+ * Day14.dc.html's steps, from the measurement. D61: the calibration step (the lever's
+ * coefficient) is not shown to sellers.
+ */
+export function day14Steps(m: Measurement): MeasureStep[] {
   const f = m.final;
   const metric = shortMetric(m.target.label);
   const fmt = (value: number | null) => valueText(value, m.target.unit);
@@ -356,10 +356,6 @@ export function day14Steps(m: Measurement, leverLabel: string | null): MeasureSt
       : `${signedVnd(f.gmv_actual_per_day)}/ngày${
           f.pct_of_expected !== null ? ` · ${f.pct_of_expected} % dự kiến` : f.label === "khong_dat" ? " · không đạt" : ""
         }`;
-  const coef =
-    f?.label === "chua_ket_luan" || !f?.calibration
-      ? `Giữ nguyên${f?.calibration ? ` ${COEF(f.calibration.from)}` : ""}`
-      : `${COEF(f.calibration.from)} → ${COEF(f.calibration.to)}`;
   return [
     { label: "Đọc dữ liệu 14 ngày sau thay đổi", result: "So với 14 ngày trước khi đổi", time: day, status: "done" },
     {
@@ -370,12 +366,6 @@ export function day14Steps(m: Measurement, leverLabel: string | null): MeasureSt
     },
     { label: "Tính GMV thực tế", result: gmv, time: day, status: "done" },
     { label: "Chốt kết quả", result: day14VerdictLabel(m) ?? (f ? FINAL_LABELS[f.label] : "—"), time: day, status: "done" },
-    {
-      label: `Cập nhật mức kỳ vọng cho loại "${leverLabel ?? "thay đổi này"}"`,
-      result: `Hệ số hiệu chỉnh ${coef}`,
-      time: day,
-      status: "done",
-    },
     { label: "Mở khoá đề xuất tiếp theo", result: "Sản phẩm có thể nhận thẻ mới ở Đề xuất", time: day, status: "done" },
   ];
 }
@@ -387,7 +377,7 @@ export function waitingLine(m: Measurement | null, day7Iso: string | null): stri
 
 /** Day14.dc.html's footnote under the verdict. */
 export const FINAL_RULE_NOTE =
-  "Cách chốt: Đạt khi chỉ số mục tiêu tăng rõ, chạm mục tiêu và GMV giữ được · Đạt · chưa chắc chắn khi đạt nhưng mức tăng chỉ gấp 1–2 lần mức dao động · Một phần khi chỉ tăng rõ hoặc chỉ chạm mục tiêu, hoặc khi dữ liệu quá ít · Không đạt khi không tăng rõ và không chạm mục tiêu.";
+  "Cách chốt: Đạt khi chỉ số mục tiêu tăng rõ, chạm mục tiêu và GMV giữ được · Đạt · chưa chắc chắn khi đạt nhưng mức tăng chưa đủ rõ để loại trừ may rủi · Một phần khi chỉ tăng rõ hoặc chỉ chạm mục tiêu, hoặc khi dữ liệu quá ít · Không đạt khi không tăng rõ và không chạm mục tiêu.";
 
 const FIELD_NAMES: Readonly<Record<string, string>> = {
   title: "Tiêu đề",

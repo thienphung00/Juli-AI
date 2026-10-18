@@ -99,10 +99,7 @@ def measure_line(kind: ContentKind, label: str) -> str:
 
 
 def impact_sentence(per_day: float) -> str:
-    return (
-        f"Có thể lấy lại khoảng {vnd(per_day)} GMV mỗi ngày "
-        "(ước tính theo quy tắc, chưa phải mô hình)"
-    )
+    return f"Có thể lấy lại khoảng {vnd(per_day)} GMV mỗi ngày (ước tính)"
 
 
 __all__ = [

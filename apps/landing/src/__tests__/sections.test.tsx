@@ -31,7 +31,7 @@ describe("homepage (D43.2 + D44)", () => {
   it("hero shot: phones get the card-header crop, lazy, captioned (AC-35.5: the H1 stays the LCP)", () => {
     const { container } = render(<LandingPage />);
     const hero = container.querySelector('section[aria-labelledby="hero-heading"]') as HTMLElement;
-    const source = hero.querySelector('source[media][srcset*="cap-dx-the-m-v1-720"]');
+    const source = hero.querySelector('source[media][srcset*="cap-dx-the-m-v4-720"]');
     expect(source).not.toBeNull();
     expect(source).toHaveAttribute("width", "720");
     expect(source).toHaveAttribute("height", "212");

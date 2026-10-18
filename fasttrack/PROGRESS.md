@@ -285,7 +285,7 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P51-A Demo sample data: lever ↔ target, Kéo xuống sums; recapture | D60.1 | in progress, branch `fasttrack/p51a-sample-data` | agent |
+| P51-A Demo sample data: lever ↔ target, Kéo xuống sums; recapture | D60.1 | done on branch `fasttrack/p51a-sample-data` (2247eb13 demo, 5bad50fa landing, 524da0d6 recapture) | agent |
 | P51-B Landing: Đề xuất page (AOV lever, cover wording), Đo lường page (control groups), price wording | D60.2, D60.3, D60.5 | done on branch `fasttrack/p51b-product-copy` (not merged) | agent |
 | Retention approved, purge job in DEBT | D60.4 | done | orchestrator |
 
@@ -299,6 +299,8 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | P52-B Eight Juli guides (body, FAQ, figure captions) | D61 | in progress, branch `fasttrack/p52b-leaks-guides` | agent |
 | P52-C Reach posts, pillars, tools posts (body, FAQ, captions) | D61 | done on branch `fasttrack/p52c-leaks-posts` (not merged); 3 diagrams re-rendered | agent |
 | Demo app + backend card copy, recapture (with P51-A) | D61 | in progress, branch `fasttrack/p51a-sample-data` | P51-A agent |
+| P52-C Reach posts, pillars, tools posts (body, FAQ, captions) | D61 | in progress, branch `fasttrack/p52c-leaks-posts` | agent |
+| Demo app + backend card copy, recapture (with P51-A) | D61 | done on branch `fasttrack/p51a-sample-data` (84dfaa0f copy, 524da0d6 recapture) | P51-A agent |
 
 ## P2–P6
 

@@ -597,10 +597,10 @@ def _impact_sentence(proposal: CardProposal, *, quick: bool = False) -> str | No
     vnd = f"{int(value.quantize(Decimal('1'))):,}".replace(",", ".")
     if quick:
         return (
-            f"Có thể lấy lại khoảng {vnd} ₫ GMV mỗi ngày (ước tính theo quy tắc trên "
+            f"Có thể lấy lại khoảng {vnd} ₫ GMV mỗi ngày (ước tính trên "
             "14 ngày gần nhất, chỉ để tham khảo)"
         )
-    return f"Có thể lấy lại khoảng {vnd} ₫ GMV mỗi ngày (ước tính theo quy tắc, chưa phải mô hình)"
+    return f"Có thể lấy lại khoảng {vnd} ₫ GMV mỗi ngày (ước tính)"
 
 
 def build_card_payload(

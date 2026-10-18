@@ -76,7 +76,7 @@ export default function DoLuongGmvPage() {
       heroChrome="Đo lường · Juli"
       heroShot={[
         {
-          alt: "Mục tiêu và ngưỡng giữ ổn định của một thay đổi: chỉ số mục tiêu CTOR Thẻ sản phẩm, GMV dự kiến, các chỉ số không được lệch (dữ liệu mẫu)",
+          alt: "Mục tiêu và ngưỡng giữ ổn định của một thay đổi: chỉ số mục tiêu CTR đo trên kênh Thẻ sản phẩm, GMV dự kiến, các chỉ số không được lệch (dữ liệu mẫu)",
           mobileVariants: CAP_DL_MUC_TIEU_MOBILE,
           variants: CAP_DL_MUC_TIEU,
         },
@@ -129,7 +129,7 @@ export default function DoLuongGmvPage() {
       ]}
     >
       <CapSection
-        alt="Khối Mục tiêu và Ngưỡng giữ ổn định của sản phẩm Toner rau má 200ml: chỉ số mục tiêu CTOR Thẻ sản phẩm 5,4 % lên 5,9 %, GMV dự kiến 70 nghìn đồng mỗi ngày, bảng chỉ số không được lệch gồm Lượt hiển thị, CTR, AOV với giá trị trước, ngưỡng cộng trừ 3 % và khoảng được phép dao động"
+        alt="Khối Mục tiêu và Ngưỡng giữ ổn định của sản phẩm Toner rau má 200ml: chỉ số mục tiêu CTR đo trên kênh Thẻ sản phẩm 3,2 % lên 3,5 %, GMV dự kiến 60 nghìn đồng mỗi ngày, bảng chỉ số không được lệch gồm Lượt hiển thị, CTOR, AOV với giá trị trước, ngưỡng cộng trừ 3 % và khoảng được phép dao động"
         caption="Trước khi đo: chỉ số mục tiêu, GMV dự kiến và khoảng dao động cho phép của các chỉ số còn lại, tính trên trung bình mỗi ngày của 14 ngày trước khi áp dụng."
         heading="Trước khi áp dụng: mục tiêu, mốc so sánh và ngưỡng giữ ổn định"
         id="truoc-khi-ap-dung"
@@ -165,7 +165,7 @@ export default function DoLuongGmvPage() {
         />
         <H3>Một chỉ số mục tiêu, trên đúng luồng</H3>
         <P>
-          Mỗi thay đổi có một chỉ số mục tiêu, ví dụ CTOR trên luồng Thẻ sản phẩm, với giá trị hiện tại và
+          Mỗi thay đổi có một chỉ số mục tiêu, ví dụ CTR trên luồng Thẻ sản phẩm, với giá trị hiện tại và
           giá trị mục tiêu. Một sản phẩm chỉ có một chỉ số mục tiêu tại một thời điểm: nếu cùng lúc đổi để
           tăng CTR và CTOR, không thể biết thay đổi nào tạo ra kết quả.
         </P>
@@ -178,7 +178,7 @@ export default function DoLuongGmvPage() {
         </P>
         <H3>Ngưỡng giữ ổn định cho các chỉ số còn lại</H3>
         <P>
-          Một tiêu đề mới có thể tăng CTOR nhưng làm giảm lượt hiển thị. Vì vậy, mỗi chỉ số không phải mục
+          Một tiêu đề mới có thể tăng CTR nhưng làm giảm lượt hiển thị. Vì vậy, mỗi chỉ số không phải mục
           tiêu có một khoảng được phép dao động, gọi là ngưỡng giữ ổn định. Juli đề xuất ngưỡng dựa trên mức
           dao động bình thường của chính chỉ số đó, và bạn có thể chỉnh trong Quy tắc.
         </P>
@@ -197,7 +197,7 @@ export default function DoLuongGmvPage() {
       </CapSection>
 
       <CapSection
-        alt="Màn hình Đo lường ngày 7 của Toner rau má 200ml: tiêu đề Ngày 7 CTOR đang lên, các chỉ số khác trong khoảng; các bước đọc dữ liệu 7 ngày sau thay đổi, so chỉ số mục tiêu, so ngưỡng giữ ổn định, báo kết quả sơ bộ đã xong và bước chờ chốt ngày 14"
+        alt="Màn hình Đo lường ngày 7 của Toner rau má 200ml: tiêu đề Ngày 7 CTR đang lên, các chỉ số khác trong khoảng; các bước đọc dữ liệu 7 ngày sau thay đổi, so chỉ số mục tiêu, so ngưỡng giữ ổn định, báo kết quả sơ bộ đã xong và bước chờ chốt ngày 14"
         caption="Ngày 7: Juli so 7 ngày sau thay đổi với 14 ngày trước, kiểm tra chỉ số mục tiêu và các ngưỡng giữ ổn định."
         heading="Ngày 7: kiểm tra giữa chừng"
         id="ngay-7"
@@ -231,7 +231,7 @@ export default function DoLuongGmvPage() {
       </CapSection>
 
       <CapSection
-        alt="Phần cuối lượt chạy đã áp dụng: bước TikTok duyệt lại trang sản phẩm, bước kết thúc và đặt lịch đo với ngày đo sơ bộ 14/10 ngày 7 và chốt 21/10 ngày 14, hộp Đã áp dụng thẻ chuyển sang Đo lường, nút Hoàn tác"
+        alt="Phần cuối lượt chạy đã áp dụng: bước TikTok duyệt lại trang sản phẩm, bước kết thúc và đặt lịch đo với ngày đo sơ bộ 17/10 ngày 7 và chốt 24/10 ngày 14, hộp Đã áp dụng thẻ chuyển sang Đo lường, nút Hoàn tác"
         caption="Ngày chốt được đặt ngay khi thay đổi được áp dụng: ngày 7 đo sơ bộ, ngày 14 chốt."
         heading="Ngày 14: kết quả chốt"
         id="ngay-14"
@@ -271,7 +271,7 @@ export default function DoLuongGmvPage() {
       </CapSection>
 
       <CapSection
-        alt="Bảng kết quả ngày 7: CTOR chỉ số chính từ 5,4 % mục tiêu 5,9 % thực tế 5,7 % đánh giá Đang lên; Lượt hiển thị mỗi ngày, CTR và AOV nằm trong khoảng cho phép với đánh giá Giữ ổn định; GMV mỗi ngày tăng 48 nghìn đồng ghi Sơ bộ; nút Hoàn tác"
+        alt="Bảng kết quả ngày 7: CTR chỉ số chính từ 3,2 % mục tiêu 3,5 % thực tế 3,4 % đánh giá Đang lên; Lượt hiển thị mỗi ngày, CTOR và AOV nằm trong khoảng cho phép với đánh giá Giữ ổn định; GMV mỗi ngày tăng 38 nghìn đồng ghi Sơ bộ; nút Hoàn tác"
         caption="Bảng so sánh: mỗi chỉ số có giá trị trước, mục tiêu hoặc khoảng cho phép, giá trị thực tế và đánh giá."
         heading="Tác động tăng thêm, không chỉ là trước và sau"
         id="tang-them"
@@ -329,7 +329,7 @@ export default function DoLuongGmvPage() {
       </CapSection>
 
       <CapSection
-        alt="Nhóm thẻ tối ưu để nâng CTOR Thẻ sản phẩm với GMV dự kiến cộng 9,3 triệu đồng mỗi tháng, hai thẻ Son môi số 12 và Kem dưỡng ẩm ceramide"
+        alt="Nhóm thẻ tối ưu để nâng CTOR trên mọi kênh với GMV dự kiến cộng 7,2 triệu đồng mỗi tháng ghi là ước tính, hai thẻ Son môi số 12 và Kem dưỡng ẩm ceramide"
         caption="Các thẻ cùng nhắm một chỉ số được gom thành một nhóm."
         heading="Lưu lại kết quả của từng thay đổi"
         id="hoc"

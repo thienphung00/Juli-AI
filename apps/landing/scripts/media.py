@@ -214,36 +214,39 @@ def glyph() -> None:
 # dx-hang-cho, dx-hoan-tac, dx-tu-choi, dx-seller-center, dx-the, kn-ghi) need
 # no crop and are not listed.
 MOBILE_CROPS: dict[str, tuple[float, float, float, float]] = {
-    "cap-dl-hoc-v1-1280": (0.0, 0.0, 0.48, 1.0),
-    "cap-dl-muc-tieu-v1-1280": (0.0, 0.0, 0.62, 1.0),
-    "cap-dl-ngay-14-v1-1280": (0.0, 0.0, 0.62, 1.0),
-    "cap-dl-ngay-7-v1-1280": (0.0, 0.35, 0.62, 1.0),
-    "cap-dl-tang-them-v1-1280": (0.0, 0.0, 0.82, 1.0),
     "cap-dl-tin-cay-v1-1280": (0.0, 0.0, 0.5, 1.0),
-    "cap-dx-luot-chay-v1-1280": (0.0, 0.0, 0.5, 0.75),
-    "cap-dx-quy-tac-v1-1280": (0.0, 0.0, 0.5, 0.64),
-    # P35 (D46): home hero on phones, the card header only (SKU, CTOR before → after, GMV dự kiến),
-    # so the hero shot stays smaller than the H1 and the H1 remains the mobile LCP element.
-    "cap-dx-the-v1-1186": (0.0, 0.0, 1.0, 0.285),
     "cap-dx-xac-nhan-v1-1280": (0.0, 0.0, 0.5, 0.55),
     "cap-kn-dang-nhap-v1-1280": (0.06, 0.0, 0.52, 0.8),
     "cap-kn-ket-noi-v1-1280": (0.06, 0.0, 0.55, 0.95),
     "cap-kn-quet-nhanh-v1-1280": (0.07, 0.05, 0.55, 1.0),
     "cap-pt-khuyen-mai-v1-1280": (0.0, 0.0, 0.55, 1.0),
     "cap-pt-lich-sale-v1-1280": (0.0, 0.0, 0.6, 1.0),
-    "cap-pt-luong-v1-1280": (0.07, 0.25, 0.6, 1.0),
-    "cap-pt-nghen-v1-1280": (0.4, 0.0, 0.81, 1.0),
     "cap-pt-pheu-v1-1280": (0.0, 0.0, 0.6, 1.0),
-    "cap-pt-xep-hang-v1-1280": (0.0, 0.0, 0.6, 1.0),
     # P49-S (D59 additions 5): fresh sample-shop shots for the Juli guide posts. The v2 crops
     # come from the v2 file's own largest WebP; the v1 crops above are untouched.
-    "cap-kn-quet-nhanh-v2-1280": (0.07, 0.08, 0.6, 1.0),
     "cap-pt-nghen-v2-1280": (0.0, 0.38, 0.7, 1.0),
-    "cap-dl-ngay-7-v2-1280": (0.0, 0.66, 0.95, 0.93),
     # P49-F: recaptures after the demo copy fixes replace the v2 sign-in and day-14 entries (files
     # removed, never referenced by a page). cap-kn-dang-nhap-m-v3 is not listed: it was cut
     # from the 2x raw capture (box 0.08, 0.13, 0.44, 0.80), since the 1280 WebP is 1x for that shot.
-    "cap-dl-ngay-14-v3-1280": (0.0, 0.8, 0.75, 0.94),
+    # P51-A (D60.1): the sample's title run now targets CTR on Thẻ sản phẩm, CTOR cards read
+    # "CTOR" (all channels), the Kéo xuống rows + Còn lại add up to Tổng; one capture clock, so
+    # every dated shot reads 10/10 -> 17/10 -> 24/10. Same framing as the shots they replace, whose
+    # files and entries are removed. cap-dx-the-v4 is still the P35 home hero on phones: the card
+    # header only (SKU, CTOR before → after, GMV dự kiến), so the H1 remains the mobile LCP element.
+    "cap-dl-hoc-v2-1280": (0.0, 0.0, 0.5, 1.0),
+    "cap-dl-muc-tieu-v2-1280": (0.0, 0.0, 0.62, 1.0),
+    "cap-dl-ngay-14-v5-1280": (0.0, 0.0, 0.62, 1.0),
+    "cap-dl-ngay-7-v4-1280": (0.0, 0.35, 0.62, 1.0),
+    "cap-dl-tang-them-v2-1280": (0.0, 0.0, 0.82, 1.0),
+    "cap-dx-luot-chay-v2-1280": (0.0, 0.0, 0.5, 0.75),
+    "cap-dx-the-v4-1184": (0.0, 0.0, 1.0, 0.285),
+    "cap-pt-nghen-v3-1280": (0.3, 0.0, 0.98, 1.0),
+    "cap-pt-xep-hang-v2-1280": (0.0, 0.0, 0.72, 1.0),
+    "cap-dl-ngay-7-v3-1280": (0.0, 0.66, 0.95, 0.93),
+    "cap-dl-ngay-14-v4-1280": (0.0, 0.8, 0.75, 0.94),
+    "cap-pt-luong-v2-1280": (0.07, 0.25, 0.6, 1.0),
+    "cap-dx-quy-tac-v2-1280": (0.0, 0.0, 0.5, 0.64),
+    "cap-kn-quet-nhanh-v3-1280": (0.07, 0.08, 0.6, 1.0),
 }
 
 #: Mobile crops are written at most this wide: ~2x of a 358 px column.

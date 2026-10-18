@@ -58,7 +58,7 @@ Bảy ngày sau khi áp dụng, Juli chạy một lượt kiểm tra gồm bốn
 
 {{hinh:hd-dl-ngay-7}}
 
-Đọc ảnh mẫu theo bốn bước đó: chỉ số mục tiêu CTOR đi từ 5,4 % lên 5,7 %, chưa chạm mục tiêu 5,9 % nhưng đã qua mức "đang tiến triển", nên được ghi Đang lên. Lượt hiển thị mỗi ngày, CTR và AOV đều nằm trong khoảng cho phép, ghi Giữ ổn định. Dòng GMV mỗi ngày ghi Sơ bộ: ở ngày 7, con số GMV chỉ để tham khảo. Vì không có chỉ số nào ra ngoài ngưỡng, bước 4 là "Báo kết quả sơ bộ · không cần bạn làm gì", và thẻ chờ chốt ở ngày 14.
+Đọc ảnh mẫu theo bốn bước đó: chỉ số mục tiêu là CTR trên luồng Thẻ sản phẩm (thay đổi là tiêu đề), đi từ 3,2 % lên 3,4 %, chưa chạm mục tiêu 3,5 % nhưng đã qua mức "đang tiến triển", nên được ghi Đang lên. Lượt hiển thị mỗi ngày, CTOR và AOV đều nằm trong khoảng cho phép, ghi Giữ ổn định. Dòng GMV mỗi ngày ghi Sơ bộ: ở ngày 7, con số GMV chỉ để tham khảo. Vì không có chỉ số nào ra ngoài ngưỡng, bước 4 là "Báo kết quả sơ bộ · không cần bạn làm gì", và thẻ chờ chốt ở ngày 14.
 
 ### Khi một chỉ số ra ngoài ngưỡng: câu hỏi "Hoàn tác?"
 
@@ -83,7 +83,7 @@ Kết quả ngày 7 luôn được ghi là sơ bộ. Với sản phẩm có số
 
 {{hinh:hd-dl-ngay-14}}
 
-Thẻ mẫu ở ngày 14 cho thấy đủ các bước: đọc 14 ngày sau thay đổi, so chỉ số mục tiêu (CTOR lên 5,95 %, mục tiêu 5,9 %), tính GMV thực tế và đặt cạnh GMV dự kiến, chốt kết quả Đạt, rồi mở khoá đề xuất tiếp theo cho sản phẩm. Ô kết luận màu xanh nói gọn: chỉ số mục tiêu đã chạm mục tiêu, GMV thực tế so với GMV dự kiến bao nhiêu, và thay đổi được giữ.
+Thẻ mẫu ở ngày 14 cho thấy đủ các bước: đọc 14 ngày sau thay đổi, so chỉ số mục tiêu (CTR lên 3,53 %, mục tiêu 3,5 %), tính GMV thực tế và đặt cạnh GMV dự kiến, chốt kết quả Đạt, rồi mở khoá đề xuất tiếp theo cho sản phẩm. Ô kết luận màu xanh nói gọn: chỉ số mục tiêu đã chạm mục tiêu, GMV thực tế so với GMV dự kiến bao nhiêu, và thay đổi được giữ.
 
 ## "Bị ảnh hưởng bởi thay đổi khác"
 

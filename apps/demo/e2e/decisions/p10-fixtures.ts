@@ -104,7 +104,7 @@ export function decision(spec: CardSpec) {
         lever: { code: spec.lever, label: LEVER_LABEL[spec.lever], executor: EXECUTOR[spec.lever] },
         change_fields: fields,
         before_after: spec.beforeAfter ?? [],
-        gmv_method: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+        gmv_method: "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR và giá trị đơn hiện tại của sản phẩm",
         ...spec.extra,
       },
     },

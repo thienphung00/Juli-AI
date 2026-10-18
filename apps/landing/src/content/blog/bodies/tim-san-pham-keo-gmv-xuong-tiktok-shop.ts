@@ -62,7 +62,7 @@ Hai nút ở góc bảng, **Kéo xuống** và **Kéo lên**, đổi giữa sả
 
 ## Vì sao các dòng cộng đúng bằng ô
 
-Bảng không phải một danh sách riêng. Nó là cùng một con số của ô CTOR, chia ra theo sản phẩm. Năm dòng đầu cộng với dòng **Còn lại** (gộp các sản phẩm ảnh hưởng nhỏ) bằng đúng con số trên ô, ghi ở cuối bảng "Tổng · bằng số của ô CTOR".
+Bảng không phải một danh sách riêng. Nó là cùng một con số của ô CTOR, chia ra theo sản phẩm. Năm dòng đầu cộng với dòng **Còn lại** (gộp các sản phẩm ảnh hưởng nhỏ và sản phẩm kéo CTOR lên) bằng đúng con số trên ô, ghi ở cuối bảng "Tổng · bằng số của ô CTOR".
 
 Điều này quan trọng vì hai lẽ. Thứ nhất, bạn biết sửa năm sản phẩm đầu sẽ chạm tới phần lớn vấn đề hay chỉ một phần nhỏ: nếu dòng Còn lại nhỏ, vấn đề tập trung ở vài sản phẩm; nếu nó lớn, vấn đề rải đều và có thể nằm ở thứ chung của cả shop như phí vận chuyển hay voucher. Thứ hai, không có con số nào bị đếm hai lần: một sản phẩm không thể vừa nằm trong bảng CTOR vừa được tính lại trong bảng CTR cho cùng một đồng GMV.
 
@@ -104,7 +104,7 @@ Một sản phẩm nhận thẻ khi qua đủ các điều kiện: có đủ d�
 
 {{hinh:keo-xuong-the}}
 
-Thẻ của Mặt nạ đất sét 100g nối thẳng với dòng thứ hai của bảng: CTOR trên luồng Thẻ sản phẩm, mục tiêu từ 5,4 % lên 5,9 %. Lý do là mô tả quá ngắn, và TikTok cũng báo "Mô tả quá ngắn", nên thay đổi đề xuất là Mô tả.
+Thẻ của Mặt nạ đất sét 100g nối thẳng với dòng thứ hai của bảng: CTOR (đo trên tất cả các kênh), mục tiêu từ 5,4 % lên 5,9 %. Lý do là mô tả quá ngắn, và TikTok cũng báo "Mô tả quá ngắn", nên thay đổi đề xuất là Mô tả.
 
 Con số **GMV dự kiến** trên thẻ là phần GMV Juli ước tính có thể lấy lại nếu chỉ số đạt mục tiêu, tính từ số liệu hiện tại của chính sản phẩm. Với thẻ nhắm CTR, lượt nhấp tăng thêm chỉ thành GMV khi có người đặt hàng, nên con số còn phụ thuộc CTOR. Mục tiêu được đặt ở mức đủ rõ để đo được và không hứa quá tay. Thẻ ghi rõ đây là ước tính, không phải lời hứa.
 

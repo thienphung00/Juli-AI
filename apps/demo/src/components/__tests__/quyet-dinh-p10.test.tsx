@@ -63,7 +63,7 @@ const CARD: RecommendationCardPayload = {
     { field: "title", label: "Tiêu đề", before: "Son môi số 12", after: "Son môi lì cao cấp số 12, màu đỏ ruby" },
     { field: "description", label: "Mô tả", before: "180 ký tự, một đoạn", after: "640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản" },
   ],
-  gmv_method: "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, trung bình 30 ngày, ước tính theo quy tắc",
+  gmv_method: "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR và giá trị đơn hiện tại của sản phẩm",
 };
 
 function item(id: string, card: Partial<RecommendationCardPayload> | null = {}): P10DecisionItem {
@@ -312,18 +312,21 @@ describe("the recommendation card (Main.dc.html)", () => {
     expect(more).toHaveTextContent("Sau: Son môi lì cao cấp số 12, màu đỏ ruby");
     expect(more).toHaveTextContent("Hiện tại: 180 ký tự, một đoạn.");
     expect(more).toHaveTextContent("Đề xuất: 640 ký tự, chia mục Thành phần · Cách dùng · Bảo quản.");
-    expect(more).toHaveTextContent("GMV dự kiến tính theo cách của TikTok: lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV");
+    // D61: a plain sentence, no formula, window or "theo quy tắc".
+    expect(more).toHaveTextContent("Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR và giá trị đơn hiện tại của sản phẩm.");
+    expect(more).not.toHaveTextContent(/×|theo cách của TikTok|trung bình 30 ngày|theo quy tắc/);
     expect(screen.getByRole("button", { name: "Thu gọn" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.queryByTestId("adjusted-by-history")).toBeNull();
   });
 
-  it("P14-B: a card ranked by the shop's history says so under Xem thêm", () => {
+  it("P14-B / D61: a card ranked by the shop's history keeps the flag but does not say so", () => {
     const view = cardView(item("1", { adjusted_by_history: true }));
     expect(view.adjustedByHistory).toBe(true);
     render(
       <RecommendationCard card={view} expanded narrow={false} onApprove={vi.fn()} onReject={vi.fn()} onToggle={vi.fn()} progressHref={null} status="pending" />,
     );
-    expect(screen.getByTestId("adjusted-by-history")).toHaveTextContent("đã điều chỉnh theo kết quả trước");
+    expect(screen.queryByTestId("adjusted-by-history")).toBeNull();
+    expect(screen.queryByText(/đã điều chỉnh theo kết quả trước/)).toBeNull();
   });
 
   it("P17: a quick-scan card shows its label chip and confidence 'Tham khảo' near the GMV", () => {
@@ -541,7 +544,7 @@ describe("consent with an edit (Run.dc.html)", () => {
     expect(done).toHaveTextContent("Lý do bạn chọnThay đổi quá nhiều so với hiện tại");
     expect(done).toHaveTextContent("Lý do giúp Juli đưa ra đề xuất tốt hơn: Juli đề xuất thay đổi nhỏ hơn, giữ phần bạn đã viết.");
     expect(done).toHaveTextContent("Không có gì được ghi lên TikTok Shop. Lần sau chỉ muốn sửa vài chữ, chọn Sửa nội dung ở bước xác nhận.");
-    expect(done).toHaveTextContent("Thẻ không quay lại Đề xuất ngay. Juli có thể đề xuất lại sản phẩm này sau 7 ngày với nội dung mới.");
+    expect(done).toHaveTextContent("Thẻ không quay lại Đề xuất ngay. Juli có thể đề xuất lại sản phẩm này sau, với nội dung mới.");
   });
 
   it("Thu gọn / Mở rộng collapses the run to its name and status", async () => {
@@ -746,12 +749,20 @@ describe("measurement model (Measure.dc.html, Day7, Day14)", () => {
   it("day-14 boxes per label; calibration not updated for chua_ket_luan", () => {
     const final = (label: "dat" | "gan_dat" | "khong_dat" | "chua_ket_luan") =>
       measurement("final", { final: { label, gmv_actual_per_day: 57_000, pct_of_expected: 82, calibration: label === "chua_ket_luan" ? null : { lever: "description", from: 0.5, to: 0.58 } } });
-    expect(finalBox(final("gan_dat"), "Mô tả")).toMatchObject({ tone: "info", title: "Một phần: 82 % mức kỳ vọng", offerRevert: false });
-    expect(finalBox(final("khong_dat"), "Mô tả")).toMatchObject({ tone: "warn", offerRevert: true, next: "Xem đề xuất khác cho sản phẩm này ›" });
-    expect(finalBox(final("dat"), "Mô tả")?.tone).toBe("ok");
-    expect(finalBox(final("chua_ket_luan"), "Mô tả")?.tone).toBe("muted");
-    expect(day14Steps(final("gan_dat"), "Mô tả")[4]).toMatchObject({ label: 'Cập nhật mức kỳ vọng cho loại "Mô tả"', result: "Hệ số hiệu chỉnh 0,50 → 0,58" });
-    expect(day14Steps(final("chua_ket_luan"), "Mô tả")[4].result).toBe("Hệ số hiệu chỉnh Giữ nguyên");
+    expect(finalBox(final("gan_dat"))).toMatchObject({ tone: "info", title: "Một phần: 82 % GMV dự kiến", offerRevert: false });
+    expect(finalBox(final("khong_dat"))).toMatchObject({ tone: "warn", offerRevert: true, next: "Xem đề xuất khác cho sản phẩm này ›" });
+    expect(finalBox(final("dat"))?.tone).toBe("ok");
+    expect(finalBox(final("chua_ket_luan"))?.tone).toBe("muted");
+    // D61: the calibration coefficient is not a seller-facing step.
+    expect(day14Steps(final("gan_dat")).map((s) => s.label)).toEqual([
+      "Đọc dữ liệu 14 ngày sau thay đổi",
+      "So chỉ số mục tiêu",
+      "Tính GMV thực tế",
+      "Chốt kết quả",
+      "Mở khoá đề xuất tiếp theo",
+    ]);
+    expect(JSON.stringify(day14Steps(final("chua_ket_luan")))).not.toMatch(/Hệ số|mức kỳ vọng/);
+    expect(finalBox(final("gan_dat"))?.body).not.toMatch(/mức kỳ vọng|thận trọng/);
   });
 });
 

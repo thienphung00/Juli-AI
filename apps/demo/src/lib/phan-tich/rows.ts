@@ -203,7 +203,15 @@ export function tableView(ctx: TableContext, payload: RankingPayload): TableView
     };
   });
   const closing = [payload.closing.few, payload.closing.others, payload.closing.mix];
-  const restTotal = closing.reduce((sum, c) => sum + (c?.gmv_per_day ?? 0), 0);
+  // D60.1: a product table lists one direction; the other direction's rows join "Còn lại",
+  // so the listed rows + "Còn lại" add up to "Tổng" (= the cell) in both views.
+  const opposite = product ? (ctx.direction === "down" ? payload.up : payload.down) : [];
+  const oppositeTotal = opposite.reduce((sum, r) => sum + r.gmv_per_day, 0);
+  const oppositeLine: RestLine[] =
+    opposite.length > 0
+      ? [{ k: `${opposite.length} sản phẩm kéo ${col} ${ctx.direction === "down" ? "lên" : "xuống"}`, v: signedKMoney(oppositeTotal) }]
+      : [];
+  const restTotal = closing.reduce((sum, c) => sum + (c?.gmv_per_day ?? 0), 0) + oppositeTotal;
   const noun = spec.rowKind === "product" ? "sản phẩm" : spec.rowKind === "video" ? "Video" : "Phiên LIVE";
   return {
     title: product
@@ -211,7 +219,7 @@ export function tableView(ctx: TableContext, payload: RankingPayload): TableView
       : `${noun} tác động ${col} nhiều nhất`,
     col,
     rows,
-    rest: closing.filter(Boolean).map((c) => ({ k: c.label, v: signedKMoney(c.gmv_per_day) })),
+    rest: [...oppositeLine, ...closing.filter(Boolean).map((c) => ({ k: c.label, v: signedKMoney(c.gmv_per_day) }))],
     restSum: signedKMoney(restTotal),
     restLabel: payload.closing.few?.label ?? "",
     total: perDay(payload.stream_factor_gmv),

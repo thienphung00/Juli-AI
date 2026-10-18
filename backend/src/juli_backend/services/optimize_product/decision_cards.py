@@ -391,7 +391,7 @@ class ShopCardPlan:
 
 
 #: How the D22 estimate is labelled wherever it is shown.
-RECOVERABLE_LABEL = "Ước tính theo quy tắc (chưa phải mô hình)"
+RECOVERABLE_LABEL = "Ước tính từ số liệu hiện tại của sản phẩm"
 
 
 def _reference(gap: Gap) -> tuple[Decimal | None, str | None]:
