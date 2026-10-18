@@ -1632,3 +1632,31 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   `meta.py`). Step 14 for the simulator's lever effects therefore scores these pooled independent
   tests instead of a D34 wave, once enough exist. Gate C itself is not yet approved — the owner wants
   further optimisation before the FastMoss snapshot-2 freeze (~2026-10-20).
+
+- **D58** — Rules for the no-new-data optimisation round before Gate C (grill P1–P6, owner,
+  2026-10-18; method: identify a specific weakness from evidence → change one factor → test against
+  pre-set criteria → record and decide).
+  1. **Order (P1 A):** W6 cleaning-rule bias → W1 Shopee within-niche ranking (Spearman ≈ 0) → W3
+     Fujiwa panel CTR / CTOR losing to its baseline + over-wide intervals → W5 interval calibration of
+     the other funnel steps → W2 FastMoss within-niche ≈ baseline. W4 (per-product CTOR has no
+     signal) is a data limit and is skipped. Weaknesses are listed in each `ml_pipeline/WEAKNESSES.md`.
+  2. **Acceptance (P2 A):** accept only if the primary metric improves by > 2 shop-clustered SE, no
+     secondary metric (within-niche Spearman, MAE, 90 % coverage kept within 85–95 %) worsens by
+     > 1 SE, and the role / leakage checks and tests pass; 1–2 SE → experimental (flag, off by
+     default); < 1 SE or a rule violation → revert.
+  3. **One factor (P3 A + owner addition):** each experiment changes exactly one factor of one kind
+     (cleaning rule / feature / prior / preprocessing / model structure); ≤ 3 tries per weakness,
+     chosen by inner CV and reported once on outer folds; an accepted change becomes the new baseline
+     (sequential, never bundled). If a factor is not accepted, another factor may be tried for the
+     same weakness (within the 3 tries), and a rejected factor may be retried once for another
+     weakness if there is a reason it fixes it (logged "retry from W_x").
+  4. **Validation wear (P4 A):** one of the five shop folds (hash-fixed, fingerprinted) is held out as
+     a development-test fold; the round uses the other four; at the end the final configuration vs
+     the D54 / 17c starting point is scored once on that fold — gains that do not hold there are
+     treated as overfit and dropped. It does not replace the frozen final test sets.
+  5. **Decisions (P5 A):** accept / experimental / revert, each a row in `runs.csv` and the
+     "Nhật ký tối ưu" section of PIPELINE.md (weakness, factor, variant, commit, primary ± SE,
+     secondaries, state, one-line reason); accepted changes are frozen only through Gate C.
+  6. **Time box (P6 A):** deadline evening 2026-10-19, in the P1 order; unfinished weaknesses move to
+     the next round; morning of 2026-10-20: score the development-test fold once and re-present Gate
+     C; FastMoss snapshot 2 is frozen on arrival and scored only after Gate C.
