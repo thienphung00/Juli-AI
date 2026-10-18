@@ -22,7 +22,7 @@ export const CAPABILITY_ROUTES: readonly SiteRoute[] = [
     title: "Tối ưu sản phẩm TikTok Shop: đề xuất và thực thi | Juli AI",
     description:
       "Tối ưu sản phẩm TikTok Shop: thẻ đề xuất có lý do, mục tiêu, GMV dự kiến. Juli chỉ ghi tiêu đề, mô tả lên shop khi bạn duyệt; hoàn tác được.",
-    lastModified: "2026-10-16",
+    lastModified: "2026-10-18",
     breadcrumbName: "Đề xuất và thực thi",
     parent: "/san-pham",
     changeFrequency: "monthly",
@@ -33,7 +33,7 @@ export const CAPABILITY_ROUTES: readonly SiteRoute[] = [
     title: "Đo lường GMV sau thay đổi: ngày 7, ngày 14 | Juli AI",
     description:
       "Juli đo mỗi thay đổi trên TikTok Shop so với mốc 14 ngày trước: kiểm tra ngày 7, chốt ngày 14, nhãn độ tin cậy, không tự nhận công.",
-    lastModified: "2026-10-15",
+    lastModified: "2026-10-18",
     breadcrumbName: "Đo lường GMV",
     parent: "/san-pham",
     changeFrequency: "monthly",

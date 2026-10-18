@@ -7,7 +7,7 @@ export const CORE_ROUTES: readonly SiteRoute[] = [
     title: "Trợ lý AI vận hành TMĐT cho nhà bán TikTok Shop | Juli AI",
     description:
       "Trợ lý AI cho nhà bán TMĐT, hiện kết nối TikTok Shop: phân tích CTR, CTOR, AOV, đề xuất việc cần làm, thực thi khi bạn duyệt, đo GMV tăng thêm.",
-    lastModified: "2026-10-16",
+    lastModified: "2026-10-18",
     breadcrumbName: "Trang chủ",
     changeFrequency: "weekly",
     priority: 1,
