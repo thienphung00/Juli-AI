@@ -8,6 +8,10 @@
  * so no `X-Shop-Id`.
  */
 
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from "../../components/legal-consent-note";
+
+export { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL };
+
 /** The date of the D60 `/terms` + `/privacy` text. Bump together with the backend's `terms.py`. */
 export const LEGAL_TERMS_DATE = "2026-10-18" as const;
 
@@ -17,8 +21,6 @@ export const EXPORT_PATH = "/v1/me/export" as const;
 export const DELETION_PATH = "/v1/me/deletion" as const;
 
 export const PRIVACY_CONTACT_EMAIL = "lienhe@app-juli.com";
-export const PRIVACY_POLICY_URL = "https://app-juli.com/privacy";
-export const TERMS_URL = "https://app-juli.com/terms";
 
 export interface PrivacyState {
   readonly marketing_opt_out: boolean;
