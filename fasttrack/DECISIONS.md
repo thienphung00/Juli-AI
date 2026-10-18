@@ -1696,3 +1696,15 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `cap-kn-dang-nhap`, `cap-kn-quet-nhanh`, `cap-pt-nghen`, `cap-dx-the`, `cap-dl-ngay-7`,
      `cap-pt-lich-sale`, and add a cover-photo card, a CTR card, a day-14 final label and the
      current sign-in screen (P49-S).
+
+- **D59** — Gate C approved for v0.3 and the funnel simulator (owner, 2026-10-18), after the D58
+  no-new-data round (no factor accepted; dev-test fold confirmed the starting configuration).
+  Frozen: v0.3 config c (no `log_creators`), preprocessing `train` in CV / `snapshot` for the
+  temporal test, panel primary = category-rate baseline, panel priors pinned to run
+  `20261013-134400-v02`, `price_gift` dropped, D58.1 definitions (median point metrics,
+  expected-sign lever rule, pre-registered persistence baseline); funnel PRIORS_VERSION 2026-10-17c,
+  inner-fold calibrated CTR interval, selection `infold`, CTOR pooling recorded only, quantity
+  report-only, D34 replaced by independent tests (D57). Step 14 runs once per frozen set through
+  `ml_guard.final_test`: FastMoss snapshot 2 (~2026-10-20), Ory new-shop set, Fujiwa after
+  2026-10-08, pooled independent tests when enough exist. Metric.vn and FastMoss snapshot 2 feed
+  the next optimisation round only after Step 14.
