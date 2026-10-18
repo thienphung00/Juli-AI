@@ -281,6 +281,18 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | P49-B Three problem posts | D59 add. 5 | todo (after P49-S) | writer agents |
 | P49-L End-of-post box "Đọc hướng dẫn liên quan" for reach posts | D59 add. 4 | todo (after P49-A/B) | agent |
 
+## P50 — PDPL legal terms and the features they promise (D60)
+
+Reason: owner grill 2026-10-18; the pages must promise only what the product does, so the features ship with the text. API contract: `fasttrack/contracts/p50-privacy.md`.
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P50-L `/terms` VI + `/privacy` VI/EN rewritten to D60; no version shown; tests | D60.1–14 | doing | agent (Opus) |
+| P50-B Backend: migration 094 privacy prefs + consent columns, `/v1/me/privacy`, `/v1/me/consents`, `/v1/me/export`, `/v1/me/deletion`, nightly purge task | D60.6, .10 | todo | agent |
+| P50-U Demo: Cài đặt → Quyền riêng tư tab, terms re-acceptance strip with the separate Điều 11 checkbox, demo pixel gated on ad-measurement opt-out | D60.4, .6, .8 | todo | agent |
+| P50-P De-identification at the LLM boundary (`core/privacy/deidentify.py`) | D60.2 | todo | agent |
+| P50-E Terms-change e-mail via the SMTP mailer (one-off task) | D60.8 | todo | agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
