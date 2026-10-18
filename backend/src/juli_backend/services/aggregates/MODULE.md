@@ -36,7 +36,7 @@ A-25 promotion partition). Phase 2 Milestone A (#300) + computed KPI rollups (#3
   rollups from product/sku grains; A-25 promotion watermark joins revenue denominator
 - Division-by-zero and missing sync → metric `null` → advisory `unavailable`
 - `shop_profile` uses deterministic rules ported from
-  `apps/dashboard/src/lib/operations/classification.ts` (reference only)
+  `apps/dashboard/src/lib/operations/classification.ts` (reference only; deleted in fast-track P53, see git history)
 - `health_data_source: api | proxy | unavailable` — never fabricates SPS/VP/AHR when
   `unavailable`
 - `ShopLifecycleContext` carries probation/health API fields not yet on `Shop` rows

@@ -49,12 +49,12 @@ files, theme configs, and Tailwind setups. It's faster and works anywhere.
 
 | Artifact | Location | Notes |
 |----------|----------|-------|
-| Web source | `apps/demo/`, `apps/dashboard/` | Next.js App Router + Tailwind; start with each app's `src/app/globals.css` and `apps/dashboard/tailwind.config.ts` or `packages/theme/` for demo tokens |
+| Web source | `apps/demo/`, `apps/landing/` | Next.js App Router + Tailwind; start with each app's `src/app/globals.css` and `packages/theme/` for shared tokens |
 | Existing design doc | `docs/product/design/DESIGN_SYSTEM.md` | Human-maintained token doc — merge extracted findings here when updating Juli, not a blind overwrite |
 | Stitch export | `.stitch/DESIGN.md` | Use when pushing a design system into Google Stitch |
 | UI implementation skill | `.cursor/skills/standalone/ui-ux-design/SKILL.md` | Load alongside this skill for Juli-specific verification rules |
 
-For Juli product UI work (`apps/demo/`, `apps/dashboard/`), read [references/react-tailwind.md](references/react-tailwind.md) first.
+For Juli product UI work (`apps/demo/`, `apps/landing/`), read [references/react-tailwind.md](references/react-tailwind.md) first.
 
 ---
 

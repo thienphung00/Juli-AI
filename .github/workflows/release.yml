@@ -158,9 +158,8 @@ jobs:
       # One deployable failing must not suppress the others' artifacts.
       fail-fast: false
       matrix:
-        # PRD #820's Next deployables. apps/dashboard is absent on purpose: it is
-        # npm-owned, is not a pnpm workspace member, and PRD #820 retires it from
-        # production rather than deploying it.
+        # PRD #820's Next deployables. The old apps/dashboard was retired from
+        # production by PRD #820 and deleted from the repo in fast-track P53 (C1).
         app: [demo, landing]
     steps:
       - uses: actions/checkout@v7

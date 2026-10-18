@@ -14,14 +14,15 @@ Deploy configuration index for App Review (Phase 2.5-d).
 VPS/Nginx/HTTPS topology, env vars (no secrets in git), independent frontend/backend restart,
 and validation.
 
-**VPS layout:** single checkout at `~/Juli-AI-v2` — backend `.env` at repo root,
-frontend `.env.production` in `apps/dashboard/`.
+**VPS layout:** single checkout at `~/Juli-AI-v2` — backend `.env` at repo root.
+The old dashboard frontend (`apps/dashboard/`, `juli-web`) is retired (#842) and was
+deleted from the repo in fast-track P53 (C1).
 
 | Runbook | Purpose |
 |---------|---------|
 | [`app-review-runbook.md`](../../docs/runbooks/app-review-runbook.md) | Deploy runbook + reviewer checklist |
 | [`vps-wiring-runbook.md`](../../docs/runbooks/vps-wiring-runbook.md) | HITL VPS DNS + Nginx + HTTPS (#256) |
-| [`frontend-deploy-runbook.md`](../../docs/runbooks/frontend-deploy-runbook.md) | Deploy Next.js frontend on VPS (#257) |
+| [`frontend-deploy-runbook.md`](../../docs/runbooks/frontend-deploy-runbook.md) | *Historical* — the retired dashboard frontend deploy (#257) |
 | [`backend-deploy-runbook.md`](../../docs/runbooks/backend-deploy-runbook.md) | Deploy FastAPI backend on VPS (#258) |
 | [`reviewer-login-runbook.md`](../../docs/runbooks/reviewer-login-runbook.md) | Reviewer demo login + optional Supabase OTP (#260) |
 | [`smoke-checklist-runbook.md`](../../docs/runbooks/smoke-checklist-runbook.md) | App Review smoke sign-off + CORS (#261) |
@@ -49,9 +50,8 @@ secrets, and monitoring are documented in
 
 | Domain | Product |
 |--------|---------|
-| `app-juli.com` | App Review frontend (`apps/dashboard/`) |
-| `demo.app-juli.com` | Demo (`apps/demo/`, #406) |
-| `dashboard.app-juli.com` | Dashboard |
+| `app-juli.com` | Landing (`apps/landing/`, #842) |
+| `demo.app-juli.com`, `ops.app-juli.com` | Demo + ops (`apps/demo/`, #406) |
 | `api.app-juli.com` | Backend API |
 
 See [`docs/product/phases/phase-2.5-deployment.md`](../../docs/product/phases/phase-2.5-deployment.md) and

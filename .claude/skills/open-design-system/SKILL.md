@@ -4,7 +4,7 @@ description: >-
   Upstream design-reference skill for gathering layout and component patterns via Open
   Design MCP before Next.js implementation. Use for design-reference tasks — extracting
   runnable artifacts, browsing OD projects, or commissioning layout runs — not for
-  shipping product UI in apps/demo or apps/dashboard (use ui-ux-design + ui-ux).
+  shipping product UI in apps/demo or apps/landing (use ui-ux-design + ui-ux).
 ---
 
 # open-design-system

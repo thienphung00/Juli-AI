@@ -8,7 +8,7 @@ live Context7 pointers**). Load on demand — not always injected in full.
 
 ## 1. App Router layout and client boundaries
 
-- **File routes:** `apps/dashboard/src/app/` and `apps/demo/src/app/` — `layout.tsx`,
+- **File routes:** `apps/demo/src/app/` and `apps/landing/src/app/` — `layout.tsx`,
   `page.tsx`, nested segments (`decisions/`, `analytics/`, etc.).
 - **Server by default:** layouts and static shells stay Server Components; add
   `'use client'` only for hooks, browser APIs, or local interaction state.
@@ -49,10 +49,9 @@ Verify diacritics in user-visible copy; cover empty, loading, and error states p
 
 ## 4. Component and route testing
 
-**Dashboard (Jest + RTL)**
+**Demo / Landing (Vitest + RTL)**
 
-- Config: `apps/dashboard/jest.config.js` — `jsdom`, `@/` mapper, `setup.ts`
-- Tests: `apps/dashboard/src/__tests__/**/*.test.{ts,tsx}`
+- Tests: `apps/demo/src/**/__tests__/*`, `apps/landing/src/**/__tests__/*`
 - Prefer `screen.getByRole` over test IDs; use `user-event` for interactions
 
 **Demo (Vitest + RTL)**
@@ -80,11 +79,11 @@ Verify diacritics in user-visible copy; cover empty, loading, and error states p
 
 | Surface | Path |
 |---------|------|
-| Live seller dashboard | `apps/dashboard/` |
-| Workflow / landing demo | `apps/demo/` |
+| Public site + signup | `apps/landing/` |
+| Demo + ops (`demo.` / `ops.` hosts) | `apps/demo/` |
 | Shared UI primitives | `packages/ui/src/` |
 | iOS app | `ios/Sources/`, `ios/Tests/` |
-| Legacy (removed) | `web/` → use `apps/dashboard/` |
+| Legacy (removed) | `web/`, `apps/dashboard/` (deleted fast-track P53) |
 
 Deployable map: [`apps/README.md`](../../../apps/README.md).
 

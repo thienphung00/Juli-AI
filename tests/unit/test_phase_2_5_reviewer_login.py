@@ -3,6 +3,9 @@
 Issue #260 enables TikTok reviewers to log in without becoming production users.
 Live Supabase/VPS steps stay HITL; this slice ships the runbook and CI contracts
 that make the reviewer login path repeatable and testable without a live domain.
+
+The dashboard-side assertions (LoginForm, build-frontend-review.sh) went with
+apps/dashboard in fast-track P53 (C1); today's reviewer access lives in apps/demo.
 """
 
 from __future__ import annotations
@@ -20,13 +23,9 @@ SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
 
 REVIEWER_LOGIN_RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/reviewer-login-runbook.md"
 FRONTEND_RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/frontend-deploy-runbook.md"
-BUILD_SCRIPT_PATH = SCRIPTS_DIR / "build-frontend-review.sh"
-ENV_FRONTEND_PATH = SCRIPTS_DIR / "env/web.env.example"
 SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
 ISSUES_PATH = REPO_ROOT / "docs/product/features/app_review_deployment/issues.md"
 PHASE_25_PATH = REPO_ROOT / "docs/product/phases/phase-2.5-deployment.md"
-LOGIN_FORM_PATH = REPO_ROOT / "apps/dashboard/src/components/LoginForm.tsx"
-AUTH_CONTEXT_PATH = REPO_ROOT / "apps/dashboard/src/lib/auth-context.tsx"
 
 APP_URL = "https://app-juli.com"
 
@@ -72,21 +71,6 @@ def test_reviewer_runbook_documents_ui_only_as_default(reviewer_runbook_text: st
     assert "/login" in reviewer_runbook_text
     lowered = reviewer_runbook_text.lower()
     assert "demo" in lowered or "ui-only" in lowered or "ui only" in lowered
-
-
-def test_build_script_and_env_enforce_ui_only_for_review():
-    build = _read(BUILD_SCRIPT_PATH)
-    env = _read(ENV_FRONTEND_PATH)
-    assert "NEXT_PUBLIC_UI_ONLY=1" in build
-    assert "NEXT_PUBLIC_UI_ONLY=1" in env
-
-
-def test_login_form_implements_one_click_reviewer_entry():
-    login_form = _read(LOGIN_FORM_PATH)
-    auth_context = _read(AUTH_CONTEXT_PATH)
-    assert "loginAsReviewer" in login_form
-    assert "loginAsReviewer" in auth_context
-    assert "Tiếp tục" in login_form
 
 
 def test_smoke_test_probes_demo_login_markers():

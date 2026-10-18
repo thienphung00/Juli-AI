@@ -24,7 +24,7 @@ Product-oriented monorepo — `backend/` holds runtime Python services (ADR-019:
 `src/` shim tree removed).
 
 ```
-apps/          # Product deployables (dashboard, demo)
+apps/          # Product deployables (demo, landing; dashboard deleted in fast-track P53)
 backend/       # API, workers, AI, integrations, database
 infra/         # CI/CD, deploy config, env templates
 docs/
@@ -130,7 +130,7 @@ Modular monolith upgrade.
 | [`backend/src/juli_backend/services/alerts`](../../backend/src/juli_backend/services/alerts/MODULE.md) | 2 | Multi-channel seller alerts: rule engine + delivery | `configure_rules`, `evaluate_rules`, `deliver_alert`, `FcmAdapter`, `ZaloOaAdapter` | Cross-cutting |
 | [`backend/src/juli_backend/services/feedback`](../../backend/src/juli_backend/services/feedback/MODULE.md) | 2 | Campaign outcome ingest for calibration | `ingest_campaign_outcome`, `compute_calibration_weight` | Intelligence |
 | [`backend/src/juli_backend/ai/recommendations`](../../backend/src/juli_backend/ai/recommendations/MODULE.md) | 2 | Decision generation: seller-action suggestions with justification + CTA | `get_host_product_matching`, `get_product_push_suggestions`, `get_stream_optimization` | Intelligence |
-| [`apps/dashboard`](../../apps/dashboard/MODULE.md) | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | Frontend |
+| `apps/dashboard` *(deleted, fast-track P53)* | 2 | Next.js web app — UI for the three seller-money workflows (mock data in Phase 1) | `/login`, `/`, workflow pages | Frontend |
 | [`apps/demo`](../../apps/demo/MODULE.md) | 2 | Standalone Next.js mock Demo; four-destination shell and sparse Home foundation | `/`, `/decisions`, `/analytics`, `/settings` | Frontend |
 | [`packages/theme`](../../packages/theme/MODULE.md) | 1 | Framework-independent semantic product tokens | `@juli/theme/tokens.css` | Frontend |
 | [`packages/ui`](../../packages/ui/MODULE.md) | 1 | Accessible shared React primitives | `DestinationCard`, `PrimaryNavigation` | Frontend |
@@ -151,11 +151,11 @@ Tracked by [ADR-016](../adr/016-listing-workflow-implementation.md) and
 
 | Module | Tier | Responsibility | Public Surface | Owners |
 |--------|------|----------------|----------------|--------|
-| [`apps/dashboard/src/lib/mock-data/listing-workflow`](../../apps/dashboard/src/lib/mock-data/listing-workflow/MODULE.md) | 2 | Listing workflow mock fixtures: ProductDraft, Distributor, Opportunity | `loadDistributors`, `loadOpportunities`, `loadProductDrafts`, `validateListingFixtures` | Frontend |
-| [`apps/dashboard/src/lib/workflows/new-seller/listing`](../../apps/dashboard/src/lib/workflows/new-seller/listing/MODULE.md) | 2 | Listing generation + export: rules engine, CSV/JSON serialize, state machine | `generateProductDraft`, `exportProductDraft`, `useListingWorkflow` | Frontend |
-| [`apps/dashboard/src/lib/workflows/new-seller/shop-progress`](../../apps/dashboard/src/lib/workflows/new-seller/shop-progress/MODULE.md) | 2 | Session-scoped listing milestone + widget states | `loadShopProgress`, `recordExportCompleted`, `useShopProgress` | Frontend |
-| [`apps/dashboard/src/components/workflows/new-seller/listing`](../../apps/dashboard/src/components/workflows/new-seller/listing/ListingWorkflowPanel.tsx) | 2 | Modal listing workflow from approved `list_products` | `ListingWorkflowPanel` | Frontend |
-| [`apps/dashboard/src/components/workflows/new-seller/ListingProgressWidget`](../../apps/dashboard/src/components/workflows/new-seller/ListingProgressWidget.tsx) | 2 | Copilot home listing progress widget | `ListingProgressWidget` | Frontend |
+| `apps/dashboard/src/lib/mock-data/listing-workflow` *(deleted, fast-track P53)* | 2 | Listing workflow mock fixtures: ProductDraft, Distributor, Opportunity | `loadDistributors`, `loadOpportunities`, `loadProductDrafts`, `validateListingFixtures` | Frontend |
+| `apps/dashboard/src/lib/workflows/new-seller/listing` *(deleted, fast-track P53)* | 2 | Listing generation + export: rules engine, CSV/JSON serialize, state machine | `generateProductDraft`, `exportProductDraft`, `useListingWorkflow` | Frontend |
+| `apps/dashboard/src/lib/workflows/new-seller/shop-progress` *(deleted, fast-track P53)* | 2 | Session-scoped listing milestone + widget states | `loadShopProgress`, `recordExportCompleted`, `useShopProgress` | Frontend |
+| `apps/dashboard/src/components/workflows/new-seller/listing` *(deleted, fast-track P53)* | 2 | Modal listing workflow from approved `list_products` | `ListingWorkflowPanel` | Frontend |
+| `apps/dashboard/src/components/workflows/new-seller/ListingProgressWidget` *(deleted, fast-track P53)* | 2 | Copilot home listing progress widget | `ListingProgressWidget` | Frontend |
 
 ## Planned modules (Phase 1.7 / 1.8 / Phase 2 — not yet deployed)
 

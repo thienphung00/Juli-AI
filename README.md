@@ -7,7 +7,8 @@ collect explicit approval, and execute via tools.
 
 | Path | Purpose |
 |------|---------|
-| [`apps/dashboard/`](apps/dashboard/) | Next.js seller dashboard (`app-juli.com`) |
+| [`apps/`](apps/) | Next.js apps: `landing` (`app-juli.com`), `demo` (`demo.app-juli.com`, `ops.app-juli.com`), plus the `connector` extension |
+| [`packages/`](packages/) | Shared pnpm workspace packages (`ui`, `theme`, `contracts`, …) |
 | [`backend/`](backend/) | Python FastAPI backend (`juli_backend` package) |
 | [`ios/`](ios/) | Native iOS app |
 | [`infra/`](infra/) | VPS deploy scripts, nginx, systemd |
@@ -37,17 +38,16 @@ See [`backend/README.md`](backend/README.md) for module map and deploy notes.
 ### Frontend
 
 ```bash
-cd apps/dashboard
-npm ci
-npm run dev
+pnpm install
+pnpm dev            # demo :3100 and landing :3007
 ```
 
-Production build and CI gates: `npm run lint`, `npm run type-check`, `npm run test`, `npm run build`.
+Gates: `pnpm check:demo` and `pnpm check:landing` (lint, type-check, test, build).
 
 See [`apps/README.md`](apps/README.md).
 
 ## Tooling
 
 - **Python:** `backend/pyproject.toml` (PEP 621 + Hatchling); root `requirements.txt` is generated for VPS deploy.
-- **Node:** npm in `apps/dashboard/` (no pnpm/turbo workspace).
+- **Node:** pnpm workspace + turbo (`pnpm-workspace.yaml`, `turbo.json`). The old npm-owned `apps/dashboard` was deleted in fast-track P53 (C1).
 - **CI:** [`.github/workflows/pr.yml`](.github/workflows/pr.yml)

@@ -1161,3 +1161,32 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] `agent-runtime/config/slice-routing.yml` (lines 915, 1724) still lists the deleted
   `e2e/exit-gate/decisions-journey.spec.ts` under `loadWhenNeeded` (harmless hint, no test reads it).
 
+## P53-C1 — apps/dashboard deleted (2026-10-18)
+
+- [ ] `juli-web` on the VPS is not retired, only its source is gone. Still in the repo and
+  untouched on purpose (they run on the live VPS): `infra/systemd/juli-web.service`
+  (`WorkingDirectory=…/apps/dashboard`), `infra/scripts/env/web.env.example`,
+  `fetch-secrets.sh` (writes `/etc/juli/web.env` from `juli/web/production`),
+  `refresh-secrets.sh` (restarts `juli-web` when web.env changes), and
+  `rollback-release.sh` (restarts `juli-web` and waits for `127.0.0.1:3000` — so
+  `rollback.yml` likely fails its health check since #842 unless something still answers
+  on :3000). Repay: owner checks on the VPS `systemctl is-enabled juli-web; systemctl
+  is-active juli-web; curl -sI 127.0.0.1:3000`, then one change drops `juli-web` from those
+  three scripts, deletes the unit + `web.env.example` + the AWS secret, and updates
+  `tests/unit/test_phase_2_5_deploy_config.py` / `test_demo_runtime_packaging.py` (they still
+  read the unit file).
+- [ ] GitHub branch protection may list the old `frontend` check as required; the job no longer
+  exists, so a required `frontend` context would block every merge. Repay: owner removes it in
+  Settings → Branches (status-check is the aggregate gate).
+- [ ] `.github/dependabot.yml` npm entry for `/apps/dashboard` removed here, but Dependabot reads
+  its config from `main` (frozen), so dashboard PRs keep coming until this merges to `main`.
+- [ ] `scripts/capture-ui-screenshots.mjs` + root `screenshots*` scripts + `screenshots/` still
+  target the old dashboard (localhost:3000) — left for audit item C7.
+- [ ] Historical docs still name `apps/dashboard` (ADRs, `docs/product/**`, `docs/handoffs/**`,
+  `agent-runtime/artifacts/**`, `agent-runtime/config/slice-routing.yml` /
+  `slices/**`, `tests/fixtures/mmu9`, `eval/**` datasets and the ratchet baseline's
+  `unused_ts_exports` rows). Records, not instructions; left as-is. The runbooks that
+  describe the dashboard deploy carry a HISTORICAL banner. Ratchet check: no new violations
+  vs 1f7dfe64 (the 11 new broken doc links were fixed).
+- [ ] `apps/demo/next.config.ts` comment still says "matches juli-web / App Review" — left so
+  `apps/demo` stays byte-identical in this change.

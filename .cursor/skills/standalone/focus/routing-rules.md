@@ -22,9 +22,9 @@ Before loading feature docs for integration work, consult the project plugin ind
 | TikTok vendor depth / cross-corpus verification (Architect/Meta only) | — | — (`docs/integrations/tiktok_corpora/README.md` + selected catalog(s); ADR-051) |
 | Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-043) |
 | Mobbin problem-section screen inspiration | — | `Mobbin` (`search_screens`, `search_flows`, `search_sections`) |
-| `apps/demo/` or `apps/dashboard/` Next.js UI (component, page, form) | `open-design-system` + Mobbin when references needed → `ui-ux-design`, `nextjs`, `react-best-practices` | `open-design`, `Mobbin` if gathering refs; then — |
+| `apps/demo/` or `apps/landing/` Next.js UI (component, page, form) | `open-design-system` + Mobbin when references needed → `ui-ux-design`, `nextjs`, `react-best-practices` | `open-design`, `Mobbin` if gathering refs; then — |
 | UI / frontend / copy / report / design-surface | **Required:** `dictionary.md`, `docs/product/design/design-context.md` (ADR-028 — not OD/Mobbin output) | — |
-| `apps/demo/` or `apps/dashboard/` deploy / env | `deployments-cicd`, `env-vars` | `plugin-vercel-vercel` |
+| `apps/demo/` or `apps/landing/` deploy / env | `deployments-cicd`, `env-vars` | `plugin-vercel-vercel` |
 | shadcn registry primitive | `shadcn` (with `ui-ux-design`; atoms only → `@juli/ui`) | `shadcn` (prefer `user-shadcn`) |
 
 ## Design-reference upstream stack (ADR-043)
@@ -35,7 +35,7 @@ screen inspiration), load in this order **before** Meta assigns the `ui-ux` exec
 1. **Open Design** — `open-design-system` skill + `open-design` MCP
 2. **Mobbin** — `Mobbin` MCP (reference-only; adapt to ADR-015 tokens)
 3. **`ui-ux-design`** — Next.js implementation skill
-4. **`ui-ux` executor** — product implementation in `apps/demo` / `apps/dashboard`
+4. **`ui-ux` executor** — product implementation in `apps/demo` / `apps/landing`
 5. **ADR-028 copy authorities** — `dictionary.md`, `docs/product/design/design-context.md`
 
 Mobbin and Open Design output are **never** copy or IA authority. Shadcn refines atoms
@@ -116,9 +116,8 @@ vendor verification** only. Curated `docs/integrations/tiktok_api/` and
 
 | Code Pattern | Detected Intent | Load |
 |-------------|-----------------|------|
-| `'use client'` | Client component | `ui-ux-design`, `dictionary.md`, `docs/product/design/design-context.md`, `apps/demo/MODULE.md` or `apps/dashboard/MODULE.md` |
+| `'use client'` | Client component | `ui-ux-design`, `dictionary.md`, `docs/product/design/design-context.md`, `apps/demo/MODULE.md` |
 | `apps/demo/` | Demo product UI / copy | `ui-ux-design`, `dictionary.md`, `docs/product/design/design-context.md`, `apps/demo/MODULE.md`, nearest existing component |
-| `apps/dashboard/` | Dashboard UI / copy (legacy/prod) | `ui-ux-design`, `dictionary.md`, `docs/product/design/design-context.md`, `apps/dashboard/MODULE.md`, nearest existing component |
 | `packages/ui/` | Shared UI primitive | `ui-ux-design`, `packages/ui/MODULE.md` |
 | User-visible string, report label, empty/error copy | Copy / terminology | **Required:** `dictionary.md`, `docs/product/design/design-context.md` |
 | `'use server'` | Server action | security (input validation) |

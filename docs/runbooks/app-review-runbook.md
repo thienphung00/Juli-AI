@@ -1,5 +1,9 @@
 # Juli AI Production Deployment Runbook
 
+> **Note (2026-10-18):** every `juli-web` / `web.env` / `apps/dashboard` step below is
+> historical. The dashboard was retired by #842 and deleted from the repo in fast-track
+> P53 (C1); `app-juli.com` serves `apps/landing`. `juli-api` steps remain current.
+
 > **Authority:** [ADR-020](../../docs/adr/020-vps-ssh-continuous-delivery-and-secrets-manager.md) ·
 > [`EXECUTION.md`](../../EXECUTION.md) ·
 > [`vps-wiring-runbook.md`](vps-wiring-runbook.md) (DNS/TLS bootstrap)

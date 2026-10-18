@@ -165,7 +165,7 @@ def test_status_check_requires_artifact_gate_on_main_not_ai_review() -> None:
 
 def test_main_tier_lint_typecheck_frontend_demo_skip_when_reached_via_wave() -> None:
     """AC6 (narrowed to pull_request): no CI double-run of
-    lint/typecheck/frontend/demo-frontend when main tier is reached via a
+    lint/typecheck/demo-frontend/landing-frontend when main tier is reached via a
     wave->main pull_request (head_ref matches feature/*-wave). The
     merge_group branch of this dedup is out of #658 scope — merge_group's
     head_ref is a synthetic `gh-readonly-queue/...` ref that never matches
@@ -183,8 +183,10 @@ def test_main_tier_lint_typecheck_frontend_demo_skip_when_reached_via_wave() -> 
     main_block = status_job.split('"$tier" == "main"', 1)[1]
     assert 'require "lint" "$lint" "true"' in main_block
     assert 'require "typecheck" "$typecheck" "true"' in main_block
-    assert 'require "frontend" "$fe" "true"' in main_block
     assert 'require "demo-frontend" "$demo" "true"' in main_block
+    assert 'require "landing-frontend" "$landing" "true"' in main_block
+    # The dashboard `frontend` job was deleted with apps/dashboard (fast-track P53).
+    assert 'require "frontend"' not in status_job
 
 
 def test_gitleaks_stays_always_on_across_tiers() -> None:
@@ -603,16 +605,17 @@ def test_wave_push_backend_domain_diffs_before_after_sha() -> None:
 
 def test_wave_push_frontend_demo_domain_uses_real_filter_not_forced_true() -> None:
     """AC: a frontend/demo-only wave push must not force backend integration/
-    architecture jobs to run — the dashboard/demo filter categories must be
+    architecture jobs to run — the demo/landing filter categories must be
     reachable from the wave-tier filter run."""
     workflow = _workflow()
     changes_job = _job_block(workflow, "changes:")
 
-    assert "'apps/dashboard/**'" in changes_job
     assert "'apps/demo/**'" in changes_job
+    assert "'apps/landing/**'" in changes_job
+    assert "apps/dashboard" not in changes_job
 
-    frontend_block = _job_block(workflow, "frontend:")
-    assert "needs.changes.outputs.dashboard == 'true'" in frontend_block
+    landing_block = _job_block(workflow, "landing-frontend:")
+    assert "needs.changes.outputs.landing == 'true'" in landing_block
     demo_block = _job_block(workflow, "demo-frontend:")
     assert "needs.changes.outputs.demo == 'true'" in demo_block
 
@@ -701,7 +704,7 @@ def test_dependency_validation_is_domain_matched_on_wave_tier_not_main() -> None
     dep_block = _job_block(workflow, "dependency-validation:")
 
     assert "needs.changes.outputs.backend == 'true'" in dep_block
-    assert "needs.changes.outputs.dashboard == 'true'" in dep_block
+    assert "needs.changes.outputs.dashboard" not in dep_block
     assert "needs.changes.outputs.demo == 'true'" in dep_block
     assert "needs.classify-tier.outputs.tier == 'main'" in dep_block
 
@@ -737,10 +740,10 @@ def test_main_tier_wave_to_main_checkpoint_unchanged() -> None:
 # main-tier status-check accepted "skipped". #809 (936fa57c) fixed exactly this
 # for lint/typecheck; the frontend jobs were not included.
 
-FRONTEND_JOBS = ("frontend", "demo-frontend", "landing-frontend")
+# The dashboard `frontend` job went with apps/dashboard (fast-track P53, C1).
+FRONTEND_JOBS = ("demo-frontend", "landing-frontend")
 
 FRONTEND_JOB_DOMAIN = {
-    "frontend": "dashboard",
     "demo-frontend": "demo",
     "landing-frontend": "landing",
 }
@@ -897,8 +900,8 @@ def test_main_via_wave_rejects_skipped_frontend() -> None:
     untouched = _run_status_check(
         tier="main",
         main_via_wave="true",
-        results={"frontend": "skipped"},
-        changes={"dashboard": "false"},
+        results={"landing-frontend": "skipped"},
+        changes={"landing": "false"},
     )
     assert untouched.returncode == 0, untouched.stdout + untouched.stderr
 

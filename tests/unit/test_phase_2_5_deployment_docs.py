@@ -15,10 +15,11 @@ EXECUTION_PATH = REPO_ROOT / "EXECUTION.md"
 MAP_PATH = REPO_ROOT / "docs/architecture/map.md"
 
 # Phase 3 consolidated the live frontend into apps/dashboard/ and removed
-# empty apps/* and packages/* scaffolds. Backend/infra READMEs remain.
+# empty apps/* and packages/* scaffolds; fast-track P53 (C1) then deleted
+# apps/dashboard itself (Demo and Landing replace it). Backend/infra READMEs remain.
 SCAFFOLD_READMES = (
     "apps/README.md",
-    "apps/dashboard/MODULE.md",
+    "apps/demo/MODULE.md",
     "backend/README.md",
     "backend/src/juli_backend/api/README.md",
     "backend/src/juli_backend/workers/README.md",
@@ -60,7 +61,7 @@ def test_phase_2_5_deployment_doc_exists_with_scaffold_gate(phase_25_text: str):
 
 
 def test_scaffold_ownership_readmes_exist():
-    """Planned backend and infra subfolders have READMEs; live frontend at apps/dashboard."""
+    """Planned backend and infra subfolders have READMEs; the live frontend documents itself."""
     missing = [rel for rel in SCAFFOLD_READMES if not (REPO_ROOT / rel).is_file()]
     assert not missing, f"missing scaffold READMEs: {missing}"
 

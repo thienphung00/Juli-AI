@@ -3,7 +3,8 @@
 #
 # Parses home and /decisions route HTML from a Next.js production build and
 # asserts every referenced /_next/static/*.css and *.js file is present locally.
-# Reuses the App Review build-frontend-review.sh HTML→chunk existence pattern.
+# Reuses the HTML→chunk existence pattern of the retired dashboard's review build
+# script (build-frontend-review.sh, deleted in fast-track P53).
 #
 # Usage:
 #   ./infra/scripts/verify-demo-static-assets.sh

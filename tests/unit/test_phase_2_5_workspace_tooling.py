@@ -2,7 +2,8 @@
 
 Phase 2.5 left ``apps/dashboard`` independently npm-buildable. Phase 2.6
 reintroduces the root pnpm/Turborepo workspace for the new Demo and shared
-packages without changing that dashboard build contract.
+packages. Fast-track P53 (C1) deleted apps/dashboard; the workspace is now the
+only JavaScript build.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ pytestmark = pytest.mark.phase_scaffold
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DASHBOARD_PKG = REPO_ROOT / "apps/dashboard/package.json"
 ROOT_PACKAGE_PATH = REPO_ROOT / "package.json"
 
 
@@ -25,21 +25,13 @@ def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def test_phase_2_6_restores_root_workspace_without_removing_dashboard_npm_lock():
-    """New workspace tooling coexists with the independently built dashboard."""
+def test_phase_2_6_root_workspace_is_the_only_js_build():
+    """The pnpm/turbo workspace is the only JavaScript build; no npm lockfiles."""
     assert (REPO_ROOT / "pnpm-workspace.yaml").is_file()
     assert (REPO_ROOT / "pnpm-lock.yaml").is_file()
     assert (REPO_ROOT / "turbo.json").is_file()
     assert not (REPO_ROOT / "package-lock.json").exists()
-    assert (REPO_ROOT / "apps/dashboard/package-lock.json").is_file()
-
-
-def test_dashboard_app_has_runtime_package():
-    """The real Next.js dashboard lives at apps/dashboard with build/test scripts."""
-    assert DASHBOARD_PKG.is_file(), "apps/dashboard/package.json is required"
-    scripts = _read_json(DASHBOARD_PKG).get("scripts") or {}
-    for task in ("build", "test", "lint", "type-check"):
-        assert task in scripts, f"missing npm script: {task}"
+    assert not (REPO_ROOT / "apps/dashboard").exists()
 
 
 def test_only_phase_gated_apps_are_added():
@@ -58,9 +50,7 @@ def test_apps_with_workspace_deps_are_workspace_members():
     apps/landing shipped in Phase 2.7 declaring ``@juli/brand``/``@juli/theme``/
     ``@juli/ui`` as ``workspace:*`` but was never added to the workspace globs,
     so ``pnpm install`` skipped it, its dev server could not start from a clean
-    checkout, and turbo/CI never ran its tests. apps/dashboard is deliberately
-    npm-owned and excluded (see the pnpm-workspace.yaml comment), so it is only
-    exempt for as long as it declares no workspace dependency.
+    checkout, and turbo/CI never ran its tests.
     """
     workspace_globs = yaml.safe_load((REPO_ROOT / "pnpm-workspace.yaml").read_text())["packages"]
 

@@ -53,7 +53,7 @@ Present both to the user; do not pick a winner until they choose or combine.
 | Domain vocabulary | `CONTEXT.md` (repo root) |
 | Recorded decisions | `docs/adr/` |
 | Module registry | `docs/architecture/map.md` |
-| Per-module context | `**/MODULE.md` under `backend/`, `apps/dashboard/`, `ios/` |
+| Per-module context | `**/MODULE.md` under `backend/`, `apps/demo/`, `ios/` |
 
 When naming modules in reviews, prefer **CONTEXT.md** terms (e.g. "Order intake module")
 over handler/class names (e.g. `FooBarHandler`).

@@ -1,5 +1,8 @@
 # App Review Smoke Checklist & Sign-off (Phase 2.5-review-f, #261)
 
+> **Note (2026-10-18):** the `juli-web` / `build-frontend-review.sh` rows are historical —
+> the dashboard was deleted in fast-track P53 (C1).
+
 > **Scope:** Repeatable smoke-test checklist proving TikTok App Review readiness.
 > **Authority:** [`docs/product/features/app_review_deployment/PRD.md`](../../docs/product/features/app_review_deployment/PRD.md) ·
 > [`summary.md`](../../docs/product/features/app_review_deployment/summary.md)

@@ -71,7 +71,7 @@ for **technical / domain implementation**:
 
 1. Read [`.cursor/skills/skill-catalog/SKILL.md`](../../skill-catalog/SKILL.md) —
    `catalog.mcpServers` for MCP `serverName` values; `catalog.cliDocs` for Context7.
-2. Load **only** matching plugin skills (e.g. `supabase` for migrations, `nextjs` for `apps/demo` / `apps/dashboard`).
+2. Load **only** matching plugin skills (e.g. `supabase` for migrations, `nextjs` for `apps/demo` / `apps/landing`).
 3. Read MCP tool schemas from `mcps/<folder>/tools/` **only for selected servers**.
 4. Follow [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc) before calling MCP tools.
 5. **Context7 (CLI only, never always-on):** Meta/Focus selects it when implementing
@@ -92,7 +92,7 @@ for **technical / domain implementation**:
 | Library/framework during domain implementation | — | Context7 **CLI** (`npx ctx7@latest`) — Focus-selected |
 | Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-043) |
 | Mobbin problem-section screen inspiration | — | `Mobbin` |
-| `apps/demo` / `apps/dashboard` Next.js UI | `open-design-system` + Mobbin when refs needed → `frontend-design` (anti-generic aesthetic direction) → `ui-ux-design` (Juli brand tokens/IA), `nextjs`, `react-best-practices`; `shadcn` if registry | `open-design`, `Mobbin` then `shadcn` |
+| `apps/demo` / `apps/landing` Next.js UI | `open-design-system` + Mobbin when refs needed → `frontend-design` (anti-generic aesthetic direction) → `ui-ux-design` (Juli brand tokens/IA), `nextjs`, `react-best-practices`; `shadcn` if registry | `open-design`, `Mobbin` then `shadcn` |
 | Supabase / migrations / RLS | `supabase`, `supabase-postgres-best-practices` | `supabase` |
 | Production error | `sentry-workflow` → platform SDK | `plugin-sentry-sentry` |
 | Figma design sync | `figma-use` (before `use_figma`) | `figma` |
@@ -134,7 +134,7 @@ ALWAYS load:
   - docs/architecture/system-design.md (subsystem behavior for the active phase)
   - docs/architecture/map.md (as-built paths, public surfaces, dependency graph — not goals/features)
   - docs/architecture/data-sources.md (allowed/forbidden external data)
-  - MODULE.md for each affected module under backend/, apps/demo, apps/dashboard, or ios/
+  - MODULE.md for each affected module under backend/, apps/demo, apps/landing, or ios/
 ```
 
 ### Step 4: Load Task Context
@@ -181,7 +181,7 @@ Based on affected layers from [`docs/architecture/map.md`](../../../docs/archite
 ```
 Integrations (src/integrations/tiktok):
   - Load: authentication.md, rate-limits.md, endpoints.md (docs/integrations/tiktok_api/)
-  - Skip: apps/demo, apps/dashboard, ios UI unless building OAuth callback UX
+  - Skip: apps/demo, apps/landing, ios UI unless building OAuth callback UX
 
 Services (src/services/webhook, src/services/polling):
   - Load: webhooks.md, reliability/idempotency patterns
@@ -203,7 +203,7 @@ Intelligence (src/intelligence/scoring):
   - Load: data-sources.md rows #7–#8, edge-cases for post-stream-only
   - Skip: in-stream websocket designs (forbidden)
 
-Interface (apps/demo, apps/dashboard, ios/):
+Interface (apps/demo, apps/landing, ios/):
   - Load: MODULE.md for target app; design-reference: open-design-system + Mobbin MCP, then frontend-design (aesthetic direction) before ui-ux-design (Next.js apps, Juli brand tokens/IA) or swift-patterns (ios); dictionary.md + design-context.md for copy (ADR-028)
   - Skip: Celery/Redis unless debugging a displayed lag issue (v2.0)
 
@@ -300,7 +300,7 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 - [ ] `grill-with-docs` (Architect planning / rescope)
 - [ ] `intent-review` (Spec fidelity × structure; Review Agent)
 - [ ] `guardrails` (domain quality + ADR-003 review artifact)
-- [ ] Plugin: `nextjs` (apps/demo / apps/dashboard work)
+- [ ] Plugin: `nextjs` (apps/demo / apps/landing work)
 
 ### MCPs (read schemas only when listed)
 - [ ] `supabase`
@@ -322,7 +322,7 @@ When invoked, produce a context loading plan (template: `docs/handoffs/context-p
 - `.cursor/skills/standalone/guardrails/checklists/api-endpoint.md`
 
 ### DO NOT Load
-- `apps/demo`, `apps/dashboard`, `ios/` (not affected)
+- `apps/demo`, `apps/landing`, `ios/` (not affected)
 - Unselected marketplace plugin skills
 - MCP tool schemas for servers not listed above
 - Shopee/Lazada connector docs (out of scope per data-sources.md #13)

@@ -309,6 +309,12 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | Remove `/decisions/in-progress/[executionId]`, `/decisions/recommendations/[recommendationId]`, `/settings/workflows/[workflowKey]` and their import-graph closure; demo-shell run framing; tests / e2e | C2 (audit apps.md items 6–7, TOP 15 #2, #3, #7–#11) | done on branch `fasttrack/rm-legacy-routes` (not merged) | agent |
 
+## P53-C1 — delete apps/dashboard (owner C1, 2026-10-18)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Delete `apps/dashboard` + its CI job, dev scripts, review/provision scripts, guarding tests; docs marked historical | audit C1 | done on branch `fasttrack/rm-dashboard` (not merged) | agent |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

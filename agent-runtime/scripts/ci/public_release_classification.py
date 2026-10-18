@@ -11,7 +11,6 @@ from typing import Any
 # Path prefixes / exact workflow files from PRD #500.
 _PATH_PREFIX_REASONS: list[tuple[str, str]] = [
     ("apps/demo", "path:apps/demo"),
-    ("apps/dashboard", "path:apps/dashboard"),
     ("apps/landing", "path:apps/landing"),
     ("infra/nginx", "path:infra/nginx"),
     ("infra/systemd", "path:infra/systemd"),
@@ -39,8 +38,14 @@ _HOST_SURFACES: list[tuple[re.Pattern[str], str]] = [
 _BODY_SIGNAL_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bcandidate\s+verification\b", re.I), "body:candidate_verification"),
     (re.compile(r"\bpublic\s+surface\b", re.I), "body:public_surface"),
-    (re.compile(r"\bpublic\s+release\b.*\b(cutover|deploy|ship|promote)\b", re.I), "body:public_release"),
-    (re.compile(r"\b(cutover|deploy|ship|promote)\b.*\bpublic\s+release\b", re.I), "body:public_release"),
+    (
+        re.compile(r"\bpublic\s+release\b.*\b(cutover|deploy|ship|promote)\b", re.I),
+        "body:public_release",
+    ),
+    (
+        re.compile(r"\b(cutover|deploy|ship|promote)\b.*\bpublic\s+release\b", re.I),
+        "body:public_release",
+    ),
     (re.compile(r"\brollback\b", re.I), "body:rollback"),
     (re.compile(r"\bdeploy\b", re.I), "body:deploy"),
     (re.compile(r"\bsmoke\b", re.I), "body:smoke"),

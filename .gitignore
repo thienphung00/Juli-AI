@@ -9,7 +9,6 @@ __pycache__/
 .coverage
 .coverage.*
 coverage/
-apps/dashboard/coverage/
 *.egg-info/
 dist/
 build/
