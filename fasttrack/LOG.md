@@ -2811,3 +2811,25 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   landing lint 0 errors (6 old warnings), tsc 0, vitest 17 files / 623 passed (Node 26,
   `NODE_OPTIONS=--no-experimental-webstorage --maxWorkers=4`), build OK (Node 20); ruff `media.py` clean.
 - Goes live on the next owner deploy tag.
+
+## 2026-10-18 · P49-A2 conversion drafts C5–C8 (agent: Claude Opus, branch `fasttrack/p49a2-guides-problems`)
+- Branch from `fasttrack/optimize-product` d9f6dbaf. Commits 9c632546 (bodies + hero covers), c237bbcf (17
+  screenshot figures), 25323dd3 (posts.ts, bodies/index.ts, FIGURE_POSTS), af50ec8a (keyword-map rows). Not merged.
+- Four `format: "guide"` drafts, all `status: "draft"`: `dung-thu-juli-ai-mien-phi-3-thang` (C5, ~2,080 words,
+  5 figures), `tim-san-pham-keo-gmv-xuong-tiktok-shop` (C6, ~2,070, 4), `ctr-the-san-pham-thap-doi-tieu-de-anh-bia`
+  (C7, ~2,020, 5), `ctor-thap-viet-lai-mo-ta-san-pham` (C8, ~2,110, 3). FAQ 4–5 each. Screenshots only P49-S/F v2/v3
+  shots plus cap-pt-luong / pt-pheu / pt-xep-hang / pt-khuyen-mai; no pt-nghen v1, dx-the v1. Trial facts only from
+  /terms §5, /dang-ky copy and D43 additions 2; PROPOSED P33-F items (retention 12 months / 30 days, Ops access) left out.
+- Heroes: `juli-content-engine-heroes/projects/blog-heroes/heroes-p49a2.json`; four NEW motifs (sprout-pots,
+  anchor-balloons, magnet-pointers, quill-scroll) had to be added to `my-video/src/stills/blog-hero/{spec,motifs}.ts(x)`
+  there, uncommitted (heroes.json untouched). Converted with `media.py blog-hero` → `blog-hero-<slug>-v1-*`.
+- Conflicts noted (owner): sample day-7 / day-14 shots (TN-021) show "Đã đổi Tiêu đề" with a CTOR target, against the
+  product pages' lever map (title → CTR), so they are used only in C5; sample Kéo xuống rows sum to −278k (264k + Còn
+  lại 14k) while the tile and "Tổng" say −250k, so no sum is quoted; cards say "CTOR · Thẻ sản phẩm" while
+  /san-pham/do-luong-gmv says CTOR is measured on all channels (C8 follows the page); /privacy already states the
+  PROPOSED 12-month retention; /terms says "500.000đ/tháng", home says "từ 500.000đ/tháng" (posts use /terms).
+- Gates (landing): lint 0 errors (2 old warnings, was 6), tsc 0, vitest 17 files / 680 passed (Node 26,
+  `NODE_OPTIONS=--no-experimental-webstorage`, `--maxWorkers=4`), build OK + check:seo 43 passed (Node 20);
+  `check.sh --since fasttrack/optimize-product --skip-migrations` OK. Shots 390 / 1440 in the session scratchpad
+  `shots-p49a2/` (no horizontal scroll at 390).
+- Next: P49-L end-of-post box links from the reach posts; owner review of the four drafts.
