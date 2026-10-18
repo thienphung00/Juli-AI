@@ -141,7 +141,7 @@ describe("public product and company pages", () => {
     const text = list.textContent ?? "";
     for (const claim of [
       "GMV = Lượt hiển thị × CTR × CTOR × AOV",
-      "Tối đa 5 đề xuất mới mỗi ngày",
+      "Mỗi ngày vài đề xuất mới",
       "từ chối kèm lý do",
       "API chính thức",
       "lưu giá trị cũ",

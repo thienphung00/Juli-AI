@@ -3,7 +3,6 @@ import {
   BLOG_PATH,
   CapabilityPage,
   CapSection,
-  Formula,
   H3,
   Note,
   Ol,
@@ -29,8 +28,8 @@ import { buildMetadata } from "../../../lib/seo";
 /**
  * `/san-pham/de-xuat-va-thuc-thi` — capability page "Đề xuất & Thực thi"
  * (D43.1, D43.4, P33-C). Grounded in D13 (execution scope), D22 (recoverable
- * GMV), D24 (rules choose, LLM only writes; card limits and slots), D29 / D32
- * / D39 (trigger, KPI, channel) and the demo's Quyết định screens.
+ * GMV), D24, D29 / D32 / D39 and the demo's Quyết định screens. Public copy
+ * follows D61: no formulas, caps, slots, cooldowns, ranking or architecture.
  */
 const PATH = "/san-pham/de-xuat-va-thuc-thi";
 
@@ -60,12 +59,12 @@ const FAQ = [
   {
     question: "Mỗi ngày tôi nhận bao nhiêu thẻ đề xuất?",
     answer:
-      "Tối đa 5 thẻ mới mỗi ngày, 25 thẻ mỗi tuần và 30 thẻ đang mở cùng lúc. Bạn có thể giảm con số đang mở trong Quy tắc. Mỗi thẻ có hiệu lực 7 ngày.",
+      "Juli giữ số thẻ mới mỗi ngày ở mức bạn duyệt kịp, và chỉ đưa ra thẻ khi có việc đáng làm. Bạn có thể giảm số thẻ đang mở cùng lúc trong Quy tắc.",
   },
   {
     question: "Tôi từ chối một thẻ thì nó có quay lại không?",
     answer:
-      "Cùng một thay đổi cho cùng một sản phẩm chỉ có thể quay lại sau ít nhất 7 ngày. Lý do bạn chọn khi từ chối cũng làm loại thay đổi đó được ưu tiên thấp hơn cho shop của bạn trong thời gian sau.",
+      "Không quay lại ngay. Juli ghi nhận lý do bạn chọn để các đề xuất sau hợp với shop của bạn hơn.",
   },
 ] as const;
 
@@ -125,13 +124,13 @@ export default function DeXuatVaThucThiPage() {
         { id: "xac-nhan", label: "Xác nhận và ghi" },
         { id: "luot-chay", label: "Theo dõi lượt chạy" },
         { id: "hoan-tac", label: "Hoàn tác" },
-        { id: "gioi-han", label: "Giới hạn và thời gian chờ" },
+        { id: "gioi-han", label: "Nhịp đề xuất" },
         { id: "cau-hoi", label: "Câu hỏi thường gặp" },
       ]}
     >
       <CapSection
-        alt="Thẻ đề xuất cho sản phẩm Son môi số 12 đã mở rộng: CTOR Thẻ sản phẩm từ 5,4 % lên mục tiêu 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do khách thêm giỏ rồi bỏ, tiêu đề cũ bị gạch và tiêu đề mới, mô tả hiện tại và mô tả đề xuất, công thức tính GMV dự kiến"
-        caption="Một thẻ đề xuất đã mở “Xem thêm”: lý do đầy đủ, nội dung trước và sau, và cách tính GMV dự kiến."
+        alt="Thẻ đề xuất cho sản phẩm Son môi số 12 đã mở rộng: CTOR Thẻ sản phẩm từ 5,4 % lên mục tiêu 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do khách thêm giỏ rồi bỏ, tiêu đề cũ bị gạch và tiêu đề mới, mô tả hiện tại và mô tả đề xuất, và GMV dự kiến"
+        caption="Một thẻ đề xuất đã mở “Xem thêm”: lý do đầy đủ, nội dung trước và sau, và GMV dự kiến."
         heading="Tối ưu sản phẩm TikTok Shop bằng thẻ đề xuất: một sản phẩm, một chỉ số, một thay đổi"
         id="the-de-xuat"
         image={CAP_DX_THE}
@@ -147,7 +146,7 @@ export default function DeXuatVaThucThiPage() {
             mục tiêu và mức tăng.
           </li>
           <li>
-            <strong>GMV dự kiến</strong> mỗi tháng nếu đạt mục tiêu, ghi rõ là “ước tính theo quy tắc”.
+            <strong>GMV dự kiến</strong> mỗi tháng nếu đạt mục tiêu, ghi rõ là ước tính.
           </li>
           <li>
             <strong>Lý do</strong> ngắn gọn (ví dụ “Khách thêm giỏ rồi bỏ”, “Ảnh bìa kém nổi bật”) và lý do
@@ -162,23 +161,17 @@ export default function DeXuatVaThucThiPage() {
             thực hiện trên Seller Center, hoặc Juli soạn kịch bản để bạn quay.
           </li>
         </Ul>
-        <H3>GMV dự kiến được tính thế nào</H3>
+        <H3>GMV dự kiến là một ước tính</H3>
         <P>
-          Juli dùng chính phép phân tách GMV của TikTok. Với một thẻ nhắm CTOR, phần GMV có thể lấy lại mỗi
-          ngày là:
+          Juli ước tính GMV có thể lấy lại từ số liệu hiện tại của sản phẩm, trên đúng luồng mà thẻ nhắm
+          tới. Với thẻ nhắm CTR, lượt nhấp tăng thêm chỉ thành GMV khi có người đặt hàng, nên con số còn phụ
+          thuộc vào CTOR của chính sản phẩm. Đây là ước tính, không phải lời hứa; kết quả thật được đo sau
+          khi áp dụng.
         </P>
-        <Formula>Lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV</Formula>
+        <H3>Mục tiêu đo được</H3>
         <P>
-          với số liệu trung bình 30 ngày. Thẻ nhắm CTR tính thêm bước CTOR, vì lượt nhấp tăng thêm chỉ thành
-          GMV khi có người đặt hàng. Đây là ước tính theo quy tắc, không phải lời hứa; kết quả thật được đo
-          sau khi áp dụng.
-        </P>
-        <H3>Mục tiêu nằm trong vùng đo được</H3>
-        <P>
-          Mục tiêu không được đặt tuỳ ý. Nó phải cao hơn mức dao động bình thường của chỉ số, nếu không sẽ
-          không thể biết thay đổi có tác dụng hay không, nhưng cũng không được vượt quá vài lần mức dao động
-          đó, để không hứa quá tay. Với sản phẩm có số liệu dao động mạnh, mục tiêu hiện dưới dạng một
-          khoảng.
+          Mục tiêu được đặt ở mức đủ rõ để đo được, và không hứa quá tay. Với sản phẩm có số liệu dao động
+          mạnh, mục tiêu hiện dưới dạng một khoảng.
         </P>
         <H3>Đo trên đúng luồng mà thay đổi tác động</H3>
         <P>
@@ -203,36 +196,29 @@ export default function DeXuatVaThucThiPage() {
         mobileImage={CAP_DX_QUY_TAC_MOBILE}
       >
         <P>
-          Một thẻ bắt đầu từ dữ liệu, không từ một danh sách mẹo chung. Juli đọc từng sản phẩm trên từng
-          luồng và mở thẻ khi một chỉ số của phễu giảm nhiều hơn mức dao động bình thường của nó, kể cả khi GMV tổng của sản phẩm vẫn giữ được nhờ một chỉ số khác
-          tăng. Sau đó, Juli chọn thay đổi phù hợp với chỉ số đó: ảnh bìa hoặc tiêu đề cho CTR, mô tả hoặc
-          giá cho CTOR.
+          Một thẻ bắt đầu từ dữ liệu của chính sản phẩm, không từ một danh sách mẹo chung. Khi một chỉ số
+          của phễu trên một luồng yếu đi rõ rệt, kể cả khi GMV tổng vẫn giữ được, Juli đề xuất thay đổi hợp
+          với chỉ số đó: ảnh bìa hoặc tiêu đề cho CTR, mô tả hoặc giá cho CTOR.
         </P>
-        <H3>Xếp hạng theo GMV có thể lấy lại</H3>
+        <H3>Việc đáng làm nhất đứng trước</H3>
         <P>
-          Các ứng viên được xếp theo số GMV mỗi ngày mà chỉ số bị giảm đang lấy đi, giống bảng xếp hạng ở
-          trang <A href="/san-pham/phan-tich-shop">Phân tích</A>. Sản phẩm bán chạy cũng được xét, vì một
-          sản phẩm lớn mất vài phần trăm CTOR có thể mất nhiều tiền hơn một sản phẩm nhỏ mất một nửa.
+          Juli đưa lên trước những việc có khả năng mang lại nhiều GMV nhất cho shop. Sản phẩm bán chạy cũng
+          được xét, vì một sản phẩm lớn giảm nhẹ có thể mất nhiều tiền hơn một sản phẩm nhỏ giảm mạnh. Bảng
+          ở trang <A href="/san-pham/phan-tich-shop">Phân tích</A> cho thấy sản phẩm nào đang lấy đi nhiều
+          GMV nhất.
         </P>
         <H3>Những điều kiện trước khi một thẻ hiện ra</H3>
         <Ul>
-          <li>Có đủ dữ liệu: ít nhất khoảng 30 lượt nhấp hoặc 30 đơn trong khoảng thời gian xét.</li>
+          <li>Có đủ dữ liệu để đọc được kết quả.</li>
           <li>Thay đổi đó hợp lệ với TikTok Shop và với quy tắc của bạn.</li>
           <li>Sản phẩm không có một thay đổi khác đang được đo.</li>
-          <li>Cùng thay đổi đó chưa bị từ chối hay hoàn tác trong 7 ngày qua.</li>
+          <li>Bạn chưa vừa từ chối hay hoàn tác cùng thay đổi đó.</li>
         </Ul>
         <H3>Quy tắc do bạn đặt</H3>
         <P>
           Trong Quy tắc, bạn đặt giọng văn, những từ không được dùng, giá vốn hoặc biên lợi nhuận tối thiểu,
           mức giảm giá tối đa và số thẻ mở cùng lúc. Juli không tự chọn các con số này. Một đề xuất giảm giá
           chỉ xuất hiện khi Juli biết giá vốn của sản phẩm, và luôn nằm trong biên lợi nhuận bạn cho phép.
-        </P>
-        <H3>Quy tắc chọn, AI chỉ viết</H3>
-        <P>
-          Chọn sản phẩm, chọn thay đổi và tính con số đều do quy tắc và phép tính đảm nhận. Mô hình AI chỉ
-          được gọi sau khi bạn duyệt một thẻ, để soạn nội dung như tiêu đề, mô tả hay kịch bản video, và
-          không bao giờ tạo ra con số trên thẻ. Bạn có thể đọc thêm về cách viết tiêu đề và mô tả trên{" "}
-          <A href={BLOG_PATH}>blog của Juli</A>.
         </P>
       </CapSection>
 
@@ -275,13 +261,11 @@ export default function DeXuatVaThucThiPage() {
         <P>
           Khi từ chối, bạn chọn một lý do: thay đổi không hợp thương hiệu, số liệu chưa thuyết phục, bạn
           đang tự sửa sản phẩm, sản phẩm sắp ngừng bán, đang chạy chiến dịch khác, hoặc lý do khác. Thẻ rời
-          khỏi danh sách đề xuất, và Juli không đề xuất lại cùng thay đổi cho sản phẩm đó trong 7 ngày.
+          khỏi danh sách đề xuất, và Juli không đề xuất lại ngay cùng thay đổi cho sản phẩm đó.
         </P>
         <H3>Lý do giúp đề xuất sau tốt hơn</H3>
         <P>
-          Những lý do như “không hợp giọng văn” hay “số liệu chưa thuyết phục” làm loại thay đổi đó được ưu
-          tiên thấp hơn cho shop của bạn trong khoảng hai tháng sau, và ảnh hưởng này nhạt dần theo thời
-          gian. Những lý do mang tính hoàn cảnh, như đang tự sửa hay sắp ngừng bán, không bị tính.
+          Lý do bạn chọn được ghi lại, để các đề xuất sau hợp với cách shop bạn bán hàng.
         </P>
       </CapSection>
 
@@ -303,7 +287,8 @@ export default function DeXuatVaThucThiPage() {
           tin sản phẩm, chẩn đoán của TikTok và từ khoá liên quan, soạn tiêu đề hoặc mô tả sản phẩm mới
           rồi đưa bạn xem bản trước và sau; bạn sửa được nội dung trước khi áp dụng. Chỉ khi bạn xác nhận,
           Juli mới ghi tiêu đề hoặc mô tả mới lên TikTok Shop qua Open API và lưu lại nội dung cũ để có thể
-          hoàn tác.
+          hoàn tác. Bạn có thể đọc thêm về cách viết tiêu đề và mô tả trên{" "}
+          <A href={BLOG_PATH}>blog của Juli</A>.
         </P>
         <P>
           Sau khi áp dụng, Juli đo thay đổi đó trên đúng luồng mà tiêu đề hay mô tả tác động: kiểm tra ở
@@ -424,41 +409,38 @@ export default function DeXuatVaThucThiPage() {
       <CapSection
         alt="Cột Hàng chờ thẻ tối ưu: Juli chạy lần lượt, không bao giờ hai thay đổi cùng lúc trên một sản phẩm; Son môi số 12 đang chờ bạn, Toner rau má 200ml đã áp dụng"
         caption="Hàng chờ thẻ tối ưu: các lượt chạy được xử lý lần lượt."
-        heading="Giới hạn số thẻ và thời gian chờ"
+        heading="Nhịp đề xuất và thời gian chờ"
         id="gioi-han"
         image={CAP_DX_HANG_CHO}
         narrow
       >
         <P>
-          Quá nhiều đề xuất cùng lúc khiến người bán khó theo kịp, và cũng khó đo kết quả. Juli giữ nhịp đề
-          xuất bằng một số giới hạn cố định, giống nhau cho mọi shop:
+          Quá nhiều đề xuất cùng lúc khiến người bán khó theo kịp, và cũng khó đo kết quả. Vì vậy Juli giữ
+          nhịp đề xuất vừa phải, giống nhau cho mọi shop:
         </P>
         <Ul>
-          <li>Tối đa 5 thẻ mới mỗi ngày, 25 thẻ mỗi tuần, và 30 thẻ đang mở cùng lúc.</li>
           <li>
-            Mỗi ngày, thẻ mới được chia theo loại: đến 3 thẻ Juli thực hiện (tiêu đề, mô tả, hoặc ảnh bìa
-            bằng ảnh bạn gửi), 1 thẻ bạn làm trên Seller Center và 1 thẻ nội dung video hoặc LIVE. Không có ứng viên tốt thì ô đó để
-            trống, Juli không lấp bằng thẻ kém hơn.
+            Mỗi ngày chỉ vài thẻ mới, gồm việc Juli làm (tiêu đề, mô tả, hoặc ảnh bìa bằng ảnh bạn gửi),
+            việc bạn làm trên Seller Center và nội dung video hoặc LIVE. Không có việc đáng làm thì Juli
+            không thêm thẻ cho đủ số.
           </li>
-          <li>Bạn có thể giảm số thẻ mở cùng lúc trong Quy tắc (từ 5 đến 30).</li>
+          <li>Bạn có thể giảm số thẻ mở cùng lúc trong Quy tắc.</li>
           <li>
-            Mỗi thẻ có hiệu lực 7 ngày, và ở lại ít nhất 3 ngày dù thứ hạng thay đổi. Số liệu trên thẻ được
-            cập nhật mỗi ngày.
+            Số liệu trên thẻ được cập nhật mỗi ngày; thẻ chưa duyệt tự hết hạn sau một thời gian ngắn.
           </li>
           <li>
             Thẻ bị rút sớm chỉ khi không còn hợp lệ: sản phẩm bị sửa bên ngoài Juli, hết hàng, hoặc chỉ số
             đã đạt mục tiêu.
           </li>
           <li>
-            Sau khi hết hạn, bị từ chối, không thực hiện hoặc hoàn tác, cùng thay đổi cho cùng sản phẩm chỉ
-            quay lại sau ít nhất 7 ngày.
+            Thẻ đã hết hạn, bị từ chối, không thực hiện hoặc hoàn tác không quay lại ngay.
           </li>
         </Ul>
         <H3>Ngày đầu tiên sau khi kết nối</H3>
         <P>
-          Vài phút sau khi bạn kết nối shop, Juli đọc nhanh 14 ngày gần nhất và có thể tạo 1 đến 3 “đề xuất
-          nhanh” về ảnh bìa, tiêu đề hoặc mô tả. Khi chẩn đoán đầy đủ trên 60 ngày hoàn tất, các thẻ còn lại
-          trong ngày được lấp đầy. Xem thêm ở trang <A href="/ket-noi/tiktok-shop">Kết nối TikTok Shop</A>.
+          Vài phút sau khi bạn kết nối shop, Juli đọc nhanh 14 ngày gần nhất và có thể đưa ra vài “đề xuất
+          nhanh” về ảnh bìa, tiêu đề hoặc mô tả. Khi Juli đọc xong dữ liệu đầy đủ, các đề xuất khác xuất
+          hiện. Xem thêm ở trang <A href="/ket-noi/tiktok-shop">Kết nối TikTok Shop</A>.
         </P>
         <Note>
           Ảnh trên trang này lấy từ bản demo của Juli với “Cửa hàng Mẫu Hoa Mai”, một shop minh hoạ. Các

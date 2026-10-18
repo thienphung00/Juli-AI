@@ -188,7 +188,9 @@ describe("D60 product copy (D13, D34, D45)", () => {
   ] as const)("%s: no control-group claim", (_name, Page) => {
     const { container, unmount } = render(<Page />);
     const text = container.textContent ?? "";
-    expect(text).not.toMatch(/đối chứng|tương tự (chưa|không) (thay )?đổi|chưa được thay đổi/i);
+    expect(text).not.toMatch(
+      /đối chứng|tương tự (chưa|không) (thay )?đổi|chưa được thay đổi|sản phẩm không (thay )?đổi/i,
+    );
     expect(text).not.toMatch(/mua nhiều giảm nhiều/i);
     unmount();
   });

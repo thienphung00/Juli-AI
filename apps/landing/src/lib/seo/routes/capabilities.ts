@@ -11,7 +11,7 @@ export const CAPABILITY_ROUTES: readonly SiteRoute[] = [
     title: "Phân tích GMV TikTok Shop theo 5 luồng truy cập | Juli AI",
     description:
       "Tăng GMV TikTok Shop từ đúng chỗ nghẽn: Juli tách GMV theo 5 luồng truy cập, tìm chỉ số kéo GMV xuống và xếp hạng sản phẩm theo tác động GMV.",
-    lastModified: "2026-10-16",
+    lastModified: "2026-10-18",
     breadcrumbName: "Phân tích shop",
     parent: "/san-pham",
     changeFrequency: "monthly",
@@ -44,7 +44,7 @@ export const CAPABILITY_ROUTES: readonly SiteRoute[] = [
     title: "Kết nối TikTok Shop qua uỷ quyền chính thức | Juli AI",
     description:
       "Cách Juli kết nối TikTok Shop: uỷ quyền chính thức, dữ liệu được đọc, thay đổi chỉ ghi khi bạn duyệt, quét nhanh sau kết nối, ngắt kết nối.",
-    lastModified: "2026-10-15",
+    lastModified: "2026-10-18",
     breadcrumbName: "Kết nối TikTok Shop",
     changeFrequency: "monthly",
     priority: 0.7,

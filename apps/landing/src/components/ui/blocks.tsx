@@ -112,7 +112,7 @@ export const LOOP_STEPS: readonly Step[] = [
   { title: "Đề xuất", body: "Mỗi thẻ nêu chỉ số mục tiêu, lý do và thay đổi cụ thể." },
   { title: "Duyệt", body: "Bạn duyệt, sửa hoặc từ chối. Không gì chạy khi chưa duyệt.", you: true },
   { title: "Thực thi", body: "Juli cập nhật tiêu đề, mô tả qua Open API; phần còn lại có hướng dẫn." },
-  { title: "Đo lường", body: "Kiểm tra ngày 7, chốt ngày 14, so với sản phẩm không đổi." },
+  { title: "Đo lường", body: "Kiểm tra ngày 7, chốt ngày 14, hoàn tác được." },
 ];
 
 export interface StepListProps {

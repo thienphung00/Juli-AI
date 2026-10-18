@@ -5,8 +5,8 @@
  *   from a photo the seller supplies; price is a recommendation only), D24.5
  *   (promotions are done by the seller in Seller Center), D24.4/18 (video and
  *   LIVE: Juli drafts, the seller films);
- * - measurement: D12/D14 (day 7 check-in, day 14 final, revert), ADR-077 (vs
- *   comparable products the seller did not change), D34 (opt-in delayed control);
+ * - measurement: D12/D14 (day 7 check-in, day 14 final, revert); no comparison
+ *   group or algorithm detail on public pages (D60, D61);
  * - Shopee: D42.6 ("đang tích hợp qua Shopee Open Platform", never live);
  * - price: /terms §5 (500.000đ/tháng) and the 3-month trial already on the site.
  * No testimonial, no case study, no outcome figure (D43.3).
