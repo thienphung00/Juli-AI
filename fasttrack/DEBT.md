@@ -166,8 +166,9 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   usable videos still stores the two Video tables (closing rows only) —
   interpretation — confirm with the owner whether an empty table should be
   stored or skipped.
-- [ ] `check_import_boundaries --strict` still reports the base's 56
-  violations (P8-A's two new ones fixed in fc07b873); not run by check.sh.
+- [x] ~~`check_import_boundaries --strict` still reports the base's 56
+  violations (P8-A's two new ones fixed in fc07b873); not run by check.sh.~~ — repaid in P53
+  (D62): strict + baseline PASS; the baseline is the 54 grandfathered rows.
 
 ## P8-G get_product_diagnoses (2026-10-08)
 
@@ -442,8 +443,10 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   consent payload itself still carries no URLs.
 - [ ] The Python↔TS P10 contract test reads the TS interfaces as text (field
   names only); types/nullability are pinned by tsc, not by the test.
-- [ ] `tests/integration/test_reaper_two_tenant.py` still fails on PG16 (pre-existing
-  since before effa4d4a, see P10-B log) — not investigated here.
+- [x] ~~`tests/integration/test_reaper_two_tenant.py` still fails on PG16 (pre-existing
+  since before effa4d4a, see P10-B log) — not investigated here.~~ — repaid in P53 (D62): the
+  per-workflow case wrote aware stamps into naive columns; red on a PG16 server in
+  Asia/Ho_Chi_Minh, green after the fix in Asia/Ho_Chi_Minh, UTC and America/Los_Angeles.
 - [ ] Not re-shot against a live backend: fidelity screenshots are still P10-C's
   stubbed ones.
 - [ ] Photo links `GET /v1/demo/photos/{shop}/{token}` are unauthenticated and
@@ -622,7 +625,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] UI (fork): "Độ tin cậy: Tham khảo" shows only next to an expected GMV; a quick card without `expected_gmv_per_month` shows the chip but not the confidence.
 - [ ] UI (fork): Home has no cards list, so the poll only re-reads Home's and Phân tích's report (once step 2 is done and the report was empty); Phân tích's per-cell "Xem đề xuất" counts are not refreshed.
 - [ ] UI (fork): the first onboarding read does not re-read Quyết định's cards (it lands with the page's own read), so new cards appear from the second poll (~15 s after load).
-- [ ] Pre-existing, not P17: `tests/harness/test_module_md_sync_parser.py` (2) fails at 09960b20 too (P14 drift + stale `_WEEKLY_NOVELTY_CAP` entry); regenerate the allowlist in an integration pass.
+- [x] (repaid in P53, D62: allowlist regenerated from the tree) Pre-existing, not P17: `tests/harness/test_module_md_sync_parser.py` (2) fails at 09960b20 too (P14 drift + stale `_WEEKLY_NOVELTY_CAP` entry); regenerate the allowlist in an integration pass.
 
 ## P27 (D32) shortcuts and open risks
 
@@ -637,12 +640,12 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P29 merge (2026-10-13)
 
-- [ ] Pre-existing, not P29-merge: `tests/unit/test_import_boundaries.py::test_strict_with_baseline_passes_for_known_production_debt`
+- [x] (repaid in P53, D62: the 8 deep imports go through `services.ops` / `services.action_cards`) Pre-existing, not P29-merge: `tests/unit/test_import_boundaries.py::test_strict_with_baseline_passes_for_known_production_debt`
   fails — `api/routes/ops.py` deep-imports `juli_backend.services.ops.access` and 5 more
   `services.ops.*` modules (cross-package depth 3 > 2). Fails on base 2190f2de too; check.sh does
   not select it — re-export the used names from `juli_backend.services.ops` (or baseline them) in
   the merge PR.
-- [ ] Pre-existing, not P29-merge: `tests/unit/test_destructive_migration_isolation.py::test_ci_is_configured_to_declare_its_database_disposable`
+- [x] (repaid in P53, D62: declared on the check.sh step) Pre-existing, not P29-merge: `tests/unit/test_destructive_migration_isolation.py::test_ci_is_configured_to_declare_its_database_disposable`
   fails — `fasttrack-deploy.yml` sets `DATABASE_URL` but never `JULI_TEST_DATABASE_DISPOSABLE`
   (check.sh exports it itself, so the deploy works). Not selected by check.sh — declare it in the
   workflow env in the merge PR.
@@ -719,7 +722,8 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Not exercised live: password sign-in against the real Supabase project, the
   provisioning command against production, the mask on real Fujiwa data (no deploy — P32
   integration step).
-- [ ] Pre-existing guard drift not repaired here (fails at the base too): quality corpus
+- [ ] (P53, D62: corpus figures, module_md allowlist and boundaries repaid; the
+  prior-figure drift check and the GRANT UPDATE test remain — see P53-A below) Pre-existing guard drift not repaired here (fails at the base too): quality corpus
   6,417 recorded vs ~6,700 live (`test_test_quality`, `test_quality_reconcile`),
   `test_module_md_sync_parser` allowlist, 6 import-boundary deep imports in ops / workers,
   `test_no_public_table_holds_update_beyond_its_call_site`.
@@ -1078,4 +1082,54 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   test fails on desktop and mobile-web. One-line spec fix.
 - [ ] `agent-runtime/config/slice-routing.yml` (lines 915, 1724) still lists the deleted
   `e2e/exit-gate/decisions-journey.spec.ts` under `loadWhenNeeded` (harmless hint, no test reads it).
+
+## P53-A cleanup (2026-10-18, D62)
+
+- [ ] **P23 nightly product-history fan-out turns on in production with this merge** (owner
+  approved, D62). Before it, `workers/tasks/__init__.py` never imported `product_history`, so a
+  fresh worker registered none of its six tasks: the 20:53 UTC beat, the webhook re-reads
+  (types 15/16/18 → Get Product, 63/39 → Get Activity) and the approval baseline capture were all
+  answered "Received unregistered task" and dropped (Celery rejects them; nothing queues up).
+  Scope and volume once deployed: one `product_history_daily` per shop returned by
+  `enumerate_pollable_shops` (active, a usable read credential, not the sandbox auth) **and** past
+  its fast phase; one at a time per shop (Redis lock, 1,500 s budget). Per shop per night: Search
+  Products at 100 per page, up to 150 Get Product (600 on the shop's first run, its baseline),
+  Search Activities × 4 statuses, up to 100 Get Activity (400 on the first run, the backfill).
+  Every read takes a token from the poll's shared Redis window (8 of the poll's 10 per minute,
+  same key: app key, shop, endpoint path) and waits rather than skips; 429s back off. Get
+  Product / Get Activity paths carry the id, so their windows are per product / activity: the
+  per-shop cap on them is the 150/600 and 100/400 budgets, not the window. The webhook tasks
+  are `rate_limit="30/m"` per worker. Watch after the first deploy: the first night is every
+  shop's baseline (up to ~1,000 detail reads per shop), TikTok 429 counts in the worker log,
+  `product_history_*_failed` lines, and that `celery inspect registered` lists
+  `juli_backend.product_history_fanout`. Webhook deliveries dropped before the deploy can be
+  replayed with `celery call juli_backend.product_history_replay_webhooks`.
+- [ ] The deferred/074 tail is still pinned to `093_ops_group_lift_draws` in 7 more tests
+  (`test_users_phone_placeholder_cleanup`, `test_lever_flows_wiring`, `test_order_costs`,
+  `test_ops_d28_terms`, `test_ingest_gateway`, `test_p23_product_history`, `test_ops_d27`); only
+  `test_trial_signups` reads the head from the tree. P50-B re-pins them to 094; make them read
+  the head the same way (one helper) after P50 merges.
+- [ ] `test_test_quality::test_reconciliation_reproduces_from_the_tree_it_describes` stays red:
+  the `and_no_mock_assert_called` layer reads 115 against the prior ~97, a drift of 18 above the
+  #1682 tolerance of 15. The 9 new tests are `tests/integration/test_ops_round_trips.py`'s
+  round-trip tests, which assert through the same-file `_check` helper that layer does not
+  credit (the headline, 49, is unchanged). Owner: raise `PRIOR_FIGURE_LAYER_DRIFT` with that
+  reason, or retire the #1682 claim; not done here because it loosens a check.
+- [ ] `python -m eval.ratchets check` (pr.yml) still fails on 284 `unused_ts_exports` identities
+  (apps/landing, apps/connector, apps/demo: fast-track UI work) and 1 `broken_doc_refs`
+  (`apps/landing/src/content/blog/README.md` → `/path`). `test_ratchets` passes (it checks
+  suppressions only; the 7 new suppressions were removed, not baselined). Ratifying the TS
+  exports needs `measure --write`, which the ratchet forbids; delete or use them, then `tighten`.
+- [ ] B4 partly blocked: `apps/dashboard/package-lock.json` is the pr.yml `frontend` job's
+  `npm ci` lockfile (and pinned by `test_issue_397_demo_workspace_contract`,
+  `test_phase_2_5_workspace_tooling`); root `done.md` is read by the blocking `check_done_md`
+  gate in pr.yml (`agent-runtime/scripts/validate/check_done_md.py` exists — the audit looked in
+  `scripts/validate/`). Delete the lockfile with the dashboard (C1) and `done.md` when the
+  pr.yml validate gates are retired.
+- [ ] DECISIONS has two **D59** entries (blog tiers, 2026-10-18; Gate C, 2026-10-18). Renumber
+  one (and its references) in a docs pass.
+- [ ] `tests/unit/test_fujiwa_poll_beat.py`, `test_worker_impact_reader_schedule.py`,
+  `test_workflow_run_reaper.py` and `test_shop_diagnosis_daily.py` still read
+  `celery_app.tasks` in-process, so they can pass on another module's import. Only the beat
+  test moved to a fresh interpreter.
 

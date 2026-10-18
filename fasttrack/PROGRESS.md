@@ -309,6 +309,19 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | Remove `/decisions/in-progress/[executionId]`, `/decisions/recommendations/[recommendationId]`, `/settings/workflows/[workflowKey]` and their import-graph closure; demo-shell run framing; tests / e2e | C2 (audit apps.md items 6–7, TOP 15 #2, #3, #7–#11) | done on branch `fasttrack/rm-legacy-routes` (not merged) | agent |
 
+## P53-A — cleanup A: real faults, safe cleanup, archive (D62, 2026-10-18)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| A1 Register `product_history` on a fresh worker; beat test in a fresh interpreter | D62 | done on branch `fasttrack/cleanup-a` (turns the P23 fan-out on in prod — DEBT P53-A) | agent (Opus) |
+| A2 8 deep imports through `services.ops` / `services.action_cards`; boundary baseline re-derived (54 rows) | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+| A3 Repo-pinned tests: trial_signups tail from the tree, ratchet suppressions retired, reaper TZ, module_md allowlist, quality figures | D62 | done on branch `fasttrack/cleanup-a` except the #1682 prior-figure drift check (owner, DEBT P53-A) | agent (Opus) |
+| A4 `JULI_TEST_DATABASE_DISPOSABLE` on the deploy check step | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+| B3 Delete `services/etl/topics.py` | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+| B4 Untrack `apps/dashboard/tsconfig.tsbuildinfo` | D62 | done; `package-lock.json` and `done.md` kept (still read by pr.yml — DEBT P53-A) | agent (Opus) |
+| B6 LEGACY markers: `ios/`, `agent-runtime/`, `EXECUTION.md`, `Design-md/`, test-only backend modules | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+| B7 Archive LOG / DECISIONS / closed DEBT before 2026-10-12 to `fasttrack/archive/` | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

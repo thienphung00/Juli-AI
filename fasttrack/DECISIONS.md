@@ -1331,3 +1331,19 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   known leak patterns from returning. Work: P52-A (product pages, home, calculator, SEO),
   P52-B (guides), P52-C (reach posts, pillars, tools posts), P51-A extended (demo + backend card
   copy, recapture).
+
+- **D62** — Repo cleanup from the 2026-10-18 audit (owner, 2026-10-18; audit in
+  `~/juli-audit/SUMMARY.md`, `backend.md`, `repo_hygiene.md`). Approved: **A1–A4** (real faults:
+  register the P23 `product_history` tasks on a fresh worker, which turns the nightly
+  product-history fan-out on in production for the first time; route the 8 new deep imports
+  through package roots and re-derive the boundary baseline; make repo-state-pinned tests read
+  the tree; declare the check job's database disposable in `fasttrack-deploy.yml`), **B**
+  (safe cleanup: worktrees/branches already merged, the `etl/topics.py` shim, generated
+  artefacts, LEGACY markers without behaviour change, archiving LOG / DECISIONS / DEBT before
+  2026-10-12), **C1** (remove `apps/dashboard`, with its `pr.yml` job, build script and the
+  tests that guard it) and **C2** (remove the three unlinked demo routes
+  `/decisions/in-progress/*`, `/decisions/recommendations/*`, `/settings/workflows/*`, fixing
+  the `demo-shell` regex and tests). Each C item lands as its own change with its evidence. Not
+  approved here: A5, C3–C8, D (branch reunification), and anything on the frozen ML path or in
+  auth / RLS / migrations / legal. Work: phase P53 — P53-A (A1–A4, B3, B4, B6, B7, branch
+  `fasttrack/cleanup-a`), P53-C2 (branch `fasttrack/rm-legacy-routes`), C1 on its own branch.
