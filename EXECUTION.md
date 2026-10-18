@@ -1,5 +1,10 @@
 # EXECUTION.md — Single Source of Truth
 
+> **LEGACY (fast track P53, D62, 2026-10-18).** On `fasttrack/optimize-product` this file is
+> history, not law: phases, gates and scope live in `fasttrack/` (SPEC, DECISIONS — D4 replaced
+> the PRD → issue → slice loop — PROGRESS, LOG, DEBT). It is kept because tests and the `main`
+> branch's agent tooling still read it.
+
 > **This file is law.** Phases, slices, gates, and scope live here only.  
 > **Technical detail lives in Tier 1 component docs; rationale lives in Tier 2 ADRs.**  
 > Start every task here, then open **one** component doc from the routing table below.  
