@@ -148,7 +148,7 @@ Chính sách TikTok yêu cầu mô tả:
 - Cung cấp thông tin an toàn, thông số kỹ thuật và cảnh báo, đặc biệt quan trọng với các ngành như thực phẩm bổ sung.
 - Liệt kê sản phẩm và tất cả phụ kiện đi kèm ("Hộp sản phẩm bao gồm những gì").
 
-Ngoài yêu cầu tối thiểu, một mô tả bán được hàng trả lời các câu hỏi mà khách thường hỏi trong tin nhắn hoặc bình luận. Hãy mở hộp tin nhắn và phần đánh giá của sản phẩm, liệt kê 5 câu hỏi hay gặp nhất, rồi trả lời chúng ngay trong mô tả.
+Ngoài yêu cầu tối thiểu, một mô tả bán được hàng trả lời các câu hỏi mà khách thường hỏi trong tin nhắn hoặc bình luận. Hãy mở hộp tin nhắn và phần đánh giá của sản phẩm, liệt kê 5 câu hỏi hay gặp nhất, rồi trả lời chúng ngay trong mô tả. Bài [khách hỏi mãi một câu: mô tả sản phẩm trả lời trước](/blog/mo-ta-san-pham-tiktok-shop) đi sâu vào cách gom câu hỏi, các giới hạn của chính sách và cách đo lại.
 
 ### Cấu trúc gợi ý
 
