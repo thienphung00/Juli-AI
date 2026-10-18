@@ -17,6 +17,8 @@ import { body as videoNhieuView } from "./video-tiktok-nhieu-view-khong-ra-don";
 import { body as hoanHang } from "./ty-le-hoan-hang-tiktok-shop";
 import { body as moTaSanPham } from "./mo-ta-san-pham-tiktok-shop";
 import { body as quyDinhLivestream } from "./quy-dinh-livestream-ban-hang";
+import { body as datTenSanPham } from "./dat-ten-san-pham-tiktok-shop";
+import { body as anhBiaSanPham } from "./anh-bia-san-pham-tiktok-shop";
 
 /**
  * Post bodies by slug. Only the post page imports this (the route registry
@@ -42,4 +44,6 @@ export const BLOG_BODIES: Readonly<Record<string, string>> = {
   "tang-gia-tri-don-hang-trung-binh-tiktok-shop": giaTriDon,
   "mo-ta-san-pham-tiktok-shop": moTaSanPham,
   "quy-dinh-livestream-ban-hang": quyDinhLivestream,
+  "dat-ten-san-pham-tiktok-shop": datTenSanPham,
+  "anh-bia-san-pham-tiktok-shop": anhBiaSanPham,
 };

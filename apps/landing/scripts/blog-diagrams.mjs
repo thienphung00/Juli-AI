@@ -980,6 +980,132 @@ const DIAGRAMS = [
 <p class="small">Theo các văn bản đăng trên Công báo Chính phủ và trang Cập nhật Chính sách mới nhất của TikTok Shop Việt Nam; ngày hiệu lực ghi trong bài.</p>`;
     },
   },
+  /* ————— P46-D1 (D56): dat-ten-san-pham-tiktok-shop ————— */
+  {
+    name: "tieu-de-hai-viec-v1",
+    html: () => `${head("Tiêu đề làm hai việc trên Thẻ sản phẩm")}
+<div class="chain"><span class="chip chip--ink">Lượt hiển thị</span><span class="x">×</span><span class="chip chip--ink">CTR</span><span class="x">×</span><span class="chip">CTOR</span><span class="x">×</span><span class="chip">AOV</span><span class="x">=</span><span class="chip">GMV</span></div>
+<div class="grid2">
+  <div class="box half"><span class="label">Việc 1 · Lượt hiển thị</span><strong>Được tìm ra</strong><ul class="hang"><li>Có những từ người mua thật sự gõ khi tìm</li><li>Đúng loại sản phẩm, khớp ngành hàng và thuộc tính</li><li>Không lặp từ, không nhồi từ khóa không liên quan</li></ul></div>
+  <div class="box half box--accent"><span class="label">Việc 2 · CTR</span><strong>Được hiểu ngay</strong><ul class="hang"><li>Nhìn là biết đây là gì, loại nào, bao nhiêu</li><li>Quy cách khớp với giá đang hiện trên thẻ</li><li>Phần đầu tiêu đề nói điều quan trọng nhất</li></ul></div>
+</div>
+<p class="note">Đọc hai chỉ số cùng lúc, trên riêng luồng Thẻ sản phẩm: tiêu đề mới có thể kéo thêm lượt hiển thị từ những người ít liên quan hơn, nên CTR giảm dù tiêu đề không kém đi.</p>`,
+  },
+  {
+    name: "tieu-de-nam-thanh-phan-v1",
+    html: () => {
+      const rows = [
+        ["Thương hiệu", "Chỉ khi được ủy quyền", "(không ghi, chưa được ủy quyền)", "Thương hiệu X"],
+        ["Loại sản phẩm", "Nói ngay đây là gì", "Áo thun nam cổ tròn", "Sữa rửa mặt"],
+        ["Chất liệu, thành phần chính", "Nếu có", "cotton", "trà xanh"],
+        ["Đặc điểm chính", "Màu, chức năng, biến thể", "tay ngắn, đen / trắng / xám", "dạng gel"],
+        ["Số lượng, quy cách", "Nêu đủ mọi tùy chọn", "size M / L / XL", "100 ml / 150 ml"],
+      ];
+      return `${head("Năm thành phần chính sách TikTok gợi ý cho tiêu đề", true)}
+<div class="box tt">
+  <div class="tt-row tt-head"><span>Thành phần</span><span>Thời trang</span><span>Mỹ phẩm</span></div>
+  ${rows
+    .map(
+      ([part, rule, a, b]) =>
+        `<div class="tt-row"><span class="tt-part"><strong>${part}</strong><em>${rule}</em></span><span class="tt-cell"><i class="only-m">Thời trang: </i>${a}</span><span class="tt-cell"><i class="only-m">Mỹ phẩm: </i>${b}</span></div>`,
+    )
+    .join("")}
+</div>
+<div class="grid2">
+  <div class="box option"><span class="label">Tiêu đề thời trang · 71 ký tự</span><strong>Áo thun nam cổ tròn cotton tay ngắn, đen / trắng / xám, size M / L / XL</strong></div>
+  <div class="box option box--accent"><span class="label">Tiêu đề mỹ phẩm · 59 ký tự</span><strong>Sữa rửa mặt trà xanh dạng gel Thương hiệu X 100 ml / 150 ml</strong></div>
+</div>
+<p class="small">Thành phần theo trang chính sách Tiêu đề, mô tả, hình ảnh và video về sản phẩm (23/04/2026). Hai sản phẩm và tên Thương hiệu X là giả định.</p>`;
+    },
+  },
+  {
+    name: "tieu-de-truoc-sau-v1",
+    html: () => {
+      const bad = [
+        ["★ ★", "ký hiệu, ký tự đặc biệt"],
+        ["SALE SỐC, FREESHIP", "khuyến mãi, không mô tả sản phẩm"],
+        ["rẻ nhất", "khẳng định tuyệt đối không xác minh được"],
+        ["Shop ABC", "tên người bán"],
+        ["thiếu chất liệu, màu, size", "người mua không biết đang mua gì"],
+      ];
+      const good = ["Loại sản phẩm đứng đầu: Áo thun nam cổ tròn", "Chất liệu: cotton", "Đặc điểm: tay ngắn, ba màu", "Quy cách: đủ ba size"];
+      return `${head("Một tiêu đề giả định, trước và sau khi viết lại", true)}
+<div class="grid2">
+  <div class="box half"><span class="label">Trước · 54 ký tự</span><strong class="tt-title">★ SALE SỐC ★ Áo thun nam đẹp rẻ nhất Shop ABC FREESHIP</strong><ul class="tt-flags">${bad
+    .map(([w, why]) => `<li><b>${w}</b><span>${why}</span></li>`)
+    .join("")}</ul></div>
+  <div class="box half box--accent"><span class="label">Sau · 71 ký tự</span><strong class="tt-title">Áo thun nam cổ tròn cotton tay ngắn, đen / trắng / xám, size M / L / XL</strong><ul class="hang">${good
+    .map((g) => `<li>${g}</li>`)
+    .join("")}</ul><span class="small">Ưu đãi đặt bằng công cụ khuyến mãi, không viết vào tiêu đề.</span></div>
+</div>
+<div class="result">Bỏ những gì không mô tả sản phẩm, thêm những gì người mua cần để bấm</div>`;
+    },
+  },
+  /* ————— P46-D1 (D56): anh-bia-san-pham-tiktok-shop ————— */
+  {
+    name: "anh-bia-tren-the-v1",
+    html: () => {
+      const card = (accent) =>
+        `<div class="pcard${accent ? " pcard--accent" : ""}"><div class="pc-img">${accent ? num(1, true) : ""}</div><div class="pc-line" style="width:88%">${accent ? num(2) : ""}</div><div class="pc-line" style="width:60%"></div><div class="pc-price">${accent ? num(3) : ""}</div></div>`;
+      const legend = [
+        ["Hình ảnh chính", "Ảnh đầu tiên người dùng thấy, phần lớn nhất của thẻ. Nó quyết định người lướt có dừng lại và bấm không: đó là CTR."],
+        ["Tiêu đề", "Trên thẻ nhỏ, phần cuối của tiêu đề dễ bị cắt."],
+        ["Giá", "Người mua đọc giá cùng với ảnh: ảnh 1 chai cạnh giá của 3 chai trông như đắt gấp ba."],
+      ];
+      return `${head("Trên trang tìm kiếm, hình ảnh chính là thứ người mua thấy trước tiên")}
+<div class="pc-wrap">
+  <div class="pcards">${card(true)}${card(false)}${card(false)}${card(false)}</div>
+  <div class="pc-legend">${legend
+    .map(([t, d], i) => `<div class="step">${num(i + 1, i === 0)}<div><strong>${t}</strong><span>${d}</span></div></div>`)
+    .join("")}
+    <div class="box vv"><div><strong>Ảnh thứ 2 đến 9 và video</strong></div><span class="desc">Chỉ thấy sau khi bấm vào trang sản phẩm: chúng tác động đến CTOR.</span></div>
+  </div>
+</div>
+<p class="note">“Ảnh bìa” ở đây là hình ảnh chính của thẻ sản phẩm, không phải ảnh bìa của một video TikTok. Hình vẽ minh họa, không phải giao diện thật.</p>`;
+    },
+  },
+  {
+    name: "anh-bia-ba-phuong-an-v1",
+    html: () => {
+      const bottles = (n, h, w) =>
+        Array.from({ length: n }, () => `<div class="btl" style="height:${h}%;width:${w}%"><div class="btl-cap"></div></div>`).join("");
+      const options = [
+        ["A", "Một chai, nhỏ giữa khung", bottles(1, 34, 13), "", "Chưa đạt", "Sản phẩm dưới 60 % khung, và khách tưởng giá trên thẻ là của một chai."],
+        ["B", "Đủ ba chai, chiếm gần hết khung", bottles(3, 74, 18), "", "Đúng yêu cầu", "Nền trắng, thấy toàn bộ, cho thấy đúng quy cách đang bán.", true],
+        ["C", "Ba chai, dải chữ khuyến mãi phía trước", bottles(3, 74, 18), `<div class="banner">GIẢM 50 %</div>`, "Không nên", "Chữ che phía trước sản phẩm, và thành sai khi đợt giảm giá kết thúc."],
+      ];
+      return `${head("Ba phương án hình ảnh chính cho một combo 3 chai dầu gội", true)}
+<div class="grid3 cards">${options
+        .map(
+          ([k, t, art, over, verdict, why, ok]) =>
+            `<div class="box col${ok ? " box--accent" : ""}"><div class="shot">${art}${over}</div><strong>${k}. ${t}</strong><span class="metric">${verdict}</span><span class="desc">${why}</span></div>`,
+        )
+        .join("")}</div>
+<div class="result">Lọc theo yêu cầu trước; kiểu ảnh nào được bấm nhiều hơn thì chỉ số của shop bạn mới trả lời được</div>`;
+    },
+  },
+  {
+    name: "anh-bia-doi-chung-v1",
+    html: () => {
+      const path = ["14 ngày trước: mốc so sánh", "Ngày bạn thay ảnh: ghi lại ngày này", "Ngày 7: đọc sơ bộ", "Ngày 14: chốt kết quả"];
+      const rows = [
+        ["Sản phẩm đổi ảnh", "2,0 % → 2,6 %", 90, "+30 %", true],
+        ["Nhóm không đổi", "2,0 % → 2,2 %", 30, "+10 %"],
+      ];
+      return `${head("Đọc CTR Thẻ sản phẩm sau khi đổi ảnh: so với nhóm không đổi", true)}
+<div class="path">${path
+        .map((p, i) => `<span class="crumb${i === path.length - 1 ? " crumb--ink" : ""}">${p}</span>`)
+        .join(`<span class="sep">›</span>`)}</div>
+<div class="bars">${rows
+        .map(
+          ([label, change, w, pct, accent]) =>
+            `<div class="brow"><span class="blabel">${label}</span><div class="track"><div class="bar ${accent ? "bar--acc" : "bar--ink"} bar--full" style="left:0;width:${w}%"></div></div><span class="bval">${pct}<em>CTR ${change}</em></span></div>`,
+        )
+        .join("")}</div>
+<div class="result">Phần có thể gán cho ảnh mới: khoảng 18 % (1,30 ÷ 1,10), không phải 30 %</div>
+<p class="small">Cả shop cùng tăng 10 % trong hai tuần đó, có thể do một đợt sale. Chỉ phần vượt lên trên nhóm không đổi mới là của ảnh.</p>`;
+    },
+  },
 ];
 
 function pageHtml(diagram, t, layout) {
@@ -1178,6 +1304,43 @@ ul.hang li{padding-left:14px;text-indent:-14px}
 .lrow span{color:${t.body}}
 .lrow strong{font-variant-numeric:tabular-nums;white-space:nowrap}
 .lrow:last-child strong{color:${t["pink-text"]}}
+/* P46-D1 */
+.bar--acc{background:${t.pink};border-radius:4px}
+.tt{display:flex;flex-direction:column;padding:2px 14px}
+.tt-row{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px;padding:9px 0;border-bottom:1px solid ${t.hairline};align-items:start}
+.tt-row:last-child{border-bottom:0}
+.tt-head span{color:${t.muted};font-size:13px;font-weight:600}
+.tt-part{display:flex;flex-direction:column;gap:1px}
+.tt-part em{font-style:normal;color:${t.muted};font-size:13px}
+.tt-cell{color:${t.body};font-size:14px}
+.tt-cell i{font-style:normal;color:${t.muted};font-size:13px;font-weight:600}
+.m .tt-row{grid-template-columns:1fr;gap:3px}
+.m .tt-head{display:none}
+.tt-title{font-size:15px;line-height:1.4}
+.tt-flags{display:flex;flex-direction:column;gap:5px;margin-top:2px}
+.tt-flags li{display:flex;flex-direction:column;gap:0;font-size:14px;color:${t.body}}
+.half ul.tt-flags li::before{display:none}
+.tt-flags b{font-weight:600;color:${t["pink-text"]}}
+.pc-wrap{display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:start}
+.m .pc-wrap{grid-template-columns:1fr;gap:14px}
+.pcards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.m .pcard:nth-child(n+3){display:none}
+.pcard{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid ${t.hairline};border-radius:12px;background:${t.bg}}
+.pcard--accent{border-color:${t.pink};box-shadow:0 0 0 1px ${t.pink} inset}
+.pc-img{position:relative;aspect-ratio:1;border-radius:8px;background:${t.backdrop}}
+.pcard--accent .pc-img{background:${t["pink-tint"]};border:1.5px solid ${t.pink}}
+.pc-line{position:relative;height:9px;border-radius:4px;background:${t["chrome-dot"]}}
+.pc-price{position:relative;width:42%;height:11px;border-radius:4px;background:${t.ink}}
+.pcard .num{position:absolute;width:22px;height:22px;font-size:12px}
+.pc-img .num{top:8px;left:8px}
+.pc-line .num,.pc-price .num{top:50%;right:-6px;transform:translateY(-50%)}
+.pc-legend{display:flex;flex-direction:column;gap:12px}
+.shot{position:relative;aspect-ratio:1;display:flex;align-items:flex-end;justify-content:center;gap:6%;padding-bottom:8%;border:1px solid ${t.hairline};border-radius:10px;background:#fff;overflow:hidden}
+.m .cards .col .shot{width:120px}
+.m .cards .col{display:flex;flex-direction:column}
+.btl{position:relative;border:2px solid ${t.ink};border-radius:8px 8px 5px 5px;background:${t["pink-tint"]}}
+.btl-cap{position:absolute;left:28%;right:28%;top:-14%;height:12%;border:2px solid ${t.ink};border-bottom:0;border-radius:4px 4px 0 0;background:${t.ink}}
+.banner{position:absolute;left:0;right:0;top:46%;padding:6px 0;text-align:center;background:${t["pink-text"]};color:${t.bg};font-weight:600;font-size:15px}
 </style></head><body class="${layout === "mobile" ? "m" : "d"}"><div class="fig">${diagram.html(t)}</div></body></html>`;
 }
 

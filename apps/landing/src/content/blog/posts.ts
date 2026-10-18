@@ -1062,4 +1062,117 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       academy("Cập nhật Chính sách mới nhất", "8831988245645057", "chính sách của TikTok Shop, không phải luật: Giấy xác nhận nội dung quảng cáo từ 08/07/2026; NFC cho người bán mới và nhà sáng tạo, mã số thuế từ 01/07/2026; không phát song song; Mồi giá - đổi giá (cập nhật 01/07/2026); đọc 18/10/2026"),
     ],
   },
+  {
+    slug: "dat-ten-san-pham-tiktok-shop",
+    status: "draft",
+    title: "Ít người bấm vào sản phẩm: cách đặt tên sản phẩm TikTok Shop theo đúng chính sách",
+    seoTitle: "Đặt tên sản phẩm TikTok Shop khi ít người bấm | Juli AI",
+    description:
+      "Sản phẩm có lượt hiển thị mà ít người bấm: đọc CTR ở Thẻ sản phẩm, đặt tên theo 5 thành phần của chính sách TikTok, tránh từ cấm, đo lại ở ngày 7, 14.",
+    excerpt:
+      "Khi sản phẩm có lượt hiển thị mà CTR ở Thẻ sản phẩm thấp: xác nhận tiêu đề là nguyên nhân, viết lại theo năm thành phần của chính sách TikTok, bỏ khuyến mãi, tên shop và ký tự đặc biệt, chọn từ khóa đúng sản phẩm, rồi đo lại ở ngày 7 và 14.",
+    breadcrumbName: "Đặt tên sản phẩm",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "optimize",
+    format: "pain",
+    cover: blogCover("dat-ten-san-pham-v1", "Minh hoạ: một tờ danh sách kiểm tra ba dòng trên nền xanh lá nhạt, ô thứ hai tô màu xanh lá"),
+    author: AUTHOR,
+    related: ["anh-bia-san-pham-tiktok-shop", "toi-uu-the-san-pham-tiktok-shop", "khach-xem-nhung-khong-mua-tiktok-shop"],
+    faq: [
+      {
+        question: "Tiêu đề sản phẩm TikTok Shop dài bao nhiêu ký tự?",
+        answer:
+          "Bài Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4 của Học viện TikTok Shop ghi tiêu đề phải dài hơn 25 ký tự. Các trang chính sách không nêu độ dài tối đa hay một độ dài tốt nhất. Một tiêu đề đủ loại sản phẩm, chất liệu, đặc điểm và quy cách thường dài từ 40 ký tự trở lên.",
+      },
+      {
+        question: "Có được ghi \"giảm giá\", \"freeship\" trong tên sản phẩm không?",
+        answer:
+          "Không nên. Trang chính sách Tiêu đề, mô tả, hình ảnh và video về sản phẩm liệt kê thông tin tiếp thị, khuyến mãi như \"giảm giá x%\" trong những thứ không đưa vào tiêu đề, cùng với URL, tên người bán, tên nền tảng khác và ký tự đặc biệt. Ưu đãi hãy tạo bằng công cụ khuyến mãi.",
+      },
+      {
+        question: "Có được ghi tên thương hiệu vào tiêu đề không?",
+        answer:
+          "Chỉ khi bạn được ủy quyền bán sản phẩm của thương hiệu đó. Từ ngày 28/05/2026, việc che giấu tên thương hiệu bằng cách viết sai, chèn ký hiệu, số hoặc khoảng cách được tính là gian lận thương hiệu và có thể khiến sản phẩm bị gỡ.",
+      },
+      {
+        question: "Dùng AI viết tiêu đề sản phẩm được không?",
+        answer:
+          "Được, Công cụ Tối Ưu Hoá Sản Phẩm của TikTok có sẵn tính năng Tối ưu hóa bằng AI cho tiêu đề và mô tả. Bạn vẫn chịu trách nhiệm tiêu đề mô tả chính xác sản phẩm, nên hãy đọc lại trước khi gửi. Juli cũng soạn tiêu đề bằng AI và chỉ ghi lên shop khi bạn xác nhận.",
+      },
+      {
+        question: "Sửa tiêu đề bao lâu thì biết có hiệu quả?",
+        answer:
+          "Đọc sơ bộ ở ngày 7 và chốt ở ngày 14, so với 14 ngày trước khi sửa, trên luồng Thẻ sản phẩm, và so với các sản phẩm không sửa. Đọc Lượt hiển thị cùng CTR, vì tiêu đề tác động đến cả hai.",
+      },
+    ],
+    sources: [
+      academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "năm thành phần, những gì không đưa vào tiêu đề, nhiều biến thể (23/04/2026), kiểm tra 18/10/2026"),
+      academy("Hướng dẫn đăng bán sản phẩm tại TikTok Shop", "10008395", "mục 3.1.2, 3.1.3, 3.1.7, 4.1 (05/10/2026), kiểm tra 18/10/2026"),
+      academy("Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4", "7905983637079809", "tiêu đề dài hơn 25 ký tự, tránh lặp từ (15/12/2023), kiểm tra 18/10/2026"),
+      academy("Chẩn Đoán Thẻ Sản Phẩm", "5792290376255233", "Cơ hội tăng trưởng, Tiêu đề có thể được tối ưu hóa (21/02/2024), kiểm tra 18/10/2026"),
+      academy("Trình Tối Ưu Hóa Tiêu Đề Sản Phẩm", "8617918787323649", "từ khóa đề xuất, điểm số lượng tìm kiếm, tab Sản phẩm được tối ưu hóa (23/11/2023), kiểm tra 18/10/2026"),
+      academy("Trình Tối Ưu Hoá Sản Phẩm", "6532499267012354", "Tối ưu hóa bằng AI, thao tác hàng loạt (04/08/2025), kiểm tra 18/10/2026"),
+      academy("Thủ thuật Clickbait trong đăng bán sản phẩm", "7213979802994433", "thao túng lưu lượng truy cập, số lượng bất thường (29/06/2025), kiểm tra 18/10/2026"),
+      academy("Mô tả sản phẩm phóng đại là gì?", "6837770400581377", "khẳng định tuyệt đối (29/06/2025), kiểm tra 18/10/2026"),
+      academy("Cập nhật Chính sách mới nhất", "8831988245645057", "gian lận thương hiệu dựa trên văn bản từ 28/05/2026 (01/07/2026), kiểm tra 18/10/2026"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "CTR theo khía cạnh thẻ sản phẩm (17/06/2026), kiểm tra 18/10/2026"),
+    ],
+  },
+  {
+    slug: "anh-bia-san-pham-tiktok-shop",
+    status: "draft",
+    title: "Ảnh bìa sản phẩm TikTok Shop khiến người mua lướt qua: đọc CTR và đổi hình ảnh chính",
+    seoTitle: "Ảnh bìa sản phẩm TikTok Shop bị lướt qua | Juli AI",
+    description:
+      "Hình ảnh chính bị lướt qua: đọc CTR ở Thẻ sản phẩm, yêu cầu ảnh của TikTok (600 × 600, nền đồng nhất, 60 % khung), lỗi hay gặp, đổi một ảnh, đo ngày 7, 14.",
+    excerpt:
+      "Ảnh bìa là hình ảnh chính, ảnh đầu tiên trên thẻ sản phẩm. Xác nhận CTR ở Thẻ sản phẩm thấp, đối chiếu yêu cầu chính thức của TikTok, tránh chữ khuyến mãi và ảnh hứa quá mức, đổi một ảnh, ghi lại ngày và so với sản phẩm không đổi ở ngày 7, 14.",
+    breadcrumbName: "Ảnh bìa sản phẩm",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "optimize",
+    format: "pain",
+    cover: blogCover("anh-bia-san-pham-v1", "Minh hoạ: sáu ô vuông xếp hai hàng trên nền xanh lá nhạt, ô đầu tiên của hàng trên tô màu xanh lá"),
+    author: AUTHOR,
+    related: ["dat-ten-san-pham-tiktok-shop", "toi-uu-the-san-pham-tiktok-shop", "khach-xem-nhung-khong-mua-tiktok-shop"],
+    faq: [
+      {
+        question: "Kích thước ảnh sản phẩm TikTok Shop là bao nhiêu?",
+        answer:
+          "Theo trang chính sách Tiêu đề, mô tả, hình ảnh và video về sản phẩm, mọi hình ảnh phải có độ phân giải tối thiểu 600 × 600 pixel, và bạn tải lên tối đa 9 hình ảnh vuông. Bài Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4 khuyến nghị thêm lớn hơn 1200 × 1200 và có ít nhất 3 hình ảnh.",
+      },
+      {
+        question: "Ảnh bìa nên nền trắng hay có người mẫu?",
+        answer:
+          "Chính sách yêu cầu hình ảnh chính có nền màu đồng nhất, nên dùng màu trắng, sản phẩm chiếm ít nhất 60 % khung và hiện toàn bộ. TikTok không công bố kiểu ảnh nào được bấm nhiều hơn, nên trong khuôn khổ đó hãy thử từng phương án trên chính shop và đo CTR ở Thẻ sản phẩm.",
+      },
+      {
+        question: "Ghi chữ giảm giá lên ảnh bìa có được không?",
+        answer:
+          "Không nên. Chính sách yêu cầu sản phẩm không bị nhãn dán hay hình mờ che phía trước, và chữ khuyến mãi thành sai khi đợt giảm giá kết thúc. Giá giảm và voucher đã có chỗ riêng trên thẻ khi bạn tạo bằng công cụ khuyến mãi.",
+      },
+      {
+        question: "Dùng ảnh tạo bằng AI làm ảnh chính được không?",
+        answer:
+          "Được, nhưng bạn chịu trách nhiệm. Theo hướng dẫn về nội dung đăng bán tạo bởi AI (30/09/2026), ảnh AI phải phản ánh chính xác sản phẩm thực tế, gồm SKU, chất liệu, số lượng, đặc điểm và tình trạng khi giao, không phóng đại sản phẩm, và phải được kiểm tra trước khi đăng.",
+      },
+      {
+        question: "Juli có đổi ảnh bìa giúp tôi không?",
+        answer:
+          "Có, với ảnh do bạn cung cấp. Juli phân tích ảnh bìa hiện tại và đề xuất nên đổi gì, nhưng không chụp, không chỉnh và không tạo ảnh. Khi bạn tải ảnh mới lên và xác nhận, Juli đặt ảnh đó làm hình ảnh chính, lưu ảnh cũ để hoàn tác, ghi lại ngày thay và đo CTR ở ngày 7 và ngày 14.",
+      },
+    ],
+    sources: [
+      academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "600 × 600, tối đa 9 ảnh vuông, hình ảnh chính, video tối đa 5 MB (23/04/2026), kiểm tra 18/10/2026"),
+      academy("Hướng dẫn đăng bán sản phẩm tại TikTok Shop", "10008395", "mục 4.5 Hình ảnh và Video (05/10/2026), kiểm tra 18/10/2026"),
+      academy("Chẩn Đoán Thẻ Sản Phẩm hoạt động như thế nào 4", "7905983637079809", "lớn hơn 1200 × 1200, ít nhất 3 hình ảnh, không lặp lại (15/12/2023), kiểm tra 18/10/2026"),
+      academy("Trình Tối Ưu Hoá Sản Phẩm", "6532499267012354", "công cụ chỉnh ảnh, Tối ưu hóa bằng AI (04/08/2025), kiểm tra 18/10/2026"),
+      academy("Đăng Sản Phẩm và Chỉnh Sửa Ảnh trên App", "7363289882281729", "chọn hình ảnh chính, xóa nền, nhiều hơn 1 hình ảnh (06/06/2025), kiểm tra 18/10/2026"),
+      academy("Hiển thị thông tin sai lệch và hướng dẫn về nội dung đăng bán tạo bởi AI", "7224191560681232", "ảnh do AI tạo (30/09/2026), kiểm tra 18/10/2026"),
+      academy("Thủ thuật Clickbait trong đăng bán sản phẩm", "7213979802994433", "đổi hình ảnh để trông như sản phẩm khác (29/06/2025), kiểm tra 18/10/2026"),
+      academy("Mô tả sản phẩm phóng đại là gì?", "6837770400581377", "hình ảnh trước và sau (29/06/2025), kiểm tra 18/10/2026"),
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "CTR theo khía cạnh thẻ sản phẩm (17/06/2026), kiểm tra 18/10/2026"),
+    ],
+  },
 ];
