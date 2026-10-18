@@ -1453,4 +1453,200 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "mô tả không dưới 30 từ (23/04/2026), kiểm tra 18/10/2026"),
     ],
   },
+  {
+    slug: "huong-dan-ket-noi-tiktok-shop-voi-juli",
+    status: "draft",
+    title: "Hướng dẫn kết nối TikTok Shop với Juli: 4 bước và những gì diễn ra trong giờ đầu",
+    seoTitle: "Hướng dẫn kết nối TikTok Shop với Juli | Juli AI",
+    description:
+      "Kết nối TikTok Shop với Juli trong 4 bước, không cần mật khẩu shop: các nhóm quyền, quét nhanh 14 ngày, đọc 60 ngày, khi thiếu quyền và cách ngắt kết nối.",
+    excerpt:
+      "Đăng nhập Juli, bấm Kết nối TikTok Shop, đồng ý cấp quyền trên trang của TikTok, quay lại Juli. Bài này đi qua từng bước, giải thích từng nhóm quyền và cách đọc dải tiến trình trong giờ đầu.",
+    breadcrumbName: "Kết nối TikTok Shop với Juli",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-huong-dan-ket-noi-tiktok-shop-voi-juli-v1", "Minh hoạ: phích cắm màu tím nhạt có dây trắng cắm vào ổ điện, hai tia sáng hồng ở chỗ nối, nền chàm đậm với các vòng tròn, chữ “Kết nối shop”"),
+    author: AUTHOR,
+    related: ["doc-phan-tich-tiktok-shop-theo-luong-truy-cap", "duyet-de-xuat-toi-uu-san-pham-tiktok-shop", "gmv-la-gi-tiktok-shop"],
+    faq: [
+      {
+        question: "Juli có cần mật khẩu TikTok Shop của tôi không?",
+        answer:
+          "Không. Bạn đăng nhập trên trang uỷ quyền của chính TikTok Shop và đồng ý cấp quyền cho ứng dụng Juli. Juli chỉ nhận mã truy cập do TikTok cấp, được mã hoá trước khi lưu, và không bao giờ thấy mật khẩu của bạn.",
+      },
+      {
+        question: "Kết nối TikTok Shop với Juli mất bao lâu?",
+        answer:
+          "Bước uỷ quyền mất một hai phút. Sau đó Juli tự đọc dữ liệu: quét nhanh 14 ngày trong vài phút đầu, rồi đọc 60 ngày và chẩn đoán đầy đủ, thời gian tuỳ số sản phẩm của shop. Lịch sử cũ hơn được tải dần vào ban đêm, đến 180 ngày hoặc giới hạn TikTok cho phép.",
+      },
+      {
+        question: "Kết nối xong Juli có thay đổi gì trên shop không?",
+        answer:
+          "Không. Kết nối chỉ cho phép Juli đọc dữ liệu và tạo đề xuất. Một thay đổi chỉ được ghi lên shop khi bạn duyệt một thẻ đề xuất và xác nhận nội dung cụ thể; giá và khuyến mãi Juli không bao giờ ghi.",
+      },
+      {
+        question: "Làm sao hủy kết nối TikTok Shop với Juli?",
+        answer:
+          "Bạn liên hệ Juli qua email lienhe@app-juli.com hoặc trang Liên hệ; đội Juli ngắt kết nối shop giúp bạn. Juli ngừng lấy dữ liệu và ngừng tạo đề xuất ngay, còn lịch sử, quy tắc và kết quả đo được giữ để bạn kết nối lại khi cần.",
+      },
+      {
+        question: "Juli có kết nối được Shopee không?",
+        answer:
+          "Chưa. Shopee đang được tích hợp qua Shopee Open Platform và chưa thể kết nối. Hiện Juli hoạt động với TikTok Shop.",
+      },
+    ],
+    sources: [
+      { title: "Juli AI: Kết nối TikTok Shop", url: "https://app-juli.com/ket-noi/tiktok-shop", note: "các bước, nhóm quyền, dữ liệu đọc và ghi, ngắt kết nối" },
+      { title: "Juli AI: Chính sách bảo mật", url: "https://app-juli.com/privacy", note: "dữ liệu thu thập, điều kiện ghi lên shop, thời gian lưu" },
+    ],
+  },
+  {
+    slug: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
+    status: "draft",
+    title: "Cách đọc màn hình Phân tích TikTok Shop theo luồng truy cập: Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết",
+    seoTitle: "Đọc phân tích TikTok Shop theo luồng | Juli AI",
+    description:
+      "Đọc màn hình Phân tích của Juli từ trên xuống: năm luồng truy cập, bốn ô chỉ số và số đồng mỗi ngày, nhãn Rõ hay Tham khảo, khuyến mãi và ngày sale.",
+    excerpt:
+      "Dòng kết luận ở đầu trang, bốn ô Lượt hiển thị, CTR, CTOR, AOV của từng luồng, bảng sản phẩm, khuyến mãi và ngày sale: đọc một màn hình mẫu từng phần, và biết khi nào chưa nên sửa gì.",
+    breadcrumbName: "Đọc Phân tích theo luồng",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-doc-phan-tich-tiktok-shop-theo-luong-truy-cap-v1", "Minh hoạ: một tia sáng đi qua lăng kính tam giác và tách thành năm dải màu hồng, tím và đen, nền xanh chanh nhạt, chữ “Đọc theo từng luồng”"),
+    author: AUTHOR,
+    related: ["huong-dan-ket-noi-tiktok-shop-voi-juli", "duyet-de-xuat-toi-uu-san-pham-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    faq: [
+      {
+        question: "Juli lấy số liệu phân tích từ đâu?",
+        answer:
+          "Từ chính TikTok Shop của bạn, qua API chính thức mà bạn uỷ quyền khi kết nối: hiệu suất sản phẩm theo từng luồng, đơn hàng, sản phẩm, video, LIVE và khuyến mãi. Juli không cào trang web và không dùng số ước đoán của bên thứ ba cho phần Phân tích.",
+      },
+      {
+        question: "Số trên Juli có khớp với Seller Center không?",
+        answer:
+          "Juli dùng đúng định nghĩa của TikTok cho CTR, CTOR, AOV (SKU) và GMV, gồm cả đơn đã huỷ và hoàn tiền, và tính tỷ lệ của kỳ từ tổng của kỳ như Seller Center. Khác biệt nhỏ vẫn có thể xảy ra khi hai bên chốt số liệu ở thời điểm khác nhau.",
+      },
+      {
+        question: "Bao lâu màn hình Phân tích được cập nhật?",
+        answer:
+          "Số liệu phân tích được lấy mỗi ngày một lần, khi TikTok công bố ngày dữ liệu mới, nên ngày mới nhất thường là hôm qua. Đơn hàng, sản phẩm và tồn kho được đồng bộ nhiều lần trong ngày. Giờ cập nhật gần nhất ghi ở góc trên màn hình.",
+      },
+      {
+        question: "Shop ít đơn thì đọc Phân tích có ý nghĩa không?",
+        answer:
+          "Có, nhưng Juli nói rõ mức chắc chắn. Khi số đơn ít, dòng sản phẩm mang nhãn Tham khảo thay vì Rõ và Juli gợi ý theo dõi thêm. Sản phẩm không đủ khoảng 30 lượt nhấp hoặc 30 đơn ngay cả trong 60 ngày được ghi là ít dữ liệu.",
+      },
+      {
+        question: "Có dùng luồng Liên kết để kết luận về một sản phẩm không?",
+        answer:
+          "Không. Luồng Liên kết, tức video và LIVE của nhà sáng tạo, được theo dõi ở Trang chủ để bạn thấy toàn cảnh, nhưng phần lớn biến động ở đó đến từ nội dung của nhà sáng tạo chứ không từ trang sản phẩm của bạn.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "năm luồng, Lượt hiển thị, CTR, CTOR, GMV theo định dạng nội dung (17/06/2026), kiểm tra 18/10/2026"),
+      { title: "Juli AI: Phân tích shop", url: "https://app-juli.com/san-pham/phan-tich-shop", note: "năm luồng, phễu từng luồng, nhãn tin cậy, nhịp dữ liệu" },
+    ],
+  },
+  {
+    slug: "duyet-de-xuat-toi-uu-san-pham-tiktok-shop",
+    status: "draft",
+    title: "Duyệt một thẻ đề xuất của Juli: từ lý do, sửa nội dung đến xác nhận lần cuối",
+    seoTitle: "Duyệt đề xuất tối ưu sản phẩm TikTok Shop | Juli AI",
+    description:
+      "Đi qua một thẻ đề xuất của Juli: thẻ nói gì, GMV dự kiến tính ra sao, Duyệt rồi Xác nhận, phần Juli làm và phần bạn làm, từ chối kèm lý do, nhịp thẻ.",
+    excerpt:
+      "Duyệt chưa đổi gì trên shop: thay đổi chỉ được ghi khi bạn xem bản cũ, bản mới và xác nhận trong lượt chạy. Bài này đi qua một thẻ từ lý do đến bước xác nhận, kể cả ảnh bìa, giá và từ chối.",
+    breadcrumbName: "Duyệt thẻ đề xuất",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-duyet-de-xuat-toi-uu-san-pham-tiktok-shop-v1", "Minh hoạ: hai chiếc chìa khoá từ hai bên cùng cắm vào một ổ khoá móc, dấu tích hồng phía trên, nền xanh bạc hà chấm bi, chữ “Duyệt rồi mới đổi”"),
+    author: AUTHOR,
+    related: ["do-ket-qua-ngay-7-ngay-14-hoan-tac", "doc-phan-tich-tiktok-shop-theo-luong-truy-cap", "toi-uu-the-san-pham-tiktok-shop"],
+    faq: [
+      {
+        question: "Juli có tự thay đổi shop của tôi mà không hỏi không?",
+        answer:
+          "Không. Một thay đổi chỉ được ghi lên TikTok Shop sau hai bước của bạn: bấm Duyệt trên thẻ, rồi xác nhận nội dung cụ thể trong lượt chạy. Không duyệt và xác nhận, không có gì thay đổi.",
+      },
+      {
+        question: "Juli có đổi giá sản phẩm không?",
+        answer:
+          "Không. Với giá, Juli chỉ đề xuất. Giảm giá sản phẩm, flash sale hay giảm phí vận chuyển do bạn tạo trên Seller Center theo hướng dẫn của Juli, trong biên lợi nhuận bạn đặt; Juli kiểm tra lại bằng quyền chỉ đọc rồi bắt đầu đo.",
+      },
+      {
+        question: "Nội dung AI viết có được kiểm tra trước không?",
+        answer:
+          "Có. Tiêu đề hay mô tả mới được kiểm tra độ dài, giọng văn và danh sách từ không được dùng trong Quy tắc của bạn, và được đối chiếu với thông tin của chính sản phẩm, trước khi hiện ra để bạn xác nhận. Bạn sửa được nội dung trước khi áp dụng.",
+      },
+      {
+        question: "Từ chối một thẻ thì nó có quay lại không?",
+        answer:
+          "Cùng một thay đổi cho cùng một sản phẩm chỉ có thể quay lại sau ít nhất 7 ngày. Lý do bạn chọn khi từ chối còn làm loại thay đổi đó được ưu tiên thấp hơn cho shop trong khoảng hai tháng, nhạt dần theo thời gian.",
+      },
+      {
+        question: "Mỗi ngày tôi nhận bao nhiêu thẻ đề xuất?",
+        answer:
+          "Tối đa 5 thẻ mới mỗi ngày, 25 thẻ mỗi tuần và 30 thẻ đang mở cùng lúc; bạn có thể giảm số thẻ mở cùng lúc trong Quy tắc, từ 5 đến 30. Mỗi thẻ có hiệu lực 7 ngày.",
+      },
+    ],
+    sources: [
+      academy("Chẩn Đoán Thẻ Sản Phẩm", "5792290376255233", "chẩn đoán TikTok trả về cho trang sản phẩm (21/02/2024), kiểm tra 18/10/2026"),
+      { title: "Juli AI: Đề xuất và thực thi", url: "https://app-juli.com/san-pham/de-xuat-va-thuc-thi", note: "thẻ đề xuất, hai bước đồng ý, giới hạn, hoàn tác" },
+    ],
+  },
+  {
+    slug: "do-ket-qua-ngay-7-ngay-14-hoan-tac",
+    status: "draft",
+    title: "Đo kết quả sau khi sửa sản phẩm: đọc ngày 7, ngày 14 và biết khi nào nên hoàn tác",
+    seoTitle: "Đo kết quả ngày 7, ngày 14 và hoàn tác | Juli AI",
+    description:
+      "Đọc kết quả đo lường của Juli sau khi sửa sản phẩm TikTok Shop: mốc 14 ngày, ngưỡng giữ ổn định, ngày 7 Đang lên hay Chưa rõ, bốn nhãn ngày 14, hoàn tác.",
+    excerpt:
+      "Ngày 7 là kiểm tra giữa chừng, ngày 14 là kết quả chốt, và Juli không bao giờ tự hoàn tác. Đọc từng nhãn trên một thẻ mẫu, hiểu câu hỏi “Hoàn tác?” và biết khi nào nên chờ.",
+    breadcrumbName: "Đo kết quả ngày 7, ngày 14",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-do-ket-qua-ngay-7-ngay-14-hoan-tac-v1", "Minh hoạ: đồng hồ cát có mũi tên hồng vòng ngược bao quanh, nền xanh ô liu đậm, chữ “Đo xong mới chốt”"),
+    author: AUTHOR,
+    related: ["duyet-de-xuat-toi-uu-san-pham-tiktok-shop", "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "doc-phan-tich-tiktok-shop-theo-luong-truy-cap"],
+    faq: [
+      {
+        question: "Vì sao phải chờ đến ngày 14 mới chốt kết quả?",
+        answer:
+          "Số liệu TikTok Shop dao động mạnh theo ngày trong tuần, theo đợt sale và theo cách TikTok phân phối. Bảy ngày thường chưa đủ để tách tác động của một thay đổi khỏi dao động đó, nên ngày 7 chỉ là kiểm tra giữa chừng, ngày 14 mới là kết quả chốt.",
+      },
+      {
+        question: "Ngày 7 mà kết quả xấu thì sao?",
+        answer:
+          "Nếu một chỉ số bạn muốn giữ ổn định ra ngoài ngưỡng, Juli hỏi bạn có muốn hoàn tác không, kèm số liệu cụ thể. Bạn chọn Hoàn tác hoặc Giữ thay đổi để đo tiếp đến ngày 14. Juli không tự hoàn tác.",
+      },
+      {
+        question: "Juli có nhận công cho mọi lần GMV tăng không?",
+        answer:
+          "Không. Kết quả chỉ là Đạt khi chỉ số mục tiêu tăng rõ hơn mức dao động bình thường, chạm mục tiêu và GMV giữ được. Nếu trong thời gian đo có thay đổi khác như bạn tự sửa tiêu đề hay mở khuyến mãi, kết quả ghi là bị ảnh hưởng bởi thay đổi khác.",
+      },
+      {
+        question: "GMV dự kiến trên thẻ có phải cam kết không?",
+        answer:
+          "Không. GMV dự kiến là ước tính theo quy tắc, tính từ số liệu 30 ngày của sản phẩm. Kết quả thật đo được ở ngày 14 được đặt cạnh con số này để bạn so sánh.",
+      },
+      {
+        question: "Hoàn tác có xoá chỉnh sửa tôi tự làm không?",
+        answer:
+          "Không. Trước khi khôi phục, Juli đọc lại sản phẩm trên TikTok Shop; nếu nội dung đã bị sửa bên ngoài Juli sau lần thay đổi, Juli không ghi đè và báo cho bạn. Lượt hoàn tác cũng dừng ở bước xác nhận trước khi ghi.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "chỉ số theo luồng dùng để đo, GMV gồm cả đơn huỷ và hoàn tiền (17/06/2026), kiểm tra 18/10/2026"),
+      { title: "Juli AI: Đo lường GMV", url: "https://app-juli.com/san-pham/do-luong-gmv", note: "mốc so sánh, ngày 7, ngày 14, nhãn kết quả, học từ kết quả" },
+    ],
+  },
 ];

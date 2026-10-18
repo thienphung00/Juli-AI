@@ -25,6 +25,10 @@ import { body as dungThu } from "./dung-thu-juli-ai-mien-phi-3-thang";
 import { body as keoGmvXuong } from "./tim-san-pham-keo-gmv-xuong-tiktok-shop";
 import { body as ctrTheSanPham } from "./ctr-the-san-pham-thap-doi-tieu-de-anh-bia";
 import { body as ctorMoTa } from "./ctor-thap-viet-lai-mo-ta-san-pham";
+import { body as ketNoiJuli } from "./huong-dan-ket-noi-tiktok-shop-voi-juli";
+import { body as docPhanTich } from "./doc-phan-tich-tiktok-shop-theo-luong-truy-cap";
+import { body as duyetDeXuat } from "./duyet-de-xuat-toi-uu-san-pham-tiktok-shop";
+import { body as doKetQua } from "./do-ket-qua-ngay-7-ngay-14-hoan-tac";
 
 /**
  * Post bodies by slug. Only the post page imports this (the route registry
@@ -58,4 +62,8 @@ export const BLOG_BODIES: Readonly<Record<string, string>> = {
   "tim-san-pham-keo-gmv-xuong-tiktok-shop": keoGmvXuong,
   "ctr-the-san-pham-thap-doi-tieu-de-anh-bia": ctrTheSanPham,
   "ctor-thap-viet-lai-mo-ta-san-pham": ctorMoTa,
+  "huong-dan-ket-noi-tiktok-shop-voi-juli": ketNoiJuli,
+  "doc-phan-tich-tiktok-shop-theo-luong-truy-cap": docPhanTich,
+  "duyet-de-xuat-toi-uu-san-pham-tiktok-shop": duyetDeXuat,
+  "do-ket-qua-ngay-7-ngay-14-hoan-tac": doKetQua,
 };
