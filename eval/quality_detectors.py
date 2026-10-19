@@ -42,6 +42,8 @@ CLI::
     python -m eval.quality_detectors scan               # per-class counts
     python -m eval.quality_detectors report             # full JSON report
     python -m eval.quality_detectors mutate --base main # diff-scoped mutation
+    python -m eval.quality_detectors reconcile --write  # re-derive recorded figures
+                                                        # (+ prune the prior-figure set)
 """
 
 from __future__ import annotations
@@ -337,36 +339,230 @@ def _is_pytest_raising_call(node: ast.AST) -> bool:
     return dotted.startswith("pytest.") and dotted.rsplit(".", 1)[-1] in _PYTEST_RAISING
 
 
-def _asserting_helper_names(tree: ast.Module) -> frozenset[str]:
-    """Same-file helpers that assert, resolved to a fixed point.
+#: Names that declare themselves assertions. Used ONLY for a callable imported
+#: from outside this repository (``numpy.testing.assert_allclose``,
+#: ``pandas.testing.assert_frame_equal``), whose body cannot be read; a helper
+#: whose source is in the repo is judged by its body, never by its name.
+_ASSERTION_NAME_PREFIXES = ("assert_", "expect_")
 
-    Without this the detector's dominant false positive would be the repo's own
-    house style: ``tests/unit/test_api.py`` asserts almost entirely through
-    ``_assert_envelope(response)``. A test delegating to such a helper *can*
-    fail, so it is not vacuous.
+
+def _is_helper_module(rel: str) -> bool:
+    """Whether an imported module is test-support code whose asserts count.
+
+    Restricted to ``conftest.py`` and modules under a ``tests`` directory.
+    Production code may carry an invariant ``assert``; a test that merely calls
+    the code under test must not be credited with that assert as its own.
     """
-    functions: dict[str, FunctionNode] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            functions.setdefault(node.name, node)
+    parts = rel.split("/")
+    return parts[-1] == "conftest.py" or "tests" in parts[:-1]
 
-    asserting: set[str] = set()
-    for name, func in functions.items():
-        if any(_direct_assertion(node) for node in _body_nodes(func)):
-            asserting.add(name)
 
-    changed = True
-    while changed:
-        changed = False
-        for name, func in functions.items():
-            if name in asserting:
-                continue
-            for node in _body_nodes(func):
-                if isinstance(node, ast.Call) and _root_name(node.func) in asserting:
+@dataclass(frozen=True)
+class AssertingHelpers:
+    """What a call in one module can delegate an assertion to.
+
+    ``names``: bare callables (same-file functions or imported helpers) that
+    assert. ``methods``: methods of classes defined in this module that assert,
+    credited on any receiver (``probe.warm(...)``, ``self._check(...)``).
+    ``module_attrs``: ``(alias, attr)`` for ``import tests.support.x as m;
+    m.helper()``. ``external_aliases``: modules imported from outside the repo,
+    whose ``assert_*`` / ``expect_*`` attributes are credited by name.
+    """
+
+    names: frozenset[str] = frozenset()
+    methods: frozenset[str] = frozenset()
+    module_attrs: frozenset[tuple[str, str]] = frozenset()
+    external_aliases: frozenset[str] = frozenset()
+
+    def credits(self, node: ast.AST) -> bool:
+        if not isinstance(node, ast.Call):
+            return False
+        func = node.func
+        if isinstance(func, ast.Attribute):
+            if func.attr in self.methods:
+                return True
+            if isinstance(func.value, ast.Name) and (func.value.id, func.attr) in self.module_attrs:
+                return True
+            if _root_name(func) in self.external_aliases and func.attr.startswith(
+                _ASSERTION_NAME_PREFIXES
+            ):
+                return True
+        return _root_name(func) in self.names
+
+
+class HelperResolver:
+    """Resolves asserting helpers for a module, following imports into helpers.
+
+    One instance per scan: each helper module is parsed and resolved once, and
+    an import cycle resolves to "asserts nothing" for the module still being
+    resolved rather than recursing forever (an under-credit, never a false one).
+    """
+
+    def __init__(self, repo_root: Path) -> None:
+        self.repo_root = Path(repo_root)
+        self._exports: dict[str, frozenset[str]] = {}
+        self._in_progress: set[str] = set()
+        self._files: dict[tuple[str, Path | None], Path | None] = {}
+
+    # -- module lookup -----------------------------------------------------
+
+    def _module_file(self, dotted: str, near: Path | None) -> Path | None:
+        key = (dotted, near)
+        if key not in self._files:
+            self._files[key] = self._find_module_file(dotted, near)
+        return self._files[key]
+
+    def _find_module_file(self, dotted: str, near: Path | None) -> Path | None:
+        rel = Path(*dotted.split("."))
+        # backend/src is where the code under test lives: resolving it keeps
+        # ``juli_backend``'s own ``assert_*`` functions (production guards such
+        # as ``assert_agent_broker_is_durable``) out of the external-name rule.
+        bases = [self.repo_root, self.repo_root / "backend" / "src"]
+        if near is not None:
+            # pytest's rootdir/prepend import mode puts a test file's own
+            # directory on sys.path, which is how ``from conftest import x``
+            # and ``from helpers import x`` resolve.
+            bases.append(near)
+        for base in bases:
+            for candidate in (base / rel.with_suffix(".py"), base / rel / "__init__.py"):
+                if candidate.is_file():
+                    return candidate
+        return None
+
+    def _relative_base(self, rel: str, level: int, module: str | None) -> str | None:
+        package = rel.split("/")[:-1]
+        if level - 1 > len(package):
+            return None
+        package = package[: len(package) - (level - 1)]
+        parts = package + (module.split(".") if module else [])
+        return ".".join(parts) if parts else None
+
+    def exports(self, path: Path) -> frozenset[str]:
+        """Module-level asserting callables a helper module offers to importers."""
+        rel = _rel(self.repo_root, path)
+        if rel in self._exports:
+            return self._exports[rel]
+        if rel in self._in_progress:
+            return frozenset()
+        self._in_progress.add(rel)
+        try:
+            tree = _parse(path)
+            helpers = self.for_tree(tree, rel)
+            top_level = {
+                n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+            for node in tree.body:
+                if isinstance(node, ast.ImportFrom):
+                    top_level.update(a.asname or a.name for a in node.names)
+            result = frozenset(helpers.names & top_level)
+        finally:
+            self._in_progress.discard(rel)
+        self._exports[rel] = result
+        return result
+
+    def _helper_exports(self, dotted: str | None, near: Path) -> frozenset[str] | None:
+        """Exports of a repo helper module, or ``None`` if it is not one."""
+        if not dotted:
+            return None
+        path = self._module_file(dotted, near)
+        if path is None:
+            return None
+        if not _is_helper_module(_rel(self.repo_root, path)):
+            return frozenset()
+        return self.exports(path)
+
+    # -- per-module resolution ----------------------------------------------
+
+    def for_tree(self, tree: ast.Module, rel: str) -> AssertingHelpers:
+        """Every helper a call in this module can delegate an assertion to.
+
+        Same-file functions and methods are resolved to a fixed point, as
+        before: without that the dominant false positive would be the repo's
+        own house style (``tests/unit/test_api.py`` asserts almost entirely
+        through ``_assert_envelope(response)``). Imports into ``conftest.py`` or
+        a ``tests`` package are followed and judged by their bodies.
+        """
+        near = (self.repo_root / rel).parent
+        names: set[str] = set()
+        module_attrs: set[tuple[str, str]] = set()
+        external: set[str] = set()
+
+        functions: dict[str, list[FunctionNode]] = {}
+        method_names: set[str] = set()
+        imports: list[ast.Import | ast.ImportFrom] = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                functions.setdefault(node.name, []).append(node)
+            elif isinstance(node, ast.ClassDef):
+                method_names.update(
+                    child.name
+                    for child in node.body
+                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                )
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                imports.append(node)
+
+        for node in imports:
+            if isinstance(node, ast.ImportFrom):
+                dotted = (
+                    self._relative_base(rel, node.level, node.module) if node.level else node.module
+                )
+                exported = self._helper_exports(dotted, near)
+                for alias in node.names:
+                    bound = alias.asname or alias.name
+                    if exported is None:
+                        submodule = self._helper_exports(
+                            f"{dotted}.{alias.name}" if dotted else None, near
+                        )
+                        if submodule is None:
+                            if alias.name.startswith(_ASSERTION_NAME_PREFIXES):
+                                names.add(bound)
+                            else:
+                                external.add(bound)
+                        else:
+                            module_attrs.update((bound, attr) for attr in submodule)
+                    elif alias.name in exported:
+                        names.add(bound)
+                    else:
+                        submodule = self._helper_exports(f"{dotted}.{alias.name}", near)
+                        if submodule:
+                            module_attrs.update((bound, attr) for attr in submodule)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    exported = self._helper_exports(alias.name, near)
+                    if exported is None:
+                        external.add(alias.asname or alias.name.split(".")[0])
+                    elif alias.asname:
+                        module_attrs.update((alias.asname, attr) for attr in exported)
+
+        asserting: set[str] = set()
+        calls: dict[str, list[ast.Call]] = {}
+        for name, defs in functions.items():
+            body = [n for f in defs for n in _body_nodes(f)]
+            if any(_direct_assertion(n) for n in body):
+                asserting.add(name)
+            else:
+                calls[name] = [n for n in body if isinstance(n, ast.Call)]
+        changed = True
+        while changed:
+            changed = False
+            state = AssertingHelpers(
+                names=frozenset(names | asserting),
+                methods=frozenset(asserting & method_names),
+                module_attrs=frozenset(module_attrs),
+                external_aliases=frozenset(external),
+            )
+            for name, candidates in calls.items():
+                if name not in asserting and any(state.credits(n) for n in candidates):
                     asserting.add(name)
                     changed = True
-                    break
-    return frozenset(asserting)
+
+        return AssertingHelpers(
+            names=frozenset(names | asserting),
+            methods=frozenset(asserting & method_names),
+            module_attrs=frozenset(module_attrs),
+            external_aliases=frozenset(external),
+        )
 
 
 def _direct_assertion(node: ast.AST) -> bool:
@@ -518,14 +714,12 @@ def _asserts_its_own_injection(
     return False
 
 
-def _classify(func: FunctionNode, asserting_helpers: frozenset[str]) -> list[tuple[str, str]]:
+def _classify(func: FunctionNode, asserting_helpers: AssertingHelpers) -> list[tuple[str, str]]:
     """Every ``(rule_code, detail)`` this test function earns."""
     nodes = list(_body_nodes(func))
     asserts = [n for n in nodes if isinstance(n, ast.Assert)]
     has_direct = any(_direct_assertion(n) for n in nodes)
-    via_helper = any(
-        isinstance(n, ast.Call) and _root_name(n.func) in asserting_helpers for n in nodes
-    )
+    via_helper = any(asserting_helpers.credits(n) for n in nodes)
 
     if not has_direct and not via_helper:
         return [(RULE_ZERO_ASSERTION, "")]
@@ -587,13 +781,15 @@ class Scan:
 
 
 def scan_file(repo_root: Path, path: Path) -> tuple[Finding, ...]:
-    return _scan_one(repo_root, path)[0]
+    return _scan_one(repo_root, path, HelperResolver(repo_root))[0]
 
 
-def _scan_one(repo_root: Path, path: Path) -> tuple[tuple[Finding, ...], int]:
+def _scan_one(
+    repo_root: Path, path: Path, resolver: HelperResolver
+) -> tuple[tuple[Finding, ...], int]:
     tree = _parse(path)
     rel = _rel(repo_root, path)
-    helpers = _asserting_helper_names(tree)
+    helpers = resolver.for_tree(tree, rel)
     findings: list[Finding] = []
     tests = 0
     for qualname, func in _iter_tests(tree):
@@ -615,11 +811,12 @@ def scan_corpus(repo_root: Path, roots: Sequence[str] | None = TEST_ROOTS) -> Sc
     findings: list[Finding] = []
     tests = 0
     files = 0
+    resolver = HelperResolver(repo_root)
     for path in _walk_python(repo_root, roots):
         if not is_test_path(_rel(repo_root, path)):
             continue
         files += 1
-        found, count = _scan_one(repo_root, path)
+        found, count = _scan_one(repo_root, path, resolver)
         findings.extend(found)
         tests += count
     return Scan(findings=tuple(sorted(findings)), test_functions=tests, files=files)
@@ -634,7 +831,7 @@ RECONCILIATION_LAYER_ORDER: tuple[str, ...] = (
     "and_no_pytest_raises",
     "and_no_mock_assert_called",
     "and_no_unittest_self_assert",
-    "and_no_same_file_asserting_helper",
+    "and_no_asserting_helper",
     "and_no_raise_assertionerror",
 )
 
@@ -670,12 +867,13 @@ def reconciliation_identities(
         name: set() for name in RECONCILIATION_LAYER_ORDER
     }
 
+    resolver = HelperResolver(repo_root)
     for path in _walk_python(repo_root, roots):
         rel = _rel(repo_root, path)
         if not is_test_path(rel):
             continue
         tree = _parse(path)
-        helpers = _asserting_helper_names(tree)
+        helpers = resolver.for_tree(tree, rel)
         for qualname, func in _iter_tests(tree):
             nodes = list(_body_nodes(func))
             key = (rel, qualname)
@@ -685,10 +883,7 @@ def reconciliation_identities(
                 ("and_no_pytest_raises", any(_is_pytest_raising_call(n) for n in nodes)),
                 ("and_no_mock_assert_called", any(_is_mock_assert_call(n) for n in nodes)),
                 ("and_no_unittest_self_assert", any(_is_unittest_assert_call(n) for n in nodes)),
-                (
-                    "and_no_same_file_asserting_helper",
-                    any(isinstance(n, ast.Call) and _root_name(n.func) in helpers for n in nodes),
-                ),
+                ("and_no_asserting_helper", any(helpers.credits(n) for n in nodes)),
                 ("and_no_raise_assertionerror", any(_raises_assertionerror(n) for n in nodes)),
             ):
                 if has_evidence:
@@ -1241,10 +1436,10 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 49
-MEASURED_TEST_FUNCTIONS = 6851
+MEASURED_TEST_FUNCTIONS = 6833
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 661
+MEASURED_TEST_MODULES = 660
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1292,13 +1487,85 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # UNCHANGED at 53 and 49: every new test without a bare `assert` either uses
     # `pytest.raises`/`mock.assert_called*` or delegates to a same-file asserting
     # helper, so the zero-assertion headline did not move.
+    # Fast track P55 (D64, 2026-10-19): the fifth layer is renamed
+    # `and_no_asserting_helper` because it now also credits helpers imported
+    # from `conftest.py` / a `tests` package and asserting methods of same-file
+    # classes (`HelperResolver`). Every count is UNCHANGED on this tree and on
+    # the branch point: no zero-assertion test delegated through an import.
     "no_assert_statement": 493,
     "and_no_pytest_raises": 130,
     "and_no_mock_assert_called": 115,
     "and_no_unittest_self_assert": 115,
-    "and_no_same_file_asserting_helper": 53,
+    "and_no_asserting_helper": 53,
     "and_no_raise_assertionerror": 49,
 }
+
+#: The layer the prior ~97 reading was taken at (a detector that credits
+#: ``pytest.raises`` and ``mock.assert_called*`` but no helper delegation).
+PRIOR_FIGURE_LAYER = "and_no_mock_assert_called"
+
+#: #1682's claim is about a FIXED set of tests, but the prior-figure layer is
+#: not one: a new test that asserts only through a helper is invisible to that
+#: old detector and lands in the layer, so the layer grows with every such test
+#: (P55: the nine `test_ops_round_trips.py` tests took it from 106 to 115 while
+#: the headline stayed exact). The claim is therefore evaluated over the layer
+#: less the helper-credited tests that are NOT in this recorded set -- the
+#: helper-credited members of the layer at the fast-track branch point
+#: (0739f4da), derived by `prior_figure_identities` on that tree. Genuinely
+#: assertion-free newcomers still enter it (and move the exact headline pin).
+#: `reconcile --write` only prunes identities that have left the tree or stopped
+#: being helper-credited; it never adds one, so the set cannot grow to absorb a
+#: drift. Adding to it is a hand edit that review must see.
+PRIOR_FIGURE_SET_PATH = Path(__file__).with_name("quality_prior_figure_set.json")
+PRIOR_FIGURE_SET_SCHEMA = "quality-prior-figure-set/1"
+#: The prior-figure layer over that fixed set, re-derived by `reconcile`.
+PRIOR_FIGURE_SET_TESTS = 106
+
+
+def helper_credited_identities(
+    identities: Mapping[str, set[tuple[str, str]]],
+) -> set[tuple[str, str]]:
+    """Tests whose first (and so only remaining) evidence is an asserting helper."""
+    return identities["and_no_unittest_self_assert"] - identities["and_no_asserting_helper"]
+
+
+def load_prior_figure_set(path: Path = PRIOR_FIGURE_SET_PATH) -> frozenset[tuple[str, str]]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise MeasurementError(f"unreadable prior-figure set {path}: {exc}") from exc
+    if payload.get("schema") != PRIOR_FIGURE_SET_SCHEMA:
+        raise MeasurementError(f"{path}: schema is not {PRIOR_FIGURE_SET_SCHEMA}")
+    ids: set[tuple[str, str]] = set()
+    for key in payload["helperCredited"]:
+        rel, sep, qual = key.partition("::")
+        if not sep:
+            raise MeasurementError(f"{path}: malformed identity {key!r}")
+        ids.add((rel, qual))
+    return frozenset(ids)
+
+
+def prior_figure_identities(
+    identities: Mapping[str, set[tuple[str, str]]],
+    recorded: frozenset[tuple[str, str]],
+) -> set[tuple[str, str]]:
+    """The prior-figure layer over the fixed set #1682's claim is about."""
+    newcomers = helper_credited_identities(identities) - recorded
+    return identities[PRIOR_FIGURE_LAYER] - newcomers
+
+
+def prior_figure_set_payload(recorded: frozenset[tuple[str, str]], anchor: str) -> dict[str, Any]:
+    return {
+        "schema": PRIOR_FIGURE_SET_SCHEMA,
+        "anchor": anchor,
+        "note": (
+            "Helper-credited members of the and_no_mock_assert_called layer at the "
+            "anchor commit (the fast-track branch point). See PRIOR_FIGURE_SET_PATH "
+            "in eval/quality_detectors.py. `reconcile --write` prunes; it never adds."
+        ),
+        "helperCredited": sorted(f"{rel}::{qual}" for rel, qual in recorded),
+    }
+
 
 RECONCILIATION: dict[str, Any] = {
     "reported": REPORTED_ZERO_ASSERTION_TESTS,
@@ -1309,20 +1576,26 @@ RECONCILIATION: dict[str, Any] = {
     "measuredAt": "2026-09-10",
     "roots": list(TEST_ROOTS),
     "layers": dict(RECONCILIATION_LAYERS),
-    "priorFigureLayer": "and_no_mock_assert_called",
+    "priorFigureLayer": PRIOR_FIGURE_LAYER,
+    "priorFigureSet": PRIOR_FIGURE_SET_TESTS,
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 49 "
-        "zero-assertion tests in a corpus of 6,851 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (661 test modules). The prior "
+        "zero-assertion tests in a corpus of 6,833 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (660 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
-        "as assertions but not delegation to a same-file asserting helper. That "
-        "layer reads 115 today, a difference of 18 tests from the prior reading. "
+        "as assertions but not delegation to an asserting helper. That "
+        "layer reads 115 today over the whole corpus, but the claim is about a fixed set: "
+        "less the 9 helper-credited tests that are not in the recorded set "
+        "(`eval/quality_prior_figure_set.json`, the layer's helper-credited members at the "
+        "fast-track branch point), "
+        "it reads 106, a difference of 9 tests from the prior reading. "
         "That difference is the claim, and it is stated in tests rather than "
         "scaled by corpus size: this layer is an absolute count over a set that "
         "does not grow with the corpus — it read 107 at 4,545, at 4,638, at 4,675, at 4,798, "
-        "at 4,798, at 4,878, at 5,002 and at 5,071 — so scaling either side by corpus growth "
+        "at 4,798, at 4,878, at 5,002 and at 5,071, and 106 at 5,773 (the branch point) — "
+        "so scaling either side by corpus growth "
         "diverges "
         "mechanically as the repository grows and says nothing about the code "
         "(#1682). The rates are recorded beside it as readings, not as the claim "
@@ -1330,7 +1603,8 @@ RECONCILIATION: dict[str, Any] = {
         "So the prior measurement "
         "reproduces, and the gap between 115 and 49 is 62 tests whose only "
         "assertion is inside a "
-        "same-file `_assert_*` helper plus 4 that raise AssertionError directly. "
+        "same-file or imported test-support asserting helper "
+        "plus 4 that raise AssertionError directly. "
         "Both were inspected: `tests/unit/test_agent_prompt_budget_gate.py` and "
         "`tests/integration/test_two_tenant_isolation_proof.py` are typical, and "
         "every one of them can genuinely fail. Crediting them is a correction to "
@@ -1364,8 +1638,12 @@ def reconcile_source(root: Path, source: str) -> tuple[str, dict[str, object]]:
     what moved rather than diffing to find out.
     """
     live = scan_corpus(root, roots=TEST_ROOTS)
-    layers = reconciliation_layers(root, roots=TEST_ROOTS)
+    identities = reconciliation_identities(root, roots=TEST_ROOTS)
+    layers = {name: len(ids) for name, ids in identities.items()}
     prior_layer = layers[RECONCILIATION["priorFigureLayer"]]
+    recorded = load_prior_figure_set() & frozenset(helper_credited_identities(identities))
+    prior_set = len(prior_figure_identities(identities, recorded))
+    newcomers = prior_layer - prior_set
     counts = counts_by_rule(live.findings)
     headline = counts[RULE_ZERO_ASSERTION]
 
@@ -1377,6 +1655,8 @@ def reconcile_source(root: Path, source: str) -> tuple[str, dict[str, object]]:
         "noAssertStatement": layers["no_assert_statement"],
         "zeroAssertion": headline,
         "priorFigureLayer": prior_layer,
+        "priorFigureSet": prior_set,
+        "priorFigureSetRecorded": len(recorded),
         "thenRate": round(then_rate, 2),
         "nowRate": round(now_rate, 2),
     }
@@ -1404,6 +1684,21 @@ def reconcile_source(root: Path, source: str) -> tuple[str, dict[str, object]]:
             f"layer reads {prior_layer} today",
         ),
         (
+            f"PRIOR_FIGURE_SET_TESTS = {PRIOR_FIGURE_SET_TESTS}",
+            f"PRIOR_FIGURE_SET_TESTS = {prior_set}",
+        ),
+        (
+            f'"less the {RECONCILIATION_LAYERS[PRIOR_FIGURE_LAYER] - PRIOR_FIGURE_SET_TESTS} '
+            "helper-credited tests",
+            f'"less the {newcomers} helper-credited tests',
+        ),
+        (
+            f'"it reads {PRIOR_FIGURE_SET_TESTS}, a difference of '
+            f"{abs(PRIOR_FIGURE_SET_TESTS - REPORTED_ZERO_ASSERTION_TESTS)} tests",
+            f'"it reads {prior_set}, a difference of '
+            f"{abs(prior_set - REPORTED_ZERO_ASSERTION_TESTS)} tests",
+        ),
+        (
             f"({100 * REPORTED_ZERO_ASSERTION_TESTS / REPORTED_TEST_FUNCTIONS:.2f}% then, "
             f"{100 * RECONCILIATION_LAYERS[RECONCILIATION['priorFigureLayer']] / MEASURED_TEST_FUNCTIONS:.2f}% now)",
             f"({then_rate:.2f}% then, {now_rate:.2f}% now)",
@@ -1423,6 +1718,14 @@ def reconcile_source(root: Path, source: str) -> tuple[str, dict[str, object]]:
         if old != new:
             source = source.replace(old, new)
     return source, figures
+
+
+def reconcile_prior_figure_set(root: Path) -> dict[str, Any]:
+    """The recorded prior-figure set with departed identities pruned, never extended."""
+    payload = json.loads(PRIOR_FIGURE_SET_PATH.read_text(encoding="utf-8"))
+    identities = reconciliation_identities(root, roots=TEST_ROOTS)
+    kept = load_prior_figure_set() & frozenset(helper_credited_identities(identities))
+    return prior_figure_set_payload(kept, anchor=str(payload["anchor"]))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1466,8 +1769,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             rewritten, figures = reconcile_source(root, path.read_text(encoding="utf-8"))
             for name, value in figures.items():
                 print(f"  {name}: {value}")
+            pruned = reconcile_prior_figure_set(root)
             if args.write:
                 path.write_text(rewritten, encoding="utf-8")
+                PRIOR_FIGURE_SET_PATH.write_text(
+                    json.dumps(pruned, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+                )
                 print("written" if rewritten else "unchanged")
             else:
                 print("dry run; pass --write to apply")
