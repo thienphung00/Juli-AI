@@ -436,6 +436,29 @@ def test_a_second_default_rollback_goes_one_deploy_further_back(world: World):
     assert f"live now : deploy #1 {SHA['b'][:12]}" in run.out, run
 
 
+def test_after_the_drill_the_default_target_is_the_previous_deploy_again(world: World):
+    world.standard()
+    assert world.run().code == 0
+    assert world.run(SHORT["c"]).code == 0
+    run = world.run("--plan")
+    assert f"live now : deploy #2 {SHA['c'][:12]}" in run.out, run
+    assert f"target   : deploy #1 {SHA['b'][:12]}" in run.out, run
+
+
+def test_a_release_rolled_away_from_is_never_the_default_target(world: World):
+    """A, B, C; C is rolled back to B; D is deployed. Rolling D back must land on B (what
+    served before D), not on the rejected C."""
+    world.standard()
+    assert world.run().code == 0
+    d = world.release("d")
+    with (world.releases / "deploy-history.log").open("a") as fh:
+        fh.write(f"2026-10-19T00:00:00Z {SHA['d']} {d}\n")
+    run = world.run("--plan")
+    assert run.code == 0, run
+    assert f"live now : deploy #3 {SHA['d'][:12]}" in run.out, run
+    assert f"target   : deploy #1 {SHA['b'][:12]}" in run.out, run
+
+
 def test_rolling_back_to_the_live_state_is_a_no_op_with_a_health_summary(world: World):
     world.standard()
     run = world.run(SHORT["c"])

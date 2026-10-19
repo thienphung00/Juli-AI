@@ -25,9 +25,11 @@
 # three lanes at once -- never "each lane's own previous release".
 #
 # DEFAULT TARGET. The deploy before the one that is live now ("live now" = the last
-# deploy line, or the deploy a later ROLLBACK-TO line returned to). Run it again and it
-# goes one deploy further back. To go forward again, name the newer SHA: rolling
-# forward is the same operation with a newer target.
+# deploy line, or the deploy a later ROLLBACK-TO line returned to), skipping any
+# release a rollback already moved back away from (after A, B, C, a rollback to B and a
+# new deploy D, "previous" is B, not the rejected C). Run it again and it goes one
+# deploy further back. To go forward again, name the newer SHA: rolling forward is the
+# same operation with a newer target.
 #
 # HOW EACH LANE MOVES (the deploy's own candidate-first pattern, no rebuild):
 #   api      the target's venv on the free slot -> /health 2xx + response shape ->
@@ -161,37 +163,57 @@ load_history() {
     done <"${HISTORY_LOG}"
 }
 
-# Index of the deploy whose state is live now.
-anchor_index() {
-    local _ts f2 f3 f4 _rest kind="" dir="" sha="" i
+# Replays the history to find the deploy whose state is live now (ANCHOR) and the
+# releases a rollback moved BACK away from (ROLLED_AWAY, "|dir|" entries): those are
+# known-bad, so the default target skips them. After A, B, C, a rollback to B and a new
+# deploy D, "previous" is B, not the rejected C. Moving forward again to a release, or
+# redeploying it, clears its mark (the drill's back-and-forward leaves nothing marked).
+ANCHOR=-1
+ROLLED_AWAY="|"
+
+replay_history() {
+    local _ts f2 f3 f4 _rest k=0 i idx
+    ANCHOR=-1 ROLLED_AWAY="|"
     while read -r _ts f2 f3 f4 _rest; do
         if [[ "${f2}" =~ ^[0-9a-f]{40}$ ]] && [ -n "${f3}" ]; then
-            kind=deploy
+            ANCHOR="${k}"
+            ROLLED_AWAY="${ROLLED_AWAY//|${f3}|/|}"
+            k=$((k + 1))
         elif [ "${f2}" = "ROLLBACK-TO" ] && [ -n "${f3}" ]; then
-            kind=rollback dir="${f3}" sha="${f4:-}"
+            idx=-1
+            for ((i = k - 1; i >= 0; i--)); do
+                if [ "${E_DIR[i]}" = "${f3}" ] && { [ -z "${f4:-}" ] || [ "${E_SHA[i]}" = "${f4}" ]; }; then
+                    idx="${i}"
+                    break
+                fi
+            done
+            if [ "${idx}" -lt 0 ]; then
+                echo "FAIL: a ROLLBACK-TO line names ${f3}, which no earlier deploy entry carries." >&2
+                return 1
+            fi
+            if [ "${ANCHOR}" -ge 0 ] && [ "${idx}" -lt "${ANCHOR}" ]; then
+                ROLLED_AWAY="${ROLLED_AWAY}${E_DIR[ANCHOR]}|"
+            else
+                ROLLED_AWAY="${ROLLED_AWAY//|${f3}|/|}"
+            fi
+            ANCHOR="${idx}"
         fi
     done <"${HISTORY_LOG}"
-    if [ "${kind}" = "rollback" ]; then
-        for ((i = N_ENTRIES - 1; i >= 0; i--)); do
-            if [ "${E_DIR[i]}" = "${dir}" ] && { [ -z "${sha}" ] || [ "${E_SHA[i]}" = "${sha}" ]; }; then
-                echo "${i}"
-                return 0
-            fi
-        done
-        echo "FAIL: the last ROLLBACK-TO line names ${dir}, which no deploy entry carries." >&2
-        return 1
-    fi
-    echo $((N_ENTRIES - 1))
 }
+
+rolled_away() { case "${ROLLED_AWAY}" in *"|$1|"*) return 0 ;; esac; return 1; }
 
 resolve_target_index() {
     local target="$1" anchor="$2" i
     if [ -z "${target}" ]; then
         i=$((anchor - 1))
-        # A redeploy of the same SHA is the same release, not "the previous one".
-        while [ "${i}" -ge 0 ] && [ "${E_DIR[i]}" = "${E_DIR[anchor]}" ]; do i=$((i - 1)); done
+        # A redeploy of the same SHA is the same release, not "the previous one"; a
+        # release a rollback already moved away from is not a target either.
+        while [ "${i}" -ge 0 ] && { [ "${E_DIR[i]}" = "${E_DIR[anchor]}" ] || rolled_away "${E_DIR[i]}"; }; do
+            i=$((i - 1))
+        done
         if [ "${i}" -lt 0 ]; then
-            echo "FAIL: there is no deploy before #${anchor} in ${HISTORY_LOG}." >&2
+            echo "FAIL: there is no usable deploy before #${anchor} in ${HISTORY_LOG}." >&2
             return 1
         fi
         echo "${i}"
@@ -739,7 +761,8 @@ rollback_main() {
     load_history
     [ "${N_ENTRIES}" -gt 0 ] || { echo "FAIL: ${HISTORY_LOG} has no deploy entries." >&2; exit 1; }
     local anchor t
-    anchor="$(anchor_index)" || exit 1
+    replay_history || exit 1
+    anchor="${ANCHOR}"
     if ! t="$(resolve_target_index "${target}" "${anchor}")"; then
         echo "Deploys in ${HISTORY_LOG} (oldest first):" >&2
         for ((i = 0; i < N_ENTRIES; i++)); do echo "  #${i} ${E_SHA[i]:0:12} ${E_DIR[i]}" >&2; done
