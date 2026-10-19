@@ -225,6 +225,44 @@ def test_celery_unit_queues_reads_the_real_production_worker_unit(script_text: s
     )
 
 
+def test_celery_unit_queues_reads_the_execstart_flag_not_a_comment(
+    script_text: str, tmp_path: Path
+):
+    """P57: the real worker unit's comments quote an older `-Q` list. The parser took the
+    first match, so three routed queues were never verified after a deploy."""
+    func = _extract_function(script_text, "celery_unit_queues")
+    unit_file = tmp_path / "worker.service"
+    unit_file.write_text(
+        "# history: used to run `-Q celery,old_queue`\n"
+        "[Service]\n"
+        "ExecStart=/x/celery -A app worker \\\n"
+        "    -Q celery,fresh_queue \\\n"
+        "    --loglevel=info\n"
+    )
+    script = f"set -euo pipefail\n{func}\ncelery_unit_queues '{unit_file}'\n"
+    result = subprocess.run(["/bin/bash", "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.split() == ["celery", "fresh_queue"]
+
+
+def test_celery_unit_queues_matches_the_real_worker_execstart(script_text: str):
+    """Derived from the unit's non-comment lines here too, so no queue list is pinned."""
+    import re
+
+    live_lines = [
+        line
+        for line in REAL_WORKER_UNIT.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    match = re.search(r"-Q\s+([A-Za-z0-9_,]+)", "\n".join(live_lines))
+    assert match, "the real worker unit has no -Q flag on a non-comment line"
+    func = _extract_function(script_text, "celery_unit_queues")
+    script = f"set -euo pipefail\n{func}\ncelery_unit_queues '{REAL_WORKER_UNIT}'\n"
+    result = subprocess.run(["/bin/bash", "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.split() == match.group(1).split(",")
+
+
 # --------------------------------------------------------------------------------------
 # verify_celery_worker_queues — the post-restart assertion. This is the function the
 # issue calls out by name: "the verification test fails against a deliberately stale

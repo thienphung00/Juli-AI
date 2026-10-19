@@ -1,6 +1,6 @@
 # Demo frontend service — Next.js (apps/demo) on a loopback port (default 127.0.0.1:3001)
 #
-# Runtime model matches juli-web: standard next build + `next start` from the app
+# Runtime model matches juli-landing: standard next build + `next start` from the app
 # directory (not standalone output). Nginx proxies all paths including /_next/static
 # to this upstream.
 #

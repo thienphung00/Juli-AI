@@ -8,7 +8,7 @@ Infrastructure, CI/CD, and deployment configuration.
 | [`deploy/`](deploy/) | App Review deploy runbooks and reviewer checklists | **Live** (sign-off 2026-07-03) |
 | [`scripts/`](scripts/) | VPS provision, deploy, rollback, secrets, smoke-test scripts | **Live** |
 | [`nginx/`](nginx/) | Nginx vhosts for App Review domains | **Live** |
-| [`systemd/`](systemd/) | `juli-api` / `juli-demo` / `juli-landing` / celery systemd units (`juli-web` is the retired dashboard's, see fasttrack/DEBT.md) + `journald.conf.d/` retention drop-in (#906) | **Live** |
+| [`systemd/`](systemd/) | `juli-api` / `juli-demo` / `juli-landing` / celery systemd units + timers (the retired dashboard's `juli-web` unit was removed in fast-track P57) + `journald.conf.d/` retention drop-in (#906) | **Live** |
 | [`logrotate/`](logrotate/) | Tracked `logrotate.d` policies (Nginx access/error log retention, #906) | **Live** |
 
 **Current CI:** [`.github/workflows/`](../.github/workflows/)

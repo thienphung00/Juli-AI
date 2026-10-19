@@ -12,6 +12,7 @@ Step-by-step operator guides for App Review deployment (Phase 2.5-d).
 | [`smoke-checklist-runbook.md`](smoke-checklist-runbook.md) | #261 | App Review smoke sign-off + CORS |
 | [`ops-console-runbook.md`](ops-console-runbook.md) | P16 (D25) | Juli Ops on ops.app-juli.com: DNS, cert, Cloudflare Access, env, first Admin |
 | [`ingest-gateway-runbook.md`](ingest-gateway-runbook.md) | P24 (D31.3 / D31.4) | Ingest gateway (`/v1/ingest/*`), pairing, drift, and the Juli Connector extension |
+| [`rollback-runbook.md`](rollback-runbook.md) | P57 (D66) | Fast-track production rollback (API + Demo + Landing + Celery), verification, and the one-time live drill (Vietnamese) |
 
 Operational scripts, Nginx, and systemd units remain under [`infra/`](../infra/).
 

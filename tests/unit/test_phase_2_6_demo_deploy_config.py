@@ -28,7 +28,6 @@ NGINX_APP_PATH = NGINX_DIR / "app-juli.com.conf"
 pytestmark = pytest.mark.demo_contract
 NGINX_API_PATH = NGINX_DIR / "api.app-juli.com.conf"
 SYSTEMD_DEMO_PATH = SYSTEMD_DIR / "juli-demo.service"
-SYSTEMD_FRONTEND_PATH = SYSTEMD_DIR / "juli-web.service"
 SYSTEMD_BACKEND_PATH = SYSTEMD_DIR / "juli-api.service"
 ENV_DEMO_PATH = SCRIPTS_DIR / "env/demo.env.example"
 BUILD_DEMO_PATH = SCRIPTS_DIR / "build-demo.sh"

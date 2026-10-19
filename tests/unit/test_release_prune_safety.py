@@ -147,7 +147,7 @@ def test_prune_never_removes_the_live_demo_release(releases_root: Path, tmp_path
 
 
 def test_prune_never_removes_the_live_web_release(releases_root: Path, tmp_path: Path):
-    """~/releases/current's target backs juli-api and juli-web."""
+    """~/releases/current's target backs juli-api and the Celery worker/beat."""
     _run_prune(releases_root, tmp_path)
     assert (releases_root / WEB_LIVE).is_dir(), "pruned the live App Review release"
 

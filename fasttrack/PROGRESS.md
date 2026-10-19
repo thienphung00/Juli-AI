@@ -369,12 +369,25 @@ Reason: owner grill 2026-10-18; the pages must promise only what the product doe
 | A `epoch_to_naive_utc` reads s / ms / µs / ns and never raises; one bad promotion is logged + skipped (SAVEPOINT), not the sweep | D67.1–2 | done on branch `fasttrack/prod-bugs` (not merged) | agent (Opus) |
 | B Missing `shop_cipher` backfilled via Get Authorized Shops (binding-checked); unresolvable → `needs_reauth`, fan-out stops; TikTok error URLs lose their signed query | D67.3–4 | done on branch `fasttrack/prod-bugs` (not merged) | agent (Opus) |
 
+## P57 — rollback works again (D66, 2026-10-19)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| A Remove `juli-web` from scripts, units, env template, IAM template; tests assert it is gone | D66.1 | done on branch `fasttrack/rollback-fix` (not merged) | agent (Opus) |
+| B `rollback-release.sh`: all-lane rollback to an earlier deploy, live health checks, PASS/FAIL summary, `--plan` / `--verify` | D66.2–4 | done on branch `fasttrack/rollback-fix` | agent (Opus) |
+| C `rollback.yml` for fast-track (tag + dispatch, no `git checkout main`, deploy concurrency group) | D66.5 | done on branch `fasttrack/rollback-fix`; first exercised by the owner | agent (Opus) |
+| D Simulation harness + workflow tests; `celery_unit_queues` comment fix | D66.6 | done on branch `fasttrack/rollback-fix` | agent (Opus) |
+| E Runbook (VI) incl. one-time live drill | D66 | `docs/runbooks/rollback-runbook.md`; drill not run | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
 
 ## Owner actions (not for agents)
 
+- P57: deploy, then delete AWS secret `juli/web/production` (only after the deploy), drop its
+  ARN from the live IAM policy, remove the `juli-web` unit + `/etc/juli/web.env` on the VPS, and run
+  the one-time rollback drill (docs/runbooks/rollback-runbook.md §6–7).
 - FastMoss REST API trial + 1,000-request minimum (P2, optional since D22).
 - Confirm Fujiwa's TikTok authorisation allows product writes (blocks P5).
 - Consent screen #2061 (launch, not this branch).

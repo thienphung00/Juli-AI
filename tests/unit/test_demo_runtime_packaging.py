@@ -1,7 +1,7 @@
 """Runtime packaging contract for Demo static assets (Issue #499, DEMO-ASSET-1).
 
 Asserts one consistent Next.js production model across next.config, systemd,
-build script, and nginx. Matches App Review (juli-web): standard ``next build``
+build script, and nginx. Matches Landing (juli-landing): standard ``next build``
 output with ``next start`` run from ``apps/demo`` — not ``output: standalone``.
 """
 
@@ -15,7 +15,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NEXT_CONFIG_PATH = REPO_ROOT / "apps/demo/next.config.ts"
 SYSTEMD_DEMO_PATH = REPO_ROOT / "infra/systemd/juli-demo.service"
-SYSTEMD_WEB_PATH = REPO_ROOT / "infra/systemd/juli-web.service"
+SYSTEMD_WEB_PATH = REPO_ROOT / "infra/systemd/juli-web.service"  # retired, must not exist
+SYSTEMD_LANDING_PATH = REPO_ROOT / "infra/systemd/juli-landing.service"
 NGINX_DEMO_PATH = REPO_ROOT / "infra/nginx/demo.app-juli.com.conf"
 NGINX_DEMO_UPSTREAM_PATH = REPO_ROOT / "infra/nginx/demo-upstream.conf"
 BUILD_DEMO_PATH = REPO_ROOT / "infra/scripts/build-demo.sh"
@@ -92,12 +93,21 @@ def test_systemd_demo_runs_next_start_from_app_directory(systemd_demo_text: str)
     assert "server.js" not in config_body
 
 
-def test_systemd_demo_matches_juli_web_loopback_start_pattern(systemd_demo_text: str):
-    web = _read(SYSTEMD_WEB_PATH)
-    assert "run start" in web or "next" in web.lower(), (
-        "juli-web reference must start the Next production server"
+def test_systemd_demo_matches_landing_loopback_start_pattern(systemd_demo_text: str):
+    """Demo and Landing run the same model: ``next start`` on a loopback port.
+
+    juli-web (the retired dashboard) used to be the reference here; its unit was
+    removed in fast-track P57 (D66).
+    """
+    assert not SYSTEMD_WEB_PATH.exists(), "juli-web.service is retired and must stay deleted"
+    landing = _read(SYSTEMD_LANDING_PATH)
+    assert "node_modules/.bin/next start" in landing
+    assert "--hostname 127.0.0.1" in landing
+    assert "node_modules/.bin/next start" in systemd_demo_text
+    assert (
+        "${DEMO_LIVE_PORT}" in systemd_demo_text
+        and f"DEMO_LIVE_PORT={DEMO_PORT}" in systemd_demo_text
     )
-    assert f"--port {DEMO_PORT}" in systemd_demo_text or f":{DEMO_PORT}" in systemd_demo_text
     assert "127.0.0.1" in systemd_demo_text
 
 

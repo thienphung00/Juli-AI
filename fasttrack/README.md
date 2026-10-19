@@ -76,6 +76,23 @@ mypy --config-file backend/pyproject.toml backend/src/juli_backend
 bandit -r backend/src/juli_backend -ll
 ```
 
+## Rolling back production
+
+Owner only. `infra/scripts/rollback-release.sh` (run by `.github/workflows/rollback.yml`)
+moves API + Demo + Landing together to the state right after an earlier deploy
+(default: the one before what is live), restarts the Celery worker + beat on it, and
+prints a PASS/FAIL summary. No rebuild, and it never touches the database. Plan first:
+
+```bash
+git tag fasttrack-rollback-plan-$(date -u +%Y%m%dT%H%MZ) origin/fasttrack/optimize-product && git push origin <that-tag>
+git tag fasttrack-rollback-$(date -u +%Y%m%dT%H%MZ)[-to-<sha>] origin/fasttrack/optimize-product && git push origin <that-tag>
+# or: gh workflow run rollback.yml --ref fasttrack/optimize-product -f action=plan|rollback|verify [-f target_sha=<sha>]
+```
+
+Never dispatch `rollback.yml` with ref `main` (main's copy is the pre-P57 one). Topology,
+failure handling, migrations and the one-time live drill:
+[`docs/runbooks/rollback-runbook.md`](../docs/runbooks/rollback-runbook.md) (P57, D66).
+
 ## Running checks locally
 
 ```bash

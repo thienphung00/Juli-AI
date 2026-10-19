@@ -1486,3 +1486,51 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      The errors are raised `from None`, so the unredacted original is not chained into a
      logged traceback.
   Work: P58.
+
+- **D66** — Rollback works again for the fast-track layout (owner, 2026-10-19, approved
+  fast-track phase; the owner verified on the VPS the same day that `juli-web` is disabled +
+  inactive, nothing answers on 127.0.0.1:3000, and the Celery worker registers every
+  `product_history` task).
+  1. **juli-web is gone from everything that runs.** `infra/systemd/juli-web.service` and
+     `infra/scripts/env/web.env.example` are deleted; `fetch-secrets.sh` and
+     `refresh-secrets.sh` no longer read `juli/web/production` or write
+     `/etc/juli/web.env`; the IAM policy template drops its ARN. A test fails if any script,
+     unit, nginx conf or workflow line (comments aside) names `juli-web`, `web.env`,
+     `juli/web/production` or `127.0.0.1:3000`. The AWS secret is deleted by the owner, only
+     after this is deployed (the old `fetch-secrets.sh` exits 1 without it, and it is
+     `ExecStartPre` of juli-api and both Celery units).
+  2. **One rollback = one earlier deploy, all lanes.** `rollback-release.sh` restores the
+     state right after deploy #k of `deploy-history.log`: per lane, the newest release <= k
+     carrying that lane's artifact (`.venv/bin/uvicorn`, `apps/demo/...next`,
+     `apps/landing/...next`), because a deploy only builds changed lanes. A pruned release on
+     the way down fails the plan; nothing is guessed. Default target: the deploy before the
+     live one ("live" = the last deploy line, or the deploy a later `ROLLBACK-TO` line
+     returned to), skipping releases a rollback moved back away from (a forward move or a
+     redeploy clears that mark). Forward is the same operation with a newer SHA.
+  3. **The deploy's own cutover, no rebuild.** API and Landing: target on the free slot ->
+     loopback checks (API `/health` + response shape; Landing HTML + real CSS/JS via
+     `verify-release-assets.sh`) -> nginx include switch + reload -> `<lane>-runtime.env` and
+     the TARGET release's unit -> symlink -> public check, with an automatic undo to the
+     previous slot if it fails. Demo: `rollback-demo-release.sh` (#839), then the public
+     check. API also installs the target's Celery units, restarts worker + beat and checks
+     the worker's queues. Order: back = landing -> demo -> api, forward = api -> demo ->
+     landing. The first failing lane stops the run; the PASS/FAIL summary names what moved.
+     The script sources `deploy.sh` (DEPLOY_SOURCE_ONLY=1) for the lane table and switch.
+  4. **The database is never touched.** No migration, downgrade or restore. `--plan` warns
+     when the live code has migrations the target lacks. Restoring the verified pre-deploy
+     dump is a separate owner decision (runbook §5).
+  5. **`rollback.yml` is the fast-track path.** Triggers: a `fasttrack-rollback-*` tag on the
+     branch (`-plan-` prints only; `-to-<sha|fasttrack-deploy tag>` picks the target) or
+     `workflow_dispatch` with ref `fasttrack/optimize-product` (`action` plan | rollback |
+     verify, default plan). It never fetches or checks out anything in `~/Juli-AI-v2`
+     (rollback runs the script the last deploy left there, gated on
+     `ROLLBACK_INTERFACE=2`), shares `release-refs/heads/main` with the deploy, and ends with
+     a public check from the runner. No new workflow file: `rollback.yml` already exists on
+     `main`, so it can be dispatched.
+  6. `deploy.sh`'s `celery_unit_queues` skips comment lines. It read an old `-Q` list quoted
+     in `juli-celery-worker.service`'s comments, so `ingest_priority`, `ingest_backfill` and
+     `content_analysis` were never verified after a deploy (found by the simulation). Deploys
+     now check all six.
+  Proven locally by `tests/unit/test_rollback_release_simulation.py` (the real scripts
+  against stubbed systemctl / systemd-run / journalctl / nginx / curl). The live drill is
+  the owner's (runbook §6). Work: P57.

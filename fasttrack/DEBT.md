@@ -1140,7 +1140,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P53-C1 — apps/dashboard deleted (2026-10-18)
 
-- [ ] `juli-web` on the VPS is not retired, only its source is gone. Still in the repo and
+- [x] (repaid P57, D66) `juli-web` on the VPS is not retired, only its source is gone. Still in the repo and
   untouched on purpose (they run on the live VPS): `infra/systemd/juli-web.service`
   (`WorkingDirectory=…/apps/dashboard`), `infra/scripts/env/web.env.example`,
   `fetch-secrets.sh` (writes `/etc/juli/web.env` from `juli/web/production`),
@@ -1253,3 +1253,29 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] `test_juli_app_grants_cover_mutations.py` whole-tree scans take 13–15 s alone and time out
   at pytest.ini's 30 s under load (seen twice during P58). Same class as P55's
   `test_credentials_in_url_guard` scans. Repay: `pytest.mark.timeout(120)` on the two scans.
+
+## P57 — rollback works again (2026-10-19, D66)
+
+- [ ] The live drill has not been run: the rollback path is proven only by the simulation and the
+  workflow tests. Repay: owner runs docs/runbooks/rollback-runbook.md §6 at a quiet time and logs it.
+- [ ] `main` (frozen) still carries the pre-P57 `rollback.yml`, `release.yml` (`git checkout main`),
+  `fetch-secrets.sh` (exits 1 without `juli/web/production`) and `rollback-release.sh`. Dispatching
+  `rollback.yml` with ref `main`, or any deploy of `main`, would move the VPS clone back to them.
+  Repaid when the fast track merges back; until then the runbook says never to use ref `main`.
+- [ ] `infra/systemd/juli-api.service` line 3 still says "Independent of juli-web". Left because the
+  API lane's path filter includes that file: a comment edit would rebuild and redeploy the API.
+  Fix with the next real API change. (`apps/demo/next.config.ts` is the P53-C1 entry above.)
+- [ ] The Demo lane of a rollback goes through `rollback-demo-release.sh`, which checks only
+  `/decisions` on loopback (no asset harness) before switching; the public check afterwards covers
+  `/decisions` only. Landing gets the full asset check. Repay: give rollback-demo-release.sh the
+  `verify_candidate` call deploy-demo-release.sh already has.
+- [ ] A rollback restarts the Celery worker on older code. Tasks enqueued by the newer code that
+  the older code does not register are logged as `Received unregistered task` and dropped. The
+  plan does not diff task registries. Runbook §6 says to drill when the two deploys differ little in
+  the backend.
+- [ ] The IAM policy template `infra/scripts/aws/iam-policy-secrets-reader.json` does not list
+  `juli/frontend/production`, which `fetch-secrets.sh` reads (optional). Check the live policy.
+- [ ] `deploy.sh`'s Celery queue check is stricter now (all six `-Q` queues, D66.6). If the
+  production worker's banner does not list one of them, the next deploy's API lane fails at that
+  step after cutover. The owner's 2026-10-19 check (worker registers every task) suggests it is fine.
+
