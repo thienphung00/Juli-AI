@@ -336,9 +336,15 @@ sync_celery_unit() {
 # The routed queues a Celery unit expects, derived from its OWN `-Q` flag rather than a
 # hardcoded list here — a hardcoded list becomes the next stale thing (that is exactly
 # how #1248 happened: the routing list and the deploy's idea of it fell out of step).
+#
+# Comment lines are skipped (P56): juli-celery-worker.service's comments quote an older
+# `-Q celery,agent_runs,credentials`, and reading the first match took that instead of
+# the ExecStart flag, so ingest_priority, ingest_backfill and content_analysis were
+# never verified.
 celery_unit_queues() {
     local unit_file="$1" flag
-    flag="$(grep -oE -- '-Q[[:space:]]+[A-Za-z0-9_,]+' "${unit_file}" 2>/dev/null | head -n 1 || true)"
+    flag="$(grep -v '^[[:space:]]*#' "${unit_file}" 2>/dev/null |
+        grep -oE -- '-Q[[:space:]]+[A-Za-z0-9_,]+' | head -n 1 || true)"
     if [ -z "${flag}" ]; then
         echo "FAIL: no -Q flag found in ${unit_file} — cannot derive routed queues" >&2
         return 1
