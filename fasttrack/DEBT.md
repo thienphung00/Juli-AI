@@ -1213,3 +1213,6 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   failures, capped at a day) and surface the shop in Ops.
 - [ ] `exc.request.url` on the re-raised `requests` errors still holds the signed query. Nothing
   logs it today; a future `logger.error(..., extra={"url": exc.request.url})` would.
+- [ ] `test_juli_app_grants_cover_mutations.py` whole-tree scans take 13–15 s alone and time out
+  at pytest.ini's 30 s under load (seen twice during P58). Same class as P55's
+  `test_credentials_in_url_guard` scans. Repay: `pytest.mark.timeout(120)` on the two scans.

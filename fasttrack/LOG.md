@@ -2151,3 +2151,19 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   credential untouched; stored cipher → no lookup). `test_tiktok_error_body_is_surfaced.py` +4
   (400 / 106013 message and logged traceback carry no app_key / sign; transport error keeps
   its type and loses the query; text without a URL unchanged).
+- Verification (laptop at load avg 7–15 throughout):
+  - Affected files: 102 passed alone, with and without Postgres. Ruff and mypy clean on the 7
+    source files. Gitleaks: a realistic-looking test cipher tripped `generic-api-key`, so it
+    became `ROW_fake-cipher-for-tests` and the commit was rebuilt.
+  - No-database unit suite (`pytest tests/unit -m "not live"`, no `DATABASE_URL`): 7540
+    passed, 31 failed. 27 were `test_agent_events_contract` (fresh worktree, no
+    `node_modules`; 37/37 after `pnpm install`). 4 were load timeouts (`juli_app_grants` scan,
+    `ops_api`, `ops_d28_costs`, `ratchets`), and all 86 tests in those files pass alone.
+  - `fasttrack/check.sh` (deploy default `--since origin/main`; Docker unresponsive, so a
+    throwaway Homebrew Postgres 16 in UTC on :55440, recreated per run and dropped after):
+    migrations, isolation (12), gitleaks and ruff (508 files) PASS. pytest (224 files) left
+    only pytest-timeout failures, and each run hit a different set: run 2 failed in migrations
+    on a reused DB, run 3 had 3 × `TestHistoryPhase` (3 s alone), and the last run had 1 ×
+    `test_juli_app_grants_cover_mutations::test_the_scan_is_not_vacuous`, a whole-tree scan
+    that takes 15 s alone against the 30 s default. The last run was 3287 passed, 1 failed.
+    Every failed test passes alone, so check.sh reports FAILED only on load-bound timeouts.
