@@ -2104,3 +2104,50 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   migrations PASS (093 head), isolation 12 passed, gitleaks PASS, ruff PASS (505 files),
   pytest PASS (222 files: 3236 passed, 2 skipped, 1 xfailed). **check.sh: OK**.
 - DECISIONS' duplicate D59 left (75 mixed references; DEBT entry extended).
+
+## 2026-10-19 — agent (Claude Opus) — P56 rollback works again (D65)
+
+- Branch `fasttrack/rollback-fix` from 310cc0e1, worktree `/Users/macos/juli-fasttrack-rollback`.
+  No SSH, no VPS action, no AWS change.
+- **Topology, read from the repo.** API / Demo / Landing are served by transient
+  `juli-<lane>-candidate-<port>` units on paired slots (8000/8020, 3001/3021, 3007/3027);
+  `/etc/nginx/juli/<lane>-upstream.conf` names the live slot; `~/releases/{current,
+  demo-current,landing-current}` name the release; worker + beat run `~/releases/current`.
+  The durable `juli-api` is stopped after every deploy (#1069), so it is not a health signal.
+  A release dir carries only the lanes its deploy built (venv / demo tarball / landing
+  tarball); `deploy-history.log` gets one line per successful deploy.
+- **A** `juli-web` removed from the unit dir, env templates, `fetch-secrets.sh`,
+  `refresh-secrets.sh`, the IAM template, nginx and unit comments, and tests (a new test
+  scans every script, unit, nginx conf and workflow). `juli-api.service` keeps its stale
+  comment (API lane path filter; DEBT P56).
+- **B** `rollback-release.sh` rewritten (sources `deploy.sh`): all-lane rollback to an earlier
+  deploy, per-lane state reconstruction, back = landing → demo → api, forward = api → demo →
+  landing, loopback + public checks, automatic undo, target-release units, Celery restart +
+  queue check, `--plan` / `--verify`, PASS/FAIL summary, `ROLLBACK-TO` history line and a
+  JSON record. Never touches the database. Two follow-ups found while testing: refuse a free
+  slot something else still answers on (durable unit after a reboot), and skip releases a
+  rollback already moved away from when picking the default target.
+- **C** `rollback.yml`: tag `fasttrack-rollback-*` or dispatch from the fast-track ref; no
+  `git checkout main`; `ROLLBACK_INTERFACE=2` gate; deploy concurrency group; public check.
+- **Found by the simulation:** `deploy.sh`'s `celery_unit_queues` read the `-Q` list from a
+  comment in `juli-celery-worker.service`, so only 3 of 6 queues were ever verified (fixed,
+  D65.6); `rollback-demo-release.sh` died on a grep miss under pipefail before its
+  release-dir fallback (fixed).
+- **Proof.** `tests/unit/test_rollback_release_simulation.py` (31 tests, the real scripts on a
+  fake release pool with stubbed systemctl / systemd-run / journalctl / nginx / curl; ~100 s
+  at load 7–10, so it adds ~1–2 min to `backend-unit`) and `test_rollback_workflow.py` (17,
+  incl. the resolve step run with a stub git). shellcheck clean (rollback-release.sh,
+  fetch-/refresh-secrets.sh, rollback-demo-release.sh); actionlint clean (rollback.yml,
+  fasttrack-deploy.yml).
+- **No-database unit suite** (`env -u DATABASE_URL pytest tests/unit -m "not live"`, juli venv,
+  laptop shared with two other full suites, load 7–15): first pass aborted at 48 % on a
+  pytest-timeout INTERNALERROR (3713 passed); the remaining 3999 ids re-run: 3877 passed,
+  120 skipped, 2 failed — `test_juli_app_grants_cover_mutations::test_the_scan_is_not_vacuous`
+  (load timeout; 8.9 s alone, passes) and `test_landing_port_is_unique_across_every_infra_surface`
+  (real: rollback-release.sh and a demo vhost comment named 3007/3027; fixed in 1251ca33).
+  Affected set at HEAD: 183 passed, 2 skipped.
+- `fasttrack/check.sh --since origin/main` (throwaway Postgres 16 on :55436, UTC, dropped
+  after): migrations PASS (093 head), isolation 12 passed, gitleaks PASS, ruff PASS (515 files),
+  pytest PASS (231 files: 3394 passed, 2 skipped, 1 xfailed). **check.sh: OK**.
+- Owner steps: runbook §7 (deploy, then delete `juli/web/production` + IAM ARN, remove the
+  unit and `/etc/juli/web.env` on the VPS) and the live drill in §6. Not run.
