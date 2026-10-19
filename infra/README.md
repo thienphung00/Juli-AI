@@ -8,7 +8,7 @@ Infrastructure, CI/CD, and deployment configuration.
 | [`deploy/`](deploy/) | App Review deploy runbooks and reviewer checklists | **Live** (sign-off 2026-07-03) |
 | [`scripts/`](scripts/) | VPS provision, deploy, rollback, secrets, smoke-test scripts | **Live** |
 | [`nginx/`](nginx/) | Nginx vhosts for App Review domains | **Live** |
-| [`systemd/`](systemd/) | `juli-web` / `juli-api` systemd units + `journald.conf.d/` retention drop-in (#906) | **Live** |
+| [`systemd/`](systemd/) | `juli-api` / `juli-demo` / `juli-landing` / celery systemd units (`juli-web` is the retired dashboard's, see fasttrack/DEBT.md) + `journald.conf.d/` retention drop-in (#906) | **Live** |
 | [`logrotate/`](logrotate/) | Tracked `logrotate.d` policies (Nginx access/error log retention, #906) | **Live** |
 
 **Current CI:** [`.github/workflows/`](../.github/workflows/)
@@ -17,7 +17,8 @@ Infrastructure, CI/CD, and deployment configuration.
 
 | Domain | Product |
 |--------|---------|
-| `app-juli.com` | App Review frontend (`apps/dashboard/`) |
+| `app-juli.com` | Landing (`apps/landing/`, #842) |
+| `demo.app-juli.com`, `ops.app-juli.com` | Demo + ops (`apps/demo/`) |
 | `api.app-juli.com` | Backend API (`backend/`) |
 
 See [`docs/product/phases/phase-2.5-deployment.md`](../docs/product/phases/phase-2.5-deployment.md).

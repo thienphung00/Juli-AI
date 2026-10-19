@@ -49,6 +49,33 @@ way (`LANDING_ARTIFACT_TARBALL`; DEBT repaid 2026-10-08):
 git tag fasttrack-deploy-$(date -u +%Y%m%dT%H%MZ) <full-sha> && git push origin <that-tag>
 ```
 
+Jobs (stable ids; `deploy` needs every one of them, P55 / D64):
+
+| Job id | What it runs | Needs |
+|---|---|---|
+| `validate` | the SHA is a full commit on the fast-track branch | — |
+| `backup` | verified `pg_dump` of production on the VPS | validate |
+| `check` | `fasttrack/check.sh` with a throwaway Postgres (migrations, isolation, gitleaks, ruff + pytest on changed files) | backup |
+| `build` | demo + landing release tarballs | validate |
+| `frontend` | demo + landing `eslint`, `tsc --noEmit`, `vitest` (what `pnpm check:demo` / `check:landing` run, minus `next build`); `packages/ui` and `utils` tests; Node from `.nvmrc` | validate |
+| `backend-unit` | the full `pytest tests/unit -m "not live"` with no database (Postgres tests skip via `requires_postgres`) | validate |
+| `static` | `mypy --config-file backend/pyproject.toml backend/src/juli_backend` + `bandit -r backend/src/juli_backend -ll` | validate |
+| `deploy` | `infra/scripts/deploy.sh <sha>` over SSH, then a public `/health` check | check, build, frontend, backend-unit, static |
+
+`frontend`, `backend-unit` and `static` run beside `backup` → `check`, so they
+add wall time only when one of them is slower than that branch (LOG P55 has the
+measured times). The same commands locally:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm lint:demo && pnpm type-check:demo && pnpm test:demo
+pnpm --filter @juli/ui test && pnpm --filter @juli/utils test
+pnpm lint:landing && pnpm type-check:landing && pnpm test:landing
+env -u DATABASE_URL python -m pytest tests/unit -m "not live" -q -p no:cacheprovider
+mypy --config-file backend/pyproject.toml backend/src/juli_backend
+bandit -r backend/src/juli_backend -ll
+```
+
 ## Running checks locally
 
 ```bash

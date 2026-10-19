@@ -419,7 +419,7 @@ function TextAreaRule({
 }
 
 const MAX_OPEN_CARDS_HELP =
-  "Từ 5 đến 30, mặc định 30. Mỗi ngày Juli thêm tối đa 5 thẻ mới (3 Juli làm, 1 Seller Center, 1 nội dung), 25 thẻ mỗi tuần.";
+  "Từ 5 đến 30, mặc định 30.";
 const CONTENT_TONE_MAX = 300;
 const BANNED_TERMS_MAX = 50;
 

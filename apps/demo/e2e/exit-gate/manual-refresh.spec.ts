@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { enterReplayDemo } from "../helpers/demo-navigation";
-import { resetDemo } from "../helpers/workflow-journey";
+import { enterReplayDemo, resetDemo } from "../helpers/demo-navigation";
 
 /**
  * "Làm mới Demo" puts the signed-out Quyết định back: since P11 that page is

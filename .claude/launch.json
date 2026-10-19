@@ -32,18 +32,6 @@
       "autoPort": false
     },
     {
-      "name": "dashboard",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "--prefix",
-        "apps/dashboard",
-        "run",
-        "dev"
-      ],
-      "port": 3000,
-      "autoPort": false
-    },
-    {
       "name": "backend",
       "runtimeExecutable": "python3",
       "runtimeArgs": [

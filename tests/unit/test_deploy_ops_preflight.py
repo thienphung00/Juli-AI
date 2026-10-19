@@ -12,6 +12,7 @@ Two incidents, one check each, both inside the API lane before the candidate sta
 
 from __future__ import annotations
 
+import importlib
 import os
 import subprocess
 import sys
@@ -22,9 +23,17 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = REPO_ROOT / "infra" / "scripts" / "deploy.sh"
 SCRIPTS_DIR = REPO_ROOT / "infra" / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
 
-from safe_alembic_helpers import _decide_ops_role_grant, verify_ops_role_grant  # noqa: E402
+
+def _helpers():
+    """infra/scripts/safe_alembic_helpers.py, imported once its directory is on sys.path."""
+    if str(SCRIPTS_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPTS_DIR))
+    return importlib.import_module("safe_alembic_helpers")
+
+
+_decide_ops_role_grant = _helpers()._decide_ops_role_grant
+verify_ops_role_grant = _helpers().verify_ops_role_grant
 
 SECRET_VALUE = "aud-value-that-must-never-be-printed"
 

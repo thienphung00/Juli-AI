@@ -1,5 +1,9 @@
 # Juli AI — iOS App
 
+> **LEGACY (fast track P53, D62, 2026-10-18).** Not built, tested or deployed by the fast
+> track; the product is the web app (`apps/demo`) and the landing site. Kept as-is — see
+> [`LEGACY.md`](LEGACY.md).
+
 Native SwiftUI app for TikTok Shop sellers. Provides demo authentication
 and a daily value loop navigation shell.
 

@@ -12,6 +12,12 @@ does not cover. `agent_workflow` was missing here, so `run_agent_workflow` and
 `Received unregistered task ... KeyError` when the API enqueued one.
 `test_routed_tasks_are_registered` now pins every task in `task_routes` too.
 
+Fast track P53 (D62): `product_history` was missing here, so the P23 beat
+`product-history-fanout` and the webhook / approval tasks in that module never
+registered on a freshly started worker. The beat test passed only because
+another test module imported `product_history` first; it now builds the
+registry in a fresh interpreter.
+
 Every name below is declared in `__all__` rather than suppressed with
 `# noqa: F401` — the imports are for their side effect (Celery task
 registration), but the names themselves are this package's public surface,
@@ -32,6 +38,7 @@ from juli_backend.workers.tasks import (
     mock_analytics_reconcile,
     ops_audit_retention,
     ops_openai_alert,
+    product_history,
     reaper,
     rescore_shop_cards,
     shop_diagnosis,
@@ -52,6 +59,7 @@ __all__ = [
     "mock_analytics_reconcile",
     "ops_audit_retention",
     "ops_openai_alert",
+    "product_history",
     "reaper",
     "rescore_shop_cards",
     "shop_diagnosis",

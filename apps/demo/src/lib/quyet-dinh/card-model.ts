@@ -300,7 +300,7 @@ function reasonFullText(card: RecommendationCardPayload): string {
   return `${sentence(full)} TikTok báo: ${quoted}.`;
 }
 
-/** "Khách thêm giỏ rồi bỏ: Đơn/thêm giỏ … trung vị shop" (Mobile.dc.html). */
+/** "Khách thêm giỏ rồi bỏ: Đơn/thêm giỏ … thấp hơn các sản phẩm tương tự trong shop" (Mobile.dc.html). */
 function mobileReason(short: string, full: string | null): string {
   if (!full) return short;
   const clause = full.split(/ \(|\. /)[0].replace(/[.]$/, "").trim();

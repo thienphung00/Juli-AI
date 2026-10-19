@@ -14,10 +14,35 @@
  */
 import type { MediaSource } from "../../lib/media";
 import {
+  CAP_DL_NGAY_14_V2,
+  CAP_DL_NGAY_14_V2_MOBILE,
+  CAP_DL_NGAY_7_V2,
+  CAP_DL_NGAY_7_V2_MOBILE,
+  CAP_DX_ANH_BIA,
+  CAP_DX_ANH_BIA_TAI_LEN,
+  CAP_DX_CTR_TIEU_DE,
+  CAP_DX_HOAN_TAC_V2,
+  CAP_DX_THE_V2,
+  CAP_KN_DANG_NHAP_V2,
+  CAP_KN_DANG_NHAP_V2_MOBILE,
+  CAP_KN_QUET_NHANH_V2,
+  CAP_KN_QUET_NHANH_V2_MOBILE,
+  CAP_PT_KHUYEN_MAI,
+  CAP_PT_KHUYEN_MAI_MOBILE,
+  CAP_PT_NGHEN_V2,
+  CAP_PT_NGHEN_V2_MOBILE,
   CAP_DL_TANG_THEM,
   CAP_DL_TANG_THEM_MOBILE,
+  CAP_DL_TIN_CAY,
+  CAP_DL_TIN_CAY_MOBILE,
+  CAP_DX_HANG_CHO,
+  CAP_DX_QUY_TAC,
+  CAP_DX_QUY_TAC_MOBILE,
+  CAP_DX_TU_CHOI,
   CAP_DX_XAC_NHAN,
   CAP_DX_XAC_NHAN_MOBILE,
+  CAP_KN_KET_NOI,
+  CAP_KN_KET_NOI_MOBILE,
   CAP_PT_LUONG,
   CAP_PT_LUONG_MOBILE,
   CAP_PT_PHEU,
@@ -26,6 +51,9 @@ import {
   CAP_PT_XEP_HANG_MOBILE,
 } from "../../components/product/screens";
 import type { BlogFigure } from "./types";
+
+/** The 640 px variant as the phone source, for shots whose UI text is already large (no mobile crop). */
+const phone = (variants: readonly MediaSource[]): readonly MediaSource[] => variants.filter((v) => v.width === 640);
 
 /** Files of `blog-diagrams.mjs` entry `<name>-v<version>`; heights in CSS px (even). */
 function diagram(
@@ -59,6 +87,12 @@ function screenshot(
   return { kind: "screenshot", variants, mobileVariants, ...text };
 }
 
+/**
+ * Phone variant for a shot with no mobile crop in `screens.ts` (its UI text is
+ * already large): the smallest desktop file.
+ */
+const smallest = (variants: readonly MediaSource[]): readonly MediaSource[] => variants.slice(-1);
+
 export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   /* ————— gmv-la-gi-tiktok-shop ————— */
   "gmv-pheu": diagram("gmv-pheu", 430, 432, {
@@ -81,7 +115,7 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     caption: "Bốn câu hỏi theo thứ tự, từ cả shop xuống một hệ số trên vài sản phẩm.",
   }),
   "dl-tang-them": screenshot(CAP_DL_TANG_THEM, CAP_DL_TANG_THEM_MOBILE, {
-    alt: "Bảng kết quả ngày 7 của một thay đổi trong Juli: CTOR chỉ số chính từ 5,4 %, mục tiêu 5,9 %, thực tế 5,7 %, đánh giá Đang lên; Lượt hiển thị mỗi ngày, CTR và AOV nằm trong khoảng cho phép, đánh giá Giữ ổn định; GMV mỗi ngày tăng 48 nghìn đồng, ghi Sơ bộ; nút Hoàn tác (dữ liệu mẫu)",
+    alt: "Bảng kết quả ngày 7 của một thay đổi trong Juli: CTR chỉ số chính từ 3,2 %, mục tiêu 3,5 %, thực tế 3,4 %, đánh giá Đang lên; Lượt hiển thị mỗi ngày, CTOR và AOV nằm trong khoảng cho phép, đánh giá Giữ ổn định; GMV mỗi ngày tăng 38 nghìn đồng so với dự kiến 60 nghìn, ghi Sơ bộ; nút Hoàn tác (dữ liệu mẫu)",
     caption:
       "Dữ liệu mẫu · Đo lại ở ngày 7: chỉ số mục tiêu so với mục tiêu, các chỉ số khác so với khoảng cho phép.",
   }),
@@ -107,13 +141,13 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   }),
   "doc-pheu-o-dau": diagram(
     "doc-pheu-o-dau",
-    462,
-    820,
+    440,
+    800,
     {
-      alt: "Sơ đồ ví dụ giả định về đường dẫn đến phễu của từng sản phẩm: Trung tâm nhà bán hàng, rồi La bàn dữ liệu, rồi Số liệu phân tích sản phẩm, rồi trang Lưu lượng truy cập sản phẩm. Rồi đọc theo ba quy tắc: 1, chọn luồng, đọc Thẻ sản phẩm trước vì không có người dẫn LIVE hay nhà sáng tạo bán hộ; 2, chọn khoảng thời gian, ít nhất 14 ngày, tốt hơn 28 hoặc 30 ngày, cộng tổng cả kỳ rồi mới chia ra tỷ lệ; 3, đủ dữ liệu chưa, tự đặt một ngưỡng và giữ nguyên, ví dụ CTR từ 50 lượt hiển thị mỗi ngày và CTOR từ 20 lượt nhấp mỗi ngày. Ngưỡng này là quy tắc bạn tự đặt, không phải quy định của TikTok.",
-      caption: "Đường dẫn đến phễu trong Trung tâm nhà bán hàng, mô tả bằng chữ, và ba quy tắc khi đọc; ngưỡng ở mục 3 là ví dụ giả định.",
+      alt: "Sơ đồ ví dụ giả định về đường dẫn đến phễu của từng sản phẩm: Trung tâm nhà bán hàng, rồi La bàn dữ liệu, rồi Số liệu phân tích sản phẩm, rồi trang Lưu lượng truy cập sản phẩm. Rồi đọc theo ba quy tắc: 1, chọn luồng, đọc Thẻ sản phẩm trước vì không có người dẫn LIVE hay nhà sáng tạo bán hộ; 2, chọn khoảng thời gian, ít nhất 14 ngày, tốt hơn 28 hoặc 30 ngày, cộng tổng cả kỳ rồi mới chia ra tỷ lệ; 3, đủ dữ liệu chưa, chỉ đọc tỷ lệ khi số liệu đủ nhiều để không bị nhiễu và giữ cùng một cách đọc cho mọi lần so sánh. Ghi chú: TikTok không đưa ra ngưỡng chính thức; khi số liệu còn quá ít, ghi chưa đủ dữ liệu.",
+      caption: "Đường dẫn đến phễu trong Trung tâm nhà bán hàng, mô tả bằng chữ, và ba quy tắc khi đọc.",
     },
-    2,
+    3,
   ),
   "luong-noi-dung": diagram("luong-noi-dung", 456, 732, {
     alt: "Sơ đồ ba luồng nội dung không ra đơn và việc cần kiểm tra. Video có lượt xem nhưng ít lượt nhấp vào sản phẩm: kiểm tra video có cho thấy rõ sản phẩm, công dụng, giá và sản phẩm có được gắn đúng. LIVE có người xem nhưng không ra đơn: thời điểm giới thiệu sản phẩm, ưu đãi trong phiên, sản phẩm được ghim còn hàng. Liên kết có lượt hiển thị nhưng ít đơn: khán giả của nhà sáng tạo có khớp với sản phẩm. Ở ba luồng này chỉ số chính là Lượt hiển thị sản phẩm và GMV, CTOR chỉ để tham khảo. Mọi lượt nhấp đều về trang sản phẩm: nếu CTOR ở Thẻ sản phẩm cũng thấp, sửa trang trước.",
@@ -319,7 +353,7 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   }),
   "anh-bia-doi-chung": diagram("anh-bia-doi-chung", 406, 630, {
     alt: "Sơ đồ ví dụ giả định đọc CTR Thẻ sản phẩm sau khi đổi ảnh. Các mốc: 14 ngày trước là mốc so sánh; ngày bạn thay ảnh, ghi lại ngày này; ngày 7 đọc sơ bộ; ngày 14 chốt kết quả. Sản phẩm đổi ảnh: CTR từ 2,0 % lên 2,6 %, tăng 30 %. Nhóm không đổi: CTR từ 2,0 % lên 2,2 %, tăng 10 %. Kết luận: phần có thể gán cho ảnh mới khoảng 18 %, bằng 1,30 chia 1,10, không phải 30 %. Ghi chú: cả shop cùng tăng 10 % trong hai tuần đó, có thể do một đợt sale; chỉ phần vượt lên trên nhóm không đổi mới là của ảnh.",
-    caption: "Ví dụ giả định: so với nhóm sản phẩm không đổi ảnh, mức tăng thật của ảnh mới nhỏ hơn con số thô.",
+    caption: "Ví dụ giả định: khi những sản phẩm chưa đổi ảnh cũng tăng, phần tăng nhờ ảnh mới nhỏ hơn con số thô.",
   }),
   /* ————— do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop (P46-E) ————— */
   "do-lich-14-ngay": diagram(
@@ -332,19 +366,25 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
     },
     2,
   ),
-  "do-doc-sai-doc-dung": diagram("do-doc-sai-doc-dung", 480, 612, {
-    alt: "Biểu đồ cột ví dụ giả định: số đơn mỗi ngày của một sản phẩm trong 14 ngày trước khi sửa, trung bình 4,1 đơn mỗi ngày, và 14 ngày sau khi sửa, trung bình 4,9 đơn mỗi ngày; đường gạch ngang là mức trung bình của từng khoảng. Đọc sai: ngày 2 có 3 đơn, ngày 3 có 6 đơn, gọi là tăng gấp đôi, trong khi hai ngày lẻ nằm trong dao động thường ngày. Đọc đúng: tăng 0,8 đơn mỗi ngày, mức dao động khoảng 0,5 đơn, gấp khoảng 1,5 lần mức dao động, nghĩa là có thể đã thay đổi nhưng chưa chắc chắn.",
-    caption: "Ví dụ giả định: so hai ngày lẻ cho ra “gấp đôi”, so hai trung bình 14 ngày cho ra một mức tăng còn chưa chắc chắn.",
-  }),
-  "do-ba-ket-qua": diagram(
-    "do-ba-ket-qua",
-    536,
-    960,
+  "do-doc-sai-doc-dung": diagram(
+    "do-doc-sai-doc-dung",
+    500,
+    632,
     {
-      alt: "Bốn thẻ ví dụ giả định về kết quả ngày 14 với chỉ số mục tiêu CTR Thẻ sản phẩm, mức mong đợi 2,5 %. Sản phẩm A, giữ thay đổi, được tô nổi bật: CTR 2,0 % lên 2,6 %, chạm mức mong đợi, gấp 2,4 lần mức dao động nên rõ, GMV giữ được. Sản phẩm B, giữ và đo thêm 14 ngày: 2,0 % lên 2,5 %, chạm mức mong đợi, gấp 1,4 lần mức dao động nên chỉ là có thể. Sản phẩm C, giữ và sửa tiếp cùng hướng: 2,0 % lên 2,3 %, chưa chạm mức mong đợi, gấp 2,1 lần mức dao động nên rõ. Sản phẩm D, quay lại bản cũ: 2,0 % lên 2,1 %, chưa chạm mức mong đợi, gấp 0,6 lần, trong dao động. Ghi chú: đừng đọc một kết quả yếu thành mạnh hơn; có thay đổi khác trong 14 ngày thì kết quả không dùng được để quyết định, đo lại từ đầu.",
-      caption: "Ví dụ giả định: cùng một mức mong đợi, bốn quyết định khác nhau tùy chạm mức đó hay không và mức tăng so với dao động.",
+      alt: "Biểu đồ cột ví dụ giả định: số đơn mỗi ngày của một sản phẩm trong 14 ngày trước khi sửa, trung bình 4,1 đơn mỗi ngày, và 14 ngày sau khi sửa, trung bình 4,9 đơn mỗi ngày; đường gạch ngang là mức trung bình của từng khoảng. Đọc sai: ngày 2 có 3 đơn, ngày 3 có 6 đơn, gọi là tăng gấp đôi, trong khi hai ngày lẻ nằm trong dao động thường ngày. Đọc đúng: so hai trung bình 14 ngày thì tăng 0,8 đơn mỗi ngày, chưa vượt hẳn dao động thường ngày của sản phẩm, nghĩa là có thể đã thay đổi nhưng chưa chắc chắn.",
+      caption: "Ví dụ giả định: so hai ngày lẻ cho ra “gấp đôi”, so hai trung bình 14 ngày cho ra một mức tăng còn chưa chắc chắn.",
     },
     2,
+  ),
+  "do-ba-ket-qua": diagram(
+    "do-ba-ket-qua",
+    516,
+    938,
+    {
+      alt: "Bốn thẻ ví dụ giả định về kết quả ngày 14 với chỉ số mục tiêu CTR Thẻ sản phẩm, mức mong đợi 2,5 %. Sản phẩm A, giữ thay đổi, được tô nổi bật: CTR 2,0 % lên 2,6 %, chạm mức mong đợi, vượt hẳn mức dao động nên rõ, GMV giữ được. Sản phẩm B, giữ và đo thêm 14 ngày: 2,0 % lên 2,5 %, chạm mức mong đợi, chỉ nhỉnh hơn dao động nên chỉ là có thể. Sản phẩm C, giữ và sửa tiếp cùng hướng: 2,0 % lên 2,3 %, chưa chạm mức mong đợi, vượt hẳn mức dao động nên rõ. Sản phẩm D, quay lại bản cũ: 2,0 % lên 2,1 %, chưa chạm mức mong đợi, nằm trong mức dao động. Ghi chú: đừng đọc một kết quả yếu thành mạnh hơn; có thay đổi khác trong 14 ngày thì kết quả không dùng được để quyết định, đo lại từ đầu.",
+      caption: "Ví dụ giả định: cùng một mức mong đợi, bốn quyết định khác nhau tùy chạm mức đó hay không và mức tăng so với dao động.",
+    },
+    3,
   ),
   "do-cua-so-sale": diagram("do-cua-so-sale", 358, 472, {
     alt: "Sơ đồ ba hàng, mỗi hàng 28 ô ngày: 14 ngày trước khi sửa và 14 ngày sau khi sửa, ngày sale tô hồng. Hàng một, mốc so sánh chứa ngày sale: mốc bị đẩy lên, thay đổi dễ trông như thất bại. Hàng hai, thời gian đo chứa ngày sale: số sau khi sửa bị đẩy lên, thay đổi dễ trông như thành công. Hàng ba, cả hai khoảng đều là ngày thường: so được với nhau. Kết luận: sửa khi cả 14 ngày trước và 14 ngày sau đều không có đợt sale lớn.",
@@ -371,5 +411,164 @@ export const BLOG_FIGURES: Readonly<Record<string, BlogFigure>> = {
   "sale-gmv-con-lai": diagram("sale-gmv-con-lai", 332, 410, {
     alt: "Bảng ví dụ giả định: GMV trong đợt sale, gồm cả đơn hủy và hoàn tiền, 100.000.000 đồng; trừ đơn hủy trước khi giao 6.000.000 đồng; trừ trả hàng, hoàn tiền ghi nhận sau đợt 4.000.000 đồng; tiền hàng còn lại trước phí 90.000.000 đồng. Ghi chú: từ phần còn lại mới trừ phí sàn và phí xử lý đơn tính theo từng đơn giao thành công; hoàn tiền thường ghi nhận sau ngày mua nên con số này chỉ rõ sau vài tuần.",
     caption: "Ví dụ giả định: GMV của đợt sale chưa phải tiền về; đơn hủy và hoàn tiền đến sau còn trừ tiếp.",
+  }),
+
+  /* ————— dung-thu-juli-ai-mien-phi-3-thang (P49-A2, C5) ————— */
+  "dung-thu-dang-nhap": screenshot(CAP_KN_DANG_NHAP_V2, CAP_KN_DANG_NHAP_V2_MOBILE, {
+    alt: "Màn hình đăng nhập của Juli: liên kết đăng nhập bằng tài khoản đối tác ở trên cùng, tiêu đề Đăng nhập vào Juli, nút Tiếp tục với Google, ô email với nút Gửi mã đăng nhập, liên kết Xem thử với dữ liệu mẫu không cần tài khoản và Dùng thử miễn phí 3 tháng; bên phải một thẻ đề xuất mẫu và các dòng Kết nối chính thức qua TikTok Shop Open API, Chỉ thực hiện khi bạn duyệt, Miễn phí 3 tháng (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Màn hình đăng nhập: tạo tài khoản bằng Google hoặc email, hoặc xem thử với dữ liệu mẫu.",
+  }),
+  "dung-thu-quet-nhanh": screenshot(CAP_KN_QUET_NHANH_V2, CAP_KN_QUET_NHANH_V2_MOBILE, {
+    alt: "Trang Quyết định ngay sau khi kết nối: dải tiến trình Juli đang đọc dữ liệu shop bước 2 trên 3, quét nhanh 14 ngày xong, đọc 60 ngày và chẩn đoán đầy đủ đang chạy 40 % còn khoảng 9 phút, tải lịch sử nền đang chờ; bên dưới một thẻ Kem dưỡng ẩm ceramide ghi Đề xuất nhanh dựa trên 14 ngày, CTR Thẻ sản phẩm 3,7 % lên 3,9 %, độ tin cậy Tham khảo (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ngày đầu: dải tiến trình ba bước và một đề xuất nhanh dựa trên 14 ngày, độ tin cậy Tham khảo.",
+  }),
+  "dung-thu-the-dau-tien": screenshot(CAP_DX_THE_V2, phone(CAP_DX_THE_V2), {
+    alt: "Thẻ đề xuất Mặt nạ đất sét 100g, chờ duyệt: CTOR từ 5,4 % lên 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do mô tả quá ngắn, thay đổi đề xuất Mô tả, lý do đầy đủ mô tả 180 ký tự một đoạn và TikTok báo mô tả quá ngắn, nút Duyệt và Từ chối (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Một thẻ đề xuất: chỉ số mục tiêu, GMV dự kiến, lý do, thay đổi đề xuất và hai nút Duyệt, Từ chối.",
+  }),
+  "dung-thu-ngay-7": screenshot(CAP_DL_NGAY_7_V2, CAP_DL_NGAY_7_V2_MOBILE, {
+    alt: "Kết quả ngày 7 của Toner rau má 200ml, nhãn Ngày 7 trong khoảng: chỉ số mục tiêu CTR đo trên kênh Thẻ sản phẩm 3,2 % lên 3,5 %, GMV dự kiến +60 nghìn đồng mỗi ngày, ngưỡng giữ ổn định cộng trừ 3 % cho Lượt hiển thị, CTOR và AOV, các bước đọc dữ liệu 7 ngày, so chỉ số mục tiêu đang lên, so ngưỡng giữ ổn định, báo kết quả sơ bộ, chờ chốt ngày 14; bảng CTR thực tế 3,4 % Đang lên, ba chỉ số Giữ ổn định, GMV mỗi ngày +38 nghìn đồng Sơ bộ, nút Hoàn tác (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ngày 7: chỉ số mục tiêu Đang lên, các chỉ số khác trong khoảng cho phép, kết quả còn là sơ bộ.",
+  }),
+  "dung-thu-ngay-14": screenshot(CAP_DL_NGAY_14_V2, CAP_DL_NGAY_14_V2_MOBILE, {
+    alt: "Kết quả chốt ngày 14 của Toner rau má 200ml, nhãn Đạt: CTR đo trên kênh Thẻ sản phẩm 3,53 % so với mục tiêu 3,5 %, GMV thực tế 54 nghìn đồng mỗi ngày bằng 90 % dự kiến, mở khoá đề xuất tiếp theo; hộp kết luận GMV thực tế 1,6 triệu đồng mỗi tháng so với dự kiến 1,8 triệu, thay đổi được giữ; dòng cách chốt các nhãn Đạt, Đạt chưa chắc chắn, Một phần, Không đạt (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ngày 14: nhãn chốt đặt cạnh GMV dự kiến ban đầu, kèm cách chốt từng nhãn.",
+  }),
+
+  /* ————— tim-san-pham-keo-gmv-xuong-tiktok-shop (P49-A2, C6) ————— */
+  "keo-xuong-luong": screenshot(CAP_PT_LUONG, CAP_PT_LUONG_MOBILE, {
+    alt: "Đầu trang Phân tích của Cửa hàng Mẫu Hoa Mai: kết luận Thẻ sản phẩm: CTOR giảm 7 %, so 30 ngày với 30 ngày trước, thanh Juli gợi ý CTOR kéo GMV giảm 250 nghìn đồng mỗi ngày với nút Xem 3 đề xuất, dòng chia luồng Sản phẩm, Nội dung và Liên kết (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Đầu trang Phân tích: luồng và chỉ số lấy đi nhiều GMV nhất, nói trong một câu.",
+  }),
+  "keo-xuong-pheu": screenshot(CAP_PT_PHEU, CAP_PT_PHEU_MOBILE, {
+    alt: "Phễu luồng Thẻ sản phẩm: Lượt hiển thị mỗi ngày 9.913 tăng 19,4 % thêm 620 nghìn đồng mỗi ngày, CTR 4,44 % giảm 0,3 % bớt 12 nghìn, CTOR 5,14 % giảm 6,9 % bớt 250 nghìn được đánh dấu Juli gợi ý, AOV 160 nghìn giảm 3,0 % bớt 105 nghìn, GMV mỗi ngày 3,6 triệu tăng 7,5 % là tổng của 4 ô (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Mỗi ô ghi số đồng mỗi ngày mà chỉ số đó kéo GMV lên hoặc xuống; ô CTOR lấy đi nhiều nhất.",
+  }),
+  "keo-xuong-bang": screenshot(CAP_PT_XEP_HANG, CAP_PT_XEP_HANG_MOBILE, {
+    alt: "Bảng 5 sản phẩm kéo CTOR xuống, chế độ Kéo xuống: Son môi số 12 CTOR 6,3 % xuống 5,4 % mất 112 nghìn đồng mỗi ngày, Mặt nạ đất sét 100g 6,0 % xuống 5,4 % mất 64 nghìn, Kem dưỡng ẩm ceramide 5,1 % xuống 4,2 % mất 58 nghìn, ba dòng Rõ với liên kết Xem đề xuất; Kem chống nắng SPF50+ và Sữa rửa mặt amino 150ml nhãn Tham khảo, Chưa có đề xuất; dòng Còn lại 4 dòng cộng 14 nghìn đồng và dòng Tổng trừ 250 nghìn đồng mỗi ngày, bằng số của ô CTOR (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Con số của ô CTOR chia cho từng sản phẩm, xếp theo số đồng mỗi ngày, kèm nhãn tin cậy.",
+  }),
+  "keo-xuong-the": screenshot(CAP_DX_THE_V2, phone(CAP_DX_THE_V2), {
+    alt: "Thẻ đề xuất Mặt nạ đất sét 100g mở từ bảng kéo xuống: CTOR từ 5,4 % lên 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do mô tả quá ngắn, thay đổi đề xuất Mô tả (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Từ dòng thứ hai của bảng đến thẻ đề xuất: cùng sản phẩm, cùng chỉ số, một thay đổi.",
+  }),
+
+  /* ————— ctr-the-san-pham-thap-doi-tieu-de-anh-bia (P49-A2, C7) ————— */
+  "ctr-the-pheu": screenshot(CAP_PT_PHEU, CAP_PT_PHEU_MOBILE, {
+    alt: "Phễu luồng Thẻ sản phẩm với năm ô: Lượt hiển thị mỗi ngày 9.913, CTR 4,44 % giảm 0,3 % bớt 12 nghìn đồng mỗi ngày, CTOR 5,14 %, AOV 160 nghìn, GMV mỗi ngày 3,6 triệu là tổng của 4 ô (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ô CTR của luồng Thẻ sản phẩm, đọc riêng với video và LIVE.",
+  }),
+  "ctr-the-tieu-de": screenshot(CAP_DX_CTR_TIEU_DE, phone(CAP_DX_CTR_TIEU_DE), {
+    alt: "Thẻ đề xuất Kem dưỡng ẩm ceramide, chờ duyệt: CTR Thẻ sản phẩm từ 3,7 % lên 3,9 %, GMV dự kiến thêm 150 nghìn đồng mỗi tháng, lý do tiêu đề thiếu từ khoá, lý do đầy đủ CTR giảm từ 3,9 % xuống 3,7 % so với 30 ngày trước và tiêu đề chưa có từ khoá phục hồi da, da khô; tiêu đề cũ bị gạch và tiêu đề mới Kem dưỡng ẩm ceramide phục hồi da khô, cấp ẩm 50ml (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Thẻ tiêu đề nhắm CTR: lý do đầy đủ, tiêu đề cũ và tiêu đề đề xuất.",
+  }),
+  "ctr-the-anh-bia": screenshot(CAP_DX_ANH_BIA, phone(CAP_DX_ANH_BIA), {
+    alt: "Thẻ đề xuất Sữa rửa mặt amino 150ml, chờ duyệt: CTR Thẻ sản phẩm từ 2,1 % lên 2,8 %, GMV dự kiến thêm 1,4 triệu đồng mỗi tháng, lý do ảnh bìa kém nổi bật, thay đổi đề xuất Ảnh bìa, lý do đầy đủ nền rối, sản phẩm chỉ chiếm 35 % khung, 600 nhân 600 px, TikTok báo ảnh chính chất lượng thấp; nhãn Juli tải lên, cần ảnh từ bạn; dòng Duyệt, Juli hỏi ảnh, bạn tải ảnh, xác nhận, Juli thay ảnh bìa (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Thẻ ảnh bìa: Juli phân tích ảnh hiện tại, ảnh mới là ảnh bạn gửi.",
+  }),
+  "ctr-the-tai-anh": screenshot(CAP_DX_ANH_BIA_TAI_LEN, phone(CAP_DX_ANH_BIA_TAI_LEN), {
+    alt: "Lượt chạy ảnh bìa của Sữa rửa mặt amino 150ml đang chờ bạn: đọc chẩn đoán TikTok và phân tích ảnh hiện tại đã xong, bước chờ ảnh từ bạn, các bước sau kiểm tra ảnh mới, xác nhận một lần, tải ảnh lên TikTok Shop, TikTok duyệt lại trang sản phẩm, kết thúc và đặt lịch đo; hộp Juli cần ảnh bìa mới từ bạn, Juli không tự chọn hay tạo ảnh, tỷ lệ 1:1 tối thiểu 800 nhân 800 px, nền trắng hoặc trơn, sản phẩm chiếm từ 70 % khung, yêu cầu còn hiệu lực 3 ngày, ô chọn ảnh từ máy JPG hoặc PNG tối đa 5 MB (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Lượt chạy chờ ảnh của bạn; Juli chỉ tải ảnh lên sau bước xác nhận một lần.",
+  }),
+  "ctr-the-hoan-tac": screenshot(CAP_DX_HOAN_TAC_V2, phone(CAP_DX_HOAN_TAC_V2), {
+    alt: "Hộp thoại Hoàn tác thay đổi này: Juli sẽ khôi phục tiêu đề cũ của Toner rau má 200ml, bạn xác nhận lần cuối trước khi Juli ghi, kết quả đo của thay đổi sẽ dừng; chọn một lý do bắt buộc: doanh số hoặc chỉ số giảm, khách phản hồi không tốt, nội dung sai thông tin sản phẩm, không hợp giọng thương hiệu, TikTok cảnh báo sản phẩm, khác; ô ghi chú; nút Huỷ, giữ thay đổi và Bắt đầu hoàn tác (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Hoàn tác: chọn lý do, Juli khôi phục tiêu đề cũ qua một bước xác nhận nữa.",
+  }),
+
+  /* ————— ctor-thap-viet-lai-mo-ta-san-pham (P49-A2, C8) ————— */
+  "ctor-mo-ta-o-va-bang": screenshot(CAP_PT_NGHEN_V2, CAP_PT_NGHEN_V2_MOBILE, {
+    alt: "Khối Thẻ sản phẩm trong Phân tích: ô CTOR 5,14 % giảm 6,9 % kéo GMV giảm 250 nghìn đồng mỗi ngày được đánh dấu Juli gợi ý, cạnh các ô Lượt hiển thị, CTR, AOV và GMV; bên dưới bảng 5 sản phẩm kéo CTOR xuống, ba dòng đầu Son môi số 12, Mặt nạ đất sét 100g, Kem dưỡng ẩm ceramide với CTOR trước và nay, GMV mỗi ngày bị mất, nhãn Rõ và Xem đề xuất (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ô CTOR được đánh dấu và bảng sản phẩm gây ra nó, ngay bên dưới.",
+  }),
+  "ctor-mo-ta-the": screenshot(CAP_DX_THE_V2, phone(CAP_DX_THE_V2), {
+    alt: "Thẻ đề xuất mô tả cho Mặt nạ đất sét 100g: CTOR từ 5,4 % lên 5,9 %, GMV dự kiến thêm 2,1 triệu đồng mỗi tháng, lý do mô tả quá ngắn, lý do đầy đủ mô tả 180 ký tự một đoạn và TikTok báo mô tả quá ngắn, nút Duyệt và Từ chối (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Thẻ mô tả nhắm CTOR: lý do lấy từ chính trang sản phẩm và chẩn đoán của TikTok.",
+  }),
+  "ctor-mo-ta-khuyen-mai": screenshot(CAP_PT_KHUYEN_MAI, CAP_PT_KHUYEN_MAI_MOBILE, {
+    alt: "Khối Khuyến mãi 60 ngày: flash sale 8 trên 60 ngày với 3 sản phẩm, giảm thật trung bình 9 % so với giá đang bán trước flash sale, voucher 14 % đơn đạt ngưỡng với 2 voucher đang chạy; bảng từng sản phẩm với loại khuyến mãi, giảm thật và GMV mỗi ngày trong và ngoài khuyến mãi, Son môi số 12 giảm giá sản phẩm 2 % ghi quá nông (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Giảm thật so với giá đang bán, không với giá niêm yết; đợt giảm quá nông được đánh dấu.",
+  }),
+  /* ————— huong-dan-ket-noi-tiktok-shop-voi-juli (P49-A1, guide C1) ————— */
+  "hd-kn-dang-nhap": screenshot(CAP_KN_DANG_NHAP_V2, CAP_KN_DANG_NHAP_V2_MOBILE, {
+    alt: "Màn hình đăng nhập của Juli: dòng Đối tác thẩm định ở trên cùng, tiêu đề Đăng nhập vào Juli, chưa có tài khoản thì Juli tự tạo ở bước này, nút Tiếp tục với Google, hoặc nhập email và bấm Gửi mã đăng nhập, đường dẫn Xem thử với dữ liệu mẫu, không cần tài khoản và Mới dùng Juli? Dùng thử miễn phí 3 tháng; bên phải là một thẻ đề xuất mẫu Mặt nạ đất sét 100g, CTOR 5,4 % lên 5,9 %, GMV dự kiến +2,1 triệu đồng mỗi tháng, lý do Mô tả quá ngắn, kèm dòng Kết nối chính thức qua TikTok Shop Open API, Chỉ thực hiện khi bạn duyệt, Miễn phí 3 tháng (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Bước 1: đăng nhập bằng Google hoặc mã gửi về email; tài khoản mới được tạo ngay ở bước này.",
+  }),
+  "hd-kn-nut-ket-noi": screenshot(CAP_KN_KET_NOI, CAP_KN_KET_NOI_MOBILE, {
+    alt: "Màn hình Kết nối TikTok Shop của Cửa hàng Mẫu Hoa Mai: bạn đã đăng nhập bằng chushop@vi-du.vn, bạn chưa kết nối shop TikTok nào, nút Kết nối TikTok Shop, và ghi chú: khi kết nối, bạn đồng ý để nhân viên Juli xem dữ liệu shop, không gồm dữ liệu người mua, để hỗ trợ và vận hành dịch vụ, mọi lần truy cập đều được ghi nhật ký, kèm liên kết Chính sách bảo mật (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Bước 2: kiểm tra email đang đăng nhập, rồi bấm Kết nối TikTok Shop để sang trang uỷ quyền của TikTok.",
+  }),
+  "hd-kn-quet-nhanh": screenshot(CAP_KN_QUET_NHANH_V2, CAP_KN_QUET_NHANH_V2_MOBILE, {
+    alt: "Trang Quyết định của Cửa hàng Mẫu Hoa Mai ngay sau khi kết nối: dải tiến trình Juli đang đọc dữ liệu shop bước 2 trên 3, bước 1 Quét nhanh 14 ngày đã xong, bước 2 Đọc 60 ngày và chẩn đoán đầy đủ đang chạy 40 % còn khoảng 9 phút, bước 3 Tải lịch sử nền đang chờ; bên dưới là ô Giữ ổn định với Lượt hiển thị, CTR, AOV cùng ngưỡng ±3 %, ô Quy tắc do bạn đặt, và một thẻ Kem dưỡng ẩm ceramide mang nhãn Đề xuất nhanh dựa trên 14 ngày, CTR Thẻ sản phẩm 3,7 % lên 3,9 %, GMV dự kiến +150 nghìn đồng mỗi tháng, độ tin cậy Tham khảo (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Vài phút sau khi kết nối: quét nhanh 14 ngày đã xong, một đề xuất nhanh đã có, chẩn đoán đầy đủ đang chạy.",
+  }),
+  "hd-kn-phan-tich-dau-tien": screenshot(CAP_PT_LUONG, CAP_PT_LUONG_MOBILE, {
+    alt: "Đầu trang Phân tích của Cửa hàng Mẫu Hoa Mai: kết luận Thẻ sản phẩm: CTOR giảm 7 %, so 30 ngày với 30 ngày trước, ô Juli gợi ý CTOR kéo GMV đi 250 nghìn đồng mỗi ngày với nút Xem 3 đề xuất, hai tab Sản phẩm và Nội dung, dòng chia luồng Sản phẩm gồm Thẻ sản phẩm và Tab cửa hàng, Nội dung gồm Video và LIVE, Liên kết chỉ theo dõi ở Trang chủ (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Việc đầu tiên sau khi kết nối: đọc dòng kết luận ở đầu trang Phân tích.",
+  }),
+
+  /* ————— doc-phan-tich-tiktok-shop-theo-luong-truy-cap (P49-A1, guide C2) ————— */
+  "hd-pt-dau-trang": screenshot(CAP_PT_LUONG, CAP_PT_LUONG_MOBILE, {
+    alt: "Đầu trang Phân tích của Juli trên Cửa hàng Mẫu Hoa Mai: kết luận Thẻ sản phẩm: CTOR giảm 7 %, nhãn 30 ngày so với 30 ngày trước, ô Juli gợi ý CTOR kéo GMV đi 250 nghìn đồng mỗi ngày và nút Xem 3 đề xuất, hai tab Sản phẩm và Nội dung, dòng chia luồng: Sản phẩm gồm Thẻ sản phẩm và Tab cửa hàng, Nội dung gồm Video và LIVE, Liên kết chỉ theo dõi ở Trang chủ (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Một câu kết luận cho 30 ngày, số tiền chỉ số đó kéo đi mỗi ngày, và cách năm luồng được xếp vào hai tab.",
+  }),
+  "hd-pt-pheu-luong": screenshot(CAP_PT_NGHEN_V2, CAP_PT_NGHEN_V2_MOBILE, {
+    alt: "Luồng Thẻ sản phẩm trong Phân tích của Juli: GMV 3,6 triệu đồng mỗi ngày, tăng 7,5 %; năm ô: Lượt hiển thị mỗi ngày 9.913, tăng 19,4 %, cộng 620 nghìn đồng mỗi ngày; CTR 4,44 %, giảm 0,3 %, trừ 12 nghìn đồng mỗi ngày; CTOR 5,14 %, giảm 6,9 %, trừ 250 nghìn đồng mỗi ngày, được đánh dấu Juli gợi ý; AOV 160 nghìn đồng, giảm 3,0 %, trừ 105 nghìn đồng mỗi ngày; GMV mỗi ngày là tổng của 4 ô. Bên dưới: 5 sản phẩm kéo CTOR xuống, nút Kéo xuống và Kéo lên, ba dòng đầu Son môi số 12 từ 6,3 % xuống 5,4 %, trừ 112 nghìn đồng, Mặt nạ đất sét 100g từ 6,0 % xuống 5,4 %, trừ 64 nghìn đồng, Kem dưỡng ẩm ceramide từ 5,1 % xuống 4,2 %, trừ 58 nghìn đồng, cả ba nhãn Rõ và nút Xem đề xuất (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Bốn ô cộng lại bằng mức thay đổi GMV của luồng: GMV tăng, nhưng CTOR vẫn lấy đi 250 nghìn đồng mỗi ngày.",
+  }),
+  "hd-pt-video-tin-cay": screenshot(CAP_DL_TIN_CAY, CAP_DL_TIN_CAY_MOBILE, {
+    alt: "Luồng Video trong tab Nội dung của Juli: GMV 1,9 triệu đồng mỗi ngày, giảm 6,1 %; ô Lượt hiển thị 5.630, CTR 2,92 % giảm 4,8 %, trừ 96 nghìn đồng mỗi ngày, được đánh dấu Juli gợi ý; ô CTOR 6,68 % và AOV 173 nghìn đồng màu xám, ghi Phụ thuộc sản phẩm. Bảng Video tác động CTR nhiều nhất: Mặt nạ đất sét trước và sau, CTR 3,2 % xuống 1,9 %, trừ 58 nghìn đồng, nhãn Rõ; Routine sáng 3 bước, 3,2 % xuống 2,6 %, trừ 24 nghìn đồng, nhãn Rõ; Unbox toner rau má, 3,2 % xuống 2,9 %, trừ 9 nghìn đồng, nhãn Tham khảo; mỗi dòng có ngày đăng, sản phẩm được gắn và nút Xem sản phẩm được gắn; dòng Còn lại 12 video ít lượt nhấp (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Tab Nội dung: ô phụ thuộc trang sản phẩm để xám, mỗi video mang nhãn Rõ hoặc Tham khảo.",
+  }),
+  "hd-pt-khuyen-mai": screenshot(CAP_PT_KHUYEN_MAI, CAP_PT_KHUYEN_MAI_MOBILE, {
+    alt: "Phần Khuyến mãi trong Phân tích của Juli, 60 ngày: flash sale 8 trên 60 ngày với 3 sản phẩm tham gia; giảm thật trung bình 9 % so với giá đang bán trước flash sale; voucher 14 % đơn, 2 voucher đang chạy, đơn đạt ngưỡng. Bảng sản phẩm: Son môi số 12, giảm giá sản phẩm, giảm thật 2 %, ghi quá nông, GMV mỗi ngày trong và ngoài khuyến mãi 1,3 và 1,2 triệu đồng; Toner rau má 200ml, flash sale, 12 %; Mặt nạ đất sét 100g, flash sale, 10 %; Kem dưỡng ẩm ceramide, giảm giá sản phẩm, 7 %; Kem chống nắng SPF50+, flash sale, 8 % (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Giảm thật so với giá đang bán ngay trước đó, và một đợt giảm quá nông được đánh dấu.",
+  }),
+
+  /* ————— duyet-de-xuat-toi-uu-san-pham-tiktok-shop (P49-A1, guide C3) ————— */
+  "hd-dx-the-mo-ta": screenshot(CAP_DX_THE_V2, smallest(CAP_DX_THE_V2), {
+    alt: "Thẻ đề xuất của Juli đang mở: SKU MN-015 Mặt nạ đất sét 100g, nhãn Chờ duyệt, Tối ưu sản phẩm, cập nhật 18/10/2026; chỉ số mục tiêu CTOR 5,4 % lên 5,9 %, tăng 9,3 %; GMV dự kiến +2,1 triệu đồng mỗi tháng; lý do Mô tả quá ngắn; thay đổi đề xuất Mô tả; lý do đầy đủ: mô tả 180 ký tự, một đoạn, TikTok báo Mô tả quá ngắn; nút Duyệt, Từ chối, Thu gọn và Xem phân tích (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Một sản phẩm, một chỉ số, một thay đổi: thẻ mô tả với lý do đầy đủ và GMV dự kiến.",
+  }),
+  "hd-dx-quy-tac": screenshot(CAP_DX_QUY_TAC, CAP_DX_QUY_TAC_MOBILE, {
+    alt: "Đầu trang Quyết định của Juli: 3 thẻ tối ưu để nâng CTOR (mọi kênh), ghi chú dữ liệu mẫu, ba tab Đề xuất, Đang thực hiện, Đo lường; ô Giữ ổn định: ngày thứ 7, chỉ số nào lệch quá ngưỡng giữ ổn định thì Juli hỏi bạn có muốn hoàn tác không, với Lượt hiển thị, CTR và AOV ±3 %; ô Quy tắc do bạn đặt: Juli không tự chọn các con số này, giọng văn thân thiện, xưng mình, gọi khách là bạn, không nói quá, 2 từ không được dùng, nút Sửa quy tắc; nhóm thẻ với GMV dự kiến +7,2 triệu đồng mỗi tháng, ước tính, nút Duyệt 2 thẻ và Sửa (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Trước khi duyệt: ngưỡng giữ ổn định và quy tắc của bạn nằm ngay trên các thẻ.",
+  }),
+  "hd-dx-the-tieu-de": screenshot(CAP_DX_CTR_TIEU_DE, smallest(CAP_DX_CTR_TIEU_DE), {
+    alt: "Thẻ đề xuất tiêu đề của Juli: SKU KD-030 Kem dưỡng ẩm ceramide, Chờ duyệt; CTR Thẻ sản phẩm 3,7 % lên 3,9 %, tăng 5,4 %; GMV dự kiến +150 nghìn đồng mỗi tháng; lý do Tiêu đề thiếu từ khoá; thay đổi đề xuất Tiêu đề; lý do đầy đủ: CTR giảm từ 3,9 % xuống 3,7 % so với 30 ngày trước, tiêu đề chưa có từ khoá khách hay tìm: phục hồi da, da khô; tiêu đề cũ gạch ngang Kem dưỡng ẩm ceramide, tiêu đề mới Kem dưỡng ẩm ceramide phục hồi da khô, cấp ẩm 50ml; nút Duyệt và Từ chối (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Thẻ nhắm CTR: GMV dự kiến còn phụ thuộc CTOR, vì lượt nhấp tăng thêm chỉ thành tiền khi có người đặt hàng.",
+  }),
+  "hd-dx-the-anh-bia": screenshot(CAP_DX_ANH_BIA, smallest(CAP_DX_ANH_BIA), {
+    alt: "Thẻ đề xuất ảnh bìa của Juli: SKU SR-007 Sữa rửa mặt amino 150ml, Chờ duyệt; CTR Thẻ sản phẩm 2,1 % lên 2,8 %, tăng 33,3 %; GMV dự kiến +1,4 triệu đồng mỗi tháng; lý do Ảnh bìa kém nổi bật; thay đổi đề xuất Ảnh bìa; lý do đầy đủ: ảnh bìa nền rối, sản phẩm chỉ chiếm 35 % khung, 600 × 600 px, TikTok báo Ảnh chính chất lượng thấp; chip Juli tải lên, cần ảnh từ bạn; dòng cuối: Duyệt, Juli hỏi ảnh, bạn tải ảnh, xác nhận, Juli thay ảnh bìa (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Thẻ ảnh bìa ghi rõ Juli cần ảnh từ bạn: Juli phân tích ảnh hiện tại, không tự tạo ảnh mới.",
+  }),
+  "hd-dx-cho-anh": screenshot(CAP_DX_ANH_BIA_TAI_LEN, smallest(CAP_DX_ANH_BIA_TAI_LEN), {
+    alt: "Lượt chạy SR-007 Sữa rửa mặt amino 150ml, trạng thái Đang chờ bạn, các chặng Phân tích và Đề xuất đã xong, đang ở Duyệt, tiếp theo Thực thi và Đo lường. Các bước: Đọc chẩn đoán TikTok, Ảnh chính chất lượng thấp; Phân tích ảnh hiện tại, nền rối, sản phẩm chiếm 35 % khung, 600 × 600 px; Chờ ảnh từ bạn, đang chờ; rồi Kiểm tra ảnh mới, Xác nhận một lần, Tải ảnh lên TikTok Shop, TikTok duyệt lại trang sản phẩm, Kết thúc và đặt lịch đo. Hộp Juli cần ảnh bìa mới từ bạn: Juli không tự chọn hay tạo ảnh cho sản phẩm; ảnh cần tỷ lệ 1:1, tối thiểu 800 × 800 px, nền trắng hoặc trơn, không chữ, không khung viền, sản phẩm chiếm từ 70 % khung ảnh; yêu cầu còn hiệu lực 3 ngày, sau đó lượt chạy dừng, không thay đổi gì; ô Chọn ảnh từ máy, JPG hoặc PNG, tối đa 5 MB (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Lượt chạy ảnh bìa dừng ở bước chờ ảnh của bạn; chỉ sau khi bạn xác nhận, Juli mới tải ảnh lên.",
+  }),
+  "hd-dx-tu-choi": screenshot(CAP_DX_TU_CHOI, smallest(CAP_DX_TU_CHOI), {
+    alt: "Hộp thoại Từ chối thẻ này? của Juli: thẻ sẽ rời khỏi Đề xuất, Juli không thay đổi gì trên sản phẩm. Vì sao, chọn một: thay đổi không hợp thương hiệu hoặc giọng văn; lý do hoặc số liệu chưa thuyết phục; tôi đang tự sửa sản phẩm này; sản phẩm sắp ngừng bán hoặc hết hàng; đang chạy chiến dịch khác cho sản phẩm này; khác. Ô ghi chú thêm không bắt buộc, ví dụ shop không dùng từ cao cấp trong tên sản phẩm; nút Quay lại và Từ chối thẻ (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Từ chối kèm một lý do: thẻ rời đi, shop không đổi gì, và lý do giúp đề xuất sau tốt hơn.",
+  }),
+  "hd-dx-hang-cho": screenshot(CAP_DX_HANG_CHO, CAP_DX_HANG_CHO, {
+    alt: "Ô Hàng chờ thẻ tối ưu của Juli: Juli chạy lần lượt, không bao giờ hai thay đổi cùng lúc trên một sản phẩm; SM-012 Son môi số 12 ở trạng thái Đang chờ bạn; TN-021 Toner rau má 200ml ở trạng thái Đã áp dụng (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Hàng chờ: mỗi sản phẩm chỉ có một thay đổi tại một thời điểm.",
+  }),
+
+  /* ————— do-ket-qua-ngay-7-ngay-14-hoan-tac (P49-A1, guide C4) ————— */
+  "hd-dl-quy-tac-on-dinh": screenshot(CAP_DX_QUY_TAC, CAP_DX_QUY_TAC_MOBILE, {
+    alt: "Ô Giữ ổn định trên trang Quyết định của Juli: ngày thứ 7, chỉ số nào lệch quá ngưỡng giữ ổn định thì Juli hỏi bạn có muốn hoàn tác không; ba chỉ số Lượt hiển thị, CTR và AOV, mỗi chỉ số ±3 %; bên cạnh là ô Quy tắc do bạn đặt với giọng văn, 2 từ không được dùng và nút Sửa quy tắc; phía trên là ba tab Đề xuất, Đang thực hiện, Đo lường (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ngưỡng giữ ổn định do Juli gợi ý theo mức dao động của từng chỉ số; bạn chỉnh được trong Quy tắc.",
+  }),
+  "hd-dl-ngay-7": screenshot(CAP_DL_NGAY_7_V2, CAP_DL_NGAY_7_V2_MOBILE, {
+    alt: "Thẻ Đo lường của Juli ở ngày 7: SKU TN-021 Toner rau má 200ml, thay đổi vào 10/10/2026, đã đổi Tiêu đề, nhãn Ngày 7 trong khoảng. Mục tiêu và ngưỡng giữ ổn định, trung bình mỗi ngày so với 14 ngày trước khi áp dụng: chỉ số mục tiêu CTR đo trên kênh Thẻ sản phẩm 3,2 % lên 3,5 %, đạt khi từ 3,5 % trở lên; GMV dự kiến +60 nghìn đồng mỗi ngày, +1,8 triệu đồng mỗi tháng; chỉ số không được lệch: Lượt hiển thị mỗi ngày 3.480, ±3 %, khoảng 3.376 đến 3.584; CTOR 6,6 %, khoảng 6,4 % đến 6,8 %; AOV 170 nghìn đồng, khoảng 165 đến 175 nghìn đồng. Các bước ngày 17/10: đọc dữ liệu 7 ngày sau thay đổi, so với 14 ngày trước; so chỉ số mục tiêu, CTR 3,2 % lên 3,4 %, mục tiêu 3,5 %, đang lên; so ngưỡng giữ ổn định, Lượt hiển thị, CTOR, AOV đều trong khoảng; báo kết quả sơ bộ, đã gửi, không cần bạn làm gì; chờ chốt ngày 14 vào 24/10/2026. Bảng: CTR chỉ số chính thực tế 3,4 %, Đang lên; Lượt hiển thị 3.521, tăng 1,2 %, Giữ ổn định; CTOR 6,54 %, giảm 0,9 %, Giữ ổn định; AOV 171 nghìn đồng, tăng 0,6 %, Giữ ổn định; GMV mỗi ngày +38 nghìn đồng so với dự kiến +60 nghìn, Sơ bộ; nút Hoàn tác (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ngày 7: chỉ số mục tiêu đang lên, các chỉ số khác trong ngưỡng, nên Juli chỉ báo kết quả sơ bộ và chờ ngày 14.",
+  }),
+  "hd-dl-ngay-14": screenshot(CAP_DL_NGAY_14_V2, CAP_DL_NGAY_14_V2_MOBILE, {
+    alt: "Thẻ Đo lường của Juli ở ngày 14: SKU TN-021 Toner rau má 200ml, thay đổi vào 10/10/2026, đã đổi Tiêu đề, nhãn Đạt. Mục tiêu CTR đo trên kênh Thẻ sản phẩm 3,2 % lên 3,5 %, GMV dự kiến +60 nghìn đồng mỗi ngày, +1,8 triệu đồng mỗi tháng, cùng bảng ngưỡng giữ ổn định cho Lượt hiển thị, CTOR và AOV. Các bước ngày 24/10: đọc dữ liệu 14 ngày sau thay đổi; so chỉ số mục tiêu, CTR 3,2 % lên 3,53 %, mục tiêu 3,5 %; tính GMV thực tế, +54 nghìn đồng mỗi ngày, 90 % dự kiến; chốt kết quả Đạt; mở khoá đề xuất tiếp theo, sản phẩm có thể nhận thẻ mới ở Đề xuất. Bảng: CTR thực tế 3,53 %, Đạt; Lượt hiển thị, CTOR, AOV giữ ổn định. Ô kết luận: Đạt, CTR 3,53 % từ mục tiêu 3,5 % trở lên, GMV thực tế +1,6 triệu đồng mỗi tháng so với dự kiến +1,8 triệu đồng mỗi tháng, thay đổi được giữ, liên kết Đề xuất tiếp theo cho sản phẩm này. Dòng cách chốt: Đạt khi chỉ số mục tiêu tăng rõ, chạm mục tiêu và GMV giữ được; Đạt chưa chắc chắn khi đạt nhưng mức tăng chưa đủ rõ; Một phần khi chỉ tăng rõ hoặc chỉ chạm mục tiêu, hoặc khi dữ liệu quá ít; Không đạt khi không tăng rõ và không chạm mục tiêu (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Ngày 14: kết quả chốt, GMV thực tế đặt cạnh GMV dự kiến.",
+  }),
+  "hd-dl-hoan-tac": screenshot(CAP_DX_HOAN_TAC_V2, smallest(CAP_DX_HOAN_TAC_V2), {
+    alt: "Hộp thoại Hoàn tác thay đổi này? của Juli: Juli sẽ khôi phục Tiêu đề cũ của Toner rau má 200ml, bạn xác nhận lần cuối trước khi Juli ghi, kết quả đo của thay đổi này sẽ dừng. Vì sao bạn muốn hoàn tác, chọn một, bắt buộc: doanh số hoặc chỉ số giảm; khách phản hồi không tốt; nội dung sai thông tin sản phẩm; không hợp giọng thương hiệu; TikTok cảnh báo sản phẩm; khác. Ô ghi chú thêm không bắt buộc, ví dụ khách nhắn hỏi về tên sản phẩm mới; nút Huỷ, giữ thay đổi và Bắt đầu hoàn tác (dữ liệu mẫu)",
+    caption: "Dữ liệu mẫu · Hoàn tác cần một lý do và một lần xác nhận cuối; Juli không bao giờ tự hoàn tác.",
   }),
 };

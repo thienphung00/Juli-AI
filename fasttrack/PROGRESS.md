@@ -277,9 +277,70 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | P49-S Fresh sample-shop screenshots for the guides | D59 add. 5 | done on branch `fasttrack/p49s-screenshots` (798afcfc; lich-sale skipped, see LOG) | agent |
 | P49-F Demo copy fixes from P49-S + recapture | D46.4, D59 add. 5 | done on branch `fasttrack/p49f-demo-copy` (5e981b18 demo, 57260f97 landing) | agent |
-| P49-A Five guide posts | D59 add. 5 | todo (after P49-S) | writer agents |
-| P49-B Three problem posts | D59 add. 5 | todo (after P49-S) | writer agents |
-| P49-L End-of-post box "Đọc hướng dẫn liên quan" for reach posts | D59 add. 4 | todo (after P49-A/B) | agent |
+| P49-A Five guide posts | D59 add. 5 | done, merged, drafts: C1–C4 (P49-A1) and C5 (P49-A2) | writer agents |
+| P49-B Three problem posts | D59 add. 5 | done, merged, drafts: C6–C8 (P49-A2) | writer agents |
+| P49-L End-of-post box "Đọc hướng dẫn liên quan" for reach posts | D59 add. 4 | done, merged: `guide` field on all 16 reach posts, `guideFor()`, tests | orchestrator |
+
+## P51 — five product and sample-data fixes (D60)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P51-A Demo sample data: lever ↔ target, Kéo xuống sums; recapture | D60.1 | done on branch `fasttrack/p51a-sample-data` (2247eb13 demo, 5bad50fa landing, 524da0d6 recapture) | agent |
+| P51-B Landing: Đề xuất page (AOV lever, cover wording), Đo lường page (control groups), price wording | D60.2, D60.3, D60.5 | done on branch `fasttrack/p51b-product-copy` (not merged) | agent |
+| Retention approved, purge job in DEBT | D60.4 | done | orchestrator |
+
+## P52 — no algorithm or model details in public content (D61)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P52-A Product pages, home, shared blocks, calculator, SEO / llms.txt; leak-pattern test | D61 | in progress, branch `fasttrack/p52a-leaks-pages` | agent |
+| P52-B Eight Juli guides (body, FAQ, figure captions) | D61 | done on branch `fasttrack/p52b-leaks-guides` (recapture of 5 demo shots pending, P51-A) | agent |
+| P52-A Product pages, home, shared blocks, calculator, SEO / llms.txt; leak-pattern test | D61 | done on branch `fasttrack/p52a-leaks-pages` (not merged) | agent |
+| P52-B Eight Juli guides (body, FAQ, figure captions) | D61 | in progress, branch `fasttrack/p52b-leaks-guides` | agent |
+| P52-C Reach posts, pillars, tools posts (body, FAQ, captions) | D61 | done on branch `fasttrack/p52c-leaks-posts` (not merged); 3 diagrams re-rendered | agent |
+| Demo app + backend card copy, recapture (with P51-A) | D61 | in progress, branch `fasttrack/p51a-sample-data` | P51-A agent |
+| P52-C Reach posts, pillars, tools posts (body, FAQ, captions) | D61 | in progress, branch `fasttrack/p52c-leaks-posts` | agent |
+| Demo app + backend card copy, recapture (with P51-A) | D61 | done on branch `fasttrack/p51a-sample-data` (84dfaa0f copy, 524da0d6 recapture) | P51-A agent |
+| P52-D Leftovers: figure / page alts match the recaptured shots, sample reasons without peer median, SM-012 CTOR card proposes Mô tả only, 4 shots recaptured | D60.1, D61 | done on branch `fasttrack/p52d-leftovers` (not merged) | agent |
+
+## P53-C2 — remove the three legacy demo routes (owner C2, 2026-10-18)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Remove `/decisions/in-progress/[executionId]`, `/decisions/recommendations/[recommendationId]`, `/settings/workflows/[workflowKey]` and their import-graph closure; demo-shell run framing; tests / e2e | C2 (audit apps.md items 6–7, TOP 15 #2, #3, #7–#11) | done on branch `fasttrack/rm-legacy-routes` (not merged) | agent |
+
+## P53-A — cleanup A: real faults, safe cleanup, archive (D62, 2026-10-18)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| A1 Register `product_history` on a fresh worker; beat test in a fresh interpreter | D62 | done on branch `fasttrack/cleanup-a` (turns the P23 fan-out on in prod — DEBT P53-A) | agent (Opus) |
+| A2 8 deep imports through `services.ops` / `services.action_cards`; boundary baseline re-derived (54 rows) | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+| A3 Repo-pinned tests: trial_signups tail from the tree, ratchet suppressions retired, reaper TZ, module_md allowlist, quality figures | D62 | done on branch `fasttrack/cleanup-a` except the #1682 prior-figure drift check (owner, DEBT P53-A) | agent (Opus) |
+| A4 `JULI_TEST_DATABASE_DISPOSABLE` on the deploy check step | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+| B3 Delete `services/etl/topics.py` | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+| B4 Untrack `apps/dashboard/tsconfig.tsbuildinfo` | D62 | done; `package-lock.json` and `done.md` kept (still read by pr.yml — DEBT P53-A) | agent (Opus) |
+| B6 LEGACY markers: `ios/`, `agent-runtime/`, `EXECUTION.md`, `Design-md/`, test-only backend modules | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+| B7 Archive LOG / DECISIONS / closed DEBT before 2026-10-12 to `fasttrack/archive/` | D62 | done on branch `fasttrack/cleanup-a` | agent (Opus) |
+
+## P53-C1 — delete apps/dashboard (owner C1, 2026-10-18)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Delete `apps/dashboard` + its CI job, dev scripts, review/provision scripts, guarding tests; docs marked historical | audit C1 | done on branch `fasttrack/rm-dashboard` (not merged) | agent |
+
+## P54 — Dependabot pip bumps applied (D63)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Nine pip bumps in one constraints regeneration; pyproject / requirements floors in sync; pydantic-core deferred | D63 | done on branch `fasttrack/pip-bumps` (not merged) | agent |
+
+## P55 — deploy gates (D64, 2026-10-19)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| A Detector: imported / conftest / method / third-party assertion helpers; #1682 prior-figure claim over a recorded fixed set (106, drift 9) | D64.4 | done on branch `fasttrack/deploy-gates` (not merged) | agent (Opus) |
+| B Unit suite green with no database (wiring seam stub, 2 tests `requires_postgres`, cross-tenant stream factory, scan timeouts) | D64.2 | done on branch `fasttrack/deploy-gates` | agent (Opus) |
+| C `frontend`, `backend-unit`, `static` jobs; `deploy` needs them; `.nvmrc`; README job table | D64.1–3 | done on branch `fasttrack/deploy-gates`; first exercised by the next deploy | agent (Opus) |
 
 ## P50 — PDPL legal terms and the features they promise (D68)
 

@@ -121,7 +121,7 @@ Bạn tự đo được bằng trang Lưu lượng truy cập sản phẩm trong
 - **Một thay đổi, một sản phẩm**: chỉ sửa mô tả, ghi lại ngày sửa.
 - **So với 14 ngày trước**: đọc CTOR sơ bộ ở ngày 7, chốt ở ngày 14.
 - **Đủ dữ liệu**: với vài chục lượt nhấp, một hai đơn đã làm CTOR nhảy mạnh. Sản phẩm ít lượt nhấp cần đo lâu hơn, và kết quả chỉ để tham khảo; TikTok không đưa ra một ngưỡng chính thức.
-- **So với nhóm đối chứng**: CTOR của sản phẩm không sửa cũng tăng thì mức tăng chưa chắc nhờ mô tả.
+- **Nhìn thêm sản phẩm chưa sửa**: nếu CTOR của những sản phẩm bạn không sửa cũng tăng, mức tăng chưa chắc nhờ mô tả.
 
 Ví dụ giả định: sản phẩm có 300 lượt nhấp mỗi ngày, CTOR 2,0 % trước khi sửa, 2,4 % ở ngày 14, các sản phẩm khác giữ nguyên. Chênh 0,4 điểm trên 300 lượt nhấp là khoảng 1,2 đơn mỗi ngày. Kết quả "không đổi" cũng có ích: mô tả không phải chỗ nghẽn của sản phẩm này.
 

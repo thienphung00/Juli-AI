@@ -149,7 +149,7 @@ Commit on the feature branch with the code under review.
 
 ## Visual review (ui-ux issues)
 
-When the diff touches `apps/demo`, `apps/dashboard`, or `packages/ui`: view the screenshots
+When the diff touches `apps/demo`, `apps/landing`, or `packages/ui`: view the screenshots
 referenced in the implementation artifact (capture them yourself if missing —
 `pnpm --filter @juli/demo dev`, then `npx playwright screenshot`). Judge the rendered
 output against the `docs/product/design/` root authorities, not just the diff text. A UI

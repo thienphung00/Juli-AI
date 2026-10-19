@@ -102,7 +102,7 @@ Thông tin kiểm tra ngày 16/10/2026 trên trang chính thức của KiotViet.
 
 Trang MISA eShop giới thiệu "giải pháp quản lý bán hàng đa kênh tự động hóa bán hàng, hóa đơn, khai thuế, kế toán", đồng bộ bán hàng từ cửa hàng đến Shopee, TikTok Shop, Lazada, Facebook và Zalo, cho cá nhân, hộ kinh doanh, doanh nghiệp hay chuỗi. Với kênh sàn, trang nêu quản lý nhiều gian hàng Shopee, TikTok Shop, Lazada tại một nơi, đồng bộ sản phẩm, tồn kho và trạng thái đơn theo sàn, tự động đối soát doanh thu, chi phí, lợi nhuận, và xuất hóa đơn ngay khi bán. Trang cũng nêu lên đơn bằng giọng nói có AI và AI gợi ý thuế suất theo mặt hàng.
 
-**Giá**: trang chủ có nút "Dùng thử miễn phí" và "Báo giá"; chúng tôi không tìm thấy bảng giá công khai trên trang này vào ngày kiểm tra. Hãy yêu cầu báo giá trực tiếp.
+**Giá**: trang chính thức có nút "Dùng thử miễn phí" và "Báo giá", và nay có công bố mức phí theo từng gói, khác nhau giữa hộ kinh doanh và doanh nghiệp. Hãy xem mức phí và điều kiện dùng thử của đúng gói bạn cần trên trang của MISA eShop. Thông tin kiểm tra ngày 18/10/2026.
 
 **Phù hợp với**: hộ kinh doanh và doanh nghiệp nhỏ muốn bán hàng, xuất hóa đơn, kê khai thuế và ghi sổ trong cùng một hệ thống.
 
@@ -112,7 +112,7 @@ Thông tin kiểm tra ngày 16/10/2026 trên trang chính thức của MISA eSho
 
 Nhanh.vn có nhiều sản phẩm: Nhanh.POS (bán hàng, kho), Nhanh.Ecom (bán hàng trên các sàn Tiktok, Shopee, Lazada, Tiki), Nhanh.Web (website), Vpage (chat đa kênh Tiktok, Facebook, Zalo, Instagram, Shopee, Lazada), Nhanh.Ship (cổng vận chuyển) và gói Omnichannel gộp các dịch vụ. Trang Nhanh.Ecom nêu kết nối Shopee, Lazada, Tiktok Shop, tự động tải đơn về theo thời gian thực, đồng bộ sản phẩm và tồn kho, ghép sản phẩm không cần trùng SKU, báo cáo tài chính và lãi lỗ trên từng sàn, và đối soát tiền sàn trả về. Trang ghi đồng hành cùng hơn 100.000 nhà bán hàng.
 
-**Giá**: trang bảng giá phần mềm ghi, cho một cửa hàng mỗi tháng: Gói POS Basic 250.000đ (mua từ 2 năm còn 150.000đ), Gói POS Pro 350.000đ (còn 250.000đ), Gói Omnichannel 750.000đ (còn 550.000đ, tặng 5 kết nối bán hàng online). Riêng Nhanh.Ecom: gian hàng đầu tiên 100.000 đ/tháng, từ gian hàng thứ hai 50.000 đ/tháng, kèm 7 ngày dùng thử miễn phí.
+**Giá**: trang bảng giá phần mềm ghi, cho một cửa hàng mỗi tháng: Gói POS Basic 250.000đ (mua từ 2 năm còn 150.000đ), Gói POS Pro 350.000đ (còn 250.000đ), Gói Omnichannel 750.000đ (còn 550.000đ, tặng 5 kết nối bán hàng online). Riêng Nhanh.Ecom: gian hàng đầu tiên 100.000 đ/tháng, từ gian hàng thứ hai 50.000 đ/tháng, kèm dùng thử miễn phí (kiểm tra ngày 18/10/2026).
 
 **Phù hợp với**: shop chủ yếu bán online trên nhiều sàn, cần biết lãi lỗ và các khoản phí của từng sàn.
 

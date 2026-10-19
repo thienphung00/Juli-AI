@@ -15,6 +15,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import func, select
@@ -333,11 +334,11 @@ async def test_card_emission_skips_only_a_read_only_shop(
         signals = _Signals()
 
     if skipped:
-        report = await persist.emit_scoring_cards(session, shop.id, _Result())  # type: ignore[arg-type]
+        report = await persist.emit_scoring_cards(session, shop.id, cast(Any, _Result()))
         assert report.decisions == ()
     else:
         with pytest.raises(_PastTheGate):
-            await persist.emit_scoring_cards(session, shop.id, _Result())  # type: ignore[arg-type]
+            await persist.emit_scoring_cards(session, shop.id, cast(Any, _Result()))
 
 
 async def test_quick_scan_skips_a_read_only_shop(session, engine, frozen_today):
@@ -415,12 +416,15 @@ async def test_read_only_shop_gets_no_drafting(session, frozen_today):
     shop = await _shop_with_days_left(session, -8)
     gate = await draft_gate_for(session, shop.id)
     assert gate.read_only is True
-    code, _, text = gate.refusal()  # type: ignore[misc]
+    refusal = gate.refusal()
+    assert refusal is not None
+    code, _, text = refusal
     assert code == "shop_read_only" and "chỉ xem" in text
     # Grace: drafting runs.
     grace = await _shop_with_days_left(session, -2)
     assert (await draft_gate_for(session, grace.id)).refusal() is None
-    assert DraftGate(read_only=True, system_cap_reached=True).refusal()[0] == "shop_read_only"  # type: ignore[index]
+    both = DraftGate(read_only=True, system_cap_reached=True).refusal()
+    assert both is not None and both[0] == "shop_read_only"
 
 
 async def test_read_only_drafting_ends_the_content_run_with_the_seller_text(session, monkeypatch):

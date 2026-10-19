@@ -43,10 +43,14 @@ def test_dashboard_is_never_deployed() -> None:
     assert "apps/dashboard" not in source
 
 
-def test_dashboard_keeps_ci_coverage() -> None:
-    """AC: type-checking and tests still run in CI — development-only, not deleted."""
+def test_dashboard_is_deleted_and_not_in_ci() -> None:
+    """#842 kept the retired dashboard under CI; fast-track P53 (C1) deleted it.
+
+    Neither the app nor a CI job for it may come back.
+    """
+    assert not (REPO_ROOT / "apps" / "dashboard").exists()
     workflow = PR_WORKFLOW.read_text(encoding="utf-8")
-    assert "apps/dashboard/**" in workflow
+    assert "apps/dashboard" not in workflow
 
 
 def test_uptime_monitoring_covers_landing_once_live() -> None:

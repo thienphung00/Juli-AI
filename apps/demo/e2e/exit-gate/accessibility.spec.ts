@@ -1,10 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-import { PRIORITY_WORKFLOW } from "../fixtures/workflow-keys";
-import {
-  advanceReviewToApproveStage,
-} from "../helpers/workflow-journey";
 
 const MIN_TOUCH_TARGET_PX = 44;
 
@@ -60,15 +56,6 @@ test.describe("Phase 2.6 exit gate — accessibility", () => {
     }
 
     throw new Error("Could not keyboard-focus Duyệt on the first card");
-  });
-
-  test("review stages advance through Tiếp theo to final Duyệt", async ({
-    page,
-  }) => {
-    // P11: the fixture review route is no longer linked from the signed-out
-    // /decisions (the P10 sample); it is opened directly.
-    await page.goto(`/decisions/recommendations/${PRIORITY_WORKFLOW.workflowKey}`);
-    await advanceReviewToApproveStage(page);
   });
 
   test("respects prefers-reduced-motion: the sample cards render and expand", async ({

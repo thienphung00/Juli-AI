@@ -160,16 +160,19 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
     const consent = await screen.findByTestId("consent-block");
     expect(screen.getByTestId("run-timeline")).toBeInTheDocument();
     await userEvent.click(within(consent).getByRole("button", { name: "✎ Sửa nội dung trước khi áp dụng" }));
-    const title = screen.getByLabelText("Tiêu đề (bạn sửa)");
-    await userEvent.clear(title);
-    await userEvent.type(title, "Son môi lì số 12 — màu đỏ ruby");
+    // D22 / D32: SM-012 is a CTOR card, so Juli proposes the description only.
+    expect(screen.queryByLabelText("Tiêu đề (bạn sửa)")).toBeNull();
+    const description = screen.getByLabelText("Mô tả (bạn sửa)");
+    await userEvent.clear(description);
+    await userEvent.type(description, "Son lì đỏ ruby, giữ màu 8 giờ.");
     await userEvent.click(screen.getByRole("button", { name: "Lưu bản sửa" }));
     await userEvent.click(within(consent).getByRole("button", { name: "Xác nhận thay đổi này" }));
     await waitFor(() => expect(screen.getByTestId("run-timeline")).toHaveTextContent("Phiên bản mới đã được duyệt"));
     expect(screen.getByTestId("run-timeline")).toHaveTextContent("theo bản bạn sửa");
     const run = clients.snapshotRuns().find((item) => item.product_name === "Son môi số 12")!;
     const changes = await clients.fetchChanges({ token: "", shopId: "" }, run.id);
-    expect(changes.changes.find((change) => change.field === "title")?.after).toBe("Son môi lì số 12 — màu đỏ ruby");
+    expect(changes.changes.map((change) => change.field)).toEqual(["description"]);
+    expect(changes.changes[0]?.after).toBe("Son lì đỏ ruby, giữ màu 8 giờ.");
   });
 
   it("cover image: the upload passes the checks locally and reaches the consent", async () => {
@@ -204,6 +207,8 @@ describe("signed-out Quyết định (Bản minh họa)", () => {
     const panel = await screen.findByTestId("measure-panel");
     await waitFor(() => expect(panel).toHaveTextContent(SAMPLE_APPLIED_CARD.name));
     await waitFor(() => expect(screen.getByRole("tab", { name: "Ngày 7 · kiểm tra" })).toHaveAttribute("aria-selected", "true"));
-    expect(screen.getByTestId("measure-target")).toContainHTML("9.613 – 10.207");
+    // D60.1: a title change targets CTR on Thẻ sản phẩm; the guard bands are all-channel.
+    expect(screen.getByTestId("measure-target")).toHaveTextContent("Chỉ số mục tiêu · CTR · đo trên kênh Thẻ sản phẩm");
+    expect(screen.getByTestId("measure-target")).toContainHTML("3.376 – 3.584");
   });
 });

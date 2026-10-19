@@ -36,7 +36,7 @@ TikTok không công bố một mức CTOR chuẩn. Mốc so sánh có ý nghĩa 
 
 - **Chính sản phẩm đó ở kỳ trước**: 28 ngày gần nhất với 28 ngày trước đó, cộng tổng lượt nhấp và đơn hàng SKU của cả kỳ rồi mới chia.
 - **Các sản phẩm khác của shop trên cùng nguồn**: CTOR bằng một nửa các sản phẩm cùng ngành trong shop là tín hiệu rõ hơn mọi ngưỡng chung.
-- **Đủ dữ liệu**: với vài chục lượt nhấp, một hai đơn đã làm CTOR nhảy mạnh. Đợi ít nhất khoảng 30 lượt nhấp mỗi kỳ.
+- **Đủ dữ liệu**: với vài chục lượt nhấp, một hai đơn đã làm CTOR nhảy mạnh. Chờ đến khi lượt nhấp đủ nhiều để không bị nhiễu, hoặc gộp một khoảng thời gian dài hơn.
 
 ## Xem video, LIVE khác với bấm vào sản phẩm
 
@@ -142,11 +142,11 @@ Mỗi tuần một lần, mở trang Lưu lượng truy cập sản phẩm trong
 
 Rồi làm ba việc theo thứ tự:
 
-1. **Xếp sản phẩm theo số đơn có thể đang mất.** Lấy CTOR trung bình của các sản phẩm khác trên cùng nguồn, trừ đi CTOR của sản phẩm, nhân với lượt nhấp của nó. Ví dụ giả định: 600 lượt nhấp, CTOR 2 % trong khi các sản phẩm khác đạt 4 %, tức khoảng 12 đơn trong 28 ngày. Sản phẩm nhiều lượt nhấp mà CTOR thấp đứng đầu danh sách, không phải sản phẩm có CTOR thấp nhất.
+1. **Đưa sản phẩm nhiều lượt nhấp lên trước.** Một sản phẩm được bấm nhiều mà CTOR thấp hơn hẳn các sản phẩm khác cùng nguồn thường đang để lỡ nhiều đơn hơn một sản phẩm có CTOR thấp nhất nhưng ít ai bấm vào. Ví dụ giả định: sản phẩm có 600 lượt nhấp và CTOR 2 % đáng xem trước sản phẩm chỉ có 40 lượt nhấp và CTOR 1 %.
 2. **Ghi một nghi phạm cho mỗi sản phẩm đầu bảng**: trước giỏ hay sau giỏ, một nguồn hay mọi nguồn, theo các mục ở trên.
 3. **Chọn một sản phẩm, một thay đổi**, ghi ngày bắt đầu vào bảng, và chưa đụng đến sản phẩm đó cho đến ngày 14.
 
-Dòng dưới khoảng 30 lượt nhấp trong kỳ thì chưa kết luận. Cách tách GMV theo luồng có trong bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop), và [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv) cho ước tính GMV đổi ra sao khi CTOR đổi.
+Dòng nào còn quá ít lượt nhấp trong kỳ thì chưa kết luận. Cách tách GMV theo luồng có trong bài [GMV là gì](/blog/gmv-la-gi-tiktok-shop), và [công cụ tính GMV miễn phí](/cong-cu/tinh-gmv) cho ước tính GMV đổi ra sao khi CTOR đổi.
 
 ## Ghi nhớ nhanh
 

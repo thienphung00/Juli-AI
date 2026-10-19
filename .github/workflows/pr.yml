@@ -34,7 +34,7 @@ jobs:
       tier: ${{ steps.classify.outputs.tier }}
       # True when the main-tier run is reached via a feature/*-wave head on
       # the pull_request path (wave->main), which already ran
-      # lint/typecheck/frontend/demo-frontend per-issue at issue tier —
+      # lint/typecheck/demo-frontend/landing-frontend per-issue at issue tier —
       # avoids the CI double-run (#658 audit addendum). Scoped to
       # pull_request only: merge_group's head_ref is a synthetic
       # gh-readonly-queue/... ref that never matches feature/*-wave, so that
@@ -86,7 +86,6 @@ jobs:
     outputs:
       backend: ${{ steps.set-outputs.outputs.backend }}
       migrations: ${{ steps.set-outputs.outputs.migrations }}
-      dashboard: ${{ steps.set-outputs.outputs.dashboard }}
       demo: ${{ steps.set-outputs.outputs.demo }}
       landing: ${{ steps.set-outputs.outputs.landing }}
       agent: ${{ steps.set-outputs.outputs.agent }}
@@ -148,8 +147,6 @@ jobs:
               - 'backend/**/migrations/**'
               - 'alembic.ini'
               - 'alembic/**'
-            dashboard:
-              - 'apps/dashboard/**'
             demo:
               - 'apps/demo/**'
               - 'packages/ui/**'
@@ -198,18 +195,17 @@ jobs:
             if [[ "$TIER" == "main" ]]; then
               # Wave->main remains the full, path-aware checkpoint (#658):
               # every domain runs regardless of what the wave push touched.
-              for key in backend migrations dashboard demo landing agent infra; do
+              for key in backend migrations demo landing agent infra; do
                 echo "${key}=true"
               done
             elif [[ "$TIER" == "wave" && "$WAVE_FALLBACK" == "true" ]]; then
               # Documented bounded fallback: unresolvable before SHA.
-              for key in backend migrations dashboard demo landing agent infra; do
+              for key in backend migrations demo landing agent infra; do
                 echo "${key}=true"
               done
             elif [[ "$TIER" == "wave" ]]; then
               echo "backend=${{ steps.filter-wave.outputs.backend }}"
               echo "migrations=${{ steps.filter-wave.outputs.migrations }}"
-              echo "dashboard=${{ steps.filter-wave.outputs.dashboard }}"
               echo "demo=${{ steps.filter-wave.outputs.demo }}"
               echo "landing=${{ steps.filter-wave.outputs.landing }}"
               echo "agent=${{ steps.filter-wave.outputs.agent }}"
@@ -217,7 +213,6 @@ jobs:
             else
               echo "backend=${{ steps.filter.outputs.backend }}"
               echo "migrations=${{ steps.filter.outputs.migrations }}"
-              echo "dashboard=${{ steps.filter.outputs.dashboard }}"
               echo "demo=${{ steps.filter.outputs.demo }}"
               echo "landing=${{ steps.filter.outputs.landing }}"
               echo "agent=${{ steps.filter.outputs.agent }}"
@@ -692,41 +687,6 @@ jobs:
           -v
           --tb=short
           -k "isolation_proof"
-
-  frontend:
-    runs-on: ubuntu-latest
-    needs: [classify-tier, changes]
-    # #1437: also runs at 'wave' tier and on the wave->main path. A wave
-    # assembled by local merges never passed through issue tier, so
-    # main_via_wave is no longer evidence that eslint/tsc/jest already ran.
-    if: >-
-      (needs.classify-tier.outputs.tier == 'issue'
-      || needs.classify-tier.outputs.tier == 'wave'
-      || needs.classify-tier.outputs.tier == 'main')
-      && needs.changes.outputs.dashboard == 'true'
-    defaults:
-      run:
-        working-directory: apps/dashboard
-    # Build-time env matches infra/scripts/env/web.env.example (App Review deploy) —
-    # NEXT_PUBLIC_* values are baked into the bundle at build time.
-    env:
-      NEXT_PUBLIC_API_URL: https://api.app-juli.com
-      NEXT_PUBLIC_UI_ONLY: "1"
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: apps/dashboard/package-lock.json
-      - name: Install and test
-        run: |
-          npm ci
-          npm run lint
-          npm run type-check
-          npm run test
-      - name: Production build
-        run: npm run build
 
   demo-frontend:
     runs-on: ubuntu-latest
@@ -1223,13 +1183,12 @@ jobs:
     # CI-WAVE-3 (#661): main tier stays the full checkpoint (always runs);
     # wave-tier pushes are domain-matched like integration/architecture/
     # cross-module — only when the push range touched a dependency-graph
-    # domain (backend/dashboard/demo), so agent/docs-only wave pushes stay
+    # domain (backend/demo), so agent/docs-only wave pushes stay
     # cheap. status-check allows this job to be "skipped" on wave tier.
     if: >-
       needs.classify-tier.outputs.tier == 'main'
       || (needs.classify-tier.outputs.tier == 'wave'
           && (needs.changes.outputs.backend == 'true'
-              || needs.changes.outputs.dashboard == 'true'
               || needs.changes.outputs.demo == 'true'))
     steps:
       - uses: actions/checkout@v7
@@ -1251,9 +1210,6 @@ jobs:
           pip check
       - name: Validate pnpm lock graph
         run: pnpm install --frozen-lockfile --filter @juli/demo...
-      - name: Validate dashboard npm lock
-        working-directory: apps/dashboard
-        run: npm ci --ignore-scripts
 
   cross-module-contracts:
     runs-on: ubuntu-latest
@@ -1484,7 +1440,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - classify-tier
-      - frontend
       - demo-frontend
       - landing-frontend
       - demo-deploy-contracts
@@ -1492,14 +1447,13 @@ jobs:
     steps:
       - name: Require production builds and deploy contracts
         env:
-          DASHBOARD_RESULT: ${{ needs.frontend.result }}
           DEMO_RESULT: ${{ needs.demo-frontend.result }}
           LANDING_RESULT: ${{ needs.landing-frontend.result }}
           DEPLOY_CONTRACT_RESULT: ${{ needs.demo-deploy-contracts.result }}
         run: |
-          # frontend/demo-frontend may report "skipped" here on wave->main
+          # demo-frontend/landing-frontend may report "skipped" here on wave->main
           # (main_via_wave) — they already ran per issue at issue tier.
-          for result in "$DASHBOARD_RESULT" "$DEMO_RESULT" "$LANDING_RESULT"; do
+          for result in "$DEMO_RESULT" "$LANDING_RESULT"; do
             [[ "$result" == "success" || "$result" == "skipped" ]] || {
               echo "deployment readiness dependency: $result"
               exit 1
@@ -1532,7 +1486,6 @@ jobs:
       - performance-smoke
       - migration-check
       - two-tenant-isolation-proof
-      - frontend
       - demo-frontend
       - landing-frontend
       - demo-deploy-contracts
@@ -1565,7 +1518,6 @@ jobs:
           perf="${{ needs.performance-smoke.result }}"
           mig="${{ needs.migration-check.result }}"
           isolation_proof="${{ needs.two-tenant-isolation-proof.result }}"
-          fe="${{ needs.frontend.result }}"
           demo="${{ needs.demo-frontend.result }}"
           landing="${{ needs.landing-frontend.result }}"
           demo_deploy="${{ needs.demo-deploy-contracts.result }}"
@@ -1578,7 +1530,6 @@ jobs:
           security="${{ needs.security-scan.result }}"
           deployment="${{ needs.deployment-checks.result }}"
           main_via_wave="${{ needs.classify-tier.outputs.main_via_wave }}"
-          dashboard_changed="${{ needs.changes.outputs.dashboard }}"
           demo_changed="${{ needs.changes.outputs.demo }}"
           landing_changed="${{ needs.changes.outputs.landing }}"
 
@@ -1608,7 +1559,6 @@ jobs:
             require "lint" "$lint" "true"
             require "typecheck" "$typecheck" "true"
             require "test" "$test" "true"
-            require "frontend" "$fe" "true"
             require "demo-frontend" "$demo" "true"
             require "landing-frontend" "$landing" "true"
             require "policy-checks" "$policy" "false"
@@ -1627,7 +1577,7 @@ jobs:
             require "architecture-gates" "$arch" "true"
           elif [[ "$tier" == "main" ]]; then
             # merge_group requires success for the same main-tier gates.
-            # lint/typecheck/frontend/demo-frontend allow "skipped": when
+            # lint/typecheck/demo-frontend/landing-frontend allow "skipped": when
             # reached via wave->main (main_via_wave) they already ran per
             # issue at issue tier — no CI double-run (#658 audit addendum).
             require "lint" "$lint" "true"
@@ -1639,7 +1589,6 @@ jobs:
             require "full-regression" "$regression" "false"
             require "migration-check" "$mig" "false"
             require "two-tenant-isolation-proof" "$isolation_proof" "false"
-            require "frontend" "$fe" "true"
             require "demo-frontend" "$demo" "true"
             require "landing-frontend" "$landing" "true"
             # #1437: main_via_wave means this main-tier run came from a wave
@@ -1648,7 +1597,6 @@ jobs:
             # it is zero eslint, tsc and jest. Fail closed for any frontend
             # domain the wave actually changed.
             if [[ "$main_via_wave" == "true" ]]; then
-              require_ran "frontend" "$fe" "$dashboard_changed"
               require_ran "demo-frontend" "$demo" "$demo_changed"
               require_ran "landing-frontend" "$landing" "$landing_changed"
             fi

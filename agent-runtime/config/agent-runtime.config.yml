@@ -47,8 +47,8 @@ routing:
       - backend/src/juli_backend/workers/services/polling
       - infra/scripts/run-analytics-backfill.sh
     ui-ux:
-      - apps/dashboard
       - apps/demo
+      - apps/landing
       - packages/ui
       - packages/theme
       - packages/utils
@@ -76,7 +76,7 @@ routing:
         - docs/product/design/soul.md
         - docs/architecture/MODULES.md
         - docs/architecture/map.md
-      note: Demo/UI library tasks use packages/* and design soul — not apps/dashboard product code
+      note: Demo/UI library tasks use packages/* and design soul (apps/dashboard was deleted in fast-track P53)
     data-platform:
       related_paths:
         - backend/src/juli_backend/database

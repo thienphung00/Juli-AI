@@ -5,6 +5,7 @@ Each pointer carries Claude-native frontmatter (name + description) so Claude Co
 discover and route the skill, then defers to the .cursor body. Re-runnable: rewrites
 pointers in place. Bodies are never copied.
 """
+
 from __future__ import annotations
 
 import re
@@ -47,36 +48,93 @@ harness should be changed to match the other here.
 
 # phase -> which agent(s) may load the skill; extra -> appended contract lines.
 PHASE = {
-    "focus": ("All phases — router", "Run this **first** on every non-trivial task. Emit a Context Plan with an explicit *DO NOT load* list before touching anything else."),
+    "focus": (
+        "All phases — router",
+        "Run this **first** on every non-trivial task. Emit a Context Plan with an explicit *DO NOT load* list before touching anything else.",
+    ),
     "skill-catalog": ("Architect / Meta — external tooling router", CATALOG_EXTRA),
-    "grill-with-docs": ("Planning (Architect)", "One question at a time, each with a recommended answer. Update `CONTEXT.md` and ADRs inline as decisions crystallise."),
+    "grill-with-docs": (
+        "Planning (Architect)",
+        "One question at a time, each with a recommended answer. Update `CONTEXT.md` and ADRs inline as decisions crystallise.",
+    ),
     "to-prd": ("Planning (Architect)", None),
-    "to-issues": ("Planning (Architect)", "Tracer-bullet vertical slices. Record child slice IDs in `agent-runtime/config/agent-runtime.config.yml` `epicRegistry` when opening a new epic."),
+    "to-issues": (
+        "Planning (Architect)",
+        "Tracer-bullet vertical slices. Record child slice IDs in `agent-runtime/config/agent-runtime.config.yml` `epicRegistry` when opening a new epic.",
+    ),
     "domain-modeling": ("Planning (Architect)", None),
     "codebase-design": ("Planning (Architect) / ad-hoc", None),
     "improve-codebase-architecture": ("Ad-hoc — explore → report → grill → execute", None),
-    "restructure": ("Ad-hoc", "Mechanical moves only, when the target structure is already decided. The same tests must pass before and after every issue."),
-    "api-docs": ("Planning / Implementation", "Pair with the Context7 **CLI** (`npx ctx7@latest`) when SDK references are needed — Context7 is not an MCP in this repo."),
-    "platform-docs": ("Planning", "Uses WebFetch against vendor University/policy pages. Context7 CLI only for partner SDK docs."),
-    "prompt-caching": ("Meta", "Governs the two-tier workflow prompt cache. Meta owns it; Executors consume the injected blocks and must not rewrite them."),
+    "restructure": (
+        "Ad-hoc",
+        "Mechanical moves only, when the target structure is already decided. The same tests must pass before and after every issue.",
+    ),
+    "api-docs": (
+        "Planning / Implementation",
+        "Pair with the Context7 **CLI** (`npx ctx7@latest`) when SDK references are needed — Context7 is not an MCP in this repo.",
+    ),
+    "platform-docs": (
+        "Planning",
+        "Uses WebFetch against vendor University/policy pages. Context7 CLI only for partner SDK docs.",
+    ),
+    "prompt-caching": (
+        "Meta",
+        "Governs the two-tier workflow prompt cache. Meta owns it; Executors consume the injected blocks and must not rewrite them.",
+    ),
     "handoff": ("Any phase — session boundary", None),
     "qa": ("Ad-hoc / Implementation intake", None),
     "diagnose": ("Implementation", None),
     "ui-bug": ("Planning intake (UI defects)", None),
     "screenshot-annotate": ("Internal — invoked by `ui-bug` only", None),
     "extract-design-md": ("Ad-hoc (design system extraction)", None),
-    "open-design-system": ("Planning / Meta — design reference", "Upstream of `ui-ux-design` per ADR-043. Uses the `open-design` MCP, reference-only. **Executor agents have no MCP tools** — design references are gathered before the Executor starts."),
-    "ui-ux-design": ("Implementation (ui-ux executor)", "Read ADR-028 `dictionary.md` and `docs/product/design/` soul + ux_principles before writing components."),
-    "intent-review": ("Review", "First step of Review. Emits the intent-review artifact that `guardrails` must consume — do not skip to guardrails."),
-    "guardrails": ("Review", "Consumes the intent-review artifact and emits the ADR-003 review artifact."),
-    "validate": ("Review", "Runs every `agent-runtime/scripts/validate/*.py` gate and emits `agent-runtime/artifacts/validation/validation-issue-<n>.json`. Deterministic — do not summarise gate output, run the gates."),
-    "ship": ("Review — ship-ready", "Prepares and validates; never deploys directly. Merge Queue is primary, sync-before-merge is the fallback only."),
-    "write-a-skill": ("Ad-hoc — requires explicit user request", "Skills governance: never scaffold a skill for convenience. When a new Cursor skill is approved, add its `.claude/skills/` pointer in the same change."),
-    "backend-executor": ("Implementation (Executor)", "Juli product logic and `/v1/*` FastAPI. **Not** vendor I/O (that is `integrations-executor`) and not schema/ETL durability (that is `data-platform-executor`)."),
-    "ui-ux-executor": ("Implementation (Executor)", "Web and iOS UI: `apps/dashboard`, `apps/demo`, `ios/`, `packages/*`."),
-    "data-platform-executor": ("Implementation (Executor)", "Postgres schema, Alembic migrations, repositories, ETL consumer durability."),
-    "machine-learning-executor": ("Implementation (Executor)", "Work under `backend/src/juli_backend/ai/` and model promotion paths."),
-    "integrations-executor": ("Implementation (Executor)", "Vendor clients, webhooks, polling/sync, analytics backfill — platform-agnostic commerce I/O."),
+    "open-design-system": (
+        "Planning / Meta — design reference",
+        "Upstream of `ui-ux-design` per ADR-043. Uses the `open-design` MCP, reference-only. **Executor agents have no MCP tools** — design references are gathered before the Executor starts.",
+    ),
+    "ui-ux-design": (
+        "Implementation (ui-ux executor)",
+        "Read ADR-028 `dictionary.md` and `docs/product/design/` soul + ux_principles before writing components.",
+    ),
+    "intent-review": (
+        "Review",
+        "First step of Review. Emits the intent-review artifact that `guardrails` must consume — do not skip to guardrails.",
+    ),
+    "guardrails": (
+        "Review",
+        "Consumes the intent-review artifact and emits the ADR-003 review artifact.",
+    ),
+    "validate": (
+        "Review",
+        "Runs every `agent-runtime/scripts/validate/*.py` gate and emits `agent-runtime/artifacts/validation/validation-issue-<n>.json`. Deterministic — do not summarise gate output, run the gates.",
+    ),
+    "ship": (
+        "Review — ship-ready",
+        "Prepares and validates; never deploys directly. Merge Queue is primary, sync-before-merge is the fallback only.",
+    ),
+    "write-a-skill": (
+        "Ad-hoc — requires explicit user request",
+        "Skills governance: never scaffold a skill for convenience. When a new Cursor skill is approved, add its `.claude/skills/` pointer in the same change.",
+    ),
+    "backend-executor": (
+        "Implementation (Executor)",
+        "Juli product logic and `/v1/*` FastAPI. **Not** vendor I/O (that is `integrations-executor`) and not schema/ETL durability (that is `data-platform-executor`).",
+    ),
+    "ui-ux-executor": (
+        "Implementation (Executor)",
+        "Web and iOS UI: `apps/demo`, `apps/landing`, `ios/`, `packages/*`.",
+    ),
+    "data-platform-executor": (
+        "Implementation (Executor)",
+        "Postgres schema, Alembic migrations, repositories, ETL consumer durability.",
+    ),
+    "machine-learning-executor": (
+        "Implementation (Executor)",
+        "Work under `backend/src/juli_backend/ai/` and model promotion paths.",
+    ),
+    "integrations-executor": (
+        "Implementation (Executor)",
+        "Vendor clients, webhooks, polling/sync, analytics backfill — platform-agnostic commerce I/O.",
+    ),
 }
 
 INTERNAL = {"screenshot-annotate"}
@@ -132,7 +190,8 @@ def main() -> int:
 
         rel = src.relative_to(REPO)
         siblings = sorted(
-            p.name for p in src.parent.iterdir()
+            p.name
+            for p in src.parent.iterdir()
             if p.is_file() and p.name not in {"SKILL.md", ".DS_Store"}
         )
         phase, extra = PHASE.get(name, ("Focus-selected", None))
@@ -158,7 +217,11 @@ def main() -> int:
         ]
 
         if siblings:
-            lines += ["", "**Bundled resources** in the same directory (load only when the body says to):", ""]
+            lines += [
+                "",
+                "**Bundled resources** in the same directory (load only when the body says to):",
+                "",
+            ]
             lines += [f"- [`{s}`](../../../{rel.parent}/{s})" for s in siblings]
 
         if extra:

@@ -219,7 +219,7 @@ export function ContentRunPanel(props: ContentRunPanelProps) {
           <ReasonDone
             lines={[
               "Không có gì được ghi lên TikTok Shop.",
-              "Thẻ không quay lại Đề xuất ngay. Juli có thể đề xuất lại kịch bản cho sản phẩm này sau 7 ngày.",
+              "Thẻ không quay lại Đề xuất ngay. Juli có thể đề xuất lại kịch bản cho sản phẩm này sau.",
             ]}
             reason={reasonOption(DECLINE_REASONS, declinedReason)}
             title="Hoàn thành · không thực hiện thay đổi"

@@ -10,10 +10,12 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import select
@@ -170,7 +172,9 @@ async def test_drafting_refuses_with_the_seller_pause_text(session):
     shop = await _over_system_cap(session)
     gate = await draft_gate_for(session, shop.id)
     assert gate.system_cap_reached and not gate.cap_reached
-    code, event, text = gate.refusal()  # type: ignore[misc]
+    refusal = gate.refusal()
+    assert refusal is not None
+    code, event, text = refusal
     assert code == "system_cap_reached" and event == "ops_openai_system_cap_reached"
     assert text == (
         "Juli tạm dừng soạn nội dung mới. Thẻ đề xuất và các bước bạn tự làm vẫn dùng bình thường."
@@ -217,7 +221,7 @@ async def test_cards_are_still_emitted_over_the_system_cap(session, monkeypatch)
         signals = _Signals()
 
     with pytest.raises(_Planned):
-        await persist.emit_scoring_cards(session, shop.id, _Result())  # type: ignore[arg-type]
+        await persist.emit_scoring_cards(session, shop.id, cast(Any, _Result()))
 
 
 # -- the 80 % e-mail ----------------------------------------------------------------------------
@@ -295,7 +299,7 @@ async def test_without_smtp_the_alert_is_logged_unsent_and_not_marked(session, c
 
 
 async def test_the_alert_task_is_scheduled_hourly():
-    import juli_backend.workers.tasks  # noqa: F401 - registers the tasks
+    importlib.import_module("juli_backend.workers.tasks")  # registers the tasks
     from juli_backend.workers.celery_app import celery_app
 
     entry = celery_app.conf.beat_schedule["ops-openai-system-alert"]

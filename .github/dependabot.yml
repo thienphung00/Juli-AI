@@ -11,16 +11,6 @@ updates:
       - dependencies
       - backend
 
-  # Frontend — apps/dashboard/package.json
-  - package-ecosystem: npm
-    directory: /apps/dashboard
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
-    labels:
-      - dependencies
-      - frontend
-
   # GitHub Actions workflow pinning
   - package-ecosystem: github-actions
     directory: "/"

@@ -285,13 +285,13 @@ const DIAGRAMS = [
     },
   },
   {
-    name: "doc-pheu-o-dau-v2",
+    name: "doc-pheu-o-dau-v3",
     html: () => {
       const path = ["Trung tâm nhà bán hàng", "La bàn dữ liệu", "Số liệu phân tích sản phẩm", "Lưu lượng truy cập sản phẩm"];
       const rules = [
         ["Chọn luồng", "Đọc Thẻ sản phẩm trước: không có người dẫn LIVE hay nhà sáng tạo bán hộ."],
         ["Chọn khoảng thời gian", "Ít nhất 14 ngày, tốt hơn 28 hoặc 30 ngày. Cộng tổng cả kỳ rồi mới chia ra tỷ lệ."],
-        ["Đủ dữ liệu chưa", "Tự đặt một ngưỡng và giữ nguyên. Ví dụ: CTR từ 50 lượt hiển thị mỗi ngày, CTOR từ 20 lượt nhấp mỗi ngày."],
+        ["Đủ dữ liệu chưa", "Chỉ đọc tỷ lệ khi số liệu đủ nhiều để không bị nhiễu, và giữ cùng một cách đọc cho mọi lần so sánh."],
       ];
       return `${head("Phễu của từng sản phẩm nằm ở đâu", true)}
 <div class="path">${path
@@ -301,7 +301,7 @@ const DIAGRAMS = [
 <div class="grid3">${rules
         .map(([t, d], i) => `<div class="box col">${num(i + 1)}<strong>${t}</strong><span class="desc">${d}</span></div>`)
         .join("")}</div>
-<p class="note">Ngưỡng ở mục 3 là quy tắc bạn tự đặt, không phải quy định của TikTok. Dưới ngưỡng, ghi “chưa đủ dữ liệu”: vấn đề thường nằm ở Lượt hiển thị.</p>`;
+<p class="note">TikTok không đưa ra ngưỡng chính thức cho mục 3. Khi số liệu còn quá ít, ghi “chưa đủ dữ liệu”: vấn đề thường nằm ở Lượt hiển thị.</p>`;
     },
   },
   {
@@ -1113,7 +1113,7 @@ const DIAGRAMS = [
     },
   },
   {
-    name: "do-doc-sai-doc-dung-v1",
+    name: "do-doc-sai-doc-dung-v2",
     html: () => {
       const before = [4, 3, 5, 4, 6, 3, 4, 5, 3, 4, 6, 4, 3, 4];
       const after = [5, 3, 6, 4, 5, 6, 4, 5, 6, 4, 5, 7, 4, 5];
@@ -1132,18 +1132,18 @@ const DIAGRAMS = [
 <div class="dlabels"><span>14 ngày trước: trung bình 4,1 đơn mỗi ngày</span><span>14 ngày sau: trung bình 4,9 đơn mỗi ngày</span></div>
 <div class="grid2">
   <div class="box half"><span class="label">Đọc sai</span><strong>“Ngày 2 có 3 đơn, ngày 3 có 6 đơn: tăng gấp đôi”</strong><span class="desc">Hai ngày lẻ nằm trong dao động thường ngày của sản phẩm.</span></div>
-  <div class="box half box--accent"><span class="label">Đọc đúng</span><strong>Tăng 0,8 đơn mỗi ngày, mức dao động khoảng 0,5 đơn</strong><span class="desc">Gấp khoảng 1,5 lần mức dao động: có thể đã thay đổi, chưa chắc chắn.</span></div>
+  <div class="box half box--accent"><span class="label">Đọc đúng</span><strong>Tăng 0,8 đơn mỗi ngày, so hai trung bình 14 ngày</strong><span class="desc">Chưa vượt hẳn dao động thường ngày của sản phẩm: có thể đã thay đổi, chưa chắc chắn.</span></div>
 </div>`;
     },
   },
   {
-    name: "do-ba-ket-qua-v2",
+    name: "do-ba-ket-qua-v3",
     html: () => {
       const cards = [
-        ["Giữ thay đổi", "Sản phẩm A", "2,0 % → 2,6 %", "Chạm mức mong đợi 2,5 %", "Gấp 2,4 lần mức dao động: rõ", "GMV giữ được", true],
-        ["Giữ, đo thêm 14 ngày", "Sản phẩm B", "2,0 % → 2,5 %", "Chạm mức mong đợi 2,5 %", "Gấp 1,4 lần mức dao động: có thể", "GMV giữ được"],
-        ["Giữ, sửa tiếp cùng hướng", "Sản phẩm C", "2,0 % → 2,3 %", "Chưa chạm mức mong đợi 2,5 %", "Gấp 2,1 lần mức dao động: rõ", "GMV giữ được"],
-        ["Quay lại bản cũ", "Sản phẩm D", "2,0 % → 2,1 %", "Chưa chạm mức mong đợi 2,5 %", "Gấp 0,6 lần mức dao động: trong dao động", "GMV giữ được"],
+        ["Giữ thay đổi", "Sản phẩm A", "2,0 % → 2,6 %", "Chạm mức mong đợi 2,5 %", "Vượt hẳn mức dao động: rõ", "GMV giữ được", true],
+        ["Giữ, đo thêm 14 ngày", "Sản phẩm B", "2,0 % → 2,5 %", "Chạm mức mong đợi 2,5 %", "Chỉ nhỉnh hơn dao động: có thể", "GMV giữ được"],
+        ["Giữ, sửa tiếp cùng hướng", "Sản phẩm C", "2,0 % → 2,3 %", "Chưa chạm mức mong đợi 2,5 %", "Vượt hẳn mức dao động: rõ", "GMV giữ được"],
+        ["Quay lại bản cũ", "Sản phẩm D", "2,0 % → 2,1 %", "Chưa chạm mức mong đợi 2,5 %", "Nằm trong mức dao động", "GMV giữ được"],
       ];
       return `${head("Bốn kết quả ngày 14, cùng chỉ số mục tiêu CTR Thẻ sản phẩm", true)}
 <div class="grid2">${cards

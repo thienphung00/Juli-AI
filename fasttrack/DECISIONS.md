@@ -3,451 +3,37 @@
 From the grilling session of 2026-10-05 (owner + Claude). New decisions get the
 next number. Mark owner-unconfirmed ones as PROPOSED.
 
-## G1 — the fast track itself
+> Decisions D1–D27 (G1–G4, the defaults taken, and D20–D27, recorded 2026-10-05 to 2026-10-11) are in [`archive/DECISIONS-pre-2026-10-12.md`](archive/DECISIONS-pre-2026-10-12.md), moved verbatim (P53 / D62). They still apply unless amended below. Index (the first line of each):
 
-- **D1** — The fast track is a long-running branch (`fasttrack/optimize-product`)
-  in `thienphung00/Juli-AI`, not a separate repo.
-- **D2** — `main` is frozen while the fast track runs. Production deploys from
-  this branch through a manual workflow. The branch merges back into `main` once,
-  at the end. One migration chain, one production target.
-- **D3** — Freeze point: #2079 merged; #2077 parked (cherry-pick if needed);
-  Dependabot paused and its open PRs closed; branch cut from that `main` commit
-  (`0332c405`).
-
-## G2 — gates
-
-- **D4** — Direct work: no PRDs, issues, slices, Executor/Review artifacts,
-  validators or ADRs on this branch. The `fasttrack/` folder holds spec, ACs,
-  progress, decisions, log and debt. `.claude` edit hooks and the executor-cache
-  pre-commit gate are off on this branch.
-- **D8** — Pre-deploy check (`fasttrack/check.sh`, run by the manual deploy):
-  1. **Database backup. If it fails or can't be verified, the deploy stops
-     before any migration runs.**
-  2. Migration check: `alembic upgrade head` on a throwaway Postgres.
-  3. Shop-isolation (RLS / two-tenant) tests.
-  4. gitleaks.
-  5. ruff + pytest on files touched since the last deploy.
-  Everything else in `pr.yml` / `release.yml` is cut for this branch.
-
-## G4 — the workflow
-
-- **D6** — On Fujiwa, the model's score and recommendation are visible before
-  approval. Approval stays manual.
-- **D7** — A shop connecting triggers data collection automatically. Every
-  connected shop is polled on a schedule. Manual refresh is no longer how data
-  arrives.
-- **D9** — Poll speed-ups:
-  1. Split cadence by data type: orders/returns/inventory/products incremental
-     every 15 min (webhooks are primary); analytics once a day when TikTok's
-     `latest_available_date` advances.
-  2. Backfill analytics by date range (one product-detail call returns daily
-     intervals over a range).
-  3. Run per-product / per-SKU detail calls in parallel up to the rate limit.
-  4. One task per shop per cycle.
-- **D10** — Two-phase backfill on connect:
-  - **Fast phase** (high priority, right after connect): 30 days of analytics +
-    recent orders/products/returns/inventory. Only job: the first
-    recommendation.
-  - **History phase** (low priority, queued after): as far back as TikTok
-    allows, chunked, rate-limited. Training only. Never blocks the first card.
-- **D11** — Scoring runs once when the fast backfill finishes, then once a day
-  after the analytics pass, plus a webhook re-check that only suspends or
-  withdraws affected cards (no re-score).
-- **D12** — Optimize Product pipeline:
-  1. Score the whole catalog. 2. Rank → top-K products become cards.
-  3. Per-category scores per product (SEO, traffic, conversion, trust,
-  economics, operations). 4. Recommend specific changes for the weakest
-  changeable categories. 5. Execute on seller approval. 6. Measure at day 7 and
-  day 14 against the expected outcome; feed back into the model; new
-  recommendations at day 7 and day 14.
-- **D13** — v1 execution on the real shop:
-  - Executed: `update_product_listing` (title, description, attributes).
-  - Images: analysed and recommended; uploaded only when the seller supplies a
-    photo (`upload_product_image`).
-  - Price: recommendation only. `update_product_price` is switched off.
-  - Trust / operations: scores where data exists, "no data" otherwise, never
-    actions.
-  - Add competitor price (third-party data) and seller-entered product cost
-    (gross margin).
-- **D14** — Day 7 is a check-in: clearly worse than expected → recommend a
-  revert (executable immediately); otherwise show the next recommendation, but
-  it executes only after day 14. Day 14 is final and feeds the model.
-
-## G3 — the model
-
-- **D5** — Target: P(order | product, day) (orders per product per day), ranked
-  by value. Query- and customer-level inputs are out until such data exists.
-- **D15** — Priority = the largest expected **gross-profit gain** from a
-  changeable category over 14 days. The same computation yields the category
-  to fix and the expected outcome that day 7 / day 14 are measured against.
-- **D16** — Two linked models:
-  - **Market model** (FastMoss data, VN): sales speed vs price, rating,
-    listing age, creators, competitor context.
-  - **Shop model** (our TikTok API): LightGBM, orders per product-day, using
-    traffic/CTR/CVR/stock + market-model outputs.
-  - Expected gain per category = re-predict with the category's features set to
-    the shop's 75th percentile; × unit gross profit × 14 days.
-  - Calibration: per-category realised ÷ predicted ratio, starting at 0.5,
-    updated by day-14 readings.
-- **D17** — Quality bar: on a held-out last 14 days the model must beat the
-  "previous 14 days" baseline on per-product orders error, and its top-20 list
-  must hold up. Then live on Fujiwa, cards labelled "model v1, uncalibrated"
-  until 10 measured changes exist.
-- **D18** — No cost entered → rank by revenue gain. Cards carry a one-field
-  cost input; CSV upload for the catalog. Price recommendations only for
-  products with a cost.
-- **D19** — Competitor matching is automatic: FastMoss search (region=VN, l3
-  category, title keywords, ±50% price) → text + image similarity → LLM judge
-  (top 30) → keep 10–30. Low-confidence matches dropped. Seller can mark "not
-  comparable"; corrections train the judge.
-
-## Defaults taken (owner may overrule)
-
-- Optimize Product shows a top-10 ranked list with up to 5 active cards (raises
-  today's one-card limit).
-- Model retrains weekly and when new day-14 readings arrive.
-- Third-party data source: FastMoss REST API (`/product/v1/search`,
-  `/product/v1/salesTrend`, `/product/v1/reviewList`; optional
-  `/rank/topSelling`, `/rank/newListed`). MCP/CLI not used for the pipeline.
-- No in-house scraping of TikTok Shop (risk to Juli's TikTok Partner app).
+- **D1** — The fast track is a long-running branch (`fasttrack/optimize-product`) → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D2** — `main` is frozen while the fast track runs. Production deploys from → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D3** — Freeze point: #2079 merged; #2077 parked (cherry-pick if needed); → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D4** — Direct work: no PRDs, issues, slices, Executor/Review artifacts, → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D5** — Target: P(order | product, day) (orders per product per day), ranked → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D6** — On Fujiwa, the model's score and recommendation are visible before → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D7** — A shop connecting triggers data collection automatically. Every → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D8** — Pre-deploy check (`fasttrack/check.sh`, run by the manual deploy): → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D9** — Poll speed-ups: → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D10** — Two-phase backfill on connect: → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D11** — Scoring runs once when the fast backfill finishes, then once a day → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D12** — Optimize Product pipeline: → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D13** — v1 execution on the real shop: → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D14** — Day 7 is a check-in: clearly worse than expected → recommend a → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D15** — Priority = the largest expected **gross-profit gain** from a → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D16** — Two linked models: → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D17** — Quality bar: on a held-out last 14 days the model must beat the → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D18** — No cost entered → rank by revenue gain. Cards carry a one-field → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D19** — Competitor matching is automatic: FastMoss search (region=VN, l3 → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D20** — Production deploys from the fast track are triggered by pushing a → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D21** — The demo becomes the product (owner, 2026-10-08). demo.app-juli.com is → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D22** — Optimize Product recommends in three tiers; FastMoss is not a → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D23** — UI follows the sales demo video; decisions recorded in → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D24** — Recommendation pipeline for all four streams (owner grill, → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D25** — Internal console ("ops") for the Juli team (owner grill, → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D26** — Cards right after connecting: "quét nhanh" (owner, 2026-10-10). → [archive](archive/DECISIONS-pre-2026-10-12.md)
+- **D27** — Juli Ops: speed, confirmations, audit log (owner, 2026-10-11). → [archive](archive/DECISIONS-pre-2026-10-12.md)
 
 ## Later decisions
-
-- **D20** — Production deploys from the fast track are triggered by pushing a
-  `fasttrack-deploy-*` tag on a commit already on `fasttrack/optimize-product`
-  (2026-10-05). `workflow_dispatch` stays for use after the merge into `main`.
-
-- **D21** — The demo becomes the product (owner, 2026-10-08). demo.app-juli.com is
-  replaced by the fast-track app; it had no real data worth keeping.
-  - **Quyết định** (tab label restored; overrides #1910's "Hành động") shows the
-    shop's Optimize Product cards from the ADR-106 pipeline on real P1 data
-    (rule-based stage diagnosis) until the P3 model replaces the ranking.
-  - **Phân tích** shows the ADR-108 shop diagnosis report for the signed-in shop,
-    refreshed once a day; the report JSON (`shop_diagnosis` `report.json` shape)
-    is the API contract.
-  - UI follows `docs/product/design/ui_kits/app/index.html` + `colors_and_type.css`.
-  - The fast-track deploy builds and ships the demo lane itself (repays the
-    demo/landing block in DEBT).
-
-- **D22** — Optimize Product recommends in three tiers; FastMoss is not a
-  prerequisite for the model (owner, 2026-10-08). Amends D15–D17 and P2/P3.
-  1. **Diagnosis** — ADR-106 funnel-stage diagnosis per product (impressions →
-     clicks → add-to-cart → orders) against the shop's peers and the prior 30
-     days; the weak stage picks the lever. TikTok API data only.
-  2. **Ranking** — priority = recoverable GMV per day, built from TikTok's own
-     decomposition GMV = Lượt hiển thị sản phẩm × CTR × CTOR × AOV (SKU)
-     (TikTok Academy VN, "Lưu lượng truy cập sản phẩm": CTR = lượt nhấp ÷
-     lượt hiển thị; CTOR = đơn hàng SKU ÷ lượt nhấp; AOV (SKU) = GMV ÷ đơn
-     hàng SKU):
-     - CTR stage: impressions × (reference CTR − current CTR) × the product's
-       CTOR × AOV (SKU) — extra clicks only become GMV through CTOR.
-     - CTOR stage: clicks × (reference CTOR − current CTOR) × AOV (SKU).
-     Reference = peer median, else the product's own prior 30 days; daily
-     averages over the last 30 days. Cards say it is a rule-based estimate
-     until the model replaces it. (Amended 2026-10-08, owner: the first text
-     omitted CTOR at the CTR stage.)
-  3. **Learning** — every executed change is measured at day 7 / day 14
-     (ADR-077/106). Per-lever calibration (realised ÷ expected, starting at 0.5)
-     updates from day-14 readings; a learned uplift model only once enough
-     measured changes exist.
-  - **Model v1 (P3)** is the shop model only (LightGBM, orders per
-    product-day, TikTok features), used for ranking — not for counterfactual
-    "set category to P75" gains, which observational data cannot support.
-  - **FastMoss (P2)** becomes optional: competitor price (D13, D19) and
-    market/category context as a control. The market model (D16) waits for
-    multiple shops and cleaned FastMoss data.
-
-- **D23** — UI follows the sales demo video; decisions recorded in
-  [ADR-109](../docs/adr/109-demo-app-follows-the-sales-demo-video.md) at the
-  owner's request (an exception to D4's no-ADR rule) (owner, 2026-10-08).
-  Grill in progress; open points listed in the ADR.
-
-- **D24** — Recommendation pipeline for all four streams (owner grill,
-  2026-10-10). Principle: rules decide *what* and *how much*; the LLM only
-  writes content; the LLM never produces a number.
-  1. **No OpenAI call before the seller's first approval.** Producing and
-     ranking cards (nightly) is rules and arithmetic only; a card's text is a
-     template. The model is called only once the seller approves a card
-     (Phê duyệt), so unapproved proposals cost nothing.
-  2. **Rules choose the action** from the lever map (canvas "Đòn bẩy",
-     4 streams × metric) after the gates: enough data, TikTok eligibility,
-     the seller's rules, cooldown, no overlapping change in measurement.
-     Seller-facing term: **"Hành động"** (replaces "Đòn bẩy"/lever in UI copy).
-  3. **Card copy stays templated** (reason, expected GMV); LLM only in runs.
-  4. **Video and LIVE get "Juli soạn · bạn làm" cards**: video hook/script for
-     a product whose video CTR fell; LIVE host script / basket order for LIVE
-     CTOR. The seller films or goes live; Juli measures on the next
-     videos/sessions.
-  5. **Promotions stay seller-executed** (Seller Center, Juli verifies). Juli
-     proposes a discount only within the seller's margin rule (cost price or
-     minimum margin in Quy tắc) and against competitor prices (FastMoss, with
-     industry/market data); the promotion-create API is enabled only later.
-  6. **Learning now**: expected GMV × the lever's calibration coefficient
-     (currently written but unused); Từ chối / Hoàn tác reasons lower that
-     action's priority for the shop.
-  7. **Models**: `gpt-5.4-nano` for the tool loop; a stronger OpenAI model for
-     writing content (title, description, scripts), chosen by eval before it
-     is switched on. Estimate ≈ $0.02 per workflow, ≈ 1 workflow/shop/day at
-     most (≤ 5 product cards + ~3 content cards per week) → ≈ $0.6/shop/month;
-     to be replaced by measured `workflow_runs` cost.
-  8. **Customer vocabulary**: now a per-category vocabulary bank in the prompt
-     (TikTok SEO words, the shop's best-selling listings, buyer reviews with
-     buyer data removed, FastMoss). SFT later, per category, objective in this
-     order: *effective* (day-14 Đạt / Gần đạt) and *accepted* (seller kept or
-     edited it) — training examples must be both; seller-edited final text is
-     the target.
-  9. **Campaigns**: Juli also proposes TikTok platform campaigns (Chiến dịch
-     sàn: which products to register, at what discount within margin) and the
-     seller's own campaigns; research of the API and rules in progress.
-  10. **Campaign timing** (owner, 2026-10-10): a "Kế hoạch chiến dịch" card
-      ~14 days before each mega sale day, ~7 days before double days and
-      payday; Juli detects registration itself via `campaign_inventory`
-      (stock locked for a campaign); seller promotions become one
-      "Kế hoạch khuyến mãi" per product (one price layer — platform campaign >
-      flash sale > product discount — plus cart layer and one voucher), checked
-      against stacking rules and the margin floor.
-  11. **GMV Max on sale days**: Juli suggests turning on "Ngày khuyến mãi"
-      3–5 days before the event (Academy), ROI target ≥ break-even ROAS
-      (1 ÷ margin), budget from TikTok's `/gmv_max/bid/recommend/`; the seller
-      applies it. Juli writes ads settings only after the Business app is
-      approved and with per-change consent. No manual ROI edits on the day
-      (they forfeit ROI Protection). The agency's "0h–2h" practice is a
-      hypothesis: measured per shop from hourly shop GMV and GMV Max hourly
-      cost on the next sale day before Juli recommends it.
-  12. **ROI of promotions and campaigns** = (incremental GMV × margin −
-      seller-funded cost) ÷ seller-funded cost; platform-funded discounts are
-      not a cost; incremental GMV vs normal days and sibling controls
-      (ADR-077); needs cost price in Quy tắc.
-  13. **Cost data**: ingest, read-only, `GET /order/202407/orders/{id}/price_detail`
-      (seller vs platform deductions) and per-order finance transactions.
-  14. **Agent research tools** (only in runs after approval, D24.1): curated,
-      read-only — `search_juli_documentation` over vetted Academy excerpts,
-      FastMoss market reads with a per-run credit cap, existing TikTok read
-      tools. No open web search (injection, determinism; ADR-068 amended).
-  15. **Market data**: a weekly non-LLM job caches FastMoss data (competitor
-      prices, category best-sellers and videos, keywords); card selection and
-      the agent read the cache.
-  16. **Structured output**: every LLM output that becomes seller-facing or
-      a write (title, description, scripts, narration) uses OpenAI structured
-      output (JSON schema), validated for length, banned terms, the seller's
-      protected terms and facts before the consent step.
-  17. **Card limits and return times** (owner, 2026-10-10; trial phase —
-      the goal is continuous use):
-      - One limit for every shop: at most **5 new cards/day, 25/week, 30 open**
-        (replaces `max_active` 5 / weekly novelty 3). Campaign-plan cards are
-        outside the limit. Nightly candidates: top 30 (was 10).
-      - On connect: day 1 shows the top 5 mixed by type (~3 Juli tự làm,
-        1 Seller Center, 1 video/LIVE); then +5/day while fewer than 30 are
-        open.
-      - A card is valid 7 days (a campaign plan until registration closes);
-        open cards are re-scored daily with the new numbers.
-      - Expired, rejected (Từ chối), declined (Không thực hiện) or reverted
-        (Hoàn tác): the same action on the same product may return after
-        **7 days**, every time — no escalation, no per-reason durations
-        (reasons still lower its priority, D24.6).
-      - Once surfaced, a card stays at least **3 days** (numbers still update
-        daily); it is withdrawn earlier only when no longer valid (product
-        edited outside Juli, out of stock, metric already at target), not for
-        dropping in rank.
-  - *Implementation notes (P14, 2026-10-10; agent choices, owner may overrule):*
-    - **17**: "day"/"week" are the shop's (UTC+7, weeks from Monday); a tie
-      between limits is reported as `daily_cap`. Validity counts from the
-      card's first surfacing (`surfaced_at`, no longer re-stamped each run);
-      after 7 days the card's status becomes `expired`. After its 3-day stay a
-      card that dropped out of the top 30 is withdrawn. The seller's own
-      "Số thẻ mở cùng lúc" rule (1–5), when set, still lowers the 30. Rejected /
-      declined / reverted keep P10-A's early return on a > 20 % data change.
-    - **6, calibration**: ranking value = recoverable GMV/day × *factor* ×
-      *penalty*. *factor* = coefficient ÷ 0.5, clamped to [0.25, 2] — the
-      coefficient (realised ÷ expected, `lever_calibrations`) starts at 0.5
-      for every lever, so an unmeasured lever is neutral (1) and a lever that
-      delivered what was expected (→ 1.0) ranks up to 2×.
-    - **6, reasons**: *penalty* = max(0.4, 1 − 0.2 × Σ max(0, 1 − age_days ÷ 60))
-      over the shop's Từ chối / Không thực hiện / Hoàn tác reasons for that
-      lever in the last 60 days (all products). One fresh reason → 0.8,
-      fading to none at 60 days; floor 0.4. Circumstantial codes
-      (`editing_myself`, `discontinued`, `other_campaign`, `changed_mind`) carry
-      no penalty.
-    - The shown "GMV dự kiến" and the day-14 measurement stay on the
-      rule-based estimate (D22 label unchanged); the weights reorder cards
-      only. The payload carries `adjusted_by_history` (and
-      `diagnosis.history_adjustment`); the card says "Thứ tự đề xuất đã điều
-      chỉnh theo kết quả trước của shop."
-
-  18. **Content cards (Video / LIVE), P14** (owner, 2026-10-10; artboards
-      ContentCards, ContentRun): same card frame + chip "Juli soạn · bạn làm";
-      after Phê duyệt Juli reads data and drafts with `gpt-5.4-nano`
-      (structured output); the seller picks Dùng kịch bản này / Soạn lại /
-      Không thực hiện, then films or goes live; Juli detects the new video
-      tagging the product or the next LIVE selling it. **No Hoàn tác** (Juli
-      writes nothing to TikTok). Measurement: video CTR on new videos at day
-      7 / 14; LIVE CTOR over the **next 3 sessions** selling the product.
-  19. **Content analysis and voice** (owner, 2026-10-10): P14 reuses the
-      juli-content-engine script frame (HOOK / SETUP / VALUE / CTA, `cut.json`
-      ideas) as the JSON schema and its generic voice rules as prompt
-      templates rewritten for the seller's product, on `gpt-5.4-nano`;
-      analysis uses TikTok numbers only (CTR, views, tagged product, basket
-      position). Analysing the content of existing videos/LIVEs is P15: first
-      check whether Juli may fetch the seller's video files through TikTok
-      APIs and run its own pipeline (ASR, cut detection, vision); if not,
-      the seller uploads the video file to Juli. Scripts follow the seller's
-      voice (tone and banned words in Quy tắc + the shop's own best-selling
-      videos/LIVEs as examples), never Juli's founder voice; no Fujiwa data.
-      *2B result (2026-10-10):* no compliant API gives the seller's video or
-      LIVE replay file. Accounts API prohibits downloading media; Spark Ads /
-      GMV Max `preview_url` exists but needs ads authorization and conflicts
-      with that rule; no API returns transcripts or LIVE replays. → P15 uses
-      **seller upload (2C)**, plus compliant signals: Accounts API
-      `video_view_retention`, caption, thumbnail/share URL (after the Business
-      app and the Accounts API form are approved) and Partner shop metrics.
-  20. **P15 content analysis** (owner, 2026-10-10): the seller uploads the
-      video or LIVE recording; ASR via OpenAI transcription for short videos
-      and LIVE windows (faster-whisper on the VPS only at volume); scene cuts
-      (PySceneDetect + content-engine `reference_analyze.py`), on-screen text
-      (OCR), product-on-screen by matching product images to keyframes;
-      `gpt-5.4-nano` scores hook / CTA from the derived signals (structured
-      output) — the whole video is never sent to a model. LIVE: only windows
-      around the product's pin/mention times. No Remotion video building for
-      now. Uploaded files are deleted after analysis; only derived data kept.
-      Cost estimate (to verify against OpenAI pricing): ≈ $0.006–0.009 per
-      analysed minute; a 30–60 s video ≈ $0.005–0.01; a LIVE ≈ $0.2–0.3 with
-      windows (≈ $0.7–1.1 for a whole 2 h session).
-  21. **P14 integration choices** (owner, 2026-10-10): (1) return after
-      Từ chối / Không thực hiện / Hoàn tác is strictly 7 days — no early
-      return on a > 20 % data change; (2) the seller rule "Số thẻ mở cùng lúc"
-      becomes 5–30, default 30; (3) legacy-workflow cards follow the same
-      7-day rule; (4) product and content cards are ranked **separately, with
-      fixed daily slots** (3 Juli tự làm / ảnh · 1 Seller Center · 1 nội dung);
-      a slot with no candidate stays empty; (5) new seller rules "Giọng văn"
-      and "Từ không được dùng", read by content runs.
-  22. Banned words and tone go into the drafting prompt and the draft
-      is checked before the seller sees it (owner, 2026-10-10, option A).
-
-- **D25** — Internal console ("ops") for the Juli team (owner grill,
-  2026-10-10). Includes P9-B (shop handover).
-  1. **Where**: `ops.app-juli.com`, built from the demo app's code so staff see
-     exactly what the seller sees; two gates — Cloudflare Access (Google,
-     @app-juli.com only) and a staff role in the database.
-  2. **Roles**: Xem (view only) · Vận hành (change a shop's settings, enter
-     Quy tắc for the seller, approve cards for the seller when the seller has
-     agreed) · Admin (staff and feature flags). Every action is audited (who,
-     what, when).
-  3. **"Xem như shop"**: read-only by default — the shop's Trang chủ, Phân
-     tích, Quyết định with a banner "Đang xem như Shop X · chỉ xem", all
-     writes blocked. Acting for the seller is enabled per shop, with the
-     seller's recorded consent, every action audited.
-  4. **Per-shop settings overriding defaults**: card limits, enabled actions
-     and streams, content cards on/off, promotion API on/off, OpenAI model,
-     **monthly OpenAI cost cap**, and the shop stage — **Thử nghiệm · Tự vận
-     hành · Pilot đặc biệt**; "về mặc định"; all changes audited.
-  5. **Overview**: totals (connected, active, disconnected/token expired) and a
-     filterable list per shop — last poll, last diagnosis, cards open /
-     approved / rejected, approval rate, failed runs, OpenAI cost this month,
-     GMV 30 days.
-  6. **Privacy**: staff never see buyer data (masked), only shop data; every
-     "Xem như shop" session is logged; the privacy policy's staff-access
-     sentence gains "to support and operate the service", accepted by the
-     seller when connecting a shop.
-  7. **Handover (P9-B)**: "Mời seller" sends an email invite; the seller signs
-     in and takes ownership; the team keeps Vận hành access if the seller
-     agrees; cards, runs, rules and history are kept.
-- **D25 additions** (owner, 2026-10-10):
-  8. Over the monthly OpenAI cap: stop new drafting for that shop and alert
-     the team; rule cards keep running; the cap is set per shop in Ops.
-  9. Staff can open each run's detail (timeline, LLM output, tokens),
-     read-only.
-  10. **Ops tab "Mô phỏng"** (4 KPI × 4 streams), for both target-setting per
-      shop and sales demos. Locked cells: Video CTOR, Video AOV, LIVE AOV;
-      Hiển thị editable with an "indirect" warning. Baseline = the shop's last
-      30 days, **plus a volatility view**: per stream and per product/content
-      row, the normal high/low band of each KPI (daily spread), so the team
-      can pick streams with stable impressions and small swings — the
-      simulation must show whether a target is inside normal noise.
-      Scenarios are saved per shop with a name and can be set as the shop's
-      target. Internal only for now.
-  11. **Mô phỏng window and trend:** a window selector 7 / 14 / 30 / 90 ngày drives the
-      baseline (per-day average over N), the ▲/▼ chip on every cell (last N vs the N
-      before; green up, red down, grey when |Δ| < 0.5 %) and the volatility bands (p10–p90
-      within N). A window the history cannot cover is shown greyed "Chưa đủ dữ liệu (cần
-      2 × N ngày)" — never invented. API takes `window` ∈ {7, 14, 30, 90}.
-  12. **History for the 90-day window** (owner, 2026-10-10, option A): keep the
-      60-day backfill at connect (fast first cards), then extend history in
-      the background each night, slowly, up to 180 days (or the API's real
-      maximum look-back, checked first; beyond that history accumulates
-      naturally). The 90-day window unlocks when 2 × 90 days exist; until then
-      it is greyed "Đang tải lịch sử · còn N ngày". Fix the video-windows 429
-      handling in the same work: longer retry/back-off on 429 and skip the
-      video tables for that cycle instead of falling back to whole-day reads.
-  13. **"Huỷ kết nối"** per connected / token-expired shop in Tổng quan, Admin only:
-      confirmation listing the effects, a required reason (audited) and the typed shop
-      name; revoke Juli's stored authorization, stop polling and card generation, cancel
-      pending runs, write nothing more to TikTok, keep history / rules / measurements so
-      reconnecting resumes, e-mail the seller. TikTok has no revoke endpoint: stored
-      tokens are destroyed and the credential marked `needs_reauth`.
-  14. **Rules set by the team first** (owner, 2026-10-10): staff edit each
-      shop's Quy tắc from Ops "Cài đặt shop" (audited); later the seller adjusts
-      and optimises them in their own Quy tắc. Card approval stays seller-only.
-      *P16 detail:* Vận hành / Admin edit every seller rule (incl. the P14
-      keys, "Giọng văn", "Từ không được dùng", "Số thẻ mở cùng lúc" 5–30) through the
-      existing rule store and validation, always as the team, every change audited; the
-      seller later sees and keeps editing them. Approving cards stays the seller's.
-  15. **Permission status**: token refresh also stores `granted_scopes`; Ops
-      shows each shop's scope status; a missing scope shows the seller a
-      "Kết nối lại TikTok Shop để cấp quyền mới" strip. (The 30-minute beat only
-      checks; a token is refreshed only within 24 h of expiry, about weekly.)
-      *P16 detail:* every token refresh persists the granted scopes when the
-      response carries them; Ops shows per shop "đủ quyền / thiếu X / chưa rõ" for the
-      scopes Juli uses; a missing scope shows the seller "Kết nối lại TikTok Shop để cấp
-      quyền mới".
-  - **D25.3 amended:** "Xem như shop" is ALWAYS read-only — staff see everything the
-    seller's client shows (Trang chủ, Quyết định incl. run details, Phân tích, Juli, Quy
-    tắc) and can never write through it. No act-for-seller mode, no team-may-act flag or
-    consent field; the view-as API refuses every non-GET with 403. Staff change things
-    only via Cài đặt shop (overrides, Quy tắc) and Admin-only Huỷ kết nối.
-  - **D25.8 storage (coordination with P15):** the monthly OpenAI cap is the `shop_rules`
-    row `openai_monthly_cap_usd` (default $5/month from `OPENAI_MONTHLY_CAP_USD_DEFAULT`),
-    read by P15's content analysis and by P16's drafting / agent-run gates.
-
-- **D26** — Cards right after connecting: "quét nhanh" (owner, 2026-10-10).
-  Runs in parallel with the 60-day backfill, on the priority queue, ~2–3 min
-  after connect: the last **14 days** of product performance (1–2 calls for
-  the whole shop) + TikTok listing diagnosis codes for the top 5–10 products
-  → **1–3 cards of Tiêu đề / Mô tả / Ảnh bìa only** (Juli tự làm), labelled
-  "Đề xuất nhanh · dựa trên 14 ngày", confidence "Tham khảo". They take the
-  day-1 Juli slots (3/1/1); the full diagnosis (~10–20 min) fills the
-  remaining slots and keeps quick cards that are still valid, updating their
-  numbers. The client shows progress ("Juli đang đọc dữ liệu shop · bước
-  1/3"), and cards appear as soon as they exist. Delivered in **P17** with
-  D25.12 (history to 180 days, 429 fix) and faster cost reads for the first
-  30 days (60 orders / 15 min, rate-limited).
-
-- **D27** — Juli Ops: speed, confirmations, audit log (owner, 2026-10-11).
-  Artboards: canvas "Thiết kế UI flow", row "Juli Ops · xác nhận, nhật ký, tốc độ
-  (D27)" — `OpsConfirm`, `OpsLog`, and the header of `OpsSimulate`.
-  1. **Daily precompute, not live recompute (9A).** Ops Tổng quan and Mô phỏng read
-     numbers computed once a day, right after the shop's daily analytics pass
-     (new days landed). Pages show "Số liệu đến hết DD/MM · cập nhật lúc HH:MM" +
-     **Làm mới**, which recomputes only the shop being viewed (Tổng quan: all rows).
-  2. **Compact daily table for Mô phỏng (2A):** one row per shop × stream × day
-     (impressions, clicks, orders, GMV), written when the diagnosis report is built;
-     the simulation reads it instead of merging stored report JSON. Daily refresh only.
-  3. **Commerce polling hourly (8B):** orders / inventory / returns / products / order
-     costs every 60 min instead of 15 (analytics stays once a day).
-  4. **Audit retention (4A):** configuration changes 365 days; view-as sessions and
-     system jobs 90 days; a nightly job deletes expired rows; index on (shop_id, at).
-  5. **Every change is confirmed (5B, 10A):** stage → a before→after dialog; checkboxes
-     / toggles / selects (streams, actions, API khuyến mãi, model, OpenAI cap) are a
-     draft with a bottom bar "N thay đổi chưa lưu · Bỏ thay đổi · Lưu thay đổi (N)",
-     then one confirm dialog listing each before→after; one save = one audit row.
-  6. **Audit merging (6A):** same actor + same shop + same field within 10 minutes →
-     one row (first before → last after); if the final value equals the original, the
-     row is deleted (nothing logged).
-  7. **No reason field (7)** except Huỷ kết nối, where it stays required (already live).
-  8. **Mô phỏng lives in one place:** the main nav (Tổng quan · Mô phỏng · Nhân viên ·
-     Nhật ký). The page shows only the current shop's name + "Đổi shop ở Tổng quan ›";
-     shops are chosen and searched in Tổng quan (search by shop name), and the last
-     chosen shop is remembered. No shop chosen → "Chọn một shop ở Tổng quan ›". Removed:
-     Mô phỏng in the shop nav and the per-row Mô phỏng link.
 
 - **D28** — Juli Ops: number reliability, OpenAI limits, shop terms (owner, 2026-10-12).
   Artboards: canvas "Thiết kế UI flow", row "Juli Ops · độ tin cậy số liệu, giới hạn
@@ -1708,6 +1294,104 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   `ml_guard.final_test`: FastMoss snapshot 2 (~2026-10-20), Ory new-shop set, Fujiwa after
   2026-10-08, pooled independent tests when enough exist. Metric.vn and FastMoss snapshot 2 feed
   the next optimisation round only after Step 14.
+
+- **D60** — Five product and sample-data fixes (owner, 2026-10-18, "Sửa 5 lỗi sản phẩm và dữ liệu
+  mẫu"; found by the P49 writers).
+  1. **Sample shop data**: the day-7 / day-14 sample shows a title change on a CTOR target — make
+     the lever match the target (title → CTR on Thẻ sản phẩm, description → CTOR measured on all
+     channels, D22 / D32); the "Kéo xuống" product rows plus "Còn lại" must add up exactly to the
+     tile and the "Tổng" row. Recapture the affected screenshots.
+  2. **`/san-pham/de-xuat-va-thuc-thi`**: remove the "mua nhiều giảm nhiều" AOV lever (Ops-only,
+     D45); the hero lead must say Juli replaces the cover only with the seller's photo, after
+     confirmation (D13).
+  3. **`/san-pham/do-luong-gmv`**: remove the "Nhóm đối chứng (đang thử nghiệm)" section and any
+     control-group claim; D34 groups are not shipped to sellers.
+  4. **Retention approved**: D43 additions 3 (a sign-up that does not become a customer is kept at
+     most 12 months, then deleted; deletion on request within 30 days) is confirmed; `/privacy`
+     already says so. DEBT: build the purge job before 10/2027.
+  5. **Price wording**: one plan, written "500.000đ/tháng" everywhere (home, `/san-pham`, FAQs,
+     meta, JSON-LD offer text, llms.txt, blog), matching `/terms` §5; no "từ".
+  Work: P51-A (demo sample data + recapture), P51-B (landing pages, items 2, 3, 5).
+
+- **D61** — Public content does not expose Juli's algorithms or models (owner, 2026-10-18: "chúng
+  ta không lộ chi tiết thuật toán và mô hình của Juli", then "sửa hết các lỗi lộ thuật toán").
+  Audit of 2026-10-18 (103 leaks, 35 borderline). On every public surface (landing pages, blog,
+  FAQs and their JSON-LD, figure alts and captions, llms.txt, demo screens and the seller-facing
+  card copy from the backend) remove or generalise: the recoverable / expected GMV formulas Juli
+  uses; numeric thresholds, data floors and verdict multiples; card caps, slots and validity
+  windows beyond "Juli đề xuất mỗi ngày một số thẻ"; priority, demotion, cooldown and learning
+  coefficients; trigger and ranking logic; the rules-vs-AI architecture; control groups and
+  simulation; peer medians; model names and versions. Keep: TikTok's public metric definitions and
+  GMV identity; the workflow (analyse → propose → approve → write title / description, cover only
+  with the seller's photo → measure day 7 / day 14 → undo); the 14-day baseline the seller sees;
+  data read / written and security commitments; naming the AI provider where data is sent
+  (`/ket-noi`, `/privacy`); result labels shown in the product. Reach posts keep do-it-yourself
+  advice but without Juli's exact rules (no 2×, 30-order or one-third holdback rules). Legal text
+  (`/terms`, `/privacy`) is owned by the legal/PDPL work and is acceptable as is. A test blocks the
+  known leak patterns from returning. Work: P52-A (product pages, home, calculator, SEO),
+  P52-B (guides), P52-C (reach posts, pillars, tools posts), P51-A extended (demo + backend card
+  copy, recapture).
+
+- **D62** — Repo cleanup from the 2026-10-18 audit (owner, 2026-10-18; audit in
+  `~/juli-audit/SUMMARY.md`, `backend.md`, `repo_hygiene.md`). Approved: **A1–A4** (real faults:
+  register the P23 `product_history` tasks on a fresh worker, which turns the nightly
+  product-history fan-out on in production for the first time; route the 8 new deep imports
+  through package roots and re-derive the boundary baseline; make repo-state-pinned tests read
+  the tree; declare the check job's database disposable in `fasttrack-deploy.yml`), **B**
+  (safe cleanup: worktrees/branches already merged, the `etl/topics.py` shim, generated
+  artefacts, LEGACY markers without behaviour change, archiving LOG / DECISIONS / DEBT before
+  2026-10-12), **C1** (remove `apps/dashboard`, with its `pr.yml` job, build script and the
+  tests that guard it) and **C2** (remove the three unlinked demo routes
+  `/decisions/in-progress/*`, `/decisions/recommendations/*`, `/settings/workflows/*`, fixing
+  the `demo-shell` regex and tests). Each C item lands as its own change with its evidence. Not
+  approved here: A5, C3–C8, D (branch reunification), and anything on the frozen ML path or in
+  auth / RLS / migrations / legal. Work: phase P53 — P53-A (A1–A4, B3, B4, B6, B7, branch
+  `fasttrack/cleanup-a`), P53-C2 (branch `fasttrack/rm-legacy-routes`), C1 on its own branch.
+
+- **D63** — Apply the open Dependabot pip bumps on the fast-track branch (owner, 2026-10-18,
+  approved fast-track phase "apply the open Dependabot pip bumps properly"). The ten open
+  Dependabot pip PRs target the frozen `main` (D2, D3), so they are applied here as one set instead
+  of merged there. Applied (one `backend/constraints.txt` regeneration with
+  `pip-compile --upgrade-package`, no other pin moves): pyjwt 2.13.0 → 2.15.1 (security: 2.14.0
+  GHSA fixes for HMAC key confusion, JWKS redirects/refresh, malformed JWS; 2.15.0 recursion →
+  `DecodeError`), starlette 1.6.0 → 1.7.0 (FastAPI 0.141.1 needs only `starlette>=0.46.0`),
+  markupsafe 3.0.4, python-dotenv 1.2.4, tzdata 2026.5, amqp 5.4.1 (kombu 5.6.2 allows
+  `<6`), wcwidth 0.9.2, and mypy's ast-serialize 0.12.1 / librt 0.16.0. Also pinned
+  cloudpickle 3.1.2 (joblib dependency the old lock had missed; the same version was already
+  installed unpinned). Deferred: pydantic-core 2.49.0 — only pydantic 2.14.0b2 (a beta) pins it;
+  stable pydantic 2.14.x pins 2.50.x, and a pydantic minor is its own phase. Floors: pyjwt
+  `>=2.15.1` and python-dotenv `>=1.2.4` in `backend/pyproject.toml` and root
+  `requirements.txt`; the five floors Dependabot had raised only in `requirements.txt`
+  (uvicorn, sqlalchemy, psycopg2-binary, alembic, xgboost) raised in `pyproject.toml` to match,
+  so the two files are identical again. No code change. The Dependabot PRs are closed by the
+  owner after merge; `.github/dependabot.yml` is read from `main`, so its fix waits for the
+  merge back. Work: P54.
+- **D64** — Deploy gates: the fast-track deploy runs the full no-database unit suite, the
+  frontend checks and mypy + bandit before it deploys (owner, 2026-10-19, approved
+  fast-track phase; follows the 2026-10-18 decision recorded with D62 to add them once the
+  suite is green). Each of the three new jobs needs only `validate`, so it runs beside
+  backup → check. `deploy` needs `[check, build, frontend, backend-unit, static]`. The job ids
+  are stable and listed in `fasttrack/README.md`.
+  1. `frontend`: `pnpm install --frozen-lockfile` on Node from the new root `.nvmrc` (20).
+     Runs demo and landing `eslint`, `tsc --noEmit` and `vitest` (what `check:demo` /
+     `check:landing` run, minus `next build`, which `build` already does), plus
+     `packages/ui` and `utils` tests. `packages/theme` is left out until its 2 stale tests
+     are settled (DEBT P55).
+  2. `backend-unit`: `pytest tests/unit -m "not live"` with no `DATABASE_URL` and full
+     history. Postgres tests skip through `requires_postgres`. The tests that failed only
+     for lack of a database were fixed (the seam they needed is a factory, not a database),
+     or marked `requires_postgres` where they genuinely open one. A per-test timeout is
+     raised only where it is needed, by marker.
+  3. `static`: `mypy --config-file backend/pyproject.toml backend/src/juli_backend` and
+     `bandit -r backend/src/juli_backend -ll`, on the whole package (about 1 min and 15 s).
+  4. **Option A (owner) for the #1682 prior-figure check: fix the root, never loosen it.**
+     The test-quality detector now follows imports into `conftest.py` and `tests/` packages
+     and judges helpers by their bodies. It credits asserting methods of same-file classes
+     and third-party `assert_*` / `expect_*` callables. It never credits production code
+     named `assert_*`. The prior-figure claim is evaluated over a recorded fixed set:
+     `eval/quality_prior_figure_set.json` holds the layer's helper-credited members at the
+     branch point 0739f4da. `reconcile --write` only prunes it. The tolerance stays at 15.
+  Work: P55.
 
 - **D68** — Legal terms and data rules after the PDPL grill (owner, 2026-10-18). Research: Viettel AI
   and FPT (FPT Shop, FPT IS) privacy texts, Luật 91/2025/QH15, Nghị định 356/2025/NĐ-CP, Luật Trí tuệ

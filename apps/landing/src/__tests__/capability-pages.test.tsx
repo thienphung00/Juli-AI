@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import KetNoiPage from "../app/ket-noi/tiktok-shop/page";
+import LandingPage from "../app/page";
+import SanPhamPage from "../app/san-pham/page";
 import DeXuatPage from "../app/san-pham/de-xuat-va-thuc-thi/page";
 import DoLuongPage from "../app/san-pham/do-luong-gmv/page";
 import PhanTichPage from "../app/san-pham/phan-tich-shop/page";
@@ -163,6 +165,33 @@ describe("capability-page diagrams (AC-34.3, built in markup)", () => {
       expect.stringContaining("Ngày 7"),
       expect.stringContaining("Ngày 14"),
     ]);
+    unmount();
+  });
+});
+
+describe("D60 product copy (D13, D34, D45)", () => {
+  it("Đề xuất & thực thi: no AOV lever, and the cover is replaced only with the seller's photo", () => {
+    const { container, unmount } = render(<DeXuatPage />);
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/mua nhiều giảm nhiều/i);
+    expect(text).not.toMatch(/Với tiêu đề, mô tả và ảnh bìa, Juli/);
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "Với ảnh bìa, Juli chỉ thay bằng ảnh do bạn gửi, sau khi bạn xác nhận, và giữ ảnh cũ để hoàn tác.",
+    );
+    unmount();
+  });
+
+  it.each([
+    ["/san-pham/do-luong-gmv", DoLuongPage],
+    ["/san-pham", SanPhamPage],
+    ["/", LandingPage],
+  ] as const)("%s: no control-group claim", (_name, Page) => {
+    const { container, unmount } = render(<Page />);
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(
+      /đối chứng|tương tự (chưa|không) (thay )?đổi|chưa được thay đổi|sản phẩm không (thay )?đổi/i,
+    );
+    expect(text).not.toMatch(/mua nhiều giảm nhiều/i);
     unmount();
   });
 });

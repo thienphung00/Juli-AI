@@ -192,3 +192,8 @@ public, unauthenticated feed down with it:
 - Computing or applying the emission budget itself — `services/
   action_cards/emission_budget.py` (#716, B-4) is upstream of this module.
 - Track B Demo UI (#600) — consumer of this HTTP surface, not part of it.
+
+## Status: LEGACY (fast track P53, D62, 2026-10-18)
+
+Marker only — no behaviour changed, nothing moved or deleted (owner-approved audit cleanup,
+`juli-audit/backend.md`). `impact_surface.py` (ADR-099 synthetic impact series) has no production importer; only 2 tests read it. The rest of the package is the live Decisions API (D21). `series_source='synthetic'` stays a database value.

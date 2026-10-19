@@ -39,9 +39,8 @@ COMMIT=""
 OUT_DIR=""
 METADATA_ONLY=0
 
-# The Next deployables of PRD #820. apps/dashboard is deliberately absent: it is
-# npm-owned, is not a pnpm workspace member, and PRD #820 retires it from
-# production rather than deploying it.
+# The Next deployables of PRD #820. The old apps/dashboard was retired from
+# production by PRD #820 and deleted from the repo in fast-track P53 (C1).
 DEPLOYABLES="demo landing"
 
 usage() {

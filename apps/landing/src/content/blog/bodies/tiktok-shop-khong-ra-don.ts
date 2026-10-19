@@ -80,7 +80,7 @@ Với shop mới hoặc shop ít đơn, một ngày hay ba ngày là quá ngắn
 
 ### Đủ dữ liệu chưa
 
-Với 15 lượt nhấp, CTOR 0 % không có nghĩa là trang sản phẩm hỏng; nó có nghĩa là chưa đủ dữ liệu để kết luận. Hãy tự đặt một ngưỡng tối thiểu trên luồng thẻ sản phẩm, tính trung bình mỗi ngày trong cửa sổ đo, và giữ nguyên ngưỡng đó mỗi lần đọc. Ví dụ giả định: từ 50 lượt hiển thị mỗi ngày mới đọc CTR, từ 20 lượt nhấp mỗi ngày mới đọc CTOR. Đây là quy tắc bạn tự đặt, không phải quy định của TikTok. Dưới ngưỡng, vấn đề gần như luôn nằm ở bước đầu tiên: sản phẩm chưa có đủ người nhìn thấy.
+Với 15 lượt nhấp, CTOR 0 % không có nghĩa là trang sản phẩm hỏng; nó có nghĩa là chưa đủ dữ liệu để kết luận. Chỉ đọc tỷ lệ khi số liệu trên luồng thẻ sản phẩm đủ nhiều để không bị nhiễu, hoặc gộp một cửa sổ đo dài hơn, và giữ cùng một cách đọc cho mọi lần so sánh. TikTok không đưa ra ngưỡng chính thức cho việc này. Khi số liệu còn quá ít, vấn đề gần như luôn nằm ở bước đầu tiên: sản phẩm chưa có đủ người nhìn thấy.
 
 {{hinh:doc-pheu-o-dau}}
 

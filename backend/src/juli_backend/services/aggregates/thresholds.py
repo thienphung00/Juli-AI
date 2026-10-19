@@ -1,4 +1,7 @@
-"""Threshold constants ported from apps/dashboard/src/lib/operations/thresholds.ts."""
+"""Threshold constants ported from apps/dashboard/src/lib/operations/thresholds.ts.
+
+apps/dashboard was deleted in fast-track P53; the source is in git history.
+"""
 
 SHOP_AGE_MID_LARGE_MIN_DAYS = 90
 GMV_METRICS_MIN_COUNT = 2

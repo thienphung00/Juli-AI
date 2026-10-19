@@ -63,6 +63,7 @@ from juli_backend.services.agent.runner.outcome_recording import LedgerWriteOutc
 from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
 from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.workers.tasks import agent_workflow
+from tests.support.postgres import requires_postgres
 
 
 @pytest.fixture(autouse=True)
@@ -80,6 +81,29 @@ def _ordinary_runs_have_no_lever_flow(monkeypatch):
         return None
 
     monkeypatch.setattr(lever_flows, "wiring_for_run", _no_flow)
+
+
+@pytest.fixture(autouse=True)
+def _no_worker_engine_from_the_environment(monkeypatch):
+    """Construction needs a session factory, not a database (fast track P55).
+
+    ``_construct_runner`` hands ``_ensure_session_factory()`` to the
+    ``PersistingEventSink`` it builds (#1890). The real seam builds a NullPool
+    engine from ``DATABASE_URL`` -- lazily, so nothing ever connects here -- but
+    with no ``DATABASE_URL`` (the deploy workflow's no-database unit job) the
+    URL does not parse and seven construction tests failed for a reason that
+    has nothing to do with wiring. The real seam also registers the process-wide
+    session factory as a side effect, which a unit test should not do.
+
+    This stand-in fails loudly if anything opens a session from it during
+    construction. Tests that exercise a real factory (the crash-handler tests
+    below) monkeypatch the seam again themselves.
+    """
+
+    def _no_session(*_args, **_kwargs):
+        raise AssertionError("constructing a runner must not open a worker session")
+
+    monkeypatch.setattr(agent_workflow, "_ensure_session_factory", lambda: _no_session)
 
 
 MODULE_PATH = Path(inspect.getfile(agent_workflow))
@@ -631,12 +655,19 @@ class TestConstructRunnerUsesRealPersistingEventSink:
         assert not isinstance(kwargs["event_sink"], InMemoryEventSink)
 
 
+@requires_postgres
 class TestTaskBodiesCallRealRunnerMethods:
     """End to end through the task's own async body (`_run_agent_workflow_async`
     / `_resume_agent_workflow_async`), against a real DB-backed
     `WorkflowRun` row -- proves `run(workflow_run_id, product_ref=...)` /
     `resume(workflow_run_id, approved=...)` are called with the real
-    signature, not `run()`/`resume(tool_call_id, decision)`."""
+    signature, not `run()`/`resume(tool_call_id, decision)`.
+
+    Needs Postgres (fast track P55): the task body opens its own sync ledger
+    session from `DATABASE_URL` (`_sync_ledger_session`) and enters the sticky
+    shop scope on it, which is a real database round trip. Skips without one,
+    like every other `requires_postgres` test.
+    """
 
     async def test_run_agent_workflow_async_calls_run_with_workflow_run_id_and_product_ref(
         self, engine: AsyncEngine, monkeypatch

@@ -130,7 +130,7 @@ test.describe("Signed-out Quyết định — the P10 sample", () => {
     await page.goto("/decisions?tab=do-luong");
     await expect(page.getByRole("tab", { name: "Ngày 7 · kiểm tra" })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("measure-panel").first()).toContainText("Toner rau má 200ml");
-    await expect(page.getByTestId("measure-target").first()).toContainText("9.613 – 10.207");
+    await expect(page.getByTestId("measure-target").first()).toContainText("3.376 – 3.584");
     expect(v1).toEqual([]);
   });
 });

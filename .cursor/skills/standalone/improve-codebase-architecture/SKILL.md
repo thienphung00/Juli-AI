@@ -40,7 +40,7 @@ domain language. ADRs in `docs/adr/` record decisions this command must not re-l
 Apply the **deletion test** to suspected shallow modules: would deleting it concentrate
 complexity, or just move it? "Yes, concentrates" is the signal you want.
 
-**Juli surfaces:** `backend/` (pytest), `apps/demo/` and `apps/dashboard/` (npm test), `ios/` (xcodebuild).
+**Juli surfaces:** `backend/` (pytest), `apps/demo/` and `apps/landing/` (npm test), `ios/` (xcodebuild).
 Consult `docs/architecture/MODULES.md` (goals/features), `docs/architecture/map.md` (as-built paths), and affected `MODULE.md` files.
 
 ### 2. Present candidates as an HTML report
@@ -136,7 +136,6 @@ Prefer small, atomic changes — one logical structural move per commit/PR when 
 | Surface | Path | Command |
 |---------|------|---------|
 | Backend | `backend/` | `pytest tests/` |
-| Dashboard | `apps/dashboard/` | `npm run lint && npm run type-check && npm run test && npm run build` |
 | iOS | `ios/` | `xcodebuild test -scheme [scheme] -destination 'platform=iOS Simulator,...'` |
 
 After file moves, grep repo-wide for old paths. Prefer `git mv`.

@@ -137,13 +137,13 @@ Nhóm mới nhất, và cũng là nhóm dễ bị quảng cáo quá lời nhất
 
 ### Juli AI
 
-Juli AI là sản phẩm của chúng tôi, do Công ty TNHH Công Nghệ Juli AI phát triển. Juli là trợ lý AI cho nhà bán TikTok Shop, kết nối với shop qua [kết nối chính thức của TikTok Shop](/ket-noi/tiktok-shop). Những gì Juli làm:
+Juli AI là sản phẩm của chúng tôi, do Công ty TNHH Công Nghệ Juli AI phát triển. Juli là trợ lý AI vận hành cho nhà bán TMĐT, hiện kết nối với shop qua [kết nối chính thức của TikTok Shop](/ket-noi/tiktok-shop) (Shopee đang tích hợp). Những gì Juli làm:
 
 - **[Phân tích shop theo luồng truy cập](/san-pham/phan-tich-shop)**: tách GMV theo năm kênh (thẻ sản phẩm, Tab Cửa hàng, video, LIVE, tiếp thị liên kết) và theo bốn hệ số Lượt hiển thị, CTR, CTOR, AOV; chỉ ra sản phẩm nào mất khách ở bước nào, với nhãn độ tin cậy cho mỗi so sánh.
 - **[Đề xuất và thực thi khi bạn phê duyệt](/san-pham/de-xuat-va-thuc-thi)**: đề xuất một hành động cụ thể cho từng sản phẩm, kèm lý do bằng số. Không có thay đổi nào trên shop nếu bạn chưa đồng ý.
-- **[Đo lường GMV](/san-pham/do-luong-gmv)**: đo lại tác động của từng hành động sau 7 và 14 ngày, so với nhóm sản phẩm không thay đổi.
+- **[Đo lường GMV](/san-pham/do-luong-gmv)**: đo lại tác động của từng hành động sau 7 và 14 ngày, so với mốc 14 ngày trước khi áp dụng.
 
-**Giá**: theo website app-juli.com, miễn phí thử nghiệm 3 tháng, sau đó từ 500.000 ₫ mỗi tháng.
+**Giá**: theo website app-juli.com, miễn phí thử nghiệm 3 tháng, sau đó 500.000đ/tháng.
 
 **Những việc Juli không làm**, để bạn chọn đúng:
 

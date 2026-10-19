@@ -145,9 +145,9 @@ describe("P32-E — every feature simulated for the reviewer in the sample shop"
     const consent = await screen.findByTestId("consent-block");
     expect(screen.getByTestId("run-timeline")).toBeInTheDocument();
     await userEvent.click(within(consent).getByRole("button", { name: "✎ Sửa nội dung trước khi áp dụng" }));
-    const title = screen.getByLabelText("Tiêu đề (bạn sửa)");
-    await userEvent.clear(title);
-    await userEvent.type(title, "Son môi lì số 12 — đỏ ruby");
+    const editedDescription = screen.getByLabelText("Mô tả (bạn sửa)");
+    await userEvent.clear(editedDescription);
+    await userEvent.type(editedDescription, "Son lì đỏ ruby, giữ màu 8 giờ.");
     await userEvent.click(screen.getByRole("button", { name: "Lưu bản sửa" }));
     await userEvent.click(within(consent).getByRole("button", { name: "Xác nhận thay đổi này" }));
     await waitFor(() => expect(screen.getByTestId("run-timeline")).toHaveTextContent("Phiên bản mới đã được duyệt"));

@@ -31,3 +31,8 @@ events, with cooldown deduplication and pluggable channel delivery (FCM + Zalo O
 ## Owners
 - domain: alerts
 - code: src/alerts/
+
+## Status: LEGACY (fast track P53, D62, 2026-10-18)
+
+Marker only — no behaviour changed, nothing moved or deleted (owner-approved audit cleanup,
+`juli-audit/backend.md`). No production importer, no test, no route, task or flag: the Zalo/FCM alert engine (ADR-005) was never wired. The `alert_config` / `alert_history` tables, models and repositories in `database` stay. Deleting the package is audit item C3 and needs the owner to confirm alerts are off the roadmap.

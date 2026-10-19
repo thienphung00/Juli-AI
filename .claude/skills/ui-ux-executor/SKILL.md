@@ -2,8 +2,8 @@
 name: ui-ux-executor
 description: >-
   Executor Agent domain skill for web and iOS UI work. Use when implementing GitHub issues
-  that touch apps/dashboard, apps/demo, ios/, shared packages, components, pages, forms,
-  or visual interaction behavior.
+  that touch apps/demo, apps/landing, ios/, shared packages, components, pages, forms, or
+  visual interaction behavior.
 ---
 
 # ui-ux-executor
@@ -23,4 +23,4 @@ never fork a copy into `.claude/`.
 
 ## Contract
 
-Web and iOS UI: `apps/dashboard`, `apps/demo`, `ios/`, `packages/*`.
+Web and iOS UI: `apps/demo`, `apps/landing`, `ios/`, `packages/*`.

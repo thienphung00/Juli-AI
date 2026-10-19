@@ -20,6 +20,7 @@ import {
   isCompetitorUrl,
   relatedPosts,
   showDraftsOnIndex,
+  guideFor,
 } from "../content/blog";
 import type { BlogPostFormat, BlogPostMeta } from "../content/blog/types";
 import { absoluteUrl, getRoute, metadataForRoute, SITE_ROUTES, sitemapEntries } from "../lib/seo";
@@ -218,7 +219,7 @@ describe("post page", () => {
   });
 
   it("renders title, author, dates, TOC from the H2s, FAQ, sources and the draft banner", async () => {
-    const post = BLOG_POSTS.find((p) => p.status === "draft" && blogTier(p) === "conversion")!;
+    const post = BLOG_POSTS.find((p) => p.status === "draft" && blogTier(p) === "conversion") ?? BLOG_POSTS.find((p) => blogTier(p) === "conversion")!;
     render(await BlogPostPage({ params: Promise.resolve({ slug: post.slug }) }));
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(post.title);
@@ -252,7 +253,8 @@ describe("post page", () => {
       expect(level - prev, `h${prev} → h${level}`).toBeLessThanOrEqual(1);
       return level;
     }, 0);
-    expect(screen.getByRole("note")).toHaveTextContent(/Bản nháp/);
+    if (post.status === "draft") expect(screen.getByRole("note")).toHaveTextContent(/Bản nháp/);
+    else expect(screen.queryByText(/Bản nháp đang chờ duyệt/)).toBeNull();
 
     const jsonLd = [...document.querySelectorAll('script[type="application/ld+json"]')]
       .map((script) => JSON.stringify(JSON.parse(script.textContent ?? "")))
@@ -268,7 +270,7 @@ describe("post page", () => {
       if (post.status === "draft") expect(metadata.robots, post.slug).toEqual({ index: false, follow: true });
       else expect(metadata.robots, post.slug).not.toEqual({ index: false, follow: true });
     }
-    const post = BLOG_POSTS.find((p) => p.status === "draft")!;
+    const post = BLOG_POSTS[0]!;
     const metadata = await generateMetadata({ params: Promise.resolve({ slug: post.slug }) });
     expect(metadata.openGraph).toMatchObject({
       type: "article",
@@ -276,7 +278,6 @@ describe("post page", () => {
       modifiedTime: post.updatedAt,
       authors: [post.author],
     });
-    expect(metadata.robots).toEqual({ index: false, follow: true });
   });
 
   it("uses each post's cover as its Open Graph and Twitter image", async () => {
@@ -479,6 +480,38 @@ function reachViolations(slug: string): string[] {
 }
 
 describe("reach vs conversion tier (D59)", () => {
+  it("every reach post names one conversion guide for its end-of-post box (D59 addition 4)", () => {
+    for (const post of BLOG_POSTS.filter((p) => blogTier(p) === "reach")) {
+      expect(post.guide, `${post.slug}: missing guide`).toBeDefined();
+      const guide = getPost(post.guide!);
+      expect(guide, `${post.slug}: unknown guide ${post.guide}`).toBeDefined();
+      expect(blogTier(guide!), `${post.slug} → ${post.guide}`).toBe("conversion");
+      expect(guide!.format, `${post.slug} → ${post.guide}`).toBe("guide");
+    }
+    for (const post of BLOG_POSTS.filter((p) => blogTier(p) === "conversion")) {
+      expect(post.guide, `${post.slug}: only reach posts point to a guide`).toBeUndefined();
+    }
+  });
+
+  it("guideFor never links a published reach post to a draft guide", () => {
+    const reach = { ...getPost("tiktok-shop-khong-ra-don")!, status: "published" as const };
+    const draftGuide = { ...getPost(reach.guide!)!, status: "draft" as const };
+    const publishedGuide = { ...draftGuide, status: "published" as const };
+    expect(guideFor(reach, [reach, draftGuide])).toBeNull();
+    expect(guideFor(reach, [reach, publishedGuide])?.slug).toBe(reach.guide);
+    expect(guideFor({ ...reach, status: "draft" }, [reach, draftGuide])?.slug).toBe(reach.guide);
+  });
+
+  it("a reach page shows the neutral guide line inside the box, with no Juli text", async () => {
+    const post = BLOG_POSTS.find((p) => blogTier(p) === "reach" && guideFor(p))!;
+    render(await BlogPostPage({ params: Promise.resolve({ slug: post.slug }) }));
+    const box = screen.getByTestId("blog-cta-tool");
+    const link = within(box).getByTestId("blog-cta-guide");
+    expect(link).toHaveAttribute("href", blogPostPath(post.guide!));
+    expect(link).toHaveTextContent("Đọc hướng dẫn liên quan");
+    expect(box.textContent ?? "").not.toMatch(/juli/i);
+  });
+
   it("derives the tier from the format: pain / news reach, pillar / comparison / guide conversion", () => {
     expect(blogTier({ format: "pain" })).toBe("reach");
     expect(blogTier({ format: "news" })).toBe("reach");
@@ -567,6 +600,14 @@ const FIGURE_POSTS = [
   "anh-bia-san-pham-tiktok-shop",
   "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop",
   "doanh-thu-sau-sale-tiktok-shop",
+  "dung-thu-juli-ai-mien-phi-3-thang",
+  "tim-san-pham-keo-gmv-xuong-tiktok-shop",
+  "ctr-the-san-pham-thap-doi-tieu-de-anh-bia",
+  "ctor-thap-viet-lai-mo-ta-san-pham",
+  "huong-dan-ket-noi-tiktok-shop-voi-juli",
+  "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
+  "duyet-de-xuat-toi-uu-san-pham-tiktok-shop",
+  "do-ket-qua-ngay-7-ngay-14-hoan-tac",
 ];
 
 function figureIds(body: string): string[] {

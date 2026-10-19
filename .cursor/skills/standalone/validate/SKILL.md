@@ -79,7 +79,7 @@ python agent-runtime/scripts/validate/check_module_drift.py
 3. Aggregate results into the validation artifact schema.
 4. Write the artifact, print a one-line summary per check, exit 0/1.
 5. Never modify production code. This skill is read-only against `backend/`,
-   `apps/demo/`, `apps/dashboard/`, `ios/`, and `tests/`.
+   `apps/demo/`, `apps/landing/`, `ios/`, and `tests/`.
 
 ## Status semantics
 

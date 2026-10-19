@@ -7,28 +7,28 @@
 import type { MediaSource } from "../../lib/media";
 
 export const CAP_DL_HOC: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-hoc-v1-1280.avif", webp: "/media/cap-dl-hoc-v1-1280.webp", width: 1280, height: 454 },
-  { avif: "/media/cap-dl-hoc-v1-640.avif", webp: "/media/cap-dl-hoc-v1-640.webp", width: 640, height: 227 },
+  { avif: "/media/cap-dl-hoc-v3-1280.avif", webp: "/media/cap-dl-hoc-v3-1280.webp", width: 1280, height: 455 },
+  { avif: "/media/cap-dl-hoc-v3-640.avif", webp: "/media/cap-dl-hoc-v3-640.webp", width: 640, height: 227 },
 ];
 
 export const CAP_DL_MUC_TIEU: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-muc-tieu-v1-1280.avif", webp: "/media/cap-dl-muc-tieu-v1-1280.webp", width: 1280, height: 558 },
-  { avif: "/media/cap-dl-muc-tieu-v1-640.avif", webp: "/media/cap-dl-muc-tieu-v1-640.webp", width: 640, height: 279 },
+  { avif: "/media/cap-dl-muc-tieu-v2-1280.avif", webp: "/media/cap-dl-muc-tieu-v2-1280.webp", width: 1280, height: 579 },
+  { avif: "/media/cap-dl-muc-tieu-v2-640.avif", webp: "/media/cap-dl-muc-tieu-v2-640.webp", width: 640, height: 289 },
 ];
 
 export const CAP_DL_NGAY_14: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-14-v1-1280.avif", webp: "/media/cap-dl-ngay-14-v1-1280.webp", width: 1280, height: 386 },
-  { avif: "/media/cap-dl-ngay-14-v1-640.avif", webp: "/media/cap-dl-ngay-14-v1-640.webp", width: 640, height: 193 },
+  { avif: "/media/cap-dl-ngay-14-v5-1280.avif", webp: "/media/cap-dl-ngay-14-v5-1280.webp", width: 1280, height: 478 },
+  { avif: "/media/cap-dl-ngay-14-v5-640.avif", webp: "/media/cap-dl-ngay-14-v5-640.webp", width: 640, height: 239 },
 ];
 
 export const CAP_DL_NGAY_7: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-7-v1-1280.avif", webp: "/media/cap-dl-ngay-7-v1-1280.webp", width: 1280, height: 1484 },
-  { avif: "/media/cap-dl-ngay-7-v1-640.avif", webp: "/media/cap-dl-ngay-7-v1-640.webp", width: 640, height: 742 },
+  { avif: "/media/cap-dl-ngay-7-v4-1280.avif", webp: "/media/cap-dl-ngay-7-v4-1280.webp", width: 1280, height: 1464 },
+  { avif: "/media/cap-dl-ngay-7-v4-640.avif", webp: "/media/cap-dl-ngay-7-v4-640.webp", width: 640, height: 732 },
 ];
 
 export const CAP_DL_TANG_THEM: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-tang-them-v1-1280.avif", webp: "/media/cap-dl-tang-them-v1-1280.webp", width: 1280, height: 510 },
-  { avif: "/media/cap-dl-tang-them-v1-640.avif", webp: "/media/cap-dl-tang-them-v1-640.webp", width: 640, height: 255 },
+  { avif: "/media/cap-dl-tang-them-v2-1280.avif", webp: "/media/cap-dl-tang-them-v2-1280.webp", width: 1280, height: 521 },
+  { avif: "/media/cap-dl-tang-them-v2-640.avif", webp: "/media/cap-dl-tang-them-v2-640.webp", width: 640, height: 261 },
 ];
 
 export const CAP_DL_TIN_CAY: readonly MediaSource[] = [
@@ -46,23 +46,23 @@ export const CAP_DX_HOAN_TAC: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_LUOT_CHAY: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-luot-chay-v1-1280.avif", webp: "/media/cap-dx-luot-chay-v1-1280.webp", width: 1280, height: 746 },
-  { avif: "/media/cap-dx-luot-chay-v1-640.avif", webp: "/media/cap-dx-luot-chay-v1-640.webp", width: 640, height: 373 },
+  { avif: "/media/cap-dx-luot-chay-v2-1280.avif", webp: "/media/cap-dx-luot-chay-v2-1280.webp", width: 1280, height: 853 },
+  { avif: "/media/cap-dx-luot-chay-v2-640.avif", webp: "/media/cap-dx-luot-chay-v2-640.webp", width: 640, height: 427 },
 ];
 
 export const CAP_DX_QUY_TAC: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-quy-tac-v1-1280.avif", webp: "/media/cap-dx-quy-tac-v1-1280.webp", width: 1280, height: 507 },
-  { avif: "/media/cap-dx-quy-tac-v1-640.avif", webp: "/media/cap-dx-quy-tac-v1-640.webp", width: 640, height: 254 },
+  { avif: "/media/cap-dx-quy-tac-v2-1280.avif", webp: "/media/cap-dx-quy-tac-v2-1280.webp", width: 1280, height: 503 },
+  { avif: "/media/cap-dx-quy-tac-v2-640.avif", webp: "/media/cap-dx-quy-tac-v2-640.webp", width: 640, height: 252 },
 ];
 
 export const CAP_DX_SELLER_CENTER: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-seller-center-v1-1193.avif", webp: "/media/cap-dx-seller-center-v1-1193.webp", width: 1193, height: 759 },
-  { avif: "/media/cap-dx-seller-center-v1-640.avif", webp: "/media/cap-dx-seller-center-v1-640.webp", width: 640, height: 407 },
+  { avif: "/media/cap-dx-seller-center-v2-1184.avif", webp: "/media/cap-dx-seller-center-v2-1184.webp", width: 1184, height: 756 },
+  { avif: "/media/cap-dx-seller-center-v2-640.avif", webp: "/media/cap-dx-seller-center-v2-640.webp", width: 640, height: 409 },
 ];
 
 export const CAP_DX_THE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-the-v1-1186.avif", webp: "/media/cap-dx-the-v1-1186.webp", width: 1186, height: 1229 },
-  { avif: "/media/cap-dx-the-v1-640.avif", webp: "/media/cap-dx-the-v1-640.webp", width: 640, height: 663 },
+  { avif: "/media/cap-dx-the-v5-1184.avif", webp: "/media/cap-dx-the-v5-1184.webp", width: 1184, height: 1082 },
+  { avif: "/media/cap-dx-the-v5-640.avif", webp: "/media/cap-dx-the-v5-640.webp", width: 640, height: 585 },
 ];
 
 export const CAP_DX_TU_CHOI: readonly MediaSource[] = [
@@ -71,8 +71,8 @@ export const CAP_DX_TU_CHOI: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_XAC_NHAN: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-xac-nhan-v1-1280.avif", webp: "/media/cap-dx-xac-nhan-v1-1280.webp", width: 1280, height: 910 },
-  { avif: "/media/cap-dx-xac-nhan-v1-640.avif", webp: "/media/cap-dx-xac-nhan-v1-640.webp", width: 640, height: 455 },
+  { avif: "/media/cap-dx-xac-nhan-v2-1280.avif", webp: "/media/cap-dx-xac-nhan-v2-1280.webp", width: 1280, height: 965 },
+  { avif: "/media/cap-dx-xac-nhan-v2-640.avif", webp: "/media/cap-dx-xac-nhan-v2-640.webp", width: 640, height: 482 },
 ];
 
 export const CAP_KN_DANG_NHAP: readonly MediaSource[] = [
@@ -81,8 +81,8 @@ export const CAP_KN_DANG_NHAP: readonly MediaSource[] = [
 ];
 
 export const CAP_KN_GHI: readonly MediaSource[] = [
-  { avif: "/media/cap-kn-ghi-v1-1186.avif", webp: "/media/cap-kn-ghi-v1-1186.webp", width: 1186, height: 821 },
-  { avif: "/media/cap-kn-ghi-v1-640.avif", webp: "/media/cap-kn-ghi-v1-640.webp", width: 640, height: 443 },
+  { avif: "/media/cap-kn-ghi-v3-1184.avif", webp: "/media/cap-kn-ghi-v3-1184.webp", width: 1184, height: 814 },
+  { avif: "/media/cap-kn-ghi-v3-640.avif", webp: "/media/cap-kn-ghi-v3-640.webp", width: 640, height: 440 },
 ];
 
 export const CAP_KN_KET_NOI: readonly MediaSource[] = [
@@ -106,13 +106,13 @@ export const CAP_PT_LICH_SALE: readonly MediaSource[] = [
 ];
 
 export const CAP_PT_LUONG: readonly MediaSource[] = [
-  { avif: "/media/cap-pt-luong-v1-1280.avif", webp: "/media/cap-pt-luong-v1-1280.webp", width: 1280, height: 320 },
-  { avif: "/media/cap-pt-luong-v1-640.avif", webp: "/media/cap-pt-luong-v1-640.webp", width: 640, height: 160 },
+  { avif: "/media/cap-pt-luong-v2-1280.avif", webp: "/media/cap-pt-luong-v2-1280.webp", width: 1280, height: 368 },
+  { avif: "/media/cap-pt-luong-v2-640.avif", webp: "/media/cap-pt-luong-v2-640.webp", width: 640, height: 184 },
 ];
 
 export const CAP_PT_NGHEN: readonly MediaSource[] = [
-  { avif: "/media/cap-pt-nghen-v1-1280.avif", webp: "/media/cap-pt-nghen-v1-1280.webp", width: 1280, height: 464 },
-  { avif: "/media/cap-pt-nghen-v1-640.avif", webp: "/media/cap-pt-nghen-v1-640.webp", width: 640, height: 232 },
+  { avif: "/media/cap-pt-nghen-v3-1280.avif", webp: "/media/cap-pt-nghen-v3-1280.webp", width: 1280, height: 525 },
+  { avif: "/media/cap-pt-nghen-v3-640.avif", webp: "/media/cap-pt-nghen-v3-640.webp", width: 640, height: 263 },
 ];
 
 export const CAP_PT_PHEU: readonly MediaSource[] = [
@@ -121,8 +121,8 @@ export const CAP_PT_PHEU: readonly MediaSource[] = [
 ];
 
 export const CAP_PT_XEP_HANG: readonly MediaSource[] = [
-  { avif: "/media/cap-pt-xep-hang-v1-1280.avif", webp: "/media/cap-pt-xep-hang-v1-1280.webp", width: 1280, height: 551 },
-  { avif: "/media/cap-pt-xep-hang-v1-640.avif", webp: "/media/cap-pt-xep-hang-v1-640.webp", width: 640, height: 275 },
+  { avif: "/media/cap-pt-xep-hang-v2-1280.avif", webp: "/media/cap-pt-xep-hang-v2-1280.webp", width: 1280, height: 670 },
+  { avif: "/media/cap-pt-xep-hang-v2-640.avif", webp: "/media/cap-pt-xep-hang-v2-640.webp", width: 640, height: 335 },
 ];
 
 /**
@@ -132,23 +132,23 @@ export const CAP_PT_XEP_HANG: readonly MediaSource[] = [
  * (dx-hang-cho, dx-hoan-tac, dx-tu-choi, dx-seller-center, dx-the, kn-ghi) have none.
  */
 export const CAP_DL_HOC_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-hoc-m-v1-614.avif", webp: "/media/cap-dl-hoc-m-v1-614.webp", width: 614, height: 454 },
+  { avif: "/media/cap-dl-hoc-m-v3-640.avif", webp: "/media/cap-dl-hoc-m-v3-640.webp", width: 640, height: 455 },
 ];
 
 export const CAP_DL_MUC_TIEU_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-muc-tieu-m-v1-720.avif", webp: "/media/cap-dl-muc-tieu-m-v1-720.webp", width: 720, height: 506 },
+  { avif: "/media/cap-dl-muc-tieu-m-v2-720.avif", webp: "/media/cap-dl-muc-tieu-m-v2-720.webp", width: 720, height: 525 },
 ];
 
 export const CAP_DL_NGAY_14_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-14-m-v1-720.avif", webp: "/media/cap-dl-ngay-14-m-v1-720.webp", width: 720, height: 350 },
+  { avif: "/media/cap-dl-ngay-14-m-v5-720.avif", webp: "/media/cap-dl-ngay-14-m-v5-720.webp", width: 720, height: 433 },
 ];
 
 export const CAP_DL_NGAY_7_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-7-m-v1-720.avif", webp: "/media/cap-dl-ngay-7-m-v1-720.webp", width: 720, height: 875 },
+  { avif: "/media/cap-dl-ngay-7-m-v4-720.avif", webp: "/media/cap-dl-ngay-7-m-v4-720.webp", width: 720, height: 863 },
 ];
 
 export const CAP_DL_TANG_THEM_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-tang-them-m-v1-720.avif", webp: "/media/cap-dl-tang-them-m-v1-720.webp", width: 720, height: 350 },
+  { avif: "/media/cap-dl-tang-them-m-v2-720.avif", webp: "/media/cap-dl-tang-them-m-v2-720.webp", width: 720, height: 357 },
 ];
 
 export const CAP_DL_TIN_CAY_MOBILE: readonly MediaSource[] = [
@@ -156,20 +156,20 @@ export const CAP_DL_TIN_CAY_MOBILE: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_LUOT_CHAY_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-luot-chay-m-v1-640.avif", webp: "/media/cap-dx-luot-chay-m-v1-640.webp", width: 640, height: 560 },
+  { avif: "/media/cap-dx-luot-chay-m-v2-640.avif", webp: "/media/cap-dx-luot-chay-m-v2-640.webp", width: 640, height: 640 },
 ];
 
 export const CAP_DX_QUY_TAC_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-quy-tac-m-v1-640.avif", webp: "/media/cap-dx-quy-tac-m-v1-640.webp", width: 640, height: 324 },
+  { avif: "/media/cap-dx-quy-tac-m-v2-640.avif", webp: "/media/cap-dx-quy-tac-m-v2-640.webp", width: 640, height: 322 },
 ];
 
 /** Home hero on phones (P35, D46): the card header only, so the H1 stays the mobile LCP. */
 export const CAP_DX_THE_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-the-m-v1-720.avif", webp: "/media/cap-dx-the-m-v1-720.webp", width: 720, height: 212 },
+  { avif: "/media/cap-dx-the-m-v5-720.avif", webp: "/media/cap-dx-the-m-v5-720.webp", width: 720, height: 212 },
 ];
 
 export const CAP_DX_XAC_NHAN_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-xac-nhan-m-v1-640.avif", webp: "/media/cap-dx-xac-nhan-m-v1-640.webp", width: 640, height: 501 },
+  { avif: "/media/cap-dx-xac-nhan-m-v2-640.avif", webp: "/media/cap-dx-xac-nhan-m-v2-640.webp", width: 640, height: 531 },
 ];
 
 export const CAP_KN_DANG_NHAP_MOBILE: readonly MediaSource[] = [
@@ -193,11 +193,11 @@ export const CAP_PT_LICH_SALE_MOBILE: readonly MediaSource[] = [
 ];
 
 export const CAP_PT_LUONG_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-pt-luong-m-v1-678.avif", webp: "/media/cap-pt-luong-m-v1-678.webp", width: 678, height: 240 },
+  { avif: "/media/cap-pt-luong-m-v2-678.avif", webp: "/media/cap-pt-luong-m-v2-678.webp", width: 678, height: 276 },
 ];
 
 export const CAP_PT_NGHEN_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-pt-nghen-m-v1-525.avif", webp: "/media/cap-pt-nghen-m-v1-525.webp", width: 525, height: 464 },
+  { avif: "/media/cap-pt-nghen-m-v3-720.avif", webp: "/media/cap-pt-nghen-m-v3-720.webp", width: 720, height: 434 },
 ];
 
 export const CAP_PT_PHEU_MOBILE: readonly MediaSource[] = [
@@ -205,7 +205,7 @@ export const CAP_PT_PHEU_MOBILE: readonly MediaSource[] = [
 ];
 
 export const CAP_PT_XEP_HANG_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-pt-xep-hang-m-v1-720.avif", webp: "/media/cap-pt-xep-hang-m-v1-720.webp", width: 720, height: 517 },
+  { avif: "/media/cap-pt-xep-hang-m-v2-720.avif", webp: "/media/cap-pt-xep-hang-m-v2-720.webp", width: 720, height: 523 },
 ];
 
 /**
@@ -215,10 +215,19 @@ export const CAP_PT_XEP_HANG_MOBILE: readonly MediaSource[] = [
  * replace the outdated v1 shots in new content; the v1 exports above stay for existing pages.
  * P49-F: after the demo copy fixes, the sign-in shot (now with the right panel, v3), the SR-007
  * cover card (chip and CTR formula, v2) and day 14 (AOV band "155k – 165k ₫", v3) were recaptured.
+ * P51-A (D60.1): the sample's title run (TN-021) targets CTR on Thẻ sản phẩm 3,2 % → 3,5 %, CTOR
+ * cards read "CTOR" (all channels), Kéo xuống rows + Còn lại add up to Tổng, and one capture clock
+ * dates the run 10/10 → 17/10 → 24/10 everywhere; the affected v1 and v2/v3 exports above and below
+ * now point at the recaptured files (export names unchanged). D61 (same recapture): card GMV line
+ * is a plain sentence, day-14 shot without the removed internal notes (D61);
+ * CAP_DX_ANH_BIA (v3), CAP_DX_CTR_TIEU_DE (v2) and CAP_KN_QUET_NHANH_V2 (v3) follow.
+ * P52-D: SM-012's CTOR card proposes Mô tả only (title changes target CTR) and the sample reasons
+ * have no peer median (D61): CAP_DX_THE (v5, home phone crop m-v5), CAP_KN_GHI (v3), CAP_DL_HOC (v3)
+ * and CAP_DX_XAC_NHAN (v2, the SM-012 consent now shows only the description) were recaptured.
  */
 export const CAP_KN_DANG_NHAP_V2: readonly MediaSource[] = [
-  { avif: "/media/cap-kn-dang-nhap-v3-1280.avif", webp: "/media/cap-kn-dang-nhap-v3-1280.webp", width: 1280, height: 900 },
-  { avif: "/media/cap-kn-dang-nhap-v3-640.avif", webp: "/media/cap-kn-dang-nhap-v3-640.webp", width: 640, height: 450 },
+  { avif: "/media/cap-kn-dang-nhap-v4-1280.avif", webp: "/media/cap-kn-dang-nhap-v4-1280.webp", width: 1280, height: 900 },
+  { avif: "/media/cap-kn-dang-nhap-v4-640.avif", webp: "/media/cap-kn-dang-nhap-v4-640.webp", width: 640, height: 450 },
 ];
 
 export const CAP_KN_DANG_NHAP_V2_MOBILE: readonly MediaSource[] = [
@@ -226,12 +235,12 @@ export const CAP_KN_DANG_NHAP_V2_MOBILE: readonly MediaSource[] = [
 ];
 
 export const CAP_KN_QUET_NHANH_V2: readonly MediaSource[] = [
-  { avif: "/media/cap-kn-quet-nhanh-v2-1280.avif", webp: "/media/cap-kn-quet-nhanh-v2-1280.webp", width: 1280, height: 869 },
-  { avif: "/media/cap-kn-quet-nhanh-v2-640.avif", webp: "/media/cap-kn-quet-nhanh-v2-640.webp", width: 640, height: 434 },
+  { avif: "/media/cap-kn-quet-nhanh-v3-1280.avif", webp: "/media/cap-kn-quet-nhanh-v3-1280.webp", width: 1280, height: 869 },
+  { avif: "/media/cap-kn-quet-nhanh-v3-640.avif", webp: "/media/cap-kn-quet-nhanh-v3-640.webp", width: 640, height: 434 },
 ];
 
 export const CAP_KN_QUET_NHANH_V2_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-kn-quet-nhanh-m-v2-678.avif", webp: "/media/cap-kn-quet-nhanh-m-v2-678.webp", width: 678, height: 799 },
+  { avif: "/media/cap-kn-quet-nhanh-m-v3-678.avif", webp: "/media/cap-kn-quet-nhanh-m-v3-678.webp", width: 678, height: 799 },
 ];
 
 export const CAP_PT_NGHEN_V2: readonly MediaSource[] = [
@@ -244,13 +253,13 @@ export const CAP_PT_NGHEN_V2_MOBILE: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_THE_V2: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-the-v2-1184.avif", webp: "/media/cap-dx-the-v2-1184.webp", width: 1184, height: 868 },
-  { avif: "/media/cap-dx-the-v2-640.avif", webp: "/media/cap-dx-the-v2-640.webp", width: 640, height: 469 },
+  { avif: "/media/cap-dx-the-v3-1184.avif", webp: "/media/cap-dx-the-v3-1184.webp", width: 1184, height: 868 },
+  { avif: "/media/cap-dx-the-v3-640.avif", webp: "/media/cap-dx-the-v3-640.webp", width: 640, height: 469 },
 ];
 
 export const CAP_DX_ANH_BIA: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-anh-bia-v2-1184.avif", webp: "/media/cap-dx-anh-bia-v2-1184.webp", width: 1184, height: 1034 },
-  { avif: "/media/cap-dx-anh-bia-v2-640.avif", webp: "/media/cap-dx-anh-bia-v2-640.webp", width: 640, height: 559 },
+  { avif: "/media/cap-dx-anh-bia-v3-1184.avif", webp: "/media/cap-dx-anh-bia-v3-1184.webp", width: 1184, height: 1034 },
+  { avif: "/media/cap-dx-anh-bia-v3-640.avif", webp: "/media/cap-dx-anh-bia-v3-640.webp", width: 640, height: 559 },
 ];
 
 export const CAP_DX_ANH_BIA_TAI_LEN: readonly MediaSource[] = [
@@ -259,26 +268,26 @@ export const CAP_DX_ANH_BIA_TAI_LEN: readonly MediaSource[] = [
 ];
 
 export const CAP_DX_CTR_TIEU_DE: readonly MediaSource[] = [
-  { avif: "/media/cap-dx-ctr-tieu-de-v1-1184.avif", webp: "/media/cap-dx-ctr-tieu-de-v1-1184.webp", width: 1184, height: 1046 },
-  { avif: "/media/cap-dx-ctr-tieu-de-v1-640.avif", webp: "/media/cap-dx-ctr-tieu-de-v1-640.webp", width: 640, height: 565 },
+  { avif: "/media/cap-dx-ctr-tieu-de-v2-1184.avif", webp: "/media/cap-dx-ctr-tieu-de-v2-1184.webp", width: 1184, height: 1046 },
+  { avif: "/media/cap-dx-ctr-tieu-de-v2-640.avif", webp: "/media/cap-dx-ctr-tieu-de-v2-640.webp", width: 640, height: 565 },
 ];
 
 export const CAP_DL_NGAY_7_V2: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-7-v2-1280.avif", webp: "/media/cap-dl-ngay-7-v2-1280.webp", width: 1280, height: 1565 },
-  { avif: "/media/cap-dl-ngay-7-v2-640.avif", webp: "/media/cap-dl-ngay-7-v2-640.webp", width: 640, height: 783 },
+  { avif: "/media/cap-dl-ngay-7-v3-1280.avif", webp: "/media/cap-dl-ngay-7-v3-1280.webp", width: 1280, height: 1565 },
+  { avif: "/media/cap-dl-ngay-7-v3-640.avif", webp: "/media/cap-dl-ngay-7-v3-640.webp", width: 640, height: 783 },
 ];
 
 export const CAP_DL_NGAY_7_V2_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-7-m-v2-720.avif", webp: "/media/cap-dl-ngay-7-m-v2-720.webp", width: 720, height: 250 },
+  { avif: "/media/cap-dl-ngay-7-m-v3-720.avif", webp: "/media/cap-dl-ngay-7-m-v3-720.webp", width: 720, height: 250 },
 ];
 
 export const CAP_DL_NGAY_14_V2: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-14-v3-1280.avif", webp: "/media/cap-dl-ngay-14-v3-1280.webp", width: 1280, height: 1821 },
-  { avif: "/media/cap-dl-ngay-14-v3-640.avif", webp: "/media/cap-dl-ngay-14-v3-640.webp", width: 640, height: 911 },
+  { avif: "/media/cap-dl-ngay-14-v4-1280.avif", webp: "/media/cap-dl-ngay-14-v4-1280.webp", width: 1280, height: 1727 },
+  { avif: "/media/cap-dl-ngay-14-v4-640.avif", webp: "/media/cap-dl-ngay-14-v4-640.webp", width: 640, height: 864 },
 ];
 
 export const CAP_DL_NGAY_14_V2_MOBILE: readonly MediaSource[] = [
-  { avif: "/media/cap-dl-ngay-14-m-v3-720.avif", webp: "/media/cap-dl-ngay-14-m-v3-720.webp", width: 720, height: 191 },
+  { avif: "/media/cap-dl-ngay-14-m-v4-720.avif", webp: "/media/cap-dl-ngay-14-m-v4-720.webp", width: 720, height: 181 },
 ];
 
 export const CAP_DX_HOAN_TAC_V2: readonly MediaSource[] = [

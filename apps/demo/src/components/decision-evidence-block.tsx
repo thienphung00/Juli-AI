@@ -34,7 +34,7 @@ function formatChange(ratio: number | null): { text: string; tone: ChangeTone } 
 }
 
 export function recoverableSentence(value: number): string {
-  return `Có thể lấy lại khoảng ${money(value)} GMV mỗi ngày (ước tính theo quy tắc, chưa phải mô hình)`;
+  return `Có thể lấy lại khoảng ${money(value)} GMV mỗi ngày (ước tính)`;
 }
 
 export function DecisionEvidenceBlock({ evidence }: { readonly evidence: DecisionEvidence }) {

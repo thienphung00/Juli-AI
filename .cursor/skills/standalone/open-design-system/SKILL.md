@@ -4,7 +4,7 @@ description: >-
   Upstream design-reference skill for gathering layout and component patterns via
   Open Design MCP before Next.js implementation. Use for design-reference tasks —
   extracting runnable artifacts, browsing OD projects, or commissioning layout runs —
-  not for shipping product UI in apps/demo or apps/dashboard (use ui-ux-design + ui-ux).
+  not for shipping product UI in apps/demo or apps/landing (use ui-ux-design + ui-ux).
 catalog:
   pluginIndex: skill-catalog
   mcpServer: open-design
@@ -13,7 +13,7 @@ catalog:
     - open design extract materialize artifact runnable preview
     - problem-section layout inspiration upstream of ui-ux-design
   notWhen:
-    - implementing Next.js pages in apps/demo or apps/dashboard (use ui-ux-design)
+    - implementing Next.js pages in apps/demo or apps/landing (use ui-ux-design)
     - copy authority or Vietnamese strings (dictionary.md + design-context.md per ADR-028)
     - binding IA changes (ADR-023 four destinations)
   upstreamOf:
@@ -47,7 +47,7 @@ Gather references first; implement in Juli product apps with `ui-ux` executor +
 
 1. **Open Design** (this skill + `open-design` MCP) — components, layouts, runnable artifacts
 2. **Mobbin** (`Mobbin` MCP) — screen/flow/section search for problem areas
-3. **`ui-ux-design`** — Next.js implementation executor for `apps/demo` / `apps/dashboard`
+3. **`ui-ux-design`** — Next.js implementation executor for `apps/demo` / `apps/landing`
 4. **`ui-ux` domain executor** — Meta assignment for frontend implementation slices
 5. **ADR-028 copy** — `dictionary.md`, `design-context.md` loaded for implementation
 

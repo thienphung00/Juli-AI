@@ -76,11 +76,14 @@ const SRC_ROOT = resolve(__dirname, "..");
  * importing only what that door actually uses.
  */
 
+// P53 (2026-10-18): the legacy review route
+// (`app/decisions/recommendations/[recommendationId]/page.tsx`) and the replay
+// run door (`components/replay-run-detail.tsx`) were removed with
+// `/decisions/in-progress/*`; the entries below are every signed-out surface
+// that remains.
 const ENTRY_POINTS = [
   "components/demo-landing.tsx",
   "components/home/sample-home.tsx",
-  "app/decisions/recommendations/[recommendationId]/page.tsx",
-  "components/replay-run-detail.tsx",
   // AC-8.6: the anonymous Phân tích sample (report + rankings) is bundled, never fetched.
   "components/phan-tich/sample-phan-tich.tsx",
   // P11: the signed-out Quyết định is the P10 screens over in-memory sample

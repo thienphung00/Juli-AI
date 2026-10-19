@@ -10,10 +10,6 @@ import {
   RUN_TERMINAL_STATE_COPY,
   RUN_TERMINAL_STATE_UNKNOWN_COPY,
 } from "../lib/run-ledger/copy";
-import {
-  OPTION_PICKER_NO_RETRY_COPY,
-  describeConfirmationRejection,
-} from "../lib/run-surface/option-picker-copy";
 
 const REPO_ROOT = resolve(__dirname, "../../../..");
 
@@ -92,11 +88,6 @@ const ALLOWED_USES: ReadonlyArray<{
     path: "apps/demo/src/lib/review-seller-copy.ts",
     snippet: "Hành động sẽ chuyển sang Đang thực hiện.",
     reason: "Ordinary noun, sentence-initial (\"this action will move to…\").",
-  },
-  {
-    path: "apps/demo/src/components/in-progress-panel.tsx",
-    snippet: 'action: "Hành động",',
-    reason: "Timeline step-kind label (an action step), not the tab.",
   },
   {
     path: "apps/demo/src/lib/quyet-dinh/copy.ts",
@@ -236,10 +227,8 @@ describe("the destination has one name", () => {
       RUN_LEDGER_NO_RETRY_NOTE,
       RUN_TERMINAL_STATE_COPY.failed.body,
       RUN_TERMINAL_STATE_UNKNOWN_COPY.body,
-      OPTION_PICKER_NO_RETRY_COPY,
-      describeConfirmationRejection("params_sha_mismatch"),
     ];
-    expect(destinationStrings.length).toBe(6);
+    expect(destinationStrings.length).toBe(4);
     expect(ACTIONS_DESTINATION_LABEL).toBe(DESTINATION_NAME);
     for (const value of destinationStrings) {
       expect(value).toContain(ACTIONS_DESTINATION_LABEL);

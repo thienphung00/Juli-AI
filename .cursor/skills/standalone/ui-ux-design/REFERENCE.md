@@ -4,7 +4,7 @@
 
 | Layer | Choice |
 |-------|--------|
-| Framework | Next.js App Router (`apps/demo/src/app/`, `apps/dashboard/src/app/`) |
+| Framework | Next.js App Router (`apps/demo/src/app/`, `apps/landing/src/app/`) |
 | Language | TypeScript |
 | Styling | Tailwind CSS + CSS variables in `globals.css`; demo imports `@juli/theme` + `@juli/ui` |
 | Components | `packages/ui/` shared primitives; app-local under `apps/*/src/components/` |
@@ -25,7 +25,7 @@ Mode is persisted (`juli_workspace_mode` in `localStorage`) and toggles `dark` o
 
 ## Design tokens
 
-Defined in `apps/dashboard/src/app/globals.css` (legacy/prod) and `@juli/theme/tokens.css` (shared; consumed by demo and `packages/ui/`). Dashboard mirrors scales in `tailwind.config.ts` for `primary.*`.
+Defined in `@juli/theme/tokens.css` (shared; consumed by demo and `packages/ui/`) and each app's `globals.css`.
 
 | Token | Role |
 |-------|------|
@@ -91,12 +91,6 @@ apps/demo/src/          # primary product UI
   app/                  # routes, layout.tsx, globals.css
   components/           # demo-specific UI
   lib/                  # mock state, workflows, analytics
-  __tests__/            # component tests (*.test.tsx)
-
-apps/dashboard/src/     # legacy/prod (App Review live path)
-  app/                  # routes, layout.tsx, globals.css
-  components/           # UI by feature (tasks/, workflows/, seller-home/, …)
-  lib/                  # format, auth, nav-config, mock-data, hooks
   __tests__/            # component tests (*.test.tsx)
 
 packages/ui/src/        # shared primitives (Button, Card, PageHeader, …)
@@ -213,11 +207,4 @@ Juli is **clean light-commerce** (seller) and **refined dark-marketplace** (affi
 |---------|------|
 | Demo shell + nav | `apps/demo/src/components/demo-shell.tsx` |
 | Recommendations panel | `apps/demo/src/components/recommendations-panel.tsx` |
-| Form + error/loading | `apps/dashboard/src/components/LoginForm.tsx` |
-| Card + actions + testids | `apps/dashboard/src/components/tasks/TaskCard.tsx` |
-| Sticky header shell | `apps/dashboard/src/components/PageHeader.tsx` |
-| Bottom navigation | `apps/dashboard/src/components/NavBar.tsx` |
-| Empty state | `apps/dashboard/src/components/recommendations/CollectingDataEmpty.tsx` |
-| Modal workflow | `apps/dashboard/src/components/tasks/TaskDismissModal.tsx` |
-| Workflow panel | `apps/dashboard/src/components/workflows/leakage/LeakageWorkflowPanel.tsx` |
 | Shared primitive | `packages/ui/src/button.tsx`, `packages/ui/src/page-header.tsx` |

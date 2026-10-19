@@ -26,13 +26,13 @@ export const DECLINE_REASONS: readonly ReasonOption[] = [
   { code: "wrong_info", label: "Nội dung sai thông tin sản phẩm", learn: "Juli kiểm kỹ thông tin sản phẩm trước khi soạn." },
   { code: "tone", label: "Văn phong chưa phù hợp", learn: "Juli soạn theo văn phong gần với nội dung hiện tại của bạn hơn." },
   { code: "too_much_change", label: "Thay đổi quá nhiều so với hiện tại", learn: "Juli đề xuất thay đổi nhỏ hơn, giữ phần bạn đã viết." },
-  { code: "changed_mind", label: "Đổi ý, chưa muốn thay đổi lúc này", learn: "Juli đề xuất lại sau 7 ngày với số liệu mới." },
+  { code: "changed_mind", label: "Đổi ý, chưa muốn thay đổi lúc này", learn: "Juli đề xuất lại sau, với số liệu mới." },
   { code: "other", label: "Khác", learn: "Juli ghi lại ghi chú của bạn để xem xét ở đề xuất sau." },
 ];
 
 /** Hoàn tác → `POST /runs/{id}/revert` with `{reason_code, note?}`. */
 export const REVERT_REASONS: readonly ReasonOption[] = [
-  { code: "metrics_dropped", label: "Doanh số hoặc chỉ số giảm", learn: "lần sau Juli đặt mức kỳ vọng thận trọng hơn cho loại thay đổi này." },
+  { code: "metrics_dropped", label: "Doanh số hoặc chỉ số giảm", learn: "Juli xem kỹ số liệu hơn trước khi đề xuất lại thay đổi này." },
   { code: "bad_feedback", label: "Khách phản hồi không tốt", learn: "Juli đọc thêm đánh giá và tin nhắn của khách trước khi soạn." },
   { code: "wrong_info", label: "Nội dung sai thông tin sản phẩm", learn: "Juli kiểm kỹ thông tin sản phẩm trước khi soạn." },
   { code: "off_brand", label: "Không hợp giọng thương hiệu", learn: "Juli bám sát giọng văn và từ cấm trong Quy tắc của bạn." },

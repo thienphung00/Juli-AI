@@ -50,3 +50,8 @@ rows and upserts shop-scoped JSON envelopes in `analytics_kpi_envelopes` (ADR-03
 
 Assign a **new** payload dict when merging KPI keys (SQLAlchemy JSONB mutation caveat);
 see ``context7-sqlalchemy-jsonb-526-527.txt``.
+
+## Status: LEGACY (fast track P53, D62, 2026-10-18)
+
+Marker only — no behaviour changed, nothing moved or deleted (owner-approved audit cleanup,
+`juli-audit/backend.md`). No production importer; read only by 6 tests and by two whitelist lines in `agent-runtime/scripts/ci/medallion_one_writer.py`. Deleting it (audit C5) means changing that CI whitelist and those tests in the same change.

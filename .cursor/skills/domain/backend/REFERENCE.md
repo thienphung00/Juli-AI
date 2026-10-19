@@ -104,7 +104,7 @@ definition deeper than `juli_backend.<package>.<child>` moves the behaviour into
 | Product services | `services/scoring/`, `action_cards/`, `aggregates/`, `execution/`, `alerts/` |
 | Celery | `workers/celery_app.py`, `workers/tasks/` |
 | ML code (defer to `machine-learning` domain) | `backend/src/juli_backend/ai/` |
-| Frontend apps (defer to `ui-ux`) | `apps/dashboard`, `apps/demo` |
+| Frontend apps (defer to `ui-ux`) | `apps/demo`, `apps/landing` |
 | Vendor I/O (defer to `integrations`) | `integrations/tiktok/`, `services/webhook/` |
 
 ---

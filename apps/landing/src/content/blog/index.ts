@@ -89,3 +89,18 @@ export function formatDate(isoDate: string): string {
   const [year, month, day] = isoDate.split("-");
   return `${day}/${month}/${year}`;
 }
+
+/**
+ * The guide a reach post's end-of-post box links to (D59 addition 4), or null: the guide must
+ * exist and be a conversion post, and a published post never links a draft guide.
+ */
+export function guideFor(
+  post: BlogPostMeta,
+  posts: readonly BlogPostMeta[] = BLOG_POSTS,
+): BlogPostMeta | null {
+  if (!post.guide || blogTier(post) !== "reach") return null;
+  const guide = getPostMeta(post.guide, posts);
+  if (!guide || blogTier(guide) !== "conversion") return null;
+  if (isPublished(post) && !isPublished(guide)) return null;
+  return guide;
+}

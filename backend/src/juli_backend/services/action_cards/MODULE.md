@@ -168,6 +168,13 @@ slice — see "Out of scope".
 - `refresh_cooldown.get_refresh_cooldown_gate()` / `RefreshCooldownGate` (#899,
   ADR-061 §2b) — per-shop cooldown gate on `POST /v1/action-cards/refresh`;
   see "Per-shop refresh cooldown" below
+- `GroupError` (from `card_groups`) — the error the Ops card-group routes turn into a
+  4xx; re-exported at the package root (fast track P53, D62)
+- `open_cell_counts(session, shop_id)` → `dict[str, int]` (from `emission_budget`,
+  lazy) — the shop's open card cells for the Ops view; package root since P53 (D62)
+- `rescore_shop_cards(session, shop_id, *, now)` (from `optimize_product_cards`, lazy)
+  — the body of the `rescore_shop_cards` worker task; package root since P53 (D62),
+  resolved on first access so importing the package does not pull `services.optimize_product`
 
 ## HTTP (via `api/routes/action_cards.py`)
 

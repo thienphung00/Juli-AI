@@ -18,7 +18,6 @@ from public_release_classification import classify_public_release  # noqa: E402
     ("paths", "reason_prefix"),
     [
         (["apps/demo/src/app/page.tsx"], "path:apps/demo"),
-        (["apps/dashboard/package.json"], "path:apps/dashboard"),
         (["apps/landing/src/app/layout.tsx"], "path:apps/landing"),
         (["infra/nginx/demo.app-juli.com.conf"], "path:infra/nginx"),
         (["infra/systemd/juli-api.service"], "path:infra/systemd"),
@@ -34,7 +33,6 @@ from public_release_classification import classify_public_release  # noqa: E402
     ],
     ids=[
         "apps-demo",
-        "apps-dashboard",
         "apps-landing",
         "infra-nginx",
         "infra-systemd",
@@ -52,7 +50,9 @@ from public_release_classification import classify_public_release  # noqa: E402
 def test_path_trigger_marks_public(paths: list[str], reason_prefix: str) -> None:
     result = classify_public_release(paths=paths, issue_body="Harness-only notes")
     assert result["publicRelease"] is True
-    assert any(r.startswith(reason_prefix) or r == reason_prefix for r in result["publicReleaseReasons"])
+    assert any(
+        r.startswith(reason_prefix) or r == reason_prefix for r in result["publicReleaseReasons"]
+    )
 
 
 def test_hostname_surface_trigger_marks_public() -> None:

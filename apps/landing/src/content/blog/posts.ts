@@ -77,16 +77,16 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "toi-uu-the-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Tối ưu thẻ sản phẩm TikTok Shop từ A–Z",
     seoTitle: "Tối ưu thẻ sản phẩm TikTok Shop từ A–Z | Juli AI",
     description:
       "Tối ưu ảnh bìa, tiêu đề, mô tả, thuộc tính, giá và khuyến mãi cho thẻ sản phẩm TikTok Shop theo quy định của TikTok, và cách đo kết quả.",
     excerpt:
-      "Ảnh bìa, tiêu đề, mô tả, thuộc tính, giá và khuyến mãi: quy định của TikTok, điều nên làm cho từng thành phần, và cách đo một thay đổi bằng cửa sổ trước/sau và ngưỡng dữ liệu.",
+      "Ảnh bìa, tiêu đề, mô tả, thuộc tính, giá và khuyến mãi: quy định của TikTok, điều nên làm cho từng thành phần, và cách đo một thay đổi bằng cửa sổ trước/sau khi số liệu đủ để đọc.",
     breadcrumbName: "Tối ưu thẻ sản phẩm",
-    publishedAt: "2026-10-15",
-    updatedAt: "2026-10-15",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "optimize",
     format: "pillar",
     cover: blogCover("hero-toi-uu-the-san-pham-tiktok-shop-v1", "Minh hoạ: thẻ sản phẩm có ảnh chai, dòng tên và dòng giá xanh lá bên cạnh ba thanh trượt chỉnh, nền xanh lá nhạt, chữ “Tối ưu thẻ sản phẩm”"),
@@ -106,7 +106,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Sau khi sửa thẻ sản phẩm bao lâu thì đánh giá được kết quả?",
         answer:
-          "Juli so sánh 14 ngày trước thay đổi với 7 ngày sau (đọc sơ bộ) và 14 ngày sau (kết luận), chỉ khi sản phẩm đủ ngưỡng dữ liệu, và so với nhóm sản phẩm không thay đổi trong cùng thời gian.",
+          "Juli so sánh 14 ngày trước thay đổi với 7 ngày sau (đọc sơ bộ) và 14 ngày sau (kết luận), và chỉ kết luận khi số liệu đủ để đọc.",
       },
       {
         question: "Có bắt buộc giảm giá theo đề xuất của Chẩn đoán giá không?",
@@ -127,7 +127,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "cong-cu-cho-nha-ban-tiktok-shop-2026",
-    status: "draft",
+    status: "published",
     title: "Top công cụ cho nhà bán TikTok Shop 2026",
     seoTitle: "Top công cụ cho nhà bán TikTok Shop 2026 | Juli AI",
     description:
@@ -135,8 +135,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Công cụ có sẵn của TikTok, phần mềm quản lý đa kênh, công cụ phân tích thị trường và trợ lý AI: mỗi nhóm giải quyết việc gì, mô tả theo thông tin nhà cung cấp công bố (kiểm tra 15/10/2026).",
     breadcrumbName: "Công cụ cho nhà bán 2026",
-    publishedAt: "2026-10-15",
-    updatedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "tools",
     format: "comparison",
     cover: blogCover("hero-cong-cu-cho-nha-ban-tiktok-shop-2026-v1", "Minh hoạ: hộp đồ nghề xanh ngọc có thước, tua vít và cờ lê nhô lên, nền xanh ngọc nhạt, chữ “Bộ công cụ nhà bán”"),
@@ -237,7 +237,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "tiktok-shop-khong-ra-don",
-    status: "draft",
+    status: "published",
     title: "TikTok Shop không ra đơn: đọc phễu để tìm nguyên nhân",
     seoTitle: "TikTok Shop không ra đơn: đọc phễu tìm nguyên nhân | Juli AI",
     description:
@@ -245,12 +245,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Coi \"không ra đơn\" là triệu chứng: loại trừ trạng thái sản phẩm, tồn kho và vận hành, rồi đọc phễu Lượt hiển thị, CTR, CTOR để biết đơn hàng bị chặn ở bước nào, kèm danh sách kiểm tra và câu hỏi trước khi tăng ngân sách quảng cáo.",
     breadcrumbName: "TikTok Shop không ra đơn",
-    publishedAt: "2026-10-16",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
     cover: blogCover("hero-tiktok-shop-khong-ra-don-v1", "Minh hoạ: chiếc chuông báo đơn trên quầy nằm im với chữ z z và một phiếu đơn trống viền nét đứt, nền xám nhạt, chữ “Shop không ra đơn”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["khach-xem-nhung-khong-mua-tiktok-shop", "san-pham-tiktok-shop-khong-co-luot-hien-thi", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -266,7 +267,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Shop mới bao lâu thì đọc được chỉ số?",
         answer:
-          "Hãy dùng cửa sổ ít nhất 14 ngày và chỉ đọc tỷ lệ khi đủ dữ liệu, theo một ngưỡng bạn tự đặt và giữ nguyên, ví dụ trung bình mỗi ngày từ 50 lượt hiển thị mới đọc CTR và từ 20 lượt nhấp mới đọc CTOR. Đó không phải quy định của TikTok; dưới ngưỡng, vấn đề thường là chưa đủ người nhìn thấy sản phẩm.",
+          "Hãy dùng cửa sổ ít nhất 14 ngày và chỉ đọc tỷ lệ khi số liệu đủ nhiều để không bị nhiễu, và giữ cùng một cách đọc cho mọi lần so sánh. TikTok không đưa ra ngưỡng chính thức; khi số liệu còn quá ít, vấn đề thường là chưa đủ người nhìn thấy sản phẩm.",
       },
       {
         question: "Giảm giá có giúp shop ra đơn không?",
@@ -287,7 +288,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "doanh-thu-tiktok-shop-giam",
-    status: "draft",
+    status: "published",
     title: "Doanh thu TikTok Shop giảm: checklist tìm nguyên nhân theo từng luồng",
     seoTitle: "Doanh thu TikTok Shop giảm: checklist nguyên nhân | Juli AI",
     description:
@@ -295,12 +296,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "So sánh hai kỳ cho công bằng, tách mức giảm GMV theo năm luồng truy cập và theo Lượt hiển thị × CTR × CTOR × AOV, rồi đi qua danh sách nguyên nhân cho từng luồng, từng chỉ số và từng sản phẩm.",
     breadcrumbName: "Doanh thu TikTok Shop giảm",
-    publishedAt: "2026-10-16",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
     cover: blogCover("hero-doanh-thu-tiktok-shop-giam-v1", "Minh hoạ: biểu đồ đường đi ngang rồi rơi xuống, kính lúp soi điểm rơi màu hồng, nền xanh dương nhạt, chữ “Doanh thu giảm”"),
     author: AUTHOR,
+    guide: "tim-san-pham-keo-gmv-xuong-tiktok-shop",
     related: ["doanh-thu-sau-sale-tiktok-shop", "ty-le-hoan-hang-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -321,7 +323,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Làm sao biết mức giảm là thật hay chỉ là dao động?",
         answer:
-          "So mức giảm với mức dao động thường thấy của shop trong vài kỳ gần đây. Chỉ coi một so sánh là rõ khi mỗi kỳ có đủ đơn, ví dụ từ 30 đơn hàng trở lên, và mức giảm lớn hơn mức chênh thường thấy; dưới mức đó là dấu hiệu để theo dõi tiếp.",
+          "So mức giảm với mức dao động thường thấy của shop trong vài kỳ gần đây. Chỉ coi một so sánh là rõ khi mỗi kỳ có số đơn đủ nhiều để không bị nhiễu và mức giảm lớn hơn mức chênh thường thấy; dưới mức đó là dấu hiệu để theo dõi tiếp.",
       },
     ],
     sources: [
@@ -340,7 +342,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "phan-mem-quan-ly-ban-hang-da-kenh-2026",
-    status: "draft",
+    status: "published",
     title: "Phần mềm quản lý bán hàng đa kênh 2026: 7 lựa chọn có kết nối TikTok Shop",
     seoTitle: "Phần mềm quản lý bán hàng đa kênh 2026 | Juli AI",
     description:
@@ -348,8 +350,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "BigSeller, Haravan, KiotViet, MISA eShop, Nhanh.vn, Pancake POS và Sapo: mỗi phần mềm làm gì với TikTok Shop và các sàn, giá như nhà cung cấp công bố (kiểm tra 16/10/2026), và câu hỏi nên kiểm tra khi dùng thử.",
     breadcrumbName: "Phần mềm bán hàng đa kênh 2026",
-    publishedAt: "2026-10-16",
-    updatedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "tools",
     format: "comparison",
     cover: blogCover("hero-phan-mem-quan-ly-ban-hang-da-kenh-2026-v1", "Minh hoạ: một nút trung tâm màu hồng nối với năm cửa hàng nhỏ, nền xanh dương đậm, chữ “Quản lý đa kênh”"),
@@ -395,7 +397,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "cong-cu-phan-tich-tiktok-shop-2026",
-    status: "draft",
+    status: "published",
     title: "Công cụ phân tích TikTok Shop 2026: soi thị trường và đọc dữ liệu shop của bạn",
     seoTitle: "Công cụ phân tích TikTok Shop 2026 | Juli AI",
     description:
@@ -403,8 +405,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Hai nhóm công cụ phân tích dữ liệu TikTok Shop theo nguồn dữ liệu: soi thị trường và đối thủ (FastMoss, Kalodata, Metric) và đọc dữ liệu shop của bạn (La bàn dữ liệu, Juli AI), mô tả theo trang chính thức (kiểm tra 16/10/2026).",
     breadcrumbName: "Công cụ phân tích TikTok Shop",
-    publishedAt: "2026-10-16",
-    updatedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "tools",
     format: "comparison",
     cover: blogCover("hero-cong-cu-phan-tich-tiktok-shop-2026-v1", "Minh hoạ: ống nhòm hướng về một đám chấm dữ liệu, một chấm tím nổi bật, nền tím nhạt, chữ “Soi thị trường”"),
@@ -447,7 +449,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "cong-cu-ai-tao-anh-video-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Công cụ AI tạo ảnh và video sản phẩm cho nhà bán TikTok Shop",
     seoTitle: "AI tạo ảnh, video sản phẩm cho TikTok Shop | Juli AI",
     description:
@@ -455,8 +457,8 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Sáu công cụ AI cho người bán hàng: xóa nền, tạo cảnh sản phẩm, người mẫu ảo, video từ ảnh và đường liên kết, nhân vật đại diện. Mô tả theo trang chính thức (kiểm tra 16/10/2026), cách chọn theo việc cần làm và cách đo kết quả.",
     breadcrumbName: "AI tạo ảnh, video sản phẩm",
-    publishedAt: "2026-10-16",
-    updatedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
     category: "tools",
     format: "comparison",
     cover: blogCover("hero-cong-cu-ai-tao-anh-video-san-pham-tiktok-shop-v1", "Minh hoạ: bảng clapper quay phim có nút phát hồng và cây đũa phép toả ánh sáng, nền tím mận đậm, chữ “Ảnh và video AI”"),
@@ -499,7 +501,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "san-pham-tiktok-shop-khong-co-luot-hien-thi",
-    status: "draft",
+    status: "published",
     title: "Sản phẩm TikTok Shop không có lượt hiển thị: bị ẩn hay chỉ ít người thấy",
     seoTitle: "Sản phẩm TikTok Shop không có lượt hiển thị | Juli AI",
     description:
@@ -507,12 +509,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Tách hai trường hợp: sản phẩm không hiện với người mua (trạng thái, bị từ chối, vi phạm) và sản phẩm có hiện nhưng ít người thấy. Rồi đọc Lượt hiển thị theo luồng truy cập, đọc cùng CTR, và đo lại sau khi sửa.",
     breadcrumbName: "Sản phẩm không có lượt hiển thị",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
     cover: blogCover("hero-san-pham-tiktok-shop-khong-co-luot-hien-thi-v1", "Minh hoạ: đèn chiếu rọi xuống một kệ trống chỉ có khung sản phẩm nét đứt và biểu tượng con mắt bị gạch, nền đen, chữ “Không ai nhìn thấy”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["tiktok-shop-khong-ra-don", "dat-ten-san-pham-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -533,7 +536,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Sửa tiêu đề bao lâu thì thấy thay đổi về lượt hiển thị?",
         answer:
-          "Không có thời gian cố định. Hãy lấy 14 ngày trước thay đổi làm mốc, đọc sơ bộ ở ngày 7 và chốt ở ngày 14, so với các sản phẩm không thay đổi, để tách tác động của thay đổi khỏi dao động thường ngày.",
+          "Không có thời gian cố định. Hãy lấy 14 ngày trước thay đổi làm mốc, đọc sơ bộ ở ngày 7 và chốt ở ngày 14; nhìn thêm vài sản phẩm bạn chưa sửa để biết phần nào là dao động chung của shop.",
       },
       {
         question: "Có nên xóa sản phẩm ít lượt hiển thị rồi đăng lại?",
@@ -552,7 +555,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "thue-ban-hang-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Thuế bán hàng TikTok Shop 2026: sàn khấu trừ thế nào, người bán cần làm gì",
     seoTitle: "Thuế bán hàng TikTok Shop 2026: sàn khấu trừ | Juli AI",
     description:
@@ -560,12 +563,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Tóm tắt từ văn bản chính thức: sàn có chức năng đặt hàng và thanh toán khấu trừ, nộp thay thuế trên từng giao dịch; doanh thu năm từ 1 tỷ đồng trở xuống không chịu thuế; người bán cần cung cấp gì và khi nào phải tự quyết toán. Cập nhật ngày 17/10/2026.",
     breadcrumbName: "Thuế bán hàng TikTok Shop",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "news",
     cover: blogCover("hero-thue-ban-hang-tiktok-shop-v1", "Minh hoạ: tờ văn bản có con dấu tròn đánh dấu đã kiểm, nền màu cát nhạt, chữ “Thuế bán hàng”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["phi-san-tiktok-shop-2026", "ty-le-hoan-hang-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -624,7 +628,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "video-tiktok-nhieu-view-khong-ra-don",
-    status: "draft",
+    status: "published",
     title: "Video nhiều view nhưng không ra đơn: đọc số từng bước để tìm chỗ gãy",
     seoTitle: "Video TikTok nhiều view không ra đơn: vì sao | Juli AI",
     description:
@@ -632,12 +636,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Lượt xem video không nằm trong công thức GMV. Cách TikTok tính đơn cho video (trực tiếp và trong 7 ngày), bảng triệu chứng theo Lượt hiển thị sản phẩm, CTR, CTOR, AOV, cách nhận ra video sai tệp khách và đo lại sau 7, 14 ngày.",
     breadcrumbName: "Video nhiều view không ra đơn",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
     cover: blogCover("hero-video-tiktok-nhieu-view-khong-ra-don-v1", "Minh hoạ: khung video có nút phát và thanh tiến trình bên cạnh chiếc phễu bị gãy đôi làm rơi các giọt ra ngoài, nền hồng, chữ “Nhiều view, ít đơn”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["live-tiktok-shop-khong-ra-don", "khach-xem-nhung-khong-mua-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -675,7 +680,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "live-tiktok-shop-khong-ra-don",
-    status: "draft",
+    status: "published",
     title: "LIVE đông người xem mà ít đơn: đọc phễu LIVE từ lượt hiển thị đến đơn hàng",
     seoTitle: "LIVE TikTok Shop không ra đơn: đọc phễu LIVE | Juli AI",
     description:
@@ -683,12 +688,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Người xem không phải người mua. Năm bước của phễu LIVE theo TikTok, ba góc độ chỉ số trong Cẩm nang lưu lượng LIVE, vì sao CTR của LIVE khác CTR của thẻ sản phẩm, so các buổi bằng GPM hiển thị và đọc số theo từng phút.",
     breadcrumbName: "LIVE đông người xem mà ít đơn",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "pain",
     cover: blogCover("hero-live-tiktok-shop-khong-ra-don-v1", "Minh hoạ: nhãn LIVE, một đám đông người xem và một đường chấm mảnh dẫn tới chiếc giỏ hàng nhỏ, nền xanh lá nhạt, chữ “LIVE đông, ít đơn”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["video-tiktok-nhieu-view-khong-ra-don", "quy-dinh-livestream-ban-hang", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -727,7 +733,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "ty-le-hoan-hang-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Đơn hủy, hoàn hàng tăng trên TikTok Shop: tách từng loại, đọc đúng tỷ lệ, tính đúng chi phí",
     seoTitle: "Tỷ lệ hoàn hàng TikTok Shop: hủy, trả hàng, phí | Juli AI",
     description:
@@ -735,12 +741,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Hoàn hàng là ba chuyện khác nhau: đơn hủy trước khi giao, đơn giao không thành công quay về shop, và đơn khách trả sau khi nhận. Mỗi loại một chỉ số, một hạn xử lý, một khoản phí; bài này tách từng loại theo trang chính thức của TikTok Shop. Cập nhật ngày 17/10/2026.",
     breadcrumbName: "Tỷ lệ hoàn hàng TikTok Shop",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
     cover: blogCover("hero-ty-le-hoan-hang-tiktok-shop-v1", "Minh hoạ: thùng hàng các-tông với mũi tên vòng ngược lại phía người gửi, nền cam đào nhạt, chữ “Đơn hủy, hoàn hàng”"),
     author: AUTHOR,
+    guide: "ctor-thap-viet-lai-mo-ta-san-pham",
     related: ["phi-san-tiktok-shop-2026", "doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -785,7 +792,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "phi-san-tiktok-shop-2026",
-    status: "draft",
+    status: "published",
     title: "Phí sàn TikTok Shop 2026: các khoản phí hiện hành và mỗi đơn còn lại bao nhiêu",
     seoTitle: "Phí sàn TikTok Shop 2026: một đơn còn bao nhiêu | Juli AI",
     description:
@@ -793,12 +800,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Khung phí hiện hành theo các trang chính thức của TikTok Shop, kèm ngày hiệu lực: hoa hồng theo ngành, phí giao dịch, phí xử lý đơn, phí vận hành logistic, hai mốc 20/10 và 21/10, và một ví dụ giả định tính phần còn lại của một đơn. Cập nhật ngày 17/10/2026.",
     breadcrumbName: "Phí sàn TikTok Shop 2026",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "guide",
     format: "news",
     cover: blogCover("hero-phi-san-tiktok-shop-2026-v1", "Minh hoạ: đồng xu vàng bị cắt mất một miếng và chồng thẻ phí xếp bên cạnh, nền xám nhạt, chữ “Phí sàn mỗi đơn”"),
     author: AUTHOR,
+    guide: "tim-san-pham-keo-gmv-xuong-tiktok-shop",
     related: ["thue-ban-hang-tiktok-shop", "ty-le-hoan-hang-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -834,7 +842,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "khach-xem-nhung-khong-mua-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Khách xem nhưng không mua trên TikTok Shop: kiểm tra từng bước sau cú nhấp",
     seoTitle: "Khách xem nhưng không mua trên TikTok Shop | Juli AI",
     description:
@@ -842,12 +850,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Khách đã bấm vào sản phẩm rồi rời đi: đọc CTOR theo nguồn, dùng Tỷ lệ thêm vào giỏ hàng để tách trang sản phẩm khỏi voucher và phí vận chuyển, tính đến đơn gián tiếp trong 7 ngày, rồi sửa một chỗ và đo lại.",
     breadcrumbName: "Khách xem nhưng không mua",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
     cover: blogCover("hero-khach-xem-nhung-khong-mua-tiktok-shop-v1", "Minh hoạ: con mắt có tròng là chiếc giỏ hàng trống và con trỏ chuột đang bấm, nền xanh ngọc đậm, chữ “Xem mà không mua”"),
     author: AUTHOR,
+    guide: "ctor-thap-viet-lai-mo-ta-san-pham",
     related: ["tang-gia-tri-don-hang-trung-binh-tiktok-shop", "tiktok-shop-khong-ra-don", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -883,7 +892,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "tang-gia-tri-don-hang-trung-binh-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Bán nhiều đơn mà vẫn ít tiền: cách tăng giá trị đơn hàng trung bình trên TikTok Shop",
     seoTitle: "Tăng giá trị đơn hàng trung bình TikTok Shop | Juli AI",
     description:
@@ -891,12 +900,13 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     excerpt:
       "Phí xử lý đơn tính theo từng đơn nên đơn nhỏ chịu phần trăm phí cao hơn. Đọc AOV theo nguồn, biết khi nào nên tăng giá trị đơn, chọn giữa voucher theo bậc, Mua Sỉ Giá Hời, Ưu đãi theo gói và quà tặng, tránh khuyến mãi chồng nhau và đo AOV cùng CTOR.",
     breadcrumbName: "Tăng giá trị đơn hàng trung bình",
-    publishedAt: "2026-10-17",
+    publishedAt: "2026-10-18",
     updatedAt: "2026-10-18",
     category: "metrics",
     format: "pain",
     cover: blogCover("hero-tang-gia-tri-don-hang-trung-binh-tiktok-shop-v1", "Minh hoạ: tờ hoá đơn dài bên cạnh ba hộp hàng xếp chồng và dấu cộng, nền hồng phấn, chữ “Tăng giá trị đơn”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["khach-xem-nhung-khong-mua-tiktok-shop", "gmv-la-gi-tiktok-shop", "doanh-thu-sau-sale-tiktok-shop"],
     faq: [
       {
@@ -934,7 +944,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "mo-ta-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Khách hỏi mãi một câu: viết mô tả sản phẩm TikTok Shop để trả lời trước khi khách hỏi",
     seoTitle: "Mô tả sản phẩm TikTok Shop: trả lời trước | Juli AI",
     description:
@@ -948,6 +958,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-mo-ta-san-pham-tiktok-shop-v1", "Minh hoạ: bong bóng câu trả lời có dấu tích nằm phía trên bong bóng dấu hỏi của khách, nền trắng kẻ ô, chữ “Trả lời trước khi hỏi”"),
     author: AUTHOR,
+    guide: "ctor-thap-viet-lai-mo-ta-san-pham",
     related: ["khach-xem-nhung-khong-mua-tiktok-shop", "ty-le-hoan-hang-tiktok-shop", "dat-ten-san-pham-tiktok-shop"],
     faq: [
       {
@@ -991,7 +1002,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "quy-dinh-livestream-ban-hang",
-    status: "draft",
+    status: "published",
     title: "Quy định mới về livestream bán hàng và quảng cáo: người bán và người livestream cần biết gì",
     seoTitle: "Quy định livestream bán hàng mới nhất 2026 | Juli AI",
     description:
@@ -1005,6 +1016,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "news",
     cover: blogCover("hero-quy-dinh-livestream-ban-hang-v1", "Minh hoạ: micro đứng và chiếc búa của toà gõ xuống bục, nền xanh lá đậm, chữ “Quy định livestream”"),
     author: AUTHOR,
+    guide: "duyet-de-xuat-toi-uu-san-pham-tiktok-shop",
     related: ["live-tiktok-shop-khong-ra-don", "thue-ban-hang-tiktok-shop", "mo-ta-san-pham-tiktok-shop"],
     faq: [
       {
@@ -1064,7 +1076,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "dat-ten-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Ít người bấm vào sản phẩm: cách đặt tên sản phẩm TikTok Shop theo đúng chính sách",
     seoTitle: "Đặt tên sản phẩm TikTok Shop khi ít người bấm | Juli AI",
     description:
@@ -1078,6 +1090,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-dat-ten-san-pham-tiktok-shop-v1", "Minh hoạ: nhãn tên treo bằng dây có dòng chữ chính được gạch chân hồng, nền màu cát, chữ “Đặt tên sản phẩm”"),
     author: AUTHOR,
+    guide: "ctr-the-san-pham-thap-doi-tieu-de-anh-bia",
     related: ["anh-bia-san-pham-tiktok-shop", "san-pham-tiktok-shop-khong-co-luot-hien-thi", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -1121,7 +1134,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "anh-bia-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Ảnh bìa sản phẩm TikTok Shop khiến người mua lướt qua: đọc CTR và đổi hình ảnh chính",
     seoTitle: "Ảnh bìa sản phẩm TikTok Shop bị lướt qua | Juli AI",
     description:
@@ -1135,6 +1148,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-anh-bia-san-pham-tiktok-shop-v1", "Minh hoạ: khung ảnh núi và mặt trời với bốn góc lấy nét và tâm ngắm màu hồng, nền xanh da trời nhạt, chữ “Ảnh bìa sản phẩm”"),
     author: AUTHOR,
+    guide: "ctr-the-san-pham-thap-doi-tieu-de-anh-bia",
     related: ["dat-ten-san-pham-tiktok-shop", "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -1177,7 +1191,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Sửa sản phẩm xong, làm sao biết có hiệu quả: cách đo trước và sau một thay đổi trên TikTok Shop",
     seoTitle: "Đo hiệu quả sau khi sửa sản phẩm TikTok Shop | Juli AI",
     description:
@@ -1191,6 +1205,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop-v1", "Minh hoạ: cây thước phía trên tờ lịch có một tuần và thêm một ngày tô hồng, nền đen, chữ “Đo trước và sau”"),
     author: AUTHOR,
+    guide: "do-ket-qua-ngay-7-ngay-14-hoan-tac",
     related: ["doanh-thu-sau-sale-tiktok-shop", "doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -1211,7 +1226,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       {
         question: "Cần bao nhiêu đơn để tin kết quả?",
         answer:
-          "TikTok không đưa ra con số. Một quy tắc thực hành: chỉ coi kết quả là chắc khi mỗi kỳ có khoảng 30 đơn trở lên (khoảng 30 lượt nhấp nếu chỉ số là CTR) và mức thay đổi vượt mức dao động; dưới đó chỉ để tham khảo. Sản phẩm bán dưới khoảng 2 đơn mỗi ngày vì vậy cần hơn 14 ngày.",
+          "TikTok không đưa ra con số. Cách nghĩ hữu ích: chỉ coi kết quả là chắc khi mỗi kỳ có số đơn đủ nhiều để không bị nhiễu (số lượt nhấp nếu chỉ số là CTR) và mức thay đổi vượt mức dao động thường ngày của sản phẩm; dưới đó chỉ để tham khảo. Sản phẩm chỉ bán lẻ tẻ vài đơn mỗi tuần vì vậy thường cần hơn 14 ngày.",
       },
       {
         question: "Nên sửa sản phẩm trước hay sau đợt sale 11.11?",
@@ -1228,7 +1243,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
   },
   {
     slug: "doanh-thu-sau-sale-tiktok-shop",
-    status: "draft",
+    status: "published",
     title: "Trước và sau 11.11: đọc số liệu sale TikTok Shop cho đúng",
     seoTitle: "Sale 11.11 TikTok Shop: đọc doanh thu sau sale | Juli AI",
     description:
@@ -1242,6 +1257,7 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
     format: "pain",
     cover: blogCover("hero-doanh-thu-sau-sale-tiktok-shop-v1", "Minh hoạ: tờ lịch xé ghi 11.11 với vài mảnh giấy màu, nền hồng đậm, chữ “Đọc số sau sale”"),
     author: AUTHOR,
+    guide: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
     related: ["do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "doanh-thu-tiktok-shop-giam", "gmv-la-gi-tiktok-shop"],
     faq: [
       {
@@ -1275,6 +1291,378 @@ export const BLOG_POSTS: readonly BlogPostMeta[] = [
       academy("Lưu lượng truy cập sản phẩm", "10015238", "GMV gồm cả đơn đã hủy và hoàn tiền, hoàn tiền phát sinh sau ngày mua (17/06/2026), kiểm tra 18/10/2026"),
       academy("Trả hàng và Hoàn tiền", "1766935302801169", "yêu cầu trả hàng trong 15 ngày theo lịch, 6 ngày với một số danh mục (15/10/2026), kiểm tra 18/10/2026"),
       academy("Phí Xử Lý Đơn Hàng", "2968734088120080", "khoản cố định cho mỗi đơn giao thành công (11/10/2025), kiểm tra 18/10/2026"),
+    ],
+  },
+  {
+    slug: "dung-thu-juli-ai-mien-phi-3-thang",
+    status: "published",
+    title: "Dùng thử Juli AI miễn phí 3 tháng: đăng ký, kết nối shop và 14 ngày đầu tiên",
+    seoTitle: "Dùng thử miễn phí 3 tháng: đăng ký, bắt đầu | Juli AI",
+    description:
+      "Dùng thử Juli AI 3 tháng miễn phí, không cần thẻ: điền đăng ký, chuẩn bị Quy tắc, kết nối TikTok Shop, đọc thẻ đề xuất đầu tiên, ngày 7 và ngày 14.",
+    excerpt:
+      "3 tháng miễn phí kể từ ngày đăng ký, không cần thẻ thanh toán, sau đó 500.000đ/tháng. Hai cách bắt đầu, những gì nên chuẩn bị trước cuộc gọi, ngày đầu sau khi kết nối và cách đọc kết quả ngày 7, ngày 14.",
+    breadcrumbName: "Dùng thử Juli AI",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-dung-thu-juli-ai-mien-phi-3-thang-v1", "Minh hoạ: ba chậu cây trên một kệ, mầm cây cao dần, chậu thứ ba nở một bông hoa hồng, nền hồng nhạt, chữ “Dùng thử miễn phí”"),
+    author: AUTHOR,
+    related: ["tim-san-pham-keo-gmv-xuong-tiktok-shop", "ctor-thap-viet-lai-mo-ta-san-pham", "gmv-la-gi-tiktok-shop"],
+    faq: [
+      {
+        question: "Dùng thử Juli có cần thẻ thanh toán không?",
+        answer:
+          "Không. Theo Điều khoản dịch vụ, tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ thanh toán.",
+      },
+      {
+        question: "Sau 3 tháng dùng thử thì tính phí thế nào?",
+        answer:
+          "Sau thời gian dùng thử, phí dịch vụ Juli là 500.000đ/tháng, và bạn có thể huỷ bất cứ lúc nào. Câu hỏi về phí gửi tới lienhe@app-juli.com.",
+      },
+      {
+        question: "Đăng ký xong có bắt buộc kết nối shop ngay không?",
+        answer:
+          "Không. Bạn có thể chờ đội Juli gọi hoặc nhắn Zalo để kết nối cùng, hoặc tự kết nối từ trang cảm ơn. Trước khi kết nối, bạn cũng có thể xem bản dữ liệu mẫu, không cần tài khoản.",
+      },
+      {
+        question: "Dùng thử có thay đổi gì trên shop của tôi không?",
+        answer:
+          "Không, cho đến khi bạn duyệt một thẻ đề xuất và xác nhận nội dung cụ thể. Kết nối chỉ cho phép Juli đọc dữ liệu và tạo đề xuất. Juli không đổi giá và không tạo khuyến mãi.",
+      },
+      {
+        question: "Bản xem thử với dữ liệu mẫu khác gì dùng thử?",
+        answer:
+          "Bản xem thử chạy trên Cửa hàng Mẫu Hoa Mai, một shop minh hoạ, và không ghi gì lên TikTok Shop. Dùng thử chạy trên shop thật của bạn sau khi bạn kết nối.",
+      },
+    ],
+    sources: [],
+  },
+  {
+    slug: "tim-san-pham-keo-gmv-xuong-tiktok-shop",
+    status: "published",
+    title: "Tìm sản phẩm đang kéo GMV TikTok Shop xuống: từ chỉ số nghẽn đến thẻ đề xuất",
+    seoTitle: "Tìm sản phẩm kéo GMV TikTok Shop xuống | Juli AI",
+    description:
+      "Cách Juli tìm sản phẩm đang kéo GMV TikTok Shop xuống: từ luồng và chỉ số nghẽn, bảng Kéo xuống theo đồng mỗi ngày, nhãn Rõ, Tham khảo đến thẻ đề xuất.",
+    excerpt:
+      "Sắp theo doanh thu giảm thường chỉ sai chỗ. Juli tìm luồng và chỉ số lấy đi nhiều GMV nhất, chia con số đó cho từng sản phẩm theo đồng mỗi ngày, rồi biến dòng đủ cơ sở thành thẻ đề xuất.",
+    breadcrumbName: "Sản phẩm kéo GMV xuống",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "metrics",
+    format: "guide",
+    cover: blogCover("hero-tim-san-pham-keo-gmv-xuong-tiktok-shop-v1", "Minh hoạ: hai quả bóng bay vàng và xanh bay lên, một quả bóng hồng bị một chiếc mỏ neo giữ thấp, nền xám đậm kẻ ô, chữ “Sản phẩm kéo GMV xuống”"),
+    author: AUTHOR,
+    related: ["doanh-thu-tiktok-shop-giam", "ctr-the-san-pham-thap-doi-tieu-de-anh-bia", "ctor-thap-viet-lai-mo-ta-san-pham"],
+    faq: [
+      {
+        question: "Juli xếp sản phẩm theo doanh thu giảm hay theo gì?",
+        answer:
+          "Theo số tiền GMV mỗi ngày mà sản phẩm mất ở chỉ số đó, trên đúng luồng đó. Vì vậy một sản phẩm bán chạy mất vài phần trăm CTOR có thể đứng trên một sản phẩm nhỏ mất một nửa.",
+      },
+      {
+        question: "Vì sao sản phẩm của tôi ghi Chưa có đề xuất?",
+        answer:
+          "Sản phẩm chưa đủ cơ sở cho một thẻ: thường là dữ liệu còn ít hoặc mức giảm chưa vượt mức dao động (nhãn Tham khảo), hoặc sản phẩm đang có một thay đổi khác được đo, hoặc cùng thay đổi vừa bị từ chối hay hoàn tác gần đây.",
+      },
+      {
+        question: "Các dòng trong bảng có cộng bằng con số trên ô không?",
+        answer:
+          "Có. Bảng chia con số của ô cho từng sản phẩm; các dòng đầu cộng với dòng Còn lại bằng đúng con số trên ô, nên không có đồng GMV nào bị đếm hai lần.",
+      },
+      {
+        question: "Juli có xếp theo lợi nhuận không?",
+        answer:
+          "Không. Giá vốn hoặc biên lợi nhuận bạn nhập trong Quy tắc được dùng để giữ mọi đề xuất giảm giá trong biên lợi nhuận bạn cho phép; một đề xuất như vậy chỉ xuất hiện khi Juli biết giá vốn.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "GMV theo luồng, định nghĩa CTR, CTOR, AOV (SKU) (17/06/2026), kiểm tra 18/10/2026"),
+    ],
+  },
+  {
+    slug: "ctr-the-san-pham-thap-doi-tieu-de-anh-bia",
+    status: "published",
+    title: "CTR Thẻ sản phẩm thấp: Juli đề xuất đổi tiêu đề và ảnh bìa như thế nào, và bạn cần làm gì",
+    seoTitle: "CTR Thẻ sản phẩm thấp: đề xuất tiêu đề, ảnh bìa | Juli AI",
+    description:
+      "CTR Thẻ sản phẩm TikTok Shop thấp: khi nào Juli mở thẻ, Juli soạn tiêu đề, ảnh bìa chỉ bằng ảnh của bạn, GMV dự kiến, đo ngày 7, 14 và hoàn tác.",
+    excerpt:
+      "Người mua thấy mà không bấm: Juli đề xuất đổi tiêu đề hoặc ảnh bìa. Tiêu đề do Juli soạn và chỉ ghi khi bạn xác nhận; ảnh bìa là ảnh bạn gửi, Juli tải lên sau khi bạn xác nhận và giữ ảnh cũ để hoàn tác.",
+    breadcrumbName: "CTR Thẻ sản phẩm thấp",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "optimize",
+    format: "guide",
+    cover: blogCover("hero-ctr-the-san-pham-thap-doi-tieu-de-anh-bia-v1", "Minh hoạ: một nam châm hình móng ngựa màu hồng đậm hút ba con trỏ chuột về phía nó, nền vàng, chữ “Nâng CTR thẻ sản phẩm”"),
+    author: AUTHOR,
+    related: ["dat-ten-san-pham-tiktok-shop", "anh-bia-san-pham-tiktok-shop", "ctor-thap-viet-lai-mo-ta-san-pham"],
+    faq: [
+      {
+        question: "Juli có tự tạo ảnh bìa cho sản phẩm không?",
+        answer:
+          "Không. Juli phân tích ảnh bìa hiện tại và nói cần đổi gì, nhưng ảnh mới là ảnh bạn gửi. Juli chỉ tải ảnh lên TikTok Shop sau khi bạn xác nhận, và giữ ảnh cũ để có thể hoàn tác.",
+      },
+      {
+        question: "Đổi tiêu đề có làm sản phẩm mất thứ hạng không?",
+        answer:
+          "Juli không hứa trước điều đó. Lượt hiển thị là một chỉ số giữ ổn định của thẻ CTR: nếu ở ngày 7 nó ra ngoài khoảng cho phép, Juli hỏi bạn có muốn hoàn tác về tiêu đề cũ không.",
+      },
+      {
+        question: "Bao lâu thì biết CTR có tăng không?",
+        answer:
+          "Ngày 7 là kiểm tra giữa chừng (Đang lên hoặc Chưa rõ), ngày 14 là kết quả chốt (Đạt, Đạt · chưa chắc chắn, Một phần hoặc Không đạt), so với mốc 14 ngày trước khi áp dụng, đo trên luồng Thẻ sản phẩm.",
+      },
+      {
+        question: "Có nên đổi cả tiêu đề và ảnh bìa cùng lúc không?",
+        answer:
+          "Không. Juli không thực hiện hai thay đổi cùng lúc trên một sản phẩm, vì khi chúng chồng lên nhau, không ai biết thay đổi nào tạo ra kết quả. Thay đổi tiếp theo chỉ được thực hiện sau khi thay đổi trước chốt ở ngày 14.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "CTR = lượt nhấp ÷ lượt hiển thị, theo từng luồng (17/06/2026), kiểm tra 18/10/2026"),
+    ],
+  },
+  {
+    slug: "ctor-thap-viet-lai-mo-ta-san-pham",
+    status: "published",
+    title: "CTOR thấp, khách bấm vào mà không đặt hàng: Juli đề xuất mô tả sản phẩm như thế nào",
+    seoTitle: "CTOR thấp: đề xuất mô tả sản phẩm | Juli AI",
+    description:
+      "CTOR TikTok Shop thấp: Juli tách trước hay sau giỏ hàng, soạn mô tả mới chỉ ghi khi bạn xác nhận, khuyến mãi do bạn làm trên Seller Center, đo ngày 7, 14.",
+    excerpt:
+      "Khách bấm vào mà không đặt: trước giỏ hàng, Juli đề xuất viết lại mô tả và chỉ ghi sau khi bạn xác nhận; sau giỏ hàng, Juli hướng dẫn và bạn làm trên Seller Center. Đo ngày 7, chốt ngày 14, hoàn tác được.",
+    breadcrumbName: "CTOR thấp: viết lại mô tả",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "optimize",
+    format: "guide",
+    cover: blogCover("hero-ctor-thap-viet-lai-mo-ta-san-pham-v1", "Minh hoạ: một cuộn giấy mở, hai dòng cũ bị gạch, các dòng mới và một dòng hồng, cây bút đang viết, nền nâu chấm bi, chữ “Viết lại mô tả”"),
+    author: AUTHOR,
+    related: ["mo-ta-san-pham-tiktok-shop", "khach-xem-nhung-khong-mua-tiktok-shop", "ctr-the-san-pham-thap-doi-tieu-de-anh-bia"],
+    faq: [
+      {
+        question: "Juli có đổi giá sản phẩm để tăng CTOR không?",
+        answer:
+          "Không. Juli không thay đổi giá. Với giảm giá hay flash sale, Juli đề xuất mức giảm nằm trong biên lợi nhuận bạn đặt (chỉ khi biết giá vốn), bạn tạo trên Seller Center, rồi Juli kiểm tra lại bằng quyền chỉ đọc và bắt đầu đo.",
+      },
+      {
+        question: "Mô tả do AI soạn có thể sai thông tin sản phẩm không?",
+        answer:
+          "Bản soạn được kiểm tra độ dài, từ không được dùng và đối chiếu với thông tin của chính sản phẩm trước khi bạn xem, nhưng bạn vẫn là người đọc lại và quyết định ở bước xác nhận. Nếu sai, bạn sửa trước khi áp dụng hoặc hoàn tác sau đó.",
+      },
+      {
+        question: "Vì sao Juli không đề xuất giảm giá cho sản phẩm của tôi?",
+        answer:
+          "Một đề xuất giảm giá chỉ xuất hiện khi Juli biết giá vốn của sản phẩm, và luôn nằm trong biên lợi nhuận bạn đặt trong Quy tắc. Nếu chưa nhập giá vốn, Juli chỉ đề xuất mô tả cho sản phẩm đó.",
+      },
+      {
+        question: "CTOR được đo trên kênh nào?",
+        answer:
+          "TikTok không tách đơn hàng SKU theo từng luồng cho từng sản phẩm, nên CTOR của một thay đổi được đo trên tất cả các kênh, so với mốc 14 ngày trước khi áp dụng.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "CTOR = đơn hàng SKU ÷ lượt nhấp, theo từng luồng (17/06/2026), kiểm tra 18/10/2026"),
+      academy("Tiêu đề, mô tả, hình ảnh và video về sản phẩm", "5918681919178512", "mô tả không dưới 30 từ (23/04/2026), kiểm tra 18/10/2026"),
+    ],
+  },
+  {
+    slug: "huong-dan-ket-noi-tiktok-shop-voi-juli",
+    status: "published",
+    title: "Hướng dẫn kết nối TikTok Shop với Juli: 4 bước và những gì diễn ra trong giờ đầu",
+    seoTitle: "Hướng dẫn kết nối TikTok Shop với Juli | Juli AI",
+    description:
+      "Kết nối TikTok Shop với Juli trong 4 bước, không cần mật khẩu shop: các nhóm quyền, quét nhanh 14 ngày, đọc 60 ngày, khi thiếu quyền và cách ngắt kết nối.",
+    excerpt:
+      "Đăng nhập Juli, bấm Kết nối TikTok Shop, đồng ý cấp quyền trên trang của TikTok, quay lại Juli. Bài này đi qua từng bước, giải thích từng nhóm quyền và cách đọc dải tiến trình trong giờ đầu.",
+    breadcrumbName: "Kết nối TikTok Shop với Juli",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-huong-dan-ket-noi-tiktok-shop-voi-juli-v1", "Minh hoạ: phích cắm màu tím nhạt có dây trắng cắm vào ổ điện, hai tia sáng hồng ở chỗ nối, nền chàm đậm với các vòng tròn, chữ “Kết nối shop”"),
+    author: AUTHOR,
+    related: ["doc-phan-tich-tiktok-shop-theo-luong-truy-cap", "duyet-de-xuat-toi-uu-san-pham-tiktok-shop", "gmv-la-gi-tiktok-shop"],
+    faq: [
+      {
+        question: "Juli có cần mật khẩu TikTok Shop của tôi không?",
+        answer:
+          "Không. Bạn đăng nhập trên trang uỷ quyền của chính TikTok Shop và đồng ý cấp quyền cho ứng dụng Juli. Juli chỉ nhận mã truy cập do TikTok cấp, được mã hoá trước khi lưu, và không bao giờ thấy mật khẩu của bạn.",
+      },
+      {
+        question: "Kết nối TikTok Shop với Juli mất bao lâu?",
+        answer:
+          "Bước uỷ quyền mất một hai phút. Sau đó Juli tự đọc dữ liệu: quét nhanh 14 ngày trong vài phút đầu, rồi đọc 60 ngày và chẩn đoán đầy đủ, thời gian tuỳ số sản phẩm của shop. Lịch sử cũ hơn được tải dần vào ban đêm, đến 180 ngày hoặc giới hạn TikTok cho phép.",
+      },
+      {
+        question: "Kết nối xong Juli có thay đổi gì trên shop không?",
+        answer:
+          "Không. Kết nối chỉ cho phép Juli đọc dữ liệu và tạo đề xuất. Một thay đổi chỉ được ghi lên shop khi bạn duyệt một thẻ đề xuất và xác nhận nội dung cụ thể; giá và khuyến mãi Juli không bao giờ ghi.",
+      },
+      {
+        question: "Làm sao hủy kết nối TikTok Shop với Juli?",
+        answer:
+          "Bạn liên hệ Juli qua email lienhe@app-juli.com hoặc trang Liên hệ; đội Juli ngắt kết nối shop giúp bạn. Juli ngừng lấy dữ liệu và ngừng tạo đề xuất ngay, còn lịch sử, quy tắc và kết quả đo được giữ để bạn kết nối lại khi cần.",
+      },
+      {
+        question: "Juli có kết nối được Shopee không?",
+        answer:
+          "Chưa. Shopee đang được tích hợp qua Shopee Open Platform và chưa thể kết nối. Hiện Juli hoạt động với TikTok Shop.",
+      },
+    ],
+    sources: [
+      { title: "Juli AI: Kết nối TikTok Shop", url: "https://app-juli.com/ket-noi/tiktok-shop", note: "các bước, nhóm quyền, dữ liệu đọc và ghi, ngắt kết nối" },
+      { title: "Juli AI: Chính sách bảo mật", url: "https://app-juli.com/privacy", note: "dữ liệu thu thập, điều kiện ghi lên shop, thời gian lưu" },
+    ],
+  },
+  {
+    slug: "doc-phan-tich-tiktok-shop-theo-luong-truy-cap",
+    status: "published",
+    title: "Cách đọc màn hình Phân tích TikTok Shop theo luồng truy cập: Thẻ sản phẩm, Tab cửa hàng, Video, LIVE, Liên kết",
+    seoTitle: "Đọc phân tích TikTok Shop theo luồng | Juli AI",
+    description:
+      "Đọc màn hình Phân tích của Juli từ trên xuống: năm luồng truy cập, bốn ô chỉ số và số đồng mỗi ngày, nhãn Rõ hay Tham khảo, khuyến mãi và ngày sale.",
+    excerpt:
+      "Dòng kết luận ở đầu trang, bốn ô Lượt hiển thị, CTR, CTOR, AOV của từng luồng, bảng sản phẩm, khuyến mãi và ngày sale: đọc một màn hình mẫu từng phần, và biết khi nào chưa nên sửa gì.",
+    breadcrumbName: "Đọc Phân tích theo luồng",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-doc-phan-tich-tiktok-shop-theo-luong-truy-cap-v1", "Minh hoạ: một tia sáng đi qua lăng kính tam giác và tách thành năm dải màu hồng, tím và đen, nền xanh chanh nhạt, chữ “Đọc theo từng luồng”"),
+    author: AUTHOR,
+    related: ["huong-dan-ket-noi-tiktok-shop-voi-juli", "duyet-de-xuat-toi-uu-san-pham-tiktok-shop", "chi-so-tiktok-shop-ctr-ctor-aov"],
+    faq: [
+      {
+        question: "Juli lấy số liệu phân tích từ đâu?",
+        answer:
+          "Từ chính TikTok Shop của bạn, qua API chính thức mà bạn uỷ quyền khi kết nối: hiệu suất sản phẩm theo từng luồng, đơn hàng, sản phẩm, video, LIVE và khuyến mãi. Juli không cào trang web và không dùng số ước đoán của bên thứ ba cho phần Phân tích.",
+      },
+      {
+        question: "Số trên Juli có khớp với Seller Center không?",
+        answer:
+          "Juli dùng đúng định nghĩa của TikTok cho CTR, CTOR, AOV (SKU) và GMV, gồm cả đơn đã huỷ và hoàn tiền, và tính tỷ lệ của kỳ từ tổng của kỳ như Seller Center. Khác biệt nhỏ vẫn có thể xảy ra khi hai bên chốt số liệu ở thời điểm khác nhau.",
+      },
+      {
+        question: "Bao lâu màn hình Phân tích được cập nhật?",
+        answer:
+          "Số liệu phân tích được lấy mỗi ngày một lần, khi TikTok công bố ngày dữ liệu mới, nên ngày mới nhất thường là hôm qua. Đơn hàng, sản phẩm và tồn kho được đồng bộ nhiều lần trong ngày. Giờ cập nhật gần nhất ghi ở góc trên màn hình.",
+      },
+      {
+        question: "Shop ít đơn thì đọc Phân tích có ý nghĩa không?",
+        answer:
+          "Có, nhưng Juli nói rõ mức chắc chắn. Khi số đơn ít, dòng sản phẩm mang nhãn Tham khảo thay vì Rõ và Juli gợi ý theo dõi thêm. Sản phẩm còn quá ít dữ liệu được ghi là ít dữ liệu.",
+      },
+      {
+        question: "Có dùng luồng Liên kết để kết luận về một sản phẩm không?",
+        answer:
+          "Không. Luồng Liên kết, tức video và LIVE của nhà sáng tạo, được theo dõi ở Trang chủ để bạn thấy toàn cảnh, nhưng phần lớn biến động ở đó đến từ nội dung của nhà sáng tạo chứ không từ trang sản phẩm của bạn.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "năm luồng, Lượt hiển thị, CTR, CTOR, GMV theo định dạng nội dung (17/06/2026), kiểm tra 18/10/2026"),
+      { title: "Juli AI: Phân tích shop", url: "https://app-juli.com/san-pham/phan-tich-shop", note: "năm luồng, phễu từng luồng, nhãn tin cậy, nhịp dữ liệu" },
+    ],
+  },
+  {
+    slug: "duyet-de-xuat-toi-uu-san-pham-tiktok-shop",
+    status: "published",
+    title: "Duyệt một thẻ đề xuất của Juli: từ lý do, sửa nội dung đến xác nhận lần cuối",
+    seoTitle: "Duyệt đề xuất tối ưu sản phẩm TikTok Shop | Juli AI",
+    description:
+      "Đi qua một thẻ đề xuất của Juli: thẻ nói gì, GMV dự kiến nghĩa là gì, Duyệt rồi Xác nhận, phần Juli làm và phần bạn làm, từ chối kèm lý do, nhịp thẻ.",
+    excerpt:
+      "Duyệt chưa đổi gì trên shop: thay đổi chỉ được ghi khi bạn xem bản cũ, bản mới và xác nhận trong lượt chạy. Bài này đi qua một thẻ từ lý do đến bước xác nhận, kể cả ảnh bìa, giá và từ chối.",
+    breadcrumbName: "Duyệt thẻ đề xuất",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-duyet-de-xuat-toi-uu-san-pham-tiktok-shop-v1", "Minh hoạ: hai chiếc chìa khoá từ hai bên cùng cắm vào một ổ khoá móc, dấu tích hồng phía trên, nền xanh bạc hà chấm bi, chữ “Duyệt rồi mới đổi”"),
+    author: AUTHOR,
+    related: ["do-ket-qua-ngay-7-ngay-14-hoan-tac", "doc-phan-tich-tiktok-shop-theo-luong-truy-cap", "toi-uu-the-san-pham-tiktok-shop"],
+    faq: [
+      {
+        question: "Juli có tự thay đổi shop của tôi mà không hỏi không?",
+        answer:
+          "Không. Một thay đổi chỉ được ghi lên TikTok Shop sau hai bước của bạn: bấm Duyệt trên thẻ, rồi xác nhận nội dung cụ thể trong lượt chạy. Không duyệt và xác nhận, không có gì thay đổi.",
+      },
+      {
+        question: "Juli có đổi giá sản phẩm không?",
+        answer:
+          "Không. Với giá, Juli chỉ đề xuất. Giảm giá sản phẩm, flash sale hay giảm phí vận chuyển do bạn tạo trên Seller Center theo hướng dẫn của Juli, trong biên lợi nhuận bạn đặt; Juli kiểm tra lại bằng quyền chỉ đọc rồi bắt đầu đo.",
+      },
+      {
+        question: "Nội dung AI viết có được kiểm tra trước không?",
+        answer:
+          "Có. Tiêu đề hay mô tả mới được kiểm tra độ dài, giọng văn và danh sách từ không được dùng trong Quy tắc của bạn, và được đối chiếu với thông tin của chính sản phẩm, trước khi hiện ra để bạn xác nhận. Bạn sửa được nội dung trước khi áp dụng.",
+      },
+      {
+        question: "Từ chối một thẻ thì nó có quay lại không?",
+        answer:
+          "Không quay lại ngay. Juli ghi nhận lý do bạn chọn để các đề xuất sau hợp với shop của bạn hơn.",
+      },
+      {
+        question: "Mỗi ngày tôi nhận bao nhiêu thẻ đề xuất?",
+        answer:
+          "Juli giữ số thẻ mới mỗi ngày ở mức bạn duyệt kịp, và chỉ đưa ra thẻ khi có việc đáng làm. Bạn có thể giảm số thẻ đang mở cùng lúc trong Quy tắc. Thẻ có thời hạn; hết hạn thì Juli đề xuất lại khi thay đổi đó vẫn còn phù hợp.",
+      },
+    ],
+    sources: [
+      academy("Chẩn Đoán Thẻ Sản Phẩm", "5792290376255233", "chẩn đoán TikTok trả về cho trang sản phẩm (21/02/2024), kiểm tra 18/10/2026"),
+      { title: "Juli AI: Đề xuất và thực thi", url: "https://app-juli.com/san-pham/de-xuat-va-thuc-thi", note: "thẻ đề xuất, hai bước đồng ý, hoàn tác" },
+    ],
+  },
+  {
+    slug: "do-ket-qua-ngay-7-ngay-14-hoan-tac",
+    status: "published",
+    title: "Đo kết quả sau khi sửa sản phẩm: đọc ngày 7, ngày 14 và biết khi nào nên hoàn tác",
+    seoTitle: "Đo kết quả ngày 7, ngày 14 và hoàn tác | Juli AI",
+    description:
+      "Đọc kết quả đo lường của Juli sau khi sửa sản phẩm TikTok Shop: mốc 14 ngày, ngưỡng giữ ổn định, ngày 7 Đang lên hay Chưa rõ, bốn nhãn ngày 14, hoàn tác.",
+    excerpt:
+      "Ngày 7 là kiểm tra giữa chừng, ngày 14 là kết quả chốt, và Juli không bao giờ tự hoàn tác. Đọc từng nhãn trên một thẻ mẫu, hiểu câu hỏi “Hoàn tác?” và biết khi nào nên chờ.",
+    breadcrumbName: "Đo kết quả ngày 7, ngày 14",
+    publishedAt: "2026-10-18",
+    updatedAt: "2026-10-18",
+    category: "guide",
+    format: "guide",
+    cover: blogCover("hero-do-ket-qua-ngay-7-ngay-14-hoan-tac-v1", "Minh hoạ: đồng hồ cát có mũi tên hồng vòng ngược bao quanh, nền xanh ô liu đậm, chữ “Đo xong mới chốt”"),
+    author: AUTHOR,
+    related: ["duyet-de-xuat-toi-uu-san-pham-tiktok-shop", "do-hieu-qua-sau-khi-sua-san-pham-tiktok-shop", "doc-phan-tich-tiktok-shop-theo-luong-truy-cap"],
+    faq: [
+      {
+        question: "Vì sao phải chờ đến ngày 14 mới chốt kết quả?",
+        answer:
+          "Số liệu TikTok Shop dao động mạnh theo ngày trong tuần, theo đợt sale và theo cách TikTok phân phối. Bảy ngày thường chưa đủ để tách tác động của một thay đổi khỏi dao động đó, nên ngày 7 chỉ là kiểm tra giữa chừng, ngày 14 mới là kết quả chốt.",
+      },
+      {
+        question: "Ngày 7 mà kết quả xấu thì sao?",
+        answer:
+          "Nếu một chỉ số bạn muốn giữ ổn định ra ngoài ngưỡng, Juli hỏi bạn có muốn hoàn tác không, kèm số liệu cụ thể. Bạn chọn Hoàn tác hoặc Giữ thay đổi để đo tiếp đến ngày 14. Juli không tự hoàn tác.",
+      },
+      {
+        question: "Juli có nhận công cho mọi lần GMV tăng không?",
+        answer:
+          "Không. Kết quả chỉ là Đạt khi chỉ số mục tiêu tăng rõ hơn mức dao động bình thường, chạm mục tiêu và GMV giữ được. Nếu trong thời gian đo có thay đổi khác như bạn tự sửa tiêu đề hay mở khuyến mãi, kết quả ghi là bị ảnh hưởng bởi thay đổi khác.",
+      },
+      {
+        question: "GMV dự kiến trên thẻ có phải cam kết không?",
+        answer:
+          "Không. GMV dự kiến là ước tính từ số liệu gần đây của sản phẩm. Kết quả thật đo được ở ngày 14 được đặt cạnh con số này để bạn so sánh.",
+      },
+      {
+        question: "Hoàn tác có xoá chỉnh sửa tôi tự làm không?",
+        answer:
+          "Không. Trước khi khôi phục, Juli đọc lại sản phẩm trên TikTok Shop; nếu nội dung đã bị sửa bên ngoài Juli sau lần thay đổi, Juli không ghi đè và báo cho bạn. Lượt hoàn tác cũng dừng ở bước xác nhận trước khi ghi.",
+      },
+    ],
+    sources: [
+      academy("Lưu lượng truy cập sản phẩm", "10015238", "chỉ số theo luồng dùng để đo, GMV gồm cả đơn huỷ và hoàn tiền (17/06/2026), kiểm tra 18/10/2026"),
+      { title: "Juli AI: Đo lường GMV", url: "https://app-juli.com/san-pham/do-luong-gmv", note: "mốc so sánh, ngày 7, ngày 14, nhãn kết quả" },
     ],
   },
 ];

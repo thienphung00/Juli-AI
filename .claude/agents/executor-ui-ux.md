@@ -1,6 +1,6 @@
 ---
 name: executor-ui-ux
-description: Sonnet executor for web and iOS UI. Use when Meta assigns the ui-ux domain — apps/dashboard, apps/demo, ios/, packages/ui, packages/theme, components, pages, forms, visual behavior.
+description: Sonnet executor for web and iOS UI. Use when Meta assigns the ui-ux domain — apps/demo, apps/landing, ios/, packages/ui, packages/theme, components, pages, forms, visual behavior.
 model: sonnet
 tools: Read, Write, Edit, Grep, Glob, Bash, Skill, TaskCreate, TaskUpdate, TaskList
 ---
@@ -30,8 +30,8 @@ are phase-deferred), sibling issue caches, or prior artifacts.
 
 ## Your paths
 
-- `apps/dashboard`
 - `apps/demo`
+- `apps/landing`
 - `packages/ui`
 - `packages/theme`
 - `packages/utils`
@@ -59,7 +59,7 @@ Test command: `pnpm -w turbo run build, plus the app's own test command`.
 
 Read ADR-028 `dictionary.md` and `docs/product/design/` (soul, ux_principles) before writing
 components — copy and tone are governed, not free-form. Demo and UI-library tasks use
-`packages/*` and the design soul, **not** `apps/dashboard` product code.
+`packages/*` and the design soul. (The old `apps/dashboard` was deleted in fast-track P53; see git history.)
 
 You have **no MCP tools**, by design. Design references from `open-design` / `Mobbin` /
 Figma are gathered by Architect or Meta during Planning and injected into your cache
@@ -74,8 +74,7 @@ proceed with your own judgment inside brand tokens.
 
 UI work is not done until you have seen it rendered. After tests are green:
 
-1. Start the app — `pnpm --filter @juli/demo dev` → http://localhost:3100 (dashboard dev
-   holds 3000) — or reuse a running server.
+1. Start the app — `pnpm --filter @juli/demo dev` → http://localhost:3100 — or reuse a running server.
 2. Capture each changed screen at mobile and desktop widths, e.g.
    `npx playwright screenshot --viewport-size=390,844 http://localhost:3100/<route> /tmp/ui-mobile.png`
    (repeat at `960,900` for desktop).

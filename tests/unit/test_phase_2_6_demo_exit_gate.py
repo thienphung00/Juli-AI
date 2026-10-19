@@ -21,8 +21,10 @@ SMOKE_DEMO_PATH = REPO_ROOT / "infra" / "scripts" / "smoke-test-demo.sh"
 
 pytestmark = pytest.mark.demo_contract
 
+# P53 (2026-10-18): decisions-journey.spec.ts walked the legacy
+# /decisions/recommendations/* -> /decisions/in-progress/* journey and was
+# removed with those routes.
 REQUIRED_SPECS = (
-    "decisions-journey.spec.ts",
     "manual-refresh.spec.ts",
     "responsive-parity.spec.ts",
     "accessibility.spec.ts",
@@ -65,13 +67,6 @@ def test_deploy_contract_tests_remain_in_pr_workflow() -> None:
     text = PR_WORKFLOW.read_text(encoding="utf-8")
     assert "demo-deploy-contracts:" in text
     assert "-m demo_contract" in text or "demo_contract" in text
-
-
-def test_e2e_covers_home_decisions_priority_workflow_cards_approval_in_progress() -> None:
-    text = (E2E_DIR / "decisions-journey.spec.ts").read_text(encoding="utf-8")
-    assert "Home → Decisions" in text or "Home exposes exactly two destination launchers" in text
-    assert "Priority Workflow 1" in text
-    assert "every executable workflow reaches In Progress" in text
 
 
 def test_manual_refresh_returns_default_decisions_recommendations_state() -> None:

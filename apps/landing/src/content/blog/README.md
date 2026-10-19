@@ -208,3 +208,11 @@ Renderer: `src/components/blog/figure.tsx`.
 `blog.test.tsx` checks each figure's files and their real sizes, the alt and
 caption, that every figure renders lazy with a phone source, and that only the
 cover is eager; `check:seo` repeats the eager / sized check on the built posts.
+
+### Reach → guide link (D59 addition 4, P49-L)
+
+A reach post never links a Juli page or guide from its body. Its `guide` field names one
+conversion guide (`format: "guide"`); the neutral end-of-post box then shows one line
+"Đọc hướng dẫn liên quan" to it. `guideFor()` hides the line when a published reach post would
+point at a draft guide. Tests: every reach post has a guide, conversion posts have none, the box
+has no "Juli" text.

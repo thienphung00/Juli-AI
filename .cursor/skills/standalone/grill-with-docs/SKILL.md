@@ -25,7 +25,7 @@ Format rules for CONTEXT and ADRs: follow [`.cursor/skills/standalone/domain-mod
 | Surface | Tech |
 |---|---|
 | Mobile | Native SwiftUI, `ios/`, iOS 17+, Swift 6 |
-| Web | Next.js 14 + React, `apps/demo/`, `apps/dashboard/` |
+| Web | Next.js 14 + React, `apps/demo/`, `apps/landing/` |
 | Backend | Python / FastAPI modular monolith, `src/` |
 | Data | Supabase (Postgres), SQLAlchemy, Alembic |
 | Issue tracker | GitHub Issues — `gh issue create/view/close` |

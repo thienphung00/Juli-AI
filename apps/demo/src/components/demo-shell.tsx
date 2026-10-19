@@ -4,7 +4,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
-import { looksLikeRunId } from "../lib/run-surface/run-id";
 import { REVIEWER_READ_ONLY_TITLE } from "../lib/reviewer/copy";
 import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/reviewer/reviewer-context";
 import { resetReviewerSample } from "../lib/reviewer/sample-store";
@@ -35,9 +34,6 @@ import { SellerViewProvider } from "./seller-view-context";
  * No global stepper (decision 8), no assistance aside, no mode toggle: the
  * former header controls (Đăng nhập, Làm mới Demo) and the former Cài đặt
  * tab live in the shop-avatar menu.
- *
- * The real run route (`/decisions/in-progress/<run id>`, issue #1910) keeps
- * only the rail; the run surface owns everything to its right.
  */
 
 /** The auth screen's own page: always bare (P34-F, D44.5). */
@@ -61,13 +57,6 @@ export function rendersBare(
   if (status === "resolving") return true;
   if (status !== "anonymous") return false;
   return !entry.resolved || !showsSampleDemo(entry);
-}
-
-const RUN_DETAIL_PATH_PATTERN = /^\/decisions\/in-progress\/([^/]+)\/?$/;
-
-function isRunFocusRoute(pathname: string): boolean {
-  const match = RUN_DETAIL_PATH_PATTERN.exec(pathname);
-  return match !== null && looksLikeRunId(match[1]);
 }
 
 function DemoShellContent({ children }: { children: ReactNode }) {
@@ -128,18 +117,6 @@ function DemoShellContent({ children }: { children: ReactNode }) {
 
   if (rendersBare(pathname, state.status, entry)) {
     return <>{children}</>;
-  }
-
-  if (isRunFocusRoute(pathname)) {
-    return (
-      <div className="app-shell app-shell--run">
-        <AppNavigation activePath={pathname} />
-        <div className="app-shell__main">
-          {reviewer ? <ReviewerBanner onReset={handleResetSample} reviewer={reviewer} /> : null}
-          <main className="app-content app-content--run">{page}</main>
-        </div>
-      </div>
-    );
   }
 
   return (

@@ -44,8 +44,8 @@ import styles from "./overview.module.css";
  * P34-C, D44 / Product.dc.html). Content by P33-B from the former `/product`
  * (`/product` 301s here). Facts: D13 (what Juli executes), D24.4/5/17 (content
  * cards, promotions by the seller, at most 5 new cards a day), D12/D14 (day 7 /
- * day 14, revert), ADR-077 + D34 (comparison with unchanged products, delayed
- * control groups — opt-in, being tested), D42.6 (Shopee being integrated),
+ * day 14, revert), D29 / D31.7 (bands, change strength; no control-group
+ * claim, D60.3), D42.6 (Shopee being integrated),
  * /privacy §4 (data read), /terms §5 (price).
  */
 export const metadata = buildMetadata("/san-pham");
@@ -67,7 +67,7 @@ const LOOP: readonly Step[] = [
   {
     title: "Đề xuất",
     icon: "bulb",
-    body: "Tối đa 5 đề xuất mới mỗi ngày, xếp theo GMV có thể lấy lại.",
+    body: "Mỗi ngày vài đề xuất mới, việc đáng làm nhất đứng trước.",
   },
   {
     title: "Duyệt",
@@ -129,7 +129,7 @@ const CAPABILITIES: ReadonlyArray<{
       "Video và LIVE: Juli soạn kịch bản, bạn quay hoặc lên LIVE",
     ],
     shot: {
-      alt: "Thẻ đề xuất cho Son môi số 12: chỉ số mục tiêu CTOR Thẻ sản phẩm, GMV dự kiến, lý do và tiêu đề trước và sau (dữ liệu mẫu)",
+      alt: "Thẻ đề xuất cho Son môi số 12: chỉ số mục tiêu CTOR, GMV dự kiến, lý do, mô tả hiện tại và mô tả đề xuất (dữ liệu mẫu)",
       crop: CARD_CROP,
       variants: CAP_DX_THE,
     },
@@ -138,11 +138,11 @@ const CAPABILITIES: ReadonlyArray<{
     page: PRODUCT_PAGES.measurement,
     eyebrow: "Đo lường",
     title: "Đo lường GMV tăng thêm",
-    body: "Trang Đo lường theo dõi từng thay đổi đã thực thi. Juli không chỉ so trước và sau, vì GMV có thể tăng do mùa vụ, do thuật toán hay do đối thủ. Juli đặt mỗi mức thay đổi cạnh mức dao động bình thường của chỉ số, ghi chú những thay đổi bên ngoài Juli, và đang thử nghiệm so với nhóm sản phẩm tương tự chưa thay đổi.",
+    body: "Trang Đo lường theo dõi từng thay đổi đã thực thi. Juli không chỉ làm một phép trừ trước và sau, vì chỉ số dao động theo ngày, theo đợt sale và thường tự hồi lại sau một đợt giảm. Juli đặt mỗi mức thay đổi cạnh mức dao động bình thường của chỉ số, và ghi chú những thay đổi bên ngoài Juli để không ghi công nhầm cho đề xuất.",
     points: [
       "Kết quả sơ bộ ngày 7, kết quả chốt ngày 14",
-      "Tuỳ chọn nhóm thử nghiệm có đối chứng chậm khi shop đủ sản phẩm",
-      "Kết quả đo được dùng để điều chỉnh thứ tự đề xuất sau",
+      "Mỗi kết quả ghi rõ mức chắc chắn và thay đổi bên ngoài Juli trong thời gian đo",
+      "Lịch sử kết quả của từng thay đổi luôn xem lại được",
     ],
     shot: {
       alt: "Bảng kết quả ngày 7: chỉ số chính Đang lên, các chỉ số khác Giữ ổn định, GMV mỗi ngày ghi Sơ bộ (dữ liệu mẫu)",
@@ -206,7 +206,7 @@ const FAQ: readonly FaqItem[] = [
   {
     question: "Một thay đổi bị đo là kém hiệu quả thì sao?",
     answer:
-      "Nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác về giá trị cũ đã lưu; Juli không tự hoàn tác. Kết quả này cũng làm Juli ưu tiên thấp hơn cho cùng loại hành động ở shop của bạn.",
+      "Nếu ở ngày 7 một chỉ số ra ngoài ngưỡng bạn cho phép, Juli hỏi bạn có muốn hoàn tác về giá trị cũ đã lưu; Juli không tự hoàn tác.",
   },
   {
     question: "Dùng thử miễn phí thế nào, khi nào bắt đầu tính phí?",

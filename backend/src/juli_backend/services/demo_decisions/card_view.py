@@ -92,22 +92,13 @@ _REASON_SHORT_VI: Mapping[str, str] = {
     "basket": "Mỗi đơn mua ít món",
 }
 
+#: D61: the card's GMV line is a plain sentence; Juli's formula, window and rules stay internal.
+_GMV_SENTENCE_VI = (
+    "Juli ước tính GMV có thể lấy lại từ lượt hiển thị, CTR, CTOR "
+    "và giá trị đơn hiện tại của sản phẩm"
+)
 _GMV_METHOD_VI: Mapping[str, str] = {
-    "ctr": (
-        "lượt hiển thị × (CTR mục tiêu − CTR hiện tại) × CTOR × AOV, "
-        "trung bình 30 ngày, ước tính theo quy tắc"
-    ),
-    "ctor": (
-        "lượt nhấp × (CTOR mục tiêu − CTOR hiện tại) × AOV, "
-        "trung bình 30 ngày, ước tính theo quy tắc"
-    ),
-    "aov": (
-        "đơn hàng SKU × (AOV mục tiêu − AOV hiện tại), trung bình 30 ngày, ước tính theo quy tắc"
-    ),
-    "impressions": (
-        "GMV mỗi ngày × (lượt hiển thị mục tiêu ÷ lượt hiển thị hiện tại − 1), "
-        "ước tính theo quy tắc"
-    ),
+    key: _GMV_SENTENCE_VI for key in ("ctr", "ctor", "aov", "impressions")
 }
 
 
@@ -230,10 +221,8 @@ def _fmt(value: float, unit: str) -> str:
     return f"{value * 100:.1f}".replace(".", ",") + " %"
 
 
-_GMV_METHOD_14D_VI: Mapping[str, str] = {
-    key: text.replace("trung bình 30 ngày", "trung bình 14 ngày")
-    for key, text in _GMV_METHOD_VI.items()
-}
+#: Quick-scan cards (14 days) say the same; the card's quick-scan line names the window.
+_GMV_METHOD_14D_VI: Mapping[str, str] = dict(_GMV_METHOD_VI)
 
 
 def _quick_scan(diagnosis: Mapping[str, Any]) -> dict[str, Any] | None:

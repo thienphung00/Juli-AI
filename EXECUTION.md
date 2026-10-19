@@ -1,5 +1,10 @@
 # EXECUTION.md — Single Source of Truth
 
+> **LEGACY (fast track P53, D62, 2026-10-18).** On `fasttrack/optimize-product` this file is
+> history, not law: phases, gates and scope live in `fasttrack/` (SPEC, DECISIONS — D4 replaced
+> the PRD → issue → slice loop — PROGRESS, LOG, DEBT). It is kept because tests and the `main`
+> branch's agent tooling still read it.
+
 > **This file is law.** Phases, slices, gates, and scope live here only.  
 > **Technical detail lives in Tier 1 component docs; rationale lives in Tier 2 ADRs.**  
 > Start every task here, then open **one** component doc from the routing table below.  
@@ -212,8 +217,8 @@ backend runtime in `backend/`. (**Superseded 2026-07-10:** `web/` was consolidat
 `apps/dashboard/`; the `web/` directory is now empty.)
 Sign-off: [`docs/runbooks/smoke-checklist-runbook.md`](docs/runbooks/smoke-checklist-runbook.md).
 
-**Naming collision:** Top-level `apps/` holds product deployables (landing, demo, dashboard,
-mobile). Backend entrypoints live under `backend/api/` and `backend/workers/` — not top-level
+**Naming collision:** Top-level `apps/` holds product deployables (landing, demo, connector;
+`apps/dashboard` was deleted in fast-track P53). Backend entrypoints live under `backend/api/` and `backend/workers/` — not top-level
 `apps/`. See [`architecture/migration-plan.md`](docs/architecture/migration-plan.md).
 
 ### Exit gate → Phase 3
