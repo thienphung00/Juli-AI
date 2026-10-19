@@ -5,6 +5,7 @@ import {
   trackTikTokEvent,
 } from "@juli/tiktok-events";
 
+import { resolveAdMeasurementFor } from "./privacy/ad-measurement";
 import { decodeJwtPayload } from "./supabase-auth";
 
 const REGISTERED_USERS_STORAGE_KEY = "juli_tiktok_registered_users";
@@ -85,7 +86,10 @@ function claimRegistration(userId: string): boolean {
  * matching state the next event reads, it does not decorate events already
  * sent.
  */
-export async function reportTikTokRegistration(accessToken: string): Promise<void> {
+export async function reportTikTokRegistration(
+  accessToken: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
   if (typeof window === "undefined") {
     return;
   }
@@ -96,6 +100,13 @@ export async function reportTikTokRegistration(accessToken: string): Promise<voi
   // being invisible to the e2e request check is exactly what would make that
   // leak survive review.
   if (!hasTikTokAdReferral()) {
+    return;
+  }
+
+  // P50 (D68.6): and the seller's own choice. "Không đo lường quảng cáo", or
+  // a choice that cannot be read, means no identify and no event on either
+  // channel. Checked before claiming, so a blocked sign-in is not "counted".
+  if ((await resolveAdMeasurementFor(accessToken, fetchImpl)) !== "allowed") {
     return;
   }
 

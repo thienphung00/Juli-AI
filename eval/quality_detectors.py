@@ -1436,10 +1436,10 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 49
-MEASURED_TEST_FUNCTIONS = 6833
+MEASURED_TEST_FUNCTIONS = 6883
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 660
+MEASURED_TEST_MODULES = 665
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1492,7 +1492,7 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # from `conftest.py` / a `tests` package and asserting methods of same-file
     # classes (`HelperResolver`). Every count is UNCHANGED on this tree and on
     # the branch point: no zero-assertion test delegated through an import.
-    "no_assert_statement": 493,
+    "no_assert_statement": 496,
     "and_no_pytest_raises": 130,
     "and_no_mock_assert_called": 115,
     "and_no_unittest_self_assert": 115,
@@ -1581,8 +1581,8 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 49 "
-        "zero-assertion tests in a corpus of 6,833 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (660 test modules). The prior "
+        "zero-assertion tests in a corpus of 6,883 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (665 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to an asserting helper. That "
@@ -1599,7 +1599,7 @@ RECONCILIATION: dict[str, Any] = {
         "diverges "
         "mechanically as the repository grows and says nothing about the code "
         "(#1682). The rates are recorded beside it as readings, not as the claim "
-        "(2.40% then, 1.68% now). "
+        "(2.40% then, 1.67% now). "
         "So the prior measurement "
         "reproduces, and the gap between 115 and 49 is 62 tests whose only "
         "assertion is inside a "

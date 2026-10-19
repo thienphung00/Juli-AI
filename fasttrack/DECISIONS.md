@@ -1392,3 +1392,39 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `eval/quality_prior_figure_set.json` holds the layer's helper-credited members at the
      branch point 0739f4da. `reconcile --write` only prunes it. The tolerance stays at 15.
   Work: P55.
+
+- **D68** — Legal terms and data rules after the PDPL grill (owner, 2026-10-18). Research: Viettel AI
+  and FPT (FPT Shop, FPT IS) privacy texts, Luật 91/2025/QH15, Nghị định 356/2025/NĐ-CP, Luật Trí tuệ
+  nhân tạo 134/2025, Luật BVQLNTD 19/2023 Điều 25, BLDS 2015 Điều 405.
+  1. **Customer is B2B only**: businesses, household businesses and sellers using Juli for commercial
+     purposes; /terms says they are not consumers (keeps Juli outside Luật BVQLNTD Điều 25).
+  2. **Improving Juli's models is a condition of use**, on de-identified data only: business data and
+     seller data are de-identified before any analysis/training pipeline; identifiable personal data is
+     never used for training; buyer data is never used for training and is anonymised before entering
+     any pipeline. Google user data stays excluded (Limited Use). Replaces the P42 opt-out
+     ("yêu cầu ngừng sử dụng… bất kỳ lúc nào") and the "chỉ ở dạng cấu trúc" limit.
+  3. **Ownership**: customer data belongs to the seller; Juli holds a perpetual, irrevocable licence to
+     de-identified data; models, weights and aggregates are Juli's; on deletion raw data is deleted and
+     models are not retrained.
+  4. **Liability: total exemption** ("không chịu trách nhiệm bồi thường dưới bất kỳ hình thức nào… dù
+     trực tiếp hay gián tiếp"), enumerated losses, "kể cả khi đã được thông báo", a **separately
+     accepted** clause, plus severability. Owner accepted the BLDS Điều 405.3 risk (a court may void a
+     standard-form exemption); counsel to confirm.
+  5. **Juli terminates only for listed breaches**; may change or retire single features with notice;
+     whole-service discontinuation keeps 30 days' notice.
+  6. **Rights**: in-app Cài đặt → Quyền riêng tư plus e-mail; reply within 2 working days; withdraw /
+     restrict / object done within 15 days; access / correct / export 10 days; delete 20 days (NĐ 356
+     Điều 5). Opt-outs: marketing, ad measurement, shop-as-case-study (opt-in).
+  7. Cross-border: disclosure only; no server locations on the page.
+  8. **Changes**: 15 days' notice by e-mail and in-app; continued use = acceptance. The D68 text itself
+     takes effect **immediately** (owner), shown with an in-app re-acceptance strip.
+  9. Disputes: negotiate 30 days, then the court where Juli is headquartered; Vietnamese law.
+  10. **Retention**: after a seller stops using Juli (account deletion requested), 30 days to export,
+      then deletion; invoices 10 years.
+  11. Citations: Luật 91/2025/QH15 + Nghị định 356/2025/NĐ-CP (NĐ 13/2023 replaced 01/01/2026).
+  12. Paid fees are never refunded.
+  13. Pages show the date only, no version number.
+  14. Scope: **website only** (/terms VI, /privacy VI + EN); the md v2 sources and the Ory contract are
+      not touched (DEBT); the contract still prevails for the pilot shop.
+  15. E-mail notices use the existing SMTP mailer (`services/ops/mailer.py`); Resend, the owner's
+      pick when told no mailer existed, is deferred (DEBT).

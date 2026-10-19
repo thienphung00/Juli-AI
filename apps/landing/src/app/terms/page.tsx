@@ -4,19 +4,21 @@ import { LegalPage, LegalSection } from "../privacy/legal-template";
 
 export const metadata = buildMetadata("/terms");
 
-const VERSION = "2.2";
-const LAST_UPDATED = "16/10/2026";
+const LAST_UPDATED = "18/10/2026";
 
 /**
  * "Tóm tắt dễ hiểu" (D44): each line restates a numbered section below
- * (§2 + §6, §5, §3 + §4, §8, §9). It adds no term; the full text governs.
+ * (§1, §2 + §6, §5, §3 + §4, §8, §11, §9). It adds no term; the full text governs.
+ * Date only, no version number (D68.13).
  */
 const SUMMARY = [
+  "Juli chỉ dành cho doanh nghiệp, hộ kinh doanh và người bán dùng vào mục đích kinh doanh.",
   "Juli phân tích dữ liệu shop TikTok Shop và đề xuất việc nên làm; bạn là người quyết định, và Juli chỉ làm khi bạn đồng ý.",
-  "Tài khoản mới dùng thử miễn phí 3 tháng, không cần thẻ thanh toán; sau đó phí dịch vụ là 500.000đ mỗi tháng.",
+  "Tài khoản mới dùng thử miễn phí 3 tháng, không cần thẻ thanh toán; sau đó phí dịch vụ là 500.000đ mỗi tháng, phí đã trả không hoàn lại.",
   "Bạn cần từ 18 tuổi trở lên, và là chủ shop hoặc được chủ shop uỷ quyền khi kết nối shop.",
-  "Dữ liệu shop thuộc về bạn; Juli chỉ xử lý dữ liệu đó để phục vụ shop của bạn và không bán dữ liệu.",
-  "Bạn có thể ngừng sử dụng Juli và yêu cầu xoá tài khoản bất kỳ lúc nào.",
+  "Dữ liệu shop thuộc về bạn và Juli không bán dữ liệu. Khi dùng Juli, bạn đồng ý cho Juli dùng dữ liệu đã khử định danh để cải thiện mô hình của Juli; dữ liệu người mua không bao giờ được dùng để huấn luyện.",
+  "Juli không chịu trách nhiệm bồi thường thiệt hại phát sinh từ việc sử dụng Juli (Điều 11).",
+  "Bạn có thể ngừng sử dụng Juli và yêu cầu xoá tài khoản bất kỳ lúc nào; bạn có 30 ngày để tải dữ liệu trước khi dữ liệu bị xoá.",
 ] as const;
 
 const TOC = [
@@ -30,7 +32,10 @@ const TOC = [
   { id: "dieu-8", label: "8. Dữ liệu của bạn" },
   { id: "dieu-9", label: "9. Chấm dứt" },
   { id: "dieu-10", label: "10. Thay đổi điều khoản" },
-  { id: "dieu-11", label: "11. Liên hệ" },
+  { id: "dieu-11", label: "11. Giới hạn trách nhiệm" },
+  { id: "dieu-12", label: "12. Giải quyết tranh chấp" },
+  { id: "dieu-13", label: "13. Điều khoản chung" },
+  { id: "dieu-14", label: "14. Liên hệ" },
   { id: "lien-he-dieu-khoan", label: "Liên hệ về điều khoản" },
 ] as const;
 
@@ -46,7 +51,6 @@ export default function TermsOfServicePage() {
         title="Điều khoản dịch vụ"
         toc={TOC}
         updated={LAST_UPDATED}
-        version={VERSION}
       >
           <LegalSection headingId="dieu-1" num="1." title="Giới thiệu">
             <p>
@@ -56,8 +60,15 @@ export default function TermsOfServicePage() {
               <a href="/privacy">
                 Chính sách bảo mật
               </a>
-              . Nếu bạn sử dụng Juli thay mặt một doanh nghiệp, bạn xác nhận mình có quyền
-              chấp nhận các điều khoản này thay cho doanh nghiệp đó.
+              . Nếu bạn sử dụng Juli thay mặt một doanh nghiệp hoặc hộ kinh doanh, bạn xác
+              nhận mình có quyền chấp nhận các điều khoản này thay cho doanh nghiệp hoặc hộ
+              kinh doanh đó.
+            </p>
+            <p id="chi-danh-cho-kinh-doanh">
+              Juli là dịch vụ dành cho doanh nghiệp, hộ kinh doanh và người bán hàng sử dụng
+              vì mục đích kinh doanh, thương mại. Bạn xác nhận bạn sử dụng Juli để vận hành
+              hoạt động kinh doanh của mình, không phải với tư cách người tiêu dùng cho mục
+              đích sinh hoạt cá nhân, gia đình.
             </p>
           </LegalSection>
 
@@ -117,7 +128,8 @@ export default function TermsOfServicePage() {
             <p>
               Tài khoản mới được dùng thử miễn phí 3 tháng kể từ ngày đăng ký, không cần thẻ
               thanh toán. Sau thời gian dùng thử, phí dịch vụ Juli là 500.000đ/tháng. Bạn có
-              thể huỷ bất cứ lúc nào. Phí đã thanh toán không thể hoàn lại.
+              thể huỷ bất cứ lúc nào. Phí đã thanh toán không thể hoàn lại trong mọi trường
+              hợp.
             </p>
           </LegalSection>
 
@@ -125,7 +137,11 @@ export default function TermsOfServicePage() {
             <p>
               Các đề xuất của Juli được tạo bằng AI dựa trên dữ liệu shop và chỉ mang tính
               tương đối. Juli chỉ thực hiện một hành động khi bạn đồng ý, và bạn là người
-              quyết định cuối cùng cho mọi hành động trên shop của mình.
+              quyết định cuối cùng cho mọi hành động trên shop của mình. Bạn tự chịu trách
+              nhiệm về việc áp dụng đề xuất vào hoạt động kinh doanh, kể cả việc tuân thủ chính
+              sách của sàn và pháp luật. Nếu Juli tạo hình ảnh, video hoặc âm thanh bằng AI,
+              nội dung đó được gắn dấu hiệu nhận biết theo Luật Trí tuệ nhân tạo và bạn không
+              được gỡ bỏ dấu hiệu này.
             </p>
           </LegalSection>
 
@@ -140,8 +156,8 @@ export default function TermsOfServicePage() {
 
           <LegalSection headingId="dieu-8" num="8." title="Dữ liệu của bạn">
             <p>
-              8.1. Dữ liệu shop và dữ liệu kinh doanh của bạn thuộc về bạn. Juli chỉ xử lý
-              dữ liệu đó để cung cấp dịch vụ cho bạn, theo{" "}
+              8.1. Dữ liệu shop và dữ liệu kinh doanh của bạn thuộc về bạn. Juli xử lý dữ
+              liệu đó để cung cấp dịch vụ cho bạn và cho mục đích tại mục 8.6, theo{" "}
               <a href="/privacy">
                 Chính sách bảo mật
               </a>
@@ -150,7 +166,8 @@ export default function TermsOfServicePage() {
             <p>
               8.2. Bạn bảo đảm mình có quyền cho phép Juli xử lý dữ liệu shop của bạn, bao
               gồm dữ liệu cá nhân của người mua có trong đó, và việc cho phép này phù hợp với
-              chính sách của sàn (TikTok Shop, Shopee) và pháp luật về bảo vệ dữ liệu cá nhân.
+              chính sách của sàn (TikTok Shop, Shopee) và pháp luật về bảo vệ dữ liệu cá nhân
+              (Luật Bảo vệ dữ liệu cá nhân số 91/2025/QH15 và Nghị định 356/2025/NĐ-CP).
             </p>
             <p>
               8.3. Với dữ liệu cá nhân của người mua có trong dữ liệu shop (ví dụ: mã định
@@ -166,7 +183,7 @@ export default function TermsOfServicePage() {
               <li>
                 (c) không bán, không tiết lộ và không chuyển giao dữ liệu này cho bất kỳ bên
                 thứ ba nào ngoài các bên xử lý đó; không dùng dữ liệu để phục vụ khách hàng
-                khác và không dùng để huấn luyện mô hình AI tổng quát;
+                khác và không bao giờ dùng để huấn luyện bất kỳ mô hình AI nào;
               </li>
               <li>
                 (d) chỉ truy cập và xử lý dữ liệu trong phạm vi quyền được cấp và cần thiết cho
@@ -201,21 +218,28 @@ export default function TermsOfServicePage() {
               tham khảo, và không lấy từ dữ liệu riêng của các shop khác dùng Juli.
             </p>
             <p>
-              8.6. Cải thiện thuật toán: Juli được sử dụng dữ liệu shop đã được ẩn danh hoá,
-              chỉ ở dạng cấu trúc dữ liệu (ví dụ: loại chỉ số, mối tương quan giữa các chỉ số,
-              loại đề xuất và kết quả sau khi áp dụng) để tối ưu thuật toán phân tích và chất
-              lượng gợi ý của Juli, bao gồm tinh chỉnh (fine-tune) mô hình ngôn ngữ của bên
-              thứ ba thành mô hình riêng của Juli. Dữ liệu dùng cho mục đích này không chứa
-              tên shop, tên hoặc nội dung sản phẩm, hình ảnh, kịch bản, tiêu đề, số liệu kinh
-              doanh có thể nhận diện shop, thông tin người mua hay dữ liệu người dùng Google,
-              và không được tiết lộ cho khách hàng khác. Bạn có thể yêu cầu ngừng sử dụng dữ
-              liệu của mình cho mục đích này bất kỳ lúc nào qua email; Juli ngừng áp dụng đối
-              với dữ liệu phát sinh từ thời điểm nhận được yêu cầu.
+              8.6. Cải thiện thuật toán và mô hình của Juli: khi sử dụng Juli, bạn cấp cho Juli
+              quyền không độc quyền, miễn phí, không thể huỷ ngang, có hiệu lực vĩnh viễn để sử
+              dụng dữ liệu shop, dữ liệu kinh doanh và dữ liệu sử dụng Juli của bạn sau khi đã
+              được khử định danh, nhằm phân tích, tối ưu thuật toán, nghiên cứu, huấn luyện,
+              tinh chỉnh (fine-tune), kiểm thử và phát triển các mô hình và dịch vụ của Juli. Đây
+              là điều kiện để sử dụng Juli. Trước khi được dùng cho mục đích này, dữ liệu được
+              loại bỏ tên shop, mã shop, tên, email, số điện thoại của bạn và mọi thông tin có
+              thể xác định bạn, shop của bạn hay bất kỳ cá nhân nào. Dữ liệu cá nhân còn xác định
+              được bạn, dữ liệu người dùng Google và dữ liệu của người mua không bao giờ được
+              dùng để huấn luyện mô hình; dữ liệu người mua được ẩn danh trước khi đi vào bất kỳ
+              quy trình phân tích nào. Dữ liệu dùng cho mục đích này không được tiết lộ cho khách
+              hàng khác. Mô hình, trọng số mô hình, số liệu thống kê tổng hợp và các cải tiến
+              phát sinh thuộc quyền sở hữu của Juli. Khi bạn xoá tài khoản, dữ liệu gốc của bạn
+              được xoá theo mục 9; dữ liệu đã khử định danh đã được dùng trước đó không thể tách
+              khỏi mô hình đã huấn luyện, nên Juli không huấn luyện lại các mô hình đó.
             </p>
             <p>
               8.7. Gợi ý kịch bản, tiêu đề và nội dung được Juli xử lý riêng cho từng shop,
               dựa trên dữ liệu và cách dùng từ ngữ của chính shop đó. Nội dung riêng của shop
-              (từ ngữ, kịch bản, tiêu đề, hình ảnh) chỉ dùng để tạo gợi ý cho chính shop đó.
+              (từ ngữ, kịch bản, tiêu đề, hình ảnh) không được hiển thị cho shop khác và không
+              được dùng để tạo gợi ý cho shop khác, ngoài việc dùng ở dạng đã khử định danh
+              theo mục 8.6.
             </p>
             <p>
               8.8. Juli dùng mô hình AI của OpenAI (qua OpenAI API) và một số nhà cung cấp dịch
@@ -230,23 +254,104 @@ export default function TermsOfServicePage() {
 
           <LegalSection headingId="dieu-9" num="9." title="Chấm dứt">
             <p>
-              Bạn có thể ngừng sử dụng Juli và yêu cầu xoá tài khoản bất kỳ lúc nào. Juli có
-              thể tạm ngưng hoặc chấm dứt tài khoản vi phạm các điều khoản này hoặc chính
-              sách của sàn. Nếu Juli ngừng cung cấp dịch vụ, chúng tôi sẽ thông báo cho bạn
-              ít nhất 30 ngày trước.
+              9.1. Bạn có thể ngừng sử dụng Juli và yêu cầu xoá tài khoản bất kỳ lúc nào, trong
+              phần Cài đặt, Quyền riêng tư của ứng dụng hoặc qua email. Sau khi bạn yêu cầu xoá
+              tài khoản, bạn có 30 ngày để tải dữ liệu của mình; sau thời hạn này, Juli xoá dữ
+              liệu tài khoản và dữ liệu shop, trừ hoá đơn và chứng từ kế toán (lưu 10 năm theo
+              pháp luật kế toán) và dữ liệu đã khử định danh theo mục 8.6.
+            </p>
+            <p>
+              9.2. Juli chỉ tạm ngưng hoặc chấm dứt tài khoản của bạn, ngay lập tức và không
+              hoàn phí, khi bạn:
+            </p>
+            <ul aria-label="Trường hợp Juli tạm ngưng hoặc chấm dứt tài khoản">
+              <li>(a) vi phạm các điều khoản này, bao gồm mục 7;</li>
+              <li>
+                (b) vi phạm chính sách của sàn (TikTok Shop, Shopee) hoặc dùng Juli cho hàng
+                hoá, dịch vụ, hoạt động vi phạm pháp luật;
+              </li>
+              <li>(c) không thanh toán phí đúng hạn sau khi đã được nhắc;</li>
+              <li>(d) cung cấp thông tin giả mạo hoặc kết nối shop không thuộc quyền của bạn;</li>
+              <li>(e) là đối tượng của yêu cầu từ cơ quan nhà nước có thẩm quyền.</li>
+            </ul>
+            <p>
+              9.3. Nếu Juli ngừng cung cấp dịch vụ, chúng tôi sẽ thông báo cho bạn ít nhất 30
+              ngày trước. Juli có thể thay đổi, bổ sung hoặc ngừng từng tính năng riêng lẻ; với
+              thay đổi làm giảm đáng kể tính năng bạn đang dùng, chúng tôi thông báo trước qua
+              email hoặc trong ứng dụng.
             </p>
           </LegalSection>
 
           <LegalSection headingId="dieu-10" num="10." title="Thay đổi điều khoản">
             <p>
-              Khi điều khoản thay đổi, chúng tôi cập nhật ngày ở đầu trang này. Với những
-              thay đổi quan trọng, chúng tôi thông báo qua email ít nhất 7 ngày trước khi
-              thay đổi có hiệu lực. Việc tiếp tục sử dụng Juli sau thời điểm đó đồng nghĩa
-              với việc bạn chấp nhận điều khoản mới.
+              Khi điều khoản thay đổi, chúng tôi cập nhật ngày ở đầu trang này và thông báo qua
+              email và trong ứng dụng ít nhất 15 ngày trước khi thay đổi có hiệu lực. Nếu bạn
+              không đồng ý, bạn có thể ngừng sử dụng Juli trước ngày có hiệu lực. Việc tiếp tục
+              sử dụng Juli sau thời điểm đó đồng nghĩa với việc bạn chấp nhận điều khoản mới.
             </p>
           </LegalSection>
 
-          <LegalSection headingId="dieu-11" num="11." title="Liên hệ">
+          <LegalSection headingId="dieu-11" num="11." title="Giới hạn trách nhiệm">
+            <p>
+              11.1. Trong phạm vi tối đa pháp luật cho phép, Juli không chịu trách nhiệm bồi
+              thường dưới bất kỳ hình thức nào đối với bất kỳ thiệt hại nào, dù trực tiếp hay
+              gián tiếp, phát sinh từ hoặc liên quan đến việc bạn sử dụng hoặc không thể sử dụng
+              Juli, kể cả khi Juli đã được thông báo về khả năng xảy ra thiệt hại đó, bao gồm
+              nhưng không giới hạn:
+            </p>
+            <ul aria-label="Thiệt hại Juli không bồi thường">
+              <li>(a) lợi nhuận, doanh thu, doanh số hoặc khoản lợi dự kiến bị mất;</li>
+              <li>(b) chi phí quảng cáo, khuyến mại, mã giảm giá, vận chuyển hoặc tồn kho;</li>
+              <li>
+                (c) việc gian hàng bị sàn cảnh cáo, trừ điểm, hạn chế, tạm khoá hoặc khoá;
+              </li>
+              <li>(d) mất uy tín, khách hàng hoặc cơ hội kinh doanh;</li>
+              <li>(e) mất mát, sai lệch hoặc rò rỉ dữ liệu, gián đoạn hoặc lỗi của dịch vụ;</li>
+              <li>(f) hậu quả của việc áp dụng đề xuất hoặc nội dung do AI tạo ra;</li>
+              <li>(g) chi phí mua dịch vụ thay thế.</li>
+            </ul>
+            <p>
+              11.2. Juli được cung cấp theo hiện trạng và theo khả năng sẵn có. Juli không bảo
+              đảm dịch vụ hoạt động liên tục, không có lỗi, hay đạt được kết quả kinh doanh cụ
+              thể nào. Juli không chịu trách nhiệm về hoạt động, thay đổi hay quyết định của các
+              bên thứ ba, bao gồm sàn thương mại điện tử và các nhà cung cấp nêu tại mục 7 của{" "}
+              <a href="/privacy">
+                Chính sách bảo mật
+              </a>
+              , và về sự kiện bất khả kháng (thiên tai, dịch bệnh, sự cố hạ tầng mạng hoặc
+              điện, tấn công mạng, quyết định của cơ quan nhà nước).
+            </p>
+            <p>
+              11.3. Bạn xác nhận đã đọc, hiểu và đồng ý riêng với Điều 11 này khi đăng ký hoặc
+              tiếp tục sử dụng Juli, và đây là thoả thuận của các bên về các trường hợp miễn
+              trách nhiệm.
+            </p>
+          </LegalSection>
+
+          <LegalSection headingId="dieu-12" num="12." title="Giải quyết tranh chấp">
+            <p>
+              Các điều khoản này được điều chỉnh bởi pháp luật Việt Nam. Bạn gửi khiếu nại tới
+              email bên dưới; Juli xác nhận đã nhận trong 2 ngày làm việc. Tranh chấp được ưu
+              tiên giải quyết bằng thương lượng trong 30 ngày kể từ ngày một bên gửi yêu cầu.
+              Nếu không thương lượng được, tranh chấp được giải quyết tại Toà án có thẩm quyền
+              nơi Juli đặt trụ sở.
+            </p>
+          </LegalSection>
+
+          <LegalSection headingId="dieu-13" num="13." title="Điều khoản chung">
+            <p>
+              Nếu bất kỳ phần nào của các điều khoản này bị tuyên vô hiệu hoặc không thể thực
+              thi, phần đó được thực hiện ở mức tối đa pháp luật cho phép, và các phần còn lại
+              vẫn giữ nguyên hiệu lực. Các điều khoản này và{" "}
+              <a href="/privacy">
+                Chính sách bảo mật
+              </a>{" "}
+              là toàn bộ thoả thuận giữa bạn và Juli về dịch vụ. Nếu bạn đã ký hợp đồng riêng
+              với Juli, hợp đồng đó được ưu tiên áp dụng khi có khác biệt.
+            </p>
+          </LegalSection>
+
+          <LegalSection headingId="dieu-14" num="14." title="Liên hệ">
             <p>
               Mọi câu hỏi về điều khoản này, vui lòng liên hệ {COMPANY.name} qua{" "}
               <a href={`mailto:${COMPANY.email}`}>

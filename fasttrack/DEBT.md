@@ -1189,3 +1189,20 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] The prior-figure fixed set only shrinks (`reconcile --write` prunes; it never adds). If a
   recorded helper-style test is rewritten with a direct `assert`, the set loses it and the claim
   drops by one, as it should. Adding an identity is a hand edit that review must see.
+
+## P50 — PDPL legal terms (D68)
+
+- [ ] md v2 sources (`~/Downloads/b2b_document/md/01_…`, `02_…`) and the Ory pilot contract not synced to the D68 website text — owner scoped P50 to the website (D68.14) — owner decides; give contract changes as paste-ready clause text.
+- [ ] Total liability exemption (/terms Điều 11) may be void under BLDS 2015 Điều 405.3 for a standard-form contract — owner accepted the risk (D68.4) — counsel to confirm the wording.
+- [ ] Cross-border transfer impact dossier (Mẫu 09, NĐ 356 Điều 18) not filed; the hidden counsel TODO in /privacy §7 stays — owner chose disclosure only (D68.7) — counsel + filing with Bộ Công an.
+- [ ] Resend not added; notices use the SMTP mailer (D68.15) — speed — add Resend if SMTP volume or deliverability is a problem.
+- [ ] online.gov.vn notification of app-juli.com as a selling e-commerce website (TT 47/2014, hợp nhất 2026) not done — owner action — verify NĐ 248/2026 first, then file.
+- [ ] **Supabase Auth user is not deleted at purge** — no service-role admin client in the backend; /privacy §3.5 promises deletion "khỏi hệ thống của Juli và Supabase". Auth still holds the e-mail, Google identity (sub, name, avatar), refresh tokens and sign-in IPs, and a deleted seller who signs in with Google again gets a fresh empty `users` row via `UsersRepo.get_or_create` (re-storing the e-mail just purged). Until fixed: delete by hand from the Supabase dashboard whenever the nightly log shows `auth_users_pending` > 0 (P50-B).
+  - **Chosen fix (option A, owner 2026-10-19 — deferred, not started):** in `workers/tasks/privacy_account_purge.py`, after the account's DB purge commits, call `DELETE {SUPABASE_URL}/auth/v1/admin/users/{user_id}` with the service-role key; treat 404 as already deleted; on other failures log the count only and retry next night (need a marker so the DB purge is not re-run — e.g. keep a tombstone row or a `privacy_auth_pending` list). Secret `SUPABASE_SERVICE_ROLE_KEY` goes to the **worker only** (never the API or any frontend — it bypasses RLS). Add a unit test with the HTTP call mocked (success, 404, 5xx) and drop `auth_users_pending` from the log once it is always 0. Owner adds the secret at deploy.
+- [ ] Purge deletes database rows only; stored files (run_lever_photos, uploads) and Redis lock/marker keys stay (P50-B) — extend the purge.
+- [ ] Export is a capped synchronous summary (account, prefs, shops, products, action cards, rules; 5000 rows/table, `truncated`); no diagnosis reports, card groups, runs, analytics (P50-B) — async full export.
+- [ ] Purge keeps `ops_audit_log` rows until their 90/365-day retention and keeps `shop_subscription_periods` with `shop_id` NULL — counsel to confirm (P50-B). Downgrading 094 fails once a period row is detached (intended).
+- [ ] De-identifier alias key is the repo constant (`stable_alias`, ADR-038) — move to a secret env key (P50-P).
+- [ ] Free-text personal names, transcription audio and images reach the provider unscrubbed (P50-P).
+- [ ] Terms-notice sent state is a local hashed sent-list file, no DB column; it mails every user incl. staff/reviewer accounts (P50-E).
+- [ ] No e2e or browser check of the privacy tab, strip and dialog; partner trial accounts get neither; re-enabling ad measurement waits for a page reload (P50-U).

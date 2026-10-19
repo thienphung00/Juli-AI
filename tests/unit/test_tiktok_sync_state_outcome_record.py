@@ -308,8 +308,9 @@ class TestTheMigrationMatchesTheModel:
         # `082_content_analysis`; P16 `083_ops_console`; P17 `084_onboarding_speed`;
         # P18 `085_ops_daily_precompute`; P20 `086_ops_cost_and_terms`;
         # P23 `087_history_and_baselines`; P24 `088_ingest_gateway`; P30 `089_card_groups`;
-        # P36 `092_card_group_design`; P45 `093_ops_group_lift_draws`.
-        assert heads == ["093_ops_group_lift_draws"], heads
+        # P36 `092_card_group_design`; P45 `093_ops_group_lift_draws`;
+        # P50-B `094_user_privacy_and_consent`.
+        assert heads == ["094_user_privacy_and_consent"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema

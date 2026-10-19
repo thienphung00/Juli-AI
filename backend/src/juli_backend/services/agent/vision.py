@@ -50,6 +50,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from juli_backend.core.privacy import deidentify_text
+
 logger = logging.getLogger(__name__)
 
 #: Fixed vocabulary. The inspector's judgement is expressed in the
@@ -193,6 +195,9 @@ def build_image_inspector(*, api_key: str, config: InspectionConfig) -> ImageIns
 
     def _inspect(*, image_url: str, title: str, description: str) -> dict[str, Any]:
         instructions = _INSPECTOR_PROMPT.replace("{language}", config.language)
+        # D68.2 (P50-P): listing text is de-identified before it reaches the provider.
+        title = deidentify_text(title)
+        description = deidentify_text(description)
         body = {
             "model": config.model,
             "input": [

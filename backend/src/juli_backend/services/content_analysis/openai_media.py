@@ -31,6 +31,7 @@ import numpy as np
 from PIL import Image
 
 from juli_backend.core.config import require_env
+from juli_backend.core.privacy import deidentify_text
 from juli_backend.services.agent.llm.blocks import FinalResponse, TextBlock, Usage
 from juli_backend.services.agent.llm.config import LLMConfig, estimate_cost_usd
 from juli_backend.services.content_analysis.config import asr_usd_per_minute
@@ -107,7 +108,8 @@ class OpenAITranscriber:
         data: dict[str, Any] = {
             "model": self.model,
             "language": "vi",
-            "prompt": prompt[:MAX_GLOSSARY_CHARS],
+            # D68.2 (P50-P): the glossary is shop text; contact data never leaves.
+            "prompt": deidentify_text(prompt)[:MAX_GLOSSARY_CHARS],
             "response_format": "verbose_json" if timestamps else "json",
         }
         if timestamps:

@@ -32,6 +32,7 @@ from juli_backend.api.routes.demo_run_changes import router as demo_run_changes_
 from juli_backend.api.routes.demo_run_flows import router as demo_run_flows_router
 from juli_backend.api.routes.executions import router as executions_router
 from juli_backend.api.routes.ingest import router as ingest_router
+from juli_backend.api.routes.me import router as me_router
 from juli_backend.api.routes.ops import router as ops_router
 from juli_backend.api.routes.ops_billing import router as ops_billing_router
 from juli_backend.api.routes.ops_trial_signups import router as ops_trial_signups_router
@@ -70,6 +71,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(auth_tiktok_business_advertiser_router)
     v1_router.include_router(auth_tiktok_business_account_holder_router)
     v1_router.include_router(shops_router)
+    v1_router.include_router(me_router)
     v1_router.include_router(orders_router)
     v1_router.include_router(products_router)
     v1_router.include_router(recommendations_router)

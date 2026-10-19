@@ -75,12 +75,16 @@ describe("/terms §8 — data rights (layer 1)", () => {
     expect(s).toHaveTextContent(/không lấy từ dữ liệu riêng của các shop khác dùng Juli/);
   });
 
-  it("keeps the anonymised, structural-only fine-tune clause and the per-shop suggestion clause", () => {
+  it("makes de-identified model improvement a condition of use, never on buyer data (D68.2, D68.3)", () => {
     const s = section();
-    expect(s).toHaveTextContent(/đã được ẩn danh hoá,\s*chỉ ở dạng cấu trúc dữ liệu/);
-    expect(s).toHaveTextContent(/tinh chỉnh \(fine-tune\) mô hình ngôn ngữ/);
-    expect(s).toHaveTextContent(/yêu cầu ngừng sử dụng dữ liệu của mình cho mục đích này/);
-    expect(s).toHaveTextContent(/chỉ dùng để tạo gợi ý cho chính shop đó/);
+    expect(s).toHaveTextContent(/sau khi đã\s*được khử định danh/);
+    expect(s).toHaveTextContent(/tinh chỉnh \(fine-tune\)/);
+    expect(s).toHaveTextContent(/Đây\s*là điều kiện để sử dụng Juli/);
+    expect(s).toHaveTextContent(/dữ liệu của người mua không bao giờ được\s*dùng để huấn luyện mô hình/);
+    expect(s).toHaveTextContent(/không thể huỷ ngang, có hiệu lực vĩnh viễn/);
+    expect(s).toHaveTextContent(/Juli không huấn luyện lại các mô hình đó/);
+    expect(s).not.toHaveTextContent(/yêu cầu ngừng sử dụng dữ liệu của mình cho mục đích này/);
+    expect(s).toHaveTextContent(/không được dùng để tạo gợi ý cho shop khác/);
     // Points to the full processor list instead of repeating it.
     expect(s).toHaveTextContent(/mục 7 của\s*Chính sách bảo mật/);
   });
@@ -149,10 +153,12 @@ describe("/privacy — processing and AI providers (layer 2)", () => {
     expect(en).toHaveTextContent(/Juli does not send your shop data \(orders, business figures, buyer data\) to FastMoss/);
   });
 
-  it("is version 2.1 of 16/10/2026 in both languages, and shows no counsel note", () => {
+  it("shows the date only (no version, D68.13) in both languages, and no counsel note", () => {
     const { container } = render(<PrivacyPolicyPage />);
-    expect(screen.getByText(/Phiên bản 2\.1 · Cập nhật lần cuối: 16\/10\/2026/)).toBeInTheDocument();
-    expect(englishPart(container)).toHaveTextContent(/Version 2\.1 · Last updated \(effective date\): October 16, 2026/);
+    expect(screen.getByText(/^Cập nhật lần cuối: 18\/10\/2026/)).toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/Phiên bản/);
+    expect(englishPart(container)).toHaveTextContent(/Last updated \(effective date\): October 18, 2026/);
+    expect(englishPart(container)).not.toHaveTextContent(/Version \d/);
     expect(container).not.toHaveTextContent(/cần luật sư/);
   });
 });

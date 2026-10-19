@@ -3,6 +3,7 @@ import { webcrypto } from "node:crypto";
 import { sha256Hex } from "@juli/tiktok-events";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { adMeasurement, resetAdMeasurement } from "../privacy/ad-measurement";
 import {
   REGISTERED_USERS_STORAGE_KEY,
   readSupabaseIdentity,
@@ -40,8 +41,32 @@ function arriveFromAd(clickId = "click-1") {
   window.localStorage.setItem("juli_tiktok_click_id", clickId);
 }
 
+/** `GET /v1/me/privacy` for a seller with the given ad-measurement choice. */
+function privacyResponse(adMeasurementOptOut: boolean): Response {
+  return new Response(
+    JSON.stringify({
+      marketing_opt_out: false,
+      ad_measurement_opt_out: adMeasurementOptOut,
+      case_study_opt_in: false,
+      terms_date_accepted: "2026-10-18",
+      terms_accepted_at: null,
+      liability_clause_accepted_at: null,
+      current_terms_date: "2026-10-18",
+      needs_terms_acceptance: false,
+      deletion_scheduled_for: null,
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+let privacyFetch: ReturnType<typeof vi.fn>;
+
 beforeEach(() => {
   window.localStorage.clear();
+  resetAdMeasurement();
+  // P50: every registration first reads the seller's privacy choice.
+  privacyFetch = vi.fn(async () => privacyResponse(false));
+  vi.stubGlobal("fetch", privacyFetch);
   arriveFromAd();
   // The server copy of every event goes out as a beacon; stub it so the suite
   // makes no network calls.
@@ -56,6 +81,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete (window as unknown as { ttq?: FakePixel }).ttq;
+  vi.unstubAllGlobals();
 });
 
 describe("readSupabaseIdentity", () => {
@@ -178,5 +204,55 @@ describe("reportTikTokRegistration", () => {
     await expect(
       reportTikTokRegistration(accessTokenFor({ sub: "user-1" })),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("the seller's ad-measurement choice (P50, D68.6)", () => {
+  it("reads GET /v1/me/privacy with the new session's token", async () => {
+    const token = accessTokenFor({ sub: "user-1" });
+
+    await reportTikTokRegistration(token);
+
+    expect(privacyFetch).toHaveBeenCalledWith(
+      "/v1/me/privacy",
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: `Bearer ${token}` }) }),
+    );
+  });
+
+  it("sends no identify, no event and no server copy for a seller who opted out", async () => {
+    privacyFetch.mockImplementation(async () => privacyResponse(true));
+    const beacon = vi.fn(() => true);
+    Object.defineProperty(navigator, "sendBeacon", { configurable: true, value: beacon, writable: true });
+
+    await reportTikTokRegistration(accessTokenFor({ sub: "user-1" }));
+
+    expect(pixel.identify).not.toHaveBeenCalled();
+    expect(pixel.track).not.toHaveBeenCalled();
+    expect(beacon).not.toHaveBeenCalled();
+    expect(adMeasurement()).toBe("blocked");
+  });
+
+  it("does not count an opted-out sign-in, so nothing is claimed for later", async () => {
+    privacyFetch.mockImplementation(async () => privacyResponse(true));
+
+    await reportTikTokRegistration(accessTokenFor({ sub: "user-1" }));
+
+    expect(window.localStorage.getItem(REGISTERED_USERS_STORAGE_KEY)).toBeNull();
+  });
+
+  it("sends nothing when the choice cannot be read", async () => {
+    privacyFetch.mockImplementation(async () => new Response("{}", { status: 503 }));
+
+    await reportTikTokRegistration(accessTokenFor({ sub: "user-1" }));
+
+    expect(pixel.track).not.toHaveBeenCalled();
+  });
+
+  it("asks nothing for a visitor no ad sent", async () => {
+    window.localStorage.clear();
+
+    await reportTikTokRegistration(accessTokenFor({ sub: "user-1" }));
+
+    expect(privacyFetch).not.toHaveBeenCalled();
   });
 });

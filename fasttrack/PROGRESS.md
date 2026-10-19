@@ -342,6 +342,19 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | B Unit suite green with no database (wiring seam stub, 2 tests `requires_postgres`, cross-tenant stream factory, scan timeouts) | D64.2 | done on branch `fasttrack/deploy-gates` | agent (Opus) |
 | C `frontend`, `backend-unit`, `static` jobs; `deploy` needs them; `.nvmrc`; README job table | D64.1–3 | done on branch `fasttrack/deploy-gates`; first exercised by the next deploy | agent (Opus) |
 
+## P50 — PDPL legal terms and the features they promise (D68)
+
+Reason: owner grill 2026-10-18; the pages must promise only what the product does, so the features ship with the text. API contract: `fasttrack/contracts/p50-privacy.md`.
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P50-L `/terms` VI + `/privacy` VI/EN rewritten to D68; no version shown; tests | D68.1–14 | done on branch `fasttrack/p50-legal-pdpl` (490dc852) | agent (Opus) |
+| P50-B Backend: migration 094 privacy prefs + consent columns, `/v1/me/privacy`, `/v1/me/consents`, `/v1/me/export`, `/v1/me/deletion`, nightly purge task | D68.6, .10 | done (c7590c7b, 12982b66, f783d204; merged b4503d55) | agent (Opus) |
+| P50-U Demo: Cài đặt → Quyền riêng tư tab, terms re-acceptance strip with the separate Điều 11 checkbox, demo pixel gated on ad-measurement opt-out | D68.4, .6, .8 | done (bbbaeee8..e4d2f599; merged 73dc51eb) | agent (Opus) |
+| P50-P De-identification at the LLM boundary (`core/privacy/deidentify.py`) | D68.2 | done (530ec8b5, c4bf6e97; merged 7a9cc99f) | agent (Opus) |
+| P50-E Terms-change e-mail via the SMTP mailer (one-off task) | D68.8 | done (3f546f54); owner runs it after deploy | agent (Opus) |
+| Owner: deploy tag, then `python -m juli_backend.services.ops.terms_notice --sent-list PATH` (dry run) and `--send` | D68.8 | todo | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

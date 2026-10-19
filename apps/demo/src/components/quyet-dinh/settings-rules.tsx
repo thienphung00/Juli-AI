@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import {
   deleteShopRule,
@@ -16,6 +16,7 @@ import { reviewerSampleClients, reviewerSampleEpoch, subscribeReviewerSample } f
 import { readActiveShop } from "../../lib/shop-session";
 import { readAuthSession } from "../../lib/supabase-auth";
 import { AppPageHeader } from "../app-shell/page-header";
+import { PRIVACY_TAB_LABEL, PrivacySettings } from "../privacy-settings";
 import { SettingsView } from "../settings-view";
 import { RulesEditor, type RulesEditorProps } from "./rules-editor";
 
@@ -29,12 +30,18 @@ import { RulesEditor, type RulesEditorProps } from "./rules-editor";
  */
 export function SettingsPageClient() {
   const reviewer = useReviewer();
-  const [auth, setAuth] = useState<(AuthedOptions & { shopName: string }) | null | undefined>(undefined);
+  const [auth, setAuth] = useState<SettingsAuth | null | undefined>(undefined);
+  const [tab, setTab] = useState<SettingsTab>("rules");
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const session = readAuthSession();
       const shop = readActiveShop();
-      setAuth(session && shop ? { token: session.accessToken, shopId: shop.id, shopName: shop.name } : null);
+      setAuth(
+        session
+          ? { token: session.accessToken, shop: shop ? { shopId: shop.id, shopName: shop.name } : null }
+          : null,
+      );
+      setTab(readSettingsTab(window.location.search));
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -42,7 +49,82 @@ export function SettingsPageClient() {
   if (reviewer?.sample) return <ReviewerSampleRulesSettings />;
   if (auth === undefined) return <p className="demo-kicker">Đang tải…</p>;
   if (auth === null) return <SettingsView />;
-  return <SignedInRulesSettings auth={auth} shopName={auth.shopName} />;
+  // P50 (D68.6): Quyền riêng tư is the seller's own; a partner trial account keeps the rules only.
+  if (reviewer) {
+    return auth.shop ? (
+      <SignedInRulesSettings auth={{ token: auth.token, shopId: auth.shop.shopId }} shopName={auth.shop.shopName} />
+    ) : (
+      <SettingsView />
+    );
+  }
+  // Signed in without a shop yet: no rules to edit, but the account's privacy rights still apply.
+  if (!auth.shop) return <PrivacySettings token={auth.token} />;
+
+  const choose = (next: SettingsTab) => {
+    setTab(next);
+    writeSettingsTab(next);
+  };
+  const tabs = <SettingsTabs active={tab} onChange={choose} />;
+  return tab === "privacy" ? (
+    <PrivacySettings tabs={tabs} token={auth.token} />
+  ) : (
+    <SignedInRulesSettings
+      auth={{ token: auth.token, shopId: auth.shop.shopId }}
+      shopName={auth.shop.shopName}
+      tabs={tabs}
+    />
+  );
+}
+
+interface SettingsAuth {
+  readonly token: string;
+  readonly shop: { readonly shopId: string; readonly shopName: string } | null;
+}
+
+export type SettingsTab = "rules" | "privacy";
+
+/** `/settings?tab=quyen-rieng-tu` opens Quyền riêng tư (the /privacy page's "Cài đặt → Quyền riêng tư"). */
+export const PRIVACY_TAB_QUERY = "quyen-rieng-tu";
+
+export function readSettingsTab(search: string): SettingsTab {
+  return new URLSearchParams(search).get("tab") === PRIVACY_TAB_QUERY ? "privacy" : "rules";
+}
+
+function writeSettingsTab(tab: SettingsTab): void {
+  const url = new URL(window.location.href);
+  if (tab === "privacy") url.searchParams.set("tab", PRIVACY_TAB_QUERY);
+  else url.searchParams.delete("tab");
+  window.history.replaceState(window.history.state, "", url);
+}
+
+/** The signed-in settings tabs; pattern: `settings-view.tsx`. */
+export function SettingsTabs({
+  active,
+  onChange,
+}: {
+  readonly active: SettingsTab;
+  readonly onChange: (tab: SettingsTab) => void;
+}) {
+  const tab = (key: SettingsTab, label: string) => (
+    <button
+      aria-selected={active === key}
+      className="settings-view__tab"
+      id={`settings-tab-${key}`}
+      onClick={() => onChange(key)}
+      role="tab"
+      type="button"
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="settings-tabs">
+      <div aria-label="Phần cài đặt" className="settings-view__tabs" role="tablist">
+        {tab("rules", "Quy tắc")}
+        {tab("privacy", PRIVACY_TAB_LABEL)}
+      </div>
+    </div>
+  );
 }
 
 const SAMPLE_AUTH: AuthedOptions = { token: SAMPLE_TOKEN, shopId: SAMPLE_SHOP.id };
@@ -75,9 +157,12 @@ export function SignedInRulesSettings({
   fetchRules = fetchShopRules,
   putRule = putShopRule,
   deleteRule = deleteShopRule,
+  tabs,
 }: {
   readonly auth: AuthedOptions;
   readonly shopName: string;
+  /** The settings tablist (signed-in sellers), under the page header. */
+  readonly tabs?: ReactNode;
   readonly fetchRules?: typeof fetchShopRules;
   readonly putRule?: typeof putShopRule;
   readonly deleteRule?: typeof deleteShopRule;
@@ -117,6 +202,7 @@ export function SignedInRulesSettings({
         title="Quy tắc do bạn đặt"
         titleId="settings-title"
       />
+      {tabs}
       {rules === "loading" ? (
         <p role="status">Đang tải quy tắc…</p>
       ) : rules === "error" ? (

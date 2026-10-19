@@ -199,7 +199,9 @@ def test_migration_087_chain_shape_and_pins():
     assert 'revision: str = "087_history_and_baselines"' in text
     assert len("087_history_and_baselines") <= 32
     assert 'down_revision: str | None = "086_ops_cost_and_terms"' in text
-    assert 'down_revision: str | None = "093_ops_group_lift_draws"' in DEFERRED.read_text("utf-8")
+    assert 'down_revision: str | None = "094_user_privacy_and_consent"' in DEFERRED.read_text(
+        "utf-8"
+    )
     children = [
         p.name
         for p in VERSIONS.glob("*.py")

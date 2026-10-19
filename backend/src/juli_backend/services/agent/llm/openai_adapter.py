@@ -63,6 +63,7 @@ from typing import Any
 import httpx
 
 from juli_backend.core.config import require_env
+from juli_backend.core.privacy import deidentify_text
 from juli_backend.services.agent.llm.blocks import (
     AssistantTurn,
     Block,
@@ -217,7 +218,10 @@ def _build_request_body(
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "model": model,
-        "instructions": system,
+        # D68.2 (P50-P): this body is the single LLM boundary. Every text that
+        # reaches the provider -- system text, messages, tool results -- is
+        # de-identified first; tool schemas and the output schema are not text.
+        "instructions": deidentify_text(system),
         "input": [_translate_message(message) for message in messages],
         "tools": [_translate_tool(tool) for tool in tools],
         "max_output_tokens": max_output_tokens,
@@ -264,19 +268,27 @@ def _translate_message(message: Message) -> dict[str, Any]:
         return {
             "type": "function_call_output",
             "call_id": call_id,
-            "output": str(message.get("content", "")),
+            "output": deidentify_text(str(message.get("content", ""))),
         }
     content = message.get("content", "")
     if role == "user" and isinstance(content, list | tuple):
         # Fast track P15: a user message may carry content parts as the
         # Responses API spells them (``input_text`` / ``input_image``), so the
         # content-analysis vision step can send keyframes. Passed through as is.
-        return {"role": "user", "content": [dict(part) for part in content]}
+        return {"role": "user", "content": [_deidentify_part(part) for part in content]}
     content_type = "input_text" if role == "user" else "output_text"
     return {
         "role": role,
-        "content": [{"type": content_type, "text": str(message.get("content", ""))}],
+        "content": [{"type": content_type, "text": deidentify_text(str(content))}],
     }
+
+
+def _deidentify_part(part: Mapping[str, Any]) -> dict[str, Any]:
+    """A content part with its text de-identified; image parts pass as they are."""
+    out = dict(part)
+    if isinstance(out.get("text"), str):
+        out["text"] = deidentify_text(out["text"])
+    return out
 
 
 def _translate_tool(tool: ToolDefinition) -> dict[str, Any]:

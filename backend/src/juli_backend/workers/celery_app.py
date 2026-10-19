@@ -207,6 +207,14 @@ celery_app.conf.update(
             "task": "juli_backend.product_history_fanout",
             "schedule": crontab(hour=20, minute=53),
         },
+        # Fast track P50-B (D68.10): delete accounts whose 30-day export window
+        # has passed, with their shops and shop data (invoices / periods kept).
+        # 21:13 UTC = 04:13 UTC+7; minute 13 is not a multiple of 5 and none of
+        # the slots above. Default queue.
+        "privacy-account-purge": {
+            "task": "juli_backend.privacy_account_purge",
+            "schedule": crontab(hour=21, minute=13),
+        },
     },
 )
 

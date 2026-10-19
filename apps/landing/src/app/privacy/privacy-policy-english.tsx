@@ -11,8 +11,7 @@ import { legal } from "./legal-template";
 
 export const ENGLISH_SECTION_ID = "english";
 export const ENGLISH_GOOGLE_SECTION_ID = "google-user-data";
-export const VERSION_EN = "2.1";
-export const LAST_UPDATED_EN = "October 16, 2026";
+export const LAST_UPDATED_EN = "October 18, 2026";
 export const GOOGLE_USER_DATA_POLICY_URL =
   "https://developers.google.com/terms/api-services-user-data-policy";
 export const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
@@ -37,13 +36,13 @@ export function PrivacyPolicyEnglish() {
         Privacy Policy — Juli AI (English)
       </h2>
       <p className={legal.partUpdated}>
-        Version {VERSION_EN} · Last updated (effective date): {LAST_UPDATED_EN}
+        Last updated (effective date): {LAST_UPDATED_EN}
       </p>
 
       <p className={legal.intro}>
         This policy explains how Juli AI collects, uses, shares and protects data when you
-        use the website app-juli.com, the Demo and the Juli app, in accordance with Decree
-        13/2023/NĐ-CP on personal data protection (Vietnam).
+        use the website app-juli.com, the Demo and the Juli app, in accordance with the Law
+        on Personal Data Protection No. 91/2025/QH15 and Decree 356/2025/NĐ-CP (Vietnam).
       </p>
       <p className={legal.intro}>
         This English version is a translation of the Vietnamese policy above. If the two
@@ -61,7 +60,8 @@ export function PrivacyPolicyEnglish() {
           the controller and processor of the personal data described in this policy. For
           buyers&rsquo; personal data contained in shop data, however, the seller is the
           controller and Juli processes that data on the seller&rsquo;s behalf, under section
-          8 of the <a href="/terms">Terms of Service</a>.
+          8 of the <a href="/terms">Terms of Service</a>. For the de-identified data Juli uses
+          to improve its own models (section 6), Juli is the controller.
         </p>
         <p>
           You can contact us by email at <ContactLink />.
@@ -99,7 +99,7 @@ export function PrivacyPolicyEnglish() {
           provider delivers the sign-up notice to the team. If you do not go on to use Juli, it
           is kept for at most 12 months from the sign-up date and then deleted; if you do, it
           becomes account information under this policy. You can ask us to delete it at any time
-          at <ContactLink />; we delete it within 30 days.
+          at <ContactLink />; we delete it within 20 days.
         </p>
       </section>
 
@@ -152,6 +152,7 @@ export function PrivacyPolicyEnglish() {
           <strong>not</strong> sell this data, does <strong>not</strong> use it for credit
           assessment or lending, and does <strong>not</strong> use it to develop, improve or
           train generalized artificial intelligence (AI) or machine learning (ML) models.
+          Google user data is also never used to train any of Juli&rsquo;s own models.
           Google user data is not sent to OpenAI or to any AI model. Juli staff do not read
           this data except with your consent (for example, when you ask for support, or to
           support and operate the service &mdash; which you accept when you connect a shop),
@@ -229,10 +230,12 @@ export function PrivacyPolicyEnglish() {
             your Juli account exists
           </li>
           <li>
-            Deletion requests: email <ContactLink /> from your account&rsquo;s email address.
-            We confirm within 72 hours and delete your account and all of its Google user
-            data from Juli&rsquo;s systems and Supabase within 30 days of receiving the
-            request
+            Deletion requests: email <ContactLink /> from your account&rsquo;s email address,
+            or use Delete account in the app under Settings, Privacy. We respond within 2
+            working days. When you delete your account, the account and all of its Google user
+            data are deleted from Juli&rsquo;s systems and Supabase after 30 days, so you can
+            download your data first; if you ask for immediate deletion, we delete within 20
+            days of receiving the request
           </li>
           <li>
             Revoking access: you can remove Juli&rsquo;s access at any time on your{" "}
@@ -328,7 +331,7 @@ export function PrivacyPolicyEnglish() {
         <p>
           Purpose and retention are the same as for TikTok Shop data (sections 6 and 8): data
           is kept while you use Juli, syncing stops immediately when you disconnect the
-          shop, and data is deleted within 30 days of your account deletion request. Juli
+          shop, and data is deleted as described in section 8 when you delete your account. Juli
           adheres to the Shopee Open Platform Data Protection Policy. Changes to your Shopee
           shop are written only after you have actively approved them.
         </p>
@@ -353,38 +356,63 @@ export function PrivacyPolicyEnglish() {
 
       <section className={legal.section}>
         <h3 className={legal.sectionHeading}>6. Purposes of data use</h3>
+        <h4 className={legal.subheading}>6.1. Providing the service</h4>
         <ul>
           <li>To provide, operate and secure your Juli account and the Juli service</li>
           <li>To analyze shop performance and create optimization recommendations for your shop</li>
           <li>To send the alerts and notifications you have turned on</li>
-          <li>To measure the effectiveness of Juli&rsquo;s advertising on TikTok</li>
-          <li>To provide support and announce important changes to the service</li>
+          <li>To provide support and announce important changes to the service and its terms</li>
+        </ul>
+        <p>
+          Script, title and content suggestions are processed separately for each shop, based
+          on that shop&rsquo;s own data and wording; a shop&rsquo;s own content is not shown to
+          other shops and is not used to create suggestions for other shops, except in
+          de-identified form under section 6.2.
+        </p>
+        <h4 className={legal.subheading}>6.2. Improving Juli&rsquo;s algorithms and models</h4>
+        <p>
+          Juli uses data to analyze, optimize its algorithms, research, train, fine-tune, test
+          and develop Juli&rsquo;s models and services, under these principles:
+        </p>
+        <ul aria-label="Principles for using data to improve Juli">
           <li>
-            To improve Juli&rsquo;s analysis algorithms and the quality of its suggestions,
-            including fine-tuning a language model, using only anonymized data in structural
-            form (see below)
+            De-identified data only: shop data (sections 4, 4A) and data about how you use Juli
+            are stripped of the shop name, shop ID, your name, email, phone number and any
+            information that could identify you, your shop or any individual before they are
+            used for this purpose.
+          </li>
+          <li>
+            A condition of using Juli, under section 8.6 of the{" "}
+            <a href="/terms">Terms of Service</a>. Personal data that still identifies you is
+            never used to train models.
+          </li>
+          <li>
+            Buyer data and Google user data are never used to train models. Buyers&rsquo;
+            personal data is anonymized before it enters any analysis pipeline.
+          </li>
+          <li>
+            Data used for this purpose is not disclosed to other customers. Data already used
+            for training cannot be separated from the model; when you delete your account, the
+            original data is deleted as described in section 8, but Juli does not retrain those
+            models.
           </li>
         </ul>
         <p>
+          Under Decree 356/2025/NĐ-CP, data about a person&rsquo;s online behaviour and service
+          usage habits is sensitive personal data. Juli uses it in a form linked to you only to
+          operate and support your account; it is de-identified before use under section 6.2.
+        </p>
+        <h4 className={legal.subheading}>6.3. Marketing and ad measurement (you can opt out)</h4>
+        <ul>
+          <li>To send news about Juli features and offers</li>
+          <li>To measure the effectiveness of Juli&rsquo;s advertising on TikTok</li>
+          <li>To name or show your shop&rsquo;s logo as a customer example, only if you turn this on</li>
+        </ul>
+        <p>You turn each of these on or off in the app under Settings, Privacy.</p>
+        <p>
           Juli stores, analyzes and shares your data only for the purposes above. Juli does
           not sell data, and does not use data that can identify your shop to serve other
-          customers; your data is used outside your own shop only in anonymized, structural
-          form, as described below.
-        </p>
-        <p>
-          To improve its algorithms, Juli uses only shop data that has been anonymized, and
-          only in structural form (for example the type of metric, correlations between
-          metrics, the type of recommendation and the result after it was applied). This data
-          contains no shop name, product names or content, images, scripts, titles, business
-          figures that could identify a shop, buyer information or Google user data, and is
-          not disclosed to other customers. You can ask us at any time to stop using your
-          data for this purpose by emailing <ContactLink />; Juli stops doing so for data
-          created from the time it receives the request.
-        </p>
-        <p>
-          Script, title and content suggestions are processed separately for each shop, based
-          on that shop&rsquo;s own data and wording; a shop&rsquo;s own content is used only to
-          create suggestions for that shop.
+          customers.
         </p>
       </section>
 
@@ -468,7 +496,7 @@ export function PrivacyPolicyEnglish() {
           models. Juli sends its analysis requests with OpenAI&rsquo;s response storage turned
           off; under OpenAI&rsquo;s API data policy, OpenAI may still keep API data for a
           limited period to monitor for abuse. A fine-tuned model (if any) is Juli&rsquo;s own
-          model and uses only data anonymized as described in section 6. Juli limits the
+          model and uses only data de-identified as described in section 6.2. Juli limits the
           scope and volume of model use for each shop.
         </p>
 
@@ -501,36 +529,51 @@ export function PrivacyPolicyEnglish() {
         </p>
         <p>
           We keep data for as long as you use Juli. When you disconnect a shop, Juli
-          immediately stops syncing new data from that shop. When you request account
-          deletion, your account data and shop data are deleted within 30 days, except data
-          the law requires us to keep (for example, payment records).
+          immediately stops syncing new data from that shop. When you delete your account,
+          Juli stops syncing shop data and keeps the data for 30 more days so you can download
+          it or cancel; your account data and shop data are then deleted. If you ask for
+          immediate deletion, we delete within 20 days. Invoices and accounting records are
+          kept for 10 years under accounting law; de-identified data under section 6.2 is not
+          deleted.
         </p>
       </section>
 
       <section className={legal.section}>
         <h3 className={legal.sectionHeading}>9. Your rights</h3>
-        <p>Under Decree 13/2023/NĐ-CP, you have the right to:</p>
+        <p>Under the Law on Personal Data Protection, you have the right to:</p>
         <ul>
-          <li>Be informed about and access your personal data</li>
-          <li>Request correction of inaccurate data</li>
+          <li>Be informed about the processing of your personal data</li>
+          <li>Access, view and request correction of your personal data</li>
           <li>Request an exported copy of your data</li>
           <li>Request deletion of your data or restriction of its processing</li>
           <li>
-            Withdraw your consent at any time (for example, by disconnecting your shop or
-            turning off alerts)
+            Withdraw your consent and object to processing (for example, by disconnecting your
+            shop or turning off alerts)
           </li>
-          <li>Complain about the processing of your data</li>
+          <li>Opt out of marketing and ad measurement, and of your shop being named as a customer example</li>
+          <li>Complain, sue and claim compensation as provided by law</li>
         </ul>
         <p>
-          To exercise these rights, send a request to <ContactLink />. We respond within 72
-          hours.
+          You can exercise these rights in the app under Settings, Privacy (turn off marketing
+          and ad measurement, download your data, delete your account), or by sending a request
+          to <ContactLink />. We respond within 2 working days. Requests to withdraw consent,
+          restrict or object to processing are carried out within 15 days; requests to view,
+          correct or export data within 10 days; deletion requests within 20 days.
+        </p>
+        <p>
+          Some data is necessary for Juli to work (section 6.1) or is a condition of use
+          (section 6.2). If you withdraw consent for, or ask us to delete, that data, Juli can
+          no longer provide the service and your account ends under the{" "}
+          <a href="/terms">Terms of Service</a>. Withdrawing consent does not affect processing
+          carried out before.
         </p>
       </section>
 
       <section className={legal.section}>
         <h3 className={legal.sectionHeading}>10. Age requirement</h3>
         <p>
-          Juli is a service for sellers and businesses. You must be 18 or older to use Juli.
+          Juli is a service for sellers, household businesses and businesses using it for
+          business purposes. You must be 18 or older to use Juli.
           We do not knowingly collect data from anyone under 18.
         </p>
       </section>
@@ -538,9 +581,9 @@ export function PrivacyPolicyEnglish() {
       <section className={legal.section}>
         <h3 className={legal.sectionHeading}>11. Changes to this policy</h3>
         <p>
-          When this policy changes, we update the date at the top of this page. For
-          significant changes, we notify you by email at least 7 days before the change takes
-          effect. If Juli changes how it accesses, uses, stores or shares Google user data,
+          When this policy changes, we update the date at the top of this page and notify you
+          by email and in the app at least 15 days before the change takes effect. Continuing
+          to use Juli after that date means you accept the new policy. If Juli changes how it accesses, uses, stores or shares Google user data,
           we will notify you and ask for your consent again before applying the change.
         </p>
       </section>

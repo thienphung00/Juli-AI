@@ -17,6 +17,12 @@ from juli_backend.database.tenant_context import _apply_tenant_context_to_sessio
 
 logger = logging.getLogger(__name__)
 
+#: P50-B (D68.10): the 403 reason while the seller's account deletion is pending.
+DELETION_PENDING_DETAIL = (
+    "Tài khoản đang chờ xoá — chỉ xem và tải dữ liệu. Huỷ yêu cầu xoá trong "
+    "Cài đặt → Quyền riêng tư để tiếp tục."
+)
+
 
 async def get_active_shop(
     request: Request,
@@ -81,6 +87,7 @@ async def get_active_shop(
 async def require_writable_shop(
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
 ) -> Shop:
     """Fast track P20 (D28.4): refuse a seller action on a read-only shop.
 
@@ -90,7 +97,14 @@ async def require_writable_shop(
     reason. Reads and data sync are not affected; a shop with no term set
     (``none``) and a shop in its grace days are not restricted.
     """
+    from juli_backend.services.privacy import deletion_pending
     from juli_backend.services.subscriptions import READ_ONLY_DETAIL, is_read_only
+
+    # P50-B (D68.10): an account with a pending deletion is read-only for its
+    # 30-day export window -- no write, no TikTok change, no OpenAI work.
+    if deletion_pending(user):
+        logger.info("shop_deletion_pending_write_refused", extra={"shop_id": str(shop.id)})
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DELETION_PENDING_DETAIL)
 
     # The check must not leave behind a transaction the route did not start: a
     # route that later rolls back would then expire every object the caller holds.

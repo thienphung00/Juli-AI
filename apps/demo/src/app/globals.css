@@ -6676,3 +6676,151 @@ h4 {
   gap: var(--juli-space-2);
   margin: 0 0 var(--juli-space-3);
 }
+
+/* P50 (D68.8): terms re-acceptance strip (`app-shell/terms-acceptance-strip.tsx`). */
+.terms-strip {
+  display: grid;
+  gap: var(--juli-space-2);
+  padding: var(--juli-space-3) var(--juli-space-4);
+  border-bottom: 1px solid #f3d9a8;
+  background: #fff4e0;
+  color: #5c3a00;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.terms-strip__text,
+.terms-strip__error {
+  margin: 0;
+}
+
+.terms-strip a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.terms-strip__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--juli-space-3);
+}
+
+.terms-strip__check {
+  display: flex;
+  flex: 1 1 18rem;
+  align-items: flex-start;
+  gap: var(--juli-space-2);
+}
+
+.terms-strip__check input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: none;
+}
+
+.terms-strip__error {
+  color: #9f1d22;
+}
+
+/* P50 (D68.6): Cài đặt → Quyền riêng tư (`quyet-dinh/privacy-settings.tsx`). */
+.settings-tabs {
+  margin: var(--juli-space-4) 0 var(--juli-space-5);
+}
+
+.privacy-settings {
+  display: grid;
+  gap: var(--juli-space-6);
+  max-width: 44rem;
+}
+
+.privacy-settings__group {
+  display: grid;
+  gap: var(--juli-space-3);
+}
+
+.privacy-settings__group h2 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.privacy-settings__group p {
+  margin: 0;
+  color: var(--juli-muted-foreground);
+}
+
+.privacy-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--juli-space-4);
+  min-height: var(--juli-touch-target);
+  padding: var(--juli-space-3) 0;
+  border-bottom: 1px solid #ececf0;
+}
+
+.privacy-switch__text {
+  display: grid;
+  gap: 2px;
+}
+
+.privacy-switch__hint {
+  color: var(--juli-muted-foreground);
+  font-size: 0.85rem;
+}
+
+.privacy-switch__control {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: #d4d4d8;
+  cursor: pointer;
+  transition: background var(--juli-motion-fast, 150ms);
+}
+
+.privacy-switch__control::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  content: "";
+  transition: transform var(--juli-motion-fast, 150ms);
+}
+
+.privacy-switch__control[aria-checked="true"] {
+  background: #121214;
+}
+
+.privacy-switch__control[aria-checked="true"]::after {
+  transform: translateX(18px);
+}
+
+.privacy-switch__control:focus-visible {
+  outline: var(--juli-focus-width) solid var(--juli-focus-ring);
+  outline-offset: 3px;
+}
+
+.privacy-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--juli-space-3);
+}
+
+.privacy-settings__error {
+  color: #9f1d22;
+}
+
+.privacy-settings__pending {
+  padding: var(--juli-space-3) var(--juli-space-4);
+  border: 1px solid #f3d9a8;
+  border-radius: var(--juli-radius);
+  background: #fff4e0;
+  color: #5c3a00;
+}

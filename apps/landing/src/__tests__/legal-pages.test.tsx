@@ -116,7 +116,9 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
       const section = googleSection();
       const list = screen.getByRole("list", { name: "Lưu trữ và xoá dữ liệu người dùng Google" });
       expect(list).toHaveTextContent(/tài\s+khoản Juli của bạn còn tồn tại/);
-      expect(list).toHaveTextContent(/trong vòng 30 ngày/);
+      expect(list).toHaveTextContent(/phản hồi trong 2 ngày làm việc/);
+      expect(list).toHaveTextContent(/sau 30 ngày để bạn kịp tải dữ liệu/);
+      expect(list).toHaveTextContent(/xoá trong vòng 20 ngày/);
       expect(within(list).getByRole("link", { name: COMPANY.email })).toHaveAttribute(
         "href",
         `mailto:${COMPANY.email}`,
@@ -167,7 +169,7 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
       expect(notice).toHaveTextContent(`tax ID ${COMPANY.taxId}`);
       expect(notice).toHaveTextContent("Website: app-juli.com");
       expect(notice).toHaveTextContent(COMPANY.email);
-      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 16, 2026/);
+      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 18, 2026/);
     });
 
     it("translates every section 1–12", () => {
@@ -223,7 +225,8 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
         "does not sell, rent or trade Google user data",
         "encrypted at rest",
         "row-level security",
-        "within 30 days",
+        "after 30 days",
+        "within 20",
         "myaccount.google.com/permissions",
       ]) {
         expect(section, phrase).toHaveTextContent(phrase);
@@ -352,10 +355,10 @@ describe("Shopee status is stated honestly on the public pages (D42.6, AC-32.9)"
 });
 
 describe("legal template (Legal.dc.html, D44, P34-E)", () => {
-  it("/terms is version 2.2 (16/10/2026): TMĐT positioning (§2) and both sign-in methods (§3), as in the md", () => {
+  it("/terms is dated 18/10/2026 with no version (D68.13): TMĐT positioning (§2) and both sign-in methods (§3)", () => {
     render(<TermsOfServicePage />);
     expect(
-      screen.getByText(/Phiên bản 2\.2 · Cập nhật lần cuối: 16\/10\/2026 · Có hiệu lực từ 16\/10\/2026/),
+      screen.getByText(/^Cập nhật lần cuối: 18\/10\/2026 · Có hiệu lực từ 18\/10\/2026/),
     ).toBeInTheDocument();
     expect(document.body).toHaveTextContent(
       "Juli AI là trợ lý giúp người bán TMĐT tăng trưởng và tối ưu vận hành (hiện kết nối TikTok Shop, Shopee đang tích hợp)",
@@ -402,7 +405,10 @@ describe("legal template (Legal.dc.html, D44, P34-E)", () => {
       "8. Dữ liệu của bạn",
       "9. Chấm dứt",
       "10. Thay đổi điều khoản",
-      "11. Liên hệ",
+      "11. Giới hạn trách nhiệm",
+      "12. Giải quyết tranh chấp",
+      "13. Điều khoản chung",
+      "14. Liên hệ",
     ]);
     for (const heading of numbered) expect(heading.id).toMatch(/^dieu-\d+$/);
   });

@@ -2104,3 +2104,14 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   migrations PASS (093 head), isolation 12 passed, gitleaks PASS, ruff PASS (505 files),
   pytest PASS (222 files: 3236 passed, 2 skipped, 1 xfailed). **check.sh: OK**.
 - DECISIONS' duplicate D59 left (75 mixed references; DEBT entry extended).
+
+## 2026-10-18 · P50 · PDPL legal terms and the features they promise (Opus 5.5, parent + 3 agents)
+
+- Owner grill → D68 (B2B only, de-identified model improvement as a condition of use, never buyer data, total liability exemption, breach-only termination, rights in-app + e-mail with NĐ 356 deadlines, 15-day notice, disputes, 30-day export window, date-only pages). Research: Viettel AI, FPT Shop / FPT IS policies; Luật 91/2025, NĐ 356/2025, Luật AI 134/2025, Luật BVQLNTD Điều 25, BLDS Điều 405.
+- P50-L 490dc852: /terms (VI) adds §1 B2B, §8.6 licence + model ownership, §9 breach list, §10 15 days, §11 liability, §12 disputes, §13 general (signed contract prevails); /privacy VI + EN cite Luật 91/NĐ 356, §6.1–6.3, rights deadlines, 20-day deletion / 30-day window, no version. Google Limited Use sentence kept verbatim plus a stricter line. Landing 623/623.
+- P50-B (merged b4503d55): migration 094 (7 users columns + column grant, periods.shop_id nullable, pollable shops skip pending deletion, juli_ops-only purge functions), /v1/me privacy|consents|export|deletion, pending deletion = read-only shops, nightly `privacy_account_purge` 21:13 UTC. Agent ran check.sh (migrations up/down/up, isolation, gitleaks, ruff, 375 tests) on its branch.
+- P50-U (merged 73dc51eb): Cài đặt → Quyền riêng tư tab, re-acceptance strip with the Điều 11 checkbox, demo pixel + registration gated on ad_measurement_opt_out. Demo 2033/2033 (one flaky run, green on two reruns), tsc clean.
+- P50-P/E (merged 7a9cc99f): core/privacy/deidentify.py at all three OpenAI call sites + AST guard test; ops masking shares its regexes; `services/ops/terms_notice` CLI (dry run default, hashed sent-list).
+- Merge fix: `services/privacy/export.py` added to the users.phone reviewed list (export copies the seller's own value, NULL as null).
+- Known red, pre-existing and unrelated: 7 tests in test_agent_workflow_task_wiring.py need a database URL locally.
+- Not done: check.sh on the merged branch (needs CHECK_DATABASE_URL); see DEBT P50 (Supabase Auth user deletion is the one live promise gap). Next: owner deploy tag, then terms_notice dry run and --send.

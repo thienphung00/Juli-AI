@@ -71,6 +71,7 @@ from pathlib import Path
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from juli_backend.repositories.identity import PRIVACY_COLUMNS
 from tests.support.postgres import RUNTIME_ROLE, owner_sync_engine, requires_postgres
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -789,7 +790,10 @@ def test_the_users_update_grant_is_column_scoped():
     Fast track P16 (`083_ops_console`, D25.6) adds one more column on purpose:
     `staff_access_consent_at`, which `repositories/identity.py` stamps on the
     caller's own row when the seller accepts the staff-access sentence at
-    connect. `id` and `phone` stay unwritable.
+    connect. Fast track P50-B (`094_user_privacy_and_consent`, D68) adds the
+    seller's own privacy columns -- the three switches, the accepted terms date
+    and its two stamps, and the deletion date -- written only through
+    `UsersRepo.update_privacy`. `id` and `phone` stay unwritable.
     """
     with owner_sync_engine() as engine:
         table_level = {
@@ -801,10 +805,16 @@ def test_the_users_update_grant_is_column_scoped():
         "juli_app holds a TABLE-level UPDATE on public.users; migration 065 "
         "grants it per column on purpose, so `id` and `phone` stay unwritable"
     )
-    assert columns == {"email", "display_name", "updated_at", "staff_access_consent_at"}, (
+    assert columns == {
+        "email",
+        "display_name",
+        "updated_at",
+        "staff_access_consent_at",
+        *PRIVACY_COLUMNS,
+    }, (
         f"the column-scoped UPDATE on public.users is {sorted(columns)}; it must "
         "be exactly the backfill's two columns, the `updated_at` SQLAlchemy "
-        "writes unasked, and P16's staff-access consent stamp"
+        "writes unasked, P16's staff-access consent stamp and P50-B's privacy columns"
     )
 
 
