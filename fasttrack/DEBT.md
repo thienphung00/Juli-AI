@@ -1189,3 +1189,27 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] The prior-figure fixed set only shrinks (`reconcile --write` prunes; it never adds). If a
   recorded helper-style test is rewritten with a direct `assert`, the set loses it and the claim
   drops by one, as it should. Adding an identity is a hand edit that review must see.
+
+## P58 — production bugs from the 2026-10-19 worker log (D67)
+
+- [ ] The exception line of `product_history_promotions_failed` was not in the pasted grep, so the
+  exact value is inferred, not seen: `fromtimestamp` (normalize.py:53 at `efb1df92`) raises only
+  for an out-of-range number. A millisecond `update_time` is the documented-in-repo shape
+  (`services/shop_diagnosis/promotions.py`). The fix accepts every numeric shape. Repay: after
+  the next nightly run, confirm `product_history_promotions_swept` for the shop and
+  `skipped: []`.
+- [ ] Other per-shop jobs read `credential.shop_cipher` directly without the backfill:
+  `services/product_history/job.py` `plan_reads`, `shop_diagnosis_daily/job.py`,
+  `onboarding/quick_scan.py`, `analytics_backfill/orchestrator.py`, `agent/composition.py`.
+  They rely on bootstrap / poll (which do backfill) having run first. The quick scan runs
+  *beside* bootstrap, so on a cipher-less shop's first connect it can still hit 106013 once.
+  Repay: route those through `backfill_shop_cipher` too, or have `TikTokClient` refuse a
+  202309 shop-scoped path with no cipher before sending (needs a path list from the OAS).
+- [ ] Bootstrap failures in general still retry on every fan-out tick (15 min) forever: the
+  fan-out enqueues any shop whose fast phase is not done, and `bootstrap_queued` dedupes only
+  while a task is queued. P58 ends the loop for the missing-cipher case (the shop leaves the
+  enumeration). Any other permanent failure (for example a scope the seller did not grant) still
+  loops. Repay: back off on `shop_ingestion_state.failed_at` (for example skip for 1 h × 2ⁿ
+  failures, capped at a day) and surface the shop in Ops.
+- [ ] `exc.request.url` on the re-raised `requests` errors still holds the signed query. Nothing
+  logs it today; a future `logger.error(..., extra={"url": exc.request.url})` would.

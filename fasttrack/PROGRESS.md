@@ -342,6 +342,13 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | B Unit suite green with no database (wiring seam stub, 2 tests `requires_postgres`, cross-tenant stream factory, scan timeouts) | D64.2 | done on branch `fasttrack/deploy-gates` | agent (Opus) |
 | C `frontend`, `backend-unit`, `static` jobs; `deploy` needs them; `.nvmrc`; README job table | D64.1–3 | done on branch `fasttrack/deploy-gates`; first exercised by the next deploy | agent (Opus) |
 
+## P58 — production bugs from the 2026-10-19 worker log (D67)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| A `epoch_to_naive_utc` reads s / ms / µs / ns and never raises; one bad promotion is logged + skipped (SAVEPOINT), not the sweep | D67.1–2 | done on branch `fasttrack/prod-bugs` (not merged) | agent (Opus) |
+| B Missing `shop_cipher` backfilled via Get Authorized Shops (binding-checked); unresolvable → `needs_reauth`, fan-out stops; TikTok error URLs lose their signed query | D67.3–4 | done on branch `fasttrack/prod-bugs` (not merged) | agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
