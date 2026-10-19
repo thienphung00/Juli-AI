@@ -2166,3 +2166,66 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   25/16/31 s at base 310cc0e1 against 11/11/26 s on ci-fix under the same load. DEBT P55's
   re-run advice applies.
 - ruff check + format clean. `actionlint` clean. No branch restored, no ref pushed, nothing merged.
+
+## 2026-10-19 — agent (Claude Opus) — P58 production bugs from the worker log (D67)
+
+- Branch `fasttrack/prod-bugs` from `fasttrack/optimize-product` 310cc0e1, which only adds CI /
+  docs / test-quality changes on top of the deployed release `efb1df92`. No product code
+  changed in between, so line numbers match the log. Numbered P58 / D67: `ci-fix` and
+  `rollback-fix` both claim P56 / D65.
+- **Bug 1, `product_history_promotions_failed`.** Trace: `sweep_promotions`
+  (job.py:442, `epoch_to_naive_utc(raw.get("update_time"))` on a Search Activities row) →
+  normalize.py:53 `datetime.fromtimestamp(seconds, UTC)`. `int(str(v))` already turned
+  junk / None / "" into `None` (caught at :49), and `<= 0` covered 0. So line 53 can only raise
+  for a number out of `datetime`'s range: `fromtimestamp(1791000000123)` is "ValueError: year
+  58724 is out of range". The 202309 OAS (bundled skill copy) types every activity time as int64
+  seconds. The repo's own sample notes (`services/shop_diagnosis/promotions.py`: "create /
+  update times are milliseconds"; `optimize_product/promotions.py` `_seconds`) show TikTok
+  sends milliseconds. The raise was inside the first session block, so the whole transaction
+  rolled back: **the shop has no `promotion_activities` / `promotion_activity_products` rows
+  and no promotion external changes.** The products half had committed (`reconciled`). Fix
+  per D67.1–2. The next nightly run sees `stored` empty and does the one-time backfill (all
+  four statuses), so the history recovers. Activities created and ended between connect and
+  that run are kept as rows, but as backfill they get no "start" / "deactivate" change rows,
+  by design. Webhook 63 / 39 parsing uses the same function, so a ms `update_time` there would
+  also have raised; it no longer can.
+- **Bug 2, `bootstrap_shop` 106013.** `TikTokClient._build_params` (client.py:720) adds
+  `shop_cipher` only when the client has one. The bootstrap passes `credential.shop_cipher`
+  (orchestrate.py:385 `_factory_config`) unchanged, so the shop's read credential row has
+  `shop_cipher` NULL / "". The OAuth write has stored a vendor-verified cipher since #1200
+  (`tiktok_oauth.py` :198 / :220), so the row predates it, or came from a hand fix / restore.
+  The cadence: `shop_poll_fanout` (:07/:22/:37/:52) enqueues `bootstrap_shop` for every
+  pollable shop without `fast_done_at` (shop_ingestion.py `run_fanout`). The failure leaves
+  `fast_done_at` unset and the credential `active`, so it repeats forever. The log's 21:37 and
+  00:07 are two of those ticks. **That shop never completed bootstrap.** It has no orders /
+  products / returns / inventory sync, no 30-day analytics window, no history phase, no
+  diagnosis report and no scored cards. Product history skips it too (fast-done shops only).
+  The quick scan uses the same credential, so it also had no cipher. Fix per D67.3–4.
+  The URL in the ERROR came from `raise_for_status()`'s message ("… for url:
+  https://…?app_key=…&sign=…"). `_handle_response` appended the body but kept that message
+  and chained the original, so the traceback printed it twice.
+- Tests: `test_p23_product_history.py` +26 (24 epoch shapes incl. ms / µs / ns / "" / 0 / NaN /
+  1e400; a sweep with ms create/update + `end_time` 0 + string begin_time; one activity whose
+  upsert raises after dirtying its savepoint → skipped and logged, the other stored with its
+  products). `test_shop_ingestion.py` +5 (`TestMissingShopCipher`: cipher fetched, stored, sent,
+  not re-fetched; zero shops → `needs_reauth`, nothing sent, dropped from
+  `enumerate_pollable_shops`; blank cipher → `needs_reauth`; transient `ConnectionError` →
+  credential untouched; stored cipher → no lookup). `test_tiktok_error_body_is_surfaced.py` +4
+  (400 / 106013 message and logged traceback carry no app_key / sign; transport error keeps
+  its type and loses the query; text without a URL unchanged).
+- Verification (laptop at load avg 7–15 throughout):
+  - Affected files: 102 passed alone, with and without Postgres. Ruff and mypy clean on the 7
+    source files. Gitleaks: a realistic-looking test cipher tripped `generic-api-key`, so it
+    became `ROW_fake-cipher-for-tests` and the commit was rebuilt.
+  - No-database unit suite (`pytest tests/unit -m "not live"`, no `DATABASE_URL`): 7540
+    passed, 31 failed. 27 were `test_agent_events_contract` (fresh worktree, no
+    `node_modules`; 37/37 after `pnpm install`). 4 were load timeouts (`juli_app_grants` scan,
+    `ops_api`, `ops_d28_costs`, `ratchets`), and all 86 tests in those files pass alone.
+  - `fasttrack/check.sh` (deploy default `--since origin/main`; Docker unresponsive, so a
+    throwaway Homebrew Postgres 16 in UTC on :55440, recreated per run and dropped after):
+    migrations, isolation (12), gitleaks and ruff (508 files) PASS. pytest (224 files) left
+    only pytest-timeout failures, and each run hit a different set: run 2 failed in migrations
+    on a reused DB, run 3 had 3 × `TestHistoryPhase` (3 s alone), and the last run had 1 ×
+    `test_juli_app_grants_cover_mutations::test_the_scan_is_not_vacuous`, a whole-tree scan
+    that takes 15 s alone against the 30 s default. The last run was 3287 passed, 1 failed.
+    Every failed test passes alone, so check.sh reports FAILED only on load-bound timeouts.

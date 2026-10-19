@@ -329,6 +329,8 @@ class PromotionsResult:
     changes: int = 0
     backfill: bool = False
     status_errors: list[str] = field(default_factory=list)
+    #: Activity ids whose row could not be stored (logged, skipped; P58-A).
+    skipped: list[str] = field(default_factory=list)
 
 
 def _search_every_status(
@@ -404,6 +406,57 @@ async def _record_promotion_change(
     return count
 
 
+async def _record_listed_change(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    activity_id: str,
+    change_type: str,
+    product_ids: Sequence[str],
+    now: datetime,
+) -> int:
+    """The daily sweep's CREATE / DEACTIVATE row(s) for one activity it stored."""
+    row = (
+        await session.execute(
+            select(PromotionActivity).where(
+                PromotionActivity.shop_id == shop_id,
+                PromotionActivity.activity_id == activity_id,
+            )
+        )
+    ).scalar_one()
+    occurred = (
+        row.tiktok_update_time if change_type == promo.CHANGE_DEACTIVATE else row.tiktok_create_time
+    ) or now
+    return await _record_promotion_change(
+        session,
+        shop_id,
+        activity_id=activity_id,
+        change_type=change_type,
+        product_ids=product_ids,
+        occurred_at=occurred,
+        now=now,
+        source=SOURCE_RECONCILE,
+        details={"activity_type": row.activity_type, "status": row.status},
+    )
+
+
+def _skip_activity(
+    result: PromotionsResult, shop_id: uuid.UUID, activity_id: str, stage: str, exc: Exception
+) -> None:
+    if activity_id not in result.skipped:
+        result.skipped.append(activity_id)
+    logger.warning(
+        "product_history_promotion_skipped",
+        extra={
+            "shop_id": str(shop_id),
+            "activity_id": activity_id,
+            "stage": stage,
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:300],
+        },
+    )
+
+
 async def sweep_promotions(
     session_factory: SessionFactory,
     shop_id: uuid.UUID,
@@ -440,7 +493,13 @@ async def sweep_promotions(
                 before = stored.get(activity_id)
                 was_deactivated = before is not None and before.status == promo.DEACTIVATED
                 listed_update = epoch_to_naive_utc(raw.get("update_time"))
-                row = await promo.upsert_activity(session, shop_id, raw, now=moment)
+                try:
+                    # One bad activity must not lose the shop's whole sweep (P58-A).
+                    async with session.begin_nested():
+                        row = await promo.upsert_activity(session, shop_id, raw, now=moment)
+                except Exception as exc:
+                    _skip_activity(result, shop_id, activity_id, "listed", exc)
+                    continue
                 if row is None:
                     continue
                 if before is None:
@@ -461,42 +520,34 @@ async def sweep_promotions(
         async with with_shop_scope(session, shop_id):
             products: dict[str, list[str]] = {}
             for activity_id, body in details.items():
-                await promo.upsert_activity(
-                    session, shop_id, {"id": activity_id, **body}, now=moment
-                )
-                products[activity_id] = await promo.upsert_activity_products(
-                    session, shop_id, activity_id, body, now=moment
-                )
+                try:
+                    async with session.begin_nested():
+                        await promo.upsert_activity(
+                            session, shop_id, {"id": activity_id, **body}, now=moment
+                        )
+                        products[activity_id] = await promo.upsert_activity_products(
+                            session, shop_id, activity_id, body, now=moment
+                        )
+                except Exception as exc:
+                    _skip_activity(result, shop_id, activity_id, "detail", exc)
             if not result.backfill:
                 for change_type, ids in (
                     (promo.CHANGE_CREATE, new_ids),
                     (promo.CHANGE_DEACTIVATE, deactivated_ids),
                 ):
                     for activity_id in ids:
-                        row = (
-                            await session.execute(
-                                select(PromotionActivity).where(
-                                    PromotionActivity.shop_id == shop_id,
-                                    PromotionActivity.activity_id == activity_id,
+                        try:
+                            async with session.begin_nested():
+                                result.changes += await _record_listed_change(
+                                    session,
+                                    shop_id,
+                                    activity_id=activity_id,
+                                    change_type=change_type,
+                                    product_ids=products.get(activity_id, []),
+                                    now=moment,
                                 )
-                            )
-                        ).scalar_one()
-                        occurred = (
-                            row.tiktok_update_time
-                            if change_type == promo.CHANGE_DEACTIVATE
-                            else row.tiktok_create_time
-                        ) or moment
-                        result.changes += await _record_promotion_change(
-                            session,
-                            shop_id,
-                            activity_id=activity_id,
-                            change_type=change_type,
-                            product_ids=products.get(activity_id, []),
-                            occurred_at=occurred,
-                            now=moment,
-                            source=SOURCE_RECONCILE,
-                            details={"activity_type": row.activity_type, "status": row.status},
-                        )
+                        except Exception as exc:
+                            _skip_activity(result, shop_id, activity_id, "change", exc)
         await session.commit()
     logger.info(
         "product_history_promotions_swept",

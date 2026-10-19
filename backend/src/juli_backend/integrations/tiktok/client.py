@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -246,6 +247,38 @@ def transient_partner_error(exc: Exception) -> bool:
     return False
 
 
+#: A URL (absolute, or the ``url: /path`` urllib3 prints) followed by its query.
+_URL_WITH_QUERY = re.compile(r"((?:https?://|url: )[^\s?'\"]*)\?[^\s'\"]*")
+_REDACTED_QUERY = "?<query redacted>"
+
+
+def redact_url_query(text: str) -> str:
+    """Drop every URL query string from ``text``, keeping scheme, host and path.
+
+    A signed Partner request's query carries ``app_key``, ``sign``,
+    ``shop_cipher`` and, on legacy ``/api/`` routes, ``access_token``; requests
+    and urllib3 put the full URL into their exception messages, which the
+    workers log at ERROR with the traceback (P58-B, D67).
+    """
+    return _URL_WITH_QUERY.sub(lambda m: m.group(1) + _REDACTED_QUERY, text)
+
+
+@contextmanager
+def _redacted_transport_errors() -> Iterator[None]:
+    """Re-raise a transport exception with its URL query removed (same type)."""
+    try:
+        yield
+    except requests.RequestException as exc:
+        message = redact_url_query(str(exc))
+        try:
+            clean = type(exc)(message, request=exc.request, response=exc.response)
+        except Exception:
+            clean = requests.RequestException(message, request=exc.request, response=exc.response)
+        # `from None`: the original (unredacted) exception must not ride along as
+        # `__context__`, or a logged traceback prints its message anyway.
+        raise clean from None
+
+
 def uses_header_auth(path: str) -> bool:
     """Versioned Partner API routes use header token transport, not query param."""
     return not path.startswith("/api/")
@@ -321,12 +354,13 @@ class TikTokClient:
                 path=path,
                 params=all_params,
             )
-            resp = self._session.get(
-                f"{self._base_url}{path}",
-                params=all_params,
-                headers=self._auth_headers(path),
-                timeout=self._timeout,
-            )
+            with _redacted_transport_errors():
+                resp = self._session.get(
+                    f"{self._base_url}{path}",
+                    params=all_params,
+                    headers=self._auth_headers(path),
+                    timeout=self._timeout,
+                )
             return self._handle_response(resp)
 
         data = self._request_with_retry(path, send)
@@ -383,18 +417,19 @@ class TikTokClient:
                 params=all_params,
                 body=body_str,
             )
-            resp = self._session.post(
-                f"{self._base_url}{path}",
-                params=all_params,
-                # Send the exact bytes that were signed. Passing json=body lets
-                # requests re-serialize with its own separators and key order, so
-                # the body TikTok hashes differs from the one we signed and every
-                # non-empty body is rejected with code 106001 "the 'sign' query
-                # parameter is invalid".
-                data=body_str,
-                headers=self._json_auth_headers(path),
-                timeout=self._timeout,
-            )
+            with _redacted_transport_errors():
+                resp = self._session.post(
+                    f"{self._base_url}{path}",
+                    params=all_params,
+                    # Send the exact bytes that were signed. Passing json=body lets
+                    # requests re-serialize with its own separators and key order, so
+                    # the body TikTok hashes differs from the one we signed and every
+                    # non-empty body is rejected with code 106001 "the 'sign' query
+                    # parameter is invalid".
+                    data=body_str,
+                    headers=self._json_auth_headers(path),
+                    timeout=self._timeout,
+                )
             return self._handle_response(resp)
 
         data = self._request_with_retry(path, send) if retry_transient else send()
@@ -420,14 +455,15 @@ class TikTokClient:
             body="",
         )
 
-        resp = self._session.post(
-            f"{self._base_url}{path}",
-            params=all_params,
-            data=data or {},
-            files=files,
-            headers=self._auth_headers(path),
-            timeout=self._timeout,
-        )
+        with _redacted_transport_errors():
+            resp = self._session.post(
+                f"{self._base_url}{path}",
+                params=all_params,
+                data=data or {},
+                files=files,
+                headers=self._auth_headers(path),
+                timeout=self._timeout,
+            )
         return self._handle_response(resp)
 
     @overload
@@ -470,14 +506,15 @@ class TikTokClient:
             body=body_str,
         )
 
-        resp = self._session.put(
-            f"{self._base_url}{path}",
-            params=all_params,
-            # See post(): the signed bytes must be sent verbatim.
-            data=body_str,
-            headers=self._json_auth_headers(path),
-            timeout=self._timeout,
-        )
+        with _redacted_transport_errors():
+            resp = self._session.put(
+                f"{self._base_url}{path}",
+                params=all_params,
+                # See post(): the signed bytes must be sent verbatim.
+                data=body_str,
+                headers=self._json_auth_headers(path),
+                timeout=self._timeout,
+            )
         data = self._handle_response(resp)
         if response_model is not None:
             return validate_data(response_model, data)
@@ -777,15 +814,14 @@ class TikTokClient:
             # Partner API's own explanation is thrown away exactly when it is needed.
             # Re-raise the same exception type with the body appended; the body is the
             # vendor's error envelope, never our credentials, and the signed request is
-            # not echoed back.
+            # not echoed back. The URL keeps its path but loses its query (app_key,
+            # sign, shop_cipher -- P58-B), and `from None` keeps the unredacted
+            # original out of the logged traceback.
+            message = redact_url_query(str(exc))
             detail = resp.text[:_ERROR_BODY_LIMIT].strip()
             if detail:
-                raise requests.HTTPError(
-                    f"{exc} — response body: {detail}",
-                    response=resp,
-                    request=exc.request,
-                ) from exc
-            raise
+                message = f"{message} — response body: {detail}"
+            raise requests.HTTPError(message, response=resp, request=exc.request) from None
         data = resp.json()
         err = error_from_response(data)
         if err is not None:

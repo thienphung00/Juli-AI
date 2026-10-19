@@ -95,6 +95,7 @@ async def _make_shop(
     is_active: bool = True,
     with_credential: bool = True,
     seed_scoring_data: bool = False,
+    with_cipher: bool = True,
 ) -> Shop:
     user = User(id=uuid.uuid4(), phone=f"+8490{uuid.uuid4().int % 10_000_000:07d}")
     shop = Shop(
@@ -115,7 +116,7 @@ async def _make_shop(
             token_expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7),
             merchant_authorization_id=f"merchant-{label}",
             capability=capability.value,
-            shop_cipher=f"cipher-{label}",
+            shop_cipher=f"cipher-{label}" if with_cipher else None,
         )
         if status != "active":
             credential.status = status
@@ -1235,3 +1236,139 @@ class TestOrderCostsInTheCycle:
             await session.execute(select(OrderCostFetch).where(OrderCostFetch.shop_id == shop.id))
         ).scalar_one()
         assert fetch.finance_attempts == 1 and fetch.price_fetched_at is not None
+
+
+# ---------------------------------------------------------------------------
+# P58-B (D67) -- a read credential with no shop_cipher (2026-10-19 production:
+# orders/search 106013 "Missing identifier ... shop_cipher", retried every tick)
+# ---------------------------------------------------------------------------
+
+
+class TestMissingShopCipher:
+    @staticmethod
+    def _fast_capturing(session, shop, analytics, configs, **kwargs):
+        async def run():
+            return await run_bootstrap_fast_phase(
+                session=session,
+                config=CONFIG,
+                shop_id=shop.id,
+                rate_limiter=FakeRateLimiter(),
+                handoff_fn=Handoffs(session),
+                create_resources=lambda cfg: configs.append(cfg) or make_resources(analytics),
+                sleep=_no_sleep,
+                now=NOW,
+                **kwargs,
+            )
+
+        return run()
+
+    @pytest.mark.asyncio
+    async def test_cipher_is_fetched_stored_and_sent(self, session, monkeypatch):
+        from juli_backend.services.tiktok import credential_binding
+
+        shop = await _make_shop(session, label="nocipher", with_cipher=False)
+        lookups: list[dict] = []
+
+        def authorized_shop(**kwargs):
+            lookups.append(kwargs)
+            # Get Authorized Shops (202309) row shape.
+            return {
+                "id": "7494049642642441621",
+                "name": "Fujiwa Vietnam Store",
+                "region": "VN",
+                "seller_type": "LOCAL",
+                "cipher": "ROW_fake-cipher-for-tests",
+                "code": "VNLCWSMV4N",
+            }
+
+        monkeypatch.setattr(credential_binding, "resolve_authorized_shop", authorized_shop)
+        configs: list = []
+        await self._fast_capturing(session, shop, FakeAnalyticsResource(prefix="nc"), configs)
+
+        assert [k["access_token"] for k in lookups] == ["access-nocipher"]
+        assert configs[0].shop_cipher == "ROW_fake-cipher-for-tests"
+        credential = await TikTokCredentialRepo(session).get_by_shop(shop.id)
+        assert credential.shop_cipher == "ROW_fake-cipher-for-tests"
+        assert credential.access_token == "access-nocipher"  # tokens untouched
+        assert (await _state(session, shop.id)).fast_done_at is not None
+
+        # The stored cipher is reused: the next run does not ask again.
+        configs.clear()
+        await self._fast_capturing(
+            session, shop, FakeAnalyticsResource(prefix="nc2"), configs, force=True
+        )
+        assert len(lookups) == 1 and configs[0].shop_cipher.startswith("ROW_")
+
+    @pytest.mark.asyncio
+    async def test_unresolvable_cipher_marks_needs_reauth_and_stops_the_fanout(
+        self, session, monkeypatch, caplog
+    ):
+        from juli_backend.services.tiktok import ShopCipherUnresolvedError, credential_binding
+
+        shop = await _make_shop(session, label="zero", with_cipher=False)
+
+        def zero_shops(**_kwargs):
+            raise credential_binding.CredentialBindingError(
+                "TikTok reports this token is authorized for zero shops"
+            )
+
+        monkeypatch.setattr(credential_binding, "resolve_authorized_shop", zero_shops)
+        assert shop.id in {s.shop_id for s in await enumerate_pollable_shops(session)}
+        configs: list = []
+        with caplog.at_level(logging.ERROR), pytest.raises(ShopCipherUnresolvedError):
+            await self._fast_capturing(session, shop, FakeAnalyticsResource(prefix="z"), configs)
+
+        assert configs == []  # no shop-scoped call was attempted
+        credential = await TikTokCredentialRepo(session).get_by_shop(shop.id)
+        assert credential.status == "needs_reauth" and credential.shop_cipher is None
+        assert "shop_cipher" in (credential.last_refresh_error or "")
+        assert any(r.getMessage() == "tiktok_shop_cipher_unresolved" for r in caplog.records)
+        # The beat no longer enqueues a bootstrap for it: no retry loop.
+        assert shop.id not in {s.shop_id for s in await enumerate_pollable_shops(session)}
+
+    @pytest.mark.asyncio
+    async def test_authorized_shop_without_cipher_is_unresolvable(self, session, monkeypatch):
+        from juli_backend.services.tiktok import ShopCipherUnresolvedError, credential_binding
+
+        shop = await _make_shop(session, label="blank", with_cipher=False)
+        monkeypatch.setattr(
+            credential_binding, "resolve_authorized_shop", lambda **_k: {"id": "1", "cipher": ""}
+        )
+        with pytest.raises(ShopCipherUnresolvedError):
+            await self._fast_capturing(session, shop, FakeAnalyticsResource(prefix="b"), [])
+        credential = await TikTokCredentialRepo(session).get_by_shop(shop.id)
+        assert credential.status == "needs_reauth"
+
+    @pytest.mark.asyncio
+    async def test_a_transient_lookup_failure_leaves_the_credential_alone(
+        self, session, monkeypatch
+    ):
+        import requests
+
+        from juli_backend.services.tiktok import credential_binding
+
+        shop = await _make_shop(session, label="flaky", with_cipher=False)
+
+        def down(**_kwargs):
+            raise requests.ConnectionError("connection reset")
+
+        monkeypatch.setattr(credential_binding, "resolve_authorized_shop", down)
+        with pytest.raises(requests.ConnectionError):
+            await self._fast_capturing(session, shop, FakeAnalyticsResource(prefix="f"), [])
+        credential = await TikTokCredentialRepo(session).get_by_shop(shop.id)
+        assert credential.status == "active" and credential.shop_cipher is None
+        assert shop.id in {s.shop_id for s in await enumerate_pollable_shops(session)}
+
+    @pytest.mark.asyncio
+    async def test_a_stored_cipher_never_calls_authorized_shops(self, session, monkeypatch):
+        from juli_backend.services.tiktok import credential_binding
+
+        shop = await _make_shop(session, label="has")
+
+        def boom(**_kwargs):
+            raise AssertionError("Get Authorized Shops must not be called")
+
+        monkeypatch.setattr(credential_binding, "resolve_authorized_shop", boom)
+        configs: list = []
+        await self._fast_capturing(session, shop, FakeAnalyticsResource(prefix="h"), configs)
+        assert configs[0].shop_cipher == "cipher-has"

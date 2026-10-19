@@ -52,7 +52,9 @@ W4-1 (ADR-081), which is the next planned migration.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Callable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,6 +70,7 @@ from juli_backend.integrations.tiktok import (
     redact_shop_identifier,
 )
 from juli_backend.models.models import TikTokCredential
+from juli_backend.repositories import TikTokCredentialRepo
 
 logger = logging.getLogger(__name__)
 
@@ -251,3 +254,90 @@ def make_binding_verifier(*, app_key: str, app_secret: str) -> BindingVerifier:
         )
 
     return _verifier
+
+
+class ShopCipherUnresolvedError(CredentialBindingError):
+    """A stored read credential has no ``shop_cipher`` and TikTok cannot supply one.
+
+    Permanent until a human acts: the credential has been marked
+    ``needs_reauth`` (so the fan-outs stop enqueueing the shop) and the seller
+    must reconnect, which stores a verified cipher (P58-B, D67).
+    """
+
+
+#: ``(app_key=, app_secret=, access_token=) -> the single authorized shop``.
+AuthorizedShopLookup = Callable[..., dict]
+
+_CIPHER_NEEDS_REAUTH_MESSAGE = (
+    "No shop_cipher stored for this credential and Get Authorized Shops could not "
+    "supply one ({reason}). Every 202309 shop-scoped call needs it; reconnect the "
+    "shop (re-run TikTok OAuth) to restore access."
+)
+
+
+async def backfill_shop_cipher(
+    session: AsyncSession,
+    credential: TikTokCredential,
+    *,
+    app_key: str,
+    app_secret: str,
+    lookup: AuthorizedShopLookup | None = None,
+) -> str:
+    """Return the credential's ``shop_cipher``, fetching and storing it when missing.
+
+    TikTok's 202309 shop-scoped APIs (orders, products, promotions, ...) reject a
+    request without ``shop_cipher`` (code 106013); ``TikTokClient`` only adds the
+    query parameter when it has one. A read credential written before #1200 can
+    have none, which made ``bootstrap_shop`` fail on every fan-out tick
+    (2026-10-19). So: ask Get Authorized Shops (which needs no cipher), apply the
+    same binding invariants the OAuth write applies, and persist it.
+
+    A transient vendor failure propagates unchanged (the next tick retries). A
+    definitive "no usable cipher" -- zero / several shops, a shop with no cipher,
+    or a binding conflict -- marks the credential ``needs_reauth``, commits, and
+    raises :class:`ShopCipherUnresolvedError`, so the shop stops being retried.
+    """
+    if credential.shop_cipher:
+        return credential.shop_cipher
+    find = lookup or resolve_authorized_shop
+    repo = TikTokCredentialRepo(session)
+    try:
+        shop = await asyncio.to_thread(
+            find, app_key=app_key, app_secret=app_secret, access_token=credential.access_token
+        )
+        cipher = str((shop or {}).get("cipher") or "").strip()
+        if not cipher:
+            raise CredentialBindingError("TikTok returned an authorized shop with no cipher")
+        if credential.capability is not None:
+            await verify_capability_binding(
+                session, capability=credential.capability, shop_cipher=cipher
+            )
+    except CredentialBindingError as exc:
+        reason = str(exc)[:300]
+        await repo.mark_needs_reauth(
+            credential.id, _CIPHER_NEEDS_REAUTH_MESSAGE.format(reason=reason)
+        )
+        await session.commit()
+        logger.error(
+            "tiktok_shop_cipher_unresolved",
+            extra={
+                "shop_id": str(credential.shop_id),
+                "capability": credential.capability,
+                "reason": reason,
+            },
+        )
+        raise ShopCipherUnresolvedError(
+            f"shop {credential.shop_id} has no shop_cipher and TikTok could not supply one; "
+            "credential marked needs_reauth"
+        ) from exc
+    await repo.set_shop_cipher(credential.id, cipher)
+    await session.commit()
+    logger.warning(
+        "tiktok_shop_cipher_backfilled",
+        extra={
+            "shop_id": str(credential.shop_id),
+            "capability": credential.capability,
+            "shop_cipher": redact_shop_identifier(cipher),
+        },
+    )
+    return cipher

@@ -362,6 +362,13 @@ Reason: owner grill 2026-10-18; the pages must promise only what the product doe
 | Gate sweep runs every gate under one pinned CI-flow context (`gate_env`); tag-push regression test | D65.1 | done on branch `fasttrack/ci-fix` (not merged) | agent (Opus) |
 | Dissolved PR #1472 commits declared with their archive ref; deploy job fetches `refs/pull/1472/head` and requires the rows to resolve | D65.2 | done on branch `fasttrack/ci-fix` | agent (Opus) |
 
+## P58 — production bugs from the 2026-10-19 worker log (D67)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| A `epoch_to_naive_utc` reads s / ms / µs / ns and never raises; one bad promotion is logged + skipped (SAVEPOINT), not the sweep | D67.1–2 | done on branch `fasttrack/prod-bugs` (not merged) | agent (Opus) |
+| B Missing `shop_cipher` backfilled via Get Authorized Shops (binding-checked); unresolvable → `needs_reauth`, fan-out stops; TikTok error URLs lose their signed query | D67.3–4 | done on branch `fasttrack/prod-bugs` (not merged) | agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

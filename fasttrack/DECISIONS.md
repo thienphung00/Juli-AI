@@ -1456,3 +1456,33 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      declaration must equal `DISSOLVED_COMMIT_ROWS`. No ref needs restoring or pushing.
   Work: P56.
 
+- **D67** — Two production bugs from the 2026-10-19 VPS worker log (release `efb1df92`),
+  fixed on `fasttrack/prod-bugs` (owner, 2026-10-19: investigate in code, fix on a branch, no
+  SSH / live DB / TikTok calls). Numbered P58 / D67 because `fasttrack/ci-fix` and
+  `fasttrack/rollback-fix` both claim P56 / D65 in flight; P57 / D66 is left for whichever of
+  them renumbers.
+  1. **TikTok epochs are read defensively everywhere `epoch_to_naive_utc` is used.** The
+     202309 OAS says seconds; production Search Activities rows carry milliseconds (already
+     noted for coupons in `services/shop_diagnosis/promotions.py`). Seconds, ms, µs and ns
+     are told apart by magnitude (≥ 10¹¹ is ms: 10¹¹ s would be the year 5138). `0`, `None`,
+     `""`, bools and junk are `None`. The function never raises.
+  2. **One bad promotion never loses the shop's sweep.** Each activity's upsert (listed,
+     detail, change row) runs in a SAVEPOINT. A failure is logged as
+     `product_history_promotion_skipped` with `activity_id` and `stage`, and the id lands in
+     `PromotionsResult.skipped`.
+  3. **A read credential with no `shop_cipher` is repaired at the run's entry, once.**
+     `_scoped_shop_run` (bootstrap, history, cycle) calls `backfill_shop_cipher`: Get
+     Authorized Shops (needs no cipher), the same binding invariants as the OAuth write
+     (#1200), then the cipher is stored. A definitive miss marks the credential
+     `needs_reauth` with an explanatory `last_refresh_error`. Definitive means zero or several
+     shops, a shop with no cipher, or a binding conflict. The pollable-shop enumeration
+     already excludes `needs_reauth`, so the 15-minute bootstrap retry stops, and the seller's
+     reconnect clears it (OAuth stores a verified cipher and sets `active`). A transient
+     failure (network, 5xx) changes nothing and retries on the next tick.
+  4. **Logged TikTok URLs keep the path and lose the query.** `TikTokClient` re-raises HTTP
+     and transport errors with `?<query redacted>` in place of the signed query (`app_key`,
+     `timestamp`, `sign`, `shop_cipher`; `access_token` on legacy `/api/` routes). The type
+     is kept so retry classification is unchanged. The vendor error body is still appended.
+     The errors are raised `from None`, so the unredacted original is not chained into a
+     logged traceback.
+  Work: P58.

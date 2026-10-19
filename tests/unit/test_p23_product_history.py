@@ -1054,3 +1054,142 @@ async def test_latest_snapshots_picks_the_newest_per_product(session):
     await _record(session, shop.id, _detail("p1", title="B"), previous=first, now=NOW)
     assert (await latest_snapshots(session, shop.id))["p1"].title == "B"
     assert (await latest_snapshots(session, shop.id, ["p2"])) == {}
+
+
+# -- P58-A (D67): promotion epochs from the 2026-10-19 production sweep ------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (1_791_000_000, datetime(2026, 10, 3, 4, 0)),
+        ("1791000000", datetime(2026, 10, 3, 4, 0)),
+        (" 1791000000 ", datetime(2026, 10, 3, 4, 0)),
+        (1_791_000_000.0, datetime(2026, 10, 3, 4, 0)),
+        ("1791000000.5", datetime(2026, 10, 3, 4, 0)),
+        # Milliseconds, as Search Activities' create/update times arrive in production.
+        (1_791_000_000_123, datetime(2026, 10, 3, 4, 0)),
+        ("1791000000123", datetime(2026, 10, 3, 4, 0)),
+        (1_791_000_000_123_456, datetime(2026, 10, 3, 4, 0)),  # µs
+        (1_791_000_000_123_456_789, datetime(2026, 10, 3, 4, 0)),  # ns
+        # Open-ended / missing / junk: None, never an exception.
+        (0, None),
+        ("0", None),
+        (-1, None),
+        (None, None),
+        ("", None),
+        ("  ", None),
+        (True, None),
+        (False, None),
+        ("abc", None),
+        ("NaN", None),
+        ("Infinity", None),
+        ({"seconds": 1791000000}, None),
+        ([1791000000], None),
+        (10**40, None),
+        ("1e400", None),
+    ],
+)
+def test_epoch_to_naive_utc_accepts_tiktok_shapes_and_never_raises(value, expected):
+    from juli_backend.services.product_history.normalize import epoch_to_naive_utc
+
+    assert epoch_to_naive_utc(value) == expected
+
+
+def _ms(moment: datetime) -> int:
+    return _epoch(moment) * 1000
+
+
+@pytest.mark.asyncio
+async def test_promotion_sweep_survives_millisecond_and_open_ended_times(factory, seeded):
+    """The 2026-10-19 crash: a ms ``update_time`` aborted the shop's first sweep."""
+    fake = FakeResources()
+    fake.activities = {
+        # Search Activities row as seen in production: ms create / update times.
+        "7436000000000000001": _activity(
+            "7436000000000000001",
+            "ONGOING",
+            create_time=_ms(NOW) - 2 * 86_400_000,
+            update_time=_ms(NOW) - 86_400_000,
+        ),
+        # String seconds; an open-ended end_time sent as 0.
+        "7436000000000000002": _activity(
+            "7436000000000000002",
+            "ONGOING",
+            begin_time=str(_epoch(NOW) - 3600),
+            end_time=0,
+            create_time="",
+            update_time=None,
+        ),
+    }
+    resources = await _resources(factory, seeded.id, fake)
+
+    result = await history_job.sweep_promotions(factory, seeded.id, resources, now=NOW)
+    assert result.backfill and result.activities == 2 and result.skipped == []
+    async with factory() as session:
+        stored = {
+            row.activity_id: row
+            for row in (
+                await session.execute(
+                    select(PromotionActivity).where(PromotionActivity.shop_id == seeded.id)
+                )
+            ).scalars()
+        }
+    ms_row = stored["7436000000000000001"]
+    assert ms_row.tiktok_update_time == NOW - timedelta(days=1)
+    assert ms_row.tiktok_create_time == NOW - timedelta(days=2)
+    open_row = stored["7436000000000000002"]
+    assert open_row.begin_time == NOW - timedelta(hours=1)
+    assert open_row.end_time is None and open_row.tiktok_create_time is None
+
+
+@pytest.mark.asyncio
+async def test_one_bad_promotion_is_logged_and_skipped_not_the_sweep(
+    factory, seeded, monkeypatch, caplog
+):
+    fake = FakeResources()
+    fake.activities = {
+        "good": _activity("good", "ONGOING"),
+        "bad": _activity("bad", "ONGOING"),
+    }
+    fake.activity_details = {"good": _activity_detail("p1"), "bad": _activity_detail("p2")}
+    real = promo.upsert_activity
+
+    async def flaky(session, shop_id, raw, *, now):
+        if promo.activity_id_of(raw) == "bad":
+            await real(session, shop_id, raw, now=now)  # dirty the savepoint first
+            raise ValueError("unexpected activity payload")
+        return await real(session, shop_id, raw, now=now)
+
+    monkeypatch.setattr(promo, "upsert_activity", flaky)
+    resources = await _resources(factory, seeded.id, fake)
+
+    with caplog.at_level("WARNING", logger=history_job.logger.name):
+        result = await history_job.sweep_promotions(factory, seeded.id, resources, now=NOW)
+
+    assert result.skipped == ["bad"]
+    skipped = [r for r in caplog.records if r.getMessage() == "product_history_promotion_skipped"]
+    assert [(r.activity_id, r.stage, r.error_type) for r in skipped] == [
+        ("bad", "listed", "ValueError")
+    ]
+    assert fake.count("get_activity") == 1  # only the stored one is read
+    async with factory() as session:
+        ids = set(
+            (
+                await session.execute(
+                    select(PromotionActivity.activity_id).where(
+                        PromotionActivity.shop_id == seeded.id
+                    )
+                )
+            ).scalars()
+        )
+        products = list(
+            (
+                await session.execute(
+                    select(PromotionActivityProduct.tiktok_product_id).where(
+                        PromotionActivityProduct.shop_id == seeded.id
+                    )
+                )
+            ).scalars()
+        )
+    assert ids == {"good"} and products == ["p1"]

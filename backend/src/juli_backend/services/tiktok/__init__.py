@@ -32,6 +32,9 @@ from juli_backend.services.tiktok.webhook_catalog import (
 _LAZY_EXPORTS = {
     "build_fujiwa_poll_vendor_resources": "juli_backend.services.tiktok.poll_resources",
     "make_binding_verifier": "juli_backend.services.tiktok.credential_binding",
+    # P58-B: the bootstrap / poll / history run backfills a missing shop_cipher.
+    "backfill_shop_cipher": "juli_backend.services.tiktok.credential_binding",
+    "ShopCipherUnresolvedError": "juli_backend.services.tiktok.credential_binding",
 }
 
 
@@ -50,9 +53,11 @@ __all__ = [
     "EVENT_CATEGORY_ROUTES",
     "PHASE2_CATALOG",
     "PHASE2_CATALOG_IDS",
+    "ShopCipherUnresolvedError",
     "TikTokWebhookDispatcher",
     "TikTokWebhookService",
     "TikTokWebhookSignatureVerifier",
+    "backfill_shop_cipher",
     "build_fujiwa_poll_vendor_resources",
     "make_binding_verifier",
     "resolve_catalog_entry",
