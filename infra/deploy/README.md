@@ -34,7 +34,7 @@ deleted from the repo in fast-track P53 (C1).
 |------|---------|
 | [`../scripts/`](../scripts/) | Provision, build, deploy, rollback, secrets, smoke-test scripts |
 | [`../nginx/`](../nginx/) | App Review + Demo Nginx vhosts |
-| [`../systemd/`](../systemd/) | `juli-web` / `juli-api` / `juli-demo` service units |
+| [`../systemd/`](../systemd/) | `juli-api` / `juli-celery-*` / `juli-demo` / `juli-landing` service units + timers |
 | [`../scripts/env/`](../scripts/env/) | Env templates (placeholders — real values in AWS Secrets Manager) |
 | [`../scripts/aws/`](../scripts/aws/) | IAM policy for the `juli-vps-secrets-reader` user |
 

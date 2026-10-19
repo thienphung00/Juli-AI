@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Fetch backend/frontend runtime config from AWS Secrets Manager and write
-# systemd-readable env files. Called by deploy-release.sh before every deploy,
-# wired as ExecStartPre= on both systemd units, and invoked by refresh-secrets.sh
-# for periodic synchronization.
+# systemd-readable env files. Wired as ExecStartPre= on juli-api, juli-celery-worker
+# and juli-celery-beat; refresh-secrets.sh does the periodic synchronization.
 #
 # Auth: IAM Roles Anywhere via X.509 client certificate — no static AWS access
 # keys, no shared credentials file. Configure /etc/aws/config with
@@ -10,14 +9,16 @@
 #
 # Secrets (JSON blob per app):
 #   juli/api/production      -> /etc/juli/api.env
-#   juli/web/production      -> /etc/juli/web.env
 #   juli/frontend/production -> /etc/juli/frontend.env   (OPTIONAL, see below)
+#
+# juli/web/production (/etc/juli/web.env) belonged to the retired dashboard
+# (juli-web, apps/dashboard) and is no longer read (fast-track P56, D65).
 #
 # Usage (on the VPS, as root):
 #   ./infra/scripts/fetch-secrets.sh
 #
 # Env overrides: AWS_REGION, AWS_CONFIG_FILE, AWS_PROFILE,
-#                API_SECRET_ID, WEB_SECRET_ID, FRONTEND_SECRET_ID.
+#                API_SECRET_ID, FRONTEND_SECRET_ID.
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -29,10 +30,8 @@ AWS_REGION="${AWS_REGION:-us-east-2}"
 AWS_CONFIG_FILE="${AWS_CONFIG_FILE:-/etc/aws/config}"
 AWS_PROFILE="${AWS_PROFILE:-juli-vps-secrets-reader}"
 API_SECRET_ID="${API_SECRET_ID:-juli/api/production}"
-WEB_SECRET_ID="${WEB_SECRET_ID:-juli/web/production}"
 FRONTEND_SECRET_ID="${FRONTEND_SECRET_ID:-juli/frontend/production}"
 API_ENV_FILE="/etc/juli/api.env"
-WEB_ENV_FILE="/etc/juli/web.env"
 FRONTEND_ENV_FILE="/etc/juli/frontend.env"
 
 export AWS_CONFIG_FILE AWS_PROFILE AWS_REGION
@@ -105,7 +104,7 @@ for key, value in data.items():
 
 # The Landing/Demo server-side secret is OPTIONAL, and that is deliberate.
 #
-# This script is ExecStartPre= on juli-api and juli-web. write_env_file exits 1
+# This script is ExecStartPre= on juli-api and the Celery units. write_env_file exits 1
 # on a missing secret, so wiring juli/frontend/production in the same way would
 # stop the API booting on any host where that secret has not been created yet —
 # trading a missing analytics channel for an outage. It warns and continues
@@ -127,6 +126,5 @@ write_env_file_optional() {
 
 echo "== Fetching secrets from AWS Secrets Manager (region ${AWS_REGION}, profile ${AWS_PROFILE}) =="
 write_env_file "${API_SECRET_ID}" "${API_ENV_FILE}"
-write_env_file "${WEB_SECRET_ID}" "${WEB_ENV_FILE}"
 write_env_file_optional "${FRONTEND_SECRET_ID}" "${FRONTEND_ENV_FILE}"
-echo "== Done. Restart juli-api/juli-web/juli-landing/juli-demo (or redeploy) to pick up any changes. =="
+echo "== Done. Restart juli-api/juli-landing/juli-demo (or redeploy) to pick up any changes. =="

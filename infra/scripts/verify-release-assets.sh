@@ -28,7 +28,7 @@
 #
 # Usage:
 #   ./infra/scripts/verify-release-assets.sh --base-url https://example.test
-#   ./infra/scripts/verify-release-assets.sh --base-url http://127.0.0.1:3000 \
+#   ./infra/scripts/verify-release-assets.sh --base-url http://127.0.0.1:8080 \
 #       --route / --route /decisions
 #   ./infra/scripts/verify-release-assets.sh --base-url https://app.example \
 #       --api-base-url https://api.example --api-check /v1/health:status,version
@@ -72,7 +72,7 @@ one, and fails if any is missing, empty, or serves an HTML error body in place o
 content. Status code alone is never treated as sufficient.
 
 Options:
-  --base-url URL          Base URL for HTML routes (e.g. http://127.0.0.1:3000).
+  --base-url URL          Base URL for HTML routes (e.g. http://127.0.0.1:8080).
                           Required unless only --api-check work is requested.
   --route PATH            HTML route to verify. Repeatable. Default: /
   --api-base-url URL      Base URL for API checks. Defaults to --base-url.

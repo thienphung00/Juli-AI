@@ -25,9 +25,13 @@ SYSTEMD_DIR = REPO_ROOT / "infra/systemd"
 RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/app-review-runbook.md"
 NGINX_APP_PATH = NGINX_DIR / "app-juli.com.conf"
 NGINX_API_PATH = NGINX_DIR / "api.app-juli.com.conf"
-SYSTEMD_FRONTEND_PATH = SYSTEMD_DIR / "juli-web.service"
+# The frontend on the main domain is Landing since #842; the old dashboard unit
+# (juli-web.service) and its env template were removed in fast-track P56 (D65).
+SYSTEMD_FRONTEND_PATH = SYSTEMD_DIR / "juli-landing.service"
 SYSTEMD_BACKEND_PATH = SYSTEMD_DIR / "juli-api.service"
-ENV_FRONTEND_PATH = SCRIPTS_DIR / "env/web.env.example"
+ENV_FRONTEND_PATH = SCRIPTS_DIR / "env/frontend.env.example"
+RETIRED_WEB_UNIT_PATH = SYSTEMD_DIR / "juli-web.service"
+RETIRED_WEB_ENV_PATH = SCRIPTS_DIR / "env/web.env.example"
 ENV_BACKEND_PATH = SCRIPTS_DIR / "env/api.env.example"
 SMOKE_TEST_PATH = SCRIPTS_DIR / "smoke-test.sh"
 PHASE_25_PATH = REPO_ROOT / "docs/product/phases/phase-2.5-deployment.md"
@@ -96,26 +100,73 @@ def test_nginx_api_config_exposes_health_and_oauth_callback():
 
 
 def test_systemd_units_use_single_monorepo_checkout():
-    """Backend and frontend systemd units share one Juli-AI-v2 canonical checkout.
+    """The backend unit uses the one Juli-AI-v2 canonical checkout.
 
     The canonical checkout at ~/Juli-AI-v2 is the source of truth for
-    `git worktree add` (continuous delivery, see deploy-release.sh) and hosts
-    the stable ExecStartPre secret-fetch script; the units themselves run from
-    the `~/releases/current` symlink so a deploy never needs to touch the
-    units in place.
+    `git worktree add` (continuous delivery, see deploy.sh) and hosts the stable
+    ExecStartPre secret-fetch script; the units themselves run from a
+    `~/releases/*current` symlink so a deploy never needs to touch the units in place.
     """
     api_unit = _read(SYSTEMD_BACKEND_PATH)
-    web_unit = _read(SYSTEMD_FRONTEND_PATH)
+    landing_unit = _read(SYSTEMD_FRONTEND_PATH)
     assert "Juli-AI-v2" in api_unit
-    assert "Juli-AI-v2" in web_unit
     assert "/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh" in api_unit, (
         "juli-api must fetch secrets from the stable canonical checkout path"
     )
-    assert "/root/Juli-AI-v2/infra/scripts/fetch-secrets.sh" in web_unit, (
-        "juli-web must fetch secrets from the stable canonical checkout path"
-    )
     assert "releases/current" in api_unit
-    assert "releases/current" in web_unit
+    assert "releases/landing-current" in landing_unit
+
+
+def test_retired_dashboard_unit_and_env_template_are_gone():
+    """juli-web (apps/dashboard) is retired: no unit, no env template (P56, D65).
+
+    The owner verified on the VPS (2026-10-19) that juli-web is disabled and
+    inactive and nothing answers on 127.0.0.1:3000.
+    """
+    assert not RETIRED_WEB_UNIT_PATH.exists(), "juli-web.service must stay deleted"
+    assert not RETIRED_WEB_ENV_PATH.exists(), "web.env.example must stay deleted"
+
+
+def _non_comment_lines(path: Path) -> list[str]:
+    out = []
+    for line in _read(path).splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        out.append(stripped)
+    return out
+
+
+def test_no_live_script_unit_or_workflow_references_juli_web():
+    """Nothing that runs on the VPS or in CI may still restart, wait for or fetch
+    secrets for the retired dashboard (fetch-secrets.sh used to EXIT 1 when
+    juli/web/production was missing, which would stop juli-api from booting once
+    the owner deletes that secret)."""
+    forbidden = (
+        "juli-web",
+        "/etc/juli/web.env",
+        "juli/web/production",
+        "WEB_SECRET_ID",
+        "WEB_ENV_FILE",
+        "127.0.0.1:3000",
+    )
+    paths = [
+        *sorted((REPO_ROOT / "infra/scripts").glob("*.sh")),
+        *sorted((REPO_ROOT / "infra/scripts/lib").glob("*.sh")),
+        *sorted(SYSTEMD_DIR.glob("*.service")),
+        *sorted(SYSTEMD_DIR.glob("*.timer")),
+        *sorted(NGINX_DIR.glob("*.conf")),
+        *sorted((REPO_ROOT / ".github/workflows").glob("*.yml")),
+        SCRIPTS_DIR / "aws/iam-policy-secrets-reader.json",
+    ]
+    problems = [
+        f"{path.relative_to(REPO_ROOT)}: {needle}"
+        for path in paths
+        for line in _non_comment_lines(path)
+        for needle in forbidden
+        if needle in line
+    ]
+    assert not problems, "retired juli-web still wired: " + "; ".join(problems)
 
 
 def test_systemd_units_source_env_outside_release_dir():
@@ -127,11 +178,10 @@ def test_systemd_units_source_env_outside_release_dir():
     section of app-review-runbook.md.
     """
     api_unit = _read(SYSTEMD_BACKEND_PATH)
-    web_unit = _read(SYSTEMD_FRONTEND_PATH)
+    landing_unit = _read(SYSTEMD_FRONTEND_PATH)
     assert "EnvironmentFile=/etc/juli/api.env" in api_unit
-    assert "EnvironmentFile=/etc/juli/web.env" in web_unit
+    assert "EnvironmentFile=-/etc/juli/frontend.env" in landing_unit
     assert "ExecStartPre=" in api_unit
-    assert "ExecStartPre=" in web_unit
 
 
 # AC2: Frontend and backend deploy steps separated and independently restartable.
@@ -165,11 +215,10 @@ def test_env_examples_exist_and_are_placeholders_only():
     assert "DATABASE_URL=" in api_env
     assert "CORS_ALLOW_ORIGINS=" in api_env
 
-    web_env = _read(ENV_FRONTEND_PATH)
-    assert "NEXT_PUBLIC_API_URL=" in web_env
-    assert "NEXT_PUBLIC_UI_ONLY=1" in web_env
+    frontend_env = _read(ENV_FRONTEND_PATH)
+    assert "/etc/juli/frontend.env" in frontend_env
+    assert "juli/frontend/production" in frontend_env
     assert "Juli-AI-v2" in api_env
-    assert "Juli-AI-v2/apps/dashboard" in web_env
 
 
 def test_env_examples_do_not_contain_real_secrets():
@@ -269,7 +318,6 @@ def test_deploy_config_excludes_out_of_scope_services():
     }
     problems: list[str] = []
     for path in (
-        SYSTEMD_FRONTEND_PATH,
         SYSTEMD_BACKEND_PATH,
         NGINX_APP_PATH,
         NGINX_API_PATH,
