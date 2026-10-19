@@ -94,6 +94,7 @@ from juli_backend.workers.services.polling.sync import (
     PollStepDroppedRowsError,
     ProductIdsFn,
     SyncOutcome,
+    inventory_searchable_status,
     sync_analytics,
     sync_inventory,
     sync_orders,
@@ -428,18 +429,37 @@ def _synced_product_ids_fn(session: AsyncSession, shop_id: uuid.UUID) -> Product
     async def list_product_ids() -> list[str]:
         repo = ProductsRepo(session)
         product_ids: list[str] = []
+        excluded: dict[str, int] = {}
         cursor: uuid.UUID | None = None
         page_limit = 200
         while True:
             page = await repo.list(shop_id, limit=page_limit, after=cursor)
             if not page:
                 break
-            product_ids.extend(
-                product.tiktok_product_id for product in page if product.tiktok_product_id
-            )
+            for product in page:
+                if not product.tiktok_product_id:
+                    continue
+                # P59 / D69: Search Inventory rejects a whole request when one id
+                # in it is a product it does not accept (12019008). Deleted and
+                # draft products are never sent; unknown statuses are kept.
+                if not inventory_searchable_status(product.status):
+                    status = str(product.status).strip().upper()
+                    excluded[status] = excluded.get(status, 0) + 1
+                    continue
+                product_ids.append(product.tiktok_product_id)
             if len(page) < page_limit:
                 break
             cursor = page[-1].id
+        if excluded:
+            logger.info(
+                "sync_inventory_products_excluded_by_status",
+                extra={
+                    "shop_id": str(shop_id),
+                    "excluded": sum(excluded.values()),
+                    "statuses": excluded,
+                    "kept": len(product_ids),
+                },
+            )
         return product_ids
 
     return list_product_ids

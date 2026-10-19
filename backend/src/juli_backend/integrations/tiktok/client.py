@@ -20,7 +20,11 @@ from typing import Any, TypeVar, overload
 import requests
 from pydantic import BaseModel
 
-from juli_backend.integrations.tiktok.exceptions import TikTokAPIError, error_from_response
+from juli_backend.integrations.tiktok.exceptions import (
+    TikTokAPIError,
+    error_from_response,
+    rebuild_keyword_exception,
+)
 from juli_backend.integrations.tiktok.schema_expectations import check_response_drift
 from juli_backend.integrations.tiktok.schemas import validate_data
 from juli_backend.integrations.tiktok.signing import sign_request
@@ -95,6 +99,23 @@ class TikTokPaginationTruncatedError(TikTokPaginationError):
             f"vendor total_count={total_count}"
         )
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Keyword-only constructor: the default reduce cannot rebuild it (P59).
+        return (
+            rebuild_keyword_exception,
+            (
+                type(self),
+                {
+                    "path": self.path,
+                    "pages": self.pages,
+                    "items": self.items,
+                    "max_pages": self.max_pages,
+                    "total_count": self.total_count,
+                },
+            ),
+            self.__dict__,
+        )
+
 
 class TikTokPaginationTimeoutError(TikTokPaginationError):
     """A paginated fetch outran its wall-clock budget."""
@@ -116,6 +137,23 @@ class TikTokPaginationTimeoutError(TikTokPaginationError):
         super().__init__(
             f"fetch of {path} exceeded its {budget_seconds:.0f}s budget after "
             f"{pages} pages ({items} items) in {elapsed_seconds:.1f}s"
+        )
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Keyword-only constructor: the default reduce cannot rebuild it (P59).
+        return (
+            rebuild_keyword_exception,
+            (
+                type(self),
+                {
+                    "path": self.path,
+                    "pages": self.pages,
+                    "items": self.items,
+                    "budget_seconds": self.budget_seconds,
+                    "elapsed_seconds": self.elapsed_seconds,
+                },
+            ),
+            self.__dict__,
         )
 
 
