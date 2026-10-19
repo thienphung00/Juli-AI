@@ -1,39 +1,185 @@
 name: Rollback
 
-# Manual, minimal rollback: re-point ~/releases/current on the VPS at a
-# previous release worktree and restart both services. No blue/green, no
-# automated rollback-on-failure — see infra/scripts/rollback-release.sh.
+# Production rollback for the fast-track deploy layout (fast-track P56, D65).
+# Runs infra/scripts/rollback-release.sh on the VPS, from the canonical clone
+# ~/Juli-AI-v2 exactly as the last deploy left it. It never fetches, checks out or
+# pulls anything there: the rollback must not depend on what GitHub has now, and
+# `git checkout main` (what this file did before P56) would move the clone to frozen
+# `main`, whose scripts still restart the retired juli-web.
+#
+# What it does: moves API + Demo + Landing together to the state right after an
+# earlier deploy (default: the one before what is live), each lane candidate-first
+# (nothing public moves until the target answers on loopback), restarts the Celery
+# worker + beat on the target, and prints a PASS/FAIL health summary. It never
+# touches the database: migrations are forward-only. If a migration shipped and the
+# older code cannot run on it, see docs/runbooks/rollback-runbook.md -- restoring the
+# pre-deploy dump is a separate owner decision, never automatic.
+#
+# Triggers:
+#   - push a tag on a commit of the fast-track branch (works while `main` is frozen,
+#     like fasttrack-deploy.yml):
+#       fasttrack-rollback-plan-<UTC>[-to-<target>]  print the plan; change nothing
+#       fasttrack-rollback-<UTC>                     roll back to the previous deploy
+#       fasttrack-rollback-<UTC>-to-<target>         roll back (or forward) to <target>
+#     <target> = a 7-40 hex SHA, or a fasttrack-deploy-* tag name.
+#       git tag fasttrack-rollback-$(date -u +%Y%m%dT%H%MZ) origin/fasttrack/optimize-product
+#       git push origin <that-tag>
+#   - workflow_dispatch with the fast-track branch as the ref (the file exists on
+#     `main`, so it can be dispatched):
+#       gh workflow run rollback.yml --ref fasttrack/optimize-product \
+#         -f action=plan|rollback|verify -f target_sha=<sha or fasttrack-deploy-* tag>
+#     NEVER dispatch it with ref `main`: that runs main's pre-P56 copy of this file,
+#     which checks the clone out at `main` and restarts juli-web.
+
 on:
+  push:
+    tags:
+      - "fasttrack-rollback-*"
   workflow_dispatch:
     inputs:
+      action:
+        description: plan (print, change nothing), rollback, or verify (health only).
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - rollback
+          - verify
       target_sha:
         description: >-
-          Commit SHA to roll back to. Leave empty to roll back to the previous
-          successful release (per ~/releases/deploy-history.log on the VPS).
+          A 7-40 hex SHA from ~/releases/deploy-history.log, or a fasttrack-deploy-* tag.
+          Empty = the deploy before the one that is live now.
         required: false
         default: ""
+        type: string
 
+# Shared with fasttrack-deploy.yml and release.yml: all of them mutate the same VPS
+# release pool and nginx upstreams, so none may overlap. Never cancel mid-flight.
 concurrency:
   group: release-refs/heads/main
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
+env:
+  FASTTRACK_BRANCH: fasttrack/optimize-product
+
 jobs:
-  rollback:
+  resolve:
+    name: Resolve action and target
     runs-on: ubuntu-latest
+    outputs:
+      action: ${{ steps.resolve.outputs.action }}
+      target: ${{ steps.resolve.outputs.target }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FASTTRACK_BRANCH }}
+          fetch-depth: 0
+      - name: Resolve
+        id: resolve
+        env:
+          REF: ${{ github.ref }}
+          EVENT: ${{ github.event_name }}
+          IN_ACTION: ${{ inputs.action }}
+          IN_TARGET: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          case "${REF}" in
+            "refs/heads/${FASTTRACK_BRANCH}"|refs/tags/fasttrack-rollback-*) ;;
+            *) echo "::error::run from ${FASTTRACK_BRANCH} or a fasttrack-rollback-* tag (got ${REF})"; exit 1 ;;
+          esac
+          if [ "${EVENT}" = "push" ]; then
+            tag="${REF#refs/tags/}"
+            # The workflow file comes from the tagged commit: it must be on the branch.
+            if ! git merge-base --is-ancestor "$(git rev-parse "${REF}^{commit}")" "origin/${FASTTRACK_BRANCH}"; then
+              echo "::error::${tag} is not on origin/${FASTTRACK_BRANCH}"; exit 1
+            fi
+            case "${tag}" in
+              fasttrack-rollback-plan-*) action=plan ;;
+              *) action=rollback ;;
+            esac
+            target=""
+            case "${tag}" in *-to-*) target="${tag##*-to-}" ;; esac
+          else
+            action="${IN_ACTION}"
+            target="${IN_TARGET}"
+          fi
+          case "${action}" in plan|rollback|verify) ;; *) echo "::error::bad action '${action}'"; exit 1 ;; esac
+          if [[ "${target}" =~ ^fasttrack-deploy-[A-Za-z0-9._-]+$ ]]; then
+            sha="$(git rev-parse --verify --quiet "refs/tags/${target}^{commit}")" || {
+              echo "::error::no tag ${target}"; exit 1; }
+            git merge-base --is-ancestor "${sha}" "origin/${FASTTRACK_BRANCH}" || {
+              echo "::error::${target} is not on ${FASTTRACK_BRANCH}"; exit 1; }
+            echo "${target} -> ${sha}"
+            target="${sha}"
+          fi
+          # Only hex reaches the VPS command line (rollback-release.sh refuses the rest too).
+          if [ -n "${target}" ] && ! [[ "${target}" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "::error::target must be a 7-40 hex SHA or a fasttrack-deploy-* tag (got '${target}')"; exit 1
+          fi
+          echo "action=${action}" >> "$GITHUB_OUTPUT"
+          echo "target=${target}" >> "$GITHUB_OUTPUT"
+          echo "action=${action} target=${target:-<previous deploy>}"
+
+  rollback:
+    name: rollback-release.sh on the VPS
+    runs-on: ubuntu-latest
+    needs: resolve
     environment: production
     steps:
-      - name: Roll back on the VPS
+      - name: Run on the VPS
         uses: appleboy/ssh-action@v1.2.5
+        env:
+          ACTION: ${{ needs.resolve.outputs.action }}
+          TARGET: ${{ needs.resolve.outputs.target }}
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script_stop: true
+          command_timeout: 30m
+          envs: ACTION,TARGET
           script: |
             set -euo pipefail
             cd ~/Juli-AI-v2
-            git fetch origin main
-            git checkout main
-            git pull --ff-only origin main
-            ./infra/scripts/rollback-release.sh "${{ github.event.inputs.target_sha }}"
+            echo "canonical clone at $(git rev-parse --short HEAD) (not moved by this workflow)"
+            if ! grep -q '^ROLLBACK_INTERFACE=2$' infra/scripts/rollback-release.sh; then
+              echo "FAIL: ~/Juli-AI-v2 carries the pre-P56 rollback-release.sh (it restarts the retired" >&2
+              echo "      dashboard unit). Deploy a fast-track commit that includes P56 first." >&2
+              exit 1
+            fi
+            case "${ACTION}" in
+              plan)     ./infra/scripts/rollback-release.sh --plan ${TARGET:+"${TARGET}"} ;;
+              verify)   ./infra/scripts/rollback-release.sh --verify ;;
+              rollback) ./infra/scripts/rollback-release.sh ${TARGET:+"${TARGET}"} ;;
+            esac
+
+  # The runner's independent look from outside the VPS, as fasttrack-deploy.yml does.
+  public-check:
+    name: Public health check
+    runs-on: ubuntu-latest
+    needs: [resolve, rollback]
+    if: needs.resolve.outputs.action != 'plan'
+    steps:
+      - name: api, demo and landing answer publicly
+        run: |
+          set -uo pipefail
+          fail=0
+          for url in https://api.app-juli.com/health https://demo.app-juli.com/decisions https://app-juli.com/; do
+            code=000
+            for _ in $(seq 1 10); do
+              code="$(curl -s -o /dev/null -m 10 -w '%{http_code}' "${url}" || true)"
+              case "${code}" in 2??) break ;; esac
+              sleep 6
+            done
+            case "${code}" in
+              2??) echo "PASS ${url} -> HTTP ${code}" ;;
+              *) echo "::error::${url} -> HTTP ${code}"; fail=1 ;;
+            esac
+          done
+          exit "${fail}"
