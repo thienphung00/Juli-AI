@@ -21,12 +21,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
@@ -42,6 +45,8 @@ from eval.curate_negatives import (  # noqa: E402
     resolve_fix_commit_scope,
 )
 from eval.negative_dataset import (  # noqa: E402
+    ARCHIVE_REF_NAMESPACE,
+    ARCHIVED_COMMIT_REFS,
     NEGATIVE_LABELS,
     POSITIVE_DERIVATION_RULE,
     PRIOR_MEASUREMENTS,
@@ -49,6 +54,7 @@ from eval.negative_dataset import (  # noqa: E402
     ProvenanceResolver,
     Resolution,
     always_retrievable,
+    archive_fetch_refspecs,
     label_errors,
     load_manifest,
     load_rows,
@@ -163,11 +169,16 @@ def _expected_commit_resolution(
     ``DISSOLVED_COMMIT_ROWS`` report UNREACHABLE only in the working copy that
     curated them, where the object was written locally and never left. Every
     fresh clone -- complete ones included -- reports them MISSING_SOURCE from
-    this function and MISMATCH from the resolver, because there the objects are
-    genuinely absent. Measured, not inferred: ``cat-file --batch-check`` says
-    ``commit`` for both in the curating worktree and ``missing`` in a fresh
-    ``git clone`` of the same branch. Expect MISMATCH, not UNREACHABLE, when
-    reading this anywhere but the machine that ran the curation.
+    this function, because there the objects are genuinely absent. Measured,
+    not inferred: ``cat-file --batch-check`` says ``commit`` for both in the
+    curating worktree and ``missing`` in a fresh ``git clone`` of the same
+    branch. Until P56 the resolver called them MISMATCH in a complete clone,
+    which is what failed the first fetch-depth-0 run (the fast-track
+    ``backend-unit`` deploy gate). Both are now declared in
+    ``eval.negative_dataset.ARCHIVED_COMMIT_REFS`` with the ref that still holds
+    them (``refs/pull/1472/head``): absent, they are MISSING_SOURCE from the
+    resolver too; fetched (``archive_fetch_refspecs()``), they are reachable
+    and RESOLVED, digest checked.
 
     #1618 corrects the scope of that last sentence. It holds for *dangling*
     objects, which is what it was written about, but dissolution is not the only
@@ -193,6 +204,10 @@ def _expected_commit_resolution(
 #: to the trunk (``eval.curate_negatives.resolve_fix_commit_scope``) so this set
 #: cannot grow from a future derivation.
 DISSOLVED_COMMIT_ROWS = frozenset({"fix_commits/f6c0630567443eb4", "fix_commits/702867bf541e1fcd"})
+
+#: Set to ``1`` where the archive refs have been fetched, to require the dissolved
+#: rows to RESOLVE rather than merely tolerating their absence (P56).
+REQUIRE_ARCHIVED_ENV = "JULI_REQUIRE_ARCHIVED_COMMITS"
 
 
 def dissolution_violations(
@@ -280,6 +295,28 @@ def test_every_row_provenance_resolves() -> None:
     ]
     assert off == [], off[:5]
     assert all(repo_backed(row["provenance"]) for row, _ in commit_rows + tracked_rows)
+
+    # P56: the archive declaration and the dissolved allowlist name the same
+    # rows, so neither can drift into excusing a row the other does not.
+    archived_rows = {
+        row["record_id"]
+        for row, _ in commit_rows
+        if row["provenance"]["commit"] in ARCHIVED_COMMIT_REFS
+    }
+    assert archived_rows == DISSOLVED_COMMIT_ROWS, sorted(archived_rows ^ DISSOLVED_COMMIT_ROWS)
+    # Where the archive refs were fetched (the fast-track `backend-unit` job sets
+    # this after `git fetch origin $(archive_fetch_refspecs)`), the dissolved rows
+    # must resolve with their digest checked -- not merely be absent.
+    if os.environ.get(REQUIRE_ARCHIVED_ENV) == "1":
+        unresolved_archived = sorted(
+            row["record_id"]
+            for row, res in commit_rows
+            if row["record_id"] in DISSOLVED_COMMIT_ROWS and res is not Resolution.RESOLVED
+        )
+        assert unresolved_archived == [], (
+            f"{REQUIRE_ARCHIVED_ENV}=1 but these archived rows did not resolve: "
+            f"{unresolved_archived}; fetch {archive_fetch_refspecs()}"
+        )
 
     # UNREACHABLE is tolerated only for the rows already known to be dissolved.
     # Anything else means a squash-merge has just dissolved fresh evidence, and
@@ -687,3 +724,62 @@ def test_the_second_cause_of_unreachable_is_recorded() -> None:
         "the fetched-window cause of UNREACHABLE is not recorded, leaving "
         "dissolution as the only documented explanation"
     )
+
+
+def test_archived_commits_resolve_from_their_archive_ref_and_nowhere_else(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P56 exhibit, in a real complete clone. A commit only an archive ref holds:
+
+    * absent and declared archived -- MISSING_SOURCE, not MISMATCH (the CI failure);
+    * absent and NOT declared -- still MISMATCH, so the declaration is not a blanket pass;
+    * fetched into ``refs/archive/`` -- RESOLVED with the right digest, MISMATCH with a
+      tampered one, so a resolvable archived row is checked like any other.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        origin, clone = Path(tmp) / "origin", Path(tmp) / "clone"
+        origin.mkdir()
+        _git(origin, "init", "-q", "-b", "trunk", ".")
+        _git(origin, "config", "user.email", "t@example.com")
+        _git(origin, "config", "user.name", "t")
+        _git(origin, "commit", "-q", "--allow-empty", "-m", "kept: on the trunk")
+        _git(origin, "checkout", "-q", "-b", "pr-head")
+        subject = "fix: squashed away (#1)"
+        _git(origin, "commit", "-q", "--allow-empty", "-m", subject)
+        archived = _git(origin, "rev-parse", "HEAD").strip()
+        _git(origin, "update-ref", "refs/pull/1/head", archived)
+        _git(origin, "checkout", "-q", "trunk")
+        _git(origin, "branch", "-q", "-D", "pr-head")
+
+        subprocess.run(
+            ["git", "clone", "-q", "--no-local", str(origin), str(clone)],
+            check=True,
+            capture_output=True,
+        )
+        good = {
+            "kind": "git_commit",
+            "commit": archived,
+            "sha256": hashlib.sha256(subject.encode()).hexdigest(),
+        }
+        tampered = {**good, "sha256": "0" * 64}
+
+        undeclared = ProvenanceResolver(repo_root=clone)
+        assert undeclared.history_is_complete()
+        assert undeclared.resolve(good) is Resolution.MISMATCH
+
+        monkeypatch.setattr(
+            "eval.negative_dataset.ARCHIVED_COMMIT_REFS", {archived: "refs/pull/1/head"}
+        )
+        assert ProvenanceResolver(repo_root=clone).resolve(good) is Resolution.MISSING_SOURCE
+
+        refspecs = archive_fetch_refspecs()
+        assert refspecs == [f"+refs/pull/1/head:{ARCHIVE_REF_NAMESPACE}pull-1-head"]
+        _git(clone, "fetch", "-q", "--no-tags", "origin", *refspecs)
+        fetched = ProvenanceResolver(repo_root=clone)
+        assert fetched.resolve(good) is Resolution.RESOLVED
+        assert fetched.resolve(tampered) is Resolution.MISMATCH
+
+
+def test_the_real_archive_refspecs() -> None:
+    """The refspec the deploy workflow fetches is derived from the declaration."""
+    assert archive_fetch_refspecs() == ["+refs/pull/1472/head:refs/archive/pull-1472-head"]

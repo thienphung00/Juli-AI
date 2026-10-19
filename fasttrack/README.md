@@ -58,7 +58,7 @@ Jobs (stable ids; `deploy` needs every one of them, P55 / D64):
 | `check` | `fasttrack/check.sh` with a throwaway Postgres (migrations, isolation, gitleaks, ruff + pytest on changed files) | backup |
 | `build` | demo + landing release tarballs | validate |
 | `frontend` | demo + landing `eslint`, `tsc --noEmit`, `vitest` (what `pnpm check:demo` / `check:landing` run, minus `next build`); `packages/ui` and `utils` tests; Node from `.nvmrc` | validate |
-| `backend-unit` | the full `pytest tests/unit -m "not live"` with no database (Postgres tests skip via `requires_postgres`) | validate |
+| `backend-unit` | the full `pytest tests/unit -m "not live"` with no database (Postgres tests skip via `requires_postgres`), after fetching the negative dataset's archived evidence refs (D65) | validate |
 | `static` | `mypy --config-file backend/pyproject.toml backend/src/juli_backend` + `bandit -r backend/src/juli_backend -ll` | validate |
 | `deploy` | `infra/scripts/deploy.sh <sha>` over SSH, then a public `/health` check | check, build, frontend, backend-unit, static |
 

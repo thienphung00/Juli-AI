@@ -30,7 +30,7 @@ import sys
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "agent-runtime" / "scripts"))
@@ -133,11 +133,48 @@ def _acceptance_criteria_count(issue: int) -> int:
     return clean_records(issue)["review"]["testCoverage"]["acceptance"]["total"]
 
 
-def run_gate(gate: str, issue: int, *, timeout: int = GATE_TIMEOUT_SECONDS) -> GateResult:
-    env = dict(os.environ)
+#: GitHub Actions variables the gates use to classify the CI flow (tier, lane,
+#: head branch). The runner's own values describe the *workflow running pytest*,
+#: not the synthetic issue under test. P56: the fast-track deploy runs on a tag
+#: push (`GITHUB_EVENT_NAME=push`, `GITHUB_REF_NAME=fasttrack-deploy-…`), a flow
+#: `required_artifacts.resolve_tier_and_branch` rightly refuses, so
+#: `check_phase_run_correlation` failed closed on the clean record there while
+#: passing locally, where none of these are set.
+CI_FLOW_ENV_VARS: tuple[str, ...] = (
+    "GITHUB_EVENT_NAME",
+    "GITHUB_REF_NAME",
+    "GITHUB_HEAD_REF",
+    "GITHUB_BASE_REF",
+)
+
+
+def synthetic_issue_branch(issue: int) -> str:
+    """The head branch every gate sees for the synthetic issue: issue lane, never narrowed."""
+    return f"feat/issue-{issue}-gate-scoring"
+
+
+def gate_env(base: Mapping[str, str], issue: int) -> dict[str, str]:
+    """The environment a gate runs in: the caller's, with the CI flow pinned.
+
+    Pinned to one context everywhere -- the local per-issue loop on an
+    issue-lane branch, which is the issue tier with the maximal required set --
+    so a gate's verdict on an arm cannot move with the workflow, event, tag or
+    local branch that happens to be running the sweep. Only the CI-flow
+    classification variables are replaced; everything else passes through.
+    """
+    env = {key: value for key, value in base.items() if key not in CI_FLOW_ENV_VARS}
     # Gates fall back to branch parsing when --issue is absent; pin it both ways
     # so the arm under test is the only thing that varies.
     env["ISSUE_NUMBER"] = str(issue)
+    # With no GITHUB_EVENT_NAME the tier resolves as the local loop ("issue");
+    # the head branch is read from GITHUB_HEAD_REF before git, so a docs/ or
+    # hotfix/ checkout, or a detached CI HEAD, cannot narrow or change it.
+    env["GITHUB_HEAD_REF"] = synthetic_issue_branch(issue)
+    return env
+
+
+def run_gate(gate: str, issue: int, *, timeout: int = GATE_TIMEOUT_SECONDS) -> GateResult:
+    env = gate_env(os.environ, issue)
     # #1761: `check_acceptance_mapping`'s only source of the acceptance-criteria
     # count is `gh issue view`, which can never resolve this sweep's synthetic
     # issue number. Register the harness's provider — scoped to this exact
@@ -479,10 +516,12 @@ __all__ = [
     "GateResult",
     "build_table",
     "discover_gates",
+    "gate_env",
     "installed_fixture",
     "load_results",
     "RECURSIVE_GATES",
     "no_artifacts",
     "run_arms",
     "run_gate",
+    "synthetic_issue_branch",
 ]

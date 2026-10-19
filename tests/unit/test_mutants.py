@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -40,12 +41,15 @@ from eval.artifact_mutants import (  # noqa: E402
 )
 from eval.gate_scoring import (  # noqa: E402
     CLEAN_ARM,
+    GATE_DIR,
     NO_ARTIFACT_ARM,
     RECURSIVE_GATES,
     discover_gates,
+    gate_env,
     installed_fixture,
     load_results,
     run_gate,
+    synthetic_issue_branch,
 )
 
 # Unique per pytest process. `check_differential_tdd` re-runs this very file as
@@ -196,6 +200,63 @@ def test_clean_record_produces_no_failures() -> None:
 
     failed = {gate: result.verdict for gate, result in observed.items() if result.verdict != "PASS"}
     assert failed == {}, f"clean record failed live gates: {failed}"
+
+
+#: The environment the fast-track deploy's `backend-unit` job ran pytest in
+#: (run 39214813315): a tag push, which no gate tier classification accepts.
+_DEPLOY_TAG_PUSH_ENV = {
+    "GITHUB_ACTIONS": "true",
+    "GITHUB_EVENT_NAME": "push",
+    "GITHUB_REF": "refs/tags/fasttrack-deploy-20261019T0715Z",
+    "GITHUB_REF_NAME": "fasttrack-deploy-20261019T0715Z",
+    "GITHUB_REF_TYPE": "tag",
+}
+
+
+def test_gate_env_pins_the_ci_flow_for_the_synthetic_issue() -> None:
+    """P56: a gate's verdict on the clean record must not depend on which
+    workflow, event or branch runs the sweep. The runner's own CI-flow variables
+    are replaced by one fixed issue-lane context; nothing else is touched."""
+    base = {**_DEPLOY_TAG_PUSH_ENV, "GITHUB_BASE_REF": "main", "PATH": "/bin", "KEEP": "1"}
+    env = gate_env(base, SYNTHETIC_ISSUE)
+
+    assert "GITHUB_EVENT_NAME" not in env
+    assert "GITHUB_REF_NAME" not in env
+    assert "GITHUB_BASE_REF" not in env
+    assert env["GITHUB_HEAD_REF"] == synthetic_issue_branch(SYNTHETIC_ISSUE)
+    assert env["ISSUE_NUMBER"] == str(SYNTHETIC_ISSUE)
+    assert env["PATH"] == "/bin" and env["KEEP"] == "1"
+    assert env["GITHUB_REF_TYPE"] == "tag", "non-flow variables pass through unchanged"
+    assert base["GITHUB_EVENT_NAME"] == "push", "the caller's mapping is not mutated"
+
+
+def test_phase_run_correlation_passes_clean_under_the_deploy_tag_push_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P56 regression, with its planted lie. Under the deploy job's tag-push
+    environment the gate itself fails closed (unsupported CI flow) -- that is
+    correct gate behaviour and is asserted, so this test proves the environment
+    really does reach the gate. Through `run_gate` the same clean record PASSes,
+    as it does locally."""
+    gate = "check_phase_run_correlation"
+    for key, value in _DEPLOY_TAG_PUSH_ENV.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+
+    with installed_fixture(SYNTHETIC_ISSUE, mutant=None) as fixture:
+        raw = subprocess.run(
+            [sys.executable, str(GATE_DIR / f"{gate}.py"), "--issue", str(fixture.issue)],
+            cwd=REPO_ROOT,
+            env={**os.environ, "ISSUE_NUMBER": str(fixture.issue)},
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        pinned = run_gate(gate, fixture.issue)
+
+    assert raw.returncode == 1, raw.stdout + raw.stderr
+    assert "unsupported CI flow" in raw.stdout + raw.stderr
+    assert pinned.verdict == "PASS", pinned.output
 
 
 # --------------------------------------------------------------------------

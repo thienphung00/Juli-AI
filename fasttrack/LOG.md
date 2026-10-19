@@ -2126,3 +2126,43 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
 - Gate suite on the P50 branch: 7580 passed, 5 failed — all five `pytest-timeout` (>30 s) under machine load,
   63/63 green when re-run alone. Landing 767/767, demo 1199/1199 + tsc on the merged tree.
 - Supabase Auth deletion: option A chosen, deferred (DEBT P50).
+
+## 2026-10-19 — agent (Claude Opus) — P56 first `backend-unit` failure (D65)
+
+- Run 39214813315 (tag `fasttrack-deploy-20261019T0715Z`, 310cc0e1): `backend-unit` failed 2
+  tests and deploy was skipped. Branch `fasttrack/ci-fix` from 310cc0e1.
+- **`test_clean_record_produces_no_failures`: environment, not data.** The gate output is
+  `unsupported CI flow: event='push' base='' ref='fasttrack-deploy-20261019T0715Z'`.
+  `run_gate` copied `os.environ`, so the runner's tag-push context reached
+  `required_artifacts.resolve_tier_and_branch`, which correctly fails closed. Locally no
+  `GITHUB_*` is set, so the gate saw the issue tier. pr.yml and release.yml use supported events,
+  which is why this never showed before. Reproduced in a fresh clone by setting the tag-push
+  env. Fix: `gate_env()` (D65.1). New tests: env pinning, plus a regression that runs the raw
+  gate under the tag-push env (asserts FAIL, so the env really reaches it) and `run_gate`
+  (asserts PASS).
+- **`test_every_row_provenance_resolves`: environment plus a latent resolver gap. Not the
+  branch cleanup.** The record ids `f6c0630567443eb4` / `702867bf541e1fcd` are record digests,
+  not SHAs, so `git cat-file` on them always failed. The cited commits are `d408041c` and
+  `62a70cec` (PR #1472). Their head branch was deleted at merge on 2026-09-01
+  (`head_ref_deleted` event), not today. Locally they are not in the object store, not in any
+  reflog and not unreachable. On GitHub, `gh api commits/<sha>` finds both, and
+  `git ls-remote origin` shows `62a70cec refs/pull/1472/head` (d408041c is its parent). A
+  complete clone gets neither, so the resolver said MISMATCH. The shared local repo is shallow
+  (since 2026-10-18 21:42), so the P55 local run took the MISSING_SOURCE path. Fix: D65.2.
+- **Fresh-clone reproduction.** `git clone --no-local` of `origin/fasttrack/optimize-product`
+  into /private/tmp/claude-501/ci-clone (not shallow), Python 3.12.9 venv with
+  `backend[dev] -c constraints.txt`, contracts `pnpm install`, no `DATABASE_URL`, tag-push
+  `GITHUB_*` env.
+  - At 310cc0e1: both tests fail, as in CI.
+  - At ci-fix with no archive fetch: 22/22 pass in the two files.
+  - With `JULI_REQUIRE_ARCHIVED_COMMITS=1` and no fetch: fails, naming the refspec.
+  - After the workflow's fetch step (`refs/pull/1472/head -> refs/archive/pull-1472-head`) with
+    `REQUIRE=1`: 22/22 pass, and the 2 rows are RESOLVED with the digest checked.
+- **Full no-DB suite**, same clone and deploy configuration: **7537 passed, 245 skipped,
+  2 xfailed, 3 failed in 77 min 49 s**. The laptop was at load 8–16, with another pytest running.
+  The 3 failures were all pytest-timeout: `test_ratchets::test_baseline_captures_394_suppression_identities`
+  and 2 in `test_status_record_gate`. They did not fail because of the change. Re-run:
+  `test_ratchets.py` + `test_status_record_gate.py` gave 59 passed, 1 skipped. The 3 took
+  25/16/31 s at base 310cc0e1 against 11/11/26 s on ci-fix under the same load. DEBT P55's
+  re-run advice applies.
+- ruff check + format clean. `actionlint` clean. No branch restored, no ref pushed, nothing merged.

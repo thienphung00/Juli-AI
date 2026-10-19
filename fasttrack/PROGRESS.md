@@ -355,6 +355,13 @@ Reason: owner grill 2026-10-18; the pages must promise only what the product doe
 | P50-E Terms-change e-mail via the SMTP mailer (one-off task) | D68.8 | done (3f546f54); owner runs it after deploy | agent (Opus) |
 | Owner: deploy tag, then `python -m juli_backend.services.ops.terms_notice --sent-list PATH` (dry run) and `--send` | D68.8 | todo | owner |
 
+## P56 — first `backend-unit` deploy-gate failure fixed (D65, 2026-10-19)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Gate sweep runs every gate under one pinned CI-flow context (`gate_env`); tag-push regression test | D65.1 | done on branch `fasttrack/ci-fix` (not merged) | agent (Opus) |
+| Dissolved PR #1472 commits declared with their archive ref; deploy job fetches `refs/pull/1472/head` and requires the rows to resolve | D65.2 | done on branch `fasttrack/ci-fix` | agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
