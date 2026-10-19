@@ -2115,3 +2115,14 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
 - Merge fix: `services/privacy/export.py` added to the users.phone reviewed list (export copies the seller's own value, NULL as null).
 - Known red, pre-existing and unrelated: 7 tests in test_agent_workflow_task_wiring.py need a database URL locally.
 - Not done: check.sh on the merged branch (needs CHECK_DATABASE_URL); see DEBT P50 (Supabase Auth user deletion is the one live promise gap). Next: owner deploy tag, then terms_notice dry run and --send.
+
+## 2026-10-19 · P50 · merged into optimize-product (Opus 5.5)
+
+- D60 was taken on optimize-product (P51) and D65/D67 on open branches; P50's decision renumbered **D68** (17e00f0b).
+- The deploy gate's full unit suite (`pytest tests/unit -m "not live"`, no database) found 6 P50 failures the
+  agents' runs missed; fixed in 132cc369: the nightly `privacy_account_purge` was never imported by
+  `workers/tasks/__init__.py` (beat would have dispatched it into nothing); core→services and deep imports;
+  a `noqa:E501`; `reconcile --write` (zero-assertion layer unchanged at 49); surface inventory (+5 `/v1/me` routes).
+- Gate suite on the P50 branch: 7580 passed, 5 failed — all five `pytest-timeout` (>30 s) under machine load,
+  63/63 green when re-run alone. Landing 767/767, demo 1199/1199 + tsc on the merged tree.
+- Supabase Auth deletion: option A chosen, deferred (DEBT P50).
