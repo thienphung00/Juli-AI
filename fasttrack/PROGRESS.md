@@ -379,6 +379,15 @@ Reason: owner grill 2026-10-18; the pages must promise only what the product doe
 | D Simulation harness + workflow tests; `celery_unit_queues` comment fix | D66.6 | done on branch `fasttrack/rollback-fix` | agent (Opus) |
 | E Runbook (VI) incl. one-time live drill | D66 | `docs/runbooks/rollback-runbook.md`; drill not run | owner |
 
+## P59 — Search Inventory 12019008 no longer wedges bootstrap (D69, 2026-10-19)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Deleted / draft products not sent to Search Inventory; unknown status kept | D69.1 | done on branch `fasttrack/inventory-ids` (not merged) | agent (Opus) |
+| 12019008 page bisected; rejected ids skipped + logged; 10-call cap + own 10/60 s bucket; other errors still raise | D69.2–4 | done on branch `fasttrack/inventory-ids` | agent (Opus) |
+| TikTok exceptions picklable (Celery result backend) | D69.5 | done on branch `fasttrack/inventory-ids` | agent (Opus) |
+| Owner: merge, deploy tag, then check the VPS log for `shop_bootstrap_fast_done` / `sync_inventory_product_skipped` | D69 | todo | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

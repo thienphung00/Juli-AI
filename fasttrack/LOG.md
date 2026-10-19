@@ -2276,3 +2276,51 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   pytest PASS (231 files: 3394 passed, 2 skipped, 1 xfailed). **check.sh: OK**.
 - Owner steps: runbook §7 (deploy, then delete `juli/web/production` + IAM ARN, remove the
   unit and `/etc/juli/web.env` on the VPS) and the live drill in §6. Not run.
+
+## 2026-10-19 — agent (Claude Opus) — P59 Search Inventory 12019008 wedges bootstrap (D69)
+
+- Branch `fasttrack/inventory-ids` from `fasttrack/optimize-product` `98b36adf` (the deployed
+  release, so line numbers match the 11:52 UTC log). P59 / D69 were free.
+- **Root cause confirmed.** `orchestrate._synced_product_ids_fn` returned every non-empty
+  `tiktok_product_id` from `ProductsRepo.list` with no status check. `sync_products` asks Search
+  Products with the default status `ALL`, so deleted and draft products are stored too (their raw
+  TikTok `status` lands in `products.status` via the ETL). `sync_inventory` sent them 30 per page.
+  Search Inventory refuses the whole request when one id is not accepted (12019008).
+  `sync_inventory` re-raises (#1948), the bootstrap fast phase fails, `fast_done_at` stays unset and
+  the 15-min fan-out retries forever. The path was first reached after P58 fixed the cipher. The
+  bundled OAS lists the product status enum but not which statuses Search Inventory accepts; the
+  production shop's rejected ids are unknown (no live calls).
+- **Pickling.** `TikTokAPIError.__init__(code, message, request_id)` calls
+  `super().__init__("[code] message")`, so `args` is one string and the default reduce replays
+  `cls("[code] message")`, a TypeError on unpickle. That is the Celery
+  `UnpickleableExceptionWrapper`. `TransportGuardError` and both pagination errors (keyword-only
+  constructors) had the same defect; all four now reduce over their constructor arguments.
+- Fix per D69. Code: `workers/services/polling/sync.py` (constants + `inventory_searchable_status`
+  ~:449–497, `_InventoryFetcher` :499, `sync_inventory` page loop + all-rejected guard ~:1050–1100,
+  `SyncOutcome.skipped_product_ids` :106), `orchestrate.py` :445 (status filter + log),
+  `integrations/tiktok/exceptions.py` :40 / :90, `client.py` :102 / :142.
+- **Rate limit.** Main page calls are unchanged (the step still takes one token for all its
+  pages, as before). Isolation calls draw from a separate `...inventory/search:isolate` bucket
+  (10 / 60 s) and a 10-call per-step cap. Worst case for one rejected id in 30 is exactly 10 calls
+  (checked over all 30 positions); an all-rejected page would need 58 and stops at 10.
+- `services/execution/inventory_leakage.py` calls `InventoryResource.search(sku_ids=...)` only, on
+  the sandbox write path, no product ids and no poll: not affected, not changed.
+- Tests: new `tests/unit/test_inventory_rejected_product_ids.py` (39): status filter (deleted /
+  draft out, every other and unknown status kept, the repo-backed id source + its log), one
+  rejected id in 30 at five positions and at all 30, mixed pages, an all-rejected page beside a good
+  page (skipped, cap honoured), every id rejected still raises, three non-12019008 errors raise
+  without bisecting, an error mid-bisection raises, own bucket vs step bucket, exhausted isolation
+  bucket (one refused acquire, no extra calls), step-bucket refusal, skip log fields, pickle round
+  trips (6 classes + `error_from_response`). #1948's `test_raises_instead_of_swallowing_api_error`
+  and `test_raises_instead_of_discarding_a_non_dict_response` unchanged and green.
+- Verification: ruff + format clean, mypy clean on the touched modules (33 files). No-DB unit
+  suite (`pytest tests/unit -m "not live"`, juli venv, PYTHONPATH pinned): 7689 passed, 245
+  skipped, 2 xfailed, 27 failed — all 27 `test_agent_events_contract.py` (fresh worktree had no
+  `node_modules`); after `pnpm install` that file alone: 37 passed. Integration
+  `test_inventory_poll_etl_upsert.py` + `test_fujiwa_polling_sync_state_e2e.py` on the throwaway
+  DB: 4 passed. `fasttrack/check.sh --since origin/main` (Homebrew Postgres 16 on :55441, UTC,
+  removed after): migrations PASS (094 head), isolation 12 passed, gitleaks PASS, ruff PASS (543
+  files), pytest PASS (242 files: 3580 passed, 2 skipped, 1 xfailed). **check.sh: OK**.
+- Owner after deploy: grep the worker journal for `sync_inventory_product_skipped`,
+  `sync_inventory_products_excluded_by_status`, `shop_bootstrap_fast_done`,
+  `bootstrap_shop_failed` and `12019008` (DEBT P59 first item).

@@ -1534,3 +1534,42 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   Proven locally by `tests/unit/test_rollback_release_simulation.py` (the real scripts
   against stubbed systemctl / systemd-run / journalctl / nginx / curl). The live drill is
   the owner's (runbook §6). Work: P57.
+
+- **D69** — Search Inventory's 12019008 no longer wedges a shop's sync (owner, 2026-10-19,
+  approved fast-track fix of the production log of 11:52 UTC, release `98b36adf`:
+  `bootstrap_shop`'s fast phase failed every 15 min at the inventory step with
+  `[12019008] ... product_ids ... must contain product IDs accepted by this endpoint`).
+  The vendor rejects the whole request when one id in it is not accepted, and
+  `sync_inventory` re-raises by design (#1948), so `fast_done_at` was never set.
+  1. **Deleted and draft products are not sent.** `_synced_product_ids_fn` drops products
+     whose `products.status` is `DELETED` or `DRAFT` (case-insensitive) and logs
+     `sync_inventory_products_excluded_by_status` with counts. The enum is the bundled 202309
+     OAS (`tts-openapi-guide`, `references/oas/paths/product.json`: DRAFT, PENDING, FAILED,
+     ACTIVATE, SELLER_DEACTIVATED, PLATFORM_DEACTIVATED, FREEZE, DELETED). The OAS does not say
+     which statuses Search Inventory accepts, so only the two that cannot hold stock are
+     excluded. Every other status, and an empty or unknown one, is kept.
+  2. **A rejected page is bisected.** Halves are retried recursively until each rejected id
+     stands alone. A half whose sibling's answer already proves it holds the rejected id is not
+     re-called, so one rejected id in a page of 30 costs at most 10 extra calls. Each rejected
+     id is logged `sync_inventory_product_skipped` (`shop_id`, `product_id`, `error_code`) and
+     the rest of the page syncs. `SyncOutcome.skipped_product_ids` counts skipped ids and is
+     in `poll_step_outcome`; it does not change `ok`.
+  3. **The extra calls are bounded twice.** At most 10 per step (`INVENTORY_BISECT_MAX_CALLS`).
+     Each also takes a token from its own rate-limiter bucket
+     (`/product/202309/inventory/search:isolate`, 10 / 60 s). A separate bucket on purpose:
+     drawing from the step's bucket would exhaust it after one bad page, and the next poll or
+     bootstrap within the minute would be skipped or made to sleep by
+     `_backoff_if_rate_limited`. The first refusal stops bisection for the step without
+     another `acquire` (a refused `acquire` still INCRs Redis). Ids left unresolved then are
+     skipped as a batch (`sync_inventory_batch_unresolved`), not raised; the snapshot repeats
+     every cycle.
+  4. **Everything else still raises.** Any other `TikTokAPIError`, a pagination error and a
+     non-dict response raise as before (#1948's two tests unchanged). A step where not one call
+     was accepted also raises the first 12019008: that is the #1948 shape (a request the
+     endpoint refuses outright), not "a few bad ids".
+  5. **TikTok exceptions pickle.** `TikTokAPIError` (and subclasses), `TransportGuardError`
+     and the two `TikTokPaginationError`s define `__reduce__` over their constructor
+     arguments, so Celery's result backend stores the real error instead of an
+     `UnpickleableExceptionWrapper`.
+  `services/execution/inventory_leakage.py` calls Search Inventory with `sku_ids` only, outside
+  the poll; it is unaffected and unchanged. Work: P59.
