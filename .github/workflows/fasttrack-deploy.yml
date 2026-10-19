@@ -268,6 +268,7 @@ jobs:
     timeout-minutes: 45
     env:
       PYTHONUNBUFFERED: "1"
+      JULI_REQUIRE_ARCHIVED_COMMITS: "1"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -279,6 +280,18 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      # P56, D65: two negative-dataset rows cite commits a squash-merge dissolved
+      # (PR #1472). No branch or tag reaches them, so even fetch-depth 0 does not
+      # bring them; GitHub keeps them under refs/pull/1472/head. Fetch the declared
+      # archive refs into refs/archive/* so those rows resolve with their digest
+      # checked, and require that they do (JULI_REQUIRE_ARCHIVED_COMMITS above).
+      - name: Fetch archived evidence refs (negative dataset)
+        run: |
+          set -euo pipefail
+          refspecs="$(python3 -c 'from eval.negative_dataset import archive_fetch_refspecs as f; print(" ".join(f()))')"
+          echo "fetching: ${refspecs}"
+          # shellcheck disable=SC2086
+          git fetch --no-tags origin ${refspecs}
       # Contract tests shell out to node + typescript in packages/contracts (same
       # install as the check job and pr.yml's test job).
       - uses: pnpm/action-setup@v6

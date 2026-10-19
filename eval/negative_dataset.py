@@ -125,6 +125,39 @@ class Resolution(Enum):
     MALFORMED = "malformed"
 
 
+#: Commits cited by a row whose branch a squash-merge dissolved, each mapped to
+#: the remote ref that still holds it (P56, D65). No branch or tag reaches them,
+#: so no clone receives them, at any depth: in a complete clone the resolver used
+#: to call them MISMATCH -- a defect that is not there -- which is what failed the
+#: first ``backend-unit`` deploy gate (fetch-depth 0). GitHub keeps every pull
+#: request's head under ``refs/pull/<n>/head`` permanently, so the evidence is
+#: still re-derivable: fetch :func:`archive_fetch_refspecs` and these rows resolve
+#: and have their digest checked like any other. Without that fetch they are
+#: MISSING_SOURCE (absent here, not wrong) -- never MISMATCH, never RESOLVED.
+#: A commit NOT listed here that is absent from a complete clone stays MISMATCH.
+ARCHIVED_COMMIT_REFS: Mapping[str, str] = {
+    # PR #1472 (feature/issue-1457-schema-mutants), squash-merged 2026-09-01 as
+    # d57939ac; its head branch was deleted at merge. 62a70cec is the PR head and
+    # d408041c its parent.
+    "d408041c6429ee189a4e92c721ed15eab5fd3b48": "refs/pull/1472/head",
+    "62a70cec5b25cd5f877867f4151894889145352b": "refs/pull/1472/head",
+}
+
+#: Local namespace the archive refs are fetched into. Under ``refs/`` but neither
+#: a branch nor a tag, so ``git log --all`` / ``rev-list --all`` walk it while
+#: nothing that lists branches or tags sees it.
+ARCHIVE_REF_NAMESPACE = "refs/archive/"
+
+
+def archive_fetch_refspecs() -> list[str]:
+    """``git fetch origin <refspec>...`` arguments that make every archived commit reachable."""
+    sources = sorted(set(ARCHIVED_COMMIT_REFS.values()))
+    return [
+        f"+{source}:{ARCHIVE_REF_NAMESPACE}{source.removeprefix('refs/').replace('/', '-')}"
+        for source in sources
+    ]
+
+
 def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -397,9 +430,13 @@ class ProvenanceResolver:
                 # else the object is absent and the row falls through to the
                 # branch below, which reports MISMATCH in a complete clone.
                 return Resolution.UNREACHABLE
-            # Nothing here at all. In a complete clone that is a real defect —
-            # the row cites a commit that does not exist. In a shallow one it is
-            # simply out of reach. Never conflate the two.
+            # Nothing here at all. A commit declared archived lives under a ref
+            # no clone fetches by default (ARCHIVED_COMMIT_REFS): absent, not
+            # wrong, whatever the depth (P56). Otherwise, in a complete clone it
+            # is a real defect -- the row cites a commit that does not exist. In
+            # a shallow one it is simply out of reach. Never conflate the two.
+            if commit in ARCHIVED_COMMIT_REFS:
+                return Resolution.MISSING_SOURCE
             return Resolution.MISMATCH if self.history_is_complete() else Resolution.MISSING_SOURCE
 
         if kind == "status_record":
