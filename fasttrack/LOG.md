@@ -2323,4 +2323,5 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   files), pytest PASS (242 files: 3580 passed, 2 skipped, 1 xfailed). **check.sh: OK**.
 - Owner after deploy: grep the worker journal for `sync_inventory_product_skipped`,
   `sync_inventory_products_excluded_by_status`, `shop_bootstrap_fast_done`,
-  `bootstrap_shop_failed` and `12019008` (DEBT P59 first item).
+  `shop_bootstrap_failed` (the event is named that way; the Celery task is `bootstrap_shop`) and
+  `12019008` (DEBT P59 first item).
