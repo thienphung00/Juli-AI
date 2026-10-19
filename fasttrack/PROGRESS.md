@@ -334,6 +334,14 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 |---|---|---|---|
 | Nine pip bumps in one constraints regeneration; pyproject / requirements floors in sync; pydantic-core deferred | D63 | done on branch `fasttrack/pip-bumps` (not merged) | agent |
 
+## P55 — deploy gates (D64, 2026-10-19)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| A Detector: imported / conftest / method / third-party assertion helpers; #1682 prior-figure claim over a recorded fixed set (106, drift 9) | D64.4 | done on branch `fasttrack/deploy-gates` (not merged) | agent (Opus) |
+| B Unit suite green with no database (wiring seam stub, 2 tests `requires_postgres`, cross-tenant stream factory, scan timeouts) | D64.2 | done on branch `fasttrack/deploy-gates` | agent (Opus) |
+| C `frontend`, `backend-unit`, `static` jobs; `deploy` needs them; `.nvmrc`; README job table | D64.1–3 | done on branch `fasttrack/deploy-gates`; first exercised by the next deploy | agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
