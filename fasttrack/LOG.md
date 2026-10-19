@@ -2105,7 +2105,7 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   pytest PASS (222 files: 3236 passed, 2 skipped, 1 xfailed). **check.sh: OK**.
 - DECISIONS' duplicate D59 left (75 mixed references; DEBT entry extended).
 
-## 2026-10-19 — agent (Claude Opus) — P56 rollback works again (D65)
+## 2026-10-19 — agent (Claude Opus) — P57 rollback works again (D66)
 
 - Branch `fasttrack/rollback-fix` from 310cc0e1, worktree `/Users/macos/juli-fasttrack-rollback`.
   No SSH, no VPS action, no AWS change.
@@ -2119,7 +2119,7 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
 - **A** `juli-web` removed from the unit dir, env templates, `fetch-secrets.sh`,
   `refresh-secrets.sh`, the IAM template, nginx and unit comments, and tests (a new test
   scans every script, unit, nginx conf and workflow). `juli-api.service` keeps its stale
-  comment (API lane path filter; DEBT P56).
+  comment (API lane path filter; DEBT P57).
 - **B** `rollback-release.sh` rewritten (sources `deploy.sh`): all-lane rollback to an earlier
   deploy, per-lane state reconstruction, back = landing → demo → api, forward = api → demo →
   landing, loopback + public checks, automatic undo, target-release units, Celery restart +
@@ -2131,7 +2131,7 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   `git checkout main`; `ROLLBACK_INTERFACE=2` gate; deploy concurrency group; public check.
 - **Found by the simulation:** `deploy.sh`'s `celery_unit_queues` read the `-Q` list from a
   comment in `juli-celery-worker.service`, so only 3 of 6 queues were ever verified (fixed,
-  D65.6); `rollback-demo-release.sh` died on a grep miss under pipefail before its
+  D66.6); `rollback-demo-release.sh` died on a grep miss under pipefail before its
   release-dir fallback (fixed).
 - **Proof.** `tests/unit/test_rollback_release_simulation.py` (31 tests, the real scripts on a
   fake release pool with stubbed systemctl / systemd-run / journalctl / nginx / curl; ~100 s

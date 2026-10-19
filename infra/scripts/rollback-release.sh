@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Roll production back (or forward) to an earlier deploy, all three lanes together,
-# without a rebuild and without touching the database (fast-track P56, D65).
+# without a rebuild and without touching the database (fast-track P57, D66).
 #
 # WHAT IS LIVE (deploy.sh's header has the full mechanics):
 #   lane     slots (loopback)  serving unit (transient)       nginx include (source of truth)
@@ -73,7 +73,7 @@
 set -euo pipefail
 
 # rollback.yml refuses a VPS clone whose script lacks this marker: an older clone runs
-# the pre-P56 script, which restarted the retired juli-web and waited for :3000.
+# the pre-P57 script, which restarted the retired juli-web and waited for :3000.
 # shellcheck disable=SC2034
 ROLLBACK_INTERFACE=2
 
@@ -298,7 +298,7 @@ install_runtime_env() {
     esac
     mkdir -p "$(dirname "${file}")" || return 1
     tmp="${file}.tmp.$$"
-    printf '# Written by rollback-release.sh (P56). Do not edit.\n%s=%s\n' "${var}" "${port}" >"${tmp}" || return 1
+    printf '# Written by rollback-release.sh (P57). Do not edit.\n%s=%s\n' "${var}" "${port}" >"${tmp}" || return 1
     mv -f "${tmp}" "${file}" || return 1
     install_release_unit "${release_dir}" "juli-${lane}" || return 1
     if [ "${lane}" = "api" ]; then
@@ -778,7 +778,7 @@ rollback_main() {
 
     # Resolve every lane before anything moves; any doubt stops the run here.
     local plan_fail=0 todo="" live tgt ahead
-    log "rollback plan (P56)"
+    log "rollback plan (P57)"
     note "live now : deploy #${anchor} ${E_SHA[anchor]:0:12} ${E_DIR[anchor]}"
     note "target   : deploy #${t} ${E_SHA[t]:0:12} ${E_DIR[t]}  (${direction}: ${order// / -> })"
     for lane in ${order}; do

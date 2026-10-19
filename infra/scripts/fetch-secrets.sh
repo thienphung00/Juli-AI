@@ -12,7 +12,7 @@
 #   juli/frontend/production -> /etc/juli/frontend.env   (OPTIONAL, see below)
 #
 # juli/web/production (/etc/juli/web.env) belonged to the retired dashboard
-# (juli-web, apps/dashboard) and is no longer read (fast-track P56, D65).
+# (juli-web, apps/dashboard) and is no longer read (fast-track P57, D66).
 #
 # Usage (on the VPS, as root):
 #   ./infra/scripts/fetch-secrets.sh

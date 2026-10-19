@@ -228,7 +228,7 @@ def test_celery_unit_queues_reads_the_real_production_worker_unit(script_text: s
 def test_celery_unit_queues_reads_the_execstart_flag_not_a_comment(
     script_text: str, tmp_path: Path
 ):
-    """P56: the real worker unit's comments quote an older `-Q` list. The parser took the
+    """P57: the real worker unit's comments quote an older `-Q` list. The parser took the
     first match, so three routed queues were never verified after a deploy."""
     func = _extract_function(script_text, "celery_unit_queues")
     unit_file = tmp_path / "worker.service"

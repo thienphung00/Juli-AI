@@ -97,7 +97,7 @@ def test_systemd_demo_matches_landing_loopback_start_pattern(systemd_demo_text: 
     """Demo and Landing run the same model: ``next start`` on a loopback port.
 
     juli-web (the retired dashboard) used to be the reference here; its unit was
-    removed in fast-track P56 (D65).
+    removed in fast-track P57 (D66).
     """
     assert not SYSTEMD_WEB_PATH.exists(), "juli-web.service is retired and must stay deleted"
     landing = _read(SYSTEMD_LANDING_PATH)

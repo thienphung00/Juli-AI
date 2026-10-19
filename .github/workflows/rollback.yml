@@ -1,10 +1,10 @@
 name: Rollback
 
-# Production rollback for the fast-track deploy layout (fast-track P56, D65).
+# Production rollback for the fast-track deploy layout (fast-track P57, D66).
 # Runs infra/scripts/rollback-release.sh on the VPS, from the canonical clone
 # ~/Juli-AI-v2 exactly as the last deploy left it. It never fetches, checks out or
 # pulls anything there: the rollback must not depend on what GitHub has now, and
-# `git checkout main` (what this file did before P56) would move the clone to frozen
+# `git checkout main` (what this file did before P57) would move the clone to frozen
 # `main`, whose scripts still restart the retired juli-web.
 #
 # What it does: moves API + Demo + Landing together to the state right after an
@@ -28,7 +28,7 @@ name: Rollback
 #     `main`, so it can be dispatched):
 #       gh workflow run rollback.yml --ref fasttrack/optimize-product \
 #         -f action=plan|rollback|verify -f target_sha=<sha or fasttrack-deploy-* tag>
-#     NEVER dispatch it with ref `main`: that runs main's pre-P56 copy of this file,
+#     NEVER dispatch it with ref `main`: that runs main's pre-P57 copy of this file,
 #     which checks the clone out at `main` and restarts juli-web.
 
 on:
@@ -149,8 +149,8 @@ jobs:
             cd ~/Juli-AI-v2
             echo "canonical clone at $(git rev-parse --short HEAD) (not moved by this workflow)"
             if ! grep -q '^ROLLBACK_INTERFACE=2$' infra/scripts/rollback-release.sh; then
-              echo "FAIL: ~/Juli-AI-v2 carries the pre-P56 rollback-release.sh (it restarts the retired" >&2
-              echo "      dashboard unit). Deploy a fast-track commit that includes P56 first." >&2
+              echo "FAIL: ~/Juli-AI-v2 carries the pre-P57 rollback-release.sh (it restarts the retired" >&2
+              echo "      dashboard unit). Deploy a fast-track commit that includes P57 first." >&2
               exit 1
             fi
             case "${ACTION}" in

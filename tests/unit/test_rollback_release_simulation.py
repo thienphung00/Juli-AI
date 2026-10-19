@@ -1,4 +1,4 @@
-"""Production rollback, proven without production (fast-track P56, D65).
+"""Production rollback, proven without production (fast-track P57, D66).
 
 Runs the real ``infra/scripts/rollback-release.sh`` (which sources the real deploy.sh
 and calls the real rollback-demo-release.sh and verify-release-assets.sh) against a

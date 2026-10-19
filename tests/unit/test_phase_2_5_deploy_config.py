@@ -26,7 +26,7 @@ RUNBOOK_PATH = REPO_ROOT / "docs/runbooks/app-review-runbook.md"
 NGINX_APP_PATH = NGINX_DIR / "app-juli.com.conf"
 NGINX_API_PATH = NGINX_DIR / "api.app-juli.com.conf"
 # The frontend on the main domain is Landing since #842; the old dashboard unit
-# (juli-web.service) and its env template were removed in fast-track P56 (D65).
+# (juli-web.service) and its env template were removed in fast-track P57 (D66).
 SYSTEMD_FRONTEND_PATH = SYSTEMD_DIR / "juli-landing.service"
 SYSTEMD_BACKEND_PATH = SYSTEMD_DIR / "juli-api.service"
 ENV_FRONTEND_PATH = SCRIPTS_DIR / "env/frontend.env.example"
@@ -118,7 +118,7 @@ def test_systemd_units_use_single_monorepo_checkout():
 
 
 def test_retired_dashboard_unit_and_env_template_are_gone():
-    """juli-web (apps/dashboard) is retired: no unit, no env template (P56, D65).
+    """juli-web (apps/dashboard) is retired: no unit, no env template (P57, D66).
 
     The owner verified on the VPS (2026-10-19) that juli-web is disabled and
     inactive and nothing answers on 127.0.0.1:3000.

@@ -1,6 +1,6 @@
-"""rollback.yml is the fast-track rollback path (fast-track P56, D65).
+"""rollback.yml is the fast-track rollback path (fast-track P57, D66).
 
-Before P56 it ran `git checkout main && git pull` in the VPS clone and then the old
+Before P57 it ran `git checkout main && git pull` in the VPS clone and then the old
 rollback script, which restarted the retired juli-web and waited for :3000 -- it had
 never run, and would have failed its health check after moving production's clone to
 frozen `main`. These tests pin the replacement: it never moves the clone, shares the

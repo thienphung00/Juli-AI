@@ -7,7 +7,7 @@
 #
 # Note: NEXT_PUBLIC_* values are baked at frontend build time (release artifacts),
 # so a change to one needs a redeploy, not a restart. juli/web/production and
-# juli-web belonged to the retired dashboard and are not read (fast-track P56, D65).
+# juli-web belonged to the retired dashboard and are not read (fast-track P57, D66).
 #
 # Usage (on the VPS, as root):
 #   ./infra/scripts/refresh-secrets.sh

@@ -513,7 +513,7 @@ jobs:
       #     systemd units it installs and the gates it runs are the versions being
       #     deployed — the property release.yml gets from `git pull` on main.
       #     release.yml starts with `git checkout main`, so it still works from a
-      #     detached clone. rollback.yml (P56) never moves the clone: it runs the
+      #     detached clone. rollback.yml (P57) never moves the clone: it runs the
       #     rollback-release.sh this deploy leaves there;
       #   - run the demo lane from the artifact built above (DEMO_ARTIFACT_TARBALL, which
       #     deploy.sh passes through to deploy-demo-release.sh) instead of downloading

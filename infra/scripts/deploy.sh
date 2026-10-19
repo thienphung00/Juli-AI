@@ -337,7 +337,7 @@ sync_celery_unit() {
 # hardcoded list here — a hardcoded list becomes the next stale thing (that is exactly
 # how #1248 happened: the routing list and the deploy's idea of it fell out of step).
 #
-# Comment lines are skipped (P56): juli-celery-worker.service's comments quote an older
+# Comment lines are skipped (P57): juli-celery-worker.service's comments quote an older
 # `-Q celery,agent_runs,credentials`, and reading the first match took that instead of
 # the ExecStart flag, so ingest_priority, ingest_backfill and content_analysis were
 # never verified.

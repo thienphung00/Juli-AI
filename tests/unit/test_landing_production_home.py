@@ -61,7 +61,7 @@ def test_landing_port_is_unique_across_every_infra_surface() -> None:
     claims: list[str] = []
     # app-juli.com.conf PROXIES to 3007 — that is #842's main-domain repoint, the
     # intended consumer of the port, not a competing bind.
-    # rollback-release.sh (P56) moves Landing between the same pair, read from deploy.sh's
+    # rollback-release.sh (P57) moves Landing between the same pair, read from deploy.sh's
     # lane_ports, and names the pair in its topology header.
     allowed = {"app-juli.com.conf", "deploy.sh", "rollback-release.sh"}
     for path in sorted((REPO_ROOT / "infra").rglob("*")):

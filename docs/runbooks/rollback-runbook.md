@@ -1,6 +1,6 @@
 # Rollback production (fast-track) — runbook cho owner
 
-P56 (D65), 2026-10-19. Script: `infra/scripts/rollback-release.sh`.
+P57 (D66), 2026-10-19. Script: `infra/scripts/rollback-release.sh`.
 Workflow: `.github/workflows/rollback.yml`. Mô phỏng (không cần production):
 `tests/unit/test_rollback_release_simulation.py`.
 
@@ -193,12 +193,12 @@ Chưa ai chạy bước này; agent không chạy.
 
 **Huỷ giữa chừng** nếu một bước FAIL: production luôn ở trạng thái "mỗi lane khoẻ" (xem
 mục 4); đi tới lại bằng bước 8. Ghi kết quả (thời gian từng bước, PASS/FAIL, bất thường)
-vào `fasttrack/LOG.md` dưới P56.
+vào `fasttrack/LOG.md` dưới P57.
 
-## 7. Việc một lần của owner sau khi merge P56
+## 7. Việc một lần của owner sau khi merge P57
 
 1. Merge `fasttrack/rollback-fix` vào `fasttrack/optimize-product`, rồi deploy như
-   thường (tag `fasttrack-deploy-*`). P56 chỉ đổi script/workflow/test/docs: deploy chỉ
+   thường (tag `fasttrack-deploy-*`). P57 chỉ đổi script/workflow/test/docs: deploy chỉ
    chuyển clone `~/Juli-AI-v2` sang SHA mới ("no deployable changed" là bình thường).
 2. Trên VPS: `grep -c ROLLBACK_INTERFACE=2 ~/Juli-AI-v2/infra/scripts/rollback-release.sh`
    → 1, rồi `--verify` → PASS.

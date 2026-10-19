@@ -1392,7 +1392,7 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `eval/quality_prior_figure_set.json` holds the layer's helper-credited members at the
      branch point 0739f4da. `reconcile --write` only prunes it. The tolerance stays at 15.
   Work: P55.
-- **D65** — Rollback works again for the fast-track layout (owner, 2026-10-19, approved
+- **D66** — Rollback works again for the fast-track layout (owner, 2026-10-19, approved
   fast-track phase; the owner verified on the VPS the same day that `juli-web` is disabled +
   inactive, nothing answers on 127.0.0.1:3000, and the Celery worker registers every
   `product_history` task).
@@ -1438,4 +1438,4 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      now check all six.
   Proven locally by `tests/unit/test_rollback_release_simulation.py` (the real scripts
   against stubbed systemctl / systemd-run / journalctl / nginx / curl). The live drill is
-  the owner's (runbook §6). Work: P56.
+  the owner's (runbook §6). Work: P57.

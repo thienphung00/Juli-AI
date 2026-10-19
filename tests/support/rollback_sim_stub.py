@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Multi-call stub for the production rollback simulation (fast-track P56, D65).
+"""Multi-call stub for the production rollback simulation (fast-track P57, D66).
 
 Symlinked into a temp ``bin/`` dir as systemctl, systemd-run, journalctl, nginx, curl,
 sleep, mv and the database tools, ahead of the real PATH. It models just enough of the

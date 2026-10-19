@@ -51,7 +51,7 @@ current_target="$(readlink -f "${DEMO_CURRENT}" || true)"
 
 if [ -n "${target}" ]; then
     # `|| true`: under pipefail a grep miss used to end the script right here, so the
-    # release-dir fallback below never ran (found by the P56 rollback simulation).
+    # release-dir fallback below never ran (found by the P57 rollback simulation).
     release_dir="$(grep " ${target}" "${HISTORY_LOG}" | tail -1 | awk '{print $3}' || true)"
     if [ -z "${release_dir}" ]; then
         release_dir="${RELEASES_ROOT}/${target}"

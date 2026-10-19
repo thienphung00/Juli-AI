@@ -30,7 +30,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_SH = REPO_ROOT / "infra" / "scripts" / "deploy.sh"
-# P56: the rollback starts its API candidate with its own systemd-run (from the target
+# P57: the rollback starts its API candidate with its own systemd-run (from the target
 # release's venv); it must launch exactly the same uvicorn flags.
 ROLLBACK_SH = REPO_ROOT / "infra" / "scripts" / "rollback-release.sh"
 API_UNIT = REPO_ROOT / "infra" / "systemd" / "juli-api.service"

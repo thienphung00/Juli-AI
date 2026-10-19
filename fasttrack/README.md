@@ -89,9 +89,9 @@ git tag fasttrack-rollback-$(date -u +%Y%m%dT%H%MZ)[-to-<sha>] origin/fasttrack/
 # or: gh workflow run rollback.yml --ref fasttrack/optimize-product -f action=plan|rollback|verify [-f target_sha=<sha>]
 ```
 
-Never dispatch `rollback.yml` with ref `main` (main's copy is the pre-P56 one). Topology,
+Never dispatch `rollback.yml` with ref `main` (main's copy is the pre-P57 one). Topology,
 failure handling, migrations and the one-time live drill:
-[`docs/runbooks/rollback-runbook.md`](../docs/runbooks/rollback-runbook.md) (P56, D65).
+[`docs/runbooks/rollback-runbook.md`](../docs/runbooks/rollback-runbook.md) (P57, D66).
 
 ## Running checks locally
 
