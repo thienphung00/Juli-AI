@@ -342,12 +342,25 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | B Unit suite green with no database (wiring seam stub, 2 tests `requires_postgres`, cross-tenant stream factory, scan timeouts) | D64.2 | done on branch `fasttrack/deploy-gates` | agent (Opus) |
 | C `frontend`, `backend-unit`, `static` jobs; `deploy` needs them; `.nvmrc`; README job table | D64.1–3 | done on branch `fasttrack/deploy-gates`; first exercised by the next deploy | agent (Opus) |
 
+## P56 — rollback works again (D65, 2026-10-19)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| A Remove `juli-web` from scripts, units, env template, IAM template; tests assert it is gone | D65.1 | done on branch `fasttrack/rollback-fix` (not merged) | agent (Opus) |
+| B `rollback-release.sh`: all-lane rollback to an earlier deploy, live health checks, PASS/FAIL summary, `--plan` / `--verify` | D65.2–4 | done on branch `fasttrack/rollback-fix` | agent (Opus) |
+| C `rollback.yml` for fast-track (tag + dispatch, no `git checkout main`, deploy concurrency group) | D65.5 | done on branch `fasttrack/rollback-fix`; first exercised by the owner | agent (Opus) |
+| D Simulation harness + workflow tests; `celery_unit_queues` comment fix | D65.6 | done on branch `fasttrack/rollback-fix` | agent (Opus) |
+| E Runbook (VI) incl. one-time live drill | D65 | `docs/runbooks/rollback-runbook.md`; drill not run | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
 
 ## Owner actions (not for agents)
 
+- P56: deploy, then delete AWS secret `juli/web/production` (only after the deploy), drop its
+  ARN from the live IAM policy, remove the `juli-web` unit + `/etc/juli/web.env` on the VPS, and run
+  the one-time rollback drill (docs/runbooks/rollback-runbook.md §6–7).
 - FastMoss REST API trial + 1,000-request minimum (P2, optional since D22).
 - Confirm Fujiwa's TikTok authorisation allows product writes (blocks P5).
 - Consent screen #2061 (launch, not this branch).
