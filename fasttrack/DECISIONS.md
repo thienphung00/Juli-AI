@@ -1410,7 +1410,8 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `apps/landing/...next`), because a deploy only builds changed lanes. A pruned release on
      the way down fails the plan; nothing is guessed. Default target: the deploy before the
      live one ("live" = the last deploy line, or the deploy a later `ROLLBACK-TO` line
-     returned to). Forward is the same operation with a newer SHA.
+     returned to), skipping releases a rollback moved back away from (a forward move or a
+     redeploy clears that mark). Forward is the same operation with a newer SHA.
   3. **The deploy's own cutover, no rebuild.** API and Landing: target on the free slot ->
      loopback checks (API `/health` + response shape; Landing HTML + real CSS/JS via
      `verify-release-assets.sh`) -> nginx include switch + reload -> `<lane>-runtime.env` and

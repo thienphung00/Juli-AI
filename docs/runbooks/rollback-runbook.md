@@ -44,9 +44,10 @@ lane đó. Ví dụ deploy B chỉ đổi Demo: quay về B nghĩa là Demo củ
 như sau B (tức là của A). Nếu trên đường dò có một release đã bị prune, script **dừng
 và không đổi gì** thay vì đoán.
 
-Mặc định (không truyền target) = deploy *trước* cái đang live. Chạy lại lần nữa thì
-lùi thêm một deploy. Muốn đi tới lại thì truyền SHA mới hơn (roll forward cũng là cùng
-một thao tác).
+Mặc định (không truyền target) = deploy *trước* cái đang live, bỏ qua release nào đã
+từng bị rollback bỏ đi (ví dụ A, B, C, rollback về B, rồi deploy D: mặc định từ D là B,
+không phải C). Chạy lại lần nữa thì lùi thêm một deploy. Muốn đi tới lại thì truyền SHA
+mới hơn (roll forward cũng là cùng một thao tác; nó xoá dấu "bị bỏ" của release đó).
 
 ## 2. Cách rollback
 
