@@ -171,6 +171,219 @@ def test_assertion_bearing_helper_is_not_a_zero_assertion_test(tmp_path: Path) -
     assert flagged == {"test_delegates_to_silent_helper"}
 
 
+def test_imported_and_method_helpers_are_resolved_by_their_bodies(tmp_path: Path) -> None:
+    """P55 (D64): a helper imported from test-support code, or an asserting method.
+
+    Each credited construct has a silent twin that must still be flagged: the
+    resolver reads the helper's *body*, so importing from a helper module, or
+    calling a method on a fixture, is not by itself evidence. Production code
+    under ``backend/src`` named ``assert_*`` is the code under test, not an
+    assertion helper, and must not be credited either.
+    """
+    _write(tmp_path, "tests/__init__.py", "")
+    _write(tmp_path, "tests/support/__init__.py", "")
+    _write(
+        tmp_path,
+        "tests/support/checks.py",
+        """
+        import pytest
+
+
+        def _inner(value):
+            if value is None:
+                pytest.fail("missing")
+
+
+        def expect_status(response, code):
+            _inner(response)
+            return response
+
+
+        def log_status(response):
+            print(response)
+        """,
+    )
+    _write(
+        tmp_path,
+        "tests/conftest.py",
+        """
+        def assert_round_trips(seen, bound):
+            assert seen <= bound
+
+
+        def describe(seen):
+            return str(seen)
+        """,
+    )
+    _write(
+        tmp_path,
+        "backend/src/app/guards.py",
+        """
+        def assert_allowed(method):
+            assert method != "DELETE"
+        """,
+    )
+    _write(
+        tmp_path,
+        "tests/test_delegation.py",
+        """
+        import numpy.testing as npt
+        from numpy.testing import assert_allclose
+
+        from app.guards import assert_allowed
+        from conftest import assert_round_trips, describe
+        from tests.support import checks
+        from tests.support.checks import expect_status, log_status
+
+
+        class Probe:
+            def once(self, path):
+                response = fetch(path)
+                assert response.ok, path
+                return response
+
+            def warm(self, path):
+                self.once(path)
+                return self.once(path)
+
+            def quiet(self, path):
+                return fetch(path)
+
+
+        def test_imported_helper_asserts():
+            expect_status(fetch("/a"), 200)
+
+
+        def test_imported_helper_is_silent():
+            log_status(fetch("/a"))
+
+
+        def test_module_attribute_helper_asserts():
+            checks.expect_status(fetch("/a"), 200)
+
+
+        def test_module_attribute_helper_is_silent():
+            checks.log_status(fetch("/a"))
+
+
+        def test_conftest_helper_asserts():
+            assert_round_trips(count(), 4)
+
+
+        def test_conftest_helper_is_silent():
+            describe(count())
+
+
+        def test_method_helper_on_a_fixture_asserts(probe):
+            probe.warm("/v1/ops/me")
+
+
+        def test_method_helper_on_a_fixture_is_silent(probe):
+            probe.quiet("/v1/ops/me")
+
+
+        def test_third_party_assertion_function():
+            assert_allclose(compute(), 1.0)
+
+
+        def test_third_party_assertion_attribute():
+            npt.assert_allclose(compute(), 1.0)
+
+
+        def test_calls_production_code_named_assert():
+            assert_allowed("GET")
+        """,
+    )
+
+    findings = qd.scan_tree(tmp_path, roots=("tests",))
+    flagged = _symbols(findings, qd.RULE_ZERO_ASSERTION)
+
+    assert flagged == {
+        "test_imported_helper_is_silent",
+        "test_module_attribute_helper_is_silent",
+        "test_conftest_helper_is_silent",
+        "test_method_helper_on_a_fixture_is_silent",
+        "test_calls_production_code_named_assert",
+    }
+
+
+def test_the_ops_round_trip_tests_are_credited_through_their_helper() -> None:
+    """P55: the nine tests that moved the prior-figure layer are not vacuous.
+
+    Each asserts only through ``_check`` (which asserts the round-trip bound)
+    and ``Probe.warm`` -> ``Probe.once`` (which asserts the status), so the
+    detector must credit them, while none carries a direct assertion -- which
+    is exactly why the old-detector layer counts them.
+    """
+    path = REPO_ROOT / "tests" / "integration" / "test_ops_round_trips.py"
+    tree = qd._parse(path)
+    helpers = qd.HelperResolver(REPO_ROOT).for_tree(tree, qd._rel(REPO_ROOT, path))
+    assert {"_check", "once", "warm"} <= helpers.names
+    assert {"once", "warm"} <= helpers.methods
+
+    helper_only = {
+        name
+        for name, func in qd._iter_tests(tree)
+        if not any(qd._direct_assertion(n) for n in qd._body_nodes(func))
+        and any(helpers.credits(n) for n in qd._body_nodes(func))
+    }
+    assert helper_only == {
+        "test_ops_me",
+        "test_ops_overview",
+        "test_ops_settings",
+        "test_ops_simulation",
+        "test_ops_view_session",
+        "test_ops_view_as",
+        "test_ops_rules",
+        "test_ops_fleet_pages",
+        "test_ops_shop_pages",
+    }
+    assert not {f.symbol for f in qd.scan_file(REPO_ROOT, path)} & helper_only
+
+
+def test_prior_figure_set_excludes_helper_newcomers_but_not_vacuous_ones(tmp_path: Path) -> None:
+    """P55: the fixed-set claim cannot be moved by helper-style tests, only by real ones.
+
+    A helper-credited test absent from the recorded set leaves the claim; a
+    genuinely assertion-free newcomer stays in it (and in the headline), so the
+    fixed set never hides a vacuous test.
+    """
+    _write(
+        tmp_path,
+        "tests/test_old.py",
+        """
+        def _assert_ok(value):
+            assert value
+
+
+        def test_old_helper_style():
+            _assert_ok(compute())
+
+
+        def test_new_helper_style():
+            _assert_ok(compute())
+
+
+        def test_new_vacuous():
+            compute()
+        """,
+    )
+    identities = qd.reconciliation_identities(tmp_path, roots=("tests",))
+    recorded = frozenset({("tests/test_old.py", "test_old_helper_style")})
+
+    prior_set = qd.prior_figure_identities(identities, recorded)
+
+    assert identities[qd.PRIOR_FIGURE_LAYER] == {
+        ("tests/test_old.py", "test_old_helper_style"),
+        ("tests/test_old.py", "test_new_helper_style"),
+        ("tests/test_old.py", "test_new_vacuous"),
+    }
+    assert prior_set == {
+        ("tests/test_old.py", "test_old_helper_style"),
+        ("tests/test_old.py", "test_new_vacuous"),
+    }
+
+
 def test_weak_and_mock_return_classes_are_ratchet_not_blocking(tmp_path: Path) -> None:
     """``asserts_mock_return`` and ``weak_assertions_only`` never block.
 
@@ -613,10 +826,17 @@ def test_no_composite_score_is_emitted(tmp_path: Path) -> None:
 #: #1682: how far the `and_no_mock_assert_called` layer may sit from the prior
 #: ~97 reading before the reconciliation stops being a claim about the same
 #: measurement. It is a count of tests, not a ratio, so it does not move with
-#: the corpus; today the gap is 10 (97 -> 107).
+#: the corpus; today the gap is 9 (97 -> 106, over the recorded fixed set, P55).
 PRIOR_FIGURE_LAYER_DRIFT = 15
 
 
+#: Two full corpus scans (~6,800 functions, plus the imported helper modules
+#: P55 resolves) take most of pytest's default 30 s on their own; the same
+#: allowance and reason as tests/unit/test_quality_reconcile.py.
+CORPUS_SCAN_TIMEOUT = pytest.mark.timeout(180)
+
+
+@CORPUS_SCAN_TIMEOUT
 def test_reconciliation_reproduces_from_the_tree_it_describes() -> None:
     """The recorded reading is re-derived here, not taken on trust.
 
@@ -687,13 +907,37 @@ def test_reconciliation_reproduces_from_the_tree_it_describes() -> None:
     # percentage points between 4,798 and 6,000. The corpus-independent form is
     # the direct one: the two readings of the same layer differ by a number of
     # tests, and that number is the claim.
-    prior_layer = reconciliation["layers"][reconciliation["priorFigureLayer"]]
-    drift = abs(prior_layer - qd.REPORTED_ZERO_ASSERTION_TESTS)
+    #
+    # P55 (D64): "a set that does not grow with the corpus" was an observation,
+    # not a property -- the layer is the OLD detector's reading, so every new
+    # test that asserts only through a helper lands in it (the nine
+    # `test_ops_round_trips.py` tests took it 106 -> 115 with the headline exact).
+    # The claim is now evaluated over the fixed set it is about: the layer less
+    # the helper-credited tests absent from `eval/quality_prior_figure_set.json`
+    # (the layer's helper-credited members at the fast-track branch point).
+    # The tolerance is untouched. Regenerate with
+    # `python -m eval.quality_detectors reconcile --write`, which prunes departed
+    # identities and never adds one.
+    identities = qd.reconciliation_identities(REPO_ROOT, roots=qd.TEST_ROOTS)
+    recorded = qd.load_prior_figure_set()
+    helper_credited = qd.helper_credited_identities(identities)
+    stale = recorded - helper_credited
+    assert not stale, (
+        f"{len(stale)} recorded prior-figure identities are no longer helper-credited tests "
+        f"in this tree (e.g. {sorted(stale)[:3]}); re-run `reconcile --write` to prune them"
+    )
+    prior_set = qd.prior_figure_identities(identities, recorded)
+    assert len(prior_set) == reconciliation["priorFigureSet"], (
+        "the committed prior-figure set count no longer reproduces; re-run `reconcile --write`"
+    )
+    assert prior_set <= identities[reconciliation["priorFigureLayer"]]
+    drift = abs(len(prior_set) - qd.REPORTED_ZERO_ASSERTION_TESTS)
     assert drift <= PRIOR_FIGURE_LAYER_DRIFT, (
         f"the prior ~{qd.REPORTED_ZERO_ASSERTION_TESTS} figure no longer reconciles at the "
-        f"layer it was taken: that layer reads {prior_layer}, a difference of {drift} tests. "
-        "Neither number may be assumed correct until it does. This is a claim about a fixed "
-        "set of tests, so corpus growth is not an explanation for it moving."
+        f"layer it was taken: over the recorded set that layer reads {len(prior_set)}, a "
+        f"difference of {drift} tests. Neither number may be assumed correct until it does. "
+        "This is a claim about a fixed set of tests, so corpus growth is not an explanation "
+        "for it moving."
     )
 
     # #1535: the three assertions below are the ones whose absence let this
@@ -708,7 +952,6 @@ def test_reconciliation_reproduces_from_the_tree_it_describes() -> None:
     # AC1 (#1535): the final layer must be the headline as a SET, not merely as a
     # count. Two equal counts over different tests would be a coincidence dressed
     # as an explanation, and a count-only check cannot tell the two apart.
-    identities = qd.reconciliation_identities(REPO_ROOT, roots=qd.TEST_ROOTS)
     zero_assertion_ids = {
         (f.path, f.symbol) for f in scan.findings if f.rule_code == qd.RULE_ZERO_ASSERTION
     }
@@ -718,6 +961,7 @@ def test_reconciliation_reproduces_from_the_tree_it_describes() -> None:
     )
 
 
+@CORPUS_SCAN_TIMEOUT
 def test_reconciliation_layers_are_derived_and_every_one_matches_the_committed_value() -> None:
     """AC2 (#1535). Every layer is recomputed, not just the last one.
 
@@ -740,6 +984,7 @@ def test_reconciliation_layers_are_derived_and_every_one_matches_the_committed_v
     assert counts == sorted(counts, reverse=True)
 
 
+@CORPUS_SCAN_TIMEOUT
 def test_reconciliation_note_states_no_stale_corpus_layer_or_ratio_figure() -> None:
     """AC3 (#1535). Every figure the prose states must be the current one.
 
@@ -758,12 +1003,10 @@ def test_reconciliation_note_states_no_stale_corpus_layer_or_ratio_figure() -> N
     then_rate = 100 * qd.REPORTED_ZERO_ASSERTION_TESTS / qd.REPORTED_TEST_FUNCTIONS
     now_rate = 100 * prior_layer / qd.MEASURED_TEST_FUNCTIONS
     helper_credited = (
-        layers_by_name["and_no_unittest_self_assert"]
-        - layers_by_name["and_no_same_file_asserting_helper"]
+        layers_by_name["and_no_unittest_self_assert"] - layers_by_name["and_no_asserting_helper"]
     )
     raise_credited = (
-        layers_by_name["and_no_same_file_asserting_helper"]
-        - layers_by_name["and_no_raise_assertionerror"]
+        layers_by_name["and_no_asserting_helper"] - layers_by_name["and_no_raise_assertionerror"]
     )
 
     for figure in (
@@ -771,7 +1014,9 @@ def test_reconciliation_note_states_no_stale_corpus_layer_or_ratio_figure() -> N
         f"corpus of {qd.MEASURED_TEST_FUNCTIONS:,} test functions",
         f"({qd.MEASURED_TEST_MODULES} test modules)",
         f"layer reads {prior_layer} today",
-        f"a difference of {abs(prior_layer - qd.REPORTED_ZERO_ASSERTION_TESTS)} tests",
+        f"less the {prior_layer - reconciliation['priorFigureSet']} helper-credited tests",
+        f"it reads {reconciliation['priorFigureSet']}, a difference of "
+        f"{abs(reconciliation['priorFigureSet'] - qd.REPORTED_ZERO_ASSERTION_TESTS)} tests",
         f"({then_rate:.2f}% then, {now_rate:.2f}% now)",
         f"gap between {prior_layer} and {qd.MEASURED_ZERO_ASSERTION_TESTS} "
         f"is {helper_credited} tests",

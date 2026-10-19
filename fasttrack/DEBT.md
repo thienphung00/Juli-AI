@@ -1109,12 +1109,14 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `test_ops_d28_terms`, `test_ingest_gateway`, `test_p23_product_history`, `test_ops_d27`); only
   `test_trial_signups` reads the head from the tree. P50-B re-pins them to 094; make them read
   the head the same way (one helper) after P50 merges.
-- [ ] `test_test_quality::test_reconciliation_reproduces_from_the_tree_it_describes` stays red:
+- [x] ~~`test_test_quality::test_reconciliation_reproduces_from_the_tree_it_describes` stays red:
   the `and_no_mock_assert_called` layer reads 115 against the prior ~97, a drift of 18 above the
   #1682 tolerance of 15. The 9 new tests are `tests/integration/test_ops_round_trips.py`'s
   round-trip tests, which assert through the same-file `_check` helper that layer does not
   credit (the headline, 49, is unchanged). Owner: raise `PRIOR_FIGURE_LAYER_DRIFT` with that
-  reason, or retire the #1682 claim; not done here because it loosens a check.
+  reason, or retire the #1682 claim; not done here because it loosens a check.~~ Repaid P55 (D64):
+  the claim is evaluated over a recorded fixed set (`eval/quality_prior_figure_set.json`),
+  reads 106 (drift 9 ≤ 15, tolerance unchanged).
 - [ ] `python -m eval.ratchets check` (pr.yml) still fails on 284 `unused_ts_exports` identities
   (apps/landing, apps/connector, apps/demo: fast-track UI work) and 1 `broken_doc_refs`
   (`apps/landing/src/content/blog/README.md` → `/path`). `test_ratchets` passes (it checks
@@ -1128,6 +1130,8 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   pr.yml validate gates are retired.
 - [ ] DECISIONS has two **D59** entries (blog tiers, 2026-10-18; Gate C, 2026-10-18). Renumber
   one (and its references) in a docs pass.
+  P55 left it: 75 `D59` references across `fasttrack/*.md` and the apps mix the two, so it is
+  not a trivially safe rename.
 - [ ] `tests/unit/test_fujiwa_poll_beat.py`, `test_worker_impact_reader_schedule.py`,
   `test_workflow_run_reaper.py` and `test_shop_diagnosis_daily.py` still read
   `celery_app.tasks` in-process, so they can pass on another module's import. Only the beat
@@ -1163,3 +1167,25 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   vs 1f7dfe64 (the 11 new broken doc links were fixed).
 - [ ] `apps/demo/next.config.ts` comment still says "matches juli-web / App Review" — left so
   `apps/demo` stays byte-identical in this change.
+
+## P55 — deploy gates (2026-10-19, D64)
+
+- [ ] `packages/theme` tests are not in the `frontend` deploy gate: 2 of 79 are stale against the
+  fast-track demo (`run-surface-tokens.test.ts` reads the deleted
+  `apps/demo/src/lib/run-surface/tokens.ts`, and the dark-palette sweep finds `#121214` in
+  `apps/demo/src/app/auth-screen.css`). Repay: owner decides whether ADR-102's run-surface /
+  no-dark-palette contract still holds for the fast-track demo; update the tests (or the CSS),
+  then add `pnpm --filter @juli/theme test` back to the job.
+- [ ] Demo vitest has load-dependent races that showed on a loaded laptop (load avg 9–24) and
+  passed alone and in a later full run: `home.test.tsx` (mock-data notice),
+  `connect-shop-page.test.tsx` (reads `fetchSpy.mock.calls[0]` right after the heading
+  renders), and two 5 s timeouts (`rules-editor-off-api`, `ops-p23-diag`). If the `frontend`
+  job flakes on a deploy, "Re-run failed jobs" re-runs it and `deploy` only. Repay: await the
+  fetch in `connect-shop-page.test.tsx` (`await waitFor(() => expect(fetchSpy).toHaveBeenCalled())`)
+  and give the two editor tests an explicit timeout.
+- [ ] `test_action_card_refresh_cooldown::test_slow_backing_store_does_not_stall_the_event_loop`
+  failed once under heavy load (the #2058 contention flake; its bound is `wait_for` 0.6 s) and
+  passed 3/3 alone. Same re-run advice.
+- [ ] The prior-figure fixed set only shrinks (`reconcile --write` prunes; it never adds). If a
+  recorded helper-style test is rewritten with a direct `assert`, the set loses it and the claim
+  drops by one, as it should. Adding an identity is a hand edit that review must see.

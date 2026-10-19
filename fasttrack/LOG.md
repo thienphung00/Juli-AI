@@ -2049,3 +2049,58 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   default `origin/main` (212 files, 3098 passed).
 - Owner: close Dependabot PRs #2124, #2122, #2121, #2119, #2117, #2115, #2114, #2111, #2112
   (applied here) and #2118 (pydantic-core, cannot apply alone) after the merge.
+
+## 2026-10-19 — agent (Claude Opus) — P55 deploy gates (D64)
+
+- Branch `fasttrack/deploy-gates` from efb1df92.
+- **A, #1682 (option A, owner).** Root cause: the headline (49) already credited same-file
+  helpers. The red check is the *prior-figure* layer `and_no_mock_assert_called`, which is by
+  definition the old detector (no helper credit). The 9 `test_ops_round_trips.py` tests assert
+  only through `_check` (and `Probe.warm` → `Probe.once`), so they took that layer from 106 at
+  the branch point 0739f4da to 115. The added set is exactly those 9, derived on both trees.
+  Detector: `HelperResolver` follows imports into `conftest.py` and `tests/` packages and
+  judges helpers by their bodies. It credits same-file class methods on any receiver and
+  third-party `assert_*` / `expect_*`. `backend/src` is resolved as non-helper code, so
+  production `assert_*` stays uncredited. A first cut without that rule credited 3 tests that
+  call `assert_agent_broker_is_durable` / `assert_allowed`; caught by an old-vs-new set diff and
+  fixed. Layer renamed `and_no_asserting_helper`. Counts before → after on this tree:
+  493·130·115·115·53·49 → 493·130·115·115·53·49 (headline 49 → 49; the same on the branch
+  point). No existing finding was dropped or added. The claim now runs over the fixed set
+  `eval/quality_prior_figure_set.json` (53 helper-credited identities at 0739f4da): 115 − 9
+  newcomers = **106, drift 9 ≤ 15** (tolerance unchanged). `reconcile --write` re-derived the
+  corpus figures (6,830 functions / 660 modules) and the prose, and prunes the set (never
+  adds). New synthetic tests: imported, module-attribute, conftest, method-on-fixture and
+  third-party helpers are credited; each silent twin and a production `assert_*` stays
+  flagged; a helper-style newcomer leaves the fixed set while a vacuous newcomer stays in it;
+  the 9 ops tests are helper-credited and not flagged. 3 corpus-scan tests get
+  `timeout(180)` (same reason as `test_quality_reconcile.py`).
+- **B, no-database unit suite.** First run: 9 failed. Fixed:
+  - `test_agent_workflow_task_wiring` (7). 5 needed only a session *factory*: an autouse
+    stand-in replaces `_ensure_session_factory`, which no longer builds an engine from an empty
+    `DATABASE_URL` or registers the global factory. 2 (`TestTaskBodiesCallRealRunnerMethods`)
+    really open a sync ledger session on `DATABASE_URL` and are now `requires_postgres`.
+  - `test_cross_tenant_probe` (1): the run-events stream factory is bound to the test engine.
+    With Postgres, the 404 used to come from the row being absent there. A swap of the run to
+    tenant A's own shop no longer 404s, so the test now measures the tenant check.
+  - `test_credentials_in_url_guard`: `timeout(120)` on its two whole-tree scans only.
+  - The 9th failure (`test_action_card_refresh_cooldown` slow-store test, #2058) is load-only
+    and passed 3/3 alone.
+  Second run, exactly as the job runs it (fresh 3.12 venv, `backend[dev]` + constraints, Node
+  20, no `DATABASE_URL`): **7536 passed, 245 skipped, 2 xfailed, 0 failed in 14 min 37 s**
+  (laptop at load 3–7). The two touched files with Postgres: 39 passed.
+- **C, workflow.** `frontend`, `backend-unit` and `static` need only `validate`; `deploy` needs
+  them plus `check` and `build`. Added `.nvmrc` (20); `build` and `check` read it too.
+  `actionlint` clean. Local timings, uncached:
+  - `frontend`: demo lint + tsc + vitest 120 s, ui + utils 10 s, landing 75 s (205 s, plus
+    install). 1157 + 180 + 2 + 767 tests passed.
+  - `static`: mypy 21–57 s (705 files, clean); bandit 8–13 s (clean at `-ll`).
+  - `packages/theme` was dropped from the job: 2 stale tests (DEBT P55).
+  - Under heavy load (avg 9–24) demo vitest showed 4 different one-off races; each passed
+    alone and in the clean full run (DEBT P55).
+  - Estimated CI wall time: `frontend` ~6–8 min, `static` ~3 min, `backend-unit` ~15–18 min
+    including install. All run beside backup + check (~12–15 min, from check.sh's ~9 min of
+    pytest here). So about **+0–5 min** on the critical path, set by `backend-unit`.
+- `fasttrack/check.sh --since origin/main` (throwaway Postgres 16, UTC, dropped after):
+  migrations PASS (093 head), isolation 12 passed, gitleaks PASS, ruff PASS (505 files),
+  pytest PASS (222 files: 3236 passed, 2 skipped, 1 xfailed). **check.sh: OK**.
+- DECISIONS' duplicate D59 left (75 mixed references; DEBT entry extended).

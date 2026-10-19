@@ -1366,3 +1366,29 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   so the two files are identical again. No code change. The Dependabot PRs are closed by the
   owner after merge; `.github/dependabot.yml` is read from `main`, so its fix waits for the
   merge back. Work: P54.
+- **D64** — Deploy gates: the fast-track deploy runs the full no-database unit suite, the
+  frontend checks and mypy + bandit before it deploys (owner, 2026-10-19, approved
+  fast-track phase; follows the 2026-10-18 decision recorded with D62 to add them once the
+  suite is green). Each of the three new jobs needs only `validate`, so it runs beside
+  backup → check. `deploy` needs `[check, build, frontend, backend-unit, static]`. The job ids
+  are stable and listed in `fasttrack/README.md`.
+  1. `frontend`: `pnpm install --frozen-lockfile` on Node from the new root `.nvmrc` (20).
+     Runs demo and landing `eslint`, `tsc --noEmit` and `vitest` (what `check:demo` /
+     `check:landing` run, minus `next build`, which `build` already does), plus
+     `packages/ui` and `utils` tests. `packages/theme` is left out until its 2 stale tests
+     are settled (DEBT P55).
+  2. `backend-unit`: `pytest tests/unit -m "not live"` with no `DATABASE_URL` and full
+     history. Postgres tests skip through `requires_postgres`. The tests that failed only
+     for lack of a database were fixed (the seam they needed is a factory, not a database),
+     or marked `requires_postgres` where they genuinely open one. A per-test timeout is
+     raised only where it is needed, by marker.
+  3. `static`: `mypy --config-file backend/pyproject.toml backend/src/juli_backend` and
+     `bandit -r backend/src/juli_backend -ll`, on the whole package (about 1 min and 15 s).
+  4. **Option A (owner) for the #1682 prior-figure check: fix the root, never loosen it.**
+     The test-quality detector now follows imports into `conftest.py` and `tests/` packages
+     and judges helpers by their bodies. It credits asserting methods of same-file classes
+     and third-party `assert_*` / `expect_*` callables. It never credits production code
+     named `assert_*`. The prior-figure claim is evaluated over a recorded fixed set:
+     `eval/quality_prior_figure_set.json` holds the layer's helper-credited members at the
+     branch point 0739f4da. `reconcile --write` only prunes it. The tolerance stays at 15.
+  Work: P55.
