@@ -8,7 +8,7 @@ import { storeAuthSession } from "../../lib/supabase-auth";
 import { DemoStateProvider } from "../demo-state";
 import { SettingsPageClient, readSettingsTab } from "../quyet-dinh/settings-rules";
 
-/** P50 (D60.6): Cài đặt → Quyền riêng tư, signed-in sellers only. */
+/** P50 (D68.6): Cài đặt → Quyền riêng tư, signed-in sellers only. */
 
 const PRIVACY = {
   marketing_opt_out: false,

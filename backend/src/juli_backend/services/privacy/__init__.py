@@ -1,4 +1,4 @@
-"""Seller privacy: preferences, terms consent, export, deletion (fast track P50-B, D60).
+"""Seller privacy: preferences, terms consent, export, deletion (fast track P50-B, D68).
 
 Contract ``fasttrack/contracts/p50-privacy.md``. Routes: ``api/routes/me.py``.
 Purge: ``workers/tasks/privacy_account_purge.py``.

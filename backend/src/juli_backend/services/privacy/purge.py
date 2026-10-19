@@ -1,4 +1,4 @@
-"""The nightly account purge (P50-B, D60.10): due accounts and one account's deletion.
+"""The nightly account purge (P50-B, D68.10): due accounts and one account's deletion.
 
 On Postgres both run as ``juli_ops`` through migration 094's SECURITY DEFINER
 functions -- ``users`` is RLS-scoped to its own row and ``juli_app`` holds no

@@ -21,7 +21,7 @@ import {
 import { AppPageHeader } from "./app-shell/page-header";
 
 /**
- * Cài đặt → Quyền riêng tư (P50, D60.6 / D60.10), against
+ * Cài đặt → Quyền riêng tư (P50, D68.6 / D68.10), against
  * `fasttrack/contracts/p50-privacy.md`: three preferences saved one by one
  * (optimistic, rolled back on failure), the data export, account deletion
  * with its 30-day window, and the contact e-mail. Signed-in sellers only:

@@ -1,4 +1,4 @@
-"""The seller's data export, ``GET /v1/me/export`` (P50-B, D60.6, contract §export).
+"""The seller's data export, ``GET /v1/me/export`` (P50-B, D68.6, contract §export).
 
 What it holds: the account row (no internal id but the user id), the privacy
 preferences, the seller's shops (name, platform, connected_at, active) and, per

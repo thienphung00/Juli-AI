@@ -23,7 +23,7 @@ const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
 /**
  * "Tóm tắt dễ hiểu" (D44): each line restates what a numbered section below
  * already says (§4, §5, §3 + staff access, §3.2/§7, §6, §9 + §8). It adds no
- * commitment; the full text governs. Date only, no version number (D60.13).
+ * commitment; the full text governs. Date only, no version number (D68.13).
  */
 const SUMMARY = [
   "Sau khi bạn kết nối shop, Juli đọc dữ liệu shop (đơn hàng, sản phẩm, tồn kho, đơn hoàn, hiệu suất) qua API của TikTok Shop để phân tích và đề xuất cho shop của bạn.",

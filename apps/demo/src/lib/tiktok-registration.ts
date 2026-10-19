@@ -103,7 +103,7 @@ export async function reportTikTokRegistration(
     return;
   }
 
-  // P50 (D60.6): and the seller's own choice. "Không đo lường quảng cáo", or
+  // P50 (D68.6): and the seller's own choice. "Không đo lường quảng cáo", or
   // a choice that cannot be read, means no identify and no event on either
   // channel. Checked before claiming, so a blocked sign-in is not "counted".
   if ((await resolveAdMeasurementFor(accessToken, fetchImpl)) !== "allowed") {

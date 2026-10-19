@@ -1,7 +1,7 @@
 """Celery beat task: delete accounts whose deletion date has passed (fast track P50-B).
 
 ``juli_backend.privacy_account_purge`` (default queue, nightly)
-    D60.10: 30 days after the seller asked (``users.deletion_scheduled_for``),
+    D68.10: 30 days after the seller asked (``users.deletion_scheduled_for``),
     the account, its shops and every row of their shop data are deleted;
     ``shop_subscription_periods`` (contract / payment records, 10 years) are kept,
     detached from the shop. Runs as ``juli_ops`` through migration 094's SECURITY

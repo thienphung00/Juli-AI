@@ -1,10 +1,10 @@
-# P50 — privacy API contract (D60)
+# P50 — privacy API contract (D68)
 
 Backend (P50-B) and demo (P50-U) build against this. Change it here first, then both sides.
 
 ## Current legal text date
 
-`LEGAL_TERMS_DATE = "2026-10-18"` — the date of the D60 `/terms` + `/privacy` text.
+`LEGAL_TERMS_DATE = "2026-10-18"` — the date of the D68 `/terms` + `/privacy` text.
 - Backend: `juli_backend/services/privacy/terms.py` constant.
 - Demo: `apps/demo/src/lib/privacy/legal.ts` constant (same value; a test in each side pins it).
 When the legal text changes, bump both.
@@ -36,7 +36,7 @@ Unknown keys → 422.
 
 Body: `{"terms_date": "2026-10-18", "liability_clause": true}`.
 - `terms_date` must equal `current_terms_date`, else 409.
-- `liability_clause` must be `true`, else 422 (the separate Điều 11 acceptance, D60.4).
+- `liability_clause` must be `true`, else 422 (the separate Điều 11 acceptance, D68.4).
 Records `terms_date_accepted`, `terms_accepted_at = now()`, `liability_clause_accepted_at = now()`.
 
 ### `GET /v1/me/export` → 200 `application/json`, `Content-Disposition: attachment; filename="juli-du-lieu-<yyyy-mm-dd>.json"`
@@ -48,7 +48,7 @@ secrets, no staff/audit rows.
 
 ### `POST /v1/me/deletion` → 200 (same body as GET, `deletion_scheduled_for` = now + 30 days)
 
-Starts the 30-day export window (D60.10). The account stays usable read-only for export; shop
+Starts the 30-day export window (D68.10). The account stays usable read-only for export; shop
 sync for the user's shops stops. Idempotent.
 
 ### `DELETE /v1/me/deletion` → 200
@@ -59,7 +59,7 @@ Cancels a pending deletion inside the window.
 
 Nightly Celery task `privacy_account_purge` (pattern: `workers/tasks/ops_audit_retention.py`):
 deletes users whose `deletion_scheduled_for <= now()` together with their shops and shop data,
-keeping invoices / payment records (10 years, D60.10), then deletes the Supabase Auth user.
+keeping invoices / payment records (10 years, D68.10), then deletes the Supabase Auth user.
 Logs counts only, never PII.
 
 ## Demo behaviour

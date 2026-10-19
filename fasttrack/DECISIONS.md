@@ -1709,7 +1709,7 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   2026-10-08, pooled independent tests when enough exist. Metric.vn and FastMoss snapshot 2 feed
   the next optimisation round only after Step 14.
 
-- **D60** — Legal terms and data rules after the PDPL grill (owner, 2026-10-18). Research: Viettel AI
+- **D68** — Legal terms and data rules after the PDPL grill (owner, 2026-10-18). Research: Viettel AI
   and FPT (FPT Shop, FPT IS) privacy texts, Luật 91/2025/QH15, Nghị định 356/2025/NĐ-CP, Luật Trí tuệ
   nhân tạo 134/2025, Luật BVQLNTD 19/2023 Điều 25, BLDS 2015 Điều 405.
   1. **Customer is B2B only**: businesses, household businesses and sellers using Juli for commercial
@@ -1732,7 +1732,7 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      restrict / object done within 15 days; access / correct / export 10 days; delete 20 days (NĐ 356
      Điều 5). Opt-outs: marketing, ad measurement, shop-as-case-study (opt-in).
   7. Cross-border: disclosure only; no server locations on the page.
-  8. **Changes**: 15 days' notice by e-mail and in-app; continued use = acceptance. The D60 text itself
+  8. **Changes**: 15 days' notice by e-mail and in-app; continued use = acceptance. The D68 text itself
      takes effect **immediately** (owner), shown with an in-app re-acceptance strip.
   9. Disputes: negotiate 30 days, then the court where Juli is headquartered; Vietnamese law.
   10. **Retention**: after a seller stops using Juli (account deletion requested), 30 days to export,

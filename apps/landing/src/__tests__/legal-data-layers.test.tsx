@@ -75,7 +75,7 @@ describe("/terms §8 — data rights (layer 1)", () => {
     expect(s).toHaveTextContent(/không lấy từ dữ liệu riêng của các shop khác dùng Juli/);
   });
 
-  it("makes de-identified model improvement a condition of use, never on buyer data (D60.2, D60.3)", () => {
+  it("makes de-identified model improvement a condition of use, never on buyer data (D68.2, D68.3)", () => {
     const s = section();
     expect(s).toHaveTextContent(/sau khi đã\s*được khử định danh/);
     expect(s).toHaveTextContent(/tinh chỉnh \(fine-tune\)/);
@@ -153,7 +153,7 @@ describe("/privacy — processing and AI providers (layer 2)", () => {
     expect(en).toHaveTextContent(/Juli does not send your shop data \(orders, business figures, buyer data\) to FastMoss/);
   });
 
-  it("shows the date only (no version, D60.13) in both languages, and no counsel note", () => {
+  it("shows the date only (no version, D68.13) in both languages, and no counsel note", () => {
     const { container } = render(<PrivacyPolicyPage />);
     expect(screen.getByText(/^Cập nhật lần cuối: 18\/10\/2026/)).toBeInTheDocument();
     expect(container).not.toHaveTextContent(/Phiên bản/);

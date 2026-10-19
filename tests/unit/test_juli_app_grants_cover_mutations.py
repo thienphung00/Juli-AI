@@ -790,7 +790,7 @@ def test_the_users_update_grant_is_column_scoped():
     Fast track P16 (`083_ops_console`, D25.6) adds one more column on purpose:
     `staff_access_consent_at`, which `repositories/identity.py` stamps on the
     caller's own row when the seller accepts the staff-access sentence at
-    connect. Fast track P50-B (`094_user_privacy_and_consent`, D60) adds the
+    connect. Fast track P50-B (`094_user_privacy_and_consent`, D68) adds the
     seller's own privacy columns -- the three switches, the accepted terms date
     and its two stamps, and the deletion date -- written only through
     `UsersRepo.update_privacy`. `id` and `phone` stay unwritable.

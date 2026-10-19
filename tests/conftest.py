@@ -295,7 +295,7 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for fast track P33-F (the ops-only
         # trial_signups table refused to juli_app under each scope).
         "test_trial_signups_two_tenant.py",
-        # Reason 1 and 2: fast track P50-B (D60) seeds tenants and DELETES whole
+        # Reason 1 and 2: fast track P50-B (D68) seeds tenants and DELETES whole
         # accounts through privacy_purge_account, and asserts per-shop counts.
         "test_privacy_db.py",
     }

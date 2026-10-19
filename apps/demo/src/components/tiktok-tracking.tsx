@@ -42,7 +42,7 @@ import {
  * content being read (`apps/landing`); firing it on every screen of an
  * application would make an optimisation signal out of ordinary navigation.
  *
- * P50 (D60.6): behind the ad gate, a second one. A signed-in seller who chose
+ * P50 (D68.6): behind the ad gate, a second one. A signed-in seller who chose
  * "Không đo lường quảng cáo" gets no pixel and no pageview; while that
  * seller's choice is still being read nothing loads or fires; a signed-out
  * visitor is decided at once, with no request

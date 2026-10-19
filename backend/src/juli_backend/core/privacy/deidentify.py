@@ -1,6 +1,6 @@
-"""De-identification at the LLM boundary (fast track P50-P, D60.2).
+"""De-identification at the LLM boundary (fast track P50-P, D68.2).
 
-D60.2: business and seller data are de-identified before any analysis or
+D68.2: business and seller data are de-identified before any analysis or
 training pipeline; buyer data is anonymised before entering any pipeline; buyer
 contact data never reaches the AI provider. Every request Juli sends to OpenAI
 passes through this module first (see ``tests/unit/test_p50p_llm_boundary.py``).

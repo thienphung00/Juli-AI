@@ -195,7 +195,7 @@ def build_image_inspector(*, api_key: str, config: InspectionConfig) -> ImageIns
 
     def _inspect(*, image_url: str, title: str, description: str) -> dict[str, Any]:
         instructions = _INSPECTOR_PROMPT.replace("{language}", config.language)
-        # D60.2 (P50-P): listing text is de-identified before it reaches the provider.
+        # D68.2 (P50-P): listing text is de-identified before it reaches the provider.
         title = deidentify_text(title)
         description = deidentify_text(description)
         body = {

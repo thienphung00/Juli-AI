@@ -25,7 +25,7 @@ function body(needs: boolean) {
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 
-describe("TermsAcceptanceStrip (P50, D60.8)", () => {
+describe("TermsAcceptanceStrip (P50, D68.8)", () => {
   it("states the update date in plain copy, with no em dash", () => {
     expect(TERMS_UPDATED_TEXT).toBe("Điều khoản dịch vụ và Chính sách bảo mật đã cập nhật ngày 18/10/2026.");
     expect(TERMS_UPDATED_TEXT + LIABILITY_CHECKBOX_LABEL + ACCEPT_ERROR_TEXT).not.toContain("—");

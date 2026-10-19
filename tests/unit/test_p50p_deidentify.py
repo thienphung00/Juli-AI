@@ -1,4 +1,4 @@
-"""P50-P (D60.2): de-identification before any text or JSON reaches the LLM provider.
+"""P50-P (D68.2): de-identification before any text or JSON reaches the LLM provider.
 
 Buyer contact data (name, phone, e-mail, address) never reaches the provider; buyer and
 user ids become stable aliases; shop/business numbers (prices, quantities, KPIs) stay

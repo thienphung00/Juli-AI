@@ -52,14 +52,14 @@ class User(Base):
     #: D25.6 (migration 083): when the seller accepted staff access "to support and
     #: operate the service" on the connect-shop screen.
     staff_access_consent_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    #: D60.6 (migration 094): the seller's opt-outs and the case-study opt-in
+    #: D68.6 (migration 094): the seller's opt-outs and the case-study opt-in
     #: (Cài đặt → Quyền riêng tư). Off by default; the case study is opt-in.
     marketing_opt_out: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     ad_measurement_opt_out: Mapped[bool] = mapped_column(
         default=False, server_default=text("false")
     )
     case_study_opt_in: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
-    #: D60.4 / D60.8: the date of the legal text accepted, when, and the separate
+    #: D68.4 / D68.8: the date of the legal text accepted, when, and the separate
     #: acceptance of the liability clause (Điều 11).
     terms_date_accepted: Mapped[date | None] = mapped_column(Date, nullable=True)
     terms_accepted_at: Mapped[datetime | None] = mapped_column(
@@ -68,7 +68,7 @@ class User(Base):
     liability_clause_accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    #: D60.10: set = deletion requested; the nightly purge deletes the account at
+    #: D68.10: set = deletion requested; the nightly purge deletes the account at
     #: this instant. Shop sync stops while it is set (``enumerate_pollable_shops``).
     deletion_scheduled_for: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

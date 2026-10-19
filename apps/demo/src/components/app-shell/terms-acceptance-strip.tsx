@@ -12,10 +12,10 @@ import {
 } from "../../lib/privacy/legal";
 
 /**
- * P50 (D60.8): the in-app re-acceptance of the D60 terms. Pattern:
+ * P50 (D68.8): the in-app re-acceptance of the D68 terms. Pattern:
  * `term-strip.tsx`. Shown to a signed-in seller whose `GET /v1/me/privacy`
  * says `needs_terms_acceptance`; the Điều 11 checkbox is the separate
- * acceptance of the liability clause (D60.4) and gates the button. A failed
+ * acceptance of the liability clause (D68.4) and gates the button. A failed
  * read shows nothing: this strip never blocks the app.
  */
 export const TERMS_UPDATED_TEXT = `Điều khoản dịch vụ và Chính sách bảo mật đã cập nhật ngày ${viDate(LEGAL_TERMS_DATE)}.`;

@@ -1,4 +1,4 @@
-"""P50-B privacy API (DECISIONS D60, contract ``fasttrack/contracts/p50-privacy.md``), SQLite.
+"""P50-B privacy API (DECISIONS D68, contract ``fasttrack/contracts/p50-privacy.md``), SQLite.
 
 - ``GET`` / ``PATCH /v1/me/privacy`` (unknown key → 422)
 - ``POST /v1/me/consents`` (409 stale date, 422 liability not accepted, 200)

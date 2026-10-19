@@ -50,7 +50,7 @@ class ShopSubscriptionPeriod(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     #: NULL once the shop's owner deleted their account (P50-B, migration 094): the
-    #: period is kept as a contract / payment record (D60.10) without the shop.
+    #: period is kept as a contract / payment record (D68.10) without the shop.
     shop_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shops.id"), nullable=True)
     plan: Mapped[str] = mapped_column(String(16))
     days: Mapped[int] = mapped_column(Integer)

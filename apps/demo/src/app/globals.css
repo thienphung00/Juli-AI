@@ -6677,7 +6677,7 @@ h4 {
   margin: 0 0 var(--juli-space-3);
 }
 
-/* P50 (D60.8): terms re-acceptance strip (`app-shell/terms-acceptance-strip.tsx`). */
+/* P50 (D68.8): terms re-acceptance strip (`app-shell/terms-acceptance-strip.tsx`). */
 .terms-strip {
   display: grid;
   gap: var(--juli-space-2);
@@ -6724,7 +6724,7 @@ h4 {
   color: #9f1d22;
 }
 
-/* P50 (D60.6): Cài đặt → Quyền riêng tư (`quyet-dinh/privacy-settings.tsx`). */
+/* P50 (D68.6): Cài đặt → Quyền riêng tư (`quyet-dinh/privacy-settings.tsx`). */
 .settings-tabs {
   margin: var(--juli-space-4) 0 var(--juli-space-5);
 }

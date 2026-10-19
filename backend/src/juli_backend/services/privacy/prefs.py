@@ -1,4 +1,4 @@
-"""Privacy preferences, terms consent and the deletion request (P50-B, D60).
+"""Privacy preferences, terms consent and the deletion request (P50-B, D68).
 
 Every write goes through ``UsersRepo.update_privacy`` (the caller's own row under
 ``with_user_scope``); nothing here commits -- the route does.
@@ -30,7 +30,7 @@ class TermsDateMismatch(Exception):
 
 
 class LiabilityClauseRequired(Exception):
-    """Điều 11 must be accepted separately (D60.4) (422)."""
+    """Điều 11 must be accepted separately (D68.4) (422)."""
 
 
 def as_utc(value: datetime | None) -> datetime | None:
@@ -121,7 +121,7 @@ async def record_consent(
     liability_clause: bool,
     now: datetime | None = None,
 ) -> PrivacyState:
-    """D60.4 / D60.8: the current text, and Điều 11 accepted separately."""
+    """D68.4 / D68.8: the current text, and Điều 11 accepted separately."""
     if terms_date != LEGAL_TERMS_DATE:
         raise TermsDateMismatch(terms_date.isoformat())
     if liability_clause is not True:
@@ -139,7 +139,7 @@ async def record_consent(
 async def request_deletion(
     session: AsyncSession, user_id: uuid.UUID, *, now: datetime | None = None
 ) -> PrivacyState:
-    """D60.10: delete in 30 days. Idempotent -- a pending date is never moved."""
+    """D68.10: delete in 30 days. Idempotent -- a pending date is never moved."""
     repo = UsersRepo(session)
     user = await repo.get_own(user_id)
     if user.deletion_scheduled_for is not None:

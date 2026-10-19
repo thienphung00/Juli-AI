@@ -157,7 +157,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
         <p aria-label="Phản hồi Demo" aria-live="polite" className="juli-sr-only" role="status">
           {feedback}
         </p>
-        {/* P50 (D60.8): signed-in sellers only; partner trial accounts and the sample never ask. */}
+        {/* P50 (D68.8): signed-in sellers only; partner trial accounts and the sample never ask. */}
         {"token" in state && !reviewer ? <TermsAcceptanceStrip token={state.token} /> : null}
         {state.status === "ready" ? <TermStrip shopId={state.shop.id} token={state.token} /> : null}
         {state.status === "ready" && !reviewer ? <PermissionStrip shopId={state.shop.id} token={state.token} /> : null}

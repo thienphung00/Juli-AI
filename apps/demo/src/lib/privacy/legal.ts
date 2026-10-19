@@ -1,5 +1,5 @@
 /**
- * P50 (D60): the seller's privacy rights and terms acceptance, against the
+ * P50 (D68): the seller's privacy rights and terms acceptance, against the
  * contract in `fasttrack/contracts/p50-privacy.md`.
  *
  * Same-origin relative paths with the Supabase bearer token, matching
@@ -12,7 +12,7 @@ import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from "../../components/legal
 
 export { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL };
 
-/** The date of the D60 `/terms` + `/privacy` text. Bump together with the backend's `terms.py`. */
+/** The date of the D68 `/terms` + `/privacy` text. Bump together with the backend's `terms.py`. */
 export const LEGAL_TERMS_DATE = "2026-10-18" as const;
 
 export const PRIVACY_PATH = "/v1/me/privacy" as const;
@@ -98,7 +98,7 @@ export async function updatePrivacy(
   return readState(await send(PRIVACY_PATH, accessToken, fetchImpl, "PATCH", patch));
 }
 
-/** Accepts the current terms and, separately, Điều 11 (D60.4). */
+/** Accepts the current terms and, separately, Điều 11 (D68.4). */
 export async function acceptTerms(accessToken: string, fetchImpl: typeof fetch = fetch): Promise<PrivacyState> {
   return readState(
     await send(CONSENTS_PATH, accessToken, fetchImpl, "POST", { terms_date: LEGAL_TERMS_DATE, liability_clause: true }),

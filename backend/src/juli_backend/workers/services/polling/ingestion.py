@@ -1126,7 +1126,7 @@ async def enumerate_pollable_shops(session: AsyncSession) -> list[PollableShop]:
         )
         .exists()
     )
-    # P50-B (D60.10): a shop whose owner asked for deletion stops syncing.
+    # P50-B (D68.10): a shop whose owner asked for deletion stops syncing.
     owner_deleting = (
         select(User.id)
         .where(User.id == Shop.user_id, User.deletion_scheduled_for.is_not(None))

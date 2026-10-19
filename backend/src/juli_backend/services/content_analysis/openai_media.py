@@ -108,7 +108,7 @@ class OpenAITranscriber:
         data: dict[str, Any] = {
             "model": self.model,
             "language": "vi",
-            # D60.2 (P50-P): the glossary is shop text; contact data never leaves.
+            # D68.2 (P50-P): the glossary is shop text; contact data never leaves.
             "prompt": deidentify_text(prompt)[:MAX_GLOSSARY_CHARS],
             "response_format": "verbose_json" if timestamps else "json",
         }

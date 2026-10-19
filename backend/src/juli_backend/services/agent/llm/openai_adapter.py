@@ -218,7 +218,7 @@ def _build_request_body(
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "model": model,
-        # D60.2 (P50-P): this body is the single LLM boundary. Every text that
+        # D68.2 (P50-P): this body is the single LLM boundary. Every text that
         # reaches the provider -- system text, messages, tool results -- is
         # de-identified first; tool schemas and the output schema are not text.
         "instructions": deidentify_text(system),

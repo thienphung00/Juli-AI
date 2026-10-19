@@ -355,7 +355,7 @@ describe("Shopee status is stated honestly on the public pages (D42.6, AC-32.9)"
 });
 
 describe("legal template (Legal.dc.html, D44, P34-E)", () => {
-  it("/terms is dated 18/10/2026 with no version (D60.13): TMĐT positioning (§2) and both sign-in methods (§3)", () => {
+  it("/terms is dated 18/10/2026 with no version (D68.13): TMĐT positioning (§2) and both sign-in methods (§3)", () => {
     render(<TermsOfServicePage />);
     expect(
       screen.getByText(/^Cập nhật lần cuối: 18\/10\/2026 · Có hiệu lực từ 18\/10\/2026/),

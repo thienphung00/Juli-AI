@@ -239,10 +239,10 @@ ALLOWED_PHONE_MENTIONS = {
     # P16 (D25.6): the ops masker REMOVES phone numbers from staff payloads; it
     # never reads users.phone.
     "services/ops/masking.py",
-    # P50-P (D60.2): the LLM-boundary de-identifier REMOVES phone numbers from
+    # P50-P (D68.2): the LLM-boundary de-identifier REMOVES phone numbers from
     # provider requests (and owns the patterns ops masking uses); never reads users.phone.
     "core/privacy/deidentify.py",
-    # P50-B (D60.6): the seller's own data export copies users.phone as stored,
+    # P50-B (D68.6): the seller's own data export copies users.phone as stored,
     # NULL included (exported as null); it is the seller's own value, never dialled.
     "services/privacy/export.py",
     # Writes, not reads. Both pass a fixed sentinel for an internal, non-seller

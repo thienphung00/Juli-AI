@@ -177,7 +177,7 @@ describe("a visitor who arrived from a TikTok ad", () => {
   });
 });
 
-describe("the signed-in seller's ad-measurement choice (P50, D60.6)", () => {
+describe("the signed-in seller's ad-measurement choice (P50, D68.6)", () => {
   beforeEach(() => {
     arriveFromAd();
   });

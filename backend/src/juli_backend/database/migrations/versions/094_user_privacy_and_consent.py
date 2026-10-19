@@ -4,19 +4,19 @@ Revision ID: 094_user_privacy_and_consent
 Revises: 093_ops_group_lift_draws
 Create Date: 2026-10-18
 
-DECISIONS D60 (PDPL terms); contract ``fasttrack/contracts/p50-privacy.md``.
+DECISIONS D68 (PDPL terms); contract ``fasttrack/contracts/p50-privacy.md``.
 
 WHAT IT ADDS.
 
 - Seven ``users`` columns: the three opt-outs/opt-in (``marketing_opt_out``,
   ``ad_measurement_opt_out``, ``case_study_opt_in``; NOT NULL DEFAULT false), the
-  accepted terms date and the two acceptance stamps (D60.4: the liability clause
-  is accepted separately), and ``deletion_scheduled_for`` (D60.10: 30 days to
+  accepted terms date and the two acceptance stamps (D68.4: the liability clause
+  is accepted separately), and ``deletion_scheduled_for`` (D68.10: 30 days to
   export, then deletion). ``juli_app`` may UPDATE exactly these columns -- its own
   row only, by the existing ``users_update_public`` policy -- column-scoped like
   065 and 083, so ``id`` and ``phone`` stay unwritable.
 - ``shop_subscription_periods.shop_id`` becomes NULLABLE: the purge keeps the
-  period rows (contract / payment references, kept 10 years, D60.10) and
+  period rows (contract / payment references, kept 10 years, D68.10) and
   detaches them from the deleted shop instead of deleting them.
 - ``enumerate_pollable_shops`` (074) skips shops whose owner has a pending
   deletion, so every fan-out built on it (poll, history extend, product
@@ -81,7 +81,7 @@ ENUM_FN = "public.enumerate_pollable_shops(text[], text)"
 # Both lists are compared with ``oid::regclass::text`` inside a function whose
 # search_path is pinned to ``pg_catalog, public``: a public table renders
 # UNQUALIFIED ("orders"), any other schema qualified ("silver.orders").
-#: Tables the purge keeps (D60.10 invoices; staff audit with its own retention).
+#: Tables the purge keeps (D68.10 invoices; staff audit with its own retention).
 KEPT_TABLES = ("shop_subscription_periods", "ops_audit_log")
 #: Legacy read-only public tables guarded by a no-write trigger (#607 silver cutover).
 GUARDED_TABLES = ("orders", "returns", "analytics_kpi_envelopes")
@@ -185,7 +185,7 @@ def _create_functions() -> None:
         END IF;
         v_shops := ARRAY(SELECT s.id FROM public.shops AS s WHERE s.user_id = p_user);
 
-        -- 1. Keep the subscription periods (D60.10), detached from the shop.
+        -- 1. Keep the subscription periods (D68.10), detached from the shop.
         EXECUTE 'UPDATE public.shop_subscription_periods SET shop_id = NULL '
                 'WHERE shop_id = ANY($1)' USING v_shops;
         GET DIAGNOSTICS v_kept = ROW_COUNT;

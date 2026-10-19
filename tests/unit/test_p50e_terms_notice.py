@@ -1,4 +1,4 @@
-"""P50-E (D60.8): the one-off terms-change e-mail, with the mailer mocked.
+"""P50-E (D68.8): the one-off terms-change e-mail, with the mailer mocked.
 
 Dry run by default (counts only); never prints or logs an address; a re-run never
 sends twice (local sent-list of address hashes); a failed send is retried next run.

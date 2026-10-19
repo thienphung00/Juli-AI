@@ -1,5 +1,5 @@
 /**
- * P50 (D60.6): whether this browser may send TikTok ad-measurement events.
+ * P50 (D68.6): whether this browser may send TikTok ad-measurement events.
  *
  * A signed-in seller who turned on "Không đo lường quảng cáo"
  * (`ad_measurement_opt_out`) gets no pixel and no event, from the pixel or

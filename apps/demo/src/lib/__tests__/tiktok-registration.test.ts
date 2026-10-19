@@ -207,7 +207,7 @@ describe("reportTikTokRegistration", () => {
   });
 });
 
-describe("the seller's ad-measurement choice (P50, D60.6)", () => {
+describe("the seller's ad-measurement choice (P50, D68.6)", () => {
   it("reads GET /v1/me/privacy with the new session's token", async () => {
     const token = accessTokenFor({ sub: "user-1" });
 

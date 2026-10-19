@@ -143,7 +143,7 @@ class UsersRepo(SessionRepo):
             await self._session.flush()
 
     async def get_own(self, user_id: uuid.UUID) -> User:
-        """Read the caller's own row under ``with_user_scope`` (P50-B, D60).
+        """Read the caller's own row under ``with_user_scope`` (P50-B, D68).
 
         ``users_select_public`` shows a row only to its own user GUC; the request
         path has handed #1691's authentication scope back by the time a route runs.

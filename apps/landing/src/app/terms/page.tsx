@@ -9,7 +9,7 @@ const LAST_UPDATED = "18/10/2026";
 /**
  * "Tóm tắt dễ hiểu" (D44): each line restates a numbered section below
  * (§1, §2 + §6, §5, §3 + §4, §8, §11, §9). It adds no term; the full text governs.
- * Date only, no version number (D60.13).
+ * Date only, no version number (D68.13).
  */
 const SUMMARY = [
   "Juli chỉ dành cho doanh nghiệp, hộ kinh doanh và người bán dùng vào mục đích kinh doanh.",

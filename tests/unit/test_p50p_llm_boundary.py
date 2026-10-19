@@ -1,4 +1,4 @@
-"""P50-P (D60.2): every request to the LLM provider is de-identified first.
+"""P50-P (D68.2): every request to the LLM provider is de-identified first.
 
 1. The Responses adapter (the agent, content cards, content-analysis vision and
    scoring all ride it): user text, content parts, tool results (JSON) and the
@@ -268,7 +268,7 @@ def test_every_provider_call_site_is_reviewed_and_deidentified() -> None:
         if any(m in s for s in _string_constants(path) for m in _PROVIDER_MARKERS)
     }
     assert callers == REVIEWED_PROVIDER_MODULES, (
-        "A module that talks to OpenAI must de-identify what it sends (D60.2): route its "
+        "A module that talks to OpenAI must de-identify what it sends (D68.2): route its "
         "text through juli_backend.core.privacy, then add it to REVIEWED_PROVIDER_MODULES."
     )
     for module in sorted(REVIEWED_PROVIDER_MODULES):

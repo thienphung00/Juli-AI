@@ -1,4 +1,4 @@
-"""P50-B privacy on real Postgres (migration ``094_user_privacy_and_consent``, D60).
+"""P50-B privacy on real Postgres (migration ``094_user_privacy_and_consent``, D68).
 
 - ``juli_app`` writes the privacy columns of its own row only, and cannot call
   the purge functions; ``juli_ops`` can.

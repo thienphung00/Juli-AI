@@ -1,4 +1,4 @@
-"""The seller's own account: privacy, consent, export, deletion (fast track P50-B, D60).
+"""The seller's own account: privacy, consent, export, deletion (fast track P50-B, D68).
 
 Contract ``fasttrack/contracts/p50-privacy.md``. Every route is scoped by the
 verified ``users.id`` from ``get_current_user`` and nothing else -- there is no
@@ -88,7 +88,7 @@ async def post_consent(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """D60.4 / D60.8: accept the current legal text and Điều 11 (separately)."""
+    """D68.4 / D68.8: accept the current legal text and Điều 11 (separately)."""
     try:
         state = await privacy.record_consent(
             session, user.id, terms_date=body.terms_date, liability_clause=body.liability_clause
@@ -116,7 +116,7 @@ async def get_export(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    """D60.6: the seller's own data as a JSON download (allowed while deletion is pending)."""
+    """D68.6: the seller's own data as a JSON download (allowed while deletion is pending)."""
     now = now_utc()
     payload = await privacy.build_export(session, user.id, now=now)
     await session.commit()
@@ -136,7 +136,7 @@ async def request_deletion(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """D60.10: delete in 30 days; the shops go read-only and stop syncing. Idempotent."""
+    """D68.10: delete in 30 days; the shops go read-only and stop syncing. Idempotent."""
     state = await privacy.request_deletion(session, user.id)
     await session.commit()
     return state.to_json()

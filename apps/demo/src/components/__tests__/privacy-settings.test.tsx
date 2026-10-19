@@ -53,7 +53,7 @@ beforeEach(() => {
   resetAdMeasurement();
 });
 
-describe("Cài đặt → Quyền riêng tư (P50, D60.6)", () => {
+describe("Cài đặt → Quyền riêng tư (P50, D68.6)", () => {
   it("shows the three switches from the seller's saved choices", async () => {
     render(<PrivacySettings io={makeIo({}, { ...BASE, case_study_opt_in: true })} token="tok" />);
 

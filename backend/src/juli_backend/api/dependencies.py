@@ -17,7 +17,7 @@ from juli_backend.database.tenant_context import _apply_tenant_context_to_sessio
 
 logger = logging.getLogger(__name__)
 
-#: P50-B (D60.10): the 403 reason while the seller's account deletion is pending.
+#: P50-B (D68.10): the 403 reason while the seller's account deletion is pending.
 DELETION_PENDING_DETAIL = (
     "Tài khoản đang chờ xoá — chỉ xem và tải dữ liệu. Huỷ yêu cầu xoá trong "
     "Cài đặt → Quyền riêng tư để tiếp tục."
@@ -100,7 +100,7 @@ async def require_writable_shop(
     from juli_backend.services.privacy import deletion_pending
     from juli_backend.services.subscriptions import READ_ONLY_DETAIL, is_read_only
 
-    # P50-B (D60.10): an account with a pending deletion is read-only for its
+    # P50-B (D68.10): an account with a pending deletion is read-only for its
     # 30-day export window -- no write, no TikTok change, no OpenAI work.
     if deletion_pending(user):
         logger.info("shop_deletion_pending_write_refused", extra={"shop_id": str(shop.id)})

@@ -49,7 +49,7 @@ export function SettingsPageClient() {
   if (reviewer?.sample) return <ReviewerSampleRulesSettings />;
   if (auth === undefined) return <p className="demo-kicker">Đang tải…</p>;
   if (auth === null) return <SettingsView />;
-  // P50 (D60.6): Quyền riêng tư is the seller's own; a partner trial account keeps the rules only.
+  // P50 (D68.6): Quyền riêng tư is the seller's own; a partner trial account keeps the rules only.
   if (reviewer) {
     return auth.shop ? (
       <SignedInRulesSettings auth={{ token: auth.token, shopId: auth.shop.shopId }} shopName={auth.shop.shopName} />

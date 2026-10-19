@@ -1,4 +1,4 @@
-"""One-off e-mail: the terms and privacy policy changed (fast track P50-E, D60.8).
+"""One-off e-mail: the terms and privacy policy changed (fast track P50-E, D68.8).
 
     python -m juli_backend.services.ops.terms_notice --sent-list ~/juli-terms-2026-10-18.sent
     python -m juli_backend.services.ops.terms_notice --sent-list ~/juli-terms-2026-10-18.sent --send
@@ -139,7 +139,7 @@ async def load_recipient_emails(database_url: str) -> list[str]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="terms-notice", description="E-mail the 18/10/2026 terms change (D60.8)."
+        prog="terms-notice", description="E-mail the 18/10/2026 terms change (D68.8)."
     )
     parser.add_argument(
         "--sent-list",

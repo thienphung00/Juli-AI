@@ -1135,12 +1135,12 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `schema_expectations.py`, unverified live). Storing them (mapper + migration) would give per-day
   refunds on the same rows, and could check the order-based shares.
 
-## P50 — PDPL legal terms (D60)
+## P50 — PDPL legal terms (D68)
 
-- [ ] md v2 sources (`~/Downloads/b2b_document/md/01_…`, `02_…`) and the Ory pilot contract not synced to the D60 website text — owner scoped P50 to the website (D60.14) — owner decides; give contract changes as paste-ready clause text.
-- [ ] Total liability exemption (/terms Điều 11) may be void under BLDS 2015 Điều 405.3 for a standard-form contract — owner accepted the risk (D60.4) — counsel to confirm the wording.
-- [ ] Cross-border transfer impact dossier (Mẫu 09, NĐ 356 Điều 18) not filed; the hidden counsel TODO in /privacy §7 stays — owner chose disclosure only (D60.7) — counsel + filing with Bộ Công an.
-- [ ] Resend not added; notices use the SMTP mailer (D60.15) — speed — add Resend if SMTP volume or deliverability is a problem.
+- [ ] md v2 sources (`~/Downloads/b2b_document/md/01_…`, `02_…`) and the Ory pilot contract not synced to the D68 website text — owner scoped P50 to the website (D68.14) — owner decides; give contract changes as paste-ready clause text.
+- [ ] Total liability exemption (/terms Điều 11) may be void under BLDS 2015 Điều 405.3 for a standard-form contract — owner accepted the risk (D68.4) — counsel to confirm the wording.
+- [ ] Cross-border transfer impact dossier (Mẫu 09, NĐ 356 Điều 18) not filed; the hidden counsel TODO in /privacy §7 stays — owner chose disclosure only (D68.7) — counsel + filing with Bộ Công an.
+- [ ] Resend not added; notices use the SMTP mailer (D68.15) — speed — add Resend if SMTP volume or deliverability is a problem.
 - [ ] online.gov.vn notification of app-juli.com as a selling e-commerce website (TT 47/2014, hợp nhất 2026) not done — owner action — verify NĐ 248/2026 first, then file.
 - [ ] **Supabase Auth user is not deleted at purge** — no service-role admin client in the backend; /privacy §3.5 promises deletion "khỏi hệ thống của Juli và Supabase". Auth still holds the e-mail, Google identity (sub, name, avatar), refresh tokens and sign-in IPs, and a deleted seller who signs in with Google again gets a fresh empty `users` row via `UsersRepo.get_or_create` (re-storing the e-mail just purged). Until fixed: delete by hand from the Supabase dashboard whenever the nightly log shows `auth_users_pending` > 0 (P50-B).
   - **Chosen fix (option A, owner 2026-10-19 — deferred, not started):** in `workers/tasks/privacy_account_purge.py`, after the account's DB purge commits, call `DELETE {SUPABASE_URL}/auth/v1/admin/users/{user_id}` with the service-role key; treat 404 as already deleted; on other failures log the count only and retry next night (need a marker so the DB purge is not re-run — e.g. keep a tombstone row or a `privacy_auth_pending` list). Secret `SUPABASE_SERVICE_ROLE_KEY` goes to the **worker only** (never the API or any frontend — it bypasses RLS). Add a unit test with the HTTP call mocked (success, 404, 5xx) and drop `auth_users_pending` from the log once it is always 0. Owner adds the secret at deploy.

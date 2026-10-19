@@ -36,7 +36,7 @@ function call(fetchImpl: ReturnType<typeof vi.fn>) {
 }
 
 describe("LEGAL_TERMS_DATE", () => {
-  it("is the date of the D60 legal text, the same value the backend pins", () => {
+  it("is the date of the D68 legal text, the same value the backend pins", () => {
     expect(LEGAL_TERMS_DATE).toBe("2026-10-18");
   });
 });
