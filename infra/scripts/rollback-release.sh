@@ -490,6 +490,20 @@ start_landing_candidate() {
         --port "${port}" --hostname 127.0.0.1 >&2
 }
 
+# The target must be the only thing that can answer on the free slot, or the loopback
+# checks below would pass against whatever already holds it. Normally the drained
+# previous candidate (stopped just before this); after a reboot it can be the durable
+# unit. Nothing listening = curl's 000.
+ensure_port_free() {
+    local lane="$1" port="$2"
+    [ "$(http_code "http://127.0.0.1:${port}/")" = "000" ] && return 0
+    note "${lane}: something still answers on :${port} -- stopping juli-${lane} (it is not serving traffic)"
+    systemctl stop "juli-${lane}" >/dev/null 2>&1 || true
+    [ "$(http_code "http://127.0.0.1:${port}/")" = "000" ] && return 0
+    echo "FAIL: ${lane}: :${port} is still taken by an unknown process; refusing to verify a target there." >&2
+    return 1
+}
+
 # After a failed public check: traffic back on the previous slot if that instance still
 # answers; otherwise it stays on the (loopback-verified) target, and the run fails.
 undo_slot_lane() {
@@ -532,6 +546,7 @@ rollback_lane_api() {
 
     # The free slot holds the drained previous instance (or nothing), never the live one.
     stop_unit "${unit}"
+    ensure_port_free api "${peer}" || { record_step api candidate "failed" "port ${peer} taken"; return 1; }
     if ! start_api_candidate "${target_dir}" "${peer}"; then
         record_step api candidate "failed" "systemd-run refused"
         return 1
@@ -608,6 +623,7 @@ rollback_lane_landing() {
     log "landing: ${prev_dir} -> ${target_dir} (live :${live_port}, target on :${peer})"
 
     stop_unit "${unit}"
+    ensure_port_free landing "${peer}" || { record_step landing candidate "failed" "port ${peer} taken"; return 1; }
     if ! start_landing_candidate "${target_dir}" "${peer}"; then
         record_step landing candidate "failed" "systemd-run refused"
         return 1

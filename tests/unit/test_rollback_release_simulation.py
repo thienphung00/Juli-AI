@@ -496,6 +496,34 @@ def test_public_check_failure_after_api_cutover_undoes_the_api_switch(world: Wor
     assert "API_LIVE_PORT=8020" in (world.etc / "api-runtime.env").read_text()
 
 
+def test_a_durable_unit_on_the_free_slot_is_stopped_before_the_target_starts(world: World):
+    """After a reboot the durable juli-api can hold the slot the target needs; the
+    loopback checks must hit the target, not it."""
+    world.standard()
+    (world.state / "ports" / "8000").unlink()
+    (world.state / "units" / "juli-api-candidate-8000.json").unlink()
+    world.running("juli-api", "api", 8000, world.releases / SHORT["c"])
+    run = world.run("--lanes", "api")
+    assert run.code == 0, run
+    assert "stopping juli-api" in run.out
+    assert world.serving("api") == rel(world, "b")
+    assert_never_touched_db_or_juli_web(world)
+
+
+def test_an_unknown_process_on_the_free_slot_fails_without_switching(world: World):
+    world.standard()
+    (world.state / "units" / "juli-api-candidate-8000.json").unlink()
+    (world.state / "units" / "stray.json").write_text(
+        json.dumps({"lane": "api", "port": 8000, "release": rel(world, "a"), "active": True})
+    )
+    (world.state / "ports" / "8000").write_text("stray")
+    run = world.run("--lanes", "api")
+    assert run.code == 1, run
+    assert "still taken by an unknown process" in run.out
+    assert world.serving("api") == rel(world, "c")
+    assert world.live_port("api") == 8020
+
+
 def test_nginx_refusing_the_switch_leaves_traffic_on_the_live_slot(world: World):
     world.standard()
     world.set_flag("nginx-t-fail")
