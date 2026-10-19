@@ -42,15 +42,40 @@ def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
 
 
+#: Epoch magnitudes past which a value is read as ms / µs / ns rather than seconds.
+#: 10**11 s is the year 5138; 10**11 ms is 1973 -- no real TikTok time is ambiguous.
+_MS_FROM = 10**11
+_US_FROM = 10**14
+_NS_FROM = 10**17
+
+
 def epoch_to_naive_utc(value: object) -> datetime | None:
-    """TikTok epoch seconds → naive UTC; ``None`` for anything unusable."""
+    """A TikTok epoch → naive UTC; ``None`` for anything unusable. Never raises.
+
+    The 202309 OAS documents seconds, but real Search Activities rows carry
+    **millisecond** ``create_time`` / ``update_time`` (see also
+    ``services/shop_diagnosis/promotions.py``), which made ``fromtimestamp``
+    raise "year … is out of range" and abort the whole promotion sweep
+    (P58-A, D67). So: int / float / numeric string, in seconds, ms, µs or ns;
+    ``0`` / ``None`` / ``""`` / bools / junk (an open-ended ``end_time``) are
+    ``None``.
+    """
+    if value is None or isinstance(value, bool):
+        return None
     try:
-        seconds = int(str(value))
-    except (TypeError, ValueError):
+        number = Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
         return None
-    if seconds <= 0:
+    if not number.is_finite() or number <= 0:
         return None
-    return datetime.fromtimestamp(seconds, UTC).replace(tzinfo=None)
+    for limit, scale in ((_NS_FROM, 10**9), (_US_FROM, 10**6), (_MS_FROM, 10**3)):
+        if number >= limit:
+            number = number / scale
+            break
+    try:
+        return datetime.fromtimestamp(int(number), UTC).replace(tzinfo=None)
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 def local_day(moment: datetime) -> date:
