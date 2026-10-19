@@ -45,6 +45,14 @@ def test_flags_synthetic_violation_fixture() -> None:
     assert "key 'api_key'" in combined  # f-string URL literal
 
 
+#: The two whole-tree scans below read every Python file under the default
+#: roots. On a loaded machine they took 16-19 s each (fast track P55) and up to
+#: ~50 s has been seen, against pytest.ini's 30 s default. The work is genuinely
+#: that size; the allowance is for these scans only, not the module.
+WHOLE_TREE_SCAN_TIMEOUT = pytest.mark.timeout(120)
+
+
+@WHOLE_TREE_SCAN_TIMEOUT
 def test_zero_findings_on_current_repository_tree() -> None:
     """Default invocation (no args) mirrors the lint job's ruff scope
     (backend/src/juli_backend, tests, scripts) and must be clean — the OAuth
@@ -154,6 +162,7 @@ def test_auth_code_is_deliberately_excluded_from_the_credential_set() -> None:
     assert "accesstoken" in CREDENTIAL_KEY_NAMES
 
 
+@WHOLE_TREE_SCAN_TIMEOUT
 @pytest.mark.parametrize(
     "scan_root",
     ["backend/src/juli_backend", "tests", "scripts"],

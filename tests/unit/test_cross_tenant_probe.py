@@ -63,6 +63,19 @@ async def app(engine):
             yield sess
 
     application.dependency_overrides[get_session] = _test_session
+    # The run-events stream reads through its own session factory (the request
+    # session closes before a StreamingResponse finishes). Bind it to the same
+    # in-memory engine, as test_agent_run_events_api.py does, so the
+    # cross-tenant run seeded below is visible to it: the 404 must then come
+    # from the tenant check, not from the row being absent from whatever
+    # DATABASE_URL points at (and with no DATABASE_URL the real seam cannot
+    # build an engine at all -- fast track P55).
+    from juli_backend.api.routes.agent_runs import get_run_events_session_factory
+
+    async def _stream_session_factory():
+        return factory
+
+    application.dependency_overrides[get_run_events_session_factory] = _stream_session_factory
     yield application
     application.dependency_overrides.clear()
 
