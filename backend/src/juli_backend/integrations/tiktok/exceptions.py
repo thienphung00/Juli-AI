@@ -7,6 +7,21 @@ inspecting raw codes.
 
 from __future__ import annotations
 
+from typing import Any
+
+
+def rebuild_keyword_exception(cls: type[BaseException], kwargs: dict[str, Any]) -> BaseException:
+    """Unpickle an exception whose ``__init__`` takes keyword-only arguments.
+
+    ``BaseException.__reduce__`` replays ``cls(*self.args)``, and ``self.args``
+    holds only the formatted message. A class whose constructor wants
+    ``(code, message, ...)`` or keyword-only fields therefore cannot be rebuilt,
+    which is what Celery's result backend logged in production as
+    ``UnpickleableExceptionWrapper('...exceptions', 'TikTokAPIError', ...)``
+    (P59) -- the task's real failure reached the result store as a wrapper.
+    """
+    return cls(**kwargs)
+
 
 class TikTokAPIError(Exception):
     """Base exception for all TikTok Shop API errors."""
@@ -21,6 +36,19 @@ class TikTokAPIError(Exception):
         self.message = message
         self.request_id = request_id
         super().__init__(f"[{code}] {message}")
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # P59: rebuild from the constructor's own arguments (see
+        # `rebuild_keyword_exception`); `__dict__` carries any attribute set
+        # after construction. Subclasses that keep this `__init__` inherit it.
+        return (
+            rebuild_keyword_exception,
+            (
+                type(self),
+                {"code": self.code, "message": self.message, "request_id": self.request_id},
+            ),
+            self.__dict__,
+        )
 
 
 class AuthenticationError(TikTokAPIError):
@@ -58,6 +86,22 @@ class TransportGuardError(Exception):
         self.method = method
         self.path = path
         super().__init__(message)
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Keyword-only constructor: the default reduce cannot rebuild it (P59).
+        return (
+            rebuild_keyword_exception,
+            (
+                type(self),
+                {
+                    "capability": self.capability,
+                    "method": self.method,
+                    "path": self.path,
+                    "message": str(self),
+                },
+            ),
+            self.__dict__,
+        )
 
 
 _CODE_MAP: dict[int, type[TikTokAPIError]] = {

@@ -99,6 +99,11 @@ class SyncOutcome:
     backfill: bool = False
     skipped: bool = False
     error: str | None = None
+    # P59: product ids the step left out because the vendor rejected them
+    # (Search Inventory's 12019008) or the bisection budget ran out before they
+    # could be told apart from a rejected neighbour. Not a failure on its own --
+    # see `sync_inventory`.
+    skipped_product_ids: int = 0
 
     @property
     def dropped_everything(self) -> bool:
@@ -119,6 +124,7 @@ class SyncOutcome:
             "pages": self.pages,
             "backfill": self.backfill,
             "skipped": self.skipped,
+            "skipped_product_ids": self.skipped_product_ids,
             "error": self.error,
             "ok": self.ok,
         }
@@ -262,6 +268,7 @@ class _StepRun:
         self.backfill = backfill
         self.handoff = _CountingHandoff(handoff_fn, resource=resource, shop_id=shop_id)
         self.fetched = 0
+        self.skipped_product_ids = 0
         self.reported = False
         self._update_time_from = update_time_from
         self._scope_cm: Any | None = None
@@ -400,6 +407,7 @@ class _StepRun:
             backfill=self.backfill,
             skipped=skipped,
             error=_describe(error) if error is not None else self.handoff.first_error,
+            skipped_product_ids=self.skipped_product_ids,
         )
 
     def _report(self, *, error: BaseException | None = None, skipped: bool = False) -> SyncOutcome:
@@ -437,6 +445,213 @@ ProductIdsFn = Callable[[], Awaitable[list[str]]]
 # conservative batch size rather than an attempt to fit a whole catalog in one
 # call.
 DEFAULT_INVENTORY_PAGE_SIZE = 30
+
+# P59 / D69. Search Inventory rejects a WHOLE request with 12019008 ("Parameter
+# `product_ids` is invalid because must contain product IDs accepted by this
+# endpoint") when any one id in it is not accepted. Seen in production on
+# 2026-10-19 for a shop whose synced catalogue held ids the endpoint refuses.
+INVENTORY_REJECTED_PRODUCT_IDS_CODE = 12019008
+
+# Statuses whose products are never sent to Search Inventory. The product
+# status enum comes from the bundled TikTok OAS (`tts-openapi-guide`,
+# `references/oas/paths/product.json`, Search Products / Get Product Details
+# 202309: DRAFT, PENDING, FAILED, ACTIVATE, SELLER_DEACTIVATED,
+# PLATFORM_DEACTIVATED, FREEZE, DELETED). The OAS does not say which of them
+# Search Inventory accepts, so only the two that cannot have live stock are
+# excluded: a DELETED product no longer exists and a DRAFT was never published.
+# Every other status -- and an unknown or empty one -- is kept, and the
+# bisection in `_InventoryFetcher` is what isolates any further rejected id.
+INVENTORY_EXCLUDED_PRODUCT_STATUSES = frozenset({"DELETED", "DRAFT"})
+
+# The EXTRA Search Inventory calls spent isolating rejected ids are bounded
+# twice. Per step: at most `INVENTORY_BISECT_MAX_CALLS`, which is exactly what
+# one rejected id costs in the worst case for a 30-id page (10 -- 2 calls per
+# halving, 5 halvings), so the ordinary case always resolves and an all-rejected
+# page (58 calls to resolve fully) cannot run away. Across steps: every extra
+# call takes a token from its own rate-limiter bucket, keyed
+# `INVENTORY_ISOLATE_RATE_KEY`, at the step's own 10/60s quota. It is a separate
+# bucket ON PURPOSE: drawing these from the step's bucket would leave it
+# exhausted after one bad page, and the next poll or bootstrap within the minute
+# would then be turned away (`_skipped`) or made to sleep by
+# `orchestrate._backoff_if_rate_limited` -- isolation must not cost the shop
+# its next sync.
+INVENTORY_BISECT_MAX_CALLS = 10
+INVENTORY_ISOLATE_RATE_KEY = f"{INVENTORY_SEARCH_PATH}:isolate"
+INVENTORY_RATE_MAX_REQUESTS = 10
+INVENTORY_RATE_WINDOW_SECONDS = 60
+
+# Sentinel: a bisection call the budget refused, as distinct from `None` (rejected).
+_UNRESOLVED: Any = object()
+
+
+def inventory_searchable_status(status: str | None) -> bool:
+    """False only for a status Search Inventory cannot answer for (P59).
+
+    Unknown or empty status keeps the id: dropping it silently would be a new
+    way for inventory to go missing without a trace. The bisection catches it
+    instead if the vendor refuses it.
+    """
+    if not status:
+        return True
+    return status.strip().upper() not in INVENTORY_EXCLUDED_PRODUCT_STATUSES
+
+
+class _InventoryFetcher:
+    """Runs Search Inventory for one step and isolates rejected product ids.
+
+    A primary page call that comes back 12019008 is split in halves and the
+    halves are retried, recursively, until every rejected id stands alone.
+    A half is not re-called when its sibling's answer already proves it holds
+    a rejected id (parent rejected + left accepted => right rejected), so one
+    rejected id in a page of 30 costs at most 10 extra calls.
+
+    Each extra call takes one of the step's `INVENTORY_BISECT_MAX_CALLS` and a
+    token from the `INVENTORY_ISOLATE_RATE_KEY` bucket. The first refusal stops bisection for
+    the rest of the step without another `acquire` (each refused `acquire`
+    still INCRs the Redis counter); whatever is unresolved then is skipped as a
+    batch and logged. It does not raise: the snapshot repeats every cycle, so
+    the unresolved ids are retried next time, and raising would put the shop
+    straight back into the fail-every-cycle loop P59 fixes.
+
+    Every OTHER error keeps the step's #1948 shape: reported, then raised.
+    """
+
+    def __init__(
+        self,
+        *,
+        step: _StepRun,
+        resource: Any,
+        rate_limiter: RateLimiter,
+        app_id: str,
+        shop_id: str,
+    ) -> None:
+        self._step = step
+        self._resource = resource
+        self._rate_limiter = rate_limiter
+        self._app_id = app_id
+        self._shop_id = shop_id
+        self._bisect_calls_left = INVENTORY_BISECT_MAX_CALLS
+        self._bisect_stopped = False
+        self.accepted_calls = 0
+        self.rejected_ids: list[str] = []
+        self.unresolved_ids = 0
+        self.first_rejection: TikTokAPIError | None = None
+
+    def page(self, product_ids: list[str]) -> list[dict[str, Any]]:
+        """Responses for one primary page, bisecting it if the vendor rejects it."""
+        response = self._search(product_ids)
+        if response is not None:
+            return [response]
+        return self._isolate(product_ids)
+
+    def _isolate(self, rejected: list[str]) -> list[dict[str, Any]]:
+        """`rejected` is known to hold at least one id the endpoint refuses."""
+        if len(rejected) == 1:
+            self._skip(rejected[0])
+            return []
+        mid = (len(rejected) + 1) // 2
+        left, right = rejected[:mid], rejected[mid:]
+        left_response = self._bisect_call(left)
+        if left_response is _UNRESOLVED:
+            self._unresolve(rejected)
+            return []
+        if left_response is not None:
+            # Left accepted, parent rejected: the rejected id is in `right`.
+            return [left_response, *self._isolate(right)]
+        responses = self._isolate(left)
+        right_response = self._bisect_call(right)
+        if right_response is _UNRESOLVED:
+            self._unresolve(right)
+            return responses
+        if right_response is not None:
+            return [*responses, right_response]
+        return [*responses, *self._isolate(right)]
+
+    def _bisect_call(self, product_ids: list[str]) -> Any:
+        if not self._take_bisect_token():
+            return _UNRESOLVED
+        return self._search(product_ids)
+
+    def _take_bisect_token(self) -> bool:
+        if self._bisect_stopped:
+            return False
+        if self._bisect_calls_left > 0 and self._rate_limiter.acquire(
+            self._app_id,
+            self._shop_id,
+            INVENTORY_ISOLATE_RATE_KEY,
+            max_requests=INVENTORY_RATE_MAX_REQUESTS,
+            window_seconds=INVENTORY_RATE_WINDOW_SECONDS,
+        ):
+            self._bisect_calls_left -= 1
+            return True
+        self._bisect_stopped = True
+        logger.warning(
+            "sync_inventory_bisect_budget_exhausted",
+            extra={
+                "shop_id": self._shop_id,
+                "reason": "max_calls" if self._bisect_calls_left <= 0 else "rate_limited",
+            },
+        )
+        return False
+
+    def _search(self, product_ids: list[str]) -> dict[str, Any] | None:
+        """One vendor call. ``None`` means 12019008; anything else unexpected raises."""
+        step = self._step
+        try:
+            response = step.fetch(partial(self._resource.search, product_ids=product_ids))
+        except TikTokPaginationError as exc:
+            step.report(error=exc)
+            raise
+        except TikTokAPIError as exc:
+            if exc.code == INVENTORY_REJECTED_PRODUCT_IDS_CODE:
+                if self.first_rejection is None:
+                    self.first_rejection = exc
+                return None
+            logger.error(
+                "sync_inventory_failed",
+                extra={"shop_id": self._shop_id, "page_product_id_count": len(product_ids)},
+                exc_info=True,
+            )
+            step.report(error=exc)
+            raise
+
+        if not isinstance(response, dict):
+            invalid = ValueError(
+                "sync_inventory got a non-dict inventory search response for "
+                f"shop_id={self._shop_id}: {type(response).__name__}"
+            )
+            logger.error(
+                "sync_inventory_invalid_response",
+                extra={"shop_id": self._shop_id, "type": type(response).__name__},
+            )
+            step.report(error=invalid)
+            raise invalid
+        self.accepted_calls += 1
+        return response
+
+    def _skip(self, product_id: str) -> None:
+        self.rejected_ids.append(product_id)
+        self._step.skipped_product_ids += 1
+        logger.warning(
+            "sync_inventory_product_skipped",
+            extra={
+                "shop_id": self._shop_id,
+                "product_id": product_id,
+                "error_code": INVENTORY_REJECTED_PRODUCT_IDS_CODE,
+            },
+        )
+
+    def _unresolve(self, product_ids: list[str]) -> None:
+        self.unresolved_ids += len(product_ids)
+        self._step.skipped_product_ids += len(product_ids)
+        logger.warning(
+            "sync_inventory_batch_unresolved",
+            extra={
+                "shop_id": self._shop_id,
+                "product_id_count": len(product_ids),
+                "error_code": INVENTORY_REJECTED_PRODUCT_IDS_CODE,
+            },
+        )
 
 
 # Logger for structured warnings about credential mismatches
@@ -843,36 +1058,44 @@ async def sync_inventory(
             logger.info("sync_inventory_no_products", extra={"shop_id": shop_id})
             return step.report()
 
+        fetcher = _InventoryFetcher(
+            step=step,
+            resource=resource,
+            rate_limiter=rate_limiter,
+            app_id=app_id,
+            shop_id=shop_id,
+        )
         rows: list[dict[str, Any]] = []
         for batch_start in range(0, len(product_ids), page_size):
             page = product_ids[batch_start : batch_start + page_size]
-            try:
-                response = step.fetch(partial(resource.search, product_ids=page))
-            except TikTokPaginationError as exc:
-                step.report(error=exc)
-                raise
-            except TikTokAPIError as exc:
+            for response in fetcher.page(page):
+                rows.extend(expand_inventory_search(response))
+
+        if fetcher.first_rejection is not None:
+            if not fetcher.accepted_calls:
+                # Not one call was accepted. That is the #1948 shape (a request
+                # the endpoint refuses outright -- 12019008 is also what a body
+                # with no usable `product_ids` returns), not "a few bad ids", so
+                # it fails loudly rather than reporting a clean empty snapshot.
                 logger.error(
                     "sync_inventory_failed",
-                    extra={"shop_id": shop_id, "page_product_id_count": len(page)},
-                    exc_info=True,
+                    extra={
+                        "shop_id": shop_id,
+                        "page_product_id_count": len(product_ids),
+                        "reason": "every_product_id_rejected",
+                    },
                 )
-                step.report(error=exc)
-                raise
-
-            if not isinstance(response, dict):
-                invalid = ValueError(
-                    "sync_inventory got a non-dict inventory search response for "
-                    f"shop_id={shop_id}: {type(response).__name__}"
-                )
-                logger.error(
-                    "sync_inventory_invalid_response",
-                    extra={"shop_id": shop_id, "type": type(response).__name__},
-                )
-                step.report(error=invalid)
-                raise invalid
-
-            rows.extend(expand_inventory_search(response))
+                step.report(error=fetcher.first_rejection)
+                raise fetcher.first_rejection
+            logger.warning(
+                "sync_inventory_products_skipped",
+                extra={
+                    "shop_id": shop_id,
+                    "rejected": len(fetcher.rejected_ids),
+                    "unresolved": fetcher.unresolved_ids,
+                    "requested": len(product_ids),
+                },
+            )
 
         step.fetched = len(rows)
         synced_at = int(time.time())

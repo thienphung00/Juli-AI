@@ -1279,3 +1279,22 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   production worker's banner does not list one of them, the next deploy's API lane fails at that
   step after cutover. The owner's 2026-10-19 check (worker registers every task) suggests it is fine.
 
+
+## P59 — Search Inventory 12019008 (2026-10-19, D69)
+
+- [ ] Which product statuses Search Inventory accepts is not documented in the bundled OAS; only
+  DELETED and DRAFT are filtered, by reasoning. The production shop's actual rejected ids (and
+  their `products.status`) are not known yet. Repay: after deploy, read the
+  `sync_inventory_product_skipped` lines, look up those products' status, and add any status
+  that is always rejected to `INVENTORY_EXCLUDED_PRODUCT_STATUSES`.
+- [ ] Rejected ids are not remembered: every cycle (15 min poll + bootstrap) re-sends them and
+  re-bisects, up to 10 extra calls per step. Two or more rejected ids in one page can exceed the
+  10-call cap, and then the same accepted neighbours are skipped as "unresolved" every cycle
+  (deterministic order). Repay: persist rejected ids per shop with a TTL (or learn the status,
+  above) and exclude them before paging.
+- [ ] `products.status` is whatever the last product sync stored (`sync_products` ETL raw
+  `status`, else the audit status, else `"ACTIVE"`). A product deleted on TikTok after its last
+  sync still reads ACTIVATE locally until the next product sync; the bisection covers that gap.
+- [ ] A shop whose every product id is rejected still raises every cycle (D69.4, the #1948
+  guard) and so still loops in bootstrap. It is loud and the ids are logged; the general
+  back-off is P58's bootstrap-loop debt above.
