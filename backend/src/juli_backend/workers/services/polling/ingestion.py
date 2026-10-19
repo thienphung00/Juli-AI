@@ -100,6 +100,7 @@ from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRep
 from juli_backend.services.ingestion import HandoffFn
 from juli_backend.services.onboarding import history_days_available, max_lookback_days
 from juli_backend.services.order_costs import OrderCostsResult, sync_order_costs
+from juli_backend.services.tiktok import backfill_shop_cipher
 from juli_backend.workers.services.polling.analytics_range import (
     AnalyticsRangeResult,
     probe_latest_available_date,
@@ -296,6 +297,14 @@ async def _scoped_shop_run(
         credential = await resolve(session, shop_id)
     _assert_pollable_read_credential(credential, shop_id=shop_id)
     async with with_sticky_shop_scope(session, shop_id):
+        if not credential.shop_cipher:
+            # P58-B (D67): every 202309 shop-scoped call needs the cipher, and the
+            # client silently omits it when unset (TikTok 106013 on orders/search,
+            # retried on every fan-out tick). Fetch and store it once; a shop
+            # TikTok cannot resolve is marked needs_reauth and stops being polled.
+            await backfill_shop_cipher(
+                session, credential, app_key=config.app_key, app_secret=config.app_secret
+            )
         client_factory = factory or ProductionReadClientFactory()
         build = create_resources or client_factory.create_resources
         resources = build(_factory_config(config, credential))

@@ -255,6 +255,12 @@ class TikTokCredentialRepo(SessionRepo):
         await self._session.flush()
         return _hydrate_decrypted_tokens(credential)
 
+    async def set_shop_cipher(self, credential_id: uuid.UUID, shop_cipher: str) -> None:
+        """Record the vendor-verified ``shop_cipher`` (P58-B). Only that column changes."""
+        credential = await self._require(credential_id)
+        credential.shop_cipher = shop_cipher
+        await self._session.flush()
+
     async def _require(self, credential_id: uuid.UUID) -> TikTokCredential:
         credential = await self._session.get(TikTokCredential, credential_id)
         if credential is None:
