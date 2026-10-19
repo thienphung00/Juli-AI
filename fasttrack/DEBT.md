@@ -1189,3 +1189,23 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] The prior-figure fixed set only shrinks (`reconcile --write` prunes; it never adds). If a
   recorded helper-style test is rewritten with a direct `assert`, the set loses it and the claim
   drops by one, as it should. Adding an identity is a hand edit that review must see.
+
+## P56 — first `backend-unit` failure (2026-10-19, D65)
+
+- [ ] The shared local repo `/Users/macos/Juli-AI-v2/juli` (and so every worktree, including
+  `juli-fasttrack`) has been **shallow** since 2026-10-18 21:42 (`.git/shallow` = f7c83e27, the
+  #944 commit). `ProvenanceResolver.history_is_complete()` is False there, so local runs take the
+  bounded-checkout path. That is why P55's "exactly as the job runs it" local run passed the
+  negative-dataset test that fetch-depth 0 failed. Repay (owner, read-mostly, no push):
+  `git -C /Users/macos/Juli-AI-v2/juli fetch --unshallow origin`.
+- [ ] The archived rows are checked (RESOLVED, digest compared) only in the fast-track
+  `backend-unit` job. It is the only job that fetches `refs/pull/1472/head`. `pr.yml` jobs are
+  shallow and report them MISSING_SOURCE. Repay if needed: add the same fetch step there.
+- [ ] `refs/pull/<n>/head` is GitHub-specific. If the repo moves host or the PR refs are purged,
+  the fetch step fails loudly (`set -e`). Fallback: the owner pushes an archive ref, e.g.
+  `git push origin 62a70cec5b25cd5f877867f4151894889145352b:refs/tags/archive/pr-1472-head`, and
+  `ARCHIVED_COMMIT_REFS` points at it.
+- [ ] `gate_env` also removes `GITHUB_BASE_REF`. In a `pr.yml` run the sweep's base-anchored gates
+  (`check_harness_bootstrap_pin`, `git_changed_files`) now see the local-loop context, as they
+  do locally and as the committed score table was produced, instead of the PR base. Revisit if
+  the table is ever regenerated in CI.

@@ -342,6 +342,13 @@ Reason: the website legal text lacked layer 1 (data rights) and layer 2 (process
 | B Unit suite green with no database (wiring seam stub, 2 tests `requires_postgres`, cross-tenant stream factory, scan timeouts) | D64.2 | done on branch `fasttrack/deploy-gates` | agent (Opus) |
 | C `frontend`, `backend-unit`, `static` jobs; `deploy` needs them; `.nvmrc`; README job table | D64.1–3 | done on branch `fasttrack/deploy-gates`; first exercised by the next deploy | agent (Opus) |
 
+## P56 — first `backend-unit` deploy-gate failure fixed (D65, 2026-10-19)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| Gate sweep runs every gate under one pinned CI-flow context (`gate_env`); tag-push regression test | D65.1 | done on branch `fasttrack/ci-fix` (not merged) | agent (Opus) |
+| Dissolved PR #1472 commits declared with their archive ref; deploy job fetches `refs/pull/1472/head` and requires the rows to resolve | D65.2 | done on branch `fasttrack/ci-fix` | agent (Opus) |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

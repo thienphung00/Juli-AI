@@ -1392,3 +1392,31 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `eval/quality_prior_figure_set.json` holds the layer's helper-credited members at the
      branch point 0739f4da. `reconcile --write` only prunes it. The tolerance stays at 15.
   Work: P55.
+
+- **D65** — The first fast-track `backend-unit` run (39214813315, tag
+  `fasttrack-deploy-20261019T0715Z`, 310cc0e1) failed two tests that passed locally. Both were
+  environment differences, not the 2026-10-19 branch cleanup and not product bugs. Fix the
+  checks so they mean the same thing in CI and locally; never skip them (agent, 2026-10-19,
+  within the approved fast-track CI scope; owner merges).
+  1. **Gate sweep context.** `eval.gate_scoring.run_gate` passed the runner's
+     `GITHUB_EVENT_NAME=push` / `GITHUB_REF_NAME=<tag>` to the gates, and
+     `check_phase_run_correlation` correctly fails closed on that unsupported flow. Locally none
+     are set, so the gate saw the issue tier. `gate_env()` now removes `GITHUB_EVENT_NAME`,
+     `GITHUB_REF_NAME`, `GITHUB_HEAD_REF` and `GITHUB_BASE_REF` and pins
+     `GITHUB_HEAD_REF=feat/issue-<n>-gate-scoring` and `ISSUE_NUMBER`. Every sweep therefore runs
+     in the issue tier with the full required set, in any workflow, on any tag or branch. The gate
+     itself is unchanged. It still fails closed on a tag push, and the regression test asserts
+     that it does.
+  2. **Dissolved evidence.** Two negative-dataset rows cite the PR #1472 commits `d408041c` and
+     `62a70cec`. The squash-merge on 2026-09-01 dissolved them, and the head branch was deleted
+     at merge. No branch or tag reaches them, so no clone gets them at any depth, and in a
+     complete clone the resolver reported MISMATCH. The local repo is shallow (since 2026-10-18
+     21:42), so there the rows were MISSING_SOURCE and passed. GitHub still holds both under
+     `refs/pull/1472/head`. They are declared in `eval.negative_dataset.ARCHIVED_COMMIT_REFS`,
+     and an absent declared commit is MISSING_SOURCE at any depth. The `backend-unit` job
+     fetches `archive_fetch_refspecs()` into `refs/archive/*` and sets
+     `JULI_REQUIRE_ARCHIVED_COMMITS=1`, so in the deploy gate the rows must RESOLVE with their
+     digest checked. An undeclared commit missing from a complete clone stays MISMATCH. The
+     declaration must equal `DISSOLVED_COMMIT_ROWS`. No ref needs restoring or pushing.
+  Work: P56.
+
