@@ -30,6 +30,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_SH = REPO_ROOT / "infra" / "scripts" / "deploy.sh"
+# P56: the rollback starts its API candidate with its own systemd-run (from the target
+# release's venv); it must launch exactly the same uvicorn flags.
+ROLLBACK_SH = REPO_ROOT / "infra" / "scripts" / "rollback-release.sh"
 API_UNIT = REPO_ROOT / "infra" / "systemd" / "juli-api.service"
 
 # Differ legitimately between the boot unit and a blue/green candidate.
@@ -58,14 +61,14 @@ def _unit_execstart() -> str:
     return " ".join(out)
 
 
-def _deploy_candidate_command() -> str:
+def _deploy_candidate_command(script: Path = DEPLOY_SH) -> str:
     """The uvicorn portion of the systemd-run candidate launch.
 
     Sliced from the uvicorn binary onward so systemd-run's own options (--unit,
     --collect, --property) are not mistaken for uvicorn flags — they legitimately have
     no counterpart in the unit file's ExecStart.
     """
-    text = DEPLOY_SH.read_text(encoding="utf-8")
+    text = script.read_text(encoding="utf-8")
     start = text.index('systemd-run --unit="juli-api-candidate-')
     end = text.index(">&2", start)
     body = text[start:end]
@@ -125,3 +128,11 @@ def test_the_parsers_are_not_vacuous():
         # >= 1, not a content threshold: this guards the extractor, and conflating it
         # with "how many flags should exist" would make it fire twice for one cause.
         assert len(_flags(text)) >= 1, f"{name} extractor found no flags: {text!r}"
+
+
+def test_rollback_candidate_uses_the_same_uvicorn_flags_as_the_unit_file():
+    rollback = _deploy_candidate_command(ROLLBACK_SH)
+    assert "uvicorn" in rollback
+    assert _flags(rollback) == _flags(_unit_execstart())
+    assert "--proxy-headers" in rollback
+    assert "--forwarded-allow-ips=127.0.0.1" in rollback
