@@ -10,8 +10,9 @@ passes through this module first (see ``tests/unit/test_p50p_llm_boundary.py``).
   parsed, run through :func:`deidentify_payload` and dumped again.
 - :func:`deidentify_payload` walks JSON-like data. A value under a buyer /
   recipient / contact key (the D25.6 key pattern the ops console masks with)
-  becomes ``[ẩn]``; a buyer or user **id** becomes a stable HMAC alias (ADR-038
-  ``stable_alias``) so the model can still tell records apart. Numbers are never
+  becomes ``[ẩn]``; a buyer or user **id** becomes a stable HMAC alias (the
+  ADR-038 ``stable_alias`` scheme, re-stated here because ``core`` may not import
+  ``services``) so the model can still tell records apart. Numbers are never
   touched: prices, quantities and KPIs reach the model exactly.
 
 The regexes here are the single source: ``services/ops/masking.py`` imports them.
@@ -19,13 +20,17 @@ The regexes here are the single source: ``services/ops/masking.py`` imports them
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import re
 from typing import Any
 
-from juli_backend.services.analytics_kpi_masking.mask import stable_alias
-
 REDACTED = "[ẩn]"
+
+#: Same key and output as ``services/analytics_kpi_masking/mask.py::stable_alias``
+#: (ADR-038); a test pins the two equal. Moving it to a secret is P50 DEBT.
+_ALIAS_KEY = b"juli-demo-analytics-identity-v1"
 
 #: Keys whose value is buyer / recipient personal data (D25.6, ops console).
 PII_KEY_RE = re.compile(
@@ -79,7 +84,12 @@ def _alias(key: str, value: Any) -> Any:
     if isinstance(value, dict):
         return _redact_leaves(value)
     kind = "user" if "user" in key.lower() and "buyer" not in key.lower() else "buyer"
-    return stable_alias(kind, str(value))
+    return _stable_alias(kind, str(value))
+
+
+def _stable_alias(prefix: str, raw: str) -> str:
+    digest = hmac.new(_ALIAS_KEY, f"{prefix}:{raw}".encode(), hashlib.sha256).hexdigest()[:8]
+    return f"demo-{prefix}-{digest}"
 
 
 def _redact_leaves(value: Any) -> Any:

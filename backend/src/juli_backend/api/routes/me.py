@@ -20,7 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.security import get_current_user
 from juli_backend.database import User, get_session
 from juli_backend.services import privacy
-from juli_backend.services.privacy.prefs import now_utc
 from juli_backend.services.subscriptions import shop_today
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -117,7 +116,7 @@ async def get_export(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     """D68.6: the seller's own data as a JSON download (allowed while deletion is pending)."""
-    now = now_utc()
+    now = privacy.now_utc()
     payload = await privacy.build_export(session, user.id, now=now)
     await session.commit()
     filename = f"juli-du-lieu-{shop_today(now).isoformat()}.json"

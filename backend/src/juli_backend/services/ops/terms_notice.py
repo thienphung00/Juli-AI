@@ -38,24 +38,32 @@ logger = logging.getLogger(__name__)
 
 NOTICE_SUBJECT = "Juli cập nhật Điều khoản dịch vụ và Chính sách bảo mật"
 
-NOTICE_BODY = """Chào bạn,
-
-Ngày 18/10/2026, Juli đã cập nhật Điều khoản dịch vụ và Chính sách bảo mật. Bản cập nhật có hiệu lực ngay từ ngày này.
-
-Những điểm chính:
-- Juli chỉ dành cho mục đích kinh doanh: doanh nghiệp, hộ kinh doanh và người bán dùng Juli cho hoạt động thương mại.
-- Dữ liệu đã khử định danh được dùng để cải thiện mô hình của Juli. Đây là điều kiện sử dụng dịch vụ. Dữ liệu người mua không bao giờ được dùng để huấn luyện.
-- Juli không chịu trách nhiệm bồi thường theo Điều 11 của Điều khoản dịch vụ.
-- Quyền của bạn và cách từ chối nằm trong Cài đặt → Quyền riêng tư.
-
-Đọc toàn văn:
-Điều khoản dịch vụ: https://app-juli.com/terms
-Chính sách bảo mật: https://app-juli.com/privacy
-
-Nếu có câu hỏi, bạn liên hệ lienhe@app-juli.com.
-
-Juli
-"""  # noqa: E501
+NOTICE_BODY = "\n".join(
+    (
+        "Chào bạn,",
+        "",
+        "Ngày 18/10/2026, Juli đã cập nhật Điều khoản dịch vụ và Chính sách bảo mật. "
+        "Bản cập nhật có hiệu lực ngay từ ngày này.",
+        "",
+        "Những điểm chính:",
+        "- Juli chỉ dành cho mục đích kinh doanh: doanh nghiệp, hộ kinh doanh và người bán "
+        "dùng Juli cho hoạt động thương mại.",
+        "- Dữ liệu đã khử định danh được dùng để cải thiện mô hình của Juli. "
+        "Đây là điều kiện sử dụng dịch vụ. "
+        "Dữ liệu người mua không bao giờ được dùng để huấn luyện.",
+        "- Juli không chịu trách nhiệm bồi thường theo Điều 11 của Điều khoản dịch vụ.",
+        "- Quyền của bạn và cách từ chối nằm trong Cài đặt → Quyền riêng tư.",
+        "",
+        "Đọc toàn văn:",
+        "Điều khoản dịch vụ: https://app-juli.com/terms",
+        "Chính sách bảo mật: https://app-juli.com/privacy",
+        "",
+        "Nếu có câu hỏi, bạn liên hệ lienhe@app-juli.com.",
+        "",
+        "Juli",
+        "",
+    )
+)
 
 
 @dataclass(frozen=True)

@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from juli_backend.core.privacy.deidentify import EMAIL_RE, PHONE_RE, PII_KEY_RE
+from juli_backend.core.privacy import EMAIL_RE, PHONE_RE, PII_KEY_RE
 
 MASK = "•••"
 STAFF_DOMAIN = "app-juli.com"

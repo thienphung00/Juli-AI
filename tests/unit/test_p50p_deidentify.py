@@ -117,3 +117,11 @@ def test_ops_mask_pii_still_uses_the_same_patterns() -> None:
         "buyer_name": "•••",
         "note": "•••",
     }
+
+
+def test_core_alias_matches_the_adr038_stable_alias() -> None:
+    """``core`` re-states the alias scheme (it may not import ``services``); the two agree."""
+    from juli_backend.core.privacy.deidentify import _stable_alias
+    from juli_backend.services.analytics_kpi_masking.mask import stable_alias
+
+    assert _stable_alias("buyer", "7493") == stable_alias("buyer", "7493")

@@ -839,6 +839,8 @@ def test_beat_schedule_has_exactly_the_eight_expected_entries():
         "ops-openai-system-alert",
         # Fast track P23 (D30.1): the daily product snapshot + promotion sweep.
         "product-history-fanout",
+        # Fast track P50 (D68.10): nightly purge of accounts past their 30-day window.
+        "privacy-account-purge",
     }
 
 
