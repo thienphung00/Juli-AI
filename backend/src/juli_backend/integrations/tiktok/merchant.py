@@ -12,22 +12,21 @@ duplicate that call.
 
 So the two IDs and their capability pairing are sourced from environment
 configuration, following this codebase's ``os.getenv(...)`` convention (see
-e.g. ``TIKTOK_APP_KEY``), so a new deployment can onboard its own
-production/sandbox merchants without a code edit:
+e.g. ``TIKTOK_APP_KEY``), so a deployment onboards its own production/sandbox
+merchants without a code edit:
 
 - ``TIKTOK_PRODUCTION_MERCHANT_ID`` -> ``TikTokCapability.PRODUCTION_READ``
 - ``TIKTOK_SANDBOX_MERCHANT_ID``    -> ``TikTokCapability.SANDBOX_WRITE``
 
-**Honesty note (required, not glossed over):** when either variable is
-unset, the constant below falls back to Juli's own already-committed
-merchant ID as a literal default, purely so this deployment's existing
-behaviour is unchanged by this refactor. That literal is Juli's value, not a
-placeholder -- it is still a hardcoded merchant ID living in source. A NEW
-deployment MUST set both env vars to onboard its own production/sandbox
-merchants; leaving them unset means a new deployment's own shops will not
-match either fallback ID (extremely unlikely to collide) and will resolve to
-``SELLER_CONNECT``, never silently to Juli's ``PRODUCTION_READ`` /
-``SANDBOX_WRITE`` treatment of Juli's own shops.
+**No default (fast track P61-D, D71.4).** These used to fall back to Juli's own
+merchant ids as literals in this file. They no longer do: unset means ``""``.
+Every code path that NEEDS one fails closed with :class:`MerchantIdNotConfigured`
+(a ``ValueError`` naming the variable) -- through :func:`require_production_auth_id`
+/ :func:`require_sandbox_auth_id`, or the equivalent ``if not ...`` guards in
+``factories.py`` / ``workers/services/polling/orchestrate.py``. Paths that only
+CLASSIFY (``resolve_merchant_context``) treat an unset id as "no configured
+merchant", so every shop is ``SELLER_CONNECT``. API and worker boot log a
+``runtime_env_missing`` warning for each unset id (``core/config/runtime_env.py``).
 
 **Update (#1246), correcting a caveat that used to be true here:** the
 transport guards that actually build outbound clients --
@@ -50,11 +49,43 @@ from __future__ import annotations
 import os
 from enum import Enum
 
-# Fallback defaults are Juli's own IDs, already committed in this file prior
-# to #1234 -- kept only so an unconfigured deployment (this one, today)
-# behaves identically to before. See module docstring "Honesty note".
-PRODUCTION_AUTH_ID = os.getenv("TIKTOK_PRODUCTION_MERCHANT_ID", "7658073774813611784").strip()
-SANDBOX_AUTH_ID = os.getenv("TIKTOK_SANDBOX_MERCHANT_ID", "7658096633384781588").strip()
+PRODUCTION_MERCHANT_ID_ENV = "TIKTOK_PRODUCTION_MERCHANT_ID"
+SANDBOX_MERCHANT_ID_ENV = "TIKTOK_SANDBOX_MERCHANT_ID"
+
+# No literal default (P61-D): unset is "", and a path that needs one fails closed.
+PRODUCTION_AUTH_ID = os.getenv(PRODUCTION_MERCHANT_ID_ENV, "").strip()
+SANDBOX_AUTH_ID = os.getenv(SANDBOX_MERCHANT_ID_ENV, "").strip()
+
+
+class MerchantIdNotConfigured(ValueError):
+    """A code path needs a configured merchant id and its env var is unset or empty.
+
+    A ``ValueError`` so every caller that already refused a misconfigured merchant
+    with ``ValueError`` keeps refusing; the name and ``env_var`` make the log say
+    which variable to set. Never carries a value.
+    """
+
+    def __init__(self, env_var: str, *, needed_for: str) -> None:
+        self.env_var = env_var
+        self.needed_for = needed_for
+        super().__init__(
+            f"{env_var} is not set: {needed_for} needs it and refuses to run without it "
+            "(there is no default merchant id; set it in the API / worker env)"
+        )
+
+
+def require_production_auth_id(*, needed_for: str = "production read") -> str:
+    """The configured production-read merchant id, or :class:`MerchantIdNotConfigured`."""
+    if not PRODUCTION_AUTH_ID:
+        raise MerchantIdNotConfigured(PRODUCTION_MERCHANT_ID_ENV, needed_for=needed_for)
+    return PRODUCTION_AUTH_ID
+
+
+def require_sandbox_auth_id(*, needed_for: str = "sandbox write") -> str:
+    """The configured sandbox-write merchant id, or :class:`MerchantIdNotConfigured`."""
+    if not SANDBOX_AUTH_ID:
+        raise MerchantIdNotConfigured(SANDBOX_MERCHANT_ID_ENV, needed_for=needed_for)
+    return SANDBOX_AUTH_ID
 
 
 class TikTokCapability(str, Enum):

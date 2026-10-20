@@ -23,6 +23,10 @@ from juli_backend.integrations.tiktok.guards import (
     ReadOnlyTransportGuard,
     SandboxOnlyWriteGuard,
 )
+from juli_backend.integrations.tiktok.merchant import (
+    SANDBOX_MERCHANT_ID_ENV,
+    MerchantIdNotConfigured,
+)
 from juli_backend.integrations.tiktok.resources.analytics import AnalyticsResource
 from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
 from juli_backend.integrations.tiktok.resources.fulfillment import FulfillmentResource
@@ -126,15 +130,12 @@ class ProductionReadClientFactory:
         # An unusable sandbox constant is a DEPLOYMENT FAULT, not permission to
         # skip the check: a factory that cannot say which merchant is the
         # sandbox one cannot honour the exclusion, so it refuses to build a
-        # signed client at all. `merchant.py` supplies a hardcoded fallback
-        # today, which is why the value is non-empty in practice -- that is
-        # luck, and an explicitly-empty env var defeats it.
+        # signed client at all. Since P61-D there is no hardcoded fallback in
+        # `merchant.py`, so an unset env var lands here too.
         if not SANDBOX_AUTH_ID:
-            raise ValueError(
-                "ProductionReadClientFactory cannot enforce the SANDBOX_VN exclusion: "
-                "SANDBOX_AUTH_ID is empty (TIKTOK_SANDBOX_MERCHANT_ID is set to an empty "
-                "value). Refusing to build a read client rather than admitting a merchant "
-                "this guard can no longer exclude."
+            raise MerchantIdNotConfigured(
+                SANDBOX_MERCHANT_ID_ENV,
+                needed_for="ProductionReadClientFactory (to exclude the SANDBOX_VN merchant)",
             )
         if config.merchant_auth_id == SANDBOX_AUTH_ID:
             raise ValueError(
@@ -174,6 +175,12 @@ class SandboxWriteClientFactory:
     """Build SANDBOX_VN write-validation clients with sandbox-only transport guard."""
 
     def create(self, config: ClientFactoryConfig) -> GuardedTikTokClient:
+        # FAIL CLOSED (P61-D): with the id unset, an empty `merchant_auth_id`
+        # would otherwise equal the empty constant and pass.
+        if not SANDBOX_AUTH_ID:
+            raise MerchantIdNotConfigured(
+                SANDBOX_MERCHANT_ID_ENV, needed_for="SandboxWriteClientFactory"
+            )
         if config.merchant_auth_id != SANDBOX_AUTH_ID:
             raise ValueError(
                 "SandboxWriteClientFactory requires SANDBOX_VN merchant auth ID "

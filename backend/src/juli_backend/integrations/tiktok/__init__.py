@@ -95,11 +95,16 @@ from juli_backend.integrations.tiktok.mapping import (
 )
 from juli_backend.integrations.tiktok.merchant import (
     PRODUCTION_AUTH_ID,
+    PRODUCTION_MERCHANT_ID_ENV,
     READ_CAPABILITIES,
     SANDBOX_AUTH_ID,
+    SANDBOX_MERCHANT_ID_ENV,
+    MerchantIdNotConfigured,
     TikTokCapability,
     is_cross_merchant_lookup,
     is_read_capability,
+    require_production_auth_id,
+    require_sandbox_auth_id,
     resolve_merchant_context,
 )
 from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
@@ -176,7 +181,12 @@ __all__ = [
     "SandboxWriteResources",
     # Merchant capability isolation
     "PRODUCTION_AUTH_ID",
+    "PRODUCTION_MERCHANT_ID_ENV",
     "SANDBOX_AUTH_ID",
+    "SANDBOX_MERCHANT_ID_ENV",
+    "MerchantIdNotConfigured",
+    "require_production_auth_id",
+    "require_sandbox_auth_id",
     "TikTokCapability",
     "READ_CAPABILITIES",
     "is_cross_merchant_lookup",

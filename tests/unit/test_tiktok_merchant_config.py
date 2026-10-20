@@ -21,11 +21,10 @@ import pytest
 
 import juli_backend.integrations.tiktok.merchant as merchant
 
-# Not a secret and not a new ID -- this is the literal already committed in
-# merchant.py before this change; used only to assert the documented
-# fallback-default behaviour when env vars are unset.
-_JULI_DEFAULT_PRODUCTION_AUTH_ID = "7658073774813611784"
-_JULI_DEFAULT_SANDBOX_AUTH_ID = "7658096633384781588"
+# The two ids merchant.py used to fall back to (fast track P61-D removed the
+# fallback). Kept only to prove neither is configured any more when unset.
+_FORMER_DEFAULT_PRODUCTION_AUTH_ID = "7658073774813611784"
+_FORMER_DEFAULT_SANDBOX_AUTH_ID = "7658096633384781588"
 
 
 @pytest.fixture(autouse=True)
@@ -107,18 +106,20 @@ class TestConfiguredMerchantIds:
 
 
 class TestEnvVarsUnset:
-    def test_both_unset_falls_back_to_documented_default_literals(self, monkeypatch):
-        """No env vars set -> falls back to Juli's own already-committed IDs
-        (unchanged behaviour for this deployment). A new deployment MUST set
-        both env vars to onboard its own merchants -- see module docstring.
-        """
+    """P61-D (D71.4): no literal default; unset is empty and needing one fails closed."""
+
+    def test_both_unset_configures_no_merchant(self, monkeypatch):
         _reload_with_env(monkeypatch, production_id=None, sandbox_id=None)
 
-        assert merchant.PRODUCTION_AUTH_ID == _JULI_DEFAULT_PRODUCTION_AUTH_ID
-        assert merchant.SANDBOX_AUTH_ID == _JULI_DEFAULT_SANDBOX_AUTH_ID
-
-        auth_id, capability = merchant.resolve_merchant_context(_JULI_DEFAULT_PRODUCTION_AUTH_ID)
-        assert capability == merchant.TikTokCapability.PRODUCTION_READ
+        assert merchant.PRODUCTION_AUTH_ID == ""
+        assert merchant.SANDBOX_AUTH_ID == ""
+        # Juli's former defaults are ordinary sellers now, not configured merchants.
+        for former in (_FORMER_DEFAULT_PRODUCTION_AUTH_ID, _FORMER_DEFAULT_SANDBOX_AUTH_ID):
+            _auth_id, capability = merchant.resolve_merchant_context(former)
+            assert capability == merchant.TikTokCapability.SELLER_CONNECT
+            assert not merchant.is_cross_merchant_lookup(
+                former, merchant.TikTokCapability.PRODUCTION_READ
+            )
 
     def test_unset_still_falls_back_to_seller_connect_for_unknown_id(self, monkeypatch):
         _reload_with_env(monkeypatch, production_id=None, sandbox_id=None)
@@ -127,3 +128,44 @@ class TestEnvVarsUnset:
 
         assert auth_id == "unrecognized_open_id"
         assert capability == merchant.TikTokCapability.SELLER_CONNECT
+
+    def test_empty_string_resolves_to_seller_connect_not_a_configured_merchant(self, monkeypatch):
+        _reload_with_env(monkeypatch, production_id="", sandbox_id="  ")
+
+        _auth_id, capability = merchant.resolve_merchant_context("")
+
+        assert capability == merchant.TikTokCapability.SELLER_CONNECT
+
+    @pytest.mark.parametrize(
+        ("require", "env_var"),
+        [
+            ("require_production_auth_id", "TIKTOK_PRODUCTION_MERCHANT_ID"),
+            ("require_sandbox_auth_id", "TIKTOK_SANDBOX_MERCHANT_ID"),
+        ],
+    )
+    def test_a_path_that_needs_an_id_fails_closed_with_a_named_error(
+        self, monkeypatch, require, env_var
+    ):
+        _reload_with_env(monkeypatch, production_id=None, sandbox_id=None)
+
+        with pytest.raises(merchant.MerchantIdNotConfigured) as caught:
+            getattr(merchant, require)(needed_for="the test path")
+
+        assert caught.value.env_var == env_var
+        assert env_var in str(caught.value)
+        assert "the test path" in str(caught.value)
+        # A ValueError, so callers that refused a misconfigured merchant still refuse.
+        assert isinstance(caught.value, ValueError)
+
+    def test_require_returns_the_configured_id(self, monkeypatch):
+        _reload_with_env(monkeypatch, production_id="prod-x", sandbox_id="sandbox-y")
+
+        assert merchant.require_production_auth_id() == "prod-x"
+        assert merchant.require_sandbox_auth_id() == "sandbox-y"
+
+    def test_no_merchant_id_literal_remains_in_the_module_source(self):
+        import inspect
+        import re
+
+        source = inspect.getsource(merchant)
+        assert not re.search(r"\b\d{12,}\b", source), "a long numeric merchant id is back"

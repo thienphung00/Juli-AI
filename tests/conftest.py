@@ -32,6 +32,14 @@ os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
 # Tests exercise every scoring workflow; production defaults to Tối ưu sản phẩm +
 # content only (persist.enabled_card_workflows, owner 2026-10-11).
 os.environ.setdefault("CDP_ENABLED_WORKFLOWS", "*")
+# Fast track P61-D (D71.4): `integrations/tiktok/merchant.py` has no default
+# merchant ids any more -- unset, every path that needs one fails closed. The
+# suite runs as a configured deployment with TEST ids (not Juli's real ones);
+# tests of the unconfigured behaviour `monkeypatch.delenv` + reload the module.
+# Import-time for the same reason as SUPABASE_JWT_SECRET above: the constants
+# are read when `merchant.py` is first imported, during collection.
+os.environ.setdefault("TIKTOK_PRODUCTION_MERCHANT_ID", "test-production-merchant")
+os.environ.setdefault("TIKTOK_SANDBOX_MERCHANT_ID", "test-sandbox-merchant")
 
 
 DISPOSABLE_MARKER = "JULI_TEST_DATABASE_DISPOSABLE"
@@ -263,9 +271,12 @@ _SHARED_STATE_MODULES = frozenset(
         "test_shop_scope_guc_lifecycle.py",
         # Reason 2 again: seeds two tenants for #1514 (credential_refresh_beat per-tenant context).
         "test_credential_refresh_beat_two_tenant.py",
-        # Reason 2 again: seeds two tenants for #1513 (mock_analytics_reconcile per-shop
-        # context via with_shop_scope).
-        "test_mock_analytics_reconcile_two_tenant.py",
+        # Reason 2 again: seeds two tenants for #1513, rewritten by fast track P61-D
+        # (the hourly KPI envelope recompute per shop, as juli_app).
+        "test_shop_kpi_reconcile_two_tenant.py",
+        # Reason 2 again: seeds two tenants for fast track P61-D ("Từ chối" through
+        # the real app as juli_app: B cannot reject A's card; a repeat is a no-op).
+        "test_reject_route_two_tenant.py",
         # Reason 2 again: seeds two tenants for fast track P1-B (per-shop
         # ingestion as juli_app, AC-1.12).
         "test_shop_ingestion_two_tenant.py",

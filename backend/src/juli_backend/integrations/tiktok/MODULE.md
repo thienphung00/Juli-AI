@@ -78,7 +78,12 @@ Matches ``__all__`` — re-exports only:
   ``ReadOnlyTransportGuard``. ``SandboxWriteClientFactory`` keeps its identity
   equality against ``SANDBOX_AUTH_ID`` — there is one sandbox merchant and no
   per-seller analogue of it
-- **Merchant isolation** — ``PRODUCTION_AUTH_ID``, ``SANDBOX_AUTH_ID``,
+- **Merchant isolation** — ``PRODUCTION_AUTH_ID``, ``SANDBOX_AUTH_ID`` (from
+  ``TIKTOK_PRODUCTION_MERCHANT_ID`` / ``TIKTOK_SANDBOX_MERCHANT_ID``; **no default in
+  code since fast track P61-D** — unset is ``""``), ``MerchantIdNotConfigured`` (a
+  ``ValueError`` naming the variable) with ``require_production_auth_id`` /
+  ``require_sandbox_auth_id``: every path that needs an id fails closed with it (both
+  client factories, the poll guard, the configured-merchant resolvers),
   ``TikTokCapability`` (``PRODUCTION_READ`` | ``SANDBOX_WRITE`` | ``SELLER_CONNECT``),
   ``resolve_merchant_context``, ``is_cross_merchant_lookup``,
   ``READ_CAPABILITIES`` / ``is_read_capability`` — which capabilities may serve a
