@@ -224,6 +224,11 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # `card_events` and `upgrade head` restores it, after its two-tenant
         # RLS / append-only / backfill tests (which also seed tenants).
         "test_card_events_db.py",
+        # Fast track P61-B: downgrades the database to 043 and upgrades only to 044
+        # (`TestAlembicRoundTrip`), leaving it far below head. Unisolated, every
+        # Postgres test after it in the same run failed on missing functions and
+        # columns once check.sh first selected it beside them.
+        "test_production_write_authorizations_postgres.py",
     }
 )
 
