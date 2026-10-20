@@ -7,7 +7,10 @@ no LLM; idempotent (a second run inserts nothing), so Ops may run it any time.
     ``services.card_events.backfill_shop`` for one shop under its scope
     (ADR-089), one commit. Returns the per-event counts.
 ``juli_backend.card_events_backfill_fanout()``
-    One ``card_events_backfill`` per pollable shop (``enumerate_pollable_shops``).
+    One ``card_events_backfill`` per shop with history -- cards, Juli writes or
+    observed product changes, connected or not -- plus every pollable shop
+    (``enumerate_backfill_shops``, P60-1b). The per-shop task also writes the
+    ``seller_change`` events of the shop's attributed product changes.
 
 Owner runs it on the server, e.g.::
 
@@ -22,6 +25,7 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from juli_backend.workers.celery_app import celery_app
@@ -55,16 +59,52 @@ async def run_backfill(shop_id: uuid.UUID, *, session_factory: Any) -> dict[str,
     return body
 
 
+@dataclass(frozen=True)
+class HistoryShop:
+    shop_id: uuid.UUID
+
+
+async def enumerate_backfill_shops(session: Any) -> list[HistoryShop]:
+    """Every shop with history to backfill, connected or not (P60-1b).
+
+    The shops with cards, Juli writes or observed product changes -- through
+    migration 096's ``SECURITY DEFINER`` ``enumerate_history_shops()`` on
+    Postgres (identifiers only, ADR-089 decision 3) -- plus every pollable shop.
+    A disconnected shop keeps its history and is reached too. SQLite (unit
+    tests) has no function and no RLS, so it runs the same union as a query.
+    """
+    from sqlalchemy import select, text, union
+
+    from juli_backend.workers.services.polling.ingestion import enumerate_pollable_shops
+
+    if session.get_bind().dialect.name == "postgresql":
+        rows = await session.execute(
+            text("SELECT out_shop_id FROM public.enumerate_history_shops()")
+        )
+        found = {row[0] for row in rows.all()}
+    else:
+        from juli_backend.models.history import ExternalChange
+        from juli_backend.models.models import ActionCard
+        from juli_backend.models.run_changes import RunWriteValue
+
+        query = union(
+            select(ActionCard.shop_id),
+            select(ExternalChange.shop_id),
+            select(RunWriteValue.shop_id),
+        )
+        found = {row[0] for row in (await session.execute(query)).all()}
+    found |= {shop.shop_id for shop in await enumerate_pollable_shops(session)}
+    return [HistoryShop(shop_id) for shop_id in sorted(found, key=str)]
+
+
 async def run_fanout(
     session: Any,
     *,
     enqueue: Callable[[str], Any],
     enumerate_fn: Callable[[Any], Awaitable[list[Any]]] | None = None,
 ) -> int:
-    """Enqueue one backfill per pollable shop. Returns the enqueued count."""
-    from juli_backend.workers.services.polling.ingestion import enumerate_pollable_shops
-
-    shops = await (enumerate_fn or enumerate_pollable_shops)(session)
+    """Enqueue one backfill per shop with history (``enumerate_backfill_shops``)."""
+    shops = await (enumerate_fn or enumerate_backfill_shops)(session)
     enqueued = 0
     for shop in shops:
         try:
@@ -101,7 +141,7 @@ def card_events_backfill(shop_id: str) -> dict[str, Any]:
 
 @celery_app.task(name=FANOUT_TASK)
 def card_events_backfill_fanout() -> int:
-    """One ``card_events_backfill`` per pollable shop."""
+    """One ``card_events_backfill`` per shop with history."""
 
     async def go() -> int:
         async with _factory()() as session:
@@ -115,6 +155,7 @@ __all__ = [
     "FANOUT_TASK",
     "card_events_backfill",
     "card_events_backfill_fanout",
+    "enumerate_backfill_shops",
     "run_backfill",
     "run_fanout",
 ]

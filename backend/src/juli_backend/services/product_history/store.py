@@ -9,8 +9,9 @@ filter every query here already has.
   latest snapshot and record what changed as ``external_changes`` rows; Juli's
   own writes are recorded with ``juli_write = true``.
 - ``record_change`` -- insert one change unless its ``dedup_key`` exists.
-- ``matches_juli_write`` -- the tolerance-window match against
-  ``run_write_values``.
+- ``attribute_fields`` -- per-field ``juli`` / ``seller_revert`` /
+  ``seller_change`` against ``run_write_values`` hashes (ADR-107 amendment §8,
+  ``attribution.py``); ``matches_juli_write`` is "every field ``juli``".
 """
 
 from __future__ import annotations
@@ -18,40 +19,39 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.history import (
-    KIND_CONTENT,
     KIND_CREATION,
-    KIND_PRICE,
     SOURCE_BASELINE,
     ExternalChange,
     ProductSnapshot,
 )
 from juli_backend.models.run_changes import RunWriteValue
+from juli_backend.services.product_history.attribution import (
+    JULI_FIELDS,
+    JULI_WRITE_LOOKAHEAD,
+    JULI_WRITE_LOOKBACK,
+    WriteRecord,
+    all_juli,
+    attribution_fields,
+    label_fields,
+    summarize,
+    uniform_labels,
+)
 from juli_backend.services.product_history.normalize import (
     Change,
     NormalizedProduct,
     PreviousState,
+    ProductFields,
     diff,
     epoch_to_naive_utc,
     local_day,
-    plain_decimal,
-    sha256_text,
 )
-
-#: A Juli write counts for a change TikTok dated up to this long after the write
-#: (listing edits can sit in TikTok review for hours) ...
-JULI_WRITE_LOOKBACK = timedelta(hours=72)
-#: ... or this long before it (clock skew between TikTok and Juli).
-JULI_WRITE_LOOKAHEAD = timedelta(hours=1)
-#: The fields Juli's agent writes (``run_write_values.field``) per change kind.
-_JULI_FIELDS = {"title", "description", "main_images", "price"}
 
 
 def previous_state(row: ProductSnapshot) -> PreviousState:
@@ -117,8 +117,15 @@ async def record_change(
     juli_write: bool,
     details: Mapping[str, Any] | None,
     dedup_key: str,
+    field_attribution: Mapping[str, str] | None = None,
 ) -> ExternalChange | None:
-    """Insert one change; ``None`` when ``dedup_key`` was already recorded (idempotent)."""
+    """Insert one change; ``None`` when ``dedup_key`` was already recorded (idempotent).
+
+    ``field_attribution`` is the per-field labels (amendment §8); without it every
+    field is ``juli`` or ``seller_change`` by ``juli_write`` (a promotion row,
+    §11). A change that is not entirely Juli's also writes its ``seller_change``
+    ``card_events`` row (live, never raises).
+    """
     key = dedup_key[:255]
     exists = await session.execute(
         select(ExternalChange.id).where(
@@ -127,6 +134,11 @@ async def record_change(
     )
     if exists.first() is not None:
         return None
+    labels = (
+        dict(field_attribution)
+        if field_attribution
+        else uniform_labels(kind, fields, juli_write=juli_write)
+    )
     row = ExternalChange(
         shop_id=shop_id,
         tiktok_product_id=tiktok_product_id,
@@ -138,54 +150,98 @@ async def record_change(
         juli_write=juli_write,
         details=dict(details) if details is not None else None,
         dedup_key=key,
+        attribution=summarize(labels),
+        field_attribution=labels,
     )
     session.add(row)
     await session.flush()
+    if not all_juli(labels):
+        from juli_backend.services.card_events.natural import record_seller_change
+
+        await record_seller_change(session, row)
     return row
 
 
-def _same_price(after: Any, new: NormalizedProduct) -> bool:
-    if not isinstance(after, list):
-        return False
-    current = {row["sku_id"]: row["list_price"] for row in new.skus}
-    for item in after:
-        if not isinstance(item, Mapping):
-            return False
-        try:
-            wanted = plain_decimal(Decimal(str(item.get("amount"))))
-        except (InvalidOperation, ValueError):
-            return False
-        if current.get(str(item.get("sku_id"))) != wanted:
-            return False
-    return True
+def product_fields_of_snapshot(row: ProductSnapshot) -> ProductFields:
+    """The per-field hashable state a stored snapshot holds (the backfill's "now")."""
+    return ProductFields(
+        title=row.title,
+        description_hash=row.description_hash,
+        image_uris=tuple(
+            str(i.get("uri")) for i in row.main_images or [] if isinstance(i, Mapping)
+        ),
+        list_prices={
+            str(sku.get("sku_id")): sku.get("list_price")
+            for sku in row.skus or []
+            if isinstance(sku, Mapping)
+        },
+    )
 
 
-def _value_matches(field_name: str, after: Any, new: NormalizedProduct) -> bool:
-    """Juli's recorded after-value equals what TikTok now shows (``None``: not comparable)."""
-    if after is None:
-        return True
-    if field_name == "title":
-        return str(after).strip() == (new.title or "")
-    if field_name == "description":
-        return sha256_text(str(after).strip()) == new.description_hash
-    if field_name == "main_images":
-        uris = [
-            str(i.get("uri")) if isinstance(i, Mapping) else str(i)
-            for i in (after if isinstance(after, list) else [])
-        ]
-        return uris == new.image_uris
-    if field_name == "price":
-        return _same_price(after, new)
-    return False
+async def juli_writes(
+    session: AsyncSession,
+    *,
+    shop_id: uuid.UUID,
+    tiktok_product_id: str,
+    fields: Iterable[str],
+    until: datetime,
+) -> list[WriteRecord]:
+    """Juli's ``run_write_values`` of one product and the given fields, recorded by ``until``."""
+    wanted = sorted(set(fields) & JULI_FIELDS)
+    if not wanted:
+        return []
+    rows = (
+        await session.execute(
+            select(RunWriteValue)
+            .where(
+                RunWriteValue.shop_id == shop_id,
+                RunWriteValue.tiktok_product_id == tiktok_product_id,
+                RunWriteValue.field.in_(wanted),
+                RunWriteValue.recorded_at <= until,
+            )
+            .order_by(RunWriteValue.recorded_at, RunWriteValue.id)
+        )
+    ).scalars()
+    return [WriteRecord.of(row) for row in rows]
 
 
-def _write_fields(change: Change) -> set[str]:
-    """The ``run_write_values.field`` names a change needs Juli to have written."""
-    if change.kind == KIND_PRICE:
-        return {"price"}
-    if change.kind == KIND_CONTENT:
-        return set(change.fields)
-    return set()
+async def attribute_fields(
+    session: AsyncSession,
+    *,
+    shop_id: uuid.UUID,
+    tiktok_product_id: str,
+    change: Change,
+    new: NormalizedProduct,
+    occurred_at: datetime,
+    known_at: datetime | None = None,
+) -> dict[str, str]:
+    """``{field: juli | seller_revert | seller_change}`` for one change (amendment §8).
+
+    See ``attribution.py``: ``juli`` when the value now on TikTok hashes to a
+    Juli write's after-value inside [occurred_at - 72 h, occurred_at + 1 h];
+    ``seller_revert`` when it hashes to the most recent Juli write's
+    before-value (any age); else ``seller_change`` -- also for every field Juli
+    never writes.
+    """
+    names = attribution_fields(change.kind, change.fields)
+    until = occurred_at + JULI_WRITE_LOOKAHEAD
+    if known_at is not None:
+        until = min(until, known_at)
+    writes = await juli_writes(
+        session,
+        shop_id=shop_id,
+        tiktok_product_id=tiktok_product_id,
+        fields=names,
+        until=until,
+    )
+    return label_fields(
+        change.kind,
+        change.fields,
+        ProductFields.of(new),
+        writes,
+        occurred_at=occurred_at,
+        known_at=known_at,
+    )
 
 
 async def matches_juli_write(
@@ -197,29 +253,22 @@ async def matches_juli_write(
     new: NormalizedProduct,
     occurred_at: datetime,
 ) -> bool:
-    """True when every field of ``change`` matches a Juli write in the tolerance window.
+    """True when every field of ``change`` is Juli's (``attribute_fields``, all ``juli``).
 
     A field Juli never writes (attributes, category, status) makes the change
     external. A write matches when it touched the same product and field,
     was recorded within [occurred_at - 72 h, occurred_at + 1 h], and its
-    after-value equals what TikTok now shows (when the value is comparable).
+    after-value hash equals what TikTok now shows (or it has no after-value).
     """
-    needed = _write_fields(change)
-    if not needed or not needed <= _JULI_FIELDS:
-        return False
-    rows = (
-        await session.execute(
-            select(RunWriteValue).where(
-                RunWriteValue.shop_id == shop_id,
-                RunWriteValue.tiktok_product_id == tiktok_product_id,
-                RunWriteValue.field.in_(sorted(needed)),
-                RunWriteValue.recorded_at >= occurred_at - JULI_WRITE_LOOKBACK,
-                RunWriteValue.recorded_at <= occurred_at + JULI_WRITE_LOOKAHEAD,
-            )
-        )
-    ).scalars()
-    covered = {row.field for row in rows if _value_matches(row.field, row.after_value, new)}
-    return needed <= covered
+    labels = await attribute_fields(
+        session,
+        shop_id=shop_id,
+        tiktok_product_id=tiktok_product_id,
+        change=change,
+        new=new,
+        occurred_at=occurred_at,
+    )
+    return all_juli(labels)
 
 
 @dataclass
@@ -307,13 +356,14 @@ async def record_read(
 
     recorded: list[ExternalChange] = []
     for change in changes:
-        juli = await matches_juli_write(
+        labels = await attribute_fields(
             session,
             shop_id=shop_id,
             tiktok_product_id=new.tiktok_product_id,
             change=change,
             new=new,
             occurred_at=occurred_at,
+            known_at=now,
         )
         details = dict(change.details)
         details["snapshot_id"] = str(snapshot.id)
@@ -326,9 +376,10 @@ async def record_read(
             occurred_at=occurred_at,
             detected_at=now,
             source=source,
-            juli_write=juli,
+            juli_write=all_juli(labels),
             details=details,
             dedup_key=f"snap:{snapshot.id}:{change.kind}",
+            field_attribution=labels,
         )
         if row is not None:
             recorded.append(row)
@@ -339,10 +390,13 @@ __all__ = [
     "JULI_WRITE_LOOKAHEAD",
     "JULI_WRITE_LOOKBACK",
     "ReadOutcome",
+    "attribute_fields",
     "has_any_snapshot",
+    "juli_writes",
     "latest_snapshots",
     "matches_juli_write",
     "previous_state",
+    "product_fields_of_snapshot",
     "record_change",
     "record_read",
 ]
