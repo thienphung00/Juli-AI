@@ -228,6 +228,12 @@ from juli_backend.services.agent.card_reactivation import (
   the card first (`decision_reasons.close_card`).
 - `REACTIVATING_RUN_STATUSES` — `{failed, cancelled, timed_out}`.
 
+Every caller of `reactivate_card_for_ended_run` (and the lever-flow seller
+decline) also calls `services.card_events.record_run_outcome(session, run, ...)`
+beside it (fast track P60-1a): the card log's `executed` / `not_executed` (or
+`reverted` for a finished revert run), same transaction, never raises. The
+approve path writes `accepted` the same way (`record_accepted`).
+
 Approve-is-run-creation (approval.py, reached as `from
 juli_backend.services.agent import approval`):
 

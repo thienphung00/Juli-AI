@@ -273,12 +273,15 @@ async def test_a_refused_live_write_leaves_the_callers_transaction_usable(
         "DELETE FROM public.card_events WHERE shop_id = :shop",
     ],
 )
-async def test_juli_app_cannot_update_or_delete(two_tenants, seeded, statement):
+async def test_juli_app_cannot_update_or_delete(owner_engine, two_tenants, seeded, statement):
     tenant_a, _ = two_tenants
+    before = _count(owner_engine, tenant_a.shop_id)
+    assert before > 0  # the writer test left A a row to try it on
     async with app_session(tenant_a.shop_id) as session:
         with pytest.raises(DBAPIError, match="permission denied"):
             await session.execute(text(statement), {"shop": str(tenant_a.shop_id)})
         await session.rollback()
+    assert _count(owner_engine, tenant_a.shop_id) == before
 
 
 def _insert(conn, tenant, **overrides):
@@ -312,6 +315,8 @@ def test_card_id_may_be_null_only_for_seller_change_and_shadow(owner_engine, two
         with pytest.raises(IntegrityError, match="ck_card_events_card_id"):
             with owner_engine.begin() as conn:
                 _insert(conn, tenant_a, event_type=event_type)
+    assert _count(owner_engine, tenant_a.shop_id, event_type="shadow") == 1
+    assert _count(owner_engine, tenant_a.shop_id, event_type="accepted") == 0
 
 
 def test_dismissal_reason_and_uniqueness(owner_engine, two_tenants, seeded):
@@ -338,6 +343,8 @@ def test_dismissal_reason_and_uniqueness(owner_engine, two_tenants, seeded):
         with owner_engine.begin() as conn:
             _insert(conn, tenant_a, key="same")
             _insert(conn, tenant_a, key="same")
+    assert _count(owner_engine, tenant_a.shop_id, event_type="dismissed") == 1
+    assert _count(owner_engine, tenant_a.shop_id, event_type="accepted") == 2
 
 
 @pytest.mark.asyncio

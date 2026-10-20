@@ -478,6 +478,7 @@ async def test_insert_event_enforces_the_check_on_card_id(session):
     with pytest.raises(IntegrityError):
         await writer.insert_event(session, spec)
     await session.rollback()
+    assert await _events(session) == []
 
 
 # -- backfill on SQLite -------------------------------------------------------------------

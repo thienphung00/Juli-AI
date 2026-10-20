@@ -176,6 +176,15 @@ slice — see "Out of scope".
   — the body of the `rescore_shop_cards` worker task; package root since P53 (D62),
   resolved on first access so importing the package does not pull `services.optimize_product`
 
+### Card journey log (fast track P60-1a)
+
+`emit_scoring_cards` (and the quick scan) end with
+`card_events.record_emissions` -- a `proposed` row per written card (and
+`superseded` on its predecessor); `apply_emission_budget` ends with
+`card_events.record_budget_outcome` -- `shown` for newly surfaced cards and
+`expired` for cards past validity. Same transaction, never raises (see
+`services/card_events/MODULE.md`).
+
 ## HTTP (via `api/routes/action_cards.py`)
 
 - `POST /v1/action-cards/refresh` — 202 Accepted, enqueues Celery task; 429

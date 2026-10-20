@@ -77,6 +77,16 @@ so a COMMIT inside the block cannot silently drop tenancy.
 - **No-op on SQLite**, which has neither `set_config` nor RLS — the dialect
   check runs before `AsyncSession.sync_session` is ever touched.
 
+### Card journey log (`card_events`, migration 095, fast track P60-1a)
+
+ADR-107 amendment 2026-10-20. Tenant-direct and **append-only**: RLS on, one
+SELECT and one INSERT policy on `app_current_shop_id()`, `juli_app` granted
+SELECT, INSERT only (a correction is a new event). Idempotent writes: unique
+(`shop_id`, `dedup_key`) plus a partial unique (`card_id`, `event_type`) for the
+once-per-card types. `feature_snapshot_id` -> `gold.ml_feature_snapshots(id)`
+(FK in the migration only; NULL until P60-1e writes snapshots). One writer
+module: `services/card_events` (live `record_*` writers + `backfill_shop`).
+
 ## Dependencies
 - `sqlalchemy[asyncio]` — async ORM
 - `asyncpg` — PostgreSQL async driver (production)
