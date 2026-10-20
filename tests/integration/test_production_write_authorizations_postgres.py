@@ -198,7 +198,22 @@ class TestProductionWriteAuthorizationsConcurrency:
 class TestAlembicRoundTrip:
     """Test migration upgrade and downgrade."""
 
+    # A full-chain downgrade + upgrade; the 30 s default is a budget for a unit test.
+    @pytest.mark.timeout(300)
     def test_upgrade_to_044_and_downgrade(self, alembic_config):
+        """Run full migration chain up to 044 and downgrade back.
+
+        P61-B: whatever happens inside -- a failure, a skip, a pytest-timeout under
+        load -- the shared database is left at head. Every Postgres test that runs
+        after this one in the same process (check.sh selects them together)
+        otherwise finds a 043-era schema: no RLS helper functions, no columns.
+        """
+        try:
+            self._round_trip_044(alembic_config)
+        finally:
+            command.upgrade(alembic_config, "head")
+
+    def _round_trip_044(self, alembic_config):
         """Run full migration chain up to 044 and downgrade back."""
         if not DATABASE_URL:
             pytest.skip("DATABASE_URL not set")
@@ -258,7 +273,3 @@ class TestAlembicRoundTrip:
         )
 
         sync_engine.dispose()
-        # P61-B: leave the shared database at head. Every Postgres test that runs
-        # after this one in the same process (check.sh selects them together)
-        # otherwise finds a 043-era schema: no RLS helper functions, no columns.
-        command.upgrade(alembic_config, "head")
