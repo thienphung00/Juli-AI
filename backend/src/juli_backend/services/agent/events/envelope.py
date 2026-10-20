@@ -12,11 +12,11 @@ Sequence numbers are minted by the `WorkflowRunner` from its run-state blob
 class here takes `sequence_number` as a plain required field, same as every
 other field on the envelope.
 
-`assistant.text.delta` (ADR-071) stays reserved: there is no envelope class
-and no discriminant literal for it anywhere in `WorkflowRunEvent`, so
-`WorkflowRunEventAdapter.validate_python` rejects it with a
-`pydantic.ValidationError` naming a discriminator/tag mismatch, and no
-symbol named for it exists in this module for direct construction either.
+`assistant.text.delta` was reserved by ADR-071 decision 3 and is now a
+member (ADR-071 amendment, D71.3 / P61-C): a persisted, coalesced preview of
+a streamed turn's text that the following `assistant.text` supersedes. It
+is additive -- a client that does not know it skips it, every other
+member's shape is unchanged.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from juli_backend.services.agent.events.payloads import (
+    AssistantTextDeltaPayload,
     AssistantTextPayload,
     ToolCompletedPayload,
     ToolStartedPayload,
@@ -66,6 +67,11 @@ class AssistantTextEvent(_EventEnvelope):
     payload: AssistantTextPayload
 
 
+class AssistantTextDeltaEvent(_EventEnvelope):
+    event_type: Literal["assistant.text.delta"] = "assistant.text.delta"
+    payload: AssistantTextDeltaPayload
+
+
 class ToolStartedEvent(_EventEnvelope):
     event_type: Literal["tool.started"] = "tool.started"
     payload: ToolStartedPayload
@@ -91,14 +97,14 @@ class WorkflowFailedEvent(_EventEnvelope):
     payload: WorkflowFailedPayload
 
 
-# The discriminated union -- the complete, closed set of eight event types.
-# `assistant.text.delta` has no member here and never will in this slice
-# (ADR-071 / ADR-074 d.2): adding one is a renegotiation of the frozen
-# protocol shape, not a bugfix.
+# The discriminated union -- the complete, closed set of nine event types.
+# `assistant.text.delta` joined by the ADR-071 amendment (D71.3 / P61-C);
+# any further member is a renegotiation of the protocol shape, not a bugfix.
 WorkflowRunEvent = Annotated[
     WorkflowStartedEvent
     | WorkflowStatusEvent
     | AssistantTextEvent
+    | AssistantTextDeltaEvent
     | ToolStartedEvent
     | ToolCompletedEvent
     | WorkflowApprovalRequiredEvent
@@ -113,6 +119,7 @@ EVENT_TYPES: tuple[str, ...] = (
     "workflow.started",
     "workflow.status",
     "assistant.text",
+    "assistant.text.delta",
     "tool.started",
     "tool.completed",
     "workflow.approval_required",
