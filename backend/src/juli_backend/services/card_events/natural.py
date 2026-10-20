@@ -126,7 +126,9 @@ def link_card(
         key=lambda w: (_naive_utc(w.recorded_at), str(w.workflow_run_id)),
     )
     if candidates:
-        run = runs[candidates[-1].workflow_run_id]  # type: ignore[index]
+        last_run_id = candidates[-1].workflow_run_id
+        assert last_run_id is not None  # filtered: only writes whose run is in ``runs``
+        run = runs[last_run_id]
         return CardLink(run.card_id, run.id, run.workflow_key, LINK_LAST_WRITE)
     if tiktok_product_id is None:
         return NO_CARD
