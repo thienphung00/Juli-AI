@@ -344,7 +344,7 @@ class TestDefaultResourceSeamsComposeRealMarketplaceResources:
             shop_cipher="ROW_test_cipher",
         )
 
-        resources = await agent_workflow._default_read_resources(session)
+        resources = await agent_workflow._default_read_resources(session, shop_id)
 
         assert isinstance(resources, ProductionReadResources)
 
@@ -385,7 +385,7 @@ class TestDefaultResourceSeamsComposeRealMarketplaceResources:
         monkeypatch.setenv("TIKTOK_APP_SECRET", "test-app-secret")
 
         with pytest.raises(RuntimeError, match="TIKTOK_APP_KEY"):
-            await agent_workflow._default_read_resources(session)
+            await agent_workflow._default_read_resources(session, uuid.uuid4())
 
     async def test_default_write_resources_fails_closed_when_app_secret_absent(
         self, session, monkeypatch
@@ -404,8 +404,9 @@ class TestDefaultResourceSeamsComposeRealMarketplaceResources:
         monkeypatch.setenv("TIKTOK_APP_KEY", "test-app-key")
         monkeypatch.setenv("TIKTOK_APP_SECRET", "test-app-secret")
 
-        with pytest.raises(NotFound):
-            await agent_workflow._default_read_resources(session)
+        # P61-A: the shop's own read credential, never the configured merchant's.
+        with pytest.raises(NotFound, match="No read-capable TikTok credential for shop"):
+            await agent_workflow._default_read_resources(session, uuid.uuid4())
 
     async def test_default_write_resources_fails_closed_when_credential_row_missing(
         self, session, monkeypatch
