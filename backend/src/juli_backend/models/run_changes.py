@@ -77,6 +77,16 @@ class RunWriteValue(Base):
     after_value: Mapped[Any] = mapped_column(JSON, nullable=True)
     after_source: Mapped[str] = mapped_column(String(16), nullable=False)
     recorded_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    #: sha256 of each value in ``product_snapshots`` form
+    #: (``product_history.normalize.field_value_hash``; migration 096, P60-1b).
+    before_hash: Mapped[str | None] = mapped_column(String(64))
+    after_hash: Mapped[str | None] = mapped_column(String(64))
+    #: When the before-value was read from TikTok (just before the write).
+    before_read_at: Mapped[datetime | None] = mapped_column()
+    #: The ``production_write_audit`` row of this mutation, when exactly one matches.
+    production_write_audit_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("production_write_audit.id")
+    )
 
 
 class ShopRule(Base):

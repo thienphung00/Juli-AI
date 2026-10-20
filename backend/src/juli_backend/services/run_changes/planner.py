@@ -126,6 +126,9 @@ class RevertPlan:
     expected: dict[str, Any]
     started_by_user_id: str | None = None
     fields: tuple[str, ...] = field(default=())
+    #: field -> Juli's ``after_hash`` (P60-1b, ADR-107 am. §9): the live check
+    #: compares hashes when both sides have one, values otherwise.
+    expected_hashes: dict[str, str | None] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.fields:
@@ -157,12 +160,16 @@ class RevertPlan:
         return arguments
 
     def to_state(self) -> dict[str, Any]:
-        return {
+        state: dict[str, Any] = {
             "reverts_run_id": self.reverts_run_id,
             "restore": dict(self.restore),
             "expected": dict(self.expected),
             "started_by_user_id": self.started_by_user_id,
         }
+        hashes = {name: value for name, value in self.expected_hashes.items() if value}
+        if hashes:
+            state["expected_hashes"] = hashes
+        return state
 
     @classmethod
     def from_state(cls, blob: Mapping[str, Any] | None) -> RevertPlan | None:
@@ -175,6 +182,7 @@ class RevertPlan:
             restore=dict(raw.get("restore") or {}),
             expected=dict(raw.get("expected") or {}),
             started_by_user_id=raw.get("started_by_user_id"),
+            expected_hashes=dict(raw.get("expected_hashes") or {}),
         )
 
 
