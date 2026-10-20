@@ -20,7 +20,7 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import ProductionWriteAuthorization, Shop, User
+from juli_backend.models.models import ProductionWriteAuthorization, ProductionWriteShop, Shop, User
 from juli_backend.services.execution.production_write_resolver import (
     PreconditionFailure,
     PreconditionName,
@@ -63,6 +63,10 @@ async def shop(session, authenticated_user):
         tiktok_shop_id="tiktok_shop_1337",
     )
     session.add(s)
+    await session.flush()
+    # Fast track P61-B: the global flag is per shop now; this suite exercises the
+    # remaining ADR-085 gates on a shop the owner has turned on.
+    session.add(ProductionWriteShop(shop_id=s.id, enabled_by="test_operator"))
     await session.flush()
     return s
 

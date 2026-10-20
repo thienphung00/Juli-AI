@@ -302,6 +302,9 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 1 and 2: fast track P50-B (D68) seeds tenants and DELETES whole
         # accounts through privacy_purge_account, and asserts per-shop counts.
         "test_privacy_db.py",
+        # Reason 2 again: seeds two tenants for fast track P61-B (a production
+        # write for the enabled shop only, as juli_app, migration 097).
+        "test_p61b_production_write_two_shop.py",
     }
 )
 
