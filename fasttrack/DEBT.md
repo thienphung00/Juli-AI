@@ -1298,3 +1298,39 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] A shop whose every product id is rejected still raises every cycle (D69.4, the #1948
   guard) and so still loops in bootstrap. It is loud and the ids are logged; the general
   back-off is P58's bootstrap-loop debt above.
+
+## P60-1a — `card_events` (2026-10-20, D70.9)
+
+- [ ] `readiness_level` and `feature_snapshot_id` are NULL on live `proposed` rows and the CHECK
+  only forces `model_version` (amendment §3 wants all three). No ADR-112 D3 readiness levels and
+  no `gold.ml_feature_snapshots` writer exist yet. Repay: P60-1e writes the snapshot in the same
+  transaction; ADR-112 levels land; then tighten `ck_card_events_proposed_frozen`.
+- [ ] Live `model_version` is `rules:ADR-107am2026-10-20:<sha256(DecisionEmissionConfig)[:12]>`:
+  it hashes the emission config only, not the per-workflow rule ADR/amendment nor the per-shop
+  diagnosis tunables. Repay: a per-workflow rule version (ADR id + config hash) carried on the
+  card emission.
+- [ ] `dismissed.reason_code` is always `unspecified`: the reject route's reason codes (P10-A
+  `decision_reasons`: `brand_mismatch`, `not_convincing`, ...) are not the amendment's five; the
+  route's code is in `payload.decision_reason_code`. Repay: the dismiss sheet sends the five
+  reasons (amendment follow-up), or the owner approves a mapping.
+- [ ] Not written yet: `edited` (approve takes no seller edits today), `seller_done` (no "Tôi đã
+  làm" action), `shadow` (no model), `seller_change` live + backfill (P60-1b: needs §8 per-field
+  attribution; an unattributed append-only row now would block the correct one). The decision 7
+  measurement plan is not on `proposed`.
+- [ ] An in-place rewrite of a never-shown draft (`persist` / `optimize_product_cards` /
+  content cards) keeps its first `proposed` row (single per card); the rewritten text is not
+  logged. Repay if the views need it: an `edited`-like system event or a new revision.
+- [ ] `accepted`, `executed` / `not_executed` and impact events are once per approval / run, not
+  once per card as the amendment's "Single?" column says — a failed run puts the card back on the
+  desk (D47.5), so a card can be approved and run twice. Views must take the latest per card.
+- [ ] `impact_final` is first-wins between the ADR-077 impact reader and the day-14
+  `run_measurement_finals` writer for the same run (`payload.source_table` says which).
+- [ ] Backfill: `shown` is lost for dismissed cards (`close_card` clears `surfaced_at`); the
+  approval→run link is matched by `created_at` within 10 min; `not_executed` groups for codes the
+  ADR does not list (`cancelled_by_seller`, `external_wait_expired`, …) are placed by meaning;
+  fan-out uses `enumerate_pollable_shops`, so a disconnected shop needs the per-shop task.
+- [ ] `occurred_at` is `timestamptz` per the ADR while sibling P23 tables use naive UTC; writers
+  normalise naive values as UTC.
+- [ ] Not run in production: migration 095 and the backfill. Owner: deploy, then
+  `celery ... call juli_backend.card_events_backfill_fanout` and check
+  `card_events_backfill_done` lines.

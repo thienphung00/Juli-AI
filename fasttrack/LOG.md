@@ -2355,3 +2355,45 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   - 115: revoke `UPDATE` on `gold.ml_feature_snapshots`; thresholds (coverage ≥ 0.80, acceptance
     −10 pts, min 30 decisions / 20 readings, shadow 2–8 weeks).
 - Next: owner answers the flags → P60-1a `card_events`. Owner: P60-0c DB query, P60-0d depth.
+
+## 2026-10-20 — agent (Claude Opus) — P60-1a `card_events` (branch `fasttrack/p60-card-events`, not merged)
+
+- Migration `095_card_events` (onto 094; deferred phone cleanup re-parented, its 12 pinning tests
+  updated): the amendment's columns, CHECKs on `event_type` / `actor` / `source`, `card_id` NULL
+  only for `seller_change` / `shadow`, dismiss `reason_code` enum (a column, required on
+  `dismissed`), live `proposed` needs `model_version`; unique (`shop_id`, `dedup_key`) + partial
+  unique (`card_id`, `event_type`) for once-per-card types; the three ADR indexes; RLS on,
+  `juli_app` SELECT/INSERT only; `tenant_direct` in `tenant_scoped_tables.py`. Model
+  `models/card_events.py`.
+- `services/card_events/` (writer, keys, outcomes, backfill). Live writers run in the caller's
+  transaction inside a SAVEPOINT and never raise (`card_event_write_failed`). Wired: `proposed`
+  + `superseded` (`persist.emit_scoring_cards`, quick scan), `shown` + `expired`
+  (`apply_emission_budget`), `accepted` (`approve_action_card`), `dismissed` ("Từ chối" route),
+  `executed` / `not_executed` / `reverted` (beside every `reactivate_card_for_ended_run` caller
+  + lever-flow seller decline), `impact_*` (impact reader + both `run_measurement_finals`
+  writers). Backfill `backfill_shop` + manual Celery `juli_backend.card_events_backfill(shop)` /
+  `..._fanout` (not on beat).
+- **Choices where the ADR and the code disagree** (all in DEBT P60-1a): `accepted`,
+  `executed`/`not_executed`, impact are once per approval/run, not per card (D47.5 puts a card
+  back after a failed run); `dismissed.reason_code = 'unspecified'` with the P10-A reject code in
+  the payload (the route's codes are not the five reasons); a run decline / revert is not a
+  `dismissed` (it is the run's `not_executed` / `reverted`); `seller_change` left to P60-1b
+  (needs §8 attribution; an append-only unattributed row would block the right one);
+  `readiness_level` / `feature_snapshot_id` NULL (no D3 levels, no snapshot writer);
+  `subject_id` = TikTok product id (card's own in `payload.card_subject_id`); `occurred_at`
+  timestamptz as the ADR says.
+- Verification: ruff + format clean; mypy clean on 22 touched source files.
+  `tests/unit/test_card_events.py` 38 passed. `tests/integration/test_card_events_db.py` on
+  Homebrew Postgres 16 :55441 (UTC, removed after): 9 passed, 0 skipped (RLS + grants, two
+  tenants, refused write leaves the caller's transaction usable, UPDATE/DELETE denied, CHECKs +
+  uniques, backfill twice = same rows, downgrade -1 / upgrade head). No-DB unit suite
+  (`pytest tests/unit -m "not live"`, after `pnpm install`): 7763 passed, 245 skipped, 2
+  xfailed, 1 failed (`test_test_quality` reconciliation: 4 new pytest.raises-only tests) — fixed
+  by adding asserts, that file + touched-area files then 81 / 300 passed.
+  `fasttrack/check.sh --since fasttrack/optimize-product`: migrations PASS (095 head), isolation
+  12 passed, gitleaks PASS, ruff PASS (39 files), pytest PASS (32 files: 531 passed, 0 skipped).
+  **check.sh: OK**.
+- Next: owner merges into `fasttrack/optimize-product`, deploys, runs
+  `celery ... call juli_backend.card_events_backfill_fanout` and checks
+  `card_events_backfill_done` lines. Then P60-1b (hashes + attribution + `seller_change`), P60-1e
+  (feature snapshot in the `proposed` transaction).
