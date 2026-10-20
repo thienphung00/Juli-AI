@@ -258,3 +258,7 @@ class TestAlembicRoundTrip:
         )
 
         sync_engine.dispose()
+        # P61-B: leave the shared database at head. Every Postgres test that runs
+        # after this one in the same process (check.sh selects them together)
+        # otherwise finds a 043-era schema: no RLS helper functions, no columns.
+        command.upgrade(alembic_config, "head")

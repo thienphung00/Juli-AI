@@ -1350,3 +1350,33 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   shop through the configured production merchant; it now passes that shop id to
   `build_read_resources`.
 
+## P61-B — production write per shop, flags off (2026-10-20, D71.2)
+
+- [ ] **The agent run (Optimize Product, cover photo, Hoàn tác) still writes only to the
+  sandbox.** `build_write_resources(session, shop_id, capability)` builds a shop's own
+  production resources when handed the resolver's marker, but `workers/tasks/agent_workflow.py`
+  builds its write resources once per leg with no capability, and the per-mutation
+  authorization has to be resolved for the exact write about to happen (resume leg, the
+  pending confirmation's tool) — plus an image staged on the sandbox can't be attached to a
+  live listing. Until that slice, enabling a shop changes only the dispatched
+  `listing.optimize_product` path, and every agent run is stamped `simulated` (honest UX).
+- [ ] The dispatched path (`POST /v1/executions` → `execute_approved_tool`) runs with no shop
+  scope (`workers/tasks/tool_execution.py`), so under `juli_app` it cannot read its own
+  `tool_executions` row; and executions created by that route carry no `workflow_run_id`, so
+  a live write refuses (`no_workflow_run`). Pre-existing; the Postgres proof calls the handler
+  under a scoped `juli_app` session directly.
+- [ ] `run_changes/live.py::read_live_product` (P60-1b's) still reads through the sandbox
+  resources; a revert of a live write would compare against the sandbox listing.
+- [ ] The write credential is the shop's own OAuth row (`SELLER_CONNECT` / `PRODUCTION_READ`);
+  no TikTok scope check for product edit (scope names unverified, `services/ops/scopes.py`).
+- [ ] Listing diff restated in `services/execution/production_write.py` (pinned equal to
+  `write_capture` by test) because `services/execution` importing `services/agent` closes a
+  dependency cycle (`audit_cycles`).
+- [ ] No backfill of `workflow_runs.write_mode`: runs before 097 are NULL and are measured /
+  shown as before. Every agent write so far went to the sandbox; owner decides whether to mark
+  them (`UPDATE workflow_runs SET write_mode='simulated' WHERE write_mode IS NULL AND id IN
+  (SELECT workflow_run_id FROM tool_executions WHERE status='succeeded' AND tool_name IN
+  ('update_product_listing','upload_product_image','update_product_price'))`).
+- [ ] Pre-existing MODULE.md drift left as found (api privacy routes, database orphans,
+  tiktok `rebuild_keyword_exception` / `redact_url_query`, agent card_events orphans).
+- [ ] Not run in production: migration 097. Flags stay off.
