@@ -26,11 +26,11 @@ and is deliberately not scripted here.
 
 ## Two things these scripts will not do for you
 
-**They do not trigger beats.** `analytics_backfill_topup` runs at 02:00 UTC and
-`daily_impact_reader` at 03:00 UTC, so a run before those fire reports `NOT YET RUN`
-rather than a pass. That is the honest state, not a gap in the script. Triggering them
-manually is a write against the demo reference shop, which is Fujiwa Vietnam Store
-(`2b1da87b`) — the shop under the standing owner decision of 2026-08-21.
+**They do not trigger beats.** `daily_impact_reader` runs at 03:23 UTC and the
+per-shop `shop_kpi_reconcile_fanout` at :00 every hour, so a run before those fire
+reports `NOT YET RUN` rather than a pass. That is the honest state, not a gap in the
+script. (Fast track P61-D retired `analytics_backfill_topup` and the reference-shop
+hourly reconcile; both wrote for the demo reference shop only.)
 
 **`check_beat_cycle.sh` measures from the worker's last restart.** A deploy restarts the
 worker, so the window resets and the daily beats read `NOT YET RUN` again until they next

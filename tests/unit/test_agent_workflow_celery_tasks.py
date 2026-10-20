@@ -54,9 +54,9 @@ def test_agent_runs_queue_is_distinct_from_beat_and_analytics_routing():
     assert _resolved_queue_name("juli_backend.resume_agent_workflow") == "agent_runs"
 
     pre_existing_task_names = [
-        "juli_backend.mock_analytics_hourly_reconcile",
+        "juli_backend.shop_kpi_reconcile_fanout",
+        "juli_backend.shop_kpi_reconcile",
         "juli_backend.cdp_batch_staggered_reconcile",
-        "juli_backend.analytics_backfill_topup",
         "juli_backend.daily_impact_reader",
     ]
     for task_name in pre_existing_task_names:
@@ -74,13 +74,14 @@ def test_existing_beat_schedule_entries_survive_the_agent_queue_change():
     for the entry that pins the total.
     """
     schedule = celery_app.conf.beat_schedule
-    assert schedule["mock-analytics-hourly-reconcile"]["task"] == (
-        "juli_backend.mock_analytics_hourly_reconcile"
+    # Fast track P61-D: the hourly reconcile is per shop now (renamed entry).
+    assert schedule["shop-kpi-reconcile-fanout"]["task"] == (
+        "juli_backend.shop_kpi_reconcile_fanout"
     )
     assert schedule["cdp-batch-staggered-reconcile"]["task"] == (
         "juli_backend.cdp_batch_staggered_reconcile"
     )
-    assert schedule["analytics-backfill-topup"]["task"] == "juli_backend.analytics_backfill_topup"
+    assert "analytics-backfill-topup" not in schedule  # retired by P61-D
     assert schedule["daily-impact-reader"]["task"] == "juli_backend.daily_impact_reader"
 
 

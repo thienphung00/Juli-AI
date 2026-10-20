@@ -83,9 +83,9 @@ def test_every_beat_task_is_registered(
 @pytest.mark.parametrize(
     "task_name",
     [
-        "juli_backend.mock_analytics_hourly_reconcile",
+        "juli_backend.shop_kpi_reconcile_fanout",
+        "juli_backend.shop_kpi_reconcile",
         "juli_backend.cdp_batch_staggered_reconcile",
-        "juli_backend.analytics_backfill_topup",
         "juli_backend.product_history_fanout",
     ],
 )
@@ -94,7 +94,7 @@ def test_known_scheduled_tasks_register(task_name: str, registered_task_names: s
 
 
 def test_hourly_reconcile_runs_on_the_hour():
-    """ADR-038 §5: the Demo KPI reconcile is hourly at :00.
+    """ADR-038 §5, per shop since P61-D: the KPI envelope recompute is hourly at :00.
 
     Pinned because a schedule change here stops gold being recomputed, which
     surfaces as stale or unavailable KPIs rather than as an error.
@@ -103,8 +103,8 @@ def test_hourly_reconcile_runs_on_the_hour():
 
     from juli_backend.workers.celery_app import celery_app
 
-    entry = celery_app.conf.beat_schedule["mock-analytics-hourly-reconcile"]
-    assert entry["task"] == "juli_backend.mock_analytics_hourly_reconcile"
+    entry = celery_app.conf.beat_schedule["shop-kpi-reconcile-fanout"]
+    assert entry["task"] == "juli_backend.shop_kpi_reconcile_fanout"
     assert entry["schedule"] == crontab(minute=0)
 
 
@@ -171,7 +171,7 @@ def test_no_daily_beat_lands_on_the_hourly_reconcile():
     from juli_backend.workers.celery_app import celery_app
 
     schedule = celery_app.conf.beat_schedule
-    hourly = schedule["mock-analytics-hourly-reconcile"]["schedule"]
+    hourly = schedule["shop-kpi-reconcile-fanout"]["schedule"]
     hourly_minutes = set(hourly.minute)
 
     offenders = [

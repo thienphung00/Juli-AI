@@ -7,6 +7,8 @@ import os
 from celery import Celery
 from celery.schedules import crontab
 
+from juli_backend.core.config import log_runtime_env_report
+
 celery_app = Celery(
     "juli_backend",
     broker=os.getenv("CELERY_BROKER_URL", "memory://"),
@@ -55,9 +57,13 @@ celery_app.conf.update(
         "juli_backend.shop_quick_scan": {"queue": "ingest_priority"},
     },
     beat_schedule={
-        # ADR-038 §5 — Mock-mode hourly reconciliation for DEMO_REFERENCE_SHOP_ID only (#533).
-        "mock-analytics-hourly-reconcile": {
-            "task": "juli_backend.mock_analytics_hourly_reconcile",
+        # Fast track P61-D (D71.4, ADR-112 §6.5) — the hourly Analytics KPI
+        # envelope recompute, one task per connected shop (was
+        # `mock-analytics-hourly-reconcile`, DEMO_REFERENCE_SHOP_ID only, #533).
+        # Same :00 slot the old entry held, so #1659's collision reasoning
+        # below is unchanged. Default queue.
+        "shop-kpi-reconcile-fanout": {
+            "task": "juli_backend.shop_kpi_reconcile_fanout",
             "schedule": crontab(minute=0),
         },
         # CDP-A2-9 — Staggered daily batch reconcile for fleet (#622).
@@ -67,31 +73,17 @@ celery_app.conf.update(
             "task": "juli_backend.cdp_batch_staggered_reconcile",
             "schedule": crontab(),  # Every minute
         },
-        # P2-9-6 — Automatic analytics history top-up for reference shop (#791).
-        # Runs daily at 2 AM UTC to top up missing or stale partitions.
-        # A1 scope: single-shop only (DEMO_REFERENCE_SHOP_ID). Fleet-wide belongs in A2 (#601).
-        # Idempotent via resumable checkpoints (AnalyticsBackfillPartitionsRepo).
-        "analytics-backfill-topup": {
-            "task": "juli_backend.analytics_backfill_topup",
-            # MINUTE 17, NOT 0, AND THE MINUTE IS THE FIX (#1659).
-            #
-            # Every hour at :00 already runs four beats — the hourly reconcile,
-            # the reaper (*/5), the credential refresh (*/30) and the
-            # every-minute staggered reconcile. The reconcile survives that load
-            # at all 24 hours. At 02:00 this beat made it FIVE, both tasks work
-            # `analytics_performance_intervals`, and the contention pushed a
-            # single-row UPDATE past the database's 2-minute statement_timeout:
-            #
-            #   QueryCanceledError: canceling statement due to statement timeout
-            #
-            # Observed 2026-09-06: the reconcile succeeded at 16 consecutive
-            # hours and failed only at 02:00. The hour is the evidence.
-            "schedule": crontab(hour=2, minute=17),
-        },
+        # `analytics-backfill-topup` (P2-9-6, #791; DEMO_REFERENCE_SHOP_ID only)
+        # is retired by fast track P61-D (D71.4): every shop's daily analytics
+        # already lands through its own `poll_shop` cycle (`_daily_analytics`),
+        # and the history phase walks the gaps backwards. It held 02:17 because
+        # at 02:00 it was the fifth beat on that minute and pushed the hourly
+        # reconcile past the 2-minute statement_timeout (#1659); the slot is
+        # simply left empty.
         # ADR-077 decision 5 — Daily impact-reader beat task (#1044).
-        # Scheduled strictly after analytics-backfill-topup (hour=2) so it reads
-        # analytics_performance_intervals partitions that day's top-up has already
-        # refreshed. Scans terminal listing.optimize_product executions whose
+        # Reads analytics_performance_intervals as each shop's own daily poll
+        # left them (P61-D retired the reference-shop top-up it used to follow).
+        # Scans terminal listing.optimize_product executions whose
         # T+7/T+14 has elapsed and writes impact_readings rows.
         "daily-impact-reader": {
             "task": "juli_backend.daily_impact_reader",
@@ -137,9 +129,10 @@ celery_app.conf.update(
         # 7/22/37/52 are none of them multiples of 5, so this entry shares no
         # fire minute, at any hour, with reap-abandoned-workflow-runs' */5 or
         # credential-refresh-beat's */30 (both land only on multiples of 5),
-        # nor with mock-analytics-hourly-reconcile's :00. It also is not 17
-        # (analytics-backfill-topup, hour=2 only) or 23 (daily-impact-reader,
-        # hour=3 only) — the two collisions #1659 was filed over.
+        # nor with shop-kpi-reconcile-fanout's :00. It also is not 17 (the
+        # retired analytics-backfill-topup, hour=2 only) or 23
+        # (daily-impact-reader, hour=3 only) — the two collisions #1659 was
+        # filed over.
         # cdp-batch-staggered-reconcile (every minute, flag defaults OFF) is
         # the one entry every other beat already "collides" with by design
         # and is excluded from this reasoning for the same reason it is
@@ -156,8 +149,8 @@ celery_app.conf.update(
         # production merchant and SELLER_CONNECT shops alike -- and
         # `bootstrap_shop` for any shop whose fast phase never completed. Same
         # fire minutes, for the collision reasoning above.
-        # `juli_backend.fujiwa_poll_cycle` stays registered (manual use) but is
-        # no longer scheduled.
+        # The legacy `juli_backend.fujiwa_poll_cycle` task (shop_id=None) was
+        # deleted by fast track P61-D (D71.4).
         "shop-poll-fanout": {
             "task": "juli_backend.shop_poll_fanout",
             "schedule": crontab(minute="7,22,37,52"),
@@ -236,3 +229,7 @@ bind_celery_dispatchers()
 # is set; check 5 (SUPABASE_JWT_SECRET) is unconditional — see
 # agent_runtime_boot.py for the full contract.
 assert_agent_runtime_config(broker_url=celery_app.conf.broker_url)
+
+# Fast track P61-D (D71.4): the same loud boot report the API logs -- one
+# `runtime_env_missing` WARNING per missing variable / off flag (names only).
+log_runtime_env_report("worker")

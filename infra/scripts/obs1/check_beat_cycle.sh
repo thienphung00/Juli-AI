@@ -16,8 +16,8 @@ journalctl -u juli-celery-worker --since "$SINCE" --no-pager 2>/dev/null \
   | grep -icE "row-level security|InsufficientPrivilege|permission denied|TenantContextRequired" \
   | sed 's/^/  count: /'
 echo
-echo "== the five named in Obs 1 bullet 4 =="
-for t in mock_analytics_hourly_reconcile analytics_backfill_topup daily_impact_reader \
+echo "== the beats named in Obs 1 bullet 4 (fast track P61-D: per-shop KPI recompute) =="
+for t in shop_kpi_reconcile_fanout shop_kpi_reconcile daily_impact_reader \
          reap_abandoned_workflow_runs credential_refresh_beat; do
   ok=$(journalctl -u juli-celery-worker --since "$SINCE" --no-pager 2>/dev/null | grep -c "$t.*succeeded in")
   bad=$(journalctl -u juli-celery-worker --since "$SINCE" --no-pager 2>/dev/null | grep -c "$t.*raised unexpected")

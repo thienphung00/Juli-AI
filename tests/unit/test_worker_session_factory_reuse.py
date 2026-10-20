@@ -15,11 +15,10 @@ import importlib
 import pytest
 
 WORKER_TASK_MODULES = [
-    "juli_backend.workers.tasks.mock_analytics_reconcile",
+    "juli_backend.workers.tasks.shop_kpi_reconcile",
     "juli_backend.workers.tasks.material_analytics_precompute",
     "juli_backend.workers.tasks.action_card_refresh",
     "juli_backend.workers.tasks.tool_execution",
-    "juli_backend.workers.tasks.analytics_backfill_topup",
 ]
 
 TEST_URL = "postgresql+asyncpg://u:p@localhost:5432/testdb"
@@ -84,7 +83,7 @@ def test_first_call_publishes_the_global_session_factory():
 
 @pytest.mark.parametrize("module_name", WORKER_TASK_MODULES)
 def test_worker_tasks_do_not_build_their_own_engine(module_name: str):
-    """All five tasks must route through the shared helper.
+    """Every listed task must route through the shared helper.
 
     Five independent copies of the same lifecycle bug is why it reached production;
     this keeps them converged.

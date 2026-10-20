@@ -78,8 +78,9 @@ from juli_backend.services.cdp_speed import (
   never touching the already-committed KPI envelope). Wired as the default
   ``scoring_stage`` at **both** production continuous-trigger call sites —
   ``services/webhook/material_worker.py``'s ``_default_shared_compute`` (material
-  webhook trigger) and ``workers/tasks/mock_analytics_reconcile.py``'s
-  ``run_mock_analytics_reconcile_orchestrated`` (hourly Mock reconcile gap trigger,
+  webhook trigger) and ``workers/tasks/shop_kpi_reconcile.py``'s
+  ``run_shop_kpi_reconcile_job`` (hourly per-shop reconcile, fast track P61-D; was the
+  reference-shop ``mock_analytics_reconcile``,
   PRD #599 user story 30 — gap reconciliation must heal Decision staleness the same
   way it heals KPI envelope staleness); actual execution still stays gated by
   ``scoring_stage_enabled()`` (default OFF) — wiring the callable does not flip the
@@ -127,13 +128,14 @@ bronze persistence (``analytics``, ``products``, ``inventory``, ``promotion``) a
 the remaining resource_attrs above stay deferred.
 
 **Forbidden on material path:** ``_FUJIWA_POLL_STEPS`` (all four domain polls),
-``run_fujiwa_poll_cycle``, unbounded ``sync_analytics`` A-31–A-39 fan-out. Hourly
-Mock reconcile uses a separate gap plan (``workers/tasks/mock_analytics_reconcile.py``
-'s ``_make_hourly_gap_fetch_plan`` — orders, analytics_shop, ctor, live_hours via
-``static_fetch_resource``) — not this matrix. The Fujiwa Mock reference shop is driven
-entirely by that hourly reconcile (no material webhook reaches it), so ctor/live_hours
-freshness for that shop depends on the gap plan requesting them, not on catalog id 5's
-material-matrix ``ctor`` entry below.
+``run_fujiwa_poll_cycle``, unbounded ``sync_analytics`` A-31–A-39 fan-out. The hourly
+per-shop reconcile (fast track P61-D) uses a separate gap plan
+(``workers/tasks/shop_kpi_reconcile.py``'s ``make_gap_fetch_plan`` — orders,
+analytics_shop, ctor, live_hours via ``static_fetch_resource``) — not this matrix — and
+only for a shop ``resolve_job_production_read_credential`` (exported here) accepts, i.e.
+the configured production merchant; every other shop gets an empty plan and its envelope
+is recomputed from what its own ``poll_shop`` cycle ingested. ctor/live_hours bronze
+freshness therefore still exists for the production merchant only (DEBT P61-D).
 
 ## Extending the matrix
 

@@ -4,10 +4,10 @@
 *package*, not each module inside it (see #791/test_beat_schedule_registration.py's
 own module docstring for the failure mode this guards against). This module
 pins two additional, feature-specific invariants that generic test does not:
-the entry's name/schedule/ordering relative to `analytics-backfill-topup`
-(ADR-077 decision 5: the reader must run *after* the analytics backfill
-top-up so it reads freshly topped-up partitions), and that the task name it
-points at is actually claimed by a worker.
+the entry's name/schedule, and that the task name it points at is actually
+claimed by a worker. (ADR-077 decision 5 ordered it after the reference-shop
+`analytics-backfill-topup`; fast track P61-D retired that beat -- every shop's
+daily analytics now lands through its own `poll_shop` cycle.)
 """
 
 from __future__ import annotations
@@ -37,26 +37,13 @@ def test_daily_impact_reader_entry_targets_correct_task_name():
     assert entry["task"] == "juli_backend.daily_impact_reader"
 
 
-def test_daily_impact_reader_scheduled_after_analytics_backfill_topup():
-    """ADR-077 decision 5: 'a daily impact-reader beat task scheduled after
-    the analytics backfill top-up' — pinned as an hour ordering, not just a
-    vague 'later' claim."""
+def test_the_reference_shop_topup_beat_is_gone():
+    """P61-D (D71.4): no beat reads DEMO_REFERENCE_SHOP_ID any more."""
     from juli_backend.workers.celery_app import celery_app
 
-    topup_entry = celery_app.conf.beat_schedule["analytics-backfill-topup"]
-    reader_entry = celery_app.conf.beat_schedule["daily-impact-reader"]
-    topup_schedule = topup_entry["schedule"]
-    reader_schedule = reader_entry["schedule"]
-    assert isinstance(topup_schedule, crontab)
-    assert isinstance(reader_schedule, crontab)
-
-    def _hour(schedule: crontab) -> int:
-        return min(schedule.hour)
-
-    assert _hour(reader_schedule) > _hour(topup_schedule), (
-        "daily-impact-reader must run strictly after analytics-backfill-topup "
-        f"(topup hour(s)={topup_schedule.hour}, reader hour(s)={reader_schedule.hour})"
-    )
+    assert "analytics-backfill-topup" not in celery_app.conf.beat_schedule
+    reader_schedule = celery_app.conf.beat_schedule["daily-impact-reader"]["schedule"]
+    assert reader_schedule == crontab(hour=3, minute=23)
 
 
 def test_daily_impact_reader_task_is_registered_on_worker(registered_task_names: set[str]):

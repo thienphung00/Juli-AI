@@ -13,7 +13,7 @@ wired up to consume it:
      read the new fields. Bronze would fill; silver stayed empty.
   2. Second gap (after fixing the first): ``BRONZE_SUPPORTED_RESOURCE_ATTRS``
      was extended and planner entries added, but
-     ``mock_analytics_reconcile.py::_make_hourly_gap_fetch_plan`` hardcoded
+     ``shop_kpi_reconcile.py::make_gap_fetch_plan`` (was ``mock_analytics_reconcile.py``) hardcoded
      its resource list to ``orders`` + ``analytics_shop``. Nothing ever
      requested the new domains.
 
@@ -49,7 +49,7 @@ never mistaken for more proof than it actually is:
     never invoked for that call and the assertion fails — this is exactly
     how #880's first gap would have been caught.
   - **Link 5** (a fetch-plan builder requests it) — BEHAVIORAL: calls the
-    real ``_make_hourly_gap_fetch_plan`` (mock_analytics_reconcile.py) and
+    real ``make_gap_fetch_plan`` (shop_kpi_reconcile.py) and
     the real ``plan_targeted_fetch`` for every catalog id in the material
     webhook matrix, then checks the ``resource_attr`` of the actual
     ``FetchResource`` objects those plan builders produce — not just the
@@ -77,7 +77,7 @@ from juli_backend.services.cdp_speed.targeted_fetch_planner import (
     _MATERIAL_FETCH_MATRIX,
     plan_targeted_fetch,
 )
-from juli_backend.workers.tasks.mock_analytics_reconcile import _make_hourly_gap_fetch_plan
+from juli_backend.workers.tasks.shop_kpi_reconcile import make_gap_fetch_plan
 
 
 def _tracker_field_for_resource_attr(resource_attr: str) -> str:
@@ -206,7 +206,7 @@ class TestMedallionDomainReachability:
         """BEHAVIORAL: at least one production fetch-plan builder requests this domain.
 
         Reproduces #880 gap #2: BRONZE_SUPPORTED_RESOURCE_ATTRS and the
-        planner catalog were extended but mock_analytics_reconcile.py's
+        planner catalog were extended but shop_kpi_reconcile.py's
         hourly gap plan hardcoded its resource list and never asked for the
         new domains. Checked against the *real* plan builders (hourly gap
         plan + material webhook matrix), not just the planner's static
@@ -215,7 +215,7 @@ class TestMedallionDomainReachability:
         """
         hourly_attrs = {
             resource.resource_attr
-            for resource in _make_hourly_gap_fetch_plan("reachability-test-shop").resources
+            for resource in make_gap_fetch_plan("reachability-test-shop").resources
         }
 
         material_attrs: set[str] = set()
