@@ -196,10 +196,11 @@ async def _changes(factory, shop_id) -> list[ExternalChange]:
 
 def test_migration_087_chain_shape_and_pins():
     text = MIGRATION.read_text(encoding="utf-8")
+    later = (VERSIONS / "096_change_attribution.py").read_text(encoding="utf-8")
     assert 'revision: str = "087_history_and_baselines"' in text
     assert len("087_history_and_baselines") <= 32
     assert 'down_revision: str | None = "086_ops_cost_and_terms"' in text
-    assert 'down_revision: str | None = "095_card_events"' in DEFERRED.read_text("utf-8")
+    assert 'down_revision: str | None = "096_change_attribution"' in DEFERRED.read_text("utf-8")
     children = [
         p.name
         for p in VERSIONS.glob("*.py")
@@ -215,7 +216,8 @@ def test_migration_087_chain_shape_and_pins():
     ):
         assert f'"{model.__tablename__}"' in text
         for column in model.__table__.columns.keys():
-            assert f'"{column}"' in text, (model.__tablename__, column)
+            # P60-1b: 096 adds `external_changes.attribution` / `field_attribution`.
+            assert f'"{column}"' in text + later, (model.__tablename__, column)
     assert "ENABLE ROW LEVEL SECURITY" in text and "app_current_shop_id()" in text
     assert 'APPEND_ONLY_VERBS = "SELECT, INSERT"' in text
     assert "SNAPSHOTS_TABLE: APPEND_ONLY_VERBS" in text

@@ -30,12 +30,24 @@ inside a SAVEPOINT on Postgres, and **never raises** (a failure is logged as
 | `record_run_outcome(session, run, *, status, stop_reason, ...)` | `executed` / `not_executed` / `reverted` | runner `conversation_store.persist`, crash handler, reaper sink, `lever_flows.end_wait_by_seller` |
 | `record_impact_readings(session, *, run_id, kind, occurred_at)` | `impact_preliminary` / `impact_final` | `workers/impact_reader/pipeline._process_kind` |
 | `record_measurement_final(session, row)` | `impact_final` | `lever_flows.measurement`, `content_cards.measurement` |
+| `natural.record_seller_change(session, external_change)` | `seller_change` (P60-1b) | `product_history.store.record_change` (every product change not entirely Juli's, any shop) |
 
 Backfill: `backfill_shop(session, shop_id) -> BackfillReport` (per-event
-`considered` / `inserted`). Run by the manual Celery tasks
-`juli_backend.card_events_backfill(shop_id)` and
+`considered` / `inserted`), including `seller_change` for every past
+`external_changes` row not entirely Juli's (`natural.seller_change_specs`). Run
+by the manual Celery tasks `juli_backend.card_events_backfill(shop_id)` and
 `juli_backend.card_events_backfill_fanout()` (`workers/tasks/card_events_backfill.py`,
-not on beat).
+not on beat). The fan-out reaches every shop with cards, Juli writes or observed
+changes -- connected or not -- through migration 096's `enumerate_history_shops()`
+(SECURITY DEFINER, ids only), plus every pollable shop.
+
+`seller_change` (amendment §8): `card_id` = the card whose run last wrote one of
+the change's non-Juli fields, else the card whose plan window is open on the
+product (its latest executed run completed less than `OPEN_PLAN_WINDOW` = 14 days
+before the change), else NULL (a natural action, `workflow_key = 'natural'`).
+`payload.attribution` is `seller_revert` when every non-Juli field is a revert,
+else `seller_change`; `payload.field_attribution`, `fields`, `external_change_id`,
+`card_link` (`last_write` / `open_window` / null). Key `seller_change:<change id>`.
 
 Lower level: `EventSpec`, `insert_event(session, spec) -> bool` (`INSERT ... ON
 CONFLICT DO NOTHING`; raises on a database error).
@@ -61,8 +73,7 @@ CONFLICT DO NOTHING`; raises on a database error).
 
 ## Not here yet (DEBT P60-1a)
 
-`edited`, `seller_done`, `seller_change` (P60-1b, needs §8 attribution),
-`shadow` (ADR-115); `readiness_level` (ADR-112 D3 levels) and
+`edited`, `seller_done`, `shadow` (ADR-115); `readiness_level` (ADR-112 D3 levels) and
 `feature_snapshot_id` (P60-1e) stay NULL; the measurement plan of decision 7.
 
 ## Dependencies

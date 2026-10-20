@@ -232,6 +232,10 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # `card_events` and `upgrade head` restores it, after its two-tenant
         # RLS / append-only / backfill tests (which also seed tenants).
         "test_card_events_db.py",
+        # Fast track P60-1b: migration 096 round trip with pre-096 rows seeded
+        # at 095 (its data step fills hashes, audit links and attribution),
+        # after the two-tenant end-to-end attribution walk.
+        "test_change_attribution_db.py",
     }
 )
 

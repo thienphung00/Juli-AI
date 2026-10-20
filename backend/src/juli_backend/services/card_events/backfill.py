@@ -26,10 +26,13 @@ finished by running it again.
 - ``impact_preliminary`` / ``impact_final`` -- ``impact_readings`` by run and
   kind, then ``run_measurement_finals``.
 
+- ``seller_change`` (P60-1b) -- every ``external_changes`` row not entirely
+  Juli's, with its §8 attribution (stored by migration 096 or the live path,
+  else computed the same way) and card link (``natural.py``); card-less when
+  no card wrote the field or has an open plan window on the product.
+
 Not reconstructed (amendment §5): ``edited``, ``expired``, ``seller_done``,
-``shadow``. ``seller_change`` is left to P60-1b: it needs the per-field
-attribution of §8, and an unattributed row written now would hold the dedup
-key a correct one needs (the table is append-only) -- DEBT P60-1a.
+``shadow``.
 
 Runs on the caller's session under the shop's scope (ADR-089); no commit.
 """
@@ -307,7 +310,16 @@ async def _product_tiktok_ids(
 
 
 async def collect_specs(session: AsyncSession, shop_id: uuid.UUID) -> list[EventSpec]:
-    """Every reconstructable event of the shop, in stage order."""
+    """Every reconstructable event of the shop, in stage order; ``seller_change`` last."""
+    from juli_backend.services.card_events.natural import seller_change_specs
+
+    specs = await collect_card_specs(session, shop_id)
+    specs.extend(await seller_change_specs(session, shop_id))
+    return specs
+
+
+async def collect_card_specs(session: AsyncSession, shop_id: uuid.UUID) -> list[EventSpec]:
+    """The events of the shop's cards, in stage order."""
     from juli_backend.models.decision_reasons import DecisionReason
     from juli_backend.models.lever_flows import RunLeverFlow, RunMeasurementFinal
     from juli_backend.models.models import (
@@ -466,6 +478,7 @@ __all__ = [
     "BackfillReport",
     "accepted_spec",
     "backfill_shop",
+    "collect_card_specs",
     "collect_specs",
     "dismissed_spec",
     "final_spec",

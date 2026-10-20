@@ -92,7 +92,7 @@ def test_revision_fits_alembic_and_keeps_the_phone_cleanup_the_tail():
     assert mig.revision == "095_card_events" and len(mig.revision) <= 32
     assert mig.down_revision == "094_user_privacy_and_consent"
     body = DEFERRED.read_text("utf-8")
-    assert 'down_revision: str | None = "095_card_events"' in body
+    assert 'down_revision: str | None = "096_change_attribution"' in body
 
 
 def test_migration_is_append_only_for_the_app_role():
