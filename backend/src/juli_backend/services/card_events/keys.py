@@ -46,3 +46,8 @@ def reverted(revert_run_id: uuid.UUID) -> str:
 def impact(event_type: str, run_id: uuid.UUID) -> str:
     """One ``impact_preliminary`` and one ``impact_final`` per run."""
     return f"{event_type}:{run_id}"
+
+
+def seller_change(external_change_id: uuid.UUID) -> str:
+    """One ``seller_change`` per ``external_changes`` row (amendment §8)."""
+    return f"seller_change:{external_change_id}"

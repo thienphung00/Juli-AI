@@ -1,7 +1,7 @@
 """Per-shop production write enable and the run's write mode (fast track P61-B).
 
 Revision ID: 097_production_write_shops
-Revises: 095_card_events
+Revises: 096_change_attribution
 Create Date: 2026-10-20
 
 DECISIONS D71.2; ADR-085 decisions 6 and 7.
@@ -37,7 +37,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "097_production_write_shops"
-down_revision: str | None = "095_card_events"
+down_revision: str | None = "096_change_attribution"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

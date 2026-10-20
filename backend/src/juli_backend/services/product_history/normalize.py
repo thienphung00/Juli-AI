@@ -253,6 +253,112 @@ def normalize_detail(raw: Mapping[str, Any], *, product_id: str | None = None) -
     )
 
 
+# -- per-field value hashes (ADR-107 amendment §6, P60-1b) --------------------------------
+
+
+def _image_uri_list(value: Any) -> list[str]:
+    """Ordered image URIs from a ``main_images`` value (``[{uri}]`` or ``[uri]``)."""
+    uris: list[str] = []
+    for image in value if isinstance(value, list | tuple) else []:
+        uri = image.get("uri") if isinstance(image, Mapping) else image
+        if uri:
+            uris.append(str(uri))
+    return uris
+
+
+def _amount_text(value: Any) -> str | None:
+    """A recorded SKU amount in the snapshot's price form; junk is kept verbatim."""
+    if value is None or value == "":
+        return None
+    try:
+        return plain_decimal(Decimal(str(value)))
+    except (InvalidOperation, ValueError):
+        return f"invalid:{value}"
+
+
+def _price_pairs(value: Any) -> list[list[Any]]:
+    """``[[sku_id, list_price], ...]`` sorted, from a ``price`` write value."""
+    items = value if isinstance(value, list | tuple) else []
+    pairs = [
+        [str(item.get("sku_id")), _amount_text(item.get("amount"))]
+        for item in items
+        if isinstance(item, Mapping)
+    ]
+    return sorted(pairs, key=lambda pair: pair[0])
+
+
+def _sku_ids(value: Any) -> list[str] | None:
+    if not isinstance(value, list | tuple):
+        return None
+    return sorted(str(item.get("sku_id")) for item in value if isinstance(item, Mapping))
+
+
+def field_value_hash(field_name: str, value: Any) -> str | None:
+    """sha256 of one listing field's value in the form ``product_snapshots`` hashes it.
+
+    - ``title`` / ``description``: the stripped text (``description`` equals the
+      snapshot's ``description_hash``);
+    - ``main_images``: the ordered URI list (``[{uri}]`` or ``[uri]``);
+    - ``price``: the sorted ``[sku_id, list_price]`` pairs, amounts as
+      :func:`plain_decimal` (the snapshot's ``list_price`` form);
+    - anything else: its canonical JSON.
+
+    ``None`` for a ``None`` value: nothing to compare.
+    """
+    if value is None:
+        return None
+    if field_name in ("title", "description"):
+        return sha256_text(str(value).strip())
+    if field_name == "main_images":
+        return sha256_text(_canonical(_image_uri_list(value)))
+    if field_name == "price":
+        return sha256_text(_canonical(_price_pairs(value)))
+    return sha256_text(_canonical(value))
+
+
+@dataclass(frozen=True)
+class ProductFields:
+    """A product's listing fields as TikTok shows them, hashable per field (§8).
+
+    Built from a fresh read (:meth:`of`) or a stored snapshot
+    (``store.product_fields_of_snapshot``). ``list_prices`` is
+    ``{sku_id: list_price}`` in :func:`plain_decimal` form.
+    """
+
+    title: str | None
+    description_hash: str | None
+    image_uris: tuple[str, ...]
+    list_prices: Mapping[str, str | None]
+
+    @classmethod
+    def of(cls, product: NormalizedProduct) -> ProductFields:
+        return cls(
+            title=product.title,
+            description_hash=product.description_hash,
+            image_uris=tuple(product.image_uris),
+            list_prices={row["sku_id"]: row["list_price"] for row in product.skus},
+        )
+
+    def field_hash(self, field_name: str, like: Any = None) -> str | None:
+        """The current value's hash; for ``price`` over the SKUs ``like`` names (all if none).
+
+        ``None`` for a field this state does not hold (Juli writes only title,
+        description, main images and price).
+        """
+        if field_name == "title":
+            return field_value_hash("title", self.title)
+        if field_name == "description":
+            return self.description_hash
+        if field_name == "main_images":
+            return field_value_hash("main_images", list(self.image_uris))
+        if field_name == "price":
+            skus = _sku_ids(like)
+            wanted = sorted(self.list_prices) if skus is None else skus
+            pairs = [[sku, self.list_prices.get(sku)] for sku in wanted]
+            return sha256_text(_canonical(pairs))
+        return None
+
+
 @dataclass(frozen=True)
 class PreviousState:
     """What ``diff`` needs from the latest ``product_snapshots`` row."""
@@ -350,8 +456,10 @@ __all__ = [
     "Change",
     "NormalizedProduct",
     "PreviousState",
+    "ProductFields",
     "diff",
     "epoch_to_naive_utc",
+    "field_value_hash",
     "list_prices",
     "local_day",
     "local_midnight_utc",

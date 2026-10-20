@@ -128,6 +128,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable, Mapping
+from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
@@ -413,6 +415,7 @@ class ProductToolExecutor(DomainToolExecutor):
         restore_main_image_uris: tuple[str, ...] | None = None,
         revert_expected: Mapping[str, Any] | None = None,
         on_image_staged: Callable[[str], None] | None = None,
+        revert_expected_hashes: Mapping[str, str | None] | None = None,
     ) -> None:
         super().__init__(
             registry=registry,
@@ -441,7 +444,10 @@ class ProductToolExecutor(DomainToolExecutor):
         self._write_value_recorder = write_value_recorder
         self._restore_main_image_uris = restore_main_image_uris
         self._revert_expected = dict(revert_expected) if revert_expected else None
+        # P60-1b (ADR-107 am. §9): Juli's after-hashes; the check compares them first.
+        self._revert_expected_hashes = dict(revert_expected_hashes or {})
         self._before_raw: Mapping[str, Any] | None = None
+        self._before_read_at: datetime | None = None
         # P10-B (contract §4): told the URI `upload_product_image` staged; the
         # executor attaches it in this leg, the callback keeps it for the next.
         self._on_image_staged = on_image_staged
@@ -515,6 +521,7 @@ class ProductToolExecutor(DomainToolExecutor):
         if self._captures_write(tool_name=tool_name, spec=spec):
             assert self._write_resources is not None  # narrowed by _captures_write
             # P8-C: the "before" read, immediately before the write.
+            self._before_read_at = datetime.now(UTC).replace(tzinfo=None)
             raw = self._write_resources.products.get_details(self._product_id)
             self._before_raw = raw
             if self._revert_expected is not None:
@@ -523,6 +530,7 @@ class ProductToolExecutor(DomainToolExecutor):
                     tool_name,
                     live=field_values(tool_name, raw),
                     expected=self._revert_expected,
+                    expected_hashes=self._revert_expected_hashes,
                 )
                 if changed:
                     raise RevertTargetChangedError(operation=tool_name, fields=changed)
@@ -572,6 +580,8 @@ class ProductToolExecutor(DomainToolExecutor):
                 after=field_values(tool_name, raw),
                 intended=self._intended_values(tool_name),
             )
+            read_at = self._before_read_at
+            writes = [replace(write, before_read_at=read_at) for write in writes]
             call_id, _params = self._current_call
             if writes and call_id is not None:
                 self._write_value_recorder.record(
