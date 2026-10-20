@@ -301,27 +301,27 @@ celeryTasks:
     owner: Data Pipeline
     wrapper: backend/src/juli_backend/workers/tasks/material_analytics_precompute.py
     delegatesTo: services.webhook.material_worker.run_material_analytics_compute
-  juli_backend.mock_analytics_hourly_reconcile:
+  juli_backend.shop_kpi_reconcile_fanout:
     owner: Data Pipeline
-    wrapper: backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py
-    delegatesTo: workers.tasks.material_analytics_precompute.material_analytics_precompute_sync
-    notes: Phase 2.10 Mock-mode hourly Demo reference shop reconciliation only.
+    wrapper: backend/src/juli_backend/workers/tasks/shop_kpi_reconcile.py
+    delegatesTo: workers.tasks.shop_kpi_reconcile.run_fanout
+    notes: Fast track P61-D (D71.4). Hourly; one shop_kpi_reconcile per pollable shop (replaces the reference-shop-only mock_analytics_hourly_reconcile).
+  juli_backend.shop_kpi_reconcile:
+    owner: Data Pipeline
+    wrapper: backend/src/juli_backend/workers/tasks/shop_kpi_reconcile.py
+    delegatesTo: services.cdp_speed.run_shared_compute_job
+    notes: Fast track P61-D. One shop under with_shop_scope; KPI envelope recompute (gap fetch only for a shop the targeted-fetch executor serves).
   juli_backend.cdp_batch_staggered_reconcile:
     owner: Data Pipeline
     wrapper: backend/src/juli_backend/workers/tasks/cdp_batch_reconcile.py
     delegatesTo: services.cdp_batch.batch_reconcile_orchestrator.BatchReconcileOrchestrator.run
     notes: A2 daily staggered per-shop reconcile via StaggerScheduler (#615/#621/#622). Config-flag gated, default OFF.
-  juli_backend.analytics_backfill_topup:
-    owner: Data Pipeline
-    wrapper: backend/src/juli_backend/workers/tasks/analytics_backfill_topup.py
-    delegatesTo: services.analytics_backfill.backfill_analytics_history
-    notes: A1 automatic analytics history top-up for reference shop only (#791). Idempotent via resumable checkpoints.
   juli_backend.daily_impact_reader:
     owner: Intelligence
     wrapper: backend/src/juli_backend/workers/tasks/impact_reader.py
     delegatesTo: workers.impact_reader.pipeline.run_daily_impact_reader
     notes: >
-      ADR-077 decision 5 (#1044). Scheduled strictly after analytics-backfill-topup.
+      ADR-077 decision 5 (#1044). Daily 03:23 UTC (the reference-shop top-up it followed was retired by P61-D).
       Scans terminal listing.optimize_product executions whose T+7/T+14 has elapsed
       and writes impact_readings rows; matches that table's own owner (Intelligence).
   juli_backend.run_agent_workflow:
@@ -373,22 +373,6 @@ celeryTasks:
       beat_schedule, so before this nothing refreshed TikTok tokens on a
       schedule at all. One bad credential never aborts the cycle: that is why
       refresh_credential returns an outcome instead of raising.
-  juli_backend.fujiwa_poll_cycle:
-    owner: Data Pipeline
-    wrapper: backend/src/juli_backend/workers/tasks/fujiwa_poll_beat.py
-    delegatesTo: workers.services.polling.run_fujiwa_poll_cycle
-    notes: >
-      #1949 (ONB-DATA). The fleet's FIRST scheduled *data* poll —
-      run_fujiwa_poll_cycle (orders/products/returns/inventory + analytics)
-      had also never appeared in beat_schedule, reachable only through
-      services.action_cards.refresh.maybe_poll_tiktok_data's manual hook.
-      Beat task every 15 minutes offset (minutes 7/22/37/52, chosen against
-      #1659 to share no fire slot with any other entry). Tenant scope is
-      established inside run_fujiwa_poll_cycle itself (ADR-089); this wrapper
-      adds none of its own. A first scheduled run only advances the
-      sync-state cursor forward from roughly "now" — it does not back-fill
-      the historical gap already missed (that needs #1968's ledger epoch plus
-      a deliberate watermark reset).
 
 redisNamespaces:
   - pattern: "ratelimit:*"

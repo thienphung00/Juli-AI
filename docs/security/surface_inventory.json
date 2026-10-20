@@ -513,6 +513,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/runtime-env",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/disconnect",
       "methods": [
         "POST"

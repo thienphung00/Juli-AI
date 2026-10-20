@@ -297,3 +297,8 @@ def test_the_beat_points_at_the_fanout_hourly():
     }
     assert "mock-analytics-hourly-reconcile" not in schedule
     assert "analytics-backfill-topup" not in schedule
+
+
+def test_task_names_match_the_constants():
+    assert module.shop_kpi_reconcile_fanout.name == module.FANOUT_TASK
+    assert module.shop_kpi_reconcile.name == module.SHOP_TASK

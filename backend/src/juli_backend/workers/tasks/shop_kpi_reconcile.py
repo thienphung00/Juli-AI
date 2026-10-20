@@ -256,7 +256,7 @@ async def run_fanout(
     return enqueued
 
 
-@celery_app.task(name=FANOUT_TASK)
+@celery_app.task(name="juli_backend.shop_kpi_reconcile_fanout")
 def shop_kpi_reconcile_fanout() -> int:
     """Beat: enqueue one envelope recompute per connected shop."""
 
@@ -274,7 +274,7 @@ def shop_kpi_reconcile_fanout() -> int:
         raise
 
 
-@celery_app.task(name=SHOP_TASK)
+@celery_app.task(name="juli_backend.shop_kpi_reconcile")
 def shop_kpi_reconcile(shop_id: str) -> None:
     """One shop's hourly envelope recompute (routes through SharedComputeOrchestrator)."""
     asyncio.run(run_shop_kpi_reconcile(uuid.UUID(shop_id), session_factory=_session_factory()))
