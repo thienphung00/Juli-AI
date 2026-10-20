@@ -46,6 +46,12 @@ class PreconditionName(str, Enum):
     RLS_BOOT_CHECK_FAILED = "rls_boot_check_failed"
     NO_ATTESTATION_FOR_RELEASE_SHA = "no_attestation_for_release_sha"
     PRODUCTION_WRITE_KILL_SWITCH_ACTIVE = "production_write_kill_switch_active"
+    # Fast track P61-B: refusals a write path raises BEFORE the resolver runs
+    # (so no authorization is consumed) when the shop's writes would go to its
+    # own shop: a mutation D13 never executes there (price, product create),
+    # or an execution with no workflow run for the audit row to name.
+    MUTATION_NOT_ALLOWED_IN_PRODUCTION = "mutation_not_allowed_in_production"
+    NO_WORKFLOW_RUN = "no_workflow_run"
 
 
 @dataclass
@@ -96,8 +102,11 @@ async def resolve_write_capability(
     Returns sandbox resources (when flag is off, the default) or raises
     PreconditionFailure with a distinct named reason (when any is unmet).
 
-    When all five preconditions hold, returns a production authorization marker
-    (production resources will be created when ProductionWriteClientFactory is available).
+    When all five preconditions hold, returns a production authorization marker;
+    `production_write.load_production_write_resources` turns it into the shop's
+    own guarded write resources (fast track P61-B). With the flag on but no
+    `production_write_shops` row for the shop, returns sandbox resources exactly
+    as with the flag off.
 
     The five preconditions (each with a distinct refusal name):
     1. PRODUCTION_WRITE_ENABLED is on (default off)
@@ -129,26 +138,22 @@ async def resolve_write_capability(
     # Precondition 1: PRODUCTION_WRITE_ENABLED is on
     if not is_production_write_enabled():
         # Default path — flag is off, which is today's configuration
-        # Resolve to sandbox and return actual SandboxWriteResources
-        from juli_backend.services.execution.sandbox_guard import (
-            load_sandbox_write_resources,
-        )
+        return await _sandbox_resources(session)
 
-        app_key = os.environ.get("TIKTOK_APP_KEY", "").strip()
-        app_secret = os.environ.get("TIKTOK_APP_SECRET", "").strip()
-        if not app_key or not app_secret:
-            raise PreconditionFailure(
-                PreconditionName.PRODUCTION_WRITE_ENABLED_OFF,
-                "Production write is disabled (PRODUCTION_WRITE_ENABLED off). "
-                "Tool resolves to sandbox via load_sandbox_write_resources().",
-            )
-        sandbox_resources = await load_sandbox_write_resources(
-            session,
-            app_key=app_key,
-            app_secret=app_secret,
+    # Fast track P61-B (D71.2): the global flag is necessary, not sufficient --
+    # the owner turns production writes on per shop (`production_write_shops`,
+    # migration 097). A shop without its row stays on the sandbox exactly as if
+    # the flag were off: turning shop B on never moves shop A's writes.
+    from juli_backend.services.execution.production_write import (
+        is_shop_production_write_enabled,
+    )
+
+    if not await is_shop_production_write_enabled(session, shop_id):
+        logger.info(
+            "production_write_shop_not_enabled",
+            extra={"tool_name": tool_name, "shop_id": str(shop_id)},
         )
-        # Return actual SandboxWriteResources (not wrapped in dict)
-        return sandbox_resources
+        return await _sandbox_resources(session)
 
     # Precondition 1 is met; continue with remaining four
     logger.info(
@@ -253,12 +258,15 @@ async def resolve_write_capability(
             release_sha=release_sha,
         )
 
-        # Return a marker indicating production capability is authorized
+        # Return a marker indicating production capability is authorized.
+        # `services/execution/production_write.py::load_production_write_resources`
+        # is the only thing that turns it into a client (P61-B).
         return {
             "capability": "production_write",
             "authorization_id": str(consumed_auth.id),
             "shop_id": str(shop_id),
             "mutation_kind": mutation_kind,
+            "tiktok_product_id": str(tiktok_product_id),
         }
 
     except PreconditionFailure as e:
@@ -288,6 +296,29 @@ async def resolve_write_capability(
             )
         # Re-raise the original precondition failure
         raise
+
+
+async def _sandbox_resources(session: AsyncSession):
+    """The sandbox merchant's write resources -- the path every write takes unless
+    the global flag AND the shop's enable row both say otherwise."""
+    from juli_backend.services.execution.sandbox_guard import (
+        load_sandbox_write_resources,
+    )
+
+    app_key = os.environ.get("TIKTOK_APP_KEY", "").strip()
+    app_secret = os.environ.get("TIKTOK_APP_SECRET", "").strip()
+    if not app_key or not app_secret:
+        raise PreconditionFailure(
+            PreconditionName.PRODUCTION_WRITE_ENABLED_OFF,
+            "Production write is disabled (PRODUCTION_WRITE_ENABLED off). "
+            "Tool resolves to sandbox via load_sandbox_write_resources().",
+        )
+    # Return actual SandboxWriteResources (not wrapped in dict)
+    return await load_sandbox_write_resources(
+        session,
+        app_key=app_key,
+        app_secret=app_secret,
+    )
 
 
 def _verify_attestation_for_release_sha() -> None:

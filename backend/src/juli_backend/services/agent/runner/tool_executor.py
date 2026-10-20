@@ -132,7 +132,11 @@ from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
-from juli_backend.integrations.tiktok import ProductionReadResources, SandboxWriteResources
+from juli_backend.integrations.tiktok import (
+    ProductionReadResources,
+    ProductionWriteResources,
+    SandboxWriteResources,
+)
 from juli_backend.services.agent.runner.concurrency import (
     FIELD_SCOPE_BY_OPERATION,
     ConcurrencyConflict,
@@ -235,7 +239,7 @@ class DomainToolExecutor:
         registry: ToolRegistry,
         subject: RunSubject,
         read_resources: ProductionReadResources | SandboxWriteResources | None = None,
-        write_resources: SandboxWriteResources | None = None,
+        write_resources: SandboxWriteResources | ProductionWriteResources | None = None,
         ledger: ToolExecutionLedger | None = None,
         workflow_run_id: uuid.UUID | None = None,
         concurrency_guard: ConcurrencyGuard | None = None,
@@ -394,7 +398,7 @@ class ProductToolExecutor(DomainToolExecutor):
         *,
         registry: ToolRegistry,
         read_resources: ProductionReadResources | SandboxWriteResources | None = None,
-        write_resources: SandboxWriteResources | None = None,
+        write_resources: SandboxWriteResources | ProductionWriteResources | None = None,
         product_id: str,
         sku_refs: Mapping[str, str] | None = None,
         staged_image_uri: str | None = None,

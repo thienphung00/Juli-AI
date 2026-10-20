@@ -87,6 +87,8 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Mapping
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -97,8 +99,10 @@ from juli_backend.integrations.tiktok import (
     ClientFactoryConfig,
     ProductionReadClientFactory,
     ProductionReadResources,
+    ProductionWriteResources,
     SandboxWriteResources,
 )
+from juli_backend.models.models import WRITE_MODE_LIVE, WRITE_MODE_SIMULATED
 from juli_backend.services.agent.llm import LLMService, resolve_llm_config
 from juli_backend.services.agent.llm.openai_adapter import OpenAIResponsesAdapter
 from juli_backend.services.agent.tools import ToolClassification, ToolRegistry
@@ -114,6 +118,9 @@ logger = logging.getLogger(__name__)
 # any depth — see `workers/tasks/agent_workflow.py`'s module docstring).
 # `services` -> `integrations` is an allowed edge, so the union lives here.
 AgentReadResources = ProductionReadResources | SandboxWriteResources
+#: Fast track P61-B: a write goes to the sandbox merchant or -- only after every
+#: ADR-085 gate passed for that shop and mutation -- to the shop's own listing.
+AgentWriteResources = SandboxWriteResources | ProductionWriteResources
 
 
 def build_llm_service() -> LLMService:
@@ -276,19 +283,58 @@ async def build_read_resources(
     )
 
 
-async def build_write_resources(session: AsyncSession) -> SandboxWriteResources:
-    """The real ADR-069 guarded SANDBOX_VN write resources (issue #1173
-    rework) -- reuses `services/execution/sandbox_guard.py`'s
-    `load_sandbox_write_resources` outright (same credential resolution +
-    `SandboxWriteClientFactory` composition `services/execution/
-    listing_handlers.py`'s own CONFIRM-policy write tools already go
-    through), rather than re-deriving it. ADR-068: sandbox-only for writes,
-    enforced by `load_sandbox_write_resources`'s own `SANDBOX_AUTH_ID`
-    assertion, not re-checked here. Fails closed the same two ways as
-    `build_read_resources` above.
+async def build_write_resources(
+    session: AsyncSession,
+    shop_id: uuid.UUID | None = None,
+    capability: Mapping[str, Any] | None = None,
+) -> AgentWriteResources:
+    """The real ADR-069 guarded write resources (issue #1173 rework; per shop
+    since fast track P61-B, D71.2).
+
+    ``capability`` is what `services/execution/production_write_resolver.py::
+    resolve_write_capability` answered for this shop and mutation:
+
+    - its production marker (every ADR-085 gate passed, the authorization was
+      consumed and the allowed attempt audited) -> the shop's OWN write
+      resources (`production_write.load_production_write_resources`: the
+      shop's own credential, re-checked against ``shop_id``, behind
+      `ProductionWriteGuard`). ``shop_id`` is required and must be the shop the
+      marker was issued for;
+    - anything else -- including no capability at all, which is every caller
+      that does not resolve one (the agent run, `run_changes/live.py`) -> the
+      SANDBOX_VN write resources exactly as before:
+      `sandbox_guard.load_sandbox_write_resources`, whose own `SANDBOX_AUTH_ID`
+      assertion keeps them on the sandbox merchant.
+
+    Fails closed the same two ways as `build_read_resources` above.
     """
+    from juli_backend.services.execution.production_write import (
+        is_production_capability,
+        load_production_write_resources,
+    )
+
     app_key, app_secret = _tiktok_app_credentials()
+    if capability is not None and is_production_capability(capability):
+        if shop_id is None:
+            raise ValueError("A production write capability needs the shop it was issued for")
+        return await load_production_write_resources(
+            session,
+            shop_id=shop_id,
+            capability=capability,
+            app_key=app_key,
+            app_secret=app_secret,
+        )
     return await load_sandbox_write_resources(session, app_key=app_key, app_secret=app_secret)
+
+
+def write_mode_of(resources: object) -> str:
+    """Where writes through ``resources`` land (fast track P61-B): ``live`` only
+    for a shop's own production write resources; everything else -- the sandbox
+    merchant, a test double -- is ``simulated``, so nothing is ever presented
+    as a change on the seller's shop unless it went through the production path."""
+    if isinstance(resources, ProductionWriteResources):
+        return WRITE_MODE_LIVE
+    return WRITE_MODE_SIMULATED
 
 
 def build_image_inspector():
