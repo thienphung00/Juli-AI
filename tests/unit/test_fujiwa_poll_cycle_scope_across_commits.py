@@ -212,6 +212,7 @@ async def test_poll_cycle_survives_the_resolvers_own_commit_under_shop_scope(own
                 oauth_service=MagicMock(spec=TikTokOAuthService),
                 rate_limiter=mock_rate_limiter,
                 handoff_fn=_handoff,
+                shop_id=shop_id,
                 resolve_credential=AsyncMock(side_effect=_resolve_that_commits),
                 create_resources=lambda _cfg: mock_resources,
             )
@@ -296,6 +297,7 @@ async def test_poll_cycle_final_write_survives_a_commit_inside_a_poll_step(owner
                 oauth_service=MagicMock(spec=TikTokOAuthService),
                 rate_limiter=mock_rate_limiter,
                 handoff_fn=_handoff_that_commits,
+                shop_id=shop_id,
                 resolve_credential=AsyncMock(side_effect=_resolve_that_commits),
                 create_resources=lambda _cfg: mock_resources,
             )

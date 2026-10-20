@@ -194,6 +194,7 @@ def run_poll(session, oauth_service, mock_rate_limiter, handoff_fn, poll_config,
             oauth_service=oauth_service,
             rate_limiter=mock_rate_limiter,
             handoff_fn=handoff_fn,
+            shop_id=fujiwa_credential.shop_id,
             resolve_credential=resolve_credential or AsyncMock(return_value=fujiwa_credential),
             factory=factory,
             create_resources=create_resources or (lambda _cfg: mock_resources),
@@ -264,6 +265,7 @@ class TestRunFujiwaPollCycle:
 
         with pytest.raises(ValueError, match="read-capable"):
             await run_fujiwa_poll_cycle(
+                shop_id=sandbox_credential.shop_id,
                 session=session,
                 config=poll_config,
                 oauth_service=oauth_service,

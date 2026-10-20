@@ -533,6 +533,7 @@ class TestAFailedVendorCallFailsTheCycle:
 
         with pytest.raises(PollCycleFailedError) as excinfo:
             await run_fujiwa_poll_cycle(
+                shop_id=cycle_credential.shop_id,
                 session=session,
                 config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
                 oauth_service=cycle_oauth_service,
@@ -565,6 +566,7 @@ class TestAFailedVendorCallFailsTheCycle:
 
         with pytest.raises(PollCycleFailedError):
             await run_fujiwa_poll_cycle(
+                shop_id=cycle_credential.shop_id,
                 session=session,
                 config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
                 oauth_service=cycle_oauth_service,
@@ -595,6 +597,7 @@ class TestAFailedVendorCallFailsTheCycle:
         repo = RecordingSyncStateRepo()
 
         await run_fujiwa_poll_cycle(
+            shop_id=cycle_credential.shop_id,
             session=session,
             config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
             oauth_service=cycle_oauth_service,

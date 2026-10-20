@@ -10,12 +10,13 @@ replaced `_assert_fujiwa_credential`, and `_factory_config` signs with the
 credential's own `merchant_authorization_id` rather than the configured
 `PRODUCTION_AUTH_ID` constant -- the two guards that, between them, meant a
 connecting seller's correctly-resolved credential was refused one layer down and
-only Juli's configured merchant could be polled at all. `shop_id=None` keeps the
-fleet-wide beat behaviour unchanged.
+only Juli's configured merchant could be polled at all. Fast track P61-D (D71.4):
+`shop_id` is now REQUIRED -- the `shop_id=None` "poll whichever shop owns the
+configured merchant" path existed only for the deleted `fujiwa_poll_beat` task.
 
 ADR-081 decision 4 / #1232: the two `oauth_service.refresh_merchant_tokens`
 calls this module used to make (one per entrypoint) are deleted. `resolve()`
-already returns the credential from `resolve_production_read_credential`
+already returns the credential from `resolve_read_credential_for_shop`
 (or a caller-supplied override), and that resolver now runs the lazy refresh
 layer itself (`core/security/credential_resolver.py`) -- so the credential
 `resolve()` hands back is already warm. `oauth_service: TikTokOAuthService`
@@ -67,10 +68,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.security.credential_resolver import (
-    resolve_production_read_credential,
-    resolve_read_credential_for_shop,
-)
+from juli_backend.core.security.credential_resolver import resolve_read_credential_for_shop
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.database.tenant_context import with_sticky_shop_scope
 from juli_backend.integrations.tiktok import (
@@ -80,7 +78,9 @@ from juli_backend.integrations.tiktok import (
     PRODUCT_SEARCH_PATH,
     RETURN_SEARCH_PATH,
     SANDBOX_AUTH_ID,
+    SANDBOX_MERCHANT_ID_ENV,
     ClientFactoryConfig,
+    MerchantIdNotConfigured,
     ProductionReadClientFactory,
     ProductionReadResources,
     RateLimiter,
@@ -256,7 +256,7 @@ async def _await_stage(
 # `None` means "the fleet-wide entry named no shop": `workers/tasks/
 # fujiwa_poll_beat.py` polls whichever shop owns the configured merchant's
 # credential and cannot name it before resolving it.
-ResolveCredentialFn = Callable[[AsyncSession, uuid.UUID | None], Awaitable[TikTokCredential]]
+ResolveCredentialFn = Callable[[AsyncSession, uuid.UUID], Awaitable[TikTokCredential]]
 CreateResourcesFn = Callable[[ClientFactoryConfig], ProductionReadResources]
 SleepFn = Callable[[float], Awaitable[None]]
 # Every poll step returns its outcome triple (#1969/#1950); a step that returns
@@ -294,7 +294,7 @@ _FUJIWA_POLL_STEPS: tuple[_PollStep, ...] = (
 def _assert_pollable_read_credential(
     credential: TikTokCredential,
     *,
-    shop_id: uuid.UUID | None,
+    shop_id: uuid.UUID,
 ) -> None:
     """Refuse any credential that may not serve this poll (#1995).
 
@@ -318,11 +318,8 @@ def _assert_pollable_read_credential(
        the caller's `shop_id` is threaded down here rather than inferred from
        `credential.shop_id` (inferring it would make the guard tautological).
 
-    `shop_id=None` is the fleet-wide entry (`workers/tasks/fujiwa_poll_beat.py`),
-    which names no shop and polls whichever shop owns the configured merchant's
-    credential. There the ownership question has no second party to compare
-    against, so only the capability half applies -- stated plainly rather than
-    dressed up as a check.
+    There is no shop-less entry any more (P61-D deleted `fujiwa_poll_beat`, the
+    only caller that named no shop), so the ownership half always applies.
 
     The sandbox merchant id is refused by *identity* as well as by capability.
     Belt and braces on purpose: capability is a stored column, and a mislabelled
@@ -342,17 +339,15 @@ def _assert_pollable_read_credential(
     # exclusion, which is the inverse of what a guard is for. A constant this
     # check cannot read is a deployment fault, and the poll refuses.
     if not SANDBOX_AUTH_ID:
-        raise ValueError(
-            "polling cannot enforce the SANDBOX_VN exclusion: SANDBOX_AUTH_ID is empty "
-            "(TIKTOK_SANDBOX_MERCHANT_ID is set to an empty value). Refusing to poll "
-            "rather than admitting a merchant this guard can no longer exclude."
+        raise MerchantIdNotConfigured(
+            SANDBOX_MERCHANT_ID_ENV, needed_for="polling (to exclude the SANDBOX_VN merchant)"
         )
     if merchant == SANDBOX_AUTH_ID:
         raise ValueError(
             "polling refuses the SANDBOX_VN write-validation merchant "
             f"({SANDBOX_AUTH_ID}); it is not read-capable"
         )
-    if shop_id is not None and credential.shop_id != shop_id:
+    if credential.shop_id != shop_id:
         raise ValueError(
             "polling requires a credential owned by the shop being polled; "
             f"shop {shop_id} resolved a credential owned by {credential.shop_id}"
@@ -784,23 +779,16 @@ async def _poll(
 
 async def _default_resolve_credential(
     session: AsyncSession,
-    shop_id: uuid.UUID | None,
+    shop_id: uuid.UUID,
 ) -> TikTokCredential:
-    """Which resolver a cycle uses when the caller injected none (#1995).
+    """The credential a cycle uses when the caller injected none (#1995).
 
-    Two resolvers, because there are genuinely two callers and they ask
-    different questions:
-
-    - a caller that NAMES a shop asks `resolve_read_credential_for_shop`,
-      which considers only rows that shop owns and raises
-      `NoReadCredentialForShop` when it owns nothing read-capable. There is no
-      fallback to the configured merchant -- that fallback is the defect #1365
-      exists to remove, and re-adding it here would restore it.
-    - the fleet-wide beat names no shop and keeps
-      `resolve_production_read_credential`, unchanged.
+    `resolve_read_credential_for_shop` considers only rows that shop owns and
+    raises `NoReadCredentialForShop` when it owns nothing read-capable. There is
+    no fallback to the configured merchant -- that fallback is the defect #1365
+    exists to remove. (P61-D removed the shop-less branch that resolved the
+    configured production merchant for the deleted `fujiwa_poll_beat`.)
     """
-    if shop_id is None:
-        return await resolve_production_read_credential(session)
     return await resolve_read_credential_for_shop(session, shop_id)
 
 
@@ -808,7 +796,7 @@ async def _resolve_and_poll(
     *,
     session: AsyncSession,
     config: FujiwaPollConfig,
-    shop_id: uuid.UUID | None,
+    shop_id: uuid.UUID,
     rate_limiter: RateLimiter,
     handoff_fn: HandoffFn,
     resolve_credential: ResolveCredentialFn | None,
@@ -862,7 +850,7 @@ async def run_fujiwa_material_resource_fetch(
     oauth_service: TikTokOAuthService,
     rate_limiter: RateLimiter,
     handoff_fn: HandoffFn,
-    shop_id: uuid.UUID | None = None,
+    shop_id: uuid.UUID,
     resolve_credential: ResolveCredentialFn | None = None,
     factory: ProductionReadClientFactory | None = None,
     create_resources: CreateResourcesFn | None = None,
@@ -871,9 +859,7 @@ async def run_fujiwa_material_resource_fetch(
 ) -> None:
     """Fetch orders/products/returns/inventory + incremental analytics for material precompute.
 
-    `shop_id` names the shop being fetched for (#1995). Omitting it keeps the
-    pre-#1995 fleet-wide behaviour: resolve the configured production-read
-    merchant and fetch for whichever shop owns it.
+    `shop_id` names the shop being fetched for (#1995); required since P61-D.
     """
     await _resolve_and_poll(
         session=session,
@@ -896,7 +882,7 @@ async def run_fujiwa_poll_cycle(
     oauth_service: TikTokOAuthService,
     rate_limiter: RateLimiter,
     handoff_fn: HandoffFn,
-    shop_id: uuid.UUID | None = None,
+    shop_id: uuid.UUID,
     resolve_credential: ResolveCredentialFn | None = None,
     factory: ProductionReadClientFactory | None = None,
     create_resources: CreateResourcesFn | None = None,
@@ -908,8 +894,8 @@ async def run_fujiwa_poll_cycle(
     `shop_id` names the shop being polled (#1995). When given, the credential
     is resolved through `resolve_read_credential_for_shop` and must be owned by
     that shop -- which is what lets a connecting seller be polled under their
-    own token instead of being refused for not being Juli's merchant. Omitting
-    it keeps the fleet-wide behaviour the Celery beat relies on.
+    own token instead of being refused for not being Juli's merchant. Required
+    since P61-D (the shop-less beat that omitted it is deleted).
     """
     await _resolve_and_poll(
         session=session,
