@@ -2484,3 +2484,34 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   no `card_event_write_failed event=seller_change` lines afterwards; `run_write_values_recorded`
   continues. SQL spot check: `SELECT attribution, count(*) FROM external_changes GROUP BY 1`
   (no NULL after the restart).
+
+## 2026-10-20 — agent (Claude Opus) — P61-D cleanup (branch `fasttrack/p61-d-cleanup`, not merged)
+
+- **Beats per shop.** `analytics-backfill-topup` deleted (verified redundant: `run_shop_cycle`
+  `_daily_analytics` lands every shop's shop/product/SKU/LIVE analytics daily; the top-up's only
+  unique output, the `catalog` bucket, has no reader). `mock-analytics-hourly-reconcile` replaced
+  by `shop-kpi-reconcile-fanout` (:00) → `shop_kpi_reconcile` per pollable shop
+  (`enumerate_pollable_shops`, `with_shop_scope`, real `SharedComputeOrchestrator`). No worker
+  reads `DEMO_REFERENCE_SHOP_ID`; `api/routes/demo_analytics.py` binding kept (ADR-094).
+- **Targeted fetch per shop** (owner-approved scope add): `targeted_fetch_executor` resolves the
+  job shop's own credential (`resolve_read_credential_for_shop`) and signs with its merchant id;
+  no second resolve of the production merchant.
+- **Merchant ids:** no literal defaults; `MerchantIdNotConfigured` (ValueError, names the env var)
+  from both factories, the poll guard and the configured-merchant resolvers. Tests run with test
+  ids set in `tests/conftest.py`. **Deploy precondition:** both env vars set on API + worker.
+- **Loud env:** `core/config/runtime_env.py` — one `runtime_env_missing` WARNING per missing
+  variable / off flag at API and worker boot (names only); `GET /v1/ops/runtime-env` (viewer);
+  `shop_ingestion_skipped_unconfigured` WARNING with the missing names on every skip.
+- **Deleted** `fujiwa_poll_beat` + the `shop_id=None` paths (`shop_id` now required in
+  `run_fujiwa_poll_cycle` / `run_fujiwa_material_resource_fetch`). Stale docs fixed
+  (impact_reader, workers MODULE, restore script requires `SHOP_ID`, obs1 scripts).
+- **Reject route** already existed (P10-A; DEBT P7-C and the audit row were stale): made
+  idempotent (row lock; repeat = 200, no new rows; other shop still 404).
+- Verification: ruff + format clean; mypy clean on `backend/src/juli_backend` (726 files).
+  Postgres 16 :55454 (UTC): `test_shop_kpi_reconcile_two_tenant.py` 5 passed,
+  `test_reject_route_two_tenant.py` 1 passed, `test_fetch_executor_scope.py` 4 passed, 0 skipped.
+  Full no-DB unit suite after the last merge (6856375a): 7838 passed, 244 skipped, 2 xfailed,
+  0 failed. `fasttrack/check.sh --since fasttrack/optimize-product`: migrations PASS (096 head),
+  isolation 12 passed, gitleaks PASS, ruff PASS (50 files), pytest PASS (54 files: 772 passed,
+  0 skipped) — **check.sh: OK** (an earlier run under machine load 70 hit 30 s pytest-timeouts in
+  isolation / `test_shop_ingestion`; both pass alone and on the clean rerun).
