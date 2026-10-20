@@ -1334,3 +1334,49 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Not run in production: migration 095 and the backfill. Owner: deploy, then
   `celery ... call juli_backend.card_events_backfill_fanout` and check
   `card_events_backfill_done` lines.
+
+## P60-1b — hashes, attribution, `seller_change` (2026-10-20, D70.11 (1)(3))
+
+- [ ] The audit link is NULL for every agent write: the runner writes through
+  `composition.build_write_resources` (sandbox-guarded) and records no
+  `production_write_audit` row, and the execution handlers that do record one use
+  `mutation_kind` names like `listing.optimize_product`, not the tool names
+  (`update_product_listing`) `run_write_values.tool_name` holds. The link is built
+  as the amendment says (exactly one match, else NULL) and will start filling once
+  agent writes go through the production write path. Repay: record the audit row
+  on the agent path with `mutation_kind` = tool name, or map the two vocabularies.
+- [ ] Rows written by pre-096 code between `alembic upgrade` and the API/worker
+  restart keep `attribution` / hashes NULL (the CHECK allows NULL; `juli_app` has
+  no UPDATE). Attribution and the backfill hash such rows from their stored values,
+  so labels and `seller_change` events are still right; only the columns stay
+  empty. Repay if the views need the columns: an owner-run re-fill (the 096 data
+  step functions are idempotent on NULL rows).
+- [ ] "Plan window open on the product" = the card's latest executed run on that
+  product completed less than `OPEN_PLAN_WINDOW` (14 days, the day-14 final) before
+  the change: no decision-7 measurement plan exists yet. Repay: read the plan's
+  own window once `proposed` carries it.
+- [ ] One `seller_change` per `external_changes` row (field set), linked by the
+  latest Juli write among its non-Juli fields — not one event per field.
+- [ ] A price change is attributed on Juli's one `price` field (list price, over the
+  SKUs Juli wrote); a seller `sale_price` edit arriving with a Juli list-price write
+  in the window reads `juli`. Promotion rows keep `promotions.is_juli_activity`
+  (all `juli` or all `seller_change`, never `seller_revert`; §11 is P6).
+- [ ] A shop-level change (promotion with no product) is a `seller_change` with
+  `subject_type = 'shop'`, `subject_id = ''`, card-less. A product's `creation`
+  row (first seen after the baseline) is a card-less `seller_change` too.
+- [ ] Migration 096's data step carries frozen copies of the hash and labelling
+  rules (`database` may not import `services`); `test_change_attribution.py` pins
+  them equal to the services over the attribution matrix. A later change to the
+  rules does not re-label rows the migration filled.
+- [ ] The backfill labels a pre-096 row against the snapshot it recorded; titles
+  over 500 chars are truncated in snapshots (TikTok's limit is 255, so moot today).
+- [ ] Pre-existing, not from this change: on Postgres
+  `tests/integration/test_migrations.py::test_no_public_table_holds_update_beyond_its_call_site`
+  fails (18 earlier tables — `run_baselines`, `shop_rules`, `card_groups`, … — hold
+  UPDATE not in the call-site registry); none of the P60-1b tables is in the list.
+- [ ] `tests/unit/test_status_record_gate.py::test_no_committed_record_stopped_validating_and_none_was_backfilled`
+  hit its 30 s pytest-timeout in the full suite on a loaded machine (load avg ~25-32,
+  other agents' suites running); alone it passes in 29.2 s. It reads the status-record
+  corpus, nothing P60-1b touches. Repay: raise its timeout or speed it up.
+- [ ] Not run in production: migration 096 and the `seller_change` backfill. Owner:
+  deploy, then `celery ... call juli_backend.card_events_backfill_fanout`.
