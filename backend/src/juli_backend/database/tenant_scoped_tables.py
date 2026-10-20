@@ -124,6 +124,9 @@ TABLE_CLASSIFICATION_MAP = {
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",
     ("public", "card_group_members"): "tenant_direct",
+    # Fast track P60-1a (D70.9, migration 095): the card journey log,
+    # append-only (SELECT / INSERT for juli_app).
+    ("public", "card_events"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",

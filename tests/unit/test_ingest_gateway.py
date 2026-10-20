@@ -748,9 +748,7 @@ def test_migration_088_chain_grants_and_pins():
     assert 'revision: str = "088_ingest_gateway"' in text
     assert len("088_ingest_gateway") <= 32
     assert 'down_revision: str | None = "087_history_and_baselines"' in text
-    assert 'down_revision: str | None = "094_user_privacy_and_consent"' in DEFERRED.read_text(
-        "utf-8"
-    )
+    assert 'down_revision: str | None = "095_card_events"' in DEFERRED.read_text("utf-8")
     children = [
         p.name
         for p in VERSIONS.glob("*.py")
