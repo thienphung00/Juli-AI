@@ -81,6 +81,14 @@ export interface RunViewState {
   readonly lastSequence: number;
   /** Assistant narration, in arrival order. Stage 1's content. */
   readonly narration: readonly string[];
+  /**
+   * The text streamed so far for the model turn in flight (`assistant.text.delta`,
+   * ADR-071 amendment / D71.3), or null. A preview only: the turn's
+   * `assistant.text` replaces it (and lands in `narration`), and any other event
+   * -- or the run ending -- drops a block that was never committed. Render it
+   * with a typing caret.
+   */
+  readonly liveNarration: string | null;
 }
 
 function stageIndex(id: RunStageId): number {
@@ -101,6 +109,7 @@ export function stageForEvent(event: AgentEvent): RunStageId | null {
   switch (event.event_type) {
     case "workflow.started":
     case "assistant.text":
+    case "assistant.text.delta":
       return "phan-tich";
     case "tool.started":
     case "tool.completed":
@@ -145,9 +154,23 @@ export function reduceRunView(events: readonly AgentEvent[]): RunViewState {
   let decisionRequest: RunDecisionRequest | undefined;
   let terminal: RunTerminalState | undefined;
   let lastSequence = 0;
+  let liveBlock: { blockId: string; text: string } | null = null;
 
   for (const event of ordered) {
     lastSequence = Math.max(lastSequence, event.sequence_number);
+
+    // Streamed previews (D71.3). Deltas of one block are contiguous in sequence
+    // order and end at that turn's `assistant.text`; anything else that follows
+    // closes the block, committed or not. Replay re-sends the same rows with the
+    // same sequence numbers, so the dedupe above already prevents doubled text.
+    if (event.event_type === "assistant.text.delta") {
+      if (liveBlock === null || liveBlock.blockId !== event.payload.block_id) {
+        liveBlock = { blockId: event.payload.block_id, text: "" };
+      }
+      liveBlock.text += event.payload.text;
+    } else {
+      liveBlock = null;
+    }
 
     if (event.event_type === "assistant.text") {
       narration.push(event.payload.text);
@@ -202,5 +225,6 @@ export function reduceRunView(events: readonly AgentEvent[]): RunViewState {
     terminal,
     lastSequence,
     narration: Object.freeze([...narration]),
+    liveNarration: terminal === undefined && liveBlock !== null ? liveBlock.text : null,
   };
 }

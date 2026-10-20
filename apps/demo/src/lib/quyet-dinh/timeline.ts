@@ -76,6 +76,12 @@ export interface RunTimeline {
     readonly day14: string | null;
   } | null;
   readonly narration: string | null;
+  /**
+   * True while `narration` is the streamed preview of the model turn in flight
+   * (`assistant.text.delta`, D71.3) rather than a committed line -- the panel
+   * shows a typing caret after it.
+   */
+  readonly narrationStreaming: boolean;
   /** The tool running right now (no completion yet), if any. */
   readonly runningTool: string | null;
   /** A write tool completed ok. */
@@ -272,6 +278,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
   let consentEvent: { seq: number; at: string; request: ConsentRequest } | null = null;
   let consentDecidedAt: string | null = null;
   let narration: string | null = null;
+  let liveBlock: { blockId: string; text: string } | null = null;
   let textBeforePause = false;
   const box: { terminal: RunTimeline["terminal"] } = { terminal: null };
   let wrote = false;
@@ -280,7 +287,16 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
     if (pauseSeq !== null && firstAfterPauseAt === null && event.sequence_number > pauseSeq) {
       firstAfterPauseAt = event.timestamp;
     }
+    // A streamed turn's preview (D71.3) lives until the next non-delta event:
+    // its own `assistant.text` (which replaces it) or anything that ends it.
+    if (event.event_type !== "assistant.text.delta") liveBlock = null;
     switch (event.event_type) {
+      case "assistant.text.delta":
+        if (liveBlock === null || liveBlock.blockId !== event.payload.block_id) {
+          liveBlock = { blockId: event.payload.block_id, text: "" };
+        }
+        liveBlock.text += event.payload.text;
+        break;
       case "tool.started":
       case "tool.completed": {
         let call = byId.get(event.payload.tool_call_id);
@@ -552,11 +568,13 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
   });
 
   const running = ended ? null : (calls.find((call) => call.ok === null) ?? null);
+  const streamingText = !ended && liveBlock !== null ? liveBlock.text : null;
   return {
     steps,
     pendingConsent: consentEvent && !consentDecidedAt && !ended ? consentEvent.request : null,
     terminal,
-    narration,
+    narration: streamingText ?? narration,
+    narrationStreaming: streamingText !== null,
     runningTool: running?.name ?? null,
     wrote,
     toolsAfterPause: calls.filter((call) => call.afterPause).length,
