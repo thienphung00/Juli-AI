@@ -2484,3 +2484,46 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   no `card_event_write_failed event=seller_change` lines afterwards; `run_write_values_recorded`
   continues. SQL spot check: `SELECT attribution, count(*) FROM external_changes GROUP BY 1`
   (no NULL after the restart).
+
+## 2026-10-20 — agent (Claude Opus) — P61-C token streaming (branch `fasttrack/p61-c-streaming`, not merged)
+
+- Adapter (`services/agent/llm/openai_adapter.py`): `complete(..., on_text_delta=cb)` sends
+  `stream: true` to the Responses API when `LLM_STREAMING` is on (default; `0/false/no/off`
+  turns it off), awaits `cb` per `response.output_text.delta`, assembles tool-call arguments from
+  `function_call_arguments.delta/.done` + `output_item.done` (the `response.completed` body's
+  `output` wins when present) and returns the same complete `AssistantTurn`. `response.failed`,
+  `error`, no terminal event, transport error mid-stream, non-JSON frame -> `LLMProviderError`
+  (run ends `llm_error`). No callback (card drafts, structured analysis, scoring) -> non-streamed
+  as before. `on_text_delta` is not on the `LLMService` protocol; `FakeLLMService` gained
+  `stream_chunk_chars`.
+- Event: `assistant.text.delta {block_id, chunk_index, text}` added to the union on both sides
+  (payloads/envelope, `packages/contracts/src/agent-events.ts`, golden fixture; the "reserved"
+  invalid fixture became "missing block_id"). Persisted like every event, no migration.
+- Runner: `WorkflowRunner(stream_text=True)` (worker sets it for the real adapter only, never the
+  scripted planners) uses `runner/text_stream.py::TextDeltaRelay` — coalesces (48 chars / 100 ms),
+  runs `guard_outbound_agent_output` over the whole received text before every emit and releases
+  only text 64 chars short of its end; a hit stops the turn's stream. `block_id = b<next_sequence>`.
+  A streamed `FinalResponse` is committed with an `assistant.text` before `workflow.completed`.
+  Ops run timeline hides deltas.
+- Demo: `reduceRunView().liveNarration`, `buildRunTimeline().narrationStreaming`; the run panel's
+  running note shows the preview with a blinking caret (`aria-busy`, reduced-motion off), replaced
+  by the committed text; replay dedupes by sequence number. Golden scenario
+  `optimize_product_streamed.json` captured by the tool from the real runner drives the vitest.
+- ADR-071 amendment section added; MODULE.md (agent, agent/llm) updated; DEBT P61-C.
+- Verification (after merging `fasttrack/optimize-product` 6856375a, 096 head): ruff + format
+  clean; mypy clean on 13 touched source files. New tests: adapter streaming 21, relay + runner 9,
+  streamed golden 2, contract/envelope updated (40 / envelope file green), SSE integration on
+  Homebrew Postgres 16 :55453 (UTC, removed after) 2 passed (live delta before the final text
+  exists in the DB, reconnect via Last-Event-ID with no duplicate ids/text, two shops concurrent
+  without crossing + 404 on the other shop's stream). Full no-DB unit suite
+  (`tests/unit -m "not live"`, Node 20): 7865 passed, 245 skipped, 2 xfailed, 2 failed —
+  `test_action_card_refresh_cooldown::test_slow_backing_store...` and
+  `test_agent_run_event_stream::...test_subscribe_failure_degrades_to_postgres_polling`, both
+  timing tests under load avg ~50 (other agents' suites); both files alone 26 passed.
+  Demo: lint 0 errors (1 pre-existing warning), tsc clean, vitest 122 files / 1208 passed (Node
+  20; Node 26 breaks 29 Web Storage files). Contracts: type-check clean, vitest 66 passed.
+  `fasttrack/check.sh --since fasttrack/optimize-product`: migrations PASS (096 head), isolation
+  12 passed, gitleaks PASS, ruff PASS (22 files), pytest PASS (13 files: 187 passed).
+  **check.sh: OK**.
+- Owner after deploy: one live run; `workflow_run_events` should hold `assistant.text.delta` rows
+  followed by `assistant.text`; no new `llm_error` stops. Off switch: `LLM_STREAMING=off` + restart.

@@ -1395,3 +1395,35 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   corpus, nothing P60-1b touches. Repay: raise its timeout or speed it up.
 - [ ] Not run in production: migration 096 and the `seller_change` backfill. Owner:
   deploy, then `celery ... call juli_backend.card_events_backfill_fanout`.
+
+## P61-C — token streaming (2026-10-20, D71.3)
+
+- [ ] Crash-redelivery replay of a streamed turn: `RunState.next_sequence` is persisted per
+  iteration, so a worker that dies mid-turn after some deltas committed replays the turn on the
+  same sequence numbers; the sink's unique-index no-op drops the colliding rows (as for every
+  event), so the block's preview can mix chunks of two attempts until its `assistant.text`
+  replaces it. Same class as any mid-iteration event; repay with the turn-level idempotency
+  P-CS work, not here.
+- [ ] Last ≤ 64 characters of a turn (`STREAM_GUARD_HOLDBACK_CHARS`) never type out — they
+  arrive with the committing `assistant.text`. The guard hold-back protects only banned matches
+  up to that length; a longer regex match could leak its start. The 18 agent-output patterns
+  today match at most ~20 characters; recheck if a long one is added to
+  `seller-copy-banned-patterns.json`.
+- [ ] A streamed `FinalResponse` is now committed as an `assistant.text` (it appears in
+  narration); with `LLM_STREAMING=off` it does not (pre-P61 shape). Owner may prefer one shape.
+- [ ] A turn that streamed and then ends `required_steps_unfulfilled` leaves its (guard-clean)
+  deltas uncommitted; clients drop them. Not shown to the seller.
+- [ ] Coalescing constants (48 chars / 100 ms / 64 hold-back) are code constants in
+  `runner/text_stream.py`, not env — tune after watching row counts per run in production.
+- [ ] The ops run timeline hides deltas; the golden-scenario `staleness` / replay tools treat
+  them like any event (no special-casing).
+- [ ] Not run against the real OpenAI stream (never called live, per the brief): the SSE event
+  names follow the Responses API reference. Owner: one live smoke run after deploy; grep the
+  worker log for `llm_error` and check `workflow_run_events` has `assistant.text.delta` rows.
+- [ ] Test-infra (not production): live-uvicorn SSE tests that disconnect mid-stream can hand a
+  closed asyncpg connection back to the shared pooled `pg_engine`; the new test uses NullPool
+  engines (as production's stream sessions do). The existing
+  `test_agent_events_streaming_matrix.py::TestRedisLoss::test_mid_stream_loss_...` fails
+  intermittently for the same reason when run after other modules.
+- [ ] Node 26 (current local default) breaks 29 demo vitest files on Web Storage (`localStorage`
+  undefined); `.nvmrc` says 20 and all 122 files pass there.
