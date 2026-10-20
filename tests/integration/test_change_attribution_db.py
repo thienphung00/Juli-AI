@@ -388,6 +388,11 @@ async def test_append_only_for_juli_app(owner_engine, two_tenants, walked, state
 
 def test_attribution_check(owner_engine, two_tenants):
     tenant_a, _ = two_tenants
+    before = _rows(
+        owner_engine,
+        "SELECT count(*) AS n FROM public.external_changes WHERE shop_id = :s",
+        s=str(tenant_a.shop_id),
+    )[0]["n"]
     with pytest.raises(IntegrityError, match="ck_external_changes_attribution"):
         with owner_engine.begin() as conn:
             conn.execute(
@@ -399,6 +404,12 @@ def test_attribution_check(owner_engine, two_tenants):
                 ),
                 {"id": str(uuid.uuid4()), "shop": str(tenant_a.shop_id), "key": uuid.uuid4().hex},
             )
+    after = _rows(
+        owner_engine,
+        "SELECT count(*) AS n FROM public.external_changes WHERE shop_id = :s",
+        s=str(tenant_a.shop_id),
+    )[0]["n"]
+    assert after == before
 
 
 @pytest.mark.asyncio
