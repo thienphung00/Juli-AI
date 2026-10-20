@@ -388,6 +388,26 @@ Reason: owner grill 2026-10-18; the pages must promise only what the product doe
 | TikTok exceptions picklable (Celery result backend) | D69.5 | done on branch `fasttrack/inventory-ids` | agent (Opus) |
 | Owner: merge, deploy tag, then check the VPS log for `shop_bootstrap_fast_done` / `sync_inventory_product_skipped` | D69 | todo | owner |
 
+## P60 — data platform (D70, 2026-10-20)
+
+Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected by
+`GAP_MAP_FASTTRACK.md` (what this branch already has).
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P60-0a TikTok webhook coverage for seller-side changes | D70.11 (2) | done (c413d448, `P0_TIKTOK_WEBHOOKS.md`) | agent (Sonnet) |
+| P60-0b Gap map D1–D16 vs this branch | D70 | done (`GAP_MAP_FASTTRACK.md`) | agent (Sonnet) |
+| P60-0c `fujiwa_db_coverage.sql` on production (read-only) | D70.16 | todo | owner |
+| P60-0d Max history depth per endpoint, measured on Fujiwa (read-only) | D70.3 | todo | owner + agent |
+| P60-ADR ADR-112..115 + ADR-107 amendment + notes on 029 / 046 / 077 / 104 | D70 | doing | agents (Opus) |
+| P60-1a `card_events` minimum + RLS + writer + backfill from existing tables | D70.9 | todo | — |
+| P60-1b Content hashes on `run_write_values`; `external_changes` source juli / seller_revert / seller_change → `card_events` | D70.11 (1)(3) | todo | — |
+| P60-1c `valid_from` / `valid_to` + current view over `product_snapshots`; confirm `product_history_fanout` live for Fujiwa | D70.4 | todo | — |
+| P60-1d Raw Get Product body as product bronze | D70.4, D70.8 | todo | — |
+| P60-1e One `gold.ml_feature_snapshots` row per proposal | D70.12 (2) | todo | — |
+| P60-1f `persisted` no longer counts DLQ rows (#1950) | D70.8 | todo | — |
+| P60-2..8 platform, adapter, D6 group, cold start, action loop, training, Shopee | D70.16 | todo (after P60-1) | — |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

@@ -1573,3 +1573,17 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `UnpickleableExceptionWrapper`.
   `services/execution/inventory_leakage.py` calls Search Inventory with `sku_ids` only, outside
   the poll; it is unaffected and unchanged. Work: P59.
+
+- **D70** — Data platform for multi-shop / multi-platform cold start and training (owner,
+  2026-10-20; grill `docs/product/data-platform/GRILL_LOG.md`, D1–D16, PR #2147, brought onto
+  this branch by merge `aa70ce86`). The grill's numbers are kept as sub-items: D70.1 = grill D1
+  … D70.16 = grill D16. Because the grill surveyed `main`, the branch was re-checked:
+  `docs/product/data-platform/GAP_MAP_FASTTRACK.md`. What already exists here is not rebuilt —
+  product versions (D30.1a, `product_snapshots`), before/after values on Juli writes (P8-C,
+  `run_write_values`), webhook re-reads 15/16/18/39/63 (D30.4), revert re-check, per-shop
+  fan-out (P1-B). The webhook question of D70.11 (2) is answered in
+  `docs/product/data-platform/P0_TIKTOK_WEBHOOKS.md`: no webhook for price, SKU add/remove,
+  seller deactivate/delete or coupons, so those stay on `update_time_ge` polling.
+  ADRs: 112 ingestion platform (D70.1–3, 7, 8, 14, 15), 113 shop data (D70.4–6), ADR-107
+  amended (D70.9, 11), 114 experiments (D70.10), 115 training data and model gate (D70.12, 13).
+  Work: P60.
