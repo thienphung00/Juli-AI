@@ -80,6 +80,11 @@ day and marks each day complete individually.
   partition ``mark_complete`` for the in-flight partition. Resume on the next run.
 - **Each HTTP attempt counts.** Initial calls and retries each invoke
   ``record_attempt()`` once before sending the request.
+- **The shop's own credential (P61-A).** ``backfill_analytics_history_auto_topup``
+  resolves the shop's read credential (``resolve_read_credential_for_shop``:
+  production_read or seller_connect, caller holds the shop scope) and signs with
+  that credential's merchant id — never the configured production merchant. No
+  read credential → skipped (``missing_read_credential``).
 - **Coexistence with RateLimiter.** Check Redis rate limits first; this governor
   only caps total attempts per backfill run.
 

@@ -23,18 +23,16 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.security import resolve_read_credential_for_shop
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import reapply_shop_scope
 from juli_backend.integrations.tiktok import (
-    PRODUCTION_AUTH_ID,
     ClientFactoryConfig,
     ProductionReadClientFactory,
-    TikTokCapability,
 )
 from juli_backend.repositories.repos import (
     AnalyticsBackfillPartitionsRepo,
     AnalyticsPerformanceRepo,
-    TikTokCredentialRepo,
 )
 from juli_backend.services.analytics_backfill.budget import (
     CallBudgetGovernor,
@@ -602,19 +600,24 @@ async def backfill_analytics_history_auto_topup(
         )
         return _empty_result(shop_id, start_date, end_date)
 
-    # Shop-scoped production-read credential. Use the repo, not session.get: the
-    # primary key is `id`, so session.get(TikTokCredential, shop_id) never resolves.
+    # The shop's OWN read credential (PRODUCTION_READ or SELLER_CONNECT) and its
+    # OWN merchant id (P61-A, D71.1). Was PRODUCTION_READ only, signed with the
+    # configured production merchant id -- so a connected seller's shop either
+    # never backfilled or was signed as the reference merchant.
     try:
-        credential = await TikTokCredentialRepo(session).get_by_shop_and_capability(
-            shop_id,
-            TikTokCapability.PRODUCTION_READ,
-        )
+        credential = await resolve_read_credential_for_shop(session, shop_id)
     except NotFound:
         logger.info(
             "analytics_backfill_auto_topup_skipped",
-            extra={"shop_id": str(shop_id), "reason": "missing_production_read_credential"},
+            extra={"shop_id": str(shop_id), "reason": "missing_read_credential"},
         )
         return _empty_result(shop_id, start_date, end_date)
+    if credential.shop_id != shop_id or not credential.merchant_authorization_id:
+        raise ValueError(
+            f"analytics backfill for shop {shop_id} resolved an unusable read credential "
+            f"(owner {credential.shop_id}, merchant id present: "
+            f"{bool(credential.merchant_authorization_id)})"
+        )
 
     # Build through the factory so the read-only transport guard applies. An unattended
     # scheduled job is the last place that guard should be bypassed.
@@ -623,7 +626,7 @@ async def backfill_analytics_history_auto_topup(
             app_key=env["app_key"],
             app_secret=env["app_secret"],
             access_token=credential.access_token,
-            merchant_auth_id=PRODUCTION_AUTH_ID,
+            merchant_auth_id=str(credential.merchant_authorization_id),
             shop_cipher=credential.shop_cipher,
         )
     )

@@ -318,7 +318,9 @@ async def test_live_readonly_run_reaches_final_response():
             playbook = _read_only_playbook()
             registry = composition_module.build_product_tool_registry()
             llm_service = composition_module.build_llm_service()
-            read_resources = await composition_module.build_read_resources(session)
+            read_resources = await composition_module.build_read_resources(
+                session, credential.shop_id
+            )
             assert isinstance(read_resources, ProductionReadResources)
 
             workflow_key = playbook.workflow_key
