@@ -46,6 +46,7 @@ ACTIVITY_STATUSES = ("ONGOING", "NOT_START", "EXPIRED", "DEACTIVATED")
 MAX_ACTIVITY_DETAIL_CALLS = 400
 MAX_LIVE_SESSIONS = 60
 MAX_VIDEOS = 40
+SHOP_ACCOUNT_TYPES = ("OFFICIAL_ACCOUNTS", "MARKETING_ACCOUNTS")
 MAX_PRODUCT_DETAILS = 40
 ORDER_SLICE_DAYS = 7
 MESSAGE_LIMIT = 300
@@ -416,6 +417,63 @@ def fetch_videos(
         _write(target / "_error.json", error_payload(exc))
 
 
+def fetch_shop_videos(
+    resources: Any,
+    folder: Path,
+    first: str,
+    end_lt: str,
+    *,
+    sleep_s: float,
+    backoff_sleep: Sleep = time.sleep,
+) -> None:
+    """Every video from the shop's own accounts, newest post first, with its products.
+
+    ``videos/videos.json`` keeps the top videos of all accounts by GMV for the report;
+    this list keeps the shop's own videos that a GMV cut would drop (zero-GMV ones too).
+    Each row carries the ``account_type`` it was listed under.
+    """
+    target = folder / "videos"
+    videos: dict[str, dict] = {}
+    for account_type in SHOP_ACCOUNT_TYPES:
+        try:
+            rows = with_backoff(
+                partial(
+                    resources.analytics.list_video_performance_all,
+                    start_date_ge=first,
+                    end_date_lt=end_lt,
+                    sort_field="views",
+                    account_type=account_type,
+                ),
+                backoff_sleep,
+            )
+        except Exception as exc:
+            _write(target / f"_error_shop_{account_type.lower()}.json", error_payload(exc))
+            continue
+        for row in rows:
+            video_id = str(row.get("id") or "")
+            if video_id and video_id not in videos:
+                videos[video_id] = {**row, "account_type": account_type}
+    listed = sorted(
+        videos.values(), key=lambda v: str(v.get("video_post_time") or ""), reverse=True
+    )
+    _write(target / "shop_videos.json", {"videos": listed})
+    for video_id in videos:
+        time.sleep(sleep_s)
+        try:
+            payload = with_backoff(
+                partial(
+                    resources.analytics.get_video_products_performance,
+                    video_id=video_id,
+                    start_date_ge=first,
+                    end_date_lt=end_lt,
+                ),
+                backoff_sleep,
+            )
+        except Exception as exc:
+            payload = {"_error": error_payload(exc)}
+        _write(target / "shop_products" / f"{video_id}.json", payload)
+
+
 def _total_gmv(row: dict) -> float:
     block = row.get("total_performance") or {}
     gmv = block.get("gmv") if isinstance(block, dict) else None
@@ -492,6 +550,7 @@ __all__ = [
     "BACKOFF_SECONDS",
     "DAYS",
     "MAX_PRODUCT_DETAILS",
+    "SHOP_ACCOUNT_TYPES",
     "THROTTLE_CODES",
     "ThrottledError",
     "backoff_delays",
@@ -501,6 +560,7 @@ __all__ = [
     "fetch_orders",
     "fetch_product_details",
     "fetch_promotions",
+    "fetch_shop_videos",
     "fetch_snapshot",
     "fetch_videos",
     "is_throttled",

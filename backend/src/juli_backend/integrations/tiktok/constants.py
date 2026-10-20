@@ -25,6 +25,7 @@ ANALYTICS_LIVE_PRODUCTS_API_VERSION = "202512"
 ANALYTICS_API_VERSION = "202509"
 ANALYTICS_SHOP_PERFORMANCE_PER_HOUR_API_VERSION = "202510"
 ANALYTICS_SHOP_PRODUCTS_LIST_API_VERSION = "202605"
+ANALYTICS_SHOP_VIDEOS_LIST_API_VERSION = "202605"
 ANALYTICS_BESTSELLING_API_VERSION = "202511"
 #: Get Shop Videos Performance Details (batch, ``video_ids``). Replaces the single-video
 #: Get Shop Video Performance Details 202509 (Analytics changelog 2026-09-28).
@@ -93,8 +94,9 @@ ANALYTICS_BESTSELLING_VIDEOS_PATH = (
 )
 
 # Shop video analytics (GET): list with the products each video promotes.
+# 202605 adds the ``account_type`` filter and each video's ``creator.author_type``.
 ANALYTICS_SHOP_VIDEOS_PERFORMANCE_PATH = (
-    f"/analytics/{ANALYTICS_API_VERSION}/shop_videos/performance"
+    f"/analytics/{ANALYTICS_SHOP_VIDEOS_LIST_API_VERSION}/shop_videos/performance"
 )
 
 # Get Shop Videos Performance Details (batch): sales.overall + traffic per video.

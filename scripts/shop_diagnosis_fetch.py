@@ -34,7 +34,7 @@ import importlib.util
 import json
 import re
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from types import ModuleType
 
@@ -52,6 +52,7 @@ DAYS = _fetch.DAYS
 MAX_PRODUCT_DETAILS = _fetch.MAX_PRODUCT_DETAILS
 THROTTLE_CODES = _fetch.THROTTLE_CODES
 fetch_promotions = _fetch.fetch_promotions
+fetch_shop_videos = _fetch.fetch_shop_videos
 fetch_snapshot = _fetch.fetch_snapshot
 is_throttled = _fetch.is_throttled
 with_backoff = _fetch.with_backoff
@@ -66,6 +67,7 @@ __all__ = [
     "SNAPSHOT_ROOT",
     "THROTTLE_CODES",
     "fetch_promotions",
+    "fetch_shop_videos",
     "fetch_snapshot",
     "is_throttled",
     "main",
@@ -121,6 +123,10 @@ def main(argv: list[str] | None = None) -> int:
     meta = fetch_snapshot(
         resources, folder, end, args.shop, sleep_s=args.sleep, max_products=args.max_products
     )
+    # Manual runs only: the daily rankings job keeps its P8b call budget.
+    first = end - timedelta(days=_fetch.DAYS - 1)
+    end_lt = (end + timedelta(days=1)).isoformat()
+    fetch_shop_videos(resources, folder, first.isoformat(), end_lt, sleep_s=args.sleep)
     print(f"snapshot {folder}: {meta['new_daily_files']} new daily files")
     return 0
 
