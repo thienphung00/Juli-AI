@@ -48,6 +48,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from juli_backend.orm_base import Base
@@ -86,6 +87,22 @@ PHASE_EXECUTION = "execution"
 BASELINE_PHASES: tuple[str, ...] = (PHASE_APPROVAL, PHASE_EXECUTION)
 
 _KINDS_SQL = ", ".join(f"'{kind}'" for kind in CHANGE_KINDS)
+
+#: ``external_changes.attribution`` (ADR-107 amendment §8, migration 096).
+ATTRIBUTION_JULI = "juli"
+ATTRIBUTION_SELLER_REVERT = "seller_revert"
+ATTRIBUTION_SELLER_CHANGE = "seller_change"
+ATTRIBUTION_MIXED = "mixed"
+ATTRIBUTIONS: tuple[str, ...] = (
+    ATTRIBUTION_JULI,
+    ATTRIBUTION_SELLER_REVERT,
+    ATTRIBUTION_SELLER_CHANGE,
+    ATTRIBUTION_MIXED,
+)
+_ATTRIBUTIONS_SQL = ", ".join(f"'{label}'" for label in ATTRIBUTIONS)
+
+#: JSONB on Postgres, plain JSON on the SQLite unit-test schema.
+JSONBType = JSON().with_variant(JSONB(), "postgresql")
 
 
 class ProductSnapshot(Base):
@@ -196,6 +213,10 @@ class ExternalChange(Base):
         UniqueConstraint("shop_id", "dedup_key", name="uq_external_changes_dedup"),
         Index("ix_external_changes_product_time", "shop_id", "tiktok_product_id", "occurred_at"),
         CheckConstraint(f"kind IN ({_KINDS_SQL})", name="ck_external_changes_kind"),
+        CheckConstraint(
+            f"attribution IS NULL OR attribution IN ({_ATTRIBUTIONS_SQL})",
+            name="ck_external_changes_attribution",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -214,6 +235,12 @@ class ExternalChange(Base):
     #: Idempotency key (snapshot id + kind, webhook notification id + product ...).
     dedup_key: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    #: ADR-107 amendment §8 (migration 096, P60-1b): ``juli`` / ``seller_revert`` /
+    #: ``seller_change`` when every field has that label, else ``mixed``. NULL only
+    #: on a row written by pre-096 code.
+    attribution: Mapped[str | None] = mapped_column(String(16))
+    #: ``{field: label}`` -- the per-field labels ``attribution`` summarises.
+    field_attribution: Mapped[dict[str, str] | None] = mapped_column(JSONBType)
 
 
 class RunBaseline(Base):
