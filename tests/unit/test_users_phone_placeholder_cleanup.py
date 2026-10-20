@@ -80,8 +80,9 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: `088_ingest_gateway`, P30 onto `089_card_groups`, P32-A onto
 #: `090_reviewer_accounts`, P33-F onto `091_trial_signups`, P36 onto
 #: `092_card_group_design`, P45 onto `093_ops_group_lift_draws`, P50-B onto
-#: `094_user_privacy_and_consent`, and P60-1a onto `095_card_events`.
-PHONE_REVISION = "095_card_events"
+#: `094_user_privacy_and_consent`, P60-1a onto `095_card_events`, and P61-B onto
+#: `097_production_write_shops`.
+PHONE_REVISION = "097_production_write_shops"
 
 _SCHEMA = "phone_cleanup_074"
 

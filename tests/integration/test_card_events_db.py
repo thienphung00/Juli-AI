@@ -373,7 +373,7 @@ async def test_backfill_as_juli_app_twice_is_the_same_rows(owner_engine, two_ten
 
 
 def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):
-    """Last in the module: ``downgrade -1`` from 095, then back to head."""
+    """Last in the module: downgrade to 095's parent, then back to head."""
     from alembic import command
     from alembic.config import Config
 
@@ -396,8 +396,10 @@ def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):
         with owner_engine.connect() as conn:
             return conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
 
-    assert head() == "095_card_events" and exists()
-    command.downgrade(cfg, "-1")
+    # P61-B: 095 is no longer the head (097 sits above it), so the round trip
+    # names 095's parent explicitly rather than stepping back one revision.
+    assert exists()
+    command.downgrade(cfg, "094_user_privacy_and_consent")
     assert head() == "094_user_privacy_and_consent" and not exists()
     command.upgrade(cfg, "head")
-    assert head() == "095_card_events" and exists()
+    assert exists()
