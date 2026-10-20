@@ -33,7 +33,7 @@ second shop.
 | Execute | `resolve_write_capability` + ADR-085 gates | Production leg is a stub → sandbox write reported as success (**gap: honest UX**) |
 | Measure | beat `daily-impact-reader` | Keyed per shop; reads sandbox executions against real analytics until P5 |
 | `card_events` | P60-1a writers | OK; live `shown` / `expired` not wired |
-| Reject card | — | **Gap**: no backend route (DEBT P7-C) |
+| Reject card | `POST /v1/demo/decisions/{id}/reject` (`api/routes/demo_execution.py`, P10-A) | Correction (P61-D): the route existed and apps/demo calls it; DEBT P7-C was stale. P61-D made it idempotent + two-tenant Postgres test |
 
 ## C. End-to-end test coverage
 

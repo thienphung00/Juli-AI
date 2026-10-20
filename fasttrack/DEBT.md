@@ -93,9 +93,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P7-C UI (2026-10-08)
 
-- [ ] "Từ chối" on a signed-in card only hides it for the session (no reject
+- [x] "Từ chối" on a signed-in card only hides it for the session (no reject
   route) — no backend endpoint — add `POST /v1/demo/decisions/{id}/reject` and
-  call it; the on-screen copy says the choice is not saved.
+  call it; the on-screen copy says the choice is not saved. **Repaid** by P10-A
+  (route + `quyet-dinh-view.tsx` `handleReject` → `clients.reject`); P61-D made it
+  idempotent and added the two-tenant Postgres proof.
 - [ ] Inter font is named in the stack but not loaded (mock imports Google
   Fonts) — no network at build — add `next/font` if the owner wants Inter
   everywhere.
@@ -289,7 +291,9 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Rules 422 messages are English from the backend; the editor shows a
   per-rule Vietnamese range sentence instead of the server text — backend
   should send `detail.message` in Vietnamese like `/revert`.
-- [ ] "Bỏ" (drop a card) is session-only, as before (no reject route) — scope.
+- [x] "Bỏ" (drop a card) is session-only, as before (no reject route) — scope.
+  **Repaid** (P10-A "Từ chối" persists through the route; checked in P61-D: no session-only
+  reject remains in apps/demo).
 - [ ] Batch approve navigates to the first new run; a card whose approve
   failed is listed in an alert, not retried — honest, one click more.
 - [ ] Upcoming timeline steps come from a client-side copy of the playbook
@@ -1337,7 +1341,8 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P61-A — agent reads per shop (2026-10-20, D71.1)
 
-- [ ] `services/cdp_speed/targeted_fetch_executor.py` still resolves the configured production
+- [x] (repaid by P61-D: per-shop credential + merchant id, two-shop Postgres test)
+  `services/cdp_speed/targeted_fetch_executor.py` still resolves the configured production
   merchant (`resolve_production_read_credential` + `merchant_auth_id=PRODUCTION_AUTH_ID`). It does
   not leak (it skips any job whose shop is not that merchant's), but targeted fetch is
   single-tenant. Repay: `resolve_read_credential_for_shop` + the credential's merchant id, as P61-A
@@ -1350,3 +1355,33 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   shop through the configured production merchant; it now passes that shop id to
   `build_read_resources`.
 
+
+## P61-D — hardcode / beat / flag cleanup (2026-10-20, D71.4)
+
+- [ ] **Deploy precondition (owner):** `TIKTOK_PRODUCTION_MERCHANT_ID` and
+  `TIKTOK_SANDBOX_MERCHANT_ID` must be set in the API **and** worker env before this ships —
+  there is no default in code any more. Unset sandbox id = every poll and every read client
+  refuses (`MerchantIdNotConfigured`); unset production id = the production merchant is
+  classified `SELLER_CONNECT`. Boot logs `runtime_env_missing` per gap and
+  `GET /v1/ops/runtime-env` shows it; nothing checks the production env file from CI.
+- [x] ~~`live_hours` / `ctor` bronze only for the production merchant~~ — repaid in P61-D
+  (owner-approved scope add): the targeted-fetch executor resolves the job shop's own read
+  credential and merchant id.
+- [ ] The hourly per-shop recompute fans out to N tasks on the default queue every hour, and
+  each now runs the targeted gap fetch (orders, A-36, A-34, A-28) for its shop — the old
+  reference-shop job took up to ~37 min. Orders are also fetched by the shop's own `poll_shop`
+  (both advance the same `tiktok_sync_state` watermark), so the vendor calls per shop roughly
+  double for orders. Repay if the default queue or the per-shop rate window backs up: a
+  dedicated queue, drop `orders` from the gap plan, or ADR-112's `ingest_*` jobs.
+- [ ] `analytics-backfill-topup` deleted without a per-shop replacement: verified that
+  `run_shop_cycle._daily_analytics` lands every shop's shop / product / SKU / LIVE analytics
+  daily and the history phase walks gaps backwards; the top-up's `catalog` bucket
+  (`active_products` / `new_products` on `analytics_performance_intervals`) has no reader
+  outside seeds, so nothing consumes what it alone wrote. A partition that failed inside the
+  last 30 days is no longer retried by a daily job (the forward cursor only advances on a
+  complete pass). The service (`backfill_analytics_history_auto_topup`) and its CLI stay.
+- [ ] Ops sees the API process's env only (`GET /v1/ops/runtime-env`); the worker's report is in
+  its boot log (`runtime_env_report`), not on a screen. No Ops UI panel yet.
+- [ ] Reject idempotency covers a repeat of a reject only; a card closed by another action
+  (approve, decline) still answers 404 to a reject — honest, but a client cannot tell "already
+  approved" from "not yours".
