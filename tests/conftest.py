@@ -224,6 +224,10 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # `card_events` and `upgrade head` restores it, after its two-tenant
         # RLS / append-only / backfill tests (which also seed tenants).
         "test_card_events_db.py",
+        # Fast track P60-1b: migration 096 round trip with pre-096 rows seeded
+        # at 095 (its data step fills hashes, audit links and attribution),
+        # after the two-tenant end-to-end attribution walk.
+        "test_change_attribution_db.py",
     }
 )
 
@@ -302,6 +306,9 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 1 and 2: fast track P50-B (D68) seeds tenants and DELETES whole
         # accounts through privacy_purge_account, and asserts per-shop counts.
         "test_privacy_db.py",
+        # Reason 2 again: seeds two tenants for fast track P61-A (agent read
+        # built from each shop's own credential, as juli_app).
+        "test_agent_read_two_shop.py",
     }
 )
 

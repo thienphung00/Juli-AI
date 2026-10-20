@@ -2397,3 +2397,90 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   `celery ... call juli_backend.card_events_backfill_fanout` and checks
   `card_events_backfill_done` lines. Then P60-1b (hashes + attribution + `seller_change`), P60-1e
   (feature snapshot in the `proposed` transaction).
+
+## 2026-10-20 — agent (Claude Opus) — P61-A agent reads per shop (branch `fasttrack/p61-a-agent-read`, not merged)
+
+- Bug (D71.1): `services/agent/composition.py::build_read_resources` resolved the configured
+  production merchant (`resolve_production_read_credential` + `PRODUCTION_AUTH_ID`) for every
+  non-sandbox shop, so an agent run for shop B read the reference shop's catalogue (callers:
+  `agent_workflow._default_read_resources`, `content_runs`, `content_analysis/product_info`).
+- Fix: the sandbox-write shop keeps the sandbox resources (#1302); every other shop resolves
+  `resolve_read_credential_for_shop` under `with_shop_scope(shop)` and signs with that
+  credential's `merchant_authorization_id` / `shop_cipher` / token. `shop_id` required
+  (`AgentReadShopRequired`); no credential → `NoReadCredentialForShop` (a `NotFound`); a row not
+  owned by the shop / not read-capable / without merchant id → `AgentReadCredentialMismatch`
+  before any client is built. `_default_read_resources(session, shop_id)` now requires the shop.
+  `analytics_backfill.backfill_analytics_history_auto_topup` resolves the shop's read credential
+  (production_read or seller_connect) and signs with its own merchant id (was
+  `PRODUCTION_AUTH_ID`); skip reason renamed `missing_read_credential`.
+- Tests: `tests/unit/test_agent_read_resources_per_shop.py` (8: shop A, shop B, sandbox shop,
+  no credential, `None`, wrong owner, backfill A/B + skip); `test_read_resources_shop_aware_routing`
+  None-fallback test → refusal test; `test_agent_workflow_task_wiring` passes a shop.
+  `tests/integration/test_agent_read_two_shop.py` (4, real Postgres as `juli_app`, two seeded
+  shops — production_read + seller_connect, neither the reference merchant — fake factory captures
+  `ClientFactoryConfig`): B's read carries B's token/cipher/merchant and none of A's; A's carries
+  A's; unknown shop fails closed; backfill for B signs with B's merchant. Added to
+  `_SHARED_STATE_MODULES` in `tests/conftest.py`.
+- Verification: ruff + format clean; mypy clean on the 3 touched source modules. Homebrew
+  Postgres 16 :55451 (UTC, removed after): `test_agent_read_two_shop.py` 4 passed, 0 skipped.
+  `fasttrack/check.sh --since fasttrack/optimize-product`: migrations PASS (095 head), isolation
+  12 passed, gitleaks PASS, ruff PASS (9 files), pytest PASS (10 files: 69 passed, 0 skipped,
+  1 deselected live) — **check.sh: OK**. No-DB unit suite (`tests/unit -m "not live"`): 7769
+  passed, 245 skipped, 2 xfailed, 3 failed (`test_credentials_in_url_guard::test_zero_findings...`,
+  `test_juli_app_grants_cover_mutations::test_the_scan_is_not_vacuous`,
+  `test_ops_d28_costs::test_cap_writes_are_admin_only[operator]`) under load from a concurrent
+  suite; all 3 pass re-run alone (3 passed), none touch P61-A code.
+- Not changed (DEBT P61-A): `cdp_speed/targeted_fetch_executor.py` still single-tenant.
+
+## 2026-10-20 — agent (Claude Opus) — P60-1b hashes, per-field attribution, `seller_change` (branch `fasttrack/p60-attribution`, not merged)
+
+- Migration `096_change_attribution` (onto 095; deferred phone cleanup re-parented, its pins
+  updated): `run_write_values` + `before_hash`, `after_hash`, `before_read_at`,
+  `production_write_audit_id` (FK); `external_changes` + `attribution` (CHECK juli /
+  seller_revert / seller_change / mixed, NULL only for pre-096 code) and `field_attribution`
+  jsonb. Grants unchanged (append-only for `juli_app`). `juli_app` has no UPDATE, so the
+  migration's owner-run data step fills existing rows: hashes, the audit link (only when
+  exactly one audit row matches run / product / mutation_kind = tool name) and attribution.
+  The step carries frozen copies of the rules (`database` may not import `services`), pinned
+  equal to the services by unit tests. New `enumerate_history_shops()` (SECURITY DEFINER, ids
+  only, EXECUTE juli_app only) for the backfill fan-out.
+- One hash helper `product_history.normalize.field_value_hash` / `ProductFields` (the form
+  `product_snapshots` hashes; unit-tested equal to snapshot hashing); `attribution.py` (pure
+  §8 rules); `store.attribute_fields`; `matches_juli_write` = all `juli` (callers unchanged,
+  `juli_write` kept). `record_change` stores attribution and, for a change not entirely
+  Juli's, writes `seller_change` via `card_events.natural` (live, never raises): card = the run
+  that last wrote the field, else the card with an executed run on the product in the last
+  `OPEN_PLAN_WINDOW` (14 d), else NULL (`workflow_key='natural'`). Recorder writes hashes,
+  `before_read_at` (executor's before read) and the audit link. Revert check compares hashes
+  when both exist, values otherwise (plan carries `expected_hashes`); D13 unchanged.
+- Backfill: `card_events_backfill` also writes `seller_change` (source `backfill`, key
+  `seller_change:<external_change_id>`, idempotent); the fan-out now iterates shops from data
+  (cards, writes, changes; disconnected shops included) plus pollable shops.
+- **Spec vs code** (DEBT P60-1b): agent writes record no `production_write_audit` row and audit
+  `mutation_kind`s differ from tool names, so the audit link is NULL for all current writes; the
+  "plan window" is a 14-day post-execution window (no decision-7 plan yet); one event per
+  change row, not per field; price attributed on Juli's `price` (list) field.
+- Verification: ruff + format clean; mypy clean on 16 touched source files.
+  `tests/unit/test_change_attribution.py` 66 passed. Homebrew Postgres 16 :55442 (UTC, removed
+  after): `tests/integration/test_change_attribution_db.py` 12 passed, 0 skipped (two fresh
+  tenants: Juli write -> juli / seller_revert / seller_change re-reads -> attribution ->
+  `seller_change` rows with card / NULL; tenant B sees none of A; CHECK; append-only; definer
+  function; 096 down to 095, pre-096 rows seeded, up -> data step; backfill twice = same rows);
+  with `test_card_events_db`, `test_run_changes_two_tenant`, `test_schema_parity`,
+  `test_fleet_enumeration_functions`: 32 passed. `test_migrations.py` + RLS suites: 71 passed,
+  1 failed (`test_no_public_table_holds_update_beyond_its_call_site`, pre-existing: 18 older
+  tables, none of P60-1b's). Full no-DB unit suite after the last code change
+  (`pytest tests/unit -m "not live"`): 7821 passed, 245 skipped, 2 xfailed, 1 failed —
+  `test_status_record_gate` 30 s timeout under machine load (load avg ~25-32); that file alone:
+  50 passed. First full run had also flagged `import_boundaries` (migration imported services:
+  fixed by frozen copies) and `test_test_quality` (one assert-less test fixed; corpus figures
+  re-derived with `reconcile --write`). `fasttrack/check.sh --since fasttrack/optimize-product`:
+  migrations PASS (096 head), isolation 12 passed, gitleaks PASS, ruff PASS (36 files), pytest
+  PASS (29 files: 576 passed, 0 skipped). **check.sh: OK**.
+- Production steps (owner): merge, deploy (migration 096 runs; its data step fills existing
+  rows), then `celery -A juli_backend.workers.celery_app call
+  juli_backend.card_events_backfill_fanout`. Check: `card_events_backfill_fanout` (shops /
+  enqueued) and per shop `card_events_backfill_done shop_id=... inserted={... 'seller_change': N}`;
+  no `card_event_write_failed event=seller_change` lines afterwards; `run_write_values_recorded`
+  continues. SQL spot check: `SELECT attribution, count(*) FROM external_changes GROUP BY 1`
+  (no NULL after the restart).

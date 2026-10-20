@@ -64,7 +64,7 @@ deep collaborator directly, unrestricted, and exposes plain functions:
   `services.agent.tools`'s own public facade (which re-exports only the
   empty `ToolRegistry` class itself). No credentials needed to build this --
   it only registers `ToolSpec`s, never resolves marketplace access.
-- `build_read_resources(session)` / `build_write_resources(session)`
+- `build_read_resources(session, shop_id)` / `build_write_resources(session)`
   (review round 1 rework) -- the real ADR-069 guarded `ProductionReadResources`
   / `SandboxWriteResources` bundles a run's tool calls actually need, built
   the same way `workers/services/polling/orchestrate.py` (production-read)
@@ -87,10 +87,10 @@ uses for the same package. `_default_llm_service`/`_default_tool_registry`/
 
 **`_construct_runner` is now `async def` (review round 1 rework).**
 Resolving real TikTok credentials is inherently a database read
-(`resolve_production_read_credential`/`resolve_sandbox_write_credential`,
+(`resolve_read_credential_for_shop`/`resolve_sandbox_write_credential`,
 both `async`) -- `_construct_runner` already receives the open `session`
 (`AsyncSession`) `_run_agent_workflow_async`/`_resume_agent_workflow_async`
-hold, so awaiting `_default_read_resources(session)`/
+hold, so awaiting `_default_read_resources(session, shop_id)`/
 `_default_write_resources(session)` inside it, and `await`-ing the call at
 both call sites below, is the natural seam; no second session or sync
 credential-resolution path was invented for this. This adds no branch/loop
@@ -467,7 +467,7 @@ def _playbook_for_run(run: WorkflowRun):
 
 
 async def _default_read_resources(
-    session: AsyncSession, shop_id: uuid.UUID | None = None
+    session: AsyncSession, shop_id: uuid.UUID
 ) -> composition_module.AgentReadResources:
     """The real ADR-069 guarded read resources (issue #1173 review-round-1
     rework, amended by issue #1302) -- `composition.py`'s `build_read_resources`,
@@ -480,11 +480,11 @@ async def _default_read_resources(
     replaced, which left `read_resources` unset and crashed uncaught on the
     first tool call instead).
 
-    Issue #1302 amendment: when shop_id is provided and matches the
-    sandbox-write credential's shop, returns SandboxWriteResources;
-    otherwise returns ProductionReadResources. Threading shop_id through
-    here (from `_construct_runner`) activates shop-aware routing without
-    changing pre-existing callers that don't pass it."""
+    Issue #1302 amendment: the sandbox shop reads through
+    SandboxWriteResources. P61-A (D71.1): every other shop reads through
+    its OWN read credential and merchant id; `shop_id` is required (no
+    fallback to the configured production merchant) and a shop with no
+    read credential fails closed with `NoReadCredentialForShop`."""
     from juli_backend.services.agent import composition as composition_module
 
     return await composition_module.build_read_resources(session, shop_id=shop_id)
@@ -691,6 +691,7 @@ async def _construct_runner(
         ),
         restore_main_image_uris=revert_plan.restore_main_image_uris if revert_plan else None,
         revert_expected=revert_plan.expected if revert_plan else None,
+        revert_expected_hashes=revert_plan.expected_hashes if revert_plan else None,
         # P10-B: the seller's checked photo, the TikTok URI already staged from
         # it (the consent's resume leg), and where a new staging is kept.
         pending_image_bytes=flow.pending_image_bytes if flow else None,

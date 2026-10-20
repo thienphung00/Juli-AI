@@ -401,7 +401,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P60-0d Max history depth per endpoint, measured on Fujiwa (read-only) | D70.3 | todo | owner + agent |
 | P60-ADR ADR-112..115 + ADR-107 amendment + notes on 029 / 046 / 077 / 104 / 105 | D70 | done (owner flags open — LOG 2026-10-20) | agents (Opus) |
 | P60-1a `card_events` minimum + RLS + writer + backfill from existing tables | D70.9 | done, merged (ff 9bbd313a; full unit suite 7764 passed, 245 skipped); owner: deploy + run card_events_backfill_fanout — LOG 2026-10-20 P60-1a | agent (Opus) |
-| P60-1b Content hashes on `run_write_values`; `external_changes` source juli / seller_revert / seller_change → `card_events` | D70.11 (1)(3) | todo | — |
+| P60-1b Content hashes on `run_write_values`; `external_changes` source juli / seller_revert / seller_change → `card_events` | D70.11 (1)(3) | done, merged (P60-1b); migration 096; owner: deploy + run card_events_backfill_fanout — LOG 2026-10-20 P60-1b | agent (Opus) |
 | P60-1c `valid_from` / `valid_to` + current view over `product_snapshots`; confirm `product_history_fanout` live for Fujiwa | D70.4 | todo | — |
 | P60-1d Raw Get Product body as product bronze | D70.4, D70.8 | todo | — |
 | P60-1e One `gold.ml_feature_snapshots` row per proposal | D70.12 (2) | todo | — |
@@ -412,7 +412,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P61-A Agent reads per shop (hotfix) + two-shop no-leak test | D71.1 | doing (`fasttrack/p61-a-agent-read`) | agent |
+| P61-A Agent reads per shop (hotfix) + two-shop no-leak test | D71.1 | done, merged (ff c6bc698b) | agent |
 | P61-B Production write per shop (P5), flags off; honest sandbox UX; measurement ignores sandbox runs | D71.2 | doing (`fasttrack/p61-b-prod-write`) | agent |
 | P61-C Token streaming: adapter → `assistant.text.delta` → SSE → demo caret; ADR-071 amendment | D71.3 | doing (`fasttrack/p61-c-streaming`) | agent |
 | P61-D Hardcode / beat / flag cleanup, startup env check, reject route, delete `fujiwa_poll_beat` | D71.4 | doing (`fasttrack/p61-d-cleanup`) | agent |
