@@ -352,6 +352,16 @@ class _ReaperEventSink:
         await _card_reactivation.reactivate_card_for_ended_run(
             self._session, run, event.payload.status
         )
+        # Fast track P60-1a: the card log's not_executed row (never raises).
+        from juli_backend.services import card_events
+
+        await card_events.record_run_outcome(
+            self._session,
+            run,
+            status=event.payload.status,
+            stop_reason=event.payload.stop_reason,
+            occurred_at=event.timestamp,
+        )
 
         await self._session.commit()
 

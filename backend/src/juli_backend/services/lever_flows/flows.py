@@ -238,6 +238,16 @@ async def end_wait_by_seller(session: AsyncSession, run: WorkflowRunRow) -> None
         )
     )
     await session.flush()
+    # Fast track P60-1a: the card log's not_executed row (never raises).
+    from juli_backend.services import card_events
+
+    await card_events.record_run_outcome(
+        session,
+        run,
+        status=WorkflowRunStatus.CANCELLED,
+        stop_reason=StopReason.CANCELLED_BY_SELLER,
+        occurred_at=now,
+    )
     await session.refresh(run)
 
 

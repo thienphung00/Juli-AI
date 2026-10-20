@@ -497,6 +497,19 @@ async def approve_action_card(
     # (it waits for the seller's photo / Seller Center action).
     await lever_flows.register_flow(session, shop_id=shop_id, run_id=run.id, lever_code=lever_code)
 
+    # Fast track P60-1a (ADR-107 am. 2026-10-20 §1): the card log's `accepted`
+    # row, in this transaction; never raises.
+    from juli_backend.services import card_events
+
+    await card_events.record_accepted(
+        session,
+        card,
+        approval_id=approval.id,
+        run_id=run.id,
+        approved_by_user_id=approved_by_user_id,
+        occurred_at=approved_at,
+    )
+
     return ApprovalResult(
         run_id=run.id,
         action_card_id=card.id,

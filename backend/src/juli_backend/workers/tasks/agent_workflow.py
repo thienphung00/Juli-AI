@@ -930,6 +930,16 @@ async def _emit_crash_terminal_event(
             await card_reactivation_module.reactivate_card_for_ended_run(
                 fresh_session, run, WorkflowRunStatus.FAILED
             )
+            # Fast track P60-1a: the card log's not_executed row (never raises).
+            from juli_backend.services import card_events
+
+            await card_events.record_run_outcome(
+                fresh_session,
+                run,
+                status=WorkflowRunStatus.FAILED,
+                stop_reason=stop_reason,
+                occurred_at=now,
+            )
 
             await fresh_session.commit()
 

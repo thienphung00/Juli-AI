@@ -248,7 +248,20 @@ async def _process_kind(
 
     if written:
         await session.flush()
+        # Fast track P60-1a (ADR-107 am. 2026-10-20 §1): the run's card gets one
+        # impact_preliminary / impact_final row per kind; never raises.
+        await _record_card_impact(session, execution, kind, computed_at)
     return written
+
+
+async def _record_card_impact(
+    session: AsyncSession, execution: ToolExecution, kind: str, computed_at: datetime
+) -> None:
+    from juli_backend.services import card_events
+
+    await card_events.record_impact_readings(
+        session, run_id=execution.workflow_run_id, kind=kind, occurred_at=computed_at
+    )
 
 
 #: D29.9: the default guard band is read over the 14 days before the change.

@@ -754,6 +754,12 @@ async def emit_scoring_cards(
     decisions.extend(await emit_content_cards_safely(session, shop_id, now=computed_at))
     # --- end P14-E ---
 
+    # Fast track P60-1a (ADR-107 am. 2026-10-20 §1/§3): the card log's
+    # `proposed` (+ `superseded`) rows, in this transaction; never raises.
+    from juli_backend.services import card_events
+
+    await card_events.record_emissions(session, decisions, occurred_at=computed_at, config=config)
+
     return ScoringEmissionReport(decisions=tuple(decisions))
 
 

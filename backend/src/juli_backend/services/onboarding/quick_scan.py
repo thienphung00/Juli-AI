@@ -614,6 +614,12 @@ async def _scan_and_write(
                 computed_at=computed_at,
                 emission_config=emission_config,
             )
+            # Fast track P60-1a: the quick-scan cards' `proposed` rows (never raises).
+            from juli_backend.services import card_events
+
+            await card_events.record_emissions(
+                session, decisions, occurred_at=computed_at, config=emission_config
+            )
             outcome = await apply_emission_budget(
                 session, shop_id, now=computed_at, config=emission_config
             )

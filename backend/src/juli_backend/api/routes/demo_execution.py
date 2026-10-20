@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -45,7 +46,7 @@ from juli_backend.database import Shop, User, get_session
 from juli_backend.models.decision_reasons import ACTION_REJECT
 from juli_backend.models.history import PHASE_APPROVAL
 from juli_backend.repositories import utc_now_naive
-from juli_backend.services import decision_reasons
+from juli_backend.services import card_events, decision_reasons
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 from juli_backend.services.agent import approval as approval_module
 from juli_backend.services.demo_decisions import DecisionNotFound, get_surfaced_decision
@@ -256,6 +257,14 @@ async def reject_demo_decision(
         product_id=decision_reasons.product_id_of(card),
     )
     decision_reasons.close_card(card)
+    # Fast track P60-1a: the card log's `dismissed` row (never raises).
+    await card_events.record_dismissed(
+        session,
+        card,
+        occurred_at=card.dismissed_at or datetime.now(UTC),
+        decision_reason_code=body.reason_code,
+        decision_reason_id=reason.id,
+    )
     await session.commit()
     logger.info(
         "demo_decision_rejected",

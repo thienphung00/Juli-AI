@@ -101,6 +101,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.models.models import RunConfirmation, WorkflowRun
+from juli_backend.services import card_events
 from juli_backend.services.agent.card_reactivation import reactivate_card_for_ended_run
 from juli_backend.services.agent.events.payloads import ConfirmationOptionPayload
 from juli_backend.services.agent.runner.state import RunState
@@ -377,6 +378,11 @@ class JsonbConversationStore:
             # active (approved_at cleared). Never COMPLETED / suspended. The
             # one shared helper the crash handler and the reaper also call.
             await reactivate_card_for_ended_run(self._session, run, status)
+            # Fast track P60-1a: the card log's executed / not_executed (or
+            # reverted) row for a terminal status; never raises.
+            await card_events.record_run_outcome(
+                self._session, run, status=status, stop_reason=stop_reason
+            )
         if pending_confirmation is not None:
             # `proposed_change` round-trips byte-identically: each option
             # is dumped via Pydantic's own `model_dump(mode="json")`, the

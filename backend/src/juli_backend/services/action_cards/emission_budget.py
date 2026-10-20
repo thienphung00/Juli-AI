@@ -717,6 +717,14 @@ async def apply_emission_budget(
 
     await session.flush()
 
+    # Fast track P60-1a (ADR-107 am. 2026-10-20 §1): `shown` on first display and
+    # `expired` after the validity window, in this transaction; never raises.
+    from juli_backend.services import card_events
+
+    await card_events.record_budget_outcome(
+        session, newly_surfaced=newly_surfaced, expired=expired, now=now
+    )
+
     logger.info(
         "emission_budget_applied",
         extra={

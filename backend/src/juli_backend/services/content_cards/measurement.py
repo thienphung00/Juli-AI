@@ -219,6 +219,10 @@ async def _final(
     )
     session.add(row)
     await session.flush()
+    # Fast track P60-1a: the run's card gets its impact_final row (never raises).
+    from juli_backend.services import card_events
+
+    await card_events.record_measurement_final(session, row)
     return p10._final_body(row)
 
 
