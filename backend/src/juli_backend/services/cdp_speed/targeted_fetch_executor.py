@@ -252,6 +252,10 @@ async def execute_targeted_fetch_to_bronze(
         )
         return tracker
 
+    merchant = credential.merchant_authorization_id
+    if not merchant:  # unreachable past credential_belongs_to_job; keeps the type honest
+        return tracker
+
     import redis
 
     # Fast track P61-D (D71.4): sign with the job shop's OWN credential and merchant
@@ -265,7 +269,7 @@ async def execute_targeted_fetch_to_bronze(
             app_key=resolved_env.app_key,
             app_secret=resolved_env.app_secret,
             access_token=credential.access_token,
-            merchant_auth_id=credential.merchant_authorization_id,
+            merchant_auth_id=merchant,
             shop_cipher=credential.shop_cipher,
         )
     )
