@@ -48,7 +48,13 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import ActionCard, InventoryItem, Product, WorkflowRun
+from juli_backend.models.models import (
+    WRITE_MODE_SIMULATED,
+    ActionCard,
+    InventoryItem,
+    Product,
+    WorkflowRun,
+)
 from juli_backend.models.run_changes import RunWriteValue
 from juli_backend.services.agent.tools.diagnosis_labels import diagnosis_label_vi
 from juli_backend.services.optimize_product.rescore import cap_legacy_target, has_d29_kpi
@@ -247,7 +253,10 @@ def _status(
     if card.status in ("approved", "executing"):
         run = context.latest_run
         if run is not None and run.status == "completed" and context.writes:
-            return "applied"
+            # P61-B (D71.2): writes on the sandbox merchant never read as
+            # "Đã áp dụng" -- the seller's shop did not change.
+            simulated = getattr(run, "write_mode", None) == WRITE_MODE_SIMULATED
+            return "simulated" if simulated else "applied"
         return "running"
     since = card.surfaced_at or card.computed_at
     if since is not None:

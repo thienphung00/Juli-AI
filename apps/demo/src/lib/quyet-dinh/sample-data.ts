@@ -87,7 +87,7 @@ export interface SampleCardSpec {
   readonly codes?: readonly string[];
   readonly fields?: readonly { readonly field: string; readonly label: string }[];
   readonly beforeAfter?: readonly { readonly field: string; readonly label: string; readonly before: string; readonly after: string }[];
-  readonly status?: "pending" | "running" | "applied" | "rejected" | "expired";
+  readonly status?: "pending" | "running" | "applied" | "simulated" | "rejected" | "expired";
   /** The listing a `juli` run proposes at the consent step (title / description). */
   readonly proposal?: Readonly<Record<string, string>>;
   /** P41: the run's keyword step ("Tìm được N từ khoá: …"), worded for this product. */
