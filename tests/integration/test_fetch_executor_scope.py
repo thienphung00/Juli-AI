@@ -106,13 +106,8 @@ async def _run_executor(session, shop_id: uuid.UUID, shop_key: str, cursor: int,
     async def _resolve(_session, sid):
         return _credential(sid)
 
-    # Vendor token refresh is not what this change touches, and it raises
-    # NotFound without a real credential row. Stubbed so the test exercises the
-    # executor's own database statements rather than TikTok auth.
-    async def _refresh(_session):
-        return _credential(shop_id)
-
-    monkeypatch.setattr(tfe, "resolve_production_read_credential", _refresh)
+    # Vendor clients are not what this change touches: built from the job
+    # shop's own credential (P61-D), never called (the fetch is stubbed above).
 
     return await execute_targeted_fetch_to_bronze(
         session,

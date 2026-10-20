@@ -72,6 +72,24 @@ async def shop_session():
 
 
 class TestCredentialBelongsToJob:
+    def test_accepts_a_sellers_own_seller_connect_credential(self):
+        shop_id = uuid.uuid4()
+        cred = _credential(shop_id=shop_id)
+        cred.capability = TikTokCapability.SELLER_CONNECT.value
+        cred.merchant_authorization_id = "seller-merchant"
+        assert credential_belongs_to_job(cred, shop_id) is True
+
+    def test_rejects_the_sandbox_merchant_and_a_missing_merchant(self):
+        from juli_backend.integrations.tiktok import SANDBOX_AUTH_ID
+
+        shop_id = uuid.uuid4()
+        sandbox = _credential(shop_id=shop_id)
+        sandbox.merchant_authorization_id = SANDBOX_AUTH_ID
+        blank = _credential(shop_id=shop_id)
+        blank.merchant_authorization_id = None
+        assert credential_belongs_to_job(sandbox, shop_id) is False
+        assert credential_belongs_to_job(blank, shop_id) is False
+
     def test_accepts_matching_production_read_credential(self):
         shop_id = uuid.uuid4()
         assert credential_belongs_to_job(_credential(shop_id=shop_id), shop_id) is True
@@ -118,48 +136,55 @@ async def test_execute_skips_when_resolved_credential_shop_mismatch(shop_session
 
 
 @pytest.mark.asyncio
-async def test_execute_skips_when_refreshed_credential_shop_mismatch(shop_session, monkeypatch):
-    """#1232: the executor no longer builds its own TikTokOAuthService --
-    it calls resolve_production_read_credential (which now carries the lazy
-    refresh layer, ADR-081 decision 1 row 2) for the merchant-level
-    credential it checks against the job's shop."""
+async def test_execute_signs_with_the_job_shops_own_merchant(shop_session, monkeypatch):
+    """Fast track P61-D: no second resolve of the configured production merchant --
+    the client is built from the job shop's own credential and merchant id."""
+    from juli_backend.services.cdp_speed import targeted_fetch_executor as tfe
+
     session, shop = shop_session
-    fetch_plan = plan_targeted_fetch(
-        event_type="ORDER_STATUS_CHANGE",
-        shop_id=shop.tiktok_shop_id,
-    )
-    job_cred = _credential(shop_id=shop.id)
-    other_cred = _credential(shop_id=uuid.uuid4())
+    fetch_plan = plan_targeted_fetch(event_type="ORDER_STATUS_CHANGE", shop_id=shop.tiktok_shop_id)
+    seller = _credential(shop_id=shop.id)
+    seller.merchant_authorization_id = "seller-merchant-p61d"
+    seller.capability = TikTokCapability.SELLER_CONNECT.value
 
-    async def matching_resolver(sess, shop_id):
-        del sess, shop_id
-        return job_cred
+    async def resolver(_sess, _shop_id):
+        return seller
 
-    resolve_production_mock = AsyncMock(return_value=other_cred)
+    configs = []
+
+    class _Factory:
+        def create_resources(self, config):
+            configs.append(config)
+            return MagicMock()
+
+    async def _no_fetch(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(tfe, "ProductionReadClientFactory", _Factory)
+    monkeypatch.setattr(tfe, "_run_plan_resource", _no_fetch)
     monkeypatch.setattr(
-        "juli_backend.services.cdp_speed.targeted_fetch_executor.resolve_production_read_credential",
-        resolve_production_mock,
+        tfe, "TikTokSyncStateRepo", lambda _s: AsyncMock(load=AsyncMock(return_value={}))
     )
+    assert not hasattr(tfe, "resolve_production_read_credential")
 
-    env = PartnerFetchEnv(
-        app_key="k",
-        app_secret="s",
-        redirect_uri="https://example.com/cb",
-        redis_url="redis://localhost:6379/0",
-    )
-
-    tracker = await execute_targeted_fetch_to_bronze(
+    await execute_targeted_fetch_to_bronze(
         session,
         shop_id=shop.id,
         shop_key=shop.tiktok_shop_id,
         fetch_plan=fetch_plan,
-        idempotency_key="refresh-mismatch-test",
-        env=env,
-        resolve_credential=matching_resolver,
+        idempotency_key="own-merchant-test",
+        env=PartnerFetchEnv(
+            app_key="k",
+            app_secret="s",
+            redirect_uri="https://example.com/cb",
+            redis_url="redis://localhost:6379/0",
+        ),
+        resolve_credential=resolver,
     )
 
-    assert tracker.appended_count == 0
-    resolve_production_mock.assert_awaited_once_with(session)
+    (config,) = configs
+    assert config.merchant_auth_id == "seller-merchant-p61d"
+    assert config.access_token == seller.access_token
 
 
 def test_executor_module_does_not_import_workers():

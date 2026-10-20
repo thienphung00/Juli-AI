@@ -22,7 +22,7 @@ from juli_backend.services.cdp_speed.targeted_fetch_bronze_handoff import (
 from juli_backend.services.cdp_speed.targeted_fetch_executor import (
     TargetedFetchExecutor,
     execute_targeted_fetch_to_bronze,
-    resolve_job_production_read_credential,
+    resolve_job_read_credential,
 )
 from juli_backend.services.cdp_speed.targeted_fetch_planner import (
     FUJIWA_POLL_RESOURCE_NAMES,
@@ -51,7 +51,7 @@ __all__ = [
     "make_targeted_fetch_bronze_handoff",
     "plan_targeted_fetch",
     "quota_guard_reason",
-    "resolve_job_production_read_credential",
+    "resolve_job_read_credential",
     "run_shared_compute_job",
     "scoring_stage_enabled",
     "static_fetch_resource",

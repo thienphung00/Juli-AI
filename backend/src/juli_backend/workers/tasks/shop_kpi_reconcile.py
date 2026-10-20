@@ -19,14 +19,13 @@ names this change.
     ``enqueue_reason="reconcile_hourly"`` (#632). The orchestrator re-enters the
     scope around every stage itself (#1576).
 
-THE FETCH IS THE TARGETED-FETCH EXECUTOR'S OWN DECISION, NOT A SHOP LIST. The
-hourly gap plan (orders, analytics_shop, ctor, live_hours) is requested only for
-a shop the executor can serve -- today ``resolve_job_production_read_credential``
-accepts the configured production-read merchant only. Any other shop gets an
-empty plan: no vendor call, and the envelope is recomputed from what the shop's
-own ``poll_shop`` cycle already ingested (orders hourly, analytics daily). So no
-shop is skipped and no shop id is named here. (DEBT P61-D: the ``live_hours``
-KPI needs the A-28 bronze path, which is still production-merchant-only.)
+THE FETCH IS PER SHOP. The hourly gap plan (orders, analytics_shop, ctor,
+live_hours) is requested for every shop holding its own read credential
+(``resolve_job_read_credential``: ``resolve_read_credential_for_shop`` + that
+credential's merchant id -- P61-D moved the targeted-fetch executor off the
+configured production merchant). A shop with no usable read credential gets an
+empty plan: no vendor call, and the envelope is recomputed from what its
+``poll_shop`` cycle already ingested. No shop id is named here.
 
 COUNTS ARE HONEST (#1857). ``shop_kpi_reconcile_completed`` carries
 ``fetch_plan_size`` (requested) beside ``bronze_appended`` / ``silver_promoted``
@@ -111,9 +110,9 @@ def empty_fetch_plan(shop_key: str) -> TargetedFetchPlan:
 
 
 async def _default_fetch_credential(session: AsyncSession, shop_id: uuid.UUID) -> Any:
-    from juli_backend.services.cdp_speed import resolve_job_production_read_credential
+    from juli_backend.services.cdp_speed import resolve_job_read_credential
 
-    return await resolve_job_production_read_credential(session, shop_id)
+    return await resolve_job_read_credential(session, shop_id)
 
 
 async def choose_fetch_plan(

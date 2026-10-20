@@ -131,11 +131,12 @@ the remaining resource_attrs above stay deferred.
 ``run_fujiwa_poll_cycle``, unbounded ``sync_analytics`` A-31–A-39 fan-out. The hourly
 per-shop reconcile (fast track P61-D) uses a separate gap plan
 (``workers/tasks/shop_kpi_reconcile.py``'s ``make_gap_fetch_plan`` — orders,
-analytics_shop, ctor, live_hours via ``static_fetch_resource``) — not this matrix — and
-only for a shop ``resolve_job_production_read_credential`` (exported here) accepts, i.e.
-the configured production merchant; every other shop gets an empty plan and its envelope
-is recomputed from what its own ``poll_shop`` cycle ingested. ctor/live_hours bronze
-freshness therefore still exists for the production merchant only (DEBT P61-D).
+analytics_shop, ctor, live_hours via ``static_fetch_resource``) — not this matrix — for
+every shop with its own read credential. The executor (fast track P61-D) resolves the
+JOB shop's credential (``resolve_job_read_credential`` → ``resolve_read_credential_for_shop``,
+exported here) and signs with that credential's merchant id; ``credential_belongs_to_job``
+requires the job's shop, a read capability, a merchant id, and never the sandbox merchant.
+A shop with no usable read credential gets an empty plan (envelope from its poll's silver).
 
 ## Extending the matrix
 

@@ -11,9 +11,10 @@ which enqueues one `juli_backend.shop_kpi_reconcile` per connected shop past its
 (enumerated like `shop-poll-fanout`, migration 074's definer function). Each shop's task runs
 under `with_shop_scope` and routes through `SharedComputeOrchestrator`
 (`enqueue_reason="reconcile_hourly"`): bronze → silver → `gold.kpi_envelopes` → flag-gated
-Decision scoring. The hourly gap fetch is requested only when the targeted-fetch executor can
-serve the shop (its own credential guard); otherwise the plan is empty and the envelope is
-recomputed from what the shop's `poll_shop` cycle ingested. No shop id is configured anywhere:
+Decision scoring. The hourly gap fetch runs for every shop holding its own read credential
+(the targeted-fetch executor signs with that shop's credential and merchant id since P61-D);
+a shop without one gets an empty plan and its envelope is recomputed from what its
+`poll_shop` cycle ingested. No shop id is configured anywhere:
 the old `DEMO_REFERENCE_SHOP_ID` beats (`mock-analytics-hourly-reconcile`,
 `analytics-backfill-topup`) are deleted. `DEMO_REFERENCE_SHOP_ID` survives only as the public
 Demo display binding in `api/routes/demo_analytics.py` (ADR-094).
