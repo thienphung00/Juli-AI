@@ -1587,3 +1587,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   ADRs: 112 ingestion platform (D70.1–3, 7, 8, 14, 15), 113 shop data (D70.4–6), ADR-107
   amended (D70.9, 11), 114 experiments (D70.10), 115 training data and model gate (D70.12, 13).
   Work: P60.
+  **D70 owner answers (2026-10-20).** (a) Every new randomisation needs seller consent (ADR-114):
+  `apply_groups` / `create_ops_group` stop drawing; old `card_groups` stay read-only history and
+  feed the EB prior. (b) SKU stock is not in the version hash — it goes to `inventory_daily`; the
+  `product_changes` `update_time_ge` poll runs every 15 min outside the D27.3 gate (ADR-113).
+  (c) Every other "owner flag" default in ADR-107 amendment / 112–115 (listed in LOG 2026-10-20)
+  is accepted; individual numbers may be tuned later without a new decision.
