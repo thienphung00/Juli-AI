@@ -1492,7 +1492,10 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # from `conftest.py` / a `tests` package and asserting methods of same-file
     # classes (`HelperResolver`). Every count is UNCHANGED on this tree and on
     # the branch point: no zero-assertion test delegated through an import.
-    "no_assert_statement": 496,
+    # Fast track P61-C (D71.3): 496 -> 495. The `pytest.raises`-only
+    # "assistant.text.delta is rejected" envelope test became a delta
+    # validation test that also asserts on the error; no new raises-only test.
+    "no_assert_statement": 495,
     "and_no_pytest_raises": 130,
     "and_no_mock_assert_called": 115,
     "and_no_unittest_self_assert": 115,

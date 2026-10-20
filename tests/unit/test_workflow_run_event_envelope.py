@@ -380,8 +380,9 @@ def test_assistant_text_delta_rejects_missing_negative_or_extra_fields(payload):
         "payload": payload,
         "v": 1,
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as exc_info:
         WorkflowRunEventAdapter.validate_python(raw)
+    assert "assistant.text.delta" in str(exc_info.value)
 
 
 def test_discriminated_union_validates_each_of_the_nine_types():

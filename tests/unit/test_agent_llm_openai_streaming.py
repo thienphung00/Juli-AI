@@ -221,26 +221,35 @@ async def test_transport_error_mid_stream_fails_the_turn_cleanly():
 )
 async def test_failed_or_error_event_raises_provider_error(terminal):
     events = [*_text_events(["x"])[:2], terminal]
-    with pytest.raises(LLMProviderError):
-        await _run(_transport(_sse(events), []), [])
+    deltas: list[str] = []
+    with pytest.raises(LLMProviderError) as exc_info:
+        await _run(_transport(_sse(events), []), deltas)
+    assert "OpenAI Responses API stream" in str(exc_info.value)
+    assert deltas == ["x"]
 
 
 async def test_stream_without_terminal_event_raises_provider_error():
+    deltas: list[str] = []
     with pytest.raises(LLMProviderError, match="without response.completed"):
-        await _run(_transport(_sse(_text_events(["x"])), []), [])
+        await _run(_transport(_sse(_text_events(["x"])), []), deltas)
+    assert deltas == ["x"]
 
 
 async def test_non_json_frame_raises_provider_error():
+    deltas: list[str] = []
     with pytest.raises(LLMProviderError, match="non-JSON"):
-        await _run(_transport(b"data: {not json\n\n", []), [])
+        await _run(_transport(b"data: {not json\n\n", []), deltas)
+    assert deltas == []
 
 
 async def test_http_error_status_on_stream_raises_provider_error():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(429, content=b'{"error": {}}')
 
+    deltas: list[str] = []
     with pytest.raises(LLMProviderError, match="HTTP 429"):
-        await _run(httpx.MockTransport(handler), [])
+        await _run(httpx.MockTransport(handler), deltas)
+    assert deltas == []
 
 
 async def test_incomplete_terminal_is_parsed_like_the_non_streamed_body():
@@ -325,7 +334,8 @@ async def test_callback_exceptions_propagate_unchanged():
     async def on_delta(text: str) -> None:
         raise SinkDown("db unavailable")
 
-    with pytest.raises(SinkDown):
+    with pytest.raises(SinkDown) as exc_info:
         await adapter.complete(
             messages=[], system="s", tools=[], config=LLMConfig(), on_text_delta=on_delta
         )
+    assert not isinstance(exc_info.value, LLMProviderError)
