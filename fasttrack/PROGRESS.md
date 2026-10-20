@@ -408,6 +408,17 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P60-1f `persisted` no longer counts DLQ rows (#1950) | D70.8 | todo | — |
 | P60-2..8 platform, adapter, D6 group, cold start, action loop, training, Shopee | D70.16 | todo (after P60-1) | — |
 
+## P61 — any shop end to end, no hardcoding, streaming (D71, 2026-10-20)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P61-A Agent reads per shop (hotfix) + two-shop no-leak test | D71.1 | doing (`fasttrack/p61-a-agent-read`) | agent |
+| P61-B Production write per shop (P5), flags off; honest sandbox UX; measurement ignores sandbox runs | D71.2 | doing (`fasttrack/p61-b-prod-write`) | agent |
+| P61-C Token streaming: adapter → `assistant.text.delta` → SSE → demo caret; ADR-071 amendment | D71.3 | doing (`fasttrack/p61-c-streaming`) | agent |
+| P61-D Hardcode / beat / flag cleanup, startup env check, reject route, delete `fujiwa_poll_beat` | D71.4 | doing (`fasttrack/p61-d-cleanup`) | agent |
+| P61-E End-to-end two-shop test OAuth → `card_events`; live `shown` / `expired` writers | D71.5 | todo (after A–D and P60-1b merge) | — |
+| Owner: confirm production env (`AGENT_WORKFLOWS_ENABLED`, `TIKTOK_APP_KEY/SECRET`, `REDIS_URL`); later flip `PRODUCTION_WRITE_ENABLED` per shop | D71 | todo | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

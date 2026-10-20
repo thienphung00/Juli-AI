@@ -1593,3 +1593,27 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   `product_changes` `update_time_ge` poll runs every 15 min outside the D27.3 gate (ADR-113).
   (c) Every other "owner flag" default in ADR-107 amendment / 112–115 (listed in LOG 2026-10-20)
   is accepted; individual numbers may be tuned later without a new decision.
+
+- **D71** — Any connected shop runs end to end, nothing hardcoded, LLM text streams (owner,
+  2026-10-20, after the read-only audit `docs/product/data-platform/AUDIT_ANY_SHOP_E2E.md`).
+  1. **Agent reads are per shop (hotfix).** `services/agent/composition.py::build_read_resources`
+     used the Fujiwa production credential + `PRODUCTION_AUTH_ID` for every non-sandbox shop (also
+     `workers/tasks/content_runs.py`, `services/content_analysis/product_info.py`,
+     `services/analytics_backfill/orchestrator.py`): a second shop's run read Fujiwa's catalogue.
+     Use `resolve_read_credential_for_shop(shop_id)` and the credential's own merchant id; a
+     two-shop test proves B never reads A. Shipped first, on its own.
+  2. **Production writes per shop (P5) are built, flags stay off.** Per-shop write factory and
+     resolver leg behind the existing ADR-085 gates (`PRODUCTION_WRITE_ENABLED`, kill switch, RLS
+     boot check, attestation, per-mutation authorization). The owner turns it on per shop. Until
+     then the seller is never told a sandbox write went live, and measurement does not read
+     sandbox executions as real impact.
+  3. **Token streaming in the run surface.** The agent adapter streams; `assistant.text.delta`
+     (reserved by ADR-071 d.3) is persisted, relayed on the existing SSE and rendered with a
+     typing caret in apps/demo. Card drafts and structured analysis stay non-streamed.
+  4. **No hardcoding on production paths.** `DEMO_REFERENCE_SHOP_ID` beats replaced by per-shop
+     jobs (the public demo display binding stays, ADR-094); literal merchant-id defaults removed
+     (fail closed); a startup check makes missing flags / env loud; `fujiwa_poll_beat` deleted;
+     card reject route added.
+  5. **One end-to-end two-shop test** from OAuth callback to `card_events` for a non-reference
+     shop, on real Postgres with recorded fixtures.
+  Work: P61 (A hotfix, B P5, C streaming, D cleanup, then E end-to-end).
