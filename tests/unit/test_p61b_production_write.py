@@ -428,7 +428,9 @@ async def test_the_production_capability_builds_that_shops_own_client(
     # The same capability can never build shop A's client.
     with pytest.raises(ProductionWriteBindingError):
         await composition.build_write_resources(session, shop_id=shop_a.id, capability=marker)
-    # Without a capability it is the sandbox, exactly as before.
+    # Without a capability it is the sandbox, exactly as before. (composition binds the
+    # loader at import, so the recorder is bound there too, whatever the import order.)
+    monkeypatch.setattr(composition, "load_sandbox_write_resources", sandbox)
     assert await composition.build_write_resources(session) is SANDBOX
     assert composition.write_mode_of(SANDBOX) == WRITE_MODE_SIMULATED
 
