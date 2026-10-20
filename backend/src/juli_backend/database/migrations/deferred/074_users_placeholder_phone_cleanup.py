@@ -1,7 +1,7 @@
 """CONTRACT step for #1972: null out the phone numbers Juli fabricated
 
 Revision ID: 074_users_placeholder_phone_cleanup
-Revises: 095_card_events
+Revises: 096_change_attribution
 Create Date: 2026-09-20
 
 **This file is deliberately NOT in ``versions/``. Do not move it there until it
@@ -106,7 +106,7 @@ the VPS, against the release directory that is *currently serving*:
 
 1. Confirm the serving release contains ``064_users_phone_nullable`` (and so
    the code that stopped fabricating) and that ``alembic current`` reports
-   ``095_card_events``. If it reports anything earlier, STOP: an older
+   ``096_change_attribution``. If it reports anything earlier, STOP: an older
    release would immediately mint fresh placeholders behind this cleanup.
 
    This file has been renumbered four times (065 -> 066 -> 070 -> 072 -> 074)
@@ -131,7 +131,8 @@ the VPS, against the release directory that is *currently serving*:
    P36 onto ``092_card_group_design``, and
    P45 onto ``093_ops_group_lift_draws``, and
    P50-B onto ``094_user_privacy_and_consent``, and
-   P60-1a onto ``095_card_events``.
+   P60-1a onto ``095_card_events``, and
+   P60-1b onto ``096_change_attribution``.
 2. Take the backup (``infra/scripts/safe-alembic-upgrade.sh`` does this).
 3. Copy this file into that release's ``versions/`` directory and LEAVE IT
    THERE -- removing it afterwards would leave Alembic at a revision with no
@@ -154,7 +155,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "074_users_placeholder_phone_cleanup"
-down_revision: str | None = "095_card_events"
+down_revision: str | None = "096_change_attribution"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
