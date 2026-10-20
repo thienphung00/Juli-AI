@@ -35,10 +35,11 @@ filled here, because the runtime role cannot:
    writes known when they were detected; every other row is all
    ``seller_change``.
 
-It imports the pure helpers ``normalize.field_value_hash`` and
-``attribution.label_fields`` rather than copying them, so the stored values are
-exactly what the live path computes; on a fresh database there are no rows and
-the step does nothing. ``seller_change`` ``card_events`` rows for past changes
+The hash and the labelling rules are written out here (``database`` may not
+import ``services``, and a migration must not change when the code does);
+``tests/unit/test_change_attribution.py`` pins them equal to
+``normalize.field_value_hash`` and ``attribution.label_fields`` over the
+attribution matrix. On a fresh database there are no rows and the step does nothing. ``seller_change`` ``card_events`` rows for past changes
 are written by the ``card_events_backfill`` task, not here.
 
 REVERSIBLE. ``downgrade`` drops the function, the CHECK, the FK and the columns.
@@ -47,9 +48,13 @@ The deferred phone-cleanup step is re-parented onto this revision so it stays th
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import sqlalchemy as sa
@@ -68,6 +73,143 @@ CHANGES = "external_changes"
 #: when the model does). ``tests/unit/test_change_attribution.py`` pins them equal.
 ATTRIBUTIONS = ("juli", "seller_revert", "seller_change", "mixed")
 FUNCTION_SIGNATURE = "enumerate_history_shops()"
+
+
+# -- frozen copies of the pure helpers (pinned equal by tests/unit/test_change_attribution.py)
+
+#: ``attribution.JULI_WRITE_LOOKBACK`` / ``JULI_WRITE_LOOKAHEAD`` / ``JULI_FIELDS``.
+LOOKBACK = timedelta(hours=72)
+LOOKAHEAD = timedelta(hours=1)
+JULI_FIELDS = frozenset({"title", "description", "main_images", "price"})
+
+
+def _sha(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
+
+
+def _plain(value: Decimal) -> str:
+    return format(value.normalize(), "f")
+
+
+def _amount(value: Any) -> str | None:
+    if value is None or value == "":
+        return None
+    try:
+        return _plain(Decimal(str(value)))
+    except (InvalidOperation, ValueError):
+        return f"invalid:{value}"
+
+
+def _uris(value: Any) -> list[str]:
+    out: list[str] = []
+    for image in value if isinstance(value, list | tuple) else []:
+        uri = image.get("uri") if isinstance(image, dict) else image
+        if uri:
+            out.append(str(uri))
+    return out
+
+
+def field_hash(field: str, value: Any) -> str | None:
+    """``normalize.field_value_hash``."""
+    if value is None:
+        return None
+    if field in ("title", "description"):
+        return _sha(str(value).strip())
+    if field == "main_images":
+        return _sha(_canonical(_uris(value)))
+    if field == "price":
+        items = value if isinstance(value, list | tuple) else []
+        pairs = [
+            [str(i.get("sku_id")), _amount(i.get("amount"))] for i in items if isinstance(i, dict)
+        ]
+        return _sha(_canonical(sorted(pairs, key=lambda pair: pair[0])))
+    return _sha(_canonical(value))
+
+
+def state_hash(state: dict[str, Any], field: str, like: Any) -> str | None:
+    """``normalize.ProductFields.field_hash`` over a snapshot's columns."""
+    if field == "title":
+        return field_hash("title", state["title"])
+    if field == "description":
+        return state["description_hash"]
+    if field == "main_images":
+        return field_hash("main_images", list(state["image_uris"]))
+    if field == "price":
+        prices = state["list_prices"]
+        if isinstance(like, list | tuple):
+            wanted = sorted(str(i.get("sku_id")) for i in like if isinstance(i, dict))
+        else:
+            wanted = sorted(prices)
+        return _sha(_canonical([[sku, prices.get(sku)] for sku in wanted]))
+    return None
+
+
+def _naive(value: datetime) -> datetime:
+    return value.replace(tzinfo=None) if value.tzinfo is not None else value
+
+
+def label_field(
+    field: str,
+    state: dict[str, Any] | None,
+    writes: list[dict[str, Any]],
+    occurred_at: datetime,
+    known_at: datetime | None,
+) -> str:
+    """``attribution.label_field``; a write is ``{field, recorded_at, before_value,
+    after_value, before_hash, after_hash}``."""
+    if field not in JULI_FIELDS or state is None:
+        return "seller_change"
+    occurred = _naive(occurred_at)
+    latest = occurred + LOOKAHEAD
+    if known_at is not None:
+        latest = min(latest, _naive(known_at))
+    mine = sorted(
+        (w for w in writes if w["field"] == field and _naive(w["recorded_at"]) <= latest),
+        key=lambda w: _naive(w["recorded_at"]),
+    )
+    for w in mine:
+        if _naive(w["recorded_at"]) < occurred - LOOKBACK:
+            continue
+        if w["after_value"] is None and w["after_hash"] is None:
+            return "juli"
+        after = w["after_hash"] or field_hash(field, w["after_value"])
+        if after == state_hash(state, field, w["after_value"]):
+            return "juli"
+    if mine:
+        last = mine[-1]
+        before = last["before_hash"] or field_hash(field, last["before_value"])
+        if before is not None and before == state_hash(state, field, last["before_value"]):
+            return "seller_revert"
+    return "seller_change"
+
+
+def label_fields(
+    kind: str,
+    fields: list[str],
+    state: dict[str, Any] | None,
+    writes: list[dict[str, Any]],
+    occurred_at: datetime,
+    known_at: datetime | None,
+    juli_write: bool = False,
+) -> dict[str, str]:
+    """``attribution.label_fields`` / ``uniform_labels`` for one row."""
+    names = ["price"] if kind == "price" else ([str(f) for f in fields] or ["product"])
+    if juli_write:
+        return {name: "juli" for name in names}
+    if kind not in ("content", "price"):
+        return {name: "seller_change" for name in names}
+    return {name: label_field(name, state, writes, occurred_at, known_at) for name in names}
+
+
+def summarize(labels: dict[str, str]) -> str:
+    distinct = set(labels.values())
+    if not distinct:
+        return "seller_change"
+    return distinct.pop() if len(distinct) == 1 else "mixed"
 
 
 def _in(values: tuple[str, ...]) -> str:
@@ -122,8 +264,6 @@ def _function() -> None:
 
 
 def _fill_hashes(conn: Any) -> None:
-    from juli_backend.services.product_history.normalize import field_value_hash
-
     rows = conn.execute(
         sa.text(
             f"SELECT id, field, before_value, after_value FROM public.{WRITES} "  # nosec B608
@@ -138,8 +278,8 @@ def _fill_hashes(conn: Any) -> None:
             ),
             {
                 "id": row_id,
-                "b": field_value_hash(field, before),
-                "a": field_value_hash(field, after),
+                "b": field_hash(field, before),
+                "a": field_hash(field, after),
             },
         )
 
@@ -165,50 +305,36 @@ def _fill_audit_links(conn: Any) -> None:
 
 
 def _fill_attribution(conn: Any) -> None:
-    import json
-
-    from juli_backend.services.product_history.attribution import (
-        WriteRecord,
-        label_fields,
-        summarize,
-        uniform_labels,
-    )
-    from juli_backend.services.product_history.normalize import ProductFields
-
     changes = conn.execute(
         sa.text(
-            f"SELECT id, shop_id, tiktok_product_id, kind, fields, occurred_at, "  # nosec B608
+            "SELECT id, shop_id, tiktok_product_id, kind, fields, occurred_at, "  # nosec B608
             f" detected_at, juli_write, details FROM public.{CHANGES} WHERE attribution IS NULL"
         )
     ).all()
     if not changes:
         return
-    writes: dict[tuple[Any, str], list[WriteRecord]] = defaultdict(list)
+    writes: dict[tuple[Any, str], list[dict[str, Any]]] = defaultdict(list)
     for row in conn.execute(
         sa.text(
             "SELECT shop_id, tiktok_product_id, field, recorded_at, before_value, "
-            f" after_value, before_hash, after_hash, workflow_run_id FROM public.{WRITES} "  # nosec B608
+            f" after_value, before_hash, after_hash FROM public.{WRITES} "  # nosec B608
             "ORDER BY recorded_at, id"
         )
     ).all():
         writes[(row[0], row[1])].append(
-            WriteRecord(
-                field=row[2],
-                recorded_at=row[3],
-                before_value=row[4],
-                after_value=row[5],
-                before_hash=row[6],
-                after_hash=row[7],
-                workflow_run_id=row[8],
-            )
+            {
+                "field": row[2],
+                "recorded_at": row[3],
+                "before_value": row[4],
+                "after_value": row[5],
+                "before_hash": row[6],
+                "after_hash": row[7],
+            }
         )
     for change_id, shop_id, pid, kind, fields, occurred, detected, juli, details in changes:
-        names = list(fields or [])
-        if juli or kind not in ("content", "price"):
-            labels = uniform_labels(kind, names, juli_write=bool(juli))
-        else:
-            state = None
-            raw = (details or {}).get("snapshot_id") if isinstance(details, dict) else None
+        state = None
+        if not juli and kind in ("content", "price"):
+            raw = details.get("snapshot_id") if isinstance(details, dict) else None
             try:
                 snapshot_id = uuid.UUID(str(raw)) if raw else None
             except ValueError:
@@ -222,26 +348,25 @@ def _fill_attribution(conn: Any) -> None:
                     {"id": snapshot_id, "shop": shop_id},
                 ).first()
                 if snap is not None:
-                    state = ProductFields(
-                        title=snap[0],
-                        description_hash=snap[1],
-                        image_uris=tuple(
-                            str(i.get("uri")) for i in snap[2] or [] if isinstance(i, dict)
-                        ),
-                        list_prices={
+                    state = {
+                        "title": snap[0],
+                        "description_hash": snap[1],
+                        "image_uris": _uris(snap[2] or []),
+                        "list_prices": {
                             str(s.get("sku_id")): s.get("list_price")
                             for s in snap[3] or []
                             if isinstance(s, dict)
                         },
-                    )
-            labels = label_fields(
-                kind,
-                names,
-                state,
-                writes.get((shop_id, pid), []) if pid else [],
-                occurred_at=occurred,
-                known_at=detected,
-            )
+                    }
+        labels = label_fields(
+            kind,
+            list(fields or []),
+            state,
+            writes.get((shop_id, pid), []) if pid else [],
+            occurred,
+            detected,
+            juli_write=bool(juli),
+        )
         conn.execute(
             sa.text(
                 f"UPDATE public.{CHANGES} SET attribution = :a, "  # nosec B608

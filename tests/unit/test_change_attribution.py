@@ -804,3 +804,120 @@ async def test_fanout_reaches_shops_with_history_but_no_credential(session):
     seen: list[str] = []
     assert await run_fanout(session, enqueue=seen.append) == len(found)
     assert str(history_shop.id) in seen
+
+
+# -- migration 096's frozen copies stay equal to the services --------------------------------
+
+
+HASH_CASES = [
+    ("title", "  Nồi lẩu  "),
+    ("description", "<p>mô tả</p>"),
+    ("main_images", [{"uri": "a"}, "b"]),
+    ("price", [{"sku_id": "s2", "amount": "72000.0"}, {"sku_id": "s1", "amount": "5E+4"}]),
+    ("price", [{"sku_id": "s1", "amount": ""}, {"sku_id": "s3", "amount": "junk"}]),
+    ("attributes", [["a", ["1"]]]),
+    ("title", None),
+]
+
+
+@pytest.mark.parametrize(("field", "value"), HASH_CASES)
+def test_migration_hash_copy_equals_the_service(field, value):
+    assert _migration().field_hash(field, value) == field_value_hash(field, value)
+
+
+def _as_migration(state: ProductFields) -> dict:
+    return {
+        "title": state.title,
+        "description_hash": state.description_hash,
+        "image_uris": list(state.image_uris),
+        "list_prices": dict(state.list_prices),
+    }
+
+
+LABEL_CASES = [
+    # (kind, fields, title on TikTok, writes [(field, before, after, offset)], juli_write)
+    (KIND_CONTENT, ["title"], "Mới", [("title", "Cũ", "Mới", timedelta(0))], False),
+    (KIND_CONTENT, ["title"], "Mới", [("title", "Cũ", "Mới", -JULI_WRITE_LOOKBACK)], False),
+    (
+        KIND_CONTENT,
+        ["title"],
+        "Mới",
+        [("title", "Cũ", "Mới", -JULI_WRITE_LOOKBACK - timedelta(seconds=1))],
+        False,
+    ),
+    (KIND_CONTENT, ["title"], "Mới", [("title", "Cũ", "Mới", JULI_WRITE_LOOKAHEAD)], False),
+    (KIND_CONTENT, ["title"], "Cũ", [("title", "Cũ", "Mới", -timedelta(days=60))], False),
+    (
+        KIND_CONTENT,
+        ["title"],
+        "Cũ",
+        [
+            ("title", "Cũ", "Mới", -timedelta(days=60)),
+            ("title", "Mới", "Mới hơn", -timedelta(days=59)),
+        ],
+        False,
+    ),
+    (KIND_CONTENT, ["title", "attributes"], "Mới", [("title", "Cũ", "Mới", timedelta(0))], False),
+    (KIND_CONTENT, ["title"], "Mới", [("title", "Cũ", None, timedelta(0))], False),
+    (
+        KIND_PRICE,
+        ["price", "list_price"],
+        "Mới",
+        [
+            (
+                "price",
+                [{"sku_id": "s1", "amount": "1"}],
+                [{"sku_id": "s1", "amount": "50000"}],
+                timedelta(0),
+            )
+        ],
+        False,
+    ),
+    (KIND_CATEGORY, ["category_id"], "Mới", [], False),
+    (KIND_PROMOTION, ["promotion"], "Mới", [], True),
+    (KIND_CONTENT, [], "Mới", [], False),
+]
+
+
+@pytest.mark.parametrize(("kind", "fields", "title", "writes", "juli_write"), LABEL_CASES)
+def test_migration_label_copy_equals_the_service(kind, fields, title, writes, juli_write):
+    mig = _migration()
+    state = ProductFields.of(normalize_detail(_raw(title=title)))
+    records = [_write(f, before, after, T0 + offset) for f, before, after, offset in writes]
+    rows = [
+        {
+            "field": r.field,
+            "recorded_at": r.recorded_at,
+            "before_value": r.before_value,
+            "after_value": r.after_value,
+            "before_hash": None,
+            "after_hash": None,
+        }
+        for r in records
+    ]
+    known = T0 + timedelta(minutes=30)
+    if juli_write or kind not in (KIND_CONTENT, KIND_PRICE):
+        from juli_backend.services.product_history.attribution import uniform_labels
+
+        expected = uniform_labels(kind, fields, juli_write=juli_write)
+    else:
+        expected = label_fields(kind, fields, state, records, occurred_at=T0, known_at=known)
+    got = mig.label_fields(
+        kind, fields, _as_migration(state), rows, T0, known, juli_write=juli_write
+    )
+    assert got == expected
+    assert mig.summarize(got) == summarize(expected)
+    # And without a snapshot: every field a seller change, as the service says.
+    if kind in (KIND_CONTENT, KIND_PRICE) and not juli_write:
+        assert mig.label_fields(kind, fields, None, rows, T0, known) == label_fields(
+            kind, fields, None, records, occurred_at=T0, known_at=known
+        )
+
+
+def test_migration_window_constants_equal_the_service():
+    from juli_backend.services.product_history.attribution import JULI_FIELDS
+
+    mig = _migration()
+    assert mig.LOOKBACK == JULI_WRITE_LOOKBACK
+    assert mig.LOOKAHEAD == JULI_WRITE_LOOKAHEAD
+    assert mig.JULI_FIELDS == JULI_FIELDS
