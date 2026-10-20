@@ -1334,3 +1334,19 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Not run in production: migration 095 and the backfill. Owner: deploy, then
   `celery ... call juli_backend.card_events_backfill_fanout` and check
   `card_events_backfill_done` lines.
+
+## P61-A — agent reads per shop (2026-10-20, D71.1)
+
+- [ ] `services/cdp_speed/targeted_fetch_executor.py` still resolves the configured production
+  merchant (`resolve_production_read_credential` + `merchant_auth_id=PRODUCTION_AUTH_ID`). It does
+  not leak (it skips any job whose shop is not that merchant's), but targeted fetch is
+  single-tenant. Repay: `resolve_read_credential_for_shop` + the credential's merchant id, as P61-A
+  did for `composition` / the backfill top-up. Not in P61-A's file list.
+- [ ] `composition._is_sandbox_shop` still catches every exception from
+  `resolve_sandbox_write_credential` (kept from #1302) and treats it as "not the sandbox shop".
+  Safe (the per-shop path then fails closed), but a DB error is logged as a sandbox fallback.
+  Repay: catch `NotFound` only.
+- [ ] `tests/integration/test_agent_live_smoke_read_only.py` (live, never in CI) still picks its
+  shop through the configured production merchant; it now passes that shop id to
+  `build_read_resources`.
+

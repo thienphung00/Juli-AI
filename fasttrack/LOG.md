@@ -2397,3 +2397,37 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   `celery ... call juli_backend.card_events_backfill_fanout` and checks
   `card_events_backfill_done` lines. Then P60-1b (hashes + attribution + `seller_change`), P60-1e
   (feature snapshot in the `proposed` transaction).
+
+## 2026-10-20 — agent (Claude Opus) — P61-A agent reads per shop (branch `fasttrack/p61-a-agent-read`, not merged)
+
+- Bug (D71.1): `services/agent/composition.py::build_read_resources` resolved the configured
+  production merchant (`resolve_production_read_credential` + `PRODUCTION_AUTH_ID`) for every
+  non-sandbox shop, so an agent run for shop B read the reference shop's catalogue (callers:
+  `agent_workflow._default_read_resources`, `content_runs`, `content_analysis/product_info`).
+- Fix: the sandbox-write shop keeps the sandbox resources (#1302); every other shop resolves
+  `resolve_read_credential_for_shop` under `with_shop_scope(shop)` and signs with that
+  credential's `merchant_authorization_id` / `shop_cipher` / token. `shop_id` required
+  (`AgentReadShopRequired`); no credential → `NoReadCredentialForShop` (a `NotFound`); a row not
+  owned by the shop / not read-capable / without merchant id → `AgentReadCredentialMismatch`
+  before any client is built. `_default_read_resources(session, shop_id)` now requires the shop.
+  `analytics_backfill.backfill_analytics_history_auto_topup` resolves the shop's read credential
+  (production_read or seller_connect) and signs with its own merchant id (was
+  `PRODUCTION_AUTH_ID`); skip reason renamed `missing_read_credential`.
+- Tests: `tests/unit/test_agent_read_resources_per_shop.py` (8: shop A, shop B, sandbox shop,
+  no credential, `None`, wrong owner, backfill A/B + skip); `test_read_resources_shop_aware_routing`
+  None-fallback test → refusal test; `test_agent_workflow_task_wiring` passes a shop.
+  `tests/integration/test_agent_read_two_shop.py` (4, real Postgres as `juli_app`, two seeded
+  shops — production_read + seller_connect, neither the reference merchant — fake factory captures
+  `ClientFactoryConfig`): B's read carries B's token/cipher/merchant and none of A's; A's carries
+  A's; unknown shop fails closed; backfill for B signs with B's merchant. Added to
+  `_SHARED_STATE_MODULES` in `tests/conftest.py`.
+- Verification: ruff + format clean; mypy clean on the 3 touched source modules. Homebrew
+  Postgres 16 :55451 (UTC, removed after): `test_agent_read_two_shop.py` 4 passed, 0 skipped.
+  `fasttrack/check.sh --since fasttrack/optimize-product`: migrations PASS (095 head), isolation
+  12 passed, gitleaks PASS, ruff PASS (9 files), pytest PASS (10 files: 69 passed, 0 skipped,
+  1 deselected live) — **check.sh: OK**. No-DB unit suite (`tests/unit -m "not live"`): 7769
+  passed, 245 skipped, 2 xfailed, 3 failed (`test_credentials_in_url_guard::test_zero_findings...`,
+  `test_juli_app_grants_cover_mutations::test_the_scan_is_not_vacuous`,
+  `test_ops_d28_costs::test_cap_writes_are_admin_only[operator]`) under load from a concurrent
+  suite; all 3 pass re-run alone (3 passed), none touch P61-A code.
+- Not changed (DEBT P61-A): `cdp_speed/targeted_fetch_executor.py` still single-tenant.

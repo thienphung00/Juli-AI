@@ -354,6 +354,16 @@ from juli_backend.services.agent.runner import ExternalWaitNotPermitted
   `tests/unit/test_agent_sanitize_chokepoints.py`. Both consume the shared
   #990 pattern source only; no second copy of the banned-pattern list exists
   in `chokepoints.py`.
+- `composition.build_read_resources(session, shop_id)` (P61-A, D71.1): an
+  agent read is built from **the run's shop's own** read credential
+  (`resolve_read_credential_for_shop`, under that shop's scope) and that
+  credential's `merchant_authorization_id` / `shop_cipher`. `shop_id` is
+  required (`AgentReadShopRequired` on `None`); no fallback to the configured
+  production merchant; no read credential → `NoReadCredentialForShop`; a row
+  not owned by the shop → `AgentReadCredentialMismatch`. The sandbox-write
+  shop keeps reading through the sandbox resources (#1302). Enforced by
+  `tests/unit/test_agent_read_resources_per_shop.py` and
+  `tests/integration/test_agent_read_two_shop.py` (Postgres, two shops).
 
 ## Top-level modules
 
