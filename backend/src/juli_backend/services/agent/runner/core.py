@@ -220,6 +220,8 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from juli_backend.services.agent.events import (
+    AssistantTextDeltaEvent,
+    AssistantTextDeltaPayload,
     AssistantTextEvent,
     AssistantTextPayload,
     EventSink,
@@ -239,6 +241,7 @@ from juli_backend.services.agent.events import (
     WorkflowStatusPayload,
 )
 from juli_backend.services.agent.llm import (
+    AssistantTurn,
     FinalResponse,
     LLMConfig,
     LLMService,
@@ -290,6 +293,7 @@ from juli_backend.services.agent.runner.termination import (
     required_steps_completed,
     running_seconds_column_value,
 )
+from juli_backend.services.agent.runner.text_stream import TextDeltaRelay
 from juli_backend.services.agent.runner.tool_executor import ToolExecutor
 from juli_backend.services.agent.sanitize import (
     BannedPatternGuardFailure,
@@ -431,8 +435,15 @@ class WorkflowRunner:
         cancel_check: Callable[[], bool] | None = None,
         concurrency_guard: ConcurrencyGuard | None = None,
         outcome_recorder: WriteOutcomeRecorder | None = None,
+        stream_text: bool = False,
     ) -> None:
         self._llm_service = llm_service
+        # D71.3 / P61-C. When True, every model call passes `on_text_delta`
+        # and the turn's text streams out as `assistant.text.delta` events
+        # (`text_stream.py`). Opt-in because the scripted planners and most
+        # test doubles implement `LLMService.complete` without that keyword;
+        # the worker turns it on only for the real adapter.
+        self._stream_text = stream_text
         self._tool_executor = tool_executor
         # Issue #1382. The guard holds the compare-before-write basis in
         # memory; `RunState.basis_snapshots` is what survives a pause. The
@@ -1428,8 +1439,10 @@ class WorkflowRunner:
                 )
 
             iteration_started_at = self._clock()
+            relay = self._text_relay(workflow_run_id, state)
             try:
-                turn = await self._llm_service.complete(
+                turn = await self._complete_turn(
+                    relay,
                     messages=state.conversation_window_for_llm(),
                     system=system_prompt,
                     tools=tool_definitions,
@@ -1561,7 +1574,12 @@ class WorkflowRunner:
                             self._playbook.termination_policy.required_steps,
                         ):
                             stop = await self._finalize(
-                                workflow_run_id, state, block, version_str, sha256
+                                workflow_run_id,
+                                state,
+                                block,
+                                version_str,
+                                sha256,
+                                commit_streamed_text=relay is not None and relay.emitted,
                             )
                             break
                         stop = await self._terminate(
@@ -1572,7 +1590,14 @@ class WorkflowRunner:
                             sha256,
                         )
                         break
-                    stop = await self._finalize(workflow_run_id, state, block, version_str, sha256)
+                    stop = await self._finalize(
+                        workflow_run_id,
+                        state,
+                        block,
+                        version_str,
+                        sha256,
+                        commit_streamed_text=relay is not None and relay.emitted,
+                    )
                     break
                 elif isinstance(block, ToolCallBlock):
                     # --- checkpoint: immediately before tool execution ------
@@ -1671,6 +1696,34 @@ class WorkflowRunner:
             if stop is not None:
                 return stop
 
+    # --- streaming (D71.3 / P61-C) -------------------------------------------
+
+    def _text_relay(self, workflow_run_id: uuid.UUID, state: RunState) -> TextDeltaRelay | None:
+        """A fresh relay for one model call, or None when streaming is off."""
+        if not self._stream_text:
+            return None
+
+        async def emit_chunk(payload: AssistantTextDeltaPayload) -> None:
+            await self._emit(workflow_run_id, state, AssistantTextDeltaEvent, payload)
+
+        # Deterministic and unique within the run: the sequence number the
+        # block's first delta will take (a relay that emits nothing leaves the
+        # counter where it was, so no two EMITTED blocks share an id).
+        return TextDeltaRelay(emit_chunk=emit_chunk, block_id=f"b{state.next_sequence}")
+
+    async def _complete_turn(self, relay: TextDeltaRelay | None, **kwargs: Any) -> AssistantTurn:
+        """`LLMService.complete`, with `on_text_delta` only when streaming.
+
+        `on_text_delta` is not on the `LLMService` protocol (see
+        `llm/service.py::TextDeltaCallback`), so the call goes through an
+        untyped handle when a relay is attached.
+        """
+        if relay is None:
+            return await self._llm_service.complete(**kwargs)
+        complete: Any = self._llm_service.complete
+        turn: AssistantTurn = await complete(**kwargs, on_text_delta=relay.on_delta)
+        return turn
+
     # --- block handlers -----------------------------------------------------
 
     async def _append_text_block(
@@ -1679,6 +1732,23 @@ class WorkflowRunner:
         state.conversation_window.append({"role": "assistant", "content": block.text})
         await self._emit(
             workflow_run_id, state, AssistantTextEvent, AssistantTextPayload(text=block.text)
+        )
+
+    async def _commit_streamed_text(
+        self, workflow_run_id: uuid.UUID, state: RunState, text: str
+    ) -> None:
+        """The authoritative `assistant.text` for a streamed `FinalResponse`.
+
+        A `TextBlock` is always emitted as `assistant.text`; a `FinalResponse`
+        never was (it ends the run through `workflow.completed`). Once its text
+        has streamed out as deltas, though, the seller has already watched it
+        type -- so, after the outbound guard passed, it is committed with an
+        `assistant.text` that supersedes the deltas (ADR-071 amendment). Only
+        when deltas actually went out: a non-streamed run's events are
+        unchanged.
+        """
+        await self._emit(
+            workflow_run_id, state, AssistantTextEvent, AssistantTextPayload(text=text)
         )
 
     async def _dispatch_tool_call(
@@ -2108,7 +2178,9 @@ class WorkflowRunner:
         `worker_lost` five minutes later — a lie (no worker was lost) for
         what is actually a guard correctly refusing the model's output.
         """
-        turn = await self._llm_service.complete(
+        relay = self._text_relay(workflow_run_id, state)
+        turn = await self._complete_turn(
+            relay,
             messages=state.conversation_window_for_llm(),
             system=system_prompt,
             tools=tool_definitions,
@@ -2122,6 +2194,8 @@ class WorkflowRunner:
                 guard_outbound_agent_output(
                     {"content": block.content, "structured_output": block.structured_output}
                 )
+                if relay is not None and relay.emitted:
+                    await self._commit_streamed_text(workflow_run_id, state, block.content)
                 state.conversation_window.append({"role": "assistant", "content": block.content})
                 final_response = block.content
                 break
@@ -2144,6 +2218,8 @@ class WorkflowRunner:
         block: FinalResponse,
         version_str: str,
         sha256: str,
+        *,
+        commit_streamed_text: bool = False,
     ) -> RunResult:
         # A guard hit is a KNOWN outcome, not a crash (issue #1210). Letting it
         # propagate out of run() meant the row was never written terminal -- the
@@ -2171,6 +2247,8 @@ class WorkflowRunner:
                 version_str,
                 sha256,
             )
+        if commit_streamed_text:
+            await self._commit_streamed_text(workflow_run_id, state, block.content)
         state.conversation_window.append({"role": "assistant", "content": block.content})
         stop_reason = StopReason.FINAL_RESPONSE
         await self._emit(

@@ -368,3 +368,24 @@ from juli_backend.services.agent.runner import ExternalWaitNotPermitted
   juli_backend.services.agent.abuse_limits import ...`, which the
   `.importlinter.toml` depth-2 cap forbids), the same idiom this
   package's `approval.py` already uses.
+
+## Streamed model text (D71.3 / P61-C, ADR-071 amendment)
+
+- `runner/text_stream.py::TextDeltaRelay` — one per model call when
+  `WorkflowRunner(stream_text=True)`; coalesces the adapter's text deltas
+  into `assistant.text.delta` events (`STREAM_DELTA_FLUSH_MIN_CHARS` = 48 or
+  `STREAM_DELTA_FLUSH_INTERVAL_SECONDS` = 0.1) and runs
+  `guard_outbound_agent_output` over the whole received text before every
+  emit, releasing only text `STREAM_GUARD_HOLDBACK_CHARS` (64) short of its
+  end; a hit stops the turn's stream. `block_id` = `b<next_sequence>` at the
+  relay's creation (deterministic, unique among emitted blocks of a run).
+- Invariant: every streamed block is followed by its authoritative
+  `assistant.text` (a `TextBlock` always was; a streamed `FinalResponse` is
+  now committed by one after the guard passes, before `workflow.completed`),
+  or by a terminal / other event and never committed (guard refusal,
+  `llm_error`, `required_steps_unfulfilled`) — clients drop those.
+- `stream_text` defaults to False (scripted planners and test doubles do not
+  take `on_text_delta`); `workers/tasks/agent_workflow.py` turns it on only
+  for the real cap-guarded adapter. Deltas are persisted like every event
+  (Postgres is the replay authority); `services/ops/runs.py` leaves them out
+  of the ops timeline.

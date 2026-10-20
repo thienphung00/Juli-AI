@@ -1,0 +1,171 @@
+{
+  "scenario_id": "optimize-product-streamed",
+  "workflow_key": "optimize_product_2",
+  "prompt_sha256": "46fcd666c0d598c8ea71496a13fc40e23bcd85a8341bb86a062e9de851d2373c",
+  "captured_at": "2026-01-01T00:00:00+00:00",
+  "events": [
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 1,
+      "event_type": "workflow.started",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "workflow_key": "optimize_product_2",
+        "product_ref": "product-ref-ba227180",
+        "prompt_version": "optimize_product.v3"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 2,
+      "event_type": "assistant.text.delta",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "block_id": "b2",
+        "chunk_index": 0,
+        "text": "Mình sẽ đọc thông tin sản phẩm trước, rồi so sánh "
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 3,
+      "event_type": "assistant.text.delta",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "block_id": "b2",
+        "chunk_index": 1,
+        "text": "với các từ khoá đang được người mua tìm nhiều nh"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 4,
+      "event_type": "assistant.text.delta",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "block_id": "b2",
+        "chunk_index": 2,
+        "text": "ất để xem tiêu đề có cần chỉnh không. Sau đó mìn"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 5,
+      "event_type": "assistant.text.delta",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "block_id": "b2",
+        "chunk_index": 3,
+        "text": "h kiểm tra mô tả, thuộc tính và ảnh chính, vì đâ"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 6,
+      "event_type": "assistant.text",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "text": "Mình sẽ đọc thông tin sản phẩm trước, rồi so sánh với các từ khoá đang được người mua tìm nhiều nhất để xem tiêu đề có cần chỉnh không. Sau đó mình kiểm tra mô tả, thuộc tính và ảnh chính, vì đây là những phần TikTok dùng để xếp hạng sản phẩm trong kết quả tìm kiếm."
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 7,
+      "event_type": "tool.started",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "tool_call_id": "c1",
+        "tool_name": "get_product_information"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 8,
+      "event_type": "tool.completed",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "tool_call_id": "c1",
+        "tool_name": "get_product_information",
+        "ok": true,
+        "summary": "Hoàn tất"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 9,
+      "event_type": "assistant.text.delta",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "block_id": "b9",
+        "chunk_index": 0,
+        "text": "Tiêu đề hiện tại đã chứa các từ khoá chính, mô tả "
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 10,
+      "event_type": "assistant.text.delta",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "block_id": "b9",
+        "chunk_index": 1,
+        "text": "đủ chi tiết và ảnh rõ ràng, nên lượt này mình kh"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 11,
+      "event_type": "assistant.text.delta",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "block_id": "b9",
+        "chunk_index": 2,
+        "text": "ông đề xuất thay đổi nào. Mình sẽ theo dõi số li"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 12,
+      "event_type": "assistant.text.delta",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "block_id": "b9",
+        "chunk_index": 3,
+        "text": "ệu tuần sau: lượt xem trang, tỉ lệ bấm vào sản p"
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 13,
+      "event_type": "assistant.text",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "text": "Tiêu đề hiện tại đã chứa các từ khoá chính, mô tả đủ chi tiết và ảnh rõ ràng, nên lượt này mình không đề xuất thay đổi nào. Mình sẽ theo dõi số liệu tuần sau: lượt xem trang, tỉ lệ bấm vào sản phẩm và số đơn. Nếu tỉ lệ bấm giảm, mình sẽ quay lại với một đề xuất tiêu đề cụ thể để bạn xác nhận."
+      },
+      "v": 1
+    },
+    {
+      "workflow_run_id": "00000000-0000-0000-0000-0000000057e4",
+      "sequence_number": 14,
+      "event_type": "workflow.completed",
+      "timestamp": "2026-01-01T00:00:00",
+      "payload": {
+        "stop_reason": "final_response"
+      },
+      "v": 1
+    }
+  ],
+  "continuations": {}
+}
