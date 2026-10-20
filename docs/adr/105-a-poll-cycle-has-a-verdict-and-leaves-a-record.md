@@ -235,3 +235,10 @@ that predates the column has no verdict, and a default of `'ok'` or `0` would
 manufacture the claim that an endpoint succeeded, which is the comfortable
 lie this whole issue exists to remove. NULL means "not measured", and that is
 the honest value.
+
+## Amendment 2026-10-20 (ADR-112)
+
+The cycle verdict is extended with per-shop SLOs (freshness, completeness, 429 rate, queue lag, mapper failures,
+this verdict) in [ADR-112](112-ingestion-platform-job-queue-rate-budget-bronze-silver.md) §7. The #1950 counting
+gap recorded in Consequences is closed by ADR-112 §5.6: `make_etl_handoff` returns `ProcessOutcome` and DLQ rows
+count as failed, so `tiktok_sync_state.last_persisted` means committed rows.

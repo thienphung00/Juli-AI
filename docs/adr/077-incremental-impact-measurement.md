@@ -140,3 +140,12 @@ comparison.
   proxy for SEO visibility, arithmetic-mean rates — each with a named upgrade path
   (tfcausalimpact intervals, traffic-source split if TikTok exposes it, pooled
   rates with raw counts).
+
+## Amendment 2026-10-20 (ADR-107 / D70.11)
+
+A reading now carries two labels from ADR-107's 2026-10-20 amendment §10: `reverted` (Juli's
+revert, or the seller restoring the before-value of a field the run wrote, inside the post
+window) and `confounded`, widened from "a second Juli run" to any seller change, promotion or price
+change on the product in the pre or post window. Both cut the post window at that date; a cut
+reading short of its plan is "Không đo được", and a labelled reading is never pooled. The
+counterfactual is ADR-114's randomized control when the product is in an experiment, else this ADR's DiD.

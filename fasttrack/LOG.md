@@ -2325,3 +2325,33 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   `sync_inventory_products_excluded_by_status`, `shop_bootstrap_fast_done`,
   `shop_bootstrap_failed` (the event is named that way; the Celery task is `bootstrap_shop`) and
   `12019008` (DEBT P59 first item).
+
+## 2026-10-20 — agent (Claude Opus, lead + 7 sub-agents) — sync main, D70 data platform, P60 ADRs
+
+- Main checkout cleaned: uncommitted TTS Open Toolkit wiring moved here (`c7e620c9`, 8 tests);
+  rest stashed in the main checkout ("2026-10-20 main cleanup"). PR #2147 (grill log) merged.
+- Merge `origin/main` → this branch (`aa70ce86`): landing + `packages/brand` kept as deployed
+  (`fasttrack-deploy-20261019T1407Z`; `/product` 301 → `/san-pham`); #2128 shop-videos fetch
+  ported to `services/shop_diagnosis_daily/fetch.py`, called from the manual script only (daily
+  rankings job keeps its P8b budget); main's Shopee ISV ADR renumbered 109 → **111** (epic #2139
+  updated). Related unit tests: 988 passed, 3 skipped.
+- P60-0a `P0_TIKTOK_WEBHOOKS.md`: no webhook for price, SKU add/remove, seller deactivate/delete,
+  coupons → `update_time_ge` poll. P60-0b `GAP_MAP_FASTTRACK.md` (one claim corrected by ADR-113:
+  the snapshot hash already covers images/status/category/prices).
+- ADR-112 (ingestion platform), 113 (shop data), 114 (experiments), 115 (training + model gate),
+  ADR-107 accepted + amended; notes on 029, 046, 077, 104, 105. ADR tests: 358 passed, 8 skipped.
+- **Owner flags** (written into each ADR; numbers are proposed defaults):
+  - 107: `shown` = first display only; nullable `card_id` for card-less `seller_change` /
+    `shadow`; new `reverted` event and `mixed` attribution.
+  - 112: keep `DEMO_REFERENCE_SHOP_ID` in `api/routes/demo_analytics.py` (Demo binding, ADR-094);
+    days 61–90 queued right after connect for L2; old bronze not converted to partitions; N = 7
+    days, tolerances (counts exact, GMV ≤ 0.5 %, traffic ≤ 1 %), 20 % P2 reserve; archive in a
+    private Supabase Storage bucket.
+  - 113: SKU stock out of the version hash (→ `inventory_daily`); `product_changes` poll every
+    15 min outside the D27.3 60-min gate; Shopee dimensions decided at P8. Bug found: same-day
+    A→B→A revert lost by the day-unique key on `product_snapshots` (fixed by the version chain).
+  - 114: Ops groups (D34/P30) need seller consent from now on; consent copy vs D61; control share
+    0.5 (was ~1/3); one SECURITY DEFINER `ml` write path for the app role.
+  - 115: revoke `UPDATE` on `gold.ml_feature_snapshots`; thresholds (coverage ≥ 0.80, acceptance
+    −10 pts, min 30 decisions / 20 readings, shadow 2–8 weeks).
+- Next: owner answers the flags → P60-1a `card_events`. Owner: P60-0c DB query, P60-0d depth.

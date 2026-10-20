@@ -51,3 +51,10 @@ unpublished; Juli calibrates from `100005` and a local ~10 req/min/endpoint buck
   slice; PRD must list them as out of 2.9 must-have.
 - Active/New may fall back to point-in-time counts if A-2 cannot time-travel.
 - Pricing-model export/fit remains a follow-on once the owner specifies it.
+
+## Amendment 2026-10-20 (ADR-112)
+
+The call budget is now enforced fleet-wide by the shared rate coordinator of
+[ADR-112](112-ingestion-platform-job-queue-rate-budget-bronze-silver.md) §2 (token bucket per platform, app, shop,
+endpoint group; 429-driven lowering; P2 reserve); `CallBudgetGovernor` remains the per-job attempt cap. The
+backfill's hardcoded `DEMO_REFERENCE_SHOP_ID` (`analytics_backfill_topup`) is removed for per-shop jobs (ADR-112 §6.5).

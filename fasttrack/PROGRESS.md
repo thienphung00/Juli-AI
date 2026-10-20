@@ -399,7 +399,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P60-0b Gap map D1–D16 vs this branch | D70 | done (`GAP_MAP_FASTTRACK.md`) | agent (Sonnet) |
 | P60-0c `fujiwa_db_coverage.sql` on production (read-only) | D70.16 | todo | owner |
 | P60-0d Max history depth per endpoint, measured on Fujiwa (read-only) | D70.3 | todo | owner + agent |
-| P60-ADR ADR-112..115 + ADR-107 amendment + notes on 029 / 046 / 077 / 104 | D70 | doing | agents (Opus) |
+| P60-ADR ADR-112..115 + ADR-107 amendment + notes on 029 / 046 / 077 / 104 / 105 | D70 | done (owner flags open — LOG 2026-10-20) | agents (Opus) |
 | P60-1a `card_events` minimum + RLS + writer + backfill from existing tables | D70.9 | todo | — |
 | P60-1b Content hashes on `run_write_values`; `external_changes` source juli / seller_revert / seller_change → `card_events` | D70.11 (1)(3) | todo | — |
 | P60-1c `valid_from` / `valid_to` + current view over `product_snapshots`; confirm `product_history_fanout` live for Fujiwa | D70.4 | todo | — |

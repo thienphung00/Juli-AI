@@ -172,3 +172,9 @@ quietly overclaimed later.
   never enters `_paginate`. Harmless at Fujiwa's 116 products; at 30k it is
   ~1,000 sequential POSTs under a 10-request/60s limiter. Introduced by #1948,
   not addressed here.
+
+## Amendment 2026-10-20 (ADR-112)
+
+The poll verdict is extended with per-shop SLOs (freshness, completeness, 429 rate, queue lag, mapper failures) in
+[ADR-112](112-ingestion-platform-job-queue-rate-budget-bronze-silver.md) §7. #1950's counting fix: `HandoffFn` returns
+`ProcessOutcome`, so `_CountingHandoff` counts a DLQ'd row as failed, not persisted (ADR-112 §5.6).

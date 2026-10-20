@@ -264,3 +264,10 @@ to read **`silver.*` only**; optional `gold.ml_feature_snapshots` remains a sepa
   serving vs ML gold fork, **Serving KPI envelope contract** (Q3), **Shared Compute Orchestrator**
   job boundary (Q4).
 - Pipeline spine: [ADR-038](038-phase-2.10-dual-layer-pipeline.md), [ADR-048](048-cdp-webhook-first-spine-dual-credential.md).
+
+## Amendment 2026-10-20 (ADR-112)
+
+Bronze partitioning (native monthly ranges, pre-create job), retention (bronze 13 months, silver forever), the
+Parquet + hash + manifest archive with replay, and silver lineage columns `bronze_id` + `mapper_version` are now
+specified in [ADR-112](112-ingestion-platform-job-queue-rate-budget-bronze-silver.md) §4–§5; cutover by domain is
+made concrete there (§6: parallel write, daily reconcile, one flag per domain).
