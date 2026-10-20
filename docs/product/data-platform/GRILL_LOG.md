@@ -61,6 +61,6 @@ Một câu mỗi lượt, kèm khuyến nghị; xây trên ADR hiện có (046, 
   - ADR: mới — nền tảng thu thập (D1–D3, D7, D8, D14, D15); mới — dữ liệu shop (D4–D6); sửa ADR-107 (D9, D11); mới — thử nghiệm (D10); mới — huấn luyện + cổng mô hình (D12, D13); ghi chú sửa ADR-029, 046, 077, 104.
 
 ## Việc cần xác minh
-- [ ] TikTok webhook: có sự kiện khi người bán sửa tiêu đề / giá / ảnh / SKU / khuyến mãi không (tài liệu Partner Center) — D11 (2).
+- [x] TikTok webhook: có sự kiện khi người bán sửa tiêu đề / giá / ảnh / SKU / khuyến mãi không (tài liệu Partner Center) — D11 (2). → [`P0_TIKTOK_WEBHOOKS.md`](P0_TIKTOK_WEBHOOKS.md) (2026-10-20, corpus vendor 2026-07-21): webhook có cho tiêu đề / mô tả / ảnh (15), tồn kho (68), trạng thái (5, 37), danh mục (18), khuyến mãi (39, 63); **không** có cho giá, thêm / bớt SKU (50 chưa chốt type), người bán tắt / xoá, coupon → poll `update_time_ge` 15 phút + đối soát ngày. Còn chờ thử thật trên shop test (đổi giá, SKU, tắt sản phẩm).
 - [ ] Độ sâu lịch sử tối đa từng endpoint (đo trên Fujiwa, chỉ đọc) — D3.
 - [ ] Kết quả `fujiwa_db_coverage.sql` (chủ shop chạy).
