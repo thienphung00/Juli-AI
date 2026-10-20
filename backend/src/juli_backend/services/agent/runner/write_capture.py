@@ -27,6 +27,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
+from datetime import datetime
 from typing import Any, Protocol
 
 from juli_backend.services.agent.runner.concurrency import ConcurrencyExhaustedError
@@ -48,12 +50,17 @@ RECORDED_OPERATIONS: frozenset[str] = frozenset(FIELDS_BY_OPERATION)
 
 @dataclass(frozen=True)
 class FieldWrite:
-    """One field one WRITE changed."""
+    """One field one WRITE changed.
+
+    ``before_read_at`` (naive UTC) is when the before-value was read; it is set
+    by the executor and left out of equality, so a diff compares by value.
+    """
 
     field: str
     before: Any
     after: Any
     after_source: str
+    before_read_at: datetime | None = dataclass_field(default=None, compare=False)
 
 
 class WriteValueRecorder(Protocol):
@@ -166,14 +173,36 @@ def diff_write(
     return writes
 
 
+def _still_matches(field: str, live: Any, expected: Any, expected_hash: str | None) -> bool:
+    """Hashes when both sides have one (ADR-107 amendment §9), else the values."""
+    from juli_backend.services.product_history.normalize import field_value_hash
+
+    live_hash = field_value_hash(field, live)
+    if expected_hash and live_hash is not None:
+        return live_hash == expected_hash
+    return values_match(live, expected)
+
+
 def changed_fields(
-    operation: str, *, live: Mapping[str, Any], expected: Mapping[str, Any]
+    operation: str,
+    *,
+    live: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    expected_hashes: Mapping[str, str | None] | None = None,
 ) -> list[str]:
-    """The fields in ``expected`` whose live value no longer matches it."""
+    """The fields in ``expected`` whose live value no longer matches it.
+
+    With ``expected_hashes`` (Juli's ``after_hash`` per field) a field is
+    compared by hash -- the same canonical form ``product_snapshots`` uses --
+    and by value when either hash is missing; the outcome is the same either
+    way (surrounding whitespace ignored).
+    """
+    hashes = expected_hashes or {}
     return [
         field
         for field in FIELDS_BY_OPERATION.get(operation, ())
-        if field in expected and not values_match(live.get(field), expected[field])
+        if field in expected
+        and not _still_matches(field, live.get(field), expected[field], hashes.get(field))
     ]
 
 

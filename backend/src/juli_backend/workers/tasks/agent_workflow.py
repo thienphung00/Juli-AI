@@ -691,6 +691,7 @@ async def _construct_runner(
         ),
         restore_main_image_uris=revert_plan.restore_main_image_uris if revert_plan else None,
         revert_expected=revert_plan.expected if revert_plan else None,
+        revert_expected_hashes=revert_plan.expected_hashes if revert_plan else None,
         # P10-B: the seller's checked photo, the TikTok URI already staged from
         # it (the consent's resume leg), and where a new staging is kept.
         pending_image_bytes=flow.pending_image_bytes if flow else None,

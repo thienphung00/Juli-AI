@@ -148,6 +148,8 @@ class FieldChange:
     after_source: str
     tool_name: str
     recorded_at: datetime | None
+    #: The latest write's ``after_hash`` (P60-1b); ``None`` on a pre-096 row.
+    after_hash: str | None = None
 
 
 @dataclass(frozen=True)
@@ -193,6 +195,7 @@ async def load_run_changes(
             after_source=row.after_source,
             tool_name=row.tool_name,
             recorded_at=row.recorded_at,
+            after_hash=row.after_hash,
         )
     return list(merged.values())
 
@@ -262,6 +265,7 @@ def build_plan(
         restore={change.field: change.before for change in changes},
         expected={change.field: change.after for change in changes},
         started_by_user_id=str(started_by_user_id) if started_by_user_id else None,
+        expected_hashes={change.field: change.after_hash for change in changes},
     )
 
 
@@ -320,7 +324,10 @@ async def start_revert(
         raise _refuse(REFUSED_LIVE_READ_FAILED) from None
     changed = tuple(
         changed_fields(
-            LISTING_OPERATION, live=field_values(LISTING_OPERATION, live), expected=plan.expected
+            LISTING_OPERATION,
+            live=field_values(LISTING_OPERATION, live),
+            expected=plan.expected,
+            expected_hashes=plan.expected_hashes,
         )
     )
     if changed:
