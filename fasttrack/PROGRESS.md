@@ -414,7 +414,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 |---|---|---|---|
 | P61-A Agent reads per shop (hotfix) + two-shop no-leak test | D71.1 | done, merged (ff c6bc698b) | agent |
 | P61-B Production write per shop (P5), flags off; honest sandbox UX; measurement ignores sandbox runs | D71.2 | doing (`fasttrack/p61-b-prod-write`) | agent |
-| P61-C Token streaming: adapter → `assistant.text.delta` → SSE → demo caret; ADR-071 amendment | D71.3 | done on branch `fasttrack/p61-c-streaming` (not merged) | agent |
+| P61-C Token streaming: adapter → `assistant.text.delta` → SSE → demo caret; ADR-071 amendment | D71.3 | done, merged (ff 9470ffb7); owner after deploy: one live run, check `assistant.text.delta` then `assistant.text` rows; off switch `LLM_STREAMING=off` | agent |
 | P61-D Hardcode / beat / flag cleanup, startup env check, reject route, delete `fujiwa_poll_beat` | D71.4 | doing (`fasttrack/p61-d-cleanup`) | agent |
 | P61-E End-to-end two-shop test OAuth → `card_events`; live `shown` / `expired` writers | D71.5 | todo (after A–D and P60-1b merge) | — |
 | Owner: confirm production env (`AGENT_WORKFLOWS_ENABLED`, `TIKTOK_APP_KEY/SECRET`, `REDIS_URL`); later flip `PRODUCTION_WRITE_ENABLED` per shop | D71 | todo | owner |
