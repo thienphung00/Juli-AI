@@ -1,0 +1,67 @@
+---
+description: >-
+  TTS Open Toolkit CLI (tts_open_toolkit) for TikTok Shop OpenAPI schema, scopes,
+  webhooks, sandbox material, and Changelog impact during integrations work.
+  Focus/Meta selects — never always-on. CLI + bundled agent skills, not an MCP.
+alwaysApply: false
+---
+
+# TTS Open Toolkit CLI (Focus-selected only)
+
+**Do not use unless Focus/Meta selected the TikTok vendor lane** for this turn
+(`integrations` executor, `api-docs`, or an explicit TikTok endpoint/scope/webhook
+need). Prefer repo authorities when they already answer the question:
+`docs/integrations/tiktok_api/`, `docs/integrations/tiktok_corpora/` (ADR-051), and
+the owning `MODULE.md`.
+
+**Use for:** confirming an exact endpoint version/method/path/field/scope against the
+bundled OAS snapshot and current Partner Center docv2; sandbox test material;
+assessing whether a Partner Platform Changelog entry hits this repo.
+
+**Do not use for:** seller-facing policy or education prose (that is `platform-docs`
++ the corpora), product copy, or any question the repo docs already settle.
+
+## Bundled skills (installed at user scope — `~/.claude/skills/`)
+
+| Skill | Load when |
+|-------|-----------|
+| `tts-openapi-guide` | exact endpoint, version, path, headers, request/response fields, scopes |
+| `tts-openapi-faq-index` | signing, token refresh, authorization, webhook-setup symptoms |
+| `tts-openapi-sandbox-materials` | need a sandbox order/product in a specific state |
+| `tts-developer-onboarding-guide` | app registration, dev shops, authorization prerequisites |
+| `tts-open-platform-glossary` | Open Platform terminology (shop_cipher, 3PL, cross-border …) |
+| `tts-open-toolkit` | the CLI itself — install, upgrade, auth profiles, doctor |
+| `tts-seller-university-basic-knowledge-index` | Seller University URL index only — **not** a `platform-docs` substitute |
+
+`tts-openapi-guide` carries a ~3 MB offline OAS snapshot. It is a **baseline, not
+proof of currency** — the skill's own workflow requires checking docv2 for newer
+versions before you pin one.
+
+## Commands
+
+```bash
+tts_open_toolkit doctor                       # resolved paths, version, channel
+tts_open_toolkit skill state --agent cc --json # current / outdated / modified
+tts_open_toolkit skill add --agent cc --update # refresh bundled skills
+```
+
+Use `--json` whenever an agent consumes the output; never scrape human-readable text
+when a `--json` form exists. Set `OPEN_TOOLKIT_SKIP_UPDATE_CHECK=1` in CI or any
+deterministic smoke test.
+
+## Boundaries
+
+- **Never run `tts_open_toolkit mcp …`.** This workspace is CLI-first; registering an
+  MCP server adds always-on tool-schema context for every agent. See
+  [skill-catalog](../skills/skill-catalog/SKILL.md).
+- **Never run `tts_open_toolkit setup`** (managed agent hooks) — hooks in this repo are
+  governed by [`hooks.mdc`](hooks.mdc) and `.claude/hooks/`, not by a vendor installer.
+- `auth login`, `devapi`, `app`, `sandbox`, and `openapi proxy` touch real Partner
+  Center credentials. Tokens live in macOS Keychain, never in the repo. Do not run a
+  write-path call without the owner's explicit go-ahead, and never paste a token,
+  App Secret, or authorization code into a prompt, log, or commit.
+- Generated code and version picks are evidence to verify, not results. Confirm against
+  `docs/integrations/tiktok_api/contract-collection.md` and the deployed client in
+  `backend/integrations/catalog/domain/integrations/tiktok/` before landing.
+
+Catalog entry: [skill-catalog](../skills/skill-catalog/SKILL.md) `catalog.cliDocs`.

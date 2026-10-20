@@ -108,3 +108,9 @@ apps/*/CLAUDE.md
 
 # P33-E SEO scripts venv
 .venv-seo/
+
+# TTS Open Toolkit project-scope state (config + prompt/skill history the CLI writes
+# into the repo root). Machine-local and may reference App/Shop identifiers — never
+# source control. The toolkit's own skills install at user scope (~/.claude/skills),
+# not here; routing lives in .cursor/rules/tts-open-toolkit-cli.mdc.
+.tts_open_toolkit/

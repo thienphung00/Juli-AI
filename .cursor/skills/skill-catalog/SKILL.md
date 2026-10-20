@@ -6,7 +6,7 @@ description: >-
   Sentry, Figma, shadcn, library docs, browser/Playwright, Celery, Upstash) or when
   focus/agent phases need to name the right plugin skill to load.
 catalog:
-  updated: "2026-07-23"
+  updated: "2026-09-21"
   projectStack:
     - python-fastapi
     - nextjs-web
@@ -31,6 +31,39 @@ catalog:
       commands:
         - "npx ctx7@latest library <name> \"<question>\""
         - "npx ctx7@latest docs <libraryId> \"<question>\""
+    # TTS Open Toolkit is CLI + bundled agent skills (npm @tts-open-toolkit/cli) —
+    # NOT an MCP server here, even though the CLI can register one. Vendor lane only.
+    - id: tts-open-toolkit
+      cli: "tts_open_toolkit"
+      package: "@tts-open-toolkit/cli"
+      pinned: "0.1.7"
+      rule: .cursor/rules/tts-open-toolkit-cli.mdc
+      when:
+        - confirming a TikTok Shop endpoint version, path, field, or scope
+        - TikTok webhook contract or signing/token-refresh symptom
+        - sandbox test material for an OpenAPI call
+        - assessing whether a Partner Platform Changelog entry hits this repo
+      notWhen:
+        - seller-facing policy or education prose (platform-docs + tiktok_corpora)
+        - product copy or UI work
+        - docs/integrations/tiktok_api/ or MODULE.md already answers it
+      skills:
+        # Installed at user scope (~/.claude/skills) via `skill add --agent cc`;
+        # not vendored into this repo. Refresh with `--update`.
+        - name: tts-openapi-guide
+        - name: tts-openapi-faq-index
+        - name: tts-openapi-sandbox-materials
+        - name: tts-developer-onboarding-guide
+        - name: tts-open-platform-glossary
+        - name: tts-open-toolkit
+        - name: tts-seller-university-basic-knowledge-index
+      commands:
+        - "tts_open_toolkit doctor"
+        - "tts_open_toolkit skill state --agent cc --json"
+        - "tts_open_toolkit skill add --agent cc --update"
+      never:
+        - "tts_open_toolkit mcp …"   # CLI-first workspace; no always-on tool schemas
+        - "tts_open_toolkit setup"   # hooks are governed by .claude/hooks + hooks.mdc
   # Skill-only marketplace plugins — no MCP server, invoked directly as /skill-name.
   pluginSkills:
     - id: frontend-design
@@ -258,7 +291,7 @@ Machine-readable index for **focus** and agent-phase routing. Plugin skills ship
 | Design-reference / layout inspiration before coding | `open-design`, `Mobbin` | `open-design-system` → Mobbin MCP → `frontend-design` (aesthetic direction) → `ui-ux-design` (ADR-043; reference-only) |
 | Add/refine UI component, page, form | `shadcn` (user-shadcn) if registry | `open-design-system` + Mobbin when references needed; then `frontend-design` (anti-generic creative direction) → `ui-ux` executor, `ui-ux-design`, ADR-028 copy; `shadcn` atoms only |
 | LLM / AI SDK in app | — | `ai-sdk`, `ai-gateway`; review `ai-integration` checklist |
-| TikTok API / webhooks | — | `docs/integrations/tiktok_api/`, MODULE.md (no plugin) |
+| TikTok API / webhooks | — | `docs/integrations/tiktok_api/`, MODULE.md → **TTS Open Toolkit CLI** (`tts_open_toolkit`) + `tts-openapi-guide` for exact endpoint/version/scope |
 | New vendor API onboarding | — | `api-docs` (+ Focus-selected **Context7 CLI** for SDK/library refs) |
 | Seller/creator feature guide, policy, account health | — | `platform-docs` (WebFetch University/policy; Context7 CLI only if partner SDK docs) |
 | Library/framework docs during **implementation** | — | Focus selects **Context7 CLI** (`npx ctx7@latest`); not MCP |

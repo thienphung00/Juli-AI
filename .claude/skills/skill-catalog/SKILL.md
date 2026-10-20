@@ -37,6 +37,7 @@ Architect/Meta phases.
 | E2E browser flows | `npx playwright` | `playwright` MCP |
 | Deploy, env vars | `vercel` | `plugin-vercel-vercel` MCP |
 | Celery / Redis inspection | `celery` CLI, `redis-cli` | `celery`, `upstash` MCP |
+| TikTok Shop endpoint version / scope / webhook contract | `tts_open_toolkit` + the `tts-*` skills | `tts_open_toolkit mcp` (never register it) |
 | Layout / component extraction | **MCP** `open-design` | — no CLI exists |
 | Screen / flow inspiration | **MCP** `Mobbin` | — no CLI exists |
 | Figma read/write | **MCP** `figma` (load `figma-use` first) | — no CLI exists |

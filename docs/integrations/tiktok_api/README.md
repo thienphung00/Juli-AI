@@ -23,6 +23,24 @@ seller-money rescope ([`EXECUTION.md`](../../EXECUTION.md)).
 | API documentation | [Partner Center Documents](https://partner.tiktokshop.com/docv2/page/) |
 | Developer guide | [tts-developer-guide](https://partner.tiktokshop.com/docv2/page/tts-developer-guide) |
 
+## Local tooling — TTS Open Toolkit CLI
+
+Before hand-reading the Partner Center tree below, use the official CLI. It ships an
+offline OpenAPI snapshot plus agent skills that resolve an endpoint's exact version,
+path, headers, fields, and scopes.
+
+```bash
+npm install -g @tts-open-toolkit/cli    # pinned 0.1.7
+tts_open_toolkit skill add --agent cc   # → ~/.claude/skills/tts-*  (user scope)
+tts_open_toolkit doctor
+```
+
+Routing contract and boundaries (no MCP, no vendor hooks, no unapproved write calls):
+[`.cursor/rules/tts-open-toolkit-cli.mdc`](../../../.cursor/rules/tts-open-toolkit-cli.mdc).
+
+The bundled OAS is a **baseline, not proof of currency** — confirm against docv2 and
+against [`contract-collection.md`](contract-collection.md) before pinning a version.
+
 ## API Reference categories
 
 Use the official [Partner Center Documents](https://partner.tiktokshop.com/docv2/page/)

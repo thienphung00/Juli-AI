@@ -11,6 +11,8 @@ Before loading feature docs for integration work, consult the project plugin ind
 - **MCP routing rule:** [`.cursor/rules/mcp-usage.mdc`](../../../rules/mcp-usage.mdc)
 - **Context7 CLI rule (not always-on):** [`.cursor/rules/context7-cli.mdc`](../../../rules/context7-cli.mdc) —
   Focus/Meta selects for technical & domain implementation only
+- **TTS Open Toolkit CLI rule (not always-on):** [`.cursor/rules/tts-open-toolkit-cli.mdc`](../../../rules/tts-open-toolkit-cli.mdc) —
+  Focus/Meta selects for the TikTok vendor lane only; CLI + user-scope `tts-*` skills, never an MCP
 
 | Task signal | Plugin skill(s) to load | MCP / CLI |
 |-------------|-------------------------|-----------|
@@ -19,6 +21,10 @@ Before loading feature docs for integration work, consult the project plugin ind
 | New/stale vendor API reference | `api-docs` | Context7 CLI when SDK/library refs needed |
 | Seller / creator policy, feature guide, account health | `platform-docs` | — (WebFetch; Context7 CLI only for partner SDK docs) |
 | Existing vendor integration (`docs/*_api/`) | — | — (load `docs/<vendor>_api/` + `docs/<vendor>_platform/` + MODULE.md) |
+| TikTok endpoint version / path / field / scope to confirm | `tts-openapi-guide` | **TTS Open Toolkit CLI** (`tts_open_toolkit`) — after `docs/integrations/tiktok_api/` |
+| TikTok signing, token refresh, webhook-setup symptom | `tts-openapi-faq-index` | TTS Open Toolkit CLI |
+| Sandbox order/product material for an OpenAPI test | `tts-openapi-sandbox-materials` | TTS Open Toolkit CLI (auth required) |
+| Partner Platform Changelog impact on this repo | `tts-openapi-guide` | TTS Open Toolkit CLI |
 | TikTok vendor depth / cross-corpus verification (Architect/Meta only) | — | — (`docs/integrations/tiktok_corpora/README.md` + selected catalog(s); ADR-051) |
 | Design-reference / layout inspiration before implementation | `open-design-system` | `open-design`, `Mobbin` (reference-only; ADR-043) |
 | Mobbin problem-section screen inspiration | — | `Mobbin` (`search_screens`, `search_flows`, `search_sections`) |
