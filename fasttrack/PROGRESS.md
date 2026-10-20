@@ -412,7 +412,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P61-A Agent reads per shop (hotfix) + two-shop no-leak test | D71.1 | done on branch `fasttrack/p61-a-agent-read` (not merged) | agent |
+| P61-A Agent reads per shop (hotfix) + two-shop no-leak test | D71.1 | done, merged (ff c6bc698b) | agent |
 | P61-B Production write per shop (P5), flags off; honest sandbox UX; measurement ignores sandbox runs | D71.2 | doing (`fasttrack/p61-b-prod-write`) | agent |
 | P61-C Token streaming: adapter → `assistant.text.delta` → SSE → demo caret; ADR-071 amendment | D71.3 | doing (`fasttrack/p61-c-streaming`) | agent |
 | P61-D Hardcode / beat / flag cleanup, startup env check, reject route, delete `fujiwa_poll_beat` | D71.4 | doing (`fasttrack/p61-d-cleanup`) | agent |
