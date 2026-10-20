@@ -46,6 +46,16 @@ Matches ``__all__`` — re-exports only:
   nonexistent shop and a cross-tenant one indistinguishable (never 403, no existence
   oracle). It replaces the silent ``None`` the read path used to return, which let a newly
   connected seller be scored over an empty database with no error anywhere
+- ``resolve_write_credential_for_shop(session, shop_id)`` — fast track P61-B (D71.2): the
+  credential **that shop owns** its production writes are signed with. The capabilities it
+  considers are ``PRODUCTION_WRITE_CREDENTIAL_CAPABILITIES`` (the shop's own OAuth rows,
+  ``READ_CAPABILITIES``); it refuses a row without a merchant id and the sandbox merchant's
+  row, and has no fallback. ``NoWriteCredentialForShop`` (a ``NotFound``) when nothing
+  qualifies. Being resolvable never makes a write possible: the ADR-085 gates in
+  ``services/execution/production_write_resolver.py`` decide that
+- ``NoWriteCredentialForShop`` — the shop owns nothing write-capable (a ``NotFound``, P61-B)
+- ``PRODUCTION_WRITE_CREDENTIAL_CAPABILITIES`` — the capabilities a shop's own production
+  write may be signed with (P61-B); ``SANDBOX_WRITE`` deliberately absent
 - ``resolve_sandbox_write_credential(session)`` — the ``SANDBOX_VN`` ``SANDBOX_WRITE``
   credential used for write-path validation against the sandbox shop. Raises
   ``database.exceptions.NotFound`` when none is configured; never falls back to a

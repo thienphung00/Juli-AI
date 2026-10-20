@@ -8,6 +8,7 @@ from typing import Protocol
 from juli_backend.integrations.tiktok.capabilities import (
     MerchantCapability,
     is_production_read_allowed,
+    is_production_write_allowed,
     is_sandbox_write_allowed,
 )
 from juli_backend.integrations.tiktok.exceptions import TransportGuardError
@@ -87,6 +88,25 @@ class SandboxOnlyWriteGuard:
             path=path,
             message=(
                 "Sandbox write-validation transport rejected request before signing: "
+                f"{method.upper()} {path}"
+            ),
+        )
+
+
+class ProductionWriteGuard:
+    """Restrict a seller's production write transport to the listing edit allowlist (P61-B)."""
+
+    capability = MerchantCapability.PRODUCTION_WRITE
+
+    def assert_allowed(self, method: str, path: str) -> None:
+        if is_production_write_allowed(method, path):
+            return
+        raise TransportGuardError(
+            capability=self.capability.value,
+            method=method.upper(),
+            path=path,
+            message=(
+                "Production write transport rejected request before signing: "
                 f"{method.upper()} {path}"
             ),
         )
