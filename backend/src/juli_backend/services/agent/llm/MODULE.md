@@ -45,16 +45,20 @@ from juli_backend.services.agent.llm import (
 - `FinalResponse(content, structured_output=None)` — terminal block closing the turn
 - `Block` — `TextBlock | ToolCallBlock | FinalResponse`
 - `Usage(input_tokens, output_tokens)` — token accounting for one provider call
-- `AssistantTurn(blocks, usage)` — one complete, non-streamed provider call
+- `AssistantTurn(blocks, usage)` — one complete provider call (streamed or not)
 
-All frozen dataclasses. Turn-level only — no token deltas
-(`assistant.text.delta` is reserved for a future chat surface, ADR-071
-decision 3).
+All frozen dataclasses. Turn-level only — token deltas never appear in a
+turn; a streamed call hands them to `on_text_delta` (ADR-071 amendment,
+D71.3 / P61-C).
 
 ### Service (`service.py`)
 
 - `LLMService` — `runtime_checkable` `Protocol`:
   `async complete(*, messages, system, tools, config) -> AssistantTurn`
+- `TextDeltaCallback` — `Callable[[str], Awaitable[None]]`, the opt-in
+  `on_text_delta` keyword a streaming-capable service accepts. Deliberately
+  not on the `LLMService` protocol: scripted planners and test doubles
+  implement the protocol without it.
 - `Message`, `ToolDefinition` — opaque `Mapping[str, Any]` aliases. The
   durable message shape (P-CS store) and tool definitions (playbook tool
   registry) are owned by modules this slice does not build; this protocol
@@ -77,7 +81,10 @@ decision 6).
 - Defaults: `DEFAULT_MODEL = "gpt-5.4-nano"`, `DEFAULT_MAX_OUTPUT_TOKENS = 1024`,
   `DEFAULT_TEMPERATURE = 0.2`, `DEFAULT_REQUEST_TIMEOUT_SECONDS = 30.0`
 - Environment variables: `OPENAI_API_KEY` (required), `LLM_MODEL`,
-  `LLM_MAX_OUTPUT_TOKENS`, `LLM_TEMPERATURE`, `LLM_REQUEST_TIMEOUT_SECONDS`
+  `LLM_MAX_OUTPUT_TOKENS`, `LLM_TEMPERATURE`, `LLM_REQUEST_TIMEOUT_SECONDS`,
+  `LLM_STREAMING` (default on; `0`/`false`/`no`/`off` turns streaming off)
+- `llm_streaming_enabled() -> bool` — reads `LLM_STREAMING` at call time
+  (`DEFAULT_LLM_STREAMING = True`)
 - `ModelPrice(input_usd_per_million_tokens, output_usd_per_million_tokens)` —
   one model's static price row
 - `PRICE_TABLE_USD_PER_MILLION_TOKENS` — the static price table (ADR-071
@@ -98,8 +105,17 @@ decision 6).
 - Stateless (ADR-071 decision 2): every request body sets `"store": False`
   and never includes `"previous_response_id"`; the full message window is
   rebuilt from the caller's `messages` on every call.
-- Non-streamed (ADR-071 decision 3): every request body sets
-  `"stream": False`; one HTTP call produces one complete `AssistantTurn`.
+- Streaming is opt-in per call (ADR-071 amendment, D71.3 / P61-C):
+  `complete(..., on_text_delta=cb)` with `LLM_STREAMING` on sends
+  `"stream": True`, reads the Responses API server-sent events, awaits `cb`
+  with every `response.output_text.delta`, and returns the same complete
+  `AssistantTurn` (tool-call arguments assembled from
+  `function_call_arguments.delta`/`.done` and `output_item.done`; the
+  `response.completed` body's `output` wins when present). `response.failed`,
+  `error`, a missing terminal event or a non-JSON frame raise
+  `LLMProviderError`; callback exceptions propagate unchanged. Without a
+  callback (card drafts, structured analysis, scoring) or with the flag off,
+  the request is non-streamed (`"stream": False`) exactly as before.
 - Message shape consumed: `{"role": "user"|"assistant", "content": str}` or
   `{"role": "tool", "call_id": str, "content": str}` (a prior tool result,
   translated to a `function_call_output` item). Reconstructing a prior
@@ -136,6 +152,10 @@ decision 6).
   recorded `complete()` call.
 - `ScriptExhaustedError(RuntimeError)` — raised on a `complete()` call past
   the end of the script.
+- `stream_chunk_chars` (P61-C) — when set and a caller passes
+  `on_text_delta`, the turn's text (`TextBlock` / `FinalResponse` text, in
+  block order) is played through the callback in chunks of that size before
+  the turn is returned.
 - Zero provider dependency: imports only `agent/llm`'s own block/config/
   service types and the standard library — no `httpx`, no network library
   of any kind, unlike `openai_adapter.py`.
@@ -157,7 +177,8 @@ decision 6).
 - `resolve_llm_config` never defaults `OPENAI_API_KEY` to an empty string.
 - Blocks and `AssistantTurn` are frozen — a turn, once returned, does not mutate.
 - `OpenAIResponsesAdapter` never sends `previous_response_id` and always
-  sets `"store": False` / `"stream": False` on the outbound request.
+  sets `"store": False`; it sets `"stream": True` only for a call that
+  passed `on_text_delta` while `LLM_STREAMING` is on.
 - `fake.py` imports no provider/network library (asserted by
   `tests/unit/test_agent_llm_fake.py`) — the fake never makes a network call.
 - `FakeLLMService` returns scripted turns strictly in order and never

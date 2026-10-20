@@ -26,6 +26,25 @@ _TEMPERATURE_ENV_VAR = "LLM_TEMPERATURE"
 _REQUEST_TIMEOUT_ENV_VAR = "LLM_REQUEST_TIMEOUT_SECONDS"
 _API_KEY_ENV_VAR = "OPENAI_API_KEY"
 
+# D71.3 / P61-C: token streaming for calls that ask for text deltas. On by
+# default; set to one of `_FALSE_VALUES` to fall back to non-streamed calls
+# (the turn returned is identical either way -- only the live deltas stop).
+LLM_STREAMING_ENV_VAR = "LLM_STREAMING"
+DEFAULT_LLM_STREAMING = True
+_FALSE_VALUES = frozenset({"0", "false", "no", "off"})
+
+
+def llm_streaming_enabled() -> bool:
+    """Whether a call that asks for text deltas streams (``LLM_STREAMING``).
+
+    Read at call time, so an operator flips it with an env change and a worker
+    restart, no code change. Unset or blank -> `DEFAULT_LLM_STREAMING`.
+    """
+    raw = os.environ.get(LLM_STREAMING_ENV_VAR, "").strip().lower()
+    if not raw:
+        return DEFAULT_LLM_STREAMING
+    return raw not in _FALSE_VALUES
+
 
 @dataclass(frozen=True)
 class LLMConfig:
