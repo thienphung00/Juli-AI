@@ -220,6 +220,10 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # inherited here, not declared. Its purpose — diffing the ORM models
         # against a migration-built schema — is a private-database job anyway.
         "test_schema_parity.py",
+        # Fast track P60-1a: proves migration 095's `downgrade -1` drops
+        # `card_events` and `upgrade head` restores it, after its two-tenant
+        # RLS / append-only / backfill tests (which also seed tenants).
+        "test_card_events_db.py",
     }
 )
 
