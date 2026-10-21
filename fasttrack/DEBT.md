@@ -1569,3 +1569,12 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   to the playbook changed the composed prompt of the released v1/v2/v3 (goldens regenerated).
   `services/execution/tool_routing.py::WORKFLOW_TOOL_CATALOG` is the legacy Celery routing table,
   not the agent catalog, and is untouched.
+
+## P61-G follow-up — sandbox shop reconnected through seller OAuth (2026-10-21)
+
+- [ ] Production had a `seller_connect` row on the sandbox shop `1862f13b…` with the same
+  `shop_cipher` as its `sandbox_write` row (owner check 2026-10-21) — a P61-G collision that
+  refuses the sandbox credential. Owner was advised to back up + delete the `seller_connect`
+  row before deploy `fasttrack-deploy-20261021T0737Z`. Repay: OAuth
+  (`provision_shop_and_credentials`) refuses / flags a `seller_connect` write for a shop or
+  cipher that already holds `sandbox_write`, with a two-shop test, so this cannot recur silently.
