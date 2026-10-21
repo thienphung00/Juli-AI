@@ -59,6 +59,17 @@ origin/main content on 2026-09-20.
   ``access_token_expire_in`` becomes a stored timestamp (``token_expiry.py``); consumed
   by the Auth facade when it writes a credential
 
+### Write-time sandbox-collision guard (P61-H, D71.6a)
+
+``provision_shop_and_credentials`` (Auth facade) and ``credential_binding.backfill_shop_cipher``
+write inside ``core.security.refuse_cross_shop_sandbox_collision``: a credential of another shop
+that would share a ``sandbox_write`` row's merchant id / cipher (or a ``sandbox_write`` row that
+reaches another shop's) is refused with ``SandboxCollisionRefused`` (callback: the generic 401
+detail) and nothing is written; the backfill marks the row ``needs_reauth`` and raises
+``ShopCipherUnresolvedError``. The sandbox shop's own ``seller_connect`` row is allowed. Token
+refresh never changes merchant/cipher so it is not gated. The advertiser / account-holder stores
+are not guarded (advertiser ids, no cipher; see DEBT).
+
 ### Seller-initiated connect (``oauth.py``, issue #1970)
 
 The half of the TikTok handshake a signed-in seller starts. ADR-094 decision 3 named

@@ -5,7 +5,9 @@ from juli_backend.core.security.credential_resolver import *  # noqa: F403
 from juli_backend.core.security.credential_resolver import (
     NoReadCredentialForShop,
     NoWriteCredentialForShop,
+    SandboxCollisionRefused,
     SandboxCredentialRefused,
+    refuse_cross_shop_sandbox_collision,
     resolve_read_credential_for_shop,
     resolve_sandbox_write_credential,
     resolve_write_credential_for_shop,
@@ -34,6 +36,9 @@ from juli_backend.core.security.oauth_state import (
 from juli_backend.core.security.tiktok_oauth import BindingVerifier, TikTokOAuthService
 
 __all__ = [
+    # P61-H (D71.6a): the write-time sandbox-collision guard and its named error.
+    "SandboxCollisionRefused",
+    "refuse_cross_shop_sandbox_collision",
     # P16: the Cloudflare Access gate of /v1/ops (api is capped at depth 2).
     "CF_ACCESS_HEADER",
     "verify_access_jwt",

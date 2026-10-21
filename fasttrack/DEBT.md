@@ -1620,3 +1620,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] `SqlWriteValueRecorder._audit_id` now prefers the single ALLOWED audit row over a refusal row of the
   same mutation; with 2+ allowed rows (a repeat of the same write in one run) the link stays NULL.
 - [ ] Not run in production: nothing of P61-F. Flags stay off; no shop is enabled.
+- [x] CLOSED by P61-H (2026-10-21, branch `fasttrack/p61-h-oauth-sandbox-guard`). Owner narrowed the
+  concern (D71.6a): the sandbox shop's own `seller_connect` row is fine; the dangerous case is a
+  credential write that creates a CROSS-shop collision. OAuth provisioning and the cipher backfill now
+  refuse that at write time (`refuse_cross_shop_sandbox_collision`), two-shop real-Postgres tested.
+- [ ] Residual (P61-H): (1) a collision that already existed before a write is not attributed to it
+  (left to the resolve-time refusal); (2) `advertiser_oauth_store` / `business_account_holder_store`
+  creates are unguarded (advertiser/holder ids, no cipher; they could only collide on an equal merchant
+  id). Repay: wrap them in the same guard if either ever carries a shop merchant id.

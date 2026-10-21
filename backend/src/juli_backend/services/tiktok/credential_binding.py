@@ -63,7 +63,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Package-root imports: `services -> integrations` is an allowed edge
 # (.importlinter.toml), but the depth-2 cap still applies, so reach the public
 # package root rather than `.client` / `.resources.authorization`.
-from juli_backend.core.security import BindingVerifier
+from juli_backend.core.security import (
+    BindingVerifier,
+    SandboxCollisionRefused,
+    refuse_cross_shop_sandbox_collision,
+)
 from juli_backend.integrations.tiktok import (
     AuthorizationResource,
     TikTokCapability,
@@ -331,7 +335,30 @@ async def backfill_shop_cipher(
             f"shop {credential.shop_id} has no shop_cipher and TikTok could not supply one; "
             "credential marked needs_reauth"
         ) from exc
-    await repo.set_shop_cipher(credential.id, cipher)
+    # Read before the guard: its savepoint rollback expires the ORM row.
+    credential_id, credential_shop_id = credential.id, credential.shop_id
+    try:
+        # P61-H (D71.6a): a cipher that would collide with a sandbox_write credential of another
+        # shop is refused like any other binding conflict.
+        async with refuse_cross_shop_sandbox_collision(
+            session,
+            operation="shop_cipher_backfill",
+            log_extra={
+                "shop_id": str(credential_shop_id),
+                "capability": credential.capability,
+            },
+        ):
+            await repo.set_shop_cipher(credential_id, cipher)
+    except SandboxCollisionRefused as exc:
+        await repo.mark_needs_reauth(
+            credential_id,
+            _CIPHER_NEEDS_REAUTH_MESSAGE.format(reason="sandbox credential collision"),
+        )
+        await session.commit()
+        raise ShopCipherUnresolvedError(
+            f"shop {credential_shop_id} cipher collides with a sandbox credential; "
+            "credential marked needs_reauth"
+        ) from exc
     await session.commit()
     logger.warning(
         "tiktok_shop_cipher_backfilled",
