@@ -37,6 +37,8 @@ RUN_LIST_FIELDS = {
     "awaiting",
     # P10 integration: the decision card the run came from (UI joins by id).
     "decision_id",
+    # P61-B: the run wrote to the sandbox merchant, not the seller's shop.
+    "simulated",
 }
 
 # (stop_reason, status) -- every terminal pair the check constraint allows,

@@ -64,6 +64,9 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ingest_dedup_epochs"): "tenant_direct",
     ("public", "production_write_authorizations"): "tenant_direct",
     ("public", "production_write_audit"): "tenant_direct",
+    # Fast track P61-B, migration 097: the owner's per-shop production write
+    # enable (juli_app SELECT only).
+    ("public", "production_write_shops"): "tenant_direct",
     # W9-A/P-SHARED-12 (#1712), migration 069. Both hang off a run and would
     # normally be "tenant_via_parent" like workflow_run_events — but each
     # carries its own shop_id, kept un-driftable by a composite foreign key

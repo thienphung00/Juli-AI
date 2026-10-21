@@ -11,6 +11,7 @@ import type { CardView } from "./card-model";
 import type { QdRun } from "./p10-types";
 import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../run-ledger/copy";
 import { resolveRunTerminalState } from "../run-ledger/terminal-state";
+import { SIMULATED_RUN_LABEL } from "./simulated-copy";
 import type { RunKind, RunTimeline } from "./timeline";
 
 export type ChipTone = "wait" | "info" | "ok" | "muted" | "warn" | "queue";
@@ -135,7 +136,9 @@ export function runChip(run: QdRun, kind: RunKind, phase: RunPhase): Chip {
     case "running":
       return { label: "Đang chạy", tone: "info" };
     case "done":
-      return kind === "revert" ? { label: "Đã hoàn tác", tone: "muted" } : { label: "Đã áp dụng", tone: "ok" };
+      if (kind === "revert") return { label: "Đã hoàn tác", tone: "muted" };
+      // P61-B: the writes went to the test shop, not the seller's shop.
+      return run.simulated ? { label: SIMULATED_RUN_LABEL, tone: "muted" } : { label: "Đã áp dụng", tone: "ok" };
     case "declined":
       // The seller stopped the run ("Không thực hiện" on a wait / cancel): the ledger's "Đã hủy".
       if (run.stop_reason === "cancelled_by_seller") return { label: RUN_TERMINAL_STATE_COPY.cancelled.label, tone: "muted" };
@@ -158,7 +161,9 @@ export function listChip(run: QdRun): Chip {
   if (run.status === "running" || run.status === "waiting_external") return { label: "Đang chạy", tone: "info" };
   if (run.stop_reason === "confirmation_declined") return { label: "Không thay đổi", tone: "muted" };
   if (run.stop_reason === "cancelled_by_seller") return { label: RUN_TERMINAL_STATE_COPY.cancelled.label, tone: "muted" };
-  if (run.status === "completed" && run.stop_reason === "final_response") return { label: "Đã áp dụng", tone: "ok" };
+  if (run.status === "completed" && run.stop_reason === "final_response") {
+    return run.simulated ? { label: SIMULATED_RUN_LABEL, tone: "muted" } : { label: "Đã áp dụng", tone: "ok" };
+  }
   const key = resolveRunTerminalState(run.stop_reason);
   return { label: (key ? RUN_TERMINAL_STATE_COPY[key] : RUN_TERMINAL_STATE_UNKNOWN_COPY).label, tone: "muted" };
 }

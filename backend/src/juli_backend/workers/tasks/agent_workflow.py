@@ -668,6 +668,10 @@ async def _construct_runner(
     )
     read_resources = await _default_read_resources(session, shop_id=run.shop_id)
     write_resources = await _default_write_resources(session)
+    # Fast track P61-B (D71.2): record where this run's writes land. Today the
+    # agent run's writes always go to the sandbox merchant (`simulated`); the run
+    # surface then never says the seller's shop changed, and measurement skips it.
+    run.write_mode = composition_module.write_mode_of(write_resources)
     tool_executor = runner_module.ProductToolExecutor(
         registry=registry,
         product_id=product.tiktok_product_id,

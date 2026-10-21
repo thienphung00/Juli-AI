@@ -28,6 +28,11 @@ def _tool_payload(record: ToolExecution, payload: dict[str, Any]) -> dict[str, A
     # Thread shop_id so write handlers can access it for the production write resolver
     enriched["_execution_shop_id"] = str(record.shop_id)
     enriched["_execution_id"] = str(record.id)
+    # P61-B: the run a production write is audited against (production_write_audit.run_id
+    # and run_write_values.workflow_run_id both reference workflow_runs). Absent on
+    # executions not created by a run; such an execution never reaches a seller's shop.
+    if record.workflow_run_id is not None:
+        enriched["_execution_workflow_run_id"] = str(record.workflow_run_id)
     return enriched
 
 

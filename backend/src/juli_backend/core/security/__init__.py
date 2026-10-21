@@ -4,9 +4,11 @@ from juli_backend.core.security.cf_access import CF_ACCESS_HEADER, verify_access
 from juli_backend.core.security.credential_resolver import *  # noqa: F403
 from juli_backend.core.security.credential_resolver import (
     NoReadCredentialForShop,
+    NoWriteCredentialForShop,
     resolve_production_read_credential,
     resolve_read_credential_for_shop,
     resolve_sandbox_write_credential,
+    resolve_write_credential_for_shop,
 )
 from juli_backend.core.security.dependencies import (
     REVIEWER_DENIED_HEADER,
@@ -80,6 +82,10 @@ __all__ = [
     # exported here rather than relying on the wildcard-import bleed-through
     # `credential_resolver` had no `__all__` to stop.
     "resolve_sandbox_write_credential",
+    # Fast track P61-B: the per-shop production write credential and its named
+    # failure (services/execution/production_write.py).
+    "NoWriteCredentialForShop",
+    "resolve_write_credential_for_shop",
     "supabase_jwks_url",
     "verify_oauth_state",
     "verify_supabase_jwt",

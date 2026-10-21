@@ -8,8 +8,8 @@
 
 import type { DemoDecisionItem, WorkflowRunListItem } from "@juli/contracts";
 
-/** §1 `recommendation.card.status`. */
-export type CardStatus = "pending" | "running" | "applied" | "rejected" | "expired";
+/** §1 `recommendation.card.status`. P61-B: `simulated` = the run wrote to the sandbox, not the shop. */
+export type CardStatus = "pending" | "running" | "applied" | "simulated" | "rejected" | "expired";
 
 /** §1 lever executors. */
 /** P14-E: `juli_drafts` = "Juli soạn · bạn làm" (content cards, `p14-content-cards.md`). */

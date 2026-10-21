@@ -36,6 +36,11 @@ export interface WorkflowRunListItem {
   awaiting?: "photo" | "seller_action" | "content_choice" | "content_publish" | null;
   /** Fast track P10 integration: the decision card (`action_cards.id`) the run came from. */
   decision_id?: string | null;
+  /**
+   * Fast track P61-B (D71.2): the run's writes went to the sandbox merchant, not the
+   * seller's shop ("chạy thử"). True only for a run that actually wrote.
+   */
+  simulated?: boolean;
 }
 
 /**

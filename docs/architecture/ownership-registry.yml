@@ -245,6 +245,14 @@ databaseTables:
       product, and mutation kind. Issued via operator service after verifying
       credential binding; consumed atomically by the write path. Revoke preserves
       the row for audit.
+  production_write_shops:
+    owner: Agent Execution
+    access: read
+    notes: >
+      Fast track P61-B (D71.2, migration 097): one row per shop the owner turned
+      production writes on for, beside the global PRODUCTION_WRITE_ENABLED flag and
+      the other ADR-085 gates. juli_app SELECT only; the owner writes it on an admin
+      connection.
   production_write_audit:
     owner: Agent Execution
     access: write

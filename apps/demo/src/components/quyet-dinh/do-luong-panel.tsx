@@ -64,9 +64,11 @@ export interface RevertActionState {
 
 export const IDLE_REVERT: RevertActionState = { busy: false, error: null, conflict: null, revertRunId: null, kept: false };
 
-/** A run that finished normally (it may have written); revert runs drop out once their changes load. */
+/** A run that finished normally (it may have written); revert runs drop out once their changes load.
+ * P61-B: a run that only wrote to the test shop changed nothing on the seller's shop, so it has
+ * nothing to measure and is not listed in Đo lường. */
 export function isExecutedRun(run: WorkflowRunListItem): boolean {
-  return run.status === "completed" && run.stop_reason === "final_response";
+  return run.status === "completed" && run.stop_reason === "final_response" && run.simulated !== true;
 }
 
 export function measurementLine(completedAt: string | null, nowMs: number | null): string {

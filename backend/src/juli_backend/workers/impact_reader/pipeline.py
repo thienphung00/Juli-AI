@@ -56,6 +56,7 @@ from juli_backend.workers.impact_reader.queries import (
     build_reading_row,
     execution_t,
     extract_payload,
+    is_simulated_execution,
     load_control_candidates,
     load_daily_series,
     load_existing_metric_pairs,
@@ -102,6 +103,9 @@ class ImpactReaderRunResult:
     executions_scanned: int
     readings_written: int
     executions_skipped_unclassified: int
+    #: Fast track P61-B: writes that landed on the sandbox merchant, not the
+    #: seller's shop -- never measured as an intervention on it.
+    executions_skipped_simulated: int = 0
 
 
 def _due_kinds(reference_date: date, t: date) -> list[WindowKind]:
@@ -386,6 +390,7 @@ async def run_daily_impact_reader(
     scanned = 0
     written_total = 0
     skipped_unclassified = 0
+    skipped_simulated = 0
 
     for enum_result in enumerated:
         scanned += 1
@@ -408,6 +413,17 @@ async def run_daily_impact_reader(
             t = execution_t(execution)
             due = _due_kinds(reference_date, t)
             if not due:
+                continue
+
+            # P61-B (D71.2): a write on the sandbox merchant changed nothing on
+            # the seller's shop; reading the shop's analytics around it would
+            # attribute whatever happened that week to a change that never was.
+            if await is_simulated_execution(session, execution):
+                skipped_simulated += 1
+                logger.info(
+                    "impact_reader_execution_simulated",
+                    extra={"execution_id": str(execution.id), "tool_name": execution.tool_name},
+                )
                 continue
 
             written_kinds = await load_written_kinds(session, execution.id)
@@ -444,4 +460,5 @@ async def run_daily_impact_reader(
         executions_scanned=scanned,
         readings_written=written_total,
         executions_skipped_unclassified=skipped_unclassified,
+        executions_skipped_simulated=skipped_simulated,
     )

@@ -15,7 +15,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import Shop, User
+from juli_backend.models.models import ProductionWriteShop, Shop, User
 from juli_backend.services.execution.listing_handlers import create_hero_product_handler
 from juli_backend.services.execution.production_write_resolver import PreconditionFailure
 
@@ -39,6 +39,10 @@ async def shop(session, authenticated_user):
         tiktok_shop_id="tiktok_shop_handler_test",
     )
     session.add(s)
+    await session.flush()
+    # Fast track P61-B: the global flag is per shop now; this suite exercises the
+    # remaining ADR-085 gates on a shop the owner has turned on.
+    session.add(ProductionWriteShop(shop_id=s.id, enabled_by="test_operator"))
     await session.flush()
     return s
 
@@ -101,12 +105,11 @@ async def test_handler_raises_precondition_failure_flag_on_no_authorization(
     with pytest.raises(PreconditionFailure) as exc_info:
         await create_hero_product_handler(session, payload)
 
-    # Should have a named precondition reason (not generic error)
+    # Should have a named precondition reason (not generic error). Fast track P61-B:
+    # on a shop whose writes would go live, a product create is refused by name
+    # before any gate is consulted (D13: v1 executes the listing edit only).
     assert exc_info.value.precondition is not None
-    assert str(exc_info.value.precondition.value) in [
-        "rls_boot_check_failed",  # Most likely - boot check didn't run
-        "no_matching_authorization",
-    ]
+    assert str(exc_info.value.precondition.value) == "mutation_not_allowed_in_production"
 
 
 async def test_handler_executes_sandbox_chain_when_resolver_returns_resources(

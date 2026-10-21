@@ -173,6 +173,7 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
     pending: "active",
     running: "approved",
     applied: "approved",
+    simulated: "approved",
     rejected: "dismissed",
     expired: "expired",
   };

@@ -20,10 +20,12 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
+    WRITE_MODE_SIMULATED,
     AnalyticsPerformanceInterval,
     ImpactReading,
     Product,
     ToolExecution,
+    WorkflowRun,
 )
 from juli_backend.services.impact import ControlCandidate, RawDailyRecord
 
@@ -177,6 +179,43 @@ async def load_existing_metric_pairs(
     return {(row[0], row[1]) for row in result.all()}
 
 
+def _outcome_write_mode(execution: ToolExecution) -> str | None:
+    try:
+        outcome = json.loads(execution.outcome_json or "{}")
+    except ValueError:
+        return None
+    return outcome.get("write_mode") if isinstance(outcome, dict) else None
+
+
+async def simulated_run_ids(session: AsyncSession, run_ids: Sequence[uuid.UUID]) -> set[uuid.UUID]:
+    """Of ``run_ids``, the runs whose writes went to the sandbox merchant (P61-B)."""
+    if not run_ids:
+        return set()
+    result = await session.execute(
+        select(WorkflowRun.id).where(
+            WorkflowRun.id.in_(list(run_ids)), WorkflowRun.write_mode == WRITE_MODE_SIMULATED
+        )
+    )
+    return set(result.scalars().all())
+
+
+async def is_simulated_execution(session: AsyncSession, execution: ToolExecution) -> bool:
+    """Whether this write landed on the sandbox merchant, not the seller's shop
+    (fast track P61-B, D71.2) -- so it is not an intervention on the shop and
+    must not be measured as one.
+
+    Recorded two ways, one per write path: an agent run's ``write_mode``
+    (``workflow_runs``) and a dispatched tool's ``write_mode`` in its outcome
+    (``listing_handlers``). A row with neither predates P61-B and is read as
+    before.
+    """
+    if _outcome_write_mode(execution) == WRITE_MODE_SIMULATED:
+        return True
+    if execution.workflow_run_id is None:
+        return False
+    return bool(await simulated_run_ids(session, [execution.workflow_run_id]))
+
+
 def execution_t(execution: ToolExecution) -> date:
     """The write's execution date — ADR-077 decision 2's ``T``.
 
@@ -254,8 +293,17 @@ async def load_touch_dates(
         ToolExecution.id != exclude_execution_id,
     )
     result = await session.execute(stmt)
+    rows = list(result.scalars().all())
+    # P61-B: a write that landed on the sandbox merchant did not touch this
+    # product on the seller's shop, so it neither confounds nor disqualifies.
+    simulated_runs = await simulated_run_ids(
+        session, [row.workflow_run_id for row in rows if row.workflow_run_id is not None]
+    )
     dates: list[date] = []
-    for row in result.scalars().all():
+    for row in rows:
+        simulated = row.workflow_run_id in simulated_runs
+        if simulated or _outcome_write_mode(row) == WRITE_MODE_SIMULATED:
+            continue
         payload = extract_payload(row)
         if str(payload.get("product_id")) == tiktok_product_id:
             dates.append(execution_t(row))

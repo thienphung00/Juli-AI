@@ -8,6 +8,7 @@ import { dateText, validityText } from "../../lib/quyet-dinh/p10-format";
 import type { PhotoCheck, QdRun, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
 import type { ReasonChoice } from "../../lib/quyet-dinh/reasons";
 import { runChip, runningNote, type RunPhase } from "../../lib/quyet-dinh/run-model";
+import { SIMULATED_DONE_TEXT, SIMULATED_DONE_TITLE } from "../../lib/quyet-dinh/simulated-copy";
 import type { RunKind, RunTimeline } from "../../lib/quyet-dinh/timeline";
 import type { RunChanges } from "../../lib/quyet-dinh/types";
 import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../../lib/run-ledger/copy";
@@ -209,6 +210,7 @@ export function RunPanel(props: RunPanelProps) {
               }}
               revertBusy={props.revertBusy}
               revertReasonLabel={props.revertReasonLabel ?? null}
+              simulated={run.simulated === true}
             />
           ) : null}
 
@@ -753,6 +755,7 @@ function DonePanel({
   onRevert,
   revertBusy,
   revertReasonLabel,
+  simulated,
 }: {
   readonly kind: RunKind;
   readonly card: CardView | null;
@@ -765,9 +768,19 @@ function DonePanel({
   readonly onRevert: () => void;
   readonly revertBusy: boolean;
   readonly revertReasonLabel: string | null;
+  /** P61-B: the run wrote to the test shop, not the seller's shop. */
+  readonly simulated: boolean;
 }) {
   const sellerHref = useSellerHref();
   const write = useWriteControl();
+  if (simulated && kind !== "revert") {
+    return (
+      <div className="qv-done qv-done--tight" data-testid="run-done">
+        <div className="qv-done__title">{SIMULATED_DONE_TITLE}</div>
+        <div className="qv-done__text">{SIMULATED_DONE_TEXT}</div>
+      </div>
+    );
+  }
   if (kind === "revert") {
     const fields = changedLabels.length > 0 ? changedLabels.join(" / ") : "này";
     const lines = [
