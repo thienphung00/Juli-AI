@@ -20,7 +20,9 @@ from sqlalchemy import create_engine, text
 from juli_backend.core.config.runtime import sync_database_url
 from juli_backend.database.token_crypto import ENCRYPTED_TOKEN_PREFIX, encrypt_token
 
-pytestmark = pytest.mark.migration_heavy
+# Each test resets the schema (downgrade base + upgrade head), which alone can
+# exceed pytest.ini's 30 s default on a cold or loaded machine.
+pytestmark = [pytest.mark.migration_heavy, pytest.mark.timeout(300)]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
