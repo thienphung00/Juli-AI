@@ -87,8 +87,9 @@ def test_heads_handles_branches_merges_and_plain_assignments(tmp_path: Path):
 
 
 def test_heads_refuses_a_missing_directory(tmp_path: Path):
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError) as excinfo:
         mh.script_heads(tmp_path / "nope")
+    assert "nope" in str(excinfo.value)
 
 
 @pytest.mark.parametrize(
