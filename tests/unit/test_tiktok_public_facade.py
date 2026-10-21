@@ -72,6 +72,8 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         "ClientFactoryConfig",
         "ProductionReadClientFactory",
         "ProductionReadResources",
+        "ProductionWriteClientFactory",
+        "ProductionWriteResources",
         "SandboxWriteClientFactory",
         "SandboxWriteResources",
         # Merchant capability isolation

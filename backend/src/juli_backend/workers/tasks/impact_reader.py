@@ -58,6 +58,7 @@ async def _run_daily_impact_reader_async() -> None:
                 "executions_scanned": result.executions_scanned,
                 "readings_written": result.readings_written,
                 "executions_skipped_unclassified": result.executions_skipped_unclassified,
+                "executions_skipped_simulated": result.executions_skipped_simulated,
             },
         )
 

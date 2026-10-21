@@ -78,6 +78,17 @@ Matches ``__all__`` — re-exports only:
   ``ReadOnlyTransportGuard``. ``SandboxWriteClientFactory`` keeps its identity
   equality against ``SANDBOX_AUTH_ID`` — there is one sandbox merchant and no
   per-seller analogue of it
+- **Production write (fast track P61-B, D71.2)** — ``ProductionWriteClientFactory``,
+  ``ProductionWriteResources`` (``products`` only). Builds a client for a seller's
+  OWN shop; refuses the sandbox merchant, an empty merchant id and an empty
+  ``SANDBOX_AUTH_ID``. Every client carries ``ProductionWriteGuard``
+  (``PRODUCTION_WRITE_ALLOWED_REQUESTS``, ``is_production_write_allowed``: product detail / SEO /
+  suggestion GETs, the listing edit PUT, the image upload POST — a strict subset
+  of the sandbox allowlist; no price update, no product create, D13). Whether a
+  client may be built at all is decided above this layer
+  (``services/execution/production_write.py``, the ADR-085 gates)
+- ``PRODUCTION_WRITE_ALLOWED_REQUESTS`` — the production write allowlist (P61-B, above)
+- ``is_production_write_allowed`` — whether a method/path is on it
 - **Merchant isolation** — ``PRODUCTION_AUTH_ID``, ``SANDBOX_AUTH_ID`` (from
   ``TIKTOK_PRODUCTION_MERCHANT_ID`` / ``TIKTOK_SANDBOX_MERCHANT_ID``; **no default in
   code since fast track P61-D** — unset is ``""``), ``MerchantIdNotConfigured`` (a

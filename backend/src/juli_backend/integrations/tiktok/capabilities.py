@@ -52,6 +52,10 @@ class MerchantCapability(str, Enum):
 
     PRODUCTION_READ = "production_read"
     SANDBOX_WRITE = "sandbox_write"
+    #: Fast track P61-B (D71.2): a seller's own shop, written through the
+    #: ADR-085 production write path. Every gate is above this layer; this
+    #: layer only says which requests such a client may sign.
+    PRODUCTION_WRITE = "production_write"
 
 
 # Layer 1 production-read POST search endpoints (verified in contract-collection.md).
@@ -210,6 +214,22 @@ SANDBOX_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
+# Fast track P61-B (D71.2): what a production write client may sign on a
+# seller's own shop -- the listing edit D13 executes (title / description /
+# cover image), the image upload that stages a cover, and the reads the listing
+# chain and the before/after capture make around them. Nothing else: no price
+# update (D13: price is a recommendation only, and Juli never reverts a price),
+# no product create, no inventory, fulfillment, return or promotion write. Each
+# entry is also on `SANDBOX_ALLOWED_REQUESTS`; production is a strict subset.
+PRODUCTION_WRITE_ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("GET", re.compile(r"^/product/\d+/products/\d+$")),
+    ("GET", re.compile(r"^/product/\d+/products/seo_words$")),
+    ("GET", re.compile(r"^/product/\d+/products/suggestions$")),
+    ("PUT", re.compile(r"^/product/\d+/products/\d+$")),
+    ("POST", re.compile(r"^/product/\d+/images/upload$")),
+)
+
+
 def normalize_path(path: str) -> str:
     """Normalize API path for allowlist checks."""
     normalized = path.split("?", 1)[0].rstrip("/")
@@ -241,6 +261,16 @@ def is_sandbox_write_allowed(method: str, path: str) -> bool:
     return any(
         allowed_method == method_upper and pattern.match(normalized)
         for allowed_method, pattern in SANDBOX_ALLOWED_REQUESTS
+    )
+
+
+def is_production_write_allowed(method: str, path: str) -> bool:
+    """Return True when method/path is allowed on a seller's production write transport."""
+    normalized = normalize_path(path)
+    method_upper = method.upper()
+    return any(
+        allowed_method == method_upper and pattern.match(normalized)
+        for allowed_method, pattern in PRODUCTION_WRITE_ALLOWED_REQUESTS
     )
 
 

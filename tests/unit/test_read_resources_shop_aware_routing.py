@@ -187,3 +187,40 @@ class TestShopAwareReadRouting:
             f"Expected warning log with name 'agent_read_resources_sandbox_fallback' "
             f"not found. Records: {record_details}"
         )
+
+
+class TestSandboxShopCheckRaisesRealErrors:
+    """P61-B (follow-up to P61-A): only a missing sandbox credential (`NotFound`) is a
+    fallback. A database or refresh error raises; it is never logged as a fallback."""
+
+    async def test_a_database_error_is_not_swallowed_as_a_sandbox_fallback(
+        self, session: AsyncSession, monkeypatch, caplog
+    ):
+        from sqlalchemy.exc import OperationalError
+
+        from juli_backend.services.agent import composition
+
+        monkeypatch.setenv("TIKTOK_APP_KEY", "test-app-key")
+        monkeypatch.setenv("TIKTOK_APP_SECRET", "test-app-secret")
+
+        async def _broken(_session):
+            raise OperationalError("SELECT 1", {}, Exception("connection reset"))
+
+        monkeypatch.setattr(composition, "resolve_sandbox_write_credential", _broken)
+        with caplog.at_level("WARNING"), pytest.raises(OperationalError):
+            await composition.build_read_resources(session, shop_id=uuid.uuid4())
+        assert not any(
+            r.getMessage() == "agent_read_resources_sandbox_fallback" for r in caplog.records
+        )
+
+    async def test_a_missing_sandbox_credential_still_falls_back(
+        self, session: AsyncSession, monkeypatch
+    ):
+        from juli_backend.database.exceptions import NotFound
+        from juli_backend.services.agent import composition
+
+        async def _absent(_session):
+            raise NotFound("no sandbox credential")
+
+        monkeypatch.setattr(composition, "resolve_sandbox_write_credential", _absent)
+        assert await composition._is_sandbox_shop(session, uuid.uuid4()) is False

@@ -413,11 +413,19 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P61-A Agent reads per shop (hotfix) + two-shop no-leak test | D71.1 | done, merged (ff c6bc698b) | agent |
-| P61-B Production write per shop (P5), flags off; honest sandbox UX; measurement ignores sandbox runs | D71.2 | doing (`fasttrack/p61-b-prod-write`) | agent |
+| P61-B Production write per shop (P5), flags off; honest sandbox UX; measurement ignores sandbox runs | D71.2 | done, merged (dispatched path only; agent-run production leg = P61-F); flags off | agent |
 | P61-C Token streaming: adapter → `assistant.text.delta` → SSE → demo caret; ADR-071 amendment | D71.3 | done, merged (ff 9470ffb7); owner after deploy: one live run, check `assistant.text.delta` then `assistant.text` rows; off switch `LLM_STREAMING=off` | agent |
 | P61-D Hardcode / beat / flag cleanup, startup env check, reject route, delete `fujiwa_poll_beat` | D71.4 | done on branch `fasttrack/p61-d-cleanup` (not merged) | agent |
 | P61-E End-to-end two-shop test OAuth → `card_events`; live `shown` / `expired` writers | D71.5 | todo (after A–D and P60-1b merge) | — |
 | Owner: confirm production env (`AGENT_WORKFLOWS_ENABLED`, `TIKTOK_APP_KEY/SECRET`, `REDIS_URL`); later flip `PRODUCTION_WRITE_ENABLED` per shop | D71 | todo | owner |
+
+## P62 — Supabase egress (D72, 2026-10-21)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P62-A Fewer dumps: pending-migration-only pre-migrate dump, backup job only with a migration (+ `force_backup`), daily VPS dump timer | D72.1 | doing (`fasttrack/p62-a-dumps`) | agent |
+| P62-B `processed_events` retention; scoped `analytics_performance_intervals` / `silver.orders` reads; pooled worker engine | D72.2–4 | doing (`fasttrack/p62-b-reads`) | agent |
+| Owner: after deploy, re-check Usage → Egress per day and `pg_stat_statements` (reset first: `select pg_stat_statements_reset();`) | D72 | todo | owner |
 
 ## P2–P6
 

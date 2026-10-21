@@ -20,6 +20,7 @@ from juli_backend.integrations.tiktok.capabilities import (
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.guarded_client import GuardedTikTokClient
 from juli_backend.integrations.tiktok.guards import (
+    ProductionWriteGuard,
     ReadOnlyTransportGuard,
     SandboxOnlyWriteGuard,
 )
@@ -77,6 +78,19 @@ class SandboxWriteResources:
     products: ProductsResource
     fulfillment: FulfillmentResource
     promotion: PromotionResource
+
+
+@dataclass(frozen=True)
+class ProductionWriteResources:
+    """A seller's own-shop write resources (fast track P61-B, D71.2).
+
+    Only ``products``: the listing edit, the cover upload and the reads around
+    them (``ProductionWriteGuard``'s allowlist). Reachable only through
+    ``ProductionWriteClientFactory``, which ``services/execution`` builds only
+    after every ADR-085 gate has passed for this shop and this mutation.
+    """
+
+    products: ProductsResource
 
 
 class ProductionReadClientFactory:
@@ -209,3 +223,53 @@ class SandboxWriteClientFactory:
             fulfillment=FulfillmentResource(client),
             promotion=PromotionResource(client),
         )
+
+
+class ProductionWriteClientFactory:
+    """Build a seller's own-shop write client (fast track P61-B, D71.2).
+
+    Mirrors ``SandboxWriteClientFactory`` with the opposite merchant rule: the
+    sandbox write-validation merchant is refused (its writes are not the
+    seller's shop), as is an empty merchant id, and -- fail closed like
+    ``ProductionReadClientFactory`` -- an empty ``SANDBOX_AUTH_ID`` that would
+    make that exclusion impossible to honour. Which credential reaches this
+    factory is decided one layer up (``resolve_write_credential_for_shop``:
+    only a row the shop itself owns), and whether a client may be built at all
+    (``services/execution/production_write.py``: the ADR-085 gates). Every
+    client carries ``ProductionWriteGuard``, which rejects anything outside the
+    listing edit allowlist before signing.
+    """
+
+    def create(self, config: ClientFactoryConfig) -> GuardedTikTokClient:
+        if not config.merchant_auth_id:
+            raise ValueError(
+                "ProductionWriteClientFactory requires a merchant auth ID; got an empty value"
+            )
+        if not SANDBOX_AUTH_ID:
+            raise ValueError(
+                "ProductionWriteClientFactory cannot enforce the SANDBOX_VN exclusion: "
+                "SANDBOX_AUTH_ID is empty (TIKTOK_SANDBOX_MERCHANT_ID is set to an empty "
+                "value). Refusing to build a production write client."
+            )
+        if config.merchant_auth_id == SANDBOX_AUTH_ID:
+            raise ValueError(
+                "ProductionWriteClientFactory refuses the SANDBOX_VN write-validation "
+                f"merchant auth ID ({SANDBOX_AUTH_ID}); it is not a seller's own shop"
+            )
+        inner = TikTokClient(
+            app_key=config.app_key,
+            app_secret=config.app_secret,
+            access_token=config.access_token,
+            base_url=config.base_url,
+            shop_cipher=config.shop_cipher,
+            timeout=config.timeout,
+        )
+        return GuardedTikTokClient(
+            inner,
+            guard=ProductionWriteGuard(),
+            capability=MerchantCapability.PRODUCTION_WRITE,
+            merchant_auth_id=config.merchant_auth_id,
+        )
+
+    def create_resources(self, config: ClientFactoryConfig) -> ProductionWriteResources:
+        return ProductionWriteResources(products=ProductsResource(self.create(config)))

@@ -1617,3 +1617,29 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   5. **One end-to-end two-shop test** from OAuth callback to `card_events` for a non-reference
      shop, on real Postgres with recorded fixtures.
   Work: P61 (A hotfix, B P5, C streaming, D cleanup, then E end-to-end).
+
+- **D72** — Supabase egress back under the free plan (owner, 2026-10-21; 7.0 / 5 GB this
+  cycle, ~270 MB/day). Evidence (`pg_stat_statements` on production, 2026-10-21): ~300 full
+  `pg_dump`s (two per deploy, ~4 deploys/day); `SELECT analytics_performance_intervals.*` whole
+  table ~1,770 calls and `silver.orders` whole table 409 calls; `processed_events` is the largest
+  table (64 MB) and is copied by every dump; `pgbouncer.get_auth` 514k (connection churn). Stay on
+  the free plan; fewer deploys until the fix ships. Work: P62.
+  1. **Fewer dumps.** `safe-alembic-upgrade.sh` dumps only when a migration is pending; the
+     fast-track `backup` job runs only when the deploy carries a migration (or `force_backup`);
+     one scheduled dump per day on the VPS keeps the recovery point.
+  2. **`processed_events` retention** beyond the dedup window (named constant), daily ops job.
+  3. **Scoped reads.** The whole-table `analytics_performance_intervals` / `silver.orders`
+     SELECTs filter by shop + date range (and columns).
+  4. **Less connection churn** in workers (pooled engine instead of a connection per task).
+  **D72 timeline (owner, 2026-10-21).** The cycle resets 2026-10-26; the grace period ends
+  2026-11-16. The next cycle must stay under 5 GB (budget ~160 MB/day, target < 100 MB/day incl.
+  dumps). P62 ships alone as soon as it is green (by ~Oct 24), not bundled with P61-B/D. Deploys
+  before Oct 26 land in the already-exceeded cycle, so they cost no extra. Scheduled VPS dump
+  cadence is env-configurable, default every 3 days. Checkpoint 2026-10-28: if daily egress is
+  still > 160 MB/day, upgrade to Pro before 2026-11-16.
+  **D72.5 (owner, 2026-10-21).** `/v1/demo/analytics` is retired: apps/demo no longer renders
+  its envelope (pages read `/v1/demo/analysis`; the only call was the "Làm mới Demo" refresh,
+  result unused) and its only regular caller was the Uptime Check (disabled 2026-10-21). The
+  route, its client code, and the Fujiwa-only beats `mock-analytics-hourly-reconcile` and
+  `analytics-backfill-topup` are removed if nothing else consumes their output (P61-D); the
+  Uptime Check probes `/health` only. Supersedes the "keep demo_analytics.py" line of ADR-112 §6.5.

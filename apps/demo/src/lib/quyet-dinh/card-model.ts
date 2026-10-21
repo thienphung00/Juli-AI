@@ -10,6 +10,7 @@
  */
 
 import { MANUAL_LEVER_CODES } from "./grouping";
+import { SIMULATED_RUN_LABEL } from "./simulated-copy";
 import { compactVndNumber, countText, fullDate, kpiPair, pctNumber, summariseText, upliftChip } from "./p10-format";
 import type {
   CardConfidence,
@@ -26,6 +27,7 @@ export const CARD_STATUS_LABELS: Readonly<Record<CardStatus, string>> = {
   pending: "Chờ duyệt",
   running: "Đang thực hiện",
   applied: "Đã áp dụng",
+  simulated: SIMULATED_RUN_LABEL,
   rejected: "Đã từ chối",
   expired: "Hết hạn",
 };

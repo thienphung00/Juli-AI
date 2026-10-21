@@ -329,6 +329,8 @@ class WorkflowRunListItem(BaseModel):
     awaiting: str | None = None
     #: P10 integration: the Quyết định card (``action_cards.id``) the run came from.
     decision_id: uuid.UUID | None = None
+    #: Fast track P61-B: the run wrote to the sandbox merchant, not the seller's shop.
+    simulated: bool = False
 
 
 class WorkflowRunListResponse(BaseModel):
@@ -375,6 +377,7 @@ async def list_demo_runs(
                 ),
                 awaiting=item.awaiting,
                 decision_id=item.decision_id,
+                simulated=item.simulated,
             )
             for item in items
         ]

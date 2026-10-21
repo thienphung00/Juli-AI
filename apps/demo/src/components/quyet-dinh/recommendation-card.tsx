@@ -21,6 +21,7 @@ export const STATUS_TONE: Readonly<Record<CardStatus, string>> = {
   pending: "wait",
   running: "info",
   applied: "ok",
+  simulated: "muted",
   rejected: "muted",
   expired: "expired",
 };
