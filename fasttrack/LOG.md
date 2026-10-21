@@ -2569,3 +2569,85 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   mypy clean on 25 touched source files. Demo (Node 20): tsc + lint clean; vitest flaky
   timeouts under load (~50): full run 1200/1212, every failing file then passed when re-run
   alone (e.g. email-sign-in + demo-landing + simulated-run-p61b 38/38; ops-pages 17/17).
+
+## 2026-10-21 — agent — P62-B scoped reads, `processed_events` retention (D72.2–4)
+
+- **Reads (D72.3).** The three whole-table `analytics_performance_intervals` SELECTs and the
+  whole-table `silver.orders` SELECT were ONE code path: `compute_demo_main_kpis_payload` (the
+  gold stage of `run_shared_compute_job`: every material webhook and the hourly reconcile; NOT the
+  `/v1/demo/analytics` route, which only reads the stored `gold.kpi_envelopes` row — the uptime
+  probe never recomputes, so no cache was added; the route and the two retiring beats were not
+  touched, per the owner's later instruction). Now: one aggregate row per order day + two
+  single-row interval aggregates (values unchanged, all-time by contract). Second path:
+  `build_feature_aggregates` (scoring / refresh) read the shop's newest 10,000 interval rows, all
+  grains and columns; now the 30-day KPI window and six columns. Third: `load_product_days`
+  (optimize-product plan) now column-pruned for product rows and SKU rows summed per product-day
+  in SQL. Row counts on real Postgres, two shops, shop B with 120 days of the same shape: gold
+  recompute for shop A reads 24 rows (was 60 orders + 270 intervals = 330); scoring interval
+  read 210 rows (was all 540 of shop A's); product-day read 240 rows (was 360 + wide).
+- **Estimated rows read per day** (production, from the D72 pg_stat_statements; calls spread over
+  the ~17-day cycle ≈ 104 interval + 24 order calls/day): before ≈ 400k interval rows + 90k order
+  rows/day; after ≈ 3k rows/day. Estimated egress per day, before → after: gold recompute
+  interval+orders reads ≈ 60–200 MB → < 1 MB (row widths 0.4–0.7 KB from the seeded table sizes;
+  the wide range is the unknown stats window — owner re-checks after deploy).
+- **Retention (D72.2).** Migration 098 (on 097): `public.purge_processed_events(days, batch)`
+  SECURITY DEFINER (ADR-089 shape; EXECUTE juli_app only; SQL floor 14 days) + index on
+  `processed_at`; beat `processed-events-retention` 20:34 UTC; 30-day window, 5,000-row batches,
+  ≤ 40 batches/night. Proved on Postgres: `juli_app` cannot DELETE; floor refuses 1 day; two shops'
+  old rows deleted in 4 batches, recent rows kept. Egress effect is through dumps only
+  (≈ 64 MB → ≈ 40–50 MB of the dump); see DEBT for the larger lever (exclude the table's data
+  from the dump).
+- **Connection churn (D72.4): not changed.** `NullPool` is forced by `asyncio.run` per task
+  (loop-bound asyncpg connections, #871); pooler is Supavisor session mode so a pool would be
+  legal, the per-process loop refactor (21 task modules) is the risk; skipped per owner. Report:
+  819k `set_config` is already one pair per transaction (re-applied after each of the per-record
+  commits); the 661k epoch / claim / shop lookups are per ETL record (3 lookups, 2 savepoints,
+  1 commit each) and could be batched per page — DEBT.
+- Chain: 098 on `097_production_write_shops`; the deferred phone cleanup re-parented onto 098 and
+  its pinned tests updated; `fasttrack/optimize-product` (c15d6b34) merged in.
+- Verification: ruff + format clean, mypy clean on touched modules. New tests: unit 6
+  (`test_processed_events_retention.py`), Postgres 4 (`tests/integration/test_p62b_scoped_reads_and_retention_db.py`,
+  port 55462, all PASSED not skipped); related Postgres tests (batch reconcile gold envelope,
+  mock reconcile two-tenant, material shared compute handoff, demo analytics non-owner read,
+  ingest two-tenant) 19 passed. Full unit suite `tests/unit -m "not live"` (after `pnpm install`,
+  on the merged tree): 7910 passed, 245 skipped, 2 xfailed, 5 failed — 4 were mine and fixed
+  (import-boundary deep import, beat minute collision with `shop-poll-fanout`, a connect-event
+  role listener and a `type: ignore` in my test; those files re-run: 71 passed) and
+  `test_action_card_refresh_cooldown::test_slow_backing_store...` is the known load-timing flake
+  (file alone 16 passed). `fasttrack/check.sh --since fasttrack/optimize-product`: migrations PASS
+  (098 head), isolation 12 passed, gitleaks PASS, ruff PASS (30 files), pytest PASS (21 files:
+  562 passed). **check.sh: OK**.
+
+## 2026-10-21 — agent (Claude Opus) — P61-D cleanup + `/v1/demo/analytics` retired (branch `fasttrack/p61-d-cleanup`, not merged)
+
+- **Retired (owner D72.5, egress):** consumer check — `gold.kpi_envelopes` /
+  `analytics_kpi_envelopes` are read only by `GET /v1/demo/analytics` (the caches' getters have no
+  other caller); the top-up's outputs are re-written per shop by `poll_shop`. So:
+  `mock-analytics-hourly-reconcile` + `analytics-backfill-topup` beats, tasks and the
+  `DEMO_REFERENCE_SHOP_ID` read deleted (no per-shop replacement); the route answers **410 Gone**
+  (no DB/Redis); apps/demo `AnalyticsDataProvider` / `fetchDemoAnalytics` / fallback envelope
+  removed ("Làm mới Demo" keeps its resets); `deploy.sh` / `rollback-release.sh` / `uptime.yml`
+  probe `/health` only (uptime stays owner-disabled); `check-kpi-freshness.py` + test deleted;
+  ADR-094 amendment, ADR-112 §6.5 note. `DEMO_REFERENCE_SHOP_ID` is read nowhere now.
+- **Targeted fetch per shop** (owner-approved scope add): `targeted_fetch_executor` resolves the
+  job shop's own credential (`resolve_read_credential_for_shop`) and signs with its merchant id.
+- **Merchant ids:** no literal defaults; `MerchantIdNotConfigured` (ValueError naming the env var)
+  from both factories, the poll guard and the configured-merchant resolvers; test ids in
+  `tests/conftest.py`. **Deploy precondition:** both env vars set on API + worker.
+- **Loud env:** `core/config/runtime_env.py` — one `runtime_env_missing` WARNING per missing
+  variable / off flag at API and worker boot (names only); `GET /v1/ops/runtime-env` (viewer);
+  `shop_ingestion_skipped_unconfigured` WARNING with the missing names on every skip.
+- **Deleted** `fujiwa_poll_beat` + the `shop_id=None` poll paths; stale docs fixed
+  (impact_reader, workers MODULE, restore script requires `SHOP_ID`, obs1 scripts).
+- **Reject route** already existed (P10-A; DEBT P7-C and the audit row were stale): made
+  idempotent (row lock; repeat = 200, no new rows; another shop still 404).
+- Verification (after merging optimize-product c15d6b34, head 097): ruff + format clean; mypy
+  clean (728 files). Postgres 16 :55454 (UTC) via check.sh: migrations PASS (097 head),
+  isolation 12 passed, gitleaks PASS, ruff PASS (55 files), pytest PASS (58 files: 801 passed,
+  1 skipped = the asserted `live_hours` reachability carve-out) — **check.sh: OK**; it covers
+  `test_targeted_fetch_two_shop.py`, `test_reject_route_two_tenant.py`,
+  `test_fetch_executor_scope.py` on real Postgres. Full no-DB unit suite: 7881 passed,
+  245 skipped, 2 xfailed, 0 failed. apps/demo (Node 20 per `.nvmrc`): lint 0 errors, tsc clean,
+  vitest 1204 passed / 4 failed under machine load (ops-pages 30 s timeouts, no-shop-sample);
+  those files rerun alone: 36 passed. Under load (avg 30-70 from sibling agents) single runs
+  also hit pytest's 30 s timeout in Postgres fixture setup; every one passed on rerun.

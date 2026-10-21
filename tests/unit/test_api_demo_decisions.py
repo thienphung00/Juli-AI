@@ -16,7 +16,7 @@ every route that can create/watch/steer/confirm a run: `get_current_user` +
 the deliberate "P-UI's call" exception ADR-075 decision 3 left open; this is
 that call. `get_demo_reference_shop_id` /
 `DEMO_REFERENCE_SHOP_ID` are no longer involved on this surface at all —
-`GET /v1/demo/analytics` (out of scope for #1283) is the remaining caller.
+`GET /v1/demo/analytics` was the remaining caller until fast track P61-D retired it (410).
 
 AC1 → contract: only the *authenticated caller's own shop's* emission-gated
       active set is returned, resolved from `X-Shop-Id` — never a

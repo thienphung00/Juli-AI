@@ -79,6 +79,11 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         # Merchant capability isolation
         "PRODUCTION_AUTH_ID",
         "SANDBOX_AUTH_ID",
+        "PRODUCTION_MERCHANT_ID_ENV",
+        "SANDBOX_MERCHANT_ID_ENV",
+        "MerchantIdNotConfigured",
+        "require_production_auth_id",
+        "require_sandbox_auth_id",
         "TikTokCapability",
         # #1365: which capabilities may serve a read. Exported because the read
         # resolver lives in `core.security`, which is capped at cross-package

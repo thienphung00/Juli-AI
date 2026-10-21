@@ -78,8 +78,8 @@ from juli_backend.services.cdp_speed import (
   never touching the already-committed KPI envelope). Wired as the default
   ``scoring_stage`` at **both** production continuous-trigger call sites —
   ``services/webhook/material_worker.py``'s ``_default_shared_compute`` (material
-  webhook trigger) and ``workers/tasks/mock_analytics_reconcile.py``'s
-  ``run_mock_analytics_reconcile_orchestrated`` (hourly Mock reconcile gap trigger,
+  webhook trigger) and, until fast track P61-D retired it (owner D72.5), the hourly
+  reference-shop reconcile (``mock_analytics_reconcile``,
   PRD #599 user story 30 — gap reconciliation must heal Decision staleness the same
   way it heals KPI envelope staleness); actual execution still stays gated by
   ``scoring_stage_enabled()`` (default OFF) — wiring the callable does not flip the
@@ -127,13 +127,13 @@ bronze persistence (``analytics``, ``products``, ``inventory``, ``promotion``) a
 the remaining resource_attrs above stay deferred.
 
 **Forbidden on material path:** ``_FUJIWA_POLL_STEPS`` (all four domain polls),
-``run_fujiwa_poll_cycle``, unbounded ``sync_analytics`` A-31–A-39 fan-out. Hourly
-Mock reconcile uses a separate gap plan (``workers/tasks/mock_analytics_reconcile.py``
-'s ``_make_hourly_gap_fetch_plan`` — orders, analytics_shop, ctor, live_hours via
-``static_fetch_resource``) — not this matrix. The Fujiwa Mock reference shop is driven
-entirely by that hourly reconcile (no material webhook reaches it), so ctor/live_hours
-freshness for that shop depends on the gap plan requesting them, not on catalog id 5's
-material-matrix ``ctor`` entry below.
+``run_fujiwa_poll_cycle``, unbounded ``sync_analytics`` A-31–A-39 fan-out. The hourly
+reference-shop gap plan (orders, analytics_shop, ctor, live_hours) was retired with
+``GET /v1/demo/analytics`` (fast track P61-D, owner D72.5); ``live_hours`` bronze is now
+requested by no plan builder (DEBT P61-D). The executor (P61-D, owner-approved) resolves the
+JOB shop's credential (``resolve_job_read_credential`` → ``resolve_read_credential_for_shop``,
+exported here) and signs with that credential's merchant id; ``credential_belongs_to_job``
+requires the job's shop, a read capability, a merchant id, and never the sandbox merchant.
 
 ## Extending the matrix
 

@@ -3,7 +3,6 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { AnalyticsDataProvider, useAnalyticsData } from "../lib/analytics/analytics-data-context";
 import { REVIEWER_READ_ONLY_TITLE } from "../lib/reviewer/copy";
 import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/reviewer/reviewer-context";
 import { resetReviewerSample } from "../lib/reviewer/sample-store";
@@ -63,7 +62,6 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const { feedback, resetMockState } = useDemoState();
-  const { refreshAnalytics } = useAnalyticsData();
   const { state } = useShopReport();
   const reviewer = useReviewer();
   const entry = useLandingEntry();
@@ -80,7 +78,6 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   }, []);
 
   const handleManualRefresh = () => {
-    void refreshAnalytics();
     // P37: the sample store is tab-wide now — "Làm mới Demo" starts it over too.
     resetReviewerSample();
     resetMockState();
@@ -156,15 +153,13 @@ export function DemoShell({ children }: { children: ReactNode }) {
   }
   return (
     <DemoStateProvider>
-      <AnalyticsDataProvider>
-        <ShopReportProvider>
-          <ReviewerProvider>
-            <LandingEntryProvider readKey={pathname}>
-              <DemoShellContent>{children}</DemoShellContent>
-            </LandingEntryProvider>
-          </ReviewerProvider>
-        </ShopReportProvider>
-      </AnalyticsDataProvider>
+      <ShopReportProvider>
+        <ReviewerProvider>
+          <LandingEntryProvider readKey={pathname}>
+            <DemoShellContent>{children}</DemoShellContent>
+          </LandingEntryProvider>
+        </ReviewerProvider>
+      </ShopReportProvider>
     </DemoStateProvider>
   );
 }

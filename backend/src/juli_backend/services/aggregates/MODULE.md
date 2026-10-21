@@ -41,6 +41,14 @@ A-25 promotion partition). Phase 2 Milestone A (#300) + computed KPI rollups (#3
   `unavailable`
 - `ShopLifecycleContext` carries probation/health API fields not yet on `Shop` rows
 
+### Scoped interval read (fast track P62-B, D72.3)
+
+`build_feature_aggregates` reads `analytics_performance_intervals` only inside the KPI rolling
+window (`ROLLING_WINDOW_DAYS`, by `start_date`) and only the six columns
+`compute_analytics_kpis` uses (`_rolling_window_intervals`); before, it read the shop's newest
+10,000 rows of every grain and column (the whole table for a shop with history). Orders,
+order items, returns and inventory still use the `list_limit` reads (daily per shop; DEBT).
+
 ## Out of scope
 
 - T8 router / `juli_backend.ai.seller_stage` inference

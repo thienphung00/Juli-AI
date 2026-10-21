@@ -458,6 +458,7 @@ class TestBothEntrypointsRunUnderTheCycleBudget:
 
         with pytest.raises(PollCycleTimeoutError) as excinfo:
             await run_fujiwa_poll_cycle(
+                shop_id=budget_credential.shop_id,
                 session=session,
                 config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
                 oauth_service=oauth_service_for_budget,
@@ -483,6 +484,7 @@ class TestBothEntrypointsRunUnderTheCycleBudget:
 
         with pytest.raises(PollCycleTimeoutError) as excinfo:
             await run_fujiwa_material_resource_fetch(
+                shop_id=budget_credential.shop_id,
                 session=session,
                 config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
                 oauth_service=oauth_service_for_budget,
@@ -511,6 +513,7 @@ class TestBothEntrypointsRunUnderTheCycleBudget:
             handed_off.append(channel)
 
         await run_fujiwa_poll_cycle(
+            shop_id=budget_credential.shop_id,
             session=session,
             config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
             oauth_service=oauth_service_for_budget,
@@ -563,6 +566,7 @@ class TestPartialStateSurvivesAMidCycleFailure:
 
         with pytest.raises(RuntimeError):
             await run_fujiwa_poll_cycle(
+                shop_id=budget_credential.shop_id,
                 session=session,
                 config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
                 oauth_service=oauth_service_for_budget,
@@ -603,6 +607,7 @@ class TestPartialStateSurvivesAMidCycleFailure:
         # for an undiagnosable one is exactly what the guarded save prevents.
         with pytest.raises(ValueError, match="the real failure"):
             await run_fujiwa_poll_cycle(
+                shop_id=budget_credential.shop_id,
                 session=session,
                 config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
                 oauth_service=oauth_service_for_budget,
@@ -660,6 +665,7 @@ class TestTheClockCoversTheCredentialResolve:
                 oauth_service=oauth_service_for_budget,
                 rate_limiter=NeverExhaustedRateLimiter(),
                 handoff_fn=_handoff,
+                shop_id=budget_credential.shop_id,
                 resolve_credential=_slow_resolve,
                 create_resources=lambda _cfg: one_row_resources,
             )

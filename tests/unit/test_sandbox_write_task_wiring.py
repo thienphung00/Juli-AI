@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.integrations.tiktok import SANDBOX_AUTH_ID
 from juli_backend.models.models import Shop, TikTokCredential, User
 from juli_backend.repositories.repos import ShopsRepo
 
@@ -39,7 +40,7 @@ async def sandbox_shop_with_sandbox_write_credential(
     sandbox_write_cred = TikTokCredential(
         id=uuid.uuid4(),
         shop_id=shop.id,
-        merchant_authorization_id="7658096633384781588",
+        merchant_authorization_id=SANDBOX_AUTH_ID,
         capability="sandbox_write",
         access_token="sandbox_write_token",
         refresh_token="sandbox_write_refresh_token",
@@ -268,7 +269,7 @@ class TestCredentialMismatchSurfacing:
         sandbox_write_cred = TikTokCredential(
             id=uuid.uuid4(),
             shop_id=shop.id,
-            merchant_authorization_id="7658096633384781588",
+            merchant_authorization_id=SANDBOX_AUTH_ID,
             capability="sandbox_write",
             access_token="sandbox_write_token",
             refresh_token="sandbox_write_refresh_token",
@@ -295,6 +296,6 @@ class TestCredentialMismatchSurfacing:
             # Check that both merchant IDs are in the log extra dict
             record = mismatch_records[0]
             extra_str = str(record.__dict__.get("extra", record.__dict__))
-            assert "123456789" in extra_str or "7658096633384781588" in extra_str, (
+            assert "123456789" in extra_str or SANDBOX_AUTH_ID in extra_str, (
                 f"Merchant IDs should be in log: {extra_str}"
             )

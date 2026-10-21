@@ -60,7 +60,6 @@ test("signed in: upload in chunks, then the analysis appears", async ({ page }) 
   });
   await page.route(/\/v1\/demo\/analysis(\?.*)?$/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(report) }));
   await page.route(/\/v1\/demo\/decisions(\?.*)?$/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"data":[]}' }));
-  await page.route("**/v1/demo/analytics*", (route) => route.fulfill({ status: 404, body: "{}" }));
 
   const size = 3 * 1024 * 1024 + 100;
   const chunk = 1024 * 1024;

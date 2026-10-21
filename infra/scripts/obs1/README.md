@@ -18,19 +18,18 @@ bash /root/releases/current/infra/scripts/obs1/check_beat_cycle.sh
 |---|---|---|
 | `check_runtime_role.py` | 2 | `bypassrls` is False **and** tables owned is 0 |
 | `check_cross_tenant_isolation.py` | 3 | the other tenant's row counts are all 0 while own is 1 |
-| `check_beat_cycle.sh` | 4 | all five named beats show `ok` and scoping errors is 0 |
+| `check_beat_cycle.sh` | 4 | all named beats show `ok` and scoping errors is 0 |
 
-Bullet 1's public half is `curl` against `/health` and `/v1/demo/analytics`. Its
+Bullet 1's public half is `curl` against `/health` (`/v1/demo/analytics` was retired in P61-D and answers 410). Its
 authenticated half — a read, an approve, an SSE stream — needs an operator's own token
 and is deliberately not scripted here.
 
 ## Two things these scripts will not do for you
 
-**They do not trigger beats.** `analytics_backfill_topup` runs at 02:00 UTC and
-`daily_impact_reader` at 03:00 UTC, so a run before those fire reports `NOT YET RUN`
-rather than a pass. That is the honest state, not a gap in the script. Triggering them
-manually is a write against the demo reference shop, which is Fujiwa Vietnam Store
-(`2b1da87b`) — the shop under the standing owner decision of 2026-08-21.
+**They do not trigger beats.** `daily_impact_reader` runs at 03:23 UTC, so a run before
+it fires reports `NOT YET RUN` rather than a pass. That is the honest state, not a gap in
+the script. (Fast track P61-D retired `analytics_backfill_topup`, the reference-shop hourly
+reconcile and `GET /v1/demo/analytics`, owner D72.5.)
 
 **`check_beat_cycle.sh` measures from the worker's last restart.** A deploy restarts the
 worker, so the window resets and the daily beats read `NOT YET RUN` again until they next

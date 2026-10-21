@@ -72,6 +72,15 @@ from juli_backend.api.dependencies import get_active_shop
   404s identically to a nonexistent id on detail lookup; a shop with zero
   cards gets an empty list, never another shop's. See
   `services/demo_decisions/MODULE.md`.
+- `POST /v1/demo/decisions/{action_card_id}/reject` `{reason_code, note?}` — "Từ chối"
+  (fast track P10-A; contract `fasttrack/contracts/p10-quyet-dinh.md` §2): stores the
+  reason, closes the card, writes the `dismissed` card event; 422 bad reason, 404 another
+  shop's / unknown / off-desk card. **Idempotent since P61-D**: repeating a reject this
+  shop already made answers 200 with the first reject's body and writes nothing (row lock
+  on the card; another shop still gets 404).
+- `GET /v1/ops/runtime-env` — Juli Ops (viewer+): the API process's boot env report
+  (fast track P61-D, `core/config/runtime_env.py`) — missing required variables, flags
+  off; names and booleans only, never a value.
 - `POST /webhooks/tiktok` — TikTok Shop webhook ingress (Issue #381), not under `/v1`.
   Mounted from `juli_backend.services.webhook`; see `api/routes/webhook_tiktok.py` and
   `services/webhook/MODULE.md`.

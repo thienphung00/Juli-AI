@@ -77,7 +77,6 @@ async function stub(page: Page, s: Scenario): Promise<Recorded[]> {
   const json = (body: unknown, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
 
   await page.route(/\/v1\/demo\/analysis(\?.*)?$/, (route) => route.fulfill(json(report)));
-  await page.route("**/v1/demo/analytics*", (route) => route.fulfill({ status: 404, body: "{}" }));
   await page.route(/\/v1\/demo\/rules/, (route) => route.fulfill(json({ success: true, data: rules() })));
   await page.route(/\/v1\/demo\/revert-questions/, async (route) => {
     if (route.request().method() === "POST") {

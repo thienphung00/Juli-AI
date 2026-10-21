@@ -141,7 +141,6 @@ test.describe("Phân tích — signed-in seller (stubbed API)", () => {
       decisionCalls += 1;
       await route.fulfill({ status: 200, contentType: "application/json", body: '{"data":[]}' });
     });
-    await page.route("**/v1/demo/analytics*", (route) => route.fulfill({ status: 404, body: "{}" }));
 
     await page.goto("/analytics?tab=san-pham&stream=the-san-pham&metric=ctor");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Thẻ sản phẩm: CTOR giảm/);

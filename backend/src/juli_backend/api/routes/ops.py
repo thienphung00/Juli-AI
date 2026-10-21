@@ -300,6 +300,18 @@ async def ops_overview_refresh(
     return body
 
 
+@router.get("/runtime-env")
+async def ops_runtime_env(ctx: OpsContext = Depends(viewer)) -> dict[str, Any]:
+    """Which env a connected shop needs is missing / which flags are off (P61-D, D71.4).
+
+    The API process's view (the worker logs the same report at its own boot as
+    ``runtime_env_report``). Names and booleans only -- never a value.
+    """
+    from juli_backend.core.config import runtime_env_report
+
+    return runtime_env_report("api").to_json()
+
+
 class StaffWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
     email: str

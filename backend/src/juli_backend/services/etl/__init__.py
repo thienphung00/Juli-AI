@@ -9,6 +9,7 @@ _LAZY_EXPORTS = {
     "append_targeted_live_hours_payload": "juli_backend.services.etl.bronze_append",
     "EtlConsumer": "juli_backend.services.etl.consumer",
     "ProcessOutcome": "juli_backend.services.etl.consumer",
+    "purge_processed_events": "juli_backend.services.etl.persistence.ingest.retention",
 }
 
 
@@ -33,6 +34,7 @@ __all__ = [
     "IngestRecord",
     "KafkaRecord",
     "ProcessOutcome",
+    "purge_processed_events",
     "transform_for_channel",
     "transform_for_topic",
 ]

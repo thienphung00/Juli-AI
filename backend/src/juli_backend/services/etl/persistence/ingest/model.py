@@ -41,7 +41,11 @@ class ProcessedEvent(Base):
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     processed_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
-    __table_args__ = (Index("ix_processed_events_shop", "shop_id"),)
+    __table_args__ = (
+        Index("ix_processed_events_shop", "shop_id"),
+        # Migration 098 (P62-B, D72.2): the nightly retention purge scans by age.
+        Index("ix_processed_events_processed_at", "processed_at"),
+    )
 
 
 class IngestDedupEpoch(Base):

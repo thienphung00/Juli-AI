@@ -278,6 +278,31 @@ async def reason_penalties(
     return {lever: reason_penalty(values) for lever, values in ages.items()}
 
 
+async def card_reject_reason(
+    session: AsyncSession, shop_id: uuid.UUID, action_card_id: uuid.UUID
+) -> DecisionReason | None:
+    """The reject reason already stored for this shop's card, if its card is closed.
+
+    What makes "Từ chối" idempotent (fast track P61-D): a repeat of the same
+    reject finds the first one's row and answers with it instead of a 404 or a
+    second row. Shop-keyed, so another shop's card id finds nothing.
+    """
+    stmt = (
+        select(DecisionReason)
+        .join(ActionCard, ActionCard.id == DecisionReason.action_card_id)
+        .where(
+            DecisionReason.shop_id == shop_id,
+            DecisionReason.action_card_id == action_card_id,
+            DecisionReason.action == ACTION_REJECT,
+            ActionCard.shop_id == shop_id,
+            ActionCard.status == DISMISSED_CARD_STATUS,
+        )
+        .order_by(DecisionReason.decided_at.desc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
 def cooldown_until_iso(reason: DecisionReason) -> str:
     return reason.cooldown_until.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z")
 

@@ -17,7 +17,8 @@
 #   DUMP_FILE     — dump to restore from (default resolves the 20260730T061519Z dump)
 #   BACKUP_DIR    — where dumps live (default ~/backups)
 #   API_ENV_FILE  — env file providing DATABASE_URL (default /etc/juli/api.env)
-#   SHOP_ID       — shop to scope the restore to (default $DEMO_REFERENCE_SHOP_ID)
+#   SHOP_ID       — REQUIRED: the shop to scope the restore to (no fallback; fast
+#                   track P61-D removed the DEMO_REFERENCE_SHOP_ID default)
 #
 # Exit codes: 0 success (or dry-run clean), 1 precondition failed or restore error.
 set -euo pipefail
@@ -55,8 +56,9 @@ set +a
 # The app URL may carry the asyncpg driver; psql needs the plain form.
 PGURL="${DATABASE_URL//+asyncpg/}"
 
-SHOP_ID="${SHOP_ID:-${DEMO_REFERENCE_SHOP_ID:-}}"
-[ -n "${SHOP_ID}" ] || fail "SHOP_ID or DEMO_REFERENCE_SHOP_ID must be set"
+# No fallback to DEMO_REFERENCE_SHOP_ID (fast track P61-D, ADR-112 §6.5): a restore
+# names the shop it is for, explicitly, every time.
+[ -n "${SHOP_ID:-}" ] || fail "SHOP_ID must be set to the shop this restore is for"
 
 [ -f "${DUMP_FILE}" ] || fail "dump not found: ${DUMP_FILE}"
 log "dump:    ${DUMP_FILE} ($(wc -c < "${DUMP_FILE}" | tr -d ' ') bytes)"

@@ -112,9 +112,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P7-C UI (2026-10-08)
 
-- [ ] "Từ chối" on a signed-in card only hides it for the session (no reject
+- [x] "Từ chối" on a signed-in card only hides it for the session (no reject
   route) — no backend endpoint — add `POST /v1/demo/decisions/{id}/reject` and
-  call it; the on-screen copy says the choice is not saved.
+  call it; the on-screen copy says the choice is not saved. **Repaid** by P10-A
+  (route + `quyet-dinh-view.tsx` `handleReject` → `clients.reject`); P61-D made it
+  idempotent and added the two-tenant Postgres proof.
 - [ ] Inter font is named in the stack but not loaded (mock imports Google
   Fonts) — no network at build — add `next/font` if the owner wants Inter
   everywhere.
@@ -308,7 +310,9 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Rules 422 messages are English from the backend; the editor shows a
   per-rule Vietnamese range sentence instead of the server text — backend
   should send `detail.message` in Vietnamese like `/revert`.
-- [ ] "Bỏ" (drop a card) is session-only, as before (no reject route) — scope.
+- [x] "Bỏ" (drop a card) is session-only, as before (no reject route) — scope.
+  **Repaid** (P10-A "Từ chối" persists through the route; checked in P61-D: no session-only
+  reject remains in apps/demo).
 - [ ] Batch approve navigates to the first new run; a card whose approve
   failed is listed in an alert, not retried — honest, one click more.
 - [ ] Upcoming timeline steps come from a client-side copy of the playbook
@@ -1356,7 +1360,8 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P61-A — agent reads per shop (2026-10-20, D71.1)
 
-- [ ] `services/cdp_speed/targeted_fetch_executor.py` still resolves the configured production
+- [x] (repaid by P61-D: per-shop credential + merchant id, two-shop Postgres test)
+  `services/cdp_speed/targeted_fetch_executor.py` still resolves the configured production
   merchant (`resolve_production_read_credential` + `merchant_auth_id=PRODUCTION_AUTH_ID`). It does
   not leak (it skips any job whose shop is not that merchant's), but targeted fetch is
   single-tenant. Repay: `resolve_read_credential_for_shop` + the credential's merchant id, as P61-A
@@ -1447,6 +1452,36 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Node 26 (current local default) breaks 29 demo vitest files on Web Storage (`localStorage`
   undefined); `.nvmrc` says 20 and all 122 files pass there.
 
+## P62-B — egress: scoped reads, `processed_events` retention (2026-10-21, D72.2–4)
+
+- [ ] **D72.4 not done: workers still open one pooler connection per session.**
+  `ensure_worker_session_factory` uses `NullPool` because every task enters via
+  `asyncio.run()` (fresh loop; pooled asyncpg connections are loop-bound, #871). The pooler is
+  Supavisor SESSION mode (5432, ADR-086), so a pool + prepared statements would be safe; the
+  blocker is the per-task loop. Fix: one persistent event loop per worker process
+  (`worker_process_init`), a `run_task(coro)` helper replacing `asyncio.run` in the 21 task
+  modules, then `AsyncAdaptedQueuePool` (size 2, overflow 2, `pool_pre_ping`, recycle 1800,
+  the API's idle guard). Skipped on the owner's 2026-10-21 instruction (risk before the
+  2026-10-26 cycle reset). Connection churn costs latency and `get_auth` calls, little egress.
+- [ ] The ETL hot path does 3 lookups + 2 savepoints per record (shop by TikTok id, dedup epoch,
+  `processed_events` claim) and commits per record; production shows ~78 % of records are
+  duplicates (`ROLLBACK TO SAVEPOINT` 515k of 661k claims). `set_config` (819k) is already one
+  pair per transaction (`with_sticky_shop_scope` re-applies after each commit) — the count tracks
+  the per-record commits. Batching (cache shop + epoch per consumer, one `SELECT … WHERE event_id
+  = ANY(...)` per page, one commit per page) would cut all four counters; not refactored.
+- [ ] `PROCESSED_EVENTS_RETENTION_DAYS` = 30 keeps ~30 days of claims (est. ~8–9k new rows/day
+  → ~50 MB steady state, little below today's 64 MB). The SQL floor is 14; 14 would halve it.
+  The bigger egress lever is for P62-A: `pg_dump --exclude-table-data=public.processed_events`
+  (the ledger is a cache of "already seen": losing it costs one re-compare per record).
+- [ ] `build_feature_aggregates` still reads up to 10,000 rows each of orders / order items /
+  returns / products / inventory per scoring run (`order_count`, `total_order_value` are
+  all-time). Daily per shop, so small; window it with SQL counts if it shows in
+  `pg_stat_statements` after the deploy.
+- [ ] `services/analytics_kpi_precompute` (`precompute_shop_analytics_kpis`, `build_gmv_tiktok_kpi`)
+  reads a shop's whole interval table but has no production caller; left as is (dead code —
+  delete or window when next touched).
+- [ ] Row/egress numbers in LOG are estimates (row widths from the D72 table sizes, call rates
+  from `pg_stat_statements` over an assumed ~17-day window); owner re-checks after deploy.
 ## P61-B — production write per shop, flags off (2026-10-20, D71.2)
 
 - [ ] **The agent run (Optimize Product, cover photo, Hoàn tác) still writes only to the
@@ -1477,3 +1512,38 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Pre-existing MODULE.md drift left as found (api privacy routes, database orphans,
   tiktok `rebuild_keyword_exception` / `redact_url_query`, agent card_events orphans).
 - [ ] Not run in production: migration 097. Flags stay off.
+
+## P61-D — hardcode / beat / flag cleanup (2026-10-20, D71.4; route retirement D72.5)
+
+- [ ] **Deploy precondition (owner):** `TIKTOK_PRODUCTION_MERCHANT_ID` and
+  `TIKTOK_SANDBOX_MERCHANT_ID` must be set in the API **and** worker env before this ships —
+  there is no default in code any more. Unset sandbox id = every poll and every read client
+  refuses (`MerchantIdNotConfigured`); unset production id = the production merchant is
+  classified `SELLER_CONNECT`. Boot logs `runtime_env_missing` per gap and
+  `GET /v1/ops/runtime-env` shows it; nothing checks the production env file from CI.
+- [ ] `GET /v1/demo/analytics` answers 410 Gone (kept as a stub for cached demo bundles and the
+  disabled uptime probe). Repay: delete `api/routes/demo_analytics.py`, its allowlist /
+  surface-inventory entries and the nginx comment once the access log shows no callers.
+- [ ] `gold.kpi_envelopes` now has **no reader** but still has writers: the material-webhook
+  Shared Compute gold stage (`services/webhook/material_worker`) and the flag-off
+  `cdp-batch-staggered-reconcile`. Every material webhook still recomputes an envelope (egress).
+  Repay (owner call): drop the gold stage from the material path, or retire the envelope tables.
+- [ ] `live_hours` bronze domain is requested by no plan builder now (only the retired hourly gap
+  plan asked for it); `test_medallion_domain_reachability` carries it as an asserted carve-out.
+  Repay: remove the `live_hours` bronze/silver path, or wire it into a per-shop plan.
+- [ ] The Decision-scoring continuous trigger that rode the hourly reconcile
+  (`decision_rules_scoring_stage`, gated by `CDP_DECISIONS_SCORING_ENABLED`, default off) is gone
+  with it; scoring still runs from `poll_shop` (D11) and the material path.
+- [ ] `analytics-backfill-topup` deleted without a per-shop replacement: verified that
+  `run_shop_cycle._daily_analytics` lands every shop's shop / product / SKU / LIVE analytics
+  daily and the history phase walks gaps backwards; the top-up's `catalog` bucket
+  (`active_products` / `new_products`) has no reader outside seeds. A partition that failed
+  inside the last 30 days is no longer retried by a daily job. The service
+  (`backfill_analytics_history_auto_topup`) and its CLI stay.
+- [ ] Ops sees the API process's env only (`GET /v1/ops/runtime-env`); the worker's report is in
+  its boot log (`runtime_env_report`), not on a screen. No Ops UI panel yet.
+- [ ] Reject idempotency covers a repeat of a reject only; a card closed by another action
+  (approve, decline) still answers 404 to a reject — honest, but a client cannot tell "already
+  approved" from "not yours".
+- [ ] apps/demo vitest must run on Node 20 (`.nvmrc`); on this Mac's default Node 26, 295 tests
+  fail on `localStorage.clear` (jsdom vs Node's own `localStorage`) — environment, not code.

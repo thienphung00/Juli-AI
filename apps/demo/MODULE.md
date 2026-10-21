@@ -227,7 +227,7 @@ Invariants below.
   (tokens, `.card`, `.btn-primary`, `.badge`, `.app-header` …) after the older
   rules. AC-8.5 appends the shell/Trang chủ block (rail, header, `.eyebrow`,
   matrix) drawn only from those kit tokens — one token source.
-- `AnalyticsDataProvider` / `fetchDemoAnalytics` — Phase 2.10-A live Analytics read via `GET /v1/demo/analytics` (Home/Settings/Decisions remain mock).
+- ~~`AnalyticsDataProvider` / `fetchDemoAnalytics`~~ — removed in fast track P61-D (owner D72.5, 2026-10-21): `GET /v1/demo/analytics` is retired (410 Gone); "Làm mới Demo" keeps its sample resets.
 - `POST /api/tt/event` — the TikTok Events API relay, sharing one data source
   with `apps/landing`. Same-origin, so an ad blocker that stops the pixel does
   not stop this. Accepts only this site's own origins (`lib/site-origins.ts`)
@@ -247,7 +247,7 @@ Invariants below.
 
 - Home (Trang chủ) shows the shop report overview (cards + 5-stream matrix, ADR-109 d.3) and no recommendation action, execution queue, template, or threshold.
 - User-visible copy is Vietnamese with correct diacritics.
-- The shell's `AnalyticsDataProvider` (feeds the plan impact block) is the remaining reader of `GET /v1/demo/analytics`; the KPI dashboard route is gone. Signed-in Trang chủ and Phân tích read `GET /v1/demo/analysis` once via the shell's `ShopReportProvider` (Phân tích adds one rankings read per clicked cell); anonymous Trang chủ and Phân tích issue no request.
+- Nothing reads `GET /v1/demo/analytics` any more (retired in P61-D, 410 Gone); the KPI dashboard route is gone. Signed-in Trang chủ and Phân tích read `GET /v1/demo/analysis` once via the shell's `ShopReportProvider` (Phân tích adds one rankings read per clicked cell); anonymous Trang chủ and Phân tích issue no request.
 - **The TikTok channel is loaded only for a visitor who arrived from a TikTok
   ad** — a `ttclid` on the landing URL, or one stored from an earlier visit
   (`components/tiktok-tracking.tsx`, and the same gate in

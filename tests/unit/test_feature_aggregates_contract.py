@@ -27,7 +27,6 @@ from juli_backend.models.models import (
     User,
 )
 from juli_backend.repositories.repos import (
-    AnalyticsPerformanceRepo,
     InventoryRepo,
     OrderItemsRepo,
     OrdersRepo,
@@ -199,9 +198,7 @@ class TestSyncedPostgresSourcesOnly:
             probation_status="graduated",
             health_data_source=HealthDataSource.PROXY,
         )
-        snapshot = await build_feature_aggregates(
-            session, shop.id, lifecycle=lifecycle
-        )
+        snapshot = await build_feature_aggregates(session, shop.id, lifecycle=lifecycle)
 
         assert set(calls) == {
             "orders",
@@ -442,18 +439,21 @@ class TestAnalyticsBackedAggregates:
         shop = shop_with_analytics_data
         calls: list[str] = []
 
-        original_analytics_list = AnalyticsPerformanceRepo.list
+        from juli_backend.services.aggregates import builder as builder_module
+
+        # D72.3: the interval read is the rolling-window, KPI-columns query.
+        original_analytics_read = builder_module._rolling_window_intervals
         original_sync_load = TikTokSyncStateRepo.load
 
-        async def analytics_wrapped(self, shop_id, **kwargs):
+        async def analytics_wrapped(*args, **kwargs):
             calls.append("analytics_performance_intervals")
-            return await original_analytics_list(self, shop_id, **kwargs)
+            return await original_analytics_read(*args, **kwargs)
 
         async def sync_wrapped(self, shop_id):
             calls.append("tiktok_sync_state")
             return await original_sync_load(self, shop_id)
 
-        monkeypatch.setattr(AnalyticsPerformanceRepo, "list", analytics_wrapped)
+        monkeypatch.setattr(builder_module, "_rolling_window_intervals", analytics_wrapped)
         monkeypatch.setattr(TikTokSyncStateRepo, "load", sync_wrapped)
 
         snapshot = await build_feature_aggregates(session, shop.id, computed_at=ANCHOR)
@@ -476,9 +476,7 @@ class TestAnalyticsBackedAggregates:
         assert kpis.analytics_shop_gmv_30d == Decimal("6408074.00")
 
     @pytest.mark.asyncio
-    async def test_analytics_product_gmv_and_ctr_rollups(
-        self, session, shop_with_analytics_data
-    ):
+    async def test_analytics_product_gmv_and_ctr_rollups(self, session, shop_with_analytics_data):
         snapshot = await build_feature_aggregates(
             session, shop_with_analytics_data.id, computed_at=ANCHOR
         )
@@ -502,9 +500,7 @@ class TestAnalyticsBackedAggregates:
         assert kpis.analytics_spend_denominator is None
 
     @pytest.mark.asyncio
-    async def test_null_when_analytics_partition_missing(
-        self, session, shop_with_synced_data
-    ):
+    async def test_null_when_analytics_partition_missing(self, session, shop_with_synced_data):
         snapshot = await build_feature_aggregates(
             session, shop_with_synced_data.id, computed_at=ANCHOR
         )

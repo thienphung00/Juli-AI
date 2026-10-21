@@ -79,11 +79,9 @@ ALLOWLISTED_PRODUCT_ROUTES: dict[tuple[str, str], str] = {
         "The caller is TikTok's Partner Center, which cannot hold a Juli session."
     ),
     ("GET", "/v1/demo/analytics"): (
-        "Public Demo Analytics read (#531, ADR-037) — unauthenticated by design. Serves a "
-        "server-bound DEMO_REFERENCE_SHOP_ID; no client-controllable shop_id anywhere "
-        "(rejected as a query param, never read as a header). Out of scope for #1283 — "
-        "ADR-075 decision 3 left this read-only route as a deliberate exception; only the "
-        "two Demo Decisions routes below (#718, B-6) were reconsidered."
+        "RETIRED (fast track P61-D, owner D72.5, 2026-10-21): always 410 Gone, no data, "
+        "no database or cache access. Was the public Demo Analytics read (#531, ADR-037). "
+        "Delete this entry with the route once its access log shows no callers."
     ),
     # GET /v1/demo/decisions and GET /v1/demo/decisions/{action_card_id} (#718, B-6)
     # used to be here too — unauthenticated, server-bound DEMO_REFERENCE_SHOP_ID, same
