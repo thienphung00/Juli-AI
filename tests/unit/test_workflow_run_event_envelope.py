@@ -1,11 +1,13 @@
-"""Pydantic envelope + typed 8-event union contract tests for #1125 / AGT-W3B
-(ADR-074 decision 2, ADR-071's `assistant.text.delta` reservation, ADR-073's
+"""Pydantic envelope + typed 9-event union contract tests for #1125 / AGT-W3B
+(ADR-074 decision 2, ADR-071's `assistant.text.delta` -- reserved, then added
+by the ADR-071 amendment, D71.3 / P61-C -- ADR-073's
 total `stop_reason` -> `WorkflowRunStatus` mapping).
 
 No database, no network -- pure model construction/validation. Mirrors the
-issue's acceptance-criteria language directly: each of the eight event
+issue's acceptance-criteria language directly: each of the nine event
 types round-trips with its exact payload fields, `v` is pinned to the
-literal `1`, `assistant.text.delta` is not constructible, and
+literal `1`, `assistant.text.delta` carries exactly block_id / chunk_index /
+text, and
 `workflow.failed`'s `stop_reason` is restricted to ADR-073's failure-class
 members with `status` matching the mapped value.
 """
@@ -20,6 +22,7 @@ from pydantic import ValidationError
 
 from juli_backend.services.agent.events.envelope import (
     EVENT_TYPES,
+    AssistantTextDeltaEvent,
     AssistantTextEvent,
     ToolCompletedEvent,
     ToolStartedEvent,
@@ -33,6 +36,7 @@ from juli_backend.services.agent.events.envelope import (
 )
 from juli_backend.services.agent.events.payloads import (
     FAILURE_STOP_REASONS,
+    AssistantTextDeltaPayload,
     AssistantTextPayload,
     ConfirmationOptionPayload,
     ToolCompletedPayload,
@@ -258,18 +262,19 @@ def test_workflow_failed_event_round_trips_exact_fields():
         WorkflowFailedPayload(status=WorkflowRunStatus.FAILED)
 
 
-def test_all_eight_event_types_named_and_no_more():
+def test_all_nine_event_types_named_and_no_more():
     assert set(EVENT_TYPES) == {
         "workflow.started",
         "workflow.status",
         "assistant.text",
+        "assistant.text.delta",
         "tool.started",
         "tool.completed",
         "workflow.approval_required",
         "workflow.completed",
         "workflow.failed",
     }
-    assert len(EVENT_TYPES) == 8
+    assert len(EVENT_TYPES) == 9
 
 
 # ---------------------------------------------------------------------------
@@ -345,31 +350,42 @@ def test_workflow_run_event_adapter_compiles_to_a_tagged_union_on_event_type():
 
 
 # ---------------------------------------------------------------------------
-# `assistant.text.delta` stays reserved / unimplemented.
+# `assistant.text.delta` (ADR-071 amendment, D71.3 / P61-C).
 # ---------------------------------------------------------------------------
 
 
-def test_assistant_text_delta_has_no_event_class():
-    import juli_backend.services.agent.events.envelope as envelope_module
+def test_assistant_text_delta_event_round_trips_exact_fields():
+    payload = AssistantTextDeltaPayload(block_id="b1", chunk_index=0, text="Tôi ")
+    assert set(payload.model_dump()) == {"block_id", "chunk_index", "text"}
+    event = AssistantTextDeltaEvent(**_envelope_kwargs("assistant.text.delta", payload))
+    parsed = WorkflowRunEventAdapter.validate_python(event.model_dump(mode="json"))
+    assert isinstance(parsed, AssistantTextDeltaEvent)
+    assert parsed.payload == payload
 
-    for name in dir(envelope_module):
-        assert "delta" not in name.lower(), f"unexpected delta-named symbol: {name}"
 
-
-def test_assistant_text_delta_rejected_by_union_discriminant():
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"text": "partial"},
+        {"block_id": "b", "chunk_index": -1, "text": "x"},
+        {"block_id": "b", "chunk_index": 0, "text": "x", "extra": 1},
+    ],
+)
+def test_assistant_text_delta_rejects_missing_negative_or_extra_fields(payload):
     raw = {
         "workflow_run_id": str(RUN_ID),
         "sequence_number": 0,
         "event_type": "assistant.text.delta",
         "timestamp": NOW.isoformat(),
-        "payload": {"text": "partial"},
+        "payload": payload,
         "v": 1,
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as exc_info:
         WorkflowRunEventAdapter.validate_python(raw)
+    assert "assistant.text.delta" in str(exc_info.value)
 
 
-def test_discriminated_union_validates_each_of_the_eight_types():
+def test_discriminated_union_validates_each_of_the_nine_types():
     samples = [
         WorkflowStartedEvent(
             **_envelope_kwargs(
@@ -381,6 +397,12 @@ def test_discriminated_union_validates_each_of_the_eight_types():
             **_envelope_kwargs("workflow.status", WorkflowStatusPayload(phase_narration="p"))
         ),
         AssistantTextEvent(**_envelope_kwargs("assistant.text", AssistantTextPayload(text="t"))),
+        AssistantTextDeltaEvent(
+            **_envelope_kwargs(
+                "assistant.text.delta",
+                AssistantTextDeltaPayload(block_id="b", chunk_index=2, text="t"),
+            )
+        ),
         ToolStartedEvent(
             **_envelope_kwargs("tool.started", ToolStartedPayload(tool_call_id="c", tool_name="n"))
         ),
@@ -418,7 +440,7 @@ def test_discriminated_union_validates_each_of_the_eight_types():
             )
         ),
     ]
-    assert len(samples) == 8
+    assert len(samples) == 9
     for instance in samples:
         round_tripped: WorkflowRunEvent = WorkflowRunEventAdapter.validate_python(
             instance.model_dump(mode="json")

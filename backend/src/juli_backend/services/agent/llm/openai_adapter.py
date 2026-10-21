@@ -21,8 +21,20 @@ after building Juli's own `Block`/`Usage` dataclasses.
 message window is rebuilt from the caller-supplied ``messages`` on every
 call; no provider-side thread is ever created or referenced.
 
-**Non-streamed** (ADR-071 decision 3): every request sets ``"stream":
-False``. One HTTP call, one complete `AssistantTurn` -- no token deltas.
+**Streaming is opt-in per call** (ADR-071 decision 3 as amended by D71.3,
+P61-C). A call with no ``on_text_delta`` callback -- card drafts, structured
+analysis, content scoring -- sends ``"stream": False`` exactly as before. A
+call that passes ``on_text_delta`` while ``LLM_STREAMING`` is on (the
+default, `config.llm_streaming_enabled`) sends ``"stream": True``, reads the
+Responses API's server-sent events, hands every ``response.output_text.delta``
+to the callback as it arrives, and still returns ONE complete
+`AssistantTurn` -- the same blocks and usage the non-streamed call would
+have produced. Tool-call arguments are assembled from
+``response.function_call_arguments.delta`` / ``.done`` and
+``response.output_item.done``; the terminal ``response.completed`` body is
+authoritative when it carries ``output``. A ``response.failed`` / ``error``
+event, a body that ends without a terminal event, or a malformed frame
+raises `LLMProviderError` -- the turn fails cleanly, never half-returned.
 
 **Message/tool shape.** `Message` and `ToolDefinition` are opaque
 `Mapping[str, Any]` aliases owned by upstream modules this slice does not
@@ -56,7 +68,7 @@ slice does not build.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -72,12 +84,29 @@ from juli_backend.services.agent.llm.blocks import (
     ToolCallBlock,
     Usage,
 )
-from juli_backend.services.agent.llm.config import LLMConfig
-from juli_backend.services.agent.llm.service import Message, ToolDefinition
+from juli_backend.services.agent.llm.config import LLMConfig, llm_streaming_enabled
+from juli_backend.services.agent.llm.service import Message, TextDeltaCallback, ToolDefinition
 
 _API_KEY_ENV_VAR = "OPENAI_API_KEY"
 DEFAULT_BASE_URL = "https://api.openai.com"
 _RESPONSES_PATH = "/v1/responses"
+
+# Responses API streaming event types this adapter reads (P61-C). Anything
+# else (`response.created`, `response.in_progress`, `*.content_part.*`, ...)
+# carries nothing the assembled turn needs and is skipped.
+_EV_OUTPUT_ITEM_ADDED = "response.output_item.added"
+_EV_OUTPUT_ITEM_DONE = "response.output_item.done"
+_EV_TEXT_DELTA = "response.output_text.delta"
+_EV_ARGS_DELTA = "response.function_call_arguments.delta"
+_EV_ARGS_DONE = "response.function_call_arguments.done"
+_EV_COMPLETED = "response.completed"
+# `incomplete` (e.g. max_output_tokens reached) is terminal but not a failure:
+# the non-streamed call returns the same partial body and it is parsed as is.
+_EV_INCOMPLETE = "response.incomplete"
+_EV_FAILED = "response.failed"
+_EV_ERROR = "error"
+_SSE_DATA_PREFIX = "data:"
+_SSE_DONE_SENTINEL = "[DONE]"
 
 
 @dataclass(frozen=True)
@@ -144,8 +173,15 @@ class OpenAIResponsesAdapter:
         config: LLMConfig,
         tool_choice: str | None = None,
         response_format: JsonSchemaFormat | None = None,
+        on_text_delta: TextDeltaCallback | None = None,
     ) -> AssistantTurn:
         """One Responses API call.
+
+        ``on_text_delta`` (P61-C, D71.3) turns on streaming for this call when
+        ``LLM_STREAMING`` is on: every output-text delta is awaited through
+        it as it arrives, and the returned turn is still the complete one.
+        Exceptions raised by the callback propagate unchanged (they are the
+        caller's, not the provider's).
 
         ``response_format`` (fast track P14-E, D24.16) asks for OpenAI
         structured output: the model's text is then a JSON document that
@@ -154,6 +190,7 @@ class OpenAIResponsesAdapter:
         the caller parses and validates it. Omitted, the request is unchanged.
         """
         api_key = require_env(_API_KEY_ENV_VAR)
+        stream = on_text_delta is not None and llm_streaming_enabled()
         body = _build_request_body(
             model=config.model,
             messages=messages,
@@ -163,15 +200,25 @@ class OpenAIResponsesAdapter:
             temperature=config.temperature,
             tool_choice=tool_choice,
             response_format=response_format,
+            stream=stream,
         )
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
 
-        response_body = await self._post(
-            body=body, headers=headers, timeout_seconds=config.request_timeout_seconds
-        )
+        if stream:
+            assert on_text_delta is not None  # narrowed by `stream` above
+            response_body = await self._post_streaming(
+                body=body,
+                headers=headers,
+                timeout_seconds=config.request_timeout_seconds,
+                on_text_delta=on_text_delta,
+            )
+        else:
+            response_body = await self._post(
+                body=body, headers=headers, timeout_seconds=config.request_timeout_seconds
+            )
 
         blocks = _parse_output_blocks(response_body)
         usage = _parse_usage(response_body)
@@ -199,6 +246,172 @@ class OpenAIResponsesAdapter:
             # json.JSONDecodeError subclasses ValueError.
             raise LLMProviderError(f"OpenAI Responses API returned a non-JSON body: {exc}") from exc
 
+    async def _post_streaming(
+        self,
+        *,
+        body: dict[str, Any],
+        headers: dict[str, str],
+        timeout_seconds: float,
+        on_text_delta: TextDeltaCallback,
+    ) -> dict[str, Any]:
+        """POST with ``stream: true``; return a body shaped like the non-streamed one.
+
+        Text deltas are forwarded to ``on_text_delta`` as they arrive. The
+        returned dict has ``output`` + ``usage`` so `_parse_output_blocks` /
+        `_parse_usage` build the turn exactly as for a non-streamed call.
+        """
+        assembler = _StreamAssembler()
+        try:
+            async with httpx.AsyncClient(
+                transport=self._transport,
+                base_url=self._base_url,
+                timeout=timeout_seconds,
+            ) as client:
+                async with client.stream(
+                    "POST", _RESPONSES_PATH, json=body, headers=headers
+                ) as response:
+                    response.raise_for_status()
+                    async for event in _iter_sse_events(response.aiter_lines()):
+                        text_delta = assembler.feed(event)
+                        if text_delta:
+                            await on_text_delta(text_delta)
+                        if assembler.done:
+                            break
+        except httpx.HTTPStatusError as exc:
+            raise LLMProviderError(
+                f"OpenAI Responses API returned HTTP {exc.response.status_code}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise LLMProviderError(f"OpenAI Responses API stream failed: {exc}") from exc
+        return assembler.result()
+
+
+async def _iter_sse_events(lines: AsyncIterator[str]) -> AsyncIterator[dict[str, Any]]:
+    """Server-sent events -> parsed JSON ``data`` objects, in order.
+
+    ``event:`` lines are ignored: every Responses API ``data`` object carries
+    its own ``type``. Multi-line ``data`` is joined per the SSE spec; a blank
+    line ends a frame; ``[DONE]`` is skipped.
+    """
+    data_lines: list[str] = []
+
+    def _flush() -> dict[str, Any] | None:
+        if not data_lines:
+            return None
+        raw = "\n".join(data_lines)
+        data_lines.clear()
+        if raw.strip() == _SSE_DONE_SENTINEL:
+            return None
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise LLMProviderError(
+                f"OpenAI Responses API stream sent a non-JSON frame: {exc}"
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise LLMProviderError("OpenAI Responses API stream sent a non-object frame")
+        return parsed
+
+    async for line in lines:
+        if line == "":
+            event = _flush()
+            if event is not None:
+                yield event
+            continue
+        if line.startswith(_SSE_DATA_PREFIX):
+            data_lines.append(line[len(_SSE_DATA_PREFIX) :].lstrip(" "))
+    event = _flush()
+    if event is not None:
+        yield event
+
+
+class _StreamAssembler:
+    """Folds Responses API stream events into the non-streamed body shape.
+
+    Output items are kept by ``output_index``: ``output_item.added`` opens
+    one, text / argument deltas append to it, ``function_call_arguments.done``
+    and ``output_item.done`` replace it with the provider's final copy. The
+    terminal ``response.completed`` (or ``.incomplete``) body wins when it
+    carries a non-empty ``output`` -- it is the provider's own assembled
+    answer; the locally assembled items are the fallback for a terminal body
+    that omits it.
+    """
+
+    def __init__(self) -> None:
+        self._items: dict[int, dict[str, Any]] = {}
+        self._final: dict[str, Any] | None = None
+
+    @property
+    def done(self) -> bool:
+        return self._final is not None
+
+    def feed(self, event: Mapping[str, Any]) -> str:
+        """Fold one event; return its output-text delta ('' when it has none)."""
+        event_type = event.get("type")
+        if event_type == _EV_TEXT_DELTA:
+            delta = event.get("delta")
+            text = delta if isinstance(delta, str) else ""
+            self._append_text(event, text)
+            return text
+        if event_type == _EV_OUTPUT_ITEM_ADDED or event_type == _EV_OUTPUT_ITEM_DONE:
+            item = event.get("item")
+            if isinstance(item, dict):
+                self._items[self._index(event)] = dict(item)
+        elif event_type == _EV_ARGS_DELTA:
+            item = self._items.setdefault(self._index(event), {"type": "function_call"})
+            delta = event.get("delta")
+            item["arguments"] = str(item.get("arguments") or "") + (
+                delta if isinstance(delta, str) else ""
+            )
+        elif event_type == _EV_ARGS_DONE:
+            item = self._items.setdefault(self._index(event), {"type": "function_call"})
+            if isinstance(event.get("arguments"), str):
+                item["arguments"] = event["arguments"]
+        elif event_type == _EV_COMPLETED or event_type == _EV_INCOMPLETE:
+            response = event.get("response")
+            self._final = dict(response) if isinstance(response, dict) else {}
+        elif event_type == _EV_FAILED:
+            response = event.get("response")
+            error = response.get("error") if isinstance(response, dict) else None
+            raise LLMProviderError(f"OpenAI Responses API stream failed: {_error_text(error)}")
+        elif event_type == _EV_ERROR:
+            raise LLMProviderError(f"OpenAI Responses API stream error: {_error_text(event)}")
+        return ""
+
+    def result(self) -> dict[str, Any]:
+        if self._final is None:
+            raise LLMProviderError("OpenAI Responses API stream ended without response.completed")
+        body = dict(self._final)
+        if not body.get("output"):
+            body["output"] = [self._items[index] for index in sorted(self._items)]
+        return body
+
+    @staticmethod
+    def _index(event: Mapping[str, Any]) -> int:
+        index = event.get("output_index")
+        if not isinstance(index, int):
+            raise LLMProviderError("OpenAI Responses API stream event has no output_index")
+        return index
+
+    def _append_text(self, event: Mapping[str, Any], text: str) -> None:
+        item = self._items.setdefault(
+            self._index(event), {"type": "message", "role": "assistant", "content": []}
+        )
+        content = item.setdefault("content", [])
+        content_index = event.get("content_index", 0)
+        while len(content) <= content_index:
+            content.append({"type": "output_text", "text": ""})
+        part = content[content_index]
+        part["text"] = str(part.get("text") or "") + text
+
+
+def _error_text(error: Any) -> str:
+    if isinstance(error, Mapping):
+        code = error.get("code") or ""
+        message = error.get("message") or ""
+        return f"{code} {message}".strip() or "unknown error"
+    return "unknown error"
+
 
 # ---------------------------------------------------------------------------
 # Request translation: Juli messages/system/tools/config -> Responses body
@@ -215,6 +428,7 @@ def _build_request_body(
     temperature: float,
     tool_choice: str | None = None,
     response_format: JsonSchemaFormat | None = None,
+    stream: bool = False,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "model": model,
@@ -229,8 +443,9 @@ def _build_request_body(
         # Stateless by construction (ADR-071 decision 2): never persisted
         # server-side, never referenced via `previous_response_id`.
         "store": False,
-        # Non-streamed (ADR-071 decision 3): one complete turn per call.
-        "stream": False,
+        # Streamed only when the caller asked for text deltas and
+        # LLM_STREAMING is on (D71.3); the returned turn is complete either way.
+        "stream": stream,
     }
     if tool_choice is not None:
         body["tool_choice"] = tool_choice

@@ -1,4 +1,4 @@
-"""Agent event contracts -- the envelope, the typed 8-event union, and the
+"""Agent event contracts -- the envelope, the typed 9-event union, and the
 `EventSink` protocol (ADR-074, #1125 / AGT-W3B).
 
 Public interface: import from here, not the submodules directly (the
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from juli_backend.services.agent.events.envelope import (
     EVENT_TYPES,
+    AssistantTextDeltaEvent,
     AssistantTextEvent,
     ToolCompletedEvent,
     ToolStartedEvent,
@@ -25,6 +26,7 @@ from juli_backend.services.agent.events.envelope import (
 )
 from juli_backend.services.agent.events.payloads import (
     FAILURE_STOP_REASONS,
+    AssistantTextDeltaPayload,
     AssistantTextPayload,
     ConfirmationOptionPayload,
     ToolCompletedPayload,
@@ -46,6 +48,8 @@ from juli_backend.services.agent.events.sink import EventSink, InMemoryEventSink
 __all__ = [
     "EVENT_TYPES",
     "FAILURE_STOP_REASONS",
+    "AssistantTextDeltaEvent",
+    "AssistantTextDeltaPayload",
     "AssistantTextEvent",
     "AssistantTextPayload",
     "ConfirmationOptionPayload",

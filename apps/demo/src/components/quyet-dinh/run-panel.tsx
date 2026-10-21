@@ -96,6 +96,7 @@ export function RunPanel(props: RunPanelProps) {
       ? changes.changes.map((change) => change.label)
       : (card?.changeLabels ?? []);
   const note = runningNote(kind, phase, timeline.narration);
+  const streamingNote = timeline.narrationStreaming && note !== null && note === timeline.narration;
   const day7 = timeline.terminal?.day7 ?? null;
   const day14 = timeline.terminal?.day14 ?? null;
 
@@ -170,8 +171,14 @@ export function RunPanel(props: RunPanelProps) {
           ) : null}
 
           {note && phase !== "verify" ? (
-            <div className="qv-running" role="status">
-              <span>{note}</span>
+            // D71.3: while the model's text streams in, the note is a live preview
+            // with a typing caret; aria-busy keeps screen readers from announcing
+            // every chunk -- the committed line is announced once it lands.
+            <div aria-busy={streamingNote} className="qv-running" role="status">
+              <span>
+                {note}
+                {streamingNote ? <span aria-hidden="true" className="qv-caret" data-testid="typing-caret" /> : null}
+              </span>
             </div>
           ) : null}
 

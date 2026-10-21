@@ -1,5 +1,5 @@
 /**
- * TypeScript mirror of the eight-event Pydantic union that is the emitting
+ * TypeScript mirror of the nine-event Pydantic union that is the emitting
  * source of truth for `workflow_run_events` (ADR-074 decision 2, #1125 /
  * AGT-W3B). Mirrors
  * `backend/src/juli_backend/services/agent/events/payloads.py` and
@@ -23,9 +23,9 @@
  *    with fixtures (including two that exploit a real per-language runtime
  *    leniency difference, since interfaces vanish before this layer runs).
  *
- * `assistant.text.delta` (ADR-071) stays reserved: there is no payload
- * type, no envelope member, and no discriminant literal for it anywhere in
- * this module, on purpose -- `validateAgentEvent` rejects it by name.
+ * `assistant.text.delta` (reserved by ADR-071 d.3) is a member since the
+ * ADR-071 amendment (D71.3 / P61-C): a persisted, coalesced preview of a
+ * streamed turn's text that the following `assistant.text` supersedes.
  */
 
 // ---------------------------------------------------------------------------
@@ -36,6 +36,7 @@ export const AGENT_EVENT_TYPES = [
   "workflow.started",
   "workflow.status",
   "assistant.text",
+  "assistant.text.delta",
   "tool.started",
   "tool.completed",
   "workflow.approval_required",
@@ -170,6 +171,19 @@ export interface AssistantTextPayload {
   text: string;
 }
 
+/**
+ * One coalesced chunk of a streamed turn's text (ADR-071 amendment, D71.3 /
+ * P61-C) -- mirrors `AssistantTextDeltaPayload` in `payloads.py`. A preview:
+ * the next `assistant.text` (higher `sequence_number`) supersedes every
+ * delta of its block; a block never followed by one is discarded.
+ * `chunk_index` is 0-based within `block_id`.
+ */
+export interface AssistantTextDeltaPayload {
+  block_id: string;
+  chunk_index: number;
+  text: string;
+}
+
 export interface ToolStartedPayload {
   tool_call_id: string;
   tool_name: string;
@@ -251,6 +265,11 @@ export interface AssistantTextEvent extends AgentEventEnvelopeBase {
   payload: AssistantTextPayload;
 }
 
+export interface AssistantTextDeltaEvent extends AgentEventEnvelopeBase {
+  event_type: "assistant.text.delta";
+  payload: AssistantTextDeltaPayload;
+}
+
 export interface ToolStartedEvent extends AgentEventEnvelopeBase {
   event_type: "tool.started";
   payload: ToolStartedPayload;
@@ -277,14 +296,15 @@ export interface WorkflowFailedEvent extends AgentEventEnvelopeBase {
 }
 
 /**
- * The discriminated union -- the complete, closed set of eight event types,
- * discriminated on `event_type`. `assistant.text.delta` has no member here
- * and never will in this slice (ADR-071 / ADR-074 d.2).
+ * The discriminated union -- the complete, closed set of nine event types,
+ * discriminated on `event_type` (`assistant.text.delta` joined with the
+ * ADR-071 amendment, D71.3 / P61-C).
  */
 export type AgentEvent =
   | WorkflowStartedEvent
   | WorkflowStatusEvent
   | AssistantTextEvent
+  | AssistantTextDeltaEvent
   | ToolStartedEvent
   | ToolCompletedEvent
   | WorkflowApprovalRequiredEvent
@@ -352,6 +372,19 @@ export const GOLDEN_ASSISTANT_TEXT_EVENT: AssistantTextEvent = {
   timestamp: "2026-08-14T12:00:02Z",
   payload: {
     text: "Tôi đã lên kế hoạch tối ưu sản phẩm của bạn.",
+  },
+  v: 1,
+};
+
+export const GOLDEN_ASSISTANT_TEXT_DELTA_EVENT: AssistantTextDeltaEvent = {
+  workflow_run_id: GOLDEN_RUN_ID,
+  sequence_number: 8,
+  event_type: "assistant.text.delta",
+  timestamp: "2026-08-14T12:00:08Z",
+  payload: {
+    block_id: "6f1c2b9e0d7a4c5f8e3b1a2d9c0f7e6b",
+    chunk_index: 0,
+    text: "Tôi đã lên kế hoạch ",
   },
   v: 1,
 };
@@ -432,7 +465,7 @@ export const GOLDEN_WORKFLOW_FAILED_EVENT: WorkflowFailedEvent = {
 };
 
 /**
- * All eight canonical instances, keyed by discriminant. Built from the
+ * All nine canonical instances, keyed by discriminant. Built from the
  * already-typed constants above (not fresh literals), so this assignment
  * itself carries no additional excess/missing-property checking -- the
  * checking already happened where each constant was declared.
@@ -441,6 +474,7 @@ export const GOLDEN_AGENT_EVENTS: Readonly<Record<AgentEventType, AgentEvent>> =
   "workflow.started": GOLDEN_WORKFLOW_STARTED_EVENT,
   "workflow.status": GOLDEN_WORKFLOW_STATUS_EVENT,
   "assistant.text": GOLDEN_ASSISTANT_TEXT_EVENT,
+  "assistant.text.delta": GOLDEN_ASSISTANT_TEXT_DELTA_EVENT,
   "tool.started": GOLDEN_TOOL_STARTED_EVENT,
   "tool.completed": GOLDEN_TOOL_COMPLETED_EVENT,
   "workflow.approval_required": GOLDEN_WORKFLOW_APPROVAL_REQUIRED_EVENT,
@@ -500,8 +534,8 @@ export function validateAgentEvent(value: unknown): AgentEvent {
     !(AGENT_EVENT_TYPES as readonly string[]).includes(eventType)
   ) {
     throw new Error(
-      `unknown event_type ${JSON.stringify(eventType)}: not one of the 8 members of ` +
-        "AgentEvent (assistant.text.delta stays reserved/unimplemented -- ADR-071 / ADR-074 d.2)",
+      `unknown event_type ${JSON.stringify(eventType)}: not one of the ` +
+        `${AGENT_EVENT_TYPES.length} members of AgentEvent (ADR-074 d.2, ADR-071 amendment)`,
     );
   }
   const type = eventType as AgentEventType;
@@ -646,6 +680,15 @@ function validatePayloadFields(type: AgentEventType, payload: Record<string, unk
     case "assistant.text":
       requireString(payload, "text", type);
       return;
+    case "assistant.text.delta": {
+      requireString(payload, "block_id", type);
+      const chunkIndex = payload["chunk_index"];
+      if (typeof chunkIndex !== "number" || !Number.isInteger(chunkIndex) || chunkIndex < 0) {
+        throw new Error(`${type}: payload.chunk_index must be a non-negative integer`);
+      }
+      requireString(payload, "text", type);
+      return;
+    }
     case "tool.started":
       requireString(payload, "tool_call_id", type);
       requireString(payload, "tool_name", type);

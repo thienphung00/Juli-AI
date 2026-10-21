@@ -20,6 +20,7 @@ import {
 import workflowStartedFixture from "../../fixtures/agent-events/workflow-started.json";
 import workflowStatusFixture from "../../fixtures/agent-events/workflow-status.json";
 import assistantTextFixture from "../../fixtures/agent-events/assistant-text.json";
+import assistantTextDeltaFixture from "../../fixtures/agent-events/assistant-text-delta.json";
 import toolStartedFixture from "../../fixtures/agent-events/tool-started.json";
 import toolCompletedFixture from "../../fixtures/agent-events/tool-completed.json";
 import workflowApprovalRequiredFixture from "../../fixtures/agent-events/workflow-approval-required.json";
@@ -27,7 +28,7 @@ import workflowCompletedFixture from "../../fixtures/agent-events/workflow-compl
 import workflowFailedFixture from "../../fixtures/agent-events/workflow-failed.json";
 import envelopeV1SnapshotFixture from "../../fixtures/agent-events/envelope-v1-snapshot.json";
 import wrongEnvelopeVersionFixture from "../../fixtures/agent-events/invalid/wrong-envelope-version.json";
-import assistantTextDeltaReservedFixture from "../../fixtures/agent-events/invalid/assistant-text-delta-reserved.json";
+import assistantTextDeltaMissingBlockIdFixture from "../../fixtures/agent-events/invalid/assistant-text-delta-missing-block-id.json";
 import pythonOnlyValidFixture from "../../fixtures/agent-events/invalid/python-only-valid-workflow-started.json";
 import tsOnlyValidFixture from "../../fixtures/agent-events/invalid/ts-only-valid-tool-started.json";
 import legacyNoOptionsFixture from "../../fixtures/agent-events/workflow-approval-required-legacy-no-options.json";
@@ -36,6 +37,7 @@ const GOLDEN_FIXTURES: Array<[eventType: string, fixture: unknown]> = [
   ["workflow.started", workflowStartedFixture],
   ["workflow.status", workflowStatusFixture],
   ["assistant.text", assistantTextFixture],
+  ["assistant.text.delta", assistantTextDeltaFixture],
   ["tool.started", toolStartedFixture],
   ["tool.completed", toolCompletedFixture],
   ["workflow.approval_required", workflowApprovalRequiredFixture],
@@ -44,13 +46,13 @@ const GOLDEN_FIXTURES: Array<[eventType: string, fixture: unknown]> = [
 ];
 
 describe("AGENT_EVENT_TYPES", () => {
-  it("names exactly the eight event types", () => {
-    expect(AGENT_EVENT_TYPES).toHaveLength(8);
-    expect(new Set(AGENT_EVENT_TYPES).size).toBe(8);
+  it("names exactly the nine event types", () => {
+    expect(AGENT_EVENT_TYPES).toHaveLength(9);
+    expect(new Set(AGENT_EVENT_TYPES).size).toBe(9);
   });
 
-  it("does not include the reserved assistant.text.delta", () => {
-    expect(AGENT_EVENT_TYPES as readonly string[]).not.toContain("assistant.text.delta");
+  it("includes assistant.text.delta (ADR-071 amendment, D71.3)", () => {
+    expect(AGENT_EVENT_TYPES as readonly string[]).toContain("assistant.text.delta");
   });
 });
 
@@ -73,10 +75,20 @@ describe("validateAgentEvent -- negative fixtures", () => {
     expect(() => validateAgentEvent(wrongEnvelopeVersionFixture)).toThrow(/v must be the literal 1/);
   });
 
-  it("rejects assistant.text.delta by name -- it is not a union member", () => {
-    expect(() => validateAgentEvent(assistantTextDeltaReservedFixture)).toThrow(
-      /assistant\.text\.delta/,
+  it("rejects an assistant.text.delta without block_id, naming the type", () => {
+    expect(() => validateAgentEvent(assistantTextDeltaMissingBlockIdFixture)).toThrow(
+      /^assistant\.text\.delta: missing required field "block_id"/,
     );
+  });
+
+  it("rejects a negative or fractional chunk_index", () => {
+    for (const chunkIndex of [-1, 1.5, "0"]) {
+      const bad = {
+        ...assistantTextDeltaFixture,
+        payload: { ...assistantTextDeltaFixture.payload, chunk_index: chunkIndex },
+      };
+      expect(() => validateAgentEvent(bad)).toThrow(/chunk_index must be a non-negative integer/);
+    }
   });
 
   it("rejects the Python-only-valid divergence fixture, naming workflow.started", () => {

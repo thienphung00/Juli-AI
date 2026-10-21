@@ -77,7 +77,14 @@ class TestFakeSatisfiesLLMServiceProtocol:
 
         signature = inspect.signature(FakeLLMService.complete)
         protocol_signature = inspect.signature(LLMService.complete)
-        assert list(signature.parameters) == list(protocol_signature.parameters)
+        # P61-C: the fake also takes the opt-in `on_text_delta` (not on the
+        # protocol -- see `service.py::TextDeltaCallback`), as the last,
+        # defaulted keyword; everything before it matches the protocol.
+        assert list(signature.parameters) == [
+            *protocol_signature.parameters,
+            "on_text_delta",
+        ]
+        assert signature.parameters["on_text_delta"].default is None
 
     def test_llm_service_protocol_is_still_a_protocol(self):
         # Sanity check this test file hasn't drifted from #985's contract.

@@ -296,9 +296,10 @@ function handleFrame(
   try {
     event = validateAgentEvent(raw);
   } catch (cause) {
-    // Includes a reserved/unknown event_type (e.g. a hypothetical
-    // `assistant.text.delta`) -- validateAgentEvent rejects it by name.
-    // Surfaced as an inspectable parse error; the read loop continues.
+    // Includes an unknown event_type -- validateAgentEvent rejects it by
+    // name (`assistant.text.delta` is a member since the ADR-071 amendment,
+    // D71.3, and passes through like any other event). Surfaced as an
+    // inspectable parse error; the read loop continues.
     handlers.onParseError?.(
       new AgentEventParseError(
         cause instanceof Error ? cause.message : "agent event failed validation",

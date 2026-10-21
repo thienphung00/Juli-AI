@@ -1136,6 +1136,29 @@ body:has(.qd-page) {
   font-size: 13px;
 }
 
+/* D71.3: typing caret after the model's streamed text. */
+.qv-caret {
+  display: inline-block;
+  width: 0.5ch;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: qv-caret-blink 1s steps(1) infinite;
+}
+
+@keyframes qv-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qv-caret {
+    animation: none;
+  }
+}
+
 .qv-done {
   display: flex;
   flex-direction: column;

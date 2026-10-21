@@ -1,4 +1,4 @@
-"""Dual-language contract test: the eight-event `WorkflowRunEvent` Pydantic
+"""Dual-language contract test: the nine-event `WorkflowRunEvent` Pydantic
 union (#1125, ADR-074 decision 2) and its TypeScript mirror
 (`packages/contracts/src/agent-events.ts`, #1126 / AGT-W3B) can never
 silently disagree.
@@ -17,7 +17,7 @@ difference at the `validateAgentEvent` *runtime-validator* layer (Pydantic's
 lax int coercion vs. this hand-rolled TS validator's strict `typeof` checks,
 and Pydantic's strict `datetime` parsing vs. the TS validator's bare
 `typeof "string"` check) to prove that if a real divergence ever entered
-that layer, this test would catch it and *name* which of the eight event
+that layer, this test would catch it and *name* which of the nine event
 types drifted -- not just fail vaguely.
 
 There is a second, structurally distinct divergence layer this file cannot
@@ -27,7 +27,7 @@ client helper and future UI slices actually import and type against.
 TypeScript interfaces are erased at runtime, so no JSON fixture can prove an
 interface stayed in sync -- that guard lives in `agent-events.ts` itself:
 `PAYLOAD_FIELDS`/`ENVELOPE_FIELDS` are *derived* via `Object.keys()` from
-eight `GOLDEN_*_EVENT` constants, each a fresh object literal assigned
+nine `GOLDEN_*_EVENT` constants, each a fresh object literal assigned
 directly to its specific interface type, so `tsc` performs excess/missing-
 property checking on every one of them. An interface field added, removed,
 or an envelope `v` literal changed -- with nothing else touched -- fails
@@ -52,6 +52,7 @@ from pydantic import ValidationError
 from juli_backend.services.agent.events import (
     EVENT_TYPES,
     FAILURE_STOP_REASONS,
+    AssistantTextDeltaPayload,
     AssistantTextPayload,
     ToolCompletedPayload,
     ToolStartedPayload,
@@ -78,6 +79,7 @@ GOLDEN_FIXTURES: dict[str, Path] = {
     "workflow.started": FIXTURES_DIR / "workflow-started.json",
     "workflow.status": FIXTURES_DIR / "workflow-status.json",
     "assistant.text": FIXTURES_DIR / "assistant-text.json",
+    "assistant.text.delta": FIXTURES_DIR / "assistant-text-delta.json",
     "tool.started": FIXTURES_DIR / "tool-started.json",
     "tool.completed": FIXTURES_DIR / "tool-completed.json",
     "workflow.approval_required": FIXTURES_DIR / "workflow-approval-required.json",
@@ -89,6 +91,7 @@ PAYLOAD_MODELS = {
     "workflow.started": WorkflowStartedPayload,
     "workflow.status": WorkflowStatusPayload,
     "assistant.text": AssistantTextPayload,
+    "assistant.text.delta": AssistantTextDeltaPayload,
     "tool.started": ToolStartedPayload,
     "tool.completed": ToolCompletedPayload,
     "workflow.approval_required": WorkflowApprovalRequiredPayload,
@@ -237,20 +240,22 @@ def test_dual_language_check_fails_clearly_when_node_missing(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# All eight event types exist on both sides, and no more.
+# All nine event types exist on both sides, and no more.
 # ---------------------------------------------------------------------------
 
 
-def test_python_and_typescript_agree_on_the_set_of_eight_event_types():
+def test_python_and_typescript_agree_on_the_set_of_nine_event_types():
     introspected = _ts_introspect()
     assert set(EVENT_TYPES) == set(introspected["agentEventTypes"])
-    assert len(EVENT_TYPES) == 8
+    assert len(EVENT_TYPES) == 9
     assert set(GOLDEN_FIXTURES) == set(EVENT_TYPES)
 
 
-def test_assistant_text_delta_is_not_a_ts_union_member():
+def test_assistant_text_delta_is_a_member_on_both_sides():
+    """ADR-071 amendment (D71.3 / P61-C): the reserved name is now implemented."""
     introspected = _ts_introspect()
-    assert "assistant.text.delta" not in introspected["agentEventTypes"]
+    assert "assistant.text.delta" in introspected["agentEventTypes"]
+    assert "assistant.text.delta" in EVENT_TYPES
 
 
 # ---------------------------------------------------------------------------
@@ -443,22 +448,25 @@ def test_envelope_with_wrong_v_fails_on_both_languages():
 
 
 # ---------------------------------------------------------------------------
-# `assistant.text.delta` stays reserved -- rejected by both, naming it.
+# A malformed `assistant.text.delta` is rejected by both, naming it.
 # ---------------------------------------------------------------------------
 
 
-def test_assistant_text_delta_fixture_rejected_by_both_languages_naming_it():
-    raw = _read_json(INVALID_FIXTURES_DIR / "assistant-text-delta-reserved.json")
+def test_assistant_text_delta_without_block_id_rejected_by_both_languages_naming_it():
+    raw = _read_json(INVALID_FIXTURES_DIR / "assistant-text-delta-missing-block-id.json")
     assert raw["event_type"] == "assistant.text.delta"
+    assert "block_id" not in raw["payload"]
 
     with pytest.raises(ValidationError) as exc_info:
         WorkflowRunEventAdapter.validate_python(raw)
     assert "assistant.text.delta" in str(exc_info.value)
+    assert "block_id" in str(exc_info.value)
 
     results = _ts_validate_batch([{"id": "delta", "event": raw}])
     result = results["delta"]
     assert not result["ok"]
     assert "assistant.text.delta" in result["error"]
+    assert "block_id" in result["error"]
 
 
 # ---------------------------------------------------------------------------

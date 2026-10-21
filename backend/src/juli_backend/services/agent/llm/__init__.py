@@ -34,7 +34,12 @@ from juli_backend.services.agent.llm.fake import (
     RecordedCall,
     ScriptExhaustedError,
 )
-from juli_backend.services.agent.llm.service import LLMService, Message, ToolDefinition
+from juli_backend.services.agent.llm.service import (
+    LLMService,
+    Message,
+    TextDeltaCallback,
+    ToolDefinition,
+)
 
 __all__ = [
     "DEFAULT_MAX_OUTPUT_TOKENS",
@@ -52,6 +57,7 @@ __all__ = [
     "RecordedCall",
     "ScriptExhaustedError",
     "TextBlock",
+    "TextDeltaCallback",
     "ToolCallBlock",
     "ToolDefinition",
     "Usage",

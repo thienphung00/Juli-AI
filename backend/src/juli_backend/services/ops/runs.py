@@ -17,6 +17,10 @@ from juli_backend.models.models import WorkflowRun, WorkflowRunEvent
 LIST_LIMIT = 50
 #: Event types that carry the model's own words.
 LLM_EVENT_TYPES = frozenset({"assistant.text"})
+#: Streamed previews (D71.3 / P61-C): superseded by the `assistant.text` that
+#: follows them, so the ops timeline leaves them out rather than listing every
+#: coalesced chunk of every turn.
+PREVIEW_EVENT_TYPES = frozenset({"assistant.text.delta"})
 
 
 class RunNotFound(LookupError):
@@ -89,6 +93,7 @@ async def run_detail(
             "payload": e.payload,
         }
         for e in events
+        if e.event_type not in PREVIEW_EVENT_TYPES
     ]
     llm_output = [
         {"sequence": e.sequence_number, "at": _iso(e.timestamp), "text": e.payload.get("text")}
