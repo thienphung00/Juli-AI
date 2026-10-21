@@ -731,7 +731,7 @@ def test_migration_097_pins_the_model_and_stays_under_the_cleanup():
     assert "GRANT SELECT ON public.{TABLE} TO {APP_ROLE}" in text
     assert "INSERT" not in text.split("def upgrade", 1)[1].split("def downgrade", 1)[0]
     deferred = (MIGRATIONS / "deferred/074_users_placeholder_phone_cleanup.py").read_text("utf-8")
-    assert 'down_revision: str | None = "100_sandbox_collision_xshop"' in deferred
+    assert 'down_revision: str | None = "101_write_mode_backfill"' in deferred
 
     from juli_backend.database.tenant_scoped_tables import TABLE_CLASSIFICATION_MAP
 

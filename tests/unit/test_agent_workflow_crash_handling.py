@@ -115,7 +115,7 @@ async def test_run_workflow_crash_leaves_run_in_failed_status_with_terminal_even
     class SimulatedToolCrash(RuntimeError):
         pass
 
-    async def _crashing_construct_runner(session, sync_session, run, product):
+    async def _crashing_construct_runner(session, sync_session, run, product, **_kwargs):
         # Simulate: we got far enough to emit workflow.started and tool.started,
         # but now something goes wrong
         raise SimulatedToolCrash("Simulated tool execution crash")
@@ -197,7 +197,7 @@ async def test_run_workflow_crash_from_queued_status_is_handled_terminally(
     class SimulatedCrash(RuntimeError):
         pass
 
-    async def _crashing_construct_runner(session, sync_session, run, product):
+    async def _crashing_construct_runner(session, sync_session, run, product, **_kwargs):
         raise SimulatedCrash("Crash before run started")
 
     @contextlib.asynccontextmanager
@@ -259,7 +259,7 @@ async def test_run_workflow_crash_exception_is_pickle_safe(session, shop, produc
             super().__init__()
             self.unpickleable_attr = lambda: "This cannot be pickled"
 
-    async def _crashing_construct_runner(session, sync_session, run, product):
+    async def _crashing_construct_runner(session, sync_session, run, product, **_kwargs):
         raise UnpickleableError()
 
     @contextlib.asynccontextmanager
@@ -370,7 +370,7 @@ async def test_resume_workflow_crash_leaves_run_in_failed_status(
     class SimulatedCrash(RuntimeError):
         pass
 
-    async def _crashing_construct_runner(session, sync_session, run, product):
+    async def _crashing_construct_runner(session, sync_session, run, product, **_kwargs):
         raise SimulatedCrash("Crash in resume")
 
     @contextlib.asynccontextmanager
@@ -428,7 +428,7 @@ async def test_run_workflow_crash_with_poisoned_session_writes_terminal_event(
     class PoisoningCrash(RuntimeError):
         pass
 
-    async def _crashing_construct_runner(session_arg, sync_session, run, product):
+    async def _crashing_construct_runner(session_arg, sync_session, run, product, **_kwargs):
         # Simulate: a failed write poisoned the session's transaction
         try:
             await session_arg.execute("SELECT * FROM nonexistent_table")
@@ -518,7 +518,7 @@ async def test_failed_run_auto_reverts_action_card_from_approved_to_active(
     class SimulatedCrash(RuntimeError):
         pass
 
-    async def _crashing_construct_runner(session, sync_session, run, product):
+    async def _crashing_construct_runner(session, sync_session, run, product, **_kwargs):
         raise SimulatedCrash("Crash after card was approved")
 
     @contextlib.asynccontextmanager

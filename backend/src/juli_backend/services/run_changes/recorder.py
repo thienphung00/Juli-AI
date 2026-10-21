@@ -95,17 +95,25 @@ class SqlWriteValueRecorder:
         logger.info("run_write_values_recorded", extra=context)
 
     def _audit_id(self, tool_name: str, tiktok_product_id: str) -> uuid.UUID | None:
-        """The one ``production_write_audit`` row of this mutation, else ``None``."""
-        ids = list(
-            self._session.execute(
-                select(ProductionWriteAudit.id)
-                .where(
-                    ProductionWriteAudit.shop_id == self._shop_id,
-                    ProductionWriteAudit.run_id == self._workflow_run_id,
-                    ProductionWriteAudit.tiktok_product_id == tiktok_product_id,
-                    ProductionWriteAudit.mutation_kind == tool_name,
-                )
-                .limit(2)
-            ).scalars()
+        """The one ``production_write_audit`` row of this mutation, else ``None``.
+
+        A refusal row for the same run, product and tool (``authorization_id`` NULL,
+        P61-F: a run that was refused once and then allowed) must not make the link
+        ambiguous, so the ALLOWED rows (they name the spent authorization) are
+        looked at first; only when there is not exactly one of those do all rows of
+        the mutation decide."""
+        base = (
+            ProductionWriteAudit.shop_id == self._shop_id,
+            ProductionWriteAudit.run_id == self._workflow_run_id,
+            ProductionWriteAudit.tiktok_product_id == tiktok_product_id,
+            ProductionWriteAudit.mutation_kind == tool_name,
         )
-        return ids[0] if len(ids) == 1 else None
+        for extra in ((ProductionWriteAudit.authorization_id.is_not(None),), ()):
+            ids = list(
+                self._session.execute(
+                    select(ProductionWriteAudit.id).where(*base, *extra).limit(2)
+                ).scalars()
+            )
+            if len(ids) == 1:
+                return ids[0]
+        return None

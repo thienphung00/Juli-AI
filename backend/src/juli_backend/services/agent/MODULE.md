@@ -40,6 +40,28 @@ the union. write_mode_of(resources) is "live" only for production resources and
 - ``AgentWriteResources`` — sandbox or own-shop production write resources (P61-B)
 - ``write_mode_of`` — where writes through a resource bundle land (P61-B)
 
+Agent-run production leg (fast track P61-F, D71.2). Only the RESUME leg of an APPROVED
+pending confirmation can write live: ``resolve_agent_write_leg(session, shop_id, run_id,
+tiktok_product_id, tool_name, staged_image, is_revert, source_write_mode)`` resolves the
+ADR-085 capability for exactly that mutation -- the run's own shop and product row and the
+pending tool's own name (``update_product_listing``), never the model's payload (its
+``attach_staged_image`` argument can only REFUSE). It returns an ``AgentWriteLeg``:
+``resources`` is None for the sandbox default (flag off, or the shop has no
+production_write_shops row: the resolver is not even called, nothing audited or spent), the
+shop's own production resources when every gate passed (the authorization is consumed and
+the allowed attempt audited and COMMITTED before the resources exist), or None with a named
+``refusal`` (a gate refused; a price confirmation, D13; a listing edit attaching an image
+staged on the sandbox; a revert of a run that never went live) -- the refusals are audited
+and spend nothing. ``RevertLiveWriteUnavailable``: a revert of a LIVE run never falls back to
+the sandbox. ``settle_live_write_mode`` keeps ``write_mode='live'`` only if the confirmed call
+reached the ledger (succeeded / in_flight). ``shop_production_write_possible`` is the routing
+half of the gates (flag AND the shop's row).
+
+- ``resolve_agent_write_leg`` / ``AgentWriteLeg`` / ``RevertLiveWriteUnavailable`` (P61-F)
+- ``settle_live_write_mode`` / ``shop_production_write_possible`` (P61-F)
+- ``LIVE_ELIGIBLE_WRITE_TOOLS`` / ``NEVER_PRODUCTION_WRITE_TOOLS`` — the tools that may go live
+  (the listing edit) and the one refused by name (the price, D13)
+
 ```python
 from juli_backend.services.agent.sanitize import (
     BANNED_PATTERNS_JSON_PATH,

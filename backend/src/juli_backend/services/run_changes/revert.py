@@ -69,8 +69,12 @@ ACTIVE_STATUSES: frozenset[str] = frozenset(
     str(status) for status in (*NON_TERMINAL_STATUSES, *SUSPENDED_STATUSES)
 )
 
-#: Reads the live product from TikTok: ``(session, shop_id, tiktok_product_id)``.
-LiveProductReader = Callable[[AsyncSession, uuid.UUID, str], Awaitable[Mapping[str, Any]]]
+#: Reads the live product from TikTok: ``(session, shop_id, tiktok_product_id,
+#: write_mode)``. ``write_mode`` is the reverted run's (``live`` reads the shop's
+#: own listing, anything else the sandbox -- see ``live.py``).
+LiveProductReader = Callable[
+    [AsyncSession, uuid.UUID, str, str | None], Awaitable[Mapping[str, Any]]
+]
 
 REFUSED_IS_REVERT = "is_revert"
 REFUSED_NOT_FINISHED = "not_finished"
@@ -314,7 +318,7 @@ async def start_revert(
 
     plan = build_plan(run, changes, started_by_user_id=started_by_user_id)
     try:
-        live = await read_live_product(session, shop_id, product.tiktok_product_id)
+        live = await read_live_product(session, shop_id, product.tiktok_product_id, run.write_mode)
     except Exception:
         logger.warning(
             "run_revert_live_read_failed",

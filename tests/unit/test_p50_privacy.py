@@ -379,9 +379,7 @@ def test_migration_grants_only_the_privacy_columns_and_ops_only_functions():
     assert "SECURITY DEFINER" in body and "REVOKE ALL ON FUNCTION" in body
     assert "GRANT EXECUTE ON FUNCTION {fn} TO {OPS_ROLE}" in body
     assert "TO {APP_ROLE}'" not in body.replace("{preposition} {APP_ROLE}'", "")
-    assert 'down_revision: str | None = "100_sandbox_collision_xshop"' in DEFERRED.read_text(
-        "utf-8"
-    )
+    assert 'down_revision: str | None = "101_write_mode_backfill"' in DEFERRED.read_text("utf-8")
 
 
 def test_migration_passes_the_additive_gate():

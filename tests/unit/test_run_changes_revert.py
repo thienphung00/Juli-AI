@@ -480,7 +480,7 @@ async def _seed(session, *, label: str = "a", status: str = "completed", writes=
 
 
 def _live(title: str):
-    async def _read(session, shop_id, tiktok_product_id):
+    async def _read(session, shop_id, tiktok_product_id, write_mode=None):
         detail = copy.deepcopy(DETAIL)
         detail["title"] = title
         return detail

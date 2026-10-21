@@ -492,7 +492,10 @@ async def _default_read_resources(
 
 async def _default_write_resources(session: AsyncSession):
     """The real ADR-069 guarded `SandboxWriteResources` (issue #1173
-    review-round-1 rework) -- `composition.py`'s `build_write_resources`,
+    review-round-1 rework) -- `composition.py`'s `build_write_resources`
+    with no capability: every leg's default. Only the confirmed resume leg
+    can replace it with the shop's own production resources
+    (`_write_resources_for_leg`, fast track P61-F),
     reached the same depth-2-facade way as `_default_read_resources` above.
     Fails closed the same two ways."""
     from juli_backend.services.agent import composition as composition_module
@@ -574,11 +577,62 @@ def _resolve_event_publisher():
     return redis.from_url(url, decode_responses=True)
 
 
+async def _write_resources_for_leg(
+    session: AsyncSession,
+    run: WorkflowRun,
+    product: Product,
+    *,
+    resume_approved: bool,
+    staged_image: bool,
+    is_revert: bool,
+) -> tuple[Any, str | None]:
+    """The write resources for this leg, and the pending call id when they are the shop's own.
+
+    Fast track P61-F (D71.2). Every leg is on the sandbox merchant (today's
+    behaviour) EXCEPT the resume leg of a run whose seller just approved the
+    pending confirmation: that one write is resolved on its own through the
+    ADR-085 gates (``composition.resolve_agent_write_leg``), keyed by the run's
+    shop and product and the pending tool's name -- never the model's payload.
+    The pending confirmation is read from the run's persisted state, so a leg
+    that is not a confirmed resume (a first leg, a decline, a lever-flow
+    re-check) never reaches the resolver and never spends an authorization.
+    """
+    from juli_backend.services.agent import composition as composition_module
+
+    pending = run.state.get("pending_confirmation") if isinstance(run.state, dict) else None
+    if resume_approved and isinstance(pending, dict) and pending.get("tool_name"):
+        arguments = pending.get("arguments")
+        source_mode = None
+        if is_revert and run.reverts_run_id is not None:
+            source = await session.get(WorkflowRun, run.reverts_run_id)
+            source_mode = source.write_mode if source is not None else None
+        leg = await composition_module.resolve_agent_write_leg(
+            session,
+            shop_id=run.shop_id,
+            run_id=run.id,
+            tiktok_product_id=product.tiktok_product_id,
+            tool_name=str(pending["tool_name"]),
+            # The model's argument can only ever REFUSE a live write.
+            staged_image=staged_image
+            or bool(isinstance(arguments, dict) and arguments.get("attach_staged_image")),
+            is_revert=is_revert,
+            source_write_mode=source_mode,
+        )
+        if leg.live:
+            run.write_mode = composition_module.WRITE_MODE_LIVE
+            await session.commit()
+            return leg.resources, str(pending["call_id"])
+        run.write_mode = composition_module.WRITE_MODE_SIMULATED
+    return await _default_write_resources(session), None
+
+
 async def _construct_runner(
     session: AsyncSession,
     sync_session: Session,
     run: WorkflowRun,
     product: Product,
+    *,
+    resume_approved: bool = False,
 ):
     """Construct the real `WorkflowRunner` for `run` -- the one-line wiring
     point issue #1145 restores (ADR-073 decision 1). Builds a
@@ -667,11 +721,26 @@ async def _construct_runner(
         sync_session, shop_id=run.shop_id, workflow_id=playbook.workflow_key
     )
     read_resources = await _default_read_resources(session, shop_id=run.shop_id)
-    write_resources = await _default_write_resources(session)
-    # Fast track P61-B (D71.2): record where this run's writes land. Today the
-    # agent run's writes always go to the sandbox merchant (`simulated`); the run
-    # surface then never says the seller's shop changed, and measurement skips it.
-    run.write_mode = composition_module.write_mode_of(write_resources)
+    write_resources, live_call = await _write_resources_for_leg(
+        session,
+        run,
+        product,
+        resume_approved=resume_approved,
+        staged_image=bool(flow and flow.staged_image_uri),
+        is_revert=bool(revert_plan),
+    )
+    # Fast track P61-B/F (D71.2): record where this run's writes land. A leg on
+    # the sandbox merchant is `simulated` (the run surface never says the seller's
+    # shop changed, and measurement skips it); only a leg built from the shop's own
+    # production resources is `live`, and a run that already wrote live stays live.
+    # A shop the owner turned production writes on for is left undecided (NULL)
+    # until the seller approves: the write is resolved at the resume leg, and a
+    # "chay thu" label on a card still waiting for approval would be a guess.
+    if run.write_mode != composition_module.WRITE_MODE_LIVE and (
+        resume_approved
+        or not await composition_module.shop_production_write_possible(session, run.shop_id)
+    ):
+        run.write_mode = composition_module.write_mode_of(write_resources)
     tool_executor = runner_module.ProductToolExecutor(
         registry=registry,
         product_id=product.tiktok_product_id,
@@ -757,15 +826,18 @@ async def _construct_runner(
     )
     if content is not None:
         return content_driver_module.ContentRunner(runner, session=session, wiring=content)
-    if flow is None:
-        return runner
-    return lever_flows_module.LeverFlowRunner(
-        runner,
-        session=session,
-        wiring=flow,
-        product_detail=_product_detail,
-        schedule_recheck=_schedule_lever_flow_recheck,
-    )
+    leg_runner: Any = runner
+    if flow is not None:
+        leg_runner = lever_flows_module.LeverFlowRunner(
+            runner,
+            session=session,
+            wiring=flow,
+            product_detail=_product_detail,
+            schedule_recheck=_schedule_lever_flow_recheck,
+        )
+    if live_call is not None:
+        return _LiveLegRunner(leg_runner, session, run_id=run.id, tool_call_id=str(live_call))
+    return leg_runner
 
 
 async def _ops_cap_guarded(session: AsyncSession, shop_id: uuid.UUID, inner: Any) -> Any:
@@ -1026,6 +1098,39 @@ async def _run_agent_workflow_async(run_id: str) -> None:
                 await _emit_crash_terminal_event(session, run_uuid, exc, shop_id=shop_id)
 
 
+class _LiveLegRunner:
+    """Wraps the runner of a resume leg that took its confirmed write live (P61-F).
+
+    The leg stamps ``write_mode='live'`` before the vendor call (the one-time
+    authorization is spent then). When the leg ends, ``write_mode`` stays ``live``
+    only if the write reached the ledger (``composition.settle_live_write_mode``);
+    a confirmed call that never reached TikTok (a concurrency conflict, a revert
+    whose target changed) puts the run back to ``simulated``. It settles on the
+    leg's own session, inside the transaction the task commits next, so it cannot
+    wait on a row lock that same transaction holds. A leg that CRASHES is not
+    settled: nothing can prove the vendor call did not happen, so the run stays
+    ``live`` (the honest side of an unknown).
+    """
+
+    def __init__(self, inner: Any, session: AsyncSession, *, run_id: uuid.UUID, tool_call_id: str):
+        self._inner = inner
+        self._session = session
+        self._run_id = run_id
+        self._tool_call_id = tool_call_id
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+    async def resume(self, workflow_run_id: uuid.UUID, *, approved: bool) -> Any:
+        from juli_backend.services.agent import composition as composition_module
+
+        result = await self._inner.resume(workflow_run_id, approved=approved)
+        await composition_module.settle_live_write_mode(
+            self._session, run_id=self._run_id, tool_call_id=self._tool_call_id
+        )
+        return result
+
+
 async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
     factory = _ensure_session_factory()
     async with factory() as session:
@@ -1036,7 +1141,9 @@ async def _resume_agent_workflow_async(run_id: str, *, approved: bool) -> None:
         ):
             try:
                 run, product = await _load_context(session, uuid.UUID(run_id))
-                runner = await _construct_runner(session, sync_session, run, product)
+                runner = await _construct_runner(
+                    session, sync_session, run, product, resume_approved=approved
+                )
                 await runner.resume(run.id, approved=approved)
                 await session.commit()
             except Exception as exc:

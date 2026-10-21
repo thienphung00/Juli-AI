@@ -83,8 +83,9 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: `094_user_privacy_and_consent`, P60-1a onto `095_card_events`, P60-1b onto
 #: `096_change_attribution`, P61-B onto `097_production_write_shops`,
 #: P62-B onto `098_processed_events_retention` and P61-G onto `099_sandbox_write_enumeration`,
-#: P61-G2 onto `100_sandbox_collision_xshop`.
-PHONE_REVISION = "100_sandbox_collision_xshop"
+#: P61-G2 onto `100_sandbox_collision_xshop`, and P61-F onto the deferred
+#: `101_write_mode_backfill` (its sibling data step; the deferred chain is 100 -> 101 -> 074).
+PHONE_REVISION = "101_write_mode_backfill"
 
 _SCHEMA = "phone_cleanup_074"
 

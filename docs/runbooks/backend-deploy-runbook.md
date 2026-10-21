@@ -213,6 +213,15 @@ precondition is therefore that the serving release contains
 `083_ops_console` (fast track P1-B re-parented the step onto 075, P7-A onto 076, P8-A onto 077, P8-C onto 078, P10-A onto 079, P10-B onto 080, P14-C onto 081, P15 onto 082, P16 onto 083). The step is idempotent, so an operator unsure
 whether it already ran may simply run it.
 
+**Also outstanding (fast track P61-F): `101_write_mode_backfill`** — marks
+`workflow_runs` rows that predate `097_production_write_shops` (`write_mode IS NULL`),
+executed a write, and never spent a production-write authorization as
+`write_mode = 'simulated'` (every such write went to the sandbox merchant). It is an
+`UPDATE`, so it is deferred like 074 and chained under it (`100` → `101` → `074`):
+to run 074 copy 101 into `versions/` first. Idempotent; its downgrade is a no-op by
+design (a backfilled row cannot be told from one the code stamped). Running it late
+is harmless; until it runs those runs are shown and measured as before.
+
 > **This step has now been renumbered four times** — 065 → 066 (#1973),
 > 066 → 070 (#1712), 070 → 072 (#1950), 072 → 074 (#1706) — because it must
 > stay the **tail** of

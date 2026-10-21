@@ -82,6 +82,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -339,7 +340,8 @@ async def build_write_resources(
       `ProductionWriteGuard`). ``shop_id`` is required and must be the shop the
       marker was issued for;
     - anything else -- including no capability at all, which is every caller
-      that does not resolve one (the agent run, `run_changes/live.py`) -> the
+      that does not resolve one (every leg of an agent run except the confirmed
+      resume leg, which resolves it through `resolve_agent_write_leg`, P61-F) -> the
       SANDBOX_VN write resources exactly as before:
       `sandbox_guard.load_sandbox_write_resources`, whose credential must carry
       the `sandbox_write` capability (no merchant id is configured, P61-G).
@@ -363,6 +365,212 @@ async def build_write_resources(
             app_secret=app_secret,
         )
     return await load_sandbox_write_resources(session, app_key=app_key, app_secret=app_secret)
+
+
+#: The one pending confirmation an agent run can take live (fast track P61-F): a
+#: listing edit. Anything else a run could pause on is either refused in
+#: production by name (``NEVER_PRODUCTION_WRITE_TOOLS``) or not a CONFIRM step.
+LIVE_ELIGIBLE_WRITE_TOOLS: frozenset[str] = frozenset({"update_product_listing"})
+#: D13: Juli never writes a price on a seller's shop (it is a recommendation), so
+#: a price confirmation is refused in production BEFORE any authorization is
+#: consumed. A product create is not an agent tool at all.
+NEVER_PRODUCTION_WRITE_TOOLS: frozenset[str] = frozenset({"update_product_price"})
+
+
+async def shop_production_write_possible(session: AsyncSession, shop_id: uuid.UUID) -> bool:
+    """Whether this shop's confirmed writes could reach its own shop (global flag AND
+    its ``production_write_shops`` row); the routing half of the ADR-085 gates."""
+    from juli_backend.services.execution.production_write import production_write_possible
+
+    return await production_write_possible(session, shop_id)
+
+
+class RevertLiveWriteUnavailable(RuntimeError):
+    """A "Hoan tac" of a LIVE run cannot be written live now, so it must not run.
+
+    Its fallback would be the sandbox: the seller would be told the listing was
+    restored while nothing on their shop changed. ``reason`` is the named gate.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(f"revert of a live run cannot be written live: {reason}")
+        self.reason = reason
+
+
+@dataclass(frozen=True)
+class AgentWriteLeg:
+    """Where one resume leg's confirmed write goes (fast track P61-F).
+
+    ``resources`` is ``None`` for the sandbox default (the caller builds it
+    exactly as before); otherwise the shop's own production write resources,
+    built after every ADR-085 gate passed and the authorization was consumed.
+    ``refusal`` names the gate that kept a production-enabled shop on the sandbox.
+    """
+
+    resources: ProductionWriteResources | None
+    refusal: str | None = None
+    authorization_id: str | None = None
+
+    @property
+    def live(self) -> bool:
+        return self.resources is not None
+
+
+async def resolve_agent_write_leg(
+    session: AsyncSession,
+    *,
+    shop_id: uuid.UUID,
+    run_id: uuid.UUID,
+    tiktok_product_id: str,
+    tool_name: str,
+    staged_image: bool = False,
+    is_revert: bool = False,
+    source_write_mode: str | None = None,
+) -> AgentWriteLeg:
+    """Resolve the write capability for the ONE approved mutation a run resumes with.
+
+    Fast track P61-F (D71.2). ``shop_id`` / ``run_id`` / ``tiktok_product_id`` come
+    from the run's own rows and ``tool_name`` from the persisted pending
+    confirmation -- never from the model's arguments, whose only use here is to
+    REFUSE (``staged_image``). The answer:
+
+    - the sandbox (``resources is None``), exactly as before this slice, when the
+      global flag is off or the shop has no ``production_write_shops`` row (the
+      resolver is not even called: nothing is audited and nothing is consumed);
+    - the sandbox with a named ``refusal``, audited, and again nothing consumed,
+      when the mutation may never go live (a price, D13), the listing edit would
+      attach an image staged on the sandbox, or a revert would restore a run that
+      never touched the seller's shop;
+    - the sandbox with the resolver's named refusal when a gate refuses
+      (no authorization, RLS boot check, attestation, kill switch);
+    - the shop's own production resources when every gate passed. The
+      authorization is consumed, the allowed attempt audited, and both committed
+      BEFORE the resources exist, so a later crash cannot un-spend the
+      authorization of a write that may have reached TikTok.
+
+    A revert of a LIVE run never falls back to the sandbox
+    (``RevertLiveWriteUnavailable``).
+    """
+    from juli_backend.services.execution.production_write import (
+        is_production_capability,
+        production_write_possible,
+    )
+    from juli_backend.services.execution.production_write_resolver import (
+        PreconditionFailure,
+        PreconditionName,
+        record_refused_attempt,
+        resolve_write_capability,
+    )
+
+    revert_of_live = is_revert and source_write_mode == WRITE_MODE_LIVE
+
+    def _sandbox(reason: str) -> AgentWriteLeg:
+        if revert_of_live:
+            raise RevertLiveWriteUnavailable(reason)
+        return AgentWriteLeg(resources=None, refusal=reason)
+
+    if not await production_write_possible(session, shop_id):
+        if revert_of_live:
+            raise RevertLiveWriteUnavailable("production_write_not_enabled_for_shop")
+        return AgentWriteLeg(resources=None)
+
+    refusal: PreconditionName | None = None
+    if tool_name in NEVER_PRODUCTION_WRITE_TOOLS or tool_name not in LIVE_ELIGIBLE_WRITE_TOOLS:
+        refusal = PreconditionName.MUTATION_NOT_ALLOWED_IN_PRODUCTION
+    elif staged_image:
+        refusal = PreconditionName.STAGED_IMAGE_ON_SANDBOX
+    elif is_revert and not revert_of_live:
+        refusal = PreconditionName.REVERT_OF_SIMULATED_RUN
+    if refusal is not None:
+        await record_refused_attempt(
+            session,
+            run_id=run_id,
+            shop_id=shop_id,
+            tiktok_product_id=tiktok_product_id,
+            mutation_kind=tool_name,
+            precondition=refusal,
+        )
+        await session.commit()
+        logger.warning(
+            "agent_production_write_refused",
+            extra={
+                "shop_id": str(shop_id),
+                "run_id": str(run_id),
+                "tool_name": tool_name,
+                "reason": refusal.value,
+            },
+        )
+        return _sandbox(refusal.value)
+
+    try:
+        capability = await resolve_write_capability(
+            session,
+            tool_name=tool_name,
+            payload={"tiktok_product_id": tiktok_product_id, "mutation_kind": tool_name},
+            shop_id=shop_id,
+            run_id=run_id,
+        )
+    except PreconditionFailure as failure:
+        # The resolver audited its own refusal; keep that row past this leg.
+        await session.commit()
+        logger.warning(
+            "agent_production_write_refused",
+            extra={
+                "shop_id": str(shop_id),
+                "run_id": str(run_id),
+                "tool_name": tool_name,
+                "reason": failure.precondition.value,
+            },
+        )
+        return _sandbox(failure.precondition.value)
+    if not is_production_capability(capability):
+        return _sandbox("sandbox_resolution")
+    await session.commit()
+    resources = await build_write_resources(session, shop_id, capability)
+    if not isinstance(resources, ProductionWriteResources):  # pragma: no cover - invariant
+        raise RuntimeError("a production capability must build production write resources")
+    return AgentWriteLeg(
+        resources=resources, authorization_id=str(capability.get("authorization_id"))
+    )
+
+
+async def settle_live_write_mode(
+    session: AsyncSession, *, run_id: uuid.UUID, tool_call_id: str
+) -> str | None:
+    """After a leg that took its write live: keep ``write_mode='live'`` only if the
+    write reached the ledger (fast track P61-F, "live only if a live write
+    actually happened").
+
+    The leg stamps ``live`` before the vendor call (the authorization is spent
+    then). If the confirmed call never reached TikTok -- a concurrency conflict
+    short-circuit, a revert whose target changed, a decline, a crash first -- no
+    ledger row exists for it and the run goes back to ``simulated``. A
+    ``succeeded`` or ``in_flight`` row stays ``live`` (an in-flight outcome is
+    ambiguous and is not reported as "nothing changed"); a ``failed`` row is a
+    vendor rejection and goes back to ``simulated``. Returns the final mode.
+    """
+    from sqlalchemy import select
+
+    from juli_backend.models.models import ToolExecution, WorkflowRun
+
+    run = await session.get(WorkflowRun, run_id)
+    if run is None or run.write_mode != WRITE_MODE_LIVE:
+        return run.write_mode if run is not None else None
+    reached = (
+        await session.execute(
+            select(ToolExecution.id)
+            .where(
+                ToolExecution.workflow_run_id == run_id,
+                ToolExecution.tool_call_id == tool_call_id,
+                ToolExecution.status.in_(("succeeded", "in_flight")),
+            )
+            .limit(1)
+        )
+    ).first()
+    if reached is None:
+        run.write_mode = WRITE_MODE_SIMULATED
+        await session.flush()
+    return run.write_mode
 
 
 def write_mode_of(resources: object) -> str:
