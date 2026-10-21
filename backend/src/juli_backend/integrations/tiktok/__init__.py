@@ -69,6 +69,8 @@ from juli_backend.integrations.tiktok.factories import (
     ClientFactoryConfig,
     ProductionReadClientFactory,
     ProductionReadResources,
+    ProductionWriteClientFactory,
+    ProductionWriteResources,
     SandboxWriteClientFactory,
     SandboxWriteResources,
 )
@@ -172,6 +174,8 @@ __all__ = [
     "ClientFactoryConfig",
     "ProductionReadClientFactory",
     "ProductionReadResources",
+    "ProductionWriteClientFactory",
+    "ProductionWriteResources",
     "SandboxWriteClientFactory",
     "SandboxWriteResources",
     # Merchant capability isolation

@@ -46,7 +46,7 @@ def test_retention_window_outlives_every_redelivery_horizon():
 def test_migration_chain_and_definer_shape():
     mig = _migration()
     assert mig.revision == "098_processed_events_retention" and len(mig.revision) <= 32
-    assert mig.down_revision == "096_change_attribution"
+    assert mig.down_revision == "097_production_write_shops"
     body = MIGRATION.read_text("utf-8")
     assert "SECURITY DEFINER" in body and "SET search_path = pg_catalog, public" in body
     assert "REVOKE ALL ON FUNCTION" in body and "TO {APP_ROLE}" in body

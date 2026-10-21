@@ -133,6 +133,7 @@ the VPS, against the release directory that is *currently serving*:
    P50-B onto ``094_user_privacy_and_consent``, and
    P60-1a onto ``095_card_events``, and
    P60-1b onto ``096_change_attribution``, and
+   P61-B onto ``097_production_write_shops``, and
    P62-B onto ``098_processed_events_retention``.
 2. Take the backup (``infra/scripts/safe-alembic-upgrade.sh`` does this).
 3. Copy this file into that release's ``versions/`` directory and LEAVE IT

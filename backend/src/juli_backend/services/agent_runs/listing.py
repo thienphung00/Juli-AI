@@ -15,7 +15,12 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.models.models import Product, RunConfirmation
+from juli_backend.models.models import (
+    WRITE_MODE_SIMULATED,
+    Product,
+    RunConfirmation,
+    ToolExecution,
+)
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services import lever_flows
@@ -50,6 +55,14 @@ class RunListItem:
     #: P10 integration: the Quyết định card (``action_cards.id``) this run came
     #: from, so the UI joins runs to cards by id rather than by product name.
     decision_id: uuid.UUID | None = None
+    #: Fast track P61-B (D71.2): the run's writes went to the sandbox merchant,
+    #: not the seller's shop. The run surface says "chạy thử" instead of
+    #: "Đã áp dụng". True only for a run that actually wrote.
+    simulated: bool = False
+
+
+#: A ledger row the agent wrote for a WRITE that went through.
+_SUCCEEDED = "succeeded"
 
 
 async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) -> list[RunListItem]:
@@ -71,6 +84,9 @@ async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) ->
     narrations = await _latest_narrations(session, [run.id for run, _ in rows])
     waiting = [run.id for run, _ in rows if run.status == WAITING_APPROVAL_RUN_STATUS]
     decisions = await _pending_decisions(session, waiting)
+    simulated = await _simulated_writes(
+        session, [run.id for run, _ in rows if run.write_mode == WRITE_MODE_SIMULATED]
+    )
     items: list[RunListItem] = []
     for run, product in rows:
         items.append(
@@ -86,9 +102,28 @@ async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) ->
                 decision_summary=decisions.get(run.id),
                 awaiting=lever_flows.awaiting_of(run),
                 decision_id=run.action_card_id,
+                simulated=run.id in simulated,
             )
         )
     return items
+
+
+async def _simulated_writes(session: AsyncSession, run_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """Of the runs stamped ``simulated``, those that wrote something (one statement)."""
+    if not run_ids:
+        return set()
+    from juli_backend.services.agent import composition
+
+    result = await session.execute(
+        select(ToolExecution.workflow_run_id)
+        .where(
+            ToolExecution.workflow_run_id.in_(run_ids),
+            ToolExecution.status == _SUCCEEDED,
+            ToolExecution.tool_name.in_(composition.measurable_write_tool_names()),
+        )
+        .distinct()
+    )
+    return {run_id for run_id in result.scalars().all() if run_id is not None}
 
 
 async def _latest_narrations(

@@ -33,7 +33,7 @@ scan of the whole ledger.
 REVERSIBLE. ``downgrade`` drops the function and the index. Rows already purged stay purged.
 
 The deferred phone-cleanup step is re-parented onto this revision so it stays the tail.
-P61-B (not merged at the time of writing) also adds 097; the lead resolves the chain.
+Chained after P61-B's 097.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "098_processed_events_retention"
-down_revision: str | None = "096_change_attribution"
+down_revision: str | None = "097_production_write_shops"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

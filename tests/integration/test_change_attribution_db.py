@@ -576,7 +576,8 @@ async def test_zz_data_step_backfill_and_round_trip(owner_engine, two_tenants, w
 
     tenant_a, tenant_b = two_tenants
     cfg = _alembic()
-    assert _head(owner_engine) == "096_change_attribution"
+    # P61-B: 097 sits on top; the round trip names 096's parent and returns to head.
+    assert _head(owner_engine) == "097_production_write_shops"
     command.downgrade(cfg, "095_card_events")
     assert _head(owner_engine) == "095_card_events"
     with owner_engine.connect() as conn:
@@ -595,7 +596,7 @@ async def test_zz_data_step_backfill_and_round_trip(owner_engine, two_tenants, w
         ids = _seed_legacy(conn, tenant_a, run_id=legacy_run["run"], pid=pid)
 
     command.upgrade(cfg, "head")
-    assert _head(owner_engine) == "096_change_attribution"
+    assert _head(owner_engine) == "097_production_write_shops"
 
     writes = {
         row["id"]: row

@@ -229,6 +229,52 @@ async def resolve_read_credential_for_shop(
     raise NoReadCredentialForShop(f"No read-capable TikTok credential for shop {shop_id}")
 
 
+class NoWriteCredentialForShop(NotFound):
+    """No credential this shop owns may serve a production write (fast track P61-B).
+
+    A :class:`NotFound` for the same reason as :class:`NoReadCredentialForShop`.
+    """
+
+
+#: The capabilities a shop's own production write may be signed with (P61-B,
+#: D71.2): the shop's OWN OAuth credential -- the row its reads use. The label
+#: is Juli's (``merchant.py``), not a TikTok scope; what makes a write possible is
+#: the ADR-085 gate set (``services/execution/production_write_resolver.py``) and
+#: the ``ProductionWriteGuard`` allowlist, never the label alone.
+#: ``SANDBOX_WRITE`` is deliberately absent: that credential writes the sandbox
+#: merchant, which is never the seller's shop.
+PRODUCTION_WRITE_CREDENTIAL_CAPABILITIES: tuple[TikTokCapability, ...] = READ_CAPABILITIES
+
+
+async def resolve_write_credential_for_shop(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+) -> TikTokCredential:
+    """Return the credential **this shop owns** that its production writes are signed with.
+
+    The write-side twin of :func:`resolve_read_credential_for_shop`, with two
+    more refusals: the row must name a merchant id, and that merchant must not
+    be the sandbox write-validation merchant. No fallback to any configured
+    merchant: a shop with nothing usable raises :class:`NoWriteCredentialForShop`.
+    """
+    repo = TikTokCredentialRepo(session)
+    allowed = {capability.value for capability in PRODUCTION_WRITE_CREDENTIAL_CAPABILITIES}
+    for capability in PRODUCTION_WRITE_CREDENTIAL_CAPABILITIES:
+        try:
+            credential = await repo.get_by_shop_and_capability(shop_id, capability)
+        except NotFound:
+            continue
+        if (
+            credential.shop_id != shop_id
+            or credential.capability not in allowed
+            or not credential.merchant_authorization_id
+            or credential.merchant_authorization_id == SANDBOX_AUTH_ID
+        ):
+            continue
+        return await _lazy_refresh(session, credential)
+    raise NoWriteCredentialForShop(f"No write-capable TikTok credential for shop {shop_id}")
+
+
 async def resolve_sandbox_write_credential(
     session: AsyncSession,
 ) -> TikTokCredential:

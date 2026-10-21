@@ -110,6 +110,7 @@ def test_migration_chain_and_vocabulary():
     assert mig.revision == "096_change_attribution" and len(mig.revision) <= 32
     assert mig.down_revision == "095_card_events"
     assert mig.ATTRIBUTIONS == ATTRIBUTIONS == ("juli", "seller_revert", "seller_change", "mixed")
+    # P61-B: 097 sits on 096 and the deferred cleanup follows the head (097).
     assert 'down_revision: str | None = "098_processed_events_retention"' in DEFERRED.read_text(
         "utf-8"
     )
