@@ -312,27 +312,20 @@ install_runtime_env() {
 # Checks
 # --------------------------------------------------------------------------------------
 
-# deploy.sh's verify_api_shape, through curl: /health is JSON with status=="ok" and
-# /v1/demo/analytics carries computed_at plus the five ADR-044 KPI keys.
+# deploy.sh's verify_api_shape, through curl: /health is JSON with status=="ok".
+# (/v1/demo/analytics was retired by fast track P61-D / D72.5 -- 410 Gone.)
 verify_api_shape_curl() {
-    local base="$1" health analytics
+    local base="$1" health
     health="$(curl -s -m 15 -H 'User-Agent: juli-rollback-verify/1.0' "${base}/health" 2>/dev/null || true)"
-    analytics="$(curl -s -m 15 -H 'User-Agent: juli-rollback-verify/1.0' "${base}/v1/demo/analytics" 2>/dev/null || true)"
-    python3 - "${health}" "${analytics}" <<'PY'
+    python3 - "${health}" <<'PY'
 import json, sys
 try:
     health = json.loads(sys.argv[1])
-    env = json.loads(sys.argv[2])
 except ValueError as exc:
     sys.exit(f"FAIL: API response is not JSON ({exc})")
 if not isinstance(health, dict) or health.get("status") != "ok":
     sys.exit(f"FAIL: /health shape wrong: {sys.argv[1][:200]!r}")
-if not isinstance(env, dict) or "computed_at" not in env:
-    sys.exit("FAIL: analytics envelope missing computed_at")
-missing = {"gmv_tiktok", "aov", "ctor", "live_hours", "cancellation_rate"} - set(env.get("kpis") or {})
-if missing:
-    sys.exit(f"FAIL: analytics envelope missing KPIs: {sorted(missing)}")
-print("PASS: API core routes carry the expected response shapes")
+print("PASS: API /health carries the expected response shape")
 PY
 }
 

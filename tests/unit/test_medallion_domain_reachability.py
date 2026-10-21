@@ -13,7 +13,7 @@ wired up to consume it:
      read the new fields. Bronze would fill; silver stayed empty.
   2. Second gap (after fixing the first): ``BRONZE_SUPPORTED_RESOURCE_ATTRS``
      was extended and planner entries added, but
-     ``shop_kpi_reconcile.py::make_gap_fetch_plan`` (was ``mock_analytics_reconcile.py``) hardcoded
+     ``mock_analytics_reconcile.py``'s hourly gap plan (retired in P61-D) hardcoded
      its resource list to ``orders`` + ``analytics_shop``. Nothing ever
      requested the new domains.
 
@@ -49,8 +49,7 @@ never mistaken for more proof than it actually is:
     never invoked for that call and the assertion fails — this is exactly
     how #880's first gap would have been caught.
   - **Link 5** (a fetch-plan builder requests it) — BEHAVIORAL: calls the
-    real ``make_gap_fetch_plan`` (shop_kpi_reconcile.py) and
-    the real ``plan_targeted_fetch`` for every catalog id in the material
+    real ``plan_targeted_fetch`` for every catalog id in the material
     webhook matrix, then checks the ``resource_attr`` of the actual
     ``FetchResource`` objects those plan builders produce — not just the
     planner's static resource table. This is exactly how #880's second gap
@@ -77,7 +76,21 @@ from juli_backend.services.cdp_speed.targeted_fetch_planner import (
     _MATERIAL_FETCH_MATRIX,
     plan_targeted_fetch,
 )
-from juli_backend.workers.tasks.shop_kpi_reconcile import make_gap_fetch_plan
+
+#: Bronze domains whose only plan builder was the hourly reference-shop gap plan,
+#: retired with /v1/demo/analytics (fast track P61-D, owner D72.5). Their bronze /
+#: silver code is now dead; removing it is a follow-up (DEBT P61-D).
+DOMAINS_RETIRED_WITH_DEMO_ANALYTICS = frozenset({"live_hours"})
+
+
+def test_retired_domains_are_really_unreachable() -> None:
+    """The carve-out above must stay honest: once a builder requests one again, drop it."""
+    material: set[str] = set()
+    for catalog_id in _MATERIAL_FETCH_MATRIX:
+        plan = plan_targeted_fetch(shop_id="reachability-test-shop", catalog_id=catalog_id)
+        material.update(resource.resource_attr for resource in plan.resources)
+    assert not (DOMAINS_RETIRED_WITH_DEMO_ANALYTICS & material)
+    assert DOMAINS_RETIRED_WITH_DEMO_ANALYTICS <= BRONZE_SUPPORTED_RESOURCE_ATTRS
 
 
 def _tracker_field_for_resource_attr(resource_attr: str) -> str:
@@ -206,17 +219,19 @@ class TestMedallionDomainReachability:
         """BEHAVIORAL: at least one production fetch-plan builder requests this domain.
 
         Reproduces #880 gap #2: BRONZE_SUPPORTED_RESOURCE_ATTRS and the
-        planner catalog were extended but shop_kpi_reconcile.py's
+        planner catalog were extended but the (since retired) hourly reconcile's
         hourly gap plan hardcoded its resource list and never asked for the
         new domains. Checked against the *real* plan builders (hourly gap
         plan + material webhook matrix), not just the planner's static
         resource table — a domain reachable only from a plan builder nothing
         calls in production is still a dead registration.
         """
-        hourly_attrs = {
-            resource.resource_attr
-            for resource in make_gap_fetch_plan("reachability-test-shop").resources
-        }
+        if resource_attr in DOMAINS_RETIRED_WITH_DEMO_ANALYTICS:
+            pytest.skip(
+                f"{resource_attr!r} fed only the retired /v1/demo/analytics envelope "
+                "(P61-D, D72.5); see test_retired_domains_are_really_unreachable"
+            )
+        hourly_attrs: set[str] = set()  # the hourly gap plan was retired (P61-D)
 
         material_attrs: set[str] = set()
         for catalog_id in _MATERIAL_FETCH_MATRIX:

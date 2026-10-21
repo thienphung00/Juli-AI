@@ -552,9 +552,8 @@ def test_system_scope_call_sites_enumerated():
     # loop with per-item context rather than taking a fleet-wide exemption.
     # mock_analytics_reconcile left this set in #1513: it runs for a single
     # reference shop and now uses with_shop_scope, so it needs no exemption at
-    # all (ADR-089 decision 5). Fast track P61-D replaced both reference-shop
-    # tasks with per-shop work (shop_kpi_reconcile: definer enumeration, then
-    # with_shop_scope per shop).
+    # all (ADR-089 decision 5). Fast track P61-D retired both reference-shop
+    # tasks with GET /v1/demo/analytics (owner D72.5).
     # The list is expected to keep SHRINKING as the W7-bis slices land — a
     # name reappearing here is a regression, and a new name is the growth
     # this test was written to catch.

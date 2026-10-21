@@ -15,7 +15,6 @@ import importlib
 import pytest
 
 WORKER_TASK_MODULES = [
-    "juli_backend.workers.tasks.shop_kpi_reconcile",
     "juli_backend.workers.tasks.material_analytics_precompute",
     "juli_backend.workers.tasks.action_card_refresh",
     "juli_backend.workers.tasks.tool_execution",

@@ -275,9 +275,9 @@ _SHARED_STATE_MODULES = frozenset(
         "test_shop_scope_guc_lifecycle.py",
         # Reason 2 again: seeds two tenants for #1514 (credential_refresh_beat per-tenant context).
         "test_credential_refresh_beat_two_tenant.py",
-        # Reason 2 again: seeds two tenants for #1513, rewritten by fast track P61-D
-        # (the hourly KPI envelope recompute per shop, as juli_app).
-        "test_shop_kpi_reconcile_two_tenant.py",
+        # Reason 2 again: seeds two tenants for fast track P61-D
+        # (the targeted fetch signs with each shop's own credential, as juli_app).
+        "test_targeted_fetch_two_shop.py",
         # Reason 2 again: seeds two tenants for fast track P61-D ("Từ chối" through
         # the real app as juli_app: B cannot reject A's card; a repeat is a no-op).
         "test_reject_route_two_tenant.py",

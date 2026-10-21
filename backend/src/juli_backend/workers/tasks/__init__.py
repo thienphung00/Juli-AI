@@ -42,7 +42,6 @@ from juli_backend.workers.tasks import (
     rescore_shop_cards,
     shop_diagnosis,
     shop_ingestion,
-    shop_kpi_reconcile,
     tool_execution,
 )
 
@@ -63,6 +62,5 @@ __all__ = [
     "rescore_shop_cards",
     "shop_diagnosis",
     "shop_ingestion",
-    "shop_kpi_reconcile",
     "tool_execution",
 ]

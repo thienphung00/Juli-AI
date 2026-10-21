@@ -78,9 +78,8 @@ from juli_backend.services.cdp_speed import (
   never touching the already-committed KPI envelope). Wired as the default
   ``scoring_stage`` at **both** production continuous-trigger call sites —
   ``services/webhook/material_worker.py``'s ``_default_shared_compute`` (material
-  webhook trigger) and ``workers/tasks/shop_kpi_reconcile.py``'s
-  ``run_shop_kpi_reconcile_job`` (hourly per-shop reconcile, fast track P61-D; was the
-  reference-shop ``mock_analytics_reconcile``,
+  webhook trigger) and, until fast track P61-D retired it (owner D72.5), the hourly
+  reference-shop reconcile (``mock_analytics_reconcile``,
   PRD #599 user story 30 — gap reconciliation must heal Decision staleness the same
   way it heals KPI envelope staleness); actual execution still stays gated by
   ``scoring_stage_enabled()`` (default OFF) — wiring the callable does not flip the
@@ -129,14 +128,12 @@ the remaining resource_attrs above stay deferred.
 
 **Forbidden on material path:** ``_FUJIWA_POLL_STEPS`` (all four domain polls),
 ``run_fujiwa_poll_cycle``, unbounded ``sync_analytics`` A-31–A-39 fan-out. The hourly
-per-shop reconcile (fast track P61-D) uses a separate gap plan
-(``workers/tasks/shop_kpi_reconcile.py``'s ``make_gap_fetch_plan`` — orders,
-analytics_shop, ctor, live_hours via ``static_fetch_resource``) — not this matrix — for
-every shop with its own read credential. The executor (fast track P61-D) resolves the
+reference-shop gap plan (orders, analytics_shop, ctor, live_hours) was retired with
+``GET /v1/demo/analytics`` (fast track P61-D, owner D72.5); ``live_hours`` bronze is now
+requested by no plan builder (DEBT P61-D). The executor (P61-D, owner-approved) resolves the
 JOB shop's credential (``resolve_job_read_credential`` → ``resolve_read_credential_for_shop``,
 exported here) and signs with that credential's merchant id; ``credential_belongs_to_job``
 requires the job's shop, a read capability, a merchant id, and never the sandbox merchant.
-A shop with no usable read credential gets an empty plan (envelope from its poll's silver).
 
 ## Extending the matrix
 

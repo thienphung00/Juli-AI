@@ -246,34 +246,6 @@ class TestWiringIntoTheContinuousTriggerSeam:
     continuous-trigger call site (services/webhook/material_worker.py)."""
 
     @pytest.mark.asyncio
-    async def test_hourly_reconcile_wires_decision_rules_scoring_stage(self, session, monkeypatch):
-        """Gap-2 (coordinator follow-up on #714): the hourly reconcile path
-        (workers/tasks/shop_kpi_reconcile.py, per shop since P61-D) is also a continuous trigger
-        per PRD #599 user story 30 — gap reconciliation must heal Decision
-        staleness the same way it heals KPI envelope staleness. Mirrors the
-        material_worker.py wiring test above for the reconcile call site."""
-        from juli_backend.workers.tasks import shop_kpi_reconcile
-
-        captured: dict = {}
-
-        async def spy_run_shared_compute_job(sess, job, **kwargs):
-            captured.update(kwargs)
-            return None
-
-        monkeypatch.setattr(
-            shop_kpi_reconcile, "run_shared_compute_job", spy_run_shared_compute_job
-        )
-
-        await shop_kpi_reconcile.run_shop_kpi_reconcile_job(
-            session=session,
-            shop_id=uuid.uuid4(),
-            shop_key="tiktok_shop_714_b2_reconcile",
-            fetch_plan=shop_kpi_reconcile.make_gap_fetch_plan("tiktok_shop_714_b2_reconcile"),
-        )
-
-        assert captured.get("scoring_stage") is decision_rules_scoring_stage
-
-    @pytest.mark.asyncio
     async def test_default_shared_compute_wires_decision_rules_scoring_stage(
         self, session, shop_with_synced_data, monkeypatch
     ):

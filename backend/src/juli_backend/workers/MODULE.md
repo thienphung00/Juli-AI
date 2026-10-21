@@ -1,23 +1,16 @@
 # workers
 
-Background workers: Celery task execution, scheduled polling sync, hourly KPI envelope recompute.
+Background workers: Celery task execution, scheduled polling sync.
 
 **Includes:** TikTok polling (`services/polling/`), webhook receiver (`api/services/webhook/`).
 
-## Hourly KPI envelope recompute, per shop (fast track P61-D, D71.4; was #533)
+## Retired: the reference-shop KPI beats (fast track P61-D, owner D72.5, 2026-10-21)
 
-Celery Beat schedules `juli_backend.shop_kpi_reconcile_fanout` hourly (`crontab(minute=0)`),
-which enqueues one `juli_backend.shop_kpi_reconcile` per connected shop past its fast phase
-(enumerated like `shop-poll-fanout`, migration 074's definer function). Each shop's task runs
-under `with_shop_scope` and routes through `SharedComputeOrchestrator`
-(`enqueue_reason="reconcile_hourly"`): bronze → silver → `gold.kpi_envelopes` → flag-gated
-Decision scoring. The hourly gap fetch runs for every shop holding its own read credential
-(the targeted-fetch executor signs with that shop's credential and merchant id since P61-D);
-a shop without one gets an empty plan and its envelope is recomputed from what its
-`poll_shop` cycle ingested. No shop id is configured anywhere:
-the old `DEMO_REFERENCE_SHOP_ID` beats (`mock-analytics-hourly-reconcile`,
-`analytics-backfill-topup`) are deleted. `DEMO_REFERENCE_SHOP_ID` survives only as the public
-Demo display binding in `api/routes/demo_analytics.py` (ADR-094).
+`mock-analytics-hourly-reconcile` (#533, ADR-038 §5) and `analytics-backfill-topup` (#791)
+recomputed / topped up ONE shop (`DEMO_REFERENCE_SHOP_ID`) for the public
+`GET /v1/demo/analytics` envelope, which apps/demo no longer reads. Route (now 410 Gone),
+beats, tasks and the env read are gone (Supabase egress). Every shop's analytics lands through
+its own `poll_shop` cycle; no worker reads `DEMO_REFERENCE_SHOP_ID`.
 
 ## Boot env report (fast track P61-D)
 

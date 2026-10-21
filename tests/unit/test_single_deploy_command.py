@@ -60,16 +60,9 @@ def test_rendered_upstream_carries_the_lane_name_and_one_server() -> None:
 
 def test_api_verification_asserts_response_shape_not_only_status() -> None:
     """#843 AC: a healthy process serving the wrong shape must fail."""
-    good = {
-        "/health": {"status": "ok"},
-        "/v1/demo/analytics": {
-            "computed_at": "2026-08-09T00:00:00Z",
-            "kpis": {
-                k: {} for k in ("gmv_tiktok", "aov", "ctor", "live_hours", "cancellation_rate")
-            },
-        },
-    }
-    bad = {"/health": {"status": "ok"}, "/v1/demo/analytics": {"kpis": {"gmv_tiktok": {}}}}
+    good = {"/health": {"status": "ok"}}
+    # P61-D (D72.5): /v1/demo/analytics is retired; /health's body is the shape check.
+    bad = {"/health": {"healthy": True}}
 
     def serve(routes: dict) -> tuple[http.server.ThreadingHTTPServer, str]:
         class H(http.server.BaseHTTPRequestHandler):

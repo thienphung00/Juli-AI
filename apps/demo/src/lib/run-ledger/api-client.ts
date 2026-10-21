@@ -4,7 +4,7 @@ import type { WorkflowRunListItem, WorkflowRunListResponse } from "@juli/contrac
  * Fetch client for `GET /v1/demo/runs` (issue #1310, consumed read-only by
  * the run ledger, issue #1318). Same-origin relative URL only -- no client
  * env API base (demo workspace contract #397), matching the existing
- * `fetchDemoAnalytics` convention (`lib/analytics/api-client.ts`).
+ * `fetchDemoAnalytics` convention (the retired `lib/analytics/api-client.ts`).
  *
  * This is a plain JSON GET against the polled read model -- deliberately
  * NOT `agent-event-stream.ts`'s SSE transport. The ledger polls; it does

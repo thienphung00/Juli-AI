@@ -4,7 +4,7 @@ Tests RED→GREEN verification of:
 - Config flag (CDP_BATCH_STAGGERED_RECONCILE_ENABLED) defaults OFF, enqueues nothing
 - Staggered windows drive exactly one enqueue per shop per UTC day
 - Rollout allowlist restricts enqueue blast radius to Fujiwa reference + stub shops
-- A1 hourly exception (shop_kpi_reconcile_fanout, per shop since P61-D) stays hourly
+- A1 hourly exception (mock_analytics_hourly_reconcile) retired in P61-D (D72.5)
 - Public trigger sources (fake_refresh, demo_public, etc.) are rejected
 - Job enqueue/completion metrics tied to shop_id and window slot
 - Rollback scenario: flag flip mid-run produces zero enqueues for remainder of day
@@ -116,22 +116,13 @@ def test_flag_off_unset_enqueues_nothing(
 
 
 @freeze_time("2025-01-15 00:00:00", tz_offset=0)
-def test_a1_hourly_exception_untouched(monkeypatch):
-    """The A1 hourly reconcile stays hourly at :00 -- per shop since fast track P61-D.
-
-    P61-D (D71.4) replaced `mock-analytics-hourly-reconcile` (reference shop only)
-    with `shop-kpi-reconcile-fanout` (one task per connected shop), same slot.
-    """
+def test_a1_hourly_exception_retired(monkeypatch):
+    """The A1 hourly reconcile is retired (fast track P61-D, owner D72.5): its only
+    reader, GET /v1/demo/analytics, is gone. The A2 staggered entry stays."""
     beat_schedule = celery_app.conf.beat_schedule
 
     assert "mock-analytics-hourly-reconcile" not in beat_schedule
-    assert "shop-kpi-reconcile-fanout" in beat_schedule
-    entry = beat_schedule["shop-kpi-reconcile-fanout"]
-    assert entry["task"] == "juli_backend.shop_kpi_reconcile_fanout"
-
-    # crontab(minute=0) produces a schedule object with minute={0}
-    schedule = entry["schedule"]
-    assert schedule.minute == {0}, "A1 schedule must remain hourly at minute=0"
+    assert "cdp-batch-staggered-reconcile" in beat_schedule
 
 
 # --- Test: Staggered windows drive enqueue ---

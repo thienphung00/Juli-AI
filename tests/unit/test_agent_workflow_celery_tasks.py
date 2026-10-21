@@ -54,8 +54,6 @@ def test_agent_runs_queue_is_distinct_from_beat_and_analytics_routing():
     assert _resolved_queue_name("juli_backend.resume_agent_workflow") == "agent_runs"
 
     pre_existing_task_names = [
-        "juli_backend.shop_kpi_reconcile_fanout",
-        "juli_backend.shop_kpi_reconcile",
         "juli_backend.cdp_batch_staggered_reconcile",
         "juli_backend.daily_impact_reader",
     ]
@@ -74,10 +72,7 @@ def test_existing_beat_schedule_entries_survive_the_agent_queue_change():
     for the entry that pins the total.
     """
     schedule = celery_app.conf.beat_schedule
-    # Fast track P61-D: the hourly reconcile is per shop now (renamed entry).
-    assert schedule["shop-kpi-reconcile-fanout"]["task"] == (
-        "juli_backend.shop_kpi_reconcile_fanout"
-    )
+    assert "mock-analytics-hourly-reconcile" not in schedule  # retired by P61-D
     assert schedule["cdp-batch-staggered-reconcile"]["task"] == (
         "juli_backend.cdp_batch_staggered_reconcile"
     )

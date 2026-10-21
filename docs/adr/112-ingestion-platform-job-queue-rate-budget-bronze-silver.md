@@ -238,6 +238,8 @@ ADR turns it into tables, modules and jobs on top of what exists; it does not re
      scope notes lines 9 / 143) → replaced by per-shop P1 / P2 jobs; deleted.
    - `backend/src/juli_backend/workers/tasks/mock_analytics_reconcile.py` (lines 4, 61) → envelope
      recompute per shop after mapper completion (ADR-046 Q4 shared compute); deleted.
+     *(2026-10-21, P61-D / D72.5: deleted with no per-shop replacement — its only reader, the
+     public envelope route, is retired.)*
    - `backend/src/juli_backend/workers/celery_app.py` → beats `mock-analytics-hourly-reconcile`
      (line 58) and `analytics-backfill-topup` (line 72) removed; `ingest-*` beats added.
    - `backend/src/juli_backend/workers/tasks/impact_reader.py` docstring (line 8) — the
@@ -249,9 +251,10 @@ ADR turns it into tables, modules and jobs on top of what exists; it does not re
    - Tests: `tests/unit/test_worker_analytics_backfill_topup.py`,
      `tests/unit/test_mock_analytics_hourly_reconcile.py`,
      `tests/integration/test_mock_analytics_reconcile_two_tenant.py` — deleted with their tasks.
-   - **Kept:** `api/routes/demo_analytics.py:33` (`get_demo_reference_shop_id`) and the
-     `demo_decisions` / `demo_execution` mentions — a read-only public Demo display binding
-     ([ADR-094](094-demo-surface-splits-anonymous-replay-and-signed-in-runs.md)), not ingestion; their tests stay.
+   - ~~**Kept:** `api/routes/demo_analytics.py:33` (`get_demo_reference_shop_id`)~~ —
+     **amended 2026-10-21 (fast track P61-D, owner D72.5):** the route itself is retired (410
+     Gone, see the ADR-094 amendment), so `DEMO_REFERENCE_SHOP_ID` is no longer read anywhere.
+     The `demo_decisions` / `demo_execution` mentions are history in docstrings only.
 
 ### 7. Production bar (D70.15)
 

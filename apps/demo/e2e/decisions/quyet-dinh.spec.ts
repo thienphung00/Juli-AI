@@ -124,7 +124,6 @@ async function signedIn(page: Page) {
   await page.route(/\/v1\/demo\/analysis(\?.*)?$/, (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(report) }),
   );
-  await page.route("**/v1/demo/analytics*", (route) => route.fulfill({ status: 404, body: "{}" }));
   await page.route("**/v1/demo/decisions", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: DECISIONS, error: null }) }),
   );

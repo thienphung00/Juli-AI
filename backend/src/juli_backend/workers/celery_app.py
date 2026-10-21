@@ -57,15 +57,9 @@ celery_app.conf.update(
         "juli_backend.shop_quick_scan": {"queue": "ingest_priority"},
     },
     beat_schedule={
-        # Fast track P61-D (D71.4, ADR-112 §6.5) — the hourly Analytics KPI
-        # envelope recompute, one task per connected shop (was
-        # `mock-analytics-hourly-reconcile`, DEMO_REFERENCE_SHOP_ID only, #533).
-        # Same :00 slot the old entry held, so #1659's collision reasoning
-        # below is unchanged. Default queue.
-        "shop-kpi-reconcile-fanout": {
-            "task": "juli_backend.shop_kpi_reconcile_fanout",
-            "schedule": crontab(minute=0),
-        },
+        # `mock-analytics-hourly-reconcile` (ADR-038 §5, #533; DEMO_REFERENCE_SHOP_ID
+        # only) is retired with GET /v1/demo/analytics, its only reader (fast track
+        # P61-D, owner D72.5, 2026-10-21: Supabase egress). The :00 slot is left empty.
         # CDP-A2-9 — Staggered daily batch reconcile for fleet (#622).
         # Mixed-version hazard: task must be registered on all workers before enabling flag.
         # Flag defaults OFF; enable via CDP_BATCH_STAGGERED_RECONCILE_ENABLED env var.
@@ -74,9 +68,10 @@ celery_app.conf.update(
             "schedule": crontab(),  # Every minute
         },
         # `analytics-backfill-topup` (P2-9-6, #791; DEMO_REFERENCE_SHOP_ID only)
-        # is retired by fast track P61-D (D71.4): every shop's daily analytics
-        # already lands through its own `poll_shop` cycle (`_daily_analytics`),
-        # and the history phase walks the gaps backwards. It held 02:17 because
+        # is retired by fast track P61-D (D71.4 / D72.5): every shop's daily
+        # analytics already lands through its own `poll_shop` cycle
+        # (`_daily_analytics`), and the history phase walks the gaps backwards.
+        # It held 02:17 because
         # at 02:00 it was the fifth beat on that minute and pushed the hourly
         # reconcile past the 2-minute statement_timeout (#1659); the slot is
         # simply left empty.
@@ -129,7 +124,7 @@ celery_app.conf.update(
         # 7/22/37/52 are none of them multiples of 5, so this entry shares no
         # fire minute, at any hour, with reap-abandoned-workflow-runs' */5 or
         # credential-refresh-beat's */30 (both land only on multiples of 5),
-        # nor with shop-kpi-reconcile-fanout's :00. It also is not 17 (the
+        # nor with the retired hourly reconcile's :00. It also is not 17 (the
         # retired analytics-backfill-topup, hour=2 only) or 23
         # (daily-impact-reader, hour=3 only) — the two collisions #1659 was
         # filed over.

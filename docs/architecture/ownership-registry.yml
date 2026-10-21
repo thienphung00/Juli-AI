@@ -301,16 +301,6 @@ celeryTasks:
     owner: Data Pipeline
     wrapper: backend/src/juli_backend/workers/tasks/material_analytics_precompute.py
     delegatesTo: services.webhook.material_worker.run_material_analytics_compute
-  juli_backend.shop_kpi_reconcile_fanout:
-    owner: Data Pipeline
-    wrapper: backend/src/juli_backend/workers/tasks/shop_kpi_reconcile.py
-    delegatesTo: workers.tasks.shop_kpi_reconcile.run_fanout
-    notes: Fast track P61-D (D71.4). Hourly; one shop_kpi_reconcile per pollable shop (replaces the reference-shop-only mock_analytics_hourly_reconcile).
-  juli_backend.shop_kpi_reconcile:
-    owner: Data Pipeline
-    wrapper: backend/src/juli_backend/workers/tasks/shop_kpi_reconcile.py
-    delegatesTo: services.cdp_speed.run_shared_compute_job
-    notes: Fast track P61-D. One shop under with_shop_scope; KPI envelope recompute; the hourly gap fetch signs with the shop's own read credential.
   juli_backend.cdp_batch_staggered_reconcile:
     owner: Data Pipeline
     wrapper: backend/src/juli_backend/workers/tasks/cdp_batch_reconcile.py
