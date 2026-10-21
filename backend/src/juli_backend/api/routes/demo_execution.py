@@ -235,6 +235,12 @@ async def reject_demo_decision(
     404 for another shop's card, a card not on the desk, or no such card. The
     same lever is not proposed again for that product for 7 days -- strictly,
     D24.21 (``services.decision_reasons``).
+
+    IDEMPOTENT (fast track P61-D): rejecting a card this shop already rejected
+    answers 200 with the first reject's status and cooldown, and writes nothing
+    (no second reason row, no second ``dismissed`` event) -- a retried request
+    or a double tap is not an error. The card row is locked before it is closed,
+    so two concurrent rejects cannot both record.
     """
     try:
         decision_reasons.validate_reason(ACTION_REJECT, body.reason_code, body.note)
@@ -242,10 +248,24 @@ async def reject_demo_decision(
         raise invalid_reason(exc) from None
     try:
         card = await get_surfaced_decision(session, shop.id, action_card_id)
+        # Re-read under a row lock: a concurrent reject that committed first
+        # leaves this one looking at a closed card, answered as a repeat below.
+        await session.refresh(card, with_for_update=True)
+        if card.status == decision_reasons.DISMISSED_CARD_STATUS:
+            raise DecisionNotFound(str(action_card_id))
     except DecisionNotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Decision not found"
-        ) from None
+        prior = await decision_reasons.card_reject_reason(session, shop.id, action_card_id)
+        if prior is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Decision not found"
+            ) from None
+        logger.info(
+            "demo_decision_reject_repeated",
+            extra={"shop_id": str(shop.id), "action_card_id": str(action_card_id)},
+        )
+        return DecisionRejectResponse(
+            status="rejected", cooldown_until=decision_reasons.cooldown_until_iso(prior)
+        )
     reason = await decision_reasons.record_reason(
         session,
         shop_id=shop.id,

@@ -42,8 +42,6 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 import juli_backend.integrations.tiktok.capabilities as capabilities
 import juli_backend.integrations.tiktok.merchant as merchant
 
@@ -352,24 +350,50 @@ class TestEmptySandboxEnvFailsClosed:
         )
 
 
-class TestUnsetEnvKeepsJuliDefaults:
-    @pytest.mark.skipif(
-        bool(os.getenv("TIKTOK_PRODUCTION_MERCHANT_ID"))
-        or bool(os.getenv("TIKTOK_SANDBOX_MERCHANT_ID")),
-        reason="merchant IDs are configured here; this asserts the unset-default path",
-    )
-    def test_unset_env_stays_byte_identical_to_juli_defaults(self):
+class TestUnsetEnvConfiguresNoMerchant:
+    """P61-D (D71.4): unset means empty, and every guard fails closed by name."""
+
+    def test_unset_env_leaves_every_constant_empty(self):
         out = _run_with_env(
             """
             import juli_backend.integrations.tiktok.capabilities as c
             import juli_backend.integrations.tiktok.factories as f
-            print(c.PRODUCTION_AUTH_ID, c.SANDBOX_AUTH_ID, f.PRODUCTION_AUTH_ID, f.SANDBOX_AUTH_ID)
+            print(repr(c.PRODUCTION_AUTH_ID), repr(c.SANDBOX_AUTH_ID),
+                  repr(f.PRODUCTION_AUTH_ID), repr(f.SANDBOX_AUTH_ID))
             """
         )
 
-        assert out.split() == [
-            _JULI_DEFAULT_PRODUCTION_AUTH_ID,
-            _JULI_DEFAULT_SANDBOX_AUTH_ID,
-            _JULI_DEFAULT_PRODUCTION_AUTH_ID,
-            _JULI_DEFAULT_SANDBOX_AUTH_ID,
-        ]
+        assert out.split() == ["''", "''", "''", "''"]
+        assert _JULI_DEFAULT_PRODUCTION_AUTH_ID not in out
+        assert _JULI_DEFAULT_SANDBOX_AUTH_ID not in out
+
+    def test_unset_env_makes_both_factories_refuse_with_the_named_error(self):
+        out = _run_with_env(
+            """
+            import juli_backend.integrations.tiktok.factories as f
+            from juli_backend.integrations.tiktok import MerchantIdNotConfigured
+            def config(merchant):
+                return f.ClientFactoryConfig(
+                    app_key="app-key",
+                    app_secret="app-secret",
+                    access_token="access-token",
+                    merchant_auth_id=merchant,
+                    shop_cipher="ROW_cipher1234567890",
+                )
+            for factory, merchant in (
+                (f.ProductionReadClientFactory(), "some-seller-merchant"),
+                (f.SandboxWriteClientFactory(), ""),
+            ):
+                try:
+                    factory.create(config(merchant))
+                except MerchantIdNotConfigured as exc:
+                    print(exc.env_var)
+                else:
+                    print("ADMITTED")
+            """
+        )
+
+        assert out.split() == ["TIKTOK_SANDBOX_MERCHANT_ID", "TIKTOK_SANDBOX_MERCHANT_ID"], (
+            "an unset sandbox merchant id must refuse BOTH factories -- an empty "
+            "merchant_auth_id would otherwise equal the empty constant and pass"
+        )

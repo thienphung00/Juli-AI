@@ -31,22 +31,6 @@ class TestSharedDatabaseURLHelper:
 class TestDatabaseURLConversion:
     """Test database URL conversion in worker tasks."""
 
-    def test_mock_analytics_reconcile_database_url_with_postgres(self, monkeypatch):
-        """Test that mock_analytics_reconcile._database_url() converts postgresql to asyncpg."""
-        from juli_backend.workers.tasks.mock_analytics_reconcile import _database_url
-
-        monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
-        result = _database_url()
-        assert result.startswith("postgresql+asyncpg://"), f"Expected asyncpg form, got: {result}"
-
-    def test_mock_analytics_reconcile_database_url_fallback_sqlite(self, monkeypatch):
-        """Test that mock_analytics_reconcile._database_url() falls back to sqlite."""
-        from juli_backend.workers.tasks.mock_analytics_reconcile import _database_url
-
-        monkeypatch.delenv("DATABASE_URL", raising=False)
-        result = _database_url()
-        assert result == "sqlite+aiosqlite:///:memory:"
-
     def test_material_analytics_precompute_database_url_with_postgres(self, monkeypatch):
         """Test material_analytics_precompute._database_url() converts postgresql to asyncpg."""
         from juli_backend.workers.tasks.material_analytics_precompute import _database_url

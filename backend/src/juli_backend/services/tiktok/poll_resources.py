@@ -6,7 +6,7 @@ merely a depth-capped one -- no `from juli_backend.integrations.tiktok.x import
 y` shape fixes it, because the target *package* is disallowed for `workers`
 importers at any depth. `services -> integrations` and `services -> core` are
 both allowed, so this factory lives here and is called by
-`workers/tasks/fujiwa_poll_beat.py` at the `services.tiktok` package root
+`workers/tasks/shop_ingestion.py` at the `services.tiktok` package root
 (depth 2) instead of that task file touching `integrations.tiktok` or
 `core.security.tiktok_oauth` directly.
 

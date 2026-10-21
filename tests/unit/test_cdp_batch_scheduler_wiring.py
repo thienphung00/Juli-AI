@@ -4,7 +4,7 @@ Tests RED→GREEN verification of:
 - Config flag (CDP_BATCH_STAGGERED_RECONCILE_ENABLED) defaults OFF, enqueues nothing
 - Staggered windows drive exactly one enqueue per shop per UTC day
 - Rollout allowlist restricts enqueue blast radius to Fujiwa reference + stub shops
-- A1 hourly exception (mock_analytics_hourly_reconcile) remains untouched
+- A1 hourly exception (mock_analytics_hourly_reconcile) retired in P61-D (D72.5)
 - Public trigger sources (fake_refresh, demo_public, etc.) are rejected
 - Job enqueue/completion metrics tied to shop_id and window slot
 - Rollback scenario: flag flip mid-run produces zero enqueues for remainder of day
@@ -116,24 +116,13 @@ def test_flag_off_unset_enqueues_nothing(
 
 
 @freeze_time("2025-01-15 00:00:00", tz_offset=0)
-def test_a1_hourly_exception_untouched(monkeypatch):
-    """The existing mock-analytics-hourly-reconcile Beat entry is byte-for-byte unchanged."""
-    # Load the Beat schedule from celery_app
+def test_a1_hourly_exception_retired(monkeypatch):
+    """The A1 hourly reconcile is retired (fast track P61-D, owner D72.5): its only
+    reader, GET /v1/demo/analytics, is gone. The A2 staggered entry stays."""
     beat_schedule = celery_app.conf.beat_schedule
 
-    # Assert: the A1 hourly entry exists and is unchanged
-    assert "mock-analytics-hourly-reconcile" in beat_schedule, (
-        "A1 hourly reconcile entry must not be removed or renamed"
-    )
-
-    entry = beat_schedule["mock-analytics-hourly-reconcile"]
-    assert entry["task"] == "juli_backend.mock_analytics_hourly_reconcile", (
-        "A1 task name must not change"
-    )
-
-    # crontab(minute=0) produces a schedule object with minute={0}
-    schedule = entry["schedule"]
-    assert schedule.minute == {0}, "A1 schedule must remain hourly at minute=0"
+    assert "mock-analytics-hourly-reconcile" not in beat_schedule
+    assert "cdp-batch-staggered-reconcile" in beat_schedule
 
 
 # --- Test: Staggered windows drive enqueue ---

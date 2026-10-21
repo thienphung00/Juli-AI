@@ -1,24 +1,29 @@
 # workers
 
-Background workers: Celery task execution, scheduled polling sync, Phase 2.10 Mock reconciler.
+Background workers: Celery task execution, scheduled polling sync.
 
 **Includes:** TikTok polling (`services/polling/`), webhook receiver (`api/services/webhook/`).
 
-## Mock-mode hourly reconciler (#533, ADR-038 §5)
+## Retired: the reference-shop KPI beats (fast track P61-D, owner D72.5, 2026-10-21)
 
-Celery Beat schedules `juli_backend.mock_analytics_hourly_reconcile` hourly
-(`crontab(minute=0)`). The job recomputes Analytics KPI envelopes for
-`DEMO_REFERENCE_SHOP_ID` only — not a global daily scoring cron and not a
-fan-out across all shops.
+`mock-analytics-hourly-reconcile` (#533, ADR-038 §5) and `analytics-backfill-topup` (#791)
+recomputed / topped up ONE shop (`DEMO_REFERENCE_SHOP_ID`) for the public
+`GET /v1/demo/analytics` envelope, which apps/demo no longer reads. Route (now 410 Gone),
+beats, tasks and the env read are gone (Supabase egress). Every shop's analytics lands through
+its own `poll_shop` cycle; no worker reads `DEMO_REFERENCE_SHOP_ID`.
 
-Implementation reuses `material_analytics_precompute_sync` (#532) so hourly
-reconciliation is idempotent with material-webhook compute (Postgres upsert +
-Redis cache refresh).
+## Boot env report (fast track P61-D)
+
+`celery_app.py` (worker and beat) and the API lifespan call
+`core.config.log_runtime_env_report(process)`: one `runtime_env_missing` WARNING per missing
+required variable / flag that is off, never a value. `_skip_if_unconfigured`
+(`tasks/shop_ingestion.py`) logs `shop_ingestion_skipped_unconfigured` at WARNING with the
+missing names on every skip.
 
 ## Status: LEGACY (fast track P53, D62, 2026-10-18)
 
 Marker only — no behaviour changed, nothing moved or deleted (owner-approved audit cleanup,
-`juli-audit/backend.md`). `tenant_context_wrapper.py` (`task_with_tenant_context`, ADR-085 d.2) is used by no task; tasks set their shop scope themselves. RLS-adjacent, so kept. `tasks/fujiwa_poll_beat.py` (`fujiwa_poll_cycle`) is registered but on no beat since `shop_poll_fanout` replaced it; deleting it (audit C4) waits for the fan-out to be proven in production (DEBT).
+`juli-audit/backend.md`). `tenant_context_wrapper.py` (`task_with_tenant_context`, ADR-085 d.2) is used by no task; tasks set their shop scope themselves. RLS-adjacent, so kept. `tasks/fujiwa_poll_beat.py` (`fujiwa_poll_cycle`, `shop_id=None`) was deleted by fast track P61-D (D71.4, audit C4) together with the shop-less poll paths only it used.
 
 ## Worker database connections (fast track P62-B, D72.4 -- not changed)
 

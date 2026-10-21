@@ -175,6 +175,7 @@ def run_replay_poll(session, oauth_service, mock_rate_limiter, etl_handoff, poll
     async def _run(*, fujiwa_credential, fail_paths=None):
         with recorded_tiktok_replay(fail_paths=fail_paths):
             await run_fujiwa_poll_cycle(
+                shop_id=fujiwa_credential.shop_id,
                 session=session,
                 config=poll_config,
                 oauth_service=oauth_service,
@@ -257,6 +258,7 @@ class TestPollToEtlIngestion:
 
         with recorded_tiktok_replay():
             await run_fujiwa_poll_cycle(
+                shop_id=fujiwa_credential.shop_id,
                 session=session,
                 config=poll_config,
                 oauth_service=oauth_service,

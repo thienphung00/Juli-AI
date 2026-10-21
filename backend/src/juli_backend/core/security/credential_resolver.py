@@ -13,8 +13,11 @@ from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import (
     PRODUCTION_AUTH_ID,
+    PRODUCTION_MERCHANT_ID_ENV,
     READ_CAPABILITIES,
     SANDBOX_AUTH_ID,
+    SANDBOX_MERCHANT_ID_ENV,
+    MerchantIdNotConfigured,
     TikTokAuth,
     TikTokCapability,
     is_read_capability,
@@ -163,7 +166,15 @@ async def _resolve_configured_merchant_credential(
 async def resolve_production_read_credential(
     session: AsyncSession,
 ) -> TikTokCredential:
-    """Return Fujiwa production-read credentials — never falls back to latest."""
+    """Return Fujiwa production-read credentials — never falls back to latest.
+
+    Fails closed with ``MerchantIdNotConfigured`` when the production merchant id
+    is not configured (P61-D: there is no default id in code).
+    """
+    if not PRODUCTION_AUTH_ID:
+        raise MerchantIdNotConfigured(
+            PRODUCTION_MERCHANT_ID_ENV, needed_for="resolve_production_read_credential"
+        )
     return await _resolve_configured_merchant_credential(
         session,
         PRODUCTION_AUTH_ID,
@@ -287,6 +298,10 @@ async def resolve_sandbox_write_credential(
     because the sandbox path runs far less often than a beat on a
     fifteen-minute cadence.
     """
+    if not SANDBOX_AUTH_ID:
+        raise MerchantIdNotConfigured(
+            SANDBOX_MERCHANT_ID_ENV, needed_for="resolve_sandbox_write_credential"
+        )
     return await _resolve_configured_merchant_credential(
         session,
         SANDBOX_AUTH_ID,

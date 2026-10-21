@@ -1,7 +1,7 @@
 /**
  * `GET /v1/shops` — the only authenticated Juli backend call the connect-shop
  * screen makes (issue #1319). Same-origin relative path, matching the
- * existing `apps/demo` contract (#397, see `lib/analytics/api-client.ts`) —
+ * existing `apps/demo` contract (#397, see the retired `lib/analytics/api-client.ts`) —
  * no client-side API base env var.
  *
  * A 401 here is the documented, in-scope known gap: a first-time Google user

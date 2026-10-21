@@ -203,16 +203,10 @@ def respond(lane: str, release: str, path: str) -> tuple[int, str, str]:
     if lane == "api":
         if path == "/health":
             code = int(b.get("health", "200"))
-            return code, json.dumps({"status": "ok" if code == 200 else "down"}), "application/json"
-        if path == "/v1/demo/analytics":
-            kpis = {k: 1 for k in ("gmv_tiktok", "aov", "ctor", "live_hours", "cancellation_rate")}
+            status = "ok" if code == 200 else "down"
             if b.get("shape") == "bad":
-                kpis.pop("aov")
-            return (
-                200,
-                json.dumps({"computed_at": "2026-10-19T00:00:00Z", "kpis": kpis}),
-                "application/json",
-            )
+                status = "degraded"  # 200, wrong body: the shape check must fail
+            return code, json.dumps({"status": status}), "application/json"
         return 404, "{}", "application/json"
     if path.endswith(".css"):
         return 200, "body{color:#000}" + " " * 200, "text/css"

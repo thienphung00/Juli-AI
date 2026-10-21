@@ -11,19 +11,18 @@ from typing import Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.security import resolve_production_read_credential
-from juli_backend.database.exceptions import NotFound
+from juli_backend.core.security import NoReadCredentialForShop, resolve_read_credential_for_shop
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import (
-    PRODUCTION_AUTH_ID,
+    SANDBOX_AUTH_ID,
     ClientFactoryConfig,
     ProductionReadClientFactory,
     ProductionReadResources,
     RateLimiter,
-    TikTokCapability,
+    is_read_capability,
 )
 from juli_backend.models.models import Shop, TikTokCredential
-from juli_backend.repositories.repos import TikTokCredentialRepo, TikTokSyncStateRepo
+from juli_backend.repositories.repos import TikTokSyncStateRepo
 from juli_backend.services.cdp_speed.job_correlation import job_correlation_token
 from juli_backend.services.cdp_speed.quota_guard import is_quota_guarded, quota_guard_reason
 from juli_backend.services.cdp_speed.targeted_fetch_bronze_handoff import (
@@ -105,25 +104,40 @@ def partner_fetch_env_ready() -> PartnerFetchEnv | None:
 
 
 def credential_belongs_to_job(credential: TikTokCredential, shop_id: uuid.UUID) -> bool:
-    """True when credential is production-read for the job shop (shop-scoped isolation)."""
+    """True when ``credential`` may serve this job's read: the job's own shop's (fast track P61-D).
+
+    Was "the configured production merchant's credential" -- so the targeted fetch
+    served one shop and skipped every other shop's job. Now any read-capable
+    credential (``PRODUCTION_READ`` or a seller's ``SELLER_CONNECT``) OWNED BY THE
+    JOB'S SHOP, carrying its own merchant id, and never the sandbox write merchant
+    (refused again by ``ProductionReadClientFactory``).
+    """
+    capability = credential.capability
+    merchant = credential.merchant_authorization_id
     return (
         credential.shop_id == shop_id
-        and credential.merchant_authorization_id == PRODUCTION_AUTH_ID
-        and credential.capability == TikTokCapability.PRODUCTION_READ.value
+        and capability is not None
+        and is_read_capability(capability)
+        and bool(merchant)
+        and bool(SANDBOX_AUTH_ID)
+        and merchant != SANDBOX_AUTH_ID
     )
 
 
-async def resolve_job_production_read_credential(
+async def resolve_job_read_credential(
     session: AsyncSession,
     shop_id: uuid.UUID,
 ) -> TikTokCredential | None:
-    """Load production-read credential scoped to the Shared Compute job shop."""
+    """The job shop's own read credential (lazily refreshed), or ``None``.
+
+    ``resolve_read_credential_for_shop`` considers only rows that shop owns and has
+    no fallback to a configured merchant; its lazy refresh layer (ADR-081 d.1 row 2)
+    hands back a warm token. Resolved under the job shop's scope (RLS).
+    """
     try:
-        credential = await TikTokCredentialRepo(session).get_by_shop_and_capability(
-            shop_id,
-            TikTokCapability.PRODUCTION_READ,
-        )
-    except NotFound:
+        async with with_shop_scope(session, shop_id):
+            credential = await resolve_read_credential_for_shop(session, shop_id)
+    except NoReadCredentialForShop:
         return None
     if not credential_belongs_to_job(credential, shop_id):
         return None
@@ -229,7 +243,7 @@ async def execute_targeted_fetch_to_bronze(
         )
         return tracker
 
-    resolve = resolve_credential or resolve_job_production_read_credential
+    resolve = resolve_credential or resolve_job_read_credential
     credential = await resolve(session, shop_id)
     if credential is None or not credential_belongs_to_job(credential, shop_id):
         logger.warning(
@@ -238,34 +252,25 @@ async def execute_targeted_fetch_to_bronze(
         )
         return tracker
 
-    import redis
-
-    # ADR-081 decision 4 / #1232: this used to construct a TikTokOAuthService
-    # here just to call refresh_merchant_tokens(PRODUCTION_AUTH_ID,
-    # PRODUCTION_READ) -- the exact same merchant/capability pair
-    # `resolve_production_read_credential` looks up. That resolver now runs
-    # the lazy refresh layer itself (core/security/credential_resolver.py),
-    # so calling it here returns an already-warm credential with no separate
-    # OAuth-service construction.
-    refreshed = await resolve_production_read_credential(session)
-    if not credential_belongs_to_job(refreshed, shop_id):
-        logger.warning(
-            "targeted_fetch_skipped",
-            extra={
-                "correlation_id": correlation_id,
-                "reason": "refreshed_credential_shop_mismatch",
-            },
-        )
+    merchant = credential.merchant_authorization_id
+    if not merchant:  # unreachable past credential_belongs_to_job; keeps the type honest
         return tracker
 
+    import redis
+
+    # Fast track P61-D (D71.4): sign with the job shop's OWN credential and merchant
+    # id. This used to re-resolve the configured production merchant
+    # (`resolve_production_read_credential` + `PRODUCTION_AUTH_ID`), so only that
+    # one shop was ever fetched; `resolve_read_credential_for_shop` already runs
+    # the lazy refresh, so the credential above is warm.
     client_factory = ProductionReadClientFactory()
     resources = client_factory.create_resources(
         ClientFactoryConfig(
             app_key=resolved_env.app_key,
             app_secret=resolved_env.app_secret,
-            access_token=refreshed.access_token,
-            merchant_auth_id=PRODUCTION_AUTH_ID,
-            shop_cipher=refreshed.shop_cipher,
+            access_token=credential.access_token,
+            merchant_auth_id=merchant,
+            shop_cipher=credential.shop_cipher,
         )
     )
 

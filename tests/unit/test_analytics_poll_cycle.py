@@ -235,6 +235,7 @@ class TestPollCyclePersistsAnalyticsCursors:
             oauth_service=oauth_service,
             rate_limiter=limiter,
             handoff_fn=no_handoff,
+            shop_id=credential.shop_id,
             resolve_credential=resolve_credential,
             create_resources=lambda _cfg: resources,
         )

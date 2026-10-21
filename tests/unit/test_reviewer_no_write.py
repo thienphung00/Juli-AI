@@ -159,7 +159,6 @@ def reviewer_env(monkeypatch):
     monkeypatch.setenv("REVIEWER_ACCOUNT_CACHE_SECONDS", "0")
     monkeypatch.setenv("ENVIRONMENT", "development")  # every router mounted, debug included
     monkeypatch.delenv("OPS_CF_ACCESS_BYPASS", raising=False)
-    monkeypatch.setenv("DEMO_REFERENCE_SHOP_ID", str(uuid.uuid4()))
     rv.reset_caches()
     yield
     rv.reset_caches()

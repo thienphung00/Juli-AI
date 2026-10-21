@@ -83,9 +83,7 @@ def test_every_beat_task_is_registered(
 @pytest.mark.parametrize(
     "task_name",
     [
-        "juli_backend.mock_analytics_hourly_reconcile",
         "juli_backend.cdp_batch_staggered_reconcile",
-        "juli_backend.analytics_backfill_topup",
         "juli_backend.product_history_fanout",
     ],
 )
@@ -93,19 +91,16 @@ def test_known_scheduled_tasks_register(task_name: str, registered_task_names: s
     assert task_name in registered_task_names
 
 
-def test_hourly_reconcile_runs_on_the_hour():
-    """ADR-038 §5: the Demo KPI reconcile is hourly at :00.
-
-    Pinned because a schedule change here stops gold being recomputed, which
-    surfaces as stale or unavailable KPIs rather than as an error.
-    """
-    from celery.schedules import crontab
-
+def test_the_reference_shop_beats_are_retired():
+    """P61-D (owner D72.5): both DEMO_REFERENCE_SHOP_ID beats went with /v1/demo/analytics."""
     from juli_backend.workers.celery_app import celery_app
 
-    entry = celery_app.conf.beat_schedule["mock-analytics-hourly-reconcile"]
-    assert entry["task"] == "juli_backend.mock_analytics_hourly_reconcile"
-    assert entry["schedule"] == crontab(minute=0)
+    schedule = celery_app.conf.beat_schedule
+    for name in ("mock-analytics-hourly-reconcile", "analytics-backfill-topup"):
+        assert name not in schedule
+    tasks = {entry["task"] for entry in schedule.values()}
+    assert "juli_backend.mock_analytics_hourly_reconcile" not in tasks
+    assert "juli_backend.analytics_backfill_topup" not in tasks
 
 
 # ---------------------------------------------------------------------------
@@ -158,28 +153,3 @@ def test_no_two_daily_beats_share_a_fire_minute():
             "Two daily batch beats in one minute is what #1659 was."
         )
         seen[slot] = name
-
-
-def test_no_daily_beat_lands_on_the_hourly_reconcile():
-    """The specific collision, named rather than inferred from a general rule.
-
-    A daily beat may avoid every other daily beat and still land on the hourly
-    reconcile, which is the pairing that actually failed. Minute :00 already
-    carries four beats at all 24 hours and the reconcile survives that; a fifth
-    is what tips it.
-    """
-    from juli_backend.workers.celery_app import celery_app
-
-    schedule = celery_app.conf.beat_schedule
-    hourly = schedule["mock-analytics-hourly-reconcile"]["schedule"]
-    hourly_minutes = set(hourly.minute)
-
-    offenders = [
-        name
-        for name, cron in sorted(_daily_beats(schedule).items())
-        if set(cron.minute) & hourly_minutes
-    ]
-    assert not offenders, (
-        f"these daily beats fire in the same minute as the hourly reconcile: {offenders}. "
-        "That is the #1659 collision; move them off the hour."
-    )

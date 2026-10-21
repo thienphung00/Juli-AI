@@ -4,7 +4,7 @@
  * surface rather than the `@supabase/supabase-js` SDK: the only operation
  * this app needs is a browser redirect plus reading the implicit-grant hash
  * GoTrue appends on return, and `apps/demo`'s existing contract (#397,
- * `lib/analytics/api-client.ts`) is already "no client SDK, plain fetch".
+ * the retired `lib/analytics/api-client.ts`) is already "no client SDK, plain fetch".
  *
  * This is a real, distinct Supabase Auth identity (ADR-075 unweakened) — not
  * the withdrawn anonymous session from ADR-084 decision 1.

@@ -819,9 +819,9 @@ def test_beat_schedule_has_exactly_the_eight_expected_entries():
     *data* poll (orders/products/returns/inventory + analytics)."""
     schedule = celery_app.conf.beat_schedule
     assert set(schedule) == {
-        "mock-analytics-hourly-reconcile",
+        # Fast track P61-D (D71.4 / D72.5): `mock-analytics-hourly-reconcile` and
+        # `analytics-backfill-topup` (reference shop only) are retired.
         "cdp-batch-staggered-reconcile",
-        "analytics-backfill-topup",
         "daily-impact-reader",
         "reap-abandoned-workflow-runs",
         "credential-refresh-beat",

@@ -154,3 +154,15 @@ Verified 2026-09-07 against the deployed Supabase project and `origin/main`:
 | Demo app is mock-only | `demo-state.tsx` (`mode: "mock"`, sole variant), `mock-data.ts`, `agent-event-stream.ts` docstring |
 | No seller-facing connect flow | `api/routes/auth_tiktok.py` — public `/callback` only, no authenticated-user dependency |
 | `workflow_runs` has no user column | #1353, verified against the model |
+
+## Amendment (2026-10-21, fast track P61-D, owner decision D72.5)
+
+`GET /v1/demo/analytics` — the public, unauthenticated display binding of one
+`DEMO_REFERENCE_SHOP_ID` envelope that this ADR kept — is **retired**. apps/demo had stopped
+reading it (pages use `/v1/demo/analysis`), and keeping it fed cost an hourly recompute and a
+daily top-up of that one shop in Supabase egress (D72). The route now answers **410 Gone**
+(no database or cache access); its two beats (`mock-analytics-hourly-reconcile`,
+`analytics-backfill-topup`), their tasks, the `DEMO_REFERENCE_SHOP_ID` read and the demo
+client's `AnalyticsDataProvider` are deleted. The anonymous replay / signed-in run split above
+is unchanged.
+

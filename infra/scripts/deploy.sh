@@ -22,9 +22,9 @@
 # and automatic rollback (#840 pattern). The Demo lane delegates to the proven
 # deploy-demo-release.sh; API and Landing implement the same pattern here.
 #
-# API verification asserts core route RESPONSE SHAPE, not only status (#843 AC):
-# /health must be JSON with status=="ok", and /v1/demo/analytics must carry
-# computed_at plus the five ADR-044 KPI keys.
+# API verification asserts RESPONSE SHAPE, not only status (#843 AC): /health must
+# be JSON with status=="ok". (/v1/demo/analytics, the other probe, was retired by
+# fast track P61-D / D72.5 and answers 410 Gone.)
 #
 # Release record (#844): every run appends step results AS THEY HAPPEN to
 # ~/releases/records/deploy-<utc>-<short>.json. Only observed outcomes are written —
@@ -294,13 +294,8 @@ def get(path):
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read().decode())
 health = get("/health")
-assert health.get("status") == "ok", f"/health shape wrong: {health!r}"
-env = get("/v1/demo/analytics")
-assert "computed_at" in env, "analytics envelope missing computed_at"
-kpis = env.get("kpis") or {}
-missing = {"gmv_tiktok", "aov", "ctor", "live_hours", "cancellation_rate"} - set(kpis)
-assert not missing, f"analytics envelope missing KPIs: {sorted(missing)}"
-print("PASS: API core routes carry the expected response shapes")
+assert isinstance(health, dict) and health.get("status") == "ok", f"/health shape wrong (missing status ok): {health!r}"
+print("PASS: API /health carries the expected response shape")
 PY
 }
 

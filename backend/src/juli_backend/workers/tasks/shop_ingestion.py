@@ -95,13 +95,22 @@ Collaborators = Callable[[AsyncSession], Awaitable[dict[str, Any]]]
 SessionFactory = Callable[[], Any]
 
 
+#: Ingestion's env, key -> variable name. Every one must be set for any task to run.
+_REQUIRED_ENV = {
+    "app_key": "TIKTOK_APP_KEY",
+    "app_secret": "TIKTOK_APP_SECRET",
+    "redirect_uri": "TIKTOK_REDIRECT_URI",
+    "redis_url": "REDIS_URL",
+}
+
+
+def _missing_env() -> list[str]:
+    """Names (never values) of the required variables that are unset or blank."""
+    return [name for name in _REQUIRED_ENV.values() if not os.getenv(name, "").strip()]
+
+
 def _env_ready() -> dict[str, str] | None:
-    values = {
-        "app_key": os.getenv("TIKTOK_APP_KEY", "").strip(),
-        "app_secret": os.getenv("TIKTOK_APP_SECRET", "").strip(),
-        "redirect_uri": os.getenv("TIKTOK_REDIRECT_URI", "").strip(),
-        "redis_url": os.getenv("REDIS_URL", "").strip(),
-    }
+    values = {key: os.getenv(name, "").strip() for key, name in _REQUIRED_ENV.items()}
     if not all(values.values()):
         return None
     return values
@@ -618,9 +627,22 @@ def _run(coro_factory: Callable[[], Awaitable[Any]], *, timeout: float, event: s
 
 
 def _skip_if_unconfigured(event: str, **extra: Any) -> dict[str, str] | None:
+    """The env, or None after a named WARNING (fast track P61-D, D71.4).
+
+    Was an INFO line: a deployment with no TikTok / Redis env polled nothing and
+    looked healthy. Every skip now says which variables are missing (names only).
+    """
     env = _env_ready()
     if env is None:
-        logger.info(f"{event}_skipped", extra={"reason": "missing_tiktok_or_redis_env", **extra})
+        logger.warning(
+            "shop_ingestion_skipped_unconfigured",
+            extra={
+                "task": event,
+                "reason": "missing_tiktok_or_redis_env",
+                "missing": _missing_env(),
+                **extra,
+            },
+        )
     return env
 
 

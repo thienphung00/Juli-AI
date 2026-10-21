@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from juli_backend.api.app import create_app
+from juli_backend.core.config import log_runtime_env_report
 from juli_backend.core.config.runtime import async_database_url, cors_allow_origins, require_env
 from juli_backend.core.observability import configure_logging
 from juli_backend.database.database import (
@@ -75,6 +76,9 @@ async def lifespan(app: FastAPI):
     # `broker_url` is omitted so it falls back to reading CELERY_BROKER_URL
     # directly, since the API process never constructs a Celery app.
     assert_agent_runtime_config(app=app)
+    # Fast track P61-D (D71.4): name every missing variable / off flag a
+    # connected shop needs, loudly, at boot (never a value; never fails boot).
+    log_runtime_env_report("api")
 
     database_url = async_database_url(require_env("DATABASE_URL"))
     # P29: the tuned pool (no pre-ping, idle guard, keep-warm); see database.py.

@@ -1,15 +1,14 @@
 """Celery task entrypoint for the daily impact-reader beat task — ADR-077
 decision 5 (#1044), rewritten per ADR-089 for per-tenant context (#1488).
 
-Scheduled after ``analytics-backfill-topup`` (``workers/celery_app.py``) so
-the reference shop's daily analytics partitions are as fresh as that day's
-top-up can make them before this task reads them — though per the
-reference-shop gap (the daily topup is hardcoded to
-``DEMO_REFERENCE_SHOP_ID``, see ``workers/tasks/analytics_backfill_topup.py``),
-every other shop's ``analytics_performance_intervals`` stays whatever it was
-left at by the last manual refresh. That is exactly the missing-daily-rows
-case ``workers/impact_reader/pipeline.py`` degrades to a ``suppressed``
-reading for, never a crash.
+Runs daily at 03:23 UTC (``workers/celery_app.py``). Every connected shop's
+``analytics_performance_intervals`` is kept current by that shop's own
+``poll_shop`` cycle (at most one analytics pass per shop per UTC day,
+``workers/services/polling/ingestion.py::_daily_analytics``); fast track P61-D
+retired the reference-shop-only top-up this task used to follow. A day the
+shop's poll has not landed yet is the missing-daily-rows case
+``workers/impact_reader/pipeline.py`` degrades to a ``suppressed`` reading for,
+never a crash.
 
 The task enumerates measurable executions via a SECURITY DEFINER function
 that returns identifiers and scheduling metadata only, then loops over them

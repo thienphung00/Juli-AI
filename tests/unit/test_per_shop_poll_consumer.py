@@ -42,6 +42,7 @@ from juli_backend.core.security.credential_resolver import NoReadCredentialForSh
 from juli_backend.integrations.tiktok import (
     PRODUCTION_AUTH_ID,
     SANDBOX_AUTH_ID,
+    MerchantIdNotConfigured,
     TikTokCapability,
 )
 from juli_backend.models.models import Shop, TikTokCredential, User
@@ -427,13 +428,13 @@ class TestTheSandboxExclusionFailsClosed:
         monkeypatch.setattr(factories_module, "SANDBOX_AUTH_ID", "")
 
         # The sandbox merchant itself -- the id that MUST never be admitted.
-        with pytest.raises(ValueError, match="cannot enforce the SANDBOX_VN exclusion"):
+        with pytest.raises(MerchantIdNotConfigured, match="TIKTOK_SANDBOX_MERCHANT_ID"):
             factories_module.ProductionReadClientFactory().create(
                 factories_module.ClientFactoryConfig(
                     app_key="k",
                     app_secret="s",
                     access_token="t",
-                    merchant_auth_id=SANDBOX_AUTH_ID or "7658096633384781588",
+                    merchant_auth_id=SANDBOX_AUTH_ID,
                     shop_cipher="ROW_cipher1234567890",
                 )
             )
@@ -441,7 +442,7 @@ class TestTheSandboxExclusionFailsClosed:
         # And an ordinary seller too: with the exclusion unenforceable the
         # factory builds nothing at all, rather than building everything
         # except a merchant it can no longer name.
-        with pytest.raises(ValueError, match="cannot enforce the SANDBOX_VN exclusion"):
+        with pytest.raises(MerchantIdNotConfigured, match="TIKTOK_SANDBOX_MERCHANT_ID"):
             factories_module.ProductionReadClientFactory().create(
                 factories_module.ClientFactoryConfig(
                     app_key="k",
@@ -459,49 +460,48 @@ class TestTheSandboxExclusionFailsClosed:
 
         credential = MagicMock()
         credential.capability = TikTokCapability.PRODUCTION_READ.value
-        credential.merchant_authorization_id = SANDBOX_AUTH_ID or "7658096633384781588"
+        credential.merchant_authorization_id = SANDBOX_AUTH_ID
         credential.shop_id = uuid.uuid4()
 
-        with pytest.raises(ValueError, match="cannot enforce the SANDBOX_VN exclusion"):
+        with pytest.raises(MerchantIdNotConfigured, match="TIKTOK_SANDBOX_MERCHANT_ID"):
             orchestrate_module._assert_pollable_read_credential(
                 credential, shop_id=credential.shop_id
             )
 
 
-# --- The fleet-wide beat is unchanged ----------------------------------------
+# --- The shop-less entry is gone (fast track P61-D, D71.4) --------------------
 
 
-class TestFleetWideEntryIsUnchanged:
+class TestTheShopLessEntryIsGone:
+    """`fujiwa_poll_beat` (shop_id=None) is deleted; every poll names its shop."""
+
+    @pytest.mark.parametrize(
+        "entrypoint", ["run_fujiwa_poll_cycle", "run_fujiwa_material_resource_fetch"]
+    )
+    def test_shop_id_is_required(self, entrypoint):
+        import inspect
+
+        from juli_backend.workers.services.polling import orchestrate
+
+        parameter = inspect.signature(getattr(orchestrate, entrypoint)).parameters["shop_id"]
+        assert parameter.default is inspect.Parameter.empty
+        assert parameter.annotation in ("uuid.UUID", uuid.UUID)
+
     @pytest.mark.asyncio
-    async def test_omitting_shop_id_still_resolves_the_configured_merchant(
+    async def test_omitting_shop_id_is_a_type_error_not_the_configured_merchant(
         self, session, juli_shop
     ):
-        """`workers/tasks/fujiwa_poll_beat.py` names no shop and must keep
-        working exactly as before #1995."""
-        resources = _mock_resources()
-        rate_limiter = MagicMock()
-        rate_limiter.acquire.return_value = True
-        rate_limiter.is_exhausted.return_value = False
-        rate_limiter.time_until_reset.return_value = 0
+        shop_less: dict = {
+            "session": session,
+            "config": FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
+            "oauth_service": MagicMock(),
+            "rate_limiter": MagicMock(),
+            "handoff_fn": MagicMock(),
+        }
+        with pytest.raises(TypeError, match="shop_id"):
+            await run_fujiwa_poll_cycle(**shop_less)
 
-        async def _handoff(channel: str, shop_key: str, value: bytes) -> None:
-            return None
+    def test_the_legacy_task_module_is_deleted(self):
+        import importlib.util
 
-        captured: list = []
-
-        def _create_resources(config):
-            captured.append(config)
-            return resources
-
-        await run_fujiwa_poll_cycle(
-            session=session,
-            config=FujiwaPollConfig(app_key=APP_KEY, app_secret=APP_SECRET),
-            oauth_service=MagicMock(),
-            rate_limiter=rate_limiter,
-            handoff_fn=_handoff,
-            create_resources=_create_resources,
-        )
-
-        assert captured[0].merchant_auth_id == PRODUCTION_AUTH_ID
-        assert captured[0].access_token == "juli-access-token"
-        resources.orders.search_all.assert_called_once()
+        assert importlib.util.find_spec("juli_backend.workers.tasks.fujiwa_poll_beat") is None
