@@ -60,7 +60,8 @@ from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import (
     ClientFactoryConfig,
     ProductionReadClientFactory,
-    is_read_capability,
+    is_own_shop_read_capability,
+    is_own_shop_sandbox_read,
 )
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories import (
@@ -124,7 +125,10 @@ def assert_read_credential_for(credential: TikTokCredential, shop_id: uuid.UUID)
     ``resolve_read_credential_for_shop``; no merchant id is configured here.
     """
     capability = credential.capability
-    if capability is None or not is_read_capability(capability):
+    # P64 (D73.2a): the sandbox credential may read its OWN shop only.
+    if not is_own_shop_read_capability(
+        capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+    ):
         raise ValueError(
             f"shop diagnosis requires a read-capable credential; got capability {capability!r}"
         )
@@ -192,6 +196,9 @@ async def _plan(
             merchant_auth_id=str(credential.merchant_authorization_id),
             shop_cipher=credential.shop_cipher,
             credential_capability=credential.capability,
+            own_shop_sandbox_read=is_own_shop_sandbox_read(
+                credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+            ),
         )
         shop_name = shop.shop_name or ""
         shop_key = shop.tiktok_shop_id or str(shop_id)

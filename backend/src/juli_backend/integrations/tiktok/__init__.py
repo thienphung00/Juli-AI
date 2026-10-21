@@ -98,6 +98,8 @@ from juli_backend.integrations.tiktok.mapping import (
 from juli_backend.integrations.tiktok.merchant import (
     READ_CAPABILITIES,
     TikTokCapability,
+    is_own_shop_read_capability,
+    is_own_shop_sandbox_read,
     is_read_capability,
 )
 from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
@@ -114,6 +116,13 @@ from juli_backend.integrations.tiktok.resources import (
     ReturnsResource,
     SettlementsResource,
     strip_nones,
+)
+from juli_backend.integrations.tiktok.reviewer_scope import (
+    ReviewerProductionWriteRefused,
+    mark_reviewer_session,
+    refuse_reviewer_production_write,
+    reviewer_session,
+    reviewer_session_active,
 )
 from juli_backend.integrations.tiktok.schemas import TikTokSchemaError
 from juli_backend.integrations.tiktok.signing import sign_request
@@ -178,6 +187,14 @@ __all__ = [
     "TikTokCapability",
     "READ_CAPABILITIES",
     "is_read_capability",
+    "is_own_shop_read_capability",
+    "is_own_shop_sandbox_read",
+    # P64 (D73): the partner reviewer's request scope (production writes refused).
+    "ReviewerProductionWriteRefused",
+    "mark_reviewer_session",
+    "refuse_reviewer_production_write",
+    "reviewer_session",
+    "reviewer_session_active",
     # Vendor → ingest mapping
     "analytics_snapshot_key",
     "expand_analytics_live_session",

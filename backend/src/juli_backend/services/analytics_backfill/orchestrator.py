@@ -29,6 +29,7 @@ from juli_backend.database.tenant_context import reapply_shop_scope
 from juli_backend.integrations.tiktok import (
     ClientFactoryConfig,
     ProductionReadClientFactory,
+    is_own_shop_sandbox_read,
 )
 from juli_backend.repositories.repos import (
     AnalyticsBackfillPartitionsRepo,
@@ -629,6 +630,9 @@ async def backfill_analytics_history_auto_topup(
             merchant_auth_id=str(credential.merchant_authorization_id),
             shop_cipher=credential.shop_cipher,
             credential_capability=credential.capability,
+            own_shop_sandbox_read=is_own_shop_sandbox_read(
+                credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+            ),
         )
     )
     analytics_resource = resources.analytics

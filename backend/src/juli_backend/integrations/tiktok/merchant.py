@@ -51,9 +51,10 @@ def _capability_value(capability: TikTokCapability | str) -> str:
 #: is not a promotion to ``PRODUCTION_READ``, and the ordering only decides
 #: which of a shop's own rows is preferred when it holds both.
 #:
-#: ``SANDBOX_WRITE`` is deliberately absent and must stay absent: the sandbox
-#: merchant's credential is a write-validation credential and is unreachable
-#: from any read path.
+#: ``SANDBOX_WRITE`` is deliberately absent and must stay absent: membership here
+#: would let the sandbox credential serve a read for ANY shop. Its one exception
+#: (fast track P64, D73.2a) is narrower and lives in :func:`is_own_shop_read_capability`:
+#: it may read the one shop its own credential row belongs to, and nothing else.
 READ_CAPABILITIES: tuple[TikTokCapability, ...] = (
     TikTokCapability.PRODUCTION_READ,
     TikTokCapability.SELLER_CONNECT,
@@ -64,3 +65,38 @@ def is_read_capability(capability: TikTokCapability | str) -> bool:
     """Return True when a credential carrying ``capability`` may serve a read."""
     value = _capability_value(capability)
     return any(value == read.value for read in READ_CAPABILITIES)
+
+
+def is_own_shop_sandbox_read(
+    capability: TikTokCapability | str | None, *, credential_shop_id: object, shop_id: object
+) -> bool:
+    """Whether a read of ``shop_id`` is the sandbox credential reading its OWN shop (D73.2a).
+
+    Owner decision (P64, 2026-10-21): the sandbox shop holds only its ``sandbox_write``
+    credential, so that credential is the one seller for its reads AND its writes (which also
+    closes #1290: catalogue and writes from the same seller). The exception is bound to the
+    credential row's own ``shop_id``: for any other shop this is False, whatever the caller
+    holds. Which ``sandbox_write`` row is the sandbox credential at all is decided by
+    ``core/security/credential_resolver.py::resolve_read_credential_for_shop``.
+    """
+    if capability is None or credential_shop_id is None or shop_id is None:
+        return False
+    return (
+        _capability_value(capability) == TikTokCapability.SANDBOX_WRITE.value
+        and credential_shop_id == shop_id
+    )
+
+
+def is_own_shop_read_capability(
+    capability: TikTokCapability | str | None, *, credential_shop_id: object, shop_id: object
+) -> bool:
+    """``is_read_capability`` plus the sandbox credential's own-shop exception (D73.2a).
+
+    For the read paths that already check the credential is owned by the shop being read:
+    a read capability, or ``sandbox_write`` when ``shop_id`` is the row's own shop.
+    """
+    if capability is None:
+        return False
+    return is_read_capability(capability) or is_own_shop_sandbox_read(
+        capability, credential_shop_id=credential_shop_id, shop_id=shop_id
+    )

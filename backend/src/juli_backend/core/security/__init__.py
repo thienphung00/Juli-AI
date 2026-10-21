@@ -7,11 +7,13 @@ from juli_backend.core.security.credential_resolver import (
     NoWriteCredentialForShop,
     SandboxCollisionRefused,
     SandboxCredentialRefused,
+    SandboxWriteOwner,
     refuse_cross_shop_sandbox_collision,
     resolve_read_credential_for_shop,
     resolve_sandbox_write_credential,
     resolve_write_credential_for_shop,
     sandbox_write_merchant_ids,
+    sandbox_write_owners,
 )
 from juli_backend.core.security.dependencies import (
     REVIEWER_DENIED_HEADER,
@@ -93,6 +95,10 @@ __all__ = [
     # failure (services/execution/production_write.py).
     "NoWriteCredentialForShop",
     "resolve_write_credential_for_shop",
+    # Fast track P64 (D73): which shop holds the sandbox credential, for the
+    # reviewer pin check (services/reviewer, capped at depth 2).
+    "SandboxWriteOwner",
+    "sandbox_write_owners",
     "supabase_jwks_url",
     "verify_oauth_state",
     "verify_supabase_jwt",

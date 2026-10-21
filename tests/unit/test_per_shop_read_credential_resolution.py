@@ -192,13 +192,19 @@ class TestNoUsableCredentialFailsLoudly:
     async def test_named_error_is_a_not_found_so_routes_answer_404(self):
         assert issubclass(NoReadCredentialForShop, NotFound)
 
-    async def test_sandbox_write_credential_is_unreachable_from_the_read_path(self, session, shop):
+    async def test_sandbox_write_credential_is_unreachable_from_another_shops_read_path(
+        self, session, shop
+    ):
+        """P64 (D73.2a): the sandbox credential reads for its OWN shop only."""
+        sandbox_shop = await make_second_shop(session)
         await issue_credential(
-            session, shop, TikTokCapability.SANDBOX_WRITE, access_token="sandbox-token"
+            session, sandbox_shop, TikTokCapability.SANDBOX_WRITE, access_token="sandbox-token"
         )
 
         with pytest.raises(NoReadCredentialForShop):
             await resolve_read_credential_for_shop(session, shop.id)
+        own = await resolve_read_credential_for_shop(session, sandbox_shop.id)
+        assert (own.shop_id, own.access_token) == (sandbox_shop.id, "sandbox-token")
 
     async def test_nonexistent_and_cross_tenant_are_indistinguishable(self, session, shop):
         """No existence oracle: a shop that does not exist and a shop that

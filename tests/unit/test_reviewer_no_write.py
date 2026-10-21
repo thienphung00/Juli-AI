@@ -79,6 +79,19 @@ EXPECTED_TEMPLATES: dict[tuple[str, str], str] = {
     ): "demo_content_analysis:get_content_analysis",
     ("GET", "/v1/reviewer/me"): "reviewer:reviewer_me",
     ("POST", "/v1/reviewer/decisions/{action_card_id}/simulate"): "reviewer:simulate_decision",
+    # P64 (D73): the live sandbox routes -- 403 ``sandbox_only`` on any pin that is not a
+    # writable sandbox shop (``tests/unit/test_reviewer_sandbox_live.py``).
+    ("GET", "/v1/reviewer/shop"): "reviewer:reviewer_shop",
+    ("POST", "/v1/reviewer/shop/sync"): "reviewer:reviewer_sync_shop",
+    ("POST", "/v1/reviewer/decisions/{action_card_id}/approve"): "reviewer:approve_decision",
+    ("POST", "/v1/reviewer/decisions/{action_card_id}/execute"): "reviewer:execute_decision",
+}
+#: The live sandbox routes: on a non-sandbox pin (this module's world) each must refuse.
+SANDBOX_ROUTES = {
+    "/v1/reviewer/shop",
+    "/v1/reviewer/shop/sync",
+    "/v1/reviewer/decisions/{action_card_id}/approve",
+    "/v1/reviewer/decisions/{action_card_id}/execute",
 }
 
 
@@ -205,10 +218,13 @@ def test_allowlist_is_pinned_to_real_routes():
         (m, e.removeprefix("juli_backend.api.routes.")) for m, e in reviewer_gate.ALLOWED_ENDPOINTS
     }
     assert allowed == {(m, e) for (m, _), e in EXPECTED_TEMPLATES.items()}
-    # Nothing but reads and the audit-only simulation.
+    # Nothing but reads, the audit-only simulation and the P64 sandbox routes.
     assert {m for m, _ in reviewer_gate.ALLOWED_ENDPOINTS} == {"GET", "POST"}
-    assert [e for m, e in reviewer_gate.ALLOWED_ENDPOINTS if m == "POST"] == [
-        "juli_backend.api.routes.reviewer:simulate_decision"
+    assert sorted(e for m, e in reviewer_gate.ALLOWED_ENDPOINTS if m == "POST") == [
+        "juli_backend.api.routes.reviewer:approve_decision",
+        "juli_backend.api.routes.reviewer:execute_decision",
+        "juli_backend.api.routes.reviewer:reviewer_sync_shop",
+        "juli_backend.api.routes.reviewer:simulate_decision",
     ]
 
 
@@ -270,6 +286,13 @@ async def test_every_route_as_reviewer_writes_nothing(
                 checked.append(f"{method} {route.path} -> {response.status_code}")
                 allowed = reviewer_gate.is_allowed(method, endpoint)
                 if allowed:
+                    if route.path in SANDBOX_ROUTES:
+                        # Not a sandbox pin (or no pin): refused before any read or write.
+                        if response.status_code != 403:
+                            problems.append(
+                                f"{method} {route.path}: {response.status_code} (want 403)"
+                            )
+                        continue
                     if not pinned and route.path not in ("/v1/shops", "/v1/reviewer/me"):
                         # No pin: every shop-scoped allowed route has no shop to read.
                         if response.status_code != 403:
@@ -314,6 +337,8 @@ async def test_every_route_as_reviewer_writes_nothing(
         "GET /v1/demo/runs/{run_id}/events -> 403",
         "GET /v1/reviewer/me -> 200",
         "POST /v1/reviewer/decisions/{action_card_id}/simulate -> " + ("200" if pinned else "403"),
+        "POST /v1/reviewer/decisions/{action_card_id}/execute -> 403",
+        "POST /v1/reviewer/shop/sync -> 403",
     ):
         assert needle in checked, (needle, checked)
     # Every refused write left an audit row; nothing else was written.

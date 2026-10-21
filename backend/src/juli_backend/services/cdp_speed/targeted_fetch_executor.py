@@ -18,7 +18,8 @@ from juli_backend.integrations.tiktok import (
     ProductionReadClientFactory,
     ProductionReadResources,
     RateLimiter,
-    is_read_capability,
+    is_own_shop_read_capability,
+    is_own_shop_sandbox_read,
 )
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import TikTokSyncStateRepo
@@ -116,8 +117,10 @@ def credential_belongs_to_job(credential: TikTokCredential, shop_id: uuid.UUID) 
     merchant = credential.merchant_authorization_id
     return (
         credential.shop_id == shop_id
-        and capability is not None
-        and is_read_capability(capability)
+        # P64 (D73.2a): or the sandbox credential reading its own shop.
+        and is_own_shop_read_capability(
+            capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+        )
         and bool(merchant)
     )
 
@@ -270,6 +273,9 @@ async def execute_targeted_fetch_to_bronze(
             merchant_auth_id=merchant,
             shop_cipher=credential.shop_cipher,
             credential_capability=credential.capability,
+            own_shop_sandbox_read=is_own_shop_sandbox_read(
+                credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+            ),
         )
     )
 
