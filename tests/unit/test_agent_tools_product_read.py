@@ -164,6 +164,8 @@ class TestRegistration:
             # #1208: the image step became a READ inspection.
             "inspect_product_image",
             "get_product_diagnoses",
+            # Fast track P63: Get Authorized Shops for the run's own shop.
+            "get_shop_identity",
             # Fast track P10-B: the read-only promotion check.
             "find_product_promotions",
         }
@@ -469,6 +471,8 @@ class TestHandlerRegistry:
             "check_product_status",
             "inspect_product_image",
             "get_product_diagnoses",
+            # Fast track P63: Get Authorized Shops for the run's own shop.
+            "get_shop_identity",
             # Fast track P10-B: the read-only promotion check.
             "find_product_promotions",
         }

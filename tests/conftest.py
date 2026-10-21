@@ -323,6 +323,9 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for fast track P61-A (agent read
         # built from each shop's own credential, as juli_app).
         "test_agent_read_two_shop.py",
+        # Reason 2 again: seeds two tenants for fast track P63 (get_shop_identity
+        # through each shop's own read credential, as juli_app).
+        "test_agent_shop_identity_two_shop.py",
     }
 )
 

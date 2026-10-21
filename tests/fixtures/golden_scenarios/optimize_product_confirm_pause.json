@@ -1,7 +1,7 @@
 {
   "scenario_id": "optimize-product-confirm-pause",
   "workflow_key": "optimize_product_2",
-  "prompt_sha256": "46fcd666c0d598c8ea71496a13fc40e23bcd85a8341bb86a062e9de851d2373c",
+  "prompt_sha256": "eb8f6d0101622ecaaf2f2ea97d5ac71a39d63ac05781435c27f113cf78eb717b",
   "captured_at": "2026-01-01T00:00:00+00:00",
   "events": [
     {

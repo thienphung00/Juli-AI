@@ -204,7 +204,8 @@ class TestPlaybook:
         steps = OPTIMIZE_PRODUCT_PLAYBOOK.steps
         assert steps[0].tools == ("get_product_diagnoses",)
         assert steps[0].policy is ToolPolicy.AUTO
-        assert steps[1].tools == ("get_product_information",)
+        assert steps[1].tools == ("get_shop_identity",)  # P63: optional shop check
+        assert steps[2].tools == ("get_product_information",)
 
     def test_step_guidance_says_read_first_and_do_not_touch_unflagged_fields(self):
         intent = OPTIMIZE_PRODUCT_PLAYBOOK.steps[0].intent

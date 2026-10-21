@@ -608,19 +608,19 @@ class TestWallClockOvershootBound:
         )
 
         # Every registered Optimize Product tool, summed -- the worst case
-        # is a single turn whose blocks call all seven.
-        assert total_tool_timeout_seconds == 115
+        # is a single turn whose blocks call all eight.
+        assert total_tool_timeout_seconds == 125
 
         per_iteration_overshoot_ceiling = (
             DEFAULT_REQUEST_TIMEOUT_SECONDS + total_tool_timeout_seconds
         )
-        assert per_iteration_overshoot_ceiling == 145.0
+        assert per_iteration_overshoot_ceiling == 155.0
 
         worst_case_total_duration = (
             OPTIMIZE_PRODUCT_TERMINATION_POLICY.wall_clock_timeout_s
             + per_iteration_overshoot_ceiling
         )
-        assert worst_case_total_duration == 445.0  # 300s budget + 145s worst-case overshoot
+        assert worst_case_total_duration == 455.0  # 300s budget + 155s worst-case overshoot
 
 
 # --- Iteration gate / extension arithmetic ------------------------------------
