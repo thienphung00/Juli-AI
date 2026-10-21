@@ -24,7 +24,7 @@ PROCESSED_EVENTS_RETENTION_TASK = "juli_backend.processed_events_retention"
 @celery_app.task(name=PROCESSED_EVENTS_RETENTION_TASK)
 def processed_events_retention() -> int:
     from juli_backend.database.database import ensure_worker_session_factory
-    from juli_backend.services.etl.persistence.ingest.retention import purge_processed_events
+    from juli_backend.services.etl import purge_processed_events
 
     factory = ensure_worker_session_factory(get_async_database_url())
     try:

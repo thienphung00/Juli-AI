@@ -33,4 +33,4 @@ A pooled worker engine needs a per-process persistent event loop for every task 
 modules call `asyncio.run`) -- deliberately not done in P62-B (owner, 2026-10-21: skip if
 risky before the cycle reset); see fasttrack/DEBT.md.
 
-`processed_events_retention` (nightly 20:37 UTC): D72.2, see `services/etl/MODULE.md`.
+`processed_events_retention` (nightly 20:34 UTC): D72.2, see `services/etl/MODULE.md`.

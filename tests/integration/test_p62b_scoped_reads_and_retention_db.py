@@ -20,12 +20,13 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import AnalyticsPerformanceInterval, Order
+from tests.support.postgres import juli_app_async_sessionmaker
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
@@ -34,7 +35,6 @@ requires_postgres = pytest.mark.skipif(
 
 pytestmark = [requires_postgres]
 
-RUNTIME_ROLE = "juli_app"
 TODAY = datetime.now(UTC).date()
 NOW_NAIVE = datetime.now(UTC).replace(tzinfo=None)
 
@@ -44,19 +44,6 @@ def _urls() -> tuple[str, str]:
 
     url = os.environ["DATABASE_URL"]
     return async_database_url(url), sync_database_url(url)
-
-
-def _app_engine():
-    """An async engine whose every connection runs as ``juli_app``."""
-    engine = create_async_engine(_urls()[0])
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _as_app(dbapi_connection, _record):  # pragma: no cover - driver callback
-        cursor = dbapi_connection.cursor()
-        cursor.execute(f"SET ROLE {RUNTIME_ROLE}")
-        cursor.close()
-
-    return engine
 
 
 class RowCounter:
@@ -76,7 +63,7 @@ class RowCounter:
             self.calls.append((str(statement), len(frozen.data)))
             return frozen()
 
-        session.execute = counting  # type: ignore[method-assign]
+        setattr(session, "execute", counting)
 
     @property
     def rows(self) -> int:
@@ -199,15 +186,12 @@ def two_shops():
 
 
 async def _app_session_call(shop_id: uuid.UUID, fn):
-    engine = _app_engine()
-    try:
-        async with AsyncSession(engine, expire_on_commit=False) as session:
+    async with juli_app_async_sessionmaker() as factory:
+        async with factory() as session:
             counter = RowCounter(session)
             async with with_shop_scope(session, shop_id):
                 value = await fn(session)
             return value, counter
-    finally:
-        await engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -304,24 +288,20 @@ async def test_processed_events_retention_as_juli_app(two_shops):
                         {"e": f"p62b:{shop.hex[:6]}:{tag}:{i}", "s": str(shop), "at": when},
                     )
 
-    engine = _app_engine()
-    try:
+    async with juli_app_async_sessionmaker() as factory:
         # juli_app may not delete ledger rows itself.
-        async with AsyncSession(engine) as session:
+        async with factory() as session:
             async with with_shop_scope(session, shop_a):
                 with pytest.raises(DBAPIError):
                     await session.execute(text("DELETE FROM public.processed_events"))
             await session.rollback()
         # The SQL floor refuses a near-wipe.
-        async with AsyncSession(engine) as session:
+        async with factory() as session:
             with pytest.raises(DBAPIError):
                 await session.execute(text("SELECT public.purge_processed_events(1, 100)"))
             await session.rollback()
 
-        factory = async_sessionmaker(engine, expire_on_commit=False)
         result = await purge_processed_events(factory, batch_size=4, max_batches=10)
-    finally:
-        await engine.dispose()
 
     assert result.deleted == 14 and result.exhausted and result.batches == 4
     with sync_engine.connect() as conn:

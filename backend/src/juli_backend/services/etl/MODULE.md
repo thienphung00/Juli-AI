@@ -70,7 +70,7 @@ The idempotency ledger and its epoch. Import from
 ## Ledger retention (fast track P62-B, D72.2)
 
 `processed_events` is no longer permanent. The nightly `processed_events_retention` beat
-(20:37 UTC, `workers/tasks/processed_events_retention.py`) calls
+(20:34 UTC, `workers/tasks/processed_events_retention.py`) calls
 `persistence.ingest.retention.purge_processed_events`, which deletes rows older than
 `PROCESSED_EVENTS_RETENTION_DAYS` (30) in committed batches of `PROCESSED_EVENTS_PURGE_BATCH`
 (5,000), at most `PROCESSED_EVENTS_MAX_BATCHES_PER_RUN` (40) a night, through the owner-role
