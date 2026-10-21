@@ -96,3 +96,13 @@ path, and the registry module design.
   tools — never editing existing ToolSpecs.
 - Revisit triggers recorded: nested-enqueue upgrade (decision 2); strict 1:1 granularity
   if sub-step events prove insufficient for narration or audit.
+
+**Amendment (2026-10-21, fast track P63).** The table in decision 1 lists the original
+tools only; the catalog has since gained READ / AUTO tools outside it
+(`get_product_diagnoses`, `find_product_promotions`, ...). P63 adds `get_shop_identity`
+(product domain, optional playbook step `0.5`): TikTok Get Authorized Shops
+(`GET /authorization/{v}/shops`, already on the production-read allowlist) called with the
+run shop's own read credential. No model input (ADR-070 decision 1); it returns the shop's
+name (vendor-text envelope), region, seller type and a `shop_matches` boolean, and never an
+id, cipher, token or merchant id. A token that reaches a different shop than the run's is a
+`mismatch` result plus the `agent_shop_identity_mismatch` warning, not an exception.
