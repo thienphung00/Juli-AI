@@ -1,0 +1,34 @@
+# Scheduled verified pg_dump of the production database (P62-A, D72.1).
+# Cadence: the timer fires daily, the script dumps only when the newest dump in
+# BACKUP_DIR is at least BACKUP_MIN_INTERVAL_HOURS old (72 = every 3 days; a full
+# dump is a full copy of production through Supabase egress). Change it with a
+# drop-in, not by editing this file:
+#   systemctl edit juli-db-backup.service
+#     [Service]
+#     Environment=BACKUP_MIN_INTERVAL_HOURS=24
+# Install to /etc/systemd/system/juli-db-backup.service on the VPS.
+# Enable the companion timer: systemctl enable --now juli-db-backup.timer
+#
+# The standing recovery point now that most fast-track deploys take no dump: the
+# deploy workflow's backup job runs only when a deploy carries a migration (or
+# force_backup), and safe-alembic-upgrade.sh dumps only when a migration is pending.
+# Writes ~/backups/juli-pre-migrate-<ts>-daily.dump (+ .sha256), so the existing
+# rotation applies and the weekly restore drill (juli-restore-drill.timer) restores
+# the newest dump. VPS-local only (ADR-027): the dump never leaves this host.
+[Unit]
+Description=Juli scheduled Postgres backup (verified pg_dump, every BACKUP_MIN_INTERVAL_HOURS)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=RELEASE_DIR=/root/releases/current
+Environment=BACKUP_DIR=/root/backups
+Environment=API_ENV_FILE=/etc/juli/api.env
+Environment=BACKUP_LABEL=daily
+Environment=BACKUP_MIN_INTERVAL_HOURS=72
+ExecStart=/root/Juli-AI-v2/infra/scripts/backup-database.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+# Fire juli-db-backup.service once a day at a quiet hour (P62-A, D72.1). The
+# service itself skips unless the newest dump is BACKUP_MIN_INTERVAL_HOURS old
+# (72 by default), so production is dumped every 3 days, not daily.
+# Install to /etc/systemd/system/juli-db-backup.timer on the VPS.
+# 19:30 UTC = 02:30 Asia/Ho_Chi_Minh, the lowest-traffic window. It also lands
+# before the weekly restore drill (Sun 03:00 UTC, juli-restore-drill.timer), so
+# the drill restores the newest dump (at most ~3 days old).
+[Unit]
+Description=Daily check for the scheduled Juli Postgres backup
+
+[Timer]
+OnCalendar=*-*-* 19:30:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+Unit=juli-db-backup.service
+
+[Install]
+WantedBy=timers.target
