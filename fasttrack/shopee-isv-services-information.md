@@ -63,19 +63,28 @@ The interface is in Vietnamese; the steps below give the English meaning of each
 ## Steps for the reviewer
 
 1. Open https://demo.app-juli.com/auth/email#doi-tac (opens the partner sign-in form directly)
-   and sign in with the username and password above.
-2. **Connection:** the shop header / **Cài đặt** (Settings) shows the TikTok Shop connection —
-   shop name, "Đã kết nối" (Connected), authorisation date, scopes — and **"Đồng bộ lúc …"**
-   (Synced at …). Press **"Đồng bộ ngay"** (Sync now) to pull the shop from TikTok again.
-3. **Trang chủ** (Home): the shop's GMV, orders and traffic sources from the live data.
-4. **Phân tích** (Analysis): the funnel per traffic source and per product, with the weakest step
-   highlighted and the products pulling it down ranked by impact.
+   and sign in with the username and password above. The banner reads "Tài khoản đối tác · kết
+   nối thật tới shop sandbox TikTok của Juli · thay đổi được ghi thật lên TikTok" (partner account
+   · real connection to Juli's TikTok sandbox shop · changes are really written to TikTok).
+2. **Trang chủ** (Home), card **"Kết nối TikTok Shop"** (TikTok Shop connection): the shop name
+   and TikTok shop id, "Đã kết nối" (Connected), "Ủy quyền lúc …" (Authorised at …), "Quyền đã
+   cấp" (granted scopes) and "Đồng bộ lúc …" (Synced at …). Press **"Đồng bộ ngay"** (Sync now) to
+   pull the shop from the TikTok Shop Open API again; the time updates a few seconds later.
+3. **Trang chủ** (Home): the shop's orders, revenue and products as returned by TikTok. A sandbox
+   shop has no buyer traffic, so view / click metrics show the note "TikTok sandbox chưa có lượt
+   xem/traffic — số liệu đơn hàng và sản phẩm vẫn lấy trực tiếp từ TikTok" (the TikTok sandbox has
+   no views/traffic yet — order and product figures still come directly from TikTok).
+4. **Phân tích** (Analysis): the shop's products and orders broken down by product, from the same
+   live data.
 5. **Quyết định** (Decisions): Juli's recommendation cards — product, target metric, evidence and
    the proposed change.
-6. Press **"Duyệt"** (Approve), then **"Thực thi"** (Execute). Juli sends the change to TikTok Shop;
-   the result shows each field before and after and **"TikTok xác nhận"** (Confirmed by TikTok)
-   with the time of the read-back.
-7. **Đo lường** (Measurement): the executed change is tracked for the day-7 / day-14 check.
+6. Open a listing card (title / description / cover image) and press **"Duyệt"** (Approve). The
+   dialog "Thay đổi Juli sẽ ghi lên TikTok" (The change Juli will write to TikTok) shows each field
+   before ("Trước") and after ("Sau"); you may edit "Tiêu đề mới" (new title) or "Mô tả mới" (new
+   description), or choose "Ảnh bìa mới" (new cover image).
+7. Press **"Thực thi"** (Execute). Juli writes the change to the shop through the TikTok Shop Open
+   API, then reads the product back. The result "Đã ghi lên TikTok" (Written to TikTok) shows each
+   field before and after and **"TikTok xác nhận lúc …"** (Confirmed by TikTok at …).
 8. Product and integration details: https://app-juli.com/san-pham ·
    https://app-juli.com/ket-noi/tiktok-shop · trial sign-up https://app-juli.com/dang-ky.
 
