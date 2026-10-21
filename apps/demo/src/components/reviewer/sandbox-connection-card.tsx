@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   SANDBOX_CONNECTED_LABEL,
+  SANDBOX_NEEDS_REAUTH_LABEL,
   SANDBOX_CONNECTION_TITLE,
   SANDBOX_LOAD_ERROR,
   SANDBOX_SYNC_ERROR,
@@ -163,7 +164,11 @@ export function SandboxConnectionCard({
           </>
         ) : null}
         <dt>Trạng thái</dt>
-        <dd data-testid="sandbox-connection-status">{connected ? SANDBOX_CONNECTED_LABEL : connection.status}</dd>
+        <dd data-testid="sandbox-connection-status">{connected
+            ? SANDBOX_CONNECTED_LABEL
+            : connection.status === "needs_reauth"
+              ? SANDBOX_NEEDS_REAUTH_LABEL
+              : connection.status}</dd>
         {authorised ? (
           <>
             <dt>Ủy quyền</dt>

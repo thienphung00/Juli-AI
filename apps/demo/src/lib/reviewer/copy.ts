@@ -90,6 +90,16 @@ export const REVIEWER_SANDBOX_READ_ONLY_TITLE = "Tài khoản đối tác: mục
 
 export const SANDBOX_CONNECTION_TITLE = "Kết nối TikTok Shop";
 export const SANDBOX_CONNECTED_LABEL = "Đã kết nối";
+export const SANDBOX_NEEDS_REAUTH_LABEL = "Cần ủy quyền lại";
+
+/** Vietnamese labels for TikTok read-back field names; unknown names fall back to the raw name. */
+export const SANDBOX_FIELD_LABELS: Record<string, string> = {
+  title: "Tiêu đề",
+  description: "Mô tả",
+  main_images: "Ảnh bìa",
+  main_image: "Ảnh bìa",
+  image: "Ảnh bìa",
+};
 export const SANDBOX_SYNC_LABEL = "Đồng bộ ngay";
 export const SANDBOX_SYNC_QUEUED = "Đã xếp lịch đồng bộ · số liệu sẽ cập nhật sau ít giây";
 export const SANDBOX_SYNC_UNAVAILABLE = "Chưa xếp lịch đồng bộ được. Vui lòng thử lại sau.";

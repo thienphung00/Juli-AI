@@ -6,6 +6,7 @@ import {
   SANDBOX_APPROVE_LABEL,
   SANDBOX_CONFIRMED_PREFIX,
   SANDBOX_EXECUTE_LABEL,
+  SANDBOX_FIELD_LABELS,
   SANDBOX_INTENDED_NOTE,
   sandboxErrorCopy,
 } from "../../lib/reviewer/copy";
@@ -230,7 +231,7 @@ export function SandboxDecisionDialog({
               <tbody>
                 {done.execution.read_back.fields.map((field) => (
                   <tr data-after-source={field.after_source} key={field.field}>
-                    <th scope="row">{field.field}</th>
+                    <th scope="row">{SANDBOX_FIELD_LABELS[field.field] ?? field.field}</th>
                     <td>{field.before ?? "—"}</td>
                     <td>
                       {field.after ?? "—"}
