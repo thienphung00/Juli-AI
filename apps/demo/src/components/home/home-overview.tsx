@@ -12,6 +12,7 @@ import {
 } from "../../lib/shop-report/home-metrics";
 import { compactMoney, num, pct, slashDate, vnClock, vnWeekdayDate } from "../../lib/vn-format";
 import { AppPageHeader } from "../app-shell/page-header";
+import { SandboxTrafficNote } from "../reviewer/sandbox-traffic-note";
 import { useSellerHref } from "../seller-view-context";
 
 /**
@@ -176,6 +177,7 @@ export function HomeOverview({ envelope, sample = false }: HomeOverviewProps) {
         ))}
       </div>
 
+      <SandboxTrafficNote envelope={envelope} />
       <StreamMatrix envelope={envelope} />
     </section>
   );

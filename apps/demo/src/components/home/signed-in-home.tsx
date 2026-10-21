@@ -3,10 +3,12 @@
 import { useCallback } from "react";
 
 import { onboardingReportReady, type OnboardingStatus } from "../../lib/onboarding/api-client";
+import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import { useShopReport } from "../../lib/shop-report/shop-report-context";
 import { ShopOnboardingStrip } from "../onboarding/onboarding-strip";
 import { NoShopSampleStrip } from "../app-shell/no-shop-sample-strip";
 import { AppPageHeader } from "../app-shell/page-header";
+import { SandboxConnectionCard } from "../reviewer/sandbox-connection-card";
 import { HomeOverview } from "./home-overview";
 import { SampleHome } from "./sample-home";
 
@@ -20,6 +22,7 @@ import { SampleHome } from "./sample-home";
  */
 export function SignedInHome() {
   const { state, reload } = useShopReport();
+  const sandbox = useSandboxReviewer();
   const reportEmpty = state.status === "empty";
   const onOnboardingStatus = useCallback(
     (status: OnboardingStatus) => {
@@ -33,10 +36,15 @@ export function SignedInHome() {
       <ShopOnboardingStrip onStatus={onOnboardingStatus} shopId={state.shop.id} token={state.token} />
     ) : null;
 
+  // P64 (D73): the reviewer's live TikTok connection leads Trang chủ.
+  const connection =
+    sandbox && "shop" in state ? <SandboxConnectionCard shopId={state.shop.id} token={state.token} /> : null;
+
   if (state.status === "ready") {
     return (
       <>
         {strip}
+        {connection}
         <HomeOverview envelope={state.envelope} />
       </>
     );
@@ -84,6 +92,7 @@ export function SignedInHome() {
   return (
     <>
     {strip}
+    {connection}
     <section aria-labelledby="home-title" className="home-overview">
       <AppPageHeader eyebrow="Trang chủ" title="Báo cáo của shop" titleId="home-title" />
       {body}

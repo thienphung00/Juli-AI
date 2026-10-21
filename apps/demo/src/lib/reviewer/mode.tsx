@@ -24,6 +24,15 @@ export function useReviewer(): ReviewerRecord | null {
   return useContext(ReviewerContext).reviewer;
 }
 
+/** P64 (D73): the reviewer is pinned to the live TikTok sandbox shop — real data, real writes. */
+export function isSandboxReviewer(reviewer: ReviewerRecord | null): boolean {
+  return reviewer?.mode === "sandbox" && reviewer.sample !== true;
+}
+
+export function useSandboxReviewer(): boolean {
+  return isSandboxReviewer(useReviewer());
+}
+
 /** Test seam: render a fixed reviewer without storage or network. */
 export function StaticReviewerProvider({
   reviewer,
