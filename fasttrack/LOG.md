@@ -2810,5 +2810,9 @@ reconcile --write` re-derived the no-assert corpus figure.
   journey approves the title; a 112+ character reply is needed for the relay to emit deltas (64 held back, flush at
   48); the model's FinalResponse with a required step undone arms ADR-088's one forced retry, so the resume leg is
   scripted with two narrations; the seller edit must be stamped after Juli's write (the DB clock).
+- Corpus: the test-quality figures moved (`python -m eval.quality_detectors reconcile --write` + the four
+  lower layers by hand: functions 7115 -> 7117, modules 683 -> 684, layers 507/130/115/115 -> 508/131/116/116;
+  zero-assertion 49 and the helper layer 53 unchanged: the journey test asserts in `_step_*` helpers).
+  Other branches adding tests will conflict on the same constants; re-derive at merge.
 - Verification: see the report; module 1 passed + 1 xfailed, 0 skipped (~25 s with the migrated database).
 
