@@ -1547,3 +1547,10 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   approved" from "not yours".
 - [ ] apps/demo vitest must run on Node 20 (`.nvmrc`); on this Mac's default Node 26, 295 tests
   fail on `localStorage.clear` (jsdom vs Node's own `localStorage`) — environment, not code.
+- [ ] P63 `get_shop_identity`: the sandbox shop reads through `SandboxWriteResources`, which has no
+  `authorization` resource, so the tool answers `unavailable` for it (not a failure). A credential
+  without a stored `shop_cipher` answers `unverifiable` (the match needs the cipher).
+  The step is optional in the playbook (the model may skip it); no code enforces it. Adding it
+  to the playbook changed the composed prompt of the released v1/v2/v3 (goldens regenerated).
+  `services/execution/tool_routing.py::WORKFLOW_TOOL_CATALOG` is the legacy Celery routing table,
+  not the agent catalog, and is untouched.

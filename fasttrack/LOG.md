@@ -2682,3 +2682,48 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   line will tell). Before: ~2 dumps/deploy x ~4 deploys/day = 8 dumps/day ≈ 280–560 MB/day.
   After: scheduled 1 per 3 days ≈ 12–23 MB/day (≈ 0.35–0.7 GB/month) + 2 dumps only on deploys with
   a migration.
+
+## 2026-10-21 — agent (Claude Sonnet) — P63 `get_shop_identity` agent tool (branch `fasttrack/p63-shop-identity-tool`, not merged)
+
+- Owner request: TikTok Get Authorized Shops (`AUTHORIZED_SHOPS_PATH`, already on the production-read
+  allowlist) as a READ tool of the OpenAI agent. Product domain (`tools/product.py`, in
+  `PRODUCT_READ_TOOL_HANDLERS`) — the smallest change that fits ADR-069/#1704; no new domain, no
+  executor/worker/`composition.py`/`factories.py`/`credential_resolver.py` edit (no merge surface with P61-G;
+  no `PRODUCTION_AUTH_ID` / `SANDBOX_AUTH_ID` / merchant env used).
+- Behaviour: no model input. The handler calls `resources.authorization.list_all_shops()` (the guarded
+  client built by `build_read_resources` from the run shop's own credential) and matches the entry whose
+  `cipher` equals the cipher that same client was built with (new read-only `TikTokClient.shop_cipher` /
+  `AuthorizationResource.bound_shop_cipher`). Output `{status, shop_matches, shop_name (vendor-text
+  envelope), region, seller_type, detail}`; region / seller type are machine tokens or dropped
+  (`AuthorizedShop` gained `seller_type`). `status`: `verified`; `mismatch` (token reaches another shop:
+  nothing about it returned, warning `agent_shop_identity_mismatch` with the cipher redacted);
+  `unverifiable` (credential has no stored cipher); `unavailable` (TikTok/guard error, or sandbox
+  resources, which have no authorization resource). Never an id, cipher, token or merchant id.
+  Rate limiting: same as every other READ tool (the client's own throttle/retry); no extra limiter.
+- Playbook: optional step `0.5` after diagnoses (AUTO, not in `required_steps`). The composed v3 prompt
+  was 2992 of the 3000-token ADR-072 d.6 ceiling, so three other step intents (1, 4/4.5, 6) were
+  tightened (same meaning) to pay for it: 2997 now, headroom 3. The composed goldens of the released
+  v1/v2/v3 prompts and the two golden-scenario `prompt_sha256` were regenerated (the playbook is part of
+  the composed text; same precedent as the diagnoses step). Worst-case tool-timeout sum 115 → 125 s
+  (run bound 445 → 455 s), documented in `runner/termination.py` and pinned in its test.
+- Labels: dictionary `run.option_rationale.get_shop_identity` / `qd.step.get_shop_identity` ("Xác nhận
+  shop TikTok"); `apps/demo` `TOOL_STEP_LABELS` in `copy.ts` and `timeline.ts` (no new timeline row —
+  the step is optional). `packages/contracts` mirrors no tool names. `surface_inventory.json` regenerated.
+  `WORKFLOW_TOOL_CATALOG` (`tool_routing.py`) is the legacy Celery routing table and is untouched; the
+  agent catalog is the registry + playbook, and the registry↔catalog test mapping got the new line.
+- Tests: `tests/unit/test_agent_tool_shop_identity.py` (17: verified, no id/cipher/token in output,
+  vendor-text envelope, non-token region dropped, mismatch refusal + warning without ciphers, zero
+  shops, unverifiable, TikTok/guard errors, programming errors propagate, sandbox resources, spec,
+  dictionary, registration/reachability, playbook membership/optional). `tests/integration/
+  test_agent_shop_identity_two_shop.py` (3, real Postgres as `juli_app`, two seeded shops, real
+  `AuthorizationResource` over a fake TikTok transport): B's call carries B's token + cipher and returns
+  B's name only; A's likewise; a token that reaches the other shop is `mismatch`. Existing catalog,
+  spec-description, playbook, golden, budget, wall-clock and inventory tests updated.
+- Verification: ruff + format clean; mypy clean on the 4 touched source modules. Homebrew Postgres 16
+  :55481 (UTC, removed after): the two-shop file 3 passed, 0 skipped. `fasttrack/check.sh --since
+  fasttrack/optimize-product`: migrations PASS (098 head), isolation 12 passed, gitleaks PASS, ruff PASS
+  (19 files), pytest PASS (17 files, 310 passed) — **check.sh: OK**. No-DB unit suite (`tests/unit -m
+  "not live"`, run alone): 7951 passed, 245 skipped, 2 xfailed, 0 failed. apps/demo on Node 20: tsc
+  clean, eslint 0 errors, vitest 1207 passed + 1 timing flake that passed on re-run (the same file also
+  failed under load while the unit suite ran). `eval.ratchets check` lists only pre-existing
+  unused-TS-export identities (agent-events.ts, apps/landing), none from this branch.
