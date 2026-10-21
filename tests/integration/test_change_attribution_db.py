@@ -575,9 +575,13 @@ async def test_zz_data_step_backfill_and_round_trip(owner_engine, two_tenants, w
     from alembic import command
 
     tenant_a, tenant_b = two_tenants
+    from alembic.script import ScriptDirectory
+
     cfg = _alembic()
-    # P61-B: 097 sits on top; the round trip names 096's parent and returns to head.
-    assert _head(owner_engine) == "097_production_write_shops"
+    # Later migrations sit on top of 096; the round trip names 096's parent and returns to
+    # whatever the script head is (not a pinned revision, which breaks on every new one).
+    script_head = ScriptDirectory.from_config(cfg).get_current_head()
+    assert _head(owner_engine) == script_head
     command.downgrade(cfg, "095_card_events")
     assert _head(owner_engine) == "095_card_events"
     with owner_engine.connect() as conn:
@@ -596,7 +600,7 @@ async def test_zz_data_step_backfill_and_round_trip(owner_engine, two_tenants, w
         ids = _seed_legacy(conn, tenant_a, run_id=legacy_run["run"], pid=pid)
 
     command.upgrade(cfg, "head")
-    assert _head(owner_engine) == "097_production_write_shops"
+    assert _head(owner_engine) == script_head
 
     writes = {
         row["id"]: row
