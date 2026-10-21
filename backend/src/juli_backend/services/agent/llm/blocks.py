@@ -59,11 +59,12 @@ class Usage:
 
 @dataclass(frozen=True)
 class AssistantTurn:
-    """One complete, non-streamed provider call (ADR-071 decision 3).
+    """One complete provider call (ADR-071 decision 3).
 
-    Turn-level blocks only — no token deltas. `assistant.text.delta` is
-    reserved for a future chat-like surface (ADR-071 decision 3); this
-    module never emits partial blocks.
+    Turn-level blocks only — always the complete turn, streamed or not. Token
+    deltas never appear here: a streamed call hands them to the caller's
+    `on_text_delta` callback as they arrive (ADR-071 amendment, D71.3 /
+    P61-C) and still returns this complete turn.
     """
 
     blocks: tuple[Block, ...]

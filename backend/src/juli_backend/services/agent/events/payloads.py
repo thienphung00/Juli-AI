@@ -1,12 +1,9 @@
-"""Payload models for the eight `workflow_run_events` event types (ADR-074
-decision 2, #1125 / AGT-W3B).
+"""Payload models for the nine `workflow_run_events` event types (ADR-074
+decision 2, #1125 / AGT-W3B; `assistant.text.delta` added by the ADR-071
+amendment, D71.3 / P61-C).
 
 Each payload carries exactly the fields ADR-074 d.2 names for its event
-type — no more, no less (`extra="forbid"`, every field required). Pairing
-these with `envelope.py`'s per-type envelope classes is what makes
-`assistant.text.delta` (ADR-071 reserved, never implemented here)
-structurally unconstructable: there is no payload model, no envelope class,
-and no discriminant literal for it anywhere in this module.
+type — no more, no less (`extra="forbid"`, every field required).
 """
 
 from __future__ import annotations
@@ -63,6 +60,25 @@ class WorkflowStatusPayload(_EventPayload):
 
 
 class AssistantTextPayload(_EventPayload):
+    text: str
+
+
+class AssistantTextDeltaPayload(_EventPayload):
+    """One coalesced chunk of a streamed model turn's text (ADR-071
+    amendment, D71.3 / P61-C).
+
+    A preview, never the record: the `assistant.text` that follows the
+    deltas of a block (same run, higher sequence number) carries the
+    authoritative text and replaces them; deltas of a block that is never
+    followed by one (the run failed mid-turn, the outbound guard refused the
+    turn) are discarded by the client. `block_id` groups the chunks of one
+    streamed turn; `chunk_index` is 0-based within the block. Concatenating a
+    block's `text` in `chunk_index` order gives a guard-checked prefix of the
+    turn's text (`runner/text_stream.py`).
+    """
+
+    block_id: str
+    chunk_index: int = Field(ge=0)
     text: str
 
 

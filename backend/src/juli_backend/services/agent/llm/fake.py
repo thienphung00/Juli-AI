@@ -25,9 +25,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from juli_backend.services.agent.llm.blocks import AssistantTurn
+from juli_backend.services.agent.llm.blocks import AssistantTurn, FinalResponse, TextBlock
 from juli_backend.services.agent.llm.config import LLMConfig
-from juli_backend.services.agent.llm.service import Message, ToolDefinition
+from juli_backend.services.agent.llm.service import Message, TextDeltaCallback, ToolDefinition
 
 
 class ScriptExhaustedError(RuntimeError):
@@ -86,9 +86,17 @@ class FakeLLMService:
 
     Each instance owns its own script and cursor; two `FakeLLMService`
     instances never share state.
+
+    Streaming (P61-C): when a caller passes ``on_text_delta`` and
+    ``stream_chunk_chars`` is set, the turn's text (its `TextBlock` /
+    `FinalResponse` text, in block order, concatenated) is played through the
+    callback in chunks of that many characters before the turn is returned --
+    the same contract `OpenAIResponsesAdapter` keeps. Unset, the callback is
+    accepted and never called.
     """
 
     script: Sequence[AssistantTurn]
+    stream_chunk_chars: int | None = None
     _next_index: int = field(default=0, init=False, repr=False)
     _recorded_calls: list[RecordedCall] = field(default_factory=list, init=False, repr=False)
 
@@ -105,6 +113,7 @@ class FakeLLMService:
         tools: Sequence[ToolDefinition],
         config: LLMConfig,
         tool_choice: str | None = None,
+        on_text_delta: TextDeltaCallback | None = None,
     ) -> AssistantTurn:
         self._recorded_calls.append(
             RecordedCall(
@@ -126,4 +135,13 @@ class FakeLLMService:
 
         turn = self.script[self._next_index]
         self._next_index += 1
+        if on_text_delta is not None and self.stream_chunk_chars:
+            text = "".join(
+                block.text if isinstance(block, TextBlock) else block.content
+                for block in turn.blocks
+                if isinstance(block, TextBlock | FinalResponse)
+            )
+            step = self.stream_chunk_chars
+            for start in range(0, len(text), step):
+                await on_text_delta(text[start : start + step])
         return turn

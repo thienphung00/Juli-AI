@@ -535,7 +535,12 @@ class TestConstructRunner:
             # P16 (D25.4): the shop's Juli Ops model override (None = the
             # runner's default LLMConfig; a stand-in session reads none).
             "llm_config",
+            # P61-C (D71.3): the real model's text streams as
+            # `assistant.text.delta`; scripted planners never do.
+            "stream_text",
         }
+        # A plain optimize-product run (no revert plan, flow or content run).
+        assert kwargs["stream_text"] is True
         assert callable(kwargs["cancel_check"])
         # Same object, not merely an equivalent one — two guards would each
         # hold their own basis and the mirroring would be meaningless.

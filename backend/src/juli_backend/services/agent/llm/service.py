@@ -8,7 +8,7 @@ module boundary.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, Protocol, TypedDict, runtime_checkable
 
 from juli_backend.services.agent.llm.blocks import AssistantTurn
@@ -20,6 +20,14 @@ from juli_backend.services.agent.llm.config import LLMConfig
 # boundary itself, not the shape those upstream modules will eventually
 # produce.
 Message = Mapping[str, Any]
+
+# D71.3 / P61-C: awaited once per output-text delta while a streamed call is
+# in flight. Deliberately NOT part of `LLMService.complete`'s protocol
+# signature: scripted planners and test doubles implement the protocol
+# without it, and only a caller that opted in (the runner's `stream_text`)
+# passes it, to a service that accepts it (`OpenAIResponsesAdapter`,
+# `FakeLLMService`).
+TextDeltaCallback = Callable[[str], Awaitable[None]]
 
 
 class ToolDefinition(TypedDict):
