@@ -67,6 +67,21 @@ The idempotency ledger and its epoch. Import from
 - No broker client imported — callers inject handoff functions
 - **Silver cutover (#607):** domain order/return upserts write `silver.orders` / `silver.returns`; bronze promotion via `SilverOrdersReturnsPromoter`
 
+## Ledger retention (fast track P62-B, D72.2)
+
+`processed_events` is no longer permanent. The nightly `processed_events_retention` beat
+(20:37 UTC, `workers/tasks/processed_events_retention.py`) calls
+`persistence.ingest.retention.purge_processed_events`, which deletes rows older than
+`PROCESSED_EVENTS_RETENTION_DAYS` (30) in committed batches of `PROCESSED_EVENTS_PURGE_BATCH`
+(5,000), at most `PROCESSED_EVENTS_MAX_BATCHES_PER_RUN` (40) a night, through the owner-role
+`public.purge_processed_events(retention_days, batch_size)` (migration 098, SECURITY DEFINER,
+EXECUTE to `juli_app` only, refuses `retention_days < 14`). `juli_app` itself still has no
+DELETE. Why 30 days is safe: re-presentation of the same `(event_id, epoch)` happens within
+hours (poll overlap, retries) or days (history walk: 60 -> 180 days in 4 nights; webhook
+redelivery); past the window a re-presented event is a no-op anyway because every silver
+upsert refuses an `update_time` at or before the stored one. An epoch advance (below) is
+unaffected: it never relied on old rows existing.
+
 ## Recovering lost history — advancing a dedup epoch (#1968)
 
 The ledger used to outlive the data it protected. When a destination table lost its rows,
@@ -130,6 +145,10 @@ order (ADR-046 Q4). Stage wiring targets:
 2. **Silver** — `SilverOrdersReturnsPromoter.promote_order` / `promote_return`.
 3. **Gold** — `services/gold_kpi_envelope_serving.py` shell today; A1 Shared Compute gold
    stage owns full `gold.kpi_envelopes` refresh.
+   Since fast track P62-B (D72.3) `compute_demo_main_kpis_payload` aggregates in SQL (one
+   row per order day + two single-row interval aggregates) instead of loading every
+   `silver.orders` and product/shop-grain interval row of the shop on each recompute; the
+   five KPI values are unchanged (all-time by contract, so aggregated rather than windowed).
 
 Do **not** wire Celery material webhook enqueue or cross-shop batch jobs in A0 (#608).
 
