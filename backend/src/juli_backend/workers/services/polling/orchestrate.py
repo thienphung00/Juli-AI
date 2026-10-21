@@ -81,7 +81,8 @@ from juli_backend.integrations.tiktok import (
     ProductionReadClientFactory,
     ProductionReadResources,
     RateLimiter,
-    is_read_capability,
+    is_own_shop_read_capability,
+    is_own_shop_sandbox_read,
     pagination_scope,
 )
 from juli_backend.models.models import Shop, TikTokCredential
@@ -307,7 +308,9 @@ def _assert_pollable_read_credential(
     1. **Is the capability read-capable?** `is_read_capability` is the single
        place that answers this (`integrations/tiktok/merchant.py`), so
        `SANDBOX_WRITE` -- and a row carrying no capability at all -- is refused
-       here for the same reason it is refused in the resolver. Capability is the
+       here for the same reason it is refused in the resolver, except the
+       sandbox credential polling its OWN shop (P64, D73.2a,
+       `is_own_shop_read_capability`). Capability is the
        authority; a missing capability is not permission.
     2. **Does the shop being polled own it?** When the caller named a shop, the
        credential's `shop_id` must BE that shop. This is the check that makes
@@ -324,7 +327,11 @@ def _assert_pollable_read_credential(
     configured (P61-G, D71.6).
     """
     capability = credential.capability
-    if capability is None or not is_read_capability(capability):
+    # P64 (D73.2a): the sandbox credential may poll its OWN shop (the own-shop
+    # exception, ``is_own_shop_read_capability``); for any other shop it is refused here.
+    if not is_own_shop_read_capability(
+        capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+    ):
         raise ValueError(
             f"polling requires a read-capable credential; got capability {capability!r}"
         )
@@ -341,6 +348,8 @@ def _assert_pollable_read_credential(
 def _factory_config(
     config: FujiwaPollConfig,
     credential: TikTokCredential,
+    *,
+    shop_id: uuid.UUID,
 ) -> ClientFactoryConfig:
     """Build the vendor client config from the credential's OWN merchant.
 
@@ -364,6 +373,9 @@ def _factory_config(
         merchant_auth_id=merchant_auth_id,
         shop_cipher=credential.shop_cipher,
         credential_capability=credential.capability,
+        own_shop_sandbox_read=is_own_shop_sandbox_read(
+            credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+        ),
     )
 
 
@@ -660,7 +672,8 @@ async def _poll(
     """
     client_factory = factory or ProductionReadClientFactory()
     build_resources = create_resources or client_factory.create_resources
-    resources = build_resources(_factory_config(config, credential))
+    # The shop being polled IS ``credential.shop_id``: `_resolve_and_poll` checked it.
+    resources = build_resources(_factory_config(config, credential, shop_id=credential.shop_id))
 
     repo = sync_state_repo or TikTokSyncStateRepo(session)
     sync_state = await repo.load(credential.shop_id)

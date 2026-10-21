@@ -751,14 +751,21 @@ class TestFanout:
             seller=seller,
             merchant=merchant,
             fresh=fresh,
-            excluded={sandbox.id, reauth.id, inactive.id, bare.id},
+            # P64 (D73.2a): the sandbox shop polls through its OWN sandbox_write row.
+            sandbox=sandbox,
+            excluded={reauth.id, inactive.id, bare.id},
         )
 
     @pytest.mark.asyncio
-    async def test_enumerates_production_and_seller_connect_shops_only(self, session, fleet):
+    async def test_enumerates_read_capable_shops_and_the_sandbox_shop(self, session, fleet):
         shops = await enumerate_pollable_shops(session)
         by_id = {shop.shop_id: shop.fast_done for shop in shops}
-        assert by_id == {fleet.seller.id: True, fleet.merchant.id: True, fleet.fresh.id: False}
+        assert by_id == {
+            fleet.seller.id: True,
+            fleet.merchant.id: True,
+            fleet.fresh.id: False,
+            fleet.sandbox.id: False,
+        }
         assert not (set(by_id) & fleet.excluded)
 
     @pytest.mark.asyncio
@@ -772,8 +779,8 @@ class TestFanout:
             session, lock=InMemoryShopIngestLock(), enqueuers=recorder.as_enqueuers()
         )
         assert sorted(recorder.polls) == sorted([str(fleet.seller.id), str(fleet.merchant.id)])
-        assert recorder.bootstraps == [str(fleet.fresh.id)]
-        assert summary.shops == 3 and summary.cycles == 2 and summary.bootstraps == 1
+        assert sorted(recorder.bootstraps) == sorted([str(fleet.fresh.id), str(fleet.sandbox.id)])
+        assert summary.shops == 4 and summary.cycles == 2 and summary.bootstraps == 2
 
     @pytest.mark.asyncio
     async def test_a_held_shop_lock_skips_that_shop_only(self, session, fleet):
@@ -795,8 +802,8 @@ class TestFanout:
         recorder = _RecordingEnqueuers()
         await run_fanout(session, lock=lock, enqueuers=recorder.as_enqueuers())
         summary = await run_fanout(session, lock=lock, enqueuers=recorder.as_enqueuers())
-        assert recorder.bootstraps == [str(fleet.fresh.id)]
-        assert summary.deduplicated == 1
+        assert sorted(recorder.bootstraps) == sorted([str(fleet.fresh.id), str(fleet.sandbox.id)])
+        assert summary.deduplicated == 2
 
     @pytest.mark.asyncio
     async def test_two_cycles_for_one_shop_never_overlap(self):

@@ -38,7 +38,10 @@ Matches ``__all__`` — re-exports only:
   owns** which may serve a read (#1365). Keyed on the owning shop AND the row's
   capability: a ``SELLER_CONNECT`` credential reads for its own shop and nothing else,
   is returned exactly as stored (never promoted to ``PRODUCTION_READ``), and a
-  ``SANDBOX_WRITE`` row is unreachable through it. A row carrying a merchant id that a ``sandbox_write`` row also carries is skipped (read from the DB, P61-G). There is **no fallback** to any
+  ``SANDBOX_WRITE`` row is unreachable through it — except the **own-shop exception** (fast
+  track P64, D73.2a): the sandbox shop, holding no read-capable row, reads through its OWN
+  ``sandbox_write`` row (the newest, non-colliding sandbox credential, whose ``shop_id`` is the
+  shop asked for); for any other shop that row is never returned. A row carrying a merchant id that a ``sandbox_write`` row also carries is skipped (read from the DB, P61-G). There is **no fallback** to any
   merchant — that fallback is how one merchant's data would be
   read under another merchant's shop. Holds no state between calls
 - ``NoReadCredentialForShop`` — raised when the shop owns nothing read-capable. Subclasses
@@ -77,6 +80,10 @@ Matches ``__all__`` — re-exports only:
   attributed to it. ``TikTokOAuthService.provision_shop_and_credentials`` runs wholly inside it
 - ``sandbox_write_merchant_ids(session)`` — merchant ids carried by ``sandbox_write`` rows
   (from the DB); production resolvers and factories refuse them
+- ``sandbox_write_owners(session)`` / ``SandboxWriteOwner`` — every ``sandbox_write`` row's
+  shop, merchant and ``collides`` flag, newest first (identifiers only; the first is the one
+  ``resolve_sandbox_write_credential`` uses). P64 (D73): the reviewer pin check and the
+  pollable sandbox shop
 - ``TikTokOAuthService.provision_shop_and_credentials(..., capability=None)`` — the merchant
   id is the OAuth ``open_id``; the capability is the caller's, else the one this shop's
   existing credential for that merchant already has, else ``seller_connect``

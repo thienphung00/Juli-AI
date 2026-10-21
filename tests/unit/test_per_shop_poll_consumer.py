@@ -344,14 +344,16 @@ class TestNoReadCredentialForShopIsNotSwallowed:
 
 
 class TestSandboxWriteIsUnreachableFromThePollPath:
-    def test_the_poll_guard_refuses_a_sandbox_write_credential(self):
+    def test_the_poll_guard_refuses_a_sandbox_write_credential_for_another_shop(self):
         credential = MagicMock()
         credential.capability = TikTokCapability.SANDBOX_WRITE.value
         credential.merchant_authorization_id = SANDBOX_AUTH_ID
         credential.shop_id = uuid.uuid4()
 
         with pytest.raises(ValueError, match="read-capable"):
-            _assert_pollable_read_credential(credential, shop_id=credential.shop_id)
+            _assert_pollable_read_credential(credential, shop_id=uuid.uuid4())
+        # P64 (D73.2a): its own shop polls through it.
+        _assert_pollable_read_credential(credential, shop_id=credential.shop_id)
 
     @pytest.mark.asyncio
     async def test_a_read_row_holding_the_sandbox_merchant_cannot_poll(
@@ -397,12 +399,10 @@ class TestSandboxWriteIsUnreachableFromThePollPath:
             _assert_pollable_read_credential(credential, shop_id=credential.shop_id)
 
     @pytest.mark.asyncio
-    async def test_a_shop_holding_only_a_sandbox_write_credential_cannot_poll(
-        self, session, owner, poll_env
-    ):
-        """End to end at the call site: the resolver never returns it, so the
-        shop is indistinguishable from one holding nothing at all."""
-        sandbox = await _make_shop(
+    async def test_the_sandbox_credential_never_polls_another_shop(self, session, owner, poll_env):
+        """End to end at the call site: the resolver returns the sandbox row only for
+        its OWN shop (P64, D73.2a); a shop holding nothing stays unpollable."""
+        await _make_shop(
             session,
             owner,
             name="Sandbox Write Shop",
@@ -412,10 +412,19 @@ class TestSandboxWriteIsUnreachableFromThePollPath:
             token="sandbox-access-token",
         )
 
+        bare_shop = Shop(
+            id=uuid.uuid4(),
+            user_id=owner.id,
+            shop_name="No Credential Shop",
+            tiktok_shop_id="tiktok_shop_bare",
+        )
+        session.add(bare_shop)
+        await session.flush()
+
         mock_poll_cycle = AsyncMock()
         with patch("juli_backend.workers.services.polling.run_fujiwa_poll_cycle", mock_poll_cycle):
             with pytest.raises(NoReadCredentialForShop):
-                await maybe_poll_tiktok_data(session, sandbox.shop.id)
+                await maybe_poll_tiktok_data(session, bare_shop.id)
 
         mock_poll_cycle.assert_not_called()
 

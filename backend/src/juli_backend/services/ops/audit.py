@@ -53,6 +53,18 @@ REVIEWER_ACTIONS: frozenset[str] = frozenset(
         ACTION_REVIEWER_READ_REFUSED,
     }
 )
+#: P64 (D73): the reviewer's REAL actions on Juli's own sandbox shop. Config kind
+#: (365-day retention), not view: each one changed something at TikTok or queued work.
+ACTION_REVIEWER_SANDBOX_APPROVE = "reviewer_sandbox_approve"
+ACTION_REVIEWER_SANDBOX_EXECUTE = "reviewer_sandbox_execute"
+ACTION_REVIEWER_SANDBOX_SYNC = "reviewer_sandbox_sync"
+REVIEWER_SANDBOX_ACTIONS: frozenset[str] = frozenset(
+    {
+        ACTION_REVIEWER_SANDBOX_APPROVE,
+        ACTION_REVIEWER_SANDBOX_EXECUTE,
+        ACTION_REVIEWER_SANDBOX_SYNC,
+    }
+)
 #: The provisioning command (config kind: an account was created / changed).
 ACTION_REVIEWER_ACCOUNT_CREATE = "reviewer_account_create"
 ACTION_REVIEWER_ACCOUNT_RENEW = "reviewer_account_renew"

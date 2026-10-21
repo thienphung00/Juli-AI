@@ -82,3 +82,25 @@ SSL Labs **A+** on all four `app-juli.com` endpoints. No work remains there.
 - Shopee features are promised publicly; copy must change again when the Shopee integration
   ships, and anything described in the form must match what the trial account shows (Rules §4).
 - Juli must not crawl Shopee for any data (Rules §3), including competitor research.
+
+## Amendment — 2026-10-21 (fast-track D73): live sandbox connection after the second rejection
+
+Shopee rejected the resubmission: the trial account showed a bundled sample shop with simulated
+execution (fast-track D42 amendments), and "a mock version or simulated data alone is not
+sufficient … it should demonstrate the product's actual working integration rather than only
+simulated interfaces or predefined results. The trial account does not necessarily need to be
+connected to a real customer's shop."
+
+Decisions 3 and 4 are superseded for the reviewer role:
+
+- **3′.** The reviewer account is pinned to Juli's own TikTok Shop **sandbox** shop, read live
+  through the TikTok Open API (unmasked — it is Juli's shop), with the connection, last sync time
+  and a pin-scoped "Sync now" visible.
+- **4′.** Approval and execution are **real** on that sandbox shop: listing edit and image upload
+  through the `sandbox_write` credential, confirmed by a TikTok read-back. The server-side
+  guarantee changes from "a reviewer can write nothing" to "a reviewer can write only the pinned
+  sandbox shop": pin gate, sandbox-only write factory for reviewer claims, and tests that fail if
+  a reviewer write reaches any other shop or credential.
+
+The sample shop and browser simulation remain for anonymous demo visitors only (ADR-094). Full
+record: `fasttrack/DECISIONS.md` D73.

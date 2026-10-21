@@ -52,7 +52,13 @@ export function ReviewerProvider({
       if (cancelled) return;
       if (result.status === "reviewer") {
         const sample = result.me.shop === null;
-        const next = { platform: result.me.platform, expiresAt: result.me.expiresAt, sample };
+        const next: ReviewerRecord = {
+          platform: result.me.platform,
+          expiresAt: result.me.expiresAt,
+          sample,
+          ...(result.me.mode ? { mode: result.me.mode } : {}),
+          ...(result.me.writesEnabled ? { writesEnabled: true } : {}),
+        };
         storeReviewerRecord(next);
         setReviewer(next);
         // P32-D: the pin was removed since sign-in — drop the stale shop and

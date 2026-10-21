@@ -89,7 +89,9 @@ class TestCredentialBelongsToJob:
         sandbox.capability = TikTokCapability.SANDBOX_WRITE.value
         blank = _credential(shop_id=shop_id)
         blank.merchant_authorization_id = None
-        assert credential_belongs_to_job(sandbox, shop_id) is False
+        # P64 (D73.2a): the sandbox credential serves its OWN shop's job only.
+        assert credential_belongs_to_job(sandbox, uuid.uuid4()) is False
+        assert credential_belongs_to_job(sandbox, shop_id) is True
         assert credential_belongs_to_job(blank, shop_id) is False
 
     def test_accepts_matching_production_read_credential(self):
@@ -103,6 +105,8 @@ class TestCredentialBelongsToJob:
         shop_id = uuid.uuid4()
         cred = _credential(shop_id=shop_id)
         cred.capability = TikTokCapability.SANDBOX_WRITE.value
+        assert credential_belongs_to_job(cred, uuid.uuid4()) is False
+        cred.capability = None
         assert credential_belongs_to_job(cred, shop_id) is False
 
 

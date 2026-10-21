@@ -1,4 +1,4 @@
-# Shopee ISV — Services Information (D42 item 7 + amendment, AC-32.10)
+# Shopee ISV — Services Information (D42 item 7, rewritten for D73 / P64)
 
 Paste the sections below into Shopee Open Platform Console → App List → Go to Profile → Edit →
 Services Information. Keep this file in sync with what the site and the trial account actually
@@ -47,51 +47,65 @@ https://app-juli.com/privacy; Terms §4, https://app-juli.com/terms).
 **How sellers sign up.** A free 3-month trial at https://app-juli.com/dang-ky; the Juli team then
 connects the seller's shop with them.
 
-**About the trial account.** It is a partner account that opens the full product on a **sample
-shop** ("Cửa hàng Mẫu Hoa Mai", sample data, labelled as such), so no real seller's data is shown
-to third parties. Approving and executing a recommendation is **simulated**: the screen shows the
-exact change Juli would send to the marketplace API, but nothing is sent. Every other feature a
-seller has — rejecting a recommendation, editing a draft before applying it, the photo and Seller
-Center steps, video / LIVE scripts, reverting a change, the day-7 / day-14 measurement, shop
-rules, video analysis — is enabled the same way: it runs in the browser on the sample data and is
-labelled "Mô phỏng" (simulation). "Đặt lại dữ liệu mẫu" in the banner resets the sample. The
-interface is in Vietnamese; the steps below give the English meaning of each label.
+**About the trial account.** It is a partner account connected, through TikTok Shop Partner
+Center OAuth, to **Juli's own TikTok Shop sandbox (test) shop** in Vietnam. Nothing in it is
+sample or predefined data: every screen is fetched live from the TikTok Shop Open API, and the
+reviewer can see the connection itself (status, authorisation date, granted scopes), the time of
+the last sync, and a **"Sync now"** button that pulls the shop again. When the reviewer approves a
+recommendation and executes it, Juli **really writes** the change (product title, description or
+image) to the sandbox shop through the Open API, then reads the product back from TikTok and shows
+the confirmed result. We use our own sandbox shop so that a reviewer never changes a real
+seller's shop; the integration, the API calls and the write path are the ones our sellers use.
+The interface is in Vietnamese; the steps below give the English meaning of each label.
+
+<!-- P64 S4: re-verify every label below in a fresh browser as shopee-review@ before pasting. -->
 
 ## Steps for the reviewer
 
-1. Open https://demo.app-juli.com/auth/email#doi-tac (opens the partner sign-in form directly),
-   or open https://demo.app-juli.com and choose the link at the **top** of the sign-in column,
-   above the heading: **"Đối tác thẩm định? Đăng nhập bằng tài khoản đối tác →"** (Partner
-   reviewer? Sign in with a partner account →; the same link is also in the footer as "Tài khoản
-   đối tác"). Enter the username and password above. A banner at
-   the top reads "Tài khoản dùng thử cho đối tác · dữ liệu mẫu · thao tác chỉ mô phỏng" (partner
-   trial account · sample data · actions are simulated only).
-2. **Trang chủ** (Home): the shop's GMV and its traffic sources (product card, video, LIVE, …),
-   last 30 days against the 30 days before.
-3. **Phân tích** (Analysis): open a traffic source to see its funnel — impressions, CTR, CTOR
-   (click-to-order rate), AOV — with the weakest step highlighted and the products pulling it down
-   ranked by GMV impact.
-4. **Quyết định** (Decisions): Juli's recommendation cards. Open one to see the product, the
-   target metric, the evidence and the proposed change.
-5. Press **"Duyệt"** (Approve), then **"Thực thi"** (Execute). The result, labelled "Mô phỏng ·
-   không gửi tới TikTok" (Simulation · not sent to TikTok), shows the change Juli would make —
-   each field before and after — and one line on what happens for a real shop. For a connected
-   seller this is when Juli writes the approved change through the Open API.
-6. Press **"Theo dõi lượt chạy (mô phỏng)"** (Follow the run): the **Đang thực hiện** (In
-   progress) tab shows each step of the run. Use **"✎ Sửa nội dung trước khi áp dụng"** (Edit
-   before applying) to change the draft, then **"Xác nhận thay đổi này"** (Confirm this change).
-   Once applied, **"Hoàn tác"** (Revert) restores the old content, with a reason.
-7. Back on **Đề xuất** (Recommendations): **"Từ chối"** (Reject) asks for a reason; the
-   cover-image card asks for a photo; the promotion card shows the Seller Center checklist and
-   **"Tôi đã áp dụng"** (I have applied it); the video / LIVE cards ("Juli soạn · bạn làm") show
-   Juli's script with **"Soạn lại"** (Redraft) and **"Dùng kịch bản này"** (Use this script), and
-   a **"Phân tích video"** (Video analysis) block — picking a file shows a sample analysis; the
-   file is not uploaded.
-8. **Đo lường** (Measurement): **"Ngày 7 (mô phỏng)"** / **"Ngày 14 (mô phỏng)"** preview the
-   day-7 check and the day-14 verdict on the runs you completed.
-9. **Quy tắc** (Rules — "Sửa" on Quyết định, or Cài đặt in the shop menu): edit and save the
-   shop's rules, labelled "Mô phỏng · không lưu" (simulation · not saved).
-10. Product and integration details: https://app-juli.com/san-pham ·
+1. Open https://demo.app-juli.com/auth/email#doi-tac (opens the partner sign-in form directly)
+   and sign in with the username and password above. The banner reads "Tài khoản đối tác · kết
+   nối thật tới shop sandbox TikTok của Juli · thay đổi được ghi thật lên TikTok" (partner account
+   · real connection to Juli's TikTok sandbox shop · changes are really written to TikTok).
+2. **Trang chủ** (Home), card **"Kết nối TikTok Shop"** (TikTok Shop connection): the shop name
+   and TikTok shop id, "Đã kết nối" (Connected), "Ủy quyền lúc …" (Authorised at …), "Quyền đã
+   cấp" (granted scopes) and "Đồng bộ lúc …" (Synced at …). Press **"Đồng bộ ngay"** (Sync now) to
+   pull the shop from the TikTok Shop Open API again; the time updates a few seconds later.
+3. **Trang chủ** (Home): the shop's orders, revenue and products as returned by TikTok. A sandbox
+   shop has no buyer traffic, so view / click metrics show the note "TikTok sandbox chưa có lượt
+   xem/traffic — số liệu đơn hàng và sản phẩm vẫn lấy trực tiếp từ TikTok" (the TikTok sandbox has
+   no views/traffic yet — order and product figures still come directly from TikTok).
+4. **Phân tích** (Analysis): the shop's products and orders broken down by product, from the same
+   live data.
+5. **Quyết định** (Decisions): Juli's recommendation cards — product, target metric, evidence and
+   the proposed change.
+6. Open a listing card (title / description / cover image) and press **"Duyệt"** (Approve). The
+   dialog "Thay đổi Juli sẽ ghi lên TikTok" (The change Juli will write to TikTok) shows each field
+   before ("Trước") and after ("Sau"); you may edit "Tiêu đề mới" (new title) or "Mô tả mới" (new
+   description), or choose "Ảnh bìa mới" (new cover image).
+7. Press **"Thực thi"** (Execute). Juli writes the change to the shop through the TikTok Shop Open
+   API, then reads the product back. The result "Đã ghi lên TikTok" (Written to TikTok) shows each
+   field before and after and **"TikTok xác nhận lúc …"** (Confirmed by TikTok at …).
+8. Product and integration details: https://app-juli.com/san-pham ·
    https://app-juli.com/ket-noi/tiktok-shop · trial sign-up https://app-juli.com/dang-ky.
+
+## Reply to Shopee (same email thread)
+
+> Dear Shopee Open Platform team,
+>
+> Thank you for the clarification. We have updated the trial account so it demonstrates our
+> actual working TikTok Shop integration rather than sample data.
+>
+> The account `shopee-review@app-juli.com` (sign in at
+> https://demo.app-juli.com/auth/email#doi-tac) is now connected through TikTok Shop Partner
+> Center OAuth to our own TikTok Shop sandbox (test) shop. All data is fetched live from the
+> TikTok Shop Open API — the connection, the last sync time and a "Sync now" button are visible in
+> the product. When you approve and execute a recommendation, Juli writes the change to the shop
+> through the Open API and shows TikTok's confirmation read back from the shop. We use our own
+> sandbox shop so that reviewers never modify a real seller's shop.
+>
+> The updated step-by-step guide is in the Services Information section of our profile.
+>
+> Best regards,
+> Juli AI team — lienhe@app-juli.com
 
 Contact: lienhe@app-juli.com · https://app-juli.com/contact

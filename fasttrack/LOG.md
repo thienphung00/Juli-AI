@@ -2798,3 +2798,37 @@ reconcile --write` re-derived the no-assert corpus figure.
   `pnpm install` in the fresh worktree) + 1 suppression ratchet (my `type: ignore`s); both fixed afterwards and the
   re-run files pass (59). ruff/mypy/bandit -ll clean.
 
+
+## 2026-10-21 — lead — P64 Shopee reviewer on a live TikTok sandbox connection (D73)
+
+- Why: Shopee rejected the resubmission — the reviewer saw the bundled sample shop with browser
+  simulation ("mock version or simulated data alone is not sufficient"). Grill D73 / D73.2a.
+- S0 probe (production, read-only, 2026-10-21): the sandbox shop `1862f13b…` holds only its
+  `sandbox_write` row (merchant `7658…4781588`, the `seller_connect` row was deleted for P61-G);
+  token valid; 2 products (water bottle 49 stock, hot-pot 0); 0 orders in 90 d; Analytics
+  endpoints answer (`latest_available_date` 2026-10-20) with all-zero intervals. TTSPC dev shop
+  `juliai-test` (`SANDBOX_VN7650204809156740884`, seller `7494751643546977923`, expires in 68 d)
+  is that shop (same catalog). Created 6 test orders (11 units) and moved them to Awaiting
+  shipment; stock 49 → 38. Further status steps did not apply from Partner Center.
+  `tts_open_toolkit` 0.1.7 sees no sandbox shop for developer `7494669148810871808`.
+- S1 backend (ca435efa, 472ba55f): reviewer pinned to a `sandbox_write` shop is unmasked, gets
+  `/v1/reviewer/shop` (connection, synced_at), `/shop/sync` (60 s limit), real `/approve` +
+  `/execute` (listing edit, image upload, read-back) through `SandboxWriteClientFactory` only;
+  reviewer scope refused by every production write factory/resolver. D73.2a: the `sandbox_write`
+  credential reads and is polled for its own shop only (`own_shop_sandbox_read`; not in
+  `READ_CAPABILITIES`). Unit 17 new; real Postgres (`juli_app`, RLS) 5 passed 0 skipped.
+- S2 demo (20652600, c4e11f72): sandbox-mode banner, "Kết nối TikTok Shop" card with
+  "Đồng bộ ngay", real Duyệt/Thực thi dialog with "TikTok xác nhận lúc …", honest no-traffic
+  note; sample replay unchanged for anonymous visitors. vitest 1220 passed (+12), tsc clean.
+  Local vitest needs `NODE_OPTIONS=--no-experimental-webstorage` on Node 26.
+- Rebased on f50133cc (P61-H): one import conflict in `core/security/__init__.py`, kept both.
+  After rebase: 40 related unit files 594 passed 10 skipped; ruff/mypy clean.
+- Pre-existing, not P64: `tests/integration/test_change_attribution_db.py`
+  `test_each_reread_is_attributed_per_field` and `test_seller_change_events_carry_the_card_or_null`
+  fail on f50133cc too (fresh DB; `seller_change` vs `juli`).
+- Owner next: restock the hot-pot (0 → ~30) in the sandbox Seller Center; set
+  `REVIEWER_SHOP_ID=1862f13b-de2c-4fae-a4ad-70298cead913` in the AWS secret `juli/api/production`
+  (fetch-secrets.sh regenerates /etc/juli/api.env from it on every juli-api start; a hand edit is lost),
+  then `systemctl restart juli-api`; after
+  deploy press "Đồng bộ ngay" once, then the lead walks the reviewer steps in a fresh browser
+  before the owner resubmits and replies (texts in `fasttrack/shopee-isv-services-information.md`).

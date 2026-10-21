@@ -31,6 +31,7 @@ from juli_backend.integrations.tiktok import (
     ClientFactoryConfig,
     ProductionWriteClientFactory,
     ProductionWriteResources,
+    refuse_reviewer_production_write,
 )
 from juli_backend.models.models import ProductionWriteShop
 
@@ -78,6 +79,8 @@ async def load_production_write_resources(
     factory: ProductionWriteClientFactory | None = None,
 ) -> ProductionWriteResources:
     """The guarded own-shop write resources for ``shop_id``, from the resolver's marker."""
+    # P64 (D73 Q6 layer 2): never for a partner reviewer request, before any credential read.
+    refuse_reviewer_production_write("load_production_write_resources")
     if not is_production_capability(capability):
         raise ProductionWriteBindingError(
             "Production write resources need the resolver's production capability"

@@ -46,7 +46,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security import resolve_read_credential_for_shop
 from juli_backend.database.tenant_context import with_shop_scope
-from juli_backend.integrations.tiktok import ClientFactoryConfig, ProductionReadClientFactory
+from juli_backend.integrations.tiktok import (
+    ClientFactoryConfig,
+    ProductionReadClientFactory,
+    is_own_shop_sandbox_read,
+)
 from juli_backend.models.ingestion import (
     QUICK_SCAN_DONE,
     QUICK_SCAN_FAILED,
@@ -423,6 +427,9 @@ async def run_quick_scan(
                 merchant_auth_id=str(credential.merchant_authorization_id),
                 shop_cipher=credential.shop_cipher,
                 credential_capability=credential.capability,
+                own_shop_sandbox_read=is_own_shop_sandbox_read(
+                    credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+                ),
             )
             shop_key = shop.tiktok_shop_id or str(shop_id)
             await repo.stamp_once(

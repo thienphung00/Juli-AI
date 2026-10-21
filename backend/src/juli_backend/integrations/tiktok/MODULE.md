@@ -100,8 +100,21 @@ Matches ``__all__`` — re-exports only:
   ``READ_CAPABILITIES`` / ``is_read_capability`` — which capabilities may serve a
   read (#1365): a seller's own capability (``SELLER_CONNECT``) is read-capable
   **for its own shop only** and is never promoted to the production one
-  (``PRODUCTION_READ``); the sandbox write capability (``SANDBOX_WRITE``) is
-  deliberately excluded, so that credential stays unreachable from any read path
+  (``PRODUCTION_READ``); the sandbox write capability (``SANDBOX_WRITE``) is not in
+  ``READ_CAPABILITIES`` and never reads for another shop. Its one exception is the
+  **own-shop read** (fast track P64, D73.2a): ``is_own_shop_sandbox_read`` /
+  ``is_own_shop_read_capability`` say yes only when the read is for the credential row's own
+  shop, and ``ClientFactoryConfig.own_shop_sandbox_read`` (set by the read paths from that
+  check) lets ``ProductionReadClientFactory`` build that one credential a
+  ``ReadOnlyTransportGuard`` client (still refused when a production credential carries its
+  merchant)
+- **Partner reviewer scope (fast track P64, D73)** — ``mark_reviewer_session`` (called by the
+  reviewer gate for every reviewer request), ``reviewer_session`` (scoped),
+  ``reviewer_session_active``, ``refuse_reviewer_production_write``,
+  ``ReviewerProductionWriteRefused``: a context variable; inside it
+  ``ProductionWriteClientFactory`` (and, one layer up, the production write resolver and
+  ``load_production_write_resources``) refuse — a reviewer writes only through
+  ``SandboxWriteClientFactory``
 - **Vendor → ingest mapping** — ``analytics_snapshot_key``,
   ``expand_analytics_live_session``, ``expand_analytics_product_detail``,
   ``expand_analytics_product_list_item``, ``expand_analytics_shop_performance``,

@@ -7,6 +7,7 @@ import { useShopReport } from "../lib/shop-report/shop-report-context";
 import { onboardingReportReady, type OnboardingStatus } from "../lib/onboarding/api-client";
 import { NoShopSampleStrip } from "./app-shell/no-shop-sample-strip";
 import { ShopOnboardingStrip } from "./onboarding/onboarding-strip";
+import { SandboxTrafficNote } from "./reviewer/sandbox-traffic-note";
 import { AppPageHeader } from "./app-shell/page-header";
 import { SamplePhanTich } from "./phan-tich/sample-phan-tich";
 import { SignedInPhanTich } from "./phan-tich/signed-in-phan-tich";
@@ -62,6 +63,7 @@ export function AnalysisPageClient() {
     return (
       <>
         {strip}
+        <SandboxTrafficNote envelope={state.envelope} />
         <SignedInPhanTich
         envelope={state.envelope}
         onNavigate={onNavigate}

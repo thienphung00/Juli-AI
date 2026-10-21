@@ -265,7 +265,10 @@ async def resolve_read_credential_for_shop(
     - the capability is returned exactly as stored -- a ``SELLER_CONNECT``
       credential is never rewritten or treated as ``PRODUCTION_READ``;
     - there is **no fallback** to the configured production merchant. A shop
-      with nothing usable raises :class:`NoReadCredentialForShop`.
+      with nothing usable raises :class:`NoReadCredentialForShop`;
+    - the one exception (fast track P64, D73.2a): the sandbox shop, with no
+      read-capable row, reads through its OWN ``sandbox_write`` credential
+      (:func:`_own_shop_sandbox_read_credential`); never any other shop.
 
     Holds no state between calls: every resolve is a fresh query, so a rollback
     cannot leave a cached resolution behind that lets a shop keep reading
@@ -292,7 +295,58 @@ async def resolve_read_credential_for_shop(
             # authority, and absent is not permission.
             continue
         return await _lazy_refresh(session, credential)
+    own_sandbox = await _own_shop_sandbox_read_credential(session, shop_id)
+    if own_sandbox is not None:
+        return await _lazy_refresh(session, own_sandbox)
     raise NoReadCredentialForShop(f"No read-capable TikTok credential for shop {shop_id}")
+
+
+async def sandbox_write_owners(session: AsyncSession) -> list[SandboxWriteOwner]:
+    """Every ``sandbox_write`` credential's owner, newest first (identifiers only, no token).
+
+    The first entry is the one :func:`resolve_sandbox_write_credential` uses. Public for the
+    reviewer pin check (P64, D73), which must know whether the pinned shop IS the sandbox shop.
+    """
+    return await _enumerate_sandbox_write_credentials(session)
+
+
+async def _own_shop_sandbox_read_credential(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> TikTokCredential | None:
+    """The sandbox credential, as a read of ITS OWN shop only (fast track P64, D73.2a).
+
+    Owner decision 2026-10-21: the sandbox shop keeps only its ``sandbox_write`` credential
+    (one seller for reads and writes, which also closes #1290), so with no read-capable row
+    the shop may read through that one -- never another shop. All must hold, or None:
+
+    - ``shop_id`` is the shop of the sandbox credential :func:`resolve_sandbox_write_credential`
+      would use (the newest ``sandbox_write`` row), and that row is not refused (it names a
+      merchant and collides with no other shop's non-sandbox credential);
+    - the row read back is ``shop_id``'s OWN ``sandbox_write`` row with that same merchant.
+
+    Only reached when ``shop_id`` has no read-capable credential: a shop that holds one keeps
+    using it. ``SANDBOX_WRITE`` stays out of ``READ_CAPABILITIES``.
+    """
+    owners = await _enumerate_sandbox_write_credentials(session)
+    if not owners:
+        return None
+    owner = owners[0]
+    if owner.shop_id != shop_id or owner.collides or not owner.merchant_authorization_id:
+        return None
+    try:
+        credential = await TikTokCredentialRepo(session).get_by_shop_and_capability(
+            shop_id, TikTokCapability.SANDBOX_WRITE
+        )
+    except NotFound:
+        return None
+    if (
+        credential.shop_id != shop_id
+        or credential.capability != TikTokCapability.SANDBOX_WRITE.value
+        or credential.merchant_authorization_id != owner.merchant_authorization_id
+        or credential.status == "needs_reauth"
+    ):
+        return None
+    return credential
 
 
 class NoWriteCredentialForShop(NotFound):

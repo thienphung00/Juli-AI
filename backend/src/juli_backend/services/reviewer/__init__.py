@@ -8,12 +8,21 @@ Contract: ``fasttrack/contracts/p32-reviewer-access.md``.
 """
 
 from juli_backend.services.ops.view_as import enter_shop_read_scope
-from juli_backend.services.reviewer import accounts, catalog, config, masking, simulation
+from juli_backend.services.reviewer import (
+    accounts,
+    catalog,
+    config,
+    masking,
+    sandbox,
+    simulation,
+)
 from juli_backend.services.reviewer.accounts import ReviewerAccount, load_account
 from juli_backend.services.reviewer.masking import MaskDictionary, mask_payload
+from juli_backend.services.reviewer.sandbox import PinMode
 
 __all__ = [
     "MaskDictionary",
+    "PinMode",
     "ReviewerAccount",
     "accounts",
     "catalog",
@@ -22,5 +31,6 @@ __all__ = [
     "load_account",
     "mask_payload",
     "masking",
+    "sandbox",
     "simulation",
 ]
