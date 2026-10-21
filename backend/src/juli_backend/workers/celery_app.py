@@ -191,6 +191,15 @@ celery_app.conf.update(
             "task": "juli_backend.ops_audit_retention",
             "schedule": crontab(hour=20, minute=31),
         },
+        # Fast track P62-B (D72.2): delete processed_events (ETL dedup ledger) rows
+        # past PROCESSED_EVENTS_RETENTION_DAYS (30) in batches. 20:37 UTC = 03:37
+        # UTC+7, after ops-audit-retention; minute 37 is shop-poll-fanout's minute,
+        # which only enqueues (no table work), and is not a multiple of 5. Default
+        # queue.
+        "processed-events-retention": {
+            "task": "juli_backend.processed_events_retention",
+            "schedule": crontab(hour=20, minute=37),
+        },
         # Fast track P20 (D28.3): the system OpenAI limit's 80 % e-mail to the
         # Admins, at most one per month (remembered in ops_system_settings).
         # Hourly at minute 19: not a multiple of 5 and none of the slots above.

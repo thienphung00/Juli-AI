@@ -1054,7 +1054,7 @@ def test_migration_082_chains_after_081_is_tenant_direct_and_the_cleanup_stays_l
     assert len("082_content_analysis") <= 32
     deferred = (root / "deferred/074_users_placeholder_phone_cleanup.py").read_text("utf-8")
     # P16 083 and P17 084 chain after 082; the cleanup follows the head (084).
-    assert 'down_revision: str | None = "096_change_attribution"' in deferred
+    assert 'down_revision: str | None = "098_processed_events_retention"' in deferred
     assert TABLE_CLASSIFICATION_MAP[("public", "content_analyses")] == "tenant_direct"
     for column in ContentAnalysis.__table__.columns:
         assert f'"{column.name}"' in text, column.name
