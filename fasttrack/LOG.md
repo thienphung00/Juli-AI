@@ -2527,3 +2527,14 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   **check.sh: OK**.
 - Owner after deploy: one live run; `workflow_run_events` should hold `assistant.text.delta` rows
   followed by `assistant.text`; no new `llm_error` stops. Off switch: `LLM_STREAMING=off` + restart.
+
+## 2026-10-21 — owner + lead — P60-1a/1b production backfill
+
+- Deploys `fasttrack-deploy-20261020T1227Z` (P61-A) and `…T1324Z` (P60-1b, migration 096) green.
+- Owner ran `card_events_backfill_fanout` on the VPS (00:15 UTC): 2 shops enqueued, 0
+  `card_event_write_failed`. `1862f13b…` (sandbox-write shop, where approved runs execute):
+  60 rows — proposed 4, shown 4, accepted 25, not_executed 18, executed 7, impact_preliminary 1,
+  impact_final 1. `2b1da87b…` (Fujiwa): 59 rows — proposed 22, shown 11, seller_change 26.
+- Note: accepted (25) > proposed (4) on the sandbox shop — `accepted` is per approval and most
+  approved cards predate a reconstructable `proposed` (ADR-107 amendment backfill table); not an
+  error. No Fujiwa accepted/executed rows because runs execute on the sandbox shop until P5 (P61-B).
