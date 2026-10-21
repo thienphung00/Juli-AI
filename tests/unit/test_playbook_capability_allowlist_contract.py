@@ -24,6 +24,7 @@ import pytest
 
 from juli_backend.integrations.tiktok.exceptions import TransportGuardError
 from juli_backend.integrations.tiktok.guards import ReadOnlyTransportGuard
+from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
 from juli_backend.integrations.tiktok.resources.products import ProductsResource
 from juli_backend.services.agent.playbooks import OPTIMIZE_PRODUCT_PLAYBOOK
 
@@ -53,6 +54,8 @@ class _RecordingClient:
 _READ_TOOL_VENDOR_CALLS = {
     "get_product_information": lambda r: r.get_details("123"),
     "get_product_diagnoses": lambda r: r.get_diagnoses(["123"]),
+    # Fast track P63: Get Authorized Shops, over the same recording client.
+    "get_shop_identity": lambda r: AuthorizationResource(r._client).list_all_shops(),
     "get_seo_keywords": lambda r: r.get_seo_words(product_ids=["123"]),
     "check_product_status": lambda r: r.get_details("123"),
     # #1208: inspect_product_image re-reads the product to resolve the hero

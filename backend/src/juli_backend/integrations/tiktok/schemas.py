@@ -94,6 +94,7 @@ class AuthorizedShop(TikTokModel):
     cipher: str | None = None
     name: str | None = None
     region: str | None = None
+    seller_type: str | None = None
 
 
 class AuthorizedShopsData(TikTokModel):

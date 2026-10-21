@@ -92,13 +92,14 @@ PROMPT_TOKEN_BUDGET_CEILING = 3000
 
 #: Updated 2026-08-26 (#1367 fix round): v3 with prose-only worked example
 #: and restored safety content was 2950 tokens; 2992 after the P8-G diagnoses
-#: step (AC-8.4). Headroom is **8 tokens**
+#: step (AC-8.4); 2997 after P63's optional `get_shop_identity` step (three other
+#: step intents were tightened to pay for it). Headroom is **3 tokens**
 #: against 3000 ceiling. Recorded measurement (see module docstring
 #: "Measured headroom") -- the real composed prompt's proxy token count
 #: against the real, released v3.md + OPTIMIZE_PRODUCT_PLAYBOOK pair.
 #: Asserted directly below so a silent drift in either input is caught even
 #: if it stays under the ceiling.
-RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2992
+RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2997
 RECORDED_HEADROOM = PROMPT_TOKEN_BUDGET_CEILING - RECORDED_COMPOSED_TOKEN_MEASUREMENT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -153,7 +154,7 @@ def test_composed_prompt_token_estimate_matches_the_recorded_measurement():
         "changed intentionally, update this recorded value and the "
         "headroom note in the module docstring together"
     )
-    assert RECORDED_HEADROOM == 8
+    assert RECORDED_HEADROOM == 3
 
 
 # ---------------------------------------------------------------------------

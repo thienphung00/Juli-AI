@@ -74,6 +74,12 @@ EXPECTED_DESCRIPTIONS: dict[str, str] = {
         "each with a short Vietnamese label. An empty list means TikTok flagged no issue. "
         "Read this before the listing itself."
     ),
+    "get_shop_identity": (
+        "Check which shop this run is for: returns the shop's name, region and seller "
+        "type, and whether the connected TikTok credential reaches that shop "
+        "(`shop_matches`). Takes no input. Call it once, early; if `shop_matches` is "
+        "false, do not propose changes."
+    ),
     "get_seo_keywords": (
         "Get SEO keyword suggestions and title/description suggestions for the "
         "bound product, combined into one result."

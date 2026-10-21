@@ -429,6 +429,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Owner: after the P62-A deploy, install + enable `juli-db-backup.timer` on the VPS (fasttrack/README.md "Database dumps") and read the first `DUMP_SIZE` line | D72.1 | todo | owner |
 | P62-B `processed_events` retention; scoped `analytics_performance_intervals` / `silver.orders` reads; pooled worker engine | D72.2–4 | done, merged 3579de71 (pooling D72.4 deferred to DEBT; migration 098 on 096 — lead fixes the chain with P61-B's 097). D72.4 pooled worker engine NOT done (reported, DEBT) | agent |
 | Owner: after deploy, re-check Usage → Egress per day and `pg_stat_statements` (reset first: `select pg_stat_statements_reset();`) | D72 | todo | owner |
+| P63 get_shop_identity agent tool (owner 2026-10-21): TikTok Get Authorized Shops as a READ tool (product domain, optional playbook step 0.5), run shop's own credential, sanitized name/region/seller type/`shop_matches`, mismatch = refusal result + warning | D71 | done on branch `fasttrack/p63-shop-identity-tool` (not merged) | agent |
 
 ## P2–P6
 

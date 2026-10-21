@@ -343,6 +343,11 @@ class TikTokClient:
         self._session = requests.Session()
 
     @property
+    def shop_cipher(self) -> str | None:
+        """The shop cipher this client sends with shop-scoped calls (read-only)."""
+        return self._shop_cipher
+
+    @property
     def access_token(self) -> str:
         """Current bearer token used to authorize requests.
 

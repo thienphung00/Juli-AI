@@ -31,6 +31,7 @@ from juli_backend.services.execution.tool_routing import WORKFLOW_TOOL_CATALOG
 # playbook under test).
 EXPECTED_STEP_ORDER: tuple[tuple[str, str, ToolPolicy], ...] = (
     ("0", "get_product_diagnoses", ToolPolicy.AUTO),  # AC-8.4 (P8-G)
+    ("0.5", "get_shop_identity", ToolPolicy.AUTO),  # P63, optional
     ("1", "get_product_information", ToolPolicy.AUTO),
     ("2+3", "get_seo_keywords", ToolPolicy.AUTO),
     ("4, 4.5", "inspect_product_image", ToolPolicy.AUTO),
@@ -91,6 +92,7 @@ class TestPlaybookShape:
         assert sorted(all_tool_names) == sorted(
             [
                 "get_product_diagnoses",
+                "get_shop_identity",
                 "get_product_information",
                 "get_seo_keywords",
                 "check_product_status",

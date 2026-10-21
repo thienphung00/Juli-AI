@@ -1561,3 +1561,11 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] P61-G: the three operator scripts (`scripts/fujiwa_monthly_kpi_and_diagnosis.py`,
   `optimize_product_catalog_scan.py`, `optimize_product_strategy_evidence.py`) now need
   `JULI_SHOP_ID` (the shop to read); they used the deleted configured-merchant resolver.
+
+- [ ] P63 `get_shop_identity`: the sandbox shop reads through `SandboxWriteResources`, which has no
+  `authorization` resource, so the tool answers `unavailable` for it (not a failure). A credential
+  without a stored `shop_cipher` answers `unverifiable` (the match needs the cipher).
+  The step is optional in the playbook (the model may skip it); no code enforces it. Adding it
+  to the playbook changed the composed prompt of the released v1/v2/v3 (goldens regenerated).
+  `services/execution/tool_routing.py::WORKFLOW_TOOL_CATALOG` is the legacy Celery routing table,
+  not the agent catalog, and is untouched.
