@@ -416,6 +416,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P61-B Production write per shop (P5), flags off; honest sandbox UX; measurement ignores sandbox runs | D71.2 | done, merged (dispatched path only; agent-run production leg = P61-F); flags off | agent |
 | P61-C Token streaming: adapter → `assistant.text.delta` → SSE → demo caret; ADR-071 amendment | D71.3 | done, merged (ff 9470ffb7); owner after deploy: one live run, check `assistant.text.delta` then `assistant.text` rows; off switch `LLM_STREAMING=off` | agent |
 | P61-D Hardcode / beat / flag cleanup, startup env check, reject route, delete `fujiwa_poll_beat` | D71.4 | doing (`fasttrack/p61-d-cleanup`) | agent |
+| P61-F Agent-run production leg (resume resolves capability + one-time authorization for the pending write; refuse live when the image is sandbox-staged; revert reads the real listing) + migration data step marking pre-097 sandbox-written runs `write_mode='simulated'` (owner 2026-10-21) | D71.2 | todo (after P62 merges) | — |
 | P61-E End-to-end two-shop test OAuth → `card_events`; live `shown` / `expired` writers | D71.5 | todo (after A–D and P60-1b merge) | — |
 | Owner: confirm production env (`AGENT_WORKFLOWS_ENABLED`, `TIKTOK_APP_KEY/SECRET`, `REDIS_URL`); later flip `PRODUCTION_WRITE_ENABLED` per shop | D71 | todo | owner |
 
