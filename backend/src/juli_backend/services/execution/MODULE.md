@@ -21,6 +21,29 @@ sandbox write guard contract, idempotency key threading, and error taxonomy.
 - `run_tool(tool_name, payload)` — worker-side registry in `runner.py` (not for HTTP handlers)
 - `register_tool(name, handler)` — extend tool catalog for P2-B6+ executors
 - `load_sandbox_write_resources(session, app_key, app_secret)` — SANDBOX_VN write path for real tools
+- Production write per shop (fast track P61-B, D71.2, `production_write.py`):
+  `load_production_write_resources(session, shop_id, capability, app_key, app_secret)`
+  builds the shop's own guarded write resources from the resolver's marker
+  (`PRODUCTION_WRITE_CAPABILITY`, `is_production_capability`), re-checking marker ↔ shop ↔
+  credential (`ProductionWriteBindingError`); `is_shop_production_write_enabled` reads the
+  owner's production_write_shops row; `production_write_possible` = global flag AND that
+  row; `record_listing_write_values` persists a live listing edit's before/after values in
+  run_write_values through `diff_listing_write` / `listing_field_values` (`LISTING_FIELDS`,
+  `LISTING_WRITE_TOOL_NAME`, `AFTER_SOURCE_READ_BACK`, `AFTER_SOURCE_INTENDED` — restated from
+  the agent's `write_capture`, pinned equal by test, because importing `services/agent` here
+  would close a dependency cycle)
+- `PRODUCTION_WRITE_CAPABILITY` — the `capability` value of the resolver's production marker
+- `is_production_capability` — whether a value is that marker
+- `ProductionWriteBindingError` — marker, shop and credential do not name the same shop
+- `CREATE_HERO_PRODUCT_TOOL` / `OPTIMIZE_PRODUCT_TOOL` — the listing tool names (`listing_handlers.py`)
+- `resolve_write_capability` (`production_write_resolver.py`) now also requires the shop's
+  production_write_shops row: without it the call takes the sandbox path exactly as with
+  the flag off. Two more refusal names, raised by `listing_handlers.py` before the resolver
+  so no authorization is spent: mutation_not_allowed_in_production (price update, product
+  create — D13) and no_workflow_run
+- `listing_handlers.py` (`CREATE_HERO_PRODUCT_TOOL`, `OPTIMIZE_PRODUCT_TOOL`): the outcome
+  carries write_mode (simulated on the sandbox, live after every gate passed); the
+  authorization is matched on the tool's own name, never the payload's mutation_kind
 - `build_sandbox_write_resources(config)` — lower-level guard entry when config is already resolved
 - `is_noop_tool(tool_name)` — smoke-test tools that skip TikTok write guards
 - `screen_and_reencode_image(image_bytes, filename)` — `file_screening.py`'s

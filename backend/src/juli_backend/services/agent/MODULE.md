@@ -30,6 +30,16 @@ gate that exercises all of it together is a separate issue (#995).
 
 ## Public Interface
 
+Composition root (composition.py), fast track P61-B (D71.2): build_write_resources takes
+the shop and the production write resolver's answer. It returns the sandbox merchant's
+write resources unless that answer is the resolver's production marker for that shop, in
+which case it returns the shop's own production write resources. AgentWriteResources is
+the union. write_mode_of(resources) is "live" only for production resources and
+"simulated" otherwise; it is stamped on the run when the run is constructed.
+
+- ``AgentWriteResources`` — sandbox or own-shop production write resources (P61-B)
+- ``write_mode_of`` — where writes through a resource bundle land (P61-B)
+
 ```python
 from juli_backend.services.agent.sanitize import (
     BANNED_PATTERNS_JSON_PATH,

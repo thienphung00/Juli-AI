@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from juli_backend.integrations.tiktok import SandboxWriteResources
+from juli_backend.integrations.tiktok import ProductionWriteResources, SandboxWriteResources
 from juli_backend.services.execution.file_screening import (
     MAX_ENCODED_SIZE_BYTES,
     screen_and_reencode_image,
@@ -307,10 +307,12 @@ def run_create_hero_product_chain(
 
 
 def run_optimize_product_chain(
-    resources: SandboxWriteResources,
+    resources: SandboxWriteResources | ProductionWriteResources,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Execute Optimize Product workflow steps via sandbox write resources."""
+    """Execute Optimize Product workflow steps via sandbox write resources, or --
+    after every ADR-085 gate passed (P61-B, `listing_handlers.py`) -- the shop's
+    own guarded write resources."""
     products = resources.products
     product_id = str(payload["product_id"])
 
@@ -345,5 +347,8 @@ def run_optimize_product_chain(
         "seo_words": seo_words,
         "suggestions": suggestions,
         "edit": edit_result,
+        # P61-B: the body Juli sent -- the "intended" after-value when TikTok's
+        # read-back still shows the old listing (under review), see write_capture.
+        "edit_body": edit_body,
         "price_update": price_result,
     }

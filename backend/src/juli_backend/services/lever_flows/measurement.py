@@ -57,7 +57,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.lever_flows import (
@@ -67,6 +67,7 @@ from juli_backend.models.lever_flows import (
     RunMeasurementFinal,
 )
 from juli_backend.models.models import (
+    WRITE_MODE_SIMULATED,
     ActionCard,
     AnalyticsPerformanceInterval,
     ImpactReading,
@@ -387,6 +388,12 @@ def card_target(card: ActionCard | None) -> CardTarget:
     )
 
 
+#: Fast track P61-B: why a run that wrote to the sandbox merchant has no Đo lường.
+SIMULATED_RUN_NOT_MEASURED_VI = (
+    "Lượt chạy này là chạy thử, chưa thay đổi gì trên shop của bạn, nên Juli không đo kết quả."
+)
+
+
 def _naive_utc(value: datetime) -> datetime:
     return value.astimezone(UTC).replace(tzinfo=None) if value.tzinfo else value
 
@@ -438,10 +445,17 @@ async def _other_changes(
     """Another run wrote to the product, or another promotion started, in ``[start, end]``."""
     writes = (
         await session.execute(
-            select(RunWriteValue.recorded_at).where(
+            select(RunWriteValue.recorded_at)
+            .join(WorkflowRunRow, WorkflowRunRow.id == RunWriteValue.workflow_run_id)
+            .where(
                 RunWriteValue.shop_id == shop_id,
                 RunWriteValue.tiktok_product_id == tiktok_product_id,
                 RunWriteValue.workflow_run_id != run_id,
+                # P61-B: another run's sandbox write did not change the shop's product.
+                or_(
+                    WorkflowRunRow.write_mode.is_(None),
+                    WorkflowRunRow.write_mode != WRITE_MODE_SIMULATED,
+                ),
             )
         )
     ).scalars()
@@ -771,6 +785,12 @@ async def measure_run(
                 "Juli chưa tìm thấy khuyến mãi trên TikTok, nên chưa bắt đầu đo.",
             )
     else:
+        if run.write_mode == WRITE_MODE_SIMULATED:
+            # Fast track P61-B (D71.2): the listing write went to the sandbox
+            # merchant, not the seller's shop -- there is no change to measure.
+            # (A promotion run writes nothing: the seller applies it, so its
+            # write mode says nothing about it and it is measured as before.)
+            raise NotMeasurable("simulated", SIMULATED_RUN_NOT_MEASURED_VI)
         day0 = await _listing_day0(session, shop_id, run.id)
         if day0 is None:
             raise NotMeasurable(

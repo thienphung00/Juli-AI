@@ -642,6 +642,14 @@ def _default_workflow_run_subject_ref(context: Any) -> str:
     return str(product_id)
 
 
+#: ``workflow_runs.write_mode`` (fast track P61-B, migration 097): the run's
+#: writes went to the seller's own shop (``live``) or to the sandbox merchant
+#: (``simulated``). The migration pins the same two values in its CHECK.
+WRITE_MODE_LIVE = "live"
+WRITE_MODE_SIMULATED = "simulated"
+WRITE_MODES: tuple[str, ...] = (WRITE_MODE_LIVE, WRITE_MODE_SIMULATED)
+
+
 class WorkflowRun(Base):
     """Agent execution-loop run record — WorkflowRunner's persisted run, P1
     (ADR-073 decisions 1, 2 and 4; #1117 / AGT-W3A).
@@ -801,6 +809,13 @@ class WorkflowRun(Base):
     #: in this run (one `tool_executions` row each). A no-op run records 0.
     #: Nullable, no backfill.
     rows_affected: Mapped[int | None] = mapped_column(Integer)
+    #: Fast track P61-B (migration 097, D71.2): where this run's writes went --
+    #: ``live`` (the seller's own shop, through the ADR-085 production write
+    #: path) or ``simulated`` (the sandbox merchant). Stamped when the run's write
+    #: resources are built. NULL = constructed before 097 (no backfill: the fact
+    #: is recorded, never inferred). A ``simulated`` run is never presented as a
+    #: change on the seller's shop and is never measured as one.
+    write_mode: Mapped[str | None] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
@@ -853,6 +868,10 @@ class WorkflowRun(Base):
             "'concluded_without_changes', 'required_steps_unfulfilled', "
             "'paused_for_external_wait', 'external_wait_expired')",
             name="ck_workflow_runs_stop_reason",
+        ),
+        CheckConstraint(
+            "write_mode IS NULL OR write_mode IN ('live', 'simulated')",
+            name="ck_workflow_runs_write_mode",
         ),
     )
 
@@ -1677,6 +1696,28 @@ class ProductionWriteAuthorization(Base):
             "mutation_kind",
         ),
     )
+
+
+class ProductionWriteShop(Base):
+    """A shop the owner has turned production writes on for (fast track P61-B, D71.2).
+
+    One row per shop, written by the owner on an admin connection (``juli_app``
+    holds SELECT only, migration 097). It is one gate among ADR-085's: the
+    global ``PRODUCTION_WRITE_ENABLED`` flag, the kill switch, the RLS boot
+    check, the red-team attestation and the per-mutation
+    ``production_write_authorizations`` row must all still pass. Without a row,
+    a shop's writes stay on the sandbox even with the global flag on. Turning a
+    shop off again = deleting its row.
+
+    Tenant treatment: direct shop_id.
+    """
+
+    __tablename__ = "production_write_shops"
+
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), primary_key=True)
+    enabled_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    enabled_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
 
 class ProductionWriteAudit(Base):

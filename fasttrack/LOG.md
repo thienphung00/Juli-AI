@@ -2538,3 +2538,34 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
 - Note: accepted (25) > proposed (4) on the sandbox shop — `accepted` is per approval and most
   approved cards predate a reconstructable `proposed` (ADR-107 amendment backfill table); not an
   error. No Fujiwa accepted/executed rows because runs execute on the sandbox shop until P5 (P61-B).
+
+## 2026-10-21 — agent (Claude Opus) — P61-B production write per shop, flags off (branch `fasttrack/p61-b-prod-write`, not merged)
+
+- Migration `097_production_write_shops` (onto `096_change_attribution`; deferred phone cleanup
+  re-parented, its pins + the 095/096 round-trip tests updated): `production_write_shops`
+  (owner-written per-shop enable, `juli_app` SELECT only, RLS tenant-direct) and
+  `workflow_runs.write_mode` (`live` | `simulated`).
+- TikTok layer: `ProductionWriteClientFactory` / `ProductionWriteResources` behind
+  `ProductionWriteGuard` (product detail / SEO / suggestion GETs, listing edit PUT, image upload;
+  no price, no create — D13). `resolve_write_credential_for_shop`: the shop's own non-sandbox row.
+- Resolver also requires the shop's enable row (else the sandbox, exactly as flag off). Listing
+  handler production leg runs on the shop's own resources and records `run_write_values`; price /
+  create / run-less executions refused before an authorization is spent; mutation kind is the
+  tool's own name. `build_write_resources(session, shop_id, capability)`; agent runs stamp
+  `write_mode` (always `simulated` today — the agent leg itself is DEBT P61-B).
+- Honest UX: run list `simulated`, card status `simulated`, chips / done panel "Đã chạy thử",
+  simulated runs out of Đo lường. Measurement: impact reader skips simulated writes (and does not
+  count them as touches); a simulated listing run has no Đo lường.
+- Coordinator add: `composition._is_sandbox_shop` catches only `NotFound` now (2 tests).
+- Test-infra fixes found on the way: `test_production_write_authorizations_postgres` left the
+  shared DB at 044 (now restores head in `finally`, 300 s timeout); 087 pin keeps P60-1b's 096
+  column allowance after the merge.
+- Verification (Homebrew Postgres 16 :55452, UTC, removed after): `test_p61b_production_write.py`
+  38 passed; `test_p61b_production_write_two_shop.py` 3 passed on Postgres as `juli_app`
+  (0 skipped); check.sh `--since fasttrack/optimize-product`: migrations / isolation (12) /
+  gitleaks / ruff PASS, pytest 852 passed + 1 timeout under machine load average ~30
+  (`test_waiting_external_migration`, 19/19 alone). Full unit suite `tests/unit -m "not live"`:
+  7908 passed, 245 skipped, 2 xfailed, 1 failed (`test_status_record_gate`, 50/50 alone, load).
+  mypy clean on 25 touched source files. Demo (Node 20): tsc + lint clean; vitest flaky
+  timeouts under load (~50): full run 1200/1212, every failing file then passed when re-run
+  alone (e.g. email-sign-in + demo-landing + simulated-run-p61b 38/38; ops-pages 17/17).
