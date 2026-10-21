@@ -208,68 +208,69 @@ class TestAlembicRoundTrip:
         after this one in the same process (check.sh selects them together)
         otherwise finds a 043-era schema: no RLS helper functions, no columns.
         """
-        try:
-            self._round_trip_044(alembic_config)
-        finally:
-            command.upgrade(alembic_config, "head")
-
-    def _round_trip_044(self, alembic_config):
-        """Run full migration chain up to 044 and downgrade back."""
         if not DATABASE_URL:
             pytest.skip("DATABASE_URL not set")
-
-        # Start from 043 to isolate 044's upgrade/downgrade round-trip
-        command.downgrade(alembic_config, "043_juli_app_role")
-
-        # Upgrade to 044 specifically
-        command.upgrade(alembic_config, "044_prod_write_authorizations")
-
-        # Verify 044 table exists
-        sync_engine = create_engine(DATABASE_URL)
-        inspector = inspect(sync_engine)
-        tables = inspector.get_table_names()
-        assert "production_write_authorizations" in tables, (
-            "044 migration did not create production_write_authorizations table"
-        )
-
-        # Verify table structure
-        columns = {col["name"] for col in inspector.get_columns("production_write_authorizations")}
-        expected_cols = {
-            "id",
-            "shop_id",
-            "tiktok_product_id",
-            "mutation_kind",
-            "authorized_by",
-            "reason",
-            "expires_at",
-            "consumed_at",
-            "consumed_by_run_id",
-            "revoked_at",
-            "revoke_reason",
-            "created_at",
-        }
-        assert expected_cols.issubset(columns), f"Missing columns: {expected_cols - columns}"
-
-        # Verify indexes
-        indexes = {idx["name"] for idx in inspector.get_indexes("production_write_authorizations")}
-        expected_indexes = {
-            "ix_production_write_authorizations_shop_id",
-            "ix_production_write_authorizations_lookup",
-        }
-        assert expected_indexes.issubset(indexes), f"Missing indexes: {expected_indexes - indexes}"
-
-        # Downgrade one step to 043
         try:
-            command.downgrade(alembic_config, "-1")
-        except Exception as e:
-            # Downgrade may fail if 043 is incomplete; that's OK for now
-            pytest.skip(f"Downgrade failed (likely 043 incomplete): {e}")
+            # Start from 043 to isolate 044's upgrade/downgrade round-trip
+            command.downgrade(alembic_config, "043_juli_app_role")
 
-        # Verify table is dropped
-        inspector = inspect(sync_engine)
-        tables = inspector.get_table_names()
-        assert "production_write_authorizations" not in tables, (
-            "Downgrade did not drop production_write_authorizations table"
-        )
+            # Upgrade to 044 specifically
+            command.upgrade(alembic_config, "044_prod_write_authorizations")
 
-        sync_engine.dispose()
+            # Verify 044 table exists
+            sync_engine = create_engine(DATABASE_URL)
+            inspector = inspect(sync_engine)
+            tables = inspector.get_table_names()
+            assert "production_write_authorizations" in tables, (
+                "044 migration did not create production_write_authorizations table"
+            )
+
+            # Verify table structure
+            columns = {
+                col["name"] for col in inspector.get_columns("production_write_authorizations")
+            }
+            expected_cols = {
+                "id",
+                "shop_id",
+                "tiktok_product_id",
+                "mutation_kind",
+                "authorized_by",
+                "reason",
+                "expires_at",
+                "consumed_at",
+                "consumed_by_run_id",
+                "revoked_at",
+                "revoke_reason",
+                "created_at",
+            }
+            assert expected_cols.issubset(columns), f"Missing columns: {expected_cols - columns}"
+
+            # Verify indexes
+            indexes = {
+                idx["name"] for idx in inspector.get_indexes("production_write_authorizations")
+            }
+            expected_indexes = {
+                "ix_production_write_authorizations_shop_id",
+                "ix_production_write_authorizations_lookup",
+            }
+            assert expected_indexes.issubset(indexes), (
+                f"Missing indexes: {expected_indexes - indexes}"
+            )
+
+            # Downgrade one step to 043
+            try:
+                command.downgrade(alembic_config, "-1")
+            except Exception as e:
+                # Downgrade may fail if 043 is incomplete; that's OK for now
+                pytest.skip(f"Downgrade failed (likely 043 incomplete): {e}")
+
+            # Verify table is dropped
+            inspector = inspect(sync_engine)
+            tables = inspector.get_table_names()
+            assert "production_write_authorizations" not in tables, (
+                "Downgrade did not drop production_write_authorizations table"
+            )
+
+            sync_engine.dispose()
+        finally:
+            command.upgrade(alembic_config, "head")
