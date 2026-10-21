@@ -2764,3 +2764,14 @@ reconcile --write` re-derived the no-assert corpus figure.
   body/SECURITY DEFINER/search_path pinned). Postgres :55491: integration file 5 passed 0 skipped; unit RLS-scope +
   phone-cleanup 16 passed 0 skipped; `check.sh --since fasttrack/optimize-product` migrations PASS (100 head), isolation 12
   passed, gitleaks PASS, pytest 21 files 529 passed. ruff/mypy/bandit -ll clean.
+
+## 2026-10-21 — lead — deploy `fasttrack-deploy-20261021T0933Z` (8ed0fd95) green
+
+- Ships P61-B (097), P62-B (098), P61-G (099), P61-G2 (100), P61-C was already live, P61-D,
+  P62-A, P63. Two earlier tags failed before the VPS: `…0737Z` at bandit B608 on 098's
+  constant-only f-string (fixed 8fd31cdd); `…0851Z` at check.sh — the 096 round trip pinned
+  head 097 (fixed 8ed0fd95: compares against the script head). Migration 100's SQL was made
+  literal (a0beb15d) so `deploy.sh`'s additive-only gate can read it.
+- Owner next (VPS): `alembic current` = 100; remove any TIKTOK_*_MERCHANT_ID from
+  /etc/juli/api.env; install `juli-db-backup.timer`; `select pg_stat_statements_reset();`;
+  re-enable Uptime Check after confirming it probes /health only. Egress checkpoint 2026-10-28.
