@@ -1433,7 +1433,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Node 26 (current local default) breaks 29 demo vitest files on Web Storage (`localStorage`
   undefined); `.nvmrc` says 20 and all 122 files pass there.
 
-## P61-D — hardcode / beat / flag cleanup (2026-10-20, D71.4)
+## P61-D — hardcode / beat / flag cleanup (2026-10-20, D71.4; route retirement D72.5)
 
 - [ ] **Deploy precondition (owner):** `TIKTOK_PRODUCTION_MERCHANT_ID` and
   `TIKTOK_SANDBOX_MERCHANT_ID` must be set in the API **and** worker env before this ships —
@@ -1441,24 +1441,29 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   refuses (`MerchantIdNotConfigured`); unset production id = the production merchant is
   classified `SELLER_CONNECT`. Boot logs `runtime_env_missing` per gap and
   `GET /v1/ops/runtime-env` shows it; nothing checks the production env file from CI.
-- [x] ~~`live_hours` / `ctor` bronze only for the production merchant~~ — repaid in P61-D
-  (owner-approved scope add): the targeted-fetch executor resolves the job shop's own read
-  credential and merchant id.
-- [ ] The hourly per-shop recompute fans out to N tasks on the default queue every hour, and
-  each now runs the targeted gap fetch (orders, A-36, A-34, A-28) for its shop — the old
-  reference-shop job took up to ~37 min. Orders are also fetched by the shop's own `poll_shop`
-  (both advance the same `tiktok_sync_state` watermark), so the vendor calls per shop roughly
-  double for orders. Repay if the default queue or the per-shop rate window backs up: a
-  dedicated queue, drop `orders` from the gap plan, or ADR-112's `ingest_*` jobs.
+- [ ] `GET /v1/demo/analytics` answers 410 Gone (kept as a stub for cached demo bundles and the
+  disabled uptime probe). Repay: delete `api/routes/demo_analytics.py`, its allowlist /
+  surface-inventory entries and the nginx comment once the access log shows no callers.
+- [ ] `gold.kpi_envelopes` now has **no reader** but still has writers: the material-webhook
+  Shared Compute gold stage (`services/webhook/material_worker`) and the flag-off
+  `cdp-batch-staggered-reconcile`. Every material webhook still recomputes an envelope (egress).
+  Repay (owner call): drop the gold stage from the material path, or retire the envelope tables.
+- [ ] `live_hours` bronze domain is requested by no plan builder now (only the retired hourly gap
+  plan asked for it); `test_medallion_domain_reachability` carries it as an asserted carve-out.
+  Repay: remove the `live_hours` bronze/silver path, or wire it into a per-shop plan.
+- [ ] The Decision-scoring continuous trigger that rode the hourly reconcile
+  (`decision_rules_scoring_stage`, gated by `CDP_DECISIONS_SCORING_ENABLED`, default off) is gone
+  with it; scoring still runs from `poll_shop` (D11) and the material path.
 - [ ] `analytics-backfill-topup` deleted without a per-shop replacement: verified that
   `run_shop_cycle._daily_analytics` lands every shop's shop / product / SKU / LIVE analytics
   daily and the history phase walks gaps backwards; the top-up's `catalog` bucket
-  (`active_products` / `new_products` on `analytics_performance_intervals`) has no reader
-  outside seeds, so nothing consumes what it alone wrote. A partition that failed inside the
-  last 30 days is no longer retried by a daily job (the forward cursor only advances on a
-  complete pass). The service (`backfill_analytics_history_auto_topup`) and its CLI stay.
+  (`active_products` / `new_products`) has no reader outside seeds. A partition that failed
+  inside the last 30 days is no longer retried by a daily job. The service
+  (`backfill_analytics_history_auto_topup`) and its CLI stay.
 - [ ] Ops sees the API process's env only (`GET /v1/ops/runtime-env`); the worker's report is in
   its boot log (`runtime_env_report`), not on a screen. No Ops UI panel yet.
 - [ ] Reject idempotency covers a repeat of a reject only; a card closed by another action
   (approve, decline) still answers 404 to a reject — honest, but a client cannot tell "already
   approved" from "not yours".
+- [ ] apps/demo vitest must run on Node 20 (`.nvmrc`); on this Mac's default Node 26, 295 tests
+  fail on `localStorage.clear` (jsdom vs Node's own `localStorage`) — environment, not code.

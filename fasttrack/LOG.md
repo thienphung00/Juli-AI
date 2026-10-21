@@ -2528,33 +2528,27 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
 - Owner after deploy: one live run; `workflow_run_events` should hold `assistant.text.delta` rows
   followed by `assistant.text`; no new `llm_error` stops. Off switch: `LLM_STREAMING=off` + restart.
 
-## 2026-10-20 — agent (Claude Opus) — P61-D cleanup (branch `fasttrack/p61-d-cleanup`, not merged)
+## 2026-10-21 — agent (Claude Opus) — P61-D cleanup + `/v1/demo/analytics` retired (branch `fasttrack/p61-d-cleanup`, not merged)
 
-- **Beats per shop.** `analytics-backfill-topup` deleted (verified redundant: `run_shop_cycle`
-  `_daily_analytics` lands every shop's shop/product/SKU/LIVE analytics daily; the top-up's only
-  unique output, the `catalog` bucket, has no reader). `mock-analytics-hourly-reconcile` replaced
-  by `shop-kpi-reconcile-fanout` (:00) → `shop_kpi_reconcile` per pollable shop
-  (`enumerate_pollable_shops`, `with_shop_scope`, real `SharedComputeOrchestrator`). No worker
-  reads `DEMO_REFERENCE_SHOP_ID`; `api/routes/demo_analytics.py` binding kept (ADR-094).
+- **Retired (owner D72.5, egress):** consumer check — `gold.kpi_envelopes` /
+  `analytics_kpi_envelopes` are read only by `GET /v1/demo/analytics` (the caches' getters have no
+  other caller); the top-up's outputs are re-written per shop by `poll_shop`. So:
+  `mock-analytics-hourly-reconcile` + `analytics-backfill-topup` beats, tasks and the
+  `DEMO_REFERENCE_SHOP_ID` read deleted (no per-shop replacement); the route answers **410 Gone**
+  (no DB/Redis); apps/demo `AnalyticsDataProvider` / `fetchDemoAnalytics` / fallback envelope
+  removed ("Làm mới Demo" keeps its resets); `deploy.sh` / `rollback-release.sh` / `uptime.yml`
+  probe `/health` only (uptime stays owner-disabled); `check-kpi-freshness.py` + test deleted;
+  ADR-094 amendment, ADR-112 §6.5 note. `DEMO_REFERENCE_SHOP_ID` is read nowhere now.
 - **Targeted fetch per shop** (owner-approved scope add): `targeted_fetch_executor` resolves the
-  job shop's own credential (`resolve_read_credential_for_shop`) and signs with its merchant id;
-  no second resolve of the production merchant.
-- **Merchant ids:** no literal defaults; `MerchantIdNotConfigured` (ValueError, names the env var)
-  from both factories, the poll guard and the configured-merchant resolvers. Tests run with test
-  ids set in `tests/conftest.py`. **Deploy precondition:** both env vars set on API + worker.
+  job shop's own credential (`resolve_read_credential_for_shop`) and signs with its merchant id.
+- **Merchant ids:** no literal defaults; `MerchantIdNotConfigured` (ValueError naming the env var)
+  from both factories, the poll guard and the configured-merchant resolvers; test ids in
+  `tests/conftest.py`. **Deploy precondition:** both env vars set on API + worker.
 - **Loud env:** `core/config/runtime_env.py` — one `runtime_env_missing` WARNING per missing
   variable / off flag at API and worker boot (names only); `GET /v1/ops/runtime-env` (viewer);
   `shop_ingestion_skipped_unconfigured` WARNING with the missing names on every skip.
-- **Deleted** `fujiwa_poll_beat` + the `shop_id=None` paths (`shop_id` now required in
-  `run_fujiwa_poll_cycle` / `run_fujiwa_material_resource_fetch`). Stale docs fixed
+- **Deleted** `fujiwa_poll_beat` + the `shop_id=None` poll paths; stale docs fixed
   (impact_reader, workers MODULE, restore script requires `SHOP_ID`, obs1 scripts).
 - **Reject route** already existed (P10-A; DEBT P7-C and the audit row were stale): made
-  idempotent (row lock; repeat = 200, no new rows; other shop still 404).
-- Verification: ruff + format clean; mypy clean on `backend/src/juli_backend` (726 files).
-  Postgres 16 :55454 (UTC): `test_shop_kpi_reconcile_two_tenant.py` 5 passed,
-  `test_reject_route_two_tenant.py` 1 passed, `test_fetch_executor_scope.py` 4 passed, 0 skipped.
-  Full no-DB unit suite after the last merge (6856375a): 7838 passed, 244 skipped, 2 xfailed,
-  0 failed. `fasttrack/check.sh --since fasttrack/optimize-product`: migrations PASS (096 head),
-  isolation 12 passed, gitleaks PASS, ruff PASS (50 files), pytest PASS (54 files: 772 passed,
-  0 skipped) — **check.sh: OK** (an earlier run under machine load 70 hit 30 s pytest-timeouts in
-  isolation / `test_shop_ingestion`; both pass alone and on the clean rerun).
+  idempotent (row lock; repeat = 200, no new rows; another shop still 404).
+- Verification: see the P61-D report (counts recorded there and below once runs finish).
