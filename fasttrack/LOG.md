@@ -2593,4 +2593,13 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   (impact_reader, workers MODULE, restore script requires `SHOP_ID`, obs1 scripts).
 - **Reject route** already existed (P10-A; DEBT P7-C and the audit row were stale): made
   idempotent (row lock; repeat = 200, no new rows; another shop still 404).
-- Verification: see the P61-D report (counts recorded there and below once runs finish).
+- Verification (after merging optimize-product c15d6b34, head 097): ruff + format clean; mypy
+  clean (728 files). Postgres 16 :55454 (UTC) via check.sh: migrations PASS (097 head),
+  isolation 12 passed, gitleaks PASS, ruff PASS (55 files), pytest PASS (58 files: 801 passed,
+  1 skipped = the asserted `live_hours` reachability carve-out) — **check.sh: OK**; it covers
+  `test_targeted_fetch_two_shop.py`, `test_reject_route_two_tenant.py`,
+  `test_fetch_executor_scope.py` on real Postgres. Full no-DB unit suite: 7881 passed,
+  245 skipped, 2 xfailed, 0 failed. apps/demo (Node 20 per `.nvmrc`): lint 0 errors, tsc clean,
+  vitest 1204 passed / 4 failed under machine load (ops-pages 30 s timeouts, no-shop-sample);
+  those files rerun alone: 36 passed. Under load (avg 30-70 from sibling agents) single runs
+  also hit pytest's 30 s timeout in Postgres fixture setup; every one passed on rerun.
