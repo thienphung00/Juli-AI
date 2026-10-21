@@ -419,6 +419,14 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P61-E End-to-end two-shop test OAuth → `card_events`; live `shown` / `expired` writers | D71.5 | todo (after A–D and P60-1b merge) | — |
 | Owner: confirm production env (`AGENT_WORKFLOWS_ENABLED`, `TIKTOK_APP_KEY/SECRET`, `REDIS_URL`); later flip `PRODUCTION_WRITE_ENABLED` per shop | D71 | todo | owner |
 
+## P62 — Supabase egress (D72, 2026-10-21)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P62-A Fewer dumps: pending-migration-only pre-migrate dump, backup job only with a migration (+ `force_backup`), daily VPS dump timer | D72.1 | doing (`fasttrack/p62-a-dumps`) | agent |
+| P62-B `processed_events` retention; scoped `analytics_performance_intervals` / `silver.orders` reads; pooled worker engine | D72.2–4 | doing (`fasttrack/p62-b-reads`) | agent |
+| Owner: after deploy, re-check Usage → Egress per day and `pg_stat_statements` (reset first: `select pg_stat_statements_reset();`) | D72 | todo | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).

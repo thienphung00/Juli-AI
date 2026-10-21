@@ -1617,3 +1617,17 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   5. **One end-to-end two-shop test** from OAuth callback to `card_events` for a non-reference
      shop, on real Postgres with recorded fixtures.
   Work: P61 (A hotfix, B P5, C streaming, D cleanup, then E end-to-end).
+
+- **D72** — Supabase egress back under the free plan (owner, 2026-10-21; 7.0 / 5 GB this
+  cycle, ~270 MB/day). Evidence (`pg_stat_statements` on production, 2026-10-21): ~300 full
+  `pg_dump`s (two per deploy, ~4 deploys/day); `SELECT analytics_performance_intervals.*` whole
+  table ~1,770 calls and `silver.orders` whole table 409 calls; `processed_events` is the largest
+  table (64 MB) and is copied by every dump; `pgbouncer.get_auth` 514k (connection churn). Stay on
+  the free plan; fewer deploys until the fix ships. Work: P62.
+  1. **Fewer dumps.** `safe-alembic-upgrade.sh` dumps only when a migration is pending; the
+     fast-track `backup` job runs only when the deploy carries a migration (or `force_backup`);
+     one scheduled dump per day on the VPS keeps the recovery point.
+  2. **`processed_events` retention** beyond the dedup window (named constant), daily ops job.
+  3. **Scoped reads.** The whole-table `analytics_performance_intervals` / `silver.orders`
+     SELECTs filter by shop + date range (and columns).
+  4. **Less connection churn** in workers (pooled engine instead of a connection per task).
