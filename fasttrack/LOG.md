@@ -2682,3 +2682,22 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   line will tell). Before: ~2 dumps/deploy x ~4 deploys/day = 8 dumps/day ≈ 280–560 MB/day.
   After: scheduled 1 per 3 days ≈ 12–23 MB/day (≈ 0.35–0.7 GB/month) + 2 dumps only on deploys with
   a migration.
+
+## 2026-10-21 — agent (Claude Sonnet) — P61-G merchant identity from the connect flow (branch `fasttrack/p61-g-merchant-from-credential`, not merged)
+
+Owner decision D71.6: no merchant id hardcoded or configured. Removed `PRODUCTION_AUTH_ID` /
+`SANDBOX_AUTH_ID`, `require_*`, `MerchantIdNotConfigured`, `resolve_merchant_context`,
+`is_cross_merchant_lookup`, `resolve_production_read_credential` and both `TIKTOK_*_MERCHANT_ID`
+env vars (+ P61-D boot-report entries). Factories decide from `credential_capability`; the
+sandbox credential is found by capability through migration 099
+(`enumerate_sandbox_write_credentials()`, on 098, deferred 074 re-parented onto it) and refused
+(`SandboxCredentialRefused`) when it shares a merchant id or shop cipher with a non-sandbox
+credential (the 2026-08-18 case, now also at resolve time); read/write resolvers skip a row
+holding a merchant a `sandbox_write` row carries. OAuth keeps an existing row's capability.
+Merged P62-A (671dc99b) before verification. Verification: unit `tests/unit -m "not live"`
+7912 passed, 245 skipped, 2 xfailed, 1 failed (`test_slow_backing_store_does_not_stall_the_event_loop`,
+timing under load; 16 passed alone); new tests: 14 unit (credential-derived, no env) + 3 real-Postgres
+two-shop/sandbox tests (port 55471, passed not skipped; 32 passed with the touched integration files);
+`fasttrack/check.sh --since fasttrack/optimize-product`: migrations PASS (head 099), isolation 12 passed,
+gitleaks PASS, ruff PASS, pytest 1002 passed. mypy 21 files clean. `eval.quality_detectors
+reconcile --write` re-derived the no-assert corpus figure.
