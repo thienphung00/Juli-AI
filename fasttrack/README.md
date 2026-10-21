@@ -37,7 +37,8 @@ and the log, all in one place.
 
 Owner only. Tag a commit that is already on `fasttrack/optimize-product` and
 push the tag; `.github/workflows/fasttrack-deploy.yml` then backs up the
-production DB (abort on failure), runs `check.sh`, and deploys. In parallel it
+production DB **only if the deploy carries a migration** (abort on failure; P62-A,
+D72.1), runs `check.sh`, and deploys. In parallel it
 builds the demo artifact itself (`infra/scripts/build-release-artifact.sh`, the
 `NEXT_PUBLIC_SUPABASE_*` repo secrets inlined at build, verified by
 `verify-supabase-env-in-build.mjs`); if the demo lane changed, that tarball is
@@ -54,15 +55,16 @@ Jobs (stable ids; `deploy` needs every one of them, P55 / D64):
 | Job id | What it runs | Needs |
 |---|---|---|
 | `validate` | the SHA is a full commit on the fast-track branch | — |
-| `backup` | verified `pg_dump` of production on the VPS | validate |
-| `check` | `fasttrack/check.sh` with a throwaway Postgres (migrations, isolation, gitleaks, ruff + pytest on changed files) | backup |
+| `plan` | reads production's `alembic current` on the VPS (one SELECT, no dump) and compares it with the SHA's alembic head (`infra/scripts/migration_heads.py`); outputs `backup=true\|false` | validate |
+| `backup` | **only when `plan` says `backup=true`**: verified `pg_dump` of production on the VPS (`infra/scripts/backup-database.sh`, copied from the SHA) | plan |
+| `check` | `fasttrack/check.sh` with a throwaway Postgres (migrations, isolation, gitleaks, ruff + pytest on changed files). Runs when `backup` succeeded **or was skipped because no backup was needed**; never after a failed backup | plan, backup |
 | `build` | demo + landing release tarballs | validate |
 | `frontend` | demo + landing `eslint`, `tsc --noEmit`, `vitest` (what `pnpm check:demo` / `check:landing` run, minus `next build`); `packages/ui` and `utils` tests; Node from `.nvmrc` | validate |
 | `backend-unit` | the full `pytest tests/unit -m "not live"` with no database (Postgres tests skip via `requires_postgres`), after fetching the negative dataset's archived evidence refs (D65) | validate |
 | `static` | `mypy --config-file backend/pyproject.toml backend/src/juli_backend` + `bandit -r backend/src/juli_backend -ll` | validate |
 | `deploy` | `infra/scripts/deploy.sh <sha>` over SSH, then a public `/health` check | check, build, frontend, backend-unit, static |
 
-`frontend`, `backend-unit` and `static` run beside `backup` → `check`, so they
+`frontend`, `backend-unit` and `static` run beside `plan` → `backup` → `check`, so they
 add wall time only when one of them is slower than that branch (LOG P55 has the
 measured times). The same commands locally:
 
@@ -74,6 +76,46 @@ pnpm lint:landing && pnpm type-check:landing && pnpm test:landing
 env -u DATABASE_URL python -m pytest tests/unit -m "not live" -q -p no:cacheprovider
 mypy --config-file backend/pyproject.toml backend/src/juli_backend
 bandit -r backend/src/juli_backend -ll
+```
+
+### Database dumps (P62-A, D72.1 — Supabase egress)
+
+Every full dump is a full copy of production through Supabase egress, so dumps are
+taken only where they protect something:
+
+- **Deploy `backup` job** — only when production's alembic revision differs from
+  the SHA's head (a migration is coming), or the head/revision cannot be read.
+  Otherwise the job shows as *skipped* and the deploy continues.
+- **`safe-alembic-upgrade.sh`** (inside `deploy.sh`) — its pre-migrate dump runs only
+  when `alembic` has pending revisions; otherwise it logs
+  `no pending migration — pre-migrate dump skipped` and continues (privilege
+  check, no-op upgrade, row counts and token decrypt still run).
+- **Scheduled dump on the VPS** — `juli-db-backup.timer` fires daily at 19:30 UTC
+  (02:30 Vietnam); `backup-database.sh` dumps only when the newest
+  `~/backups/juli-pre-migrate-*.dump` is at least `BACKUP_MIN_INTERVAL_HOURS` old
+  (72 = every 3 days; any dump, including a migration deploy's, resets the clock).
+  Each dump logs `DUMP_SIZE label=… bytes=…` for measuring egress. Same rotation
+  (14 days) and the weekly restore drill restores the newest dump.
+
+**Force a backup** on a deploy without a migration (any one of):
+
+```bash
+git tag fasttrack-deploy-$(date -u +%Y%m%dT%H%MZ)-force-backup <full-sha> && git push origin <that-tag>
+gh workflow run fasttrack-deploy.yml --ref fasttrack/optimize-product -f sha=<full-sha> -f force_backup=true
+gh variable set FASTTRACK_FORCE_BACKUP --body true   # every deploy until unset: gh variable delete FASTTRACK_FORCE_BACKUP
+```
+
+**Install the scheduled dump on the VPS** (once, as root, after a deploy that
+ships these files — `deploy.sh` does not install timers, same as the restore drill):
+
+```bash
+cd ~/Juli-AI-v2
+install -m 0644 infra/systemd/juli-db-backup.service infra/systemd/juli-db-backup.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now juli-db-backup.timer
+systemctl list-timers juli-db-backup.timer
+systemctl start juli-db-backup.service && journalctl -u juli-db-backup.service -n 30 --no-pager   # first run: dumps if nothing < 72 h
+# change the cadence: systemctl edit juli-db-backup.service -> [Service] Environment=BACKUP_MIN_INTERVAL_HOURS=48
 ```
 
 ## Rolling back production

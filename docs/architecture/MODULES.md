@@ -412,7 +412,7 @@ registry.
   - Health-friendly proxy paths for smoke and release evidence.
 - **Features:**
   - **Shipped:** `app-juli.com` → :3000; `demo.app-juli.com` → :3001; `api.app-juli.com` → :8000;
-    systemd units; secrets-refresh / restore-drill timers.
+    systemd units; secrets-refresh / restore-drill / db-backup (P62-A) timers.
   - **In progress:** Public release evidence / rollback automation refinements (ADR-035).
   - **Planned:** **Inbound rate limiting ([ADR-061](../adr/061-first-user-security-baseline.md))** — `limit_req`
     zones per location (strict on `/webhooks/tiktok`, `/v1/demo/*`, `/v1/auth/*`); the edge is the
