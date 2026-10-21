@@ -5,14 +5,24 @@ name: Fast-track deploy
 # (push-to-main) never fires; this is the only way the branch reaches production.
 #
 # Each job `needs` its predecessor, so a failure anywhere stops everything after it:
-#   validate -> backup -> check -> deploy
-#   validate -> build ----------------^   (build runs in parallel with backup/check)
+#   validate -> plan -> backup -> check -> deploy
+#   validate -> build ------------------------^   (build runs in parallel with plan/backup/check)
 #   validate -> frontend -------------^   (the three gates below also run in
 #   validate -> backend-unit ---------^    parallel with backup/check; deploy
 #   validate -> static ---------------^    needs every one of them; P55, D64)
 #
 #   validate  the SHA is a full commit SHA on the fast-track branch. No secrets.
-#   backup    pg_dump of the production database ON THE VPS, verified (non-empty,
+#   plan      P62-A (D72.1): does this deploy carry a migration? Reads production's
+#             `alembic current` on the VPS (one SELECT, no dump) and compares it with
+#             the SHA's alembic head (infra/scripts/migration_heads.py, stdlib only).
+#             backup=true when they differ, when either is unknown, or on force_backup
+#             (workflow_dispatch input, a tag ending in `-force-backup`, or the repo
+#             variable FASTTRACK_FORCE_BACKUP=true).
+#   backup    ONLY when plan says backup=true (otherwise skipped, and a skipped
+#             backup counts as success for check/deploy; a FAILED one stops them).
+#             The daily juli-db-backup.timer dump on the VPS is the standing recovery
+#             point. infra/scripts/backup-database.sh (copied from the SHA) does a
+#             pg_dump of the production database ON THE VPS, verified (non-empty,
 #             above a size floor, `pg_restore --list` readable, and the TOC carries
 #             the data of alembic_version / users / shops / tiktok_credentials).
 #             Any failure fails the job, so check and deploy never run and no
@@ -36,8 +46,8 @@ name: Fast-track deploy
 #   deploy    the existing VPS path: infra/scripts/deploy.sh <sha> over SSH, exactly
 #             as release.yml's `deploy` job runs it (same secrets, same environment).
 #             Migrations run inside deploy.sh (additive gate + safe-alembic-upgrade.sh,
-#             which takes its own second pre-migration dump) — only after backup and
-#             check succeeded. If the demo lane changed, the built tarball is copied
+#             which takes its own pre-migration dump only when a migration is
+#             pending) — only after backup (or its skip) and check succeeded. If the demo lane changed, the built tarball is copied
 #             to the VPS and handed to deploy.sh as DEMO_ARTIFACT_TARBALL, so the demo
 #             lane (deploy-demo-release.sh) runs after the API lane, as in release.yml.
 #             Landing is built and handed over the same way (LANDING_ARTIFACT_TARBALL),
@@ -49,7 +59,10 @@ name: Fast-track deploy
 #     `main` -- the default branch -- is frozen. The tagged commit must be on the
 #     fast-track branch (validate + the VPS re-check refuse anything else).
 #       git tag fasttrack-deploy-$(date -u +%Y%m%dT%H%MZ) <sha> && git push origin <tag>
-#   - workflow_dispatch, once this file exists on the default branch.
+#     Force the backup job on a tag push by ending the tag in `-force-backup`:
+#       git tag fasttrack-deploy-$(date -u +%Y%m%dT%H%MZ)-force-backup <sha> && git push origin <tag>
+#   - workflow_dispatch, once this file exists on the default branch (input
+#     force_backup).
 # Never triggers on a branch push.
 
 on:
@@ -69,6 +82,12 @@ on:
         required: false
         default: origin/main
         type: string
+      force_backup:
+        description: >-
+          Run the pre-deploy backup even when the deploy carries no migration (P62-A).
+        required: false
+        default: false
+        type: boolean
 
 # Shared with release.yml (push to main => group release-refs/heads/main) and
 # rollback.yml: all three mutate the same VPS release pool and nginx upstreams, so
@@ -339,23 +358,107 @@ jobs:
       - name: Bandit (fail on medium+ severity)
         run: bandit -r backend/src/juli_backend -ll
 
-  # D8 step 1. Runs on the VPS because that is where production DB access lives:
-  # /etc/juli/api.env holds the URLs, and safe-alembic-upgrade.sh / restore-drill.sh
-  # already dump and restore there. Reuses the LIVE release's venv and its
-  # safe_alembic_helpers.py, so the owner-role check and URL resolution are exactly
-  # the ones the migration path uses (#1575: never dump as the RLS-bound runtime
-  # role, which "succeeds" with zero rows). The file is named juli-pre-migrate-*.dump
-  # in ~/backups so the existing rotation and the weekly restore drill cover it.
-  backup:
-    name: Back up the production database
+  # P62-A (D72.1). Every deploy used to take a full pg_dump here AND another in
+  # safe-alembic-upgrade.sh: ~300 dumps in a cycle, most of Supabase's egress. The
+  # backup exists to protect a migration, so it runs only when the SHA's alembic
+  # head differs from what production is stamped at. Fails toward a backup: an
+  # unreadable production revision or a target with several heads answers true.
+  plan:
+    name: Does this deploy carry a migration?
     runs-on: ubuntu-latest
     needs: validate
     environment: production
+    outputs:
+      backup: ${{ steps.decide.outputs.backup }}
+      reason: ${{ steps.decide.outputs.reason }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+      # The live release's venv and helper, exactly as the backup job uses them.
+      # Prints one marker line; everything else is diagnostics.
+      - name: Read production's alembic revision on the VPS
+        id: prod
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script_stop: true
+          command_timeout: 5m
+          capture_stdout: true
+          script: |
+            set -euo pipefail
+            LIVE="$(readlink -f "${HOME}/releases/current" || true)"
+            REV=""
+            if [ -n "${LIVE}" ] && [ -x "${LIVE}/.venv/bin/python" ]; then
+              set -a; . /etc/juli/api.env; set +a
+              REV="$(PYTHONPATH="${LIVE}/infra/scripts" "${LIVE}/.venv/bin/python" \
+                "${LIVE}/infra/scripts/safe_alembic_helpers.py" current-revision 2>/dev/null || true)"
+            fi
+            echo "PRODUCTION_ALEMBIC_REVISION=${REV}"
+      - name: Decide
+        id: decide
+        env:
+          PROD_STDOUT: ${{ steps.prod.outputs.stdout }}
+          FORCE_INPUT: ${{ inputs.force_backup && 'true' || 'false' }}
+          FORCE_VAR: ${{ vars.FASTTRACK_FORCE_BACKUP || 'false' }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          rev="$(printf '%s\n' "${PROD_STDOUT}" | sed -n 's/^PRODUCTION_ALEMBIC_REVISION=//p' | tail -n 1 | tr -d '[:space:]')"
+          force=()
+          if [[ "${FORCE_INPUT}" == "true" || "${FORCE_VAR}" == "true" || "${REF_NAME}" == *-force-backup ]]; then
+            force=(--force)
+          fi
+          echo "production alembic revision: ${rev:-<unknown>}"
+          echo "target heads: $(python3 infra/scripts/migration_heads.py heads \
+            --migrations-dir backend/src/juli_backend/database/migrations/versions | tr '\n' ' ')"
+          python3 infra/scripts/migration_heads.py decide \
+            --migrations-dir backend/src/juli_backend/database/migrations/versions \
+            --production-revision "${rev}" "${force[@]}" | tee -a "$GITHUB_OUTPUT"
+
+  # D8 step 1. Runs on the VPS because that is where production DB access lives:
+  # /etc/juli/api.env holds the URLs, and safe-alembic-upgrade.sh / restore-drill.sh
+  # already dump and restore there. Uses the LIVE release's venv and its
+  # safe_alembic_helpers.py, so the owner-role check and URL resolution are exactly
+  # the ones the migration path uses (#1575: never dump as the RLS-bound runtime
+  # role, which "succeeds" with zero rows). The dump + verify logic is
+  # infra/scripts/backup-database.sh, shared with the daily juli-db-backup.timer
+  # (P62-A); it is copied from the SHA being deployed, so the first deploy that
+  # ships it does not depend on the live release already having it. The file is
+  # named juli-pre-migrate-*-fasttrack-<short>.dump in ~/backups so the rotation
+  # and the weekly restore drill cover it.
+  # P62-A: runs only when `plan` says so; skipped otherwise (see check's `if`).
+  backup:
+    name: Back up the production database
+    runs-on: ubuntu-latest
+    needs: plan
+    if: needs.plan.outputs.backup == 'true'
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          sparse-checkout: infra/scripts/backup-database.sh
+          sparse-checkout-cone-mode: false
+      - name: Copy backup-database.sh to the VPS
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          source: infra/scripts/backup-database.sh
+          target: fasttrack-artifacts
+          strip_components: 2
+          overwrite: true
       - name: pg_dump on the VPS and verify it
         uses: appleboy/ssh-action@v1.2.5
         env:
           SHA: ${{ inputs.sha || github.sha }}
+          REASON: ${{ needs.plan.outputs.reason }}
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
@@ -363,69 +466,28 @@ jobs:
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script_stop: true
           command_timeout: 30m
-          envs: SHA
+          envs: SHA,REASON
           script: |
             set -euo pipefail
-            umask 077
-            fail() { echo "BACKUP FAILED: $*" >&2; exit 1; }
-
-            API_ENV_FILE=/etc/juli/api.env
-            BACKUP_DIR="${HOME}/backups"
-            MIN_MB=1
+            echo "backup reason: ${REASON}"
             LIVE="$(readlink -f "${HOME}/releases/current" || true)"
-            [ -n "${LIVE}" ] && [ -d "${LIVE}" ] || fail "no live API release at ~/releases/current"
-            PY="${LIVE}/.venv/bin/python"
-            HELPER="${LIVE}/infra/scripts/safe_alembic_helpers.py"
-            [ -x "${PY}" ] || fail "live release venv python missing: ${PY}"
-            [ -f "${HELPER}" ] || fail "helper missing: ${HELPER}"
-            [ -f "${API_ENV_FILE}" ] || fail "${API_ENV_FILE} missing"
-            command -v pg_dump >/dev/null || fail "pg_dump not installed"
-            command -v pg_restore >/dev/null || fail "pg_restore not installed"
-
-            set -a; . "${API_ENV_FILE}"; set +a
-            export PYTHONPATH="${LIVE}/infra/scripts:${PYTHONPATH:-}"
-
-            # Owner role or nothing: under RLS a runtime-role dump is valid and empty.
-            PRIV="$("${PY}" "${HELPER}" verify-migration-privileges 2>&1)" || fail "${PRIV}"
-            echo "migration privileges: ${PRIV}"
-
-            DB_BYTES="$("${PY}" "${HELPER}" estimate-db-bytes)" || fail "could not reach the database"
-            mkdir -p "${BACKUP_DIR}"
-            NEED=$(( DB_BYTES * 3 / 2 + 512 * 1024 * 1024 ))
-            HAVE=$(( $(df -Pk "${BACKUP_DIR}" | awk 'NR==2 {print $4}') * 1024 ))
-            echo "database ~$(( DB_BYTES / 1048576 )) MiB; need ~$(( NEED / 1048576 )) MiB free, have ~$(( HAVE / 1048576 )) MiB"
-            [ "${HAVE}" -ge "${NEED}" ] || fail "insufficient disk space in ${BACKUP_DIR}"
-
-            URL="$("${PY}" "${HELPER}" migration-db-url)"
-            TS="$(date -u +%Y%m%dT%H%M%SZ)"
-            FILE="${BACKUP_DIR}/juli-pre-migrate-${TS}-fasttrack-${SHA:0:7}.dump"
-            PARTIAL="${FILE}.partial"
-            trap 'rm -f "${PARTIAL}" "${PARTIAL}.toc"' EXIT
-            echo "pg_dump -Fc -> ${FILE}"
-            pg_dump -Fc -f "${PARTIAL}" "${URL}" || fail "pg_dump exited non-zero"
-
-            # Verify before the file earns its final name.
-            [ -s "${PARTIAL}" ] || fail "dump is empty"
-            BYTES="$(wc -c < "${PARTIAL}" | tr -d ' ')"
-            "${PY}" "${HELPER}" verify-backup-size-floor --bytes "${BYTES}" --min-mb "${MIN_MB}" \
-              || fail "dump is ${BYTES} bytes, below the ${MIN_MB} MB floor"
-            pg_restore --list "${PARTIAL}" > "${PARTIAL}.toc" || fail "pg_restore --list cannot read the dump"
-            DATA_ENTRIES="$(grep -c ' TABLE DATA ' "${PARTIAL}.toc" || true)"
-            [ "${DATA_ENTRIES}" -ge 10 ] || fail "dump TOC has only ${DATA_ENTRIES} TABLE DATA entries"
-            for t in alembic_version users shops tiktok_credentials; do
-              grep -qE " TABLE DATA public ${t} " "${PARTIAL}.toc" \
-                || fail "dump TOC has no data for public.${t}"
-            done
-            mv -f "${PARTIAL}" "${FILE}"
-            ( cd "${BACKUP_DIR}" && sha256sum "$(basename "${FILE}")" > "$(basename "${FILE}").sha256" )
-            echo "BACKUP OK: ${FILE} (${BYTES} bytes, ${DATA_ENTRIES} TABLE DATA entries)"
-            echo "sha256: $(cut -d' ' -f1 "${FILE}.sha256")"
-            echo "restore (owner, see safe-alembic-upgrade.sh): pg_restore -e -d \"\${DATABASE_DIRECT_URL}\" --clean --if-exists ${FILE}"
+            [ -n "${LIVE}" ] && [ -d "${LIVE}" ] || { echo "BACKUP FAILED: no live API release at ~/releases/current" >&2; exit 1; }
+            RELEASE_DIR="${LIVE}" API_ENV_FILE=/etc/juli/api.env BACKUP_DIR="${HOME}/backups" \
+              BACKUP_LABEL="fasttrack-${SHA:0:7}" \
+              bash "${HOME}/fasttrack-artifacts/backup-database.sh"
 
   check:
     name: fasttrack/check.sh
     runs-on: ubuntu-latest
-    needs: backup
+    needs: [plan, backup]
+    # P62-A: a SKIPPED backup (no migration) counts as success; a FAILED or
+    # cancelled one does not. Without an explicit `if`, a skipped need skips this
+    # job too. plan must have succeeded, so "skipped" can only mean "not needed".
+    if: >-
+      !cancelled()
+      && needs.plan.result == 'success'
+      && (needs.backup.result == 'success'
+          || (needs.backup.result == 'skipped' && needs.plan.outputs.backup == 'false'))
     services:
       postgres:
         image: postgres:16
@@ -492,6 +554,16 @@ jobs:
     name: Deploy to the VPS
     runs-on: ubuntu-latest
     needs: [check, build, frontend, backend-unit, static]
+    # The implicit success() fails as soon as ANY ancestor was skipped (a skipped
+    # backup, P62-A), so every direct need is checked explicitly instead. check
+    # itself only runs when backup succeeded or was legitimately skipped.
+    if: >-
+      !cancelled()
+      && needs.check.result == 'success'
+      && needs.build.result == 'success'
+      && needs.frontend.result == 'success'
+      && needs.backend-unit.result == 'success'
+      && needs.static.result == 'success'
     environment: production
     steps:
       # The demo tarball built above, copied to the VPS with the same host/user/key/

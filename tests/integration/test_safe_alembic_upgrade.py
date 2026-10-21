@@ -20,7 +20,9 @@ from sqlalchemy import create_engine, text
 from juli_backend.core.config.runtime import sync_database_url
 from juli_backend.database.token_crypto import ENCRYPTED_TOKEN_PREFIX, encrypt_token
 
-pytestmark = pytest.mark.migration_heavy
+# Each test resets the schema (downgrade base + upgrade head), which alone can
+# exceed pytest.ini's 30 s default on a cold or loaded machine.
+pytestmark = [pytest.mark.migration_heavy, pytest.mark.timeout(300)]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "infra/scripts"
@@ -446,6 +448,9 @@ def test_disk_space_preflight_aborts_before_migration(
 ):
     backup_dir = tmp_path / "backups"
     backup_dir.mkdir()
+    # The disk preflight guards the pre-migrate dump, which is only taken when a
+    # migration is pending (P62-A) — so make one pending.
+    _write_test_migration(allowlisted=True)
     # Force required bytes above available by setting a huge margin.
     result = _run_safe_upgrade(
         env={
@@ -460,6 +465,29 @@ def test_disk_space_preflight_aborts_before_migration(
     combined = result.stdout + result.stderr
     assert result.returncode != 0
     assert "insufficient disk space" in combined
+    assert not list(backup_dir.glob("juli-pre-migrate-*.dump"))
+    with postgres_at_head.connect() as conn:
+        rev = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+    assert rev != TEST_REV
+
+
+@requires_postgres
+def test_no_pending_migration_skips_the_dump(
+    postgres_at_head, release_layout: Path, tmp_path: Path, postgres16_cli: Path
+):
+    """P62-A (D72.1): at head, no pg_dump and no disk preflight; the run still passes."""
+    backup_dir = tmp_path / "backups"
+    result = _run_safe_upgrade(
+        env={"DATABASE_URL": _database_url(), "DISK_MARGIN_MB": "9999999"},
+        backup_dir=backup_dir,
+        release_dir=REPO_ROOT,
+        api_env_file=release_layout,
+        pg_cli_dir=postgres16_cli,
+    )
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "no pending migration — pre-migrate dump skipped" in combined
+    assert "pending: []" in combined
     assert not list(backup_dir.glob("juli-pre-migrate-*.dump"))
 
 

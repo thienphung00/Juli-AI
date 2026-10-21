@@ -24,6 +24,25 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   produced for fasttrack deploys — speed — first deploy from `main` after merge
   runs the full release.
 
+## P62-A (D72.1) fewer dumps
+
+- [ ] A migration deploy still dumps twice (the `backup` job, then
+  `safe-alembic-upgrade.sh`'s pre-migrate dump ~10–20 min later) — D72.1 keeps both
+  — if migration deploys are frequent, let safe-alembic-upgrade.sh skip its dump when
+  a verified `-fasttrack-<short>` dump of the same SHA is younger than N minutes.
+- [ ] Rotation is duplicated in `safe-alembic-upgrade.sh` and `backup-database.sh`
+  (same glob, same 14-day/`KEEP_BACKUPS` policy) — finishing first — factor into
+  `infra/scripts/lib/` when either changes.
+- [ ] `plan` needs `environment: production` for the SSH secrets: if that
+  environment has required reviewers, a deploy now asks for one more approval —
+  check on the first deploy; if so, move the VPS secrets to repo level for `plan`
+  or fold `plan` into `backup` with a step-level skip.
+- [ ] Per-dump egress not yet measured (estimate 35–70 MB) — read the first
+  `DUMP_SIZE label=daily bytes=…` line in `journalctl -u juli-db-backup` and tune
+  `BACKUP_MIN_INTERVAL_HOURS`.
+- [ ] `juli-db-backup.timer` is installed by hand, like `juli-restore-drill.timer`
+  — `deploy.sh` installs only lane units — consider a one-shot timer installer.
+
 ## P1 shortcuts and open risks
 
 - [ ] A-33/A-31/A-36 returning daily intervals over a multi-day range is

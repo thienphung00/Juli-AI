@@ -802,7 +802,8 @@ sudo chmod 700 /etc/juli
 | `TIKTOK_TOKEN_ENCRYPTION_KEY` | Secure secrets backup separate from AWS (break-glass) |
 | `deploy-history.log` | Included in VPS snapshot or periodic copy |
 | Database | Supabase managed backups |
-| Pre-migration dumps | `safe-alembic-upgrade.sh` writes `~/backups/juli-pre-migrate-*.dump` on every deploy migration |
+| Pre-migration dumps | `safe-alembic-upgrade.sh` writes `~/backups/juli-pre-migrate-*.dump` only when a deploy has a pending migration (P62-A, D72.1); the fast-track `backup` job writes `…-fasttrack-<short>.dump` only for deploys that carry a migration (or `force_backup`) |
+| Scheduled dumps | `juli-db-backup.timer` (daily 19:30 UTC) runs `backup-database.sh`, which dumps `~/backups/juli-pre-migrate-*-daily.dump` when the newest dump is ≥ `BACKUP_MIN_INTERVAL_HOURS` (72) old; install steps in `fasttrack/README.md` "Database dumps" |
 
 #### Weekly restore drill (VPS-local)
 
@@ -890,7 +891,7 @@ causes:
 | `pg_restore failed` on a **corrupt/truncated** file | Bad or incomplete dump on disk | **Yes, if newer dumps exist** — check whether rotation removed the only good copy |
 | `pg_restore failed` on the **latest** dump after a recent deploy | Possible dump corruption during deploy | **Treat seriously** — run a manual restore drill after fixing disk/permissions |
 | `token decrypt verification failed after restore` | `TIKTOK_TOKEN_ENCRYPTION_KEY` mismatch or corrupt credential rows in dump | Backups may restore schema/data but tokens need key alignment |
-| `no juli-pre-migrate-*.dump backups found` | Empty `BACKUP_DIR` or rotation deleted all dumps | No recent local dumps — rely on Supabase managed backups until deploy creates a new dump |
+| `no juli-pre-migrate-*.dump backups found` | Empty `BACKUP_DIR` or rotation deleted all dumps (is `juli-db-backup.timer` enabled?) | No recent local dumps — `systemctl start juli-db-backup.service` (set `BACKUP_MIN_INTERVAL_HOURS=0` to force), else rely on Supabase managed backups |
 
 To tell drill failure from backup rot: confirm the resolved backup path logged at drill start
 still exists (`ls -la <path>`) and manually `pg_restore` into a scratch DB during a maintenance

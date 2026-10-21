@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Wrap `alembic upgrade head` with pre-migration backup, row-count snapshots,
-# post-migration verification, and backup rotation.
+# post-migration verification, and backup rotation. The pre-migration backup is
+# taken only when a migration is pending (P62-A, D72.1); with nothing pending the
+# script logs "no pending migration — pre-migrate dump skipped" and continues.
 #
 # Intended for deploy-release.sh on the VPS. Requires pg_dump, python3 with
 # juli_backend installed (release .venv), and DATABASE_URL in API_ENV_FILE.
@@ -99,22 +101,38 @@ if ! DB_BYTES="$("${HELPER[@]}" estimate-db-bytes 2>/tmp/_estimate_err)"; then
     fail "could not estimate database size (check DATABASE_URL connectivity)"
 fi
 rm -f /tmp/_estimate_err
-ESTIMATED_DUMP_BYTES=$(( DB_BYTES * 3 / 2 ))
-MARGIN_BYTES=$(( DISK_MARGIN_MB * 1024 * 1024 ))
-REQUIRED_BYTES=$(( ESTIMATED_DUMP_BYTES + MARGIN_BYTES ))
-
-mkdir -p "${BACKUP_DIR}"
-AVAILABLE_KB="$(df -Pk "${BACKUP_DIR}" | awk 'NR==2 {print $4}')"
-AVAILABLE_BYTES=$(( AVAILABLE_KB * 1024 ))
-log "database size ~$(( DB_BYTES / 1024 / 1024 )) MiB; require ~$(( REQUIRED_BYTES / 1024 / 1024 )) MiB free in ${BACKUP_DIR} (have ~$(( AVAILABLE_BYTES / 1024 / 1024 )) MiB)"
-if [ "${AVAILABLE_BYTES}" -lt "${REQUIRED_BYTES}" ]; then
-    fail "insufficient disk space in ${BACKUP_DIR}: need ${REQUIRED_BYTES} bytes, have ${AVAILABLE_BYTES} bytes"
-fi
 
 FROM_REV="$("${HELPER[@]}" current-revision)"
 HEAD_REV="$("${HELPER[@]}" head-revision --alembic-ini "${RELEASE_DIR}/alembic.ini")"
 PENDING_JSON="$("${HELPER[@]}" pending-revisions --alembic-ini "${RELEASE_DIR}/alembic.ini" --from-revision "${FROM_REV}")"
 log "alembic revision before: ${FROM_REV:-<base>} -> target head: ${HEAD_REV}; pending: ${PENDING_JSON}"
+
+# P62-A (D72.1): the pre-migrate dump is taken only when a migration is pending.
+# Every deploy used to dump unconditionally, ~4 full copies of production a day
+# through Supabase egress for deploys that changed no schema. With nothing
+# pending `alembic upgrade head` is a no-op, so there is nothing for this dump to
+# protect; the daily juli-db-backup.timer dump is the standing recovery point.
+# Anything other than an exact empty list (including an unreadable revision,
+# which pending-revisions turns into the whole history) still dumps, fail-closed.
+if [ "$(printf '%s' "${PENDING_JSON}" | tr -d '[:space:]')" = "[]" ]; then
+    MIGRATION_PENDING=false
+else
+    MIGRATION_PENDING=true
+fi
+
+if [ "${MIGRATION_PENDING}" = true ]; then
+    ESTIMATED_DUMP_BYTES=$(( DB_BYTES * 3 / 2 ))
+    MARGIN_BYTES=$(( DISK_MARGIN_MB * 1024 * 1024 ))
+    REQUIRED_BYTES=$(( ESTIMATED_DUMP_BYTES + MARGIN_BYTES ))
+
+    mkdir -p "${BACKUP_DIR}"
+    AVAILABLE_KB="$(df -Pk "${BACKUP_DIR}" | awk 'NR==2 {print $4}')"
+    AVAILABLE_BYTES=$(( AVAILABLE_KB * 1024 ))
+    log "database size ~$(( DB_BYTES / 1024 / 1024 )) MiB; require ~$(( REQUIRED_BYTES / 1024 / 1024 )) MiB free in ${BACKUP_DIR} (have ~$(( AVAILABLE_BYTES / 1024 / 1024 )) MiB)"
+    if [ "${AVAILABLE_BYTES}" -lt "${REQUIRED_BYTES}" ]; then
+        fail "insufficient disk space in ${BACKUP_DIR}: need ${REQUIRED_BYTES} bytes, have ${AVAILABLE_BYTES} bytes"
+    fi
+fi
 
 PRE_COUNTS="$("${HELPER[@]}" row-counts)"
 log "pre-migration row counts: ${PRE_COUNTS}"
@@ -137,28 +155,40 @@ log "pre-migration row counts: ${PRE_COUNTS}"
 # are taken the connection is the owner and a zero is a real zero. With a real
 # baseline, `after < before` catches genuine loss, which is what it was for.
 
-TS="$(date -u +%Y%m%dT%H%M%SZ)"
-# -Fc (custom format): smaller/faster restore than plain SQL for typical OLTP DBs;
-# tradeoff: requires pg_restore instead of psql, not human-readable in an editor.
-BACKUP_FILE="${BACKUP_DIR}/juli-pre-migrate-${TS}.dump"
-log "starting pg_dump to ${BACKUP_FILE} (-Fc custom format)"
-
 # Vouch for the connection BEFORE anything depends on it. Separate from
 # resolving the URL: a pure resolver that opens a connection makes every caller
-# pay for it and fail in the wrong place.
+# pay for it and fail in the wrong place. Runs whether or not a dump follows:
+# it also guards the migration and the meaning of the row counts.
 if ! PRIV_JSON="$("${HELPER[@]}" verify-migration-privileges 2>&1)"; then
     fail "${PRIV_JSON}"
 fi
 log "migration privileges: ${PRIV_JSON}"
-MIGRATION_URL="$("${HELPER[@]}" migration-db-url)"
-if ! pg_dump -Fc -f "${BACKUP_FILE}" "${MIGRATION_URL}"; then
-    rm -f "${BACKUP_FILE}"
-    fail "pg_dump failed — aborting before alembic upgrade"
+
+BACKUP_FILE=""
+if [ "${MIGRATION_PENDING}" = true ]; then
+    TS="$(date -u +%Y%m%dT%H%M%SZ)"
+    # -Fc (custom format): smaller/faster restore than plain SQL for typical OLTP DBs;
+    # tradeoff: requires pg_restore instead of psql, not human-readable in an editor.
+    BACKUP_FILE="${BACKUP_DIR}/juli-pre-migrate-${TS}.dump"
+    log "starting pg_dump to ${BACKUP_FILE} (-Fc custom format)"
+    MIGRATION_URL="$("${HELPER[@]}" migration-db-url)"
+    if ! pg_dump -Fc -f "${BACKUP_FILE}" "${MIGRATION_URL}"; then
+        rm -f "${BACKUP_FILE}"
+        fail "pg_dump failed — aborting before alembic upgrade"
+    fi
+    BACKUP_SIZE="$(wc -c < "${BACKUP_FILE}" | tr -d ' ')"
+    log "pg_dump complete: ${BACKUP_FILE} (${BACKUP_SIZE} bytes)"
+else
+    log "no pending migration — pre-migrate dump skipped"
 fi
-BACKUP_SIZE="$(wc -c < "${BACKUP_FILE}" | tr -d ' ')"
-log "pg_dump complete: ${BACKUP_FILE} (${BACKUP_SIZE} bytes)"
 
 print_restore_command() {
+    if [ -z "${BACKUP_FILE}" ]; then
+        log "No pre-migrate dump was taken (no migration was pending). The newest dump is:"
+        log "  ${VENV_PYTHON} ${SCRIPT_DIR}/safe_alembic_helpers.py latest-backup --backup-dir ${BACKUP_DIR}"
+        log "Restore it as described in docs/runbooks/rollback-runbook.md (owner role, pg_restore -e --clean --if-exists)."
+        return 0
+    fi
     log "To restore data from this backup (human review required — migration may have partially applied):"
     log "  Restore AS THE OWNER (DATABASE_DIRECT_URL), never as the runtime role."
     log "  Use NEITHER --no-owner NOR --no-acl. Both were measured to be harmful:"

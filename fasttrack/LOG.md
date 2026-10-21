@@ -2651,3 +2651,34 @@ Branch `fasttrack/p48b-reach-strip-1` (from `fasttrack/optimize-product` 081dfca
   vitest 1204 passed / 4 failed under machine load (ops-pages 30 s timeouts, no-shop-sample);
   those files rerun alone: 36 passed. Under load (avg 30-70 from sibling agents) single runs
   also hit pytest's 30 s timeout in Postgres fixture setup; every one passed on rerun.
+
+## 2026-10-21 — agent (Claude Opus) — P62-A fewer dumps (branch `fasttrack/p62-a-dumps`, not merged)
+
+- D72.1. `safe-alembic-upgrade.sh`: pre-migrate dump (and its disk preflight) only when
+  `pending-revisions` is non-empty; else logs `no pending migration — pre-migrate dump skipped`.
+  Fail-closed unchanged when pending (dump failure / low disk abort before `alembic upgrade`).
+  `safe-alembic-upgrade-local.sh` untouched (manual developer tool, no automated caller).
+- `fasttrack-deploy.yml`: new `plan` job (SSH reads production `alembic current`; stdlib
+  `infra/scripts/migration_heads.py` computes the SHA's head from the migration files' AST) →
+  `backup` runs only if `backup=true` (differs / unknown / several heads / force). `force_backup`:
+  workflow_dispatch boolean, tag suffix `-force-backup`, or repo variable `FASTTRACK_FORCE_BACKUP`.
+  `check` and `deploy` carry explicit `if: !cancelled() && <each need>.result == 'success'` (check
+  also accepts backup `skipped` only when plan said false), so a skipped backup passes, a failed or
+  cancelled one blocks. P55 gates unchanged. actionlint clean.
+- `infra/scripts/backup-database.sh` (dump + verify + rotation, shared by the job and the timer);
+  `juli-db-backup.{service,timer}`: timer daily 19:30 UTC, script dumps only if the newest dump is
+  >= `BACKUP_MIN_INTERVAL_HOURS` (72) old; logs `DUMP_SIZE label=… bytes=…`.
+- Tests: `tests/unit/test_backup_dump_policy.py` 46 (heads vs alembic, decide, workflow
+  `if` evaluation, fake-VPS shell runs of both scripts, units). Real Postgres 16 (:55461):
+  `tests/integration/test_safe_alembic_upgrade.py` 6 passed (incl. new no-pending-skips-dump; the
+  disk-preflight test now makes a migration pending), run with a stub `docker` so the pg16 CLIs are
+  native; added a 300 s timeout (30 s default timed out the per-test schema reset).
+- Verified: ruff + format clean, mypy --strict on migration_heads.py, shellcheck clean. Full
+  `tests/unit -m "not live"` after the P61-B merge: 7953 passed, 245 skipped, 2 xfailed, 1 failed
+  (`test_slow_backing_store_does_not_stall_the_event_loop`, known load timing test). check.sh
+  (--since fasttrack/optimize-product, 097 head): migrations PASS, isolation 12 passed, gitleaks
+  PASS, ruff PASS, pytest 51 passed. Merged P62-B/P61-D (098 head) afterwards; only PROGRESS conflicted.
+- Egress estimate: 35–70 MB per full dump (coordinator figure; not measured — first `DUMP_SIZE`
+  line will tell). Before: ~2 dumps/deploy x ~4 deploys/day = 8 dumps/day ≈ 280–560 MB/day.
+  After: scheduled 1 per 3 days ≈ 12–23 MB/day (≈ 0.35–0.7 GB/month) + 2 dumps only on deploys with
+  a migration.

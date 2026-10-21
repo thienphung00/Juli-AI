@@ -28,6 +28,7 @@ Workflow: `.github/workflows/rollback.yml`. Mô phỏng (không cần production
   bị **dừng có chủ ý**, nên `systemctl is-active juli-api` = inactive là bình thường.
 - `juli-web` (dashboard cũ, :3000) đã nghỉ hẳn: không còn unit, không còn secret.
 - Timer: `juli-secrets-refresh` (hằng ngày), `juli-restore-drill` (CN 03:00),
+  `juli-db-backup` (hằng ngày 19:30 UTC, dump mỗi 3 ngày — P62-A),
   `juli-cloudflare-ip-refresh` (mỗi giờ). Rollback không đụng các timer.
 
 **Release là gì.** `~/releases/<short-sha>/` là một git worktree dùng chung cho cả ba
@@ -157,6 +158,11 @@ mọi thứ): đây là **quyết định riêng của owner**, không có gì t
 2. Chỉ khi buộc phải: restore bản dump đã verify trước deploy
    `~/backups/juli-pre-migrate-<utc>-fasttrack-<short>.dump` (job `backup` của
    `fasttrack-deploy.yml` tạo; có file `.sha256` bên cạnh; log job in sẵn lệnh restore).
+   Từ P62-A (D72.1) job `backup` **chỉ chạy khi deploy mang migration** (hoặc
+   `force_backup`), và `safe-alembic-upgrade.sh` chỉ dump khi có migration pending. Deploy
+   không có migration thì không có dump riêng: dùng bản mới nhất trong `~/backups`
+   (`juli-pre-migrate-<utc>-daily.dump` của `juli-db-backup.timer`, tối đa ~3 ngày tuổi) —
+   nhưng deploy không migration thì cũng không đổi schema, nên hiếm khi cần restore.
    Restore **mất mọi ghi dữ liệu từ lúc dump** (đơn, credential mới, ingest...). Trước
    khi restore: dừng worker + beat, kiểm tra `sha256sum -c`, ghi lại thời điểm; sau đó
    chạy rollback để code khớp với schema đã restore. Ghi quyết định vào
