@@ -48,6 +48,7 @@ def sandbox_config() -> ClientFactoryConfig:
         app_secret="sandbox-app-secret",
         access_token="sandbox-access-token",
         merchant_auth_id=SANDBOX_AUTH_ID,
+        credential_capability="sandbox_write",
         shop_cipher="ROW_sandboxcipher12",
     )
 

@@ -38,8 +38,8 @@ Matches ``__all__`` — re-exports only:
   owns** which may serve a read (#1365). Keyed on the owning shop AND the row's
   capability: a ``SELLER_CONNECT`` credential reads for its own shop and nothing else,
   is returned exactly as stored (never promoted to ``PRODUCTION_READ``), and a
-  ``SANDBOX_WRITE`` row is unreachable through it. There is **no fallback** to the
-  configured production merchant — that fallback is how one merchant's data would be
+  ``SANDBOX_WRITE`` row is unreachable through it. A row carrying a merchant id that a ``sandbox_write`` row also carries is skipped (read from the DB, P61-G). There is **no fallback** to any
+  merchant — that fallback is how one merchant's data would be
   read under another merchant's shop. Holds no state between calls
 - ``NoReadCredentialForShop`` — raised when the shop owns nothing read-capable. Subclasses
   ``database.exceptions.NotFound`` so existing route boundaries answer 404, making a
@@ -49,20 +49,25 @@ Matches ``__all__`` — re-exports only:
 - ``resolve_write_credential_for_shop(session, shop_id)`` — fast track P61-B (D71.2): the
   credential **that shop owns** its production writes are signed with. The capabilities it
   considers are ``PRODUCTION_WRITE_CREDENTIAL_CAPABILITIES`` (the shop's own OAuth rows,
-  ``READ_CAPABILITIES``); it refuses a row without a merchant id and the sandbox merchant's
-  row, and has no fallback. ``NoWriteCredentialForShop`` (a ``NotFound``) when nothing
+  ``READ_CAPABILITIES``); it refuses a row without a merchant id and a row holding a merchant a ``sandbox_write`` row carries, and has no fallback. ``NoWriteCredentialForShop`` (a ``NotFound``) when nothing
   qualifies. Being resolvable never makes a write possible: the ADR-085 gates in
   ``services/execution/production_write_resolver.py`` decide that
 - ``NoWriteCredentialForShop`` — the shop owns nothing write-capable (a ``NotFound``, P61-B)
 - ``PRODUCTION_WRITE_CREDENTIAL_CAPABILITIES`` — the capabilities a shop's own production
   write may be signed with (P61-B); ``SANDBOX_WRITE`` deliberately absent
-- ``resolve_sandbox_write_credential(session)`` — the ``SANDBOX_VN`` ``SANDBOX_WRITE``
-  credential used for write-path validation against the sandbox shop. Raises
-  ``database.exceptions.NotFound`` when none is configured; never falls back to a
-  production credential (#1969 — was reachable at this package root only through
-  ``credential_resolver``'s wildcard re-export, with no ``__all__`` entry of its own,
-  even though ``workers/services/polling/sync.py`` and
-  ``services/agent/composition.py`` already imported it from here)
+- ``resolve_sandbox_write_credential(session)`` — the sandbox write-validation credential,
+  found by its **capability** (``sandbox_write``), never a configured merchant id (P61-G,
+  D71.6). The cross-tenant lookup is migration 099's ``enumerate_sandbox_write_credentials()``
+  (``SECURITY DEFINER``: shop id, merchant id, one ``collides`` boolean); the token is
+  re-read under the owning shop's scope. Raises ``NotFound`` when none exists, and
+  ``SandboxCredentialRefused`` when the row has no merchant id or *collides* with a
+  non-sandbox credential (same merchant id or shop cipher) — the 2026-08-18 defect caught
+  at resolve time from the credentials alone. Never falls back to a production credential
+- ``sandbox_write_merchant_ids(session)`` — merchant ids carried by ``sandbox_write`` rows
+  (from the DB); production resolvers and factories refuse them
+- ``TikTokOAuthService.provision_shop_and_credentials(..., capability=None)`` — the merchant
+  id is the OAuth ``open_id``; the capability is the caller's, else the one this shop's
+  existing credential for that merchant already has, else ``seller_connect``
 - ``mint_oauth_state(user_id, *, secret, flow, now=None) -> str`` — the signed OAuth
   ``state`` (#1970). Wire format unchanged from what this package already produced:
   ``base64url(json) "." hex(HMAC-SHA256(secret, base64url))``. The payload gains

@@ -50,6 +50,7 @@ def sandbox_factory_config() -> ClientFactoryConfig:
         app_secret="app-secret",
         access_token="access-token",
         merchant_auth_id=SANDBOX_AUTH_ID,
+        credential_capability="sandbox_write",
         shop_cipher="ROW_sandboxcipher12",
     )
 
@@ -65,13 +66,14 @@ class TestProductionReadClientFactory:
         correctly. The half that must never relax is this one: the sandbox
         write-validation merchant stays unreachable from every read path.
         """
-        with pytest.raises(ValueError, match="SANDBOX_VN"):
+        with pytest.raises(ValueError, match="sandbox_write"):
             ProductionReadClientFactory().create(
                 ClientFactoryConfig(
                     app_key=factory_config.app_key,
                     app_secret=factory_config.app_secret,
                     access_token=factory_config.access_token,
                     merchant_auth_id=SANDBOX_AUTH_ID,
+                    credential_capability="sandbox_write",
                     shop_cipher=factory_config.shop_cipher,
                 )
             )
@@ -184,7 +186,7 @@ class TestProductionReadClientFactory:
 
 class TestSandboxWriteClientFactory:
     def test_rejects_fujiwa_merchant_auth_id(self, sandbox_factory_config: ClientFactoryConfig):
-        with pytest.raises(ValueError, match="SANDBOX_VN"):
+        with pytest.raises(ValueError, match="sandbox_write credential"):
             SandboxWriteClientFactory().create(
                 ClientFactoryConfig(
                     app_key=sandbox_factory_config.app_key,

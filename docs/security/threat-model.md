@@ -158,7 +158,7 @@ This model assumes a threat actor with network access to the public API, ability
 
 | Control | File | Symbol | Notes |
 |---------|------|--------|-------|
-| Credential resolution | `juli_backend/core/security/credential_resolver.py` | `resolve_production_read_credential()` | Credential lookup enforces scope matching; missing scope → NotFound |
+| Credential resolution | `juli_backend/core/security/credential_resolver.py` | `resolve_read_credential_for_shop()` | Credential lookup enforces scope matching; missing scope → NotFound |
 | Structured logging policy | `juli_backend/core/config/runtime.py` | `require_env()` | Audit logging captures auth decisions; tokens never logged |
 | OAuth callback verification | `juli_backend/api/routes/auth_tiktok.py` | `tiktok_oauth_callback()` | State parameter validated **in production only** (#1748) — see boundary 1's residual risk for the app-review exception. Code exchanged server-side, bearer tokens issued |
 

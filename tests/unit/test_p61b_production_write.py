@@ -26,6 +26,7 @@ No test here reaches TikTok: the HTTP session behind the real guarded client is
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -274,8 +275,16 @@ def _config(merchant: str) -> ClientFactoryConfig:
 
 
 def test_the_factory_refuses_the_sandbox_merchant_and_an_empty_one():
-    with pytest.raises(ValueError, match="SANDBOX_VN"):
-        ProductionWriteClientFactory().create(_config(SANDBOX_AUTH_ID))
+    with pytest.raises(ValueError, match="sandbox_write"):
+        ProductionWriteClientFactory().create(
+            dataclasses.replace(_config(SANDBOX_AUTH_ID), credential_capability="sandbox_write")
+        )
+    with pytest.raises(ValueError, match="carries"):
+        ProductionWriteClientFactory().create(
+            dataclasses.replace(
+                _config(SANDBOX_AUTH_ID), sandbox_merchant_auth_ids=frozenset({SANDBOX_AUTH_ID})
+            )
+        )
     with pytest.raises(ValueError, match="empty"):
         ProductionWriteClientFactory().create(_config(""))
     resources = ProductionWriteClientFactory().create_resources(_config("merchant-b"))
@@ -301,7 +310,22 @@ async def test_the_write_credential_is_the_shops_own(session, shops):
     assert credential.shop_id == shop_b.id
     assert credential.merchant_authorization_id == "merchant-b"
 
-    # A shop whose only credential is the sandbox merchant's has no write credential.
+    # A shop whose only credential carries the merchant id a sandbox_write row carries has
+    # no write credential (the sandbox merchant is read from the DB, P61-G).
+    sandbox_user = User(id=uuid.uuid4(), phone="+84901234598")
+    sandbox_shop = Shop(id=uuid.uuid4(), user_id=sandbox_user.id, shop_name="P61-G sandbox")
+    session.add_all([sandbox_user, sandbox_shop])
+    await session.flush()
+    session.add(
+        TikTokCredential(
+            shop_id=sandbox_shop.id,
+            merchant_authorization_id=SANDBOX_AUTH_ID,
+            capability=TikTokCapability.SANDBOX_WRITE.value,
+            access_token="sandbox-token",
+            refresh_token="r",
+            token_expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=30),
+        )
+    )
     user = User(id=uuid.uuid4(), phone="+84901234599")
     lonely = Shop(id=uuid.uuid4(), user_id=user.id, shop_name="P61-B sandbox-only")
     session.add_all([user, lonely])

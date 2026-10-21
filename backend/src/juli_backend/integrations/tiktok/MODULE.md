@@ -73,15 +73,16 @@ Matches ``__all__`` — re-exports only:
 - **Client factories** — ``ClientFactoryConfig``, ``ProductionReadClientFactory``,
   ``ProductionReadResources``, ``SandboxWriteClientFactory``, ``SandboxWriteResources``.
   Since #1995 ``ProductionReadClientFactory.create`` admits **any** merchant auth id
-  except the sandbox one (and rejects an empty one), so a connecting seller's own
-  read credential can build a client; every client it returns still carries
-  ``ReadOnlyTransportGuard``. ``SandboxWriteClientFactory`` keeps its identity
-  equality against ``SANDBOX_AUTH_ID`` — there is one sandbox merchant and no
-  per-seller analogue of it
+  (rejects an empty one), so a connecting seller's own read credential can build a client;
+  every client it returns still carries ``ReadOnlyTransportGuard``. Since P61-G (D71.6) the
+  factories decide from the credential, never a configured id: ``ClientFactoryConfig`` carries
+  ``credential_capability`` plus the optional DB-derived ``sandbox_merchant_auth_ids`` /
+  ``production_merchant_auth_ids``. The production factories refuse a ``sandbox_write``
+  credential and any merchant a ``sandbox_write`` row carries; ``SandboxWriteClientFactory``
+  requires ``credential_capability == "sandbox_write"`` (unset fails closed) and a non-empty merchant
 - **Production write (fast track P61-B, D71.2)** — ``ProductionWriteClientFactory``,
   ``ProductionWriteResources`` (``products`` only). Builds a client for a seller's
-  OWN shop; refuses the sandbox merchant, an empty merchant id and an empty
-  ``SANDBOX_AUTH_ID``. Every client carries ``ProductionWriteGuard``
+  OWN shop; refuses a ``sandbox_write`` credential, a merchant a sandbox row carries, and an empty merchant id. Every client carries ``ProductionWriteGuard``
   (``PRODUCTION_WRITE_ALLOWED_REQUESTS``, ``is_production_write_allowed``: product detail / SEO /
   suggestion GETs, the listing edit PUT, the image upload POST — a strict subset
   of the sandbox allowlist; no price update, no product create, D13). Whether a
@@ -89,14 +90,13 @@ Matches ``__all__`` — re-exports only:
   (``services/execution/production_write.py``, the ADR-085 gates)
 - ``PRODUCTION_WRITE_ALLOWED_REQUESTS`` — the production write allowlist (P61-B, above)
 - ``is_production_write_allowed`` — whether a method/path is on it
-- **Merchant isolation** — ``PRODUCTION_AUTH_ID``, ``SANDBOX_AUTH_ID`` (from
-  ``TIKTOK_PRODUCTION_MERCHANT_ID`` / ``TIKTOK_SANDBOX_MERCHANT_ID``; **no default in
-  code since fast track P61-D** — unset is ``""``), ``MerchantIdNotConfigured`` (a
-  ``ValueError`` naming the variable) with ``require_production_auth_id`` /
-  ``require_sandbox_auth_id``: every path that needs an id fails closed with it (both
-  client factories, the poll guard, the configured-merchant resolvers),
+- **Merchant isolation** — **no merchant id is configured or hardcoded (P61-G, D71.6, owner
+  2026-10-21)**: ``PRODUCTION_AUTH_ID`` / ``SANDBOX_AUTH_ID``, ``TIKTOK_*_MERCHANT_ID``,
+  ``MerchantIdNotConfigured``, ``require_*_auth_id``, ``resolve_merchant_context`` and
+  ``is_cross_merchant_lookup`` are removed. A merchant's identity is the credential row's own
+  ``merchant_authorization_id`` from the connect flow; the sandbox is the ``sandbox_write``
+  capability (``core/security``), verified by ``services/tiktok/credential_binding.py``.
   ``TikTokCapability`` (``PRODUCTION_READ`` | ``SANDBOX_WRITE`` | ``SELLER_CONNECT``),
-  ``resolve_merchant_context``, ``is_cross_merchant_lookup``,
   ``READ_CAPABILITIES`` / ``is_read_capability`` — which capabilities may serve a
   read (#1365): a seller's own capability (``SELLER_CONNECT``) is read-capable
   **for its own shop only** and is never promoted to the production one

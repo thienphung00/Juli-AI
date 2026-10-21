@@ -122,7 +122,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.core.config.runtime import sync_database_url
-from juli_backend.core.security import resolve_production_read_credential
+from juli_backend.core.security import NoReadCredentialForShop, resolve_read_credential_for_shop
 from juli_backend.database.exceptions import NotFound
 from juli_backend.integrations.tiktok import ProductionReadResources
 from juli_backend.models.models import Product
@@ -158,7 +158,7 @@ def token_encryption_key():
     `tiktok_credentials` row encrypted with the deployment's real key, so the
     dummy override makes the run structurally impossible -- `decrypt_token`
     (`database/token_crypto.py`) raises `cryptography.fernet.InvalidToken` from
-    inside `resolve_production_read_credential` before any vendor or model call
+    inside `resolve_read_credential_for_shop` before any vendor or model call
     is reached. Overriding by name here (pytest resolves module fixtures ahead
     of conftest ones) leaves the real environment value in place for this module
     only; every other integration test keeps the dummy key.
@@ -300,9 +300,12 @@ async def test_live_readonly_run_reaches_final_response():
 
     try:
         async with async_session_factory() as session:
+            shop_env = os.getenv("JULI_SHOP_ID", "").strip()
+            if not shop_env:
+                pytest.skip("JULI_SHOP_ID is not set; name the connected shop this smoke reads.")
             try:
-                credential = await resolve_production_read_credential(session)
-            except NotFound:
+                credential = await resolve_read_credential_for_shop(session, uuid.UUID(shop_env))
+            except (NotFound, NoReadCredentialForShop):
                 pytest.skip(
                     "No PRODUCTION_READ TikTok credential row provisioned for "
                     "PRODUCTION_AUTH_ID (Fujiwa) in this DATABASE_URL -- run the Fujiwa "

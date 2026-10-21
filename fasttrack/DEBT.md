@@ -1547,3 +1547,17 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   approved" from "not yours".
 - [ ] apps/demo vitest must run on Node 20 (`.nvmrc`); on this Mac's default Node 26, 295 tests
   fail on `localStorage.clear` (jsdom vs Node's own `localStorage`) — environment, not code.
+- [ ] P61-G: no UI/route mints a `sandbox_write` credential. The seller OAuth flow only produces
+  `seller_connect` (or keeps the capability an existing row for that shop+merchant has), so a
+  NEW deployment's sandbox row is an operator action (`provision_shop_and_credentials(...,
+  capability=SANDBOX_WRITE)`). The existing production sandbox row keeps working unchanged.
+- [ ] P61-G: the sandbox credential is now refused when ANY non-sandbox credential shares its
+  merchant id or shop cipher (owner brief). Credential_binding's older note said `seller_connect`
+  and `sandbox_write` once legitimately pointed at one shop; if that is still true in production,
+  sandbox writes fail closed with `SandboxCredentialRefused` until the sandbox shop is reconnected.
+- [ ] P61-G: `enumerate_pollable_shops` (migration 074/094) still takes an `excluded_merchant`
+  argument, now passed empty; the sandbox is excluded by capability, and a mislabelled read row
+  holding the sandbox merchant is refused per shop by `resolve_read_credential_for_shop`.
+- [ ] P61-G: the three operator scripts (`scripts/fujiwa_monthly_kpi_and_diagnosis.py`,
+  `optimize_product_catalog_scan.py`, `optimize_product_strategy_evidence.py`) now need
+  `JULI_SHOP_ID` (the shop to read); they used the deleted configured-merchant resolver.

@@ -108,7 +108,7 @@ async def my_write_tool(payload: dict) -> dict:
     idempotency_key = payload.get("idempotency_key")  # threaded by worker when set
 ```
 
-`load_sandbox_write_resources` resolves `SANDBOX_VN` credentials via
+`load_sandbox_write_resources` resolves the `sandbox_write` credential (by capability, P61-G; nothing configured) via
 `resolve_sandbox_write_credential` and builds resources through `SandboxWriteClientFactory`
 (`integrations/tiktok/factories.py`), which applies `SandboxOnlyWriteGuard` before signing.
 

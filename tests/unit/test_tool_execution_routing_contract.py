@@ -201,7 +201,7 @@ async def test_ac3_failed_execution_records_error_category(
 
 @pytest.mark.asyncio
 async def test_ac4_sandbox_guard_rejects_production_merchant_auth_id(session):
-    """AC4: sandbox write helper enforces SANDBOX_VN merchant auth (#301)."""
+    """AC4: sandbox write helper requires the sandbox_write credential (#301, P61-G)."""
     from juli_backend.integrations.tiktok.factories import (
         ClientFactoryConfig,
         SandboxWriteClientFactory,
@@ -216,5 +216,5 @@ async def test_ac4_sandbox_guard_rejects_production_merchant_auth_id(session):
         access_token="token",
         merchant_auth_id=PRODUCTION_AUTH_ID,
     )
-    with pytest.raises(ValueError, match="SANDBOX_VN"):
+    with pytest.raises(ValueError, match="sandbox_write credential"):
         build_sandbox_write_resources(config, factory=SandboxWriteClientFactory())

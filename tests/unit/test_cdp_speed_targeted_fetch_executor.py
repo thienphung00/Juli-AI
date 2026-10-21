@@ -83,12 +83,10 @@ class TestCredentialBelongsToJob:
         cred.merchant_authorization_id = "seller-merchant"
         assert credential_belongs_to_job(cred, shop_id) is True
 
-    def test_rejects_the_sandbox_merchant_and_a_missing_merchant(self):
-        pass
-
+    def test_rejects_the_sandbox_capability_and_a_missing_merchant(self):
         shop_id = uuid.uuid4()
         sandbox = _credential(shop_id=shop_id)
-        sandbox.merchant_authorization_id = SANDBOX_AUTH_ID
+        sandbox.capability = TikTokCapability.SANDBOX_WRITE.value
         blank = _credential(shop_id=shop_id)
         blank.merchant_authorization_id = None
         assert credential_belongs_to_job(sandbox, shop_id) is False

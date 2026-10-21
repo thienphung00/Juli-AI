@@ -82,17 +82,6 @@ class TestCreate:
         fetched = await session.get(TikTokCredential, created.id)
         assert (fetched.status, fetched.refresh_count) == ("active", 0)
 
-    async def test_rejects_a_cross_merchant_capability_pair(self, session, shop):
-        with pytest.raises(ValueError, match="do not match"):
-            await TikTokCredentialRepo(session).create(
-                shop_id=shop.id,
-                access_token="t",
-                refresh_token="r",
-                token_expires_at=utc_now_naive() + timedelta(days=7),
-                merchant_authorization_id=PRODUCTION_AUTH_ID,
-                capability=TikTokCapability.SANDBOX_WRITE.value,
-            )
-
     async def test_pre_migration_shaped_row_reads_back_none_for_new_nullable_columns(
         self, session, shop
     ):

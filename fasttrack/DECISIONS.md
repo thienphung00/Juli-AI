@@ -1643,3 +1643,10 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   route, its client code, and the Fujiwa-only beats `mock-analytics-hourly-reconcile` and
   `analytics-backfill-topup` are removed if nothing else consumes their output (P61-D); the
   Uptime Check probes `/health` only. Supersedes the "keep demo_analytics.py" line of ADR-112 §6.5.
+  **D71.6 (owner, 2026-10-21).** Merchant ids are NOT hardcoded and NOT configured in env.
+  Every merchant identity comes from the connect flow: the credential row's own
+  `merchant_authorization_id`, verified against `GET /authorization/{v}/shops` by
+  `credential_binding` (distinctness + trust-on-first-use, no pinned ids). The sandbox is the
+  credential whose capability is `sandbox_write`, plus the vendor-verified binding, never a
+  comparison to a configured id. Supersedes D71.4's `TIKTOK_PRODUCTION_MERCHANT_ID` /
+  `TIKTOK_SANDBOX_MERCHANT_ID` requirement (P61-G; migration 099 adds the capability lookup).

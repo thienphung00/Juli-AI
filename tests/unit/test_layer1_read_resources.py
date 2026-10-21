@@ -161,6 +161,7 @@ def test_fujiwa_production_read_factory_only():
             app_secret="app-secret",
             access_token="access-token",
             merchant_auth_id=SANDBOX_AUTH_ID,
+            credential_capability="sandbox_write",
             shop_cipher="ROW_sandboxcipher12",
         )
     )
