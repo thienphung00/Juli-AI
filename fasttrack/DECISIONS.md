@@ -1637,3 +1637,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   before Oct 26 land in the already-exceeded cycle, so they cost no extra. Scheduled VPS dump
   cadence is env-configurable, default every 3 days. Checkpoint 2026-10-28: if daily egress is
   still > 160 MB/day, upgrade to Pro before 2026-11-16.
+  **D72.5 (owner, 2026-10-21).** `/v1/demo/analytics` is retired: apps/demo no longer renders
+  its envelope (pages read `/v1/demo/analysis`; the only call was the "Làm mới Demo" refresh,
+  result unused) and its only regular caller was the Uptime Check (disabled 2026-10-21). The
+  route, its client code, and the Fujiwa-only beats `mock-analytics-hourly-reconcile` and
+  `analytics-backfill-topup` are removed if nothing else consumes their output (P61-D); the
+  Uptime Check probes `/health` only. Supersedes the "keep demo_analytics.py" line of ADR-112 §6.5.
