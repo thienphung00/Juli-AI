@@ -51,7 +51,7 @@ def test_migration_chain_and_definer_shape():
     assert "SECURITY DEFINER" in body and "SET search_path = pg_catalog, public" in body
     assert "REVOKE ALL ON FUNCTION" in body and "TO {APP_ROLE}" in body
     assert "RAISE EXCEPTION" in body  # the floor
-    assert 'down_revision: str | None = "099_sandbox_write_enumeration"' in DEFERRED.read_text(
+    assert 'down_revision: str | None = "100_sandbox_collision_xshop"' in DEFERRED.read_text(
         "utf-8"
     )
 

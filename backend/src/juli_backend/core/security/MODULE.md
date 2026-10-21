@@ -61,7 +61,9 @@ Matches ``__all__`` — re-exports only:
   (``SECURITY DEFINER``: shop id, merchant id, one ``collides`` boolean); the token is
   re-read under the owning shop's scope. Raises ``NotFound`` when none exists, and
   ``SandboxCredentialRefused`` when the row has no merchant id or *collides* with a
-  non-sandbox credential (same merchant id or shop cipher) — the 2026-08-18 defect caught
+  non-sandbox credential of ANOTHER shop (same merchant id or shop cipher; the sandbox shop's
+  own ``seller_connect`` row sharing its cipher is the same shop, not a collision — migration 100,
+  D71.6a) — the 2026-08-18 defect caught
   at resolve time from the credentials alone. Never falls back to a production credential
 - ``sandbox_write_merchant_ids(session)`` — merchant ids carried by ``sandbox_write`` rows
   (from the DB); production resolvers and factories refuse them

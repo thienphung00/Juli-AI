@@ -157,7 +157,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "074_users_placeholder_phone_cleanup"
-down_revision: str | None = "099_sandbox_write_enumeration"
+down_revision: str | None = "100_sandbox_collision_xshop"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

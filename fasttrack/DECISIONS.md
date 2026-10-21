@@ -1650,3 +1650,8 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   credential whose capability is `sandbox_write`, plus the vendor-verified binding, never a
   comparison to a configured id. Supersedes D71.4's `TIKTOK_PRODUCTION_MERCHANT_ID` /
   `TIKTOK_SANDBOX_MERCHANT_ID` requirement (P61-G; migration 099 adds the capability lookup).
+  **D71.6a (owner, 2026-10-21).** A sandbox collision is a non-sandbox credential of a DIFFERENT
+  shop sharing the sandbox row's merchant id or shop cipher (`o.shop_id <> c.shop_id`), not any
+  credential. Production fact: the sandbox shop holds `sandbox_write` (merchant A) and its own
+  `seller_connect` (OAuth open_id B) with one cipher; 099 would have refused it and broken every
+  agent run. The 2026-08-18 invariant (a sandbox row reaching another shop) is unchanged. Migration 100.

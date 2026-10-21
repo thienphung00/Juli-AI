@@ -186,6 +186,26 @@ class TestResolversFromCredentialsAlone:
         with pytest.raises(SandboxCredentialRefused):
             await resolve_sandbox_write_credential(session)
 
+    async def test_same_shop_seller_connect_sharing_the_cipher_is_not_a_collision(self, session):
+        """Production fact 2026-10-21 (D71.6a): the sandbox shop holds sandbox_write (merchant A)
+        AND seller_connect (open_id B) with one shop_cipher -- the same shop, so usable."""
+        sbx = await _shop(session)
+        await _issue(session, sbx, TikTokCapability.SANDBOX_WRITE, "sbx-A", cipher="C-SBX")
+        await _issue(session, sbx, TikTokCapability.SELLER_CONNECT, "oauth-B", cipher="C-SBX")
+        credential = await resolve_sandbox_write_credential(session)
+        assert credential.merchant_authorization_id == "sbx-A"
+        assert credential.shop_id == sbx.id
+
+    async def test_another_shops_credential_sharing_cipher_still_refused_beside_same_shop_row(
+        self, session
+    ):
+        sbx, prod = await _shop(session), await _shop(session)
+        await _issue(session, sbx, TikTokCapability.SANDBOX_WRITE, "sbx-A", cipher="C-SBX")
+        await _issue(session, sbx, TikTokCapability.SELLER_CONNECT, "oauth-B", cipher="C-SBX")
+        await _issue(session, prod, TikTokCapability.SELLER_CONNECT, "prod-1", cipher="C-SBX")
+        with pytest.raises(SandboxCredentialRefused):
+            await resolve_sandbox_write_credential(session)
+
     async def test_a_sandbox_row_with_no_merchant_is_refused(self, session):
         sbx = await _shop(session)
         await _issue(session, sbx, TikTokCapability.SANDBOX_WRITE, None, cipher="C-S")

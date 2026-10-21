@@ -171,3 +171,100 @@ async def test_a_sandbox_row_whose_token_resolves_to_a_production_shop_is_refuse
             await resolve_sandbox_write_credential(session)
         with pytest.raises(SandboxCredentialRefused):
             await load_sandbox_write_resources(session, app_key="k", app_secret="s")
+
+
+def _seed_for_shop(engine, shop_id, *, capability: TikTokCapability, merchant: str, cipher: str):
+    now = datetime.now(UTC).replace(tzinfo=None)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO public.tiktok_credentials "
+                "(id, shop_id, merchant_authorization_id, capability, shop_cipher, access_token, "
+                " refresh_token, token_expires_at, status, refresh_count, created_at, updated_at) "
+                "VALUES (:id, :s, :m, :c, :ci, 'a', 'r', :exp, 'active', 0, :now, :now)"
+            ),
+            {
+                "id": str(uuid.uuid4()),
+                "s": str(shop_id),
+                "m": merchant,
+                "c": capability.value,
+                "ci": cipher,
+                "exp": now + timedelta(days=30),
+                "now": now,
+            },
+        )
+
+
+async def test_sandbox_shop_with_its_own_seller_connect_row_sharing_a_cipher_is_usable():
+    """Production fact 2026-10-21 (D71.6a, migration 100): the sandbox shop holds sandbox_write
+    (merchant A) and seller_connect (merchant B) with ONE cipher -- same shop, not a collision."""
+    t = _tag()
+    with owner_sync_engine() as engine:
+        _clear_sandbox(engine)
+        sbx = _seed(
+            engine, capability=TikTokCapability.SANDBOX_WRITE, merchant=f"sa-{t}", cipher=f"S{t}"
+        )
+        _seed_for_shop(
+            engine,
+            sbx,
+            capability=TikTokCapability.SELLER_CONNECT,
+            merchant=f"sb-{t}",
+            cipher=f"S{t}",
+        )
+        prod = _seed(
+            engine, capability=TikTokCapability.SELLER_CONNECT, merchant=f"p-{t}", cipher=f"P{t}"
+        )
+
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
+        credential = await resolve_sandbox_write_credential(session)
+        assert credential.shop_id == sbx
+        assert credential.merchant_authorization_id == f"sa-{t}"
+        # The sandbox merchant stays unreachable from a production path; the production shop
+        # and the sandbox shop's own seller_connect row (merchant B) behave as before P61-G.
+        assert (await sandbox_write_merchant_ids(session)) == {f"sa-{t}"}
+        async with with_shop_scope(session, prod):
+            assert (await resolve_read_credential_for_shop(session, prod)).shop_id == prod
+
+
+async def test_sandbox_row_sharing_merchant_or_cipher_with_another_shop_is_refused_beside_own():
+    """The 2026-08-18 case stays caught even when the sandbox shop also has its own seller row."""
+    t = _tag()
+    for shared in ("cipher", "merchant"):
+        with owner_sync_engine() as engine:
+            _clear_sandbox(engine)
+            sbx = _seed(
+                engine,
+                capability=TikTokCapability.SANDBOX_WRITE,
+                merchant=f"sa-{t}",
+                cipher=f"S{t}",
+            )
+            _seed_for_shop(
+                engine,
+                sbx,
+                capability=TikTokCapability.SELLER_CONNECT,
+                merchant=f"sb-{t}",
+                cipher=f"S{t}",
+            )
+            _seed(
+                engine,
+                capability=TikTokCapability.SELLER_CONNECT,
+                merchant=f"sa-{t}" if shared == "merchant" else f"p-{t}",
+                cipher=f"S{t}" if shared == "cipher" else f"P{t}",
+            )
+        async with juli_app_async_sessionmaker() as factory, factory() as session:
+            with pytest.raises(SandboxCredentialRefused):
+                await resolve_sandbox_write_credential(session)
+
+
+def test_migration_100_function_body_is_cross_shop_and_keeps_099_hardening():
+    with owner_sync_engine() as engine, engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT pg_get_functiondef(p.oid), p.prosecdef, p.proconfig::text "
+                "FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
+                "WHERE n.nspname = 'public' AND p.proname = 'enumerate_sandbox_write_credentials'"
+            )
+        ).one()
+    assert "o.shop_id <> c.shop_id" in row[0]
+    assert row[1] is True
+    assert "search_path=pg_catalog, public" in row[2]

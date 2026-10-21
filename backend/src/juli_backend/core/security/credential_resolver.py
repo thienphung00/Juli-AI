@@ -81,8 +81,9 @@ class SandboxWriteOwner:
     """One ``sandbox_write`` credential, as the cross-tenant enumeration reports it.
 
     Identifiers and one boolean only -- never token material (P61-G, D71.6). ``collides`` is
-    the 2026-08-18 invariant read from credentials alone: some credential that is NOT
-    ``sandbox_write`` carries the same merchant id or the same non-null shop cipher.
+    the 2026-08-18 invariant read from credentials alone: some credential of ANOTHER shop that
+    is NOT ``sandbox_write`` carries the same merchant id or the same non-null shop cipher
+    (migration 100, D71.6a: the sandbox shop's own ``seller_connect`` row is the same shop).
     """
 
     shop_id: uuid.UUID
@@ -103,11 +104,12 @@ async def _enumerate_sandbox_write_credentials(session: AsyncSession) -> list[Sa
 
     The one question that cannot be asked from inside a tenant scope (#2019, ADR-089
     decision 3): which shop holds the sandbox credential. On PostgreSQL it goes through
-    migration 099's reviewed ``SECURITY DEFINER`` function (identifiers + one boolean); on
-    SQLite, where neither the function nor RLS exists, the same predicate runs as a plain query.
+    migration 099's reviewed ``SECURITY DEFINER`` function (predicate refined by migration 100;
+    identifiers + one boolean); on SQLite, where neither the function nor RLS exists, the same
+    predicate runs as a plain query.
 
-    DEPLOY ORDER: MIGRATION 099 FIRST, THEN THIS CODE (no existence probe, no silent fallback,
-    like 061).
+    DEPLOY ORDER: MIGRATIONS 099+100 FIRST, THEN THIS CODE (no existence probe, no silent
+    fallback, like 061).
     """
     if session.get_bind().dialect.name == "postgresql":
         rows = await session.execute(
@@ -123,6 +125,7 @@ async def _enumerate_sandbox_write_credentials(session: AsyncSession) -> list[Sa
     collides = (
         select(other.id)
         .where(
+            other.shop_id != sandbox.shop_id,
             other.capability.is_distinct_from(TikTokCapability.SANDBOX_WRITE.value),
             (
                 (
@@ -273,7 +276,7 @@ async def resolve_sandbox_write_credential(
     re-read under the owning shop's scope through the repo that decrypts it.
 
     Refuses (:class:`SandboxCredentialRefused`) a sandbox row with no merchant id, and one that
-    *collides* with a non-sandbox credential (same merchant id or shop cipher) -- the
+    *collides* with a non-sandbox credential of ANOTHER shop (same merchant id or cipher) -- the
     2026-08-18 defect, a production token filed as ``sandbox_write``, caught at resolve time
     from the credentials alone. Raises :class:`NotFound` when no sandbox credential exists.
     """
@@ -288,8 +291,8 @@ async def resolve_sandbox_write_credential(
     if owner.collides:
         raise SandboxCredentialRefused(
             "the sandbox_write credential shares its merchant id or shop cipher with a "
-            "non-sandbox credential; a sandbox write could reach a production merchant, so it "
-            "is refused (reconnect the sandbox shop)"
+            "non-sandbox credential of another shop; a sandbox write could reach a production "
+            "merchant, so it is refused (reconnect the sandbox shop)"
         )
     repo = TikTokCredentialRepo(session)
     if session.get_bind().dialect.name != "postgresql":

@@ -2746,3 +2746,21 @@ reconcile --write` re-derived the no-assert corpus figure.
   clean, eslint 0 errors, vitest 1207 passed + 1 timing flake that passed on re-run (the same file also
   failed under load while the unit suite ran). `eval.ratchets check` lists only pre-existing
   unused-TS-export identities (agent-events.ts, apps/landing), none from this branch.
+
+## 2026-10-21 — agent (Claude Sonnet) — P61-G2 sandbox collision is cross-shop only (branch `fasttrack/p61-g2-same-shop`, not merged)
+
+- Why: production fact (owner): the sandbox shop holds `sandbox_write` (merchant A) and its own `seller_connect`
+  (OAuth open_id B), one `shop_cipher`. 099's `out_collides` counted ANY non-sandbox row, so
+  `resolve_sandbox_write_credential` would refuse and every agent run (sandbox-bound until P61-F) would fail.
+- Change: migration `100_sandbox_collision_xshop` (CREATE OR REPLACE, `AND o.shop_id <> c.shop_id`; signature,
+  SECURITY DEFINER, search_path, grants as 099; downgrade restores 099's body, checked by function md5 across
+  downgrade/upgrade; grants kept). 074 phone cleanup re-parented onto 100 (pinned tests updated). SQLite path in
+  `credential_resolver._enumerate_sandbox_write_credentials` gets the same predicate. `credential_binding`
+  (seller_connect exempt; only production_read/sandbox_write governed) and the factories' merchant refusal need no
+  change: B differs from A, so the sandbox shop's seller_connect row is NOT excluded and the shop stays a normal
+  pollable/readable shop exactly as before P61-G (no products; reads only). No dangerous path found.
+- Tests: 2 new unit (same-shop seller_connect not a collision; other shop's cipher still refused beside it), 3 new
+  real-Postgres (same-shop usable via `juli_app`; cipher and merchant sharing with another shop refused; function
+  body/SECURITY DEFINER/search_path pinned). Postgres :55491: integration file 5 passed 0 skipped; unit RLS-scope +
+  phone-cleanup 16 passed 0 skipped; `check.sh --since fasttrack/optimize-product` migrations PASS (100 head), isolation 12
+  passed, gitleaks PASS, pytest 21 files 529 passed. ruff/mypy/bandit -ll clean.
