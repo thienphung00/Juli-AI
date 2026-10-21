@@ -2827,6 +2827,8 @@ reconcile --write` re-derived the no-assert corpus figure.
   `test_each_reread_is_attributed_per_field` and `test_seller_change_events_carry_the_card_or_null`
   fail on f50133cc too (fresh DB; `seller_change` vs `juli`).
 - Owner next: restock the hot-pot (0 → ~30) in the sandbox Seller Center; set
-  `REVIEWER_SHOP_ID=1862f13b-de2c-4fae-a4ad-70298cead913` in /etc/juli/api.env at deploy; after
+  `REVIEWER_SHOP_ID=1862f13b-de2c-4fae-a4ad-70298cead913` in the AWS secret `juli/api/production`
+  (fetch-secrets.sh regenerates /etc/juli/api.env from it on every juli-api start; a hand edit is lost),
+  then `systemctl restart juli-api`; after
   deploy press "Đồng bộ ngay" once, then the lead walks the reviewer steps in a fresh browser
   before the owner resubmits and replies (texts in `fasttrack/shopee-isv-services-information.md`).
