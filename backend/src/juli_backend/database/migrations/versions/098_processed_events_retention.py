@@ -91,7 +91,7 @@ def upgrade() -> None:
         RETURN deleted;
       END
       $fn$;
-    """)
+    """)  # nosec B608 - only module constants (MIN_RETENTION_DAYS, MAX_BATCH) are interpolated
     # nosec B608: the signature and role are module constants, never request input.
     op.execute(f"REVOKE ALL ON FUNCTION public.{FUNCTION_SIGNATURE} FROM PUBLIC;")  # nosec B608
     op.execute(f"""
