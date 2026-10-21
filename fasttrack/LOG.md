@@ -2816,3 +2816,25 @@ reconcile --write` re-derived the no-assert corpus figure.
   Other branches adding tests will conflict on the same constants; re-derive at merge.
 - Verification: see the report; module 1 passed + 1 xfailed, 0 skipped (~25 s with the migrated database).
 
+## 2026-10-21 — agent (Claude Sonnet) — P61-H OAuth refuses cross-shop sandbox collisions (branch `fasttrack/p61-h-oauth-sandbox-guard`, not merged)
+
+- Why: owner (2026-10-21): the sandbox shop's own `seller_connect` row is harmless after P61-G2; what must never
+  be written is another shop's non-sandbox credential carrying the sandbox row's merchant id / cipher, or a
+  `sandbox_write` row reaching another shop's. Until now caught only at resolve time (which would fail every run).
+- Change (no migration, head stays 100): `core.security.refuse_cross_shop_sandbox_collision` + `SandboxCollisionRefused`
+  (an `Unauthorized`, generic text -> the callback's existing 401 connect-error path, no new wording). It reuses
+  `_enumerate_sandbox_write_credentials` (migration 100's SECURITY DEFINER predicate; plain query on SQLite) -- one
+  predicate, not a copy -- inside a SAVEPOINT: a sandbox credential that collides after the write but did not before
+  is attributed to it, rolled back (no partial write, no orphan shop), logged
+  (`tiktok_credential_write_refused_sandbox_collision`) and refused. Wired into
+  `TikTokOAuthService.provision_shop_and_credentials` (create + update + sandbox_write provisioning) and
+  `credential_binding.backfill_shop_cipher` (-> needs_reauth + `ShopCipherUnresolvedError`). Token refresh
+  (`mark_refreshed`) never changes merchant/cipher, so it is not a vector; tested as not blocked.
+- Tests: unit 10 (SQLite), real-Postgres two-shop 7 as `juli_app`/owner (same-shop allowed; cipher and merchant
+  carried by another shop refused, no shop/credential rows; sandbox_write onto another shop's cipher refused; RLS
+  does not blind the guard; ordinary reconnect + refresh pass). Postgres :55511: p61h+p61g integration 12 passed
+  0 skipped; `check.sh --since fasttrack/optimize-product` OK (migrations at 100, isolation 12, gitleaks, ruff,
+  pytest 84). Full `tests/unit -m "not live"`: 7914 passed, 245 skipped, 30 failed -- 29 node contract tests (no
+  `pnpm install` in the fresh worktree) + 1 suppression ratchet (my `type: ignore`s); both fixed afterwards and the
+  re-run files pass (59). ruff/mypy/bandit -ll clean.
+
