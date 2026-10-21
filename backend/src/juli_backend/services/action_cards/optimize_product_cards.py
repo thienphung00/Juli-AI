@@ -182,7 +182,7 @@ def _as_date(value: Any) -> date | None:
     return value
 
 
-def _is_daily(row: AnalyticsPerformanceInterval) -> bool:
+def _is_daily(row: Any) -> bool:
     start, end = _as_date(row.start_date), _as_date(row.end_date)
     return end is None or (start is not None and (end - start).days == 1)
 
@@ -245,9 +245,9 @@ async def latest_product_analytics_day(
     return _as_date((await session.execute(stmt)).scalar_one_or_none())
 
 
-#: D72.3: the only columns :func:`load_product_days` reads. The window read runs on
-#: every scoring pass (60+ days x product and SKU rows); the rest of the row --
-#: ``snapshot_key``, rates, currency, timestamps -- was egress nobody used.
+#: D72.3: the only product-row columns :func:`load_product_days` reads. The window read
+#: runs on every scoring pass (60+ days); the rest of the row -- ``snapshot_key``, rates,
+#: currency, timestamps -- was egress nobody used.
 _PRODUCT_DAY_COLUMNS = (
     AnalyticsPerformanceInterval.grain,
     AnalyticsPerformanceInterval.start_date,
@@ -274,36 +274,55 @@ async def load_product_days(
     for that day (A-31 detail, present on every window), else the A-33
     ``orders`` count.
     """
-    stmt = (
-        select(AnalyticsPerformanceInterval)
-        .options(load_only(*_PRODUCT_DAY_COLUMNS))
-        .where(
-            AnalyticsPerformanceInterval.shop_id == shop_id,
-            AnalyticsPerformanceInterval.grain.in_(("product", "sku")),
-            AnalyticsPerformanceInterval.hour_index.is_(None),
-            AnalyticsPerformanceInterval.tiktok_product_id.isnot(None),
-            AnalyticsPerformanceInterval.start_date >= first,
-            AnalyticsPerformanceInterval.start_date <= last,
-        )
+    api = AnalyticsPerformanceInterval
+    in_window = (
+        api.shop_id == shop_id,
+        api.hour_index.is_(None),
+        api.tiktok_product_id.isnot(None),
+        api.start_date >= first,
+        api.start_date <= last,
     )
-    rows = (await session.execute(stmt)).scalars().all()
+    product_stmt = (
+        select(api)
+        .options(load_only(*_PRODUCT_DAY_COLUMNS))
+        .where(api.grain == "product", *in_window)
+    )
+    # D72.3: SKU rows are only ever summed per (product, day), so Postgres sums them:
+    # one row per product-day-window instead of one per SKU-day, three numbers wide.
+    # Grouped on end_date too, so the daily check below sees the same windows.
+    sku_stmt = (
+        select(
+            api.tiktok_product_id.label("tiktok_product_id"),
+            api.start_date.label("start_date"),
+            api.end_date.label("end_date"),
+            func.sum(api.sku_orders).label("sku_orders"),
+            func.sum(api.gmv).label("gmv"),
+            func.sum(api.items_sold).label("items_sold"),
+        )
+        .where(api.grain == "sku", *in_window)
+        .group_by(api.tiktok_product_id, api.start_date, api.end_date)
+    )
     product_rows: dict[tuple[str, date], AnalyticsPerformanceInterval] = {}
     sku_orders: dict[tuple[str, date], Decimal] = defaultdict(Decimal)
     sku_gmv: dict[tuple[str, date], Decimal] = defaultdict(Decimal)
     sku_items: dict[tuple[str, date], Decimal] = defaultdict(Decimal)
-    for row in rows:
+    for row in (await session.execute(product_stmt)).scalars().all():
         if not _is_daily(row):
             continue
         day = _as_date(row.start_date)
         if day is None or row.tiktok_product_id is None:
             continue
-        key = (str(row.tiktok_product_id), day)
-        if row.grain == "product":
-            product_rows[key] = row
-        else:
-            sku_orders[key] += _dec(row.sku_orders)
-            sku_gmv[key] += _dec(row.gmv)
-            sku_items[key] += _dec(row.items_sold)
+        product_rows[(str(row.tiktok_product_id), day)] = row
+    for sku in (await session.execute(sku_stmt)).all():
+        if not _is_daily(sku):
+            continue
+        day = _as_date(sku.start_date)
+        if day is None or sku.tiktok_product_id is None:
+            continue
+        key = (str(sku.tiktok_product_id), day)
+        sku_orders[key] += _dec(sku.sku_orders)
+        sku_gmv[key] += _dec(sku.gmv)
+        sku_items[key] += _dec(sku.items_sold)
 
     out: dict[str, list[ProductDay]] = defaultdict(list)
     for key in set(product_rows) | set(sku_orders):

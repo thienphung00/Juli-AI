@@ -166,9 +166,10 @@ def _intervals(shop_id: uuid.UUID, days: int) -> list[AnalyticsPerformanceInterv
                     traffic_breakdown={"VIDEO": {"impressions": 10, "clicks": 1}},
                 )
             )
-            rows.append(
-                _interval(shop_id, "sku", day, p, gmv=Decimal(50), sku_orders=1, items_sold=1)
-            )
+            for _sku in range(2):  # two SKUs per product-day
+                rows.append(
+                    _interval(shop_id, "sku", day, p, gmv=Decimal(50), sku_orders=1, items_sold=1)
+                )
     return rows
 
 
@@ -253,9 +254,9 @@ async def test_scoring_interval_read_is_the_kpi_window_of_one_shop(two_shops):
     first = (anchor - timedelta(days=ROLLING_WINDOW_DAYS)).date()
     # Exactly shop A's window: shop B holds 120 days of the same shape.
     assert all(first <= r.start_date <= anchor.date() for r in rows)
-    # 30 stored days (yesterday back) x (1 shop + 2 product + 2 sku) rows; 90 days exist.
-    assert len(rows) == 30 * 5
-    assert counter.rows == 30 * 5
+    # 30 stored days (yesterday back) x (1 shop + 2 product + 4 sku) rows; 90 days exist.
+    assert len(rows) == 30 * 7
+    assert counter.rows == 30 * 7
     assert counter.rows_where("snapshot_key") == 0
 
 
@@ -273,7 +274,10 @@ async def test_optimize_product_window_read_prunes_columns(two_shops):
     assert all(len(series) == 60 for series in days.values())
     assert days["p1"][-1].sku_orders == 3 and days["p1"][-1].impressions == 1000
     assert "VIDEO" in days["p1"][-1].channels
-    assert counter.rows == 60 * 4  # product + sku rows of shop A in the window only
+    # Shop A's window only: 120 product rows + 120 (product, day) SKU sums -- not the 240
+    # SKU rows they summarise (and none of shop B's 120-day history).
+    assert counter.rows == 60 * 2 + 60 * 2
+    assert counter.rows_where("sum(") == 60 * 2
     assert counter.rows_where("snapshot_key") == 0
 
 
