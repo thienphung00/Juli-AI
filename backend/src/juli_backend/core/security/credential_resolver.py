@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from sqlalchemy import select, text
@@ -11,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from juli_backend.core.security.credential_refresh import refresh_credential
+from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import (
@@ -21,6 +25,8 @@ from juli_backend.integrations.tiktok import (
 )
 from juli_backend.models.models import TikTokCredential
 from juli_backend.repositories.repos import TikTokCredentialRepo
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_BASE_URL = "https://open-api.tiktokglobalshop.com"
 
@@ -143,6 +149,76 @@ async def _enumerate_sandbox_write_credentials(session: AsyncSession) -> list[Sa
         .order_by(sandbox.created_at.desc())
     )
     return [SandboxWriteOwner(row[0], row[1], bool(row[2])) for row in listed.all()]
+
+
+#: What the seller sees when a connect is refused for a sandbox collision: the connect route
+#: returns an ``Unauthorized`` detail verbatim, so it names nothing (no merchant id, no
+#: cipher, no sandbox mention). The specifics go to the structured warning only.
+SANDBOX_COLLISION_SELLER_MESSAGE = "This TikTok shop could not be connected"
+
+
+class SandboxCollisionRefused(Unauthorized):
+    """A credential write was refused: it would collide with a ``sandbox_write`` credential.
+
+    Raised at WRITE time (P61-H, D71.6a), by the same predicate migration 100 and
+    :func:`resolve_sandbox_write_credential` use: a credential of a DIFFERENT shop than the
+    sandbox row's, non-sandbox, sharing its merchant id or shop cipher -- or a ``sandbox_write``
+    row that reaches another shop's cipher or merchant. A subclass of :class:`Unauthorized` so
+    the OAuth callback answers with its existing generic connect-error path.
+    ``colliding_shop_ids`` are the sandbox shops that would be refused at resolve time.
+    """
+
+    def __init__(self, colliding_shop_ids: frozenset[uuid.UUID]) -> None:
+        super().__init__(SANDBOX_COLLISION_SELLER_MESSAGE)
+        self.colliding_shop_ids = colliding_shop_ids
+
+
+async def _colliding_sandbox_shops(session: AsyncSession) -> frozenset[uuid.UUID]:
+    return frozenset(
+        owner.shop_id
+        for owner in await _enumerate_sandbox_write_credentials(session)
+        if owner.collides
+    )
+
+
+@asynccontextmanager
+async def refuse_cross_shop_sandbox_collision(
+    session: AsyncSession,
+    *,
+    operation: str,
+    log_extra: Mapping[str, str | None] | None = None,
+) -> AsyncIterator[None]:
+    """Run a credential write; undo it and raise if it creates a cross-shop sandbox collision.
+
+    The check IS the resolver's predicate (:func:`_enumerate_sandbox_write_credentials`,
+    migration 100 on PostgreSQL), not a copy: it sees across tenants, so a write made under one
+    shop's scope is judged against every other shop's credentials. The body runs inside a
+    SAVEPOINT; after it flushes, a sandbox credential that collides now but did not before the
+    write means the write caused it -> the savepoint rolls back (no partial write, no orphan
+    shop), a structured warning is logged and :class:`SandboxCollisionRefused` is raised.
+
+    Same-shop rows stay allowed (the sandbox shop's own ``seller_connect`` row is not a
+    collision). A collision that already existed before the write is not attributable to it and
+    is left to the resolve-time refusal.
+    """
+    before = await _colliding_sandbox_shops(session)
+    try:
+        async with session.begin_nested():
+            yield
+            await session.flush()
+            caused = await _colliding_sandbox_shops(session) - before
+            if caused:
+                raise SandboxCollisionRefused(caused)
+    except SandboxCollisionRefused as refused:
+        logger.warning(
+            "tiktok_credential_write_refused_sandbox_collision",
+            extra={
+                **(log_extra or {}),
+                "operation": operation,
+                "sandbox_shop_ids": sorted(str(shop) for shop in refused.colliding_shop_ids),
+            },
+        )
+        raise
 
 
 async def sandbox_write_merchant_ids(session: AsyncSession) -> frozenset[str]:

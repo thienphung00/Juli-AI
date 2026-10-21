@@ -65,6 +65,16 @@ Matches ``__all__`` — re-exports only:
   own ``seller_connect`` row sharing its cipher is the same shop, not a collision — migration 100,
   D71.6a) — the 2026-08-18 defect caught
   at resolve time from the credentials alone. Never falls back to a production credential
+- ``refuse_cross_shop_sandbox_collision(session, *, operation, log_extra=None)`` (async context
+  manager) and ``SandboxCollisionRefused`` (an ``Unauthorized``; P61-H, D71.6a) — the WRITE-time
+  twin of the resolve-time refusal. The body runs in a SAVEPOINT; after it flushes, a sandbox
+  credential that collides (migration 100 / ``_enumerate_sandbox_write_credentials``, the one
+  predicate, cross-tenant so RLS cannot blind it) now but did not before means the write caused
+  it: rollback (no partial write, no orphan shop), warning
+  ``tiktok_credential_write_refused_sandbox_collision``, raise. Same-shop rows pass. The error
+  text is generic (``SANDBOX_COLLISION_SELLER_MESSAGE``): the callback route returns it as the
+  401 detail, the existing connect-error path. A collision that pre-dates the write is not
+  attributed to it. ``TikTokOAuthService.provision_shop_and_credentials`` runs wholly inside it
 - ``sandbox_write_merchant_ids(session)`` — merchant ids carried by ``sandbox_write`` rows
   (from the DB); production resolvers and factories refuse them
 - ``TikTokOAuthService.provision_shop_and_credentials(..., capability=None)`` — the merchant

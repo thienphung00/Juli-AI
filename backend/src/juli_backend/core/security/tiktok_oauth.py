@@ -20,6 +20,7 @@ from juli_backend.core.security.credential_refresh import (
     RefreshStatus,
     refresh_credential,
 )
+from juli_backend.core.security.credential_resolver import refuse_cross_shop_sandbox_collision
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.oauth_state import (
     SELLER_CONNECT_FLOW,
@@ -120,6 +121,33 @@ class TikTokOAuthService:
         return await self.provision_shop_and_credentials(token_data, user_id=user_id)
 
     async def provision_shop_and_credentials(
+        self,
+        token_data: dict,
+        *,
+        user_id: uuid.UUID,
+        capability: TikTokCapability | None = None,
+    ) -> Shop:
+        """Provision under the write-time sandbox-collision guard (P61-H, D71.6a).
+
+        The whole write (shop + credential) runs in a savepoint; if it would give a
+        ``sandbox_write`` credential a cross-shop collision -- another shop's non-sandbox
+        credential carrying its merchant id or cipher, or a ``sandbox_write`` row reaching
+        another shop's -- nothing is written and :class:`SandboxCollisionRefused` is raised.
+        """
+        async with refuse_cross_shop_sandbox_collision(
+            self._session,
+            operation="oauth_provision",
+            log_extra={
+                "user_id": str(user_id),
+                "tiktok_shop_id": token_data.get("open_id"),
+                "capability": capability.value if capability else None,
+            },
+        ):
+            return await self._provision_shop_and_credentials(
+                token_data, user_id=user_id, capability=capability
+            )
+
+    async def _provision_shop_and_credentials(
         self,
         token_data: dict,
         *,
