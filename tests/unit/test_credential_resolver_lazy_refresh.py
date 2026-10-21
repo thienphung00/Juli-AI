@@ -1,6 +1,6 @@
 """TDD tests for #1232 (AGT-W4A-WIRE, ADR-081 decision 1 row 2) --
 `core/security/credential_resolver.py`'s lazy refresh layer:
-`resolve_production_read_credential`/`resolve_sandbox_write_credential` now
+`resolve_read_credential_for_shop`/`resolve_sandbox_write_credential` now
 call `refresh_credential(force=False)` after resolving, so a worker that was
 down when the beat should have run still gets a warm token on the next
 hot-path resolve.
@@ -20,12 +20,16 @@ import pytest
 from juli_backend.core.security import credential_resolver
 from juli_backend.core.security.credential_resolver import (
     build_refresh_auth_from_env,
-    resolve_production_read_credential,
+    resolve_read_credential_for_shop,
     resolve_sandbox_write_credential,
 )
-from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, SANDBOX_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 _shop_counter = 0
 
@@ -97,7 +101,7 @@ class TestLazyTriggerFiresInsideWindowOnly:
         auth = _auth_returning()
         monkeypatch.setattr(credential_resolver, "build_refresh_auth_from_env", lambda: auth)
 
-        resolved = await resolve_production_read_credential(session)
+        resolved = await resolve_read_credential_for_shop(session, credential.shop_id)
 
         auth.refresh_access_token.assert_called_once()
         assert resolved.access_token == "lazily-refreshed-access"
@@ -118,7 +122,7 @@ class TestLazyTriggerFiresInsideWindowOnly:
         auth = _auth_returning()
         monkeypatch.setattr(credential_resolver, "build_refresh_auth_from_env", lambda: auth)
 
-        resolved = await resolve_production_read_credential(session)
+        resolved = await resolve_read_credential_for_shop(session, credential.shop_id)
 
         auth.refresh_access_token.assert_not_called()
         assert resolved.access_token == "old-access"
@@ -185,21 +189,21 @@ class TestLazyTriggerNoOpWithoutConfiguredAppCredentials:
             token_expires_at=_utc_now() + timedelta(hours=1),
         )
 
-        resolved = await resolve_production_read_credential(session)
+        resolved = await resolve_read_credential_for_shop(session, credential.shop_id)
 
         assert resolved.access_token == "old-access"
         untouched_row = await session.get(type(credential), credential.id)
         assert untouched_row.refresh_count == 0
 
 
-def test_resolve_functions_still_take_only_session():
-    """Every existing caller (services/agent/composition.py,
-    services/execution/sandbox_guard.py, orchestrate.py) invokes these with
-    a single positional `session` argument -- the lazy layer must not grow a
+def test_resolve_functions_keep_their_signatures():
+    """The sandbox resolver takes only `session` (services/agent/composition.py,
+    services/execution/sandbox_guard.py invoke it that way) and the per-shop read
+    resolver takes `session, shop_id` -- the lazy layer must not grow a
     second required parameter."""
     import inspect
 
-    prod_params = list(inspect.signature(resolve_production_read_credential).parameters)
+    read_params = list(inspect.signature(resolve_read_credential_for_shop).parameters)
     sandbox_params = list(inspect.signature(resolve_sandbox_write_credential).parameters)
-    assert prod_params == ["session"]
+    assert read_params == ["session", "shop_id"]
     assert sandbox_params == ["session"]

@@ -52,16 +52,6 @@ CHECKS: tuple[EnvCheck, ...] = (
     ),
     EnvCheck("REDIS_URL", "required", "ingestion, rate limits and refresh cooldowns are off"),
     EnvCheck(
-        "TIKTOK_PRODUCTION_MERCHANT_ID",
-        "required",
-        "production-read paths that need the configured merchant fail closed",
-    ),
-    EnvCheck(
-        "TIKTOK_SANDBOX_MERCHANT_ID",
-        "required",
-        "polling and every read client fail closed (cannot exclude the sandbox merchant)",
-    ),
-    EnvCheck(
         "AGENT_WORKFLOWS_ENABLED",
         "flag",
         "approving a card creates no agent run",

@@ -11,6 +11,7 @@ import logging
 import uuid
 from typing import Protocol
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.credential_refresh import (
@@ -26,11 +27,7 @@ from juli_backend.core.security.oauth_state import (
     verify_oauth_state,
 )
 from juli_backend.database.exceptions import NotFound
-from juli_backend.integrations.tiktok import (
-    TikTokAuth,
-    TikTokCapability,
-    resolve_merchant_context,
-)
+from juli_backend.integrations.tiktok import TikTokAuth, TikTokCapability
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo
 from juli_backend.services.tiktok.token_expiry import access_token_expires_at
@@ -127,8 +124,18 @@ class TikTokOAuthService:
         token_data: dict,
         *,
         user_id: uuid.UUID,
+        capability: TikTokCapability | None = None,
     ) -> Shop:
-        """Single write owner for ``shops`` + ``tiktok_credentials`` (Partner OAuth)."""
+        """Single write owner for ``shops`` + ``tiktok_credentials`` (Partner OAuth).
+
+        The merchant identity is the OAuth ``open_id`` the connect flow returned (P61-G,
+        D71.6: nothing configured). The capability is, in order: the one the caller asked for
+        (an operator provisioning the ``sandbox_write`` credential), the capability this
+        shop's existing credential for this merchant already carries (a re-authorisation
+        refreshes the same row, so a reconnected sandbox shop stays ``sandbox_write``), else
+        ``seller_connect`` -- what every seller who connects their own shop holds. The
+        injected binding verifier then checks which shop the token really reaches.
+        """
         open_id = token_data.get("open_id")
         access_token = token_data.get("access_token")
         refresh_token = token_data.get("refresh_token")
@@ -163,7 +170,25 @@ class TikTokOAuthService:
             )
 
         expires_at = access_token_expires_at(token_data.get("access_token_expire_in"))
-        merchant_authorization_id, capability = resolve_merchant_context(open_id)
+        merchant_authorization_id = open_id
+        if capability is None:
+            existing_capability = (
+                await self._session.execute(
+                    select(TikTokCredential.capability)
+                    .where(
+                        TikTokCredential.shop_id == shop.id,
+                        TikTokCredential.merchant_authorization_id == merchant_authorization_id,
+                        TikTokCredential.capability.is_not(None),
+                    )
+                    .order_by(TikTokCredential.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            capability = (
+                TikTokCapability(existing_capability)
+                if existing_capability
+                else TikTokCapability.SELLER_CONNECT
+            )
         scopes = token_data.get("scopes")
         if scopes is None and token_data.get("granted_scopes") is not None:
             granted = token_data.get("granted_scopes")

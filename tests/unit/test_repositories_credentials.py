@@ -27,10 +27,14 @@ from sqlalchemy import select, text
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.token_crypto import decrypt_token
-from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, SANDBOX_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.models import TikTokCredential
 from juli_backend.repositories import TikTokCredentialRepo
 from tests.support.builders import make_credential, next_unique, utc_now_naive
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 
 async def _issue_credential(session, shop, **overrides):

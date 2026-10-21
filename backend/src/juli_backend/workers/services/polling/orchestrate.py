@@ -7,8 +7,8 @@ and rate-limit backoff into the existing sync workers.
 given, the credential is resolved by `resolve_read_credential_for_shop` (#1365)
 and must be a read capability owned by that shop. `_assert_pollable_read_credential`
 replaced `_assert_fujiwa_credential`, and `_factory_config` signs with the
-credential's own `merchant_authorization_id` rather than the configured
-`PRODUCTION_AUTH_ID` constant -- the two guards that, between them, meant a
+credential's own `merchant_authorization_id` rather than a configured
+merchant constant -- the two guards that, between them, meant a
 connecting seller's correctly-resolved credential was refused one layer down and
 only Juli's configured merchant could be polled at all. Fast track P61-D (D71.4):
 `shop_id` is now REQUIRED -- the `shop_id=None` "poll whichever shop owns the
@@ -77,10 +77,7 @@ from juli_backend.integrations.tiktok import (
     ORDER_SEARCH_PATH,
     PRODUCT_SEARCH_PATH,
     RETURN_SEARCH_PATH,
-    SANDBOX_AUTH_ID,
-    SANDBOX_MERCHANT_ID_ENV,
     ClientFactoryConfig,
-    MerchantIdNotConfigured,
     ProductionReadClientFactory,
     ProductionReadResources,
     RateLimiter,
@@ -321,9 +318,10 @@ def _assert_pollable_read_credential(
     There is no shop-less entry any more (P61-D deleted `fujiwa_poll_beat`, the
     only caller that named no shop), so the ownership half always applies.
 
-    The sandbox merchant id is refused by *identity* as well as by capability.
-    Belt and braces on purpose: capability is a stored column, and a mislabelled
-    row must not be able to reach the sandbox write merchant through a read.
+    The sandbox merchant is refused by capability here and, for a mislabelled row, by the
+    merchant ids the DB says a ``sandbox_write`` credential carries
+    (``resolve_read_credential_for_shop``, ``ProductionReadClientFactory``). No merchant id is
+    configured (P61-G, D71.6).
     """
     capability = credential.capability
     if capability is None or not is_read_capability(capability):
@@ -333,20 +331,6 @@ def _assert_pollable_read_credential(
     merchant = credential.merchant_authorization_id
     if not merchant:
         raise ValueError("polling requires a credential carrying a merchant authorization id")
-    # FAIL CLOSED -- see the identical note in
-    # `integrations/tiktok/factories.py`. `if SANDBOX_AUTH_ID and ...` would
-    # turn an empty `TIKTOK_SANDBOX_MERCHANT_ID` into permission to skip the
-    # exclusion, which is the inverse of what a guard is for. A constant this
-    # check cannot read is a deployment fault, and the poll refuses.
-    if not SANDBOX_AUTH_ID:
-        raise MerchantIdNotConfigured(
-            SANDBOX_MERCHANT_ID_ENV, needed_for="polling (to exclude the SANDBOX_VN merchant)"
-        )
-    if merchant == SANDBOX_AUTH_ID:
-        raise ValueError(
-            "polling refuses the SANDBOX_VN write-validation merchant "
-            f"({SANDBOX_AUTH_ID}); it is not read-capable"
-        )
     if credential.shop_id != shop_id:
         raise ValueError(
             "polling requires a credential owned by the shop being polled; "
@@ -360,8 +344,8 @@ def _factory_config(
 ) -> ClientFactoryConfig:
     """Build the vendor client config from the credential's OWN merchant.
 
-    Was `merchant_auth_id=PRODUCTION_AUTH_ID` -- a constant, so every poll
-    signed as the configured merchant no matter whose credential it held. The
+    Was a configured-merchant constant, so every poll signed as that
+    merchant no matter whose credential it held. The
     merchant id travels with the token now, which is the only way two shops can
     each call the vendor under their own authorization.
     """
@@ -379,6 +363,7 @@ def _factory_config(
         access_token=credential.access_token,
         merchant_auth_id=merchant_auth_id,
         shop_cipher=credential.shop_cipher,
+        credential_capability=credential.capability,
     )
 
 

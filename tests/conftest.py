@@ -32,14 +32,6 @@ os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
 # Tests exercise every scoring workflow; production defaults to Tối ưu sản phẩm +
 # content only (persist.enabled_card_workflows, owner 2026-10-11).
 os.environ.setdefault("CDP_ENABLED_WORKFLOWS", "*")
-# Fast track P61-D (D71.4): `integrations/tiktok/merchant.py` has no default
-# merchant ids any more -- unset, every path that needs one fails closed. The
-# suite runs as a configured deployment with TEST ids (not Juli's real ones);
-# tests of the unconfigured behaviour `monkeypatch.delenv` + reload the module.
-# Import-time for the same reason as SUPABASE_JWT_SECRET above: the constants
-# are read when `merchant.py` is first imported, during collection.
-os.environ.setdefault("TIKTOK_PRODUCTION_MERCHANT_ID", "test-production-merchant")
-os.environ.setdefault("TIKTOK_SANDBOX_MERCHANT_ID", "test-sandbox-merchant")
 
 
 DISPOSABLE_MARKER = "JULI_TEST_DATABASE_DISPOSABLE"

@@ -18,9 +18,7 @@ from safe_alembic_helpers import (  # noqa: E402
 )
 
 ALLOWLIST = SCRIPTS_DIR / "safe-migrate-allowlist.txt"
-MIGRATIONS_DIR = (
-    REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
-)
+MIGRATIONS_DIR = REPO_ROOT / "backend/src/juli_backend/database/migrations/versions"
 
 
 def test_load_allowlist_file_ignores_comments_and_blanks(tmp_path: Path):
@@ -81,9 +79,7 @@ def test_resolve_db_identity_supabase_pooler_url():
 
 
 def test_resolve_db_identity_supabase_direct_url():
-    url = (
-        "postgresql://postgres:secret@db.abcdefghijklmnop.supabase.co:5432/postgres"
-    )
+    url = "postgresql://postgres:secret@db.abcdefghijklmnop.supabase.co:5432/postgres"
     identity = resolve_db_identity(url)
     assert identity["kind"] == "supabase-direct"
     assert identity["project_ref"] == "abcdefghijklmnop"

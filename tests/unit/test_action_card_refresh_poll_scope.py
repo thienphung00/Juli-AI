@@ -33,9 +33,12 @@ import pytest
 import pytest_asyncio
 
 from juli_backend.core.security.credential_resolver import NoReadCredentialForShop
-from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.models import Shop, TikTokCredential, User
 from juli_backend.services.action_cards.refresh import maybe_poll_tiktok_data
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
 
 
 @pytest_asyncio.fixture

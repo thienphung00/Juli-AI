@@ -6,12 +6,13 @@ exposes the plaintext to the caller *without* dirtying the ORM columns -- so a
 later ``flush()`` cannot accidentally write plaintext over the ciphertext.
 
 Layering note: this module imports ``integrations.tiktok`` for
-:class:`TikTokCapability` and :func:`is_cross_merchant_lookup`. That edge is
+:class:`TikTokCapability`. That edge is
 outside the ``repositories -> {models, database}`` matrix in
 ``.importlinter.toml`` and is carried in the import-boundary baseline on
-purpose: the merchant/capability pairing is the value domain of the
-``capability`` column, and the guard belongs next to the write it protects.
-Moving the enum and the merchant map under ``models`` would retire the entry.
+purpose: the enum is the value domain of the ``capability`` column. There is
+no configured merchant map any more (P61-G, D71.6): a credential's merchant is
+the row's own ``merchant_authorization_id``. Moving the enum under ``models``
+would retire the entry.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.token_crypto import decrypt_token, encrypt_token
-from juli_backend.integrations.tiktok import TikTokCapability, is_cross_merchant_lookup
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.models import TikTokCredential, TikTokSyncState
 from juli_backend.repositories._base import SessionRepo, utc_now_naive
 
@@ -70,10 +71,6 @@ class TikTokCredentialRepo(SessionRepo):
         capability: str | None = None,
         shop_cipher: str | None = None,
     ) -> TikTokCredential:
-        if merchant_authorization_id and capability:
-            if is_cross_merchant_lookup(merchant_authorization_id, capability):
-                raise ValueError("merchant_authorization_id and capability do not match")
-
         credential = TikTokCredential(
             id=uuid.uuid4(),
             shop_id=shop_id,
@@ -96,18 +93,15 @@ class TikTokCredentialRepo(SessionRepo):
     ) -> TikTokCredential:
         """Newest credential for a merchant authorization id + capability pair.
 
-        A pair the merchant map says cannot exist (production merchant asked
-        for with the sandbox capability, or vice versa) is reported as
-        :class:`NotFound` before touching the database, so a cross-merchant
-        lookup can never return a row (#1234).
+        The pair is matched exactly on the stored columns: a merchant asked for
+        under a capability its row does not carry is :class:`NotFound`, so a
+        cross-capability lookup can never return a row (#1234).
         """
         capability_value = _capability_value(capability)
         missing = NotFound(
             f"No credentials for merchant {merchant_authorization_id} "
             f"with capability {capability_value}"
         )
-        if is_cross_merchant_lookup(merchant_authorization_id, capability_value):
-            raise missing
         return await self._newest(
             TikTokCredential.merchant_authorization_id == merchant_authorization_id,
             TikTokCredential.capability == capability_value,

@@ -96,18 +96,9 @@ from juli_backend.integrations.tiktok.mapping import (
     normalize_statement,
 )
 from juli_backend.integrations.tiktok.merchant import (
-    PRODUCTION_AUTH_ID,
-    PRODUCTION_MERCHANT_ID_ENV,
     READ_CAPABILITIES,
-    SANDBOX_AUTH_ID,
-    SANDBOX_MERCHANT_ID_ENV,
-    MerchantIdNotConfigured,
     TikTokCapability,
-    is_cross_merchant_lookup,
     is_read_capability,
-    require_production_auth_id,
-    require_sandbox_auth_id,
-    resolve_merchant_context,
 )
 from juli_backend.integrations.tiktok.rate_limiter import RateLimiter
 from juli_backend.integrations.tiktok.resources import (
@@ -184,18 +175,9 @@ __all__ = [
     "SandboxWriteClientFactory",
     "SandboxWriteResources",
     # Merchant capability isolation
-    "PRODUCTION_AUTH_ID",
-    "PRODUCTION_MERCHANT_ID_ENV",
-    "SANDBOX_AUTH_ID",
-    "SANDBOX_MERCHANT_ID_ENV",
-    "MerchantIdNotConfigured",
-    "require_production_auth_id",
-    "require_sandbox_auth_id",
     "TikTokCapability",
     "READ_CAPABILITIES",
-    "is_cross_merchant_lookup",
     "is_read_capability",
-    "resolve_merchant_context",
     # Vendor → ingest mapping
     "analytics_snapshot_key",
     "expand_analytics_live_session",

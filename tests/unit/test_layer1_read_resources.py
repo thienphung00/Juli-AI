@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from juli_backend.integrations.tiktok.capabilities import PRODUCTION_AUTH_ID, SANDBOX_AUTH_ID
 from juli_backend.integrations.tiktok.factories import (
     ClientFactoryConfig,
     ProductionReadClientFactory,
@@ -23,21 +22,25 @@ from juli_backend.integrations.tiktok.resources.products import ProductsResource
 from juli_backend.integrations.tiktok.resources.promotion import PromotionResource
 from juli_backend.integrations.tiktok.resources.returns import ReturnsResource
 
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
+
 SAMPLES_DIR = Path(__file__).resolve().parents[2] / "docs/integrations/tiktok_api/samples"
 
 LAYER1_RESOURCE_FIXTURES = [
-  ("authorized-shops-response.json", "list_shops", AuthorizationResource, {}),
-  ("orders-search-response.json", "search", OrdersResource, {}),
-  (
-      "orders-detail-response.json",
-      "get_details",
-      OrdersResource,
-      {"order_ids": ["577958834469439754"]},
-  ),
-  ("products-search-response.json", "search", ProductsResource, {}),
-  ("products-detail-response.json", "get_details", ProductsResource, {"product_id": None}),
-  ("returns-search-response.json", "search_returns", ReturnsResource, {}),
-  ("cancellations-search-response.json", "search_cancellations", ReturnsResource, {}),
+    ("authorized-shops-response.json", "list_shops", AuthorizationResource, {}),
+    ("orders-search-response.json", "search", OrdersResource, {}),
+    (
+        "orders-detail-response.json",
+        "get_details",
+        OrdersResource,
+        {"order_ids": ["577958834469439754"]},
+    ),
+    ("products-search-response.json", "search", ProductsResource, {}),
+    ("products-detail-response.json", "get_details", ProductsResource, {"product_id": None}),
+    ("returns-search-response.json", "search_returns", ReturnsResource, {}),
+    ("cancellations-search-response.json", "search_cancellations", ReturnsResource, {}),
 ]
 
 
@@ -106,7 +109,11 @@ def test_each_resource_matches_sanitized_fixture_schema(
 ):
     fixture = _load_fixture(fixture_name)
     data = fixture["response"]["data"]
-    if kwargs.get("product_id") is None and method_name == "get_details" and resource_cls is ProductsResource:
+    if (
+        kwargs.get("product_id") is None
+        and method_name == "get_details"
+        and resource_cls is ProductsResource
+    ):
         kwargs = {"product_id": data["id"]}
 
     if method_name in {"search", "search_returns", "search_cancellations"}:

@@ -58,7 +58,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.security import resolve_read_credential_for_shop
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import (
-    SANDBOX_AUTH_ID,
     ClientFactoryConfig,
     ProductionReadClientFactory,
     is_read_capability,
@@ -118,7 +117,12 @@ class DiagnosisBuildResult:
 
 
 def assert_read_credential_for(credential: TikTokCredential, shop_id: uuid.UUID) -> None:
-    """Refuse a credential that is not a read credential owned by ``shop_id``."""
+    """Refuse a credential that is not a read credential owned by ``shop_id``.
+
+    Capability is the authority (P61-G, D71.6): ``sandbox_write`` is not read-capable. The
+    sandbox merchant's id is excluded one layer up, from the DB, by
+    ``resolve_read_credential_for_shop``; no merchant id is configured here.
+    """
     capability = credential.capability
     if capability is None or not is_read_capability(capability):
         raise ValueError(
@@ -127,8 +131,6 @@ def assert_read_credential_for(credential: TikTokCredential, shop_id: uuid.UUID)
     merchant = credential.merchant_authorization_id
     if not merchant:
         raise ValueError("shop diagnosis requires a credential carrying a merchant id")
-    if not SANDBOX_AUTH_ID or merchant == SANDBOX_AUTH_ID:
-        raise ValueError("shop diagnosis refuses the sandbox write merchant")
     if credential.shop_id != shop_id:
         raise ValueError(
             f"shop diagnosis for shop {shop_id} resolved a credential owned by {credential.shop_id}"
@@ -189,6 +191,7 @@ async def _plan(
             access_token=credential.access_token,
             merchant_auth_id=str(credential.merchant_authorization_id),
             shop_cipher=credential.shop_cipher,
+            credential_capability=credential.capability,
         )
         shop_name = shop.shop_name or ""
         shop_key = shop.tiktok_shop_id or str(shop_id)

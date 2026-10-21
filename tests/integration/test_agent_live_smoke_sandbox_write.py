@@ -160,6 +160,10 @@ from juli_backend.services.agent.runner import (
 from juli_backend.services.agent.tools import ToolPolicy
 from juli_backend.workers.tasks.database import get_async_database_url, get_sync_database_url
 
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
+
 pytestmark = pytest.mark.live
 
 

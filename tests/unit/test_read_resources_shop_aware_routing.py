@@ -21,8 +21,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.integrations.tiktok import (
-    PRODUCTION_AUTH_ID,
-    SANDBOX_AUTH_ID,
     ProductionReadResources,
     SandboxWriteResources,
     TikTokCapability,
@@ -30,6 +28,10 @@ from juli_backend.integrations.tiktok import (
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import TikTokCredentialRepo
 from juli_backend.services.agent.composition import AgentReadShopRequired, build_read_resources
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 
 def _shop_rows(shop_id: uuid.UUID) -> tuple[User, Shop]:

@@ -4,29 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Re-exported, not used by this module's own logic since #1995 removed the
-# production-merchant identity check from `ProductionReadClientFactory.create`.
-# `tests/unit/test_tiktok_capabilities_merchant_source.py` reads
-# `factories.PRODUCTION_AUTH_ID` to prove the env-configured value reaches the
-# transport layer (#1246), so the name stays bound here on purpose. The
-# redundant alias is the explicit re-export form `capabilities.py` already uses.
-from juli_backend.integrations.tiktok.capabilities import (
-    PRODUCTION_AUTH_ID as PRODUCTION_AUTH_ID,
-)
-from juli_backend.integrations.tiktok.capabilities import (
-    SANDBOX_AUTH_ID,
-    MerchantCapability,
-)
+from juli_backend.integrations.tiktok.capabilities import MerchantCapability
 from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.guarded_client import GuardedTikTokClient
 from juli_backend.integrations.tiktok.guards import (
     ProductionWriteGuard,
     ReadOnlyTransportGuard,
     SandboxOnlyWriteGuard,
-)
-from juli_backend.integrations.tiktok.merchant import (
-    SANDBOX_MERCHANT_ID_ENV,
-    MerchantIdNotConfigured,
 )
 from juli_backend.integrations.tiktok.resources.analytics import AnalyticsResource
 from juli_backend.integrations.tiktok.resources.authorization import AuthorizationResource
@@ -52,6 +36,37 @@ class ClientFactoryConfig:
     shop_cipher: str | None = None
     base_url: str = DEFAULT_BASE_URL
     timeout: int = 15
+    #: The ``capability`` column of the credential the token came from (P61-G,
+    #: D71.6). The factories decide from it, never from a configured merchant id.
+    #: ``SandboxWriteClientFactory`` refuses anything but ``sandbox_write``
+    #: (including unset); the production factories refuse ``sandbox_write``.
+    credential_capability: str | None = None
+    #: Merchant ids carried by ``sandbox_write`` credentials, read from the DB by
+    #: the caller (``credential_resolver.sandbox_write_merchant_ids``). A production
+    #: factory refuses a credential whose merchant is in this set, so a mislabelled
+    #: row (a production-capability row holding the sandbox merchant) is refused.
+    sandbox_merchant_auth_ids: frozenset[str] = frozenset()
+    #: Merchant ids carried by non-sandbox credentials (same source). The sandbox
+    #: factory refuses a merchant in this set: the 2026-08-18 distinctness rule.
+    production_merchant_auth_ids: frozenset[str] = frozenset()
+
+
+_SANDBOX_CAPABILITY = MerchantCapability.SANDBOX_WRITE.value
+
+
+def _refuse_sandbox_credential(factory: str, config: ClientFactoryConfig) -> None:
+    """Shared refusal for every production factory: capability and merchant, from the credential."""
+    if not config.merchant_auth_id:
+        raise ValueError(f"{factory} requires a merchant auth ID; got an empty value")
+    if config.credential_capability == _SANDBOX_CAPABILITY:
+        raise ValueError(
+            f"{factory} refuses a sandbox_write credential; it is not a seller's own shop"
+        )
+    if config.merchant_auth_id in config.sandbox_merchant_auth_ids:
+        raise ValueError(
+            f"{factory} refuses a merchant auth ID that a sandbox_write credential carries; "
+            "it is not read-capable"
+        )
 
 
 @dataclass(frozen=True)
@@ -96,66 +111,22 @@ class ProductionWriteResources:
 class ProductionReadClientFactory:
     """Build read-only clients for **any** shop's own read credential (#1995).
 
-    Until #1995 this factory admitted exactly one merchant id -- the configured
-    ``PRODUCTION_AUTH_ID``. That made the read path structurally single-tenant:
-    #1365's ``resolve_read_credential_for_shop`` could resolve a connecting
-    seller's own ``SELLER_CONNECT`` credential correctly, and this constructor
-    then refused it one layer down, so no seller but Juli's own merchant could
-    ever be polled.
+    No merchant id is configured or compared to a constant (P61-G, D71.6). What keeps it
+    fail-closed:
 
-    What replaces the identity equality, and why it is still fail-closed:
+    - a ``sandbox_write`` credential is refused by its capability, and any merchant id a
+      ``sandbox_write`` row carries is refused (``sandbox_merchant_auth_ids``, read from the
+      DB by the caller), so the sandbox write-validation merchant is unreachable from a read;
+    - an empty merchant id is refused, so a half-built config cannot get a signed client;
+    - every client still carries ``ReadOnlyTransportGuard``, which allowlists by method and
+      path and rejects before signing.
 
-    - the **sandbox-write merchant is refused outright**. That credential is a
-      write-validation credential and must be unreachable from every read path
-      (``READ_CAPABILITIES`` in ``merchant.py`` says the same thing one layer
-      up); this is the transport-level restatement of it.
-    - an **empty merchant id is refused**, so a half-built config cannot get a
-      signed client.
-    - every client this returns still carries ``ReadOnlyTransportGuard``, which
-      allowlists by *method and path* and rejects before signing. Widening which
-      merchant may hold a read client does not widen what a read client may do.
-
-    What this deliberately gives up (measured, not glossed): the #1246 check
-    that a deployment reconfigured onto new merchant ids rejects Juli's *old*
-    production id here. Post-#1995 a seller's own merchant id is, by
-    construction, "not the configured one", so merchant identity can no longer
-    distinguish a stale id from a legitimate seller. The authority for *which*
-    credential reaches this factory moves up to
-    ``resolve_read_credential_for_shop``, which only ever returns a row the
-    shop being read owns.
+    Which credential reaches this factory is decided one layer up
+    (``resolve_read_credential_for_shop``: only a row the shop itself owns).
     """
 
     def create(self, config: ClientFactoryConfig) -> GuardedTikTokClient:
-        if not config.merchant_auth_id:
-            raise ValueError(
-                "ProductionReadClientFactory requires a merchant auth ID; got an empty value"
-            )
-        # FAIL CLOSED, and never `if SANDBOX_AUTH_ID and ...`. That
-        # short-circuit was the shape this guard first shipped in (#1995
-        # review), and it inverts the refusal: with
-        # `TIKTOK_SANDBOX_MERCHANT_ID` set to an empty string the constant is
-        # `""`, the `and` is False, and the sandbox write-validation merchant
-        # is silently ADMITTED to the read factory -- the one thing this guard
-        # and `READ_CAPABILITIES` exist to prevent. The pre-#1995 check
-        # (`!= PRODUCTION_AUTH_ID`) failed closed under the same
-        # misconfiguration, so the short-circuit was a regression, not a
-        # pre-existing hole.
-        #
-        # An unusable sandbox constant is a DEPLOYMENT FAULT, not permission to
-        # skip the check: a factory that cannot say which merchant is the
-        # sandbox one cannot honour the exclusion, so it refuses to build a
-        # signed client at all. Since P61-D there is no hardcoded fallback in
-        # `merchant.py`, so an unset env var lands here too.
-        if not SANDBOX_AUTH_ID:
-            raise MerchantIdNotConfigured(
-                SANDBOX_MERCHANT_ID_ENV,
-                needed_for="ProductionReadClientFactory (to exclude the SANDBOX_VN merchant)",
-            )
-        if config.merchant_auth_id == SANDBOX_AUTH_ID:
-            raise ValueError(
-                "ProductionReadClientFactory refuses the SANDBOX_VN write-validation "
-                f"merchant auth ID ({SANDBOX_AUTH_ID}); it is not read-capable"
-            )
+        _refuse_sandbox_credential("ProductionReadClientFactory", config)
         inner = TikTokClient(
             app_key=config.app_key,
             app_secret=config.app_secret,
@@ -186,19 +157,27 @@ class ProductionReadClientFactory:
 
 
 class SandboxWriteClientFactory:
-    """Build SANDBOX_VN write-validation clients with sandbox-only transport guard."""
+    """Build sandbox write-validation clients for the ``sandbox_write`` credential only."""
 
     def create(self, config: ClientFactoryConfig) -> GuardedTikTokClient:
-        # FAIL CLOSED (P61-D): with the id unset, an empty `merchant_auth_id`
-        # would otherwise equal the empty constant and pass.
-        if not SANDBOX_AUTH_ID:
-            raise MerchantIdNotConfigured(
-                SANDBOX_MERCHANT_ID_ENV, needed_for="SandboxWriteClientFactory"
-            )
-        if config.merchant_auth_id != SANDBOX_AUTH_ID:
+        # Capability is the authority (P61-G, D71.6): the credential must be the
+        # sandbox_write one, with a merchant id the connect flow stored. Unset
+        # capability fails closed. Distinctness from production merchants is
+        # enforced when the caller supplies them and, always, by
+        # `resolve_sandbox_write_credential` before a credential reaches here.
+        if config.credential_capability != _SANDBOX_CAPABILITY:
             raise ValueError(
-                "SandboxWriteClientFactory requires SANDBOX_VN merchant auth ID "
-                f"({SANDBOX_AUTH_ID}); got {config.merchant_auth_id}"
+                "SandboxWriteClientFactory requires a sandbox_write credential; "
+                f"got capability {config.credential_capability!r}"
+            )
+        if not config.merchant_auth_id:
+            raise ValueError(
+                "SandboxWriteClientFactory requires a merchant auth ID; got an empty value"
+            )
+        if config.merchant_auth_id in config.production_merchant_auth_ids:
+            raise ValueError(
+                "SandboxWriteClientFactory refuses a merchant auth ID that a production "
+                "credential also carries; a sandbox write must never reach a production merchant"
             )
         inner = TikTokClient(
             app_key=config.app_key,
@@ -228,34 +207,17 @@ class SandboxWriteClientFactory:
 class ProductionWriteClientFactory:
     """Build a seller's own-shop write client (fast track P61-B, D71.2).
 
-    Mirrors ``SandboxWriteClientFactory`` with the opposite merchant rule: the
-    sandbox write-validation merchant is refused (its writes are not the
-    seller's shop), as is an empty merchant id, and -- fail closed like
-    ``ProductionReadClientFactory`` -- an empty ``SANDBOX_AUTH_ID`` that would
-    make that exclusion impossible to honour. Which credential reaches this
-    factory is decided one layer up (``resolve_write_credential_for_shop``:
-    only a row the shop itself owns), and whether a client may be built at all
-    (``services/execution/production_write.py``: the ADR-085 gates). Every
-    client carries ``ProductionWriteGuard``, which rejects anything outside the
-    listing edit allowlist before signing.
+    Mirrors ``SandboxWriteClientFactory`` with the opposite rule: a ``sandbox_write`` credential
+    and any merchant a ``sandbox_write`` row carries are refused (its writes are not the
+    seller's shop), as is an empty merchant id. Which credential reaches this factory is decided
+    one layer up (``resolve_write_credential_for_shop``: only a row the shop itself owns), and
+    whether a client may be built at all (``services/execution/production_write.py``: the
+    ADR-085 gates). Every client carries ``ProductionWriteGuard``, which rejects anything
+    outside the listing edit allowlist before signing.
     """
 
     def create(self, config: ClientFactoryConfig) -> GuardedTikTokClient:
-        if not config.merchant_auth_id:
-            raise ValueError(
-                "ProductionWriteClientFactory requires a merchant auth ID; got an empty value"
-            )
-        if not SANDBOX_AUTH_ID:
-            raise ValueError(
-                "ProductionWriteClientFactory cannot enforce the SANDBOX_VN exclusion: "
-                "SANDBOX_AUTH_ID is empty (TIKTOK_SANDBOX_MERCHANT_ID is set to an empty "
-                "value). Refusing to build a production write client."
-            )
-        if config.merchant_auth_id == SANDBOX_AUTH_ID:
-            raise ValueError(
-                "ProductionWriteClientFactory refuses the SANDBOX_VN write-validation "
-                f"merchant auth ID ({SANDBOX_AUTH_ID}); it is not a seller's own shop"
-            )
+        _refuse_sandbox_credential("ProductionWriteClientFactory", config)
         inner = TikTokClient(
             app_key=config.app_key,
             app_secret=config.app_secret,

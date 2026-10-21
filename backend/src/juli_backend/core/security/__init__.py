@@ -5,10 +5,11 @@ from juli_backend.core.security.credential_resolver import *  # noqa: F403
 from juli_backend.core.security.credential_resolver import (
     NoReadCredentialForShop,
     NoWriteCredentialForShop,
-    resolve_production_read_credential,
+    SandboxCredentialRefused,
     resolve_read_credential_for_shop,
     resolve_sandbox_write_credential,
     resolve_write_credential_for_shop,
+    sandbox_write_merchant_ids,
 )
 from juli_backend.core.security.dependencies import (
     REVIEWER_DENIED_HEADER,
@@ -74,7 +75,8 @@ __all__ = [
     # #1293: exported at the package root so services/action_cards/refresh.py --
     # capped at cross-package depth 2 by `.importlinter.toml` -- can resolve the
     # production-read shop before deciding whether to poll.
-    "resolve_production_read_credential",
+    "SandboxCredentialRefused",
+    "sandbox_write_merchant_ids",
     "resolve_read_credential_for_shop",
     # #1969: sandbox write-validation credential resolver, already imported at
     # this package root by workers/services/polling/sync.py,

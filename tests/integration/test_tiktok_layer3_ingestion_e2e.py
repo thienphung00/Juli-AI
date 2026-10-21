@@ -25,7 +25,7 @@ from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.constants import ORDER_SEARCH_PATH
 from juli_backend.integrations.tiktok.factories import ProductionReadClientFactory
-from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok.merchant import TikTokCapability
 from juli_backend.models.models import ProcessedEvent, Shop, User
 from juli_backend.repositories.repos import (
     OrdersRepo,
@@ -43,6 +43,9 @@ from juli_backend.workers.services.polling.orchestrate import (
     run_fujiwa_poll_cycle,
 )
 from tests.integration.tiktok_recorded_replay import load_sample, recorded_tiktok_replay
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
 
 APP_KEY = "layer3_app_key"
 APP_SECRET = "layer3_app_secret"

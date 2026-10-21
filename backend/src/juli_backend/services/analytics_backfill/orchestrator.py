@@ -628,6 +628,7 @@ async def backfill_analytics_history_auto_topup(
             access_token=credential.access_token,
             merchant_auth_id=str(credential.merchant_authorization_id),
             shop_cipher=credential.shop_cipher,
+            credential_capability=credential.capability,
         )
     )
     analytics_resource = resources.analytics

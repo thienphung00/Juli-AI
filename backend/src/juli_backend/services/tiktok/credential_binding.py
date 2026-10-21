@@ -2,8 +2,9 @@
 
 ## What this closes
 
-`SandboxWriteClientFactory` asserts `merchant_auth_id == SANDBOX_AUTH_ID` — a
-value read from the `tiktok_credentials` row. Nothing ever asked TikTok **which
+`SandboxWriteClientFactory` asserts the credential's `sandbox_write` capability — a
+value read from the `tiktok_credentials` row (P61-G, D71.6: no configured merchant id).
+Nothing ever asked TikTok **which
 shop the token actually reaches**, so a row could be labelled `sandbox_write`,
 carry the correct `merchant_authorization_id`, pass every guard, and hold a
 token authorized for the *production* shop.

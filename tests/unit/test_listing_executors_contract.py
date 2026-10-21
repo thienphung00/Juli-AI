@@ -19,7 +19,6 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from juli_backend.integrations.tiktok.capabilities import SANDBOX_AUTH_ID
 from juli_backend.integrations.tiktok.exceptions import TikTokAPIError
 from juli_backend.integrations.tiktok.merchant import TikTokCapability
 from juli_backend.models.models import Shop, User
@@ -28,6 +27,9 @@ from juli_backend.services.execution.types import (
     ExecutionErrorCategory,
     ExecutionStatus,
 )
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 LISTING_TOOL_NAMES = frozenset({"listing.create_hero_product", "listing.optimize_product"})
 

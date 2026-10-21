@@ -26,8 +26,6 @@ SECRETS = {
     "TIKTOK_APP_SECRET": "app-secret-SENTINEL-2",
     "TIKTOK_REDIRECT_URI": "https://example.test/cb-SENTINEL-3",
     "REDIS_URL": "redis://:pw-SENTINEL-4@localhost:6379/0",
-    "TIKTOK_PRODUCTION_MERCHANT_ID": "prod-merchant-SENTINEL-5",
-    "TIKTOK_SANDBOX_MERCHANT_ID": "sandbox-merchant-SENTINEL-6",
     "AGENT_WORKFLOWS_ENABLED": "true",
     "PRODUCTION_WRITE_ENABLED": "true",
 }
@@ -43,8 +41,6 @@ def test_the_report_covers_every_variable_the_brief_names():
         "TIKTOK_APP_SECRET",
         "TIKTOK_REDIRECT_URI",
         "REDIS_URL",
-        "TIKTOK_PRODUCTION_MERCHANT_ID",
-        "TIKTOK_SANDBOX_MERCHANT_ID",
         "AGENT_WORKFLOWS_ENABLED",
         "PRODUCTION_WRITE_ENABLED",
     ]
@@ -75,8 +71,6 @@ def test_an_empty_environment_names_every_gap_one_warning_each(caplog):
         "TIKTOK_APP_SECRET",
         "TIKTOK_REDIRECT_URI",
         "REDIS_URL",
-        "TIKTOK_PRODUCTION_MERCHANT_ID",
-        "TIKTOK_SANDBOX_MERCHANT_ID",
     ]
     assert report.flags_off == ["AGENT_WORKFLOWS_ENABLED"]
     assert report.info_off == ["PRODUCTION_WRITE_ENABLED"]

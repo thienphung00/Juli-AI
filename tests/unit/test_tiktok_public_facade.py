@@ -9,6 +9,10 @@ from pathlib import Path
 
 import pytest
 
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
+
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND_SRC = ROOT / "backend/src"
 

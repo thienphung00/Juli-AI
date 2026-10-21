@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import sys
 import time
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -37,13 +38,13 @@ async def _build_resources() -> Any:
     """Production-read TikTok resources (guard rejects any non-read method)."""
     from juli_backend.core.async_db import async_database_url
     from juli_backend.core.config import require_env
-    from juli_backend.core.security import resolve_production_read_credential
+    from juli_backend.core.security import resolve_read_credential_for_shop
     from juli_backend.database.database import ensure_worker_session_factory
+    from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.integrations.tiktok.factories import (
         ClientFactoryConfig,
         ProductionReadClientFactory,
     )
-    from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
 
     app_key, app_secret = require_env("TIKTOK_APP_KEY"), require_env("TIKTOK_APP_SECRET")
     # Resolve the URL here rather than via ``workers.tasks.database``: importing
@@ -51,14 +52,18 @@ async def _build_resources() -> Any:
     # config (SUPABASE_URL, broker), which a read-only scan has no business
     # requiring.
     factory = ensure_worker_session_factory(async_database_url(require_env("DATABASE_URL")))
-    async with factory() as session:
-        credential = await resolve_production_read_credential(session)
+    # Merchant identity comes from the shop's own credential row (P61-G, D71.6): name the
+    # shop with JULI_SHOP_ID; nothing about a merchant is hardcoded or configured.
+    shop_id = uuid.UUID(require_env("JULI_SHOP_ID"))
+    async with factory() as session, with_shop_scope(session, shop_id):
+        credential = await resolve_read_credential_for_shop(session, shop_id)
     return ProductionReadClientFactory().create_resources(
         ClientFactoryConfig(
             app_key=app_key,
             app_secret=app_secret,
             access_token=credential.access_token,
-            merchant_auth_id=PRODUCTION_AUTH_ID,
+            merchant_auth_id=str(credential.merchant_authorization_id),
+            credential_capability=credential.capability,
             shop_cipher=credential.shop_cipher,
         )
     )

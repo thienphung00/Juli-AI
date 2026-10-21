@@ -39,12 +39,7 @@ import pytest
 import pytest_asyncio
 
 from juli_backend.core.security.credential_resolver import NoReadCredentialForShop
-from juli_backend.integrations.tiktok import (
-    PRODUCTION_AUTH_ID,
-    SANDBOX_AUTH_ID,
-    MerchantIdNotConfigured,
-    TikTokCapability,
-)
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.models import Shop, TikTokCredential, User
 from juli_backend.services.action_cards import refresh as refresh_module
 from juli_backend.services.action_cards.refresh import maybe_poll_tiktok_data
@@ -53,6 +48,10 @@ from juli_backend.workers.services.polling.orchestrate import (
     _assert_pollable_read_credential,
     run_fujiwa_poll_cycle,
 )
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"
@@ -354,16 +353,38 @@ class TestSandboxWriteIsUnreachableFromThePollPath:
         with pytest.raises(ValueError, match="read-capable"):
             _assert_pollable_read_credential(credential, shop_id=credential.shop_id)
 
-    def test_the_poll_guard_refuses_the_sandbox_merchant_even_if_mislabelled(self):
-        """Capability is a stored column. A row carrying the sandbox merchant id
-        but a read capability must still not reach a vendor client."""
-        credential = MagicMock()
-        credential.capability = TikTokCapability.PRODUCTION_READ.value
-        credential.merchant_authorization_id = SANDBOX_AUTH_ID
-        credential.shop_id = uuid.uuid4()
+    @pytest.mark.asyncio
+    async def test_a_read_row_holding_the_sandbox_merchant_cannot_poll(
+        self, session, owner, poll_env
+    ):
+        """A row carrying the merchant id a `sandbox_write` row carries but a read capability
+        must not reach a vendor client. The sandbox merchant is whatever the sandbox
+        credential's own row says (P61-G, D71.6) -- nothing is configured."""
+        await _make_shop(
+            session,
+            owner,
+            name="Sandbox Shop",
+            tiktok_shop_id="tiktok_shop_sandbox_row",
+            merchant=SANDBOX_AUTH_ID,
+            capability=TikTokCapability.SANDBOX_WRITE.value,
+            token="sandbox-access-token",
+        )
+        mislabelled = await _make_shop(
+            session,
+            owner,
+            name="Mislabelled Read Shop",
+            tiktok_shop_id="tiktok_shop_mislabelled",
+            merchant=SANDBOX_AUTH_ID,
+            capability=TikTokCapability.SELLER_CONNECT.value,
+            token="mislabelled-access-token",
+        )
 
-        with pytest.raises(ValueError, match="SANDBOX_VN"):
-            _assert_pollable_read_credential(credential, shop_id=credential.shop_id)
+        mock_poll_cycle = AsyncMock()
+        with patch("juli_backend.workers.services.polling.run_fujiwa_poll_cycle", mock_poll_cycle):
+            with pytest.raises(NoReadCredentialForShop):
+                await maybe_poll_tiktok_data(session, mislabelled.shop.id)
+
+        mock_poll_cycle.assert_not_called()
 
     def test_the_poll_guard_refuses_a_credential_with_no_capability(self):
         """Absent is not permission."""
@@ -399,74 +420,63 @@ class TestSandboxWriteIsUnreachableFromThePollPath:
         mock_poll_cycle.assert_not_called()
 
 
-# --- The sandbox exclusion must fail CLOSED on a misconfigured constant ------
+# --- The sandbox exclusion comes from the credentials, not from config --------
 
 
-class TestTheSandboxExclusionFailsClosed:
-    """#1995 review. Both guards first shipped as `if SANDBOX_AUTH_ID and ...`.
+class TestTheSandboxExclusionComesFromTheCredential:
+    """P61-G (D71.6, owner 2026-10-21): no merchant id is configured, so there is nothing
+    for an empty / unset env var to defeat. The read factory refuses a credential by its
+    CAPABILITY and by any merchant id a `sandbox_write` row carries (handed in from the DB by
+    the caller), and builds for every ordinary seller with no env set at all."""
 
-    That short-circuit inverts a security refusal. `SANDBOX_AUTH_ID` is read
-    from `TIKTOK_SANDBOX_MERCHANT_ID` at import; set that env var to an empty
-    string and the constant is `""`, the `and` is False, and the sandbox
-    write-validation merchant is silently **admitted** to the read path -- the
-    one outcome `READ_CAPABILITIES` and both guards exist to prevent.
+    @staticmethod
+    def _config(**overrides):
+        from juli_backend.integrations.tiktok import ClientFactoryConfig
 
-    It was a REGRESSION, not an inherited hole: the pre-#1995 checks compared
-    `!= PRODUCTION_AUTH_ID`, which refuses everything when the constant is
-    empty. The value is non-empty in production today only because
-    `merchant.py` carries a hardcoded fallback and the env var is unset on the
-    deployed host (#1365 finding F6) -- luck, not a guarantee, and an
-    explicitly-empty env var defeats it.
+        values = {
+            "app_key": "k",
+            "app_secret": "s",
+            "access_token": "t",
+            "merchant_auth_id": "seller_own_merchant_4242",
+            "shop_cipher": "ROW_cipher1234567890",
+        }
+        values.update(overrides)
+        return ClientFactoryConfig(**values)
 
-    A constant the guard cannot read is a DEPLOYMENT fault, so both refuse to
-    proceed rather than proceed without the check.
-    """
+    def test_the_read_factory_refuses_a_sandbox_write_credential(self):
+        from juli_backend.integrations.tiktok import ProductionReadClientFactory
 
-    def test_the_read_factory_refuses_everything_when_sandbox_auth_id_is_empty(self, monkeypatch):
-        from juli_backend.integrations.tiktok import factories as factories_module
-
-        monkeypatch.setattr(factories_module, "SANDBOX_AUTH_ID", "")
-
-        # The sandbox merchant itself -- the id that MUST never be admitted.
-        with pytest.raises(MerchantIdNotConfigured, match="TIKTOK_SANDBOX_MERCHANT_ID"):
-            factories_module.ProductionReadClientFactory().create(
-                factories_module.ClientFactoryConfig(
-                    app_key="k",
-                    app_secret="s",
-                    access_token="t",
+        with pytest.raises(ValueError, match="sandbox_write"):
+            ProductionReadClientFactory().create(
+                self._config(
                     merchant_auth_id=SANDBOX_AUTH_ID,
-                    shop_cipher="ROW_cipher1234567890",
+                    credential_capability=TikTokCapability.SANDBOX_WRITE.value,
                 )
             )
 
-        # And an ordinary seller too: with the exclusion unenforceable the
-        # factory builds nothing at all, rather than building everything
-        # except a merchant it can no longer name.
-        with pytest.raises(MerchantIdNotConfigured, match="TIKTOK_SANDBOX_MERCHANT_ID"):
-            factories_module.ProductionReadClientFactory().create(
-                factories_module.ClientFactoryConfig(
-                    app_key="k",
-                    app_secret="s",
-                    access_token="t",
-                    merchant_auth_id="seller_own_merchant_4242",
-                    shop_cipher="ROW_cipher1234567890",
+    def test_the_read_factory_refuses_a_merchant_a_sandbox_row_carries(self):
+        from juli_backend.integrations.tiktok import ProductionReadClientFactory
+
+        with pytest.raises(ValueError, match="sandbox_write credential carries"):
+            ProductionReadClientFactory().create(
+                self._config(
+                    merchant_auth_id=SANDBOX_AUTH_ID,
+                    credential_capability=TikTokCapability.SELLER_CONNECT.value,
+                    sandbox_merchant_auth_ids=frozenset({SANDBOX_AUTH_ID}),
                 )
             )
 
-    def test_the_poll_guard_refuses_when_sandbox_auth_id_is_empty(self, monkeypatch):
-        from juli_backend.workers.services.polling import orchestrate as orchestrate_module
+    def test_the_read_factory_builds_for_an_ordinary_seller_with_no_env_at_all(self, monkeypatch):
+        from juli_backend.integrations.tiktok import ProductionReadClientFactory
 
-        monkeypatch.setattr(orchestrate_module, "SANDBOX_AUTH_ID", "")
+        monkeypatch.delenv("TIKTOK_PRODUCTION_MERCHANT_ID", raising=False)
+        monkeypatch.delenv("TIKTOK_SANDBOX_MERCHANT_ID", raising=False)
 
-        credential = MagicMock()
-        credential.capability = TikTokCapability.PRODUCTION_READ.value
-        credential.merchant_authorization_id = SANDBOX_AUTH_ID
-        credential.shop_id = uuid.uuid4()
+        client = ProductionReadClientFactory().create(
+            self._config(credential_capability=TikTokCapability.SELLER_CONNECT.value)
+        )
 
-        with pytest.raises(MerchantIdNotConfigured, match="TIKTOK_SANDBOX_MERCHANT_ID"):
-            orchestrate_module._assert_pollable_read_credential(
-                credential, shop_id=credential.shop_id
-            )
+        assert client is not None
 
 
 # --- The shop-less entry is gone (fast track P61-D, D71.4) --------------------

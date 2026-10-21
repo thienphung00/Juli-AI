@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
-from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.constants import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
@@ -42,6 +42,9 @@ from tests.support.tiktok_fakes import (
     FakePromotionResource,
     RecordingRateLimiter,
 )
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"

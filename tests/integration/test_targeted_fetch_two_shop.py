@@ -22,6 +22,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from juli_backend.services.cdp_speed import TargetedFetchPlan, static_fetch_resource
 from tests.integration.two_tenant import RUNTIME_ROLE
 
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
     reason="DATABASE_URL is not set to a Postgres instance",

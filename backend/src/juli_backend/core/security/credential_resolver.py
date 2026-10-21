@@ -4,20 +4,17 @@ from __future__ import annotations
 
 import os
 import uuid
+from dataclasses import dataclass
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from juli_backend.core.security.credential_refresh import refresh_credential
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import (
-    PRODUCTION_AUTH_ID,
-    PRODUCTION_MERCHANT_ID_ENV,
     READ_CAPABILITIES,
-    SANDBOX_AUTH_ID,
-    SANDBOX_MERCHANT_ID_ENV,
-    MerchantIdNotConfigured,
     TikTokAuth,
     TikTokCapability,
     is_read_capability,
@@ -43,13 +40,11 @@ def build_refresh_auth_from_env() -> TikTokAuth | None:
     (`workers -> core.security.credential_resolver` is depth 3;
     `.importlinter.toml`'s `max_cross_package_depth` caps at 2) --
     mirroring how `services/agent/composition.py` already reaches
-    `resolve_production_read_credential` through the same package root.
+    `resolve_sandbox_write_credential` through the same package root.
 
-    Both `resolve_production_read_credential` and
     `resolve_sandbox_write_credential` must keep taking only `session` --
     every existing caller (`services/agent/composition.py`,
-    `services/execution/sandbox_guard.py`,
-    `workers/services/polling/orchestrate.py`) invokes them that way -- so
+    `services/execution/sandbox_guard.py`) invokes it that way -- so
     there is no per-call app-credential parameter to thread through; env is
     the only seam available here. Returns `None` when TikTok app
     credentials are not configured, in which case the lazy layer (and the
@@ -81,104 +76,83 @@ async def _lazy_refresh(session: AsyncSession, credential: TikTokCredential) -> 
     return outcome.credential
 
 
-async def _enumerate_owning_shop(
-    session: AsyncSession,
-    merchant_authorization_id: str,
-    capability: TikTokCapability,
-) -> uuid.UUID | None:
-    """Which shop owns the configured merchant's credential — the one question
-    that cannot be asked from inside a tenant scope (#2019, ADR-089 decision 3).
+@dataclass(frozen=True)
+class SandboxWriteOwner:
+    """One ``sandbox_write`` credential, as the cross-tenant enumeration reports it.
 
-    `tiktok_credentials_select_public` carries qual `(shop_id =
-    app_current_shop_id())` and the runtime connects as `juli_app`
-    (`rolbypassrls = f`), so a scope-less read of this table returns nothing.
-    But the scope the read needs is built FROM the row it is trying to read:
-    `run_fujiwa_poll_cycle` enters `with_sticky_shop_scope(credential.shop_id)`
-    on the line after the resolve. That circularity is what ADR-089 decision 3
-    reserves an enumeration for, and migration 061 is this one — a reviewed,
-    named `SECURITY DEFINER` function returning an identifier and nothing else.
-    No token material crosses the tenant boundary; the tokens are read back
-    below, under real scope, through the repo that decrypts them.
-
-    Returns `None` when the function finds no such credential, and also on
-    SQLite, where the function does not exist and RLS does not either. Both
-    send the caller to the same unscoped repo read: on SQLite that is the only
-    path and behaves exactly as it did before this slice, and on Postgres it is
-    a read that is about to raise the canonical `NotFound` anyway. Branching on
-    the dialect rather than probing for the function mirrors
-    `workers/tasks/credential_refresh_beat.py`, which enumerates the same table
-    the same way.
-
-    DEPLOY ORDER: MIGRATION 061 FIRST, THEN THIS CODE. The branch above is on
-    the DIALECT, not on whether the function exists, so against a Postgres that
-    has not run 061 this raises `asyncpg.UndefinedFunctionError` rather than
-    falling back to the old unscoped read. Measured, not assumed, during #2019
-    review. That is deliberate -- a silent fallback would re-introduce exactly
-    the scope-less read this exists to remove, and would do it invisibly. But it
-    means shipping the code ahead of the migration changes the outage's shape
-    instead of ending it. Expand-only migrations are safe to apply early; this
-    one creates a function nothing calls until this code lands.
+    Identifiers and one boolean only -- never token material (P61-G, D71.6). ``collides`` is
+    the 2026-08-18 invariant read from credentials alone: some credential that is NOT
+    ``sandbox_write`` carries the same merchant id or the same non-null shop cipher.
     """
-    if session.get_bind().dialect.name != "postgresql":
-        return None
-    result = await session.execute(
-        text(
-            "SELECT out_shop_id FROM public.enumerate_credential_owner_shop(:merchant, :capability)"
-        ).bindparams(
-            merchant=merchant_authorization_id,
-            capability=capability.value,
+
+    shop_id: uuid.UUID
+    merchant_authorization_id: str | None
+    collides: bool
+
+
+class SandboxCredentialRefused(ValueError):
+    """The sandbox_write credential cannot be used: it is ambiguous with a production one.
+
+    Not a :class:`NotFound` on purpose: the credential exists and is refused, which is a
+    configuration fault an operator must read, not a missing row a caller may shrug off.
+    """
+
+
+async def _enumerate_sandbox_write_credentials(session: AsyncSession) -> list[SandboxWriteOwner]:
+    """Every ``sandbox_write`` credential across tenants, newest first.
+
+    The one question that cannot be asked from inside a tenant scope (#2019, ADR-089
+    decision 3): which shop holds the sandbox credential. On PostgreSQL it goes through
+    migration 099's reviewed ``SECURITY DEFINER`` function (identifiers + one boolean); on
+    SQLite, where neither the function nor RLS exists, the same predicate runs as a plain query.
+
+    DEPLOY ORDER: MIGRATION 099 FIRST, THEN THIS CODE (no existence probe, no silent fallback,
+    like 061).
+    """
+    if session.get_bind().dialect.name == "postgresql":
+        rows = await session.execute(
+            text(
+                "SELECT out_shop_id, out_merchant, out_collides "
+                "FROM public.enumerate_sandbox_write_credentials()"
+            )
         )
+        return [SandboxWriteOwner(row[0], row[1], bool(row[2])) for row in rows.all()]
+
+    sandbox = TikTokCredential
+    other = aliased(TikTokCredential)
+    collides = (
+        select(other.id)
+        .where(
+            other.capability.is_distinct_from(TikTokCapability.SANDBOX_WRITE.value),
+            (
+                (
+                    sandbox.merchant_authorization_id.is_not(None)
+                    & (other.merchant_authorization_id == sandbox.merchant_authorization_id)
+                )
+                | (sandbox.shop_cipher.is_not(None) & (other.shop_cipher == sandbox.shop_cipher))
+            ),
+        )
+        .exists()
     )
-    return result.scalar_one_or_none()
+    listed = await session.execute(
+        select(sandbox.shop_id, sandbox.merchant_authorization_id, collides)
+        .where(sandbox.capability == TikTokCapability.SANDBOX_WRITE.value)
+        .order_by(sandbox.created_at.desc())
+    )
+    return [SandboxWriteOwner(row[0], row[1], bool(row[2])) for row in listed.all()]
 
 
-async def _resolve_configured_merchant_credential(
-    session: AsyncSession,
-    merchant_authorization_id: str,
-    capability: TikTokCapability,
-) -> TikTokCredential:
-    """Enumerate the owning shop, then do the real read inside that shop's scope.
+async def sandbox_write_merchant_ids(session: AsyncSession) -> frozenset[str]:
+    """Merchant ids carried by ``sandbox_write`` credentials -- read from the DB, never config.
 
-    The shape `credential_refresh_beat` already runs in production: enumerate
-    identifiers across tenants, then enter `with_shop_scope` and do every
-    actual data access under it.
-
-    `_lazy_refresh` stays INSIDE the scope deliberately. It UPDATEs and commits,
-    and `tiktok_credentials_update_public` carries the same `shop_id` qual as
-    the select policy, so the tenant scope is exactly the authority that write
-    needs. Widening a cross-tenant exemption to cover a write on a token table
-    would buy nothing and cost isolation.
-
-    The read itself is still `get_by_merchant`, not a second hand-written
-    query, so the cross-merchant guard (#1234), the newest-wins ordering and the
-    canonical `NotFound` message all stay in the one place they already live.
+    The production resolvers and factories refuse any credential holding one of these, so
+    the sandbox write-validation merchant is unreachable from a read or a production write
+    even if a row is mislabelled.
     """
-    repo = TikTokCredentialRepo(session)
-    shop_id = await _enumerate_owning_shop(session, merchant_authorization_id, capability)
-    if shop_id is None:
-        credential = await repo.get_by_merchant(merchant_authorization_id, capability)
-        return await _lazy_refresh(session, credential)
-    async with with_shop_scope(session, shop_id):
-        credential = await repo.get_by_merchant(merchant_authorization_id, capability)
-        return await _lazy_refresh(session, credential)
-
-
-async def resolve_production_read_credential(
-    session: AsyncSession,
-) -> TikTokCredential:
-    """Return Fujiwa production-read credentials — never falls back to latest.
-
-    Fails closed with ``MerchantIdNotConfigured`` when the production merchant id
-    is not configured (P61-D: there is no default id in code).
-    """
-    if not PRODUCTION_AUTH_ID:
-        raise MerchantIdNotConfigured(
-            PRODUCTION_MERCHANT_ID_ENV, needed_for="resolve_production_read_credential"
-        )
-    return await _resolve_configured_merchant_credential(
-        session,
-        PRODUCTION_AUTH_ID,
-        TikTokCapability.PRODUCTION_READ,
+    return frozenset(
+        owner.merchant_authorization_id
+        for owner in await _enumerate_sandbox_write_credentials(session)
+        if owner.merchant_authorization_id
     )
 
 
@@ -219,6 +193,7 @@ async def resolve_read_credential_for_shop(
     through a credential it does not own.
     """
     repo = TikTokCredentialRepo(session)
+    sandbox_merchants = await sandbox_write_merchant_ids(session)
     for capability in READ_CAPABILITIES:
         try:
             credential = await repo.get_by_shop_and_capability(shop_id, capability)
@@ -229,6 +204,7 @@ async def resolve_read_credential_for_shop(
             credential.shop_id != shop_id
             or stored_capability is None
             or not is_read_capability(stored_capability)
+            or credential.merchant_authorization_id in sandbox_merchants
         ):
             # Unreachable through the repo's own filters; kept as the invariant
             # this function exists to hold, so a future change to either side
@@ -269,6 +245,7 @@ async def resolve_write_credential_for_shop(
     merchant: a shop with nothing usable raises :class:`NoWriteCredentialForShop`.
     """
     repo = TikTokCredentialRepo(session)
+    sandbox_merchants = await sandbox_write_merchant_ids(session)
     allowed = {capability.value for capability in PRODUCTION_WRITE_CREDENTIAL_CAPABILITIES}
     for capability in PRODUCTION_WRITE_CREDENTIAL_CAPABILITIES:
         try:
@@ -279,7 +256,7 @@ async def resolve_write_credential_for_shop(
             credential.shop_id != shop_id
             or credential.capability not in allowed
             or not credential.merchant_authorization_id
-            or credential.merchant_authorization_id == SANDBOX_AUTH_ID
+            or credential.merchant_authorization_id in sandbox_merchants
         ):
             continue
         return await _lazy_refresh(session, credential)
@@ -289,21 +266,39 @@ async def resolve_write_credential_for_shop(
 async def resolve_sandbox_write_credential(
     session: AsyncSession,
 ) -> TikTokCredential:
-    """Return SANDBOX_VN write-validation credentials.
+    """Return the sandbox write-validation credential: the row whose capability says so.
 
-    Scoped through the same enumeration as the production read: the defect
-    #2019 reports is identical here, because the shape is identical — a
-    configured merchant id, no caller-supplied shop, and a policy keyed on a
-    shop the caller does not yet know. It has not been seen in production only
-    because the sandbox path runs far less often than a beat on a
-    fifteen-minute cadence.
+    Identified by ``capability = sandbox_write`` and nothing else (P61-G, D71.6): no
+    configured merchant id. The enumeration is the one cross-tenant read (#2019); the token is
+    re-read under the owning shop's scope through the repo that decrypts it.
+
+    Refuses (:class:`SandboxCredentialRefused`) a sandbox row with no merchant id, and one that
+    *collides* with a non-sandbox credential (same merchant id or shop cipher) -- the
+    2026-08-18 defect, a production token filed as ``sandbox_write``, caught at resolve time
+    from the credentials alone. Raises :class:`NotFound` when no sandbox credential exists.
     """
-    if not SANDBOX_AUTH_ID:
-        raise MerchantIdNotConfigured(
-            SANDBOX_MERCHANT_ID_ENV, needed_for="resolve_sandbox_write_credential"
+    owners = await _enumerate_sandbox_write_credentials(session)
+    if not owners:
+        raise NotFound("No sandbox_write credential exists")
+    owner = owners[0]
+    if not owner.merchant_authorization_id:
+        raise SandboxCredentialRefused(
+            "the sandbox_write credential carries no merchant authorization id"
         )
-    return await _resolve_configured_merchant_credential(
-        session,
-        SANDBOX_AUTH_ID,
-        TikTokCapability.SANDBOX_WRITE,
-    )
+    if owner.collides:
+        raise SandboxCredentialRefused(
+            "the sandbox_write credential shares its merchant id or shop cipher with a "
+            "non-sandbox credential; a sandbox write could reach a production merchant, so it "
+            "is refused (reconnect the sandbox shop)"
+        )
+    repo = TikTokCredentialRepo(session)
+    if session.get_bind().dialect.name != "postgresql":
+        credential = await repo.get_by_shop_and_capability(
+            owner.shop_id, TikTokCapability.SANDBOX_WRITE
+        )
+        return await _lazy_refresh(session, credential)
+    async with with_shop_scope(session, owner.shop_id):
+        credential = await repo.get_by_shop_and_capability(
+            owner.shop_id, TikTokCapability.SANDBOX_WRITE
+        )
+        return await _lazy_refresh(session, credential)

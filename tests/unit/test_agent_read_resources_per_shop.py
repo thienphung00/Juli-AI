@@ -28,7 +28,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security import NoReadCredentialForShop
 from juli_backend.integrations.tiktok import (
-    SANDBOX_AUTH_ID,
     ClientFactoryConfig,
     SandboxWriteResources,
     TikTokCapability,
@@ -41,6 +40,10 @@ from juli_backend.services.agent.composition import (
     AgentReadShopRequired,
     build_read_resources,
 )
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 MERCHANT_A = "merchant-a-test"
 MERCHANT_B = "merchant-b-test"

@@ -422,6 +422,7 @@ async def run_quick_scan(
                 access_token=credential.access_token,
                 merchant_auth_id=str(credential.merchant_authorization_id),
                 shop_cipher=credential.shop_cipher,
+                credential_capability=credential.capability,
             )
             shop_key = shop.tiktok_shop_id or str(shop_id)
             await repo.stamp_once(

@@ -1557,7 +1557,6 @@ async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID)
     import os
 
     from juli_backend.integrations.tiktok import (
-        SANDBOX_AUTH_ID,
         ClientFactoryConfig,
         SandboxWriteClientFactory,
     )
@@ -1620,8 +1619,9 @@ async def sync_sandbox_write_products(session: AsyncSession, shop_id: uuid.UUID)
             app_key=app_key,
             app_secret=app_secret,
             access_token=sandbox_write_cred.access_token,
-            merchant_auth_id=SANDBOX_AUTH_ID,
+            merchant_auth_id=sandbox_write_cred.merchant_authorization_id or "",
             shop_cipher=sandbox_write_cred.shop_cipher,
+            credential_capability=sandbox_write_cred.capability,
         )
         resources = SandboxWriteClientFactory().create_resources(config)
 

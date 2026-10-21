@@ -42,7 +42,7 @@ from juli_backend.integrations.tiktok import (
 )
 from juli_backend.integrations.tiktok import client as client_module
 from juli_backend.integrations.tiktok.auth import TikTokAuth
-from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok.merchant import TikTokCapability
 from juli_backend.integrations.tiktok.rate_limiter import RateLimiter as RealRateLimiter
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import TikTokCredentialRepo
@@ -56,6 +56,9 @@ from juli_backend.workers.services.polling.orchestrate import (
     run_fujiwa_material_resource_fetch,
     run_fujiwa_poll_cycle,
 )
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
 
 SHOP_KEY = "7494001234567890123"
 

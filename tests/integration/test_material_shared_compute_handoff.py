@@ -12,7 +12,6 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import func, select
 
-from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
 from juli_backend.models.models import (
     BronzeOrderRawPayload,
     GoldKpiEnvelope,
@@ -29,6 +28,9 @@ from juli_backend.services.cdp_speed.targeted_fetch_bronze_handoff import (
 from juli_backend.services.webhook.deployed import handle_tiktok_webhook_delivery
 from juli_backend.services.webhook.material_gate import InMemoryMaterialEnqueueGate
 from juli_backend.services.webhook.material_worker import run_material_analytics_compute
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
 
 APP_KEY = "material_627_app_key"
 APP_SECRET = "material_627_app_secret"

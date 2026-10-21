@@ -88,6 +88,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.config import require_env
 from juli_backend.core.security import (
+    SandboxCredentialRefused,
     resolve_read_credential_for_shop,
     resolve_sandbox_write_credential,
 )
@@ -259,8 +260,9 @@ async def _is_sandbox_shop(session: AsyncSession, shop_id: uuid.UUID) -> bool:
     """Whether ``shop_id`` owns the sandbox-write credential (issue #1302)."""
     try:
         sandbox_cred = await resolve_sandbox_write_credential(session)
-    except NotFound:
-        # No sandbox credential provisioned: this shop is not the sandbox shop;
+    except (NotFound, SandboxCredentialRefused):
+        # No sandbox credential provisioned (or one refused as ambiguous with a production
+        # credential, P61-G): this shop is not the sandbox shop;
         # it goes down the per-shop read path, which fails closed on its own.
         # Only NotFound (P61-B): a database or refresh error is not "no sandbox
         # credential" and must raise, not be logged as a fallback.
@@ -314,6 +316,7 @@ async def build_read_resources(
             access_token=credential.access_token,
             merchant_auth_id=str(credential.merchant_authorization_id),
             shop_cipher=credential.shop_cipher,
+            credential_capability=credential.capability,
         )
     return ProductionReadClientFactory().create_resources(config)
 
@@ -338,8 +341,8 @@ async def build_write_resources(
     - anything else -- including no capability at all, which is every caller
       that does not resolve one (the agent run, `run_changes/live.py`) -> the
       SANDBOX_VN write resources exactly as before:
-      `sandbox_guard.load_sandbox_write_resources`, whose own `SANDBOX_AUTH_ID`
-      assertion keeps them on the sandbox merchant.
+      `sandbox_guard.load_sandbox_write_resources`, whose credential must carry
+      the `sandbox_write` capability (no merchant id is configured, P61-G).
 
     Fails closed the same two ways as `build_read_resources` above.
     """

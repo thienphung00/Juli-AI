@@ -78,7 +78,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.database.tenant_context import with_shop_scope, with_sticky_shop_scope
 from juli_backend.integrations.tiktok import (
     READ_CAPABILITIES,
-    SANDBOX_AUTH_ID,
     ProductionReadClientFactory,
     ProductionReadResources,
     RateLimiter,
@@ -1111,6 +1110,11 @@ async def enumerate_pollable_shops(session: AsyncSession) -> list[PollableShop]:
     and one boolean only; each per-shop task re-reads its own credential under
     its own shop scope. SQLite (unit tests) has neither the function nor RLS,
     so it runs the same predicate as a plain query.
+
+    The sandbox credential is excluded by CAPABILITY (``READ_CAPABILITIES`` does not contain
+    ``sandbox_write``); no merchant id is configured (P61-G, D71.6). A shop whose read row
+    carries a merchant a ``sandbox_write`` row also carries is refused per shop by
+    ``resolve_read_credential_for_shop``.
     """
     capabilities = [capability.value for capability in READ_CAPABILITIES]
     if session.get_bind().dialect.name == "postgresql":
@@ -1120,7 +1124,7 @@ async def enumerate_pollable_shops(session: AsyncSession) -> list[PollableShop]:
             text(
                 "SELECT out_shop_id, out_fast_done "
                 "FROM public.enumerate_pollable_shops(:capabilities, :excluded)"
-            ).bindparams(capabilities=capabilities, excluded=SANDBOX_AUTH_ID or "")
+            ).bindparams(capabilities=capabilities, excluded="")
         )
         return [PollableShop(shop_id=row[0], fast_done=bool(row[1])) for row in rows.all()]
 
@@ -1131,7 +1135,7 @@ async def enumerate_pollable_shops(session: AsyncSession) -> list[PollableShop]:
             TikTokCredential.capability.in_(capabilities),
             TikTokCredential.status != "needs_reauth",
             TikTokCredential.merchant_authorization_id.is_not(None),
-            TikTokCredential.merchant_authorization_id != (SANDBOX_AUTH_ID or ""),
+            TikTokCredential.merchant_authorization_id != "",
         )
         .exists()
     )

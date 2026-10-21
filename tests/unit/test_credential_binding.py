@@ -18,17 +18,17 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.integrations.tiktok.merchant import (
-    PRODUCTION_AUTH_ID,
-    SANDBOX_AUTH_ID,
-    TikTokCapability,
-)
+from juli_backend.integrations.tiktok.merchant import TikTokCapability
 from juli_backend.models.models import Shop, TikTokCredential, User
 from juli_backend.services.tiktok.credential_binding import (
     CredentialBindingError,
     resolve_authorized_shop,
     verify_capability_binding,
 )
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 PRODUCTION_CIPHER = "ROW_production_cipher_example"
 SANDBOX_CIPHER = "ROW_sandbox_cipher_example"

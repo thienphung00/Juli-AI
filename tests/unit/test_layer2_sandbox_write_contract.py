@@ -12,7 +12,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from juli_backend.integrations.tiktok.capabilities import SANDBOX_AUTH_ID
 from juli_backend.integrations.tiktok.constants import (
     PRODUCT_CREATE_PATH,
     PROMOTION_CREATE_PATH,
@@ -37,6 +36,10 @@ from juli_backend.integrations.tiktok.factories import (
 )
 from juli_backend.integrations.tiktok.signing import sign_request
 
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
+
 
 @pytest.fixture
 def sandbox_config() -> ClientFactoryConfig:
@@ -51,7 +54,7 @@ def sandbox_config() -> ClientFactoryConfig:
 
 @pytest.fixture
 def production_config() -> ClientFactoryConfig:
-    from juli_backend.integrations.tiktok.capabilities import PRODUCTION_AUTH_ID
+    pass
 
     return ClientFactoryConfig(
         app_key="prod-app-key",

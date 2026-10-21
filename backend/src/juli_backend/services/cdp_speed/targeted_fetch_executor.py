@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.security import NoReadCredentialForShop, resolve_read_credential_for_shop
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import (
-    SANDBOX_AUTH_ID,
     ClientFactoryConfig,
     ProductionReadClientFactory,
     ProductionReadResources,
@@ -109,8 +108,9 @@ def credential_belongs_to_job(credential: TikTokCredential, shop_id: uuid.UUID) 
     Was "the configured production merchant's credential" -- so the targeted fetch
     served one shop and skipped every other shop's job. Now any read-capable
     credential (``PRODUCTION_READ`` or a seller's ``SELLER_CONNECT``) OWNED BY THE
-    JOB'S SHOP, carrying its own merchant id, and never the sandbox write merchant
-    (refused again by ``ProductionReadClientFactory``).
+    JOB'S SHOP, carrying its own merchant id. The sandbox write merchant is refused by capability
+    here and by the DB-derived merchant exclusion in ``resolve_read_credential_for_shop`` and
+    ``ProductionReadClientFactory`` (P61-G, D71.6: no configured merchant id).
     """
     capability = credential.capability
     merchant = credential.merchant_authorization_id
@@ -119,8 +119,6 @@ def credential_belongs_to_job(credential: TikTokCredential, shop_id: uuid.UUID) 
         and capability is not None
         and is_read_capability(capability)
         and bool(merchant)
-        and bool(SANDBOX_AUTH_ID)
-        and merchant != SANDBOX_AUTH_ID
     )
 
 
@@ -260,7 +258,7 @@ async def execute_targeted_fetch_to_bronze(
 
     # Fast track P61-D (D71.4): sign with the job shop's OWN credential and merchant
     # id. This used to re-resolve the configured production merchant
-    # (`resolve_production_read_credential` + `PRODUCTION_AUTH_ID`), so only that
+    # (a configured-merchant credential resolver), so only that
     # one shop was ever fetched; `resolve_read_credential_for_shop` already runs
     # the lazy refresh, so the credential above is warm.
     client_factory = ProductionReadClientFactory()
@@ -271,6 +269,7 @@ async def execute_targeted_fetch_to_bronze(
             access_token=credential.access_token,
             merchant_auth_id=merchant,
             shop_cipher=credential.shop_cipher,
+            credential_capability=credential.capability,
         )
     )
 

@@ -11,7 +11,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from juli_backend.database.database import Base
-from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.models import Shop, TikTokCredential, User
 from juli_backend.services.cdp_speed.targeted_fetch_executor import (
     BRONZE_SUPPORTED_RESOURCE_ATTRS,
@@ -20,6 +20,10 @@ from juli_backend.services.cdp_speed.targeted_fetch_executor import (
     execute_targeted_fetch_to_bronze,
 )
 from juli_backend.services.cdp_speed.targeted_fetch_planner import plan_targeted_fetch
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 
 def _credential(*, shop_id: uuid.UUID) -> TikTokCredential:
@@ -80,7 +84,7 @@ class TestCredentialBelongsToJob:
         assert credential_belongs_to_job(cred, shop_id) is True
 
     def test_rejects_the_sandbox_merchant_and_a_missing_merchant(self):
-        from juli_backend.integrations.tiktok import SANDBOX_AUTH_ID
+        pass
 
         shop_id = uuid.uuid4()
         sandbox = _credential(shop_id=shop_id)

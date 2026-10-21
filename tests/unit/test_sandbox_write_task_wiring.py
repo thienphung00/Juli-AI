@@ -11,9 +11,11 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.integrations.tiktok import SANDBOX_AUTH_ID
 from juli_backend.models.models import Shop, TikTokCredential, User
 from juli_backend.repositories.repos import ShopsRepo
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 
 @pytest.fixture

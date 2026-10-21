@@ -7,10 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from juli_backend.integrations.tiktok.capabilities import (
-    PRODUCTION_AUTH_ID,
     PRODUCTION_READ_GET_EXACT,
     PRODUCTION_READ_POST_PATHS,
-    SANDBOX_AUTH_ID,
     path_contains_write_marker,
 )
 from juli_backend.integrations.tiktok.constants import (
@@ -28,6 +26,10 @@ from juli_backend.integrations.tiktok.factories import (
 )
 from juli_backend.integrations.tiktok.guards import redact_shop_identifier
 from juli_backend.integrations.tiktok.resources.inventory import InventoryResource
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 
 @pytest.fixture

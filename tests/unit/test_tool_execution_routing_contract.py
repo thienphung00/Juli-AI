@@ -19,6 +19,9 @@ from httpx import ASGITransport, AsyncClient
 from juli_backend.models.models import Shop, User
 from juli_backend.services.scoring.copy_layer import WORKFLOW_COPY_TEMPLATE_KEYS
 
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+
 EXPECTED_WORKFLOW_TOOL_ROUTES: dict[str, str] = {
     "create_hero_product_1": "listing.create_hero_product",
     "optimize_product_2": "listing.optimize_product",
@@ -78,9 +81,7 @@ async def auth_client(app, authenticated_user, shop):
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     app.dependency_overrides[get_active_shop] = lambda: shop
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
@@ -201,8 +202,12 @@ async def test_ac3_failed_execution_records_error_category(
 @pytest.mark.asyncio
 async def test_ac4_sandbox_guard_rejects_production_merchant_auth_id(session):
     """AC4: sandbox write helper enforces SANDBOX_VN merchant auth (#301)."""
-    from juli_backend.integrations.tiktok.factories import ClientFactoryConfig, SandboxWriteClientFactory
-    from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
+    from juli_backend.integrations.tiktok.factories import (
+        ClientFactoryConfig,
+        SandboxWriteClientFactory,
+    )
+
+    pass
     from juli_backend.services.execution.sandbox_guard import build_sandbox_write_resources
 
     config = ClientFactoryConfig(

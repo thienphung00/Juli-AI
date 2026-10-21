@@ -16,12 +16,14 @@ from unittest.mock import MagicMock
 import pytest
 import pytest_asyncio
 
-from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories.repos import OrdersRepo, WorkflowWebhookSignalsRepo
 from juli_backend.services.cdp_speed.enqueue_reason import webhook_catalog_enqueue_reason
 from juli_backend.services.webhook.deployed import handle_tiktok_webhook_delivery
 from juli_backend.services.webhook.material_gate import InMemoryMaterialEnqueueGate
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
 
 APP_KEY = "material_ac4_app_key"
 APP_SECRET = "material_ac4_app_secret"

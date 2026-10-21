@@ -65,6 +65,10 @@ from juli_backend.services.agent.tools import ToolPolicy, ToolRegistry
 from juli_backend.workers.tasks import agent_workflow
 from tests.support.postgres import requires_postgres
 
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
+
 
 @pytest.fixture(autouse=True)
 def _ordinary_runs_have_no_lever_flow(monkeypatch):
@@ -321,11 +325,7 @@ class TestDefaultResourceSeamsComposeRealMarketplaceResources:
     async def test_default_read_resources_builds_real_production_read_resources(
         self, session, monkeypatch
     ):
-        from juli_backend.integrations.tiktok import (
-            PRODUCTION_AUTH_ID,
-            ProductionReadResources,
-            TikTokCapability,
-        )
+        from juli_backend.integrations.tiktok import ProductionReadResources, TikTokCapability
         from juli_backend.repositories.repos import TikTokCredentialRepo
 
         monkeypatch.setenv("TIKTOK_APP_KEY", "test-app-key")
@@ -351,11 +351,7 @@ class TestDefaultResourceSeamsComposeRealMarketplaceResources:
     async def test_default_write_resources_builds_real_sandbox_write_resources(
         self, session, monkeypatch
     ):
-        from juli_backend.integrations.tiktok import (
-            SANDBOX_AUTH_ID,
-            SandboxWriteResources,
-            TikTokCapability,
-        )
+        from juli_backend.integrations.tiktok import SandboxWriteResources, TikTokCapability
         from juli_backend.repositories.repos import TikTokCredentialRepo
 
         monkeypatch.setenv("TIKTOK_APP_KEY", "test-app-key")

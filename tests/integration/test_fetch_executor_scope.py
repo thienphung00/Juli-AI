@@ -26,7 +26,7 @@ import uuid
 import pytest
 from sqlalchemy import text
 
-from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.models import TikTokCredential
 from juli_backend.services.cdp_speed import targeted_fetch_executor as tfe
 from juli_backend.services.cdp_speed.targeted_fetch_executor import (
@@ -38,6 +38,9 @@ from juli_backend.services.cdp_speed.targeted_fetch_planner import (
     TargetedFetchPlan,
 )
 from tests.integration.two_tenant import juli_app_session
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").startswith("postgresql"),

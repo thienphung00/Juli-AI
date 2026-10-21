@@ -38,7 +38,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.integrations.tiktok import (
-    SANDBOX_AUTH_ID,
     ClientFactoryConfig,
     ProductionWriteClientFactory,
     ProductionWriteResources,
@@ -73,6 +72,9 @@ from juli_backend.services.execution.production_write_resolver import (
     resolve_write_capability,
 )
 from tests.support.fakes import FakeTikTokTransport
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 pytestmark = pytest.mark.asyncio
 
@@ -705,7 +707,7 @@ def test_migration_097_pins_the_model_and_stays_under_the_cleanup():
     assert "GRANT SELECT ON public.{TABLE} TO {APP_ROLE}" in text
     assert "INSERT" not in text.split("def upgrade", 1)[1].split("def downgrade", 1)[0]
     deferred = (MIGRATIONS / "deferred/074_users_placeholder_phone_cleanup.py").read_text("utf-8")
-    assert 'down_revision: str | None = "098_processed_events_retention"' in deferred
+    assert 'down_revision: str | None = "099_sandbox_write_enumeration"' in deferred
 
     from juli_backend.database.tenant_scoped_tables import TABLE_CLASSIFICATION_MAP
 

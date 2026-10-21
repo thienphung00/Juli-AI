@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.credential_resolver import resolve_sandbox_write_credential
 from juli_backend.integrations.tiktok import (
-    SANDBOX_AUTH_ID,
     ClientFactoryConfig,
     SandboxWriteClientFactory,
     SandboxWriteResources,
@@ -25,12 +24,11 @@ def build_sandbox_write_resources(
     *,
     factory: SandboxWriteClientFactory | None = None,
 ) -> SandboxWriteResources:
-    """Build SANDBOX_VN write resources — P2-B6/B7 handlers must use this entrypoint."""
-    if config.merchant_auth_id != SANDBOX_AUTH_ID:
-        raise ValueError(
-            "Sandbox write tools require SANDBOX_VN merchant auth ID "
-            f"({SANDBOX_AUTH_ID}); got {config.merchant_auth_id}"
-        )
+    """Build sandbox write resources — P2-B6/B7 handlers must use this entrypoint.
+
+    The credential must be the ``sandbox_write`` one (its capability, P61-G, D71.6) and name a
+    merchant; ``SandboxWriteClientFactory`` enforces both and refuses anything else.
+    """
     return (factory or SandboxWriteClientFactory()).create_resources(config)
 
 
@@ -47,7 +45,8 @@ async def load_sandbox_write_resources(
         app_key=app_key,
         app_secret=app_secret,
         access_token=credential.access_token,
-        merchant_auth_id=SANDBOX_AUTH_ID,
+        merchant_auth_id=credential.merchant_authorization_id or "",
         shop_cipher=credential.shop_cipher,
+        credential_capability=credential.capability,
     )
     return build_sandbox_write_resources(config, factory=factory)

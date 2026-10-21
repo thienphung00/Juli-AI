@@ -34,13 +34,16 @@ from sqlalchemy import create_engine, text
 from juli_backend.core.config.runtime import sync_database_url
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.database.tenant_context import with_shop_scope
-from juli_backend.integrations.tiktok import PRODUCTION_AUTH_ID, TikTokCapability
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.models import TikTokCredential
 from juli_backend.workers.services.polling.orchestrate import (
     FujiwaPollConfig,
     run_fujiwa_poll_cycle,
 )
 from tests.support.postgres import juli_app_async_sessionmaker
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),

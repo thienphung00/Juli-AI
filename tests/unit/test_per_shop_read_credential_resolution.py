@@ -1,7 +1,7 @@
 """A read resolves the connecting shop's OWN credential, and never another's (#1365).
 
 Before this slice the only read resolver was
-``resolve_production_read_credential``: one globally configured merchant, and
+a globally configured merchant's resolver (deleted in P61-G), and
 ``services/action_cards/refresh.py`` silently returned ``None`` for every other
 shop. A seller who had just connected was therefore scored over an empty
 database with no error anywhere.
@@ -36,19 +36,16 @@ import pytest
 
 from juli_backend.core.security.credential_resolver import (
     NoReadCredentialForShop,
-    resolve_production_read_credential,
     resolve_read_credential_for_shop,
 )
 from juli_backend.database.exceptions import NotFound
-from juli_backend.integrations.tiktok import (
-    PRODUCTION_AUTH_ID,
-    READ_CAPABILITIES,
-    SANDBOX_AUTH_ID,
-    TikTokCapability,
-    is_read_capability,
-)
+from juli_backend.integrations.tiktok import READ_CAPABILITIES, TikTokCapability, is_read_capability
 from juli_backend.repositories import TikTokCredentialRepo
 from tests.support.builders import make_tenant, next_unique, utc_now_naive
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 
 async def issue_credential(
@@ -104,15 +101,13 @@ class TestOwnCredentialResolves:
         # and the row itself was not rewritten on the way through
         assert stored.capability == TikTokCapability.SELLER_CONNECT.value
 
-    async def test_configured_production_read_merchant_resolves_unchanged(self, session, shop):
+    async def test_production_read_credential_resolves_unchanged(self, session, shop):
         await issue_credential(
             session, shop, TikTokCapability.PRODUCTION_READ, access_token="fujiwa-token"
         )
 
-        through_the_global_resolver = await resolve_production_read_credential(session)
         through_the_per_shop_resolver = await resolve_read_credential_for_shop(session, shop.id)
 
-        assert through_the_global_resolver.access_token == "fujiwa-token"
         assert through_the_per_shop_resolver.access_token == "fujiwa-token"
         assert through_the_per_shop_resolver.capability == TikTokCapability.PRODUCTION_READ.value
         assert through_the_per_shop_resolver.shop_id == shop.id

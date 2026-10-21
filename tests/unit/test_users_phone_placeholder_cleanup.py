@@ -82,8 +82,8 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: `092_card_group_design`, P45 onto `093_ops_group_lift_draws`, P50-B onto
 #: `094_user_privacy_and_consent`, P60-1a onto `095_card_events`, P60-1b onto
 #: `096_change_attribution`, P61-B onto `097_production_write_shops`,
-#: and P62-B onto `098_processed_events_retention`.
-PHONE_REVISION = "098_processed_events_retention"
+#: P62-B onto `098_processed_events_retention` and P61-G onto `099_sandbox_write_enumeration`.
+PHONE_REVISION = "099_sandbox_write_enumeration"
 
 _SCHEMA = "phone_cleanup_074"
 

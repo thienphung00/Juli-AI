@@ -21,11 +21,7 @@ from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
 from juli_backend.integrations.tiktok.auth import TikTokAuth
 from juli_backend.integrations.tiktok.constants import INVENTORY_SEARCH_PATH
 from juli_backend.integrations.tiktok.factories import ProductionReadClientFactory
-from juli_backend.integrations.tiktok.merchant import (
-    PRODUCTION_AUTH_ID,
-    SANDBOX_AUTH_ID,
-    TikTokCapability,
-)
+from juli_backend.integrations.tiktok.merchant import TikTokCapability
 from juli_backend.models.models import Shop, TikTokSyncState, User
 from juli_backend.repositories.repos import TikTokCredentialRepo, TikTokSyncStateRepo
 from juli_backend.workers.services.polling.orchestrate import (
@@ -35,6 +31,10 @@ from juli_backend.workers.services.polling.orchestrate import (
     _run_poll_step,
     run_fujiwa_poll_cycle,
 )
+
+# Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
+PRODUCTION_AUTH_ID = "test-production-merchant"
+SANDBOX_AUTH_ID = "test-sandbox-merchant"
 
 APP_KEY = "test_app_key"
 APP_SECRET = "test_app_secret"

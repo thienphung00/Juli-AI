@@ -20,6 +20,7 @@ import argparse
 import asyncio
 import json
 import sys
+import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -227,24 +228,28 @@ def windows(as_of: date) -> dict[str, tuple[str, str]]:
 async def _fetch_live(out_dir: Path, as_of: date, product_ids: list[str]) -> None:
     from juli_backend.core.async_db import async_database_url
     from juli_backend.core.config import require_env
-    from juli_backend.core.security import resolve_production_read_credential
+    from juli_backend.core.security import resolve_read_credential_for_shop
     from juli_backend.database.database import ensure_worker_session_factory
+    from juli_backend.database.tenant_context import with_shop_scope
     from juli_backend.integrations.tiktok.factories import (
         ClientFactoryConfig,
         ProductionReadClientFactory,
     )
-    from juli_backend.integrations.tiktok.merchant import PRODUCTION_AUTH_ID
 
     app_key, app_secret = require_env("TIKTOK_APP_KEY"), require_env("TIKTOK_APP_SECRET")
     factory = ensure_worker_session_factory(async_database_url(require_env("DATABASE_URL")))
-    async with factory() as session:
-        credential = await resolve_production_read_credential(session)
+    # Merchant identity comes from the shop's own credential row (P61-G, D71.6): name the
+    # shop with JULI_SHOP_ID; nothing about a merchant is hardcoded or configured.
+    shop_id = uuid.UUID(require_env("JULI_SHOP_ID"))
+    async with factory() as session, with_shop_scope(session, shop_id):
+        credential = await resolve_read_credential_for_shop(session, shop_id)
     resources = ProductionReadClientFactory().create_resources(
         ClientFactoryConfig(
             app_key=app_key,
             app_secret=app_secret,
             access_token=credential.access_token,
-            merchant_auth_id=PRODUCTION_AUTH_ID,
+            merchant_auth_id=str(credential.merchant_authorization_id),
+            credential_capability=credential.capability,
             shop_cipher=credential.shop_cipher,
         )
     )

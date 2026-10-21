@@ -98,6 +98,7 @@ async def load_production_write_resources(
         access_token=credential.access_token,
         merchant_auth_id=credential.merchant_authorization_id,
         shop_cipher=credential.shop_cipher,
+        credential_capability=credential.capability,
     )
     return (factory or ProductionWriteClientFactory()).create_resources(config)
 
