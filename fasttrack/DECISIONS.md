@@ -1631,3 +1631,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   3. **Scoped reads.** The whole-table `analytics_performance_intervals` / `silver.orders`
      SELECTs filter by shop + date range (and columns).
   4. **Less connection churn** in workers (pooled engine instead of a connection per task).
+  **D72 timeline (owner, 2026-10-21).** The cycle resets 2026-10-26; the grace period ends
+  2026-11-16. The next cycle must stay under 5 GB (budget ~160 MB/day, target < 100 MB/day incl.
+  dumps). P62 ships alone as soon as it is green (by ~Oct 24), not bundled with P61-B/D. Deploys
+  before Oct 26 land in the already-exceeded cycle, so they cost no extra. Scheduled VPS dump
+  cadence is env-configurable, default every 3 days. Checkpoint 2026-10-28: if daily egress is
+  still > 160 MB/day, upgrade to Pro before 2026-11-16.
