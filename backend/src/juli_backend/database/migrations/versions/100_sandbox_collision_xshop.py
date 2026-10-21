@@ -31,13 +31,22 @@ ROLE_NAME = "juli_app"
 FUNCTION_SIGNATURE = "enumerate_sandbox_write_credentials()"
 
 
-def _body(cross_shop: bool) -> str:
-    where = (
-        "WHERE o.shop_id <> c.shop_id\n                      AND o.capability"
-        if cross_shop
-        else "WHERE o.capability"
-    )
-    return f"""
+def _grants() -> None:
+    op.execute(f"REVOKE ALL ON FUNCTION public.{FUNCTION_SIGNATURE} FROM PUBLIC;")  # nosec B608
+    op.execute(f"""
+    DO $$
+    BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE_NAME}') THEN
+            EXECUTE 'GRANT EXECUTE ON FUNCTION public.{FUNCTION_SIGNATURE} TO {ROLE_NAME}';
+        END IF;
+    END
+    $$;
+    """)  # nosec B608
+
+
+def upgrade() -> None:
+    # Literal SQL (no helper call): the additive-only deploy gate must read it statically.
+    op.execute("""
     CREATE OR REPLACE FUNCTION public.enumerate_sandbox_write_credentials()
     RETURNS TABLE (
         out_shop_id uuid,
@@ -54,7 +63,8 @@ def _body(cross_shop: bool) -> str:
                EXISTS (
                    SELECT 1
                      FROM public.tiktok_credentials AS o
-                    {where} IS DISTINCT FROM 'sandbox_write'
+                    WHERE o.shop_id <> c.shop_id
+                      AND o.capability IS DISTINCT FROM 'sandbox_write'
                       AND (
                           (c.merchant_authorization_id IS NOT NULL
                            AND o.merchant_authorization_id = c.merchant_authorization_id)
@@ -65,27 +75,38 @@ def _body(cross_shop: bool) -> str:
          WHERE c.capability = 'sandbox_write'
          ORDER BY c.created_at DESC
       $fn$;
-    """  # nosec B608 -- constant-only f-string (two fixed predicates)
-
-
-def _grants() -> None:
-    op.execute(f"REVOKE ALL ON FUNCTION public.{FUNCTION_SIGNATURE} FROM PUBLIC;")  # nosec B608
-    op.execute(f"""
-    DO $$
-    BEGIN
-        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE_NAME}') THEN
-            EXECUTE 'GRANT EXECUTE ON FUNCTION public.{FUNCTION_SIGNATURE} TO {ROLE_NAME}';
-        END IF;
-    END
-    $$;
-    """)  # nosec B608
-
-
-def upgrade() -> None:
-    op.execute(_body(cross_shop=True))  # nosec B608
+    """)
     _grants()
 
 
 def downgrade() -> None:
-    op.execute(_body(cross_shop=False))  # nosec B608
+    op.execute("""
+    CREATE OR REPLACE FUNCTION public.enumerate_sandbox_write_credentials()
+    RETURNS TABLE (
+        out_shop_id uuid,
+        out_merchant text,
+        out_collides boolean
+    )
+      LANGUAGE sql
+      STABLE
+      SECURITY DEFINER
+      SET search_path = pg_catalog, public
+      AS $fn$
+        SELECT c.shop_id,
+               c.merchant_authorization_id,
+               EXISTS (
+                   SELECT 1
+                     FROM public.tiktok_credentials AS o
+                    WHERE o.capability IS DISTINCT FROM 'sandbox_write'
+                      AND (
+                          (c.merchant_authorization_id IS NOT NULL
+                           AND o.merchant_authorization_id = c.merchant_authorization_id)
+                          OR (c.shop_cipher IS NOT NULL AND o.shop_cipher = c.shop_cipher)
+                      )
+               )
+          FROM public.tiktok_credentials AS c
+         WHERE c.capability = 'sandbox_write'
+         ORDER BY c.created_at DESC
+      $fn$;
+    """)
     _grants()
