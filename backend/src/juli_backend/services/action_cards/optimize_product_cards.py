@@ -67,6 +67,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from juli_backend.core.config import DecisionEmissionConfig
 from juli_backend.models.decision_reasons import DecisionReason
@@ -244,6 +245,25 @@ async def latest_product_analytics_day(
     return _as_date((await session.execute(stmt)).scalar_one_or_none())
 
 
+#: D72.3: the only columns :func:`load_product_days` reads. The window read runs on
+#: every scoring pass (60+ days x product and SKU rows); the rest of the row --
+#: ``snapshot_key``, rates, currency, timestamps -- was egress nobody used.
+_PRODUCT_DAY_COLUMNS = (
+    AnalyticsPerformanceInterval.grain,
+    AnalyticsPerformanceInterval.start_date,
+    AnalyticsPerformanceInterval.end_date,
+    AnalyticsPerformanceInterval.tiktok_product_id,
+    AnalyticsPerformanceInterval.sku_orders,
+    AnalyticsPerformanceInterval.gmv,
+    AnalyticsPerformanceInterval.items_sold,
+    AnalyticsPerformanceInterval.impressions,
+    AnalyticsPerformanceInterval.clicks,
+    AnalyticsPerformanceInterval.orders_count,
+    AnalyticsPerformanceInterval.traffic_breakdown,
+    AnalyticsPerformanceInterval.sales_breakdown,
+)
+
+
 async def load_product_days(
     session: AsyncSession, shop_id: uuid.UUID, first: date, last: date
 ) -> dict[str, list[ProductDay]]:
@@ -254,13 +274,17 @@ async def load_product_days(
     for that day (A-31 detail, present on every window), else the A-33
     ``orders`` count.
     """
-    stmt = select(AnalyticsPerformanceInterval).where(
-        AnalyticsPerformanceInterval.shop_id == shop_id,
-        AnalyticsPerformanceInterval.grain.in_(("product", "sku")),
-        AnalyticsPerformanceInterval.hour_index.is_(None),
-        AnalyticsPerformanceInterval.tiktok_product_id.isnot(None),
-        AnalyticsPerformanceInterval.start_date >= first,
-        AnalyticsPerformanceInterval.start_date <= last,
+    stmt = (
+        select(AnalyticsPerformanceInterval)
+        .options(load_only(*_PRODUCT_DAY_COLUMNS))
+        .where(
+            AnalyticsPerformanceInterval.shop_id == shop_id,
+            AnalyticsPerformanceInterval.grain.in_(("product", "sku")),
+            AnalyticsPerformanceInterval.hour_index.is_(None),
+            AnalyticsPerformanceInterval.tiktok_product_id.isnot(None),
+            AnalyticsPerformanceInterval.start_date >= first,
+            AnalyticsPerformanceInterval.start_date <= last,
+        )
     )
     rows = (await session.execute(stmt)).scalars().all()
     product_rows: dict[tuple[str, date], AnalyticsPerformanceInterval] = {}

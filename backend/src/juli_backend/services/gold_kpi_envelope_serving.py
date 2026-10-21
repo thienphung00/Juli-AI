@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import uuid
-from collections import defaultdict
-from collections.abc import Sequence
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
@@ -47,20 +45,115 @@ async def seed_unavailable_shell(
     )
 
 
-def _newest_interval_at(
-    intervals: Sequence[AnalyticsPerformanceInterval],
-    current: datetime | None,
-) -> datetime | None:
-    """Newest start_date across interval rows, as an aware UTC datetime.
+#: Statuses that count as a cancelled order for the five Demo Main KPIs.
+CANCELLED_ORDER_STATUSES: tuple[str, ...] = ("CANCELLED", "CANCELED")
 
-    AnalyticsPerformanceInterval.start_date is a date (the day measured), so it is
-    normalised to midnight UTC to sit alongside Order.update_time in one comparison.
-    """
-    newest = max((i.start_date for i in intervals if i.start_date is not None), default=None)
-    if newest is None:
+#: D72.3 (P62-B): the five KPIs are all-time aggregates by contract (ADR-049), so the
+#: reads are not windowed -- they are AGGREGATED in Postgres instead. Before, every gold
+#: recompute (each material webhook + the hourly reconcile) pulled every ``silver.orders``
+#: row and every product- and shop-grain ``analytics_performance_intervals`` row of the
+#: shop (~3,700 + 2 x ~2,400 full ORM rows per call, D72 evidence); now it reads one row
+#: per order day plus two single-row aggregates.
+
+
+def _as_day(value: Any) -> date | None:
+    """``date(...)`` comes back as a ``date`` on Postgres and as ISO text on SQLite."""
+    if value is None or isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10])
+
+
+def _day_start_utc(day: Any) -> datetime | None:
+    """A ``start_date`` (the day measured) as midnight UTC, to compare with order times."""
+    as_date = _as_day(day)
+    return None if as_date is None else datetime.combine(as_date, time.min, tzinfo=UTC)
+
+
+def _dec(value: Any) -> Decimal:
+    return Decimal(0) if value is None else Decimal(str(value))
+
+
+def _later(current: datetime | None, candidate: datetime | None) -> datetime | None:
+    if candidate is None:
         return current
-    as_dt = datetime.combine(newest, time.min, tzinfo=UTC)
-    return as_dt if current is None else max(current, as_dt)
+    return candidate if current is None else max(current, candidate)
+
+
+async def _order_day_aggregates(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> tuple[int, int, datetime | None, Decimal, list[tuple[date, Decimal]]]:
+    """(orders, cancelled, newest update_time, GMV, [(day, GMV)] for days with a sale).
+
+    One row per order day, bucketed on ``tiktok_created_at`` else ``update_time`` --
+    the same bucket the Python loop used. GMV and the non-cancelled count exclude
+    cancelled orders; only non-zero amounts are summed (as before).
+    """
+    cancelled = func.upper(Order.status).in_(CANCELLED_ORDER_STATUSES)
+    day = func.date(func.coalesce(Order.tiktok_created_at, Order.update_time))
+    stmt = (
+        select(
+            day.label("day"),
+            func.count().label("orders"),
+            func.count().filter(cancelled).label("cancelled"),
+            func.max(Order.update_time).label("newest"),
+            func.sum(Order.total_amount).filter(~cancelled).label("gmv"),
+            func.count(Order.total_amount).filter(~cancelled & (Order.total_amount != 0)),
+        )
+        .where(Order.shop_id == shop_id)
+        .group_by(day)
+    )
+    total = cancelled_total = 0
+    newest: datetime | None = None
+    gmv_total = Decimal(0)
+    days: list[tuple[date, Decimal]] = []
+    for row in (await session.execute(stmt)).all():
+        total += int(row[1])
+        cancelled_total += int(row[2])
+        newest = _later(newest, row[3])
+        day_gmv = Decimal(str(row[4])) if row[4] is not None else Decimal(0)
+        gmv_total += day_gmv
+        bucket = _as_day(row[0])
+        if bucket is not None and int(row[5]) > 0:
+            days.append((bucket, day_gmv))
+    return total, cancelled_total, newest, gmv_total, sorted(days)
+
+
+async def _product_ctor_aggregate(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> tuple[int, date | None, Decimal, Decimal]:
+    """(rows, newest start_date, sum gmv, sum gmv x click_order_rate) of product grain."""
+    both = AnalyticsPerformanceInterval.gmv.is_not(None) & (
+        AnalyticsPerformanceInterval.click_order_rate.is_not(None)
+    )
+    stmt = select(
+        func.count(),
+        func.max(AnalyticsPerformanceInterval.start_date),
+        func.sum(AnalyticsPerformanceInterval.gmv).filter(both),
+        func.sum(
+            AnalyticsPerformanceInterval.gmv * AnalyticsPerformanceInterval.click_order_rate
+        ).filter(both),
+    ).where(
+        AnalyticsPerformanceInterval.shop_id == shop_id,
+        AnalyticsPerformanceInterval.grain == "product",
+    )
+    row = (await session.execute(stmt)).one()
+    return int(row[0]), _as_day(row[1]), _dec(row[2]), _dec(row[3])
+
+
+async def _shop_live_hours_aggregate(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> tuple[int, date | None, Decimal]:
+    """(rows, newest start_date, sum live_hours) of shop grain."""
+    stmt = select(
+        func.count(),
+        func.max(AnalyticsPerformanceInterval.start_date),
+        func.sum(AnalyticsPerformanceInterval.live_hours),
+    ).where(
+        AnalyticsPerformanceInterval.shop_id == shop_id,
+        AnalyticsPerformanceInterval.grain == "shop",
+    )
+    row = (await session.execute(stmt)).one()
+    return int(row[0]), _as_day(row[1]), _dec(row[2])
 
 
 async def compute_demo_main_kpis_payload(
@@ -84,69 +177,31 @@ async def compute_demo_main_kpis_payload(
     shop_result = await session.execute(shop_stmt)
     shop = shop_result.scalars().first()
 
-    # Fetch all orders for the shop
-    stmt = select(Order).where(Order.shop_id == shop_id)
-    result = await session.execute(stmt)
-    orders = result.scalars().all()
+    # D72.3: one aggregate row per order day, not every order row.
+    order_count, cancelled_count, orders_as_of, total_gmv, gmv_days = await _order_day_aggregates(
+        session, shop_id
+    )
 
-    # Compute metrics
     gmv_value: float | None = None
     aov_value: float | None = None
     cancellation_value: float | None = None
-    gmv_series: list[dict[str, Any]] = []
-
     # Newest source record behind the orders-derived KPIs. Distinct from computed_at:
     # gold keeps recomputing on schedule even when the Partner fetch has been failing,
     # so without this the envelope reports fresh numbers built on frozen data.
-    orders_as_of: datetime | None = None
     intervals_as_of: datetime | None = None
 
-    if orders:
-        orders_as_of = max(
-            (o.update_time for o in orders if o.update_time is not None),
-            default=None,
-        )
-
-        # Separate cancelled and non-cancelled orders
-        cancelled_statuses = ("CANCELLED", "CANCELED")
-        non_cancelled_orders = [
-            o for o in orders if not (o.status and o.status.upper() in cancelled_statuses)
-        ]
-        cancelled_count = len(orders) - len(non_cancelled_orders)
-        total_count = len(orders)
-
+    if order_count:
+        non_cancelled = order_count - cancelled_count
         # GMV: sum of non-cancelled orders
-        if non_cancelled_orders:
-            total_gmv = sum(
-                order.total_amount for order in non_cancelled_orders if order.total_amount
-            )
-            gmv_value = float(total_gmv) if total_gmv else None
-
+        if non_cancelled and total_gmv:
+            gmv_value = float(total_gmv)
         # Cancellation rate: cancelled / total
-        cancellation_value = cancelled_count / total_count if total_count > 0 else None
-
+        cancellation_value = cancelled_count / order_count
         # AOV: GMV / number of non-cancelled orders
-        if non_cancelled_orders and gmv_value:
-            aov_value = gmv_value / len(non_cancelled_orders) if gmv_value else None
-
-        # Build date-bucketed series for gmv_tiktok (#633)
-        if non_cancelled_orders:
-            # Bucket non-cancelled orders by date (using tiktok_created_at or update_time)
-            daily_gmv: dict[date, Decimal] = defaultdict(Decimal)
-            for order in non_cancelled_orders:
-                # Use tiktok_created_at if available, otherwise update_time
-                order_date = None
-                if order.tiktok_created_at:
-                    order_date = order.tiktok_created_at.date()
-                elif order.update_time:
-                    order_date = order.update_time.date()
-
-                if order_date and order.total_amount:
-                    daily_gmv[order_date] += order.total_amount
-
-            # Sort by date and build series
-            sorted_dates = sorted(daily_gmv.keys())
-            gmv_series = [{"t": d.isoformat(), "v": float(daily_gmv[d])} for d in sorted_dates]
+        if non_cancelled and gmv_value:
+            aov_value = gmv_value / non_cancelled
+    # Date-bucketed series for gmv_tiktok (#633): tiktok_created_at else update_time.
+    gmv_series: list[dict[str, Any]] = [{"t": d.isoformat(), "v": float(v)} for d, v in gmv_days]
 
     # Build the kpis map with proper typing
     kpis: dict[str, dict[str, Any]] = {}
@@ -173,27 +228,13 @@ async def compute_demo_main_kpis_payload(
 
     # CTOR: Click-to-Order Rate (GMV-weighted from product-grain analytics)
     ctor_value: float | None = None
-    stmt_ctor = select(AnalyticsPerformanceInterval).where(
-        (AnalyticsPerformanceInterval.shop_id == shop_id)
-        & (AnalyticsPerformanceInterval.grain == "product")
+    product_rows, product_newest, product_gmv, product_weighted = await _product_ctor_aggregate(
+        session, shop_id
     )
-    result_ctor = await session.execute(stmt_ctor)
-    product_intervals = result_ctor.scalars().all()
-
-    if product_intervals:
-        intervals_as_of = _newest_interval_at(product_intervals, intervals_as_of)
-
-        # Calculate GMV-weighted average of click_order_rate
-        total_gmv = Decimal("0")
-        weighted_sum = Decimal("0")
-
-        for interval in product_intervals:
-            if interval.gmv is not None and interval.click_order_rate is not None:
-                total_gmv += interval.gmv
-                weighted_sum += interval.gmv * interval.click_order_rate
-
-        if total_gmv > 0:
-            ctor_value = float(weighted_sum / total_gmv)
+    if product_rows:
+        intervals_as_of = _later(intervals_as_of, _day_start_utc(product_newest))
+        if product_gmv > 0:
+            ctor_value = float(product_weighted / product_gmv)
 
     ctor_kpi: dict[str, Any] = {
         "availability": "available" if ctor_value is not None else "unavailable",
@@ -207,23 +248,9 @@ async def compute_demo_main_kpis_payload(
     # Note: live_hours is unbounded across all history; gmv_tiktok is bounded by
     # the #744 page cap on silver orders. This difference is accepted per review.
     live_hours_value: float | None = None
-    stmt_live = select(AnalyticsPerformanceInterval).where(
-        (AnalyticsPerformanceInterval.shop_id == shop_id)
-        & (AnalyticsPerformanceInterval.grain == "shop")
-    )
-    result_live = await session.execute(stmt_live)
-    shop_intervals = result_live.scalars().all()
-
-    if shop_intervals:
-        intervals_as_of = _newest_interval_at(shop_intervals, intervals_as_of)
-
-        # Sum live_hours from all shop-grain rows
-        total_live_hours = Decimal("0")
-
-        for interval in shop_intervals:
-            if interval.live_hours is not None:
-                total_live_hours += interval.live_hours
-
+    shop_rows, shop_newest, total_live_hours = await _shop_live_hours_aggregate(session, shop_id)
+    if shop_rows:
+        intervals_as_of = _later(intervals_as_of, _day_start_utc(shop_newest))
         # Report sum as-is, even if zero (legitimate measurement when rows exist).
         # Only unavailable when no rows exist (missing data, per ADR-044).
         live_hours_value = float(total_live_hours)
@@ -254,13 +281,13 @@ async def compute_demo_main_kpis_payload(
             source="silver.orders",
             as_of=orders_as_of,
             computed_at=computed_at,
-            row_count=len(orders),
+            row_count=order_count,
         ),
         "analytics_performance_intervals": build_source_freshness(
             source="analytics_performance_intervals",
             as_of=intervals_as_of,
             computed_at=computed_at,
-            row_count=len(product_intervals) + len(shop_intervals),
+            row_count=product_rows + shop_rows,
         ),
     }
     for metric_id, kpi in kpis.items():
