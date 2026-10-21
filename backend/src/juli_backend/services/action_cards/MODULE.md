@@ -185,6 +185,13 @@ slice — see "Out of scope".
 `expired` for cards past validity. Same transaction, never raises (see
 `services/card_events/MODULE.md`).
 
+### Optimize-product window read (fast track P62-B, D72.3)
+
+`optimize_product_cards.load_product_days` reads product-grain rows with only the columns it
+uses (`_PRODUCT_DAY_COLUMNS`, breakdown JSON included) and lets Postgres sum SKU-grain rows per
+(product, day, window) -- one row per product-day instead of one per SKU-day. Semantics are
+unchanged (same daily check, same fallbacks).
+
 ## HTTP (via `api/routes/action_cards.py`)
 
 - `POST /v1/action-cards/refresh` — 202 Accepted, enqueues Celery task; 429

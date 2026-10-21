@@ -1428,6 +1428,36 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 - [ ] Node 26 (current local default) breaks 29 demo vitest files on Web Storage (`localStorage`
   undefined); `.nvmrc` says 20 and all 122 files pass there.
 
+## P62-B — egress: scoped reads, `processed_events` retention (2026-10-21, D72.2–4)
+
+- [ ] **D72.4 not done: workers still open one pooler connection per session.**
+  `ensure_worker_session_factory` uses `NullPool` because every task enters via
+  `asyncio.run()` (fresh loop; pooled asyncpg connections are loop-bound, #871). The pooler is
+  Supavisor SESSION mode (5432, ADR-086), so a pool + prepared statements would be safe; the
+  blocker is the per-task loop. Fix: one persistent event loop per worker process
+  (`worker_process_init`), a `run_task(coro)` helper replacing `asyncio.run` in the 21 task
+  modules, then `AsyncAdaptedQueuePool` (size 2, overflow 2, `pool_pre_ping`, recycle 1800,
+  the API's idle guard). Skipped on the owner's 2026-10-21 instruction (risk before the
+  2026-10-26 cycle reset). Connection churn costs latency and `get_auth` calls, little egress.
+- [ ] The ETL hot path does 3 lookups + 2 savepoints per record (shop by TikTok id, dedup epoch,
+  `processed_events` claim) and commits per record; production shows ~78 % of records are
+  duplicates (`ROLLBACK TO SAVEPOINT` 515k of 661k claims). `set_config` (819k) is already one
+  pair per transaction (`with_sticky_shop_scope` re-applies after each commit) — the count tracks
+  the per-record commits. Batching (cache shop + epoch per consumer, one `SELECT … WHERE event_id
+  = ANY(...)` per page, one commit per page) would cut all four counters; not refactored.
+- [ ] `PROCESSED_EVENTS_RETENTION_DAYS` = 30 keeps ~30 days of claims (est. ~8–9k new rows/day
+  → ~50 MB steady state, little below today's 64 MB). The SQL floor is 14; 14 would halve it.
+  The bigger egress lever is for P62-A: `pg_dump --exclude-table-data=public.processed_events`
+  (the ledger is a cache of "already seen": losing it costs one re-compare per record).
+- [ ] `build_feature_aggregates` still reads up to 10,000 rows each of orders / order items /
+  returns / products / inventory per scoring run (`order_count`, `total_order_value` are
+  all-time). Daily per shop, so small; window it with SQL counts if it shows in
+  `pg_stat_statements` after the deploy.
+- [ ] `services/analytics_kpi_precompute` (`precompute_shop_analytics_kpis`, `build_gmv_tiktok_kpi`)
+  reads a shop's whole interval table but has no production caller; left as is (dead code —
+  delete or window when next touched).
+- [ ] Row/egress numbers in LOG are estimates (row widths from the D72 table sizes, call rates
+  from `pg_stat_statements` over an assumed ~17-day window); owner re-checks after deploy.
 ## P61-B — production write per shop, flags off (2026-10-20, D71.2)
 
 - [ ] **The agent run (Optimize Product, cover photo, Hoàn tác) still writes only to the

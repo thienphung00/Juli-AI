@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from juli_backend.database.exceptions import NotFound
-from juli_backend.models.models import Shop
+from juli_backend.models.models import AnalyticsPerformanceInterval, Shop
 from juli_backend.repositories.repos import (
-    AnalyticsPerformanceRepo,
     InventoryRepo,
     OrderItemsRepo,
     OrdersRepo,
@@ -19,7 +20,7 @@ from juli_backend.repositories.repos import (
     ReturnsRepo,
     TikTokSyncStateRepo,
 )
-from juli_backend.services.aggregates.computed_kpis import compute_all_kpis
+from juli_backend.services.aggregates.computed_kpis import ROLLING_WINDOW_DAYS, compute_all_kpis
 from juli_backend.services.aggregates.health_source import resolve_health_snapshot
 from juli_backend.services.aggregates.shop_profile import classify_shop_profile
 from juli_backend.services.aggregates.types import (
@@ -39,6 +40,42 @@ SYNCED_DATA_SOURCES = frozenset(
         "tiktok_sync_state",
     }
 )
+
+
+#: The only interval columns ``compute_analytics_kpis`` reads (D72.3).
+_ANALYTICS_KPI_COLUMNS = (
+    AnalyticsPerformanceInterval.grain,
+    AnalyticsPerformanceInterval.start_date,
+    AnalyticsPerformanceInterval.gmv,
+    AnalyticsPerformanceInterval.conversion_rate,
+    AnalyticsPerformanceInterval.ctr,
+    AnalyticsPerformanceInterval.impressions,
+)
+
+
+async def _rolling_window_intervals(
+    session: AsyncSession, shop_id: uuid.UUID, anchor: datetime, limit: int
+) -> list[AnalyticsPerformanceInterval]:
+    """The shop's interval rows inside the KPI rolling window, KPI columns only (D72.3).
+
+    ``compute_analytics_kpis`` ignores every row outside
+    ``[anchor - ROLLING_WINDOW_DAYS, anchor]`` (by ``start_date``), so reading the
+    shop's newest ``limit`` rows of every grain and column -- the whole table for a
+    shop with history -- only to drop most of them in Python was pure egress.
+    """
+    first = (anchor - timedelta(days=ROLLING_WINDOW_DAYS)).date()
+    stmt = (
+        select(AnalyticsPerformanceInterval)
+        .options(load_only(*_ANALYTICS_KPI_COLUMNS))
+        .where(
+            AnalyticsPerformanceInterval.shop_id == shop_id,
+            AnalyticsPerformanceInterval.start_date >= first,
+            AnalyticsPerformanceInterval.start_date <= anchor.date(),
+        )
+        .order_by(AnalyticsPerformanceInterval.start_date.desc())
+        .limit(limit)
+    )
+    return list((await session.execute(stmt)).scalars().all())
 
 
 def _shop_age_days(created_at: datetime | None) -> int:
@@ -75,7 +112,9 @@ async def build_feature_aggregates(
     returns = await ReturnsRepo(session).list(shop_id, limit=list_limit)
     order_items = await OrderItemsRepo(session).list(shop_id, limit=list_limit)
     inventory_items = await InventoryRepo(session).list(shop_id, limit=list_limit)
-    analytics_intervals = await AnalyticsPerformanceRepo(session).list(shop_id, limit=list_limit)
+    # compute_all_kpis reads a naive anchor as UTC; so does the window.
+    kpi_anchor = anchor if anchor.tzinfo else anchor.replace(tzinfo=UTC)
+    analytics_intervals = await _rolling_window_intervals(session, shop_id, kpi_anchor, list_limit)
     sync_state = await TikTokSyncStateRepo(session).load(shop_id)
     promotion_activity_present = _promotion_activity_partition_present(sync_state)
 
