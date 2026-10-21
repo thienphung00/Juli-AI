@@ -419,8 +419,8 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P61-G Merchant identity from the connect flow, no env/hardcode (owner 2026-10-21) | D71.6 | done, merged (587cdcce); migration 099; env vars removed — owner: unset/remove both TIKTOK_*_MERCHANT_ID on the VPS | agent |
 | P61-G2 Sandbox collision = other shop's credential only (owner 2026-10-21, production fact: sandbox shop has sandbox_write + seller_connect, one cipher) | D71.6a | done on branch fasttrack/p61-g2-same-shop (not merged); migration 100; blocks the production deploy | agent |
 | P61-H OAuth refuses cross-shop sandbox collisions (owner 2026-10-21) | D71.6a | done, merged (2f4459f2) | agent |
-| P61-F Agent-run production leg (resume resolves capability + one-time authorization for the pending write; refuse live when the image is sandbox-staged; revert reads the real listing) + migration data step marking pre-097 sandbox-written runs `write_mode='simulated'` (owner 2026-10-21) | D71.2 | todo (after P62 merges) | — |
-| P61-E End-to-end two-shop test OAuth → `card_events`; live `shown` / `expired` writers | D71.5 | todo (after A–D and P60-1b merge) | — |
+| P61-F Agent-run production leg (resume resolves capability + one-time authorization for the pending write; refuse live when the image is sandbox-staged; revert reads the real listing) + migration data step marking pre-097 sandbox-written runs `write_mode='simulated'` (owner 2026-10-21) | D71.2 | doing (`fasttrack/p61-f-agent-prod-write`; resume leg + migration 101 committed, verifying) | agent |
+| P61-E End-to-end two-shop test OAuth → `card_events`; live `shown` / `expired` writers | D71.5 | doing (`fasttrack/p61-e-e2e`) | agent |
 | Owner: confirm production env (`AGENT_WORKFLOWS_ENABLED`, `TIKTOK_APP_KEY/SECRET`, `REDIS_URL`); later flip `PRODUCTION_WRITE_ENABLED` per shop | D71 | todo | owner |
 
 ## P62 — Supabase egress (D72, 2026-10-21)

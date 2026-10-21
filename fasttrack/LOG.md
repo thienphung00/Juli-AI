@@ -2798,3 +2798,14 @@ reconcile --write` re-derived the no-assert corpus figure.
   `pnpm install` in the fresh worktree) + 1 suppression ratchet (my `type: ignore`s); both fixed afterwards and the
   re-run files pass (59). ruff/mypy/bandit -ll clean.
 
+
+## 2026-10-22 — lead — status
+
+- Live: deploy `fasttrack-deploy-20261021T0933Z` (8ed0fd95, migrations to 100). Merged since,
+  not deployed: P61-H (f50133cc, no migration).
+- In progress: P61-F (`fasttrack/p61-f-agent-prod-write`, migration 101 — resume leg committed
+  696b742f, verification running) and P61-E (`fasttrack/p61-e-e2e`). Both resumed after a
+  network error on 2026-10-22; next deploy bundles P61-F + P61-H (+ P61-E test).
+- Owner, open: post-deploy VPS steps (alembic current = 100, drop TIKTOK_*_MERCHANT_ID,
+  install `juli-db-backup.timer`, `pg_stat_statements_reset()`, re-enable Uptime Check);
+  egress checkpoint 2026-10-28 (Pro before 2026-11-16 if > 160 MB/day).
