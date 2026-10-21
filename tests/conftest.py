@@ -318,6 +318,11 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for fast track P63 (get_shop_identity
         # through each shop's own read credential, as juli_app).
         "test_agent_shop_identity_two_shop.py",
+        # Reason 2 again: fast track P61-E (D71.5) seeds a pre-existing shop, the sandbox
+        # shop and a newly connected one (OAuth callback -> ingestion -> approval -> agent
+        # run -> product re-read -> impact reader), all as juli_app, and asserts per-shop
+        # row counts; the impact reader also walks every shop's executions.
+        "test_p61e_any_shop_end_to_end.py",
     }
 )
 

@@ -2775,3 +2775,40 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Owner next (VPS): `alembic current` = 100; remove any TIKTOK_*_MERCHANT_ID from
   /etc/juli/api.env; install `juli-db-backup.timer`; `select pg_stat_statements_reset();`;
   re-enable Uptime Check after confirming it probes /health only. Egress checkpoint 2026-10-28.
+
+## 2026-10-21 — agent (Claude Sonnet) — P61-E any-shop end-to-end test (branch `fasttrack/p61-e-e2e`, not merged)
+
+- Why: D71.5 / the 2026-10-20 audit's missing chained test. Nothing proved that a shop connected from scratch,
+  not the reference shop, runs connect -> ingest -> cards -> approval -> agent run -> measurement.
+- What: ONE module, `tests/integration/test_p61e_any_shop_end_to_end.py` (tests only; no migration, no production
+  code change). Real Postgres, every step as `juli_app` under RLS except the OAuth callback (see the finding). Fake
+  TikTok at `requests.Session.request`: ADR-101 recorded samples (orders, products, returns, inventory, authorized
+  shops, product detail) + contract-shaped analytics; `FakeLLMService` with `stream_chunk_chars`. Shop A (seeded,
+  own `seller_connect` credential) and the sandbox shop (the one `sandbox_write` credential) exist throughout.
+  Steps for shop B: (1) `begin_tiktok_oauth` + `complete_tiktok_oauth_callback` over the real `TikTokAuth` and the
+  vendor-verified binding -> shop, credential (merchant = open_id, cipher = the verified one), bootstrap enqueued
+  once after the commit; (2) quick scan -> 1 card, then `run_bootstrap_task` (real `score_and_persist_cards`):
+  orders / products / analytics for B only, the weak listing's title + cover-image cards live, `proposed` + `shown`;
+  (3) `approve_action_card` -> `accepted`; real `_run_agent_workflow_async` / `_resume_agent_workflow_async` with the
+  real read and write composition: `get_shop_identity` `verified` with B's name, `assistant.text.delta` rows then
+  `assistant.text`, the one PUT signed with the sandbox token, `write_mode='simulated'`, `list_runs` says
+  simulated, `executed` event; (4) `reconcile_products` x2 around a seller title edit -> `external_changes`
+  `seller_change` + a `seller_change` card event linked `last_write` to the approved card; (5) the impact reader
+  skips the simulated execution (`executions_skipped_simulated == 1`, no `impact_readings` for B; verified red when
+  the guard is removed); (6) after every step shop A's and the sandbox shop's row counts (all `shop_id` tables) are
+  unchanged, neither A's nor B's scope sees the other's rows, and at the end only B's token, the sandbox token and
+  the OAuth host appear in the request log (A's tokens never), B's token never wrote.
+- Finding (DEBT, xfail-pinned): the OAuth callback opens no tenant scope, so as `juli_app` it is refused by RLS on
+  the first `shops` insert and again on `tiktok_credentials`. Production evidently connects with an RLS-bypassing
+  role for this route today (the sandbox shop was connected through it); latent for the day the API runs as
+  `juli_app`. Not fixed here (touches `core/security/tiktok_oauth.py`, which P61-H edits; needs the owner's word on
+  the API role). `conftest._SHARED_STATE_MODULES` gets the module (own database).
+- Surprises worth knowing: the recorded sample product is a free gift ("[Quà Tặng]"), never optimised, so B's weak
+  listing is the same capture under another id; the quick card survives the full scoring only when the stored
+  analytics show a metric fall (the D39.1 trigger), so the weak product's CTR falls in the last 14 days; a regular
+  shop's two live cards for one product are title (agent edit) and cover image (a guided lever flow), and the
+  journey approves the title; a 112+ character reply is needed for the relay to emit deltas (64 held back, flush at
+  48); the model's FinalResponse with a required step undone arms ADR-088's one forced retry, so the resume leg is
+  scripted with two narrations; the seller edit must be stamped after Juli's write (the DB clock).
+- Verification: see the report; module 1 passed + 1 xfailed, 0 skipped (~25 s with the migrated database).
+
