@@ -425,7 +425,7 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
 | P62-A Fewer dumps: pending-migration-only pre-migrate dump, backup job only with a migration (+ `force_backup`), daily VPS dump timer | D72.1 | doing (`fasttrack/p62-a-dumps`) | agent |
-| P62-B `processed_events` retention; scoped `analytics_performance_intervals` / `silver.orders` reads; pooled worker engine | D72.2–4 | done on branch `fasttrack/p62-b-reads` (not merged; migration 098 on 096 — lead fixes the chain with P61-B's 097). D72.4 pooled worker engine NOT done (reported, DEBT) | agent |
+| P62-B `processed_events` retention; scoped `analytics_performance_intervals` / `silver.orders` reads; pooled worker engine | D72.2–4 | done, merged 3579de71 (pooling D72.4 deferred to DEBT; migration 098 on 096 — lead fixes the chain with P61-B's 097). D72.4 pooled worker engine NOT done (reported, DEBT) | agent |
 | Owner: after deploy, re-check Usage → Egress per day and `pg_stat_statements` (reset first: `select pg_stat_statements_reset();`) | D72 | todo | owner |
 
 ## P2–P6
