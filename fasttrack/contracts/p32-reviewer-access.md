@@ -13,6 +13,16 @@ magnitudes), ADR-038 §9 (demo execution is a dry run), D13 (what a real execute
 > **D42 amendment 2 (owner, 2026-10-15, P32-E).** In sample mode every seller write is usable as a
 > browser-side simulation over the sample fixtures (§4 note, §6). Server side nothing changes.
 
+> **D73 amendment (owner, 2026-10-21, P64).** Shopee rejected the sample shop and simulated
+> execution. With `REVIEWER_SHOP_ID` pinned to the `sandbox_write` sandbox shop, the reviewer reads
+> it live and **unmasked**, sees the connection, last sync and a pin-scoped "Sync now", and
+> **really executes** listing edits and image uploads through the sandbox write credential, with a
+> TikTok read-back. The allowlist below gains approve / execute / sync for the pin only; every
+> other shop and every production credential stay unreachable (pin gate, sandbox-only factory for
+> reviewer claims, tests). Sample mode and browser simulation stay for anonymous visitors only.
+> Where this contract says "simulation" or "never writes", read it as "never writes outside the
+> pinned sandbox shop".
+
 A partner platform's reviewer signs in on demo.app-juli.com with a **team-created e-mail +
 password**, lands on the reference shop **Fujiwa, masked** (only when pinned, see the amendment), reads Trang chủ / Phân tích /
 Quyết định through the real read path, and walks **Duyệt → Thực thi** as a simulation that

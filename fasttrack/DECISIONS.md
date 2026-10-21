@@ -1655,3 +1655,42 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   credential. Production fact: the sandbox shop holds `sandbox_write` (merchant A) and its own
   `seller_connect` (OAuth open_id B) with one cipher; 099 would have refused it and broken every
   agent run. The 2026-08-18 invariant (a sandbox row reaching another shop) is unchanged. Migration 100.
+
+- **D73** — Shopee ISV, second rejection: the reviewer gets a **live** TikTok Shop connection
+  (grill, owner, 2026-10-21). Shopee's reply: "a mock version or simulated data alone is not
+  sufficient … prepare a trial account with an existing TikTok Shop connection … does not
+  necessarily need to be connected to a real customer's shop. However, it should demonstrate the
+  product's actual working integration rather than only simulated interfaces or predefined
+  results." The D42 amendments (sample shop "Cửa hàng Mẫu Hoa Mai", browser simulation) are what
+  was rejected. Supersedes D42 items 3–4 and both D42 amendments **for the reviewer role**.
+  1. **Shop (Q1/Q2).** `shopee-review@app-juli.com` is pinned via `REVIEWER_SHOP_ID` to Juli's own
+     TikTok Shop **sandbox** shop (`1862f13b…`, the `sandbox_write` shop, VN). The identity mask is
+     **off** for a sandbox pin (our shop; the reviewer must see the real TikTok shop name and ids);
+     masking stays for any other pin. The reviewer sees the connection (status, authorised at,
+     scopes), the last sync time and a "Sync now" that enqueues `poll_shop` for the pin only.
+  2. **Data (Q3).** Probe first (S0): confirm a read credential exists for the sandbox shop in
+     production (re-authorise the *write* seller through seller OAuth if not, so reads and writes
+     share one catalog — #1290), hand-create ~5 products on the TTSPC sandbox page under that
+     seller, generate ~20 orders with `tts_open_toolkit`, call shop / product performance once.
+     Analytics non-empty → full analysis on the sandbox. Empty → analysis on live orders /
+     products / inventory, and Analytics panels show an honest empty state naming the cause;
+     never bundled or predefined data.
+  3. **Execution (Q4).** Real: the production-seller write set (listing edit, image upload; no
+     price or inventory) through the normal approve → execute path on the `sandbox_write`
+     credential, followed by a TikTok read-back shown to the reviewer as confirmation.
+  4. **Sample mode (Q5).** Removed for the reviewer role only: no sample shop, no browser
+     simulation, no "Mô phỏng" labels in a sandbox-pinned session. Anonymous demo visitors keep
+     the sample replay (ADR-094 anonymous door).
+  5. **Guarantee (Q6), server-side, fail closed.** (a) `reviewer_gate` refuses any shop but the
+     pin; reviewer writes exist only if the pin holds `sandbox_write`, and a pin holding
+     `production_read` or a `production_write_shops` row disables them loudly. (b) A request with
+     the reviewer claim builds only `SandboxWriteClientFactory`; the production write path refuses
+     it. (c) Tests: reviewer execute on another shop → 403, no client built; reviewer execute on
+     the pin → exactly one sandbox client on the sandbox merchant; production pin → writes off;
+     seller session cannot reach reviewer-only routes. Writing to the sandbox is allowed (owner).
+  6. **Wording (Q7).** Form and reply say it plainly: Juli's own TikTok Shop **sandbox (test)**
+     shop, OAuth-connected, every screen fetched live, approved changes really written and read
+     back; the sandbox is used so a reviewer never changes a real seller's shop.
+  7. **Delivery (Q8).** P64 on `fasttrack/p64-reviewer-sandbox-live`: S0 probe (owner + lead),
+     S1 backend, S2 demo frontend, S3 docs, S4 deploy + fresh-browser walkthrough, then the owner
+     resubmits. ADR-111 amended.
