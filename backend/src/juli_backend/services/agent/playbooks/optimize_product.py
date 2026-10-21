@@ -14,6 +14,7 @@ exactly:
 | Step   | Tool                      | Class / policy                |
 |--------|---------------------------|--------------------------------|
 | 0      | get_product_diagnoses     | READ / AUTO (AC-8.4)           |
+| 0.5    | get_shop_identity         | READ / AUTO (P63, optional)    |
 | 1      | get_product_information   | READ / AUTO                    |
 | 2+3    | get_seo_keywords          | READ / AUTO (bundled)          |
 | 4, 4.5 | inspect_product_image     | READ / AUTO (#1208)            |
@@ -88,11 +89,16 @@ OPTIMIZE_PRODUCT_PLAYBOOK = Playbook(
             policy=ToolPolicy.AUTO,
         ),
         PlaybookStep(
+            step_id="0.5",
+            intent=("Optional: confirm which shop this is; if it does not match, propose nothing."),
+            tools=("get_shop_identity",),
+            policy=ToolPolicy.AUTO,
+        ),
+        PlaybookStep(
             step_id="1",
             intent=(
-                "Read the product's current listing -- title, description, price, "
-                "and images -- so every recommendation is grounded in what the "
-                "seller already has, not invented."
+                "Read the product's current title, description, price and images so "
+                "every recommendation is grounded in what the seller already has."
             ),
             tools=("get_product_information",),
             policy=ToolPolicy.AUTO,
@@ -109,9 +115,8 @@ OPTIMIZE_PRODUCT_PLAYBOOK = Playbook(
         PlaybookStep(
             step_id="4, 4.5",
             intent=(
-                "Check whether the product's main photo actually matches its title "
-                "and description, and note any image changes worth making -- looking "
-                "only, nothing is changed."
+                "Check whether the main photo matches the title and description, and "
+                "note image changes worth making -- looking only, nothing is changed."
             ),
             tools=("inspect_product_image",),
             policy=ToolPolicy.AUTO,
@@ -128,9 +133,8 @@ OPTIMIZE_PRODUCT_PLAYBOOK = Playbook(
         PlaybookStep(
             step_id="6",
             intent=(
-                "Update the product's price to the recommended value, once the "
-                "seller approves it -- a separate decision from the listing "
-                "content change, and rejectable on its own."
+                "Update the price to the recommended value once the seller approves "
+                "it -- a separate decision, rejectable on its own."
             ),
             tools=("update_product_price",),
             policy=ToolPolicy.CONFIRM,

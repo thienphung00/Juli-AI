@@ -25,6 +25,7 @@ export const FIVE_STAGES = ["Phân tích", "Đề xuất", "Duyệt", "Thực th
 /** Timeline step label per playbook tool (d.13's mapping table). */
 export const TOOL_STEP_LABELS: Readonly<Record<string, string>> = Object.freeze({
   get_product_diagnoses: "Đọc chẩn đoán TikTok",
+  get_shop_identity: "Xác nhận shop TikTok",
   get_product_information: "Đọc thông tin sản phẩm",
   get_seo_keywords: "Phân tích từ khoá",
   inspect_product_image: "Phân tích ảnh sản phẩm",

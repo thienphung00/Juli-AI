@@ -975,6 +975,12 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - _Avoid_: Get Product Diagnoses, Lấy chẩn đoán sản phẩm
 - Definition: `ToolSpec.seller_rationale_vi` for the `get_product_diagnoses` tool (AC-8.4, P8-G).
 
+**`run.option_rationale.get_shop_identity`**
+- EN: Confirm which TikTok shop Juli is working on.
+- VI: Xác nhận shop TikTok mà Juli đang xử lý.
+- _Avoid_: Get Shop Identity, Lấy danh tính shop
+- Definition: `ToolSpec.seller_rationale_vi` for the read-only `get_shop_identity` tool (fast track P63, owner 2026-10-21) -- Get Authorized Shops with the run shop's own credential; never shows an id.
+
 **`run.option_rationale.get_seo_keywords`**
 - EN: Look up suggested SEO keywords for this product.
 - VI: Tra cứu từ khoá SEO gợi ý cho sản phẩm này.
@@ -1158,6 +1164,11 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - EN: Read TikTok diagnoses
 - VI: Đọc chẩn đoán TikTok
 - Definition: Timeline step for tool get_product_diagnoses.
+
+**`qd.step.get_shop_identity`**
+- EN: Confirm the TikTok shop
+- VI: Xác nhận shop TikTok
+- Definition: Timeline step for tool get_shop_identity (fast track P63).
 
 **`qd.step.get_product_information`**
 - EN: Read product information

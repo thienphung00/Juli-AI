@@ -13,6 +13,12 @@ class AuthorizationResource:
     def __init__(self, client: TikTokClient) -> None:
         self._client = client
 
+    @property
+    def bound_shop_cipher(self) -> str | None:
+        """The shop cipher the underlying client was built for (the credential's
+        own), so a caller can ask whether the token still reaches that shop."""
+        return self._client.shop_cipher
+
     def list_shops(self) -> dict:
         """Return authorized shops (``shops[]`` with ``id`` and ``cipher``)."""
         parsed = coerce_model(

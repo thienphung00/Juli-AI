@@ -1054,6 +1054,14 @@
       ]
     },
     {
+      "name": "get_shop_identity",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
       "name": "inspect_product_image",
       "classification": "read",
       "policy": "auto",

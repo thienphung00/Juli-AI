@@ -62,6 +62,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -74,6 +75,7 @@ from juli_backend.integrations.tiktok import (
     SandboxWriteResources,
     TikTokAPIError,
     TransportGuardError,
+    redact_shop_identifier,
 )
 from juli_backend.services.agent.sanitize import (
     Money,
@@ -685,6 +687,136 @@ FIND_PRODUCT_PROMOTIONS_SPEC = ToolSpec(
 )
 
 
+# --- get_shop_identity --------------------------------------------------------
+
+#: A shop region / seller type is a short upper-case machine value ("VN",
+#: "LOCAL", "CROSS_BORDER"); anything else is vendor free text and is dropped.
+_SHOP_FACT_PATTERN = re.compile(r"^[A-Za-z0-9_]{1,30}$")
+
+ShopIdentityStatus = Literal["verified", "mismatch", "unverifiable", "unavailable"]
+
+_SHOP_IDENTITY_DETAIL: dict[str, str] = {
+    "verified": "The connected TikTok credential reaches this run's shop.",
+    "mismatch": (
+        "The connected TikTok credential does not reach this run's shop. Do not "
+        "describe or propose changes for it; conclude the run without changes."
+    ),
+    "unverifiable": (
+        "The run's shop could not be matched to the credential (no shop binding is "
+        "stored). Treat shop details as unconfirmed."
+    ),
+    "unavailable": "TikTok did not answer the shop lookup. Carry on without shop details.",
+}
+
+
+class GetShopIdentityInput(BaseModel):
+    # Rationale: see module docstring, "Context-bound identity" section.
+    """No parameters -- looks up the shop this run is for, using that shop's own
+    TikTok credential."""
+
+
+class GetShopIdentityOutput(BaseModel):
+    """`status` is `verified` (the credential reaches the run's shop),
+    `mismatch` (it reaches another shop: nothing about that shop is returned),
+    `unverifiable` (no stored shop binding to compare) or `unavailable` (TikTok
+    did not answer). `shop_matches` is true only for `verified`. `shop_name` is
+    a provenance envelope (vendor free text); `region` and `seller_type` are
+    plain machine values. No shop id, cipher, token or merchant id is ever
+    returned (ADR-070 decision 1)."""
+
+    status: ShopIdentityStatus
+    shop_matches: bool = False
+    shop_name: dict[str, Any] | None = None
+    region: str | None = None
+    seller_type: str | None = None
+    detail: str = ""
+
+
+def _shop_fact(value: object) -> str | None:
+    if isinstance(value, str) and _SHOP_FACT_PATTERN.fullmatch(value):
+        return value
+    return None
+
+
+def _shop_identity_result(status: ShopIdentityStatus, **facts: Any) -> GetShopIdentityOutput:
+    return GetShopIdentityOutput(
+        status=status,
+        shop_matches=status == "verified",
+        detail=_SHOP_IDENTITY_DETAIL[status],
+        **facts,
+    )
+
+
+def handle_get_shop_identity(
+    resources: ProductionReadResources | SandboxWriteResources,
+    context: ProductToolContext,
+    params: GetShopIdentityInput,
+) -> GetShopIdentityOutput:
+    """Get Authorized Shops with the run shop's own read credential, matched to
+    the shop cipher that credential carries. A different shop is a refusal-style
+    result and a named warning, never an exception into the LLM loop."""
+    del params, context  # No fields; the shop is the credential's, not the model's.
+    authorization = getattr(resources, "authorization", None)
+    if authorization is None:
+        # Sandbox read resources expose no authorization endpoint.
+        return _shop_identity_result("unavailable")
+    try:
+        shops = authorization.list_all_shops()
+    except (TikTokAPIError, TransportGuardError) as exc:
+        logger.warning(
+            "get_shop_identity_unavailable",
+            extra={"exception_type": type(exc).__name__, "detail": str(exc)[:300]},
+        )
+        return _shop_identity_result("unavailable")
+
+    bound_cipher = getattr(authorization, "bound_shop_cipher", None)
+    if not bound_cipher:
+        logger.warning("agent_shop_identity_unverifiable", extra={"authorized_shops": len(shops)})
+        return _shop_identity_result("unverifiable")
+    match = next(
+        (
+            shop
+            for shop in shops
+            if isinstance(shop, Mapping) and shop.get("cipher") == bound_cipher
+        ),
+        None,
+    )
+    if match is None:
+        logger.warning(
+            "agent_shop_identity_mismatch",
+            extra={
+                "bound_shop_cipher": redact_shop_identifier(bound_cipher),
+                "authorized_shops": len(shops),
+            },
+        )
+        return _shop_identity_result("mismatch")
+    name = match.get("name")
+    return _shop_identity_result(
+        "verified",
+        shop_name=_vendor_text_field(name) if isinstance(name, str) and name else None,
+        region=_shop_fact(match.get("region")),
+        seller_type=_shop_fact(match.get("seller_type")),
+    )
+
+
+GET_SHOP_IDENTITY_SPEC = ToolSpec(
+    name="get_shop_identity",
+    description=(
+        "Check which shop this run is for: returns the shop's name, region and seller "
+        "type, and whether the connected TikTok credential reaches that shop "
+        "(`shop_matches`). Takes no input. Call it once, early; if `shop_matches` is "
+        "false, do not propose changes."
+    ),
+    seller_rationale_vi="Xác nhận shop TikTok mà Juli đang xử lý.",
+    input_model=GetShopIdentityInput,
+    output_model=GetShopIdentityOutput,
+    classification=ToolClassification.READ,
+    policy=ToolPolicy.AUTO,
+    timeout_seconds=10,
+    domain=PRODUCT_DOMAIN,
+)
+
+
 # --- inspect_product_image ----------------------------------------------------
 
 
@@ -803,6 +935,7 @@ PRODUCT_READ_TOOL_HANDLERS: dict[
     GET_SEO_KEYWORDS_SPEC.name: handle_get_seo_keywords,
     CHECK_PRODUCT_STATUS_SPEC.name: handle_check_product_status,
     GET_PRODUCT_DIAGNOSES_SPEC.name: handle_get_product_diagnoses,
+    GET_SHOP_IDENTITY_SPEC.name: handle_get_shop_identity,
     INSPECT_PRODUCT_IMAGE_SPEC.name: handle_inspect_product_image,
     FIND_PRODUCT_PROMOTIONS_SPEC.name: handle_find_product_promotions,
 }
@@ -814,5 +947,6 @@ def register_product_read_tools(registry: ToolRegistry) -> None:
     registry.register(GET_SEO_KEYWORDS_SPEC)
     registry.register(CHECK_PRODUCT_STATUS_SPEC)
     registry.register(GET_PRODUCT_DIAGNOSES_SPEC)
+    registry.register(GET_SHOP_IDENTITY_SPEC)
     registry.register(INSPECT_PRODUCT_IMAGE_SPEC)
     registry.register(FIND_PRODUCT_PROMOTIONS_SPEC)
