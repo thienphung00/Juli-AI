@@ -1675,6 +1675,13 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      Analytics non-empty → full analysis on the sandbox. Empty → analysis on live orders /
      products / inventory, and Analytics panels show an honest empty state naming the cause;
      never bundled or predefined data.
+     **D73.2a (owner, 2026-10-21).** Production fact: the sandbox shop holds only its
+     `sandbox_write` row (merchant `7658096633384781588`); the `seller_connect` row was deleted
+     before deploy `…0737Z`. The `sandbox_write` credential may **read and be polled for its own
+     shop only** (the shop its row is bound to, verified by `credential_binding`) — a narrow
+     exception, not a global `READ_CAPABILITIES` change; never for any other shop. One seller for
+     reads and writes closes #1290. Tests: own-shop read, other-shop refusal, pollable, production
+     read path unchanged.
   3. **Execution (Q4).** Real: the production-seller write set (listing edit, image upload; no
      price or inventory) through the normal approve → execute path on the `sandbox_write`
      credential, followed by a TikTok read-back shown to the reviewer as confirmation.
