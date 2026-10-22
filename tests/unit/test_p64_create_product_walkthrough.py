@@ -36,8 +36,9 @@ from juli_backend.services.agent.runner.core import WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.runner.tool_executor import ProductToolExecutor
 from juli_backend.services.agent.status import WorkflowRunStatus
-from juli_backend.services.agent.tools import ToolRegistry
+from juli_backend.services.agent.tools import ToolRegistry, listing_rules
 from juli_backend.services.agent.tools import catalog_create as cc
+from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.agent.tools.terminal import register_terminal_tools
 from juli_backend.services.agent_runs import confirmations
 from tests.support.api import authenticated_client
@@ -106,12 +107,15 @@ def _input(title: str, description: str = "Bình nước thép không gỉ 750ml
 # -- 2. the brand never travels -----------------------------------------------------------
 
 
-def test_the_source_brand_terms_are_the_manufacturer_values_the_title_lacks():
+def test_the_source_terms_are_the_free_text_values_the_title_lacks():
+    """Data, not a list: compared against the source title; TikTok options never count."""
     detail = BrandedProducts().get_details(SOURCE_ID)
-    assert cc.source_brand_terms(detail) == [CUSTOMER]
-    # Named by the title itself: not a leak.
-    named = {**detail, "title": f"Bình nước {CUSTOMER} 750ml"}
-    assert cc.source_brand_terms(named) == []
+    terms = listing_rules.source_terms_not_in(detail, SOURCE_TITLE)
+    assert terms == ["No brand", CUSTOMER, f"Bình {CUSTOMER} Pro"]
+    assert "Việt Nam" not in terms  # an option TikTok picked (it has an id)
+    # Named by the title itself: not a term.
+    named = listing_rules.source_terms_not_in(detail, f"Bình nước {CUSTOMER} 750ml")
+    assert CUSTOMER not in named
 
 
 def test_the_model_never_reads_the_customer_name_in_the_source_description():
@@ -145,7 +149,7 @@ def test_a_required_manufacturer_attribute_is_refused_rather_than_leaked():
     assert check.ok is False and check.error_code == "required_attribute_missing"
     assert check.missing == ["Manufacturer/Trader Name", "Manufacturer/Trader Address"]
     assert CUSTOMER not in check.summary_vi
-    assert "không sao chép tên thương hiệu" in check.summary_vi
+    assert "không sao chép giá trị tự nhập" in check.summary_vi
     created = cc.handle_create_product(
         _sandbox(products), CONTEXT, _input("Bình nước thép không gỉ 750ml dùng hằng ngày")
     )
@@ -171,8 +175,6 @@ def test_a_manufacturer_the_title_names_is_copied():
             f"Bình {CUSTOMER} 750ml bền đẹp.",
             "description",
         ),
-        # A foreign proper name the source title does not carry (not in any attribute).
-        ("Bình Nước Thép Không Gỉ Zojirushi 750ml", None, "title"),
     ],
 )  # fmt: skip
 def test_a_draft_naming_a_brand_is_refused_before_the_create(title, description, field):
@@ -180,10 +182,22 @@ def test_a_draft_naming_a_brand_is_refused_before_the_create(title, description,
     params = _input(title, description) if description else _input(title)
     refusal = cc.precheck_create_product(_sandbox(products), CONTEXT, params)
     assert refusal is not None and refusal.error_code == "brand_not_in_source"
-    assert CUSTOMER not in refusal.summary_vi and "Zojirushi" not in refusal.summary_vi
-    assert field in refusal.model_hint
+    assert CUSTOMER not in refusal.summary_vi
+    assert field in refusal.model_hint and CUSTOMER in refusal.model_hint
     out = cc.handle_create_product(_sandbox(products), CONTEXT, params)
     assert out.ok is False and out.error_code == "brand_not_in_source"
+    assert products.created == []
+
+
+def test_the_shops_banned_terms_gate_the_create_draft():
+    """D73.5: "Từ không được dùng" applies to the create exactly as to a listing edit."""
+    products = BrandedProducts(attributes=MANUFACTURER_ATTRS[:1])
+    context = ProductToolContext(product_id=SOURCE_ID, banned_terms=("xịn nhất",))
+    params = _input("Bình nước thép không gỉ 750ml xịn nhất")
+    refusal = cc.precheck_create_product(_sandbox(products), context, params)
+    assert refusal is not None and refusal.error_code == "listing_rule_violation"
+    out = cc.handle_create_product(_sandbox(products), context, params)
+    assert out.ok is False and out.error_code == "listing_rule_violation"
     assert products.created == []
 
 
@@ -459,3 +473,95 @@ async def test_the_create_executes_exactly_the_edit(session):
     assert products.created[-1]["title"] == edited
     assert _completed(sink)[-1].summary.endswith("· theo bản bạn sửa")
     assert "mã 1737000000000000001" in _completed(sink)[-1].summary
+
+
+# -- D73.5: the same rules gate a listing edit; the consent step; the prompt ---------------
+
+
+def _listing(title: str | None = None, description: str | None = None):
+    from juli_backend.services.agent.tools.product_write import UpdateProductListingInput
+
+    return UpdateProductListingInput(title=title, description=description)
+
+
+def test_a_listing_edit_proposal_is_gated_by_the_same_rules():
+    from juli_backend.services.agent.tools.product_write import precheck_update_product_listing
+
+    detail = BrandedProducts().get_details(SOURCE_ID)
+    context = ProductToolContext(
+        product_id=SOURCE_ID, product_detail=detail, banned_terms=("xịn nhất",)
+    )
+    resources = _sandbox(BrandedProducts())
+    banned = precheck_update_product_listing(resources, context, _listing(title="Bình xịn nhất"))
+    assert banned is not None and banned.error_code == "listing_rule_violation"
+    pro = precheck_update_product_listing(
+        resources, context, _listing(title=f"Bình nước Bình {CUSTOMER} Pro 750ml")
+    )
+    assert pro is not None and pro.error_code == "brand_not_in_source"
+    # The seller's own name, already in the listing's description: an edit may keep it.
+    own = precheck_update_product_listing(
+        resources, context, _listing(title=f"Bình nước thép {CUSTOMER} 750ml chính hãng")
+    )
+    assert own is None
+
+
+async def test_the_reviewers_edit_naming_the_source_manufacturer_is_a_422(session, enqueued):
+    user, shop = await make_tenant(session)
+    run = await _waiting_create_run(session, shop)
+    run.state = {**run.state, "product_detail": BrandedProducts().get_details(SOURCE_ID)}
+    await session.commit()
+    resp = await _confirm(
+        session,
+        user,
+        shop,
+        run,
+        {
+            "decision": "approve",
+            "option_id": "1",
+            "edited_values": {"title": f"Bình nước thép không gỉ {CUSTOMER} 750ml"},
+        },
+    )
+    assert resp.status_code == 422, resp.text
+    detail = resp.json()["detail"]
+    assert detail["code"] == "brand_not_in_source" and detail["field"] == "title"
+    assert enqueued == []
+
+
+async def test_the_create_runs_opening_context_carries_the_shop_rules(session):
+    from juli_backend.services.agent import approval
+    from juli_backend.services.agent.playbooks import get_playbook
+
+    user, shop = await make_tenant(session)
+    await shop_rules.set_rule(
+        session, shop.id, rule_key="banned_terms", scope_ref=None, value=["xịn nhất"],
+        set_by="seller", set_by_user_id=user.id,
+    )  # fmt: skip
+    await shop_rules.set_rule(
+        session, shop.id, rule_key="content_tone", scope_ref=None, value="Thân thiện, ngắn gọn",
+        set_by="seller", set_by_user_id=user.id,
+    )  # fmt: skip
+    rules = await shop_rules.listing_rules_for_run(session, shop.id)
+    assert rules == {
+        "rules": [shop_rules.SOURCE_NAMES_RULE_VI],
+        "banned_terms": ["xịn nhất"],
+        "tone": "Thân thiện, ngắn gọn",
+    }
+    assert any(
+        set(step.tools) & approval._LISTING_DRAFT_TOOLS
+        for step in get_playbook("create_product").steps
+    )
+    from types import SimpleNamespace
+
+    state = approval._initial_run_state_for(
+        cast(Any, SimpleNamespace(workflow_key="create_product", description="x")),
+        shop_rules=rules,
+    )
+    import json
+
+    opening = json.loads(state["conversation_window"][0]["content"])
+    assert opening["shop_rules"] == rules
+    # The worker gates the output on exactly what the model read.
+    from juli_backend.services.agent import run_context
+
+    assert run_context.opening_shop_rules(state)["banned_terms"] == ["xịn nhất"]
+    assert run_context.opening_shop_rules({}) == {}

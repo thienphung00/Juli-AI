@@ -574,6 +574,34 @@ async def banned_terms(session: AsyncSession, shop_id: uuid.UUID) -> list[str]:
     )
 
 
+#: P64 (D73.5): the built-in default listing rule every shop has, as data the run reads
+#: beside the seller's own rules. Its terms come from the source listing
+#: (``services/agent/tools/listing_rules.source_terms_not_in``), never from a list.
+SOURCE_NAMES_RULE_VI = (
+    "Không ghi tên thương hiệu, nhà sản xuất hay shop nào không có trong tiêu đề sản phẩm gốc."
+)
+DEFAULT_LISTING_RULES_VI: tuple[str, ...] = (SOURCE_NAMES_RULE_VI,)
+
+
+async def listing_rules_for_run(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:
+    """The shop's listing rules as the run's opening context carries them (P64, D73.5).
+
+    ``banned_terms`` / ``tone`` / ``protected_terms`` only when the seller set them;
+    ``rules`` always (the built-in defaults).
+    """
+    block: dict[str, Any] = {"rules": list(DEFAULT_LISTING_RULES_VI)}
+    banned = await banned_terms(session, shop_id)
+    if banned:
+        block["banned_terms"] = banned
+    tone = await content_tone(session, shop_id)
+    if tone:
+        block["tone"] = tone
+    protected = await protected_terms(session, shop_id)
+    if protected:
+        block["protected_terms"] = protected
+    return block
+
+
 #: ADR-106 card lever code -> the rule's lever name. Codes absent here
 #: (discounts, flash sale, shipping, buy-more) are price/promotion levers:
 #: recommendation only, never executable (D13, ADR-109 d.10).

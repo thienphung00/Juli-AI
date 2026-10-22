@@ -670,6 +670,7 @@ async def _construct_runner(
     from juli_backend.services import run_changes as run_changes_module
     from juli_backend.services.agent import composition as composition_module
     from juli_backend.services.agent import events as events_module
+    from juli_backend.services.agent import run_context as run_context_module
     from juli_backend.services.agent import runner as runner_module
     from juli_backend.services.content_cards import driver as content_driver_module
 
@@ -770,6 +771,12 @@ async def _construct_runner(
         pending_image_bytes=flow.pending_image_bytes if flow else None,
         staged_image_uri=flow.staged_image_uri if flow else None,
         on_image_staged=flow.on_image_staged if flow else None,
+        # P64 (D73.5): the shop's "Từ không được dùng" the run's opening context
+        # carries (approval) gate every drafted listing before the seller is asked.
+        banned_terms=[
+            str(term)
+            for term in run_context_module.opening_shop_rules(run.state).get("banned_terms", [])
+        ],
     )
     conversation_store = runner_module.JsonbConversationStore(session)
     # #1890: PersistingEventSink now scopes its own per-emit session from a

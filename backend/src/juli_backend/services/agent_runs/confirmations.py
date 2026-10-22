@@ -44,6 +44,10 @@ from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services import shop_rules
 from juli_backend.services.agent.runner import compute_params_sha
 from juli_backend.services.agent.status import WorkflowRunStatus
+from juli_backend.services.agent.tools.listing_rules import (
+    ERROR_SOURCE_NAME_NOT_IN_TITLE,
+    source_terms_not_in,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -141,10 +145,12 @@ async def transition_confirmation_or_none(
 class EditRejected(Exception):
     """The seller's edited values break a shop rule (fast track P10-A). Nothing was written."""
 
-    def __init__(self, field: str, message_vi: str) -> None:
+    def __init__(self, field: str, message_vi: str, code: str = "rule_violation") -> None:
         super().__init__(f"{field}: {message_vi}")
         self.field = field
         self.message_vi = message_vi
+        #: The 422's machine-readable ``code`` (``rule_violation`` | ``brand_not_in_source``).
+        self.code = code
 
 
 async def decide_confirmation(
@@ -284,7 +290,8 @@ async def _apply_seller_edits(
 
 
 async def _check_listing_banned_terms(session: AsyncSession, run: WorkflowRunRow) -> None:
-    """D24.21 (5): no listing write may carry the seller's "Từ không được dùng".
+    """D24.21 (5): no listing write may carry the seller's "Từ không được dùng" --
+    nor (P64, D73.5) a name the source title does not carry.
 
     Applies to the title / description about to be written -- Juli's proposal
     or the seller's edit of it. :class:`EditRejected`; the row stays pending.
@@ -300,12 +307,35 @@ async def _check_listing_banned_terms(session: AsyncSession, run: WorkflowRunRow
     if not isinstance(arguments, Mapping):
         return
     banned = await shop_rules.banned_terms(session, run.shop_id)
-    if not banned:
-        return
     try:
         shop_rules.check_banned_terms(arguments, banned)
     except shop_rules.ListingEditViolation as violation:
         raise EditRejected(violation.field, violation.message_vi) from None
+    # P64 (D73.5): the built-in rule -- no free-text value or brand name of the source
+    # listing that its title (a new listing) or its title and description (an edit)
+    # does not already carry. Needs the source as the run read it.
+    detail = run_state.get("product_detail")
+    if not isinstance(detail, Mapping):
+        return
+    keys = (
+        ("title",)
+        if pending_state.get("tool_name") == "create_product"
+        else (
+            "title",
+            "description",
+        )
+    )
+    reference = " ".join(str(detail.get(key) or "") for key in keys)
+    hit = shop_rules.find_term(arguments, source_terms_not_in(detail, reference))
+    if hit is not None:
+        field, term = hit
+        label = shop_rules.FIELD_LABELS_VI[field]
+        raise EditRejected(
+            field,
+            f'{label} có "{term}" — không có trong tiêu đề sản phẩm gốc. '
+            f"{shop_rules.SOURCE_NAMES_RULE_VI} Hãy bỏ từ này.",
+            code=ERROR_SOURCE_NAME_NOT_IN_TITLE,
+        )
 
 
 async def _pending_confirmation(

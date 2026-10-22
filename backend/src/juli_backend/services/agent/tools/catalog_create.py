@@ -36,7 +36,6 @@ from __future__ import annotations
 import html
 import logging
 import re
-import unicodedata
 import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta, timezone
@@ -47,6 +46,12 @@ from pydantic import BaseModel, Field
 from juli_backend.integrations.tiktok import SandboxWriteResources, TikTokAPIError
 from juli_backend.services.agent.sanitize import VendorText, cap_text, to_json_safe
 from juli_backend.services.agent.tools.domains import ToolDomain
+from juli_backend.services.agent.tools.listing_rules import (
+    ProposalRefusal,
+    check_proposal,
+    redact_terms,
+    source_terms_not_in,
+)
 from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.agent.tools.product_domain import bind_product_context
 from juli_backend.services.agent.tools.registry import (
@@ -55,6 +60,7 @@ from juli_backend.services.agent.tools.registry import (
     ToolRegistry,
     ToolSpec,
 )
+from juli_backend.services.shop_rules.listing_edits import contains_term
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +81,6 @@ ERROR_PREREQUISITES_FAILED = "listing_prerequisites_failed"
 ERROR_SOURCE_INCOMPLETE = "source_listing_incomplete"
 ERROR_TIKTOK = "tiktok_error"
 ERROR_NOT_SANDBOX = "sandbox_only"
-#: The drafted title / description names a brand or manufacturer the source title does not.
-ERROR_BRAND_NOT_IN_SOURCE = "brand_not_in_source"
 
 #: TikTok product status -> what the reviewer reads (the read-back, shown honestly).
 STATUS_LABELS_VI: Mapping[str, str] = {
@@ -114,157 +118,6 @@ def _plain(value: Any) -> str:
 
 def _words(text: str) -> set[str]:
     return {w.lower() for w in _WORD.findall(text) if len(w) >= 2}
-
-
-# -- brand / manufacturer leakage guard (P64 walkthrough, D73.3) ------------------------
-#
-# The sandbox source listing carried a real customer's name as the value of TikTok's
-# VN "Manufacturer/Trader Name" / "Manufacturer/Trader Address" attributes (101489 /
-# 101490) and in its description; the model wrote it into the new title. A new listing
-# never names a brand or a manufacturer that the source TITLE does not already name:
-# such values are not copied into the create body, are redacted from what the model
-# reads, and a drafted title / description that still carries one is refused.
-
-#: TikTok VN's manufacturer / trader attributes (contract-collection.md §A-8).
-BRAND_ATTRIBUTE_IDS = frozenset({"101489", "101490"})
-_BRAND_NAME_HINTS = (
-    "brand",
-    "thương hiệu",
-    "manufacturer",
-    "nhà sản xuất",
-    "trader",
-    "importer",
-    "nhập khẩu",
-    "distributor",
-    "phân phối",
-)
-_ADDRESS_HINTS = ("address", "địa chỉ")
-_NO_BRAND = frozenset({"", "no brand", "không có thương hiệu", "none", "n/a"})
-#: Generic company words: never a brand on their own.
-_COMPANY_WORDS = frozenset(
-    {
-        "công", "ty", "tnhh", "cổ", "phần", "cp", "việt", "nam", "vn", "co", "ltd", "llc",
-        "company", "jsc", "group", "tập", "đoàn", "thương", "mại", "dịch", "vụ", "sản",
-        "xuất", "hộ", "kinh", "doanh", "cửa", "hàng", "shop", "store", "official",
-    }
-)  # fmt: skip
-#: Letters outside the Vietnamese alphabet: a title word spelled with one that the source
-#: title does not have is a foreign proper name -- a brand -- unless it is a common loanword.
-_FOREIGN_LETTERS = re.compile(r"[fjwz]", re.IGNORECASE)
-_LOANWORDS = frozenset(
-    {"size", "freesize", "free", "zip", "wifi", "jean", "jeans", "film", "fan", "fashion",
-     "fitness", "gift", "set", "zin", "laptop", "web", "pizza", "jar", "sofa", "fresh"}
-)  # fmt: skip
-
-
-def _norm(text: str) -> str:
-    return unicodedata.normalize("NFC", text).casefold().strip()
-
-
-def _attribute_is_brand(attribute_id: str, name: str) -> bool:
-    folded = _norm(name)
-    return attribute_id in BRAND_ATTRIBUTE_IDS or any(h in folded for h in _BRAND_NAME_HINTS)
-
-
-def _value_names(attribute: Mapping[str, Any]) -> list[str]:
-    return [
-        str(value.get("name") or "").strip()
-        for value in attribute.get("values") or []
-        if isinstance(value, Mapping) and str(value.get("name") or "").strip()
-    ]
-
-
-def _contains(text: str, term: str) -> bool:
-    needle = _norm(term)
-    if not needle:
-        return False
-    return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", _norm(text)) is not None
-
-
-def source_brand_terms(
-    detail: Mapping[str, Any], attribute_names: Mapping[str, str] | None = None
-) -> list[str]:
-    """Brand / manufacturer names the source carries but its TITLE does not name.
-
-    From the listing's ``brand`` (unless "No brand") and the values of its brand-like
-    attributes (:data:`BRAND_ATTRIBUTE_IDS`, or a name such as "Thương hiệu",
-    "Manufacturer/Trader Name"). A multi-word name also contributes its distinctive
-    words ("Công ty TNHH Fujiwa" -> "Fujiwa"); an address contributes only itself.
-    """
-    title = str(detail.get("title") or "")
-    title_words = {_norm(w) for w in _WORD.findall(title)}
-    names = dict(attribute_names or {})
-    candidates: list[tuple[str, bool]] = []
-    brand = detail.get("brand")
-    if isinstance(brand, Mapping) and _norm(str(brand.get("name") or "")) not in _NO_BRAND:
-        candidates.append((str(brand["name"]).strip(), False))
-    for attribute in detail.get("product_attributes") or []:
-        if not isinstance(attribute, Mapping):
-            continue
-        attribute_id = str(attribute.get("id") or "")
-        name = names.get(attribute_id) or str(attribute.get("name") or "")
-        if not _attribute_is_brand(attribute_id, name):
-            continue
-        is_address = any(h in _norm(name) for h in _ADDRESS_HINTS)
-        candidates.extend((value, is_address) for value in _value_names(attribute))
-    terms: list[str] = []
-    for value, is_address in candidates:
-        if _norm(value) in _NO_BRAND or _contains(title, value):
-            continue
-        if value not in terms:
-            terms.append(value)
-        if is_address:
-            continue
-        for word in _WORD.findall(value):
-            folded = _norm(word)
-            if (
-                len(folded) >= 3
-                and folded not in _COMPANY_WORDS
-                and folded not in title_words
-                and not folded.isdigit()
-                and word not in terms
-            ):
-                terms.append(word)
-    return terms
-
-
-def redact_terms(text: str, terms: Sequence[str]) -> str:
-    """``text`` without any of ``terms`` (whole word, case-insensitive)."""
-    for term in sorted(terms, key=len, reverse=True):
-        text = re.sub(
-            rf"(?<!\w){re.escape(unicodedata.normalize('NFC', term))}(?!\w)",
-            "",
-            unicodedata.normalize("NFC", text),
-            flags=re.IGNORECASE,
-        )
-    return re.sub(r"[ \t]{2,}", " ", text)
-
-
-def brand_leak(
-    *, title: str, description: str, source_title: str, brand_terms: Sequence[str]
-) -> tuple[str, str] | None:
-    """``(field, offending term)`` when the draft names a brand the source title does not."""
-    for field, text in (("title", title), ("description", description)):
-        for term in brand_terms:
-            if _contains(text, term):
-                return field, term
-    source_words = {_norm(w) for w in _WORD.findall(source_title)}
-    for word in _WORD.findall(title):
-        folded = _norm(word)
-        if (
-            _FOREIGN_LETTERS.search(folded)
-            and folded not in source_words
-            and folded not in _LOANWORDS
-            and not any(ch.isdigit() for ch in folded)
-        ):
-            return "title", word
-    return None
-
-
-BRAND_LEAK_SUMMARY_VI = (
-    "Tiêu đề hoặc mô tả Juli soạn có tên thương hiệu / nhà sản xuất không có trong tiêu đề "
-    "sản phẩm gốc, nên Juli soạn lại"
-)
 
 
 def _leaf_category(detail: Mapping[str, Any]) -> tuple[str | None, str | None]:
@@ -384,7 +237,10 @@ def handle_get_category_candidates(
         )
     price, currency = _sku_price(_first_sku(detail))
     # Never show the model a brand / manufacturer name the source title does not carry.
-    description = redact_terms(_plain(detail.get("description")), source_brand_terms(detail))
+    title = str(detail.get("title") or "")
+    description = redact_terms(
+        _plain(detail.get("description")), source_terms_not_in(detail, title)
+    )
     return GetCategoryCandidatesOutput(
         source_title=_vendor(detail.get("title"), 255),
         source_description=_vendor(description, 600),
@@ -431,9 +287,8 @@ class ListingPlan(BaseModel):
     price: str
     currency: str
     warehouse_id: str
-    #: The source title and the brand names it does not carry (:func:`source_brand_terms`).
-    source_title: str = ""
-    brand_terms: list[str] = Field(default_factory=list)
+    #: The source's free-text values its title does not carry (``source_terms_not_in``).
+    source_terms: list[str] = Field(default_factory=list)
 
 
 class PlanRefusal(Exception):
@@ -455,14 +310,13 @@ def copyable_attributes(
     """The source's attribute values the new listing may carry, for the category's attributes.
 
     Only attributes the category knows (``attribute_names``), values copied verbatim
-    (``id`` / ``name``) -- never invented -- except a brand / manufacturer: a brand-like
-    attribute keeps only values the source TITLE names, and no value of any attribute may
-    carry a brand / manufacturer name the title does not (:func:`source_brand_terms`). An
-    attribute left with no value is dropped; if the category requires it, the plan says
-    ``required_attribute_missing`` rather than leaking the name.
+    (``id`` / ``name``) -- never invented. A value TikTok picked from its own option list
+    (it has an ``id``) is copied; a free-text value only when the source TITLE carries it
+    (D73.5: a manufacturer / brand name typed into the source is not the new listing's).
+    An attribute left with no value is dropped; if the category requires it, the plan
+    says ``required_attribute_missing`` rather than copying the name.
     """
     title = str(detail.get("title") or "")
-    terms = source_brand_terms(detail, attribute_names)
     copied: list[dict[str, Any]] = []
     for attribute in detail.get("product_attributes") or []:
         if not isinstance(attribute, Mapping) or not attribute.get("id"):
@@ -470,16 +324,12 @@ def copyable_attributes(
         attribute_id = str(attribute["id"])
         if attribute_id not in attribute_names:
             continue
-        name = attribute_names.get(attribute_id) or str(attribute.get("name") or "")
-        brand_like = _attribute_is_brand(attribute_id, name)
         values: list[dict[str, Any]] = []
         for value in attribute.get("values") or []:
             if not isinstance(value, Mapping):
                 continue
             text = str(value.get("name") or "").strip()
-            if brand_like and not (text and _contains(title, text)):
-                continue
-            if text and any(_contains(text, term) for term in terms):
+            if not value.get("id") and not (text and contains_term(title, text)):
                 continue
             kept = {k: v for k, v in value.items() if k in ("id", "name") and v}
             if kept:
@@ -538,8 +388,7 @@ def plan_listing(resources: Any, product_id: str, category_id: str) -> ListingPl
             "Sản phẩm gốc thiếu thuộc tính bắt buộc của danh mục: "
             + ", ".join(missing)
             + (
-                " (Juli không sao chép tên thương hiệu / nhà sản xuất không có trong tiêu đề "
-                "sản phẩm gốc)"
+                " (Juli không sao chép giá trị tự nhập không có trong tiêu đề sản phẩm gốc)"
                 if withheld
                 else ""
             ),
@@ -578,8 +427,7 @@ def plan_listing(resources: Any, product_id: str, category_id: str) -> ListingPl
         price=price,
         currency=currency or "VND",
         warehouse_id=warehouse_id,
-        source_title=str(detail.get("title") or ""),
-        brand_terms=source_brand_terms(detail, attribute_names),
+        source_terms=source_terms_not_in(detail, str(detail.get("title") or "")),
     )
 
 
@@ -735,23 +583,19 @@ def handle_create_product(
             missing=refusal.missing,
             summary_vi="Chưa tạo sản phẩm: " + refusal.summary_vi,
         )
-    leak = brand_leak(
-        title=params.title,
-        description=params.description,
-        source_title=plan.source_title,
-        brand_terms=plan.brand_terms,
+    violation = check_proposal(
+        {"title": params.title, "description": params.description},
+        banned_terms=context.banned_terms,
+        source_terms=plan.source_terms,
     )
-    if leak is not None:
+    if violation is not None:
         # Defence in depth: the runner's pre-confirmation check refuses this first; the
-        # seller's own edit is held to the same rule. Nothing is sent to TikTok.
-        logger.warning("catalog_create_brand_leak_refused", extra={"field": leak[0]})
+        # seller's own edit is held to the same rules. Nothing is sent to TikTok.
+        logger.warning("catalog_create_rule_refused", extra={"error_code": violation.error_code})
         return CreateProductOutput(
             ok=False,
-            error_code=ERROR_BRAND_NOT_IN_SOURCE,
-            summary_vi=(
-                "Chưa tạo sản phẩm: tiêu đề hoặc mô tả có tên thương hiệu / nhà sản xuất "
-                "không có trong tiêu đề sản phẩm gốc"
-            ),
+            error_code=violation.error_code,
+            summary_vi="Chưa tạo sản phẩm: tiêu đề hoặc mô tả chưa đúng quy tắc của shop",
         )
     try:
         created = _unwrap(
@@ -808,44 +652,20 @@ def handle_create_product(
     )
 
 
-class ProposalRefusal(BaseModel):
-    """A CONFIRM proposal refused before the pause (the model may draft again, once)."""
-
-    error_code: str
-    #: Shown to the reviewer: never names the offending term.
-    summary_vi: str
-    #: Read by the model only: what to change.
-    model_hint: str
-
-
 def precheck_create_product(
     resources: Any, context: ProductToolContext, params: CreateProductInput
 ) -> ProposalRefusal | None:
-    """Before the reviewer is asked: the draft must not name a brand the source title lacks."""
+    """Before the reviewer is asked: the draft keeps the shop's listing rules (D73.5)."""
     try:
         detail = resources.products.get_details(context.product_id)
     except TikTokAPIError as exc:
         # The create re-checks after the confirmation; do not block the proposal here.
         logger.warning("catalog_create_precheck_failed", extra={"tiktok_code": exc.code})
         return None
-    leak = brand_leak(
-        title=params.title,
-        description=params.description,
-        source_title=str(detail.get("title") or ""),
-        brand_terms=source_brand_terms(detail),
-    )
-    if leak is None:
-        return None
-    field, term = leak
-    return ProposalRefusal(
-        error_code=ERROR_BRAND_NOT_IN_SOURCE,
-        summary_vi=BRAND_LEAK_SUMMARY_VI,
-        model_hint=(
-            f"error_code={ERROR_BRAND_NOT_IN_SOURCE}: the {field} names {term!r}, a brand or "
-            "manufacturer the source title does not contain. Draft the title and description "
-            "again without any brand, manufacturer or shop name that is not in the source "
-            "title, then call create_product again (once)."
-        ),
+    return check_proposal(
+        {"title": params.title, "description": params.description},
+        banned_terms=context.banned_terms,
+        source_terms=source_terms_not_in(detail, str(detail.get("title") or "")),
     )
 
 
@@ -853,10 +673,8 @@ CREATE_PRODUCT_SPEC = ToolSpec(
     name=CREATE_PRODUCT_TOOL,
     description=(
         "Create the new listing on TikTok with your Vietnamese title and description in the "
-        "checked category_id. Never name a brand, manufacturer or shop that the source "
-        "title does not name (refused with error_code=brand_not_in_source). Price, stock, "
-        "images and attributes come from the source listing server-side. Needs the "
-        "reviewer's explicit approval first."
+        "checked category_id. Price, stock, images and attributes come from the source "
+        "listing server-side. Needs the reviewer's explicit approval first."
     ),
     seller_rationale_vi="Tạo sản phẩm mới trên TikTok với tiêu đề, mô tả và danh mục Juli đề xuất.",
     input_model=CreateProductInput,
@@ -895,15 +713,9 @@ __all__ = [
     "CATALOG_CREATE_TOOL_DOMAIN",
     "CHECK_LISTING_REQUIREMENTS_TOOL",
     "CREATE_PRODUCT_TOOL",
-    "BRAND_ATTRIBUTE_IDS",
     "CreateProductRefused",
-    "ERROR_BRAND_NOT_IN_SOURCE",
-    "ProposalRefusal",
-    "brand_leak",
     "copyable_attributes",
     "precheck_create_product",
-    "redact_terms",
-    "source_brand_terms",
     "ERROR_CATEGORY_INVALID",
     "ERROR_REQUIRED_ATTRIBUTE_MISSING",
     "GET_CATEGORY_CANDIDATES_TOOL",

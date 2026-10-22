@@ -162,6 +162,10 @@ class ProductToolContext:
     # this leg and the worker can keep it (server-side, never model-visible)
     # for the write that follows the seller's consent on the resume leg.
     on_image_staged: Callable[[str], None] | None = None
+    # `banned_terms` -- P64 (D73.5): the shop's "Từ không được dùng"
+    # (`shop_rules.banned_terms`), loaded by the worker, so a CONFIRM proposal is
+    # checked against it before the seller is asked (`ToolDomain.prechecks`).
+    banned_terms: tuple[str, ...] = ()
 
 
 # --- sanitize helpers, shared by the READ handlers below (ADR-070) -----------

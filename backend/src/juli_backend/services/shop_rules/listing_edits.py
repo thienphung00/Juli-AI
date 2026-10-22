@@ -29,6 +29,7 @@ Vietnamese message for the seller. Pure.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -92,27 +93,37 @@ def _check_protected_terms(
             )
 
 
-def _contains_term(text: str, term: str) -> bool:
-    needle = term.strip().casefold()
+def contains_term(text: str, term: str) -> bool:
+    """``term`` occurs in ``text`` as whole words, case-insensitive (Unicode NFC)."""
+    needle = unicodedata.normalize("NFC", term.strip()).casefold()
     if not needle:
         return False
-    return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", text.casefold()) is not None
+    haystack = unicodedata.normalize("NFC", text).casefold()
+    return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", haystack) is not None
 
 
-def check_banned_terms(values: Mapping[str, Any], banned_terms: Sequence[str]) -> None:
-    """Raise :class:`ListingEditViolation` if a title / description uses a banned term."""
+def find_term(values: Mapping[str, Any], terms: Sequence[str]) -> tuple[str, str] | None:
+    """``(field, term)`` of the first ``terms`` entry a title / description contains."""
     for field in EDITABLE_FIELDS:
         value = values.get(field)
         if not isinstance(value, str):
             continue
-        for term in banned_terms:
-            if _contains_term(value, term):
-                label = FIELD_LABELS_VI[field]
-                raise ListingEditViolation(
-                    field,
-                    f'{label} có "{term.strip()}" — từ bạn đặt là không được dùng. '
-                    "Hãy bỏ hoặc thay từ này.",
-                )
+        for term in terms:
+            if contains_term(value, term):
+                return field, term.strip()
+    return None
+
+
+def check_banned_terms(values: Mapping[str, Any], banned_terms: Sequence[str]) -> None:
+    """Raise :class:`ListingEditViolation` if a title / description uses a banned term."""
+    hit = find_term(values, banned_terms)
+    if hit is not None:
+        field, term = hit
+        label = FIELD_LABELS_VI[field]
+        raise ListingEditViolation(
+            field,
+            f'{label} có "{term}" — từ bạn đặt là không được dùng. Hãy bỏ hoặc thay từ này.',
+        )
 
 
 def validate_listing_edits(

@@ -38,7 +38,10 @@ from juli_backend.services.agent.tools.product import (
     PRODUCT_READ_TOOL_HANDLERS,
     ProductToolContext,
 )
-from juli_backend.services.agent.tools.product_write import PRODUCT_WRITE_TOOL_HANDLERS
+from juli_backend.services.agent.tools.product_write import (
+    PRODUCT_WRITE_TOOL_HANDLERS,
+    precheck_update_product_listing,
+)
 
 #: The subject kind a product tool acts on -- `workflow_runs.subject_type`
 #: `'product'` (#1701). A run bound to any other kind of subject is refused
@@ -88,6 +91,8 @@ def bind_product_context(context: ToolContext) -> ProductToolContext:
 PRODUCT_TOOL_DOMAIN = ToolDomain(
     name=PRODUCT_DOMAIN,
     handlers=PRODUCT_TOOL_HANDLERS,
+    # P64 (D73.5): the shop's listing rules gate the proposal before the seller is asked.
+    prechecks={"update_product_listing": precheck_update_product_listing},
     subject_types=PRODUCT_SUBJECT_TYPES,
     bind_context=bind_product_context,
 )

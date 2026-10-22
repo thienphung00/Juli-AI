@@ -59,8 +59,13 @@ def build_opening_context_message(
     rationale: str,
     signals: list[dict[str, Any]] | None = None,
     expected_impact: dict[str, Any] | None = None,
+    shop_rules: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The opening `source: "juli"` context message for a run.
+
+    `shop_rules` (P64, D73.5): the shop's listing rules -- the seller's banned
+    terms, tone and protected terms plus the built-in default rules -- which the
+    drafted title / description must keep; checked again on the output.
 
     Shape follows `prompts/optimize_product/v1.md` Sec.4 exactly.
     `signals` and `expected_impact` are omitted from the result when absent,
@@ -77,7 +82,26 @@ def build_opening_context_message(
         message["signals"] = signals
     if expected_impact:
         message["action_card"]["expected_impact"] = expected_impact
+    if shop_rules:
+        message["shop_rules"] = shop_rules
     return message
+
+
+def opening_shop_rules(state: Any) -> dict[str, Any]:
+    """The `shop_rules` block the run's opening context carries, `{}` when none (P64).
+
+    Read back from `state["conversation_window"][0]` -- the same data the model
+    read -- so the worker gates the model's output on exactly the rules it was given.
+    """
+    window = state.get("conversation_window") if isinstance(state, dict) else None
+    if not isinstance(window, list) or not window or not isinstance(window[0], dict):
+        return {}
+    try:
+        opening = json.loads(str(window[0].get("content") or ""))
+    except ValueError:
+        return {}
+    rules = opening.get("shop_rules") if isinstance(opening, dict) else None
+    return rules if isinstance(rules, dict) else {}
 
 
 def initial_run_state(opening_context: dict[str, Any]) -> dict[str, Any]:

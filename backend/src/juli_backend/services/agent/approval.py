@@ -305,7 +305,9 @@ def _card_snapshot(card: ActionCard) -> dict[str, Any]:
     }
 
 
-def _initial_run_state_for(card: ActionCard) -> dict[str, Any]:
+def _initial_run_state_for(
+    card: ActionCard, *, shop_rules: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """The complete `workflow_runs.state` blob (issue #1188) plus the
     opening `source: "juli"` context message
     (`prompts/optimize_product/v1.md` Sec.3-4) for the run this approval
@@ -321,9 +323,14 @@ def _initial_run_state_for(card: ActionCard) -> dict[str, Any]:
 
     rationale = card.description or run_context_module.DIRECT_RUN_RATIONALE
     opening = run_context_module.build_opening_context_message(
-        workflow_key=card.workflow_key, rationale=rationale
+        workflow_key=card.workflow_key, rationale=rationale, shop_rules=shop_rules
     )
     return run_context_module.initial_run_state(opening)
+
+
+#: P64 (D73.5): a run whose playbook drafts a listing title / description reads the
+#: shop's listing rules (``shop_rules.listing_rules_for_run``) in its opening context.
+_LISTING_DRAFT_TOOLS = frozenset({"update_product_listing", "create_product"})
 
 
 @dataclass(frozen=True)
@@ -525,7 +532,12 @@ async def approve_action_card(
     subject = await _resolve_card_subject(session, card)
 
     prompt_version_value, prompt_sha256_value = _resolve_prompt_pin(playbook.workflow_key)
-    initial_state = _initial_run_state_for(card)
+    listing_rules = (
+        await shop_rules.listing_rules_for_run(session, shop_id)
+        if any(set(step.tools) & _LISTING_DRAFT_TOOLS for step in playbook.steps)
+        else None
+    )
+    initial_state = _initial_run_state_for(card, shop_rules=listing_rules)
 
     run = WorkflowRunRow(
         shop_id=shop_id,
