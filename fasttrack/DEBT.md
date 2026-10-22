@@ -1657,3 +1657,16 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   (left to the resolve-time refusal); (2) `advertiser_oauth_store` / `business_account_holder_store`
   creates are unguarded (advertiser/holder ids, no cipher; they could only collide on an equal merchant
   id). Repay: wrap them in the same guard if either ever carries a shop merchant id.
+
+## P61-I — OAuth callback under RLS as juli_app (2026-10-22, D71 / D73)
+
+- [ ] Load-flaky timing test, recurring: `tests/unit/test_action_card_refresh_cooldown.py::
+  test_slow_backing_store_does_not_stall_the_event_loop` fails at its 0.6 s `wait_for` limit under
+  the full `tests/unit` suite on a loaded laptop (P61-F merge run 2026-10-22; also the P51-era entry
+  above) and passes alone (16/16 in the file, 3/3 runs on the P61-I merge tree, where it also passed
+  in-suite). Same class: `test_cdp_speed_decision_rules_scoring_persistence.py::
+  TestContinuousTriggerPersistsScoringCandidates::test_scoring_stage_still_returns_the_daily_scoring_result`
+  hit the 30 s pytest-timeout in the P61-I merge full run (load avg ~7-9) and runs in 1.4-2.2 s alone
+  (3/3). Why not fixed: timing bounds, unrelated to P61-I. Repay: measure the event-loop stall
+  relative to a calibrated baseline (or mark the test `serial` / give it a load-tolerant bound),
+  and find what the scoring-persistence test waits on that can take >30 s under contention.

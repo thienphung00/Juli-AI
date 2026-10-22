@@ -2956,3 +2956,34 @@ reconcile --write` re-derived the no-assert corpus figure.
 - D73 untouched: `READ_CAPABILITIES` = production_read + seller_connect; `own_shop_sandbox_read` fallback intact; no
   diff vs optimize-product in `core/` or `integrations/`.
 - Next: lead fast-forwards optimize-product to this head, pushes, pings P64.
+
+## 2026-10-22 — agent (Claude Opus) — P61-I merged with optimize-product 71c5eb84 (merged-ready on a3a85708)
+
+- Merge 2bba3815: origin/fasttrack/optimize-product (71c5eb84 = P61-F merged) into `fasttrack/p61-i-oauth-rls-scope`.
+  Conflict: `fasttrack/LOG.md` only (kept both sides in time order: P61-I entry 08:01, then P61-F 08:35 and the P61-F
+  merged-ready entry 09:48). PROGRESS/DEBT merged cleanly. `eval/quality_detectors.py` came from optimize-product
+  unchanged (P61-I does not touch it), then re-derived.
+- Re-derive a3a85708 on the combined tree: `reconcile --write` -> functions 7182 -> 7185, modules 690 -> 691, now-rate
+  1.62% -> 1.61%; layers unchanged 509/131/116/116/53/49 (zero-assertion 49). Surface inventory regenerated with
+  `generate_surface_inventory()`: byte-identical, not committed. Migrations: head 100; 101 stays in `deferred/`.
+- Verification (Python juli/.venv, PYTHONPATH=worktree:backend/src, no xdist): `pnpm install` done (first time in this
+  worktree). ruff + format clean (8 touched .py); mypy clean on the 3 touched source modules. Full
+  `tests/unit -m "not live"`: 8001 passed, 245 skipped, 2 xfailed, 1 failed in 30m38s (load avg ~7-9) -- load-flaky
+  `test_cdp_speed_decision_rules_scoring_persistence.py::...::test_scoring_stage_still_returns_the_daily_scoring_result`
+  (30 s pytest-timeout), 3/3 green alone (1.4-2.2 s). `test_destructive_migration_isolation.py` passed in-suite and
+  alone (with the scoring file: 14 passed). `test_action_card_refresh_cooldown.py` passed in-suite this time and 3/3
+  alone (16 passed each); DEBT line added (P61-I section). No deterministic failures.
+- Homebrew PG16 :55471 (fresh cluster, UTC, roles script, then `alembic upgrade head` -> 100, disposable): P61-I
+  two-user 4 + P61-H unit 10 + P61-H Postgres 7 + P61-E e2e 1 + P61-F two-shop 5 + `test_p61f_agent_production_write.py`
+  34 + reviewer Postgres 5 + `test_reviewer_sandbox_live.py` 17 = 83 passed, 0 skipped. `check.sh --since
+  origin/fasttrack/optimize-product` on a second fresh database: migrations PASS (at 100), isolation 12 passed, gitleaks,
+  ruff 8 files, pytest 10 files 83 passed 1 skipped (`test_oauth_facade_dual_writer.py:210` self-exclusion "facade
+  module is the allowed writer", not a DB skip) -> OK. Cluster deleted.
+- D73: `READ_CAPABILITIES` = production_read + seller_connect; `_own_shop_sandbox_read_credential` fallback in
+  `resolve_read_credential_for_shop` intact; no diff vs optimize-product in `integrations/` (incl. `reviewer_scope.py`,
+  `merchant.py`) or `credential_resolver.py`. A seller OAuth for a shop holding `sandbox_write` is refused and writes
+  nothing (`test_seller_connect_on_the_sandbox_shop_is_refused_and_writes_nothing`, unit twin). P61-F's resume leg
+  (`composition.resolve_agent_write_leg`) uses only `resolve_read_credential_for_shop` /
+  `resolve_sandbox_write_credential` / `with_shop_scope`; it never calls `provision_shop_and_credentials` or the
+  callback, and `refresh_tokens` (used by polling) is unchanged by P61-I.
+- Next: lead fast-forwards optimize-product to this head, pushes, pings P64; owner tags one deploy for P61-E/F/I.
