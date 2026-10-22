@@ -10,3 +10,10 @@ export const SIMULATED_DONE_TITLE = "Đã chạy thử · shop của bạn chưa
 
 export const SIMULATED_DONE_TEXT =
   "Lượt này chỉ chạy thử, chưa ghi lên TikTok Shop của bạn: sản phẩm giữ nguyên, nên Juli không đo kết quả.";
+
+/**
+ * P64 (D73.4): for the partner account pinned to Juli's live TikTok sandbox shop the
+ * sandbox shop IS the shop, so a run that wrote there really changed it on TikTok —
+ * never "chạy thử". The seller's own shop keeps {@link SIMULATED_RUN_LABEL}.
+ */
+export const SANDBOX_WRITTEN_LABEL = "Đã ghi lên TikTok";

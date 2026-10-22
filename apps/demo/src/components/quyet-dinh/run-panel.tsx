@@ -8,6 +8,7 @@ import { dateText, validityText } from "../../lib/quyet-dinh/p10-format";
 import type { PhotoCheck, QdRun, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
 import type { ReasonChoice } from "../../lib/quyet-dinh/reasons";
 import { runChip, runningNote, type RunPhase } from "../../lib/quyet-dinh/run-model";
+import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import { SIMULATED_DONE_TEXT, SIMULATED_DONE_TITLE } from "../../lib/quyet-dinh/simulated-copy";
 import type { RunKind, RunTimeline } from "../../lib/quyet-dinh/timeline";
 import type { RunChanges } from "../../lib/quyet-dinh/types";
@@ -90,7 +91,8 @@ export function RunPanel(props: RunPanelProps) {
   const [declinedReason, setDeclinedReason] = useState<string | null>(null);
   const [dialogBusy, setDialogBusy] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
-  const chip = runChip(run, kind, phase);
+  const sandboxShop = useSandboxReviewer();
+  const chip = runChip(run, kind, phase, sandboxShop);
   const headingId = `run-${run.id}`;
   const changedLabels =
     changes && changes.changes.length > 0
@@ -791,7 +793,9 @@ function DonePanel({
 }) {
   const sellerHref = useSellerHref();
   const write = useWriteControl();
-  const sandboxReviewer = useRunActions();
+  const runActions = useRunActions();
+  const sandboxShop = useSandboxReviewer();
+  const sandboxReviewer = runActions || sandboxShop;
   if (kind === "create") {
     // P64 (D73.3): the new listing as TikTok confirmed it (id, status, time).
     return (

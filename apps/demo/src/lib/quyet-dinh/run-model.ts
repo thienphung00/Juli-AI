@@ -11,7 +11,7 @@ import type { CardView } from "./card-model";
 import type { QdRun } from "./p10-types";
 import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../run-ledger/copy";
 import { resolveRunTerminalState } from "../run-ledger/terminal-state";
-import { SIMULATED_RUN_LABEL } from "./simulated-copy";
+import { SANDBOX_WRITTEN_LABEL, SIMULATED_RUN_LABEL } from "./simulated-copy";
 import type { RunKind, RunTimeline } from "./timeline";
 
 export type ChipTone = "wait" | "info" | "ok" | "muted" | "warn" | "queue";
@@ -119,8 +119,18 @@ export interface Chip {
   readonly tone: ChipTone;
 }
 
-/** The run's status chip (header and queue). */
-export function runChip(run: QdRun, kind: RunKind, phase: RunPhase): Chip {
+/**
+ * A finished run's chip. P61-B: a run that wrote to the test shop is "Đã chạy thử" for a
+ * seller; P64 (D73.4): on the reviewer's live sandbox shop (`sandboxShop`) that write is
+ * the real change, "Đã ghi lên TikTok".
+ */
+function appliedChip(run: QdRun, sandboxShop: boolean): Chip {
+  if (!run.simulated) return { label: "Đã áp dụng", tone: "ok" };
+  return sandboxShop ? { label: SANDBOX_WRITTEN_LABEL, tone: "ok" } : { label: SIMULATED_RUN_LABEL, tone: "muted" };
+}
+
+/** The run's status chip (header and queue). `sandboxShop`: the reviewer's live sandbox (P64). */
+export function runChip(run: QdRun, kind: RunKind, phase: RunPhase, sandboxShop = false): Chip {
   switch (phase) {
     case "queued":
       return { label: "Trong hàng đợi", tone: "queue" };
@@ -141,7 +151,7 @@ export function runChip(run: QdRun, kind: RunKind, phase: RunPhase): Chip {
       // P64 (D73.3): the new listing exists on TikTok (the sandbox shop is the shop).
       if (kind === "create") return { label: "Đã tạo sản phẩm", tone: "ok" };
       // P61-B: the writes went to the test shop, not the seller's shop.
-      return run.simulated ? { label: SIMULATED_RUN_LABEL, tone: "muted" } : { label: "Đã áp dụng", tone: "ok" };
+      return appliedChip(run, sandboxShop);
     case "declined":
       // The seller stopped the run ("Không thực hiện" on a wait / cancel): the ledger's "Đã hủy".
       if (run.stop_reason === "cancelled_by_seller") return { label: RUN_TERMINAL_STATE_COPY.cancelled.label, tone: "muted" };
@@ -158,14 +168,14 @@ export function runChip(run: QdRun, kind: RunKind, phase: RunPhase): Chip {
 }
 
 /** The run's chip from the list item alone (queue rows of runs not open). */
-export function listChip(run: QdRun): Chip {
+export function listChip(run: QdRun, sandboxShop = false): Chip {
   if (run.status === "queued") return { label: "Trong hàng đợi", tone: "queue" };
   if (run.status === "waiting_approval" || run.awaiting) return { label: "Đang chờ bạn", tone: "wait" };
   if (run.status === "running" || run.status === "waiting_external") return { label: "Đang chạy", tone: "info" };
   if (run.stop_reason === "confirmation_declined") return { label: "Không thay đổi", tone: "muted" };
   if (run.stop_reason === "cancelled_by_seller") return { label: RUN_TERMINAL_STATE_COPY.cancelled.label, tone: "muted" };
   if (run.status === "completed" && run.stop_reason === "final_response") {
-    return run.simulated ? { label: SIMULATED_RUN_LABEL, tone: "muted" } : { label: "Đã áp dụng", tone: "ok" };
+    return appliedChip(run, sandboxShop);
   }
   const key = resolveRunTerminalState(run.stop_reason);
   return { label: (key ? RUN_TERMINAL_STATE_COPY[key] : RUN_TERMINAL_STATE_UNKNOWN_COPY).label, tone: "muted" };
