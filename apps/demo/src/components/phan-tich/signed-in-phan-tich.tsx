@@ -9,6 +9,7 @@ import { fetchMetricRanking } from "../../lib/phan-tich/rankings-client";
 import type { RankingLoader } from "../../lib/phan-tich/types";
 import { fetchRecommendations } from "../../lib/recommendations-api-client";
 import type { ShopAnalysisEnvelope } from "../../lib/shop-analysis/types";
+import { MetricsSourceNote } from "../home/metrics-source-note";
 import { PhanTichView } from "./phan-tich-view";
 
 /**
@@ -42,13 +43,16 @@ export function SignedInPhanTich({
   const loadDecisions = useCallback(() => fetchDecisions({ token, shopId }), [fetchDecisions, token, shopId]);
   const analysisClients = useMemo(() => createAnalysisClients({ token, shopId }), [token, shopId]);
   return (
-    <PhanTichView
-      analysisClients={analysisClients}
-      loadDecisions={loadDecisions}
-      loadRanking={loadRanking}
-      onNavigate={onNavigate}
-      query={query}
-      report={envelope.report}
-    />
+    <>
+      <MetricsSourceNote envelope={envelope} />
+      <PhanTichView
+        analysisClients={analysisClients}
+        loadDecisions={loadDecisions}
+        loadRanking={loadRanking}
+        onNavigate={onNavigate}
+        query={query}
+        report={envelope.report}
+      />
+    </>
   );
 }

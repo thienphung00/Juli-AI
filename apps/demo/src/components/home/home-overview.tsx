@@ -14,6 +14,7 @@ import { compactMoney, num, pct, slashDate, vnClock, vnWeekdayDate } from "../..
 import { AppPageHeader } from "../app-shell/page-header";
 import { SandboxTrafficNote } from "../reviewer/sandbox-traffic-note";
 import { useSellerHref } from "../seller-view-context";
+import { MetricsSourceNote } from "./metrics-source-note";
 
 /**
  * Trang chủ (AC-8.5, ADR-109 decision 3) — the sales demo video's overview:
@@ -177,6 +178,7 @@ export function HomeOverview({ envelope, sample = false }: HomeOverviewProps) {
         ))}
       </div>
 
+      <MetricsSourceNote envelope={envelope} />
       <SandboxTrafficNote envelope={envelope} />
       <StreamMatrix envelope={envelope} />
     </section>

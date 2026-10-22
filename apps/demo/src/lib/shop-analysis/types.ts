@@ -260,6 +260,12 @@ export interface ShopDiagnosisReport {
   seller_skus?: Record<string, string>;
   /** P12: the products' promotions over the 60 days. */
   promo_products?: PromoProduct[];
+  /**
+   * P64 (D73.3): set on the sandbox shop's report only. "orders" = GMV / SKU orders /
+   * AOV / hero ranking computed from its real paid synced orders (Analytics is all
+   * zeros); the funnel stays empty. Absent on every real shop's report.
+   */
+  metrics_source?: "orders" | "analytics";
 }
 
 /** P12 `promo_products[]` (backend `promotions.PromoProduct`). */

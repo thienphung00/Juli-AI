@@ -28,6 +28,15 @@ The daily worker job behind ``juli_backend.build_shop_diagnosis``:
 4. **Store** each report's ``to_dict()`` (aggregates only) under the shop's
    scope, replacing a row for the same (shop, end date, ranking), and each
    metric ranking the same way per (shop, end date, stream, metric).
+Sandbox shop (P64, D73.3): for a shop read through its OWN ``sandbox_write``
+credential, the end date is yesterday (UTC+7) whatever the analytics day, and the
+shop's paid order lines of the 60 days are read from Postgres in step 1. When the
+fetched A-34 product-days are all zero, step 3 builds GMV / SKU orders / AOV and
+the hero ranking from those orders (``orders_source``) and the stored report says
+``metrics_source = "orders"`` (else ``"analytics"``); real shops carry no such key
+and are built exactly as before. A sandbox report built before this key existed is
+not ``already_built``: the next run rebuilds it once.
+
 5. **Compact + summary** (P18, D27.1/27.2): upsert the report's per-day stream
    and product counts into ``shop_daily_streams`` / ``shop_daily_products``
    (``compact.py``) and recompute the shop's Ops Tổng quan row
@@ -49,7 +58,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -71,12 +80,23 @@ from juli_backend.repositories import (
     utc_now_naive,
 )
 from juli_backend.services.shop_diagnosis import Ranking, Snapshot, build_report, load_snapshot
+from juli_backend.services.shop_diagnosis.config import ShopDiagnosisConfig
 from juli_backend.services.shop_diagnosis.rankings import (
     MetricRanking,
     VideoWindowCounts,
     build_rankings,
 )
-from juli_backend.services.shop_diagnosis_daily.fetch import fetch_snapshot, yesterday_local
+from juli_backend.services.shop_diagnosis.snapshot import Windows
+from juli_backend.services.shop_diagnosis_daily.fetch import DAYS, fetch_snapshot, yesterday_local
+from juli_backend.services.shop_diagnosis_daily.orders_source import (
+    METRICS_SOURCE_ANALYTICS,
+    METRICS_SOURCE_ORDERS,
+    OrderLine,
+    analytics_all_zero,
+    load_paid_order_lines,
+    product_titles,
+    snapshot_from_orders,
+)
 from juli_backend.services.shop_diagnosis_daily.pacing import (
     RateLimitedResources,
     SharedWindowGate,
@@ -167,6 +187,11 @@ class _Plan:
     config: ClientFactoryConfig
     #: The rate-limit key the poll uses for this shop (``_ShopRun.shop_key``).
     shop_key: str
+    #: P64 (D73.3): the sandbox shop read through its own ``sandbox_write`` credential.
+    sandbox: bool = False
+    #: Its paid order lines of the 60 days and their catalog titles (sandbox only).
+    order_lines: tuple[OrderLine, ...] = ()
+    titles: dict[str, str] = field(default_factory=dict)
 
 
 async def _plan(
@@ -186,9 +211,21 @@ async def _plan(
         shop = await session.get(Shop, shop_id)
         if shop is None:
             raise ValueError(f"shop diagnosis: shop {shop_id} not found")
+        sandbox = is_own_shop_sandbox_read(
+            credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+        )
         state = await ShopIngestionStateRepo(session).find(shop_id)
-        end = report_end_date(state.analytics_through_date if state else None, now=now)
+        # P64 (D73.3): a sandbox's analytics day may lag forever; its orders do not.
+        through = None if sandbox else (state.analytics_through_date if state else None)
+        end = report_end_date(through, now=now)
         existing = await ShopDiagnosisReportsRepo(session).find(shop_id, end, DEFAULT_RANKING)
+        order_lines: list[OrderLine] = []
+        titles: dict[str, str] = {}
+        if sandbox:
+            order_lines = await load_paid_order_lines(
+                session, shop_id, end - timedelta(days=DAYS - 1), end
+            )
+            titles = await product_titles(session, shop_id, (o.product_id for o in order_lines))
         config = ClientFactoryConfig(
             app_key=app_key,
             app_secret=app_secret,
@@ -196,17 +233,34 @@ async def _plan(
             merchant_auth_id=str(credential.merchant_authorization_id),
             shop_cipher=credential.shop_cipher,
             credential_capability=credential.capability,
-            own_shop_sandbox_read=is_own_shop_sandbox_read(
-                credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
-            ),
+            own_shop_sandbox_read=sandbox,
         )
         shop_name = shop.shop_name or ""
         shop_key = shop.tiktok_shop_id or str(shop_id)
     # Close the read transaction before the long fetch.
     await session.commit()
-    if existing is not None and not force:
+    if existing is not None and not force and _still_current(existing.report, sandbox=sandbox):
         return "already_built"
-    return _Plan(shop_name=shop_name, end=end, config=config, shop_key=shop_key)
+    return _Plan(
+        shop_name=shop_name,
+        end=end,
+        config=config,
+        shop_key=shop_key,
+        sandbox=sandbox,
+        order_lines=tuple(order_lines),
+        titles=titles,
+    )
+
+
+def _still_current(report: Any, *, sandbox: bool) -> bool:
+    """A stored report that this build would not change (the idempotency check).
+
+    P64 (D73.3): a sandbox report stored before ``metrics_source`` existed was built
+    from A-34 zeros only; it is rebuilt once, then idempotent again.
+    """
+    if not sandbox:
+        return True
+    return isinstance(report, dict) and "metrics_source" in report
 
 
 def fetch_ranking_videos(
@@ -272,6 +326,23 @@ def _metric_rankings(
     return []
 
 
+def _report_snapshot(snapshot: Snapshot, plan: _Plan) -> tuple[str | None, Snapshot]:
+    """The snapshot the report is built from, and its ``metrics_source`` (sandbox only).
+
+    A real shop: the A-34 snapshot, no source key. The sandbox: its paid orders when
+    every A-34 product-day is zero and it has any (``orders_source``), else A-34.
+    The metric rankings always read the A-34 snapshot (traffic is never derived).
+    """
+    if not plan.sandbox:
+        return None, snapshot
+    if plan.order_lines and analytics_all_zero(snapshot.daily):
+        days = Windows.ending(plan.end, ShopDiagnosisConfig().window_days).all_days()
+        return METRICS_SOURCE_ORDERS, snapshot_from_orders(
+            snapshot, plan.order_lines, plan.titles, days
+        )
+    return METRICS_SOURCE_ANALYTICS, snapshot
+
+
 def _fetch_and_build(
     resources: Any,
     plan: _Plan,
@@ -286,10 +357,14 @@ def _fetch_and_build(
         folder = Path(tmp)
         meta = fetch_snapshot(resources, folder, plan.end, plan.shop_name, **fetch_kwargs)
         snapshot = load_snapshot(folder, plan.end)
+        source, report_snapshot = _report_snapshot(snapshot, plan)
         reports = {
-            ranking.value: json_safe(build_report(snapshot, ranking).to_dict())
+            ranking.value: json_safe(build_report(report_snapshot, ranking).to_dict())
             for ranking in RANKINGS
         }
+        if source is not None:
+            for report in reports.values():
+                report["metrics_source"] = source
         metric_rankings = _metric_rankings(resources, snapshot, video_metrics, shop_id)
     return meta, reports, metric_rankings
 
