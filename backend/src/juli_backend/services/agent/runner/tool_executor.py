@@ -127,7 +127,7 @@ still-open question — see that module's own docstring.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
@@ -298,6 +298,30 @@ class DomainToolExecutor:
     def _after_dispatch(self, *, tool_name: str, spec: ToolSpec) -> None:
         """Runs after a successful dispatch, ledger-gated or direct."""
 
+    # --- pre-confirmation check (P64) ------------------------------------------
+
+    def precheck(self, *, tool_name: str, params: BaseModel) -> Mapping[str, Any] | None:
+        """The domain's read-only check of a CONFIRM proposal, before the pause.
+
+        `None` when the domain registers no check for `tool_name` or the check
+        passes; else the refusal's dumped model (`error_code`, `summary_vi`,
+        `model_hint`). Uses the read bundle (the write bundle when only that one
+        exists); never writes, never touches the ledger.
+        """
+        spec = self._registry.get(tool_name)
+        domain = get_tool_domain(spec.domain)
+        check = domain.prechecks.get(tool_name)
+        if check is None:
+            return None
+        resources = (
+            self._read_resources if self._read_resources is not None else self._write_resources
+        )
+        if domain.takes_resources and resources is None:
+            return None
+        context = ToolContext(subject=self._subject, resources=resources, binding=self._binding())
+        refusal = check(resources, domain.context_for(context), params)
+        return None if refusal is None else refusal.model_dump(mode="json")
+
     # --- dispatch -------------------------------------------------------------
 
     def execute(
@@ -416,6 +440,7 @@ class ProductToolExecutor(DomainToolExecutor):
         revert_expected: Mapping[str, Any] | None = None,
         on_image_staged: Callable[[str], None] | None = None,
         revert_expected_hashes: Mapping[str, str | None] | None = None,
+        banned_terms: Sequence[str] = (),
     ) -> None:
         super().__init__(
             registry=registry,
@@ -451,6 +476,8 @@ class ProductToolExecutor(DomainToolExecutor):
         # P10-B (contract §4): told the URI `upload_product_image` staged; the
         # executor attaches it in this leg, the callback keeps it for the next.
         self._on_image_staged = on_image_staged
+        # P64 (D73.5): the shop's banned terms, for the pre-confirmation check.
+        self._banned_terms = tuple(banned_terms)
 
     def _binding(self) -> ProductToolContext:
         """The `ProductToolContext` the product domain unwraps and hands to
@@ -468,6 +495,7 @@ class ProductToolExecutor(DomainToolExecutor):
             product_detail=self._product_detail,
             restore_main_image_uris=self._restore_main_image_uris,
             on_image_staged=self._image_staged,
+            banned_terms=self._banned_terms,
         )
 
     def _image_staged(self, uri: str) -> None:
@@ -548,6 +576,14 @@ class ProductToolExecutor(DomainToolExecutor):
         return None
 
     def _after_read_dispatch(self, *, tool_name: str) -> None:
+        if tool_name == "get_category_candidates" and self._concurrency_guard is not None:
+            # P64 (D73.5): the create run's source listing, kept in RunState so the
+            # consent step can hold the seller's edit to the source-title rule.
+            assert self._read_resources is not None
+            self._concurrency_guard.set_product_detail(
+                self._read_resources.products.get_details(self._product_id)
+            )
+            return
         if tool_name != "get_product_information" or self._concurrency_guard is None:
             return
         assert self._read_resources is not None  # a READ dispatch got this far

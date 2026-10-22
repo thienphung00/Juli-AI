@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { REVIEWER_READ_ONLY_TITLE, REVIEWER_SANDBOX_READ_ONLY_TITLE } from "../lib/reviewer/copy";
 import { isSandboxReviewer } from "../lib/reviewer/mode";
+import { installAuthRefresh } from "../lib/auth-refresh";
 import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/reviewer/reviewer-context";
 import { resetReviewerSample } from "../lib/reviewer/sample-store";
 import { clearActiveShop } from "../lib/shop-session";
@@ -152,6 +153,9 @@ function DemoShellContent({ children }: { children: ReactNode }) {
 export function isOpsRoute(pathname: string): boolean {
   return pathname === "/ops" || pathname.startsWith("/ops/");
 }
+
+// P64: installed at module load (client only), before any child effect fires a /v1 call.
+installAuthRefresh();
 
 export function DemoShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";

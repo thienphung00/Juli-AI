@@ -83,8 +83,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from juli_backend.integrations.tiktok import SandboxWriteResources
+from juli_backend.integrations.tiktok import SandboxWriteResources, TikTokAPIError
 from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
+from juli_backend.services.agent.tools.listing_rules import check_proposal, source_terms_not_in
 from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
@@ -376,6 +377,29 @@ def handle_update_product_listing(
         title=params.title,
         description=params.description,
         image_attached=params.attach_staged_image,
+    )
+
+
+def precheck_update_product_listing(
+    resources: Any, context: ProductToolContext, params: UpdateProductListingInput
+) -> BaseModel | None:
+    """P64 (D73.5): the drafted title / description keep the shop's listing rules.
+
+    The shop's banned terms, and the built-in source-title rule: a free-text attribute
+    value or brand name of this product that its current title and description do not
+    already carry is not introduced (``listing_rules``). Read-only.
+    """
+    detail = context.product_detail
+    if not isinstance(detail, Mapping):
+        try:
+            detail = resources.products.get_details(context.product_id)
+        except TikTokAPIError:  # the write re-reads; never block the proposal on a read
+            detail = None
+    reference = " ".join(str((detail or {}).get(key) or "") for key in ("title", "description"))
+    return check_proposal(
+        {"title": params.title, "description": params.description},
+        banned_terms=context.banned_terms,
+        source_terms=source_terms_not_in(detail, reference),
     )
 
 

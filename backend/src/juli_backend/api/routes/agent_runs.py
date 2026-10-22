@@ -286,7 +286,7 @@ async def submit_confirmation_decision(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
-                "code": "rule_violation",
+                "code": violation.code,
                 "message": violation.message_vi,
                 "field": violation.field,
             },

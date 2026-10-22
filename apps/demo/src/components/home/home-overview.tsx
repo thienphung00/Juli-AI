@@ -14,7 +14,7 @@ import { compactMoney, num, pct, slashDate, vnClock, vnWeekdayDate } from "../..
 import { AppPageHeader } from "../app-shell/page-header";
 import { SandboxTrafficNote } from "../reviewer/sandbox-traffic-note";
 import { useSellerHref } from "../seller-view-context";
-import { MetricsSourceNote } from "./metrics-source-note";
+import { MetricsSourceNote, ordersSourced } from "./metrics-source-note";
 
 /**
  * Trang chủ (AC-8.5, ADR-109 decision 3) — the sales demo video's overview:
@@ -37,8 +37,14 @@ function formatCard(card: HomeTotalCard, value: number | null): string {
   return card.kind === "money" ? compactMoney(value) : num(value, 0);
 }
 
-function headline(cards: readonly HomeTotalCard[], days: number): string {
+export function headline(cards: readonly HomeTotalCard[], days: number): string {
   const gmv = cards.find((c) => c.key === "gmv");
+  // P64: no previous period (0 ₫ or absent) → no trend to claim, only the amount.
+  if (gmv && (gmv.prior === null || gmv.prior === 0)) {
+    return gmv.last
+      ? `GMV ${days} ngày: ${compactMoney(gmv.last)} — chưa có kỳ trước để so sánh`
+      : `GMV ${days} ngày: chưa có kỳ trước để so sánh`;
+  }
   if (!gmv || gmv.tone === "flat") return `GMV ${days} ngày đi ngang so với kỳ trước`;
   const verb = gmv.tone === "up" ? "tăng" : "giảm";
   return `GMV ${days} ngày ${verb} ${gmv.changeText.replace(/^[+−]/, "")} so với kỳ trước`;
@@ -178,8 +184,8 @@ export function HomeOverview({ envelope, sample = false }: HomeOverviewProps) {
         ))}
       </div>
 
-      <MetricsSourceNote envelope={envelope} />
-      <SandboxTrafficNote envelope={envelope} />
+      {/* P64: the orders note replaces the generic no-traffic note -- it already says why the funnel is empty. */}
+      {ordersSourced(envelope) ? <MetricsSourceNote envelope={envelope} /> : <SandboxTrafficNote envelope={envelope} />}
       <StreamMatrix envelope={envelope} />
     </section>
   );

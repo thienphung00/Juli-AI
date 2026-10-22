@@ -19,6 +19,7 @@ rather than forwarding it into a public, unauthenticated response body.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from typing import Any
 
@@ -110,6 +111,28 @@ _EVIDENCE_ALLOWLIST: tuple[str, ...] = (
 
 def _reviewer_card_filter(include: bool) -> tuple[Any, ...]:
     return () if include else (ActionCard.workflow_key.not_in(REVIEWER_ONLY_WORKFLOWS),)
+
+
+_VIETNAMESE_LETTER = re.compile(r"[À-ỹĐđ]")
+
+
+def stale_english_rule_card(card: ActionCard) -> bool:
+    """P64 walkthrough: a rule-pipeline card stored before its "Lý do" became Vietnamese.
+
+    A card with no ADR-106 ``diagnosis`` whose stored ``reasoning.why`` (or, without
+    one, ``rationale``) carries no Vietnamese letter. Its signals are not stored, so the
+    copy cannot be re-rendered; the sandbox reviewer is not shown it. Real shops keep it.
+    """
+    try:
+        payload = json.loads(card.recommendation_payload or "{}")
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(payload, dict) or "diagnosis" in payload:
+        return False
+    reasoning = payload.get("reasoning")
+    why = reasoning.get("why") if isinstance(reasoning, dict) else None
+    text = why if isinstance(why, str) and why.strip() else payload.get("rationale")
+    return isinstance(text, str) and bool(text.strip()) and not _VIETNAMESE_LETTER.search(text)
 
 
 class DecisionNotFound(ValueError):
@@ -266,7 +289,11 @@ async def list_surfaced_decisions(
         )
     )
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    cards = list(result.scalars().all())
+    if include_reviewer_cards:
+        # The sandbox reviewer's pin only: no stale English rule-pipeline card.
+        cards = [card for card in cards if not stale_english_rule_card(card)]
+    return cards
 
 
 async def get_surfaced_decision(
@@ -293,6 +320,8 @@ async def get_surfaced_decision(
     )
     result = await session.execute(stmt)
     card = result.scalar_one_or_none()
+    if card is not None and include_reviewer_cards and stale_english_rule_card(card):
+        card = None
     if card is None:
         raise DecisionNotFound(f"Decision {action_card_id} not found for shop {shop_id}")
     return card

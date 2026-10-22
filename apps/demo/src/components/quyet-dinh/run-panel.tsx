@@ -355,6 +355,14 @@ function ConsentBlock({
     setEditing(true);
   };
 
+  // "Huỷ sửa" discards the seller's version entirely: the card shows Juli's proposal
+  // again and a plain confirm sends no edited_values (P64 walkthrough).
+  const cancelEdit = () => {
+    setEdited(null);
+    setError(null);
+    setEditing(false);
+  };
+
   const saveEdit = () => {
     const next: { title?: string; description?: string } = {};
     if (editable.includes("title") && draft.title.trim() !== (proposedText(target.proposed_change.title) ?? "")) {
@@ -448,7 +456,7 @@ function ConsentBlock({
             </p>
           ) : null}
           <div className="qv-edit__actions">
-            <button className="qv-btn qv-btn--secondary qv-btn--small" onClick={() => setEditing(false)} type="button" {...write()}>
+            <button className="qv-btn qv-btn--secondary qv-btn--small" onClick={cancelEdit} type="button" {...write()}>
               Huỷ sửa
             </button>
             <button className="qv-btn qv-btn--blue qv-btn--small" onClick={saveEdit} type="button" {...write()}>

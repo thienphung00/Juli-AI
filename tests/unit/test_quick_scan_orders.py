@@ -244,7 +244,7 @@ async def test_a_zero_analytics_sandbox_gets_title_and_description_cards_from_pa
     assert diagnosis["listing_proposal"] == {
         "field": "title",
         "before": "Áo thun nữ",
-        "after": "Áo thun nữ - JuliWear - Trắng, Đen",
+        "after": "Áo thun nữ - Trắng, Đen",
     }
     # The second product's title already says it all: its description is proposed.
     _, second = by_product["p-second"]
@@ -263,7 +263,7 @@ async def test_a_zero_analytics_sandbox_gets_title_and_description_cards_from_pa
             "field": "title",
             "label": "Tiêu đề",
             "before": "Áo thun nữ",
-            "after": "Áo thun nữ - JuliWear - Trắng, Đen",
+            "after": "Áo thun nữ - Trắng, Đen",
         }
     ]
     planned = simulation.simulate(
@@ -271,7 +271,7 @@ async def test_a_zero_analytics_sandbox_gets_title_and_description_cards_from_pa
         "execute",
     )["change"]["fields"]
     assert planned[0]["before"] == "Áo thun nữ"
-    assert planned[0]["after"] == "Áo thun nữ - JuliWear - Trắng, Đen"
+    assert planned[0]["after"] == "Áo thun nữ - Trắng, Đen"
 
 
 @pytest.mark.asyncio
@@ -311,10 +311,12 @@ def test_rank_by_orders_sorts_by_revenue_then_units():
 def test_the_proposals_use_only_the_listings_own_facts():
     listing = _listing("p", "Áo thun nữ JuliWear")
     assert propose_title(listing) == "Áo thun nữ JuliWear - Trắng, Đen"
-    # A category the title lacks is added; nothing is added twice.
-    assert (
-        propose_title({**listing, "title": "Váy nữ"}) == "Váy nữ - JuliWear - Áo thun - Trắng, Đen"
-    )
+    # A category the title lacks is added; nothing is added twice. The brand only when
+    # the title already names it (D73.5: no name the source title does not carry).
+    assert propose_title({**listing, "title": "Váy nữ"}) == "Váy nữ - Áo thun - Trắng, Đen"
+    no_brand = {**listing, "title": "Bình nước 750ml", "brand": {"name": "No brand"}}
+    assert "No brand" not in (propose_title(no_brand) or "")
+    assert "No brand" not in (propose_description(no_brand) or "")
     assert propose_title({**listing, "title": "Áo thun JuliWear Trắng Đen"}) is None
     assert propose_title({"title": ""}) is None
     description = propose_description({"title": "Áo", "description": ""})
@@ -372,3 +374,114 @@ async def test_force_reruns_the_scan_for_the_sandbox_shop_only(session, session_
     assert skipped.skipped_reason == "already_ran" and skipped.cards == 0
     assert forced.status == QUICK_SCAN_DONE and forced.cards == 2, forced
     assert real_forced.skipped_reason == "already_ran", "force is ignored for a real shop"
+
+
+# -- P64 walkthrough: the forced sandbox re-run always leaves the reviewer a card ---------
+
+
+async def _forced(session_factory, shop, resources):
+    return await qs.run_quick_scan(
+        session_factory=session_factory,
+        shop_id=shop.id,
+        app_key="app",
+        app_secret="secret",
+        create_resources=lambda _cfg: resources,
+        now=SCAN_AT,
+        force=True,
+    )
+
+
+def _shown(cards: list[ActionCard]) -> list[ActionCard]:
+    return [c for c in cards if c.status == "active" and c.surfaced_at is not None]
+
+
+@pytest.mark.asyncio
+async def test_a_forced_rerun_surfaces_a_card_when_todays_budget_is_used_up(
+    session, session_factory
+):
+    """Root cause 1: earlier surfacings today (test runs, withdrawn cards) fill the Juli
+    slot (3 / day) -- the re-run's cards were written as drafts the reviewer never saw."""
+    from juli_backend.models.models import DecisionEmissionNoveltyLedger
+    from juli_backend.services.action_cards.emission_budget import (
+        _shop_day_start_utc,
+        shop_week_start,
+    )
+
+    shop = await _shop(session, TikTokCapability.SANDBOX_WRITE)
+    resources = FakeSandboxResources(await _seed(session, shop))
+    await _mark_done_with_full_cards(session, shop)
+    for _ in range(25):  # the week's and today's caps, used by earlier surfacings
+        session.add(
+            DecisionEmissionNoveltyLedger(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                week_start=shop_week_start(SCAN_AT),
+                workflow_key=f"{uuid.uuid4().hex}@x",
+                first_surfaced_at=_shop_day_start_utc(SCAN_AT) + timedelta(minutes=1),
+            )
+        )
+    await session.commit()
+
+    result = await _forced(session_factory, shop, resources)
+
+    assert result.cards == 2, result
+    shown = _shown(await _cards(session, shop.id))
+    assert len(shown) == 1 and result.shown, "the best card is shown despite the budget"
+    assert json.loads(shown[0].recommendation_payload)["diagnosis"]["tiktok_product_id"] == (
+        "p-best"
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_forced_rerun_offers_the_other_lever_when_the_title_chain_is_taken(
+    session, session_factory, monkeypatch
+):
+    """Root cause 2: the best seller's title card was already approved (its chain stands
+    for 7 days) -- the scan proposed only that lever, so nothing new could be written."""
+    monkeypatch.setenv(qs.TOP_PRODUCTS_ENV, "1")
+    shop = await _shop(session, TikTokCapability.SANDBOX_WRITE)
+    listings = await _seed(session, shop)
+    listings["p-best"]["description"] = "Áo mềm."
+    resources = FakeSandboxResources(listings)
+    first = await _forced(session_factory, shop, resources)
+    assert first.cards == 1
+    (title_card,) = await _cards(session, shop.id)
+    title_card.status, title_card.approved_at = "approved", SCAN_AT.replace(tzinfo=None)
+    await session.commit()
+
+    result = await _forced(session_factory, shop, resources)
+
+    shown = _shown(await _cards(session, shop.id))
+    assert result.shown and len(shown) == 1, result
+    diagnosis = json.loads(shown[0].recommendation_payload)["diagnosis"]
+    assert diagnosis["lever"]["code"] == "description"
+    assert diagnosis["tiktok_product_id"] == "p-best"
+
+
+@pytest.mark.asyncio
+async def test_an_unforced_scan_keeps_the_budget(session, session_factory):
+    """Real shops / the normal onboarding scan: unchanged -- the budget decides."""
+    from juli_backend.models.models import DecisionEmissionNoveltyLedger
+    from juli_backend.services.action_cards.emission_budget import (
+        _shop_day_start_utc,
+        shop_week_start,
+    )
+
+    shop = await _shop(session, TikTokCapability.SANDBOX_WRITE)
+    resources = FakeSandboxResources(await _seed(session, shop))
+    for _ in range(25):
+        session.add(
+            DecisionEmissionNoveltyLedger(
+                id=uuid.uuid4(),
+                shop_id=shop.id,
+                week_start=shop_week_start(SCAN_AT),
+                workflow_key=f"{uuid.uuid4().hex}@x",
+                first_surfaced_at=_shop_day_start_utc(SCAN_AT) + timedelta(minutes=1),
+            )
+        )
+    await session.commit()
+
+    result = await _scan(session_factory, shop, resources)
+
+    assert result.cards == 2 and not result.shown
+    assert _shown(await _cards(session, shop.id)) == []

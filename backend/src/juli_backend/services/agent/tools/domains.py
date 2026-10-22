@@ -43,7 +43,7 @@ quietly becomes reachable from a domain it should not be.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import BaseModel
@@ -65,6 +65,8 @@ TERMINAL_DOMAIN = "terminal"
 #: whatever the domain's `bind_context` produced, which is why it is `Any`
 #: here and a `ProductToolContext` inside `product.py`.
 ToolHandler = Callable[[Any, Any, Any], BaseModel]
+#: A pre-confirmation check (P64): a handler's signature, `None` when the proposal passes.
+ProposalCheck = Callable[[Any, Any, Any], BaseModel | None]
 
 #: Turns the subject-generic `ToolContext` into the object a domain's own
 #: handlers take.
@@ -191,6 +193,10 @@ class ToolDomain:
     #: lets a terminal tool run on an executor built with no resources at all.
     takes_resources: bool = True
     bind_context: ContextBinder = subject_generic_context
+    #: P64: `tool_name -> check` run BEFORE a CONFIRM tool's proposal is shown to the
+    #: seller. Same signature as a handler; returns a refusal model (with
+    #: `error_code`, `summary_vi`, `model_hint`) or `None`. Read-only by contract.
+    prechecks: Mapping[str, ProposalCheck] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -256,6 +262,7 @@ __all__ = [
     "ToolDomain",
     "ToolDomainBindingError",
     "ToolDomainError",
+    "ProposalCheck",
     "ToolHandler",
     "ToolNotInDomainError",
     "UnregisteredToolDomainError",

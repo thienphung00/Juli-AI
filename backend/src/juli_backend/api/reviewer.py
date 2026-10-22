@@ -411,23 +411,31 @@ async def audit_reviewer_confirmation(
     """
     from juli_backend.services.agent import playbooks
 
+    create = run.workflow_key == playbooks.CREATE_PRODUCT_WORKFLOW_KEY
     action = (
         audit.ACTION_REVIEWER_SANDBOX_CREATE_PRODUCT
-        if run.workflow_key == playbooks.CREATE_PRODUCT_WORKFLOW_KEY
+        if create
         else audit.ACTION_REVIEWER_SANDBOX_EXECUTE
     )
-    await audit_reviewer_run_action(
-        session,
-        request,
-        action,
-        shop_id=run.shop_id,
-        after={
-            "run_id": str(run.id),
-            "tool_call_id": tool_call_id,
-            "decision": decision,
-            "workflow_key": run.workflow_key,
-        },
-    )
+    after: dict[str, Any] = {
+        "run_id": str(run.id),
+        "tool_call_id": tool_call_id,
+        "decision": decision,
+        "workflow_key": run.workflow_key,
+    }
+    # P64: what the approve will execute -- the seller's edit when there is one.
+    state = run.state if isinstance(run.state, dict) else {}
+    pending = state.get("pending_confirmation")
+    if decision == "approve" and isinstance(pending, dict):
+        edited = pending.get("edited_fields")
+        if isinstance(edited, list) and edited:
+            after["edited_fields"] = list(edited)
+        arguments = pending.get("arguments")
+        if create and isinstance(arguments, dict):
+            for field in ("title", "description"):
+                if isinstance(arguments.get(field), str):
+                    after[field] = arguments[field]
+    await audit_reviewer_run_action(session, request, action, shop_id=run.shop_id, after=after)
 
 
 # -- response mask ------------------------------------------------------------------------

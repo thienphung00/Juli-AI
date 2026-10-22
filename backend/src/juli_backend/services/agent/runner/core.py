@@ -211,7 +211,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, auto
@@ -397,6 +397,18 @@ class ExternalWaitNotPermitted(RuntimeError):
 # this slice itself owns and implements, distinct from the termination-policy
 # values (`max_iterations`, `wall_clock_timeout_s`, ...) that stay #1120's.
 _MAX_CONSECUTIVE_MALFORMED_ATTEMPTS = 2
+
+
+def _edited_summary(tool_name: str, raw_result: Mapping[str, Any]) -> str:
+    """The completion line of a write the seller edited before confirming.
+
+    A listing edit says only that (the before/after record shows the values); the
+    sandbox create (P64) keeps TikTok's own line -- the new product's id and status --
+    and adds that it used the seller's version.
+    """
+    if tool_name == "create_product":
+        return f"{tool_completed_summary(tool_name, raw_result)} · theo bản bạn sửa"
+    return EDITED_BY_SELLER_SUMMARY
 
 
 class WorkflowRunner:
@@ -1137,11 +1149,9 @@ class WorkflowRunner:
                 tool_name=tool_name,
                 ok=ok,
                 summary=(
-                    (
-                        EDITED_BY_SELLER_SUMMARY
-                        if pending.get("edited_fields")
-                        else tool_completed_summary(tool_name, raw_result)
-                    )
+                    _edited_summary(tool_name, raw_result)
+                    if pending.get("edited_fields")
+                    else tool_completed_summary(tool_name, raw_result)
                     if ok
                     else SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
                 ),
@@ -1832,6 +1842,27 @@ class WorkflowRunner:
             return _ToolCallOutcome.MALFORMED
 
         if spec.policy is ToolPolicy.CONFIRM:
+            # P64: a domain may refuse a proposal before the seller is asked (the
+            # sandbox create's brand guard). Counted like a malformed call: the model
+            # may draft once more; a second refusal in a row ends the run.
+            precheck = getattr(self._tool_executor, "precheck", None)
+            refusal = (
+                precheck(tool_name=block.tool_name, params=params) if callable(precheck) else None
+            )
+            if refusal is not None:
+                logger.warning(
+                    "Tool dispatch: proposal refused before confirmation",
+                    extra={"tool_name": block.tool_name, "error_code": refusal.get("error_code")},
+                )
+                await self._refuse(
+                    workflow_run_id,
+                    state,
+                    block,
+                    message=str(refusal.get("summary_vi") or ""),
+                    model_message=str(refusal.get("model_hint") or ""),
+                    retryable=True,
+                )
+                return _ToolCallOutcome.MALFORMED
             await self._pause_pending_confirmation(workflow_run_id, state, block, spec)
             return _ToolCallOutcome.PAUSED
 
@@ -1970,6 +2001,7 @@ class WorkflowRunner:
         *,
         message: str,
         retryable: bool = False,
+        model_message: str | None = None,
     ) -> None:
         """Record a refused `ToolCallBlock` — never dispatched to
         `ToolExecutor` — as one assistant proposal plus one error tool
@@ -2002,7 +2034,9 @@ class WorkflowRunner:
         envelope = to_error_envelope(
             TranslatedError(
                 category=ExecutionErrorCategory.VALIDATION,
-                message=message,
+                # `model_message` (P64): what the model must change, which may name
+                # vendor text the seller-facing `summary` below must not repeat.
+                message=model_message or message,
                 retryable=retryable,
             )
         )

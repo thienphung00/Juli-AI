@@ -398,6 +398,9 @@ async def test_the_sandbox_reviewer_gets_one_real_create_product_card(session, w
     assert card["status"] == "pending"
     assert card["change_fields"] == [{"field": "new_listing", "label": "Sản phẩm mới trên TikTok"}]
     assert card["reason_short"] == "Thêm sản phẩm mới cho shop"
+    # P64 walkthrough: it reads as a creation, not "Tối ưu sản phẩm".
+    assert card["workflow_label"] == "Tạo sản phẩm"
+    assert card["product_title"] == "Tạo sản phẩm mới từ «Bình giữ nhiệt inox 750ml»"
     assert item["is_executable"] is True
     assert item["recommendation"]["diagnosis"]["tiktok_product_id"] == SOURCE_ID
     assert _create_card(second.json()["data"])["id"] == item["id"]

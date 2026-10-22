@@ -62,6 +62,8 @@ from juli_backend.services.agent.tools.diagnosis_labels import diagnosis_label_v
 from juli_backend.services.optimize_product.rescore import cap_legacy_target, has_d29_kpi
 
 WORKFLOW_LABEL_VI = "Tối ưu sản phẩm"
+#: P64 (D73.3): the sandbox "Tạo sản phẩm" card reads as a creation, like its run header.
+CREATE_PRODUCT_LABEL_VI = "Tạo sản phẩm"
 #: D24.17: a card is valid 7 days from surfacing.
 PROPOSAL_VALIDITY_DAYS = 7
 
@@ -461,11 +463,17 @@ def build_card_block(
     field_code, field_label = _LEVER_FIELDS.get(lever_code, (lever_code, lever_label))
     first_sku = context.seller_skus[0] if context.seller_skus else None
     quick = _quick_scan(diagnosis)
+    product_title = title or diagnosis.get("product_title")
+    workflow_label = WORKFLOW_LABEL_VI
+    if lever_code == "create_product":
+        workflow_label = CREATE_PRODUCT_LABEL_VI
+        if product_title:
+            product_title = f"Tạo sản phẩm mới từ «{product_title}»"
     return {
         "seller_sku": first_sku,
         "seller_sku_more": max(context.sku_count - 1, 0) if first_sku else 0,
-        "product_title": title or diagnosis.get("product_title"),
-        "workflow_label": WORKFLOW_LABEL_VI,
+        "product_title": product_title,
+        "workflow_label": workflow_label,
         "updated_at": _iso(card.computed_at or card.updated_at),
         "status": _status(card, diagnosis, context, now),
         "main_kpi": kpi,

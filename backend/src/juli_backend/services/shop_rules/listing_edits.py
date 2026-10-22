@@ -29,6 +29,7 @@ Vietnamese message for the seller. Pure.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -53,7 +54,9 @@ def _vnd_count(value: int) -> str:
     return f"{value:,}".replace(",", ".")
 
 
-def _check_length(field: str, value: str) -> None:
+def _check_length(
+    field: str, value: str, *, description_max_chars: int = DESCRIPTION_MAX_CHARS
+) -> None:
     length = len(value)
     if field == "title" and not TITLE_MIN_CHARS <= length <= TITLE_MAX_CHARS:
         raise ListingEditViolation(
@@ -64,10 +67,10 @@ def _check_length(field: str, value: str) -> None:
     if field == "description":
         if not value.strip():
             raise ListingEditViolation(field, "Mô tả không được để trống.")
-        if length > DESCRIPTION_MAX_CHARS:
+        if length > description_max_chars:
             raise ListingEditViolation(
                 field,
-                f"Mô tả tối đa {_vnd_count(DESCRIPTION_MAX_CHARS)} ký tự "
+                f"Mô tả tối đa {_vnd_count(description_max_chars)} ký tự "
                 f"(bản sửa có {_vnd_count(length)} ký tự).",
             )
 
@@ -90,27 +93,37 @@ def _check_protected_terms(
             )
 
 
-def _contains_term(text: str, term: str) -> bool:
-    needle = term.strip().casefold()
+def contains_term(text: str, term: str) -> bool:
+    """``term`` occurs in ``text`` as whole words, case-insensitive (Unicode NFC)."""
+    needle = unicodedata.normalize("NFC", term.strip()).casefold()
     if not needle:
         return False
-    return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", text.casefold()) is not None
+    haystack = unicodedata.normalize("NFC", text).casefold()
+    return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", haystack) is not None
 
 
-def check_banned_terms(values: Mapping[str, Any], banned_terms: Sequence[str]) -> None:
-    """Raise :class:`ListingEditViolation` if a title / description uses a banned term."""
+def find_term(values: Mapping[str, Any], terms: Sequence[str]) -> tuple[str, str] | None:
+    """``(field, term)`` of the first ``terms`` entry a title / description contains."""
     for field in EDITABLE_FIELDS:
         value = values.get(field)
         if not isinstance(value, str):
             continue
-        for term in banned_terms:
-            if _contains_term(value, term):
-                label = FIELD_LABELS_VI[field]
-                raise ListingEditViolation(
-                    field,
-                    f'{label} có "{term.strip()}" — từ bạn đặt là không được dùng. '
-                    "Hãy bỏ hoặc thay từ này.",
-                )
+        for term in terms:
+            if contains_term(value, term):
+                return field, term.strip()
+    return None
+
+
+def check_banned_terms(values: Mapping[str, Any], banned_terms: Sequence[str]) -> None:
+    """Raise :class:`ListingEditViolation` if a title / description uses a banned term."""
+    hit = find_term(values, banned_terms)
+    if hit is not None:
+        field, term = hit
+        label = FIELD_LABELS_VI[field]
+        raise ListingEditViolation(
+            field,
+            f'{label} có "{term}" — từ bạn đặt là không được dùng. Hãy bỏ hoặc thay từ này.',
+        )
 
 
 def validate_listing_edits(
@@ -120,6 +133,7 @@ def validate_listing_edits(
     current: Mapping[str, Any] | None,
     protected_terms: Sequence[str],
     banned_terms: Sequence[str] = (),
+    description_max_chars: int = DESCRIPTION_MAX_CHARS,
 ) -> dict[str, str]:
     """Return the edits that differ from Juli's proposal, or raise :class:`ListingEditViolation`.
 
@@ -138,7 +152,7 @@ def validate_listing_edits(
             )
         if not isinstance(value, str):
             raise ListingEditViolation(field, f"{FIELD_LABELS_VI[field]} phải là văn bản.")
-        _check_length(field, value)
+        _check_length(field, value, description_max_chars=description_max_chars)
         reference = (current or {}).get(field) if current else None
         if not isinstance(reference, str) or not reference:
             proposal = proposed.get(field)

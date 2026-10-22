@@ -284,6 +284,8 @@ class QuickScanResult:
     skipped_reason: str | None = None
     cards: int = 0
     surfaced: int = 0
+    #: P64: a card of the last emission stands surfaced for the seller.
+    shown: bool = False
     calls: int = 0
     candidates: int = 0
     seconds_since_connect: float | None = None
@@ -700,13 +702,36 @@ async def _emit_quick_cards(
             outcome = await apply_emission_budget(
                 session, shop_id, now=computed_at, config=emission_config
             )
-            written_ids = {
-                d.card.id for d in decisions if d.suppressed_reason is None and d.card is not None
-            }
-            result.cards = len(written_ids)
+            written = [
+                d.card for d in decisions if d.suppressed_reason is None and d.card is not None
+            ]
+            written_ids = {card.id for card in written}
             result.surfaced = sum(1 for c in outcome.newly_surfaced if c.id in written_ids)
+            if forced and written and not _any_shown(decisions):
+                # P64 (D73.3): the operator's forced re-run on the SANDBOX shop must leave
+                # the reviewer one card to act on. Today's / this week's budget (earlier
+                # test surfacings count) held every new card as a draft: surface the best.
+                best = min(written, key=lambda card: card.priority)
+                best.surfaced_at = computed_at
+                best.suppressed_reason = None
+                await session.flush()
+                result.surfaced += 1
+                logger.info(
+                    "shop_quick_scan_forced_surface",
+                    extra={"shop_id": str(shop_id), "card_id": str(best.id)},
+                )
+            result.cards = len(written_ids)
+            result.shown = _any_shown(decisions)
         await session.commit()
     result.status = QUICK_SCAN_DONE
+
+
+def _any_shown(decisions: list[Any]) -> bool:
+    """A card of this emission stands surfaced (new, or kept unchanged) for the seller."""
+    return any(
+        d.card is not None and d.card.status == "active" and d.card.surfaced_at is not None
+        for d in decisions
+    )
 
 
 async def _orders_scan_and_write(
@@ -723,6 +748,7 @@ async def _orders_scan_and_write(
     """P64 (D73.3): the sandbox's quick cards from its paid orders (``quick_scan_orders``)."""
     from juli_backend.services.onboarding.quick_scan_orders import (
         ORDERS_WINDOW_DAYS,
+        ProductSales,
         funnel_from_sales,
         orders_proposal,
         orders_quick_block,
@@ -762,6 +788,7 @@ async def _orders_scan_and_write(
     details: dict[str, dict[str, Any]] = {}
     funnels: dict[str, ProductFunnel] = {}
     chosen: list[CardProposal] = []
+    listings: dict[str, tuple[ProductSales, dict[str, Any], str]] = {}
     for detail_calls, sales in enumerate(ranked_sales):
         if len(chosen) >= max_cards() or detail_calls >= MAX_DETAIL_CALLS:
             break
@@ -784,6 +811,7 @@ async def _orders_scan_and_write(
             continue
         funnels[sales.product_id] = funnel_from_sales(sales, title, days=ORDERS_WINDOW_DAYS)
         chosen.append(replace(proposal, title=title))
+        listings[sales.product_id] = (sales, listing, title)
     result.candidates = len(chosen)
     if not chosen:
         result.status, result.skipped_reason = QUICK_SCAN_DONE, "no_candidate"
@@ -793,6 +821,36 @@ async def _orders_scan_and_write(
         session_factory=session_factory,
         shop_id=shop_id,
         chosen=chosen,
+        details=details,
+        medians=ShopMedians.from_products(list(funnels.values()), config),
+        funnels=funnels,
+        products_scored=len(ranked_sales),
+        as_of=last,
+        quick_block=orders_quick_block(moment),
+        computed_at=moment,
+        forced=forced,
+    )
+    if not forced or result.shown:
+        return
+    # P64 (D73.3): every chosen (product, lever) chain is taken -- a card the seller
+    # already approved, rejected or saw expire holds it for its 7 days. The forced
+    # sandbox re-run offers the other listing lever of the same best sellers.
+    alternatives: list[CardProposal] = []
+    for proposal in chosen:
+        sales, listing, title = listings[proposal.product_id]
+        other = ("description",) if proposal.lever is Angle.TIEU_DE else ("title",)
+        alternative = orders_proposal(
+            sales, listing, evidence.get(sales.product_id, []), config, levers=other
+        )
+        if alternative is not None:
+            alternatives.append(replace(alternative, title=title))
+    if not alternatives:
+        return
+    await _emit_quick_cards(
+        result,
+        session_factory=session_factory,
+        shop_id=shop_id,
+        chosen=alternatives,
         details=details,
         medians=ShopMedians.from_products(list(funnels.values()), config),
         funnels=funnels,

@@ -46,6 +46,12 @@ from pydantic import BaseModel, Field
 from juli_backend.integrations.tiktok import SandboxWriteResources, TikTokAPIError
 from juli_backend.services.agent.sanitize import VendorText, cap_text, to_json_safe
 from juli_backend.services.agent.tools.domains import ToolDomain
+from juli_backend.services.agent.tools.listing_rules import (
+    ProposalRefusal,
+    check_proposal,
+    redact_terms,
+    source_terms_not_in,
+)
 from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.agent.tools.product_domain import bind_product_context
 from juli_backend.services.agent.tools.registry import (
@@ -54,6 +60,7 @@ from juli_backend.services.agent.tools.registry import (
     ToolRegistry,
     ToolSpec,
 )
+from juli_backend.services.shop_rules.listing_edits import contains_term
 
 logger = logging.getLogger(__name__)
 
@@ -229,11 +236,14 @@ def handle_get_category_candidates(
             summary_vi="TikTok chưa trả danh mục sản phẩm, vui lòng thử lại sau",
         )
     price, currency = _sku_price(_first_sku(detail))
+    # Never show the model a brand / manufacturer name the source title does not carry.
+    title = str(detail.get("title") or "")
+    description = redact_terms(
+        _plain(detail.get("description")), source_terms_not_in(detail, title)
+    )
     return GetCategoryCandidatesOutput(
         source_title=_vendor(detail.get("title"), 255),
-        source_description=_vendor(
-            re.sub(r"<[^>]+>", " ", str(detail.get("description") or "")), 600
-        ),
+        source_description=_vendor(description, 600),
         source_category_id=source_category_id,
         price=price,
         currency=currency,
@@ -277,6 +287,8 @@ class ListingPlan(BaseModel):
     price: str
     currency: str
     warehouse_id: str
+    #: The source's free-text values its title does not carry (``source_terms_not_in``).
+    source_terms: list[str] = Field(default_factory=list)
 
 
 class PlanRefusal(Exception):
@@ -290,6 +302,51 @@ class PlanRefusal(Exception):
 def _required(attribute: Mapping[str, Any]) -> bool:
     # TikTok spells it ``is_requried`` (contract-collection.md §A-9); accept both.
     return bool(attribute.get("is_requried") or attribute.get("is_required"))
+
+
+def copyable_attributes(
+    detail: Mapping[str, Any],
+    attribute_names: Mapping[str, str],
+    required_ids: frozenset[str] = frozenset(),
+) -> list[dict[str, Any]]:
+    """The source's attribute values the new listing carries, for the category's attributes.
+
+    Only attributes the category knows (``attribute_names``), values copied verbatim
+    (``id`` / ``name``) -- never invented:
+
+    - an attribute the category REQUIRES (``required_ids``: TikTok VN's Manufacturer /
+      Trader Name and Address, Country of origin ...) is a seller / legal fact, copied
+      as it is -- its free-text values stay in the source-names rule data, so the
+      drafted copy still cannot use them (``listing_rules``), and the model never
+      reads them;
+    - an optional attribute keeps a value TikTok picked from its own option list (it has
+      an ``id``), and a free-text value only when the source TITLE carries it (D73.5).
+
+    An attribute left with no value is dropped; if the category requires it, the plan
+    says ``required_attribute_missing``.
+    """
+    title = str(detail.get("title") or "")
+    copied: list[dict[str, Any]] = []
+    for attribute in detail.get("product_attributes") or []:
+        if not isinstance(attribute, Mapping) or not attribute.get("id"):
+            continue
+        attribute_id = str(attribute["id"])
+        if attribute_id not in attribute_names:
+            continue
+        required = attribute_id in required_ids
+        values: list[dict[str, Any]] = []
+        for value in attribute.get("values") or []:
+            if not isinstance(value, Mapping):
+                continue
+            text = str(value.get("name") or "").strip()
+            if not required and not value.get("id") and not (text and contains_term(title, text)):
+                continue
+            kept = {k: v for k, v in value.items() if k in ("id", "name") and v}
+            if kept:
+                values.append(kept)
+        if values:
+            copied.append({"id": attribute_id, "values": values})
+    return copied
 
 
 def plan_listing(resources: Any, product_id: str, category_id: str) -> ListingPlan:
@@ -316,17 +373,16 @@ def plan_listing(resources: Any, product_id: str, category_id: str) -> ListingPl
         )
     attributes = _unwrap(resources.products.get_category_attributes(category_id=category_id))
     category_attrs = [a for a in attributes.get("attributes") or [] if isinstance(a, Mapping)]
-    source_attrs = {
-        str(a.get("id")): a
-        for a in detail.get("product_attributes") or []
-        if isinstance(a, Mapping) and a.get("id") and a.get("values")
-    }
+    attribute_names = {str(a.get("id")): str(a.get("name") or "") for a in category_attrs}
+    required_ids = frozenset(str(a.get("id")) for a in category_attrs if _required(a))
+    product_attributes = copyable_attributes(detail, attribute_names, required_ids)
+    copied_ids = {row["id"] for row in product_attributes}
     missing = [
         str(a.get("name") or a.get("id"))
         for a in category_attrs
         if _required(a)
         and str(a.get("type") or "PRODUCT_PROPERTY") == "PRODUCT_PROPERTY"
-        and str(a.get("id")) not in source_attrs
+        and str(a.get("id")) not in copied_ids
     ]
     if missing:
         raise PlanRefusal(
@@ -334,19 +390,6 @@ def plan_listing(resources: Any, product_id: str, category_id: str) -> ListingPl
             "Sản phẩm gốc thiếu thuộc tính bắt buộc của danh mục: " + ", ".join(missing),
             missing,
         )
-    allowed_ids = {str(a.get("id")) for a in category_attrs}
-    product_attributes = [
-        {
-            "id": attribute_id,
-            "values": [
-                {k: v for k, v in value.items() if k in ("id", "name") and v}
-                for value in source["values"]
-                if isinstance(value, Mapping)
-            ],
-        }
-        for attribute_id, source in source_attrs.items()
-        if attribute_id in allowed_ids
-    ]
     images = [
         {"uri": str(image["uri"])}
         for image in detail.get("main_images") or []
@@ -380,6 +423,7 @@ def plan_listing(resources: Any, product_id: str, category_id: str) -> ListingPl
         price=price,
         currency=currency or "VND",
         warehouse_id=warehouse_id,
+        source_terms=source_terms_not_in(detail, str(detail.get("title") or "")),
     )
 
 
@@ -535,6 +579,20 @@ def handle_create_product(
             missing=refusal.missing,
             summary_vi="Chưa tạo sản phẩm: " + refusal.summary_vi,
         )
+    violation = check_proposal(
+        {"title": params.title, "description": params.description},
+        banned_terms=context.banned_terms,
+        source_terms=plan.source_terms,
+    )
+    if violation is not None:
+        # Defence in depth: the runner's pre-confirmation check refuses this first; the
+        # seller's own edit is held to the same rules. Nothing is sent to TikTok.
+        logger.warning("catalog_create_rule_refused", extra={"error_code": violation.error_code})
+        return CreateProductOutput(
+            ok=False,
+            error_code=violation.error_code,
+            summary_vi="Chưa tạo sản phẩm: tiêu đề hoặc mô tả chưa đúng quy tắc của shop",
+        )
     try:
         created = _unwrap(
             resources.products.create(
@@ -590,6 +648,23 @@ def handle_create_product(
     )
 
 
+def precheck_create_product(
+    resources: Any, context: ProductToolContext, params: CreateProductInput
+) -> ProposalRefusal | None:
+    """Before the reviewer is asked: the draft keeps the shop's listing rules (D73.5)."""
+    try:
+        detail = resources.products.get_details(context.product_id)
+    except TikTokAPIError as exc:
+        # The create re-checks after the confirmation; do not block the proposal here.
+        logger.warning("catalog_create_precheck_failed", extra={"tiktok_code": exc.code})
+        return None
+    return check_proposal(
+        {"title": params.title, "description": params.description},
+        banned_terms=context.banned_terms,
+        source_terms=source_terms_not_in(detail, str(detail.get("title") or "")),
+    )
+
+
 CREATE_PRODUCT_SPEC = ToolSpec(
     name=CREATE_PRODUCT_TOOL,
     description=(
@@ -616,6 +691,7 @@ CATALOG_CREATE_TOOL_HANDLERS: dict[str, Any] = {
 CATALOG_CREATE_TOOL_DOMAIN = ToolDomain(
     name=CATALOG_CREATE_DOMAIN,
     handlers=CATALOG_CREATE_TOOL_HANDLERS,
+    prechecks={CREATE_PRODUCT_TOOL: precheck_create_product},
     subject_types=frozenset({"product"}),
     bind_context=bind_product_context,
 )
@@ -634,6 +710,8 @@ __all__ = [
     "CHECK_LISTING_REQUIREMENTS_TOOL",
     "CREATE_PRODUCT_TOOL",
     "CreateProductRefused",
+    "copyable_attributes",
+    "precheck_create_product",
     "ERROR_CATEGORY_INVALID",
     "ERROR_REQUIRED_ATTRIBUTE_MISSING",
     "GET_CATEGORY_CANDIDATES_TOOL",
