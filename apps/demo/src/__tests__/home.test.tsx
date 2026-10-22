@@ -143,6 +143,21 @@ describe("HomeOverview view", () => {
     expect(affiliateRow?.querySelectorAll(".matrix-cell--muted")).toHaveLength(4);
   });
 
+  it("says the numbers come from TikTok orders only when the report was built from them (P64)", () => {
+    const { unmount } = render(<HomeOverview envelope={SAMPLE} sample />);
+    expect(screen.queryByTestId("metrics-source-orders")).toBeNull();
+    unmount();
+
+    const fromOrders: ShopAnalysisEnvelope = {
+      ...SAMPLE,
+      report: { ...SAMPLE.report, metrics_source: "orders" },
+    };
+    render(<HomeOverview envelope={fromOrders} />);
+    expect(screen.getByTestId("metrics-source-orders")).toHaveTextContent(
+      /^Tính từ đơn hàng TikTok \(Orders API\)/,
+    );
+  });
+
   it("tints cells by direction — green up, red down", () => {
     const { container } = render(<HomeOverview envelope={SAMPLE} />);
     const tones = Array.from(

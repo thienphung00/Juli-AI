@@ -2,9 +2,10 @@
 
 import { useId } from "react";
 
-import { ACTION_ROW_LABEL, CARD_STATUS_LABELS, EXECUTOR_COPY, REJECTED_NOTICE, type CardView } from "../../lib/quyet-dinh/card-model";
+import { ACTION_ROW_LABEL, cardStatusLabel, EXECUTOR_COPY, REJECTED_NOTICE, type CardView } from "../../lib/quyet-dinh/card-model";
 import type { CardStatus, LeverExecutor } from "../../lib/quyet-dinh/p10-types";
 import { REJECT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
+import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import { useApproveControl, useSellerHref, useWriteControl } from "../seller-view-context";
 import { ReasonDone } from "./reason-dialog";
 
@@ -25,6 +26,17 @@ export const STATUS_TONE: Readonly<Record<CardStatus, string>> = {
   rejected: "muted",
   expired: "expired",
 };
+
+/** P64 (D73.4): on the reviewer's live sandbox shop a sandbox write is the real change. */
+function CardStatusChip({ status }: { readonly status: CardStatus }) {
+  const sandboxShop = useSandboxReviewer();
+  const tone = status === "simulated" && sandboxShop ? "ok" : STATUS_TONE[status];
+  return (
+    <span className={`qv-chip qv-status qv-tone--${tone}`} data-testid="card-status">
+      {cardStatusLabel(status, sandboxShop)}
+    </span>
+  );
+}
 
 const WHO_TONE: Readonly<Record<LeverExecutor, string>> = {
   juli: "ok",
@@ -340,9 +352,7 @@ function DesktopCard({
           <QuickScanChip card={card} />
           <ConfidencePill card={card} />
         </div>
-        <span className={`qv-chip qv-status qv-tone--${STATUS_TONE[status]}`} data-testid="card-status">
-          {CARD_STATUS_LABELS[status]}
-        </span>
+        <CardStatusChip status={status} />
       </div>
 
       {card.kpiLabel || card.gmvPerMonth ? (
@@ -496,9 +506,7 @@ function MobileCard({
           <QuickScanChip card={card} />
           <ConfidencePill card={card} />
         </div>
-        <span className={`qv-chip qv-status qv-tone--${STATUS_TONE[status]}`} data-testid="card-status">
-          {CARD_STATUS_LABELS[status]}
-        </span>
+        <CardStatusChip status={status} />
       </div>
 
       {card.kpiLabel || card.gmvPerMonth ? (

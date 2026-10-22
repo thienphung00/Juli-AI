@@ -21,7 +21,7 @@ import { num } from "../../lib/vn-format";
 import { REJECT_DIALOG_BODY, ReasonDialog } from "./reason-dialog";
 import { RecommendationCard } from "./recommendation-card";
 import { useNarrow } from "./use-narrow";
-import { useSimulateApprove, useWriteControl } from "../seller-view-context";
+import { useRulesControl, useSimulateApprove, useWriteControl } from "../seller-view-context";
 
 /**
  * Đề xuất (ADR-109 Amendment 1; `Main.dc.html`, `Mobile.dc.html`,
@@ -288,7 +288,7 @@ function StabilityCard({
   readonly rulesStatus: "loading" | "error" | "ready";
   readonly onOpenRules: () => void;
 }) {
-  const write = useWriteControl();
+  const write = useRulesControl();
   const bands = setBands(rules);
   return (
     <section aria-labelledby="qd-stability" className="qv-side" data-testid="stability-card">
@@ -381,7 +381,7 @@ export function ruleChips(rules: ShopRules | null): RuleChip[] {
 }
 
 function RulesChips({ rules, onOpenRules }: { readonly rules: ShopRules | null; readonly onOpenRules: () => void }) {
-  const write = useWriteControl();
+  const write = useRulesControl();
   const chips = ruleChips(rules);
   return (
     <section aria-labelledby="qd-rules" className="qv-side" data-testid="rules-chips">

@@ -39,7 +39,8 @@ import { resolveRunTerminalState } from "../run-ledger/terminal-state";
 export type StepStatus = "done" | "current" | "upcoming" | "failed" | "skipped";
 export type StepKind = "tool" | "consent" | "terminal" | "await";
 /** `content` (P14-E): a "Juli soạn · bạn làm" run — its panel reads the run detail's `content.steps`. */
-export type RunKind = "listing" | "photo" | "manual" | "revert" | "content";
+/** `create` (P64, D73.3): the sandbox reviewer's "Tạo sản phẩm" — Juli creates a new listing. */
+export type RunKind = "listing" | "photo" | "manual" | "revert" | "content" | "create";
 export type Who = "juli" | "you";
 
 export interface TimelineStep {
@@ -119,7 +120,7 @@ export const STEP_COPY = {
 } as const;
 
 const PHOTO_STAGE_TOOL = "upload_product_image";
-const WRITE_TOOLS = new Set(["update_product_listing", "upload_product_image", "update_product_price"]);
+const WRITE_TOOLS = new Set(["update_product_listing", "upload_product_image", "update_product_price", "create_product"]);
 const DAY_MS = 86_400_000;
 
 // -- plans ------------------------------------------------------------------------
@@ -180,6 +181,13 @@ export const PLANS: Readonly<Record<RunKind, readonly RowSpec[]>> = {
     { type: "tool", key: "detect", label: "Tìm video / phiên LIVE mới", tools: ["find_new_content"] },
     MEASURE_END,
   ],
+  create: [
+    { type: "tool", key: "candidates", label: "Đọc sản phẩm gốc và danh mục TikTok", tools: ["get_category_candidates"] },
+    { type: "tool", key: "requirements", label: "Kiểm tra điều kiện đăng bán", tools: ["check_listing_requirements"] },
+    CONSENT_ROW,
+    { type: "tool", key: "write", label: "Tạo sản phẩm trên TikTok", tools: ["create_product"] },
+    { type: "terminal", key: "terminal", label: "Kết thúc" },
+  ],
   revert: [
     { type: "revertClicked", key: "clicked", label: "Bạn bấm Hoàn tác" },
     { type: "revertReason", key: "reason", label: "Cho Juli biết lý do" },
@@ -212,6 +220,9 @@ export const TOOL_STEP_LABELS: Readonly<Record<string, string>> = Object.freeze(
   get_seller_content_rules: "Đọc Quy tắc của bạn",
   find_product_promotions: "Đọc khuyến mãi",
   find_new_content: "Tìm video / phiên LIVE mới",
+  get_category_candidates: "Đọc sản phẩm gốc và danh mục TikTok",
+  check_listing_requirements: "Kiểm tra điều kiện đăng bán",
+  create_product: "Tạo sản phẩm trên TikTok",
 });
 export const UNKNOWN_TOOL_LABEL = "Bước xử lý";
 

@@ -1701,3 +1701,35 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   7. **Delivery (Q8).** P64 on `fasttrack/p64-reviewer-sandbox-live`: S0 probe (owner + lead),
      S1 backend, S2 demo frontend, S3 docs, S4 deploy + fresh-browser walkthrough, then the owner
      resubmits. ADR-111 amended.
+
+- **D73.3 / D73.4 (owner, 2026-10-22)** — post-deploy walkthrough of P64 as `shopee-review@`. The
+  live connection passed (real shop, "Đã kết nối", authorised 17/08/2026, 22 scopes, "Đồng bộ ngay"
+  → 202), but two gaps remained against Shopee's "actual working integration rather than simulated
+  interfaces or predefined results": (a) Trang chủ / Phân tích showed GMV 0 / 0 đơn because the
+  ADR-108 report is built from TikTok Analytics (A-34), which a sandbox returns as zero; (b) the only
+  card was the legacy `seller_center` card (not executable), because executable cards need
+  traffic. Seeding analytics would be fabricated data and is refused.
+  1. **D73.3 data.** For a `sandbox_write` shop whose A-34 rows are all zero, GMV / orders / AOV and
+     product ranking come from the shop's real synced paid orders, labelled "Tính từ đơn hàng
+     TikTok"; traffic funnel stays honestly empty; real shops unchanged. Quick scan selects the
+     sandbox's products by real orders and emits title / description cards (executor `juli`).
+     The legacy card's "Lý do" is Vietnamese. The connection card shows the TikTok shop code, never
+     the internal cipher.
+  2. **D73.3 create product.** A "Tạo sản phẩm" card: Juli really creates a listing on the TikTok
+     sandbox (Product API chain: categories → prerequisites → attributes → image upload →
+     `POST /product/202309/products` → read-back), with **OpenAI (real call) suggesting the
+     category** from TikTok's candidate list. Sandbox shop only — never in the production write
+     allowlist or a seller's tool set (D13 unchanged for sellers). The Services text says so.
+  3. **D73.4 workflows.** The reviewer goes through the repo's real agent workflows and SSE exactly
+     like a seller: Duyệt on a listing card starts the `optimize_product` agent run (OpenAI drafts,
+     steps stream in "Đang thực hiện", writes through `SandboxWriteResources`); product creation
+     is a new `create_product` workflow + tool registered only for the sandbox shop. The
+     synchronous P64 execute path leaves the UI. Owner confirmed (2026-10-22) every required secret
+     (OPENAI / LLM / agent flags / TikTok app) is in `juli/api/production`.
+  4. **D73.4 integration (2026-10-22).** On the sandbox pin a run that wrote to the sandbox shop
+     is shown as what happened — "Đã ghi lên TikTok" (card, run header, queue) and "Đã ghi lên shop
+     sandbox TikTok của Juli" (result) — never "Đã chạy thử"; sellers keep P61-B's label. The
+     reviewer sets the stability bands and rules ("Đặt ngưỡng", "Sửa quy tắc") like a seller:
+     `PUT` / `DELETE /v1/demo/rules/{rule_key}` are sandbox-pin-only reviewer routes
+     (`SANDBOX_RULE_ENDPOINTS`, 403 `sandbox_only` + audit elsewhere); masked / sample reviewers
+     stay read-only.

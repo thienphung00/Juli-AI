@@ -118,6 +118,23 @@ EXPECTED_DESCRIPTIONS: dict[str, str] = {
         "is already well-optimized, or when you need more information to make "
         "a recommendation. Provide a brief, honest reason for your conclusion."
     ),
+    # Fast track P64 (D73.3): the sandbox-only "Tạo sản phẩm" tools.
+    "get_category_candidates": (
+        "Read the bound source product (title, description excerpt, price, its own leaf "
+        "category) and a short list of TikTok leaf categories that fit it. Pick the new "
+        "listing's category_id ONLY from candidates[].category_id."
+    ),
+    "check_listing_requirements": (
+        "Check the chosen category_id: it must be one of get_category_candidates' ids, "
+        "TikTok's listing prerequisites must pass and the source listing must carry every"
+        " required attribute. ok=false with error_code=category_suggestion_invalid means:"
+        " choose again from the candidates (once)."
+    ),
+    "create_product": (
+        "Create the new listing on TikTok with your Vietnamese title and description in "
+        "the checked category_id. Price, stock, images and attributes come from the "
+        "source listing server-side. Needs the reviewer's explicit approval first."
+    ),
     # Fast track P14-E: the content run's read-only tools.
     "get_content_performance": (
         "Read, for the bound product, the last 30 days of the shop's videos that tag it "

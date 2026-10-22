@@ -230,6 +230,10 @@ class TestDefaultSeamsComposeRealCollaborators:
             "find_product_promotions",
             "update_product_listing",
             "update_product_price",
+            # Fast track P64 (D73.3): the sandbox-only "Tạo sản phẩm" tools.
+            "get_category_candidates",
+            "check_listing_requirements",
+            "create_product",
             # ADR-088: the terminal tool must be in the PRODUCTION registry,
             # not just the playbook, because `_tool_definitions` resolves
             # `TerminationPolicy.terminal_tools` against whatever registry the

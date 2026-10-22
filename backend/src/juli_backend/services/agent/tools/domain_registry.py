@@ -32,6 +32,7 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from types import MappingProxyType
 
+from juli_backend.services.agent.tools.catalog_create import CATALOG_CREATE_TOOL_DOMAIN
 from juli_backend.services.agent.tools.domains import (
     ToolDomain,
     UnregisteredToolDomainError,
@@ -49,6 +50,8 @@ _TOOL_DOMAIN_REGISTRY: dict[str, ToolDomain] = {
     TERMINAL_TOOL_DOMAIN.name: TERMINAL_TOOL_DOMAIN,
     # Fast track P14-E: the content run's read-only TikTok tools.
     CONTENT_TOOL_DOMAIN.name: CONTENT_TOOL_DOMAIN,
+    # Fast track P64 (D73.3/D73.4): the sandbox-only "Tạo sản phẩm" tools.
+    CATALOG_CREATE_TOOL_DOMAIN.name: CATALOG_CREATE_TOOL_DOMAIN,
 }
 
 

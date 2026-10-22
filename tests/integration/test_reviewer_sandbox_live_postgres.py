@@ -10,8 +10,12 @@ The unit twin is ``tests/unit/test_reviewer_sandbox_live.py`` (SQLite, no RLS). 
 3. ``resolve_read_credential_for_shop`` as ``juli_app`` returns the sandbox row for its own shop
    and refuses another shop;
 4. ``enumerate_pollable_shops`` (migration 074's function + the P64 addition) lists it;
-5. a reviewer execute resolves the sandbox credential under the reviewer's scope and builds
-   exactly one ``SandboxWriteClientFactory`` client for the sandbox merchant (TikTok faked).
+5. D73.4: the reviewer's Duyệt is the seller's own approve -- on the sandbox pin it creates
+   the agent run (``workflow_runs`` + ``action_card_approvals`` under the seller's RLS scope,
+   as ``juli_app``), enqueues it (faked) and audits ``reviewer_sandbox_approve``; it builds
+   no TikTok client (the worker writes, through the sandbox factory);
+6. D73.3: the "Tạo sản phẩm" card is inserted (once) under the seller's RLS scope and its
+   approve starts the ``create_product`` run.
 
 Every test asserts it really runs on Postgres as ``juli_app`` (no silent fallback).
 """
@@ -36,6 +40,7 @@ from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import SandboxWriteClientFactory, TikTokCapability
 from juli_backend.services.reviewer import accounts as reviewer_accounts
 from juli_backend.services.reviewer import catalog as reviewer_catalog
+from juli_backend.services.reviewer import config as reviewer_config
 from juli_backend.services.reviewer import sandbox as reviewer_sandbox
 from juli_backend.workers.services.polling.ingestion import enumerate_pollable_shops
 from tests.support.postgres import (
@@ -291,9 +296,8 @@ async def test_2_a_production_write_row_on_the_pin_disables_writes(app, world):
     async with await _client(app) as client:
         me = await client.get("/v1/reviewer/me", headers=_headers(world["reviewer"]))
         execute = await client.post(
-            f"/v1/reviewer/decisions/{world['card']}/execute",
-            json={"title": "Mới"},
-            headers=_headers(world["reviewer"]),
+            f"/v1/demo/decisions/{world['card']}/approve",
+            headers=_headers(world["reviewer"], reviewer_config.shop_alias_id(world["sandbox"])),
         )
     _assert_real_postgres_as_juli_app(app)
     assert me.status_code == 200, me.text
@@ -333,52 +337,156 @@ async def test_4_the_sandbox_shop_is_pollable(world):
     assert world["production"] in pollable
 
 
-async def test_5_reviewer_execute_resolves_the_sandbox_credential_under_rls(
-    app, world, monkeypatch
-):
-    configs: list[Any] = []
-
-    class FakeProducts:
-        detail = {
-            "id": PRODUCT_ID,
-            "title": "Sandbox áo thun",
-            "description": "<p>cũ</p>",
-            "category_chains": [{"id": "601", "is_leaf": True}],
-            "main_images": [{"uri": "tos-1"}],
-        }
-
-        def get_details(self, product_id):
-            return dict(self.detail)
-
-        def edit(self, *, product_id, body):
-            self.detail = {**self.detail, "title": body["title"]}
-
-    products = FakeProducts()
-
-    def fake_resources(_factory, config):
-        configs.append(config)
-        return type("Resources", (), {"products": products})()
-
-    monkeypatch.setattr(SandboxWriteClientFactory, "create_resources", fake_resources)
+async def test_5_reviewer_approve_starts_the_agent_run_under_rls(app, world, monkeypatch):
+    queued: list[Any] = []
+    built: list[Any] = []
+    monkeypatch.setattr(
+        "juli_backend.api.routes.demo_execution._enqueue_run_agent_workflow",
+        lambda run_id: queued.append(run_id) or "celery-1",
+    )
+    monkeypatch.setattr(
+        "juli_backend.api.routes.demo_execution._enqueue_approval_baseline",
+        lambda shop_id, run_id: None,
+    )
+    monkeypatch.setattr(
+        SandboxWriteClientFactory, "create_resources", lambda *a, **k: built.append(a)
+    )
     async with await _client(app) as client:
-        execute = await client.post(
-            f"/v1/reviewer/decisions/{world['card']}/execute",
-            json={"title": "Tiêu đề mới"},
+        approve = await client.post(
+            f"/v1/demo/decisions/{world['card']}/approve",
             headers=_headers(world["reviewer"], world["sandbox"]),
         )
     _assert_real_postgres_as_juli_app(app)
-    assert execute.status_code == 200, execute.text
-    assert execute.json()["read_back"]["listing"]["title"] == "Tiêu đề mới"
-    assert len(configs) == 1
-    assert configs[0].merchant_auth_id == world["merchant"]
-    assert configs[0].credential_capability == "sandbox_write"
+    assert approve.status_code == 202, approve.text
+    run_id = approve.json()["data"]["run_id"]
+    assert [str(r) for r in queued] == [run_id]
+    assert built == []
     with owner_sync_engine() as engine, engine.connect() as conn:
+        run = conn.execute(
+            text("SELECT shop_id, workflow_key, status FROM public.workflow_runs WHERE id = :r"),
+            {"r": run_id},
+        ).one()
+        approvals = conn.execute(
+            text(
+                "SELECT approved_by_user_id FROM public.action_card_approvals "
+                "WHERE action_card_id = :c"
+            ),
+            {"c": world["card"]},
+        ).all()
         audited = conn.execute(
             text(
                 "SELECT count(*) FROM public.ops_audit_log "
-                "WHERE action = 'reviewer_sandbox_execute' AND shop_id = :s"
+                "WHERE action = 'reviewer_sandbox_approve' AND shop_id = :s"
             ),
             {"s": world["sandbox"]},
         ).scalar_one()
+    assert run.shop_id == world["sandbox"]
+    assert run.workflow_key == "optimize_product_2" and run.status == "queued"
+    assert [row.approved_by_user_id for row in approvals] == [world["reviewer"]]
     assert audited == 1
     reviewer_sandbox.forget_sync_slots()
+
+
+async def test_6_the_create_product_card_and_run_under_rls(app, world, monkeypatch):
+    """D73.3: the reviewer's "Tạo sản phẩm" card is a real row (inserted under the seller's
+    RLS scope as juli_app) and its approve starts the create_product run on the sandbox shop."""
+    queued: list[Any] = []
+    monkeypatch.setattr(
+        "juli_backend.api.routes.demo_execution._enqueue_run_agent_workflow",
+        lambda run_id: queued.append(run_id) or "celery-1",
+    )
+    monkeypatch.setattr(
+        "juli_backend.api.routes.demo_execution._enqueue_approval_baseline",
+        lambda shop_id, run_id: None,
+    )
+    headers = _headers(world["reviewer"], world["sandbox"])
+    async with await _client(app) as client:
+        listed = await client.get("/v1/demo/decisions", headers=headers)
+        again = await client.get("/v1/demo/decisions", headers=headers)
+        assert listed.status_code == 200, listed.text
+        cards = [
+            item
+            for item in listed.json()["data"]
+            if (item["recommendation"].get("card") or {}).get("lever", {}).get("code")
+            == "create_product"
+        ]
+        assert len(cards) == 1
+        assert [i["id"] for i in again.json()["data"]].count(cards[0]["id"]) == 1
+        approve = await client.post(f"/v1/demo/decisions/{cards[0]['id']}/approve", headers=headers)
+    _assert_real_postgres_as_juli_app(app)
+    assert approve.status_code == 202, approve.text
+    run_id = approve.json()["data"]["run_id"]
+    assert [str(r) for r in queued] == [run_id]
+    with owner_sync_engine() as engine, engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT count(*) FROM public.action_cards "
+                "WHERE shop_id = :s AND workflow_key = 'create_product'"
+            ),
+            {"s": world["sandbox"]},
+        ).scalar_one()
+        run = conn.execute(
+            text("SELECT workflow_key, status FROM public.workflow_runs WHERE id = :r"),
+            {"r": run_id},
+        ).one()
+    assert rows == 1
+    assert run.workflow_key == "create_product" and run.status == "queued"
+    reviewer_sandbox.forget_sync_slots()
+
+
+async def test_7_reviewer_sets_a_stability_band_on_the_sandbox_pin_under_rls(app, world):
+    """P64 (D73.4): "Đặt ngưỡng" writes the sandbox shop's own ``shop_rules`` row as juli_app."""
+    async with await _client(app) as client:
+        put = await client.put(
+            "/v1/demo/rules/stability_band",
+            json={"scope_ref": "ctr", "value": 7.5, "set_by": "seller"},
+            headers=_headers(world["reviewer"], world["sandbox"]),
+        )
+        read = await client.get(
+            "/v1/demo/rules", headers=_headers(world["reviewer"], world["sandbox"])
+        )
+    _assert_real_postgres_as_juli_app(app)
+    assert put.status_code == 200, put.text
+    assert read.status_code == 200, read.text
+    assert read.json()["data"]["stability_band"]["ctr"]["set_by"] == "seller"
+    with owner_sync_engine() as engine, engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT shop_id, rule_key, scope_ref, set_by_user_id FROM public.shop_rules "
+                "WHERE rule_key = 'stability_band' AND set_by_user_id = :u"
+            ),
+            {"u": world["reviewer"]},
+        ).all()
+    assert [(r.shop_id, r.scope_ref) for r in rows] == [(world["sandbox"], "ctr")]
+
+
+async def test_8_a_production_pin_refuses_the_reviewers_rule_write(app, world):
+    with owner_sync_engine() as engine, engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO public.production_write_shops (shop_id, enabled_by) VALUES (:s, 'o')"
+            ),
+            {"s": world["sandbox"]},
+        )
+    async with await _client(app) as client:
+        put = await client.put(
+            "/v1/demo/rules/stability_band",
+            json={"scope_ref": "ctr", "value": 7.5, "set_by": "seller"},
+            headers=_headers(world["reviewer"], reviewer_config.shop_alias_id(world["sandbox"])),
+        )
+    _assert_real_postgres_as_juli_app(app)
+    assert put.status_code == 403
+    assert put.headers["x-juli-reviewer-denied"] == "sandbox_only"
+    with owner_sync_engine() as engine, engine.connect() as conn:
+        written = conn.execute(
+            text("SELECT count(*) FROM public.shop_rules WHERE shop_id = :s"),
+            {"s": world["sandbox"]},
+        ).scalar_one()
+        refused = conn.execute(
+            text(
+                "SELECT count(*) FROM public.ops_audit_log "
+                "WHERE action = 'reviewer_write_refused' AND shop_id = :s"
+            ),
+            {"s": world["sandbox"]},
+        ).scalar_one()
+    assert written == 0 and refused == 1

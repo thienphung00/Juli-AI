@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
+from juli_backend.api.reviewer import audit_reviewer_confirmation
 from juli_backend.database import Shop, get_session
 from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
@@ -236,6 +237,7 @@ async def submit_confirmation_decision(
     run_id: uuid.UUID,
     tool_call_id: str,
     body: ConfirmationDecisionRequest,
+    request: Request,
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
 ) -> ConfirmationDecisionResponse:
@@ -290,6 +292,9 @@ async def submit_confirmation_decision(
             },
         ) from None
 
+    await audit_reviewer_confirmation(
+        session, request, run, tool_call_id=tool_call_id, decision=body.decision
+    )
     # Commit before enqueue: a worker must never see the row still pending (#1221).
     await session.commit()
     celery_task_id = _enqueue_resume_agent_workflow(run_id, approved=outcome.approved)

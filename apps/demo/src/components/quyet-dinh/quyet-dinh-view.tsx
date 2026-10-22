@@ -45,6 +45,7 @@ import type { RevertQuestion, RunChanges, ShopRules } from "../../lib/quyet-dinh
 import { RUN_LEDGER_POLL_INTERVAL_MS } from "../../lib/run-ledger/panel-config";
 import { groupRunsIntoLedgerSections } from "../../lib/run-ledger/sections";
 import { REVIEWER_FAST_FORWARD_COPY, REVIEWER_SAMPLE_NOTICE } from "../../lib/reviewer/copy";
+import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import { AppPageHeader } from "../app-shell/page-header";
 import { SimulatedLabel } from "../app-shell/simulated-label";
 import { queueRuns, RunQueue } from "./dang-thuc-hien-panel";
@@ -105,6 +106,7 @@ const RUN_HEADER: Readonly<Record<RunKind, { eyebrow: string; title: string }>> 
   manual: { eyebrow: "Quyết định · Đang thực hiện · Khuyến mãi", title: "Bạn áp dụng trên Seller Center, Juli theo dõi" },
   revert: { eyebrow: "Quyết định · Đang thực hiện · Hoàn tác", title: "Khôi phục nội dung cũ" },
   content: { eyebrow: "Quyết định · Đang thực hiện", title: "Juli soạn kịch bản, bạn quay hoặc LIVE" },
+  create: { eyebrow: "Quyết định · Đang thực hiện · Tạo sản phẩm", title: "Juli tạo sản phẩm mới trên TikTok Shop" },
 };
 
 function useNow(intervalMs = 1000): number | null {
@@ -144,6 +146,7 @@ export function QuyetDinhView({
   onSimulateApprove,
   simulated = false,
   onSimulateMeasure,
+  openRunOnApprove = false,
 }: {
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string };
@@ -166,6 +169,8 @@ export function QuyetDinhView({
   readonly simulated?: boolean;
   /** P32-E: "tua nhanh" the sample runs' measurement to day 7 / day 14 (returns how many moved). */
   readonly onSimulateMeasure?: (stage: "day7" | "final") => number;
+  /** P64 (D73.4): the partner account on the live sandbox — Duyệt opens the run it started (SSE). */
+  readonly openRunOnApprove?: boolean;
 }) {
   const auth: AuthedOptions = useMemo(() => ({ token, shopId: shop.id }), [token, shop.id]);
   const nowMs = useNow();
@@ -358,9 +363,9 @@ export function QuyetDinhView({
         onSimulateApprove(cardIds, () => approveNow(cardIds, true));
         return;
       }
-      approveNow(cardIds);
+      approveNow(cardIds, openRunOnApprove);
     },
-    [busy, approveNow, onSimulateApprove],
+    [busy, approveNow, onSimulateApprove, openRunOnApprove],
   );
 
   const handleReject = useCallback(
@@ -728,7 +733,8 @@ function SelectedRun({
   // P14-E content runs: their phase and chip come from the run detail's `content`.
   const content = kind === "content" ? (detail?.content ?? null) : null;
   const cPhase = contentPhase(run, content, timeline, declined);
-  const chip = kind === "content" ? contentChip(cPhase, run.stop_reason) : runChip(run, kind, phase);
+  const sandboxShop = useSandboxReviewer();
+  const chip = kind === "content" ? contentChip(cPhase, run.stop_reason) : runChip(run, kind, phase, sandboxShop);
   const headline = content?.headline ?? null;
 
   useEffect(() => {

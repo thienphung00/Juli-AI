@@ -45,8 +45,22 @@ _ANALYTICS_CTR_UNAVAILABLE_REASON = "Chưa đồng bộ Analytics product CTR"
 _PROMOTION_SPEND_UNAVAILABLE_REASON = "Chờ đồng bộ chi phí Promotion (spend)"
 _NO_ORDERS_IN_WINDOW_REASON = "Chưa có đơn hàng trong 30 ngày"
 
-_SHOP_STATUS_ACTION = "investigate fulfillment/cancellation/CS"
-_RETURN_ACTION = "review return drivers by SKU"
+_SHOP_STATUS_ACTION = "kiểm tra giao hàng, đơn hủy và chăm sóc khách"
+_RETURN_ACTION = "xem lý do trả hàng theo từng SKU"
+
+
+def _vn_number(value: float, decimals: int = 0) -> str:
+    """vi-VN digits: ``.`` groups thousands, ``,`` is the decimal mark."""
+    text = f"{value:,.{decimals}f}"
+    return text.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+
+
+def _vnd(value: float) -> str:
+    return f"{_vn_number(value)} ₫"
+
+
+def _pct(rate_pct: float) -> str:
+    return f"{_vn_number(rate_pct, 1)}%"
 
 
 def _severity_from_gap(current: float, threshold: float) -> Severity:
@@ -97,14 +111,16 @@ def _compute_sps(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
     current = snapshot.sps_score
     threshold = DEFAULT_SPS_THRESHOLD
     gap = max(0.0, threshold - current)
-    change = f"SPS {current:.1f}/{threshold:.1f} (thiếu {gap:.1f} điểm)"
+    change = (
+        f"SPS {_vn_number(current, 1)}/{_vn_number(threshold, 1)} (thiếu {_vn_number(gap, 1)} điểm)"
+    )
     if gap <= 0:
         return _make_signal(
             "sps",
             technique="T3",
             change_text=change,
             signal_type="opportunity",
-            action_hint="maintain fulfillment quality",
+            action_hint="giữ chất lượng giao hàng",
             severity="healthy",
         )
     return _make_signal(
@@ -112,7 +128,7 @@ def _compute_sps(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         technique="T3",
         change_text=change,
         signal_type="risk",
-        action_hint="performance deteriorating · " + _SHOP_STATUS_ACTION,
+        action_hint="hiệu suất shop đang giảm · " + _SHOP_STATUS_ACTION,
         severity=_severity_from_gap(current, threshold),
     )
 
@@ -131,7 +147,7 @@ def _compute_ahr(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
             technique="T3",
             change_text=change,
             signal_type="opportunity",
-            action_hint="account health stable",
+            action_hint="sức khỏe tài khoản ổn định",
             severity="healthy",
         )
     return _make_signal(
@@ -139,7 +155,7 @@ def _compute_ahr(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         technique="T3",
         change_text=change,
         signal_type="risk",
-        action_hint="account health weakening · " + _SHOP_STATUS_ACTION,
+        action_hint="sức khỏe tài khoản đang yếu đi · " + _SHOP_STATUS_ACTION,
         severity=_severity_from_gap(current, threshold),
     )
 
@@ -149,14 +165,14 @@ def _compute_violation_points(snapshot: FeatureAggregateSnapshot) -> AdvisorySig
         return _unavailable_kpi("violation_points", reason="VP chưa xác minh qua Partner API")
 
     vp = snapshot.vp_score
-    change = f"VP {vp:.0f} điểm vi phạm"
+    change = f"{_vn_number(vp)} điểm vi phạm"
     if vp >= 5:
         return _make_signal(
             "violation_points",
             technique="T3",
             change_text=change,
             signal_type="risk",
-            action_hint="penalties / reduced visibility · " + _SHOP_STATUS_ACTION,
+            action_hint="có thể bị phạt hoặc giảm hiển thị · " + _SHOP_STATUS_ACTION,
             severity="critical",
         )
     if vp >= 2:
@@ -165,7 +181,7 @@ def _compute_violation_points(snapshot: FeatureAggregateSnapshot) -> AdvisorySig
             technique="T3",
             change_text=change,
             signal_type="risk",
-            action_hint="monitor violation trend · " + _SHOP_STATUS_ACTION,
+            action_hint="theo dõi điểm vi phạm · " + _SHOP_STATUS_ACTION,
             severity="warning",
         )
     return _make_signal(
@@ -173,7 +189,7 @@ def _compute_violation_points(snapshot: FeatureAggregateSnapshot) -> AdvisorySig
         technique="T3",
         change_text=change,
         signal_type="opportunity",
-        action_hint="violations within policy band",
+        action_hint="điểm vi phạm trong mức cho phép",
         severity="healthy",
     )
 
@@ -183,13 +199,13 @@ def _compute_net_revenue(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         return _unavailable_kpi("net_revenue")
 
     revenue = float(snapshot.total_order_value)
-    change = f"Net Revenue {revenue:,.0f} VND ({snapshot.order_count} đơn)"
+    change = f"Doanh thu {_vnd(revenue)} ({_vn_number(snapshot.order_count)} đơn)"
     return _make_signal(
         "net_revenue",
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity" if revenue > 0 else "risk",
-        action_hint="growth from synced order totals",
+        action_hint="tính từ đơn hàng đã đồng bộ",
         severity="healthy" if revenue > 0 else "warning",
     )
 
@@ -199,13 +215,13 @@ def _compute_aov(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         return _unavailable_kpi("aov")
 
     aov = float(snapshot.total_order_value / Decimal(snapshot.order_count))
-    change = f"AOV {aov:,.0f} VND/đơn"
+    change = f"Giá trị đơn trung bình {_vnd(aov)}/đơn"
     return _make_signal(
         "aov",
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="higher spend per order · scale hero products",
+        action_hint="tăng giá trị mỗi đơn · đẩy mạnh sản phẩm chủ lực",
         severity="healthy",
     )
 
@@ -216,13 +232,13 @@ def _compute_revenue_by_sku(products: list[Product]) -> AdvisorySignal:
 
     top = max(products, key=lambda p: float(p.revenue or 0))
     revenue = float(top.revenue or 0)
-    change = f"{top.name} dẫn đầu doanh thu {revenue:,.0f} VND"
+    change = f"{top.name} dẫn đầu doanh thu {_vnd(revenue)}"
     return _make_signal(
         "revenue_by_sku",
         technique="T7",
         change_text=change,
         signal_type="opportunity",
-        action_hint="scale winners",
+        action_hint="đẩy mạnh sản phẩm bán tốt",
         severity="warning" if revenue >= 500_000 else "healthy",
     )
 
@@ -233,14 +249,17 @@ def _compute_return_request_rate(snapshot: FeatureAggregateSnapshot) -> Advisory
         return _unavailable_kpi("return_request_rate")
 
     pct = rate * 100
-    change = f"Return rate {pct:.1f}% ({snapshot.return_count}/{snapshot.order_count} đơn)"
+    change = (
+        f"Tỷ lệ trả hàng {_pct(pct)} "
+        f"({_vn_number(snapshot.return_count)}/{_vn_number(snapshot.order_count)} đơn)"
+    )
     if rate > RETURN_RATE_RISK_THRESHOLD:
         return _make_signal(
             "return_request_rate",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint=f"returns elevated · {_RETURN_ACTION}",
+            action_hint=f"trả hàng đang cao · {_RETURN_ACTION}",
             severity="critical",
         )
     if rate > 0:
@@ -257,7 +276,7 @@ def _compute_return_request_rate(snapshot: FeatureAggregateSnapshot) -> Advisory
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="return rate stable",
+        action_hint="tỷ lệ trả hàng ổn định",
         severity="healthy",
     )
 
@@ -272,14 +291,14 @@ def _compute_inventory_turnover(snapshot: FeatureAggregateSnapshot) -> AdvisoryS
         return _unavailable_kpi("inventory_turnover", reason="Chưa đồng bộ tồn kho")
 
     turnover = metrics.inventory_turnover
-    change = f"Inventory Turnover {turnover:.1f}x (30d)"
+    change = f"Vòng quay tồn kho {_vn_number(turnover, 1)} lần (30 ngày)"
     if turnover < INVENTORY_TURNOVER_RISK_THRESHOLD:
         return _make_signal(
             "inventory_turnover",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="cash trapped in inventory · clear excess or replenish",
+            action_hint="vốn đọng trong tồn kho · xả hàng tồn hoặc nhập lại cho hợp lý",
             severity="warning",
         )
     return _make_signal(
@@ -287,7 +306,7 @@ def _compute_inventory_turnover(snapshot: FeatureAggregateSnapshot) -> AdvisoryS
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="inventory velocity healthy",
+        action_hint="tồn kho luân chuyển tốt",
         severity="healthy",
     )
 
@@ -298,14 +317,14 @@ def _compute_dsi(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         return _unavailable_kpi("dsi", reason="Chưa đồng bộ tồn kho")
 
     dsi = metrics.dsi_days
-    change = f"DSI {dsi:.0f} ngày"
+    change = f"Số ngày tồn kho {_vn_number(dsi)} ngày"
     if dsi > DSI_RISK_DAYS_THRESHOLD:
         return _make_signal(
             "dsi",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="inventory aging · clear excess stock",
+            action_hint="hàng tồn lâu · xả bớt hàng tồn",
             severity="warning",
         )
     return _make_signal(
@@ -313,7 +332,7 @@ def _compute_dsi(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="inventory days within band",
+        action_hint="số ngày tồn kho trong mức ổn",
         severity="healthy",
     )
 
@@ -326,8 +345,9 @@ def _compute_stockout_rate(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal
     rate = metrics.stockout_rate
     pct = rate * 100
     change = (
-        f"Stockout rate {pct:.1f}% "
-        f"({metrics.stockout_sku_count}/{metrics.sku_count_with_inventory} SKU)"
+        f"Tỷ lệ hết hàng {_pct(pct)} "
+        f"({_vn_number(metrics.stockout_sku_count)}/"
+        f"{_vn_number(metrics.sku_count_with_inventory)} SKU)"
     )
     if rate > STOCKOUT_RATE_RISK_THRESHOLD:
         return _make_signal(
@@ -335,7 +355,7 @@ def _compute_stockout_rate(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="lost sales risk · replenish inventory",
+            action_hint="có thể mất đơn · nhập thêm hàng",
             severity="critical",
         )
     return _make_signal(
@@ -343,7 +363,7 @@ def _compute_stockout_rate(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="stockout rate low",
+        action_hint="tỷ lệ hết hàng thấp",
         severity="healthy",
     )
 
@@ -356,9 +376,9 @@ def _compute_fulfillment_accuracy_rate(snapshot: FeatureAggregateSnapshot) -> Ad
     rate = metrics.fulfillment_accuracy_rate
     pct = rate * 100
     change = (
-        f"Fulfillment accuracy {pct:.1f}% "
-        f"({metrics.orders_fulfilled_without_seller_fault_30d}/"
-        f"{metrics.orders_with_ship_time_30d} đơn)"
+        f"Giao đúng {_pct(pct)} "
+        f"({_vn_number(metrics.orders_fulfilled_without_seller_fault_30d)}/"
+        f"{_vn_number(metrics.orders_with_ship_time_30d)} đơn)"
     )
     if rate < FULFILLMENT_ACCURACY_RISK_THRESHOLD:
         return _make_signal(
@@ -366,7 +386,7 @@ def _compute_fulfillment_accuracy_rate(snapshot: FeatureAggregateSnapshot) -> Ad
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="errors rising · process orders",
+            action_hint="lỗi giao hàng tăng · xử lý đơn sớm",
             severity="warning",
         )
     return _make_signal(
@@ -374,7 +394,7 @@ def _compute_fulfillment_accuracy_rate(snapshot: FeatureAggregateSnapshot) -> Ad
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="fulfillment accuracy stable",
+        action_hint="giao hàng ổn định",
         severity="healthy",
     )
 
@@ -397,14 +417,14 @@ def _compute_orders_at_sla_risk(snapshot: FeatureAggregateSnapshot) -> AdvisoryS
         return _unavailable_kpi("orders_at_sla_risk", reason=_NO_ORDERS_IN_WINDOW_REASON)
 
     count = metrics.orders_at_sla_risk_count
-    change = f"{count} đơn at SLA risk"
+    change = f"{_vn_number(count)} đơn sắp trễ hạn giao"
     if count > 0:
         return _make_signal(
             "orders_at_sla_risk",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="late-ship penalties · process orders",
+            action_hint="có thể bị phạt giao trễ · xử lý đơn ngay",
             severity="critical" if count >= 10 else "warning",
         )
     return _make_signal(
@@ -412,7 +432,7 @@ def _compute_orders_at_sla_risk(snapshot: FeatureAggregateSnapshot) -> AdvisoryS
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="no orders past dispatch SLA",
+        action_hint="không có đơn nào trễ hạn giao",
         severity="healthy",
     )
 
@@ -426,14 +446,14 @@ def _compute_seller_fault_cancellation_rate(
 
     rate = metrics.seller_fault_cancellation_rate
     pct = rate * 100
-    change = f"Seller-fault cancel {pct:.1f}% ({metrics.seller_fault_order_count_30d} đơn)"
+    change = f"Đơn hủy do shop {_pct(pct)} ({_vn_number(metrics.seller_fault_order_count_30d)} đơn)"
     if rate > SELLER_FAULT_CANCEL_RISK_THRESHOLD:
         return _make_signal(
             "seller_fault_cancellation_rate",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="SPS deterioration risk · prevent cancellation",
+            action_hint="có thể làm giảm điểm SPS · hạn chế hủy đơn",
             severity="critical",
         )
     if rate > 0:
@@ -442,7 +462,7 @@ def _compute_seller_fault_cancellation_rate(
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="monitor seller-fault cancels",
+            action_hint="theo dõi đơn hủy do shop",
             severity="warning",
         )
     return _make_signal(
@@ -450,7 +470,7 @@ def _compute_seller_fault_cancellation_rate(
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="seller-fault cancels low",
+        action_hint="đơn hủy do shop ở mức thấp",
         severity="healthy",
     )
 
@@ -463,14 +483,14 @@ def _compute_conversion_rate_by_category(
         return _unavailable_kpi("conversion_rate_by_category")
 
     pct = metrics.conversion_rate_by_category * 100
-    category = metrics.top_category_name or "unknown"
-    change = f"{category} {pct:.1f}% order items (traffic-less proxy)"
+    category = metrics.top_category_name or "Danh mục bán chạy nhất"
+    change = f"{category} chiếm {_pct(pct)} sản phẩm đã bán"
     return _make_signal(
         "conversion_rate_by_category",
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="optimize category listing effectiveness",
+        action_hint="tối ưu trang sản phẩm trong danh mục này",
         severity="healthy",
     )
 
@@ -483,15 +503,15 @@ def _compute_repeat_purchase_rate(snapshot: FeatureAggregateSnapshot) -> Advisor
     rate = metrics.repeat_purchase_rate
     pct = rate * 100
     change = (
-        f"Repeat purchase {pct:.1f}% "
-        f"({metrics.repeat_buyers_30d}/{metrics.unique_buyers_30d} buyers)"
+        f"Khách mua lại {_pct(pct)} "
+        f"({_vn_number(metrics.repeat_buyers_30d)}/{_vn_number(metrics.unique_buyers_30d)} khách)"
     )
     return _make_signal(
         "repeat_purchase_rate",
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="retention signal · scale hero products",
+        action_hint="khách quay lại · đẩy mạnh sản phẩm chủ lực",
         severity="healthy" if rate >= 0.15 else "warning",
     )
 
@@ -502,14 +522,14 @@ def _compute_after_sales_handling_time(snapshot: FeatureAggregateSnapshot) -> Ad
         return _unavailable_kpi("after_sales_handling_time")
 
     hours = metrics.after_sales_handling_time_hours
-    change = f"After-Sales Handling {hours:.0f}h median"
+    change = f"Xử lý sau bán trung vị {_vn_number(hours)} giờ"
     if hours > AFTER_SALES_HANDLING_RISK_HOURS:
         return _make_signal(
             "after_sales_handling_time",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="dissatisfaction risk · prevent returns",
+            action_hint="khách có thể không hài lòng · hạn chế trả hàng",
             severity="warning",
         )
     return _make_signal(
@@ -517,7 +537,7 @@ def _compute_after_sales_handling_time(snapshot: FeatureAggregateSnapshot) -> Ad
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="after-sales handling within SLA",
+        action_hint="xử lý sau bán đúng hạn",
         severity="healthy",
     )
 
@@ -528,14 +548,14 @@ def _compute_csat(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         return _unavailable_kpi("csat", reason="Chưa đủ dữ liệu đơn/return 30d")
 
     score = metrics.csat_proxy_score
-    change = f"CSAT proxy {score:.0f}/100 (return-rate stand-in)"
+    change = f"Mức hài lòng ước tính {_vn_number(score)}/100 (theo tỷ lệ trả hàng)"
     if score < CSAT_RISK_THRESHOLD:
         return _make_signal(
             "csat",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="satisfaction proxy low · review return drivers",
+            action_hint="mức hài lòng thấp · xem lý do trả hàng",
             severity="warning",
         )
     return _make_signal(
@@ -543,7 +563,7 @@ def _compute_csat(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="satisfaction proxy stable",
+        action_hint="mức hài lòng ổn định",
         severity="healthy",
     )
 
@@ -555,14 +575,14 @@ def _compute_ctr(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
 
     ctr = metrics.analytics_weighted_product_ctr
     pct = ctr * 100
-    change = f"CTR {pct:.1f}% (product analytics mean)"
+    change = f"CTR {_pct(pct)} (trung bình các sản phẩm)"
     if ctr < CTR_RISK_THRESHOLD:
         return _make_signal(
             "ctr",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="creative underperforming · refresh listing/ad assets",
+            action_hint="ít người bấm vào sản phẩm · làm mới ảnh và tiêu đề",
             severity="warning",
         )
     if ctr >= CTR_HEALTHY_THRESHOLD:
@@ -571,7 +591,7 @@ def _compute_ctr(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
             technique="rules_proxy",
             change_text=change,
             signal_type="opportunity",
-            action_hint="scale winners · expand budget on top SKUs",
+            action_hint="đẩy mạnh sản phẩm bán tốt · tăng ngân sách cho SKU dẫn đầu",
             severity="healthy",
         )
     return _make_signal(
@@ -579,7 +599,7 @@ def _compute_ctr(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="CTR moderate · test creatives on growth SKUs",
+        action_hint="CTR ở mức trung bình · thử ảnh và tiêu đề mới cho SKU đang tăng",
         severity="warning",
     )
 
@@ -599,14 +619,14 @@ def _compute_roas(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
 
     revenue = float(metrics.analytics_revenue_denominator)
     roas = revenue / spend
-    change = f"ROAS {roas:.1f}x (GMV/spend 30d)"
+    change = f"ROAS {_vn_number(roas, 1)} lần (GMV/chi phí quảng cáo 30 ngày)"
     if roas < 2.0:
         return _make_signal(
             "roas",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="campaign efficiency low · pause or rebalance spend",
+            action_hint="quảng cáo kém hiệu quả · tạm dừng hoặc phân bổ lại ngân sách",
             severity="warning",
         )
     return _make_signal(
@@ -614,7 +634,7 @@ def _compute_roas(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="scale profitable campaigns",
+        action_hint="tăng ngân sách cho chiến dịch có lãi",
         severity="healthy",
     )
 
@@ -635,14 +655,14 @@ def _compute_cac(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         return _unavailable_kpi("cac", reason=_PROMOTION_SPEND_UNAVAILABLE_REASON)
 
     cac = spend / buyers
-    change = f"CAC {cac:,.0f} VND/buyer (spend/unique buyers 30d)"
+    change = f"Chi phí mỗi khách {_vnd(cac)} (chi phí quảng cáo/khách 30 ngày)"
     if cac > 500_000:
         return _make_signal(
             "cac",
             technique="rules_proxy",
             change_text=change,
             signal_type="risk",
-            action_hint="acquisition cost elevated · trim low-ROAS campaigns",
+            action_hint="chi phí có khách đang cao · cắt chiến dịch ROAS thấp",
             severity="warning",
         )
     return _make_signal(
@@ -650,7 +670,7 @@ def _compute_cac(snapshot: FeatureAggregateSnapshot) -> AdvisorySignal:
         technique="rules_proxy",
         change_text=change,
         signal_type="opportunity",
-        action_hint="acquisition efficiency stable",
+        action_hint="chi phí có khách ổn định",
         severity="healthy",
     )
 

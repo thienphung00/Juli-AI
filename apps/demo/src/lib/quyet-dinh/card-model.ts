@@ -10,7 +10,7 @@
  */
 
 import { MANUAL_LEVER_CODES } from "./grouping";
-import { SIMULATED_RUN_LABEL } from "./simulated-copy";
+import { SANDBOX_WRITTEN_LABEL, SIMULATED_RUN_LABEL } from "./simulated-copy";
 import { compactVndNumber, countText, fullDate, kpiPair, pctNumber, summariseText, upliftChip } from "./p10-format";
 import type {
   CardConfidence,
@@ -31,6 +31,11 @@ export const CARD_STATUS_LABELS: Readonly<Record<CardStatus, string>> = {
   rejected: "Đã từ chối",
   expired: "Hết hạn",
 };
+
+/** A card's status chip text; P64 (D73.4): on the reviewer's live sandbox shop a sandbox write is real. */
+export function cardStatusLabel(status: CardStatus, sandboxShop = false): string {
+  return status === "simulated" && sandboxShop ? SANDBOX_WRITTEN_LABEL : CARD_STATUS_LABELS[status];
+}
 
 /** Executor chip + "what happens after Duyệt" (Levers.dc.html, verbatim). */
 export const EXECUTOR_COPY: Readonly<Record<LeverExecutor, { chip: string; after: string; notice: string }>> = {

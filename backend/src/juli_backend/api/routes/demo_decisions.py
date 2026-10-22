@@ -58,11 +58,12 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
+from juli_backend.api.reviewer import reviewer_context
 from juli_backend.database import Shop, get_session
 from juli_backend.models.models import ActionCard
 from juli_backend.services import shop_rules
@@ -412,8 +413,16 @@ def _build_masked_item(
         return None
 
 
+def _sandbox_reviewer(request: Request) -> bool:
+    """P64 (D73.3): a partner reviewer on Juli's writable sandbox pin (no seller, no other pin)."""
+    context = reviewer_context(request)
+    pin = context.pin if context is not None else None
+    return pin is not None and pin.sandbox and pin.writes_enabled
+
+
 @router.get("", response_model=DemoDecisionListResponse)
 async def list_demo_decisions(
+    request: Request,
     session: AsyncSession = Depends(get_session),
     shop: Shop = Depends(get_active_shop),
 ) -> DemoDecisionListResponse:
@@ -428,9 +437,17 @@ async def list_demo_decisions(
     legitimately surfaced Decision for this caller's shop.
     """
     shop_id = shop.id
+    sandbox_reviewer = _sandbox_reviewer(request)
 
     try:
-        cards = await list_surfaced_decisions(session, shop_id)
+        if sandbox_reviewer:
+            # P64 (D73.3): the sandbox reviewer's one "Tạo sản phẩm" card (a real row).
+            from juli_backend.services import reviewer as reviewer_service
+
+            await reviewer_service.ensure_create_product_card(session, shop_id)
+        cards = await list_surfaced_decisions(
+            session, shop_id, include_reviewer_cards=sandbox_reviewer
+        )
     except Exception:
         logger.exception(
             "demo_decisions_list_failed",
@@ -449,6 +466,8 @@ async def list_demo_decisions(
         if (item := _build_masked_item(card, shop_id, allowed_levers, contexts.get(card.id)))
         is not None
     ]
+    if sandbox_reviewer:
+        await session.commit()  # the ensured card
     logger.info(
         "demo_decisions_list_read",
         extra={"shop_id": str(shop_id), "count": len(items)},
@@ -459,6 +478,7 @@ async def list_demo_decisions(
 @router.get("/{action_card_id}", response_model=DemoDecisionDetailResponse)
 async def get_demo_decision(
     action_card_id: uuid.UUID,
+    request: Request,
     session: AsyncSession = Depends(get_session),
     shop: Shop = Depends(get_active_shop),
 ) -> DemoDecisionDetailResponse:
@@ -483,7 +503,12 @@ async def get_demo_decision(
     shop_id = shop.id
 
     try:
-        card = await get_surfaced_decision(session, shop_id, action_card_id)
+        card = await get_surfaced_decision(
+            session,
+            shop_id,
+            action_card_id,
+            include_reviewer_cards=_sandbox_reviewer(request),
+        )
         allowed_levers = await shop_rules.auto_levers(session, shop_id)
         contexts = await load_card_contexts(session, shop_id, [card])
         item = DemoDecisionItem(

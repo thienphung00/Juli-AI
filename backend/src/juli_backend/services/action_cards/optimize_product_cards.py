@@ -544,6 +544,12 @@ def is_quick_card(card: ActionCard) -> bool:
     return isinstance(_diagnosis(card).get("quick_scan"), dict)
 
 
+def _orders_quick_card(card: ActionCard) -> bool:
+    """P64 (D73.3): a sandbox quick card chosen from paid orders (``quick_scan.source``)."""
+    block = _diagnosis(card).get("quick_scan")
+    return isinstance(block, dict) and block.get("source") == "orders"
+
+
 async def quick_card_evidence(
     session: AsyncSession, shop_id: uuid.UUID
 ) -> dict[str, list[Evidence]]:
@@ -1440,8 +1446,16 @@ async def withdraw_unranked_cards(
                 funnel=funnel,
             )
             full_run = op_plan is not None and op_plan.quick_scan is None
-            if why is None and not ranked and full_run and is_quick_card(card):
-                # P17: the full diagnosis did not confirm this quick card.
+            if (
+                why is None
+                and not ranked
+                and full_run
+                and is_quick_card(card)
+                and not _orders_quick_card(card)
+            ):
+                # P17: the full diagnosis did not confirm this quick card. P64
+                # (D73.3): a sandbox card chosen from paid orders was never built on
+                # analytics, so an analytics run cannot unconfirm it (its 3-day stay holds).
                 why = WITHDRAW_QUICK_NOT_CONFIRMED
             if why is None and not ranked:
                 stayed = now - _as_aware(card.surfaced_at)

@@ -49,42 +49,45 @@ connects the seller's shop with them.
 
 **About the trial account.** It is a partner account connected, through TikTok Shop Partner
 Center OAuth, to **Juli's own TikTok Shop sandbox (test) shop** in Vietnam. Nothing in it is
-sample or predefined data: every screen is fetched live from the TikTok Shop Open API, and the
+sample or predefined data: every screen is read live from the TikTok Shop Open API, and the
 reviewer can see the connection itself (status, authorisation date, granted scopes), the time of
-the last sync, and a **"Sync now"** button that pulls the shop again. When the reviewer approves a
-recommendation and executes it, Juli **really writes** the change (product title, description or
-image) to the sandbox shop through the Open API, then reads the product back from TikTok and shows
-the confirmed result. We use our own sandbox shop so that a reviewer never changes a real
-seller's shop; the integration, the API calls and the write path are the ones our sellers use.
-The interface is in Vietnamese; the steps below give the English meaning of each label.
+the last sync, and a **"Đồng bộ ngay"** (Sync now) button. A TikTok sandbox shop has no buyer
+traffic, so views and click-through are empty; revenue, orders and best-sellers are computed from
+the shop's real TikTok orders and labelled as such. Recommendations run through the same AI agent
+workflow our sellers use: an OpenAI model drafts the change, every step streams live, the reviewer
+confirms, and Juli **really writes** the change to the shop through the Open API and reads it back.
+For the review only, the sandbox account can also let Juli **create a new product listing** (the
+model picks the TikTok category from TikTok's own category list); product creation is not offered
+to sellers' real shops. We use our own sandbox shop so that a reviewer never changes a real
+seller's shop. The interface is in Vietnamese; the steps below give the English meaning.
 
 <!-- P64 S4: re-verify every label below in a fresh browser as shopee-review@ before pasting. -->
 
 ## Steps for the reviewer
 
-1. Open https://demo.app-juli.com/auth/email#doi-tac (opens the partner sign-in form directly)
-   and sign in with the username and password above. The banner reads "Tài khoản đối tác · kết
-   nối thật tới shop sandbox TikTok của Juli · thay đổi được ghi thật lên TikTok" (partner account
-   · real connection to Juli's TikTok sandbox shop · changes are really written to TikTok).
-2. **Trang chủ** (Home), card **"Kết nối TikTok Shop"** (TikTok Shop connection): the shop name
-   and TikTok shop id, "Đã kết nối" (Connected), "Ủy quyền lúc …" (Authorised at …), "Quyền đã
-   cấp" (granted scopes) and "Đồng bộ lúc …" (Synced at …). Press **"Đồng bộ ngay"** (Sync now) to
-   pull the shop from the TikTok Shop Open API again; the time updates a few seconds later.
-3. **Trang chủ** (Home): the shop's orders, revenue and products as returned by TikTok. A sandbox
-   shop has no buyer traffic, so view / click metrics show the note "TikTok sandbox chưa có lượt
-   xem/traffic — số liệu đơn hàng và sản phẩm vẫn lấy trực tiếp từ TikTok" (the TikTok sandbox has
-   no views/traffic yet — order and product figures still come directly from TikTok).
-4. **Phân tích** (Analysis): the shop's products and orders broken down by product, from the same
-   live data.
-5. **Quyết định** (Decisions): Juli's recommendation cards — product, target metric, evidence and
-   the proposed change.
-6. Open a listing card (title / description / cover image) and press **"Duyệt"** (Approve). The
-   dialog "Thay đổi Juli sẽ ghi lên TikTok" (The change Juli will write to TikTok) shows each field
-   before ("Trước") and after ("Sau"); you may edit "Tiêu đề mới" (new title) or "Mô tả mới" (new
-   description), or choose "Ảnh bìa mới" (new cover image).
-7. Press **"Thực thi"** (Execute). Juli writes the change to the shop through the TikTok Shop Open
-   API, then reads the product back. The result "Đã ghi lên TikTok" (Written to TikTok) shows each
-   field before and after and **"TikTok xác nhận lúc …"** (Confirmed by TikTok at …).
+1. Open https://demo.app-juli.com/auth/email#doi-tac and sign in with the username and password
+   above. The banner reads "Tài khoản đối tác · kết nối thật tới shop sandbox TikTok của Juli ·
+   thay đổi được ghi thật lên TikTok" (partner account · real connection to Juli's TikTok sandbox
+   shop · changes are really written to TikTok).
+2. **Trang chủ** (Home), card **"Kết nối TikTok Shop"**: shop name, "Đã kết nối" (Connected),
+   "Ủy quyền lúc …" (Authorised at …), "Quyền đã cấp" (granted scopes), "Đồng bộ lúc …" (Synced
+   at …). Press **"Đồng bộ ngay"** (Sync now) to pull the shop from TikTok again.
+3. **Trang chủ** and **Phân tích** (Analysis): revenue, orders, average order value and the
+   best-selling products, marked "Tính từ đơn hàng TikTok (Orders API)" (computed from TikTok
+   orders). The note "TikTok sandbox chưa có lượt xem/traffic" explains why view metrics are empty.
+4. **Quyết định** (Decisions): first press **"Đặt ngưỡng"** (Set stability thresholds) and
+   **"Lưu"** (Save) — Juli asks every seller for these limits before it changes a listing.
+5. On a listing card ("Chờ duyệt", awaiting approval) press **"Duyệt"** (Approve). The
+   **Đang thực hiện** (In progress) tab opens and the agent's steps appear live: reading TikTok's
+   diagnosis, reading the product, analysing keywords and the product image, then **"Xác nhận
+   một lần"** (confirm once) showing the drafted change before and after.
+6. Press **"Xác nhận thay đổi này"** (Confirm this change). Juli writes it to TikTok Shop
+   ("Ghi lên TikTok Shop") and reads the product back; the result reads "Đã ghi lên shop sandbox
+   TikTok của Juli" and the card shows **"Đã ghi lên TikTok"** (Written to TikTok).
+7. Product creation: on the card **"Tạo sản phẩm mới từ «…»"** press **"Duyệt"**. The run reads
+   the source product and TikTok's categories, the model chooses the category, Juli checks TikTok's
+   listing requirements, then **"Xác nhận tạo sản phẩm"** (Confirm product creation). The result
+   "Đã tạo sản phẩm trên TikTok" shows the new TikTok product id and the status TikTok returned.
 8. Product and integration details: https://app-juli.com/san-pham ·
    https://app-juli.com/ket-noi/tiktok-shop · trial sign-up https://app-juli.com/dang-ky.
 
@@ -99,8 +102,10 @@ The interface is in Vietnamese; the steps below give the English meaning of each
 > https://demo.app-juli.com/auth/email#doi-tac) is now connected through TikTok Shop Partner
 > Center OAuth to our own TikTok Shop sandbox (test) shop. All data is fetched live from the
 > TikTok Shop Open API — the connection, the last sync time and a "Sync now" button are visible in
-> the product. When you approve and execute a recommendation, Juli writes the change to the shop
-> through the Open API and shows TikTok's confirmation read back from the shop. We use our own
+> the product. Recommendations run through our real AI agent workflow: an OpenAI model drafts the
+> change, each step streams live, and after you confirm, Juli writes the change to the shop through
+> the Open API and shows TikTok's confirmation read back from the shop. For the review, the account
+> can also create a new product listing on the sandbox shop. We use our own
 > sandbox shop so that reviewers never modify a real seller's shop.
 >
 > The updated step-by-step guide is in the Services Information section of our profile.

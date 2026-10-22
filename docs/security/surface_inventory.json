@@ -892,22 +892,6 @@
       "tenant_scoped": true
     },
     {
-      "path": "/v1/reviewer/decisions/{action_card_id}/approve",
-      "methods": [
-        "POST"
-      ],
-      "requires_auth": true,
-      "tenant_scoped": false
-    },
-    {
-      "path": "/v1/reviewer/decisions/{action_card_id}/execute",
-      "methods": [
-        "POST"
-      ],
-      "requires_auth": true,
-      "tenant_scoped": false
-    },
-    {
       "path": "/v1/reviewer/decisions/{action_card_id}/simulate",
       "methods": [
         "POST"
@@ -1022,6 +1006,14 @@
   ],
   "tools": [
     {
+      "name": "check_listing_requirements",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
       "name": "check_product_status",
       "classification": "read",
       "policy": "auto",
@@ -1038,6 +1030,14 @@
       ]
     },
     {
+      "name": "create_product",
+      "classification": "write",
+      "policy": "confirm",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
       "name": "find_new_content",
       "classification": "read",
       "policy": "auto",
@@ -1047,6 +1047,14 @@
     },
     {
       "name": "find_product_promotions",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "get_category_candidates",
       "classification": "read",
       "policy": "auto",
       "playbooks": [

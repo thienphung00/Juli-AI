@@ -169,6 +169,12 @@ def build_product_tool_registry() -> ToolRegistry:
     from juli_backend.services.content_cards.tools import register_content_read_tools
 
     register_content_read_tools(registry)
+    # Fast track P64 (D73.3/D73.4): the sandbox-only "Tạo sản phẩm" tools. Reachable only
+    # from the create_product playbook, approved only on the sandbox shop; the create
+    # handler refuses any non-sandbox write resources.
+    from juli_backend.services.agent.tools.catalog_create import register_catalog_create_tools
+
+    register_catalog_create_tools(registry)
     return registry
 
 

@@ -51,6 +51,9 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
   main_images: "Ảnh chính",
   image: "Ảnh",
   price: "Giá",
+  // P64 (D73.3): the "Tạo sản phẩm" proposal.
+  category_id: "Mã danh mục TikTok",
+  reason_vi: "Lý do chọn danh mục",
 });
 
 /** Stability-band metrics (backend `BAND_METRICS`) → TikTok KPI names. */

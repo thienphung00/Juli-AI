@@ -8,6 +8,7 @@ import { dateText, validityText } from "../../lib/quyet-dinh/p10-format";
 import type { PhotoCheck, QdRun, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
 import type { ReasonChoice } from "../../lib/quyet-dinh/reasons";
 import { runChip, runningNote, type RunPhase } from "../../lib/quyet-dinh/run-model";
+import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import { SIMULATED_DONE_TEXT, SIMULATED_DONE_TITLE } from "../../lib/quyet-dinh/simulated-copy";
 import type { RunKind, RunTimeline } from "../../lib/quyet-dinh/timeline";
 import type { RunChanges } from "../../lib/quyet-dinh/types";
@@ -17,7 +18,7 @@ import { ConfirmationRejectedError } from "../../lib/run-surface/confirmation-de
 import { DECLINE_REASONS, REVERT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
 import { ReasonDialog, ReasonDone, SKIP_DIALOG_BODY, revertDialogBody } from "./reason-dialog";
 import { Chevron, StageChips, StepList, timelineRows } from "./run-steps";
-import { useSellerHref, useWriteControl } from "../seller-view-context";
+import { useRunActions, useRunControl, useSellerHref, useWriteControl } from "../seller-view-context";
 
 /**
  * One run in Đang thực hiện (ADR-109 Amendment 1 d.3–5, d.7):
@@ -73,6 +74,7 @@ function titleOf(kind: RunKind, run: QdRun, card: CardView | null): string {
   const sku = card?.sku ? `${card.sku} · ` : "";
   const name = card?.title ?? run.product_name;
   if (kind === "revert") return `Hoàn tác · ${sku}${name}`;
+  if (kind === "create") return `Tạo sản phẩm · từ ${name}`;
   if (kind === "manual") return `${sku}${name}${card?.leverLabel ? ` · ${card.leverLabel}` : ""}`;
   return `Lượt chạy · ${sku}${name}`;
 }
@@ -89,7 +91,8 @@ export function RunPanel(props: RunPanelProps) {
   const [declinedReason, setDeclinedReason] = useState<string | null>(null);
   const [dialogBusy, setDialogBusy] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
-  const chip = runChip(run, kind, phase);
+  const sandboxShop = useSandboxReviewer();
+  const chip = runChip(run, kind, phase, sandboxShop);
   const headingId = `run-${run.id}`;
   const changedLabels =
     changes && changes.changes.length > 0
@@ -211,6 +214,7 @@ export function RunPanel(props: RunPanelProps) {
               revertBusy={props.revertBusy}
               revertReasonLabel={props.revertReasonLabel ?? null}
               simulated={run.simulated === true}
+              writeSummary={timeline.steps.find((step) => step.key === "write")?.detail ?? null}
             />
           ) : null}
 
@@ -277,6 +281,7 @@ function declinedText(kind: RunKind): string {
   if (kind === "photo") return "Bạn đã chọn không thay ảnh. Lượt chạy kết thúc, ảnh bìa giữ nguyên.";
   if (kind === "manual") return "Bạn chọn không áp dụng. Thẻ kết thúc, không có gì được đo.";
   if (kind === "revert") return "Bạn giữ thay đổi. Juli tiếp tục đo như cũ.";
+  if (kind === "create") return "Bạn đã chọn không tạo sản phẩm. Lượt chạy kết thúc, TikTok không có gì thay đổi.";
   return "Bạn đã chọn không thay đổi. Lượt chạy kết thúc, sản phẩm giữ nguyên.";
 }
 
@@ -324,7 +329,7 @@ function ConsentBlock({
   readonly onCancelRevert: () => Promise<void>;
   readonly photoUrls: RunPanelProps["photoUrls"];
 }) {
-  const write = useWriteControl();
+  const write = useRunControl();
   const options =
     consent.options.length > 0
       ? consent.options
@@ -391,7 +396,13 @@ function ConsentBlock({
     : isRevert
       ? "Khôi phục về nội dung cũ: chọn rồi xác nhận"
       : "Juli đề xuất thay đổi sau: chọn rồi xác nhận";
-  const confirmLabel = isPhoto ? "Xác nhận thay ảnh" : isRevert ? "Xác nhận khôi phục" : "Xác nhận thay đổi này";
+  const confirmLabel = isPhoto
+    ? "Xác nhận thay ảnh"
+    : isRevert
+      ? "Xác nhận khôi phục"
+      : kind === "create"
+        ? "Xác nhận tạo sản phẩm"
+        : "Xác nhận thay đổi này";
 
   return (
     <div className="qv-consent" data-testid="consent-block">
@@ -480,7 +491,7 @@ function ConsentBlock({
             }
             const change =
               pressed && edited ? { ...option.proposed_change, ...edited } : option.proposed_change;
-            const rows = consentRows(change, { revert: isRevert, productName, card });
+            const rows = consentRows(change, { revert: isRevert, productName, card, create: kind === "create" });
             return (
               <button
                 aria-pressed={pressed}
@@ -569,7 +580,7 @@ function PhotoRequest({
   readonly state: PhotoState;
   readonly onUpload: (file: File) => Promise<void>;
 }) {
-  const write = useWriteControl();
+  const write = useRunControl();
   const input = useRef<HTMLInputElement | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const uploading = state.status === "uploading";
@@ -743,6 +754,12 @@ function SellerGuide({
 
 // -- done (Run / RunPhoto / RunManual / Revert) -------------------------------------------------
 
+/** P64 (D73.3 / D73.4): the partner account's results on Juli's TikTok sandbox shop. */
+const CREATE_DONE_TITLE = "Đã tạo sản phẩm trên TikTok";
+const CREATE_DONE_FALLBACK = "TikTok đã nhận sản phẩm mới; trạng thái hiện ở bước Tạo sản phẩm trên TikTok.";
+const SANDBOX_DONE_TITLE = "Đã ghi lên shop sandbox TikTok của Juli";
+const SANDBOX_DONE_TEXT = "Thay đổi đã được ghi lên shop sandbox. Shop sandbox không có lượt xem nên Juli không đo kết quả.";
+
 function DonePanel({
   kind,
   card,
@@ -756,6 +773,7 @@ function DonePanel({
   revertBusy,
   revertReasonLabel,
   simulated,
+  writeSummary = null,
 }: {
   readonly kind: RunKind;
   readonly card: CardView | null;
@@ -770,9 +788,34 @@ function DonePanel({
   readonly revertReasonLabel: string | null;
   /** P61-B: the run wrote to the test shop, not the seller's shop. */
   readonly simulated: boolean;
+  /** The write step's one-line result (P64: TikTok's read-back of the new product). */
+  readonly writeSummary?: string | null;
 }) {
   const sellerHref = useSellerHref();
   const write = useWriteControl();
+  const runActions = useRunActions();
+  const sandboxShop = useSandboxReviewer();
+  const sandboxReviewer = runActions || sandboxShop;
+  if (kind === "create") {
+    // P64 (D73.3): the new listing as TikTok confirmed it (id, status, time).
+    return (
+      <div className="qv-done qv-done--tight" data-testid="run-done">
+        <div className="qv-done__title">{CREATE_DONE_TITLE}</div>
+        <div className="qv-done__text" data-testid="create-read-back">
+          {writeSummary ?? CREATE_DONE_FALLBACK}
+        </div>
+      </div>
+    );
+  }
+  if (simulated && sandboxReviewer && kind !== "revert") {
+    // P64 (D73.4): the partner account's shop IS Juli's sandbox shop — the write landed there.
+    return (
+      <div className="qv-done qv-done--tight" data-testid="run-done">
+        <div className="qv-done__title">{SANDBOX_DONE_TITLE}</div>
+        <div className="qv-done__text">{writeSummary ?? SANDBOX_DONE_TEXT}</div>
+      </div>
+    );
+  }
   if (simulated && kind !== "revert") {
     return (
       <div className="qv-done qv-done--tight" data-testid="run-done">

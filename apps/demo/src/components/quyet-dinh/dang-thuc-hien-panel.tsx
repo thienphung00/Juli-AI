@@ -3,6 +3,7 @@
 import type { CardView } from "../../lib/quyet-dinh/card-model";
 import type { QdRun } from "../../lib/quyet-dinh/p10-types";
 import { isTerminalRun, listChip, type Chip } from "../../lib/quyet-dinh/run-model";
+import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import { RUN_LEDGER_EMPTY_STATE } from "../../lib/run-ledger/copy";
 import { groupRunsIntoLedgerSections } from "../../lib/run-ledger/sections";
 
@@ -69,6 +70,7 @@ export function RunQueue({
   readonly onSelect: (runId: string) => void;
 }) {
   const ordered = orderRuns(queueRuns(runs, nowMs, selectedId));
+  const sandboxShop = useSandboxReviewer();
   return (
     <aside aria-labelledby="qd-queue" className="qv-queue" data-testid="run-queue">
       <h2 className="qv-queue__title" id="qd-queue">
@@ -81,7 +83,7 @@ export function RunQueue({
           // The open run's live chip, unless the server already ended the run and
           // the live view still thinks it is going (never "Đang chạy" for a terminal run).
           const live = run.id === selectedId && selectedChip ? selectedChip : null;
-          const chip = live && !(isTerminalRun(run) && live.label === "Đang chạy") ? live : listChip(run);
+          const chip = live && !(isTerminalRun(run) && live.label === "Đang chạy") ? live : listChip(run, sandboxShop);
           const card = cardFor(run);
           return (
             <li key={run.id}>

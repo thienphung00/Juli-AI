@@ -104,9 +104,15 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   // control of every page is read-only (Duyệt runs a simulation); the API
   // refuses the writes anyway. P32-E (D42 amendment 2): in the sample shop
   // (no pin) nothing is read-only — every write runs in the in-memory sample
-  // store, labelled "Mô phỏng", and no shop route is ever called.
+  // store, labelled "Mô phỏng", and no shop route is ever called. P64 (D73.4): on the
+  // live sandbox pin the shop's rules (Cài đặt → Quy tắc) save as a seller's.
   const page = reviewer && !reviewer.sample ? (
-    <SellerViewProvider readOnly readOnlyTitle={isSandboxReviewer(reviewer) ? REVIEWER_SANDBOX_READ_ONLY_TITLE : REVIEWER_READ_ONLY_TITLE} simulateApprove>
+    <SellerViewProvider
+      readOnly
+      readOnlyTitle={isSandboxReviewer(reviewer) ? REVIEWER_SANDBOX_READ_ONLY_TITLE : REVIEWER_READ_ONLY_TITLE}
+      rulesActions={isSandboxReviewer(reviewer)}
+      simulateApprove
+    >
       {children}
     </SellerViewProvider>
   ) : (

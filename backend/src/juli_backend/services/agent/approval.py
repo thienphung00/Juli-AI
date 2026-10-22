@@ -101,9 +101,10 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.exceptions import NotFound
@@ -154,6 +155,55 @@ class WorkflowNotExecutable(Exception):
     `is_workflow_executable` predicate being consulted and the playbook
     looked up again afterwards. Refusing an unrecognised key is #1350
     (#1309)'s named 409 and is NOT reimplemented here."""
+
+
+class CreateProductDailyCapReached(ValueError):
+    """P64 (D73.3): this reviewer already started :data:`CREATE_PRODUCT_DAILY_CAP`
+    "Tạo sản phẩm" runs in the last 24 hours -- the route answers 429."""
+
+
+#: P64 (D73.3): "Tạo sản phẩm" runs one reviewer may start per rolling 24 hours.
+CREATE_PRODUCT_DAILY_CAP = 3
+
+
+async def _approve_create_product_gate(
+    session: AsyncSession,
+    *,
+    shop_id: uuid.UUID,
+    action_card_id: uuid.UUID,
+    approved_by_user_id: uuid.UUID,
+    allow_create_product: bool,
+    now: datetime,
+) -> None:
+    """P64 (D73.3/D73.4): a ``create_product`` card is approvable only by a partner
+    reviewer (``allow_create_product``, else it does not exist: 404), only on the
+    sandbox-write shop (D13: a seller's shop never gets product create), and at most
+    :data:`CREATE_PRODUCT_DAILY_CAP` times per reviewer per rolling 24 hours."""
+    if not allow_create_product:
+        raise ActionCardNotFound(f"ActionCard {action_card_id} not found")
+    from juli_backend.services.agent.composition import _is_sandbox_shop
+
+    if not await _is_sandbox_shop(session, shop_id):
+        raise WorkflowNotExecutable(
+            f"ActionCard {action_card_id} creates a product, which runs only on the sandbox shop"
+        )
+    started = (
+        await session.execute(
+            select(func.count())
+            .select_from(ActionCardApproval)
+            .join(ActionCard, ActionCard.id == ActionCardApproval.action_card_id)
+            .where(
+                ActionCard.shop_id == shop_id,
+                ActionCard.workflow_key == playbooks_module.CREATE_PRODUCT_WORKFLOW_KEY,
+                ActionCardApproval.approved_by_user_id == approved_by_user_id,
+                ActionCardApproval.approved_at >= now - timedelta(days=1),
+            )
+        )
+    ).scalar_one()
+    if started >= CREATE_PRODUCT_DAILY_CAP:
+        raise CreateProductDailyCapReached(
+            f"{started} create_product runs in the last 24 hours (cap {CREATE_PRODUCT_DAILY_CAP})"
+        )
 
 
 class CardSubjectNotApprovable(Exception):
@@ -393,6 +443,7 @@ async def approve_action_card(
     action_card_id: uuid.UUID,
     approved_by_user_id: uuid.UUID,
     now: Clock | None = None,
+    allow_create_product: bool = False,
 ) -> ApprovalResult:
     """Approve `action_card_id` under `shop_id` and create the agent run it
     authorizes, all on `session` -- see module docstring for the exact step
@@ -441,12 +492,24 @@ async def approve_action_card(
 
     allowed_levers = await shop_rules.auto_levers(session, shop_id)
     lever_code = shop_rules.card_lever_code(card.recommendation_payload)
+    create_product = playbook.workflow_key == playbooks_module.CREATE_PRODUCT_WORKFLOW_KEY
+    if create_product:
+        # P64 (D73.3/D73.4): not a listing lever -- its own gate (reviewer, sandbox, cap).
+        await _approve_create_product_gate(
+            session,
+            shop_id=shop_id,
+            action_card_id=action_card_id,
+            approved_by_user_id=approved_by_user_id,
+            allow_create_product=allow_create_product,
+            now=clock(),
+        )
     # Fast track P10-B (contract §5): approving a Seller Center promotion card
     # starts a guided run -- Juli checks the seller's rules, shows the steps and
     # verifies the promotion read-only. It never writes one (D13), so these
     # levers are approvable without being "executable".
     if not (
-        shop_rules.card_lever_allowed(lever_code, allowed_levers)
+        create_product
+        or shop_rules.card_lever_allowed(lever_code, allowed_levers)
         or lever_flows.is_promotion_lever(lever_code)
     ):
         raise WorkflowNotExecutable(

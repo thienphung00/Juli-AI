@@ -5,10 +5,13 @@ and REALLY writes its listings -- only there, only through ``SandboxWriteClientF
 (three layers, each fail closed); and the sandbox credential may read / be polled for the one
 shop its own row belongs to, never another (D73.2a).
 
+D73.4 (2026-10-22): the reviewer's Duyệt is the seller's own agent-run approve (the run
+streams over SSE and writes from the worker through the sandbox shop's factory).
+
 Required tests, by the owner's letters:
 
-- (a) ``test_a_reviewer_execute_on_a_seller_shop_pin_is_403_and_builds_no_write_client``
-- (b) ``test_b_reviewer_execute_on_the_sandbox_pin_builds_exactly_one_sandbox_client``
+- (a) ``test_a_reviewer_runs_on_a_seller_shop_pin_are_403_and_start_nothing``
+- (b) ``test_b_reviewer_approve_on_the_sandbox_pin_starts_the_sellers_agent_run``
 - (c) ``test_c_a_production_pin_disables_reviewer_writes`` (+ the layer-2 refusals)
 - (d) ``test_d_a_seller_session_cannot_reach_any_reviewer_sandbox_route``
 - (e) ``test_e_sandbox_credential_serves_reads_for_its_own_shop``
@@ -24,7 +27,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import select
@@ -39,14 +42,14 @@ from juli_backend.integrations.tiktok import (
     ProductionWriteClientFactory,
     ReviewerProductionWriteRefused,
     SandboxWriteClientFactory,
-    TikTokAPIError,
     TikTokCapability,
     reviewer_session,
 )
 from juli_backend.integrations.tiktok import client as tiktok_client
 from juli_backend.integrations.tiktok import factories as tiktok_factories
-from juli_backend.models.models import ProductionWriteShop
+from juli_backend.models.models import ActionCard, ProductionWriteShop, WorkflowRun
 from juli_backend.models.ops import OpsAuditLog
+from juli_backend.models.run_changes import ShopRule
 from juli_backend.repositories import TikTokCredentialRepo
 from juli_backend.services.reviewer import sandbox as reviewer_sandbox
 from juli_backend.services.reviewer.config import shop_alias_id
@@ -127,48 +130,12 @@ def _headers(user_id, shop_id=None, **kw) -> dict[str, str]:
     return headers
 
 
-class FakeProducts:
-    """``ProductsResource`` double: the TikTok product, edited in place."""
-
-    def __init__(self, *, refuse_code: int | None = None) -> None:
-        self.detail: dict[str, Any] = {
-            "id": "1730000000000000001",
-            "title": "Sandbox áo thun",
-            "description": "<p>cũ</p>",
-            "category_chains": [{"id": "601", "is_leaf": True}],
-            "main_images": [{"uri": "tos-old-1"}, {"uri": "tos-old-2"}],
-            "skus": [{"id": "sku-1"}],
-        }
-        self.edits: list[dict[str, Any]] = []
-        self.uploads = 0
-        self.refuse_code = refuse_code
-
-    def get_details(self, product_id: str) -> dict[str, Any]:
-        if self.refuse_code is not None:
-            raise TikTokAPIError(self.refuse_code, "product does not belong to this seller")
-        return {**self.detail, "main_images": list(self.detail["main_images"])}
-
-    def edit(self, *, product_id: str, body: dict[str, Any]) -> dict[str, Any]:
-        self.edits.append(body)
-        self.detail.update({k: body[k] for k in ("title", "description", "main_images")})
-        return {"code": 0}
-
-    def upload_product_image(self, *, image_bytes: bytes, filename: str, **_: Any) -> dict:
-        self.uploads += 1
-        return {"data": {"uri": "tos-new-cover"}}
-
-
 class FactoryRecorder:
-    """Records every write-factory build; production factories trip the test."""
+    """Every TikTok client build trips the test: Duyệt only creates and enqueues a run."""
 
-    def __init__(self, monkeypatch, products: FakeProducts) -> None:
-        self.sandbox_configs: list[ClientFactoryConfig] = []
+    def __init__(self, monkeypatch) -> None:
         self.forbidden: list[str] = []
         recorder = self
-
-        def sandbox_resources(_factory, config):
-            recorder.sandbox_configs.append(config)
-            return type("Resources", (), {"products": products})()
 
         def trip(name):
             def _raise(*args, **kwargs):
@@ -177,37 +144,67 @@ class FactoryRecorder:
 
             return _raise
 
-        monkeypatch.setattr(SandboxWriteClientFactory, "create_resources", sandbox_resources)
+        monkeypatch.setattr(SandboxWriteClientFactory, "create_resources", trip("SandboxWrite"))
         monkeypatch.setattr(ProductionWriteClientFactory, "create", trip("ProductionWrite"))
         monkeypatch.setattr(ProductionReadClientFactory, "create", trip("ProductionRead"))
         monkeypatch.setattr(tiktok_client.TikTokClient, "__init__", trip("TikTokClient"))
+
+
+@pytest.fixture
+def enqueued(monkeypatch) -> list[uuid.UUID]:
+    """The run ids Duyệt enqueued (``run_agent_workflow``), no Celery."""
+    queued: list[uuid.UUID] = []
+    monkeypatch.setattr(
+        "juli_backend.api.routes.demo_execution._enqueue_run_agent_workflow",
+        lambda run_id: queued.append(run_id) or "celery-1",
+    )
+    monkeypatch.setattr(
+        "juli_backend.api.routes.demo_execution._enqueue_approval_baseline",
+        lambda shop_id, run_id: None,
+    )
+    monkeypatch.setattr(
+        "juli_backend.api.routes.agent_runs._enqueue_resume_agent_workflow",
+        lambda run_id, approved: queued.append(run_id) or "celery-2",
+    )
+    return queued
+
+
+def _run_routes(card_id, run_id) -> list[tuple[str, str, Any]]:
+    """Every seller run route a reviewer may reach on the sandbox pin (D73.4)."""
+    return [
+        ("POST", f"/v1/demo/decisions/{card_id}/approve", None),
+        ("GET", f"/v1/demo/runs/{run_id}/events", None),
+        ("POST", f"/v1/demo/runs/{run_id}/confirmations/call_1", {"decision": "approve"}),
+        ("POST", f"/v1/demo/runs/{run_id}/cancel", None),
+        ("POST", f"/v1/demo/runs/{run_id}/photo", None),
+        ("POST", f"/v1/demo/runs/{run_id}/decline", {"reason_code": "other"}),
+    ]
+
+
+async def _runs(session) -> list[WorkflowRun]:
+    session.expire_all()
+    return list((await session.execute(select(WorkflowRun))).scalars().all())
 
 
 # -- (a) ------------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("pin", ["fujiwa", "seller"])
-async def test_a_reviewer_execute_on_a_seller_shop_pin_is_403_and_builds_no_write_client(
-    session, world, monkeypatch, pin
+async def test_a_reviewer_runs_on_a_seller_shop_pin_are_403_and_start_nothing(
+    session, world, monkeypatch, enqueued, pin
 ):
     sandbox, fujiwa, seller, reviewer_id = world
     target = fujiwa if pin == "fujiwa" else seller
     monkeypatch.setenv("REVIEWER_SHOP_ID", str(target.shop.id))
-    products = FakeProducts()
-    recorder = FactoryRecorder(monkeypatch, products)
-    monkeypatch.setattr(
-        SandboxWriteClientFactory,
-        "__init__",
-        lambda self: recorder.forbidden.append("Sandbox") or None,
-    )
+    recorder = FactoryRecorder(monkeypatch)
     alias = shop_alias_id(target.shop.id)
+    card_id = target.card.id
     async with client_for(build_app(session)) as client:
-        for method, path, body in (
-            ("POST", f"/v1/reviewer/decisions/{target.card.id}/execute", {"title": "Mới"}),
-            ("POST", f"/v1/reviewer/decisions/{target.card.id}/approve", None),
+        for method, path, body in [
+            *_run_routes(card_id, uuid.uuid4()),
             ("POST", "/v1/reviewer/shop/sync", None),
             ("GET", "/v1/reviewer/shop", None),
-        ):
+        ]:
             response = await client.request(
                 method, path, json=body, headers=_headers(reviewer_id, alias)
             )
@@ -215,107 +212,110 @@ async def test_a_reviewer_execute_on_a_seller_shop_pin_is_403_and_builds_no_writ
             assert response.headers["x-juli-reviewer-denied"] == "sandbox_only"
         # Another shop's id is refused at the pin, before any route code.
         other = await client.post(
-            f"/v1/reviewer/decisions/{sandbox.card.id}/execute",
-            json={"title": "Mới"},
+            f"/v1/demo/decisions/{sandbox.card.id}/approve",
             headers=_headers(reviewer_id, sandbox.shop.id),
         )
         assert other.status_code == 403
-    assert recorder.sandbox_configs == []
     assert recorder.forbidden == []
-    assert products.edits == []
+    assert enqueued == [] and await _runs(session) == []
+    card_status = (
+        await session.execute(select(ActionCard.status).where(ActionCard.id == card_id))
+    ).scalar_one()
+    assert card_status == "active"
 
 
 # -- (b) ------------------------------------------------------------------------------------
 
 
-async def test_b_reviewer_execute_on_the_sandbox_pin_builds_exactly_one_sandbox_client(
-    session, world, monkeypatch
+async def test_b_reviewer_approve_on_the_sandbox_pin_starts_the_sellers_agent_run(
+    session, world, monkeypatch, enqueued
 ):
     sandbox, _, _, reviewer_id = world
-    products = FakeProducts()
-    recorder = FactoryRecorder(monkeypatch, products)
+    shop_id, product_id, card_id = sandbox.shop.id, sandbox.product.id, sandbox.card.id
+    recorder = FactoryRecorder(monkeypatch)
     async with client_for(build_app(session)) as client:
         approve = await client.post(
-            f"/v1/reviewer/decisions/{sandbox.card.id}/approve",
-            headers=_headers(reviewer_id, sandbox.shop.id),
+            f"/v1/demo/decisions/{card_id}/approve",
+            headers=_headers(reviewer_id, shop_id),
         )
-        assert approve.status_code == 200, approve.text
-        assert approve.json()["simulated"] is False
-        assert approve.json()["executable"] is True
-        assert recorder.sandbox_configs == []  # approve writes nothing
-        response = await client.post(
-            f"/v1/reviewer/decisions/{sandbox.card.id}/execute",
-            json={"title": "Áo thun sandbox – tiêu đề mới"},
-            headers=_headers(reviewer_id, sandbox.shop.id),
-        )
-    assert response.status_code == 200, response.text
-    assert len(recorder.sandbox_configs) == 1
-    config = recorder.sandbox_configs[0]
-    assert config.merchant_auth_id == SANDBOX_MERCHANT
-    assert config.credential_capability == TikTokCapability.SANDBOX_WRITE.value
-    assert config.access_token == "sbx-token"
+    assert approve.status_code == 202, approve.text
+    data = approve.json()["data"]
+    runs = await _runs(session)
+    assert [str(run.id) for run in runs] == [data["run_id"]]
+    run = runs[0]
+    # The seller's own run: the card's workflow and product, queued for the worker.
+    assert run.workflow_key == "optimize_product_2"
+    assert run.shop_id == shop_id and run.product_id == product_id
+    assert run.status == "queued"
+    assert enqueued == [run.id]
+    # Duyệt itself builds no TikTok client: the worker writes, through the sandbox factory.
     assert recorder.forbidden == []
-    assert products.edits[0]["title"] == "Áo thun sandbox – tiêu đề mới"
-    body = response.json()
-    assert body["tiktok_write"] is True and body["simulated"] is False
-    assert body["read_back"]["fields"] == [
-        {
-            "field": "title",
-            "before": "Sandbox áo thun",
-            "after": "Áo thun sandbox – tiêu đề mới",
-            "after_source": "read_back",
-        }
-    ]
-    assert body["read_back"]["listing"]["title"] == "Áo thun sandbox – tiêu đề mới"
-    assert body["read_back"]["confirmed_at"].endswith("Z")
-    # Unmasked (D73 Q1/Q2): the card's real TikTok product id, not a ``demo-…`` alias.
-    assert body["tiktok_product_id"] == rv.TIKTOK_PRODUCT_ID
-    actions = [row.action for row in (await session.execute(select(OpsAuditLog))).scalars().all()]
-    assert "reviewer_sandbox_approve" in actions and "reviewer_sandbox_execute" in actions
+    audits = (await session.execute(select(OpsAuditLog))).scalars().all()
+    approve_rows = [row for row in audits if row.action == "reviewer_sandbox_approve"]
+    assert len(approve_rows) == 1
+    assert approve_rows[0].after["run_id"] == data["run_id"]
+    assert approve_rows[0].after["platform"] == "shopee"
+    # The run is the reviewer's to watch: its SSE route and read pass the gate.
+    from juli_backend.api.routes.agent_runs import get_run_events_session_factory
+
+    app = build_app(session)
+    app.dependency_overrides[get_run_events_session_factory] = lambda: None
+    async with client_for(app) as client:
+        detail = await client.get(f"/v1/demo/runs/{run.id}", headers=_headers(reviewer_id, shop_id))
+        missing = await client.get(
+            f"/v1/demo/runs/{uuid.uuid4()}/events", headers=_headers(reviewer_id, shop_id)
+        )
+    assert detail.status_code == 200, detail.text
+    assert missing.status_code == 404  # past the gate and the pin: the run lookup answers
 
 
-async def test_b_cover_image_is_uploaded_then_attached(session, world, monkeypatch):
-    sandbox, _, _, reviewer_id = world
-    products = FakeProducts()
-    recorder = FactoryRecorder(monkeypatch, products)
-    monkeypatch.setattr(
-        "juli_backend.services.agent.tools.product_write.screen_and_reencode_image",
-        lambda data: (data, "safe.png"),
+async def test_b_the_sandbox_run_writes_through_the_sandbox_factory_only(
+    session, world, monkeypatch
+):
+    """The worker's composition for the sandbox shop: SandboxWriteResources, never production."""
+    from juli_backend.services.agent import composition
+
+    sandbox, _, _, _ = world
+    assert await composition._is_sandbox_shop(session, sandbox.shop.id)
+    built: list[str] = []
+
+    async def fake_load(_session, *, app_key, app_secret):
+        built.append(app_key)
+        return "sandbox-resources"
+
+    monkeypatch.setattr(composition, "load_sandbox_write_resources", fake_load)
+    assert await composition.build_write_resources(session, sandbox.shop.id) == (
+        "sandbox-resources"
     )
-    import base64
-
-    async with client_for(build_app(session)) as client:
-        response = await client.post(
-            f"/v1/reviewer/decisions/{sandbox.card.id}/execute",
-            json={"image_base64": base64.b64encode(b"\x89PNG fake").decode()},
-            headers=_headers(reviewer_id, sandbox.shop.id),
-        )
-    assert response.status_code == 200, response.text
-    assert products.uploads == 1
-    assert products.edits[0]["main_images"] == [
-        {"uri": "tos-new-cover"},
-        {"uri": "tos-old-2"},
-    ]
-    assert response.json()["operations"] == ["upload_product_image", "update_product_listing"]
-    assert len(recorder.sandbox_configs) == 1
+    assert len(built) == 1
 
 
-async def test_b_tiktok_12052048_is_a_clear_409_never_a_success(session, world, monkeypatch):
-    sandbox, _, _, reviewer_id = world
-    products = FakeProducts(refuse_code=12052048)
-    FactoryRecorder(monkeypatch, products)
-    async with client_for(build_app(session)) as client:
-        response = await client.post(
-            f"/v1/reviewer/decisions/{sandbox.card.id}/execute",
-            json={"title": "Mới"},
-            headers=_headers(reviewer_id, sandbox.shop.id),
-        )
-    assert response.status_code == 409
-    assert response.json()["detail"] == {
-        "code": "product_not_owned_by_sandbox_seller",
-        "tiktok_code": 12052048,
-    }
-    assert products.edits == []
+async def test_b_sse_is_streamed_unbuffered_on_the_sandbox_pin():
+    """The mask middleware passes an unmasked (sandbox) response through chunk by chunk."""
+    from juli_backend.api.reviewer import STATE_KEY, ReviewerContext, ReviewerMaskMiddleware
+    from juli_backend.services.reviewer import PinMode
+
+    context = ReviewerContext(
+        account=cast(Any, None),
+        platform="shopee",
+        shop_id=uuid.uuid4(),
+        alias_id=uuid.uuid4(),
+        pin=PinMode("sandbox", writes_enabled=True),
+    )
+    sent: list[dict[str, Any]] = []
+
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"event: a\n\n", "more_body": True})
+        assert len(sent) == 2  # the first event left before the second was produced
+        await send({"type": "http.response.body", "body": b"event: b\n\n", "more_body": False})
+
+    async def send(message):
+        sent.append(message)
+
+    scope = {"type": "http", "state": {STATE_KEY: context}}
+    await ReviewerMaskMiddleware(app)(scope, None, send)
+    assert [m.get("body") for m in sent[1:]] == [b"event: a\n\n", b"event: b\n\n"]
 
 
 async def test_b_sandbox_pin_is_unmasked_and_the_simulation_is_retired(session, world):
@@ -333,7 +333,10 @@ async def test_b_sandbox_pin_is_unmasked_and_the_simulation_is_retired(session, 
     assert me.json()["mode"] == "sandbox" and me.json()["writes_enabled"] is True
     assert shop.status_code == 200, shop.text
     info = shop.json()
-    assert info["shop"]["tiktok_shop_id"] == "7600000000000000001"
+    # P64 (D73.3): the internal cipher / open id never reaches the card.
+    assert "tiktok_shop_id" not in info["shop"]
+    assert info["shop"]["tiktok_shop_code"] is None
+    assert "7600000000000000001" not in shop.text
     assert info["connection"]["capability"] == "sandbox_write"
     assert info["connection"]["scopes"] == ["seller.product.basic", "seller.order.info"]
     assert "sbx-token" not in shop.text and SANDBOX_MERCHANT not in shop.text
@@ -368,7 +371,7 @@ async def test_b_sync_now_enqueues_poll_shop_once_per_minute(session, world, mon
 
 @pytest.mark.parametrize("production", ["production_read", "production_write_row"])
 async def test_c_a_production_pin_disables_reviewer_writes(
-    session, world, monkeypatch, caplog, production
+    session, world, monkeypatch, caplog, enqueued, production
 ):
     sandbox, _, _, reviewer_id = world
     if production == "production_read":
@@ -378,15 +381,13 @@ async def test_c_a_production_pin_disables_reviewer_writes(
     else:
         session.add(ProductionWriteShop(shop_id=sandbox.shop.id, enabled_by="owner"))
     await session.commit()
-    products = FakeProducts()
-    recorder = FactoryRecorder(monkeypatch, products)
+    recorder = FactoryRecorder(monkeypatch)
     alias = shop_alias_id(sandbox.shop.id)
     with caplog.at_level(logging.ERROR):
         async with client_for(build_app(session)) as client:
             me = await client.get("/v1/reviewer/me", headers=_headers(reviewer_id))
             response = await client.post(
-                f"/v1/reviewer/decisions/{sandbox.card.id}/execute",
-                json={"title": "Mới"},
+                f"/v1/demo/decisions/{sandbox.card.id}/approve",
                 headers=_headers(reviewer_id, alias),
             )
     assert me.json()["mode"] == "masked" and me.json()["writes_enabled"] is False
@@ -394,7 +395,7 @@ async def test_c_a_production_pin_disables_reviewer_writes(
     assert response.status_code == 403
     assert response.headers["x-juli-reviewer-denied"] == "sandbox_only"
     assert "reviewer_pin_production_shop" in caplog.text
-    assert recorder.sandbox_configs == [] and products.edits == []
+    assert recorder.forbidden == [] and enqueued == [] and await _runs(session) == []
 
 
 def test_c_production_write_factory_refuses_inside_a_reviewer_request():
@@ -446,12 +447,117 @@ async def test_c_production_write_resolver_refuses_a_reviewer_request(session, w
             )
 
 
-async def test_c_reviewer_write_resources_refuse_outside_a_reviewer_request(session, world):
-    sandbox, _, _, _ = world
-    with pytest.raises(reviewer_sandbox.ReviewerWriteRefused):
-        await reviewer_sandbox.load_reviewer_write_resources(
-            session, shop_id=sandbox.shop.id, app_key="k", app_secret="s"
+# -- rules: "Đặt ngưỡng" / "Sửa quy tắc" on the sandbox pin only (P64 integration) --------
+
+
+def _rule_writes(value: float = 12.5) -> list[tuple[str, str, Any]]:
+    """The seller's band write and its unset -- the two rule routes a reviewer may reach."""
+    return [
+        (
+            "PUT",
+            "/v1/demo/rules/stability_band",
+            {"scope_ref": "ctr", "value": value, "set_by": "seller"},
+        ),
+        ("DELETE", "/v1/demo/rules/stability_band?scope_ref=ctr", None),
+    ]
+
+
+async def _shop_rules(session, shop_id) -> list[ShopRule]:
+    session.expire_all()
+    return list(
+        (await session.execute(select(ShopRule).where(ShopRule.shop_id == shop_id))).scalars()
+    )
+
+
+async def test_rules_reviewer_on_the_sandbox_pin_sets_bands_and_rules(session, world):
+    sandbox, _, _, reviewer_id = world
+    shop_id = sandbox.shop.id
+    async with client_for(build_app(session)) as client:
+        band = await client.put(
+            "/v1/demo/rules/stability_band",
+            json={"scope_ref": "ctr", "value": 12.5, "set_by": "seller"},
+            headers=_headers(reviewer_id, shop_id),
         )
+        assert band.status_code == 200, band.text
+        cards = await client.put(
+            "/v1/demo/rules/max_open_cards",
+            json={"value": 6, "set_by": "seller"},
+            headers=_headers(reviewer_id, shop_id),
+        )
+        assert cards.status_code == 200, cards.text
+        read = await client.get("/v1/demo/rules", headers=_headers(reviewer_id, shop_id))
+        assert read.status_code == 200
+        assert read.json()["data"]["stability_band"]["ctr"]["set_by"] == "seller"
+        rows = {(r.rule_key, r.scope_ref) for r in await _shop_rules(session, shop_id)}
+        assert ("stability_band", "ctr") in rows
+        cleared = await client.delete(
+            "/v1/demo/rules/stability_band?scope_ref=ctr",
+            headers=_headers(reviewer_id, shop_id),
+        )
+        assert cleared.status_code == 204, cleared.text
+    rows = {(r.rule_key, r.scope_ref) for r in await _shop_rules(session, shop_id)}
+    assert ("stability_band", "ctr") not in rows
+
+
+@pytest.mark.parametrize("pin", ["fujiwa", "seller", "production_sandbox"])
+async def test_rules_reviewer_on_any_other_pin_is_403_sandbox_only_and_audited(
+    session, world, monkeypatch, pin
+):
+    sandbox, fujiwa, seller, reviewer_id = world
+    target = {"fujiwa": fujiwa, "seller": seller, "production_sandbox": sandbox}[pin]
+    target_shop_id = target.shop.id
+    if pin == "production_sandbox":
+        # The sandbox shop turned production: writes disabled, masked again.
+        session.add(ProductionWriteShop(shop_id=sandbox.shop.id, enabled_by="owner"))
+        await session.commit()
+    monkeypatch.setenv("REVIEWER_SHOP_ID", str(target_shop_id))
+    alias = shop_alias_id(target_shop_id)
+    async with client_for(build_app(session)) as client:
+        for method, path, body in _rule_writes():
+            response = await client.request(
+                method, path, json=body, headers=_headers(reviewer_id, alias)
+            )
+            assert response.status_code == 403, (method, response.text)
+            assert response.headers["x-juli-reviewer-denied"] == "sandbox_only"
+    assert await _shop_rules(session, target_shop_id) == []
+    session.expire_all()
+    refusals = [
+        row.after
+        for row in (await session.execute(select(OpsAuditLog))).scalars()
+        if row.action == "reviewer_write_refused"
+    ]
+    assert sorted(r["endpoint"].rsplit(":", 1)[1] for r in refusals) == [
+        "delete_shop_rule",
+        "put_shop_rule",
+    ]
+    assert {r["reason"] for r in refusals} == {"sandbox_only"}
+
+
+async def test_rules_reviewer_with_no_pin_is_403_sandbox_only(session, world, monkeypatch):
+    _, _, _, reviewer_id = world
+    monkeypatch.delenv("REVIEWER_SHOP_ID")
+    async with client_for(build_app(session)) as client:
+        for method, path, body in _rule_writes():
+            response = await client.request(method, path, json=body, headers=_headers(reviewer_id))
+            assert response.status_code == 403
+            assert response.headers["x-juli-reviewer-denied"] == "sandbox_only"
+
+
+async def test_rules_a_seller_still_sets_their_own_bands(session, world):
+    sandbox, _, seller, _ = world
+    owner, seller_shop_id, sandbox_shop_id = seller.owner.id, seller.shop.id, sandbox.shop.id
+    headers = _headers(owner, seller_shop_id, platform=None, email="o@gmail.com")
+    async with client_for(build_app(session)) as client:
+        band = await client.put(
+            "/v1/demo/rules/stability_band",
+            json={"scope_ref": "ctr", "value": 9, "set_by": "seller"},
+            headers=headers,
+        )
+        assert band.status_code == 200, band.text
+    assert [(r.rule_key, r.scope_ref) for r in await _shop_rules(session, seller_shop_id)] == [
+        ("stability_band", "ctr")
+    ]
+    assert await _shop_rules(session, sandbox_shop_id) == []
 
 
 # -- (d) ------------------------------------------------------------------------------------
@@ -461,8 +567,7 @@ async def test_d_a_seller_session_cannot_reach_any_reviewer_sandbox_route(
     session, world, monkeypatch
 ):
     sandbox, _, _, _ = world
-    products = FakeProducts()
-    recorder = FactoryRecorder(monkeypatch, products)
+    recorder = FactoryRecorder(monkeypatch)
     queued: list[Any] = []
     monkeypatch.setattr(
         "juli_backend.api.routes.reviewer._enqueue_poll_shop",
@@ -471,21 +576,17 @@ async def test_d_a_seller_session_cannot_reach_any_reviewer_sandbox_route(
     # The sandbox shop's own owner, a plain seller token (no reviewer mark).
     owner = sandbox.owner.id
     async with client_for(build_app(session)) as client:
-        for method, path, body in (
-            ("POST", f"/v1/reviewer/decisions/{sandbox.card.id}/execute", {"title": "Mới"}),
-            ("POST", f"/v1/reviewer/decisions/{sandbox.card.id}/approve", None),
-            ("POST", "/v1/reviewer/shop/sync", None),
-            ("GET", "/v1/reviewer/shop", None),
+        for method, path in (
+            ("POST", "/v1/reviewer/shop/sync"),
+            ("GET", "/v1/reviewer/shop"),
         ):
             response = await client.request(
                 method,
                 path,
-                json=body,
                 headers=_headers(owner, sandbox.shop.id, platform=None, email="o@gmail.com"),
             )
             assert response.status_code == 403, (path, response.text)
-    assert recorder.sandbox_configs == [] and recorder.forbidden == []
-    assert queued == [] and products.edits == []
+    assert recorder.forbidden == [] and queued == []
 
 
 # -- (e)-(h): the sandbox credential's own-shop read exception (D73.2a) ----------------------

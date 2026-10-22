@@ -92,52 +92,12 @@ export const SANDBOX_CONNECTION_TITLE = "Kết nối TikTok Shop";
 export const SANDBOX_CONNECTED_LABEL = "Đã kết nối";
 export const SANDBOX_NEEDS_REAUTH_LABEL = "Cần ủy quyền lại";
 
-/** Vietnamese labels for TikTok read-back field names; unknown names fall back to the raw name. */
-export const SANDBOX_FIELD_LABELS: Record<string, string> = {
-  title: "Tiêu đề",
-  description: "Mô tả",
-  main_images: "Ảnh bìa",
-  main_image: "Ảnh bìa",
-  image: "Ảnh bìa",
-};
 export const SANDBOX_SYNC_LABEL = "Đồng bộ ngay";
 export const SANDBOX_SYNC_QUEUED = "Đã xếp lịch đồng bộ · số liệu sẽ cập nhật sau ít giây";
 export const SANDBOX_SYNC_UNAVAILABLE = "Chưa xếp lịch đồng bộ được. Vui lòng thử lại sau.";
 export const SANDBOX_SYNC_ERROR = "Chưa đồng bộ được. Vui lòng thử lại.";
 export const SANDBOX_LOAD_ERROR = "Chưa tải được trạng thái kết nối TikTok.";
 
-export const SANDBOX_APPROVE_LABEL = "Duyệt";
-export const SANDBOX_EXECUTE_LABEL = "Thực thi";
-export const SANDBOX_CONFIRMED_PREFIX = "TikTok xác nhận lúc";
-export const SANDBOX_INTENDED_NOTE = "chưa được TikTok xác nhận";
-
 /** P64: no traffic in the sandbox (D73): orders and products are still live. */
 export const SANDBOX_NO_TRAFFIC_COPY =
   "TikTok sandbox chưa có lượt xem/traffic — số liệu đơn hàng và sản phẩm vẫn lấy trực tiếp từ TikTok";
-
-/** P64: one clear line per sandbox error code. */
-export function sandboxErrorCopy(code: string | null, tiktokCode: number | null, status: number): string {
-  if (code === "product_not_owned_by_sandbox_seller" || tiktokCode === 12052048) {
-    return "Sản phẩm không thuộc shop sandbox — bấm Đồng bộ ngay rồi thử lại";
-  }
-  switch (code) {
-    case "not_executable_by_juli":
-      return "Thao tác này do bạn tự áp dụng, Juli không ghi lên TikTok.";
-    case "no_product":
-      return "Thẻ này chưa gắn với sản phẩm TikTok nên chưa thực thi được.";
-    case "image_required":
-      return "Chọn ảnh bìa mới trước khi thực thi.";
-    case "image_invalid":
-      return "Ảnh không đọc được. Chọn lại một ảnh khác.";
-    case "no_content":
-      return "Chưa có nội dung để ghi. Nhập tiêu đề hoặc mô tả mới.";
-    case "write_refused":
-      return "TikTok từ chối nội dung này. Kiểm tra ảnh hoặc sản phẩm rồi thử lại.";
-    case "tiktok_error":
-      return "TikTok báo lỗi khi ghi thay đổi. Vui lòng thử lại sau ít phút.";
-    case "tiktok_unconfigured":
-      return "Kết nối ghi lên TikTok chưa được cấu hình.";
-    default:
-      return status === 404 ? "Thẻ này không còn trong danh sách đề xuất." : "Chưa thực hiện được. Vui lòng thử lại.";
-  }
-}

@@ -2987,3 +2987,29 @@ reconcile --write` re-derived the no-assert corpus figure.
   `resolve_sandbox_write_credential` / `with_shop_scope`; it never calls `provision_shop_and_credentials` or the
   callback, and `refresh_tokens` (used by polling) is unchanged by P61-I.
 - Next: lead fast-forwards optimize-product to this head, pushes, pings P64; owner tags one deploy for P61-E/F/I.
+
+## 2026-10-22 — lead — P64 second pass: real data, agent runs over SSE, create product (D73.3 / D73.4)
+
+- Why: post-deploy walkthrough of P64 (…0035Z): live connection passed; Trang chủ GMV 0 (A-34
+  analytics are zero on a sandbox), only a non-executable seller_center card, raw English "Lý do",
+  internal cipher shown as "Mã shop TikTok"; reviewer Duyệt was a bespoke synchronous path.
+- P64-D: sandbox report from real paid orders (`metrics_source: "orders"`), quick scan by orders
+  (title/description cards with `listing_proposal`), Vietnamese Lý do, cipher removed (shop code
+  row hidden until a column exists).
+- P64-C: reviewer Duyệt = the seller's approve → agent run → SSE → confirm; writes through
+  SandboxWriteResources only (P61-F leg falls to sandbox; REVIEWER_SESSION refusals kept);
+  sandbox-only `create_product` playbook + `catalog_create` tools (OpenAI picks the category from
+  TikTok's list; Check Listing Prerequisites / Get Attributes; POST /product/202309/products;
+  read-back), 3 per reviewer per 24 h; never in the production allowlist.
+- Integration: sandbox writes read "Đã ghi lên TikTok" (not "Đã chạy thử") for the sandbox
+  reviewer; the sandbox reviewer may set stability bands and rules (PUT/DELETE
+  /v1/demo/rules/{rule_key}, sandbox pin only, else 403 sandbox_only + audit).
+- Verified on c6989b37 + P64: full unit 8037 passed (own-caused failures fixed), Postgres 40 passed
+  0 skipped as juli_app, demo vitest 1231 passed + tsc/eslint clean, check.sh OK. Lead re-ran:
+  backend 163 passed, demo 22 passed.
+- Owner after deploy (VPS, as root in /root/releases/current with the api env loaded):
+  `celery -A juli_backend.workers.celery_app call juli_backend.build_shop_diagnosis --args='["1862f13b-de2c-4fae-a4ad-70298cead913"]'`
+  and `celery -A juli_backend.workers.celery_app call juli_backend.shop_quick_scan --args='["1862f13b-de2c-4fae-a4ad-70298cead913"]' --kwargs='{"force": true}' --queue ingest_priority`;
+  then the lead walks the reviewer steps.
+- Unverified until the live run: VN sandbox create-product accepting reused image URIs and the
+  category's required attributes (a missing one fails as `required_attribute_missing`, no guess).
