@@ -1495,10 +1495,13 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # Fast track P61-C (D71.3): 496 -> 495. The `pytest.raises`-only
     # "assistant.text.delta is rejected" envelope test became a delta
     # validation test that also asserts on the error; no new raises-only test.
+    # Fast track P61-E (D71.5): +1 in the first four layers. The any-shop journey test
+    # delegates every assertion to same-file step helpers (`_step_*`), so the helper layer
+    # below and the zero-assertion headline did not move. P64 (D73): +1 no_assert_statement.
     "no_assert_statement": 509,
-    "and_no_pytest_raises": 130,
-    "and_no_mock_assert_called": 115,
-    "and_no_unittest_self_assert": 115,
+    "and_no_pytest_raises": 131,
+    "and_no_mock_assert_called": 116,
+    "and_no_unittest_self_assert": 116,
     "and_no_asserting_helper": 53,
     "and_no_raise_assertionerror": 49,
 }
@@ -1604,7 +1607,7 @@ RECONCILIATION: dict[str, Any] = {
         "(#1682). The rates are recorded beside it as readings, not as the claim "
         "(2.40% then, 1.62% now). "
         "So the prior measurement "
-        "reproduces, and the gap between 115 and 49 is 62 tests whose only "
+        "reproduces, and the gap between 116 and 49 is 63 tests whose only "
         "assertion is inside a "
         "same-file or imported test-support asserting helper "
         "plus 4 that raise AssertionError directly. "
