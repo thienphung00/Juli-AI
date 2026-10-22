@@ -21,10 +21,12 @@ not a read (or the audit-only simulation) is on it, whatever the UI shows.
 
 Fast track P64 (D73): a pin to Juli's own TikTok Shop SANDBOX shop is the "live
 sandbox" mode (``services/reviewer/sandbox.classify_pin``): no identity mask, and
-four more allowlisted routes really write -- only there, only through
-``SandboxWriteClientFactory``: ``/v1/reviewer/shop`` (connection + synced at),
-``/v1/reviewer/shop/sync``, ``/v1/reviewer/decisions/{id}/approve`` and ``…/execute``.
-Each refuses (403 ``sandbox_only``) unless the pin is a writable sandbox shop; the
+more allowlisted routes -- only there: ``/v1/reviewer/shop`` (connection + synced
+at), ``/v1/reviewer/shop/sync`` and (D73.4) the seller's own agent-run routes
+(:data:`SANDBOX_RUN_ENDPOINTS`): Duyệt starts the same agent run a seller's approve
+starts, streamed over the same SSE route; its writes reach TikTok only through the
+sandbox shop's ``SandboxWriteClientFactory`` (``services/agent/composition``). Each
+refuses (403 ``sandbox_only``) unless the pin is a writable sandbox shop; the
 simulation refuses (403 ``sandbox_live``) when it is. Every reviewer request is
 marked (``integrations.tiktok.mark_reviewer_session``) so the production write
 resolver and factory refuse it whatever route it reaches.
@@ -60,6 +62,22 @@ STATE_KEY = "juli_reviewer"
 
 _GET = "GET"
 _R = "juli_backend.api.routes."
+#: P64 (D73.4): the seller's own agent-run routes, for a reviewer ONLY on a writable
+#: sandbox pin (``enter_reviewer_shop`` refuses them, 403 ``sandbox_only``, on any other
+#: pin). Duyệt starts the same run a seller's approve starts; the run streams over the
+#: same SSE route and waits for the same confirmation. Revert, Seller Center "applied"
+#: and the rules stay off the list (read-only).
+SANDBOX_RUN_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("POST", _R + "demo_execution:approve_demo_decision"),  # /v1/demo/decisions/{id}/approve
+        (_GET, _R + "agent_runs:stream_run_events"),  # /v1/demo/runs/{run_id}/events
+        ("POST", _R + "agent_runs:submit_confirmation_decision"),  # …/confirmations/{id}
+        ("POST", _R + "agent_runs:cancel_run"),  # /v1/demo/runs/{run_id}/cancel
+        ("POST", _R + "demo_run_flows:submit_run_photo"),  # /v1/demo/runs/{run_id}/photo
+        ("POST", _R + "demo_run_changes:decline_run"),  # /v1/demo/runs/{run_id}/decline
+    }
+)
+
 #: Contract §2. Keyed by the matched endpoint (``module:function``) and method:
 #: unambiguous whatever router prefix a route sits under (FastAPI ≥ 0.13x keeps
 #: only the innermost router's prefix in ``route.path``). A renamed or moved
@@ -93,10 +111,10 @@ ALLOWED_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         # refuses unless the pin is a writable sandbox shop (``require_sandbox_pin``).
         (_GET, _R + "reviewer:reviewer_shop"),  # /v1/reviewer/shop
         ("POST", _R + "reviewer:reviewer_sync_shop"),  # /v1/reviewer/shop/sync
-        ("POST", _R + "reviewer:approve_decision"),  # /v1/reviewer/decisions/{id}/approve
-        ("POST", _R + "reviewer:execute_decision"),  # /v1/reviewer/decisions/{id}/execute
     }
+    | SANDBOX_RUN_ENDPOINTS
 )
+
 
 _DENIED_DETAIL = {
     "unknown": "Tài khoản dùng thử không hợp lệ",
@@ -125,6 +143,12 @@ class ReviewerContext:
     #: P64 (D73): what the pinned shop is, set when the shop is entered. None until
     #: then -- the mask stays on (fail closed).
     pin: PinMode | None = None
+    #: P64 (D73.4): the request is one of :data:`SANDBOX_RUN_ENDPOINTS` -- refused unless
+    #: the pin is a writable sandbox shop.
+    sandbox_only: bool = False
+    #: The request's method and matched endpoint (the refusal audit names them).
+    method: str = ""
+    endpoint: str | None = None
 
     @property
     def mask_enabled(self) -> bool:
@@ -204,6 +228,12 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
             extra={"platform": account.platform, "method": method, "endpoint": template},
         )
         raise deny("read_only")
+    if shop_id is None and (method, template) in SANDBOX_RUN_ENDPOINTS:
+        # P64 (D73.4): no pin, no sandbox -- refused (and audited) before any shop lookup.
+        await _audit_sandbox_refusal(
+            session, account, shop_id=None, method=method, endpoint=template, path=request.url.path
+        )
+        raise deny("sandbox_only")
     if token.session_id and token.session_id != account.last_session_id:
         if await reviewer_service.accounts.claim_sign_in(session, account, token.session_id):
             await audit.record(
@@ -230,6 +260,9 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
             alias_id=(
                 reviewer_service.config.shop_alias_id(shop_id) if shop_id is not None else None
             ),
+            sandbox_only=(method, template) in SANDBOX_RUN_ENDPOINTS,
+            method=method,
+            endpoint=template,
         ),
     )
 
@@ -258,7 +291,56 @@ async def enter_reviewer_shop(
     if sent == str(context.shop_id) and sent != str(context.alias_id) and context.mask_enabled:
         logger.warning("reviewer_shop_refused", extra={"platform": context.platform})
         raise deny("shop")
+    if context.sandbox_only and not _sandbox_writable(context):
+        # P64 (D73.4): a seller run route on a pin that is not Juli's writable sandbox.
+        logger.warning(
+            "reviewer_sandbox_route_refused",
+            extra={
+                "platform": context.platform,
+                "reason": context.pin.writes_disabled_reason if context.pin else None,
+            },
+        )
+        await _audit_sandbox_refusal(
+            session,
+            context.account,
+            shop_id=context.shop_id,
+            method=context.method,
+            endpoint=context.endpoint,
+            path=None,
+        )
+        raise deny("sandbox_only")
     return context.shop
+
+
+async def _audit_sandbox_refusal(
+    session: AsyncSession,
+    account: ReviewerAccount,
+    *,
+    shop_id: uuid.UUID | None,
+    method: str,
+    endpoint: str | None,
+    path: str | None,
+) -> None:
+    """A refused sandbox-only run route, audited like any refused reviewer request."""
+    action = (
+        audit.ACTION_REVIEWER_READ_REFUSED
+        if method in (_GET, "HEAD", "OPTIONS")
+        else audit.ACTION_REVIEWER_WRITE_REFUSED
+    )
+    after: dict[str, Any] = {
+        "platform": account.platform,
+        "method": method,
+        "endpoint": endpoint,
+        "reason": "sandbox_only",
+    }
+    if path is not None:
+        after["path"] = path
+    await audit.record(session, account.actor, action, shop_id=shop_id, after=after)
+    await session.commit()
+
+
+def _sandbox_writable(context: ReviewerContext) -> bool:
+    return context.pin is not None and context.pin.sandbox and context.pin.writes_enabled
 
 
 async def require_sandbox_pin(
@@ -269,7 +351,7 @@ async def require_sandbox_pin(
         # A seller (non-reviewer) session never reaches a reviewer-only route.
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Reviewer only")
     shop = await enter_reviewer_shop(session, context, x_shop_id)
-    if context.pin is None or not (context.pin.sandbox and context.pin.writes_enabled):
+    if not _sandbox_writable(context):
         logger.warning(
             "reviewer_sandbox_route_refused",
             extra={
@@ -279,6 +361,30 @@ async def require_sandbox_pin(
         )
         raise deny("sandbox_only")
     return shop
+
+
+async def audit_reviewer_run_action(
+    session: AsyncSession,
+    request: Request,
+    action: str,
+    *,
+    shop_id: uuid.UUID,
+    after: dict[str, Any],
+) -> None:
+    """P64 (D73.4): audit a reviewer's run action on a seller route (no-op for a seller).
+
+    No commit: the row joins the route's own transaction.
+    """
+    context = reviewer_context(request)
+    if context is None:
+        return
+    await audit.record(
+        session,
+        context.account.actor,
+        action,
+        shop_id=shop_id,
+        after={"platform": context.platform, **after},
+    )
 
 
 # -- response mask ------------------------------------------------------------------------
@@ -322,6 +428,11 @@ class ReviewerMaskMiddleware:
                 if not isinstance(context, ReviewerContext):
                     await send(message)
                     return
+                if not context.mask_enabled:
+                    # P64 (D73 Q1/Q2): Juli's own sandbox shop is shown as it is -- and
+                    # streamed as it is (D73.4: the run's SSE events), never buffered.
+                    await send(message)
+                    return
                 start = message
                 return
             if message["type"] == "http.response.body" and start is not None:
@@ -329,14 +440,6 @@ class ReviewerMaskMiddleware:
                 if message.get("more_body", False):
                     return
                 context = scope["state"][STATE_KEY]
-                if not context.mask_enabled:
-                    # P64 (D73 Q1/Q2): Juli's own sandbox shop is shown as it is.
-                    body = b"".join(chunks)
-                    headers = _headers_without_length(list(start.get("headers", [])))
-                    headers.append((b"content-length", str(len(body)).encode()))
-                    await send({**start, "headers": headers})
-                    await send({"type": "http.response.body", "body": body, "more_body": False})
-                    return
                 override, body = masked_body(context, b"".join(chunks))
                 headers = _headers_without_length(list(start.get("headers", [])))
                 headers.append((b"content-length", str(len(body)).encode()))
@@ -365,6 +468,8 @@ def install(app: FastAPI) -> None:
 
 __all__ = [
     "ALLOWED_ENDPOINTS",
+    "SANDBOX_RUN_ENDPOINTS",
+    "audit_reviewer_run_action",
     "endpoint_key",
     "STATE_KEY",
     "ReviewerContext",

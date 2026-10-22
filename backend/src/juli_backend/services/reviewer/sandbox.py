@@ -1,4 +1,4 @@
-"""The reviewer's live sandbox shop: pin check, write resources, listing write + read-back.
+"""The reviewer's live sandbox shop: pin check, connection info, "Đồng bộ ngay".
 
 Fast track P64, owner decision D73 (grill 2026-10-21). Shopee's ISV review needs a REAL
 working TikTok Shop integration, so the reviewer may be pinned (``REVIEWER_SHOP_ID``) to
@@ -10,18 +10,13 @@ failing closed (D73 Q6):
    no ``production_read`` credential and no ``production_write_shops`` row. A pin that holds
    either is a production shop: writes off and a loud ``reviewer_pin_production_shop`` error.
    Any non-sandbox pin keeps the P32 behaviour (identity mask on, read-only).
-2. **Credential** (:func:`load_reviewer_write_resources`). Only ``SandboxWriteClientFactory``,
-   only for the sandbox credential, only when its row belongs to the pinned shop, inside the
-   reviewer scope (``integrations.tiktok.reviewer_session``), where every production write
-   path refuses.
+2. **Writes** (D73.4, 2026-10-22): the reviewer's Duyệt is the seller's own approve -- an
+   agent run (``services/agent``), whose writes for the sandbox shop go through
+   ``SandboxWriteClientFactory`` (``services/agent/composition``: the sandbox shop owns
+   the sandbox credential and has no ``production_write_shops`` row, which layer 1
+   checks). Every reviewer request is marked (``integrations.tiktok.reviewer_session``),
+   so every production write path refuses inside it.
 3. **Tests**: ``tests/unit/test_reviewer_sandbox_live.py``.
-
-The write itself (:func:`write_listing`) is the production-seller write set and nothing else
-(D13): the listing edit (title / description through the agent's own
-``update_product_listing`` body) and the cover image (screened, uploaded, then the listing
-edit). No price, no inventory. After the write the product is read back from TikTok and the
-confirmed fields are returned with the time of the read (``production_write.diff_listing_write``,
-the same before/after rule as a seller's production write).
 """
 
 from __future__ import annotations
@@ -30,28 +25,15 @@ import logging
 import threading
 import time
 import uuid
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.security import (
-    SandboxCredentialRefused,
-    resolve_sandbox_write_credential,
-    sandbox_write_owners,
-)
-from juli_backend.database.exceptions import NotFound
-from juli_backend.integrations.tiktok import (
-    ClientFactoryConfig,
-    SandboxWriteClientFactory,
-    SandboxWriteResources,
-    TikTokAPIError,
-    TikTokCapability,
-    reviewer_session_active,
-)
+from juli_backend.core.security import sandbox_write_owners
+from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.models import ProductionWriteShop, TikTokCredential
 
 logger = logging.getLogger(__name__)
@@ -64,9 +46,6 @@ REASON_NOT_SANDBOX = "not_sandbox_shop"
 REASON_PRODUCTION_READ = "pin_holds_production_read"
 REASON_PRODUCTION_WRITE = "pin_has_production_write_row"
 REASON_SANDBOX_REFUSED = "sandbox_credential_refused"
-
-#: TikTok: the product does not belong to the seller the token is for (#1290).
-TIKTOK_PRODUCT_NOT_OWNED = 12052048
 
 
 @dataclass(frozen=True)
@@ -85,14 +64,6 @@ class PinMode:
     def mask(self) -> bool:
         """D73 Q1/Q2: the identity mask is off only for Juli's own sandbox shop."""
         return not self.sandbox
-
-
-class ReviewerWriteRefused(PermissionError):
-    """A reviewer write that layer 1 or 2 refuses (pin, credential, scope)."""
-
-
-class ProductNotOwnedBySandboxSeller(RuntimeError):
-    """TikTok 12052048: the product is not the sandbox seller's (#1290)."""
 
 
 async def classify_pin(session: AsyncSession, shop_id: uuid.UUID) -> PinMode:
@@ -133,145 +104,6 @@ async def classify_pin(session: AsyncSession, shop_id: uuid.UUID) -> PinMode:
             MODE_MASKED, writes_enabled=False, writes_disabled_reason=REASON_SANDBOX_REFUSED
         )
     return PinMode(MODE_SANDBOX, writes_enabled=True)
-
-
-async def load_reviewer_write_resources(
-    session: AsyncSession,
-    *,
-    shop_id: uuid.UUID,
-    app_key: str,
-    app_secret: str,
-    factory: SandboxWriteClientFactory | None = None,
-) -> SandboxWriteResources:
-    """The sandbox write resources for the pinned sandbox shop (D73 Q6 layer 2).
-
-    Refuses (:class:`ReviewerWriteRefused`) outside a reviewer request, when no usable
-    sandbox credential exists, and when the sandbox credential's row is not ``shop_id``'s
-    own. Only ever ``SandboxWriteClientFactory``.
-    """
-    if not reviewer_session_active():
-        raise ReviewerWriteRefused("reviewer write resources outside a reviewer request")
-    try:
-        credential = await resolve_sandbox_write_credential(session)
-    except (NotFound, SandboxCredentialRefused) as exc:
-        raise ReviewerWriteRefused(f"no usable sandbox credential: {exc}") from None
-    if credential.shop_id != shop_id:
-        logger.error(
-            "reviewer_write_credential_not_pinned_shop",
-            extra={"shop_id": str(shop_id), "credential_shop_id": str(credential.shop_id)},
-        )
-        raise ReviewerWriteRefused("the sandbox credential does not belong to the pinned shop")
-    config = ClientFactoryConfig(
-        app_key=app_key,
-        app_secret=app_secret,
-        access_token=credential.access_token,
-        merchant_auth_id=credential.merchant_authorization_id or "",
-        shop_cipher=credential.shop_cipher,
-        credential_capability=credential.capability,
-    )
-    return (factory or SandboxWriteClientFactory()).create_resources(config)
-
-
-@dataclass
-class ListingWriteResult:
-    """One reviewer write, as TikTok confirmed it on the read-back."""
-
-    tiktok_product_id: str
-    operations: list[str]
-    #: ``{"field", "before", "after", "after_source"}`` per changed field (``read_back`` when
-    #: the read-back shows the new value, ``intended`` while TikTok still shows the old one).
-    fields: list[dict[str, Any]]
-    #: The read-back's current listing values (title, description, main_images).
-    confirmed: dict[str, Any]
-    confirmed_at: datetime
-    image_uri: str | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
-
-
-def _raise_if_not_owned(exc: TikTokAPIError) -> None:
-    if exc.code == TIKTOK_PRODUCT_NOT_OWNED:
-        raise ProductNotOwnedBySandboxSeller(exc.message) from exc
-
-
-def write_listing(
-    resources: SandboxWriteResources,
-    *,
-    tiktok_product_id: str,
-    title: str | None,
-    description: str | None,
-    image_bytes: bytes | None,
-) -> ListingWriteResult:
-    """Read, write (cover upload, then listing edit), read back. Blocking: run off the loop.
-
-    Raises :class:`ProductNotOwnedBySandboxSeller` on TikTok 12052048 (never a pretended
-    success); any other ``TikTokAPIError`` propagates.
-    """
-    # Imported here: the agent's tool module pulls the whole agent package.
-    from juli_backend.services.agent.tools.product import ProductToolContext
-    from juli_backend.services.agent.tools.product_write import (
-        UpdateProductListingInput,
-        UploadProductImageInput,
-        handle_update_product_listing,
-        handle_upload_product_image,
-    )
-    from juli_backend.services.execution.production_write import (
-        diff_listing_write,
-        listing_field_values,
-    )
-
-    try:
-        before: Mapping[str, Any] = resources.products.get_details(tiktok_product_id)
-        operations: list[str] = []
-        staged: list[str] = []
-        if image_bytes is not None:
-            handle_upload_product_image(
-                resources,
-                ProductToolContext(
-                    product_id=tiktok_product_id,
-                    pending_image_bytes=image_bytes,
-                    on_image_staged=staged.append,
-                ),
-                UploadProductImageInput(),
-            )
-            operations.append("upload_product_image")
-        handle_update_product_listing(
-            resources,
-            ProductToolContext(
-                product_id=tiktok_product_id,
-                product_detail=before,
-                staged_image_uri=staged[0] if staged else None,
-            ),
-            UpdateProductListingInput(
-                title=title, description=description, attach_staged_image=bool(staged)
-            ),
-        )
-        operations.append("update_product_listing")
-        after: Mapping[str, Any] = resources.products.get_details(tiktok_product_id)
-    except TikTokAPIError as exc:
-        _raise_if_not_owned(exc)
-        raise
-    confirmed_at = datetime.now(UTC)
-    intended: dict[str, Any] = {}
-    if title is not None:
-        intended["title"] = title
-    if description is not None:
-        intended["description"] = description
-    if staged:
-        intended["main_images"] = [{"uri": staged[0]}]
-    fields = [
-        {"field": name, "before": old, "after": new, "after_source": source}
-        for name, old, new, source in diff_listing_write(
-            before=before, after=after, intended=intended
-        )
-    ]
-    return ListingWriteResult(
-        tiktok_product_id=tiktok_product_id,
-        operations=operations,
-        fields=fields,
-        confirmed=listing_field_values(after),
-        confirmed_at=confirmed_at,
-        image_uri=staged[0] if staged else None,
-    )
 
 
 # -- "Đồng bộ ngay" ------------------------------------------------------------------------
@@ -377,17 +209,11 @@ __all__ = [
     "REASON_PRODUCTION_READ",
     "REASON_PRODUCTION_WRITE",
     "REASON_SANDBOX_REFUSED",
-    "TIKTOK_PRODUCT_NOT_OWNED",
     "SYNC_INTERVAL_SECONDS",
-    "ListingWriteResult",
     "PinMode",
-    "ProductNotOwnedBySandboxSeller",
-    "ReviewerWriteRefused",
     "claim_sync_slot",
     "classify_pin",
     "connection_info",
     "forget_sync_slots",
     "release_sync_slot",
-    "load_reviewer_write_resources",
-    "write_listing",
 ]

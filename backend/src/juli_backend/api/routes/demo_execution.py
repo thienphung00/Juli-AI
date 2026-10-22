@@ -33,12 +33,13 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
+from juli_backend.api.reviewer import audit_reviewer_run_action
 from juli_backend.api.routes.agent_runs import _enqueue_run_agent_workflow
 from juli_backend.api.routes.demo_run_changes import SellerReasonRequest, invalid_reason
 from juli_backend.core.security import get_current_user
@@ -50,6 +51,7 @@ from juli_backend.services import card_events, decision_reasons
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
 from juli_backend.services.agent import approval as approval_module
 from juli_backend.services.demo_decisions import DecisionNotFound, get_surfaced_decision
+from juli_backend.services.ops import audit
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,7 @@ def _enqueue_approval_baseline(shop_id: uuid.UUID, run_id: uuid.UUID) -> str | N
 )
 async def approve_demo_decision(
     action_card_id: uuid.UUID,
+    request: Request,
     shop: Shop = Depends(get_active_shop),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -139,6 +142,18 @@ async def approve_demo_decision(
             shop_id=shop_id,
             action_card_id=action_card_id,
             approved_by_user_id=user.id,
+        )
+        # P64 (D73.4): a reviewer's Duyệt on the sandbox pin is this same approve.
+        await audit_reviewer_run_action(
+            session,
+            request,
+            audit.ACTION_REVIEWER_SANDBOX_APPROVE,
+            shop_id=shop_id,
+            after={
+                "action_card_id": str(action_card_id),
+                "run_id": str(result.run_id),
+                "workflow_key": result.workflow_key,
+            },
         )
         await session.commit()
     except approval_module.ActionCardNotFound as exc:

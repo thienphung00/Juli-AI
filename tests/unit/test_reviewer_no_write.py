@@ -83,15 +83,31 @@ EXPECTED_TEMPLATES: dict[tuple[str, str], str] = {
     # writable sandbox shop (``tests/unit/test_reviewer_sandbox_live.py``).
     ("GET", "/v1/reviewer/shop"): "reviewer:reviewer_shop",
     ("POST", "/v1/reviewer/shop/sync"): "reviewer:reviewer_sync_shop",
-    ("POST", "/v1/reviewer/decisions/{action_card_id}/approve"): "reviewer:approve_decision",
-    ("POST", "/v1/reviewer/decisions/{action_card_id}/execute"): "reviewer:execute_decision",
+    # P64 (D73.4): the seller's own agent-run routes -- sandbox pin only (403 ``sandbox_only``
+    # on any other pin, ``api/reviewer.py`` ``SANDBOX_RUN_ENDPOINTS``).
+    (
+        "POST",
+        "/v1/demo/decisions/{action_card_id}/approve",
+    ): "demo_execution:approve_demo_decision",
+    ("GET", "/v1/demo/runs/{run_id}/events"): "agent_runs:stream_run_events",
+    (
+        "POST",
+        "/v1/demo/runs/{run_id}/confirmations/{tool_call_id}",
+    ): "agent_runs:submit_confirmation_decision",
+    ("POST", "/v1/demo/runs/{run_id}/cancel"): "agent_runs:cancel_run",
+    ("POST", "/v1/demo/runs/{run_id}/photo"): "demo_run_flows:submit_run_photo",
+    ("POST", "/v1/demo/runs/{run_id}/decline"): "demo_run_changes:decline_run",
 }
 #: The live sandbox routes: on a non-sandbox pin (this module's world) each must refuse.
 SANDBOX_ROUTES = {
     "/v1/reviewer/shop",
     "/v1/reviewer/shop/sync",
-    "/v1/reviewer/decisions/{action_card_id}/approve",
-    "/v1/reviewer/decisions/{action_card_id}/execute",
+    "/v1/demo/decisions/{action_card_id}/approve",
+    "/v1/demo/runs/{run_id}/events",
+    "/v1/demo/runs/{run_id}/confirmations/{tool_call_id}",
+    "/v1/demo/runs/{run_id}/cancel",
+    "/v1/demo/runs/{run_id}/photo",
+    "/v1/demo/runs/{run_id}/decline",
 }
 
 
@@ -221,11 +237,18 @@ def test_allowlist_is_pinned_to_real_routes():
     # Nothing but reads, the audit-only simulation and the P64 sandbox routes.
     assert {m for m, _ in reviewer_gate.ALLOWED_ENDPOINTS} == {"GET", "POST"}
     assert sorted(e for m, e in reviewer_gate.ALLOWED_ENDPOINTS if m == "POST") == [
-        "juli_backend.api.routes.reviewer:approve_decision",
-        "juli_backend.api.routes.reviewer:execute_decision",
+        "juli_backend.api.routes.agent_runs:cancel_run",
+        "juli_backend.api.routes.agent_runs:submit_confirmation_decision",
+        "juli_backend.api.routes.demo_execution:approve_demo_decision",
+        "juli_backend.api.routes.demo_run_changes:decline_run",
+        "juli_backend.api.routes.demo_run_flows:submit_run_photo",
         "juli_backend.api.routes.reviewer:reviewer_sync_shop",
         "juli_backend.api.routes.reviewer:simulate_decision",
     ]
+    # Every seller write a reviewer may reach is a sandbox-only run route.
+    assert {
+        (m, e) for m, e in reviewer_gate.ALLOWED_ENDPOINTS if not e.endswith(":simulate_decision")
+    } >= reviewer_gate.SANDBOX_RUN_ENDPOINTS
 
 
 @pytest.mark.parametrize("pinned", [True, False], ids=["fujiwa_pin", "sample_no_pin"])
@@ -292,6 +315,11 @@ async def test_every_route_as_reviewer_writes_nothing(
                             problems.append(
                                 f"{method} {route.path}: {response.status_code} (want 403)"
                             )
+                        if (method, endpoint) in reviewer_gate.SANDBOX_RUN_ENDPOINTS and (
+                            method != "GET"
+                        ):
+                            # P64 (D73.4): a refused run route is audited like any write.
+                            refused_writes += 1
                         continue
                     if not pinned and route.path not in ("/v1/shops", "/v1/reviewer/me"):
                         # No pin: every shop-scoped allowed route has no shop to read.
@@ -337,7 +365,6 @@ async def test_every_route_as_reviewer_writes_nothing(
         "GET /v1/demo/runs/{run_id}/events -> 403",
         "GET /v1/reviewer/me -> 200",
         "POST /v1/reviewer/decisions/{action_card_id}/simulate -> " + ("200" if pinned else "403"),
-        "POST /v1/reviewer/decisions/{action_card_id}/execute -> 403",
         "POST /v1/reviewer/shop/sync -> 403",
     ):
         assert needle in checked, (needle, checked)

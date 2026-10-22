@@ -144,6 +144,7 @@ export function QuyetDinhView({
   onSimulateApprove,
   simulated = false,
   onSimulateMeasure,
+  openRunOnApprove = false,
 }: {
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string };
@@ -166,6 +167,8 @@ export function QuyetDinhView({
   readonly simulated?: boolean;
   /** P32-E: "tua nhanh" the sample runs' measurement to day 7 / day 14 (returns how many moved). */
   readonly onSimulateMeasure?: (stage: "day7" | "final") => number;
+  /** P64 (D73.4): the partner account on the live sandbox — Duyệt opens the run it started (SSE). */
+  readonly openRunOnApprove?: boolean;
 }) {
   const auth: AuthedOptions = useMemo(() => ({ token, shopId: shop.id }), [token, shop.id]);
   const nowMs = useNow();
@@ -358,9 +361,9 @@ export function QuyetDinhView({
         onSimulateApprove(cardIds, () => approveNow(cardIds, true));
         return;
       }
-      approveNow(cardIds);
+      approveNow(cardIds, openRunOnApprove);
     },
-    [busy, approveNow, onSimulateApprove],
+    [busy, approveNow, onSimulateApprove, openRunOnApprove],
   );
 
   const handleReject = useCallback(

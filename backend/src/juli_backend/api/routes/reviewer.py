@@ -15,11 +15,11 @@ on any other pin each answers 403 ``sandbox_only``:
   successful sync ("synced at").
 - ``POST /v1/reviewer/shop/sync`` -- "Đồng bộ ngay": enqueues ``poll_shop`` for the
   pinned shop, at most once per 60 s (429 + ``Retry-After`` otherwise).
-- ``POST /v1/reviewer/decisions/{id}/approve`` -- Duyệt: the change Juli will send,
-  audited; nothing written yet.
-- ``POST /v1/reviewer/decisions/{id}/execute`` -- Thực thi: the listing edit (title /
-  description) and/or cover image, REALLY written to the sandbox shop through
-  ``SandboxWriteClientFactory`` only, then read back from TikTok.
+
+D73.4 (2026-10-22) retired the synchronous ``…/approve`` / ``…/execute`` pair: on the
+sandbox pin the reviewer's Duyệt is the seller's own ``POST /v1/demo/decisions/{id}/approve``
+(an agent run, streamed over SSE, confirmed like a seller's -- ``api/reviewer.py``
+``SANDBOX_RUN_ENDPOINTS``).
 
 The simulation answers 403 ``sandbox_live`` on a live sandbox pin.
 
@@ -29,16 +29,12 @@ off for the sandbox shop (D73 Q1/Q2).
 
 from __future__ import annotations
 
-import asyncio
-import base64
-import binascii
 import logging
-import os
 import uuid
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
@@ -51,7 +47,6 @@ from juli_backend.api.reviewer import (
 from juli_backend.api.routes.demo_decisions import DemoDecisionItem
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, User, get_session
-from juli_backend.integrations.tiktok import TikTokAPIError
 from juli_backend.services import shop_rules
 from juli_backend.services.demo_decisions import (
     DecisionNotFound,
@@ -243,204 +238,4 @@ async def reviewer_sync_shop(
         "task_id": task_id,
         "synced_at": info["synced_at"],
         "retry_after_seconds": int(sandbox.SYNC_INTERVAL_SECONDS),
-    }
-
-
-_LIVE_EXECUTORS = ("juli", "juli_with_photo")
-#: Base64 of an image up to ~5 MB (the screening re-checks the decoded size).
-_MAX_IMAGE_BASE64 = 7_000_000
-
-
-def _plan(item: dict[str, Any]) -> dict[str, Any]:
-    """The change Juli will send for this card (the simulation's ``change``, live labels)."""
-    change = simulation.simulate(item, "execute")["change"]
-    change.pop("note", None)
-    return change
-
-
-@router.post("/decisions/{action_card_id}/approve")
-async def approve_decision(
-    action_card_id: uuid.UUID,
-    request: Request,
-    x_shop_id: str | None = Header(default=None),
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
-) -> dict[str, Any]:
-    """Duyệt on the sandbox: the planned write, audited. Nothing reaches TikTok yet."""
-    context = reviewer_context(request)
-    shop = await require_sandbox_pin(session, context, x_shop_id)
-    assert context is not None
-    item = await _card_item(session, shop, action_card_id)
-    change = _plan(item)
-    executable = change["executor"] in _LIVE_EXECUTORS
-    await audit.record(
-        session,
-        context.account.actor,
-        audit.ACTION_REVIEWER_SANDBOX_APPROVE,
-        shop_id=shop.id,
-        after={
-            "platform": context.platform,
-            "action_card_id": str(action_card_id),
-            "lever": change["lever"]["code"],
-            "request": change["request"],
-        },
-    )
-    await session.commit()
-    return {
-        "simulated": False,
-        "step": "approve",
-        "action_card_id": str(action_card_id),
-        "steps": [
-            {"key": "approve", "label": "Duyệt", "done": True},
-            {"key": "execute", "label": "Thực thi", "done": False},
-        ],
-        "change": change,
-        "executable": executable,
-        "requires_image": change["executor"] == "juli_with_photo",
-    }
-
-
-class ExecuteRequest(BaseModel):
-    """What to write. Omitted text fields fall back to the card's stored proposal."""
-
-    title: str | None = Field(default=None, min_length=1, max_length=255)
-    description: str | None = Field(default=None, min_length=1, max_length=10_000)
-    #: The cover image (``cover_image`` cards), base64; screened and re-encoded server side.
-    image_base64: str | None = Field(default=None, max_length=_MAX_IMAGE_BASE64)
-
-
-def _proposal(change: dict[str, Any], field: str) -> str | None:
-    for item in change.get("fields") or []:
-        after = item.get("after")
-        # The simulation's "Sau" placeholder is not a proposal (no stored draft yet).
-        if item.get("field") == field and after and after != simulation.NOTE_DRAFT_AFTER_APPROVAL:
-            return str(after)
-    return None
-
-
-def _unprocessable(code: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail={"code": code})
-
-
-@router.post("/decisions/{action_card_id}/execute")
-async def execute_decision(
-    action_card_id: uuid.UUID,
-    body: ExecuteRequest,
-    request: Request,
-    x_shop_id: str | None = Header(default=None),
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
-) -> dict[str, Any]:
-    """Thực thi on the sandbox: the real listing write, then TikTok's read-back."""
-    context = reviewer_context(request)
-    shop = await require_sandbox_pin(session, context, x_shop_id)
-    assert context is not None
-    item = await _card_item(session, shop, action_card_id)
-    change = _plan(item)
-    if change["executor"] not in _LIVE_EXECUTORS:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail={"code": "not_executable_by_juli"}
-        )
-    product_id = (change.get("product") or {}).get("tiktok_product_id")
-    if not product_id:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "no_product"})
-    image_bytes: bytes | None = None
-    if body.image_base64:
-        try:
-            image_bytes = base64.b64decode(body.image_base64, validate=True)
-        except (binascii.Error, ValueError):
-            raise _unprocessable("image_invalid") from None
-    if change["executor"] == "juli_with_photo" and image_bytes is None:
-        raise _unprocessable("image_required")
-    lever = change["lever"]["code"]
-    title = body.title or (_proposal(change, "title") if lever == "title" else None)
-    description = body.description or (
-        _proposal(change, "description") if lever == "description" else None
-    )
-    if title is None and description is None and image_bytes is None:
-        raise _unprocessable("no_content")
-    app_key = os.environ.get("TIKTOK_APP_KEY", "").strip()
-    app_secret = os.environ.get("TIKTOK_APP_SECRET", "").strip()
-    if not app_key or not app_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"code": "tiktok_unconfigured"}
-        )
-    try:
-        resources = await sandbox.load_reviewer_write_resources(
-            session, shop_id=shop.id, app_key=app_key, app_secret=app_secret
-        )
-    except sandbox.ReviewerWriteRefused:
-        raise deny("sandbox_only") from None
-    try:
-        result = await asyncio.to_thread(
-            sandbox.write_listing,
-            resources,
-            tiktok_product_id=str(product_id),
-            title=title,
-            description=description,
-            image_bytes=image_bytes,
-        )
-    except sandbox.ProductNotOwnedBySandboxSeller:
-        logger.warning(
-            "reviewer_sandbox_product_not_owned",
-            extra={"shop_id": str(shop.id), "card": str(action_card_id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "product_not_owned_by_sandbox_seller",
-                "tiktok_code": sandbox.TIKTOK_PRODUCT_NOT_OWNED,
-            },
-        ) from None
-    except TikTokAPIError as exc:
-        logger.warning(
-            "reviewer_sandbox_write_failed",
-            extra={"shop_id": str(shop.id), "tiktok_code": exc.code},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={"code": "tiktok_error", "tiktok_code": exc.code, "message": exc.message},
-        ) from None
-    except ValueError as exc:
-        # The image failed screening, or the product has no leaf category / main image.
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={"code": "write_refused", "message": str(exc)},
-        ) from None
-    await audit.record(
-        session,
-        context.account.actor,
-        audit.ACTION_REVIEWER_SANDBOX_EXECUTE,
-        shop_id=shop.id,
-        after={
-            "platform": context.platform,
-            "action_card_id": str(action_card_id),
-            "lever": lever,
-            "tiktok_product_id": result.tiktok_product_id,
-            "operations": result.operations,
-            "fields": [f["field"] for f in result.fields],
-        },
-    )
-    await session.commit()
-    logger.info(
-        "reviewer_sandbox_executed",
-        extra={"platform": context.platform, "card": str(action_card_id), "lever": lever},
-    )
-    return {
-        "simulated": False,
-        "tiktok_write": True,
-        "step": "execute",
-        "action_card_id": str(action_card_id),
-        "steps": [
-            {"key": "approve", "label": "Duyệt", "done": True},
-            {"key": "execute", "label": "Thực thi", "done": True},
-        ],
-        "lever": change["lever"],
-        "tiktok_product_id": result.tiktok_product_id,
-        "operations": result.operations,
-        "read_back": {
-            "confirmed_at": result.confirmed_at.isoformat().replace("+00:00", "Z"),
-            "fields": result.fields,
-            "listing": result.confirmed,
-        },
     }

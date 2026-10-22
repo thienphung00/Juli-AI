@@ -147,7 +147,7 @@ async def test_no_pin_reviewer_gets_sample_mode(session, world, monkeypatch):
         assert response.status_code == 403, response.text
         _assert_masked(response.text)
     assert approve.status_code == 403
-    assert approve.headers["x-juli-reviewer-denied"] == "read_only"
+    assert approve.headers["x-juli-reviewer-denied"] == "sandbox_only"  # P64 (D73.4)
     for response in (me, shops):
         _assert_masked(response.text)
         assert str(ref.shop.id) not in response.text
@@ -393,7 +393,8 @@ async def test_refused_write_is_audited(session, world):
             f"/v1/demo/decisions/{ref.card.id}/approve", headers=_headers(user_id, shop=alias)
         )
     assert response.status_code == 403
-    assert response.headers["x-juli-reviewer-denied"] == "read_only"
+    # P64 (D73.4): approve is a sandbox-only run route; on this (non-sandbox) pin it is refused.
+    assert response.headers["x-juli-reviewer-denied"] == "sandbox_only"
     rows = await _audit(session, "reviewer_write_refused")
     assert len(rows) == 1
     assert rows[0].after["platform"] == "shopee"

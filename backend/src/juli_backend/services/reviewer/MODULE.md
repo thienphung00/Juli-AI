@@ -19,11 +19,10 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
 - `sandbox` (fast track P64, D73) — the live sandbox pin: `classify_pin` → `PinMode`
   (`sandbox` only when the pin IS the sandbox credential's shop and holds no `production_read`
   row and no `production_write_shops` row; else masked, writes off, `reviewer_pin_production_shop`
-  logged), `load_reviewer_write_resources` (`SandboxWriteClientFactory` only, only inside a
-  reviewer request, only for the pinned shop's own sandbox credential), `write_listing` (listing
-  edit and/or cover upload, then TikTok read-back; `ProductNotOwnedBySandboxSeller` on
-  12052048), `connection_info` (connection + synced at, no token), `claim_sync_slot` (one
-  `poll_shop` per 60 s per shop).
+  logged), `connection_info` (connection + synced at, no token), `claim_sync_slot` (one
+  `poll_shop` per 60 s per shop). Writes (D73.4): the reviewer's Duyệt is the seller's own
+  agent-run approve (`api/reviewer.py` `SANDBOX_RUN_ENDPOINTS`, sandbox pin only); the run
+  writes through `SandboxWriteClientFactory` (`services/agent/composition`).
 - `gotrue` — `GoTrueAdmin` (service-role admin calls; CLI only).
 - `cli` — `python -m juli_backend.services.reviewer.cli create|renew|revoke|show`.
 - `enter_shop_read_scope` — re-export of `services/ops/view_as`.

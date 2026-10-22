@@ -1,7 +1,8 @@
 /**
  * The partner reviewer's live TikTok sandbox calls (fast track P64, D73;
- * backend `api/routes/reviewer.py`): the shop + its TikTok connection, "Đồng bộ
- * ngay", and the real Duyệt (plan) / Thực thi (write + read-back).
+ * backend `api/routes/reviewer.py`): the shop + its TikTok connection and "Đồng
+ * bộ ngay". Duyệt is the seller's own approve (D73.4): an agent run, streamed
+ * over SSE like any seller run (`lib/recommendations-api-client`).
  */
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -34,43 +35,6 @@ export type SyncResult =
   | { readonly status: "rate_limited"; readonly retryAfterSeconds: number }
   | { readonly status: "unavailable" }
   | { readonly status: "error" };
-
-export interface PlannedField {
-  readonly field: string;
-  readonly label: string;
-  readonly before: string | null;
-  readonly after: string | null;
-}
-
-export interface SandboxPlan {
-  readonly change: {
-    readonly executor: string;
-    readonly lever: { readonly code: string; readonly label: string };
-    readonly product: { readonly title: string | null; readonly tiktok_product_id: string | null };
-    readonly fields: readonly PlannedField[];
-  };
-  readonly executable: boolean;
-  readonly requires_image: boolean;
-}
-
-export interface ReadBackField {
-  readonly field: string;
-  readonly before: string | null;
-  readonly after: string | null;
-  /** "tiktok" once TikTok's read-back returned it; "intended" when it did not. */
-  readonly after_source: string;
-}
-
-export interface SandboxExecution {
-  readonly lever: { readonly code: string; readonly label: string };
-  readonly tiktok_product_id: string;
-  readonly operations: readonly string[];
-  readonly read_back: {
-    readonly confirmed_at: string;
-    readonly fields: readonly ReadBackField[];
-    readonly listing: { readonly title?: string; readonly description?: string; readonly main_images?: readonly unknown[] };
-  };
-}
 
 export class SandboxError extends Error {
   constructor(
@@ -142,39 +106,4 @@ export async function syncSandboxShop(options: SandboxOptions): Promise<SyncResu
   if (!response.ok) return { status: "error" };
   const body = (await response.json()) as { synced_at?: string | null; retry_after_seconds?: number };
   return { status: "queued", syncedAt: body.synced_at ?? null, retryAfterSeconds: body.retry_after_seconds ?? 60 };
-}
-
-export async function approveSandboxDecision(cardId: string, options: SandboxOptions): Promise<SandboxPlan> {
-  let response: Response;
-  try {
-    response = await call(options, `/v1/reviewer/decisions/${encodeURIComponent(cardId)}/approve`, {
-      method: "POST",
-      headers: headers(options),
-    });
-  } catch {
-    throw new SandboxError(0, null);
-  }
-  if (!response.ok) throw await failure(response);
-  return (await response.json()) as SandboxPlan;
-}
-
-export interface ExecuteBody {
-  readonly title?: string;
-  readonly description?: string;
-  readonly image_base64?: string;
-}
-
-export async function executeSandboxDecision(cardId: string, body: ExecuteBody, options: SandboxOptions): Promise<SandboxExecution> {
-  let response: Response;
-  try {
-    response = await call(options, `/v1/reviewer/decisions/${encodeURIComponent(cardId)}/execute`, {
-      method: "POST",
-      headers: headers(options, true),
-      body: JSON.stringify(body),
-    });
-  } catch {
-    throw new SandboxError(0, null);
-  }
-  if (!response.ok) throw await failure(response);
-  return (await response.json()) as SandboxExecution;
 }

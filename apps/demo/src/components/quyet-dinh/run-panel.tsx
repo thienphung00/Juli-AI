@@ -17,7 +17,7 @@ import { ConfirmationRejectedError } from "../../lib/run-surface/confirmation-de
 import { DECLINE_REASONS, REVERT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
 import { ReasonDialog, ReasonDone, SKIP_DIALOG_BODY, revertDialogBody } from "./reason-dialog";
 import { Chevron, StageChips, StepList, timelineRows } from "./run-steps";
-import { useSellerHref, useWriteControl } from "../seller-view-context";
+import { useRunControl, useSellerHref, useWriteControl } from "../seller-view-context";
 
 /**
  * One run in Đang thực hiện (ADR-109 Amendment 1 d.3–5, d.7):
@@ -324,7 +324,7 @@ function ConsentBlock({
   readonly onCancelRevert: () => Promise<void>;
   readonly photoUrls: RunPanelProps["photoUrls"];
 }) {
-  const write = useWriteControl();
+  const write = useRunControl();
   const options =
     consent.options.length > 0
       ? consent.options
@@ -569,7 +569,7 @@ function PhotoRequest({
   readonly state: PhotoState;
   readonly onUpload: (file: File) => Promise<void>;
 }) {
-  const write = useWriteControl();
+  const write = useRunControl();
   const input = useRef<HTMLInputElement | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const uploading = state.status === "uploading";

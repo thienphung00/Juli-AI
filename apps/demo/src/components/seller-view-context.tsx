@@ -28,6 +28,12 @@ export interface SellerViewMode {
    * simulation instead of the real approve; every other write is read-only.
    */
   readonly simulateApprove: boolean;
+  /**
+   * P64 (D73.4): the partner account on Juli's live TikTok sandbox shop — the
+   * run controls (Duyệt, confirm / edit / skip a run's change, the run's photo)
+   * work exactly as a seller's; every other write stays read-only.
+   */
+  readonly runActions: boolean;
   /** Maps a seller href (`/analytics?…`, `/decisions?…`, `/`) to where it lives in this mode. */
   readonly href: (sellerHref: string) => string;
 }
@@ -36,6 +42,7 @@ const SELLER_MODE: SellerViewMode = {
   readOnly: false,
   readOnlyTitle: READ_ONLY_TITLE,
   simulateApprove: false,
+  runActions: false,
   href: (h) => h,
 };
 
@@ -46,17 +53,19 @@ export function SellerViewProvider({
   href,
   readOnlyTitle = READ_ONLY_TITLE,
   simulateApprove = false,
+  runActions = false,
   children,
 }: {
   readonly readOnly: boolean;
   readonly href?: (sellerHref: string) => string;
   readonly readOnlyTitle?: string;
   readonly simulateApprove?: boolean;
+  readonly runActions?: boolean;
   readonly children: ReactNode;
 }) {
   const value = useMemo<SellerViewMode>(
-    () => ({ readOnly, readOnlyTitle, simulateApprove, href: href ?? SELLER_MODE.href }),
-    [readOnly, readOnlyTitle, simulateApprove, href],
+    () => ({ readOnly, readOnlyTitle, simulateApprove, runActions, href: href ?? SELLER_MODE.href }),
+    [readOnly, readOnlyTitle, simulateApprove, runActions, href],
   );
   return <SellerViewContext.Provider value={value}>{children}</SellerViewContext.Provider>;
 }
@@ -108,6 +117,16 @@ export function useSimulateApprove(): boolean {
  * simulated Duyệt → Thực thi instead of the real approve.
  */
 export function useApproveControl(): (disabled?: boolean, title?: string) => WriteControlProps {
-  const { readOnly, readOnlyTitle, simulateApprove } = useContext(SellerViewContext);
-  return (disabled, title) => writeControl(readOnly && !simulateApprove, disabled, title, readOnlyTitle);
+  const { readOnly, readOnlyTitle, simulateApprove, runActions } = useContext(SellerViewContext);
+  return (disabled, title) => writeControl(readOnly && !simulateApprove && !runActions, disabled, title, readOnlyTitle);
+}
+
+/**
+ * A run control (confirm / edit / skip a run's change, upload the run's photo):
+ * like {@link useWriteControl}, except on the live sandbox (P64, D73.4), where
+ * the partner account runs Juli's agent exactly as a seller does.
+ */
+export function useRunControl(): (disabled?: boolean, title?: string) => WriteControlProps {
+  const { readOnly, readOnlyTitle, runActions } = useContext(SellerViewContext);
+  return (disabled, title) => writeControl(readOnly && !runActions, disabled, title, readOnlyTitle);
 }

@@ -9,16 +9,14 @@ import {
   REVIEWER_SAMPLE_BANNER_COPY,
   REVIEWER_RESET_LABEL,
   SANDBOX_NO_TRAFFIC_COPY,
-  sandboxErrorCopy,
 } from "../../lib/reviewer/copy";
 import { StaticReviewerProvider } from "../../lib/reviewer/mode";
-import { SandboxError, type SandboxExecution, type SandboxPlan, type SandboxShop } from "../../lib/reviewer/sandbox-client";
+import type { SandboxShop } from "../../lib/reviewer/sandbox-client";
 import type { P10DecisionItem } from "../../lib/quyet-dinh/p10-types";
 import type { ShopRules } from "../../lib/quyet-dinh/types";
 import { ReviewerBanner } from "../app-shell/reviewer-banner";
 import { SandboxConnectionCard } from "../reviewer/sandbox-connection-card";
 import { SandboxTrafficNote } from "../reviewer/sandbox-traffic-note";
-import { SandboxDecisionDialog, type SandboxDecisionClient } from "../quyet-dinh/sandbox-decision-dialog";
 import { REAL_QD_CLIENTS, SignedInQuyetDinh, type QdClients } from "../quyet-dinh/signed-in-quyet-dinh";
 import type { ShopAnalysisEnvelope } from "../../lib/shop-analysis/types";
 import { sampleEnvelope } from "../../lib/phan-tich/sample-data";
@@ -26,8 +24,8 @@ import { envelopeHasNoTraffic } from "../reviewer/sandbox-traffic-note";
 
 /**
  * P64 (D73): the partner reviewer pinned to Juli's live TikTok sandbox shop —
- * live data, real Duyệt / Thực thi with TikTok's read-back, no sample, no
- * simulation, no `/simulate` call.
+ * live data, no sample, no simulation, no `/simulate` call. D73.4: Duyệt is the
+ * seller's own approve (an agent run, opened in "Đang thực hiện" over SSE).
  */
 
 vi.mock("next/navigation", () => ({
@@ -146,31 +144,6 @@ const SHOP: SandboxShop = {
   sync_interval_seconds: 60,
 };
 
-const PLAN: SandboxPlan = {
-  change: {
-    executor: "juli",
-    lever: { code: "title", label: "Tiêu đề" },
-    product: { title: "Demo Product 123", tiktok_product_id: "p-1" },
-    fields: [{ field: "title", label: "Tiêu đề", before: "Demo Product 123", after: "Tiêu đề Juli đề xuất" }],
-  },
-  executable: true,
-  requires_image: false,
-};
-
-const EXECUTION: SandboxExecution = {
-  lever: { code: "title", label: "Tiêu đề" },
-  tiktok_product_id: "p-1",
-  operations: ["edit_product"],
-  read_back: {
-    confirmed_at: "2026-10-21T03:30:00Z",
-    fields: [
-      { field: "title", before: "Demo Product 123", after: "Tiêu đề Juli đề xuất", after_source: "tiktok" },
-      { field: "description", before: "Mô tả cũ", after: "Mô tả dự kiến", after_source: "intended" },
-    ],
-    listing: { title: "Tiêu đề Juli đề xuất" },
-  },
-};
-
 describe("mode switch", () => {
   it("sandbox banner replaces the sample copy and offers no reset", () => {
     render(<ReviewerBanner onReset={vi.fn()} reviewer={SANDBOX} />);
@@ -187,18 +160,17 @@ describe("mode switch", () => {
     expect(screen.getByRole("button", { name: REVIEWER_RESET_LABEL })).toBeInTheDocument();
   });
 
-  it("sandbox Duyệt calls the live approve and never /simulate; other writes say read-only", async () => {
+  it("sandbox Duyệt is the seller's approve and opens the run; other writes say read-only", async () => {
     const fetchImpl = vi.fn();
     vi.stubGlobal("fetch", fetchImpl);
-    const sandboxClient: SandboxDecisionClient = { approve: vi.fn().mockResolvedValue(PLAN), execute: vi.fn() };
+    const onNavigate = vi.fn();
     const c = qdClients();
     render(
       <StaticReviewerProvider reviewer={SANDBOX}>
         <SignedInQuyetDinh
           clients={c}
-          onNavigate={vi.fn()}
+          onNavigate={onNavigate}
           query={{ tab: "de-xuat", run: null, rulesOpen: false }}
-          sandboxClient={sandboxClient}
           shop={{ id: "shop-1", name: "Juli Sandbox" }}
           token="tok"
         />
@@ -206,63 +178,34 @@ describe("mode switch", () => {
     );
     const card = await screen.findByTestId("recommendation-card");
     expect(within(card).getByRole("button", { name: "Từ chối" })).toHaveAttribute("title", REVIEWER_SANDBOX_READ_ONLY_TITLE);
-    await userEvent.click(within(card).getByRole("button", { name: "Duyệt" }));
-    const dialog = await screen.findByTestId("sandbox-decision");
-    expect(await within(dialog).findByTestId("sandbox-plan")).toHaveTextContent("Tiêu đề Juli đề xuất");
-    expect(sandboxClient.approve).toHaveBeenCalledWith("card-1");
+    const approve = within(card).getByRole("button", { name: "Duyệt" });
+    expect(approve).toBeEnabled();
+    await userEvent.click(approve);
+    await waitFor(() => expect(c.approve).toHaveBeenCalledWith("card-1", { token: "tok", shopId: "shop-1" }));
+    // The run Duyệt started opens in "Đang thực hiện" (its SSE stream, like a seller's).
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith(expect.stringContaining("run=run-1")));
+    expect(onNavigate.mock.calls.at(-1)?.[0]).toContain("dang-thuc-hien");
     expect(screen.queryByTestId("reviewer-simulation")).toBeNull();
-    expect(dialog).not.toHaveTextContent("mô phỏng");
-    expect(dialog).not.toHaveTextContent("Mô phỏng");
+    expect(screen.queryByTestId("sandbox-decision")).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("without stability bands the sandbox Duyệt waits like a seller's", async () => {
+    const c = qdClients({ fetchRules: vi.fn().mockResolvedValue(noBands()) });
+    render(
+      <StaticReviewerProvider reviewer={SANDBOX}>
+        <SignedInQuyetDinh
+          clients={c}
+          onNavigate={vi.fn()}
+          query={{ tab: "de-xuat", run: null, rulesOpen: false }}
+          shop={{ id: "shop-1", name: "Juli Sandbox" }}
+          token="tok"
+        />
+      </StaticReviewerProvider>,
+    );
+    const card = await screen.findByTestId("recommendation-card");
+    await waitFor(() => expect(within(card).getByRole("button", { name: "Duyệt" })).toBeDisabled());
     expect(c.approve).not.toHaveBeenCalled();
-  });
-});
-
-describe("Thực thi on the sandbox", () => {
-  it("shows each field before → after, TikTok's confirmation time and marks an intended value", async () => {
-    const client: SandboxDecisionClient = { approve: vi.fn().mockResolvedValue(PLAN), execute: vi.fn().mockResolvedValue(EXECUTION) };
-    render(<SandboxDecisionDialog cardId="card-1" client={client} onClose={vi.fn()} />);
-    const title = await screen.findByLabelText("Tiêu đề mới");
-    expect(title).toHaveValue("Tiêu đề Juli đề xuất");
-    await userEvent.clear(title);
-    await userEvent.type(title, "Tiêu đề sửa tay");
-    await userEvent.click(screen.getByRole("button", { name: "Thực thi" }));
-    const result = await screen.findByTestId("sandbox-result");
-    expect(client.execute).toHaveBeenCalledWith("card-1", { title: "Tiêu đề sửa tay" });
-    expect(result).toHaveTextContent("Demo Product 123");
-    expect(result).toHaveTextContent("Tiêu đề Juli đề xuất");
-    expect(screen.getByTestId("sandbox-confirmed-at")).toHaveTextContent(/TikTok xác nhận lúc .*21\/10\/2026/);
-    // 03:30 UTC is 10:30 in Asia/Ho_Chi_Minh.
-    expect(screen.getByTestId("sandbox-confirmed-at")).toHaveTextContent("10:30");
-    expect(screen.getAllByTestId("sandbox-intended")).toHaveLength(1);
-    expect(screen.getByTestId("sandbox-intended")).toHaveTextContent("chưa được TikTok xác nhận");
-  });
-
-  it("12052048 shows the sync-and-retry copy and keeps the form", async () => {
-    const execute = vi.fn().mockRejectedValue(new SandboxError(409, "product_not_owned_by_sandbox_seller", 12052048));
-    render(<SandboxDecisionDialog cardId="card-1" client={{ approve: vi.fn().mockResolvedValue(PLAN), execute }} onClose={vi.fn()} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Thực thi" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Sản phẩm không thuộc shop sandbox — bấm Đồng bộ ngay rồi thử lại");
-    expect(screen.getByRole("button", { name: "Thực thi" })).toBeEnabled();
-  });
-
-  it("a cover-image card needs the file before Thực thi and sends it as base64", async () => {
-    const plan: SandboxPlan = { ...PLAN, change: { ...PLAN.change, executor: "juli_with_photo", lever: { code: "cover_image", label: "Ảnh bìa" }, fields: [] }, requires_image: true };
-    const execute = vi.fn().mockResolvedValue({ ...EXECUTION, read_back: { ...EXECUTION.read_back, fields: [] } });
-    render(<SandboxDecisionDialog cardId="card-1" client={{ approve: vi.fn().mockResolvedValue(plan), execute }} onClose={vi.fn()} />);
-    const button = await screen.findByRole("button", { name: "Thực thi" });
-    expect(button).toBeDisabled();
-    await userEvent.upload(screen.getByLabelText("Ảnh bìa mới"), new File(["abc"], "a.png", { type: "image/png" }));
-    await waitFor(() => expect(button).toBeEnabled());
-    await userEvent.click(button);
-    await waitFor(() => expect(execute).toHaveBeenCalledWith("card-1", { image_base64: "YWJj" }));
-  });
-
-  it("maps every error code to Vietnamese copy", () => {
-    for (const code of ["not_executable_by_juli", "no_product", "image_required", "image_invalid", "no_content", "write_refused", "tiktok_error", "tiktok_unconfigured"]) {
-      expect(sandboxErrorCopy(code, null, 400)).toMatch(/\S/);
-      expect(sandboxErrorCopy(code, null, 400)).not.toContain(code);
-    }
   });
 });
 
