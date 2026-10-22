@@ -2882,3 +2882,32 @@ reconcile --write` re-derived the no-assert corpus figure.
   then `systemctl restart juli-api`; after
   deploy press "Đồng bộ ngay" once, then the lead walks the reviewer steps in a fresh browser
   before the owner resubmits and replies (texts in `fasttrack/shopee-isv-services-information.md`).
+
+## 2026-10-22 — agent (Claude Sonnet) — P61-F agent-run production leg (branch `fasttrack/p61-f-agent-prod-write`, not merged)
+
+- Resume leg of an APPROVED pending confirmation resolves the ADR-085 capability for exactly that mutation
+  (`composition.resolve_agent_write_leg`: run's shop + product row + pending tool name, never the payload), spends the
+  one-time authorization only when flag + the shop's `production_write_shops` row + every gate pass (committed before the
+  vendor call), else sandbox/simulated as before. `workflow_runs.write_mode`: `live` only for a leg that took its write live
+  (`_LiveLegRunner` settles against the ledger: succeeded/in_flight stay live); a production-enabled shop stays NULL until
+  approval. Refused by name before any authorization: price (D13), listing edit attaching a sandbox-staged image
+  (`staged_image_on_sandbox`; chosen over re-upload: simpler, no second vendor write outside the ledger), revert of a
+  non-live run. Revert reads the listing in the reverted run's mode; revert of a live run never falls back to the sandbox.
+- Migration 101 `101_write_mode_backfill` is a DEFERRED data step (`deferred/`, chain 100 -> 101 -> 074): the additive
+  gate refuses any UPDATE (data_moving), literal SQL notwithstanding. `versions/` head stays 100. Downgrade no-op.
+- Verification (Homebrew PG16 :55501, UTC): `test_p61f_agent_production_write.py` 34 passed; real-Postgres two-shop
+  `test_p61f_agent_production_write_two_shop.py` 5 passed 0 skipped (as `juli_app`, fake transport) + reviewer D73 tests
+  (unit 17, integration green); check.sh `--since fasttrack/optimize-product` all PASS (pytest 976 passed); full unit
+  `tests/unit -m "not live"`: 7996 passed, 245 skipped, 2 xfailed, 6 failed under heavy machine load: 2 timing tests,
+  shop_diagnosis lock, grants scan and test_quality pass alone; `surface_inventory` lists P64's reviewer routes (P64 PR #2150
+  regenerates it). mypy clean on touched modules; bandit -ll clean.
+- Owner steps to turn ONE shop live: (1) API+worker env `PRODUCTION_WRITE_ENABLED=true`, `PRODUCTION_WRITE_KILL_SWITCH`
+  unset/false (set true = instant stop), `RELEASE_SHA=<40-char deployed sha>` if the release dir is not a git checkout;
+  commit `docs/security/red-team-attestations/<sha>.json` (`outcome: pass`) ; worker must boot on the non-owner role so
+  check 7 records the RLS pass; restart worker. (2) Admin connection: `INSERT INTO production_write_shops (shop_id,
+  enabled_by, reason) VALUES ('<shop uuid>','<you>','first live shop');`. (3) Per mutation (single use, 24 h):
+  `python -m juli_backend.services.operations.production_write_authorizations_cli issue <shop_id> <tiktok_product_id>
+  update_product_listing --capability seller_connect --shop-cipher <cipher> --authorized-by <you> --db-url
+  postgresql+asyncpg://...`; the agent path never issues one. Seller approves the card -> the resume consumes it. A
+  "Hoan tac" needs its own. (4) Check `production_write_audit` (allowed row), `run_write_values`, `workflow_runs.write_mode='live'`.
+  Off: delete the shop row or kill switch. Operate deferred 101 like 074 when wanted.
