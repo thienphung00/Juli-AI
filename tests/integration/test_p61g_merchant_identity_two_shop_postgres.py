@@ -88,6 +88,21 @@ def _seed(engine, *, capability: TikTokCapability, merchant: str, cipher: str) -
     return shop_id
 
 
+def _seed_bare_shop() -> uuid.UUID:
+    """A shop with no credential at all (P64: the sandbox row never reads for it)."""
+    user_id, shop_id = uuid.uuid4(), uuid.uuid4()
+    with owner_sync_engine() as engine, engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO public.users (id, phone) VALUES (:id, :phone)"),
+            {"id": str(user_id), "phone": f"+1555{user_id.hex[:7]}"},
+        )
+        conn.execute(
+            text("INSERT INTO public.shops (id, user_id, shop_name) VALUES (:id, :u, 'bare')"),
+            {"id": str(shop_id), "u": str(user_id)},
+        )
+    return shop_id
+
+
 def _tag() -> str:
     return uuid.uuid4().hex[:10]
 
@@ -144,15 +159,18 @@ async def test_three_shops_each_use_their_own_merchant_with_no_env():
                 )
                 assert client is not None
 
-        # The sandbox shop is unreachable from any read path.
+        # P64 (D73.2a): the sandbox shop reads through its OWN sandbox row, and only it.
         async with with_shop_scope(session, sandbox):
+            own = await resolve_read_credential_for_shop(session, sandbox)
+            assert (own.shop_id, own.capability) == (sandbox, "sandbox_write")
+        bare = _seed_bare_shop()
+        async with with_shop_scope(session, bare):
             with pytest.raises(NoReadCredentialForShop):
-                await resolve_read_credential_for_shop(session, sandbox)
+                await resolve_read_credential_for_shop(session, bare)
 
-        # And it is not a pollable shop; the two production shops are.
+        # The sandbox shop is pollable (through its own row), beside the production shops.
         pollable = {p.shop_id for p in await enumerate_pollable_shops(session)}
-        assert {shop_a, shop_b} <= pollable
-        assert sandbox not in pollable
+        assert {shop_a, shop_b, sandbox} <= pollable
 
 
 async def test_a_sandbox_row_whose_token_resolves_to_a_production_shop_is_refused():

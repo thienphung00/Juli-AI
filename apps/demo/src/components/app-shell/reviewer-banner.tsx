@@ -5,8 +5,10 @@ import {
   REVIEWER_BANNER_COPY,
   REVIEWER_RESET_LABEL,
   REVIEWER_SAMPLE_BANNER_COPY,
+  REVIEWER_SANDBOX_BANNER_COPY,
   reviewerExpiryCopy,
 } from "../../lib/reviewer/copy";
+import { isSandboxReviewer } from "../../lib/reviewer/mode";
 import type { ReviewerRecord } from "../../lib/reviewer/session";
 
 /**
@@ -24,10 +26,15 @@ export function ReviewerBanner({
   readonly onReset?: () => void;
 }) {
   const expiry = reviewerExpiryCopy(reviewer.expiresAt);
+  const bannerCopy = isSandboxReviewer(reviewer)
+    ? REVIEWER_SANDBOX_BANNER_COPY
+    : reviewer.sample
+      ? REVIEWER_SAMPLE_BANNER_COPY
+      : REVIEWER_BANNER_COPY;
   const platform = platformLabel(reviewer.platform);
   return (
     <p className="demo-notice reviewer-banner" data-testid="reviewer-banner" role="status">
-      <strong>{reviewer.sample ? REVIEWER_SAMPLE_BANNER_COPY : REVIEWER_BANNER_COPY}</strong>
+      <strong>{bannerCopy}</strong>
       {platform || expiry ? (
         <span className="reviewer-banner__meta">
           {" · "}

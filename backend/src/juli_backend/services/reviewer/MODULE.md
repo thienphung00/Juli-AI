@@ -16,11 +16,20 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
 - `config` — `reviewer_shop_id` (`REVIEWER_SHOP_ID`), `shop_alias_id`, `extra_mask_terms`
   (`REVIEWER_MASK_TERMS`).
 - `simulation` — `simulate(card_item, step)`; imports no TikTok code.
+- `sandbox` (fast track P64, D73) — the live sandbox pin: `classify_pin` → `PinMode`
+  (`sandbox` only when the pin IS the sandbox credential's shop and holds no `production_read`
+  row and no `production_write_shops` row; else masked, writes off, `reviewer_pin_production_shop`
+  logged), `load_reviewer_write_resources` (`SandboxWriteClientFactory` only, only inside a
+  reviewer request, only for the pinned shop's own sandbox credential), `write_listing` (listing
+  edit and/or cover upload, then TikTok read-back; `ProductNotOwnedBySandboxSeller` on
+  12052048), `connection_info` (connection + synced at, no token), `claim_sync_slot` (one
+  `poll_shop` per 60 s per shop).
 - `gotrue` — `GoTrueAdmin` (service-role admin calls; CLI only).
 - `cli` — `python -m juli_backend.services.reviewer.cli create|renew|revoke|show`.
 - `enter_shop_read_scope` — re-export of `services/ops/view_as`.
 
 ## Invariants
 - Nothing here writes a tenant row; the only writes are `ops_reviewer_accounts` and
-  `ops_audit_log`.
+  `ops_audit_log`. The P64 live sandbox writes to TikTok (the sandbox shop only), never to a
+  Juli table.
 - No password is stored, logged or returned except the CLI's one-time stdout line.

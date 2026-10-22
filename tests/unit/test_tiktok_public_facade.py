@@ -87,6 +87,15 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         # depth 2 and so cannot deep-import `integrations.tiktok.merchant`.
         "READ_CAPABILITIES",
         "is_read_capability",
+        # P64 (D73.2a): the sandbox credential's own-shop read exception.
+        "is_own_shop_read_capability",
+        "is_own_shop_sandbox_read",
+        # P64 (D73): the partner reviewer's request scope.
+        "ReviewerProductionWriteRefused",
+        "mark_reviewer_session",
+        "refuse_reviewer_production_write",
+        "reviewer_session",
+        "reviewer_session_active",
         # Vendor → ingest mapping
         "analytics_snapshot_key",
         "expand_analytics_live_session",

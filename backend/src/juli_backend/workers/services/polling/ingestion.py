@@ -81,6 +81,7 @@ from juli_backend.integrations.tiktok import (
     ProductionReadClientFactory,
     ProductionReadResources,
     RateLimiter,
+    TikTokCapability,
 )
 from juli_backend.models.ingestion import (
     BOOTSTRAP_FAILED,
@@ -307,7 +308,7 @@ async def _scoped_shop_run(
             )
         client_factory = factory or ProductionReadClientFactory()
         build = create_resources or client_factory.create_resources
-        resources = build(_factory_config(config, credential))
+        resources = build(_factory_config(config, credential, shop_id=shop_id))
         shop = await session.get(Shop, shop_id)
         if shop is None or not shop.tiktok_shop_id:
             raise ValueError(
@@ -1115,8 +1116,38 @@ async def enumerate_pollable_shops(session: AsyncSession) -> list[PollableShop]:
     ``sandbox_write``); no merchant id is configured (P61-G, D71.6). A shop whose read row
     carries a merchant a ``sandbox_write`` row also carries is refused per shop by
     ``resolve_read_credential_for_shop``.
+
+    The one exception (fast track P64, D73.2a): the sandbox shop -- the shop of the sandbox
+    credential ``resolve_sandbox_write_credential`` would use, when that credential is not
+    refused -- is pollable through its OWN ``sandbox_write`` row. Only that shop is added; a
+    shop holding a ``sandbox_write`` row that is not the current sandbox credential is not.
     """
-    capabilities = [capability.value for capability in READ_CAPABILITIES]
+    shops = await _enumerate_pollable(
+        session, [capability.value for capability in READ_CAPABILITIES]
+    )
+    sandbox_shop_id = await _pollable_sandbox_shop_id(session)
+    if sandbox_shop_id is None or any(shop.shop_id == sandbox_shop_id for shop in shops):
+        return shops
+    sandbox = [
+        shop
+        for shop in await _enumerate_pollable(session, [TikTokCapability.SANDBOX_WRITE.value])
+        if shop.shop_id == sandbox_shop_id
+    ]
+    return sorted([*shops, *sandbox], key=lambda shop: str(shop.shop_id))
+
+
+async def _pollable_sandbox_shop_id(session: AsyncSession) -> uuid.UUID | None:
+    """The sandbox shop, when its credential is usable (P64, D73.2a); else None."""
+    from juli_backend.core.security import sandbox_write_owners
+
+    owners = await sandbox_write_owners(session)
+    if not owners or owners[0].collides or not owners[0].merchant_authorization_id:
+        return None
+    return owners[0].shop_id
+
+
+async def _enumerate_pollable(session: AsyncSession, capabilities: list[str]) -> list[PollableShop]:
+    """Active shops holding a usable credential of one of ``capabilities`` (074's predicate)."""
     if session.get_bind().dialect.name == "postgresql":
         from sqlalchemy import text
 
