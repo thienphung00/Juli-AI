@@ -333,7 +333,10 @@ async def test_b_sandbox_pin_is_unmasked_and_the_simulation_is_retired(session, 
     assert me.json()["mode"] == "sandbox" and me.json()["writes_enabled"] is True
     assert shop.status_code == 200, shop.text
     info = shop.json()
-    assert info["shop"]["tiktok_shop_id"] == "7600000000000000001"
+    # P64 (D73.3): the internal cipher / open id never reaches the card.
+    assert "tiktok_shop_id" not in info["shop"]
+    assert info["shop"]["tiktok_shop_code"] is None
+    assert "7600000000000000001" not in shop.text
     assert info["connection"]["capability"] == "sandbox_write"
     assert info["connection"]["scopes"] == ["seller.product.basic", "seller.order.info"]
     assert "sbx-token" not in shop.text and SANDBOX_MERCHANT not in shop.text

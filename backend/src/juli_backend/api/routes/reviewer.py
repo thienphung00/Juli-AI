@@ -165,10 +165,18 @@ async def _card_item(
 
 
 def _shop_body(shop: Shop) -> dict[str, Any]:
+    """The pinned shop for the connection card (P64, D73.3).
+
+    ``shops.tiktok_shop_id`` holds TikTok's internal cipher / open id, not a code a
+    person recognises, so it is never returned. ``tiktok_shop_code`` is TikTok's
+    seller-facing shop code (``GET /authorization/202309/shops`` -> ``code``); no
+    column caches it yet (a migration is needed), so it is ``None`` and the card
+    hides the row.
+    """
     return {
         "id": str(shop.id),
         "name": shop.shop_name,
-        "tiktok_shop_id": shop.tiktok_shop_id,
+        "tiktok_shop_code": None,
         "platform": getattr(shop, "platform", "tiktok"),
     }
 
