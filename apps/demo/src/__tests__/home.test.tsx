@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "../app/page";
 import { DemoStateProvider } from "../components/demo-state";
-import { HomeOverview } from "../components/home/home-overview";
+import { HomeOverview, headline } from "../components/home/home-overview";
 import { ENTRY_MODE_STORAGE_KEY } from "../lib/entry-mode";
 import { sampleEnvelope } from "../lib/phan-tich/sample-data";
 import type { ShopAnalysisEnvelope } from "../lib/shop-analysis/types";
@@ -156,6 +156,27 @@ describe("HomeOverview view", () => {
     expect(screen.getByTestId("metrics-source-orders")).toHaveTextContent(
       /^Tính từ đơn hàng TikTok \(Orders API\)/,
     );
+  });
+
+  it("claims no trend when the previous period had no GMV (P64 walkthrough)", () => {
+    const card = (prior: number | null, last: number | null, tone: "up" | "down" | "flat") => ({
+      key: "gmv" as const,
+      label: "GMV",
+      prior,
+      last,
+      kind: "money" as const,
+      changeText: "0%",
+      tone,
+    });
+    expect(headline([card(0, 904_000, "flat")], 30)).toBe("GMV 30 ngày: 904k ₫ — chưa có kỳ trước để so sánh");
+    expect(headline([card(null, 904_000, "up")], 30)).toBe("GMV 30 ngày: 904k ₫ — chưa có kỳ trước để so sánh");
+    expect(headline([card(100, 100, "flat")], 30)).toBe("GMV 30 ngày đi ngang so với kỳ trước");
+  });
+
+  it("an envelope-level orders flag shows the orders note too (P64 walkthrough)", () => {
+    const fromOrders = { ...SAMPLE, metrics_source: "orders" } as ShopAnalysisEnvelope;
+    render(<HomeOverview envelope={fromOrders} />);
+    expect(screen.getByTestId("metrics-source-orders")).toBeInTheDocument();
   });
 
   it("tints cells by direction — green up, red down", () => {

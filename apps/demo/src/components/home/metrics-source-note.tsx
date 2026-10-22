@@ -9,8 +9,14 @@ const ORDERS_SOURCE_COPY =
  * shop's real synced orders (`report.metrics_source === "orders"`, the sandbox
  * shop whose TikTok Analytics is all zeros). Renders nothing otherwise.
  */
+export function ordersSourced(envelope: ShopAnalysisEnvelope): boolean {
+  // The flag lives on the report (ADR-108 `report.json`); an envelope-level copy is honoured too.
+  const top = (envelope as { readonly metrics_source?: unknown }).metrics_source;
+  return envelope.report?.metrics_source === "orders" || top === "orders";
+}
+
 export function MetricsSourceNote({ envelope }: { readonly envelope: ShopAnalysisEnvelope }) {
-  if (envelope.report.metrics_source !== "orders") return null;
+  if (!ordersSourced(envelope)) return null;
   return (
     <p className="demo-notice" data-testid="metrics-source-orders" role="note">
       {ORDERS_SOURCE_COPY}
