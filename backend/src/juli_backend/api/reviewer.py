@@ -387,6 +387,35 @@ async def audit_reviewer_run_action(
     )
 
 
+async def audit_reviewer_confirmation(
+    session: AsyncSession, request: Request, run: Any, *, tool_call_id: str, decision: str
+) -> None:
+    """P64 (D73.3/D73.4): a reviewer's run confirmation, audited (no-op for a seller).
+
+    ``reviewer_sandbox_create_product`` for the sandbox ``create_product`` run, else
+    ``reviewer_sandbox_execute``.
+    """
+    from juli_backend.services.agent import playbooks
+
+    action = (
+        audit.ACTION_REVIEWER_SANDBOX_CREATE_PRODUCT
+        if run.workflow_key == playbooks.CREATE_PRODUCT_WORKFLOW_KEY
+        else audit.ACTION_REVIEWER_SANDBOX_EXECUTE
+    )
+    await audit_reviewer_run_action(
+        session,
+        request,
+        action,
+        shop_id=run.shop_id,
+        after={
+            "run_id": str(run.id),
+            "tool_call_id": tool_call_id,
+            "decision": decision,
+            "workflow_key": run.workflow_key,
+        },
+    )
+
+
 # -- response mask ------------------------------------------------------------------------
 
 
@@ -469,6 +498,7 @@ def install(app: FastAPI) -> None:
 __all__ = [
     "ALLOWED_ENDPOINTS",
     "SANDBOX_RUN_ENDPOINTS",
+    "audit_reviewer_confirmation",
     "audit_reviewer_run_action",
     "endpoint_key",
     "STATE_KEY",

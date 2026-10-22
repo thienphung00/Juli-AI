@@ -442,11 +442,9 @@ async def list_demo_decisions(
     try:
         if sandbox_reviewer:
             # P64 (D73.3): the sandbox reviewer's one "Tạo sản phẩm" card (a real row).
-            from juli_backend.services.reviewer.create_product_card import (
-                ensure_create_product_card,
-            )
+            from juli_backend.services import reviewer as reviewer_service
 
-            await ensure_create_product_card(session, shop_id)
+            await reviewer_service.ensure_create_product_card(session, shop_id)
         cards = await list_surfaced_decisions(
             session, shop_id, include_reviewer_cards=sandbox_reviewer
         )

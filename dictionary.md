@@ -1041,6 +1041,21 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - _Avoid_: Conclude Without Changes
 - Definition: `ToolSpec.seller_rationale_vi` for the `conclude_without_changes` terminal tool (issue #1904, W6-FIX) -- this tool is READ/AUTO and never reaches the option picker today, but every registered `ToolSpec` carries one so a future policy change cannot re-open the English-leak defect by omission.
 
+**`run.option_rationale.get_category_candidates`**
+- EN: Read the source product and the TikTok categories that fit it.
+- VI: Đọc sản phẩm gốc và danh mục TikTok phù hợp.
+- Definition: `ToolSpec.seller_rationale_vi` for the `get_category_candidates` tool (fast track P64, D73.3 -- the sandbox-only "Tạo sản phẩm" run).
+
+**`run.option_rationale.check_listing_requirements`**
+- EN: Check the chosen category's listing requirements.
+- VI: Kiểm tra điều kiện đăng bán của danh mục đã chọn.
+- Definition: `ToolSpec.seller_rationale_vi` for the `check_listing_requirements` tool (fast track P64, D73.3 -- the sandbox-only "Tạo sản phẩm" run).
+
+**`run.option_rationale.create_product`**
+- EN: Create a new product on TikTok with the title, description and category Juli proposes.
+- VI: Tạo sản phẩm mới trên TikTok với tiêu đề, mô tả và danh mục Juli đề xuất.
+- Definition: `ToolSpec.seller_rationale_vi` for the `create_product` tool (fast track P64, D73.3 -- the sandbox-only "Tạo sản phẩm" run).
+
 **`agent.narration.extension_grant`**
 - EN: Continuing past the standard iteration limit: granting [extension_iterations] more iteration(s) (extension [granted] of [max]).
 - VI: Đã đạt giới hạn số lượt thực hiện tiêu chuẩn, Juli gia hạn thêm [extension_iterations] lượt để hoàn tất công việc (lần gia hạn [granted]/[max]).

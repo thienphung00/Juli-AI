@@ -55,6 +55,7 @@ from juli_backend.services.agent.tools import (
     ToolRegistry,
     ToolSpec,
 )
+from juli_backend.services.agent.tools.catalog_create import CreateProductInput
 from juli_backend.services.agent.tools.product_write import (
     UpdateProductListingInput,
     UpdateProductPriceInput,
@@ -116,6 +117,13 @@ class _FakeProductsResource:
         self.update_prices_calls: list[tuple[str, dict]] = []
         self.edit_calls: list[tuple[str, dict]] = []
 
+    def get_details(self, product_id: str) -> dict:
+        return {"id": product_id, "title": "Test Product"}
+
+    def get_categories(self) -> dict:
+        # P64 (D73.3): no candidate -> create_product refuses before any write.
+        return {"categories": []}
+
     def update_prices(self, *, product_id: str, body: dict) -> dict:
         self.update_prices_calls.append((product_id, body))
         return {}
@@ -146,6 +154,15 @@ def _minimal_params_for_confirm_write(tool_name: str) -> BaseModel:
     if tool_name == "update_product_listing":
         return UpdateProductListingInput.model_validate(
             {"title": "New SEO Title", "description": "New description copy"}
+        )
+    if tool_name == "create_product":
+        return CreateProductInput.model_validate(
+            {
+                "category_id": "605254",
+                "title": "Combo 2 bình giữ nhiệt",
+                "description": "Hai bình giữ nhiệt inox.",
+                "reason_vi": "Cùng danh mục.",
+            }
         )
     raise AssertionError(
         f"No minimal params defined for CONFIRM write tool {tool_name!r} — extend "
