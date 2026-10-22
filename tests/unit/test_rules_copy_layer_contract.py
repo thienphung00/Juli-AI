@@ -213,13 +213,13 @@ class TestAdsKpiLinkedCopyContract:
             (
                 "ctr",
                 {"analytics_weighted_product_ctr": 0.012},
-                "CTR 1.2%",
+                "CTR 1,2%",
                 "create_activity_7a",
             ),
             (
                 "ctr",
                 {"analytics_weighted_product_ctr": 0.035},
-                "CTR 3.5%",
+                "CTR 3,5%",
                 "create_activity_7a",
             ),
             (
@@ -229,7 +229,7 @@ class TestAdsKpiLinkedCopyContract:
                     "analytics_spend_denominator": 1_000_000.0,
                     "analytics_revenue_denominator": 1_500_000.0,
                 },
-                "ROAS 1.5x",
+                "ROAS 1,5 lần",
                 "create_activity_7a",
             ),
             (
@@ -239,7 +239,7 @@ class TestAdsKpiLinkedCopyContract:
                     "analytics_spend_denominator": 1_000_000.0,
                     "analytics_revenue_denominator": 3_000_000.0,
                 },
-                "ROAS 3.0x",
+                "ROAS 3,0 lần",
                 "create_activity_7a",
             ),
             (
@@ -249,7 +249,7 @@ class TestAdsKpiLinkedCopyContract:
                     "analytics_spend_denominator": 6_000_000.0,
                     "unique_buyers_30d": 10,
                 },
-                "CAC 600,000",
+                "Chi phí mỗi khách 600.000 ₫",
                 "delete_activity_7b",
             ),
             (
@@ -259,7 +259,7 @@ class TestAdsKpiLinkedCopyContract:
                     "analytics_spend_denominator": 2_000_000.0,
                     "unique_buyers_30d": 10,
                 },
-                "CAC 200,000",
+                "Chi phí mỗi khách 200.000 ₫",
                 "delete_activity_7b",
             ),
         ],

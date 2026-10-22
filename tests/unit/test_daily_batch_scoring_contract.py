@@ -235,7 +235,18 @@ class TestVisualLayerAdvisorySignals:
             "performance deteriorating · investigate fulfillment",
         )
         assert line.count("·") == 2
-        assert "risk:" in line
+        # P64 (D73.3): seller-facing "Lý do" -- Vietnamese label, no internal word.
+        assert "Rủi ro:" in line
+        assert "risk:" not in line
+
+    def test_one_line_vietnamese_labels_never_leak_internal_words(self):
+        opportunity = format_advisory_one_line("CTR 3,5%", "opportunity", "đẩy mạnh")
+        unavailable = format_advisory_one_line("Không có dữ liệu", "unavailable", "Chờ đồng bộ")
+        assert opportunity == "CTR 3,5% · Cơ hội: đẩy mạnh"
+        assert unavailable == "Không có dữ liệu · Chờ đồng bộ"
+        for line in (opportunity, unavailable):
+            for word in ("opportunity", "unavailable", "risk", "proxy", "unknown"):
+                assert word not in line
 
     def test_compute_scoring_signals_covers_all_visual_layer_kpis(self):
         snapshot = FeatureAggregateSnapshot(
@@ -303,7 +314,7 @@ class TestAdsKpiSignals:
         ctr = signals.kpis["ctr"]
         assert ctr.signal_type in {"risk", "opportunity"}
         assert ctr.technique == "rules_proxy"
-        assert "2.7%" in ctr.change_text
+        assert "2,7%" in ctr.change_text
 
     def test_ctr_unavailable_when_analytics_product_ctr_missing(self):
         snapshot = _snapshot_with_computed_kpis(analytics_weighted_product_ctr=None)

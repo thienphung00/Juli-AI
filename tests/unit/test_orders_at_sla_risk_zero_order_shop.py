@@ -205,7 +205,7 @@ async def test_shop_with_orders_past_sla_still_mints_its_process_order_card(
     signal = result.signals.kpis["orders_at_sla_risk"]
     assert signal.signal_type == "risk"
     assert signal.severity == "warning"
-    assert "2 đơn at SLA risk" in signal.change_text
+    assert "2 đơn sắp trễ hạn giao" in signal.change_text
 
     recommendation = next(
         item
