@@ -2912,3 +2912,26 @@ reconcile --write` re-derived the no-assert corpus figure.
   postgresql+asyncpg://...`; the agent path never issues one. Seller approves the card -> the resume consumes it. A
   "Hoan tac" needs its own. (4) Check `production_write_audit` (allowed row), `run_write_values`, `workflow_runs.write_mode='live'`.
   Off: delete the shop row or kill switch. Operate deferred 101 like 074 when wanted.
+
+## 2026-10-22 — agent (Claude Opus) — P61-F merged with optimize-product 22b9ddb4 (merged-ready on b700317f)
+
+- Merge a41258a6: origin/fasttrack/optimize-product (22b9ddb4: P64 #2151 + the corpus/inventory re-derive) into
+  `fasttrack/p61-f-agent-prod-write`. Conflicts: `fasttrack/LOG.md` (kept both sides, P64 entry then the P61-F entry);
+  `eval/quality_detectors.py` (took optimize-product's side, then re-derived). PROGRESS/DEBT merged cleanly.
+- Re-derive b700317f on the combined tree: `python -m eval.quality_detectors reconcile --write` -> functions
+  7153 -> 7182, modules 688 -> 690; `reconciliation_layers` unchanged 509/131/116/116/53/49 (zero-assertion 49).
+  Surface inventory regenerated with `generate_surface_inventory()`: byte-identical, no change.
+- Migrations: `versions/` head 100 (`100_sandbox_collision_xshop`); 101 stays in `deferred/`.
+- Verification (Python juli/.venv, PYTHONPATH=worktree:backend/src, no xdist): ruff + format clean (33 files); mypy
+  clean on the 6 touched source modules; `bandit -ll` on migrations 0 medium/high. `pnpm install` done. Full
+  `tests/unit -m "not live"`: 8001 passed, 245 skipped, 2 xfailed, 1 failed -- load-flaky
+  `test_action_card_refresh_cooldown.py::test_slow_backing_store_does_not_stall_the_event_loop` (0.6 s timeout),
+  3/3 green alone. Homebrew PG16 :55461 (UTC, roles script, disposable): two-shop P61-F 5 + reviewer Postgres 5 +
+  `test_reviewer_sandbox_live.py` 17 + `test_p61f_agent_production_write.py` 34 = 61 passed, 0 skipped (incl.
+  `test_a_partner_reviewer_request_is_never_routed_live`). `check.sh --since origin/fasttrack/optimize-product` on a
+  fresh database: migrations PASS (at 100), isolation 12 passed, gitleaks, ruff, pytest 29 files 642 passed -> OK.
+  (A first check.sh run on the already-migrated test DB failed the privilege check, because the roles script re-seeded
+  grants onto existing tables. It was a setup error: on a fresh DB it passes.) Cluster removed.
+- D73 untouched: `READ_CAPABILITIES` = production_read + seller_connect; `own_shop_sandbox_read` fallback intact; no
+  diff vs optimize-product in `core/` or `integrations/`.
+- Next: lead fast-forwards optimize-product to this head, pushes, pings P64.
