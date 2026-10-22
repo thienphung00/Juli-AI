@@ -523,10 +523,13 @@ def test_migration_091_is_ops_only_and_chained():
     # The deferred contract step must stay the chain's tail (its docstring): it is
     # re-parented onto whatever `versions/` head is current, so read that head from the
     # tree rather than pinning a revision every new migration would break (P53, D62).
+    # P61-F: the deferred chain is versions head -> 101 (data step) -> 074 (the tail).
     head = _versions_head()
-    assert f'down_revision: str | None = "{head}"' in DEFERRED.read_text("utf-8"), (
-        f"deferred/074 must revise the current versions/ head {head!r}"
+    backfill = DEFERRED.parent / "101_write_mode_backfill.py"
+    assert f'down_revision: str | None = "{head}"' in backfill.read_text("utf-8"), (
+        f"deferred/101 must revise the current versions/ head {head!r}"
     )
+    assert 'down_revision: str | None = "101_write_mode_backfill"' in DEFERRED.read_text("utf-8")
 
 
 def _versions_head() -> str:

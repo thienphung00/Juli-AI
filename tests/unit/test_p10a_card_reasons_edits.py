@@ -493,7 +493,7 @@ async def _finished_run(session, shop):
 
 
 def _live_title(title: str):
-    async def _read(session, shop_id, tiktok_product_id):
+    async def _read(session, shop_id, tiktok_product_id, write_mode=None):
         return {"title": title, "description": "", "main_images": []}
 
     return _read
