@@ -600,11 +600,21 @@ def handle_create_product(
             )
         )
     except TikTokAPIError as exc:
-        logger.warning("catalog_create_create_failed", extra={"tiktok_code": exc.code})
+        # TikTok's own message is the only way to see which field it refused; it goes in
+        # the log line itself (the journal drops ``extra``) and in the run summary.
+        reason = " ".join(str(exc.message or "").split())[:300]
+        logger.warning(
+            "catalog_create_create_failed code=%s request_id=%s message=%s",
+            exc.code,
+            exc.request_id,
+            reason,
+            extra={"tiktok_code": exc.code},
+        )
+        detail = f": {reason}" if reason else ""
         return CreateProductOutput(
             ok=False,
             error_code=ERROR_TIKTOK,
-            summary_vi=f"TikTok từ chối tạo sản phẩm (mã lỗi {exc.code})",
+            summary_vi=f"TikTok từ chối tạo sản phẩm (mã lỗi {exc.code}){detail}",
         )
     product_id = str(created.get("product_id") or "")
     if not product_id:
