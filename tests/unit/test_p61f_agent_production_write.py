@@ -353,6 +353,25 @@ async def test_the_authorization_must_be_for_this_tool_this_product_and_this_sho
     assert transport.calls == []
 
 
+async def test_a_partner_reviewer_request_is_never_routed_live(
+    session, shops, sandbox, transport, monkeypatch, tmp_path
+):
+    """D73 Q6: the resolver refuses a reviewer request before any authorization lookup;
+    the resume leg reads that as a refusal and stays on the sandbox."""
+    _arm(monkeypatch, tmp_path)
+    monkeypatch.setattr("juli_backend.integrations.tiktok.reviewer_session_active", lambda: True)
+    shop_b, product_b = shops["b"]
+    await _enable(session, shop_b.id)
+    authorization = await _authorize(session, shop_b.id, PRODUCT_B)
+    run = await _run(session, shop_b, product_b)
+
+    leg = await _leg(session, shop_b, product_b, run)
+
+    assert not leg.live and leg.refusal == PreconditionName.REVIEWER_SESSION.value
+    assert not await _consumed(session, authorization)
+    assert transport.calls == []
+
+
 async def test_a_price_confirmation_is_refused_by_name_before_an_authorization_is_spent(
     session, shops, sandbox, transport, monkeypatch, tmp_path
 ):
