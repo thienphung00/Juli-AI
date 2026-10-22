@@ -1127,12 +1127,17 @@ async def rescore_shop_cards(
 
 #: D29: the funnel stage of a pre-D29 card -> the metric it targeted.
 _STAGE_METRIC: dict[str, str] = {"card": "ctr", "page": "ctor", "basket": "aov"}
+_ORDERS_CARD_METRIC = "aov"
 #: An approved / executed card holds its product's metric through its
 #: measurement (approve → write → day 14), bounded so a stuck run never blocks forever.
 _IN_FLIGHT_DAYS = 21
 
 
 def proposal_metric(proposal: CardProposal) -> str:
+    if proposal.listing_proposal is not None:
+        # P64 (D73.3): an orders-based sandbox card claims only its real AOV, whatever
+        # listing lever it carries -- so its title and description cards share a metric.
+        return _ORDERS_CARD_METRIC
     return proposal.target_metric or _STAGE_METRIC.get(proposal.stage.value, "ctor")
 
 
@@ -1147,6 +1152,8 @@ def card_metric(card: ActionCard) -> str | None:
     metric = payload.get("target_metric")
     if isinstance(metric, str) and metric:
         return metric
+    if _orders_quick_card(card):
+        return _ORDERS_CARD_METRIC
     diagnosis = payload.get("diagnosis")
     stage = diagnosis.get("stage") if isinstance(diagnosis, dict) else None
     code = stage.get("code") if isinstance(stage, dict) else None

@@ -115,8 +115,19 @@ def _leaf_category(detail: Mapping[str, Any]) -> str:
 
 
 def _brand(detail: Mapping[str, Any]) -> str:
+    """The listing's brand -- only when its own title already names it (D73.5).
+
+    The shop's built-in listing rule (``shop_rules.SOURCE_NAMES_RULE_VI``): no brand,
+    manufacturer or shop name the source title does not carry. A brand the title lacks
+    (or a "No brand" placeholder) is never written into a proposal.
+    """
+    from juli_backend.services.agent.tools.listing_rules import source_terms_not_in
+
     brand = detail.get("brand")
-    return _clean(str(brand.get("name") or "")) if isinstance(brand, Mapping) else ""
+    name = _clean(str(brand.get("name") or "")) if isinstance(brand, Mapping) else ""
+    if not name or name in source_terms_not_in(detail, str(detail.get("title") or "")):
+        return ""
+    return name
 
 
 def _variants(detail: Mapping[str, Any], limit: int = 4) -> list[str]:
@@ -204,11 +215,14 @@ def orders_proposal(
     detail: Mapping[str, Any],
     tiktok_evidence: list[Evidence],
     config: StageDiagnosisConfig,
+    *,
+    levers: tuple[str, ...] = ("title", "description"),
 ) -> CardProposal | None:
     """A title or description card for a best-selling product, or ``None``.
 
     The lever needs a reason on the listing itself: a TikTok diagnosis code first,
-    else Juli's reading of the listing (local evidence, named as Juli's).
+    else Juli's reading of the listing (local evidence, named as Juli's). ``levers``
+    narrows the choice (P64: the description when the title's chain is taken).
     """
     signals = listing_signals_from_product(dict(detail), config)
     if signals.excluded_reason:
@@ -221,9 +235,9 @@ def orders_proposal(
     desc_evidence = [e for e in evidence if is_description_code(e.code)]
     before = str(detail.get("title") or "")
     choice: tuple[Angle, Branch, str, list[Evidence], str] | None = None
-    if title_evidence and (after := propose_title(detail)):
+    if "title" in levers and title_evidence and (after := propose_title(detail)):
         choice = (Angle.TIEU_DE, Branch.CARD, "title", title_evidence, after)
-    elif desc_evidence and (after := propose_description(detail)):
+    elif "description" in levers and desc_evidence and (after := propose_description(detail)):
         before = str(detail.get("description") or "")
         choice = (Angle.MO_TA, Branch.PAGE, "description", desc_evidence, after)
     if choice is None:
