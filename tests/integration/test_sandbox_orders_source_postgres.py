@@ -204,4 +204,5 @@ async def test_3_the_quick_scan_writes_the_orders_title_card(shops, monkeypatch)
         ).scalar_one()
     diagnosis = json.loads(payload)["diagnosis"]
     assert diagnosis["quick_scan"]["source"] == "orders"
-    assert diagnosis["listing_proposal"]["after"] == "Áo thun nữ - JuliWear - Trắng, Đen"
+    # D73.5: the brand ("JuliWear") is not in the source title, so the proposal does not add it.
+    assert diagnosis["listing_proposal"]["after"] == "Áo thun nữ - Trắng, Đen"
