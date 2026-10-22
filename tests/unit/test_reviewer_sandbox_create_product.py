@@ -238,6 +238,8 @@ def test_create_reports_prerequisites_and_tiktok_errors_honestly():
     failed = cc.handle_create_product(_sandbox(products), CONTEXT, _create())
     assert failed.ok is False and failed.error_code == "tiktok_error"
     assert "12019009" in failed.summary_vi
+    # TikTok's own reason is kept, so the refused field is visible to the reviewer and in the log.
+    assert "rejected" in failed.summary_vi
 
 
 def test_create_refuses_production_write_resources_before_any_request():
