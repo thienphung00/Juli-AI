@@ -123,10 +123,11 @@ export function SignedInQuyetDinh({
   if (reviewer && isSandboxReviewer(reviewer)) {
     // P64 (D73.4): on Juli's live TikTok sandbox shop the partner account runs the
     // seller's own flow — Duyệt starts the agent run, the run streams over SSE in
-    // "Đang thực hiện" and waits for the same confirmation. Every other write
-    // (rules, revert, Seller Center) stays read-only; the API refuses them anyway.
+    // "Đang thực hiện" and waits for the same confirmation; the shop's rules ("Đặt
+    // ngưỡng", "Sửa quy tắc") save as a seller's. Every other write (revert, Seller
+    // Center) stays read-only; the API refuses them anyway.
     return (
-      <SellerViewProvider readOnly readOnlyTitle={REVIEWER_SANDBOX_READ_ONLY_TITLE} runActions>
+      <SellerViewProvider readOnly readOnlyTitle={REVIEWER_SANDBOX_READ_ONLY_TITLE} rulesActions runActions>
         <QuyetDinhView
           cardsRefresh={cardsRefresh}
           clients={clients}

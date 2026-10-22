@@ -20,7 +20,7 @@ import { vnDate } from "../../lib/quyet-dinh/timeline";
 import { bandDefault, type RuleKey, type RuleValueItem, type SetBy, type ShopRules } from "../../lib/quyet-dinh/types";
 import { REVIEWER_SIMULATED_SETTINGS_NOTE } from "../../lib/reviewer/copy";
 import { SimulatedLabel } from "../app-shell/simulated-label";
-import { useWriteControl } from "../seller-view-context";
+import { useRulesControl } from "../seller-view-context";
 
 /**
  * The rules editor (ADR-109 d.12, operator phase). Every rule of the shop's
@@ -163,7 +163,7 @@ function NumberRule({
   /** P23 (D29.9): the value an unset rule starts from (editable), e.g. a band-based default. */
   readonly prefill?: string;
 }) {
-  const write = useWriteControl();
+  const write = useRulesControl();
   const inputId = useId();
   const initial = item?.set_by && item.value !== null && item.value !== undefined ? String(item.value) : (prefill ?? "");
   const [draft, setDraft] = useState(initial);
@@ -235,7 +235,7 @@ function ScopedRule({
   readonly onDelete: RulesEditorProps["onDelete"];
   readonly help?: string;
 }) {
-  const write = useWriteControl();
+  const write = useRulesControl();
   const [scope, setScope] = useState("");
   const [value, setValue] = useState("");
   const { error, saving, save } = useRowSaver(ruleKey);
@@ -317,7 +317,7 @@ function ClearButton({
   readonly saving: boolean;
   readonly onClear: () => void;
 }) {
-  const write = useWriteControl();
+  const write = useRulesControl();
   if (!item?.set_by) return null;
   return (
     <button className="qd-rule__clear" onClick={onClear} type="button" {...write(saving)}>
@@ -327,7 +327,7 @@ function ClearButton({
 }
 
 function CampaignOptIn({ rules, setBy, onSave, onDelete }: FieldProps) {
-  const write = useWriteControl();
+  const write = useRulesControl();
   const item = rules.joins_platform_campaigns;
   const selectId = useId();
   const [draft, setDraft] = useState(item?.set_by ? (item.value === true ? "yes" : "no") : "");
@@ -386,7 +386,7 @@ function TextAreaRule({
   readonly onSave: RulesEditorProps["onSave"];
   readonly onDelete: RulesEditorProps["onDelete"];
 }) {
-  const write = useWriteControl();
+  const write = useRulesControl();
   const areaId = useId();
   const [draft, setDraft] = useState(initial);
   const { error, saving, save } = useRowSaver(ruleKey);
@@ -425,7 +425,7 @@ const BANNED_TERMS_MAX = 50;
 
 /** D24.21 (5): the voice Juli's video / LIVE scripts follow ("Giọng văn", "Từ không được dùng"). */
 function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
-  const write = useWriteControl();
+  const write = useRulesControl();
   const tone = rules.content_tone;
   const banned = rules.banned_terms;
   const toneId = useId();
@@ -613,7 +613,7 @@ export function RulesEditor({
   offApiReadOnly = false,
   fixedSetBy,
 }: RulesEditorProps) {
-  const write = useWriteControl();
+  const write = useRulesControl();
   const [team, setTeam] = useState(false);
   const setBy: SetBy = fixedSetBy ?? (team ? "team" : "seller");
   const Heading = headingLevel === 2 ? "h2" : "h3";

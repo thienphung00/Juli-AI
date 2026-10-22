@@ -23,13 +23,14 @@ Fast track P64 (D73): a pin to Juli's own TikTok Shop SANDBOX shop is the "live
 sandbox" mode (``services/reviewer/sandbox.classify_pin``): no identity mask, and
 more allowlisted routes -- only there: ``/v1/reviewer/shop`` (connection + synced
 at), ``/v1/reviewer/shop/sync`` and (D73.4) the seller's own agent-run routes
-(:data:`SANDBOX_RUN_ENDPOINTS`): Duyệt starts the same agent run a seller's approve
-starts, streamed over the same SSE route; its writes reach TikTok only through the
-sandbox shop's ``SandboxWriteClientFactory`` (``services/agent/composition``). Each
-refuses (403 ``sandbox_only``) unless the pin is a writable sandbox shop; the
-simulation refuses (403 ``sandbox_live``) when it is. Every reviewer request is
-marked (``integrations.tiktok.mark_reviewer_session``) so the production write
-resolver and factory refuse it whatever route it reaches.
+(:data:`SANDBOX_RUN_ENDPOINTS`), plus the shop's rule writes ("Đặt ngưỡng" / "Sửa
+quy tắc", :data:`SANDBOX_RULE_ENDPOINTS`) on that shop's own Juli rows. Duyệt starts
+the same agent run a seller's approve starts, streamed over the same SSE route; its
+writes reach TikTok only through the sandbox shop's ``SandboxWriteClientFactory``
+(``services/agent/composition``). Each refuses (403 ``sandbox_only``) unless the pin
+is a writable sandbox shop; the simulation refuses (403 ``sandbox_live``) when it is.
+Every reviewer request is marked (``integrations.tiktok.mark_reviewer_session``) so
+the production write resolver and factory refuse it whatever route it reaches.
 """
 
 from __future__ import annotations
@@ -65,8 +66,8 @@ _R = "juli_backend.api.routes."
 #: P64 (D73.4): the seller's own agent-run routes, for a reviewer ONLY on a writable
 #: sandbox pin (``enter_reviewer_shop`` refuses them, 403 ``sandbox_only``, on any other
 #: pin). Duyệt starts the same run a seller's approve starts; the run streams over the
-#: same SSE route and waits for the same confirmation. Revert, Seller Center "applied"
-#: and the rules stay off the list (read-only).
+#: same SSE route and waits for the same confirmation. Revert and Seller Center "applied"
+#: stay off the list (read-only); the rules are :data:`SANDBOX_RULE_ENDPOINTS`.
 SANDBOX_RUN_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
     {
         ("POST", _R + "demo_execution:approve_demo_decision"),  # /v1/demo/decisions/{id}/approve
@@ -77,6 +78,19 @@ SANDBOX_RUN_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         ("POST", _R + "demo_run_changes:decline_run"),  # /v1/demo/runs/{run_id}/decline
     }
 )
+#: P64 (D73.4, integration): the seller's own rule writes -- "Đặt ngưỡng" (the stability
+#: bands) and "Sửa quy tắc" -- for a reviewer ONLY on a writable sandbox pin, exactly like
+#: :data:`SANDBOX_RUN_ENDPOINTS` (403 ``sandbox_only`` + refusal audit on any other pin). They
+#: write Juli's own ``shop_rules`` rows for the pinned sandbox shop (its tenant scope); nothing
+#: reaches TikTok. Without them a reviewer can never set the bands Duyệt waits for.
+SANDBOX_RULE_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("PUT", _R + "demo_rules:put_shop_rule"),  # /v1/demo/rules/{rule_key}
+        ("DELETE", _R + "demo_rules:delete_shop_rule"),  # /v1/demo/rules/{rule_key}
+    }
+)
+#: Every route a reviewer reaches only on a writable sandbox pin.
+SANDBOX_ONLY_ENDPOINTS: frozenset[tuple[str, str]] = SANDBOX_RUN_ENDPOINTS | SANDBOX_RULE_ENDPOINTS
 
 #: Contract §2. Keyed by the matched endpoint (``module:function``) and method:
 #: unambiguous whatever router prefix a route sits under (FastAPI ≥ 0.13x keeps
@@ -112,7 +126,7 @@ ALLOWED_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         (_GET, _R + "reviewer:reviewer_shop"),  # /v1/reviewer/shop
         ("POST", _R + "reviewer:reviewer_sync_shop"),  # /v1/reviewer/shop/sync
     }
-    | SANDBOX_RUN_ENDPOINTS
+    | SANDBOX_ONLY_ENDPOINTS
 )
 
 
@@ -143,7 +157,7 @@ class ReviewerContext:
     #: P64 (D73): what the pinned shop is, set when the shop is entered. None until
     #: then -- the mask stays on (fail closed).
     pin: PinMode | None = None
-    #: P64 (D73.4): the request is one of :data:`SANDBOX_RUN_ENDPOINTS` -- refused unless
+    #: P64 (D73.4): the request is one of :data:`SANDBOX_ONLY_ENDPOINTS` -- refused unless
     #: the pin is a writable sandbox shop.
     sandbox_only: bool = False
     #: The request's method and matched endpoint (the refusal audit names them).
@@ -228,7 +242,7 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
             extra={"platform": account.platform, "method": method, "endpoint": template},
         )
         raise deny("read_only")
-    if shop_id is None and (method, template) in SANDBOX_RUN_ENDPOINTS:
+    if shop_id is None and (method, template) in SANDBOX_ONLY_ENDPOINTS:
         # P64 (D73.4): no pin, no sandbox -- refused (and audited) before any shop lookup.
         await _audit_sandbox_refusal(
             session, account, shop_id=None, method=method, endpoint=template, path=request.url.path
@@ -260,7 +274,7 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
             alias_id=(
                 reviewer_service.config.shop_alias_id(shop_id) if shop_id is not None else None
             ),
-            sandbox_only=(method, template) in SANDBOX_RUN_ENDPOINTS,
+            sandbox_only=(method, template) in SANDBOX_ONLY_ENDPOINTS,
             method=method,
             endpoint=template,
         ),
@@ -497,6 +511,8 @@ def install(app: FastAPI) -> None:
 
 __all__ = [
     "ALLOWED_ENDPOINTS",
+    "SANDBOX_ONLY_ENDPOINTS",
+    "SANDBOX_RULE_ENDPOINTS",
     "SANDBOX_RUN_ENDPOINTS",
     "audit_reviewer_confirmation",
     "audit_reviewer_run_action",

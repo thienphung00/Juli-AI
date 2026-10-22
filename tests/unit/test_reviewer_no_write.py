@@ -97,6 +97,10 @@ EXPECTED_TEMPLATES: dict[tuple[str, str], str] = {
     ("POST", "/v1/demo/runs/{run_id}/cancel"): "agent_runs:cancel_run",
     ("POST", "/v1/demo/runs/{run_id}/photo"): "demo_run_flows:submit_run_photo",
     ("POST", "/v1/demo/runs/{run_id}/decline"): "demo_run_changes:decline_run",
+    # P64 (D73.4): "Đặt ngưỡng" / "Sửa quy tắc" -- sandbox pin only, like the run routes
+    # (``api/reviewer.py`` ``SANDBOX_RULE_ENDPOINTS``).
+    ("PUT", "/v1/demo/rules/{rule_key}"): "demo_rules:put_shop_rule",
+    ("DELETE", "/v1/demo/rules/{rule_key}"): "demo_rules:delete_shop_rule",
 }
 #: The live sandbox routes: on a non-sandbox pin (this module's world) each must refuse.
 SANDBOX_ROUTES = {
@@ -108,6 +112,7 @@ SANDBOX_ROUTES = {
     "/v1/demo/runs/{run_id}/cancel",
     "/v1/demo/runs/{run_id}/photo",
     "/v1/demo/runs/{run_id}/decline",
+    "/v1/demo/rules/{rule_key}",
 }
 
 
@@ -235,7 +240,11 @@ def test_allowlist_is_pinned_to_real_routes():
     }
     assert allowed == {(m, e) for (m, _), e in EXPECTED_TEMPLATES.items()}
     # Nothing but reads, the audit-only simulation and the P64 sandbox routes.
-    assert {m for m, _ in reviewer_gate.ALLOWED_ENDPOINTS} == {"GET", "POST"}
+    assert {m for m, _ in reviewer_gate.ALLOWED_ENDPOINTS} == {"GET", "POST", "PUT", "DELETE"}
+    assert sorted(e for m, e in reviewer_gate.ALLOWED_ENDPOINTS if m in ("PUT", "DELETE")) == [
+        "juli_backend.api.routes.demo_rules:delete_shop_rule",
+        "juli_backend.api.routes.demo_rules:put_shop_rule",
+    ]
     assert sorted(e for m, e in reviewer_gate.ALLOWED_ENDPOINTS if m == "POST") == [
         "juli_backend.api.routes.agent_runs:cancel_run",
         "juli_backend.api.routes.agent_runs:submit_confirmation_decision",
@@ -248,7 +257,8 @@ def test_allowlist_is_pinned_to_real_routes():
     # Every seller write a reviewer may reach is a sandbox-only run route.
     assert {
         (m, e) for m, e in reviewer_gate.ALLOWED_ENDPOINTS if not e.endswith(":simulate_decision")
-    } >= reviewer_gate.SANDBOX_RUN_ENDPOINTS
+    } >= reviewer_gate.SANDBOX_ONLY_ENDPOINTS
+    assert reviewer_gate.SANDBOX_RULE_ENDPOINTS <= reviewer_gate.SANDBOX_ONLY_ENDPOINTS
 
 
 @pytest.mark.parametrize("pinned", [True, False], ids=["fujiwa_pin", "sample_no_pin"])
@@ -315,7 +325,7 @@ async def test_every_route_as_reviewer_writes_nothing(
                             problems.append(
                                 f"{method} {route.path}: {response.status_code} (want 403)"
                             )
-                        if (method, endpoint) in reviewer_gate.SANDBOX_RUN_ENDPOINTS and (
+                        if (method, endpoint) in reviewer_gate.SANDBOX_ONLY_ENDPOINTS and (
                             method != "GET"
                         ):
                             # P64 (D73.4): a refused run route is audited like any write.

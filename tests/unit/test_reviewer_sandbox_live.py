@@ -49,6 +49,7 @@ from juli_backend.integrations.tiktok import client as tiktok_client
 from juli_backend.integrations.tiktok import factories as tiktok_factories
 from juli_backend.models.models import ActionCard, ProductionWriteShop, WorkflowRun
 from juli_backend.models.ops import OpsAuditLog
+from juli_backend.models.run_changes import ShopRule
 from juli_backend.repositories import TikTokCredentialRepo
 from juli_backend.services.reviewer import sandbox as reviewer_sandbox
 from juli_backend.services.reviewer.config import shop_alias_id
@@ -444,6 +445,119 @@ async def test_c_production_write_resolver_refuses_a_reviewer_request(session, w
                 app_key="k",
                 app_secret="s",
             )
+
+
+# -- rules: "Đặt ngưỡng" / "Sửa quy tắc" on the sandbox pin only (P64 integration) --------
+
+
+def _rule_writes(value: float = 12.5) -> list[tuple[str, str, Any]]:
+    """The seller's band write and its unset -- the two rule routes a reviewer may reach."""
+    return [
+        (
+            "PUT",
+            "/v1/demo/rules/stability_band",
+            {"scope_ref": "ctr", "value": value, "set_by": "seller"},
+        ),
+        ("DELETE", "/v1/demo/rules/stability_band?scope_ref=ctr", None),
+    ]
+
+
+async def _shop_rules(session, shop_id) -> list[ShopRule]:
+    session.expire_all()
+    return list(
+        (await session.execute(select(ShopRule).where(ShopRule.shop_id == shop_id))).scalars()
+    )
+
+
+async def test_rules_reviewer_on_the_sandbox_pin_sets_bands_and_rules(session, world):
+    sandbox, _, _, reviewer_id = world
+    shop_id = sandbox.shop.id
+    async with client_for(build_app(session)) as client:
+        band = await client.put(
+            "/v1/demo/rules/stability_band",
+            json={"scope_ref": "ctr", "value": 12.5, "set_by": "seller"},
+            headers=_headers(reviewer_id, shop_id),
+        )
+        assert band.status_code == 200, band.text
+        cards = await client.put(
+            "/v1/demo/rules/max_open_cards",
+            json={"value": 6, "set_by": "seller"},
+            headers=_headers(reviewer_id, shop_id),
+        )
+        assert cards.status_code == 200, cards.text
+        read = await client.get("/v1/demo/rules", headers=_headers(reviewer_id, shop_id))
+        assert read.status_code == 200
+        assert read.json()["data"]["stability_band"]["ctr"]["set_by"] == "seller"
+        rows = {(r.rule_key, r.scope_ref) for r in await _shop_rules(session, shop_id)}
+        assert ("stability_band", "ctr") in rows
+        cleared = await client.delete(
+            "/v1/demo/rules/stability_band?scope_ref=ctr",
+            headers=_headers(reviewer_id, shop_id),
+        )
+        assert cleared.status_code == 204, cleared.text
+    rows = {(r.rule_key, r.scope_ref) for r in await _shop_rules(session, shop_id)}
+    assert ("stability_band", "ctr") not in rows
+
+
+@pytest.mark.parametrize("pin", ["fujiwa", "seller", "production_sandbox"])
+async def test_rules_reviewer_on_any_other_pin_is_403_sandbox_only_and_audited(
+    session, world, monkeypatch, pin
+):
+    sandbox, fujiwa, seller, reviewer_id = world
+    target = {"fujiwa": fujiwa, "seller": seller, "production_sandbox": sandbox}[pin]
+    target_shop_id = target.shop.id
+    if pin == "production_sandbox":
+        # The sandbox shop turned production: writes disabled, masked again.
+        session.add(ProductionWriteShop(shop_id=sandbox.shop.id, enabled_by="owner"))
+        await session.commit()
+    monkeypatch.setenv("REVIEWER_SHOP_ID", str(target_shop_id))
+    alias = shop_alias_id(target_shop_id)
+    async with client_for(build_app(session)) as client:
+        for method, path, body in _rule_writes():
+            response = await client.request(
+                method, path, json=body, headers=_headers(reviewer_id, alias)
+            )
+            assert response.status_code == 403, (method, response.text)
+            assert response.headers["x-juli-reviewer-denied"] == "sandbox_only"
+    assert await _shop_rules(session, target_shop_id) == []
+    session.expire_all()
+    refusals = [
+        row.after
+        for row in (await session.execute(select(OpsAuditLog))).scalars()
+        if row.action == "reviewer_write_refused"
+    ]
+    assert sorted(r["endpoint"].rsplit(":", 1)[1] for r in refusals) == [
+        "delete_shop_rule",
+        "put_shop_rule",
+    ]
+    assert {r["reason"] for r in refusals} == {"sandbox_only"}
+
+
+async def test_rules_reviewer_with_no_pin_is_403_sandbox_only(session, world, monkeypatch):
+    _, _, _, reviewer_id = world
+    monkeypatch.delenv("REVIEWER_SHOP_ID")
+    async with client_for(build_app(session)) as client:
+        for method, path, body in _rule_writes():
+            response = await client.request(method, path, json=body, headers=_headers(reviewer_id))
+            assert response.status_code == 403
+            assert response.headers["x-juli-reviewer-denied"] == "sandbox_only"
+
+
+async def test_rules_a_seller_still_sets_their_own_bands(session, world):
+    sandbox, _, seller, _ = world
+    owner, seller_shop_id, sandbox_shop_id = seller.owner.id, seller.shop.id, sandbox.shop.id
+    headers = _headers(owner, seller_shop_id, platform=None, email="o@gmail.com")
+    async with client_for(build_app(session)) as client:
+        band = await client.put(
+            "/v1/demo/rules/stability_band",
+            json={"scope_ref": "ctr", "value": 9, "set_by": "seller"},
+            headers=headers,
+        )
+        assert band.status_code == 200, band.text
+    assert [(r.rule_key, r.scope_ref) for r in await _shop_rules(session, seller_shop_id)] == [
+        ("stability_band", "ctr")
+    ]
+    assert await _shop_rules(session, sandbox_shop_id) == []
 
 
 # -- (d) ------------------------------------------------------------------------------------

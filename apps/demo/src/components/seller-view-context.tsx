@@ -34,6 +34,12 @@ export interface SellerViewMode {
    * work exactly as a seller's; every other write stays read-only.
    */
   readonly runActions: boolean;
+  /**
+   * P64 (D73.4): the same partner account — the shop's rules ("Đặt ngưỡng", "Sửa quy
+   * tắc") save exactly as a seller's (Juli's own rows for the sandbox shop; the API
+   * refuses them on any other pin).
+   */
+  readonly rulesActions: boolean;
   /** Maps a seller href (`/analytics?…`, `/decisions?…`, `/`) to where it lives in this mode. */
   readonly href: (sellerHref: string) => string;
 }
@@ -43,6 +49,7 @@ const SELLER_MODE: SellerViewMode = {
   readOnlyTitle: READ_ONLY_TITLE,
   simulateApprove: false,
   runActions: false,
+  rulesActions: false,
   href: (h) => h,
 };
 
@@ -54,6 +61,7 @@ export function SellerViewProvider({
   readOnlyTitle = READ_ONLY_TITLE,
   simulateApprove = false,
   runActions = false,
+  rulesActions = false,
   children,
 }: {
   readonly readOnly: boolean;
@@ -61,11 +69,12 @@ export function SellerViewProvider({
   readonly readOnlyTitle?: string;
   readonly simulateApprove?: boolean;
   readonly runActions?: boolean;
+  readonly rulesActions?: boolean;
   readonly children: ReactNode;
 }) {
   const value = useMemo<SellerViewMode>(
-    () => ({ readOnly, readOnlyTitle, simulateApprove, runActions, href: href ?? SELLER_MODE.href }),
-    [readOnly, readOnlyTitle, simulateApprove, runActions, href],
+    () => ({ readOnly, readOnlyTitle, simulateApprove, runActions, rulesActions, href: href ?? SELLER_MODE.href }),
+    [readOnly, readOnlyTitle, simulateApprove, runActions, rulesActions, href],
   );
   return <SellerViewContext.Provider value={value}>{children}</SellerViewContext.Provider>;
 }
@@ -134,4 +143,14 @@ export function useRunActions(): boolean {
 export function useRunControl(): (disabled?: boolean, title?: string) => WriteControlProps {
   const { readOnly, readOnlyTitle, runActions } = useContext(SellerViewContext);
   return (disabled, title) => writeControl(readOnly && !runActions, disabled, title, readOnlyTitle);
+}
+
+/**
+ * A rule control (the stability bands, "Sửa quy tắc", every input and save of the rules
+ * editor): like {@link useWriteControl}, except on the live sandbox (P64, D73.4), where
+ * the partner account sets the shop's rules exactly as a seller does.
+ */
+export function useRulesControl(): (disabled?: boolean, title?: string) => WriteControlProps {
+  const { readOnly, readOnlyTitle, rulesActions } = useContext(SellerViewContext);
+  return (disabled, title) => writeControl(readOnly && !rulesActions, disabled, title, readOnlyTitle);
 }

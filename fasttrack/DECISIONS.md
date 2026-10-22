@@ -1726,3 +1726,10 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      is a new `create_product` workflow + tool registered only for the sandbox shop. The
      synchronous P64 execute path leaves the UI. Owner confirmed (2026-10-22) every required secret
      (OPENAI / LLM / agent flags / TikTok app) is in `juli/api/production`.
+  4. **D73.4 integration (2026-10-22).** On the sandbox pin a run that wrote to the sandbox shop
+     is shown as what happened — "Đã ghi lên TikTok" (card, run header, queue) and "Đã ghi lên shop
+     sandbox TikTok của Juli" (result) — never "Đã chạy thử"; sellers keep P61-B's label. The
+     reviewer sets the stability bands and rules ("Đặt ngưỡng", "Sửa quy tắc") like a seller:
+     `PUT` / `DELETE /v1/demo/rules/{rule_key}` are sandbox-pin-only reviewer routes
+     (`SANDBOX_RULE_ENDPOINTS`, 403 `sandbox_only` + audit elsewhere); masked / sample reviewers
+     stay read-only.
