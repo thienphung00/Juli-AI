@@ -432,3 +432,61 @@ async def test_6_the_create_product_card_and_run_under_rls(app, world, monkeypat
     assert rows == 1
     assert run.workflow_key == "create_product" and run.status == "queued"
     reviewer_sandbox.forget_sync_slots()
+
+
+async def test_7_reviewer_sets_a_stability_band_on_the_sandbox_pin_under_rls(app, world):
+    """P64 (D73.4): "Đặt ngưỡng" writes the sandbox shop's own ``shop_rules`` row as juli_app."""
+    async with await _client(app) as client:
+        put = await client.put(
+            "/v1/demo/rules/stability_band",
+            json={"scope_ref": "ctr", "value": 7.5, "set_by": "seller"},
+            headers=_headers(world["reviewer"], world["sandbox"]),
+        )
+        read = await client.get(
+            "/v1/demo/rules", headers=_headers(world["reviewer"], world["sandbox"])
+        )
+    _assert_real_postgres_as_juli_app(app)
+    assert put.status_code == 200, put.text
+    assert read.status_code == 200, read.text
+    assert read.json()["data"]["stability_band"]["ctr"]["set_by"] == "seller"
+    with owner_sync_engine() as engine, engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT shop_id, rule_key, scope_ref, set_by_user_id FROM public.shop_rules "
+                "WHERE rule_key = 'stability_band' AND set_by_user_id = :u"
+            ),
+            {"u": world["reviewer"]},
+        ).all()
+    assert [(r.shop_id, r.scope_ref) for r in rows] == [(world["sandbox"], "ctr")]
+
+
+async def test_8_a_production_pin_refuses_the_reviewers_rule_write(app, world):
+    with owner_sync_engine() as engine, engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO public.production_write_shops (shop_id, enabled_by) VALUES (:s, 'o')"
+            ),
+            {"s": world["sandbox"]},
+        )
+    async with await _client(app) as client:
+        put = await client.put(
+            "/v1/demo/rules/stability_band",
+            json={"scope_ref": "ctr", "value": 7.5, "set_by": "seller"},
+            headers=_headers(world["reviewer"], reviewer_config.shop_alias_id(world["sandbox"])),
+        )
+    _assert_real_postgres_as_juli_app(app)
+    assert put.status_code == 403
+    assert put.headers["x-juli-reviewer-denied"] == "sandbox_only"
+    with owner_sync_engine() as engine, engine.connect() as conn:
+        written = conn.execute(
+            text("SELECT count(*) FROM public.shop_rules WHERE shop_id = :s"),
+            {"s": world["sandbox"]},
+        ).scalar_one()
+        refused = conn.execute(
+            text(
+                "SELECT count(*) FROM public.ops_audit_log "
+                "WHERE action = 'reviewer_write_refused' AND shop_id = :s"
+            ),
+            {"s": world["sandbox"]},
+        ).scalar_one()
+    assert written == 0 and refused == 1
