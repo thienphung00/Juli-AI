@@ -210,7 +210,7 @@ async def test_a_run_is_revertible_only_from_its_own_shop(owner_engine, two_tena
     tenant_a, tenant_b = two_tenants
     _product_a, run_a = finished_runs[tenant_a.shop_id]
 
-    async def _live(session, shop_id, tiktok_product_id):
+    async def _live(session, shop_id, tiktok_product_id, write_mode=None):
         return {"title": "Tiêu đề Juli", "description": None, "main_images": []}
 
     async with committing_juli_app_session(tenant_b.shop_id) as session:

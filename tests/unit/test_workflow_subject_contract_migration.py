@@ -191,7 +191,10 @@ def test_alembic_head_descends_from_the_contract_step():
 #: step below -- which is the "a future contract step recreates `deferred/` the
 #: moment it needs it" case that decision anticipated, and which that test's own
 #: failure message asks to be named here.
-EXPECTED_DEFERRED_FILES = {"074_users_placeholder_phone_cleanup.py"}
+EXPECTED_DEFERRED_FILES = {
+    "074_users_placeholder_phone_cleanup.py",
+    "101_write_mode_backfill.py",  # P61-F: the write_mode data step, chained under 074
+}
 
 
 def test_deferred_directory_holds_only_the_contract_steps_named_here():

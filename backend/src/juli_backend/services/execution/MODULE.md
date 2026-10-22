@@ -44,6 +44,11 @@ sandbox write guard contract, idempotency key threading, and error taxonomy.
 - `listing_handlers.py` (`CREATE_HERO_PRODUCT_TOOL`, `OPTIMIZE_PRODUCT_TOOL`): the outcome
   carries write_mode (simulated on the sandbox, live after every gate passed); the
   authorization is matched on the tool's own name, never the payload's mutation_kind
+- `record_refused_attempt(...)` + `PreconditionName.STAGED_IMAGE_ON_SANDBOX` /
+  `REVERT_OF_SIMULATED_RUN` (fast track P61-F): the audit row of a production write the
+  agent run's resume leg refused before the resolver ran (authorization_id NULL, the named
+  reason); the agent path's use of `resolve_write_capability` is
+  `services/agent/composition.resolve_agent_write_leg`
 - `build_sandbox_write_resources(config)` — lower-level guard entry when config is already resolved
 - `is_noop_tool(tool_name)` — smoke-test tools that skip TikTok write guards
 - `screen_and_reencode_image(image_bytes, filename)` — `file_screening.py`'s

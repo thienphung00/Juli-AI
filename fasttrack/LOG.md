@@ -2905,3 +2905,54 @@ reconcile --write` re-derived the no-assert corpus figure.
   `token_expires_at <= now + 24h` (`REFRESH_BUFFER`) and `status <> 'needs_reauth'`; updated_at
   unchanged since 10-16 is expected while the token is >24h from expiry.
 
+## 2026-10-22 — agent (Claude Sonnet) — P61-F agent-run production leg (branch `fasttrack/p61-f-agent-prod-write`, not merged)
+
+- Resume leg of an APPROVED pending confirmation resolves the ADR-085 capability for exactly that mutation
+  (`composition.resolve_agent_write_leg`: run's shop + product row + pending tool name, never the payload), spends the
+  one-time authorization only when flag + the shop's `production_write_shops` row + every gate pass (committed before the
+  vendor call), else sandbox/simulated as before. `workflow_runs.write_mode`: `live` only for a leg that took its write live
+  (`_LiveLegRunner` settles against the ledger: succeeded/in_flight stay live); a production-enabled shop stays NULL until
+  approval. Refused by name before any authorization: price (D13), listing edit attaching a sandbox-staged image
+  (`staged_image_on_sandbox`; chosen over re-upload: simpler, no second vendor write outside the ledger), revert of a
+  non-live run. Revert reads the listing in the reverted run's mode; revert of a live run never falls back to the sandbox.
+- Migration 101 `101_write_mode_backfill` is a DEFERRED data step (`deferred/`, chain 100 -> 101 -> 074): the additive
+  gate refuses any UPDATE (data_moving), literal SQL notwithstanding. `versions/` head stays 100. Downgrade no-op.
+- Verification (Homebrew PG16 :55501, UTC): `test_p61f_agent_production_write.py` 34 passed; real-Postgres two-shop
+  `test_p61f_agent_production_write_two_shop.py` 5 passed 0 skipped (as `juli_app`, fake transport) + reviewer D73 tests
+  (unit 17, integration green); check.sh `--since fasttrack/optimize-product` all PASS (pytest 976 passed); full unit
+  `tests/unit -m "not live"`: 7996 passed, 245 skipped, 2 xfailed, 6 failed under heavy machine load: 2 timing tests,
+  shop_diagnosis lock, grants scan and test_quality pass alone; `surface_inventory` lists P64's reviewer routes (P64 PR #2150
+  regenerates it). mypy clean on touched modules; bandit -ll clean.
+- Owner steps to turn ONE shop live: (1) API+worker env `PRODUCTION_WRITE_ENABLED=true`, `PRODUCTION_WRITE_KILL_SWITCH`
+  unset/false (set true = instant stop), `RELEASE_SHA=<40-char deployed sha>` if the release dir is not a git checkout;
+  commit `docs/security/red-team-attestations/<sha>.json` (`outcome: pass`) ; worker must boot on the non-owner role so
+  check 7 records the RLS pass; restart worker. (2) Admin connection: `INSERT INTO production_write_shops (shop_id,
+  enabled_by, reason) VALUES ('<shop uuid>','<you>','first live shop');`. (3) Per mutation (single use, 24 h):
+  `python -m juli_backend.services.operations.production_write_authorizations_cli issue <shop_id> <tiktok_product_id>
+  update_product_listing --capability seller_connect --shop-cipher <cipher> --authorized-by <you> --db-url
+  postgresql+asyncpg://...`; the agent path never issues one. Seller approves the card -> the resume consumes it. A
+  "Hoan tac" needs its own. (4) Check `production_write_audit` (allowed row), `run_write_values`, `workflow_runs.write_mode='live'`.
+  Off: delete the shop row or kill switch. Operate deferred 101 like 074 when wanted.
+
+## 2026-10-22 — agent (Claude Opus) — P61-F merged with optimize-product 22b9ddb4 (merged-ready on b700317f)
+
+- Merge a41258a6: origin/fasttrack/optimize-product (22b9ddb4: P64 #2151 + the corpus/inventory re-derive) into
+  `fasttrack/p61-f-agent-prod-write`. Conflicts: `fasttrack/LOG.md` (kept both sides, P64 entry then the P61-F entry);
+  `eval/quality_detectors.py` (took optimize-product's side, then re-derived). PROGRESS/DEBT merged cleanly.
+- Re-derive b700317f on the combined tree: `python -m eval.quality_detectors reconcile --write` -> functions
+  7153 -> 7182, modules 688 -> 690; `reconciliation_layers` unchanged 509/131/116/116/53/49 (zero-assertion 49).
+  Surface inventory regenerated with `generate_surface_inventory()`: byte-identical, no change.
+- Migrations: `versions/` head 100 (`100_sandbox_collision_xshop`); 101 stays in `deferred/`.
+- Verification (Python juli/.venv, PYTHONPATH=worktree:backend/src, no xdist): ruff + format clean (33 files); mypy
+  clean on the 6 touched source modules; `bandit -ll` on migrations 0 medium/high. `pnpm install` done. Full
+  `tests/unit -m "not live"`: 8001 passed, 245 skipped, 2 xfailed, 1 failed -- load-flaky
+  `test_action_card_refresh_cooldown.py::test_slow_backing_store_does_not_stall_the_event_loop` (0.6 s timeout),
+  3/3 green alone. Homebrew PG16 :55461 (UTC, roles script, disposable): two-shop P61-F 5 + reviewer Postgres 5 +
+  `test_reviewer_sandbox_live.py` 17 + `test_p61f_agent_production_write.py` 34 = 61 passed, 0 skipped (incl.
+  `test_a_partner_reviewer_request_is_never_routed_live`). `check.sh --since origin/fasttrack/optimize-product` on a
+  fresh database: migrations PASS (at 100), isolation 12 passed, gitleaks, ruff, pytest 29 files 642 passed -> OK.
+  (A first check.sh run on the already-migrated test DB failed the privilege check, because the roles script re-seeded
+  grants onto existing tables. It was a setup error: on a fresh DB it passes.) Cluster removed.
+- D73 untouched: `READ_CAPABILITIES` = production_read + seller_connect; `own_shop_sandbox_read` fallback intact; no
+  diff vs optimize-product in `core/` or `integrations/`.
+- Next: lead fast-forwards optimize-product to this head, pushes, pings P64.

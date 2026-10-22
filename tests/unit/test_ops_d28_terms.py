@@ -623,7 +623,7 @@ def test_migration_086_chain_and_shape():
     deferred = (
         MIGRATION.parents[1] / "deferred" / "074_users_placeholder_phone_cleanup.py"
     ).read_text(encoding="utf-8")
-    assert 'down_revision: str | None = "100_sandbox_collision_xshop"' in deferred
+    assert 'down_revision: str | None = "101_write_mode_backfill"' in deferred
     # Head: nothing else in versions/ names 085 as its parent.
     children = [
         p.name

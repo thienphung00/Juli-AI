@@ -93,7 +93,7 @@ def test_revision_fits_alembic_and_keeps_the_phone_cleanup_the_tail():
     assert mig.down_revision == "094_user_privacy_and_consent"
     body = DEFERRED.read_text("utf-8")
     # P61-B: 097 sits above 095 and the cleanup follows the head.
-    assert 'down_revision: str | None = "100_sandbox_collision_xshop"' in body
+    assert 'down_revision: str | None = "101_write_mode_backfill"' in body
 
 
 def test_migration_is_append_only_for_the_app_role():

@@ -50,7 +50,7 @@ def test_the_deferred_phone_cleanup_stays_the_tail():
         / "backend/src/juli_backend/database/migrations/deferred"
         / "074_users_placeholder_phone_cleanup.py"
     )
-    assert 'down_revision: str | None = "100_sandbox_collision_xshop"' in deferred.read_text(
+    assert 'down_revision: str | None = "101_write_mode_backfill"' in deferred.read_text(
         encoding="utf-8"
     )
 

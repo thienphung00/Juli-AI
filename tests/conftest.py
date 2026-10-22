@@ -312,6 +312,10 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: seeds two tenants for fast track P61-B (a production
         # write for the enabled shop only, as juli_app, migration 097).
         "test_p61b_production_write_two_shop.py",
+        # Reason 2 again: seeds two tenants for fast track P61-F (the agent run's
+        # confirmed write goes live for the enabled shop only, as juli_app, plus
+        # the deferred migration-101 backfill on the real workflow_runs table).
+        "test_p61f_agent_production_write_two_shop.py",
         # Reason 2 again: seeds two tenants for fast track P61-A (agent read
         # built from each shop's own credential, as juli_app).
         "test_agent_read_two_shop.py",

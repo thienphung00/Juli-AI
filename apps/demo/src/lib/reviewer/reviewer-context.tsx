@@ -14,7 +14,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import { clearActiveShop, readActiveShop } from "../shop-session";
+import { clearActiveShop, readActiveShop, storeActiveShop } from "../shop-session";
 import { readAuthSession } from "../supabase-auth";
 import { fetchReviewerMe, type ReviewerMeResult } from "./api-client";
 import { ReviewerContext, clearReviewerSignIn, reviewerSignInHref } from "./mode";
@@ -65,6 +65,13 @@ export function ReviewerProvider({
         // reload into the sample (its alias would only be refused now).
         if (sample && readActiveShop()) {
           clearActiveShop();
+          redirect("/");
+        }
+        // P64 (D73): a pin added since sign-in (e.g. the live sandbox shop) —
+        // store it and reload, so the shell reads it instead of the sample.
+        const pinned = result.me.shop;
+        if (pinned && readActiveShop()?.id !== pinned.id) {
+          storeActiveShop({ id: pinned.id, name: pinned.name });
           redirect("/");
         }
       } else if (result.status === "not_reviewer") {

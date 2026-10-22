@@ -52,6 +52,13 @@ class PreconditionName(str, Enum):
     # or an execution with no workflow run for the audit row to name.
     MUTATION_NOT_ALLOWED_IN_PRODUCTION = "mutation_not_allowed_in_production"
     NO_WORKFLOW_RUN = "no_workflow_run"
+    # Fast track P61-F: refusals the AGENT run's resume leg raises before the
+    # resolver runs (so, again, no authorization is consumed): the listing edit
+    # would attach an image that was uploaded to the sandbox merchant (its asset
+    # id does not exist on the seller's shop), or a "Hoan tac" would restore a
+    # run that never touched the seller's shop onto it.
+    STAGED_IMAGE_ON_SANDBOX = "staged_image_on_sandbox"
+    REVERT_OF_SIMULATED_RUN = "revert_of_simulated_run"
     # Fast track P64 (D73 Q6 layer 2): a partner reviewer request never resolves
     # to a seller's own shop; refused before any authorization is looked up.
     REVIEWER_SESSION = "reviewer_session"
@@ -314,6 +321,46 @@ async def resolve_write_capability(
             )
         # Re-raise the original precondition failure
         raise
+
+
+async def record_refused_attempt(
+    session: AsyncSession,
+    *,
+    run_id,
+    shop_id,
+    tiktok_product_id: str,
+    mutation_kind: str,
+    precondition: PreconditionName,
+) -> None:
+    """Audit a production write that a caller refused BEFORE the resolver ran.
+
+    The same append-only row the resolver writes for its own refusals
+    (``authorization_id`` NULL, ``precondition_name`` the named reason), for the
+    pre-resolver refusals of fast track P61-F. Never raises: an audit failure is
+    logged, because the refusal itself (the run stays on the sandbox) has already
+    happened and must not turn into a crash.
+    """
+    try:
+        await _record_production_write_audit(
+            session,
+            run_id=run_id,
+            shop_id=shop_id,
+            tiktok_product_id=tiktok_product_id,
+            mutation_kind=mutation_kind,
+            authorization_id=None,
+            precondition_name=precondition.value,
+            release_sha=_get_deployed_release_sha(),
+        )
+    except Exception:
+        logger.error(
+            "Failed to record production write refusal audit",
+            extra={
+                "run_id": str(run_id),
+                "shop_id": str(shop_id),
+                "precondition": precondition.value,
+            },
+            exc_info=True,
+        )
 
 
 async def _sandbox_resources(session: AsyncSession):

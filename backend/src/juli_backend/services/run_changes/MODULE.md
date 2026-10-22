@@ -30,9 +30,17 @@ to every write row, and runs the revert check on hashes.
   is the same either way. Prices are never reverted (fast-track D13); a Seller
   Center promotion run is refused (`seller_center`).
 - `run_write_values` is append-only for `juli_app` (SELECT, INSERT).
-- Today the agent runner's writes go through `composition.build_write_resources`
-  and record no `production_write_audit` row, so the audit link is NULL for
-  agent writes (DEBT P60-1b).
+- `read_live_product(session, shop_id, tiktok_product_id, write_mode)` (P61-F) reads the
+  listing through the mode the reverted run wrote with: `live` -> the shop's own production
+  read credential (`composition.build_read_resources`), anything else (`simulated`, NULL) ->
+  the sandbox write resources. `start_revert` passes the reverted run's `write_mode`; the
+  revert run's own write goes live only if the reverted run was live
+  (`composition.resolve_agent_write_leg(is_revert=True, ...)`), otherwise it stays on the
+  sandbox, and a revert of a live run fails by name rather than restoring on the sandbox.
+- A live agent write (P61-F) records an allowed `production_write_audit` row (mutation kind
+  = the tool name), so its `run_write_values` link to it (the recorder prefers the single
+  allowed row over a refusal row of the same mutation); a sandbox write has none, so its
+  link stays NULL.
 
 ## Dependencies
 

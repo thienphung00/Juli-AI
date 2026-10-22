@@ -1484,7 +1484,7 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   from `pg_stat_statements` over an assumed ~17-day window); owner re-checks after deploy.
 ## P61-B — production write per shop, flags off (2026-10-20, D71.2)
 
-- [ ] **The agent run (Optimize Product, cover photo, Hoàn tác) still writes only to the
+- [x] (closed by P61-F, 2026-10-21) **The agent run (Optimize Product, cover photo, Hoàn tác) still writes only to the
   sandbox.** `build_write_resources(session, shop_id, capability)` builds a shop's own
   production resources when handed the resolver's marker, but `workers/tasks/agent_workflow.py`
   builds its write resources once per leg with no capability, and the per-mutation
@@ -1497,14 +1497,15 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   `tool_executions` row; and executions created by that route carry no `workflow_run_id`, so
   a live write refuses (`no_workflow_run`). Pre-existing; the Postgres proof calls the handler
   under a scoped `juli_app` session directly.
-- [ ] `run_changes/live.py::read_live_product` (P60-1b's) still reads through the sandbox
+- [x] (closed by P61-F) `run_changes/live.py::read_live_product` (P60-1b's) still reads through the sandbox
   resources; a revert of a live write would compare against the sandbox listing.
 - [ ] The write credential is the shop's own OAuth row (`SELLER_CONNECT` / `PRODUCTION_READ`);
   no TikTok scope check for product edit (scope names unverified, `services/ops/scopes.py`).
 - [ ] Listing diff restated in `services/execution/production_write.py` (pinned equal to
   `write_capture` by test) because `services/execution` importing `services/agent` closes a
   dependency cycle (`audit_cycles`).
-- [ ] No backfill of `workflow_runs.write_mode`: runs before 097 are NULL and are measured /
+- [x] (closed by P61-F: deferred step `101_write_mode_backfill`, operated by hand like 074 — see
+  P61-F below) No backfill of `workflow_runs.write_mode`: runs before 097 are NULL and are measured /
   shown as before. Every agent write so far went to the sandbox; owner decides whether to mark
   them (`UPDATE workflow_runs SET write_mode='simulated' WHERE write_mode IS NULL AND id IN
   (SELECT workflow_run_id FROM tool_executions WHERE status='succeeded' AND tool_name IN
@@ -1579,6 +1580,46 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   (`provision_shop_and_credentials`) refuses / flags a `seller_connect` write for a shop or
   cipher that already holds `sandbox_write`, with a two-shop test, so this cannot recur silently.
 
+## P61-F — agent-run production leg (2026-10-21, D71.2)
+
+- [ ] **Deploy/operate precondition:** migration `101_write_mode_backfill` is NOT in `versions/`.
+  It is an `UPDATE`, which `infra/scripts/migration_additive_gate.py` refuses from an automatic
+  release by design (the lead's brief assumed a literal-SQL migration would pass; it does not —
+  literal SQL only makes the gate able to READ it, an UPDATE is `data_moving`). It sits in
+  `migrations/deferred/` as `100 -> 101 -> 074`, operated by hand like 074 (runbook "Separately-operated
+  contract migrations"). Until it runs, pre-097 sandbox-written runs stay NULL (shown and measured as
+  before). Downgrade is a no-op by design (a backfilled row cannot be told from a stamped one).
+- [ ] **A cover-photo run (lever flow) can never go live.** Its photo is uploaded by the AUTO
+  `upload_product_image` in the FIRST leg, on the sandbox, before the seller consents; the asset id
+  does not exist on the seller's shop. P61-F chose to REFUSE (named `staged_image_on_sandbox`, audited,
+  nothing spent; the run completes on the sandbox as `simulated`) over re-uploading through the
+  production client inside the confirmed step (a second vendor write outside the ledger's
+  idempotency, and its own authorization question). Repay: a per-mutation authorization for
+  `upload_product_image` (or a re-upload step in the resume leg), once the owner wants cover photos live.
+- [ ] A PRICE confirmation on a production-enabled shop does not fail the run: it is refused by name
+  (`mutation_not_allowed_in_production`, audited, authorization untouched) and the run continues on the
+  sandbox as `simulated` (today's behaviour, honestly labelled). Alternative if the owner prefers a hard
+  stop: raise instead of falling back (the run ends `worker_lost`, the only stop reason a crash can carry,
+  DEBT #1390) — recommended against.
+- [ ] A resume leg that CRASHES after taking its write live keeps `write_mode='live'` (the stamp and the
+  spent authorization are committed before the vendor call, and nothing can prove the call did not
+  happen). A leg that ends normally settles: `live` only if the confirmed call reached the ledger
+  (`succeeded` / `in_flight`), else back to `simulated`.
+- [ ] A shop the owner turned production writes on for keeps `write_mode` NULL on the first leg and on a
+  decline (the resolution happens at approval); a run that completes with no write is NULL, not
+  `simulated`. Measurement/UI treat NULL as before.
+- [ ] A revert of a LIVE run whose live write is no longer possible (row withdrawn, flag off, a gate
+  refuses) fails by name (`RevertLiveWriteUnavailable`) instead of restoring on the sandbox; the crash
+  handler can only stamp it `worker_lost`. A revert of a simulated/NULL run never goes live even on an
+  enabled shop (`revert_of_simulated_run`). The revert needs its OWN `update_product_listing`
+  authorization (one-time, per mutation).
+- [ ] The agent path's authorization is keyed `update_product_listing` (the tool's own name); the
+  dispatched `POST /v1/executions` path's is `listing.optimize_product`. Two kinds, issued separately.
+  `ProductionWriteAuthorizationService` / the CLI default `--capability sandbox_write`; for a shop's own
+  authorization pass `--capability seller_connect` (ungoverned by credential_binding).
+- [ ] `SqlWriteValueRecorder._audit_id` now prefers the single ALLOWED audit row over a refusal row of the
+  same mutation; with 2+ allowed rows (a repeat of the same write in one run) the link stays NULL.
+- [ ] Not run in production: nothing of P61-F. Flags stay off; no shop is enabled.
 ## P61-E — any-shop end-to-end test (2026-10-21, D71.5)
 
 - [x] CLOSED by P61-I (2026-10-22, branch `fasttrack/p61-i-oauth-rls-scope`). The OAuth callback
