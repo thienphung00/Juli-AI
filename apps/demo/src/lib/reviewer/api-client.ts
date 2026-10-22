@@ -22,6 +22,9 @@ export interface ReviewerMe {
   readonly expiresAt: string | null;
   /** null: no pinned shop — sample mode (P32-D). */
   readonly shop: { readonly id: string; readonly name: string } | null;
+  /** P64 (D73): "sandbox" (live, unmasked) | "masked" | null. */
+  readonly mode?: "sandbox" | "masked";
+  readonly writesEnabled?: boolean;
 }
 
 export type ReviewerMeResult =
@@ -71,6 +74,8 @@ export async function fetchReviewerMe(token: string, fetchImpl: FetchLike = (i, 
       platform: typeof body.platform === "string" ? body.platform : "",
       expiresAt: typeof body.expires_at === "string" ? body.expires_at : null,
       shop: shop === null ? null : { id: shop.id as string, name: typeof shop.name === "string" ? shop.name : "" },
+      ...(body.mode === "sandbox" || body.mode === "masked" ? { mode: body.mode } : {}),
+      ...(body.writes_enabled === true ? { writesEnabled: true } : {}),
     },
   };
 }

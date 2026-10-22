@@ -258,14 +258,16 @@ class TestRunFujiwaPollCycle:
         mock_resources,
     ):
         """#1995 widened which credentials may poll; the sandbox one is still
-        refused, now by capability rather than by merchant identity."""
+        refused, now by capability rather than by merchant identity -- for any shop
+        but its own (P64, D73.2a: the sandbox shop polls through its own row)."""
         sandbox_credential = MagicMock()
         sandbox_credential.merchant_authorization_id = SANDBOX_AUTH_ID
         sandbox_credential.capability = TikTokCapability.SANDBOX_WRITE.value
+        sandbox_credential.shop_id = uuid.uuid4()
 
         with pytest.raises(ValueError, match="read-capable"):
             await run_fujiwa_poll_cycle(
-                shop_id=sandbox_credential.shop_id,
+                shop_id=uuid.uuid4(),
                 session=session,
                 config=poll_config,
                 oauth_service=oauth_service,

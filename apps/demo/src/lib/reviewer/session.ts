@@ -18,6 +18,12 @@ export interface ReviewerRecord {
    * `shop: null`) — the reviewer sees the bundled sample shop, no shop API.
    */
   readonly sample?: boolean;
+  /**
+   * P64 (D73): "sandbox" — pinned to Juli's live TikTok sandbox shop: real
+   * data and real writes, no sample, no simulation. "masked" / absent: P32.
+   */
+  readonly mode?: "sandbox" | "masked";
+  readonly writesEnabled?: boolean;
 }
 
 export function storeReviewerRecord(record: ReviewerRecord): void {
@@ -36,6 +42,8 @@ export function readReviewerRecord(): ReviewerRecord | null {
       platform: parsed.platform,
       expiresAt: typeof parsed.expiresAt === "string" ? parsed.expiresAt : null,
       ...(parsed.sample === true ? { sample: true } : {}),
+      ...(parsed.mode === "sandbox" || parsed.mode === "masked" ? { mode: parsed.mode } : {}),
+      ...(parsed.writesEnabled === true ? { writesEnabled: true } : {}),
     };
   } catch {
     return null;

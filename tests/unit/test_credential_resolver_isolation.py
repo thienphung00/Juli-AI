@@ -20,7 +20,7 @@ from juli_backend.core.security.credential_resolver import (
 from juli_backend.database.exceptions import NotFound
 from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.repositories import TikTokCredentialRepo
-from tests.support.builders import utc_now_naive
+from tests.support.builders import make_tenant, utc_now_naive
 
 # Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
 PRODUCTION_AUTH_ID = "test-production-merchant"
@@ -79,7 +79,12 @@ class TestCapabilityResolvers:
     async def test_never_falls_back_to_the_other_capability(
         self, session, shop, resolve, own, other, missing
     ):
-        await issue_credential(session, shop, other, access_token="other-only")
+        # P64 (D73.2a): the sandbox credential now reads for its OWN shop, so the read
+        # case puts it on another shop -- still never a fallback to it for this one.
+        holder = shop
+        if resolve is _resolve_read:
+            _user, holder = await make_tenant(session)
+        await issue_credential(session, holder, other, access_token="other-only")
 
         with pytest.raises(missing):
             await resolve(session, shop)

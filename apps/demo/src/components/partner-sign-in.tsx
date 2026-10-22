@@ -92,7 +92,13 @@ export function PartnerSignIn({
       // shows the bundled sample shop (P13's no-shop door) and calls no shop API.
       if (me.me.shop) storeActiveShop({ id: me.me.shop.id, name: me.me.shop.name });
       else clearActiveShop();
-      storeReviewerRecord({ platform: me.me.platform, expiresAt: me.me.expiresAt, sample: me.me.shop === null });
+      storeReviewerRecord({
+        platform: me.me.platform,
+        expiresAt: me.me.expiresAt,
+        sample: me.me.shop === null,
+        ...(me.me.mode ? { mode: me.me.mode } : {}),
+        ...(me.me.writesEnabled ? { writesEnabled: true } : {}),
+      });
       onSignedIn();
       return;
     }

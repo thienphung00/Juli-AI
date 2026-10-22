@@ -3,7 +3,8 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { REVIEWER_READ_ONLY_TITLE } from "../lib/reviewer/copy";
+import { REVIEWER_READ_ONLY_TITLE, REVIEWER_SANDBOX_READ_ONLY_TITLE } from "../lib/reviewer/copy";
+import { isSandboxReviewer } from "../lib/reviewer/mode";
 import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/reviewer/reviewer-context";
 import { resetReviewerSample } from "../lib/reviewer/sample-store";
 import { clearActiveShop } from "../lib/shop-session";
@@ -105,7 +106,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   // (no pin) nothing is read-only — every write runs in the in-memory sample
   // store, labelled "Mô phỏng", and no shop route is ever called.
   const page = reviewer && !reviewer.sample ? (
-    <SellerViewProvider readOnly readOnlyTitle={REVIEWER_READ_ONLY_TITLE} simulateApprove>
+    <SellerViewProvider readOnly readOnlyTitle={isSandboxReviewer(reviewer) ? REVIEWER_SANDBOX_READ_ONLY_TITLE : REVIEWER_READ_ONLY_TITLE} simulateApprove>
       {children}
     </SellerViewProvider>
   ) : (

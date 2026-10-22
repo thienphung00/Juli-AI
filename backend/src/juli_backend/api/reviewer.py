@@ -18,6 +18,16 @@ Contract ``fasttrack/contracts/p32-reviewer-access.md`` §2-§3. Three pieces:
 
 The guarantee that a reviewer never writes is the allowlist: no route that is
 not a read (or the audit-only simulation) is on it, whatever the UI shows.
+
+Fast track P64 (D73): a pin to Juli's own TikTok Shop SANDBOX shop is the "live
+sandbox" mode (``services/reviewer/sandbox.classify_pin``): no identity mask, and
+four more allowlisted routes really write -- only there, only through
+``SandboxWriteClientFactory``: ``/v1/reviewer/shop`` (connection + synced at),
+``/v1/reviewer/shop/sync``, ``/v1/reviewer/decisions/{id}/approve`` and ``…/execute``.
+Each refuses (403 ``sandbox_only``) unless the pin is a writable sandbox shop; the
+simulation refuses (403 ``sandbox_live``) when it is. Every reviewer request is
+marked (``integrations.tiktok.mark_reviewer_session``) so the production write
+resolver and factory refuse it whatever route it reaches.
 """
 
 from __future__ import annotations
@@ -38,9 +48,10 @@ from juli_backend.core.security import (
     bind_reviewer_gate,
 )
 from juli_backend.database import Shop, set_tenant_context
+from juli_backend.integrations.tiktok import mark_reviewer_session
 from juli_backend.services import reviewer as reviewer_service
 from juli_backend.services.ops import audit
-from juli_backend.services.reviewer import MaskDictionary, ReviewerAccount
+from juli_backend.services.reviewer import MaskDictionary, PinMode, ReviewerAccount
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +88,14 @@ ALLOWED_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         (_GET, _R + "reviewer:reviewer_me"),  # /v1/reviewer/me
         ("POST", _R + "reviewer:simulate_decision"),  # /v1/reviewer/decisions/{id}/simulate
     }
+    | {
+        # P64 (D73): the live sandbox routes. On the allowlist for every pin; each one
+        # refuses unless the pin is a writable sandbox shop (``require_sandbox_pin``).
+        (_GET, _R + "reviewer:reviewer_shop"),  # /v1/reviewer/shop
+        ("POST", _R + "reviewer:reviewer_sync_shop"),  # /v1/reviewer/shop/sync
+        ("POST", _R + "reviewer:approve_decision"),  # /v1/reviewer/decisions/{id}/approve
+        ("POST", _R + "reviewer:execute_decision"),  # /v1/reviewer/decisions/{id}/execute
+    }
 )
 
 _DENIED_DETAIL = {
@@ -86,6 +105,10 @@ _DENIED_DETAIL = {
     "read_only": "Tài khoản dùng thử chỉ xem · thao tác này bị chặn",
     "unconfigured": "Tài khoản dùng thử chưa sẵn sàng",
     "shop": "Shop not accessible",
+    # P64 (D73): a live sandbox route on a pin that is not a writable sandbox shop.
+    "sandbox_only": "Chỉ dùng được với shop sandbox của Juli",
+    # P64 (D73): the simulation on a live sandbox pin (the real routes replace it).
+    "sandbox_live": "Shop sandbox thực thi thật · không dùng mô phỏng",
 }
 
 
@@ -99,6 +122,13 @@ class ReviewerContext:
     alias_id: uuid.UUID | None
     dictionary: MaskDictionary | None = None
     shop: Shop | None = field(default=None, repr=False)
+    #: P64 (D73): what the pinned shop is, set when the shop is entered. None until
+    #: then -- the mask stays on (fail closed).
+    pin: PinMode | None = None
+
+    @property
+    def mask_enabled(self) -> bool:
+        return self.pin is None or self.pin.mask
 
     def mask_dictionary(self) -> MaskDictionary:
         return self.dictionary or MaskDictionary(shop_id=self.shop_id, alias_id=self.alias_id)
@@ -109,7 +139,7 @@ def reviewer_context(request: Request) -> ReviewerContext | None:
     return value if isinstance(value, ReviewerContext) else None
 
 
-def _deny(code: str, *, status_code: int = status.HTTP_403_FORBIDDEN) -> HTTPException:
+def deny(code: str, *, status_code: int = status.HTTP_403_FORBIDDEN) -> HTTPException:
     return HTTPException(
         status_code=status_code,
         detail=_DENIED_DETAIL[code],
@@ -133,18 +163,20 @@ def is_allowed(method: str, endpoint: str | None) -> bool:
 
 async def reviewer_gate(request: Request, session: AsyncSession, token: VerifiedToken) -> None:
     """Refuse (raise) or admit a reviewer request; see the module docstring."""
+    # P64 (D73 Q6 layer 2): before anything else, so even a refused request is marked.
+    mark_reviewer_session()
     method = request.method.upper()
     template = endpoint_key(request)
     account = await reviewer_service.load_account(session, token.user_id)
     if account is None or account.platform != token.reviewer_platform:
         await session.rollback()
         logger.warning("reviewer_unknown", extra={"user_id": str(token.user_id)})
-        raise _deny("unknown")
+        raise deny("unknown")
     state = account.status()
     if state != reviewer_service.accounts.STATUS_ACTIVE:
         await session.rollback()
         logger.info("reviewer_denied", extra={"user_id": str(token.user_id), "state": state})
-        raise _deny(state)
+        raise deny(state)
     # D42 amendment (2026-10-15): the pin is optional. Unset, the reviewer has
     # no shop (sample mode in the UI); the allowlist below is unchanged.
     shop_id = reviewer_service.config.reviewer_shop_id()
@@ -171,7 +203,7 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
             "reviewer_request_refused",
             extra={"platform": account.platform, "method": method, "endpoint": template},
         )
-        raise _deny("read_only")
+        raise deny("read_only")
     if token.session_id and token.session_id != account.last_session_id:
         if await reviewer_service.accounts.claim_sign_in(session, account, token.session_id):
             await audit.record(
@@ -207,19 +239,45 @@ async def enter_reviewer_shop(
 ) -> Shop:
     """The pinned shop, in its read scope; ``X-Shop-Id`` must be the alias (None: skip check)."""
     if context.shop_id is None:
-        raise _deny("shop")
-    if x_shop_id is not None and x_shop_id.strip().lower() != str(context.alias_id):
+        raise deny("shop")
+    sent = x_shop_id.strip().lower() if x_shop_id is not None else None
+    # P64 (D73): unmasked, the sandbox shop is shown under its real id, so that id is
+    # accepted too -- but only once the shop is known to be the sandbox (checked below).
+    if sent is not None and sent not in (str(context.alias_id), str(context.shop_id)):
         logger.warning("reviewer_shop_refused", extra={"platform": context.platform})
-        raise _deny("shop")
-    if context.shop is not None:
-        return context.shop
-    shop = await reviewer_service.enter_shop_read_scope(session, context.shop_id)
-    if shop is None:
-        logger.error("reviewer_shop_missing")
-        raise _deny("unconfigured", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
-    set_tenant_context(shop.id, shop.user_id)
-    context.dictionary = await reviewer_service.catalog.load_dictionary(session, shop)
-    context.shop = shop
+        raise deny("shop")
+    if context.shop is None:
+        shop = await reviewer_service.enter_shop_read_scope(session, context.shop_id)
+        if shop is None:
+            logger.error("reviewer_shop_missing")
+            raise deny("unconfigured", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+        set_tenant_context(shop.id, shop.user_id)
+        context.pin = await reviewer_service.sandbox.classify_pin(session, shop.id)
+        context.dictionary = await reviewer_service.catalog.load_dictionary(session, shop)
+        context.shop = shop
+    if sent == str(context.shop_id) and sent != str(context.alias_id) and context.mask_enabled:
+        logger.warning("reviewer_shop_refused", extra={"platform": context.platform})
+        raise deny("shop")
+    return context.shop
+
+
+async def require_sandbox_pin(
+    session: AsyncSession, context: ReviewerContext | None, x_shop_id: str | None
+) -> Shop:
+    """The pinned shop, only when it is a writable sandbox shop (D73 Q6 layer 1); else 403."""
+    if context is None:
+        # A seller (non-reviewer) session never reaches a reviewer-only route.
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Reviewer only")
+    shop = await enter_reviewer_shop(session, context, x_shop_id)
+    if context.pin is None or not (context.pin.sandbox and context.pin.writes_enabled):
+        logger.warning(
+            "reviewer_sandbox_route_refused",
+            extra={
+                "platform": context.platform,
+                "reason": context.pin.writes_disabled_reason if context.pin else None,
+            },
+        )
+        raise deny("sandbox_only")
     return shop
 
 
@@ -271,6 +329,14 @@ class ReviewerMaskMiddleware:
                 if message.get("more_body", False):
                     return
                 context = scope["state"][STATE_KEY]
+                if not context.mask_enabled:
+                    # P64 (D73 Q1/Q2): Juli's own sandbox shop is shown as it is.
+                    body = b"".join(chunks)
+                    headers = _headers_without_length(list(start.get("headers", [])))
+                    headers.append((b"content-length", str(len(body)).encode()))
+                    await send({**start, "headers": headers})
+                    await send({"type": "http.response.body", "body": body, "more_body": False})
+                    return
                 override, body = masked_body(context, b"".join(chunks))
                 headers = _headers_without_length(list(start.get("headers", [])))
                 headers.append((b"content-length", str(len(body)).encode()))
@@ -302,6 +368,8 @@ __all__ = [
     "endpoint_key",
     "STATE_KEY",
     "ReviewerContext",
+    "deny",
+    "require_sandbox_pin",
     "ReviewerMaskMiddleware",
     "enter_reviewer_shop",
     "install",

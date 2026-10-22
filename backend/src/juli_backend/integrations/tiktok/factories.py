@@ -21,6 +21,7 @@ from juli_backend.integrations.tiktok.resources.orders import OrdersResource
 from juli_backend.integrations.tiktok.resources.products import ProductsResource
 from juli_backend.integrations.tiktok.resources.promotion import PromotionResource
 from juli_backend.integrations.tiktok.resources.returns import ReturnsResource
+from juli_backend.integrations.tiktok.reviewer_scope import refuse_reviewer_production_write
 
 DEFAULT_BASE_URL = "https://open-api.tiktokglobalshop.com"
 
@@ -49,6 +50,11 @@ class ClientFactoryConfig:
     #: Merchant ids carried by non-sandbox credentials (same source). The sandbox
     #: factory refuses a merchant in this set: the 2026-08-18 distinctness rule.
     production_merchant_auth_ids: frozenset[str] = frozenset()
+    #: Fast track P64 (D73.2a): the caller verified this ``sandbox_write`` credential is read
+    #: for the shop its own row belongs to (``merchant.is_own_shop_sandbox_read``). Only
+    #: ``ProductionReadClientFactory`` reads it, and only to admit that one credential under
+    #: ``ReadOnlyTransportGuard``; every write factory ignores it.
+    own_shop_sandbox_read: bool = False
 
 
 _SANDBOX_CAPABILITY = MerchantCapability.SANDBOX_WRITE.value
@@ -66,6 +72,20 @@ def _refuse_sandbox_credential(factory: str, config: ClientFactoryConfig) -> Non
         raise ValueError(
             f"{factory} refuses a merchant auth ID that a sandbox_write credential carries; "
             "it is not read-capable"
+        )
+
+
+def _refuse_unbound_sandbox_read(config: ClientFactoryConfig) -> None:
+    """The sandbox credential reading its own shop (P64, D73.2a): still a merchant id, and
+    never one a production credential also carries (the 2026-08-18 distinctness rule)."""
+    if not config.merchant_auth_id:
+        raise ValueError(
+            "ProductionReadClientFactory requires a merchant auth ID; got an empty value"
+        )
+    if config.merchant_auth_id in config.production_merchant_auth_ids:
+        raise ValueError(
+            "ProductionReadClientFactory refuses a sandbox_write credential whose merchant a "
+            "production credential also carries"
         )
 
 
@@ -116,7 +136,9 @@ class ProductionReadClientFactory:
 
     - a ``sandbox_write`` credential is refused by its capability, and any merchant id a
       ``sandbox_write`` row carries is refused (``sandbox_merchant_auth_ids``, read from the
-      DB by the caller), so the sandbox write-validation merchant is unreachable from a read;
+      DB by the caller), so the sandbox write-validation merchant is unreachable from a read
+      -- except the own-shop exception (P64, D73.2a): ``own_shop_sandbox_read``, set by a
+      caller that checked the read is for the credential row's own shop;
     - an empty merchant id is refused, so a half-built config cannot get a signed client;
     - every client still carries ``ReadOnlyTransportGuard``, which allowlists by method and
       path and rejects before signing.
@@ -126,7 +148,10 @@ class ProductionReadClientFactory:
     """
 
     def create(self, config: ClientFactoryConfig) -> GuardedTikTokClient:
-        _refuse_sandbox_credential("ProductionReadClientFactory", config)
+        if config.credential_capability == _SANDBOX_CAPABILITY and config.own_shop_sandbox_read:
+            _refuse_unbound_sandbox_read(config)
+        else:
+            _refuse_sandbox_credential("ProductionReadClientFactory", config)
         inner = TikTokClient(
             app_key=config.app_key,
             app_secret=config.app_secret,
@@ -217,6 +242,9 @@ class ProductionWriteClientFactory:
     """
 
     def create(self, config: ClientFactoryConfig) -> GuardedTikTokClient:
+        # P64 (D73 Q6 layer 2): a partner reviewer request never gets a seller's own-shop
+        # write client, whatever credential reached here.
+        refuse_reviewer_production_write("ProductionWriteClientFactory")
         _refuse_sandbox_credential("ProductionWriteClientFactory", config)
         inner = TikTokClient(
             app_key=config.app_key,

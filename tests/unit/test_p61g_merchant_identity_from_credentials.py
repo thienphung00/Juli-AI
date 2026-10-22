@@ -159,8 +159,10 @@ class TestResolversFromCredentialsAlone:
         ).merchant_authorization_id == "prod-b"
         assert (await resolve_write_credential_for_shop(session, a.id)).shop_id == a.id
         assert await sandbox_write_merchant_ids(session) == frozenset({"sbx-1"})
-        with pytest.raises(NoReadCredentialForShop):
-            await resolve_read_credential_for_shop(session, sbx.id)
+        # P64 (D73.2a): the sandbox shop reads through its OWN sandbox row; it never
+        # becomes a production write credential.
+        own_read = await resolve_read_credential_for_shop(session, sbx.id)
+        assert (own_read.shop_id, own_read.capability) == (sbx.id, "sandbox_write")
         with pytest.raises(NoWriteCredentialForShop):
             await resolve_write_credential_for_shop(session, sbx.id)
 

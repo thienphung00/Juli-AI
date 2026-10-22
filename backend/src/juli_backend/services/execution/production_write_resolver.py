@@ -59,6 +59,9 @@ class PreconditionName(str, Enum):
     # run that never touched the seller's shop onto it.
     STAGED_IMAGE_ON_SANDBOX = "staged_image_on_sandbox"
     REVERT_OF_SIMULATED_RUN = "revert_of_simulated_run"
+    # Fast track P64 (D73 Q6 layer 2): a partner reviewer request never resolves
+    # to a seller's own shop; refused before any authorization is looked up.
+    REVIEWER_SESSION = "reviewer_session"
 
 
 @dataclass
@@ -161,6 +164,21 @@ async def resolve_write_capability(
             extra={"tool_name": tool_name, "shop_id": str(shop_id)},
         )
         return await _sandbox_resources(session)
+
+    # Fast track P64 (D73 Q6 layer 2): this shop's writes would reach its own shop,
+    # which a partner reviewer request must never do. Refused before the
+    # authorization lookup, so nothing is consumed or audited as allowed.
+    from juli_backend.integrations.tiktok import reviewer_session_active
+
+    if reviewer_session_active():
+        logger.error(
+            "production_write_reviewer_refused",
+            extra={"tool_name": tool_name, "shop_id": str(shop_id)},
+        )
+        raise PreconditionFailure(
+            PreconditionName.REVIEWER_SESSION,
+            "A partner reviewer request may write only to the sandbox shop",
+        )
 
     # Precondition 1 is met; continue with remaining four
     logger.info(

@@ -39,12 +39,13 @@ import { approveDemoDecision, fetchRecommendations } from "../../lib/recommendat
 import { fetchDemoRuns } from "../../lib/run-ledger/api-client";
 import { submitConfirmationDecision } from "../../lib/run-surface/confirmation-client";
 import { useRunStream } from "../../lib/run-surface/use-run-stream";
-import { REVIEWER_READ_ONLY_TITLE } from "../../lib/reviewer/copy";
-import { useReviewer } from "../../lib/reviewer/mode";
+import { REVIEWER_READ_ONLY_TITLE, REVIEWER_SANDBOX_READ_ONLY_TITLE } from "../../lib/reviewer/copy";
+import { isSandboxReviewer, useReviewer } from "../../lib/reviewer/mode";
 import { AppPageHeader } from "../app-shell/page-header";
 import { SellerViewProvider } from "../seller-view-context";
 import { QuyetDinhView, type QdQuery } from "./quyet-dinh-view";
 import { ReviewerSimulation } from "./reviewer-simulation";
+import { SandboxDecisionDialog, createSandboxDecisionClient, type SandboxDecisionClient } from "./sandbox-decision-dialog";
 
 export type { QdClients } from "../../lib/quyet-dinh/client-types";
 export { qdHref, resolveMeasureTab, type QdQuery } from "./quyet-dinh-view";
@@ -93,6 +94,7 @@ export function SignedInQuyetDinh({
   onNavigate,
   clients = REAL_QD_CLIENTS,
   cardsRefresh,
+  sandboxClient,
 }: {
   readonly token: string;
   readonly shop: { readonly id: string; readonly name: string } | null;
@@ -101,6 +103,8 @@ export function SignedInQuyetDinh({
   readonly clients?: QdClients;
   /** P17: bumped by the onboarding poll — re-read the cards without a loading state. */
   readonly cardsRefresh?: number;
+  /** Test seam: the live sandbox Duyệt / Thực thi client (P64). */
+  readonly sandboxClient?: SandboxDecisionClient;
 }) {
   const reviewer = useReviewer();
   const [simulating, setSimulating] = useState<string | null>(null);
@@ -120,11 +124,13 @@ export function SignedInQuyetDinh({
       </section>
     );
   }
+  const sandbox = isSandboxReviewer(reviewer);
   if (reviewer) {
+    // P64 (D73): on the live sandbox Duyệt → Thực thi is real (SandboxDecisionDialog).
     // P32-A (D42): the partner trial account — every write read-only, "Duyệt"
     // runs the simulated Duyệt → Thực thi. The API refuses the rest anyway.
     return (
-      <SellerViewProvider readOnly readOnlyTitle={REVIEWER_READ_ONLY_TITLE} simulateApprove>
+      <SellerViewProvider readOnly readOnlyTitle={sandbox ? REVIEWER_SANDBOX_READ_ONLY_TITLE : REVIEWER_READ_ONLY_TITLE} simulateApprove>
         <QuyetDinhView
           cardsRefresh={cardsRefresh}
           clients={reviewerClients}
@@ -134,7 +140,14 @@ export function SignedInQuyetDinh({
           shop={shop}
           token={token}
         />
-        {simulating ? (
+        {simulating && sandbox ? (
+          <SandboxDecisionDialog
+            cardId={simulating}
+            client={sandboxClient ?? createSandboxDecisionClient({ token, shopId: shop.id })}
+            onClose={() => setSimulating(null)}
+          />
+        ) : null}
+        {simulating && !sandbox ? (
           <ReviewerSimulation
             cardId={simulating}
             onClose={() => setSimulating(null)}
