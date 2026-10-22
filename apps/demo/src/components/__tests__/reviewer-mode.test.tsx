@@ -202,6 +202,36 @@ describe("reviewer mode in the shell", () => {
     expect(readAuthSession()).toBeNull();
     expect(readReviewerRecord()).toBeNull();
   });
+
+  it("ReviewerProvider: a pin added since sign-in (P64 sandbox) is stored as the active shop and the page reloads", async () => {
+    storeAuthSession({ accessToken: "at", refreshToken: null, expiresIn: 3600, tokenType: "bearer" });
+    storeReviewerRecord({ ...REVIEWER, sample: true });
+    const redirect = vi.fn();
+    const pinned = vi.fn().mockResolvedValue({
+      status: "reviewer",
+      me: { reviewer: true, platform: "shopee", expiresAt: REVIEWER.expiresAt, shop: { id: "sbx-1", name: "SANDBOX_VN" }, mode: "sandbox", writesEnabled: true },
+    });
+    render(
+      <ReviewerProvider fetchMe={pinned} redirect={redirect}>
+        <span />
+      </ReviewerProvider>,
+    );
+    await waitFor(() => expect(redirect).toHaveBeenCalledWith("/"));
+    expect(readActiveShop()).toEqual({ id: "sbx-1", name: "SANDBOX_VN" });
+    expect(readReviewerRecord()?.mode).toBe("sandbox");
+    expect(readReviewerRecord()?.sample).not.toBe(true);
+
+    // Already on the pinned shop: no reload loop.
+    cleanup();
+    redirect.mockClear();
+    render(
+      <ReviewerProvider fetchMe={pinned} redirect={redirect}>
+        <span />
+      </ReviewerProvider>,
+    );
+    await waitFor(() => expect(pinned).toHaveBeenCalledTimes(2));
+    expect(redirect).not.toHaveBeenCalled();
+  });
 });
 
 function decision(id: string): P10DecisionItem {
