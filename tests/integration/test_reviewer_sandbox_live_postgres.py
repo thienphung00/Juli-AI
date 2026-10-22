@@ -13,7 +13,9 @@ The unit twin is ``tests/unit/test_reviewer_sandbox_live.py`` (SQLite, no RLS). 
 5. D73.4: the reviewer's Duyệt is the seller's own approve -- on the sandbox pin it creates
    the agent run (``workflow_runs`` + ``action_card_approvals`` under the seller's RLS scope,
    as ``juli_app``), enqueues it (faked) and audits ``reviewer_sandbox_approve``; it builds
-   no TikTok client (the worker writes, through the sandbox factory).
+   no TikTok client (the worker writes, through the sandbox factory);
+6. D73.3: the "Tạo sản phẩm" card is inserted (once) under the seller's RLS scope and its
+   approve starts the ``create_product`` run.
 
 Every test asserts it really runs on Postgres as ``juli_app`` (no silent fallback).
 """
@@ -382,4 +384,51 @@ async def test_5_reviewer_approve_starts_the_agent_run_under_rls(app, world, mon
     assert run.workflow_key == "optimize_product_2" and run.status == "queued"
     assert [row.approved_by_user_id for row in approvals] == [world["reviewer"]]
     assert audited == 1
+    reviewer_sandbox.forget_sync_slots()
+
+
+async def test_6_the_create_product_card_and_run_under_rls(app, world, monkeypatch):
+    """D73.3: the reviewer's "Tạo sản phẩm" card is a real row (inserted under the seller's
+    RLS scope as juli_app) and its approve starts the create_product run on the sandbox shop."""
+    queued: list[Any] = []
+    monkeypatch.setattr(
+        "juli_backend.api.routes.demo_execution._enqueue_run_agent_workflow",
+        lambda run_id: queued.append(run_id) or "celery-1",
+    )
+    monkeypatch.setattr(
+        "juli_backend.api.routes.demo_execution._enqueue_approval_baseline",
+        lambda shop_id, run_id: None,
+    )
+    headers = _headers(world["reviewer"], world["sandbox"])
+    async with await _client(app) as client:
+        listed = await client.get("/v1/demo/decisions", headers=headers)
+        again = await client.get("/v1/demo/decisions", headers=headers)
+        assert listed.status_code == 200, listed.text
+        cards = [
+            item
+            for item in listed.json()["data"]
+            if (item["recommendation"].get("card") or {}).get("lever", {}).get("code")
+            == "create_product"
+        ]
+        assert len(cards) == 1
+        assert [i["id"] for i in again.json()["data"]].count(cards[0]["id"]) == 1
+        approve = await client.post(f"/v1/demo/decisions/{cards[0]['id']}/approve", headers=headers)
+    _assert_real_postgres_as_juli_app(app)
+    assert approve.status_code == 202, approve.text
+    run_id = approve.json()["data"]["run_id"]
+    assert [str(r) for r in queued] == [run_id]
+    with owner_sync_engine() as engine, engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT count(*) FROM public.action_cards "
+                "WHERE shop_id = :s AND workflow_key = 'create_product'"
+            ),
+            {"s": world["sandbox"]},
+        ).scalar_one()
+        run = conn.execute(
+            text("SELECT workflow_key, status FROM public.workflow_runs WHERE id = :r"),
+            {"r": run_id},
+        ).one()
+    assert rows == 1
+    assert run.workflow_key == "create_product" and run.status == "queued"
     reviewer_sandbox.forget_sync_slots()

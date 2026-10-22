@@ -61,12 +61,20 @@ from juli_backend.services.agent.playbooks.content import (
     CONTENT_LIVE_PLAYBOOK,
     CONTENT_VIDEO_PLAYBOOK,
 )
+from juli_backend.services.agent.playbooks.create_product import (
+    CREATE_PRODUCT_LEVER,
+    CREATE_PRODUCT_PLAYBOOK,
+    CREATE_PRODUCT_WORKFLOW_KEY,
+)
 from juli_backend.services.agent.playbooks.optimize_product import (
     OPTIMIZE_PRODUCT_PLAYBOOK,
     OPTIMIZE_PRODUCT_TERMINATION_POLICY,
 )
 
 __all__ = [
+    "CREATE_PRODUCT_LEVER",
+    "CREATE_PRODUCT_PLAYBOOK",
+    "CREATE_PRODUCT_WORKFLOW_KEY",
     "OPTIMIZE_PRODUCT_PLAYBOOK",
     "OPTIMIZE_PRODUCT_TERMINATION_POLICY",
     "Playbook",
@@ -106,6 +114,8 @@ _PLAYBOOK_REGISTRY: dict[str, Playbook] = {
     # Fast track P14-E: "Juli soạn · bạn làm" content runs (Video / LIVE).
     CONTENT_VIDEO_PLAYBOOK.workflow_key: CONTENT_VIDEO_PLAYBOOK,
     CONTENT_LIVE_PLAYBOOK.workflow_key: CONTENT_LIVE_PLAYBOOK,
+    # Fast track P64 (D73.3/D73.4): "Tạo sản phẩm" -- SANDBOX shop only (approval gate).
+    CREATE_PRODUCT_PLAYBOOK.workflow_key: CREATE_PRODUCT_PLAYBOOK,
 }
 
 

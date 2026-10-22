@@ -39,7 +39,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
-from juli_backend.api.reviewer import audit_reviewer_run_action
+from juli_backend.api.reviewer import audit_reviewer_run_action, reviewer_context
 from juli_backend.api.routes.agent_runs import _enqueue_run_agent_workflow
 from juli_backend.api.routes.demo_run_changes import SellerReasonRequest, invalid_reason
 from juli_backend.core.security import get_current_user
@@ -142,6 +142,9 @@ async def approve_demo_decision(
             shop_id=shop_id,
             action_card_id=action_card_id,
             approved_by_user_id=user.id,
+            # P64 (D73.3): "Tạo sản phẩm" exists only for a partner reviewer, whose run
+            # routes are reachable only on the writable sandbox pin (``api/reviewer.py``).
+            allow_create_product=reviewer_context(request) is not None,
         )
         # P64 (D73.4): a reviewer's Duyệt on the sandbox pin is this same approve.
         await audit_reviewer_run_action(
@@ -179,6 +182,15 @@ async def approve_demo_decision(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This decision has no subject Juli can act on",
+        ) from exc
+    except approval_module.CreateProductDailyCapReached as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "create_product_daily_cap",
+                "cap": approval_module.CREATE_PRODUCT_DAILY_CAP,
+            },
         ) from exc
     except approval_module.WorkflowNotExecutable as exc:
         await session.rollback()

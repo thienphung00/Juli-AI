@@ -36,6 +36,10 @@ from juli_backend.services.demo_decisions.card_view import CardContext, build_ca
 # "active" and never clears surfaced_at on that card's behalf.
 _CANDIDATE_STATUS = "active"
 
+#: P64 (D73.3): the partner reviewer's sandbox-only "Tạo sản phẩm" workflow. Its cards
+#: are served only to a reviewer on the writable sandbox pin (``include_reviewer_cards``).
+REVIEWER_ONLY_WORKFLOWS: tuple[str, ...] = ("create_product",)
+
 _RECOMMENDATION_ALLOWLIST: tuple[str, ...] = (
     "workflow_name",
     "priority",
@@ -102,6 +106,10 @@ _EVIDENCE_ALLOWLIST: tuple[str, ...] = (
     "metrics",
     "notes",
 )
+
+
+def _reviewer_card_filter(include: bool) -> tuple[Any, ...]:
+    return () if include else (ActionCard.workflow_key.not_in(REVIEWER_ONLY_WORKFLOWS),)
 
 
 class DecisionNotFound(ValueError):
@@ -196,8 +204,11 @@ def mask_decision_payload(
         # levers never run. Approve answers from the same predicate.
         from juli_backend.services import shop_rules
 
-        is_executable = is_executable and shop_rules.card_lever_allowed(
-            shop_rules.card_lever_code(raw_payload), allowed_levers
+        lever_code = shop_rules.card_lever_code(raw_payload)
+        is_executable = is_executable and (
+            shop_rules.card_lever_allowed(lever_code, allowed_levers)
+            # P64 (D73.3): not a listing lever; served to the sandbox reviewer only.
+            or card.workflow_key in REVIEWER_ONLY_WORKFLOWS
         )
 
     recommendation = _mask_recommendation_payload(raw_payload)
@@ -231,7 +242,9 @@ def mask_decision_payload(
     }
 
 
-async def list_surfaced_decisions(session: AsyncSession, shop_id: uuid.UUID) -> list[ActionCard]:
+async def list_surfaced_decisions(
+    session: AsyncSession, shop_id: uuid.UUID, *, include_reviewer_cards: bool = False
+) -> list[ActionCard]:
     """Emission-gated active set for *shop_id* — ``surfaced_at IS NOT NULL``.
 
     Ranked by ``priority`` ascending (mirrors ``apply_emission_budget``'s own
@@ -244,6 +257,7 @@ async def list_surfaced_decisions(session: AsyncSession, shop_id: uuid.UUID) -> 
             ActionCard.shop_id == shop_id,
             ActionCard.status == _CANDIDATE_STATUS,
             ActionCard.surfaced_at.isnot(None),
+            *_reviewer_card_filter(include_reviewer_cards),
         )
         .order_by(
             ActionCard.priority.asc(),
@@ -256,7 +270,11 @@ async def list_surfaced_decisions(session: AsyncSession, shop_id: uuid.UUID) -> 
 
 
 async def get_surfaced_decision(
-    session: AsyncSession, shop_id: uuid.UUID, action_card_id: uuid.UUID
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    action_card_id: uuid.UUID,
+    *,
+    include_reviewer_cards: bool = False,
 ) -> ActionCard:
     """Single emission-gated Decision, tenant-scoped.
 
@@ -271,6 +289,7 @@ async def get_surfaced_decision(
         ActionCard.shop_id == shop_id,
         ActionCard.status == _CANDIDATE_STATUS,
         ActionCard.surfaced_at.isnot(None),
+        *_reviewer_card_filter(include_reviewer_cards),
     )
     result = await session.execute(stmt)
     card = result.scalar_one_or_none()

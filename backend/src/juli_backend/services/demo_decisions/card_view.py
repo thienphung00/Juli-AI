@@ -72,6 +72,8 @@ LEVERS: Mapping[str, tuple[str, str]] = {
     "flash_sale": ("Flash sale", "seller_center"),
     "shipping_discount": ("Giảm phí vận chuyển", "seller_center"),
     "buy_more_save_more": ("Mua nhiều giảm nhiều", "seller_center"),
+    # P64 (D73.3): the sandbox reviewer's "Tạo sản phẩm" -- Juli creates the listing.
+    "create_product": ("Tạo sản phẩm", "juli"),
 }
 
 #: The listing field each Juli-executed lever changes.
@@ -79,6 +81,7 @@ _LEVER_FIELDS: Mapping[str, tuple[str, str]] = {
     "cover_image": ("main_images", "Ảnh bìa"),
     "title": ("title", "Tiêu đề"),
     "description": ("description", "Mô tả"),
+    "create_product": ("new_listing", "Sản phẩm mới trên TikTok"),
 }
 
 _FIELD_LABELS_VI: Mapping[str, str] = {"title": "Tiêu đề", "description": "Mô tả"}
@@ -96,6 +99,8 @@ _REASON_SHORT_VI: Mapping[str, str] = {
     "card": "Ít người bấm vào sản phẩm",
     "page": "Khách xem nhưng ít đặt hàng",
     "basket": "Mỗi đơn mua ít món",
+    # P64 (D73.3): the "Tạo sản phẩm" card.
+    "catalog": "Thêm sản phẩm mới cho shop",
 }
 
 #: D61: the card's GMV line is a plain sentence; Juli's formula, window and rules stay internal.

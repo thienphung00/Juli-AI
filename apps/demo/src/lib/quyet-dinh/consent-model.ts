@@ -41,7 +41,13 @@ export function proposedText(value: unknown): string | null {
 
 export function consentRows(
   change: Record<string, unknown>,
-  context: { readonly revert: boolean; readonly productName: string; readonly card: CardView | null },
+  context: {
+    readonly revert: boolean;
+    readonly productName: string;
+    readonly card: CardView | null;
+    /** P64 (D73.3): a new listing — nothing exists before it ("Trước" stays "—"). */
+    readonly create?: boolean;
+  },
 ): ConsentRow[] {
   const rows: ConsentRow[] = [];
   for (const [field, value] of Object.entries(change)) {
@@ -51,9 +57,9 @@ export function consentRows(
     const known = context.card?.beforeAfter.find((row) => row.field === field) ?? null;
     const label = known?.label ?? FIELD_LABELS[field] ?? "Thay đổi được đề xuất";
     const long = field === "description" || after.length > 80;
-    let before: string | null = pair?.from ?? null;
-    if (before === null && known) before = context.revert ? known.after : known.before;
-    if (before === null && field === "title" && !context.revert) before = context.productName;
+    let before: string | null = context.create ? null : (pair?.from ?? null);
+    if (!context.create && before === null && known) before = context.revert ? known.after : known.before;
+    if (!context.create && before === null && field === "title" && !context.revert) before = context.productName;
     if (context.revert) {
       rows.push({
         field,

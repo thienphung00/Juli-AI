@@ -57,6 +57,7 @@ from juli_backend.services.agent.playbooks.content import (
     CONTENT_LIVE_PLAYBOOK,
     CONTENT_VIDEO_PLAYBOOK,
 )
+from juli_backend.services.agent.playbooks.create_product import CREATE_PRODUCT_PLAYBOOK
 from juli_backend.services.agent.playbooks.optimize_product import OPTIMIZE_PRODUCT_PLAYBOOK
 
 _PROMPTS_ROOT = Path(__file__).resolve().parent
@@ -120,6 +121,11 @@ _WORKFLOW_BINDINGS: dict[str, _WorkflowPromptBinding] = {
         prompt_dir="content_live",
         playbook=CONTENT_LIVE_PLAYBOOK,
     ),
+    # Fast track P64 (D73.3/D73.4): the sandbox-only "Tạo sản phẩm" run.
+    CREATE_PRODUCT_PLAYBOOK.workflow_key: _WorkflowPromptBinding(
+        prompt_dir="create_product",
+        playbook=CREATE_PRODUCT_PLAYBOOK,
+    ),
 }
 
 # The production prompt version pin (ADR-072 d.4) -- a code constant,
@@ -130,6 +136,7 @@ PRODUCTION_PROMPT_VERSION: dict[str, int] = {
     OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key: 3,
     CONTENT_VIDEO_PLAYBOOK.workflow_key: 1,
     CONTENT_LIVE_PLAYBOOK.workflow_key: 1,
+    CREATE_PRODUCT_PLAYBOOK.workflow_key: 1,
 }
 
 

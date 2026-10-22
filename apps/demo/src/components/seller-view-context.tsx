@@ -121,6 +121,11 @@ export function useApproveControl(): (disabled?: boolean, title?: string) => Wri
   return (disabled, title) => writeControl(readOnly && !simulateApprove && !runActions, disabled, title, readOnlyTitle);
 }
 
+/** P64 (D73.4): true for the partner account on Juli's live TikTok sandbox shop. */
+export function useRunActions(): boolean {
+  return useContext(SellerViewContext).runActions;
+}
+
 /**
  * A run control (confirm / edit / skip a run's change, upload the run's photo):
  * like {@link useWriteControl}, except on the live sandbox (P64, D73.4), where

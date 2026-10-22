@@ -34,6 +34,7 @@ from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services import agent_runs
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
+from juli_backend.services.agent import playbooks as playbooks_module
 from juli_backend.services.agent_runs import (
     DEFAULT_HEARTBEAT_INTERVAL_S,
     DEFAULT_POLL_INTERVAL_S,
@@ -56,9 +57,6 @@ from juli_backend.services.ops import audit
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/demo/runs", tags=["agent-runs"])
-
-#: P64 (D73.3): the sandbox-only create-product workflow (audited apart from listing edits).
-CREATE_PRODUCT_WORKFLOW_KEY = "create_product"
 
 
 # -- dependencies (each overridable via app.dependency_overrides) --------------
@@ -302,7 +300,7 @@ async def submit_confirmation_decision(
         request,
         (
             audit.ACTION_REVIEWER_SANDBOX_CREATE_PRODUCT
-            if run.workflow_key == CREATE_PRODUCT_WORKFLOW_KEY
+            if run.workflow_key == playbooks_module.CREATE_PRODUCT_WORKFLOW_KEY
             else audit.ACTION_REVIEWER_SANDBOX_EXECUTE
         ),
         shop_id=shop.id,

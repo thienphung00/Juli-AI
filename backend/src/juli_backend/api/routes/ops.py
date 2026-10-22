@@ -788,11 +788,12 @@ async def ops_view_ranking(
 @router.get("/shops/{shop_id}/view/decisions")
 async def ops_view_decisions(
     shop_id: uuid.UUID,
+    request: Request,
     ctx: OpsContext = Depends(viewer),
     session: AsyncSession = Depends(get_session),
 ) -> Any:
     shop = await _view_shop(session, shop_id)
-    return await demo_decisions.list_demo_decisions(session=session, shop=shop)
+    return await demo_decisions.list_demo_decisions(request=request, session=session, shop=shop)
 
 
 @router.get("/shops/{shop_id}/view/rules")
