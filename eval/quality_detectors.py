@@ -1436,10 +1436,10 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 49
-MEASURED_TEST_FUNCTIONS = 7182
+MEASURED_TEST_FUNCTIONS = 7153
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 690
+MEASURED_TEST_MODULES = 688
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1497,7 +1497,7 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # validation test that also asserts on the error; no new raises-only test.
     # Fast track P61-E (D71.5): +1 in the first four layers. The any-shop journey test
     # delegates every assertion to same-file step helpers (`_step_*`), so the helper layer
-    # below and the zero-assertion headline did not move.
+    # below and the zero-assertion headline did not move. P64 (D73): +1 no_assert_statement.
     "no_assert_statement": 509,
     "and_no_pytest_raises": 131,
     "and_no_mock_assert_called": 116,
@@ -1587,8 +1587,8 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 49 "
-        "zero-assertion tests in a corpus of 7,182 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (690 test modules). The prior "
+        "zero-assertion tests in a corpus of 7,153 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (688 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to an asserting helper. That "

@@ -2849,6 +2849,7 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Owner, open: post-deploy VPS steps (alembic current = 100, drop TIKTOK_*_MERCHANT_ID,
   install `juli-db-backup.timer`, `pg_stat_statements_reset()`, re-enable Uptime Check);
   egress checkpoint 2026-10-28 (Pro before 2026-11-16 if > 160 MB/day).
+
 ## 2026-10-21 — lead — P64 Shopee reviewer on a live TikTok sandbox connection (D73)
 
 - Why: Shopee rejected the resubmission — the reviewer saw the bundled sample shop with browser
