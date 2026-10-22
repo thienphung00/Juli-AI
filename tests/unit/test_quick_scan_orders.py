@@ -124,7 +124,7 @@ async def _shop(session, capability: TikTokCapability) -> Shop:
         token_expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=7),
         merchant_authorization_id=f"merchant-{uuid.uuid4().hex[:6]}",
         capability=capability.value,
-        shop_cipher="cipher",
+        shop_cipher=f"cipher-{shop.id.hex[:8]}",
     )
     await session.commit()
     return shop
@@ -328,3 +328,47 @@ def test_no_listing_reason_means_no_card():
     listing["description"] = "<p>" + "x" * 600 + "</p><p>y</p>"
     sales = ProductSales("p", Decimal(100), 1, 1)
     assert orders_proposal(sales, listing, [], StageDiagnosisConfig()) is None
+
+
+async def _mark_done_with_full_cards(session, shop: Shop) -> None:
+    from juli_backend.repositories import ShopIngestionStateRepo
+
+    repo = ShopIngestionStateRepo(session)
+    await repo.ensure(shop.id)
+    await repo.update(
+        shop.id, quick_scan_status=QUICK_SCAN_DONE, first_card_at=datetime(2026, 10, 1)
+    )
+    await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_force_reruns_the_scan_for_the_sandbox_shop_only(session, session_factory):
+    sandbox = await _shop(session, TikTokCapability.SANDBOX_WRITE)
+    sandbox_resources = FakeSandboxResources(await _seed(session, sandbox))
+    await _mark_done_with_full_cards(session, sandbox)
+    real = await _shop(session, TikTokCapability.SELLER_CONNECT)
+    await _mark_done_with_full_cards(session, real)
+
+    skipped = await _scan(session_factory, sandbox, sandbox_resources)
+    forced = await qs.run_quick_scan(
+        session_factory=session_factory,
+        shop_id=sandbox.id,
+        app_key="app",
+        app_secret="secret",
+        create_resources=lambda _cfg: sandbox_resources,
+        now=SCAN_AT,
+        force=True,
+    )
+    real_forced = await qs.run_quick_scan(
+        session_factory=session_factory,
+        shop_id=real.id,
+        app_key="app",
+        app_secret="secret",
+        create_resources=lambda _cfg: FakeSandboxResources({}),
+        now=SCAN_AT,
+        force=True,
+    )
+
+    assert skipped.skipped_reason == "already_ran" and skipped.cards == 0
+    assert forced.status == QUICK_SCAN_DONE and forced.cards == 2, forced
+    assert real_forced.skipped_reason == "already_ran", "force is ignored for a real shop"

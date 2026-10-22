@@ -385,8 +385,14 @@ async def run_quick_scan(
     rate_limit_sleep: Callable[[float], Any] = time.sleep,
     now: datetime | None = None,
     config: StageDiagnosisConfig | None = None,
+    force: bool = False,
 ) -> QuickScanResult:
-    """Read, select and write the shop's quick cards. Never raises; see the module doc."""
+    """Read, select and write the shop's quick cards. Never raises; see the module doc.
+
+    ``force`` (operator, P64 D73.3) re-runs the scan for the SANDBOX shop only (its own
+    ``sandbox_write`` credential): it ignores an earlier ``done`` / ``skipped`` and the
+    existing full cards. For any other shop it is ignored.
+    """
     result = QuickScanResult(shop_id=shop_id)
     if not enabled():
         result.skipped_reason = "disabled"
@@ -398,7 +404,15 @@ async def run_quick_scan(
         async with with_shop_scope(session, shop_id):
             repo = ShopIngestionStateRepo(session)
             state = await repo.ensure(shop_id)
-            if state.quick_scan_status in (QUICK_SCAN_DONE, QUICK_SCAN_SKIPPED):
+            forced = False
+            credential: TikTokCredential | None = None
+            if force:
+                credential = await resolve(session, shop_id)
+                _assert_read_credential(credential, shop_id)
+                forced = is_own_shop_sandbox_read(
+                    credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+                )
+            if not forced and state.quick_scan_status in (QUICK_SCAN_DONE, QUICK_SCAN_SKIPPED):
                 result.skipped_reason = "already_ran"
                 result.status = state.quick_scan_status
                 return result
@@ -413,7 +427,7 @@ async def run_quick_scan(
                     extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
                 )
                 return result
-            if state.first_card_at is not None:
+            if not forced and state.first_card_at is not None:
                 await repo.update(shop_id, quick_scan_status=QUICK_SCAN_SKIPPED)
                 await session.commit()
                 result.status, result.skipped_reason = QUICK_SCAN_SKIPPED, "full_cards_exist"
@@ -422,8 +436,9 @@ async def run_quick_scan(
                     extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
                 )
                 return result
-            credential = await resolve(session, shop_id)
-            _assert_read_credential(credential, shop_id)
+            if credential is None:
+                credential = await resolve(session, shop_id)
+                _assert_read_credential(credential, shop_id)
             shop = await session.get(Shop, shop_id)
             if shop is None:
                 raise ValueError(f"quick scan: shop {shop_id} not found")
@@ -460,6 +475,7 @@ async def run_quick_scan(
             moment=moment,
             config=config or StageDiagnosisConfig(),
             sandbox=sandbox,
+            forced=forced,
         )
     except Exception as exc:
         result.status = QUICK_SCAN_FAILED
@@ -526,6 +542,7 @@ async def _scan_and_write(
     moment: datetime,
     config: StageDiagnosisConfig,
     sandbox: bool = False,
+    forced: bool = False,
 ) -> None:
     from juli_backend.services.shop_diagnosis_daily.pacing import (
         RateLimitedResources,
@@ -556,6 +573,7 @@ async def _scan_and_write(
             moment=moment,
             end_lt=end_lt,
             config=config,
+            forced=forced,
         )
         return
     selection = select_quick_proposals(fetched.funnels, fetched.evidence, fetched.asked, config)
@@ -627,6 +645,7 @@ async def _emit_quick_cards(
     as_of: date,
     quick_block: dict[str, Any],
     computed_at: datetime,
+    forced: bool = False,
 ) -> None:
     """Write the chosen quick cards through the full pipeline's ladder and the budget."""
     from juli_backend.core.config import decision_emission_config
@@ -639,7 +658,7 @@ async def _emit_quick_cards(
 
     async with session_factory() as session:
         async with with_shop_scope(session, shop_id):
-            if await _full_cards_exist(session, shop_id):
+            if not forced and await _full_cards_exist(session, shop_id):
                 # The full diagnosis landed first: it owns the cards.
                 result.status, result.skipped_reason = QUICK_SCAN_SKIPPED, "full_cards_exist"
                 return
@@ -699,6 +718,7 @@ async def _orders_scan_and_write(
     moment: datetime,
     end_lt: date,
     config: StageDiagnosisConfig,
+    forced: bool = False,
 ) -> None:
     """P64 (D73.3): the sandbox's quick cards from its paid orders (``quick_scan_orders``)."""
     from juli_backend.services.onboarding.quick_scan_orders import (
@@ -780,6 +800,7 @@ async def _orders_scan_and_write(
         as_of=last,
         quick_block=orders_quick_block(moment),
         computed_at=moment,
+        forced=forced,
     )
 
 
