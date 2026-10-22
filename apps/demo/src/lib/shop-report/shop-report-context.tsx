@@ -13,7 +13,7 @@ import {
 import { fetchShopAnalysis } from "../shop-analysis/api-client";
 import type { ShopAnalysisEnvelope } from "../shop-analysis/types";
 import { readActiveShop } from "../shop-session";
-import { readAuthSession } from "../supabase-auth";
+import { ensureFreshSession } from "../auth-refresh";
 
 /**
  * Who the app is showing, and that shop's latest ADR-108 report — resolved
@@ -87,8 +87,10 @@ export function ShopReportProvider({
     let cancelled = false;
     // Deferred like every other browser-storage read in this app, so the
     // server render and the first client render agree.
-    const timer = window.setTimeout(() => {
-      const session = readAuthSession();
+    const timer = window.setTimeout(async () => {
+      // P64: an expired access token is refreshed before the first /v1 read.
+      const session = await ensureFreshSession();
+      if (cancelled) return;
       if (!session) {
         setState({ status: "anonymous", envelope: null });
         loadSample()

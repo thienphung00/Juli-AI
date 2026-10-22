@@ -514,6 +514,54 @@ export async function signInWithPassword(
   };
 }
 
+/* ------------------------------------------------------------------------ *
+ * Session refresh (P64) — GoTrue's refresh-token grant. Supabase rotates the
+ * refresh token on every use, so the caller must store the returned session.
+ * ------------------------------------------------------------------------ */
+
+export type RefreshSessionResult =
+  | { ok: true; session: AuthSession }
+  /** `rejected`: GoTrue refused the token (sign-in is over). `transient`: network / 5xx / 429 — keep the session. */
+  | { ok: false; reason: "no_refresh_token" | "rejected" | "transient" };
+
+export async function refreshSessionRequest(
+  refreshToken: string | null,
+  fetchImpl: FetchLike = (input, init) => fetch(input, init),
+): Promise<RefreshSessionResult> {
+  if (!refreshToken) return { ok: false, reason: "no_refresh_token" };
+
+  let response: Response | null;
+  try {
+    response = await postGoTrue(
+      "/auth/v1/token",
+      { refresh_token: refreshToken },
+      fetchImpl,
+      { grant_type: "refresh_token" },
+    );
+  } catch {
+    return { ok: false, reason: "transient" };
+  }
+
+  if (!response) return { ok: false, reason: "transient" };
+  if (!response.ok) {
+    return { ok: false, reason: response.status >= 500 || response.status === 429 ? "transient" : "rejected" };
+  }
+
+  const body = (await readJson(response)) as Record<string, unknown> | null;
+  const accessToken = body?.access_token;
+  if (typeof accessToken !== "string" || !accessToken) return { ok: false, reason: "rejected" };
+
+  return {
+    ok: true,
+    session: {
+      accessToken,
+      refreshToken: typeof body?.refresh_token === "string" ? body.refresh_token : refreshToken,
+      expiresIn: typeof body?.expires_in === "number" ? body.expires_in : null,
+      tokenType: typeof body?.token_type === "string" ? body.token_type : "bearer",
+    },
+  };
+}
+
 /**
  * Vietnamese for a failed redirect into `/auth/callback` (Google or magic
  * link). GoTrue's `error_code=otp_expired` — an expired or already-used

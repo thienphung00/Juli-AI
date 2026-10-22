@@ -219,7 +219,9 @@ describe("replay entry — module graph carries no /v1/* fetch capability", () =
 
     // P32-A (intentional guard change): the partner trial account's password
     // grant (/auth/v1/token, fired only on "Đăng nhập" of the password form).
-    expect(postedPaths).toEqual(["/auth/v1/otp", "/auth/v1/verify", "/auth/v1/token"]);
+    // P64 (intentional guard change): the refresh-token grant is the same
+    // /auth/v1/token path, fired only for an already-signed-in session.
+    expect(postedPaths).toEqual(["/auth/v1/otp", "/auth/v1/verify", "/auth/v1/token", "/auth/v1/token"]);
     for (const path of builtPaths) {
       expect(path).toMatch(/^\/auth\/v1\//);
     }

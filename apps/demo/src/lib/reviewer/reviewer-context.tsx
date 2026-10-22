@@ -15,6 +15,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { clearActiveShop, readActiveShop, storeActiveShop } from "../shop-session";
+import { ensureFreshSession } from "../auth-refresh";
 import { readAuthSession } from "../supabase-auth";
 import { fetchReviewerMe, type ReviewerMeResult } from "./api-client";
 import { ReviewerContext, clearReviewerSignIn, reviewerSignInHref } from "./mode";
@@ -40,15 +41,19 @@ export function ReviewerProvider({
 
   useEffect(() => {
     const record = readReviewerRecord();
-    const session = readAuthSession();
     if (!record) return;
-    if (!session) {
+    if (!readAuthSession()) {
       clearReviewerRecord();
       return;
     }
     let cancelled = false;
     const timer = window.setTimeout(() => !cancelled && setReviewer(record), 0);
-    void fetchMe(session.accessToken).then((result) => {
+    // P64: refresh an (about to be) expired token before the confirmation call.
+    void ensureFreshSession().then((session) => {
+      if (cancelled || !session) return;
+      return fetchMe(session.accessToken);
+    }).then((result) => {
+      if (!result) return;
       if (cancelled) return;
       if (result.status === "reviewer") {
         const sample = result.me.shop === null;
