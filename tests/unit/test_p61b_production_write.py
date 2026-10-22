@@ -653,7 +653,10 @@ def test_the_demo_copy_never_says_applied_for_a_simulated_run():
     assert "Đã chạy thử" in copy
     assert "Đã áp dụng" not in copy and "đã cập nhật" not in copy.lower()
     run_model = (ROOT / "apps/demo/src/lib/quyet-dinh/run-model.ts").read_text("utf-8")
-    assert run_model.count("run.simulated ?") == 2
+    # Both chips (run header and queue) go through the one branch on ``run.simulated``;
+    # P64 (D73.4): only the reviewer's live sandbox shop reads it as a real TikTok write.
+    assert run_model.count("if (!run.simulated)") == 1
+    assert run_model.count("appliedChip(run, sandboxShop)") == 2
 
 
 # --- measurement ----------------------------------------------------------------------
