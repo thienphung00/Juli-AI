@@ -128,7 +128,7 @@ function qdClients(over: Partial<QdClients> = {}): QdClients {
 
 
 const SHOP: SandboxShop = {
-  shop: { id: "shop-1", name: "Juli Sandbox", tiktok_shop_id: "7495", platform: "tiktok" },
+  shop: { id: "shop-1", name: "Juli Sandbox", tiktok_shop_code: "VNLCJ7495", platform: "tiktok" },
   mode: "sandbox",
   writes_enabled: true,
   connection: {
@@ -216,9 +216,16 @@ describe("connection card", () => {
     expect(card).toBeInTheDocument();
     expect(screen.getByTestId("sandbox-connection-status")).toHaveTextContent("Đã kết nối");
     expect(screen.getByTestId("sandbox-connection")).toHaveTextContent("Ủy quyền lúc");
-    expect(screen.getByTestId("sandbox-connection")).toHaveTextContent("7495");
+    expect(screen.getByTestId("sandbox-connection")).toHaveTextContent("Mã shop TikTokVNLCJ7495");
     expect(screen.getByTestId("sandbox-synced-at")).toHaveTextContent(/Đồng bộ lúc .*\(5 phút trước\)/);
     expect(screen.getByText("product.write")).toBeInTheDocument();
+  });
+
+  it("hides the Mã shop TikTok row when the shop code is unknown (never the internal id)", async () => {
+    const shop: SandboxShop = { ...SHOP, shop: { ...SHOP.shop, tiktok_shop_code: null } };
+    render(<SandboxConnectionCard fetchShop={vi.fn().mockResolvedValue(shop)} sync={vi.fn()} token="t" />);
+    await screen.findByText("Juli Sandbox");
+    expect(screen.getByTestId("sandbox-connection")).not.toHaveTextContent("Mã shop TikTok");
   });
 
   it("Đồng bộ ngay: queued, then a 429 disables the button with a countdown that expires", async () => {

@@ -157,10 +157,10 @@ export function SandboxConnectionCard({
       <dl className="reviewer-sim__facts">
         <dt>Shop</dt>
         <dd>{shop.name}</dd>
-        {shop.tiktok_shop_id ? (
+        {shop.tiktok_shop_code ? (
           <>
             <dt>Mã shop TikTok</dt>
-            <dd>{shop.tiktok_shop_id}</dd>
+            <dd>{shop.tiktok_shop_code}</dd>
           </>
         ) : null}
         <dt>Trạng thái</dt>

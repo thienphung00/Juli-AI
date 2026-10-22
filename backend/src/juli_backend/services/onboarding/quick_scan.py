@@ -23,6 +23,13 @@ A product the catalog does not hold yet (the fast phase syncs it later) gets a
 placeholder ``products`` row from Get Product with ``update_time`` at the epoch,
 so the first real product sync overwrites every column.
 
+Sandbox shop (P64, D73.3): a shop read through its OWN ``sandbox_write``
+credential whose 14-day A-34 rows show no GMV and no click (TikTok Analytics is
+all zeros for a sandbox) is scanned by its real paid orders instead
+(``quick_scan_orders``): top products by order revenue, TikTok's diagnosis and the
+listing, then a title or description card with a stored rule-based proposal.
+Real shops never take that path.
+
 Pure selection here (:func:`select_quick_proposals`); the I/O is
 :func:`run_quick_scan`, which the Celery task in
 ``workers/tasks/shop_quick_scan.py`` calls.
@@ -378,8 +385,14 @@ async def run_quick_scan(
     rate_limit_sleep: Callable[[float], Any] = time.sleep,
     now: datetime | None = None,
     config: StageDiagnosisConfig | None = None,
+    force: bool = False,
 ) -> QuickScanResult:
-    """Read, select and write the shop's quick cards. Never raises; see the module doc."""
+    """Read, select and write the shop's quick cards. Never raises; see the module doc.
+
+    ``force`` (operator, P64 D73.3) re-runs the scan for the SANDBOX shop only (its own
+    ``sandbox_write`` credential): it ignores an earlier ``done`` / ``skipped`` and the
+    existing full cards. For any other shop it is ignored.
+    """
     result = QuickScanResult(shop_id=shop_id)
     if not enabled():
         result.skipped_reason = "disabled"
@@ -391,7 +404,15 @@ async def run_quick_scan(
         async with with_shop_scope(session, shop_id):
             repo = ShopIngestionStateRepo(session)
             state = await repo.ensure(shop_id)
-            if state.quick_scan_status in (QUICK_SCAN_DONE, QUICK_SCAN_SKIPPED):
+            forced = False
+            credential: TikTokCredential | None = None
+            if force:
+                credential = await resolve(session, shop_id)
+                _assert_read_credential(credential, shop_id)
+                forced = is_own_shop_sandbox_read(
+                    credential.capability, credential_shop_id=credential.shop_id, shop_id=shop_id
+                )
+            if not forced and state.quick_scan_status in (QUICK_SCAN_DONE, QUICK_SCAN_SKIPPED):
                 result.skipped_reason = "already_ran"
                 result.status = state.quick_scan_status
                 return result
@@ -406,7 +427,7 @@ async def run_quick_scan(
                     extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
                 )
                 return result
-            if state.first_card_at is not None:
+            if not forced and state.first_card_at is not None:
                 await repo.update(shop_id, quick_scan_status=QUICK_SCAN_SKIPPED)
                 await session.commit()
                 result.status, result.skipped_reason = QUICK_SCAN_SKIPPED, "full_cards_exist"
@@ -415,8 +436,9 @@ async def run_quick_scan(
                     extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
                 )
                 return result
-            credential = await resolve(session, shop_id)
-            _assert_read_credential(credential, shop_id)
+            if credential is None:
+                credential = await resolve(session, shop_id)
+                _assert_read_credential(credential, shop_id)
             shop = await session.get(Shop, shop_id)
             if shop is None:
                 raise ValueError(f"quick scan: shop {shop_id} not found")
@@ -432,6 +454,7 @@ async def run_quick_scan(
                 ),
             )
             shop_key = shop.tiktok_shop_id or str(shop_id)
+            sandbox = factory_config.own_shop_sandbox_read
             await repo.stamp_once(
                 shop_id, "quick_scan_started_at", quick_scan_status=QUICK_SCAN_RUNNING
             )
@@ -451,6 +474,8 @@ async def run_quick_scan(
             rate_limit_sleep=rate_limit_sleep,
             moment=moment,
             config=config or StageDiagnosisConfig(),
+            sandbox=sandbox,
+            forced=forced,
         )
     except Exception as exc:
         result.status = QUICK_SCAN_FAILED
@@ -516,6 +541,8 @@ async def _scan_and_write(
     rate_limit_sleep: Callable[[float], Any],
     moment: datetime,
     config: StageDiagnosisConfig,
+    sandbox: bool = False,
+    forced: bool = False,
 ) -> None:
     from juli_backend.services.shop_diagnosis_daily.pacing import (
         RateLimitedResources,
@@ -536,6 +563,19 @@ async def _scan_and_write(
         fetch_quick_inputs, resources, start=start, end_lt=end_lt, top_n=top_products()
     )
     result.calls = fetched.calls
+    if sandbox and not fetched.asked:
+        # P64 (D73.3): no product with GMV or clicks -- the sandbox's zero analytics.
+        await _orders_scan_and_write(
+            result,
+            session_factory=session_factory,
+            shop_id=shop_id,
+            resources=resources,
+            moment=moment,
+            end_lt=end_lt,
+            config=config,
+            forced=forced,
+        )
+        return
     selection = select_quick_proposals(fetched.funnels, fetched.evidence, fetched.asked, config)
     result.candidates = len(selection.proposals)
     if not selection.proposals:
@@ -577,7 +617,37 @@ async def _scan_and_write(
     if not chosen:
         result.status, result.skipped_reason = QUICK_SCAN_DONE, "no_candidate"
         return
+    await _emit_quick_cards(
+        result,
+        session_factory=session_factory,
+        shop_id=shop_id,
+        chosen=chosen,
+        details=details,
+        medians=selection.medians,
+        funnels=selection.funnels,
+        products_scored=len(selection.funnels),
+        as_of=end_lt - timedelta(days=1),
+        quick_block=quick_scan_block(moment),
+        computed_at=moment,
+    )
 
+
+async def _emit_quick_cards(
+    result: QuickScanResult,
+    *,
+    session_factory: SessionFactory,
+    shop_id: uuid.UUID,
+    chosen: list[CardProposal],
+    details: dict[str, dict[str, Any]],
+    medians: ShopMedians,
+    funnels: dict[str, ProductFunnel],
+    products_scored: int,
+    as_of: date,
+    quick_block: dict[str, Any],
+    computed_at: datetime,
+    forced: bool = False,
+) -> None:
+    """Write the chosen quick cards through the full pipeline's ladder and the budget."""
     from juli_backend.core.config import decision_emission_config
     from juli_backend.repositories import ProductsRepo
     from juli_backend.services.action_cards.emission_budget import apply_emission_budget
@@ -586,10 +656,9 @@ async def _scan_and_write(
         emit_optimize_product_cards,
     )
 
-    computed_at = moment
     async with session_factory() as session:
         async with with_shop_scope(session, shop_id):
-            if await _full_cards_exist(session, shop_id):
+            if not forced and await _full_cards_exist(session, shop_id):
                 # The full diagnosis landed first: it owns the cards.
                 result.status, result.skipped_reason = QUICK_SCAN_SKIPPED, "full_cards_exist"
                 return
@@ -601,18 +670,18 @@ async def _scan_and_write(
             )
             ranked = [replace(p, rank=i) for i, p in enumerate(chosen, start=1)]
             op_plan = OptimizeProductPlan(
-                as_of=end_lt - timedelta(days=1),
+                as_of=as_of,
                 plan=ShopCardPlan(
                     proposals=ranked,
-                    medians=selection.medians,
+                    medians=medians,
                     skips=[],
                     excluded={},
-                    products_scored=len(selection.funnels),
+                    products_scored=products_scored,
                 ),
                 products=products,
                 days={},
-                funnels={p.product_id: selection.funnels[p.product_id] for p in ranked},
-                quick_scan=quick_scan_block(moment),
+                funnels={p.product_id: funnels[p.product_id] for p in ranked},
+                quick_scan=quick_block,
             )
             emission_config = decision_emission_config()
             decisions = await emit_optimize_product_cards(
@@ -638,6 +707,101 @@ async def _scan_and_write(
             result.surfaced = sum(1 for c in outcome.newly_surfaced if c.id in written_ids)
         await session.commit()
     result.status = QUICK_SCAN_DONE
+
+
+async def _orders_scan_and_write(
+    result: QuickScanResult,
+    *,
+    session_factory: SessionFactory,
+    shop_id: uuid.UUID,
+    resources: Any,
+    moment: datetime,
+    end_lt: date,
+    config: StageDiagnosisConfig,
+    forced: bool = False,
+) -> None:
+    """P64 (D73.3): the sandbox's quick cards from its paid orders (``quick_scan_orders``)."""
+    from juli_backend.services.onboarding.quick_scan_orders import (
+        ORDERS_WINDOW_DAYS,
+        funnel_from_sales,
+        orders_proposal,
+        orders_quick_block,
+        rank_by_orders,
+    )
+    from juli_backend.services.shop_diagnosis_daily.orders_source import load_paid_order_lines
+
+    last = end_lt - timedelta(days=1)
+    async with session_factory() as session:
+        async with with_shop_scope(session, shop_id):
+            lines = await load_paid_order_lines(
+                session, shop_id, end_lt - timedelta(days=ORDERS_WINDOW_DAYS), last
+            )
+            ranked_sales = rank_by_orders(lines, top_products())
+            known = await _products_by_tiktok_id(
+                session, shop_id, (s.product_id for s in ranked_sales)
+            )
+        await session.commit()
+    if not ranked_sales:
+        result.status, result.skipped_reason = QUICK_SCAN_DONE, "no_paid_orders"
+        return
+
+    asked = [s.product_id for s in ranked_sales]
+    evidence: dict[str, list[Evidence]] = {}
+    try:
+        evidence = evidence_from_diagnoses(
+            await asyncio.to_thread(resources.products.get_diagnoses, asked)
+        )
+    except Exception as exc:
+        # The listing itself still gives Juli's own reading (local evidence).
+        logger.warning(
+            "shop_quick_scan_orders_diagnoses_failed",
+            extra={"shop_id": str(shop_id), "error_type": type(exc).__name__},
+        )
+    result.calls += 1
+
+    details: dict[str, dict[str, Any]] = {}
+    funnels: dict[str, ProductFunnel] = {}
+    chosen: list[CardProposal] = []
+    for detail_calls, sales in enumerate(ranked_sales):
+        if len(chosen) >= max_cards() or detail_calls >= MAX_DETAIL_CALLS:
+            break
+        raw = await asyncio.to_thread(resources.products.get_details, sales.product_id)
+        result.calls += 1
+        listing = raw if isinstance(raw, dict) else {}
+        values = _detail_values(listing)
+        if values is None or gift_reason_from_raw(listing, config.exclude_title_patterns):
+            continue
+        proposal = orders_proposal(sales, listing, evidence.get(sales.product_id, []), config)
+        if proposal is None:
+            continue
+        product = known.get(sales.product_id)
+        if product is not None:
+            title, status = (product.title or product.name), product.status
+        else:
+            details[sales.product_id] = values
+            title, status = values["title"], values["status"]
+        if exclusion_reason(CatalogProduct(sales.product_id, title, status), config):
+            continue
+        funnels[sales.product_id] = funnel_from_sales(sales, title, days=ORDERS_WINDOW_DAYS)
+        chosen.append(replace(proposal, title=title))
+    result.candidates = len(chosen)
+    if not chosen:
+        result.status, result.skipped_reason = QUICK_SCAN_DONE, "no_candidate"
+        return
+    await _emit_quick_cards(
+        result,
+        session_factory=session_factory,
+        shop_id=shop_id,
+        chosen=chosen,
+        details=details,
+        medians=ShopMedians.from_products(list(funnels.values()), config),
+        funnels=funnels,
+        products_scored=len(ranked_sales),
+        as_of=last,
+        quick_block=orders_quick_block(moment),
+        computed_at=moment,
+        forced=forced,
+    )
 
 
 __all__ = [

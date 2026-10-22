@@ -14,7 +14,13 @@ export interface SandboxOptions {
 }
 
 export interface SandboxShop {
-  readonly shop: { readonly id: string; readonly name: string; readonly tiktok_shop_id: string | null; readonly platform: string };
+  readonly shop: {
+    readonly id: string;
+    readonly name: string;
+    /** TikTok's seller-facing shop code; null when not known (the row is hidden). */
+    readonly tiktok_shop_code: string | null;
+    readonly platform: string;
+  };
   readonly mode: string;
   readonly writes_enabled: boolean;
   readonly connection: {
