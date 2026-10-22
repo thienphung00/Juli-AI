@@ -33,7 +33,9 @@ Field rules, where the contract leaves a choice:
   14-day window.
 - ``before_after``: only complete pairs -- the latest run's recorded writes
   (``run_write_values``). A pending card's "after" does not exist yet (Juli
-  drafts it in the run), so it has none.
+  drafts it in the run), so it has none -- except a card that stored a
+  rule-based ``diagnosis.listing_proposal`` (P64, D73.3: the sandbox shop's
+  orders-based quick cards), which shows it until a run records writes.
 """
 
 from __future__ import annotations
@@ -97,6 +99,9 @@ _REASON_SHORT_VI: Mapping[str, str] = {
     "page": "Khách xem nhưng ít đặt hàng",
     "basket": "Mỗi đơn mua ít món",
 }
+
+#: P64 (D73.3): an orders-based quick card claims no funnel stage, only sales.
+_REASON_SHORT_ORDERS_VI = "Sản phẩm bán chạy theo đơn hàng"
 
 #: D61: the card's GMV line is a plain sentence; Juli's formula, window and rules stay internal.
 _GMV_SENTENCE_VI = (
@@ -243,6 +248,12 @@ def _quick_scan(diagnosis: Mapping[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _from_orders(diagnosis: Mapping[str, Any]) -> bool:
+    """P64 (D73.3): a quick card the sandbox shop's paid orders chose (no funnel stage)."""
+    block = diagnosis.get("quick_scan")
+    return isinstance(block, Mapping) and block.get("source") == "orders"
+
+
 def _status(
     card: ActionCard, diagnosis: Mapping[str, Any], context: CardContext, now: datetime
 ) -> str:
@@ -381,7 +392,24 @@ def _reason_full(
     return " ".join(p for p in parts if p)
 
 
-def _before_after(context: CardContext) -> list[dict[str, Any]]:
+def _stored_proposal(diagnosis: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """P64 (D73.3): the card's stored rule-based listing edit as one Trước / Sau pair."""
+    stored = diagnosis.get("listing_proposal")
+    if not isinstance(stored, Mapping):
+        return []
+    field_code = str(stored.get("field") or "")
+    before, after = stored.get("before"), stored.get("after")
+    label = _FIELD_LABELS_VI.get(field_code)
+    if label is None or not isinstance(before, str) or not isinstance(after, str) or not after:
+        return []
+    return [{"field": field_code, "label": label, "before": before, "after": after}]
+
+
+def _before_after(
+    context: CardContext, diagnosis: Mapping[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    if not context.writes and diagnosis is not None:
+        return _stored_proposal(diagnosis)
     merged: dict[str, dict[str, Any]] = {}
     for row in context.writes:
         if row.field not in _FIELD_LABELS_VI:
@@ -437,12 +465,16 @@ def build_card_block(
         "status": _status(card, diagnosis, context, now),
         "main_kpi": kpi,
         "expected_gmv_per_month": round(per_day * 30) if per_day is not None else None,
-        "reason_short": _REASON_SHORT_VI.get(str(stage_code), "Chỉ số sản phẩm giảm"),
+        "reason_short": (
+            _REASON_SHORT_ORDERS_VI
+            if _from_orders(diagnosis)
+            else _REASON_SHORT_VI.get(str(stage_code), "Chỉ số sản phẩm giảm")
+        ),
         "reason_full": _reason_full(diagnosis, kpi, local, tiktok),
         "tiktok_codes": tiktok,
         "lever": {"code": lever_code, "label": lever_label, "executor": executor},
         "change_fields": [{"field": field_code, "label": field_label}],
-        "before_after": _before_after(context),
+        "before_after": _before_after(context, diagnosis),
         "gmv_method": (
             (_GMV_METHOD_14D_VI if quick else _GMV_METHOD_VI).get(str(kpi["key"]))
             if per_day is not None

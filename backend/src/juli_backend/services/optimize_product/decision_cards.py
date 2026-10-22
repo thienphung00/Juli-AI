@@ -273,6 +273,10 @@ class CardProposal:
     #: D39.1 (metric-first, internal): the metrics that fell beyond their band,
     #: what each costs, and whether GMV held; ``None`` on the GMV-first path.
     metric_trigger: MetricTrigger | None = None
+    #: P64 (D73.3): a rule-based listing edit stored with the card
+    #: (``{"field", "before", "after"}``), so Duyệt shows Trước / Sau before any run.
+    #: Only the sandbox shop's orders-based quick cards carry one.
+    listing_proposal: dict[str, str] | None = None
 
     @property
     def confidence(self) -> str | None:
@@ -372,6 +376,11 @@ class CardProposal:
             **(
                 {"metric_trigger": self.metric_trigger.to_json()}
                 if self.metric_trigger is not None
+                else {}
+            ),
+            **(
+                {"listing_proposal": dict(self.listing_proposal)}
+                if self.listing_proposal is not None
                 else {}
             ),
         }
