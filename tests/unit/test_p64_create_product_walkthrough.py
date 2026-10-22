@@ -141,19 +141,62 @@ def test_manufacturer_values_absent_from_the_title_are_never_copied():
     ]
 
 
-def test_a_required_manufacturer_attribute_is_refused_rather_than_leaked():
-    products = BrandedProducts(attributes=MANUFACTURER_ATTRS)
+JULI_NAME = "Công ty TNHH Công Nghệ Juli AI"
+JULI_ADDRESS = "1B Đường số 30 Trần Não, Phường An Khánh, TP. Hồ Chí Minh"
+
+
+def _juli_manufacturer(**source: Any) -> BrandedProducts:
+    """The sandbox source after the owner's cleanup: Juli's own company as manufacturer."""
+    products = BrandedProducts(attributes=MANUFACTURER_ATTRS, **source)
+    detail = products.get_details(SOURCE_ID)
+    attrs = {a["id"]: a for a in detail["product_attributes"]}
+    attrs["101489"] = {**attrs["101489"], "values": [{"name": JULI_NAME}]}
+    attrs["101490"] = {**attrs["101490"], "values": [{"name": JULI_ADDRESS}]}
+    products.source = {**source, "product_attributes": list(attrs.values())}
+    return products
+
+
+def test_required_manufacturer_attributes_are_copied_verbatim_and_the_create_succeeds():
+    """VN requires 101489 / 101490: legal facts, copied as they are -- not marketing copy."""
+    products = _juli_manufacturer()
     check = cc.handle_check_listing_requirements(
         _sandbox(products), CONTEXT, cc.CheckListingRequirementsInput(category_id="605254")
     )
-    assert check.ok is False and check.error_code == "required_attribute_missing"
-    assert check.missing == ["Manufacturer/Trader Name", "Manufacturer/Trader Address"]
-    assert CUSTOMER not in check.summary_vi
-    assert "không sao chép giá trị tự nhập" in check.summary_vi
-    created = cc.handle_create_product(
+    assert check.ok, check
+    out = cc.handle_create_product(
         _sandbox(products), CONTEXT, _input("Bình nước thép không gỉ 750ml dùng hằng ngày")
     )
-    assert created.error_code == "required_attribute_missing" and products.created == []
+    assert out.ok, out
+    attrs = {row["id"]: row["values"] for row in products.created[0]["product_attributes"]}
+    assert attrs["101489"] == [{"name": JULI_NAME}]
+    assert attrs["101490"] == [{"name": JULI_ADDRESS}]
+    assert attrs["100149"] == [{"id": "1000854", "name": "Việt Nam"}]
+    assert "101164" not in attrs  # the optional free-text "Kiểu" is still dropped
+
+
+def test_the_model_never_reads_the_required_values_and_may_not_write_them():
+    products = _juli_manufacturer()
+    shown = cc.handle_get_category_candidates(
+        _sandbox(products), CONTEXT, cc.GetCategoryCandidatesInput()
+    )
+    assert JULI_NAME not in str(shown.model_dump())
+    branded = _input(f"Bình nước thép không gỉ 750ml {JULI_NAME}")
+    refusal = cc.precheck_create_product(_sandbox(products), CONTEXT, branded)
+    assert refusal is not None and refusal.error_code == "brand_not_in_source"
+    out = cc.handle_create_product(_sandbox(products), CONTEXT, branded)
+    assert out.ok is False and products.created == []
+
+
+async def test_a_title_naming_the_required_manufacturer_is_redrafted_then_ends_the_run():
+    products = _juli_manufacturer()
+    store, sink = InMemoryStore(), InMemoryEventSink()
+    branded = f"Bình nước thép không gỉ 750ml {JULI_NAME}"
+    result = await _runner(products, store, sink, ScriptedLLM([branded, branded])).run(
+        uuid.uuid4(), product_ref=SOURCE_ID
+    )
+    assert result.status != WorkflowRunStatus.WAITING_APPROVAL
+    assert not [e for e in sink.events if e.event_type == "workflow.approval_required"]
+    assert products.created == []
 
 
 def test_a_manufacturer_the_title_names_is_copied():

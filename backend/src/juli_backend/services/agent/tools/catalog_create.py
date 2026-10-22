@@ -305,16 +305,25 @@ def _required(attribute: Mapping[str, Any]) -> bool:
 
 
 def copyable_attributes(
-    detail: Mapping[str, Any], attribute_names: Mapping[str, str]
+    detail: Mapping[str, Any],
+    attribute_names: Mapping[str, str],
+    required_ids: frozenset[str] = frozenset(),
 ) -> list[dict[str, Any]]:
-    """The source's attribute values the new listing may carry, for the category's attributes.
+    """The source's attribute values the new listing carries, for the category's attributes.
 
     Only attributes the category knows (``attribute_names``), values copied verbatim
-    (``id`` / ``name``) -- never invented. A value TikTok picked from its own option list
-    (it has an ``id``) is copied; a free-text value only when the source TITLE carries it
-    (D73.5: a manufacturer / brand name typed into the source is not the new listing's).
+    (``id`` / ``name``) -- never invented:
+
+    - an attribute the category REQUIRES (``required_ids``: TikTok VN's Manufacturer /
+      Trader Name and Address, Country of origin ...) is a seller / legal fact, copied
+      as it is -- its free-text values stay in the source-names rule data, so the
+      drafted copy still cannot use them (``listing_rules``), and the model never
+      reads them;
+    - an optional attribute keeps a value TikTok picked from its own option list (it has
+      an ``id``), and a free-text value only when the source TITLE carries it (D73.5).
+
     An attribute left with no value is dropped; if the category requires it, the plan
-    says ``required_attribute_missing`` rather than copying the name.
+    says ``required_attribute_missing``.
     """
     title = str(detail.get("title") or "")
     copied: list[dict[str, Any]] = []
@@ -324,12 +333,13 @@ def copyable_attributes(
         attribute_id = str(attribute["id"])
         if attribute_id not in attribute_names:
             continue
+        required = attribute_id in required_ids
         values: list[dict[str, Any]] = []
         for value in attribute.get("values") or []:
             if not isinstance(value, Mapping):
                 continue
             text = str(value.get("name") or "").strip()
-            if not value.get("id") and not (text and contains_term(title, text)):
+            if not required and not value.get("id") and not (text and contains_term(title, text)):
                 continue
             kept = {k: v for k, v in value.items() if k in ("id", "name") and v}
             if kept:
@@ -364,7 +374,8 @@ def plan_listing(resources: Any, product_id: str, category_id: str) -> ListingPl
     attributes = _unwrap(resources.products.get_category_attributes(category_id=category_id))
     category_attrs = [a for a in attributes.get("attributes") or [] if isinstance(a, Mapping)]
     attribute_names = {str(a.get("id")): str(a.get("name") or "") for a in category_attrs}
-    product_attributes = copyable_attributes(detail, attribute_names)
+    required_ids = frozenset(str(a.get("id")) for a in category_attrs if _required(a))
+    product_attributes = copyable_attributes(detail, attribute_names, required_ids)
     copied_ids = {row["id"] for row in product_attributes}
     missing = [
         str(a.get("name") or a.get("id"))
@@ -374,24 +385,9 @@ def plan_listing(resources: Any, product_id: str, category_id: str) -> ListingPl
         and str(a.get("id")) not in copied_ids
     ]
     if missing:
-        source_ids = {
-            str(a.get("id"))
-            for a in detail.get("product_attributes") or []
-            if isinstance(a, Mapping)
-        }
-        withheld = any(
-            str(a.get("id")) in source_ids and str(a.get("name") or a.get("id")) in missing
-            for a in category_attrs
-        )
         raise PlanRefusal(
             ERROR_REQUIRED_ATTRIBUTE_MISSING,
-            "Sản phẩm gốc thiếu thuộc tính bắt buộc của danh mục: "
-            + ", ".join(missing)
-            + (
-                " (Juli không sao chép giá trị tự nhập không có trong tiêu đề sản phẩm gốc)"
-                if withheld
-                else ""
-            ),
+            "Sản phẩm gốc thiếu thuộc tính bắt buộc của danh mục: " + ", ".join(missing),
             missing,
         )
     images = [
