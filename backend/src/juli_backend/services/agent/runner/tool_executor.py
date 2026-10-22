@@ -298,6 +298,30 @@ class DomainToolExecutor:
     def _after_dispatch(self, *, tool_name: str, spec: ToolSpec) -> None:
         """Runs after a successful dispatch, ledger-gated or direct."""
 
+    # --- pre-confirmation check (P64) ------------------------------------------
+
+    def precheck(self, *, tool_name: str, params: BaseModel) -> Mapping[str, Any] | None:
+        """The domain's read-only check of a CONFIRM proposal, before the pause.
+
+        `None` when the domain registers no check for `tool_name` or the check
+        passes; else the refusal's dumped model (`error_code`, `summary_vi`,
+        `model_hint`). Uses the read bundle (the write bundle when only that one
+        exists); never writes, never touches the ledger.
+        """
+        spec = self._registry.get(tool_name)
+        domain = get_tool_domain(spec.domain)
+        check = domain.prechecks.get(tool_name)
+        if check is None:
+            return None
+        resources = (
+            self._read_resources if self._read_resources is not None else self._write_resources
+        )
+        if domain.takes_resources and resources is None:
+            return None
+        context = ToolContext(subject=self._subject, resources=resources, binding=self._binding())
+        refusal = check(resources, domain.context_for(context), params)
+        return None if refusal is None else refusal.model_dump(mode="json")
+
     # --- dispatch -------------------------------------------------------------
 
     def execute(

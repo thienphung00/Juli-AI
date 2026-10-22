@@ -49,8 +49,13 @@ logger = logging.getLogger(__name__)
 
 WAITING_APPROVAL_RUN_STATUS = WorkflowRunStatus.WAITING_APPROVAL.value
 PENDING_CONFIRMATION_STATUS = "pending"
-#: The one CONFIRM tool whose proposal the seller may edit (title / description).
-EDITABLE_TOOL_NAME = "update_product_listing"
+#: The CONFIRM tools whose proposal the seller may edit (title / description): the
+#: listing edit, and the sandbox "Tạo sản phẩm" create (P64, D73.3) -> the description
+#: limit each tool's own input model accepts.
+EDITABLE_TOOL_DESCRIPTION_MAX: dict[str, int] = {
+    "update_product_listing": shop_rules.DESCRIPTION_MAX_CHARS,
+    "create_product": 5_000,
+}
 EXPIRED_CONFIRMATION_STATUS = "expired"
 
 # Machine-readable discriminators. Stable: clients branch on them.
@@ -246,9 +251,13 @@ async def _apply_seller_edits(
     arguments = pending_state.get("arguments")
     arguments = dict(arguments) if isinstance(arguments, Mapping) else {}
     first_field = next(iter(edited_values))
-    if pending_state.get("tool_name") != EDITABLE_TOOL_NAME:
+    tool_name = pending_state.get("tool_name")
+    description_max = EDITABLE_TOOL_DESCRIPTION_MAX.get(str(tool_name))
+    if description_max is None:
         raise EditRejected(first_field, "Bước này không có nội dung sửa được.")
-    detail = run_state.get("product_detail")
+    # A new listing has no "current" title / description: the protected-terms
+    # reference is Juli's proposal (validate_listing_edits' fallback).
+    detail = run_state.get("product_detail") if tool_name == "update_product_listing" else None
     try:
         changed = shop_rules.validate_listing_edits(
             edited_values,
@@ -256,6 +265,7 @@ async def _apply_seller_edits(
             current=detail if isinstance(detail, Mapping) else None,
             protected_terms=await shop_rules.protected_terms(session, run.shop_id),
             banned_terms=await shop_rules.banned_terms(session, run.shop_id),
+            description_max_chars=description_max,
         )
     except shop_rules.ListingEditViolation as violation:
         raise EditRejected(violation.field, violation.message_vi) from None
@@ -281,7 +291,10 @@ async def _check_listing_banned_terms(session: AsyncSession, run: WorkflowRunRow
     """
     run_state: dict[str, Any] = run.state if isinstance(run.state, dict) else {}
     pending_state = run_state.get("pending_confirmation")
-    if not isinstance(pending_state, dict) or pending_state.get("tool_name") != EDITABLE_TOOL_NAME:
+    if (
+        not isinstance(pending_state, dict)
+        or pending_state.get("tool_name") not in EDITABLE_TOOL_DESCRIPTION_MAX
+    ):
         return
     arguments = pending_state.get("arguments")
     if not isinstance(arguments, Mapping):

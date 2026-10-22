@@ -131,9 +131,12 @@ EXPECTED_DESCRIPTIONS: dict[str, str] = {
         " choose again from the candidates (once)."
     ),
     "create_product": (
+        # P64 walkthrough: the brand rule moved the model's view, deliberately.
         "Create the new listing on TikTok with your Vietnamese title and description in "
-        "the checked category_id. Price, stock, images and attributes come from the "
-        "source listing server-side. Needs the reviewer's explicit approval first."
+        "the checked category_id. Never name a brand, manufacturer or shop that the source "
+        "title does not name (refused with error_code=brand_not_in_source). Price, stock, "
+        "images and attributes come from the source listing server-side. Needs the "
+        "reviewer's explicit approval first."
     ),
     # Fast track P14-E: the content run's read-only tools.
     "get_content_performance": (

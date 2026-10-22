@@ -519,6 +519,30 @@ describe("consent with an edit (Run.dc.html)", () => {
     );
   });
 
+  it("Huỷ sửa discards the saved edit: Juli's proposal is back and Xác nhận sends no edited_values (P64)", async () => {
+    const c = clients();
+    signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
+    const consent = await screen.findByTestId("consent-block");
+    await userEvent.click(within(consent).getByRole("button", { name: "✎ Sửa nội dung trước khi áp dụng" }));
+    const title = screen.getByLabelText("Tiêu đề (bạn sửa)");
+    await userEvent.clear(title);
+    await userEvent.type(title, "Tiêu đề người duyệt sửa rồi bỏ");
+    await userEvent.click(screen.getByRole("button", { name: "Lưu bản sửa" }));
+    expect(consent).toHaveTextContent("Bạn đã sửa");
+    await userEvent.click(within(consent).getByRole("button", { name: "✎ Sửa nội dung trước khi áp dụng" }));
+    await userEvent.click(screen.getByRole("button", { name: "Huỷ sửa" }));
+    expect(consent).not.toHaveTextContent("Bạn đã sửa");
+    expect(consent).not.toHaveTextContent("Tiêu đề người duyệt sửa rồi bỏ");
+    await userEvent.click(within(consent).getByRole("button", { name: "Xác nhận thay đổi này" }));
+    await waitFor(() =>
+      expect(c.confirm).toHaveBeenCalledWith(RUN_ID, "w1", "approve", "opt-1", {
+        token: "tok",
+        shopId: "shop-1",
+        editedValues: undefined,
+      }),
+    );
+  });
+
   it("a 422 rule_violation reopens the edit with the backend's sentence", async () => {
     const c = clients({
       confirm: vi.fn().mockRejectedValue(new ConfirmationRejectedError(422, "rule_violation", "Tiêu đề dài quá 255 ký tự.", "title")),

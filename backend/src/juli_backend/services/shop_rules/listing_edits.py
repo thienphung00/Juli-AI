@@ -53,7 +53,9 @@ def _vnd_count(value: int) -> str:
     return f"{value:,}".replace(",", ".")
 
 
-def _check_length(field: str, value: str) -> None:
+def _check_length(
+    field: str, value: str, *, description_max_chars: int = DESCRIPTION_MAX_CHARS
+) -> None:
     length = len(value)
     if field == "title" and not TITLE_MIN_CHARS <= length <= TITLE_MAX_CHARS:
         raise ListingEditViolation(
@@ -64,10 +66,10 @@ def _check_length(field: str, value: str) -> None:
     if field == "description":
         if not value.strip():
             raise ListingEditViolation(field, "Mô tả không được để trống.")
-        if length > DESCRIPTION_MAX_CHARS:
+        if length > description_max_chars:
             raise ListingEditViolation(
                 field,
-                f"Mô tả tối đa {_vnd_count(DESCRIPTION_MAX_CHARS)} ký tự "
+                f"Mô tả tối đa {_vnd_count(description_max_chars)} ký tự "
                 f"(bản sửa có {_vnd_count(length)} ký tự).",
             )
 
@@ -120,6 +122,7 @@ def validate_listing_edits(
     current: Mapping[str, Any] | None,
     protected_terms: Sequence[str],
     banned_terms: Sequence[str] = (),
+    description_max_chars: int = DESCRIPTION_MAX_CHARS,
 ) -> dict[str, str]:
     """Return the edits that differ from Juli's proposal, or raise :class:`ListingEditViolation`.
 
@@ -138,7 +141,7 @@ def validate_listing_edits(
             )
         if not isinstance(value, str):
             raise ListingEditViolation(field, f"{FIELD_LABELS_VI[field]} phải là văn bản.")
-        _check_length(field, value)
+        _check_length(field, value, description_max_chars=description_max_chars)
         reference = (current or {}).get(field) if current else None
         if not isinstance(reference, str) or not reference:
             proposal = proposed.get(field)
