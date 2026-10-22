@@ -892,6 +892,22 @@
       "tenant_scoped": true
     },
     {
+      "path": "/v1/reviewer/decisions/{action_card_id}/approve",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/reviewer/decisions/{action_card_id}/execute",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/reviewer/decisions/{action_card_id}/simulate",
       "methods": [
         "POST"
@@ -903,6 +919,22 @@
       "path": "/v1/reviewer/me",
       "methods": [
         "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/reviewer/shop",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/reviewer/shop/sync",
+      "methods": [
+        "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": false
