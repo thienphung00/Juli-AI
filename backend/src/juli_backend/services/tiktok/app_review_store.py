@@ -8,6 +8,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
+from juli_backend.database.tenant_context import with_user_scope
 from juli_backend.integrations.tiktok import TikTokAuth
 from juli_backend.repositories.repos import UsersRepo
 from juli_backend.services.tiktok.credential_binding import make_binding_verifier
@@ -58,6 +59,7 @@ async def persist_oauth_tokens(
 ) -> None:
     """Upsert shop + credential rows via the Auth OAuth facade (no direct repo writes)."""
     owner_id = user_id or app_review_user_id()
-    await UsersRepo(session).get_or_create(owner_id, APP_REVIEW_USER_PHONE)
+    async with with_user_scope(session, owner_id):
+        await UsersRepo(session).get_or_create(owner_id, APP_REVIEW_USER_PHONE)
     oauth = _build_oauth_service(session)
     await oauth.provision_shop_and_credentials(token_data, user_id=owner_id)

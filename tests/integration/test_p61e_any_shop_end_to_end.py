@@ -50,7 +50,6 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from juli_backend.core.config.runtime import async_database_url
@@ -735,12 +734,9 @@ async def _step_1_oauth(journey: Journey) -> None:
     dispatcher = _RecordingDispatcher()
     set_bootstrap_dispatcher(dispatcher)
     try:
-        # LATENT (P61-E): the callback sets no tenant scope, and the `shops` / `tiktok_credentials`
-        # INSERT policies are keyed on `app.current_user_id` / `app.current_shop_id`, so as
-        # `juli_app` it is refused (the xfail test at the end). The connect step therefore runs
-        # on the owner connection, as it evidently does in production; every later step is
-        # `juli_app`.
-        async with owner_async_session() as session:
+        # P61-I: the callback runs as `juli_app` like every other step (it opens the owner's
+        # user scope for the shop and the shop's scope for the credential).
+        async with committing_juli_app_session() as session:
             result = await oauth.complete_tiktok_oauth_callback(
                 session, code=AUTH_CODE, state=state, oauth_service=service
             )
@@ -1190,40 +1186,3 @@ async def test_new_shop_runs_the_whole_journey(journey: Journey, monkeypatch) ->
         await _step_4_seller_edit(journey)
         await _step_5_impact(journey)
     _step_6_credentials(journey)
-
-
-@pytest.mark.xfail(
-    strict=True,
-    raises=ProgrammingError,
-    reason=(
-        "LATENT (P61-E, DEBT): the public OAuth callback opens no tenant scope, so on a connection "
-        "subject to RLS -- `juli_app`, the runtime role of ADR-086 -- `shops_insert_public` (keyed "
-        "on app.current_user_id) and the `tiktok_credentials` insert policy (keyed on "
-        "app.current_shop_id) refuse the first row. Production connects sellers today (the "
-        "sandbox shop was connected through this route on 2026-10-21), so its API connection "
-        "evidently bypasses RLS; the callback breaks the day the API moves to `juli_app`. Fix: "
-        "provision under the owner's user scope, then the new shop's scope. When fixed this "
-        "XPASSes (strict): delete the xfail and run `_step_1_oauth` as `juli_app`."
-    ),
-)
-@pytest.mark.timeout(JOURNEY_TIMEOUT_SECONDS)
-@pytest.mark.asyncio
-async def test_the_callback_as_juli_app_is_refused_by_rls(owner_engine, connect_env) -> None:
-    user_b, replay = connect_env
-    service = oauth.build_tiktok_oauth_service()
-    started = oauth.begin_tiktok_oauth(user_b, oauth_service=service)
-    state = parse_qs(urlparse(started.authorize_url).query)["state"][0]
-    set_bootstrap_dispatcher(_RecordingDispatcher())
-    try:
-        with patch("requests.Session.request", side_effect=replay.request):
-            async with committing_juli_app_session() as session:
-                await oauth.complete_tiktok_oauth_callback(
-                    session, code=AUTH_CODE, state=state, oauth_service=service
-                )
-    finally:
-        set_bootstrap_dispatcher(None)
-    # Reached only once the callback works as `juli_app`: then B's shop row exists.
-    shops = _owner_rows(
-        owner_engine, "SELECT id FROM public.shops WHERE user_id = :user", user=user_b
-    )
-    assert len(shops) == 1

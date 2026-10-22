@@ -9,9 +9,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Protocol
+from typing import NoReturn, Protocol
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security.credential_refresh import (
@@ -20,7 +21,10 @@ from juli_backend.core.security.credential_refresh import (
     RefreshStatus,
     refresh_credential,
 )
-from juli_backend.core.security.credential_resolver import refuse_cross_shop_sandbox_collision
+from juli_backend.core.security.credential_resolver import (
+    SandboxCollisionRefused,
+    refuse_cross_shop_sandbox_collision,
+)
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.oauth_state import (
     SELLER_CONNECT_FLOW,
@@ -28,6 +32,7 @@ from juli_backend.core.security.oauth_state import (
     verify_oauth_state,
 )
 from juli_backend.database.exceptions import NotFound
+from juli_backend.database.tenant_context import with_shop_scope, with_user_scope
 from juli_backend.integrations.tiktok import TikTokAuth, TikTokCapability
 from juli_backend.models.models import Shop, TikTokCredential
 from juli_backend.repositories.repos import ShopsRepo, TikTokCredentialRepo
@@ -174,29 +179,100 @@ class TikTokOAuthService:
         shops_repo = ShopsRepo(self._session)
         cred_repo = TikTokCredentialRepo(self._session)
 
-        existing = await shops_repo.get_by_tiktok_id(open_id)
+        # P61-I (owner, 2026-10-22): the callback carries no JWT, so the request session has no
+        # tenant scope, and on `juli_app` (RLS enforced, ADR-086) both inserts below are refused
+        # without one. The owner is the verified-state user (`resolve_seller_connect_owner`),
+        # so the shop lookup/insert runs under THAT user's scope, and the credential rows under
+        # the (new or existing) shop's scope -- the narrowest scope each table's policy keys on.
+        async with with_user_scope(self._session, user_id):
+            shop = await self._claim_or_create_shop(
+                shops_repo,
+                open_id=open_id,
+                seller_name=seller_name,
+                user_id=user_id,
+            )
+            await self._session.flush()
 
+        async with with_shop_scope(self._session, shop.id):
+            await self._write_credentials(
+                cred_repo,
+                shop,
+                token_data=token_data,
+                open_id=open_id,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                capability=capability,
+            )
+
+        logger.info(
+            "tiktok_oauth_completed",
+            extra={"user_id": str(user_id), "shop_id": str(shop.id)},
+        )
+        return shop
+
+    async def _claim_or_create_shop(
+        self,
+        shops_repo: ShopsRepo,
+        *,
+        open_id: str,
+        seller_name: str,
+        user_id: uuid.UUID,
+    ) -> Shop:
+        """The connecting user's shop for ``open_id``: reconnect it, or create it.
+
+        Runs under the owner's USER scope, where a shop owned by ANOTHER account is invisible
+        (``shops_select_public`` is keyed on the user). So "already connected to another
+        account" is no longer a lookup result: the insert hits the unique constraint on
+        ``shops.tiktok_shop_id`` and that violation is translated back into the same error.
+        """
+        existing = await shops_repo.get_by_tiktok_id(open_id)
         if existing and existing.user_id == user_id:
-            shop = existing
             # P16 (D25.13): a shop paused by a deauthorization or by Juli Ops
             # "Huỷ kết nối" resumes when its seller reconnects.
-            shop.is_active = True
-        elif existing:
-            logger.warning(
-                "tiktok_shop_already_claimed",
-                extra={
-                    "tiktok_shop_id": open_id,
-                    "user_id": str(user_id),
-                },
-            )
-            raise Unauthorized("This TikTok shop is already connected to another account")
-        else:
-            shop = await shops_repo.create(
-                user_id=user_id,
-                shop_name=seller_name,
-                tiktok_shop_id=open_id,
-            )
+            existing.is_active = True
+            return existing
+        if existing:
+            self._refuse_claimed_shop(open_id, user_id)
+        try:
+            # Savepoint: the unique violation must not poison the caller's transaction.
+            async with self._session.begin_nested():
+                return await shops_repo.create(
+                    user_id=user_id,
+                    shop_name=seller_name,
+                    tiktok_shop_id=open_id,
+                )
+        except IntegrityError as exc:
+            if "tiktok_shop_id" not in str(exc.orig):
+                raise
+            raced = await shops_repo.get_by_tiktok_id(open_id)
+            if raced is not None and raced.user_id == user_id:
+                raced.is_active = True
+                return raced
+            self._refuse_claimed_shop(open_id, user_id)
 
+    @staticmethod
+    def _refuse_claimed_shop(open_id: str, user_id: uuid.UUID) -> NoReturn:
+        logger.warning(
+            "tiktok_shop_already_claimed",
+            extra={
+                "tiktok_shop_id": open_id,
+                "user_id": str(user_id),
+            },
+        )
+        raise Unauthorized("This TikTok shop is already connected to another account")
+
+    async def _write_credentials(
+        self,
+        cred_repo: TikTokCredentialRepo,
+        shop: Shop,
+        *,
+        token_data: dict,
+        open_id: str,
+        access_token: str,
+        refresh_token: str,
+        capability: TikTokCapability | None,
+    ) -> None:
+        """Create or refresh the shop's credential row, under the shop's scope."""
         expires_at = access_token_expires_at(token_data.get("access_token_expire_in"))
         merchant_authorization_id = open_id
         if capability is None:
@@ -217,6 +293,28 @@ class TikTokOAuthService:
                 if existing_capability
                 else TikTokCapability.SELLER_CONNECT
             )
+        if capability is not TikTokCapability.SANDBOX_WRITE:
+            # D73 (owner, 2026-10-22): the sandbox shop keeps ONLY its `sandbox_write` row. A
+            # seller OAuth must not mint a `seller_connect` (or any other non-sandbox)
+            # credential for a shop that already holds one -- same shop included (tightens
+            # P61-H). The shop's own rows are visible under its scope; the refusal is the
+            # generic connect error and the surrounding savepoint leaves nothing written.
+            holds_sandbox = (
+                await self._session.execute(
+                    select(TikTokCredential.id)
+                    .where(
+                        TikTokCredential.shop_id == shop.id,
+                        TikTokCredential.capability == TikTokCapability.SANDBOX_WRITE.value,
+                    )
+                    .limit(1)
+                )
+            ).first()
+            if holds_sandbox is not None:
+                logger.warning(
+                    "tiktok_oauth_refused_shop_holds_sandbox_write",
+                    extra={"shop_id": str(shop.id), "capability": capability.value},
+                )
+                raise SandboxCollisionRefused(frozenset({shop.id}))
         scopes = token_data.get("scopes")
         if scopes is None and token_data.get("granted_scopes") is not None:
             granted = token_data.get("granted_scopes")
@@ -272,12 +370,6 @@ class TikTokOAuthService:
                 capability=capability.value,
                 shop_cipher=verified_cipher,
             )
-
-        logger.info(
-            "tiktok_oauth_completed",
-            extra={"user_id": str(user_id), "shop_id": str(shop.id)},
-        )
-        return shop
 
     async def refresh_tokens(self, shop_id: uuid.UUID) -> TikTokCredential:
         """Proactively refresh tokens if within REFRESH_BUFFER of expiry.

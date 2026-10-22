@@ -76,24 +76,23 @@ async def _sandbox_shop(session):
     return shop
 
 
-async def test_same_shop_seller_connect_on_the_sandbox_shop_is_allowed(session):
+async def test_seller_connect_on_the_sandbox_shop_is_refused_even_for_the_same_shop(session):
+    """D73 (2026-10-22) tightens P61-H: the sandbox shop keeps only its `sandbox_write` row."""
     sandbox = await _sandbox_shop(session)
-    sandbox_row = (
-        await session.execute(
-            select(TikTokCredential).where(TikTokCredential.shop_id == sandbox.id)
-        )
-    ).scalar_one()
-    sandbox_user_id = sandbox.user_id
+    sandbox_user_id, sandbox_id = sandbox.user_id, sandbox.id
     sandbox.tiktok_shop_id = "sbx-open-id"
     await session.flush()
+    creds_before = await _count(session, TikTokCredential)
 
-    shop = await _service(session, "SBX-CIPHER").provision_shop_and_credentials(
-        _token("sbx-open-id"), user_id=sandbox_user_id, capability=TikTokCapability.SELLER_CONNECT
-    )
+    with pytest.raises(SandboxCollisionRefused):
+        await _service(session, "SBX-CIPHER").provision_shop_and_credentials(
+            _token("sbx-open-id"),
+            user_id=sandbox_user_id,
+            capability=TikTokCapability.SELLER_CONNECT,
+        )
 
-    assert shop.id == sandbox.id
-    assert sandbox_row.capability == "sandbox_write"
-    assert (await resolve_sandbox_write_credential(session)).shop_id == sandbox.id
+    assert await _count(session, TikTokCredential) == creds_before
+    assert (await resolve_sandbox_write_credential(session)).shop_id == sandbox_id
 
 
 async def test_another_shops_oauth_carrying_the_sandbox_cipher_is_refused_without_a_write(

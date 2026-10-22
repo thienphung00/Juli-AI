@@ -74,7 +74,7 @@ Matches ``__all__`` — re-exports only:
   credential that collides (migration 100 / ``_enumerate_sandbox_write_credentials``, the one
   predicate, cross-tenant so RLS cannot blind it) now but did not before means the write caused
   it: rollback (no partial write, no orphan shop), warning
-  ``tiktok_credential_write_refused_sandbox_collision``, raise. Same-shop rows pass. The error
+  ``tiktok_credential_write_refused_sandbox_collision``, raise. Same-shop rows pass the collision predicate, but OAuth itself refuses any non-sandbox credential for a shop that already holds ``sandbox_write`` (D73). The error
   text is generic (``SANDBOX_COLLISION_SELLER_MESSAGE``): the callback route returns it as the
   401 detail, the existing connect-error path. A collision that pre-dates the write is not
   attributed to it. ``TikTokOAuthService.provision_shop_and_credentials`` runs wholly inside it
@@ -173,3 +173,11 @@ directly (`monkeypatch.setattr(jwt_module, "_default_jwks_client", ...)`).
   concurrency proof in `tests/integration/test_google_identity_provisioning.py` depends
   on it: the losing concurrent request's blocked `INSERT` only unblocks, into a handled
   `IntegrityError`, once the winner commits.
+
+### OAuth provisioning scopes (P61-I, 2026-10-22)
+
+``TikTokOAuthService.provision_shop_and_credentials`` is called with NO tenant scope (the TikTok
+redirect carries no JWT) on a ``juli_app`` (RLS) session. It opens ``with_user_scope(owner)`` for
+the shop lookup/insert (a shop owned by another account is invisible there; the insert's unique
+violation on ``shops.tiktok_shop_id`` becomes "already connected to another account") and
+``with_shop_scope(shop.id)`` for the credential rows. A callback must never run unscoped.

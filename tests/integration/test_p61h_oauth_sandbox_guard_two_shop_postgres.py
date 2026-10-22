@@ -15,9 +15,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.config.runtime import async_database_url
 from juli_backend.core.security import (
     SandboxCollisionRefused,
     resolve_sandbox_write_credential,
@@ -27,7 +26,6 @@ from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.integrations.tiktok import TikTokAuth, TikTokCapability
 from juli_backend.repositories import TikTokCredentialRepo
 from tests.support.postgres import (
-    database_url,
     juli_app_async_sessionmaker,
     owner_sync_engine,
     requires_postgres,
@@ -38,14 +36,9 @@ pytestmark = [requires_postgres, pytest.mark.migration_heavy]
 
 @asynccontextmanager
 async def _callback_session() -> AsyncIterator[AsyncSession]:
-    """The OAuth callback's session: it creates the shop and its credential in one request, which
-    no single tenant GUC permits under RLS, so it runs with the table owner's privileges."""
-    engine = create_async_engine(async_database_url(database_url()))
-    try:
-        async with async_sessionmaker(engine, expire_on_commit=False)() as session:
-            yield session
-    finally:
-        await engine.dispose()
+    """The OAuth callback's session, as the deployed role `juli_app` (RLS enforced, P61-I)."""
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
+        yield session
 
 
 def _tag() -> str:
@@ -165,17 +158,29 @@ def _seed_sandbox_shop(engine, t: str):
     return user, shop
 
 
-async def test_same_shop_seller_connect_on_the_sandbox_shop_is_allowed():
+async def test_seller_connect_on_the_sandbox_shop_is_refused_and_writes_nothing():
+    """D73 (2026-10-22): the sandbox shop keeps only its `sandbox_write` row -- even same shop."""
     t = _tag()
     with owner_sync_engine() as engine:
         user, sandbox = _seed_sandbox_shop(engine, t)
 
     async with _callback_session() as session:
-        shop = await _service(session, f"S{t}").provision_shop_and_credentials(
-            _token(f"sbx-open-{t}"), user_id=user, capability=TikTokCapability.SELLER_CONNECT
+        with pytest.raises(SandboxCollisionRefused):
+            await _service(session, f"S{t}").provision_shop_and_credentials(
+                _token(f"sbx-open-{t}"), user_id=user, capability=TikTokCapability.SELLER_CONNECT
+            )
+        await session.rollback()
+
+    with owner_sync_engine() as engine, engine.connect() as conn:
+        caps = (
+            conn.execute(
+                text("SELECT capability FROM public.tiktok_credentials WHERE shop_id = :s"),
+                {"s": str(sandbox)},
+            )
+            .scalars()
+            .all()
         )
-        await session.commit()
-        assert shop.id == sandbox
+    assert caps == ["sandbox_write"]
 
     async with juli_app_async_sessionmaker() as factory, factory() as session:
         assert (await resolve_sandbox_write_credential(session)).shop_id == sandbox

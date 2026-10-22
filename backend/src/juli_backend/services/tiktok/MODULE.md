@@ -66,7 +66,7 @@ write inside ``core.security.refuse_cross_shop_sandbox_collision``: a credential
 that would share a ``sandbox_write`` row's merchant id / cipher (or a ``sandbox_write`` row that
 reaches another shop's) is refused with ``SandboxCollisionRefused`` (callback: the generic 401
 detail) and nothing is written; the backfill marks the row ``needs_reauth`` and raises
-``ShopCipherUnresolvedError``. The sandbox shop's own ``seller_connect`` row is allowed. Token
+``ShopCipherUnresolvedError``. A seller OAuth for a shop that already holds ``sandbox_write`` is refused outright (D73, P61-I). Token
 refresh never changes merchant/cipher so it is not gated. The advertiser / account-holder stores
 are not guarded (advertiser ids, no cipher; see DEBT).
 
@@ -116,3 +116,9 @@ it as the follow-up that makes real runs on a seller's own shop possible; before
 
 - domain: integrations (TikTok runtime)
 - code: backend/src/juli_backend/services/tiktok/
+
+### Callback runs as `juli_app` (P61-I)
+
+The callback and the stateless app-review store write under the owner's user scope (shop,
+``users`` row) then the shop's scope (credentials); see ``core/security/MODULE.md``. Any new write
+added to the callback path must fit one of those two scopes.

@@ -1581,21 +1581,15 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
 
 ## P61-E — any-shop end-to-end test (2026-10-21, D71.5)
 
-- [ ] LATENT: the OAuth callback (`services/tiktok/oauth.py::complete_tiktok_oauth_callback` ->
-  `provision_shop_and_credentials`) opens no tenant scope. On a connection subject to RLS
-  (`juli_app`, ADR-086) the first `shops` insert is refused (`shops_insert_public` is keyed on
-  `app.current_user_id`) and, with the user GUC set, the `tiktok_credentials` insert is refused
-  (keyed on `app.current_shop_id`). Production connects sellers today (the sandbox shop was
-  connected through this route on 2026-10-21), so its API connection evidently bypasses RLS;
-  the callback breaks the day the API moves to `juli_app`. The journey test therefore runs the
-  callback on the owner connection and pins the gap with an `xfail(strict=True)` test
-  (`test_the_callback_as_juli_app_is_refused_by_rls`). Repay: in the state branch, provision
-  under `with_user_scope(owner_id)` for the shop lookup/insert (a shop already claimed by
-  ANOTHER account is invisible under that scope: catch the unique violation on
-  `shops.tiktok_shop_id` and keep "already connected to another account"), then
-  `with_shop_scope(shop.id)` for the credential rows; then drop the xfail and run
-  `_step_1_oauth` as `juli_app`. Not done here: it edits `core/security/tiktok_oauth.py`, which
-  P61-H is changing, and needs the owner to confirm which role the API really uses.
+- [x] CLOSED by P61-I (2026-10-22, branch `fasttrack/p61-i-oauth-rls-scope`). The OAuth callback
+  (`provision_shop_and_credentials`) now runs the shop lookup/insert under `with_user_scope(owner)`
+  and the credential rows under `with_shop_scope(shop.id)`; a shop claimed by another account is
+  invisible under the user scope, so its insert's unique violation on `shops.tiktok_shop_id`
+  (in a savepoint) is translated back into "already connected to another account". The xfail is
+  gone and `_step_1_oauth` runs as `juli_app`. Residual: `verify_capability_binding`, for the
+  governed capabilities only (an operator provisioning `sandbox_write`), now reads just the
+  shop's own credentials under the shop scope; the cross-shop guard is the P61-H SECURITY
+  DEFINER predicate, which is unaffected.
 - [ ] The journey does not cover a LIVE production write for the new shop (the agent-run
   production leg is P61-F): the write goes to the sandbox merchant (`write_mode='simulated'`)
   and the test asserts exactly that, plus that the impact reader skips it. Repay with P61-F:

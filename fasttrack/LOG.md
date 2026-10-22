@@ -2883,3 +2883,25 @@ reconcile --write` re-derived the no-assert corpus figure.
   then `systemctl restart juli-api`; after
   deploy press "Đồng bộ ngay" once, then the lead walks the reviewer steps in a fresh browser
   before the owner resubmits and replies (texts in `fasttrack/shopee-isv-services-information.md`).
+
+## 2026-10-22 — agent (Claude Sonnet) — P61-I OAuth callback writes under RLS as juli_app (branch `fasttrack/p61-i-oauth-rls-scope`, not merged)
+
+- Production fact (owner): the API connects as `juli_app`; the callback carried no tenant scope, so
+  `shops_insert_public` (user GUC) and then the `tiktok_credentials` policy (shop GUC) refused the
+  first connect. Fix in `core/security/tiktok_oauth.py` only: shop claim/create under
+  `with_user_scope(owner)` (savepoint around the insert; unique violation -> the existing
+  "already connected to another account"), credential rows under `with_shop_scope(shop.id)`.
+  The stateless app-review `users` get_or_create (`services/tiktok/oauth.py`, `app_review_store.py`)
+  runs under `with_user_scope`. No migration. P61-H's guard (SECURITY DEFINER enumeration) works
+  unchanged under the scopes (tested).
+- D73 (P64 session constraint): a seller OAuth is refused (`SandboxCollisionRefused`, generic error,
+  warning `tiktok_oauth_refused_shop_holds_sandbox_write`, nothing written) for a shop that already
+  holds `sandbox_write`, same shop included; P61-H's "same-shop allowed" tests flipped. Reviewer code
+  untouched.
+- Tests: P61-E journey step 1 and P61-H integration file now run as `juli_app`; xfail removed; new
+  `tests/integration/test_p61i_oauth_callback_rls_two_user_postgres.py` (U1 connects, U2 refused with
+  no rows, reconnect in place + resume, collision guard, app-review store).
+- Read-only finding: `credential-refresh-beat` (*/30) refreshes only credentials with
+  `token_expires_at <= now + 24h` (`REFRESH_BUFFER`) and `status <> 'needs_reauth'`; updated_at
+  unchanged since 10-16 is expected while the token is >24h from expiry.
+

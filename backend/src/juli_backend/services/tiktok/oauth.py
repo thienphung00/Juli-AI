@@ -23,6 +23,7 @@ from juli_backend.core.security import (
 )
 from juli_backend.core.security.exceptions import Unauthorized
 from juli_backend.core.security.tiktok_oauth import TikTokOAuthService
+from juli_backend.database.tenant_context import with_user_scope
 from juli_backend.integrations.tiktok import (
     AuthenticationError,
     TikTokAuth,
@@ -256,7 +257,9 @@ async def complete_tiktok_oauth_callback(
     # is `not state`, and `handle_callback` only derives an id from a state), so
     # this is the app-review row by construction, not by fallback.
     owner_id = callback_user_id or _app_review_user_id()
-    await UsersRepo(session).get_or_create(owner_id, APP_REVIEW_USER_PHONE)
+    # P61-I: `users` is keyed on the user GUC; the stateless callback has no JWT.
+    async with with_user_scope(session, owner_id):
+        await UsersRepo(session).get_or_create(owner_id, APP_REVIEW_USER_PHONE)
     facade = build_partner_oauth_facade(session, service)
     shop = await facade.provision_shop_and_credentials(token_data, user_id=owner_id)
     await session.commit()
