@@ -81,7 +81,7 @@ coverage==7.16.0
     # via pytest-cov
 cryptography==50.0.1
     # via pyjwt
-fastapi==0.141.1
+fastapi==0.150.0
     # via juli-backend (pyproject.toml)
 freezegun==1.5.5
     # via juli-backend (pyproject.toml)
