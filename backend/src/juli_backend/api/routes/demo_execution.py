@@ -192,6 +192,15 @@ async def approve_demo_decision(
                 "cap": approval_module.CREATE_PRODUCT_DAILY_CAP,
             },
         ) from exc
+    except approval_module.CreatePromotionDailyCapReached as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "create_promotion_daily_cap",
+                "cap": approval_module.CREATE_PROMOTION_DAILY_CAP,
+            },
+        ) from exc
     except approval_module.WorkflowNotExecutable as exc:
         await session.rollback()
         raise HTTPException(

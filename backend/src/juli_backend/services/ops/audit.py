@@ -60,12 +60,15 @@ ACTION_REVIEWER_SANDBOX_EXECUTE = "reviewer_sandbox_execute"
 ACTION_REVIEWER_SANDBOX_SYNC = "reviewer_sandbox_sync"
 #: D73.3/D73.4: the reviewer confirmed the sandbox ``create_product`` run's write.
 ACTION_REVIEWER_SANDBOX_CREATE_PRODUCT = "reviewer_sandbox_create_product"
+#: P65 (D74): the reviewer confirmed the sandbox ``create_promotion`` run's write.
+ACTION_REVIEWER_SANDBOX_CREATE_PROMOTION = "reviewer_sandbox_create_promotion"
 REVIEWER_SANDBOX_ACTIONS: frozenset[str] = frozenset(
     {
         ACTION_REVIEWER_SANDBOX_APPROVE,
         ACTION_REVIEWER_SANDBOX_EXECUTE,
         ACTION_REVIEWER_SANDBOX_SYNC,
         ACTION_REVIEWER_SANDBOX_CREATE_PRODUCT,
+        ACTION_REVIEWER_SANDBOX_CREATE_PROMOTION,
     }
 )
 #: The provisioning command (config kind: an account was created / changed).
