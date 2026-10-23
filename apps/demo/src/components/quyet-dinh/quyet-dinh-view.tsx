@@ -39,8 +39,8 @@ import { groupDecisions } from "../../lib/quyet-dinh/grouping";
 import { MEASURE_TABS, type MeasureTab } from "../../lib/quyet-dinh/measure-model";
 import type { CardStatus, P10DecisionItem, PhotoCheck, QdRun, RunDetail, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
 import { REVERT_REASONS, type ReasonChoice } from "../../lib/quyet-dinh/reasons";
-import { runChip, runKind, runPhase, type Chip } from "../../lib/quyet-dinh/run-model";
-import { buildRunTimeline, type RunKind } from "../../lib/quyet-dinh/timeline";
+import { isTerminalRun, runChip, runKind, runPhase, type Chip } from "../../lib/quyet-dinh/run-model";
+import { afterConfirmation, buildRunTimeline, type RunKind } from "../../lib/quyet-dinh/timeline";
 import type { RevertQuestion, RunChanges, ShopRules } from "../../lib/quyet-dinh/types";
 import { RUN_LEDGER_POLL_INTERVAL_MS } from "../../lib/run-ledger/panel-config";
 import { groupRunsIntoLedgerSections } from "../../lib/run-ledger/sections";
@@ -109,6 +109,10 @@ const RUN_HEADER: Readonly<Record<RunKind, { eyebrow: string; title: string }>> 
   create: { eyebrow: "Quyết định · Đang thực hiện · Tạo sản phẩm", title: "Juli tạo sản phẩm mới trên TikTok Shop" },
   promotion: { eyebrow: "Quyết định · Đang thực hiện · Khuyến mãi", title: "Juli tạo khuyến mãi giảm giá trên TikTok Shop" },
 };
+
+/** P66 (D6): a live run's stream that closed is reopened, this often, at most this many times. */
+const STREAM_RESUBSCRIBE_DELAY_MS = 2000;
+const MAX_STREAM_RESUBSCRIBES = 30;
 
 function useNow(intervalMs = 1000): number | null {
   const [now, setNow] = useState<number | null>(null);
@@ -693,8 +697,25 @@ function SelectedRun({
   readonly onState: (state: { runId: string; kind: RunKind; chip: Chip; headline?: string | null }) => void;
   readonly startRevert: (runId: string, choice: ReasonChoice) => Promise<{ runId: string } | { conflict: string } | { error: string }>;
 }) {
-  const { events, streamStatus } = clients.useRunEvents(run.id, auth, clients.streamFetch);
+  // P66 (D6): the stream is reopened after a confirmation, and whenever it closed while
+  // the run is still live -- the panel never sits on a stale "Đang chờ bạn".
+  const [streamEpoch, setStreamEpoch] = useState(0);
+  const { events, streamStatus } = clients.useRunEvents(run.id, auth, clients.streamFetch, streamEpoch);
   const terminalSeen = events.some((event) => event.event_type === "workflow.completed" || event.event_type === "workflow.failed");
+  /** The consent this visit confirmed (202) — shown as done until the stream catches up. */
+  const [confirmedCall, setConfirmedCall] = useState<string | null>(null);
+  const runLive = !isTerminalRun(run);
+  useEffect(() => {
+    if (streamStatus !== "closed" || terminalSeen || streamEpoch >= MAX_STREAM_RESUBSCRIBES) return;
+    if (!runLive && !confirmedCall) return;
+    if (events.length === 0 && !confirmedCall) return; // no stream for this viewer
+    const timer = window.setTimeout(() => setStreamEpoch((epoch) => epoch + 1), STREAM_RESUBSCRIBE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [streamStatus, terminalSeen, runLive, confirmedCall, streamEpoch, events.length]);
+  // A terminal event: re-read the run list so the chip / queue / measurement agree.
+  useEffect(() => {
+    if (terminalSeen) onRefresh();
+  }, [terminalSeen, onRefresh]);
   const [changes, setChanges] = useState<RunChanges | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -717,7 +738,8 @@ function SelectedRun({
   const [appliedPosted, setAppliedPosted] = useState(false);
   const [appliedState, setAppliedState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   const [declined, setDeclined] = useState(false);
-  const timeline = useMemo(
+  const sandboxShop = useSandboxReviewer();
+  const streamTimeline = useMemo(
     () =>
       buildRunTimeline(events, {
         kind,
@@ -727,14 +749,18 @@ function SelectedRun({
         revertStartedAt: revertMeta?.startedAt ?? (kind === "revert" ? run.created_at : null),
         revertReason: revertMeta?.reason ?? null,
         revertFieldLabels: changes?.changes.map((change) => change.label) ?? card?.changeLabels ?? [],
+        noMeasurement: sandboxShop,
       }),
-    [events, kind, run.awaiting, run.created_at, shownChecks, revertMeta, changes, card],
+    [events, kind, run.awaiting, run.created_at, shownChecks, revertMeta, changes, card, sandboxShop],
+  );
+  const timeline = useMemo(
+    () => (confirmedCall ? afterConfirmation(streamTimeline, confirmedCall) : streamTimeline),
+    [streamTimeline, confirmedCall],
   );
   const phase = runPhase(run, kind, timeline, { appliedPosted, declined });
   // P14-E content runs: their phase and chip come from the run detail's `content`.
   const content = kind === "content" ? (detail?.content ?? null) : null;
   const cPhase = contentPhase(run, content, timeline, declined);
-  const sandboxShop = useSandboxReviewer();
   const chip = kind === "content" ? contentChip(cPhase, run.stop_reason) : runChip(run, kind, phase, sandboxShop);
   const headline = content?.headline ?? null;
 
@@ -871,6 +897,9 @@ function SelectedRun({
           shopId: auth.shopId,
           editedValues: edited ?? undefined,
         });
+        // P66 (D6): move on at once ("Đang thực hiện") and follow the resumed run.
+        setConfirmedCall(callId);
+        setStreamEpoch((epoch) => epoch + 1);
         onRefresh();
       }}
       onDecline={declineRun}

@@ -76,6 +76,11 @@ export interface RunTimeline {
     /** Day 7 / day 14 (D14) — only for a run that wrote (or verified) something. */
     readonly day7: string | null;
     readonly day14: string | null;
+    /**
+     * P66 (D15): why the run ended without proposing -- the server's `workflow.status`
+     * narration sent right before the terminal event (built from the run's own facts).
+     */
+    readonly reason?: string | null;
   } | null;
   readonly narration: string | null;
   /**
@@ -103,6 +108,8 @@ export interface TimelineOptions {
   readonly revertReason?: string | null;
   /** Revert run: the fields Juli restores (for the conflict line). */
   readonly revertFieldLabels?: readonly string[];
+  /** P66: the reviewer's sandbox shop has no real buyers -- nothing is measured or scheduled. */
+  readonly noMeasurement?: boolean;
 }
 
 export const STEP_COPY = {
@@ -282,7 +289,12 @@ function measuredTerminalDetail(day7: string | null, day14: string | null): stri
   return `Đo sơ bộ ${vnDate(day7).slice(0, 5)} (ngày 7) · chốt ${vnDate(day14).slice(0, 5)} (ngày 14)`;
 }
 
-function endedDetail(stopReason: string): string {
+/** P66 (D15): a run that ended without proposing and carries no reason of its own. */
+export const NO_PROPOSAL_FALLBACK = "Juli kết thúc lượt chạy mà không đề xuất thay đổi nào; TikTok không thay đổi gì.";
+
+export function endedDetail(stopReason: string, reason: string | null = null): string {
+  if (reason) return reason;
+  if (stopReason === "concluded_without_changes") return NO_PROPOSAL_FALLBACK;
   if (stopReason === "concurrency_conflict") {
     return "Trường này đã bị thay đổi bên ngoài sau khi Juli ghi, Juli không ghi đè.";
   }
@@ -307,6 +319,8 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
   let consentEvent: { seq: number; at: string; request: ConsentRequest } | null = null;
   let consentDecidedAt: string | null = null;
   let narration: string | null = null;
+  /** The last `workflow.status` line and its sequence number (P66: the end reason). */
+  let lastStatus: { seq: number; text: string } | null = null;
   let liveBlock: { blockId: string; text: string } | null = null;
   let textBeforePause = false;
   const box: { terminal: RunTimeline["terminal"] } = { terminal: null };
@@ -370,6 +384,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
       case "workflow.status": {
         const text = event.payload.phase_narration || "";
         if (text) narration = text;
+        if (text) lastStatus = { seq: event.sequence_number, text };
         if (!pauseSeen && /^Đang chờ/.test(text)) {
           pauseSeen = true;
           pauseSeq = event.sequence_number;
@@ -384,13 +399,16 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
       case "workflow.failed": {
         const stopReason = event.payload.stop_reason;
         const verified = kind === "manual" && calls.some((call) => call.afterPause && call.ok);
-        const measured = event.event_type === "workflow.completed" && kind !== "revert" && (wrote || verified);
+        const measured =
+          event.event_type === "workflow.completed" && kind !== "revert" && (wrote || verified) && !options.noMeasurement;
         box.terminal = {
           kind: event.event_type === "workflow.completed" ? "completed" : "failed",
           stopReason,
           at: event.timestamp,
           day7: measured ? addDays(event.timestamp, 7) : null,
           day14: measured ? addDays(event.timestamp, 14) : null,
+          // The runner narrates a write run's no-proposal reason right before its end.
+          reason: !wrote && lastStatus && lastStatus.seq === event.sequence_number - 1 ? lastStatus.text : null,
         };
         break;
       }
@@ -571,9 +589,12 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
         const detail =
           terminal.kind === "completed" && kind === "revert"
             ? STEP_COPY.revertTerminal
-            : (measured ?? endedDetail(terminal.stopReason));
+            : (measured ?? endedDetail(terminal.stopReason, terminal.reason ?? null));
         // P64: a failed run schedules no measurement, so its last row never says "đặt lịch đo".
-        const endSpec = terminal.kind === "failed" ? { ...spec, label: TERMINAL_STEP_LABEL_NO_MEASURE } : spec;
+        const endSpec =
+          terminal.kind === "failed" || (options.noMeasurement && spec.label === MEASURE_END.label)
+            ? { ...spec, label: TERMINAL_STEP_LABEL_NO_MEASURE }
+            : spec;
         rows.push(pseudo(endSpec, "terminal", terminal.kind === "completed" ? "done" : "failed", terminal.at, detail));
         break;
       }
@@ -615,6 +636,35 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
     wrote,
     toolsAfterPause: calls.filter((call) => call.afterPause).length,
   };
+}
+
+// -- optimistic confirm (P66, D6) ---------------------------------------------------
+
+/** The step after a confirmation while the resumed run's events are on their way. */
+export const STEP_IN_PROGRESS = "Đang thực hiện…";
+
+/**
+ * The timeline right after the seller confirmed `toolCallId` (the POST answered 202),
+ * before the stream shows the resume: the consent is done and the next step is
+ * "Đang thực hiện…" -- never a stale "Đang chờ bạn". Once the stream has moved past
+ * that consent (or ended), the stream's own timeline is returned unchanged.
+ */
+export function afterConfirmation(timeline: RunTimeline, toolCallId: string): RunTimeline {
+  if (timeline.terminal || timeline.pendingConsent?.toolCallId !== toolCallId) return timeline;
+  let promoted = false;
+  let consentSeen = false;
+  const steps = timeline.steps.map((step): TimelineStep => {
+    if (step.kind === "consent" && step.status === "current") {
+      consentSeen = true;
+      return { ...step, status: "done", detail: STEP_COPY.consentDone };
+    }
+    if (consentSeen && !promoted && step.status === "upcoming") {
+      promoted = true;
+      return { ...step, status: "current", detail: STEP_IN_PROGRESS };
+    }
+    return step;
+  });
+  return { ...timeline, steps, pendingConsent: null };
 }
 
 // -- Vietnam time -------------------------------------------------------------------

@@ -1123,6 +1123,30 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - VI: Chưa thể duyệt đề xuất này lúc này (lỗi [status]). Vui lòng thử lại.
 - Definition: Signed-in approve fallback for any other non-2xx (issue #1909) — names the fact and the raw status honestly; never a spinner-forever, never a fabricated run id.
 
+**`error.approve.daily_cap`**
+- EN: [cap] [products|promotions] were created on TikTok in the last 24 hours (the review account's limit); try again at [HH:MM dd/mm].
+- VI: Đã tạo [cap] [sản phẩm|khuyến mãi] trên TikTok trong 24 giờ qua (giới hạn của tài khoản đánh giá); thử lại lúc [HH:MM dd/mm].
+- Definition: Approve 429 `create_product_daily_cap` / `create_promotion_daily_cap` (fast track P66, D13) — only TikTok-confirmed writes count (D14); the time is the server's `retry_at` in Vietnam time.
+
+**`error.approve.rate_limited`**
+- EN: You approved too many cards in a short time. Please try again in a few minutes.
+- VI: Bạn đã duyệt quá nhiều thẻ trong thời gian ngắn. Vui lòng thử lại sau ít phút.
+- Definition: Approve 429 from the per-shop approve rate limit (P66, D13).
+
+**`error.approve.sandbox_only`**
+- EN: This account may only act on Juli's sandbox shop. Juli writes nothing to this shop.
+- VI: Tài khoản này chỉ được thao tác trên shop sandbox của Juli. Juli không ghi gì lên shop này.
+- Definition: Approve 403 (P66, D13).
+
+**`error.approve.rule`** / **`error.approve.server`**
+- VI: Đề xuất này không qua được quy tắc của shop. Hãy kiểm tra Quy tắc của bạn rồi duyệt lại. / Máy chủ Juli đang gặp sự cố nên chưa duyệt được. Vui lòng thử lại sau ít phút.
+- Definition: Approve 422 without a Vietnamese server sentence, and 5xx (P66, D13).
+
+**`run.no_proposal`**
+- EN: No proposal
+- VI: Không đề xuất
+- Definition: Chip of a run Juli ended without proposing (`concluded_without_changes`, P66 D15); the panel shows the server's reason built from the run's facts, e.g. "Sản phẩm «…» đang có khuyến mãi giá đến dd/mm — TikTok không cho chồng hai khuyến mãi giá; Juli không tạo khuyến mãi mới."
+
 ### Quyết định — P8-F (AC-8.7)
 
 **`qd.tab.de_xuat`**

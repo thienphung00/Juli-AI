@@ -17,8 +17,9 @@ import { bandRows, day14Steps, finalBox, measureHead, resultRows, targetBlock } 
 import { kpiPair, rangeText, ratioText, signedVnd, summariseText, upliftChip, validityText } from "../../lib/quyet-dinh/p10-format";
 import type { Measurement, P10DecisionItem, RecommendationCardPayload } from "../../lib/quyet-dinh/p10-types";
 import { DECLINE_REASONS, REJECT_REASONS, REVERT_REASONS } from "../../lib/quyet-dinh/reasons";
-import { buildRunTimeline } from "../../lib/quyet-dinh/timeline";
+import { afterConfirmation, buildRunTimeline } from "../../lib/quyet-dinh/timeline";
 import type { RunChanges, ShopRules } from "../../lib/quyet-dinh/types";
+import { StaticReviewerProvider } from "../../lib/reviewer/mode";
 import { submitConfirmationDecision } from "../../lib/run-surface/confirmation-client";
 import { ConfirmationRejectedError } from "../../lib/run-surface/confirmation-decision";
 import { DoLuongPanel, IDLE_REVERT, type MeasureItem } from "../quyet-dinh/do-luong-panel";
@@ -500,8 +501,10 @@ describe("consent with an edit (Run.dc.html)", () => {
     signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
     const consent = await screen.findByTestId("consent-block");
     expect(consent).toHaveTextContent("Juli đề xuất thay đổi sau: chọn rồi xác nhận");
+    // P66 (D19): the single proposal is selected from the start, so Xác nhận is live.
     const confirm = within(consent).getByRole("button", { name: "Xác nhận thay đổi này" });
-    expect(confirm).toBeDisabled();
+    expect(confirm).toBeEnabled();
+    expect(within(consent).getAllByRole("button", { pressed: true })).toHaveLength(1);
     await userEvent.click(within(consent).getByRole("button", { name: "✎ Sửa nội dung trước khi áp dụng" }));
     const title = screen.getByLabelText("Tiêu đề (bạn sửa)");
     await userEvent.clear(title);
@@ -517,6 +520,20 @@ describe("consent with an edit (Run.dc.html)", () => {
         editedValues: { title: "Son môi lì số 12 — màu đỏ ruby" },
       }),
     );
+  });
+
+  it("P66 (D5): Huỷ sửa on a fresh edit keeps the proposal selected and Xác nhận enabled", async () => {
+    const c = clients();
+    signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
+    const consent = await screen.findByTestId("consent-block");
+    await userEvent.click(within(consent).getByRole("button", { name: "✎ Sửa nội dung trước khi áp dụng" }));
+    await userEvent.click(screen.getByRole("button", { name: "Huỷ sửa" }));
+    const confirm = within(consent).getByRole("button", { name: "Xác nhận thay đổi này" });
+    expect(confirm).toBeEnabled();
+    expect(within(consent).getAllByRole("button", { pressed: true })).toHaveLength(1);
+    // Tapping the only proposal again does not unselect it.
+    await userEvent.click(within(consent).getByRole("button", { pressed: true }));
+    expect(confirm).toBeEnabled();
   });
 
   it("Huỷ sửa discards the saved edit: Juli's proposal is back and Xác nhận sends no edited_values (P64)", async () => {
@@ -895,5 +912,194 @@ describe("P10 clients", () => {
     const error = await submitConfirmationDecision("r1", "t1", "approve", "o1", { fetchImpl: b.fetchImpl }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ConfirmationRejectedError);
     expect(error).toMatchObject({ errorCode: "rule_violation", field: "description", message: "Có từ không được sửa." });
+  });
+});
+
+// -- P66: reviewer-facing defects --------------------------------------------------------
+
+const PROMO_CHOICE = { product_ids: ["1729"], discount_pct: 15, end_date: "2026-10-30", promotion_title: "Giảm giá", reason_vi: "Bán chạy" };
+
+/** A create_promotion run, paused at its confirmation (run 887bb1be's shape). */
+const PROMO_AT_CONSENT: AgentEvent[] = [
+  ev(1, "workflow.started", { workflow_key: "create_promotion", product_ref: "p", prompt_version: "v1" }),
+  ev(2, "tool.started", { tool_call_id: "q1", tool_name: "get_promotion_candidates" }),
+  ev(3, "tool.completed", { tool_call_id: "q1", tool_name: "get_promotion_candidates", ok: true, summary: "Đã đọc 2 sản phẩm" }),
+  ev(4, "tool.started", { tool_call_id: "q2", tool_name: "check_promotion_eligibility" }),
+  ev(5, "tool.completed", { tool_call_id: "q2", tool_name: "check_promotion_eligibility", ok: true, summary: "1 sản phẩm đủ điều kiện" }),
+  ev(6, "workflow.approval_required", {
+    tool_call_id: "q3",
+    tool_name: "create_product_discount",
+    proposed_change: PROMO_CHOICE,
+    expires_at: "2099-10-09T07:00:00Z",
+    options: [{ option_id: "opt-1", proposed_change: PROMO_CHOICE, rationale: "Bán chạy", params_sha: "x" }],
+  }),
+];
+
+const PROMO_DONE: AgentEvent[] = [
+  ...PROMO_AT_CONSENT,
+  ev(7, "tool.started", { tool_call_id: "q3", tool_name: "create_product_discount" }),
+  ev(8, "tool.completed", {
+    tool_call_id: "q3",
+    tool_name: "create_product_discount",
+    ok: true,
+    summary: "Đã tạo khuyến mãi trên TikTok · mã 7699734374178817800",
+  }),
+  ev(9, "workflow.completed", { stop_reason: "final_response" }),
+];
+
+/** A stream that serves `before` until `switchTo()` is called, then `after`. */
+function switchingSse(before: readonly AgentEvent[], after: readonly AgentEvent[]) {
+  const state = { events: before };
+  const fetchImpl = vi.fn(async () =>
+    new Response(state.events.map((e) => `id: ${e.sequence_number}\nevent: ${e.event_type}\ndata: ${JSON.stringify(e)}\n\n`).join(""), {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    }),
+  ) as unknown as typeof fetch;
+  return { fetchImpl, switchTo: () => (state.events = after) };
+}
+
+describe("P66 — the reviewer's run panel", () => {
+  it("D6: after Xác nhận the panel moves on at once and follows the resumed run to its end", async () => {
+    const resumed = [
+      ...CONSENT_RUN,
+      ev(5, "tool.started", { tool_call_id: "w1", tool_name: "update_product_listing" }),
+      ev(6, "tool.completed", { tool_call_id: "w1", tool_name: "update_product_listing", ok: true, summary: "Đã ghi" }),
+      ev(7, "workflow.completed", { stop_reason: "final_response" }),
+    ];
+    const stream = switchingSse(CONSENT_RUN, resumed);
+    // The confirm answers 202; the resumed events exist only from then on.
+    const confirm = vi.fn(async () => {
+      stream.switchTo();
+      return { decision: "approve" as const, status: "accepted", celeryTaskId: "t" };
+    });
+    const c = clients({ streamFetch: stream.fetchImpl, confirm });
+    signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
+    const consent = await screen.findByTestId("consent-block");
+    const calls = () => (stream.fetchImpl as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
+    const before = calls();
+    await userEvent.click(within(consent).getByRole("button", { name: "Xác nhận thay đổi này" }));
+    // Optimistic: the consent is done at once, never a stale "Đang chờ bạn".
+    await waitFor(() => expect(screen.queryByTestId("consent-block")).toBeNull());
+    expect(screen.getByTestId("run-chip")).not.toHaveTextContent("Đang chờ bạn");
+    // A fresh connection follows the resumed run to its terminal event.
+    await waitFor(() => expect(calls()).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.getByTestId("run-chip")).toHaveTextContent("Đã áp dụng"), { timeout: 8000 });
+  }, 15000);
+
+  it("D6: the optimistic step reads Đang thực hiện until the stream catches up", () => {
+    const timeline = buildRunTimeline(CONSENT_RUN, { kind: "listing" });
+    const optimistic = afterConfirmation(timeline, "w1");
+    expect(optimistic.pendingConsent).toBeNull();
+    expect(optimistic.steps.find((step) => step.kind === "consent")).toMatchObject({ status: "done", detail: "Bạn đã xác nhận" });
+    expect(optimistic.steps.find((step) => step.status === "current")).toMatchObject({ label: "Ghi lên TikTok Shop", detail: "Đang thực hiện…" });
+    // Once the stream shows the resume, its own timeline wins.
+    const resumed = buildRunTimeline([...CONSENT_RUN, ev(5, "tool.started", { tool_call_id: "w1", tool_name: "update_product_listing" })], { kind: "listing" });
+    expect(afterConfirmation(resumed, "w1")).toBe(resumed);
+  });
+
+  it("D20-D22: after a reload (no card) a promotion run keeps its own header, plan order and steps", async () => {
+    const c = clients({
+      fetchDecisions: vi.fn().mockResolvedValue([]),
+      fetchRuns: vi.fn().mockResolvedValue([
+        run({ status: "completed", stop_reason: "final_response", completed_at: "2026-10-09T03:02:00Z", product_name: "Nồi lẩu điện", run_flow: "promotion" }),
+      ]),
+      streamFetch: sse(PROMO_DONE),
+    });
+    signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
+    const panel = await screen.findByTestId("run-detail");
+    await waitFor(() => expect(panel).toHaveTextContent("Tạo khuyến mãi trên TikTok"));
+    expect(within(panel).getByRole("heading", { level: 2 })).toHaveTextContent("Tạo khuyến mãi · Nồi lẩu điện");
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Juli tạo khuyến mãi giảm giá trên TikTok Shop"));
+    const text = panel.textContent ?? "";
+    const order = ["Đọc sản phẩm và khuyến mãi hiện có", "Kiểm tra điều kiện khuyến mãi", "Xác nhận một lần", "Tạo khuyến mãi trên TikTok", "Kết thúc"];
+    const positions = order.map((label) => text.indexOf(label));
+    expect(positions.every((p) => p >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(text).not.toContain("Ghi lên TikTok Shop");
+    expect(text).not.toContain("TikTok duyệt lại trang sản phẩm");
+    expect(text).not.toContain("đặt lịch đo");
+    expect(text).not.toContain("Juli đang ghi lên TikTok Shop");
+    expect(screen.getByTestId("run-chip")).toHaveTextContent("Đã tạo khuyến mãi");
+  });
+
+  it("D15: a promotion run that declines shows the server's reason, never 'Luồng đã kết thúc'", async () => {
+    const reason =
+      "Sản phẩm «Nồi lẩu điện» đang có khuyến mãi giá đến 28/10 — TikTok không cho chồng hai khuyến mãi giá; Juli không tạo khuyến mãi mới.";
+    const c = clients({
+      fetchRuns: vi.fn().mockResolvedValue([
+        run({ status: "completed", stop_reason: "concluded_without_changes", product_name: "Nồi lẩu điện", run_flow: "promotion" }),
+      ]),
+      streamFetch: sse([
+        ...PROMO_AT_CONSENT.slice(0, 3),
+        ev(4, "workflow.status", { phase_narration: reason }),
+        ev(5, "workflow.completed", { stop_reason: "concluded_without_changes" }),
+      ]),
+    });
+    signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
+    const ended = await screen.findByTestId("run-ended-reason");
+    expect(ended).toHaveTextContent(reason);
+    expect(screen.getByTestId("run-detail")).not.toHaveTextContent("Luồng đã kết thúc");
+    expect(screen.getByTestId("run-chip")).toHaveTextContent("Không đề xuất");
+  });
+
+  it("D13: a confirm refusal is always Vietnamese on the consent block", async () => {
+    const c = clients({
+      confirm: vi.fn().mockRejectedValue(new ConfirmationRejectedError(409, "confirmation_already_decided", "Confirmation already decided")),
+    });
+    signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
+    const consent = await screen.findByTestId("consent-block");
+    await userEvent.click(within(consent).getByRole("button", { name: "Xác nhận thay đổi này" }));
+    expect(await within(consent).findByRole("alert")).toHaveTextContent(
+      "Lượt chạy này đã được xác nhận hoặc không còn chờ bạn. Juli đang cập nhật trạng thái.",
+    );
+  });
+});
+
+describe("P66 — Đo lường on the reviewer's sandbox shop", () => {
+  const SANDBOX = { platform: "shopee", expiresAt: "2099-11-13T00:00:00Z", mode: "sandbox", writesEnabled: true } as const;
+  const panel = (items: MeasureItem[], nowMs: number | null) => (
+    <DoLuongPanel items={items} nowMs={nowMs} onKeep={vi.fn()} onOpenProposals={vi.fn()} onOpenRun={vi.fn()} onRevert={vi.fn()} onTab={vi.fn()} proposalsHref="/d" tab="d0" />
+  );
+  const pastDay7 = Date.parse("2026-10-20T00:00:00Z");
+
+  it("(b) says nothing is measured on a sandbox shop: no 'Chờ đo · ngày 0', no 'Đã qua ngày 7'", () => {
+    render(<StaticReviewerProvider reviewer={SANDBOX}>{panel([measureItem(null)], pastDay7)}</StaticReviewerProvider>);
+    const measure = screen.getByTestId("measure-panel");
+    expect(screen.getByTestId("measure-waiting")).toHaveTextContent(
+      "Shop sandbox không có người mua thật nên Juli không đo kết quả lượt này.",
+    );
+    expect(within(measure).getByTestId("measure-chip")).toHaveTextContent("Không đo · shop sandbox");
+    expect(measure).not.toHaveTextContent("Chờ đo · ngày 0");
+    expect(measure).not.toHaveTextContent("Đã qua ngày 7");
+  });
+
+  it("(c) offers no Hoàn tác on a run the reviewer did not start", () => {
+    const item = measureItem(null);
+    const notMine = { ...item, run: { ...item.run, started_by_viewer: false } };
+    render(<StaticReviewerProvider reviewer={SANDBOX}>{panel([notMine], null)}</StaticReviewerProvider>);
+    expect(within(screen.getByTestId("measure-panel")).queryByRole("button", { name: "Hoàn tác" })).toBeNull();
+  });
+
+  it("(b, seller) past day 7 with no reading: the chip no longer says 'Chờ đo · ngày 0'", () => {
+    render(panel([measureItem(null)], pastDay7));
+    const measure = screen.getByTestId("measure-panel");
+    expect(screen.getByTestId("measure-waiting")).toHaveTextContent("Đã qua ngày 7");
+    expect(within(measure).getByTestId("measure-chip")).toHaveTextContent("Chưa có số đo");
+    expect(measure).not.toHaveTextContent("Chờ đo · ngày 0");
+  });
+
+  it("a sandbox run's timeline schedules no measurement", () => {
+    const done = [
+      ...CONSENT_RUN,
+      ev(5, "tool.started", { tool_call_id: "w1", tool_name: "update_product_listing" }),
+      ev(6, "tool.completed", { tool_call_id: "w1", tool_name: "update_product_listing", ok: true, summary: "Đã ghi" }),
+      ev(7, "workflow.completed", { stop_reason: "final_response" }),
+    ];
+    const timeline = buildRunTimeline(done, { kind: "listing", noMeasurement: true });
+    expect(timeline.terminal?.day7).toBeNull();
+    const last = timeline.steps[timeline.steps.length - 1];
+    expect(last.label).toBe("Kết thúc lượt chạy");
+    expect(last.detail ?? "").not.toContain("Đo sơ bộ");
   });
 });

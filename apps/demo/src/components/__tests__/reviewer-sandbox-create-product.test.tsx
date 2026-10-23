@@ -150,14 +150,22 @@ describe("the create run", () => {
   it("lets the sandbox reviewer pick and confirm the proposal", async () => {
     const p = props(PAUSED, "consent", "waiting_approval");
     render(sandbox(<RunPanel {...p} />));
-    const option = screen.getByRole("button", { pressed: false, name: /Combo 2 bình giữ nhiệt/ });
+    // P66 (D19): the single proposal is selected by default.
+    const option = screen.getByRole("button", { pressed: true, name: /Combo 2 bình giữ nhiệt/ });
     expect(option).toHaveTextContent("Lý do chọn danh mục");
     expect(option).toBeEnabled();
-    await userEvent.click(option);
     const confirm = screen.getByRole("button", { name: "Xác nhận tạo sản phẩm" });
     expect(confirm).toBeEnabled();
     await userEvent.click(confirm);
     expect(p.onConfirm).toHaveBeenCalled();
+  });
+
+  it("C6: the header is verb + the subject product, never the pre-labelled card title", () => {
+    const p = props(PAUSED, "consent", "waiting_approval");
+    const card = { ...CARD, title: "Tạo sản phẩm mới từ «Bình giữ nhiệt inox 750ml»" } as CardView;
+    render(sandbox(<RunPanel {...p} card={card} />));
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/^Tạo sản phẩm · Bình giữ nhiệt inox 750ml$/);
+    expect(screen.getByRole("heading", { level: 2 })).not.toHaveTextContent("từ");
   });
 
   it("keeps the confirm read-only outside the sandbox account", () => {
