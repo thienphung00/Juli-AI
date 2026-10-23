@@ -12,7 +12,7 @@
 # same PR, then regenerate backend/constraints.txt (see its header) and verify
 # tests still pass before merging — a bump here is not itself tested by CI.
 requests>=2.31.0,<3.0.0
-fastapi>=0.115.0,<1.0.0
+fastapi>=0.150.0,<1.0.0
 httpx>=0.27.0,<1.0.0
 uvicorn>=0.52.4,<1.0.0
 python-dotenv>=1.2.3,<2.0.0
