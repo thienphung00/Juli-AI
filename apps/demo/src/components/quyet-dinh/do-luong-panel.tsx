@@ -4,7 +4,15 @@ import type { WorkflowRunListItem } from "@juli/contracts";
 import { useState } from "react";
 
 import type { CardView } from "../../lib/quyet-dinh/card-model";
-import { MEASURE_NO_READING, MEASURE_WAITING, bandMetricLabel } from "../../lib/quyet-dinh/copy";
+import {
+  MEASURE_NO_READING,
+  MEASURE_NO_READING_CHIP,
+  MEASURE_SANDBOX_CHIP,
+  MEASURE_SANDBOX_NONE,
+  MEASURE_WAITING,
+  bandMetricLabel,
+} from "../../lib/quyet-dinh/copy";
+import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import {
   EXTERNAL_CHANGE_TITLE,
   FINAL_RULE_NOTE,
@@ -215,24 +223,31 @@ function MeasurePanel({
   const { run, card, action } = item;
   const [expanded, setExpanded] = useState(true);
   const [dialog, setDialog] = useState(false);
-  const m = item.measurement?.status === "ready" ? item.measurement.measurement : null;
+  // P66: the reviewer's sandbox shop has no real buyers -- nothing is measured or pending.
+  const sandboxShop = useSandboxReviewer();
+  const m = !sandboxShop && item.measurement?.status === "ready" ? item.measurement.measurement : null;
   const changes = item.changes?.status === "ready" ? item.changes.changes : null;
   const labels = changes && changes.changes.length > 0 ? changes.changes.map((c) => c.label) : (card?.changeLabels ?? []);
   const head = m ? measureHead(m) : null;
-  const chip = head?.chip ?? { label: "Chờ đo · ngày 0", tone: "muted" as const };
+  const day7Iso = run.completed_at ? addDays(run.completed_at, 7) : null;
+  const pastDay7 = !m && day7Iso !== null && nowMs !== null && nowMs >= Date.parse(day7Iso);
+  const chip = sandboxShop
+    ? { label: MEASURE_SANDBOX_CHIP, tone: "muted" as const }
+    : (head?.chip ?? { label: pastDay7 ? MEASURE_NO_READING_CHIP : "Chờ đo · ngày 0", tone: "muted" as const });
   const workflow = card?.meta.split(" · ")[0] ?? "Tối ưu sản phẩm";
   const sub = [workflow, `Thay đổi vào ${fullDate(run.completed_at)}`, labels.length > 0 ? `Đã đổi ${labels.join(", ")}` : null]
     .filter(Boolean)
     .join(" · ");
+  // P66: a sandbox reviewer is never offered Hoàn tác on a run it did not start.
   const canRevert =
-    card?.executor !== "seller_center" && (changes ? changes.revert.available && !changes.reverts_run_id : true);
+    run.started_by_viewer !== false &&
+    card?.executor !== "seller_center" &&
+    (changes ? changes.revert.available && !changes.reverts_run_id : true);
   const headingId = `measure-${run.id}`;
   const outside = m?.stage === "day7" && m.day7 !== null && m.day7.within_band === false;
   const answered: "revert" | "keep" | null = action.revertRunId ? "revert" : action.kept ? "keep" : null;
   const box = m ? finalBox(m) : null;
   const waiting = !m || m.stage === "waiting";
-  const day7Iso = run.completed_at ? addDays(run.completed_at, 7) : null;
-  const pastDay7 = !m && day7Iso !== null && nowMs !== null && nowMs >= Date.parse(day7Iso);
 
   return (
     <section aria-labelledby={headingId} className="qv-run qv-measure" data-run-id={run.id} data-testid="measure-panel">
@@ -268,7 +283,7 @@ function MeasurePanel({
 
           {waiting ? (
             <div className="qv-grey qv-grey--measure" data-testid="measure-waiting">
-              {m ? waitingLine(m, null) : pastDay7 ? MEASURE_NO_READING : waitingLine(null, day7Iso)}
+              {sandboxShop ? MEASURE_SANDBOX_NONE : m ? waitingLine(m, null) : pastDay7 ? MEASURE_NO_READING : waitingLine(null, day7Iso)}
             </div>
           ) : null}
 
@@ -298,7 +313,7 @@ function MeasurePanel({
             </div>
           ) : null}
 
-          {!m && item.question && !answered ? (
+          {!sandboxShop && !m && item.question && !answered ? (
             <div className="qv-orange qv-ask" data-testid="day7-ask">
               <div className="qv-orange__title">Hoàn tác?</div>
               <div className="qv-orange__text">

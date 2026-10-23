@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
-from juli_backend.api.reviewer import audit_reviewer_confirmation
+from juli_backend.api.reviewer import audit_reviewer_confirmation, reviewer_context
 from juli_backend.database import Shop, get_session
 from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
@@ -339,6 +339,10 @@ class WorkflowRunListItem(BaseModel):
     decision_id: uuid.UUID | None = None
     #: Fast track P61-B: the run wrote to the sandbox merchant, not the seller's shop.
     simulated: bool = False
+    #: P66: ``create`` / ``promotion`` for the sandbox create workflows, else null.
+    run_flow: str | None = None
+    #: P66: sandbox reviewer only -- whether the reviewer started this run.
+    started_by_viewer: bool | None = None
 
 
 class WorkflowRunListResponse(BaseModel):
@@ -346,8 +350,19 @@ class WorkflowRunListResponse(BaseModel):
     data: list[WorkflowRunListItem]
 
 
+def _run_viewer(request: Request) -> agent_runs.RunViewer | None:
+    """P66: a reviewer on the writable sandbox pin sees its own runs and the shop's runs
+    since its account was created -- not the team's older verification runs (C7)."""
+    context = reviewer_context(request)
+    pin = context.pin if context is not None else None
+    if context is None or pin is None or not pin.sandbox:
+        return None
+    return agent_runs.RunViewer(user_id=context.account.user_id, since=context.account.created_at)
+
+
 @router.get("", response_model=WorkflowRunListResponse)
 async def list_demo_runs(
+    request: Request,
     shop: Shop = Depends(get_active_shop),
     session: AsyncSession = Depends(get_session),
     limit: int = Query(default=100, ge=1, le=1000),
@@ -358,7 +373,9 @@ async def list_demo_runs(
     polls, and the next poll will show the rows (#1310).
     """
     try:
-        items = await agent_runs.list_runs(session, shop.id, limit=limit)
+        items = await agent_runs.list_runs(
+            session, shop.id, limit=limit, viewer=_run_viewer(request)
+        )
     except Exception:  # read-model boundary: degrade to empty rather than 5xx a poll
         logger.exception("agent_runs_list_failed", extra={"shop_id": str(shop.id)})
         return WorkflowRunListResponse(data=[])
@@ -386,6 +403,8 @@ async def list_demo_runs(
                 awaiting=item.awaiting,
                 decision_id=item.decision_id,
                 simulated=item.simulated,
+                run_flow=item.run_flow,
+                started_by_viewer=item.started_by_viewer,
             )
             for item in items
         ]

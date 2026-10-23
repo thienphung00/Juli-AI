@@ -39,6 +39,9 @@ RUN_LIST_FIELDS = {
     "decision_id",
     # P61-B: the run wrote to the sandbox merchant, not the seller's shop.
     "simulated",
+    # P66: the sandbox create flows; whether a sandbox reviewer started the run.
+    "run_flow",
+    "started_by_viewer",
 }
 
 # (stop_reason, status) -- every terminal pair the check constraint allows,

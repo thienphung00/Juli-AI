@@ -41,6 +41,16 @@ export interface WorkflowRunListItem {
    * seller's shop ("chạy thử"). True only for a run that actually wrote.
    */
   simulated?: boolean;
+  /**
+   * Fast track P66 (D20-D22): `create` / `promotion` for the sandbox create workflows,
+   * else null. The run panel picks its step plan and header from it, also after a reload.
+   */
+  run_flow?: "create" | "promotion" | null;
+  /**
+   * Fast track P66: for a sandbox reviewer only, whether the reviewer started this run
+   * ("Hoàn tác" is offered only then); null for every other viewer.
+   */
+  started_by_viewer?: boolean | null;
 }
 
 /**
