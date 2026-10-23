@@ -13,14 +13,23 @@ sandbox shop + daily cap); the run creates the discount on TikTok
 No other shop and no seller ever sees it: the decisions reads exclude the workflow unless
 the caller asks for it (``services/demo_decisions/read.py`` ``include_reviewer_cards``).
 The card claims no ROI: the sandbox has no real buyers.
+
+**Only for a product TikTok would accept (P66, D16).** Before the card is shown it is
+checked with the same TikTok reads the run makes
+(``promotion_create.first_promotable_product``: the product is selling, in stock and held
+by no running or upcoming price promotion overlapping Juli's default window). A card
+whose product no longer qualifies is retired (``expired``) and the next qualifying
+product gets it; when none qualifies, or TikTok cannot be read, no new card is emitted.
+An active card is re-checked at most every :data:`VERIFY_TTL`.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -42,15 +51,58 @@ def card_title(title: str) -> str:
     return f"Tạo khuyến mãi giảm giá cho «{title}»"
 
 
+#: P66 (D16): how long an active card's TikTok eligibility check stays good.
+VERIFY_TTL = timedelta(minutes=5)
+#: P66 (D16): how many of the shop's products are tried for a new card.
+MAX_PRODUCTS_TRIED = 5
+#: The status a card whose product no longer qualifies is retired with.
+RETIRED_STATUS = "expired"
+
+#: card id -> when its product was last confirmed eligible on TikTok.
+_verified_at: dict[uuid.UUID, datetime] = {}
+
+
+def reset_cache() -> None:
+    _verified_at.clear()
+
+
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-async def _source_product(session: AsyncSession, shop_id: uuid.UUID) -> Product | None:
-    """The shop's best-selling synced, non-gift product -- one with synced stock first.
+async def _promotion_resources(session: AsyncSession, shop_id: uuid.UUID) -> Any:
+    """The sandbox shop's TikTok resources the run reads through (a seam for tests)."""
+    from juli_backend.services.agent.composition import build_read_resources
 
-    Stock is what Juli synced (``inventory_items`` / ``products.inventory``); the run
-    re-reads it from TikTok before proposing anything.
+    return await build_read_resources(session, shop_id)
+
+
+async def _first_promotable(
+    session: AsyncSession, shop_id: uuid.UUID, tiktok_ids: list[str]
+) -> tuple[bool, str | None]:
+    """``(verified, first eligible TikTok id)``; ``verified`` is False when TikTok (or the
+    shop's credential) could not be read -- nothing is known then."""
+    from juli_backend.services.agent.tools.promotion_create import first_promotable_product
+
+    if not tiktok_ids:
+        return True, None
+    try:
+        resources = await _promotion_resources(session, shop_id)
+        found = await asyncio.to_thread(first_promotable_product, resources, tiktok_ids)
+    except Exception:
+        # Any failure to read (credential, TikTok, network): unknown, never "eligible".
+        logger.warning(
+            "reviewer_promotion_card_unverified", extra={"shop_id": str(shop_id)}, exc_info=True
+        )
+        return False, None
+    return True, found
+
+
+async def _source_products(session: AsyncSession, shop_id: uuid.UUID) -> list[Product]:
+    """The shop's best-selling synced, non-gift products -- those with synced stock first.
+
+    Stock is what Juli synced (``inventory_items`` / ``products.inventory``); TikTok
+    decides (:func:`_first_promotable`) and the run re-reads it before proposing anything.
     """
     from juli_backend.services.optimize_product.eligibility import stored_product_gift_reason
 
@@ -72,10 +124,33 @@ async def _source_product(session: AsyncSession, shop_id: uuid.UUID) -> Product 
             )
         ).scalars()
     )
-    for product in products:
-        if product.tiktok_product_id in stocked or (product.inventory or 0) > 0:
-            return product
-    return products[0] if products else None
+    with_stock = [p for p in products if p.tiktok_product_id in stocked or (p.inventory or 0) > 0]
+    rest = [p for p in products if p not in with_stock]
+    return (with_stock + rest)[:MAX_PRODUCTS_TRIED]
+
+
+async def _active_card_still_eligible(session: AsyncSession, card: ActionCard) -> bool:
+    """Whether the active card's product still qualifies (re-read at most every
+    :data:`VERIFY_TTL`). Unknown (TikTok unread) keeps the card: it is not retired on a
+    guess, and the run re-checks before proposing anything."""
+    checked = _verified_at.get(card.id)
+    if checked is not None and _now() - checked < VERIFY_TTL:
+        return True
+    try:
+        tiktok_id = json.loads(card.recommendation_payload or "{}")["diagnosis"][
+            "tiktok_product_id"
+        ]
+    except (ValueError, KeyError, TypeError):
+        tiktok_id = None
+    if not tiktok_id:
+        return True
+    verified, found = await _first_promotable(session, card.shop_id, [str(tiktok_id)])
+    if not verified:
+        return True
+    if found is None:
+        return False
+    _verified_at[card.id] = _now()
+    return True
 
 
 def card_payload(product: Product) -> dict[str, Any]:
@@ -133,9 +208,28 @@ async def ensure_create_promotion_card(
         .first()
     )
     if active is not None:
-        return active
-    product = await _source_product(session, shop_id)
+        if await _active_card_still_eligible(session, active):
+            return active
+        # P66 (D16): its product is now in a price promotion (or out of stock).
+        active.status = RETIRED_STATUS
+        _verified_at.pop(active.id, None)
+        await session.flush()
+        logger.info(
+            "reviewer_create_promotion_card_retired",
+            extra={"shop_id": str(shop_id), "card": str(active.id)},
+        )
+    products = await _source_products(session, shop_id)
+    verified, found = await _first_promotable(
+        session, shop_id, [p.tiktok_product_id for p in products]
+    )
+    product = next((p for p in products if p.tiktok_product_id == found), None)
     if product is None:
+        # P66 (D16): no product a new price promotion can be created for (or TikTok
+        # could not tell): no card, rather than one the run can only decline.
+        logger.info(
+            "reviewer_create_promotion_card_not_emitted",
+            extra={"shop_id": str(shop_id), "verified": verified},
+        )
         return None
     subject_id = str(product.id)
     revision = (
@@ -173,6 +267,7 @@ async def ensure_create_promotion_card(
     )
     session.add(card)
     await session.flush()
+    _verified_at[card.id] = _now()
     logger.info(
         "reviewer_create_promotion_card_created",
         extra={"shop_id": str(shop_id), "card": str(card.id)},
@@ -180,4 +275,10 @@ async def ensure_create_promotion_card(
     return card
 
 
-__all__ = ["LEVER_LABEL_VI", "card_payload", "card_title", "ensure_create_promotion_card"]
+__all__ = [
+    "LEVER_LABEL_VI",
+    "card_payload",
+    "card_title",
+    "ensure_create_promotion_card",
+    "reset_cache",
+]

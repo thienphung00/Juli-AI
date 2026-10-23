@@ -81,6 +81,38 @@ def _enqueue_approval_baseline(shop_id: uuid.UUID, run_id: uuid.UUID) -> str | N
     )
 
 
+#: P64/P65: each capped sandbox create workflow's 429 code and cap.
+_SANDBOX_CAP_CODES: dict[type[approval_module.SandboxCreateCapReached], tuple[str, int]] = {
+    approval_module.CreateProductDailyCapReached: (
+        "create_product_daily_cap",
+        approval_module.CREATE_PRODUCT_DAILY_CAP,
+    ),
+    approval_module.CreatePromotionDailyCapReached: (
+        "create_promotion_daily_cap",
+        approval_module.CREATE_PROMOTION_DAILY_CAP,
+    ),
+}
+
+
+def _sandbox_cap_refusal(exc: approval_module.SandboxCreateCapReached) -> HTTPException:
+    """P66 (D13): the 429 for a used-up sandbox create cap, with when it frees up --
+    ``retry_at`` (ISO 8601, UTC) and ``retry_after_seconds`` (also ``Retry-After``) --
+    so the card can say "thử lại lúc HH:MM" instead of nothing."""
+    code, cap = _SANDBOX_CAP_CODES[type(exc)]
+    retry_at = exc.retry_at.replace(tzinfo=UTC)
+    seconds = max(1, int((retry_at - datetime.now(UTC)).total_seconds()) + 1)
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "code": code,
+            "cap": cap,
+            "retry_at": retry_at.isoformat().replace("+00:00", "Z"),
+            "retry_after_seconds": seconds,
+        },
+        headers={"Retry-After": str(seconds)},
+    )
+
+
 @router.post(
     "/{action_card_id}/approve",
     response_model=DemoDecisionApproveResponse,
@@ -183,24 +215,9 @@ async def approve_demo_decision(
             status_code=status.HTTP_409_CONFLICT,
             detail="This decision has no subject Juli can act on",
         ) from exc
-    except approval_module.CreateProductDailyCapReached as exc:
+    except approval_module.SandboxCreateCapReached as exc:
         await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "code": "create_product_daily_cap",
-                "cap": approval_module.CREATE_PRODUCT_DAILY_CAP,
-            },
-        ) from exc
-    except approval_module.CreatePromotionDailyCapReached as exc:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "code": "create_promotion_daily_cap",
-                "cap": approval_module.CREATE_PROMOTION_DAILY_CAP,
-            },
-        ) from exc
+        raise _sandbox_cap_refusal(exc) from exc
     except approval_module.WorkflowNotExecutable as exc:
         await session.rollback()
         raise HTTPException(
