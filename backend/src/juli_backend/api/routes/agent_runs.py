@@ -24,7 +24,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
@@ -213,6 +213,9 @@ class EditedValues(BaseModel):
 
     title: str | None = None
     description: str | None = None
+    # P65 (D74): the sandbox promotion create -- the reviewer's discount % / end date.
+    discount_pct: int | None = None
+    end_date: str | None = Field(default=None, max_length=10)
 
 
 class ConfirmationDecisionRequest(BaseModel):

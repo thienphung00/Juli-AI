@@ -451,6 +451,7 @@ class ProductToolExecutor(DomainToolExecutor):
         on_image_staged: Callable[[str], None] | None = None,
         revert_expected_hashes: Mapping[str, str | None] | None = None,
         banned_terms: Sequence[str] = (),
+        discount_rules: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__(
             registry=registry,
@@ -488,6 +489,8 @@ class ProductToolExecutor(DomainToolExecutor):
         self._on_image_staged = on_image_staged
         # P64 (D73.5): the shop's banned terms, for the pre-confirmation check.
         self._banned_terms = tuple(banned_terms)
+        # P65 (D74): the discount range of a create_promotion run (its opening context).
+        self._discount_rules = dict(discount_rules) if discount_rules else None
 
     def _binding(self) -> ProductToolContext:
         """The `ProductToolContext` the product domain unwraps and hands to
@@ -506,6 +509,7 @@ class ProductToolExecutor(DomainToolExecutor):
             restore_main_image_uris=self._restore_main_image_uris,
             on_image_staged=self._image_staged,
             banned_terms=self._banned_terms,
+            discount_rules=self._discount_rules,
         )
 
     def _image_staged(self, uri: str) -> None:

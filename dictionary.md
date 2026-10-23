@@ -1056,6 +1056,21 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - VI: Tạo sản phẩm mới trên TikTok với tiêu đề, mô tả và danh mục Juli đề xuất.
 - Definition: `ToolSpec.seller_rationale_vi` for the `create_product` tool (fast track P64, D73.3 -- the sandbox-only "Tạo sản phẩm" run).
 
+**`run.option_rationale.get_promotion_candidates`**
+- EN: Read the products and the promotions already running.
+- VI: Đọc sản phẩm và khuyến mãi hiện có.
+- Definition: `ToolSpec.seller_rationale_vi` for the `get_promotion_candidates` tool (fast track P65, D74 -- the sandbox-only "Tạo khuyến mãi" run).
+
+**`run.option_rationale.check_promotion_eligibility`**
+- EN: Check the promotion's conditions.
+- VI: Kiểm tra điều kiện khuyến mãi.
+- Definition: `ToolSpec.seller_rationale_vi` for the `check_promotion_eligibility` tool (fast track P65, D74 -- the sandbox-only "Tạo khuyến mãi" run).
+
+**`run.option_rationale.create_product_discount`**
+- EN: Create a product discount on TikTok for the products Juli proposes.
+- VI: Tạo khuyến mãi giảm giá trên TikTok cho sản phẩm Juli đề xuất.
+- Definition: `ToolSpec.seller_rationale_vi` for the `create_product_discount` tool (fast track P65, D74 -- the sandbox-only "Tạo khuyến mãi" run).
+
 **`agent.narration.extension_grant`**
 - EN: Continuing past the standard iteration limit: granting [extension_iterations] more iteration(s) (extension [granted] of [max]).
 - VI: Đã đạt giới hạn số lượt thực hiện tiêu chuẩn, Juli gia hạn thêm [extension_iterations] lượt để hoàn tất công việc (lần gia hạn [granted]/[max]).

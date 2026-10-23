@@ -175,6 +175,12 @@ def build_product_tool_registry() -> ToolRegistry:
     from juli_backend.services.agent.tools.catalog_create import register_catalog_create_tools
 
     register_catalog_create_tools(registry)
+    # Fast track P65 (D74): the sandbox-only "Tạo khuyến mãi" tools, same three gates.
+    from juli_backend.services.agent.tools.promotion_create import (
+        register_promotion_create_tools,
+    )
+
+    register_promotion_create_tools(registry)
     return registry
 
 
@@ -380,7 +386,10 @@ LIVE_ELIGIBLE_WRITE_TOOLS: frozenset[str] = frozenset({"update_product_listing"}
 #: D13: Juli never writes a price on a seller's shop (it is a recommendation), so
 #: a price confirmation is refused in production BEFORE any authorization is
 #: consumed. A product create is not an agent tool at all.
-NEVER_PRODUCTION_WRITE_TOOLS: frozenset[str] = frozenset({"update_product_price"})
+NEVER_PRODUCTION_WRITE_TOOLS: frozenset[str] = frozenset(
+    # P65 (D74): a promotion write is sandbox-only (D13), refused by name here too.
+    {"update_product_price", "create_product_discount"}
+)
 
 
 async def shop_production_write_possible(session: AsyncSession, shop_id: uuid.UUID) -> bool:

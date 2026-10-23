@@ -445,6 +445,8 @@ async def list_demo_decisions(
             from juli_backend.services import reviewer as reviewer_service
 
             await reviewer_service.ensure_create_product_card(session, shop_id)
+            # P65 (D74): and its one "Tạo khuyến mãi" card.
+            await reviewer_service.ensure_create_promotion_card(session, shop_id)
         cards = await list_surfaced_decisions(
             session, shop_id, include_reviewer_cards=sandbox_reviewer
         )

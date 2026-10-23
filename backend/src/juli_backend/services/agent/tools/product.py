@@ -166,6 +166,10 @@ class ProductToolContext:
     # (`shop_rules.banned_terms`), loaded by the worker, so a CONFIRM proposal is
     # checked against it before the seller is asked (`ToolDomain.prechecks`).
     banned_terms: tuple[str, ...] = ()
+    # `discount_rules` -- P65 (D74): the `shop_rules.discount` block of a
+    # `create_promotion` run's opening context (the discount range the shop's rules
+    # allow, `promotion_create.discount_rules_for_run`). `None`: Juli's defaults.
+    discount_rules: Mapping[str, Any] | None = None
 
 
 # --- sanitize helpers, shared by the READ handlers below (ADR-070) -----------

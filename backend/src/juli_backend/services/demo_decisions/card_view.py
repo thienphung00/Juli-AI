@@ -64,6 +64,8 @@ from juli_backend.services.optimize_product.rescore import cap_legacy_target, ha
 WORKFLOW_LABEL_VI = "Tối ưu sản phẩm"
 #: P64 (D73.3): the sandbox "Tạo sản phẩm" card reads as a creation, like its run header.
 CREATE_PRODUCT_LABEL_VI = "Tạo sản phẩm"
+#: P65 (D74): the sandbox "Tạo khuyến mãi" card reads "Khuyến mãi · Cập nhật …".
+CREATE_PROMOTION_LABEL_VI = "Khuyến mãi"
 #: D24.17: a card is valid 7 days from surfacing.
 PROPOSAL_VALIDITY_DAYS = 7
 
@@ -78,6 +80,8 @@ LEVERS: Mapping[str, tuple[str, str]] = {
     "buy_more_save_more": ("Mua nhiều giảm nhiều", "seller_center"),
     # P64 (D73.3): the sandbox reviewer's "Tạo sản phẩm" -- Juli creates the listing.
     "create_product": ("Tạo sản phẩm", "juli"),
+    # P65 (D74): the sandbox reviewer's "Tạo khuyến mãi" -- Juli creates the discount.
+    "create_promotion": ("Tạo khuyến mãi", "juli"),
 }
 
 #: The listing field each Juli-executed lever changes.
@@ -86,6 +90,7 @@ _LEVER_FIELDS: Mapping[str, tuple[str, str]] = {
     "title": ("title", "Tiêu đề"),
     "description": ("description", "Mô tả"),
     "create_product": ("new_listing", "Sản phẩm mới trên TikTok"),
+    "create_promotion": ("product_discount", "Khuyến mãi giảm giá trên TikTok"),
 }
 
 _FIELD_LABELS_VI: Mapping[str, str] = {"title": "Tiêu đề", "description": "Mô tả"}
@@ -96,6 +101,8 @@ _KPI_LABELS_VI: Mapping[str, str] = {
     "aov": "AOV (SKU)",
     # P23 (D29): a GMV fall explained by impressions targets Hiển thị.
     "impressions": "Lượt hiển thị",
+    # P65 (D74): the "Tạo khuyến mãi" card's KPI is the promotion itself (no ROI).
+    "promotion": "Khuyến mãi trên TikTok",
 }
 
 #: ≤ 6 words, by the stage the diagnosis found weak.
@@ -105,6 +112,8 @@ _REASON_SHORT_VI: Mapping[str, str] = {
     "basket": "Mỗi đơn mua ít món",
     # P64 (D73.3): the "Tạo sản phẩm" card.
     "catalog": "Thêm sản phẩm mới cho shop",
+    # P65 (D74): the "Tạo khuyến mãi" card (no ROI claim).
+    "promotion": "Thử khuyến mãi trên TikTok",
 }
 
 #: P64 (D73.3): an orders-based quick card claims no funnel stage, only sales.
@@ -469,6 +478,10 @@ def build_card_block(
         workflow_label = CREATE_PRODUCT_LABEL_VI
         if product_title:
             product_title = f"Tạo sản phẩm mới từ «{product_title}»"
+    elif lever_code == "create_promotion":
+        workflow_label = CREATE_PROMOTION_LABEL_VI
+        if product_title:
+            product_title = f"Tạo khuyến mãi giảm giá cho «{product_title}»"
     return {
         "seller_sku": first_sku,
         "seller_sku_more": max(context.sku_count - 1, 0) if first_sku else 0,

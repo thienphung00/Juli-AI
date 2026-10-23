@@ -60,6 +60,10 @@ EDITABLE_TOOL_DESCRIPTION_MAX: dict[str, int] = {
     "update_product_listing": shop_rules.DESCRIPTION_MAX_CHARS,
     "create_product": 5_000,
 }
+#: P65 (D74): the sandbox "Tạo khuyến mãi" create -- the reviewer may edit the discount
+#: % and the end date (validated against the run's own discount range and dates).
+PROMOTION_TOOL = "create_product_discount"
+PROMOTION_EDITABLE_FIELDS: frozenset[str] = frozenset({"discount_pct", "end_date"})
 EXPIRED_CONFIRMATION_STATUS = "expired"
 
 # Machine-readable discriminators. Stable: clients branch on them.
@@ -160,7 +164,7 @@ async def decide_confirmation(
     tool_call_id: str,
     decision: str,
     option_id: str | None,
-    edited_values: Mapping[str, str] | None = None,
+    edited_values: Mapping[str, Any] | None = None,
     now: datetime | None = None,
 ) -> ConfirmationDecision:
     """Walk the ladder for ``run`` and win the transition, or raise :class:`ConfirmationRejected`.
@@ -243,8 +247,42 @@ async def decline_pending_confirmation(
     )
 
 
+def _promotion_edits(
+    run_state: Mapping[str, Any], edited_values: Mapping[str, Any]
+) -> dict[str, Any]:
+    """P65 (D74): the reviewer's discount % / end date for the promotion create, validated
+    against the run's own discount range (its opening ``shop_rules.discount``) and the
+    allowed dates. :class:`EditRejected` (a 422) otherwise."""
+    from juli_backend.services.agent import run_context
+    from juli_backend.services.agent.tools import promotion_create
+
+    unknown = sorted(set(edited_values) - PROMOTION_EDITABLE_FIELDS)
+    if unknown:
+        raise EditRejected(unknown[0], "Bước này chỉ sửa được mức giảm và ngày kết thúc.")
+    changed: dict[str, Any] = {}
+    if "discount_pct" in edited_values:
+        raw = edited_values["discount_pct"]
+        if isinstance(raw, bool) or not isinstance(raw, int | float) or int(raw) != raw:
+            raise EditRejected("discount_pct", "Mức giảm cần là số nguyên phần trăm.")
+        bounds = promotion_create.discount_bounds(
+            run_context.opening_shop_rules(run_state).get("discount")
+        )
+        refusal = promotion_create.check_discount(int(raw), bounds.min_pct, bounds.max_pct)
+        if refusal is not None:
+            raise EditRejected("discount_pct", refusal + ".")
+        changed["discount_pct"] = int(raw)
+    if "end_date" in edited_values:
+        end = promotion_create.parse_end_date(
+            str(edited_values["end_date"]), promotion_create.shop_today()
+        )
+        if isinstance(end, str):
+            raise EditRejected("end_date", end + ".")
+        changed["end_date"] = end.isoformat()
+    return changed
+
+
 async def _apply_seller_edits(
-    session: AsyncSession, run: WorkflowRunRow, edited_values: Mapping[str, str]
+    session: AsyncSession, run: WorkflowRunRow, edited_values: Mapping[str, Any]
 ) -> None:
     """Validate the seller's edit and bind the run's pending call to it (see above)."""
     run_state: dict[str, Any] = run.state if isinstance(run.state, dict) else {}
@@ -258,6 +296,14 @@ async def _apply_seller_edits(
     arguments = dict(arguments) if isinstance(arguments, Mapping) else {}
     first_field = next(iter(edited_values))
     tool_name = pending_state.get("tool_name")
+    if tool_name == PROMOTION_TOOL:
+        promotion_changed = {
+            key: value
+            for key, value in _promotion_edits(run_state, edited_values).items()
+            if arguments.get(key) != value
+        }
+        _bind_edit(run, run_state, pending_state, arguments, promotion_changed)
+        return
     description_max = EDITABLE_TOOL_DESCRIPTION_MAX.get(str(tool_name))
     if description_max is None:
         raise EditRejected(first_field, "Bước này không có nội dung sửa được.")
@@ -275,6 +321,17 @@ async def _apply_seller_edits(
         )
     except shop_rules.ListingEditViolation as violation:
         raise EditRejected(violation.field, violation.message_vi) from None
+    _bind_edit(run, run_state, pending_state, arguments, changed)
+
+
+def _bind_edit(
+    run: WorkflowRunRow,
+    run_state: dict[str, Any],
+    pending_state: dict[str, Any],
+    arguments: dict[str, Any],
+    changed: Mapping[str, Any],
+) -> None:
+    """Bind the run's pending call to the edited arguments (a fresh params sha)."""
     if not changed:
         return
     edited_arguments = {**arguments, **changed}

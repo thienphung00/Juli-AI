@@ -415,7 +415,7 @@ def _edited_summary(tool_name: str, raw_result: Mapping[str, Any]) -> str:
     sandbox create (P64) keeps TikTok's own line -- the new product's id and status --
     and adds that it used the seller's version.
     """
-    if tool_name == "create_product":
+    if tool_name in ("create_product", "create_product_discount"):
         return f"{tool_completed_summary(tool_name, raw_result)} · theo bản bạn sửa"
     return EDITED_BY_SELLER_SUMMARY
 

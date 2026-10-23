@@ -60,6 +60,7 @@ from juli_backend.services.agent.tools.product_write import (
     UpdateProductListingInput,
     UpdateProductPriceInput,
 )
+from juli_backend.services.agent.tools.promotion_create import CreateProductDiscountInput
 from juli_backend.workers.impact_reader.pipeline import run_daily_impact_reader
 from juli_backend.workers.impact_reader.queries import measurable_tool_names
 
@@ -162,6 +163,17 @@ def _minimal_params_for_confirm_write(tool_name: str) -> BaseModel:
                 "title": "Combo 2 bình giữ nhiệt",
                 "description": "Hai bình giữ nhiệt inox.",
                 "reason_vi": "Cùng danh mục.",
+            }
+        )
+    if tool_name == "create_product_discount":
+        # P65 (D74): an end date in the past -> refused before any TikTok request.
+        return CreateProductDiscountInput.model_validate(
+            {
+                "product_ids": ["1"],
+                "discount_pct": 10,
+                "end_date": "2000-01-01",
+                "promotion_title": "Giảm giá thử",
+                "reason_vi": "Còn hàng.",
             }
         )
     raise AssertionError(

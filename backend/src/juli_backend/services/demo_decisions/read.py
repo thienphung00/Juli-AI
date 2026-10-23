@@ -39,7 +39,8 @@ _CANDIDATE_STATUS = "active"
 
 #: P64 (D73.3): the partner reviewer's sandbox-only "Tạo sản phẩm" workflow. Its cards
 #: are served only to a reviewer on the writable sandbox pin (``include_reviewer_cards``).
-REVIEWER_ONLY_WORKFLOWS: tuple[str, ...] = ("create_product",)
+#: P65 (D74): and its sandbox-only "Tạo khuyến mãi" workflow.
+REVIEWER_ONLY_WORKFLOWS: tuple[str, ...] = ("create_product", "create_promotion")
 
 _RECOMMENDATION_ALLOWLIST: tuple[str, ...] = (
     "workflow_name",

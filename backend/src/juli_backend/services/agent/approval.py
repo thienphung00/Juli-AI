@@ -166,6 +166,27 @@ class CreateProductDailyCapReached(ValueError):
 CREATE_PRODUCT_DAILY_CAP = 3
 
 
+class CreatePromotionDailyCapReached(ValueError):
+    """P65 (D74): this reviewer already started :data:`CREATE_PROMOTION_DAILY_CAP`
+    "Tạo khuyến mãi" runs in the last 24 hours -- the route answers 429."""
+
+
+#: P65 (D74): "Tạo khuyến mãi" runs one reviewer may start per rolling 24 hours.
+CREATE_PROMOTION_DAILY_CAP = 3
+
+#: The sandbox-only reviewer workflows: workflow key -> (daily cap, its cap error).
+_SANDBOX_CREATE_CAPS: dict[str, tuple[int, type[ValueError]]] = {
+    playbooks_module.CREATE_PRODUCT_WORKFLOW_KEY: (
+        CREATE_PRODUCT_DAILY_CAP,
+        CreateProductDailyCapReached,
+    ),
+    playbooks_module.CREATE_PROMOTION_WORKFLOW_KEY: (
+        CREATE_PROMOTION_DAILY_CAP,
+        CreatePromotionDailyCapReached,
+    ),
+}
+
+
 async def _approve_create_product_gate(
     session: AsyncSession,
     *,
@@ -174,19 +195,23 @@ async def _approve_create_product_gate(
     approved_by_user_id: uuid.UUID,
     allow_create_product: bool,
     now: datetime,
+    workflow_key: str = playbooks_module.CREATE_PRODUCT_WORKFLOW_KEY,
 ) -> None:
-    """P64 (D73.3/D73.4): a ``create_product`` card is approvable only by a partner
-    reviewer (``allow_create_product``, else it does not exist: 404), only on the
-    sandbox-write shop (D13: a seller's shop never gets product create), and at most
-    :data:`CREATE_PRODUCT_DAILY_CAP` times per reviewer per rolling 24 hours."""
+    """P64 (D73.3/D73.4), P65 (D74): a ``create_product`` / ``create_promotion`` card is
+    approvable only by a partner reviewer (``allow_create_product``, else it does not
+    exist: 404), only on the sandbox-write shop (D13: a seller's shop never gets a
+    product create or a promotion write), and at most its daily cap
+    (:data:`CREATE_PRODUCT_DAILY_CAP` / :data:`CREATE_PROMOTION_DAILY_CAP`) times per
+    reviewer per rolling 24 hours."""
     if not allow_create_product:
         raise ActionCardNotFound(f"ActionCard {action_card_id} not found")
     from juli_backend.services.agent.composition import _is_sandbox_shop
 
     if not await _is_sandbox_shop(session, shop_id):
         raise WorkflowNotExecutable(
-            f"ActionCard {action_card_id} creates a product, which runs only on the sandbox shop"
+            f"ActionCard {action_card_id} ({workflow_key}) runs only on the sandbox shop"
         )
+    cap, cap_error = _SANDBOX_CREATE_CAPS[workflow_key]
     started = (
         await session.execute(
             select(func.count())
@@ -194,16 +219,14 @@ async def _approve_create_product_gate(
             .join(ActionCard, ActionCard.id == ActionCardApproval.action_card_id)
             .where(
                 ActionCard.shop_id == shop_id,
-                ActionCard.workflow_key == playbooks_module.CREATE_PRODUCT_WORKFLOW_KEY,
+                ActionCard.workflow_key == workflow_key,
                 ActionCardApproval.approved_by_user_id == approved_by_user_id,
                 ActionCardApproval.approved_at >= now - timedelta(days=1),
             )
         )
     ).scalar_one()
-    if started >= CREATE_PRODUCT_DAILY_CAP:
-        raise CreateProductDailyCapReached(
-            f"{started} create_product runs in the last 24 hours (cap {CREATE_PRODUCT_DAILY_CAP})"
-        )
+    if started >= cap:
+        raise cap_error(f"{started} {workflow_key} runs in the last 24 hours (cap {cap})")
 
 
 class CardSubjectNotApprovable(Exception):
@@ -331,6 +354,27 @@ def _initial_run_state_for(
 #: P64 (D73.5): a run whose playbook drafts a listing title / description reads the
 #: shop's listing rules (``shop_rules.listing_rules_for_run``) in its opening context.
 _LISTING_DRAFT_TOOLS = frozenset({"update_product_listing", "create_product"})
+
+
+async def _promotion_rules_for_run(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, Any]:
+    """P65 (D74): the shop's rules a ``create_promotion`` run reads -- its discount range
+    (``default_max_discount_pct`` / per-SKU ``max_discount_pct``, else Juli's documented
+    default) and its banned terms (the promotion title keeps them)."""
+    from juli_backend.services import shop_rules
+    from juli_backend.services.agent.tools.promotion_create import discount_rules_for_run
+
+    rules = await shop_rules.get_rules(session, shop_id)
+    default = rules.default_max_discount_pct
+    block: dict[str, Any] = {
+        "discount": discount_rules_for_run(
+            default.value if default is not None else None,
+            {sku: rule.value for sku, rule in rules.max_discount_pct.items()},
+        )
+    }
+    banned = await shop_rules.banned_terms(session, shop_id)
+    if banned:
+        block["banned_terms"] = banned
+    return block
 
 
 @dataclass(frozen=True)
@@ -499,9 +543,10 @@ async def approve_action_card(
 
     allowed_levers = await shop_rules.auto_levers(session, shop_id)
     lever_code = shop_rules.card_lever_code(card.recommendation_payload)
-    create_product = playbook.workflow_key == playbooks_module.CREATE_PRODUCT_WORKFLOW_KEY
+    create_product = playbook.workflow_key in _SANDBOX_CREATE_CAPS
     if create_product:
-        # P64 (D73.3/D73.4): not a listing lever -- its own gate (reviewer, sandbox, cap).
+        # P64 (D73.3/D73.4), P65 (D74): not a listing lever -- its own gate (reviewer,
+        # sandbox, cap).
         await _approve_create_product_gate(
             session,
             shop_id=shop_id,
@@ -509,6 +554,7 @@ async def approve_action_card(
             approved_by_user_id=approved_by_user_id,
             allow_create_product=allow_create_product,
             now=clock(),
+            workflow_key=playbook.workflow_key,
         )
     # Fast track P10-B (contract §5): approving a Seller Center promotion card
     # starts a guided run -- Juli checks the seller's rules, shows the steps and
@@ -537,6 +583,8 @@ async def approve_action_card(
         if any(set(step.tools) & _LISTING_DRAFT_TOOLS for step in playbook.steps)
         else None
     )
+    if playbook.workflow_key == playbooks_module.CREATE_PROMOTION_WORKFLOW_KEY:
+        listing_rules = await _promotion_rules_for_run(session, shop_id)
     initial_state = _initial_run_state_for(card, shop_rules=listing_rules)
 
     run = WorkflowRunRow(

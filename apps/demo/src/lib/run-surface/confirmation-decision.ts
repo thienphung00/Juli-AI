@@ -62,6 +62,14 @@ export class ConfirmationRejectedError extends Error {
   }
 }
 
+/** P10 contract §3: the seller's own values; P65 (D74): a promotion's discount % / end date. */
+export type EditedValues = Readonly<{
+  title?: string;
+  description?: string;
+  discount_pct?: number;
+  end_date?: string;
+}>;
+
 export interface SubmitConfirmationDecisionOptions {
   readonly token?: string;
   /** The acting shop, sent as `X-Shop-Id` (#1909) -- the confirmation
@@ -70,7 +78,7 @@ export interface SubmitConfirmationDecisionOptions {
   readonly baseUrl?: string;
   readonly fetchImpl?: typeof fetch;
   /** P10 contract §3: the seller's own title / description, written verbatim. */
-  readonly editedValues?: Readonly<{ title?: string; description?: string }>;
+  readonly editedValues?: EditedValues;
 }
 
 /**

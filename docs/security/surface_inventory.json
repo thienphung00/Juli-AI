@@ -1022,6 +1022,14 @@
       ]
     },
     {
+      "name": "check_promotion_eligibility",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
       "name": "conclude_without_changes",
       "classification": "read",
       "policy": "auto",
@@ -1031,6 +1039,14 @@
     },
     {
       "name": "create_product",
+      "classification": "write",
+      "policy": "confirm",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "create_product_discount",
       "classification": "write",
       "policy": "confirm",
       "playbooks": [
@@ -1079,6 +1095,14 @@
     },
     {
       "name": "get_product_information",
+      "classification": "read",
+      "policy": "auto",
+      "playbooks": [
+        "optimize_product"
+      ]
+    },
+    {
+      "name": "get_promotion_candidates",
       "classification": "read",
       "policy": "auto",
       "playbooks": [

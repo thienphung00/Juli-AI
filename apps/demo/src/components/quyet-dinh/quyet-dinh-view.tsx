@@ -107,6 +107,7 @@ const RUN_HEADER: Readonly<Record<RunKind, { eyebrow: string; title: string }>> 
   revert: { eyebrow: "Quyết định · Đang thực hiện · Hoàn tác", title: "Khôi phục nội dung cũ" },
   content: { eyebrow: "Quyết định · Đang thực hiện", title: "Juli soạn kịch bản, bạn quay hoặc LIVE" },
   create: { eyebrow: "Quyết định · Đang thực hiện · Tạo sản phẩm", title: "Juli tạo sản phẩm mới trên TikTok Shop" },
+  promotion: { eyebrow: "Quyết định · Đang thực hiện · Khuyến mãi", title: "Juli tạo khuyến mãi giảm giá trên TikTok Shop" },
 };
 
 function useNow(intervalMs = 1000): number | null {

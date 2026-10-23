@@ -37,6 +37,18 @@ async def ensure_create_product_card(session: Any, shop_id: uuid.UUID) -> Any:
     return await _ensure(session, shop_id)
 
 
+async def ensure_create_promotion_card(session: Any, shop_id: uuid.UUID) -> Any:
+    """P65 (D74): the sandbox reviewer's "Tạo khuyến mãi" card (``create_promotion_card``).
+
+    Imported on call, for the same reason as :func:`ensure_create_product_card`.
+    """
+    from juli_backend.services.reviewer.create_promotion_card import (
+        ensure_create_promotion_card as _ensure,
+    )
+
+    return await _ensure(session, shop_id)
+
+
 __all__ = [
     "MaskDictionary",
     "PinMode",
@@ -46,6 +58,7 @@ __all__ = [
     "config",
     "enter_shop_read_scope",
     "ensure_create_product_card",
+    "ensure_create_promotion_card",
     "load_account",
     "mask_payload",
     "masking",

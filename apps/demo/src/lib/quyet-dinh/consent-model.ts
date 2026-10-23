@@ -8,7 +8,7 @@
  */
 
 import type { CardView } from "./card-model";
-import { FIELD_LABELS } from "./copy";
+import { FIELD_LABELS, PROMOTION_FIELD_LABELS } from "./copy";
 import { summariseText } from "./p10-format";
 
 export interface ConsentRow {
@@ -47,8 +47,11 @@ export function consentRows(
     readonly card: CardView | null;
     /** P64 (D73.3): a new listing — nothing exists before it ("Trước" stays "—"). */
     readonly create?: boolean;
+    /** P65 (D74): a new product discount — nothing before it; % and dates read as such. */
+    readonly promotion?: boolean;
   },
 ): ConsentRow[] {
+  if (context.promotion) return promotionRows(change);
   const rows: ConsentRow[] = [];
   for (const [field, value] of Object.entries(change)) {
     const pair = fromTo(value);
@@ -79,6 +82,24 @@ export function consentRows(
         strongAfter: !long,
       });
     }
+  }
+  return rows;
+}
+
+/** "2026-10-30" → "30/10/2026"; anything else unchanged. */
+export function vnDate(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : iso;
+}
+
+/** P65 (D74): the promotion proposal's rows, in a fixed order; the product ids stay internal. */
+function promotionRows(change: Record<string, unknown>): ConsentRow[] {
+  const rows: ConsentRow[] = [];
+  for (const field of ["promotion_title", "discount_pct", "end_date", "reason_vi"] as const) {
+    const raw = asText(change[field]);
+    if (raw === null) continue;
+    const after = field === "discount_pct" ? `${raw}%` : field === "end_date" ? vnDate(raw) : raw;
+    rows.push({ field, label: PROMOTION_FIELD_LABELS[field], before: null, after, strikeBefore: false, strongAfter: field !== "reason_vi" });
   }
   return rows;
 }
