@@ -53,6 +53,7 @@ from juli_backend.core.security import (
 from juli_backend.database import Shop, set_tenant_context
 from juli_backend.integrations.tiktok import mark_reviewer_session
 from juli_backend.services import reviewer as reviewer_service
+from juli_backend.services.agent_runs import RunViewer
 from juli_backend.services.ops import audit
 from juli_backend.services.reviewer import MaskDictionary, PinMode, ReviewerAccount
 
@@ -175,6 +176,16 @@ class ReviewerContext:
 def reviewer_context(request: Request) -> ReviewerContext | None:
     value = getattr(request.state, STATE_KEY, None)
     return value if isinstance(value, ReviewerContext) else None
+
+
+def sandbox_run_viewer(request: Request) -> RunViewer | None:
+    """P66: a reviewer on the writable sandbox pin sees its own runs and the shop's runs
+    since its account was created -- not the team's older verification runs (C7)."""
+    context = reviewer_context(request)
+    pin = context.pin if context is not None else None
+    if context is None or pin is None or not pin.sandbox:
+        return None
+    return RunViewer(user_id=context.account.user_id, since=context.account.created_at)
 
 
 def deny(code: str, *, status_code: int = status.HTTP_403_FORBIDDEN) -> HTTPException:

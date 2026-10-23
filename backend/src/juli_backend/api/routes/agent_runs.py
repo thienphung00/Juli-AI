@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
-from juli_backend.api.reviewer import audit_reviewer_confirmation, reviewer_context
+from juli_backend.api.reviewer import audit_reviewer_confirmation, sandbox_run_viewer
 from juli_backend.database import Shop, get_session
 from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
@@ -350,16 +350,6 @@ class WorkflowRunListResponse(BaseModel):
     data: list[WorkflowRunListItem]
 
 
-def _run_viewer(request: Request) -> agent_runs.RunViewer | None:
-    """P66: a reviewer on the writable sandbox pin sees its own runs and the shop's runs
-    since its account was created -- not the team's older verification runs (C7)."""
-    context = reviewer_context(request)
-    pin = context.pin if context is not None else None
-    if context is None or pin is None or not pin.sandbox:
-        return None
-    return agent_runs.RunViewer(user_id=context.account.user_id, since=context.account.created_at)
-
-
 @router.get("", response_model=WorkflowRunListResponse)
 async def list_demo_runs(
     request: Request,
@@ -373,7 +363,7 @@ async def list_demo_runs(
     polls, and the next poll will show the rows (#1310).
     """
     return await runs_list_response(
-        shop=shop, session=session, limit=limit, viewer=_run_viewer(request)
+        shop=shop, session=session, limit=limit, viewer=sandbox_run_viewer(request)
     )
 
 
