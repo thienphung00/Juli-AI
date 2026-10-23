@@ -372,10 +372,21 @@ async def list_demo_runs(
     A read failure degrades to an empty list rather than a 5xx: the client
     polls, and the next poll will show the rows (#1310).
     """
+    return await runs_list_response(
+        shop=shop, session=session, limit=limit, viewer=_run_viewer(request)
+    )
+
+
+async def runs_list_response(
+    *,
+    shop: Shop,
+    session: AsyncSession,
+    limit: int,
+    viewer: agent_runs.RunViewer | None = None,
+) -> WorkflowRunListResponse:
+    """The runs list for ``shop`` -- also Ops' "view as seller" (no viewer filter)."""
     try:
-        items = await agent_runs.list_runs(
-            session, shop.id, limit=limit, viewer=_run_viewer(request)
-        )
+        items = await agent_runs.list_runs(session, shop.id, limit=limit, viewer=viewer)
     except Exception:  # read-model boundary: degrade to empty rather than 5xx a poll
         logger.exception("agent_runs_list_failed", extra={"shop_id": str(shop.id)})
         return WorkflowRunListResponse(data=[])

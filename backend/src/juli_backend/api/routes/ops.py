@@ -814,7 +814,7 @@ async def ops_view_runs(
     session: AsyncSession = Depends(get_session),
 ) -> Any:
     shop = await _view_shop(session, shop_id)
-    return await agent_runs.list_demo_runs(shop=shop, session=session, limit=limit)
+    return await agent_runs.runs_list_response(shop=shop, session=session, limit=limit)
 
 
 @router.get("/shops/{shop_id}/view/runs/{run_id}")
