@@ -138,7 +138,7 @@ pathspec==1.1.1
     # via mypy
 pillow==12.3.0
     # via juli-backend (pyproject.toml)
-pluggy==1.6.0
+pluggy==1.7.0
     # via
     #   pytest
     #   pytest-cov
