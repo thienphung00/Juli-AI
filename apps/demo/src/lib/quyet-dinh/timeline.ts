@@ -40,7 +40,8 @@ export type StepStatus = "done" | "current" | "upcoming" | "failed" | "skipped";
 export type StepKind = "tool" | "consent" | "terminal" | "await";
 /** `content` (P14-E): a "Juli soạn · bạn làm" run — its panel reads the run detail's `content.steps`. */
 /** `create` (P64, D73.3): the sandbox reviewer's "Tạo sản phẩm" — Juli creates a new listing. */
-export type RunKind = "listing" | "photo" | "manual" | "revert" | "content" | "create";
+/** `promotion` (P65, D74): the sandbox reviewer's "Tạo khuyến mãi" — Juli creates a product discount. */
+export type RunKind = "listing" | "photo" | "manual" | "revert" | "content" | "create" | "promotion";
 export type Who = "juli" | "you";
 
 export interface TimelineStep {
@@ -120,7 +121,13 @@ export const STEP_COPY = {
 } as const;
 
 const PHOTO_STAGE_TOOL = "upload_product_image";
-const WRITE_TOOLS = new Set(["update_product_listing", "upload_product_image", "update_product_price", "create_product"]);
+const WRITE_TOOLS = new Set([
+  "update_product_listing",
+  "upload_product_image",
+  "update_product_price",
+  "create_product",
+  "create_product_discount",
+]);
 const DAY_MS = 86_400_000;
 
 // -- plans ------------------------------------------------------------------------
@@ -188,6 +195,13 @@ export const PLANS: Readonly<Record<RunKind, readonly RowSpec[]>> = {
     { type: "tool", key: "write", label: "Tạo sản phẩm trên TikTok", tools: ["create_product"] },
     { type: "terminal", key: "terminal", label: "Kết thúc" },
   ],
+  promotion: [
+    { type: "tool", key: "candidates", label: "Đọc sản phẩm và khuyến mãi hiện có", tools: ["get_promotion_candidates"] },
+    { type: "tool", key: "eligibility", label: "Kiểm tra điều kiện khuyến mãi", tools: ["check_promotion_eligibility"] },
+    CONSENT_ROW,
+    { type: "tool", key: "write", label: "Tạo khuyến mãi trên TikTok", tools: ["create_product_discount"] },
+    { type: "terminal", key: "terminal", label: "Kết thúc" },
+  ],
   revert: [
     { type: "revertClicked", key: "clicked", label: "Bạn bấm Hoàn tác" },
     { type: "revertReason", key: "reason", label: "Cho Juli biết lý do" },
@@ -223,6 +237,9 @@ export const TOOL_STEP_LABELS: Readonly<Record<string, string>> = Object.freeze(
   get_category_candidates: "Đọc sản phẩm gốc và danh mục TikTok",
   check_listing_requirements: "Kiểm tra điều kiện đăng bán",
   create_product: "Tạo sản phẩm trên TikTok",
+  get_promotion_candidates: "Đọc sản phẩm và khuyến mãi hiện có",
+  check_promotion_eligibility: "Kiểm tra điều kiện khuyến mãi",
+  create_product_discount: "Tạo khuyến mãi trên TikTok",
 });
 export const UNKNOWN_TOOL_LABEL = "Bước xử lý";
 

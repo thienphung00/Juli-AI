@@ -56,6 +56,14 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
   reason_vi: "Lý do chọn danh mục",
 });
 
+/** P65 (D74): the "Tạo khuyến mãi" proposal's fields (`create_product_discount`). */
+export const PROMOTION_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  promotion_title: "Tên khuyến mãi",
+  discount_pct: "Mức giảm",
+  end_date: "Ngày kết thúc",
+  reason_vi: "Lý do",
+});
+
 /** Stability-band metrics (backend `BAND_METRICS`) → TikTok KPI names. */
 export const BAND_METRIC_LABELS: Readonly<Record<string, string>> = Object.freeze({
   impressions: "Lượt hiển thị",

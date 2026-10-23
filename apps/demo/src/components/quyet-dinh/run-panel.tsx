@@ -14,7 +14,7 @@ import type { RunKind, RunTimeline } from "../../lib/quyet-dinh/timeline";
 import type { RunChanges } from "../../lib/quyet-dinh/types";
 import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../../lib/run-ledger/copy";
 import { resolveRunTerminalState } from "../../lib/run-ledger/terminal-state";
-import { ConfirmationRejectedError } from "../../lib/run-surface/confirmation-decision";
+import { ConfirmationRejectedError, type EditedValues } from "../../lib/run-surface/confirmation-decision";
 import { DECLINE_REASONS, REVERT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
 import { ReasonDialog, ReasonDone, SKIP_DIALOG_BODY, revertDialogBody } from "./reason-dialog";
 import { Chevron, StageChips, StepList, timelineRows } from "./run-steps";
@@ -62,7 +62,7 @@ export interface RunPanelProps {
   readonly revertBusy: boolean;
   readonly measureHref: string;
   readonly onOpenMeasure: (event: React.MouseEvent<HTMLAnchorElement>) => void;
-  readonly onConfirm: (toolCallId: string, optionId: string, edited: Readonly<{ title?: string; description?: string }> | null) => Promise<void>;
+  readonly onConfirm: (toolCallId: string, optionId: string, edited: EditedValues | null) => Promise<void>;
   readonly onDecline: (choice: ReasonChoice) => Promise<void>;
   readonly onCancelRevert: () => Promise<void>;
   readonly onUpload: (file: File) => Promise<void>;
@@ -75,6 +75,7 @@ function titleOf(kind: RunKind, run: QdRun, card: CardView | null): string {
   const name = card?.title ?? run.product_name;
   if (kind === "revert") return `Hoàn tác · ${sku}${name}`;
   if (kind === "create") return `Tạo sản phẩm · từ ${name}`;
+  if (kind === "promotion") return `Tạo khuyến mãi · ${run.product_name}`;
   if (kind === "manual") return `${sku}${name}${card?.leverLabel ? ` · ${card.leverLabel}` : ""}`;
   return `Lượt chạy · ${sku}${name}`;
 }
@@ -282,6 +283,7 @@ function declinedText(kind: RunKind): string {
   if (kind === "manual") return "Bạn chọn không áp dụng. Thẻ kết thúc, không có gì được đo.";
   if (kind === "revert") return "Bạn giữ thay đổi. Juli tiếp tục đo như cũ.";
   if (kind === "create") return "Bạn đã chọn không tạo sản phẩm. Lượt chạy kết thúc, TikTok không có gì thay đổi.";
+  if (kind === "promotion") return "Bạn đã chọn không tạo khuyến mãi. Lượt chạy kết thúc, TikTok không có gì thay đổi.";
   return "Bạn đã chọn không thay đổi. Lượt chạy kết thúc, sản phẩm giữ nguyên.";
 }
 
@@ -336,21 +338,32 @@ function ConsentBlock({
       : [{ option_id: "default", proposed_change: consent.proposedChange, rationale: "", params_sha: "" }];
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [edited, setEdited] = useState<{ title?: string; description?: string } | null>(null);
-  const [draft, setDraft] = useState<{ title: string; description: string }>({ title: "", description: "" });
+  const [edited, setEdited] = useState<EditedValues | null>(null);
+  const [draft, setDraft] = useState<{ title: string; description: string; discount: string; endDate: string }>({
+    title: "",
+    description: "",
+    discount: "",
+    endDate: "",
+  });
   const [status, setStatus] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState<{ message: string; field: string | null } | null>(null);
   const isPhoto = kind === "photo" || consent.toolName === "upload_product_image";
   const isRevert = kind === "revert";
+  const isPromotion = kind === "promotion";
   const validity = validityText(consent.expiresAt, nowMs);
   const expired = validity === "Đã hết hiệu lực";
   const target = options.find((option) => option.option_id === selected) ?? options[0];
-  const editable = !isPhoto && !isRevert ? editableFields(target.proposed_change) : [];
+  const editable = !isPhoto && !isRevert && !isPromotion ? editableFields(target.proposed_change) : [];
+  const canEdit = editable.length > 0 || isPromotion;
+  const proposedPct = proposedText(target.proposed_change.discount_pct) ?? "";
+  const proposedEnd = proposedText(target.proposed_change.end_date) ?? "";
 
   const startEdit = () => {
     setDraft({
       title: edited?.title ?? proposedText(target.proposed_change.title) ?? "",
       description: edited?.description ?? proposedText(target.proposed_change.description) ?? "",
+      discount: edited?.discount_pct !== undefined ? String(edited.discount_pct) : proposedPct,
+      endDate: edited?.end_date ?? proposedEnd,
     });
     setEditing(true);
   };
@@ -363,7 +376,30 @@ function ConsentBlock({
     setEditing(false);
   };
 
+  const savePromotionEdit = () => {
+    const pct = draft.discount.trim();
+    if (!/^\d{1,2}$/.test(pct)) {
+      setError({ message: "Mức giảm cần là số nguyên phần trăm.", field: "discount_pct" });
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.endDate)) {
+      setError({ message: "Chọn ngày kết thúc.", field: "end_date" });
+      return;
+    }
+    const next: { discount_pct?: number; end_date?: string } = {};
+    if (pct !== proposedPct) next.discount_pct = Number(pct);
+    if (draft.endDate !== proposedEnd) next.end_date = draft.endDate;
+    setError(null);
+    setEdited(Object.keys(next).length > 0 ? next : null);
+    setSelected(target.option_id);
+    setEditing(false);
+  };
+
   const saveEdit = () => {
+    if (isPromotion) {
+      savePromotionEdit();
+      return;
+    }
     const next: { title?: string; description?: string } = {};
     if (editable.includes("title") && draft.title.trim() !== (proposedText(target.proposed_change.title) ?? "")) {
       next.title = draft.title.trim();
@@ -389,7 +425,7 @@ function ConsentBlock({
       .catch((reason: unknown) => {
         if (reason instanceof ConfirmationRejectedError) {
           setError({ message: reason.message, field: reason.field });
-          if (reason.field === "title" || reason.field === "description") {
+          if (reason.field === "title" || reason.field === "description" || reason.field === "discount_pct" || reason.field === "end_date") {
             startEdit();
           }
         } else {
@@ -403,14 +439,18 @@ function ConsentBlock({
     ? "Thay ảnh bìa: chọn rồi xác nhận"
     : isRevert
       ? "Khôi phục về nội dung cũ: chọn rồi xác nhận"
-      : "Juli đề xuất thay đổi sau: chọn rồi xác nhận";
+      : isPromotion
+        ? "Juli đề xuất khuyến mãi sau: chọn rồi xác nhận"
+        : "Juli đề xuất thay đổi sau: chọn rồi xác nhận";
   const confirmLabel = isPhoto
     ? "Xác nhận thay ảnh"
     : isRevert
       ? "Xác nhận khôi phục"
       : kind === "create"
         ? "Xác nhận tạo sản phẩm"
-        : "Xác nhận thay đổi này";
+        : isPromotion
+          ? "Xác nhận tạo khuyến mãi"
+          : "Xác nhận thay đổi này";
 
   return (
     <div className="qv-consent" data-testid="consent-block">
@@ -421,6 +461,33 @@ function ConsentBlock({
 
       {editing ? (
         <div className="qv-edit" data-testid="edit-panel">
+          {isPromotion ? (
+            <>
+              <label className="qv-edit__label">
+                Mức giảm (%)
+                <input
+                  aria-invalid={error?.field === "discount_pct" || undefined}
+                  className="qv-edit__input"
+                  inputMode="numeric"
+                  onChange={(event) => setDraft((d) => ({ ...d, discount: event.target.value }))}
+                  type="text"
+                  value={draft.discount}
+                  {...write()}
+                />
+              </label>
+              <label className="qv-edit__label">
+                Ngày kết thúc
+                <input
+                  aria-invalid={error?.field === "end_date" || undefined}
+                  className="qv-edit__input"
+                  onChange={(event) => setDraft((d) => ({ ...d, endDate: event.target.value }))}
+                  type="date"
+                  value={draft.endDate}
+                  {...write()}
+                />
+              </label>
+            </>
+          ) : null}
           {editable.includes("title") ? (
             <label className="qv-edit__label">
               Tiêu đề (bạn sửa)
@@ -448,7 +515,9 @@ function ConsentBlock({
             </label>
           ) : null}
           <div className="qv-edit__help">
-            Juli kiểm tra độ dài và từ cấm theo quy tắc của bạn trước khi cho lưu. Juli sẽ ghi đúng nội dung bạn sửa.
+            {isPromotion
+              ? "Juli kiểm tra mức giảm theo quy tắc của shop và ngày kết thúc (tối đa 30 ngày) trước khi tạo. Juli tạo đúng giá trị bạn sửa."
+              : "Juli kiểm tra độ dài và từ cấm theo quy tắc của bạn trước khi cho lưu. Juli sẽ ghi đúng nội dung bạn sửa."}
           </div>
           {error ? (
             <p className="qv-edit__error" role="alert">
@@ -499,7 +568,7 @@ function ConsentBlock({
             }
             const change =
               pressed && edited ? { ...option.proposed_change, ...edited } : option.proposed_change;
-            const rows = consentRows(change, { revert: isRevert, productName, card, create: kind === "create" });
+            const rows = consentRows(change, { revert: isRevert, productName, card, create: kind === "create", promotion: isPromotion });
             return (
               <button
                 aria-pressed={pressed}
@@ -516,9 +585,9 @@ function ConsentBlock({
               </button>
             );
           })}
-          {editable.length > 0 ? (
+          {canEdit ? (
             <button className="qv-edit-link" onClick={startEdit} type="button" {...write(expired)}>
-              ✎ Sửa nội dung trước khi áp dụng
+              {isPromotion ? "✎ Sửa mức giảm hoặc ngày kết thúc" : "✎ Sửa nội dung trước khi áp dụng"}
             </button>
           ) : null}
         </>
@@ -765,6 +834,11 @@ function SellerGuide({
 /** P64 (D73.3 / D73.4): the partner account's results on Juli's TikTok sandbox shop. */
 const CREATE_DONE_TITLE = "Đã tạo sản phẩm trên TikTok";
 const CREATE_DONE_FALLBACK = "TikTok đã nhận sản phẩm mới; trạng thái hiện ở bước Tạo sản phẩm trên TikTok.";
+/** P65 (D74): the promotion as TikTok read it back; no ROI claim on a shop with no buyers. */
+const PROMOTION_DONE_TITLE = "Đã tạo khuyến mãi trên TikTok";
+const PROMOTION_DONE_FALLBACK = "TikTok đã nhận khuyến mãi mới; trạng thái hiện ở bước Tạo khuyến mãi trên TikTok.";
+export const PROMOTION_NO_ROI_TEXT =
+  "Shop sandbox không có người mua thật nên Juli không đo doanh số hay hiệu quả (ROI) của khuyến mãi này.";
 const SANDBOX_DONE_TITLE = "Đã ghi lên shop sandbox TikTok của Juli";
 const SANDBOX_DONE_TEXT = "Thay đổi đã được ghi lên shop sandbox. Shop sandbox không có lượt xem nên Juli không đo kết quả.";
 
@@ -811,6 +885,19 @@ function DonePanel({
         <div className="qv-done__title">{CREATE_DONE_TITLE}</div>
         <div className="qv-done__text" data-testid="create-read-back">
           {writeSummary ?? CREATE_DONE_FALLBACK}
+        </div>
+      </div>
+    );
+  }
+  if (kind === "promotion") {
+    return (
+      <div className="qv-done qv-done--tight" data-testid="run-done">
+        <div className="qv-done__title">{PROMOTION_DONE_TITLE}</div>
+        <div className="qv-done__text" data-testid="promotion-read-back">
+          {writeSummary ?? PROMOTION_DONE_FALLBACK}
+        </div>
+        <div className="qv-done__text" data-testid="promotion-no-roi">
+          {PROMOTION_NO_ROI_TEXT}
         </div>
       </div>
     );

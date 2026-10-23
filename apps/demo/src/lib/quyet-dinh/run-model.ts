@@ -38,6 +38,7 @@ const PHOTO_TOOLS = new Set(["upload_product_image"]);
 export function runKind(run: QdRun, card: CardView | null, events: readonly AgentEvent[], isRevert: boolean): RunKind {
   if (isRevert) return "revert";
   if (card?.leverCode === "create_product") return "create";
+  if (card?.leverCode === "create_promotion") return "promotion";
   if (run.awaiting === "content_choice" || run.awaiting === "content_publish") return "content";
   if (card?.executor === "juli_drafts" || card?.content) return "content";
   if (run.awaiting === "photo") return "photo";
@@ -105,7 +106,7 @@ export function runPhase(
   if (timeline.pendingConsent) return "consent";
   if (kind === "manual" && (local.appliedPosted || timeline.toolsAfterPause > 0)) return "verify";
   const tool = timeline.runningTool;
-  if (tool === "update_product_listing" || tool === "upload_product_image" || tool === "update_product_price" || tool === "create_product") return "writing";
+  if (tool === "update_product_listing" || tool === "upload_product_image" || tool === "update_product_price" || tool === "create_product" || tool === "create_product_discount") return "writing";
   if (tool === "check_product_status") return "review";
   const consentDone = timeline.steps.some((step) => step.kind === "consent" && step.status === "done");
   if (consentDone) return "writing";
@@ -150,6 +151,8 @@ export function runChip(run: QdRun, kind: RunKind, phase: RunPhase, sandboxShop 
       if (kind === "revert") return { label: "Đã hoàn tác", tone: "muted" };
       // P64 (D73.3): the new listing exists on TikTok (the sandbox shop is the shop).
       if (kind === "create") return { label: "Đã tạo sản phẩm", tone: "ok" };
+      // P65 (D74): the discount exists on TikTok (TikTok read it back).
+      if (kind === "promotion") return { label: "Đã tạo khuyến mãi", tone: "ok" };
       // P61-B: the writes went to the test shop, not the seller's shop.
       return appliedChip(run, sandboxShop);
     case "declined":
