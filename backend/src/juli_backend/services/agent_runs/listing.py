@@ -59,13 +59,36 @@ class RunListItem:
     #: not the seller's shop. The run surface says "chạy thử" instead of
     #: "Đã áp dụng". True only for a run that actually wrote.
     simulated: bool = False
+    #: P66 (D20-D22): ``create`` / ``promotion`` for the sandbox create workflows, else
+    #: ``None`` -- so the run panel picks its step plan and header from the run itself,
+    #: also after a reload when the card it came from is no longer on the desk. A flow
+    #: name, not the playbook key.
+    run_flow: str | None = None
+    #: P66: for a sandbox reviewer, whether the reviewer started this run (approved its
+    #: card) -- "Hoàn tác" is offered only then. ``None`` for every other viewer.
+    started_by_viewer: bool | None = None
+
+
+@dataclass(frozen=True)
+class RunViewer:
+    """P66: a sandbox reviewer reads only its own runs and the shop's runs since the
+    reviewer account was created -- never the team's older verification runs."""
+
+    user_id: uuid.UUID
+    since: datetime | None
+
+
+#: The workflows whose runs carry a ``run_flow``.
+_RUN_FLOWS: dict[str, str] = {"create_product": "create", "create_promotion": "promotion"}
 
 
 #: A ledger row the agent wrote for a WRITE that went through.
 _SUCCEEDED = "succeeded"
 
 
-async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) -> list[RunListItem]:
+async def list_runs(
+    session: AsyncSession, shop_id: uuid.UUID, *, limit: int, viewer: RunViewer | None = None
+) -> list[RunListItem]:
     """The shop's runs, newest first. A queued run with no events is still listed.
 
     Three statements whatever the number of runs (P22): the runs, every run's
@@ -80,7 +103,15 @@ async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) ->
         .order_by(WorkflowRunRow.created_at.desc())
         .limit(limit)
     )
-    rows = result.all()
+    rows: list[tuple[WorkflowRunRow, Product]] = [(run, product) for run, product in result.all()]
+    mine: set[uuid.UUID] = set()
+    if viewer is not None:
+        mine = await _started_by(session, [run for run, _ in rows], viewer.user_id)
+        rows = [
+            (run, product)
+            for run, product in rows
+            if run.id in mine or (viewer.since is not None and run.created_at >= viewer.since)
+        ]
     narrations = await _latest_narrations(session, [run.id for run, _ in rows])
     waiting = [run.id for run, _ in rows if run.status == WAITING_APPROVAL_RUN_STATUS]
     decisions = await _pending_decisions(session, waiting)
@@ -103,9 +134,33 @@ async def list_runs(session: AsyncSession, shop_id: uuid.UUID, *, limit: int) ->
                 awaiting=lever_flows.awaiting_of(run),
                 decision_id=run.action_card_id,
                 simulated=run.id in simulated,
+                run_flow=_RUN_FLOWS.get(run.workflow_key),
+                started_by_viewer=(run.id in mine) if viewer is not None else None,
             )
         )
     return items
+
+
+async def _started_by(
+    session: AsyncSession, runs: list[WorkflowRunRow], user_id: uuid.UUID
+) -> set[uuid.UUID]:
+    """Of ``runs``, those whose card ``user_id`` approved (one statement)."""
+    from juli_backend.models.models import ActionCardApproval
+
+    cards = {run.action_card_id for run in runs if run.action_card_id is not None}
+    if not cards:
+        return set()
+    approved = set(
+        (
+            await session.execute(
+                select(ActionCardApproval.action_card_id).where(
+                    ActionCardApproval.action_card_id.in_(cards),
+                    ActionCardApproval.approved_by_user_id == user_id,
+                )
+            )
+        ).scalars()
+    )
+    return {run.id for run in runs if run.action_card_id in approved}
 
 
 async def _simulated_writes(session: AsyncSession, run_ids: list[uuid.UUID]) -> set[uuid.UUID]:

@@ -50,8 +50,13 @@ export type { QdClients } from "../../lib/quyet-dinh/client-types";
 export { qdHref, resolveMeasureTab, type QdQuery } from "./quyet-dinh-view";
 
 /** The run's live SSE stream (`useRunStream`), as Quyết định reads it. */
-function useLiveRunEvents(runId: string, auth: AuthedOptions, streamFetch?: typeof fetch): RunEventsState {
-  const { events, streamStatus } = useRunStream(runId, { token: auth.token, shopId: auth.shopId, fetchImpl: streamFetch });
+function useLiveRunEvents(runId: string, auth: AuthedOptions, streamFetch?: typeof fetch, resubscribe = 0): RunEventsState {
+  const { events, streamStatus } = useRunStream(runId, {
+    token: auth.token,
+    shopId: auth.shopId,
+    fetchImpl: streamFetch,
+    resubscribeKey: resubscribe,
+  });
   return { events, streamStatus };
 }
 

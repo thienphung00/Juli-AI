@@ -116,6 +116,10 @@ SHOP_TZ = timezone(timedelta(hours=7))
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
+class PromotionsUnread(RuntimeError):
+    """TikTok did not return the running price promotions (P66): eligibility is unknown."""
+
+
 class PromotionCreateRefused(PermissionError):
     """The create was asked for outside the sandbox (fail closed, before any request)."""
 
@@ -287,17 +291,64 @@ def _price(detail: Mapping[str, Any]) -> tuple[str | None, str | None]:
     )
 
 
+@dataclass(frozen=True)
+class PriceWindow:
+    """When one running or upcoming price promotion holds a product (``None``: unknown)."""
+
+    begin: datetime | None
+    end: datetime | None
+
+    def overlaps(self, start: datetime, until: datetime) -> bool:
+        """Whether it holds the product at any moment of ``[start, until)`` (P66, D16).
+        An unknown bound counts as overlapping: TikTok does not stack price promotions."""
+        return (self.begin is None or self.begin < until) and (self.end is None or self.end > start)
+
+
+#: product id -> the price promotions holding it.
+Discounted = dict[str, list[PriceWindow]]
+
+
 @dataclass
 class CandidateRead:
     source_id: str
     details: dict[str, Mapping[str, Any]]
-    discounted: set[str]
+    discounted: Discounted
     activities_read: bool
     active_count: int
 
 
-def _discounted_products(promotion: Any) -> tuple[set[str], bool, int]:
-    """Products in a running or upcoming price promotion; ``(ids, read_ok, count)``."""
+def _epoch(value: Any) -> datetime | None:
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError):
+        return None
+    return datetime.fromtimestamp(seconds, UTC) if seconds > 0 else None
+
+
+def window_until(end: date) -> datetime:
+    """The end of the shop day ``end`` (a promotion ending that day runs until its end)."""
+    return datetime.combine(end + timedelta(days=1), time.min, SHOP_TZ).astimezone(UTC)
+
+
+def default_window_until(now: datetime | None = None) -> datetime:
+    """The end of the window Juli proposes by default (:data:`SANDBOX_DEFAULT_DAYS`)."""
+    return window_until(shop_today(now) + timedelta(days=SANDBOX_DEFAULT_DAYS))
+
+
+def overlapping_window(
+    discounted: Discounted, product_id: str, start: datetime, until: datetime
+) -> PriceWindow | None:
+    """The price promotion holding ``product_id`` during ``[start, until)``, if any --
+    the one ending last, so a reason names when the product is free again."""
+    hits = [w for w in discounted.get(product_id, ()) if w.overlaps(start, until)]
+    if not hits:
+        return None
+    return max(hits, key=lambda w: (w.end is None, w.end or start))
+
+
+def _discounted_products(promotion: Any) -> tuple[Discounted, bool, int]:
+    """Products in a running or upcoming price promotion, with each promotion's window;
+    ``(windows by product, read_ok, count)``."""
     try:
         activities: list[Mapping[str, Any]] = []
         for status in ACTIVE_ACTIVITY_STATUSES:
@@ -308,9 +359,9 @@ def _discounted_products(promotion: Any) -> tuple[set[str], bool, int]:
             )
     except TikTokAPIError as exc:
         logger.warning("promotion_create_activities_unread", extra={"tiktok_code": exc.code})
-        return set(), False, 0
+        return {}, False, 0
     priced = [a for a in activities if str(a.get("activity_type") or "") in PRICE_ACTIVITY_TYPES]
-    ids: set[str] = set()
+    windows: Discounted = {}
     read_ok = True
     for activity in priced[:MAX_ACTIVITIES_READ]:
         activity_id = str(activity.get("id") or activity.get("activity_id") or "")
@@ -322,12 +373,14 @@ def _discounted_products(promotion: Any) -> tuple[set[str], bool, int]:
             logger.warning("promotion_create_activity_unread", extra={"tiktok_code": exc.code})
             read_ok = False
             continue
-        ids |= {
-            str(p["id"])
-            for p in detail.get("products") or []
-            if isinstance(p, Mapping) and p.get("id")
-        }
-    return ids, read_ok, len(priced)
+        window = PriceWindow(
+            begin=_epoch(detail.get("begin_time") or activity.get("begin_time")),
+            end=_epoch(detail.get("end_time") or activity.get("end_time")),
+        )
+        for product in detail.get("products") or []:
+            if isinstance(product, Mapping) and product.get("id"):
+                windows.setdefault(str(product["id"]), []).append(window)
+    return windows, read_ok, len(priced)
 
 
 def read_candidates(resources: Any, product_id: str) -> CandidateRead:
@@ -360,16 +413,52 @@ def read_candidates(resources: Any, product_id: str) -> CandidateRead:
     return CandidateRead(product_id, details, discounted, read_ok, count)
 
 
+def promotion_end_text(window: PriceWindow) -> str:
+    """ " đến dd/mm/yyyy" for a promotion with a known end (shop time), else ""."""
+    return f" đến {vn_date(window.end.astimezone(SHOP_TZ).date())}" if window.end else ""
+
+
 def _ineligible_reason(
-    detail: Mapping[str, Any], discounted: set[str], product_id: str
+    detail: Mapping[str, Any],
+    discounted: Discounted,
+    product_id: str,
+    *,
+    until: datetime | None = None,
 ) -> str | None:
+    """Why ``product_id`` cannot get a new price promotion ending by ``until`` (default:
+    Juli's default window), or ``None`` when it can."""
     status = str(detail.get("status") or "")
     if status and status != "ACTIVATE":
         return "Sản phẩm chưa ở trạng thái đang bán"
     if _stock(detail) <= 0:
         return "Sản phẩm đã hết hàng"
-    if product_id in discounted:
-        return "Sản phẩm đang có khuyến mãi giá khác"
+    now = _now()
+    window = overlapping_window(
+        discounted, product_id, now, until if until is not None else default_window_until(now)
+    )
+    if window is not None:
+        return f"Sản phẩm đang có khuyến mãi giá khác{promotion_end_text(window)}"
+    return None
+
+
+def first_promotable_product(resources: Any, product_ids: Sequence[str]) -> str | None:
+    """P66 (D16): the first of ``product_ids`` (TikTok ids) a new price promotion can be
+    created for in Juli's default window -- selling, in stock, held by no overlapping
+    price promotion -- read with the same TikTok calls the run makes; ``None`` when none.
+
+    Raises :class:`PromotionsUnread` when the running promotions cannot be read:
+    eligibility is then unknown, and the caller must not claim it either way."""
+    discounted, read_ok, _ = _discounted_products(resources.promotion)
+    if not read_ok:
+        raise PromotionsUnread("running price promotions could not be read")
+    for product_id in product_ids:
+        try:
+            detail = resources.products.get_details(product_id)
+        except TikTokAPIError as exc:
+            logger.warning("promotion_card_product_unread", extra={"tiktok_code": exc.code})
+            continue
+        if _ineligible_reason(_unwrap(detail), discounted, product_id) is None:
+            return product_id
     return None
 
 
@@ -389,6 +478,8 @@ class PromotionCandidate(BaseModel):
     max_discount_pct: int
     eligible: bool
     reason_vi: str | None = None
+    #: P66 (D15): the shop day the price promotion already holding it ends, if one does.
+    existing_promotion_end: str | None = None
 
 
 class GetPromotionCandidatesOutput(BaseModel):
@@ -425,6 +516,7 @@ def handle_get_promotion_candidates(
     for product_id, detail in read.details.items():
         price, currency = _price(detail)
         reason = _ineligible_reason(detail, read.discounted, product_id)
+        holding = overlapping_window(read.discounted, product_id, _now(), default_window_until())
         candidates.append(
             PromotionCandidate(
                 product_id=product_id,
@@ -435,6 +527,11 @@ def handle_get_promotion_candidates(
                 max_discount_pct=bounds.product_max(_sku_ids(detail)),
                 eligible=reason is None,
                 reason_vi=reason,
+                existing_promotion_end=(
+                    holding.end.astimezone(SHOP_TZ).date().isoformat()
+                    if holding is not None and holding.end is not None
+                    else None
+                ),
             )
         )
     today = shop_today()
@@ -531,7 +628,7 @@ def plan_promotion(
                 ERROR_PRODUCT_NOT_CANDIDATE,
                 "Sản phẩm Juli chọn không nằm trong danh sách TikTok trả về",
             )
-        reason = _ineligible_reason(detail, read.discounted, product_id)
+        reason = _ineligible_reason(detail, read.discounted, product_id, until=window_until(end))
         title = str(detail.get("title") or product_id)
         if reason is not None:
             raise PlanRefusal(ERROR_PRODUCT_NOT_ELIGIBLE, f"«{title}»: {reason}")

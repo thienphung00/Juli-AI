@@ -81,6 +81,10 @@ class TerminationPolicy:
     required_steps: tuple[str, ...]
     terminal_tools: tuple[str, ...] = ()
     external_wait_timeout_h: int | None = None
+    #: P66 (D21): the run ends ``final_response`` as soon as its confirmed WRITE succeeded
+    #: and every required step is done -- no closing model turn that can hang the run on
+    #: "Đang chạy" after the change already exists on TikTok (create workflows).
+    finish_after_required_write: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.max_iterations, int) or self.max_iterations <= 0:

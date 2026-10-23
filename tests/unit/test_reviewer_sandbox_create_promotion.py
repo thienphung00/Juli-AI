@@ -49,7 +49,6 @@ from juli_backend.integrations.tiktok.factories import (
 from juli_backend.integrations.tiktok.guards import ProductionWriteGuard, SandboxOnlyWriteGuard
 from juli_backend.models.models import (
     ActionCard,
-    ActionCardApproval,
     RunConfirmation,
     WorkflowRun,
 )
@@ -61,7 +60,7 @@ from juli_backend.services.agent.tools import promotion_create as pc
 from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.reviewer.config import shop_alias_id
 from tests.support.api import build_app, client_for
-from tests.support.builders import make_workflow_run, utc_now_naive
+from tests.support.builders import make_workflow_run
 from tests.unit import test_reviewer_sandbox_create_product as p64
 from tests.unit.test_reviewer_sandbox_create_product import SOURCE_ID, _headers
 
@@ -79,6 +78,24 @@ NOW = datetime(2026, 10, 23, 3, 0, tzinfo=UTC)  # 10:00 23/10 in Vietnam
 @pytest.fixture(autouse=True)
 def frozen_clock(monkeypatch):
     monkeypatch.setattr(pc, "_now", lambda: NOW)
+
+
+@pytest.fixture(autouse=True)
+def card_tiktok(monkeypatch):
+    """P66 (D16): the card's eligibility check reads this fake TikTok sandbox."""
+    from juli_backend.services.reviewer import create_promotion_card as card_module
+
+    state: dict[str, Any] = {"resources": None, "error": None}
+
+    async def resources(session, shop_id):
+        if state["error"] is not None:
+            raise state["error"]
+        return state["resources"] or _sandbox()
+
+    card_module.reset_cache()
+    monkeypatch.setattr(card_module, "_promotion_resources", resources)
+    yield state
+    card_module.reset_cache()
 
 
 def _detail(product_id: str, title: str, *, stock: int = 40, status: str = "ACTIVATE"):
@@ -197,6 +214,63 @@ def test_candidates_list_the_eligible_products_the_range_and_the_dates():
         "2026-11-22",
     )
     assert out.existing_price_promotions == 1 and out.existing_promotions_read
+
+
+def _epoch(moment: datetime) -> int:
+    return int(moment.timestamp())
+
+
+class WindowedPromotion(FakePromotion):
+    """The bound product is in one price promotion with a known window."""
+
+    def __init__(self, begin: datetime, end: datetime) -> None:
+        super().__init__()
+        self.window = (begin, end)
+
+    def get_activity(self, activity_id: str) -> dict[str, Any]:
+        if activity_id == "7000000000000000001":
+            return {
+                "activity_id": activity_id,
+                "begin_time": _epoch(self.window[0]),
+                "end_time": _epoch(self.window[1]),
+                "products": [{"id": SOURCE_ID}, {"id": BUSY_ID}],
+            }
+        return super().get_activity(activity_id)
+
+
+def test_a_running_promotion_names_its_end_date_and_blocks_the_product():
+    """P66 (D15): the candidate says when the existing price promotion ends."""
+    promotion = WindowedPromotion(NOW - timedelta(days=1), NOW + timedelta(days=5))
+    out = pc.handle_get_promotion_candidates(
+        _sandbox(promotion), CONTEXT, pc.GetPromotionCandidatesInput()
+    )
+    source = {c.product_id: c for c in out.candidates}[SOURCE_ID]
+    assert source.eligible is False
+    assert source.reason_vi == "Sản phẩm đang có khuyến mãi giá khác đến 28/10/2026"
+    assert source.existing_promotion_end == "2026-10-28"
+    assert pc.first_promotable_product(_sandbox(promotion), [SOURCE_ID, OTHER_ID]) == OTHER_ID
+
+
+def test_an_upcoming_promotion_after_the_window_does_not_block():
+    """P66 (D16): only a promotion overlapping the proposed window makes it ineligible."""
+    later = WindowedPromotion(NOW + timedelta(days=12), NOW + timedelta(days=20))
+    assert pc.first_promotable_product(_sandbox(later), [SOURCE_ID]) == SOURCE_ID
+    check = pc.handle_check_promotion_eligibility(
+        _sandbox(later), CONTEXT, pc.CheckPromotionEligibilityInput(
+            product_ids=[SOURCE_ID], discount_pct=15, end_date="2026-11-10"
+        )
+    )  # fmt: skip
+    assert check.ok is False and check.error_code == "product_not_eligible"
+    assert "đến 12/11/2026" in check.summary_vi
+
+
+def test_first_promotable_product_refuses_to_guess_when_promotions_are_unread():
+    class Unreadable(FakePromotion):
+        def search_activities_all(self, *, status: str, **_: Any) -> list[dict[str, Any]]:
+            raise TikTokAPIError(36009004, "busy")
+
+    with pytest.raises(pc.PromotionsUnread):
+        pc.first_promotable_product(_sandbox(Unreadable()), [SOURCE_ID])
 
 
 def test_the_shops_rules_bound_the_discount():
@@ -526,6 +600,40 @@ async def test_the_sandbox_reviewer_gets_one_real_promotion_card(session, world)
     assert len(rows) == 1 and rows[0].subject_id == str(ids["product"])
 
 
+async def test_no_card_for_a_product_already_in_a_price_promotion(session, world, card_tiktok):
+    """P66 (D16): the live «Nồi lẩu» case -- the only product is held by a running price
+    promotion, so no card is emitted, and an active card for it is retired."""
+    ids, reviewer_id = world
+    headers = _headers(reviewer_id, ids["sandbox"])
+    async with client_for(build_app(session)) as client:
+        first = await client.get("/v1/demo/decisions", headers=headers)
+    assert _promo_card(first.json()["data"]) is not None
+    from juli_backend.services.reviewer import create_promotion_card as card_module
+
+    card_module.reset_cache()  # the next read re-checks TikTok
+    card_tiktok["resources"] = _sandbox(
+        WindowedPromotion(NOW - timedelta(days=1), NOW + timedelta(days=5))
+    )
+    async with client_for(build_app(session)) as client:
+        second = await client.get("/v1/demo/decisions", headers=headers)
+    assert second.status_code == 200, second.text
+    assert _promo_card(second.json()["data"]) is None
+    rows = await _promo_rows(session, ids["sandbox"])
+    assert [row.status for row in rows] == ["expired"]
+
+
+async def test_no_card_when_tiktok_cannot_be_read(session, world, card_tiktok):
+    ids, reviewer_id = world
+    card_tiktok["error"] = RuntimeError("no sandbox credential")
+    async with client_for(build_app(session)) as client:
+        listed = await client.get(
+            "/v1/demo/decisions", headers=_headers(reviewer_id, ids["sandbox"])
+        )
+    assert listed.status_code == 200, listed.text
+    assert _promo_card(listed.json()["data"]) is None
+    assert await _promo_rows(session, ids["sandbox"]) == []
+
+
 async def test_a_seller_never_sees_or_approves_the_promotion_card(session, world, enqueued):
     ids, reviewer_id = world
     async with client_for(build_app(session)) as client:
@@ -590,31 +698,44 @@ async def test_the_promotion_daily_cap_answers_429(session, world, enqueued):
     headers = _headers(reviewer_id, ids["sandbox"])
     async with client_for(build_app(session)) as client:
         await client.get("/v1/demo/decisions", headers=headers)  # the reviewer's users row
-    for _ in range(approval_module.CREATE_PROMOTION_DAILY_CAP):
-        old = ActionCard(
-            id=uuid.uuid4(), shop_id=ids["sandbox"], workflow_key="create_promotion",
-            subject_type="product", subject_id=uuid.uuid4().hex, revision=1, priority=0,
-            severity="medium", title="cũ", description="",
-            recommendation_payload=json.dumps({}), status="approved",
-        )  # fmt: skip
-        session.add(old)
-        await session.flush()
-        session.add(
-            ActionCardApproval(
-                action_card_id=old.id,
-                approved_by_user_id=reviewer_id,
-                approved_at=utc_now_naive() - timedelta(hours=1),
-                card_snapshot={},
-            )
-        )
-    await session.commit()
+    await p64.seed_capped_runs(
+        session,
+        shop_id=ids["sandbox"],
+        reviewer_id=reviewer_id,
+        workflow_key="create_promotion",
+        write_tool="create_product_discount",
+        statuses=["succeeded"] * approval_module.CREATE_PROMOTION_DAILY_CAP,
+    )
     async with client_for(build_app(session)) as client:
         listed = await client.get("/v1/demo/decisions", headers=headers)
         card_id = _promo_card(listed.json()["data"])["id"]
         capped = await client.post(f"/v1/demo/decisions/{card_id}/approve", headers=headers)
     assert capped.status_code == 429, capped.text
-    assert capped.json()["detail"] == {"code": "create_promotion_daily_cap", "cap": 3}
+    detail = capped.json()["detail"]
+    assert detail["code"] == "create_promotion_daily_cap" and detail["cap"] == 3
+    assert detail["retry_after_seconds"] > 0 and detail["retry_at"].endswith("Z")
     assert enqueued == []
+
+
+async def test_a_failed_discount_write_does_not_use_up_the_cap(session, world, enqueued):
+    """P66 (D14): a discount TikTok refused (or a declined run) is not counted."""
+    ids, reviewer_id = world
+    headers = _headers(reviewer_id, ids["sandbox"])
+    async with client_for(build_app(session)) as client:
+        await client.get("/v1/demo/decisions", headers=headers)  # the reviewer's users row
+    await p64.seed_capped_runs(
+        session,
+        shop_id=ids["sandbox"],
+        reviewer_id=reviewer_id,
+        workflow_key="create_promotion",
+        write_tool="create_product_discount",
+        statuses=["succeeded", "succeeded", "failed", None],
+    )
+    async with client_for(build_app(session)) as client:
+        listed = await client.get("/v1/demo/decisions", headers=headers)
+        card_id = _promo_card(listed.json()["data"])["id"]
+        approved = await client.post(f"/v1/demo/decisions/{card_id}/approve", headers=headers)
+    assert approved.status_code == 202, approved.text
 
 
 # -- the confirmation: the reviewer's discount % and end date -------------------------------
@@ -863,3 +984,72 @@ async def test_the_run_pauses_then_creates_exactly_the_reviewers_edit(session, w
         "Đã tạo khuyến mãi trên TikTok · mã 7660009586606409490"
     )
     assert last.summary.endswith("· theo bản bạn sửa")
+
+
+class HangingAfterWriteLLM(ScriptedPromotionLLM):
+    """P66 (D21): the closing model turn after the write never returns (run 887bb1be)."""
+
+    async def complete(self, *, messages, **kw: Any):
+        done = {
+            m.get("tool_name") for m in messages if isinstance(m, dict) and m.get("role") == "tool"
+        }
+        if pc.CREATE_PRODUCT_DISCOUNT_TOOL in done:
+            raise AssertionError("no model turn after the confirmed create")
+        return await super().complete(messages=messages, **kw)
+
+
+async def test_the_run_ends_right_after_the_confirmed_create():
+    """P66 (D21): the discount exists on TikTok, so the run is completed at once --
+    workflow.completed right after the write's tool.completed, no closing model turn."""
+    from juli_backend.services.agent.events import InMemoryEventSink
+    from juli_backend.services.agent.status import WorkflowRunStatus
+    from tests.unit.test_p64_create_product_walkthrough import InMemoryStore
+
+    resources, store, sink = _sandbox(FakePromotion()), InMemoryStore(), InMemoryEventSink()
+    run_id = uuid.uuid4()
+    llm = HangingAfterWriteLLM()
+    paused = await _runner(resources, store, sink, llm).run(run_id, product_ref=SOURCE_ID)
+    assert paused.status == WorkflowRunStatus.WAITING_APPROVAL
+    done = await _runner(resources, store, sink, llm).resume(run_id, approved=True)
+    assert done.status == WorkflowRunStatus.COMPLETED and done.stop_reason == "final_response"
+    assert done.final_response and done.final_response.startswith("Đã tạo khuyến mãi trên TikTok")
+    types = [e.event_type for e in sink.events]
+    assert types[-2:] == ["tool.completed", "workflow.completed"]
+
+
+class ConcludingLLM(ScriptedPromotionLLM):
+    """Reads the candidates, then concludes without proposing (run 12d703c0)."""
+
+    async def complete(self, *, messages, system, tools, config, tool_choice=None, **_: Any):
+        from juli_backend.services.agent.llm.blocks import ToolCallBlock
+        from tests.unit.test_p64_create_product_walkthrough import _turn
+
+        done = {
+            m.get("tool_name") for m in messages if isinstance(m, dict) and m.get("role") == "tool"
+        }
+        if pc.GET_PROMOTION_CANDIDATES_TOOL in done:
+            return _turn(ToolCallBlock(call_id="c9", tool_name="conclude_without_changes",
+                                       arguments={"reason": "busy"}))  # fmt: skip
+        return _turn(
+            ToolCallBlock(call_id="c1", tool_name=pc.GET_PROMOTION_CANDIDATES_TOOL, arguments={})
+        )
+
+
+async def test_a_run_that_declines_says_why_from_its_facts():
+    """P66 (D15): the bound product is held by a price promotion until 28/10 -- the run
+    ends with that reason, not "Luồng đã kết thúc"."""
+    from juli_backend.services.agent.events import InMemoryEventSink
+    from tests.unit.test_p64_create_product_walkthrough import InMemoryStore
+
+    promotion = WindowedPromotion(NOW - timedelta(days=1), NOW + timedelta(days=5))
+    sink = InMemoryEventSink()
+    result = await _runner(_sandbox(promotion), InMemoryStore(), sink, ConcludingLLM()).run(
+        uuid.uuid4(), product_ref=SOURCE_ID
+    )
+    assert result.stop_reason == "concluded_without_changes"
+    last_two = sink.events[-2:]
+    assert [e.event_type for e in last_two] == ["workflow.status", "workflow.completed"]
+    assert last_two[0].payload.phase_narration == (
+        "Sản phẩm «Bình giữ nhiệt inox 750ml» đang có khuyến mãi giá đến 28/10 — TikTok không "
+        "cho chồng hai khuyến mãi giá; Juli không tạo khuyến mãi mới."
+    )

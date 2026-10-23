@@ -126,5 +126,10 @@ export const TEAM_TOGGLE_LABEL = "Điền thay Seller (đội ngũ Juli)";
 export const MEASURE_WAITING = (date: string) => `Đang chờ đủ 7 ngày dữ liệu · đo lúc ${date}`;
 export const MEASURE_NO_READING =
   "Đã qua ngày 7 nhưng Juli chưa có số đo cho lượt chạy này. Số đo sẽ hiện ở đây khi có.";
+/** P66: the reviewer's sandbox shop has no real buyers, so nothing is measured. */
+export const MEASURE_SANDBOX_NONE = "Shop sandbox không có người mua thật nên Juli không đo kết quả lượt này.";
+export const MEASURE_SANDBOX_CHIP = "Không đo · shop sandbox";
+/** P66: past day 7 with no reading -- never "Chờ đo · ngày 0" beside "Đã qua ngày 7". */
+export const MEASURE_NO_READING_CHIP = "Chưa có số đo";
 export const REVERT_LABEL = "Hoàn tác";
 export const KEEP_CHANGE_LABEL = "Giữ thay đổi";

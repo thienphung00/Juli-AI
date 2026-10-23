@@ -448,6 +448,26 @@ async def test_6b_the_create_promotion_card_and_run_under_rls(app, world, monkey
         "juli_backend.api.routes.demo_execution._enqueue_approval_baseline",
         lambda shop_id, run_id: None,
     )
+    # P66 (D16): the card is emitted only for a product TikTok would accept -- checked
+    # with the run's own reads, here a sandbox where the bound product is free.
+    from juli_backend.services.reviewer import create_promotion_card as card_module
+    from tests.unit import test_reviewer_sandbox_create_promotion as p65
+
+    class _AnyProduct(p65.FakeProducts):
+        def get_details(self, product_id: str) -> dict[str, Any]:
+            return p65._detail(product_id, "Sản phẩm sandbox")
+
+    async def _resources(session, shop_id):
+        resources = p65._sandbox()
+        return type(resources)(
+            inventory=resources.inventory,
+            products=_AnyProduct(),
+            fulfillment=resources.fulfillment,
+            promotion=resources.promotion,
+        )
+
+    card_module.reset_cache()
+    monkeypatch.setattr(card_module, "_promotion_resources", _resources)
     headers = _headers(world["reviewer"], world["sandbox"])
     async with await _client(app) as client:
         listed = await client.get("/v1/demo/decisions", headers=headers)

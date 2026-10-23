@@ -251,6 +251,7 @@ from juli_backend.services.agent.llm import (
 )
 from juli_backend.services.agent.llm.config import estimate_cost_usd
 from juli_backend.services.agent.llm.openai_adapter import LLMProviderError
+from juli_backend.services.agent.no_proposal import no_proposal_reason_vi, proposed_a_write
 from juli_backend.services.agent.playbooks.base import Playbook
 from juli_backend.services.agent.prompts.composer import (
     compose,
@@ -1210,6 +1211,38 @@ class WorkflowRunner:
                 rows_affected=rollup.rows_affected,
             )
             return stop
+        if (
+            self._playbook.termination_policy.finish_after_required_write
+            and spec.classification is ToolClassification.WRITE
+            and guarded_ok
+            and self._required_steps_completed(state)
+        ):
+            # P66 (D21, run 887bb1be): the discount existed on TikTok but the run stayed
+            # "Đang chạy" behind a closing model turn. A create workflow is done the moment
+            # its confirmed write succeeded: end it here, with TikTok's own read-back line.
+            stop = await self._finish_after_write(
+                workflow_run_id,
+                state,
+                tool_completed_summary(tool_name, raw_result),
+                version_str,
+                sha256,
+            )
+            rollup = self._compute_rollup_values(state)
+            await self._conversation_store.persist(
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+                input_tokens=rollup.input_tokens,
+                output_tokens=rollup.output_tokens,
+                cost_usd=rollup.cost_usd,
+                duration_ms=rollup.duration_ms,
+                tool_call_count=rollup.tool_call_count,
+                rows_affected=rollup.rows_affected,
+            )
+            return stop
         await self._conversation_store.persist(
             workflow_run_id,
             state,
@@ -1637,6 +1670,7 @@ class WorkflowRunner:
                                 commit_streamed_text=relay is not None and relay.emitted,
                             )
                             break
+                        await self._narrate_no_proposal(workflow_run_id, state)
                         stop = await self._terminate(
                             workflow_run_id,
                             state,
@@ -2383,6 +2417,7 @@ class WorkflowRunner:
             await self._commit_streamed_text(workflow_run_id, state, block.content)
         state.conversation_window.append({"role": "assistant", "content": block.content})
         stop_reason = StopReason.FINAL_RESPONSE
+        await self._narrate_no_proposal(workflow_run_id, state)
         await self._emit(
             workflow_run_id,
             state,
@@ -2418,6 +2453,34 @@ class WorkflowRunner:
             iteration_count=state.iteration_count,
         )
 
+    async def _finish_after_write(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        summary: str,
+        version_str: str,
+        sha256: str,
+    ) -> RunResult:
+        """P66 (D21): the terminal outcome of a create workflow right after its confirmed
+        write succeeded -- ``final_response`` with the write's own summary as the closing
+        line (Juli's text from TikTok's read-back, never a model narration)."""
+        state.conversation_window.append({"role": "assistant", "content": summary})
+        stop_reason = StopReason.FINAL_RESPONSE
+        await self._emit(
+            workflow_run_id,
+            state,
+            WorkflowCompletedEvent,
+            WorkflowCompletedPayload(stop_reason=stop_reason),
+        )
+        return RunResult(
+            stop_reason=stop_reason,
+            status=status_for(stop_reason),
+            final_response=summary,
+            prompt_version=version_str,
+            prompt_sha256=sha256,
+            iteration_count=state.iteration_count,
+        )
+
     async def _finalize_with_conclude_without_changes(
         self,
         workflow_run_id: uuid.UUID,
@@ -2430,6 +2493,7 @@ class WorkflowRunner:
         method emits the completion event and returns with the appropriate
         stop_reason."""
         stop_reason = StopReason.CONCLUDED_WITHOUT_CHANGES
+        await self._narrate_no_proposal(workflow_run_id, state)
         await self._emit(
             workflow_run_id,
             state,
@@ -2477,6 +2541,35 @@ class WorkflowRunner:
         )
 
     # --- helpers -------------------------------------------------------------
+
+    def _playbook_writes(self) -> bool:
+        """Whether this run's playbook exists to make a WRITE (create, discount, listing)."""
+        for step in self._playbook.steps:
+            for tool_name in step.tools:
+                try:
+                    spec = self._registry.get(tool_name)
+                except UnknownToolError:  # the dispatcher refuses it on its own
+                    continue
+                if spec.classification is ToolClassification.WRITE:
+                    return True
+        return False
+
+    async def _narrate_no_proposal(self, workflow_run_id: uuid.UUID, state: RunState) -> None:
+        """P66 (D15): a write run ending without proposing its write says why, in plain
+        Vietnamese built from its own tool results (``services/agent/no_proposal.py``),
+        as the last ``workflow.status`` before its terminal event -- never only "Luồng đã
+        kết thúc"."""
+        workflow_key = self._playbook.workflow_key
+        if not self._playbook_writes() or proposed_a_write(workflow_key, state.conversation_window):
+            return
+        await self._emit(
+            workflow_run_id,
+            state,
+            WorkflowStatusEvent,
+            WorkflowStatusPayload(
+                phase_narration=no_proposal_reason_vi(workflow_key, state.conversation_window)
+            ),
+        )
 
     def _required_steps_completed(self, state: RunState) -> bool:
         """The `required_steps_completed` outcome fact (issue #1220,

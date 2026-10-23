@@ -54,6 +54,9 @@ class ReviewerAccount:
     expires_at: datetime
     revoked_at: datetime | None
     last_session_id: str | None
+    #: P66: when the account was created -- a sandbox reviewer sees only the shop's runs
+    #: from then on (and its own), never the team's older verification runs.
+    created_at: datetime | None = None
 
     def status(self, now: datetime | None = None) -> str:
         if self.revoked_at is not None:
@@ -77,6 +80,7 @@ def _snapshot(row: OpsReviewerAccount) -> ReviewerAccount:
         expires_at=row.expires_at,
         revoked_at=row.revoked_at,
         last_session_id=row.last_session_id,
+        created_at=row.created_at,
     )
 
 

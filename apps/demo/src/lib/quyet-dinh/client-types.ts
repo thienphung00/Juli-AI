@@ -99,7 +99,13 @@ export interface RunEventsState {
  * the run's events. Real: the SSE stream (`useRunStream`); sample: the
  * in-memory store.
  */
-export type RunEventsHook = (runId: string, auth: AuthedOptions, streamFetch?: typeof fetch) => RunEventsState;
+/** `resubscribe` (P66, D6): bump to reopen the run's stream (after a confirmation). */
+export type RunEventsHook = (
+  runId: string,
+  auth: AuthedOptions,
+  streamFetch?: typeof fetch,
+  resubscribe?: number,
+) => RunEventsState;
 
 export interface QdClients {
   readonly fetchDecisions: (options: DecisionsOptions) => Promise<readonly DemoDecisionItem[]>;
