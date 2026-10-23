@@ -1,0 +1,95 @@
+# P64/P65 end-to-end edge cases (Shopee-reviewer sandbox walkthroughs)
+
+A running log of every edge case found while walking the reviewer flow live on
+`demo.app-juli.com`. The flow uses the partner account `shopee-review@`, pinned to Juli's
+TikTok VN sandbox shop `1862f13b…`. The log is input for refining the end-to-end design of the
+agent workflows: listing edit, create product, create discount, and later others.
+
+Each entry gives: **what happened** (evidence) → **why** → **status** (fixed in PR / open) →
+**design rule** to carry into every workflow.
+
+Status keys: ✅ fixed and deployed · 🔧 fixed, not yet verified live · ⏳ open · 📌 operations.
+
+---
+
+## A. Connection, session, identity
+
+| # | Edge case | Evidence | Why | Status | Design rule |
+|---|---|---|---|---|---|
+| A1 | Reviewer saw the bundled sample shop, not live data | 1st rejection; `REVIEWER_SHOP_ID` unset | Sample mode was the default for reviewers | ✅ P64 | A reviewer is pinned to a live shop. Sample data never appears when signed in |
+| A2 | Sign-in from before a pin existed kept the sample after the pin was added | No active shop in localStorage, record `mode: sandbox` | Re-validation only *cleared* the active shop and never stored a new pin | ✅ #2151 | Session re-validation stores *and* clears derived state symmetrically |
+| A3 | Access token expired (~1 h), so every `/v1` call returned 401 and the pages showed errors | 401s on reviewer/me, analysis, shop | No refresh of the Supabase session | ✅ #2154 (single-flight refresh, retry once) | Every client has proactive and reactive token refresh. A failed refresh leads to the right sign-in page, never to an error screen |
+| A4 | "Mã shop TikTok" showed the internal shop cipher | `TaFcIwAAAA…` | `shops.tiktok_shop_id` held the cipher/open_id | ✅ row hidden | Never show internal identifiers to third parties. Show the TikTok shop *code* (needs a stored column, open) |
+| A5 | Customer name ("Fujiwa") inside sandbox listing data: 2 manufacturer attributes, a description bullet, the main image | Seller Center edit page | Sandbox catalog was seeded from a real customer's data | ✅ owner cleaned, 📌 image has "SUNHOUSE" print | Seed data for demo or review shops must be brand-clean. Audit every text field *and the images* |
+| A6 | Granted scopes list includes `*.delete`, `fulfillment.package.write`, and TikTok's own typo `serller.product.optimize` | Connection card | TikTok app scope set | ⏳ decision: keep visible | Show scopes as-is for transparency. Be ready to explain unused write scopes |
+
+## B. Data and reports
+
+| # | Edge case | Evidence | Why | Status | Design rule |
+|---|---|---|---|---|---|
+| B1 | Sandbox Analytics (A-34) is all zero, so GMV showed 0 | Probe: `latest_available_date`, all-zero intervals | Sandbox has no traffic | ✅ D73.3 orders source | When analytics are zero, compute from real paid orders and label the source. Never seed analytics |
+| B2 | Today's orders are absent from the report | Report window "đến 21/10" | Report ends yesterday (UTC+7) | by design | Tell the user the window end. Test orders must be created a day ahead |
+| B3 | Headline "đi ngang" (flat) while the previous period was 0 ₫ | Trang chủ | Trend copy assumed a non-zero base | ✅ #2154 | No trend claim without a comparable base |
+| B4 | "Tính từ đơn hàng TikTok (Orders API)" note didn't render | Live Trang chủ | Flag placement or condition | ⏳ still not seen live | Verify source labels live, not only in unit tests |
+| B5 | GMV 904k vs 902k from list price × units | 6 orders × bottle | Order totals include fees/shipping | ⏳ explain or verify with SQL | Define GMV precisely (paid order totals vs item subtotal) and show the definition |
+| B6 | Test orders can't be back-dated | Partner Center create = now | Sandbox tool limit | 📌 spread orders over real days (Q3) | Plan demo data N days before a review |
+| B7 | Order status change seemed to fail, then applied later ("Awaiting collection") | Partner Center | Async status transitions in the sandbox | 📌 | Re-read state after a delay before concluding a sandbox action failed |
+| B8 | Seller Center edits can be lost: "Discard changes?" on navigation; custom option fields allow only 1 value ("Only 1 options supported") even after clearing | Manufacturer address field | Seller Center form quirks | 📌 | Make operator data edits in one pass. Clear old option values before adding new ones |
+
+## C. Cards and emission
+
+| # | Edge case | Evidence | Why | Status | Design rule |
+|---|---|---|---|---|---|
+| C1 | Only card was a legacy `seller_center` card (not executable) | Approve → "Juli không ghi gì lên TikTok" | Executable cards need traffic | ✅ quick scan by orders | Every shop with orders must be able to get ≥1 executable card |
+| C2 | Legacy card "Lý do" was raw English internals ("opportunity:", "proxy") | Quyết định | Stored before the Vietnamese copy existed | ✅ hidden for sandbox; VN copy for new cards | Copy is rendered at read time from signals, or migrated, never stored final text only |
+| C3 | Hiding by "no Vietnamese letters" missed a card that mixed EN/VN | 19/10 card still showed | Heuristic too weak | ✅ (gone after deploy) | Use explicit card versions or flags, not text heuristics |
+| C4 | Forced quick scan surfaced no listing card | After `shop_quick_scan(force)` | Daily budget full, or title lever blocked by an existing card | 🔧 #2154 | Operator-forced runs must surface ≥1 card or say why not |
+| C5 | Create-product card labelled "Tối ưu sản phẩm" | Card | Workflow label hard-coded | ✅ | Label comes from the lever or workflow, never a constant |
+| C6 | Run header doubled: "Tạo sản phẩm · từ Tạo sản phẩm mới từ «…»" | Run panel | Header prefixes a title that already has the prefix | ⏳ | Header = verb + subject. Never prefix a pre-labelled title |
+| C7 | Old declined or failed runs stay in the "Hàng chờ" queue ("Sự cố", "Không thay đổi") | Queue | Queue shows recent history | ⏳ decide retention for reviewers | The reviewer queue should show only the current session's runs, or label older ones clearly |
+
+## D. Agent run, confirm, execute
+
+| # | Edge case | Evidence | Why | Status | Design rule |
+|---|---|---|---|---|---|
+| D1 | Duyệt disabled until stability bands are set; reviewer couldn't set them | "Đặt ngưỡng" read-only | Rules write blocked for reviewers | ✅ sandbox rule writes | Every prerequisite of a flow must be completable in the same role |
+| D2 | Simulation chip "Đã chạy thử" on a real sandbox write | Run chip | `run.simulated` set for sandbox merchant writes | ✅ | A real write is never labelled simulated, and vice versa |
+| D3 | Confirm with edits → 422 "Bước này không có nội dung sửa được" | create_product confirm | Only listing edits were editable | ✅ #2154 | Every write step declares editable fields; UI edit and server validation share one map |
+| D4 | After "Huỷ sửa" the edit persisted ("Bạn đã sửa") | UI | Cancel didn't clear state | ✅ #2154 | Cancel restores the model proposal exactly |
+| D5 | After "Huỷ sửa" the confirm button was disabled; the proposal had to be re-selected | Button `disabled` | Selection state cleared by cancel | ⏳ | Cancelling an edit keeps the proposal selected |
+| D6 | After confirming, the panel stayed "Đang chờ bạn" until reload | Two runs | SSE update after confirm not applied | ⏳ | Confirm must move the panel optimistically and follow SSE; never a stale wait state |
+| D7 | Model put "Fujiwa" in the title (from the description excerpt) | Proposal | Source text not filtered | ✅ D73.5 source-name rule (data, not hard-coded) | Rules are gates for the LLM as data. Source names are withheld from the model and checked on output, edits and execution |
+| D8 | Required compliance attributes (VN manufacturer name/address) dropped by the name rule, so create can never pass | Code review | Over-broad rule | ✅ copy required attrs verbatim, never to the model | Separate legal facts (copied) from marketing copy (generated, gated) |
+| D9 | **TikTok 12052217: category_version must be V2 for all-region shops** | Run 74aefd1a | v1 categories sent | ✅ #2158 deployed, ⏳ live create not yet retried | Pin API versions per shop type. Read the vendor's error text |
+| D10 | **Refused TikTok write shown as success** ("Đã ghi lên TikTok", measurement scheduled) | Run 74aefd1a | Runner ignored the tool's `ok`; ledger marked succeeded | ✅ #2158 | A write is a success only when the vendor confirms it. ok=false means a failed run, no measurement, card returned |
+| D11 | Old run 74aefd1a still stored as success | events `ok=true` | Data written before the fix | ⏳ SQL correction | Fixes to outcome logic need a data backfill for already-written runs |
+| D12 | TikTok's refusal reason missing from logs and UI | `catalog_create_create_failed` code only | `extra=` dropped by journald | ✅ #2156 | Log vendor code + message + request_id in the message line; show the reason to the user |
+| D13 | Create cap 3/24h hit → 429 with **no message in the UI** | approve 401 → refresh → 429 | Cap reached by test runs; no UI copy | ⏳ | Every server refusal has user-facing copy (cap: "Đã tạo 3 sản phẩm trong 24 giờ; thử lại lúc HH:MM") |
+| D14 | Test runs consume the reviewer's daily cap | Cap counted on approve | Shared counter | ⏳ decide: count only successful creates, or reset before submission | Caps should count successful writes, and the operator must be able to reset them for a demo account |
+| D15 | Discount run ended without proposing: "1 khuyến mãi giá đang chạy hoặc sắp chạy", then "Luồng đã kết thúc. Vui lòng xem lại tại Quyết định." | Run 12d703c0 | Product already in a price promotion (no stacking) | ⏳ | An agent that declines must say why in plain words and propose the next step (another product, or end date of the existing promotion). The card should not be emitted for an ineligible product |
+| D16 | Discount card emitted for a product that already has an active/upcoming price promotion | Same | Emission doesn't check eligibility | ⏳ | Emit only when the TikTok preconditions hold (stock, no overlapping promotion) |
+| D17 | Only 1 of 2 products "còn hàng, đủ điều kiện" for promotion | Run step 1 | Stock/eligibility read | ⏳ verify which and why | Show which products were excluded and why |
+
+## E. Platform and operations
+
+| # | Edge case | Evidence | Why | Status | Design rule |
+|---|---|---|---|---|---|
+| E1 | `EMAXCONNSESSION` at pool 15 → intermittent 500s, crashed runs | worker + API journal | Two blue/green API slots (5+5 each) + per-task worker connections | 📌 stale slot stopped; #2157 | Connection budget per service ≤ the pooler cap (nano = 15) and an alert on EMAXCONN |
+| E2 | `systemctl restart juli-api` crash-looped on port 8000 | journal | Legacy unit vs blue/green candidates | 📌 never use it | Runbooks name the blue/green units, not the legacy unit |
+| E3 | A space in an AWS secret key broke `/etc/juli/api.env`, and the deploy failed in migration detection | line 30 "command not found" | Unvalidated env generation | 📌 fixed by owner | fetch-secrets must validate keys (`^[A-Z0-9_]+$`) and refuse a bad secret; check with `( set -a; . file )`, not `bash -n` |
+| E4 | VPS journal is UTC; UI is UTC+7 | empty greps | Time zones | 📌 memory | Always shift by −7 h when correlating UI times with logs |
+| E5 | Deploy gates the local check.sh doesn't run: full unit suite (facade export, ratchet), full demo suite, Postgres integration on changed tests | 3 failed deploys | Local check is change-scoped | 📌 | Before tagging, run the full unit + demo suites (or wait for CI) |
+| E6 | Flaky tests under load (ops-pages vitest, status-record migration, onboarding speed) | reruns pass | Timing | ⏳ | Track flakes; a flake must not block a review-critical deploy |
+| E7 | Fresh worktree: contract tests fail without node_modules | 32 local failures | pnpm install per worktree | 📌 known | Run `pnpm install` in each new worktree before suites |
+| E8 | Generated files (quality corpus, surface inventory) conflict on every merge | Every merge | Generated from the tree | 📌 | Take upstream, regenerate on the combined tree, commit last |
+
+---
+
+## Open questions for the end-to-end design
+
+1. What does "success" mean per workflow? Vendor-confirmed write + read-back (D10). How is it shown, and when does measurement start?
+2. Eligibility before emission: each write workflow declares its TikTok preconditions (stock, overlapping promotions, category rules) and is emitted only when they hold (D15–D16).
+3. Declines and refusals: one copy contract for "the agent decided not to act", "TikTok refused" and "Juli refused (rule/cap)" (D13, D15, D12).
+4. Caps and quotas for demo/review accounts (D13–D14).
+5. Run history visible to a reviewer (C7, D11).
+6. Rules as data drafted by the LLM per shop/category/product (#2153); forecasting/ROI for promotions (separate phase).
