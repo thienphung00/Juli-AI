@@ -10,7 +10,11 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from juli_backend.integrations.tiktok import ProductionWriteResources, SandboxWriteResources
+from juli_backend.integrations.tiktok import (
+    PRODUCT_CATEGORY_VERSION,
+    ProductionWriteResources,
+    SandboxWriteResources,
+)
 from juli_backend.services.execution.file_screening import (
     MAX_ENCODED_SIZE_BYTES,
     screen_and_reencode_image,
@@ -205,8 +209,7 @@ def _build_create_body(
     }
     if product_attributes:
         body["product_attributes"] = product_attributes
-    if payload.get("category_version"):
-        body["category_version"] = payload["category_version"]
+    body["category_version"] = payload.get("category_version") or PRODUCT_CATEGORY_VERSION
     if brand_id:
         body["brand_id"] = brand_id
     if payload.get("package_weight"):
