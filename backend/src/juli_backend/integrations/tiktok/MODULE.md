@@ -58,7 +58,8 @@ Matches ``__all__`` — re-exports only:
   ``get_price_detail``, ``get_statement_transactions``; numeric order id only).
   Both GETs are exact entries of the production-read allowlist
 - **Optimize Product reads (ADR-090 d.3, ADR-106 Amendments 4–5)** — product
-  diagnosis: ``PRODUCT_DIAGNOSIS_API_VERSION``, ``PRODUCT_DIAGNOSES_PATH``,
+  diagnosis: ``PRODUCT_CATEGORY_VERSION`` (``v2``: all-region shops, every category
+  call and the create body), ``PRODUCT_DIAGNOSIS_API_VERSION``, ``PRODUCT_DIAGNOSES_PATH``,
   ``PRODUCT_DIAGNOSE_OPTIMIZE_API_VERSION``, ``PRODUCT_DIAGNOSE_OPTIMIZE_PATH``
   (the POST only scores a proposed listing and writes nothing, so it is on the
   production-read allowlist); seller promotions: ``PROMOTION_ACTIVITIES_SEARCH_PATH``,
