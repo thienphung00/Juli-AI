@@ -71,6 +71,11 @@ Status keys: ✅ fixed and deployed · 🔧 fixed, not yet verified live · ⏳ 
 | D15 | Discount run ended without proposing: "1 khuyến mãi giá đang chạy hoặc sắp chạy", then "Luồng đã kết thúc. Vui lòng xem lại tại Quyết định." | Run 12d703c0 | Product already in a price promotion (no stacking) | ⏳ | An agent that declines must say why in plain words and propose the next step (another product, or end date of the existing promotion). The card should not be emitted for an ineligible product |
 | D16 | Discount card emitted for a product that already has an active/upcoming price promotion | Same | Emission doesn't check eligibility | ⏳ | Emit only when the TikTok preconditions hold (stock, no overlapping promotion) |
 | D17 | Only 1 of 2 products "còn hàng, đủ điều kiện" for promotion | Run step 1 | Stock/eligibility read | ⏳ verify which and why | Show which products were excluded and why |
+| D18 | ✅ **First real TikTok write verified**: discount "Combo mini tiện dụng 12%" (id 7699734374178817800) created via Promotion API, shown in Seller Center (Upcoming, 23/10 12:45 → 30/10 23:59, Product discount) and in Juli ("TikTok xác nhận lúc 12:43") | Run 887bb1be + Seller Center | — | ✅ live 2026-10-23 | Always cross-check a write in the vendor's own UI |
+| D19 | Proposal not selected by default (confirm disabled even without "Huỷ sửa") | Run 887bb1be | Default selection missing | ⏳ P66 (D5) | A single proposal is selected by default |
+| D20 | Run panel steps out of order (the create step listed first) after reload | Run 887bb1be | Step ordering by completion/insert, not plan order | ⏳ P66 | Steps render in plan order |
+| D21 | After the promotion was created, listing-edit template steps still show ("Ghi lên TikTok Shop", "TikTok duyệt lại trang sản phẩm", "Kết thúc · đặt lịch đo") with "Juli đang ghi lên TikTok Shop…"; run stays "Đang chạy" | Run 887bb1be | Step template not per workflow; run not finalised after the write | ⏳ P66 | Each workflow has its own step template; a run finishes when its final write is confirmed |
+| D22 | Run header generic "Juli tự áp dụng lên TikTok Shop · Lượt chạy · …" for a promotion run (the queued view showed "Tạo khuyến mãi · …") | Run 887bb1be | Header falls back after reload | ⏳ P66 | Header derives from the workflow on every render |
 
 ## E. Platform and operations
 
