@@ -298,6 +298,9 @@ class DomainToolExecutor:
     def _after_dispatch(self, *, tool_name: str, spec: ToolSpec) -> None:
         """Runs after a successful dispatch, ledger-gated or direct."""
 
+    def _after_refused_write(self) -> None:
+        """Runs instead of `_after_dispatch` when a WRITE returned ``ok: false`` (P64)."""
+
     # --- pre-confirmation check (P64) ------------------------------------------
 
     def precheck(self, *, tool_name: str, params: BaseModel) -> Mapping[str, Any] | None:
@@ -399,6 +402,13 @@ class DomainToolExecutor:
         else:
             result = _dispatch()
 
+        if spec.classification is ToolClassification.WRITE and result.get("ok") is False:
+            # P64: TikTok refused the write -- no after-values to capture (a
+            # listing edit's after-value falls back to the intended values, which
+            # would record a change that never happened) and no basis to refresh.
+            self._after_refused_write()
+            return result
+
         self._after_dispatch(tool_name=tool_name, spec=spec)
 
         return result
@@ -441,6 +451,7 @@ class ProductToolExecutor(DomainToolExecutor):
         on_image_staged: Callable[[str], None] | None = None,
         revert_expected_hashes: Mapping[str, str | None] | None = None,
         banned_terms: Sequence[str] = (),
+        discount_rules: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__(
             registry=registry,
@@ -478,6 +489,8 @@ class ProductToolExecutor(DomainToolExecutor):
         self._on_image_staged = on_image_staged
         # P64 (D73.5): the shop's banned terms, for the pre-confirmation check.
         self._banned_terms = tuple(banned_terms)
+        # P65 (D74): the discount range of a create_promotion run (its opening context).
+        self._discount_rules = dict(discount_rules) if discount_rules else None
 
     def _binding(self) -> ProductToolContext:
         """The `ProductToolContext` the product domain unwraps and hands to
@@ -496,6 +509,7 @@ class ProductToolExecutor(DomainToolExecutor):
             restore_main_image_uris=self._restore_main_image_uris,
             on_image_staged=self._image_staged,
             banned_terms=self._banned_terms,
+            discount_rules=self._discount_rules,
         )
 
     def _image_staged(self, uri: str) -> None:
@@ -601,6 +615,10 @@ class ProductToolExecutor(DomainToolExecutor):
         # both the executor and the runner hold, so it is what carries this
         # to `_sync_product_detail` and on into RunState.
         self._concurrency_guard.set_product_detail(raw)
+
+    def _after_refused_write(self) -> None:
+        # P64: the before-read of a write TikTok refused is never paired with an after.
+        self._before_raw = None
 
     def _after_dispatch(self, *, tool_name: str, spec: ToolSpec) -> None:
         raw: Mapping[str, Any] | None = None

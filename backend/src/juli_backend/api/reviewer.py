@@ -406,15 +406,19 @@ async def audit_reviewer_confirmation(
 ) -> None:
     """P64 (D73.3/D73.4): a reviewer's run confirmation, audited (no-op for a seller).
 
-    ``reviewer_sandbox_create_product`` for the sandbox ``create_product`` run, else
+    ``reviewer_sandbox_create_product`` for the sandbox ``create_product`` run,
+    ``reviewer_sandbox_create_promotion`` for ``create_promotion`` (P65, D74), else
     ``reviewer_sandbox_execute``.
     """
     from juli_backend.services.agent import playbooks
 
     create = run.workflow_key == playbooks.CREATE_PRODUCT_WORKFLOW_KEY
+    promotion = run.workflow_key == playbooks.CREATE_PROMOTION_WORKFLOW_KEY
     action = (
         audit.ACTION_REVIEWER_SANDBOX_CREATE_PRODUCT
         if create
+        else audit.ACTION_REVIEWER_SANDBOX_CREATE_PROMOTION
+        if promotion
         else audit.ACTION_REVIEWER_SANDBOX_EXECUTE
     )
     after: dict[str, Any] = {
@@ -431,9 +435,16 @@ async def audit_reviewer_confirmation(
         if isinstance(edited, list) and edited:
             after["edited_fields"] = list(edited)
         arguments = pending.get("arguments")
-        if create and isinstance(arguments, dict):
-            for field in ("title", "description"):
-                if isinstance(arguments.get(field), str):
+        fields = (
+            ("title", "description")
+            if create
+            else ("product_ids", "discount_pct", "end_date", "promotion_title")
+            if promotion
+            else ()
+        )
+        if isinstance(arguments, dict):
+            for field in fields:
+                if arguments.get(field) is not None:
                     after[field] = arguments[field]
     await audit_reviewer_run_action(session, request, action, shop_id=run.shop_id, after=after)
 

@@ -777,6 +777,8 @@ async def _construct_runner(
             str(term)
             for term in run_context_module.opening_shop_rules(run.state).get("banned_terms", [])
         ],
+        # P65 (D74): a create_promotion run's discount range, from the same opening context.
+        discount_rules=run_context_module.opening_shop_rules(run.state).get("discount"),
     )
     conversation_store = runner_module.JsonbConversationStore(session)
     # #1890: PersistingEventSink now scopes its own per-emit session from a

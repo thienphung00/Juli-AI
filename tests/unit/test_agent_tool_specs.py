@@ -135,6 +135,24 @@ EXPECTED_DESCRIPTIONS: dict[str, str] = {
         "the checked category_id. Price, stock, images and attributes come from the "
         "source listing server-side. Needs the reviewer's explicit approval first."
     ),
+    # Fast track P65 (D74): the sandbox-only "Tạo khuyến mãi" tools.
+    "get_promotion_candidates": (
+        "Read the bound product and a few other selling products of the shop (stock, price, "
+        "whether each is eligible), the running price promotions, the discount range the "
+        "shop's rules allow and the allowed end dates. Choose product_ids ONLY from "
+        "candidates[].product_id with eligible=true; the bound product (source_product_id) "
+        "is always included."
+    ),
+    "check_promotion_eligibility": (
+        "Check product_ids (1-2, from get_promotion_candidates, the bound product included), "
+        "discount_pct (whole percent within the allowed range) and end_date (YYYY-MM-DD, "
+        "after today, at most max_end_date). ok=false means: fix the named value once."
+    ),
+    "create_product_discount": (
+        "Create the product discount on TikTok (percentage off, starts in a few minutes, ends "
+        "on end_date) for the checked product_ids with your short Vietnamese promotion_title "
+        "and reason_vi. Needs the reviewer's explicit approval first."
+    ),
     # Fast track P14-E: the content run's read-only tools.
     "get_content_performance": (
         "Read, for the bound product, the last 30 days of the shop's videos that tag it "

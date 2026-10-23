@@ -38,6 +38,7 @@ from juli_backend.services.agent.tools.domains import (
     UnregisteredToolDomainError,
 )
 from juli_backend.services.agent.tools.product_domain import PRODUCT_TOOL_DOMAIN
+from juli_backend.services.agent.tools.promotion_create import PROMOTION_CREATE_TOOL_DOMAIN
 from juli_backend.services.agent.tools.terminal import TERMINAL_TOOL_DOMAIN
 from juli_backend.services.content_cards.tools import CONTENT_TOOL_DOMAIN
 
@@ -52,6 +53,8 @@ _TOOL_DOMAIN_REGISTRY: dict[str, ToolDomain] = {
     CONTENT_TOOL_DOMAIN.name: CONTENT_TOOL_DOMAIN,
     # Fast track P64 (D73.3/D73.4): the sandbox-only "Tạo sản phẩm" tools.
     CATALOG_CREATE_TOOL_DOMAIN.name: CATALOG_CREATE_TOOL_DOMAIN,
+    # Fast track P65 (D74): the sandbox-only "Tạo khuyến mãi" tools.
+    PROMOTION_CREATE_TOOL_DOMAIN.name: PROMOTION_CREATE_TOOL_DOMAIN,
 }
 
 

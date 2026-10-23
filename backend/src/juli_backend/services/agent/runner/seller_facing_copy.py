@@ -121,3 +121,36 @@ def tool_completed_summary(tool_name: str, result: Mapping[str, Any]) -> str:
     shown = ", ".join(labels[:_DIAGNOSES_SHOWN_LABELS])
     extra = len(labels) - _DIAGNOSES_SHOWN_LABELS
     return shown + (f" và {extra} lỗi khác" if extra > 0 else "")
+
+
+#: P64 (run 74aefd1a): the step label of a WRITE that changed nothing on TikTok --
+#: the handler returned ``ok: false`` (TikTok refused it) or the call raised.
+WRITE_FAILED_SUMMARY = "Không thành công"
+
+
+def write_refused(result: Mapping[str, Any]) -> bool:
+    """A WRITE result that says it changed nothing: the handler's own ``ok: false``.
+
+    Only an explicit ``False`` counts -- a write tool whose output has no ``ok``
+    field reports a vendor failure by raising instead.
+    """
+    return result.get("ok") is False
+
+
+def write_failed_summary(
+    result: Mapping[str, Any] | None = None, exc: BaseException | None = None
+) -> str:
+    """The seller-facing `ToolCompletedPayload.summary` of a failed WRITE.
+
+    The tool's own ``summary_vi`` (it already words TikTok's reason, e.g. "TikTok
+    từ chối tạo sản phẩm (mã lỗi 12052217): ...") when it returned one; for a call
+    that raised, TikTok's numeric code only -- never the exception text.
+    """
+    if result is not None:
+        own = result.get("summary_vi")
+        if isinstance(own, str) and own.strip():
+            return f"{WRITE_FAILED_SUMMARY} · {own.strip()}"
+    code = getattr(exc, "code", None) if exc is not None else None
+    if isinstance(code, int) and code:
+        return f"{WRITE_FAILED_SUMMARY} · TikTok báo lỗi (mã lỗi {code})"
+    return WRITE_FAILED_SUMMARY

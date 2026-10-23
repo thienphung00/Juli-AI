@@ -8,6 +8,7 @@ from juli_backend.integrations.tiktok.client import TikTokClient
 from juli_backend.integrations.tiktok.constants import (
     PRODUCT_BRANDS_PATH,
     PRODUCT_CATEGORIES_PATH,
+    PRODUCT_CATEGORY_VERSION,
     PRODUCT_CREATE_PATH,
     PRODUCT_DIAGNOSE_OPTIMIZE_API_VERSION,
     PRODUCT_DIAGNOSE_OPTIMIZE_PATH,
@@ -110,19 +111,25 @@ class ProductsResource:
         return self._client.put(product_edit_path(product_id), body=body)
 
     def get_categories(self) -> dict:
-        """List product categories (contract-collection.md §A-21)."""
-        return self._client.get(PRODUCT_CATEGORIES_PATH)
+        """List product categories from the V2 tree (contract-collection.md §A-21)."""
+        return self._client.get(
+            PRODUCT_CATEGORIES_PATH,
+            params={"category_version": PRODUCT_CATEGORY_VERSION},
+        )
 
     def check_listing_prerequisites(self, *, category_id: str) -> dict:
         """Verify seller/category eligibility (contract-collection.md §A-22)."""
         return self._client.get(
             PRODUCT_PREREQUISITES_PATH,
-            params={"category_id": category_id},
+            params={"category_id": category_id, "category_version": PRODUCT_CATEGORY_VERSION},
         )
 
     def get_category_attributes(self, *, category_id: str) -> dict:
-        """Fetch category attributes (contract-collection.md §A-9)."""
-        return self._client.get(category_attributes_path(category_id))
+        """Fetch a V2 category's attributes (contract-collection.md §A-9)."""
+        return self._client.get(
+            category_attributes_path(category_id),
+            params={"category_version": PRODUCT_CATEGORY_VERSION},
+        )
 
     def get_brands(
         self,
@@ -136,7 +143,7 @@ class ProductsResource:
         params = strip_nones(
             {
                 "category_id": category_id,
-                "category_version": "v1",
+                "category_version": PRODUCT_CATEGORY_VERSION,
                 "is_authorized": "false",
                 "brand_name": brand_name,
                 "page_size": str(page_size),

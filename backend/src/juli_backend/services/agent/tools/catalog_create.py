@@ -43,7 +43,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from juli_backend.integrations.tiktok import SandboxWriteResources, TikTokAPIError
+from juli_backend.integrations.tiktok import (
+    PRODUCT_CATEGORY_VERSION,
+    SandboxWriteResources,
+    TikTokAPIError,
+)
 from juli_backend.services.agent.sanitize import VendorText, cap_text, to_json_safe
 from juli_backend.services.agent.tools.domains import ToolDomain
 from juli_backend.services.agent.tools.listing_rules import (
@@ -536,6 +540,9 @@ def create_body(plan: ListingPlan, *, title: str, description: str) -> dict[str,
     price = {"amount": plan.price, "currency": plan.currency}
     body: dict[str, Any] = {
         "category_id": plan.category_id,
+        # The id came from the V2 tree (get_categories); TikTok refuses a create
+        # without the matching version (12052217, run 74aefd1a).
+        "category_version": PRODUCT_CATEGORY_VERSION,
         "title": title.strip(),
         "description": description_html(description),
         "main_images": plan.main_images,

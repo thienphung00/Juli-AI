@@ -83,7 +83,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from juli_backend.integrations.tiktok import SandboxWriteResources, TikTokAPIError
+from juli_backend.integrations.tiktok import (
+    PRODUCT_CATEGORY_VERSION,
+    SandboxWriteResources,
+    TikTokAPIError,
+)
 from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
 from juli_backend.services.agent.tools.listing_rules import check_proposal, source_terms_not_in
 from juli_backend.services.agent.tools.product import ProductToolContext
@@ -98,7 +102,7 @@ from juli_backend.services.execution.file_screening import screen_and_reencode_i
 # Vendor protocol constant from TikTok B-4 (Edit Product / Partial endpoint).
 # Section reference: docs/integrations/tiktok_api/contract-collection.md § B-4
 # Never hardcode this at call sites; always source it from this constant.
-TIKTOK_PRODUCT_EDIT_CATEGORY_VERSION = "v2"
+TIKTOK_PRODUCT_EDIT_CATEGORY_VERSION = PRODUCT_CATEGORY_VERSION
 
 
 class UnresolvedAgentRefError(ValueError):

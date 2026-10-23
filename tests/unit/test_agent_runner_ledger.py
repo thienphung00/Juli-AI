@@ -426,6 +426,54 @@ class TestFreshDispatchOrdering:
         assert perform.calls == 0
 
 
+# --- P64: a write the handler refused (ok=false) is a failed row ----------
+
+
+class TestRefusedWriteIsFailed:
+    """Live run 74aefd1a: `create_product` returned ``ok=false`` (TikTok 12052217) and
+    the row was ``succeeded`` -- the state the impact reader measures and the run
+    surfaces as applied. Nothing changed on TikTok, so the row is ``failed``."""
+
+    def test_ok_false_marks_the_row_failed_and_returns_the_result(self, session):
+        shop_id, run_id = _seed_run(session)
+        tool_call_id = _fresh_tool_call_id()
+        ledger = ToolExecutionLedger(session, shop_id=shop_id)
+        refused = {
+            "ok": False,
+            "error_code": "tiktok_error",
+            "summary_vi": "TikTok từ chối tạo sản phẩm (mã lỗi 12052217): Invalid Parameter.",
+        }
+
+        result = ledger.execute_write(
+            workflow_run_id=run_id,
+            tool_call_id=tool_call_id,
+            operation="create_product",
+            perform=_CallSpy(result=refused),
+        )
+
+        assert result == refused
+        row = session.execute(
+            select(ToolExecution).where(ToolExecution.tool_call_id == tool_call_id)
+        ).scalar_one()
+        assert row.status == LedgerStatus.FAILED.value
+        assert "12052217" in (row.error_message or "")
+
+    def test_ok_true_still_succeeds(self, session):
+        shop_id, run_id = _seed_run(session)
+        tool_call_id = _fresh_tool_call_id()
+        ledger = ToolExecutionLedger(session, shop_id=shop_id)
+        ledger.execute_write(
+            workflow_run_id=run_id,
+            tool_call_id=tool_call_id,
+            operation="create_product",
+            perform=_CallSpy(result={"ok": True, "tiktok_product_id": "1"}),
+        )
+        row = session.execute(
+            select(ToolExecution).where(ToolExecution.tool_call_id == tool_call_id)
+        ).scalar_one()
+        assert row.status == LedgerStatus.SUCCEEDED.value
+
+
 # --- AC: succeeded row replays stored result, zero vendor calls -----------
 
 

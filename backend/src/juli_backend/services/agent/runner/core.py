@@ -281,6 +281,8 @@ from juli_backend.services.agent.runner.seller_facing_copy import (
     SellerFacingDeclinedReason,
     SellerFacingRefusalReason,
     tool_completed_summary,
+    write_failed_summary,
+    write_refused,
 )
 from juli_backend.services.agent.runner.state import ConversationMessage, RollupValues, RunState
 from juli_backend.services.agent.runner.termination import (
@@ -357,6 +359,13 @@ class _ToolCallOutcome(Enum):
     UNRECOVERABLE_TOOL_ERROR = auto()
 
 
+def _refusal_message(result: Mapping[str, Any]) -> str:
+    """The outcome row's `error_message` for a WRITE its handler refused (P64)."""
+    code = result.get("error_code")
+    summary = result.get("summary_vi")
+    return " · ".join(str(part) for part in (code, summary) if part) or "write refused"
+
+
 class NoPendingConfirmationError(RuntimeError):
     """Raised by `WorkflowRunner.resume` when the loaded `RunState` has no
     `pending_confirmation` to resume from (issue #1123).
@@ -406,7 +415,7 @@ def _edited_summary(tool_name: str, raw_result: Mapping[str, Any]) -> str:
     sandbox create (P64) keeps TikTok's own line -- the new product's id and status --
     and adds that it used the seller's version.
     """
-    if tool_name == "create_product":
+    if tool_name in ("create_product", "create_product_discount"):
         return f"{tool_completed_summary(tool_name, raw_result)} · theo bản bạn sửa"
     return EDITED_BY_SELLER_SUMMARY
 
@@ -1062,8 +1071,10 @@ class WorkflowRunner:
             raw_result = self._tool_executor.execute(
                 tool_name=tool_name, params=params, tool_call_id=call_id
             )
+            # P64 (run 74aefd1a): a WRITE whose handler said ok=false changed nothing.
+            refused = spec.classification is ToolClassification.WRITE and write_refused(raw_result)
             # Issue #1653: increment rows_affected for successful WRITE tool executions
-            if spec.classification is ToolClassification.WRITE:
+            if spec.classification is ToolClassification.WRITE and not refused:
                 state.rows_affected += 1
             # #1382: the guard just updated its in-memory basis (on a read, or
             # via the post-write refresh). Mirror it into state now, while we
@@ -1130,16 +1141,20 @@ class WorkflowRunner:
                 execution_status=LedgerStatus.FAILED.value,
                 error_message=str(exc),
             )
+            await self._emit_write_failed(workflow_run_id, state, spec, call_id, tool_name, exc)
             raise
         await self._record_write_outcome(
             workflow_run_id,
             spec=spec,
             tool_call_id=call_id,
             tool_name=tool_name,
-            execution_status=LedgerStatus.SUCCEEDED.value,
+            execution_status=(
+                LedgerStatus.FAILED.value if refused else LedgerStatus.SUCCEEDED.value
+            ),
+            error_message=_refusal_message(raw_result) if refused else None,
         )
         sanitized = guard_inbound_tool_result(raw_result, tool_name=tool_name)
-        ok = sanitized is raw_result
+        guarded_ok = sanitized is raw_result
         await self._emit(
             workflow_run_id,
             state,
@@ -1147,13 +1162,15 @@ class WorkflowRunner:
             ToolCompletedPayload(
                 tool_call_id=call_id,
                 tool_name=tool_name,
-                ok=ok,
+                ok=guarded_ok and not refused,
                 summary=(
-                    _edited_summary(tool_name, raw_result)
+                    SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
+                    if not guarded_ok
+                    else write_failed_summary(raw_result)
+                    if refused
+                    else _edited_summary(tool_name, raw_result)
                     if pending.get("edited_fields")
                     else tool_completed_summary(tool_name, raw_result)
-                    if ok
-                    else SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
                 ),
             ),
         )
@@ -1165,6 +1182,34 @@ class WorkflowRunner:
                 "content": dict(sanitized),
             }
         )
+        if refused:
+            # P64 (run 74aefd1a): TikTok refused the confirmed write, so nothing
+            # changed. The run ends failed here -- never a model narration that
+            # ends `final_response` and reads as "Đã ghi lên TikTok" with a
+            # measurement scheduled -- and the card goes back to the seller.
+            logger.warning(
+                "agent_write_refused",
+                extra={"workflow_run_id": str(workflow_run_id), "tool_name": tool_name},
+            )
+            stop = await self._terminate(
+                workflow_run_id, state, StopReason.TOOL_ERROR_UNRECOVERABLE, version_str, sha256
+            )
+            rollup = self._compute_rollup_values(state)
+            await self._conversation_store.persist(
+                workflow_run_id,
+                state,
+                status=stop.status,
+                stop_reason=stop.stop_reason,
+                required_steps_completed=self._required_steps_completed(state),
+                running_seconds_elapsed=running_seconds_column_value(state.running_seconds_elapsed),
+                input_tokens=rollup.input_tokens,
+                output_tokens=rollup.output_tokens,
+                cost_usd=rollup.cost_usd,
+                duration_ms=rollup.duration_ms,
+                tool_call_count=rollup.tool_call_count,
+                rows_affected=rollup.rows_affected,
+            )
+            return stop
         await self._conversation_store.persist(
             workflow_run_id,
             state,
@@ -1880,8 +1925,10 @@ class WorkflowRunner:
             raw_result = self._tool_executor.execute(
                 tool_name=block.tool_name, params=params, tool_call_id=block.call_id
             )
+            # P64 (run 74aefd1a): a WRITE whose handler said ok=false changed nothing.
+            refused = spec.classification is ToolClassification.WRITE and write_refused(raw_result)
             # Issue #1653: increment rows_affected for successful WRITE tool executions
-            if spec.classification is ToolClassification.WRITE:
+            if spec.classification is ToolClassification.WRITE and not refused:
                 state.rows_affected += 1
             self._sync_basis(state)  # #1382 — see the sibling dispatch site
             self._sync_product_detail(state)  # #1389 — product persists across pause
@@ -1916,16 +1963,22 @@ class WorkflowRunner:
                 execution_status=LedgerStatus.FAILED.value,
                 error_message=str(exc),
             )
+            await self._emit_write_failed(
+                workflow_run_id, state, spec, block.call_id, block.tool_name, exc
+            )
             raise
         await self._record_write_outcome(
             workflow_run_id,
             spec=spec,
             tool_call_id=block.call_id,
             tool_name=block.tool_name,
-            execution_status=LedgerStatus.SUCCEEDED.value,
+            execution_status=(
+                LedgerStatus.FAILED.value if refused else LedgerStatus.SUCCEEDED.value
+            ),
+            error_message=_refusal_message(raw_result) if refused else None,
         )
         sanitized = guard_inbound_tool_result(raw_result, tool_name=block.tool_name)
-        ok = sanitized is raw_result
+        guarded_ok = sanitized is raw_result
 
         await self._emit(
             workflow_run_id,
@@ -1934,11 +1987,13 @@ class WorkflowRunner:
             ToolCompletedPayload(
                 tool_call_id=block.call_id,
                 tool_name=block.tool_name,
-                ok=ok,
+                ok=guarded_ok and not refused,
                 summary=(
-                    tool_completed_summary(block.tool_name, raw_result)
-                    if ok
-                    else SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
+                    SellerFacingCompletionReason.BLOCKED_BY_GUARD.value
+                    if not guarded_ok
+                    else write_failed_summary(raw_result)
+                    if refused
+                    else tool_completed_summary(block.tool_name, raw_result)
                 ),
             ),
         )
@@ -1950,7 +2005,50 @@ class WorkflowRunner:
                 "content": dict(sanitized),
             }
         )
+        if refused:
+            # P64 (run 74aefd1a): an AUTO write TikTok refused ends the run failed,
+            # exactly like the confirmed one on the resume leg.
+            logger.warning(
+                "agent_write_refused",
+                extra={"workflow_run_id": str(workflow_run_id), "tool_name": block.tool_name},
+            )
+            return _ToolCallOutcome.UNRECOVERABLE_TOOL_ERROR
         return _ToolCallOutcome.SUCCESS
+
+    async def _emit_write_failed(
+        self,
+        workflow_run_id: uuid.UUID,
+        state: RunState,
+        spec: ToolSpec,
+        tool_call_id: str,
+        tool_name: str,
+        exc: BaseException,
+    ) -> None:
+        """P64: close a WRITE that raised with `ok: false` before the exception
+        ends the run, so its step reads "Không thành công", never "Xong".
+
+        Best effort: the original exception is what the caller re-raises, so an
+        event-sink failure here is logged and swallowed, never substituted for it.
+        """
+        if spec.classification is not ToolClassification.WRITE:
+            return
+        try:
+            await self._emit(
+                workflow_run_id,
+                state,
+                ToolCompletedEvent,
+                ToolCompletedPayload(
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                    ok=False,
+                    summary=write_failed_summary(exc=exc),
+                ),
+            )
+        except Exception:
+            logger.exception(
+                "agent_write_failed_event_not_emitted",
+                extra={"workflow_run_id": str(workflow_run_id), "tool_name": tool_name},
+            )
 
     async def _record_write_outcome(
         self,

@@ -32,7 +32,7 @@
 
 import type { AgentEvent, ConfirmationOptionPayload } from "@juli/contracts";
 
-import { FIELD_LABELS } from "./copy";
+import { FIELD_LABELS, TERMINAL_STEP_LABEL_NO_MEASURE } from "./copy";
 import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../run-ledger/copy";
 import { resolveRunTerminalState } from "../run-ledger/terminal-state";
 
@@ -40,7 +40,8 @@ export type StepStatus = "done" | "current" | "upcoming" | "failed" | "skipped";
 export type StepKind = "tool" | "consent" | "terminal" | "await";
 /** `content` (P14-E): a "Juli soạn · bạn làm" run — its panel reads the run detail's `content.steps`. */
 /** `create` (P64, D73.3): the sandbox reviewer's "Tạo sản phẩm" — Juli creates a new listing. */
-export type RunKind = "listing" | "photo" | "manual" | "revert" | "content" | "create";
+/** `promotion` (P65, D74): the sandbox reviewer's "Tạo khuyến mãi" — Juli creates a product discount. */
+export type RunKind = "listing" | "photo" | "manual" | "revert" | "content" | "create" | "promotion";
 export type Who = "juli" | "you";
 
 export interface TimelineStep {
@@ -120,7 +121,13 @@ export const STEP_COPY = {
 } as const;
 
 const PHOTO_STAGE_TOOL = "upload_product_image";
-const WRITE_TOOLS = new Set(["update_product_listing", "upload_product_image", "update_product_price", "create_product"]);
+const WRITE_TOOLS = new Set([
+  "update_product_listing",
+  "upload_product_image",
+  "update_product_price",
+  "create_product",
+  "create_product_discount",
+]);
 const DAY_MS = 86_400_000;
 
 // -- plans ------------------------------------------------------------------------
@@ -188,6 +195,13 @@ export const PLANS: Readonly<Record<RunKind, readonly RowSpec[]>> = {
     { type: "tool", key: "write", label: "Tạo sản phẩm trên TikTok", tools: ["create_product"] },
     { type: "terminal", key: "terminal", label: "Kết thúc" },
   ],
+  promotion: [
+    { type: "tool", key: "candidates", label: "Đọc sản phẩm và khuyến mãi hiện có", tools: ["get_promotion_candidates"] },
+    { type: "tool", key: "eligibility", label: "Kiểm tra điều kiện khuyến mãi", tools: ["check_promotion_eligibility"] },
+    CONSENT_ROW,
+    { type: "tool", key: "write", label: "Tạo khuyến mãi trên TikTok", tools: ["create_product_discount"] },
+    { type: "terminal", key: "terminal", label: "Kết thúc" },
+  ],
   revert: [
     { type: "revertClicked", key: "clicked", label: "Bạn bấm Hoàn tác" },
     { type: "revertReason", key: "reason", label: "Cho Juli biết lý do" },
@@ -223,6 +237,9 @@ export const TOOL_STEP_LABELS: Readonly<Record<string, string>> = Object.freeze(
   get_category_candidates: "Đọc sản phẩm gốc và danh mục TikTok",
   check_listing_requirements: "Kiểm tra điều kiện đăng bán",
   create_product: "Tạo sản phẩm trên TikTok",
+  get_promotion_candidates: "Đọc sản phẩm và khuyến mãi hiện có",
+  check_promotion_eligibility: "Kiểm tra điều kiện khuyến mãi",
+  create_product_discount: "Tạo khuyến mãi trên TikTok",
 });
 export const UNKNOWN_TOOL_LABEL = "Bước xử lý";
 
@@ -420,10 +437,15 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
 
   const rows: TimelineStep[] = [];
 
+  // P64: a call the run never closed (its write raised and the run ended failed) did
+  // not finish -- it is a stopped step, never "Xong".
+  const callFailed = (call: ToolCall): boolean =>
+    call.ok === false || (call.ok === null && terminal?.kind === "failed");
+
   const toolRow = (spec: RowSpec, list: ToolCall[]): TimelineStep => {
     const last = list[list.length - 1];
     const running = list.some((call) => call.ok === null) && !ended;
-    const failed = list.some((call) => call.ok === false);
+    const failed = list.some(callFailed);
     return {
       key: spec.key,
       kind: "tool",
@@ -550,7 +572,9 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
           terminal.kind === "completed" && kind === "revert"
             ? STEP_COPY.revertTerminal
             : (measured ?? endedDetail(terminal.stopReason));
-        rows.push(pseudo(spec, "terminal", terminal.kind === "completed" ? "done" : "failed", terminal.at, detail));
+        // P64: a failed run schedules no measurement, so its last row never says "đặt lịch đo".
+        const endSpec = terminal.kind === "failed" ? { ...spec, label: TERMINAL_STEP_LABEL_NO_MEASURE } : spec;
+        rows.push(pseudo(endSpec, "terminal", terminal.kind === "completed" ? "done" : "failed", terminal.at, detail));
         break;
       }
     }
@@ -564,7 +588,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
       key: `tool-${call.id}`,
       kind: "tool",
       label: toolLabel(call.name),
-      status: running ? "current" : call.ok === false ? "failed" : "done",
+      status: running ? "current" : callFailed(call) ? "failed" : "done",
       at: call.completedAt ?? call.startedAt,
       detail: call.summary ?? (running ? narration : null),
     });

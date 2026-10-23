@@ -45,6 +45,13 @@ PRODUCT_CREATE_PATH = f"/product/{PRODUCT_API_VERSION}/products"
 PRODUCT_CATEGORIES_PATH = f"/product/{PRODUCT_API_VERSION}/categories"
 PRODUCT_PREREQUISITES_PATH = f"/product/{PRODUCT_LISTING_API_VERSION}/prerequisites"
 PRODUCT_BRANDS_PATH = f"/product/{PRODUCT_API_VERSION}/brands"
+#: The category tree every create-chain call uses (Get Categories, Check Listing
+#: Prerequisites, Get Attributes, Get Brands and the Create Product body). TikTok's
+#: product.json: "US and SEA regions: `v2` ... you must pass `v2`" on Create Product,
+#: and live run 74aefd1a (2026-10-23, VN sandbox shop) was refused with 12052217
+#: "all-region shops must use V2 categories". Juli's shops are VN (SEA), so v2 always;
+#: a category id from the v1 tree is not valid in a v2 create, hence one constant.
+PRODUCT_CATEGORY_VERSION = "v2"
 PRODUCT_SEO_WORDS_PATH = f"/product/{PRODUCT_SEO_API_VERSION}/products/seo_words"
 PRODUCT_SUGGESTIONS_PATH = f"/product/{PRODUCT_SEO_API_VERSION}/products/suggestions"
 PRODUCT_DIAGNOSES_PATH = f"/product/{PRODUCT_DIAGNOSIS_API_VERSION}/products/diagnoses"
