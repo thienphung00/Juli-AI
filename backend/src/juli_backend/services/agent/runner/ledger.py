@@ -502,6 +502,13 @@ class ToolExecutionLedger:
         except Exception as exc:
             self._mark_failed(row, error_message=str(exc))
             raise
+        if result.get("ok") is False:
+            # P64 (run 74aefd1a): the handler reports TikTok refused the write, so
+            # nothing changed. A `succeeded` row would be measured (impact reader)
+            # and counted as applied; `failed` is the truth.
+            reason = result.get("summary_vi") or result.get("error_code") or "write refused"
+            self._mark_failed(row, error_message=str(reason))
+            return result
         return self._mark_succeeded(row, result=result)
 
     @staticmethod

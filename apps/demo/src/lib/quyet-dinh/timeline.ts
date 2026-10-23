@@ -32,7 +32,7 @@
 
 import type { AgentEvent, ConfirmationOptionPayload } from "@juli/contracts";
 
-import { FIELD_LABELS } from "./copy";
+import { FIELD_LABELS, TERMINAL_STEP_LABEL_NO_MEASURE } from "./copy";
 import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../run-ledger/copy";
 import { resolveRunTerminalState } from "../run-ledger/terminal-state";
 
@@ -420,10 +420,15 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
 
   const rows: TimelineStep[] = [];
 
+  // P64: a call the run never closed (its write raised and the run ended failed) did
+  // not finish -- it is a stopped step, never "Xong".
+  const callFailed = (call: ToolCall): boolean =>
+    call.ok === false || (call.ok === null && terminal?.kind === "failed");
+
   const toolRow = (spec: RowSpec, list: ToolCall[]): TimelineStep => {
     const last = list[list.length - 1];
     const running = list.some((call) => call.ok === null) && !ended;
-    const failed = list.some((call) => call.ok === false);
+    const failed = list.some(callFailed);
     return {
       key: spec.key,
       kind: "tool",
@@ -550,7 +555,9 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
           terminal.kind === "completed" && kind === "revert"
             ? STEP_COPY.revertTerminal
             : (measured ?? endedDetail(terminal.stopReason));
-        rows.push(pseudo(spec, "terminal", terminal.kind === "completed" ? "done" : "failed", terminal.at, detail));
+        // P64: a failed run schedules no measurement, so its last row never says "đặt lịch đo".
+        const endSpec = terminal.kind === "failed" ? { ...spec, label: TERMINAL_STEP_LABEL_NO_MEASURE } : spec;
+        rows.push(pseudo(endSpec, "terminal", terminal.kind === "completed" ? "done" : "failed", terminal.at, detail));
         break;
       }
     }
@@ -564,7 +571,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
       key: `tool-${call.id}`,
       kind: "tool",
       label: toolLabel(call.name),
-      status: running ? "current" : call.ok === false ? "failed" : "done",
+      status: running ? "current" : callFailed(call) ? "failed" : "done",
       at: call.completedAt ?? call.startedAt,
       detail: call.summary ?? (running ? narration : null),
     });
