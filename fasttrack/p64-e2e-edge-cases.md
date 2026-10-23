@@ -49,6 +49,7 @@ Status keys: ✅ fixed and deployed · 🔧 fixed, not yet verified live · ⏳ 
 | C5 | Create-product card labelled "Tối ưu sản phẩm" | Card | Workflow label hard-coded | ✅ | Label comes from the lever or workflow, never a constant |
 | C6 | Run header doubled: "Tạo sản phẩm · từ Tạo sản phẩm mới từ «…»" | Run panel | Header prefixes a title that already has the prefix | ⏳ | Header = verb + subject. Never prefix a pre-labelled title |
 | C7 | Old declined or failed runs stay in the "Hàng chờ" queue ("Sự cố", "Không thay đổi") | Queue | Queue shows recent history | ⏳ decide retention for reviewers | The reviewer queue should show only the current session's runs, or label older ones clearly |
+| C8 | "Đo lường" lists 11 old cards (6 × nồi lẩu 25–26/08, 5 × bình nước 20/08), all "Tối ưu sản phẩm" | Reviewer Đo lường tab | Team's W5 live-verification runs (Aug) on the same sandbox shop are shown to the reviewer | ⏳ P66 | A reviewer/demo account sees only its own runs (since the account was created). A shared test shop needs per-actor history |
 
 ## D. Agent run, confirm, execute
 
@@ -76,6 +77,7 @@ Status keys: ✅ fixed and deployed · 🔧 fixed, not yet verified live · ⏳ 
 | D20 | Run panel steps out of order (the create step listed first) after reload | Run 887bb1be | Step ordering by completion/insert, not plan order | ⏳ P66 | Steps render in plan order |
 | D21 | After the promotion was created, listing-edit template steps still show ("Ghi lên TikTok Shop", "TikTok duyệt lại trang sản phẩm", "Kết thúc · đặt lịch đo") with "Juli đang ghi lên TikTok Shop…"; run stays "Đang chạy" | Run 887bb1be | Step template not per workflow; run not finalised after the write | ⏳ P66 | Each workflow has its own step template; a run finishes when its final write is confirmed |
 | D22 | Run header generic "Juli tự áp dụng lên TikTok Shop · Lượt chạy · …" for a promotion run (the queued view showed "Tạo khuyến mãi · …") | Run 887bb1be | Header falls back after reload | ⏳ P66 | Header derives from the workflow on every render |
+| D23 | Measurement copy contradicts itself: "Chờ đo · ngày 0" and "Đã qua ngày 7 nhưng Juli chưa có số đo…"; a sandbox can never be measured; "Hoàn tác" offered on others' runs | Đo lường cards | Status label ignores elapsed days; sandbox runs scheduled for measurement | ⏳ P66 | No measurement on shops that can't produce readings, with a plain statement why. One status per card. Revert only for the actor's own runs |
 
 ## E. Platform and operations
 
