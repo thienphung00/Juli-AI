@@ -16,7 +16,7 @@ let the model narrate and ended ``final_response`` -- so the run showed "Đã gh
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -76,7 +76,7 @@ class ChainProducts(ProductsResource):
     source listing and the new product come from the sandbox double."""
 
     def __init__(self, client: RecordingClient) -> None:
-        super().__init__(client)  # type: ignore[arg-type]
+        super().__init__(cast(Any, client))
         self._details = FakeProducts()
 
     def get_details(self, product_id: str) -> dict:
@@ -89,7 +89,7 @@ def test_the_category_version_is_v2():
 
 def test_every_category_call_of_the_resource_sends_v2():
     client = RecordingClient()
-    products = ProductsResource(client)  # type: ignore[arg-type]
+    products = ProductsResource(cast(Any, client))
     products.get_categories()
     products.check_listing_prerequisites(category_id="605254")
     products.get_category_attributes(category_id="605254")

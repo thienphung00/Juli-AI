@@ -24,6 +24,8 @@ EXPECTED_PUBLIC_EXPORTS = frozenset(
         "TikTokBusinessAdvertiserAuth",
         "TikTokBusinessAccountHolderAuth",
         "DEFAULT_OPEN_API_BASE_URL",
+        # P64: product category version (all-region shops must use v2 categories).
+        "PRODUCT_CATEGORY_VERSION",
         # HTTP client
         "TikTokClient",
         # #1969: pagination budgeting — a cold-start backfill and an incremental
