@@ -35,6 +35,8 @@ Status keys: ✅ fixed and deployed · 🔧 fixed, not yet verified live · ⏳ 
 | B6 | Test orders can't be back-dated | Partner Center create = now | Sandbox tool limit | 📌 spread orders over real days (Q3) | Plan demo data N days before a review |
 | B7 | Order status change seemed to fail, then applied later ("Awaiting collection") | Partner Center | Async status transitions in the sandbox | 📌 | Re-read state after a delay before concluding a sandbox action failed |
 | B8 | Seller Center edits can be lost: "Discard changes?" on navigation; custom option fields allow only 1 value ("Only 1 options supported") even after clearing | Manufacturer address field | Seller Center form quirks | 📌 | Make operator data edits in one pass. Clear old option values before adding new ones |
+| B9 | Seller Center shows a CAPTCHA ("Verify to continue", drag puzzle) mid-session on Promotions | Promotions page | TikTok bot check | 📌 a person must solve it; agents may not | Operator steps in Seller Center need a person on hand. Never plan an unattended Seller Center step |
+| B10 | Seed data blocks a workflow: a product discount from 07/05/2026 to 01/01/2027 (from the sandbox setup) made the only eligible product ineligible for a new discount | Promotions › Ongoing 3 (1 product discount, 2 vouchers) | Long-running seed promotion | 📌 product discount deactivated by owner decision (A); vouchers kept as Khuyến mãi data | Demo/review shop seed data must leave room for every workflow's preconditions. Check them before a review |
 
 ## C. Cards and emission
 
@@ -82,6 +84,7 @@ Status keys: ✅ fixed and deployed · 🔧 fixed, not yet verified live · ⏳ 
 | E6 | Flaky tests under load (ops-pages vitest, status-record migration, onboarding speed) | reruns pass | Timing | ⏳ | Track flakes; a flake must not block a review-critical deploy |
 | E7 | Fresh worktree: contract tests fail without node_modules | 32 local failures | pnpm install per worktree | 📌 known | Run `pnpm install` in each new worktree before suites |
 | E8 | Generated files (quality corpus, surface inventory) conflict on every merge | Every merge | Generated from the tree | 📌 | Take upstream, regenerate on the combined tree, commit last |
+| E9 | Claude-in-Chrome extension disconnects mid-action (twice; once right after clicking an irreversible Deactivate) | Tool error | Extension/session | 📌 | After any reconnect, re-read the page state before assuming an action applied or failed |
 
 ---
 
