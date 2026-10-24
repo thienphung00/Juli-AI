@@ -73,15 +73,25 @@ class GoTrueAdmin:
                 return None
         return None
 
-    def create_or_update(self, email: str, password: str, platform: str) -> AuthUser:
-        """Create the user (confirmed, marked); if the e-mail exists, take it over."""
+    def _post_user(self, email: str, password: str, platform: str) -> httpx.Response:
         body = {
             "email": email,
             "password": password,
             "email_confirm": True,
             "app_metadata": reviewer_app_metadata(platform),
         }
-        response = self._call("POST", "/users", json=body)
+        return self._call("POST", "/users", json=body)
+
+    def create(self, email: str, password: str, platform: str) -> AuthUser:
+        """Create a NEW user (confirmed, marked); never takes over an existing one (P67)."""
+        response = self._post_user(email, password, platform)
+        if response.status_code not in (200, 201):
+            raise GoTrueError(f"create user failed: HTTP {response.status_code}")
+        return self._user(response.json())
+
+    def create_or_update(self, email: str, password: str, platform: str) -> AuthUser:
+        """Create the user (confirmed, marked); if the e-mail exists, take it over."""
+        response = self._post_user(email, password, platform)
         if response.status_code in (200, 201):
             return self._user(response.json())
         if response.status_code not in (400, 409, 422):
@@ -98,8 +108,13 @@ class GoTrueAdmin:
         password: str | None = None,
         platform: str | None = None,
         ban: str | None = None,
+        email: str | None = None,
     ) -> AuthUser:
         body: dict[str, Any] = {}
+        if email is not None:
+            # P67: a retired reviewer user gives up its address for a fresh account.
+            body["email"] = email
+            body["email_confirm"] = True
         if password is not None:
             body["password"] = password
             body["email_confirm"] = True

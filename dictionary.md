@@ -1147,6 +1147,11 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - VI: Không đề xuất
 - Definition: Chip of a run Juli ended without proposing (`concluded_without_changes`, P66 D15); the panel shows the server's reason built from the run's facts, e.g. "Sản phẩm «…» đang có khuyến mãi giá đến dd/mm — TikTok không cho chồng hai khuyến mãi giá; Juli không tạo khuyến mãi mới."
 
+**`measure.sandbox.written`**
+- EN: Created the product · id [id] / Created a [n]% discount · id [id] / Edited the title and description · id [id] · TikTok confirmed at [HH:MM dd/mm/yyyy]
+- VI: Đã tạo sản phẩm · mã [id] / Đã tạo khuyến mãi giảm [n]% · mã [id] / Đã sửa tiêu đề và mô tả · mã [id] · TikTok xác nhận lúc [HH:MM dd/mm/yyyy]
+- Definition: Đo lường on the reviewer's sandbox shop (fast track P67, D75 Q2) lists every run whose TikTok write TikTok confirmed (ledger `succeeded`), with the TikTok id and the confirmation time; chip "Không đo · shop sandbox", greyed "Ngày 7 · không đo" / "Ngày 14 · không đo". Title: "Các lượt Juli đã ghi lên TikTok Shop". Sellers unchanged.
+
 ### Quyết định — P8-F (AC-8.7)
 
 **`qd.tab.de_xuat`**

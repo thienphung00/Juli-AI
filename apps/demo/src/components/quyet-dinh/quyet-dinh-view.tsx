@@ -34,7 +34,7 @@ import {
   type AuthedOptions,
   type QdClients,
 } from "../../lib/quyet-dinh/client-types";
-import { QD_TABS, type QdTabSlug } from "../../lib/quyet-dinh/copy";
+import { MEASURE_SANDBOX_TITLE, QD_TABS, type QdTabSlug } from "../../lib/quyet-dinh/copy";
 import { groupDecisions } from "../../lib/quyet-dinh/grouping";
 import { MEASURE_TABS, type MeasureTab } from "../../lib/quyet-dinh/measure-model";
 import type { CardStatus, P10DecisionItem, PhotoCheck, QdRun, RunDetail, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
@@ -54,6 +54,7 @@ import {
   DoLuongPanel,
   IDLE_REVERT,
   defaultTab,
+  isConfirmedSandboxWrite,
   isExecutedRun,
   measureTitle,
   type ChangesState,
@@ -458,28 +459,30 @@ export function QuyetDinhView({
   const selectedKind = selectedState && selectedRun && selectedState.runId === selectedRun.id ? selectedState.kind : "listing";
 
   // -- measure items -------------------------------------------------------------
+  const measureSandbox = useSandboxReviewer();
   const measureItems: MeasureItem[] = useMemo(
     () =>
-      runList
-        .filter(isExecutedRun)
-        .filter((run) => {
-          const state = changesByRun[run.id];
-          if (state?.status !== "ready") return true;
-          if (state.changes.reverts_run_id !== null) return false;
-          const m = measureByRun[run.id];
-          const measured = m?.status === "ready" && m.measurement !== null;
-          const executor = cardFor(run)?.executor;
-          return state.changes.changes.length > 0 || measured || executor === "seller_center" || executor === "juli_drafts";
-        })
-        .map((run) => ({
-          run,
-          card: cardFor(run),
-          changes: changesByRun[run.id],
-          measurement: measureByRun[run.id],
-          question: questions.find((question) => question.run_id === run.id && !question.revert_run_id) ?? null,
-          action: measureActions[run.id] ?? IDLE_REVERT,
-        })),
-    [runList, changesByRun, measureByRun, questions, measureActions, cardFor],
+      (measureSandbox
+        ? // P67 (D75 Q2): the sandbox reviewer sees every run whose TikTok write TikTok confirmed.
+          runList.filter(isConfirmedSandboxWrite)
+        : runList.filter(isExecutedRun).filter((run) => {
+            const state = changesByRun[run.id];
+            if (state?.status !== "ready") return true;
+            if (state.changes.reverts_run_id !== null) return false;
+            const m = measureByRun[run.id];
+            const measured = m?.status === "ready" && m.measurement !== null;
+            const executor = cardFor(run)?.executor;
+            return state.changes.changes.length > 0 || measured || executor === "seller_center" || executor === "juli_drafts";
+          })
+      ).map((run) => ({
+        run,
+        card: cardFor(run),
+        changes: changesByRun[run.id],
+        measurement: measureByRun[run.id],
+        question: questions.find((question) => question.run_id === run.id && !question.revert_run_id) ?? null,
+        action: measureActions[run.id] ?? IDLE_REVERT,
+      })),
+    [runList, changesByRun, measureByRun, questions, measureActions, cardFor, measureSandbox],
   );
   const measureTab = query.measureTab ?? defaultTab(measureItems);
 
@@ -490,7 +493,10 @@ export function QuyetDinhView({
   if (query.tab === "de-xuat" && groups.length > 0) title = groups[0].title;
   if (query.tab === "dang-thuc-hien") ({ eyebrow, title } = RUN_HEADER[selectedKind]);
   if (query.tab === "dang-thuc-hien" && selectedKind === "content" && selectedState?.headline) title = selectedState.headline;
-  if (query.tab === "do-luong") title = measureItems.length > 0 ? measureTitle(measureItems, measureTab) : "Đo kết quả sau 7 và 14 ngày";
+  if (query.tab === "do-luong") {
+    if (measureItems.length === 0) title = "Đo kết quả sau 7 và 14 ngày";
+    else title = measureSandbox ? MEASURE_SANDBOX_TITLE : measureTitle(measureItems, measureTab);
+  }
 
   const runHref = (runId: string | null) => qdHref({ tab: "dang-thuc-hien", run: runId, rulesOpen: false });
 
@@ -653,6 +659,7 @@ export function QuyetDinhView({
       {query.tab === "do-luong" ? (
         <DoLuongPanel
           items={measureItems}
+          loading={runs.status === "loading"}
           nowMs={nowMs}
           onKeep={onMeasureKeep}
           onOpenProposals={(event) => {
