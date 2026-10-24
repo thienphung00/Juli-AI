@@ -1103,3 +1103,80 @@ describe("P66 — Đo lường on the reviewer's sandbox shop", () => {
     expect(last.detail ?? "").not.toContain("Đo sơ bộ");
   });
 });
+
+describe("P67 (D75 Q2) — Đo lường lists every confirmed TikTok write on the sandbox shop", () => {
+  const SANDBOX = { platform: "shopee", expiresAt: "2099-11-13T00:00:00Z", mode: "sandbox", writesEnabled: true } as const;
+  const written = [
+    run({
+      id: "run-create",
+      status: "completed",
+      stop_reason: "final_response",
+      completed_at: "2026-10-23T05:41:00Z",
+      product_name: "Nồi lẩu điện",
+      run_flow: "create",
+      started_by_viewer: true,
+      confirmed_write: { kind: "create_product", tiktok_id: "1738157559581542019", confirmed_at: "2026-10-23T05:40:00Z", discount_pct: null, fields: [] },
+    }),
+    run({
+      id: "run-promo",
+      status: "completed",
+      stop_reason: "final_response",
+      completed_at: "2026-10-23T05:44:00Z",
+      product_name: "Bình nước",
+      run_flow: "promotion",
+      started_by_viewer: true,
+      confirmed_write: { kind: "create_promotion", tiktok_id: "7699734374178817800", confirmed_at: "2026-10-23T05:43:00Z", discount_pct: 12, fields: [] },
+    }),
+    run({
+      id: "run-edit",
+      status: "completed",
+      stop_reason: "final_response",
+      completed_at: "2026-10-23T06:10:00Z",
+      product_name: "Nồi lẩu điện mini",
+      started_by_viewer: true,
+      confirmed_write: { kind: "listing_edit", tiktok_id: "1736363193934775939", confirmed_at: "2026-10-23T06:09:00Z", discount_pct: null, fields: ["title", "description"] },
+    }),
+  ];
+  const measureClients = () => clients({ fetchDecisions: vi.fn().mockResolvedValue([]), fetchRuns: vi.fn().mockResolvedValue(written) });
+
+  it("lists create product, create discount and listing edit with the TikTok id and confirmation time", async () => {
+    render(
+      <StaticReviewerProvider reviewer={SANDBOX}>
+        <SignedInQuyetDinh
+          clients={measureClients()}
+          onNavigate={vi.fn()}
+          query={{ tab: "do-luong", run: null, rulesOpen: false }}
+          shop={{ id: "shop-1", name: "Shop" }}
+          token="tok"
+        />
+      </StaticReviewerProvider>,
+    );
+    await waitFor(() => expect(screen.getAllByTestId("measure-panel")).toHaveLength(3));
+    const list = screen.getByTestId("measure-list");
+    expect(list).toHaveTextContent("Đã tạo sản phẩm · mã 1738157559581542019 · TikTok xác nhận lúc 12:40 23/10/2026");
+    expect(list).toHaveTextContent("Đã tạo khuyến mãi giảm 12% · mã 7699734374178817800 · TikTok xác nhận lúc 12:43 23/10/2026");
+    expect(list).toHaveTextContent("Đã sửa tiêu đề và mô tả · mã 1736363193934775939");
+    expect(list).not.toHaveTextContent("Chưa có lượt chạy nào ghi thay đổi lên TikTok Shop");
+    for (const chip of screen.getAllByTestId("measure-chip")) expect(chip).toHaveTextContent("Không đo · shop sandbox");
+    expect(screen.getAllByTestId("measure-waiting")[0]).toHaveTextContent(
+      "Shop sandbox không có người mua thật nên Juli không đo kết quả lượt này.",
+    );
+    expect(screen.getAllByTestId("measure-days-off")[0]).toHaveTextContent("Ngày 7 · không đo");
+    expect(screen.getAllByTestId("measure-days-off")[0]).toHaveTextContent("Ngày 14 · không đo");
+    expect(screen.getByRole("tab", { name: /Ngày 7/ })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("tab", { name: /Ngày 14/ })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Các lượt Juli đã ghi lên TikTok Shop");
+    // A created product or promotion has nothing to restore: no Hoàn tác on those rows.
+    const create = screen.getAllByTestId("measure-panel").find((el) => el.getAttribute("data-run-id") === "run-create")!;
+    expect(within(create).queryByRole("button", { name: "Hoàn tác" })).toBeNull();
+  });
+
+  it("sellers are unchanged: a run with no listing change is not in Đo lường", async () => {
+    const c = measureClients();
+    signedIn({ tab: "do-luong" }, c);
+    await waitFor(() => expect(c.fetchChanges).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(screen.queryAllByTestId("measure-panel")).toHaveLength(0));
+    expect(screen.getByTestId("measure-list")).toHaveTextContent("Chưa có lượt chạy nào ghi thay đổi lên TikTok Shop.");
+    expect(screen.getByRole("tab", { name: /Ngày 7/ })).not.toHaveAttribute("aria-disabled");
+  });
+});

@@ -52,6 +52,7 @@ from juli_backend.services.agent_runs.events import (
     run_events_database_url,
 )
 from juli_backend.services.agent_runs.listing import (
+    ConfirmedWrite,
     PendingDecision,
     RunListItem,
     RunViewer,
@@ -59,6 +60,7 @@ from juli_backend.services.agent_runs.listing import (
 )
 
 __all__ = [
+    "ConfirmedWrite",
     "DEFAULT_HEARTBEAT_INTERVAL_S",
     "DEFAULT_POLL_INTERVAL_S",
     "ERROR_CONFIRMATION_ALREADY_DECIDED",

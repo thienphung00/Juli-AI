@@ -24,7 +24,7 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
   agent-run approve (`api/reviewer.py` `SANDBOX_RUN_ENDPOINTS`, sandbox pin only); the run
   writes through `SandboxWriteClientFactory` (`services/agent/composition`).
 - `gotrue` — `GoTrueAdmin` (service-role admin calls; CLI only).
-- `cli` — `python -m juli_backend.services.reviewer.cli create|renew|revoke|show`.
+- `cli` — `python -m juli_backend.services.reviewer.cli create|renew|revoke|reset|show`. `reset` (P67, D75 Q4) retires the account (Supabase user banned and renamed `local+retired-<stamp>@domain`, ops row revoked under that address) and creates a fresh one: new user id, new `created_at`, so the sandbox reviewer's run history starts empty (`create` on an existing address keeps the same user and row).
 - `enter_shop_read_scope` — re-export of `services/ops/view_as`.
 
 ## Invariants

@@ -28,7 +28,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
-from juli_backend.api.reviewer import audit_reviewer_confirmation, sandbox_run_viewer
+from juli_backend.api.reviewer import (
+    ConfirmedWriteOut,
+    audit_reviewer_confirmation,
+    confirmed_write_out,
+    sandbox_run_viewer,
+)
 from juli_backend.database import Shop, get_session
 from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
@@ -343,6 +348,8 @@ class WorkflowRunListItem(BaseModel):
     run_flow: str | None = None
     #: P66: sandbox reviewer only -- whether the reviewer started this run.
     started_by_viewer: bool | None = None
+    #: P67: sandbox reviewer only -- what the run wrote on TikTok and when TikTok confirmed it.
+    confirmed_write: ConfirmedWriteOut | None = None
 
 
 class WorkflowRunListResponse(BaseModel):
@@ -406,6 +413,7 @@ async def runs_list_response(
                 simulated=item.simulated,
                 run_flow=item.run_flow,
                 started_by_viewer=item.started_by_viewer,
+                confirmed_write=confirmed_write_out(item.confirmed_write),
             )
             for item in items
         ]

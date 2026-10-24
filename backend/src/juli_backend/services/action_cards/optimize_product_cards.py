@@ -89,6 +89,7 @@ from juli_backend.services.action_cards.emission_budget import (
     EXPIRED_STATUS,
     expired_card_returns,
 )
+from juli_backend.services.action_cards.run_writes import confirmed_write_at
 from juli_backend.services.action_cards.subjects import (
     PRODUCT_SUBJECT_TYPES,
     SUBJECT_TYPE_PRODUCT,
@@ -941,8 +942,8 @@ async def emit_optimize_product_cards(
             continue
         elif latest.status != decision_reasons.DISMISSED_CARD_STATUS and (
             basis_unchanged(stored_basis(latest), basis)
-            or persist._card_still_stands(
-                latest, now=computed_at, cooldown_days=emission_config.cooldown_days
+            or await _still_stands(
+                session, latest, now=computed_at, cooldown_days=emission_config.cooldown_days
             )
         ):
             # A card the seller rejected, declined or reverted (dismissed) is
@@ -1225,6 +1226,27 @@ async def live_metrics_by_product(
         if ref is not None and metric is not None:
             out[ref][card.id] = metric
     return dict(out)
+
+
+async def _still_stands(
+    session: AsyncSession, card: ActionCard, *, now: datetime, cooldown_days: int
+) -> bool:
+    """``persist._card_still_stands``, reading an agent run's confirmed write (P67, D75 Q1).
+
+    An agent run leaves its card ``approved`` and never stamps ``executed_at``; once the
+    run completed and TikTok confirmed its write (``run_writes``), the card is executed
+    at that moment -- the chain reopens ``cooldown_days`` later instead of never.
+    """
+    from juli_backend.services.action_cards import persist
+
+    if not persist._card_still_stands(card, now=now, cooldown_days=cooldown_days):
+        return False
+    if card.status != "approved" or card.executed_at is not None:
+        return True
+    written = await confirmed_write_at(session, card)
+    if written is None:
+        return True
+    return _as_aware(now) - _as_aware(written) < timedelta(days=cooldown_days)
 
 
 def _cooled_down(

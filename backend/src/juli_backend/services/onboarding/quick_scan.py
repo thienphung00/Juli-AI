@@ -69,6 +69,7 @@ from juli_backend.repositories import ShopIngestionStateRepo
 from juli_backend.services.optimize_product.cards import reason_sentence
 from juli_backend.services.optimize_product.config import StageDiagnosisConfig
 from juli_backend.services.optimize_product.decision_cards import (
+    LEVER_CODES,
     CardProposal,
     CatalogProduct,
     ShopCardPlan,
@@ -290,6 +291,9 @@ class QuickScanResult:
     candidates: int = 0
     seconds_since_connect: float | None = None
     error: str | None = None
+    #: P67 (D75 Q1): why a product (or ``product/lever``) got no card this run -- the
+    #: operator's forced sandbox scan logs it on one line, so "no card" is never silent.
+    reasons: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -417,6 +421,10 @@ async def run_quick_scan(
             if not forced and state.quick_scan_status in (QUICK_SCAN_DONE, QUICK_SCAN_SKIPPED):
                 result.skipped_reason = "already_ran"
                 result.status = state.quick_scan_status
+                logger.info(
+                    f"shop_quick_scan_skipped shop_id={shop_id} reason=already_ran force={force}",
+                    extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
+                )
                 return result
             # Fast track P20 (D28.4): a read-only shop gets no new cards. The
             # scan's state is left as it is, so a renewal can still run it.
@@ -425,7 +433,7 @@ async def run_quick_scan(
             if await is_read_only(session, shop_id, today=None):
                 result.skipped_reason = "read_only"
                 logger.info(
-                    "shop_quick_scan_skipped",
+                    f"shop_quick_scan_skipped shop_id={shop_id} reason={result.skipped_reason}",
                     extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
                 )
                 return result
@@ -434,7 +442,7 @@ async def run_quick_scan(
                 await session.commit()
                 result.status, result.skipped_reason = QUICK_SCAN_SKIPPED, "full_cards_exist"
                 logger.info(
-                    "shop_quick_scan_skipped",
+                    f"shop_quick_scan_skipped shop_id={shop_id} reason={result.skipped_reason}",
                     extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
                 )
                 return result
@@ -496,7 +504,7 @@ async def run_quick_scan(
     if connect_at is not None and finished is not None:
         result.seconds_since_connect = round((finished - connect_at).total_seconds(), 3)
     logger.info(
-        "shop_quick_scan_done",
+        _done_message(result, forced=forced),
         extra={
             "shop_id": str(shop_id),
             "status": result.status,
@@ -509,6 +517,20 @@ async def run_quick_scan(
         },
     )
     return result
+
+
+def _done_message(result: QuickScanResult, *, forced: bool) -> str:
+    """P67 (D75 Q1): the scan's outcome IN the message text -- journald keeps the
+    message, not ``extra`` (P64 D12) -- so ``journalctl ... | grep shop_quick_scan_done``
+    says what the scan left and why: cards written / surfaced / shown, products
+    considered, and each product's (or ``product/lever``'s) reason for no card."""
+    reasons = ", ".join(f"{key}={value}" for key, value in sorted(result.reasons.items()))
+    return (
+        f"shop_quick_scan_done shop_id={result.shop_id} forced={forced} "
+        f"status={result.status} cards={result.cards} surfaced={result.surfaced} "
+        f"shown={result.shown} candidates={result.candidates} calls={result.calls} "
+        f"skipped_reason={result.skipped_reason} reasons=[{reasons}]"
+    )
 
 
 async def _finish(
@@ -565,8 +587,8 @@ async def _scan_and_write(
         fetch_quick_inputs, resources, start=start, end_lt=end_lt, top_n=top_products()
     )
     result.calls = fetched.calls
-    if sandbox and not fetched.asked:
-        # P64 (D73.3): no product with GMV or clicks -- the sandbox's zero analytics.
+
+    async def by_orders() -> None:
         await _orders_scan_and_write(
             result,
             session_factory=session_factory,
@@ -577,10 +599,20 @@ async def _scan_and_write(
             config=config,
             forced=forced,
         )
+
+    if sandbox and not fetched.asked:
+        # P64 (D73.3): no product with GMV or clicks -- the sandbox's zero analytics.
+        await by_orders()
         return
     selection = select_quick_proposals(fetched.funnels, fetched.evidence, fetched.asked, config)
     result.candidates = len(selection.proposals)
     if not selection.proposals:
+        if sandbox:
+            # P67 (D75 Q1): the sandbox's analytics are no longer all zero but TikTok
+            # backs no lever with a code -- its real paid orders still pick the cards.
+            result.reasons["analytics"] = "no_candidate"
+            await by_orders()
+            return
         result.status, result.skipped_reason = QUICK_SCAN_DONE, "no_candidate"
         return
 
@@ -617,6 +649,10 @@ async def _scan_and_write(
         chosen.append(replace(proposal, title=title))
 
     if not chosen:
+        if sandbox:
+            result.reasons["analytics"] = "no_candidate"
+            await by_orders()
+            return
         result.status, result.skipped_reason = QUICK_SCAN_DONE, "no_candidate"
         return
     await _emit_quick_cards(
@@ -631,7 +667,11 @@ async def _scan_and_write(
         as_of=end_lt - timedelta(days=1),
         quick_block=quick_scan_block(moment),
         computed_at=moment,
+        forced=forced,
     )
+    if sandbox and forced and not result.shown:
+        # P67 (D75 Q1): every analytics card's chain is taken -- the orders' cards next.
+        await by_orders()
 
 
 async def _emit_quick_cards(
@@ -702,6 +742,11 @@ async def _emit_quick_cards(
             outcome = await apply_emission_budget(
                 session, shop_id, now=computed_at, config=emission_config
             )
+            present = [p for p in ranked if p.product_id in products]
+            for proposal, decision in zip(present, decisions, strict=False):
+                if decision.suppressed_reason is not None:
+                    key = f"{proposal.product_id}/{LEVER_CODES[proposal.lever]}"
+                    result.reasons[key] = decision.suppressed_reason
             written = [
                 d.card for d in decisions if d.suppressed_reason is None and d.card is not None
             ]
@@ -796,10 +841,17 @@ async def _orders_scan_and_write(
         result.calls += 1
         listing = raw if isinstance(raw, dict) else {}
         values = _detail_values(listing)
-        if values is None or gift_reason_from_raw(listing, config.exclude_title_patterns):
+        if values is None:
+            result.reasons[sales.product_id] = "listing_unreadable"
+            continue
+        if gift := gift_reason_from_raw(listing, config.exclude_title_patterns):
+            result.reasons[sales.product_id] = gift
             continue
         proposal = orders_proposal(sales, listing, evidence.get(sales.product_id, []), config)
         if proposal is None:
+            # Neither TikTok nor Juli's reading of the listing flags its title or
+            # description, or the listing has nothing to add (``orders_proposal``).
+            result.reasons[sales.product_id] = "no_listing_reason"
             continue
         product = known.get(sales.product_id)
         if product is not None:
@@ -807,7 +859,8 @@ async def _orders_scan_and_write(
         else:
             details[sales.product_id] = values
             title, status = values["title"], values["status"]
-        if exclusion_reason(CatalogProduct(sales.product_id, title, status), config):
+        if excluded := exclusion_reason(CatalogProduct(sales.product_id, title, status), config):
+            result.reasons[sales.product_id] = excluded
             continue
         funnels[sales.product_id] = funnel_from_sales(sales, title, days=ORDERS_WINDOW_DAYS)
         chosen.append(replace(proposal, title=title))

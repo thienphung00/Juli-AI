@@ -76,6 +76,7 @@ export {
   validateAgentEvent,
 } from "./agent-events";
 export type {
+  ConfirmedWrite,
   PendingDecisionSummary,
   WorkflowRunListItem,
   WorkflowRunListResponse,
