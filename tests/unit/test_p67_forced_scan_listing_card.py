@@ -132,7 +132,8 @@ async def test_the_forced_scan_surfaces_a_listing_card_over_the_august_edits(
     block = build_card_block(shown[0], payload, None)
     assert block is not None and block["lever"]["executor"] == "juli"
     # The operator sees the outcome on one log line.
-    assert any("shop_quick_scan_forced_outcome" in r.getMessage() for r in caplog.records)
+    done = [r.getMessage() for r in caplog.records if "shop_quick_scan_done" in r.getMessage()]
+    assert len(done) == 1 and "forced=True" in done[0] and "shown=True" in done[0]
 
 
 @pytest.mark.asyncio
@@ -153,9 +154,7 @@ async def test_a_recent_confirmed_edit_still_holds_its_chain_for_seven_days(
 
     assert not result.shown and result.cards == 0, result
     assert result.reasons[f"{BOTTLE}/title"] == "active_card_exists"
-    line = next(
-        r.getMessage() for r in caplog.records if "shop_quick_scan_forced_outcome" in r.getMessage()
-    )
+    line = next(r.getMessage() for r in caplog.records if "shop_quick_scan_done" in r.getMessage())
     assert f"{BOTTLE}/title=active_card_exists" in line
 
 

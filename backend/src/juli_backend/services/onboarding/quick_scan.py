@@ -421,6 +421,10 @@ async def run_quick_scan(
             if not forced and state.quick_scan_status in (QUICK_SCAN_DONE, QUICK_SCAN_SKIPPED):
                 result.skipped_reason = "already_ran"
                 result.status = state.quick_scan_status
+                logger.info(
+                    f"shop_quick_scan_skipped shop_id={shop_id} reason=already_ran force={force}",
+                    extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
+                )
                 return result
             # Fast track P20 (D28.4): a read-only shop gets no new cards. The
             # scan's state is left as it is, so a renewal can still run it.
@@ -429,7 +433,7 @@ async def run_quick_scan(
             if await is_read_only(session, shop_id, today=None):
                 result.skipped_reason = "read_only"
                 logger.info(
-                    "shop_quick_scan_skipped",
+                    f"shop_quick_scan_skipped shop_id={shop_id} reason={result.skipped_reason}",
                     extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
                 )
                 return result
@@ -438,7 +442,7 @@ async def run_quick_scan(
                 await session.commit()
                 result.status, result.skipped_reason = QUICK_SCAN_SKIPPED, "full_cards_exist"
                 logger.info(
-                    "shop_quick_scan_skipped",
+                    f"shop_quick_scan_skipped shop_id={shop_id} reason={result.skipped_reason}",
                     extra={"shop_id": str(shop_id), "reason": result.skipped_reason},
                 )
                 return result
@@ -499,10 +503,8 @@ async def run_quick_scan(
     )
     if connect_at is not None and finished is not None:
         result.seconds_since_connect = round((finished - connect_at).total_seconds(), 3)
-    if forced:
-        _log_forced_outcome(result)
     logger.info(
-        "shop_quick_scan_done",
+        _done_message(result, forced=forced),
         extra={
             "shop_id": str(shop_id),
             "status": result.status,
@@ -517,23 +519,17 @@ async def run_quick_scan(
     return result
 
 
-def _log_forced_outcome(result: QuickScanResult) -> None:
-    """P67 (D75 Q1): the operator's forced scan says on ONE line what it left and why.
-
-    journald keeps the message, not ``extra`` (P64 D12), so the outcome is in the text:
-    ``journalctl -u juli-worker* | grep shop_quick_scan_forced_outcome``.
-    """
+def _done_message(result: QuickScanResult, *, forced: bool) -> str:
+    """P67 (D75 Q1): the scan's outcome IN the message text -- journald keeps the
+    message, not ``extra`` (P64 D12) -- so ``journalctl ... | grep shop_quick_scan_done``
+    says what the scan left and why: cards written / surfaced / shown, products
+    considered, and each product's (or ``product/lever``'s) reason for no card."""
     reasons = ", ".join(f"{key}={value}" for key, value in sorted(result.reasons.items()))
-    logger.info(
-        "shop_quick_scan_forced_outcome shop_id=%s status=%s shown=%s cards=%s "
-        "candidates=%s skipped_reason=%s reasons=[%s]",
-        result.shop_id,
-        result.status,
-        result.shown,
-        result.cards,
-        result.candidates,
-        result.skipped_reason,
-        reasons,
+    return (
+        f"shop_quick_scan_done shop_id={result.shop_id} forced={forced} "
+        f"status={result.status} cards={result.cards} surfaced={result.surfaced} "
+        f"shown={result.shown} candidates={result.candidates} calls={result.calls} "
+        f"skipped_reason={result.skipped_reason} reasons=[{reasons}]"
     )
 
 
