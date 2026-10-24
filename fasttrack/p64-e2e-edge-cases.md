@@ -78,6 +78,11 @@ Status keys: ✅ fixed and deployed · 🔧 fixed, not yet verified live · ⏳ 
 | D21 | After the promotion was created, listing-edit template steps still show ("Ghi lên TikTok Shop", "TikTok duyệt lại trang sản phẩm", "Kết thúc · đặt lịch đo") with "Juli đang ghi lên TikTok Shop…"; run stays "Đang chạy" | Run 887bb1be | Step template not per workflow; run not finalised after the write | ⏳ P66 | Each workflow has its own step template; a run finishes when its final write is confirmed |
 | D22 | Run header generic "Juli tự áp dụng lên TikTok Shop · Lượt chạy · …" for a promotion run (the queued view showed "Tạo khuyến mãi · …") | Run 887bb1be | Header falls back after reload | ⏳ P66 | Header derives from the workflow on every render |
 | D23 | Measurement copy contradicts itself: "Chờ đo · ngày 0" and "Đã qua ngày 7 nhưng Juli chưa có số đo…"; a sandbox can never be measured; "Hoàn tác" offered on others' runs | Đo lường cards | Status label ignores elapsed days; sandbox runs scheduled for measurement | ⏳ P66 | No measurement on shops that can't produce readings, with a plain statement why. One status per card. Revert only for the actor's own runs |
+| D24 | Đo lường says "Chưa có lượt chạy nào ghi thay đổi lên TikTok Shop" while the reviewer has 2 successful writes (product create, discount create) | Live after P66 | Đo lường counts only measurable listing edits | ⏳ P67 (D75 Q2) | Đo lường lists every confirmed write with its TikTok id; a sandbox says "Không đo · shop sandbox" |
+| D25 | ✅ Product create verified live: TikTok product 1738157559581542019 "… (dùng nấu lẩu, mì, súp)", category 1216272 "Nồi lẩu điện" (V2), Live, SKU JULI-F7B54199 — also in Seller Center; panel advanced without reload; proposal pre-selected | Run 0b92db41 | — | ✅ live 2026-10-23 | — |
+| D26 | Forced quick scan (after P66) still surfaces no listing-edit card | Task a3a6330c | Unknown | ⏳ P67 (D75 Q1) | An operator-forced scan surfaces ≥1 card or records why |
+| D27 | Our test writes block the reviewer's own flow: the 12% test discount covers both products until 30/10, so the discount card won't appear for Shopee; the account carries our test history | Live | Shared sandbox state across testers | ⏳ D75 Q4: recreate the account + end the test discount just before submission | A review account must be reset to a clean, demo-ready state right before submission (history, promotions, caps) |
+| D28 | Stale run 74aefd1a (refused create shown as written) corrected by SQL → now "Thất bại" | Owner SQL + live check | Data written before #2158 | ✅ | Outcome-logic fixes need a data backfill |
 
 ## E. Platform and operations
 
@@ -103,3 +108,10 @@ Status keys: ✅ fixed and deployed · 🔧 fixed, not yet verified live · ⏳ 
 4. Caps and quotas for demo/review accounts (D13–D14).
 5. Run history visible to a reviewer (C7, D11).
 6. Rules as data drafted by the LLM per shop/category/product (#2153); forecasting/ROI for promotions (separate phase).
+
+## Decisions taken in the follow-up grill (D75, owner, 2026-10-23/24)
+
+1. **Listing edit**: re-run the forced quick scan, then test; no card appeared → root cause + fix in P67.
+2. **Đo lường (sandbox reviewer)**: list every confirmed write (create product, discount, listing edit) with its TikTok id and confirmation time, chip "Không đo · shop sandbox"; sellers unchanged.
+3. **429 copy and the decline explanation**: verified by backend and frontend tests only; no live trigger, no extra sandbox products, no env change.
+4. **Before submission**: recreate the review account (fresh user id and created_at → clean history) and end the 12% test discount so the reviewer has an eligible discount card. Keep the 3 products.
