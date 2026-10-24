@@ -129,6 +129,30 @@ export const MEASURE_NO_READING =
 /** P66: the reviewer's sandbox shop has no real buyers, so nothing is measured. */
 export const MEASURE_SANDBOX_NONE = "Shop sandbox không có người mua thật nên Juli không đo kết quả lượt này.";
 export const MEASURE_SANDBOX_CHIP = "Không đo · shop sandbox";
+/** P67 (D75 Q2): Đo lường on the sandbox shop lists every run whose TikTok write TikTok confirmed. */
+export const MEASURE_SANDBOX_TITLE = "Các lượt Juli đã ghi lên TikTok Shop";
+export const MEASURE_SANDBOX_LOADING = "Đang tải các lượt chạy…";
+export const MEASURE_SANDBOX_DAY7 = "Ngày 7 · không đo";
+export const MEASURE_SANDBOX_DAY14 = "Ngày 14 · không đo";
+/** What a confirmed write did: "Đã tạo sản phẩm · mã …", "Đã tạo khuyến mãi giảm 12% · mã …", "Đã sửa tiêu đề · mã …". */
+export function confirmedWriteLine(write: {
+  readonly kind: string;
+  readonly tiktok_id: string | null;
+  readonly discount_pct: number | null;
+  readonly fields: readonly string[];
+}): string {
+  let what: string;
+  if (write.kind === "create_product") what = "Đã tạo sản phẩm";
+  else if (write.kind === "create_promotion")
+    what = write.discount_pct !== null ? `Đã tạo khuyến mãi giảm ${write.discount_pct}%` : "Đã tạo khuyến mãi";
+  else if (write.kind === "price_edit") what = "Đã sửa giá";
+  else {
+    const names = write.fields.map((f) => (f === "title" ? "tiêu đề" : f === "description" ? "mô tả" : f));
+    what = names.length > 0 ? `Đã sửa ${names.join(" và ")}` : "Đã sửa trang sản phẩm";
+  }
+  return write.tiktok_id ? `${what} · mã ${write.tiktok_id}` : what;
+}
+export const CONFIRMED_AT = (time: string, date: string) => `TikTok xác nhận lúc ${time} ${date}`;
 /** P66: past day 7 with no reading -- never "Chờ đo · ngày 0" beside "Đã qua ngày 7". */
 export const MEASURE_NO_READING_CHIP = "Chưa có số đo";
 export const REVERT_LABEL = "Hoàn tác";

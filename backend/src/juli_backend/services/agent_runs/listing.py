@@ -8,9 +8,11 @@ keys or internal identifiers leave this function.
 
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +69,40 @@ class RunListItem:
     #: P66: for a sandbox reviewer, whether the reviewer started this run (approved its
     #: card) -- "Hoàn tác" is offered only then. ``None`` for every other viewer.
     started_by_viewer: bool | None = None
+    #: P67 (D75 Q2): for a sandbox reviewer, what this run wrote on TikTok and when
+    #: TikTok confirmed it (Đo lường lists every such run). ``None`` for every other viewer.
+    confirmed_write: ConfirmedWrite | None = None
+
+
+#: ``ConfirmedWrite.kind`` values.
+WRITE_CREATE_PRODUCT = "create_product"
+WRITE_CREATE_PROMOTION = "create_promotion"
+WRITE_LISTING_EDIT = "listing_edit"
+WRITE_PRICE_EDIT = "price_edit"
+#: The WRITE tools a run's confirmed write is read from (tool name -> kind). The image
+#: upload only stages a picture for a listing edit; it is not a change of its own.
+_WRITE_KINDS: dict[str, str] = {
+    "create_product": WRITE_CREATE_PRODUCT,
+    "create_product_discount": WRITE_CREATE_PROMOTION,
+    "update_product_listing": WRITE_LISTING_EDIT,
+    "update_product_price": WRITE_PRICE_EDIT,
+}
+
+
+@dataclass(frozen=True)
+class ConfirmedWrite:
+    """P67 (D75 Q2): one run's last WRITE TikTok confirmed (ledger ``succeeded``).
+
+    ``tiktok_id``: the new product's id (create), the promotion activity id (discount),
+    the edited product's id (listing / price edit). ``fields``: what a listing edit
+    changed (``title`` / ``description``).
+    """
+
+    kind: str
+    tiktok_id: str | None
+    confirmed_at: str | None
+    discount_pct: int | None = None
+    fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -115,6 +151,7 @@ async def list_runs(
     narrations = await _latest_narrations(session, [run.id for run, _ in rows])
     waiting = [run.id for run, _ in rows if run.status == WAITING_APPROVAL_RUN_STATUS]
     decisions = await _pending_decisions(session, waiting)
+    written = await _confirmed_writes(session, rows) if viewer is not None else {}
     simulated = await _simulated_writes(
         session, [run.id for run, _ in rows if run.write_mode == WRITE_MODE_SIMULATED]
     )
@@ -136,9 +173,71 @@ async def list_runs(
                 simulated=run.id in simulated,
                 run_flow=_RUN_FLOWS.get(run.workflow_key),
                 started_by_viewer=(run.id in mine) if viewer is not None else None,
+                confirmed_write=written.get(run.id),
             )
         )
     return items
+
+
+async def _confirmed_writes(
+    session: AsyncSession, rows: list[tuple[WorkflowRunRow, Product]]
+) -> dict[uuid.UUID, ConfirmedWrite]:
+    """Each run's last WRITE TikTok confirmed (one statement). A refused write
+    (``ok: false``, P64 D10) never counts."""
+    if not rows:
+        return {}
+    products = {run.id: product for run, product in rows}
+    result = await session.execute(
+        select(ToolExecution)
+        .where(
+            ToolExecution.workflow_run_id.in_(list(products)),
+            ToolExecution.status == _SUCCEEDED,
+            ToolExecution.tool_name.in_(list(_WRITE_KINDS)),
+        )
+        .order_by(ToolExecution.updated_at)
+    )
+    found: dict[uuid.UUID, ConfirmedWrite] = {}
+    for execution in result.scalars().all():
+        run_id = execution.workflow_run_id
+        outcome = _outcome(execution.outcome_json)
+        if run_id is None or outcome.get("ok") is False:
+            continue
+        found[run_id] = _confirmed_write(
+            execution, outcome, product_tiktok_id=products[run_id].tiktok_product_id
+        )
+    return found
+
+
+def _outcome(raw: str | None) -> dict[str, Any]:
+    try:
+        value = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _confirmed_write(
+    execution: ToolExecution, outcome: dict[str, Any], *, product_tiktok_id: str | None
+) -> ConfirmedWrite:
+    kind = _WRITE_KINDS[execution.tool_name]
+    confirmed_at = outcome.get("confirmed_at")
+    if not isinstance(confirmed_at, str) or not confirmed_at:
+        confirmed_at = _iso(execution.updated_at)
+    if kind == WRITE_CREATE_PRODUCT:
+        tiktok_id = outcome.get("tiktok_product_id")
+    elif kind == WRITE_CREATE_PROMOTION:
+        tiktok_id = outcome.get("activity_id")
+    else:
+        tiktok_id = product_tiktok_id
+    pct = outcome.get("discount_pct")
+    fields = tuple(f for f in ("title", "description") if outcome.get(f))
+    return ConfirmedWrite(
+        kind=kind,
+        tiktok_id=str(tiktok_id) if tiktok_id else None,
+        confirmed_at=confirmed_at,
+        discount_pct=pct if isinstance(pct, int) and not isinstance(pct, bool) else None,
+        fields=fields if kind == WRITE_LISTING_EDIT else (),
+    )
 
 
 async def _started_by(
@@ -278,6 +377,7 @@ async def pending_decision(session: AsyncSession, run_id: uuid.UUID) -> PendingD
 
 
 __all__ = [
+    "ConfirmedWrite",
     "PendingDecision",
     "RunListItem",
     "STATUS_EVENT_TYPE",

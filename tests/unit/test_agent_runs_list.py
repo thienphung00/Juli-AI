@@ -42,6 +42,8 @@ RUN_LIST_FIELDS = {
     # P66: the sandbox create flows; whether a sandbox reviewer started the run.
     "run_flow",
     "started_by_viewer",
+    # P67: sandbox reviewer only -- the run's TikTok write and its confirmation.
+    "confirmed_write",
 }
 
 # (stop_reason, status) -- every terminal pair the check constraint allows,
