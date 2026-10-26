@@ -108,24 +108,37 @@ scope)`, is the only reader; it fails closed (no row, revoked, or lookup error �
   the Connector before the client approves a sub-processor list that covers Supabase / Hetzner for
   that phase (T14).
 
-### 5. OpenAI through one gate, two fixed projects (D6)
+### 5. OpenAI through one gate; the backend has one project (D6, revised 2026-10-26)
 
-- Exactly two OpenAI projects, one service-account key each: `juli-internal` and
-  `juli-client-data` (ZDR requested for the latter). New clients never need a key. Keys are read
-  from Secrets Manager (`juli/api/production`) through a TTL-cached loader replacing
-  `require_env`, so rotation needs no deploy.
-- In `openai_adapter`, a request carrying a `shop_id` is sent only if: the client-data key is used,
-  `require_consent(…, 'llm_processing')` passes, the body was built by the T3 allowlist
-  (listing content, attributes, aggregates; no shop name / id, `buyer_id`, credentials), and
-  `store=false`, no `previous_response_id`, no `background`. Otherwise refused — never retried on
-  the internal key.
-- The same gate writes append-only `llm_call_log(shop_id, purpose, model, endpoint, project,
+- Every backend OpenAI call carries shop data (agent runs, image inspection, content-analysis
+  media and scoring, content card drafts), so the backend uses **one** OpenAI project,
+  `juli-client-data`, with one restricted service-account key (permission: Model capabilities
+  only; Threads, Files, Vector Stores, Batch, Fine-tuning, Evals off; model allowlist
+  `gpt-5.4-nano`, `whisper-1`). Its key is the existing `OPENAI_API_KEY` field of
+  `juli/api/production`, delivered by `fetch-secrets.sh` / `refresh-secrets.sh` like every other
+  secret: rotation = edit the secret, the daily refresh restarts the API. No per-client keys, no
+  key routing in code. The previous project is research-only (`~/.juli-sim.env`), never on the
+  server.
+- Per-client usage comes from Juli, not OpenAI (OpenAI splits by project / key / model only):
+  `llm_call_log` per call, priced with the model table; the monthly per-project token total must
+  reconcile with OpenAI's figure for `juli-client-data` (a gap = a call bypassed the gate). The
+  existing per-shop cap (`services/shop_rules/openai_cap.py`, D25.8) stays.
+- All four call paths go through one gate (today `vision.py` and `content_analysis/openai_media.py`
+  call OpenAI directly). A request carrying a `shop_id` is sent only if
+  `require_consent(…, 'llm_processing')` passes, the body was built by the T3 allowlist (listing
+  content, attributes, aggregates, media of the shop's own listings; no shop name / id,
+  `buyer_id`, credentials), and `store=false`, no `previous_response_id`, no `background`.
+  Otherwise refused.
+- The gate writes append-only `llm_call_log(shop_id, purpose, model, endpoint, project,
   input_tokens, output_tokens, request_id, created_at)` — metadata only, no prompt or output;
-  no `UPDATE` / `DELETE` for `juli_app`. Per-client cost comes from this log.
+  no `UPDATE` / `DELETE` for `juli_app`.
 - CI rule: no call to `files`, `vector_stores`, `assistants`, `threads`, `conversations`,
   `batches`, `fine_tuning`, `evals`.
+- **ZDR is deferred** (owner, 2026-10-26). Until OpenAI approves it for `juli-client-data`,
+  OpenAI's abuse-monitoring retention (up to 30 days) applies, as the sub-processor list sent to
+  Ory already states. When requesting it, confirm whether `whisper-1` transcription is covered.
 - A future per-client project (an enterprise asking for its own ZDR or residency) is a routing
-  table `shop → project`, default `juli-client-data`; not built now.
+  table `shop → project`; not built now.
 
 ### 6. Shop writes need the client's own click (D7)
 
@@ -156,7 +169,7 @@ scope)`, is the only reader; it fails closed (no row, revoked, or lookup error �
 PRs on `fasttrack/optimize-product`, each from its own `fasttrack/nda-*` branch, migrations after
 102, none merged before the owner deploys P68:
 (1) this ADR + grill log → (2) `data_use_consents` + `require_consent` → in parallel
-(3) allowlist + HMAC + clean-up migration (§4), (4) OpenAI gate + `llm_call_log` (§5),
+(3) allowlist + HMAC + clean-up migration (§4), (4) OpenAI gate on all four call paths + `llm_call_log` (§5),
 (5) approvals (§6) → (6) builder / fleet calibration / client-layer storage (§3).
 Access log (T6) and offboarding with deletion certificates (T8) follow in a second wave.
 
