@@ -588,11 +588,9 @@ async def test_the_sandbox_reviewer_gets_one_real_promotion_card(session, world)
         "executor": "juli",
     }
     assert card["workflow_label"] == "Khuyến mãi"
-    assert card["product_title"] == "Tạo khuyến mãi giảm giá cho «Bình giữ nhiệt inox 750ml»"
-    assert card["change_fields"] == [
-        {"field": "product_discount", "label": "Khuyến mãi giảm giá trên TikTok"}
-    ]
-    assert card["reason_short"] == "Thử khuyến mãi trên TikTok"
+    assert card["product_title"] == "Tạo khuyến mãi giảm giá cho Bình giữ nhiệt inox 750ml"
+    assert card["change_fields"] == [{"field": "product_discount", "label": "Giảm giá"}]
+    assert card["reason_short"] == "Thử giảm giá"
     assert card["expected_gmv_per_month"] is None  # no ROI / forecast claim
     assert item["is_executable"] is True
     assert _promo_card(second.json()["data"])["id"] == item["id"]

@@ -233,7 +233,7 @@ describe("P64 — the sandbox reviewer is never told a run was simulated", () =>
       </StaticReviewerProvider>,
     );
     await screen.findByText("Juli Sandbox");
-    expect(screen.getByTestId("reviewer-banner")).toHaveTextContent("thay đổi được ghi thật lên TikTok");
+    expect(screen.getByTestId("reviewer-banner")).toHaveTextContent("shop sandbox TikTok");
     expect(document.body.textContent).not.toMatch(SIMULATION_WORDS);
   });
 });

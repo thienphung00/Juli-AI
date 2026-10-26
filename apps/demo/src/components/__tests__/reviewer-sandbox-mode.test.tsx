@@ -149,6 +149,9 @@ describe("mode switch", () => {
     render(<ReviewerBanner onReset={vi.fn()} reviewer={SANDBOX} />);
     const banner = screen.getByTestId("reviewer-banner");
     expect(banner).toHaveTextContent(REVIEWER_SANDBOX_BANNER_COPY);
+    expect(banner).toHaveTextContent(/^Tài khoản đối tác .* · shop sandbox TikTok/);
+    expect(banner.textContent ?? "").not.toContain("ghi thật");
+    expect(banner.textContent ?? "").not.toContain("Đối tác Shopee");
     expect(banner).not.toHaveTextContent("mô phỏng");
     expect(banner).not.toHaveTextContent("dữ liệu mẫu");
     expect(screen.queryByRole("button", { name: REVIEWER_RESET_LABEL })).toBeNull();
@@ -235,21 +238,21 @@ describe("connection card", () => {
       .fn()
       .mockResolvedValueOnce({ status: "queued", syncedAt: SHOP.synced_at, retryAfterSeconds: 3 })
       .mockResolvedValueOnce({ status: "rate_limited", retryAfterSeconds: 2 });
-    render(<SandboxConnectionCard fetchShop={fetchShop} refreshMs={10_000} sync={sync} token="t" />);
+    render(<SandboxConnectionCard fetchShop={fetchShop} refreshMs={5_000} sync={sync} token="t" />);
     const button = await screen.findByRole("button", { name: "Đồng bộ ngay" });
     await act(async () => {
       button.click();
     });
-    expect(await screen.findByText(/Đã xếp lịch đồng bộ/)).toBeInTheDocument();
+    expect(await screen.findByText("Đang đồng bộ…")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Đồng bộ ngay \(3s\)/ })).toBeDisabled();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3100);
     });
     expect(screen.getByRole("button", { name: "Đồng bộ ngay" })).toBeEnabled();
-    // The shop is re-read ~10 s after a queued sync.
+    // The shop is re-read every ~5 s after a queued sync.
     expect(fetchShop).toHaveBeenCalledTimes(1);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(7000);
+      await vi.advanceTimersByTimeAsync(2000);
     });
     expect(fetchShop).toHaveBeenCalledTimes(2);
     await act(async () => {
@@ -261,6 +264,61 @@ describe("connection card", () => {
       await vi.advanceTimersByTimeAsync(2100);
     });
     expect(screen.getByRole("button", { name: "Đồng bộ ngay" })).toBeEnabled();
+  });
+});
+
+describe("connection card sync refresh", () => {
+  it("polls every 5 s until the sync time changes, then stops and drops 'Đang đồng bộ…'", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const later = { ...SHOP, synced_at: new Date().toISOString() };
+    const fetchShop = vi
+      .fn()
+      .mockResolvedValueOnce(SHOP)
+      .mockResolvedValueOnce(SHOP)
+      .mockResolvedValue(later);
+    const sync = vi.fn().mockResolvedValue({ status: "queued", syncedAt: SHOP.synced_at, retryAfterSeconds: 60 });
+    render(<SandboxConnectionCard fetchShop={fetchShop} sync={sync} token="t" />);
+    const button = await screen.findByRole("button", { name: "Đồng bộ ngay" });
+    await act(async () => {
+      button.click();
+    });
+    expect(await screen.findByText("Đang đồng bộ…")).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
+    expect(screen.getByText("Đang đồng bộ…")).toBeInTheDocument(); // same time: keep polling
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
+    expect(screen.queryByText("Đang đồng bộ…")).toBeNull();
+    expect(screen.getByTestId("sandbox-synced-at")).toHaveTextContent(/\(vừa xong\)/);
+    const calls = fetchShop.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(fetchShop).toHaveBeenCalledTimes(calls);
+  });
+
+  it("gives up after the maximum poll time when the sync time never changes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchShop = vi.fn().mockResolvedValue(SHOP);
+    const sync = vi.fn().mockResolvedValue({ status: "queued", syncedAt: SHOP.synced_at, retryAfterSeconds: 60 });
+    render(<SandboxConnectionCard fetchShop={fetchShop} maxPollMs={90_000} refreshMs={5_000} sync={sync} token="t" />);
+    const button = await screen.findByRole("button", { name: "Đồng bộ ngay" });
+    await act(async () => {
+      button.click();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(95_000);
+    });
+    expect(screen.queryByText("Đang đồng bộ…")).toBeNull();
+    const calls = fetchShop.mock.calls.length;
+    expect(calls).toBeGreaterThan(10);
+    expect(calls).toBeLessThanOrEqual(20);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(fetchShop).toHaveBeenCalledTimes(calls);
   });
 });
 

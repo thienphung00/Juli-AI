@@ -142,7 +142,7 @@ PRODUCTION_PROMPT_VERSION: dict[str, int] = {
     OPTIMIZE_PRODUCT_PLAYBOOK.workflow_key: 3,
     CONTENT_VIDEO_PLAYBOOK.workflow_key: 1,
     CONTENT_LIVE_PLAYBOOK.workflow_key: 1,
-    CREATE_PRODUCT_PLAYBOOK.workflow_key: 1,
+    CREATE_PRODUCT_PLAYBOOK.workflow_key: 2,
     CREATE_PROMOTION_PLAYBOOK.workflow_key: 1,
 }
 

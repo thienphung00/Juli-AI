@@ -201,7 +201,7 @@ test("signed-in: bands gate → rules editor → Duyệt 2 thẻ → SSE timelin
   if (SHOTS && test.info().project.name === "desktop") await page.setViewportSize({ width: 1440, height: 900 });
 
   await page.goto("/decisions");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("3 thẻ tối ưu để nâng CTOR Thẻ sản phẩm");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("CTOR Thẻ sản phẩm · 3 thẻ");
   const batch = page.getByRole("button", { name: "Duyệt 2 thẻ" });
   await expect(batch).toBeDisabled();
   // AC-10.3: a promotion card names who executes it (Levers.dc.html).

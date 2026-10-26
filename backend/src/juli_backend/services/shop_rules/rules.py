@@ -71,7 +71,7 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import ScalarSelect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.run_changes import SET_BY_VALUES, ShopRule
@@ -527,9 +527,30 @@ async def max_open_cards(session: AsyncSession, shop_id: uuid.UUID) -> int:
 async def auto_levers(session: AsyncSession, shop_id: uuid.UUID) -> frozenset[str]:
     """The levers Juli may execute for this shop; all listing levers until set."""
     rows = await _rows(session, shop_id, AUTO_LEVERS)
-    if not rows or not isinstance(rows[0].value, list):
+    return auto_levers_from_value(rows[0].value if rows else None)
+
+
+def auto_levers_from_value(value: Any) -> frozenset[str]:
+    """:func:`auto_levers` from the stored ``auto_levers`` value (``None``: not set)."""
+    if not isinstance(value, list):
         return DEFAULT_AUTO_LEVERS
-    return frozenset(str(v) for v in rows[0].value) & DEFAULT_AUTO_LEVERS
+    return frozenset(str(v) for v in value) & DEFAULT_AUTO_LEVERS
+
+
+def auto_levers_value_subquery(shop_id: uuid.UUID) -> ScalarSelect[Any]:
+    """The stored ``auto_levers`` value as a scalar subquery (P69).
+
+    The same row :func:`auto_levers` reads (first by ``scope_ref``), for a caller that
+    reads it in the same statement as something else; decode with
+    :func:`auto_levers_from_value`.
+    """
+    return (
+        select(ShopRule.value)
+        .where(ShopRule.shop_id == shop_id, ShopRule.rule_key == AUTO_LEVERS)
+        .order_by(ShopRule.scope_ref)
+        .limit(1)
+        .scalar_subquery()
+    )
 
 
 async def configured_max_open_cards(session: AsyncSession, shop_id: uuid.UUID) -> int | None:

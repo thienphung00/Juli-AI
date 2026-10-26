@@ -77,12 +77,19 @@ async def replay_raw_events(
         if entry is None:
             result.unparseable += 1
             continue
-        shop = await ShopsRepo(session).get_by_tiktok_id(event.shop_id)
-        if shop is None:
+        # P69 (E12): the replay holds no tenant scope, so the shop is resolved across
+        # tenants (migration 102's definer function, either TikTok identifier); an
+        # unscoped `shops` read as `juli_app` would see no shop at all.
+        shop_id = await ShopsRepo(session).resolve_id_by_tiktok_key(event.shop_id)
+        if shop_id is None:
+            logger.warning(
+                "product_history_replay_unknown_shop",
+                extra={"tiktok_shop_id": event.shop_id, "event_type": event.type},
+            )
             result.unknown_shop += 1
             continue
         # The signal row is a tenant row: write it under the shop's scope.
-        async with with_shop_scope(session, shop.id):
+        async with with_shop_scope(session, shop_id):
             await effects.on_catalog_event(entry=entry, event=event)
         result.replayed += 1
     logger.info("product_history_replay", extra=result.__dict__)

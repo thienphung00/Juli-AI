@@ -143,7 +143,7 @@ describe("the create run", () => {
     ]);
     expect(timeline.pendingConsent?.toolName).toBe("create_product");
     const rows = consentRows(PROPOSAL, { revert: false, productName: "Bình giữ nhiệt inox 750ml", card: CARD, create: true });
-    expect(rows.map((row) => row.label)).toEqual(["Mã danh mục TikTok", "Tiêu đề", "Mô tả", "Lý do chọn danh mục"]);
+    expect(rows.map((row) => row.label)).toEqual(["Tiêu đề", "Mô tả", "Danh mục"]);
     expect(rows.every((row) => row.before === null)).toBe(true);
   });
 
@@ -152,7 +152,9 @@ describe("the create run", () => {
     render(sandbox(<RunPanel {...p} />));
     // P66 (D19): the single proposal is selected by default.
     const option = screen.getByRole("button", { pressed: true, name: /Combo 2 bình giữ nhiệt/ });
-    expect(option).toHaveTextContent("Lý do chọn danh mục");
+    expect(option).toHaveTextContent("Danh mục");
+    expect(option).not.toHaveTextContent("605254");
+    expect(option).not.toHaveTextContent("Mã danh mục");
     expect(option).toBeEnabled();
     const confirm = screen.getByRole("button", { name: "Xác nhận tạo sản phẩm" });
     expect(confirm).toBeEnabled();
@@ -162,7 +164,7 @@ describe("the create run", () => {
 
   it("C6: the header is verb + the subject product, never the pre-labelled card title", () => {
     const p = props(PAUSED, "consent", "waiting_approval");
-    const card = { ...CARD, title: "Tạo sản phẩm mới từ «Bình giữ nhiệt inox 750ml»" } as CardView;
+    const card = { ...CARD, title: "Tạo sản phẩm mới từ Bình giữ nhiệt inox 750ml" } as CardView;
     render(sandbox(<RunPanel {...p} card={card} />));
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/^Tạo sản phẩm · Bình giữ nhiệt inox 750ml$/);
     expect(screen.getByRole("heading", { level: 2 })).not.toHaveTextContent("từ");

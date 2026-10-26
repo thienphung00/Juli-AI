@@ -52,6 +52,7 @@ from juli_backend.core.security import (
     bind_reviewer_gate,
 )
 from juli_backend.database import Shop, set_tenant_context
+from juli_backend.database.tenant_context import _apply_tenant_context_to_session
 from juli_backend.integrations.tiktok import mark_reviewer_session
 from juli_backend.services import reviewer as reviewer_service
 from juli_backend.services.agent_runs import RunViewer
@@ -323,15 +324,9 @@ async def enter_reviewer_shop(
     if sent is not None and sent not in (str(context.alias_id), str(context.shop_id)):
         logger.warning("reviewer_shop_refused", extra={"platform": context.platform})
         raise deny("shop")
-    if context.shop is None:
-        shop = await reviewer_service.enter_shop_read_scope(session, context.shop_id)
-        if shop is None:
-            logger.error("reviewer_shop_missing")
-            raise deny("unconfigured", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
-        set_tenant_context(shop.id, shop.user_id)
-        context.pin = await reviewer_service.sandbox.classify_pin(session, shop.id)
-        context.dictionary = await reviewer_service.catalog.load_dictionary(session, shop)
-        context.shop = shop
+    shop = context.shop
+    if shop is None:
+        shop = await _enter_pinned_shop(session, context, context.shop_id)
     if sent == str(context.shop_id) and sent != str(context.alias_id) and context.mask_enabled:
         logger.warning("reviewer_shop_refused", extra={"platform": context.platform})
         raise deny("shop")
@@ -353,7 +348,40 @@ async def enter_reviewer_shop(
             path=None,
         )
         raise deny("sandbox_only")
-    return context.shop
+    return shop
+
+
+async def _enter_pinned_shop(
+    session: AsyncSession, context: ReviewerContext, shop_id: uuid.UUID
+) -> Shop:
+    """Enter the pinned shop's tenant scope and learn what the pin is (P69: cached facts).
+
+    A pin-cache hit (``services/reviewer/pin_cache``, the reviewer identity TTL) skips
+    the ops read and the pin classification -- seven round trips -- but STILL applies the
+    shop's tenant scope (one ``set_config`` statement) to this request's transaction, so
+    RLS narrows every query exactly as on a miss.
+    """
+    pinned = reviewer_service.pin_cache.cached(shop_id)
+    if pinned is not None:
+        shop = pinned.shop()
+        await _apply_tenant_context_to_session(session, shop.id, shop.user_id)
+        pin = pinned.pin
+    else:
+        found = await reviewer_service.enter_shop_read_scope(session, shop_id)
+        if found is None:
+            logger.error("reviewer_shop_missing")
+            raise deny("unconfigured", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+        shop = found
+        pin = await reviewer_service.sandbox.classify_pin(session, shop.id)
+        reviewer_service.pin_cache.remember(shop, pin)
+    set_tenant_context(shop.id, shop.user_id)
+    context.pin = pin
+    if pin.mask:
+        # The identity mask's dictionary (cached per shop); Juli's own sandbox shop is
+        # shown unmasked (D73 Q1/Q2), so it needs none.
+        context.dictionary = await reviewer_service.catalog.load_dictionary(session, shop)
+    context.shop = shop
+    return shop
 
 
 async def _audit_sandbox_refusal(
