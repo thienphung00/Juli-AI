@@ -56,6 +56,7 @@ from juli_backend.repositories.commerce import (
     ReturnsRepo,
     SettlementsRepo,
 )
+from juli_backend.repositories.consent import DataUseConsentsRepo
 from juli_backend.repositories.decisions import (
     ActionCardsRepo,
     AlertConfigsRepo,
@@ -91,6 +92,7 @@ __all__ = [
     "BronzeRawPayloadsRepo",
     "BronzeReturnRawPayloadsRepo",
     "CreatorsRepo",
+    "DataUseConsentsRepo",
     "GoldKpiEnvelopesRepo",
     "GraphRepo",
     "InventoryRepo",
