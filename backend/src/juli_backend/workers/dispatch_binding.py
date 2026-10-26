@@ -13,6 +13,10 @@ from juli_backend.services.execution.dispatch import set_task_dispatcher
 from juli_backend.services.execution.outcome_port import set_workflow_outcome_recorder
 from juli_backend.services.ingestion import set_bootstrap_dispatcher
 from juli_backend.services.product_history import HistoryWork, set_history_enqueuer
+from juli_backend.services.shop_diagnosis_daily import (
+    REFRESH_DEBOUNCE_SECONDS,
+    set_report_refresh_enqueuer,
+)
 
 
 @dataclass
@@ -62,6 +66,16 @@ class CeleryHistoryEnqueuer:
 
 
 @dataclass
+class CeleryReportRefreshEnqueuer:
+    """Enqueue a delayed stored-report rebuild after an order change (P68, B12)."""
+
+    def __call__(self, shop_id: str) -> str | None:
+        from juli_backend.workers.tasks.shop_diagnosis import enqueue_shop_diagnosis_refresh
+
+        return enqueue_shop_diagnosis_refresh(shop_id, countdown=REFRESH_DEBOUNCE_SECONDS)
+
+
+@dataclass
 class CeleryTaskDispatcher:
     """Enqueue approved tool execution via Celery — lives in workers, not domain."""
 
@@ -101,3 +115,4 @@ def bind_celery_dispatchers() -> None:
     set_task_dispatcher(CeleryTaskDispatcher())
     set_workflow_outcome_recorder(OperationsWorkflowOutcomeRecorder())
     set_history_enqueuer(CeleryHistoryEnqueuer())
+    set_report_refresh_enqueuer(CeleryReportRefreshEnqueuer())

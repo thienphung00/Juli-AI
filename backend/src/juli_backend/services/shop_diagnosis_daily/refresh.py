@@ -117,10 +117,14 @@ async def _stored_report_facts(
     return end, source
 
 
-def _default_enqueue(shop_id: str) -> Any:
-    from juli_backend.workers.tasks.shop_diagnosis import enqueue_shop_diagnosis_refresh
+_enqueuer: EnqueueFn | None = None
 
-    return enqueue_shop_diagnosis_refresh(shop_id, countdown=REFRESH_DEBOUNCE_SECONDS)
+
+def set_report_refresh_enqueuer(enqueuer: EnqueueFn | None) -> None:
+    """Bound by ``workers/dispatch_binding`` at API / worker startup (services must not import
+    workers). Unbound, the hook is a no-op."""
+    global _enqueuer
+    _enqueuer = enqueuer
 
 
 def _qualifies(status: str | None) -> bool:
@@ -150,6 +154,9 @@ async def maybe_refresh_stored_report(
     try:
         if not _qualifies(status):
             return False
+        enqueue_fn = enqueue or _enqueuer
+        if enqueue_fn is None:
+            return False
         claim_fn = claim or _default_claim()
         if claim_fn is None:
             return False
@@ -163,7 +170,7 @@ async def maybe_refresh_stored_report(
         key = str(shop_id)
         if not claim_fn(key):
             return False
-        (enqueue or _default_enqueue)(key)
+        enqueue_fn(key)
         logger.info(
             "shop_diagnosis_refresh_enqueued",
             extra={"shop_id": key, "status": status, "end_date": end_date.isoformat()},
@@ -176,4 +183,9 @@ async def maybe_refresh_stored_report(
         return False
 
 
-__all__ = ["REFRESH_DEBOUNCE_SECONDS", "maybe_refresh_stored_report", "refresh_key"]
+__all__ = [
+    "REFRESH_DEBOUNCE_SECONDS",
+    "maybe_refresh_stored_report",
+    "refresh_key",
+    "set_report_refresh_enqueuer",
+]

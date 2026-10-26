@@ -147,3 +147,32 @@ async def test_many_orders_inside_ttl_do_one_report_lookup(session, monkeypatch)
     # A status that does not qualify never reaches the lookup at all.
     await _change(session, shop, spy, status="pending")
     assert calls == 1
+
+
+async def test_unbound_enqueuer_is_a_no_op(session, monkeypatch):
+    """Services must not import workers: with no enqueuer bound, nothing is looked up."""
+    from juli_backend.services.shop_diagnosis_daily import refresh
+
+    monkeypatch.setattr(refresh, "_enqueuer", None)
+    called = []
+    enqueued = await refresh.maybe_refresh_stored_report(
+        session,
+        uuid.uuid4(),
+        status="cancelled",
+        created_at=None,
+        claim=lambda key: called.append(key) or True,
+    )
+    assert enqueued is False
+    assert called == []
+
+
+def test_dispatch_binding_binds_the_report_refresh_enqueuer(monkeypatch):
+    from juli_backend.services.shop_diagnosis_daily import refresh
+    from juli_backend.workers.dispatch_binding import (
+        CeleryReportRefreshEnqueuer,
+        bind_celery_dispatchers,
+    )
+
+    monkeypatch.setattr(refresh, "_enqueuer", None)
+    bind_celery_dispatchers()
+    assert isinstance(refresh._enqueuer, CeleryReportRefreshEnqueuer)
