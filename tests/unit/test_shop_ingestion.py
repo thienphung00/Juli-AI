@@ -896,7 +896,9 @@ class TestFanout:
 # ---------------------------------------------------------------------------
 
 
-async def _cycle(session, shop, analytics, *, now, score_fn=None, resources=None):
+async def _cycle(
+    session, shop, analytics, *, now, score_fn=None, resources=None, force_commerce=False
+):
     return await run_shop_cycle(
         session=session,
         config=CONFIG,
@@ -907,6 +909,7 @@ async def _cycle(session, shop, analytics, *, now, score_fn=None, resources=None
         sleep=_no_sleep,
         now=now,
         score_fn=score_fn or _count_score,
+        force_commerce=force_commerce,
     )
 
 
@@ -1030,6 +1033,114 @@ class TestCadence:
         )
         assert result.commerce_skip_reason is None
         resources.orders.search_all.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_a_user_sync_runs_commerce_inside_the_interval(self, session):
+        """B15: "Đồng bộ ngay" fetches orders right away, not at the next hourly run."""
+        shop = await _make_shop(session, label="forced")
+        analytics = FakeAnalyticsResource(prefix="forced")
+        await _fast(session, shop, analytics, score_fn=_count_score)
+        await _cycle(session, shop, analytics, now=NOW)
+        forced = make_resources(analytics)
+        result = await _cycle(
+            session,
+            shop,
+            analytics,
+            now=NOW + timedelta(minutes=10),
+            resources=forced,
+            force_commerce=True,
+        )
+        assert result.commerce_skip_reason is None
+        forced.orders.search_all.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_a_scheduled_poll_inside_the_interval_still_skips_commerce(self, session):
+        shop = await _make_shop(session, label="sched")
+        analytics = FakeAnalyticsResource(prefix="sched")
+        await _fast(session, shop, analytics, score_fn=_count_score)
+        await _cycle(session, shop, analytics, now=NOW)
+        scheduled = make_resources(analytics)
+        result = await _cycle(
+            session, shop, analytics, now=NOW + timedelta(minutes=10), resources=scheduled
+        )
+        assert result.commerce_skip_reason == "interval"
+        scheduled.orders.search_all.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_forced_commerce_is_rate_limited_per_shop(self, session):
+        from juli_backend.workers.services.polling.ingestion import forced_commerce_min_interval
+
+        floor = forced_commerce_min_interval()
+        assert floor == timedelta(minutes=3)
+        shop = await _make_shop(session, label="forcedrl")
+        analytics = FakeAnalyticsResource(prefix="forcedrl")
+        await _fast(session, shop, analytics, score_fn=_count_score)
+        await _cycle(session, shop, analytics, now=NOW)
+
+        first = make_resources(analytics)
+        await _cycle(
+            session,
+            shop,
+            analytics,
+            now=NOW + timedelta(minutes=10),
+            resources=first,
+            force_commerce=True,
+        )
+        first.orders.search_all.assert_called_once()
+
+        hammer = make_resources(analytics)
+        blocked = await _cycle(
+            session,
+            shop,
+            analytics,
+            now=NOW + timedelta(minutes=10) + floor - timedelta(seconds=1),
+            resources=hammer,
+            force_commerce=True,
+        )
+        assert blocked.commerce_skip_reason == "interval"
+        hammer.orders.search_all.assert_not_called()
+
+        later = make_resources(analytics)
+        allowed = await _cycle(
+            session,
+            shop,
+            analytics,
+            now=NOW + timedelta(minutes=10) + floor,
+            resources=later,
+            force_commerce=True,
+        )
+        assert allowed.commerce_skip_reason is None
+        later.orders.search_all.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_the_poll_task_threads_force_commerce_to_the_cycle(self):
+        from juli_backend.workers.tasks.shop_ingestion import Enqueuers, run_poll_shop_task
+
+        seen: list[dict] = []
+
+        @asynccontextmanager
+        async def factory():
+            yield _NullSession()
+
+        async def collaborators(_session):
+            return {}
+
+        async def cycle_fn(**kwargs):
+            seen.append(kwargs)
+            return SimpleNamespace(needs_bootstrap=False, history_done=True)
+
+        for forced in (False, True):
+            await run_poll_shop_task(
+                str(uuid.uuid4()),
+                session_factory=factory,
+                lock=InMemoryShopIngestLock(),
+                collaborators=collaborators,
+                enqueuers=Enqueuers(),
+                cycle_fn=cycle_fn,
+                force_commerce=forced,
+            )
+        assert "force_commerce" not in seen[0]
+        assert seen[1]["force_commerce"] is True
 
 
 # ---------------------------------------------------------------------------
