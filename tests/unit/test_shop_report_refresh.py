@@ -12,7 +12,10 @@ from juli_backend.models.models import Shop, User
 from juli_backend.repositories import ShopDiagnosisReportsRepo
 from juli_backend.services.etl.consumer import EtlConsumer, ProcessOutcome
 from juli_backend.services.etl.record import IngestRecord
-from juli_backend.services.shop_diagnosis_daily.refresh import maybe_refresh_stored_report
+from juli_backend.services.shop_diagnosis_daily.refresh import (
+    clear_report_cache,
+    maybe_refresh_stored_report,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -21,6 +24,11 @@ BUILT = datetime(2026, 10, 7, 0, 15)
 # 2026-10-05 10:00 UTC = 17:00 local, inside the window; 10-07 10:00 UTC is after END.
 INSIDE = datetime(2026, 10, 5, 10, 0)
 AFTER = datetime(2026, 10, 7, 10, 0)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_cache():
+    clear_report_cache()
 
 
 async def _shop(session, tt_id: str, *, source: str | None = "orders") -> Shop:
@@ -118,3 +126,24 @@ async def test_etl_consumer_hook_fires_on_cancelled_order(session):
     )
     assert await consumer.ingest(record) == ProcessOutcome.PROCESSED
     assert [(c["shop_id"], c["status"]) for c in calls] == [(shop.id, "cancelled")]
+
+
+async def test_many_orders_inside_ttl_do_one_report_lookup(session, monkeypatch):
+    shop = await _shop(session, "tt-a")
+    calls = 0
+    real = ShopDiagnosisReportsRepo.latest
+
+    async def counting(self, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return await real(self, *args, **kwargs)
+
+    monkeypatch.setattr(ShopDiagnosisReportsRepo, "latest", counting)
+    spy = _Spy()
+    for _ in range(25):
+        await _change(session, shop, spy)
+    assert calls == 1
+    assert spy.enqueued == [str(shop.id)]
+    # A status that does not qualify never reaches the lookup at all.
+    await _change(session, shop, spy, status="pending")
+    assert calls == 1

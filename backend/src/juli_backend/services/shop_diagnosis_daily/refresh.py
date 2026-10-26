@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 import uuid
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
@@ -57,18 +58,63 @@ def refresh_key(shop_id: str) -> str:
     return f"ingest:diagnosis-refresh:{shop_id}"
 
 
+_redis_client: Any = None
+_redis_url: str = ""
+
+
+def _client(url: str) -> Any:
+    """One Redis client per process (lazy), rebuilt only if the URL changes."""
+    global _redis_client, _redis_url
+    if _redis_client is None or _redis_url != url:
+        import redis
+
+        _redis_client = redis.from_url(url)
+        _redis_url = url
+    return _redis_client
+
+
 def _default_claim() -> ClaimFn | None:
     url = os.getenv("REDIS_URL", "").strip()
     if not url:
         return None
-    import redis
-
-    client = redis.from_url(url)
+    client = _client(url)
 
     def claim(shop_id: str) -> bool:
         return bool(client.set(refresh_key(shop_id), "1", nx=True, ex=REFRESH_DEBOUNCE_SECONDS))
 
     return claim
+
+
+#: shop id -> (expires at monotonic seconds, report end date, metrics_source); a shop
+#: with no stored report caches ``(None, None)``. Keeps a backfill of thousands of
+#: orders from reading the report JSON once per order.
+REPORT_CACHE_TTL_SECONDS = 60.0
+_report_cache: dict[uuid.UUID, tuple[float, date | None, str | None]] = {}
+
+
+def clear_report_cache() -> None:
+    _report_cache.clear()
+
+
+async def _stored_report_facts(
+    session: AsyncSession, shop_id: uuid.UUID
+) -> tuple[date | None, str | None]:
+    cached = _report_cache.get(shop_id)
+    now = time.monotonic()
+    if cached is not None and cached[0] > now:
+        return cached[1], cached[2]
+    async with with_shop_scope(session, shop_id):
+        stored = await ShopDiagnosisReportsRepo(session).latest(shop_id, RANKING_60D)
+    await session.commit()
+    end: date | None = None
+    source: str | None = None
+    if stored is not None:
+        end = stored.end_date
+        if isinstance(stored.report, dict):
+            raw = stored.report.get("metrics_source")
+            source = raw if isinstance(raw, str) else None
+    _report_cache[shop_id] = (now + REPORT_CACHE_TTL_SECONDS, end, source)
+    return end, source
 
 
 def _default_enqueue(shop_id: str) -> Any:
@@ -107,17 +153,12 @@ async def maybe_refresh_stored_report(
         claim_fn = claim or _default_claim()
         if claim_fn is None:
             return False
-        async with with_shop_scope(session, shop_id):
-            stored = await ShopDiagnosisReportsRepo(session).latest(shop_id, RANKING_60D)
-        await session.commit()
-        if stored is None:
-            return False
-        report = stored.report
-        if not isinstance(report, dict) or report.get("metrics_source") != METRICS_SOURCE_ORDERS:
+        end_date, source = await _stored_report_facts(session, shop_id)
+        if end_date is None or source != METRICS_SOURCE_ORDERS:
             return False
         if created_at is not None:
             day = _local_day(created_at)
-            if day > stored.end_date or day < stored.end_date - timedelta(days=DAYS - 1):
+            if day > end_date or day < end_date - timedelta(days=DAYS - 1):
                 return False
         key = str(shop_id)
         if not claim_fn(key):
@@ -125,7 +166,7 @@ async def maybe_refresh_stored_report(
         (enqueue or _default_enqueue)(key)
         logger.info(
             "shop_diagnosis_refresh_enqueued",
-            extra={"shop_id": key, "status": status, "end_date": stored.end_date.isoformat()},
+            extra={"shop_id": key, "status": status, "end_date": end_date.isoformat()},
         )
         return True
     except Exception:
