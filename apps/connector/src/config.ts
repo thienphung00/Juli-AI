@@ -18,6 +18,16 @@ export const SYNC_PERIOD_MINUTES = 24 * 60;
 export const SYNC_START_JITTER_MINUTES = 90;
 
 /**
+ * One-time backfill after pairing: the last this-many finished GMT+7 days, one
+ * day per round trip to the Seller Centre tab, at the same ≥ 2 s + jitter pace.
+ */
+export const BACKFILL_DAYS = 30;
+/** A backfill day sent to a tab with no answer after this long is sent again. */
+export const BACKFILL_IN_FLIGHT_TIMEOUT_MS = 3 * 60_000;
+/** Transient Seller Centre failures (5xx, 429, network) tolerated per day before stopping. */
+export const BACKFILL_MAX_DAY_ATTEMPTS = 3;
+
+/**
  * Item-level readers wait for the second Seller Centre recon (D31.6): the first
  * recon saw only empty item lists, so the item row schema is not pinned. Passive
  * capture still maps what it can; the ACTIVE sync does not ask for item pages yet.

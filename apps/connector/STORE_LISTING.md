@@ -20,7 +20,7 @@ Juli Connector kết nối shop Shopee của bạn với Juli (app-juli.com).
   hiển thị, lượt nhấp, đơn hàng, lượt truy cập shop.
 - Gửi số liệu theo ngày sang tài khoản Juli của bạn để Juli phân tích và đề xuất.
 - Mỗi ngày một lần, khi bạn đang mở Seller Centre, tự đồng bộ số liệu hôm qua với
-  tốc độ thấp.
+  tốc độ thấp. Lần đầu kết nối, lấy thêm số liệu 30 ngày trước, từng ngày một.
 - Không lưu mật khẩu. Kết nối bằng mã dùng một lần tạo trong Juli; bạn có thể ngắt
   kết nối bất cứ lúc nào.
 
@@ -34,9 +34,9 @@ where Juli analyses it and suggests improvements.
 
 | Permission | Why |
 |---|---|
-| Host `https://banhang.shopee.vn/*` | Read the responses Seller Centre's own data pages load for the seller's shop (four `/api/mydata/...` endpoints), and repeat those same requests once a day while Seller Centre is open. No other site is accessed. |
+| Host `https://banhang.shopee.vn/*` | Read the responses Seller Centre's own data pages load for the seller's shop (four `/api/mydata/...` endpoints), and repeat those same requests once a day while Seller Centre is open (plus, once after linking, one request set per day for the last 30 finished days). No other site is accessed. |
 | Host `https://api.app-juli.com/*` | Send the numbers to the seller's Juli account and read sync status. |
-| `storage` | Keep the Juli access token (not a password), per-dataset sync status and a small retry queue on this device. |
+| `storage` | Keep the Juli access token (not a password), per-dataset sync status, the 30-day backfill progress and a small retry queue on this device. |
 | `alarms` | Schedule the once-a-day sync (with a random start) without a background page. |
 
 Not requested: `tabs`, `cookies`, `webRequest`, `scripting`, `<all_urls>`, remote

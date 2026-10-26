@@ -1,6 +1,6 @@
 {
   "name": "@juli/connector",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Juli Connector: Chrome extension (Manifest V3) that sends a Shopee seller's own Seller Centre data to Juli (DECISIONS D31.4).",
