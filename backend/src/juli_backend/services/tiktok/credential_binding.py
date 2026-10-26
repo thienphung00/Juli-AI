@@ -55,7 +55,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,6 +66,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.core.security import (
     BindingVerifier,
     SandboxCollisionRefused,
+    VerifiedShopCipher,
     refuse_cross_shop_sandbox_collision,
 )
 from juli_backend.integrations.tiktok import (
@@ -74,8 +75,8 @@ from juli_backend.integrations.tiktok import (
     TikTokClient,
     redact_shop_identifier,
 )
-from juli_backend.models.models import TikTokCredential
-from juli_backend.repositories import TikTokCredentialRepo
+from juli_backend.models.models import Shop, TikTokCredential
+from juli_backend.repositories import ShopsRepo, TikTokCredentialRepo
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +230,9 @@ async def _verify_and_return_cipher(
             "merchant this credential belongs to."
         )
     await verify_capability_binding(session, capability=capability, shop_cipher=cipher)
-    return cipher
+    # P68 (E11): the same answer names the numeric shop id webhooks carry; hand it to the
+    # connect flow on the cipher itself so `BindingVerifier` keeps returning a str.
+    return VerifiedShopCipher(cipher, tiktok_shop_id=str(authorized_shop.get("id") or ""))
 
 
 def make_binding_verifier(*, app_key: str, app_secret: str) -> BindingVerifier:
@@ -369,3 +372,66 @@ async def backfill_shop_cipher(
         },
     )
     return cipher
+
+
+#: ``() -> the token's authorized shops`` -- ``AuthorizationResource.list_all_shops`` of the
+#: run's own client (the credential's token), so the backfill builds no client of its own.
+AuthorizedShopsLister = Callable[[], object]
+
+
+async def backfill_tiktok_numeric_shop_id(
+    session: AsyncSession,
+    shop: Shop,
+    credential: TikTokCredential,
+    *,
+    list_authorized_shops: AuthorizedShopsLister,
+) -> str | None:
+    """Return the shop's numeric TikTok shop id, fetching and storing it when missing (P68, E11).
+
+    Shops connected before migration 102 have no ``tiktok_numeric_shop_id``, so every webhook
+    for them (which names the shop by that id) was DLQ'd as an unknown shop. The poll calls
+    this under the shop's scope: one Get Authorized Shops call while the column is empty,
+    none once it is filled.
+
+    The answer is stored only when it is unambiguous AND is this credential's shop: exactly
+    one authorized shop, whose ``cipher`` equals the credential's verified ``shop_cipher``.
+    Anything else -- a vendor failure included -- is logged and left for the next run; the
+    poll itself never fails because of this.
+    """
+    if shop.tiktok_numeric_shop_id:
+        return shop.tiktok_numeric_shop_id
+    shop_id = shop.id
+    try:
+        shops = await asyncio.to_thread(list_authorized_shops)
+    except Exception as exc:  # the poll must not fail over a missing webhook key
+        logger.warning(
+            "tiktok_numeric_shop_id_backfill_failed",
+            extra={"shop_id": str(shop_id), "reason": type(exc).__name__},
+        )
+        return None
+    authorized = shops[0] if isinstance(shops, list) and len(shops) == 1 else None
+    if not isinstance(authorized, Mapping):
+        logger.warning(
+            "tiktok_numeric_shop_id_backfill_skipped",
+            extra={"shop_id": str(shop_id), "reason": "not_exactly_one_authorized_shop"},
+        )
+        return None
+    numeric_id = str(authorized.get("id") or "").strip()
+    cipher = str(authorized.get("cipher") or "").strip()
+    if not numeric_id or not credential.shop_cipher or cipher != credential.shop_cipher:
+        logger.warning(
+            "tiktok_numeric_shop_id_backfill_skipped",
+            extra={
+                "shop_id": str(shop_id),
+                "reason": "no_id" if not numeric_id else "cipher_mismatch",
+            },
+        )
+        return None
+    if not await ShopsRepo(session).record_tiktok_numeric_shop_id(shop_id, numeric_id):
+        return None
+    await session.commit()
+    logger.warning(
+        "tiktok_numeric_shop_id_backfilled",
+        extra={"shop_id": str(shop_id), "tiktok_numeric_shop_id": numeric_id},
+    )
+    return numeric_id

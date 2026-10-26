@@ -40,7 +40,11 @@ async def _handoff(channel: str, shop_key: str, payload: bytes) -> None:
         raise RuntimeError("Webhook session factory is not configured")
 
     async with _session_factory() as session:
-        consumer = EtlConsumer(session=session, dlq_handoff=_dlq_handoff)
+        # P68 (E11): a webhook holds no tenant scope; the consumer resolves the shop across
+        # tenants and persists under that shop's scope.
+        consumer = EtlConsumer(
+            session=session, dlq_handoff=_dlq_handoff, scope_to_resolved_shop=True
+        )
         handoff = make_material_etl_handoff(consumer)
         await handoff(channel, shop_key, payload)
 

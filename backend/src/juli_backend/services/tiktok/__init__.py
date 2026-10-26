@@ -34,6 +34,7 @@ _LAZY_EXPORTS = {
     "make_binding_verifier": "juli_backend.services.tiktok.credential_binding",
     # P58-B: the bootstrap / poll / history run backfills a missing shop_cipher.
     "backfill_shop_cipher": "juli_backend.services.tiktok.credential_binding",
+    "backfill_tiktok_numeric_shop_id": "juli_backend.services.tiktok.credential_binding",
     "ShopCipherUnresolvedError": "juli_backend.services.tiktok.credential_binding",
 }
 
@@ -58,6 +59,7 @@ __all__ = [
     "TikTokWebhookService",
     "TikTokWebhookSignatureVerifier",
     "backfill_shop_cipher",
+    "backfill_tiktok_numeric_shop_id",
     "build_fujiwa_poll_vendor_resources",
     "make_binding_verifier",
     "resolve_catalog_entry",

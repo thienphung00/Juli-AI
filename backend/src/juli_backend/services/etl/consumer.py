@@ -15,6 +15,7 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import Order, OrderItem
 from juli_backend.repositories.repos import (
     AnalyticsPerformanceRepo,
@@ -71,7 +72,15 @@ class EtlConsumer:
         latency_budget_seconds: float = LATENCY_BUDGET_SECONDS,
         clock: Callable[[], float] = time.time,
         before_persist: Callable[[IngestRecord], Awaitable[None]] | None = None,
+        scope_to_resolved_shop: bool = False,
     ) -> None:
+        """``scope_to_resolved_shop`` (P68, E11) is for callers that hold NO tenant scope -- the
+        webhook receivers. The record's shop is then resolved across tenants
+        (``ShopsRepo.resolve_id_by_tiktok_key``, migration 102's definer function) and the
+        claim + persist run under that shop's scope; as ``juli_app`` an unscoped ``shops``
+        read sees nothing, so every webhook was an "unknown shop". The poll keeps the default:
+        it already runs inside its shop's sticky scope.
+        """
         resolved_dlq = dlq_handoff or publish_dlq
         if resolved_dlq is None:
             raise TypeError("EtlConsumer requires dlq_handoff= or publish_dlq=")
@@ -81,6 +90,7 @@ class EtlConsumer:
         self._latency_budget = latency_budget_seconds
         self._clock = clock
         self._before_persist = before_persist
+        self._scope_to_resolved_shop = scope_to_resolved_shop
         self._shops = ShopsRepo(session)
         self._processed = ProcessedEventsRepo(session)
         self._epochs = IngestDedupEpochsRepo(session)
@@ -147,18 +157,46 @@ class EtlConsumer:
             await self._send_dlq(record, error=str(exc), payload=payload)
             return ProcessOutcome.DLQ
 
+        if self._scope_to_resolved_shop:
+            shop_id = await self._shops.resolve_id_by_tiktok_key(record.shop_key)
+            if shop_id is None:
+                return await self._unknown_shop(record, payload)
+            async with with_shop_scope(self._session, shop_id):
+                return await self._persist_for_shop(record, payload, event_id, shop_id)
+
         shop = await self._shops.get_by_tiktok_id(record.shop_key)
         if shop is None:
-            await self._send_dlq(
-                record,
-                error=f"unknown shop tiktok_shop_id={record.shop_key}",
-                payload=payload,
-            )
-            return ProcessOutcome.DLQ
+            return await self._unknown_shop(record, payload)
+        return await self._persist_for_shop(record, payload, event_id, shop.id)
 
+    async def _unknown_shop(self, record: IngestRecord, payload: dict[str, Any]) -> ProcessOutcome:
+        """No shop holds the record's identifier (either column): warn, then DLQ (P68, E11).
+
+        The warning is the alertable signal -- one stable event name per unknown shop
+        delivery, carrying the identifier TikTok sent -- separate from the generic ``etl_dlq``
+        error every DLQ reason shares.
+        """
+        logger.warning(
+            "etl_unknown_shop",
+            extra={"channel": record.channel, "shop_key": record.shop_key},
+        )
+        await self._send_dlq(
+            record,
+            error=f"unknown shop tiktok_shop_id={record.shop_key}",
+            payload=payload,
+        )
+        return ProcessOutcome.DLQ
+
+    async def _persist_for_shop(
+        self,
+        record: IngestRecord,
+        payload: dict[str, Any],
+        event_id: str,
+        shop_id: Any,
+    ) -> ProcessOutcome:
         # The epoch is read, never created: a channel nobody has recovered stays
         # at INITIAL_EPOCH, which is the pre-#1968 behaviour bit for bit.
-        epoch = await self._epochs.current(shop_id=shop.id, channel=record.channel)
+        epoch = await self._epochs.current(shop_id=shop_id, channel=record.channel)
 
         # One savepoint spans the claim *and* the destination write, so the two
         # can only survive together. Before #1968 the claim was committed even
@@ -166,14 +204,14 @@ class EtlConsumer:
         # was never persisted — the shape that made 3,581 orders unrecoverable.
         claim_and_persist = await self._session.begin_nested()
         try:
-            claimed = await self._processed.claim(event_id=event_id, shop_id=shop.id, epoch=epoch)
+            claimed = await self._processed.claim(event_id=event_id, shop_id=shop_id, epoch=epoch)
             if not claimed:
                 await claim_and_persist.rollback()
                 logger.info(
                     "etl_duplicate_skipped",
                     extra={
                         "event_id": event_id,
-                        "shop_id": str(shop.id),
+                        "shop_id": str(shop_id),
                         "epoch": epoch,
                     },
                 )
@@ -183,7 +221,7 @@ class EtlConsumer:
                 await self._before_persist(record)
 
             entity_kind, kwargs = transform_for_channel(record.channel, payload)
-            await self._upsert(entity_kind, shop_id=shop.id, kwargs=kwargs)
+            await self._upsert(entity_kind, shop_id=shop_id, kwargs=kwargs)
         except (TransformError, TypeError, ValueError) as exc:
             # Roll the claim back first, then hand the failure to the DLQ: the
             # envelope leaves over `_dlq_handoff`, not the session, so undoing
@@ -207,7 +245,7 @@ class EtlConsumer:
             extra={
                 "event_id": event_id,
                 "channel": record.channel,
-                "shop_id": str(shop.id),
+                "shop_id": str(shop_id),
                 "entity_kind": entity_kind,
                 "epoch": epoch,
             },

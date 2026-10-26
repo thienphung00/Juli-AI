@@ -801,7 +801,8 @@ async def test_migration_101_is_a_deferred_data_step_the_gate_refuses_and_074_ch
     body = BACKFILL.read_text("utf-8")
     assert 'revision: str = "101_write_mode_backfill"' in body
     assert len("101_write_mode_backfill") <= 32
-    assert 'down_revision: str | None = "100_sandbox_collision_xshop"' in body
+    # P68 (E11) re-parented the deferred step onto the new versions/ head.
+    assert 'down_revision: str | None = "102_shops_tiktok_numeric_id"' in body
     assert not list((MIGRATIONS / "versions").glob("101*"))
     result = evaluate_migration_paths([BACKFILL])
     assert not result.accepted
