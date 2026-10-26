@@ -111,10 +111,14 @@ slice — see "Out of scope".
   groups route re-shrinks with a pooled prior per lever × metric × channel:
   `card_groups.lift_draws(session)` (inside `ops_role` only; Postgres reads
   `public.ops_group_lift_draws()`, migration 093, SECURITY DEFINER, EXECUTE to `juli_ops`
-  only, comparisons without product rows) → pure `apply_pooled_eb(views, draws, *,
+  only, comparisons without product rows; since migration 107 only shops holding an open
+  `pooled_training` grant, D76 / D11) → pure `apply_pooled_eb(views, draws, *, pooled,
   min_groups, default_sd)` (`group_stats.estimate_prior`: leave-one-out, a shop's groups
   combined by inverse variance, DerSimonian–Laird from `group_eb_min_groups` (3) draws,
-  else the default). Only aggregates (μ, τ, n) reach the response. Label, strength,
+  else the default). `pooled=False` (the viewed shop has no `pooled_training` grant,
+  `services.consent.has_consent`) ignores the draws: prior `own` (`own_data_prior`, the
+  default's numbers), Ops shows "chỉ dữ liệu của shop này". Only aggregates (μ, τ, n)
+  reach the response. Label, strength,
   `seller_sentence(s)` never read `eb`
 - Money metrics net of cancelled / refunded orders (fast track P47, D55.1, **Ops only**):
   `group_net` -- TikTok's GMV includes orders later cancelled / refunded. `order_coverage(

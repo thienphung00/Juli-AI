@@ -5,7 +5,10 @@ and a new grant is a new row. At most one open grant per (shop, scope).
 Tenant-direct: RLS by ``app_current_shop_id()``; ``juli_app`` may SELECT,
 INSERT, and UPDATE ``revoked_at`` on an open row only.
 
-The only reader is :func:`juli_backend.services.consent.require_consent`.
+The per-shop reader is :func:`juli_backend.services.consent.require_consent`. The one
+cross-shop reader is ``ops_group_lift_draws()`` (migration 107, SECURITY DEFINER,
+``juli_ops`` only) and its SQLite mirror in ``card_groups.lift_draws``: it returns the
+draws of shops with an open ``pooled_training`` grant, never the grants.
 """
 
 from __future__ import annotations
@@ -30,6 +33,9 @@ SCOPES: tuple[str, ...] = (
     "llm_media",
     "pooled_training",
 )
+#: The pooling opt-in by name: the Ops EB prior's cross-shop draws (migration 107,
+#: ``card_groups.lift_draws``) and any other figure pooled across shops (D76 / D11).
+POOLED_TRAINING = "pooled_training"
 #: How the grant was given -- evidence, not a different kind of consent.
 METHODS: tuple[str, ...] = ("contract_paper", "in_app_click", "email")
 

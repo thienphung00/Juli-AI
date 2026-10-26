@@ -44,6 +44,11 @@ scoped to the shop (`with_shop_scope`); under RLS a mis-scoped session sees no g
   each request needs the scope of every input kind it carries).
 - PR 3 (ingest gateway, `service`), PR 6 (dataset builder and fleet calibration,
   `pooled_training`).
+- Ops pooled prior (D11, migration 107): the Ops groups route asks `has_consent(...,
+  "pooled_training")` for the viewed shop (no grant → its own data only, prior `own`);
+  `ops_group_lift_draws()` reads the open `pooled_training` rows of every shop inside its
+  SECURITY DEFINER body (the only cross-shop reader of this table; it returns draws, never
+  grants).
 
 ## Invariants
 

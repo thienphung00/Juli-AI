@@ -672,8 +672,8 @@ def test_revision_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # PR 4 put `105_llm_call_log` on top of it; the deferred tail moved onto 105.
     later = (MIGRATIONS / "versions/105_llm_call_log.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    # PR 5 put `106_write_platform_columns` on 105; the deferred tail moved onto 106.
-    assert 'down_revision: str | None = "106_write_platform_columns"' in BACKFILL.read_text("utf-8")
+    # PR 5 put `106_write_platform_columns` on 105, then 107 on 106; the deferred tail is on 107.
+    assert 'down_revision: str | None = "107_ops_pooled_consent"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_app_role_may_only_select_and_insert():

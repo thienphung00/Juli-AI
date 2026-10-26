@@ -62,7 +62,10 @@ only design that removes both. In the card system:
    the ``juli_ops``-only ``ops_group_lift_draws()``; :func:`apply_pooled_eb`, leave-
    one-out, a shop's groups combined first), when there are ≥ ``group_eb_min_groups``
    draws. Only aggregate numbers leave it (prior mean, spread, number of shops). The
-   label, the strength and the seller's sentence never read ``eb``.
+   label, the strength and the seller's sentence never read ``eb``. D76 / D11
+   (ADR-116 §3, migration 107): the draws come only from shops holding an open
+   ``pooled_training`` grant, and a viewed shop without one gets no pooled prior at all
+   -- its own data under the default N(0, sd²), labelled ``own`` (``PRIOR_OWN``).
 8. **Net of cancelled / refunded orders, Ops only (D55.1, fast track P46,
    :mod:`.group_net`).** TikTok's GMV includes orders later cancelled or refunded. When
    the shop's own orders cover every day a verdict reads, all-channel AOV and items per
@@ -140,6 +143,7 @@ from juli_backend.services.action_cards.group_stats import (
     false_alarm_rate,
     log_lift_of,
     null_pool,
+    own_data_prior,
     shrink_lift,
     unit_from_change,
 )
@@ -1631,19 +1635,33 @@ def _verdict_rows(group: CardGroup) -> list[tuple[Any, ...]]:
 
 
 async def lift_draws(session: AsyncSession) -> list[EbDraw]:
-    """Every shop's measured group comparisons, as EB draws (D52). **Ops only.**
+    """The measured group comparisons of every shop that opted into pooling, as EB draws
+    (D52; D76 / D11). **Ops only.**
 
     Call it inside an ``ops_role`` block: on Postgres it reads
-    ``public.ops_group_lift_draws()`` (migration 093, SECURITY DEFINER, EXECUTE to
-    ``juli_ops`` only -- a seller session is refused). The caller must return only
-    aggregates (:func:`apply_pooled_eb`), never another shop's rows. SQLite (unit
-    tests) has no RLS or roles: the same rows straight from ``card_groups``.
+    ``public.ops_group_lift_draws()`` (migration 093, filtered by 107 to shops with an
+    open ``pooled_training`` grant; SECURITY DEFINER, EXECUTE to ``juli_ops`` only -- a
+    seller session is refused). The caller must return only aggregates
+    (:func:`apply_pooled_eb`), never another shop's rows. SQLite (unit tests) has no RLS
+    or roles: the same rows straight from ``card_groups``, with the same consent filter.
     """
+    from juli_backend.models.consent import POOLED_TRAINING, DataUseConsent
     from juli_backend.services.ops.access import is_sqlite
 
     if is_sqlite(session):
+        pooled = (
+            select(DataUseConsent.id)
+            .where(
+                DataUseConsent.shop_id == CardGroup.shop_id,
+                DataUseConsent.scope == POOLED_TRAINING,
+                DataUseConsent.revoked_at.is_(None),
+            )
+            .exists()
+        )
         groups = (
-            await session.execute(select(CardGroup).where(CardGroup.status == GROUP_MEASURED))
+            await session.execute(
+                select(CardGroup).where(CardGroup.status == GROUP_MEASURED, pooled)
+            )
         ).scalars()
         return draws_from_rows(row for group in groups for row in _verdict_rows(group))
     result = await session.execute(text("SELECT * FROM public.ops_group_lift_draws()"))
@@ -1685,6 +1703,7 @@ def apply_pooled_eb(
     views: Sequence[dict[str, Any]],
     draws: Sequence[EbDraw],
     *,
+    pooled: bool,
     min_groups: int = EB_MIN_GROUPS,
     default_sd: float = EB_PRIOR_SD,
 ) -> list[dict[str, Any]]:
@@ -1694,6 +1713,10 @@ def apply_pooled_eb(
     ``draws`` without this group (leave-one-out), a shop's groups combined first;
     fewer than ``min_groups`` draws -> the default prior. Each view's verdict is
     copied (the stored JSON is not touched); only ``eb`` blocks change.
+
+    ``pooled`` (D76 / D11, required so no caller forgets it): whether the viewed shop
+    holds an open ``pooled_training`` grant. ``False`` -> ``draws`` is ignored and every
+    comparison uses :func:`.group_stats.own_data_prior` -- the shop's own data only.
     """
     by_type: dict[tuple[str, str, str], list[tuple[str, str, LogLift]]] = defaultdict(list)
     for d in draws:
@@ -1708,11 +1731,15 @@ def apply_pooled_eb(
         for comparison, metric, channel in _comparisons(
             verdict, str(view.get("metric")), str(view.get("channel"))
         ):
-            prior = estimate_prior(
-                by_type.get((lever, metric, channel), []),
-                exclude_group=group_id,
-                min_groups=min_groups,
-                default_sd=default_sd,
+            prior = (
+                estimate_prior(
+                    by_type.get((lever, metric, channel), []),
+                    exclude_group=group_id,
+                    min_groups=min_groups,
+                    default_sd=default_sd,
+                )
+                if pooled
+                else own_data_prior(default_sd)
             )
             comparison["eb"] = eb_block(comparison, prior)
         out.append({**view, "verdict": verdict})

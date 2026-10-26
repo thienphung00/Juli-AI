@@ -8,7 +8,9 @@
   from a ``juli_app`` session -- the shape the API runs in.
 - The seller can stamp ``users.staff_access_consent_at`` on their own row only.
 - P45 (D52): ``ops_group_lift_draws()`` reads every shop's measured group comparisons
-  for the EB prior only under ``juli_ops``; a shop scope still sees only its own groups.
+  for the EB prior only under ``juli_ops``; a shop scope still sees only its own groups
+  (since migration 107: every shop holding ``pooled_training``; the filter itself is
+  ``test_ops_pooled_consent_db.py``).
 """
 
 from __future__ import annotations
@@ -415,6 +417,16 @@ async def test_group_lift_draws_read_every_shop_only_through_juli_ops(owner_engi
                     "DATE '2026-09-01', DATE '2026-09-15', 1, 'measured', CAST(:v AS json))"
                 ),
                 {"id": uuid.uuid4(), "s": shop_id, "v": _json.dumps(verdict)},
+            )
+            # D76 / D11 (migration 107): only shops that opted into pooling are drawn.
+            conn.execute(
+                text(
+                    "INSERT INTO public.data_use_consents (id, shop_id, scope, method, "
+                    "terms_version, evidence_ref, granted_by, granted_at) VALUES "
+                    "(:id, :s, 'pooled_training', 'contract_paper', 'synthetic', "
+                    "'synthetic/contract.pdf', 'Synthetic Director', now())"
+                ),
+                {"id": uuid.uuid4(), "s": shop_id},
             )
     async with app_session(tenant_a.shop_id) as session:
         async with session.begin():

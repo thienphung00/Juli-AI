@@ -688,7 +688,10 @@ def test_migration_106_fits_alembic_and_the_deferred_tail_moved_onto_it():
     mig = _migration_module()
     assert len(mig.revision) <= 32
     assert mig.down_revision == "105_llm_call_log"
-    assert f'down_revision: str | None = "{mig.revision}"' in BACKFILL.read_text("utf-8")
+    # Migration 107 went on top of 106 and took the deferred tail.
+    later = (MIGRATIONS / "versions/107_ops_pooled_consent.py").read_text("utf-8")
+    assert f'down_revision: str | None = "{mig.revision}"' in later
+    assert 'down_revision: str | None = "107_ops_pooled_consent"' in BACKFILL.read_text("utf-8")
     assert mig.DEFAULT_PLATFORM == WRITE_PLATFORM_TIKTOK
 
 

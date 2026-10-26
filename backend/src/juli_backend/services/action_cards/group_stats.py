@@ -527,6 +527,9 @@ EB_PRIOR_SD = 0.15
 EB_MIN_GROUPS = 3
 PRIOR_DEFAULT = "default"
 PRIOR_POOLED = "pooled"
+#: D76 / D11 (ADR-116 §3): the shop holds no open ``pooled_training`` grant, so its Ops
+#: estimate uses only its own data -- the default prior's numbers, never other shops'.
+PRIOR_OWN = "own"
 #: A comparison whose interval has no width carries no usable SE (computational floor).
 _MIN_SE = 1e-6
 
@@ -588,6 +591,12 @@ class Prior:
 
 def default_prior(sd: float = EB_PRIOR_SD) -> Prior:
     return Prior(0.0, sd, PRIOR_DEFAULT)
+
+
+def own_data_prior(sd: float = EB_PRIOR_SD) -> Prior:
+    """The prior of a shop that did not opt into pooling (D11): :func:`default_prior`'s
+    N(0, sd²) -- no other shop's draw -- labelled so Ops says the estimate is its own."""
+    return Prior(0.0, sd, PRIOR_OWN)
 
 
 def combine_within_shop(draws: Sequence[LogLift]) -> LogLift:
@@ -667,6 +676,7 @@ __all__ = [
     "EB_MIN_GROUPS",
     "EB_PRIOR_SD",
     "PRIOR_DEFAULT",
+    "PRIOR_OWN",
     "PRIOR_POOLED",
     "Z90",
     "FALSE_ALARM_DRAWS",
@@ -696,6 +706,7 @@ __all__ = [
     "dersimonian_laird",
     "estimate_prior",
     "log_lift_of",
+    "own_data_prior",
     "cuped_adjust",
     "cuped_theta",
     "false_alarm_rate",

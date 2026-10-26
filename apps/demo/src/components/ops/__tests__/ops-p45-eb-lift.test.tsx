@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { fmtSetting, SETTING_LABELS } from "../../../lib/ops/setting-changes";
 import type { CardGroup, CardGroupComparison, CardGroupEb, CardGroupsPage } from "../../../lib/ops/types";
-import { EB_TOOLTIP, ebText, OpsCardGroups } from "../ops-card-groups";
+import { EB_TOOLTIP, ebText, OpsCardGroups, OWN_DATA_PRIOR } from "../ops-card-groups";
 
 /** P45 (D52, Ops only): the EB-shrunk lift beside the raw lift; the seller sentence is unchanged. */
 
@@ -82,6 +82,12 @@ describe("Lift đã co (EB) trong Ops (D52)", () => {
     expect(within(group).queryByTestId("ops-group-eb")).toBeNull();
     expect(ebText(null)).toBeNull();
     expect(ebText(undefined)).toBeNull();
+  });
+
+  it("says a shop without the pooling opt-in is estimated on its own data only (D76 / D11)", () => {
+    const own: CardGroupEb = { ...DEFAULT, prior: { ...DEFAULT.prior, source: "own" } };
+    expect(ebText(own)).toBe(`Lift đã co (EB): +20,2 % [+4,5; +38,1] · lift thô +40,0 % · ${OWN_DATA_PRIOR}`);
+    expect(ebText(own)).not.toContain("nhóm cùng loại");
   });
 
   it("formats the two EB tunables", () => {
