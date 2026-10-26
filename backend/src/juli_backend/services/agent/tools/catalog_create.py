@@ -51,10 +51,19 @@ from juli_backend.integrations.tiktok import (
 from juli_backend.services.agent.sanitize import VendorText, cap_text, to_json_safe
 from juli_backend.services.agent.tools.domains import ToolDomain
 from juli_backend.services.agent.tools.listing_rules import (
+    RULE_REFUSAL_SUMMARY_VI,
     ProposalRefusal,
     check_proposal,
     redact_terms,
     source_terms_not_in,
+)
+from juli_backend.services.agent.tools.listing_text_filter import (
+    DESCRIPTION_MAX_CHARS,
+    DESCRIPTION_MIN_CHARS,
+    ERROR_LISTING_TEXT_REJECTED,
+    ListingTextRejected,
+    clean_listing_draft,
+    screen_listing_draft,
 )
 from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.agent.tools.product_domain import bind_product_context
@@ -64,7 +73,7 @@ from juli_backend.services.agent.tools.registry import (
     ToolRegistry,
     ToolSpec,
 )
-from juli_backend.services.shop_rules.listing_edits import contains_term
+from juli_backend.services.shop_rules.listing_edits import TITLE_MAX_CHARS, contains_term
 
 logger = logging.getLogger(__name__)
 
@@ -506,8 +515,8 @@ class CreateProductInput(BaseModel):
     """The new listing Juli drafted. Price, stock, images and attributes are server-side."""
 
     category_id: str = Field(min_length=1, max_length=32)
-    title: str = Field(min_length=10, max_length=255)
-    description: str = Field(min_length=20, max_length=5_000)
+    title: str = Field(min_length=10, max_length=TITLE_MAX_CHARS)
+    description: str = Field(min_length=DESCRIPTION_MIN_CHARS, max_length=DESCRIPTION_MAX_CHARS)
     #: One Vietnamese sentence: why this category (shown with the proposal).
     reason_vi: str = Field(min_length=1, max_length=300)
 
@@ -586,6 +595,17 @@ def handle_create_product(
             missing=refusal.missing,
             summary_vi="Chưa tạo sản phẩm: " + refusal.summary_vi,
         )
+    try:
+        cleaned = clean_listing_draft(params.title, params.description)
+    except ListingTextRejected:
+        # The filter (P69) would have sent the model back before the pause; a seller edit
+        # that is empty or only filler is refused the same way. Nothing is sent to TikTok.
+        return CreateProductOutput(
+            ok=False,
+            error_code=ERROR_LISTING_TEXT_REJECTED,
+            summary_vi="Chưa tạo sản phẩm: tiêu đề hoặc mô tả quá ngắn hoặc chung chung",
+        )
+    params = params.model_copy(update={"title": cleaned.title, "description": cleaned.description})
     violation = check_proposal(
         {"title": params.title, "description": params.description},
         banned_terms=context.banned_terms,
@@ -668,17 +688,29 @@ def handle_create_product(
 def precheck_create_product(
     resources: Any, context: ProductToolContext, params: CreateProductInput
 ) -> ProposalRefusal | None:
-    """Before the reviewer is asked: the draft keeps the shop's listing rules (D73.5)."""
+    """Before the reviewer is asked: the draft keeps the shop's listing rules (D73.5)
+    and is specific, plain copy (P69 filter: no Juli / rule talk, filler or repeats)."""
     try:
         detail = resources.products.get_details(context.product_id)
     except TikTokAPIError as exc:
         # The create re-checks after the confirmation; do not block the proposal here.
         logger.warning("catalog_create_precheck_failed", extra={"tiktok_code": exc.code})
-        return None
+        return _screen_text(params)
     return check_proposal(
         {"title": params.title, "description": params.description},
         banned_terms=context.banned_terms,
         source_terms=source_terms_not_in(detail, str(detail.get("title") or "")),
+    ) or _screen_text(params)
+
+
+def _screen_text(params: CreateProductInput) -> ProposalRefusal | None:
+    problem = screen_listing_draft(params.title, params.description)
+    if problem is None:
+        return None
+    return ProposalRefusal(
+        error_code=ERROR_LISTING_TEXT_REJECTED,
+        summary_vi=RULE_REFUSAL_SUMMARY_VI,
+        model_hint=problem,
     )
 
 
