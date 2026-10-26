@@ -41,6 +41,9 @@ NGINX_UPSTREAM_DIR="${NGINX_UPSTREAM_DIR:-/etc/nginx/juli}"
 KEEP_RELEASES="${KEEP_RELEASES:-3}"
 CANDIDATE_TIMEOUT_SECS="${CANDIDATE_TIMEOUT_SECS:-120}"
 PUBLIC_CHECK_TIMEOUT_SECS="${PUBLIC_CHECK_TIMEOUT_SECS:-45}"
+# E10 (P68): seconds to let in-flight requests finish on the drained API slot after the
+# nginx reload, before that slot is stopped. Tests set 0.
+STALE_SLOT_DRAIN_SECS="${STALE_SLOT_DRAIN_SECS:-25}"
 # #1250: how long to poll the Celery worker's own journal for its startup banner to
 # report the routed queues before failing the deploy. Overridable so tests can force a
 # single, immediate check instead of a real wait.
@@ -250,6 +253,54 @@ write_runtime_env() {
         systemctl stop juli-api >/dev/null 2>&1 || true
         systemctl reset-failed juli-api >/dev/null 2>&1 || true
     fi
+}
+
+# E10 (P68): the drained API slot keeps its own DB pool; with the new slot, workers and
+# Supavisor's session pool of 15, two live API processes cause EMAXCONNSESSION. Called
+# only after the new slot is healthy and nginx points at it. Never fails the deploy
+# (traffic has already moved; a stuck old slot is a loud warning, not a rollback).
+# Only ever touches juli-api-candidate-<port>; the legacy juli-api unit is never
+# restarted here. Candidates are transient (--collect, Restart=no): stop removes them,
+# nothing to disable.
+stop_drained_api_slot() {
+    local old_port="$1" new_port="$2" unit
+    case "${old_port}" in ''|*[!0-9]*) note "E10: no previous API slot (first deploy) — nothing to stop"; return 0 ;; esac
+    if [ "${old_port}" = "${new_port}" ]; then
+        note "E10: previous slot == new slot (:${new_port}) — nothing to stop"
+        return 0
+    fi
+    unit="juli-api-candidate-${old_port}"
+    note "E10: draining ${unit} for ${STALE_SLOT_DRAIN_SECS}s before stopping it"
+    sleep "${STALE_SLOT_DRAIN_SECS}"
+    if ! systemctl is-active --quiet "${unit}" 2>/dev/null; then
+        note "E10: ${unit} is not active — nothing to stop"
+        record_step api stale_slot "not_active" "${unit}"
+        return 0
+    fi
+    if systemctl stop "${unit}"; then
+        systemctl reset-failed "${unit}" >/dev/null 2>&1 || true
+        note "E10: stopped drained API slot ${unit}"
+        record_step api stale_slot "stopped" "${unit}"
+    else
+        printf 'WARNING: E10: could not stop drained API slot %s — stop it by hand (systemctl stop %s); two API processes risk EMAXCONNSESSION\n' "${unit}" "${unit}" >&2
+        record_step api stale_slot "stop_failed" "${unit}"
+    fi
+    return 0
+}
+
+# E10 (P68): post-deploy sanity check — exactly one juli-api-candidate-* unit active.
+verify_single_api_slot() {
+    local active count
+    active="$(systemctl list-units 'juli-api-candidate-*' --state=active --no-legend --plain 2>/dev/null | awk '{print $1}' || true)"
+    count="$(printf '%s' "${active}" | grep -c . || true)"
+    if [ "${count}" = "1" ]; then
+        note "E10: exactly one API slot active (${active})"
+        record_step api single_slot "ok" "${active}"
+    else
+        printf 'WARNING: E10: expected exactly 1 active juli-api-candidate-* unit, found %s: %s\n' "${count}" "$(printf '%s' "${active}" | tr '\n' ' ')" >&2
+        record_step api single_slot "warn" "active=${count}"
+    fi
+    return 0
 }
 
 rollback_lane() {
@@ -584,6 +635,8 @@ deploy_lane_api() {
         return 1
     fi
     record_step api public_check "passed"
+    stop_drained_api_slot "${live_port}" "${peer_port}"
+    verify_single_api_slot
     # Celery workers follow the API release (they import the same tree). #1250:
     # `systemctl cat` only proves the unit already exists on this host — absent is not
     # the same as stale, so a host that legitimately never had Celery units still SKIPs
