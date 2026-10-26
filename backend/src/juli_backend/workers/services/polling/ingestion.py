@@ -170,9 +170,30 @@ def _naive_utc(now: datetime | None) -> datetime:
     return current
 
 
-def _commerce_due(state: ShopIngestionState, current: datetime) -> bool:
+FORCED_COMMERCE_MIN_INTERVAL_ENV = "SHOP_FORCED_COMMERCE_MIN_INTERVAL_MINUTES"
+#: B15: a user-initiated sync ("Đồng bộ ngay") may run the commerce steps inside the
+#: 60 min interval, but not more than once per this many minutes per shop.
+DEFAULT_FORCED_COMMERCE_MIN_INTERVAL_MINUTES = 3
+
+
+def forced_commerce_min_interval() -> timedelta:
+    """B15: the floor between two commerce runs when the later one is user-forced."""
+    return timedelta(
+        minutes=_env_int(
+            FORCED_COMMERCE_MIN_INTERVAL_ENV, DEFAULT_FORCED_COMMERCE_MIN_INTERVAL_MINUTES
+        )
+    )
+
+
+def _commerce_due(state: ShopIngestionState, current: datetime, *, force: bool = False) -> bool:
+    """Scheduled: due after ``commerce_interval``. Forced (user sync): due after the shorter
+    ``forced_commerce_min_interval`` -- so a user cannot hammer TikTok, and a scheduled run
+    right after a forced one is skipped because the forced run stamped the same column."""
     last = state.commerce_last_run_at
-    return last is None or current - last >= commerce_interval()
+    if last is None:
+        return True
+    interval = forced_commerce_min_interval() if force else commerce_interval()
+    return current - last >= min(interval, commerce_interval())
 
 
 def fast_days() -> int:
@@ -913,8 +934,13 @@ async def run_shop_cycle(
     score_fn: ScoreFn | None = None,
     now: datetime | None = None,
     concurrency: int | None = None,
+    force_commerce: bool = False,
 ) -> ShopCycleResult:
-    """One scheduled cycle for one shop. See the module docstring."""
+    """One cycle for one shop. See the module docstring.
+
+    ``force_commerce`` (B15, user-initiated sync) lets the commerce steps run inside the
+    60 min interval, bounded by ``forced_commerce_min_interval``.
+    """
     # Before resolve, as in `_resolve_and_poll`: the resolve is cycle work.
     deadline = _CycleDeadline()
     today = utc_today(now)
@@ -941,7 +967,7 @@ async def run_shop_cycle(
         outcomes = result.outcomes
         new_days = False
         current = _naive_utc(now)
-        commerce = _commerce_due(state, current)
+        commerce = _commerce_due(state, current, force=force_commerce)
         if commerce:
             # Stamped before the steps: a failing cycle still waits the interval.
             await run.state_repo.update(shop_id, commerce_last_run_at=current)
