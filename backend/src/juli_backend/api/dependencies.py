@@ -55,7 +55,9 @@ async def get_active_shop(
     # The bootstrap read (#1697): `shops` is policy-gated on a GUC no one has
     # set yet — #1691's scope was a loan and is already handed back. The
     # repository owns knowing that, as it does for `users`.
-    shops = await ShopsRepo(session).list_for_authorization(user.id)
+    # P69: the tenant scope applied below replaces this read's user scope, so the
+    # read does not restore the prior pair first (one round trip less).
+    shops = await ShopsRepo(session).list_for_authorization(user.id, scope_replaced_after=True)
     shop = None
     for s in shops:
         if s.id == shop_id:

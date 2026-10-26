@@ -11,6 +11,7 @@ from juli_backend.services.demo_decisions.read import (
     DecisionNotFound,
     get_surfaced_decision,
     list_surfaced_decisions,
+    list_surfaced_decisions_with_auto_levers,
     mask_decision_payload,
 )
 
@@ -20,6 +21,7 @@ __all__ = [
     "build_card_block",
     "get_surfaced_decision",
     "list_surfaced_decisions",
+    "list_surfaced_decisions_with_auto_levers",
     "load_card_contexts",
     "mask_decision_payload",
 ]

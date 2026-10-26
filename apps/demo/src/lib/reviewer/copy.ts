@@ -82,8 +82,14 @@ export const REVIEWER_SIMULATION_NOTES: Readonly<Record<string, string>> = {
  * P64 (D73): the strip when the reviewer is pinned to Juli's live TikTok
  * sandbox shop — real data, real writes (no sample, no simulation).
  */
-export const REVIEWER_SANDBOX_BANNER_COPY =
-  "Tài khoản đối tác · kết nối thật tới shop sandbox TikTok của Juli · thay đổi được ghi thật lên TikTok";
+export const REVIEWER_SANDBOX_BANNER_COPY = "shop sandbox TikTok";
+
+/** "Tài khoản đối tác Shopee · shop sandbox TikTok · hết hạn 25/11/2026". */
+export function sandboxBannerText(platform: string, expiry: string | null): string {
+  const head = platform ? `Tài khoản đối tác ${platform}` : "Tài khoản đối tác";
+  const tail = expiry ? ` · ${expiry.charAt(0).toLowerCase()}${expiry.slice(1)}` : "";
+  return `${head} · ${REVIEWER_SANDBOX_BANNER_COPY}${tail}`;
+}
 
 /** P64: tooltip of a control that stays read-only in the sandbox account. */
 export const REVIEWER_SANDBOX_READ_ONLY_TITLE = "Tài khoản đối tác: mục này chỉ để xem";
@@ -93,7 +99,7 @@ export const SANDBOX_CONNECTED_LABEL = "Đã kết nối";
 export const SANDBOX_NEEDS_REAUTH_LABEL = "Cần ủy quyền lại";
 
 export const SANDBOX_SYNC_LABEL = "Đồng bộ ngay";
-export const SANDBOX_SYNC_QUEUED = "Đã xếp lịch đồng bộ · số liệu sẽ cập nhật sau ít giây";
+export const SANDBOX_SYNCING = "Đang đồng bộ…";
 export const SANDBOX_SYNC_UNAVAILABLE = "Chưa xếp lịch đồng bộ được. Vui lòng thử lại sau.";
 export const SANDBOX_SYNC_ERROR = "Chưa đồng bộ được. Vui lòng thử lại.";
 export const SANDBOX_LOAD_ERROR = "Chưa tải được trạng thái kết nối TikTok.";

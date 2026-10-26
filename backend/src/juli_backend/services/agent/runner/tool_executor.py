@@ -303,6 +303,13 @@ class DomainToolExecutor:
 
     # --- pre-confirmation check (P64) ------------------------------------------
 
+    def normalize_proposal(self, *, tool_name: str, params: BaseModel) -> BaseModel | None:
+        """The domain's rewrite of a CONFIRM proposal (P69: the filtered listing text), or
+        `None` when it has no normalizer or nothing changes. Pure; runs before `precheck`."""
+        spec = self._registry.get(tool_name)
+        normalizer = get_tool_domain(spec.domain).normalizers.get(tool_name)
+        return None if normalizer is None else normalizer(params)
+
     def precheck(self, *, tool_name: str, params: BaseModel) -> Mapping[str, Any] | None:
         """The domain's read-only check of a CONFIRM proposal, before the pause.
 

@@ -10,6 +10,7 @@
  */
 
 import { MANUAL_LEVER_CODES } from "./grouping";
+import { shortProductName } from "./product-name";
 import { SANDBOX_WRITTEN_LABEL, SIMULATED_RUN_LABEL } from "./simulated-copy";
 import { compactVndNumber, countText, fullDate, kpiPair, pctNumber, summariseText, upliftChip } from "./p10-format";
 import type {
@@ -98,6 +99,8 @@ export interface CardView {
   readonly id: string;
   readonly sku: string | null;
   readonly title: string;
+  /** The full product name, for hover; null when the heading already is it. */
+  readonly fullTitle?: string | null;
   readonly meta: string;
   readonly status: CardStatus;
   readonly kpiLabel: string | null;
@@ -341,13 +344,33 @@ export function gmvMonthText(perMonth: number | null | undefined): string | null
   return `${perMonth >= 0 ? "+" : ""}${compactVndNumber(perMonth)} ₫/tháng`;
 }
 
+/** Juli's own generated SKU (`JULI-…`, catalog_create) is an internal id, never the seller's. */
+export function isSellerSku(sku: string | null | undefined): boolean {
+  return Boolean(sku && sku.trim() && !sku.trim().toUpperCase().startsWith("JULI-"));
+}
+
+/**
+ * The card heading: a plain product name is shortened (full name on hover); a
+ * create_product / create_promotion heading is already short and prefixed by the backend.
+ */
+function headingOf(card: RecommendationCardPayload, item: P10DecisionItem): { title: string; fullTitle: string | null } {
+  const full = card.product_title ?? text(item.recommendation.diagnosis?.product_title) ?? item.title;
+  const generated = card.lever.code === "create_product" || card.lever.code === "create_promotion";
+  if (generated) return { title: full, fullTitle: text(item.recommendation.diagnosis?.product_title) };
+  const short = shortProductName(full) || full;
+  return { title: short, fullTitle: short === full ? null : full };
+}
+
 function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardView {
   // The backend may send a KPI without a current/target value (no readings yet).
   const kpi =
     card.main_kpi && typeof card.main_kpi.current === "number" && typeof card.main_kpi.target === "number"
       ? { ...card.main_kpi, current: card.main_kpi.current, target: card.main_kpi.target }
       : null;
-  const sku = card.seller_sku ? `${card.seller_sku}${card.seller_sku_more > 0 ? ` +${card.seller_sku_more}` : ""}` : null;
+  const sku =
+    card.seller_sku && isSellerSku(card.seller_sku)
+      ? `${card.seller_sku}${card.seller_sku_more > 0 ? ` +${card.seller_sku_more}` : ""}`
+      : null;
   const reasonFull = reasonFullText(card);
   const updated = fullDate(card.updated_at);
   const band = kpiTargetTexts(card.kpi, card.main_kpi?.unit === "vnd" ? "vnd" : undefined);
@@ -359,7 +382,7 @@ function fromCard(item: P10DecisionItem, card: RecommendationCardPayload): CardV
   return {
     id: item.id,
     sku,
-    title: card.product_title ?? text(item.recommendation.diagnosis?.product_title) ?? item.title,
+    ...headingOf(card, item),
     meta: updated === "—" ? card.workflow_label : `${card.workflow_label} · Cập nhật ${updated}`,
     status: card.status,
     kpiLabel: kpi?.label ?? card.main_kpi?.label ?? (bandKpi && metric ? (TARGET_METRIC_LABELS[metric] ?? null) : null),

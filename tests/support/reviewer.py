@@ -16,10 +16,13 @@ from datetime import UTC, datetime, timedelta
 import jwt as pyjwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.security import forget_cached_reviewer_users
 from juli_backend.models.models import ActionCard, InventoryItem, Product, Shop, User
 from juli_backend.models.ops import OpsReviewerAccount
 from juli_backend.services.reviewer import accounts as reviewer_accounts
 from juli_backend.services.reviewer import catalog as reviewer_catalog
+from juli_backend.services.reviewer import create_promotion_card as reviewer_promotion_card
+from juli_backend.services.reviewer import pin_cache as reviewer_pin_cache
 
 JWT_SECRET = "reviewer-test-jwt-secret"
 SHOP_NAME = "Fujiwa Vietnam Store"
@@ -180,3 +183,7 @@ async def make_reviewer(
 def reset_caches() -> None:
     reviewer_accounts.forget_cached()
     reviewer_catalog.forget_cached()
+    # P69: the reviewer's users row and the pinned shop's facts.
+    forget_cached_reviewer_users()
+    reviewer_pin_cache.forget_cached()
+    reviewer_promotion_card.reset_cache()

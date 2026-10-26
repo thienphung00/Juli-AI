@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
@@ -60,6 +60,7 @@ from juli_backend.models.models import (
 from juli_backend.models.run_changes import RunWriteValue
 from juli_backend.services.agent.tools.diagnosis_labels import diagnosis_label_vi
 from juli_backend.services.optimize_product.rescore import cap_legacy_target, has_d29_kpi
+from juli_backend.services.product_name import is_seller_visible_sku, short_product_name
 
 WORKFLOW_LABEL_VI = "Tối ưu sản phẩm"
 #: P64 (D73.3): the sandbox "Tạo sản phẩm" card reads as a creation, like its run header.
@@ -89,8 +90,8 @@ _LEVER_FIELDS: Mapping[str, tuple[str, str]] = {
     "cover_image": ("main_images", "Ảnh bìa"),
     "title": ("title", "Tiêu đề"),
     "description": ("description", "Mô tả"),
-    "create_product": ("new_listing", "Sản phẩm mới trên TikTok"),
-    "create_promotion": ("product_discount", "Khuyến mãi giảm giá trên TikTok"),
+    "create_product": ("new_listing", "Sản phẩm mới"),
+    "create_promotion": ("product_discount", "Giảm giá"),
 }
 
 _FIELD_LABELS_VI: Mapping[str, str] = {"title": "Tiêu đề", "description": "Mô tả"}
@@ -102,8 +103,13 @@ _KPI_LABELS_VI: Mapping[str, str] = {
     # P23 (D29): a GMV fall explained by impressions targets Hiển thị.
     "impressions": "Lượt hiển thị",
     # P65 (D74): the "Tạo khuyến mãi" card's KPI is the promotion itself (no ROI).
-    "promotion": "Khuyến mãi trên TikTok",
+    "promotion": "Khuyến mãi",
+    # P64 (D73.3): the "Tạo sản phẩm" card's KPI is the new listing itself.
+    "products": "Sản phẩm",
 }
+
+#: A KPI key the copy table does not know: never the raw key on screen.
+UNKNOWN_KPI_LABEL_VI = "Chỉ số khác"
 
 #: ≤ 6 words, by the stage the diagnosis found weak.
 _REASON_SHORT_VI: Mapping[str, str] = {
@@ -111,9 +117,9 @@ _REASON_SHORT_VI: Mapping[str, str] = {
     "page": "Khách xem nhưng ít đặt hàng",
     "basket": "Mỗi đơn mua ít món",
     # P64 (D73.3): the "Tạo sản phẩm" card.
-    "catalog": "Thêm sản phẩm mới cho shop",
+    "catalog": "Mở rộng danh mục",
     # P65 (D74): the "Tạo khuyến mãi" card (no ROI claim).
-    "promotion": "Thử khuyến mãi trên TikTok",
+    "promotion": "Thử giảm giá",
 }
 
 #: P64 (D73.3): an orders-based quick card claims no funnel stage, only sales.
@@ -151,54 +157,67 @@ def _product_uuid(card: ActionCard) -> uuid.UUID | None:
 async def load_card_contexts(
     session: AsyncSession, shop_id: uuid.UUID, cards: Iterable[ActionCard]
 ) -> dict[uuid.UUID, CardContext]:
-    """One context per card, read in four shop-scoped queries."""
+    """One context per card, read in two shop-scoped queries (P69; was four).
+
+    Each product with its SKUs (one outer join), and each card's runs with their
+    recorded writes (one outer join): ~197 ms per round trip in production.
+    """
     cards = list(cards)
     contexts = {card.id: CardContext() for card in cards}
     product_ids = {pid for card in cards if (pid := _product_uuid(card)) is not None}
     products: dict[uuid.UUID, Product] = {}
+    skus: dict[str, list[InventoryItem]] = defaultdict(list)
     if product_ids:
         product_rows = await session.execute(
-            select(Product).where(Product.shop_id == shop_id, Product.id.in_(product_ids))
-        )
-        products = {p.id: p for p in product_rows.scalars()}
-    skus: dict[str, list[InventoryItem]] = defaultdict(list)
-    tiktok_ids = {p.tiktok_product_id for p in products.values()}
-    if tiktok_ids:
-        sku_rows = await session.execute(
-            select(InventoryItem)
-            .where(
-                InventoryItem.shop_id == shop_id,
-                InventoryItem.tiktok_product_id.in_(tiktok_ids),
+            select(Product, InventoryItem)
+            .outerjoin(
+                InventoryItem,
+                and_(
+                    InventoryItem.shop_id == shop_id,
+                    InventoryItem.tiktok_product_id == Product.tiktok_product_id,
+                ),
             )
+            .where(Product.shop_id == shop_id, Product.id.in_(product_ids))
             .order_by(InventoryItem.tiktok_sku_id.asc())
         )
-        for item in sku_rows.scalars():
-            skus[item.tiktok_product_id].append(item)
+        seen_items: set[uuid.UUID] = set()
+        for product, item in product_rows.all():
+            products[product.id] = product
+            # Two products sharing a TikTok id join the same SKUs twice; keep one.
+            if item is not None and item.id not in seen_items:
+                seen_items.add(item.id)
+                skus[item.tiktok_product_id].append(item)
     card_ids = [card.id for card in cards]
     latest_runs: dict[uuid.UUID, WorkflowRun] = {}
+    run_writes: dict[uuid.UUID, list[RunWriteValue]] = defaultdict(list)
     if card_ids:
         run_rows = await session.execute(
-            select(WorkflowRun)
+            select(WorkflowRun, RunWriteValue)
+            .outerjoin(
+                RunWriteValue,
+                and_(
+                    RunWriteValue.shop_id == shop_id,
+                    RunWriteValue.workflow_run_id == WorkflowRun.id,
+                ),
+            )
             .where(
                 WorkflowRun.shop_id == shop_id,
                 WorkflowRun.action_card_id.in_(card_ids),
                 WorkflowRun.reverts_run_id.is_(None),
             )
-            .order_by(WorkflowRun.created_at.asc())
+            .order_by(
+                WorkflowRun.created_at.asc(),
+                WorkflowRun.id.asc(),
+                RunWriteValue.recorded_at.asc(),
+                RunWriteValue.id.asc(),
+            )
         )
-        for run in run_rows.scalars():
+        for run, write in run_rows.all():
             if run.action_card_id is not None:
                 latest_runs[run.action_card_id] = run
-    writes: dict[uuid.UUID, list[RunWriteValue]] = defaultdict(list)
-    run_ids = [run.id for run in latest_runs.values()]
-    if run_ids:
-        write_rows = await session.execute(
-            select(RunWriteValue)
-            .where(RunWriteValue.shop_id == shop_id, RunWriteValue.workflow_run_id.in_(run_ids))
-            .order_by(RunWriteValue.recorded_at.asc(), RunWriteValue.id.asc())
-        )
-        for row in write_rows.scalars():
-            writes[row.workflow_run_id].append(row)
+            if write is not None:
+                run_writes[run.id].append(write)
+    writes = {run.id: run_writes.get(run.id, []) for run in latest_runs.values()}
     sentences = await _group_sentences(session, shop_id, cards)
     for card in cards:
         context = contexts[card.id]
@@ -207,8 +226,14 @@ async def load_card_contexts(
         context.product = products.get(pid) if pid is not None else None
         if context.product is not None:
             items = skus.get(context.product.tiktok_product_id, [])
-            context.sku_count = len(items)
-            context.seller_skus = [i.seller_sku for i in items if i.seller_sku]
+            context.seller_skus = [
+                sku for i in items if (sku := i.seller_sku) and is_seller_visible_sku(sku)
+            ]
+            # Every variant counts toward "+N" (a SKU without a seller code is still a
+            # variant); only Juli's own internal SKUs are left out (P69).
+            context.sku_count = sum(
+                1 for i in items if not i.seller_sku or is_seller_visible_sku(i.seller_sku)
+            )
         context.latest_run = latest_runs.get(card.id)
         if context.latest_run is not None:
             context.writes = writes.get(context.latest_run.id, [])
@@ -339,7 +364,7 @@ def _main_kpi(diagnosis: Mapping[str, Any]) -> dict[str, Any]:
     key = str(main.get("key") or "ctor")
     return {
         "key": key,
-        "label": _KPI_LABELS_VI.get(key, key.upper()),
+        "label": _KPI_LABELS_VI.get(key, UNKNOWN_KPI_LABEL_VI),
         "current": _num(main.get("raw")),
         "target": None,
         "unit": "vnd" if key == "aov" else "ratio",
@@ -477,11 +502,11 @@ def build_card_block(
     if lever_code == "create_product":
         workflow_label = CREATE_PRODUCT_LABEL_VI
         if product_title:
-            product_title = f"Tạo sản phẩm mới từ «{product_title}»"
+            product_title = f"Tạo sản phẩm mới từ {short_product_name(product_title)}"
     elif lever_code == "create_promotion":
         workflow_label = CREATE_PROMOTION_LABEL_VI
         if product_title:
-            product_title = f"Tạo khuyến mãi giảm giá cho «{product_title}»"
+            product_title = f"Tạo khuyến mãi giảm giá cho {short_product_name(product_title)}"
     return {
         "seller_sku": first_sku,
         "seller_sku_more": max(context.sku_count - 1, 0) if first_sku else 0,

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import type { CardView } from "../../lib/quyet-dinh/card-model";
+import { shortProductName } from "../../lib/quyet-dinh/product-name";
 import { consentRows, editableFields, photoUrls, proposedText } from "../../lib/quyet-dinh/consent-model";
 import { dateText, validityText } from "../../lib/quyet-dinh/p10-format";
 import type { PhotoCheck, QdRun, SellerInstructions } from "../../lib/quyet-dinh/p10-types";
@@ -70,12 +71,12 @@ export interface RunPanelProps {
 
 function titleOf(kind: RunKind, run: QdRun, card: CardView | null): string {
   const sku = card?.sku ? `${card.sku} · ` : "";
-  const name = card?.title ?? run.product_name;
+  const name = card?.title ?? shortProductName(run.product_name);
   if (kind === "revert") return `Hoàn tác · ${sku}${name}`;
   // P66 (C6): verb + the subject product, never a pre-labelled card title
   // ("Tạo sản phẩm · từ Tạo sản phẩm mới từ «…»").
-  if (kind === "create") return `Tạo sản phẩm · ${run.product_name}`;
-  if (kind === "promotion") return `Tạo khuyến mãi · ${run.product_name}`;
+  if (kind === "create") return `Tạo sản phẩm · ${shortProductName(run.product_name)}`;
+  if (kind === "promotion") return `Tạo khuyến mãi · ${shortProductName(run.product_name)}`;
   if (kind === "manual") return `${sku}${name}${card?.leverLabel ? ` · ${card.leverLabel}` : ""}`;
   return `Lượt chạy · ${sku}${name}`;
 }
@@ -472,8 +473,8 @@ function ConsentBlock({
     : isRevert
       ? "Khôi phục về nội dung cũ: chọn rồi xác nhận"
       : isPromotion
-        ? "Juli đề xuất khuyến mãi sau: chọn rồi xác nhận"
-        : "Juli đề xuất thay đổi sau: chọn rồi xác nhận";
+        ? "Đề xuất khuyến mãi · xác nhận"
+        : "Đề xuất thay đổi · xác nhận";
   const confirmLabel = isPhoto
     ? "Xác nhận thay ảnh"
     : isRevert
@@ -546,11 +547,6 @@ function ConsentBlock({
               />
             </label>
           ) : null}
-          <div className="qv-edit__help">
-            {isPromotion
-              ? "Juli kiểm tra mức giảm theo quy tắc của shop và ngày kết thúc (tối đa 30 ngày) trước khi tạo. Juli tạo đúng giá trị bạn sửa."
-              : "Juli kiểm tra độ dài và từ cấm theo quy tắc của bạn trước khi cho lưu. Juli sẽ ghi đúng nội dung bạn sửa."}
-          </div>
           {error ? (
             <p className="qv-edit__error" role="alert">
               {error.message}

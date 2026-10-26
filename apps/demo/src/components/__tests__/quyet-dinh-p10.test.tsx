@@ -500,13 +500,14 @@ describe("consent with an edit (Run.dc.html)", () => {
     const c = clients();
     signedIn({ tab: "dang-thuc-hien", run: RUN_ID }, c);
     const consent = await screen.findByTestId("consent-block");
-    expect(consent).toHaveTextContent("Juli đề xuất thay đổi sau: chọn rồi xác nhận");
+    expect(consent).toHaveTextContent("Đề xuất thay đổi · xác nhận");
     // P66 (D19): the single proposal is selected from the start, so Xác nhận is live.
     const confirm = within(consent).getByRole("button", { name: "Xác nhận thay đổi này" });
     expect(confirm).toBeEnabled();
     expect(within(consent).getAllByRole("button", { pressed: true })).toHaveLength(1);
     await userEvent.click(within(consent).getByRole("button", { name: "✎ Sửa nội dung trước khi áp dụng" }));
     const title = screen.getByLabelText("Tiêu đề (bạn sửa)");
+    expect(screen.queryByText(/Juli kiểm tra độ dài/)).toBeNull();
     await userEvent.clear(title);
     await userEvent.type(title, "Son môi lì số 12 — màu đỏ ruby");
     await userEvent.click(screen.getByRole("button", { name: "Lưu bản sửa" }));

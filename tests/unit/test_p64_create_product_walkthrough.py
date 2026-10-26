@@ -98,7 +98,13 @@ class BrandedProducts(FakeProducts):
         return detail
 
 
-def _input(title: str, description: str = "Bình nước thép không gỉ 750ml.\n\nDùng hằng ngày."):
+DEFAULT_DESCRIPTION = (
+    "Bình nước thép không gỉ dung tích 750ml, thân hai lớp giữ nhiệt, nắp vặn kín chống tràn.\n\n"
+    "Trong hộp có 1 bình và 1 túi đựng. Dùng cho nước nóng hoặc nước lạnh."
+)
+
+
+def _input(title: str, description: str = DEFAULT_DESCRIPTION):
     return cc.CreateProductInput(
         category_id="605254", title=title, description=description, reason_vi="Cùng danh mục."
     )
