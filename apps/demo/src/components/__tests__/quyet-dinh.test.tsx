@@ -200,9 +200,9 @@ describe("Đề xuất grouping", () => {
       item({ id: "d", scope: "ALL_CHANNELS", stage: "page" }),
     ]);
     expect(groups.map((group) => group.title)).toEqual([
-      "2 thẻ tối ưu để nâng CTOR Thẻ sản phẩm",
-      "1 thẻ tối ưu để nâng CTR Thẻ sản phẩm",
-      "1 thẻ tối ưu để nâng CTOR (mọi kênh)",
+      "CTOR Thẻ sản phẩm · 2 thẻ",
+      "CTR Thẻ sản phẩm · 1 thẻ",
+      "CTOR · 1 thẻ",
     ]);
     expect(groups[0].gmvPerMonth).toBe(900_000);
     expect(groups[0].cards.map((card) => card.executable)).toEqual([true, false]);
@@ -353,7 +353,27 @@ describe("run timeline from the SSE events", () => {
 
 // -- queue --------------------------------------------------------------------------------------
 
-describe("Hàng chờ thẻ tối ưu", () => {
+describe("Hàng chờ", () => {
+  it("is titled 'Hàng chờ' with no explainer line, and rows use the short product name", () => {
+    const full = "Nồi lẩu điện mini 1.5L có nắp kính, tay cầm tiện dụng (dùng nấu lẩu, mì, súp)";
+    render(
+      <RunQueue
+        cardFor={() => null}
+        onSelect={vi.fn()}
+        runs={[run({ id: "r1", status: "waiting_approval", stop_reason: null, product_name: full })]}
+        selectedChip={null}
+        selectedId={null}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Hàng chờ" })).toBeInTheDocument();
+    expect(screen.queryByText(/không bao giờ hai thay đổi/)).toBeNull();
+    const row = screen.getByRole("button", { name: /Nồi lẩu/ });
+    expect(row).toHaveTextContent("Nồi lẩu điện mini 1.5L có nắp kính…");
+    expect(row).not.toHaveTextContent("dùng nấu lẩu");
+    expect(row.querySelector("[title]")).toHaveAttribute("title", full);
+  });
+
+
   it("lists every run with its honest chip, the one waiting on the seller first", () => {
     render(
       <RunQueue
@@ -475,7 +495,7 @@ describe("signed-in Quyết định", () => {
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Duyệt" }));
     await waitFor(() => expect(onNavigate).toHaveBeenCalledWith("/decisions?tab=dang-thuc-hien&run=run-a"));
     expect((clients.approve as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0])).toEqual(["a", "b"]);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("2 thẻ tối ưu để nâng CTOR Thẻ sản phẩm");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("CTOR Thẻ sản phẩm · 2 thẻ");
   });
 
   it("blocks Duyệt and Duyệt N thẻ until a stability band is set", async () => {

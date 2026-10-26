@@ -5,8 +5,8 @@ import {
   REVIEWER_BANNER_COPY,
   REVIEWER_RESET_LABEL,
   REVIEWER_SAMPLE_BANNER_COPY,
-  REVIEWER_SANDBOX_BANNER_COPY,
   reviewerExpiryCopy,
+  sandboxBannerText,
 } from "../../lib/reviewer/copy";
 import { isSandboxReviewer } from "../../lib/reviewer/mode";
 import type { ReviewerRecord } from "../../lib/reviewer/session";
@@ -26,12 +26,15 @@ export function ReviewerBanner({
   readonly onReset?: () => void;
 }) {
   const expiry = reviewerExpiryCopy(reviewer.expiresAt);
-  const bannerCopy = isSandboxReviewer(reviewer)
-    ? REVIEWER_SANDBOX_BANNER_COPY
-    : reviewer.sample
-      ? REVIEWER_SAMPLE_BANNER_COPY
-      : REVIEWER_BANNER_COPY;
   const platform = platformLabel(reviewer.platform);
+  if (isSandboxReviewer(reviewer)) {
+    return (
+      <p className="demo-notice reviewer-banner" data-testid="reviewer-banner" role="status">
+        <strong>{sandboxBannerText(platform, expiry)}</strong>
+      </p>
+    );
+  }
+  const bannerCopy = reviewer.sample ? REVIEWER_SAMPLE_BANNER_COPY : REVIEWER_BANNER_COPY;
   return (
     <p className="demo-notice reviewer-banner" data-testid="reviewer-banner" role="status">
       <strong>{bannerCopy}</strong>

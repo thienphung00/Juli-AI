@@ -23,7 +23,7 @@ import re
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ActionCard
@@ -266,16 +266,8 @@ def mask_decision_payload(
     }
 
 
-async def list_surfaced_decisions(
-    session: AsyncSession, shop_id: uuid.UUID, *, include_reviewer_cards: bool = False
-) -> list[ActionCard]:
-    """Emission-gated active set for *shop_id* — ``surfaced_at IS NOT NULL``.
-
-    Ranked by ``priority`` ascending (mirrors ``apply_emission_budget``'s own
-    candidate ordering), ``surfaced_at`` descending, then ``id`` for a fully
-    deterministic tiebreak.
-    """
-    stmt = (
+def _surfaced_statement(shop_id: uuid.UUID, include_reviewer_cards: bool) -> Select[Any]:
+    return (
         select(ActionCard)
         .where(
             ActionCard.shop_id == shop_id,
@@ -289,12 +281,46 @@ async def list_surfaced_decisions(
             ActionCard.id.asc(),
         )
     )
-    result = await session.execute(stmt)
-    cards = list(result.scalars().all())
+
+
+def _without_stale(cards: list[ActionCard], include_reviewer_cards: bool) -> list[ActionCard]:
     if include_reviewer_cards:
         # The sandbox reviewer's pin only: no stale English rule-pipeline card.
-        cards = [card for card in cards if not stale_english_rule_card(card)]
+        return [card for card in cards if not stale_english_rule_card(card)]
     return cards
+
+
+async def list_surfaced_decisions(
+    session: AsyncSession, shop_id: uuid.UUID, *, include_reviewer_cards: bool = False
+) -> list[ActionCard]:
+    """Emission-gated active set for *shop_id* — ``surfaced_at IS NOT NULL``.
+
+    Ranked by ``priority`` ascending (mirrors ``apply_emission_budget``'s own
+    candidate ordering), ``surfaced_at`` descending, then ``id`` for a fully
+    deterministic tiebreak.
+    """
+    result = await session.execute(_surfaced_statement(shop_id, include_reviewer_cards))
+    return _without_stale(list(result.scalars().all()), include_reviewer_cards)
+
+
+async def list_surfaced_decisions_with_auto_levers(
+    session: AsyncSession, shop_id: uuid.UUID, *, include_reviewer_cards: bool = False
+) -> tuple[list[ActionCard], frozenset[str]]:
+    """:func:`list_surfaced_decisions` and ``shop_rules.auto_levers`` in ONE statement (P69).
+
+    The shop's ``auto_levers`` rule rides along as a scalar subquery on every card row.
+    With no card there is nothing to decide executability for, so the default is
+    returned unread.
+    """
+    from juli_backend.services import shop_rules
+
+    statement = _surfaced_statement(shop_id, include_reviewer_cards).add_columns(
+        shop_rules.auto_levers_value_subquery(shop_id)
+    )
+    rows = (await session.execute(statement)).all()
+    cards = _without_stale([row[0] for row in rows], include_reviewer_cards)
+    stored = rows[0][1] if rows else None
+    return cards, shop_rules.auto_levers_from_value(stored)
 
 
 async def get_surfaced_decision(

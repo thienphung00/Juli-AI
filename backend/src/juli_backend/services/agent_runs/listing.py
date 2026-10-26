@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import Exists, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
@@ -127,33 +127,56 @@ async def list_runs(
 ) -> list[RunListItem]:
     """The shop's runs, newest first. A queued run with no events is still listed.
 
-    Three statements whatever the number of runs (P22): the runs, every run's
-    latest narration, every waiting run's pending confirmation. This used to
-    read the narration (and the confirmation) once PER RUN -- up to 200
+    At most three statements whatever the number of runs (P22, P69): the runs -- each
+    with its product, its latest narration and (for a sandbox reviewer) whether the
+    viewer approved its card, all in ONE statement -- every waiting run's pending
+    confirmation (only when one waits), and the ledger rows the confirmed / simulated
+    write flags are read from (only when a viewer or a simulated run needs them). This
+    used to read the narration (and the confirmation) once PER RUN -- up to 200
     sequential round trips for the default limit, ~220 ms each in production.
     """
-    result = await session.execute(
-        select(WorkflowRunRow, Product)
+    narration = (
+        select(WorkflowRunEventRow.payload)
+        .where(
+            WorkflowRunEventRow.workflow_run_id == WorkflowRunRow.id,
+            WorkflowRunEventRow.event_type == STATUS_EVENT_TYPE,
+        )
+        .order_by(WorkflowRunEventRow.sequence_number.desc())
+        .limit(1)
+        .correlate(WorkflowRunRow)
+        .scalar_subquery()
+    )
+    statement = (
+        select(WorkflowRunRow, Product, narration.label("narration"))
         .where(WorkflowRunRow.shop_id == shop_id)
         .join(Product, WorkflowRunRow.product_id == Product.id)
         .order_by(WorkflowRunRow.created_at.desc())
         .limit(limit)
     )
-    rows: list[tuple[WorkflowRunRow, Product]] = [(run, product) for run, product in result.all()]
-    mine: set[uuid.UUID] = set()
     if viewer is not None:
-        mine = await _started_by(session, [run for run, _ in rows], viewer.user_id)
+        statement = statement.add_columns(_approved_by(viewer.user_id).label("started_by_viewer"))
+    result = await session.execute(statement)
+    rows: list[tuple[WorkflowRunRow, Product]] = []
+    narrations: dict[uuid.UUID, str | None] = {}
+    mine: set[uuid.UUID] = set()
+    for row in result.all():
+        run, product = row[0], row[1]
+        rows.append((run, product))
+        narrations[run.id] = _narration_of(row[2])
+        if viewer is not None and row[3]:
+            mine.add(run.id)
+    if viewer is not None:
         rows = [
             (run, product)
             for run, product in rows
             if run.id in mine or (viewer.since is not None and run.created_at >= viewer.since)
         ]
-    narrations = await _latest_narrations(session, [run.id for run, _ in rows])
     waiting = [run.id for run, _ in rows if run.status == WAITING_APPROVAL_RUN_STATUS]
     decisions = await _pending_decisions(session, waiting)
-    written = await _confirmed_writes(session, rows) if viewer is not None else {}
-    simulated = await _simulated_writes(
-        session, [run.id for run, _ in rows if run.write_mode == WRITE_MODE_SIMULATED]
+    written, simulated = await _ledger_flags(
+        session,
+        rows if viewer is not None else [],
+        [run.id for run, _ in rows if run.write_mode == WRITE_MODE_SIMULATED],
     )
     items: list[RunListItem] = []
     for run, product in rows:
@@ -179,33 +202,51 @@ async def list_runs(
     return items
 
 
-async def _confirmed_writes(
-    session: AsyncSession, rows: list[tuple[WorkflowRunRow, Product]]
-) -> dict[uuid.UUID, ConfirmedWrite]:
-    """Each run's last WRITE TikTok confirmed (one statement). A refused write
-    (``ok: false``, P64 D10) never counts."""
-    if not rows:
-        return {}
-    products = {run.id: product for run, product in rows}
+async def _ledger_flags(
+    session: AsyncSession,
+    confirmed_rows: list[tuple[WorkflowRunRow, Product]],
+    simulated_run_ids: list[uuid.UUID],
+) -> tuple[dict[uuid.UUID, ConfirmedWrite], set[uuid.UUID]]:
+    """Each of ``confirmed_rows``' last WRITE TikTok confirmed, and which of
+    ``simulated_run_ids`` wrote something -- both from ONE ledger statement (P69; was two).
+
+    A refused write (``ok: false``, P64 D10) never counts as confirmed.
+    """
+    if not confirmed_rows and not simulated_run_ids:
+        return {}, set()
+    from juli_backend.services.agent import composition
+
+    products = {run.id: product for run, product in confirmed_rows}
+    measurable = set(composition.measurable_write_tool_names()) if simulated_run_ids else set()
+    run_ids = set(products) | set(simulated_run_ids)
+    tool_names = (set(_WRITE_KINDS) if products else set()) | measurable
     result = await session.execute(
         select(ToolExecution)
         .where(
-            ToolExecution.workflow_run_id.in_(list(products)),
+            ToolExecution.workflow_run_id.in_(list(run_ids)),
             ToolExecution.status == _SUCCEEDED,
-            ToolExecution.tool_name.in_(list(_WRITE_KINDS)),
+            ToolExecution.tool_name.in_(sorted(tool_names)),
         )
         .order_by(ToolExecution.updated_at)
     )
+    simulated_wanted = set(simulated_run_ids)
     found: dict[uuid.UUID, ConfirmedWrite] = {}
+    simulated: set[uuid.UUID] = set()
     for execution in result.scalars().all():
         run_id = execution.workflow_run_id
+        if run_id is None:
+            continue
+        if run_id in simulated_wanted and execution.tool_name in measurable:
+            simulated.add(run_id)
+        if run_id not in products or execution.tool_name not in _WRITE_KINDS:
+            continue
         outcome = _outcome(execution.outcome_json)
-        if run_id is None or outcome.get("ok") is False:
+        if outcome.get("ok") is False:
             continue
         found[run_id] = _confirmed_write(
             execution, outcome, product_tiktok_id=products[run_id].tiktok_product_id
         )
-    return found
+    return found, simulated
 
 
 def _outcome(raw: str | None) -> dict[str, Any]:
@@ -240,73 +281,14 @@ def _confirmed_write(
     )
 
 
-async def _started_by(
-    session: AsyncSession, runs: list[WorkflowRunRow], user_id: uuid.UUID
-) -> set[uuid.UUID]:
-    """Of ``runs``, those whose card ``user_id`` approved (one statement)."""
+def _approved_by(user_id: uuid.UUID) -> Exists:
+    """Whether ``user_id`` approved the run's card (P66), as a column of the runs read."""
     from juli_backend.models.models import ActionCardApproval
 
-    cards = {run.action_card_id for run in runs if run.action_card_id is not None}
-    if not cards:
-        return set()
-    approved = set(
-        (
-            await session.execute(
-                select(ActionCardApproval.action_card_id).where(
-                    ActionCardApproval.action_card_id.in_(cards),
-                    ActionCardApproval.approved_by_user_id == user_id,
-                )
-            )
-        ).scalars()
+    return exists().where(
+        ActionCardApproval.action_card_id == WorkflowRunRow.action_card_id,
+        ActionCardApproval.approved_by_user_id == user_id,
     )
-    return {run.id for run in runs if run.action_card_id in approved}
-
-
-async def _simulated_writes(session: AsyncSession, run_ids: list[uuid.UUID]) -> set[uuid.UUID]:
-    """Of the runs stamped ``simulated``, those that wrote something (one statement)."""
-    if not run_ids:
-        return set()
-    from juli_backend.services.agent import composition
-
-    result = await session.execute(
-        select(ToolExecution.workflow_run_id)
-        .where(
-            ToolExecution.workflow_run_id.in_(run_ids),
-            ToolExecution.status == _SUCCEEDED,
-            ToolExecution.tool_name.in_(composition.measurable_write_tool_names()),
-        )
-        .distinct()
-    )
-    return {run_id for run_id in result.scalars().all() if run_id is not None}
-
-
-async def _latest_narrations(
-    session: AsyncSession, run_ids: list[uuid.UUID]
-) -> dict[uuid.UUID, str | None]:
-    """Each run's newest ``workflow.status`` narration, in one statement."""
-    if not run_ids:
-        return {}
-    newest = (
-        select(
-            WorkflowRunEventRow.workflow_run_id.label("run_id"),
-            WorkflowRunEventRow.payload.label("payload"),
-            func.row_number()
-            .over(
-                partition_by=WorkflowRunEventRow.workflow_run_id,
-                order_by=WorkflowRunEventRow.sequence_number.desc(),
-            )
-            .label("rank"),
-        )
-        .where(
-            WorkflowRunEventRow.workflow_run_id.in_(run_ids),
-            WorkflowRunEventRow.event_type == STATUS_EVENT_TYPE,
-        )
-        .subquery()
-    )
-    result = await session.execute(
-        select(newest.c.run_id, newest.c.payload).where(newest.c.rank == 1)
-    )
-    return {run_id: _narration_of(payload) for run_id, payload in result.all()}
 
 
 def _narration_of(payload: object) -> str | None:

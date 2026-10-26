@@ -21,11 +21,16 @@ from juli_backend.core.security.dependencies import (
     VerifiedToken,
     bearer_scheme,
     bind_reviewer_gate,
+    forget_cached_reviewer_users,
     get_current_user,
     load_authenticated_user,
     verify_bearer_token,
 )
 from juli_backend.core.security.exceptions import Unauthorized
+from juli_backend.core.security.identity_cache import (
+    IdentityCache,
+    reviewer_identity_ttl_seconds,
+)
 from juli_backend.core.security.jwks import JwksUnavailableError, supabase_jwks_url
 from juli_backend.core.security.jwt import verify_supabase_jwt
 from juli_backend.core.security.oauth_state import (
@@ -42,6 +47,10 @@ from juli_backend.core.security.tiktok_oauth import (
 )
 
 __all__ = [
+    # P69: the reviewer identity caches (services/reviewer, capped at depth 2).
+    "IdentityCache",
+    "forget_cached_reviewer_users",
+    "reviewer_identity_ttl_seconds",
     # P61-H (D71.6a): the write-time sandbox-collision guard and its named error.
     "SandboxCollisionRefused",
     "refuse_cross_shop_sandbox_collision",

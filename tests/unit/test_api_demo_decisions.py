@@ -641,7 +641,7 @@ async def test_list_failure_surfaces_as_error_not_a_silently_invented_empty_list
     from unittest.mock import AsyncMock
 
     monkeypatch.setattr(
-        "juli_backend.api.routes.demo_decisions.list_surfaced_decisions",
+        "juli_backend.api.routes.demo_decisions.list_surfaced_decisions_with_auto_levers",
         AsyncMock(side_effect=RuntimeError("db unavailable")),
     )
 

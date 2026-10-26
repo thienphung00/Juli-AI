@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.database.tenant_context import with_sticky_shop_scope
 from juli_backend.repositories.repos import ShopsRepo
 from juli_backend.services.cdp_speed import (
     SharedComputeJob,
@@ -56,8 +57,11 @@ async def run_material_analytics_compute(
     fetch_executor: TargetedFetchExecutor | None = None,
 ) -> SharedComputeResult | None:
     """Run Shared Compute (bronze→silver→gold) for a TikTok shop key."""
-    shop = await ShopsRepo(session).get_by_tiktok_id(shop_key)
-    if shop is None:
+    # P69 (E12): a Celery task holds no tenant scope, and as `juli_app` an unscoped `shops`
+    # read sees nothing. Resolve across tenants (migration 102's definer function, either
+    # TikTok identifier), then run the job under that shop's sticky scope (it commits).
+    shop_id = await ShopsRepo(session).resolve_id_by_tiktok_key(shop_key)
+    if shop_id is None:
         logger.warning(
             "material_analytics_unknown_shop",
             extra={
@@ -75,7 +79,7 @@ async def run_material_analytics_compute(
         catalog_id=catalog_id_for_event(event_type) if event_type else None,
     )
     job = SharedComputeJob(
-        shop_id=shop.id,
+        shop_id=shop_id,
         shop_key=shop_key,
         enqueue_reason=enqueue_reason,
         fetch_plan=fetch_plan,
@@ -84,15 +88,16 @@ async def run_material_analytics_compute(
     )
 
     try:
-        if compute_hook is not None:
-            result = await compute_hook(session, job)
-        else:
-            result = await _default_shared_compute(
-                session,
-                job,
-                fetch_executor=fetch_executor,
-            )
-        await session.commit()
+        async with with_sticky_shop_scope(session, shop_id):
+            if compute_hook is not None:
+                result = await compute_hook(session, job)
+            else:
+                result = await _default_shared_compute(
+                    session,
+                    job,
+                    fetch_executor=fetch_executor,
+                )
+            await session.commit()
         return result
     finally:
         if gate is not None:

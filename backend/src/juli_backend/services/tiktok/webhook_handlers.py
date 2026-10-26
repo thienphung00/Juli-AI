@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from dataclasses import dataclass
 from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.database.tenant_context import with_shop_scope, with_tenant_scope
+from juli_backend.models.models import Shop
 from juli_backend.repositories.repos import ShopsRepo, WorkflowWebhookSignalsRepo
 from juli_backend.services.etl.event_id import extract_event_id
 from juli_backend.services.tiktok.schemas import TikTokWebhookPayload
@@ -42,17 +45,35 @@ class DatabaseWebhookSideEffects:
     session: AsyncSession
 
     async def on_catalog_event(self, *, entry: CatalogEntry, event: TikTokWebhookPayload) -> None:
+        """Resolve the event's shop across tenants, then act only under that shop's scope.
+
+        P69 (E12): a webhook holds no tenant scope, and as ``juli_app`` an unscoped ``shops``
+        read returns nothing, so every catalog event -- the deauthorization among them -- was
+        a "shop not found". The shop is resolved by either TikTok identifier through
+        migration 102's definer function (the E11 order path's shape), and every read and
+        write after it runs under ``with_shop_scope``. An unknown shop is logged and dropped;
+        there is no unscoped fallback.
+        """
         shops = ShopsRepo(self.session)
-        shop = await shops.get_by_tiktok_id(event.shop_id)
-        if shop is None:
+        shop_id = await shops.resolve_id_by_tiktok_key(event.shop_id)
+        if shop_id is None:
             logger.warning(
                 "webhook_shop_not_found",
                 extra={"tiktok_shop_id": event.shop_id, "catalog_id": entry.catalog_id},
             )
             return
+        async with with_shop_scope(self.session, shop_id):
+            await self._apply_for_shop(shops, shop_id, entry, event)
 
+    async def _apply_for_shop(
+        self,
+        shops: ShopsRepo,
+        shop_id: uuid.UUID,
+        entry: CatalogEntry,
+        event: TikTokWebhookPayload,
+    ) -> None:
         if entry.catalog_id == 6:
-            await shops.pause_automation(shop.id)
+            await self._pause_automation(shops, shop_id, event)
             intent = "pause_automation"
         elif entry.catalog_id == 7:
             intent = "re_auth_required"
@@ -75,7 +96,7 @@ class DatabaseWebhookSideEffects:
             event_id = f"ttsn:{event.notification_id}"
         signals = WorkflowWebhookSignalsRepo(self.session)
         stored = await signals.record_if_new(
-            shop_id=shop.id,
+            shop_id=shop_id,
             tiktok_shop_id=event.shop_id,
             catalog_id=entry.catalog_id,
             event_type=event.type,
@@ -85,7 +106,33 @@ class DatabaseWebhookSideEffects:
             payload_json=json.dumps(payload, sort_keys=True, default=str),
         )
         if stored and entry.catalog_id in HISTORY_CATALOG_IDS:
-            self._enqueue_history(shop.id, entry, event)
+            self._enqueue_history(shop_id, entry, event)
+
+    async def _pause_automation(
+        self, shops: ShopsRepo, shop_id: uuid.UUID, event: TikTokWebhookPayload
+    ) -> None:
+        """Pause the deauthorizing shop, under its owner's tenant scope (P69, E12).
+
+        Called inside the shop's scope, where the shop can read its own row
+        (``shops_shop_scope_select``, migration 053) but not update it: ``shops``' UPDATE
+        policy is keyed on the USER (045). The owner is read from that one row, and the
+        UPDATE runs under the (shop, owner) pair -- the same authority the seller's own
+        request would carry, and nothing wider. If the row cannot be read the delivery
+        fails loudly rather than reporting a pause that did not happen.
+        """
+        shop = await self.session.get(Shop, shop_id)
+        if shop is None:
+            logger.error(
+                "webhook_deauthorization_shop_unreadable",
+                extra={"shop_id": str(shop_id), "tiktok_shop_id": event.shop_id},
+            )
+            raise LookupError(f"shop {shop_id} unreadable under its own scope")
+        async with with_tenant_scope(self.session, shop_id, shop.user_id):
+            await shops.pause_automation(shop_id)
+        logger.info(
+            "webhook_deauthorization_paused",
+            extra={"shop_id": str(shop_id), "tiktok_shop_id": event.shop_id},
+        )
 
     @staticmethod
     def _enqueue_history(shop_id: object, entry: CatalogEntry, event: TikTokWebhookPayload) -> None:

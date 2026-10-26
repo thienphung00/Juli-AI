@@ -52,8 +52,8 @@ export const FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
   image: "Ảnh",
   price: "Giá",
   // P64 (D73.3): the "Tạo sản phẩm" proposal.
-  category_id: "Mã danh mục TikTok",
-  reason_vi: "Lý do chọn danh mục",
+  // The numeric TikTok category id is internal (consent-model skips it); the reason names the category.
+  reason_vi: "Danh mục",
 });
 
 /** P65 (D74): the "Tạo khuyến mãi" proposal's fields (`create_product_discount`). */

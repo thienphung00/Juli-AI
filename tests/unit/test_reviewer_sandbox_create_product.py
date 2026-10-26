@@ -135,11 +135,18 @@ def _sandbox(products: FakeProducts) -> SandboxWriteResources:
 CONTEXT = ProductToolContext(product_id=SOURCE_ID)
 
 
+DRAFT_P1 = (
+    "Combo 2 bình giữ nhiệt inox 304 dung tích 750ml, thân hai lớp giữ nóng khoảng 12 giờ "
+    "và giữ lạnh khoảng 24 giờ."
+)
+DRAFT_P2 = "Nắp xoay chống tràn, kèm dây đeo. Trong hộp có 2 bình và 2 dây đeo."
+
+
 def _create(category_id: str = "605254") -> cc.CreateProductInput:
     return cc.CreateProductInput(
         category_id=category_id,
         title="Combo 2 bình giữ nhiệt inox 750ml",
-        description="Hai bình inox giữ nhiệt 750ml.\n\nPhù hợp mang đi làm.",
+        description=f"{DRAFT_P1}\n\n{DRAFT_P2}",
         reason_vi="Cùng danh mục bình nước với sản phẩm gốc.",
     )
 
@@ -188,9 +195,7 @@ def test_create_builds_one_create_call_from_the_source_and_reads_it_back():
     body = products.created[0]
     assert body["category_id"] == "605254"
     assert body["title"] == "Combo 2 bình giữ nhiệt inox 750ml"
-    assert body["description"] == (
-        "<p>Hai bình inox giữ nhiệt 750ml.</p><p>Phù hợp mang đi làm.</p>"
-    )
+    assert body["description"] == f"<p>{DRAFT_P1}</p><p>{DRAFT_P2}</p>"
     assert body["main_images"] == [{"uri": "tos-src-1"}, {"uri": "tos-src-2"}]
     sku = body["skus"][0]
     assert sku["price"] == {"amount": "82000", "currency": "VND"}
@@ -403,11 +408,11 @@ async def test_the_sandbox_reviewer_gets_one_real_create_product_card(session, w
     card = item["recommendation"]["card"]
     assert card["lever"] == {"code": "create_product", "label": "Tạo sản phẩm", "executor": "juli"}
     assert card["status"] == "pending"
-    assert card["change_fields"] == [{"field": "new_listing", "label": "Sản phẩm mới trên TikTok"}]
-    assert card["reason_short"] == "Thêm sản phẩm mới cho shop"
+    assert card["change_fields"] == [{"field": "new_listing", "label": "Sản phẩm mới"}]
+    assert card["reason_short"] == "Mở rộng danh mục"
     # P64 walkthrough: it reads as a creation, not "Tối ưu sản phẩm".
     assert card["workflow_label"] == "Tạo sản phẩm"
-    assert card["product_title"] == "Tạo sản phẩm mới từ «Bình giữ nhiệt inox 750ml»"
+    assert card["product_title"] == "Tạo sản phẩm mới từ Bình giữ nhiệt inox 750ml"
     assert item["is_executable"] is True
     assert item["recommendation"]["diagnosis"]["tiktok_product_id"] == SOURCE_ID
     assert _create_card(second.json()["data"])["id"] == item["id"]
@@ -446,7 +451,7 @@ async def test_reviewer_approve_starts_the_create_run_once(session, world, enque
     session.expire_all()
     runs = list((await session.execute(select(WorkflowRun))).scalars())
     assert [run.workflow_key for run in runs] == ["create_product"]
-    assert runs[0].product_id == ids["product"] and runs[0].prompt_version == "create_product.v1"
+    assert runs[0].product_id == ids["product"] and runs[0].prompt_version == "create_product.v2"
     assert enqueued == [runs[0].id]
     actions = [row.action for row in (await session.execute(select(OpsAuditLog))).scalars()]
     assert "reviewer_sandbox_approve" in actions
