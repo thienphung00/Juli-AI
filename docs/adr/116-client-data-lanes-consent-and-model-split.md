@@ -107,10 +107,14 @@ scope)`, is the only reader; it fails closed (no row, revoked, or lookup error â
   email and messages are never listed.
 - `buyer_id` is stored as `HMAC-SHA256(shop_key, buyer_id)` in bronze and silver alike, so
   within-shop joins (repeat buyers, `ai/anomaly`) still work and ids cannot be linked across shops
-  or back to the platform. Per-shop keys live in AWS Secrets Manager; deleting the key at
-  offboarding makes the ids permanently anonymous.
-- A one-off migration removes non-allowlisted fields from stored payloads and re-keys `buyer_id`,
-  logging row counts per table.
+  or back to the platform. Per-shop random keys live in tenant table `shop_pseudonym_keys`
+  (migration 104), Fernet-sealed with a key derived from the existing token-encryption secret for
+  this purpose only (the VPS role is read-only in Secrets Manager, so per-shop secrets there are
+  not possible); deleting the row at offboarding makes the ids permanently anonymous.
+- A one-off operator command (`python -m juli_backend.services.privacy.payload_cleanup`, dry run
+  then `--apply`; a data change cannot be a `versions/` migration under the additive deploy gate)
+  removes non-allowlisted fields from stored payloads and re-keys `buyer_id`, printing row counts
+  per table. An unknown (platform, endpoint) is refused, never stored.
 - The ingest gateway also requires `service` consent before accepting a post. No client shop pairs
   the Connector before the client approves a sub-processor list that covers Supabase / Hetzner for
   that phase (T14).
