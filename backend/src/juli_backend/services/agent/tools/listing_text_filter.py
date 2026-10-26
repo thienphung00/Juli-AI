@@ -11,13 +11,18 @@ Rules (all deterministic, no model call):
 1. Whitespace is normalised; HTML tags, markdown markers and emoji are removed.
 2. A sentence that talks about Juli / the AI / the shop's rules, or that is a meta
    preamble ("Dưới đây là mô tả ...") is dropped.
-3. A sentence that is generic filler (a known marketing cliche) is dropped.
+3. A sentence that is generic filler (a known marketing cliche) is dropped when it carries
+   no number / unit / material. One that does is cut down to those facts when nothing else
+   is left ("Bình ... 750ml phù hợp cho nhu cầu sử dụng hằng ngày." -> "Bình ... 750ml."),
+   and kept as it is when it says more than that.
 4. A repeated sentence (same words, case and accents aside) is dropped.
 5. The title keeps TikTok's length bounds (``TITLE_MIN_CHARS`` .. ``TITLE_MAX_CHARS``,
    ``shop_rules``): a longer title is cut on a word boundary, a shorter one is rejected.
    The description keeps ``DESCRIPTION_MIN_CHARS`` .. ``DESCRIPTION_MAX_CHARS`` the same
    way (cut on a sentence boundary).
-6. An empty or too-short result is REJECTED, never shipped.
+6. An empty or too-short result is REJECTED, never shipped; anything else is REPLACED by the
+   filtered text (:func:`normalize_create_product`), so the proposal the seller confirms is
+   exactly what is written. The filter is idempotent.
 """
 
 from __future__ import annotations
@@ -25,6 +30,8 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field
+
+from pydantic import BaseModel
 
 from juli_backend.services.shop_rules.listing_edits import TITLE_MAX_CHARS, TITLE_MIN_CHARS
 
@@ -73,6 +80,16 @@ _FILLER_PATTERNS = tuple(
         r"mang (?:lại|đến) (?:trải nghiệm|sự tiện lợi)",
     )
 )
+
+
+#: A fact a filler sentence may carry: a number (size, capacity, quantity) or a material.
+_SPECIFIC = re.compile(
+    r"\d|thép không gỉ|inox|nhựa|gỗ|cotton|silicone|thủy tinh|gốm|sứ|nhôm|vải|tre\b",
+    re.IGNORECASE,
+)
+_CONNECTIVES = frozenset({"giúp", "để", "và", "với", "cho", "trong", "ngày", "hằng", "hàng", ","})
+#: What is left of a filler sentence may be at most this many words to be rewritten.
+_MAX_REMAINDER_WORDS = 8
 
 
 @dataclass(frozen=True)
@@ -125,8 +142,32 @@ def _is_meta(sentence: str) -> bool:
     return any(p.search(sentence) for p in _META_PATTERNS)
 
 
-def _is_filler(sentence: str) -> bool:
-    return any(p.search(sentence) for p in _FILLER_PATTERNS)
+def _filler_match(sentence: str) -> re.Match[str] | None:
+    for pattern in _FILLER_PATTERNS:
+        found = pattern.search(sentence)
+        if found is not None:
+            return found
+    return None
+
+
+def _trim_filler(sentence: str, found: re.Match[str]) -> str | None:
+    """``None`` = drop the sentence; else the sentence to keep (possibly cut down)."""
+    if _SPECIFIC.search(sentence) is None:
+        return None
+    rest = f"{sentence[: found.start()]} {sentence[found.end() :]}"
+    tokens = [w.strip(".!?…") for w in rest.replace(",", " ").split()]
+    words = [w for w in tokens if w and w.lower() != "giúp"]
+    while words and words[-1].lower() in _CONNECTIVES:
+        words.pop()
+    if not words:
+        return None
+    if len(words) > _MAX_REMAINDER_WORDS:
+        return sentence  # it says more than the filler phrase: keep it whole
+    return " ".join(words) + "."
+
+
+def _title_is_filler(title: str) -> bool:
+    return _filler_match(title) is not None and _SPECIFIC.search(title) is None
 
 
 def _clean_title(raw: str) -> tuple[str, bool]:
@@ -167,7 +208,7 @@ def clean_listing_draft(title: str, description: str) -> CleanedListing:
     clean_title, title_cut = _clean_title(title)
     if not clean_title:
         raise ListingTextRejected("Tiêu đề trống.")
-    if _is_meta(clean_title) or _is_filler(clean_title):
+    if _is_meta(clean_title) or _title_is_filler(clean_title):
         raise ListingTextRejected("Tiêu đề nói về Juli, quy tắc hoặc là câu chung chung.")
     if len(clean_title) < TITLE_MIN_CHARS:
         raise ListingTextRejected(
@@ -182,8 +223,13 @@ def clean_listing_draft(title: str, description: str) -> CleanedListing:
         for sentence in sentences:
             if _is_meta(sentence):
                 state.dropped.append(DroppedSentence(REASON_META, sentence))
-            elif _is_filler(sentence):
-                state.dropped.append(DroppedSentence(REASON_FILLER, sentence))
+            elif (found := _filler_match(sentence)) is not None and (
+                (sentence := _trim_filler(sentence, found) or "") != found.string
+            ):
+                state.dropped.append(DroppedSentence(REASON_FILLER, found.string))
+                if sentence and (key := _fold(sentence)) not in seen:
+                    seen.add(key)
+                    kept_here.append(sentence)
             elif (key := _fold(sentence)) in seen:
                 state.dropped.append(DroppedSentence(REASON_DUPLICATE, sentence))
             else:
@@ -211,19 +257,31 @@ def clean_listing_draft(title: str, description: str) -> CleanedListing:
 
 
 def screen_listing_draft(title: str, description: str) -> str | None:
-    """Why the draft must be written again (for the model), or ``None`` when it is clean.
+    """Why the draft must be written again (for the model), or ``None`` when it can ship.
 
-    Whitespace / markup tidying is silent (applied at the write); a dropped sentence or a
-    rejection is not, because the reviewer would otherwise confirm text that is not what
-    is written.
+    Only a draft that is empty / too short / nothing but filler or meta talk is refused;
+    anything else is replaced by its filtered text before the seller is asked.
     """
     try:
-        cleaned = clean_listing_draft(title, description)
+        clean_listing_draft(title, description)
     except ListingTextRejected as rejection:
         return _hint(str(rejection), rejection.dropped)
-    if cleaned.dropped:
-        return _hint("Có câu cần bỏ.", cleaned.dropped)
     return None
+
+
+def normalize_create_product(params: BaseModel) -> BaseModel | None:
+    """The params with the filtered title / description, or ``None`` when nothing changes
+    (or the draft is rejected: the pre-check then refuses it)."""
+    title, description = getattr(params, "title", None), getattr(params, "description", None)
+    if not isinstance(title, str) or not isinstance(description, str):
+        return None
+    try:
+        cleaned = clean_listing_draft(title, description)
+    except ListingTextRejected:
+        return None
+    if (cleaned.title, cleaned.description) == (title, description):
+        return None
+    return params.model_copy(update={"title": cleaned.title, "description": cleaned.description})
 
 
 def _hint(message: str, dropped: tuple[DroppedSentence, ...]) -> str:
@@ -249,5 +307,6 @@ __all__ = [
     "DroppedSentence",
     "ListingTextRejected",
     "clean_listing_draft",
+    "normalize_create_product",
     "screen_listing_draft",
 ]

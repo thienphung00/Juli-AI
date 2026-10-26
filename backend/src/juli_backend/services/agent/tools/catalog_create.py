@@ -63,6 +63,7 @@ from juli_backend.services.agent.tools.listing_text_filter import (
     ERROR_LISTING_TEXT_REJECTED,
     ListingTextRejected,
     clean_listing_draft,
+    normalize_create_product,
     screen_listing_draft,
 )
 from juli_backend.services.agent.tools.product import ProductToolContext
@@ -741,6 +742,7 @@ CATALOG_CREATE_TOOL_DOMAIN = ToolDomain(
     name=CATALOG_CREATE_DOMAIN,
     handlers=CATALOG_CREATE_TOOL_HANDLERS,
     prechecks={CREATE_PRODUCT_TOOL: precheck_create_product},
+    normalizers={CREATE_PRODUCT_TOOL: normalize_create_product},
     subject_types=frozenset({"product"}),
     bind_context=bind_product_context,
 )

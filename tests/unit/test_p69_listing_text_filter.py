@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import uuid
+from typing import Any
+
 import pytest
 
+from juli_backend.services.agent.events import InMemoryEventSink
+from juli_backend.services.agent.llm.blocks import ToolCallBlock
+from juli_backend.services.agent.status import WorkflowRunStatus
 from juli_backend.services.agent.tools.catalog_create import (
     CreateProductInput,
     precheck_create_product,
@@ -16,9 +22,18 @@ from juli_backend.services.agent.tools.listing_text_filter import (
     REASON_META,
     ListingTextRejected,
     clean_listing_draft,
+    normalize_create_product,
     screen_listing_draft,
 )
 from juli_backend.services.shop_rules.listing_edits import TITLE_MAX_CHARS, TITLE_MIN_CHARS
+from tests.unit.test_p64_create_product_walkthrough import (
+    MANUFACTURER_ATTRS,
+    SOURCE_ID,
+    BrandedProducts,
+    InMemoryStore,
+    ScriptedLLM,
+    _runner,
+)
 from tests.unit.test_reviewer_sandbox_create_product import CONTEXT, FakeProducts, _sandbox
 
 TITLE = "Bình nước thép không gỉ 750ml nắp xoay chống tràn"
@@ -33,13 +48,40 @@ GOOD = (
 )
 
 
-def test_the_generic_description_is_rejected_not_shipped() -> None:
-    with pytest.raises(ListingTextRejected) as caught:
-        clean_listing_draft(TITLE, GENERIC)
-    assert {d.reason for d in caught.value.dropped} == {REASON_FILLER}
-    assert len(caught.value.dropped) == 3
-    hint = screen_listing_draft(TITLE, GENERIC)
+def test_the_generic_description_is_replaced_by_its_facts_not_shipped_as_is() -> None:
+    cleaned = clean_listing_draft(TITLE, GENERIC)
+    assert cleaned.description == "Bình nước thép không gỉ 750ml. Dung tích 750ml."
+    assert cleaned.description != GENERIC
+    assert len(cleaned.dropped) == 3 and {d.reason for d in cleaned.dropped} == {REASON_FILLER}
+    # pure filler with no fact is rejected outright
+    pure = "Thiết kế chắc chắn, tiện mang theo khi đi học, đi làm hoặc hoạt động năng động."
+    with pytest.raises(ListingTextRejected):
+        clean_listing_draft(TITLE, pure)
+    hint = screen_listing_draft(TITLE, pure)
     assert hint is not None and ERROR_LISTING_TEXT_REJECTED in hint
+    assert screen_listing_draft(TITLE, GENERIC) is None  # replaced, not refused
+
+
+def test_a_filler_phrase_inside_a_sentence_with_real_content_is_kept_whole() -> None:
+    keep = (
+        "Bình giữ nhiệt inox 304 dung tích 750ml, giữ nóng 12 giờ, phù hợp cho nhu cầu "
+        "sử dụng hằng ngày của gia đình và văn phòng."
+    )
+    cleaned = clean_listing_draft(TITLE, keep)
+    assert cleaned.description == keep and cleaned.dropped == ()
+
+
+def test_the_filter_is_idempotent() -> None:
+    for description in (
+        GENERIC,
+        GOOD,
+        GOOD + "\nJuli kiểm tra độ dài và từ cấm.",
+        "Thân bình inox 304 dày 0,5 mm. Thân bình inox 304 dày 0,5 mm.",
+    ):
+        once = clean_listing_draft(TITLE, description)
+        twice = clean_listing_draft(once.title, once.description)
+        assert (twice.title, twice.description) == (once.title, once.description)
+        assert twice.dropped == ()
 
 
 def test_meta_text_about_juli_and_rules_is_stripped() -> None:
@@ -48,8 +90,12 @@ def test_meta_text_about_juli_and_rules_is_stripped() -> None:
     assert "Juli" not in cleaned.description and "quy tắc" not in cleaned.description
     assert [d.reason for d in cleaned.dropped] == [REASON_META]
     assert cleaned.description.startswith("Bình giữ nhiệt inox 304")
-    # a stripped sentence is not silent: the model is sent back to write it again
-    assert screen_listing_draft(TITLE, dirty) is not None
+    # the remaining text still meets the minimums: replaced, never refused
+    assert screen_listing_draft(TITLE, dirty) is None
+    normalized = normalize_create_product(
+        CreateProductInput(category_id="1", title=TITLE, description=dirty, reason_vi="Bình")
+    )
+    assert normalized is not None and normalized.description == cleaned.description
 
 
 def test_a_meta_preamble_and_ai_talk_are_dropped_but_the_word_ai_alone_is_not_meta() -> None:
@@ -106,10 +152,71 @@ def test_description_is_capped_and_empty_or_meta_only_is_rejected() -> None:
         clean_listing_draft("Juli viết tiêu đề này cho sản phẩm bình nước", GOOD)
 
 
-def test_the_precheck_refuses_a_generic_draft_and_passes_a_specific_one() -> None:
+def test_the_precheck_refuses_only_a_draft_with_nothing_left() -> None:
     products = FakeProducts()
-    bad = CreateProductInput(category_id="1", title=TITLE, description=GENERIC, reason_vi="Bình")
+    bad = CreateProductInput(
+        category_id="1",
+        title=TITLE,
+        description=(
+            "Thiết kế chắc chắn, tiện mang theo khi đi học, đi làm hoặc hoạt động năng động."
+        ),
+        reason_vi="Bình",
+    )
     refusal = precheck_create_product(_sandbox(products), CONTEXT, bad)
     assert refusal is not None and refusal.error_code == ERROR_LISTING_TEXT_REJECTED
     good = CreateProductInput(category_id="1", title=TITLE, description=GOOD, reason_vi="Bình")
     assert precheck_create_product(_sandbox(products), CONTEXT, good) is None
+
+
+# -- the runner: the seller confirms the filtered text; refusals are capped ----------------
+
+
+class _DescribingLLM(ScriptedLLM):
+    def __init__(self, descriptions: list[str]) -> None:
+        super().__init__([TITLE] * len(descriptions))
+        self.descriptions = list(descriptions)
+
+    async def complete(self, **kwargs: Any):
+        turn = await super().complete(**kwargs)
+        for block in turn.blocks:
+            if isinstance(block, ToolCallBlock):
+                block.arguments["description"] = self.descriptions.pop(0)
+        return turn
+
+
+async def test_the_reviewer_is_shown_the_filtered_text_with_no_redraft() -> None:
+    products, store, sink = (
+        BrandedProducts(attributes=MANUFACTURER_ATTRS[:1]),
+        InMemoryStore(),
+        InMemoryEventSink(),
+    )
+    dirty = GOOD + "\nJuli kiểm tra độ dài và từ cấm theo quy tắc của bạn."
+    run_id = uuid.uuid4()
+    paused = await _runner(products, store, sink, _DescribingLLM([dirty])).run(
+        run_id, product_ref=SOURCE_ID
+    )
+    assert paused.status == WorkflowRunStatus.WAITING_APPROVAL
+    arguments = store.states[run_id].pending_confirmation["arguments"]
+    assert arguments["description"] == clean_listing_draft(TITLE, dirty).description
+    assert "Juli" not in str(arguments)
+    approval = [e.payload for e in sink.events if e.event_type == "workflow.approval_required"]
+    assert approval and "Juli kiểm tra" not in str(approval)
+    assert not [e for e in sink.events if e.event_type == "tool.completed"]  # no refusal round
+    assert products.created == []
+
+
+async def test_two_empty_drafts_in_a_row_end_the_run_instead_of_looping() -> None:
+    products, store, sink = (
+        BrandedProducts(attributes=MANUFACTURER_ATTRS[:1]),
+        InMemoryStore(),
+        InMemoryEventSink(),
+    )
+    filler = "Thiết kế chắc chắn, tiện mang theo khi đi học, đi làm hoặc hoạt động năng động."
+    result = await _runner(products, store, sink, _DescribingLLM([filler, filler, filler])).run(
+        uuid.uuid4(), product_ref=SOURCE_ID
+    )
+    assert result.status != WorkflowRunStatus.WAITING_APPROVAL
+    assert not [e for e in sink.events if e.event_type == "workflow.approval_required"]
+    assert len([e for e in sink.events if e.event_type == "tool.completed"]) == 2  # one redraft
+    assert [e for e in sink.events if e.event_type == "workflow.failed"]
+    assert products.created == []

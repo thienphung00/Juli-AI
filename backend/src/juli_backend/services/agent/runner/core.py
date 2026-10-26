@@ -212,7 +212,7 @@ import logging
 import time
 import uuid
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from enum import Enum, auto
 from typing import Any
@@ -1924,6 +1924,14 @@ class WorkflowRunner:
             # P64: a domain may refuse a proposal before the seller is asked (the
             # sandbox create's brand guard). Counted like a malformed call: the model
             # may draft once more; a second refusal in a row ends the run.
+            normalize = getattr(self._tool_executor, "normalize_proposal", None)
+            normalized = (
+                normalize(tool_name=block.tool_name, params=params) if callable(normalize) else None
+            )
+            if normalized is not None:
+                # P69: the seller confirms exactly the filtered text, not the raw draft.
+                block = replace(block, arguments=normalized.model_dump(mode="json"))
+                params = normalized
             precheck = getattr(self._tool_executor, "precheck", None)
             refusal = (
                 precheck(tool_name=block.tool_name, params=params) if callable(precheck) else None
