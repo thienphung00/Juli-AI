@@ -1,7 +1,7 @@
 """DATA step for P61-F: mark agent runs that wrote to the SANDBOX as ``write_mode='simulated'``
 
 Revision ID: 101_write_mode_backfill
-Revises: 102_shops_tiktok_numeric_id
+Revises: 104_shop_pseudonym_keys
 Create Date: 2026-10-21
 
 DECISIONS D71.2 (owner, 2026-10-21); DEBT P61-B "No backfill of ``workflow_runs.write_mode``".
@@ -68,7 +68,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "101_write_mode_backfill"
-down_revision: str | None = "102_shops_tiktok_numeric_id"
+down_revision: str | None = "104_shop_pseudonym_keys"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

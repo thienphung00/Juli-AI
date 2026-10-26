@@ -312,8 +312,9 @@ class TestTheMigrationMatchesTheModel:
         # P50-B `094_user_privacy_and_consent`; P60-1a `095_card_events`;
         # P60-1b `096_change_attribution`; P61-B `097_production_write_shops`;
         # P62-B `098_processed_events_retention`, P61-G `099_sandbox_write_enumeration`,
-        # P61-G2 `100_sandbox_collision_xshop`, P68 `102_shops_tiktok_numeric_id`.
-        assert heads == ["102_shops_tiktok_numeric_id"], heads
+        # P61-G2 `100_sandbox_collision_xshop`, P68 `102_shops_tiktok_numeric_id`,
+        # D76 `103_data_use_consents`, `104_shop_pseudonym_keys`.
+        assert heads == ["104_shop_pseudonym_keys"], heads
 
     def test_every_model_column_is_added_by_the_migration(self):
         """The two lists must agree, or SQLite-backed tests pass over a schema

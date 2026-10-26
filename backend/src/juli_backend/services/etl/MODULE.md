@@ -128,8 +128,8 @@ Post-cutover **one writer per medallion table** is documented in
 
 | Responsibility | Tables / repos |
 |----------------|----------------|
-| **Bronze append** (orders/returns raw payloads) | `BronzeOrderRawPayloadsRepo`, `BronzeReturnRawPayloadsRepo` — batched `append_batch` only |
-| **Silver domain upsert** | `OrdersRepo.upsert`, `ReturnsRepo.upsert` via `EtlConsumer` and `SilverOrdersReturnsPromoter` |
+| **Bronze append** (orders/returns raw payloads) | `BronzeOrderRawPayloadsRepo`, `BronzeReturnRawPayloadsRepo` — batched `append_batch` only; the payload passes `services/privacy/raw_payload.sanitize_raw_payload` first (field allowlist + `buyer_id` pseudonym, ADR-116 §4) |
+| **Silver domain upsert** | `OrdersRepo.upsert`, `ReturnsRepo.upsert` via `EtlConsumer` and `SilverOrdersReturnsPromoter`; `buyer_id` is the shop's pseudonym (`services/privacy/pseudonym.py`) |
 
 Readers (gold compute, ML) must not write silver. Bronze promotion reads bronze append
 rows and writes silver only through the promoter — no reverse bronze writes from silver.

@@ -2,6 +2,7 @@
 
 **Status:** Accepted (owner, 2026-10-20, grill D70)
 **Date:** 2026-10-20
+**Amended by:** [ADR-116](116-client-data-lanes-consent-and-model-split.md) (D76, 2026-10-26) — dataset `shop_set` and fleet calibration include only shops with `pooled_training` consent; `category` / `shop_group` assignments serve public models only; per-shop client layers use `scope_kind = shop`.
 **Related ADRs / decisions:** grill D12 / D13 = fast-track **D70.12 / D70.13**
 (`docs/product/data-platform/GRILL_LOG.md`, gap map `GAP_MAP_FASTTRACK.md` rows D12, D13);
 ADR-107 (`card_events`, amended for D70.9 — this ADR adds the `shadow` event and the snapshot

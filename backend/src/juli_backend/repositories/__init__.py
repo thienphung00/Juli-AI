@@ -56,6 +56,7 @@ from juli_backend.repositories.commerce import (
     ReturnsRepo,
     SettlementsRepo,
 )
+from juli_backend.repositories.consent import DataUseConsentsRepo
 from juli_backend.repositories.decisions import (
     ActionCardsRepo,
     AlertConfigsRepo,
@@ -66,6 +67,7 @@ from juli_backend.repositories.graph import GraphRepo
 from juli_backend.repositories.identity import ShopsRepo, UsersRepo
 from juli_backend.repositories.ingestion_state import ShopIngestionStateRepo
 from juli_backend.repositories.production_write import ProductionWriteAuthorizationsRepo
+from juli_backend.repositories.pseudonym_keys import ShopPseudonymKeysRepo
 from juli_backend.repositories.shop_diagnosis import (
     ShopDiagnosisReportsRepo,
     ShopMetricRankingsRepo,
@@ -91,6 +93,7 @@ __all__ = [
     "BronzeRawPayloadsRepo",
     "BronzeReturnRawPayloadsRepo",
     "CreatorsRepo",
+    "DataUseConsentsRepo",
     "GoldKpiEnvelopesRepo",
     "GraphRepo",
     "InventoryRepo",
@@ -106,6 +109,7 @@ __all__ = [
     "ShopDiagnosisReportsRepo",
     "ShopIngestionStateRepo",
     "ShopMetricRankingsRepo",
+    "ShopPseudonymKeysRepo",
     "ShopScopedRepo",
     "ShopsRepo",
     "TikTokCredentialRepo",

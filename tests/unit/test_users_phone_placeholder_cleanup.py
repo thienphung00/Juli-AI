@@ -85,7 +85,9 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: P62-B onto `098_processed_events_retention` and P61-G onto `099_sandbox_write_enumeration`,
 #: P61-G2 onto `100_sandbox_collision_xshop`, and P61-F onto the deferred
 #: `101_write_mode_backfill` (its sibling data step; the deferred chain is 100 -> 101 -> 074;
-#: P68 put `102_shops_tiktok_numeric_id` under 101, so it is now 102 -> 101 -> 074).
+#: P68 put `102_shops_tiktok_numeric_id` under 101, so it is now 102 -> 101 -> 074;
+#: D76 put `103_data_use_consents` under it: 103 -> 101 -> 074, then
+#: `104_shop_pseudonym_keys`: 104 -> 101 -> 074).
 PHONE_REVISION = "101_write_mode_backfill"
 
 _SCHEMA = "phone_cleanup_074"

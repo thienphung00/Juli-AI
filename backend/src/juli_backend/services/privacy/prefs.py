@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import User
 from juli_backend.repositories.identity import UsersRepo
+from juli_backend.services.consent.terms import grant_terms_consents_for_owned_shops
 from juli_backend.services.privacy.terms import DELETION_GRACE, LEGAL_TERMS_DATE
 
 #: The keys ``PATCH /v1/me/privacy`` accepts.
@@ -121,7 +122,13 @@ async def record_consent(
     liability_clause: bool,
     now: datetime | None = None,
 ) -> PrivacyState:
-    """D68.4 / D68.8: the current text, and Điều 11 accepted separately."""
+    """D68.4 / D68.8: the current text, and Điều 11 accepted separately.
+
+    D10 (ADR-116 §2): the acceptance also grants the Terms consent scopes to every shop
+    the seller owns (``services/consent/terms.py``). That side write never raises: a
+    failure is logged and leaves the shop without a grant (fail closed), never a failed
+    acceptance.
+    """
     if terms_date != LEGAL_TERMS_DATE:
         raise TermsDateMismatch(terms_date.isoformat())
     if liability_clause is not True:
@@ -132,6 +139,9 @@ async def record_consent(
         terms_date_accepted=terms_date,
         terms_accepted_at=at,
         liability_clause_accepted_at=at,
+    )
+    await grant_terms_consents_for_owned_shops(
+        session, user_id, accepted_at=at, terms_date=terms_date
     )
     return PrivacyState.of(user)
 
