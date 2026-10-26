@@ -115,6 +115,16 @@ def _capability_value(capability: TikTokCapability | str | None) -> str:
     return capability.value if isinstance(capability, TikTokCapability) else capability
 
 
+def list_authorized_shops(*, app_key: str, app_secret: str, access_token: str) -> list[dict]:
+    """Get Authorized Shops on a client with NO ``shop_cipher``.
+
+    Authorization endpoints are not shop-scoped; a poll client carries the cipher on every
+    request, which TikTok refuses here (P68: the numeric-id backfill failed on every poll).
+    """
+    client = TikTokClient(app_key=app_key, app_secret=app_secret, access_token=access_token)
+    return AuthorizationResource(client).list_all_shops()
+
+
 def resolve_authorized_shop(*, app_key: str, app_secret: str, access_token: str) -> dict:
     """Ask TikTok which shop this access token is authorized for.
 
@@ -123,8 +133,7 @@ def resolve_authorized_shop(*, app_key: str, app_secret: str, access_token: str)
     single shop, and guessing which one is exactly the class of assumption this
     module exists to remove).
     """
-    client = TikTokClient(app_key=app_key, app_secret=app_secret, access_token=access_token)
-    shops = AuthorizationResource(client).list_all_shops()
+    shops = list_authorized_shops(app_key=app_key, app_secret=app_secret, access_token=access_token)
 
     if not shops:
         raise CredentialBindingError(

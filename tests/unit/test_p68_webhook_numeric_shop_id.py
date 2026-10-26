@@ -386,3 +386,44 @@ def test_migration_is_additive_literal_and_short_enough():
     assert "SECURITY DEFINER" in body
     assert "FROM PUBLIC" in body
     assert "app_current_shop_id()" in body
+
+
+def test_poll_backfill_lists_shops_on_a_cipher_less_client(monkeypatch):
+    """P68 follow-up: the poll's client carries the shop cipher, which TikTok refuses on Get
+    Authorized Shops (and sandbox write resources have no ``authorization``); the real path
+    must ask on a cipher-less client built from the credential's own token."""
+    from types import SimpleNamespace
+
+    from juli_backend.workers.services.polling import ingestion
+
+    seen: list[dict] = []
+
+    def fake_list_all_shops(self):
+        seen.append({"cipher": self._client.shop_cipher, "token": self._client.access_token})
+        return [{"id": "7495274531001436791", "cipher": "cipher-x"}]
+
+    monkeypatch.setattr(
+        "juli_backend.integrations.tiktok.resources.authorization.AuthorizationResource.list_all_shops",
+        fake_list_all_shops,
+    )
+    config = SimpleNamespace(app_key="key", app_secret="secret")
+    credential = SimpleNamespace(access_token="token-x", shop_cipher="cipher-x")
+    lister = ingestion._authorized_shops_lister(
+        config, credential, SimpleNamespace(), injected=False
+    )
+    assert lister() == [{"id": "7495274531001436791", "cipher": "cipher-x"}]
+    assert seen == [{"cipher": None, "token": "token-x"}]
+
+
+def test_injected_resources_answer_the_backfill_themselves():
+    from types import SimpleNamespace
+
+    from juli_backend.workers.services.polling import ingestion
+
+    resources = SimpleNamespace(
+        authorization=SimpleNamespace(list_all_shops=lambda: [{"id": "1", "cipher": "c"}])
+    )
+    lister = ingestion._authorized_shops_lister(
+        SimpleNamespace(), SimpleNamespace(), resources, injected=True
+    )
+    assert lister() == [{"id": "1", "cipher": "c"}]
