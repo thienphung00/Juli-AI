@@ -37,6 +37,8 @@ from juli_backend.services.cdp_batch.partner_budget import (
     PartnerApiBudgetGovernor,
     begin_partner_budget_run,
 )
+from juli_backend.services.privacy.payload_allowlist import ORDERS_RECONCILE_PAGE, TIKTOK
+from juli_backend.services.privacy.raw_payload import sanitize_raw_payload
 
 logger = logging.getLogger(__name__)
 
@@ -272,12 +274,17 @@ async def append_reconcile_bronze_page(
             "next_page_token": next_page_token,
         },
     }
+    # ADR-116 §4: the page's records keep allowlisted order fields only, buyer_id
+    # as the shop's pseudonym.
+    stored = await sanitize_raw_payload(
+        session, shop_id, platform=TIKTOK, endpoint=ORDERS_RECONCILE_PAGE, payload=page_payload
+    )
     rows = await bronze_repo.append_batch(
         [
             {
                 "shop_id": shop_id,
                 "ingest_source": BATCH_RECONCILE_INGEST_SOURCE,
-                "payload": page_payload,
+                "payload": stored,
                 "received_at": resolved_received_at,
                 "tiktok_order_id": None,
                 "source_event_id": event_id,

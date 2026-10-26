@@ -1,0 +1,23 @@
+{
+  "_source": "Shape of one data.cancellations[] element of POST /return_refund/202309/cancellations/search (TikTok Shop OAS bundled with the tts-openapi-guide skill). Every value is synthetic.",
+  "cancel_id": "4035244019822930001",
+  "order_id": "576461413038785752",
+  "role": "BUYER",
+  "cancel_type": "CANCEL",
+  "cancel_status": "CANCELLATION_REQUEST_COMPLETE",
+  "cancel_reason": "ecom_order_unpaid_cancel_reason_change_mind",
+  "cancel_reason_text": "Changed my mind",
+  "create_time": 1761400100,
+  "update_time": 1761400200,
+  "refund_amount": {"currency": "VND", "refund_total": "315000"},
+  "cancel_line_items": [
+    {
+      "cancel_line_item_id": "4035244019822930002",
+      "order_line_item_id": "577086512123755123",
+      "sku_id": "1729582718312380123",
+      "product_name": "Áo thun cotton",
+      "seller_sku": "AT-W-M",
+      "refund_amount": {"currency": "VND", "refund_total": "150000"}
+    }
+  ]
+}

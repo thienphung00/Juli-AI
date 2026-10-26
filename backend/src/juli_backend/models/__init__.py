@@ -42,6 +42,7 @@ from juli_backend.models.order_costs import (
     OrderFinanceTransaction,
     OrderPriceDetail,
 )
+from juli_backend.models.pseudonym_keys import ShopPseudonymKey
 from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue, ShopRule
 from juli_backend.models.shop_diagnosis import (
     ShopDailyProduct,
@@ -97,4 +98,5 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     TrialSignup,
     CardEvent,
     DataUseConsent,
+    ShopPseudonymKey,
 )

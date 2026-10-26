@@ -7,6 +7,10 @@
 - a revoked grant cannot be reopened or re-dated; no DELETE; ``juli_app`` cannot
   UPDATE any other column;
 - the partial unique index allows one open grant per (shop, scope);
+- D10: accepting the Terms as ``juli_app`` grants the four Terms scopes to the
+  seller's shop under RLS; the operator ``backfill-terms`` (``ops_list_shops()``
+  under ``juli_ops``, each owner read under their user scope, each shop written
+  under its own scope) grants them to accepting owners only, and a re-run is a no-op;
 - the migration's downgrade drops the table and ``upgrade head`` restores it.
 
 It downgrades a revision, so it is in
@@ -33,7 +37,7 @@ from juli_backend.services.consent import (
     require_consent,
     revoke_consent,
 )
-from tests.integration.two_tenant import RUNTIME_ROLE
+from tests.integration.two_tenant import RUNTIME_ROLE, seed_tenant
 
 requires_postgres = pytest.mark.skipif(
     not os.environ.get("DATABASE_URL", "").strip().startswith("postgresql"),
@@ -248,6 +252,113 @@ def test_check_constraints_refuse_bad_values(owner_engine, two_tenants):
                     ),
                     values,
                 )
+
+
+TERMS_SCOPES = {"service", "llm_processing", "llm_images", "llm_media"}
+
+
+@asynccontextmanager
+async def _unscoped_app_session():
+    """A ``juli_app`` session with no tenant GUC: what an operator CLI run starts from."""
+    from juli_backend.core.config.runtime import async_database_url
+
+    engine = create_async_engine(async_database_url(os.environ["DATABASE_URL"]))
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text(f"SET ROLE {RUNTIME_ROLE}"))
+            await conn.commit()
+            session = AsyncSession(bind=conn, expire_on_commit=False)
+            try:
+                yield session
+            finally:
+                await session.close()
+    finally:
+        await engine.dispose()
+
+
+def _accept_terms_as_owner(owner_engine, user_id: uuid.UUID) -> None:
+    with owner_engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE public.users SET terms_date_accepted = '2026-10-18', "
+                "terms_accepted_at = '2026-10-20 02:30+00' WHERE id = :id"
+            ),
+            {"id": str(user_id)},
+        )
+
+
+@pytest.mark.asyncio
+async def test_accepting_the_terms_as_juli_app_grants_the_terms_scopes(owner_engine):
+    from juli_backend.services import privacy
+
+    tenant = seed_tenant(owner_engine, label="tenant-accepts")
+    async with _unscoped_app_session() as session:
+        state = await privacy.record_consent(
+            session, tenant.user_id, terms_date=privacy.LEGAL_TERMS_DATE, liability_clause=True
+        )
+        await session.commit()
+    assert state.needs_terms_acceptance is False
+    rows = _rows(owner_engine, tenant.shop_id)
+    assert {scope for scope, revoked in rows if revoked is None} == TERMS_SCOPES
+    assert len(rows) == len(TERMS_SCOPES)
+
+
+@pytest.mark.asyncio
+async def test_backfill_terms_grants_accepting_owners_only_and_reruns_as_a_noop(owner_engine):
+    from juli_backend.services.consent import cli
+
+    accepted = seed_tenant(owner_engine, label="tenant-backfill-accepted")
+    never = seed_tenant(owner_engine, label="tenant-backfill-never")
+    _accept_terms_as_owner(owner_engine, accepted.user_id)
+
+    async def run(*argv):
+        return await cli.run_command(
+            cli.build_parser().parse_args(list(argv)), _unscoped_app_session
+        )
+
+    code, out = await run("backfill-terms")
+    assert code == 0 and "DRY RUN" in out
+    assert _rows(owner_engine, accepted.shop_id) == []
+
+    code, out = await run("backfill-terms", "--apply")
+    assert code == 0, out
+    assert "failed_shops=0 failed_owners=0" in out
+    assert {s for s, r in _rows(owner_engine, accepted.shop_id) if r is None} == TERMS_SCOPES
+    assert _rows(owner_engine, never.shop_id) == []
+
+    code, out = await run("backfill-terms", "--apply")
+    assert code == 0 and "granted=0" in out
+    assert len(_rows(owner_engine, accepted.shop_id)) == len(TERMS_SCOPES)
+
+
+@pytest.mark.asyncio
+async def test_operator_grant_and_revoke_one_shop_as_juli_app(owner_engine):
+    from juli_backend.services.consent import cli
+
+    tenant = seed_tenant(owner_engine, label="tenant-contract")
+    base = ["--shop-id", str(tenant.shop_id), "--scope", "pooled_training"]
+    grant = [
+        "grant",
+        *base,
+        "--method",
+        "contract_paper",
+        "--terms-version",
+        "hd-2026",
+        "--evidence-ref",
+        "contract.pdf",
+        "--granted-by",
+        "client director",
+        "--apply",
+    ]
+    parser = cli.build_parser()
+    code, out = await cli.run_command(parser.parse_args(grant), _unscoped_app_session)
+    assert code == 0 and ": granted" in out
+    code, out = await cli.run_command(
+        parser.parse_args(["revoke", *base, "--apply"]), _unscoped_app_session
+    )
+    assert code == 0 and ": revoked" in out
+    [(scope, revoked)] = _rows(owner_engine, tenant.shop_id)
+    assert scope == "pooled_training" and revoked is not None
 
 
 def test_zz_downgrade_drops_and_upgrade_restores(owner_engine):

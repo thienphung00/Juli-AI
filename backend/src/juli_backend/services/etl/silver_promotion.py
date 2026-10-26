@@ -13,6 +13,7 @@ from juli_backend.services.etl.transform import (
     bronze_return_to_upsert_kwargs,
     transform_for_channel,
 )
+from juli_backend.services.privacy.pseudonym import pseudonymize_buyer_id
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +27,12 @@ if TYPE_CHECKING:
 
 
 class SilverOrdersReturnsPromoter:
-    """Bronze → silver promotion for orders/returns domain (#607)."""
+    """Bronze → silver promotion for orders/returns domain (#607).
+
+    ``buyer_id`` is pseudonymised again on the way (ADR-116 §4): a no-op for a
+    bronze row written since the allowlist (already the pseudonym), and the
+    pseudonym for a row stored before the clean-up command ran.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -40,6 +46,9 @@ class SilverOrdersReturnsPromoter:
         if received_at.tzinfo is None:
             received_at = received_at.replace(tzinfo=UTC)
         kwargs = bronze_order_to_upsert_kwargs(bronze_row.payload, received_at=received_at)
+        kwargs["buyer_id"] = await pseudonymize_buyer_id(
+            self._session, bronze_row.shop_id, kwargs.get("buyer_id")
+        )
         return await self._orders.upsert(shop_id=bronze_row.shop_id, **kwargs)
 
     async def promote_return(self, bronze_row: BronzeReturnRawPayload) -> Return:
@@ -49,6 +58,9 @@ class SilverOrdersReturnsPromoter:
         if received_at.tzinfo is None:
             received_at = received_at.replace(tzinfo=UTC)
         kwargs = bronze_return_to_upsert_kwargs(bronze_row.payload, received_at=received_at)
+        kwargs["buyer_id"] = await pseudonymize_buyer_id(
+            self._session, bronze_row.shop_id, kwargs.get("buyer_id")
+        )
         order = await self._orders.get_by_tiktok_id(
             bronze_row.shop_id,
             kwargs["tiktok_order_id"],

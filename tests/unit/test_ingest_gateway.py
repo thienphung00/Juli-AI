@@ -37,6 +37,7 @@ from juli_backend.services.ingest import gateway, mapping, pairing
 from juli_backend.services.ingest.rate_limit import InMemoryRateGate, set_ingest_rate_gate
 from tests.support.api import authenticate, build_app, client_for
 from tests.support.builders import make_tenant
+from tests.support.consent import grant_service_consent
 
 REPO = Path(__file__).resolve().parents[2]
 VERSIONS = REPO / "backend/src/juli_backend/database/migrations/versions"
@@ -88,7 +89,10 @@ def _body(rows: list[dict[str, Any]], **over: Any) -> dict[str, Any]:
 
 
 async def _shopee_tenant(session, **over: Any):
-    return await make_tenant(session, platform="shopee", tiktok_shop_id=None, **over)
+    """A Shopee shop that has granted ``service`` (ADR-116 §4: the gateway requires it)."""
+    user, shop = await make_tenant(session, platform="shopee", tiktok_shop_id=None, **over)
+    await grant_service_consent(session, shop.id)
+    return user, shop
 
 
 async def _metrics(session, shop_id) -> list[PlatformDailyMetric]:

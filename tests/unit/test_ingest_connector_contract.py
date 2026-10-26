@@ -20,6 +20,7 @@ from sqlalchemy import select
 from juli_backend.models.ingest import PlatformDailyMetric
 from juli_backend.services import ingest as svc
 from tests.support.builders import make_tenant
+from tests.support.consent import grant_service_consent
 
 CONTRACT = Path(__file__).resolve().parents[2] / "apps/connector/test/fixtures/contract"
 NOW = datetime(2026, 10, 12, 3, 0)
@@ -38,6 +39,7 @@ def _body(name: str) -> svc.IngestBody:
 )
 async def test_the_extensions_posts_are_accepted_and_normalized(session, dataset, name, rows):
     _, shop = await make_tenant(session, platform="shopee", tiktok_shop_id=None)
+    await grant_service_consent(session, shop.id)  # ADR-116 §4: the gateway requires it
     result = await svc.ingest(
         session,
         shop_id=shop.id,
@@ -63,6 +65,7 @@ async def test_the_extensions_posts_are_accepted_and_normalized(session, dataset
 
 async def test_overview_lands_on_the_juli_streams_with_kpis(session):
     _, shop = await make_tenant(session, platform="shopee", tiktok_shop_id=None)
+    await grant_service_consent(session, shop.id)  # ADR-116 §4: the gateway requires it
     await svc.ingest(
         session,
         shop_id=shop.id,
