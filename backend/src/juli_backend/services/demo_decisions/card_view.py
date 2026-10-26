@@ -229,7 +229,11 @@ async def load_card_contexts(
             context.seller_skus = [
                 sku for i in items if (sku := i.seller_sku) and is_seller_visible_sku(sku)
             ]
-            context.sku_count = len(context.seller_skus)
+            # Every variant counts toward "+N" (a SKU without a seller code is still a
+            # variant); only Juli's own internal SKUs are left out (P69).
+            context.sku_count = sum(
+                1 for i in items if not i.seller_sku or is_seller_visible_sku(i.seller_sku)
+            )
         context.latest_run = latest_runs.get(card.id)
         if context.latest_run is not None:
             context.writes = writes.get(context.latest_run.id, [])
