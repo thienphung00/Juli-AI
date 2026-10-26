@@ -61,9 +61,13 @@ A token that carries the reviewer mark is a reviewer session. Fail closed everyw
 Before P32-D an unset `REVIEWER_SHOP_ID` answered 503 `unconfigured` on every route; it no longer
 does — the demo shows a `shop: null` reviewer the bundled sample shop and calls no shop route.
 
-Account rows are cached in-process for **15 s** (`REVIEWER_ACCOUNT_CACHE_SECONDS`), so a revoke
-takes effect within 15 s on every API worker; the revoke also bans the Supabase user, so no new
-token is minted. A token **without** the mark is never a reviewer (a password user created any
+Account rows are cached in-process for **30 s** (`REVIEWER_ACCOUNT_CACHE_SECONDS`; 15 s before
+P69), so a revoke takes effect within 30 s on every API worker; an expiry is compared with the
+clock on every request (exact). The revoke also bans the Supabase user, so no new token is
+minted. P69: the same TTL caches the reviewer's `users` row (keyed by the verified `sub`, read
+only after the gate admits the request) and the pinned shop's row + sandbox classification
+(`services/reviewer/pin_cache`); the shop's tenant scope (`SET LOCAL`) is still applied on every
+request, and the sign-in claim, audits and writes are never cached. A token **without** the mark is never a reviewer (a password user created any
 other way is an ordinary seller with no shop and gets the P13 sample — never Fujiwa).
 
 Staff console: `/v1/ops/*` refuses a reviewer token outright (`get_ops_user`, 403) before the

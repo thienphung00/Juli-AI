@@ -3,16 +3,14 @@
 ``ops_reviewer_accounts`` is an ops table (migration 090): every read or write
 goes through :func:`services.ops.access.ops_role` (``juli_ops``), never the
 seller role. The API gate reads an account per reviewer request through a
-short in-process cache (:data:`CACHE_SECONDS`), so a revoke reaches every API
-worker within that window; the provisioning command also bans the Supabase
-user, so no new token is minted after a revoke.
+short in-process cache (:func:`cache_seconds`, 30 s since P69 -- was 15 s), so a
+revoke reaches every API worker within that window; an expiry is compared with
+the clock on every request, so it is exact. The provisioning command also bans
+the Supabase user, so no new token is minted after a revoke.
 """
 
 from __future__ import annotations
 
-import os
-import threading
-import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -20,6 +18,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.security import IdentityCache, reviewer_identity_ttl_seconds
 from juli_backend.models.ops import REVIEWER_ROLE, OpsReviewerAccount
 from juli_backend.repositories._base import utc_now_naive
 from juli_backend.services.ops import audit
@@ -36,11 +35,8 @@ STATUS_UNKNOWN = "unknown"
 
 
 def cache_seconds() -> float:
-    raw = os.getenv("REVIEWER_ACCOUNT_CACHE_SECONDS", "").strip()
-    try:
-        return max(0.0, float(raw)) if raw else 15.0
-    except ValueError:
-        return 15.0
+    """The account cache TTL: ``REVIEWER_ACCOUNT_CACHE_SECONDS``, else 30 s (P69)."""
+    return reviewer_identity_ttl_seconds()
 
 
 @dataclass(frozen=True)
@@ -84,26 +80,26 @@ def _snapshot(row: OpsReviewerAccount) -> ReviewerAccount:
     )
 
 
-_lock = threading.Lock()
-_cache: dict[uuid.UUID, tuple[float, ReviewerAccount | None]] = {}
+#: Keyed by the verified JWT ``sub``. Holds the account snapshot, or ``(None,)`` for a
+#: ``sub`` with no account (so an unknown token is not a database read every time).
+_cache: IdentityCache[uuid.UUID, tuple[ReviewerAccount | None]] = IdentityCache(
+    ttl_seconds=cache_seconds
+)
 
 
 def forget_cached(user_id: uuid.UUID | None = None) -> None:
     """Drop one cached account (or all): tests, and after a write in this process."""
-    with _lock:
-        if user_id is None:
-            _cache.clear()
-        else:
-            _cache.pop(user_id, None)
+    if user_id is None:
+        _cache.clear()
+    else:
+        _cache.pop(user_id)
 
 
 async def load_account(session: AsyncSession, user_id: uuid.UUID) -> ReviewerAccount | None:
     """The account of this Supabase user (cached ``cache_seconds()``), or None."""
-    ttl = cache_seconds()
-    with _lock:
-        hit = _cache.get(user_id)
-    if hit is not None and time.monotonic() - hit[0] <= ttl:
-        return hit[1]
+    hit = _cache.get(user_id)
+    if hit is not None:
+        return hit[0]
     async with ops_role(session):
         row = (
             await session.execute(
@@ -111,8 +107,7 @@ async def load_account(session: AsyncSession, user_id: uuid.UUID) -> ReviewerAcc
             )
         ).scalar_one_or_none()
         account = _snapshot(row) if row is not None else None
-    with _lock:
-        _cache[user_id] = (time.monotonic(), account)
+    _cache.put(user_id, (account,))
     return account
 
 

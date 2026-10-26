@@ -5,7 +5,9 @@ from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import make_transient_to_detached
 
 from juli_backend.core.config.runtime import require_env
 from juli_backend.core.security.claims import (
@@ -15,6 +17,7 @@ from juli_backend.core.security.claims import (
     verified_identity,
 )
 from juli_backend.core.security.exceptions import Unauthorized
+from juli_backend.core.security.identity_cache import IdentityCache
 from juli_backend.core.security.jwt import verify_supabase_jwt
 from juli_backend.database import NotFound, User, UsersRepo
 from juli_backend.database.database import get_session
@@ -202,6 +205,43 @@ async def load_authenticated_user(session: AsyncSession, token: VerifiedToken) -
     return user
 
 
+# -- the reviewer's users row, cached (P69) ---------------------------------------------
+#
+# A reviewer request's users read (BEGIN, user GUC, users row, COMMIT) is four round
+# trips, ~0.8 s from the VPS, in front of every route the demo page fires on load. For a
+# REVIEWER token only, the row is cached per verified ``sub`` for the reviewer identity
+# TTL (``identity_cache.reviewer_identity_ttl_seconds``, 30 s). Tenant-safe because:
+#
+# - the key is the verified JWT ``sub`` of THIS request; a hit is a copy of exactly that
+#   user's own row (no other user's row can be stored under it);
+# - the lookup happens only AFTER the reviewer gate admitted this request (account
+#   active, not revoked within its own TTL, route allowlisted) -- the gate runs first,
+#   on every request, whatever the cache holds;
+# - each hit is a FRESH detached ``User`` built from plain column values, so no ORM
+#   instance is shared between requests or sessions;
+# - only rows read (or provisioned) and COMMITTED by ``load_authenticated_user`` are
+#   stored, so a hit never stands in for an uncommitted first sighting.
+#
+# Seller and staff tokens are untouched: they read (and commit) the row every request.
+_reviewer_users: IdentityCache[uuid.UUID, dict[str, object]] = IdentityCache()
+
+
+def forget_cached_reviewer_users() -> None:
+    """Drop every cached reviewer users row (tests)."""
+    _reviewer_users.clear()
+
+
+def _user_values(user: User) -> dict[str, object]:
+    mapper = sa_inspect(User)
+    return {attr.key: getattr(user, attr.key) for attr in mapper.column_attrs}
+
+
+def _detached_user(values: dict[str, object]) -> User:
+    user = User(**values)
+    make_transient_to_detached(user)
+    return user
+
+
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
@@ -212,7 +252,17 @@ async def get_current_user(
     P32-A (D42): a partner reviewer's token goes through the reviewer gate
     first -- route allowlist, account expiry / revocation, sign-in audit --
     so a refused reviewer request never reaches the ``users`` read or the route.
+    P69: an admitted reviewer's ``users`` row is then served from a 30 s cache
+    keyed by the verified ``sub`` (see ``_reviewer_users`` above).
     """
     token = await verify_bearer_token(credentials)
     await enforce_reviewer_gate(request, session, token)
-    return await load_authenticated_user(session, token)
+    if not token.is_reviewer:
+        return await load_authenticated_user(session, token)
+    cached = _reviewer_users.get(token.user_id)
+    if cached is not None and cached.get("id") == token.user_id:
+        return _detached_user(cached)
+    user = await load_authenticated_user(session, token)
+    if user.id == token.user_id:
+        _reviewer_users.put(token.user_id, _user_values(user))
+    return user

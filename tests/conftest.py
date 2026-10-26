@@ -327,6 +327,9 @@ _SHARED_STATE_MODULES = frozenset(
         # run -> product re-read -> impact reader), all as juli_app, and asserts per-shop
         # row counts; the impact reader also walks every shop's executions.
         "test_p61e_any_shop_end_to_end.py",
+        # Reason 2 again: fast track P69 seeds the sandbox shop (clearing every other
+        # sandbox_write row), a reviewer and a seller, and bounds each route's round trips.
+        "test_reviewer_round_trips.py",
     }
 )
 

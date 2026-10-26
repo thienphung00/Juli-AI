@@ -310,7 +310,9 @@ class ShopsRepo(SessionRepo):
     async def list(self, user_id: uuid.UUID) -> list[Shop]:
         return await self._all(select(Shop).where(Shop.user_id == user_id))
 
-    async def list_for_authorization(self, user_id: uuid.UUID) -> builtins.list[Shop]:
+    async def list_for_authorization(
+        self, user_id: uuid.UUID, *, scope_replaced_after: bool = False
+    ) -> builtins.list[Shop]:
         """List a user's shops during the request bootstrap, under a user scope (#1697).
 
         THE SECOND AND LAST PRE-SCOPE READ. `shops` carries
@@ -347,7 +349,12 @@ class ShopsRepo(SessionRepo):
         and the CALLER fails with "has no attribute __iter__" — an error that
         points at `api/dependencies.py`, nowhere near the cause.
         """
-        async with with_user_scope(self._session, user_id):
+        # P69: `scope_replaced_after=True` is the caller's promise that it sets BOTH
+        # tenant GUCs right after this read (or ends the transaction) --
+        # `get_active_shop` does, before anything else runs. Restoring the prior pair
+        # first would be overwritten unread: one round trip (~197 ms) on every seller
+        # request. Same contract as `with_user_scope(restore=False)`.
+        async with with_user_scope(self._session, user_id, restore=not scope_replaced_after):
             shops = await self.list(user_id)
         return shops
 
