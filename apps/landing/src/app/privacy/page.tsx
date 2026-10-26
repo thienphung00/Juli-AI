@@ -20,20 +20,6 @@ const TRIAL_SIGNUP_SECTION_ID = "dang-ky-dung-thu";
 /** Anchor for §3, so the Google OAuth consent screen can deep-link to it. */
 const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
 
-/**
- * "Tóm tắt dễ hiểu" (D44): each line restates what a numbered section below
- * already says (§4, §5, §3 + staff access, §3.2/§7, §6, §9 + §8). It adds no
- * commitment; the full text governs. Date only, no version number (D68.13).
- */
-const SUMMARY = [
-  "Sau khi bạn kết nối shop, Juli đọc dữ liệu shop (đơn hàng, sản phẩm, tồn kho, đơn hoàn, hiệu suất) qua API của TikTok Shop để phân tích và đề xuất cho shop của bạn.",
-  "Mặc định Juli không thay đổi gì trên shop thật; một thao tác chỉ được thực hiện sau khi bạn đã duyệt đề xuất đó.",
-  "Nhân viên Juli chỉ xem dữ liệu shop để hỗ trợ và vận hành dịch vụ, không xem dữ liệu người mua, và mọi lần truy cập đều được ghi nhật ký.",
-  "Juli không bán dữ liệu, và không dùng dữ liệu người dùng Google cho quảng cáo hay để huấn luyện mô hình AI.",
-  "Khi dùng Juli, dữ liệu shop và dữ liệu sử dụng của bạn, sau khi đã khử định danh, được dùng để cải thiện mô hình của Juli; dữ liệu người mua không bao giờ được dùng để huấn luyện.",
-  "Bạn thực hiện quyền của mình trong Cài đặt, mục Quyền riêng tư của ứng dụng hoặc qua email. Khi xoá tài khoản, bạn có 30 ngày để tải dữ liệu, sau đó dữ liệu tài khoản và dữ liệu shop bị xoá, trừ dữ liệu pháp luật yêu cầu lưu giữ.",
-] as const;
-
 const TOC = [
   { id: "muc-1", label: "1. Chúng tôi là ai" },
   { id: "muc-2", label: "2. Thông tin tài khoản" },
@@ -61,7 +47,6 @@ export default function PrivacyPolicyPage() {
         contactTitle="Liên hệ về quyền riêng tư"
         effective={LAST_UPDATED}
         englishHref={`#${ENGLISH_SECTION_ID}`}
-        summary={SUMMARY}
         title="Chính sách bảo mật"
         toc={TOC}
         updated={LAST_UPDATED}

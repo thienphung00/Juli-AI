@@ -6,21 +6,6 @@ export const metadata = buildMetadata("/terms");
 
 const LAST_UPDATED = "18/10/2026";
 
-/**
- * "Tóm tắt dễ hiểu" (D44): each line restates a numbered section below
- * (§1, §2 + §6, §5, §3 + §4, §8, §11, §9). It adds no term; the full text governs.
- * Date only, no version number (D68.13).
- */
-const SUMMARY = [
-  "Juli chỉ dành cho doanh nghiệp, hộ kinh doanh và người bán dùng vào mục đích kinh doanh.",
-  "Juli phân tích dữ liệu shop TikTok Shop và đề xuất việc nên làm; bạn là người quyết định, và Juli chỉ làm khi bạn đồng ý.",
-  "Tài khoản mới dùng thử miễn phí 3 tháng, không cần thẻ thanh toán; sau đó phí dịch vụ là 500.000đ mỗi tháng, phí đã trả không hoàn lại.",
-  "Bạn cần từ 18 tuổi trở lên, và là chủ shop hoặc được chủ shop uỷ quyền khi kết nối shop.",
-  "Dữ liệu shop thuộc về bạn và Juli không bán dữ liệu. Khi dùng Juli, bạn đồng ý cho Juli dùng dữ liệu đã khử định danh để cải thiện mô hình của Juli; dữ liệu người mua không bao giờ được dùng để huấn luyện.",
-  "Juli không chịu trách nhiệm bồi thường thiệt hại phát sinh từ việc sử dụng Juli (Điều 11).",
-  "Bạn có thể ngừng sử dụng Juli và yêu cầu xoá tài khoản bất kỳ lúc nào; bạn có 30 ngày để tải dữ liệu trước khi dữ liệu bị xoá.",
-] as const;
-
 const TOC = [
   { id: "dieu-1", label: "1. Giới thiệu" },
   { id: "dieu-2", label: "2. Juli AI là gì" },
@@ -47,7 +32,6 @@ export default function TermsOfServicePage() {
         contactId="lien-he-dieu-khoan"
         contactTitle="Liên hệ về điều khoản"
         effective={LAST_UPDATED}
-        summary={SUMMARY}
         title="Điều khoản dịch vụ"
         toc={TOC}
         updated={LAST_UPDATED}

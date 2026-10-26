@@ -369,11 +369,10 @@ describe("legal template (Legal.dc.html, D44, P34-E)", () => {
   it.each([
     ["/privacy", PrivacyPolicyPage],
     ["/terms", TermsOfServicePage],
-  ])("%s: summary card with its disclaimer, dates, company block, every TOC link resolves", (_path, Page) => {
+  ])("%s: no summary card, dates, company block, every TOC link resolves", (_path, Page) => {
     const { container } = render(<Page />);
-    const summary = screen.getByRole("region", { name: "Tóm tắt dễ hiểu" });
-    expect(within(summary).getAllByRole("listitem").length).toBeGreaterThanOrEqual(4);
-    expect(summary).toHaveTextContent("Tóm tắt này không thay thế nội dung đầy đủ bên dưới.");
+    expect(screen.queryByRole("region", { name: "Tóm tắt dễ hiểu" })).toBeNull();
+    expect(document.body).not.toHaveTextContent("Tóm tắt");
     expect(
       screen.getByText(/Cập nhật lần cuối: \d\d\/\d\d\/2026 · Có hiệu lực từ \d\d\/\d\d\/2026/),
     ).toBeInTheDocument();
