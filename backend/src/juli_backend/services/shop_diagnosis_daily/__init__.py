@@ -37,6 +37,10 @@ from juli_backend.services.shop_diagnosis_daily.read import (
     latest_metric_ranking,
     latest_shop_diagnosis,
 )
+from juli_backend.services.shop_diagnosis_daily.refresh import (
+    REFRESH_DEBOUNCE_SECONDS,
+    set_report_refresh_enqueuer,
+)
 from juli_backend.services.shop_diagnosis_daily.video_windows import (
     VideoWindowMetrics,
     VideoWindowRow,
@@ -46,6 +50,7 @@ from juli_backend.services.shop_diagnosis_daily.video_windows import (
 
 __all__ = [
     "DEFAULT_RANKING",
+    "REFRESH_DEBOUNCE_SECONDS",
     "RANKINGS",
     "DiagnosisBuildResult",
     "StoredDiagnosis",
@@ -63,6 +68,7 @@ __all__ = [
     "latest_shop_diagnosis",
     "ranking_videos",
     "report_end_date",
+    "set_report_refresh_enqueuer",
     "shared_rate_limiter",
     "yesterday_local",
 ]
