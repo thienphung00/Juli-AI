@@ -596,17 +596,6 @@ def handle_create_product(
             missing=refusal.missing,
             summary_vi="Chưa tạo sản phẩm: " + refusal.summary_vi,
         )
-    try:
-        cleaned = clean_listing_draft(params.title, params.description)
-    except ListingTextRejected:
-        # The filter (P69) would have sent the model back before the pause; a seller edit
-        # that is empty or only filler is refused the same way. Nothing is sent to TikTok.
-        return CreateProductOutput(
-            ok=False,
-            error_code=ERROR_LISTING_TEXT_REJECTED,
-            summary_vi="Chưa tạo sản phẩm: tiêu đề hoặc mô tả quá ngắn hoặc chung chung",
-        )
-    params = params.model_copy(update={"title": cleaned.title, "description": cleaned.description})
     violation = check_proposal(
         {"title": params.title, "description": params.description},
         banned_terms=context.banned_terms,
@@ -621,6 +610,19 @@ def handle_create_product(
             error_code=violation.error_code,
             summary_vi="Chưa tạo sản phẩm: tiêu đề hoặc mô tả chưa đúng quy tắc của shop",
         )
+    try:
+        cleaned = clean_listing_draft(
+            params.title, params.description, description_floor=DESCRIPTION_MIN_CHARS
+        )
+    except ListingTextRejected:
+        # The filter (P69) would have sent the model back before the pause; a seller edit
+        # that is empty or only filler is refused the same way. Nothing is sent to TikTok.
+        return CreateProductOutput(
+            ok=False,
+            error_code=ERROR_LISTING_TEXT_REJECTED,
+            summary_vi="Chưa tạo sản phẩm: tiêu đề hoặc mô tả quá ngắn hoặc chung chung",
+        )
+    params = params.model_copy(update={"title": cleaned.title, "description": cleaned.description})
     try:
         created = _unwrap(
             resources.products.create(

@@ -38,6 +38,10 @@ from juli_backend.services.shop_rules.listing_edits import TITLE_MAX_CHARS, TITL
 #: The tool input's bounds for a new listing's description (``CreateProductInput``).
 DESCRIPTION_MIN_CHARS = 20
 DESCRIPTION_MAX_CHARS = 5_000
+#: The floor AFTER filtering (P69 review). The tool input keeps ``DESCRIPTION_MIN_CHARS``; a draft
+#: that filters down below this (e.g. "Bình nước thép không gỉ 750ml. Dung tích 750ml.") is sent
+#: back for one redraft rather than written to TikTok.
+FILTERED_DESCRIPTION_MIN_CHARS = 120
 
 ERROR_LISTING_TEXT_REJECTED = "listing_text_rejected"
 
@@ -203,8 +207,15 @@ def _fit_description(paragraphs: list[str]) -> tuple[str, bool]:
     return (head[: cut + 1] if cut > DESCRIPTION_MIN_CHARS else head).strip(), True
 
 
-def clean_listing_draft(title: str, description: str) -> CleanedListing:
-    """The shippable title / description, or :class:`ListingTextRejected`."""
+def clean_listing_draft(
+    title: str, description: str, *, description_floor: int = FILTERED_DESCRIPTION_MIN_CHARS
+) -> CleanedListing:
+    """The shippable title / description, or :class:`ListingTextRejected`.
+
+    ``description_floor``: the model's draft must keep ``FILTERED_DESCRIPTION_MIN_CHARS``
+    after filtering; the write-time guard passes ``DESCRIPTION_MIN_CHARS`` so a reviewer's
+    own (shorter) edit is still written as typed.
+    """
     clean_title, title_cut = _clean_title(title)
     if not clean_title:
         raise ListingTextRejected("Tiêu đề trống.")
@@ -243,9 +254,10 @@ def clean_listing_draft(title: str, description: str) -> CleanedListing:
             "Mô tả trống hoặc chỉ có câu chung chung / ghi chú ngoài lề.", dropped=dropped
         )
     clean_description, desc_cut = _fit_description(paragraphs)
-    if len(clean_description) < DESCRIPTION_MIN_CHARS:
+    if len(clean_description) < description_floor:
         raise ListingTextRejected(
-            f"Mô tả chỉ có {len(clean_description)} ký tự, cần từ {DESCRIPTION_MIN_CHARS} ký tự.",
+            f"Mô tả chỉ có {len(clean_description)} ký tự, cần từ "
+            f"{description_floor} ký tự nêu đặc điểm thật của sản phẩm.",
             dropped=dropped,
         )
     return CleanedListing(
@@ -299,6 +311,7 @@ def _hint(message: str, dropped: tuple[DroppedSentence, ...]) -> str:
 __all__ = [
     "DESCRIPTION_MAX_CHARS",
     "DESCRIPTION_MIN_CHARS",
+    "FILTERED_DESCRIPTION_MIN_CHARS",
     "ERROR_LISTING_TEXT_REJECTED",
     "REASON_DUPLICATE",
     "REASON_FILLER",

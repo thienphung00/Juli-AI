@@ -16,7 +16,9 @@ from juli_backend.services.agent.tools.catalog_create import (
 )
 from juli_backend.services.agent.tools.listing_text_filter import (
     DESCRIPTION_MAX_CHARS,
+    DESCRIPTION_MIN_CHARS,
     ERROR_LISTING_TEXT_REJECTED,
+    FILTERED_DESCRIPTION_MIN_CHARS,
     REASON_DUPLICATE,
     REASON_FILLER,
     REASON_META,
@@ -43,29 +45,57 @@ GENERIC = (
     "Dung tích 750ml giúp đáp ứng lượng nước cần thiết trong ngày."
 )
 GOOD = (
-    "Bình giữ nhiệt inox 304 dung tích 750ml, nắp xoay chống tràn.\n\n"
-    "Trong hộp có 1 bình và 1 dây đeo. Giữ nóng khoảng 12 giờ theo thông tin của sản phẩm gốc."
+    "Bình giữ nhiệt inox 304 dung tích 750ml, thân hai lớp giữ nóng khoảng 12 giờ, nắp xoay "
+    "chống tràn.\n\n"
+    "Trong hộp có 1 bình và 1 dây đeo. Thân bình dày 0,5 mm, có thể rửa bằng nước ấm."
 )
 
 
-def test_the_generic_description_is_replaced_by_its_facts_not_shipped_as_is() -> None:
-    cleaned = clean_listing_draft(TITLE, GENERIC)
-    assert cleaned.description == "Bình nước thép không gỉ 750ml. Dung tích 750ml."
-    assert cleaned.description != GENERIC
-    assert len(cleaned.dropped) == 3 and {d.reason for d in cleaned.dropped} == {REASON_FILLER}
-    # pure filler with no fact is rejected outright
+def test_the_generic_description_is_rejected_for_one_redraft_not_shipped() -> None:
+    # filtered down to its two facts ("... 750ml. Dung tích 750ml.", 47 chars): too thin
+    with pytest.raises(ListingTextRejected) as caught:
+        clean_listing_draft(TITLE, GENERIC)
+    assert len(caught.value.dropped) == 3
+    assert {d.reason for d in caught.value.dropped} == {REASON_FILLER}
+    hint = screen_listing_draft(TITLE, GENERIC)
+    assert hint is not None and ERROR_LISTING_TEXT_REJECTED in hint
+    assert (
+        normalize_create_product(
+            CreateProductInput(category_id="1", title=TITLE, description=GENERIC, reason_vi="Bình")
+        )
+        is None
+    )
+    # at the write guard the lower tool-input floor applies, the facts are what is kept
+    kept = clean_listing_draft(TITLE, GENERIC, description_floor=DESCRIPTION_MIN_CHARS)
+    assert kept.description == "Bình nước thép không gỉ 750ml. Dung tích 750ml."
     pure = "Thiết kế chắc chắn, tiện mang theo khi đi học, đi làm hoặc hoạt động năng động."
     with pytest.raises(ListingTextRejected):
         clean_listing_draft(TITLE, pure)
-    hint = screen_listing_draft(TITLE, pure)
-    assert hint is not None and ERROR_LISTING_TEXT_REJECTED in hint
-    assert screen_listing_draft(TITLE, GENERIC) is None  # replaced, not refused
+
+
+def test_a_filtered_result_under_the_floor_is_refused_and_at_the_floor_passes() -> None:
+    assert FILTERED_DESCRIPTION_MIN_CHARS == 120
+    stock = "Thân bình inox 304 dày 0,5 mm, dung tích 750ml, nắp xoay chống tràn, kèm dây đeo" + (
+        ", trong hộp có 1 bình và 1 dây đeo" * 5
+    )
+
+    def of_length(n: int) -> str:
+        text = stock[: n - 1].rstrip(" ,") + "."
+        assert len(text) == n
+        return text
+
+    under, exact = of_length(119), of_length(120)
+    assert screen_listing_draft(TITLE, under) is not None
+    with pytest.raises(ListingTextRejected):
+        clean_listing_draft(TITLE, under)
+    assert screen_listing_draft(TITLE, exact) is None
+    assert clean_listing_draft(TITLE, exact).description == exact
 
 
 def test_a_filler_phrase_inside_a_sentence_with_real_content_is_kept_whole() -> None:
     keep = (
         "Bình giữ nhiệt inox 304 dung tích 750ml, giữ nóng 12 giờ, phù hợp cho nhu cầu "
-        "sử dụng hằng ngày của gia đình và văn phòng."
+        "sử dụng hằng ngày của gia đình và văn phòng. Trong hộp có 1 bình và 1 dây đeo."
     )
     cleaned = clean_listing_draft(TITLE, keep)
     assert cleaned.description == keep and cleaned.dropped == ()
@@ -73,10 +103,10 @@ def test_a_filler_phrase_inside_a_sentence_with_real_content_is_kept_whole() -> 
 
 def test_the_filter_is_idempotent() -> None:
     for description in (
-        GENERIC,
         GOOD,
         GOOD + "\nJuli kiểm tra độ dài và từ cấm.",
-        "Thân bình inox 304 dày 0,5 mm. Thân bình inox 304 dày 0,5 mm.",
+        GOOD + " " + GOOD.split("\n")[0],
+        GENERIC + " " + GOOD,
     ):
         once = clean_listing_draft(TITLE, description)
         twice = clean_listing_draft(once.title, once.description)
@@ -101,27 +131,27 @@ def test_meta_text_about_juli_and_rules_is_stripped() -> None:
 def test_a_meta_preamble_and_ai_talk_are_dropped_but_the_word_ai_alone_is_not_meta() -> None:
     dirty = "Dưới đây là mô tả sản phẩm. " + GOOD + " Mô tả do AI viết."
     assert {d.reason for d in clean_listing_draft(TITLE, dirty).dropped} == {REASON_META}
-    kept = clean_listing_draft(TITLE, "Ai dùng bình này cũng thấy nhẹ, thân inox 304 dày 0,5 mm.")
+    kept = clean_listing_draft(TITLE, "Ai dùng bình này cũng thấy nhẹ. " + GOOD)
     assert kept.dropped == ()
 
 
 def test_repeated_sentences_are_dropped_accent_and_case_insensitive() -> None:
-    dirty = (
-        "Thân bình inox 304 dung tích 750ml. Thân bình INOX 304 dung tích 750ml! "
-        "Nắp xoay chống tràn."
-    )
+    dirty = "Thân bình inox 304 dung tích 750ml. Thân bình INOX 304 dung tích 750ml! " + GOOD
     cleaned = clean_listing_draft(TITLE, dirty)
     assert [d.reason for d in cleaned.dropped] == [REASON_DUPLICATE]
-    assert cleaned.description.count("750ml") == 1
+    assert cleaned.description.startswith("Thân bình inox 304 dung tích 750ml. Bình giữ nhiệt")
 
 
 def test_whitespace_markup_and_emoji_are_tidied_silently() -> None:
     cleaned = clean_listing_draft(
         '  "Bình   nước thép không gỉ  750ml nắp xoay chống tràn."  ',
-        "**Thân bình** inox 304   dung tích 750ml 🔥.\n\n\n<p>Nắp xoay chống tràn.</p>",
+        "**Thân bình** inox 304   dung tích 750ml 🔥.\n\n\n<p>"
+        + GOOD.replace("\n\n", "\n")
+        + "</p>",
     )
     assert cleaned.title == "Bình nước thép không gỉ 750ml nắp xoay chống tràn"
-    assert cleaned.description == "Thân bình inox 304 dung tích 750ml .\nNắp xoay chống tràn."
+    assert cleaned.description.startswith("Thân bình inox 304 dung tích 750ml .\nBình giữ nhiệt")
+    assert "<" not in cleaned.description and "🔥" not in cleaned.description
     assert cleaned.dropped == ()
     assert (
         screen_listing_draft("  Bình   nước thép không gỉ 750ml nắp xoay chống tràn ", GOOD) is None
