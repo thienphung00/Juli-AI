@@ -17,13 +17,16 @@ from juli_backend.core.security.credential_resolver import (
 )
 from juli_backend.core.security.dependencies import (
     REVIEWER_DENIED_HEADER,
+    REVIEWER_USER_STATE_KEY,
     ReviewerGate,
     VerifiedToken,
     bearer_scheme,
     bind_reviewer_gate,
+    cached_reviewer_user,
     forget_cached_reviewer_users,
     get_current_user,
     load_authenticated_user,
+    remember_reviewer_user,
     verify_bearer_token,
 )
 from juli_backend.core.security.exceptions import Unauthorized
@@ -40,6 +43,7 @@ from juli_backend.core.security.oauth_state import (
     mint_oauth_state,
     verify_oauth_state,
 )
+from juli_backend.core.security.single_flight import SingleFlight
 from juli_backend.core.security.tiktok_oauth import (
     BindingVerifier,
     TikTokOAuthService,
@@ -50,6 +54,11 @@ __all__ = [
     # P69: the reviewer identity caches (services/reviewer, capped at depth 2).
     "IdentityCache",
     "forget_cached_reviewer_users",
+    # P69b: one cold identity load per key when concurrent requests miss the cache.
+    "SingleFlight",
+    "REVIEWER_USER_STATE_KEY",
+    "remember_reviewer_user",
+    "cached_reviewer_user",
     "reviewer_identity_ttl_seconds",
     # P61-H (D71.6a): the write-time sandbox-collision guard and its named error.
     "SandboxCollisionRefused",

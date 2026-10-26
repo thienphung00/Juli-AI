@@ -233,8 +233,9 @@ async def test_a_pin_cache_hit_still_applies_the_shops_tenant_scope(session, wor
         second = await client.get("/v1/reviewer/me", headers=_headers(reviewer))
     assert first.status_code == second.status_code == 200
     assert pin_cache.cached(world.shop.id) is not None
-    # The miss entered the scope through the ops path; the hit applied it itself.
-    assert applied == [(world.shop.id, world.owner.id)]
+    # P69b: the cold request's identity load read the pin's facts itself, so BOTH the
+    # cold and the warm request applied the shop's tenant scope through the same call.
+    assert applied == [(world.shop.id, world.owner.id)] * 2
     assert first.json() == second.json()
 
 

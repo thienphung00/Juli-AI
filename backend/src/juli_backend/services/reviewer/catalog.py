@@ -15,6 +15,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.security import SingleFlight
 from juli_backend.models.models import InventoryItem, Livestream, Product, Shop
 from juli_backend.services.reviewer.config import extra_mask_terms, shop_alias_id
 from juli_backend.services.reviewer.masking import MaskDictionary
@@ -22,6 +23,7 @@ from juli_backend.services.reviewer.masking import MaskDictionary
 TTL_SECONDS = 600.0
 _lock = threading.Lock()
 _cache: dict[uuid.UUID, tuple[float, MaskDictionary]] = {}
+_flight: SingleFlight[uuid.UUID, MaskDictionary] = SingleFlight()
 
 
 def forget_cached() -> None:
@@ -30,11 +32,20 @@ def forget_cached() -> None:
 
 
 async def load_dictionary(session: AsyncSession, shop: Shop) -> MaskDictionary:
-    """The shop's mask dictionary (cached); the caller holds the shop's read scope."""
+    """The shop's mask dictionary (cached); the caller holds the shop's read scope.
+
+    P69b: concurrent misses for the same shop share one read (single flight, keyed by
+    the shop id; the dictionary describes only that shop).
+    """
     with _lock:
         hit = _cache.get(shop.id)
     if hit is not None and time.monotonic() - hit[0] <= TTL_SECONDS:
         return hit[1]
+    loaded = await _flight.run(shop.id, lambda: _read_dictionary(session, shop))
+    return loaded if loaded.shop_id == shop.id else await _read_dictionary(session, shop)
+
+
+async def _read_dictionary(session: AsyncSession, shop: Shop) -> MaskDictionary:
     dictionary = MaskDictionary(
         shop_id=shop.id,
         alias_id=shop_alias_id(shop.id),
