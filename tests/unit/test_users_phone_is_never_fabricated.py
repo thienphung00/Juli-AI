@@ -236,6 +236,9 @@ def test_no_backend_source_takes_a_uuid_modulo() -> None:
 #: a new file that touches `phone` fails until it is named here on purpose,
 #: which is the only way this check keeps meaning anything as the tree grows.
 ALLOWED_PHONE_MENTIONS = {
+    # D76 (ADR-116 §4): the payload allowlist REFUSES any key containing "phone";
+    # it never reads users.phone.
+    "services/privacy/payload_allowlist.py",
     # P16 (D25.6): the ops masker REMOVES phone numbers from staff payloads; it
     # never reads users.phone.
     "services/ops/masking.py",
