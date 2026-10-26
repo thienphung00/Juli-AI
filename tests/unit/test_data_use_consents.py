@@ -63,7 +63,17 @@ async def _grant(session, shop_id, scope="service", **overrides):
 
 def test_migration_vocabulary_matches_the_model():
     mig = _migration_module()
-    assert mig.SCOPES == SCOPES == ("service", "llm_processing", "pooled_training")
+    assert (
+        mig.SCOPES
+        == SCOPES
+        == (
+            "service",
+            "llm_processing",
+            "llm_images",
+            "llm_media",
+            "pooled_training",
+        )
+    )
     assert mig.METHODS == METHODS == ("contract_paper", "in_app_click", "email")
 
 

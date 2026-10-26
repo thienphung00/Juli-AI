@@ -10,9 +10,11 @@ WHAT IT ADDS. One tenant table recording what a shop allowed Juli to do with its
 non-public data, one row per grant:
 
 - ``scope`` ∈ ``service`` (analysis and the shop's own client layer, from the
-  contract / terms), ``llm_processing`` (sending its data to OpenAI, from the
-  approved sub-processor list), ``pooled_training`` (its data in shared models,
-  a separate opt-in). ``method`` ∈ ``contract_paper``, ``in_app_click``,
+  contract / terms); three OpenAI scopes split by input, because a client's
+  approved list may name text only: ``llm_processing`` (listing text and
+  aggregate metrics), ``llm_images`` (product images), ``llm_media`` (video /
+  LIVE frames and audio); ``pooled_training`` (its data in shared models, a
+  separate opt-in). ``method`` ∈ ``contract_paper``, ``in_app_click``,
   ``email`` -- the channel is evidence, not a different kind of consent.
 - At most one open grant per (``shop_id``, ``scope``): a partial unique index
   ``WHERE revoked_at IS NULL``. A withdrawal sets ``revoked_at``; a new grant is
@@ -44,7 +46,7 @@ TABLE = "data_use_consents"
 
 #: Written out rather than imported from the model: a migration must not change
 #: when the model does. ``tests/unit/test_data_use_consents.py`` pins the two equal.
-SCOPES = ("service", "llm_processing", "pooled_training")
+SCOPES = ("service", "llm_processing", "llm_images", "llm_media", "pooled_training")
 METHODS = ("contract_paper", "in_app_click", "email")
 
 

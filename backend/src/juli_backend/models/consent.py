@@ -19,10 +19,17 @@ from sqlalchemy.orm import Mapped, mapped_column
 from juli_backend.orm_base import Base
 
 #: ``service``: analysis for the shop and its own client layer (from the contract /
-#: terms). ``llm_processing``: its data may go to OpenAI (from the approved
-#: sub-processor list). ``pooled_training``: its data may go into shared models
-#: (separate opt-in, off unless granted).
-SCOPES: tuple[str, ...] = ("service", "llm_processing", "pooled_training")
+#: terms). OpenAI, split by input because an approved list may name text only:
+#: ``llm_processing`` listing text and aggregate metrics, ``llm_images`` product
+#: images, ``llm_media`` video / LIVE frames and audio. ``pooled_training``: its
+#: data may go into shared models (separate opt-in, off unless granted).
+SCOPES: tuple[str, ...] = (
+    "service",
+    "llm_processing",
+    "llm_images",
+    "llm_media",
+    "pooled_training",
+)
 #: How the grant was given -- evidence, not a different kind of consent.
 METHODS: tuple[str, ...] = ("contract_paper", "in_app_click", "email")
 

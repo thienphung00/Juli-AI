@@ -12,7 +12,9 @@ that touches client data. The answer fails closed.
 | `scope` | Allows | Where the permission comes from |
 |---|---|---|
 | `service` | Analysis for the shop, its own client layer, KPI work | The contract or Terms of Service |
-| `llm_processing` | Sending the shop's data to OpenAI | Contract + the approved sub-processor list naming OpenAI |
+| `llm_processing` | Sending the shop's listing text and aggregate metrics to OpenAI | Contract / Terms + the approved sub-processor list or privacy policy naming OpenAI |
+| `llm_images` | Sending product images to OpenAI (image inspection) | Only where the approved list / privacy policy names images |
+| `llm_media` | Sending video / LIVE frames and audio to OpenAI (content analysis, transcription) | Only where the approved list / privacy policy names them |
 | `pooled_training` | The shop's data in shared models | A separate written opt-in; off unless granted |
 
 `method` (`contract_paper`, `in_app_click`, `email`) records the channel as evidence.
@@ -37,8 +39,8 @@ scoped to the shop (`with_shop_scope`); under RLS a mis-scoped session sees no g
 
 ## Callers (ADR-116 delivery)
 
-None yet in this PR. PR 3 (ingest gateway, `service`), PR 4 (OpenAI adapter,
-`llm_processing`), PR 6 (dataset builder and fleet calibration, `pooled_training`).
+None yet in this PR. PR 3 (ingest gateway, `service`), PR 4 (OpenAI gate: `llm_processing` for text, `llm_images` for `vision.py`, `llm_media` for
+`content_analysis/openai_media.py`), PR 6 (dataset builder and fleet calibration, `pooled_training`).
 
 ## Invariants
 
