@@ -86,6 +86,11 @@ class Shop(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     shop_name: Mapped[str] = mapped_column(String(200), nullable=False)
     tiktok_shop_id: Mapped[str | None] = mapped_column(String(100), unique=True)
+    #: P68 (E11, migration 102): TikTok's NUMERIC shop id -- the ``id`` Get Authorized
+    #: Shops returns beside ``cipher``, and the ``shop_id`` every webhook carries.
+    #: ``tiktok_shop_id`` above is the connect flow's identifier, which no webhook
+    #: names. Filled on connect / reconnect and lazily by the poll.
+    tiktok_numeric_shop_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     #: D31 (migration 088): the marketplace this Juli shop is. Every shop before
     #: 088 is TikTok; a Shopee shop has no TikTok credential and is fed only by
     #: the ingest gateway (``/v1/ingest/shopee/...``) until Shopee OAuth exists.
@@ -101,6 +106,13 @@ class Shop(Base):
 
     __table_args__ = (
         Index("ix_shops_user_id", "user_id"),
+        Index(
+            "uq_shops_tiktok_numeric_shop_id",
+            "tiktok_numeric_shop_id",
+            unique=True,
+            postgresql_where=text("tiktok_numeric_shop_id IS NOT NULL"),
+            sqlite_where=text("tiktok_numeric_shop_id IS NOT NULL"),
+        ),
         CheckConstraint("platform IN ('tiktok', 'shopee')", name="ck_shops_platform"),
     )
 

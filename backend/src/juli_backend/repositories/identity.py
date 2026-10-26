@@ -9,16 +9,20 @@ scoped by ``user_id`` instead.
 from __future__ import annotations
 
 import builtins
+import logging
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import case, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.attributes import set_committed_value
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.database.tenant_context import with_user_scope
 from juli_backend.models.models import Shop, User
 from juli_backend.repositories._base import SessionRepo, utc_now_naive
+
+logger = logging.getLogger(__name__)
 
 #: The ``users`` columns the seller writes through the privacy API (migration 094).
 PRIVACY_COLUMNS: tuple[str, ...] = (
@@ -348,8 +352,100 @@ class ShopsRepo(SessionRepo):
         return shops
 
     async def get_by_tiktok_id(self, tiktok_shop_id: str) -> Shop | None:
-        """Find the shop bound to a TikTok shop id, or ``None``."""
-        return await self._one_or_none(select(Shop).where(Shop.tiktok_shop_id == tiktok_shop_id))
+        """Find the shop bound to a TikTok shop identifier, or ``None``.
+
+        P68 (E11): matches either identifier -- ``shops.tiktok_shop_id`` (what the connect
+        flow stored) or ``shops.tiktok_numeric_shop_id`` (TikTok's numeric shop id, which is
+        what webhooks carry). A ``tiktok_shop_id`` match wins if both could match.
+
+        Subject to RLS like any ``shops`` read: as ``juli_app`` it sees only rows the current
+        scope allows. A caller with no scope at all (a webhook) uses
+        :meth:`resolve_id_by_tiktok_key` first.
+        """
+        stmt = (
+            select(Shop)
+            .where(
+                or_(
+                    Shop.tiktok_shop_id == tiktok_shop_id,
+                    Shop.tiktok_numeric_shop_id == tiktok_shop_id,
+                )
+            )
+            .order_by(case((Shop.tiktok_shop_id == tiktok_shop_id, 0), else_=1))
+            .limit(1)
+        )
+        return await self._one_or_none(stmt)
+
+    async def resolve_id_by_tiktok_key(self, shop_key: str) -> uuid.UUID | None:
+        """The id of the shop a TikTok shop identifier names, read with NO tenant scope.
+
+        For the webhook, whose shop is the answer this lookup produces, so it cannot run
+        inside a scope (ADR-089 decision 3). On PostgreSQL it goes through migration 102's
+        reviewed ``SECURITY DEFINER`` ``resolve_tiktok_shop_key`` (shop id only, at most one
+        row); on SQLite, where neither the function nor RLS exists, the same predicate runs as
+        a plain query. No existence probe and no fallback (061): migrate first.
+        """
+        if not shop_key:
+            return None
+        if self._session.get_bind().dialect.name == "postgresql":
+            row = (
+                await self._session.execute(
+                    text("SELECT out_shop_id FROM public.resolve_tiktok_shop_key(:shop_key)"),
+                    {"shop_key": shop_key},
+                )
+            ).first()
+            return row[0] if row is not None else None
+        shop = await self.get_by_tiktok_id(shop_key)
+        return shop.id if shop is not None else None
+
+    async def record_tiktok_numeric_shop_id(self, shop_id: uuid.UUID, numeric_id: str) -> bool:
+        """Store TikTok's numeric shop id on ``shop_id``; True when the row changed (P68, E11).
+
+        Call under ``shop_id``'s shop scope. On PostgreSQL the write goes through migration
+        102's ``record_tiktok_numeric_shop_id``, which writes only the row
+        ``app_current_shop_id()`` names (``shops``' UPDATE policy is user-keyed, and the
+        callers hold a shop scope). A value another shop already holds violates the unique
+        index: that is logged and refused (False), never raised -- a duplicate numeric id is a
+        data question for a human, not a reason to fail a connect or a poll.
+        """
+        numeric_id = (numeric_id or "").strip()
+        if not numeric_id:
+            return False
+        try:
+            async with self._session.begin_nested():
+                if self._session.get_bind().dialect.name == "postgresql":
+                    changed = bool(
+                        (
+                            await self._session.execute(
+                                text(
+                                    "SELECT public.record_tiktok_numeric_shop_id("
+                                    ":shop_id, :numeric_id)"
+                                ),
+                                {"shop_id": shop_id, "numeric_id": numeric_id},
+                            )
+                        ).scalar_one()
+                    )
+                else:
+                    result = await self._session.execute(
+                        update(Shop)
+                        .where(
+                            Shop.id == shop_id,
+                            Shop.tiktok_numeric_shop_id.is_distinct_from(numeric_id),
+                        )
+                        .values(tiktok_numeric_shop_id=numeric_id)
+                        .execution_options(synchronize_session=False)
+                    )
+                    changed = bool(getattr(result, "rowcount", 0))
+        except IntegrityError:
+            logger.warning(
+                "tiktok_numeric_shop_id_conflict",
+                extra={"shop_id": str(shop_id), "tiktok_numeric_shop_id": numeric_id},
+            )
+            return False
+        loaded = self._session.identity_map.get(self._session.identity_key(Shop, shop_id))
+        if changed and isinstance(loaded, Shop):
+            # The write bypassed the ORM; keep a loaded instance in step without dirtying it.
+            set_committed_value(loaded, "tiktok_numeric_shop_id", numeric_id)
+        return changed
 
     async def create(
         self,

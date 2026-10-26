@@ -101,7 +101,7 @@ from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRep
 from juli_backend.services.ingestion import HandoffFn
 from juli_backend.services.onboarding import history_days_available, max_lookback_days
 from juli_backend.services.order_costs import OrderCostsResult, sync_order_costs
-from juli_backend.services.tiktok import backfill_shop_cipher
+from juli_backend.services.tiktok import backfill_shop_cipher, backfill_tiktok_numeric_shop_id
 from juli_backend.workers.services.polling.analytics_range import (
     AnalyticsRangeResult,
     probe_latest_available_date,
@@ -334,6 +334,17 @@ async def _scoped_shop_run(
         if shop is None or not shop.tiktok_shop_id:
             raise ValueError(
                 f"shop ingestion requires a shop with tiktok_shop_id; shop_id={shop_id}"
+            )
+        if not shop.tiktok_numeric_shop_id:
+            # P68 (E11): webhooks name the shop by TikTok's numeric id; a shop connected
+            # before migration 102 has none, so its webhooks were DLQ'd. One Get Authorized
+            # Shops call fills it; a failure is logged and retried on the next run.
+            await backfill_tiktok_numeric_shop_id(
+                session,
+                shop,
+                credential,
+                # Looked up inside the call: a hand-built resource bundle may lack it.
+                list_authorized_shops=lambda: resources.authorization.list_all_shops(),
             )
         repo = sync_state_repo or TikTokSyncStateRepo(session)
         yield _ShopRun(

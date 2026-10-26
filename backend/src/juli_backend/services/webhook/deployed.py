@@ -34,7 +34,9 @@ async def handle_tiktok_webhook_delivery(
     headers: Mapping[str, str],
 ) -> WebhookProcessResult:
     """Verify, dispatch, and hand off a TikTok webhook using the request-scoped session."""
-    consumer = EtlConsumer(session=session, dlq_handoff=_dlq_handoff)
+    # P68 (E11): a webhook holds no tenant scope; the consumer resolves the shop across
+    # tenants and persists under that shop's scope.
+    consumer = EtlConsumer(session=session, dlq_handoff=_dlq_handoff, scope_to_resolved_shop=True)
     service = build_webhook_service(
         app_key=app_key,
         app_secret=app_secret,

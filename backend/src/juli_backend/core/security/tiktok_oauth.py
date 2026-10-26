@@ -44,7 +44,24 @@ logger = logging.getLogger(__name__)
 # defined REFRESH_BUFFER (30 minutes). The single source of truth is now
 # core/security/credential_refresh.py (24 hours, ADR-081 decision 2), shared
 # with W4-3's beat scan predicate.
-__all__ = ["BindingVerifier", "REFRESH_BUFFER", "TikTokOAuthService"]
+__all__ = ["BindingVerifier", "REFRESH_BUFFER", "TikTokOAuthService", "VerifiedShopCipher"]
+
+
+class VerifiedShopCipher(str):
+    """A verified ``shop_cipher`` that also carries TikTok's numeric shop id (P68, E11).
+
+    Get Authorized Shops answers with both ``cipher`` and ``id``; webhooks name a shop by the
+    numeric ``id``. A ``str`` subclass so every :class:`BindingVerifier` that returns a plain
+    cipher (and every caller that treats the result as one) keeps working unchanged; the
+    connect flow reads ``tiktok_shop_id`` when it is there.
+    """
+
+    tiktok_shop_id: str | None
+
+    def __new__(cls, cipher: str, *, tiktok_shop_id: str | None = None) -> VerifiedShopCipher:
+        verified = super().__new__(cls, cipher)
+        verified.tiktok_shop_id = (tiktok_shop_id or "").strip() or None
+        return verified
 
 
 class BindingVerifier(Protocol):
@@ -56,8 +73,9 @@ class BindingVerifier(Protocol):
     graph. Structural typing means the `services`-side implementation satisfies
     this without either package importing the other's concrete module.
 
-    Returns the verified `shop_cipher`; raises when the token's real merchant
-    disagrees with the capability it is being filed under.
+    Returns the verified `shop_cipher` (a :class:`VerifiedShopCipher` when the vendor also
+    named the numeric shop id); raises when the token's real merchant disagrees with the
+    capability it is being filed under.
     """
 
     async def __call__(
@@ -329,8 +347,13 @@ class TikTokOAuthService:
         # verified by nothing -- a production token filed as `sandbox_write`
         # passed every guard (observed 2026-08-18). Runs BEFORE any write, so a
         # mislabelled credential is never persisted even briefly.
-        verified_cipher = await self._binding_verifier(
+        verified = await self._binding_verifier(
             self._session, capability=capability, access_token=access_token
+        )
+        # Stored as a plain str; the numeric shop id (P68, E11) rides on the subclass.
+        verified_cipher = str(verified)
+        numeric_shop_id = (
+            verified.tiktok_shop_id if isinstance(verified, VerifiedShopCipher) else None
         )
 
         try:
@@ -370,6 +393,23 @@ class TikTokOAuthService:
                 capability=capability.value,
                 shop_cipher=verified_cipher,
             )
+        await self._record_numeric_shop_id(shop, numeric_shop_id)
+
+    async def _record_numeric_shop_id(self, shop: Shop, numeric_shop_id: str | None) -> None:
+        """Persist TikTok's numeric shop id beside the connect identifier (P68, E11).
+
+        Webhooks name the shop by this id; without it every order webhook for the shop is
+        DLQ'd as an unknown shop. Runs under the shop's scope (the caller's), so it goes
+        through ``ShopsRepo.record_tiktok_numeric_shop_id``. A verifier that returned no id
+        leaves the column for the poll's lazy fill.
+        """
+        if not numeric_shop_id:
+            logger.warning(
+                "tiktok_numeric_shop_id_missing_on_connect",
+                extra={"shop_id": str(shop.id)},
+            )
+            return
+        await ShopsRepo(self._session).record_tiktok_numeric_shop_id(shop.id, numeric_shop_id)
 
     async def refresh_tokens(self, shop_id: uuid.UUID) -> TikTokCredential:
         """Proactively refresh tokens if within REFRESH_BUFFER of expiry.

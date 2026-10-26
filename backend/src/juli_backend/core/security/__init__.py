@@ -35,7 +35,11 @@ from juli_backend.core.security.oauth_state import (
     mint_oauth_state,
     verify_oauth_state,
 )
-from juli_backend.core.security.tiktok_oauth import BindingVerifier, TikTokOAuthService
+from juli_backend.core.security.tiktok_oauth import (
+    BindingVerifier,
+    TikTokOAuthService,
+    VerifiedShopCipher,
+)
 
 __all__ = [
     # P61-H (D71.6a): the write-time sandbox-collision guard and its named error.
@@ -47,6 +51,7 @@ __all__ = [
     # #1200: the verifier seam services/tiktok/credential_binding.py implements.
     # Exported here so that module can reach it at the depth-2 package root.
     "BindingVerifier",
+    "VerifiedShopCipher",
     # #1970: the signed-OAuth-`state` primitive, exported at this package root
     # rather than deep-imported. `services/tiktok/oauth.py` mints and verifies
     # the state on the seller-connect path and is capped at cross-package depth

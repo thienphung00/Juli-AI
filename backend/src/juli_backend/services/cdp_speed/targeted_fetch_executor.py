@@ -237,7 +237,8 @@ async def execute_targeted_fetch_to_bronze(
     # executor would log "skipped" and do nothing — the silent no-op #1518 found.
     async with with_shop_scope(session, shop_id):
         shop = await session.get(Shop, shop_id)
-    if shop is None or shop.tiktok_shop_id != shop_key:
+    # P68 (E11): a webhook-triggered job carries TikTok's numeric shop id as its key.
+    if shop is None or shop_key not in {shop.tiktok_shop_id, shop.tiktok_numeric_shop_id}:
         logger.warning(
             "targeted_fetch_skipped",
             extra={"correlation_id": correlation_id, "reason": "shop_key_mismatch"},
