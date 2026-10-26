@@ -441,9 +441,9 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P68-B15 "Đồng bộ ngay" runs the commerce steps (orders/products/returns) inside the 60 min interval, at most once per 3 min per shop | B15 | done, merged #2182 (3d68f889) | agent (Sonnet) |
 | P68-B12 rebuild the stored orders-sourced report when an order in its window is paid/cancelled/returned (debounced 120 s, lookup cached 60 s) | B12 | done, merged #2183 (1d29e467) | agent (Sonnet) |
 | P68-E10 deploy.sh stops the drained `juli-api-candidate-<old>` slot after the public check; warns unless exactly one slot is active | E10 | done, merged #2184 (7958237d); first real run = next deploy | agent (Sonnet) |
-| P68-E11 store TikTok's numeric shop id beside the cipher (migration 102); webhooks resolve by either | E11 | done, PR #2185 (2c7d3afc) | agent (Opus) |
+| P68-E11 store TikTok's numeric shop id beside the cipher (migration 102); webhooks resolve by either | E11 | done, live (#2185, #2188, #2189); backfilled 26/10: Fujiwa 7495274531001436791, sandbox 7494751643546977923 | agent (Opus) + lead |
 | P68 follow-ups E12 (unscoped webhook side-effect paths) and E13 (webhook/poll dedupe key) | E12, E13 | todo | — |
-| Owner: deploy P68 (E11 carries a migration → backup job runs); after deploy check the log for `E10: stopped drained API slot` | — | todo | owner |
+| Owner: deploy P68 | — | done: 0d64ca4a (migration 102), 2032d13f, f34827bd; E10 stopped the drained slot on all three | owner |
 
 ## P2–P6
 
