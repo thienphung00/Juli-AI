@@ -1162,7 +1162,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 **`qd.tab.dang_thuc_hien`**
 - EN: In progress
 - VI: Đang thực hiện
-- Definition: Quyết định sub-tab 2: run timeline + Hàng chờ thẻ tối ưu.
+- Definition: Quyết định sub-tab 2: run timeline + Hàng chờ.
 
 **`qd.tab.do_luong`**
 - EN: Measurement
@@ -1171,7 +1171,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 
 **`qd.group.title`**
 - EN: N cards to raise [metric] [stream]
-- VI: [N] thẻ tối ưu để nâng [metric] [stream]
+- VI: [metric] [stream] · [N] thẻ
 - Definition: Card group header (d.6); stream from channel_scope (Thẻ sản phẩm / (mọi kênh)).
 
 **`qd.group.gmv`**
@@ -1271,7 +1271,7 @@ turn done on real job completion. Kept here only so the key resolves until its l
 
 **`qd.queue.title`**
 - EN: Optimisation card queue
-- VI: Hàng chờ thẻ tối ưu
+- VI: Hàng chờ
 - Definition: GET runs list in the ledger's sections.
 
 **`qd.revert`**

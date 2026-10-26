@@ -23,6 +23,12 @@ const STAGE_METRIC: Readonly<Record<string, string>> = {
   basket: "AOV",
 };
 
+/** Cards that are not about a funnel stage: the KPI key decides the group's name (no raw key, no stored label). */
+const KPI_KEY_METRIC: Readonly<Record<string, string>> = {
+  products: "Sản phẩm",
+  promotion: "Khuyến mãi",
+};
+
 const STREAM_LABEL: Readonly<Record<string, string>> = {
   PRODUCT_CARD: "Thẻ sản phẩm",
   ALL_CHANNELS: "mọi kênh",
@@ -136,8 +142,8 @@ function groupKey(item: DemoDecisionItem): string {
 
 export function groupTitle(count: number, metric: string | null, stream: string | null): string {
   if (!metric) return `${count} đề xuất khác`;
-  const where = stream === "mọi kênh" ? " (mọi kênh)" : stream ? ` ${stream}` : "";
-  return `${count} thẻ tối ưu để nâng ${metric}${where}`;
+  const where = stream && stream !== STREAM_LABEL.ALL_CHANNELS ? ` ${stream}` : "";
+  return `${metric}${where} · ${count} thẻ`;
 }
 
 /**
@@ -173,7 +179,11 @@ export function groupDecisions(items: readonly DemoDecisionItem[]): DecisionGrou
       };
     }
     const diagnosis = members[0].recommendation.diagnosis ?? null;
-    const metric = diagnosis ? (STAGE_METRIC[diagnosis.stage?.code ?? ""] ?? text(diagnosis.main_kpi?.label)) : null;
+    const metric = diagnosis
+      ? (STAGE_METRIC[diagnosis.stage?.code ?? ""] ??
+        KPI_KEY_METRIC[diagnosis.main_kpi?.key ?? ""] ??
+        text(diagnosis.main_kpi?.label))
+      : null;
     const scope = diagnosis?.channel_scope ?? "ALL_CHANNELS";
     const streamLabel = diagnosis ? (STREAM_LABEL[scope] ?? null) : null;
     const cards = members.map(toCompactCard);
