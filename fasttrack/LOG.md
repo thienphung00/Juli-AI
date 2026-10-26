@@ -3038,3 +3038,7 @@ reconcile --write` re-derived the no-assert corpus figure.
   102's docstring repeats the mislabel; left as is (applied migration). Follow-up: the backfill skips
   an id another shop already holds, and its log lines carry shop_id/reason in the message (the Celery
   journal drops `extra`). Open: the sandbox shop's own numeric id is not filled yet.
+- Update 26/10 06:50 UTC: f34827bd live. Both shops backfilled (read via DATABASE_DIRECT_URL):
+  Fujiwa 2b1da87b → 7495274531001436791, sandbox 1862f13b → 7494751643546977923 (its display name's
+  number 7657274686031759124 is not its numeric id). B15 confirmed (commerce_last_run_at 06:06:25 after
+  "Đồng bộ ngay"). Still to observe: a sandbox webhook reaching 1862f13b (etl_event_processed).
