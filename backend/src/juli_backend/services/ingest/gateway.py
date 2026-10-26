@@ -2,13 +2,16 @@
 
 One call = one POST of one dataset for one shop. In order:
 
+0. the shop must hold an open ``service`` consent (ADR-116 §4, D8) -- otherwise
+   ``consent_required`` (403) and nothing is stored;
 1. the dataset must exist for the platform; rows are validated strictly against
    its row model; the period, the rows' dates, the order type and duplicate
    keys are checked (``IngestRejected`` → 422 with the first errors);
 2. a dataset the extension reported as drifted is refused for the SAME
    ``source_version`` (409) until a new version posts or the drift is cleared;
-3. the body is stored append-only in ``ingest_raw_payloads``, deduplicated on a
-   content hash of (platform, dataset, period, order type, rows) -- a re-post of
+3. the body is stored append-only in ``ingest_raw_payloads`` -- reduced to the
+   dataset's field allowlist (``services/privacy/payload_allowlist.py``) --
+   deduplicated on a content hash of (platform, dataset, period, order type, rows) -- a re-post of
    the same data, at any ``captured_at``, changes nothing and answers
    ``duplicate: true``;
 4. normalized rows are upserted into ``platform_daily_metrics`` -- a row is only
@@ -42,6 +45,7 @@ from juli_backend.models.ingest import (
     IngestRawPayload,
     PlatformDailyMetric,
 )
+from juli_backend.services.consent import ConsentRequired, require_consent
 from juli_backend.services.ingest.mapping import (
     KPI_COLUMNS,
     DatasetSpec,
@@ -50,6 +54,7 @@ from juli_backend.services.ingest.mapping import (
     normalize_rows,
 )
 from juli_backend.services.ingest.schemas import IngestBody, RowBase
+from juli_backend.services.privacy.payload_allowlist import allowlist_payload, ingest_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +210,9 @@ async def _store_raw(
             content_hash=hashed,
             row_count=len(body.rows),
             token_id=token_id,
-            payload=body.model_dump(mode="json"),
+            payload=allowlist_payload(
+                platform, ingest_endpoint(dataset), body.model_dump(mode="json")
+            ),
         )
         .on_conflict_do_nothing(index_elements=["shop_id", "content_hash"])
         .returning(IngestRawPayload.id)
@@ -287,6 +294,10 @@ async def ingest(
     token_id: uuid.UUID | None,
     now: datetime,
 ) -> IngestResult:
+    try:
+        await require_consent(session, shop_id, "service")
+    except ConsentRequired:
+        raise IngestRejected("consent_required", status=403) from None
     spec = dataset_spec(platform, dataset)
     if spec is None:
         raise IngestRejected("unknown_dataset", status=404)

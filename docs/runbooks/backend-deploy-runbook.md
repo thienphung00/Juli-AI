@@ -222,6 +222,22 @@ to run 074 copy 101 into `versions/` first. Idempotent; its downgrade is a no-op
 design (a backfilled row cannot be told from one the code stamped). Running it late
 is harmless; until it runs those runs are shown and measured as before.
 
+**Also outstanding (NDA work, D76 / ADR-116 §4): the payload clean-up command** —
+not a migration (it is an `UPDATE` of stored rows, which the gate refuses), but an
+operator command: it reduces stored `bronze.order_raw_payloads`,
+`bronze.return_raw_payloads` and `public.ingest_raw_payloads` payloads to their field
+allowlist and re-keys stored `buyer_id` (those three plus `public.orders` /
+`public.returns`) as the per-shop pseudonym. Run it once the release carrying
+`104_shop_pseudonym_keys` is serving, as the owner (`DATABASE_DIRECT_URL`), dry run
+first:
+
+```bash
+python -m juli_backend.services.privacy.payload_cleanup          # prints counts only
+python -m juli_backend.services.privacy.payload_cleanup --apply
+```
+
+One transaction per shop; idempotent (a second `--apply` changes zero rows).
+
 > **This step has now been renumbered four times** — 065 → 066 (#1973),
 > 066 → 070 (#1712), 070 → 072 (#1950), 072 → 074 (#1706) — because it must
 > stay the **tail** of

@@ -35,8 +35,12 @@ from juli_backend.services.etl.persistence.ingest import ProcessedEventsRepo
 from juli_backend.services.etl.persistence.ingest.repo import IngestDedupEpochsRepo
 from juli_backend.services.etl.record import IngestRecord
 from juli_backend.services.etl.transform import TransformError, transform_for_channel
+from juli_backend.services.privacy.pseudonym import pseudonymize_buyer_id
 
 logger = logging.getLogger(__name__)
+
+#: Silver entities carrying a platform buyer id (stored pseudonymised).
+_BUYER_KINDS = frozenset({"order", "return"})
 
 DlqHandoffFn = Callable[[str, str, bytes], Awaitable[None]]
 
@@ -240,6 +244,11 @@ class EtlConsumer:
                 await self._before_persist(record)
 
             entity_kind, kwargs = transform_for_channel(record.channel, payload)
+            if entity_kind in _BUYER_KINDS and kwargs.get("buyer_id"):
+                # ADR-116 §4: silver keeps the shop's pseudonym, as bronze does.
+                kwargs["buyer_id"] = await pseudonymize_buyer_id(
+                    self._session, shop_id, kwargs["buyer_id"]
+                )
             order_kwargs = dict(kwargs) if entity_kind == "order" else None
             await self._upsert(entity_kind, shop_id=shop_id, kwargs=kwargs)
         except (TransformError, TypeError, ValueError) as exc:

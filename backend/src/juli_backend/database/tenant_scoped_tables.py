@@ -133,6 +133,9 @@ TABLE_CLASSIFICATION_MAP = {
     # NDA work (D76, ADR-116 §2, migration 103): per-shop data-use consent;
     # juli_app SELECT / INSERT, UPDATE (revoked_at) on an open row only.
     ("public", "data_use_consents"): "tenant_direct",
+    # NDA work (D76, ADR-116 §4, migration 104): per-shop sealed HMAC key for
+    # buyer_id pseudonyms; juli_app SELECT / INSERT only.
+    ("public", "shop_pseudonym_keys"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",
