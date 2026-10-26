@@ -174,7 +174,7 @@ Invariants below.
   (injectable `clients`) into `QuyetDinhView`. URL: `tab=de-xuat|dang-thuc-hien|do-luong`,
   `run=<id>`, `quy-tac=1` (rules editor open). **Đề xuất** (`DeXuatPanel`):
   `lib/quyet-dinh/grouping.ts` groups `GET /v1/demo/decisions` items by
-  `channel_scope` × `stage.code` ("N thẻ tối ưu để nâng CTOR Thẻ sản phẩm",
+  `channel_scope` × `stage.code` ("CTOR Thẻ sản phẩm · N thẻ",
   "GMV dự kiến" = Σ recoverable GMV/day × 30, ước tính theo quy tắc — no
   target rate, the backend gives none); price/promotion/non-executable cards
   say "Bạn áp dụng trên Seller Center" and never enter "Duyệt N thẻ"; batch
@@ -191,7 +191,7 @@ Invariants below.
   time, `tool.completed.summary` / narration, consent inline with the
   confirmation client, terminal with day 7 / day 14 from the
   completion timestamp (D14); playbook steps not reached yet are greyed
-  without time. Right: `RunQueue` ("Hàng chờ thẻ tối ưu", ledger sections
+  without time. Right: `RunQueue` ("Hàng chờ", ledger sections
   and honest terminal labels from `lib/run-ledger`). Finished runs show
   `GET …/changes` before → after and "Hoàn tác" (`POST …/revert` → the new
   run; 409/503 messages verbatim; disabled with `revert.message`). **Đo

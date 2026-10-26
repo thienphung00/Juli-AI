@@ -43,6 +43,7 @@ from juli_backend.services.agent.playbooks import (
     CREATE_PROMOTION_LEVER,
     CREATE_PROMOTION_WORKFLOW_KEY,
 )
+from juli_backend.services.product_name import short_product_name
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ STAGE = {"code": "promotion", "label": "Khuyến mãi"}
 
 
 def card_title(title: str) -> str:
-    return f"Tạo khuyến mãi giảm giá cho «{title}»"
+    return f"Tạo khuyến mãi giảm giá cho {short_product_name(title)}"
 
 
 #: P66 (D16): how long an active card's TikTok eligibility check stays good.
@@ -199,18 +200,18 @@ def card_payload(product: Product) -> dict[str, Any]:
             "lever": {
                 "code": CREATE_PROMOTION_LEVER,
                 "label": LEVER_LABEL_VI,
-                "action": "Tạo một khuyến mãi giảm giá sản phẩm trên TikTok",
+                "action": "Tạo khuyến mãi giảm giá cho sản phẩm",
                 "detail": (
                     "Juli chọn sản phẩm còn hàng, mức giảm trong quy tắc của shop và ngày kết "
                     "thúc, kiểm tra điều kiện rồi tạo khuyến mãi sau khi bạn xác nhận. Shop "
                     "sandbox không có người mua thật nên Juli không đo hiệu quả"
                 ),
             },
-            "main_kpi": {"key": "promotion", "label": "Khuyến mãi trên TikTok", "value": "+1"},
+            "main_kpi": {"key": "promotion", "label": "Khuyến mãi", "value": "+1"},
             "trigger": {
                 "code": "promotion_demo",
                 "gap": 0.0,
-                "sentence": f"Tạo khuyến mãi giảm giá cho sản phẩm bán chạy «{title}»",
+                "sentence": "Giảm giá cho sản phẩm bán chạy",
             },
             "product_title": title,
             "tiktok_product_id": product.tiktok_product_id,
@@ -288,10 +289,8 @@ async def ensure_create_promotion_card(
         severity="medium",
         title=card_title(title)[:255],
         description=(
-            f"Tạo một khuyến mãi giảm giá trên TikTok Shop sandbox cho «{title}»: Juli chọn "
-            "sản phẩm còn hàng, mức giảm trong quy tắc của shop và ngày kết thúc, kiểm tra "
-            "điều kiện, rồi tạo khuyến mãi sau khi bạn xác nhận. Shop sandbox không có người "
-            "mua thật nên Juli không đo hiệu quả."
+            f"Tạo khuyến mãi giảm giá cho {short_product_name(title)} trên shop sandbox. "
+            "Juli chọn mức giảm theo quy tắc của shop và tạo sau khi bạn xác nhận."
         ),
         recommendation_payload=json.dumps(card_payload(product), ensure_ascii=False),
         status="active",

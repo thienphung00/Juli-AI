@@ -9,7 +9,7 @@ import {
   SANDBOX_LOAD_ERROR,
   SANDBOX_SYNC_ERROR,
   SANDBOX_SYNC_LABEL,
-  SANDBOX_SYNC_QUEUED,
+  SANDBOX_SYNCING,
   SANDBOX_SYNC_UNAVAILABLE,
 } from "../../lib/reviewer/copy";
 import { fetchSandboxShop, syncSandboxShop, type SandboxShop, type SyncResult } from "../../lib/reviewer/sandbox-client";
@@ -23,8 +23,10 @@ import { fetchSandboxShop, syncSandboxShop, type SandboxShop, type SyncResult } 
  */
 
 const TIME_ZONE = "Asia/Ho_Chi_Minh";
-/** The API queues a poll; the card re-reads the shop once it had time to run. */
-export const SYNC_REFRESH_MS = 10_000;
+/** The API queues a poll; the card re-reads the shop every few seconds until the sync time changes. */
+export const SYNC_REFRESH_MS = 5_000;
+/** Stop re-reading after this long (the sync may have changed nothing, or failed quietly). */
+export const SYNC_POLL_MAX_MS = 90_000;
 
 export function absoluteVn(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -54,7 +56,7 @@ export function relativeVn(iso: string | null | undefined, nowMs: number): strin
 }
 
 type Load = { status: "loading" } | { status: "error" } | { status: "ready"; shop: SandboxShop };
-type Notice = "queued" | "unavailable" | "error" | null;
+type Notice = "syncing" | "unavailable" | "error" | null;
 
 export interface SandboxConnectionCardProps {
   readonly token: string;
@@ -63,6 +65,7 @@ export interface SandboxConnectionCardProps {
   readonly fetchShop?: () => Promise<SandboxShop>;
   readonly sync?: () => Promise<SyncResult>;
   readonly refreshMs?: number;
+  readonly maxPollMs?: number;
 }
 
 export function SandboxConnectionCard({
@@ -71,6 +74,7 @@ export function SandboxConnectionCard({
   fetchShop = () => fetchSandboxShop({ token, shopId }),
   sync = () => syncSandboxShop({ token, shopId }),
   refreshMs = SYNC_REFRESH_MS,
+  maxPollMs = SYNC_POLL_MAX_MS,
 }: SandboxConnectionCardProps) {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [notice, setNotice] = useState<Notice>(null);
@@ -81,7 +85,11 @@ export function SandboxConnectionCard({
   useEffect(() => {
     fetchRef.current = fetchShop;
   });
-  const refreshTimer = useRef<number | null>(null);
+  const pollTimer = useRef<number | null>(null);
+  const loadRef = useRef<Load>(load);
+  useEffect(() => {
+    loadRef.current = load;
+  });
 
   const read = useCallback(() => {
     fetchRef.current().then(
@@ -90,17 +98,51 @@ export function SandboxConnectionCard({
     );
   }, []);
 
+  const stopPolling = useCallback(() => {
+    if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
+    pollTimer.current = null;
+  }, []);
+
+  /** Re-read the shop every `refreshMs` until its sync time differs from `baseline` (or `maxPollMs` passes). */
+  const pollUntilChanged = useCallback(
+    (baseline: string | null) => {
+      stopPolling();
+      const deadline = Date.now() + maxPollMs;
+      const tick = () => {
+        fetchRef.current().then(
+          (shop) => {
+            setLoad({ status: "ready", shop });
+            if (shop.synced_at !== baseline) {
+              setNotice(null);
+              pollTimer.current = null;
+            } else if (Date.now() >= deadline) {
+              setNotice(null);
+              pollTimer.current = null;
+            } else {
+              pollTimer.current = window.setTimeout(tick, refreshMs);
+            }
+          },
+          () => {
+            if (Date.now() >= deadline) {
+              setNotice(null);
+              pollTimer.current = null;
+            } else {
+              pollTimer.current = window.setTimeout(tick, refreshMs);
+            }
+          },
+        );
+      };
+      pollTimer.current = window.setTimeout(tick, refreshMs);
+    },
+    [maxPollMs, refreshMs, stopPolling],
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(read, 0);
     return () => window.clearTimeout(timer);
   }, [read]);
 
-  useEffect(
-    () => () => {
-      if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
-    },
-    [],
-  );
+  useEffect(() => stopPolling, [stopPolling]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -116,10 +158,10 @@ export function SandboxConnectionCard({
     sync().then((result) => {
       setBusy(false);
       if (result.status === "queued") {
-        setNotice("queued");
+        const current = loadRef.current;
+        setNotice("syncing");
         setCountdown(result.retryAfterSeconds);
-        if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
-        refreshTimer.current = window.setTimeout(read, refreshMs);
+        pollUntilChanged(current.status === "ready" ? current.shop.synced_at : result.syncedAt);
       } else if (result.status === "rate_limited") {
         setCountdown(result.retryAfterSeconds);
       } else {
@@ -195,9 +237,9 @@ export function SandboxConnectionCard({
           {countdown > 0 ? `${SANDBOX_SYNC_LABEL} (${countdown}s)` : SANDBOX_SYNC_LABEL}
         </button>
       </div>
-      {notice === "queued" ? (
+      {notice === "syncing" ? (
         <p className="qv-status-line" role="status">
-          {SANDBOX_SYNC_QUEUED}
+          {SANDBOX_SYNCING}
         </p>
       ) : null}
       {notice === "unavailable" || notice === "error" ? (

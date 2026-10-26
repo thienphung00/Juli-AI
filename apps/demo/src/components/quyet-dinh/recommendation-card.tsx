@@ -344,7 +344,7 @@ function DesktopCard({
         <div className="qv-card__id">
           <div className="qv-card__name-row">
             {card.sku ? <span className="qv-sku">SKU · {card.sku}</span> : null}
-            <h3 className="qv-card__title" id={titleId}>
+            <h3 className="qv-card__title" id={titleId} title={card.fullTitle ?? undefined}>
               {card.title}
             </h3>
           </div>
@@ -499,7 +499,7 @@ function MobileCard({
       <div className="qv-card__top">
         <div className="qv-card__id">
           {card.sku ? <span className="qv-sku">SKU · {card.sku}</span> : null}
-          <h3 className="qv-card__title" id={titleId}>
+          <h3 className="qv-card__title" id={titleId} title={card.fullTitle ?? undefined}>
             {card.title}
           </h3>
           <div className="qv-card__meta">{card.meta}</div>

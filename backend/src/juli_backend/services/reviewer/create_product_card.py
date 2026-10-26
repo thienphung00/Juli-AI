@@ -28,6 +28,7 @@ from juli_backend.services.agent.playbooks import (
     CREATE_PRODUCT_LEVER,
     CREATE_PRODUCT_WORKFLOW_KEY,
 )
+from juli_backend.services.product_name import short_product_name
 
 logger = logging.getLogger(__name__)
 
@@ -71,17 +72,17 @@ def card_payload(product: Product) -> dict[str, Any]:
             "lever": {
                 "code": CREATE_PRODUCT_LEVER,
                 "label": LEVER_LABEL_VI,
-                "action": "Tạo một sản phẩm mới trên TikTok từ sản phẩm bán chạy nhất",
+                "action": "Tạo sản phẩm mới từ sản phẩm bán chạy nhất",
                 "detail": (
-                    "Juli chọn danh mục TikTok, soạn tiêu đề và mô tả tiếng Việt, kiểm tra "
-                    "điều kiện đăng bán rồi tạo sản phẩm sau khi bạn xác nhận"
+                    "Juli chọn danh mục, soạn tiêu đề và mô tả, "
+                    "rồi tạo sản phẩm sau khi bạn xác nhận"
                 ),
             },
-            "main_kpi": {"key": "products", "label": "Sản phẩm trên TikTok", "value": "+1"},
+            "main_kpi": {"key": "products", "label": "Sản phẩm", "value": "+1"},
             "trigger": {
                 "code": "catalog_extension",
                 "gap": 0.0,
-                "sentence": f"Mở rộng danh mục từ sản phẩm bán chạy «{title}»",
+                "sentence": "Mở rộng danh mục từ sản phẩm bán chạy",
             },
             "product_title": title,
             "tiktok_product_id": product.tiktok_product_id,
@@ -137,11 +138,10 @@ async def ensure_create_product_card(
         revision=revision + 1,
         priority=0,
         severity="medium",
-        title=f"Tạo sản phẩm mới từ «{title}»"[:255],
+        title=f"Tạo sản phẩm mới từ {short_product_name(title)}"[:255],
         description=(
-            f"Tạo một sản phẩm mới trên TikTok Shop sandbox từ sản phẩm bán chạy «{title}»: "
-            "Juli chọn danh mục, soạn tiêu đề và mô tả, kiểm tra điều kiện đăng bán, "
-            "rồi tạo sản phẩm sau khi bạn xác nhận."
+            f"Tạo sản phẩm mới trên shop sandbox từ {short_product_name(title)}. "
+            "Juli chọn danh mục, soạn tiêu đề và mô tả rồi tạo sau khi bạn xác nhận."
         ),
         recommendation_payload=json.dumps(card_payload(product), ensure_ascii=False),
         status="active",

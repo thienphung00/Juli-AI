@@ -54,6 +54,8 @@ export function consentRows(
   if (context.promotion) return promotionRows(change);
   const rows: ConsentRow[] = [];
   for (const [field, value] of Object.entries(change)) {
+    // The TikTok category id is an internal number the seller cannot use.
+    if (field === "category_id") continue;
     const pair = fromTo(value);
     const after = pair?.to ?? asText(value);
     if (after === null) continue;

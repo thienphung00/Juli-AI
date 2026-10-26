@@ -197,6 +197,10 @@ class ToolDomain:
     #: seller. Same signature as a handler; returns a refusal model (with
     #: `error_code`, `summary_vi`, `model_hint`) or `None`. Read-only by contract.
     prechecks: Mapping[str, ProposalCheck] = field(default_factory=dict)
+    #: P69: `tool_name -> normalizer` run BEFORE the precheck: returns the proposal's params
+    #: rewritten (e.g. the filtered listing text) or `None` for "no change". Pure: no
+    #: resources, no I/O, idempotent (the rewritten params normalise to `None`).
+    normalizers: Mapping[str, Callable[[Any], BaseModel | None]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.name:

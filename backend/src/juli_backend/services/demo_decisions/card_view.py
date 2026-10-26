@@ -60,6 +60,7 @@ from juli_backend.models.models import (
 from juli_backend.models.run_changes import RunWriteValue
 from juli_backend.services.agent.tools.diagnosis_labels import diagnosis_label_vi
 from juli_backend.services.optimize_product.rescore import cap_legacy_target, has_d29_kpi
+from juli_backend.services.product_name import is_seller_visible_sku, short_product_name
 
 WORKFLOW_LABEL_VI = "Tối ưu sản phẩm"
 #: P64 (D73.3): the sandbox "Tạo sản phẩm" card reads as a creation, like its run header.
@@ -89,8 +90,8 @@ _LEVER_FIELDS: Mapping[str, tuple[str, str]] = {
     "cover_image": ("main_images", "Ảnh bìa"),
     "title": ("title", "Tiêu đề"),
     "description": ("description", "Mô tả"),
-    "create_product": ("new_listing", "Sản phẩm mới trên TikTok"),
-    "create_promotion": ("product_discount", "Khuyến mãi giảm giá trên TikTok"),
+    "create_product": ("new_listing", "Sản phẩm mới"),
+    "create_promotion": ("product_discount", "Giảm giá"),
 }
 
 _FIELD_LABELS_VI: Mapping[str, str] = {"title": "Tiêu đề", "description": "Mô tả"}
@@ -102,8 +103,13 @@ _KPI_LABELS_VI: Mapping[str, str] = {
     # P23 (D29): a GMV fall explained by impressions targets Hiển thị.
     "impressions": "Lượt hiển thị",
     # P65 (D74): the "Tạo khuyến mãi" card's KPI is the promotion itself (no ROI).
-    "promotion": "Khuyến mãi trên TikTok",
+    "promotion": "Khuyến mãi",
+    # P64 (D73.3): the "Tạo sản phẩm" card's KPI is the new listing itself.
+    "products": "Sản phẩm",
 }
+
+#: A KPI key the copy table does not know: never the raw key on screen.
+UNKNOWN_KPI_LABEL_VI = "Chỉ số khác"
 
 #: ≤ 6 words, by the stage the diagnosis found weak.
 _REASON_SHORT_VI: Mapping[str, str] = {
@@ -111,9 +117,9 @@ _REASON_SHORT_VI: Mapping[str, str] = {
     "page": "Khách xem nhưng ít đặt hàng",
     "basket": "Mỗi đơn mua ít món",
     # P64 (D73.3): the "Tạo sản phẩm" card.
-    "catalog": "Thêm sản phẩm mới cho shop",
+    "catalog": "Mở rộng danh mục",
     # P65 (D74): the "Tạo khuyến mãi" card (no ROI claim).
-    "promotion": "Thử khuyến mãi trên TikTok",
+    "promotion": "Thử giảm giá",
 }
 
 #: P64 (D73.3): an orders-based quick card claims no funnel stage, only sales.
@@ -220,8 +226,10 @@ async def load_card_contexts(
         context.product = products.get(pid) if pid is not None else None
         if context.product is not None:
             items = skus.get(context.product.tiktok_product_id, [])
-            context.sku_count = len(items)
-            context.seller_skus = [i.seller_sku for i in items if i.seller_sku]
+            context.seller_skus = [
+                sku for i in items if (sku := i.seller_sku) and is_seller_visible_sku(sku)
+            ]
+            context.sku_count = len(context.seller_skus)
         context.latest_run = latest_runs.get(card.id)
         if context.latest_run is not None:
             context.writes = writes.get(context.latest_run.id, [])
@@ -352,7 +360,7 @@ def _main_kpi(diagnosis: Mapping[str, Any]) -> dict[str, Any]:
     key = str(main.get("key") or "ctor")
     return {
         "key": key,
-        "label": _KPI_LABELS_VI.get(key, key.upper()),
+        "label": _KPI_LABELS_VI.get(key, UNKNOWN_KPI_LABEL_VI),
         "current": _num(main.get("raw")),
         "target": None,
         "unit": "vnd" if key == "aov" else "ratio",
@@ -490,11 +498,11 @@ def build_card_block(
     if lever_code == "create_product":
         workflow_label = CREATE_PRODUCT_LABEL_VI
         if product_title:
-            product_title = f"Tạo sản phẩm mới từ «{product_title}»"
+            product_title = f"Tạo sản phẩm mới từ {short_product_name(product_title)}"
     elif lever_code == "create_promotion":
         workflow_label = CREATE_PROMOTION_LABEL_VI
         if product_title:
-            product_title = f"Tạo khuyến mãi giảm giá cho «{product_title}»"
+            product_title = f"Tạo khuyến mãi giảm giá cho {short_product_name(product_title)}"
     return {
         "seller_sku": first_sku,
         "seller_sku_more": max(context.sku_count - 1, 0) if first_sku else 0,
