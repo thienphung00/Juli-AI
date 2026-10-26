@@ -226,6 +226,9 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_card_events_db.py",
         # D76 / ADR-116: downgrades 103 -> 102 and back.
         "test_data_use_consents_db.py",
+        # D76 / ADR-116 §4: downgrades 104 -> 103 and back, and runs the
+        # payload clean-up as the owner over every shop.
+        "test_payload_privacy_db.py",
         # Fast track P60-1b: migration 096 round trip with pre-096 rows seeded
         # at 095 (its data step fills hashes, audit links and attribution),
         # after the two-tenant end-to-end attribution walk.

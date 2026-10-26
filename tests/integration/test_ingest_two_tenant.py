@@ -76,6 +76,17 @@ def shopee_tenants(owner_engine, two_tenants):
                 text("UPDATE public.shops SET platform = 'shopee' WHERE id = :id"),
                 {"id": str(tenant.shop_id)},
             )
+            # ADR-116 §4: the gateway accepts a post only from a shop with an open
+            # `service` consent.
+            conn.execute(
+                text(
+                    "INSERT INTO public.data_use_consents (id, shop_id, scope, method, "
+                    " terms_version, evidence_ref, granted_by, granted_at) "
+                    "VALUES (:id, :shop, 'service', 'contract_paper', 'v1', 'contract.pdf', "
+                    " 'client', now())"
+                ),
+                {"id": str(uuid.uuid4()), "shop": str(tenant.shop_id)},
+            )
     return two_tenants
 
 

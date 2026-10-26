@@ -22,6 +22,7 @@ from juli_backend.models.models import ProcessedEvent, Shop, User
 from juli_backend.repositories.repos import OrdersRepo
 from juli_backend.services.etl.consumer import EtlConsumer, ProcessOutcome
 from juli_backend.services.etl.record import IngestRecord
+from juli_backend.services.privacy.pseudonym import buyer_pseudonym, shop_pseudonym_key
 
 pytestmark = pytest.mark.asyncio
 
@@ -630,7 +631,9 @@ async def test_etl_persists_canonical_order_and_repolls_idempotently(session, sh
     assert len(orders) == 1
     order = orders[0]
     assert order.tiktok_order_id == "order-canonical-1"
-    assert order.buyer_id == "buyer_masked_1"
+    # ADR-116 §4: silver keeps the shop's pseudonym of the platform buyer id.
+    key = await shop_pseudonym_key(session, order.shop_id)
+    assert order.buyer_id == buyer_pseudonym(key, first_payload["user_id"])
     assert order.order_value == Decimal("175000.00")
     assert order.total_amount == Decimal("175000.00")
     assert order.payment_time == datetime.fromtimestamp(1_700_000_010, tz=UTC).replace(tzinfo=None)
