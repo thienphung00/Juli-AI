@@ -23,6 +23,7 @@ from juli_backend.services.agent.llm import LLMConfig
 from juli_backend.services.agent.llm.blocks import FinalResponse, TextBlock, ToolCallBlock, Usage
 from juli_backend.services.agent.llm.config import LLM_STREAMING_ENV_VAR, llm_streaming_enabled
 from juli_backend.services.agent.llm.openai_adapter import LLMProviderError, OpenAIResponsesAdapter
+from tests.support.consent import granted_gate
 
 
 @pytest.fixture(autouse=True)
@@ -126,7 +127,7 @@ def _transport(body: bytes | AsyncIterator[bytes], captured: list[dict]) -> http
 
 
 async def _run(transport: httpx.MockTransport, deltas: list[str] | None):
-    adapter = OpenAIResponsesAdapter(transport=transport)
+    adapter = OpenAIResponsesAdapter(gate=granted_gate(), transport=transport)
 
     async def on_delta(text: str) -> None:
         assert deltas is not None
@@ -326,7 +327,7 @@ def test_llm_streaming_flag_parsing(monkeypatch, raw, expected):
 async def test_callback_exceptions_propagate_unchanged():
     events = _text_events(["x"])
     events.append(_completed([events[-1]["item"]]))
-    adapter = OpenAIResponsesAdapter(transport=_transport(_sse(events), []))
+    adapter = OpenAIResponsesAdapter(gate=granted_gate(), transport=_transport(_sse(events), []))
 
     class SinkDown(RuntimeError):
         pass

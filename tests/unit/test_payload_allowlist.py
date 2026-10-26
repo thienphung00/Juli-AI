@@ -669,7 +669,10 @@ def test_revision_fits_alembic_and_the_deferred_tail_moved_onto_it():
     mig = _migration_module()
     assert mig.revision == "104_shop_pseudonym_keys" and len(mig.revision) <= 32
     assert mig.down_revision == "103_data_use_consents"
-    assert f'down_revision: str | None = "{mig.revision}"' in BACKFILL.read_text("utf-8")
+    # PR 4 put `105_llm_call_log` on top of it; the deferred tail moved onto 105.
+    later = (MIGRATIONS / "versions/105_llm_call_log.py").read_text("utf-8")
+    assert f'down_revision: str | None = "{mig.revision}"' in later
+    assert 'down_revision: str | None = "105_llm_call_log"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_app_role_may_only_select_and_insert():

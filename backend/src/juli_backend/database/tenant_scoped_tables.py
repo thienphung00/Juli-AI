@@ -136,6 +136,9 @@ TABLE_CLASSIFICATION_MAP = {
     # NDA work (D76, ADR-116 §4, migration 104): per-shop sealed HMAC key for
     # buyer_id pseudonyms; juli_app SELECT / INSERT only.
     ("public", "shop_pseudonym_keys"): "tenant_direct",
+    # NDA work (D76, ADR-116 §5, migration 105): one row per OpenAI call attempt,
+    # metadata only; append-only (SELECT / INSERT for juli_app).
+    ("public", "llm_call_log"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",

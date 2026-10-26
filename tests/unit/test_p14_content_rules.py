@@ -41,6 +41,7 @@ from juli_backend.services.content_cards.drafter import (
     OpenAIContentDrafter,
     outcome_from_text,
 )
+from tests.support.consent import granted_gate
 
 # --- candidates ------------------------------------------------------------------------
 
@@ -432,7 +433,10 @@ async def test_the_openai_drafter_makes_one_structured_call_and_counts_its_token
             },
         )
 
-    drafter = OpenAIContentDrafter(OpenAIResponsesAdapter(transport=httpx.MockTransport(handler)))
+    # ADR-116 §5: the drafter sends through the shop's OpenAI gate.
+    drafter = OpenAIContentDrafter(
+        OpenAIResponsesAdapter(gate=granted_gate(), transport=httpx.MockTransport(handler))
+    )
     outcome = await drafter.draft(
         kind="video",
         inputs=DraftInputs(facts=FACTS, rules=RULES),

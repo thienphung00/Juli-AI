@@ -39,8 +39,11 @@ scoped to the shop (`with_shop_scope`); under RLS a mis-scoped session sees no g
 
 ## Callers (ADR-116 delivery)
 
-None yet in this PR. PR 3 (ingest gateway, `service`), PR 4 (OpenAI gate: `llm_processing` for text, `llm_images` for `vision.py`, `llm_media` for
-`content_analysis/openai_media.py`), PR 6 (dataset builder and fleet calibration, `pooled_training`).
+- PR 4 (done): the OpenAI gate `services/llm_gate` (`open_gate` reads `llm_processing`,
+  `llm_images`, `llm_media` through `has_consent`, once per run leg / analysis / draft;
+  each request needs the scope of every input kind it carries).
+- PR 3 (ingest gateway, `service`), PR 6 (dataset builder and fleet calibration,
+  `pooled_training`).
 
 ## Invariants
 

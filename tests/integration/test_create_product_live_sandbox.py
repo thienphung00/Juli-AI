@@ -40,6 +40,7 @@ from juli_backend.services.agent.runner import (
     ToolExecutionLedger,
     WorkflowRunner,
 )
+from juli_backend.services.llm_gate import open_gate
 from juli_backend.workers.tasks.database import get_async_database_url, get_sync_database_url
 
 pytestmark = [
@@ -120,7 +121,12 @@ async def test_live_create_product_run_creates_and_reads_back_a_sandbox_listing(
             session.add(run)
             await session.commit()
             registry = composition_module.build_product_tool_registry()
-            llm = composition_module.build_llm_service()
+            # ADR-116 §5: the real adapter sends through the shop's OpenAI gate; the shop
+            # needs open `llm_processing` consent in this database or every call is refused.
+            llm = composition_module.gated_llm_service(
+                composition_module.build_llm_service(),
+                await open_gate(session, credential.shop_id),
+            )
             sink = PersistingEventSink(factory, _NullPublisher(), shop_id=credential.shop_id)
 
             def runner(sync_session):

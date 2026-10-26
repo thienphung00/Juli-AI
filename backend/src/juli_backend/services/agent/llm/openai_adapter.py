@@ -21,6 +21,14 @@ after building Juli's own `Block`/`Usage` dataclasses.
 message window is rebuilt from the caller-supplied ``messages`` on every
 call; no provider-side thread is ever created or referenced.
 
+**Through the shop's OpenAI gate** (ADR-116 §5, D76): the adapter builds the body
+and hands it to `services.llm_gate.OpenAIGate`, which checks consent per input kind,
+the payload allowlist and the ZDR flags, sends it with the one `OPENAI_API_KEY`, and
+writes `llm_call_log`. A refusal surfaces as `LLMGateRefusedError` (an
+`LLMProviderError`), so every caller's existing failure path handles it. An adapter
+built without a gate refuses every call before any HTTP. `purpose` names the call in
+the log (`agent_run`, `content_draft`, `content_scoring`, `content_frames`).
+
 **Streaming is opt-in per call** (ADR-071 decision 3 as amended by D71.3,
 P61-C). A call with no ``on_text_delta`` callback -- card drafts, structured
 analysis, content scoring -- sends ``"stream": False`` exactly as before. A
@@ -74,7 +82,6 @@ from typing import Any
 
 import httpx
 
-from juli_backend.core.config import require_env
 from juli_backend.core.privacy import deidentify_text
 from juli_backend.services.agent.llm.blocks import (
     AssistantTurn,
@@ -86,10 +93,15 @@ from juli_backend.services.agent.llm.blocks import (
 )
 from juli_backend.services.agent.llm.config import LLMConfig, llm_streaming_enabled
 from juli_backend.services.agent.llm.service import Message, TextDeltaCallback, ToolDefinition
+from juli_backend.services.llm_gate import (
+    OPENAI_BASE_URL,
+    PURPOSE_AGENT_RUN,
+    GateRefused,
+    OpenAIGate,
+    refuse_without_gate,
+)
 
-_API_KEY_ENV_VAR = "OPENAI_API_KEY"
-DEFAULT_BASE_URL = "https://api.openai.com"
-_RESPONSES_PATH = "/v1/responses"
+DEFAULT_BASE_URL = OPENAI_BASE_URL
 
 # Responses API streaming event types this adapter reads (P61-C). Anything
 # else (`response.created`, `response.in_progress`, `*.content_part.*`, ...)
@@ -141,6 +153,20 @@ class LLMProviderError(RuntimeError):
     """
 
 
+class LLMGateRefusedError(LLMProviderError):
+    """The OpenAI gate refused the call before any HTTP (ADR-116 §5): no consent for
+    an input kind, a non-ZDR body, a payload outside the allowlist, or no shop gate.
+
+    A subclass of `LLMProviderError` so every caller keeps its existing failure path
+    (the runner ends the run `llm_error`, the drafter returns a provider error);
+    ``refusal`` carries the gate's typed reason for callers that tell them apart.
+    """
+
+    def __init__(self, refusal: GateRefused) -> None:
+        super().__init__(f"OpenAI call refused for this shop: {refusal.reason}")
+        self.refusal = refusal
+
+
 class OpenAIResponsesAdapter:
     """`LLMService` implementation over the OpenAI Responses API.
 
@@ -160,9 +186,21 @@ class OpenAIResponsesAdapter:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         base_url: str = DEFAULT_BASE_URL,
+        gate: OpenAIGate | None = None,
+        purpose: str = PURPOSE_AGENT_RUN,
     ) -> None:
         self._transport: httpx.AsyncBaseTransport | None = transport
         self._base_url = base_url
+        # ADR-116 §5: every request goes through the shop's gate; without one the
+        # adapter refuses before any HTTP (`llm_gate.refuse_without_gate`).
+        self._gate = gate
+        self._purpose = purpose
+
+    def with_gate(self, gate: OpenAIGate, *, purpose: str) -> OpenAIResponsesAdapter:
+        """This adapter, sending through ``gate`` for ``purpose``."""
+        return OpenAIResponsesAdapter(
+            transport=self._transport, base_url=self._base_url, gate=gate, purpose=purpose
+        )
 
     async def complete(
         self,
@@ -189,7 +227,6 @@ class OpenAIResponsesAdapter:
         ``strict``). The text still arrives as the turn's ``FinalResponse``;
         the caller parses and validates it. Omitted, the request is unchanged.
         """
-        api_key = require_env(_API_KEY_ENV_VAR)
         stream = on_text_delta is not None and llm_streaming_enabled()
         body = _build_request_body(
             model=config.model,
@@ -202,40 +239,41 @@ class OpenAIResponsesAdapter:
             response_format=response_format,
             stream=stream,
         )
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-
-        if stream:
-            assert on_text_delta is not None  # narrowed by `stream` above
-            response_body = await self._post_streaming(
-                body=body,
-                headers=headers,
-                timeout_seconds=config.request_timeout_seconds,
-                on_text_delta=on_text_delta,
-            )
-        else:
-            response_body = await self._post(
-                body=body, headers=headers, timeout_seconds=config.request_timeout_seconds
-            )
+        if self._gate is None:
+            raise LLMGateRefusedError(refuse_without_gate(self._purpose))
+        try:
+            if stream:
+                assert on_text_delta is not None  # narrowed by `stream` above
+                response_body = await self._post_streaming(
+                    self._gate,
+                    body=body,
+                    timeout_seconds=config.request_timeout_seconds,
+                    on_text_delta=on_text_delta,
+                )
+            else:
+                response_body = await self._post(
+                    self._gate, body=body, timeout_seconds=config.request_timeout_seconds
+                )
+        except GateRefused as exc:
+            raise LLMGateRefusedError(exc) from exc
 
         blocks = _parse_output_blocks(response_body)
         usage = _parse_usage(response_body)
         return AssistantTurn(blocks=blocks, usage=usage)
 
     async def _post(
-        self, *, body: dict[str, Any], headers: dict[str, str], timeout_seconds: float
+        self, gate: OpenAIGate, *, body: dict[str, Any], timeout_seconds: float
     ) -> dict[str, Any]:
         try:
-            async with httpx.AsyncClient(
+            response = await gate.post_json(
+                purpose=self._purpose,
+                body=body,
+                timeout=timeout_seconds,
                 transport=self._transport,
                 base_url=self._base_url,
-                timeout=timeout_seconds,
-            ) as client:
-                response = await client.post(_RESPONSES_PATH, json=body, headers=headers)
-                response.raise_for_status()
-                return response.json()
+            )
+            response.raise_for_status()
+            return response.json()
         except httpx.HTTPStatusError as exc:
             raise LLMProviderError(
                 f"OpenAI Responses API returned HTTP {exc.response.status_code}"
@@ -248,9 +286,9 @@ class OpenAIResponsesAdapter:
 
     async def _post_streaming(
         self,
+        gate: OpenAIGate,
         *,
         body: dict[str, Any],
-        headers: dict[str, str],
         timeout_seconds: float,
         on_text_delta: TextDeltaCallback,
     ) -> dict[str, Any]:
@@ -262,21 +300,22 @@ class OpenAIResponsesAdapter:
         """
         assembler = _StreamAssembler()
         try:
-            async with httpx.AsyncClient(
+            async with gate.stream_json(
+                purpose=self._purpose,
+                body=body,
+                timeout=timeout_seconds,
                 transport=self._transport,
                 base_url=self._base_url,
-                timeout=timeout_seconds,
-            ) as client:
-                async with client.stream(
-                    "POST", _RESPONSES_PATH, json=body, headers=headers
-                ) as response:
-                    response.raise_for_status()
-                    async for event in _iter_sse_events(response.aiter_lines()):
-                        text_delta = assembler.feed(event)
-                        if text_delta:
-                            await on_text_delta(text_delta)
-                        if assembler.done:
-                            break
+            ) as call:
+                call.response.raise_for_status()
+                async for event in _iter_sse_events(call.response.aiter_lines()):
+                    text_delta = assembler.feed(event)
+                    if text_delta:
+                        await on_text_delta(text_delta)
+                    if assembler.done:
+                        break
+                usage = assembler.usage()
+                call.input_tokens, call.output_tokens = usage.input_tokens, usage.output_tokens
         except httpx.HTTPStatusError as exc:
             raise LLMProviderError(
                 f"OpenAI Responses API returned HTTP {exc.response.status_code}"
@@ -377,6 +416,10 @@ class _StreamAssembler:
         elif event_type == _EV_ERROR:
             raise LLMProviderError(f"OpenAI Responses API stream error: {_error_text(event)}")
         return ""
+
+    def usage(self) -> Usage:
+        """The terminal body's usage (zero before ``response.completed``)."""
+        return _parse_usage(self._final or {})
 
     def result(self) -> dict[str, Any]:
         if self._final is None:

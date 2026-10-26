@@ -60,14 +60,15 @@ OUTCOME_LOCKED = "locked"
 OUTCOME_SKIPPED = "skipped"
 
 
-def production_collaborators() -> Any:
+def production_collaborators(gate: Any) -> Any:
+    """The OpenAI clients, all sending through the analysis's shop gate (ADR-116 §5)."""
     from juli_backend.services import content_analysis as ca
 
     conf = ca.settings()
     return ca.Collaborators(
-        transcriber=ca.OpenAITranscriber(conf.asr_model),
-        vision=ca.OpenAIVision(conf.vision_model),
-        scorer=ca.OpenAIScorer(conf.scoring_model),
+        transcriber=ca.OpenAITranscriber(conf.asr_model, gate=gate),
+        vision=ca.OpenAIVision(conf.vision_model, gate=gate),
+        scorer=ca.OpenAIScorer(conf.scoring_model, gate=gate),
         product_reader=ca.TikTokProductReader(),
     )
 
@@ -91,13 +92,14 @@ async def run_analysis(
     *,
     session_factory: Any,
     lock: Any,
-    collaborators: Callable[[], Any] = production_collaborators,
+    collaborators: Callable[[Any], Any] = production_collaborators,
     conf: Any | None = None,
 ) -> str:
     """Task body (module docstring). Returns the outcome."""
     from juli_backend.database.tenant_context import with_sticky_shop_scope
     from juli_backend.models.content_analysis import ContentAnalysis
     from juli_backend.services import content_analysis as ca
+    from juli_backend.services import llm_gate
 
     costs, pipeline, ProviderError = ca.costs, ca.pipeline, ca.ProviderError
     conf = conf or ca.settings()
@@ -122,14 +124,31 @@ async def run_analysis(
                 row.error_message = None
                 await session.commit()
                 rules = await ca.seller_rules(session, shop_uuid)
+                # ADR-116 §5: the shop's OpenAI gate (consent per input kind, read
+                # once); its log rows commit with this session.
+                gate = await llm_gate.open_gate(
+                    session, shop_uuid, sink=llm_gate.SessionCallLog(session)
+                )
                 try:
                     await pipeline.analyze(
-                        session, row, collab=collaborators(), conf=conf, rules=rules
+                        session, row, collab=collaborators(gate), conf=conf, rules=rules
                     )
                     outcome = OUTCOME_DONE
                 except costs.CostCapExceeded as exc:
                     pipeline.refuse(row, conf, exc)
                     outcome = OUTCOME_REFUSED
+                except llm_gate.GateRefused as exc:
+                    # Not a provider error: retrying cannot change the shop's consent.
+                    logger.warning(
+                        "content_analysis_llm_refused",
+                        extra={
+                            "analysis_id": analysis_id,
+                            "shop_id": shop_id,
+                            "reason": exc.reason,
+                        },
+                    )
+                    pipeline.fail(row, conf, "consent_required")
+                    outcome = OUTCOME_FAILED
                 except pipeline.AnalysisFailed as exc:
                     pipeline.fail(row, conf, exc.code)
                     outcome = OUTCOME_FAILED

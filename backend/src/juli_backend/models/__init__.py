@@ -26,6 +26,7 @@ from juli_backend.models.lever_flows import (
     RunLeverPhoto,
     RunMeasurementFinal,
 )
+from juli_backend.models.llm_call_log import LLMCallLog
 from juli_backend.models.models import *  # noqa: F403
 from juli_backend.models.ops import (
     OpsAuditLog,
@@ -99,4 +100,5 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     CardEvent,
     DataUseConsent,
     ShopPseudonymKey,
+    LLMCallLog,
 )

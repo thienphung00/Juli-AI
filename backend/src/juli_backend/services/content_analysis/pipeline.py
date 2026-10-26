@@ -100,6 +100,12 @@ ERROR_VI: dict[str, str] = {
     "file_missing": "Tệp video không còn trên máy chủ. Bạn tải lên lại.",
     "provider": "Juli chưa gọi được dịch vụ phân tích. Juli sẽ thử lại.",
     "provider_final": "Juli chưa phân tích được video sau nhiều lần thử. Bạn tải lên lại sau.",
+    # ADR-116 §5: the shop has not allowed video / audio (or the text) to go to the
+    # AI service; the OpenAI gate sent nothing. Not retried.
+    "consent_required": (
+        "Shop chưa cho phép Juli gửi khung hình và âm thanh video tới dịch vụ AI, "
+        "nên Juli chưa phân tích video này. Bạn liên hệ Juli nếu muốn bật."
+    ),
 }
 
 

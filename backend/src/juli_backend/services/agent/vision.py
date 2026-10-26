@@ -51,6 +51,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from juli_backend.core.privacy import deidentify_text
+from juli_backend.services.llm_gate import PURPOSE_IMAGE_INSPECTION, GateRefused, OpenAIGate
 
 logger = logging.getLogger(__name__)
 
@@ -183,15 +184,26 @@ def normalize_inspection(raw: Any) -> dict[str, Any]:
     }
 
 
-def build_image_inspector(*, api_key: str, config: InspectionConfig) -> ImageInspector:
-    """The real inspector: one vision call per image, through the same provider.
+def not_inspected() -> dict[str, Any]:
+    """The inspector's answer when no inspection happened (the gate refused it)."""
+    return {**normalize_inspection(None), "inspected": False}
+
+
+def build_image_inspector(
+    *, gate: OpenAIGate, config: InspectionConfig, transport: Any | None = None
+) -> ImageInspector:
+    """The real inspector: one vision call per image, through the shop's OpenAI gate.
 
     Sends the image **by URL**. TikTok's CDN URLs are pre-signed and directly
     fetchable (verified 2026-08-19: unauthenticated GET returned 200 image/jpeg),
     so the provider fetches it and no image bytes pass through this process --
     no base64 inflation, no temporary storage.
+
+    ADR-116 §5: the call goes through ``gate`` (``llm_images`` for the photo,
+    ``llm_processing`` for the copy; ``store: false``). A refusal -- a shop that
+    granted text only, such as Ory -- is a missing inspection (``inspected: false``),
+    never a failed run.
     """
-    import httpx
 
     def _inspect(*, image_url: str, title: str, description: str) -> dict[str, Any]:
         instructions = _INSPECTOR_PROMPT.replace("{language}", config.language)
@@ -216,12 +228,23 @@ def build_image_inspector(*, api_key: str, config: InspectionConfig) -> ImageIns
                 }
             ],
             "max_output_tokens": config.max_output_tokens,
+            # ADR-116 §5: nothing is kept at OpenAI (the gate refuses a body without it).
+            "store": False,
         }
-        headers = {"Authorization": f"Bearer {api_key}", **config.extra_headers}
-        with httpx.Client(timeout=config.timeout_seconds) as client:
-            response = client.post(
-                "https://api.openai.com/v1/responses", headers=headers, json=body
+        try:
+            response = gate.post_json_sync(
+                purpose=PURPOSE_IMAGE_INSPECTION,
+                body=body,
+                timeout=config.timeout_seconds,
+                transport=transport,
+                extra_headers=config.extra_headers,
             )
+        except GateRefused as exc:
+            logger.info(
+                "agent_image_inspection_refused",
+                extra={"reason": exc.reason, "model": config.model},
+            )
+            return not_inspected()
         if response.status_code != 200:
             # Never raise into the run: a failed inspection is a missing
             # finding, not a reason to end an otherwise healthy workflow.

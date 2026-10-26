@@ -28,6 +28,7 @@ from juli_backend.services.content_cards.emission import payload_of
 from juli_backend.services.content_cards.guardrails import ContentRules, DraftFacts
 from juli_backend.services.content_cards.planner import ContentPlanner, DraftGate
 from juli_backend.services.lever_flows.flows import AwaitSeller, awaiting_of
+from juli_backend.services.llm_gate import OpenAIGate, SessionCallLog, open_gate
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +85,12 @@ async def wiring_for_run(
     product: Product,
     *,
     drafter: ContentDrafter | None = None,
+    llm_gate: OpenAIGate | None = None,
 ) -> ContentWiring | None:
-    """The content pieces for ``run``, or ``None`` for any other run."""
+    """The content pieces for ``run``, or ``None`` for any other run.
+
+    ``llm_gate`` (ADR-116 §5): the run leg's OpenAI gate the production drafter sends
+    through; opened here on the run's session when the caller has none."""
     spec = SPEC_BY_WORKFLOW.get(run.workflow_key)
     if spec is None:
         return None
@@ -128,7 +133,9 @@ async def wiring_for_run(
     if drafter is None:
         from juli_backend.services.content_cards.drafter import OpenAIContentDrafter
 
-        drafter = OpenAIContentDrafter()
+        if llm_gate is None:
+            llm_gate = await open_gate(session, run.shop_id, sink=SessionCallLog(session))
+        drafter = OpenAIContentDrafter(gate=llm_gate)
     return ContentWiring(
         planner=ContentPlanner(
             kind=spec.kind,

@@ -81,8 +81,8 @@ def test_revision_fits_alembic_and_keeps_the_deferred_chain_the_tail():
     mig = _migration_module()
     assert mig.revision == "103_data_use_consents" and len(mig.revision) <= 32
     assert mig.down_revision == "102_shops_tiktok_numeric_id"
-    # PR 3 (migration 104) is now the parent of the deferred tail.
-    assert 'down_revision: str | None = "104_shop_pseudonym_keys"' in BACKFILL.read_text("utf-8")
+    # PR 4 (migration 105) is now the parent of the deferred tail.
+    assert 'down_revision: str | None = "105_llm_call_log"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_app_role_may_only_select_insert_and_revoke():

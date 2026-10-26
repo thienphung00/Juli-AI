@@ -30,6 +30,7 @@ from juli_backend.services.agent.llm.blocks import FinalResponse, TextBlock, Usa
 from juli_backend.services.agent.llm.config import LLMConfig, estimate_cost_usd
 from juli_backend.services.content_analysis.config import LIVE, VIDEO
 from juli_backend.services.content_cards.guardrails import ContentRules, check_banned
+from juli_backend.services.llm_gate import PURPOSE_CONTENT_SCORING, OpenAIGate
 
 logger = logging.getLogger(__name__)
 
@@ -263,17 +264,21 @@ def _turn_text(turn: Any) -> str:
 
 
 class OpenAIScorer:
-    def __init__(self, model: str, *, adapter: Any | None = None) -> None:
+    def __init__(
+        self, model: str, *, adapter: Any | None = None, gate: OpenAIGate | None = None
+    ) -> None:
         self.model = model
         if adapter is None:
             from juli_backend.services.agent.llm.openai_adapter import OpenAIResponsesAdapter
 
-            adapter = OpenAIResponsesAdapter()
+            # ADR-116 §5: through the shop's OpenAI gate (text: `llm_processing`).
+            adapter = OpenAIResponsesAdapter(gate=gate, purpose=PURPOSE_CONTENT_SCORING)
         self._adapter = adapter
 
     async def score(self, signals: Signals, rules: ContentRules) -> ScoreOutcome:
         from juli_backend.services.agent.llm.openai_adapter import (
             JsonSchemaFormat,
+            LLMGateRefusedError,
             LLMProviderError,
         )
         from juli_backend.services.content_analysis.openai_media import ProviderError
@@ -292,6 +297,8 @@ class OpenAIScorer:
                 config=config,
                 response_format=JsonSchemaFormat(name="content_analysis", schema=SCORING_SCHEMA),
             )
+        except LLMGateRefusedError as exc:
+            raise exc.refusal from exc
         except LLMProviderError as exc:
             raise ProviderError(str(exc)[:200]) from exc
         cost = round(estimate_cost_usd(self.model, turn.usage), 6)

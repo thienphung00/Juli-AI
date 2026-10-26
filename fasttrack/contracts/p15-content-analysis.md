@@ -79,6 +79,10 @@ no_text_on_screen banned_claim off_tone other`.
 Idempotent (only `queued`/`processing` rows run), per-shop Redis lock
 `ingest:content_analysis:{shop}` (locked → retry in 60 s), ≤ 3 attempts on provider
 errors (then `failed` / `provider_final`, file deleted), cost stored per stage as spent.
+Every OpenAI call goes through the shop's OpenAI gate (ADR-116 §5, D76): audio and
+keyframes need `llm_media`, the listing's reference images `llm_images` (left out
+without it), text `llm_processing`; a refusal is not retried — the row ends `failed` /
+`consent_required`, nothing is sent, and `llm_call_log` records the refusal.
 
 1. **ffprobe** (`-f mov -protocol_whitelist file`, after a first-box sniff) → duration,
    streams. Never executed; argument lists, no shell, timeouts.

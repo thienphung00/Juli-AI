@@ -66,6 +66,7 @@ from juli_backend.services.content_analysis.pipeline import Collaborators, Produ
 from juli_backend.services.content_cards.guardrails import ContentRules
 from juli_backend.workers.services.polling.shop_lock import InMemoryShopIngestLock
 from juli_backend.workers.tasks import content_analysis as task
+from tests.support.consent import grant_llm_consent, granted_gate
 from tests.support.lever_flows import api_client, seed_shop
 
 FFMPEG = shutil.which("ffmpeg") and shutil.which("ffprobe")
@@ -207,11 +208,13 @@ class FakeProducts:
         return self.info
 
 
-def failing() -> Collaborators:
+def failing(_gate: Any = None) -> Collaborators:
     return collab(transcriber=FakeTranscriber(fail=True))
 
 
-def collab(**kw: Any) -> Collaborators:
+def collab(_gate: Any = None, **kw: Any) -> Collaborators:
+    # `_gate`: the task hands its collaborators factory the shop's OpenAI gate
+    # (ADR-116 §5); these fakes make no OpenAI call, so they ignore it.
     return Collaborators(
         transcriber=kw.get("transcriber") or FakeTranscriber(),
         vision=kw.get("vision") or FakeVision(),
@@ -327,7 +330,10 @@ async def test_transcription_request_is_vietnamese_with_the_glossary_and_word_ti
 
     audio = tmp_path / "slice.m4a"
     audio.write_bytes(b"\x00\x00\x00\x18ftypM4A ")
-    client = OpenAITranscriber("whisper-1", transport=httpx.MockTransport(handler))
+    # ADR-116 §5: transcription sends through the shop's OpenAI gate.
+    client = OpenAITranscriber(
+        "whisper-1", transport=httpx.MockTransport(handler), gate=granted_gate()
+    )
     out = await client.transcribe(
         audio, prompt="Mặt nạ đất sét, Bùn Xanh", offset_s=600.0, duration_s=60.0
     )
@@ -355,7 +361,9 @@ async def test_transcription_http_error_is_a_retryable_provider_error(tmp_path, 
     audio = tmp_path / "slice.m4a"
     audio.write_bytes(b"x")
     client = OpenAITranscriber(
-        "whisper-1", transport=httpx.MockTransport(lambda r: httpx.Response(500))
+        "whisper-1",
+        transport=httpx.MockTransport(lambda r: httpx.Response(500)),
+        gate=granted_gate(),
     )
     with pytest.raises(ProviderError) as err:
         await client.transcribe(audio, prompt="", offset_s=0, duration_s=1)
@@ -955,6 +963,53 @@ async def test_the_last_failed_attempt_deletes_the_file(engine, session, conf, v
     await session.refresh(row)
     assert out == task.OUTCOME_FAILED and row.status == "failed"
     assert row.error_code == "provider_final" and not storage.path_of(conf, key).exists()
+
+
+@needs_ffmpeg
+@pytest.mark.asyncio
+async def test_a_shop_without_media_consent_ends_failed_and_nothing_reaches_openai(
+    engine, session, conf, video, monkeypatch
+):
+    """ADR-116 §5: a text-only grant (Ory) blocks audio. The task hands its real
+    transcriber the shop's gate; the gate refuses before any HTTP, logs a refused
+    row, and the analysis ends ``failed`` / ``consent_required`` -- never retried."""
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from juli_backend.models.llm_call_log import LLMCallLog
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    shop, _ = await seed_shop(session)
+    await grant_llm_consent(session, shop.id, ("llm_processing",))
+    await session.commit()
+    row = await _uploaded(session, shop, conf, video)
+    seen: list[httpx.Request] = []
+
+    def collaborators(gate: Any) -> Collaborators:
+        transport = httpx.MockTransport(lambda r: seen.append(r) or httpx.Response(500))
+        return collab(transcriber=OpenAITranscriber("whisper-1", gate=gate, transport=transport))
+
+    out = await task.run_analysis(
+        str(row.id),
+        str(shop.id),
+        session_factory=factory,
+        lock=InMemoryShopIngestLock(),
+        collaborators=collaborators,
+        conf=conf,
+    )
+    await session.refresh(row)
+    assert out == task.OUTCOME_FAILED and row.status == "failed"
+    assert row.error_code == "consent_required" and "dịch vụ AI" in row.error_message
+    assert seen == []
+    logged = (
+        (await session.execute(select(LLMCallLog).where(LLMCallLog.shop_id == shop.id)))
+        .scalars()
+        .all()
+    )
+    assert [(r.purpose, r.status, r.refusal_reason) for r in logged] == [
+        ("content_transcription", "refused", "consent_llm_media")
+    ]
 
 
 def test_the_tasks_are_routed_to_their_own_queue_and_the_worker_consumes_it():

@@ -94,14 +94,18 @@ decision 6).
 
 ### OpenAI adapter (`openai_adapter.py`, #986)
 
-- `OpenAIResponsesAdapter(transport=None, base_url=DEFAULT_BASE_URL)` —
-  `LLMService` implementation over the OpenAI Responses API's HTTP surface.
-  `transport` is an injectable `httpx.BaseTransport`; tests pass
+- `OpenAIResponsesAdapter(transport=None, base_url=DEFAULT_BASE_URL, gate=None,
+  purpose="agent_run")` — `LLMService` implementation over the OpenAI Responses
+  API's HTTP surface, sending every request through the shop's
+  `services.llm_gate.OpenAIGate` (ADR-116 §5). No gate → every call refused
+  before any HTTP. `with_gate(gate, purpose=...)` returns a gated copy.
+  `transport` is an injectable `httpx.AsyncBaseTransport`; tests pass
   `httpx.MockTransport` over a recorded-shaped response body, production
   leaves it unset (real network).
 - `LLMProviderError(RuntimeError)` — the one error type this module raises
   for any provider failure (bad status, transport failure, malformed body,
   malformed tool-call arguments). Callers never see a raw `httpx` exception.
+  `LLMGateRefusedError(LLMProviderError)` is the gate's refusal (`.refusal`).
 - Stateless (ADR-071 decision 2): every request body sets `"store": False`
   and never includes `"previous_response_id"`; the full message window is
   rebuilt from the caller's `messages` on every call.
