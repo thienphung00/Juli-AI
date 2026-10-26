@@ -63,6 +63,7 @@ log event carrying ``seconds_since_connect``:
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import os
 import uuid
@@ -101,7 +102,11 @@ from juli_backend.repositories import ShopIngestionStateRepo, TikTokSyncStateRep
 from juli_backend.services.ingestion import HandoffFn
 from juli_backend.services.onboarding import history_days_available, max_lookback_days
 from juli_backend.services.order_costs import OrderCostsResult, sync_order_costs
-from juli_backend.services.tiktok import backfill_shop_cipher, backfill_tiktok_numeric_shop_id
+from juli_backend.services.tiktok import (
+    backfill_shop_cipher,
+    backfill_tiktok_numeric_shop_id,
+    list_authorized_shops,
+)
 from juli_backend.workers.services.polling.analytics_range import (
     AnalyticsRangeResult,
     probe_latest_available_date,
@@ -343,8 +348,9 @@ async def _scoped_shop_run(
                 session,
                 shop,
                 credential,
-                # Looked up inside the call: a hand-built resource bundle may lack it.
-                list_authorized_shops=lambda: resources.authorization.list_all_shops(),
+                list_authorized_shops=_authorized_shops_lister(
+                    config, credential, resources, injected=create_resources is not None
+                ),
             )
         repo = sync_state_repo or TikTokSyncStateRepo(session)
         yield _ShopRun(
@@ -928,6 +934,30 @@ class ShopCycleResult:
     order_costs: OrderCostsResult | None = None
     #: D27.3: why the commerce steps did not run this cycle (``"interval"``).
     commerce_skip_reason: str | None = None
+
+
+def _authorized_shops_lister(
+    config: FujiwaPollConfig,
+    credential: TikTokCredential,
+    resources: Any,
+    *,
+    injected: bool,
+) -> Callable[[], object]:
+    """Get Authorized Shops for the numeric-id backfill (P68, E11).
+
+    The run's own client carries the shop cipher, which TikTok refuses on the
+    authorization endpoint, and sandbox write resources have no ``authorization`` at all;
+    so the real path asks on a cipher-less client with the credential's token, as
+    ``backfill_shop_cipher`` does. A hand-built (injected) resource bundle answers itself.
+    """
+    if injected:
+        return lambda: resources.authorization.list_all_shops()
+    return functools.partial(
+        list_authorized_shops,
+        app_key=config.app_key,
+        app_secret=config.app_secret,
+        access_token=credential.access_token,
+    )
 
 
 async def run_shop_cycle(
