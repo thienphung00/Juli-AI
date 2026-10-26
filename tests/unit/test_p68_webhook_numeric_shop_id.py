@@ -360,7 +360,9 @@ async def test_poll_backfill_swallows_a_vendor_failure(session, user_id, caplog)
         )
 
     assert got is None
-    assert any(r.getMessage() == "tiktok_numeric_shop_id_backfill_failed" for r in caplog.records)
+    assert any(
+        r.getMessage().startswith("tiktok_numeric_shop_id_backfill_failed") for r in caplog.records
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -427,3 +429,34 @@ def test_injected_resources_answer_the_backfill_themselves():
         SimpleNamespace(), SimpleNamespace(), resources, injected=True
     )
     assert lister() == [{"id": "1", "cipher": "c"}]
+
+
+async def test_poll_backfill_never_moves_an_id_another_shop_holds(session, user_id, caplog):
+    """P68 follow-up: an id another shop already answers to is skipped, not moved."""
+    holder, _ = await _legacy_shop(session, user_id)
+    assert await ShopsRepo(session).record_tiktok_numeric_shop_id(holder.id, NUMERIC_ID)
+    other = Shop(id=uuid.uuid4(), user_id=user_id, shop_name="Other", tiktok_shop_id="other-open")
+    session.add(other)
+    await session.flush()
+    credential = TikTokCredential(
+        shop_id=other.id,
+        access_token="ROW_b",
+        refresh_token="ROW_rb",
+        token_expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=1),
+        capability="sandbox_write",
+        shop_cipher="cipher-other",
+    )
+    session.add(credential)
+    await session.flush()
+
+    got = await backfill_tiktok_numeric_shop_id(
+        session,
+        other,
+        credential,
+        list_authorized_shops=lambda: [{"id": NUMERIC_ID, "cipher": "cipher-other"}],
+    )
+
+    assert got is None
+    assert other.tiktok_numeric_shop_id is None
+    assert await ShopsRepo(session).resolve_id_by_tiktok_key(NUMERIC_ID) == holder.id
+    assert any("reason=held_by_other_shop" in r.getMessage() for r in caplog.records)

@@ -28,8 +28,9 @@ sandbox shop through the reviewer account `shopee-review@app-juli.com`.
 - Live deploy: `2d56fb65` (fasttrack-deploy-20261024T2249Z). Live slot 8000; stop a stale
   `juli-api-candidate-*` slot after each deploy (EMAXCONN otherwise, E10).
 - Sandbox shop: Juli `shops.id = 1862f13b-de2c-4fae-a4ad-70298cead913`, shown as
-  SANDBOX7657274686031759124. `shops.tiktok_shop_id` holds the **cipher** `TaFcIwAA…`; webhooks
-  carry numeric `7495274531001436791` (E11).
+  SANDBOX7657274686031759124. `shops.tiktok_shop_id` holds the **cipher** `TaFcIwAA…`; the sandbox
+  shop's numeric id is presumably `7657274686031759124` (from its display name; unverified).
+  `7495274531001436791` is **Fujiwa's** numeric id (correction 26/10, see E11/E14).
 - Reviewer account: `shopee-review@app-juli.com`, **expires 14/11/2026** (reset not yet run).
 
 **Confirmed working on production (reviewer view):**
