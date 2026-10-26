@@ -66,7 +66,9 @@ except setting `revoked_at` once; one open row per (shop, scope).
 | `scope` | Grants | Source of permission | Default |
 |---|---|---|---|
 | `service` | Analysis for that shop, its client layer (§3), KPI work | The contract or Terms of Service; no separate step | Granted with the contract / ToS acceptance |
-| `llm_processing` | Sending that shop's data to OpenAI (§5) | Contract + approved sub-processor list | Granted when the client approves the list that names OpenAI |
+| `llm_processing` | Sending that shop's listing text and aggregate metrics to OpenAI (§5) | Contract / Terms + approved sub-processor list or privacy policy | Granted when the client approves the list that names OpenAI |
+| `llm_images` | Sending product images to OpenAI (image inspection) | Only a list / policy that names images | Self-serve: with the Terms (privacy policy names images). Ory v1: **not granted** |
+| `llm_media` | Sending video / LIVE frames and audio to OpenAI (content analysis, transcription) | Only a list / policy that names them | Self-serve: with the Terms. Ory v1: **not granted** |
 | `pooled_training` | That shop's data in shared models | Separate written opt-in | **Off** |
 
 `method` ∈ {`contract_paper`, `in_app_click`, `email`}. A paper contract locks the in-app toggle
@@ -125,7 +127,9 @@ scope)`, is the only reader; it fails closed (no row, revoked, or lookup error �
   existing per-shop cap (`services/shop_rules/openai_cap.py`, D25.8) stays.
 - All four call paths go through one gate (today `vision.py` and `content_analysis/openai_media.py`
   call OpenAI directly). A request carrying a `shop_id` is sent only if
-  `require_consent(…, 'llm_processing')` passes, the body was built by the T3 allowlist (listing
+  the consent for its input passes (`llm_processing` for text, `llm_images` for images,
+  `llm_media` for frames / audio — checked per input, so a text-only grant blocks `vision.py` and
+  transcription), the body was built by the T3 allowlist (listing
   content, attributes, aggregates, media of the shop's own listings; no shop name / id,
   `buyer_id`, credentials), and `store=false`, no `previous_response_id`, no `background`.
   Otherwise refused.
