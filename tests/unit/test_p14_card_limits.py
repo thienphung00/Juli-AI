@@ -572,6 +572,20 @@ async def test_calibration_and_reasons_reorder_the_ranking(session, shop_a):
             updated_at=datetime(2026, 10, 1),
         )
     )
+    # The fleet level counts only shops holding pooled_training (ADR-116 §3, D76):
+    # this test is about the fleet-level factor, so the shop opts in.
+    from juli_backend.services.consent import grant_consent
+
+    await grant_consent(
+        session,
+        shop_a.id,
+        scope="pooled_training",
+        method="contract_paper",
+        terms_version="test",
+        evidence_ref="test",
+        granted_by="test",
+        granted_at=datetime(2026, 9, 30),
+    )
     await session.flush()
     calibrated = await plan_optimize_product_cards(session, shop_a.id, now=COMPUTED_AT)
     assert calibrated is not None
