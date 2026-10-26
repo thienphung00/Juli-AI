@@ -87,6 +87,11 @@ scope)`, is the only reader; it fails closed (no row, revoked, or lookup error �
   `category` / `shop_group` assignments may serve **public models only**.
 - **Fleet calibration**: `fleet_calibration_stats` aggregates only shops holding `pooled_training`;
   everyone else gets the prior or their own shop level (D30.3 unchanged otherwise).
+- **Ops console (D11)**: monitoring and measuring **one shop with its own data** is `service`.
+  Any figure **pooled across shops** — the card-group lift EB prior (`ops_group_lift_draws()` →
+  `apply_pooled_eb` / `estimate_prior`), the D30.3 fleet factor, statistics used to refine shared
+  features — reads only shops with `pooled_training`; other shops fall back to their own data.
+  Juli's own operating figures (OpenAI cost, run counts) are not client data.
 - **Withdrawal**: consent revoked → serving falls back to the public model at once; the client
   layer, its features and predictions are deleted with the shop's data (offboarding, T8) within
   30 days, and the deletion certificate names the layer version deleted. The public model is never
@@ -174,7 +179,7 @@ PRs on `fasttrack/optimize-product`, each from its own `fasttrack/nda-*` branch,
 102, none merged before the owner deploys P68:
 (1) this ADR + grill log → (2) `data_use_consents` + `require_consent` → in parallel
 (3) allowlist + HMAC + clean-up migration (§4), (4) OpenAI gate on all four call paths + `llm_call_log` (§5),
-(5) approvals (§6) → (6) builder / fleet calibration / client-layer storage (§3).
+(5) approvals (§6) → (6) fleet calibration (§3), then the Ops pooled-prior filter (migration 107).
 Access log (T6) and offboarding with deletion certificates (T8) follow in a second wave.
 
 ## Verification
