@@ -1,6 +1,9 @@
 // The toolbar popup: enter the pairing code from Juli, see what was sent.
 // Labels follow the seller's on-screen vocabulary (D31.8).
 
+import type { Backfill } from "../background/state";
+import { backfillLabel, CONSENT_REQUIRED_MESSAGE } from "./labels";
+
 interface DatasetStatus {
   dataset: string;
   last_ingest_at: string | null;
@@ -32,9 +35,12 @@ function fmt(iso: string | null): string {
 }
 
 async function render(): Promise<void> {
-  const state = await send<{ token?: { expires_at: string }; lastSync?: { day: string; status: string } }>({
-    type: "state",
-  });
+  const state = await send<{
+    token?: { expires_at: string };
+    lastSync?: { day: string; status: string };
+    backfill?: Backfill | null;
+    consentBlocked?: { at: string } | null;
+  }>({ type: "state" });
   const paired = !!state.token;
   el("pair-form").hidden = paired;
   el("paired").hidden = !paired;
@@ -43,6 +49,12 @@ async function render(): Promise<void> {
   el("last-sync").textContent = state.lastSync
     ? `${state.lastSync.day} · ${state.lastSync.status}`
     : "chưa đồng bộ";
+  const consent = el("consent");
+  consent.hidden = !state.consentBlocked;
+  consent.textContent = state.consentBlocked ? CONSENT_REQUIRED_MESSAGE : "";
+  const backfill = backfillLabel(state.backfill);
+  el("backfill").hidden = backfill === null;
+  el("backfill").textContent = backfill ?? "";
   const list = el<HTMLUListElement>("datasets");
   list.replaceChildren();
   const status = await send<{ datasets?: DatasetStatus[] } | null>({ type: "server-status" });
@@ -64,8 +76,10 @@ el<HTMLFormElement>("pair-form").addEventListener("submit", (event) => {
       input.value = "";
       return render();
     })
-    .catch(() => {
-      error.textContent = "Mã không đúng hoặc đã hết hạn. Tạo mã mới trong Juli.";
+    .catch((reason: unknown) => {
+      error.textContent = String((reason as Error)?.message ?? reason).includes("consent_required")
+        ? CONSENT_REQUIRED_MESSAGE
+        : "Mã không đúng hoặc đã hết hạn. Tạo mã mới trong Juli.";
     });
 });
 
@@ -74,7 +88,8 @@ el("unpair").addEventListener("click", () => {
 });
 
 el("sync-now").addEventListener("click", () => {
-  void send<string>({ type: "sync-now" }).then((result) => {
+  void send<string>({ type: "sync-now" }).then(async (result) => {
+    await render(); // a lifted consent refusal, backfill progress
     el("last-sync").textContent =
       result === "no_tab" ? "Mở Seller Centre để đồng bộ" : result === "requested" ? "đang đồng bộ…" : result;
   });
