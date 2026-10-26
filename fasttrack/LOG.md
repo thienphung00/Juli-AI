@@ -3030,3 +3030,11 @@ reconcile --write` re-derived the no-assert corpus figure.
   webhook request had no tenant scope, so RLS hid every shop; webhooks now resolve across tenants and
   persist under the shop's scope. New edge cases E12 (other unscoped webhook paths, incl. deauth
   `pause_automation`) and E13 (webhook/poll dedupe key) logged, not fixed.
+- Update 26/10 06:30 UTC: deploys 0d64ca4a (migration 102, B12 boundary fix #2187) and 2032d13f
+  (#2188, backfill on a cipher-less client) live; E10 stopped the drained slot both times. The backfill
+  wrote `7495274531001436791` to Fujiwa (2b1da87b) -- CORRECT: that is Fujiwa's numeric id
+  (contract-collection.md:148). E11 and the handoff had mislabelled it as the sandbox shop's; the lead
+  raised a false cross-write alarm and proposed a swap SQL, withdrawn before it ran (E14). Migration
+  102's docstring repeats the mislabel; left as is (applied migration). Follow-up: the backfill skips
+  an id another shop already holds, and its log lines carry shop_id/reason in the message (the Celery
+  journal drops `extra`). Open: the sandbox shop's own numeric id is not filled yet.

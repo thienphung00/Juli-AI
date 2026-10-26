@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from collections.abc import Callable, Mapping
 
 from sqlalchemy import select
@@ -388,6 +389,15 @@ async def backfill_shop_cipher(
 AuthorizedShopsLister = Callable[[], object]
 
 
+def _log_backfill_skipped(shop_id: uuid.UUID, reason: str) -> None:
+    logger.warning(
+        "tiktok_numeric_shop_id_backfill_skipped shop_id=%s reason=%s",
+        shop_id,
+        reason,
+        extra={"shop_id": str(shop_id), "reason": reason},
+    )
+
+
 async def backfill_tiktok_numeric_shop_id(
     session: AsyncSession,
     shop: Shop,
@@ -413,34 +423,36 @@ async def backfill_tiktok_numeric_shop_id(
     try:
         shops = await asyncio.to_thread(list_authorized_shops)
     except Exception as exc:  # the poll must not fail over a missing webhook key
+        # Reasons in the message too: the Celery journal format drops ``extra``.
         logger.warning(
-            "tiktok_numeric_shop_id_backfill_failed",
+            "tiktok_numeric_shop_id_backfill_failed shop_id=%s reason=%s",
+            shop_id,
+            type(exc).__name__,
             extra={"shop_id": str(shop_id), "reason": type(exc).__name__},
         )
         return None
     authorized = shops[0] if isinstance(shops, list) and len(shops) == 1 else None
     if not isinstance(authorized, Mapping):
-        logger.warning(
-            "tiktok_numeric_shop_id_backfill_skipped",
-            extra={"shop_id": str(shop_id), "reason": "not_exactly_one_authorized_shop"},
-        )
+        _log_backfill_skipped(shop_id, "not_exactly_one_authorized_shop")
         return None
     numeric_id = str(authorized.get("id") or "").strip()
     cipher = str(authorized.get("cipher") or "").strip()
     if not numeric_id or not credential.shop_cipher or cipher != credential.shop_cipher:
-        logger.warning(
-            "tiktok_numeric_shop_id_backfill_skipped",
-            extra={
-                "shop_id": str(shop_id),
-                "reason": "no_id" if not numeric_id else "cipher_mismatch",
-            },
-        )
+        _log_backfill_skipped(shop_id, "no_id" if not numeric_id else "cipher_mismatch")
         return None
-    if not await ShopsRepo(session).record_tiktok_numeric_shop_id(shop_id, numeric_id):
+    repo = ShopsRepo(session)
+    holder = await repo.resolve_id_by_tiktok_key(numeric_id)
+    if holder is not None and holder != shop_id:
+        # Another shop already answers to this id: never move it (a webhook would follow).
+        _log_backfill_skipped(shop_id, "held_by_other_shop")
+        return None
+    if not await repo.record_tiktok_numeric_shop_id(shop_id, numeric_id):
         return None
     await session.commit()
     logger.warning(
-        "tiktok_numeric_shop_id_backfilled",
+        "tiktok_numeric_shop_id_backfilled shop_id=%s tiktok_numeric_shop_id=%s",
+        shop_id,
+        numeric_id,
         extra={"shop_id": str(shop_id), "tiktok_numeric_shop_id": numeric_id},
     )
     return numeric_id
