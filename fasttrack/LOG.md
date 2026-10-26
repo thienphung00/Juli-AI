@@ -3013,3 +3013,16 @@ reconcile --write` re-derived the no-assert corpus figure.
   then the lead walks the reviewer steps.
 - Unverified until the live run: VN sandbox create-product accepting reused image URIs and the
   category's required attributes (a missing one fails as `required_attribute_missing`, no guess).
+
+## 2026-10-26 — lead (Claude Opus) — P68: fixes for the open P64 edge cases (Shopee ISV resubmission)
+
+- Why: owner resubmitted to Shopee on 26/10 and asked for every open edge case fixed before the
+  reviewer looks (~3 days).
+- B15 (#2182): user sync forces the commerce steps; floor `SHOP_FORCED_COMMERCE_MIN_INTERVAL_MINUTES`=3.
+- B12 (#2183): EtlConsumer hook rebuilds the stored orders-sourced report (same builder,
+  `refresh=True`); Redis NX debounce 120 s; per-shop lookup cache 60 s.
+- E10 (#2184): deploy.sh stops the drained slot after a 25 s drain; never fails the deploy.
+- E11: migration 102 `shops.tiktok_numeric_shop_id`, filled on connect and lazily by the poll — PR pending.
+- Not code: B11/B14 (sandbox auto-cancel, Partner Center status walk) stay as process notes.
+- Next: merge E11, one deploy tag for all of P68 (backup runs because of 102), then check the
+  E10 log line, a single active slot, and a sandbox order arriving via webhook.

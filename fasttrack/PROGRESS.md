@@ -434,6 +434,16 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | Owner: after deploy, re-check Usage → Egress per day and `pg_stat_statements` (reset first: `select pg_stat_statements_reset();`) | D72 | todo | owner |
 | P63 get_shop_identity agent tool (owner 2026-10-21): TikTok Get Authorized Shops as a READ tool (product domain, optional playbook step 0.5), run shop's own credential, sanitized name/region/seller type/`shop_matches`, mismatch = refusal result + warning | D71 | done, merged (587cdcce) | agent |
 
+## P68 — Shopee ISV review fixes from the P64 edge-case log (2026-10-26)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P68-B15 "Đồng bộ ngay" runs the commerce steps (orders/products/returns) inside the 60 min interval, at most once per 3 min per shop | B15 | done, merged #2182 (3d68f889) | agent (Sonnet) |
+| P68-B12 rebuild the stored orders-sourced report when an order in its window is paid/cancelled/returned (debounced 120 s, lookup cached 60 s) | B12 | done, merged #2183 (1d29e467) | agent (Sonnet) |
+| P68-E10 deploy.sh stops the drained `juli-api-candidate-<old>` slot after the public check; warns unless exactly one slot is active | E10 | done, merged #2184 (7958237d); first real run = next deploy | agent (Sonnet) |
+| P68-E11 store TikTok's numeric shop id beside the cipher (migration 102); webhooks resolve by either | E11 | doing | agent (Opus) |
+| Owner: deploy P68 (E11 carries a migration → backup job runs); after deploy check the log for `E10: stopped drained API slot` | — | todo | owner |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
