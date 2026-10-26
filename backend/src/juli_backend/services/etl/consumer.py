@@ -52,6 +52,23 @@ class ProcessOutcome(str, Enum):
     DLQ = "dlq"
 
 
+#: Called with ``(session, shop_id, order upsert kwargs)`` after an order commit (B12).
+OrderChangeHook = Callable[[AsyncSession, Any, dict[str, Any]], Awaitable[Any]]
+
+
+async def _refresh_stored_report(
+    session: AsyncSession, shop_id: Any, kwargs: dict[str, Any]
+) -> Any:
+    from juli_backend.services.shop_diagnosis_daily.refresh import maybe_refresh_stored_report
+
+    return await maybe_refresh_stored_report(
+        session,
+        shop_id,
+        status=kwargs.get("status"),
+        created_at=kwargs.get("tiktok_created_at"),
+    )
+
+
 @dataclass
 class _ShopState:
     lock: asyncio.Lock
@@ -71,6 +88,7 @@ class EtlConsumer:
         latency_budget_seconds: float = LATENCY_BUDGET_SECONDS,
         clock: Callable[[], float] = time.time,
         before_persist: Callable[[IngestRecord], Awaitable[None]] | None = None,
+        after_order_change: OrderChangeHook | None = None,
     ) -> None:
         resolved_dlq = dlq_handoff or publish_dlq
         if resolved_dlq is None:
@@ -81,6 +99,7 @@ class EtlConsumer:
         self._latency_budget = latency_budget_seconds
         self._clock = clock
         self._before_persist = before_persist
+        self._after_order_change = after_order_change or _refresh_stored_report
         self._shops = ShopsRepo(session)
         self._processed = ProcessedEventsRepo(session)
         self._epochs = IngestDedupEpochsRepo(session)
@@ -183,6 +202,7 @@ class EtlConsumer:
                 await self._before_persist(record)
 
             entity_kind, kwargs = transform_for_channel(record.channel, payload)
+            order_kwargs = dict(kwargs) if entity_kind == "order" else None
             await self._upsert(entity_kind, shop_id=shop.id, kwargs=kwargs)
         except (TransformError, TypeError, ValueError) as exc:
             # Roll the claim back first, then hand the failure to the DLQ: the
@@ -202,6 +222,10 @@ class EtlConsumer:
 
         await claim_and_persist.commit()
         await self._session.commit()
+        if order_kwargs is not None:
+            # B12: the stored report may now be stale. The hook never raises.
+            with contextlib.suppress(Exception):
+                await self._after_order_change(self._session, shop.id, order_kwargs)
         logger.info(
             "etl_event_processed",
             extra={

@@ -86,6 +86,23 @@ def enqueue_shop_diagnosis(shop_id: str, *, force: bool = False) -> str | None:
         return None
 
 
+def enqueue_shop_diagnosis_refresh(shop_id: str, *, countdown: int = 0) -> str | None:
+    """Enqueue a delayed rebuild after an order changed (B12); never raises.
+
+    The caller (``shop_diagnosis_daily.refresh``) debounces; the task rebuilds even
+    when the day's report exists, without the forced-rebuild cooldown.
+    """
+    try:
+        return build_shop_diagnosis.apply_async(
+            args=(shop_id,), kwargs={"refresh": True}, countdown=countdown
+        ).id
+    except Exception:
+        logger.error(
+            "shop_diagnosis_refresh_enqueue_failed", extra={"shop_id": shop_id}, exc_info=True
+        )
+        return None
+
+
 async def run_build_shop_diagnosis(
     shop_id: str,
     *,
@@ -163,7 +180,7 @@ async def _build(
 
 
 @celery_app.task(name=BUILD_SHOP_DIAGNOSIS_TASK)
-def build_shop_diagnosis(shop_id: str, force: bool = False) -> None:
+def build_shop_diagnosis(shop_id: str, force: bool = False, refresh: bool = False) -> None:
     """Build and store the shop's diagnosis report for its latest analytics day."""
     app_key = os.getenv("TIKTOK_APP_KEY", "").strip()
     app_secret = os.getenv("TIKTOK_APP_SECRET", "").strip()
@@ -189,9 +206,12 @@ def build_shop_diagnosis(shop_id: str, force: bool = False) -> None:
         from juli_backend.workers.services.polling.shop_lock import RedisShopIngestLock
 
         client = redis.from_url(redis_url)
-        forced = force and bool(
-            client.set(
-                forced_rebuild_key(shop_id), "1", nx=True, ex=FORCED_REBUILD_COOLDOWN_SECONDS
+        forced = refresh or (
+            force
+            and bool(
+                client.set(
+                    forced_rebuild_key(shop_id), "1", nx=True, ex=FORCED_REBUILD_COOLDOWN_SECONDS
+                )
             )
         )
         if force and not forced:
@@ -221,6 +241,7 @@ __all__ = [
     "LOCK_NAME",
     "build_shop_diagnosis",
     "enqueue_shop_diagnosis",
+    "enqueue_shop_diagnosis_refresh",
     "lock_ttl_seconds",
     "run_build_shop_diagnosis",
 ]
