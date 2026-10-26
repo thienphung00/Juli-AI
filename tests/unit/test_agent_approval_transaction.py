@@ -125,7 +125,7 @@ class TestExistenceOracle:
                 session,
                 shop_id=shop.id,
                 action_card_id=uuid.uuid4(),
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
 
     async def test_cross_tenant_card_raises_the_same_exception_type(
@@ -140,7 +140,7 @@ class TestExistenceOracle:
                 session,
                 shop_id=other_shop.id,
                 action_card_id=card.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=other_shop.user_id,
             )
 
     async def test_cross_tenant_and_nonexistent_produce_identical_exception_messages(
@@ -154,14 +154,14 @@ class TestExistenceOracle:
                 session,
                 shop_id=shop.id,
                 action_card_id=uuid.uuid4(),
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
         with pytest.raises(approval_module.ActionCardNotFound) as cross_tenant_exc:
             await approval_module.approve_action_card(
                 session,
                 shop_id=other_shop.id,
                 action_card_id=card.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=other_shop.user_id,
             )
         # Both are generic "ActionCard <id> not found" messages from the
         # same ShopScopedRepo.get() code path -- neither leaks anything the
@@ -187,7 +187,7 @@ class TestNonActiveCard:
                 session,
                 shop_id=shop.id,
                 action_card_id=c.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
 
     async def test_sequential_double_approve_the_second_call_hits_non_active(
@@ -200,7 +200,7 @@ class TestNonActiveCard:
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
         await session.commit()
 
@@ -209,7 +209,7 @@ class TestNonActiveCard:
                 session,
                 shop_id=shop.id,
                 action_card_id=card.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
 
 
@@ -243,7 +243,7 @@ class TestCardSubjectIsTheRunsSubject:
             session,
             shop_id=shop.id,
             action_card_id=c.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
 
         run = (
@@ -276,7 +276,7 @@ class TestCardSubjectIsTheRunsSubject:
                 session,
                 shop_id=shop.id,
                 action_card_id=c.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
         assert "unscoped" in str(exc.value)
 
@@ -290,7 +290,7 @@ class TestCardSubjectIsTheRunsSubject:
                 session,
                 shop_id=shop.id,
                 action_card_id=c.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
         await session.rollback()
 
@@ -315,7 +315,7 @@ class TestCardSubjectIsTheRunsSubject:
                 session,
                 shop_id=shop.id,
                 action_card_id=c.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
         assert "dispatch_window" in str(exc.value)
 
@@ -331,7 +331,7 @@ class TestCardSubjectIsTheRunsSubject:
                 session,
                 shop_id=shop.id,
                 action_card_id=c.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
 
     async def test_a_subject_product_from_another_shop_is_refused(
@@ -352,7 +352,7 @@ class TestCardSubjectIsTheRunsSubject:
                 session,
                 shop_id=shop.id,
                 action_card_id=c.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
 
 
@@ -369,7 +369,7 @@ class TestCreatedRun:
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
 
         run = (
@@ -401,7 +401,7 @@ class TestCreatedRun:
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
         run = (
             await session.execute(select(WorkflowRunRow).where(WorkflowRunRow.id == result.run_id))
@@ -422,7 +422,7 @@ class TestCreatedRun:
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
         run = (
             await session.execute(select(WorkflowRunRow).where(WorkflowRunRow.id == result.run_id))
@@ -447,7 +447,7 @@ class TestCardFlipAndAuditRow:
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
 
         refreshed = await session.get(ActionCard, card.id)
@@ -455,7 +455,8 @@ class TestCardFlipAndAuditRow:
         assert refreshed.approved_at is not None
 
     async def test_approval_audit_row_records_who_and_when(self, session, shop, card, product):
-        approver_id = uuid.uuid4()
+        # ADR-116 §6 (D76): the approver is the shop's own user.
+        approver_id = shop.user_id
         # Naive UTC: SQLite's plain DateTime column (no timezone=True on
         # ActionCardApproval.approved_at) strips tzinfo on round-trip, the
         # same convention every other naive-DateTime fixture in this suite
@@ -482,7 +483,7 @@ class TestCardFlipAndAuditRow:
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
 
         approval = await session.get(ActionCardApproval, result.approval_id)
@@ -501,7 +502,7 @@ class TestCardFlipAndAuditRow:
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
         await session.commit()
 
@@ -534,7 +535,7 @@ class TestInTransactionIndexRejection:
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
         await session.commit()
 
@@ -545,7 +546,7 @@ class TestInTransactionIndexRejection:
                 session,
                 shop_id=shop.id,
                 action_card_id=card.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
         # First approval succeeded and created a run
         assert first_result.run_id
@@ -584,7 +585,7 @@ class TestAtomicitySeam:
                     session,
                     shop_id=shop.id,
                     action_card_id=card_id,
-                    approved_by_user_id=uuid.uuid4(),
+                    approved_by_user_id=shop.user_id,
                 )
         await session.rollback()
 
@@ -637,7 +638,7 @@ class TestExecutabilityCheck:
                 session,
                 shop_id=shop.id,
                 action_card_id=c.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
 
     async def test_non_executable_workflow_leaves_no_run_row_behind(self, session, shop, product):
@@ -653,7 +654,7 @@ class TestExecutabilityCheck:
                 session,
                 shop_id=shop.id,
                 action_card_id=card_id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
         await session.rollback()
 
@@ -682,7 +683,7 @@ class TestExecutabilityCheck:
             session,
             shop_id=shop.id,
             action_card_id=c.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
 
         run = (
@@ -707,7 +708,7 @@ class TestExecutabilityCheck:
             session,
             shop_id=shop.id,
             action_card_id=c.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
 
         run = (

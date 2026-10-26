@@ -1,7 +1,7 @@
 """DATA step for P61-F: mark agent runs that wrote to the SANDBOX as ``write_mode='simulated'``
 
 Revision ID: 101_write_mode_backfill
-Revises: 105_llm_call_log
+Revises: 106_write_platform_columns
 Create Date: 2026-10-21
 
 DECISIONS D71.2 (owner, 2026-10-21); DEBT P61-B "No backfill of ``workflow_runs.write_mode``".
@@ -54,8 +54,9 @@ the column, and the previous code ignores it.
 
 How it is operated
 ------------------
-Same procedure as 074: serving release at ``102_shops_tiktok_numeric_id`` (P68
-re-parented this step onto it; it was ``100_sandbox_collision_xshop``); take the
+Same procedure as 074: serving release at ``106_write_platform_columns`` (P68
+re-parented this step onto ``102_shops_tiktok_numeric_id``, the D76 PRs onto 103, 104,
+105 and 106; it was ``100_sandbox_collision_xshop``); take the
 backup (``infra/scripts/safe-alembic-upgrade.sh`` does); copy this file (and, if
 running 074 too, that one) into the serving release's ``versions/`` and leave it
 there; ``alembic upgrade head``; land a follow-up moving it from ``deferred/`` into
@@ -68,7 +69,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "101_write_mode_backfill"
-down_revision: str | None = "105_llm_call_log"
+down_revision: str | None = "106_write_platform_columns"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

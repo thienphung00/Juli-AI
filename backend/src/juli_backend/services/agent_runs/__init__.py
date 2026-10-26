@@ -19,6 +19,7 @@ definitions, so there is nothing left to drift.
 from __future__ import annotations
 
 from juli_backend.services.agent_runs.confirmations import (
+    ERROR_APPROVER_NOT_SHOP_MEMBER,
     ERROR_CONFIRMATION_ALREADY_DECIDED,
     ERROR_CONFIRMATION_EXPIRED,
     ERROR_CONFIRMATION_NOT_FOUND,
@@ -63,6 +64,7 @@ __all__ = [
     "ConfirmedWrite",
     "DEFAULT_HEARTBEAT_INTERVAL_S",
     "DEFAULT_POLL_INTERVAL_S",
+    "ERROR_APPROVER_NOT_SHOP_MEMBER",
     "ERROR_CONFIRMATION_ALREADY_DECIDED",
     "ERROR_CONFIRMATION_EXPIRED",
     "ERROR_CONFIRMATION_NOT_FOUND",

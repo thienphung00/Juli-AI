@@ -585,8 +585,11 @@ async def _write_resources_for_leg(
     resume_approved: bool,
     staged_image: bool,
     is_revert: bool,
-) -> tuple[Any, str | None]:
-    """The write resources for this leg, and the pending call id when they are the shop's own.
+) -> tuple[Any, str | None, Any]:
+    """The write resources for this leg, the pending call id when they are the shop's own,
+    and the live leg itself (``composition.AgentWriteLeg``, else ``None``) -- it carries the
+    "before" the shop member approved, which the executor's read-back must still see
+    (ADR-116 §6). A D7 refusal raises ``write_approval.WriteApprovalRefused``: no write.
 
     Fast track P61-F (D71.2). Every leg is on the sandbox merchant (today's
     behaviour) EXCEPT the resume leg of a run whose seller just approved the
@@ -617,13 +620,14 @@ async def _write_resources_for_leg(
             or bool(isinstance(arguments, dict) and arguments.get("attach_staged_image")),
             is_revert=is_revert,
             source_write_mode=source_mode,
+            pending=pending,
         )
         if leg.live:
             run.write_mode = composition_module.WRITE_MODE_LIVE
             await session.commit()
-            return leg.resources, str(pending["call_id"])
+            return leg.resources, str(pending["call_id"]), leg
         run.write_mode = composition_module.WRITE_MODE_SIMULATED
-    return await _default_write_resources(session), None
+    return await _default_write_resources(session), None, None
 
 
 async def _construct_runner(
@@ -728,7 +732,7 @@ async def _construct_runner(
         sync_session, shop_id=run.shop_id, workflow_id=playbook.workflow_key
     )
     read_resources = await _default_read_resources(session, shop_id=run.shop_id)
-    write_resources, live_call = await _write_resources_for_leg(
+    write_resources, live_call, live_leg = await _write_resources_for_leg(
         session,
         run,
         product,
@@ -785,6 +789,20 @@ async def _construct_runner(
         ],
         # P65 (D74): a create_promotion run's discount range, from the same opening context.
         discount_rules=run_context_module.opening_shop_rules(run.state).get("discount"),
+        # ADR-116 §6 (D76): a live leg's write must find the approved "before" on the
+        # shop when it reads immediately before writing; a refusal is audited by name.
+        approved_before=live_leg.approved_before if live_leg is not None else None,
+        approved_before_hashes=(live_leg.approved_before_hashes if live_leg is not None else None),
+        approved_tool_name=(
+            str(run.state["pending_confirmation"]["tool_name"]) if live_leg is not None else None
+        ),
+        on_read_back_refused=(
+            run_changes_module.SqlReadBackRefusalAudit(
+                sync_session, shop_id=run.shop_id, workflow_run_id=run.id
+            )
+            if live_leg is not None
+            else None
+        ),
     )
     conversation_store = runner_module.JsonbConversationStore(session)
     # #1890: PersistingEventSink now scopes its own per-emit session from a

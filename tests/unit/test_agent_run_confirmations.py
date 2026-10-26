@@ -85,7 +85,18 @@ async def seed_pending(session, shop, *, tool_call_id: str = TOOL_CALL_ID, argum
     return run, confirmation
 
 
+async def _shop_owner(session, shop_id):
+    from sqlalchemy import select as _select
+
+    from juli_backend.models.models import Shop as _Shop
+
+    return (await session.execute(_select(_Shop.user_id).where(_Shop.id == shop_id))).scalar_one()
+
+
 async def decide(session, run, *, decision: str, option_id: str | None = None, **overrides):
+    if "decided_by_user_id" not in overrides:
+        # ADR-116 §6 (D76): the shop's own user decides.
+        overrides["decided_by_user_id"] = await _shop_owner(session, run.shop_id)
     return await decide_confirmation(
         session,
         run,

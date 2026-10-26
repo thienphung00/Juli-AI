@@ -4,6 +4,12 @@ An authorization is issued for one ``(shop, product, mutation_kind)``, expires,
 and is consumed exactly once. Revocation keeps the row for audit. The service
 layer decides *whether* to issue; this repository only records and enforces
 the single-use claim.
+
+ADR-116 §6 (migration 106): a row also names its ``platform`` (default
+``tiktok``) and ``platform_product_id``. Writes fill both the old and the new
+product column; reads match ``COALESCE(platform_product_id, tiktok_product_id)``
+so a row written before 106 (``platform_product_id`` NULL until the operator
+backfill runs) still matches.
 """
 
 from __future__ import annotations
@@ -11,10 +17,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from juli_backend.database.exceptions import NotFound
-from juli_backend.models.models import ProductionWriteAuthorization
+from juli_backend.models.models import WRITE_PLATFORM_TIKTOK, ProductionWriteAuthorization
 from juli_backend.repositories._base import ShopScopedRepo, utc_now_naive
 
 
@@ -29,12 +35,15 @@ class ProductionWriteAuthorizationsRepo(ShopScopedRepo[ProductionWriteAuthorizat
         authorized_by: str,
         expires_at: datetime,
         reason: str | None = None,
+        platform: str = WRITE_PLATFORM_TIKTOK,
     ) -> ProductionWriteAuthorization:
         """Persist an authorization the service layer has already verified."""
         return await self._add(
             ProductionWriteAuthorization(
                 shop_id=shop_id,
                 tiktok_product_id=tiktok_product_id,
+                platform=platform,
+                platform_product_id=tiktok_product_id,
                 mutation_kind=mutation_kind,
                 authorized_by=authorized_by,
                 reason=reason,
@@ -43,16 +52,25 @@ class ProductionWriteAuthorizationsRepo(ShopScopedRepo[ProductionWriteAuthorizat
         )
 
     async def lookup(
-        self, shop_id: uuid.UUID, tiktok_product_id: str, mutation_kind: str
+        self,
+        shop_id: uuid.UUID,
+        tiktok_product_id: str,
+        mutation_kind: str,
+        platform: str = WRITE_PLATFORM_TIKTOK,
     ) -> ProductionWriteAuthorization | None:
         """The live authorization for this mutation, or ``None``.
 
-        Live means: matches all three scoping fields, not yet expired, not yet
-        consumed, not revoked.
+        Live means: matches all the scoping fields (platform and product id with
+        the pre-106 fallback), not yet expired, not yet consumed, not revoked.
         """
         stmt = self._scoped(
             shop_id,
-            ProductionWriteAuthorization.tiktok_product_id == tiktok_product_id,
+            ProductionWriteAuthorization.platform == platform,
+            func.coalesce(
+                ProductionWriteAuthorization.platform_product_id,
+                ProductionWriteAuthorization.tiktok_product_id,
+            )
+            == tiktok_product_id,
             ProductionWriteAuthorization.mutation_kind == mutation_kind,
             ProductionWriteAuthorization.expires_at > utc_now_naive(),
             ProductionWriteAuthorization.consumed_at.is_(None),

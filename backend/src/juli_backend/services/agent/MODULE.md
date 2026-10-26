@@ -62,6 +62,23 @@ half of the gates (flag AND the shop's row).
 - ``LIVE_ELIGIBLE_WRITE_TOOLS`` / ``NEVER_PRODUCTION_WRITE_TOOLS`` — the tools that may go live
   (the listing edit) and the one refused by name (the price, D13)
 
+Shop-member approvals (ADR-116 §6, D76, grill D7) -- ``write_approval``. Only a user who belongs
+to the shop (``shops.user_id``; D73: or the partner reviewer on its writable sandbox pin) may
+approve a card (``approve_action_card``) or the exact change at CONFIRM
+(``agent_runs.decide_confirmation``); checked in the service, not only by RLS. The CONFIRM click
+freezes ``pending_confirmation["approved_change"]`` (who, when, the card approval + SHA-256 of its
+``card_snapshot``, "before", "after" = the exact arguments, and a hash over all of it). On a live
+leg ``resolve_agent_write_leg(..., pending=)`` runs ``verify_write_approval`` BEFORE the resolver:
+member clicks, both younger than ``APPROVAL_TTL_HOURS`` (72; expired -> the card goes back to
+``active``), an exact match -- else it audits the reason (``no_shop_member_approval``,
+``approver_not_shop_member``, ``approval_expired``, ``approval_snapshot_mismatch``) and raises
+``WriteApprovalRefused`` (nothing written, not even to the sandbox). The executor then refuses the
+write unless the read immediately before it still equals the approved "before"
+(``ApprovedBeforeChangedError``, audited ``read_back_changed``).
+
+- ``approver_kind`` / ``ApproverNotShopMember`` / ``freeze_approved_change``
+- ``verify_write_approval`` / ``WriteApprovalRefused`` / ``APPROVAL_TTL_HOURS``
+
 ```python
 from juli_backend.services.agent.sanitize import (
     BANNED_PATTERNS_JSON_PATH,

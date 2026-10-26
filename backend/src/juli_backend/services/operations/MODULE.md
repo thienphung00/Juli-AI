@@ -60,6 +60,10 @@ post-hoc chain over that instrumentation.
   entry point and its argument parser
 - `issue_authorization(args) -> int` / `revoke_authorization(args) -> int` — the
   two CLI subcommand handlers, both `async`
+- `write_platform_backfill` (ADR-116 §6, migration 106) — operator command, owner
+  connection, dry run unless `--apply`: copies `tiktok_product_id` into the new
+  `platform_product_id` on `production_write_authorizations` / `production_write_audit`
+  where it is NULL (a data step, so not a migration; reads fall back until it runs)
 
 ## API
 

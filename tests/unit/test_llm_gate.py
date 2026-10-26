@@ -797,7 +797,10 @@ def test_revision_fits_alembic_and_the_deferred_tail_moved_onto_it():
     mig = _migration_module()
     assert mig.revision == "105_llm_call_log" and len(mig.revision) <= 32
     assert mig.down_revision == "104_shop_pseudonym_keys"
-    assert f'down_revision: str | None = "{mig.revision}"' in BACKFILL.read_text("utf-8")
+    # PR 5 put `106_write_platform_columns` on 105; the deferred tail moved onto 106.
+    later = (MIGRATIONS / "versions/106_write_platform_columns.py").read_text("utf-8")
+    assert f'down_revision: str | None = "{mig.revision}"' in later
+    assert 'down_revision: str | None = "106_write_platform_columns"' in BACKFILL.read_text("utf-8")
 
 
 def test_migration_vocabulary_matches_the_model_and_the_table_is_classified():

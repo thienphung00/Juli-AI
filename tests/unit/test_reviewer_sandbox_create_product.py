@@ -39,6 +39,7 @@ from juli_backend.integrations.tiktok.guards import ProductionWriteGuard, Sandbo
 from juli_backend.models.models import (
     ActionCard,
     ActionCardApproval,
+    Shop,
     ToolExecution,
     WorkflowRun,
 )
@@ -590,12 +591,27 @@ async def test_a_create_card_on_a_non_sandbox_shop_is_not_executable(session, wo
     )
     session.add(card)
     await session.commit()
-    with pytest.raises(approval_module.WorkflowNotExecutable):
+    card_id = card.id
+    # ADR-116 §6 (D76): the reviewer does not belong to a non-sandbox shop -- refused first.
+    with pytest.raises(approval_module.ApproverNotShopMember):
         await approval_module.approve_action_card(
             session,
             shop_id=ids["fujiwa"],
             action_card_id=card.id,
             approved_by_user_id=reviewer_id,
+            allow_create_product=True,
+        )
+    await session.rollback()
+    # Even the shop's own user cannot run the sandbox-only create workflow there.
+    owner_id = (
+        await session.execute(select(Shop.user_id).where(Shop.id == ids["fujiwa"]))
+    ).scalar_one()
+    with pytest.raises(approval_module.WorkflowNotExecutable):
+        await approval_module.approve_action_card(
+            session,
+            shop_id=ids["fujiwa"],
+            action_card_id=card_id,
+            approved_by_user_id=owner_id,
             allow_create_product=True,
         )
     await session.rollback()

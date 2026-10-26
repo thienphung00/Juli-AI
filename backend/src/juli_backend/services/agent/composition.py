@@ -434,6 +434,10 @@ class AgentWriteLeg:
     resources: ProductionWriteResources | None
     refusal: str | None = None
     authorization_id: str | None = None
+    #: ADR-116 §6 (D76): on a live leg, the "before" the shop member approved -- the
+    #: executor's read immediately before the write must still equal it.
+    approved_before: Mapping[str, Any] | None = None
+    approved_before_hashes: Mapping[str, str | None] | None = None
 
     @property
     def live(self) -> bool:
@@ -450,6 +454,7 @@ async def resolve_agent_write_leg(
     staged_image: bool = False,
     is_revert: bool = False,
     source_write_mode: str | None = None,
+    pending: Mapping[str, Any] | None = None,
 ) -> AgentWriteLeg:
     """Resolve the write capability for the ONE approved mutation a run resumes with.
 
@@ -474,6 +479,14 @@ async def resolve_agent_write_leg(
 
     A revert of a LIVE run never falls back to the sandbox
     (``RevertLiveWriteUnavailable``).
+
+    ADR-116 §6 (D76, grill D7): before the resolver -- so nothing is consumed -- the
+    run's persisted ``pending`` confirmation must carry a valid shop-member approval
+    (``write_approval.verify_write_approval``: a member's clicks, younger than 72 h,
+    the exact approved arguments and card snapshot). A refusal is audited by name and
+    raises ``write_approval.WriteApprovalRefused``: the run ends and NOTHING is
+    written, not even to the sandbox (an expired approval also sends the card back to
+    pending). The verified "before" rides on the live leg for the executor's read-back.
     """
     from juli_backend.services.execution.production_write import (
         is_production_capability,
@@ -526,6 +539,36 @@ async def resolve_agent_write_leg(
         )
         return _sandbox(refusal.value)
 
+    from juli_backend.services.agent.write_approval import (
+        WriteApprovalRefused,
+        verify_write_approval,
+    )
+
+    try:
+        approved = await verify_write_approval(
+            session, shop_id=shop_id, run_id=run_id, tool_name=tool_name, pending=pending
+        )
+    except WriteApprovalRefused as refused:
+        await record_refused_attempt(
+            session,
+            run_id=run_id,
+            shop_id=shop_id,
+            tiktok_product_id=tiktok_product_id,
+            mutation_kind=tool_name,
+            precondition=PreconditionName(refused.reason),
+        )
+        await session.commit()
+        logger.warning(
+            "agent_production_write_refused",
+            extra={
+                "shop_id": str(shop_id),
+                "run_id": str(run_id),
+                "tool_name": tool_name,
+                "reason": refused.reason,
+            },
+        )
+        raise
+
     try:
         capability = await resolve_write_capability(
             session,
@@ -554,7 +597,10 @@ async def resolve_agent_write_leg(
     if not isinstance(resources, ProductionWriteResources):  # pragma: no cover - invariant
         raise RuntimeError("a production capability must build production write resources")
     return AgentWriteLeg(
-        resources=resources, authorization_id=str(capability.get("authorization_id"))
+        resources=resources,
+        authorization_id=str(capability.get("authorization_id")),
+        approved_before=approved.before,
+        approved_before_hashes=approved.before_hashes,
     )
 
 

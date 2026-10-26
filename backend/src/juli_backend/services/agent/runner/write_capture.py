@@ -96,6 +96,29 @@ class RevertTargetChangedError(ConcurrencyExhaustedError):
         self.fields = tuple(fields)
 
 
+class ApprovedBeforeChangedError(ConcurrencyExhaustedError):
+    """A live write's read immediately before the vendor call no longer shows the
+    "before" the shop member approved (ADR-116 §6, D76; D11-1 enforcing).
+
+    Raised before the vendor call, so nothing is written; the run ends with
+    ``stop_reason=concurrency_conflict`` exactly as for a revert target that moved.
+    """
+
+    def __init__(self, *, operation: str, fields: Sequence[str]) -> None:
+        super().__init__(operation=operation)
+        self.fields = tuple(fields)
+
+
+class ReadBackRefusalAudit(Protocol):
+    """Records a refused live write (``production_write_audit``, ``read_back_changed``).
+
+    Best effort by contract: the refusal stands whether or not the row lands.
+    """
+
+    def __call__(self, *, tool_name: str, tiktok_product_id: str, fields: Sequence[str]) -> None:
+        """Record it."""
+
+
 def _image_uris(raw: Mapping[str, Any]) -> list[str]:
     uris: list[str] = []
     for image in raw.get("main_images") or []:
@@ -208,6 +231,8 @@ def changed_fields(
 
 __all__ = [
     "AFTER_SOURCE_INTENDED",
+    "ApprovedBeforeChangedError",
+    "ReadBackRefusalAudit",
     "AFTER_SOURCE_READ_BACK",
     "FIELDS_BY_OPERATION",
     "LISTING_OPERATION",

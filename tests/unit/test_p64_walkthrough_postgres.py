@@ -112,7 +112,7 @@ async def test_an_edited_create_consent_lands_as_juli_app(owner_factory):
             },
         )
         await owner.commit()
-        run_id, shop_id = run.id, shop.id
+        run_id, shop_id, owner_id = run.id, shop.id, shop.user_id
 
     edited = "Bình nước thép không gỉ 750ml, bản người duyệt sửa"
     async with juli_app_async_sessionmaker() as factory:
@@ -126,6 +126,8 @@ async def test_an_edited_create_consent_lands_as_juli_app(owner_factory):
                     tool_call_id="call-1",
                     decision="approve",
                     option_id="1",
+                    # ADR-116 §6 (D76): a user who belongs to the shop decides.
+                    decided_by_user_id=owner_id,
                     edited_values={"title": edited},
                 )
                 await session.commit()

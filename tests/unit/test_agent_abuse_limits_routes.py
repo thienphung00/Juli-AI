@@ -235,18 +235,23 @@ async def test_approve_exhaustion_emits_security_event(app, session, user, shop,
     card_one = await _make_card(session, shop)
     card_two = await _make_card(session, shop)
     await _make_product(session, shop)
+    # Ids read now: the refused first approve rolls the route's transaction back, which
+    # expires the instances (ADR-116 §6's member check makes it a real transaction).
+    card_one_id, card_two_id, shop_id = card_one.id, card_two.id, shop.id
 
     mock_task = _mock_celery_task("celery-1223-approve-event")
     with caplog.at_level(logging.WARNING, logger="juli_backend.api.routes.demo_execution"):
         with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
             async with _client_for(app, user, shop) as client:
-                await client.post(f"/v1/demo/decisions/{card_one.id}/approve")
-                await client.post(f"/v1/demo/decisions/{card_two.id}/approve")
+                await client.post(f"/v1/demo/decisions/{card_one_id}/approve")
+                for shared in (shop, user):  # the overrides are shared by both requests
+                    await session.refresh(shared)
+                await client.post(f"/v1/demo/decisions/{card_two_id}/approve")
 
     records = [r for r in caplog.records if r.message == ABUSE_LIMIT_EXCEEDED_EVENT]
     assert len(records) == 1
     record = records[0]
-    assert getattr(record, "shop_id", None) == str(shop.id)
+    assert getattr(record, "shop_id", None) == str(shop_id)
     assert getattr(record, "operation", None) == "approve"
     assert getattr(record, "retry_after_seconds", None) > 0
 

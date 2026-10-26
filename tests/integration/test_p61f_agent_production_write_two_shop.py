@@ -38,7 +38,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from juli_backend.integrations.tiktok import ProductionWriteClientFactory
-from juli_backend.services.agent import composition
+from juli_backend.services.agent import composition, write_approval
 from juli_backend.services.agent.runner.concurrency import (
     capture_basis_snapshot,
     extract_mutable_fields,
@@ -136,6 +136,12 @@ def _seed_run(
             "arguments": {"title": f"{key} new title"},
         },
     }
+    # ADR-116 §6 (D76): the shop owner's CONFIRM click, as decide_confirmation freezes it.
+    state["pending_confirmation"][write_approval.APPROVED_CHANGE_KEY] = (
+        write_approval.approved_change_block(
+            state, decided_by_user_id=tenant.user_id, decided_at=now, card_approval=None
+        )
+    )
     conn.execute(
         text(
             "INSERT INTO public.workflow_runs (id, shop_id, product_id, state, status,"

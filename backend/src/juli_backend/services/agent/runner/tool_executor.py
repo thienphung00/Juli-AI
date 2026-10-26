@@ -152,6 +152,8 @@ from juli_backend.services.agent.runner.ledger import (
 from juli_backend.services.agent.runner.write_capture import (
     LISTING_OPERATION,
     RECORDED_OPERATIONS,
+    ApprovedBeforeChangedError,
+    ReadBackRefusalAudit,
     RevertTargetChangedError,
     WriteValueRecorder,
     changed_fields,
@@ -459,6 +461,10 @@ class ProductToolExecutor(DomainToolExecutor):
         revert_expected_hashes: Mapping[str, str | None] | None = None,
         banned_terms: Sequence[str] = (),
         discount_rules: Mapping[str, Any] | None = None,
+        approved_before: Mapping[str, Any] | None = None,
+        approved_before_hashes: Mapping[str, str | None] | None = None,
+        approved_tool_name: str | None = None,
+        on_read_back_refused: ReadBackRefusalAudit | None = None,
     ) -> None:
         super().__init__(
             registry=registry,
@@ -498,6 +504,12 @@ class ProductToolExecutor(DomainToolExecutor):
         self._banned_terms = tuple(banned_terms)
         # P65 (D74): the discount range of a create_promotion run (its opening context).
         self._discount_rules = dict(discount_rules) if discount_rules else None
+        # ADR-116 §6 (D76): on a LIVE leg only, the "before" the shop member approved for
+        # the confirmed tool -- the read immediately before that write must still show it.
+        self._approved_before = dict(approved_before) if approved_before is not None else None
+        self._approved_before_hashes = dict(approved_before_hashes or {})
+        self._approved_tool_name = approved_tool_name
+        self._on_read_back_refused = on_read_back_refused
 
     def _binding(self) -> ProductToolContext:
         """The `ProductToolContext` the product domain unwraps and hands to
@@ -583,6 +595,8 @@ class ProductToolExecutor(DomainToolExecutor):
                 )
                 if changed:
                     raise RevertTargetChangedError(operation=tool_name, fields=changed)
+        if self._approved_before is not None and spec.classification is ToolClassification.WRITE:
+            raw = self._check_approved_before(tool_name=tool_name, raw=raw)
         if not self._is_scoped_write(tool_name=tool_name, spec=spec):
             return None
         assert self._write_resources is not None  # narrowed by _is_scoped_write
@@ -595,6 +609,41 @@ class ProductToolExecutor(DomainToolExecutor):
         if isinstance(check, ConcurrencyConflict):
             return dict(check.payload)
         return None
+
+    def _check_approved_before(
+        self, *, tool_name: str, raw: Mapping[str, Any] | None
+    ) -> Mapping[str, Any]:
+        """ADR-116 §6 (D76; D11-1 enforcing): on a live leg, the write goes ahead only
+        if it is the approved tool and the shop, read now, still shows the approved
+        "before". Otherwise the refusal is audited and the run ends; nothing is sent."""
+        assert self._approved_before is not None
+        if self._write_resources is None:
+            raise ToolExecutionError(f"Tool {tool_name!r} requires write_resources")
+        changed: list[str] = []
+        if tool_name != self._approved_tool_name or not self._approved_before:
+            changed = sorted(self._approved_before) or [tool_name]
+        else:
+            if raw is None:
+                raw = self._write_resources.products.get_details(self._product_id)
+            changed = changed_fields(
+                tool_name,
+                live=field_values(tool_name, raw),
+                expected=self._approved_before,
+                expected_hashes=self._approved_before_hashes,
+            )
+            if not changed and not any(
+                field in self._approved_before for field in field_values(tool_name, raw)
+            ):
+                changed = sorted(self._approved_before)
+        if changed:
+            self._before_raw = None
+            if self._on_read_back_refused is not None:
+                self._on_read_back_refused(
+                    tool_name=tool_name, tiktok_product_id=self._product_id, fields=changed
+                )
+            raise ApprovedBeforeChangedError(operation=tool_name, fields=changed)
+        assert raw is not None
+        return raw
 
     def _after_read_dispatch(self, *, tool_name: str) -> None:
         if tool_name == "get_category_candidates" and self._concurrency_guard is not None:

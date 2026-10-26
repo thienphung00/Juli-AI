@@ -23,7 +23,7 @@ import logging
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -105,7 +105,12 @@ class SqlWriteValueRecorder:
         base = (
             ProductionWriteAudit.shop_id == self._shop_id,
             ProductionWriteAudit.run_id == self._workflow_run_id,
-            ProductionWriteAudit.tiktok_product_id == tiktok_product_id,
+            # ADR-116 §6 (migration 106): the per-platform id first, the old column as
+            # the fallback for a row written before it.
+            func.coalesce(
+                ProductionWriteAudit.platform_product_id, ProductionWriteAudit.tiktok_product_id
+            )
+            == tiktok_product_id,
             ProductionWriteAudit.mutation_kind == tool_name,
         )
         for extra in ((ProductionWriteAudit.authorization_id.is_not(None),), ()):
@@ -117,3 +122,54 @@ class SqlWriteValueRecorder:
             if len(ids) == 1:
                 return ids[0]
         return None
+
+
+class SqlReadBackRefusalAudit:
+    """ADR-116 §6 (D76): the ``production_write_audit`` row of a live write the executor
+    refused because the shop no longer shows the approved "before" (``read_back_changed``).
+
+    Same synchronous session and shop scope as :class:`SqlWriteValueRecorder`. Append-only
+    (an INSERT; ``authorization_id`` NULL as for every refusal). Never raises: the refusal
+    has already happened and nothing was written, so a failed audit is logged instead.
+    """
+
+    def __init__(self, session: Session, *, shop_id: uuid.UUID, workflow_run_id: uuid.UUID):
+        self._session = session
+        self._shop_id = shop_id
+        self._workflow_run_id = workflow_run_id
+
+    def __call__(self, *, tool_name: str, tiktok_product_id: str, fields: Sequence[str]) -> None:
+        from juli_backend.models.models import WRITE_PLATFORM_TIKTOK
+        from juli_backend.services.execution.production_write_resolver import (
+            PreconditionName,
+            _get_deployed_release_sha,
+        )
+
+        context = {
+            "shop_id": str(self._shop_id),
+            "run_id": str(self._workflow_run_id),
+            "tool_name": tool_name,
+            "fields": list(fields),
+            "reason": PreconditionName.READ_BACK_CHANGED.value,
+        }
+        try:
+            self._session.add(
+                ProductionWriteAudit(
+                    id=uuid.uuid4(),
+                    run_id=self._workflow_run_id,
+                    shop_id=self._shop_id,
+                    tiktok_product_id=tiktok_product_id,
+                    platform=WRITE_PLATFORM_TIKTOK,
+                    platform_product_id=tiktok_product_id,
+                    mutation_kind=tool_name,
+                    authorization_id=None,
+                    precondition_name=PreconditionName.READ_BACK_CHANGED.value,
+                    release_sha=_get_deployed_release_sha(),
+                )
+            )
+            self._session.commit()
+        except Exception:  # an audit failure must not turn the refusal into a crash
+            self._session.rollback()
+            logger.exception("read_back_refusal_audit_failed", extra=context)
+            return
+        logger.warning("agent_production_write_refused", extra=context)

@@ -131,7 +131,7 @@ async def test_approving_a_card_runs_that_cards_playbook(session, shop):
                 session,
                 shop_id=shop.id,
                 action_card_id=card.id,
-                approved_by_user_id=uuid.uuid4(),
+                approved_by_user_id=shop.user_id,
             )
 
             run = (
@@ -180,7 +180,7 @@ async def test_unknown_workflow_key_is_refused_with_no_run(session, shop):
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
     assert "no_such_workflow_1702" in str(exc.value)
 
@@ -213,7 +213,7 @@ async def test_run_subject_is_the_cards_subject_not_the_shops_top_product(sessio
         session,
         shop_id=shop.id,
         action_card_id=card.id,
-        approved_by_user_id=uuid.uuid4(),
+        approved_by_user_id=shop.user_id,
     )
 
     run = (
@@ -247,7 +247,7 @@ async def test_a_card_with_no_subject_cannot_be_approved(session, shop):
             session,
             shop_id=shop.id,
             action_card_id=card.id,
-            approved_by_user_id=uuid.uuid4(),
+            approved_by_user_id=shop.user_id,
         )
 
     runs = (await session.execute(select(WorkflowRunRow))).scalars().all()

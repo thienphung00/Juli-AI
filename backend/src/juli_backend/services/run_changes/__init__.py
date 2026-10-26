@@ -30,7 +30,10 @@ from juli_backend.services.run_changes.questions import (
     list_open_questions,
     question_for_run,
 )
-from juli_backend.services.run_changes.recorder import SqlWriteValueRecorder
+from juli_backend.services.run_changes.recorder import (
+    SqlReadBackRefusalAudit,
+    SqlWriteValueRecorder,
+)
 from juli_backend.services.run_changes.revert import (
     FieldChange,
     LiveProductReader,
@@ -59,6 +62,7 @@ __all__ = [
     "RevertRefused",
     "RevertRunNotFound",
     "RevertStarted",
+    "SqlReadBackRefusalAudit",
     "SqlWriteValueRecorder",
     "band_breaches",
     "dismiss_question",

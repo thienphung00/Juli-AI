@@ -1673,6 +1673,11 @@ class BronzeLiveHoursRawPayload(Base):
     source_event_id: Mapped[str | None] = mapped_column(String(255))
 
 
+#: ADR-116 §6 (migration 106): the platform of a production-write row; every row
+#: written before phase 2 (Shopee) is a TikTok row.
+WRITE_PLATFORM_TIKTOK = "tiktok"
+
+
 class ProductionWriteAuthorization(Base):
     """Single-use owner authorization for a production mutation on a listing.
 
@@ -1689,6 +1694,12 @@ class ProductionWriteAuthorization(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     tiktok_product_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    #: ADR-116 §6 (migration 106): the platform and its product id. Written beside
+    #: ``tiktok_product_id``; reads prefer ``platform_product_id`` and fall back to it.
+    platform: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=WRITE_PLATFORM_TIKTOK, server_default="tiktok"
+    )
+    platform_product_id: Mapped[str | None] = mapped_column(String(100))
     mutation_kind: Mapped[str] = mapped_column(String(100), nullable=False)
     authorized_by: Mapped[str] = mapped_column(String(255), nullable=False)
     reason: Mapped[str | None] = mapped_column(Text)
@@ -1705,6 +1716,13 @@ class ProductionWriteAuthorization(Base):
             "ix_production_write_authorizations_lookup",
             "shop_id",
             "tiktok_product_id",
+            "mutation_kind",
+        ),
+        Index(
+            "ix_production_write_authorizations_platform_lookup",
+            "shop_id",
+            "platform",
+            "platform_product_id",
             "mutation_kind",
         ),
     )
@@ -1755,6 +1773,11 @@ class ProductionWriteAudit(Base):
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_runs.id"), nullable=False)
     shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"), nullable=False)
     tiktok_product_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    #: ADR-116 §6 (migration 106), as on ``production_write_authorizations``.
+    platform: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=WRITE_PLATFORM_TIKTOK, server_default="tiktok"
+    )
+    platform_product_id: Mapped[str | None] = mapped_column(String(100))
     mutation_kind: Mapped[str] = mapped_column(String(100), nullable=False)
     authorization_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("production_write_authorizations.id")
