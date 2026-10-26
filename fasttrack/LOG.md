@@ -3026,3 +3026,7 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Not code: B11/B14 (sandbox auto-cancel, Partner Center status walk) stay as process notes.
 - Next: merge E11, one deploy tag for all of P68 (backup runs because of 102), then check the
   E10 log line, a single active slot, and a sandbox order arriving via webhook.
+- Update: E11 → PR #2185 (migration 102 + two SECURITY DEFINER functions). Second cause found: the
+  webhook request had no tenant scope, so RLS hid every shop; webhooks now resolve across tenants and
+  persist under the shop's scope. New edge cases E12 (other unscoped webhook paths, incl. deauth
+  `pause_automation`) and E13 (webhook/poll dedupe key) logged, not fixed.
