@@ -71,7 +71,7 @@ from juli_backend.services.demo_decisions import (
     CardContext,
     DecisionNotFound,
     get_surfaced_decision,
-    list_surfaced_decisions,
+    list_surfaced_decisions_with_auto_levers,
     load_card_contexts,
     mask_decision_payload,
 )
@@ -440,16 +440,24 @@ async def list_demo_decisions(
     sandbox_reviewer = _sandbox_reviewer(request)
 
     try:
-        if sandbox_reviewer:
-            # P64 (D73.3): the sandbox reviewer's one "Tạo sản phẩm" card (a real row).
-            from juli_backend.services import reviewer as reviewer_service
-
-            await reviewer_service.ensure_create_product_card(session, shop_id)
-            # P65 (D74): and its one "Tạo khuyến mãi" card.
-            await reviewer_service.ensure_create_promotion_card(session, shop_id)
-        cards = await list_surfaced_decisions(
+        # P69: the cards and the shop's auto_levers rule in one statement.
+        cards, allowed_levers = await list_surfaced_decisions_with_auto_levers(
             session, shop_id, include_reviewer_cards=sandbox_reviewer
         )
+        if sandbox_reviewer:
+            from juli_backend.services import reviewer as reviewer_service
+
+            # P69: when both reviewer cards are already surfaced (and the promotion
+            # card's TikTok check is fresh), the ensures below would change nothing;
+            # skip them and their reads. Otherwise ensure, then read the set again.
+            if not reviewer_service.reviewer_cards_current(shop_id, cards):
+                # P64 (D73.3): the sandbox reviewer's one "Tạo sản phẩm" card (a real row).
+                await reviewer_service.ensure_create_product_card(session, shop_id)
+                # P65 (D74): and its one "Tạo khuyến mãi" card.
+                await reviewer_service.ensure_create_promotion_card(session, shop_id)
+                cards, allowed_levers = await list_surfaced_decisions_with_auto_levers(
+                    session, shop_id, include_reviewer_cards=True
+                )
     except Exception:
         logger.exception(
             "demo_decisions_list_failed",
@@ -460,7 +468,6 @@ async def list_demo_decisions(
             detail="Failed to read demo decisions",
         ) from None
 
-    allowed_levers = await shop_rules.auto_levers(session, shop_id)
     contexts = await load_card_contexts(session, shop_id, cards)
     items = [
         item

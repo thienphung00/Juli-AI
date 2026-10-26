@@ -9,10 +9,12 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
 
 ## Public Interface
 - `accounts` — `ReviewerAccount`, `load_account` (cached `REVIEWER_ACCOUNT_CACHE_SECONDS`,
-  default 15 s), `claim_sign_in`, `upsert_account` / `renew_account` / `revoke_account` /
+  default 30 s since P69), `claim_sign_in`, `upsert_account` / `renew_account` / `revoke_account` /
   `find_by_email` (audited, no commit), `DEFAULT_LIFETIME_DAYS` (30).
 - `masking` — `MaskDictionary`, `ReviewerMasker`, `mask_payload`, `brand_terms`, `title_alias`.
 - `catalog` — `load_dictionary` (products, SKUs, LIVE titles of the shop; 10 min cache).
+- `pin_cache` — P69: the pinned shop's row + `PinMode`, cached for the account TTL (30 s);
+  `api/reviewer.enter_reviewer_shop` still applies the shop's tenant scope on every hit.
 - `config` — `reviewer_shop_id` (`REVIEWER_SHOP_ID`), `shop_alias_id`, `extra_mask_terms`
   (`REVIEWER_MASK_TERMS`).
 - `simulation` — `simulate(card_item, step)`; imports no TikTok code.

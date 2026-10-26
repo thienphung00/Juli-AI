@@ -20,7 +20,9 @@ checked with the same TikTok reads the run makes
 by no running or upcoming price promotion overlapping Juli's default window). A card
 whose product no longer qualifies is retired (``expired``) and the next qualifying
 product gets it; when none qualifies, or TikTok cannot be read, no new card is emitted.
-An active card is re-checked at most every :data:`VERIFY_TTL`.
+An active card is re-checked at most every :data:`VERIFY_TTL`; when no card could be
+emitted, the shop is not re-tried for :data:`NOT_EMITTED_TTL` (P69: each try is TikTok
+reads plus five database round trips on the reviewer's ``GET /v1/demo/decisions``).
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ActionCard, InventoryItem, Product
 from juli_backend.services.agent.playbooks import (
+    CREATE_PRODUCT_WORKFLOW_KEY,
     CREATE_PROMOTION_LEVER,
     CREATE_PROMOTION_WORKFLOW_KEY,
 )
@@ -58,12 +61,41 @@ MAX_PRODUCTS_TRIED = 5
 #: The status a card whose product no longer qualifies is retired with.
 RETIRED_STATUS = "expired"
 
+#: P69: how long "no card could be emitted for this shop" is remembered (no TikTok
+#: re-read, no product scan): a newly promotable product gets its card within this.
+NOT_EMITTED_TTL = timedelta(seconds=60)
+
 #: card id -> when its product was last confirmed eligible on TikTok.
 _verified_at: dict[uuid.UUID, datetime] = {}
+#: P69: shop id -> when the last try emitted no card.
+_not_emitted_at: dict[uuid.UUID, datetime] = {}
 
 
 def reset_cache() -> None:
     _verified_at.clear()
+    _not_emitted_at.clear()
+
+
+def reviewer_cards_current(shop_id: uuid.UUID, cards: list[ActionCard]) -> bool:
+    """P69: whether the surfaced ``cards`` already are what both ensures would leave.
+
+    True when the shop's "Tạo sản phẩm" card is surfaced AND either its "Tạo khuyến mãi"
+    card is surfaced and was confirmed eligible within :data:`VERIFY_TTL`, or the last try
+    emitted none within :data:`NOT_EMITTED_TTL`. Then ``ensure_create_product_card`` would
+    return the active card and ``ensure_create_promotion_card`` would return it (or emit
+    nothing) without a write, so ``GET /v1/demo/decisions`` skips both (and their reads).
+    Anything else -- a missing card, a stale check -- runs both ensures as before.
+    """
+    by_workflow = {card.workflow_key: card for card in cards if card.shop_id == shop_id}
+    if CREATE_PRODUCT_WORKFLOW_KEY not in by_workflow:
+        return False
+    now = _now()
+    promotion = by_workflow.get(CREATE_PROMOTION_WORKFLOW_KEY)
+    if promotion is not None:
+        checked = _verified_at.get(promotion.id)
+        return checked is not None and now - checked < VERIFY_TTL
+    tried = _not_emitted_at.get(shop_id)
+    return tried is not None and now - tried < NOT_EMITTED_TTL
 
 
 def _now() -> datetime:
@@ -230,6 +262,7 @@ async def ensure_create_promotion_card(
             "reviewer_create_promotion_card_not_emitted",
             extra={"shop_id": str(shop_id), "verified": verified},
         )
+        _not_emitted_at[shop_id] = _now()
         return None
     subject_id = str(product.id)
     revision = (
@@ -268,6 +301,7 @@ async def ensure_create_promotion_card(
     session.add(card)
     await session.flush()
     _verified_at[card.id] = _now()
+    _not_emitted_at.pop(shop_id, None)
     logger.info(
         "reviewer_create_promotion_card_created",
         extra={"shop_id": str(shop_id), "card": str(card.id)},
@@ -281,4 +315,5 @@ __all__ = [
     "card_title",
     "ensure_create_promotion_card",
     "reset_cache",
+    "reviewer_cards_current",
 ]

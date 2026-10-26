@@ -16,6 +16,7 @@ from juli_backend.services.reviewer import (
     catalog,
     config,
     masking,
+    pin_cache,
     sandbox,
     simulation,
 )
@@ -49,6 +50,18 @@ async def ensure_create_promotion_card(session: Any, shop_id: uuid.UUID) -> Any:
     return await _ensure(session, shop_id)
 
 
+def reviewer_cards_current(shop_id: uuid.UUID, cards: list[Any]) -> bool:
+    """P69: whether both sandbox reviewer cards are already current (no ensure needed).
+
+    Imported on call, for the same reason as :func:`ensure_create_product_card`.
+    """
+    from juli_backend.services.reviewer.create_promotion_card import (
+        reviewer_cards_current as _current,
+    )
+
+    return _current(shop_id, cards)
+
+
 __all__ = [
     "MaskDictionary",
     "PinMode",
@@ -61,7 +74,9 @@ __all__ = [
     "ensure_create_promotion_card",
     "load_account",
     "mask_payload",
+    "reviewer_cards_current",
     "masking",
+    "pin_cache",
     "sandbox",
     "simulation",
 ]

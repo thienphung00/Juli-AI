@@ -50,7 +50,12 @@ REASON_SANDBOX_REFUSED = "sandbox_credential_refused"
 
 @dataclass(frozen=True)
 class PinMode:
-    """What the pinned shop is, for the reviewer (decided per request, never cached)."""
+    """What the pinned shop is, for the reviewer.
+
+    Decided on a pin-cache miss and kept for the reviewer identity TTL (P69,
+    ``services/reviewer/pin_cache``): a pin that becomes a production shop loses
+    reviewer writes within that window; layer 2 (D73 Q6) is still checked per request.
+    """
 
     mode: str
     writes_enabled: bool
