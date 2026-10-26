@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -53,6 +54,7 @@ from juli_backend.core.security import (
 from juli_backend.database import Shop, set_tenant_context
 from juli_backend.integrations.tiktok import mark_reviewer_session
 from juli_backend.services import reviewer as reviewer_service
+from juli_backend.services.agent_runs import RunViewer
 from juli_backend.services.ops import audit
 from juli_backend.services.reviewer import MaskDictionary, PinMode, ReviewerAccount
 
@@ -175,6 +177,34 @@ class ReviewerContext:
 def reviewer_context(request: Request) -> ReviewerContext | None:
     value = getattr(request.state, STATE_KEY, None)
     return value if isinstance(value, ReviewerContext) else None
+
+
+def sandbox_run_viewer(request: Request) -> RunViewer | None:
+    """P66: a reviewer on the writable sandbox pin sees its own runs and the shop's runs
+    since its account was created -- not the team's older verification runs (C7)."""
+    context = reviewer_context(request)
+    pin = context.pin if context is not None else None
+    if context is None or pin is None or not pin.sandbox:
+        return None
+    return RunViewer(user_id=context.account.user_id, since=context.account.created_at)
+
+
+class ConfirmedWriteOut(BaseModel):
+    """P67 (D75 Q2): what a sandbox reviewer's run wrote on TikTok (``agent_runs.ConfirmedWrite``):
+    ``create_product`` / ``create_promotion`` / ``listing_edit`` / ``price_edit``, the TikTok
+    id, when TikTok confirmed it, the discount and the listing fields changed."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    kind: str
+    tiktok_id: str | None = None
+    confirmed_at: str | None = None
+    discount_pct: int | None = None
+    fields: list[str] = Field(default_factory=list)
+
+
+def confirmed_write_out(value: object | None) -> ConfirmedWriteOut | None:
+    return ConfirmedWriteOut.model_validate(value) if value is not None else None
 
 
 def deny(code: str, *, status_code: int = status.HTTP_403_FORBIDDEN) -> HTTPException:

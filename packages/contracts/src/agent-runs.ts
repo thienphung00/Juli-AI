@@ -17,6 +17,20 @@ export interface PendingDecisionSummary {
 }
 
 /**
+ * Fast track P67 (D75 Q2): what a sandbox reviewer's run wrote on TikTok, and when TikTok
+ * confirmed it (the ledger row `succeeded`; a refused write never counts).
+ */
+export interface ConfirmedWrite {
+  kind: "create_product" | "create_promotion" | "listing_edit" | "price_edit";
+  /** The new product's id, the promotion activity id, or the edited product's id. */
+  tiktok_id: string | null;
+  confirmed_at: string | null;
+  discount_pct: number | null;
+  /** A listing edit's changed fields: `title` / `description`. */
+  fields: string[];
+}
+
+/**
  * One run in the seller's polled read model of their workflow runs.
  */
 export interface WorkflowRunListItem {
@@ -41,6 +55,18 @@ export interface WorkflowRunListItem {
    * seller's shop ("chạy thử"). True only for a run that actually wrote.
    */
   simulated?: boolean;
+  /**
+   * Fast track P66 (D20-D22): `create` / `promotion` for the sandbox create workflows,
+   * else null. The run panel picks its step plan and header from it, also after a reload.
+   */
+  run_flow?: "create" | "promotion" | null;
+  /**
+   * Fast track P66: for a sandbox reviewer only, whether the reviewer started this run
+   * ("Hoàn tác" is offered only then); null for every other viewer.
+   */
+  started_by_viewer?: boolean | null;
+  /** Fast track P67: sandbox reviewer only -- the run's confirmed TikTok write; null otherwise. */
+  confirmed_write?: ConfirmedWrite | null;
 }
 
 /**

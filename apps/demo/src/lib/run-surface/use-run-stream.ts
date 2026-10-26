@@ -49,6 +49,12 @@ interface UseRunStreamOptions {
    *  rendered from already-fetched events. */
   initialEvents?: readonly AgentEvent[];
   enabled?: boolean;
+  /**
+   * P66 (D6): bump to open a fresh connection (replaying from the start; the fold
+   * dedupes by sequence number) -- after a confirmation, or when the stream closed
+   * while the run is still live.
+   */
+  resubscribeKey?: number;
 }
 
 interface UseRunStreamResult {
@@ -79,7 +85,7 @@ export function useRunStream(
   runId: string,
   options: UseRunStreamOptions = {},
 ): UseRunStreamResult {
-  const { token, shopId, baseUrl, fetchImpl, initialEvents, enabled = true } = options;
+  const { token, shopId, baseUrl, fetchImpl, initialEvents, enabled = true, resubscribeKey = 0 } = options;
 
   const [events, setEvents] = useState<readonly AgentEvent[]>(
     () => initialEvents ?? [],
@@ -90,7 +96,7 @@ export function useRunStream(
   // because it cascades renders. So the phase is stamped with the connection it
   // belongs to, and a phase from a previous connection is simply ignored during
   // render rather than cleared by a setState on mount. Same effect, no cascade.
-  const connectionKey = `${runId}|${token ?? ""}|${shopId ?? ""}|${baseUrl ?? ""}|${enabled}`;
+  const connectionKey = `${runId}|${token ?? ""}|${shopId ?? ""}|${baseUrl ?? ""}|${enabled}|${resubscribeKey}`;
   const [phase, setPhase] = useState<{
     key: string;
     status: RunStreamStatus;

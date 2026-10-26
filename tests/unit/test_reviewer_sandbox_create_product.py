@@ -36,7 +36,12 @@ from juli_backend.integrations.tiktok.capabilities import (
 )
 from juli_backend.integrations.tiktok.constants import PRODUCT_CREATE_PATH
 from juli_backend.integrations.tiktok.guards import ProductionWriteGuard, SandboxOnlyWriteGuard
-from juli_backend.models.models import ActionCard, ActionCardApproval, WorkflowRun
+from juli_backend.models.models import (
+    ActionCard,
+    ActionCardApproval,
+    ToolExecution,
+    WorkflowRun,
+)
 from juli_backend.models.ops import OpsAuditLog
 from juli_backend.repositories import TikTokCredentialRepo
 from juli_backend.services.agent import approval as approval_module
@@ -447,44 +452,119 @@ async def test_reviewer_approve_starts_the_create_run_once(session, world, enque
     assert "reviewer_sandbox_approve" in actions
 
 
-async def test_the_daily_cap_answers_429(session, world, enqueued):
-    ids, reviewer_id = world
-    headers = _headers(reviewer_id, ids["sandbox"])
-    async with client_for(build_app(session)) as client:
-        await client.get("/v1/demo/decisions", headers=headers)  # the reviewer's users row
-    for _ in range(approval_module.CREATE_PRODUCT_DAILY_CAP):
+async def seed_capped_runs(
+    session,
+    *,
+    shop_id,
+    reviewer_id,
+    workflow_key: str,
+    write_tool: str,
+    statuses: list[str],
+    hours_ago: float = 1,
+) -> None:
+    """P66 (D14): one approved run per entry of ``statuses``, each with its TikTok write
+    in ``tool_executions`` at that status (``None`` = the run never reached the write)."""
+    for status in statuses:
         old = ActionCard(
-            id=uuid.uuid4(),
-            shop_id=ids["sandbox"],
-            workflow_key="create_product",
-            subject_type="product",
-            subject_id=uuid.uuid4().hex,
-            revision=1,
-            priority=0,
-            severity="medium",
-            title="cũ",
-            description="",
-            recommendation_payload=json.dumps({}),
-            status="approved",
-        )
+            id=uuid.uuid4(), shop_id=shop_id, workflow_key=workflow_key,
+            subject_type="product", subject_id=uuid.uuid4().hex, revision=1, priority=0,
+            severity="medium", title="cũ", description="",
+            recommendation_payload=json.dumps({}), status="approved",
+        )  # fmt: skip
         session.add(old)
         await session.flush()
+        written_at = utc_now_naive() - timedelta(hours=hours_ago)
         session.add(
             ActionCardApproval(
                 action_card_id=old.id,
                 approved_by_user_id=reviewer_id,
-                approved_at=utc_now_naive() - timedelta(hours=1),
+                approved_at=written_at,
                 card_snapshot={},
             )
         )
+        run = WorkflowRun(
+            shop_id=shop_id, action_card_id=old.id, workflow_key=workflow_key,
+            subject_type="product", subject_ref=old.subject_id, state={},
+            status="completed" if status == "succeeded" else "failed",
+            prompt_version="v", prompt_sha256="a" * 64,
+        )  # fmt: skip
+        session.add(run)
+        await session.flush()
+        if status is not None:
+            session.add(
+                ToolExecution(
+                    shop_id=shop_id,
+                    approval_id=str(old.id),
+                    tool_name=write_tool,
+                    status=status,
+                    workflow_run_id=run.id,
+                    tool_call_id="call-1",
+                    operation=write_tool,
+                    created_at=written_at,
+                )  # fmt: skip
+            )
     await session.commit()
+
+
+async def _approve_create_card(session, ids, reviewer_id):
+    headers = _headers(reviewer_id, ids["sandbox"])
     async with client_for(build_app(session)) as client:
         listed = await client.get("/v1/demo/decisions", headers=headers)
         card_id = _create_card(listed.json()["data"])["id"]
-        capped = await client.post(f"/v1/demo/decisions/{card_id}/approve", headers=headers)
+        return await client.post(f"/v1/demo/decisions/{card_id}/approve", headers=headers)
+
+
+async def test_the_daily_cap_answers_429_with_when_it_frees_up(session, world, enqueued):
+    ids, reviewer_id = world
+    headers = _headers(reviewer_id, ids["sandbox"])
+    async with client_for(build_app(session)) as client:
+        await client.get("/v1/demo/decisions", headers=headers)  # the reviewer's users row
+    await seed_capped_runs(
+        session,
+        shop_id=ids["sandbox"],
+        reviewer_id=reviewer_id,
+        workflow_key="create_product",
+        write_tool="create_product",
+        statuses=["succeeded"] * approval_module.CREATE_PRODUCT_DAILY_CAP,
+    )
+    capped = await _approve_create_card(session, ids, reviewer_id)
     assert capped.status_code == 429, capped.text
-    assert capped.json()["detail"] == {"code": "create_product_daily_cap", "cap": 3}
+    detail = capped.json()["detail"]
+    assert detail["code"] == "create_product_daily_cap" and detail["cap"] == 3
+    # P66 (D13): the oldest counted write leaves the 24-hour window in ~23 hours.
+    assert 22 * 3600 < detail["retry_after_seconds"] <= 23 * 3600 + 5
+    assert detail["retry_at"].endswith("Z")
+    assert capped.headers["Retry-After"] == str(detail["retry_after_seconds"])
     assert enqueued == []
+
+
+async def test_the_cap_counts_only_writes_tiktok_confirmed(session, world, enqueued):
+    """P66 (D14): declined, crashed or TikTok-refused test runs never use up the cap."""
+    ids, reviewer_id = world
+    headers = _headers(reviewer_id, ids["sandbox"])
+    async with client_for(build_app(session)) as client:
+        await client.get("/v1/demo/decisions", headers=headers)  # the reviewer's users row
+    await seed_capped_runs(
+        session,
+        shop_id=ids["sandbox"],
+        reviewer_id=reviewer_id,
+        workflow_key="create_product",
+        write_tool="create_product",
+        statuses=["succeeded", "succeeded", "failed", "failed", None, None],
+    )
+    # Two confirmed writes a day ago no longer count either.
+    await seed_capped_runs(
+        session,
+        shop_id=ids["sandbox"],
+        reviewer_id=reviewer_id,
+        workflow_key="create_product",
+        write_tool="create_product",
+        statuses=["succeeded", "succeeded"],
+        hours_ago=25,
+    )
+    approved = await _approve_create_card(session, ids, reviewer_id)
+    assert approved.status_code == 202, approved.text
+    assert len(enqueued) == 1
 
 
 async def test_a_create_card_on_a_non_sandbox_shop_is_not_executable(session, world):

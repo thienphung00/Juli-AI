@@ -10,10 +10,8 @@ import type { ReasonChoice } from "../../lib/quyet-dinh/reasons";
 import { runChip, runningNote, type RunPhase } from "../../lib/quyet-dinh/run-model";
 import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import { SIMULATED_DONE_TEXT, SIMULATED_DONE_TITLE } from "../../lib/quyet-dinh/simulated-copy";
-import type { RunKind, RunTimeline } from "../../lib/quyet-dinh/timeline";
+import { endedDetail, type RunKind, type RunTimeline } from "../../lib/quyet-dinh/timeline";
 import type { RunChanges } from "../../lib/quyet-dinh/types";
-import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../../lib/run-ledger/copy";
-import { resolveRunTerminalState } from "../../lib/run-ledger/terminal-state";
 import { ConfirmationRejectedError, type EditedValues } from "../../lib/run-surface/confirmation-decision";
 import { DECLINE_REASONS, REVERT_REASONS, reasonOption } from "../../lib/quyet-dinh/reasons";
 import { ReasonDialog, ReasonDone, SKIP_DIALOG_BODY, revertDialogBody } from "./reason-dialog";
@@ -74,7 +72,9 @@ function titleOf(kind: RunKind, run: QdRun, card: CardView | null): string {
   const sku = card?.sku ? `${card.sku} · ` : "";
   const name = card?.title ?? run.product_name;
   if (kind === "revert") return `Hoàn tác · ${sku}${name}`;
-  if (kind === "create") return `Tạo sản phẩm · từ ${name}`;
+  // P66 (C6): verb + the subject product, never a pre-labelled card title
+  // ("Tạo sản phẩm · từ Tạo sản phẩm mới từ «…»").
+  if (kind === "create") return `Tạo sản phẩm · ${run.product_name}`;
   if (kind === "promotion") return `Tạo khuyến mãi · ${run.product_name}`;
   if (kind === "manual") return `${sku}${name}${card?.leverLabel ? ` · ${card.leverLabel}` : ""}`;
   return `Lượt chạy · ${sku}${name}`;
@@ -243,7 +243,11 @@ export function RunPanel(props: RunPanelProps) {
             )
           ) : null}
           {phase === "conflict" ? <ConflictBox message={null} /> : null}
-          {phase === "ended" && timeline.terminal ? <div className="qv-grey">{endedText(timeline.terminal.stopReason)}</div> : null}
+          {phase === "ended" && timeline.terminal ? (
+            <div className="qv-grey" data-testid="run-ended-reason">
+              {endedDetail(timeline.terminal.stopReason, timeline.terminal.reason ?? null)}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -287,9 +291,31 @@ function declinedText(kind: RunKind): string {
   return "Bạn đã chọn không thay đổi. Lượt chạy kết thúc, sản phẩm giữ nguyên.";
 }
 
-function endedText(stopReason: string): string {
-  const key = resolveRunTerminalState(stopReason);
-  return (key ? RUN_TERMINAL_STATE_COPY[key] : RUN_TERMINAL_STATE_UNKNOWN_COPY).body;
+/**
+ * P66 (D13): every confirm refusal in Vietnamese on the consent block -- the server's
+ * own words when it sent Vietnamese (a 422 rule violation names the rule), else one
+ * sentence per status. Never an English code, never nothing.
+ */
+export function confirmRefusalText(error: ConfirmationRejectedError): string {
+  const code = error.errorCode ?? "";
+  if (error.status === 422 && /[À-ỹ]/.test(error.message)) return error.message;
+  if (code === "confirmation_expired") return "Đề xuất đã hết hạn trước khi bạn xác nhận. Juli không ghi gì lên TikTok.";
+  if (code === "confirmation_already_decided" || code === "run_not_awaiting_confirmation") {
+    return "Lượt chạy này đã được xác nhận hoặc không còn chờ bạn. Juli đang cập nhật trạng thái.";
+  }
+  if (code === "sandbox_only" || error.status === 403) {
+    return "Tài khoản này chỉ được ghi lên shop sandbox của Juli. Juli không ghi gì lên shop này.";
+  }
+  if (error.status === 429) return "Bạn đã gửi quá nhiều yêu cầu trong thời gian ngắn. Vui lòng thử lại sau ít phút.";
+  if (error.status === 409) return "Lượt chạy này không còn chờ bạn xác nhận. Juli đang cập nhật trạng thái.";
+  if (error.status === 422) return "Nội dung xác nhận không hợp lệ theo quy tắc của shop. Vui lòng sửa rồi thử lại.";
+  if (error.status === 404) return "Không tìm thấy lượt chạy này. Vui lòng tải lại trang.";
+  if (error.status >= 500) return "Máy chủ Juli đang gặp sự cố, chưa ghi gì lên TikTok. Vui lòng thử lại sau ít phút.";
+  return /[À-ỹ]/.test(error.message) ? error.message : "Không gửi được xác nhận. Vui lòng thử lại.";
+}
+
+function confirmFailureText(error: unknown): string {
+  return error instanceof ConfirmationRejectedError ? confirmRefusalText(error) : "Không gửi được xác nhận. Vui lòng kiểm tra mạng và thử lại.";
 }
 
 export function ConflictBox({ message }: { readonly message: string | null }) {
@@ -336,7 +362,12 @@ function ConsentBlock({
     consent.options.length > 0
       ? consent.options
       : [{ option_id: "default", proposed_change: consent.proposedChange, rationale: "", params_sha: "" }];
-  const [selected, setSelected] = useState<string | null>(null);
+  // P66 (D19/D5): a single proposal is selected from the start ("undefined" = the
+  // default); the seller can still un-press it, and cancelling an edit re-selects it.
+  const [picked, setSelected] = useState<string | null | undefined>(undefined);
+  const selected = picked === undefined ? (options.length === 1 ? options[0].option_id : null) : picked;
+  // The only proposal stays selected when tapped again; with several, a tap toggles.
+  const toggle = (optionId: string, pressed: boolean) => setSelected(pressed && options.length > 1 ? null : optionId);
   const [editing, setEditing] = useState(false);
   const [edited, setEdited] = useState<EditedValues | null>(null);
   const [draft, setDraft] = useState<{ title: string; description: string; discount: string; endDate: string }>({
@@ -373,6 +404,7 @@ function ConsentBlock({
   const cancelEdit = () => {
     setEdited(null);
     setError(null);
+    setSelected(target.option_id);
     setEditing(false);
   };
 
@@ -424,12 +456,12 @@ function ConsentBlock({
     onConfirm(consent.toolCallId, selected, edited)
       .catch((reason: unknown) => {
         if (reason instanceof ConfirmationRejectedError) {
-          setError({ message: reason.message, field: reason.field });
+          setError({ message: confirmRefusalText(reason), field: reason.field });
           if (reason.field === "title" || reason.field === "description" || reason.field === "discount_pct" || reason.field === "end_date") {
             startEdit();
           }
         } else {
-          setError({ message: "Không gửi được xác nhận. Vui lòng thử lại.", field: null });
+          setError({ message: confirmFailureText(reason), field: null });
         }
       })
       .finally(() => setStatus("idle"));
@@ -545,7 +577,7 @@ function ConsentBlock({
                   aria-pressed={pressed}
                   className="qv-option qv-option--photo"
                   key={option.option_id}
-                  onClick={() => setSelected(pressed ? null : option.option_id)}
+                  onClick={() => toggle(option.option_id, pressed)}
                   type="button"
                   {...write(expired)}
                 >
@@ -574,7 +606,7 @@ function ConsentBlock({
                 aria-pressed={pressed}
                 className={`qv-option${isRevert ? " qv-option--revert" : ""}`}
                 key={option.option_id}
-                onClick={() => setSelected(pressed ? null : option.option_id)}
+                onClick={() => toggle(option.option_id, pressed)}
                 type="button"
                 {...write(expired)}
               >

@@ -157,25 +157,36 @@ class WorkflowNotExecutable(Exception):
     (#1309)'s named 409 and is NOT reimplemented here."""
 
 
-class CreateProductDailyCapReached(ValueError):
-    """P64 (D73.3): this reviewer already started :data:`CREATE_PRODUCT_DAILY_CAP`
-    "Tạo sản phẩm" runs in the last 24 hours -- the route answers 429."""
+class SandboxCreateCapReached(ValueError):
+    """A reviewer's sandbox create cap is used up (P64/P65; P66 D13/D14).
+
+    ``retry_at`` is when the oldest counted write leaves the rolling 24-hour window
+    (naive UTC), so the route can tell the reviewer when the cap frees up."""
+
+    def __init__(self, message: str, *, retry_at: datetime) -> None:
+        super().__init__(message)
+        self.retry_at = retry_at
+
+
+class CreateProductDailyCapReached(SandboxCreateCapReached):
+    """P64 (D73.3): this reviewer already wrote :data:`CREATE_PRODUCT_DAILY_CAP`
+    products on TikTok in the last 24 hours -- the route answers 429."""
 
 
 #: P64 (D73.3): "Tạo sản phẩm" runs one reviewer may start per rolling 24 hours.
 CREATE_PRODUCT_DAILY_CAP = 3
 
 
-class CreatePromotionDailyCapReached(ValueError):
-    """P65 (D74): this reviewer already started :data:`CREATE_PROMOTION_DAILY_CAP`
-    "Tạo khuyến mãi" runs in the last 24 hours -- the route answers 429."""
+class CreatePromotionDailyCapReached(SandboxCreateCapReached):
+    """P65 (D74): this reviewer already created :data:`CREATE_PROMOTION_DAILY_CAP`
+    promotions on TikTok in the last 24 hours -- the route answers 429."""
 
 
 #: P65 (D74): "Tạo khuyến mãi" runs one reviewer may start per rolling 24 hours.
 CREATE_PROMOTION_DAILY_CAP = 3
 
 #: The sandbox-only reviewer workflows: workflow key -> (daily cap, its cap error).
-_SANDBOX_CREATE_CAPS: dict[str, tuple[int, type[ValueError]]] = {
+_SANDBOX_CREATE_CAPS: dict[str, tuple[int, type[SandboxCreateCapReached]]] = {
     playbooks_module.CREATE_PRODUCT_WORKFLOW_KEY: (
         CREATE_PRODUCT_DAILY_CAP,
         CreateProductDailyCapReached,
@@ -212,21 +223,67 @@ async def _approve_create_product_gate(
             f"ActionCard {action_card_id} ({workflow_key}) runs only on the sandbox shop"
         )
     cap, cap_error = _SANDBOX_CREATE_CAPS[workflow_key]
-    started = (
-        await session.execute(
-            select(func.count())
-            .select_from(ActionCardApproval)
-            .join(ActionCard, ActionCard.id == ActionCardApproval.action_card_id)
-            .where(
-                ActionCard.shop_id == shop_id,
-                ActionCard.workflow_key == workflow_key,
-                ActionCardApproval.approved_by_user_id == approved_by_user_id,
-                ActionCardApproval.approved_at >= now - timedelta(days=1),
-            )
+    written = await _succeeded_sandbox_writes(
+        session,
+        shop_id=shop_id,
+        workflow_key=workflow_key,
+        approved_by_user_id=approved_by_user_id,
+        since=now - _SANDBOX_CAP_WINDOW,
+    )
+    if len(written) >= cap:
+        retry_at = written[len(written) - cap] + _SANDBOX_CAP_WINDOW
+        raise cap_error(
+            f"{len(written)} {workflow_key} writes in the last 24 hours (cap {cap})",
+            retry_at=retry_at,
         )
-    ).scalar_one()
-    if started >= cap:
-        raise cap_error(f"{started} {workflow_key} runs in the last 24 hours (cap {cap})")
+
+
+#: P66 (D14): the rolling window the sandbox create caps count over.
+_SANDBOX_CAP_WINDOW = timedelta(days=1)
+
+#: P66 (D14): the one WRITE each capped workflow makes on TikTok.
+_SANDBOX_CAP_WRITE_TOOLS: dict[str, str] = {
+    playbooks_module.CREATE_PRODUCT_WORKFLOW_KEY: "create_product",
+    playbooks_module.CREATE_PROMOTION_WORKFLOW_KEY: "create_product_discount",
+}
+
+
+async def _succeeded_sandbox_writes(
+    session: AsyncSession,
+    *,
+    shop_id: uuid.UUID,
+    workflow_key: str,
+    approved_by_user_id: uuid.UUID,
+    since: datetime,
+) -> list[datetime]:
+    """P66 (D14): when each of this reviewer's ``workflow_key`` runs on ``shop_id`` had
+    its TikTok write confirmed (``tool_executions.status == "succeeded"``) since
+    ``since``, oldest first. A run that was declined, crashed, or that TikTok refused
+    never reaches ``succeeded`` (P64 D10) and so never uses up the cap."""
+    from juli_backend.models.models import ToolExecution
+
+    approved_by_reviewer = (
+        select(ActionCardApproval.id)
+        .where(
+            ActionCardApproval.action_card_id == WorkflowRunRow.action_card_id,
+            ActionCardApproval.approved_by_user_id == approved_by_user_id,
+        )
+        .exists()
+    )
+    rows = await session.execute(
+        select(WorkflowRunRow.id, func.min(ToolExecution.created_at))
+        .join(ToolExecution, ToolExecution.workflow_run_id == WorkflowRunRow.id)
+        .where(
+            WorkflowRunRow.shop_id == shop_id,
+            WorkflowRunRow.workflow_key == workflow_key,
+            ToolExecution.tool_name == _SANDBOX_CAP_WRITE_TOOLS[workflow_key],
+            ToolExecution.status == "succeeded",
+            ToolExecution.created_at >= since,
+            approved_by_reviewer,
+        )
+        .group_by(WorkflowRunRow.id)
+    )
+    return sorted(written_at for _, written_at in rows.all())
 
 
 class CardSubjectNotApprovable(Exception):

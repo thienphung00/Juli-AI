@@ -51,9 +51,16 @@ from juli_backend.services.agent_runs.events import (
     run_events_channel,
     run_events_database_url,
 )
-from juli_backend.services.agent_runs.listing import PendingDecision, RunListItem, list_runs
+from juli_backend.services.agent_runs.listing import (
+    ConfirmedWrite,
+    PendingDecision,
+    RunListItem,
+    RunViewer,
+    list_runs,
+)
 
 __all__ = [
+    "ConfirmedWrite",
     "DEFAULT_HEARTBEAT_INTERVAL_S",
     "DEFAULT_POLL_INTERVAL_S",
     "ERROR_CONFIRMATION_ALREADY_DECIDED",
@@ -77,6 +84,7 @@ __all__ = [
     "PendingDecision",
     "RedisEventSubscriber",
     "RunListItem",
+    "RunViewer",
     "decide_confirmation",
     "decline_pending_confirmation",
     "event_stream",

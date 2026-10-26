@@ -47,6 +47,7 @@ CREATE_PROMOTION_TERMINATION_POLICY: TerminationPolicy = replace(
     max_extensions=1,
     required_steps=(CREATE_PRODUCT_DISCOUNT_TOOL,),
     terminal_tools=("conclude_without_changes",),
+    finish_after_required_write=True,
 )
 
 CREATE_PROMOTION_PLAYBOOK = Playbook(

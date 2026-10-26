@@ -4,7 +4,20 @@ import type { WorkflowRunListItem } from "@juli/contracts";
 import { useState } from "react";
 
 import type { CardView } from "../../lib/quyet-dinh/card-model";
-import { MEASURE_NO_READING, MEASURE_WAITING, bandMetricLabel } from "../../lib/quyet-dinh/copy";
+import {
+  CONFIRMED_AT,
+  MEASURE_NO_READING,
+  MEASURE_NO_READING_CHIP,
+  MEASURE_SANDBOX_CHIP,
+  MEASURE_SANDBOX_DAY14,
+  MEASURE_SANDBOX_DAY7,
+  MEASURE_SANDBOX_LOADING,
+  MEASURE_SANDBOX_NONE,
+  MEASURE_WAITING,
+  bandMetricLabel,
+  confirmedWriteLine,
+} from "../../lib/quyet-dinh/copy";
+import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import {
   EXTERNAL_CHANGE_TITLE,
   FINAL_RULE_NOTE,
@@ -26,7 +39,7 @@ import {
 import { fullDate } from "../../lib/quyet-dinh/p10-format";
 import type { Measurement } from "../../lib/quyet-dinh/p10-types";
 import type { ReasonChoice } from "../../lib/quyet-dinh/reasons";
-import { addDays, vnDate } from "../../lib/quyet-dinh/timeline";
+import { addDays, vnDate, vnTime } from "../../lib/quyet-dinh/timeline";
 import type { RevertQuestion, RunChanges } from "../../lib/quyet-dinh/types";
 import { num } from "../../lib/vn-format";
 import { ReasonDialog, revertDialogBody } from "./reason-dialog";
@@ -69,6 +82,18 @@ export const IDLE_REVERT: RevertActionState = { busy: false, error: null, confli
  * nothing to measure and is not listed in Đo lường. */
 export function isExecutedRun(run: WorkflowRunListItem): boolean {
   return run.status === "completed" && run.stop_reason === "final_response" && run.simulated !== true;
+}
+
+/** P67 (D75 Q2): on the sandbox shop, every finished run whose TikTok write TikTok confirmed. */
+export function isConfirmedSandboxWrite(run: WorkflowRunListItem): boolean {
+  return run.status === "completed" && Boolean(run.confirmed_write);
+}
+
+/** "TikTok xác nhận lúc 12:43 23/10/2026" for a confirmed write. */
+export function confirmedAtLine(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const time = vnTime(iso).slice(0, 5);
+  return time ? CONFIRMED_AT(time, vnDate(iso)) : null;
 }
 
 export function measurementLine(completedAt: string | null, nowMs: number | null): string {
@@ -127,6 +152,7 @@ export function DoLuongPanel({
   onOpenRun,
   proposalsHref,
   onOpenProposals,
+  loading = false,
 }: {
   readonly items: readonly MeasureItem[];
   readonly tab: MeasureTab;
@@ -137,25 +163,39 @@ export function DoLuongPanel({
   readonly onOpenRun: (runId: string) => void;
   readonly proposalsHref: string;
   readonly onOpenProposals: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  /** P67: the runs are still loading -- the sandbox reviewer never reads "Chưa có lượt chạy nào…" then. */
+  readonly loading?: boolean;
 }) {
-  const visible = items.filter((item) => itemTab(item) === tab);
+  // P67 (D75 Q2): the sandbox shop is never measured -- every confirmed write is listed at
+  // once, and Ngày 7 / Ngày 14 are greyed out.
+  const sandboxShop = useSandboxReviewer();
+  const visible = sandboxShop ? items : items.filter((item) => itemTab(item) === tab);
   return (
     <div className="qv-dl">
       <div aria-label="Mốc đo" className="qv-mtabs" role="tablist">
-        {MEASURE_TABS.map((entry) => (
-          <button
-            aria-selected={entry.id === tab}
-            className="qv-mtab"
-            key={entry.id}
-            onClick={() => onTab(entry.id)}
-            role="tab"
-            type="button"
-          >
-            {entry.label}
-          </button>
-        ))}
+        {MEASURE_TABS.map((entry) => {
+          const off = sandboxShop && entry.id !== "d0";
+          return (
+            <button
+              aria-disabled={off ? true : undefined}
+              aria-selected={sandboxShop ? entry.id === "d0" : entry.id === tab}
+              className="qv-mtab"
+              key={entry.id}
+              onClick={off ? undefined : () => onTab(entry.id)}
+              role="tab"
+              title={off ? MEASURE_SANDBOX_CHIP : undefined}
+              type="button"
+            >
+              {entry.label}
+            </button>
+          );
+        })}
       </div>
-      {items.length === 0 ? (
+      {sandboxShop && loading && items.length === 0 ? (
+        <div className="qv-empty" data-testid="measure-list">
+          <p>{MEASURE_SANDBOX_LOADING}</p>
+        </div>
+      ) : items.length === 0 ? (
         <div className="qv-empty" data-testid="measure-list">
           <p>Chưa có lượt chạy nào ghi thay đổi lên TikTok Shop.</p>
         </div>
@@ -215,24 +255,37 @@ function MeasurePanel({
   const { run, card, action } = item;
   const [expanded, setExpanded] = useState(true);
   const [dialog, setDialog] = useState(false);
-  const m = item.measurement?.status === "ready" ? item.measurement.measurement : null;
+  // P66: the reviewer's sandbox shop has no real buyers -- nothing is measured or pending.
+  const sandboxShop = useSandboxReviewer();
+  const m = !sandboxShop && item.measurement?.status === "ready" ? item.measurement.measurement : null;
   const changes = item.changes?.status === "ready" ? item.changes.changes : null;
   const labels = changes && changes.changes.length > 0 ? changes.changes.map((c) => c.label) : (card?.changeLabels ?? []);
   const head = m ? measureHead(m) : null;
-  const chip = head?.chip ?? { label: "Chờ đo · ngày 0", tone: "muted" as const };
+  const day7Iso = run.completed_at ? addDays(run.completed_at, 7) : null;
+  const pastDay7 = !m && day7Iso !== null && nowMs !== null && nowMs >= Date.parse(day7Iso);
+  const chip = sandboxShop
+    ? { label: MEASURE_SANDBOX_CHIP, tone: "muted" as const }
+    : (head?.chip ?? { label: pastDay7 ? MEASURE_NO_READING_CHIP : "Chờ đo · ngày 0", tone: "muted" as const });
   const workflow = card?.meta.split(" · ")[0] ?? "Tối ưu sản phẩm";
-  const sub = [workflow, `Thay đổi vào ${fullDate(run.completed_at)}`, labels.length > 0 ? `Đã đổi ${labels.join(", ")}` : null]
-    .filter(Boolean)
-    .join(" · ");
+  // P67 (D75 Q2): on the sandbox shop, what Juli wrote on TikTok and when TikTok confirmed it.
+  const written = sandboxShop ? (run.confirmed_write ?? null) : null;
+  const sub = written
+    ? [confirmedWriteLine(written), confirmedAtLine(written.confirmed_at ?? run.completed_at)].filter(Boolean).join(" · ")
+    : [workflow, `Thay đổi vào ${fullDate(run.completed_at)}`, labels.length > 0 ? `Đã đổi ${labels.join(", ")}` : null]
+        .filter(Boolean)
+        .join(" · ");
+  // P66: a sandbox reviewer is never offered Hoàn tác on a run it did not start.
   const canRevert =
-    card?.executor !== "seller_center" && (changes ? changes.revert.available && !changes.reverts_run_id : true);
+    run.started_by_viewer !== false &&
+    // A created product or promotion has no "before" to restore.
+    (written === null || written.kind === "listing_edit") &&
+    card?.executor !== "seller_center" &&
+    (changes ? changes.revert.available && !changes.reverts_run_id : true);
   const headingId = `measure-${run.id}`;
   const outside = m?.stage === "day7" && m.day7 !== null && m.day7.within_band === false;
   const answered: "revert" | "keep" | null = action.revertRunId ? "revert" : action.kept ? "keep" : null;
   const box = m ? finalBox(m) : null;
   const waiting = !m || m.stage === "waiting";
-  const day7Iso = run.completed_at ? addDays(run.completed_at, 7) : null;
-  const pastDay7 = !m && day7Iso !== null && nowMs !== null && nowMs >= Date.parse(day7Iso);
 
   return (
     <section aria-labelledby={headingId} className="qv-run qv-measure" data-run-id={run.id} data-testid="measure-panel">
@@ -268,7 +321,17 @@ function MeasurePanel({
 
           {waiting ? (
             <div className="qv-grey qv-grey--measure" data-testid="measure-waiting">
-              {m ? waitingLine(m, null) : pastDay7 ? MEASURE_NO_READING : waitingLine(null, day7Iso)}
+              {sandboxShop ? MEASURE_SANDBOX_NONE : m ? waitingLine(m, null) : pastDay7 ? MEASURE_NO_READING : waitingLine(null, day7Iso)}
+            </div>
+          ) : null}
+          {sandboxShop ? (
+            <div className="qv-measure__days" data-testid="measure-days-off">
+              <span aria-disabled="true" className="qv-measure__day--off">
+                {MEASURE_SANDBOX_DAY7}
+              </span>
+              <span aria-disabled="true" className="qv-measure__day--off">
+                {MEASURE_SANDBOX_DAY14}
+              </span>
             </div>
           ) : null}
 
@@ -298,7 +361,7 @@ function MeasurePanel({
             </div>
           ) : null}
 
-          {!m && item.question && !answered ? (
+          {!sandboxShop && !m && item.question && !answered ? (
             <div className="qv-orange qv-ask" data-testid="day7-ask">
               <div className="qv-orange__title">Hoàn tác?</div>
               <div className="qv-orange__text">

@@ -1,6 +1,6 @@
 import type { DemoDecisionItem, DemoDecisionListResponse } from "@juli/contracts";
 
-import { DemoDecisionApproveError } from "./decision-approve-error";
+import { DemoDecisionApproveError, approveRefusalDetail } from "./decision-approve-error";
 
 /**
  * Signed-in Decisions read route (#1320, ADR-094). `/v1/demo/recommendations`
@@ -113,7 +113,13 @@ export async function approveDemoDecision(
   );
 
   if (!response.ok) {
-    throw new DemoDecisionApproveError(response.status);
+    let body: unknown = null;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+    throw new DemoDecisionApproveError(response.status, approveRefusalDetail(body));
   }
 
   let runId: unknown;

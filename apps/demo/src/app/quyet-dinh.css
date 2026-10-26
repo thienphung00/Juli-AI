@@ -1527,6 +1527,31 @@ body:has(.qd-page) {
   color: var(--qd-surface);
 }
 
+/* P67: the sandbox shop is never measured -- day 7 / day 14 are greyed out. */
+.qv-mtab[aria-disabled="true"] {
+  border-style: dashed;
+  background: transparent;
+  color: var(--qd-ink-3);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.qv-measure__days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.qv-measure__day--off {
+  border: 1px dashed var(--qd-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: var(--qd-ink-2);
+  opacity: 0.6;
+  font-size: 13px;
+}
+
 .qv-mtab__count {
   font-weight: 400;
 }

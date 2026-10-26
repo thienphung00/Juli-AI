@@ -14,6 +14,10 @@ import { resolveRunTerminalState } from "../run-ledger/terminal-state";
 import { SANDBOX_WRITTEN_LABEL, SIMULATED_RUN_LABEL } from "./simulated-copy";
 import type { RunKind, RunTimeline } from "./timeline";
 
+/** P66 (D15): Juli ended the run without proposing (`conclude_without_changes`). */
+export const NO_PROPOSAL_STOP_REASON = "concluded_without_changes";
+export const NO_PROPOSAL_LABEL = "Không đề xuất";
+
 export type ChipTone = "wait" | "info" | "ok" | "muted" | "warn" | "queue";
 
 export type RunPhase =
@@ -33,10 +37,36 @@ export type RunPhase =
   | "ended";
 
 const PHOTO_TOOLS = new Set(["upload_product_image"]);
+/** P66 (D20-D22): the tools only a "Tạo sản phẩm" / "Tạo khuyến mãi" run calls. */
+const CREATE_TOOLS = new Set(["get_category_candidates", "check_listing_requirements", "create_product"]);
+const PROMOTION_TOOLS = new Set(["get_promotion_candidates", "check_promotion_eligibility", "create_product_discount"]);
+
+/** The tool an event names, if any. */
+function eventTool(event: AgentEvent): string | null {
+  if (event.event_type === "tool.started" || event.event_type === "tool.completed" || event.event_type === "workflow.approval_required") {
+    return event.payload.tool_name;
+  }
+  return null;
+}
+
+/** P66 (D20-D22): the workflow the run itself carries, else the tools it called. Never the
+ *  card alone -- after a reload the card may no longer be on the desk. */
+function workflowKind(run: QdRun, events: readonly AgentEvent[]): RunKind | null {
+  if (run.run_flow === "create") return "create";
+  if (run.run_flow === "promotion") return "promotion";
+  for (const event of events) {
+    const tool = eventTool(event);
+    if (tool && CREATE_TOOLS.has(tool)) return "create";
+    if (tool && PROMOTION_TOOLS.has(tool)) return "promotion";
+  }
+  return null;
+}
 
 /** Which artboard a run follows: from its awaiting state, the card it came from, or its tools. */
 export function runKind(run: QdRun, card: CardView | null, events: readonly AgentEvent[], isRevert: boolean): RunKind {
   if (isRevert) return "revert";
+  const workflow = workflowKind(run, events);
+  if (workflow) return workflow;
   if (card?.leverCode === "create_product") return "create";
   if (card?.leverCode === "create_promotion") return "promotion";
   if (run.awaiting === "content_choice" || run.awaiting === "content_publish") return "content";
@@ -164,6 +194,7 @@ export function runChip(run: QdRun, kind: RunKind, phase: RunPhase, sandboxShop 
     case "conflict":
       return { label: "Dừng · có thay đổi ngoài Juli", tone: "warn" };
     case "ended": {
+      if (run.stop_reason === NO_PROPOSAL_STOP_REASON) return { label: NO_PROPOSAL_LABEL, tone: "muted" };
       const key = resolveRunTerminalState(run.stop_reason);
       return { label: (key ? RUN_TERMINAL_STATE_COPY[key] : RUN_TERMINAL_STATE_UNKNOWN_COPY).label, tone: "muted" };
     }
@@ -180,6 +211,7 @@ export function listChip(run: QdRun, sandboxShop = false): Chip {
   if (run.status === "completed" && run.stop_reason === "final_response") {
     return appliedChip(run, sandboxShop);
   }
+  if (run.stop_reason === NO_PROPOSAL_STOP_REASON) return { label: NO_PROPOSAL_LABEL, tone: "muted" };
   const key = resolveRunTerminalState(run.stop_reason);
   return { label: (key ? RUN_TERMINAL_STATE_COPY[key] : RUN_TERMINAL_STATE_UNKNOWN_COPY).label, tone: "muted" };
 }
@@ -221,6 +253,9 @@ export function runningNote(kind: RunKind, phase: RunPhase, narration: string | 
   if (phase === "writing") {
     if (kind === "photo") return "Juli đang tải ảnh lên TikTok Shop…";
     if (kind === "revert") return "Juli đang ghi lại nội dung cũ…";
+    // P66 (D21): each workflow says what it writes.
+    if (kind === "create") return "Juli đang tạo sản phẩm trên TikTok…";
+    if (kind === "promotion") return "Juli đang tạo khuyến mãi trên TikTok…";
     return "Juli đang ghi lên TikTok Shop…";
   }
   if (phase === "review") return "Đang chờ TikTok duyệt lại trang sản phẩm…";

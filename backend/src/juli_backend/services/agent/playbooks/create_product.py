@@ -46,6 +46,7 @@ CREATE_PRODUCT_TERMINATION_POLICY: TerminationPolicy = replace(
     max_extensions=1,
     required_steps=(CREATE_PRODUCT_TOOL,),
     terminal_tools=("conclude_without_changes",),
+    finish_after_required_write=True,
 )
 
 CREATE_PRODUCT_PLAYBOOK = Playbook(

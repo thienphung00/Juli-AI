@@ -201,7 +201,7 @@ def _enqueue_poll_shop(shop_id: uuid.UUID) -> str:
     """Imported lazily so the Celery app is not a route import (like ``agent_runs``)."""
     from juli_backend.workers.tasks import shop_ingestion as shop_ingestion_tasks
 
-    return shop_ingestion_tasks.enqueue_poll_shop(str(shop_id))
+    return shop_ingestion_tasks.enqueue_poll_shop(str(shop_id), force_commerce=True)
 
 
 @router.post("/shop/sync", status_code=status.HTTP_202_ACCEPTED)

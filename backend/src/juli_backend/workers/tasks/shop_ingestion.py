@@ -216,7 +216,10 @@ def enqueue_history(
     return async_result.id
 
 
-def enqueue_poll_shop(shop_id: str) -> str:
+def enqueue_poll_shop(shop_id: str, *, force_commerce: bool = False) -> str:
+    """``force_commerce`` (B15): a user-initiated sync bypasses the 60 min commerce interval."""
+    if force_commerce:
+        return poll_shop.delay(shop_id, force_commerce=True).id
     return poll_shop.delay(shop_id).id
 
 
@@ -540,6 +543,7 @@ async def run_poll_shop_task(
     enqueuers: Enqueuers,
     cycle_fn: Callable[..., Awaitable[Any]] | None = None,
     run_kwargs: dict[str, Any] | None = None,
+    force_commerce: bool = False,
 ) -> Any:
     from juli_backend.workers.services.polling.ingestion import run_shop_cycle
     from juli_backend.workers.services.polling.orchestrate import cycle_budget_seconds
@@ -551,6 +555,8 @@ async def run_poll_shop_task(
         async with session_factory() as session:
             kwargs = {"score_fn": score_and_persist_cards, **await collaborators(session)}
             kwargs.update(run_kwargs or {})
+            if force_commerce:
+                kwargs["force_commerce"] = True
             result = await cycle(session=session, shop_id=uuid.UUID(shop_id), **kwargs)
             await session.commit()
             return result
@@ -741,8 +747,8 @@ def shop_history_backfill(
 
 
 @celery_app.task(name=POLL_SHOP_TASK)
-def poll_shop(shop_id: str) -> None:
-    """One scheduled cycle for one shop."""
+def poll_shop(shop_id: str, force_commerce: bool = False) -> None:
+    """One cycle for one shop; ``force_commerce`` is set only by a user-initiated sync (B15)."""
     from juli_backend.workers.services.polling.orchestrate import cycle_budget_seconds
 
     env = _skip_if_unconfigured("poll_shop", shop_id=shop_id)
@@ -756,6 +762,7 @@ def poll_shop(shop_id: str) -> None:
             lock=_redis_lock(env),
             collaborators=_production_collaborators(env),
             enqueuers=Enqueuers(),
+            force_commerce=force_commerce,
         )
 
     _run(

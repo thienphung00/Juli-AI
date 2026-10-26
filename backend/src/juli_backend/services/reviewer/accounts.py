@@ -54,6 +54,9 @@ class ReviewerAccount:
     expires_at: datetime
     revoked_at: datetime | None
     last_session_id: str | None
+    #: P66: when the account was created -- a sandbox reviewer sees only the shop's runs
+    #: from then on (and its own), never the team's older verification runs.
+    created_at: datetime | None = None
 
     def status(self, now: datetime | None = None) -> str:
         if self.revoked_at is not None:
@@ -77,6 +80,7 @@ def _snapshot(row: OpsReviewerAccount) -> ReviewerAccount:
         expires_at=row.expires_at,
         revoked_at=row.revoked_at,
         last_session_id=row.last_session_id,
+        created_at=row.created_at,
     )
 
 
@@ -256,6 +260,49 @@ async def renew_account(
             "platform": snapshot.platform,
             "expires_at": snapshot.expires_at,
         },
+        at=moment,
+    )
+    forget_cached(snapshot.user_id)
+    return snapshot
+
+
+def retired_email(email: str, at: datetime) -> str:
+    """The address a retired account keeps: ``local+retired-<UTC stamp>@domain`` (P67)."""
+    local, _, domain = email.strip().lower().partition("@")
+    return f"{local}+retired-{at.strftime('%Y%m%d%H%M%S')}@{domain}"
+
+
+async def retire_account(
+    session: AsyncSession, email: str, *, by: str, now: datetime | None = None
+) -> ReviewerAccount | None:
+    """Revoke the account and free its e-mail for a fresh one (P67, D75 Q4). Audited; no commit.
+
+    The row is kept (history, audit) under :func:`retired_email`; a new account for the
+    same address then gets a NEW row -- new Supabase user id, new ``created_at`` -- so the
+    sandbox reviewer's run history (P66: its own runs and the shop's runs since its
+    account was created) starts empty.
+    """
+    moment = now or utc_now_naive()
+    async with ops_role(session):
+        row = (
+            await session.execute(
+                select(OpsReviewerAccount).where(OpsReviewerAccount.email == email.strip().lower())
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        before = {"email": row.email, "revoked_at": row.revoked_at}
+        row.email = retired_email(row.email, moment)
+        row.revoked_at = row.revoked_at or moment
+        row.updated_at = moment
+        await session.flush()
+        snapshot = _snapshot(row)
+    await audit.record(
+        session,
+        audit.Actor(staff_id=None, email=by),
+        audit.ACTION_REVIEWER_ACCOUNT_REVOKE,
+        before=before,
+        after={"email": snapshot.email, "platform": snapshot.platform, "revoked_at": moment},
         at=moment,
     )
     forget_cached(snapshot.user_id)
