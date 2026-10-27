@@ -457,6 +457,6 @@ async def test_a_card_groups_seller_sentence_and_primary_do_not_change(session, 
     assert net["primary"]["difference"] == pytest.approx(-37.5, abs=3)
     assert verdict["ops_rule"]["label"] == "AOV (gồm đơn huỷ/hoàn, theo TikTok) · tất cả kênh"
     # The Ops EB pass re-shrinks the net reading too.
-    [view] = card_groups.apply_pooled_eb(await group_views(session, shop.id), [])
+    [view] = card_groups.apply_pooled_eb(await group_views(session, shop.id), [], pooled=True)
     assert view["verdict"]["net"]["primary"]["eb"] is not None
     assert view["seller_sentence"] == sentence_before[group.group_key]

@@ -898,6 +898,9 @@ def handle_inspect_product_image(
         title=str(raw.get("title") or ""),
         description=str(raw.get("description") or ""),
     )
+    if result.get("inspected") is False:
+        # ADR-116 §5: the shop's OpenAI gate refused the photo (no image consent).
+        return InspectProductImageOutput(inspected=False)
     return InspectProductImageOutput(
         verdict=result.get("verdict", "partial"),
         confidence=result.get("confidence", "low"),

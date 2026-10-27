@@ -585,8 +585,11 @@ async def _write_resources_for_leg(
     resume_approved: bool,
     staged_image: bool,
     is_revert: bool,
-) -> tuple[Any, str | None]:
-    """The write resources for this leg, and the pending call id when they are the shop's own.
+) -> tuple[Any, str | None, Any]:
+    """The write resources for this leg, the pending call id when they are the shop's own,
+    and the live leg itself (``composition.AgentWriteLeg``, else ``None``) -- it carries the
+    "before" the shop member approved, which the executor's read-back must still see
+    (ADR-116 §6). A D7 refusal raises ``write_approval.WriteApprovalRefused``: no write.
 
     Fast track P61-F (D71.2). Every leg is on the sandbox merchant (today's
     behaviour) EXCEPT the resume leg of a run whose seller just approved the
@@ -617,13 +620,14 @@ async def _write_resources_for_leg(
             or bool(isinstance(arguments, dict) and arguments.get("attach_staged_image")),
             is_revert=is_revert,
             source_write_mode=source_mode,
+            pending=pending,
         )
         if leg.live:
             run.write_mode = composition_module.WRITE_MODE_LIVE
             await session.commit()
-            return leg.resources, str(pending["call_id"])
+            return leg.resources, str(pending["call_id"]), leg
         run.write_mode = composition_module.WRITE_MODE_SIMULATED
-    return await _default_write_resources(session), None
+    return await _default_write_resources(session), None, None
 
 
 async def _construct_runner(
@@ -697,12 +701,18 @@ async def _construct_runner(
             session, sync_session, run, product, product_detail=_product_detail
         )
     )
+    # ADR-116 §5 (D76): the shop's OpenAI gate for this leg -- its consent per input
+    # kind, read once here -- shared by the model, the image inspector and the
+    # content drafter. Revert and lever-flow legs make no model call.
+    llm_gate = (
+        None if revert_plan or flow else await _open_llm_gate(session, sync_session, run.shop_id)
+    )
     # Fast track P14-E: a content run ("Juli soạn · bạn làm") is the same
     # executor with a deterministic planner that makes the one drafting call.
     content = (
         None
         if revert_plan or flow
-        else await content_driver_module.wiring_for_run(session, run, product)
+        else await content_driver_module.wiring_for_run(session, run, product, llm_gate=llm_gate)
     )
     playbook = (
         run_changes_module.REVERT_LISTING_PLAYBOOK
@@ -722,7 +732,7 @@ async def _construct_runner(
         sync_session, shop_id=run.shop_id, workflow_id=playbook.workflow_key
     )
     read_resources = await _default_read_resources(session, shop_id=run.shop_id)
-    write_resources, live_call = await _write_resources_for_leg(
+    write_resources, live_call, live_leg = await _write_resources_for_leg(
         session,
         run,
         product,
@@ -752,7 +762,7 @@ async def _construct_runner(
         concurrency_guard=concurrency_guard,
         # #1208: without this the inspect step reports inspected=False and the
         # run still completes -- degraded, never broken.
-        image_inspector=composition_module.build_image_inspector(),
+        image_inspector=composition_module.build_image_inspector(llm_gate),
         # #1389: raw product detail from get_product_information, persisted
         # across CONFIRM pause in run.state so update_product_listing can
         # access it on resume without a second vendor call. Retrieved from
@@ -779,6 +789,20 @@ async def _construct_runner(
         ],
         # P65 (D74): a create_promotion run's discount range, from the same opening context.
         discount_rules=run_context_module.opening_shop_rules(run.state).get("discount"),
+        # ADR-116 §6 (D76): a live leg's write must find the approved "before" on the
+        # shop when it reads immediately before writing; a refusal is audited by name.
+        approved_before=live_leg.approved_before if live_leg is not None else None,
+        approved_before_hashes=(live_leg.approved_before_hashes if live_leg is not None else None),
+        approved_tool_name=(
+            str(run.state["pending_confirmation"]["tool_name"]) if live_leg is not None else None
+        ),
+        on_read_back_refused=(
+            run_changes_module.SqlReadBackRefusalAudit(
+                sync_session, shop_id=run.shop_id, workflow_run_id=run.id
+            )
+            if live_leg is not None
+            else None
+        ),
     )
     conversation_store = runner_module.JsonbConversationStore(session)
     # #1890: PersistingEventSink now scopes its own per-emit session from a
@@ -811,7 +835,11 @@ async def _construct_runner(
             else content.planner
             if content
             # P16 (D25.8): Optimize Product's model calls stop over the shop's cap.
-            else await _ops_cap_guarded(session, run.shop_id, _default_llm_service())
+            else await _ops_cap_guarded(
+                session,
+                run.shop_id,
+                composition_module.gated_llm_service(_default_llm_service(), llm_gate),
+            )
         ),
         tool_executor=tool_executor,
         event_sink=event_sink,
@@ -847,6 +875,26 @@ async def _construct_runner(
     if live_call is not None:
         return _LiveLegRunner(leg_runner, session, run_id=run.id, tool_call_id=str(live_call))
     return leg_runner
+
+
+async def _open_llm_gate(session: AsyncSession, sync_session: Session, shop_id: uuid.UUID) -> Any:
+    """The shop's OpenAI gate for one run leg (ADR-116 §5): rows of async calls go on
+    the run's session (committed with the run), the synchronous image inspection's on
+    the ledger session. Wiring tests pass a stand-in session: that gate grants nothing."""
+    from juli_backend.services import llm_gate as llm_gate_module
+
+    if not isinstance(session, AsyncSession):
+        return llm_gate_module.OpenAIGate(shop_id=shop_id, granted=frozenset())
+    return await llm_gate_module.open_gate(
+        session,
+        shop_id,
+        sink=llm_gate_module.SessionCallLog(session),
+        sync_sink=(
+            llm_gate_module.SyncSessionCallLog(sync_session)
+            if isinstance(sync_session, Session)
+            else None
+        ),
+    )
 
 
 async def _ops_cap_guarded(session: AsyncSession, shop_id: uuid.UUID, inner: Any) -> Any:

@@ -111,6 +111,7 @@ from juli_backend.services.agent.tools.product import register_product_read_tool
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
 from juli_backend.services.agent.tools.terminal import register_terminal_tools
 from juli_backend.services.execution.sandbox_guard import load_sandbox_write_resources
+from juli_backend.services.llm_gate import PURPOSE_AGENT_RUN, OpenAIGate
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,14 @@ def build_llm_service() -> LLMService:
     """
     resolve_llm_config()
     return OpenAIResponsesAdapter()
+
+
+def gated_llm_service(llm_service: Any, gate: OpenAIGate | None) -> Any:
+    """The real adapter sending through the run leg's OpenAI gate (ADR-116 §5,
+    purpose ``agent_run``); any other `LLMService` (a test double) as it is."""
+    if isinstance(llm_service, OpenAIResponsesAdapter) and gate is not None:
+        return llm_service.with_gate(gate, purpose=PURPOSE_AGENT_RUN)
+    return llm_service
 
 
 def build_product_tool_registry() -> ToolRegistry:
@@ -425,6 +434,10 @@ class AgentWriteLeg:
     resources: ProductionWriteResources | None
     refusal: str | None = None
     authorization_id: str | None = None
+    #: ADR-116 §6 (D76): on a live leg, the "before" the shop member approved -- the
+    #: executor's read immediately before the write must still equal it.
+    approved_before: Mapping[str, Any] | None = None
+    approved_before_hashes: Mapping[str, str | None] | None = None
 
     @property
     def live(self) -> bool:
@@ -441,6 +454,7 @@ async def resolve_agent_write_leg(
     staged_image: bool = False,
     is_revert: bool = False,
     source_write_mode: str | None = None,
+    pending: Mapping[str, Any] | None = None,
 ) -> AgentWriteLeg:
     """Resolve the write capability for the ONE approved mutation a run resumes with.
 
@@ -465,6 +479,14 @@ async def resolve_agent_write_leg(
 
     A revert of a LIVE run never falls back to the sandbox
     (``RevertLiveWriteUnavailable``).
+
+    ADR-116 §6 (D76, grill D7): before the resolver -- so nothing is consumed -- the
+    run's persisted ``pending`` confirmation must carry a valid shop-member approval
+    (``write_approval.verify_write_approval``: a member's clicks, younger than 72 h,
+    the exact approved arguments and card snapshot). A refusal is audited by name and
+    raises ``write_approval.WriteApprovalRefused``: the run ends and NOTHING is
+    written, not even to the sandbox (an expired approval also sends the card back to
+    pending). The verified "before" rides on the live leg for the executor's read-back.
     """
     from juli_backend.services.execution.production_write import (
         is_production_capability,
@@ -517,6 +539,36 @@ async def resolve_agent_write_leg(
         )
         return _sandbox(refusal.value)
 
+    from juli_backend.services.agent.write_approval import (
+        WriteApprovalRefused,
+        verify_write_approval,
+    )
+
+    try:
+        approved = await verify_write_approval(
+            session, shop_id=shop_id, run_id=run_id, tool_name=tool_name, pending=pending
+        )
+    except WriteApprovalRefused as refused:
+        await record_refused_attempt(
+            session,
+            run_id=run_id,
+            shop_id=shop_id,
+            tiktok_product_id=tiktok_product_id,
+            mutation_kind=tool_name,
+            precondition=PreconditionName(refused.reason),
+        )
+        await session.commit()
+        logger.warning(
+            "agent_production_write_refused",
+            extra={
+                "shop_id": str(shop_id),
+                "run_id": str(run_id),
+                "tool_name": tool_name,
+                "reason": refused.reason,
+            },
+        )
+        raise
+
     try:
         capability = await resolve_write_capability(
             session,
@@ -545,7 +597,10 @@ async def resolve_agent_write_leg(
     if not isinstance(resources, ProductionWriteResources):  # pragma: no cover - invariant
         raise RuntimeError("a production capability must build production write resources")
     return AgentWriteLeg(
-        resources=resources, authorization_id=str(capability.get("authorization_id"))
+        resources=resources,
+        authorization_id=str(capability.get("authorization_id")),
+        approved_before=approved.before,
+        approved_before_hashes=approved.before_hashes,
     )
 
 
@@ -598,7 +653,7 @@ def write_mode_of(resources: object) -> str:
     return WRITE_MODE_SIMULATED
 
 
-def build_image_inspector():
+def build_image_inspector(gate: OpenAIGate | None = None):
     """The vision collaborator `inspect_product_image` uses (issue #1208).
 
     Model is `LLM_VISION_MODEL`, defaulting to the orchestrator's own model:
@@ -608,8 +663,9 @@ def build_image_inspector():
     change -- measured on three real products, nano and mini each surfaced a
     finding the other missed, which is too close to hardcode.
 
-    Returns `None` when no API key is configured, which the handler reports as
-    `inspected=False`. A missing inspection is a missing finding, never a
+    Returns `None` when no API key is configured or no shop gate is given (ADR-116
+    §5: every call goes through the shop's `OpenAIGate`), which the handler reports
+    as `inspected=False`. A missing inspection is a missing finding, never a
     failed run.
     """
     import os
@@ -617,13 +673,12 @@ def build_image_inspector():
     from juli_backend.services.agent.vision import InspectionConfig
     from juli_backend.services.agent.vision import build_image_inspector as _build
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
+    if gate is None or not os.environ.get("OPENAI_API_KEY"):
         return None
     from juli_backend.services.agent.llm.config import DEFAULT_MODEL
 
     return _build(
-        api_key=api_key,
+        gate=gate,
         config=InspectionConfig(
             model=os.environ.get("LLM_VISION_MODEL", DEFAULT_MODEL),
             language=os.environ.get("LLM_VISION_LANGUAGE", "Vietnamese"),

@@ -98,6 +98,17 @@ class CalibrationStats:
     results: int = 0
 
 
+#: D14 (owner, 2026-10-27): the fleet level's wider cell -- every lever pooled -- used for
+#: a lever whose own fleet cell is too thin (``lever_flows.measurement.
+#: pool_fleet_calibration``).
+FLEET_ALL_LEVERS = "*"
+
+
+def fleet_stats_for(fleet: Mapping[str, CalibrationStats], lever: str) -> CalibrationStats | None:
+    """The lever's fleet level: its own pooled cell, else the all-levers cell, else None."""
+    return fleet.get(lever) or fleet.get(FLEET_ALL_LEVERS)
+
+
 def blended_factor(
     shop: CalibrationStats | None, fleet: CalibrationStats | None
 ) -> tuple[float, str]:
@@ -171,6 +182,7 @@ def gmv_range_per_month(
 
 
 __all__ = [
+    "FLEET_ALL_LEVERS",
     "MIN_SHOP_RESULTS",
     "PRIOR_LIFT",
     "SHRINKAGE_K",
@@ -178,6 +190,7 @@ __all__ = [
     "Prediction",
     "blended_factor",
     "calibration_factor",
+    "fleet_stats_for",
     "gap_bucket",
     "gmv_range_per_month",
     "predict",

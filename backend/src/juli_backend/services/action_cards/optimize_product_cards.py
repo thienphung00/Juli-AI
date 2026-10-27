@@ -590,14 +590,21 @@ async def quick_card_evidence(
 async def calibration_stats(
     session: AsyncSession, shop_id: uuid.UUID
 ) -> tuple[dict[str, CalibrationStats], dict[str, CalibrationStats]]:
-    """(shop, fleet) lever -> measured coefficient and result count (D30.3)."""
+    """(shop, fleet) lever -> measured coefficient and result count (D30.3).
+
+    The fleet level pools the consenting shops only and only a consenting shop receives
+    it (D11 / D17: neither borrow nor lend). D14: a lever with too few contributors falls
+    back to the all-levers cell ``"*"``, else is absent. Both callers persist what they
+    plan (cards), so the contributing set is recorded for this shop (D15,
+    ``pooled_contributor_sets``).
+    """
     from juli_backend.services.lever_flows.measurement import (
         fleet_calibration_stats,
         shop_calibration_stats,
     )
 
     shop = await shop_calibration_stats(session, shop_id)
-    fleet = await fleet_calibration_stats(session)
+    fleet = await fleet_calibration_stats(session, applied_shop_id=shop_id)
     return (
         {k: CalibrationStats(float(c), n) for k, (c, n) in shop.items()},
         {k: CalibrationStats(float(c), n) for k, (c, n) in fleet.items()},

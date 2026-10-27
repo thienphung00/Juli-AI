@@ -34,6 +34,7 @@ from tests.integration.llm_recorded_replay import (
     load_recorded_exchange,
     recorded_llm_transport,
 )
+from tests.support.consent import granted_gate
 
 REPLAY_API_KEY = "test-key-never-leaves-the-replay-transport"
 
@@ -62,7 +63,7 @@ def _registry_tool_definitions():
 async def _complete_through_replay(captured=None):
     exchange = load_recorded_exchange()
     transport = recorded_llm_transport(exchange, captured=captured)
-    adapter = OpenAIResponsesAdapter(transport=transport)
+    adapter = OpenAIResponsesAdapter(gate=granted_gate(), transport=transport)
     with patch.dict(os.environ, {"OPENAI_API_KEY": REPLAY_API_KEY}):
         return await adapter.complete(
             messages=[
@@ -119,8 +120,14 @@ class TestRecordedToolCallRoundTrip:
             # nothing to propose for — which is what makes tool_choice="required"
             # safe on the forced retry.
             "conclude_without_changes",
+            # Registered since this list was written (it was red on the base before
+            # the ADR-116 §5 gate change touched this file): the promotion lookup
+            # (P65), the diagnosis read and the shop-identity READ tool.
+            "find_product_promotions",
+            "get_product_diagnoses",
             "get_product_information",
             "get_seo_keywords",
+            "get_shop_identity",
             # #1208: the image step became a READ inspection. upload stays
             # registered for the future generation capability.
             "inspect_product_image",
@@ -199,7 +206,7 @@ class TestFixtureShape:
             }
         }
         transport = recorded_llm_transport(exchange)
-        adapter = OpenAIResponsesAdapter(transport=transport)
+        adapter = OpenAIResponsesAdapter(gate=granted_gate(), transport=transport)
 
         async def run():
             with patch.dict(os.environ, {"OPENAI_API_KEY": REPLAY_API_KEY}):

@@ -411,8 +411,16 @@ export interface CardGroupEb {
   readonly shrunk_pct: number;
   /** 90 % interval of the shrunk lift, %. */
   readonly interval_pct: readonly [number, number];
-  /** "default": N(0, sd²); "pooled": DerSimonian–Laird over n_groups measured groups (one per shop). */
-  readonly prior: { readonly source: "default" | "pooled"; readonly mean: number; readonly tau: number; readonly n_groups: number };
+  /** "default": N(0, sd²); "pooled": DerSimonian–Laird over n_groups measured groups (one per shop),
+   * from the D14 cell "lever_type" (lever × metric × channel) or the wider "metric_channel";
+   * "own": the shop has no pooled_training grant and borrows nothing. */
+  readonly prior: {
+    readonly source: "default" | "pooled" | "own";
+    readonly mean: number;
+    readonly tau: number;
+    readonly n_groups: number;
+    readonly cell?: "lever_type" | "metric_channel";
+  };
 }
 
 /** Median change treated − control (points of %), its 90 % (P31; 80 % before) bootstrap interval and wording. */

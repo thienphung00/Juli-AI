@@ -572,20 +572,36 @@ async def test_calibration_and_reasons_reorder_the_ranking(session, shop_a):
             updated_at=datetime(2026, 10, 1),
         )
     )
-    # The fleet level counts only shops holding pooled_training (ADR-116 §3, D76):
-    # this test is about the fleet-level factor, so the shop opts in.
+    # The fleet level counts only shops holding pooled_training (ADR-116 §3, D76) and,
+    # D14, needs ≥ 5 of them with none over half the results: this test is about the
+    # fleet-level factor, so the shop and five synthetic peers with the same reading opt in.
+    # The peers also measured the cover image at the neutral 0.5: its own fleet cell
+    # (factor 1) then wins over the all-levers fallback, so only the description moves.
     from juli_backend.services.consent import grant_consent
 
-    await grant_consent(
-        session,
-        shop_a.id,
-        scope="pooled_training",
-        method="contract_paper",
-        terms_version="test",
-        evidence_ref="test",
-        granted_by="test",
-        granted_at=datetime(2026, 9, 30),
-    )
+    peers = [(await make_tenant(session))[1] for _ in range(5)]
+    for peer in peers:
+        for lever, coefficient in (("description", "0.25"), ("cover_image", "0.5")):
+            session.add(
+                LeverCalibration(
+                    shop_id=peer.id,
+                    lever=lever,
+                    coefficient=Decimal(coefficient),
+                    readings=2,
+                    updated_at=datetime(2026, 10, 1),
+                )
+            )
+    for shop_id in (shop_a.id, *(p.id for p in peers)):
+        await grant_consent(
+            session,
+            shop_id,
+            scope="pooled_training",
+            method="contract_paper",
+            terms_version="test",
+            evidence_ref="test",
+            granted_by="test",
+            granted_at=datetime(2026, 9, 30),
+        )
     await session.flush()
     calibrated = await plan_optimize_product_cards(session, shop_a.id, now=COMPUTED_AT)
     assert calibrated is not None
@@ -600,7 +616,7 @@ async def test_calibration_and_reasons_reorder_the_ranking(session, shop_a):
     # The shown estimate stays the rule-based one (D22 label honest).
     assert payload["recoverable_gmv_per_day"] == pytest.approx(float(first.recoverable_gmv_per_day))
     # D30.3 (P23): the ranking applies the shrunk calibration factor of the
-    # Performance Prediction (2 results < 5: fleet level, pulled toward 1) and the
+    # Performance Prediction (the shop's 2 results < 5: fleet level, pulled toward 1) and the
     # Quality-Score weight, not the raw D24.6 factor.
     from juli_backend.services.optimize_product.quality_score import lever_weight
 

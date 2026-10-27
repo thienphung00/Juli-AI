@@ -2,7 +2,7 @@
 
 from juli_backend.models.card_events import CardEvent
 from juli_backend.models.card_groups import CardGroup, CardGroupMember
-from juli_backend.models.consent import DataUseConsent
+from juli_backend.models.consent import DataUseConsent, PooledContributorSet
 from juli_backend.models.content_analysis import ContentAnalysis
 from juli_backend.models.decision_reasons import DecisionReason
 from juli_backend.models.history import (
@@ -26,6 +26,7 @@ from juli_backend.models.lever_flows import (
     RunLeverPhoto,
     RunMeasurementFinal,
 )
+from juli_backend.models.llm_call_log import LLMCallLog
 from juli_backend.models.models import *  # noqa: F403
 from juli_backend.models.ops import (
     OpsAuditLog,
@@ -98,5 +99,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     TrialSignup,
     CardEvent,
     DataUseConsent,
+    PooledContributorSet,
     ShopPseudonymKey,
+    LLMCallLog,
 )

@@ -4,9 +4,12 @@
   ``w·y + (1 − w)·μ`` with ``w = τ² / (τ² + se²)``: toward the prior when the SE is
   large, ≈ the raw lift when it is small.
 - The prior is per lever type: DerSimonian–Laird over ≥ 3 draws (one per shop, a
-  shop's groups combined first), leave-one-out; below that the default N(0, 0.15²).
+  shop's groups combined first), leave-one-out; below that the default N(0, 0.15²). In
+  the Ops view a pooled cell also needs D14's ≥ 5 contributing shops, none over 50 %
+  (``test_pooled_cells.py``), else the wider metric × channel cell, else the default.
 - The verdict stores ``primary.eb`` (default prior); the Ops groups page re-shrinks
-  with the pooled prior and returns aggregates only; the label, the strength and the
+  with the pooled prior (of shops with ``pooled_training``, D76 / D11 -- see
+  ``test_ops_pooled_consent.py``) and returns aggregates only; the label, the strength and the
   seller's sentence never change, and no seller route reads the cross-shop draws.
 
 Synthetic fixtures only (no shop data).
@@ -256,20 +259,26 @@ def _eb_draws(lever: str, values: list[tuple[str, str, float]]) -> list[EbDraw]:
 
 
 def test_apply_pooled_eb_uses_the_lever_types_prior_and_reports_it():
-    draws = _eb_draws("cover_image", [("s1", "g1", 2.0), ("s2", "g2", 3.0), ("s3", "g3", 4.0)])
+    # Five consenting shops (D14's floor), none over half of the cell's draws.
+    values = [("s1", "g1", 2.0), ("s2", "g2", 3.0), ("s3", "g3", 4.0)]
+    values += [("s4", "g4", 2.5), ("s5", "g5", 3.5)]
+    draws = _eb_draws("cover_image", values)
     draws += _eb_draws("title", [("s1", "t1", -20.0)])
     view = _view("me", "cover_image", 40.0)
-    [out] = apply_pooled_eb([view], draws, min_groups=3)
+    [out] = apply_pooled_eb([view], draws, pooled=True, min_groups=3)
     eb = out["verdict"]["primary"]["eb"]
-    assert eb["prior"]["source"] == PRIOR_POOLED and eb["prior"]["n_groups"] == 3
+    assert eb["prior"]["source"] == PRIOR_POOLED and eb["prior"]["n_groups"] == 5
+    assert eb["prior"]["cell"] == "lever_type"
     # A noisy +40 % pulled hard toward the ≈ +3 % the other shops' groups showed.
     assert eb["shrunk_pct"] < 10.0
     assert view["verdict"]["primary"].get("eb") is None  # the input is not mutated
-    # Another lever type has one draw only: the default prior.
-    [title] = apply_pooled_eb([_view("me2", "title", 40.0)], draws, min_groups=3)
-    assert title["verdict"]["primary"]["eb"]["prior"]["source"] == PRIOR_DEFAULT
-    # min_groups is honoured.
-    [strict] = apply_pooled_eb([view], draws, min_groups=4, default_sd=0.3)
+    # Another lever type has one draw only: its own cell is short, so the wider
+    # metric × channel cell (every lever on CTR · total, the same five shops) is used.
+    [title] = apply_pooled_eb([_view("me2", "title", 40.0)], draws, pooled=True, min_groups=3)
+    wide = title["verdict"]["primary"]["eb"]["prior"]
+    assert (wide["source"], wide["cell"], wide["n_groups"]) == (PRIOR_POOLED, "metric_channel", 5)
+    # min_groups is honoured (in both cells: five shops < 6 -> the default).
+    [strict] = apply_pooled_eb([view], draws, pooled=True, min_groups=6, default_sd=0.3)
     assert strict["verdict"]["primary"]["eb"]["prior"] == {
         "source": PRIOR_DEFAULT,
         "mean": 0.0,
@@ -283,14 +292,14 @@ def test_apply_pooled_eb_covers_every_metric_and_leaves_the_group_out():
     aov = {"metric": "aov", "channel": "total", "primary": _comparison(15.0)}
     view = _view("me", "pack_option", 20.0, metrics={"aov|total": aov})
     view["verdict"]["ops_rule"] = {"primary": _comparison(18.0)}
-    [out] = apply_pooled_eb([view], draws, min_groups=3)
-    # Its own draw is left out: 2 draws remain, below 3 -> the default prior.
+    [out] = apply_pooled_eb([view], draws, pooled=True, min_groups=3)
+    # Its own draw is left out: 2 shops remain, below D14's 5 -> the default prior.
     assert out["verdict"]["primary"]["eb"]["prior"]["source"] == PRIOR_DEFAULT
     assert out["verdict"]["ops_rule"]["primary"]["eb"]["prior"]["source"] == PRIOR_DEFAULT
     assert out["verdict"]["metrics"]["aov|total"]["primary"]["eb"] is not None
     # No verdict yet: the view is returned as it is.
     bare = {"id": "x", "lever": "pack_option", "metric": "ctr", "channel": "total", "verdict": None}
-    assert apply_pooled_eb([bare], draws) == [bare]
+    assert apply_pooled_eb([bare], draws, pooled=True) == [bare]
 
 
 # =========================================================================== with the DB
@@ -298,8 +307,9 @@ def test_apply_pooled_eb_covers_every_metric_and_leaves_the_group_out():
 
 @pytest_asyncio.fixture
 async def shops(session):
+    """Six synthetic shops: the viewed one and five others (D14 needs ≥ 5 contributors)."""
     out = []
-    for _ in range(4):
+    for _ in range(6):
         _user, shop = await make_tenant(session)
         out.append(shop)
     return out
@@ -321,9 +331,31 @@ def _measured(shop_id: uuid.UUID, verdict: dict, *, lever: str = "cover_image") 
     )
 
 
-async def _seed_groups(session, shops) -> CardGroup:
-    """Three other shops with a measured cover-image group (≈ +3 %), and ours (+40 %)."""
-    for shop, diff in zip(shops[1:], (2.0, 3.0, 4.0), strict=True):
+async def grant_pooling(session, shop_id: uuid.UUID) -> None:
+    """D76 / D11: the shop opts into pooling (synthetic evidence)."""
+    from juli_backend.services.consent.grants import grant_consent
+
+    await grant_consent(
+        session,
+        shop_id,
+        scope="pooled_training",
+        method="contract_paper",
+        terms_version="synthetic-terms-01",
+        evidence_ref="synthetic/contract.pdf",
+        granted_by="Synthetic Director",
+    )
+
+
+async def _seed_groups(session, shops, *, pooling: bool = True) -> CardGroup:
+    """Five other shops with a measured cover-image group (≈ +3 %), and ours (+40 %).
+
+    ``pooling``: every shop holds an open ``pooled_training`` grant (D76 / D11), so the
+    cross-shop draws (migration 107) include them.
+    """
+    if pooling:
+        for shop in shops:
+            await grant_pooling(session, shop.id)
+    for shop, diff in zip(shops[1:], (2.0, 3.0, 4.0, 2.5, 3.5), strict=True):
         session.add(_measured(shop.id, {"primary": _comparison(diff)}))
     mine = _measured(
         shops[0].id, build_verdict(_rows(12, 3, seed=11, lift=0.4), seed=7, as_of=AS_OF)
@@ -386,7 +418,7 @@ async def test_the_ops_route_shrinks_with_the_pooled_prior_and_shows_aggregates_
     text = response.text
     [group] = response.json()["groups"]
     eb = group["verdict"]["primary"]["eb"]
-    assert eb["prior"]["source"] == PRIOR_POOLED and eb["prior"]["n_groups"] == 3
+    assert eb["prior"]["source"] == PRIOR_POOLED and eb["prior"]["n_groups"] == 5
     assert eb["shrunk_pct"] < stored["primary"]["eb"]["shrunk_pct"]  # pulled to ≈ +3 %
     # Raw numbers, label, strength: as stored.
     for field in ("difference", "interval", "label", "strength"):

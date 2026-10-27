@@ -561,8 +561,22 @@ async def _groups_body(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, A
     migration 093) that ``_shop`` already opens -- one statement more -- then the shop's
     own groups under its tenant scope. Only aggregates of the other shops' groups (prior
     mean, spread, number of shops) reach the response.
+
+    D76 / D11 / D17 (ADR-116 §3): the draws are only of shops holding an open
+    ``pooled_training`` grant (migration 107), and a viewed shop without one borrows
+    nothing -- its comparisons use its own data (prior ``own``; Ops says so). D14 picks
+    the cell (``apply_pooled_eb``). D15: this is a query-time figure (nothing is stored),
+    so the contributing set is logged (``pooled_contributor_set``, shop ids only).
     """
+    from juli_backend.models.consent import POOLED_TRAINING
     from juli_backend.services.action_cards import card_groups, group_views
+    from juli_backend.services.consent import (
+        FIGURE_OPS_GROUP_PRIOR,
+        CellCheck,
+        contributing_set,
+        has_consent,
+        log_contributing_set,
+    )
     from juli_backend.services.shop_rules import diag_tunables
 
     async with ops_role(session) as block:
@@ -574,12 +588,22 @@ async def _groups_body(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, A
     ):
         tunables = await diag_tunables(session, shop_id)
         groups = await group_views(session, shop_id, tunables=tunables)
+        pooled = await has_consent(session, shop_id, POOLED_TRAINING)
+    used: dict[str, CellCheck] = {}
     groups = card_groups.apply_pooled_eb(
         groups,
         draws,
+        pooled=pooled,
         min_groups=tunables.group_eb_min_groups,
         default_sd=tunables.group_eb_prior_sd,
+        used_cells=used,
     )
+    if used:
+        log_contributing_set(
+            contributing_set(FIGURE_OPS_GROUP_PRIOR, list(used.values())),
+            applied_shop_id=shop_id,
+            persisted=False,
+        )
     return {"enabled": tunables.groups_enabled, "groups": groups}
 
 

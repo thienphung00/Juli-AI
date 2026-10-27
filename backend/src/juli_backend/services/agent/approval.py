@@ -116,8 +116,13 @@ from juli_backend.services.action_cards.subjects import (
     subject_product_ref,
 )
 from juli_backend.services.agent import playbooks as playbooks_module
+from juli_backend.services.agent import write_approval as write_approval_module
 
 Clock = Callable[[], datetime]
+
+#: ADR-116 §6 (D76): raised before anything is read or written when the approver does
+#: not belong to the shop; re-exported so the route maps it next to the others.
+ApproverNotShopMember = write_approval_module.ApproverNotShopMember
 
 
 def _default_clock() -> datetime:
@@ -557,7 +562,9 @@ async def approve_action_card(
     authorizes, all on `session` -- see module docstring for the exact step
     order and the "no commit here" contract. Raises `ActionCardNotFound`,
     `ActionCardNotActive`, `WorkflowNotExecutable`, or
-    `CardSubjectNotApprovable` for the four fail-closed conditions; the caller
+    `CardSubjectNotApprovable` for the four fail-closed conditions, and
+    `ApproverNotShopMember` when the user does not belong to the shop (ADR-116
+    §6, checked first); the caller
     is responsible for translating those (and any `IntegrityError` its own
     `session.commit()` raises) to HTTP responses and for calling
     `session.rollback()` in every failure branch.
@@ -567,6 +574,12 @@ async def approve_action_card(
     shop's products, the most recent card, or any other card.
     """
     clock = now or _default_clock
+
+    # ADR-116 §6 (D76, grill D7): only a user who belongs to this shop may approve a
+    # change to it -- checked here, not only by RLS (a reviewer request runs under the
+    # pinned shop's owner GUC). D73: the partner reviewer approves only its writable
+    # sandbox pin. Before any read or write, so a refusal changes nothing.
+    await write_approval_module.approver_kind(session, shop_id=shop_id, user_id=approved_by_user_id)
 
     try:
         card = await ActionCardsRepo(session).get(shop_id, action_card_id)

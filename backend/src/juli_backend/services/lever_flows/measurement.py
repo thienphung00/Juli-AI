@@ -50,6 +50,7 @@ description, cover image) or whose Seller Center promotion Juli verified:
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -57,7 +58,8 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.consent import DataUseConsent
@@ -79,14 +81,18 @@ from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue
 from juli_backend.services import shop_rules
 from juli_backend.services.change_strength import change_strength
+from juli_backend.services.consent.pooling import CellCheck, check_cell
 from juli_backend.services.optimize_product.kpi_channel import (
     CHANNEL_METRICS,
     CHANNEL_TOTAL,
     CONTENT_TYPE,
     measured_on_vi,
 )
+from juli_backend.services.optimize_product.prediction import FLEET_ALL_LEVERS
 from juli_backend.services.run_changes.default_bands import default_bands, effective_bands
 from juli_backend.services.shop_rules.diag_tunables import diag_tunables
+
+logger = logging.getLogger(__name__)
 
 STAGE_WAITING = "waiting"
 STAGE_DAY7 = "day7"
@@ -530,45 +536,160 @@ async def shop_calibration_stats(
 POOLED_TRAINING_SCOPE = "pooled_training"
 
 
-async def fleet_calibration_stats(session: AsyncSession) -> dict[str, tuple[Decimal, int]]:
-    """lever -> (results-weighted mean coefficient, results) over the pooled shops it sees.
+@dataclass(frozen=True)
+class FleetDraw:
+    """One consenting shop's stored calibration of one lever (a fleet-level draw)."""
 
-    D30.3's fleet level, restricted (ADR-116 §3, D76) to shops holding an open
-    ``pooled_training`` consent: the shop's calibration row counts only while an
-    unrevoked grant exists for that shop, decided in the query so it holds under
-    any session. Under a shop-scoped session (row-level security) both
-    ``lever_calibrations`` and ``data_use_consents`` show only that shop, so the
-    fleet level is the shop's own numbers when it has consented and empty when
-    it has not (the prior / shop level is then used) -- never another shop's,
-    never an error. Under a privileged (BYPASSRLS) session it is every consenting
-    shop. No consent rows at all means an empty result (fail closed).
+    shop_id: str
+    lever: str
+    coefficient: Decimal
+    readings: int
+
+
+def pool_fleet_calibration(
+    draws: Iterable[FleetDraw],
+) -> tuple[dict[str, tuple[Decimal, int]], list[CellCheck]]:
+    """D14 over the fleet draws: lever -> (results-weighted mean, results), and the cells used.
+
+    Weight = day-14 results (``readings``), the unit the fleet mean already weights by.
+    Per lever the cell ``lever:<code>`` is used when ≥ 5 consenting shops contribute and
+    none holds more than 50 % of its results (``services.consent.pooling``). The wider
+    cell ``all_levers`` -- every lever pooled, keyed :data:`FLEET_ALL_LEVERS` -- is
+    returned when it passes too; a lever with neither has no fleet level (the shop
+    level / the prior, D30.3). Pure.
     """
-    pooled = (
-        select(DataUseConsent.id)
-        .where(
-            DataUseConsent.shop_id == LeverCalibration.shop_id,
-            DataUseConsent.scope == POOLED_TRAINING_SCOPE,
-            DataUseConsent.revoked_at.is_(None),
-        )
-        .exists()
-    )
-    rows = (
-        await session.execute(
-            select(
-                LeverCalibration.lever,
-                func.sum(LeverCalibration.coefficient * LeverCalibration.readings),
-                func.sum(LeverCalibration.readings),
-            )
-            .where(LeverCalibration.readings > 0, pooled)
-            .group_by(LeverCalibration.lever)
-        )
-    ).all()
+    rows = [d for d in draws if d.readings > 0]
+    by_lever: dict[str, list[FleetDraw]] = {}
+    for d in rows:
+        by_lever.setdefault(d.lever, []).append(d)
     out: dict[str, tuple[Decimal, int]] = {}
-    for lever, weighted, readings in rows:
-        if not readings:
-            continue
-        out[str(lever)] = (Decimal(str(weighted)) / Decimal(int(readings)), int(readings))
-    return out
+    used: list[CellCheck] = []
+
+    def _pool(key: str, cell_rows: list[FleetDraw]) -> tuple[Decimal, int] | None:
+        weights: dict[str, float] = {}
+        for d in cell_rows:
+            weights[d.shop_id] = weights.get(d.shop_id, 0.0) + d.readings
+        check = check_cell(key, weights)
+        if not check.active:
+            return None
+        used.append(check)
+        readings = sum(d.readings for d in cell_rows)
+        weighted = sum((d.coefficient * d.readings for d in cell_rows), Decimal(0))
+        return weighted / Decimal(readings), readings
+
+    for lever, cell_rows in sorted(by_lever.items()):
+        pooled = _pool(f"lever:{lever}", cell_rows)
+        if pooled is not None:
+            out[lever] = pooled
+    wide = _pool("all_levers", rows) if rows else None
+    if wide is not None:
+        out[FLEET_ALL_LEVERS] = wide
+    return out, used
+
+
+async def _fleet_draws(session: AsyncSession) -> list[FleetDraw]:
+    """Every consenting shop's calibration rows (migration 107). Inside ``ops_role``.
+
+    Postgres: ``public.ops_fleet_calibration_draws()`` (SECURITY DEFINER, EXECUTE to
+    ``juli_ops`` only), so a shop-scoped caller sees the other consenting shops' rows.
+    SQLite (unit tests) has no RLS or roles: the same rows straight from the tables.
+    """
+    from juli_backend.services.ops.access import is_sqlite
+
+    if is_sqlite(session):
+        pooled = (
+            select(DataUseConsent.id)
+            .where(
+                DataUseConsent.shop_id == LeverCalibration.shop_id,
+                DataUseConsent.scope == POOLED_TRAINING_SCOPE,
+                DataUseConsent.revoked_at.is_(None),
+            )
+            .exists()
+        )
+        result = await session.execute(
+            select(
+                LeverCalibration.shop_id,
+                LeverCalibration.lever,
+                LeverCalibration.coefficient,
+                LeverCalibration.readings,
+            ).where(LeverCalibration.readings > 0, pooled)
+        )
+    else:
+        result = await session.execute(
+            text(
+                "SELECT out_shop_id, out_lever, out_coefficient, out_readings "
+                "FROM public.ops_fleet_calibration_draws()"
+            )
+        )
+    return [
+        FleetDraw(str(shop), str(lever), Decimal(str(coef)), int(readings or 0))
+        for shop, lever, coef, readings in result.all()
+    ]
+
+
+async def fleet_calibration_stats(
+    session: AsyncSession, *, applied_shop_id: uuid.UUID | None = None
+) -> dict[str, tuple[Decimal, int]]:
+    """lever -> (results-weighted mean coefficient, results) at the fleet level (D30.3).
+
+    ADR-116 §3, D76 / D11 / D17: only shops holding an open ``pooled_training`` grant
+    contribute (``ops_fleet_calibration_draws()``, migration 107, read as ``juli_ops``
+    so it holds under one shop's tenant scope), and only they receive it: a non-
+    consenting ``applied_shop_id`` gets an empty fleet level (its own shop level / the
+    prior, D30.3) -- neither borrow nor lend. D14 (:func:`pool_fleet_calibration`): a
+    lever's cell needs ≥ 5 contributing shops and no shop over 50 % of its results, else
+    the wider all-levers cell (:data:`FLEET_ALL_LEVERS`), else nothing -- no consent rows
+    at all means an empty result (fail closed).
+
+    D15: ``applied_shop_id`` names the shop whose persisted run uses the figure (the
+    nightly card plan); when a cell is used, the contributing set is written to
+    ``pooled_contributor_sets`` in the same ``juli_ops`` block. A login role that may
+    not become ``juli_ops``, or any database error in that block, gets an empty fleet
+    level (logged, savepoint rolled back), never an aborted run.
+    """
+    from juli_backend.services.consent import has_consent
+    from juli_backend.services.consent.pooling import (
+        FIGURE_FLEET_CALIBRATION,
+        contributing_set,
+        record_contributing_set,
+    )
+    from juli_backend.services.ops.access import OpsRoleMissing, is_sqlite, ops_role
+
+    if applied_shop_id is not None and not await has_consent(
+        session, applied_shop_id, POOLED_TRAINING_SCOPE
+    ):
+        return {}
+
+    async def _compute() -> dict[str, tuple[Decimal, int]]:
+        async with ops_role(session):
+            fleet, used = pool_fleet_calibration(await _fleet_draws(session))
+            if used and applied_shop_id is not None:
+                await record_contributing_set(
+                    session,
+                    contributing_set(FIGURE_FLEET_CALIBRATION, used),
+                    applied_shop_id=applied_shop_id,
+                )
+        return fleet
+
+    if is_sqlite(session):
+        return await _compute()
+    try:
+        # A savepoint: a refused role switch, a missing function (code ahead of migration
+        # 107) or a failed audit write must not abort the caller's transaction. Either way
+        # the fleet level is empty -- never a pooled figure without its record (D15).
+        async with session.begin_nested():
+            return await _compute()
+    except (OpsRoleMissing, DBAPIError) as exc:
+        logger.warning(
+            "fleet_calibration_unavailable shop_id=%s error=%s",
+            applied_shop_id,
+            type(exc).__name__,
+            extra={
+                "shop_id": str(applied_shop_id) if applied_shop_id else None,
+                "error_type": type(exc).__name__,
+            },
+        )
+        return {}
 
 
 async def _update_calibration(
@@ -1214,7 +1335,9 @@ __all__ = [
     "channel_rows",
     "current_calibration",
     "day14_strength",
+    "FleetDraw",
     "fleet_calibration_stats",
+    "pool_fleet_calibration",
     "shop_calibration_stats",
     "shop_band_defaults",
     "shop_calibrations",

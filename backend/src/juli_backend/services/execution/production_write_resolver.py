@@ -62,6 +62,15 @@ class PreconditionName(str, Enum):
     # Fast track P64 (D73 Q6 layer 2): a partner reviewer request never resolves
     # to a seller's own shop; refused before any authorization is looked up.
     REVIEWER_SESSION = "reviewer_session"
+    # ADR-116 §6 (D76, grill D7): the shop member's approval the write must carry,
+    # checked BEFORE the resolver (so nothing is consumed) by
+    # ``services/agent/write_approval.verify_write_approval``, except the read-back,
+    # which the executor checks immediately before the vendor call.
+    NO_SHOP_MEMBER_APPROVAL = "no_shop_member_approval"
+    APPROVER_NOT_SHOP_MEMBER = "approver_not_shop_member"
+    APPROVAL_EXPIRED = "approval_expired"
+    APPROVAL_SNAPSHOT_MISMATCH = "approval_snapshot_mismatch"
+    READ_BACK_CHANGED = "read_back_changed"
 
 
 @dataclass
@@ -476,13 +485,16 @@ async def _record_production_write_audit(
         precondition_name: name of failing precondition if refused, NULL if allowed
         release_sha: deployed release SHA
     """
-    from juli_backend.models.models import ProductionWriteAudit
+    from juli_backend.models.models import WRITE_PLATFORM_TIKTOK, ProductionWriteAudit
 
     audit_entry = ProductionWriteAudit(
         id=uuid.uuid4(),
         run_id=run_id,
         shop_id=shop_id,
         tiktok_product_id=tiktok_product_id,
+        # ADR-116 §6 (migration 106): the old column and the per-platform pair, both.
+        platform=WRITE_PLATFORM_TIKTOK,
+        platform_product_id=tiktok_product_id,
         mutation_kind=mutation_kind,
         authorization_id=authorization_id,
         precondition_name=precondition_name,

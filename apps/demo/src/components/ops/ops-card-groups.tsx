@@ -21,6 +21,12 @@ import { C, card } from "./ops-shell";
  * groups of the same lever type (a winner's-curse guard), with the prior it used. The
  * seller's sentence and the verdict label do not change.
  *
+ * D76 / D11 (ADR-116 §3): only shops that opted into pooling ("pooled_training") feed the
+ * prior; a shop that did not reads "chỉ dữ liệu của shop này" and borrows no other shop's groups.
+ * D14 (owner, 2026-10-27): a pooled cell needs ≥ 5 contributing shops with none over 50 % — the
+ * lever type, else every lever on the same metric × channel ("theo n shop, mọi loại thay đổi cùng
+ * chỉ số"), else the default prior.
+ *
  * P46 (D55.1, Ops only): TikTok's GMV includes cancelled and refunded orders. When the shop's
  * orders cover the days read, AOV / items per order are read net ("đã trừ huỷ/hoàn") with the
  * TikTok-GMV reading beside them ("gồm huỷ/hoàn"); otherwise the label says the numbers include
@@ -68,10 +74,20 @@ export function comparisonText(c: CardGroupComparison | null | undefined): strin
 /** P45 (D52): the one-line tooltip of the EB-shrunk lift, in plain Vietnamese. */
 export const EB_TOOLTIP = "Điều chỉnh theo các nhóm cùng loại để tránh tin nhầm kết quả may mắn";
 
+/** D76 / D11: the shop did not opt into pooling, so its estimate uses no other shop's groups. */
+export const OWN_DATA_PRIOR = "chỉ dữ liệu của shop này (shop chưa đồng ý gộp dữ liệu)";
+
 /** "Lift đã co (EB): +3,1 % [-2,0; +8,4] · lift thô +40,0 % · theo 3 nhóm cùng loại" or null. */
 export function ebText(eb: CardGroupEb | null | undefined): string | null {
   if (!eb) return null;
-  const prior = eb.prior.source === "pooled" ? `theo ${eb.prior.n_groups} nhóm cùng loại` : "mức mặc định (chưa đủ nhóm cùng loại)";
+  const prior =
+    eb.prior.source === "pooled"
+      ? eb.prior.cell === "metric_channel"
+        ? `theo ${eb.prior.n_groups} shop, mọi loại thay đổi cùng chỉ số`
+        : `theo ${eb.prior.n_groups} nhóm cùng loại`
+      : eb.prior.source === "own"
+        ? OWN_DATA_PRIOR
+        : "mức mặc định (chưa đủ nhóm cùng loại)";
   return `Lift đã co (EB): ${num(eb.shrunk_pct)} % [${num(eb.interval_pct[0])}; ${num(eb.interval_pct[1])}] · lift thô ${num(eb.observed_pct)} % · ${prior}`;
 }
 

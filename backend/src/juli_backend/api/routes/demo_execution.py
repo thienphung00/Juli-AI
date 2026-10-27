@@ -57,6 +57,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/demo/decisions", tags=["demo"])
 
+#: ADR-116 §6 (D76): the 403 reason when the approver does not belong to the shop.
+NOT_SHOP_MEMBER_DETAIL = "Chỉ thành viên của shop mới duyệt được thay đổi cho shop này"
+
 
 class DemoDecisionApproveData(BaseModel):
     run_id: uuid.UUID
@@ -191,6 +194,13 @@ async def approve_demo_decision(
             },
         )
         await session.commit()
+    except approval_module.ApproverNotShopMember as exc:
+        # ADR-116 §6 (D76): only a user who belongs to this shop approves its changes.
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "approver_not_shop_member", "message": NOT_SHOP_MEMBER_DETAIL},
+        ) from exc
     except approval_module.ActionCardNotFound as exc:
         await session.rollback()
         raise HTTPException(

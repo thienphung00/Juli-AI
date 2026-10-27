@@ -288,11 +288,13 @@ async def test_approve_non_active_card_returns_409(app, session, user, shop, car
 async def test_repeat_approve_of_the_same_card_returns_409_on_the_second_call(
     app, session, user, shop, card, product
 ):
+    # Read now: the refused second approve's rollback expires the instance.
+    card_id = card.id
     mock_task = _mock_run_agent_workflow_task()
     with patch("juli_backend.workers.tasks.agent_workflow.run_agent_workflow", mock_task):
         async with _client_for(app, user, shop) as client:
-            first = await client.post(f"/v1/demo/decisions/{card.id}/approve")
-            second = await client.post(f"/v1/demo/decisions/{card.id}/approve")
+            first = await client.post(f"/v1/demo/decisions/{card_id}/approve")
+            second = await client.post(f"/v1/demo/decisions/{card_id}/approve")
 
     assert first.status_code == 202
     assert second.status_code == 409
@@ -301,7 +303,7 @@ async def test_repeat_approve_of_the_same_card_returns_409_on_the_second_call(
     runs = (
         (
             await session.execute(
-                select(WorkflowRunRow).where(WorkflowRunRow.action_card_id == card.id)
+                select(WorkflowRunRow).where(WorkflowRunRow.action_card_id == card_id)
             )
         )
         .scalars()

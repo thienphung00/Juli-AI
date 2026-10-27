@@ -136,6 +136,9 @@ TABLE_CLASSIFICATION_MAP = {
     # NDA work (D76, ADR-116 §4, migration 104): per-shop sealed HMAC key for
     # buyer_id pseudonyms; juli_app SELECT / INSERT only.
     ("public", "shop_pseudonym_keys"): "tenant_direct",
+    # NDA work (D76, ADR-116 §5, migration 105): one row per OpenAI call attempt,
+    # metadata only; append-only (SELECT / INSERT for juli_app).
+    ("public", "llm_call_log"): "tenant_direct",
     # Via-parent tenant-scoped tables
     ("public", "workflow_run_events"): "tenant_via_parent",
     ("public", "run_confirmations"): "tenant_via_parent",
@@ -160,6 +163,9 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ops_reviewer_accounts"): "ops_only",
     # Fast track P33-F (D43, migration 091): free-trial sign-ups from app-juli.com.
     ("public", "trial_signups"): "ops_only",
+    # D76 / D15 (migration 107): who contributed to a persisted pooled figure -- shop
+    # ids and counts only, written and read through ``juli_ops``.
+    ("public", "pooled_contributor_sets"): "ops_only",
 }
 
 #: Metadata about via-parent relationships (child_table -> (parent_table, fk_col, pk_col))

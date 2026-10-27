@@ -81,8 +81,8 @@ def test_revision_fits_alembic_and_keeps_the_deferred_chain_the_tail():
     mig = _migration_module()
     assert mig.revision == "103_data_use_consents" and len(mig.revision) <= 32
     assert mig.down_revision == "102_shops_tiktok_numeric_id"
-    # PR 3 (migration 104) is now the parent of the deferred tail.
-    assert 'down_revision: str | None = "104_shop_pseudonym_keys"' in BACKFILL.read_text("utf-8")
+    # Migration 107 (Ops pooled-prior filter) is now the parent of the deferred tail.
+    assert 'down_revision: str | None = "107_ops_pooled_consent"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_app_role_may_only_select_insert_and_revoke():
@@ -259,25 +259,32 @@ async def test_fleet_calibration_counts_only_shops_with_pooled_training(session)
 
     from juli_backend.services.lever_flows.measurement import fleet_calibration_stats
 
-    _, pooled = await make_tenant(session)
+    # Five consenting shops (D14's floor, equal shares) and one with another scope only.
+    pooled = [(await make_tenant(session))[1] for _ in range(5)]
     _, private = await make_tenant(session)
-    await _calibrate(session, pooled.id, coefficient="0.6", readings=4)
+    for shop in pooled:
+        await _calibrate(session, shop.id, coefficient="0.6", readings=4)
+        await _grant(session, shop.id, "pooled_training")
     await _calibrate(session, private.id, coefficient="1.8", readings=10)
-    await _grant(session, pooled.id, "pooled_training")
     await _grant(session, private.id, "service")  # another scope is not enough
 
-    assert await fleet_calibration_stats(session) == {"cover_image": (Decimal("0.6"), 4)}
+    fleet = await fleet_calibration_stats(session)
+    assert fleet["cover_image"] == (Decimal("0.6"), 20)
 
 
 async def test_a_revoked_pooled_training_grant_leaves_the_fleet_level(session):
     from juli_backend.services.lever_flows.measurement import fleet_calibration_stats
 
-    _, shop = await make_tenant(session)
-    await _calibrate(session, shop.id)
-    await _grant(session, shop.id, "pooled_training")
-    assert set(await fleet_calibration_stats(session)) == {"cover_image"}
+    shops = [(await make_tenant(session))[1] for _ in range(5)]
+    for shop in shops:
+        await _calibrate(session, shop.id)
+        await _grant(session, shop.id, "pooled_training")
+    assert "cover_image" in await fleet_calibration_stats(session)
 
-    await revoke_consent(session, shop.id, "pooled_training", revoked_at=NOW + timedelta(days=1))
+    # One withdrawal: four contributors, below D14's five -> no fleet level at all.
+    await revoke_consent(
+        session, shops[0].id, "pooled_training", revoked_at=NOW + timedelta(days=1)
+    )
     assert await fleet_calibration_stats(session) == {}
 
 

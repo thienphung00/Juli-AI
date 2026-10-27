@@ -92,6 +92,16 @@ scope)`, is the only reader; it fails closed (no row, revoked, or lookup error �
   `apply_pooled_eb` / `estimate_prior`), the D30.3 fleet factor, statistics used to refine shared
   features — reads only shops with `pooled_training`; other shops fall back to their own data.
   Juli's own operating figures (OpenAI cost, run counts) are not client data.
+  **Owner D14 / D15 / D17 (2026-10-27):** "neither borrow nor lend" stands (a proposed
+  D12.3 letting non-consenting shops use the pooled figure was cancelled).
+  `pooled_training` is granted only to Juli's own shops (Fujiwa, the sandbox shop):
+  TikTok Shop Developer ToS §2.7(g) and Partner Center ToS §3.8(e) forbid aggregating
+  seller API data for Juli's own purposes; Shopee ToS §6.2(c) requires Shopee's written
+  consent for derived seller-performance aggregates. As defence in depth a pooled cell is
+  used only with ≥ 5 contributing shops and no shop over 50 % of its weight, else the
+  next wider cell, else no pooled figure (`services/consent/pooling.py`); each persisted
+  pooled computation records its contributing set (shop ids, SHA-256, per-cell counts) in
+  `pooled_contributor_sets` (migration 107, `ops_only`); query-time ones log it.
 - **Withdrawal**: consent revoked → serving falls back to the public model at once; the client
   layer, its features and predictions are deleted with the shop's data (offboarding, T8) within
   30 days, and the deletion certificate names the layer version deleted. The public model is never

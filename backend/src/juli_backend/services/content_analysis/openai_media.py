@@ -14,6 +14,13 @@
   not sent twice (their reading is copied). Cost from the returned tokens.
 
 Only keyframes and audio slices leave the server -- never the uploaded file.
+
+Every call goes through the shop's OpenAI gate (ADR-116 §5, D76): transcription needs
+``llm_media`` (audio), keyframes ``llm_media``, the listing's reference images
+``llm_images`` (left out of the request when the shop has not granted them), and the
+text ``llm_processing``. A refusal is raised as ``llm_gate.GateRefused`` -- not a
+retryable ``ProviderError`` -- and the task ends the analysis ``failed`` with
+``consent_required``.
 """
 
 from __future__ import annotations
@@ -30,16 +37,21 @@ import httpx
 import numpy as np
 from PIL import Image
 
-from juli_backend.core.config import require_env
 from juli_backend.core.privacy import deidentify_text
 from juli_backend.services.agent.llm.blocks import FinalResponse, TextBlock, Usage
 from juli_backend.services.agent.llm.config import LLMConfig, estimate_cost_usd
 from juli_backend.services.content_analysis.config import asr_usd_per_minute
+from juli_backend.services.llm_gate import (
+    LLM_IMAGES,
+    OPENAI_BASE_URL,
+    PURPOSE_CONTENT_FRAMES,
+    OpenAIGate,
+    refuse_without_gate,
+)
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BASE_URL = "https://api.openai.com"
-_TRANSCRIPTIONS_PATH = "/v1/audio/transcriptions"
+DEFAULT_BASE_URL = OPENAI_BASE_URL
 #: whisper-1 reads at most ~224 prompt tokens; the glossary is kept well under.
 MAX_GLOSSARY_CHARS = 600
 VISION_BATCH = 8
@@ -94,16 +106,19 @@ class OpenAITranscriber:
         transport: httpx.AsyncBaseTransport | None = None,
         base_url: str = DEFAULT_BASE_URL,
         timeout_s: float = 300.0,
+        gate: OpenAIGate | None = None,
     ) -> None:
         self.model = model
         self._transport = transport
         self._base_url = base_url
         self._timeout = timeout_s
+        self._gate = gate
 
     async def transcribe(
         self, audio: Path, *, prompt: str, offset_s: float, duration_s: float
     ) -> Transcript:
-        api_key = require_env("OPENAI_API_KEY")
+        if self._gate is None:
+            raise refuse_without_gate("content_transcription")
         timestamps = supports_timestamps(self.model)
         data: dict[str, Any] = {
             "model": self.model,
@@ -115,17 +130,16 @@ class OpenAITranscriber:
         if timestamps:
             data["timestamp_granularities[]"] = ["segment", "word"]
         try:
-            async with httpx.AsyncClient(
-                transport=self._transport, base_url=self._base_url, timeout=self._timeout
-            ) as client:
-                response = await client.post(
-                    _TRANSCRIPTIONS_PATH,
-                    data=data,
-                    files={"file": (audio.name, audio.read_bytes(), "audio/mp4")},
-                    headers={"Authorization": f"Bearer {api_key}"},
-                )
-                response.raise_for_status()
-                body = response.json()
+            # Transcription has no `store` field: there is no ZDR flag to set here.
+            response = await self._gate.post_transcription(
+                data=data,
+                files={"file": (audio.name, audio.read_bytes(), "audio/mp4")},
+                timeout=self._timeout,
+                transport=self._transport,
+                base_url=self._base_url,
+            )
+            response.raise_for_status()
+            body = response.json()
         except httpx.HTTPStatusError as exc:
             raise ProviderError(f"transcription returned HTTP {exc.response.status_code}") from exc
         except (httpx.HTTPError, ValueError) as exc:
@@ -268,12 +282,15 @@ def _turn_text(turn: Any) -> str:
 class OpenAIVision:
     """Keyframes → on-screen text + product visible, via the Responses adapter."""
 
-    def __init__(self, model: str, *, adapter: Any | None = None) -> None:
+    def __init__(
+        self, model: str, *, adapter: Any | None = None, gate: OpenAIGate | None = None
+    ) -> None:
         self.model = model
+        self._gate = gate
         if adapter is None:
             from juli_backend.services.agent.llm.openai_adapter import OpenAIResponsesAdapter
 
-            adapter = OpenAIResponsesAdapter()
+            adapter = OpenAIResponsesAdapter(gate=gate, purpose=PURPOSE_CONTENT_FRAMES)
         self._adapter = adapter
 
     async def _batch(
@@ -285,9 +302,13 @@ class OpenAIVision:
     ) -> tuple[dict[int, tuple[str, bool]], Usage]:
         from juli_backend.services.agent.llm.openai_adapter import (
             JsonSchemaFormat,
+            LLMGateRefusedError,
             LLMProviderError,
         )
 
+        if self._gate is not None and not self._gate.allows(LLM_IMAGES):
+            # ADR-116 §5: no product-image consent -- recognise the product by name.
+            product_images = []
         parts: list[dict[str, Any]] = [
             {
                 "type": "input_text",
@@ -319,6 +340,8 @@ class OpenAIVision:
                 config=config,
                 response_format=JsonSchemaFormat(name="keyframe_reads", schema=VISION_SCHEMA),
             )
+        except LLMGateRefusedError as exc:
+            raise exc.refusal from exc
         except LLMProviderError as exc:
             raise ProviderError(str(exc)[:200]) from exc
         try:

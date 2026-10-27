@@ -34,7 +34,8 @@ from juli_backend.api.reviewer import (
     confirmed_write_out,
     sandbox_run_viewer,
 )
-from juli_backend.database import Shop, get_session
+from juli_backend.core.security import get_current_user
+from juli_backend.database import Shop, User, get_session
 from juli_backend.database.database import ensure_worker_session_factory
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services import agent_runs
@@ -247,15 +248,13 @@ async def submit_confirmation_decision(
     body: ConfirmationDecisionRequest,
     request: Request,
     shop: Shop = Depends(get_active_shop),
+    user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> ConfirmationDecisionResponse:
     """Authorise and record a seller's decision, then enqueue the resume.
 
-    Errors from the ladder carry ``{"detail": {"message", "error_code"}}`` so
-    a client can tell "retry later" from "already decided" from "refused".
-    """
-    # Rate-limited before the run is even resolved: probing tool_call_ids on
-    # runs one does not own must be throttled too.
+    Ladder errors carry ``{"detail": {"message", "error_code"}}`` (retry/decided/refused)."""
+    # Rate-limited before the run is resolved: probing others' tool_call_ids is throttled too.
     limit = await agent_abuse_limits.get_agent_abuse_limit_gate().try_acquire_confirmation(
         str(shop.id)
     )
@@ -281,6 +280,7 @@ async def submit_confirmation_decision(
             tool_call_id=tool_call_id,
             decision=body.decision,
             option_id=body.option_id,
+            decided_by_user_id=user.id,  # ADR-116 §6: a shop member's click
             edited_values=edited or None,
         )
     except agent_runs.ConfirmationRejected as rejected:

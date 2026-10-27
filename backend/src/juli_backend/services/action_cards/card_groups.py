@@ -62,7 +62,13 @@ only design that removes both. In the card system:
    the ``juli_ops``-only ``ops_group_lift_draws()``; :func:`apply_pooled_eb`, leave-
    one-out, a shop's groups combined first), when there are ≥ ``group_eb_min_groups``
    draws. Only aggregate numbers leave it (prior mean, spread, number of shops). The
-   label, the strength and the seller's sentence never read ``eb``.
+   label, the strength and the seller's sentence never read ``eb``. D76 / D11 / D17
+   (ADR-116 §3, migration 107): the draws come only from shops holding an open
+   ``pooled_training`` grant, and a viewed shop without one gets no pooled prior at all
+   -- its own data under the default N(0, sd²), labelled ``own`` (``PRIOR_OWN``):
+   neither borrow nor lend. D14 (``services.consent.pooling``): a cell is used only with
+   ≥ 5 contributing shops and no shop over 50 % of its draws -- the lever type, else the
+   wider metric × channel over every lever, else the default prior.
 8. **Net of cancelled / refunded orders, Ops only (D55.1, fast track P46,
    :mod:`.group_net`).** TikTok's GMV includes orders later cancelled or refunded. When
    the shop's own orders cover every day a verdict reads, all-channel AOV and items per
@@ -87,9 +93,9 @@ import random
 import secrets
 import statistics
 import uuid
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -124,10 +130,13 @@ from juli_backend.services.action_cards.group_net import (
 )
 from juli_backend.services.action_cards.group_stats import (
     ALPHA,
+    CELL_LEVER_TYPE,
+    CELL_METRIC_CHANNEL,
     EB_MIN_GROUPS,
     EB_PRIOR_SD,
     INTERVAL_HIGH,
     INTERVAL_LOW,
+    PRIOR_POOLED,
     TWO_WINDOW_MIN_PRODUCTS,
     FalseAlarm,
     LogLift,
@@ -140,10 +149,12 @@ from juli_backend.services.action_cards.group_stats import (
     false_alarm_rate,
     log_lift_of,
     null_pool,
+    own_data_prior,
     shrink_lift,
     unit_from_change,
 )
 from juli_backend.services.change_strength import STRENGTH_LABELS_VI
+from juli_backend.services.consent.pooling import CellCheck, check_cell
 from juli_backend.services.optimize_product.tunables import DiagTunables
 
 logger = logging.getLogger(__name__)
@@ -1631,19 +1642,33 @@ def _verdict_rows(group: CardGroup) -> list[tuple[Any, ...]]:
 
 
 async def lift_draws(session: AsyncSession) -> list[EbDraw]:
-    """Every shop's measured group comparisons, as EB draws (D52). **Ops only.**
+    """The measured group comparisons of every shop that opted into pooling, as EB draws
+    (D52; D76 / D11). **Ops only.**
 
     Call it inside an ``ops_role`` block: on Postgres it reads
-    ``public.ops_group_lift_draws()`` (migration 093, SECURITY DEFINER, EXECUTE to
-    ``juli_ops`` only -- a seller session is refused). The caller must return only
-    aggregates (:func:`apply_pooled_eb`), never another shop's rows. SQLite (unit
-    tests) has no RLS or roles: the same rows straight from ``card_groups``.
+    ``public.ops_group_lift_draws()`` (migration 093, filtered by 107 to shops with an
+    open ``pooled_training`` grant; SECURITY DEFINER, EXECUTE to ``juli_ops`` only -- a
+    seller session is refused). The caller must return only aggregates
+    (:func:`apply_pooled_eb`), never another shop's rows. SQLite (unit tests) has no RLS
+    or roles: the same rows straight from ``card_groups``, with the same consent filter.
     """
+    from juli_backend.models.consent import POOLED_TRAINING, DataUseConsent
     from juli_backend.services.ops.access import is_sqlite
 
     if is_sqlite(session):
+        pooled = (
+            select(DataUseConsent.id)
+            .where(
+                DataUseConsent.shop_id == CardGroup.shop_id,
+                DataUseConsent.scope == POOLED_TRAINING,
+                DataUseConsent.revoked_at.is_(None),
+            )
+            .exists()
+        )
         groups = (
-            await session.execute(select(CardGroup).where(CardGroup.status == GROUP_MEASURED))
+            await session.execute(
+                select(CardGroup).where(CardGroup.status == GROUP_MEASURED, pooled)
+            )
         ).scalars()
         return draws_from_rows(row for group in groups for row in _verdict_rows(group))
     result = await session.execute(text("SELECT * FROM public.ops_group_lift_draws()"))
@@ -1685,19 +1710,39 @@ def apply_pooled_eb(
     views: Sequence[dict[str, Any]],
     draws: Sequence[EbDraw],
     *,
+    pooled: bool,
     min_groups: int = EB_MIN_GROUPS,
     default_sd: float = EB_PRIOR_SD,
+    used_cells: dict[str, CellCheck] | None = None,
 ) -> list[dict[str, Any]]:
     """The Ops group views with every comparison's ``eb`` re-shrunk (D52). Pure.
 
-    Per comparison: the prior of its lever type (lever × metric × channel) from
-    ``draws`` without this group (leave-one-out), a shop's groups combined first;
-    fewer than ``min_groups`` draws -> the default prior. Each view's verdict is
-    copied (the stored JSON is not touched); only ``eb`` blocks change.
+    Per comparison, leave-one-out (this group's own draws dropped), the first pooled
+    cell that passes D14 (``services.consent.pooling``: ≥ 5 contributing shops, no shop
+    over 50 % of the cell's draws -- the weight is a shop's number of measured group
+    comparisons in the cell):
+
+    1. its lever type (lever × metric × channel);
+    2. else the wider metric × channel, every lever;
+    3. else no pooled prior: the default N(0, ``default_sd``²).
+
+    Within the cell a shop's groups are combined first and DerSimonian–Laird needs
+    ``min_groups`` shops (below that, the default too). Each view's verdict is copied
+    (the stored JSON is not touched); only ``eb`` blocks change.
+
+    ``pooled`` (D76 / D11 / D17, required so no caller forgets it): whether the viewed
+    shop holds an open ``pooled_training`` grant. ``False`` -> ``draws`` is ignored and
+    every comparison uses :func:`.group_stats.own_data_prior` -- the shop's own data only
+    (``draws`` already hold only consenting shops, migration 107: neither borrow nor lend).
+
+    ``used_cells`` (D15), when given, receives every cell a prior was taken from (key ->
+    its :class:`CellCheck`, shop ids included) -- the caller logs the contributing set.
     """
     by_type: dict[tuple[str, str, str], list[tuple[str, str, LogLift]]] = defaultdict(list)
+    by_metric: dict[tuple[str, str], list[tuple[str, str, LogLift]]] = defaultdict(list)
     for d in draws:
         by_type[d.lever_type].append((d.shop_id, d.group_id, d.lift))
+        by_metric[(d.metric, d.channel)].append((d.shop_id, d.group_id, d.lift))
     out: list[dict[str, Any]] = []
     for view in views:
         if not isinstance(view.get("verdict"), dict):
@@ -1708,15 +1753,54 @@ def apply_pooled_eb(
         for comparison, metric, channel in _comparisons(
             verdict, str(view.get("metric")), str(view.get("channel"))
         ):
-            prior = estimate_prior(
-                by_type.get((lever, metric, channel), []),
+            if not pooled:
+                comparison["eb"] = eb_block(comparison, own_data_prior(default_sd))
+                continue
+            prior = _pooled_prior(
+                [
+                    (
+                        CELL_LEVER_TYPE,
+                        f"{CELL_LEVER_TYPE}:{lever}|{metric}|{channel}",
+                        by_type.get((lever, metric, channel), []),
+                    ),
+                    (
+                        CELL_METRIC_CHANNEL,
+                        f"{CELL_METRIC_CHANNEL}:{metric}|{channel}",
+                        by_metric.get((metric, channel), []),
+                    ),
+                ],
                 exclude_group=group_id,
                 min_groups=min_groups,
                 default_sd=default_sd,
+                used_cells=used_cells,
             )
             comparison["eb"] = eb_block(comparison, prior)
         out.append({**view, "verdict": verdict})
     return out
+
+
+def _pooled_prior(
+    ladder: Sequence[tuple[str, str, Sequence[tuple[str, str, LogLift]]]],
+    *,
+    exclude_group: str,
+    min_groups: int,
+    default_sd: float,
+    used_cells: dict[str, CellCheck] | None,
+) -> Prior:
+    """The prior of the first D14-passing cell of ``ladder`` (narrow -> wide), else default."""
+    for cell, key, cell_draws in ladder:
+        kept = [d for d in cell_draws if d[1] != exclude_group]
+        weights: Counter[str] = Counter(shop for shop, _group, _lift in kept)
+        check = check_cell(key, weights)
+        if not check.active:
+            continue
+        prior = estimate_prior(kept, min_groups=min_groups, default_sd=default_sd)
+        if prior.source != PRIOR_POOLED:
+            continue  # fewer shops than ``min_groups``: the wider cell may still have them
+        if used_cells is not None:
+            used_cells[key] = check
+        return replace(prior, cell=cell)
+    return default_prior(default_sd)
 
 
 # =========================================================================== Ops groups (D45)

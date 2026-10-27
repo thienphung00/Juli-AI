@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from juli_backend.models.models import RunConfirmation
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services import shop_rules
+from juli_backend.services.agent import write_approval
 from juli_backend.services.agent.runner import compute_params_sha
 from juli_backend.services.agent.status import WorkflowRunStatus
 from juli_backend.services.agent.tools.listing_rules import (
@@ -76,6 +77,8 @@ ERROR_OPTION_ID_REQUIRED = "option_id_required"
 ERROR_UNKNOWN_OPTION_ID = "unknown_option_id"
 ERROR_PARAMS_SHA_MISMATCH = "params_sha_mismatch"
 ERROR_RUN_STATE_NOT_RECONSTRUCTABLE = "run_state_not_reconstructable"
+#: ADR-116 §6 (D76): an approve by a user who does not belong to the run's shop.
+ERROR_APPROVER_NOT_SHOP_MEMBER = "approver_not_shop_member"
 
 # HTTP status each rung maps to. Kept here, beside the codes, so the route
 # does not have to know which rung produced which code.
@@ -89,6 +92,7 @@ _HTTP_STATUS_FOR_CODE: dict[str, int] = {
     ERROR_UNKNOWN_OPTION_ID: 422,
     ERROR_PARAMS_SHA_MISMATCH: 409,
     ERROR_RUN_STATE_NOT_RECONSTRUCTABLE: 409,
+    ERROR_APPROVER_NOT_SHOP_MEMBER: 403,
 }
 
 
@@ -164,6 +168,7 @@ async def decide_confirmation(
     tool_call_id: str,
     decision: str,
     option_id: str | None,
+    decided_by_user_id: uuid.UUID | None,
     edited_values: Mapping[str, Any] | None = None,
     now: datetime | None = None,
 ) -> ConfirmationDecision:
@@ -181,6 +186,13 @@ async def decide_confirmation(
     params sha re-derived over the edited arguments, so the resume executes --
     and its before/after record stores -- exactly the seller's version.
     ``edited_fields`` on the same dict tells the resume to say so.
+
+    ADR-116 §6 (D76, grill D7): an approve is refused (``approver_not_shop_member``,
+    403) unless ``decided_by_user_id`` belongs to the run's shop (D73: or is the
+    reviewer on its writable sandbox pin). The approved change -- who, when, the
+    card approval it rests on, the "before" the seller saw and the exact arguments --
+    is frozen onto ``pending_confirmation["approved_change"]``; the live write leg
+    checks it (``services/agent/write_approval``).
     """
     if run.status != WAITING_APPROVAL_RUN_STATUS:
         raise ConfirmationRejected(
@@ -193,10 +205,24 @@ async def decide_confirmation(
     if decision == "decline":
         approved, selected_option_id = False, None
     elif decision == "approve":
+        try:
+            if decided_by_user_id is None:  # no clicking user: never an approval
+                raise write_approval.ApproverNotShopMember("no user")
+            await write_approval.approver_kind(
+                session, shop_id=run.shop_id, user_id=decided_by_user_id
+            )
+        except write_approval.ApproverNotShopMember:
+            raise ConfirmationRejected(
+                ERROR_APPROVER_NOT_SHOP_MEMBER,
+                "Only a user who belongs to this shop may approve a change to it.",
+            ) from None
         selected_option_id = _bind_consent(run, confirmation, option_id)
         if edited_values:
             await _apply_seller_edits(session, run, edited_values)
         await _check_listing_banned_terms(session, run)
+        await write_approval.freeze_approved_change(
+            session, run, decided_by_user_id=decided_by_user_id
+        )
         approved = True
     else:
         raise ConfirmationRejected(
@@ -243,7 +269,13 @@ async def decline_pending_confirmation(
             ERROR_CONFIRMATION_NOT_FOUND, f"Run {run.id} has no pending confirmation."
         )
     return await decide_confirmation(
-        session, run, tool_call_id=tool_call_id, decision="decline", option_id=None, now=now
+        session,
+        run,
+        tool_call_id=tool_call_id,
+        decision="decline",
+        option_id=None,
+        decided_by_user_id=None,  # a decline writes nothing
+        now=now,
     )
 
 
@@ -473,6 +505,7 @@ def _bind_consent(run: WorkflowRunRow, confirmation: RunConfirmation, option_id:
 
 
 __all__ = [
+    "ERROR_APPROVER_NOT_SHOP_MEMBER",
     "ERROR_CONFIRMATION_ALREADY_DECIDED",
     "ERROR_CONFIRMATION_EXPIRED",
     "ERROR_CONFIRMATION_NOT_FOUND",

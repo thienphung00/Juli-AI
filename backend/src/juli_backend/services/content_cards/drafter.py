@@ -32,6 +32,7 @@ from juli_backend.services.content_cards.schemas import (
     parse_draft,
     schema_for,
 )
+from juli_backend.services.llm_gate import PURPOSE_CONTENT_DRAFT, OpenAIGate
 
 logger = logging.getLogger(__name__)
 
@@ -122,11 +123,12 @@ def outcome_from_text(
 class OpenAIContentDrafter:
     """The production drafter over ``OpenAIResponsesAdapter`` (structured output)."""
 
-    def __init__(self, adapter: Any | None = None) -> None:
+    def __init__(self, adapter: Any | None = None, *, gate: OpenAIGate | None = None) -> None:
         if adapter is None:
             from juli_backend.services.agent.llm.openai_adapter import OpenAIResponsesAdapter
 
-            adapter = OpenAIResponsesAdapter()
+            # ADR-116 §5: through the shop's OpenAI gate; none -> every draft refused.
+            adapter = OpenAIResponsesAdapter(gate=gate, purpose=PURPOSE_CONTENT_DRAFT)
         self._adapter = adapter
 
     async def draft(

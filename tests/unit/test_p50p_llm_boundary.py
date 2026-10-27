@@ -26,6 +26,7 @@ from juli_backend.services.agent.llm.openai_adapter import (
     JsonSchemaFormat,
     OpenAIResponsesAdapter,
 )
+from tests.support.consent import granted_gate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "backend/src/juli_backend"
@@ -60,7 +61,7 @@ def _capturing_transport(seen: dict[str, Any]) -> httpx.MockTransport:
 
 async def test_adapter_scrubs_every_message_before_the_provider() -> None:
     seen: dict[str, Any] = {}
-    adapter = OpenAIResponsesAdapter(transport=_capturing_transport(seen))
+    adapter = OpenAIResponsesAdapter(gate=granted_gate(), transport=_capturing_transport(seen))
     tool_result = json.dumps(
         {
             "order_id": "576543210987654321",
@@ -126,8 +127,10 @@ async def test_adapter_scrubs_every_message_before_the_provider() -> None:
     out = json.loads(tool_out["output"])
     assert out["order_id"] == "576543210987654321"
     assert out["price"] == 189000 and out["quantity"] == 3
-    assert out["buyer_name"] == REDACTED and out["recipient_phone"] == REDACTED
-    assert out["buyer_user_id"].startswith("demo-buyer-")
+    # ADR-116 §5 (T3): the OpenAI gate now drops buyer / recipient keys outright
+    # (they used to arrive redacted / aliased); the order's own fields stay.
+    assert set(out) == {"order_id", "price", "quantity", "note"}
+    assert out["note"] == f"gọi {REDACTED}"
     assert assistant["content"][0]["text"] == f"Liên hệ {REDACTED} nhé"
     assert parts["content"][0]["text"] == f"Mail khách: {REDACTED}"
     assert parts["content"][1] == {"type": "input_image", "image_url": "https://cdn.example/p.jpg"}
@@ -139,7 +142,7 @@ async def test_adapter_scrubs_every_message_before_the_provider() -> None:
 
 async def test_adapter_leaves_clean_shop_text_byte_identical() -> None:
     seen: dict[str, Any] = {}
-    adapter = OpenAIResponsesAdapter(transport=_capturing_transport(seen))
+    adapter = OpenAIResponsesAdapter(gate=granted_gate(), transport=_capturing_transport(seen))
     text = "Giá 189.000đ, bán 1.234 đơn, GMV 45.600.000, CTR 3,2%"
     tool_result = '{"price": 189000, "units": 7}'
     await adapter.complete(
@@ -167,7 +170,9 @@ async def test_transcription_glossary_prompt_is_scrubbed(tmp_path: Path) -> None
 
     audio = tmp_path / "slice.m4a"
     audio.write_bytes(b"\x00\x00\x00\x18ftypM4A ")
-    client = OpenAITranscriber("whisper-1", transport=httpx.MockTransport(handler))
+    client = OpenAITranscriber(
+        "whisper-1", transport=httpx.MockTransport(handler), gate=granted_gate()
+    )
     await client.transcribe(
         audio, prompt="Bùn Xanh, hotline 0912345678, shop@gmail.com", offset_s=0, duration_s=1
     )
@@ -194,8 +199,10 @@ def test_image_inspector_title_and_description_are_scrubbed(
         return real_client(*args, **kwargs)
 
     monkeypatch.setattr(httpx, "Client", fake_client)
+    # ADR-116 §5: the inspector sends through the shop's OpenAI gate (key from env).
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     inspect = vision.build_image_inspector(
-        api_key="sk-test", config=vision.InspectionConfig(model="gpt-5.4-nano")
+        gate=granted_gate(), config=vision.InspectionConfig(model="gpt-5.4-nano")
     )
     inspect(
         image_url="https://cdn.example/p.jpg",
@@ -223,12 +230,11 @@ _PROVIDER_MARKERS = (
 #: Every module that sends requests to OpenAI, with what it sends. Adding one means
 #: routing its text through ``juli_backend.core.privacy`` and naming it here.
 REVIEWED_PROVIDER_MODULES = {
-    # The Responses adapter: agent runner, content cards, content-analysis vision/scoring.
-    "services/agent/llm/openai_adapter.py",
-    # Transcription (glossary prompt + audio slices) and the vision batch (via the adapter).
-    "services/content_analysis/openai_media.py",
-    # Product-image inspector: title / description text + the CDN image URL.
-    "services/agent/vision.py",
+    # ADR-116 §5 (D76): the one OpenAI gate. The adapter (agent runner, content cards,
+    # content-analysis vision / scoring), transcription and the image inspector all
+    # send through it, and it de-identifies every text it sends; those clients still
+    # de-identify their own text first (`test_*_scrubbed` above).
+    "services/llm_gate/payload.py",
 }
 
 

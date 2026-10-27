@@ -59,7 +59,7 @@ from juli_backend.models.models import (
     User,
     WorkflowRun,
 )
-from juli_backend.services.agent import composition
+from juli_backend.services.agent import composition, write_approval
 from juli_backend.services.execution import production_write as production_write_module
 from juli_backend.services.execution.production_write_resolver import (
     PreconditionName,
@@ -219,13 +219,40 @@ async def _audits(session):
     return (await session.execute(select(ProductionWriteAudit))).scalars().all()
 
 
-async def _leg(session, shop, product, run, tool=LISTING, **kwargs):
+#: What the run read before drafting (``run.state["product_detail"]``): the "before".
+DETAILS = {
+    PRODUCT_A: {"id": PRODUCT_A, "title": "A old", "description": "A desc"},
+    PRODUCT_B: {"id": PRODUCT_B, "title": "B old", "description": "B desc"},
+}
+
+
+async def _approve(session, shop, product, run, tool=LISTING):
+    """ADR-116 §6 (D76): the shop owner's CONFIRM click, frozen onto the run's pending call.
+
+    Keeps a pending call the test already put on the run; else proposes a new title."""
+    state = dict(run.state or {})
+    state.setdefault("product_detail", DETAILS[product.tiktok_product_id])
+    if "pending_confirmation" not in state:
+        state.update(_pending(tool, title="new title", description="new desc"))
+    run.state = state
+    await write_approval.freeze_approved_change(session, run, decided_by_user_id=shop.user_id)
+    await session.flush()
+    return run.state["pending_confirmation"]
+
+
+_APPROVE = object()
+
+
+async def _leg(session, shop, product, run, tool=LISTING, pending=_APPROVE, **kwargs):
+    if pending is _APPROVE:
+        pending = await _approve(session, shop, product, run, tool)
     return await composition.resolve_agent_write_leg(
         session,
         shop_id=shop.id,
         run_id=run.id,
         tiktok_product_id=product.tiktok_product_id,
         tool_name=tool,
+        pending=pending,
         **kwargs,
     )
 
@@ -544,10 +571,13 @@ async def test_an_approved_resume_takes_the_confirmed_listing_edit_live_and_stam
     await _enable(session, shop_b.id)
     authorization = await _authorize(session, shop_b.id, PRODUCT_B)
     run = await _run(session, shop_b, product_b, state=_pending(title="new"))
+    await _approve(session, shop_b, product_b, run)
 
-    resources, call_id = await _seam(session, run, product_b)
+    resources, call_id, leg = await _seam(session, run, product_b)
 
     assert isinstance(resources, ProductionWriteResources) and call_id == "call-1"
+    # ADR-116 §6: the live leg carries the approved "before" for the executor's read-back.
+    assert leg.approved_before == {"title": "B old"}
     assert run.write_mode == WRITE_MODE_LIVE
     assert await _consumed(session, authorization)
 
@@ -565,7 +595,9 @@ async def test_only_an_approved_pending_confirmation_reaches_the_resolver(
         state = {"pending_confirmation": {"call_id": "c", "arguments": {}}}
     run = await _run(session, shop_b, product_b, state=state)
 
-    resources, call_id = await _seam(session, run, product_b, resume_approved=case != "declined")
+    resources, call_id, _leg_ = await _seam(
+        session, run, product_b, resume_approved=case != "declined"
+    )
 
     assert resources is SANDBOX and call_id is None
     assert not await _consumed(session, authorization)
@@ -579,9 +611,10 @@ async def test_a_refused_live_leg_is_stamped_simulated_and_runs_on_the_sandbox(
     _arm(monkeypatch, tmp_path)
     shop_b, product_b = shops["b"]
     await _enable(session, shop_b.id)  # no authorization: a gate refuses
-    run = await _run(session, shop_b, product_b, state=_pending())
+    run = await _run(session, shop_b, product_b, state=_pending(title="t"))
+    await _approve(session, shop_b, product_b, run)
 
-    resources, call_id = await _seam(session, run, product_b)
+    resources, call_id, _leg_ = await _seam(session, run, product_b)
 
     assert resources is SANDBOX and call_id is None
     assert run.write_mode == WRITE_MODE_SIMULATED
@@ -596,14 +629,14 @@ async def test_the_models_staged_image_flag_can_only_refuse_a_live_write(
     authorization = await _authorize(session, shop_b.id, PRODUCT_B)
     run = await _run(session, shop_b, product_b, state=_pending(attach_staged_image=True))
 
-    resources, _call = await _seam(session, run, product_b)
+    resources, _call, _leg_ = await _seam(session, run, product_b)
 
     assert resources is SANDBOX and run.write_mode == WRITE_MODE_SIMULATED
     assert not await _consumed(session, authorization)
 
     # The server's own knowledge (a lever flow's staged photo) refuses it too.
     run2 = await _run(session, shop_b, product_b, state=_pending())
-    resources, _call = await _seam(session, run2, product_b, staged_image=True)
+    resources, _call, _leg_ = await _seam(session, run2, product_b, staged_image=True)
     assert resources is SANDBOX and not await _consumed(session, authorization)
 
 
@@ -615,14 +648,17 @@ async def test_the_revert_leg_reads_the_reverted_runs_mode_from_its_row(
     await _enable(session, shop_b.id)
     authorization = await _authorize(session, shop_b.id, PRODUCT_B)
     original = await _run(session, shop_b, product_b, write_mode=WRITE_MODE_SIMULATED)
-    revert = await _run(session, shop_b, product_b, state=_pending(), reverts_run_id=original.id)
+    revert = await _run(
+        session, shop_b, product_b, state=_pending(title="B old"), reverts_run_id=original.id
+    )
+    await _approve(session, shop_b, product_b, revert)
 
-    resources, _call = await _seam(session, revert, product_b, is_revert=True)
+    resources, _call, _leg_ = await _seam(session, revert, product_b, is_revert=True)
     assert resources is SANDBOX and not await _consumed(session, authorization)
 
     original.write_mode = WRITE_MODE_LIVE
     await session.flush()
-    resources, call_id = await _seam(session, revert, product_b, is_revert=True)
+    resources, call_id, _leg_ = await _seam(session, revert, product_b, is_revert=True)
     assert isinstance(resources, ProductionWriteResources) and call_id == "call-1"
     assert revert.write_mode == WRITE_MODE_LIVE
 
@@ -802,7 +838,7 @@ async def test_migration_101_is_a_deferred_data_step_the_gate_refuses_and_074_ch
     assert 'revision: str = "101_write_mode_backfill"' in body
     assert len("101_write_mode_backfill") <= 32
     # P68 (E11), then D76, re-parented the deferred step onto the new versions/ head.
-    assert 'down_revision: str | None = "104_shop_pseudonym_keys"' in body
+    assert 'down_revision: str | None = "107_ops_pooled_consent"' in body
     assert not list((MIGRATIONS / "versions").glob("101*"))
     result = evaluate_migration_paths([BACKFILL])
     assert not result.accepted

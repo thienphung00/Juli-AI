@@ -35,6 +35,7 @@ from juli_backend.services.agent.tools.product_write import register_product_wri
 from juli_backend.services.agent.tools.registry import ToolRegistry
 from juli_backend.services.agent.tools.terminal import register_terminal_tools
 from tests.integration.llm_recorded_replay import write_recorded_exchange
+from tests.support.consent import granted_gate
 
 pytestmark = pytest.mark.live
 
@@ -99,7 +100,7 @@ async def test_live_gpt_nano_returns_a_real_tool_call():
     """One real round-trip against the provider, using the real ADR-069 registry."""
     config = resolve_llm_config()
     transport = _RecordingTransport()
-    adapter = OpenAIResponsesAdapter(transport=transport)
+    adapter = OpenAIResponsesAdapter(gate=granted_gate(), transport=transport)
 
     turn = await adapter.complete(
         messages=[{"role": "user", "content": LIVE_PROMPT}],

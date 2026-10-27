@@ -229,6 +229,14 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # D76 / ADR-116 §4: downgrades 104 -> 103 and back, and runs the
         # payload clean-up as the owner over every shop.
         "test_payload_privacy_db.py",
+        # D76 / ADR-116 §5: downgrades 105 -> 104 and back (llm_call_log).
+        "test_llm_call_log_db.py",
+        # D76 / ADR-116 §6: downgrades 106 -> 105 and back (per-platform write
+        # columns), and runs the operator backfill as the owner over every row.
+        "test_write_platform_columns_db.py",
+        # D76 / D11 (ADR-116 §3): downgrades 107 -> 106 and back (the Ops pooled
+        # prior's consent filter on ops_group_lift_draws()), after seeding four shops.
+        "test_ops_pooled_consent_db.py",
         # Fast track P60-1b: migration 096 round trip with pre-096 rows seeded
         # at 095 (its data step fills hashes, audit links and attribution),
         # after the two-tenant end-to-end attribution walk.

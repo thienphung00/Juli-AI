@@ -158,6 +158,7 @@ from juli_backend.services.agent.runner import (
     extract_mutable_fields,
 )
 from juli_backend.services.agent.tools import ToolPolicy
+from juli_backend.services.llm_gate import open_gate
 from juli_backend.workers.tasks.database import get_async_database_url, get_sync_database_url
 
 # Test merchant ids (P61-G, D71.6): nothing is configured; these are just row values.
@@ -425,7 +426,11 @@ async def test_live_write_path_pauses_resumes_and_executes_exactly_once():
 
             playbook = _write_only_playbook()
             registry = composition_module.build_product_tool_registry()
-            llm_service = composition_module.build_llm_service()
+            # ADR-116 §5: through the shop's OpenAI gate (needs `llm_processing` consent).
+            llm_service = composition_module.gated_llm_service(
+                composition_module.build_llm_service(),
+                await open_gate(session, credential.shop_id),
+            )
 
             workflow_key = playbook.workflow_key
             version = prompts_module.production_version(workflow_key)

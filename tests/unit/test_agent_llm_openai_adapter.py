@@ -38,6 +38,7 @@ from juli_backend.services.agent.llm.openai_adapter import (
     LLMProviderError,
     OpenAIResponsesAdapter,
 )
+from tests.support.consent import granted_gate
 
 _LLM_ENV_VARS = (
     "OPENAI_API_KEY",
@@ -212,7 +213,8 @@ def _config(**overrides: Any) -> LLMConfig:
 class TestAdapterSatisfiesLLMServiceProtocol:
     def test_adapter_is_an_llm_service(self, _with_api_key):
         adapter = OpenAIResponsesAdapter(
-            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_ONLY)
+            gate=granted_gate(),
+            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_ONLY),
         )
         assert isinstance(adapter, LLMService)
 
@@ -227,7 +229,8 @@ class TestResponseTranslatedToJuliBlocks:
         self, _with_api_key
     ):
         adapter = OpenAIResponsesAdapter(
-            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_AND_TOOL_CALL)
+            gate=granted_gate(),
+            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_AND_TOOL_CALL),
         )
 
         turn = await adapter.complete(
@@ -264,7 +267,8 @@ class TestResponseTranslatedToJuliBlocks:
 
     async def test_text_only_response_yields_a_final_response_block(self, _with_api_key):
         adapter = OpenAIResponsesAdapter(
-            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_ONLY)
+            gate=granted_gate(),
+            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_ONLY),
         )
 
         turn = await adapter.complete(
@@ -282,7 +286,8 @@ class TestResponseTranslatedToJuliBlocks:
 
     async def test_multiple_tool_calls_in_one_turn_all_translate(self, _with_api_key):
         adapter = OpenAIResponsesAdapter(
-            transport=_stub_transport(response_body=RECORDED_RESPONSE_MULTIPLE_TOOL_CALLS)
+            gate=granted_gate(),
+            transport=_stub_transport(response_body=RECORDED_RESPONSE_MULTIPLE_TOOL_CALLS),
         )
 
         turn = await adapter.complete(
@@ -302,7 +307,8 @@ class TestResponseTranslatedToJuliBlocks:
 
     async def test_no_provider_wire_type_appears_in_returned_blocks(self, _with_api_key):
         adapter = OpenAIResponsesAdapter(
-            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_AND_TOOL_CALL)
+            gate=granted_gate(),
+            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_AND_TOOL_CALL),
         )
 
         turn = await adapter.complete(
@@ -327,7 +333,8 @@ class TestResponseTranslatedToJuliBlocks:
 class TestUsageAndCostEstimate:
     async def test_usage_is_populated_from_the_provider_response(self, _with_api_key):
         adapter = OpenAIResponsesAdapter(
-            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_AND_TOOL_CALL)
+            gate=granted_gate(),
+            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_AND_TOOL_CALL),
         )
 
         turn = await adapter.complete(
@@ -366,9 +373,10 @@ class TestOutboundRequestCarriesNoThreadState:
     async def test_request_body_never_carries_previous_response_id(self, _with_api_key):
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -384,9 +392,10 @@ class TestOutboundRequestCarriesNoThreadState:
     async def test_request_body_explicitly_disables_server_side_storage(self, _with_api_key):
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -402,9 +411,10 @@ class TestOutboundRequestCarriesNoThreadState:
         """Statelessness in the affirmative: the whole window rides on the wire."""
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -432,9 +442,10 @@ class TestNonStreamed:
     async def test_request_disables_streaming(self, _with_api_key):
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -448,7 +459,7 @@ class TestNonStreamed:
 
     async def test_complete_makes_exactly_one_http_call(self, _with_api_key):
         transport = _stub_transport(response_body=RECORDED_RESPONSE_TEXT_ONLY)
-        adapter = OpenAIResponsesAdapter(transport=transport)
+        adapter = OpenAIResponsesAdapter(gate=granted_gate(), transport=transport)
 
         await adapter.complete(
             messages=[{"role": "user", "content": "hi"}],
@@ -469,9 +480,10 @@ class TestRequestTranslation:
     async def test_model_and_generation_config_are_forwarded(self, _with_api_key):
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -489,9 +501,10 @@ class TestRequestTranslation:
     async def test_tool_schemas_translate_into_function_tools(self, _with_api_key):
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -524,9 +537,10 @@ class TestRequestTranslation:
     async def test_no_tools_translates_to_an_empty_tools_list(self, _with_api_key):
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -541,9 +555,10 @@ class TestRequestTranslation:
     async def test_a_tool_result_message_translates_to_function_call_output(self, _with_api_key):
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -583,9 +598,10 @@ class TestRequestTranslation:
         """
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -628,9 +644,10 @@ class TestRequestTranslation:
         dict. Sending the dict raw is a 400."""
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         await adapter.complete(
@@ -681,9 +698,10 @@ class TestRequestTranslation:
         """
         captured: list[dict[str, Any]] = []
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body=RECORDED_RESPONSE_TEXT_ONLY, captured_requests=captured
-            )
+            ),
         )
 
         # Exact literal shape of `state.conversation_window.append({...})`
@@ -716,7 +734,9 @@ class TestRequestTranslation:
             captured_headers.append(request.headers)
             return httpx.Response(200, json=RECORDED_RESPONSE_TEXT_ONLY)
 
-        adapter = OpenAIResponsesAdapter(transport=_stub_transport(handler=_handler))
+        adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(), transport=_stub_transport(handler=_handler)
+        )
 
         await adapter.complete(
             messages=[{"role": "user", "content": "hi"}],
@@ -738,7 +758,8 @@ class TestProviderErrorsSurfaceAsJuliLevelErrors:
         """No _with_api_key fixture here -- the key is absent, matching the
         require_env fail-closed pattern from #985's LLMConfig resolution."""
         adapter = OpenAIResponsesAdapter(
-            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_ONLY)
+            gate=granted_gate(),
+            transport=_stub_transport(response_body=RECORDED_RESPONSE_TEXT_ONLY),
         )
 
         with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
@@ -751,9 +772,10 @@ class TestProviderErrorsSurfaceAsJuliLevelErrors:
 
     async def test_http_error_status_surfaces_as_llm_provider_error(self, _with_api_key):
         adapter = OpenAIResponsesAdapter(
+            gate=granted_gate(),
             transport=_stub_transport(
                 response_body={"error": {"message": "invalid_api_key"}}, status_code=401
-            )
+            ),
         )
 
         with pytest.raises(LLMProviderError):
@@ -766,7 +788,10 @@ class TestProviderErrorsSurfaceAsJuliLevelErrors:
 
     async def test_server_error_surfaces_as_llm_provider_error_not_raw_httpx(self, _with_api_key):
         adapter = OpenAIResponsesAdapter(
-            transport=_stub_transport(response_body={"error": {"message": "boom"}}, status_code=500)
+            gate=granted_gate(),
+            transport=_stub_transport(
+                response_body={"error": {"message": "boom"}}, status_code=500
+            ),
         )
 
         with pytest.raises(LLMProviderError) as excinfo:
@@ -781,7 +806,8 @@ class TestProviderErrorsSurfaceAsJuliLevelErrors:
 
     async def test_malformed_tool_call_arguments_surface_as_llm_provider_error(self, _with_api_key):
         adapter = OpenAIResponsesAdapter(
-            transport=_stub_transport(response_body=RECORDED_RESPONSE_MALFORMED_TOOL_ARGS)
+            gate=granted_gate(),
+            transport=_stub_transport(response_body=RECORDED_RESPONSE_MALFORMED_TOOL_ARGS),
         )
 
         with pytest.raises(LLMProviderError):
@@ -796,7 +822,7 @@ class TestProviderErrorsSurfaceAsJuliLevelErrors:
         def _raise(_: httpx.Request) -> httpx.Response:
             raise httpx.ConnectError("connection refused")
 
-        adapter = OpenAIResponsesAdapter(transport=httpx.MockTransport(_raise))
+        adapter = OpenAIResponsesAdapter(gate=granted_gate(), transport=httpx.MockTransport(_raise))
 
         with pytest.raises(LLMProviderError) as excinfo:
             await adapter.complete(
