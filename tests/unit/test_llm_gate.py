@@ -27,7 +27,7 @@ import importlib.util
 import json
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -720,7 +720,7 @@ def test_a_failing_sync_log_write_never_breaks_the_inspection(caplog):
     gate = OpenAIGate(
         shop_id=uuid.uuid4(),
         granted=frozenset(LLM_SCOPES),
-        sync_sink=SyncSessionCallLog(BrokenSession()),  # type: ignore[arg-type]
+        sync_sink=SyncSessionCallLog(cast(Any, BrokenSession())),
     )
     recorder = Recorder(text='{"verdict": "aligned"}')
     result = _inspector(gate, recorder)(image_url=IMAGE_URL, title="t", description="d")
@@ -753,7 +753,7 @@ async def test_the_agent_leg_gate_reads_the_shops_consent(session):
 
     _, shop = await make_tenant(session)
     await grant_llm_consent(session, shop.id, (LLM_PROCESSING,))
-    gate = await agent_workflow._open_llm_gate(session, object(), shop.id)  # type: ignore[arg-type]
+    gate = await agent_workflow._open_llm_gate(session, cast(Any, object()), shop.id)
 
     assert gate.granted == frozenset({LLM_PROCESSING})
     assert isinstance(gate.sink, SessionCallLog) and gate.sync_sink is None
@@ -768,7 +768,8 @@ def test_a_stand_in_session_gets_a_gate_that_grants_nothing():
 
     from juli_backend.workers.tasks import agent_workflow
 
-    gate = asyncio.run(agent_workflow._open_llm_gate(object(), object(), uuid.uuid4()))  # type: ignore[arg-type]
+    stand_in = cast(Any, object())
+    gate = asyncio.run(agent_workflow._open_llm_gate(stand_in, stand_in, uuid.uuid4()))
     assert gate.granted == frozenset()
 
 
