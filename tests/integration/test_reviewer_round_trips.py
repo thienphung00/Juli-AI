@@ -18,6 +18,7 @@ Run with ``-s`` to print every endpoint's statement list.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -64,6 +65,22 @@ REVIEWER_BOUNDS: dict[str, int] = {
     "analysis": 4,
     "rules": 5,
     "runs": 5,
+    # BEGIN, GUCs, ingestion state + report flag (one statement since P69b), ROLLBACK.
+    "onboarding": 4,
+}
+#: P69b: the COLD call (account, users row and pin entries expired; asyncpg statements
+#: warm), per route. BEFORE P69b (same harness): me 17, shop 19, decisions 20,
+#: analysis 18, rules 19, runs 19, onboarding 19. Now the identity costs three round
+#: trips over the warm call (ops role switch; account + role restore + GUCs; users row +
+#: shops row + pin facts), in the route's own transaction with no COMMIT.
+COLD_REVIEWER_BOUNDS: dict[str, int] = {
+    "me": 6,
+    "shop": 8,
+    "decisions": 9,
+    "analysis": 7,
+    "rules": 8,
+    "runs": 8,
+    "onboarding": 7,
 }
 SELLER_BOUNDS: dict[str, int] = {
     "decisions": 12,
@@ -79,6 +96,7 @@ ROUTES: dict[str, str] = {
     "analysis": "/v1/demo/analysis",
     "rules": "/v1/demo/rules",
     "runs": "/v1/demo/runs",
+    "onboarding": "/v1/shops/me/onboarding",
 }
 
 
@@ -90,6 +108,20 @@ def _forget_caches() -> None:
     from tests.support import reviewer as rv
 
     rv.reset_caches()
+
+
+def _forget_identity_caches() -> None:
+    """What >30 s idle expires: the reviewer account, users row and pinned shop entries.
+
+    The 60 s "no promotion card" memory and the 10 min mask dictionary are left as they
+    are, so the cold count is the identity path itself.
+    """
+    from juli_backend.core.security import forget_cached_reviewer_users
+    from juli_backend.services.reviewer import accounts, pin_cache
+
+    accounts.forget_cached()
+    forget_cached_reviewer_users()
+    pin_cache.forget_cached()
 
 
 @pytest.fixture(autouse=True)
@@ -229,6 +261,10 @@ def _seed(engine) -> dict[str, uuid.UUID]:
             ),
             {"id": uuid.uuid4(), "s": shop, "a": uuid.uuid4(), "r": run},
         )
+        # The onboarding poll reads the shop's ingestion state (every connected shop has one).
+        conn.execute(
+            text("INSERT INTO public.shop_ingestion_state (shop_id) VALUES (:s)"), {"s": shop}
+        )
     return {"owner": owner, "shop": shop, "card": card, "reviewer": reviewer}
 
 
@@ -283,6 +319,14 @@ class Probe:
         print(f"\n== {label} GET {path}\n{seen.describe()}")
         return seen
 
+    async def cold(self, label: str, path: str, headers: dict[str, str]) -> Seen:
+        """The first request after every identity cache expired (asyncpg statements warm)."""
+        await self.once(path, headers)
+        _forget_identity_caches()
+        seen = await self.once(path, headers)
+        print(f"\n== {label} GET {path} (cold)\n{seen.describe()}")
+        return seen
+
 
 @pytest_asyncio.fixture
 async def probe(world) -> AsyncIterator[Probe]:
@@ -328,16 +372,11 @@ async def test_seller_route_round_trips(probe, world, name):
     assert seen.round_trips <= SELLER_BOUNDS[name], f"{name}: {seen.describe()}"
 
 
-async def test_reviewer_me_cold(probe, world):
-    """The first request after the identity cache expired: account, pin and dictionary read."""
-    headers = _reviewer_headers(world)
-    await probe.once(ROUTES["me"], headers)  # warm asyncpg's statement cache
-    _forget_caches()
-    seen = await probe.once(ROUTES["me"], headers)
-    print(f"\n== reviewer GET /v1/reviewer/me (cold)\n{seen.describe()}")
-    # The account read (role switch + restore) and users read, then the ops shop read
-    # and the pin classification; the sandbox pin loads no mask dictionary.
-    assert seen.round_trips <= 17, seen.describe()
+@pytest.mark.parametrize("name", sorted(COLD_REVIEWER_BOUNDS))
+async def test_reviewer_route_round_trips_cold(probe, world, name):
+    """The first request after the identity caches expired (>30 s idle), per route."""
+    seen = await probe.cold("reviewer", ROUTES[name], _reviewer_headers(world))
+    assert seen.round_trips <= COLD_REVIEWER_BOUNDS[name], f"{name}: {seen.describe()}"
 
 
 async def test_two_reviewers_each_get_their_own_identity_on_postgres(probe, world, owner_engine):
@@ -373,3 +412,72 @@ async def test_two_reviewers_each_get_their_own_identity_on_postgres(probe, worl
     assert a1.json()["platform"] == a2.json()["platform"] == "shopee"
     assert b1.json()["platform"] == "lazada"
     assert b1.json()["expires_at"] != a1.json()["expires_at"]
+
+
+async def test_cold_identity_load_leaves_only_the_reviewers_own_scope_on_postgres(world):
+    """D8: after the fused cold load the role is back to juli_app and the GUCs name only the
+    verified sub and the configured pin; the reads saw only those two rows."""
+    from juli_backend.services.reviewer import identity
+
+    _forget_identity_caches()
+    async with juli_app_async_sessionmaker() as factory, factory() as session:
+        loaded = await identity.load_identity(session, world["reviewer"], world["shop"])
+        role, user_guc, shop_guc, visible_users = (
+            await session.execute(
+                text(
+                    "SELECT current_user, current_setting('app.current_user_id', true), "
+                    "current_setting('app.current_shop_id', true), "
+                    "(SELECT count(*) FROM public.users)"
+                )
+            )
+        ).one()
+        await session.rollback()
+    assert role == "juli_app"
+    assert user_guc == str(world["reviewer"]) and shop_guc == str(world["shop"])
+    assert visible_users == 1  # RLS: the reviewer's own row, never the shop owner's
+    assert loaded.account is not None and loaded.account.user_id == world["reviewer"]
+    assert loaded.user_values is not None and loaded.user_values["id"] == world["reviewer"]
+    assert loaded.pinned is not None and loaded.pinned.shop_id == world["shop"]
+    assert loaded.pinned.owner_user_id == world["owner"]
+    assert loaded.pinned.pin.sandbox and loaded.pinned.pin.writes_enabled
+
+
+async def test_concurrent_cold_requests_share_one_load_on_postgres(probe, world, owner_engine):
+    """N concurrent cold requests of one reviewer: one account read; two reviewers: two."""
+    other = uuid.uuid4()
+    with owner_engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO public.ops_reviewer_accounts (id, user_id, email, role, platform, "
+                "expires_at, created_by, last_session_id) VALUES (:id, :u, :e, 'reviewer', "
+                "'shopee', :exp, 'owner@app-juli.com', :sid)"
+            ),
+            {
+                "id": uuid.uuid4(),
+                "u": other,
+                "e": f"second-review-{other.hex[:6]}@app-juli.com",
+                "exp": _now() + timedelta(days=3),
+                "sid": SESSION_ID,
+            },
+        )
+        conn.execute(
+            text("INSERT INTO public.users (id, phone, email) VALUES (:id, :p, :e)"),
+            {"id": other, "p": f"+1571{other.hex[:7]}", "e": f"rv2-{other.hex[:6]}@app-juli.com"},
+        )
+    a = _reviewer_headers(world)
+    b = {
+        "Authorization": f"Bearer {_token(other, reviewer=True)}",
+        "X-Shop-Id": str(world["shop"]),
+    }
+    await probe.once(ROUTES["me"], a)  # asyncpg statements warm
+    _forget_identity_caches()
+    paths = [ROUTES[name] for name in ("me", "shop", "analysis", "onboarding", "rules", "runs")]
+    with probe.counter.measure() as seen:
+        responses = await asyncio.gather(
+            *(probe.client.get(path, headers=h) for path in paths for h in (a, b))
+        )
+    assert all(r.status_code in (200, 404) for r in responses), [r.text for r in responses]
+    account_reads = [e for e in seen.events if e.startswith("SELECT account.id")]
+    assert len(account_reads) == 2, seen.describe()  # one per reviewer, not one per request
+    me_a, me_b = responses[0].json(), responses[1].json()
+    assert me_a["expires_at"] != me_b["expires_at"]  # each reviewer got its own account
