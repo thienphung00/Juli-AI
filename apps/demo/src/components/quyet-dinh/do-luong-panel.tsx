@@ -39,6 +39,7 @@ import {
 import { fullDate } from "../../lib/quyet-dinh/p10-format";
 import type { Measurement } from "../../lib/quyet-dinh/p10-types";
 import type { ReasonChoice } from "../../lib/quyet-dinh/reasons";
+import { isTerminalRun } from "../../lib/quyet-dinh/run-model";
 import { addDays, vnDate, vnTime } from "../../lib/quyet-dinh/timeline";
 import type { RevertQuestion, RunChanges } from "../../lib/quyet-dinh/types";
 import { num } from "../../lib/vn-format";
@@ -86,7 +87,9 @@ export function isExecutedRun(run: WorkflowRunListItem): boolean {
 
 /** P67 (D75 Q2): on the sandbox shop, every finished run whose TikTok write TikTok confirmed. */
 export function isConfirmedSandboxWrite(run: WorkflowRunListItem): boolean {
-  return run.status === "completed" && Boolean(run.confirmed_write);
+  // P70: whatever a later step did (declined, expired, failed), a finished run whose
+  // write TikTok confirmed is listed.
+  return isTerminalRun(run) && Boolean(run.confirmed_write);
 }
 
 /** "TikTok xác nhận lúc 12:43 23/10/2026" for a confirmed write. */

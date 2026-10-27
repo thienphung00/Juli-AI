@@ -340,6 +340,59 @@ def completed_required_steps(
     return frozenset(completed)
 
 
+def _performed(content: Any) -> bool:
+    """A tool result that names an operation which actually happened (the
+    `completed_required_steps` rule, plus a handler's own ``ok: false``)."""
+    if not isinstance(content, Mapping):
+        return False
+    if "error" in content or "confirmation" in content or "conflict" in content:
+        return False
+    return content.get("ok") is not False
+
+
+def performed_call_arguments(
+    conversation_window: Sequence[Mapping[str, Any]],
+    tool_name: str,
+) -> list[Mapping[str, Any]]:
+    """The arguments of every `tool_name` call this run actually performed.
+
+    P70 (run ceec586e): pairs each performed tool result (same rule as
+    `completed_required_steps`, and never a result whose handler said
+    ``ok: false``) with the assistant proposal that carries its ``call_id`` --
+    what the runner needs to recognise a CONFIRM proposal that repeats a change
+    already written in this run.
+    """
+    performed: set[Any] = set()
+    for message in conversation_window:
+        if message.get("role") != "tool" or message.get("tool_name") != tool_name:
+            continue
+        if _performed(message.get("content")):
+            performed.add(message.get("tool_call_id"))
+    found: list[Mapping[str, Any]] = []
+    for message in conversation_window:
+        call = message.get("tool_call")
+        if not isinstance(call, Mapping) or call.get("tool_name") != tool_name:
+            continue
+        arguments = call.get("arguments")
+        if call.get("call_id") in performed and isinstance(arguments, Mapping):
+            found.append(arguments)
+    return found
+
+
+def performed_any(
+    conversation_window: Sequence[Mapping[str, Any]],
+    tool_names: frozenset[str] | set[str],
+) -> bool:
+    """Whether this run actually performed any of `tool_names` (P70: a write
+    that went through stays the run's outcome whatever a later step does)."""
+    return any(
+        message.get("role") == "tool"
+        and message.get("tool_name") in tool_names
+        and _performed(message.get("content"))
+        for message in conversation_window
+    )
+
+
 def required_steps_completed(
     conversation_window: Sequence[Mapping[str, Any]],
     required_steps: tuple[str, ...],
@@ -381,6 +434,8 @@ __all__ = [
     "evaluate_checkpoint",
     "evaluate_iteration_gate",
     "extension_grant_narration",
+    "performed_any",
+    "performed_call_arguments",
     "required_steps_completed",
     "running_seconds_column_value",
 ]

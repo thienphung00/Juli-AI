@@ -116,8 +116,12 @@ export function runPhase(
   local: { readonly appliedPosted?: boolean; readonly declined?: boolean } = {},
 ): RunPhase {
   const terminal = timeline.terminal;
+  // P70 (run ceec586e): a write TikTok confirmed stays the run's outcome whatever a later
+  // step did -- a run that wrote is never "Không thay đổi" / "Không có gì được ghi".
+  const wroteFirst = timeline.wrote && kind !== "manual" && kind !== "revert";
   if (terminal) {
     const stop = terminal.stopReason;
+    if (wroteFirst && terminal.kind === "completed") return "done";
     if (stop === "confirmation_declined" || stop === "cancelled_by_seller") return "declined";
     if (stop === "concurrency_conflict") return "conflict";
     if (terminal.kind === "completed" && (timeline.wrote || kind === "manual" || kind === "revert")) return "done";
@@ -126,7 +130,8 @@ export function runPhase(
   // Never "Đang chạy" for a run the server already ended (e.g. reaped as worker_lost).
   const ended = isTerminalRun(run) ? terminalPhaseFromStatus(run) : null;
   if (ended) return ended;
-  if (local.declined) return "declined";
+  // The seller declined a later proposal: the resume is on its way, the write stands.
+  if (local.declined) return wroteFirst ? "running" : "declined";
   // P41: a polled list row can still say `queued` after the run's events moved
   // on (a consent is up, a tool ran) — the events win, so the chip never says
   // "Trong hàng đợi" next to "Xác nhận một lần — Đang chờ bạn".
@@ -206,9 +211,11 @@ export function listChip(run: QdRun, sandboxShop = false): Chip {
   if (run.status === "queued") return { label: "Trong hàng đợi", tone: "queue" };
   if (run.status === "waiting_approval" || run.awaiting) return { label: "Đang chờ bạn", tone: "wait" };
   if (run.status === "running" || run.status === "waiting_external") return { label: "Đang chạy", tone: "info" };
-  if (run.stop_reason === "confirmation_declined") return { label: "Không thay đổi", tone: "muted" };
+  // P70: a run that declined a later proposal after its write still wrote (below).
+  const wroteThenDeclined = run.stop_reason === "confirmation_declined" && Boolean(run.confirmed_write);
+  if (run.stop_reason === "confirmation_declined" && !wroteThenDeclined) return { label: "Không thay đổi", tone: "muted" };
   if (run.stop_reason === "cancelled_by_seller") return { label: RUN_TERMINAL_STATE_COPY.cancelled.label, tone: "muted" };
-  if (run.status === "completed" && run.stop_reason === "final_response") {
+  if (run.status === "completed" && (run.stop_reason === "final_response" || wroteThenDeclined)) {
     return appliedChip(run, sandboxShop);
   }
   if (run.stop_reason === NO_PROPOSAL_STOP_REASON) return { label: NO_PROPOSAL_LABEL, tone: "muted" };
