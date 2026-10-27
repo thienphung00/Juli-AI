@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from typing import Any, Protocol
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.privacy import error_label
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import Order, OrderItem
 from juli_backend.repositories.repos import (
@@ -78,6 +80,26 @@ async def _refresh_stored_report(
 class _ShopState:
     lock: asyncio.Lock
     pending: int = 0
+
+
+_DLQ_REASON = re.compile(r"[a-z][a-z0-9_ ()]{0,79}")
+
+
+def _dlq_error(exc: BaseException) -> str:
+    """Why a record went to the DLQ, without the value that failed (D16).
+
+    ``TransformError`` (``ValueError``) texts are ours: up to the first ``:`` is the
+    fixed reason (``invalid datetime``, ``parent order not found``) and what follows
+    is the offending value, which is dropped. The reason is kept only when it looks
+    like one -- lower-case words, at most 80 characters; anything else, and every
+    other exception, is its class only (``core.privacy.error_label``): a message
+    can echo input.
+    """
+    if isinstance(exc, TransformError):
+        reason = str(exc).split(":", 1)[0].strip()
+        if _DLQ_REASON.fullmatch(reason):
+            return f"{type(exc).__name__}: {reason}"
+    return error_label(exc)
 
 
 class EtlConsumer:
@@ -165,7 +187,7 @@ class EtlConsumer:
         try:
             payload = json.loads(record.value)
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            await self._send_dlq(record, error=str(exc), payload=None)
+            await self._send_dlq(record, error=_dlq_error(exc), payload=None)
             return ProcessOutcome.DLQ
 
         if not isinstance(payload, dict):
@@ -177,7 +199,7 @@ class EtlConsumer:
                 channel=record.channel, shop_key=record.shop_key, payload=payload
             )
         except (TypeError, ValueError) as exc:
-            await self._send_dlq(record, error=str(exc), payload=payload)
+            await self._send_dlq(record, error=_dlq_error(exc), payload=payload)
             return ProcessOutcome.DLQ
 
         if self._scope_to_resolved_shop:
@@ -256,7 +278,7 @@ class EtlConsumer:
             # envelope leaves over `_dlq_handoff`, not the session, so undoing
             # the claim cannot also discard the record of why it failed.
             await claim_and_persist.rollback()
-            await self._send_dlq(record, error=str(exc), payload=payload)
+            await self._send_dlq(record, error=_dlq_error(exc), payload=payload)
             await self._session.commit()
             return ProcessOutcome.DLQ
         except BaseException:
@@ -367,12 +389,16 @@ class EtlConsumer:
         error: str,
         payload: dict[str, Any] | None,
     ) -> None:
+        # D16 / ADR-116 §4: the envelope names the record and why it failed --
+        # never the record itself. The payload and the raw bytes are a platform
+        # body as received (buyer name, address, message), and the DLQ handoff
+        # logs or queues whatever it is given. ``payload`` stays a parameter so
+        # every call site keeps saying what it had; it is not forwarded.
+        del payload
         envelope = {
             "original_channel": record.channel,
             "shop_key": record.shop_key,
             "error": error,
-            "payload": payload,
-            "raw": record.value.decode(errors="replace"),
         }
         logger.error(
             "etl_dlq",

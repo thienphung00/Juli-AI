@@ -14,8 +14,11 @@ from juli_backend.database.tenant_context import with_shop_scope, with_tenant_sc
 from juli_backend.models.models import Shop
 from juli_backend.repositories.repos import ShopsRepo, WorkflowWebhookSignalsRepo
 from juli_backend.services.etl.event_id import extract_event_id
+from juli_backend.services.privacy.payload_allowlist import TIKTOK
+from juli_backend.services.privacy.raw_payload import sanitize_raw_payload
 from juli_backend.services.tiktok.schemas import TikTokWebhookPayload
 from juli_backend.services.tiktok.webhook_catalog import HISTORY_CATALOG_IDS, CatalogEntry
+from juli_backend.services.tiktok.webhook_redaction import webhook_endpoint
 
 #: History types new in P23 whose signal is keyed on ``tts_notification_id`` (39
 #: keeps its existing key so already-recorded signals stay deduplicated).
@@ -80,12 +83,26 @@ class DatabaseWebhookSideEffects:
         else:
             intent = "workflow_gate"
 
-        payload = {
+        # D16 / ADR-116 §4: the signal keeps the delivery reduced to its kind's
+        # allowlist (``webhook_redaction``), ``buyer_id`` as the shop's pseudonym --
+        # never ``event.data`` as received. No reader parses ``payload`` back; the
+        # dedup ``event_id`` is keyed on the same reduced payload, so its
+        # whole-``data`` fallback cannot carry buyer fields into the column either.
+        delivered = {
             "type": event.type,
             "shop_id": event.shop_id,
             "timestamp": event.timestamp,
             "data": event.data or {},
         }
+        if event.notification_id:
+            delivered["tts_notification_id"] = event.notification_id
+        payload = await sanitize_raw_payload(
+            self.session,
+            shop_id,
+            platform=TIKTOK,
+            endpoint=webhook_endpoint(event.type),
+            payload=delivered,
+        )
         event_id = extract_event_id(
             channel=entry.etl_channel,
             shop_key=event.shop_id,

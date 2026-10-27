@@ -5,7 +5,11 @@ Rows carry the PLATFORM's own field names (Shopee Seller Centre's, from the
 mapping to Juli's streams and KPIs happens once, here on the server
 (``mapping.py``), whatever the source -- extension, file upload, vendor or,
 later, the official API. Anything a source sees that the contract does not name
-goes in the row's ``extra`` object and is kept as-is in the normalized row.
+goes in the row's ``extra`` object; its numbers, booleans and nulls are kept in
+the normalized row. A STRING value there is accepted (a source is not refused for
+sending one) and dropped on the server: free text could carry a buyer's name or
+message, and the raw copy's allowlist keeps the same three types (owner decision
+D16; ``services/privacy/payload_allowlist._filter_open_numeric``).
 
 Units, as Seller Centre's API returns them (rates unverified on non-zero data;
 the D31.6 recon confirms them):
@@ -84,7 +88,8 @@ class RowBase(BaseModel):
     def _extra_bounded(cls, value: dict[str, Any]) -> dict[str, Any]:
         if len(value) > MAX_EXTRA_KEYS:
             raise ValueError(f"extra has more than {MAX_EXTRA_KEYS} keys")
-        return value
+        # D16: numbers, booleans and nulls only -- a string is dropped, never stored.
+        return {key: item for key, item in value.items() if not isinstance(item, str)}
 
     def key(self) -> tuple[Any, ...]:
         return (self.date,)

@@ -48,7 +48,8 @@ Matches ``__all__`` — re-exports only:
 - Returns `{"code": 0}` within TikTok's 3-second ACK window; persistence is async
   via ETL after handoff
 - Every inbound delivery (including 401/400) is recorded via the injected
-  `RawWebhookEventRecorder` when present — redacted body, fail-safe (never blocks ACK)
+  `RawWebhookEventRecorder` when present — allowlisted body (no buyer field, D16),
+  fail-safe (never blocks ACK)
 - Missing or invalid `Authorization` header → HTTP 401 without handoff
 - Malformed JSON or missing `type` / shop key → HTTP 400 without handoff
 - Phase 2 catalog types route to catalog-specific ETL channels (see `webhook_catalog.py`)
@@ -65,7 +66,7 @@ Matches ``__all__`` — re-exports only:
 - `juli_backend.services.tiktok.webhook_catalog` — Phase 2 registry (#1–#68 subset)
 - `juli_backend.services.tiktok.webhook_handlers` — workflow signals + account lifecycle
 - `juli_backend.services.tiktok.webhook_raw_log` — `RawWebhookEventRecorder` + DB impl (#392)
-- `juli_backend.services.tiktok.webhook_redaction` — denylist PII redaction before archive
+- `juli_backend.services.tiktok.webhook_redaction` — per-kind field allowlist before archive (D16)
 - `juli_backend.models.models.WorkflowWebhookSignal` — durable workflow-intent records
 - `juli_backend.models.models.WebhookRawEvent` — redacted delivery archive (`webhook_raw_events`)
 

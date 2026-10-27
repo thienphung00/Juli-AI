@@ -26,6 +26,7 @@ from typing import Any, TypeVar
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.privacy import error_label
 from juli_backend.integrations.tiktok import (
     ANALYTICS_BESTSELLING_PRODUCTS_PATH,
     ANALYTICS_BESTSELLING_VIDEOS_PATH,
@@ -145,12 +146,14 @@ _ERROR_DETAIL_LIMIT = 200
 
 
 def _describe(exc: BaseException) -> str:
-    """One bounded line for a log record.
+    """One bounded line for a log record and ``tiktok_sync_state.last_error``.
 
     A bare `repr` of a `TikTokAPIError` can carry a whole vendor response body,
-    and this string goes into every `poll_step_outcome`.
+    and of a validation or database error the buyer data it rejected (D16); this
+    string goes into every `poll_step_outcome` and the sync-state row. Class and
+    vendor code only (``core.privacy.error_label``).
     """
-    return repr(exc)[:_ERROR_DETAIL_LIMIT]
+    return error_label(exc)[:_ERROR_DETAIL_LIMIT]
 
 
 class _CountingHandoff:

@@ -23,8 +23,20 @@ from juli_backend.orm_base import Base as Base
 logger = logging.getLogger(__name__)
 
 
+#: D16: a database error never echoes its bound values. Without it, an
+#: IntegrityError / DataError message (and so a log line, a traceback or a
+#: ``last_error`` column built from it) carries the row being written -- a buyer
+#: field among them. SQLAlchemy prints ``[SQL parameters hidden due to
+#: hide_parameters=True]`` instead.
+ENGINE_DEFAULTS: dict[str, Any] = {"hide_parameters": True}
+
+
+def _with_defaults(kwargs: dict[str, Any]) -> dict[str, Any]:
+    return {**ENGINE_DEFAULTS, **kwargs}
+
+
 def create_engine(database_url: str, **kwargs):
-    return create_async_engine(database_url, **kwargs)
+    return create_async_engine(database_url, **_with_defaults(kwargs))
 
 
 # -- the API's pooled engine (P29) ----------------------------------------------------
@@ -123,7 +135,7 @@ def _install_idle_guard(engine: AsyncEngine, idle_limit: float) -> None:
 def create_api_engine(database_url: str, **kwargs: Any) -> AsyncEngine:
     """The API's engine: a tuned QueuePool on Postgres; plain elsewhere (tests)."""
     if not database_url.startswith("postgresql"):
-        return create_async_engine(database_url, **kwargs)
+        return create_async_engine(database_url, **_with_defaults(kwargs))
     settings = api_pool_settings()
     engine = create_async_engine(
         database_url,
@@ -132,7 +144,7 @@ def create_api_engine(database_url: str, **kwargs: Any) -> AsyncEngine:
         max_overflow=int(settings["max_overflow"]),
         pool_timeout=settings["pool_timeout"],
         pool_recycle=int(settings["pool_recycle"]) or -1,
-        **kwargs,
+        **_with_defaults(kwargs),
     )
     _install_idle_guard(engine, settings["idle_limit"])
     return engine
@@ -301,7 +313,7 @@ def ensure_worker_session_factory(database_url: str) -> async_sessionmaker[Async
         # connection inside the currently running loop, nothing loop-bound survives
         # between tasks, and the Supabase session-mode pooler only ever sees
         # in-flight connections (the #813 concern, solved without a shared pool).
-        engine = create_async_engine(database_url, poolclass=NullPool)
+        engine = create_async_engine(database_url, poolclass=NullPool, **ENGINE_DEFAULTS)
         factory = create_session_factory(engine)
         _worker_factories[database_url] = factory
         init_session_factory(factory)
