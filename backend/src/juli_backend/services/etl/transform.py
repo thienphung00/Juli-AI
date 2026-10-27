@@ -16,11 +16,17 @@ from juli_backend.integrations.tiktok import (
     normalize_return,
     normalize_statement,
 )
+from juli_backend.models.order_status import canonical_order_status
 from juli_backend.services.etl.channels import ANALYTICS_CHANNELS, RAW_CHANNELS
 from juli_backend.services.privacy.reason_labels import safe_reason
 
 TransformError = ValueError
 TIKTOK_PLATFORM = "tiktok"
+
+#: Channels that carry a whole TikTok order (Order Search / Order Detail): the poll
+#: and the targeted fetch. Every other order-shaped channel is a webhook that names
+#: the order and its new status only (P70, E15).
+ORDER_SNAPSHOT_CHANNELS: frozenset[str] = frozenset({"tiktok.orders.raw"})
 
 
 def bronze_order_to_upsert_kwargs(
@@ -81,21 +87,51 @@ def _unwrap_webhook(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _transform_order(body: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+def _transform_order(
+    body: dict[str, Any], payload: dict[str, Any], *, full_snapshot: bool = True
+) -> dict[str, Any]:
+    """Order upsert kwargs. ``full_snapshot=False`` (a webhook) keeps only what it carries.
+
+    A webhook such as ORDER_STATUS_CHANGE names the order, its new status and the
+    update time -- no amounts, no buyer, no ``create_time``. Emitting the snapshot's
+    defaults for it (amount 0, every time ``None``) blanked what the poll had stored
+    (E15); the partial dict leaves those columns to ``OrdersRepo.upsert``.
+    """
     order_id = body.get("order_id") or body.get("id")
     if not order_id:
         raise TransformError("order_id required")
-    status = body.get("order_status") or body.get("status") or "UNKNOWN"
+    status = canonical_order_status(body.get("order_status") or body.get("status"))
+    update_time = _unix_to_datetime(body.get("update_time") or payload.get("timestamp"))
     amount = (
         body.get("total_amount")
         or body.get("payment_amount")
         or _nested_payment_amount(body.get("payment"))
-        or 0
     )
-    order_value = Decimal(str(amount))
+    if not full_snapshot:
+        partial: dict[str, Any] = {
+            "tiktok_order_id": str(order_id),
+            "status": status,
+            "update_time": update_time,
+        }
+        if amount is not None:
+            partial["order_value"] = partial["total_amount"] = Decimal(str(amount))
+        if body.get("currency"):
+            partial["currency"] = str(body["currency"])
+        if body.get("buyer_id"):
+            partial["buyer_id"] = body["buyer_id"]
+        if body.get("is_seller_fault") is not None:
+            partial["is_seller_fault"] = body["is_seller_fault"]
+        if body.get("cancel_reason") is not None:
+            partial["cancel_reason"] = safe_reason(
+                TIKTOK_PLATFORM, "cancel_reason", body.get("cancel_reason")
+            )
+        # ``create_time`` is deliberately not read: on a webhook it is the event's
+        # (e.g. a cancellation request's), not the order's.
+        return partial
+    order_value = Decimal(str(amount or 0))
     return {
         "tiktok_order_id": str(order_id),
-        "status": _canonical_order_status(status),
+        "status": status,
         "buyer_id": body.get("buyer_id"),
         "order_value": order_value,
         "total_amount": order_value,
@@ -110,29 +146,12 @@ def _transform_order(body: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         # label, else "other" -- never free text (``privacy.reason_labels``).
         "cancel_reason": safe_reason(TIKTOK_PLATFORM, "cancel_reason", body.get("cancel_reason")),
         "is_seller_fault": body.get("is_seller_fault"),
-        "update_time": _unix_to_datetime(body.get("update_time") or payload.get("timestamp")),
+        "update_time": update_time,
     }
 
 
 def _optional_datetime(value: Any) -> datetime | None:
     return _unix_to_datetime(value) if value is not None else None
-
-
-def _canonical_order_status(value: Any) -> str:
-    status = str(value or "").upper()
-    status_map = {
-        "UNPAID": "pending",
-        "AWAITING_SHIPMENT": "confirmed",
-        "PARTIALLY_SHIPPING": "confirmed",
-        "AWAITING_COLLECTION": "confirmed",
-        "IN_TRANSIT": "shipped",
-        "SHIPPED": "shipped",
-        "DELIVERED": "delivered",
-        "COMPLETED": "delivered",
-        "CANCELLED": "cancelled",
-        "RETURNED": "returned",
-    }
-    return status_map.get(status, str(value).lower())
 
 
 def _transform_order_item(body: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
@@ -427,6 +446,11 @@ def _channel_allowed(channel: str) -> bool:
     return channel in RAW_CHANNELS or channel.startswith("tiktok.")
 
 
+def is_order_snapshot_channel(channel: str) -> bool:
+    """Whether ``channel`` carries a whole TikTok order rather than a status event."""
+    return channel in ORDER_SNAPSHOT_CHANNELS
+
+
 def transform_for_channel(channel: str, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Return ``(entity_kind, upsert_kwargs_without_shop_id)`` for an ingest payload."""
     if not _channel_allowed(channel):
@@ -447,7 +471,11 @@ def transform_for_channel(channel: str, payload: dict[str, Any]) -> tuple[str, d
             and channel != "tiktok.products.raw"
         )
     ):
-        return "order", _transform_order(normalize_order(body), payload)
+        return "order", _transform_order(
+            normalize_order(body),
+            payload,
+            full_snapshot=is_order_snapshot_channel(channel),
+        )
 
     if channel == "tiktok.order_items.raw":
         return "order_item", _transform_order_item(body, payload)

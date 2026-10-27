@@ -34,6 +34,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.models.order_status import REVERSED_ORDER_STATUSES, canonical_order_status
 from juli_backend.models.shop_diagnosis import RANKING_60D
 from juli_backend.repositories import ShopDiagnosisReportsRepo
 from juli_backend.services.shop_diagnosis_daily.fetch import DAYS
@@ -47,8 +48,9 @@ logger = logging.getLogger(__name__)
 
 #: Seconds a change waits before the rebuild runs; also the debounce window.
 REFRESH_DEBOUNCE_SECONDS = 120
-#: Statuses that take an order out of GMV.
-REVERSED_STATUSES: frozenset[str] = frozenset({"cancelled", "canceled", "returned", "refunded"})
+#: Statuses that take an order out of GMV (canonical; ``_qualifies`` maps any TikTok
+#: spelling -- ``CANCEL``, ``canceled``, ``refunded`` -- onto them first, P70 / E15).
+REVERSED_STATUSES: frozenset[str] = REVERSED_ORDER_STATUSES
 
 ClaimFn = Callable[[str], bool]
 EnqueueFn = Callable[[str], Any]
@@ -128,8 +130,8 @@ def set_report_refresh_enqueuer(enqueuer: EnqueueFn | None) -> None:
 
 
 def _qualifies(status: str | None) -> bool:
-    value = (status or "").lower()
-    return value in REVERSED_STATUSES or value in PAID_ORDER_STATUSES
+    canonical = canonical_order_status(status, warn=False)
+    return canonical in REVERSED_STATUSES or canonical in PAID_ORDER_STATUSES
 
 
 def _local_day(created_at: datetime) -> date:

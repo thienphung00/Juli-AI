@@ -111,6 +111,8 @@ class ShopScopedRepo(SessionRepo, Generic[EntityT]):
 
     _model: ClassVar[type[Any]]
     _lookup_attrs: ClassVar[tuple[str, ...]] = ()
+    #: Values an insert gets for NOT NULL columns a partial write does not carry.
+    _insert_defaults: ClassVar[Mapping[str, Any]] = {}
 
     # -- query building -----------------------------------------------------
 
@@ -175,13 +177,21 @@ class ShopScopedRepo(SessionRepo, Generic[EntityT]):
 
     # -- writes -------------------------------------------------------------
 
-    async def upsert(self, *, shop_id: uuid.UUID, **values: Any) -> EntityT:
+    async def upsert(
+        self, *, shop_id: uuid.UUID, full_snapshot: bool = False, **values: Any
+    ) -> EntityT:
         """Insert or update by natural key, refusing to overwrite newer data.
 
         ``values`` must contain every column in ``_lookup_attrs``. When a row
         with that key exists and carries an ``update_time`` at or after the
         incoming one, the stored row is returned untouched -- a redelivered or
         out-of-order sync message must not roll a record backwards.
+
+        ``full_snapshot=True`` says the write is the vendor's whole record (a poll
+        read, not an event): it also wins a tie on ``update_time``, so a partial
+        event that landed the same vendor change first cannot block it (P70, E15).
+        A subclass whose rows mix both writers declares ``_insert_defaults`` and
+        overrides :meth:`_apply_if_newer` (``OrdersRepo``); ``upsert`` stays here.
 
         The insert runs inside a savepoint so a concurrent writer landing the
         same key first turns into an update instead of a failed transaction.
@@ -197,9 +207,11 @@ class ShopScopedRepo(SessionRepo, Generic[EntityT]):
 
         existing = await self._one_or_none(match_stmt)
         if existing is not None:
-            return await self._apply_if_newer(existing, values)
+            return await self._apply_if_newer(existing, values, full_snapshot=full_snapshot)
 
-        entity = self._model(id=uuid.uuid4(), shop_id=shop_id, **values)
+        entity = self._model(
+            id=uuid.uuid4(), shop_id=shop_id, **{**self._insert_defaults, **values}
+        )
         try:
             async with self._session.begin_nested():
                 self._session.add(entity)
@@ -208,7 +220,7 @@ class ShopScopedRepo(SessionRepo, Generic[EntityT]):
             existing = await self._one_or_none(match_stmt)
             if existing is None:
                 raise
-            return await self._apply_if_newer(existing, values)
+            return await self._apply_if_newer(existing, values, full_snapshot=full_snapshot)
         return entity
 
     def _natural_key(self, values: Mapping[str, Any]) -> dict[str, Any]:
@@ -220,8 +232,10 @@ class ShopScopedRepo(SessionRepo, Generic[EntityT]):
             )
         return {name: values[name] for name in self._lookup_attrs}
 
-    async def _apply_if_newer(self, existing: EntityT, values: Mapping[str, Any]) -> EntityT:
-        if _incoming_is_stale(existing, values):
+    async def _apply_if_newer(
+        self, existing: EntityT, values: Mapping[str, Any], *, full_snapshot: bool = False
+    ) -> EntityT:
+        if _incoming_is_stale(existing, values, full_snapshot=full_snapshot):
             return existing
         for name, value in values.items():
             setattr(existing, name, value)
@@ -229,10 +243,15 @@ class ShopScopedRepo(SessionRepo, Generic[EntityT]):
         return existing
 
 
-def _incoming_is_stale(existing: Any, values: Mapping[str, Any]) -> bool:
+def _incoming_is_stale(
+    existing: Any, values: Mapping[str, Any], *, full_snapshot: bool = False
+) -> bool:
+    """Older than the stored row; a tie is stale too, unless the write is a full snapshot."""
     incoming = values.get("update_time")
     stored = getattr(existing, "update_time", None)
-    return incoming is not None and stored is not None and incoming <= stored
+    if incoming is None or stored is None:
+        return False
+    return incoming < stored if full_snapshot else incoming <= stored
 
 
 __all__ = [
