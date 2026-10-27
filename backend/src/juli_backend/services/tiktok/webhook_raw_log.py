@@ -18,6 +18,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any, Protocol
 
+from cryptography.fernet import InvalidToken
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.tenant_context import with_shop_scope
@@ -184,6 +186,7 @@ class DatabaseRawWebhookEventRecorder:
             async with self._session.begin_nested():
                 async with with_shop_scope(self._session, shop_id):
                     return await pseudonymize_buyer_ids(self._session, shop_id, kept)
-        except Exception:  # noqa: BLE001 — never block audit path
+        except (SQLAlchemyError, RuntimeError, ValueError, InvalidToken):
+            # Shop lookup, key fetch/seal or unseal failed: never block the audit path.
             logger.warning("webhook_raw_buyer_id_dropped", extra={"tiktok_shop_id": tiktok_shop_id})
             return drop_buyer_ids(kept)

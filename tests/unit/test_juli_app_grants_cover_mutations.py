@@ -344,7 +344,26 @@ KNOWN_TRANSIENT: tuple[MutationSite, ...] = (
     ),
 )
 
-_TOLERATED = {site.qualified for site in (*GRANT_REQUIRED, *KNOWN_TRANSIENT)}
+#: Writes that only an operator command makes, on the migration OWNER connection
+#: (``DATABASE_DIRECT_URL``), never as ``juli_app``. They need no grant -- the
+#: append-only tables stay ungranted by design (see the module docstring) -- so they
+#: are tolerated here and kept out of ``tables_requiring``.
+OWNER_CONNECTION_ONLY: tuple[MutationSite, ...] = (
+    MutationSite(
+        "public",
+        "webhook_raw_events",
+        "UPDATE",
+        "backend/src/juli_backend/services/privacy/payload_cleanup.py",
+        "row.raw_body = body",
+        "D16 operator clean-up (payload_cleanup, owner connection): reduces archived "
+        "deliveries to the webhook allowlist and scrubs event ids; juli_app keeps "
+        "INSERT + SELECT only",
+    ),
+)
+
+_TOLERATED = {
+    site.qualified for site in (*GRANT_REQUIRED, *KNOWN_TRANSIENT, *OWNER_CONNECTION_ONLY)
+}
 
 
 def tables_requiring(privilege: str, *, schema: str = "public") -> frozenset[str]:
@@ -874,7 +893,7 @@ def test_every_registry_entry_still_names_a_live_call_site():
     falsify is documentation, not a test.
     """
     stale: list[str] = []
-    for site in (*GRANT_REQUIRED, *KNOWN_TRANSIENT):
+    for site in (*GRANT_REQUIRED, *KNOWN_TRANSIENT, *OWNER_CONNECTION_ONLY):
         path = REPO_ROOT / site.path
         if not path.is_file():
             stale.append(f"  {site.schema}.{site.table}: missing file {site.path}")
