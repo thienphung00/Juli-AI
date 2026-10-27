@@ -12,27 +12,13 @@ import {
 
 export const metadata = buildMetadata("/privacy");
 
-const LAST_UPDATED = "18/10/2026";
+const LAST_UPDATED = "27/10/2026";
 
 /** Anchor for the trial sign-up paragraph in §2 (P33-F), linked from /dang-ky's consent. */
 const TRIAL_SIGNUP_SECTION_ID = "dang-ky-dung-thu";
 
 /** Anchor for §3, so the Google OAuth consent screen can deep-link to it. */
 const GOOGLE_SECTION_ID = "du-lieu-nguoi-dung-google";
-
-/**
- * "Tóm tắt dễ hiểu" (D44): each line restates what a numbered section below
- * already says (§4, §5, §3 + staff access, §3.2/§7, §6, §9 + §8). It adds no
- * commitment; the full text governs. Date only, no version number (D68.13).
- */
-const SUMMARY = [
-  "Sau khi bạn kết nối shop, Juli đọc dữ liệu shop (đơn hàng, sản phẩm, tồn kho, đơn hoàn, hiệu suất) qua API của TikTok Shop để phân tích và đề xuất cho shop của bạn.",
-  "Mặc định Juli không thay đổi gì trên shop thật; một thao tác chỉ được thực hiện sau khi bạn đã duyệt đề xuất đó.",
-  "Nhân viên Juli chỉ xem dữ liệu shop để hỗ trợ và vận hành dịch vụ, không xem dữ liệu người mua, và mọi lần truy cập đều được ghi nhật ký.",
-  "Juli không bán dữ liệu, và không dùng dữ liệu người dùng Google cho quảng cáo hay để huấn luyện mô hình AI.",
-  "Khi dùng Juli, dữ liệu shop và dữ liệu sử dụng của bạn, sau khi đã khử định danh, được dùng để cải thiện mô hình của Juli; dữ liệu người mua không bao giờ được dùng để huấn luyện.",
-  "Bạn thực hiện quyền của mình trong Cài đặt, mục Quyền riêng tư của ứng dụng hoặc qua email. Khi xoá tài khoản, bạn có 30 ngày để tải dữ liệu, sau đó dữ liệu tài khoản và dữ liệu shop bị xoá, trừ dữ liệu pháp luật yêu cầu lưu giữ.",
-] as const;
 
 const TOC = [
   { id: "muc-1", label: "1. Chúng tôi là ai" },
@@ -61,7 +47,6 @@ export default function PrivacyPolicyPage() {
         contactTitle="Liên hệ về quyền riêng tư"
         effective={LAST_UPDATED}
         englishHref={`#${ENGLISH_SECTION_ID}`}
-        summary={SUMMARY}
         title="Chính sách bảo mật"
         toc={TOC}
         updated={LAST_UPDATED}
@@ -106,8 +91,7 @@ export default function PrivacyPolicyPage() {
               <a href="/terms">
                 Điều khoản dịch vụ
               </a>
-              . Với dữ liệu đã khử định danh mà Juli dùng để cải thiện mô hình của mình (mục
-              6), Juli là bên kiểm soát dữ liệu.
+              .
             </p>
             <p>
               Bạn có thể liên hệ chúng tôi qua email{" "}
@@ -317,8 +301,10 @@ export default function PrivacyPolicyPage() {
               <li>Chương trình khuyến mãi và mã giảm giá của shop</li>
             </ul>
             <p>
-              Juli không đọc tin nhắn cá nhân của bạn, và không lưu thông tin liên hệ của
-              người mua ngoài mã định danh cần thiết để xử lý đơn hàng.
+              Juli không đọc tin nhắn cá nhân của bạn. Thông tin liên hệ và nội dung của người
+              mua (tên, địa chỉ, số điện thoại, email, lời nhắn) được loại bỏ ngay khi Juli nhận
+              dữ liệu từ sàn và không được lưu lại; mã người mua chỉ được lưu ở dạng mã hoá riêng
+              cho từng shop.
             </p>
 
             <h3 className={legal.subheading} id="noi-dung-ban-cung-cap">
@@ -401,48 +387,38 @@ export default function PrivacyPolicyPage() {
             <p>
               Gợi ý kịch bản, tiêu đề và nội dung được xử lý riêng cho từng shop, dựa trên dữ
               liệu và cách dùng từ ngữ của chính shop đó; nội dung riêng của shop không được
-              hiển thị cho shop khác và không dùng để tạo gợi ý cho shop khác, ngoài việc dùng
-              ở dạng đã khử định danh theo mục 6.2.
+              hiển thị cho shop khác và không dùng để tạo gợi ý cho shop khác.
             </p>
 
-            <h3 className={legal.subheading} id="cai-thien-mo-hinh">
-              6.2. Cải thiện thuật toán và mô hình của Juli
+            <h3 className={legal.subheading} id="du-lieu-tu-san">
+              6.2. Dữ liệu từ sàn chỉ phục vụ shop của bạn
             </h3>
-            <p>
-              Juli sử dụng dữ liệu để phân tích, tối ưu thuật toán, nghiên cứu, huấn luyện,
-              tinh chỉnh (fine-tune), kiểm thử và phát triển các mô hình và dịch vụ của Juli,
-              theo các nguyên tắc sau:
-            </p>
-            <ul aria-label="Nguyên tắc dùng dữ liệu để cải thiện Juli">
+            <ul aria-label="Nguyên tắc dùng dữ liệu từ sàn">
               <li>
-                Chỉ dùng dữ liệu đã khử định danh: dữ liệu shop (mục 4, 4A) và dữ liệu về cách
-                bạn dùng Juli được loại bỏ tên shop, mã shop, tên, email, số điện thoại của bạn
-                và mọi thông tin có thể xác định bạn, shop của bạn hay bất kỳ cá nhân nào trước
-                khi được dùng cho mục đích này.
+                Juli chỉ dùng dữ liệu nhận từ sàn qua kết nối bạn cho phép để cung cấp dịch vụ
+                cho chính shop của bạn.
               </li>
               <li>
-                Là điều kiện sử dụng Juli, theo mục 8.6 của{" "}
-                <a href="/terms">
-                  Điều khoản dịch vụ
-                </a>
-                . Dữ liệu cá nhân còn xác định được bạn không được dùng để huấn luyện mô hình.
+                Juli không gộp dữ liệu đó với dữ liệu của shop khác, không dùng để phục vụ khách
+                hàng khác, không bán hay chia sẻ.
+              </li>
+              <li>
+                Để cải thiện dịch vụ chung, Juli dùng dữ liệu thị trường công khai và dữ liệu
+                của chính Juli.
+              </li>
+              <li>
+                Nếu sau này Juli muốn dùng dữ liệu của bạn cho mục đích khác, Juli sẽ xin sự đồng
+                ý riêng của bạn và chỉ làm khi điều khoản của sàn cho phép.
               </li>
               <li>
                 Không bao giờ dùng dữ liệu người mua và dữ liệu người dùng Google để huấn luyện
-                mô hình. Dữ liệu cá nhân của người mua được ẩn danh trước khi đi vào bất kỳ quy
-                trình phân tích nào.
-              </li>
-              <li>
-                Dữ liệu dùng cho mục đích này không được tiết lộ cho khách hàng khác. Dữ liệu đã
-                được dùng để huấn luyện không thể tách khỏi mô hình; khi bạn xoá tài khoản, dữ
-                liệu gốc được xoá theo mục 8 nhưng Juli không huấn luyện lại các mô hình đó.
+                mô hình.
               </li>
             </ul>
             <p>
               Theo Nghị định 356/2025/NĐ-CP, dữ liệu về hành vi, thói quen sử dụng dịch vụ trực
               tuyến của một cá nhân là dữ liệu cá nhân nhạy cảm. Juli chỉ dùng dữ liệu này ở
-              dạng gắn với bạn để vận hành và hỗ trợ tài khoản của bạn; dữ liệu được khử định
-              danh trước khi dùng cho mục đích 6.2.
+              dạng gắn với bạn để vận hành và hỗ trợ tài khoản của bạn.
             </p>
 
             <h3 className={legal.subheading}>6.3. Tiếp thị và đo lường quảng cáo (bạn có thể từ chối)</h3>
@@ -456,8 +432,7 @@ export default function PrivacyPolicyPage() {
             </p>
             <p>
               Juli chỉ lưu, phân tích và chia sẻ dữ liệu của bạn cho các mục đích trên. Juli
-              không bán dữ liệu, và không dùng dữ liệu có thể nhận diện shop của bạn để phục vụ
-              khách hàng khác.
+              không bán dữ liệu, và không dùng dữ liệu shop của bạn để phục vụ khách hàng khác.
             </p>
           </LegalSection>
 
@@ -548,8 +523,9 @@ export default function PrivacyPolicyPage() {
               huấn luyện các mô hình của OpenAI. Juli gửi các yêu cầu phân tích với chế độ lưu
               trữ phản hồi của OpenAI được tắt; theo chính sách dữ liệu API của OpenAI, OpenAI
               vẫn có thể lưu dữ liệu API trong một thời gian giới hạn để giám sát lạm dụng. Mô
-              hình tinh chỉnh (nếu có) là mô hình riêng của Juli và chỉ dùng dữ liệu đã khử định
-              danh theo mục 6.2. Juli giới hạn phạm vi và mức sử dụng mô hình cho từng shop.
+              hình tinh chỉnh (nếu có) là mô hình riêng của Juli và chỉ dùng dữ liệu công khai
+              và dữ liệu của chính Juli. Juli giới hạn phạm vi và mức sử dụng mô hình cho từng
+              shop.
             </p>
 
             <h3 className={legal.subheading} id="chuyen-du-lieu-ra-nuoc-ngoai">
@@ -589,9 +565,9 @@ export default function PrivacyPolicyPage() {
               shop, Juli ngừng đồng bộ dữ liệu mới từ shop đó ngay lập tức. Khi bạn xoá tài
               khoản, Juli ngừng đồng bộ dữ liệu shop và giữ dữ liệu thêm 30 ngày để bạn tải về
               hoặc huỷ yêu cầu; sau đó dữ liệu tài khoản và dữ liệu shop được xoá. Nếu bạn yêu
-              cầu xoá ngay, chúng tôi xoá trong vòng 20 ngày. Hoá đơn và chứng từ kế toán được
-              lưu 10 năm theo pháp luật kế toán; dữ liệu đã khử định danh theo mục 6.2 không bị
-              xoá.
+              cầu xoá ngay, chúng tôi xoá trong vòng 20 ngày. Toàn bộ dữ liệu shop được xoá theo
+              các thời hạn trên. Hoá đơn và chứng từ kế toán được lưu 10 năm theo pháp luật kế
+              toán.
             </p>
           </LegalSection>
 
@@ -618,9 +594,8 @@ export default function PrivacyPolicyPage() {
               dữ liệu trong 10 ngày; yêu cầu xoá trong 20 ngày.
             </p>
             <p>
-              Một số dữ liệu là cần thiết để Juli hoạt động (mục 6.1) hoặc là điều kiện sử dụng
-              (mục 6.2). Nếu bạn rút lại sự đồng ý hoặc yêu cầu xoá những dữ liệu này, Juli
-              không thể tiếp tục cung cấp dịch vụ và tài khoản của bạn được chấm dứt theo{" "}
+              Một số dữ liệu là cần thiết để Juli hoạt động (mục 6.1). Nếu bạn rút lại sự đồng
+              ý hoặc yêu cầu xoá những dữ liệu này, Juli không thể tiếp tục cung cấp dịch vụ và tài khoản của bạn được chấm dứt theo{" "}
               <a href="/terms">
                 Điều khoản dịch vụ
               </a>

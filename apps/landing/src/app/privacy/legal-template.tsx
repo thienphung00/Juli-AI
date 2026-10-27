@@ -10,12 +10,10 @@ import styles from "./legal.module.css";
 /**
  * The legal page template (Legal.dc.html, D44.4, P34-E) shared by /privacy and
  * /terms: header block (eyebrow "Pháp lý", H1, dates, optional VN/EN switch),
- * a 720 px reading column with the "Tóm tắt dễ hiểu" card on top, numbered
- * linkable H2s, a side TOC (disclosure on mobile) and the company contact
+ * a 720 px reading column with numbered linkable H2s, a side TOC (disclosure on mobile) and the company contact
  * block. Presentation only — the legal wording lives in each page.
  */
 
-export const SUMMARY_ID = "tom-tat";
 export const CONTENT_ID = "noi-dung";
 
 export interface LegalPageProps {
@@ -25,9 +23,6 @@ export interface LegalPageProps {
   effective: string;
   /** Shown before the dates, e.g. "2.1" (the terms are versioned, §9). */
   version?: string;
-  /** Plain-language summary bullets — only what the full text already says. */
-  summary: readonly ReactNode[];
-  /** TOC entries after "Tóm tắt dễ hiểu" (the summary entry is added here). */
   toc: readonly TocItem[];
   /** The page has a full English version at this anchor → VN/EN switch. */
   englishHref?: string;
@@ -42,14 +37,12 @@ export function LegalPage({
   updated,
   effective,
   version,
-  summary,
   toc,
   englishHref,
   contactTitle,
   contactId,
   children,
 }: LegalPageProps) {
-  const items: TocItem[] = [{ id: SUMMARY_ID, label: "Tóm tắt dễ hiểu" }, ...toc];
   return (
     <>
       <SiteHeader />
@@ -79,21 +72,8 @@ export function LegalPage({
           </div>
 
           <div className={`ui-toc-layout ui-toc-layout--end ${styles.layout}`}>
-            <TocNav activeId={SUMMARY_ID} items={items} variant="rule" />
+            <TocNav activeId={toc[0]?.id} items={toc} variant="rule" />
             <article className={styles.article} id={CONTENT_ID}>
-              <section aria-labelledby={SUMMARY_ID} className={styles.summary}>
-                <h2 className={styles.summaryTitle} id={SUMMARY_ID}>
-                  Tóm tắt dễ hiểu
-                </h2>
-                <ul className={styles.summaryList}>
-                  {summary.map((item, index) => (
-                    <li key={index}>{item}</li>
-                  ))}
-                </ul>
-                <p className={styles.summaryNote}>
-                  Tóm tắt này không thay thế nội dung đầy đủ bên dưới.
-                </p>
-              </section>
 
               {children}
 

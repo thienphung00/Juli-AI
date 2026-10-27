@@ -39,19 +39,20 @@ def test_copy_has_every_required_point_and_no_em_dash() -> None:
     for needed in (
         "Điều khoản dịch vụ",
         "Chính sách bảo mật",
-        "18/10/2026",
+        "27/10/2026",
         "có hiệu lực ngay",
-        "mục đích kinh doanh",
-        "khử định danh",
-        "điều kiện sử dụng",
+        "chính shop của bạn",
+        "không gộp dữ liệu đó với dữ liệu của shop khác",
+        "toàn bộ dữ liệu shop được xoá",
         "Dữ liệu người mua không bao giờ được dùng để huấn luyện",
-        "Điều 11",
         "Cài đặt → Quyền riêng tư",
         "https://app-juli.com/terms",
         "https://app-juli.com/privacy",
         "lienhe@app-juli.com",
     ):
         assert needed in text, needed
+    for retired in ("khử định danh", "điều kiện sử dụng"):
+        assert retired not in text, retired
 
 
 async def test_dry_run_sends_nothing_and_writes_nothing(tmp_path: Path) -> None:

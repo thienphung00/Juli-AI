@@ -4,22 +4,7 @@ import { LegalPage, LegalSection } from "../privacy/legal-template";
 
 export const metadata = buildMetadata("/terms");
 
-const LAST_UPDATED = "18/10/2026";
-
-/**
- * "Tóm tắt dễ hiểu" (D44): each line restates a numbered section below
- * (§1, §2 + §6, §5, §3 + §4, §8, §11, §9). It adds no term; the full text governs.
- * Date only, no version number (D68.13).
- */
-const SUMMARY = [
-  "Juli chỉ dành cho doanh nghiệp, hộ kinh doanh và người bán dùng vào mục đích kinh doanh.",
-  "Juli phân tích dữ liệu shop TikTok Shop và đề xuất việc nên làm; bạn là người quyết định, và Juli chỉ làm khi bạn đồng ý.",
-  "Tài khoản mới dùng thử miễn phí 3 tháng, không cần thẻ thanh toán; sau đó phí dịch vụ là 500.000đ mỗi tháng, phí đã trả không hoàn lại.",
-  "Bạn cần từ 18 tuổi trở lên, và là chủ shop hoặc được chủ shop uỷ quyền khi kết nối shop.",
-  "Dữ liệu shop thuộc về bạn và Juli không bán dữ liệu. Khi dùng Juli, bạn đồng ý cho Juli dùng dữ liệu đã khử định danh để cải thiện mô hình của Juli; dữ liệu người mua không bao giờ được dùng để huấn luyện.",
-  "Juli không chịu trách nhiệm bồi thường thiệt hại phát sinh từ việc sử dụng Juli (Điều 11).",
-  "Bạn có thể ngừng sử dụng Juli và yêu cầu xoá tài khoản bất kỳ lúc nào; bạn có 30 ngày để tải dữ liệu trước khi dữ liệu bị xoá.",
-] as const;
+const LAST_UPDATED = "27/10/2026";
 
 const TOC = [
   { id: "dieu-1", label: "1. Giới thiệu" },
@@ -47,7 +32,6 @@ export default function TermsOfServicePage() {
         contactId="lien-he-dieu-khoan"
         contactTitle="Liên hệ về điều khoản"
         effective={LAST_UPDATED}
-        summary={SUMMARY}
         title="Điều khoản dịch vụ"
         toc={TOC}
         updated={LAST_UPDATED}
@@ -156,12 +140,13 @@ export default function TermsOfServicePage() {
 
           <LegalSection headingId="dieu-8" num="8." title="Dữ liệu của bạn">
             <p>
-              8.1. Dữ liệu shop và dữ liệu kinh doanh của bạn thuộc về bạn. Juli xử lý dữ
-              liệu đó để cung cấp dịch vụ cho bạn và cho mục đích tại mục 8.6, theo{" "}
+              8.1. Dữ liệu shop và dữ liệu kinh doanh của bạn thuộc về bạn. Juli chỉ xử lý
+              dữ liệu Juli nhận từ sàn (TikTok Shop, Shopee) qua kết nối bạn cho phép để cung
+              cấp dịch vụ cho chính shop của bạn, theo{" "}
               <a href="/privacy">
                 Chính sách bảo mật
-              </a>
-              .
+              </a>{" "}
+              và điều khoản của sàn.
             </p>
             <p>
               8.2. Bạn bảo đảm mình có quyền cho phép Juli xử lý dữ liệu shop của bạn, bao
@@ -218,28 +203,19 @@ export default function TermsOfServicePage() {
               tham khảo, và không lấy từ dữ liệu riêng của các shop khác dùng Juli.
             </p>
             <p>
-              8.6. Cải thiện thuật toán và mô hình của Juli: khi sử dụng Juli, bạn cấp cho Juli
-              quyền không độc quyền, miễn phí, không thể huỷ ngang, có hiệu lực vĩnh viễn để sử
-              dụng dữ liệu shop, dữ liệu kinh doanh và dữ liệu sử dụng Juli của bạn sau khi đã
-              được khử định danh, nhằm phân tích, tối ưu thuật toán, nghiên cứu, huấn luyện,
-              tinh chỉnh (fine-tune), kiểm thử và phát triển các mô hình và dịch vụ của Juli. Đây
-              là điều kiện để sử dụng Juli. Trước khi được dùng cho mục đích này, dữ liệu được
-              loại bỏ tên shop, mã shop, tên, email, số điện thoại của bạn và mọi thông tin có
-              thể xác định bạn, shop của bạn hay bất kỳ cá nhân nào. Dữ liệu cá nhân còn xác định
-              được bạn, dữ liệu người dùng Google và dữ liệu của người mua không bao giờ được
-              dùng để huấn luyện mô hình; dữ liệu người mua được ẩn danh trước khi đi vào bất kỳ
-              quy trình phân tích nào. Dữ liệu dùng cho mục đích này không được tiết lộ cho khách
-              hàng khác. Mô hình, trọng số mô hình, số liệu thống kê tổng hợp và các cải tiến
-              phát sinh thuộc quyền sở hữu của Juli. Khi bạn xoá tài khoản, dữ liệu gốc của bạn
-              được xoá theo mục 9; dữ liệu đã khử định danh đã được dùng trước đó không thể tách
-              khỏi mô hình đã huấn luyện, nên Juli không huấn luyện lại các mô hình đó.
+              8.6. Dữ liệu từ sàn chỉ phục vụ shop của bạn: Juli không gộp dữ liệu shop hay dữ
+              liệu kinh doanh của bạn với dữ liệu của shop khác, không dùng dữ liệu đó để phục
+              vụ khách hàng khác, và không bán hay chia sẻ dữ liệu đó. Để cải thiện dịch vụ
+              chung, Juli dùng dữ liệu thị trường công khai và dữ liệu của chính Juli; nếu sau
+              này Juli muốn dùng dữ liệu của bạn cho mục đích khác, Juli sẽ xin sự đồng ý riêng
+              của bạn và chỉ làm khi điều khoản của sàn cho phép. Dữ liệu của người mua và dữ
+              liệu người dùng Google không bao giờ được dùng để huấn luyện mô hình.
             </p>
             <p>
               8.7. Gợi ý kịch bản, tiêu đề và nội dung được Juli xử lý riêng cho từng shop,
               dựa trên dữ liệu và cách dùng từ ngữ của chính shop đó. Nội dung riêng của shop
               (từ ngữ, kịch bản, tiêu đề, hình ảnh) không được hiển thị cho shop khác và không
-              được dùng để tạo gợi ý cho shop khác, ngoài việc dùng ở dạng đã khử định danh
-              theo mục 8.6.
+              được dùng để tạo gợi ý cho shop khác.
             </p>
             <p>
               8.8. Juli dùng mô hình AI của OpenAI (qua OpenAI API) và một số nhà cung cấp dịch
@@ -257,8 +233,8 @@ export default function TermsOfServicePage() {
               9.1. Bạn có thể ngừng sử dụng Juli và yêu cầu xoá tài khoản bất kỳ lúc nào, trong
               phần Cài đặt, Quyền riêng tư của ứng dụng hoặc qua email. Sau khi bạn yêu cầu xoá
               tài khoản, bạn có 30 ngày để tải dữ liệu của mình; sau thời hạn này, Juli xoá dữ
-              liệu tài khoản và dữ liệu shop, trừ hoá đơn và chứng từ kế toán (lưu 10 năm theo
-              pháp luật kế toán) và dữ liệu đã khử định danh theo mục 8.6.
+              liệu tài khoản, dữ liệu shop và dữ liệu kinh doanh của bạn, trừ dữ liệu pháp luật
+              yêu cầu lưu giữ (ví dụ: hoá đơn, chứng từ kế toán của Juli).
             </p>
             <p>
               9.2. Juli chỉ tạm ngưng hoặc chấm dứt tài khoản của bạn, ngay lập tức và không
