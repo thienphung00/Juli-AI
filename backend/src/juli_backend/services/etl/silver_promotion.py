@@ -49,7 +49,8 @@ class SilverOrdersReturnsPromoter:
         kwargs["buyer_id"] = await pseudonymize_buyer_id(
             self._session, bronze_row.shop_id, kwargs.get("buyer_id")
         )
-        return await self._orders.upsert(shop_id=bronze_row.shop_id, **kwargs)
+        # Bronze order rows are whole orders (targeted fetch / batch reconcile).
+        return await self._orders.upsert(shop_id=bronze_row.shop_id, full_snapshot=True, **kwargs)
 
     async def promote_return(self, bronze_row: BronzeReturnRawPayload) -> Return:
         if not isinstance(bronze_row.payload, dict):

@@ -5,6 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+_CANCELLED_SPELLINGS = frozenset({"CANCELLED", "CANCELED", "CANCEL"})
+
 
 def _nested_amount(payment: Any) -> Any:
     if not isinstance(payment, dict):
@@ -49,7 +51,8 @@ def normalize_order(raw: dict[str, Any]) -> dict[str, Any]:
 
     if result.get("is_seller_fault") is None:
         initiator = result.get("cancellation_initiator")
-        if initiator is not None and str(status or "").upper() == "CANCELLED":
+        # Order Search says CANCELLED; the ORDER_STATUS_CHANGE webhook says CANCEL.
+        if initiator is not None and str(status or "").upper() in _CANCELLED_SPELLINGS:
             result["is_seller_fault"] = str(initiator).upper() == "SELLER"
 
     return result

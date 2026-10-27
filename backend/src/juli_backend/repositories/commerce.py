@@ -12,7 +12,10 @@ medallion_one_writer.py``). Readers may be many.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from datetime import datetime
+from decimal import Decimal
+from typing import Any, ClassVar
 
 from sqlalchemy import func, select, update
 
@@ -24,15 +27,37 @@ from juli_backend.models.models import (
     Return,
     Settlement,
 )
+from juli_backend.models.order_status import CANCELLED, UNKNOWN_ORDER_STATUS, is_cancelled_status
 from juli_backend.repositories._base import ShopScopedRepo, utc_now_naive
 
 AWAITING_SHIPMENT = "AWAITING_SHIPMENT"
 SHIPPED = "SHIPPED"
 
+#: Amount columns where a stored 0 is ``OrdersRepo._insert_defaults``' placeholder.
+_ZERO_IS_GAP: frozenset[str] = frozenset({"total_amount", "order_value"})
+
+
+def _is_gap(name: str, current: Any) -> bool:
+    return current is None or (name in _ZERO_IS_GAP and current == 0)
+
+
+def _status_is_gap(current: Any) -> bool:
+    """No status yet, ``unknown``, or a cancellation spelled other than ``cancelled``."""
+    return (
+        current is None
+        or current == UNKNOWN_ORDER_STATUS
+        or (is_cancelled_status(current) and current != CANCELLED)
+    )
+
 
 class OrdersRepo(ShopScopedRepo[Order]):
     _model = Order
     _lookup_attrs = ("tiktok_order_id",)
+    #: A status webhook creates the row with no amount (P70, E15): placeholders.
+    _insert_defaults: ClassVar[Mapping[str, Any]] = {
+        "total_amount": Decimal("0"),
+        "currency": "VND",
+    }
 
     async def get_by_tiktok_id(self, shop_id: uuid.UUID, tiktok_order_id: str) -> Order | None:
         return await self._one_or_none(
@@ -58,6 +83,44 @@ class OrdersRepo(ShopScopedRepo[Order]):
         if date_to is not None:
             stmt = stmt.where(Order.update_time <= date_to)
         return await self._paginate(stmt, sort_column=Order.created_at, after=after, limit=limit)
+
+    async def _apply_if_newer(
+        self, existing: Order, values: Mapping[str, Any], *, full_snapshot: bool = False
+    ) -> Order:
+        """Merge one order write into the stored row (P70, E15).
+
+        Two writers feed ``silver.orders``: the poll's whole-order snapshot
+        (``full_snapshot=True``) and status webhooks that carry only the order id,
+        status and update time. The merge:
+
+        * a snapshot wins when its ``update_time`` is at or after the stored one --
+          equal included, so a webhook that landed the same TikTok event first
+          cannot keep the poll from completing the row;
+        * a webhook (partial) wins only when strictly newer;
+        * a write that does not win still fills gaps: a NULL column, an amount
+          stored as the 0 placeholder (``_insert_defaults``), a status that is
+          ``unknown`` or a cancellation not spelled ``cancelled`` (pre-P70 ``cancel``);
+        * a winning write never blanks a stored value with ``None`` and never
+          replaces a known status with ``unknown``.
+        """
+        incoming = values.get("update_time")
+        stored = existing.update_time
+        if incoming is None or stored is None:
+            wins = True
+        else:
+            wins = incoming >= stored if full_snapshot else incoming > stored
+        for name, value in values.items():
+            if name == "tiktok_order_id" or value is None:
+                continue
+            current = getattr(existing, name)
+            if name == "status":
+                if value != UNKNOWN_ORDER_STATUS and (wins or _status_is_gap(current)):
+                    existing.status = value
+                continue
+            if wins or _is_gap(name, current):
+                setattr(existing, name, value)
+        await self._session.flush()
+        return existing
 
     async def confirm_shipment(self, shop_id: uuid.UUID, order_id: uuid.UUID) -> Order:
         """Move an ``AWAITING_SHIPMENT`` order to ``SHIPPED``.

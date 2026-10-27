@@ -34,6 +34,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.database.tenant_context import with_shop_scope
+from juli_backend.models.order_status import is_cancelled_status
 from juli_backend.models.shop_diagnosis import RANKING_60D
 from juli_backend.repositories import ShopDiagnosisReportsRepo
 from juli_backend.services.shop_diagnosis_daily.fetch import DAYS
@@ -47,7 +48,8 @@ logger = logging.getLogger(__name__)
 
 #: Seconds a change waits before the rebuild runs; also the debounce window.
 REFRESH_DEBOUNCE_SECONDS = 120
-#: Statuses that take an order out of GMV.
+#: Statuses that take an order out of GMV. Any cancellation spelling (``cancel``,
+#: ``CANCEL`` ...) qualifies too, through ``is_cancelled_status`` (P70, E15).
 REVERSED_STATUSES: frozenset[str] = frozenset({"cancelled", "canceled", "returned", "refunded"})
 
 ClaimFn = Callable[[str], bool]
@@ -129,7 +131,7 @@ def set_report_refresh_enqueuer(enqueuer: EnqueueFn | None) -> None:
 
 def _qualifies(status: str | None) -> bool:
     value = (status or "").lower()
-    return value in REVERSED_STATUSES or value in PAID_ORDER_STATUSES
+    return value in REVERSED_STATUSES or value in PAID_ORDER_STATUSES or is_cancelled_status(status)
 
 
 def _local_day(created_at: datetime) -> date:

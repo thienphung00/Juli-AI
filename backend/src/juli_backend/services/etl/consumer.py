@@ -36,7 +36,11 @@ from juli_backend.services.etl.event_id import extract_event_id
 from juli_backend.services.etl.persistence.ingest import ProcessedEventsRepo
 from juli_backend.services.etl.persistence.ingest.repo import IngestDedupEpochsRepo
 from juli_backend.services.etl.record import IngestRecord
-from juli_backend.services.etl.transform import TransformError, transform_for_channel
+from juli_backend.services.etl.transform import (
+    TransformError,
+    is_order_snapshot_channel,
+    transform_for_channel,
+)
 from juli_backend.services.privacy.pseudonym import pseudonymize_buyer_id
 
 logger = logging.getLogger(__name__)
@@ -74,6 +78,20 @@ async def _refresh_stored_report(
         status=kwargs.get("status"),
         created_at=kwargs.get("tiktok_created_at"),
     )
+
+
+def _order_change(kwargs: dict[str, Any], persisted: Any) -> dict[str, Any]:
+    """What the B12 hook sees: the row as merged, not the (possibly partial) write.
+
+    A webhook carries no create time and may lose the merge; the stored row has the
+    poll's ``tiktok_created_at`` and the status that won (P70, E15).
+    """
+    change = dict(kwargs)
+    for name in ("status", "tiktok_created_at"):
+        value = getattr(persisted, name, None)
+        if value is not None:
+            change[name] = value
+    return change
 
 
 @dataclass
@@ -271,8 +289,13 @@ class EtlConsumer:
                 kwargs["buyer_id"] = await pseudonymize_buyer_id(
                     self._session, shop_id, kwargs["buyer_id"]
                 )
-            order_kwargs = dict(kwargs) if entity_kind == "order" else None
-            await self._upsert(entity_kind, shop_id=shop_id, kwargs=kwargs)
+            persisted = await self._upsert(
+                entity_kind,
+                shop_id=shop_id,
+                kwargs=kwargs,
+                full_snapshot=is_order_snapshot_channel(record.channel),
+            )
+            order_kwargs = _order_change(kwargs, persisted) if entity_kind == "order" else None
         except (TransformError, TypeError, ValueError) as exc:
             # Roll the claim back first, then hand the failure to the DLQ: the
             # envelope leaves over `_dlq_handoff`, not the session, so undoing
@@ -307,7 +330,14 @@ class EtlConsumer:
         )
         return ProcessOutcome.PROCESSED
 
-    async def _upsert(self, entity_kind: str, *, shop_id: Any, kwargs: dict[str, Any]) -> None:
+    async def _upsert(
+        self,
+        entity_kind: str,
+        *,
+        shop_id: Any,
+        kwargs: dict[str, Any],
+        full_snapshot: bool = False,
+    ) -> Any:
         if entity_kind == "order_item":
             kwargs["order_id"] = await self._resolve_order_id(shop_id, kwargs["tiktok_order_id"])
         elif entity_kind == "return" and kwargs.get("tiktok_order_id"):
@@ -334,7 +364,9 @@ class EtlConsumer:
         repo = repos.get(entity_kind)
         if repo is None:
             raise TransformError(f"unknown entity kind {entity_kind}")
-        await repo.upsert(shop_id=shop_id, **kwargs)
+        # P70 (E15): a whole order from the poll also wins a tie on update_time, so
+        # it completes a row a status webhook created for the same TikTok change.
+        persisted = await repo.upsert(shop_id=shop_id, full_snapshot=full_snapshot, **kwargs)
 
         if entity_kind == "order_item" and kwargs.get("tiktok_product_id"):
             # #943: keep products.revenue/units_sold in sync with the
@@ -343,6 +375,7 @@ class EtlConsumer:
             await self._products.recompute_revenue_from_order_items(
                 shop_id, kwargs["tiktok_product_id"]
             )
+        return persisted
 
     async def _lookup_order_id(self, shop_id: Any, tiktok_order_id: str) -> Any | None:
         stmt = select(Order.id).where(
