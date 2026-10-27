@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Juli Connector",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Gửi số liệu Seller Centre của chính shop bạn (Shopee) sang Juli để Juli phân tích và đề xuất.",
   "minimum_chrome_version": "111",
   "permissions": ["storage", "alarms"],

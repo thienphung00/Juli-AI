@@ -15,6 +15,11 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
 - `catalog` — `load_dictionary` (products, SKUs, LIVE titles of the shop; 10 min cache).
 - `pin_cache` — P69: the pinned shop's row + `PinMode`, cached for the account TTL (30 s);
   `api/reviewer.enter_reviewer_shop` still applies the shop's tenant scope on every hit.
+- `identity` — P69b: `load_identity(session, sub, pin)` → `ReviewerIdentity` (account, own
+  `users` row values, pinned shop + `PinMode`). Cached (30 s); on a miss ONE load per
+  concurrent burst per `(sub, pin)` (`core.security.SingleFlight`), three statements on
+  Postgres (ops role switch; account + role restore + GUCs; users + shops + pin facts), no
+  COMMIT. Writes (users provisioning/backfill, sign-in claim, audits) stay exact elsewhere.
 - `config` — `reviewer_shop_id` (`REVIEWER_SHOP_ID`), `shop_alias_id`, `extra_mask_terms`
   (`REVIEWER_MASK_TERMS`).
 - `simulation` — `simulate(card_item, step)`; imports no TikTok code.

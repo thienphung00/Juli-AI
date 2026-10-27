@@ -6,7 +6,7 @@ export interface MessageLike {
   data: unknown;
 }
 
-const KINDS = new Set(["capture", "sync-result"]);
+const KINDS = new Set(["capture", "sync-result", "backfill-result"]);
 
 /** Only messages this very window posted, from Seller Centre, on our channel. */
 export function isPageMessage(

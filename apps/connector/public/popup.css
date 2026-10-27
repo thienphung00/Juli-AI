@@ -7,3 +7,4 @@ button.secondary { background: none; border: 1px solid #c9ced6; }
 #pair-error { color: #b42318; min-height: 1em; margin: 6px 0 0; }
 .hint { color: #57606a; font-size: 12px; }
 ul { padding-left: 18px; margin: 6px 0; }
+#consent { color: #b42318; }

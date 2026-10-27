@@ -12,8 +12,9 @@ the Supabase user, so no new token is minted after a revoke.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
+from typing import cast
 
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,19 +96,64 @@ def forget_cached(user_id: uuid.UUID | None = None) -> None:
         _cache.pop(user_id)
 
 
-async def load_account(session: AsyncSession, user_id: uuid.UUID) -> ReviewerAccount | None:
-    """The account of this Supabase user (cached ``cache_seconds()``), or None."""
+def cached_account(user_id: uuid.UUID) -> tuple[ReviewerAccount | None] | None:
+    """The cached lookup for this ``sub``: ``(account,)`` / ``(None,)``, or None on a miss."""
     hit = _cache.get(user_id)
-    if hit is not None:
-        return hit[0]
+    if hit is None:
+        return None
+    account = hit[0]
+    # Defence in depth: an entry is only ever served under its own user id.
+    return hit if account is None or account.user_id == user_id else None
+
+
+def remember(user_id: uuid.UUID, account: ReviewerAccount | None) -> None:
+    """Cache what the database said about this ``sub`` (an account, or none)."""
+    if account is None or account.user_id == user_id:
+        _cache.put(user_id, (account,))
+
+
+def remember_signed_in(account: ReviewerAccount, session_id: str) -> None:
+    """After a COMMITTED sign-in claim: the row's ``last_session_id`` is now ``session_id``.
+
+    The claim's conditional UPDATE either set it, or matched nothing because another
+    request already had; either way the committed row holds ``session_id``, so the
+    next request of the same session needs no account read and no claim.
+    """
+    remember(account.user_id, replace(account, last_session_id=session_id))
+
+
+def snapshot_from_values(values: dict[str, object]) -> ReviewerAccount:
+    """A snapshot from plain column values (the reviewer identity load's fused read)."""
+    return ReviewerAccount(
+        id=cast(uuid.UUID, values["id"]),
+        user_id=cast(uuid.UUID, values["user_id"]),
+        email=cast(str, values["email"]),
+        platform=cast(str, values["platform"]),
+        expires_at=cast(datetime, values["expires_at"]),
+        revoked_at=cast("datetime | None", values.get("revoked_at")),
+        last_session_id=cast("str | None", values.get("last_session_id")),
+        created_at=cast("datetime | None", values.get("created_at")),
+    )
+
+
+async def read_account(session: AsyncSession, user_id: uuid.UUID) -> ReviewerAccount | None:
+    """Read the account (no cache) through ``juli_ops``, restoring the role after."""
     async with ops_role(session):
         row = (
             await session.execute(
                 select(OpsReviewerAccount).where(OpsReviewerAccount.user_id == user_id)
             )
         ).scalar_one_or_none()
-        account = _snapshot(row) if row is not None else None
-    _cache.put(user_id, (account,))
+        return _snapshot(row) if row is not None else None
+
+
+async def load_account(session: AsyncSession, user_id: uuid.UUID) -> ReviewerAccount | None:
+    """The account of this Supabase user (cached ``cache_seconds()``), or None."""
+    hit = cached_account(user_id)
+    if hit is not None:
+        return hit[0]
+    account = await read_account(session, user_id)
+    remember(user_id, account)
     return account
 
 

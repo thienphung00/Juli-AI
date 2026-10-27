@@ -1,6 +1,6 @@
 # Juli Connector — Privacy policy (DRAFT, not yet reviewed)
 
-_Last updated: 2026-10-12. Draft for the Chrome Web Store (Unlisted) submission;
+_Last updated: 2026-10-26. Draft for the Chrome Web Store (Unlisted) submission;
 to be reviewed before publishing and linked from app-juli.com._
 
 Juli Connector is a browser extension by Juli (app-juli.com) for sellers who use
@@ -45,11 +45,24 @@ same data requests Seller Centre itself makes for "yesterday", at a low rate (at
 least 2 seconds apart). It never logs in, never clicks or changes anything in
 Seller Centre, and does nothing when Seller Centre is closed.
 
+Once, after the extension is first linked to a shop, it also fetches the same
+numbers for each of the last 30 finished days, one day at a time and at the same
+low rate, the way Seller Centre's own date picker asks for a single day. It
+remembers which days are done, so it continues where it stopped after the
+browser is closed, and it stops if Seller Centre or Juli refuses the request.
+
 ## Retention and deletion
 
-Juli keeps the data as long as the seller's Juli account and shop exist, under
-Juli's main privacy policy (app-juli.com). Uninstalling the extension stops all
-collection. To delete data, contact lienhe@app-juli.com.
+How long Juli keeps the data depends on how the shop uses Juli:
+
+- **Self-serve accounts:** as long as the seller's Juli account and shop exist.
+- **Shops under a client contract with a data-processing or confidentiality (NDA)
+  clause:** until the end of that contract plus 30 days. If the law requires Juli
+  to keep some of it longer, that part is kept isolated and used for nothing else
+  until the legal period ends.
+
+Both under Juli's main privacy policy (app-juli.com). Uninstalling the extension
+stops all collection. To delete data, contact lienhe@app-juli.com.
 
 ## Contact
 
