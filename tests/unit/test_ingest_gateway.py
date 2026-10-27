@@ -1,6 +1,7 @@
 """Fast track P24 (D31.3 / D31.4): the ingest gateway and Juli Connector pairing, SQLite.
 
 - mapping: Shopee L1 sources → Juli streams, fields → KPI columns, ``extra`` kept
+  (its string values dropped, D16)
 - strict validation: unknown keys, percentages as rates, order type, period,
   dates, duplicate keys, clock skew, size
 - idempotent re-posts (content hash), source precedence (vendor < extension)
@@ -145,7 +146,7 @@ def test_every_shopee_l1_source_maps_to_a_juli_stream():
 def test_source_row_maps_kpis_and_keeps_every_other_field_in_extra():
     spec = mapping.dataset_spec("shopee", "traffic_overview")
     row = spec.row_model.model_validate(
-        _source_row("psd_label_seller_video", video_views=900, extra={"l2_hint": "x"})
+        _source_row("psd_label_seller_video", video_views=900, extra={"l2_hint": "x", "l2_rank": 2})
     )
     (normalized,) = mapping.normalize_rows(spec, [row])
     assert normalized.stream == "seller_video"
@@ -163,7 +164,9 @@ def test_source_row_maps_kpis_and_keeps_every_other_field_in_extra():
     assert normalized.extra["video_views"] == 900
     assert normalized.extra["unique_product_clicks"] == 95
     assert normalized.extra["sales_per_order"] == pytest.approx(277777.78)
-    assert normalized.extra["l2_hint"] == "x"
+    # D16: the open extra keeps numbers / booleans / nulls; a string is dropped.
+    assert normalized.extra["l2_rank"] == 2
+    assert "l2_hint" not in normalized.extra
 
 
 def test_item_performance_maps_visitors_and_add_to_cart():

@@ -247,9 +247,6 @@ def pagination_scope(
         _PAGINATION_SCOPE.reset(token)
 
 
-# Enough to carry a Partner API error envelope without flooding logs on an HTML 5xx page.
-_ERROR_BODY_LIMIT = 800
-
 # Transient-retry policy. TikTok tunnels application errors over HTTP 500 (#855's
 # invalid-sign arrived as a 500), so a status code alone can never justify a retry —
 # only the application code in the body can. 100005 is the documented rate limit and
@@ -263,6 +260,24 @@ _ERROR_BODY_LIMIT = 800
 _RETRYABLE_APP_CODES = frozenset({100005, 100006, 36009003})
 _TRANSIENT_RETRY_ATTEMPTS = 3
 _TRANSIENT_RETRY_BACKOFF_SECONDS = (1.0, 3.0)
+
+
+def _error_envelope_detail(resp: requests.Response) -> str:
+    """``code=… request_id=…`` from a Partner error envelope; ``""`` when there is none."""
+    try:
+        envelope = resp.json()
+    except ValueError:
+        return ""
+    if not isinstance(envelope, dict):
+        return ""
+    parts = []
+    code = envelope.get("code")
+    if isinstance(code, int) and not isinstance(code, bool):
+        parts.append(f"code={code}")
+    request_id = envelope.get("request_id")
+    if isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,64}", request_id):
+        parts.append(f"request_id={request_id}")
+    return " ".join(parts)
 
 
 def transient_partner_error(exc: Exception) -> bool:
@@ -854,16 +869,17 @@ class TikTokClient:
             resp.raise_for_status()
         except requests.HTTPError as exc:
             # Bare raise_for_status() reports only the status line and URL, so the
-            # Partner API's own explanation is thrown away exactly when it is needed.
-            # Re-raise the same exception type with the body appended; the body is the
-            # vendor's error envelope, never our credentials, and the signed request is
-            # not echoed back. The URL keeps its path but loses its query (app_key,
-            # sign, shop_cipher -- P58-B), and `from None` keeps the unredacted
-            # original out of the logged traceback.
+            # Partner API's own explanation was thrown away exactly when it was
+            # needed. The vendor's numeric code and request id are appended -- never
+            # the body or its message (D16: an error body can echo request data,
+            # and this text reaches logs and ``last_error`` columns). The URL keeps
+            # its path but loses its query (app_key, sign, shop_cipher -- P58-B),
+            # and `from None` keeps the unredacted original out of the logged
+            # traceback.
             message = redact_url_query(str(exc))
-            detail = resp.text[:_ERROR_BODY_LIMIT].strip()
+            detail = _error_envelope_detail(resp)
             if detail:
-                message = f"{message} — response body: {detail}"
+                message = f"{message} — {detail}"
             raise requests.HTTPError(message, response=resp, request=exc.request) from None
         data = resp.json()
         err = error_from_response(data)

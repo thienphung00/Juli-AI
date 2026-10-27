@@ -76,6 +76,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.core.privacy import error_label
 from juli_backend.database.tenant_context import with_shop_scope, with_sticky_shop_scope
 from juli_backend.integrations.tiktok import (
     READ_CAPABILITIES,
@@ -484,12 +485,12 @@ async def _score(
     except Exception as exc:
         logger.error(
             "shop_scoring_failed",
-            extra={"shop_id": str(run.shop_id), "phase": phase, "error": repr(exc)[:200]},
+            extra={"shop_id": str(run.shop_id), "phase": phase, "error": error_label(exc)},
             exc_info=True,
         )
         try:
             await run.session.rollback()
-            await run.state_repo.update(run.shop_id, last_error=f"scoring: {exc!r}")
+            await run.state_repo.update(run.shop_id, last_error=f"scoring: {error_label(exc)}")
             await run.session.commit()
         except Exception:
             logger.error("shop_ingestion_state_write_failed", exc_info=True)
@@ -539,7 +540,9 @@ async def _mark_failed(run: _ShopRun, *, phase: str, error: BaseException) -> No
             status=BOOTSTRAP_FAILED,
             failed_phase=phase,
             failed_at=utc_now_naive(),
-            last_error=repr(error),
+            # D16: class and vendor code only (``core.privacy.error_label``); a
+            # repr can echo a vendor body or the buyer data a validator rejected.
+            last_error=error_label(error),
         )
         await run.session.commit()
         log_transition(
@@ -547,7 +550,7 @@ async def _mark_failed(run: _ShopRun, *, phase: str, error: BaseException) -> No
             state,
             shop_id=run.shop_id,
             phase=phase,
-            error=repr(error)[:200],
+            error=error_label(error),
         )
     except Exception:
         logger.error(

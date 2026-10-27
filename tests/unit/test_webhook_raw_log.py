@@ -5,8 +5,9 @@ return (auth failure, malformed body, catalog match, deferred, unknown) hands
 the injected :class:`RawWebhookEventRecorder` a matching ``processing_status``,
 and a failure inside the recorder never changes that response; and the
 concrete implementation (:class:`DatabaseRawWebhookEventRecorder` over
-:class:`WebhookRawEventsRepo`) redacts the body and the header allowlist
-before either reaches the table.
+:class:`WebhookRawEventsRepo`) reduces the body to its field allowlist and the
+headers to theirs before either reaches the table (buyer fields of every kind:
+``tests/unit/test_nda_buyer_data_sinks.py``).
 
 HTTP status codes and event routing themselves (auth, malformed JSON, catalog
 dispatch) are ``test_webhook.py``'s contract; this module only adds the
@@ -289,7 +290,8 @@ class TestDatabaseRawWebhookEventRecorder:
         ok, bad = rows["order_status_change"], rows["malformed_json"]
         assert ok.raw_body is not None
         assert "Alice" not in ok.raw_body
-        assert "[REDACTED]" in ok.raw_body
+        assert "buyer_name" not in ok.raw_body  # allowlist: an unlisted key is dropped
+        assert json.loads(ok.raw_body)["data"] == {"order_id": "o1"}
         assert "content-type" in (ok.headers or "").lower()
         assert "X-Secret" not in (ok.headers or "")
         assert bad.raw_body is None

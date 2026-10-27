@@ -7,7 +7,24 @@ brings the rows stored before them into line:
   ``public.ingest_raw_payloads``: the payload reduced to its endpoint's allowlist,
   every ``buyer_id`` in it as the shop's pseudonym. An ingest row whose dataset has
   no allowlist keeps nothing (``{}``) -- fail closed, as for a new write;
-- ``public.orders`` / ``public.returns``: ``buyer_id`` as the shop's pseudonym.
+- ``public.orders`` / ``public.returns``: ``buyer_id`` as the shop's pseudonym, and
+  ``cancel_reason`` / ``return_reason`` kept only as a reason code or a catalogued
+  platform label, else ``"other"`` (decision A; ``reason_labels``) -- the raw
+  payloads' reason fields get the same rule through their allowlist;
+- ``public.workflow_webhook_signals``: ``payload`` reduced to the webhook allowlist
+  of its kind (owner decision D16; ``services/tiktok/webhook_redaction``), its
+  ``buyer_id`` as the shop's pseudonym; an ``event_id`` that embedded the delivery's
+  ``data`` (``extract_event_id``'s JSON fallback) keeps its prefix and replaces the
+  JSON with a digest, so the column stays unique;
+- ``public.shop_ingestion_state`` / ``public.tiktok_sync_state``: ``last_error``
+  rewritten from an older ``repr(exc)`` to the class-and-code label
+  (``core.privacy.relabel_stored_error``);
+- ``public.webhook_raw_events`` (no shop column: the archive keeps deliveries for
+  unknown shops too): ``raw_body`` reduced to the webhook allowlist with any
+  ``buyer_id`` DROPPED (not re-keyed -- a stored delivery cannot prove its shop), a
+  body that is not a JSON object any more (truncated) cleared, and an ``event_id``
+  that embedded the delivery's JSON recomputed from the reduced body. Processed
+  after the shops, ``BATCH`` rows per transaction.
 
 It is a DATA change, so it is not a migration (``migration_additive_gate.py``
 refuses data UPDATEs from a release). Run it once the release carrying migration
@@ -32,6 +49,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
+import json
 import sys
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
@@ -41,14 +60,19 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from juli_backend.core.privacy import relabel_stored_error
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.ingest import IngestRawPayload
+from juli_backend.models.ingestion import ShopIngestionState
 from juli_backend.models.models import (
     BronzeOrderRawPayload,
     BronzeReturnRawPayload,
     Order,
     Return,
     Shop,
+    TikTokSyncState,
+    WebhookRawEvent,
+    WorkflowWebhookSignal,
 )
 from juli_backend.services.privacy.payload_allowlist import (
     ORDERS_RAW,
@@ -63,6 +87,15 @@ from juli_backend.services.privacy.pseudonym import (
     use_ephemeral_key_if_missing,
 )
 from juli_backend.services.privacy.raw_payload import sanitize_raw_payload
+from juli_backend.services.privacy.reason_labels import safe_reason
+from juli_backend.services.tiktok.webhook_redaction import (
+    TRUNCATION_SUFFIX,
+    allowlist_webhook,
+    drop_buyer_ids,
+    parse_webhook_body,
+    serialize_stored_body,
+    webhook_endpoint,
+)
 
 BATCH = 500
 #: The bronze ``ingest_source`` of batch-reconcile pages (``services/cdp_batch``).
@@ -75,7 +108,13 @@ TABLES: tuple[str, ...] = (
     "public.ingest_raw_payloads",
     "public.orders",
     "public.returns",
+    "public.workflow_webhook_signals",
+    "public.shop_ingestion_state",
+    "public.tiktok_sync_state",
+    "public.webhook_raw_events",
 )
+#: Cleaned once per run, not per shop (no shop column).
+UNSCOPED_TABLES: frozenset[str] = frozenset({"public.webhook_raw_events"})
 
 
 @dataclass
@@ -152,17 +191,111 @@ async def _clean_payloads(
     return count
 
 
-async def _rekey_buyer_ids(session: AsyncSession, shop_id: uuid.UUID, model: Any) -> TableCount:
+async def _rekey_buyer_ids(
+    session: AsyncSession, shop_id: uuid.UUID, model: Any, reason_column: str
+) -> TableCount:
+    """``buyer_id`` as the shop's pseudonym, and the reason column a platform reason."""
     count = TableCount()
     async for rows in _batches(session, model, shop_id):
         for row in rows:
             count.scanned += 1
+            changed = False
             keyed = await pseudonymize_buyer_id(session, shop_id, row.buyer_id)
             if keyed != row.buyer_id:
                 row.buyer_id = keyed
+                changed = True
+            reason = getattr(row, reason_column)
+            kept = safe_reason(TIKTOK, reason_column, reason)
+            if kept != reason:
+                setattr(row, reason_column, kept)
+                changed = True
+            count.changed += int(changed)
+        await session.flush()
+        session.expunge_all()
+    return count
+
+
+def scrub_event_id(event_id: str | None, event_type: str | None) -> str | None:
+    """An ``event_id`` whose JSON fallback carried more than the allowlist, digested.
+
+    ``extract_event_id`` keys a delivery without a known id as ``wh:...:{data json}``.
+    Written from an unfiltered body, that JSON can hold buyer data; it is replaced by
+    its digest (``wh:...:d:<32 hex>``, still unique). JSON the allowlist would keep
+    unchanged -- what the current writers produce -- is left alone, so a second run
+    changes nothing.
+    """
+    if not event_id or "{" not in event_id:
+        return event_id
+    head, _, tail = event_id.partition("{")
+    try:
+        data = json.loads("{" + tail)
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        kept = drop_buyer_ids(allowlist_webhook({"type": event_type, "data": data}))
+        if kept.get("data") == data:
+            return event_id
+    digest = hashlib.sha256(("{" + tail).encode()).hexdigest()[:32]
+    return f"{head}d:{digest}"
+
+
+async def _clean_signals(session: AsyncSession, shop_id: uuid.UUID) -> TableCount:
+    count = TableCount()
+    async for rows in _batches(session, WorkflowWebhookSignal, shop_id):
+        for row in rows:
+            count.scanned += 1
+            changed = False
+            if row.payload is not None:
+                try:
+                    current = json.loads(row.payload)
+                except ValueError:
+                    current = None
+                if isinstance(current, dict):
+                    endpoint = webhook_endpoint(current.get("type") or row.event_type)
+                    cleaned = await sanitize_raw_payload(
+                        session, shop_id, platform=TIKTOK, endpoint=endpoint, payload=current
+                    )
+                    text_ = json.dumps(cleaned, sort_keys=True, default=str)
+                else:
+                    text_ = None
+                if text_ != row.payload:
+                    row.payload = text_
+                    changed = True
+            scrubbed = scrub_event_id(row.event_id, row.event_type)
+            if scrubbed != row.event_id:
+                row.event_id = scrubbed or row.event_id
+                changed = True
+            count.changed += int(changed)
+        await session.flush()
+        session.expunge_all()
+    return count
+
+
+async def _relabel_sync_errors(session: AsyncSession, shop_id: uuid.UUID) -> TableCount:
+    count = TableCount()
+    async for rows in _batches(session, TikTokSyncState, shop_id):
+        for row in rows:
+            count.scanned += 1
+            relabelled = relabel_stored_error(row.last_error)
+            if relabelled != row.last_error:
+                row.last_error = relabelled
                 count.changed += 1
         await session.flush()
         session.expunge_all()
+    return count
+
+
+async def _relabel_ingestion_error(session: AsyncSession, shop_id: uuid.UUID) -> TableCount:
+    count = TableCount()
+    row = await session.get(ShopIngestionState, shop_id)
+    if row is None:
+        return count
+    count.scanned = 1
+    relabelled = relabel_stored_error(row.last_error)
+    if relabelled != row.last_error:
+        row.last_error = relabelled
+        count.changed = 1
+        await session.flush()
     return count
 
 
@@ -189,9 +322,54 @@ async def clean_shop(
                 IngestRawPayload,
                 lambda r: (r.platform, ingest_endpoint(r.dataset)),
             ),
-            "public.orders": await _rekey_buyer_ids(session, shop_id, Order),
-            "public.returns": await _rekey_buyer_ids(session, shop_id, Return),
+            "public.orders": await _rekey_buyer_ids(session, shop_id, Order, "cancel_reason"),
+            "public.returns": await _rekey_buyer_ids(session, shop_id, Return, "return_reason"),
+            "public.workflow_webhook_signals": await _clean_signals(session, shop_id),
+            "public.shop_ingestion_state": await _relabel_ingestion_error(session, shop_id),
+            "public.tiktok_sync_state": await _relabel_sync_errors(session, shop_id),
         }
+
+
+def clean_raw_event(row: WebhookRawEvent) -> bool:
+    """Reduce one archived delivery in place; ``True`` when it changed."""
+    changed = False
+    if row.raw_body is not None:
+        parsed = parse_webhook_body(row.raw_body.encode())
+        kept = drop_buyer_ids(allowlist_webhook(parsed)) if parsed is not None else None
+        body = serialize_stored_body(kept) if kept is not None else None
+        if body is not None and body.endswith(TRUNCATION_SUFFIX):
+            body = None  # would not parse next time; nothing partial is kept
+        if body != row.raw_body:
+            row.raw_body = body
+            changed = True
+    scrubbed = scrub_event_id(row.event_id, row.event_type)
+    if scrubbed != row.event_id:
+        row.event_id = scrubbed
+        changed = True
+    return changed
+
+
+async def clean_raw_events(factory: Callable[[], AsyncSession], *, apply: bool) -> TableCount:
+    """Every ``webhook_raw_events`` row, ``BATCH`` per transaction; roll back unless ``apply``."""
+    count = TableCount()
+    last: uuid.UUID | None = None
+    while True:
+        async with factory() as session:
+            stmt = select(WebhookRawEvent).order_by(WebhookRawEvent.id).limit(BATCH)
+            if last is not None:
+                stmt = stmt.where(WebhookRawEvent.id > last)
+            rows = list((await session.execute(stmt)).scalars())
+            if not rows:
+                await session.rollback()
+                return count
+            for row in rows:
+                count.scanned += 1
+                count.changed += int(clean_raw_event(row))
+            last = rows[-1].id
+            if apply:
+                await session.commit()
+            else:
+                await session.rollback()
 
 
 async def shop_ids(session: AsyncSession) -> list[uuid.UUID]:
@@ -206,7 +384,11 @@ async def run_cleanup(
     only: Sequence[uuid.UUID] | None = None,
     list_shops: Callable[[AsyncSession], Awaitable[list[uuid.UUID]]] = shop_ids,
 ) -> CleanupReport:
-    """Clean every shop (or ``only``), one transaction per shop; roll back unless ``apply``."""
+    """Clean every shop (or ``only``), one transaction per shop; roll back unless ``apply``.
+
+    The unscoped ``webhook_raw_events`` pass runs after the shops, and only on a
+    whole-fleet run (``only`` names shops; the archive has no shop column).
+    """
     report = CleanupReport()
     async with factory() as session:
         targets = list(only) if only else await list_shops(session)
@@ -220,6 +402,8 @@ async def run_cleanup(
                 await session.rollback()
         report.shops += 1
         report.add(counts)
+    if not only:
+        report.add({"public.webhook_raw_events": await clean_raw_events(factory, apply=apply)})
     return report
 
 
@@ -230,6 +414,10 @@ async def _can_update(session: AsyncSession) -> bool:
         "has_table_privilege('bronze.order_raw_payloads', 'UPDATE')",
         "has_table_privilege('bronze.return_raw_payloads', 'UPDATE')",
         "has_table_privilege('public.ingest_raw_payloads', 'UPDATE')",
+        "has_table_privilege('public.workflow_webhook_signals', 'UPDATE')",
+        "has_table_privilege('public.webhook_raw_events', 'UPDATE')",
+        "has_table_privilege('public.shop_ingestion_state', 'UPDATE')",
+        "has_table_privilege('public.tiktok_sync_state', 'UPDATE')",
     ]
     sql = "SELECT " + " AND ".join(checks)
     return bool((await session.execute(text(sql))).scalar_one())
@@ -238,8 +426,9 @@ async def _can_update(session: AsyncSession) -> bool:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="payload_cleanup",
-        description="Remove non-allowlisted fields from stored raw payloads and re-key "
-        "buyer_id as the per-shop pseudonym (ADR-116 §4). Dry run unless --apply.",
+        description="Remove non-allowlisted fields from stored raw payloads and webhook "
+        "records, re-key buyer_id as the per-shop pseudonym and relabel stored errors "
+        "(ADR-116 §4, D16). Dry run unless --apply.",
     )
     parser.add_argument("--apply", action="store_true", help="commit the changes")
     parser.add_argument(
@@ -257,7 +446,7 @@ async def _main(args: argparse.Namespace) -> int:
     from juli_backend.core.config import async_database_url, migration_database_url
 
     url = async_database_url(args.database_url or migration_database_url())
-    engine = create_async_engine(url)
+    engine = create_async_engine(url, hide_parameters=True)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with factory() as session:

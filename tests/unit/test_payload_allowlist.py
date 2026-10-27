@@ -604,6 +604,9 @@ async def test_clean_shop_removes_fields_rekeys_ids_and_is_idempotent(session):
         "public.ingest_raw_payloads": 2,
         "public.orders": 1,
         "public.returns": 0,
+        "public.workflow_webhook_signals": 0,
+        "public.shop_ingestion_state": 0,
+        "public.tiktok_sync_state": 0,
     }
     key = await shop_pseudonym_key(session, shop.id)
     for model in (BronzeOrderRawPayload, BronzeReturnRawPayload, IngestRawPayload):

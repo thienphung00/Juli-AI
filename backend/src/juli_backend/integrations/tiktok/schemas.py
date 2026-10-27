@@ -168,12 +168,28 @@ def coerce_model(model: type[T], value: T | dict[str, Any] | BaseModel) -> T:
     return validate_data(model, value)
 
 
+def schema_error_text(model: type[BaseModel], exc: ValidationError) -> str:
+    """Where and why validation failed -- never the value that failed (D16).
+
+    ``str(ValidationError)`` prints each rejected ``input_value``, which for an
+    order is a buyer's name, address or message; this text reaches logs and
+    ``last_error`` columns. Field location and error type only.
+    """
+    errors = exc.errors(include_input=False, include_url=False, include_context=False)
+    parts = [
+        f"{'.'.join(str(loc) for loc in error.get('loc', ())) or '<root>'}: {error.get('type')}"
+        for error in errors[:10]
+    ]
+    more = f" (+{len(errors) - 10} more)" if len(errors) > 10 else ""
+    return f"{model.__name__} failed validation: {'; '.join(parts)}{more}"
+
+
 def validate_data(model: type[T], data: dict[str, Any]) -> T:
     """Validate a ``data`` dict against a Pydantic model."""
     try:
         return model.model_validate(data)
     except ValidationError as exc:
-        raise TikTokSchemaError(str(exc)) from exc
+        raise TikTokSchemaError(schema_error_text(model, exc)) from None
 
 
 def validate_items(model: type[T], items: list[dict[str, Any]]) -> list[T]:
@@ -183,5 +199,5 @@ def validate_items(model: type[T], items: list[dict[str, Any]]) -> list[T]:
         try:
             validated.append(model.model_validate(item))
         except ValidationError as exc:
-            raise TikTokSchemaError(str(exc)) from exc
+            raise TikTokSchemaError(schema_error_text(model, exc)) from None
     return validated

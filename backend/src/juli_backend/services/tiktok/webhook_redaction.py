@@ -1,65 +1,97 @@
-"""Best-effort PII redaction for webhook raw audit storage (#392).
+"""Field allowlist for stored webhook deliveries (#392; owner decision D16, ADR-116 §4).
 
-Recursively walks parsed JSON and redacts values whose keys match a denylist
-(case-insensitive substring). Malformed JSON yields ``None`` (do not store body).
-Redacted output is truncated at ``RAW_BODY_MAX_BYTES``.
+A webhook body is reduced to its kind's allowlist (``services/privacy/payload_allowlist``:
+``webhook.order`` / ``webhook.return`` / ``webhook.other``, and ``webhook.unknown`` --
+envelope only -- for a type the catalog does not know) before it is stored in
+``webhook_raw_events.raw_body`` or ``workflow_webhook_signals.payload``. It replaces
+the old key denylist, which let ``message``, ``note``, ``avatar``, ``buyer_id``,
+``user_id``, ``comment`` and ``reason`` through: anything not listed is now dropped
+at any depth.
+
+``buyer_id`` is listed for order and return events so the callers can store it as
+the shop's pseudonym (``services/privacy/pseudonym.py``). Where no shop is known
+(an unauthenticated delivery, an unknown shop) it is dropped instead --
+:func:`drop_buyer_ids`. Malformed JSON yields ``None`` (no body stored). The
+serialized text is truncated at ``RAW_BODY_MAX_BYTES``.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from typing import Any
 
+from juli_backend.services.privacy.payload_allowlist import (
+    TIKTOK,
+    WEBHOOK_ORDER,
+    WEBHOOK_OTHER,
+    WEBHOOK_RETURN,
+    WEBHOOK_UNKNOWN,
+    allowlist_payload,
+)
+from juli_backend.services.privacy.pseudonym import BUYER_ID_KEY
+from juli_backend.services.tiktok.webhook_catalog import catalog_id_for_event
+
 RAW_BODY_MAX_BYTES = 32 * 1024
-REDACTED_VALUE = "[REDACTED]"
 TRUNCATION_SUFFIX = "…[TRUNCATED]"
 
-# Case-insensitive substring match against object keys.
-_PII_KEY_SUBSTRINGS: tuple[str, ...] = (
-    "name",
-    "phone",
-    "tel",
-    "mobile",
-    "email",
-    "address",
-    "district",
-    "city",
-    "street",
-    "zip",
-    "postal",
-    "recipient",
-)
+#: Order lifecycle events: status change, address update (ids only), package, FBT MCF.
+WEBHOOK_ORDER_CATALOG_IDS: frozenset[int] = frozenset({1, 3, 4, 58})
+#: Reverse events: legacy reverse, cancellation, return, after-sales, RMA, refund.
+WEBHOOK_RETURN_CATALOG_IDS: frozenset[int] = frozenset({2, 11, 12, 64, 65, 67})
 
 
-def _key_matches_denylist(key: str) -> bool:
-    lowered = key.lower()
-    return any(fragment in lowered for fragment in _PII_KEY_SUBSTRINGS)
+def webhook_endpoint(event_type: Any) -> str:
+    """The allowlist endpoint of a delivered ``type`` (catalog name or numeric id)."""
+    raw = str(event_type).strip() if event_type is not None else ""
+    catalog_id = catalog_id_for_event(raw) if raw else None
+    if catalog_id is None:
+        return WEBHOOK_UNKNOWN
+    if catalog_id in WEBHOOK_ORDER_CATALOG_IDS:
+        return WEBHOOK_ORDER
+    if catalog_id in WEBHOOK_RETURN_CATALOG_IDS:
+        return WEBHOOK_RETURN
+    return WEBHOOK_OTHER
 
 
-def _scrub_leaves(value: Any) -> Any:
-    """Replace every scalar leaf with ``[REDACTED]`` while keeping containers."""
-    if isinstance(value, dict):
-        return {key: _scrub_leaves(child) for key, child in value.items()}
+def allowlist_webhook(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """``payload`` (a delivery: envelope + ``data``) reduced to its kind's allowlist."""
+    return allowlist_payload(TIKTOK, webhook_endpoint(payload.get("type")), payload)
+
+
+def has_buyer_id(value: Any) -> bool:
+    """``True`` when a non-empty ``buyer_id`` appears at any depth."""
+    if isinstance(value, Mapping):
+        return any(
+            (key == BUYER_ID_KEY and child not in (None, "")) or has_buyer_id(child)
+            for key, child in value.items()
+        )
     if isinstance(value, list):
-        return [_scrub_leaves(item) for item in value]
-    return REDACTED_VALUE
+        return any(has_buyer_id(item) for item in value)
+    return False
 
 
-def _redact_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        out: dict[Any, Any] = {}
-        for key, child in value.items():
-            if isinstance(key, str) and _key_matches_denylist(key):
-                # Preserve structure under object-valued denylist keys (useful for #382).
-                out[key] = (
-                    _scrub_leaves(child) if isinstance(child, (dict, list)) else REDACTED_VALUE
-                )
-            else:
-                out[key] = _redact_value(child)
-        return out
+def drop_buyer_ids(value: Any) -> Any:
+    """A copy of ``value`` without any ``buyer_id`` key, at any depth."""
+    if isinstance(value, Mapping):
+        return {k: drop_buyer_ids(v) for k, v in value.items() if k != BUYER_ID_KEY}
     if isinstance(value, list):
-        return [_redact_value(item) for item in value]
+        return [drop_buyer_ids(item) for item in value]
     return value
+
+
+def parse_webhook_body(body: bytes) -> dict[str, Any] | None:
+    """The body as a JSON object; ``None`` when it is not one."""
+    try:
+        parsed = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def serialize_stored_body(payload: Mapping[str, Any]) -> str:
+    """Compact JSON, truncated at ``RAW_BODY_MAX_BYTES``."""
+    return _truncate(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
 
 def _truncate(text: str) -> str:
@@ -74,10 +106,12 @@ def _truncate(text: str) -> str:
 
 
 def redact_webhook_body(body: bytes) -> str | None:
-    """Return redacted JSON text, or ``None`` when *body* is not valid JSON."""
-    try:
-        parsed = json.loads(body)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+    """The allowlisted body with no ``buyer_id``, or ``None`` when not a JSON object.
+
+    For a caller that cannot resolve the shop; one that can pseudonymises the
+    ``buyer_id`` instead (``webhook_raw_log.DatabaseRawWebhookEventRecorder``).
+    """
+    parsed = parse_webhook_body(body)
+    if parsed is None:
         return None
-    redacted = _redact_value(parsed)
-    return _truncate(json.dumps(redacted, ensure_ascii=False, separators=(",", ":")))
+    return serialize_stored_body(drop_buyer_ids(allowlist_webhook(parsed)))

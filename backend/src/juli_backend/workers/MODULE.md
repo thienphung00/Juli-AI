@@ -12,6 +12,17 @@ recomputed / topped up ONE shop (`DEMO_REFERENCE_SHOP_ID`) for the public
 beats, tasks and the env read are gone (Supabase egress). Every shop's analytics lands through
 its own `poll_shop` cycle; no worker reads `DEMO_REFERENCE_SHOP_ID`.
 
+## Stored errors carry no data (D16, 2026-10-27)
+
+`shop_ingestion_state.last_error` and `tiktok_sync_state.last_error` (and the
+`poll_step_outcome` / `shop_bootstrap_failed` log fields) hold
+`core.privacy.error_label(exc)` -- the class and the vendor's numeric code
+(`TikTokAPIError code=105001`) -- never `repr(exc)`, which can echo a vendor body or
+the buyer data a validator rejected. Worker engines set `hide_parameters=True`
+(`database.ENGINE_DEFAULTS`). `tests/unit/test_no_raw_buyer_stores.py` fails on a new
+`repr(exc)` into a `last_error`; older rows are relabelled by
+`services/privacy/payload_cleanup`.
+
 ## Boot env report (fast track P61-D)
 
 `celery_app.py` (worker and beat) and the API lifespan call

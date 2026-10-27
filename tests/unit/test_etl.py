@@ -597,7 +597,7 @@ async def test_etl_persists_canonical_order_and_repolls_idempotently(session, sh
         "order_status": "CANCELLED",
         "payment": {"total_amount": "175000.00", "currency": "VND"},
         "cancellation_initiator": "SELLER",
-        "cancel_reason": "OUT_OF_STOCK",
+        "cancel_reason": "out_of_stock",
         "update_time": 1_700_000_200,
     }
 
@@ -637,7 +637,7 @@ async def test_etl_persists_canonical_order_and_repolls_idempotently(session, sh
     assert order.order_value == Decimal("175000.00")
     assert order.total_amount == Decimal("175000.00")
     assert order.payment_time == datetime.fromtimestamp(1_700_000_010, tz=UTC).replace(tzinfo=None)
-    assert order.cancel_reason == "OUT_OF_STOCK"
+    assert order.cancel_reason == "out_of_stock"  # a reason code (decision A)
     assert order.is_seller_fault is True
 
 
