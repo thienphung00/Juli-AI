@@ -205,30 +205,52 @@ async def load_authenticated_user(session: AsyncSession, token: VerifiedToken) -
     return user
 
 
-# -- the reviewer's users row, cached (P69) ---------------------------------------------
+# -- the reviewer's users row, cached (P69, P69b) ----------------------------------------
 #
-# A reviewer request's users read (BEGIN, user GUC, users row, COMMIT) is four round
+# A reviewer request's users read (BEGIN, user GUC, users row, COMMIT) was four round
 # trips, ~0.8 s from the VPS, in front of every route the demo page fires on load. For a
-# REVIEWER token only, the row is cached per verified ``sub`` for the reviewer identity
-# TTL (``identity_cache.reviewer_identity_ttl_seconds``, 30 s). Tenant-safe because:
+# REVIEWER token only, the row comes from the reviewer identity load the gate runs
+# (``services/reviewer/identity``): cached per verified ``sub`` for the reviewer identity
+# TTL (``identity_cache.reviewer_identity_ttl_seconds``, 30 s), and on a miss read in the
+# same statement as the pinned shop's facts, once per concurrent burst (single flight).
+# The gate hands the row to this request on ``request.state`` (:data:`REVIEWER_USER_STATE_KEY`).
+# Tenant-safe because:
 #
-# - the key is the verified JWT ``sub`` of THIS request; a hit is a copy of exactly that
-#   user's own row (no other user's row can be stored under it);
-# - the lookup happens only AFTER the reviewer gate admitted this request (account
+# - the key is the verified JWT ``sub`` of THIS request; a value is used only when its
+#   ``id`` IS that ``sub`` (no other user's row can stand in for it);
+# - the row is handed over only AFTER the reviewer gate admitted this request (account
 #   active, not revoked within its own TTL, route allowlisted) -- the gate runs first,
 #   on every request, whatever the cache holds;
-# - each hit is a FRESH detached ``User`` built from plain column values, so no ORM
+# - each use is a FRESH detached ``User`` built from plain column values, so no ORM
 #   instance is shared between requests or sessions;
-# - only rows read (or provisioned) and COMMITTED by ``load_authenticated_user`` are
-#   stored, so a hit never stands in for an uncommitted first sighting.
+# - writes are never skipped: a missing row (first sighting) or a row this token would
+#   backfill (``email`` / ``display_name`` still empty) goes through
+#   :func:`load_authenticated_user`, which writes and COMMITs exactly as before.
 #
 # Seller and staff tokens are untouched: they read (and commit) the row every request.
 _reviewer_users: IdentityCache[uuid.UUID, dict[str, object]] = IdentityCache()
+
+#: ``request.state`` attribute the reviewer gate leaves the admitted reviewer's own
+#: ``users`` row values on (a ``dict`` of column values, never an ORM instance).
+REVIEWER_USER_STATE_KEY = "juli_reviewer_user"
 
 
 def forget_cached_reviewer_users() -> None:
     """Drop every cached reviewer users row (tests)."""
     _reviewer_users.clear()
+
+
+def cached_reviewer_user(user_id: uuid.UUID) -> dict[str, object] | None:
+    """The cached users row values of this verified ``sub`` (only ever its own row)."""
+    hit = _reviewer_users.get(user_id)
+    return hit if hit is not None and hit.get("id") == user_id else None
+
+
+def remember_reviewer_user(values: dict[str, object]) -> None:
+    """Cache a reviewer's committed users row values under its own id."""
+    user_id = values.get("id")
+    if isinstance(user_id, uuid.UUID):
+        _reviewer_users.put(user_id, dict(values))
 
 
 def _user_values(user: User) -> dict[str, object]:
@@ -242,6 +264,23 @@ def _detached_user(values: dict[str, object]) -> User:
     return user
 
 
+def _would_backfill(values: dict[str, object], identity: VerifiedIdentity) -> bool:
+    """Whether ``UsersRepo.get_for_authentication`` would write this row for this token."""
+    return (values.get("email") is None and identity.email is not None) or (
+        values.get("display_name") is None and identity.display_name is not None
+    )
+
+
+def _handed_over_user(request: Request, token: VerifiedToken) -> User | None:
+    state = getattr(request, "state", None)
+    values = getattr(state, REVIEWER_USER_STATE_KEY, None) if state is not None else None
+    if not isinstance(values, dict) or values.get("id") != token.user_id:
+        return None
+    if _would_backfill(values, token.identity):
+        return None
+    return _detached_user(values)
+
+
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
@@ -252,17 +291,17 @@ async def get_current_user(
     P32-A (D42): a partner reviewer's token goes through the reviewer gate
     first -- route allowlist, account expiry / revocation, sign-in audit --
     so a refused reviewer request never reaches the ``users`` read or the route.
-    P69: an admitted reviewer's ``users`` row is then served from a 30 s cache
-    keyed by the verified ``sub`` (see ``_reviewer_users`` above).
+    P69 / P69b: an admitted reviewer's ``users`` row is the one the gate's identity
+    load handed over for the verified ``sub`` (see ``_reviewer_users`` above).
     """
     token = await verify_bearer_token(credentials)
     await enforce_reviewer_gate(request, session, token)
     if not token.is_reviewer:
         return await load_authenticated_user(session, token)
-    cached = _reviewer_users.get(token.user_id)
-    if cached is not None and cached.get("id") == token.user_id:
-        return _detached_user(cached)
+    handed = _handed_over_user(request, token)
+    if handed is not None:
+        return handed
     user = await load_authenticated_user(session, token)
     if user.id == token.user_id:
-        _reviewer_users.put(token.user_id, _user_values(user))
+        remember_reviewer_user(_user_values(user))
     return user

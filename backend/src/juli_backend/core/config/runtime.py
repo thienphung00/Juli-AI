@@ -150,11 +150,27 @@ def migration_database_url(default: str | None = None) -> str:
     return sync_database_url(raw)
 
 
+def _libpq_sslmode_to_asyncpg(url: str) -> str:
+    """asyncpg rejects libpq's ``sslmode``; carry its value over as ``ssl``.
+
+    A direct Supabase URL (``DATABASE_DIRECT_URL``) is libpq-shaped
+    (``?sslmode=require``) and crashed the operator commands at connect.
+    """
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    if "sslmode" not in query:
+        return url
+    sslmode = query.pop("sslmode")
+    query.setdefault("ssl", sslmode)
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
 def async_database_url(raw_url: str) -> str:
     """Convert a sync Postgres URL to SQLAlchemy asyncpg form."""
     url = raw_url.strip()
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    url = _libpq_sslmode_to_asyncpg(url)
     if "supabase.co" in url and "ssl=" not in url:
         separator = "&" if "?" in url else "?"
         url = f"{url}{separator}ssl=require"
