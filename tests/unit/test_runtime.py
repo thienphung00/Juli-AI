@@ -18,6 +18,18 @@ def test_async_database_url_converts_postgresql_scheme():
     assert async_database_url(raw) == ("postgresql+asyncpg://user:pass@localhost:5432/juli")
 
 
+def test_async_database_url_turns_libpq_sslmode_into_asyncpg_ssl():
+    raw = "postgresql://owner:pw@db.abc.supabase.co:5432/postgres?sslmode=require"
+    assert async_database_url(raw) == (
+        "postgresql+asyncpg://owner:pw@db.abc.supabase.co:5432/postgres?ssl=require"
+    )
+
+
+def test_async_database_url_keeps_an_explicit_ssl_over_sslmode():
+    raw = "postgresql://u:p@localhost/juli?sslmode=disable&ssl=require"
+    assert async_database_url(raw) == "postgresql+asyncpg://u:p@localhost/juli?ssl=require"
+
+
 def test_async_database_url_adds_supabase_ssl():
     raw = "postgresql://user:pass@db.project.supabase.co:5432/postgres"
     assert async_database_url(raw) == (
