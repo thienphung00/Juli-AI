@@ -335,6 +335,10 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: fast track P69 seeds the sandbox shop (clearing every other
         # sandbox_write row), a reviewer and a seller, and bounds each route's round trips.
         "test_reviewer_round_trips.py",
+        # Reason 1 and 2: D16 seeds two tenants, records webhooks as juli_app, and
+        # runs the payload clean-up as the owner over the whole webhook_raw_events
+        # archive (it has no shop column), asserting its counts.
+        "test_nda_buyer_data_db.py",
     }
 )
 

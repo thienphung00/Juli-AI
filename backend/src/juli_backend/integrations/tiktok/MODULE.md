@@ -135,6 +135,11 @@ Matches ``__all__`` — re-exports only:
   ``TikTokSystemError``, ``TransportGuardError``, ``error_from_response``
 - **Selective (OAuth verify slice)** — ``TikTokSchemaError``
 
+Error texts never carry data (D16): a ``TikTokSchemaError`` names the failing field
+and the error type, never the rejected input (``schema_error_text``, chained
+``from None``), and an HTTP error appends only the envelope's ``code`` and
+``request_id`` -- never the body or its message.
+
 ### Pagination budget knobs (`client.py`, #1969)
 
 Read by the shared paginator, not re-exported through ``__all__`` — they are operational

@@ -106,9 +106,15 @@ it as the follow-up that makes real runs on a seller's own shop possible; before
 ## Related modules (internal)
 
 - ``webhook_catalog.py`` — Phase 2 event registry (#1–#68 subset)
-- ``webhook_handlers.py`` — workflow signals + account lifecycle side effects
-- ``webhook_raw_log.py`` — ``RawWebhookEventRecorder`` + DB impl (#392)
-- ``webhook_redaction.py`` — denylist PII redaction before archive
+- ``webhook_handlers.py`` — workflow signals + account lifecycle side effects; the
+  signal ``payload`` is the delivery reduced to its kind's allowlist, ``buyer_id`` as
+  the shop's pseudonym (D16)
+- ``webhook_raw_log.py`` — ``RawWebhookEventRecorder`` + DB impl (#392); stores the
+  allowlisted body, ``buyer_id`` pseudonymised for an authenticated delivery of a
+  known shop, dropped otherwise (D16)
+- ``webhook_redaction.py`` — per-kind field ALLOWLIST (``webhook.order`` / ``.return``
+  / ``.other`` / ``.unknown`` in ``services/privacy/payload_allowlist``) before any
+  webhook store; replaced the key denylist (D16)
 - ``oauth.py`` — ``build_tiktok_oauth_service``, ``complete_tiktok_oauth_callback``
 - ``dispatcher.py``, ``signature.py``, ``schemas.py`` — webhook parse/verify helpers
 

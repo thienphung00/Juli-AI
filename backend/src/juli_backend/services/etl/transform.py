@@ -17,8 +17,10 @@ from juli_backend.integrations.tiktok import (
     normalize_statement,
 )
 from juli_backend.services.etl.channels import ANALYTICS_CHANNELS, RAW_CHANNELS
+from juli_backend.services.privacy.reason_labels import safe_reason
 
 TransformError = ValueError
+TIKTOK_PLATFORM = "tiktok"
 
 
 def bronze_order_to_upsert_kwargs(
@@ -104,7 +106,9 @@ def _transform_order(body: dict[str, Any], payload: dict[str, Any]) -> dict[str,
             body.get("delivery_time") or body.get("delivered_time")
         ),
         "tiktok_created_at": _optional_datetime(body.get("create_time")),
-        "cancel_reason": body.get("cancel_reason"),
+        # Decision A (D16, audit gap 5): a reason code or a catalogued platform
+        # label, else "other" -- never free text (``privacy.reason_labels``).
+        "cancel_reason": safe_reason(TIKTOK_PLATFORM, "cancel_reason", body.get("cancel_reason")),
         "is_seller_fault": body.get("is_seller_fault"),
         "update_time": _unix_to_datetime(body.get("update_time") or payload.get("timestamp")),
     }
@@ -172,7 +176,11 @@ def _transform_return(body: dict[str, Any], payload: dict[str, Any]) -> dict[str
         "tiktok_sku_id": str(body["sku_id"]) if body.get("sku_id") is not None else None,
         "return_type": str(body.get("return_type") or "other"),
         "return_condition": str(body.get("return_condition") or "unknown"),
-        "return_reason": body.get("return_reason") or body.get("cancel_reason"),
+        "return_reason": safe_reason(
+            TIKTOK_PLATFORM,
+            "return_reason",
+            body.get("return_reason") or body.get("cancel_reason"),
+        ),
         "refund_amount": Decimal(str(refund)),
         "status": str(
             body.get("status")

@@ -12,8 +12,8 @@ streams as TikTok, ads as an overlay row):
 and their fields onto Juli's KPI columns (``impressions``, ``clicks``, ``ctr``,
 ``orders``, ``gmv``, ``buyers``, ``visitors``, ``add_to_cart``, plus ``units``,
 ``page_views``, ``bounce_rate``). Every other non-null field, and the row's own
-``extra``, is kept in ``extra`` under its platform name -- nothing a source sent
-is dropped.
+``extra``, is kept in ``extra`` under its platform name -- except a string value
+of the open ``extra``, which is dropped (free text; owner decision D16).
 """
 
 from __future__ import annotations
@@ -138,7 +138,10 @@ def _split(row: BaseModel, kpi_map: dict[str, str]) -> tuple[dict[str, Decimal],
     item_name = getattr(row, "item_name", None)
     if item_name:
         extra["item_name"] = item_name
-    extra.update(getattr(row, "extra", {}) or {})
+    # D16: the open ``extra`` keeps numbers / booleans / nulls only (the row model
+    # already drops its strings; this keeps the rule true for any row type).
+    open_extra = getattr(row, "extra", {}) or {}
+    extra.update({key: value for key, value in open_extra.items() if not isinstance(value, str)})
     return kpis, extra
 
 

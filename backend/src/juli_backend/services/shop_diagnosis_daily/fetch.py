@@ -10,8 +10,12 @@ never writes to TikTok.
 It writes the snapshot layout documented in
 ``juli_backend.services.shop_diagnosis.snapshot`` into ``folder`` so the pure
 report package can load it unchanged. The worker passes a temporary directory
-that is removed after the build (orders carry buyer data and are never kept);
-the script passes ``~/.juli-shop-snapshots/<shop>/<end>/``.
+that is removed after the build; the script passes
+``~/.juli-shop-snapshots/<shop>/<end>/``. Either way ``orders.json`` holds each
+order reduced to the ``orders.diagnosis_snapshot`` field allowlist
+(``services/privacy/payload_allowlist``; owner decision D16): ids, status, times,
+the payment subtotal and line-item prices and discounts the report reads -- no
+buyer name, contact, address, message or id ever reaches the disk.
 
 Daily A-34 files already in ``folder`` are not refetched. Each optional part
 that fails writes its own ``_error*.json`` (class and message, tokens redacted)
@@ -39,6 +43,11 @@ from pathlib import Path
 from typing import Any
 
 from juli_backend.integrations.tiktok import pagination_scope
+from juli_backend.services.privacy.payload_allowlist import (
+    ORDERS_DIAGNOSIS_SNAPSHOT,
+    TIKTOK,
+    allowlist_payload,
+)
 
 SHOP_UTC_OFFSET_HOURS = 7
 DAYS = 60
@@ -238,7 +247,9 @@ def fetch_orders(
                     backoff_sleep,
                 )
             for order in batch:
-                orders[str(order.get("id") or len(orders))] = order
+                # D16: buyer fields are dropped in memory, before the file is written.
+                kept = allowlist_payload(TIKTOK, ORDERS_DIAGNOSIS_SNAPSHOT, order)
+                orders[str(order.get("id") or len(orders))] = kept
             slices.append(
                 {
                     "from": start.isoformat(),

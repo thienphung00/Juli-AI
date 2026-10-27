@@ -29,11 +29,33 @@ payload, not from what the platform sends:
 - ``tiktok`` / ``orders.reconcile_page``: the batch-reconcile page envelope --
   ``records[]`` as an order row, ``_batch_reconcile`` the resume cursor
   ``recover_checkpoint_from_bronze`` reads.
+- ``tiktok`` / ``orders.diagnosis_snapshot`` (an ``orders/search`` order as the
+  Partner API returns it, written to the shop diagnosis snapshot's
+  ``orders.json``): what ``services/shop_diagnosis`` and
+  ``optimize_product.order_windows`` read -- ``id``, ``status``, ``create_time``,
+  ``payment.sub_total``, ``line_items[]`` (``product_id``, ``sale_price``,
+  ``is_gift``, ``platform_discount``, ``seller_discount``). No buyer id at all.
+- ``tiktok`` / ``webhook.order`` / ``webhook.return`` / ``webhook.other`` /
+  ``webhook.unknown`` (a webhook delivery, envelope and ``data``, as
+  ``workflow_webhook_signals.payload`` and ``webhook_raw_events.raw_body`` keep it;
+  owner decision D16): no code reads either column back, so each keeps what
+  explains a delivery after the fact and keys it again -- the envelope (``type``,
+  ``shop_id``, ``timestamp``, ``tts_notification_id``), the ids
+  ``etl.event_id.extract_event_id`` keys on, and the event's own ids, statuses
+  and times per Partner Center's webhook pages. ``webhook.unknown`` (a type not
+  in the catalog) keeps the envelope only. Free text (``reason``, ``message``,
+  ``comment``, ``note``) is never listed; a ``buyer_id`` is pseudonymised when
+  the shop is known and dropped otherwise (``services/tiktok/webhook_redaction``).
 - ``<platform>`` / ``ingest.<dataset>``: the Connector body (``IngestBody``) with
   each row limited to its dataset's declared row fields, built from
   ``services/ingest/mapping.DATASETS`` so a new dataset is covered when it is
   declared. The row's open ``extra`` object keeps numbers / booleans / nulls only;
   a string there could carry free text, so it is dropped from the raw copy.
+
+REASONS (owner decision A, audit gap 5): ``cancel_reason``, ``return_reason``,
+``return_reason_text`` and ``cancel_reason_text`` are listed as a :class:`ReasonRule`,
+not ``True``: a reason code or a catalogued platform label is kept, any other value
+(free text a buyer may have typed) is stored as ``"other"`` (``reason_labels``).
 
 FAIL CLOSED. An unknown (platform, endpoint) raises :class:`UnknownPayloadEndpoint`
 and the caller stores nothing: an unlisted endpoint is a code path nobody has
@@ -43,8 +65,11 @@ reviewed yet, so refusing the write is safer than guessing which ids are safe.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from functools import cache
 from typing import Any
+
+from juli_backend.services.privacy.reason_labels import safe_reason
 
 #: A spec maps a key to ``True`` (keep a scalar value) or to a nested spec (keep
 #: an object / list of objects filtered by it; a scalar there is kept as-is).
@@ -54,9 +79,27 @@ Spec = Mapping[str, Any]
 OPEN_NUMERIC = object()
 
 TIKTOK = "tiktok"
+
+
+@dataclass(frozen=True)
+class ReasonRule:
+    """Keep a scalar reason only as a code or a catalogued label; else ``"other"``."""
+
+    platform: str
+    field: str
+
+    def apply(self, value: Any) -> Any:
+        return safe_reason(self.platform, self.field, value)
+
+
 ORDERS_RAW = "orders.raw"
 RETURNS_RAW = "returns.raw"
 ORDERS_RECONCILE_PAGE = "orders.reconcile_page"
+ORDERS_DIAGNOSIS_SNAPSHOT = "orders.diagnosis_snapshot"
+WEBHOOK_ORDER = "webhook.order"
+WEBHOOK_RETURN = "webhook.return"
+WEBHOOK_OTHER = "webhook.other"
+WEBHOOK_UNKNOWN = "webhook.unknown"
 INGEST_PREFIX = "ingest."
 
 #: No listed key may contain one of these (case-insensitive). A test walks every spec.
@@ -116,7 +159,7 @@ TIKTOK_ORDER_SPEC: Spec = {
     "shipping_time": True,
     "delivery_time": True,
     "delivered_time": True,
-    "cancel_reason": True,
+    "cancel_reason": ReasonRule(TIKTOK, "cancel_reason"),
     "cancellation_initiator": True,
     "is_seller_fault": True,
     "line_items": {
@@ -154,10 +197,10 @@ TIKTOK_RETURN_SPEC: Spec = {
     "refund": _REFUND_AMOUNT,
     "return_type": True,
     "return_condition": True,
-    "return_reason": True,
-    "return_reason_text": True,
-    "cancel_reason": True,
-    "cancel_reason_text": True,
+    "return_reason": ReasonRule(TIKTOK, "return_reason"),
+    "return_reason_text": ReasonRule(TIKTOK, "return_reason_text"),
+    "cancel_reason": ReasonRule(TIKTOK, "cancel_reason"),
+    "cancel_reason_text": ReasonRule(TIKTOK, "cancel_reason_text"),
     "status": True,
     "return_status": True,
     "cancel_status": True,
@@ -176,10 +219,107 @@ TIKTOK_RECONCILE_PAGE_SPEC: Spec = {
     },
 }
 
+TIKTOK_DIAGNOSIS_ORDER_SPEC: Spec = {
+    "id": True,
+    "status": True,
+    "create_time": True,
+    "update_time": True,
+    "payment": _AMOUNT,
+    "line_items": {
+        "id": True,
+        "sku_id": True,
+        "product_id": True,
+        "sale_price": True,
+        "original_price": True,
+        "platform_discount": True,
+        "seller_discount": True,
+        "is_gift": True,
+        "currency": True,
+    },
+}
+
+#: Every webhook envelope; ``data`` is filled in per kind below.
+_WEBHOOK_ENVELOPE: dict[str, Any] = {
+    "type": True,
+    "shop_id": True,
+    "timestamp": True,
+    "tts_notification_id": True,
+    "event_id": True,
+}
+#: The ids ``extract_event_id`` keys a webhook on, and the shop keys #68 uses.
+_WEBHOOK_KEYS: dict[str, Any] = {
+    "event_id": True,
+    "order_id": True,
+    "product_id": True,
+    "sku_id": True,
+    "seller_id": True,
+    "shop_id": True,
+    "create_time": True,
+    "update_time": True,
+}
+_WEBHOOK_ORDER_DATA: Spec = {
+    **_WEBHOOK_KEYS,
+    "buyer_id": True,
+    "order_status": True,
+    "is_on_hold_order": True,
+    "package_id": True,
+    "sc_type": True,
+    "role_type": True,
+    "fulfillment_order_id": True,
+    "fulfillment_order_status": True,
+    "package_list": {
+        "package_id": True,
+        "sku_list": {"sku_id": True, "quantity": True},
+    },
+}
+_WEBHOOK_RETURN_DATA: Spec = {
+    **_WEBHOOK_KEYS,
+    "buyer_id": True,
+    "reverse_order_id": True,
+    "reverse_order_status": True,
+    "reverse_event_type": True,
+    "reverse_type": True,
+    "return_id": True,
+    "return_status": True,
+    "return_type": True,
+    "return_role": True,
+    "cancel_id": True,
+    "cancel_status": True,
+    "cancellations_role": True,
+    "aftersales_request_id": True,
+    "request_id": True,
+    "rma_id": True,
+    "status": True,
+    "refund_id": True,
+}
+_WEBHOOK_OTHER_DATA: Spec = {
+    **_WEBHOOK_KEYS,
+    "id": True,
+    "status": True,
+    "product_status": True,
+    "audit_status": True,
+    "activity_id": True,
+    "activity_status": True,
+    "activity_type": True,
+    "change_type": True,
+    "change_time": True,
+    "warehouse_id": True,
+    "inbound_order_id": True,
+    "fbt_order_id": True,
+    "quantity": True,
+    "available_quantity": True,
+    "expiration_time": True,
+}
+
 _STATIC_SPECS: dict[tuple[str, str], Spec] = {
     (TIKTOK, ORDERS_RAW): TIKTOK_ORDER_SPEC,
     (TIKTOK, RETURNS_RAW): TIKTOK_RETURN_SPEC,
     (TIKTOK, ORDERS_RECONCILE_PAGE): TIKTOK_RECONCILE_PAGE_SPEC,
+    (TIKTOK, ORDERS_DIAGNOSIS_SNAPSHOT): TIKTOK_DIAGNOSIS_ORDER_SPEC,
+    (TIKTOK, WEBHOOK_ORDER): {**_WEBHOOK_ENVELOPE, "data": _WEBHOOK_ORDER_DATA},
+    (TIKTOK, WEBHOOK_RETURN): {**_WEBHOOK_ENVELOPE, "data": _WEBHOOK_RETURN_DATA},
+    (TIKTOK, WEBHOOK_OTHER): {**_WEBHOOK_ENVELOPE, "data": _WEBHOOK_OTHER_DATA},
+    (TIKTOK, WEBHOOK_UNKNOWN): dict(_WEBHOOK_ENVELOPE),
 }
 
 
@@ -250,6 +390,9 @@ def _filter_object(value: Mapping[str, Any], spec: Spec) -> dict[str, Any]:
             continue
         if rule is OPEN_NUMERIC:
             out[key] = _filter_open_numeric(child)
+        elif isinstance(rule, ReasonRule):
+            if _is_scalar(child):
+                out[key] = rule.apply(child)
         elif rule is True:
             if _is_scalar(child):
                 out[key] = child

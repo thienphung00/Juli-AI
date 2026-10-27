@@ -1,8 +1,12 @@
-"""An HTTP failure must carry the Partner API's explanation, not just the status line.
+"""An HTTP failure must carry the Partner API's code, not just the status line.
 
 `raise_for_status()` reports only the status and URL. When production started
 returning 500 on `orders/search`, the logs held the signed URL and nothing else —
 two days of diagnosis ran without ever seeing what TikTok actually said.
+
+The vendor's numeric ``code`` and ``request_id`` are what is appended -- never the
+body or its ``message`` (owner decision D16): an error body can echo the request,
+and this text reaches logs and ``last_error`` columns.
 """
 
 from __future__ import annotations
@@ -26,26 +30,33 @@ def _response(
     return resp
 
 
-def test_http_error_message_includes_the_response_body():
-    resp = _response(500, '{"code":10000,"message":"internal error, please retry"}')
+def test_http_error_message_includes_the_vendor_code_and_request_id_only():
+    resp = _response(
+        500,
+        '{"code":10000,"message":"internal error for buyer@example.invalid",'
+        '"request_id":"20261027abc","data":{"buyer_name":"Nguyen Van A"}}',
+    )
 
     with pytest.raises(requests.HTTPError) as excinfo:
         TikTokClient._handle_response(resp)
 
     message = str(excinfo.value)
     assert "500" in message
-    assert "internal error, please retry" in message
+    assert "code=10000" in message and "request_id=20261027abc" in message
+    assert "buyer@example.invalid" not in message and "Nguyen Van A" not in message
+    assert "internal error" not in message
     # The original exception stays reachable for callers that inspect it.
     assert excinfo.value.response is resp
 
 
-def test_oversized_body_is_truncated():
-    resp = _response(502, "x" * 5000)
+def test_a_body_that_is_not_an_envelope_is_not_appended():
+    resp = _response(502, "<html>" + "x" * 5000 + "</html>")
 
     with pytest.raises(requests.HTTPError) as excinfo:
         TikTokClient._handle_response(resp)
 
-    assert len(str(excinfo.value)) < 1200
+    assert "xxxx" not in str(excinfo.value)
+    assert len(str(excinfo.value)) < 300
 
 
 def test_empty_body_still_raises_the_plain_status_error():
@@ -77,7 +88,7 @@ BODY_106013 = (
 SECRETS = ("6abc123def", "sign=", "app_key=", "0f1e2d3c4b5a6978")
 
 
-def test_http_error_drops_the_signed_query_but_keeps_path_and_body():
+def test_http_error_drops_the_signed_query_but_keeps_path_and_code():
     resp = _response(400, BODY_106013, url=SIGNED)
 
     with pytest.raises(requests.HTTPError) as excinfo:
@@ -85,7 +96,7 @@ def test_http_error_drops_the_signed_query_but_keeps_path_and_body():
 
     message = str(excinfo.value)
     assert "/order/202309/orders/search?<query redacted>" in message
-    assert "106013" in message and "shop_cipher" in message
+    assert "code=106013" in message and "request_id=2025" in message
     assert not any(secret in message for secret in SECRETS)
     # The unredacted original is not chained, so a logged traceback cannot print it.
     assert excinfo.value.__suppress_context__ and excinfo.value.__cause__ is None

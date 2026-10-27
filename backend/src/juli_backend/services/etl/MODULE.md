@@ -63,7 +63,11 @@ The idempotency ledger and its epoch. Import from
 - The claim and the destination write share **one savepoint**, so a failed transform or
   upsert can never leave an id marked processed with nothing persisted (#1968)
 - Per-shop `asyncio.Lock` preserves ordering within a shop
-- Malformed or unknown-shop messages → DLQ via injected `dlq_handoff` (testable stub)
+- Malformed or unknown-shop messages → DLQ via injected `dlq_handoff` (testable stub).
+  The envelope is `original_channel`, `shop_key`, `error` only -- never the payload or
+  the raw bytes -- and `error` is a fixed reason or the exception class (D16)
+- Silver `orders.cancel_reason` / `returns.return_reason` keep a reason code or a
+  catalogued platform label, else `"other"` (`services/privacy/reason_labels`, decision A)
 - No broker client imported — callers inject handoff functions
 - **Silver cutover (#607):** domain order/return upserts write `silver.orders` / `silver.returns`; bronze promotion via `SilverOrdersReturnsPromoter`
 

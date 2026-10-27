@@ -48,6 +48,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from juli_backend.core.security import (
     REVIEWER_DENIED_HEADER,
+    REVIEWER_USER_STATE_KEY,
     VerifiedToken,
     bind_reviewer_gate,
 )
@@ -166,6 +167,9 @@ class ReviewerContext:
     #: The request's method and matched endpoint (the refusal audit names them).
     method: str = ""
     endpoint: str | None = None
+    #: P69b: the pinned shop's row + mode from the gate's identity load (None: no pin,
+    #: or the shop does not exist -- the shop entry then takes the ops path and refuses).
+    pinned: reviewer_service.pin_cache.PinnedShop | None = field(default=None, repr=False)
 
     @property
     def mask_enabled(self) -> bool:
@@ -236,7 +240,13 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
     mark_reviewer_session()
     method = request.method.upper()
     template = endpoint_key(request)
-    account = await reviewer_service.load_account(session, token.user_id)
+    # D42 amendment (2026-10-15): the pin is optional. Unset, the reviewer has
+    # no shop (sample mode in the UI); the allowlist below is unchanged.
+    shop_id = reviewer_service.config.reviewer_shop_id()
+    # P69b: account, users row and pinned shop -- cached, else ONE load per concurrent
+    # burst for this verified sub (single flight), in three statements on Postgres.
+    identity = await reviewer_service.identity.load_identity(session, token.user_id, shop_id)
+    account = identity.account
     if account is None or account.platform != token.reviewer_platform:
         await session.rollback()
         logger.warning("reviewer_unknown", extra={"user_id": str(token.user_id)})
@@ -246,9 +256,6 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
         await session.rollback()
         logger.info("reviewer_denied", extra={"user_id": str(token.user_id), "state": state})
         raise deny(state)
-    # D42 amendment (2026-10-15): the pin is optional. Unset, the reviewer has
-    # no shop (sample mode in the UI); the allowlist below is unchanged.
-    shop_id = reviewer_service.config.reviewer_shop_id()
     if not is_allowed(method, template):
         action = (
             audit.ACTION_REVIEWER_READ_REFUSED
@@ -288,9 +295,19 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
                 shop_id=shop_id,
                 after={"platform": account.platform, "session_id": token.session_id},
             )
-    # Ends the account read / sign-in transaction (and the juli_ops role with it):
-    # ``load_authenticated_user`` must start from a clean session.
-    await session.commit()
+        # The claim (and its audit) are writes: committed here, exactly as before. The
+        # committed row now holds this session id, so the next request needs no claim.
+        await session.commit()
+        reviewer_service.accounts.remember_signed_in(account, token.session_id)
+    elif identity.user_values is None:
+        # ``load_authenticated_user`` (a first sighting, or no users row read) starts
+        # from a clean session, as before P69b.
+        await session.commit()
+    # P69b: otherwise nothing was written and nothing is committed. The identity load
+    # restored the role in its own statement; the route's shop entry sets the shop's
+    # tenant scope next, as on every warm request.
+    if identity.user_values is not None:
+        setattr(request.state, REVIEWER_USER_STATE_KEY, identity.user_values)
     logger.info(
         "reviewer_request",
         extra={"platform": account.platform, "method": method, "endpoint": template},
@@ -308,6 +325,7 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
             sandbox_only=(method, template) in SANDBOX_ONLY_ENDPOINTS,
             method=method,
             endpoint=template,
+            pinned=identity.pinned,
         ),
     )
 
@@ -356,12 +374,16 @@ async def _enter_pinned_shop(
 ) -> Shop:
     """Enter the pinned shop's tenant scope and learn what the pin is (P69: cached facts).
 
-    A pin-cache hit (``services/reviewer/pin_cache``, the reviewer identity TTL) skips
+    P69b: the gate's identity load normally hands the pinned facts over
+    (``context.pinned``: read in the fused identity statement or cached). A pin-cache
+    hit (``services/reviewer/pin_cache``, the reviewer identity TTL) skips
     the ops read and the pin classification -- seven round trips -- but STILL applies the
     shop's tenant scope (one ``set_config`` statement) to this request's transaction, so
     RLS narrows every query exactly as on a miss.
     """
-    pinned = reviewer_service.pin_cache.cached(shop_id)
+    pinned = context.pinned
+    if pinned is None or pinned.shop_id != shop_id:
+        pinned = reviewer_service.pin_cache.cached(shop_id)
     if pinned is not None:
         shop = pinned.shop()
         await _apply_tenant_context_to_session(session, shop.id, shop.user_id)
