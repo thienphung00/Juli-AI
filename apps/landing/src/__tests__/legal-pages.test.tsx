@@ -169,7 +169,7 @@ describe("privacy and terms pages exist and are linked (issue #1971)", () => {
       expect(notice).toHaveTextContent(`tax ID ${COMPANY.taxId}`);
       expect(notice).toHaveTextContent("Website: app-juli.com");
       expect(notice).toHaveTextContent(COMPANY.email);
-      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 18, 2026/);
+      expect(notice).toHaveTextContent(/Last updated \(effective date\): October 27, 2026/);
     });
 
     it("translates every section 1–12", () => {
@@ -355,10 +355,10 @@ describe("Shopee status is stated honestly on the public pages (D42.6, AC-32.9)"
 });
 
 describe("legal template (Legal.dc.html, D44, P34-E)", () => {
-  it("/terms is dated 18/10/2026 with no version (D68.13): TMĐT positioning (§2) and both sign-in methods (§3)", () => {
+  it("/terms is dated 27/10/2026 with no version (D68.13): TMĐT positioning (§2) and both sign-in methods (§3)", () => {
     render(<TermsOfServicePage />);
     expect(
-      screen.getByText(/^Cập nhật lần cuối: 18\/10\/2026 · Có hiệu lực từ 18\/10\/2026/),
+      screen.getByText(/^Cập nhật lần cuối: 27\/10\/2026 · Có hiệu lực từ 27\/10\/2026/),
     ).toBeInTheDocument();
     expect(document.body).toHaveTextContent(
       "Juli AI là trợ lý giúp người bán TMĐT tăng trưởng và tối ưu vận hành (hiện kết nối TikTok Shop, Shopee đang tích hợp)",

@@ -11,7 +11,7 @@ import { legal } from "./legal-template";
 
 export const ENGLISH_SECTION_ID = "english";
 export const ENGLISH_GOOGLE_SECTION_ID = "google-user-data";
-export const LAST_UPDATED_EN = "October 18, 2026";
+export const LAST_UPDATED_EN = "October 27, 2026";
 export const GOOGLE_USER_DATA_POLICY_URL =
   "https://developers.google.com/terms/api-services-user-data-policy";
 export const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
@@ -60,8 +60,7 @@ export function PrivacyPolicyEnglish() {
           the controller and processor of the personal data described in this policy. For
           buyers&rsquo; personal data contained in shop data, however, the seller is the
           controller and Juli processes that data on the seller&rsquo;s behalf, under section
-          8 of the <a href="/terms">Terms of Service</a>. For the de-identified data Juli uses
-          to improve its own models (section 6), Juli is the controller.
+          8 of the <a href="/terms">Terms of Service</a>.
         </p>
         <p>
           You can contact us by email at <ContactLink />.
@@ -275,8 +274,10 @@ export function PrivacyPolicyEnglish() {
           <li>The shop&rsquo;s promotions and discount codes</li>
         </ul>
         <p>
-          Juli does not read your personal messages, and does not store buyers&rsquo; contact
-          information beyond the identifiers needed to process orders.
+          Juli does not read your personal messages. Buyers&rsquo; contact details and content
+          (name, address, phone number, email, messages) are removed as soon as Juli receives
+          data from the marketplace and are not stored; the buyer ID is stored only in a form
+          encrypted separately for each shop.
         </p>
 
         <h4 className={legal.subheading} id="content-you-provide">
@@ -366,41 +367,32 @@ export function PrivacyPolicyEnglish() {
         <p>
           Script, title and content suggestions are processed separately for each shop, based
           on that shop&rsquo;s own data and wording; a shop&rsquo;s own content is not shown to
-          other shops and is not used to create suggestions for other shops, except in
-          de-identified form under section 6.2.
+          other shops and is not used to create suggestions for other shops.
         </p>
-        <h4 className={legal.subheading}>6.2. Improving Juli&rsquo;s algorithms and models</h4>
-        <p>
-          Juli uses data to analyze, optimize its algorithms, research, train, fine-tune, test
-          and develop Juli&rsquo;s models and services, under these principles:
-        </p>
-        <ul aria-label="Principles for using data to improve Juli">
+        <h4 className={legal.subheading}>6.2. Marketplace data serves only your shop</h4>
+        <ul aria-label="Principles for using marketplace data">
           <li>
-            De-identified data only: shop data (sections 4, 4A) and data about how you use Juli
-            are stripped of the shop name, shop ID, your name, email, phone number and any
-            information that could identify you, your shop or any individual before they are
-            used for this purpose.
+            Juli uses data received from the marketplace through the connection you authorize
+            only to provide the service to your own shop.
           </li>
           <li>
-            A condition of using Juli, under section 8.6 of the{" "}
-            <a href="/terms">Terms of Service</a>. Personal data that still identifies you is
-            never used to train models.
+            Juli does not combine that data with other shops&rsquo; data, does not use it to
+            serve other customers, and does not sell or share it.
           </li>
           <li>
-            Buyer data and Google user data are never used to train models. Buyers&rsquo;
-            personal data is anonymized before it enters any analysis pipeline.
+            To improve the service in general, Juli uses public market data and Juli&rsquo;s own
+            data.
           </li>
           <li>
-            Data used for this purpose is not disclosed to other customers. Data already used
-            for training cannot be separated from the model; when you delete your account, the
-            original data is deleted as described in section 8, but Juli does not retrain those
-            models.
+            If Juli later wants to use your data for another purpose, Juli will ask for your
+            separate consent and will do so only where the marketplace&rsquo;s terms allow it.
           </li>
+          <li>Buyer data and Google user data are never used to train models.</li>
         </ul>
         <p>
           Under Decree 356/2025/NĐ-CP, data about a person&rsquo;s online behaviour and service
           usage habits is sensitive personal data. Juli uses it in a form linked to you only to
-          operate and support your account; it is de-identified before use under section 6.2.
+          operate and support your account.
         </p>
         <h4 className={legal.subheading}>6.3. Marketing and ad measurement (you can opt out)</h4>
         <ul>
@@ -411,8 +403,7 @@ export function PrivacyPolicyEnglish() {
         <p>You turn each of these on or off in the app under Settings, Privacy.</p>
         <p>
           Juli stores, analyzes and shares your data only for the purposes above. Juli does
-          not sell data, and does not use data that can identify your shop to serve other
-          customers.
+          not sell data, and does not use your shop data to serve other customers.
         </p>
       </section>
 
@@ -496,8 +487,8 @@ export function PrivacyPolicyEnglish() {
           models. Juli sends its analysis requests with OpenAI&rsquo;s response storage turned
           off; under OpenAI&rsquo;s API data policy, OpenAI may still keep API data for a
           limited period to monitor for abuse. A fine-tuned model (if any) is Juli&rsquo;s own
-          model and uses only data de-identified as described in section 6.2. Juli limits the
-          scope and volume of model use for each shop.
+          model and uses only public data and Juli&rsquo;s own data. Juli limits the scope and
+          volume of model use for each shop.
         </p>
 
         <h4 className={legal.subheading} id="cross-border-transfer">
@@ -532,9 +523,9 @@ export function PrivacyPolicyEnglish() {
           immediately stops syncing new data from that shop. When you delete your account,
           Juli stops syncing shop data and keeps the data for 30 more days so you can download
           it or cancel; your account data and shop data are then deleted. If you ask for
-          immediate deletion, we delete within 20 days. Invoices and accounting records are
-          kept for 10 years under accounting law; de-identified data under section 6.2 is not
-          deleted.
+          immediate deletion, we delete within 20 days. All shop data is deleted within these
+          time limits. Invoices and accounting records are kept for 10 years under accounting
+          law.
         </p>
       </section>
 
@@ -561,9 +552,8 @@ export function PrivacyPolicyEnglish() {
           correct or export data within 10 days; deletion requests within 20 days.
         </p>
         <p>
-          Some data is necessary for Juli to work (section 6.1) or is a condition of use
-          (section 6.2). If you withdraw consent for, or ask us to delete, that data, Juli can
-          no longer provide the service and your account ends under the{" "}
+          Some data is necessary for Juli to work (section 6.1). If you withdraw consent for,
+          or ask us to delete, that data, Juli can no longer provide the service and your account ends under the{" "}
           <a href="/terms">Terms of Service</a>. Withdrawing consent does not affect processing
           carried out before.
         </p>

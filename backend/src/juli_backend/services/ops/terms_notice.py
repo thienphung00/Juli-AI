@@ -1,7 +1,7 @@
 """One-off e-mail: the terms and privacy policy changed (fast track P50-E, D68.8).
 
-    python -m juli_backend.services.ops.terms_notice --sent-list ~/juli-terms-2026-10-18.sent
-    python -m juli_backend.services.ops.terms_notice --sent-list ~/juli-terms-2026-10-18.sent --send
+    python -m juli_backend.services.ops.terms_notice --sent-list ~/juli-terms-2026-10-27.sent
+    python -m juli_backend.services.ops.terms_notice --sent-list ~/juli-terms-2026-10-27.sent --send
 
 Operator-run only: never scheduled, not reachable over HTTP. Without ``--send`` it
 is a dry run that prints counts. Recipients are the distinct non-null
@@ -42,16 +42,17 @@ NOTICE_BODY = "\n".join(
     (
         "Chào bạn,",
         "",
-        "Ngày 18/10/2026, Juli đã cập nhật Điều khoản dịch vụ và Chính sách bảo mật. "
+        "Ngày 27/10/2026, Juli đã cập nhật Điều khoản dịch vụ và Chính sách bảo mật. "
         "Bản cập nhật có hiệu lực ngay từ ngày này.",
         "",
         "Những điểm chính:",
-        "- Juli chỉ dành cho mục đích kinh doanh: doanh nghiệp, hộ kinh doanh và người bán "
-        "dùng Juli cho hoạt động thương mại.",
-        "- Dữ liệu đã khử định danh được dùng để cải thiện mô hình của Juli. "
-        "Đây là điều kiện sử dụng dịch vụ. "
+        "- Dữ liệu Juli nhận từ sàn chỉ dùng để cung cấp dịch vụ cho chính shop của bạn. "
+        "Juli không gộp dữ liệu đó với dữ liệu của shop khác, không dùng để phục vụ khách "
+        "hàng khác, không bán hay chia sẻ.",
+        "- Khi bạn xoá tài khoản, toàn bộ dữ liệu shop được xoá theo thời hạn trong Chính "
+        "sách bảo mật.",
+        "- Thông tin liên hệ của người mua không được lưu lại. "
         "Dữ liệu người mua không bao giờ được dùng để huấn luyện.",
-        "- Juli không chịu trách nhiệm bồi thường theo Điều 11 của Điều khoản dịch vụ.",
         "- Quyền của bạn và cách từ chối nằm trong Cài đặt → Quyền riêng tư.",
         "",
         "Đọc toàn văn:",
