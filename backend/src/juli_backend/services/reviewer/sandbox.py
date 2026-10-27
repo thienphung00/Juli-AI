@@ -32,7 +32,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from juli_backend.core.security import sandbox_write_owners
+from juli_backend.core.security import SandboxWriteOwner, sandbox_write_owners
 from juli_backend.integrations.tiktok import TikTokCapability
 from juli_backend.models.models import ProductionWriteShop, TikTokCredential
 
@@ -75,19 +75,43 @@ async def classify_pin(session: AsyncSession, shop_id: uuid.UUID) -> PinMode:
     """The pinned shop's mode. The caller holds the shop's read scope (``enter_reviewer_shop``)."""
     owners = await sandbox_write_owners(session)
     owner = owners[0] if owners else None
-    capabilities = {
+    capabilities: set[str] = {
         row
         for row in (
             await session.execute(
                 select(TikTokCredential.capability).where(TikTokCredential.shop_id == shop_id)
             )
         ).scalars()
+        if row is not None
     }
     production_write_row = (
         await session.execute(
             select(ProductionWriteShop.shop_id).where(ProductionWriteShop.shop_id == shop_id)
         )
     ).scalar_one_or_none() is not None
+    return pin_mode(
+        shop_id,
+        sandbox_owner=owner,
+        capabilities=capabilities,
+        production_write_row=production_write_row,
+    )
+
+
+def pin_mode(
+    shop_id: uuid.UUID,
+    *,
+    sandbox_owner: SandboxWriteOwner | None,
+    capabilities: set[str],
+    production_write_row: bool,
+) -> PinMode:
+    """The decision of :func:`classify_pin` from facts already read (P69b: one fused read).
+
+    ``sandbox_owner`` is the FIRST (newest) ``sandbox_write`` owner, the one
+    ``resolve_sandbox_write_credential`` uses; ``capabilities`` are the pinned shop's own
+    credential capabilities; ``production_write_row`` whether it has a
+    ``production_write_shops`` row.
+    """
+    owner = sandbox_owner
     reason: str | None = None
     if TikTokCapability.PRODUCTION_READ.value in capabilities:
         reason = REASON_PRODUCTION_READ
@@ -218,6 +242,7 @@ __all__ = [
     "PinMode",
     "claim_sync_slot",
     "classify_pin",
+    "pin_mode",
     "connection_info",
     "forget_sync_slots",
     "release_sync_slot",

@@ -60,6 +60,7 @@ from typing import Any
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from juli_backend.models.consent import DataUseConsent
 from juli_backend.models.lever_flows import (
     FLOW_PROMOTION,
     LeverCalibration,
@@ -525,13 +526,32 @@ async def shop_calibration_stats(
     return {row.lever: (Decimal(str(row.coefficient)), int(row.readings or 0)) for row in rows}
 
 
-async def fleet_calibration_stats(session: AsyncSession) -> dict[str, tuple[Decimal, int]]:
-    """lever -> (results-weighted mean coefficient, results) over every shop the session sees.
+#: The consent scope a shop must hold for its results to join the fleet level (ADR-116 §3).
+POOLED_TRAINING_SCOPE = "pooled_training"
 
-    D30.3's fleet level. Under a shop-scoped session (row-level security) this
-    sees only that shop, which degrades to the shop's own numbers -- never
-    another shop's, and never an error.
+
+async def fleet_calibration_stats(session: AsyncSession) -> dict[str, tuple[Decimal, int]]:
+    """lever -> (results-weighted mean coefficient, results) over the pooled shops it sees.
+
+    D30.3's fleet level, restricted (ADR-116 §3, D76) to shops holding an open
+    ``pooled_training`` consent: the shop's calibration row counts only while an
+    unrevoked grant exists for that shop, decided in the query so it holds under
+    any session. Under a shop-scoped session (row-level security) both
+    ``lever_calibrations`` and ``data_use_consents`` show only that shop, so the
+    fleet level is the shop's own numbers when it has consented and empty when
+    it has not (the prior / shop level is then used) -- never another shop's,
+    never an error. Under a privileged (BYPASSRLS) session it is every consenting
+    shop. No consent rows at all means an empty result (fail closed).
     """
+    pooled = (
+        select(DataUseConsent.id)
+        .where(
+            DataUseConsent.shop_id == LeverCalibration.shop_id,
+            DataUseConsent.scope == POOLED_TRAINING_SCOPE,
+            DataUseConsent.revoked_at.is_(None),
+        )
+        .exists()
+    )
     rows = (
         await session.execute(
             select(
@@ -539,7 +559,7 @@ async def fleet_calibration_stats(session: AsyncSession) -> dict[str, tuple[Deci
                 func.sum(LeverCalibration.coefficient * LeverCalibration.readings),
                 func.sum(LeverCalibration.readings),
             )
-            .where(LeverCalibration.readings > 0)
+            .where(LeverCalibration.readings > 0, pooled)
             .group_by(LeverCalibration.lever)
         )
     ).all()

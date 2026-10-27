@@ -9,7 +9,8 @@
 
 import { CHANNEL, SELLER_CENTRE_ORIGIN } from "../config";
 import { SESSION_PARAMS, WATCHED_PATHS } from "../shopee/endpoints";
-import { gapBefore, type PlannedRequest, requestUrl } from "../shopee/sync";
+import { Pacer, runDay, type DayRequest } from "../shopee/runner";
+import { type PlannedRequest, requestUrl } from "../shopee/sync";
 import { gmt7Date } from "../shopee/time";
 
 interface Template {
@@ -19,7 +20,12 @@ interface Template {
 
 const session: Record<string, string> = {};
 const templates = new Map<string, Template>();
-let syncing = false;
+// Every request this hook sends (daily sync and backfill) goes through one pacer:
+// one plan at a time, ≥ 2 s + jitter between any two requests.
+const pacer = new Pacer({
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  now: () => Date.now(),
+});
 
 function today(): string {
   return gmt7Date(Math.floor(Date.now() / 1000));
@@ -122,39 +128,69 @@ function reply(status: string, detail: Record<string, unknown> = {}): void {
   window.postMessage({ channel: CHANNEL, kind: "sync-result", status, ...detail }, SELLER_CENTRE_ORIGIN);
 }
 
+function hasSession(): boolean {
+  return SESSION_PARAMS.every((key) => key in session);
+}
+
 async function runPlan(plan: PlannedRequest[]): Promise<void> {
-  if (syncing) return reply("busy");
-  if (!SESSION_PARAMS.every((key) => key in session)) {
+  if (!hasSession()) {
     // The page has not made a data call in this tab yet: never invent the session params.
     return reply("needs_data_page");
   }
-  syncing = true;
   let sent = 0;
-  try {
-    for (const request of plan) {
-      if (!WATCHED_PATHS.has(request.path)) continue;
-      const template = templates.get(request.path);
-      const url = requestUrl(
-        SELLER_CENTRE_ORIGIN,
-        request,
-        session,
-        template && template.day === today() ? template.params : undefined,
-      );
-      if (!url) continue;
-      await new Promise((resolve) => setTimeout(resolve, gapBefore(sent)));
-      // Through the wrapped fetch: the response is captured like the page's own.
-      await window.fetch(url, { method: "GET", credentials: "include" }).catch(() => undefined);
-      sent += 1;
-    }
-  } finally {
-    syncing = false;
+  for (const request of plan) {
+    if (!WATCHED_PATHS.has(request.path)) continue;
+    const template = templates.get(request.path);
+    const url = requestUrl(
+      SELLER_CENTRE_ORIGIN,
+      request,
+      session,
+      template && template.day === today() ? template.params : undefined,
+    );
+    if (!url) continue;
+    await pacer.beforeRequest();
+    // Through the wrapped fetch: the response is captured like the page's own.
+    await window.fetch(url, { method: "GET", credentials: "include" }).catch(() => undefined);
+    sent += 1;
   }
   reply("done", { sent });
 }
 
+// -- backfill, one day per request from the service worker ----------------------------
+
+function replyBackfill(day: string, status: string, results: unknown[] = []): void {
+  window.postMessage({ channel: CHANNEL, kind: "backfill-result", day, status, results }, SELLER_CENTRE_ORIGIN);
+}
+
+async function runBackfillDay(day: string, plan: PlannedRequest[]): Promise<void> {
+  if (!hasSession()) return replyBackfill(day, "needs_data_page");
+  const requests: DayRequest[] = [];
+  for (const request of plan) {
+    if (!WATCHED_PATHS.has(request.path) || request.useTemplate) continue;
+    const url = requestUrl(SELLER_CENTRE_ORIGIN, request, session);
+    if (!url) continue;
+    requests.push({ dataset: request.dataset, url, publicUrl: publicUrl(new URL(url)) });
+  }
+  // The unwrapped fetch: the service worker posts these results itself (and
+  // learns per request whether Seller Centre accepted the day), so they must not
+  // also be captured passively.
+  const results = await runDay(
+    requests,
+    pacer,
+    (url) => originalFetch(url, { method: "GET", credentials: "include" }),
+    () => Date.now(),
+  );
+  replyBackfill(day, "done", results);
+}
+
 window.addEventListener("message", (event: MessageEvent) => {
   if (event.source !== window || event.origin !== SELLER_CENTRE_ORIGIN) return;
-  const data = event.data as { channel?: string; kind?: string; plan?: unknown };
-  if (data?.channel !== CHANNEL || data.kind !== "sync" || !Array.isArray(data.plan)) return;
-  void runPlan(data.plan as PlannedRequest[]);
+  const data = event.data as { channel?: string; kind?: string; plan?: unknown; day?: unknown };
+  if (data?.channel !== CHANNEL || !Array.isArray(data.plan)) return;
+  const plan = data.plan as PlannedRequest[];
+  if (data.kind === "sync") void pacer.serial(() => runPlan(plan));
+  else if (data.kind === "backfill" && typeof data.day === "string") {
+    const day = data.day;
+    void pacer.serial(() => runBackfillDay(day, plan));
+  }
 });

@@ -29,6 +29,7 @@ from juli_backend.integrations.tiktok import (
     TikTokAuth,
 )
 from juli_backend.repositories.repos import UsersRepo
+from juli_backend.services.consent.terms import grant_terms_consents_if_accepted
 from juli_backend.services.ingestion import enqueue_shop_bootstrap
 from juli_backend.services.tiktok.credential_binding import make_binding_verifier
 from juli_backend.services.tiktok.schemas import (
@@ -231,6 +232,9 @@ async def complete_tiktok_oauth_callback(
             raise TikTokOAuthTokenExchangeFailed from exc
         facade = build_partner_oauth_facade(session, service)
         shop = await facade.provision_shop_and_credentials(token_data, user_id=owner_id)
+        # D10 (ADR-116 §2): an owner who already accepted the Terms grants them to the
+        # newly connected shop too. Never raises (logged, savepoint-isolated).
+        await grant_terms_consents_if_accepted(session, owner_id, [shop.id])
         await session.commit()
         _after_connect_committed(shop.id)
         return TikTokOAuthCallbackResult(

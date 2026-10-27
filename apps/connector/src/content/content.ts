@@ -16,13 +16,19 @@ window.addEventListener("message", (event: MessageEvent) => {
     void chrome.runtime
       .sendMessage({ type: "sync-result", status: data.status, sent: data.sent })
       .catch(() => undefined);
+  } else if (data.kind === "backfill-result") {
+    void chrome.runtime
+      .sendMessage({ type: "backfill-result", day: data.day, status: data.status, results: data.results })
+      .catch(() => undefined);
   }
 });
 
 chrome.runtime.onMessage.addListener((message) => {
-  const msg = message as { type?: string; plan?: unknown };
+  const msg = message as { type?: string; plan?: unknown; day?: unknown };
   if (msg?.type === "sync" && Array.isArray(msg.plan)) {
     window.postMessage({ channel: CHANNEL, kind: "sync", plan: msg.plan }, SELLER_CENTRE_ORIGIN);
+  } else if (msg?.type === "backfill" && Array.isArray(msg.plan) && typeof msg.day === "string") {
+    window.postMessage({ channel: CHANNEL, kind: "backfill", day: msg.day, plan: msg.plan }, SELLER_CENTRE_ORIGIN);
   }
 });
 

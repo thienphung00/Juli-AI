@@ -76,7 +76,8 @@ class DataUseConsent(Base):
     evidence_ref: Mapped[str] = mapped_column(String(512), nullable=False)
     #: SHA-256 (lower-case hex) of a scanned document, when there is one.
     evidence_sha256: Mapped[str | None] = mapped_column(String(64))
-    #: Who granted it on the client's side (name or account email).
+    #: Who granted it on the client's side: the signatory's name, or the user id for an
+    #: in-app Terms acceptance (D10; never a contact detail).
     granted_by: Mapped[str] = mapped_column(String(255), nullable=False)
     granted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime)

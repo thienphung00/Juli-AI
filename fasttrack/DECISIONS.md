@@ -1733,3 +1733,17 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `PUT` / `DELETE /v1/demo/rules/{rule_key}` are sandbox-pin-only reviewer routes
      (`SANDBOX_RULE_ENDPOINTS`, 403 `sandbox_only` + audit elsewhere); masked / sample reviewers
      stay read-only.
+
+- **D76** — Client data lanes, consent and model split for the NDA with Ory (grill, owner,
+  2026-10-26; log `docs/product/client-data-compliance/GRILL_LOG.md` D0–D9) →
+  [ADR-116](../docs/adr/116-client-data-lanes-consent-and-model-split.md). Client lane = any
+  non-public client data (API, sub-account exports, Connector, client files); public scrapes,
+  including a client's own listing, are public lane. `data_use_consents` with scopes `service`
+  (from the contract / ToS), `llm_processing` (from the approved sub-processor list),
+  `pooled_training` (separate opt-in, default off; Fujiwa on). Public model + per-client layer;
+  withdrawal falls back to the public model and deletes the layer, no retraining. Payload allowlist
+  and per-shop HMAC `buyer_id` on every raw write incl. the ingest gateway. OpenAI: two fixed
+  projects (`juli-internal`, `juli-client-data`), keys from Secrets Manager, one gate in the
+  adapter, `llm_call_log`. Shop writes only on a shop member's click, exact match, 72 h expiry.
+  No non-public client data in Juli Ops / Connector / Supabase / Hetzner before the client approves
+  a sub-processor list covering them. Blocks phase 2 (ISV approval); merged only after P68 deploys.

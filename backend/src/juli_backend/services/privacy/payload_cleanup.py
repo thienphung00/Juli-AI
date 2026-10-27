@@ -254,7 +254,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def _main(args: argparse.Namespace) -> int:
-    from juli_backend.core.config.runtime import async_database_url, migration_database_url
+    from juli_backend.core.config import async_database_url, migration_database_url
 
     url = async_database_url(args.database_url or migration_database_url())
     engine = create_async_engine(url)
