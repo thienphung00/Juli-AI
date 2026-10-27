@@ -68,8 +68,13 @@ def cached(shop_id: uuid.UUID) -> PinnedShop | None:
 
 def remember(shop: Shop, pin: PinMode) -> PinnedShop:
     values = {attr.key: getattr(shop, attr.key) for attr in sa_inspect(Shop).column_attrs}
-    pinned = PinnedShop(shop_values=values, pin=pin)
-    _pinned.put(shop.id, pinned)
+    return remember_values(values, pin)
+
+
+def remember_values(values: dict[str, Any], pin: PinMode) -> PinnedShop:
+    """Cache the pinned shop from plain column values (P69b: the fused identity read)."""
+    pinned = PinnedShop(shop_values=dict(values), pin=pin)
+    _pinned.put(pinned.shop_id, pinned)
     return pinned
 
 
@@ -77,4 +82,4 @@ def forget_cached() -> None:
     _pinned.clear()
 
 
-__all__ = ["PinnedShop", "cached", "forget_cached", "remember"]
+__all__ = ["PinnedShop", "cached", "forget_cached", "remember", "remember_values"]

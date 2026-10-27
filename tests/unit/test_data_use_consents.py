@@ -232,3 +232,65 @@ async def test_the_model_writes_the_table_the_migration_creates(session):
     assert isinstance(grant, DataUseConsent)
     assert grant.id is not None and isinstance(grant.id, uuid.UUID)
     assert grant.revoked_at is None
+
+
+# -- fleet calibration counts only pooled_training shops (ADR-116 §3, D76) ------------
+
+
+async def _calibrate(session, shop_id, lever="cover_image", coefficient="1.0", readings=4):
+    from decimal import Decimal
+
+    from juli_backend.models.lever_flows import LeverCalibration
+
+    session.add(
+        LeverCalibration(
+            shop_id=shop_id,
+            lever=lever,
+            coefficient=Decimal(coefficient),
+            readings=readings,
+            updated_at=NOW,
+        )
+    )
+    await session.flush()
+
+
+async def test_fleet_calibration_counts_only_shops_with_pooled_training(session):
+    from decimal import Decimal
+
+    from juli_backend.services.lever_flows.measurement import fleet_calibration_stats
+
+    _, pooled = await make_tenant(session)
+    _, private = await make_tenant(session)
+    await _calibrate(session, pooled.id, coefficient="0.6", readings=4)
+    await _calibrate(session, private.id, coefficient="1.8", readings=10)
+    await _grant(session, pooled.id, "pooled_training")
+    await _grant(session, private.id, "service")  # another scope is not enough
+
+    assert await fleet_calibration_stats(session) == {"cover_image": (Decimal("0.6"), 4)}
+
+
+async def test_a_revoked_pooled_training_grant_leaves_the_fleet_level(session):
+    from juli_backend.services.lever_flows.measurement import fleet_calibration_stats
+
+    _, shop = await make_tenant(session)
+    await _calibrate(session, shop.id)
+    await _grant(session, shop.id, "pooled_training")
+    assert set(await fleet_calibration_stats(session)) == {"cover_image"}
+
+    await revoke_consent(session, shop.id, "pooled_training", revoked_at=NOW + timedelta(days=1))
+    assert await fleet_calibration_stats(session) == {}
+
+
+async def test_no_consents_means_an_empty_fleet_and_prediction_uses_the_prior(session):
+    from juli_backend.services.lever_flows.measurement import fleet_calibration_stats
+    from juli_backend.services.optimize_product.prediction import CalibrationStats, predict
+
+    _, shop = await make_tenant(session)
+    await _calibrate(session, shop.id, coefficient="0.3", readings=2)
+
+    fleet = await fleet_calibration_stats(session)
+    assert fleet == {}
+    prediction = predict(
+        "cover_image", 80, shop=CalibrationStats(0.3, 2), fleet=fleet.get("cover_image")
+    )
+    assert prediction.source == "prior"

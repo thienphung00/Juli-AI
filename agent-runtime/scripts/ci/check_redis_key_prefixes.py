@@ -25,6 +25,7 @@ KEY_LIKE_ASSIGNMENT_RE = re.compile(r"(?:KEY|PREFIX)", re.IGNORECASE)
 EXCLUDED_PREFIXES = frozenset(
     {
         "enc:v1:",
+        "enc:p1:",
         "wh:",
         "sync:",
         "hash:",
@@ -191,9 +192,7 @@ def extract_prefix_hits(py_file: Path, repo_root: Path) -> list[PrefixHit]:
 
     hits: list[PrefixHit] = []
     for node, parents in _iter_with_parents(tree):
-        hits.extend(
-            _extract_from_node(node, rel_file=rel_file, parents=parents, tree=tree)
-        )
+        hits.extend(_extract_from_node(node, rel_file=rel_file, parents=parents, tree=tree))
 
     # Uppercase module constants like CACHE_KEY_PREFIX = "analytics:kpi_envelope:"
     for node in tree.body:
@@ -216,7 +215,7 @@ def extract_prefix_hits(py_file: Path, repo_root: Path) -> list[PrefixHit]:
                             line=node.lineno,
                             prefix=prefix,
                             pattern=prefix_to_pattern(prefix),
-                            )
+                        )
                     )
     return hits
 
@@ -228,9 +227,7 @@ def iter_python_files(scan_root: Path) -> list[Path]:
 
 
 def prefix_is_allowed(pattern: str, registry: dict[str, Any]) -> bool:
-    if JULI_MODULE_PREFIX_RE.match(pattern) or JULI_MODULE_PREFIX_RE.match(
-        pattern.rstrip("*")
-    ):
+    if JULI_MODULE_PREFIX_RE.match(pattern) or JULI_MODULE_PREFIX_RE.match(pattern.rstrip("*")):
         return True
     for allowed in (*registered_patterns(registry), *legacy_allowlist(registry)):
         if fnmatch.fnmatch(pattern, allowed):
@@ -267,9 +264,7 @@ def validate_scan(
     *,
     repo_root: Path = REPO_ROOT,
 ) -> tuple[bool, list[str]]:
-    unknown = collect_unknown_prefixes(
-        scan_root, registry_path, repo_root=repo_root
-    )
+    unknown = collect_unknown_prefixes(scan_root, registry_path, repo_root=repo_root)
     if not unknown:
         return True, []
     errors = [

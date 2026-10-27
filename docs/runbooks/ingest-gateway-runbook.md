@@ -86,7 +86,10 @@ How it works:
    the page's own responses from four `/api/mydata/...` endpoints to
    `content.js` (window.postMessage, origin + channel checked), which relays them
    to the service worker. Only exactly-one-finished-day responses are mapped;
-   `real_time`, 7 / 30-day aggregates are ignored.
+   `real_time`, 7 / 30-day aggregates are ignored. Recorded day shapes
+   (2026-10-26): "Hôm qua" `period=yesterday`, end = start + 86399; a picked day
+   `period=day`, end = start + 86400 (+ 86399 → Shopee code 10006); the traffic
+   dashboard `period=day&dt=YYYYMMDD`.
 3. Once a day (alarm, random start) — and only while a Seller Centre tab is
    open — the service worker asks that tab to re-issue yesterday's same GETs, at
    ≥ 2 s + jitter apart, with the session params the page itself used (never
@@ -94,6 +97,18 @@ How it works:
 4. Unexpected / missing fields, a renamed source enum or a percentage where a
    fraction belongs → drift report, that dataset stops for this version.
 5. The token rotates after 30 days; a 401 clears it (the seller pairs again).
+6. **30-day backfill (v0.2.0):** once per shop (kept across re-pairing the same
+   shop), the last 30 finished GMT+7 days, newest first, one day per round trip
+   to the tab (traffic overview + shop traffic; item datasets while
+   `ITEM_READERS_ACTIVE` is false are skipped), same ≥ 2 s + jitter pacing across
+   all requests. Progress lives in `chrome.storage.local` (`backfill`: done days,
+   per-day accepted datasets, in-flight day); a closed browser resumes there.
+   Stops: Seller Centre 401/403 or a login page (resumes once the page loads data
+   again), code 10006 or another error code / 3 transient failures (until a new
+   extension version), Juli 401 (until paired again), `consent_required`.
+7. **`403 consent_required`** (gateway, PR #2199): the extension stops sending
+   anything (no queue, no daily sync, no backfill) and the popup says the shop is
+   not yet allowed to sync; "Đồng bộ hôm qua" or pairing again lifts it.
 
 Seller UI still needed (not built): in Juli "Cài đặt › Kết nối Shopee" — create
 the Shopee shop (`POST /v1/shops/shopee`), "Tạo mã kết nối" (show the code and
