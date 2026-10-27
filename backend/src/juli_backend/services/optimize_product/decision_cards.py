@@ -90,6 +90,7 @@ from juli_backend.services.optimize_product.metric_trigger import (
 from juli_backend.services.optimize_product.prediction import (
     CalibrationStats,
     Prediction,
+    fleet_stats_for,
     gmv_range_per_month,
     predict,
 )
@@ -1268,7 +1269,7 @@ def _plan_d29(
                 lever,
                 quality.gap(lever),
                 shop=calibration.get(lever),
-                fleet=fleet_calibration.get(lever),
+                fleet=fleet_stats_for(fleet_calibration, lever),
             )
             kpi = kpi_target(
                 metric=metric,

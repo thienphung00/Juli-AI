@@ -5,10 +5,15 @@ and a new grant is a new row. At most one open grant per (shop, scope).
 Tenant-direct: RLS by ``app_current_shop_id()``; ``juli_app`` may SELECT,
 INSERT, and UPDATE ``revoked_at`` on an open row only.
 
-The per-shop reader is :func:`juli_backend.services.consent.require_consent`. The one
-cross-shop reader is ``ops_group_lift_draws()`` (migration 107, SECURITY DEFINER,
-``juli_ops`` only) and its SQLite mirror in ``card_groups.lift_draws``: it returns the
-draws of shops with an open ``pooled_training`` grant, never the grants.
+The per-shop reader is :func:`juli_backend.services.consent.require_consent`. The
+cross-shop readers are ``ops_group_lift_draws()`` and ``ops_fleet_calibration_draws()``
+(migration 107, SECURITY DEFINER, ``juli_ops`` only) and their SQLite mirrors in
+``card_groups.lift_draws`` / ``lever_flows.measurement``: they return the draws of shops
+with an open ``pooled_training`` grant, never the grants.
+
+``pooled_contributor_sets`` (migration 107, D15) is the audit of who contributed to a
+persisted pooled figure: ``ops_only`` (RLS on, the only policy ``FOR ALL TO juli_ops``,
+``juli_ops`` SELECT / INSERT, nothing to ``juli_app``), append-only.
 """
 
 from __future__ import annotations
@@ -16,7 +21,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, func, text
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Index, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from juli_backend.orm_base import Base
@@ -33,8 +38,8 @@ SCOPES: tuple[str, ...] = (
     "llm_media",
     "pooled_training",
 )
-#: The pooling opt-in by name: the Ops EB prior's cross-shop draws (migration 107,
-#: ``card_groups.lift_draws``) and any other figure pooled across shops (D76 / D11).
+#: The pooling opt-in by name: who may CONTRIBUTE to a figure pooled across shops -- the
+#: Ops EB prior's draws, the D30.3 fleet factor (migration 107) -- D76 / D11 / D17.
 POOLED_TRAINING = "pooled_training"
 #: How the grant was given -- evidence, not a different kind of consent.
 METHODS: tuple[str, ...] = ("contract_paper", "in_app_click", "email")
@@ -82,5 +87,42 @@ class DataUseConsent(Base):
     granted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+#: ``pooled_contributor_sets.figure``: which pooled figure the row audits. Written out in
+#: migration 107 too; ``tests/unit/test_pooled_cells.py`` pins the two equal.
+POOLED_FIGURES: tuple[str, ...] = ("fleet_calibration", "ops_group_prior")
+CK_POOLED_FIGURE = "figure IN (" + ", ".join(f"'{v}'" for v in POOLED_FIGURES) + ")"
+
+
+class PooledContributorSet(Base):
+    """D15: the shops behind one persisted pooled figure (``ops_only``, append-only).
+
+    ``contributor_shop_ids`` are ``shops.id`` values (sorted), never names;
+    ``contributors_sha256`` is the SHA-256 of that list joined by a newline; ``cells`` maps
+    each pooled cell used to its number of contributing shops. ``applied_shop_id`` is the
+    shop the figure was computed for (itself a consenting shop, D11 / D17).
+    """
+
+    __tablename__ = "pooled_contributor_sets"
+    __table_args__ = (
+        CheckConstraint(CK_POOLED_FIGURE, name="ck_pooled_contributor_sets_figure"),
+        CheckConstraint(
+            "length(contributors_sha256) = 64",
+            name="ck_pooled_contributor_sets_sha256",
+        ),
+        Index("ix_pooled_contributor_sets_computed_at", "computed_at"),
+        Index("ix_pooled_contributor_sets_applied_shop", "applied_shop_id", "computed_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    figure: Mapped[str] = mapped_column(String(32), nullable=False)
+    applied_shop_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    contributor_shop_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    contributors_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    cells: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

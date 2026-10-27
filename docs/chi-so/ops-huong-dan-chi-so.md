@@ -424,8 +424,17 @@ theo các nhóm cùng loại để tránh tin nhầm kết quả may mắn".
   tối thiểu để co lift".
 - **Dữ liệu shop khác.** Chỉ Ops đọc kết quả nhóm của các shop khác, và chỉ hiện con số tổng hợp
   (μ, τ, số nhóm); không hiện tên, mã hay số liệu riêng của shop nào.
-- **Không đổi gì khác.** Nhãn kết quả, mức thay đổi và câu "Kết quả nhóm" người bán thấy vẫn theo lift
-  thô như trước. Dòng này để Ops cân nhắc trước khi tin một kết quả lớn.
+- **Shop nào góp, shop nào dùng (D11, D14, D17 — 2026-10-27).** Chỉ shop đã đồng ý gộp dữ liệu
+  (`pooled_training`) góp kết quả nhóm vào mốc so sánh và chỉ những shop đó dùng mốc chung; shop
+  chưa đồng ý không góp cũng không dùng ("chỉ dữ liệu của shop này"). Quyền này chỉ cấp cho shop của
+  chính Juli (Fujiwa, shop sandbox): điều khoản TikTok Shop (Developer ToS §2.7(g), Partner Center ToS
+  §3.8(e)) cấm gộp dữ liệu API của người bán cho mục đích riêng của Juli; Shopee (ToS §6.2(c)) cần
+  Shopee đồng ý bằng văn bản cho số liệu tổng hợp về hiệu quả người bán. Thêm một lớp bảo vệ: một ô
+  gộp chỉ được dùng khi có **ít nhất 5 shop đã đồng ý** góp vào và **không shop nào chiếm quá 50 %**
+  số kết quả nhóm trong ô; không đủ thì lùi sang ô rộng hơn — mọi loại thay đổi cùng chỉ số × kênh
+  (dòng ghi "theo n shop, mọi loại thay đổi cùng chỉ số") — vẫn không đủ thì dùng mức mặc định. Hiện
+  chỉ shop của Juli đồng ý, nên mọi dòng đều đang ở mức mặc định. Hệ số hiệu chỉnh cấp "fleet" của Dự
+  đoán hiệu quả (D30.3) theo cùng quy tắc: ô theo đòn bẩy, rồi mọi đòn bẩy.
 
 ### 5.5 GMV, "tỷ lệ chuyển đổi" và kênh Thẻ sản phẩm: định nghĩa của TikTok (D55.1, P47 — chỉ Ops)
 

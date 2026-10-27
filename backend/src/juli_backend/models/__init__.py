@@ -2,7 +2,7 @@
 
 from juli_backend.models.card_events import CardEvent
 from juli_backend.models.card_groups import CardGroup, CardGroupMember
-from juli_backend.models.consent import DataUseConsent
+from juli_backend.models.consent import DataUseConsent, PooledContributorSet
 from juli_backend.models.content_analysis import ContentAnalysis
 from juli_backend.models.decision_reasons import DecisionReason
 from juli_backend.models.history import (
@@ -99,6 +99,7 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     TrialSignup,
     CardEvent,
     DataUseConsent,
+    PooledContributorSet,
     ShopPseudonymKey,
     LLMCallLog,
 )

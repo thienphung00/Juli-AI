@@ -90,6 +90,12 @@ describe("Lift đã co (EB) trong Ops (D52)", () => {
     expect(ebText(own)).not.toContain("nhóm cùng loại");
   });
 
+  it("names the wider metric × channel cell when the lever type had too few shops (D14)", () => {
+    const wide: CardGroupEb = { ...POOLED, prior: { ...POOLED.prior, n_groups: 6, cell: "metric_channel" } };
+    expect(ebText(wide)).toBe("Lift đã co (EB): +3,1 % [-2,0; +8,4] · lift thô +40,0 % · theo 6 shop, mọi loại thay đổi cùng chỉ số");
+    expect(ebText({ ...POOLED, prior: { ...POOLED.prior, cell: "lever_type" } })).toContain("theo 3 nhóm cùng loại");
+  });
+
   it("formats the two EB tunables", () => {
     expect(fmtSetting("group_eb_prior_sd", 0.15)).toBe("σ 0,15");
     expect(fmtSetting("group_eb_min_groups", 3)).toBe("3 nhóm");

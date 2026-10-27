@@ -12,6 +12,11 @@ only shops holding an open ``pooled_training`` grant. On the SQLite unit substra
   to the shop's own estimate without an exception;
 - migration 107: chain, id length, the additive gate, 093's body restored on downgrade.
 
+Owner D17 (2026-10-27) confirms "neither borrow nor lend" for a shop without the grant
+(D12.3 cancelled). D14 / D15 (≥ 5 contributing shops, no shop over 50 %, the
+contributor roster) are ``test_pooled_cells.py``; the fixtures here hold six shops so a
+pooled cell can open.
+
 The Postgres proof (the function itself, grants, round trip) is
 ``tests/integration/test_ops_pooled_consent_db.py``. Synthetic fixtures only.
 """
@@ -99,7 +104,9 @@ def test_107_filters_on_open_pooled_grants_and_downgrade_restores_093_verbatim()
     # Same shape as 093: SECURITY DEFINER, pinned search_path, out_ columns, juli_ops only.
     for fragment in ("SECURITY DEFINER SET search_path = pg_catalog, public", "out_comparison"):
         assert fragment in upgrade
-    assert "TO {OPS_ROLE}" in body and "juli_app" not in body.split('"""', 2)[2]
+    assert "TO {OPS_ROLE}" in body
+    # juli_app is only ever revoked from, never granted anything.
+    assert "TO {APP_ROLE}" not in body and "TO juli_app" not in body
     assert "'products'" not in body
     # The downgrade is 093's function, character for character.
     assert _function_body(downgrade) == _function_body(MIGRATION_093.read_text("utf-8"))
@@ -121,7 +128,7 @@ def test_an_empty_or_self_only_pool_falls_back_without_error():
 
 
 def test_a_shop_without_the_grant_ignores_every_draw():
-    draws = _eb_draws("cover_image", [(f"s{i}", f"g{i}", 3.0) for i in range(2, 6)])
+    draws = _eb_draws("cover_image", [(f"s{i}", f"g{i}", 3.0) for i in range(2, 7)])
     view = _view("g1", "cover_image", 40.0)
     [pooled] = apply_pooled_eb([view], draws, pooled=True, min_groups=3)
     [own] = apply_pooled_eb([view], draws, pooled=False, min_groups=3, default_sd=0.2)
@@ -143,8 +150,9 @@ def test_a_shop_without_the_grant_ignores_every_draw():
 
 @pytest_asyncio.fixture
 async def shops(session):
+    """Six synthetic shops: the viewed one and five others (D14 needs ≥ 5 contributors)."""
     out = []
-    for _ in range(4):
+    for _ in range(6):
         _user, shop = await make_tenant(session)
         out.append(shop)
     return out
@@ -152,7 +160,7 @@ async def shops(session):
 
 @pytest.mark.asyncio
 async def test_lift_draws_returns_only_shops_with_an_open_pooled_grant(session, shops):
-    granted, revoked, other_scope, none = shops
+    granted, revoked, other_scope, none, *_rest = shops
     for shop in shops:
         session.add(_measured(shop.id, {"primary": _comparison(3.0)}))
     await grant_pooling(session, granted.id)
@@ -196,7 +204,7 @@ async def test_a_regrant_after_a_revoke_counts_again(session, shops):
 async def test_the_ops_route_shows_a_non_consenting_shop_its_own_data_only(
     session, shops, monkeypatch
 ):
-    """The other three shops opted in; the viewed one did not -> ``own``, no borrowing."""
+    """The other five shops opted in; the viewed one did not -> ``own``, no borrowing."""
     from tests.support.api import client_for
 
     mine = await _seed_groups(session, shops, pooling=False)
@@ -223,7 +231,7 @@ async def test_the_ops_route_shows_a_non_consenting_shop_its_own_data_only(
 
 @pytest.mark.asyncio
 async def test_a_consenting_shop_pools_only_the_other_consenting_shops(session, shops, monkeypatch):
-    """Viewed shop opted in, but only one other did: below 3 draws -> the default prior."""
+    """Viewed shop opted in, but only one other did: below D14's 5 shops -> the default."""
     from tests.support.api import client_for
 
     await _seed_groups(session, shops, pooling=False)
@@ -235,14 +243,14 @@ async def test_a_consenting_shop_pools_only_the_other_consenting_shops(session, 
     assert response.status_code == 200
     [group] = response.json()["groups"]
     assert group["verdict"]["primary"]["eb"]["prior"]["source"] == PRIOR_DEFAULT
-    # With all four in, the pool is the three others (leave-one-out) -> pooled.
+    # With all six in, the pool is the five others (leave-one-out) -> pooled.
     for shop in shops[2:]:
         await grant_pooling(session, shop.id)
     async with client_for(app) as client:
         response = await client.get(f"/v1/ops/shops/{shops[0].id}/groups")
     [group] = response.json()["groups"]
     prior = group["verdict"]["primary"]["eb"]["prior"]
-    assert prior["source"] == PRIOR_POOLED and prior["n_groups"] == 3
+    assert prior["source"] == PRIOR_POOLED and prior["n_groups"] == 5
 
 
 def test_the_ops_route_asks_for_the_pooling_grant():

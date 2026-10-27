@@ -113,13 +113,25 @@ slice — see "Out of scope".
   `public.ops_group_lift_draws()`, migration 093, SECURITY DEFINER, EXECUTE to `juli_ops`
   only, comparisons without product rows; since migration 107 only shops holding an open
   `pooled_training` grant, D76 / D11) → pure `apply_pooled_eb(views, draws, *, pooled,
-  min_groups, default_sd)` (`group_stats.estimate_prior`: leave-one-out, a shop's groups
-  combined by inverse variance, DerSimonian–Laird from `group_eb_min_groups` (3) draws,
-  else the default). `pooled=False` (the viewed shop has no `pooled_training` grant,
-  `services.consent.has_consent`) ignores the draws: prior `own` (`own_data_prior`, the
-  default's numbers), Ops shows "chỉ dữ liệu của shop này". Only aggregates (μ, τ, n)
-  reach the response. Label, strength,
-  `seller_sentence(s)` never read `eb`
+  min_groups, default_sd, used_cells=None)`. `pooled=False` (the viewed shop has no
+  `pooled_training` grant, `services.consent.has_consent`) ignores the draws: prior `own`
+  (`own_data_prior`, the default's numbers), Ops shows "chỉ dữ liệu của shop này" --
+  neither borrow nor lend (D11, confirmed by owner D17 2026-10-27). D14
+  (`services.consent.pooling`): per comparison, leave-one-out, the first cell with ≥ 5
+  contributing shops and none over 50 % of its measured comparisons -- `lever_type`
+  (lever × metric × channel), else `metric_channel` (every lever) -- then
+  `group_stats.estimate_prior` (a shop's groups combined by inverse variance,
+  DerSimonian–Laird from `group_eb_min_groups` (3) shops); else the default. The prior
+  JSON names its `cell`. D15: the route logs `pooled_contributor_set` (shop ids, SHA-256
+  of the sorted list, per-cell counts; query-time, nothing stored). Only aggregates
+  (μ, τ, n) reach the response. Label, strength, `seller_sentence(s)` never read `eb`
+- Fleet calibration (D30.3) in the card plan: `calibration_stats(session, shop_id)` →
+  `lever_flows.measurement.fleet_calibration_stats(session, applied_shop_id=shop_id)`
+  (consenting shops via `ops_fleet_calibration_draws()`, migration 107, in `ops_role`;
+  a shop without `pooled_training` gets none, D11 / D17; D14 per lever, else all levers
+  under key `"*"` -- `prediction.fleet_stats_for`). The
+  plan persists cards, so each pooled computation writes a `pooled_contributor_sets` row
+  (D15, `ops_only`)
 - Money metrics net of cancelled / refunded orders (fast track P47, D55.1, **Ops only**):
   `group_net` -- TikTok's GMV includes orders later cancelled / refunded. `order_coverage(
   session, shop_id, first, last)` (shop's `silver.orders` span days −42 … 13) →

@@ -23,6 +23,9 @@ import { C, card } from "./ops-shell";
  *
  * D76 / D11 (ADR-116 §3): only shops that opted into pooling ("pooled_training") feed the
  * prior; a shop that did not reads "chỉ dữ liệu của shop này" and borrows no other shop's groups.
+ * D14 (owner, 2026-10-27): a pooled cell needs ≥ 5 contributing shops with none over 50 % — the
+ * lever type, else every lever on the same metric × channel ("theo n shop, mọi loại thay đổi cùng
+ * chỉ số"), else the default prior.
  *
  * P46 (D55.1, Ops only): TikTok's GMV includes cancelled and refunded orders. When the shop's
  * orders cover the days read, AOV / items per order are read net ("đã trừ huỷ/hoàn") with the
@@ -79,7 +82,9 @@ export function ebText(eb: CardGroupEb | null | undefined): string | null {
   if (!eb) return null;
   const prior =
     eb.prior.source === "pooled"
-      ? `theo ${eb.prior.n_groups} nhóm cùng loại`
+      ? eb.prior.cell === "metric_channel"
+        ? `theo ${eb.prior.n_groups} shop, mọi loại thay đổi cùng chỉ số`
+        : `theo ${eb.prior.n_groups} nhóm cùng loại`
       : eb.prior.source === "own"
         ? OWN_DATA_PRIOR
         : "mức mặc định (chưa đủ nhóm cùng loại)";

@@ -163,6 +163,9 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ops_reviewer_accounts"): "ops_only",
     # Fast track P33-F (D43, migration 091): free-trial sign-ups from app-juli.com.
     ("public", "trial_signups"): "ops_only",
+    # D76 / D15 (migration 107): who contributed to a persisted pooled figure -- shop
+    # ids and counts only, written and read through ``juli_ops``.
+    ("public", "pooled_contributor_sets"): "ops_only",
 }
 
 #: Metadata about via-parent relationships (child_table -> (parent_table, fk_col, pk_col))

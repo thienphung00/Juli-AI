@@ -72,10 +72,35 @@ leg / analysis / draft; each request needs the scope of every input kind it carr
 Still to come: PR 3 (ingest gateway, `service`), PR 6 (dataset builder,
 `pooled_training`). The stateless app-review connect (non-production only) grants nothing.
 
-Ops pooled prior (D11, migration 107): `ops_group_lift_draws()` reads the open
-`pooled_training` rows of every shop inside its SECURITY DEFINER body (the only
-cross-shop reader of this table; it returns draws, never grants); the Ops groups route
-asks `has_consent(..., "pooled_training")` for the viewed shop.
+Pooled figures (D11, migration 107): `ops_group_lift_draws()` (Ops EB prior) and
+`ops_fleet_calibration_draws()` (D30.3 fleet factor) read the open `pooled_training`
+rows of every shop inside their SECURITY DEFINER bodies (the only cross-shop readers of
+this table; they return draws, never grants). The Ops groups route and the fleet level
+ask `has_consent(..., "pooled_training")` for the viewed / planned shop: without it the
+shop neither borrows nor lends (D11 / D17).
+
+## Pooled cells (`pooling.py`; owner D14 / D15 / D17, 2026-10-27)
+
+- D17 (D12.3 cancelled): only consenting shops contribute and only they receive a pooled
+  figure. `pooled_training` is granted only to Juli's own shops (Fujiwa, the sandbox
+  shop): TikTok Shop Developer ToS §2.7(g) and Partner Center ToS §3.8(e) forbid
+  aggregating seller API data for Juli's own purposes; Shopee ToS §6.2(c) requires
+  Shopee's written consent for derived seller-performance aggregates. D14 / D15 are
+  defence in depth.
+- D14: `MIN_CONTRIBUTING_SHOPS = 5`, `MAX_SHOP_SHARE = 0.5` (the only copy).
+  `check_cell(key, weights)` → `CellCheck` (shops, max share, shop ids, `active`);
+  `first_active(ladder)`. The weight is the estimator's own unit: measured group
+  comparisons (Ops prior), day-14 results (fleet). Ladders: Ops `lever_type` →
+  `metric_channel`; fleet `lever:<code>` → `all_levers`; then nothing.
+- D15: `contributing_set(figure, used)` → `ContributingSet` (sorted shop ids, SHA-256 of
+  the ids joined by newlines, shop count per cell). The id is `shops.id`: opaque, no
+  name, joins to this table to prove each grant, survives secret rotation (a keyed HMAC
+  would not). `record_contributing_set` appends `pooled_contributor_sets` (migration
+  107, `ops_only`, `juli_ops` SELECT / INSERT) for a persisted figure (the nightly card
+  plan's fleet level); `log_contributing_set` writes the `pooled_contributor_set` log
+  line for a query-time one (the Ops groups page).
+- Production today (only Juli's own shops consent): no cell is active anywhere, nothing
+  recorded.
 
 ## Operator CLI
 

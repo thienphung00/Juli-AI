@@ -83,6 +83,8 @@ def test_every_ops_table_is_classified_and_rls_enabled(owner_engine):
             "ops_reviewer_accounts",
             # P33-F (D43, migration 091)
             "trial_signups",
+            # D76 / D15 (migration 107): the pooled-figure contributor audit
+            "pooled_contributor_sets",
         ]
     )
     with owner_engine.connect() as conn:
