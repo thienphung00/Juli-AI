@@ -150,19 +150,29 @@ def migration_database_url(default: str | None = None) -> str:
     return sync_database_url(raw)
 
 
-def _libpq_sslmode_to_asyncpg(url: str) -> str:
-    """asyncpg rejects libpq's ``sslmode``; carry its value over as ``ssl``.
+def _libpq_query_to_asyncpg(url: str) -> str:
+    """asyncpg rejects libpq's ``sslmode`` and ``hostaddr``; translate both.
 
     A direct Supabase URL (``DATABASE_DIRECT_URL``) is libpq-shaped
-    (``?sslmode=require``) and crashed the operator commands at connect.
+    (``?sslmode=require``), and ``sync_database_url`` pins Supabase hosts to an IPv4
+    ``hostaddr`` (the VPS has no IPv6). Both crashed the operator commands at
+    connect. ``sslmode`` is carried over as ``ssl``; ``hostaddr`` becomes the host,
+    so asyncpg connects to the same address libpq would.
     """
     parsed = urlparse(url)
     query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    if "sslmode" not in query:
+    if "sslmode" not in query and "hostaddr" not in query:
         return url
-    sslmode = query.pop("sslmode")
-    query.setdefault("ssl", sslmode)
-    return urlunparse(parsed._replace(query=urlencode(query)))
+    if "sslmode" in query:
+        query.setdefault("ssl", query.pop("sslmode"))
+    netloc = parsed.netloc
+    hostaddr = query.pop("hostaddr", "")
+    if hostaddr:
+        userinfo, _, _ = netloc.rpartition("@")
+        host = f"[{hostaddr}]" if ":" in hostaddr else hostaddr
+        port = f":{parsed.port}" if parsed.port else ""
+        netloc = f"{userinfo}@{host}{port}" if userinfo else f"{host}{port}"
+    return urlunparse(parsed._replace(netloc=netloc, query=urlencode(query)))
 
 
 def async_database_url(raw_url: str) -> str:
@@ -170,8 +180,9 @@ def async_database_url(raw_url: str) -> str:
     url = raw_url.strip()
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    url = _libpq_sslmode_to_asyncpg(url)
-    if "supabase.co" in url and "ssl=" not in url:
+    supabase = "supabase.co" in url
+    url = _libpq_query_to_asyncpg(url)
+    if supabase and "ssl=" not in url:
         separator = "&" if "?" in url else "?"
         url = f"{url}{separator}ssl=require"
     return url

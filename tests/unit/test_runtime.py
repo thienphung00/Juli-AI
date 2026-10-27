@@ -30,6 +30,35 @@ def test_async_database_url_keeps_an_explicit_ssl_over_sslmode():
     assert async_database_url(raw) == "postgresql+asyncpg://u:p@localhost/juli?ssl=require"
 
 
+def test_async_database_url_connects_to_the_libpq_hostaddr():
+    raw = (
+        "postgresql://postgres.ref:pw@aws-0-x.pooler.supabase.com:5432/postgres"
+        "?sslmode=require&hostaddr=203.0.113.10"
+    )
+    assert async_database_url(raw) == (
+        "postgresql+asyncpg://postgres.ref:pw@203.0.113.10:5432/postgres?ssl=require"
+    )
+
+
+def test_async_database_url_brackets_an_ipv6_hostaddr():
+    raw = "postgresql://u:p@db.abc.supabase.co:5432/postgres?hostaddr=2406:da18::1"
+    assert async_database_url(raw) == (
+        "postgresql+asyncpg://u:p@[2406:da18::1]:5432/postgres?ssl=require"
+    )
+
+
+def test_async_database_url_accepts_what_sync_database_url_returns(monkeypatch):
+    monkeypatch.setattr(
+        "juli_backend.core.config.runtime._supabase_ipv4_hostaddr",
+        lambda hostname, port: "203.0.113.10",
+    )
+    url = async_database_url(
+        sync_database_url("postgresql://user:pass@db.project.supabase.co:5432/postgres")
+    )
+    assert url == "postgresql+asyncpg://user:pass@203.0.113.10:5432/postgres?ssl=require"
+    assert "hostaddr" not in url and "sslmode" not in url
+
+
 def test_async_database_url_adds_supabase_ssl():
     raw = "postgresql://user:pass@db.project.supabase.co:5432/postgres"
     assert async_database_url(raw) == (
