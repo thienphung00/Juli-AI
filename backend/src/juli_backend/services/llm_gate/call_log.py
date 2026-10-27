@@ -104,7 +104,7 @@ class SessionCallLog:
             else:
                 self._session.add(entry.to_row())
                 await self._session.flush()
-        except Exception as exc:  # noqa: BLE001 -- the log never breaks the call path
+        except Exception as exc:  # the log never breaks the call path
             _failed(entry, exc)
 
 
@@ -124,7 +124,7 @@ class SyncSessionCallLog:
             else:
                 self._session.add(entry.to_row())
             self._session.commit()
-        except Exception as exc:  # noqa: BLE001 -- the log never breaks the call path
+        except Exception as exc:  # the log never breaks the call path
             _failed(entry, exc)
 
 
