@@ -463,14 +463,18 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
   const toolRow = (spec: RowSpec, list: ToolCall[]): TimelineStep => {
     const last = list[list.length - 1];
     const running = list.some((call) => call.ok === null) && !ended;
-    const failed = list.some(callFailed);
+    // P70: a row with a call that went through is done, even if a later call on the same
+    // row (a declined second proposal) did not -- "Ghi lên TikTok Shop" really happened.
+    const succeeded = list.filter((call) => call.ok === true);
+    const failed = list.some(callFailed) && succeeded.length === 0;
+    const shown = failed || succeeded.length === 0 ? last : succeeded[succeeded.length - 1];
     return {
       key: spec.key,
       kind: "tool",
       label: spec.label,
       status: running ? "current" : failed ? "failed" : "done",
-      at: last.completedAt ?? last.startedAt,
-      detail: last.summary ?? (running ? narration : null),
+      at: shown.completedAt ?? shown.startedAt,
+      detail: shown.summary ?? (running ? narration : null),
       who: spec.who,
     };
   };

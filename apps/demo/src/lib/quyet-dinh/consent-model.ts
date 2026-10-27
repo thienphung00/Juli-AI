@@ -9,7 +9,7 @@
 
 import type { CardView } from "./card-model";
 import { FIELD_LABELS, PROMOTION_FIELD_LABELS } from "./copy";
-import { summariseText } from "./p10-format";
+import { countText, summariseText } from "./p10-format";
 
 export interface ConsentRow {
   readonly field: string;
@@ -56,6 +56,12 @@ export function consentRows(
   for (const [field, value] of Object.entries(change)) {
     // The TikTok category id is an internal number the seller cannot use.
     if (field === "category_id") continue;
+    // P70 (run ceec586e): a price proposal carries a list of SKU prices. Skipping it
+    // left the consent panel with no Trước/Sau rows at all.
+    if (field === "skus" && Array.isArray(value)) {
+      rows.push(...skuPriceRows(value, context.card));
+      continue;
+    }
     const pair = fromTo(value);
     const after = pair?.to ?? asText(value);
     if (after === null) continue;
@@ -85,6 +91,27 @@ export function consentRows(
       });
     }
   }
+  return rows;
+}
+
+/** P70: one "Giá" row per proposed SKU price ("199.000 ₫"); the card's own price before, if known. */
+function skuPriceRows(skus: readonly unknown[], card: CardView | null): ConsentRow[] {
+  const known = card?.beforeAfter.find((row) => row.field === "price") ?? null;
+  const rows: ConsentRow[] = [];
+  skus.forEach((sku, index) => {
+    if (!sku || typeof sku !== "object") return;
+    const amount = Number((sku as { amount?: unknown }).amount);
+    if (!Number.isFinite(amount)) return;
+    const label = skus.length > 1 ? `${FIELD_LABELS.price} · SKU ${index + 1}` : FIELD_LABELS.price;
+    rows.push({
+      field: skus.length > 1 ? `price-${index + 1}` : "price",
+      label,
+      before: skus.length === 1 && known ? known.before : null,
+      after: `${countText(amount)} ₫`,
+      strikeBefore: true,
+      strongAfter: true,
+    });
+  });
   return rows;
 }
 

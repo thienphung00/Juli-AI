@@ -293,6 +293,8 @@ from juli_backend.services.agent.runner.termination import (
     evaluate_checkpoint,
     evaluate_iteration_gate,
     extension_grant_narration,
+    performed_any,
+    performed_call_arguments,
     required_steps_completed,
     running_seconds_column_value,
 )
@@ -883,7 +885,15 @@ class WorkflowRunner:
         arguments = pending["arguments"]
 
         if not approved:
-            stop_reason = StopReason.CONFIRMATION_DECLINED
+            # P70 (run ceec586e): a run whose write already went through stays a
+            # written run when the seller declines a LATER proposal -- it ends
+            # `final_response` (ADR-073 d.2: acted on some, honestly declined the rest),
+            # so Đo lường, measurement and Hoàn tác still see the change on TikTok.
+            stop_reason = (
+                StopReason.FINAL_RESPONSE
+                if self._wrote_this_run(state)
+                else StopReason.CONFIRMATION_DECLINED
+            )
             status = status_for(stop_reason)
             state.conversation_window.append(
                 {
@@ -1608,7 +1618,16 @@ class WorkflowRunner:
                     # tool therefore keeps the old terminate-on-final
                     # behaviour.
                     if policy.terminal_tools and not self._required_steps_completed(state):
-                        if not forced_retry_used:
+                        # P70 (run ceec586e): the forced retry is for a run that has
+                        # done NO required work yet. Once a confirmed write went
+                        # through, forcing tool_choice="required" coerced a second
+                        # CONFIRM proposal (the price, or the same listing again)
+                        # after the change already existed on TikTok; that run then
+                        # ended "no change" when the seller declined it.
+                        if not forced_retry_used and not completed_required_steps(
+                            state.conversation_window,
+                            self._playbook.termination_policy.required_steps,
+                        ):
                             # Guard BEFORE the interception appends or emits
                             # anything. `_finalize` runs this same chokepoint,
                             # but the retry path bypasses `_finalize` entirely,
@@ -1950,6 +1969,9 @@ class WorkflowRunner:
                     retryable=True,
                 )
                 return _ToolCallOutcome.MALFORMED
+            if self._already_applied(state, block):
+                await self._record_already_applied(workflow_run_id, state, block)
+                return _ToolCallOutcome.SUCCESS
             await self._pause_pending_confirmation(workflow_run_id, state, block, spec)
             return _ToolCallOutcome.PAUSED
 
@@ -2056,6 +2078,56 @@ class WorkflowRunner:
             )
             return _ToolCallOutcome.UNRECOVERABLE_TOOL_ERROR
         return _ToolCallOutcome.SUCCESS
+
+    @staticmethod
+    def _already_applied(state: RunState, block: ToolCallBlock) -> bool:
+        """P70 (run ceec586e): this CONFIRM proposal repeats, argument for argument
+        (`compute_params_sha`), a call of the same tool this run already performed.
+
+        The change is already on TikTok: asking the seller again would show an empty
+        diff, and a decline would wrongly read as "nothing written"."""
+        proposed = compute_params_sha(dict(block.arguments))
+        return any(
+            compute_params_sha(dict(arguments)) == proposed
+            for arguments in performed_call_arguments(state.conversation_window, block.tool_name)
+        )
+
+    async def _record_already_applied(
+        self, workflow_run_id: uuid.UUID, state: RunState, block: ToolCallBlock
+    ) -> None:
+        """Answer a repeated proposal without a confirmation, a ledger row or a vendor
+        call: the model reads that the change is already applied and moves on to the
+        read-back / closing steps. No event -- nothing new happened on TikTok."""
+        logger.info(
+            "agent_confirm_proposal_already_applied",
+            extra={"workflow_run_id": str(workflow_run_id), "tool_name": block.tool_name},
+        )
+        state.conversation_window.append(self._tool_call_message(block))
+        state.conversation_window.append(
+            {
+                "role": "tool",
+                "tool_call_id": block.call_id,
+                "tool_name": block.tool_name,
+                "content": {
+                    "ok": True,
+                    "already_applied": True,
+                    "message": (
+                        "This exact change was already approved by the seller and written "
+                        "earlier in this run; nothing was sent again. Do not propose it "
+                        "again: continue with the remaining steps or finish."
+                    ),
+                },
+            }
+        )
+
+    def _wrote_this_run(self, state: RunState) -> bool:
+        """P70: whether a WRITE tool already went through in this run."""
+        writes = {
+            spec.name
+            for spec in (self._registry.get(name) for name in self._allowed_tool_names)
+            if spec.classification is ToolClassification.WRITE
+        }
+        return performed_any(state.conversation_window, writes)
 
     async def _emit_write_failed(
         self,
