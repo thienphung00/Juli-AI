@@ -1,39 +1,38 @@
-"""Normalise stored order statuses and report orders missing their create time (P70, E15).
+"""Rewrite cancellation spellings to ``cancelled`` and report missing create times (P70, E15).
 
-Before P70 the ORDER_STATUS_CHANGE webhook stored TikTok's status lower-cased when the
-ETL map did not know it -- ``CANCEL`` became ``cancel`` -- and a webhook that created
-an order row left ``tiktok_created_at`` NULL. New writes go through
-``models/order_status.canonical_order_status``; this operator command brings the
-rows stored before that into line:
+Before P70 the ORDER_STATUS_CHANGE webhook stored TikTok's ``CANCEL`` lower-cased as
+``cancel`` (the ETL map knew only ``CANCELLED``), and a webhook that created an order
+row left ``tiktok_created_at`` NULL. New writes map every cancellation spelling through
+``models/order_status.canonical_order_status``; this operator command brings the rows
+stored before that into line:
 
-- ``silver.orders.status``: every value the shared map recognises but is not already
-  canonical (``cancel``, ``CANCELLED``, ``awaiting_shipment``, ``on_hold`` stays) is
-  rewritten to its canonical value. A value the map does NOT recognise is left as it
-  is and counted as ``unrecognised`` -- rewriting it to ``unknown`` would lose what
-  TikTok sent; extend the map instead. (The poll also heals such a row: a
-  non-canonical stored status counts as a gap it fills.)
+- ``silver.orders.status``: ONLY a cancellation spelled other than ``cancelled``
+  (``cancel``, ``canceled``, ``CANCEL``, ``CANCELLED`` ...) is rewritten to
+  ``cancelled``. No other status is touched -- readers depend on the stored values.
 - ``silver.orders.tiktok_created_at IS NULL``: counted, never written. The fixed poll
   fills it from Order Search the next time it processes the order. An order whose
   poll event was already claimed (same TikTok ``update_time``) is not processed again
-  until it changes on TikTok; to re-read the current poll window now, an operator
-  advances the shop's ``tiktok.orders.raw`` dedup epoch (``IngestDedupEpochsRepo
-  .advance``, the #1968 recovery). This command never moves a cursor or an epoch.
+  until it changes on TikTok. For each such shop the command PRINTS -- never runs --
+  the operator step that makes the next poll re-read its window: advancing the shop's
+  ``tiktok.orders.raw`` dedup epoch (``IngestDedupEpochsRepo.advance``, the #1968
+  recovery). That re-claims only the orders the poll's next search returns (its
+  ``update_time`` window), not the shop's whole history.
 
 ``public.orders`` is the pre-#607 legacy table, write-blocked since migration 025;
 the webhook never writes it, so it is not touched.
 
 It is a DATA change, so it is not a migration. Run::
 
-    python -m juli_backend.models.order_status_repair                 # dry run
-    python -m juli_backend.models.order_status_repair --apply
-    python -m juli_backend.models.order_status_repair --shop <uuid> [--apply]
+    python -m juli_backend.services.etl.order_status_repair                 # dry run
+    python -m juli_backend.services.etl.order_status_repair --apply
+    python -m juli_backend.services.etl.order_status_repair --shop <uuid> [--apply]
 
 It connects as the migration owner (``migration_database_url``: ``DATABASE_DIRECT_URL``
 then ``DATABASE_URL``) like ``payload_cleanup``. Each shop is processed in its own
 transaction under its own scope (``with_shop_scope``) and every statement also filters
 on ``shop_id``. A dry run does the same work and rolls each shop back. It prints counts
-per shop (shop id, status value -> canonical value, count), never order ids or
-payloads. Idempotent: a second ``--apply`` changes zero rows.
+per shop (shop id, stored spelling, count), never order ids or payloads. Idempotent: a
+second ``--apply`` changes zero rows.
 """
 
 from __future__ import annotations
@@ -50,22 +49,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from juli_backend.database.tenant_context import with_shop_scope
 from juli_backend.models.models import Order, Shop
-from juli_backend.models.order_status import (
-    CANONICAL_ORDER_STATUSES,
-    known_order_status,
-)
+from juli_backend.models.order_status import CANCELLED, is_cancelled_status
 
 TABLE = "silver.orders"
+ORDERS_CHANNEL = "tiktok.orders.raw"
 
 
 @dataclass
 class ShopRepair:
     shop_id: uuid.UUID
     scanned: int = 0
-    #: ``(stored value, canonical value) -> rows``
-    normalised: dict[tuple[str, str], int] = field(default_factory=dict)
-    #: ``stored value -> rows`` the map does not recognise (left unchanged)
-    unrecognised: dict[str, int] = field(default_factory=dict)
+    #: stored cancellation spelling -> rows rewritten to ``cancelled``
+    normalised: dict[str, int] = field(default_factory=dict)
     missing_created_at: int = 0
 
     @property
@@ -74,7 +69,36 @@ class ShopRepair:
 
     @property
     def touched(self) -> bool:
-        return bool(self.normalised or self.unrecognised or self.missing_created_at)
+        return bool(self.normalised or self.missing_created_at)
+
+
+#: The #1968 epoch advance as owner SQL (psql variables; no value is formatted in).
+EPOCH_ADVANCE_SQL = """\\set shop_id '<shop uuid>'
+\\set operator '<your name>'
+INSERT INTO ingest_dedup_epochs (shop_id, channel, epoch, advanced_by, reason)
+VALUES (:'shop_id', 'tiktok.orders.raw', 1, :'operator', 'E15 refill tiktok_created_at')
+ON CONFLICT (shop_id, channel) DO UPDATE SET
+    epoch = ingest_dedup_epochs.epoch + 1,
+    advanced_by = EXCLUDED.advanced_by,
+    reason = EXCLUDED.reason,
+    advanced_at = now();"""
+
+
+def epoch_advance_instructions(shop_id: uuid.UUID) -> str:
+    """The documented operator step for one shop -- printed, never executed here."""
+    lines = [
+        f"    optional (owner decision) -- make the next poll re-read shop {shop_id}'s window:",
+        "    python (as the owner, then commit): IngestDedupEpochsRepo.advance with",
+        f"            shop_id=uuid.UUID('{shop_id}'),",
+        f"            channel={ORDERS_CHANNEL!r}, operator='<your name>',",
+        "            reason='E15 refill tiktok_created_at'",
+        "    or psql as the owner:",
+    ]
+    lines += [
+        "      " + line
+        for line in EPOCH_ADVANCE_SQL.replace("<shop uuid>", str(shop_id)).splitlines()
+    ]
+    return "\n".join(lines)
 
 
 @dataclass
@@ -85,12 +109,11 @@ class RepairReport:
         verb = "changed" if applied else "would change"
         changed = sum(s.changed for s in self.shops)
         missing = sum(s.missing_created_at for s in self.shops)
-        unrecognised = sum(sum(s.unrecognised.values()) for s in self.shops)
         lines = [
             f"order_status_repair: {'APPLIED' if applied else 'DRY RUN'} over "
-            f"{len(self.shops)} shop(s) on {TABLE}: {verb} {changed} status(es); "
-            f"{unrecognised} unrecognised (left as is); "
-            f"{missing} with NULL tiktok_created_at (reported only; the poll fills them)"
+            f"{len(self.shops)} shop(s) on {TABLE}: {verb} {changed} cancellation "
+            f"spelling(s) to {CANCELLED!r}; {missing} row(s) with NULL tiktok_created_at "
+            "(reported only)"
         ]
         for shop in self.shops:
             if not shop.touched:
@@ -99,15 +122,15 @@ class RepairReport:
                 f"  shop {shop.shop_id}: scanned {shop.scanned}, {verb} {shop.changed}, "
                 f"NULL tiktok_created_at {shop.missing_created_at}"
             )
-            for (stored, canonical), rows in sorted(shop.normalised.items()):
-                lines.append(f"    status {stored!r} -> {canonical!r}: {rows}")
-            for stored, rows in sorted(shop.unrecognised.items()):
-                lines.append(f"    status {stored!r} unrecognised: {rows}")
+            for stored, rows in sorted(shop.normalised.items()):
+                lines.append(f"    status {stored!r} -> {CANCELLED!r}: {rows}")
+            if shop.missing_created_at:
+                lines.append(epoch_advance_instructions(shop.shop_id))
         return "\n".join(lines)
 
 
 async def repair_shop(session: AsyncSession, shop_id: uuid.UUID) -> ShopRepair:
-    """Normalise one shop's statuses in the session's open transaction; the caller commits."""
+    """Rewrite one shop's cancellation spellings in the open transaction; the caller commits."""
     result = ShopRepair(shop_id=shop_id)
     async with with_shop_scope(session, shop_id):
         counts = (
@@ -119,19 +142,15 @@ async def repair_shop(session: AsyncSession, shop_id: uuid.UUID) -> ShopRepair:
         ).all()
         for stored, rows in counts:
             result.scanned += int(rows)
-            if stored in CANONICAL_ORDER_STATUSES:
-                continue
-            canonical = known_order_status(stored)
-            if canonical is None:
-                result.unrecognised[str(stored)] = int(rows)
+            if stored == CANCELLED or not is_cancelled_status(stored):
                 continue
             await session.execute(
                 update(Order)
                 .where(Order.shop_id == shop_id, Order.status == stored)
-                .values(status=canonical)
+                .values(status=CANCELLED)
                 .execution_options(synchronize_session=False)
             )
-            result.normalised[(str(stored), canonical)] = int(rows)
+            result.normalised[str(stored)] = int(rows)
         result.missing_created_at = int(
             (
                 await session.execute(
@@ -182,9 +201,9 @@ async def _can_update(session: AsyncSession) -> bool:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="order_status_repair",
-        description="Rewrite non-canonical silver.orders.status values to the shared "
-        "canonical vocabulary and report orders with NULL tiktok_created_at "
-        "(fast track P70, E15). Dry run unless --apply.",
+        description="Rewrite cancellation spellings in silver.orders.status (cancel, "
+        "canceled, CANCEL ...) to 'cancelled' and report orders with NULL "
+        "tiktok_created_at (fast track P70, E15). Dry run unless --apply.",
     )
     parser.add_argument("--apply", action="store_true", help="commit the changes")
     parser.add_argument(

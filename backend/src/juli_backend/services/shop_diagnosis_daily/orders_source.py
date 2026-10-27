@@ -14,7 +14,7 @@ add-to-cart is derived, so CTR / CTOR stay ``None`` and every traffic channel
 reads zero. A real (non-sandbox) shop never takes this path.
 
 Paid set: an order counts once it is paid and not cancelled / returned. Stored
-statuses are the canonical ones (``models.order_status.canonical_order_status``:
+statuses are the ETL's canonical ones (``etl.transform._canonical_order_status``:
 ``confirmed`` / ``shipped`` / ``delivered``; ``pending`` = TikTok ``UNPAID``) or,
 for rows written before that map, TikTok's own (``AWAITING_SHIPMENT`` ...
 ``COMPLETED``; ``ON_HOLD`` is paid, inside the buyer's cancel window). Compared
@@ -38,9 +38,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import Order, OrderItem, Product
-from juli_backend.models.order_status import (
-    PAID_ORDER_STATUSES as CANONICAL_PAID_ORDER_STATUSES,
-)
 from juli_backend.services.shop_diagnosis.channels import Channel, read_counts
 from juli_backend.services.shop_diagnosis.snapshot import Snapshot
 
@@ -48,10 +45,14 @@ from juli_backend.services.shop_diagnosis.snapshot import Snapshot
 METRICS_SOURCE_ORDERS = "orders"
 METRICS_SOURCE_ANALYTICS = "analytics"
 #: Paid and not cancelled / returned (module doc), lower case.
-PAID_ORDER_STATUSES: frozenset[str] = CANONICAL_PAID_ORDER_STATUSES | frozenset(
+PAID_ORDER_STATUSES: frozenset[str] = frozenset(
     {
-        # TikTok's own, for rows written before the canonical map (P70: the
-        # ``order_status_repair`` command rewrites them; kept until it has run)
+        # canonical (etl.transform)
+        "confirmed",
+        "shipped",
+        "delivered",
+        # TikTok's own, for rows written before the canonical map
+        "on_hold",
         "awaiting_shipment",
         "partially_shipping",
         "awaiting_collection",

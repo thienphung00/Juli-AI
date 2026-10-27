@@ -135,7 +135,7 @@ async def test_repair_normalises_as_owner_and_is_idempotent():
     try:
         factory = async_sessionmaker(engine, expire_on_commit=False)
         dry = await run_repair(factory, apply=False, only=[shop_id])
-        assert dry.shops[0].normalised == {("cancel", "cancelled"): 1}
+        assert dry.shops[0].normalised == {"cancel": 1}
         assert dry.shops[0].missing_created_at == 1
         applied = await run_repair(factory, apply=True, only=[shop_id])
         assert applied.shops[0].changed == 1

@@ -27,7 +27,7 @@ from juli_backend.models.models import (
     Return,
     Settlement,
 )
-from juli_backend.models.order_status import UNKNOWN_ORDER_STATUS, known_order_status
+from juli_backend.models.order_status import CANCELLED, UNKNOWN_ORDER_STATUS, is_cancelled_status
 from juli_backend.repositories._base import ShopScopedRepo, utc_now_naive
 
 AWAITING_SHIPMENT = "AWAITING_SHIPMENT"
@@ -39,6 +39,15 @@ _ZERO_IS_GAP: frozenset[str] = frozenset({"total_amount", "order_value"})
 
 def _is_gap(name: str, current: Any) -> bool:
     return current is None or (name in _ZERO_IS_GAP and current == 0)
+
+
+def _status_is_gap(current: Any) -> bool:
+    """No status yet, ``unknown``, or a cancellation spelled other than ``cancelled``."""
+    return (
+        current is None
+        or current == UNKNOWN_ORDER_STATUS
+        or (is_cancelled_status(current) and current != CANCELLED)
+    )
 
 
 class OrdersRepo(ShopScopedRepo[Order]):
@@ -90,7 +99,7 @@ class OrdersRepo(ShopScopedRepo[Order]):
         * a webhook (partial) wins only when strictly newer;
         * a write that does not win still fills gaps: a NULL column, an amount
           stored as the 0 placeholder (``_insert_defaults``), a status that is
-          ``unknown`` or that the shared map does not recognise;
+          ``unknown`` or a cancellation not spelled ``cancelled`` (pre-P70 ``cancel``);
         * a winning write never blanks a stored value with ``None`` and never
           replaces a known status with ``unknown``.
         """
@@ -105,9 +114,7 @@ class OrdersRepo(ShopScopedRepo[Order]):
                 continue
             current = getattr(existing, name)
             if name == "status":
-                if value != UNKNOWN_ORDER_STATUS and (
-                    wins or known_order_status(current) in (None, UNKNOWN_ORDER_STATUS)
-                ):
+                if value != UNKNOWN_ORDER_STATUS and (wins or _status_is_gap(current)):
                     existing.status = value
                 continue
             if wins or _is_gap(name, current):

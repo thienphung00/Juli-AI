@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-_CANCELLED_SPELLINGS = frozenset({"CANCELLED", "CANCELED", "CANCEL", "140"})
+_CANCELLED_SPELLINGS = frozenset({"CANCELLED", "CANCELED", "CANCEL"})
 
 
 def _nested_amount(payment: Any) -> Any:

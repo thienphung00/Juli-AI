@@ -22,14 +22,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from juli_backend.models.models import Order, Shop, User
-from juli_backend.models.order_status import (
-    CANONICAL_ORDER_STATUSES,
-    UNKNOWN_ORDER_STATUS,
-    canonical_order_status,
-)
+from juli_backend.models.order_status import UNKNOWN_ORDER_STATUS, canonical_order_status
 from juli_backend.repositories.repos import OrdersRepo
 from juli_backend.services.etl.consumer import EtlConsumer, ProcessOutcome
 from juli_backend.services.etl.order_status_repair import run_repair
+from juli_backend.services.etl.persistence.ingest.model import IngestDedupEpoch
 from juli_backend.services.etl.record import IngestRecord
 from juli_backend.services.etl.transform import transform_for_channel
 from juli_backend.services.shop_diagnosis_daily import refresh
@@ -121,65 +118,89 @@ async def _the_order(session, shop) -> Order:
     return (await session.execute(stmt)).scalar_one()
 
 
-# --- the shared vocabulary ---------------------------------------------------------------
+# --- the shared map: only cancellation spellings are new ----------------------------------
+
+
+def _pre_p70(value):
+    """``etl.transform._canonical_order_status`` as it was before P70, verbatim."""
+    status = str(value or "").upper()
+    status_map = {
+        "UNPAID": "pending",
+        "AWAITING_SHIPMENT": "confirmed",
+        "PARTIALLY_SHIPPING": "confirmed",
+        "AWAITING_COLLECTION": "confirmed",
+        "IN_TRANSIT": "shipped",
+        "SHIPPED": "shipped",
+        "DELIVERED": "delivered",
+        "COMPLETED": "delivered",
+        "CANCELLED": "cancelled",
+        "RETURNED": "returned",
+    }
+    return status_map.get(status, str(value).lower())
 
 
 @pytest.mark.parametrize(
     "raw",
-    ["CANCEL", "CANCELLED", "CANCELED", "cancel", "cancelled", "Cancelled", " canceled ", 140],
+    ["CANCEL", "CANCELLED", "CANCELED", "cancel", "cancelled", "Cancelled", " canceled ", "Cancel"],
 )
 async def test_every_cancel_spelling_is_cancelled(raw):
     assert canonical_order_status(raw) == "cancelled"
 
 
 @pytest.mark.parametrize(
-    ("raw", "canonical"),
+    "raw",
     [
-        ("UNPAID", "pending"),
-        ("ON_HOLD", "on_hold"),
-        ("on hold", "on_hold"),
-        ("AWAITING_SHIPMENT", "confirmed"),
-        ("PARTIALLY_SHIPPING", "confirmed"),
-        ("AWAITING_COLLECTION", "confirmed"),
-        ("IN_TRANSIT", "shipped"),
-        ("DELIVERED", "delivered"),
-        ("COMPLETED", "delivered"),
-        ("RETURNED", "returned"),
-        ("111", "confirmed"),
-        (122, "delivered"),
+        "UNPAID",
+        "ON_HOLD",
+        "on hold",
+        "AWAITING_SHIPMENT",
+        "awaiting shipment",
+        "PARTIALLY_SHIPPING",
+        "AWAITING_COLLECTION",
+        "IN_TRANSIT",
+        "SHIPPED",
+        "DELIVERED",
+        "COMPLETED",
+        "RETURNED",
+        "REFUNDED",
+        "confirmed",
+        "delivered",
+        "140",
+        "111",
+        "SOMETHING_NEW",
     ],
 )
-async def test_tiktok_statuses_map_to_the_canonical_vocabulary(raw, canonical):
-    assert canonical_order_status(raw) == canonical
+async def test_every_other_status_is_stored_exactly_as_before_p70(raw):
+    """No vocabulary change: confirm_shipment / order_costs / optimize_product read these."""
+    assert canonical_order_status(raw) == _pre_p70(raw)
 
 
-async def test_canonical_values_are_fixed_points():
-    for value in CANONICAL_ORDER_STATUSES:
-        assert canonical_order_status(value) == value
-
-
-async def test_unknown_status_falls_back_and_warns(caplog):
+async def test_unrecognised_status_keeps_the_old_value_and_warns(caplog):
     caplog.set_level(logging.WARNING, logger="juli_backend.models.order_status")
 
-    assert canonical_order_status("PENDING_REVIEW_X<script>") == UNKNOWN_ORDER_STATUS
+    assert canonical_order_status("PENDING_REVIEW_X<script>") == "pending_review_x<script>"
 
     records = [r for r in caplog.records if r.message == "order_status_unrecognised"]
     assert len(records) == 1
     assert records[0].raw_status == "PENDING_REVIEW_Xscript"
-    assert records[0].stored_as == UNKNOWN_ORDER_STATUS
 
 
-async def test_missing_status_is_unknown_without_a_warning(caplog):
+async def test_known_statuses_do_not_warn(caplog):
     caplog.set_level(logging.WARNING, logger="juli_backend.models.order_status")
-    assert canonical_order_status(None) == UNKNOWN_ORDER_STATUS
-    assert canonical_order_status("") == UNKNOWN_ORDER_STATUS
+    for raw in ("ON_HOLD", "AWAITING_SHIPMENT", "CANCEL", "delivered", None, ""):
+        canonical_order_status(raw)
     assert not [r for r in caplog.records if r.message == "order_status_unrecognised"]
+
+
+async def test_missing_status_is_unknown_as_before():
+    assert canonical_order_status(None) == UNKNOWN_ORDER_STATUS == _pre_p70("UNKNOWN")
+    assert canonical_order_status("") == UNKNOWN_ORDER_STATUS
 
 
 # --- the transform -----------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("raw", ["CANCEL", "CANCELLED", "CANCELED", "140"])
+@pytest.mark.parametrize("raw", ["CANCEL", "CANCELLED", "CANCELED", "cancel"])
 async def test_webhook_transform_maps_each_cancel_variant(raw):
     kind, kwargs = transform_for_channel(WEBHOOK_CHANNEL, _webhook(raw))
 
@@ -197,10 +218,28 @@ async def test_webhook_and_poll_produce_the_same_status():
     assert from_poll["tiktok_created_at"] == _naive(CREATED)
 
 
-async def test_webhook_transform_unknown_status_is_canonical_fallback(caplog):
+@pytest.mark.parametrize(
+    ("raw", "stored"),
+    [
+        ("AWAITING_SHIPMENT", "confirmed"),
+        ("COMPLETED", "delivered"),
+        ("DELIVERED", "delivered"),
+        ("ON_HOLD", "on_hold"),
+        ("UNPAID", "pending"),
+    ],
+)
+async def test_poll_stores_the_same_status_as_before_p70(session, shop, dlq_handoff, raw, stored):
+    _, kwargs = transform_for_channel(POLL_CHANNEL, _poll_order(raw))
+    assert kwargs["status"] == stored == _pre_p70(raw)
+
+    await _ingest(session, dlq_handoff, POLL_CHANNEL, _poll_order(raw))
+    assert (await _the_order(session, shop)).status == stored
+
+
+async def test_webhook_transform_unknown_status_keeps_old_value_and_warns(caplog):
     caplog.set_level(logging.WARNING, logger="juli_backend.models.order_status")
     _, kwargs = transform_for_channel(WEBHOOK_CHANNEL, _webhook("SOMETHING_NEW"))
-    assert kwargs["status"] == UNKNOWN_ORDER_STATUS
+    assert kwargs["status"] == "something_new"
     assert any(r.message == "order_status_unrecognised" for r in caplog.records)
 
 
@@ -286,7 +325,7 @@ async def test_webhook_with_the_same_update_time_does_not_override_the_poll(
     assert (await _the_order(session, shop)).status == "cancelled"
 
 
-async def test_unknown_webhook_status_never_replaces_a_known_one(session, shop, dlq_handoff):
+async def test_missing_webhook_status_never_replaces_a_known_one(session, shop, dlq_handoff):
     await _ingest(
         session, dlq_handoff, POLL_CHANNEL, _poll_order("AWAITING_SHIPMENT", update_time=CREATED)
     )
@@ -294,7 +333,7 @@ async def test_unknown_webhook_status_never_replaces_a_known_one(session, shop, 
         session,
         dlq_handoff,
         WEBHOOK_CHANNEL,
-        _webhook("BRAND_NEW_STATUS"),
+        _webhook(None),
         scope_to_resolved_shop=True,
     )
     order = await _the_order(session, shop)
@@ -302,14 +341,15 @@ async def test_unknown_webhook_status_never_replaces_a_known_one(session, shop, 
     assert order.update_time == _naive(CANCELLED_AT)
 
 
-async def test_stale_poll_heals_a_legacy_unrecognised_status(session, shop):
-    """A row stored before P70 with a value the map does not know is a gap the poll fills."""
+@pytest.mark.parametrize(("legacy", "healed"), [("cancel", True), ("weird_legacy", False)])
+async def test_stale_poll_heals_only_a_legacy_cancel_spelling(session, shop, legacy, healed):
+    """A pre-P70 ``cancel`` row is a gap even a stale poll fills; other values stay."""
     session.add(
         Order(
             id=uuid.uuid4(),
             shop_id=shop.id,
             tiktok_order_id=ORDER_ID,
-            status="weird_legacy",
+            status=legacy,
             total_amount=Decimal("0"),
             currency="VND",
             update_time=_naive(CANCELLED_AT + 100),
@@ -325,7 +365,7 @@ async def test_stale_poll_heals_a_legacy_unrecognised_status(session, shop):
     await session.commit()
 
     order = await _the_order(session, shop)
-    assert order.status == "cancelled"
+    assert order.status == ("cancelled" if healed else legacy)
     assert order.tiktok_created_at == _naive(CREATED)
 
 
@@ -363,7 +403,7 @@ async def test_report_refresh_hook_sees_the_merged_row(session, shop, dlq_handof
         ("returned", True),
         ("on_hold", True),
         ("confirmed", True),
-        ("AWAITING_SHIPMENT", True),
+        ("Canceled", True),
         ("pending", False),
         ("unknown", False),
         (None, False),
@@ -381,7 +421,9 @@ async def _seed_repair_rows(session, shop) -> None:
         ("o-cancel", "cancel", None),
         ("o-legacy", "AWAITING_SHIPMENT", CREATED),
         ("o-ok", "cancelled", CREATED),
+        ("o-upper", "CANCELLED", CREATED),
         ("o-weird", "weird_legacy", CREATED),
+        ("o-done", "delivered", CREATED),
     ]
     for order_id, status, created in rows:
         session.add(
@@ -412,12 +454,13 @@ async def test_repair_dry_run_reports_and_writes_nothing(session, engine, shop):
     report = await run_repair(factory, apply=False)
 
     [result] = report.shops
-    assert result.scanned == 4
-    assert result.normalised == {("AWAITING_SHIPMENT", "confirmed"): 1, ("cancel", "cancelled"): 1}
-    assert result.unrecognised == {"weird_legacy": 1}
+    assert result.scanned == 6
+    assert result.normalised == {"CANCELLED": 1, "cancel": 1}
     assert result.missing_created_at == 1
     rendered = report.render(applied=False)
     assert "DRY RUN" in rendered and "would change 2" in rendered
+    # The epoch advance is printed for the operator, never executed.
+    assert "ingest_dedup_epochs" in rendered and str(shop.id) in rendered
     assert "o-cancel" not in rendered  # counts only, never order ids
     assert (await _statuses(factory))["o-cancel"] == "cancel"
 
@@ -430,11 +473,15 @@ async def test_repair_apply_normalises_and_is_idempotent(session, engine, shop):
     assert applied.shops[0].changed == 2
     assert await _statuses(factory) == {
         "o-cancel": "cancelled",
-        "o-legacy": "confirmed",
+        "o-legacy": "AWAITING_SHIPMENT",  # not a cancellation: never rewritten
         "o-ok": "cancelled",
-        "o-weird": "weird_legacy",  # unrecognised: left for the map to learn it
+        "o-upper": "cancelled",
+        "o-weird": "weird_legacy",
+        "o-done": "delivered",
     }
 
     again = await run_repair(factory, apply=True)
     assert again.shops[0].changed == 0
     assert again.shops[0].missing_created_at == 1  # reported, never written
+    async with factory() as check:  # the epoch advance is printed, never executed
+        assert (await check.execute(select(IngestDedupEpoch))).first() is None
