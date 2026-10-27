@@ -485,3 +485,18 @@ async def test_an_unforced_scan_keeps_the_budget(session, session_factory):
 
     assert result.cards == 2 and not result.shown
     assert _shown(await _cards(session, shop.id)) == []
+
+
+def test_orders_title_card_kpi_line_matches_its_payload_kpi_key():
+    """P69c: the card's KPI line and the diagnosis KPI key (the group heading's source) agree."""
+    from juli_backend.services.demo_decisions.card_view import _main_kpi
+    from juli_backend.services.optimize_product.funnel import ShopMedians
+
+    sales = ProductSales("p", Decimal(500000), 4, 2)
+    proposal = orders_proposal(sales, _listing("p", "Áo"), [], StageDiagnosisConfig())
+    assert proposal is not None and proposal.listing_proposal["field"] == "title"
+    medians = ShopMedians(None, None, None, {})
+    diagnosis = proposal.diagnosis_payload(as_of="2026-10-27", medians=medians)
+    line = _main_kpi(diagnosis)
+    assert diagnosis["main_kpi"]["key"] == line["key"] == "aov"
+    assert line["label"] == "AOV (SKU)"

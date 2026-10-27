@@ -50,6 +50,46 @@ describe("group headings", () => {
   });
 });
 
+describe("quick-scan orders card: heading and KPI line agree", () => {
+  it("names the group from the card's own KPI (AOV), not the stage (CTR)", () => {
+    const item = {
+      id: "q1",
+      title: "x",
+      description: "",
+      is_executable: true,
+      recommendation: {
+        diagnosis: {
+          product_title: LONG,
+          tiktok_product_id: "1",
+          channel_scope: "PRODUCT_CARD",
+          stage: { code: "card", label: "Thẻ" },
+          main_kpi: { key: "aov", label: "AOV", value: "250.000 ₫" },
+          lever: { code: "title", label: "tiêu đề", action: "Sửa tiêu đề" },
+        },
+        card: {
+          seller_sku: null,
+          seller_sku_more: 0,
+          product_title: LONG,
+          workflow_label: "Tối ưu sản phẩm",
+          updated_at: "2026-10-27T01:00:00Z",
+          status: "pending",
+          main_kpi: { key: "aov", label: "AOV (SKU)", current: 250000, target: null, unit: "vnd" },
+          reason_short: "r",
+          reason_full: "",
+          tiktok_codes: [],
+          lever: { code: "title", label: "Tiêu đề", executor: "juli" },
+          change_fields: [],
+          before_after: [],
+        },
+      },
+    } as unknown as P10DecisionItem;
+    const [group] = groupDecisions([item]);
+    expect(group.metric).toBe("AOV");
+    expect(group.title).toBe("AOV Thẻ sản phẩm · 1 thẻ");
+    expect(cardView(item)!.kpiLabel).toContain(group.metric!);
+  });
+});
+
 describe("card view", () => {
   const base = (lever: string, product_title: string, seller_sku: string | null) =>
     ({

@@ -25,6 +25,10 @@ const STAGE_METRIC: Readonly<Record<string, string>> = {
 
 /** Cards that are not about a funnel stage: the KPI key decides the group's name (no raw key, no stored label). */
 const KPI_KEY_METRIC: Readonly<Record<string, string>> = {
+  ctr: "CTR",
+  ctor: "CTOR",
+  aov: "AOV",
+  impressions: "Lượt hiển thị",
   products: "Sản phẩm",
   promotion: "Khuyến mãi",
 };
@@ -133,11 +137,25 @@ export function toCompactCard(item: DemoDecisionItem): CompactCard {
   };
 }
 
+/**
+ * The KPI the card itself prints on its KPI line (`card.main_kpi.key`), as the
+ * group's name -- only where it differs from the stage's own KPI (e.g. an
+ * orders-sourced quick-scan title card: stage "card" but KPI AOV, no CTR data).
+ * Heading and card line then name the same KPI.
+ */
+function cardKpiOverride(item: DemoDecisionItem): string | null {
+  const key = text((item as P10DecisionItem).recommendation.card?.main_kpi?.key);
+  const metric = key ? KPI_KEY_METRIC[key] : undefined;
+  const stage = item.recommendation.diagnosis?.stage?.code ?? "";
+  return key && metric && metric !== STAGE_METRIC[stage] ? key : null;
+}
+
 function groupKey(item: DemoDecisionItem): string {
   if (isContentCard(item)) return CONTENT_GROUP_KEY;
   const diagnosis = item.recommendation.diagnosis;
   if (!diagnosis) return "other";
-  return `${diagnosis.channel_scope ?? "ALL_CHANNELS"}:${diagnosis.stage?.code ?? "?"}`;
+  const part = cardKpiOverride(item) ?? diagnosis.stage?.code ?? "?";
+  return `${diagnosis.channel_scope ?? "ALL_CHANNELS"}:${part}`;
 }
 
 export function groupTitle(count: number, metric: string | null, stream: string | null): string {
@@ -180,7 +198,8 @@ export function groupDecisions(items: readonly DemoDecisionItem[]): DecisionGrou
     }
     const diagnosis = members[0].recommendation.diagnosis ?? null;
     const metric = diagnosis
-      ? (STAGE_METRIC[diagnosis.stage?.code ?? ""] ??
+      ? (KPI_KEY_METRIC[cardKpiOverride(members[0]) ?? ""] ??
+        STAGE_METRIC[diagnosis.stage?.code ?? ""] ??
         KPI_KEY_METRIC[diagnosis.main_kpi?.key ?? ""] ??
         text(diagnosis.main_kpi?.label))
       : null;
