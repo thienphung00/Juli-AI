@@ -4,7 +4,7 @@ import type { DemoDecisionItem } from "@juli/contracts";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { EMPTY_CARDS, decisionGroupHref, indexCards, type CardIndex } from "../../lib/phan-tich/cards";
+import { EMPTY_CARDS, SHOP_DECISIONS_HREF, decisionCardHref, decisionGroupHref, indexCards, shopCardsLine, type CardIndex } from "../../lib/phan-tich/cards";
 import { calendarView, promoView } from "../../lib/phan-tich/extras";
 import { perDay } from "../../lib/phan-tich/format";
 import {
@@ -26,6 +26,7 @@ import {
 } from "../../lib/phan-tich/model";
 import { tableView, type TableView } from "../../lib/phan-tich/rows";
 import type { RankedStream, RankingLoader, RankingPayload } from "../../lib/phan-tich/types";
+import { SANDBOX_NO_CONTENT, isSandboxReport } from "../../lib/shop-analysis/derive";
 import type { ShopDiagnosisReport } from "../../lib/shop-analysis/types";
 import { useNarrow } from "../quyet-dinh/use-narrow";
 import { CalendarSection, MobileExtras, PromoSection } from "./extras";
@@ -160,6 +161,11 @@ export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavi
   const headView = views.find((v) => v.spec.stream === headStream) ?? null;
   const weak = headView?.weakMetric ?? null;
   const weakCards = weak ? cards.countFor(weak) : 0;
+  // P71: the shop's cards when the header's metric group has none (an orders-sourced
+  // quick scan, a promotion, a new product -- the sandbox has no traffic to diagnose).
+  const shopCards = tab === "san-pham" && weakCards === 0 ? cards.all : [];
+  // P71: a sandbox has no real videos or LIVEs -- one line, not empty streams.
+  const sandboxNoContent = tab === "noi-dung" && isSandboxReport(report) && views.every((v) => !v.present);
 
   const table: TableView | null =
     payload && openStream && metric ? tableView({ report, stream: openStream, metric, direction, cards }, payload) : null;
@@ -251,6 +257,26 @@ export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavi
             </div>
           ) : null}
         </div>
+        {shopCards.length > 0 ? (
+          <div className="pa-shop-cards" data-testid="pa-shop-cards">
+            <div className="pa-suggest">
+              <span>{shopCardsLine(cards.total)}</span>
+              <Link className="pa-suggest__btn" href={sellerHref(SHOP_DECISIONS_HREF)}>
+                Xem đề xuất ›
+              </Link>
+            </div>
+            <ul className="pa-shop-cards__list">
+              {shopCards.slice(0, 3).map((card) => (
+                <li key={card.id}>
+                  <span>{card.title}</span>
+                  <Link className="pa-row__link" href={sellerHref(decisionCardHref(card.id))}>
+                    Xem đề xuất ›
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <p className="pa-caption" data-testid="pa-caption">
           <b>Sản phẩm:</b>
           <span>Thẻ sản phẩm · Tab cửa hàng</span>
@@ -271,7 +297,12 @@ export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavi
       </div>
 
       <div aria-labelledby={`pa-tab-${tab}`} className="pa-panel" id="pa-panel" role="tabpanel">
-        {views.map((view) => {
+        {sandboxNoContent ? (
+          <p className="pa-status" data-testid="pa-sandbox-no-content" role="status">
+            {SANDBOX_NO_CONTENT}
+          </p>
+        ) : null}
+        {(sandboxNoContent ? [] : views).map((view) => {
           const open = openStream === view.spec.stream;
           return (
             <StreamCard
@@ -323,7 +354,7 @@ export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavi
           )
         ) : null}
 
-        {tab === "noi-dung" ? (
+        {tab === "noi-dung" && !sandboxNoContent ? (
           <p className="pa-foot">
             Ô xám: CTOR và AOV của video phụ thuộc trang sản phẩm, xem ở tab Sản phẩm.
             {sample ? " Số liệu là ví dụ minh hoạ." : ""}

@@ -1,11 +1,12 @@
 import Link from "next/link";
 
 import type { ShopAnalysisEnvelope } from "../../lib/shop-analysis/types";
-import { NO_DATA } from "../../lib/shop-analysis/derive";
+import { NO_DATA, SANDBOX_NO_AFFILIATE, SANDBOX_NO_CONTENT, isSandboxReport } from "../../lib/shop-analysis/derive";
 import {
   buildHomeOverview,
   METRIC_COLUMNS,
   type HomeMetricCell,
+  type HomeOverviewModel,
   type HomeStreamRow,
   type HomeTotalCard,
   type MetricKey,
@@ -88,6 +89,7 @@ function MatrixCell({ cell, row }: { readonly cell: HomeMetricCell; readonly row
 
 export function StreamMatrix({ envelope }: { readonly envelope: ShopAnalysisEnvelope }) {
   const model = buildHomeOverview(envelope);
+  const sandbox = isSandboxReport(envelope.report);
   return (
     <div className="card stream-matrix-card">
       <p aria-label="GMV bằng Lượt hiển thị nhân CTR nhân CTOR nhân AOV" className="gmv-formula">
@@ -113,34 +115,57 @@ export function StreamMatrix({ envelope }: { readonly envelope: ShopAnalysisEnve
               ))}
             </tr>
           </thead>
-          {model.groups.map((group) => (
-            <tbody className={`stream-matrix__group stream-matrix__group--${group.group}`} key={group.group}>
-              <tr>
-                <th className="stream-matrix__group-label" colSpan={5} scope="rowgroup">
-                  {group.label}
-                </th>
-              </tr>
-              {group.rows.map((row) => (
-                <tr data-channel={row.channel} key={row.channel}>
-                  <th className="stream-matrix__stream" scope="row">
-                    {row.label}
-                    <span>{row.sub}</span>
+          {model.groups.map((group) => {
+            const empty = sandboxEmptyLine(sandbox, group);
+            return (
+              <tbody className={`stream-matrix__group stream-matrix__group--${group.group}`} key={group.group}>
+                <tr>
+                  <th className="stream-matrix__group-label" colSpan={5} scope="rowgroup">
+                    {group.label}
                   </th>
-                  {row.missing ? (
-                    <td className="matrix-cell matrix-cell--missing" colSpan={4}>
-                      {NO_DATA}
-                    </td>
-                  ) : (
-                    row.cells.map((cell) => <MatrixCell cell={cell} key={cell.metric} row={row} />)
-                  )}
                 </tr>
-              ))}
-            </tbody>
-          ))}
+                {empty ? (
+                  <tr data-testid={`sandbox-empty-${group.group}`}>
+                    <td className="matrix-cell matrix-cell--missing" colSpan={5}>
+                      {empty}
+                    </td>
+                  </tr>
+                ) : (
+                  group.rows.map((row) => (
+                    <tr data-channel={row.channel} key={row.channel}>
+                      <th className="stream-matrix__stream" scope="row">
+                        {row.label}
+                        <span>{row.sub}</span>
+                      </th>
+                      {row.missing ? (
+                        <td className="matrix-cell matrix-cell--missing" colSpan={4}>
+                          {NO_DATA}
+                        </td>
+                      ) : (
+                        row.cells.map((cell) => <MatrixCell cell={cell} key={cell.metric} row={row} />)
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            );
+          })}
         </table>
       </div>
     </div>
   );
+}
+
+/**
+ * P71: on the sandbox shop a Video / LIVE or Liên kết section with no numbers is one
+ * honest line (no real videos, LIVEs or creators), not rows of "Chưa có dữ liệu".
+ * Real shops keep their rows.
+ */
+function sandboxEmptyLine(sandbox: boolean, group: HomeOverviewModel["groups"][number]): string | null {
+  if (!sandbox || group.rows.some((row) => !row.missing)) return null;
+  if (group.group === "content") return SANDBOX_NO_CONTENT;
+  if (group.group === "affiliate") return SANDBOX_NO_AFFILIATE;
+  return null;
 }
 
 export interface HomeOverviewProps {

@@ -32,6 +32,8 @@ export interface RowView {
   readonly width: number;
   readonly confidence: "Rõ" | "Tham khảo" | null;
   readonly card: CardRef | null;
+  /** P71: the card "Xem đề xuất ›" opens -- the metric's card, else the product's card about no metric. */
+  readonly cardId: string | null;
   /** Content rows: the first product it featured (for "Xem sản phẩm được gắn ›"). */
   readonly taggedProduct: string | null;
   readonly facts: readonly Fact[];
@@ -198,6 +200,7 @@ export function tableView(ctx: TableContext, payload: RankingPayload): TableView
       width: Math.max(2, Math.round((Math.abs(row.gmv_per_day) / max) * 100)),
       confidence: row.confidence,
       card,
+      cardId: card?.id ?? (product ? ctx.cards.anyCardId(row.id) : null),
       taggedProduct: product ? null : (row.product_ids?.[0] ?? null),
       facts: product ? productFacts(ctx, row, card, negative) : contentFacts(ctx, row, negative),
     };
