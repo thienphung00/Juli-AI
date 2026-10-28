@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import ActionCard
 from juli_backend.services.demo_decisions.card_view import CardContext, build_card_block
+from juli_backend.services.product_name import is_placeholder_product_name
 
 # Only "active" candidates are ever eligible for the surfaced set — mirrors
 # emission_budget._CANDIDATE_STATUS. A card whose status has moved on
@@ -170,6 +171,11 @@ def _mask_recommendation_payload(payload: dict[str, Any]) -> dict[str, Any]:
         masked["diagnosis"] = {
             key: diagnosis[key] for key in _DIAGNOSIS_ALLOWLIST if key in diagnosis
         }
+        title = masked["diagnosis"].get("product_title")
+        if isinstance(title, str) and is_placeholder_product_name(title):
+            # P71: a card made before its product was synced pinned "Unknown"; the
+            # client falls back to the card's own title / SKU instead.
+            masked["diagnosis"]["product_title"] = None
     evidence = payload.get("evidence")
     if isinstance(evidence, dict):
         masked["evidence"] = {key: evidence[key] for key in _EVIDENCE_ALLOWLIST if key in evidence}

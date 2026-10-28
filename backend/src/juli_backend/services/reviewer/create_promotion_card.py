@@ -43,7 +43,11 @@ from juli_backend.services.agent.playbooks import (
     CREATE_PROMOTION_LEVER,
     CREATE_PROMOTION_WORKFLOW_KEY,
 )
-from juli_backend.services.product_name import short_product_name
+from juli_backend.services.product_name import (
+    is_seller_visible_sku,
+    known_product_name,
+    short_product_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -186,8 +190,44 @@ async def _active_card_still_eligible(session: AsyncSession, card: ActionCard) -
     return True
 
 
+async def _seller_skus(session: AsyncSession, shop_id: uuid.UUID) -> dict[str, str]:
+    """TikTok product id -> the seller's first visible SKU code (P71 name fallback)."""
+    rows = await session.execute(
+        select(InventoryItem.tiktok_product_id, InventoryItem.seller_sku)
+        .where(InventoryItem.shop_id == shop_id, InventoryItem.seller_sku.is_not(None))
+        .order_by(InventoryItem.tiktok_product_id, InventoryItem.seller_sku)
+    )
+    skus: dict[str, str] = {}
+    for tiktok_id, sku in rows:
+        if tiktok_id and is_seller_visible_sku(sku):
+            skus.setdefault(tiktok_id, sku.strip())
+    return skus
+
+
+def display_name(product: Product, seller_sku: str | None = None) -> str | None:
+    """The name a card shows for ``product``: its synced title, else ``SKU <code>``.
+
+    P71: never the "Unknown" placeholder a status webhook stored before the product was
+    synced; ``None`` when nothing seller-recognisable is known (no card is made then).
+    """
+    name = known_product_name(product.title, product.name)
+    if name is not None:
+        return name
+    if seller_sku:
+        return f"SKU {seller_sku}"
+    return None
+
+
+def _named_placeholder(card: ActionCard) -> bool:
+    """P71: a card made while its product was stored as "Unknown" -- retired and re-made
+    with the synced name (or the seller SKU)."""
+    return (card.title or "").rstrip().lower().endswith(" unknown")
+
+
 def card_payload(product: Product) -> dict[str, Any]:
-    title = product.title or product.name
+    # P71: only a real name is pinned (``card_view`` expires a listing card whose pinned
+    # title differs from the product's); a SKU fallback is not a title.
+    title = known_product_name(product.title, product.name)
     return {
         "workflow_key": CREATE_PROMOTION_WORKFLOW_KEY,
         "diagnosis": {
@@ -241,7 +281,7 @@ async def ensure_create_promotion_card(
         .first()
     )
     if active is not None:
-        if await _active_card_still_eligible(session, active):
+        if not _named_placeholder(active) and await _active_card_still_eligible(session, active):
             return active
         # P66 (D16): its product is now in a price promotion (or out of stock).
         active.status = RETIRED_STATUS
@@ -251,7 +291,13 @@ async def ensure_create_promotion_card(
             "reviewer_create_promotion_card_retired",
             extra={"shop_id": str(shop_id), "card": str(active.id)},
         )
-    products = await _source_products(session, shop_id)
+    skus = await _seller_skus(session, shop_id)
+    # P71: a product with neither a synced name nor a seller SKU gets no card.
+    products = [
+        p
+        for p in await _source_products(session, shop_id)
+        if display_name(p, skus.get(p.tiktok_product_id)) is not None
+    ]
     verified, found = await _first_promotable(
         session, shop_id, [p.tiktok_product_id for p in products]
     )
@@ -277,7 +323,7 @@ async def ensure_create_promotion_card(
         )
     ).scalar_one_or_none() or 0
     now = datetime.now(UTC)  # computed_at / surfaced_at are timestamptz
-    title = product.title or product.name
+    name = display_name(product, skus.get(product.tiktok_product_id)) or ""
     card = ActionCard(
         id=uuid.uuid4(),
         shop_id=shop_id,
@@ -287,9 +333,9 @@ async def ensure_create_promotion_card(
         revision=revision + 1,
         priority=0,
         severity="medium",
-        title=card_title(title)[:255],
+        title=card_title(name)[:255],
         description=(
-            f"Tạo khuyến mãi giảm giá cho {short_product_name(title)} trên shop sandbox. "
+            f"Tạo khuyến mãi giảm giá cho {short_product_name(name)} trên shop sandbox. "
             "Juli chọn mức giảm theo quy tắc của shop và tạo sau khi bạn xác nhận."
         ),
         recommendation_payload=json.dumps(card_payload(product), ensure_ascii=False),
@@ -312,6 +358,7 @@ __all__ = [
     "LEVER_LABEL_VI",
     "card_payload",
     "card_title",
+    "display_name",
     "ensure_create_promotion_card",
     "reset_cache",
     "reviewer_cards_current",

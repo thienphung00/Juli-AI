@@ -149,9 +149,81 @@ class ReturnsRepo(ShopScopedRepo[Return]):
     _lookup_attrs = ("tiktok_return_id",)
 
 
+#: P71: product name columns where a stored blank or "Unknown" is a placeholder.
+_PRODUCT_NAME_COLUMNS: frozenset[str] = frozenset({"title", "name"})
+
+
+def is_placeholder_product_name(name: str | None) -> bool:
+    """A missing, blank or "Unknown" product name (``services.product_name`` re-exports it)."""
+    text = (name or "").strip()
+    return not text or text.lower() == "unknown"
+
+
+def _product_column_is_gap(name: str, current: Any) -> bool:
+    if current is None:
+        return True
+    if name in _PRODUCT_NAME_COLUMNS:
+        return is_placeholder_product_name(current)
+    return False
+
+
 class ProductsRepo(ShopScopedRepo[Product]):
     _model = Product
     _lookup_attrs = ("tiktok_product_id",)
+    #: A status webhook creates the row with no name (P71): placeholders the poll fills.
+    _insert_defaults: ClassVar[Mapping[str, Any]] = {"name": "", "status": "unknown"}
+
+    async def _apply_if_newer(
+        self, existing: Product, values: Mapping[str, Any], *, full_snapshot: bool = False
+    ) -> Product:
+        """Merge one product write into the stored row (P71, same rule as orders' P70).
+
+        Two writers feed ``products``: the poll's whole product (``full_snapshot=True``)
+        and PRODUCT_STATUS_CHANGE webhooks that carry only id, status and update time.
+
+        * a snapshot wins when its ``update_time`` is at or after the stored one;
+        * a webhook (partial) wins only when strictly newer;
+        * a write that does not win still fills gaps: a NULL column, and a title or
+          name that is blank or the "Unknown" placeholder;
+        * no write replaces a real name with a placeholder or a value with ``None``.
+        """
+        incoming = values.get("update_time")
+        stored = existing.update_time
+        if incoming is None or stored is None:
+            wins = True
+        else:
+            wins = incoming >= stored if full_snapshot else incoming > stored
+        for name, value in values.items():
+            if name == "tiktok_product_id" or value is None:
+                continue
+            current = getattr(existing, name)
+            if name in _PRODUCT_NAME_COLUMNS and is_placeholder_product_name(value):
+                if current is None:
+                    setattr(existing, name, value)
+                continue
+            if wins or _product_column_is_gap(name, current):
+                setattr(existing, name, value)
+        await self._session.flush()
+        return existing
+
+    async def has_unnamed_products(self, shop_id: uuid.UUID) -> bool:
+        """Whether a product of the shop has no real name yet -- title and name both
+        blank or "Unknown" (P71: rows a status webhook created before the poll read them)."""
+
+        def _placeholder(column: Any) -> Any:
+            text = func.lower(func.trim(func.coalesce(column, "")))
+            return text.in_(("", "unknown"))
+
+        stmt = (
+            select(Product.id)
+            .where(
+                Product.shop_id == shop_id,
+                _placeholder(Product.title),
+                _placeholder(Product.name),
+            )
+            .limit(1)
+        )
+        return (await self._session.execute(stmt)).first() is not None
 
     async def recompute_revenue_from_order_items(
         self, shop_id: uuid.UUID, tiktok_product_id: str

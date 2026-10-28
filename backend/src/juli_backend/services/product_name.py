@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import re
 
+#: P71: a product row carried "Unknown" before its name was synced (the ETL product
+#: transform's default for a status-only webhook). Never a seller-facing name.
+from juli_backend.repositories.commerce import is_placeholder_product_name
+
 MAX_NAME_CHARS = 40
 #: A clause break is only used when the part before it is at least this long.
 MIN_CLAUSE_CHARS = 12
@@ -48,4 +52,19 @@ def is_seller_visible_sku(sku: str | None) -> bool:
     return bool(value) and not value.upper().startswith(INTERNAL_SKU_PREFIX)
 
 
-__all__ = ["INTERNAL_SKU_PREFIX", "MAX_NAME_CHARS", "is_seller_visible_sku", "short_product_name"]
+def known_product_name(*candidates: str | None) -> str | None:
+    """The first candidate that is a real product name, else ``None`` (P71)."""
+    for candidate in candidates:
+        if not is_placeholder_product_name(candidate):
+            return (candidate or "").strip()
+    return None
+
+
+__all__ = [
+    "INTERNAL_SKU_PREFIX",
+    "MAX_NAME_CHARS",
+    "is_placeholder_product_name",
+    "is_seller_visible_sku",
+    "known_product_name",
+    "short_product_name",
+]

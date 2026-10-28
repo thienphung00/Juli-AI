@@ -38,7 +38,7 @@ from juli_backend.services.etl.persistence.ingest.repo import IngestDedupEpochsR
 from juli_backend.services.etl.record import IngestRecord
 from juli_backend.services.etl.transform import (
     TransformError,
-    is_order_snapshot_channel,
+    is_full_snapshot_channel,
     transform_for_channel,
 )
 from juli_backend.services.privacy.pseudonym import pseudonymize_buyer_id
@@ -293,7 +293,7 @@ class EtlConsumer:
                 entity_kind,
                 shop_id=shop_id,
                 kwargs=kwargs,
-                full_snapshot=is_order_snapshot_channel(record.channel),
+                full_snapshot=is_full_snapshot_channel(record.channel),
             )
             order_kwargs = _order_change(kwargs, persisted) if entity_kind == "order" else None
         except (TransformError, TypeError, ValueError) as exc:

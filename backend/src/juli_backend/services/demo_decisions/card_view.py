@@ -60,7 +60,11 @@ from juli_backend.models.models import (
 from juli_backend.models.run_changes import RunWriteValue
 from juli_backend.services.agent.tools.diagnosis_labels import diagnosis_label_vi
 from juli_backend.services.optimize_product.rescore import cap_legacy_target, has_d29_kpi
-from juli_backend.services.product_name import is_seller_visible_sku, short_product_name
+from juli_backend.services.product_name import (
+    is_seller_visible_sku,
+    known_product_name,
+    short_product_name,
+)
 
 WORKFLOW_LABEL_VI = "Tối ưu sản phẩm"
 #: P64 (D73.3): the sandbox "Tạo sản phẩm" card reads as a creation, like its run header.
@@ -317,10 +321,16 @@ def _status(
             return "expired"
     product = context.product
     proposed_title = diagnosis.get("product_title")
-    if product is not None and isinstance(proposed_title, str) and proposed_title:
-        if (product.title or product.name) != proposed_title:
+    # P71: a placeholder ("Unknown") on either side is not a title change.
+    if product is not None and known_product_name(_text(proposed_title)) is not None:
+        current = known_product_name(product.title, product.name)
+        if current is not None and current != proposed_title:
             return "expired"
     return "pending"
+
+
+def _text(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 #: P23: aov in VND, impressions a count, CTR / CTOR ratios.
@@ -493,11 +503,17 @@ def build_card_block(
     if not has_d29_kpi(payload):
         kpi, per_day = _capped_legacy(kpi, per_day)
     product = context.product
-    title = (product.title or product.name) if product is not None else None
+    title = known_product_name(product.title, product.name) if product is not None else None
     field_code, field_label = _LEVER_FIELDS.get(lever_code, (lever_code, lever_label))
     first_sku = context.seller_skus[0] if context.seller_skus else None
     quick = _quick_scan(diagnosis)
-    product_title = title or diagnosis.get("product_title")
+    # P71: never "Unknown" in a seller-facing title -- the synced name, the name the card
+    # was made with, else the seller's SKU code.
+    product_title = (
+        title
+        or known_product_name(_text(diagnosis.get("product_title")))
+        or (f"SKU {first_sku}" if first_sku else None)
+    )
     workflow_label = WORKFLOW_LABEL_VI
     if lever_code == "create_product":
         workflow_label = CREATE_PRODUCT_LABEL_VI
