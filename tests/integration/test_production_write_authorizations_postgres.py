@@ -195,6 +195,37 @@ class TestProductionWriteAuthorizationsConcurrency:
             assert found is None, "Lookup should return None for consumed authorization"
 
 
+def _park_phoneless_users() -> list[str]:
+    """Give every phone-less users row a unique temporary phone; return their ids."""
+    engine = create_engine(DATABASE_URL)
+    try:
+        with engine.begin() as conn:
+            ids = [
+                str(r[0]) for r in conn.execute(text("SELECT id FROM users WHERE phone IS NULL"))
+            ]
+            for n, user_id in enumerate(ids):
+                conn.execute(
+                    text("UPDATE users SET phone = :phone WHERE id = :id"),
+                    {"phone": f"+1999{n:07d}", "id": user_id},
+                )
+        return ids
+    finally:
+        engine.dispose()
+
+
+def _restore_phoneless_users(ids: list[str]) -> None:
+    """Put the rows `_park_phoneless_users` touched back to phone IS NULL."""
+    if not ids:
+        return
+    engine = create_engine(DATABASE_URL)
+    try:
+        with engine.begin() as conn:
+            for user_id in ids:
+                conn.execute(text("UPDATE users SET phone = NULL WHERE id = :id"), {"id": user_id})
+    finally:
+        engine.dispose()
+
+
 class TestAlembicRoundTrip:
     """Test migration upgrade and downgrade."""
 
@@ -210,6 +241,11 @@ class TestAlembicRoundTrip:
         """
         if not DATABASE_URL:
             pytest.skip("DATABASE_URL not set")
+        # P72b: 064's downgrade refuses users rows without a phone (it will not invent one,
+        # #1972). Other Postgres tests in the same check.sh process legitimately leave such
+        # rows (an email-only partner reviewer), so give them a temporary phone for the
+        # round-trip and put them back to NULL once the schema is at head again.
+        phoneless = _park_phoneless_users()
         try:
             # Start from 043 to isolate 044's upgrade/downgrade round-trip
             command.downgrade(alembic_config, "043_juli_app_role")
@@ -274,3 +310,4 @@ class TestAlembicRoundTrip:
             sync_engine.dispose()
         finally:
             command.upgrade(alembic_config, "head")
+            _restore_phoneless_users(phoneless)
