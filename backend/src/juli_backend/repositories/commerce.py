@@ -214,14 +214,8 @@ class ProductsRepo(ShopScopedRepo[Product]):
             text = func.lower(func.trim(func.coalesce(column, "")))
             return text.in_(("", "unknown"))
 
-        stmt = (
-            select(Product.id)
-            .where(
-                Product.shop_id == shop_id,
-                _placeholder(Product.title),
-                _placeholder(Product.name),
-            )
-            .limit(1)
+        stmt = self._scoped(shop_id, _placeholder(Product.title), _placeholder(Product.name)).limit(
+            1
         )
         return (await self._session.execute(stmt)).first() is not None
 

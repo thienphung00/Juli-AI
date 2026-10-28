@@ -31,7 +31,6 @@ from juli_backend.api.dependencies import get_active_shop, require_writable_shop
 from juli_backend.api.reviewer import (
     ConfirmedWriteOut,
     audit_reviewer_confirmation,
-    confirmed_write_out,
     sandbox_run_viewer,
 )
 from juli_backend.core.security import get_current_user
@@ -324,6 +323,8 @@ async def submit_confirmation_decision(
 
 
 class PendingDecisionSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     tool_call_id: str
     expires_at: str
 
@@ -347,11 +348,9 @@ class ListingQualityOut(BaseModel):
     after: DiagnosisReadingOut | None = None
 
 
-def listing_quality_out(value: object | None) -> ListingQualityOut | None:
-    return ListingQualityOut.model_validate(value) if value is not None else None
-
-
 class WorkflowRunListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     status: str
     stop_reason: str | None = None
@@ -414,35 +413,9 @@ async def runs_list_response(
         return WorkflowRunListResponse(data=[])
 
     logger.info("agent_runs_list_read", extra={"shop_id": str(shop.id), "count": len(items)})
+    # The read model's attribute names are the wire names (nested dataclasses included).
     return WorkflowRunListResponse(
-        data=[
-            WorkflowRunListItem(
-                id=item.id,
-                status=item.status,
-                stop_reason=item.stop_reason,
-                product_name=item.product_name,
-                created_at=item.created_at,
-                completed_at=item.completed_at,
-                running_seconds_elapsed=item.running_seconds_elapsed,
-                latest_narration=item.latest_narration,
-                decision_summary=(
-                    PendingDecisionSummary(
-                        tool_call_id=item.decision_summary.tool_call_id,
-                        expires_at=item.decision_summary.expires_at,
-                    )
-                    if item.decision_summary is not None
-                    else None
-                ),
-                awaiting=item.awaiting,
-                decision_id=item.decision_id,
-                simulated=item.simulated,
-                run_flow=item.run_flow,
-                started_by_viewer=item.started_by_viewer,
-                confirmed_write=confirmed_write_out(item.confirmed_write),
-                listing_quality=listing_quality_out(item.listing_quality),
-            )
-            for item in items
-        ]
+        data=[WorkflowRunListItem.model_validate(item, from_attributes=True) for item in items]
     )
 
 
