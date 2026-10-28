@@ -205,9 +205,19 @@ async def test_the_poll_drops_its_products_cursor_while_a_product_is_unnamed(ses
     state: dict[str, Any] = {"products_last_update_time": ACTIVATED, "orders_last": 1}
 
     assert await ProductsRepo(session).has_unnamed_products(shop.id) is True
-    await _reread_products_when_unnamed(session, shop.id, state)
+    await _reread_products_when_unnamed(session, shop.id, state, now=1_000_000.0)
 
-    assert state == {"orders_last": 1}
+    assert state == {"orders_last": 1, "products_full_reread_at": 1_000_000.0}
+
+    # P71b: a second poll within 24 h keeps the restored cursor -- no second full read.
+    state["products_last_update_time"] = ACTIVATED
+    await _reread_products_when_unnamed(session, shop.id, state, now=1_000_000.0 + 3600)
+    assert state["products_last_update_time"] == ACTIVATED
+
+    # After 24 h it may re-read once more.
+    await _reread_products_when_unnamed(session, shop.id, state, now=1_000_000.0 + 86_400)
+    assert "products_last_update_time" not in state
+    assert state["products_full_reread_at"] == 1_000_000.0 + 86_400
 
 
 async def test_the_poll_keeps_its_cursor_when_every_product_is_named(session, shop):
