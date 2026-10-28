@@ -408,8 +408,19 @@ async def _backoff_if_rate_limited(
 PRODUCTS_CURSOR_KEY = "products_last_update_time"
 
 
+#: P71b: when the last full-catalog re-read for unnamed products ran (epoch seconds).
+PRODUCTS_FULL_REREAD_AT_KEY = "products_full_reread_at"
+#: P71b: at most one full-catalog re-read per shop per this many seconds, so a product
+#: TikTok never names cannot turn every poll into a whole-catalog read (Supabase egress).
+PRODUCTS_FULL_REREAD_MIN_INTERVAL_SECONDS = 24 * 60 * 60
+
+
 async def _reread_products_when_unnamed(
-    session: AsyncSession, shop_id: uuid.UUID, sync_state: dict[str, Any]
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    sync_state: dict[str, Any],
+    *,
+    now: float | None = None,
 ) -> None:
     """P71: re-read every product while one is stored without a name.
 
@@ -421,9 +432,17 @@ async def _reread_products_when_unnamed(
     """
     if PRODUCTS_CURSOR_KEY not in sync_state:
         return
+    current = time.time() if now is None else now
+    last = sync_state.get(PRODUCTS_FULL_REREAD_AT_KEY)
+    recent = isinstance(last, (int, float)) and (
+        current - last < PRODUCTS_FULL_REREAD_MIN_INTERVAL_SECONDS
+    )
+    if recent:
+        return
     if not await ProductsRepo(session).has_unnamed_products(shop_id):
         return
     sync_state.pop(PRODUCTS_CURSOR_KEY, None)
+    sync_state[PRODUCTS_FULL_REREAD_AT_KEY] = current
     logger.info("sync_products_full_reread_unnamed", extra={"shop_id": str(shop_id)})
 
 
