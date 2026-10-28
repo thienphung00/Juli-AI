@@ -363,11 +363,22 @@ def test_existing_workflow_run_row_not_rewritten_by_migration(postgres_at_head: 
         from sqlalchemy.orm import Session
 
         with Session(engine) as session:
-            user_id, shop = _seed_shop_and_user(session)
-            product = _seed_product(session, shop)
+            # Column by column (P72): the Shop/Product models describe HEAD, and revision
+            # 039 has no `shops.tiktok_numeric_shop_id` (102) -- the ORM seed reached forward.
+            user_id = seed_user_row_at_any_revision(session, "+15550001270")
+            shop_id, product_id = uuid.uuid4(), uuid.uuid4()
+            session.execute(
+                text("INSERT INTO shops (id, user_id, shop_name) VALUES (:id, :u, 'AGT #1269')"),
+                {"id": shop_id, "u": user_id},
+            )
+            session.execute(
+                text(
+                    "INSERT INTO products (id, shop_id, tiktok_product_id, name, status, "
+                    "update_time) VALUES (:id, :s, :t, 'Test Widget 1269', 'active', now())"
+                ),
+                {"id": product_id, "s": shop_id, "t": f"agt-1269-{product_id.hex[:8]}"},
+            )
             session.commit()
-            shop_id = shop.id
-            product_id = product.id
 
         run_id = uuid.uuid4()
         with engine.begin() as conn:
