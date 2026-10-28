@@ -142,11 +142,6 @@ FIRST_NARRATION = (
     "để mọi đề xuất bám vào những gì bạn đang có chứ không đoán. Xong mình sẽ soạn tiêu đề "
     "mới cho bạn duyệt."
 )
-PRICE_TEXT = (
-    "Mình đã soạn tiêu đề mới và bạn đã duyệt. Phần giá thì mình chưa đề xuất đổi: giá hiện tại "
-    "vẫn nằm trong khoảng hợp lý so với các sản phẩm cùng nhóm, nên mình giữ nguyên để không "
-    "làm nhiễu kết quả của lần thay tiêu đề này."
-)
 FINAL_TEXT = (
     "Tiêu đề mới đã được chạy thử trên shop thử nghiệm của Juli, còn shop thật của bạn chưa "
     "thay đổi gì. Mình sẽ không tính kết quả của lần chạy thử này vào hiệu quả, và sẽ theo dõi "
@@ -873,10 +868,12 @@ RUN_LEG_SCRIPT = [
         )
     ),
 ]
-# The playbook requires a price write too; a model that declines it narrates twice (the first
-# FinalResponse arms ADR-088's one forced retry, the second ends the run with the work it did).
+# The playbook also lists a price write, but once the approved listing write went through the
+# model's closing FinalResponse ends the run with the work it did. P70 (run ceec586e, #2213):
+# ADR-088's forced retry fires only while NO required step has been performed -- forcing a
+# tool call after a confirmed write is what coerced a second CONFIRM proposal in that run. This
+# leg used to script two FinalResponses (the first only armed the retry); one is now the truth.
 RESUME_LEG_SCRIPT = [
-    _turn(FinalResponse(content=PRICE_TEXT)),
     _turn(FinalResponse(content=FINAL_TEXT)),
 ]
 
@@ -983,7 +980,7 @@ async def _step_3_approve_and_run(journey: Journey, monkeypatch) -> None:
                 assert payload["text"].startswith("".join(pending_deltas))
                 texts_checked += 1
             pending_deltas = []
-    assert texts_checked == 3, kinds  # narration + the declined-price turn + the final turn
+    assert texts_checked == 2, kinds  # narration + the final turn (P70: no forced retry turn)
     assert not pending_deltas
     assert [payload["text"] for kind, payload in events if kind == "assistant.text"][
         -1

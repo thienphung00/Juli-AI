@@ -2121,11 +2121,17 @@ class WorkflowRunner:
         )
 
     def _wrote_this_run(self, state: RunState) -> bool:
-        """P70: whether a WRITE tool already went through in this run."""
+        """P70: whether a seller-approved write already changed the shop in this run.
+
+        Only CONFIRM-policy WRITE tools count: they are the calls that change what
+        the shop shows on TikTok (listing, price, promotion, new product). An
+        AUTO-policy WRITE such as `upload_product_image` only stages an asset --
+        nothing is visible until a confirmed write attaches it -- so a decline
+        after it is still "nothing written" (`confirmation_declined`)."""
         writes = {
             spec.name
             for spec in (self._registry.get(name) for name in self._allowed_tool_names)
-            if spec.classification is ToolClassification.WRITE
+            if spec.classification is ToolClassification.WRITE and spec.policy is ToolPolicy.CONFIRM
         }
         return performed_any(state.conversation_window, writes)
 
