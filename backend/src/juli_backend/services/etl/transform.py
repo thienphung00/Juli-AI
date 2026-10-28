@@ -27,6 +27,10 @@ TIKTOK_PLATFORM = "tiktok"
 #: and the targeted fetch. Every other order-shaped channel is a webhook that names
 #: the order and its new status only (P70, E15).
 ORDER_SNAPSHOT_CHANNELS: frozenset[str] = frozenset({"tiktok.orders.raw"})
+#: P71: channels that carry a whole TikTok product (Search Products, as the poll hands
+#: it off). Every other product-shaped channel is a webhook naming the product and its
+#: new status only.
+PRODUCT_SNAPSHOT_CHANNELS: frozenset[str] = frozenset({"tiktok.products.raw"})
 
 
 def bronze_order_to_upsert_kwargs(
@@ -213,10 +217,20 @@ def _transform_return(body: dict[str, Any], payload: dict[str, Any]) -> dict[str
     }
 
 
-def _transform_product(body: dict[str, Any]) -> dict[str, Any]:
+def _transform_product(body: dict[str, Any], *, full_snapshot: bool = True) -> dict[str, Any]:
+    """Product upsert kwargs. ``full_snapshot=False`` (a webhook) keeps only what it carries.
+
+    P71: PRODUCT_STATUS_CHANGE names the product, its new status and the update time --
+    no title, no price. Emitting the snapshot's defaults for it stored the product as
+    "Unknown" (and zeroed its revenue); a new product created in Seller Center then
+    showed as "Unknown" on its cards. The partial dict leaves those columns to
+    ``ProductsRepo.upsert``, which the poll's whole product completes.
+    """
     product_id = body.get("product_id") or body.get("id")
     if not product_id:
         raise TransformError("product_id required")
+    if not full_snapshot:
+        return _partial_product(body, str(product_id))
     price = body.get("price")
     audit_status = _canonical_audit_status(body.get("audit_status") or body.get("status"))
     return {
@@ -239,6 +253,30 @@ def _transform_product(body: dict[str, Any]) -> dict[str, Any]:
         "units_sold": int(body.get("units_sold", 0)),
         "update_time": _unix_to_datetime(body.get("updated_at") or body.get("update_time")),
     }
+
+
+def _partial_product(body: dict[str, Any], product_id: str) -> dict[str, Any]:
+    partial: dict[str, Any] = {
+        "tiktok_product_id": product_id,
+        "update_time": _unix_to_datetime(body.get("updated_at") or body.get("update_time")),
+    }
+    raw_status = body.get("audit_status") or body.get("status")
+    if raw_status:
+        partial["audit_status"] = _canonical_audit_status(raw_status)
+        partial["status"] = str(body.get("status") or partial["audit_status"])
+    title = body.get("title") or body.get("name")
+    if title:
+        partial["title"] = str(title)
+        partial["name"] = str(body.get("name") or title)
+    if body.get("category"):
+        partial["category"] = body["category"]
+    if body.get("category_id"):
+        partial["category_id"] = body["category_id"]
+    if body.get("price") is not None:
+        partial["price"] = Decimal(str(body["price"]))
+    if body.get("inventory") is not None:
+        partial["inventory"] = _coerce_int(body["inventory"])
+    return partial
 
 
 def _canonical_audit_status(value: Any) -> str:
@@ -451,6 +489,11 @@ def is_order_snapshot_channel(channel: str) -> bool:
     return channel in ORDER_SNAPSHOT_CHANNELS
 
 
+def is_full_snapshot_channel(channel: str) -> bool:
+    """Whether ``channel`` carries a whole TikTok record (an order or a product, P71)."""
+    return channel in ORDER_SNAPSHOT_CHANNELS or channel in PRODUCT_SNAPSHOT_CHANNELS
+
+
 def transform_for_channel(channel: str, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Return ``(entity_kind, upsert_kwargs_without_shop_id)`` for an ingest payload."""
     if not _channel_allowed(channel):
@@ -488,7 +531,10 @@ def transform_for_channel(channel: str, payload: dict[str, Any]) -> tuple[str, d
         and not body.get("sku_id")
         and not body.get("return_id")
     ):
-        return "product", _transform_product(normalize_product(body))
+        return "product", _transform_product(
+            normalize_product(body),
+            full_snapshot=channel in PRODUCT_SNAPSHOT_CHANNELS,
+        )
 
     if channel == "tiktok.inventory.raw" or (
         body.get("sku_id") and channel not in ("tiktok.order_items.raw", "tiktok.returns.raw")

@@ -1225,3 +1225,29 @@ body:has(.pa-page) {
     color: var(--qd-ink-2);
   }
 }
+
+/* P71: the shop's open cards when the header's metric has none (orders-sourced quick
+   scan, promotion, new product): one line + up to three card links. */
+.pa-shop-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pa-shop-cards__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 14px;
+  list-style: none;
+  font-size: 14px;
+}
+
+.pa-shop-cards__list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}

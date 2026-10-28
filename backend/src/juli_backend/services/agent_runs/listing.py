@@ -30,6 +30,12 @@ from juli_backend.services.agent_runs.confirmations import (
     PENDING_CONFIRMATION_STATUS,
     WAITING_APPROVAL_RUN_STATUS,
 )
+from juli_backend.services.agent_runs.listing_quality import (
+    MAX_RUNS,
+    ListingQuality,
+    current_readings,
+    day0_reading,
+)
 
 STATUS_EVENT_TYPE = "workflow.status"
 
@@ -72,6 +78,9 @@ class RunListItem:
     #: P67 (D75 Q2): for a sandbox reviewer, what this run wrote on TikTok and when
     #: TikTok confirmed it (Đo lường lists every such run). ``None`` for every other viewer.
     confirmed_write: ConfirmedWrite | None = None
+    #: P71: for a sandbox reviewer's listing-edit run TikTok confirmed, TikTok's own
+    #: listing diagnosis at Ngày 0 and now (``listing_quality``). ``None`` otherwise.
+    listing_quality: ListingQuality | None = None
 
 
 #: ``ConfirmedWrite.kind`` values.
@@ -178,6 +187,7 @@ async def list_runs(
         rows if viewer is not None else [],
         [run.id for run, _ in rows if run.write_mode == WRITE_MODE_SIMULATED],
     )
+    quality = await _listing_quality(session, shop_id, rows, written) if viewer is not None else {}
     items: list[RunListItem] = []
     for run, product in rows:
         items.append(
@@ -197,9 +207,33 @@ async def list_runs(
                 run_flow=_RUN_FLOWS.get(run.workflow_key),
                 started_by_viewer=(run.id in mine) if viewer is not None else None,
                 confirmed_write=written.get(run.id),
+                listing_quality=quality.get(run.id),
             )
         )
     return items
+
+
+async def _listing_quality(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    rows: list[tuple[WorkflowRunRow, Product]],
+    written: dict[uuid.UUID, ConfirmedWrite],
+) -> dict[uuid.UUID, ListingQuality]:
+    """P71: TikTok's listing diagnosis before / now for the newest listing-edit runs
+    TikTok confirmed (sandbox reviewer only; :mod:`.listing_quality`)."""
+    edits = [
+        (run, written[run.id].tiktok_id or product.tiktok_product_id)
+        for run, product in rows
+        if run.id in written and written[run.id].kind == WRITE_LISTING_EDIT
+    ][:MAX_RUNS]
+    edits = [(run, product_id) for run, product_id in edits if product_id]
+    if not edits:
+        return {}
+    now = await current_readings(session, shop_id, [product_id for _, product_id in edits])
+    return {
+        run.id: ListingQuality(before=day0_reading(run.state), after=now.get(product_id))
+        for run, product_id in edits
+    }
 
 
 async def _ledger_flags(

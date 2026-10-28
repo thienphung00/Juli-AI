@@ -497,9 +497,17 @@ def handle_get_product_diagnoses(
         )
         return GetProductDiagnosesOutput(unavailable=True)
 
+    codes = parse_diagnosis_codes(raw, product_id=context.product_id)
+    capped = cap_list(codes)
+    return GetProductDiagnosesOutput(codes=list(capped.items), count=len(codes))
+
+
+def parse_diagnosis_codes(raw: dict[str, Any], *, product_id: str) -> list[dict[str, Any]]:
+    """The diagnosis codes TikTok raised for ``product_id`` in a Get Product Diagnoses
+    payload, as ``{code, label_vi, field, how_to_solve}`` (deduplicated, codes only)."""
     codes: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for entry in _diagnosis_entries(raw, product_id=context.product_id):
+    for entry in _diagnosis_entries(raw, product_id=product_id):
         field_name = entry.get("field")
         for result in entry.get("diagnosis_results") or []:
             if not isinstance(result, dict):
@@ -519,8 +527,7 @@ def handle_get_product_diagnoses(
                     ),
                 }
             )
-    capped = cap_list(codes)
-    return GetProductDiagnosesOutput(codes=list(capped.items), count=len(codes))
+    return codes
 
 
 GET_PRODUCT_DIAGNOSES_SPEC = ToolSpec(

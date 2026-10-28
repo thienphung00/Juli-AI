@@ -114,9 +114,9 @@ function Facts({ row, mobile, content }: { readonly row: RowView; readonly mobil
 
 function CardLink({ row, mobile }: { readonly row: RowView; readonly mobile: boolean }) {
   const sellerHref = useSellerHref();
-  if (row.card) {
+  if (row.cardId) {
     return (
-      <Link className="pa-row__link" href={sellerHref(decisionCardHref(row.card.id))}>
+      <Link className="pa-row__link" href={sellerHref(decisionCardHref(row.cardId))}>
         Xem đề xuất ›
       </Link>
     );

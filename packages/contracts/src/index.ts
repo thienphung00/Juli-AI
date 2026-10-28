@@ -77,6 +77,8 @@ export {
 } from "./agent-events";
 export type {
   ConfirmedWrite,
+  DiagnosisReading,
+  ListingQuality,
   PendingDecisionSummary,
   WorkflowRunListItem,
   WorkflowRunListResponse,

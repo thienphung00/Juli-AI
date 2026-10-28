@@ -44,6 +44,8 @@ RUN_LIST_FIELDS = {
     "started_by_viewer",
     # P67: sandbox reviewer only -- the run's TikTok write and its confirmation.
     "confirmed_write",
+    # P71: sandbox reviewer only -- a listing edit's TikTok diagnosis, Ngày 0 -> now.
+    "listing_quality",
 }
 
 # (stop_reason, status) -- every terminal pair the check constraint allows,

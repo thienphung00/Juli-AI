@@ -404,6 +404,29 @@ async def _backoff_if_rate_limited(
         await sleep(float(ttl))
 
 
+#: The products step's incremental cursor (``sync_products``).
+PRODUCTS_CURSOR_KEY = "products_last_update_time"
+
+
+async def _reread_products_when_unnamed(
+    session: AsyncSession, shop_id: uuid.UUID, sync_state: dict[str, Any]
+) -> None:
+    """P71: re-read every product while one is stored without a name.
+
+    A PRODUCT_STATUS_CHANGE webhook used to store a new product as "Unknown"; the
+    incremental products read (``update_time >= cursor``) never fetched it again, so the
+    name stayed missing. Dropping the cursor makes this cycle's products step read the
+    whole catalog (Search Products), whose snapshot fills the name
+    (``ProductsRepo._apply_if_newer``); the cycle saves the cursor again after it.
+    """
+    if PRODUCTS_CURSOR_KEY not in sync_state:
+        return
+    if not await ProductsRepo(session).has_unnamed_products(shop_id):
+        return
+    sync_state.pop(PRODUCTS_CURSOR_KEY, None)
+    logger.info("sync_products_full_reread_unnamed", extra={"shop_id": str(shop_id)})
+
+
 def _synced_product_ids_fn(session: AsyncSession, shop_id: uuid.UUID) -> ProductIdsFn:
     """Build the product-id source `sync_inventory` needs (#1948).
 
@@ -677,6 +700,7 @@ async def _poll(
 
     repo = sync_state_repo or TikTokSyncStateRepo(session)
     sync_state = await repo.load(credential.shop_id)
+    await _reread_products_when_unnamed(session, credential.shop_id, sync_state)
 
     app_id = config.app_key
     shop = await session.get(Shop, credential.shop_id)

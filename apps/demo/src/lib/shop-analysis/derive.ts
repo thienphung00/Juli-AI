@@ -1,4 +1,4 @@
-import type { ChannelKey, ChannelRow, Counts, FactorKey } from "./types";
+import type { ChannelKey, ChannelRow, Counts, FactorKey, ShopDiagnosisReport } from "./types";
 
 /**
  * Rates recomputed from a window's counts — the same definitions as the
@@ -86,6 +86,19 @@ export function isChannelMissing(row: ChannelRow | undefined): boolean {
   const empty = (c: Counts) => !c.impressions && !c.clicks && !c.gmv;
   return empty(prior) && empty(last);
 }
+
+/**
+ * P71: the reviewer's TikTok SANDBOX shop -- its report carries `metrics_source`
+ * (P64, D73.3), which no real shop's report has.
+ */
+export function isSandboxReport(report: ShopDiagnosisReport | null | undefined): boolean {
+  return report?.metrics_source !== undefined;
+}
+
+/** P71: the one line a sandbox shows instead of empty Video / LIVE rows (no fake numbers). */
+export const SANDBOX_NO_CONTENT = "Shop sandbox không có video hay LIVE thật nên phần này trống.";
+/** P71: the one line a sandbox shows instead of an empty Liên kết row. */
+export const SANDBOX_NO_AFFILIATE = "Shop sandbox không có nhà sáng tạo thật nên phần này trống.";
 
 export function isSellerContent(channel: ChannelKey): boolean {
   return channel === "seller_video" || channel === "seller_live";

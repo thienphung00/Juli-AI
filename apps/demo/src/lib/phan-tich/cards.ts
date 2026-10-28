@@ -75,6 +75,19 @@ export function toCardRef(raw: DemoDecisionItem): CardRef | null {
   };
 }
 
+/**
+ * P71: any open card, whatever it is about -- an orders-sourced quick scan, a
+ * promotion, a new product -- for Phân tích's "Có N đề xuất cho shop" block and a
+ * product row's link to a card about no metric.
+ */
+export interface ShopCard {
+  readonly id: string;
+  /** `null` for a card about no product. */
+  readonly productId: string | null;
+  /** The card's heading ("Tạo khuyến mãi giảm giá cho …"). */
+  readonly title: string;
+}
+
 export interface CardIndex {
   /** The card for `productId` × `metric`, if any. */
   readonly find: (productId: string, metric: CellMetric) => CardRef | null;
@@ -82,15 +95,44 @@ export interface CardIndex {
   readonly anyFor: (productId: string) => CardRef | null;
   /** How many cards are about `metric` (the header's "Xem N đề xuất ›"). */
   readonly countFor: (metric: CellMetric) => number;
+  /**
+   * P71: a card about the product that is about no metric (a promotion, a new
+   * product): its row links to it in every metric's table. A card about another
+   * metric stays in that metric's table only.
+   */
+  readonly anyCardId: (productId: string) => string | null;
+  /** P71: every open card of the shop, in the decisions' order. */
+  readonly all: readonly ShopCard[];
+  readonly total: number;
+}
+
+function toShopCard(raw: DemoDecisionItem): ShopCard | null {
+  const item = raw as P10DecisionItem;
+  const title = text(item.recommendation.card?.product_title) ?? text(item.title);
+  if (!title) return null;
+  return { id: item.id, productId: text(item.recommendation.diagnosis?.tiktok_product_id), title };
 }
 
 export function indexCards(items: readonly DemoDecisionItem[]): CardIndex {
   const refs = items.map(toCardRef).filter((ref): ref is CardRef => ref !== null);
+  const shopCards = items.map(toShopCard).filter((card): card is ShopCard => card !== null);
   return {
     find: (productId, metric) => refs.find((r) => r.productId === productId && r.metric === metric) ?? null,
     anyFor: (productId) => refs.find((r) => r.productId === productId) ?? null,
     countFor: (metric) => refs.filter((r) => r.metric === metric).length,
+    anyCardId: (productId) =>
+      shopCards.find((c) => c.productId === productId && !refs.some((r) => r.id === c.id))?.id ?? null,
+    all: shopCards,
+    total: shopCards.length,
   };
+}
+
+/** P71: Quyết định's Đề xuất tab, all of the shop's cards. */
+export const SHOP_DECISIONS_HREF = "/decisions?tab=de-xuat";
+
+/** P71: "Có 2 đề xuất cho shop". */
+export function shopCardsLine(count: number): string {
+  return `Có ${count} đề xuất cho shop`;
 }
 
 export const EMPTY_CARDS: CardIndex = indexCards([]);
