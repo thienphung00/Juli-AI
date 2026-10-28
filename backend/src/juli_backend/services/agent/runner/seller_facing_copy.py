@@ -54,6 +54,13 @@ class SellerFacingDeclinedReason(StrEnum):
     DECLINED_BY_SELLER = "Bạn đã từ chối thay đổi."
 
 
+#: P70 (owner, 2026-10-28): the ``tool.completed`` summary of a tool call the model proposed in
+#: its wrap-up turn after the seller declined (refused, never dispatched). The wrap-up turn is
+#: offered no tool (``tool_choice="none"``), so this is only the defensive path; the demo shows
+#: no row for it at all. The model-facing English reason stays in the conversation only.
+DECLINE_WRAP_UP_REFUSED_SUMMARY = "Juli dừng lại theo lựa chọn của bạn."
+
+
 #: Fast track P10-A (contract p10-quyet-dinh.md §3): the write ran with the
 #: title / description the seller edited at the consent step.
 EDITED_BY_SELLER_SUMMARY = "Hoàn tất theo bản bạn sửa"

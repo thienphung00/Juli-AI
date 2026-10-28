@@ -23,14 +23,15 @@ Fast track P64 (D73): a pin to Juli's own TikTok Shop SANDBOX shop is the "live
 sandbox" mode (``services/reviewer/sandbox.classify_pin``): no identity mask, and
 more allowlisted routes -- only there: ``/v1/reviewer/shop`` (connection + synced
 at), ``/v1/reviewer/shop/sync`` and (D73.4) the seller's own agent-run routes
-(:data:`SANDBOX_RUN_ENDPOINTS`), plus the shop's rule writes ("Đặt ngưỡng" / "Sửa
-quy tắc", :data:`SANDBOX_RULE_ENDPOINTS`) on that shop's own Juli rows. Duyệt starts
-the same agent run a seller's approve starts, streamed over the same SSE route; its
-writes reach TikTok only through the sandbox shop's ``SandboxWriteClientFactory``
-(``services/agent/composition``). Each refuses (403 ``sandbox_only``) unless the pin
-is a writable sandbox shop; the simulation refuses (403 ``sandbox_live``) when it is.
-Every reviewer request is marked (``integrations.tiktok.mark_reviewer_session``) so
-the production write resolver and factory refuse it whatever route it reaches.
+(:data:`SANDBOX_RUN_ENDPOINTS`, with "Hoàn tác" since P70), plus the shop's rule
+writes ("Đặt ngưỡng" / "Sửa quy tắc", :data:`SANDBOX_RULE_ENDPOINTS`) on that shop's
+own Juli rows. Duyệt starts the same agent run a seller's approve starts, streamed
+over the same SSE route; its writes reach TikTok only through the sandbox shop's
+``SandboxWriteClientFactory`` (``services/agent/composition``). Each refuses (403
+``sandbox_only``) unless the pin is a writable sandbox shop; the simulation refuses
+(403 ``sandbox_live``) when it is. Every reviewer request is marked
+(``integrations.tiktok.mark_reviewer_session``) so the production write resolver and
+factory refuse it whatever route it reaches.
 """
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -55,6 +57,7 @@ from juli_backend.core.security import (
 from juli_backend.database import Shop, set_tenant_context
 from juli_backend.database.tenant_context import _apply_tenant_context_to_session
 from juli_backend.integrations.tiktok import mark_reviewer_session
+from juli_backend.models.models import ActionCardApproval
 from juli_backend.services import reviewer as reviewer_service
 from juli_backend.services.agent_runs import RunViewer
 from juli_backend.services.ops import audit
@@ -70,8 +73,16 @@ _R = "juli_backend.api.routes."
 #: P64 (D73.4): the seller's own agent-run routes, for a reviewer ONLY on a writable
 #: sandbox pin (``enter_reviewer_shop`` refuses them, 403 ``sandbox_only``, on any other
 #: pin). Duyệt starts the same run a seller's approve starts; the run streams over the
-#: same SSE route and waits for the same confirmation. Revert and Seller Center "applied"
-#: stay off the list (read-only); the rules are :data:`SANDBOX_RULE_ENDPOINTS`.
+#: same SSE route and waits for the same confirmation. Seller Center "applied" stays off
+#: the list (read-only); the rules are :data:`SANDBOX_RULE_ENDPOINTS`.
+#:
+#: P70 (owner, 2026-10-28): "Hoàn tác" joins the list. A revert starts a NEW run that
+#: stops at the same confirmation before any TikTok write (``RevertPlanner`` + the CONFIRM
+#: pause), and that write goes through the same sandbox write leg as Duyệt's
+#: (``workers/tasks/agent_workflow._write_resources_for_leg``) -- same safety as Duyệt. The
+#: route itself refuses a run the reviewer did not start (P66, ``reviewer_started_run``).
+#: The day-7 "Giữ thay đổi" (``dismiss_revert_question``) stays off: the sandbox shop has
+#: no measurement, so the panel never asks it.
 SANDBOX_RUN_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
     {
         ("POST", _R + "demo_execution:approve_demo_decision"),  # /v1/demo/decisions/{id}/approve
@@ -80,6 +91,7 @@ SANDBOX_RUN_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
         ("POST", _R + "agent_runs:cancel_run"),  # /v1/demo/runs/{run_id}/cancel
         ("POST", _R + "demo_run_flows:submit_run_photo"),  # /v1/demo/runs/{run_id}/photo
         ("POST", _R + "demo_run_changes:decline_run"),  # /v1/demo/runs/{run_id}/decline
+        ("POST", _R + "demo_run_changes:start_run_revert"),  # /v1/demo/runs/{run_id}/revert
     }
 )
 #: P64 (D73.4, integration): the seller's own rule writes -- "Đặt ngưỡng" (the stability
@@ -481,6 +493,30 @@ async def audit_reviewer_run_action(
     )
 
 
+async def reviewer_started_run(session: AsyncSession, request: Request, run: Any) -> bool:
+    """P66 / P70: whether a sandbox reviewer may act on ``run`` as its starter.
+
+    Always ``True`` for a seller request. For a reviewer: whether the reviewer approved the
+    run's card (the same rule as ``started_by_viewer`` on the runs list,
+    ``services/agent_runs/listing._approved_by``) -- a reviewer never reverts the team's own
+    verification runs, whatever the UI shows.
+    """
+    context = reviewer_context(request)
+    if context is None:
+        return True
+    if run.action_card_id is None:
+        return False
+    found = await session.execute(
+        select(ActionCardApproval.id)
+        .where(
+            ActionCardApproval.action_card_id == run.action_card_id,
+            ActionCardApproval.approved_by_user_id == context.account.user_id,
+        )
+        .limit(1)
+    )
+    return found.first() is not None
+
+
 async def audit_reviewer_confirmation(
     session: AsyncSession, request: Request, run: Any, *, tool_call_id: str, decision: str
 ) -> None:
@@ -626,4 +662,5 @@ __all__ = [
     "is_allowed",
     "reviewer_context",
     "reviewer_gate",
+    "reviewer_started_run",
 ]

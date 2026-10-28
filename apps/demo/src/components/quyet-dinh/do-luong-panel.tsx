@@ -47,7 +47,7 @@ import { num } from "../../lib/vn-format";
 import { ReasonDialog, revertDialogBody } from "./reason-dialog";
 import { ConflictBox } from "./run-panel";
 import { StepList, type StepRow } from "./run-steps";
-import { useSellerHref, useWriteControl } from "../seller-view-context";
+import { useRunControl, useSellerHref, useWriteControl } from "../seller-view-context";
 
 /**
  * Đo lường (ADR-109 Amendment 1 d.6; `Measure.dc.html`, `Day7.dc.html`,
@@ -256,6 +256,10 @@ function MeasurePanel({
 }) {
   const sellerHref = useSellerHref();
   const write = useWriteControl();
+  // P70 (owner, 2026-10-28): "Hoàn tác" is a run control -- on the live sandbox the partner
+  // account reverts its own run like a seller (a new run, same confirmation before any write).
+  // "Giữ thay đổi" stays a plain write: the sandbox shop is never measured, so it never shows.
+  const revertControl = useRunControl();
   const { run, card, action } = item;
   const [expanded, setExpanded] = useState(true);
   const [dialog, setDialog] = useState(false);
@@ -360,7 +364,7 @@ function MeasurePanel({
               </div>
               <div className="qv-buttons">
                 {canRevert ? (
-                  <button className="qv-btn qv-btn--primary" onClick={() => setDialog(true)} type="button" {...write(action.busy)}>
+                  <button className="qv-btn qv-btn--primary" onClick={() => setDialog(true)} type="button" {...revertControl(action.busy)}>
                     Hoàn tác
                   </button>
                 ) : null}
@@ -384,7 +388,7 @@ function MeasurePanel({
               </div>
               <div className="qv-buttons">
                 {canRevert ? (
-                  <button className="qv-btn qv-btn--primary" onClick={() => setDialog(true)} type="button" {...write(action.busy)}>
+                  <button className="qv-btn qv-btn--primary" onClick={() => setDialog(true)} type="button" {...revertControl(action.busy)}>
                     Hoàn tác
                   </button>
                 ) : null}
@@ -435,7 +439,7 @@ function MeasurePanel({
                   {box.next}
                 </a>
                 {box.offerRevert && canRevert && !action.revertRunId ? (
-                  <button className="qv-btn qv-btn--secondary" onClick={() => setDialog(true)} type="button" {...write(action.busy)}>
+                  <button className="qv-btn qv-btn--secondary" onClick={() => setDialog(true)} type="button" {...revertControl(action.busy)}>
                     Hoàn tác
                   </button>
                 ) : null}
@@ -447,7 +451,7 @@ function MeasurePanel({
 
           {(waiting || (m?.stage === "day7" && !outside)) && canRevert && !action.revertRunId && !(!m && item.question) ? (
             <div className="qv-measure__foot">
-              <button className="qv-btn qv-btn--secondary" onClick={() => setDialog(true)} type="button" {...write(action.busy)}>
+              <button className="qv-btn qv-btn--secondary" onClick={() => setDialog(true)} type="button" {...revertControl(action.busy)}>
                 Hoàn tác
               </button>
             </div>
