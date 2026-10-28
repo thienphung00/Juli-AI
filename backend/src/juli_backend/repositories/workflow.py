@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.dialects import postgresql, sqlite
 
 from juli_backend.database.exceptions import NotFound
 from juli_backend.models.models import (
@@ -49,14 +50,20 @@ class WorkflowWebhookSignalsRepo(SessionRepo):
         event_id: str,
         payload_json: str,
     ) -> bool:
-        """Store the signal unless ``event_id`` was already seen. Returns whether it was stored."""
-        already_seen = await self._exists(
-            select(WorkflowWebhookSignal.id).where(WorkflowWebhookSignal.event_id == event_id)
-        )
-        if already_seen:
-            return False
-        await self._add(
-            WorkflowWebhookSignal(
+        """Store the signal unless ``event_id`` was already seen. Returns whether it was stored.
+
+        One atomic ``INSERT ... ON CONFLICT (event_id) DO NOTHING RETURNING id`` (P72): a
+        read-then-insert let two concurrent deliveries of one event (or a TikTok retry
+        racing the first) both pass the read, and the loser 500'd on
+        ``workflow_webhook_signals_event_id_key``. ``DO NOTHING`` also covers a row the
+        caller's RLS scope cannot see. A duplicate returns ``False`` and writes nothing.
+        """
+        dialect = self._session.get_bind().dialect.name
+        insert = postgresql.insert if dialect == "postgresql" else sqlite.insert
+        stmt = (
+            insert(WorkflowWebhookSignal)
+            .values(
+                id=uuid.uuid4(),
                 shop_id=shop_id,
                 tiktok_shop_id=tiktok_shop_id,
                 catalog_id=catalog_id,
@@ -66,8 +73,11 @@ class WorkflowWebhookSignalsRepo(SessionRepo):
                 event_id=event_id,
                 payload=payload_json,
             )
+            .on_conflict_do_nothing(index_elements=["event_id"])
+            .returning(WorkflowWebhookSignal.id)
         )
-        return True
+        stored = (await self._session.execute(stmt)).scalar_one_or_none()
+        return stored is not None
 
 
 class WebhookRawEventsRepo(SessionRepo):

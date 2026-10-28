@@ -76,7 +76,6 @@ class DatabaseWebhookSideEffects:
         event: TikTokWebhookPayload,
     ) -> None:
         if entry.catalog_id == 6:
-            await self._pause_automation(shops, shop_id, event)
             intent = "pause_automation"
         elif entry.catalog_id == 7:
             intent = "re_auth_required"
@@ -122,7 +121,21 @@ class DatabaseWebhookSideEffects:
             event_id=event_id,
             payload_json=json.dumps(payload, sort_keys=True, default=str),
         )
-        if stored and entry.catalog_id in HISTORY_CATALOG_IDS:
+        if entry.catalog_id == 6 and (stored or _unidentifiable(event)):
+            # A deauthorization with neither a timestamp nor a notification id has no
+            # identity of its own: a later, real deauthorization keys the same as the first,
+            # so it still pauses (idempotent) rather than being taken for a redelivery.
+            await self._pause_automation(shops, shop_id, event)
+        if not stored:
+            # P72: a redelivery (TikTok retry, or a concurrent copy) of an event already
+            # recorded is a no-op -- no second history read, and (above) no second pause
+            # for a deauthorization that carries its own identity.
+            logger.info(
+                "webhook_signal_duplicate",
+                extra={"shop_id": str(shop_id), "catalog_id": entry.catalog_id},
+            )
+            return
+        if entry.catalog_id in HISTORY_CATALOG_IDS:
             self._enqueue_history(shop_id, entry, event)
 
     async def _pause_automation(
@@ -164,3 +177,8 @@ class DatabaseWebhookSideEffects:
             )
             return
         enqueue_work(str(shop_id), work)
+
+
+def _unidentifiable(event: TikTokWebhookPayload) -> bool:
+    """Whether the delivery carries nothing that tells one push of its kind from the next."""
+    return event.timestamp is None and not event.notification_id
