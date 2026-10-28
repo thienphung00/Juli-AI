@@ -480,10 +480,17 @@ async def audit_reviewer_run_action(
     """P64 (D73.4): audit a reviewer's run action on a seller route (no-op for a seller).
 
     No commit: the row joins the route's own transaction.
+
+    P72: the route's own pending writes are flushed FIRST, as the request's role
+    (``juli_app``). ``audit.record`` runs in ``ops_role`` (``SET LOCAL ROLE juli_ops``) and
+    flushes on the way out; anything still pending then -- the Hoàn tác route's
+    ``close_card`` UPDATE -- was sent as ``juli_ops``, which may not write seller tables
+    (``permission denied for table action_cards``, production 2026-10-28).
     """
     context = reviewer_context(request)
     if context is None:
         return
+    await session.flush()
     await audit.record(
         session,
         context.account.actor,
