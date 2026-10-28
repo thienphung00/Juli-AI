@@ -277,6 +277,7 @@ from juli_backend.services.agent.runner.ledger import (
 )
 from juli_backend.services.agent.runner.outcome_recording import WriteOutcomeRecorder
 from juli_backend.services.agent.runner.seller_facing_copy import (
+    DECLINE_WRAP_UP_REFUSED_SUMMARY,
     EDITED_BY_SELLER_SUMMARY,
     SellerFacingCompletionReason,
     SellerFacingDeclinedReason,
@@ -2431,12 +2432,17 @@ class WorkflowRunner:
         what is actually a guard correctly refusing the model's output.
         """
         relay = self._text_relay(workflow_run_id, state)
+        # P70 (owner, 2026-10-28): the wrap-up turn offers no tool -- the model can only
+        # answer in text. The definitions stay in the request (the conversation replays the
+        # model's earlier `function_call`s, which the provider pairs with them);
+        # `tool_choice="none"` is what forbids a new call.
         turn = await self._complete_turn(
             relay,
             messages=state.conversation_window_for_llm(),
             system=system_prompt,
             tools=tool_definitions,
             config=self._llm_config,
+            tool_choice="none",
         )
         final_response: str | None = None
         for block in turn.blocks:
@@ -2452,11 +2458,15 @@ class WorkflowRunner:
                 final_response = block.content
                 break
             elif isinstance(block, ToolCallBlock):
+                # Defensive (a provider ignoring `tool_choice`): refused, never dispatched.
+                # The English reason is for the model only; the seller-facing summary is
+                # Vietnamese, and the demo shows no row for a post-decline call at all.
                 await self._refuse(
                     workflow_run_id,
                     state,
                     block,
-                    message=(
+                    message=DECLINE_WRAP_UP_REFUSED_SUMMARY,
+                    model_message=(
                         "The seller declined this change; the run is wrapping up "
                         "without dispatching any further tool calls."
                     ),

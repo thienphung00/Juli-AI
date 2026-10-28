@@ -28,12 +28,13 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop, require_writable_shop
+from juli_backend.api.reviewer import audit_reviewer_run_action, reviewer_started_run
 from juli_backend.api.routes.agent_runs import (
     _enqueue_resume_agent_workflow,
     _enqueue_run_agent_workflow,
@@ -47,6 +48,7 @@ from juli_backend.models.models import ActionCard
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.services import agent_runs, decision_reasons, lever_flows, run_changes
 from juli_backend.services.agent import abuse_limits as agent_abuse_limits
+from juli_backend.services.ops import audit
 
 logger = logging.getLogger(__name__)
 
@@ -238,6 +240,7 @@ async def get_run_changes(
 async def start_run_revert(
     run_id: uuid.UUID,
     body: SellerReasonRequest,
+    request: Request,
     shop: Shop = Depends(get_active_shop),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -249,6 +252,13 @@ async def start_run_revert(
     missing/unknown reason. The reason is stored with the reverted run, and the
     same lever is not proposed again for the product for 7 days (strictly,
     D24.21).
+
+    P70 (owner, 2026-10-28): a partner reviewer reaches this route only on the writable
+    sandbox pin (``api/reviewer.py`` ``SANDBOX_RUN_ENDPOINTS``), and only for a run it
+    started (P66: it approved the run's card) -- another run is a 404, like another
+    shop's. The revert run is the reviewer's (the card it approved, ``started_by_user_id``
+    in its plan); its write waits for the reviewer's own confirmation. Audited
+    ``reviewer_sandbox_revert``.
     """
     try:
         decision_reasons.validate_reason(ACTION_REVERT, body.reason_code, body.note)
@@ -268,6 +278,9 @@ async def start_run_revert(
             headers={"Retry-After": str(limit.retry_after_seconds)},
         )
     try:
+        target = await run_changes.get_owned_run(session, shop.id, run_id)
+        if not await reviewer_started_run(session, request, target):
+            raise run_changes.RevertRunNotFound(f"run {run_id} was not started by this reviewer")
         started = await run_changes.start_revert(
             session,
             shop_id=shop.id,
@@ -293,6 +306,18 @@ async def start_run_revert(
             product_id=started.product_id,
         )
         decision_reasons.close_card(card)
+        # P70: a reviewer's Hoàn tác on the sandbox pin (no-op for a seller).
+        await audit_reviewer_run_action(
+            session,
+            request,
+            audit.ACTION_REVIEWER_SANDBOX_REVERT,
+            shop_id=shop.id,
+            after={
+                "run_id": str(started.run_id),
+                "reverts_run_id": str(started.reverts_run_id),
+                "fields": list(started.fields),
+            },
+        )
         await session.commit()
     except run_changes.RevertRunNotFound:
         await session.rollback()
