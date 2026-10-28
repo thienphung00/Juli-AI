@@ -62,8 +62,11 @@ ACTION_REVIEWER_SANDBOX_SYNC = "reviewer_sandbox_sync"
 ACTION_REVIEWER_SANDBOX_CREATE_PRODUCT = "reviewer_sandbox_create_product"
 #: P65 (D74): the reviewer confirmed the sandbox ``create_promotion`` run's write.
 ACTION_REVIEWER_SANDBOX_CREATE_PROMOTION = "reviewer_sandbox_create_promotion"
+#: P70 (owner, 2026-10-28): the reviewer started a "Hoàn tác" run on the sandbox shop.
+ACTION_REVIEWER_SANDBOX_REVERT = "reviewer_sandbox_revert"
 REVIEWER_SANDBOX_ACTIONS: frozenset[str] = frozenset(
     {
+        ACTION_REVIEWER_SANDBOX_REVERT,
         ACTION_REVIEWER_SANDBOX_APPROVE,
         ACTION_REVIEWER_SANDBOX_EXECUTE,
         ACTION_REVIEWER_SANDBOX_SYNC,

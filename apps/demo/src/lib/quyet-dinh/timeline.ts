@@ -276,7 +276,15 @@ interface ToolCall {
   ok: boolean | null;
   summary: string | null;
   readonly afterPause: boolean;
+  /** The sequence number of the call's first event. */
+  readonly firstSeq: number;
 }
+
+/**
+ * The runner's `tool.completed` summary for a consent the seller declined
+ * (`seller_facing_copy.SellerFacingDeclinedReason.DECLINED_BY_SELLER`).
+ */
+export const DECLINED_BY_SELLER_SUMMARY = "Bạn đã từ chối thay đổi.";
 
 function dedupe(events: readonly AgentEvent[]): AgentEvent[] {
   const bySeq = new Map<number, AgentEvent>();
@@ -325,6 +333,8 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
   let textBeforePause = false;
   const box: { terminal: RunTimeline["terminal"] } = { terminal: null };
   let wrote = false;
+  /** How the latest consent's own call closed (a decline, a write, a failure). */
+  let consentClosed: { seq: number; declined: boolean; ok: boolean } | null = null;
 
   for (const event of ordered) {
     if (pauseSeq !== null && firstAfterPauseAt === null && event.sequence_number > pauseSeq) {
@@ -352,6 +362,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
             ok: null,
             summary: null,
             afterPause: pauseSeen,
+            firstSeq: event.sequence_number,
           };
           byId.set(call.id, call);
           calls.push(call);
@@ -364,6 +375,13 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
           call.ok = event.payload.ok;
           call.summary = event.payload.summary || null;
           if (event.payload.ok && WRITE_TOOLS.has(event.payload.tool_name)) wrote = true;
+          if (consentEvent && event.payload.tool_call_id === consentEvent.request.toolCallId) {
+            consentClosed = {
+              seq: event.sequence_number,
+              declined: !event.payload.ok && event.payload.summary === DECLINED_BY_SELLER_SUMMARY,
+              ok: event.payload.ok,
+            };
+          }
         }
         break;
       }
@@ -421,6 +439,17 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
   const conflict = terminal?.stopReason === "concurrency_conflict";
   const ended = terminal !== null;
   const endedNormally = ended && !declined && !conflict;
+
+  // P70 (owner, 2026-10-28): after the seller declines, the runner gives the model one
+  // wrap-up turn with no tool allowed; a call it proposes anyway is refused, never run.
+  // That refusal is the runner talking to the model, not a step of the seller's run: no row.
+  const declineSeq =
+    consentClosed && (consentClosed.declined || (terminal?.stopReason === "confirmation_declined" && !consentClosed.ok))
+      ? consentClosed.seq
+      : null;
+  if (declineSeq !== null) {
+    for (let i = calls.length - 1; i >= 0; i -= 1) if (calls[i].firstSeq > declineSeq) calls.splice(i, 1);
+  }
 
   // Assign tool calls to plan rows.
   const assigned = new Map<string, ToolCall[]>();

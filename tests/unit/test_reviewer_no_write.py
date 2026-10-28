@@ -97,6 +97,8 @@ EXPECTED_TEMPLATES: dict[tuple[str, str], str] = {
     ("POST", "/v1/demo/runs/{run_id}/cancel"): "agent_runs:cancel_run",
     ("POST", "/v1/demo/runs/{run_id}/photo"): "demo_run_flows:submit_run_photo",
     ("POST", "/v1/demo/runs/{run_id}/decline"): "demo_run_changes:decline_run",
+    # P70 (owner, 2026-10-28): "Hoàn tác" -- sandbox pin only, like the other run routes.
+    ("POST", "/v1/demo/runs/{run_id}/revert"): "demo_run_changes:start_run_revert",
     # P64 (D73.4): "Đặt ngưỡng" / "Sửa quy tắc" -- sandbox pin only, like the run routes
     # (``api/reviewer.py`` ``SANDBOX_RULE_ENDPOINTS``).
     ("PUT", "/v1/demo/rules/{rule_key}"): "demo_rules:put_shop_rule",
@@ -112,6 +114,7 @@ SANDBOX_ROUTES = {
     "/v1/demo/runs/{run_id}/cancel",
     "/v1/demo/runs/{run_id}/photo",
     "/v1/demo/runs/{run_id}/decline",
+    "/v1/demo/runs/{run_id}/revert",
     "/v1/demo/rules/{rule_key}",
 }
 
@@ -250,6 +253,7 @@ def test_allowlist_is_pinned_to_real_routes():
         "juli_backend.api.routes.agent_runs:submit_confirmation_decision",
         "juli_backend.api.routes.demo_execution:approve_demo_decision",
         "juli_backend.api.routes.demo_run_changes:decline_run",
+        "juli_backend.api.routes.demo_run_changes:start_run_revert",
         "juli_backend.api.routes.demo_run_flows:submit_run_photo",
         "juli_backend.api.routes.reviewer:reviewer_sync_shop",
         "juli_backend.api.routes.reviewer:simulate_decision",

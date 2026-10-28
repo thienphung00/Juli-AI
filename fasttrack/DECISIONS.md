@@ -1733,6 +1733,12 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      `PUT` / `DELETE /v1/demo/rules/{rule_key}` are sandbox-pin-only reviewer routes
      (`SANDBOX_RULE_ENDPOINTS`, 403 `sandbox_only` + audit elsewhere); masked / sample reviewers
      stay read-only.
+     **Amendment (P70, owner, 2026-10-28): reviewer may Hoàn tác on the sandbox pin.**
+     `POST /v1/demo/runs/{run_id}/revert` joins `SANDBOX_RUN_ENDPOINTS` (403 `sandbox_only` +
+     audit on any other pin; never production, never Fujiwa), only for a run the reviewer started
+     (P66; another run is 404), audited `reviewer_sandbox_revert`. The revert is a new run that is
+     the reviewer's and stops at the same confirmation before any TikTok write, then writes
+     through the same sandbox leg as Duyệt. "Giữ thay đổi" and Seller Center "applied" stay off.
 
 - **D76** — Client data lanes, consent and model split for the NDA with Ory (grill, owner,
   2026-10-26; log `docs/product/client-data-compliance/GRILL_LOG.md` D0–D9) →

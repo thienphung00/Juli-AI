@@ -30,8 +30,9 @@ export interface SellerViewMode {
   readonly simulateApprove: boolean;
   /**
    * P64 (D73.4): the partner account on Juli's live TikTok sandbox shop — the
-   * run controls (Duyệt, confirm / edit / skip a run's change, the run's photo)
-   * work exactly as a seller's; every other write stays read-only.
+   * run controls (Duyệt, confirm / edit / skip a run's change, the run's photo,
+   * and since P70 "Hoàn tác" on its own run) work exactly as a seller's; every
+   * other write stays read-only.
    */
   readonly runActions: boolean;
   /**
