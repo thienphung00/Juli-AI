@@ -4,6 +4,7 @@ import type { WorkflowRunListItem } from "@juli/contracts";
 import { useState } from "react";
 
 import type { CardView } from "../../lib/quyet-dinh/card-model";
+import { LISTING_QUALITY_CHIP, LISTING_QUALITY_NOTE, listingQualityView } from "../../lib/quyet-dinh/listing-quality";
 import {
   CONFIRMED_AT,
   MEASURE_NO_READING,
@@ -266,7 +267,11 @@ function MeasurePanel({
   const head = m ? measureHead(m) : null;
   const day7Iso = run.completed_at ? addDays(run.completed_at, 7) : null;
   const pastDay7 = !m && day7Iso !== null && nowMs !== null && nowMs >= Date.parse(day7Iso);
-  const chip = sandboxShop
+  // P71: a sandbox listing edit is measured on TikTok's own listing diagnosis.
+  const quality = sandboxShop ? listingQualityView(run.listing_quality) : null;
+  const chip = quality
+    ? { label: LISTING_QUALITY_CHIP, tone: quality.tone }
+    : sandboxShop
     ? { label: MEASURE_SANDBOX_CHIP, tone: "muted" as const }
     : (head?.chip ?? { label: pastDay7 ? MEASURE_NO_READING_CHIP : "Chờ đo · ngày 0", tone: "muted" as const });
   const workflow = card?.meta.split(" · ")[0] ?? "Tối ưu sản phẩm";
@@ -324,7 +329,14 @@ function MeasurePanel({
 
           {waiting ? (
             <div className="qv-grey qv-grey--measure" data-testid="measure-waiting">
-              {sandboxShop ? MEASURE_SANDBOX_NONE : m ? waitingLine(m, null) : pastDay7 ? MEASURE_NO_READING : waitingLine(null, day7Iso)}
+              {quality ? (
+                <div data-testid="listing-quality">
+                  <strong>{quality.headline}</strong>
+                  {quality.before ? <div>{quality.before}</div> : null}
+                  {quality.after ? <div>{quality.after}</div> : null}
+                  <div>{LISTING_QUALITY_NOTE}</div>
+                </div>
+              ) : sandboxShop ? MEASURE_SANDBOX_NONE : m ? waitingLine(m, null) : pastDay7 ? MEASURE_NO_READING : waitingLine(null, day7Iso)}
             </div>
           ) : null}
           {sandboxShop ? (

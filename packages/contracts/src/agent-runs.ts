@@ -30,6 +30,19 @@ export interface ConfirmedWrite {
   fields: string[];
 }
 
+/** P71: TikTok's diagnosis of a listing -- the issue count and their short VN labels. */
+export interface DiagnosisReading {
+  count: number;
+  issues: string[];
+  read_at: string | null;
+}
+
+/** P71: a sandbox listing edit's TikTok diagnosis at Ngày 0 and now; null = not read. */
+export interface ListingQuality {
+  before: DiagnosisReading | null;
+  after: DiagnosisReading | null;
+}
+
 /**
  * One run in the seller's polled read model of their workflow runs.
  */
@@ -67,6 +80,8 @@ export interface WorkflowRunListItem {
   started_by_viewer?: boolean | null;
   /** Fast track P67: sandbox reviewer only -- the run's confirmed TikTok write; null otherwise. */
   confirmed_write?: ConfirmedWrite | null;
+  /** P71: sandbox reviewer only -- a listing edit's TikTok diagnosis, Ngày 0 → now. */
+  listing_quality?: ListingQuality | null;
 }
 
 /**

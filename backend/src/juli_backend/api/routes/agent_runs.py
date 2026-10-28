@@ -328,6 +328,29 @@ class PendingDecisionSummary(BaseModel):
     expires_at: str
 
 
+class DiagnosisReadingOut(BaseModel):
+    """P71: TikTok's diagnosis of a listing -- the issue count and their short VN labels."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    count: int
+    issues: list[str] = Field(default_factory=list)
+    read_at: str | None = None
+
+
+class ListingQualityOut(BaseModel):
+    """P71: a sandbox listing edit's TikTok diagnosis at Ngày 0 and now; null = unread."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    before: DiagnosisReadingOut | None = None
+    after: DiagnosisReadingOut | None = None
+
+
+def listing_quality_out(value: object | None) -> ListingQualityOut | None:
+    return ListingQualityOut.model_validate(value) if value is not None else None
+
+
 class WorkflowRunListItem(BaseModel):
     id: uuid.UUID
     status: str
@@ -350,6 +373,8 @@ class WorkflowRunListItem(BaseModel):
     started_by_viewer: bool | None = None
     #: P67: sandbox reviewer only -- what the run wrote on TikTok and when TikTok confirmed it.
     confirmed_write: ConfirmedWriteOut | None = None
+    #: P71: sandbox reviewer only -- a listing edit's TikTok diagnosis, Ngày 0 → now.
+    listing_quality: ListingQualityOut | None = None
 
 
 class WorkflowRunListResponse(BaseModel):
@@ -414,6 +439,7 @@ async def runs_list_response(
                 run_flow=item.run_flow,
                 started_by_viewer=item.started_by_viewer,
                 confirmed_write=confirmed_write_out(item.confirmed_write),
+                listing_quality=listing_quality_out(item.listing_quality),
             )
             for item in items
         ]

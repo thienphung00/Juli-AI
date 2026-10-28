@@ -13,6 +13,7 @@ import {
   uploadRunPhoto,
 } from "../../lib/quyet-dinh/api-client";
 import { cardView } from "../../lib/quyet-dinh/card-model";
+import { listingQualityView } from "../../lib/quyet-dinh/listing-quality";
 import { bandRows, day14Steps, finalBox, measureHead, resultRows, targetBlock } from "../../lib/quyet-dinh/measure-model";
 import { kpiPair, rangeText, ratioText, signedVnd, summariseText, upliftChip, validityText } from "../../lib/quyet-dinh/p10-format";
 import type { Measurement, P10DecisionItem, RecommendationCardPayload } from "../../lib/quyet-dinh/p10-types";
@@ -1170,6 +1171,52 @@ describe("P67 (D75 Q2) — Đo lường lists every confirmed TikTok write on th
     // A created product or promotion has nothing to restore: no Hoàn tác on those rows.
     const create = screen.getAllByTestId("measure-panel").find((el) => el.getAttribute("data-run-id") === "run-create")!;
     expect(within(create).queryByRole("button", { name: "Hoàn tác" })).toBeNull();
+  });
+
+  it("P71: a sandbox listing edit is measured on TikTok's listing diagnosis, Ngày 0 → now", async () => {
+    const edit = run({
+      ...written[2],
+      listing_quality: {
+        before: { count: 4, issues: ["Tiêu đề quá ngắn", "Mô tả chưa xuống dòng", "Mô tả quá ngắn"], read_at: null },
+        after: { count: 0, issues: [], read_at: "2026-10-28T03:05:00Z" },
+      },
+    });
+    render(
+      <StaticReviewerProvider reviewer={SANDBOX}>
+        <SignedInQuyetDinh
+          clients={clients({ fetchDecisions: vi.fn().mockResolvedValue([]), fetchRuns: vi.fn().mockResolvedValue([written[0], edit]) })}
+          onNavigate={vi.fn()}
+          query={{ tab: "do-luong", run: null, rulesOpen: false }}
+          shop={{ id: "shop-1", name: "Shop" }}
+          token="tok"
+        />
+      </StaticReviewerProvider>,
+    );
+    await waitFor(() => expect(screen.getAllByTestId("measure-panel")).toHaveLength(2));
+    const panel = screen.getAllByTestId("measure-panel").find((el) => el.getAttribute("data-run-id") === "run-edit")!;
+    const quality = within(panel).getByTestId("listing-quality");
+    expect(quality).toHaveTextContent("Chất lượng trang sản phẩm (TikTok chấm): 4 lỗi → 0 lỗi");
+    expect(quality).toHaveTextContent("Ngày 0: Tiêu đề quá ngắn, Mô tả chưa xuống dòng, Mô tả quá ngắn và 1 lỗi khác");
+    expect(quality).toHaveTextContent("Bây giờ (đọc lúc 10:05 28/10/2026): TikTok không báo lỗi nào");
+    expect(quality).not.toHaveTextContent(/CTR \d|lượt xem \d/);
+    expect(within(panel).getByTestId("measure-chip")).toHaveTextContent("Đo · TikTok chấm trang");
+    // Runs without a reading keep the P67 "không đo" line.
+    const create = screen.getAllByTestId("measure-panel").find((el) => el.getAttribute("data-run-id") === "run-create")!;
+    expect(within(create).getByTestId("measure-chip")).toHaveTextContent("Không đo · shop sandbox");
+    expect(within(create).queryByTestId("listing-quality")).toBeNull();
+  });
+
+  it("P71: Ngày 0 read but TikTok unread now says so, never 0 lỗi", () => {
+    expect(
+      listingQualityView({ before: { count: 2, issues: ["Tiêu đề quá ngắn", "Mô tả quá ngắn"], read_at: null }, after: null }),
+    ).toEqual({
+      headline: "Chất lượng trang sản phẩm (TikTok chấm): 2 lỗi → chưa đọc lại được",
+      before: "Ngày 0: Tiêu đề quá ngắn, Mô tả quá ngắn",
+      after: null,
+      tone: "muted",
+    });
+    expect(listingQualityView({ before: null, after: null })).toBeNull();
+    expect(listingQualityView(null)).toBeNull();
   });
 
   it("sellers are unchanged: a run with no listing change is not in Đo lường", async () => {
