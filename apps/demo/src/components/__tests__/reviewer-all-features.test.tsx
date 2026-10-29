@@ -242,7 +242,7 @@ describe("P32-E — every feature simulated for the reviewer in the sample shop"
     await waitFor(() => expect(within(productCard(SAMPLE_MAIN_CARD.name)).getByTestId("card-status")).not.toHaveTextContent("Chờ duyệt"));
     expect(reviewerSampleClients().snapshotRuns().length).toBeGreaterThan(4);
 
-    // -- Đặt lại mô phỏng --------------------------------------------------------
+    // -- Đặt lại dữ liệu mẫu --------------------------------------------------------
     await userEvent.click(screen.getByRole("button", { name: REVIEWER_RESET_LABEL }));
     await waitFor(() => expect(within(productCard(SAMPLE_MAIN_CARD.name)).getByTestId("card-status")).toHaveTextContent("Chờ duyệt"));
     expect(reviewerSampleClients().snapshotRuns().map((run) => run.id)).toEqual([SAMPLE_FINISHED_RUN_ID]);
@@ -307,7 +307,7 @@ describe("P32-E — every feature simulated for the reviewer in the sample shop"
   it("a reviewer pinned to a real shop stays read-only (P32-A unchanged)", async () => {
     spyNetwork();
     storeAuthSession(SESSION);
-    storeActiveShop({ id: "alias", name: "Shop 001" });
+    storeActiveShop({ id: "alias", name: "Shop TikTok (ẩn danh)" });
     render(
       <StaticReviewerProvider reviewer={{ platform: "shopee", expiresAt: EXPIRES }}>
         <SettingsPageClient />

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.api.dependencies import get_active_shop
-from juli_backend.api.reviewer import enter_reviewer_shop, reviewer_context
+from juli_backend.api.reviewer import reviewer_context, reviewer_shop_options
 from juli_backend.core.security import get_current_user
 from juli_backend.database import Shop, ShopsRepo, User, get_session
 
@@ -57,16 +57,22 @@ async def list_shops(
     session: AsyncSession = Depends(get_session),
     limit: int = Query(default=DEFAULT_PAGE_LIMIT, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-) -> list[Shop]:
+) -> list[Shop] | list[ShopResponse]:
     """Return all shops belonging to the authenticated user."""
     reviewer = reviewer_context(request)
     if reviewer is not None:
-        # P32-A (D42): the reviewer's one shop is the pinned reference shop,
-        # served under its alias id (the response mask swaps id and name).
+        # P32-A (D42): the reviewer's shops are the pinned ones -- P74-A (D77): every
+        # pin, default first; a masked pin under its alias id and masked name only.
         # No pin (D42 amendment): no shop -- the UI shows the sample shop.
-        if reviewer.shop_id is None:
-            return []
-        return [await enter_reviewer_shop(session, reviewer, None)]
+        return [
+            ShopResponse(
+                id=uuid.UUID(option.id),
+                shop_name=option.name,
+                tiktok_shop_id=option.tiktok_shop_id,
+                is_active=option.is_active,
+            )
+            for option in await reviewer_shop_options(session, reviewer)
+        ]
     shops = await ShopsRepo(session).list(user.id)
     return shops[offset : offset + limit]
 

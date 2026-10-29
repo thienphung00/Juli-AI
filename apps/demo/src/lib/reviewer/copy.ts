@@ -107,3 +107,17 @@ export const SANDBOX_LOAD_ERROR = "Chưa tải được trạng thái kết nố
 /** P64: no traffic in the sandbox (D73): orders and products are still live. */
 export const SANDBOX_NO_TRAFFIC_COPY =
   "TikTok sandbox chưa có lượt xem/traffic — số liệu đơn hàng và sản phẩm vẫn lấy trực tiếp từ TikTok";
+
+/**
+ * dictionary.md `reviewer.switch_shop` — P74-A (D77): the shop menu's entry to
+ * the reviewer's other pinned shop: "Chuyển sang {shop}". The masked shop reads
+ * "{tên đã ẩn} · chỉ xem" (simulated actions), Juli's sandbox shop
+ * "Shop sandbox TikTok · ghi thật" (real writes, sandbox only).
+ */
+export const REVIEWER_SWITCH_SHOP_PREFIX = "Chuyển sang";
+export const REVIEWER_SANDBOX_SHOP_LABEL = "Shop sandbox TikTok · ghi thật";
+
+export function reviewerShopLabel(shop: { readonly name: string; readonly mode: "sandbox" | "masked" }): string {
+  if (shop.mode === "sandbox") return REVIEWER_SANDBOX_SHOP_LABEL;
+  return `${shop.name || "Shop TikTok"} · chỉ xem`;
+}

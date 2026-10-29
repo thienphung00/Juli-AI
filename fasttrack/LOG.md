@@ -3042,3 +3042,26 @@ reconcile --write` re-derived the no-assert corpus figure.
   Fujiwa 2b1da87b → 7495274531001436791, sandbox 1862f13b → 7494751643546977923 (its display name's
   number 7657274686031759124 is not its numeric id). B15 confirmed (commerce_last_run_at 06:06:25 after
   "Đồng bộ ngay"). Still to observe: a sandbox webhook reaching 1862f13b (etl_event_processed).
+
+## 2026-10-29 — agent (Claude Opus) — P74-A: reviewer holds two pins, Fujiwa masked default + sandbox (D77)
+
+- Why: Shopee rejected the ISV resubmission ("product has to be live … identifiable via a trial
+  account"); the reviewer was pinned to the sandbox shop only. Owner approved D77.
+- Backend: `REVIEWER_SHOP_IDS` (default first; `REVIEWER_SHOP_ID` kept), `config.select_pin`; the
+  gate selects the pin from `X-Shop-Id`, so identity load, pin cache, mask dictionary, simulation
+  and the sandbox-only refusals follow it. `/v1/shops` and `/v1/reviewer/me` (`shops`) list both
+  pins, the masked one by alias + `Shop TikTok (ẩn danh)` only. Masked shop name no longer "Demo
+  Shop NNN" (reviewer mask only). Write approval accepts any configured pin that is a writable
+  sandbox. `reviewer_pin_production_shop` is a warning for an expected production pin, an error
+  only when the sandbox shop itself turned production.
+- Demo: the shop menu offers "Chuyển sang …" between the pins; `/v1/reviewer/me` is called with the
+  active shop and falls back to the first pin, never the newest.
+- Tests: `tests/unit/test_reviewer_two_pins.py` (every write / sync / rule / Hoàn tác route 403 on
+  the masked pin, live on the sandbox pin; no Fujiwa identity in any list), demo
+  `reviewer-two-shops.test.tsx`.
+- Follow-up commit: the reviewer mask has its own neutral labels and HMAC key -- `Sản phẩm NNN`,
+  `Video NNN`, `LIVE NNN`, `Nhà sáng tạo NNN`, `Tệp NNN`, ids `an-<kind>-<hash8>` / `id-<hash8>`;
+  no "demo" anywhere a reviewer sees. Nothing reverses these aliases (reviewer requests carry
+  UUIDs and the uuid5 shop alias, both unchanged).
+- Owner step after deploy: `REVIEWER_SHOP_IDS=<Fujiwa shops.id>,<sandbox shops.id>` in the API env,
+  restart. Not deployed by this slice.

@@ -9,7 +9,8 @@ live 2026-10-26, contending for the 5 + 5 pool). Two fixes, both here:
 **Single flight** (``core.security.SingleFlight``). Concurrent cold requests for the same
 ``(verified sub, pinned shop id)`` share ONE load: the first does the database work on its
 own session, the others await its plain snapshots and do none. Tenant-safe because the
-key is the verified JWT ``sub`` (plus the configured pin): two reviewers never share a
+key is the verified JWT ``sub`` (plus the selected pin -- P74-A: one of several, chosen by
+``X-Shop-Id``, so two pins never share a load or a cached value): two reviewers never share a
 flight, and every value is checked against its own key again before use. A loader error
 reaches every waiter and is not kept; the next request loads again.
 

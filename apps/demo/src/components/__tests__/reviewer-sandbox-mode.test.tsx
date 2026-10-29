@@ -68,7 +68,7 @@ function decision(id: string): P10DecisionItem {
         channel_scope: "PRODUCT_CARD",
         recoverable_gmv_per_day: 70_000,
         product_title: "Sản phẩm 123",
-        tiktok_product_id: "demo-product-1a2b3c4d",
+        tiktok_product_id: "an-product-1a2b3c4d",
       },
       card: {
         seller_sku: null,

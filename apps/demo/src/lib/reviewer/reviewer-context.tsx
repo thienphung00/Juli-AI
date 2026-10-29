@@ -23,9 +23,10 @@ import { clearReviewerRecord, readReviewerRecord, storeReviewerRecord, type Revi
 
 export { clearReviewerSignIn, reviewerSignInHref, StaticReviewerProvider, useReviewer } from "./mode";
 
-type MeFetcher = (token: string) => Promise<ReviewerMeResult>;
+/** `shopId`: the active shop (P74-A, D77), so "me" describes the pin switched to. */
+type MeFetcher = (token: string, shopId?: string | null) => Promise<ReviewerMeResult>;
 
-const defaultFetchMe: MeFetcher = (token) => fetchReviewerMe(token);
+const defaultFetchMe: MeFetcher = (token, shopId) => fetchReviewerMe(token, undefined, shopId);
 const defaultRedirect = (href: string) => window.location.assign(href);
 
 export function ReviewerProvider({
@@ -51,7 +52,7 @@ export function ReviewerProvider({
     // P64: refresh an (about to be) expired token before the confirmation call.
     void ensureFreshSession().then((session) => {
       if (cancelled || !session) return;
-      return fetchMe(session.accessToken);
+      return fetchMe(session.accessToken, readActiveShop()?.id ?? null);
     }).then((result) => {
       if (!result) return;
       if (cancelled) return;
@@ -63,6 +64,7 @@ export function ReviewerProvider({
           sample,
           ...(result.me.mode ? { mode: result.me.mode } : {}),
           ...(result.me.writesEnabled ? { writesEnabled: true } : {}),
+          ...(result.me.shops && result.me.shops.length > 0 ? { shops: result.me.shops } : {}),
         };
         storeReviewerRecord(next);
         setReviewer(next);
@@ -74,10 +76,16 @@ export function ReviewerProvider({
         }
         // P64 (D73): a pin added since sign-in (e.g. the live sandbox shop) —
         // store it and reload, so the shell reads it instead of the sample.
+        // P74-A (D77): "me" answers the active shop when it is still a pin, else
+        // the DEFAULT pin (the first) — never merely the newest one.
         const pinned = result.me.shop;
-        if (pinned && readActiveShop()?.id !== pinned.id) {
+        const active = readActiveShop();
+        if (pinned && active?.id !== pinned.id) {
           storeActiveShop({ id: pinned.id, name: pinned.name });
           redirect("/");
+        } else if (pinned && active && active.name !== pinned.name) {
+          // Same shop, fresher name (a switch stores the menu's label first).
+          storeActiveShop({ id: pinned.id, name: pinned.name });
         }
       } else if (result.status === "not_reviewer") {
         clearReviewerRecord();

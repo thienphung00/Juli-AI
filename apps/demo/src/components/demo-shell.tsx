@@ -8,7 +8,8 @@ import { isSandboxReviewer } from "../lib/reviewer/mode";
 import { installAuthRefresh } from "../lib/auth-refresh";
 import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/reviewer/reviewer-context";
 import { resetReviewerSample } from "../lib/reviewer/sample-store";
-import { clearActiveShop } from "../lib/shop-session";
+import { clearActiveShop, storeActiveShop } from "../lib/shop-session";
+import { storeReviewerRecord, type ReviewerShopOption } from "../lib/reviewer/session";
 import { ShopReportProvider, useShopReport } from "../lib/shop-report/shop-report-context";
 import { buildGoogleAuthorizeUrl, clearAuthSession } from "../lib/supabase-auth";
 import { AppNavigation } from "./app-shell/app-navigation";
@@ -92,6 +93,17 @@ function DemoShellContent({ children }: { children: ReactNode }) {
     resetMockState();
   };
 
+  // P74-A (D77): switch between the reviewer's pinned shops — the masked shop
+  // (read-only, simulated) and Juli's sandbox shop (real writes). The record's
+  // mode follows the chosen shop at once; a full load re-reads everything for it.
+  const handleSwitchShop = (shop: ReviewerShopOption) => {
+    if (!reviewer) return;
+    resetReviewerSample();
+    storeActiveShop({ id: shop.id, name: shop.name });
+    storeReviewerRecord({ ...reviewer, mode: shop.mode, writesEnabled: shop.writesEnabled });
+    window.location.assign("/");
+  };
+
   const handleSignOut = () => {
     resetReviewerSample();
     clearAuthSession();
@@ -132,7 +144,9 @@ function DemoShellContent({ children }: { children: ReactNode }) {
           googleHref={googleHref}
           onRefreshDemo={handleManualRefresh}
           onSignOut={handleSignOut}
+          onSwitchShop={handleSwitchShop}
           reviewer={reviewer !== null}
+          reviewerShops={reviewer?.shops ?? []}
           state={state}
         />
         {reviewer ? <ReviewerBanner onReset={handleResetSample} reviewer={reviewer} /> : null}

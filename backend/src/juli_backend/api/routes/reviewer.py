@@ -3,6 +3,9 @@
 - ``GET /v1/reviewer/me`` -- who is signed in: a reviewer gets its platform,
   expiry and the (aliased) reference shop, or ``shop: null`` when no shop is
   pinned (the UI then shows the sample shop); anyone else ``{"reviewer": false}``.
+  P74-A (D77): ``shop`` is the pin ``X-Shop-Id`` selects (no header, or a value that
+  names no pin: the default, the first of ``REVIEWER_SHOP_IDS``), and ``shops`` lists
+  every pin, default first, each with its mode (a masked one by alias + masked name).
 - ``POST /v1/reviewer/decisions/{id}/simulate`` -- the simulated Duyệt / Thực
   thi. Reads the card exactly as ``GET /v1/demo/decisions/{id}`` does, writes
   ONLY the audit row: no run, no card change, no queue, no TikTok client.
@@ -43,6 +46,7 @@ from juli_backend.api.reviewer import (
     enter_reviewer_shop,
     require_sandbox_pin,
     reviewer_context,
+    reviewer_shop_options,
 )
 from juli_backend.api.routes.demo_decisions import DemoDecisionItem
 from juli_backend.core.security import get_current_user
@@ -74,7 +78,19 @@ async def reviewer_me(
     shop_body: dict[str, str] | None = None
     mode: str | None = None
     writes_enabled = False
+    shops: list[dict[str, Any]] = []
     if context.shop_id is not None:
+        # P74-A (D77): every pin (default first); the selected one is ``shop`` below.
+        options = await reviewer_shop_options(session, context)
+        shops = [
+            {
+                "id": option.id,
+                "name": option.name,
+                "mode": option.mode,
+                "writes_enabled": option.writes_enabled,
+            }
+            for option in options
+        ]
         shop = await enter_reviewer_shop(session, context, None)
         shop_body = {"id": str(shop.id), "name": shop.shop_name}
         if context.pin is not None:
@@ -88,6 +104,8 @@ async def reviewer_me(
         # P64 (D73): "sandbox" (live, unmasked) | "masked" (P32 read-only) | None (no pin).
         "mode": mode,
         "writes_enabled": writes_enabled,
+        # P74-A (D77): the shops the reviewer may switch to (``X-Shop-Id``), default first.
+        "shops": shops,
     }
 
 

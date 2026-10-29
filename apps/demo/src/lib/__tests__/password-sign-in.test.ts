@@ -84,12 +84,12 @@ describe("reviewer API client", () => {
         reviewer: true,
         platform: "shopee",
         expires_at: "2026-11-13T00:00:00Z",
-        shop: { id: "alias-1", name: "Shop 123" },
+        shop: { id: "alias-1", name: "Shop TikTok (ẩn danh)" },
       }),
     );
     expect(await fetchReviewerMe("tok", me)).toEqual({
       status: "reviewer",
-      me: { reviewer: true, platform: "shopee", expiresAt: "2026-11-13T00:00:00Z", shop: { id: "alias-1", name: "Shop 123" } },
+      me: { reviewer: true, platform: "shopee", expiresAt: "2026-11-13T00:00:00Z", shop: { id: "alias-1", name: "Shop TikTok (ẩn danh)" } },
     });
     expect(me.mock.calls[0][0]).toBe("/v1/reviewer/me");
     expect(me.mock.calls[0][1].headers.Authorization).toBe("Bearer tok");

@@ -10,6 +10,35 @@ import { readPersistent, removePersistent, writePersistent } from "../persistent
 
 export const REVIEWER_STORAGE_KEY = "juli_demo_reviewer";
 
+/**
+ * P74-A (D77): one shop the reviewer may switch to. A masked shop comes as its
+ * alias id and masked name only; the sandbox shop as it is.
+ */
+export interface ReviewerShopOption {
+  readonly id: string;
+  readonly name: string;
+  readonly mode: "sandbox" | "masked";
+  readonly writesEnabled: boolean;
+}
+
+/** P74-A: the `shops` list of `GET /v1/reviewer/me` (or a stored record), malformed entries dropped. */
+export function parseReviewerShops(value: unknown): ReviewerShopOption[] {
+  if (!Array.isArray(value)) return [];
+  const shops: ReviewerShopOption[] = [];
+  for (const entry of value as Array<Record<string, unknown> | null>) {
+    if (!entry || typeof entry.id !== "string" || !entry.id) continue;
+    if (entry.mode !== "sandbox" && entry.mode !== "masked") continue;
+    shops.push({
+      id: entry.id,
+      name: typeof entry.name === "string" ? entry.name : "",
+      mode: entry.mode,
+      writesEnabled: entry.writes_enabled === true || entry.writesEnabled === true,
+    });
+  }
+  return shops;
+}
+
+
 export interface ReviewerRecord {
   readonly platform: string;
   readonly expiresAt: string | null;
@@ -24,6 +53,11 @@ export interface ReviewerRecord {
    */
   readonly mode?: "sandbox" | "masked";
   readonly writesEnabled?: boolean;
+  /**
+   * P74-A (D77): every pinned shop, default first — the shop menu offers a
+   * switch when there are two or more. Absent / empty: nothing to switch to.
+   */
+  readonly shops?: readonly ReviewerShopOption[];
 }
 
 export function storeReviewerRecord(record: ReviewerRecord): void {
@@ -44,6 +78,7 @@ export function readReviewerRecord(): ReviewerRecord | null {
       ...(parsed.sample === true ? { sample: true } : {}),
       ...(parsed.mode === "sandbox" || parsed.mode === "masked" ? { mode: parsed.mode } : {}),
       ...(parsed.writesEnabled === true ? { writesEnabled: true } : {}),
+      ...(Array.isArray(parsed.shops) && parsed.shops.length > 0 ? { shops: parseReviewerShops(parsed.shops) } : {}),
     };
   } catch {
     return null;
