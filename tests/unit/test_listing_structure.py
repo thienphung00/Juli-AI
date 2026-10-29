@@ -5,7 +5,6 @@ the skeleton round-trips, keeps text and order, and rendering is stable. Table-d
 checks for every rejection code, and for determinism / idempotence.
 """
 
-# ruff: noqa: E501 -- the rejection table is one row per case
 from __future__ import annotations
 
 import html
@@ -78,9 +77,13 @@ class TestParse:
         kinds = [s.kind for s in parse_description(DESCRIPTIONS["headings_and_bullets"])]
 
         assert kinds == [
-            SectionKind.HEADING, SectionKind.PARAGRAPH, SectionKind.HEADING,
-            SectionKind.LIST, SectionKind.HEADING, SectionKind.PARAGRAPH,
-        ]  # fmt: skip
+            SectionKind.HEADING,
+            SectionKind.PARAGRAPH,
+            SectionKind.HEADING,
+            SectionKind.LIST,
+            SectionKind.HEADING,
+            SectionKind.PARAGRAPH,
+        ]
 
     def test_plain_text_splits_on_blank_lines_and_keeps_line_breaks(self):
         sections = parse_description(DESCRIPTIONS["plain_text_emoji"])
@@ -100,18 +103,23 @@ class TestParse:
         lists = [s for s in parse_description(DESCRIPTIONS["nested_lists"]) if s.items]
 
         assert [(i.text, i.depth, i.ordered) for i in lists[0].items] == [
-            ("Kích thước", 0, False), ("Dài 20cm", 1, False), ("Rộng 10cm", 1, False),
-            ("Chất liệu", 0, False), ("Nhựa ABS", 1, True), ("Silicone", 1, True),
-        ]  # fmt: skip
+            ("Kích thước", 0, False),
+            ("Dài 20cm", 1, False),
+            ("Rộng 10cm", 1, False),
+            ("Chất liệu", 0, False),
+            ("Nhựa ABS", 1, True),
+            ("Silicone", 1, True),
+        ]
         assert lists[1].items[0].ordered is True
 
     def test_bold_only_line_is_a_heading_even_inside_a_br_chunk(self):
         sections = parse_description(DESCRIPTIONS["bold_headings"])
 
         assert [(s.kind, s.heading_style) for s in sections[:3]] == [
-            (SectionKind.HEADING, "bold"), (SectionKind.PARAGRAPH, None),
             (SectionKind.HEADING, "bold"),
-        ]  # fmt: skip
+            (SectionKind.PARAGRAPH, None),
+            (SectionKind.HEADING, "bold"),
+        ]
         assert sections[3].lines == ("Thoa đều lên da mặt.", "Rửa lại bằng nước sạch.")
 
     def test_image_is_kept_verbatim_as_raw(self):
@@ -265,32 +273,248 @@ def _title_op(old, new="x", code=TITLE_CODE):
 
 
 REJECTIONS = [
-    pytest.param(TITLE, DESC, _ops(title=[_title_op("không có")]), [], RejectionCode.OLD_NOT_FOUND, "title", id="title-old-missing"),
-    pytest.param(TITLE, DESC, _ops(title=[_title_op("")]), [], RejectionCode.OLD_EMPTY, "title", id="title-old-empty"),
-    pytest.param("Áo thun thun", DESC, _ops(title=[_title_op("thun")]), [], RejectionCode.OLD_AMBIGUOUS, "title", id="title-ambiguous"),
-    pytest.param(TITLE, DESC, _ops(title=[_title_op("Bình giữ", "A"), _title_op("giữ nhiệt", "B")]), [], RejectionCode.OPS_OVERLAP, "title", id="title-overlap"),
-    pytest.param(TITLE, DESC, _ops(title=[_title_op("Bình", "B", DESC_CODE)]), [], RejectionCode.REASON_CODE_WRONG_FIELD, "title", id="title-wrong-code"),
-    pytest.param(TITLE, DESC, _ops(title=[_title_op(TITLE, " ")]), [], RejectionCode.TITLE_EMPTIED, "title", id="title-emptied"),
-    pytest.param(TITLE, DESC, _ops(title=[_title_op("Bình", "B" * 300)]), [], RejectionCode.RESULT_OVER_LIMITS, "title", id="title-too-long"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(1, "không có trong mô tả", "x")]), [], RejectionCode.OLD_NOT_FOUND, "description", id="desc-old-missing"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(1, "", "x")]), [], RejectionCode.OLD_EMPTY, "description", id="desc-old-empty"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(0, "i", "x")]), [], RejectionCode.OLD_AMBIGUOUS, "description", id="desc-ambiguous"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(99, "x", "y")]), [], RejectionCode.SECTION_INDEX_OUT_OF_RANGE, "description", id="index-high"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(-1, "x", "y")]), [], RejectionCode.SECTION_INDEX_OUT_OF_RANGE, "description", id="index-negative"),
-    pytest.param(TITLE, DESC, _ops(desc=[InsertAfter(op="insert_after", section_index=6, text="x", reason_code=DESC_CODE)]), [], RejectionCode.SECTION_INDEX_OUT_OF_RANGE, "description", id="insert-index"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(1, "Bình", "B", "TITLE_LESS_THAN_40_CHARACTERS")]), [], RejectionCode.REASON_CODE_WRONG_FIELD, "description", id="desc-wrong-code"),
-    pytest.param(TITLE, DESC, _ops(desc=[AppendSection(op="append_section", heading="H", body="B", reason_code=DESC_CODE)]), ["DESC_NO_NEW_LINE"], RejectionCode.APPEND_CODE_NOT_FLAGGED, "description", id="append-not-flagged"),
-    pytest.param(TITLE, DESC, _ops(desc=[AppendSection(op="append_section", heading=" ", body="B", reason_code=DESC_CODE)]), [DESC_CODE], RejectionCode.INSERT_TEXT_INVALID, "description", id="append-empty-heading"),
-    pytest.param(TITLE, DESC, _ops(desc=[InsertAfter(op="insert_after", section_index=1, text="a\n\nb", reason_code=DESC_CODE)]), [], RejectionCode.INSERT_TEXT_INVALID, "description", id="insert-two-paragraphs"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(1, "Bình giữ nhiệt dung tích 500ml, giữ nóng 12 giờ, giữ lạnh 24 giờ.", "")]), [], RejectionCode.SECTION_STRUCTURE_CHANGED, "description", id="section-emptied"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(0, "Giới thiệu sản phẩm", "A\nB")]), [], RejectionCode.SECTION_STRUCTURE_CHANGED, "description", id="heading-split"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(3, "Nắp kín chống rò rỉ\nDễ", "Nắp kín Dễ")]), [], RejectionCode.SECTION_DROPPED, "description", id="list-items-merged"),
-    pytest.param(TITLE, DESC, _ops(desc=[_replace(3, "Thép", "A"), _replace(3, "Thép không", "B")]), [], RejectionCode.OPS_OVERLAP, "description", id="desc-overlap"),
-    pytest.param(TITLE, DESCRIPTIONS["with_image"], _ops(desc=[_replace(1, "img", "x")]), [], RejectionCode.SECTION_NOT_EDITABLE, "description", id="raw-not-editable"),
-    pytest.param(TITLE, "<p>" + "a" * DESCRIPTION_MAX_CHARS + "</p>", _ops(), [], RejectionCode.LISTING_OVER_LIMITS, "description", id="listing-over-description"),
-    pytest.param("t" * (TITLE_MAX_CHARS + 1), DESC, _ops(), [], RejectionCode.LISTING_OVER_LIMITS, "title", id="listing-over-title"),
-    pytest.param(TITLE, "<p>X" + "a" * (DESCRIPTION_MAX_CHARS - 30) + "</p>", _ops(desc=[_replace(0, "X", "b" * 100)]), [], RejectionCode.RESULT_OVER_LIMITS, "description", id="result-over-description"),
-]  # fmt: skip
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(title=[_title_op("không có")]),
+        [],
+        RejectionCode.OLD_NOT_FOUND,
+        "title",
+        id="title-old-missing",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(title=[_title_op("")]),
+        [],
+        RejectionCode.OLD_EMPTY,
+        "title",
+        id="title-old-empty",
+    ),
+    pytest.param(
+        "Áo thun thun",
+        DESC,
+        _ops(title=[_title_op("thun")]),
+        [],
+        RejectionCode.OLD_AMBIGUOUS,
+        "title",
+        id="title-ambiguous",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(title=[_title_op("Bình giữ", "A"), _title_op("giữ nhiệt", "B")]),
+        [],
+        RejectionCode.OPS_OVERLAP,
+        "title",
+        id="title-overlap",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(title=[_title_op("Bình", "B", DESC_CODE)]),
+        [],
+        RejectionCode.REASON_CODE_WRONG_FIELD,
+        "title",
+        id="title-wrong-code",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(title=[_title_op(TITLE, " ")]),
+        [],
+        RejectionCode.TITLE_EMPTIED,
+        "title",
+        id="title-emptied",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(title=[_title_op("Bình", "B" * 300)]),
+        [],
+        RejectionCode.RESULT_OVER_LIMITS,
+        "title",
+        id="title-too-long",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(desc=[_replace(1, "không có trong mô tả", "x")]),
+        [],
+        RejectionCode.OLD_NOT_FOUND,
+        "description",
+        id="desc-old-missing",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(desc=[_replace(1, "", "x")]),
+        [],
+        RejectionCode.OLD_EMPTY,
+        "description",
+        id="desc-old-empty",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(desc=[_replace(0, "i", "x")]),
+        [],
+        RejectionCode.OLD_AMBIGUOUS,
+        "description",
+        id="desc-ambiguous",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(desc=[_replace(99, "x", "y")]),
+        [],
+        RejectionCode.SECTION_INDEX_OUT_OF_RANGE,
+        "description",
+        id="index-high",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(desc=[_replace(-1, "x", "y")]),
+        [],
+        RejectionCode.SECTION_INDEX_OUT_OF_RANGE,
+        "description",
+        id="index-negative",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(
+            desc=[InsertAfter(op="insert_after", section_index=6, text="x", reason_code=DESC_CODE)]
+        ),
+        [],
+        RejectionCode.SECTION_INDEX_OUT_OF_RANGE,
+        "description",
+        id="insert-index",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(desc=[_replace(1, "Bình", "B", "TITLE_LESS_THAN_40_CHARACTERS")]),
+        [],
+        RejectionCode.REASON_CODE_WRONG_FIELD,
+        "description",
+        id="desc-wrong-code",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(
+            desc=[AppendSection(op="append_section", heading="H", body="B", reason_code=DESC_CODE)]
+        ),
+        ["DESC_NO_NEW_LINE"],
+        RejectionCode.APPEND_CODE_NOT_FLAGGED,
+        "description",
+        id="append-not-flagged",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(
+            desc=[AppendSection(op="append_section", heading=" ", body="B", reason_code=DESC_CODE)]
+        ),
+        [DESC_CODE],
+        RejectionCode.INSERT_TEXT_INVALID,
+        "description",
+        id="append-empty-heading",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(
+            desc=[
+                InsertAfter(
+                    op="insert_after", section_index=1, text="a\n\nb", reason_code=DESC_CODE
+                )
+            ]
+        ),
+        [],
+        RejectionCode.INSERT_TEXT_INVALID,
+        "description",
+        id="insert-two-paragraphs",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(
+            desc=[
+                _replace(1, "Bình giữ nhiệt dung tích 500ml, giữ nóng 12 giờ, giữ lạnh 24 giờ.", "")
+            ]
+        ),
+        [],
+        RejectionCode.SECTION_STRUCTURE_CHANGED,
+        "description",
+        id="section-emptied",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(desc=[_replace(0, "Giới thiệu sản phẩm", "A\nB")]),
+        [],
+        RejectionCode.SECTION_STRUCTURE_CHANGED,
+        "description",
+        id="heading-split",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(desc=[_replace(3, "Nắp kín chống rò rỉ\nDễ", "Nắp kín Dễ")]),
+        [],
+        RejectionCode.SECTION_DROPPED,
+        "description",
+        id="list-items-merged",
+    ),
+    pytest.param(
+        TITLE,
+        DESC,
+        _ops(desc=[_replace(3, "Thép", "A"), _replace(3, "Thép không", "B")]),
+        [],
+        RejectionCode.OPS_OVERLAP,
+        "description",
+        id="desc-overlap",
+    ),
+    pytest.param(
+        TITLE,
+        DESCRIPTIONS["with_image"],
+        _ops(desc=[_replace(1, "img", "x")]),
+        [],
+        RejectionCode.SECTION_NOT_EDITABLE,
+        "description",
+        id="raw-not-editable",
+    ),
+    pytest.param(
+        TITLE,
+        "<p>" + "a" * DESCRIPTION_MAX_CHARS + "</p>",
+        _ops(),
+        [],
+        RejectionCode.LISTING_OVER_LIMITS,
+        "description",
+        id="listing-over-description",
+    ),
+    pytest.param(
+        "t" * (TITLE_MAX_CHARS + 1),
+        DESC,
+        _ops(),
+        [],
+        RejectionCode.LISTING_OVER_LIMITS,
+        "title",
+        id="listing-over-title",
+    ),
+    pytest.param(
+        TITLE,
+        "<p>X" + "a" * (DESCRIPTION_MAX_CHARS - 30) + "</p>",
+        _ops(desc=[_replace(0, "X", "b" * 100)]),
+        [],
+        RejectionCode.RESULT_OVER_LIMITS,
+        "description",
+        id="result-over-description",
+    ),
+]
 
 
 @pytest.mark.parametrize(("title", "description", "ops", "flagged", "code", "field"), REJECTIONS)

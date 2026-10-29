@@ -250,8 +250,8 @@ class _SkeletonBuilder(HTMLParser):
                 if not data.strip():
                     return
                 self._open_item()
-            assert self._item is not None  # noqa: S101 -- narrowing for mypy
-            self._item.append(data)
+            if self._item is not None:
+                self._item.append(data)
         else:
             self._cur.append((data, self._bold > 0))
 
