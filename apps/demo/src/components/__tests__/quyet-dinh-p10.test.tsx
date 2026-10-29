@@ -1212,11 +1212,60 @@ describe("P67 (D75 Q2) — Đo lường lists every confirmed TikTok write on th
     ).toEqual({
       headline: "Chất lượng trang sản phẩm (TikTok chấm): 2 lỗi → chưa đọc lại được",
       before: "Ngày 0: Tiêu đề quá ngắn, Mô tả quá ngắn",
+      checked: null,
       after: null,
       tone: "muted",
     });
     expect(listingQualityView({ before: null, after: null })).toBeNull();
     expect(listingQualityView(null)).toBeNull();
+  });
+
+  it("P76-5: TikTok's check of the written draft shows beside Ngày 0 and now; a stale live code is labelled", async () => {
+    const edit = run({
+      ...written[2],
+      listing_quality: {
+        before: { count: 4, issues: ["Tiêu đề quá ngắn", "Mô tả chưa xuống dòng", "Mô tả quá ngắn"], read_at: null },
+        checked: { count: 1, issues: ["Ít hơn 5 ảnh chính"], read_at: "2026-10-28T03:01:00Z" },
+        after: {
+          count: 2,
+          issues: ["Tiêu đề quá ngắn (TikTok chưa cập nhật chẩn đoán)", "Ít hơn 5 ảnh chính"],
+          read_at: "2026-10-29T03:05:00Z",
+        },
+      },
+    });
+    render(
+      <StaticReviewerProvider reviewer={SANDBOX}>
+        <SignedInQuyetDinh
+          clients={clients({ fetchDecisions: vi.fn().mockResolvedValue([]), fetchRuns: vi.fn().mockResolvedValue([written[0], edit]) })}
+          onNavigate={vi.fn()}
+          query={{ tab: "do-luong", run: null, rulesOpen: false }}
+          shop={{ id: "shop-1", name: "Shop" }}
+          token="tok"
+        />
+      </StaticReviewerProvider>,
+    );
+    await waitFor(() => expect(screen.getAllByTestId("measure-panel")).toHaveLength(2));
+    const panel = screen.getAllByTestId("measure-panel").find((el) => el.getAttribute("data-run-id") === "run-edit")!;
+    const quality = within(panel).getByTestId("listing-quality");
+    expect(within(quality).getByTestId("listing-quality-checked")).toHaveTextContent(
+      "Sau sửa (TikTok kiểm tra) lúc 10:01 28/10/2026: Ít hơn 5 ảnh chính",
+    );
+    expect(quality).toHaveTextContent(
+      "Bây giờ (đọc lúc 10:05 29/10/2026): Tiêu đề quá ngắn (TikTok chưa cập nhật chẩn đoán), Ít hơn 5 ảnh chính",
+    );
+    expect(quality).not.toHaveTextContent("chưa cải thiện");
+    // Ngày 0 → after-check improved: the chip reads as measured-ok even while TikTok lags.
+    expect(within(panel).getByTestId("measure-chip")).toHaveClass("qv-tone--ok");
+  });
+
+  it("P76-5: no after-check keeps the P71 lines", () => {
+    const view = listingQualityView({
+      before: { count: 1, issues: ["Mô tả quá ngắn"], read_at: null },
+      after: { count: 1, issues: ["Mô tả quá ngắn"], read_at: null },
+      checked: null,
+    });
+    expect(view?.checked).toBeNull();
+    expect(view?.tone).toBe("muted");
   });
 
   it("sellers are unchanged: a run with no listing change is not in Đo lường", async () => {

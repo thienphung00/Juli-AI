@@ -66,3 +66,14 @@ def diagnosis_label_vi(code: str) -> str:
         if code.startswith(prefix):
             return label
     return UNKNOWN_CODE_LABEL_VI
+
+
+#: P76-5: beside a code TikTok's live diagnosis still lists although TikTok's own check of
+#: the written draft (``draft_scoring``) cleared it -- TikTok has not re-diagnosed yet
+#: (edge case D31), which is not "chưa cải thiện".
+STALE_DIAGNOSIS_NOTE_VI = "TikTok chưa cập nhật chẩn đoán"
+
+
+def stale_diagnosis_label_vi(code: str) -> str:
+    """The label of a code TikTok's live diagnosis lists after its own check cleared it."""
+    return f"{diagnosis_label_vi(code)} ({STALE_DIAGNOSIS_NOTE_VI})"

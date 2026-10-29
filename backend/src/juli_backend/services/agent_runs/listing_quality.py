@@ -15,6 +15,13 @@ ngắn", "Mô tả chưa xuống dòng" ...): a listing-edit run's first step re
   is one TikTok call per product, only for the sandbox reviewer, only for listing-edit
   runs TikTok confirmed.
 
+* **Sau sửa (TikTok kiểm tra)** -- P76-5: TikTok's own diagnosis of the draft the seller
+  confirmed, asked right before the write (``diagnose_optimize``, stored on the write's
+  ledger outcome by ``services/agent/tools/draft_scoring``). TikTok's live diagnosis of the
+  sandbox lags (edge case D31: "4 lỗi → 4 lỗi" a day after an edit that met the criteria),
+  so a title / description code the live reading still lists but that check cleared is
+  labelled as TikTok's not-yet-updated diagnosis, not as "chưa cải thiện".
+
 When the run's diagnosis step found nothing readable, or TikTok cannot be read now,
 the side is ``None`` -- never a guessed count.
 """
@@ -49,14 +56,21 @@ class DiagnosisReading:
     count: int
     issues: tuple[str, ...]
     read_at: str | None = None
+    #: The codes behind ``issues`` (not serialized; the stale check compares codes).
+    codes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class ListingQuality:
-    """Ngày 0 (the run's own diagnosis step) and now (re-read); either may be unknown."""
+    """Ngày 0 (the run's own diagnosis step), now (re-read) and -- P76-5 -- TikTok's check
+    of the written draft (``checked``); any may be unknown. ``stale_issues``: the labels of
+    the ``after`` issues TikTok's check had cleared (internal; on the wire they are marked in
+    ``after.issues``)."""
 
     before: DiagnosisReading | None
     after: DiagnosisReading | None
+    checked: DiagnosisReading | None = None
+    stale_issues: tuple[str, ...] = ()
 
 
 #: (shop id, TikTok product id) -> (monotonic time read, reading or None when unread).
@@ -95,6 +109,60 @@ def day0_reading(state: Any) -> DiagnosisReading | None:
     return None
 
 
+def checked_reading(score: Any) -> DiagnosisReading | None:
+    """P76-5: the "Sau sửa (TikTok kiểm tra)" reading from a stored ``DraftScore``;
+    ``None`` when the draft was not scored or TikTok's check was not read."""
+    from juli_backend.services.agent.tools.diagnosis_labels import diagnosis_label_vi
+    from juli_backend.services.agent.tools.draft_scoring import STATUS_SCORED
+
+    if score is None or getattr(score, "status", None) != STATUS_SCORED:
+        return None
+    codes = tuple(score.codes_after)
+    labels = tuple(dict.fromkeys(diagnosis_label_vi(code) for code in codes))
+    return DiagnosisReading(count=len(codes), issues=labels, read_at=score.scored_at, codes=codes)
+
+
+def mark_stale(
+    now: DiagnosisReading | None, checked: DiagnosisReading | None
+) -> tuple[DiagnosisReading | None, tuple[str, ...]]:
+    """``now`` with each title / description code TikTok's check of the draft cleared but
+    the live diagnosis still lists relabelled as TikTok's stale diagnosis, and those labels.
+
+    Only title / description codes: those are what a listing edit changes; any other code
+    the two readings disagree on is left as TikTok reads it now.
+    """
+    from juli_backend.services.agent.tools.diagnosis_labels import (
+        diagnosis_label_vi,
+        stale_diagnosis_label_vi,
+    )
+    from juli_backend.services.optimize_product.listing_signals import (
+        is_description_code,
+        is_title_code,
+    )
+
+    if now is None or checked is None:
+        return now, ()
+    cleared = {
+        code
+        for code in now.codes
+        if code not in checked.codes and (is_title_code(code) or is_description_code(code))
+    }
+    if not cleared:
+        return now, ()
+    labels = tuple(
+        dict.fromkeys(
+            stale_diagnosis_label_vi(code) if code in cleared else diagnosis_label_vi(code)
+            for code in now.codes
+        )
+    )
+    stale = tuple(
+        dict.fromkeys(stale_diagnosis_label_vi(code) for code in now.codes if code in cleared)
+    )
+    return DiagnosisReading(
+        count=now.count, issues=labels, read_at=now.read_at, codes=now.codes
+    ), stale
+
+
 def _now_iso() -> str:
     from datetime import UTC, datetime
 
@@ -106,7 +174,12 @@ def _read_now(resources: Any, product_id: str) -> DiagnosisReading:
 
     raw = resources.products.get_diagnoses([product_id])
     codes = parse_diagnosis_codes(raw if isinstance(raw, dict) else {}, product_id=product_id)
-    return DiagnosisReading(count=len(codes), issues=_labels(codes), read_at=_now_iso())
+    return DiagnosisReading(
+        count=len(codes),
+        issues=_labels(codes),
+        read_at=_now_iso(),
+        codes=tuple(str(code["code"]) for code in codes),
+    )
 
 
 async def _resources(session: AsyncSession, shop_id: uuid.UUID) -> Any:
@@ -175,7 +248,9 @@ __all__ = [
     "READ_TTL_SECONDS",
     "DiagnosisReading",
     "ListingQuality",
+    "checked_reading",
     "current_readings",
     "day0_reading",
+    "mark_stale",
     "reset_cache",
 ]

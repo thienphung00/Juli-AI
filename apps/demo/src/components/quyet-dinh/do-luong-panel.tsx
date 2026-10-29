@@ -337,6 +337,7 @@ function MeasurePanel({
                 <div data-testid="listing-quality">
                   <strong>{quality.headline}</strong>
                   {quality.before ? <div>{quality.before}</div> : null}
+                  {quality.checked ? <div data-testid="listing-quality-checked">{quality.checked}</div> : null}
                   {quality.after ? <div>{quality.after}</div> : null}
                   <div>{LISTING_QUALITY_NOTE}</div>
                 </div>

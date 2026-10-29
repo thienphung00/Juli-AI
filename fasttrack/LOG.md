@@ -3127,3 +3127,30 @@ reconcile --write` re-derived the no-assert corpus figure.
   description ops returns the original HTML unchanged.
 - Tests: `tests/unit/test_listing_structure.py` (75), fixtures `tests/support/listing_descriptions.py`
   (synthetic). Not wired into the runner or prompt (steps 4-6).
+
+## 2026-10-29 — agent (Claude Opus) — P76-5: TikTok scores the listing draft before the write; Đo lường shows it
+
+- What: `services/agent/tools/draft_scoring.py` -- `score_listing_draft` calls
+  `POST /product/202411/products/diagnose_optimize` (shape from the bundled OAS,
+  `tts-openapi-guide/references/oas/paths/product.json`: `data.diagnoses[]{field,
+  diagnosis_results[]{code, how_to_solve, quality_tier}, suggestion}` + `listing_quality`)
+  with `optimization_fields=["NONE"]` (codes only; the OAS warns DESCRIPTION suggestions can
+  take >10 s). `DraftScore{status: scored|not_read, codes_after, scored_at}`; any error,
+  unreadable payload or >3 s (bounded in a worker thread -- the client's 15 s socket timeout
+  is per client, not per call) ⇒ `not_read`. Codes only, never TikTok's free text.
+- Call site: `product_write.handle_update_product_listing`, one marked line before
+  `products.edit`, scoring the exact edit body (title, description, category, main_images).
+  Only a `SandboxWriteResources` bundle is scored (the endpoint is not on the production-write
+  allowlist; a read bundle never reaches a write). Stored as `draft_score` on the handler's
+  output = the ledger outcome (`tool_executions.outcome_json`); left out of the dump when not
+  scored, so old outcome shapes are unchanged. No migration; precheck / P76-4 code untouched.
+- Đo lường: `listing._confirmed_write` reads the stored score (no new statement);
+  `listing_quality.checked_reading` / `mark_stale` give the "Sau sửa (TikTok kiểm tra)"
+  reading (`listing_quality.checked` on the wire) and relabel a title/description code the
+  live diagnosis still lists but the check cleared as "(TikTok chưa cập nhật chẩn đoán)"
+  (`diagnosis_labels.STALE_DIAGNOSIS_NOTE_VI`). Demo `listing-quality.ts` + `do-luong-panel.tsx`
+  render the extra line; tone "ok" when the check improved on Ngày 0. dictionary.md, D31 updated.
+- Tests: `test_p76_draft_scoring.py` (15), `test_p76_listing_quality_checked.py` (6), fixtures
+  `tests/support/tiktok_draft_scoring.py` (synthetic); vitest P76-5 ×2 in `quyet-dinh-p10.test.tsx`.
+- Unverified: TikTok sandbox's live answer to `diagnose_optimize` for a VN shop (never captured;
+  ADR-090/106 list it as a pending capture) and its latency against the 3 s budget.
