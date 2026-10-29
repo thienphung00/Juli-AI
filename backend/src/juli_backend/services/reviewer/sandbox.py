@@ -36,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security import SandboxWriteOwner, sandbox_write_owners
 from juli_backend.integrations.tiktok import TikTokCapability
+from juli_backend.models.ingestion import ShopIngestionState
 from juli_backend.models.models import ProductionWriteShop, TikTokCredential
 
 logger = logging.getLogger(__name__)
@@ -203,7 +204,20 @@ async def connection_info(session: AsyncSession, shop_id: uuid.UUID) -> dict[str
             )
         ).scalars()
     )
-    successes = [state.last_success_at for state in states if state.last_success_at is not None]
+    successes = [
+        _utc(state.last_success_at) for state in states if state.last_success_at is not None
+    ]
+    # P73: an order-only sync (the commerce steps) moves no analytics endpoint's success time;
+    # the card's "Đồng bộ lúc" is the latest sync of ANY kind.
+    commerce_last_run_at = (
+        await session.execute(
+            select(ShopIngestionState.commerce_last_run_at).where(
+                ShopIngestionState.shop_id == shop_id
+            )
+        )
+    ).scalar_one_or_none()
+    if commerce_last_run_at is not None:
+        successes.append(_utc(commerce_last_run_at))
     connection: dict[str, Any] | None = None
     if credential is not None:
         connection = {
@@ -227,6 +241,10 @@ async def connection_info(session: AsyncSession, shop_id: uuid.UUID) -> dict[str
             for state in states
         ],
     }
+
+
+def _utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def _iso(value: datetime | None) -> str | None:

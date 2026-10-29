@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import Exists, exists, select
@@ -381,7 +381,13 @@ async def _pending_decision(session: AsyncSession, run_id: uuid.UUID) -> Pending
 
 
 def _iso(value: datetime | None) -> str | None:
-    return value.isoformat() if isinstance(value, datetime) else None
+    """ISO-8601 with an explicit offset. The columns are naive UTC; a bare string is read by the
+    browser as local time, so a write TikTok confirmed at 09:12Z showed as 09:12 (P73)."""
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.isoformat().replace("+00:00", "Z")
 
 
 async def latest_narration(session: AsyncSession, run_id: uuid.UUID) -> str | None:

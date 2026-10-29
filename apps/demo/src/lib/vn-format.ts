@@ -84,6 +84,12 @@ export function compactMoney(value: number | null | undefined): string {
   return money(value);
 }
 
+/** Server timestamps are UTC; a string with no offset ("2026-10-27T09:12:00") is UTC, not browser-local. */
+export function parseServerIso(iso: string): number {
+  const bare = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(iso);
+  return Date.parse(bare ? `${iso}Z` : iso);
+}
+
 const VN_TIME_ZONE = "Asia/Ho_Chi_Minh";
 
 /** An ISO timestamp → `HH:MM` in Vietnam time; `null` when it does not parse. */

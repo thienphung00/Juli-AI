@@ -47,6 +47,7 @@ from juli_backend.integrations.tiktok import (
 )
 from juli_backend.integrations.tiktok import client as tiktok_client
 from juli_backend.integrations.tiktok import factories as tiktok_factories
+from juli_backend.models.ingestion import ShopIngestionState
 from juli_backend.models.models import ActionCard, ProductionWriteShop, WorkflowRun
 from juli_backend.models.ops import OpsAuditLog
 from juli_backend.models.run_changes import ShopRule
@@ -342,6 +343,18 @@ async def test_b_sandbox_pin_is_unmasked_and_the_simulation_is_retired(session, 
     assert "sbx-token" not in shop.text and SANDBOX_MERCHANT not in shop.text
     assert simulate.status_code == 403
     assert simulate.headers["x-juli-reviewer-denied"] == "sandbox_live"
+
+
+async def test_b_synced_at_follows_an_order_only_sync(session, world):
+    """P73: the card's "Đồng bộ lúc" is the latest sync of ANY kind, not only analytics."""
+    sandbox, _, _, reviewer_id = world
+    later = utc_now_naive() + timedelta(hours=3)
+    session.add(ShopIngestionState(shop_id=sandbox.shop.id, commerce_last_run_at=later))
+    await session.flush()
+    async with client_for(build_app(session)) as client:
+        shop = await client.get("/v1/reviewer/shop", headers=_headers(reviewer_id, sandbox.shop.id))
+    assert shop.status_code == 200, shop.text
+    assert shop.json()["synced_at"] == later.isoformat() + "Z"
 
 
 async def test_b_sync_now_enqueues_poll_shop_once_per_minute(session, world, monkeypatch):

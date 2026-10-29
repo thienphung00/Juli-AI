@@ -35,6 +35,7 @@ import type { AgentEvent, ConfirmationOptionPayload } from "@juli/contracts";
 import { FIELD_LABELS, TERMINAL_STEP_LABEL_NO_MEASURE } from "./copy";
 import { RUN_TERMINAL_STATE_COPY, RUN_TERMINAL_STATE_UNKNOWN_COPY } from "../run-ledger/copy";
 import { resolveRunTerminalState } from "../run-ledger/terminal-state";
+import { parseServerIso } from "../vn-format";
 
 export type StepStatus = "done" | "current" | "upcoming" | "failed" | "skipped";
 export type StepKind = "tool" | "consent" | "terminal" | "await";
@@ -705,7 +706,7 @@ export function afterConfirmation(timeline: RunTimeline, toolCallId: string): Ru
 const VN_TIME_ZONE = "Asia/Ho_Chi_Minh";
 
 function vnParts(iso: string, options: Intl.DateTimeFormatOptions): Record<string, string> | null {
-  const time = Date.parse(iso);
+  const time = parseServerIso(iso);
   if (!Number.isFinite(time)) return null;
   const parts = new Intl.DateTimeFormat("en-GB", { ...options, timeZone: VN_TIME_ZONE }).formatToParts(new Date(time));
   return Object.fromEntries(parts.map((part) => [part.type, part.value]));
