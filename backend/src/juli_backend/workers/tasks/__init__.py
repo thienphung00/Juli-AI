@@ -12,6 +12,14 @@ does not cover. `agent_workflow` was missing here, so `run_agent_workflow` and
 `Received unregistered task ... KeyError` when the API enqueued one.
 `test_routed_tasks_are_registered` now pins every task in `task_routes` too.
 
+Issue #2020: `material_analytics_precompute` (enqueued by the webhook material
+dispatch) and `shop_quick_scan` were missing here and registered only through
+other modules' helper imports. When `mock_analytics_reconcile` was deleted, the
+precompute task lost its accidental import and production answered
+`KeyError: 'juli_backend.material_analytics_precompute'` on every material
+webhook. `test_every_task_module_is_imported_by_the_package` now pins the whole
+class: every module here that defines a `@celery_app.task` must be listed below.
+
 Fast track P53 (D62): `product_history` was missing here, so the P23 beat
 `product-history-fanout` and the webhook / approval tasks in that module never
 registered on a freshly started worker. The beat test passed only because
@@ -34,6 +42,7 @@ from juli_backend.workers.tasks import (
     content_runs,
     credential_refresh_beat,
     impact_reader,
+    material_analytics_precompute,
     ops_audit_retention,
     ops_openai_alert,
     privacy_account_purge,
@@ -43,6 +52,7 @@ from juli_backend.workers.tasks import (
     rescore_shop_cards,
     shop_diagnosis,
     shop_ingestion,
+    shop_quick_scan,
     tool_execution,
 )
 
@@ -55,6 +65,7 @@ __all__ = [
     "content_runs",
     "credential_refresh_beat",
     "impact_reader",
+    "material_analytics_precompute",
     "ops_audit_retention",
     "ops_openai_alert",
     "privacy_account_purge",
@@ -64,5 +75,6 @@ __all__ = [
     "rescore_shop_cards",
     "shop_diagnosis",
     "shop_ingestion",
+    "shop_quick_scan",
     "tool_execution",
 ]
