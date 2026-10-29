@@ -85,6 +85,8 @@ decision 6).
   `LLM_STREAMING` (default on; `0`/`false`/`no`/`off` turns streaming off)
 - `llm_streaming_enabled() -> bool` — reads `LLM_STREAMING` at call time
   (`DEFAULT_LLM_STREAMING = True`)
+- `agent_strict_schemas_enabled() -> bool` — reads `AGENT_STRICT_SCHEMAS` at
+  call time (`DEFAULT_AGENT_STRICT_SCHEMAS = True`; P76-1 kill switch)
 - `ModelPrice(input_usd_per_million_tokens, output_usd_per_million_tokens)` —
   one model's static price row
 - `PRICE_TABLE_USD_PER_MILLION_TOKENS` — the static price table (ADR-071
@@ -161,6 +163,19 @@ output are guaranteed to match the declared shape.
   `tests/unit/test_agent_strict_tool_schemas.py` (every registered tool, every
   playbook), never the running app — the adapter logs
   `strict_schema_unconvertible` and sends that one schema non-strict.
+- **Provider safety net.** A strict request answered HTTP 400 with an
+  `invalid_request_error` whose `param` is under `tools` / `text.format` (or
+  whose message names a schema / strict) raises `StrictSchemaRejectedError`
+  inside the adapter: it logs `strict_schema_rejected_by_provider` (tool /
+  format names, `param`, error code — no prompt content), puts the named tool
+  or format (all strict entries when the provider names none) in a
+  process-level non-strict set, and resends the same request ONCE with nothing
+  strict. Later calls send those names non-strict directly. Any other 400
+  (context length, …) is not retried. Streaming and non-streamed calls behave
+  the same (the 400 arrives before any delta).
+- **Kill switch** `AGENT_STRICT_SCHEMAS` (`config.agent_strict_schemas_enabled`,
+  default on; `0` / `false` / `no` / `off` sends every tool and output format
+  non-strict). Documented in `infra/scripts/env/api.env.example`.
 - The model sends `null` for an optional field it leaves out;
   `ToolSpec.parse_input` (`tools/registry.py`) turns it into the field default.
 - Source for the supported keyword set: OpenAI Structured Outputs guide,

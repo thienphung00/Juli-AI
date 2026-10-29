@@ -78,6 +78,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import threading
 from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -93,7 +95,11 @@ from juli_backend.services.agent.llm.blocks import (
     ToolCallBlock,
     Usage,
 )
-from juli_backend.services.agent.llm.config import LLMConfig, llm_streaming_enabled
+from juli_backend.services.agent.llm.config import (
+    LLMConfig,
+    agent_strict_schemas_enabled,
+    llm_streaming_enabled,
+)
 from juli_backend.services.agent.llm.service import Message, TextDeltaCallback, ToolDefinition
 from juli_backend.services.agent.llm.strict_schema import StrictSchemaError, to_strict
 from juli_backend.services.llm_gate import (
@@ -107,6 +113,34 @@ from juli_backend.services.llm_gate import (
 DEFAULT_BASE_URL = OPENAI_BASE_URL
 
 logger = logging.getLogger(__name__)
+
+# P76-1 (D78) provider circuit: tool / format names OpenAI rejected as strict in this
+# process. Each is sent non-strict for the rest of the process lifetime, so a rejected
+# schema costs one extra call once, not on every turn. Keys are "tool:<name>" /
+# "format:<name>". A threading lock rather than an asyncio one: the set is touched
+# only in short synchronous sections (never across an await), and a worker may run
+# event loops on more than one thread.
+_PROVIDER_NON_STRICT: set[str] = set()
+_PROVIDER_NON_STRICT_LOCK = threading.Lock()
+_TOOLS_PARAM_RE = re.compile(r"^tools\[(\d+)\]")
+_SCHEMA_WORDS = ("schema", "strict")
+
+
+def _non_strict_snapshot() -> frozenset[str]:
+    with _PROVIDER_NON_STRICT_LOCK:
+        return frozenset(_PROVIDER_NON_STRICT)
+
+
+def _mark_non_strict(keys: Sequence[str]) -> None:
+    with _PROVIDER_NON_STRICT_LOCK:
+        _PROVIDER_NON_STRICT.update(keys)
+
+
+def reset_strict_circuit() -> None:
+    """Forget every provider rejection (tests; a process restart does the same)."""
+    with _PROVIDER_NON_STRICT_LOCK:
+        _PROVIDER_NON_STRICT.clear()
+
 
 # Responses API streaming event types this adapter reads (P61-C). Anything
 # else (`response.created`, `response.in_progress`, `*.content_part.*`, ...)
@@ -142,8 +176,10 @@ class JsonSchemaFormat:
     schema: Mapping[str, Any]
     strict: bool = True
 
-    def to_wire(self) -> dict[str, Any]:
-        schema, strict = dict(self.schema), self.strict
+    def to_wire(self, *, allow_strict: bool = True) -> dict[str, Any]:
+        """The ``text`` body entry. ``allow_strict=False`` (kill switch, provider
+        circuit, or the non-strict retry) sends the schema as given, non-strict."""
+        schema, strict = dict(self.schema), self.strict and allow_strict
         if strict:
             schema, strict = _strict_or_loose(schema, kind="output_format", name=self.name)
         return {
@@ -191,6 +227,80 @@ class LLMGateRefusedError(LLMProviderError):
     def __init__(self, refusal: GateRefused) -> None:
         super().__init__(f"OpenAI call refused for this shop: {refusal.reason}")
         self.refusal = refusal
+
+
+class StrictSchemaRejectedError(LLMProviderError):
+    """OpenAI answered HTTP 400 because of a tool / output schema (P76-1, D78).
+
+    Raised by the send paths; `OpenAIResponsesAdapter.complete` catches it, opens the
+    process circuit for the named tool / format and retries once non-strict. It is an
+    `LLMProviderError`, so a caller that ever sees it (the retry failed the same way)
+    keeps its existing failure path.
+    """
+
+    def __init__(self, status_code: int, *, param: str, code: str) -> None:
+        super().__init__(f"OpenAI Responses API returned HTTP {status_code}")
+        self.param = param
+        self.code = code
+
+
+def _status_error(response: httpx.Response) -> LLMProviderError:
+    """The error for a non-2xx response: `StrictSchemaRejectedError` for a 400 whose
+    body names a schema, `LLMProviderError` for anything else (as before P76-1)."""
+    if response.status_code == httpx.codes.BAD_REQUEST:
+        error = _error_object(response)
+        if error is not None and _is_schema_rejection(error):
+            return StrictSchemaRejectedError(
+                response.status_code,
+                param=str(error.get("param") or ""),
+                code=str(error.get("code") or ""),
+            )
+    return LLMProviderError(f"OpenAI Responses API returned HTTP {response.status_code}")
+
+
+def _error_object(response: httpx.Response) -> Mapping[str, Any] | None:
+    try:
+        body = response.json()
+    except (ValueError, httpx.ResponseNotRead):
+        return None
+    error = body.get("error") if isinstance(body, dict) else None
+    return error if isinstance(error, dict) else None
+
+
+def _is_schema_rejection(error: Mapping[str, Any]) -> bool:
+    """OpenAI's error shape for a bad tool / output schema: ``invalid_request_error``
+    whose ``param`` points under ``tools`` or ``text.format``, or whose message names
+    a schema / strict mode. A context-length or any other 400 does not match."""
+    if error.get("type") != "invalid_request_error":
+        return False
+    param = str(error.get("param") or "")
+    if param.startswith("tools") or param.startswith("text.format"):
+        return True
+    message = str(error.get("message") or "").lower()
+    return any(word in message for word in _SCHEMA_WORDS)
+
+
+def _rejected_keys(body: Mapping[str, Any], param: str) -> list[str]:
+    """Circuit keys for what the rejection points at, among what was sent strict:
+    ``tools[i]`` -> that tool, ``text.format`` -> the format, otherwise every strict
+    entry of the body (the provider did not say which)."""
+    strict_tools = [
+        (index, str(tool.get("name", "")))
+        for index, tool in enumerate(body.get("tools") or ())
+        if tool.get("strict")
+    ]
+    text_format = (body.get("text") or {}).get("format") or {}
+    strict_format = f"format:{text_format.get('name', '')}" if text_format.get("strict") else ""
+    match = _TOOLS_PARAM_RE.match(param)
+    if match:
+        index = int(match.group(1))
+        named = [f"tool:{name}" for i, name in strict_tools if i == index]
+        if named:
+            return named
+    if param.startswith("text.format") and strict_format:
+        return [strict_format]
+    keys = [f"tool:{name}" for _, name in strict_tools]
+    return [*keys, strict_format] if strict_format else keys
 
 
 class OpenAIResponsesAdapter:
@@ -254,32 +364,59 @@ class OpenAIResponsesAdapter:
         the caller parses and validates it. Omitted, the request is unchanged.
         """
         stream = on_text_delta is not None and llm_streaming_enabled()
-        body = _build_request_body(
-            model=config.model,
-            messages=messages,
-            system=system,
-            tools=tools,
-            max_output_tokens=config.max_output_tokens,
-            temperature=config.temperature,
-            tool_choice=tool_choice,
-            response_format=response_format,
-            stream=stream,
-        )
+
+        def build(*, strict: bool) -> dict[str, Any]:
+            return _build_request_body(
+                model=config.model,
+                messages=messages,
+                system=system,
+                tools=tools,
+                max_output_tokens=config.max_output_tokens,
+                temperature=config.temperature,
+                tool_choice=tool_choice,
+                response_format=response_format,
+                stream=stream,
+                strict=strict,
+            )
+
+        body = build(strict=agent_strict_schemas_enabled())
         if self._gate is None:
             raise LLMGateRefusedError(refuse_without_gate(self._purpose))
-        try:
+        gate = self._gate
+
+        async def send(request_body: dict[str, Any]) -> dict[str, Any]:
             if stream:
                 assert on_text_delta is not None  # narrowed by `stream` above
-                response_body = await self._post_streaming(
-                    self._gate,
-                    body=body,
+                return await self._post_streaming(
+                    gate,
+                    body=request_body,
                     timeout_seconds=config.request_timeout_seconds,
                     on_text_delta=on_text_delta,
                 )
-            else:
-                response_body = await self._post(
-                    self._gate, body=body, timeout_seconds=config.request_timeout_seconds
+            return await self._post(
+                gate, body=request_body, timeout_seconds=config.request_timeout_seconds
+            )
+
+        try:
+            try:
+                response_body = await send(body)
+            except StrictSchemaRejectedError as rejection:
+                # P76-1: OpenAI refused a strict schema (HTTP 400, before any output,
+                # so no delta reached the caller). Remember the culprit(s) for this
+                # process and resend the same request ONCE with nothing strict.
+                keys = _rejected_keys(body, rejection.param)
+                if not keys:
+                    raise
+                logger.error(
+                    "strict_schema_rejected_by_provider",
+                    extra={
+                        "rejected": sorted(keys),
+                        "param": rejection.param,
+                        "error_code": rejection.code,
+                    },
                 )
+                _mark_non_strict(keys)
+                response_body = await send(build(strict=False))
         except GateRefused as exc:
             raise LLMGateRefusedError(exc) from exc
 
@@ -301,9 +438,7 @@ class OpenAIResponsesAdapter:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as exc:
-            raise LLMProviderError(
-                f"OpenAI Responses API returned HTTP {exc.response.status_code}"
-            ) from exc
+            raise _status_error(exc.response) from exc
         except httpx.HTTPError as exc:
             raise LLMProviderError(f"OpenAI Responses API request failed: {exc}") from exc
         except ValueError as exc:
@@ -333,6 +468,10 @@ class OpenAIResponsesAdapter:
                 transport=self._transport,
                 base_url=self._base_url,
             ) as call:
+                if call.response.status_code == httpx.codes.BAD_REQUEST:
+                    # Read the (small) error body so a strict-schema rejection can be
+                    # told apart from any other 400 before the stream closes.
+                    await call.response.aread()
                 call.response.raise_for_status()
                 async for event in _iter_sse_events(call.response.aiter_lines()):
                     text_delta = assembler.feed(event)
@@ -343,9 +482,7 @@ class OpenAIResponsesAdapter:
                 usage = assembler.usage()
                 call.input_tokens, call.output_tokens = usage.input_tokens, usage.output_tokens
         except httpx.HTTPStatusError as exc:
-            raise LLMProviderError(
-                f"OpenAI Responses API returned HTTP {exc.response.status_code}"
-            ) from exc
+            raise _status_error(exc.response) from exc
         except httpx.HTTPError as exc:
             raise LLMProviderError(f"OpenAI Responses API stream failed: {exc}") from exc
         return assembler.result()
@@ -498,7 +635,11 @@ def _build_request_body(
     tool_choice: str | None = None,
     response_format: JsonSchemaFormat | None = None,
     stream: bool = False,
+    strict: bool = True,
 ) -> dict[str, Any]:
+    """The Responses API body. ``strict=False`` sends every tool and the output format
+    non-strict; otherwise each is strict unless the provider circuit holds its name."""
+    rejected = _non_strict_snapshot() if strict else frozenset()
     body: dict[str, Any] = {
         "model": model,
         # D68.2 (P50-P): this body is the single LLM boundary. Every text that
@@ -506,7 +647,12 @@ def _build_request_body(
         # de-identified first; tool schemas and the output schema are not text.
         "instructions": deidentify_text(system),
         "input": [_translate_message(message) for message in messages],
-        "tools": [_translate_tool(tool) for tool in tools],
+        "tools": [
+            _translate_tool(
+                tool, allow_strict=strict and f"tool:{tool.get('name', '')}" not in rejected
+            )
+            for tool in tools
+        ],
         "max_output_tokens": max_output_tokens,
         "temperature": temperature,
         # Stateless by construction (ADR-071 decision 2): never persisted
@@ -519,7 +665,9 @@ def _build_request_body(
     if tool_choice is not None:
         body["tool_choice"] = tool_choice
     if response_format is not None:
-        body["text"] = response_format.to_wire()
+        body["text"] = response_format.to_wire(
+            allow_strict=strict and f"format:{response_format.name}" not in rejected
+        )
     return body
 
 
@@ -575,7 +723,7 @@ def _deidentify_part(part: Mapping[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _translate_tool(tool: ToolDefinition) -> dict[str, Any]:
+def _translate_tool(tool: ToolDefinition, *, allow_strict: bool = True) -> dict[str, Any]:
     """One `ToolDefinition` -> one Responses API function-tool entry.
 
     Reads `input_schema` (the domain key `ToolDefinition` declares) and
@@ -603,6 +751,14 @@ def _translate_tool(tool: ToolDefinition) -> dict[str, Any]:
     # every property as required (optional ones as nullable) and drops what strict
     # mode rejects; `ToolSpec.parse_input` maps the model's explicit nulls back to
     # field defaults. An unconvertible schema is sent non-strict and logged (D78.5).
+    if not allow_strict:
+        return {
+            "type": "function",
+            "name": name,
+            "description": tool.get("description", ""),
+            "parameters": input_schema,
+            "strict": False,
+        }
     parameters, strict = _strict_or_loose(dict(input_schema), kind="tool", name=name)
     return {
         "type": "function",
