@@ -107,6 +107,8 @@ async def test_each_reviewer_run_carries_its_confirmed_tiktok_write(session, wor
     assert by_id[str(edit)]["kind"] == "listing_edit"
     assert by_id[str(edit)]["fields"] == ["title"]
     assert by_id[str(edit)]["tiktok_id"] and by_id[str(edit)]["confirmed_at"]
+    # P73: the fallback (the row's naive UTC time) carries its offset, so the browser reads UTC.
+    assert by_id[str(edit)]["confirmed_at"].endswith("Z")
     assert by_id[str(refused)] is None, "a write TikTok refused is not a confirmed write"
     # Sellers unchanged: no confirmed_write on their list.
     assert all(item["confirmed_write"] is None for item in seller.json()["data"])

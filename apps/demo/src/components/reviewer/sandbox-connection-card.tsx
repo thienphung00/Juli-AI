@@ -12,6 +12,7 @@ import {
   SANDBOX_SYNCING,
   SANDBOX_SYNC_UNAVAILABLE,
 } from "../../lib/reviewer/copy";
+import { parseServerIso } from "../../lib/vn-format";
 import { fetchSandboxShop, syncSandboxShop, type SandboxShop, type SyncResult } from "../../lib/reviewer/sandbox-client";
 
 /**
@@ -30,7 +31,7 @@ export const SYNC_POLL_MAX_MS = 90_000;
 
 export function absoluteVn(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  const date = new Date(iso);
+  const date = new Date(parseServerIso(iso));
   if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleString("vi-VN", {
     timeZone: TIME_ZONE,
@@ -44,7 +45,7 @@ export function absoluteVn(iso: string | null | undefined): string | null {
 
 export function relativeVn(iso: string | null | undefined, nowMs: number): string | null {
   if (!iso) return null;
-  const then = new Date(iso).getTime();
+  const then = parseServerIso(iso);
   if (Number.isNaN(then)) return null;
   const seconds = Math.max(0, Math.round((nowMs - then) / 1000));
   if (seconds < 60) return "vừa xong";
