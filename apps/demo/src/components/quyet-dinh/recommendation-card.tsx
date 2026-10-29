@@ -395,6 +395,12 @@ function DesktopCard({
             <dd data-testid="group-result">{card.groupResult}</dd>
           </>
         ) : null}
+        {card.content?.source ? (
+          <>
+            <dt>{card.content.sourceLabel}</dt>
+            <dd data-testid="content-source">{card.content.source}</dd>
+          </>
+        ) : null}
         <dt>{card.content ? ACTION_ROW_LABEL : "Thay đổi đề xuất"}</dt>
         <dd className="qv-field-chips">
           {card.content ? (
@@ -541,6 +547,13 @@ function MobileCard({
         <div className="qv-mfact" data-testid="group-result-mobile">
           <div className="qv-mfact__label">Kết quả nhóm</div>
           <div>{card.groupResult}</div>
+        </div>
+      ) : null}
+
+      {card.content?.source ? (
+        <div className="qv-mfact" data-testid="content-source-mobile">
+          <div className="qv-mfact__label">{card.content.sourceLabel}</div>
+          <div>{card.content.source}</div>
         </div>
       ) : null}
 

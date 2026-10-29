@@ -3065,3 +3065,31 @@ reconcile --write` re-derived the no-assert corpus figure.
   UUIDs and the uuid5 shop alias, both unchanged).
 - Owner step after deploy: `REVIEWER_SHOP_IDS=<Fujiwa shops.id>,<sandbox shops.id>` in the API env,
   restart. Not deployed by this slice.
+
+## 2026-10-29 — agent (Claude Opus) — P75: structural reviewer mask, one alias per product
+
+- Why: live 29/10 on the masked pin (edge case D32): Phân tích "Khuyến mãi" showed 4 real product
+  titles and one real short seller SKU; one product read different aliases on different pages; 4
+  video cards on Quyết định read the same "Sản phẩm NNN".
+- Cause 1 (leak): `services/reviewer/masking.py` collected identities from identity keys and entity
+  records only. The shop diagnosis report carries `titles` `{product_id: title}` and `seller_skus`
+  `{product_id: sku}` maps (what the promotions table and ranking rows read), so their values were
+  replaced only when the catalog dictionary held the exact string; products present only in the
+  report / promotion data, other spellings and short SKU codes (the 12–20 digit rule misses them)
+  passed through. Ranking `{id, name}` rows without a seller SKU had the same hole.
+- Cause 2 (aliases): `title_alias` was keyed on the raw title text; the card's title (catalog
+  `Product.title`) and the report's title (TikTok product detail) are different strings for the
+  same product, and products sharing a title shared one alias.
+- Commit 1 (c3be31aa, the leak fix): every identity field aliased by KEY on a masked pin
+  (title / SKU keys incl. `sku`, `sku_code(s)`, `seller_sku_code(s)`, `product_label`, …; entity
+  `title`/`name`; the `titles` / `seller_skus` maps; ranking rows by `stream`; a title cut short
+  with "…"); product alias keyed on the TikTok product id via the catalog's new `product_refs`
+  (same two statements). `tests/unit/test_p75_reviewer_structural_mask.py` (12; 8 fail on the
+  old mask).
+- Content cards (cause 3): not duplicates. Candidates are grouped per TikTok product and a card
+  is one per (kind, product), so the 4 video cards were 4 products whose titles masked to one
+  alias (fixed by cause 2). The card now also names the video / LIVE behind it for every user:
+  `card.content.sources` (evidence rows, `video_id` / `live_id` + title + date; masked "Video NNN"
+  for the reviewer), shown as "Video: “…” · 27/09 · +2 video" (demo `contentSourceText`).
+- Docs: p32 contract §3 mask rules, p14 contract §1 `sources`, reviewer MODULE.md, edge case D32.
+- Not deployed by this slice; no owner step (no env change).

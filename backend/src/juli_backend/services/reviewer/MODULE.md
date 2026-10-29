@@ -16,7 +16,14 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
   (Shopee reads it as not live): shop `Shop TikTok (ẩn danh)`, `Sản phẩm NNN` / `Video NNN` /
   `LIVE NNN` / `Nhà sáng tạo NNN` / `Tệp NNN`, ids `an-<kind>-<hash8>` / `id-<hash8>` (own HMAC
   key, stable). The seller / ops analytics mask keeps ADR-038's "Demo …" / `demo-<kind>-…`.
-- `catalog` — `load_dictionary` (products, SKUs, LIVE titles of the shop; 10 min cache).
+  P75: structural and fail closed -- every identity field is aliased by its KEY (title / SKU
+  keys, entity-record `title`/`name`, the report's `titles` / `seller_skus` maps, ranking rows by
+  their table's `stream`) whatever the dictionary holds; the dictionary is the free-text layer. A
+  product's alias is keyed on its TikTok product id (else SKU, else raw title) via
+  `MaskDictionary.product_refs`, so one product reads one alias on every page.
+- `catalog` — `load_dictionary` (products, SKUs, LIVE titles of the shop; 10 min cache). P75: also
+  `product_refs` (Juli product id / TikTok SKU id / seller SKU / title → TikTok product id), from
+  the same two statements (more columns, no extra round trip).
 - `pin_cache` — P69: the pinned shop's row + `PinMode`, cached for the account TTL (30 s), per
   pin id (P74-A: several pins, each classified and cached on its own);
   `api/reviewer.enter_reviewer_shop` still applies the shop's tenant scope on every hit.
@@ -45,6 +52,9 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
 - `enter_shop_read_scope` — re-export of `services/ops/view_as`.
 
 ## Invariants
+- P75: on a masked pin no string under a product / SKU / shop / video / LIVE / creator key leaves
+  unaliased, whether or not the catalog knows it (`tests/unit/test_p75_reviewer_structural_mask.py`
+  builds each reviewer-reachable response shape from titles / SKUs outside the dictionary).
 - Nothing here writes a tenant row; the only writes are `ops_reviewer_accounts` and
   `ops_audit_log`. The P64 live sandbox writes to TikTok (the sandbox shop only), never to a
   Juli table.

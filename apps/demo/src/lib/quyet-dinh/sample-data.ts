@@ -630,6 +630,8 @@ export interface SampleContentSpec {
   readonly actionLabel: string;
   readonly willDraft: readonly string[];
   readonly measure: string;
+  /** P75: the video / LIVE session behind the card. */
+  readonly source: { readonly id: string; readonly title: string; readonly date: string };
 }
 
 const CONTENT_KPI: Readonly<Record<SampleContentKind, { key: string; label: string; lever: string; workflow: string; method: string }>> = {
@@ -668,6 +670,7 @@ export const SAMPLE_CONTENT_VIDEO: SampleContentSpec = {
     "Lời kêu gọi bấm giỏ, gợi ý hashtag và nhạc đang lên",
   ],
   measure: "CTR trên các video mới gắn MN-015 trong 7 và 14 ngày, so với video cũ.",
+  source: { id: "sample-video-1", title: "Mặt nạ đất sét: trước và sau", date: "2026-09-27" },
 };
 
 /** ContentCards.dc.html's LIVE card. */
@@ -689,6 +692,7 @@ export const SAMPLE_CONTENT_LIVE: SampleContentSpec = {
     "Gợi ý flash sale trong LIVE trong mức trần giảm giá của bạn",
   ],
   measure: "CTOR của SM-012 ở 3 phiên LIVE kế tiếp, so với phiên trước.",
+  source: { id: "sample-live-1", title: "LIVE xả kho 27/09", date: "2026-09-27" },
 };
 
 export const SAMPLE_CONTENT_CARDS: readonly SampleContentSpec[] = [SAMPLE_CONTENT_VIDEO, SAMPLE_CONTENT_LIVE];
@@ -731,6 +735,13 @@ export function sampleContentDecision(spec: SampleContentSpec, nowMs: number, st
           chip: "Juli soạn · bạn làm",
           will_draft: spec.willDraft,
           measure: spec.measure,
+          sources: [
+            {
+              [spec.kind === "live" ? "live_id" : "video_id"]: spec.source.id,
+              title: spec.source.title,
+              date: spec.source.date,
+            },
+          ],
         },
       },
     },

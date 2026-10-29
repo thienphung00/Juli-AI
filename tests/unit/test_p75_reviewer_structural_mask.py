@@ -260,7 +260,17 @@ def _route_payloads() -> dict[str, Any]:
                             "seller_sku_more": 3,
                             "product_title": TITLE_1,
                             "reason_full": f"Video của {TITLE_1} có CTR thấp.",
-                            "content": {"will_draft": [f"Kịch bản cho {SKU_1}"], "measure": ""},
+                            "content": {
+                                "will_draft": [f"Kịch bản cho {SKU_1}"],
+                                "measure": "",
+                                "sources": [
+                                    {
+                                        "video_id": "7400000000000000002",
+                                        "title": VIDEO_TITLE,
+                                        "date": "2026-10-02",
+                                    }
+                                ],
+                            },
                         },
                         "diagnosis": {"product_title": TITLE_2, "tiktok_product_id": P2},
                     },
@@ -298,6 +308,13 @@ def _route_payloads() -> dict[str, Any]:
 def test_every_reviewer_route_shape_masks_identities_by_key(route):
     masked = mask_payload(_route_payloads()[route], _empty_dictionary())
     _assert_clean(masked)
+
+
+def test_content_card_source_reads_a_video_alias():
+    masked = mask_payload(_route_payloads()["decisions"], _empty_dictionary())
+    (source,) = masked["data"][0]["recommendation"]["card"]["content"]["sources"]
+    assert source["title"] == title_alias("video", "7400000000000000002")
+    assert source["date"] == "2026-10-02"
 
 
 # -- one alias per product -----------------------------------------------------------------

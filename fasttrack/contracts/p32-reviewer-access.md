@@ -181,6 +181,23 @@ becomes 502):
 - titles and ids are collected from the response itself (entity keys) **and** from the shop's
   catalog (products, SKUs, LIVE titles; cached 10 min) and replaced wherever they occur inside
   free text (card titles, reasons, run narration);
+- **P75 — structural, fail closed.** On a masked pin every product / SKU / shop / video / LIVE /
+  creator field is aliased **by its key**, whether or not the catalog knows the value: title keys
+  (`product_title`, `product_name`, `product_label`, `item_name`, `sku_name`, `shop_name`,
+  `video_title`, `live_title`, `creator_name`, …), SKU keys (`seller_sku`, `sku`, `skus`,
+  `sku_code(s)`, `seller_sku_code(s)`, `sku_ref`, `basket_skus`, …), the `title` / `name` of an
+  entity record (a dict carrying a TikTok product / SKU / video / LIVE id), the VALUES of the
+  report's `{product_id: title}` maps (`titles`, `product_titles`, `product_names`) and
+  `{product_id: seller_sku}` maps (`seller_skus`), and the `{id, name}` rows of a ranking table
+  (row kind from its `stream`). The catalog dictionary is the second layer, for free text; a
+  title cut short with "…" (card headings) is still replaced. Why: on 29/10 the Phân tích
+  promotions table showed real titles and a short seller SKU for products only the report
+  carried (edge case D32);
+- **P75 — one alias per product.** A product's `Sản phẩm NNN` is keyed on its TikTok product id
+  (else its SKU, else the raw title), resolved through the catalog's `product_refs` (Juli product
+  id, TikTok SKU id, seller SKU, catalog title → TikTok product id). The same product reads the
+  same alias on Quyết định, Phân tích and Đo lường; two products sharing a title read two
+  aliases. A video / LIVE / creator title is keyed on its own id the same way;
 - brand words of the shop name (`Fujiwa`; stop words like Store / Vietnam / Official dropped)
   plus `REVIEWER_MASK_TERMS` (comma-separated) → `Thương hiệu`, case-insensitive;
 - image / media keys and every external `http(s)` URL → `null` (product photos identify the

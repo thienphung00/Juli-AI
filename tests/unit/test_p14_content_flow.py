@@ -187,9 +187,16 @@ async def test_candidates_become_content_cards_with_the_contract_card_block(sess
         == "CTR trên các video mới gắn MN-015 trong 7 và 14 ngày, so với video cũ."
     )
     assert len(card["content"]["will_draft"]) == 3
+    # P75: the video behind the card tells two cards of the same kind apart.
+    assert card["content"]["sources"] == [
+        {"video_id": "v1", "title": "Video trước và sau", "date": "2026-09-27"}
+    ]
     live = build_content_card_block(
         cards["content_live"], json.loads(cards["content_live"].recommendation_payload), None
     )
+    assert live["content"]["sources"] == [
+        {"live_id": "s1", "title": "LIVE xả kho", "date": "2026-09-27"}
+    ]
     assert live["lever"]["label"] == "Kịch bản host + thứ tự giỏ"
     assert live["main_kpi"]["label"] == "CTOR - LIVE"
     # No discount cap set: no flash-sale line in "Juli sẽ soạn".

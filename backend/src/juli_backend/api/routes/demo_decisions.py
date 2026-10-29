@@ -255,6 +255,15 @@ class DemoDecisionCardBeforeAfter(BaseModel):
     after: str
 
 
+class DemoDecisionCardSource(BaseModel):
+    """P75: one video / LIVE session behind a content card (what tells two cards apart)."""
+
+    video_id: str | None = None
+    live_id: str | None = None
+    title: str = ""
+    date: str | None = None
+
+
 class DemoDecisionCardContent(BaseModel):
     """A content card's extra block (contract p14-content-cards.md §1, fast track P14-E)."""
 
@@ -263,6 +272,7 @@ class DemoDecisionCardContent(BaseModel):
     chip: str
     will_draft: list[str] = []
     measure: str = ""
+    sources: list[DemoDecisionCardSource] = []
 
 
 class DemoDecisionCard(BaseModel):
