@@ -46,7 +46,7 @@ afterEach(() => {
 function decision(id: string): P10DecisionItem {
   return {
     id,
-    title: "Tối ưu Demo Product 123",
+    title: "Tối ưu Sản phẩm 123",
     description: "",
     severity: "high",
     priority: 1,
@@ -67,13 +67,13 @@ function decision(id: string): P10DecisionItem {
         trigger: { code: "below_median", gap: -0.3, sentence: "Thấp hơn trung vị shop" },
         channel_scope: "PRODUCT_CARD",
         recoverable_gmv_per_day: 70_000,
-        product_title: "Demo Product 123",
-        tiktok_product_id: "demo-product-1a2b3c4d",
+        product_title: "Sản phẩm 123",
+        tiktok_product_id: "an-product-1a2b3c4d",
       },
       card: {
         seller_sku: null,
         seller_sku_more: 0,
-        product_title: "Demo Product 123",
+        product_title: "Sản phẩm 123",
         workflow_label: "Tối ưu sản phẩm",
         updated_at: new Date().toISOString(),
         status: "pending",

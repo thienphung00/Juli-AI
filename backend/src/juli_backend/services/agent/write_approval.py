@@ -9,7 +9,7 @@ refused unless the user belongs to the shop. Shop membership in this codebase is
 ``shops.user_id`` -- one owner per shop, no member table -- so "belongs" means "is the
 owner". The one exception is D73: the partner reviewer, on a reviewer request, may approve
 its pinned shop while that pin is Juli's writable TikTok **sandbox** shop (an active
-reviewer account, ``REVIEWER_SHOP_ID`` = this shop, ``classify_pin`` = sandbox with writes
+reviewer account, this shop among ``REVIEWER_SHOP_ID(S)``, ``classify_pin`` = sandbox with writes
 on). Ops / staff sessions never reach these routes (``/v1/ops`` is separate) and, owning
 no client shop, would be refused here anyway. There is no operator-recorded approval path.
 
@@ -135,7 +135,9 @@ async def _is_pinned_sandbox_reviewer(
 
     if not reviewer_session_active():
         return False
-    if reviewer_service.config.reviewer_shop_id() != shop_id:
+    # P74-A (D77): any configured pin -- each still has to classify as a writable sandbox
+    # below, so a masked pin (Fujiwa) never qualifies.
+    if shop_id not in reviewer_service.config.reviewer_shop_ids():
         return False
     account = await reviewer_service.accounts.load_account(session, user_id)
     if account is None or account.status() != reviewer_service.accounts.STATUS_ACTIVE:

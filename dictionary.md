@@ -498,6 +498,11 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Đặt lại dữ liệu mẫu
 - Definition: P32-E: button in `reviewer.banner_sample`: drops every simulated decision, run and rule of the session and shows the sample as it started.
 
+**`reviewer.switch_shop`**
+- EN: Switch to {shop} — "{masked name} · view only" / "TikTok sandbox shop · real writes"
+- VI: Chuyển sang {shop} — "{tên đã ẩn} · chỉ xem" / "Shop sandbox TikTok · ghi thật"
+- Definition: P74-A (D77): the shop menu's entry to the reviewer's other pinned shop. The masked shop (Fujiwa, the default) is read-only with the simulated Duyệt / Thực thi; Juli's sandbox shop writes for real (D73). Shown only with two or more pins. The masked shop's name is "Shop TikTok (ẩn danh)" (never "Demo …").
+
 ## Phrases
 
 **`home.tagline`**

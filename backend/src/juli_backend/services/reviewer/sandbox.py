@@ -2,7 +2,9 @@
 
 Fast track P64, owner decision D73 (grill 2026-10-21). Shopee's ISV review needs a REAL
 working TikTok Shop integration, so the reviewer may be pinned (``REVIEWER_SHOP_ID``) to
-Juli's own TikTok Shop SANDBOX shop and really write its listings there. Three layers, each
+Juli's own TikTok Shop SANDBOX shop and really write its listings there. P74-A (D77): with
+``REVIEWER_SHOP_IDS`` the reviewer holds several pins, each classified here on its own; the
+one ``X-Shop-Id`` selects decides the request's mode. Three layers, each
 failing closed (D73 Q6):
 
 1. **Pin** (:func:`classify_pin`). The pinned shop is ``sandbox`` only when it IS the shop of
@@ -119,9 +121,13 @@ def pin_mode(
     elif production_write_row:
         reason = REASON_PRODUCTION_WRITE
     if reason is not None:
-        # Fail closed and loud (D73 Q6 layer 1): a reviewer must never sit on a seller's shop
-        # with writes on. Logged on every request while the pin is wrong.
-        logger.error(
+        # Fail closed (D73 Q6 layer 1): a reviewer must never sit on a seller's shop with
+        # writes on. P74-A (D77): a production pin is now EXPECTED -- Fujiwa is the masked
+        # default pin -- so that is a warning (on each pin-cache miss). Loud (an error) only
+        # when the shop is the sandbox credential's own shop: the sandbox turned production.
+        sandbox_turned_production = owner is not None and owner.shop_id == shop_id
+        logger.log(
+            logging.ERROR if sandbox_turned_production else logging.WARNING,
             "reviewer_pin_production_shop",
             extra={"shop_id": str(shop_id), "reason": reason},
         )

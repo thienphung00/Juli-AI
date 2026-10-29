@@ -13,6 +13,11 @@ Contract ``fasttrack/contracts/p32-reviewer-access.md`` §2-§3. Three pieces:
   (``REVIEWER_SHOP_ID``) is entered through the ops view-as machinery. With
   no pin (D42 amendment, 2026-10-15: the reviewer uses the demo's sample shop,
   which needs no API) the reviewer has no shop at all: 403 ``shop``.
+  P74-A (D77): ``REVIEWER_SHOP_IDS`` pins several shops (default first). The gate
+  selects ONE per request from ``X-Shop-Id`` (``config.select_pin``; no header: the
+  default) and everything after -- the identity load and its caches, the pin's
+  classification, the mask dictionary, the sandbox-only refusals, the simulation --
+  follows that selected pin alone. A masked pin still takes its alias only.
 - :class:`ReviewerMaskMiddleware` -- masks every JSON body of a reviewer
   request (D25.6 / ADR-038 §8); a non-JSON body becomes 502 (fail closed).
 
@@ -164,8 +169,8 @@ _DENIED_DETAIL = {
 class ReviewerContext:
     account: ReviewerAccount
     platform: str
-    #: The pinned (real) shop id -- never sent to the reviewer. None: no pin
-    #: (``REVIEWER_SHOP_ID`` unset), the reviewer sees the demo's sample shop.
+    #: The SELECTED pinned (real) shop id -- never sent to the reviewer when masked. None:
+    #: no pin (``REVIEWER_SHOP_ID(S)`` unset), the reviewer sees the demo's sample shop.
     shop_id: uuid.UUID | None
     alias_id: uuid.UUID | None
     dictionary: MaskDictionary | None = None
@@ -182,6 +187,8 @@ class ReviewerContext:
     #: P69b: the pinned shop's row + mode from the gate's identity load (None: no pin,
     #: or the shop does not exist -- the shop entry then takes the ops path and refuses).
     pinned: reviewer_service.pin_cache.PinnedShop | None = field(default=None, repr=False)
+    #: P74-A (D77): every configured pin, default first (``shop_id`` is one of them).
+    pins: tuple[uuid.UUID, ...] = ()
 
     @property
     def mask_enabled(self) -> bool:
@@ -254,7 +261,10 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
     template = endpoint_key(request)
     # D42 amendment (2026-10-15): the pin is optional. Unset, the reviewer has
     # no shop (sample mode in the UI); the allowlist below is unchanged.
-    shop_id = reviewer_service.config.reviewer_shop_id()
+    # P74-A (D77): several pins; ``X-Shop-Id`` selects one (no header: the default).
+    # Selection only -- the shop entry still refuses a value the selected pin does not take.
+    pins = reviewer_service.config.reviewer_shop_ids()
+    shop_id = reviewer_service.config.select_pin(pins, request.headers.get("x-shop-id"))
     # P69b: account, users row and pinned shop -- cached, else ONE load per concurrent
     # burst for this verified sub (single flight), in three statements on Postgres.
     identity = await reviewer_service.identity.load_identity(session, token.user_id, shop_id)
@@ -338,6 +348,7 @@ async def reviewer_gate(request: Request, session: AsyncSession, token: Verified
             method=method,
             endpoint=template,
             pinned=identity.pinned,
+            pins=pins,
         ),
     )
 
@@ -416,6 +427,91 @@ async def _enter_pinned_shop(
         context.dictionary = await reviewer_service.catalog.load_dictionary(session, shop)
     context.shop = shop
     return shop
+
+
+@dataclass(frozen=True)
+class ReviewerShopOption:
+    """One pin as the reviewer's shop list shows it (P74-A, D77).
+
+    A masked pin is described ONLY by its alias id and its masked display name, built
+    here -- not left to the response mask, which uses the SELECTED pin's dictionary and is
+    off altogether when the selected pin is the sandbox. Juli's own sandbox shop is shown
+    as it is (D73 Q1/Q2).
+    """
+
+    id: str
+    name: str
+    mode: str
+    writes_enabled: bool
+    tiktok_shop_id: str | None
+    is_active: bool
+
+
+def _shop_option(shop: Shop, pin: PinMode) -> ReviewerShopOption:
+    if pin.mask:
+        return ReviewerShopOption(
+            id=str(reviewer_service.config.shop_alias_id(shop.id)),
+            name=reviewer_service.masking.title_alias("shop", (shop.shop_name or "").strip()),
+            mode=pin.mode,
+            writes_enabled=False,
+            tiktok_shop_id=None,
+            is_active=bool(shop.is_active),
+        )
+    return ReviewerShopOption(
+        id=str(shop.id),
+        name=shop.shop_name,
+        mode=pin.mode,
+        writes_enabled=pin.writes_enabled,
+        tiktok_shop_id=shop.tiktok_shop_id,
+        is_active=bool(shop.is_active),
+    )
+
+
+async def _other_pin(session: AsyncSession, shop_id: uuid.UUID) -> tuple[Shop, PinMode] | None:
+    """A pin that is NOT the selected one: its row and mode, for the shop list only.
+
+    From the pin cache, else read in that shop's scope and classified on its own (and
+    cached). The caller re-enters the selected pin's scope afterwards.
+    """
+    pinned = reviewer_service.pin_cache.cached(shop_id)
+    if pinned is not None:
+        return pinned.shop(), pinned.pin
+    found = await reviewer_service.enter_shop_read_scope(session, shop_id)
+    if found is None:
+        logger.error("reviewer_shop_missing")
+        return None
+    pin = await reviewer_service.sandbox.classify_pin(session, found.id)
+    reviewer_service.pin_cache.remember(found, pin)
+    return found, pin
+
+
+async def reviewer_shop_options(
+    session: AsyncSession, context: ReviewerContext
+) -> list[ReviewerShopOption]:
+    """Every pin the reviewer may switch to, default first (P74-A, D77); [] with no pin.
+
+    Leaves the request in the SELECTED pin's tenant scope, as ``enter_reviewer_shop`` does.
+    """
+    if context.shop_id is None:
+        return []
+    others: dict[uuid.UUID, tuple[Shop, PinMode]] = {}
+    for shop_id in context.pins:
+        if shop_id != context.shop_id:
+            loaded = await _other_pin(session, shop_id)
+            if loaded is not None:
+                others[shop_id] = loaded
+    selected = await enter_reviewer_shop(session, context, None)
+    if others:
+        # Reading another pin moved the tenant scope; put the selected pin's back.
+        await _apply_tenant_context_to_session(session, selected.id, selected.user_id)
+        set_tenant_context(selected.id, selected.user_id)
+    options: list[ReviewerShopOption] = []
+    for shop_id in context.pins:
+        if shop_id == context.shop_id and context.pin is not None:
+            options.append(_shop_option(selected, context.pin))
+        elif shop_id in others:
+            options.append(_shop_option(*others[shop_id]))
+    return options
 
 
 async def _audit_sandbox_refusal(
@@ -661,6 +757,8 @@ __all__ = [
     "endpoint_key",
     "STATE_KEY",
     "ReviewerContext",
+    "ReviewerShopOption",
+    "reviewer_shop_options",
     "deny",
     "require_sandbox_pin",
     "ReviewerMaskMiddleware",
