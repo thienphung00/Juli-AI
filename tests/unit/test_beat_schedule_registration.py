@@ -91,6 +91,63 @@ def test_known_scheduled_tasks_register(task_name: str, registered_task_names: s
     assert task_name in registered_task_names
 
 
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        # Enqueued by services/webhook/material_dispatch.py on every material webhook.
+        "juli_backend.material_analytics_precompute",
+        # Enqueued by shop_ingestion's enqueue_quick_scan after a shop connects.
+        "juli_backend.shop_quick_scan",
+    ],
+)
+def test_dispatch_bound_tasks_register_on_a_fresh_worker(
+    task_name: str, registered_task_names: set[str]
+):
+    """Issue #2020: these registered only through other modules' helper imports.
+
+    Deleting `mock_analytics_reconcile` removed the precompute task's accidental
+    import, and production answered `KeyError: 'juli_backend.material_analytics_precompute'`.
+    """
+    assert task_name in registered_task_names
+
+
+def test_every_task_module_is_imported_by_the_package():
+    """Every module under workers/tasks/ that defines a task is in the package's __all__.
+
+    Closes #2020's class, not only its instance: a new task module that nobody adds to
+    workers/tasks/__init__.py fails here, read from the source, so no import order or
+    side-effect import elsewhere can make it look registered.
+    """
+    import ast
+    from pathlib import Path
+
+    from juli_backend.workers import tasks
+
+    package_dir = Path(tasks.__file__).parent
+
+    def defines_task(path: Path) -> bool:
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for decorator in node.decorator_list:
+                    target = decorator.func if isinstance(decorator, ast.Call) else decorator
+                    if isinstance(target, ast.Attribute) and target.attr == "task":
+                        return True
+        return False
+
+    task_modules = {
+        path.stem
+        for path in package_dir.glob("*.py")
+        if path.stem != "__init__" and defines_task(path)
+    }
+    assert task_modules, "found no task modules; the scan itself is broken"
+    missing = sorted(task_modules - set(tasks.__all__))
+    assert not missing, (
+        f"{missing} define Celery tasks but are not imported in "
+        "juli_backend/workers/tasks/__init__.py, so a worker never registers them. "
+        "Add each to the import list and to __all__."
+    )
+
+
 def test_the_reference_shop_beats_are_retired():
     """P61-D (owner D72.5): both DEMO_REFERENCE_SHOP_ID beats went with /v1/demo/analytics."""
     from juli_backend.workers.celery_app import celery_app
