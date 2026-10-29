@@ -184,17 +184,24 @@ async def connection_info(session: AsyncSession, shop_id: uuid.UUID) -> dict[str
     """
     from juli_backend.models.models import TikTokSyncState
 
-    credential = (
-        (
-            await session.execute(
-                select(TikTokCredential)
-                .where(TikTokCredential.shop_id == shop_id)
-                .order_by(TikTokCredential.created_at.desc())
-            )
-        )
-        .scalars()
-        .first()
+    # P73: an order-only sync (the commerce steps) moves no analytics endpoint's success time;
+    # the card's "Đồng bộ lúc" is the latest sync of ANY kind. Read in the credential's
+    # statement (P73b) so the route keeps its round-trip budget; with no credential the
+    # shop cannot sync, so no connection means no commerce time either.
+    commerce_last_run_at = (
+        select(ShopIngestionState.commerce_last_run_at)
+        .where(ShopIngestionState.shop_id == shop_id)
+        .scalar_subquery()
     )
+    row = (
+        await session.execute(
+            select(TikTokCredential, commerce_last_run_at)
+            .where(TikTokCredential.shop_id == shop_id)
+            .order_by(TikTokCredential.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    credential, commerce_at = (row[0], row[1]) if row is not None else (None, None)
     states = list(
         (
             await session.execute(
@@ -207,17 +214,8 @@ async def connection_info(session: AsyncSession, shop_id: uuid.UUID) -> dict[str
     successes = [
         _utc(state.last_success_at) for state in states if state.last_success_at is not None
     ]
-    # P73: an order-only sync (the commerce steps) moves no analytics endpoint's success time;
-    # the card's "Đồng bộ lúc" is the latest sync of ANY kind.
-    commerce_last_run_at = (
-        await session.execute(
-            select(ShopIngestionState.commerce_last_run_at).where(
-                ShopIngestionState.shop_id == shop_id
-            )
-        )
-    ).scalar_one_or_none()
-    if commerce_last_run_at is not None:
-        successes.append(_utc(commerce_last_run_at))
+    if commerce_at is not None:
+        successes.append(_utc(commerce_at))
     connection: dict[str, Any] | None = None
     if credential is not None:
         connection = {
