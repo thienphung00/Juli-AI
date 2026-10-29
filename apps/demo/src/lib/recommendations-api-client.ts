@@ -24,7 +24,7 @@ export const DEMO_DECISIONS_API_PATH = "/v1/demo/decisions" as const;
 
 export class DemoRecommendationsFetchError extends Error {
   constructor(public readonly status: number) {
-    super(`Demo recommendations fetch failed (${status})`);
+    super(`Recommendations fetch failed (${status})`);
     this.name = "DemoRecommendationsFetchError";
   }
 }

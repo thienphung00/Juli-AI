@@ -5,7 +5,7 @@ import { HOME_MATRIX_REGION, enterReplayDemo, expectFourDestinationShell } from 
 
 /**
  * Phân tích (ADR-109 Amendment 2, AC-12.x) end to end: the signed-out
- * "Bản minh họa" (the Quyết định sample's shop, bundled — no /v1 request),
+ * "Dữ liệu mẫu" (the Quyết định sample's shop, bundled — no /v1 request),
  * the two-way links with Đề xuất, and a stubbed signed-in seller.
  */
 
@@ -22,7 +22,7 @@ function trackApi(page: Page): string[] {
 
 const row = (page: Page, name: string) => page.getByTestId("pa-row").filter({ hasText: name });
 
-test.describe("Phân tích — signed out (Bản minh họa)", () => {
+test.describe("Phân tích — signed out (dữ liệu mẫu)", () => {
   test("no /v1 request; a cell re-ranks; a row expands in place", async ({ page }) => {
     const api = trackApi(page);
     await enterReplayDemo(page);

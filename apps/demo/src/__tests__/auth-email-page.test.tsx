@@ -62,6 +62,19 @@ describe("/auth/email — the auth screen with the partner view", () => {
     expect(window.location.hash).toBe("");
   });
 
+  it("the sample entry shows on the plain door, and is gone once the partner door has been opened", async () => {
+    const user = userEvent.setup();
+    render(<EmailSignInPage />);
+    expect(screen.getByRole("button", { name: /Xem thử với dữ liệu mẫu/ })).toBeInTheDocument();
+
+    await user.click(within(screen.getByRole("contentinfo")).getByRole("link", { name: "Tài khoản đối tác" }));
+    expect(screen.queryByRole("button", { name: /dữ liệu mẫu/ })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "← Quay lại đăng nhập cho người bán" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Đăng nhập vào Juli" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /dữ liệu mẫu/ })).toBeNull();
+  });
+
   it("D47.6: the top entry (above the h1) opens the same in-page partner view as the footer link", async () => {
     const user = userEvent.setup();
     render(<EmailSignInPage />);
@@ -95,7 +108,7 @@ describe("/auth/email — the auth screen with the partner view", () => {
     window.history.replaceState(null, "", "/auth/email?doi-tac=expired#doi-tac");
     render(<EmailSignInPage />);
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Tài khoản dùng thử này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.");
+    expect(alert).toHaveTextContent("Tài khoản đối tác này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.");
     expect(screen.getByRole("heading", { level: 1, name: "Đăng nhập bằng mật khẩu" })).toBeInTheDocument();
   });
 

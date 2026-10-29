@@ -445,5 +445,5 @@ def test_reviewer_labels_are_stable_and_neutral():
     assert re.fullmatch(r"id-[0-9a-f]{8}", id_alias("id", rv.TIKTOK_PRODUCT_ID))
     for value in (title_alias("product", "x"), id_alias("product", "x"), id_alias("id", "1")):
         assert "demo" not in value.lower()
-    # The seller / ops analytics mask is untouched (ADR-038).
-    assert stable_product_title("x").startswith("Demo Product ")
+    # The seller / ops analytics mask (ADR-038) keeps its own labels, neutral since P74-B.
+    assert re.fullmatch(r"Sản phẩm \d{3}", stable_product_title("x"))

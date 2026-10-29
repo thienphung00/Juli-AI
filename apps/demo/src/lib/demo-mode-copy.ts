@@ -8,4 +8,4 @@
  * (demo-shell.test.tsx) pins the literal Vietnamese instead, so neither
  * the component nor the specs can drift from dictionary.md.
  */
-export const DEMO_MODE_REPLAY_LABEL = "Bản minh họa";
+export const DEMO_MODE_REPLAY_LABEL = "Dữ liệu mẫu";

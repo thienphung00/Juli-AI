@@ -131,7 +131,7 @@ async def enforce_reviewer_gate(
         logger.error("reviewer_gate_unbound", extra={"path": request.url.path})
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Tài khoản dùng thử tạm thời không dùng được",
+            detail="Tài khoản đối tác tạm thời không dùng được",
             headers={REVIEWER_DENIED_HEADER: "unavailable"},
         )
     await gate(request, session, token)

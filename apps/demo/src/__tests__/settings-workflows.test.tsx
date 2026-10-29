@@ -58,7 +58,7 @@ describe("Settings — visitor disabled placeholder", () => {
 
     expect(
       screen.getByText(
-        /Mẫu quy trình và ngưỡng yêu cầu Sign-in\. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu\./,
+        /Mẫu quy trình và ngưỡng yêu cầu Sign-in\. Bạn vẫn có thể khám phá Juli bằng dữ liệu mẫu\./,
       ),
     ).toBeInTheDocument();
     expect(screen.queryByTestId(/^settings-workflow-row-/)).not.toBeInTheDocument();
@@ -84,7 +84,7 @@ describe("Settings — visitor disabled placeholder", () => {
     await user.click(screen.getByRole("tab", { name: "Ngưỡng" }));
 
     expect(
-      screen.getByRole("status", { name: "Phản hồi Demo" }),
+      screen.getByRole("status", { name: "Phản hồi của Juli" }),
     ).toHaveTextContent("Sign-in sắp ra mắt");
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();

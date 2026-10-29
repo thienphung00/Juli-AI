@@ -48,7 +48,7 @@ export function getOptimizeProductReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Juli không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -141,7 +141,7 @@ export function getOptimizeProductReviewStages(
       title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(optimizeFixture, [
         "Giá phải ở trên mức sàn lợi nhuận đã cấu hình, thay đổi dưới sàn sẽ bị chặn khi duyệt.",
-        "Giao hàng do TikTok quản lý cho tối ưu sản phẩm chưa có trong Demo.",
+        "Giao hàng do TikTok quản lý cho tối ưu sản phẩm chưa được hỗ trợ.",
       ]),
     },
     {

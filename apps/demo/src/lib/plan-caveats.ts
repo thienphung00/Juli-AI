@@ -173,7 +173,7 @@ export const WORKFLOW_PLAN_CAVEATS: Record<string, readonly PlanCaveat[]> = {
     },
     {
       caveatClass: "fulfilment-unsupported",
-      text: "Luồng giao hàng do TikTok quản lý cho khuyến mãi chưa có trong Demo.",
+      text: "Luồng giao hàng do TikTok quản lý cho khuyến mãi chưa được hỗ trợ.",
     },
   ],
   prevent_cancellation_8a: [

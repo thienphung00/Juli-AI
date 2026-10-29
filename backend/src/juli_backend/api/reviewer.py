@@ -152,11 +152,11 @@ ALLOWED_ENDPOINTS: frozenset[tuple[str, str]] = frozenset(
 
 
 _DENIED_DETAIL = {
-    "unknown": "Tài khoản dùng thử không hợp lệ",
-    "revoked": "Tài khoản dùng thử này đã bị thu hồi",
-    "expired": "Tài khoản dùng thử này đã hết hạn",
-    "read_only": "Tài khoản dùng thử chỉ xem · thao tác này bị chặn",
-    "unconfigured": "Tài khoản dùng thử chưa sẵn sàng",
+    "unknown": "Tài khoản đối tác không hợp lệ",
+    "revoked": "Tài khoản đối tác này đã bị thu hồi",
+    "expired": "Tài khoản đối tác này đã hết hạn",
+    "read_only": "Tài khoản đối tác chỉ xem · thao tác này bị chặn",
+    "unconfigured": "Tài khoản đối tác chưa sẵn sàng",
     "shop": "Shop not accessible",
     # P64 (D73): a live sandbox route on a pin that is not a writable sandbox shop.
     "sandbox_only": "Chỉ dùng được với shop sandbox của Juli",

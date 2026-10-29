@@ -5,17 +5,17 @@
 
 /** dictionary.md `reviewer.banner` — the persistent strip on every page. */
 export const REVIEWER_BANNER_COPY =
-  "Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn tên · thao tác chỉ mô phỏng";
+  "Tài khoản đối tác · dữ liệu shop thật đã ẩn tên · chỉ xem, duyệt chỉ mô phỏng";
 
 /**
  * dictionary.md `reviewer.banner_sample` — the strip when no shop is pinned
  * (P32-D, D42 amendment): the reviewer sees the bundled sample shop.
  */
 export const REVIEWER_SAMPLE_BANNER_COPY =
-  "Tài khoản dùng thử cho đối tác · dữ liệu mẫu · thao tác chỉ mô phỏng";
+  "Tài khoản đối tác · thao tác chỉ mô phỏng";
 
 /** dictionary.md `reviewer.read_only_title` — tooltip of a write control. */
-export const REVIEWER_READ_ONLY_TITLE = "Tài khoản dùng thử: thao tác chỉ mô phỏng";
+export const REVIEWER_READ_ONLY_TITLE = "Tài khoản đối tác: thao tác chỉ mô phỏng";
 
 /** dictionary.md `reviewer.simulated` — the label of every simulated result. */
 export const REVIEWER_SIMULATED_LABEL = "Mô phỏng · không gửi tới TikTok";
@@ -46,12 +46,12 @@ export const REVIEWER_SIMULATED_SETTINGS_LABEL = "Mô phỏng · không lưu";
 /**
  * dictionary.md `reviewer.sample_notice` — P32-E: Quyết định's notice in the
  * sample shop, after `reviewer.simulated` ("Mô phỏng · không gửi tới TikTok ·
- * chạy trên dữ liệu mẫu"). P41 (D47.7): short, one line.
+ * không thay đổi dữ liệu thật"). P41 (D47.7): short, one line.
  */
-export const REVIEWER_SAMPLE_NOTICE = "chạy trên dữ liệu mẫu";
+export const REVIEWER_SAMPLE_NOTICE = "không thay đổi dữ liệu thật";
 
 /** dictionary.md `reviewer.reset` — P32-E: start the sample shop over. */
-export const REVIEWER_RESET_LABEL = "Đặt lại dữ liệu mẫu";
+export const REVIEWER_RESET_LABEL = "Đặt lại mô phỏng";
 
 /** dictionary.md `reviewer.continue_run` — P32-E: from the simulated Thực thi to the sample run. */
 export const REVIEWER_CONTINUE_LABEL = "Theo dõi lượt chạy (mô phỏng) ›";
@@ -60,7 +60,7 @@ export const REVIEWER_CONTINUE_LABEL = "Theo dõi lượt chạy (mô phỏng) �
 export const REVIEWER_FAST_FORWARD_COPY = "Xem trước kết quả đo:";
 
 /** dictionary.md `reviewer.video_simulated` — P32-E: the canned "Phân tích video". */
-export const REVIEWER_VIDEO_SIMULATED_NOTE = "tệp không được tải lên, đây là phân tích mẫu";
+export const REVIEWER_VIDEO_SIMULATED_NOTE = "tệp không được tải lên, đây là phân tích mô phỏng";
 
 /** dictionary.md `reviewer.simulated_settings_note` — P41 (D47.7): after "Mô phỏng · không lưu" on Quy tắc. */
 export const REVIEWER_SIMULATED_SETTINGS_NOTE = "chỉ giữ trong phiên này";

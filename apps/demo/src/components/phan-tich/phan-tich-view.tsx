@@ -220,7 +220,7 @@ export function PhanTichView({ report, loadRanking, loadDecisions, query, onNavi
       </header>
       {sample ? (
         <p className="demo-notice sample-notice pa-sample" data-testid="mock-data-notice">
-          Dữ liệu mẫu · {report.shop_name} là shop minh họa, không phải shop của bạn.
+          Dữ liệu mẫu · {report.shop_name} là shop mẫu, không phải shop của bạn.
         </p>
       ) : null}
 

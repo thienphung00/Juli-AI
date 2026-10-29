@@ -147,7 +147,7 @@ describe("reviewer mode in the shell", () => {
     const banner = screen.getByTestId("reviewer-banner");
     expect(banner).toHaveAttribute("role", "status");
     expect(banner).toHaveTextContent(REVIEWER_BANNER_COPY);
-    expect(banner).toHaveTextContent("Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn tên · thao tác chỉ mô phỏng");
+    expect(banner).toHaveTextContent("Tài khoản đối tác · dữ liệu shop thật đã ẩn tên · chỉ xem, duyệt chỉ mô phỏng");
     expect(banner).toHaveTextContent("Đối tác Shopee");
     expect(banner).toHaveTextContent("Hết hạn 13/11/2026");
   });

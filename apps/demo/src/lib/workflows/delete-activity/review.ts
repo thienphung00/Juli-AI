@@ -43,7 +43,7 @@ export function getDeleteActivityReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Juli không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -76,14 +76,14 @@ export function getDeleteActivityReviewStages(
       stage: "preview",
       title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(deleteActivityFixture, [
-        "Khuyến mãi mục tiêu qua giao hàng do TikTok quản lý chưa có trong Demo.",
+        "Khuyến mãi mục tiêu qua giao hàng do TikTok quản lý chưa được hỗ trợ.",
       ]),
     },
     {
       stage: "approve",
       title: "Xác nhận duyệt",
       body: buildSellerApproveBody([
-        "Demo không hỗ trợ tìm kiếm chương trình khuyến mãi.",
+        "Juli chưa hỗ trợ tìm kiếm chương trình khuyến mãi.",
       ]),
     },
   ];

@@ -4,10 +4,10 @@ import { useDemoState } from "./demo-state";
 import { ACTIONS_DESTINATION_LABEL } from "../lib/destination-copy";
 
 export const SETTINGS_VISITOR_PLACEHOLDER =
-  "Mẫu quy trình và ngưỡng yêu cầu Sign-in. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.";
+  "Mẫu quy trình và ngưỡng yêu cầu Sign-in. Bạn vẫn có thể khám phá Juli bằng dữ liệu mẫu.";
 
 export const SETTINGS_WORKFLOW_DETAIL_VISITOR_PLACEHOLDER =
-  "Chỉnh sửa mẫu quy trình yêu cầu Sign-in. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.";
+  "Chỉnh sửa mẫu quy trình yêu cầu Sign-in. Bạn vẫn có thể khám phá Juli bằng dữ liệu mẫu.";
 
 export function SettingsView() {
   const { requestSignIn } = useDemoState();

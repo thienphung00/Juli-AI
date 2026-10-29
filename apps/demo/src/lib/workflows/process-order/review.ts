@@ -50,7 +50,7 @@ export function getProcessOrderReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI Tỷ lệ hủy đơn trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI Tỷ lệ hủy đơn trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Juli không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -127,7 +127,7 @@ export function getProcessOrderReviewStages(
       stage: "approve",
       title: "Xác nhận duyệt",
       body: buildSellerApproveBody([
-        "Demo không tạo hoặc giao lô hàng khi đơn đang tạm giữ.",
+        "Juli không tạo hoặc giao lô hàng khi đơn đang tạm giữ.",
       ]),
     },
   ];

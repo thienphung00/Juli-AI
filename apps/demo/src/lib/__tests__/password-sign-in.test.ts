@@ -72,8 +72,8 @@ describe("signInWithPassword", () => {
 
   it("has Vietnamese copy for every error", () => {
     expect(PASSWORD_SIGN_IN_ERROR_COPY.wrong).toBe("Sai email hoặc mật khẩu.");
-    expect(PASSWORD_SIGN_IN_ERROR_COPY.revoked).toBe("Tài khoản dùng thử này đã bị thu hồi. Vui lòng liên hệ Juli.");
-    expect(PASSWORD_SIGN_IN_ERROR_COPY.expired).toBe("Tài khoản dùng thử này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.");
+    expect(PASSWORD_SIGN_IN_ERROR_COPY.revoked).toBe("Tài khoản đối tác này đã bị thu hồi. Vui lòng liên hệ Juli.");
+    expect(PASSWORD_SIGN_IN_ERROR_COPY.expired).toBe("Tài khoản đối tác này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.");
   });
 });
 

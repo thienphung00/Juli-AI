@@ -30,7 +30,7 @@ import { vnClock } from "../../lib/vn-format";
  * The avatar opens the shop menu, which now holds what used to be header
  * controls and the fourth nav tab: Cài đặt, connect/switch shop, sign out —
  * and, for an anonymous visitor, Đăng nhập với Google, Đăng nhập bằng email
- * (AC-9.1, → `/auth/email`) and Làm mới Demo.
+ * (AC-9.1, → `/auth/email`) and Làm mới dữ liệu mẫu.
  */
 
 export function shopInitials(name: string): string {
@@ -240,7 +240,7 @@ export function ShopHeader({
                     }}
                     type="button"
                   >
-                    Làm mới Demo
+                    Làm mới dữ liệu mẫu
                   </button>
                 </li>
               </>

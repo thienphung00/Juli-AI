@@ -16,7 +16,7 @@ import { buildGoogleAuthorizeUrl } from "../lib/supabase-auth";
 /**
  * The app shell (AC-8.5, ADR-109 decisions 1, 7, 8). Replaces the Phase 2.6
  * shell's header controls, assistance aside and bottom-nav-everywhere: the
- * video's rail + shop header, with Đăng nhập / Làm mới Demo / Cài đặt moved
+ * video's rail + shop header, with Đăng nhập / Làm mới dữ liệu mẫu / Cài đặt moved
  * into the shop-avatar menu.
  */
 
@@ -124,12 +124,12 @@ describe("App shell — rail, header, slot", () => {
     expect(screen.getByRole("main")).toHaveTextContent("Nội dung trang");
   });
 
-  it("anonymous: names the sample shop, flags it as Bản minh họa, and shows its update time — not 'Juli đang chạy'", async () => {
+  it("anonymous: names the sample shop, flags it as Dữ liệu mẫu, and shows its update time — not 'Juli đang chạy'", async () => {
     render(<DemoShell>Nội dung</DemoShell>);
     const header = screen.getByTestId("shop-header");
 
     await waitFor(() => expect(header).toHaveTextContent("Cửa hàng Mẫu Hoa Mai"));
-    expect(header).toHaveTextContent("Bản minh họa");
+    expect(header).toHaveTextContent("Dữ liệu mẫu");
     expect(header).toHaveTextContent("TikTok Shop");
     expect(header).toHaveTextContent("Dữ liệu mẫu · cập nhật 08:00");
     expect(header).not.toHaveTextContent("Juli đang chạy");
@@ -155,7 +155,7 @@ describe("App shell — rail, header, slot", () => {
 
     await waitFor(() => expect(header).toHaveTextContent("Juli đang chạy · cập nhật 02:00"));
     expect(header).toHaveTextContent("Shop Thật");
-    expect(header).not.toHaveTextContent("Bản minh họa");
+    expect(header).not.toHaveTextContent("Dữ liệu mẫu");
   });
 
   it("signed in without a report: omits the update time rather than inventing one", async () => {
@@ -211,7 +211,7 @@ describe("Shop-avatar menu", () => {
     expect(avatar).toHaveFocus();
   });
 
-  it("anonymous: holds Cài đặt, a real Đăng nhập link to Supabase Auth (#1907) and Làm mới Demo", async () => {
+  it("anonymous: holds Cài đặt, a real Đăng nhập link to Supabase Auth (#1907) and Làm mới dữ liệu mẫu", async () => {
     const user = userEvent.setup();
     window.sessionStorage.setItem("juli_demo_entry_mode", "replay");
     render(<DemoShell>Nội dung</DemoShell>);
@@ -224,7 +224,7 @@ describe("Shop-avatar menu", () => {
     expect(signInLink).not.toHaveAttribute("aria-disabled");
     // AC-9.1: email sign-in sits beside Google in the same menu.
     expect(screen.getByRole("link", { name: "Đăng nhập bằng email" })).toHaveAttribute("href", "/auth/email");
-    expect(screen.getByRole("button", { name: "Làm mới Demo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Làm mới dữ liệu mẫu" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Đăng xuất" })).toBeNull();
   });
 
@@ -260,7 +260,7 @@ describe("Shop-avatar menu", () => {
 
     expect(screen.getByRole("link", { name: "Cài đặt" })).toHaveAttribute("href", "/settings");
     expect(screen.getByRole("link", { name: "Đổi shop" })).toHaveAttribute("href", "/auth/connect-shop");
-    expect(screen.queryByRole("button", { name: "Làm mới Demo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Làm mới dữ liệu mẫu" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Đăng xuất" }));
     expect(window.sessionStorage.getItem("juli_demo_auth_session")).toBeNull();
@@ -270,7 +270,7 @@ describe("Shop-avatar menu", () => {
     expect(assign).toHaveBeenCalledWith("/?entry=door");
   });
 
-  it("Làm mới Demo resets every mutable mock-state category, opens Decisions and announces it", async () => {
+  it("Làm mới dữ liệu mẫu resets every mutable mock-state category, opens Decisions and announces it", async () => {
     const user = userEvent.setup();
     render(
       <DemoShell>
@@ -282,14 +282,14 @@ describe("Shop-avatar menu", () => {
     expect(screen.getByTestId("mutable-state")).toHaveTextContent("inventory-turnover");
 
     await openShopMenu(user);
-    await user.click(screen.getByRole("button", { name: "Làm mới Demo" }));
+    await user.click(screen.getByRole("button", { name: "Làm mới dữ liệu mẫu" }));
 
     expect(JSON.parse(screen.getByTestId("mutable-state").textContent ?? "{}")).toEqual(
       DEFAULT_MUTABLE_MOCK_STATE,
     );
     expect(replace).toHaveBeenCalledWith("/decisions");
-    expect(screen.getByRole("status", { name: "Phản hồi Demo" })).toHaveTextContent(
-      "Demo đã trở về trạng thái ban đầu",
+    expect(screen.getByRole("status", { name: "Phản hồi của Juli" })).toHaveTextContent(
+      "Dữ liệu mẫu đã trở về trạng thái ban đầu",
     );
   });
 });

@@ -22,7 +22,7 @@ export class DemoDecisionApproveError extends Error {
     public readonly status: number,
     public readonly detail: ApproveRefusalDetail | null = null,
   ) {
-    super(`Demo decision approve failed (${status})`);
+    super(`Decision approve failed (${status})`);
     this.name = "DemoDecisionApproveError";
   }
 }

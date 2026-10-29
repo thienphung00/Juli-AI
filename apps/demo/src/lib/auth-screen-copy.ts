@@ -61,8 +61,8 @@ export const AUTH_PANEL_LABEL = "Juli làm gì";
 export const AUTH_PANEL_EYEBROW = "Sau khi kết nối TikTok Shop";
 export const AUTH_PANEL_HEADLINE =
   "Juli chỉ ra luồng và sản phẩm đang kéo GMV xuống, kèm một thay đổi cụ thể để bạn duyệt.";
-export const AUTH_PANEL_IMAGE_ALT = "Thẻ đề xuất của Juli: Mặt nạ đất sét 100g, CTOR 5,4 % lên 5,9 % (dữ liệu mẫu)";
-export const AUTH_PANEL_CAPTION = "Dữ liệu mẫu";
+export const AUTH_PANEL_IMAGE_ALT = "Thẻ đề xuất của Juli: Mặt nạ đất sét 100g, CTOR 5,4 % lên 5,9 %";
+export const AUTH_PANEL_CAPTION = "Ví dụ thẻ đề xuất";
 export const AUTH_PANEL_PROOF = [
   "Kết nối chính thức qua TikTok Shop Open API",
   "Chỉ thực hiện khi bạn duyệt",

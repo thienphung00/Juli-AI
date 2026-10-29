@@ -168,14 +168,14 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: Trigger and tolerance configuration within Settings.
 
 **`empty.settings.sign_in_required`**
-- EN: Workflow templates and thresholds require Sign-in. You can still explore the full Demo with mock data.
-- VI: Mẫu quy trình và ngưỡng yêu cầu Sign-in. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.
+- EN: Workflow templates and thresholds require Sign-in. You can still explore Juli with sample data.
+- VI: Mẫu quy trình và ngưỡng yêu cầu Sign-in. Bạn vẫn có thể khám phá Juli bằng dữ liệu mẫu.
 - _Avoid_: Đăng nhập để tiếp tục (when Sign-in is not yet available)
 - Definition: Honest visitor placeholder on the Settings destination.
 
 **`empty.settings.workflow_detail.sign_in_required`**
-- EN: Editing workflow templates requires Sign-in. You can still explore the full Demo with mock data.
-- VI: Chỉnh sửa mẫu quy trình yêu cầu Sign-in. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.
+- EN: Editing workflow templates requires Sign-in. You can still explore Juli with sample data.
+- VI: Chỉnh sửa mẫu quy trình yêu cầu Sign-in. Bạn vẫn có thể khám phá Juli bằng dữ liệu mẫu.
 - Definition: Honest visitor placeholder on a Settings workflow detail route.
 
 **`common.juli_assistance`**
@@ -305,10 +305,10 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: The auth screen's text link under the column — the sessionless, dataless client-replay entry (ADR-094 decision 1, PUI-DESIGN §1). Mints no session, calls no `/v1/*` route.
 
 **`demo.mode.replay`**
-- EN: Illustrative example (replay mode indicator)
-- VI: Bản minh họa
+- EN: Sample data (replay mode indicator)
+- VI: Dữ liệu mẫu
 - _Avoid_: Mock (developer vocabulary in front of a seller)
-- Definition: `DemoShell`'s header mode-switcher label (issue #1907) for the replay/mock state, consistent with `demo.try`'s own "bản minh họa" wording.
+- Definition: `DemoShell`'s header mode-switcher label (issue #1907) for the replay/mock state, consistent with `demo.try`'s own "dữ liệu mẫu" wording.
 
 **`auth.google`**
 - EN: Sign in with Google
@@ -349,7 +349,7 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Under the column: "Xem thử với dữ liệu mẫu, không cần tài khoản →" (EN: Look around with sample data, no account needed →) enters the sample demo (`demo.try`); "Mới dùng Juli? Dùng thử miễn phí 3 tháng" switches to the trial variant.
 - OTP view: h1 "Nhập mã 6 chữ số"; "Juli đã gửi mã tới {masked email}. Nhập mã bên dưới, hoặc bấm nút đăng nhập trong email."; legend "Mã đăng nhập", boxes "Số 1"…"Số 6"; filled button "Xác nhận" (pending "Đang xác nhận…"); "Nhập đủ 6 chữ số trong email."; "← Đổi email"; "Gửi lại mã" / "Gửi lại mã sau {n} giây"; on a wrong/expired code the alert offers "Gửi mã mới"; success "Đăng nhập thành công. Đang chuyển tới Kết nối TikTok Shop…".
 - Partner view (the top pill or the footer link "Tài khoản đối tác"): eyebrow "Tài khoản đối tác", h1 "Đăng nhập bằng mật khẩu", sub "Dành cho đối tác và đơn vị thẩm định được Juli cấp tài khoản. Người bán đăng nhập bằng Google hoặc email.", back "← Quay lại đăng nhập cho người bán".
-- Right panel (desktop, label "Juli làm gì"): eyebrow "Sau khi kết nối TikTok Shop"; "Juli chỉ ra luồng và sản phẩm đang kéo GMV xuống, kèm một thay đổi cụ thể để bạn duyệt."; shot alt "Thẻ đề xuất của Juli: Mặt nạ đất sét 100g, CTOR 5,4 % lên 5,9 % (dữ liệu mẫu)", caption "Dữ liệu mẫu"; proof lines "Kết nối chính thức qua TikTok Shop Open API" · "Chỉ thực hiện khi bạn duyệt" · "Miễn phí 3 tháng".
+- Right panel (desktop, label "Juli làm gì"): eyebrow "Sau khi kết nối TikTok Shop"; "Juli chỉ ra luồng và sản phẩm đang kéo GMV xuống, kèm một thay đổi cụ thể để bạn duyệt."; shot alt "Thẻ đề xuất của Juli: Mặt nạ đất sét 100g, CTOR 5,4 % lên 5,9 %", caption "Ví dụ thẻ đề xuất"; proof lines "Kết nối chính thức qua TikTok Shop Open API" · "Chỉ thực hiện khi bạn duyệt" · "Miễn phí 3 tháng".
 - Logo label "Juli AI, về trang chủ app-juli.com"; footer "Tài khoản đối tác" · "Điều khoản" · "Chính sách bảo mật" · "© 2026 Công ty TNHH Công Nghệ Juli AI".
 
 **`auth.consent`**
@@ -426,17 +426,17 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 
 **`auth.password.revoked`**
 - EN: This trial account has been revoked. Please contact Juli.
-- VI: Tài khoản dùng thử này đã bị thu hồi. Vui lòng liên hệ Juli.
+- VI: Tài khoản đối tác này đã bị thu hồi. Vui lòng liên hệ Juli.
 - Definition: GoTrue `user_banned` (the revoke command bans the user), or the API's `X-Juli-Reviewer-Denied: revoked`.
 
 **`auth.password.expired`**
 - EN: This trial account has expired. Please contact Juli to extend it.
-- VI: Tài khoản dùng thử này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.
+- VI: Tài khoản đối tác này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.
 - Definition: The API's `X-Juli-Reviewer-Denied: expired` (default lifetime 30 days); the session is cleared.
 
 **`auth.password.not_trial`**
 - EN: Password sign-in is only for partner trial accounts. Please sign in with Google or an email code.
-- VI: Đăng nhập bằng mật khẩu chỉ dành cho tài khoản dùng thử của đối tác. Hãy đăng nhập bằng Google hoặc mã email.
+- VI: Đăng nhập bằng mật khẩu chỉ dành cho tài khoản đối tác. Hãy đăng nhập bằng Google hoặc mã email.
 - Definition: The password was right but `GET /v1/reviewer/me` says the account is not a reviewer (or is unknown to Juli); signed out again.
 
 **`auth.password.rate_limited`** / **`auth.password.network`** / **`auth.password.failed`** / **`auth.password.unavailable`**
@@ -444,18 +444,18 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - EN: Too many attempts, wait and retry. / Could not reach the sign-in server. / Sign-in did not succeed. / Password sign-in is not available in this environment.
 
 **`reviewer.banner`**
-- EN: Partner trial account · shop data anonymised · actions are simulated only
-- VI: Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn tên · thao tác chỉ mô phỏng
+- EN: Partner account · real shop data with names hidden · view only, approvals are simulated
+- VI: Tài khoản đối tác · dữ liệu shop thật đã ẩn tên · chỉ xem, duyệt chỉ mô phỏng
 - Definition: P32-A (AC-32.7): the persistent strip on every page of a partner trial account (also the run-focus layout), followed by "Đối tác {Platform} · Hết hạn {dd/mm/yyyy}" (`reviewer.expires`).
 
 **`reviewer.banner_sample`**
-- EN: Partner trial account · sample data · actions are simulated only
-- VI: Tài khoản dùng thử cho đối tác · dữ liệu mẫu · thao tác chỉ mô phỏng
+- EN: Partner account · actions are simulated only
+- VI: Tài khoản đối tác · thao tác chỉ mô phỏng
 - Definition: P32-D (D42 amendment, 2026-10-15): `reviewer.banner` when no reference shop is pinned (`GET /v1/reviewer/me` → `shop: null`): the reviewer sees the sample shop "Cửa hàng Mẫu Hoa Mai" (P11/P13, bundled, no network), not a masked real shop. Same placement and suffix as `reviewer.banner`.
 
 **`reviewer.read_only_title`**
-- EN: Trial account: actions are simulated only
-- VI: Tài khoản dùng thử: thao tác chỉ mô phỏng
+- EN: Partner account: actions are simulated only
+- VI: Tài khoản đối tác: thao tác chỉ mô phỏng
 - Definition: Tooltip of every disabled write control in a partner trial account pinned to a real shop (Từ chối, Hoàn tác, Quy tắc, Sửa…). Only a card's "Duyệt" stays enabled, and it runs `reviewer.simulated`. P32-E: not used in the sample shop, where nothing is read-only.
 
 **`reviewer.simulated`**
@@ -471,12 +471,12 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 **`reviewer.simulation_note`**
 - VI: juli: "Với shop thật, Juli ghi thay đổi này lên TikTok Shop sau khi bạn xác nhận, rồi đo ở ngày 7 và 14." / juli_with_photo: "Với shop thật, Juli đổi ảnh bìa trên TikTok Shop sau khi bạn gửi ảnh và xác nhận, rồi đo ở ngày 7 và 14." / juli_drafts: "Với shop thật, Juli soạn kịch bản, bạn quay và đăng; Juli không ghi gì lên TikTok, chỉ đo ở ngày 7 và 14." / seller_center: "Bạn tự áp dụng trên Seller Center; Juli không ghi gì lên TikTok, chỉ đo ở ngày 7 và 14."
 - EN: For a real shop, Juli writes this change to TikTok Shop after you confirm, then measures on day 7 and 14. (and the photo / script / Seller Center variants)
-- Definition: P41 (D47.7, owner 2026-10-16): the one line under the simulated Thực thi, per lever executor; `change.note` of the simulate response (backend `services/reviewer/simulation.py` `_NOTES`, sample `lib/reviewer/copy.ts` `REVIEWER_SIMULATION_NOTES`). Replaces the long "Với seller thật: … Tài khoản dùng thử chỉ hiển thị yêu cầu — không có gì được gửi." paragraphs.
+- Definition: P41 (D47.7, owner 2026-10-16): the one line under the simulated Thực thi, per lever executor; `change.note` of the simulate response (backend `services/reviewer/simulation.py` `_NOTES`, sample `lib/reviewer/copy.ts` `REVIEWER_SIMULATION_NOTES`). Replaces the long "Với seller thật: … Tài khoản đối tác chỉ hiển thị yêu cầu — không có gì được gửi." paragraphs.
 
 **`reviewer.sample_notice`**
-- EN: runs on sample data
-- VI: chạy trên dữ liệu mẫu
-- Definition: P32-E: Quyết định's notice after `reviewer.simulated` in the sample shop, one line: "Mô phỏng · không gửi tới TikTok · chạy trên dữ liệu mẫu" (replaces the signed-out "Dữ liệu mẫu · …" notice for the reviewer). P41 (D47.7): shortened from "Mọi thao tác ở đây — duyệt, từ chối, sửa nội dung, ảnh, Seller Center, kịch bản, hoàn tác — chạy trong trình duyệt trên dữ liệu mẫu."
+- EN: changes no real data
+- VI: không thay đổi dữ liệu thật
+- Definition: P32-E: Quyết định's notice after `reviewer.simulated` in the sample shop, one line: "Mô phỏng · không gửi tới TikTok · không thay đổi dữ liệu thật" (replaces the signed-out "Dữ liệu mẫu · …" notice for the reviewer). P41 (D47.7): shortened from "Mọi thao tác ở đây — duyệt, từ chối, sửa nội dung, ảnh, Seller Center, kịch bản, hoàn tác — chạy trong trình duyệt trên dữ liệu mẫu."
 
 **`reviewer.continue_run`**
 - EN: Follow the run (simulation) ›
@@ -489,13 +489,13 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - Definition: P32-E: Đo lường's control in the sample shop — moves every measured sample run to an invented day-7 reading or day-14 verdict ("Đạt"), so the reviewer sees both views on their own simulated results.
 
 **`reviewer.video_simulated`**
-- EN: the file is not uploaded, this is a sample analysis
-- VI: tệp không được tải lên, đây là phân tích mẫu
+- EN: the file is not uploaded, this is a simulated analysis
+- VI: tệp không được tải lên, đây là phân tích mô phỏng
 - Definition: P32-E: "Phân tích video" in the sample shop: picking a file shows the canned sample analysis (P15) under its name; the file is never read or sent.
 
 **`reviewer.reset`**
-- EN: Reset sample data
-- VI: Đặt lại dữ liệu mẫu
+- EN: Reset simulation
+- VI: Đặt lại mô phỏng
 - Definition: P32-E: button in `reviewer.banner_sample`: drops every simulated decision, run and rule of the session and shows the sample as it started.
 
 **`reviewer.switch_shop`**

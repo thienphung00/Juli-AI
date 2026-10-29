@@ -68,7 +68,7 @@ export function getPreventReturnReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI liên quan trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Juli không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },

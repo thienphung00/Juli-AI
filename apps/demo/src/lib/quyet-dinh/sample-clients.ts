@@ -270,7 +270,7 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
 
   const getRun = (runId: string): SampleRun => {
     const run = runs.get(runId);
-    if (!run) throw new Error("Không tìm thấy lượt chạy này trong bản minh họa.");
+    if (!run) throw new Error("Không tìm thấy lượt chạy này trong dữ liệu mẫu.");
     return run;
   };
 
@@ -569,7 +569,7 @@ export function createSampleQdClients(options: SampleClientsOptions = {}): Sampl
     approve: (cardId) => {
       const content = SAMPLE_CONTENT_CARDS.find((entry) => entry.id === cardId);
       const card = SAMPLE_CARDS.find((entry) => entry.id === cardId);
-      if (!content && !card) return Promise.reject(new Error("Không tìm thấy thẻ này trong bản minh họa."));
+      if (!content && !card) return Promise.reject(new Error("Không tìm thấy thẻ này trong dữ liệu mẫu."));
       // The real approve only takes a card still on the desk (`get_surfaced_decision`).
       if (sellerStatus(cardId) !== "pending") return Promise.reject(new Error("Thẻ này không còn chờ duyệt."));
       cards.get(cardId)!.desk = "approved";

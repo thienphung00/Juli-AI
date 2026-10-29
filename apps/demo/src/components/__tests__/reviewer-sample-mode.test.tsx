@@ -74,10 +74,10 @@ describe("shop: null from /v1/reviewer/me", () => {
     expect(readReviewerRecord()).toEqual({ platform: "shopee", expiresAt: EXPIRES, sample: true });
   });
 
-  it("the banner says dữ liệu mẫu in sample mode, ẩn tên when pinned", () => {
+  it("the banner says thao tác chỉ mô phỏng in sample mode, ẩn tên when pinned", () => {
     const { rerender } = render(<ReviewerBanner reviewer={{ platform: "shopee", expiresAt: EXPIRES, sample: true }} />);
     expect(screen.getByTestId("reviewer-banner")).toHaveTextContent(REVIEWER_SAMPLE_BANNER_COPY);
-    expect(screen.getByTestId("reviewer-banner")).toHaveTextContent("dữ liệu mẫu");
+    expect(screen.getByTestId("reviewer-banner")).toHaveTextContent("thao tác chỉ mô phỏng");
     expect(screen.getByTestId("reviewer-banner")).toHaveTextContent("Đối tác Shopee");
     rerender(<ReviewerBanner reviewer={{ platform: "shopee", expiresAt: EXPIRES }} />);
     expect(screen.getByTestId("reviewer-banner")).toHaveTextContent(REVIEWER_BANNER_COPY);

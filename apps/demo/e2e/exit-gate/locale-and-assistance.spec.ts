@@ -42,7 +42,7 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
   // `mock-data-notice` testid asserted below — the phase-2.6 exit gate
   // (tests/unit/test_phase_2_6_demo_exit_gate.py) greps this file's source
   // for it to prove the concern stays covered. Sellers never see the word:
-  // the header badge renders DEMO_MODE_REPLAY_LABEL ("Bản minh họa", #1907).
+  // the header badge renders DEMO_MODE_REPLAY_LABEL ("Dữ liệu mẫu", #1907).
   test("Mock mode notice stays truthful, and sign-in is a real door out rather than a dead link back to /", async ({
     page,
   }) => {
@@ -89,7 +89,7 @@ test.describe("Phase 2.6 exit gate — locale and truthful states", () => {
   // what it is instead (the same `mock-data-notice` as Home and Phân tích).
   test("Decisions sample states truthfully that it is sample data", async ({ page }) => {
     await page.goto("/decisions");
-    await expect(page.getByTestId("mock-data-notice")).toContainText("là shop minh họa");
+    await expect(page.getByTestId("mock-data-notice")).toContainText("là shop mẫu");
     await expect(page.getByTestId("mock-data-notice")).toContainText("không ghi gì lên TikTok Shop");
   });
 });

@@ -24,7 +24,7 @@ function ExecutionStateProbe() {
         Bắt đầu thực thi
       </button>
       <button type="button" onClick={resetMockState}>
-        Làm mới Demo
+        Làm mới dữ liệu mẫu
       </button>
       <output data-testid="mutable-state">
         {JSON.stringify(mutableState)}
@@ -139,7 +139,7 @@ describe("DemoState startExecution", () => {
       '"executionRecords":{}',
     );
 
-    await user.click(screen.getByRole("button", { name: "Làm mới Demo" }));
+    await user.click(screen.getByRole("button", { name: "Làm mới dữ liệu mẫu" }));
 
     expect(screen.getByTestId("mutable-state")).toHaveTextContent(
       JSON.stringify(DEFAULT_MUTABLE_MOCK_STATE),
@@ -157,7 +157,7 @@ describe("DemoState startExecution", () => {
       </DemoStateProvider>,
     );
 
-    await user.click(screen.getByRole("button", { name: "Làm mới Demo" }));
+    await user.click(screen.getByRole("button", { name: "Làm mới dữ liệu mẫu" }));
 
     expect(readReplayDecision()).toBeNull();
   });

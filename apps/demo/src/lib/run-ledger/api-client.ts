@@ -15,7 +15,7 @@ export const DEMO_RUNS_API_PATH = "/v1/demo/runs" as const;
 
 export class DemoRunsFetchError extends Error {
   constructor(public readonly status: number) {
-    super(`Demo runs list fetch failed (${status})`);
+    super(`Runs list fetch failed (${status})`);
     this.name = "DemoRunsFetchError";
   }
 }

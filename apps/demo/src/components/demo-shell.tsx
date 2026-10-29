@@ -34,7 +34,7 @@ import { SellerViewProvider } from "./seller-view-context";
  * Pages fill the slot with their own content and start with
  * `AppPageHeader` (`app-shell/page-header.tsx`) for the eyebrow + h1.
  * No global stepper (decision 8), no assistance aside, no mode toggle: the
- * former header controls (Đăng nhập, Làm mới Demo) and the former Cài đặt
+ * former header controls (Đăng nhập, Làm mới dữ liệu mẫu) and the former Cài đặt
  * tab live in the shop-avatar menu.
  */
 
@@ -81,7 +81,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   }, []);
 
   const handleManualRefresh = () => {
-    // P37: the sample store is tab-wide now — "Làm mới Demo" starts it over too.
+    // P37: the sample store is tab-wide now — "Làm mới dữ liệu mẫu" starts it over too.
     resetReviewerSample();
     resetMockState();
     router.replace("/decisions");
@@ -150,7 +150,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
           state={state}
         />
         {reviewer ? <ReviewerBanner onReset={handleResetSample} reviewer={reviewer} /> : null}
-        <p aria-label="Phản hồi Demo" aria-live="polite" className="juli-sr-only" role="status">
+        <p aria-label="Phản hồi của Juli" aria-live="polite" className="juli-sr-only" role="status">
           {feedback}
         </p>
         {/* P50 (D68.8): signed-in sellers only; partner trial accounts and the sample never ask. */}

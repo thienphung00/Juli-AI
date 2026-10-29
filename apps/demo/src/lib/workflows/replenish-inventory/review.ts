@@ -76,7 +76,7 @@ export function getReplenishInventoryReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI Doanh thu trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI Doanh thu trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Juli không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -136,14 +136,14 @@ export function getReplenishInventoryReviewStages(
       title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(replenishFixture, [
         "Juli sẽ theo dõi đặt hàng lại, chờ giao và cập nhật tồn kho sau khi bạn xác nhận số lượng nhận.",
-        "Đường NCC/ERP và tạo đơn mua cần cấu hình thêm, Demo ghi nhận bước này.",
+        "Đường NCC/ERP và tạo đơn mua cần cấu hình thêm, Juli ghi nhận bước này.",
       ]),
     },
     {
       stage: "approve",
       title: "Xác nhận duyệt",
       body: buildSellerApproveBody([
-        "Các bước NCC/ERP và theo dõi giao hàng cần cấu hình thêm trong Demo.",
+        "Các bước NCC/ERP và theo dõi giao hàng cần cấu hình thêm.",
       ]),
     },
   ];
