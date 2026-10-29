@@ -47,6 +47,18 @@ async def load_dictionary(session: AsyncSession, shop: Shop) -> MaskDictionary:
     return loaded if loaded.shop_id == shop.id else await _read_dictionary(session, shop)
 
 
+def _add_ref(refs: dict[str, str], ambiguous: set[str], key: str, identity: str) -> None:
+    """``key`` -> ``identity``, unless another product already holds ``key`` (then neither)."""
+    if key in ambiguous:
+        return
+    held = refs.get(key)
+    if held is None:
+        refs[key] = identity
+    elif held != identity:
+        del refs[key]
+        ambiguous.add(key)
+
+
 async def _read_dictionary(session: AsyncSession, shop: Shop) -> MaskDictionary:
     dictionary = MaskDictionary(
         shop_id=shop.id,
@@ -56,6 +68,8 @@ async def _read_dictionary(session: AsyncSession, shop: Shop) -> MaskDictionary:
         extra_terms=extra_mask_terms(),
     )
     refs = dictionary.product_refs
+    #: P75c: a title or seller SKU code several listings share names no single product.
+    ambiguous: set[str] = set()
     for product_id, tiktok_id, title, name in (
         await session.execute(
             select(Product.id, Product.tiktok_product_id, Product.title, Product.name).where(
@@ -71,8 +85,7 @@ async def _read_dictionary(session: AsyncSession, shop: Shop) -> MaskDictionary:
             if text and text.strip():
                 dictionary.titles[text.strip()] = "product"
                 if identity:
-                    # P75: one alias per product (the first product of a shared title).
-                    refs.setdefault(text.strip(), identity)
+                    _add_ref(refs, ambiguous, text.strip(), identity)
     for sku_id, seller_sku, tiktok_id in (
         await session.execute(
             select(
@@ -86,7 +99,7 @@ async def _read_dictionary(session: AsyncSession, shop: Shop) -> MaskDictionary:
             if text and str(text).strip():
                 dictionary.ids[str(text).strip()] = "sku"
                 if tiktok_id:
-                    refs.setdefault(str(text).strip(), str(tiktok_id).strip())
+                    _add_ref(refs, ambiguous, str(text).strip(), str(tiktok_id).strip())
     for live_id, title in (
         await session.execute(
             select(Livestream.tiktok_livestream_id, Livestream.title).where(

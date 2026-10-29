@@ -281,6 +281,8 @@ class DemoDecisionCard(BaseModel):
     seller_sku: str | None = None
     seller_sku_more: int = 0
     product_title: str | None = None
+    #: P75c: the card's own TikTok product id (the reviewer mask keys the title alias on it).
+    tiktok_product_id: str | None = None
     workflow_label: str
     updated_at: str | None = None
     status: str

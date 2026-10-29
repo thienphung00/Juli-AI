@@ -3094,6 +3094,40 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Docs: p32 contract §3 mask rules, p14 contract §1 `sources`, reviewer MODULE.md, edge case D32.
 - Not deployed by this slice; no owner step (no env change).
 
+## 2026-10-29 — agent (Claude Opus) — P75c: a card's alias is its own product's
+
+- Live after P75 (f6db8563), masked pin: the Khuyến mãi leak is gone, but Quyết định content cards
+  still collapsed several products to one alias ("Sản phẩm 633" on three cards whose SKUs Phân tích
+  shows as 867 / 633 / 375).
+- Cause: the card block (`recommendation.card`) named its product only by `seller_sku` and
+  `product_title`; the mask resolved them through `product_refs`, which kept the FIRST listing for
+  a key (`setdefault`). Duplicate listings of one item share both the title and the seller SKU
+  codes (each card shows a different first code of the same set), so every card resolved to one
+  listing. Phân tích keys on the product id itself, hence the mismatch.
+- Fix: both card builders (`demo_decisions.card_view`, `content_cards.card_view`) add the card's
+  own `tiktok_product_id` (`DemoDecisionCard`, TS `RecommendationCardPayload`, contract p10), so
+  the title alias is keyed on that product (masked id `an-product-…`, the same key Phân tích's map
+  uses). The catalog drops a title / seller SKU code several listings share from `product_refs`;
+  free text naming a shared title reads a raw-text alias that is no listing's.
+- Tests: `tests/unit/test_p75c_card_alias.py` (3; all fail on f6db8563): three listings with one
+  title and the same SKU codes in rotated order go through emission → decision read → catalog →
+  mask, and each card's alias equals Phân tích's for its product id.
+
+## 2026-10-29 — agent (Claude Opus) — P76-3: description skeleton + edit operations (pure code)
+
+- What: `services/shop_rules/listing_structure.py` -- `parse_description` / `render_description`
+  (sections: heading, list with depth, paragraph with lines, raw `<img>`), the strict-schema
+  `ListingEditOps` model (`replace_title_span`, `replace_span`, `insert_after`, `append_section`,
+  every field required, `extra="forbid"`) and `apply_ops` returning `EditResult | EditRejection`
+  with a machine-readable `RejectionCode` and an English retry message. D78 rules enforced:
+  keep the seller's section structure (no drop / merge / split), append a section only for a
+  flagged code, refuse a listing already over limits (title 255 / description 10,000).
+- Round trip: text and order lossless; whitespace collapsed, inline tags other than `<br>` dropped,
+  a bold-only line becomes a `bold` heading, `<br><br>` / blank line = new paragraph. No
+  description ops returns the original HTML unchanged.
+- Tests: `tests/unit/test_listing_structure.py` (75), fixtures `tests/support/listing_descriptions.py`
+  (synthetic). Not wired into the runner or prompt (steps 4-6).
+
 ## 2026-10-29 — agent (Claude Opus) — P76-1: strict tool schemas (D78, step 1 of 7)
 
 - Why: owner's 29/10 structured-output plan (D78). Tools went to OpenAI with no `strict` flag and
