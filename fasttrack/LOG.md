@@ -3154,3 +3154,10 @@ reconcile --write` re-derived the no-assert corpus figure.
   `tests/support/tiktok_draft_scoring.py` (synthetic); vitest P76-5 ×2 in `quyet-dinh-p10.test.tsx`.
 - Unverified: TikTok sandbox's live answer to `diagnose_optimize` for a VN shop (never captured;
   ADR-090/106 list it as a pending capture) and its latency against the 3 s budget.
+- Follow-up (coordinator review): the scoring call no longer shares the write's
+  `requests.Session`. `GuardedTikTokClient.with_own_session()` copies the guarded client
+  (credentials, signing, guard, capability) onto a fresh Session; `ProductsResource.with_own_session()`
+  / `close()` wrap it. The scoring thread uses the copy and closes it when the call ends,
+  timed out or not. A bundle that cannot give its own session is `not_read` without a call.
+  Test: real factory-built sandbox client with only the HTTP send stubbed -- the
+  `diagnose_optimize` POST and the edit PUT go out on different Sessions, and only the scoring one is closed.

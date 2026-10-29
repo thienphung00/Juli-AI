@@ -11,7 +11,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+import requests
 
+from juli_backend.integrations.tiktok import ClientFactoryConfig, SandboxWriteClientFactory
 from juli_backend.services.agent.tools import draft_scoring
 from juli_backend.services.agent.tools.draft_scoring import (
     DraftScore,
@@ -202,3 +204,86 @@ def test_a_stored_outcome_without_a_score_reads_as_none():
     assert stored_draft_score({"title": "x"}) is None
     assert stored_draft_score({"draft_score": {"status": "bogus"}}) is None
     assert stored_draft_score({"draft_score": "scored"}) is None
+
+
+def test_the_scoring_copy_is_closed_once_the_call_ends():
+    products = DraftScoringProducts(SCORED_DATA)
+
+    _score(products)
+
+    assert len(products.copies) == 1
+    assert products.closed == 1
+
+
+def test_a_bundle_that_cannot_give_its_own_session_is_not_read_without_a_call():
+    class SharedOnly:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def diagnose_optimize(self, **kwargs: Any) -> dict[str, Any]:
+            self.calls += 1
+            return CLEAN_DATA
+
+    class Bundle:
+        products = SharedOnly()
+
+    score = score_listing_draft(Bundle(), PRODUCT_ID, "600001", "t", None, None)
+
+    assert score == DraftScore(status="not_read")
+    assert Bundle.products.calls == 0
+
+
+class _Response:
+    def __init__(self, data: dict[str, Any]) -> None:
+        self._data = data
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict[str, Any]:
+        return {"code": 0, "message": "Success", "data": self._data}
+
+
+def test_the_scoring_call_and_the_write_never_share_a_session(monkeypatch):
+    """Real guarded sandbox client from the factory; only the HTTP send is stubbed."""
+    sessions: dict[str, list[requests.Session]] = {"post": [], "put": []}
+    closed: list[requests.Session] = []
+
+    def post(self: requests.Session, url: str, **kwargs: Any) -> _Response:
+        sessions["post"].append(self)
+        return _Response(CLEAN_DATA)
+
+    def put(self: requests.Session, url: str, **kwargs: Any) -> _Response:
+        sessions["put"].append(self)
+        return _Response({})
+
+    original_close = requests.Session.close
+
+    def close(self: requests.Session) -> None:
+        closed.append(self)
+        original_close(self)
+
+    monkeypatch.setattr(requests.Session, "post", post)
+    monkeypatch.setattr(requests.Session, "put", put)
+    monkeypatch.setattr(requests.Session, "close", close)
+    resources = SandboxWriteClientFactory().create_resources(
+        ClientFactoryConfig(
+            app_key="app-key-sample",
+            app_secret="app-secret-sample",
+            access_token="token-sample",
+            merchant_auth_id="merchant-sample",
+            credential_capability="sandbox_write",
+        )
+    )
+
+    output = handle_update_product_listing(
+        resources,
+        ProductToolContext(product_id=PRODUCT_ID, product_detail=DETAIL),
+        UpdateProductListingInput(title="Bình giữ nhiệt inox 500ml giữ nóng 12 giờ"),
+    )
+
+    assert output.draft_score is not None and output.draft_score.status == "scored"
+    assert len(sessions["post"]) == 1 and len(sessions["put"]) == 1
+    scoring_session, write_session = sessions["post"][0], sessions["put"][0]
+    assert scoring_session is not write_session
+    assert closed == [scoring_session]

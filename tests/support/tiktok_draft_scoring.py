@@ -69,12 +69,20 @@ class DraftScoringProducts:
         self.diagnose_calls: list[dict[str, Any]] = []
         self.edit_calls: list[tuple[str, dict[str, Any]]] = []
         self.events: list[str] = []
+        #: Own-session copies handed out for scoring, and how many were closed.
+        self.copies: list[DraftScoringProducts] = []
+        self.closed = 0
         self._gate = threading.Event()
         if not block:
             self._gate.set()
 
     def release(self) -> None:
         self._gate.set()
+
+    def with_own_session(self) -> _OwnSessionCopy:
+        """``ProductsResource.with_own_session``: scoring calls land on the copy."""
+        self.copies.append(self)
+        return _OwnSessionCopy(self)
 
     def diagnose_optimize(
         self,
@@ -107,6 +115,19 @@ class DraftScoringProducts:
         self.events.append("edit")
         self.edit_calls.append((product_id, body))
         return {}
+
+
+class _OwnSessionCopy:
+    """The own-session copy: forwards the scoring call, records ``close``."""
+
+    def __init__(self, parent: DraftScoringProducts) -> None:
+        self._parent = parent
+
+    def diagnose_optimize(self, **kwargs: Any) -> dict[str, Any]:
+        return self._parent.diagnose_optimize(**kwargs)
+
+    def close(self) -> None:
+        self._parent.closed += 1
 
 
 def sandbox_resources(products: DraftScoringProducts) -> SandboxWriteResources:

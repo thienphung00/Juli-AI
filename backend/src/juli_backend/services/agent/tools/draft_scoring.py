@@ -108,15 +108,30 @@ def score_listing_draft(
 ) -> DraftScore:
     """Ask TikTok to diagnose the draft; ``not_read`` on any failure or timeout."""
 
+    # The call may outlive the wait (a slow TikTok) while the write goes out on the bundle's
+    # client: it runs on a copy of the guarded client with its own HTTP session, never the
+    # write's (``requests.Session`` is not guaranteed thread-safe), closed when it ends.
+    isolate = getattr(resources.products, "with_own_session", None)
+    try:
+        products = isolate() if callable(isolate) else None
+    except Exception:
+        products = None
+    if products is None:
+        logger.warning("draft_score_no_own_session")
+        return DraftScore(status=STATUS_NOT_READ)
+
     def call() -> object:
-        return resources.products.diagnose_optimize(
-            product_id=product_id,
-            category_id=category_id,
-            optimization_fields=list(OPTIMIZATION_FIELDS),
-            title=title,
-            description=description_html,
-            main_images=[dict(image) for image in main_images] if main_images else None,
-        )
+        try:
+            return products.diagnose_optimize(
+                product_id=product_id,
+                category_id=category_id,
+                optimization_fields=list(OPTIMIZATION_FIELDS),
+                title=title,
+                description=description_html,
+                main_images=[dict(image) for image in main_images] if main_images else None,
+            )
+        finally:
+            products.close()
 
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="draft-score")
     try:
