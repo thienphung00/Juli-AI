@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { cardView } from "../../lib/quyet-dinh/card-model";
+import { cardView, contentSourceText } from "../../lib/quyet-dinh/card-model";
 import { resolveTab } from "../../lib/quyet-dinh/copy";
 import { CONTENT_GROUP_KEY, contentGroupTitle, groupDecisions, isContentCard } from "../../lib/quyet-dinh/grouping";
 import type { ContentRunDetail, QdRun } from "../../lib/quyet-dinh/p10-types";
@@ -52,8 +52,32 @@ describe("content card model", () => {
       willDraft:
         "Hook 3 giây và 2 phương án mở đầu\nKịch bản 25–35 giây theo cảnh, sản phẩm xuất hiện trước giây 3\nLời kêu gọi bấm giỏ, gợi ý hashtag và nhạc đang lên",
       measure: "CTR trên các video mới gắn MN-015 trong 7 và 14 ngày, so với video cũ.",
+      source: "“Mặt nạ đất sét: trước và sau” · 27/09",
+      sourceLabel: "Video",
     });
     expect(cardView(sampleDecision(SAMPLE_MAIN_CARD, NOW)).content).toBeNull();
+  });
+
+  it("P75: names the video / LIVE behind the card so two cards of a kind read apart", () => {
+    const live = cardView(sampleContentDecision(SAMPLE_CONTENT_LIVE, NOW)).content!;
+    expect(live.sourceLabel).toBe("Phiên LIVE");
+    expect(live.source).toBe("“LIVE xả kho 27/09” · 27/09");
+    const base = SAMPLE_CONTENT_VIDEO;
+    const two = contentSourceText({
+      kind: "video",
+      action_label: base.actionLabel,
+      chip: "Juli soạn · bạn làm",
+      will_draft: [],
+      measure: "",
+      sources: [
+        { video_id: "v1", title: "Video 512", date: "2026-10-02" },
+        { video_id: "v2", title: "Video 731", date: null },
+        { video_id: "v3", title: "Video 118", date: null },
+      ],
+    });
+    expect(two).toBe("“Video 512” · 02/10 · +2 video");
+    // A card stored before P75 has no sources: nothing is invented.
+    expect(contentSourceText({ kind: "video", action_label: "", chip: "", will_draft: [], measure: "" })).toBeNull();
   });
 
   it("groups content cards on their own, after the product groups", () => {

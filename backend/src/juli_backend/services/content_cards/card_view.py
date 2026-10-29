@@ -15,6 +15,7 @@ from juli_backend.models.models import ActionCard
 from juli_backend.services.content_cards.constants import (
     CHIP_VI,
     EXECUTOR_JULI_DRAFTS,
+    LIVE,
     SPEC_BY_WORKFLOW,
 )
 from juli_backend.services.content_cards.emission import card_expired
@@ -44,6 +45,34 @@ def _status(card: ActionCard, context: Any, now: datetime) -> str:
     if card_expired(card, now=now):
         return "expired"
     return "pending"
+
+
+def _sources(kind: str, rows: Any) -> list[dict[str, Any]]:
+    """P75: the videos / LIVE sessions behind the card (its evidence rows, best first).
+
+    Two cards of the same kind otherwise read alike (same chip, same copy); the
+    video or session they are about is what tells them apart. Keyed ``video_id`` /
+    ``live_id`` so the reviewer mask aliases the title by its own id.
+    """
+    if not isinstance(rows, list):
+        return []
+    id_key = "live_id" if kind == LIVE else "video_id"
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        row_id = str(row.get("id") or "").strip()
+        if not row_id:
+            continue
+        day = row.get("date")
+        out.append(
+            {
+                id_key: row_id,
+                "title": str(row.get("name") or "").strip(),
+                "date": str(day) if day else None,
+            }
+        )
+    return out
 
 
 def build_content_card_block(
@@ -98,6 +127,7 @@ def build_content_card_block(
             "chip": CHIP_VI,
             "will_draft": [str(line) for line in will] if isinstance(will, list) else [],
             "measure": str(content.get("measure") or ""),
+            "sources": _sources(spec.kind, content.get("rows")),
         },
     }
 

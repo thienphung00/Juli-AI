@@ -44,10 +44,16 @@ Same shape as P10 §1, plus `content`. The item has **no** `recommendation.diagn
     "action_label": "Kịch bản video mới",                // (VI) the "Hành động" chip
     "chip": "Juli soạn · bạn làm",                       // (VI)
     "will_draft": ["Hook 3 giây và 2 phương án mở đầu", "…"],   // (VI) "Juli sẽ soạn", one line each
-    "measure": "CTR trên các video mới gắn MN-015 trong 7 và 14 ngày, so với video cũ."  // (VI)
+    "measure": "CTR trên các video mới gắn MN-015 trong 7 và 14 ngày, so với video cũ.",  // (VI)
+    "sources": [{"video_id": "7400…", "title": "Mặt nạ đất sét: trước và sau", "date": "2026-09-27"}]
   }
 }
 ```
+
+`content.sources` (P75, additive): the card's evidence rows, best first (≤ 3), `live_id`
+instead of `video_id` on a LIVE card. The card shows the first ("Video" / "Phiên LIVE":
+"“…” · 27/09 · +2 video") so two cards of the same kind read apart; empty on a card stored
+before P75. One card per (kind, product): several video cards are several products.
 
 LIVE: `reason_short` "Người xem bấm vào nhưng ít chốt đơn", lever `live_script` /
 "Kịch bản host + thứ tự giỏ", KPI `live_ctor`.

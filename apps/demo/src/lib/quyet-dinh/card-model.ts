@@ -12,9 +12,10 @@
 import { MANUAL_LEVER_CODES } from "./grouping";
 import { shortProductName } from "./product-name";
 import { SANDBOX_WRITTEN_LABEL, SIMULATED_RUN_LABEL } from "./simulated-copy";
-import { compactVndNumber, countText, fullDate, kpiPair, pctNumber, summariseText, upliftChip } from "./p10-format";
+import { compactVndNumber, countText, dayMonth, fullDate, kpiPair, pctNumber, summariseText, upliftChip } from "./p10-format";
 import type {
   CardConfidence,
+  CardContentPayload,
   CardGmvEstimate,
   CardKpiTarget,
   CardStatus,
@@ -93,6 +94,13 @@ export interface CardContentView {
   readonly willDraft: string;
   /** "Đo kết quả". */
   readonly measure: string;
+  /**
+   * P75: the video / LIVE session the card is about ("“Mở hộp” · 27/09 · +2 video"),
+   * so two cards of the same kind read apart; null when the card names none.
+   */
+  readonly source: string | null;
+  /** "Video" / "Phiên LIVE": the label of `source`. */
+  readonly sourceLabel: string;
 }
 
 export interface CardView {
@@ -284,7 +292,24 @@ export function contentView(card: RecommendationCardPayload): CardContentView | 
     chip: content.chip || EXECUTOR_COPY.juli_drafts.chip,
     willDraft: content.will_draft.join("\n"),
     measure: content.measure,
+    source: contentSourceText(content),
+    sourceLabel: content.kind === "live" ? "Phiên LIVE" : "Video",
   };
+}
+
+const SOURCE_TITLE_CHARS = 48;
+
+/** P75: "“<video title>” · 27/09 · +2 video", from the card's evidence rows. */
+export function contentSourceText(content: CardContentPayload): string | null {
+  const sources = (content.sources ?? []).filter((s) => s.title.trim());
+  if (sources.length === 0) return null;
+  const [first] = sources;
+  const name = first.title.trim();
+  const short = name.length > SOURCE_TITLE_CHARS ? `${name.slice(0, SOURCE_TITLE_CHARS - 1).trimEnd()}…` : name;
+  const day = first.date ? dayMonth(first.date) : "—";
+  const more = sources.length - 1;
+  const unit = content.kind === "live" ? "phiên" : "video";
+  return [`“${short}”`, day === "—" ? null : day, more > 0 ? `+${more} ${unit}` : null].filter(Boolean).join(" · ");
 }
 
 function text(value: unknown): string | null {

@@ -111,6 +111,14 @@ export interface CardQuickScanPayload {
   readonly basis: string;
 }
 
+/** P75: one video / LIVE session behind a content card (its evidence, best first). */
+export interface CardContentSource {
+  readonly video_id?: string | null;
+  readonly live_id?: string | null;
+  readonly title: string;
+  readonly date: string | null;
+}
+
 /** P14-E `recommendation.card.content`. */
 export interface CardContentPayload {
   readonly kind: "video" | "live";
@@ -118,6 +126,8 @@ export interface CardContentPayload {
   readonly chip: string;
   readonly will_draft: readonly string[];
   readonly measure: string;
+  /** P75 (additive): absent on a card stored before it. */
+  readonly sources?: readonly CardContentSource[];
 }
 
 /** A decisions item as P10-A sends it (the `card` is additive). */
