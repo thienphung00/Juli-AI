@@ -44,7 +44,7 @@ def _stable_shop_display_name(raw_name: str) -> str:
         % 900
         + 100
     )
-    return f"Demo Shop {bucket}"
+    return f"Shop {bucket}"
 
 
 def _stable_product_title(product_id: str) -> str:
@@ -58,7 +58,7 @@ def _stable_product_title(product_id: str) -> str:
         % 900
         + 100
     )
-    return f"Demo Product {bucket}"
+    return f"Sản phẩm {bucket}"
 
 
 def _mask_product(product: dict[str, Any]) -> dict[str, Any]:
@@ -144,17 +144,17 @@ def stable_alias(prefix: str, raw: str) -> str:
 
 
 def stable_shop_display_name(raw_name: str) -> str:
-    """``Demo Shop NNN`` for a shop name."""
+    """``Shop NNN`` for a shop name."""
     return _stable_shop_display_name(raw_name)
 
 
 def stable_product_title(product_ref: str) -> str:
-    """``Demo Product NNN`` for a product (keyed by its id or title)."""
+    """``Sản phẩm NNN`` for a product (keyed by its id or title)."""
     return _stable_product_title(product_ref)
 
 
 def stable_label(label: str, raw: str) -> str:
-    """``<label> NNN`` for any other titled entity (``Demo Video``, ``Demo LIVE``)."""
+    """``<label> NNN`` for any other titled entity (``Video``, ``LIVE``)."""
     bucket = (
         int(
             hmac.new(_DEMO_MASK_KEY, f"{label}:{raw}".encode(), hashlib.sha256).hexdigest()[:4],

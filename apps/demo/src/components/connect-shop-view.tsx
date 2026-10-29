@@ -269,7 +269,7 @@ function ConnectShopReady({
           it. The half that matters downstream still is: the Actions surface is
           replay, so nothing the seller does after this changes their shop. */}
       <p className="connect-shop__disclaimer">
-        Các thao tác ở {ACTIONS_DESTINATION_LABEL} vẫn là bản minh họa, chưa có
+        Các thao tác ở {ACTIONS_DESTINATION_LABEL} vẫn chạy trên dữ liệu mẫu, chưa có
         thao tác nào thay đổi shop thật của bạn.
       </p>
 

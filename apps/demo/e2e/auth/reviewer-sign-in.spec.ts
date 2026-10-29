@@ -19,8 +19,8 @@ import { MAIN_CARD, NOW, decision, rules } from "../decisions/p10-fixtures";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPORT = JSON.parse(readFileSync(resolve(HERE, "../../src/lib/shop-analysis/sample-report.json"), "utf8"));
-const BANNER = "Tài khoản dùng thử cho đối tác · dữ liệu shop đã ẩn tên · thao tác chỉ mô phỏng";
-const ALIAS_SHOP = { id: "5d0c1f0e-0000-5000-8000-00000000a11a", name: "Demo Shop 123" };
+const BANNER = "Tài khoản đối tác · dữ liệu shop thật đã ẩn tên · chỉ xem, duyệt chỉ mô phỏng";
+const ALIAS_SHOP = { id: "5d0c1f0e-0000-5000-8000-00000000a11a", name: "Shop 123" };
 
 function base64url(value: string): string {
   return Buffer.from(value).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -52,7 +52,7 @@ const SIMULATION = (step: "approve" | "execute", cardId: string) => ({
   change: {
     executor: "juli",
     lever: { code: "description", label: "Mô tả" },
-    product: { title: "Demo Product 456", tiktok_product_id: "demo-product-0f1e2d3c" },
+    product: { title: "Sản phẩm 456", tiktok_product_id: "demo-product-0f1e2d3c" },
     request: { method: "PUT", path: "/product/202309/products/{product_id}", operation: "update_product_listing", fields: ["description"] },
     fields: [{ field: "description", label: "Mô tả", before: "180 ký tự, một đoạn", after: "Juli soạn nội dung mới sau khi duyệt" }],
     note: null,
@@ -174,7 +174,7 @@ test.describe("partner trial account (P32-A)", () => {
   test("an expired trial account is told so and stays signed out", async ({ page }) => {
     await stub(page, { status: 403, body: { detail: "expired" }, denied: "expired" });
     await signIn(page, "dung-mat-khau");
-    await expect(page.getByText("Tài khoản dùng thử này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.")).toBeVisible();
+    await expect(page.getByText("Tài khoản đối tác này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.")).toBeVisible();
     expect(await page.evaluate(() => window.localStorage.getItem("juli_demo_auth_session"))).toBeNull();
   });
 });

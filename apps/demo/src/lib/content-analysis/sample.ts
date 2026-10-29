@@ -79,7 +79,7 @@ export function createSampleAnalysisClients(): ContentAnalysisClients {
     list: async (target: AnalysisTarget) => [SAMPLE_ANALYSES[target.kind]],
     get: async (id: string) => (id === LIVE.id ? LIVE : VIDEO),
     upload: async () => {
-      throw new Error("Bản minh họa: đăng nhập và kết nối shop để tải video lên.");
+      throw new Error("Dữ liệu mẫu: đăng nhập và kết nối shop để tải video lên.");
     },
   };
 }

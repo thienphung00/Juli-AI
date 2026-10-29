@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { enterReplayDemo, resetDemo } from "../helpers/demo-navigation";
 
 /**
- * "Làm mới Demo" puts the signed-out Quyết định back: since P11 that page is
+ * "Làm mới dữ liệu mẫu" puts the signed-out Quyết định back: since P11 that page is
  * the P10 sample over an in-memory store, remounted on the reset.
  */
 // P14-E: the sample's content cards reuse MN-015 / SM-012; this gate walks the P10 cards.

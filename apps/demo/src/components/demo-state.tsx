@@ -85,7 +85,7 @@ export const DEFAULT_MUTABLE_MOCK_STATE: MutableMockState = {
 interface DemoStateValue {
   feedback: string | null;
   mode: "mock";
-  /** Bumped by "Làm mới Demo": in-memory samples (the signed-out Quyết định) remount on it. */
+  /** Bumped by "Làm mới dữ liệu mẫu": in-memory samples (the signed-out Quyết định) remount on it. */
   resetEpoch: number;
   mutableState: MutableMockState;
   recommendationContext: RecommendationAssistanceContext | null;
@@ -177,13 +177,13 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
     setRecommendationContext(null);
     localStorage.setItem(DEMO_MODE_STORAGE_KEY, "mock");
     localStorage.removeItem(DEMO_MUTABLE_STATE_STORAGE_KEY);
-    // Issue #1836: "Làm mới Demo"'s whole job is putting the demo back --
+    // Issue #1836: "Làm mới dữ liệu mẫu"'s whole job is putting the demo back --
     // a decided replay run left in sessionStorage after this would mean
     // the recommendation stays missing from Đề xuất even after a reset,
     // exactly the failure this action exists to undo.
     clearReplayDecision();
     setFeedback(
-      `Demo đã trở về trạng thái ban đầu tại ${ACTIONS_DESTINATION_LABEL}, mục Đề xuất.`,
+      `Dữ liệu mẫu đã trở về trạng thái ban đầu tại ${ACTIONS_DESTINATION_LABEL}, mục Đề xuất.`,
     );
   }, []);
 
@@ -244,7 +244,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
       requestSignIn: () => {
         localStorage.setItem(DEMO_MODE_STORAGE_KEY, "mock");
         setFeedback(
-          "Sign-in sắp ra mắt. Bạn vẫn có thể khám phá toàn bộ Demo bằng dữ liệu mẫu.",
+          "Sign-in sắp ra mắt. Bạn vẫn có thể khám phá Juli bằng dữ liệu mẫu.",
         );
       },
       resetMockState,
@@ -270,7 +270,7 @@ export function DemoStateProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** "Làm mới Demo"'s counter, or 0 outside the demo shell (tests, standalone renders). */
+/** "Làm mới dữ liệu mẫu"'s counter, or 0 outside the demo shell (tests, standalone renders). */
 export function useDemoResetEpoch(): number {
   return useContext(DemoStateContext)?.resetEpoch ?? 0;
 }

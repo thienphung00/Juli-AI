@@ -103,7 +103,7 @@ export function writeReplayDecision(
 
 /**
  * Clears the recorded decision — `resetMockState()`'s own job (issue
- * #1836): "Làm mới Demo" must put the demo back, and a decided replay run
+ * #1836): "Làm mới dữ liệu mẫu" must put the demo back, and a decided replay run
  * left behind after a refresh is exactly the failure this issue exists to
  * fix in the other direction.
  */

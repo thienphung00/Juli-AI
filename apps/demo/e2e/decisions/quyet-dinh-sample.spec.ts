@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * P11: signed out, Quyết định is the P10 design as a sample ("Bản minh họa",
+ * P11: signed out, Quyết định is the P10 design as a sample ("Dữ liệu mẫu",
  * ADR-094 d.1) — the same card, Đang thực hiện timeline and Đo lường as the
  * signed-in door, fed by bundled fixtures. Every action changes local state
  * only: the whole walk issues no request to a Juli backend route.

@@ -45,7 +45,7 @@ export function createReplenishInventoryTimeline(): ExecutionTimelineStep[] {
       kind: "action",
       title: "Unresolved: Tạo đơn mua / Purchase Request",
       description:
-        "Unresolved: chưa có hợp đồng API cho Create Purchase Order hoặc Purchase Request; demo không mô phỏng hành vi gửi đơn.",
+        "Unresolved: chưa có hợp đồng API cho Create Purchase Order hoặc Purchase Request; Juli chưa mô phỏng hành vi gửi đơn.",
       status: "pending",
     },
     {

@@ -31,7 +31,7 @@ export function createClearExcessTimeline(): ExecutionTimelineStep[] {
       kind: "outcome",
       title: "Kết quả điều kiện xả hàng",
       description:
-        "Hiển thị SKU, giá, ràng buộc khuyến mãi và trạng thái kiểm tra Flash Sale thật, Demo không giả lập “đủ điều kiện”.",
+        "Hiển thị SKU, giá, ràng buộc khuyến mãi và trạng thái kiểm tra Flash Sale thật, Juli không giả lập “đủ điều kiện”.",
       status: "pending",
       recoveryText:
         "Flash Sale chưa đủ điều kiện, quay lại chọn giảm giá cơ sở hoặc loại khuyến mãi khác với xác nhận của shop.",

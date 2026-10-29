@@ -34,7 +34,7 @@ export function DecisionsPageClient() {
   const searchParams = useSearchParams();
 
   const router = useRouter();
-  // "Làm mới Demo" puts the sample back: a new epoch remounts its in-memory store.
+  // "Làm mới dữ liệu mẫu" puts the sample back: a new epoch remounts its in-memory store.
   const resetEpoch = useDemoResetEpoch();
   // Quyết định's state lives in /decisions' query string. The UI follows the
   // href it asked for straight away; `router.replace` then moves the URL. With

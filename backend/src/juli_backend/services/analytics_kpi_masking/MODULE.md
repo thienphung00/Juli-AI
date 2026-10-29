@@ -34,9 +34,9 @@ extended with an ``identity`` block:
 
 ## Masking rules
 
-- Shop display name → ``Demo Shop {100-999}`` (stable per raw name)
+- Shop display name → ``Shop {100-999}`` (stable per raw name)
 - Product/order/SKU ids → ``demo-{kind}-{8-char hmac}`` (stable per raw id)
-- Product titles → ``Demo Product {100-999}`` (stable per product id)
+- Product titles → ``Sản phẩm {100-999}`` (stable per product id)
 - ``merchant_id`` / ``tiktok_merchant_id`` removed from public payload
 - Buyer PII keys (email, phone, address, …) stripped — not aliased
 - **Never** apply numeric noise or scale-factor masking to KPI series

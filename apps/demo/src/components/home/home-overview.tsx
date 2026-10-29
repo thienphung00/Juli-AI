@@ -190,7 +190,7 @@ export function HomeOverview({ envelope, sample = false }: HomeOverviewProps) {
       />
       {sample ? (
         <p className="demo-notice sample-notice" data-testid="mock-data-notice">
-          Dữ liệu mẫu · {model.shopName} là shop minh họa, không phải shop của bạn.
+          Dữ liệu mẫu · {model.shopName} là shop mẫu, không phải shop của bạn.
         </p>
       ) : null}
 

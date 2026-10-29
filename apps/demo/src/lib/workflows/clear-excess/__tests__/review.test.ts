@@ -60,7 +60,7 @@ describe("getClearExcessReviewStages", () => {
     expect(zeroStockField?.prefillValue).toMatch(/bước sau|chưa duyệt/i);
 
     expect(preview?.body).toContain(clearExcessFixture!.sellerReason);
-    expect(preview?.body).toMatch(/giao hàng do TikTok quản lý.*chưa có trong Demo/i);
+    expect(preview?.body).toMatch(/giao hàng do TikTok quản lý.*chưa được hỗ trợ/i);
   });
 
   it("provides proposed markdown baseline and promotion window as seller-facing defaults", () => {

@@ -27,7 +27,7 @@ export interface LiveSlotWire {
 export const OFF_API_SECTION_TITLE = "Thông tin TikTok không cung cấp";
 export const OFF_API_SECTION_LEDE =
   "TikTok không cung cấp các thông tin này cho Juli. Bạn điền thì Juli tính lợi nhuận và đề xuất sát hơn; để trống thì Juli không đoán.";
-export const OFF_API_SAMPLE_NOTE = "Bản minh họa: đây là giá trị mẫu. Đăng nhập để đặt các ô này cho shop của bạn.";
+export const OFF_API_SAMPLE_NOTE = "Dữ liệu mẫu: đây là giá trị mẫu. Đăng nhập để đặt các ô này cho shop của bạn.";
 
 /** Label and one-line help per field, in the editor's order. */
 export const OFF_API_FIELDS: ReadonlyArray<{ readonly key: OffApiRuleKey; readonly label: string; readonly help: string }> = [

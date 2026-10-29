@@ -32,7 +32,7 @@ test("signed out: a video row shows the canned analysis and no request is made",
   await page.goto("/analytics");
   const row = await openFirstVideoRow(page);
   const block = row.getByTestId("video-analysis");
-  await expect(block.getByText("Bản minh họa", { exact: true })).toBeVisible();
+  await expect(block.getByText("Dữ liệu mẫu", { exact: true })).toBeVisible();
   await expect(block.getByTestId("video-analysis-result")).toContainText("Sản phẩm xuất hiện lần đầu ở giây 6,0");
   for (const label of ["Giây sản phẩm xuất hiện", "Lời kêu gọi mua (CTA)", "Nhịp cắt", "Vấn đề", "Gợi ý"]) {
     await expect(block.getByText(label, { exact: true })).toBeVisible();

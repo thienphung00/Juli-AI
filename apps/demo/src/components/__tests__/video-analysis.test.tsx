@@ -43,7 +43,7 @@ describe("VideoAnalysis", () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByText("Sản phẩm xuất hiện lần đầu ở giây 6,0")).toBeInTheDocument();
-    expect(screen.getByText("Bản minh họa")).toBeInTheDocument();
+    expect(screen.getByText("Dữ liệu mẫu")).toBeInTheDocument();
     expect(screen.getByTestId("video-analysis-input")).toBeDisabled();
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();

@@ -129,12 +129,12 @@ def title_alias(kind: str, raw: str) -> str:
     if kind == "product":
         return stable_product_title(raw)
     if kind == "video":
-        return stable_label("Demo Video", raw)
+        return stable_label("Video", raw)
     if kind == "live":
-        return stable_label("Demo LIVE", raw)
+        return stable_label("LIVE", raw)
     if kind == "creator":
-        return stable_label("Demo Creator", raw)
-    return stable_label("Demo File", raw)
+        return stable_label("Nhà sáng tạo", raw)
+    return stable_label("Tệp", raw)
 
 
 def brand_terms(shop_name: str | None, extra: Iterable[str] = ()) -> tuple[str, ...]:

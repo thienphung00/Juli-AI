@@ -184,7 +184,7 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
         <h3 className="qv-va__title" id={headingId}>
           Phân tích video
         </h3>
-        {clients.sample && !simulated ? <span className="qv-va__badge">Bản minh họa</span> : null}
+        {clients.sample && !simulated ? <span className="qv-va__badge">Dữ liệu mẫu</span> : null}
         {latest && !uploading ? (
           <span className="qv-va__status" data-status={latest.status} data-testid="video-analysis-status">
             {latest.status_label}
@@ -253,7 +253,7 @@ export function VideoAnalysis({ clients, target, compact = false }: VideoAnalysi
           {simulated
             ? `${limits}.`
             : clients.sample
-              ? "Bản minh họa: đăng nhập và kết nối shop để tải video lên."
+              ? "Dữ liệu mẫu: đăng nhập và kết nối shop để tải video lên."
               : `${limits}. Juli xoá tệp ngay sau khi phân tích.`}
         </span>
       </div>

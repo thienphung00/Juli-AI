@@ -87,12 +87,12 @@ def test_masks_shop_name_and_product_titles_to_demo_aliases() -> None:
 
     identity = masked["identity"]
     assert identity["shop_display_name"] != REAL_SHOP_DISPLAY_NAME
-    assert identity["shop_display_name"].startswith("Demo Shop")
+    assert identity["shop_display_name"].startswith("Shop")
 
     product_titles = {p["title"] for p in identity["products"]}
     assert REAL_PRODUCT_TITLE_A not in product_titles
     assert REAL_PRODUCT_TITLE_B not in product_titles
-    assert all(title.startswith("Demo Product") for title in product_titles)
+    assert all(title.startswith("Sản phẩm") for title in product_titles)
 
 
 def test_numeric_gmv_series_magnitudes_unchanged_by_masking() -> None:
@@ -132,7 +132,7 @@ def test_raw_merchant_id_and_real_titles_absent_from_masked_payload() -> None:
         assert "sku_id" not in product or product["sku_id"].startswith("demo-sku-")
     for order in identity["orders"]:
         assert order["id"].startswith("demo-order-")
-        assert order["product_title"].startswith("Demo Product")
+        assert order["product_title"].startswith("Sản phẩm")
 
 
 def test_alias_stability_across_repeated_calls() -> None:

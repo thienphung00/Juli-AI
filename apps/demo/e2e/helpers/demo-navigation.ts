@@ -78,9 +78,9 @@ export async function navigatePrimaryDestination(
   await link.click();
 }
 
-/** Làm mới Demo lives in the shop-avatar menu since AC-8.5 (moved here from the retired workflow-journey helper, P53). */
+/** Làm mới dữ liệu mẫu lives in the shop-avatar menu since AC-8.5 (moved here from the retired workflow-journey helper, P53). */
 export async function resetDemo(page: Page) {
   await openShopMenu(page);
-  await page.getByRole("button", { name: "Làm mới Demo" }).click();
+  await page.getByRole("button", { name: "Làm mới dữ liệu mẫu" }).click();
   await expect(page).toHaveURL(/\/decisions$/);
 }

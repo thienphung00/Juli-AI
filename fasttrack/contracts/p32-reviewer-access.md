@@ -150,8 +150,8 @@ every JSON response of a reviewer request — fail closed: a reviewer response t
 becomes 502):
 
 - the real shop id → the alias id, everywhere it appears (keys and inside strings);
-- shop name → ADR-038 `Demo Shop NNN`; product titles → ADR-038 `Demo Product NNN`; video /
-  LIVE titles → `Demo Video NNN` / `Demo LIVE NNN`; ids (`tiktok_shop_id`, TikTok product / SKU /
+- shop name → ADR-038 `Shop NNN`; product titles → ADR-038 `Sản phẩm NNN`; video /
+  LIVE titles → `Video NNN` / `LIVE NNN`; ids (`tiktok_shop_id`, TikTok product / SKU /
   video / LIVE ids, `seller_sku`) → ADR-038 `demo-<kind>-<hash>`; any 12–20-digit run inside a
   string → `demo-id-<hash>`;
 - titles and ids are collected from the response itself (entity keys) **and** from the shop's
@@ -183,7 +183,7 @@ that is not on Fujiwa's desk); writes **only** an audit row. Response (then mask
   "change": {
     "executor": "juli",
     "lever": {"code": "title", "label": "Tiêu đề"},
-    "product": {"title": "Demo Product 123", "tiktok_product_id": "demo-product-…"},
+    "product": {"title": "Sản phẩm 123", "tiktok_product_id": "demo-product-…"},
     "request": {"method": "PUT", "path": "/product/202309/products/{product_id}",
                 "operation": "update_product_listing", "fields": ["title"]},
     "fields": [{"field": "title", "label": "Tiêu đề", "before": "…", "after": "…"}],

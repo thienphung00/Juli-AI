@@ -449,10 +449,10 @@ export type PasswordSignInResult =
 
 export const PASSWORD_SIGN_IN_ERROR_COPY: Readonly<Record<PasswordSignInErrorKind, string>> = {
   wrong: "Sai email hoặc mật khẩu.",
-  revoked: "Tài khoản dùng thử này đã bị thu hồi. Vui lòng liên hệ Juli.",
-  expired: "Tài khoản dùng thử này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.",
+  revoked: "Tài khoản đối tác này đã bị thu hồi. Vui lòng liên hệ Juli.",
+  expired: "Tài khoản đối tác này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.",
   not_trial:
-    "Đăng nhập bằng mật khẩu chỉ dành cho tài khoản dùng thử của đối tác. Hãy đăng nhập bằng Google hoặc mã email.",
+    "Đăng nhập bằng mật khẩu chỉ dành cho tài khoản đối tác. Hãy đăng nhập bằng Google hoặc mã email.",
   rate_limited: "Bạn đã thử quá nhiều lần. Vui lòng đợi một lát rồi thử lại.",
   unavailable: "Đăng nhập bằng mật khẩu chưa sẵn sàng trong môi trường này.",
   network: "Không kết nối được tới máy chủ đăng nhập. Kiểm tra mạng rồi thử lại.",

@@ -96,7 +96,7 @@ export type AuthView = "entry" | "partner";
 export interface AuthScreenProps {
   readonly trial: boolean;
   readonly onTrialChange: (trial: boolean) => void;
-  /** "Xem thử với dữ liệu mẫu": enters the existing sample demo. */
+  /** "Xem thử với dữ liệu mẫu": enters the sample mode. */
   readonly onEnterSample: () => void;
   /** The partner password form. Absent → the top and footer links go to `/auth/email#doi-tac`. */
   readonly renderPartner?: () => ReactNode;
@@ -131,6 +131,8 @@ export function AuthScreen({
   const [view, setView] = useState<AuthView>(renderPartner ? initialView : "entry");
   const [googleHref, setGoogleHref] = useState<string | null | undefined>(undefined);
   const [codeEntry, setCodeEntry] = useState({ attempt: 0, code: "" });
+  // The partner door (`#doi-tac`) never offers the sample entry, not even after "Quay lại".
+  const [partnerSeen, setPartnerSeen] = useState(renderPartner ? initialView === "partner" : false);
   const emailRef = useRef<HTMLInputElement | null>(null);
   const partnerHeadingRef = useRef<HTMLHeadingElement | null>(null);
 
@@ -184,6 +186,7 @@ export function AuthScreen({
     if (!renderPartner) return; // a real link to /auth/email#doi-tac
     event.preventDefault();
     window.history.replaceState(window.history.state, "", "#doi-tac");
+    setPartnerSeen(true);
     setView("partner");
   };
 
@@ -391,9 +394,11 @@ export function AuthScreen({
         <LegalConsentNote />
 
         <div className="auth-after">
-          <button className="auth-link auth-link--strong auth-link--start" onClick={onEnterSample} type="button">
-            {AUTH_SAMPLE_ENTRY}
-          </button>
+          {partnerSeen ? null : (
+            <button className="auth-link auth-link--strong auth-link--start" onClick={onEnterSample} type="button">
+              {AUTH_SAMPLE_ENTRY}
+            </button>
+          )}
           <p className="auth-switch">
             {trial ? TRIAL_SIGNUP_SWITCH_TEXT : AUTH_SWITCH_TEXT}{" "}
             <a

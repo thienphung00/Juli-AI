@@ -49,7 +49,7 @@ export function getClearExcessReviewStages(
       stage: "analytics",
       title: "Bằng chứng từ Phân tích",
       body:
-        "Xem KPI AOV trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Demo không nhân bản báo cáo tại đây.",
+        "Xem KPI AOV trên Phân tích để hiểu thêm bối cảnh trước khi duyệt. Juli không nhân bản báo cáo tại đây.",
       analyticsMetricKey,
       analyticsMetricHref,
     },
@@ -60,7 +60,7 @@ export function getClearExcessReviewStages(
         "SKU mặc định theo tín hiệu; shop có thể bỏ SKU không muốn xả.",
         "Giảm giá cơ sở và loại khuyến mãi không có giá trị số mặc định, cần shop nhập sau khi xem dữ liệu thật.",
         "Cửa sổ khuyến mãi cần ngày bắt đầu và kết thúc rõ ràng.",
-        "Flash Sale chỉ chọn được sau khi có kết quả kiểm tra điều kiện thật, Demo hiển thị trạng thái chờ kiểm tra, không giả lập đủ điều kiện.",
+        "Flash Sale chỉ chọn được sau khi có kết quả kiểm tra điều kiện thật, Juli hiển thị trạng thái chờ kiểm tra, không giả lập đủ điều kiện.",
         "Ngưỡng tốc độ quay vòng/tuổi hàng để kích hoạt đề xuất này chưa được xác định.",
         "Xoá tồn kho sàn về 0 là bước sau, không thể hoàn tác, chỉ thực hiện sau khi có xác nhận thực tế, không được duyệt ngầm ở bước này.",
       ].join("\n\n"),
@@ -120,14 +120,14 @@ export function getClearExcessReviewStages(
       stage: "preview",
       title: "Xem trước trước khi duyệt",
       body: buildSellerPreviewBody(clearExcessFixture, [
-        "Giao hàng do TikTok quản lý cho xả tồn chưa có trong Demo.",
+        "Giao hàng do TikTok quản lý cho xả tồn chưa được hỗ trợ.",
       ]),
     },
     {
       stage: "approve",
       title: "Xác nhận duyệt",
       body: buildSellerApproveBody([
-        "Demo không giả lập kết quả đủ điều kiện Flash Sale.",
+        "Juli không giả lập kết quả đủ điều kiện Flash Sale.",
       ]),
     },
   ];

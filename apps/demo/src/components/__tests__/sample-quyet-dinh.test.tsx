@@ -18,7 +18,7 @@ import { resolveMeasureTab, type QdQuery } from "../quyet-dinh/quyet-dinh-view";
 import { SampleQuyetDinh } from "../quyet-dinh/sample-quyet-dinh";
 
 /**
- * P11: the signed-out Quyết định is the P10 design ("Bản minh họa") over
+ * P11: the signed-out Quyết định is the P10 design ("Dữ liệu mẫu") over
  * in-memory sample clients — same card, Đang thực hiện timeline and Đo
  * lường as the signed-in door; every action changes local state only and no
  * request is issued (ADR-094 d.1).
@@ -76,11 +76,11 @@ describe("sample fixtures — P10 contract shapes", () => {
   });
 });
 
-describe("signed-out Quyết định (Bản minh họa)", () => {
+describe("signed-out Quyết định (dữ liệu mẫu)", () => {
   it("Đề xuất shows the P10 cards with the sample notice; Xem thêm expands in place", async () => {
     renderSample();
     await waitFor(() => expect(screen.getAllByTestId("recommendation-card").length).toBeGreaterThanOrEqual(4));
-    expect(screen.getByTestId("mock-data-notice")).toHaveTextContent("Dữ liệu mẫu · Cửa hàng Mẫu Hoa Mai là shop minh họa");
+    expect(screen.getByTestId("mock-data-notice")).toHaveTextContent("Dữ liệu mẫu · Cửa hàng Mẫu Hoa Mai là shop mẫu");
     const main = cardOf("Son môi số 12");
     expect(main).toHaveTextContent("SKU · SM-012");
     expect(main).toHaveTextContent("5,4 %");

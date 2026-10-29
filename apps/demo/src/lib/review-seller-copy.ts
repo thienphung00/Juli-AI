@@ -11,7 +11,7 @@ export const REVIEW_STAGE_TITLES = {
 } as const;
 
 export const SELLER_APPROVE_STAGE_BODY =
-  "Bạn sắp duyệt đề xuất này. Sau khi xác nhận, Juli mở luồng Đang thực hiện để bạn theo dõi tiến trình. Demo không gọi TikTok API thật.";
+  "Bạn sắp duyệt đề xuất này. Sau khi xác nhận, Juli mở luồng Đang thực hiện để bạn theo dõi tiến trình.";
 
 export const SELLER_APPROVE_GATE = {
   title: "Xác nhận duyệt",
@@ -32,7 +32,7 @@ export function sanitizeSellerReviewText(text: string): string {
     .replace(/\bFBS\b/g, "giao hàng của shop")
     .replace(/\bFBT\b/g, "giao hàng do TikTok quản lý")
     .replace(/`[^`]+`/g, "")
-    .replace(/Unresolved\/Unfilled/gi, "chưa có trong Demo")
+    .replace(/Unresolved\/Unfilled/gi, "chưa được hỗ trợ")
     .replace(/\bwebhook\b/gi, "thông báo cập nhật")
     .replace(/\bactivity_id\b/gi, "chương trình khuyến mãi")
     .replace(/\s{2,}/g, " ")

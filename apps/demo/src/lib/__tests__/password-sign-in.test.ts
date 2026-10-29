@@ -72,8 +72,8 @@ describe("signInWithPassword", () => {
 
   it("has Vietnamese copy for every error", () => {
     expect(PASSWORD_SIGN_IN_ERROR_COPY.wrong).toBe("Sai email hoặc mật khẩu.");
-    expect(PASSWORD_SIGN_IN_ERROR_COPY.revoked).toBe("Tài khoản dùng thử này đã bị thu hồi. Vui lòng liên hệ Juli.");
-    expect(PASSWORD_SIGN_IN_ERROR_COPY.expired).toBe("Tài khoản dùng thử này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.");
+    expect(PASSWORD_SIGN_IN_ERROR_COPY.revoked).toBe("Tài khoản đối tác này đã bị thu hồi. Vui lòng liên hệ Juli.");
+    expect(PASSWORD_SIGN_IN_ERROR_COPY.expired).toBe("Tài khoản đối tác này đã hết hạn. Vui lòng liên hệ Juli để gia hạn.");
   });
 });
 
@@ -84,12 +84,12 @@ describe("reviewer API client", () => {
         reviewer: true,
         platform: "shopee",
         expires_at: "2026-11-13T00:00:00Z",
-        shop: { id: "alias-1", name: "Demo Shop 123" },
+        shop: { id: "alias-1", name: "Shop 123" },
       }),
     );
     expect(await fetchReviewerMe("tok", me)).toEqual({
       status: "reviewer",
-      me: { reviewer: true, platform: "shopee", expiresAt: "2026-11-13T00:00:00Z", shop: { id: "alias-1", name: "Demo Shop 123" } },
+      me: { reviewer: true, platform: "shopee", expiresAt: "2026-11-13T00:00:00Z", shop: { id: "alias-1", name: "Shop 123" } },
     });
     expect(me.mock.calls[0][0]).toBe("/v1/reviewer/me");
     expect(me.mock.calls[0][1].headers.Authorization).toBe("Bearer tok");

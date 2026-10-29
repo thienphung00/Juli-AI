@@ -203,7 +203,7 @@ async def test_reviewer_me_and_shop_list_are_the_aliased_reference_shop(session,
     body = me.json()
     assert body["reviewer"] is True and body["platform"] == "shopee"
     assert body["shop"]["id"] == alias
-    assert body["shop"]["name"].startswith("Demo Shop ")
+    assert body["shop"]["name"].startswith("Shop ")
     assert [s["id"] for s in shops.json()] == [alias]
     assert shop_me.json()["id"] == alias
     for response in (me, shops, shop_me):
@@ -255,7 +255,7 @@ async def test_decisions_are_masked_with_real_magnitudes(session, world):
     diag_s = theirs[0]["recommendation"]["diagnosis"]
     assert diag_r["recoverable_gmv_per_day"] == diag_s["recoverable_gmv_per_day"] == 1250000.0
     assert diag_r["main_kpi"]["raw"] == diag_s["main_kpi"]["raw"]
-    assert diag_r["product_title"].startswith("Demo Product ")
+    assert diag_r["product_title"].startswith("Sản phẩm ")
     assert diag_r["tiktok_product_id"].startswith("demo-product-")
 
 
@@ -287,7 +287,7 @@ def test_mask_replaces_titles_in_free_text_brand_words_urls_and_long_ids():
     assert "FUJIWA" not in text
     assert masked["shop_id"] == str(shop_alias_id(shop_id))
     assert masked["after"] == "Nồi chiên Thương hiệu chính hãng 6L"
-    assert masked["videos"][0]["title"].startswith("Demo Video ")
+    assert masked["videos"][0]["title"].startswith("Video ")
     assert masked["videos"][0]["video_id"].startswith("demo-video-")
     assert masked["videos"][0]["views"] == 12000
     assert masked["image_url"] is None and masked["link"] is None
@@ -314,7 +314,7 @@ def test_simulation_note_is_one_short_line_without_internals(executor):
     change = simulate(item, "execute")["change"]
     note = change["note"]
     assert len(note) <= 120
-    for internal in ("/product/", "PUT", "update_", "upload_", "Tài khoản dùng thử", "Không có"):
+    for internal in ("/product/", "PUT", "update_", "upload_", "Tài khoản đối tác", "Không có"):
         assert internal not in note
     after = change["fields"][0]["after"]
     if executor == "seller_center":
@@ -342,7 +342,7 @@ async def test_simulated_approve_then_execute(session, world):
     change = body["change"]
     assert change["request"]["operation"] == "update_product_listing"
     assert change["request"]["path"] == PRODUCT_EDIT_PATH
-    assert change["product"]["title"].startswith("Demo Product ")
+    assert change["product"]["title"].startswith("Sản phẩm ")
     _assert_masked(execute.text)
     await session.refresh(ref.card)
     assert ref.card.status == "active"

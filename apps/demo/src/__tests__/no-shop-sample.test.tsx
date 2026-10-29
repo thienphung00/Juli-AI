@@ -208,14 +208,14 @@ describe("signed in, no TikTok Shop → the header names the sample shop", () =>
     return <ShopHeader googleHref={null} onRefreshDemo={() => undefined} onSignOut={() => undefined} state={state} />;
   }
 
-  it("shows the sample shop name, the Bản minh họa badge and 'Dữ liệu mẫu · cập nhật', not 'Chưa chọn shop'", async () => {
+  it("shows the sample shop name, the Dữ liệu mẫu badge and 'Dữ liệu mẫu · cập nhật', not 'Chưa chọn shop'", async () => {
     signInWithoutShop();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     renderInShell(<HeaderFromContext />);
     const header = await screen.findByTestId("shop-header");
     expect(await within(header).findByText(REPORT.shop_name)).toBeInTheDocument();
     expect(header).not.toHaveTextContent("Chưa chọn shop");
-    expect(header).toHaveTextContent("Bản minh họa");
+    expect(header).toHaveTextContent("Dữ liệu mẫu");
     expect(header).toHaveTextContent(/Dữ liệu mẫu · cập nhật \d{2}:\d{2}/);
     // Still signed in: the menu offers connect + sign out, not the sign-in doors.
     expect(within(header).getByRole("link", { name: "Kết nối TikTok Shop", hidden: true })).toHaveAttribute("href", CONNECT_SHOP_HREF);
