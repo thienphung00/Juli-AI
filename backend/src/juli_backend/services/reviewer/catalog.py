@@ -2,7 +2,9 @@
 
 Titles and TikTok ids of the shop's products, SKUs and LIVE sessions, so a title
 or id that appears only inside free text (a card reason, a run narration) is
-still found. Read under the shop's own tenant scope (the caller has entered it
+still found. P75: also each product reference (Juli id, SKU id, seller SKU, title)
+→ its TikTok product id, so a product reads one alias on every page (same two
+statements, more columns). Read under the shop's own tenant scope (the caller has entered it
 through ``services/ops/view_as``); cached per shop for :data:`TTL_SECONDS`.
 """
 
@@ -53,28 +55,38 @@ async def _read_dictionary(session: AsyncSession, shop: Shop) -> MaskDictionary:
         tiktok_shop_id=shop.tiktok_shop_id,
         extra_terms=extra_mask_terms(),
     )
-    for tiktok_id, title, name in (
+    refs = dictionary.product_refs
+    for product_id, tiktok_id, title, name in (
         await session.execute(
-            select(Product.tiktok_product_id, Product.title, Product.name).where(
+            select(Product.id, Product.tiktok_product_id, Product.title, Product.name).where(
                 Product.shop_id == shop.id
             )
         )
     ).all():
-        if tiktok_id:
-            dictionary.ids[str(tiktok_id)] = "product"
+        identity = str(tiktok_id).strip() if tiktok_id else None
+        if identity:
+            dictionary.ids[identity] = "product"
+            refs[str(product_id)] = identity
         for text in (title, name):
             if text and text.strip():
                 dictionary.titles[text.strip()] = "product"
-    for sku_id, seller_sku in (
+                if identity:
+                    # P75: one alias per product (the first product of a shared title).
+                    refs.setdefault(text.strip(), identity)
+    for sku_id, seller_sku, tiktok_id in (
         await session.execute(
-            select(InventoryItem.tiktok_sku_id, InventoryItem.seller_sku).where(
-                InventoryItem.shop_id == shop.id
-            )
+            select(
+                InventoryItem.tiktok_sku_id,
+                InventoryItem.seller_sku,
+                InventoryItem.tiktok_product_id,
+            ).where(InventoryItem.shop_id == shop.id)
         )
     ).all():
         for text in (sku_id, seller_sku):
-            if text:
-                dictionary.ids[str(text)] = "sku"
+            if text and str(text).strip():
+                dictionary.ids[str(text).strip()] = "sku"
+                if tiktok_id:
+                    refs.setdefault(str(text).strip(), str(tiktok_id).strip())
     for live_id, title in (
         await session.execute(
             select(Livestream.tiktok_livestream_id, Livestream.title).where(

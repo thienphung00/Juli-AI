@@ -1436,10 +1436,10 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 49
-MEASURED_TEST_FUNCTIONS = 7643
+MEASURED_TEST_FUNCTIONS = 7704
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 736
+MEASURED_TEST_MODULES = 744
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1498,10 +1498,12 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # Fast track P61-E (D71.5): +1 in the first four layers. The any-shop journey test
     # delegates every assertion to same-file step helpers (`_step_*`), so the helper layer
     # below and the zero-assertion headline did not move. P64 (D73): +1 no_assert_statement.
-    "no_assert_statement": 518,
-    "and_no_pytest_raises": 131,
-    "and_no_mock_assert_called": 116,
-    "and_no_unittest_self_assert": 116,
+    # P75: +1 in the first four layers (the route-shape test asserts through
+    # ``_assert_clean``, a same-file asserting helper; the helper layer did not move).
+    "no_assert_statement": 519,
+    "and_no_pytest_raises": 132,
+    "and_no_mock_assert_called": 117,
+    "and_no_unittest_self_assert": 117,
     "and_no_asserting_helper": 53,
     "and_no_raise_assertionerror": 49,
 }
@@ -1587,13 +1589,13 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 49 "
-        "zero-assertion tests in a corpus of 7,643 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (736 test modules). The prior "
+        "zero-assertion tests in a corpus of 7,704 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (744 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to an asserting helper. That "
-        "layer reads 116 today over the whole corpus, but the claim is about a fixed set: "
-        "less the 10 helper-credited tests that are not in the recorded set "
+        "layer reads 117 today over the whole corpus, but the claim is about a fixed set: "
+        "less the 11 helper-credited tests that are not in the recorded set "
         "(`eval/quality_prior_figure_set.json`, the layer's helper-credited members at the "
         "fast-track branch point), "
         "it reads 106, a difference of 9 tests from the prior reading. "
@@ -1607,7 +1609,7 @@ RECONCILIATION: dict[str, Any] = {
         "(#1682). The rates are recorded beside it as readings, not as the claim "
         "(2.40% then, 1.52% now). "
         "So the prior measurement "
-        "reproduces, and the gap between 116 and 49 is 63 tests whose only "
+        "reproduces, and the gap between 117 and 49 is 64 tests whose only "
         "assertion is inside a "
         "same-file or imported test-support asserting helper "
         "plus 4 that raise AssertionError directly. "
