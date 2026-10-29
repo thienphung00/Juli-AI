@@ -102,7 +102,10 @@ from juli_backend.services.agent.tools.registry import (
     ToolSpec,
 )
 from juli_backend.services.execution.file_screening import screen_and_reencode_image
-from juli_backend.services.shop_rules.listing_validator import validate_listing_proposal
+from juli_backend.services.shop_rules.listing_validator import (
+    enforced_violations,
+    validate_listing_proposal,
+)
 
 # Vendor protocol constant from TikTok B-4 (Edit Product / Partial endpoint).
 # Section reference: docs/integrations/tiktok_api/contract-collection.md § B-4
@@ -417,15 +420,14 @@ def precheck_update_product_listing(
     current = detail if isinstance(detail, Mapping) else {}
     brand = current.get("brand")
     brand_name = str(brand.get("name") or "").strip() if isinstance(brand, Mapping) else ""
-    return validation_refusal(
-        validate_listing_proposal(
-            current_title=_text_or_none(current.get("title")),
-            current_description_html=_text_or_none(current.get("description")),
-            proposed_title=params.title,
-            proposed_description_html=params.description,
-            brand_terms=(brand_name,) if brand_name else (),
-        )
+    validation = validate_listing_proposal(
+        current_title=_text_or_none(current.get("title")),
+        current_description_html=_text_or_none(current.get("description")),
+        proposed_title=params.title,
+        proposed_description_html=params.description,
+        brand_terms=(brand_name,) if brand_name else (),
     )
+    return validation_refusal(enforced_violations(validation))
 
 
 def _text_or_none(value: Any) -> str | None:

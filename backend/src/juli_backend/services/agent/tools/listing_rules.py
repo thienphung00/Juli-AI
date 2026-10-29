@@ -23,7 +23,10 @@ from typing import Any
 from pydantic import BaseModel
 
 from juli_backend.services.shop_rules.listing_edits import contains_term, find_term
-from juli_backend.services.shop_rules.listing_validator import ListingValidation
+from juli_backend.services.shop_rules.listing_validator import (
+    ListingViolation,
+    ListingViolationCode,
+)
 
 ERROR_RULE_VIOLATION = "listing_rule_violation"
 ERROR_SOURCE_NAME_NOT_IN_TITLE = "brand_not_in_source"
@@ -115,26 +118,33 @@ def check_proposal(
     return None
 
 
-def validation_refusal(validation: ListingValidation) -> ProposalRefusal | None:
+#: P76-4: prompt v3 does not state the description rules; the first refusal says them.
+DESCRIPTION_RETRY_HINT = (
+    "The description must keep all of the existing text and only add or replace specific "
+    "parts, and must be at least as long as the current one."
+)
+
+
+def validation_refusal(violations: Sequence[ListingViolation]) -> ProposalRefusal | None:
     """P76-4: the post-validator's violations as one refusal, every message for the model."""
-    if validation.ok:
+    if not violations:
         return None
-    points = "; ".join(
-        f"[{violation.code.value}] {violation.message}" for violation in validation.violations
-    )
-    first_vi = validation.violations[0].message_vi
+    points = "; ".join(f"[{violation.code.value}] {violation.message}" for violation in violations)
+    over_limits = any(v.code is ListingViolationCode.LISTING_OVER_LIMITS for v in violations)
+    retry = "" if over_limits else f" {DESCRIPTION_RETRY_HINT}"
     return ProposalRefusal(
         error_code=ERROR_RULE_VIOLATION,
         summary_vi=RULE_REFUSAL_SUMMARY_VI,
         model_hint=(
-            f"error_code={ERROR_RULE_VIOLATION}: {points} Fix every point and call the "
-            "tool again (once); a second refusal ends the run."
+            f"error_code={ERROR_RULE_VIOLATION}: {points}{retry} Fix every point and call "
+            "the tool again (once); a second refusal ends the run."
         ),
-        final_summary_vi=f"{RULE_REFUSAL_FINAL_VI}: {first_vi}",
+        final_summary_vi=f"{RULE_REFUSAL_FINAL_VI}: {violations[0].message_vi}",
     )
 
 
 __all__ = [
+    "DESCRIPTION_RETRY_HINT",
     "ERROR_RULE_VIOLATION",
     "ERROR_SOURCE_NAME_NOT_IN_TITLE",
     "RULE_REFUSAL_FINAL_VI",

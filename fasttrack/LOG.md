@@ -3164,3 +3164,11 @@ reconcile --write` re-derived the no-assert corpus figure.
   `brand.name` is passed), and `flagged_codes` (passed empty; only the drift log reads them).
 - Docs: OP-FR-6 in `docs/product/agent-workflow-execution/v1-workflow-spec.md` now says 40. ADR-090 /
   ADR-106 text (25) left as historical decision records; blog copy quotes TikTok's own academy rule.
+- Kill switch (orchestrator follow-up, same day): `LISTING_VALIDATOR_ENFORCE` (default on, read
+  per call like `LLM_STREAMING`; documented in `infra/scripts/env/api.env.example`). Off
+  (`0`/`false`/`no`/`off`): every violation except `listing_over_limits` and `title_too_short`
+  is logged `listing_proposal_violation_logged` (code, field) and the proposal passes -- prompt
+  v3 does not state these rules, so most runs would otherwise hit them twice and refuse. The
+  refusal's model hint now also says the description must keep all existing text, only add or
+  replace specific parts, and be at least as long as the current one
+  (`listing_rules.DESCRIPTION_RETRY_HINT`; left out for `listing_over_limits`).

@@ -32,6 +32,10 @@ and spacing, so ``500 ml`` keeps ``500mL``.
 
 Warn-only, never a violation:
 
+Kill switch: ``LISTING_VALIDATOR_ENFORCE=0`` (prompt v3 does not state these rules yet)
+lets every violation but ``listing_over_limits`` / ``title_too_short`` pass, logged
+(:func:`enforced_violations`).
+
 * **Claim words** (:data:`CLAIM_WORDS`) the proposal adds that the current listing does
   not carry are logged and listed on the result.
 * **Drift guard (D78.4).** The share of the current title's / description's words the
@@ -44,6 +48,7 @@ Warn-only, never a violation:
 from __future__ import annotations
 
 import logging
+import os
 import re
 import unicodedata
 from collections.abc import Collection, Sequence
@@ -89,6 +94,13 @@ CLAIM_WORDS: tuple[str, ...] = (
     "best",
 )
 
+#: P76-4 kill switch: ``0`` / ``false`` / ``no`` / ``off`` -> every violation except
+#: :data:`HARD_VIOLATION_CODES` is logged (``listing_proposal_violation_logged``) and the
+#: proposal passes. Read at call time (an env change + worker restart, no deploy).
+LISTING_VALIDATOR_ENFORCE_ENV_VAR = "LISTING_VALIDATOR_ENFORCE"
+DEFAULT_LISTING_VALIDATOR_ENFORCE = True
+_FALSE_VALUES = frozenset({"0", "false", "no", "off"})
+
 Field = Literal["title", "description", "listing"]
 
 
@@ -102,6 +114,21 @@ class ListingViolationCode(str, Enum):
     DESCRIPTION_TOO_SHORT = "description_too_short"
     DESCRIPTION_NO_LINE_BREAK = "description_no_line_break"
     DESCRIPTION_TOO_LONG = "description_too_long"
+
+
+#: Refused even with the kill switch off: a listing already over TikTok's limits (D78.3)
+#: and a title under TikTok's own 40-character minimum (D78.1).
+HARD_VIOLATION_CODES = frozenset(
+    {ListingViolationCode.LISTING_OVER_LIMITS, ListingViolationCode.TITLE_TOO_SHORT}
+)
+
+
+def listing_validator_enforced() -> bool:
+    """Whether every violation refuses (``LISTING_VALIDATOR_ENFORCE``; unset -> on)."""
+    raw = os.environ.get(LISTING_VALIDATOR_ENFORCE_ENV_VAR, "").strip().lower()
+    if not raw:
+        return DEFAULT_LISTING_VALIDATOR_ENFORCE
+    return raw not in _FALSE_VALUES
 
 
 @dataclass(frozen=True)
@@ -535,8 +562,27 @@ def validate_listing_proposal(
     return ListingValidation(violations=tuple(violations), drift=drift)
 
 
+def enforced_violations(validation: ListingValidation) -> tuple[ListingViolation, ...]:
+    """The violations that refuse the proposal under ``LISTING_VALIDATOR_ENFORCE``.
+
+    Enforced (the default): all of them. Off: only :data:`HARD_VIOLATION_CODES`; each
+    other one is logged (``listing_proposal_violation_logged``) and lets the proposal pass.
+    """
+    if listing_validator_enforced():
+        return validation.violations
+    for violation in validation.violations:
+        if violation.code not in HARD_VIOLATION_CODES:
+            logger.warning(
+                "listing_proposal_violation_logged",
+                extra={"code": violation.code.value, "field": violation.field, "blocking": False},
+            )
+    return tuple(v for v in validation.violations if v.code in HARD_VIOLATION_CODES)
+
+
 __all__ = [
     "CLAIM_WORDS",
+    "HARD_VIOLATION_CODES",
+    "LISTING_VALIDATOR_ENFORCE_ENV_VAR",
     "DESCRIPTION_DRIFT_MIN_OVERLAP",
     "DESCRIPTION_MIN_TEXT_CHARS",
     "TITLE_DRIFT_MIN_OVERLAP",
@@ -547,7 +593,9 @@ __all__ = [
     "ListingViolationCode",
     "MustKeepToken",
     "description_text",
+    "enforced_violations",
     "fold",
+    "listing_validator_enforced",
     "missing_tokens",
     "must_keep_tokens",
     "validate_listing_proposal",

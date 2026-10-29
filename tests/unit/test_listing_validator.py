@@ -26,6 +26,7 @@ from juli_backend.services.agent.runner.core import WorkflowRunner
 from juli_backend.services.agent.runner.state import RunState
 from juli_backend.services.agent.status import StopReason, WorkflowRunStatus
 from juli_backend.services.agent.tools.listing_rules import (
+    DESCRIPTION_RETRY_HINT,
     ERROR_RULE_VIOLATION,
     RULE_REFUSAL_FINAL_VI,
     RULE_REFUSAL_SUMMARY_VI,
@@ -470,3 +471,63 @@ def test_a_revert_run_is_not_gated_by_the_post_validator():
     context = ProductToolContext(product_id="prod-1", product_detail=DETAIL, reverting=True)
     params = UpdateProductListingInput(title="Nồi lẩu điện mini 1.5L")
     assert precheck_update_product_listing(None, context, params) is None
+
+
+# -- kill switch: LISTING_VALIDATOR_ENFORCE -------------------------------------------------
+
+SOFT_ONLY = UpdateProductListingInput(title=GOOD_TITLE.replace("270mL ", ""))
+
+
+@pytest.mark.parametrize("value", ["0", "false", "OFF", " no "])
+def test_enforce_off_logs_soft_violations_and_passes(
+    value: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    monkeypatch.setenv("LISTING_VALIDATOR_ENFORCE", value)
+    with caplog.at_level(logging.WARNING, logger="juli_backend.services.shop_rules"):
+        assert precheck_update_product_listing(None, _context(), SOFT_ONLY) is None
+    logged = [r for r in caplog.records if r.getMessage() == "listing_proposal_violation_logged"]
+    assert [r.__dict__["code"] for r in logged] == ["title_missing_tokens"]
+
+
+@pytest.mark.parametrize(
+    ("detail", "title", "code"),
+    [
+        pytest.param(DETAIL, "Nước ngọt Coca Cola thùng lớn", "title_too_short", id="under-40"),
+        pytest.param(
+            {**DETAIL, "description": "<p>" + "x" * DESCRIPTION_MAX_CHARS + "</p>"},
+            GOOD_TITLE,
+            "listing_over_limits",
+            id="over-limits",
+        ),
+    ],
+)
+def test_enforce_off_still_refuses_the_hard_rules(
+    detail: dict[str, Any], title: str, code: str, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("LISTING_VALIDATOR_ENFORCE", "off")
+    refusal = precheck_update_product_listing(
+        None, _context(detail), UpdateProductListingInput(title=title)
+    )
+    assert refusal is not None and f"[{code}]" in refusal.model_hint
+    # Only the hard rule is reported: the shrunk / missing-token points were logged.
+    assert "[title_shrunk]" not in refusal.model_hint
+
+
+@pytest.mark.parametrize("value", [None, "", "1", "true", "on"])
+def test_enforce_on_is_unchanged(value: str | None, monkeypatch: pytest.MonkeyPatch):
+    if value is None:
+        monkeypatch.delenv("LISTING_VALIDATOR_ENFORCE", raising=False)
+    else:
+        monkeypatch.setenv("LISTING_VALIDATOR_ENFORCE", value)
+    refusal = precheck_update_product_listing(None, _context(), SOFT_ONLY)
+    assert refusal is not None and "[title_missing_tokens]" in refusal.model_hint
+
+
+def test_the_refusal_tells_the_model_how_to_keep_the_description():
+    refusal = precheck_update_product_listing(None, _context(), SOFT_ONLY)
+    assert refusal is not None and DESCRIPTION_RETRY_HINT in refusal.model_hint
+    detail = {**DETAIL, "description": "<p>" + "x" * DESCRIPTION_MAX_CHARS + "</p>"}
+    over = precheck_update_product_listing(
+        None, _context(detail), UpdateProductListingInput(title=GOOD_TITLE)
+    )
+    assert over is not None and DESCRIPTION_RETRY_HINT not in over.model_hint
