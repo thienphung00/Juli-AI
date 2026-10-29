@@ -12,8 +12,10 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
   default 30 s since P69), `claim_sign_in`, `upsert_account` / `renew_account` / `revoke_account` /
   `find_by_email` (audited, no commit), `DEFAULT_LIFETIME_DAYS` (30).
 - `masking` — `MaskDictionary`, `ReviewerMasker`, `mask_payload`, `brand_terms`, `title_alias`,
-  `REVIEWER_SHOP_LABEL` (P74-A: a masked shop's name is `Shop TikTok (ẩn danh)`, not ADR-038's
-  "Demo Shop NNN", which the seller / ops analytics mask keeps).
+  `id_alias`, `REVIEWER_SHOP_LABEL`. P74-A (D77): the reviewer mask's own labels, never "demo"
+  (Shopee reads it as not live): shop `Shop TikTok (ẩn danh)`, `Sản phẩm NNN` / `Video NNN` /
+  `LIVE NNN` / `Nhà sáng tạo NNN` / `Tệp NNN`, ids `an-<kind>-<hash8>` / `id-<hash8>` (own HMAC
+  key, stable). The seller / ops analytics mask keeps ADR-038's "Demo …" / `demo-<kind>-…`.
 - `catalog` — `load_dictionary` (products, SKUs, LIVE titles of the shop; 10 min cache).
 - `pin_cache` — P69: the pinned shop's row + `PinMode`, cached for the account TTL (30 s), per
   pin id (P74-A: several pins, each classified and cached on its own);

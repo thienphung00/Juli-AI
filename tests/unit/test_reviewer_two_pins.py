@@ -11,6 +11,7 @@ Real signed tokens through the real ``get_current_user`` (the gate lives there),
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -271,6 +272,9 @@ async def test_the_mask_follows_the_selected_pin(session, world):
         )
     assert masked.status_code == 200, masked.text
     _assert_masked(masked.text, fujiwa_id)
+    # P74-A (D77): the masked shop's labels never read "demo" (Shopee: not live).
+    assert "demo product" not in masked.text.lower()
+    assert re.search(r"demo-[a-z]+-[0-9a-f]{8}", masked.text) is None
     assert live.status_code == 200, live.text
     assert "Sandbox áo thun" in live.text  # the sandbox shop is shown as it is
     assert str(fujiwa_id) not in live.text

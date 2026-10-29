@@ -1764,6 +1764,7 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   classified on its own; mask, simulation and every sandbox-only refusal follow the selected pin.
   Hard invariant: nothing the reviewer does writes to Fujiwa -- runs, rules, Hoàn tác and "Đồng bộ
   ngay" are 403 `sandbox_only` there (`tests/unit/test_reviewer_two_pins.py`). The masked shop's
-  name is `Shop TikTok (ẩn danh)`, never "Demo …" (Shopee reads "demo" as not live); the seller /
-  ops analytics mask keeps ADR-038's names. Contract `fasttrack/contracts/p32-reviewer-access.md`
+  name is `Shop TikTok (ẩn danh)`, products `Sản phẩm NNN`, videos / LIVE `Video NNN` / `LIVE NNN`,
+  ids `an-<kind>-…` / `id-…` -- never "demo" (Shopee reads "demo" as not live); the seller / ops
+  analytics mask keeps ADR-038's names. Contract `fasttrack/contracts/p32-reviewer-access.md`
   (D77 amendment).

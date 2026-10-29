@@ -7,6 +7,7 @@ there), SQLite. The no-write proof over every route is ``test_reviewer_no_write`
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import timedelta
 
@@ -57,6 +58,15 @@ def _headers(user_id, *, shop=None, **kw) -> dict[str, str]:
     if shop is not None:
         headers["X-Shop-Id"] = str(shop)
     return headers
+
+
+#: P74-A (D77): the reviewer mask's labels never say "demo" (Shopee reads it as not live).
+_DEMO_LABEL = re.compile(r"Demo (Shop|Product|Video|LIVE|Creator|File)|demo-[a-z]+-[0-9a-f]{8}")
+
+
+def _assert_no_demo_label(text: str) -> None:
+    found = _DEMO_LABEL.search(text)
+    assert found is None, f"demo label {found.group(0)!r} in {text[:400]}"
 
 
 def _assert_masked(text: str) -> None:
@@ -261,8 +271,9 @@ async def test_decisions_are_masked_with_real_magnitudes(session, world):
     diag_s = theirs[0]["recommendation"]["diagnosis"]
     assert diag_r["recoverable_gmv_per_day"] == diag_s["recoverable_gmv_per_day"] == 1250000.0
     assert diag_r["main_kpi"]["raw"] == diag_s["main_kpi"]["raw"]
-    assert diag_r["product_title"].startswith("Demo Product ")
-    assert diag_r["tiktok_product_id"].startswith("demo-product-")
+    assert re.fullmatch(r"Sản phẩm \d{3}", diag_r["product_title"])
+    assert re.fullmatch(r"an-product-[0-9a-f]{8}", diag_r["tiktok_product_id"])
+    _assert_no_demo_label(reviewer.text)
 
 
 def test_mask_replaces_titles_in_free_text_brand_words_urls_and_long_ids():
@@ -293,8 +304,10 @@ def test_mask_replaces_titles_in_free_text_brand_words_urls_and_long_ids():
     assert "FUJIWA" not in text
     assert masked["shop_id"] == str(shop_alias_id(shop_id))
     assert masked["after"] == "Nồi chiên Thương hiệu chính hãng 6L"
-    assert masked["videos"][0]["title"].startswith("Demo Video ")
-    assert masked["videos"][0]["video_id"].startswith("demo-video-")
+    assert re.fullmatch(r"Video \d{3}", masked["videos"][0]["title"])
+    assert re.fullmatch(r"an-video-[0-9a-f]{8}", masked["videos"][0]["video_id"])
+    assert re.fullmatch(r"mã id-[0-9a-f]{8}", masked["note"])
+    _assert_no_demo_label(text)
     assert masked["videos"][0]["views"] == 12000
     assert masked["image_url"] is None and masked["link"] is None
     assert masked["own"] == "https://demo.app-juli.com/decisions"
@@ -348,8 +361,9 @@ async def test_simulated_approve_then_execute(session, world):
     change = body["change"]
     assert change["request"]["operation"] == "update_product_listing"
     assert change["request"]["path"] == PRODUCT_EDIT_PATH
-    assert change["product"]["title"].startswith("Demo Product ")
+    assert re.fullmatch(r"Sản phẩm \d{3}", change["product"]["title"])
     _assert_masked(execute.text)
+    _assert_no_demo_label(execute.text)
     await session.refresh(ref.card)
     assert ref.card.status == "active"
     actions = [row.action for row in await _audit(session)]
@@ -415,3 +429,21 @@ async def test_reviewer_cannot_use_the_ops_console(session, world, monkeypatch):
         for path in ("/v1/ops/me", "/v1/ops/overview"):
             response = await client.get(path, headers=_headers(user_id))
             assert response.status_code == 403
+
+
+def test_reviewer_labels_are_stable_and_neutral():
+    """P74-A (D77): own labels, stable per raw value, no "demo"; ADR-038 analytics unchanged."""
+    from juli_backend.services.analytics_kpi_masking.mask import stable_product_title
+    from juli_backend.services.reviewer.masking import REVIEWER_SHOP_LABEL, id_alias, title_alias
+
+    assert title_alias("shop", rv.SHOP_NAME) == REVIEWER_SHOP_LABEL
+    for kind, label in (("product", "Sản phẩm"), ("video", "Video"), ("live", "LIVE")):
+        alias = title_alias(kind, "x")
+        assert alias == title_alias(kind, "x") and re.fullmatch(rf"{label} \d{{3}}", alias)
+    assert re.fullmatch(r"an-sku-[0-9a-f]{8}", id_alias("sku", rv.SELLER_SKU))
+    assert id_alias("sku", rv.SELLER_SKU) == id_alias("sku", rv.SELLER_SKU)
+    assert re.fullmatch(r"id-[0-9a-f]{8}", id_alias("id", rv.TIKTOK_PRODUCT_ID))
+    for value in (title_alias("product", "x"), id_alias("product", "x"), id_alias("id", "1")):
+        assert "demo" not in value.lower()
+    # The seller / ops analytics mask is untouched (ADR-038).
+    assert stable_product_title("x").startswith("Demo Product ")

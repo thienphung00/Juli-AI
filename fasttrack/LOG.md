@@ -3059,5 +3059,9 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Tests: `tests/unit/test_reviewer_two_pins.py` (every write / sync / rule / Hoàn tác route 403 on
   the masked pin, live on the sandbox pin; no Fujiwa identity in any list), demo
   `reviewer-two-shops.test.tsx`.
+- Follow-up commit: the reviewer mask has its own neutral labels and HMAC key -- `Sản phẩm NNN`,
+  `Video NNN`, `LIVE NNN`, `Nhà sáng tạo NNN`, `Tệp NNN`, ids `an-<kind>-<hash8>` / `id-<hash8>`;
+  no "demo" anywhere a reviewer sees. Nothing reverses these aliases (reviewer requests carry
+  UUIDs and the uuid5 shop alias, both unchanged).
 - Owner step after deploy: `REVIEWER_SHOP_IDS=<Fujiwa shops.id>,<sandbox shops.id>` in the API env,
   restart. Not deployed by this slice.

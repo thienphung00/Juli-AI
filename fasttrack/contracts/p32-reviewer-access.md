@@ -31,8 +31,8 @@ magnitudes), ADR-038 §9 (demo execution is a dry run), D13 (what a real execute
 > **sandbox shop** (the D73 amendment). Each pin is classified on its own (`sandbox.classify_pin`);
 > the mask, the simulation and every sandbox-only refusal follow the selected pin. Nothing the
 > reviewer does writes to Fujiwa: every run / rule / Hoàn tác route and "Đồng bộ ngay" answer 403
-> `sandbox_only` there. The masked shop's name is the neutral `Shop TikTok (ẩn danh)`, never
-> "Demo …" (Shopee reads "demo" as not live). See §3.
+> `sandbox_only` there. The reviewer mask never says "demo" (Shopee reads it as not live): the
+> masked shop is `Shop TikTok (ẩn danh)`, products `Sản phẩm NNN`, ids `an-<kind>-…`. See §3.
 
 A partner platform's reviewer signs in on demo.app-juli.com with a **team-created e-mail +
 password**, lands on the reference shop **Fujiwa, masked** (only when pinned, see the amendment), reads Trang chủ / Phân tích /
@@ -172,10 +172,12 @@ every JSON response of a reviewer request — fail closed: a reviewer response t
 becomes 502):
 
 - the real shop id → the alias id, everywhere it appears (keys and inside strings);
-- shop name → `Shop TikTok (ẩn danh)` (P74-A, D77; was ADR-038 `Demo Shop NNN`); product titles → ADR-038 `Demo Product NNN`; video /
-  LIVE titles → `Demo Video NNN` / `Demo LIVE NNN`; ids (`tiktok_shop_id`, TikTok product / SKU /
-  video / LIVE ids, `seller_sku`) → ADR-038 `demo-<kind>-<hash>`; any 12–20-digit run inside a
-  string → `demo-id-<hash>`;
+- shop name → `Shop TikTok (ẩn danh)`; product titles → `Sản phẩm NNN`; video / LIVE / creator /
+  file titles → `Video NNN` / `LIVE NNN` / `Nhà sáng tạo NNN` / `Tệp NNN`; ids (`tiktok_shop_id`,
+  TikTok product / SKU / video / LIVE ids, `seller_sku`) → `an-<kind>-<hash8>`; any 12–20-digit run
+  inside a string → `id-<hash8>`. P74-A (D77): the reviewer mask's own labels and HMAC key, never
+  "demo" (Shopee reads it as not live); before P74-A these were ADR-038's `Demo Shop NNN` / `Demo
+  Product NNN` / `demo-<kind>-<hash>`, which the seller / ops analytics mask keeps;
 - titles and ids are collected from the response itself (entity keys) **and** from the shop's
   catalog (products, SKUs, LIVE titles; cached 10 min) and replaced wherever they occur inside
   free text (card titles, reasons, run narration);
@@ -205,7 +207,7 @@ that is not on Fujiwa's desk); writes **only** an audit row. Response (then mask
   "change": {
     "executor": "juli",
     "lever": {"code": "title", "label": "Tiêu đề"},
-    "product": {"title": "Demo Product 123", "tiktok_product_id": "demo-product-…"},
+    "product": {"title": "Sản phẩm 123", "tiktok_product_id": "an-product-…"},
     "request": {"method": "PUT", "path": "/product/202309/products/{product_id}",
                 "operation": "update_product_listing", "fields": ["title"]},
     "fields": [{"field": "title", "label": "Tiêu đề", "before": "…", "after": "…"}],

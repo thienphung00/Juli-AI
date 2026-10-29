@@ -14,9 +14,16 @@ How (contract §3):
    TikTok-side id) -- plus the shop's catalog (:class:`MaskDictionary`, loaded
    by ``catalog.py``).
 2. **Replace** each of them, wherever it occurs (whole values, inside free text,
-   in dict keys), with a stable ADR-038 alias; the real shop id with the alias
+   in dict keys), with a stable alias; the real shop id with the alias
    id; brand words of the shop name with ``Thương hiệu``; any 12-20 digit run
-   with ``demo-id-<hash>``.
+   with ``id-<hash>``.
+
+P74-A (D77): the reviewer's labels are its OWN, never "demo" (Shopee's review
+reads "demo" as a product that is not live): shop ``Shop TikTok (ẩn danh)``,
+titles ``Sản phẩm NNN`` / ``Video NNN`` / ``LIVE NNN`` / ``Nhà sáng tạo NNN`` /
+``Tệp NNN``, ids ``an-<kind>-<hash8>`` and ``id-<hash8>``. Same scheme as ADR-038
+(HMAC, stable per raw value), separate key and words; the seller / ops analytics
+mask (``analytics_kpi_masking``) keeps "Demo …" / ``demo-<kind>-…``.
 3. **Drop** image / media / link values and every external ``http(s)`` URL
    (``None``); mask buyer PII as the ops console does (``mask_pii``).
 
@@ -25,6 +32,8 @@ Numbers (int / float / bool) are never touched.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import re
 import uuid
 from collections.abc import Iterable, Mapping
@@ -32,11 +41,6 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
 
-from juli_backend.services.analytics_kpi_masking.mask import (
-    stable_alias,
-    stable_label,
-    stable_product_title,
-)
 from juli_backend.services.ops import mask_pii
 
 BRAND_REPLACEMENT = "Thương hiệu"
@@ -50,6 +54,16 @@ _URL = re.compile(r"^\s*https?://", re.IGNORECASE)
 #: alias ``stable_shop_display_name`` ("Demo Shop NNN"): Shopee's review reads "demo" as a
 #: product that is not live. One fixed label -- stable, and nothing of the real name in it.
 REVIEWER_SHOP_LABEL = "Shop TikTok (ẩn danh)"
+#: The reviewer mask's own HMAC key (stable aliases; not the analytics mask's key).
+_REVIEWER_MASK_KEY = b"juli-reviewer-identity-v1"
+#: Title word per entity kind (P74-A): a neutral label + a stable 3-digit bucket.
+_TITLE_LABELS: Mapping[str, str] = {
+    "product": "Sản phẩm",
+    "video": "Video",
+    "live": "LIVE",
+    "creator": "Nhà sáng tạo",
+}
+_FILE_LABEL = "Tệp"
 
 #: Shop-name words that are not the brand (never replaced on their own).
 _BRAND_STOP_WORDS = frozenset(
@@ -126,18 +140,23 @@ def _is_uuid(value: str) -> bool:
     return True
 
 
+def _digest(scope: str, raw: str) -> str:
+    return hmac.new(_REVIEWER_MASK_KEY, f"{scope}:{raw}".encode(), hashlib.sha256).hexdigest()
+
+
+def id_alias(kind: str, raw: str) -> str:
+    """``an-<kind>-<hash8>`` (``id-<hash8>`` for a bare digit run): stable, never "demo"."""
+    digest = _digest(f"id:{kind}", raw)[:8]
+    return f"id-{digest}" if kind == "id" else f"an-{kind}-{digest}"
+
+
 def title_alias(kind: str, raw: str) -> str:
+    """``Shop TikTok (ẩn danh)`` for a shop, else ``<label> NNN`` (stable per raw title)."""
     if kind == "shop":
         return REVIEWER_SHOP_LABEL
-    if kind == "product":
-        return stable_product_title(raw)
-    if kind == "video":
-        return stable_label("Demo Video", raw)
-    if kind == "live":
-        return stable_label("Demo LIVE", raw)
-    if kind == "creator":
-        return stable_label("Demo Creator", raw)
-    return stable_label("Demo File", raw)
+    label = _TITLE_LABELS.get(kind, _FILE_LABEL)
+    bucket = int(_digest(f"title:{kind}", raw)[:4], 16) % 900 + 100
+    return f"{label} {bucket}"
 
 
 def brand_terms(shop_name: str | None, extra: Iterable[str] = ()) -> tuple[str, ...]:
@@ -204,7 +223,7 @@ class ReviewerMasker:
         text = str(raw).strip()
         if not text or _is_uuid(text) or text in self._replacements:
             return
-        self._replacements[text] = stable_alias(kind, text)
+        self._replacements[text] = id_alias(kind, text)
 
     def _collect(self, value: Any) -> None:
         if isinstance(value, list):
@@ -254,7 +273,7 @@ class ReviewerMasker:
             out = pattern.sub(lambda m: self._replacements[m.group(0)], out)
         if self._brand is not None:
             out = self._brand.sub(BRAND_REPLACEMENT, out)
-        out = _LONG_DIGITS.sub(lambda m: stable_alias("id", m.group(0)), out)
+        out = _LONG_DIGITS.sub(lambda m: id_alias("id", m.group(0)), out)
         return out
 
     def _external_url(self, value: str) -> bool:
@@ -298,6 +317,7 @@ __all__ = [
     "MaskDictionary",
     "ReviewerMasker",
     "brand_terms",
+    "id_alias",
     "mask_payload",
     "title_alias",
 ]
