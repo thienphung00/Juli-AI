@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * - Every response on every host carries `X-Robots-Tag: noindex, nofollow`
  *   (D43.5: neither the demo nor ops may be indexed; next.config.ts sets the
  *   same header on the paths this middleware does not match).
- * - On every other public host (`demo.app-juli.com`) `/ops/*` is a 404.
+ * - On every other public host (`demo.app-juli.com`, `app.app-juli.com`) `/ops/*` is a 404.
  * - Local hosts (localhost / 127.0.0.1, dev and e2e) serve both.
  *
  * No cookie is set here, and the app keeps its session in localStorage, which

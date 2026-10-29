@@ -3,7 +3,7 @@
  * Overridable per environment for preview deployments.
  */
 export const DEMO_URL =
-  process.env.NEXT_PUBLIC_DEMO_URL ?? "https://demo.app-juli.com/";
+  process.env.NEXT_PUBLIC_DEMO_URL ?? "https://app.app-juli.com/";
 
 /**
  * The single Login/Signup destination for the landing CTAs (hero + closing
@@ -12,7 +12,7 @@ export const DEMO_URL =
  * it, ADR-048 / ADR-050). Overridable per environment.
  */
 export const LOGIN_URL =
-  process.env.NEXT_PUBLIC_LOGIN_URL ?? "https://demo.app-juli.com/";
+  process.env.NEXT_PUBLIC_LOGIN_URL ?? "https://app.app-juli.com/";
 
 /**
  * The free 3-month trial sign-up (D43 additions, owner 2026-10-15): an internal

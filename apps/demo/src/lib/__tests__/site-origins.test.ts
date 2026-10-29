@@ -7,6 +7,7 @@ describe("the relay's allowed origins", () => {
     // A typo here 403s every server-side event in production while the pixel
     // keeps working, so the two channels would silently disagree.
     expect(SITE_ORIGINS).toContain("https://demo.app-juli.com");
+    expect(SITE_ORIGINS).toContain("https://app.app-juli.com");
   });
 
   it("allows nothing outside Juli", () => {

@@ -38,7 +38,7 @@ from juli_backend.services.ops.mailer import InviteMail, get_mailer
 from juli_backend.services.ops.overview import ShopListing, find_shop
 
 INVITE_TTL = timedelta(days=7)
-DEFAULT_ACCEPT_BASE = "https://demo.app-juli.com"
+DEFAULT_ACCEPT_BASE = "https://app.app-juli.com"
 ACCEPT_PATH = "/nhan-shop"
 
 

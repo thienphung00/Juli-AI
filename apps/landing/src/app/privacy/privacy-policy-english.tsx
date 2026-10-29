@@ -112,7 +112,7 @@ export function PrivacyPolicyEnglish() {
         </h3>
         <p>
           This section applies when you choose &ldquo;Sign in with Google&rdquo; on Juli AI
-          (app-juli.com and demo.app-juli.com), operated by{" "}
+          (app-juli.com and app.app-juli.com), operated by{" "}
           <span lang="vi">{COMPANY.name}</span>. Sign-in is handled through Supabase Auth.
           Juli requests only Google&rsquo;s basic sign-in scopes: <strong>openid</strong>,{" "}
           <strong>email</strong> and <strong>profile</strong>. Juli does not request access

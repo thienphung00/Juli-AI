@@ -146,7 +146,7 @@ export default function PrivacyPolicyPage() {
           <LegalSection headingId="google-user-data-heading" num="3." sectionId={GOOGLE_SECTION_ID} title="Dữ liệu người dùng Google (Google user data)">
             <p>
               Mục này áp dụng khi bạn chọn &ldquo;Đăng nhập với Google&rdquo; trên Juli AI
-              (app-juli.com và demo.app-juli.com), do {COMPANY.name} vận hành. Việc đăng
+              (app-juli.com và app.app-juli.com), do {COMPANY.name} vận hành. Việc đăng
               nhập được thực hiện qua Supabase Auth. Juli chỉ yêu cầu các quyền đăng nhập cơ
               bản của Google: <strong>openid</strong>, <strong>email</strong> và{" "}
               <strong>profile</strong>. Juli không yêu cầu quyền truy cập Gmail, Google

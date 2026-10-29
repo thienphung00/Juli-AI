@@ -21,7 +21,9 @@ SITEMAP_URL = os.environ.get("JULI_SITEMAP_URL", f"{MAIN_ORIGIN}/sitemap.xml")
 #: Hosts that must carry noindex and should disappear from Google.
 NOINDEX_HOSTS = tuple(
     h.strip()
-    for h in os.environ.get("JULI_NOINDEX_HOSTS", "demo.app-juli.com,ops.app-juli.com").split(",")
+    for h in os.environ.get(
+        "JULI_NOINDEX_HOSTS", "demo.app-juli.com,app.app-juli.com,ops.app-juli.com"
+    ).split(",")
     if h.strip()
 )
 

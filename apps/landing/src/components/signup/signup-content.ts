@@ -13,7 +13,7 @@ export const SIGNUP_SUBMIT_PATH = "/dang-ky/gui";
  * sign-up (P33-B's door reads `?dang-ky=dung-thu`). Overridable per environment.
  */
 export const SELF_CONNECT_URL =
-  process.env.NEXT_PUBLIC_SIGNUP_SELF_CONNECT_URL ?? "https://demo.app-juli.com/?dang-ky=dung-thu";
+  process.env.NEXT_PUBLIC_SIGNUP_SELF_CONNECT_URL ?? "https://app.app-juli.com/?dang-ky=dung-thu";
 
 export const SIGNUP_EYEBROW = "Miễn phí 3 tháng · không cần thẻ thanh toán";
 export const SIGNUP_H1 = "Đăng ký dùng thử Juli";

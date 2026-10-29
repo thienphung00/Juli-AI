@@ -3042,3 +3042,15 @@ reconcile --write` re-derived the no-assert corpus figure.
   Fujiwa 2b1da87b → 7495274531001436791, sandbox 1862f13b → 7494751643546977923 (its display name's
   number 7657274686031759124 is not its numeric id). B15 confirmed (commerce_last_run_at 06:06:25 after
   "Đồng bộ ngay"). Still to observe: a sandbox webhook reaching 1862f13b (etl_event_processed).
+
+## 2026-10-29 — P74-B agent (Claude Sonnet) — app.app-juli.com hostname
+
+- Branch `fasttrack/p74-app-hostname`. Shopee reads "demo" as not-live; owner approved
+  `app.app-juli.com`. The demo vhost now serves both names (`server_name demo… app…`, port-80
+  redirect via `$host`, same upstream include and cert lineage); `site-origins.ts` allows both for
+  `/api/tt/event`; middleware/SEO noindex hosts include `app.`; tab title "Juli Demo" -> "Juli";
+  landing CTAs/signup/privacy and the ops invite default now point at `app.app-juli.com`.
+- No CORS change (same-origin `/v1` proxy; `CORS_ALLOW_ORIGINS` is env-only). TikTok OAuth redirect
+  URIs are on `api.app-juli.com`, untouched. Deploy/rollback health checks left on demo.
+- Owner steps in `docs/runbooks/app-hostname-cutover.md` (DNS, certbot --expand, provision-nginx,
+  Supabase redirect URL); do them before deploying the landing change.

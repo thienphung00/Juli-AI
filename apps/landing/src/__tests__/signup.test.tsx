@@ -339,7 +339,7 @@ describe("/dang-ky/cam-on", () => {
     const cta = screen.getByTestId("self-connect-cta");
     expect(cta).toHaveTextContent("Tự kết nối shop ngay");
     expect(cta).toHaveAttribute("href", SELF_CONNECT_URL);
-    expect(SELF_CONNECT_URL).toBe("https://demo.app-juli.com/?dang-ky=dung-thu");
+    expect(SELF_CONNECT_URL).toBe("https://app.app-juli.com/?dang-ky=dung-thu");
   });
 
   it("is a calm confirmation: bird mark and the same 3 next steps", () => {

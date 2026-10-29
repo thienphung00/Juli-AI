@@ -268,14 +268,14 @@ def test_site_configuration_is_otherwise_unchanged() -> None:
     """AC: 'site configuration is otherwise unchanged apart from the indirection'."""
     conf = DEMO_VHOST.read_text(encoding="utf-8")
     for expected in (
-        "server_name demo.app-juli.com;",
+        "server_name demo.app-juli.com app.app-juli.com;",
         "listen 80;",
         # The flag form, not the standalone `http2 on;` directive: the review VPS
         # runs nginx 1.24.0, which rejects the directive form (>= 1.25.1 only) and
         # failed nginx -t on exactly this vhost on 2026-08-09.
         "listen 443 ssl http2;",
         "location /.well-known/acme-challenge/ {",
-        "return 301 https://demo.app-juli.com$request_uri;",
+        "return 301 https://$host$request_uri;",
         "/etc/letsencrypt/live/demo.app-juli.com/fullchain.pem",
         "/etc/letsencrypt/live/demo.app-juli.com/privkey.pem",
         "ssl_protocols       TLSv1.2 TLSv1.3;",
