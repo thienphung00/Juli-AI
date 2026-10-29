@@ -45,6 +45,8 @@ export interface RecommendationCardPayload {
   readonly seller_sku: string | null;
   readonly seller_sku_more: number;
   readonly product_title: string | null;
+  /** P75c: the card's own TikTok product id (masked `an-product-…` for a reviewer). */
+  readonly tiktok_product_id?: string | null;
   readonly workflow_label: string;
   readonly updated_at: string | null;
   readonly status: CardStatus;

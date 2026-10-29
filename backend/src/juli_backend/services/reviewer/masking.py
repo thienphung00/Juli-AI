@@ -278,8 +278,10 @@ class ReviewerMasker:
         self._dictionary = dictionary
         self._refs = dictionary.product_refs
         self._replacements: dict[str, str] = {}
-        #: Raw titles whose alias came from a product identity (not the raw text).
-        self._identified: set[str] = set()
+        #: P75c: raw title -> the identity its free-text alias is keyed on; titles that
+        #: several identities share fall back to the raw-text alias.
+        self._title_identity: dict[str, str] = {}
+        self._shared: set[str] = set()
         #: Every raw title (for a title cut short with "…").
         self._title_texts: set[str] = set()
         #: What a ``{"id", "name"}`` row is inside the ranking table being walked.
@@ -314,11 +316,17 @@ class ReviewerMasker:
             return
         self._title_texts.add(text)
         if identity is not None:
-            if text not in self._identified:
+            held = self._title_identity.get(text)
+            if held is None and text not in self._shared:
                 # P75: an identity-keyed alias wins over a raw-text one (free text then
                 # reads the same alias as the product's own fields).
                 self._replacements[text] = title_alias(kind, identity)
-                self._identified.add(text)
+                self._title_identity[text] = identity
+            elif held is not None and held != identity:
+                # P75c: two products share this title; free text names neither of them.
+                self._replacements[text] = title_alias(kind, text)
+                self._shared.add(text)
+                del self._title_identity[text]
         elif text not in self._replacements:
             self._replacements[text] = title_alias(kind, self._refs.get(text, text))
 
