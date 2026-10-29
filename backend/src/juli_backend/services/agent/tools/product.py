@@ -170,6 +170,9 @@ class ProductToolContext:
     # `create_promotion` run's opening context (the discount range the shop's rules
     # allow, `promotion_create.discount_rules_for_run`). `None`: Juli's defaults.
     discount_rules: Mapping[str, Any] | None = None
+    # `reverting` -- P76-4: a "Hoàn tác" run puts back the seller's own earlier values,
+    # so the listing post-validator (lengths, must-keep tokens) does not gate it.
+    reverting: bool = False
 
 
 # --- sanitize helpers, shared by the READ handlers below (ADR-070) -----------

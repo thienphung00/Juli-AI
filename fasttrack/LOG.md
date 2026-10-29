@@ -3127,3 +3127,40 @@ reconcile --write` re-derived the no-assert corpus figure.
   description ops returns the original HTML unchanged.
 - Tests: `tests/unit/test_listing_structure.py` (75), fixtures `tests/support/listing_descriptions.py`
   (synthetic). Not wired into the runner or prompt (steps 4-6).
+
+## 2026-10-29 — agent (Claude Opus) — P76-4: listing-edit post-validator, one retry then refuse (D78)
+
+- What: `services/shop_rules/listing_validator.py` -- `validate_listing_proposal(current_title,
+  current_description_html, proposed_title, proposed_description_html, flagged_codes,
+  brand_terms) -> ListingValidation` (`violations`: `ListingViolation(code, field, message` EN for
+  the model, `message_vi` for the seller`)`, plus `drift`). Codes: `listing_over_limits` (D78.3:
+  current title > 255 or description > 10,000 -> refused, nothing else reported),
+  `title_too_short` (< 40, D78.1), `title_too_long` (> 255), `title_shrunk` (< 80 % of the current
+  title), `title_missing_tokens` (a brand term or quantity of the current title dropped),
+  `description_shorter_than_current` / `description_too_short` (< 500, text after the P76-3 parse) /
+  `description_no_line_break` (`DESC_NO_NEW_LINE`) / `description_too_long` (HTML > 10,000).
+- Must-keep tokens: brand terms the current title carries (the product's `brand.name`) and
+  quantities (`270mL`, `1,5 lít`, `500 ml`, `12 Chai`, `Thùng 24 Lon`, `100%`, `x2`/`2x`), folded
+  for case, diacritics, `,`/`.` decimals, `lít`=`l`, spacing. Claim words added: warn-only.
+- Drift guard (D78.4): share of the current title's / description's words kept, thresholds
+  `TITLE_DRIFT_MIN_OVERLAP` 0.7 / `DESCRIPTION_DRIFT_MIN_OVERLAP` 0.6 in `shop_rules`; LOG-ONLY
+  (`listing_proposal_drift`, `blocking: false`) + `ListingDrift` on the result, never a violation.
+- `TITLE_MIN_CHARS` 25 -> 40 (`shop_rules.listing_edits`, D78.1): the seller's edit at consent and
+  the new-listing filter (`listing_text_filter`, `catalog_create`) share it. TikTok's max for VN
+  confirmed 255 (`edit-product-202509`: "Other regions: [25, 255]").
+- Wiring: `product_write.precheck_update_product_listing` runs it after `check_proposal`;
+  `listing_rules.validation_refusal` -> `listing_rule_violation` + `RULE_REFUSAL_SUMMARY_VI`, every
+  violation as `[code] message` in `model_hint`; new optional `ProposalRefusal.final_summary_vi`.
+- Retry: `RunState.proposal_refusals` (tool name -> count, persisted, survives a pause) counts
+  every precheck refusal; the first returns the violations to the model (`retryable: true`); the
+  second of the same tool ends the run (`_give_up`, `tool_error_unrecoverable`) with
+  `RULE_REFUSAL_FINAL_VI` + the first violation's Vietnamese line. Before, only a *consecutive*
+  streak counted, so a `TextBlock` between two refused drafts reset it. Applies to every domain
+  precheck (P64 create guard included). P70 forced-retry / second-confirm paths unchanged.
+- A "Hoàn tác" (revert) run is not gated by the post-validator: `ProductToolContext.reverting`
+  (set by `ProductToolExecutor` when `revert_expected` is bound) skips it -- it restores the
+  seller's own earlier values (`test_p70_reviewer_revert` caught it).
+- Not wired yet: the shop's `protected_terms` as must-keep brand terms (only the product's
+  `brand.name` is passed), and `flagged_codes` (passed empty; only the drift log reads them).
+- Docs: OP-FR-6 in `docs/product/agent-workflow-execution/v1-workflow-spec.md` now says 40. ADR-090 /
+  ADR-106 text (25) left as historical decision records; blog copy quotes TikTok's own academy rule.

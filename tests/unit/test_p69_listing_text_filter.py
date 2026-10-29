@@ -161,7 +161,7 @@ def test_whitespace_markup_and_emoji_are_tidied_silently() -> None:
 def test_title_bounds_follow_the_tiktok_limits_in_the_code() -> None:
     with pytest.raises(ListingTextRejected):
         clean_listing_draft("Bình nước 750ml", GOOD)
-    assert TITLE_MIN_CHARS == 25
+    assert TITLE_MIN_CHARS == 40  # D78.1
     long_title = ("Bình giữ nhiệt inox " * 20).strip()
     assert len(long_title) > TITLE_MAX_CHARS
     cleaned = clean_listing_draft(long_title, GOOD)

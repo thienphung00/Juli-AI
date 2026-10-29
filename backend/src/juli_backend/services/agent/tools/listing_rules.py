@@ -23,11 +23,16 @@ from typing import Any
 from pydantic import BaseModel
 
 from juli_backend.services.shop_rules.listing_edits import contains_term, find_term
+from juli_backend.services.shop_rules.listing_validator import ListingValidation
 
 ERROR_RULE_VIOLATION = "listing_rule_violation"
 ERROR_SOURCE_NAME_NOT_IN_TITLE = "brand_not_in_source"
 
 RULE_REFUSAL_SUMMARY_VI = "Nội dung Juli soạn chưa đúng quy tắc của shop, Juli soạn lại"
+#: P76-4: the seller's line when a second refused draft ends the run (no redraft follows).
+RULE_REFUSAL_FINAL_VI = (
+    "Nội dung Juli soạn vẫn chưa đúng quy tắc của shop, Juli dừng và không sửa sản phẩm"
+)
 
 
 def source_terms_not_in(detail: Mapping[str, Any] | None, reference: str) -> list[str]:
@@ -71,6 +76,9 @@ class ProposalRefusal(BaseModel):
     summary_vi: str
     #: Read by the model only: what to change.
     model_hint: str
+    #: P76-4: shown instead of ``summary_vi`` when this refusal ends the run (the
+    #: second one for the same tool); ``None``: ``summary_vi`` again.
+    final_summary_vi: str | None = None
 
 
 def check_proposal(
@@ -107,11 +115,33 @@ def check_proposal(
     return None
 
 
+def validation_refusal(validation: ListingValidation) -> ProposalRefusal | None:
+    """P76-4: the post-validator's violations as one refusal, every message for the model."""
+    if validation.ok:
+        return None
+    points = "; ".join(
+        f"[{violation.code.value}] {violation.message}" for violation in validation.violations
+    )
+    first_vi = validation.violations[0].message_vi
+    return ProposalRefusal(
+        error_code=ERROR_RULE_VIOLATION,
+        summary_vi=RULE_REFUSAL_SUMMARY_VI,
+        model_hint=(
+            f"error_code={ERROR_RULE_VIOLATION}: {points} Fix every point and call the "
+            "tool again (once); a second refusal ends the run."
+        ),
+        final_summary_vi=f"{RULE_REFUSAL_FINAL_VI}: {first_vi}",
+    )
+
+
 __all__ = [
     "ERROR_RULE_VIOLATION",
     "ERROR_SOURCE_NAME_NOT_IN_TITLE",
+    "RULE_REFUSAL_FINAL_VI",
+    "RULE_REFUSAL_SUMMARY_VI",
     "ProposalRefusal",
     "check_proposal",
     "redact_terms",
     "source_terms_not_in",
+    "validation_refusal",
 ]

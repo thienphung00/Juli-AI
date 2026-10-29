@@ -361,6 +361,9 @@ class _ToolCallOutcome(Enum):
     # malformed-attempt streak either.
     CONCURRENCY_EXHAUSTED = auto()
     UNRECOVERABLE_TOOL_ERROR = auto()
+    # P76-4: the domain precheck refused this tool's proposal a second time this run;
+    # the run ends like a second malformed attempt (`_give_up`), never a third draft.
+    PROPOSAL_REFUSALS_EXHAUSTED = auto()
 
 
 def _refusal_message(result: Mapping[str, Any]) -> str:
@@ -410,6 +413,10 @@ class ExternalWaitNotPermitted(RuntimeError):
 # this slice itself owns and implements, distinct from the termination-policy
 # values (`max_iterations`, `wall_clock_timeout_s`, ...) that stay #1120's.
 _MAX_CONSECUTIVE_MALFORMED_ATTEMPTS = 2
+
+# P76-4: a CONFIRM proposal the domain precheck refuses gets one redraft per tool per
+# run (`RunState.proposal_refusals`); the second refusal of that tool ends the run.
+_MAX_PROPOSAL_REFUSALS_PER_TOOL = 2
 
 
 def _edited_summary(tool_name: str, raw_result: Mapping[str, Any]) -> str:
@@ -1744,6 +1751,9 @@ class WorkflowRunner:
                             sha256,
                         )
                         break
+                    if outcome is _ToolCallOutcome.PROPOSAL_REFUSALS_EXHAUSTED:
+                        stop = await self._give_up(workflow_run_id, state, version_str, sha256)
+                        break
                     if outcome is _ToolCallOutcome.MALFORMED:
                         consecutive_malformed += 1
                         if consecutive_malformed >= _MAX_CONSECUTIVE_MALFORMED_ATTEMPTS:
@@ -1943,7 +1953,7 @@ class WorkflowRunner:
         if spec.policy is ToolPolicy.CONFIRM:
             # P64: a domain may refuse a proposal before the seller is asked (the
             # sandbox create's brand guard). Counted like a malformed call: the model
-            # may draft once more; a second refusal in a row ends the run.
+            # may draft once more; a second refusal of the same tool ends the run (P76-4).
             normalize = getattr(self._tool_executor, "normalize_proposal", None)
             normalized = (
                 normalize(tool_name=block.tool_name, params=params) if callable(normalize) else None
@@ -1957,18 +1967,32 @@ class WorkflowRunner:
                 precheck(tool_name=block.tool_name, params=params) if callable(precheck) else None
             )
             if refusal is not None:
+                # P76-4: one redraft per tool per run, counted on the state (a text block
+                # between the two drafts, or a pause, must not reset it): the second
+                # refusal of the same tool ends the run.
+                refusals = state.proposal_refusals.get(block.tool_name, 0) + 1
+                state.proposal_refusals[block.tool_name] = refusals
+                exhausted = refusals >= _MAX_PROPOSAL_REFUSALS_PER_TOOL
                 logger.warning(
                     "Tool dispatch: proposal refused before confirmation",
-                    extra={"tool_name": block.tool_name, "error_code": refusal.get("error_code")},
+                    extra={
+                        "tool_name": block.tool_name,
+                        "error_code": refusal.get("error_code"),
+                        "refusals": refusals,
+                        "exhausted": exhausted,
+                    },
                 )
+                summary = refusal.get("final_summary_vi") if exhausted else None
                 await self._refuse(
                     workflow_run_id,
                     state,
                     block,
-                    message=str(refusal.get("summary_vi") or ""),
+                    message=str(summary or refusal.get("summary_vi") or ""),
                     model_message=str(refusal.get("model_hint") or ""),
-                    retryable=True,
+                    retryable=not exhausted,
                 )
+                if exhausted:
+                    return _ToolCallOutcome.PROPOSAL_REFUSALS_EXHAUSTED
                 return _ToolCallOutcome.MALFORMED
             if self._already_applied(state, block):
                 await self._record_already_applied(workflow_run_id, state, block)
