@@ -25,7 +25,7 @@ const beVietnamPro = Be_Vietnam_Pro({
 });
 
 export const metadata: Metadata = {
-  title: "Juli Demo",
+  title: "Juli",
   description: "Trải nghiệm cách Juli giúp bạn hiểu shop và đưa ra quyết định.",
   // Never indexed (D43.5): <meta name="robots" content="noindex, nofollow">,
   // alongside the X-Robots-Tag header (next.config.ts + middleware).
