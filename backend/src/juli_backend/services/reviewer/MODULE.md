@@ -23,7 +23,9 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
   `MaskDictionary.product_refs`, so one product reads one alias on every page.
 - `catalog` — `load_dictionary` (products, SKUs, LIVE titles of the shop; 10 min cache). P75: also
   `product_refs` (Juli product id / TikTok SKU id / seller SKU / title → TikTok product id), from
-  the same two statements (more columns, no extra round trip).
+  the same two statements (more columns, no extra round trip). P75c: a title or seller SKU code several
+  listings share is left out of `product_refs` (ambiguous), so it never resolves to the first
+  listing.
 - `pin_cache` — P69: the pinned shop's row + `PinMode`, cached for the account TTL (30 s), per
   pin id (P74-A: several pins, each classified and cached on its own);
   `api/reviewer.enter_reviewer_shop` still applies the shop's tenant scope on every hit.
