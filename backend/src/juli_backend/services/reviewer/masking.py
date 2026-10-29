@@ -36,7 +36,6 @@ from juli_backend.services.analytics_kpi_masking.mask import (
     stable_alias,
     stable_label,
     stable_product_title,
-    stable_shop_display_name,
 )
 from juli_backend.services.ops import mask_pii
 
@@ -47,6 +46,10 @@ _OWN_HOST_SUFFIX = "app-juli.com"
 _MIN_SUBSTRING = 4
 _LONG_DIGITS = re.compile(r"(?<!\d)\d{12,20}(?!\d)")
 _URL = re.compile(r"^\s*https?://", re.IGNORECASE)
+#: What a reviewer sees for a masked shop's name (P74-A, D77). Not the seller / ops analytics
+#: alias ``stable_shop_display_name`` ("Demo Shop NNN"): Shopee's review reads "demo" as a
+#: product that is not live. One fixed label -- stable, and nothing of the real name in it.
+REVIEWER_SHOP_LABEL = "Shop TikTok (ẩn danh)"
 
 #: Shop-name words that are not the brand (never replaced on their own).
 _BRAND_STOP_WORDS = frozenset(
@@ -125,7 +128,7 @@ def _is_uuid(value: str) -> bool:
 
 def title_alias(kind: str, raw: str) -> str:
     if kind == "shop":
-        return stable_shop_display_name(raw)
+        return REVIEWER_SHOP_LABEL
     if kind == "product":
         return stable_product_title(raw)
     if kind == "video":
@@ -189,6 +192,9 @@ class ReviewerMasker:
 
     def _add_title(self, kind: str, raw: str) -> None:
         text = raw.strip()
+        if kind == "shop" and text == REVIEWER_SHOP_LABEL:
+            # Already masked (P74-A: the shop list masks each masked pin itself).
+            return
         if text and text not in self._replacements:
             self._replacements[text] = title_alias(kind, text)
 
@@ -288,6 +294,7 @@ def mask_payload(payload: Any, dictionary: MaskDictionary) -> Any:
 
 __all__ = [
     "BRAND_REPLACEMENT",
+    "REVIEWER_SHOP_LABEL",
     "MaskDictionary",
     "ReviewerMasker",
     "brand_terms",

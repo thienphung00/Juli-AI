@@ -11,17 +11,22 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
 - `accounts` — `ReviewerAccount`, `load_account` (cached `REVIEWER_ACCOUNT_CACHE_SECONDS`,
   default 30 s since P69), `claim_sign_in`, `upsert_account` / `renew_account` / `revoke_account` /
   `find_by_email` (audited, no commit), `DEFAULT_LIFETIME_DAYS` (30).
-- `masking` — `MaskDictionary`, `ReviewerMasker`, `mask_payload`, `brand_terms`, `title_alias`.
+- `masking` — `MaskDictionary`, `ReviewerMasker`, `mask_payload`, `brand_terms`, `title_alias`,
+  `REVIEWER_SHOP_LABEL` (P74-A: a masked shop's name is `Shop TikTok (ẩn danh)`, not ADR-038's
+  "Demo Shop NNN", which the seller / ops analytics mask keeps).
 - `catalog` — `load_dictionary` (products, SKUs, LIVE titles of the shop; 10 min cache).
-- `pin_cache` — P69: the pinned shop's row + `PinMode`, cached for the account TTL (30 s);
+- `pin_cache` — P69: the pinned shop's row + `PinMode`, cached for the account TTL (30 s), per
+  pin id (P74-A: several pins, each classified and cached on its own);
   `api/reviewer.enter_reviewer_shop` still applies the shop's tenant scope on every hit.
 - `identity` — P69b: `load_identity(session, sub, pin)` → `ReviewerIdentity` (account, own
   `users` row values, pinned shop + `PinMode`). Cached (30 s); on a miss ONE load per
   concurrent burst per `(sub, pin)` (`core.security.SingleFlight`), three statements on
   Postgres (ops role switch; account + role restore + GUCs; users + shops + pin facts), no
   COMMIT. Writes (users provisioning/backfill, sign-in claim, audits) stay exact elsewhere.
-- `config` — `reviewer_shop_id` (`REVIEWER_SHOP_ID`), `shop_alias_id`, `extra_mask_terms`
-  (`REVIEWER_MASK_TERMS`).
+- `config` — `reviewer_shop_ids` (P74-A, D77: `REVIEWER_SHOP_IDS`, comma-separated, default
+  first; else `REVIEWER_SHOP_ID`), `reviewer_shop_id` (the default pin), `select_pin` (the pin an
+  `X-Shop-Id` names by alias or real id, else the default -- selection only; the shop entry
+  decides acceptance), `shop_alias_id`, `extra_mask_terms` (`REVIEWER_MASK_TERMS`).
 - `simulation` — `simulate(card_item, step)`; imports no TikTok code.
 - `sandbox` (fast track P64, D73) — the live sandbox pin: `classify_pin` → `PinMode`
   (`sandbox` only when the pin IS the sandbox credential's shop and holds no `production_read`
@@ -42,3 +47,8 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
   `ops_audit_log`. The P64 live sandbox writes to TikTok (the sandbox shop only), never to a
   Juli table.
 - No password is stored, logged or returned except the CLI's one-time stdout line.
+- P74-A (D77): with several pins, everything a request does follows the pin `X-Shop-Id` selects
+  (`api/reviewer.reviewer_gate`): a masked pin (Fujiwa) is read-only with the simulation, every
+  sandbox-only route and "Đồng bộ ngay" refuse there (`tests/unit/test_reviewer_two_pins.py`);
+  `classify_pin` logs `reviewer_pin_production_shop` as a warning for an expected production pin
+  and as an error only when the sandbox credential's own shop turned production.

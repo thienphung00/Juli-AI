@@ -279,7 +279,7 @@ def _reviewer(monkeypatch, *, pin: uuid.UUID, user_id: uuid.UUID, sandbox_pin: b
             return PinMode(MODE_SANDBOX, writes_enabled=True)
         return PinMode(MODE_MASKED, writes_enabled=False, writes_disabled_reason=REASON_NOT_SANDBOX)
 
-    monkeypatch.setattr(reviewer_service.config, "reviewer_shop_id", lambda: pin)
+    monkeypatch.setattr(reviewer_service.config, "reviewer_shop_ids", lambda: (pin,))
     monkeypatch.setattr(reviewer_service.accounts, "load_account", _load)
     monkeypatch.setattr(reviewer_service.pin_cache, "cached", lambda _shop_id: None)
     monkeypatch.setattr(reviewer_service.sandbox, "classify_pin", _classify)

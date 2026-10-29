@@ -75,7 +75,7 @@ describe("password sign-in (Tài khoản đối tác)", () => {
     const signIn = vi.fn().mockResolvedValue({ ok: true, session: { accessToken: "at", refreshToken: null, expiresIn: 3600, tokenType: "bearer" } });
     const fetchMe = vi.fn().mockResolvedValue({
       status: "reviewer",
-      me: { reviewer: true, platform: "shopee", expiresAt: REVIEWER.expiresAt, shop: { id: "alias-1", name: "Demo Shop 123" } },
+      me: { reviewer: true, platform: "shopee", expiresAt: REVIEWER.expiresAt, shop: { id: "alias-1", name: "Shop TikTok (ẩn danh)" } },
     });
     const onSignedIn = vi.fn();
     await open({ signIn, fetchMe, onSignedIn });
@@ -83,7 +83,7 @@ describe("password sign-in (Tài khoản đối tác)", () => {
     expect(signIn).toHaveBeenCalledWith("shopee-review@app-juli.com", "s3cret");
     expect(fetchMe).toHaveBeenCalledWith("at");
     expect(readAuthSession()?.accessToken).toBe("at");
-    expect(readActiveShop()).toEqual({ id: "alias-1", name: "Demo Shop 123" });
+    expect(readActiveShop()).toEqual({ id: "alias-1", name: "Shop TikTok (ẩn danh)" });
     expect(readReviewerRecord()).toEqual(REVIEWER);
   });
 
@@ -153,7 +153,7 @@ describe("reviewer mode in the shell", () => {
   });
 
   it("no connect entry: the no-shop strip and the header's connect item are gone", async () => {
-    const state = { status: "ready", token: "t", shop: { id: "alias-1", name: "Demo Shop 123" }, envelope: { report: { shop_name: "Demo Shop 123" }, built_at: null } };
+    const state = { status: "ready", token: "t", shop: { id: "alias-1", name: "Shop TikTok (ẩn danh)" }, envelope: { report: { shop_name: "Shop TikTok (ẩn danh)" }, built_at: null } };
     const { rerender } = render(
       <StaticReviewerProvider reviewer={REVIEWER}>
         <NoShopSampleStrip />
@@ -368,7 +368,7 @@ describe("Quyết định for a reviewer: simulated Duyệt → Thực thi", () 
           clients={c}
           onNavigate={vi.fn()}
           query={{ tab: "de-xuat", run: null, rulesOpen: false }}
-          shop={{ id: "alias-1", name: "Demo Shop 123" }}
+          shop={{ id: "alias-1", name: "Shop TikTok (ẩn danh)" }}
           token="tok"
         />
       </StaticReviewerProvider>,

@@ -10,6 +10,8 @@ import {
   SETTINGS_LABEL,
 } from "../../lib/app-navigation";
 import { DEMO_MODE_REPLAY_LABEL } from "../../lib/demo-mode-copy";
+import { REVIEWER_SWITCH_SHOP_PREFIX, reviewerShopLabel } from "../../lib/reviewer/copy";
+import type { ReviewerShopOption } from "../../lib/reviewer/session";
 import { envelopeOf, type ShopReportState } from "../../lib/shop-report/shop-report-context";
 import {
   EMAIL_SIGN_IN_LABEL,
@@ -59,6 +61,12 @@ export interface ShopHeaderProps {
   readonly onSignOut: () => void;
   /** P32-A: a partner trial account — no connect / switch shop entry. */
   readonly reviewer?: boolean;
+  /**
+   * P74-A (D77): the reviewer's pinned shops (default first). With two or more,
+   * the menu offers "Chuyển sang …" for each shop that is not the active one.
+   */
+  readonly reviewerShops?: readonly ReviewerShopOption[];
+  readonly onSwitchShop?: (shop: ReviewerShopOption) => void;
 }
 
 function shopNameOf(state: ShopReportState): string | null {
@@ -79,7 +87,15 @@ function shopNameOf(state: ShopReportState): string | null {
   }
 }
 
-export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut, reviewer = false }: ShopHeaderProps) {
+export function ShopHeader({
+  state,
+  googleHref,
+  onRefreshDemo,
+  onSignOut,
+  reviewer = false,
+  reviewerShops = [],
+  onSwitchShop,
+}: ShopHeaderProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -112,6 +128,9 @@ export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut, review
   const envelope = state.status === "no-shop" ? (state.envelope ?? null) : envelopeOf(state);
   const updatedAt = vnClock(envelope?.built_at);
   const close = () => setOpen(false);
+  const activeShopId = "shop" in state ? state.shop.id : null;
+  const switchTargets =
+    reviewer && onSwitchShop && reviewerShops.length > 1 ? reviewerShops.filter((shop) => shop.id !== activeShopId) : [];
 
   return (
     <header className="shop-header" data-testid="shop-header">
@@ -150,6 +169,21 @@ export function ShopHeader({ state, googleHref, onRefreshDemo, onSignOut, review
                     </Link>
                   </li>
                 )}
+                {switchTargets.map((shop) => (
+                  <li key={shop.id}>
+                    <button
+                      className="shop-menu__item"
+                      data-testid="reviewer-switch-shop"
+                      onClick={() => {
+                        close();
+                        onSwitchShop?.(shop);
+                      }}
+                      type="button"
+                    >
+                      {`${REVIEWER_SWITCH_SHOP_PREFIX} ${reviewerShopLabel(shop)}`}
+                    </button>
+                  </li>
+                ))}
                 <li>
                   <button
                     className="shop-menu__item"

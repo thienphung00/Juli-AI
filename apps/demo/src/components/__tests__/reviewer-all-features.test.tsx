@@ -307,7 +307,7 @@ describe("P32-E — every feature simulated for the reviewer in the sample shop"
   it("a reviewer pinned to a real shop stays read-only (P32-A unchanged)", async () => {
     spyNetwork();
     storeAuthSession(SESSION);
-    storeActiveShop({ id: "alias", name: "Demo Shop 001" });
+    storeActiveShop({ id: "alias", name: "Shop TikTok (ẩn danh)" });
     render(
       <StaticReviewerProvider reviewer={{ platform: "shopee", expiresAt: EXPIRES }}>
         <SettingsPageClient />

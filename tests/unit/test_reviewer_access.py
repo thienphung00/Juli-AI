@@ -17,7 +17,11 @@ from juli_backend.core.security.claims import reviewer_platform
 from juli_backend.models.ops import OpsAuditLog, OpsReviewerAccount
 from juli_backend.services.reviewer import accounts as reviewer_accounts
 from juli_backend.services.reviewer.config import shop_alias_id
-from juli_backend.services.reviewer.masking import MaskDictionary, mask_payload
+from juli_backend.services.reviewer.masking import (
+    REVIEWER_SHOP_LABEL,
+    MaskDictionary,
+    mask_payload,
+)
 from juli_backend.services.reviewer.simulation import PRODUCT_EDIT_PATH, simulate
 from tests.support import reviewer as rv
 from tests.support.api import build_app, client_for
@@ -203,7 +207,9 @@ async def test_reviewer_me_and_shop_list_are_the_aliased_reference_shop(session,
     body = me.json()
     assert body["reviewer"] is True and body["platform"] == "shopee"
     assert body["shop"]["id"] == alias
-    assert body["shop"]["name"].startswith("Demo Shop ")
+    # P74-A (D77): a neutral label, never "Demo …" (Shopee reads "demo" as not live).
+    assert body["shop"]["name"] == REVIEWER_SHOP_LABEL
+    assert "demo" not in body["shop"]["name"].lower()
     assert [s["id"] for s in shops.json()] == [alias]
     assert shop_me.json()["id"] == alias
     for response in (me, shops, shop_me):

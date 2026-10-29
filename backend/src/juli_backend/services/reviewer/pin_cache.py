@@ -12,8 +12,9 @@ What a hit still does on every request (``api/reviewer.enter_reviewer_shop``): a
 the shop's tenant scope (``SET LOCAL`` of the shop and owner GUCs) to THIS request's
 transaction, so RLS narrows every query exactly as before. The cache never bypasses it.
 
-Tenant safety: the key is the configured pin (``REVIEWER_SHOP_ID``), the same for every
-reviewer -- a reviewer can only ever be pinned to that one shop -- and the value is that
+Tenant safety: the key is a configured pin's shop id (``REVIEWER_SHOP_ID(S)``), the same for
+every reviewer -- a reviewer can only ever be pinned to the configured shops (P74-A, D77:
+several, each cached under its OWN id and classified on its own) -- and the value is that
 shop's own row and classification. Each hit hands out a FRESH detached ``Shop``; no ORM
 instance is shared between requests. A pin that turns into a production shop (a
 ``production_read`` credential or a ``production_write_shops`` row added) disables

@@ -23,6 +23,17 @@ magnitudes), ADR-038 §9 (demo execution is a dry run), D13 (what a real execute
 > Where this contract says "simulation" or "never writes", read it as "never writes outside the
 > pinned sandbox shop".
 
+> **D77 amendment (owner, 2026-10-29, P74-A).** Shopee rejected again ("the product has to be live,
+> with existing e-commerce integrations identifiable via the trial account"). The reviewer now holds
+> **two pins**: `REVIEWER_SHOP_IDS=<Fujiwa shops.id>,<sandbox shops.id>` (first = default; wins over
+> `REVIEWER_SHOP_ID`, which stays as the one-pin form). It opens on **Fujiwa, masked, read-only, with
+> the simulated Duyệt / Thực thi** (this contract as written) and switches with `X-Shop-Id` to the
+> **sandbox shop** (the D73 amendment). Each pin is classified on its own (`sandbox.classify_pin`);
+> the mask, the simulation and every sandbox-only refusal follow the selected pin. Nothing the
+> reviewer does writes to Fujiwa: every run / rule / Hoàn tác route and "Đồng bộ ngay" answer 403
+> `sandbox_only` there. The masked shop's name is the neutral `Shop TikTok (ẩn danh)`, never
+> "Demo …" (Shopee reads "demo" as not live). See §3.
+
 A partner platform's reviewer signs in on demo.app-juli.com with a **team-created e-mail +
 password**, lands on the reference shop **Fujiwa, masked** (only when pinned, see the amendment), reads Trang chủ / Phân tích /
 Quyết định through the real read path, and walks **Duyệt → Thực thi** as a simulation that
@@ -145,12 +156,23 @@ id, garbage — is 403) and enters the shop's read scope through the ops view-as
 tenant GUCs in one statement, exactly "Xem như shop"). `GET /v1/shops` returns that one aliased
 shop; the reviewer owns no shop row.
 
+**Several pins (P74-A, D77).** `REVIEWER_SHOP_IDS` lists the pins, default first. The gate selects
+one per request (`config.select_pin`): the pin whose alias or real id `X-Shop-Id` names, else the
+default. The shop entry then accepts, for the selected pin, its alias and -- only when it classifies
+as the writable sandbox -- its real id; anything else is 403 `shop` (a masked pin's real id
+included). Identity load, pin cache, mask dictionary and sync slots are keyed per pin id. `GET
+/v1/shops` and `GET /v1/reviewer/me` (`shops`) list every pin, default first: a masked pin only as
+its alias id + `Shop TikTok (ẩn danh)` (built by the route, so it holds even when the selected pin
+is the unmasked sandbox), the sandbox pin as it is. `/v1/reviewer/me` answers the pin the header
+selects and falls back to the default for a value that names no pin (the demo then stores the
+default).
+
 **Mask** (`services/reviewer/masking.py`, applied by `api/reviewer.ReviewerMaskMiddleware` to
 every JSON response of a reviewer request — fail closed: a reviewer response that is not JSON
 becomes 502):
 
 - the real shop id → the alias id, everywhere it appears (keys and inside strings);
-- shop name → ADR-038 `Demo Shop NNN`; product titles → ADR-038 `Demo Product NNN`; video /
+- shop name → `Shop TikTok (ẩn danh)` (P74-A, D77; was ADR-038 `Demo Shop NNN`); product titles → ADR-038 `Demo Product NNN`; video /
   LIVE titles → `Demo Video NNN` / `Demo LIVE NNN`; ids (`tiktok_shop_id`, TikTok product / SKU /
   video / LIVE ids, `seller_sku`) → ADR-038 `demo-<kind>-<hash>`; any 12–20-digit run inside a
   string → `demo-id-<hash>`;
@@ -285,6 +307,8 @@ kind). No password in the repository, in a log line or in the database.
 2. API env: **nothing** for the sample-shop reviewer (D42 amendment, 2026-10-15 — production
    leaves `REVIEWER_SHOP_ID` unset). Only to pin the reviewer to Fujiwa instead:
    `REVIEWER_SHOP_ID=<Fujiwa shops.id>`, optional `REVIEWER_MASK_TERMS`.
+   **P74-A (D77):** `REVIEWER_SHOP_IDS=<Fujiwa shops.id>,<sandbox shops.id>` (Fujiwa first = the
+   default; the sandbox second), then restart the API. `REVIEWER_SHOP_ID` may stay; the list wins.
 3. On the VPS after deploy: `python -m juli_backend.services.reviewer.cli create --email
    shopee-review@app-juli.com --platform shopee --by <you>@app-juli.com`; hand the printed
    password to Shopee in the Services Information form; renew / revoke as needed.
