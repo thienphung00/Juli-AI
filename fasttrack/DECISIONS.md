@@ -1753,3 +1753,18 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   adapter, `llm_call_log`. Shop writes only on a shop member's click, exact match, 72 h expiry.
   No non-public client data in Juli Ops / Connector / Supabase / Hetzner before the client approves
   a sub-processor list covering them. Blocks phase 2 (ISV approval); merged only after P68 deploys.
+
+- **D77** — The partner reviewer gets two pins: Fujiwa masked (default) + the sandbox shop (owner,
+  2026-10-29, P74-A). Shopee rejected the ISV application again: "Your business product has to be
+  live, with existing e-commerce integrations that are identifiable via a provided trial account";
+  the sandbox shop alone (D73, "SANDBOX…" name) reads as unfinished. `REVIEWER_SHOP_IDS=<Fujiwa
+  shops.id>,<sandbox shops.id>` (first = default; wins over `REVIEWER_SHOP_ID`). The reviewer opens
+  on Fujiwa **masked, read-only, simulated Duyệt / Thực thi** (D42 as written) and switches in the
+  shop menu (`X-Shop-Id`) to the sandbox shop for live writes (D73 / D73.4 / P70). Each pin is
+  classified on its own; mask, simulation and every sandbox-only refusal follow the selected pin.
+  Hard invariant: nothing the reviewer does writes to Fujiwa -- runs, rules, Hoàn tác and "Đồng bộ
+  ngay" are 403 `sandbox_only` there (`tests/unit/test_reviewer_two_pins.py`). The masked shop's
+  name is `Shop TikTok (ẩn danh)`, products `Sản phẩm NNN`, videos / LIVE `Video NNN` / `LIVE NNN`,
+  ids `an-<kind>-…` / `id-…` -- never "demo" (Shopee reads "demo" as not live); the seller / ops
+  analytics mask keeps ADR-038's names. Contract `fasttrack/contracts/p32-reviewer-access.md`
+  (D77 amendment).

@@ -12,6 +12,7 @@
  * unknown, read_only, unavailable) or 503 (unconfigured).
  */
 
+import { parseReviewerShops, type ReviewerShopOption } from "./session";
 import type { SimulationResult, SimulationStep } from "./simulation-types";
 
 export type ReviewerDenial = "expired" | "revoked" | "unknown" | "read_only" | "unavailable" | "unconfigured";
@@ -25,6 +26,8 @@ export interface ReviewerMe {
   /** P64 (D73): "sandbox" (live, unmasked) | "masked" | null. */
   readonly mode?: "sandbox" | "masked";
   readonly writesEnabled?: boolean;
+  /** P74-A (D77): every pinned shop, default first (empty with no pin). */
+  readonly shops?: readonly ReviewerShopOption[];
 }
 
 export type ReviewerMeResult =
@@ -44,11 +47,24 @@ export function reviewerDenialOf(response: Response): ReviewerDenial | null {
   return null;
 }
 
-export async function fetchReviewerMe(token: string, fetchImpl: FetchLike = (i, init) => fetch(i, init)): Promise<ReviewerMeResult> {
+/**
+ * `shopId` (P74-A, D77): the active shop, sent as `X-Shop-Id` so `shop` / `mode`
+ * describe the pin the reviewer switched to. A value that names no pin answers
+ * the default pin (the first), never an error.
+ */
+export async function fetchReviewerMe(
+  token: string,
+  fetchImpl: FetchLike = (i, init) => fetch(i, init),
+  shopId?: string | null,
+): Promise<ReviewerMeResult> {
   let response: Response;
   try {
     response = await fetchImpl("/v1/reviewer/me", {
-      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(shopId ? { "X-Shop-Id": shopId } : {}),
+      },
       cache: "no-store",
     });
   } catch {
@@ -76,10 +92,12 @@ export async function fetchReviewerMe(token: string, fetchImpl: FetchLike = (i, 
       shop: shop === null ? null : { id: shop.id as string, name: typeof shop.name === "string" ? shop.name : "" },
       ...(body.mode === "sandbox" || body.mode === "masked" ? { mode: body.mode } : {}),
       ...(body.writes_enabled === true ? { writesEnabled: true } : {}),
+      ...(parseReviewerShops(body.shops).length > 0 ? { shops: parseReviewerShops(body.shops) } : {}),
     },
   };
 }
 
+export { parseReviewerShops, type ReviewerShopOption } from "./session";
 export type { SimulatedField, SimulatedRequest, SimulationResult, SimulationStep } from "./simulation-types";
 
 export class ReviewerSimulationError extends Error {
