@@ -12,6 +12,7 @@ orchestrator.
 "card": {
   "seller_sku": "SM-012",            // first seller SKU of the product, null if none
   "seller_sku_more": 0,              // count of other SKUs → UI shows "+N"
+  "tiktok_product_id": "1729…",      // P75c: the card's own product (null when unknown)
   "product_title": "Son môi số 12",
   "workflow_label": "Tối ưu sản phẩm",   // (VI)
   "updated_at": "2026-10-09T02:00:00Z",

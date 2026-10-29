@@ -197,7 +197,11 @@ becomes 502):
   (else its SKU, else the raw title), resolved through the catalog's `product_refs` (Juli product
   id, TikTok SKU id, seller SKU, catalog title → TikTok product id). The same product reads the
   same alias on Quyết định, Phân tích and Đo lường; two products sharing a title read two
-  aliases. A video / LIVE / creator title is keyed on its own id the same way;
+  aliases. A video / LIVE / creator title is keyed on its own id the same way. P75c: every
+  Quyết định card (`recommendation.card`) carries its own `tiktok_product_id`, so its title is
+  keyed on that product and never resolved through a title or seller SKU; the catalog drops a
+  title or seller SKU code that several listings share from `product_refs` (it names no single
+  product), and free text holding such a title reads a raw-text alias that is no listing's;
 - brand words of the shop name (`Fujiwa`; stop words like Store / Vietnam / Official dropped)
   plus `REVIEWER_MASK_TERMS` (comma-separated) → `Thương hiệu`, case-insensitive;
 - image / media keys and every external `http(s)` URL → `null` (product photos identify the

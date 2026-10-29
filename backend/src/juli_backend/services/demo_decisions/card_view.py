@@ -523,10 +523,18 @@ def build_card_block(
         workflow_label = CREATE_PROMOTION_LABEL_VI
         if product_title:
             product_title = f"Tạo khuyến mãi giảm giá cho {short_product_name(product_title)}"
+    tiktok_product_id = (
+        (product.tiktok_product_id if product is not None else None)
+        or _text(diagnosis.get("tiktok_product_id"))
+        or None
+    )
     return {
         "seller_sku": first_sku,
         "seller_sku_more": max(context.sku_count - 1, 0) if first_sku else 0,
         "product_title": product_title,
+        # P75c: the card's own product, so the reviewer mask aliases its title by THIS
+        # product (a seller SKU code or a title can be shared by several listings).
+        "tiktok_product_id": tiktok_product_id,
         "workflow_label": workflow_label,
         "updated_at": _iso(card.computed_at or card.updated_at),
         "status": _status(card, diagnosis, context, now),

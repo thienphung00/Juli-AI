@@ -99,6 +99,11 @@ def build_content_card_block(
         "seller_sku": first_sku,
         "seller_sku_more": max(sku_count - 1, 0) if first_sku else 0,
         "product_title": title or content.get("product_title"),
+        # P75c: the card's own product (see ``demo_decisions.card_view``).
+        "tiktok_product_id": (
+            (product.tiktok_product_id if product is not None else None)
+            or (str(content.get("tiktok_product_id") or "").strip() or None)
+        ),
         "workflow_label": spec.workflow_label,
         "updated_at": _iso(card.computed_at or card.updated_at),
         "status": _status(card, context, now),
