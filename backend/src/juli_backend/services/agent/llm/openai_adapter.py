@@ -66,7 +66,8 @@ drive the Responses API:
   registry shape), translated into a Responses API ``{"type": "function",
   ...}`` entry whose ``parameters`` is that schema. This module documented
   the key as ``parameters`` while the only producer emitted
-  ``input_schema`` — see ``_translate_tool``.
+  ``input_schema`` — see ``_translate_tool``. Since P76-1 (D78) the entry is
+  ``"strict": true`` and ``parameters`` is ``strict_schema.to_strict(input_schema)``.
 
 Reconstructing a prior turn's own tool-call proposal as an ``input`` item is
 out of scope here -- that composition belongs to the loop/P-CS module this
@@ -76,6 +77,7 @@ slice does not build.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -93,6 +95,7 @@ from juli_backend.services.agent.llm.blocks import (
 )
 from juli_backend.services.agent.llm.config import LLMConfig, llm_streaming_enabled
 from juli_backend.services.agent.llm.service import Message, TextDeltaCallback, ToolDefinition
+from juli_backend.services.agent.llm.strict_schema import StrictSchemaError, to_strict
 from juli_backend.services.llm_gate import (
     OPENAI_BASE_URL,
     PURPOSE_AGENT_RUN,
@@ -102,6 +105,8 @@ from juli_backend.services.llm_gate import (
 )
 
 DEFAULT_BASE_URL = OPENAI_BASE_URL
+
+logger = logging.getLogger(__name__)
 
 # Responses API streaming event types this adapter reads (P61-C). Anything
 # else (`response.created`, `response.in_progress`, `*.content_part.*`, ...)
@@ -127,7 +132,10 @@ class JsonSchemaFormat:
 
     Translated to the Responses API's ``text.format`` (``type: json_schema``).
     ``strict`` asks OpenAI to guarantee the shape (every property required,
-    ``additionalProperties: false`` -- the schema's author must comply).
+    ``additionalProperties: false``). Since P76-1 (D78) a strict schema goes through
+    `to_strict` on the wire, so a hand-written schema that already conforms is sent
+    unchanged and one that does not is normalised; a schema `to_strict` cannot convert
+    is logged and sent non-strict (D78.5: the CI test is the gate, never a live call).
     """
 
     name: str
@@ -135,14 +143,32 @@ class JsonSchemaFormat:
     strict: bool = True
 
     def to_wire(self) -> dict[str, Any]:
+        schema, strict = dict(self.schema), self.strict
+        if strict:
+            schema, strict = _strict_or_loose(schema, kind="output_format", name=self.name)
         return {
             "format": {
                 "type": "json_schema",
                 "name": self.name,
-                "schema": dict(self.schema),
-                "strict": self.strict,
+                "schema": schema,
+                "strict": strict,
             }
         }
+
+
+def _strict_or_loose(
+    schema: dict[str, Any], *, kind: str, name: str
+) -> tuple[dict[str, Any], bool]:
+    """``(to_strict(schema), True)``, or the schema as given and ``False`` when it
+    cannot be made strict -- logged as an error, never raised (D78.5)."""
+    try:
+        return to_strict(schema), True
+    except StrictSchemaError as exc:
+        logger.error(
+            "strict_schema_unconvertible",
+            extra={"schema_kind": kind, "schema_name": name, "detail": str(exc)[:300]},
+        )
+        return schema, False
 
 
 class LLMProviderError(RuntimeError):
@@ -572,11 +598,18 @@ def _translate_tool(tool: ToolDefinition) -> dict[str, Any]:
             f"tool definition {tool.get('name', '')!r} carries no 'input_schema'; refusing "
             "to declare it to the model as taking no arguments"
         )
+    name = str(tool.get("name", ""))
+    # P76-1 (D78): strict function calling. `to_strict` closes every object, lists
+    # every property as required (optional ones as nullable) and drops what strict
+    # mode rejects; `ToolSpec.parse_input` maps the model's explicit nulls back to
+    # field defaults. An unconvertible schema is sent non-strict and logged (D78.5).
+    parameters, strict = _strict_or_loose(dict(input_schema), kind="tool", name=name)
     return {
         "type": "function",
-        "name": tool.get("name", ""),
+        "name": name,
         "description": tool.get("description", ""),
-        "parameters": input_schema,
+        "parameters": parameters,
+        "strict": strict,
     }
 
 

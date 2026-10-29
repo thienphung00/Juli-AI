@@ -20,6 +20,7 @@ from __future__ import annotations
 import pytest
 
 from juli_backend.services.agent.llm.openai_adapter import _translate_tool
+from juli_backend.services.agent.llm.strict_schema import to_strict
 from juli_backend.services.agent.playbooks.optimize_product import OPTIMIZE_PRODUCT_PLAYBOOK
 from juli_backend.services.agent.tools.product import register_product_read_tools
 from juli_backend.services.agent.tools.product_write import register_product_write_tools
@@ -67,8 +68,11 @@ class TestEveryPlaybookToolReachesTheModelWithItsRealSchema:
 
     @pytest.mark.parametrize("tool_name", [t["name"] for t in _real_tool_definitions()])
     def test_translated_parameters_match_the_tool_spec_schema(self, tool_name):
-        expected = _registry().get(tool_name).render_input_schema()
-        assert _translated_by_name()[tool_name]["parameters"] == expected
+        # P76-1 (D78): the wire carries the spec's schema in OpenAI strict form.
+        expected = to_strict(_registry().get(tool_name).render_input_schema())
+        translated = _translated_by_name()[tool_name]
+        assert translated["parameters"] == expected
+        assert translated["strict"] is True
 
     def test_a_tool_with_required_arguments_does_not_arrive_argument_less(self):
         """The live symptom, pinned directly: `update_product_price` requires

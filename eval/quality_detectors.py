@@ -1436,10 +1436,10 @@ def build_report(
 #: rather than reconciled away. Regenerate with
 #: ``python -m eval.quality_detectors scan`` and update both numbers together.
 MEASURED_ZERO_ASSERTION_TESTS = 49
-MEASURED_TEST_FUNCTIONS = 7704
+MEASURED_TEST_FUNCTIONS = 7721
 #: Test modules the corpus figure is spread over. Like the corpus it is a
 #: denominator, not a claim, so it is held to a tolerance rather than pinned.
-MEASURED_TEST_MODULES = 744
+MEASURED_TEST_MODULES = 745
 
 #: The measured decomposition that reconciles the two figures. Each layer
 #: subtracts one kind of evidence that a test *can* fail; the prior ~97 lands on
@@ -1500,7 +1500,8 @@ RECONCILIATION_LAYERS: dict[str, int] = {
     # below and the zero-assertion headline did not move. P64 (D73): +1 no_assert_statement.
     # P75: +1 in the first four layers (the route-shape test asserts through
     # ``_assert_clean``, a same-file asserting helper; the helper layer did not move).
-    "no_assert_statement": 519,
+    # P76-1 (D78): +2 no_assert_statement (two `pytest.raises`-only strict-schema tests).
+    "no_assert_statement": 521,
     "and_no_pytest_raises": 132,
     "and_no_mock_assert_called": 117,
     "and_no_unittest_self_assert": 117,
@@ -1589,8 +1590,8 @@ RECONCILIATION: dict[str, Any] = {
     "note": (
         "Neither figure is wrong; they count different things, and the layer "
         "decomposition above shows exactly where they part. Measured here: 49 "
-        "zero-assertion tests in a corpus of 7,704 test functions over tests/ "
-        "backend/ scripts/ agent-runtime/ eval/ (744 test modules). The prior "
+        "zero-assertion tests in a corpus of 7,721 test functions over tests/ "
+        "backend/ scripts/ agent-runtime/ eval/ (745 test modules). The prior "
         "~97-of-4,048 reading corresponds to the `and_no_mock_assert_called` "
         "layer — a detector that credits `pytest.raises` and `mock.assert_called*` "
         "as assertions but not delegation to an asserting helper. That "

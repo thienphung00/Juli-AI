@@ -3093,3 +3093,43 @@ reconcile --write` re-derived the no-assert corpus figure.
   for the reviewer), shown as "Video: “…” · 27/09 · +2 video" (demo `contentSourceText`).
 - Docs: p32 contract §3 mask rules, p14 contract §1 `sources`, reviewer MODULE.md, edge case D32.
 - Not deployed by this slice; no owner step (no env change).
+
+## 2026-10-29 — agent (Claude Opus) — P76-1: strict tool schemas (D78, step 1 of 7)
+
+- Why: owner's 29/10 structured-output plan (D78). Tools went to OpenAI with no `strict` flag and
+  a raw Pydantic schema, so the model could omit fields, add unknown ones or send the wrong type,
+  and Juli found out only at Pydantic validation (refused, retried).
+- `services/agent/llm/strict_schema.py`: `to_strict(schema)` puts a Pydantic / hand-written
+  schema in OpenAI Structured Outputs strict form -- `$defs` inlined, every object
+  `additionalProperties: false` with every property required (optional ⇒ union with `null`),
+  `title` / `default` / `examples` dropped (a non-null default is stated in the description:
+  "null means the default, false."), `minLength` / `maxLength` dropped from the wire (not in the
+  guide's supported string keywords; stated in the description, still enforced by Pydantic);
+  `StrictSchemaError` on anything else (open objects, `allOf`/`not`/`if`, `uniqueItems`,
+  unsupported `format`, recursion, root `anyOf`). `strict_problems(schema)` is the independent
+  conformance checker. Source: OpenAI Structured Outputs guide, "Supported schemas"
+  (developers.openai.com/api/docs/guides/structured-outputs, read 29/10).
+- `openai_adapter.py`: `_translate_tool` emits `"strict": true` + `to_strict(input_schema)`;
+  `JsonSchemaFormat.to_wire` runs strict schemas through `to_strict` too (the four existing
+  output schemas -- scoring, vision, video script, LIVE plan -- already conform and go out
+  unchanged). An unconvertible schema is logged `strict_schema_unconvertible` and sent non-strict
+  (D78.5): never raised in a seller's run.
+- `tools/registry.py`: `ToolSpec.parse_input(arguments)` -- the runner's dispatch and its
+  resume-after-consent path both parse through it -- drops an explicit `null` wherever the field
+  default is not `None` (recursively through nested models), so `attach_staged_image: null` is
+  `False` and a SKU's `currency: null` is `"VND"`. `confirmation.py`'s verbatim `proposed_change`
+  / `params_sha` are untouched (the consent panel already skips `null` values).
+- Tool schemas that changed on the wire: `update_product_listing` (`attach_staged_image` default
+  false ⇒ nullable + required; `title` / `description` required-nullable), `update_product_price`
+  (`ProductSkuPrice` inlined; `currency` default "VND" ⇒ nullable + required), `create_product`,
+  `check_listing_requirements`, `check_promotion_eligibility`, `create_product_discount` (length
+  bounds moved to the description); every argument-less tool gains `required: []` +
+  `additionalProperties: false`.
+- Tests: `tests/unit/test_agent_strict_tool_schemas.py` (every registered tool and every playbook,
+  incl. lever-flow and revert playbooks, converts and conforms; golden wire body of
+  `update_product_listing`; nested inlining; output formats unchanged; adapter never raises;
+  `to_strict` refusals; null-as-default; fake-LLM replay of the confirm-pause golden path with
+  strict-shaped `null` arguments through the real runner). Updated
+  `test_agent_tool_definition_contract.py` and `test_p50p_llm_boundary.py` for the strict wire.
+- Not verified: live OpenAI acceptance of the strict wire bodies (no live call made). Not
+  deployed by this slice.
