@@ -3093,3 +3093,18 @@ reconcile --write` re-derived the no-assert corpus figure.
   for the reviewer), shown as "Video: “…” · 27/09 · +2 video" (demo `contentSourceText`).
 - Docs: p32 contract §3 mask rules, p14 contract §1 `sources`, reviewer MODULE.md, edge case D32.
 - Not deployed by this slice; no owner step (no env change).
+
+## 2026-10-29 — agent (Claude Opus) — P76-3: description skeleton + edit operations (pure code)
+
+- What: `services/shop_rules/listing_structure.py` -- `parse_description` / `render_description`
+  (sections: heading, list with depth, paragraph with lines, raw `<img>`), the strict-schema
+  `ListingEditOps` model (`replace_title_span`, `replace_span`, `insert_after`, `append_section`,
+  every field required, `extra="forbid"`) and `apply_ops` returning `EditResult | EditRejection`
+  with a machine-readable `RejectionCode` and an English retry message. D78 rules enforced:
+  keep the seller's section structure (no drop / merge / split), append a section only for a
+  flagged code, refuse a listing already over limits (title 255 / description 10,000).
+- Round trip: text and order lossless; whitespace collapsed, inline tags other than `<br>` dropped,
+  a bold-only line becomes a `bold` heading, `<br><br>` / blank line = new paragraph. No
+  description ops returns the original HTML unchanged.
+- Tests: `tests/unit/test_listing_structure.py` (75), fixtures `tests/support/listing_descriptions.py`
+  (synthetic). Not wired into the runner or prompt (steps 4-6).
