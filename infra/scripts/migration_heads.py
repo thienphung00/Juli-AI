@@ -14,8 +14,11 @@ Usage:
     migration_heads.py decide --migrations-dir DIR --production-revision REV [--force]
 
 ``decide`` prints ``backup=true|false`` and ``reason=<text>`` (GITHUB_OUTPUT
-lines). It fails toward a backup: an unknown production revision, several heads
-or no heads all answer ``backup=true``.
+lines). Since P62-C ``backup=true`` means only "force_backup requested": a pending
+migration is protected by safe-alembic-upgrade.sh's pre-migrate dump inside
+deploy.sh, which already fails toward a dump (an unreadable revision dumps). The
+workflow's own dump on top of it was a second full copy of production per
+migration deploy. ``reason`` still names the migration state, for the run log.
 """
 
 from __future__ import annotations
@@ -79,17 +82,26 @@ def script_heads(migrations_dir: Path) -> list[str]:
 
 
 def decide_backup(heads: list[str], production_revision: str, *, force: bool) -> tuple[bool, str]:
-    """Whether the pre-deploy backup must run, and why."""
-    if force:
-        return True, "force_backup requested"
+    """Whether the workflow's backup job must run, and why.
+
+    Only when forced (P62-C). A migration is dumped once, by safe-alembic-upgrade.sh
+    right before ``alembic upgrade``; the reason says which case this deploy is.
+    """
     production_revision = production_revision.strip()
     if not production_revision:
-        return True, "production alembic revision unknown"
-    if len(heads) != 1:
-        return True, f"target has {len(heads)} alembic heads ({', '.join(heads) or 'none'})"
-    if production_revision == heads[0]:
-        return False, f"no new migration: production is at the target head {heads[0]}"
-    return True, f"migration pending: production at {production_revision}, target head {heads[0]}"
+        state = "production alembic revision unknown (safe-alembic dumps)"
+    elif len(heads) != 1:
+        state = f"target has {len(heads)} alembic heads ({', '.join(heads) or 'none'}) (safe-alembic dumps)"
+    elif production_revision == heads[0]:
+        state = f"no new migration: production is at the target head {heads[0]}"
+    else:
+        state = (
+            f"migration pending: production at {production_revision}, target head {heads[0]} "
+            "(safe-alembic dumps)"
+        )
+    if force:
+        return True, f"force_backup requested; {state}"
+    return False, state
 
 
 def main(argv: list[str] | None = None) -> int:

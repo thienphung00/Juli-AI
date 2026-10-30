@@ -44,6 +44,10 @@ set -euo pipefail
 umask 077
 
 REQUIRED_TABLES=(alembic_version users shops tiktok_credentials)
+# P62-C (D72 egress): schema kept, rows not copied. processed_events is the webhook
+# "already seen" ledger: after a restore each record is re-compared once, nothing is
+# lost. Same list in safe-alembic-upgrade.sh.
+EXCLUDE_TABLE_DATA=(public.processed_events)
 
 log() { printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 fail() { echo "BACKUP FAILED: $*" >&2; exit 1; }
@@ -112,7 +116,8 @@ FILE="${BACKUP_DIR}/juli-pre-migrate-${TS}-${BACKUP_LABEL}.dump"
 PARTIAL="${FILE}.partial"
 trap 'rm -f "${PARTIAL}" "${PARTIAL}.toc"' EXIT
 log "pg_dump -Fc -> ${FILE}"
-pg_dump -Fc -f "${PARTIAL}" "${URL}" || fail "pg_dump exited non-zero"
+pg_dump -Fc "${EXCLUDE_TABLE_DATA[@]/#/--exclude-table-data=}" -f "${PARTIAL}" "${URL}" \
+    || fail "pg_dump exited non-zero"
 
 # Verify before the file earns its final name.
 [ -s "${PARTIAL}" ] || fail "dump is empty"
