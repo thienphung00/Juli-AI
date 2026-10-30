@@ -4,12 +4,14 @@ Pins the three halves of the policy without a database or SSH:
 
 - safe-alembic-upgrade.sh dumps only when a migration is pending (driven with a
   fake helper / pg_dump / alembic next to a copy of the script);
-- the fast-track deploy workflow runs its `backup` job only when `plan` says the
-  deploy carries a migration (or force_backup), and a SKIPPED backup still lets
-  check/deploy run while a FAILED one does not (the `if` expressions are
-  evaluated against simulated job results);
+- the fast-track deploy workflow runs its `backup` job only on force_backup and
+  only after every gate passed (P62-C: a migration is dumped once, by
+  safe-alembic-upgrade.sh), and a SKIPPED backup still lets deploy run while a
+  FAILED one does not (the `if` expressions are evaluated against simulated job
+  results);
 - infra/scripts/backup-database.sh (shared by that job and the daily
   juli-db-backup.timer) verifies before naming the dump and rotates old ones.
+- both dumps leave out the rows of public.processed_events (P62-C).
 """
 
 from __future__ import annotations
@@ -97,17 +99,27 @@ def test_heads_refuses_a_missing_directory(tmp_path: Path):
     [
         (["h"], "h", False, False),
         (["h"], "  h\n", False, False),
-        (["h"], "g", False, True),
-        (["h"], "", False, True),
+        # P62-C: a pending or unreadable migration is safe-alembic's dump, not ours.
+        (["h"], "g", False, False),
+        (["h"], "", False, False),
+        (["h", "i"], "h", False, False),
+        ([], "h", False, False),
         (["h"], "h", True, True),
-        (["h", "i"], "h", False, True),
-        ([], "h", False, True),
+        (["h"], "g", True, True),
     ],
 )
-def test_decide_backup_fails_toward_a_backup(heads, prod, force, expected):
+def test_decide_backup_runs_only_when_forced(heads, prod, force, expected):
     backup, reason = mh.decide_backup(heads, prod, force=force)
     assert backup is expected
     assert reason
+
+
+def test_decide_reason_names_the_migration_state():
+    assert "migration pending" in mh.decide_backup(["h"], "g", force=False)[1]
+    assert "safe-alembic dumps" in mh.decide_backup(["h"], "", force=False)[1]
+    forced = mh.decide_backup(["h"], "h", force=True)[1]
+    assert forced.startswith("force_backup requested")
+    assert "no new migration" in forced
 
 
 def test_decide_cli_prints_github_output_lines(tmp_path: Path):
@@ -135,7 +147,7 @@ def test_decide_cli_prints_github_output_lines(tmp_path: Path):
     same = run("--production-revision", "b")
     assert same[0] == "backup=false"
     assert same[1].startswith("reason=")
-    assert run("--production-revision", "a")[0] == "backup=true"
+    assert run("--production-revision", "a")[0] == "backup=false"
     assert run("--production-revision", "b", "--force")[0] == "backup=true"
 
 
@@ -204,10 +216,12 @@ def test_plan_reads_production_revision_and_decides(deploy_wf: dict):
     assert "$GITHUB_OUTPUT" in run
 
 
+GATES = {"check", "build", "frontend", "backend-unit", "static"}
+
+
 def test_backup_runs_only_when_plan_says_so_and_uses_the_shared_script(deploy_wf: dict):
     backup = deploy_wf["jobs"]["backup"]
-    assert backup["needs"] == "plan"
-    assert backup["if"].strip() == "needs.plan.outputs.backup == 'true'"
+    assert set(backup["needs"]) == {"plan"} | GATES
     assert backup["environment"] == "production"
     text = yaml.safe_dump(backup)
     assert "infra/scripts/backup-database.sh" in text
@@ -215,32 +229,46 @@ def test_backup_runs_only_when_plan_says_so_and_uses_the_shared_script(deploy_wf
     assert "releases/current" in text
 
 
+def test_backup_waits_for_every_gate_and_a_forced_plan(deploy_wf: dict):
+    """P62-C: no dump for a deploy whose tests fail (2026-10-26: 2 of 5 dumps were)."""
+    expr = deploy_wf["jobs"]["backup"]["if"]
+    ok = {"plan": "success", **{g: "success" for g in GATES}}
+    assert _eval_if(expr, ok, {"plan": {"backup": "true"}}) is True
+    assert _eval_if(expr, ok, {"plan": {"backup": "false"}}) is False
+    for gate in GATES:
+        for bad in ("failure", "skipped", "cancelled"):
+            got = _eval_if(expr, {**ok, gate: bad}, {"plan": {"backup": "true"}})
+            assert got is False, (gate, bad)
+
+
+def test_check_no_longer_waits_for_a_backup(deploy_wf: dict):
+    check = deploy_wf["jobs"]["check"]
+    assert check["needs"] == "plan"
+    assert "if" not in check
+
+
+DEPLOY_NEEDS = {"plan", "backup"} | GATES
+
+
 @pytest.mark.parametrize(
     ("plan", "plan_backup", "backup", "runs"),
     [
-        ("success", "false", "skipped", True),  # no migration: skip counts as success
-        ("success", "true", "success", True),  # migration: backup ran and passed
-        ("success", "true", "failure", False),  # a failed backup stops everything
+        ("success", "false", "skipped", True),  # not forced: skip counts as success
+        ("success", "true", "success", True),  # forced: backup ran and passed
+        ("success", "true", "failure", False),  # a failed backup stops the deploy
         ("success", "true", "cancelled", False),
         ("success", "true", "skipped", False),  # needed but skipped: never deploy
         ("failure", "", "skipped", False),  # could not decide: stop
         ("skipped", "", "skipped", False),  # validate failed
     ],
 )
-def test_check_treats_only_a_legitimately_skipped_backup_as_success(
+def test_deploy_treats_only_a_legitimately_skipped_backup_as_success(
     deploy_wf: dict, plan: str, plan_backup: str, backup: str, runs: bool
 ):
-    check = deploy_wf["jobs"]["check"]
-    assert set(check["needs"]) == {"plan", "backup"}
-    got = _eval_if(
-        check["if"],
-        {"plan": plan, "backup": backup},
-        {"plan": {"backup": plan_backup}},
-    )
+    deploy = deploy_wf["jobs"]["deploy"]
+    results = {g: "success" for g in GATES} | {"plan": plan, "backup": backup}
+    got = _eval_if(deploy["if"], results, {"plan": {"backup": plan_backup}})
     assert got is runs
-
-
-DEPLOY_NEEDS = {"check", "build", "frontend", "backend-unit", "static"}
 
 
 def test_deploy_needs_every_gate_and_checks_each_result(deploy_wf: dict):
@@ -248,7 +276,7 @@ def test_deploy_needs_every_gate_and_checks_each_result(deploy_wf: dict):
     assert set(deploy["needs"]) == DEPLOY_NEEDS
     all_ok = {job: "success" for job in DEPLOY_NEEDS}
     assert _eval_if(deploy["if"], all_ok, {}) is True
-    for job in DEPLOY_NEEDS:
+    for job in GATES:
         for bad in ("failure", "skipped", "cancelled"):
             results = {**all_ok, job: bad}
             assert _eval_if(deploy["if"], results, {}) is False, (job, bad)
@@ -418,6 +446,7 @@ def test_safe_upgrade_dumps_before_a_pending_migration(fake_vps):
     calls = _calls(fake_vps)
     dump_at = next(i for i, c in enumerate(calls) if c.startswith("pg_dump"))
     assert calls.index("alembic upgrade head") > dump_at
+    assert "--exclude-table-data=public.processed_events" in calls[dump_at].split()
     assert len(list(fake_vps["backups"].glob(BACKUP_GLOB))) == 1
 
 
@@ -476,9 +505,9 @@ def test_backup_database_writes_a_verified_labelled_dump_and_rotates(fake_vps):
     assert recent.exists()
     assert not list(backups.glob("*.partial*"))
     calls = _calls(fake_vps)
-    assert calls.index("helper verify-migration-privileges") < next(
-        i for i, c in enumerate(calls) if c.startswith("pg_dump")
-    )
+    dump_at = next(i for i, c in enumerate(calls) if c.startswith("pg_dump"))
+    assert calls.index("helper verify-migration-privileges") < dump_at
+    assert "--exclude-table-data=public.processed_events" in calls[dump_at].split()
 
 
 def test_backup_database_keep_backups_caps_the_count(fake_vps):

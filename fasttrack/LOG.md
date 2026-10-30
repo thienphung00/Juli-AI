@@ -3246,3 +3246,19 @@ reconcile --write` re-derived the no-assert corpus figure.
   timed out or not. A bundle that cannot give its own session is `not_read` without a call.
   Test: real factory-built sandbox client with only the HTTP send stubbed -- the
   `diagnose_optimize` POST and the edit PUT go out on different Sessions, and only the scoring one is closed.
+
+## 2026-10-30 — agent (Claude Opus) — P62-C: one dump per migration deploy (D72)
+
+- Why: Shared Pooler egress 2026-10-27 803 MB, 10-28 376 MB, 10-29 312 MB, after P62.
+  Run logs: every migration deploy dumped twice (workflow `backup` job, then
+  safe-alembic-upgrade.sh ~20 min later: 10-27 07:15Z + 07:36Z), and `backup` ran
+  beside the tests, so failed deploys dumped too (10-26 04:19Z, 13:23Z). Per dump
+  ≈ 210 MB on the wire (803 − 376 over 2 dumps); the 17 MiB file is `-Fc`
+  compressed. Baseline without dumps ≈ 100–165 MB/day.
+- What: `migration_heads.decide_backup` returns backup=true only on force (reason
+  still names the migration state); `backup` needs plan + every gate, `check` needs
+  only plan, `deploy` checks the backup result; both pg_dump calls pass
+  `--exclude-table-data=public.processed_events`. README dumps section, DEBT.
+- Tests: test_backup_dump_policy.py (66 with test_rollback_workflow.py) + 9 deploy /
+  safe-alembic files, 101 passed, 8 skipped (Postgres).
+- Estimate: a migration deploy 420 → ~150–210 MB; a failed deploy 210 → 0.
