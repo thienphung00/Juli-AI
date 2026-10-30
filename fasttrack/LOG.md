@@ -3246,3 +3246,20 @@ reconcile --write` re-derived the no-assert corpus figure.
   timed out or not. A bundle that cannot give its own session is `not_read` without a call.
   Test: real factory-built sandbox client with only the HTTP send stubbed -- the
   `diagnose_optimize` POST and the edit PUT go out on different Sessions, and only the scoring one is closed.
+
+## 2026-10-30 — agent (Claude Opus) — P77: partner reviewer onboarding guide (apps/demo)
+
+- What: an 8-step guide (Read / Write / Check) for partner reviewer accounts only, per the approved artboards
+  (`juli-design/reviewer-onboarding`): right-hand panel beside the page (stacks below when narrow), floating
+  pill "Reviewer guide · N/8" when collapsed, bottom sheet with Read / Write / Check tabs and a focus trap on
+  phones. Opens on the first visit; "×" / Esc collapse; state `{open, done[]}` persisted per user id (JWT `sub`)
+  in localStorage via `persistent-storage` (try/catch, works without storage). "Start over", manual tick/untick.
+- Auto-ticks (no backend call): 1/2 route `/` and `/analytics` on a non-sandbox reviewer (guide-context); 3
+  `QuyetDinhView` tab Đề xuất on the masked shop or Duyệt (`onSimulateApprove`); 4 `handleSwitchShop` to the
+  sandbox pin (saved before the reload) or a single sandbox pin; 5 `SandboxConnectionCard` "Đồng bộ ngay" press;
+  6 sandbox run list has an `isConfirmedSandboxWrite` run; 7 tab Đo lường on the sandbox shop; 8 `startRevert`.
+- Step 4's link/CTA reuses the shell's `handleSwitchShop`. Copy: `lib/reviewer/guide-copy.ts`;
+  dictionary.md `reviewer.guide`.
+- Files: `lib/reviewer/{guide-copy.ts,guide-store.ts,guide-context.tsx}`, `components/reviewer/reviewer-guide.tsx`,
+  `components/demo-shell.tsx`, `sandbox-connection-card.tsx`, `quyet-dinh-view.tsx`, `app/globals.css` (`.rg-*`),
+  test `components/__tests__/reviewer-guide.test.tsx`.

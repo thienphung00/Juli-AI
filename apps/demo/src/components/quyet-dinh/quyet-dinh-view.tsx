@@ -45,6 +45,7 @@ import type { RevertQuestion, RunChanges, ShopRules } from "../../lib/quyet-dinh
 import { RUN_LEDGER_POLL_INTERVAL_MS } from "../../lib/run-ledger/panel-config";
 import { groupRunsIntoLedgerSections } from "../../lib/run-ledger/sections";
 import { REVIEWER_FAST_FORWARD_COPY, REVIEWER_SAMPLE_NOTICE } from "../../lib/reviewer/copy";
+import { useGuideMark } from "../../lib/reviewer/guide-context";
 import { useSandboxReviewer } from "../../lib/reviewer/mode";
 import { AppPageHeader } from "../app-shell/page-header";
 import { SimulatedLabel } from "../app-shell/simulated-label";
@@ -178,6 +179,8 @@ export function QuyetDinhView({
   /** P64 (D73.4): the partner account on the live sandbox — Duyệt opens the run it started (SSE). */
   readonly openRunOnApprove?: boolean;
 }) {
+  const markGuide = useGuideMark();
+  const guideSandbox = useSandboxReviewer();
   const auth: AuthedOptions = useMemo(() => ({ token, shopId: shop.id }), [token, shop.id]);
   const nowMs = useNow();
 
@@ -273,6 +276,16 @@ export function QuyetDinhView({
 
   const runList = useMemo(() => (runs.status === "ready" ? runs.data : []), [runs]);
 
+  // P77: reviewer guide steps that tick on what the reviewer reaches here.
+  useEffect(() => {
+    if (query.tab === "de-xuat" && !guideSandbox) markGuide("propose");
+    if (query.tab === "do-luong" && guideSandbox) markGuide("measure");
+  }, [query.tab, guideSandbox, markGuide]);
+  const sandboxWriteConfirmed = guideSandbox && runList.some(isConfirmedSandboxWrite);
+  useEffect(() => {
+    if (sandboxWriteConfirmed) markGuide("write");
+  }, [sandboxWriteConfirmed, markGuide]);
+
   // Changes + measurement for the executed runs (Đo lường).
   const [changesByRun, setChangesByRun] = useState<Record<string, ChangesState>>({});
   const [measureByRun, setMeasureByRun] = useState<Record<string, MeasurementState>>({});
@@ -364,6 +377,7 @@ export function QuyetDinhView({
     (cardIds: readonly string[]) => {
       if (busy || cardIds.length === 0) return;
       if (onSimulateApprove) {
+        markGuide("propose"); // P77: pressed Duyệt on the masked shop (simulated)
         // P32-A / P32-D: the simulated Duyệt → Thực thi first; P32-E: in the
         // sample shop `proceed` then runs the in-memory approve and opens the run.
         onSimulateApprove(cardIds, () => approveNow(cardIds, true));
@@ -371,7 +385,7 @@ export function QuyetDinhView({
       }
       approveNow(cardIds, openRunOnApprove);
     },
-    [busy, approveNow, onSimulateApprove, openRunOnApprove],
+    [busy, approveNow, onSimulateApprove, openRunOnApprove, markGuide],
   );
 
   const handleReject = useCallback(
@@ -410,6 +424,7 @@ export function QuyetDinhView({
 
   const startRevert = useCallback(
     async (runId: string, choice: ReasonChoice): Promise<{ runId: string } | { conflict: string } | { error: string }> => {
+      markGuide("undo"); // P77: the reviewer started a Hoàn tác
       try {
         const result = await clients.startRevert(auth, runId, choice);
         setRevertMeta((map) => ({
@@ -423,7 +438,7 @@ export function QuyetDinhView({
         return { error: describeRevertError(error) };
       }
     },
-    [clients, auth, refreshRuns],
+    [clients, auth, refreshRuns, markGuide],
   );
 
   const onMeasureRevert = (item: MeasureItem, choice: ReasonChoice) => {
