@@ -135,9 +135,16 @@ async def test_adapter_scrubs_every_message_before_the_provider() -> None:
     assert parts["content"][0]["text"] == f"Mail khách: {REDACTED}"
     assert parts["content"][1] == {"type": "input_image", "image_url": "https://cdn.example/p.jpg"}
     assert body["instructions"] == f"Bạn là trợ lý của shop. Hotline khách để lại: {REDACTED}."
-    # Structured output and tool schemas reach the provider untouched.
+    # Structured output and tool schemas are not text: never de-identified. The
+    # tool schema is only put in OpenAI strict form (P76-1, D78).
     assert body["text"]["format"]["schema"] == schema
-    assert body["tools"][0]["parameters"] == tool["input_schema"]
+    assert body["tools"][0]["parameters"] == {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": False,
+    }
+    assert body["tools"][0]["strict"] is True
 
 
 async def test_adapter_leaves_clean_shop_text_byte_identical() -> None:

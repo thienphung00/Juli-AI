@@ -85,6 +85,8 @@ decision 6).
   `LLM_STREAMING` (default on; `0`/`false`/`no`/`off` turns streaming off)
 - `llm_streaming_enabled() -> bool` — reads `LLM_STREAMING` at call time
   (`DEFAULT_LLM_STREAMING = True`)
+- `agent_strict_schemas_enabled() -> bool` — reads `AGENT_STRICT_SCHEMAS` at
+  call time (`DEFAULT_AGENT_STRICT_SCHEMAS = True`; P76-1 kill switch)
 - `ModelPrice(input_usd_per_million_tokens, output_usd_per_million_tokens)` —
   one model's static price row
 - `PRICE_TABLE_USD_PER_MILLION_TOKENS` — the static price table (ADR-071
@@ -125,15 +127,60 @@ decision 6).
   translated to a `function_call_output` item). Reconstructing a prior
   turn's own tool-call proposal as an input item is out of scope for this
   slice.
-- Tool shape consumed: `{"name": str, "description": str, "parameters":
+- Tool shape consumed: `{"name": str, "description": str, "input_schema":
   dict}` (a Pydantic `model_json_schema()` render, per ADR-069 decision 3),
-  translated to a Responses API `{"type": "function", ...}` tool entry.
+  translated to a Responses API `{"type": "function", "strict": true,
+  "parameters": to_strict(input_schema)}` tool entry (P76-1, D78).
+- `JsonSchemaFormat(name, schema, strict=True)` — a structured-output request;
+  a strict schema goes out through `to_strict` as well.
 - Response translation: a `function_call` output item becomes a
   `ToolCallBlock`; `output_text` message content becomes a `TextBlock` when
   the turn also proposes a tool call (interim narration), or a
   `FinalResponse` when it does not (the turn's closing answer).
 - `Usage` on the returned `AssistantTurn` is read from the response body's
   `usage.input_tokens` / `usage.output_tokens`.
+
+### Strict schemas (`strict_schema.py`, P76-1, D78)
+
+The strict contract: every tool and every strict output format reaches OpenAI
+in Structured Outputs strict form, so the model's arguments and structured
+output are guaranteed to match the declared shape.
+
+- `to_strict(schema) -> dict` — pure, idempotent; a conforming schema comes
+  back equal. Inlines `$defs`; closes every object (`additionalProperties:
+  false`, every property in `required`, optional ⇒ union with `null`); drops
+  `title` / `default` / `examples` (a non-null default is stated in the
+  description) and `minLength` / `maxLength` (stated in the description, still
+  enforced by the tool's Pydantic model). Keeps `enum` / `const` / `anyOf` /
+  `pattern` / `format` (supported values) / number bounds / `minItems` /
+  `maxItems` / `description`.
+- `StrictSchemaError` — anything else: open objects (`dict[str, X]`), `allOf`
+  with more than one branch, `not` / `if` / `uniqueItems` / …, an unsupported
+  `format`, a recursive model, a root `anyOf`. No silent degrade inside
+  `to_strict`.
+- `strict_problems(schema) -> list[str]` — the independent conformance checker.
+- **D78.5:** an unconvertible schema fails
+  `tests/unit/test_agent_strict_tool_schemas.py` (every registered tool, every
+  playbook), never the running app — the adapter logs
+  `strict_schema_unconvertible` and sends that one schema non-strict.
+- **Provider safety net.** A strict request answered HTTP 400 with an
+  `invalid_request_error` whose `param` is under `tools` / `text.format` (or
+  whose message names a schema / strict) raises `StrictSchemaRejectedError`
+  inside the adapter: it logs `strict_schema_rejected_by_provider` (tool /
+  format names, `param`, error code — no prompt content), puts the named tool
+  or format (all strict entries when the provider names none) in a
+  process-level non-strict set, and resends the same request ONCE with nothing
+  strict. Later calls send those names non-strict directly. Any other 400
+  (context length, …) is not retried. Streaming and non-streamed calls behave
+  the same (the 400 arrives before any delta).
+- **Kill switch** `AGENT_STRICT_SCHEMAS` (`config.agent_strict_schemas_enabled`,
+  default on; `0` / `false` / `no` / `off` sends every tool and output format
+  non-strict). Documented in `infra/scripts/env/api.env.example`.
+- The model sends `null` for an optional field it leaves out;
+  `ToolSpec.parse_input` (`tools/registry.py`) turns it into the field default.
+- Source for the supported keyword set: OpenAI Structured Outputs guide,
+  "Supported schemas" (developers.openai.com/api/docs/guides/structured-outputs,
+  read 2026-10-29).
 
 ### Fake (`fake.py`, #987)
 
@@ -183,6 +230,9 @@ decision 6).
 - `OpenAIResponsesAdapter` never sends `previous_response_id` and always
   sets `"store": False`; it sets `"stream": True` only for a call that
   passed `on_text_delta` while `LLM_STREAMING` is on.
+- Every tool entry the adapter sends carries `"strict": true` unless its schema
+  is unconvertible (then logged, never raised); every registered tool converts
+  (CI gate, D78.5).
 - `fake.py` imports no provider/network library (asserted by
   `tests/unit/test_agent_llm_fake.py`) — the fake never makes a network call.
 - `FakeLLMService` returns scripted turns strictly in order and never
