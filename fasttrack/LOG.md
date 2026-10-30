@@ -3315,3 +3315,30 @@ reconcile --write` re-derived the no-assert corpus figure.
   no `listing_proposal_violation_logged` for length/token rules, the voice profile is in the
   opening context.
 
+## 2026-10-30 — agent (Claude Opus) — P79: listing edits may cite Juli's own listing codes (D33)
+
+- Live (sandbox, run dbd17987): card from Juli's own listing evidence (title 31 chars, one-line
+  ~80-char description), TikTok's stale diagnosis returned only `MAIN_IMG_NUMBER_LESS_THAN_FIVE`;
+  the model cited it on a title op, `reason_code_wrong_field` twice, no write (edge case D33).
+- Codes an edit may cite (`services/agent/tools/listing_codes.py`, pure): TikTok's
+  (`get_product_diagnoses`, kept by `ProductToolExecutor`) ∪ Juli's check of the CURRENT listing
+  (`listing_signals.derive_local_evidence`, scan thresholds reused; text codes only; from the
+  detail the run read -- no extra TikTok call) ∪ the action card's `diagnosis.lever.evidence`
+  (worker `_card_evidence`, one select on `action_cards`; `local` -> `juli_check`). Resolver,
+  `apply_ops` and the post-validator get the union. An unavailable diagnoses read is now "not
+  read" (`None`), never "nothing flagged".
+- What the model sees: `get_product_information` adds `edit_codes` = `{title_codes,
+  description_codes: [{code, source: tiktok|juli_check}], not_for_text: [...], tiktok_read}`.
+  Its tool description gains one sentence (pin in `test_agent_tool_specs.py` updated
+  deliberately). Prompt v4 unchanged (its "TikTok diagnosis code" wording still holds: the
+  local codes are TikTok's own code names); no v5.
+- Refusals: `reason_code_wrong_field` / `append_code_not_flagged` append "Allowed <field> reason
+  codes: X (juli_check), …" (or "No <field> code is flagged …: leave the <field> unchanged.").
+- No text code at all (TikTok read, only image codes, Juli's check and the card find none):
+  `needs_photos_refusal` (`concludes_run=True`) -> the runner records the refusal, narrates
+  `LISTING_NEEDS_PHOTOS_VI` and ends `concluded_without_changes` (status completed), no redraft.
+  Not when TikTok was unreadable (the resolver then reads diagnoses once, as for an append).
+- Tests: `test_p79_listing_edit_codes.py` (live replay through the real runner: Juli codes pass
+  and pause for consent; wrong field -> allowed codes -> retry pauses; image-only + clean listing
+  -> concluded; card evidence; union/per-field units); sanitize golden fixtures regenerated
+  (`edit_codes`).

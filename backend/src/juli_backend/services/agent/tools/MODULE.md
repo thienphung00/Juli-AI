@@ -9,7 +9,9 @@ so schema and validation cannot drift.
 
 Handlers register here: `product.py` (7 READ, incl. `get_shop_identity` — P63), `product_write.py`
 (3 WRITE) and `terminal.py` (`conclude_without_changes`, ADR-088) — eleven tools. `diagnosis_labels.py`
-holds the TikTok diagnosis code -> short Vietnamese label table (pure data). No marketplace
+holds the TikTok diagnosis code -> short Vietnamese label table (pure data). `listing_codes.py`
+(P79) is the codes a listing edit may cite, per field: TikTok's ∪ Juli's own listing check ∪ the
+action card's evidence (pure). No marketplace
 client or I/O lives in this module. Distinct from the legacy Celery tool
 registry (`services/execution/runner.py`), which is name -> callable with no metadata and
 stays untouched.

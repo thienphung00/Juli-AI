@@ -199,5 +199,16 @@
         "truncated": true
       }
     ]
+  },
+  "edit_codes": {
+    "title_codes": [],
+    "description_codes": [
+      {
+        "code": "DESC_NO_NEW_LINE",
+        "source": "juli_check"
+      }
+    ],
+    "not_for_text": [],
+    "tiktok_read": false
   }
 }

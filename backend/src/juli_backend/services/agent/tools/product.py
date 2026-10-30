@@ -91,6 +91,7 @@ from juli_backend.services.agent.tools.diagnosis_labels import (
     is_diagnosis_code,
 )
 from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
+from juli_backend.services.agent.tools.listing_codes import edit_codes
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
     ToolPolicy,
@@ -183,6 +184,10 @@ class ProductToolContext:
     # operations may append a section only for a flagged code and the post-validator
     # logs them. `None`: not read yet this leg; `()`: read, nothing flagged.
     flagged_codes: tuple[str, ...] | None = None
+    # `card_evidence` -- P79: the action card's own evidence codes as `(code, source tag)`
+    # (`listing_codes.card_evidence_from_payload`), loaded by the worker; with TikTok's
+    # codes and Juli's check of the current listing they are the codes an edit may cite.
+    card_evidence: tuple[tuple[str, str], ...] = ()
 
 
 # --- sanitize helpers, shared by the READ handlers below (ADR-070) -----------
@@ -280,6 +285,11 @@ class GetProductInformationOutput(BaseModel):
     #: P76-6: the description as the numbered sections `update_product_listing`'s edit
     #: operations address (`description_sections`); `None` when there is no description.
     description_sections: dict[str, Any] | None = None
+    #: P79: the reason codes `update_product_listing`'s ops may cite, per field
+    #: (`listing_codes.EditCodes.for_model`): `title_codes` / `description_codes` as
+    #: `{code, source}` (`tiktok` or `juli_check`), `not_for_text` the codes a text edit
+    #: cannot fix (images), `tiktok_read` whether TikTok's diagnoses were read first.
+    edit_codes: dict[str, Any] | None = None
 
 
 #: P76-6: at most this many characters of section text go into one product read; the
@@ -346,6 +356,9 @@ def handle_get_product_information(
         sku_prices=capped_sku_prices.to_dict(),
         images=capped_images.to_dict(),
         description_sections=description_sections(raw.get("description")),
+        edit_codes=edit_codes(
+            tiktok_codes=context.flagged_codes, detail=raw, card_evidence=context.card_evidence
+        ).for_model(),
     )
 
 
@@ -354,7 +367,8 @@ GET_PRODUCT_INFORMATION_SPEC = ToolSpec(
     description=(
         "Read the bound product's listing: title, description (also as numbered "
         "sections, the indices edit operations use), status, last-updated time, SKU "
-        "count and prices, total inventory, and image sizes."
+        "count and prices, total inventory, and image sizes. edit_codes lists, per "
+        "field, the only reason codes a listing edit may cite."
     ),
     # dictionary.md `run.option_rationale.get_product_information` (issue
     # #1904, W6-FIX) -- seller-facing, distinct from `description` above,

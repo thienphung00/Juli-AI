@@ -40,5 +40,20 @@
         }
       }
     ]
+  },
+  "edit_codes": {
+    "title_codes": [],
+    "description_codes": [
+      {
+        "code": "DESC_LESS_THAN_FIVE_HUNDRED_CHARS",
+        "source": "juli_check"
+      },
+      {
+        "code": "DESC_NO_NEW_LINE",
+        "source": "juli_check"
+      }
+    ],
+    "not_for_text": [],
+    "tiktok_read": false
   }
 }

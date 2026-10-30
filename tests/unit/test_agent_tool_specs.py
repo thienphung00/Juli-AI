@@ -67,9 +67,11 @@ _VIETNAMESE_DIACRITIC = re.compile(f"[{_VIETNAMESE_LETTERS}{_VIETNAMESE_LETTERS.
 EXPECTED_DESCRIPTIONS: dict[str, str] = {
     "get_product_information": (
         # P76-6: the numbered sections the listing edit operations address.
+        # P79: `edit_codes`, the reason codes each field's edit may cite.
         "Read the bound product's listing: title, description (also as numbered "
         "sections, the indices edit operations use), status, last-updated time, SKU "
-        "count and prices, total inventory, and image sizes."
+        "count and prices, total inventory, and image sizes. edit_codes lists, per "
+        "field, the only reason codes a listing edit may cite."
     ),
     "get_product_diagnoses": (
         "Read the diagnosis codes TikTok has raised for the bound product's listing, "

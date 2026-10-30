@@ -364,6 +364,10 @@ class _ToolCallOutcome(Enum):
     # P76-4: the domain precheck refused this tool's proposal a second time this run;
     # the run ends like a second malformed attempt (`_give_up`), never a third draft.
     PROPOSAL_REFUSALS_EXHAUSTED = auto()
+    # P79: the domain refused the proposal because there is nothing it may change (a
+    # listing whose text meets TikTok's rules, only image codes flagged); the run ends
+    # `concluded_without_changes` -- an honest outcome, never a failure or a redraft.
+    PROPOSAL_CONCLUDES_RUN = auto()
 
 
 def _refusal_message(result: Mapping[str, Any]) -> str:
@@ -1751,6 +1755,11 @@ class WorkflowRunner:
                             sha256,
                         )
                         break
+                    if outcome is _ToolCallOutcome.PROPOSAL_CONCLUDES_RUN:
+                        stop = await self._finalize_with_conclude_without_changes(
+                            workflow_run_id, state, version_str, sha256
+                        )
+                        break
                     if outcome is _ToolCallOutcome.PROPOSAL_REFUSALS_EXHAUSTED:
                         stop = await self._give_up(workflow_run_id, state, version_str, sha256)
                         break
@@ -1983,6 +1992,28 @@ class WorkflowRunner:
                     if callable(precheck)
                     else None
                 )
+            if refusal is not None and refusal.get("concludes_run"):
+                # P79: nothing this tool may change -- say why and end the run cleanly.
+                closing = str(refusal.get("summary_vi") or "")
+                logger.info(
+                    "Tool dispatch: proposal concludes the run",
+                    extra={"tool_name": block.tool_name, "error_code": refusal.get("error_code")},
+                )
+                await self._refuse(
+                    workflow_run_id,
+                    state,
+                    block,
+                    message=closing,
+                    model_message=str(refusal.get("model_hint") or ""),
+                    retryable=False,
+                )
+                await self._emit(
+                    workflow_run_id,
+                    state,
+                    WorkflowStatusEvent,
+                    WorkflowStatusPayload(phase_narration=closing),
+                )
+                return _ToolCallOutcome.PROPOSAL_CONCLUDES_RUN
             if refusal is not None:
                 # P76-4: one redraft per tool per run, counted on the state (a text block
                 # between the two drafts, or a pause, must not reset it): the second
