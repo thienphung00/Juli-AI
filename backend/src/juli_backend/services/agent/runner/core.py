@@ -993,7 +993,7 @@ class WorkflowRunner:
             )
 
         spec = self._registry.get(tool_name)
-        params = spec.input_model.model_validate(arguments)
+        params = spec.parse_input(arguments)
 
         # Consent binding, re-verified here (ADR-075 decision 2, #1224
         # review round 2) -- not only at the confirmation-authorization
@@ -1909,7 +1909,7 @@ class WorkflowRunner:
             return _ToolCallOutcome.REFUSED
 
         try:
-            params = spec.input_model.model_validate(block.arguments)
+            params = spec.parse_input(block.arguments)
         except ValidationError as exc:
             # Log the internal detail server-side only; seller sees safe copy.
             logger.warning(
