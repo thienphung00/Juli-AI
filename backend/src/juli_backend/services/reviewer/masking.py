@@ -61,6 +61,29 @@ _MIN_SUBSTRING = 4
 #: the run of text before the ellipsis, back to a separator.
 _TRUNCATED = re.compile(r"([^·:\n“”\"()]{12,})…")
 _LONG_DIGITS = re.compile(r"(?<!\d)\d{12,20}(?!\d)")
+#: P78: a UUID (a Juli id, the reviewer's own shop alias) can end in a 12-digit group;
+#: the digit rule must never rewrite it, or the alias the reviewer sends back breaks.
+_UUID_SPAN = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+
+
+def _mask_long_digits(text: str) -> str:
+    """Alias every 12-20 digit run that is not part of a UUID."""
+
+    def alias_digits(part: str) -> str:
+        return _LONG_DIGITS.sub(lambda m: id_alias("id", m.group(0)), part)
+
+    out: list[str] = []
+    last = 0
+    for span in _UUID_SPAN.finditer(text):
+        out.append(alias_digits(text[last : span.start()]))
+        out.append(span.group(0))
+        last = span.end()
+    out.append(alias_digits(text[last:]))
+    return "".join(out)
+
+
 _URL = re.compile(r"^\s*https?://", re.IGNORECASE)
 #: What a reviewer sees for a masked shop's name (P74-A, D77). Not the seller / ops analytics
 #: alias ``stable_shop_display_name`` ("Demo Shop NNN"): Shopee's review reads "demo" as a
@@ -478,7 +501,7 @@ class ReviewerMasker:
             out = pattern.sub(lambda m: self._replacements[m.group(0)], out)
         if self._brand is not None:
             out = self._brand.sub(BRAND_REPLACEMENT, out)
-        out = _LONG_DIGITS.sub(lambda m: id_alias("id", m.group(0)), out)
+        out = _mask_long_digits(out)
         return out
 
     def _truncated(self, match: re.Match[str]) -> str:
