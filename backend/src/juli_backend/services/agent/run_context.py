@@ -104,6 +104,15 @@ def opening_shop_rules(state: Any) -> dict[str, Any]:
     return rules if isinstance(rules, dict) else {}
 
 
+def card_evidence(recommendation_payload: Any) -> tuple[tuple[str, str], ...]:
+    """P79: ``(code, source tag)`` of the evidence the run's action card carries
+    (``tools.listing_codes.card_evidence_from_payload``) -- with TikTok's codes and Juli's
+    check of the listing, the codes a listing edit may cite. The worker's entry point."""
+    from juli_backend.services.agent.tools.listing_codes import card_evidence_from_payload
+
+    return card_evidence_from_payload(recommendation_payload)
+
+
 def initial_run_state(opening_context: dict[str, Any]) -> dict[str, Any]:
     """A complete `workflow_runs.state` blob for a brand-new run.
 

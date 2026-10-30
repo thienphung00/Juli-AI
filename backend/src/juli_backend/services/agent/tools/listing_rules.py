@@ -82,6 +82,9 @@ class ProposalRefusal(BaseModel):
     #: P76-4: shown instead of ``summary_vi`` when this refusal ends the run (the
     #: second one for the same tool); ``None``: ``summary_vi`` again.
     final_summary_vi: str | None = None
+    #: P79: the refusal ends the run cleanly (``concluded_without_changes``, not a
+    #: failure) instead of inviting a redraft: there is nothing a text edit may fix.
+    concludes_run: bool = False
 
 
 def check_proposal(
@@ -168,7 +171,36 @@ def edit_refusal(code: str, message: str, *, retry: bool = True) -> ProposalRefu
     )
 
 
+#: P79: the machine code of a listing edit refused because no title / description code
+#: is flagged (TikTok flags only images and Juli's own check finds nothing).
+ERROR_LISTING_NEEDS_PHOTOS = "listing_needs_photos"
+#: P79: the seller's line for that ending -- the text already meets TikTok's rules; the
+#: card needs new photos, which Juli cannot upload.
+LISTING_NEEDS_PHOTOS_VI = (
+    "Tiêu đề và mô tả của sản phẩm đã đạt quy định của TikTok. Thẻ này cần thêm ảnh "
+    "mới cho sản phẩm, việc Juli chưa thể tải ảnh lên thay bạn; sản phẩm giữ nguyên."
+)
+
+
+def needs_photos_refusal(not_for_text: Sequence[str]) -> ProposalRefusal:
+    """P79: no code a text edit may cite -- end the run without a change (not a failure)."""
+    codes = ", ".join(not_for_text) or "none"
+    return ProposalRefusal(
+        error_code=ERROR_LISTING_NEEDS_PHOTOS,
+        summary_vi=LISTING_NEEDS_PHOTOS_VI,
+        model_hint=(
+            f"error_code={ERROR_LISTING_NEEDS_PHOTOS}: no title or description reason code is "
+            f"flagged on this product (flagged: {codes}; image codes cannot be fixed by a "
+            "text edit). The run ends without a listing change."
+        ),
+        final_summary_vi=LISTING_NEEDS_PHOTOS_VI,
+        concludes_run=True,
+    )
+
+
 __all__ = [
+    "ERROR_LISTING_NEEDS_PHOTOS",
+    "LISTING_NEEDS_PHOTOS_VI",
     "DESCRIPTION_RETRY_HINT",
     "ERROR_LISTING_EDIT_REJECTED",
     "ERROR_RULE_VIOLATION",
@@ -178,6 +210,7 @@ __all__ = [
     "ProposalRefusal",
     "check_proposal",
     "edit_refusal",
+    "needs_photos_refusal",
     "redact_terms",
     "source_terms_not_in",
     "validation_refusal",

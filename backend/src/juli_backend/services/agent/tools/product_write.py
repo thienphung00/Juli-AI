@@ -95,9 +95,11 @@ from juli_backend.integrations.tiktok import (
 )
 from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN, ProposalResolution
 from juli_backend.services.agent.tools.draft_scoring import DraftScore, score_confirmed_listing
+from juli_backend.services.agent.tools.listing_codes import EditCodes, edit_codes
 from juli_backend.services.agent.tools.listing_rules import (
     check_proposal,
     edit_refusal,
+    needs_photos_refusal,
     source_terms_not_in,
     validation_refusal,
 )
@@ -439,22 +441,44 @@ def _current_detail(resources: Any, context: ProductToolContext) -> Mapping[str,
     return fetched if isinstance(fetched, Mapping) else None
 
 
-def _flagged_codes(
-    resources: Any, context: ProductToolContext, ops: ListingEditOps
-) -> tuple[str, ...]:
-    """The product's TikTok-flagged codes for `apply_ops`: the run's own read, else --
-    only when an op appends a section, the one op that needs them -- one read now.
-    A failed read fails closed (no code, so no section may be appended)."""
+def _tiktok_codes(
+    resources: Any,
+    context: ProductToolContext,
+    ops: ListingEditOps,
+    detail: Mapping[str, Any],
+) -> tuple[str, ...] | None:
+    """TikTok's flagged codes for this product: the run's own read, else -- only when an
+    op appends a section, or Juli's own check finds no text code (so whether the edit is
+    possible at all rests on TikTok) -- one read now. `None`: not read / unreadable
+    (fails closed: no TikTok code, so no section is appended for one)."""
     if context.flagged_codes is not None:
         return context.flagged_codes
-    if not any(isinstance(op, AppendSection) for op in ops.description_ops):
-        return ()
+    needs_read = any(isinstance(op, AppendSection) for op in ops.description_ops) or not (
+        edit_codes(
+            tiktok_codes=None, detail=detail, card_evidence=context.card_evidence
+        ).has_text_code
+    )
+    if not needs_read:
+        return None
     try:
         raw = resources.products.get_diagnoses([context.product_id])
     except (TikTokAPIError, TransportGuardError):
-        return ()
+        return None
     codes = parse_diagnosis_codes(raw, product_id=context.product_id)
     return tuple(str(entry["code"]) for entry in codes)
+
+
+def _rejection_message(result: EditRejection, codes: EditCodes) -> str:
+    """The `EditRejection` for the model's one redraft; a code refusal names the codes
+    that field may cite (P79), so the retry can succeed."""
+    where = "" if result.op_index is None else f" ({result.field} operation {result.op_index})"
+    message = f"{result.message}{where}"
+    if result.code in (
+        RejectionCode.REASON_CODE_WRONG_FIELD,
+        RejectionCode.APPEND_CODE_NOT_FLAGGED,
+    ):
+        message = f"{message} {codes.allowed_line(result.field)}"
+    return message
 
 
 def resolve_update_product_listing(
@@ -467,8 +491,13 @@ def resolve_update_product_listing(
     description (a field the operations leave alone stays `None`, so the seller is
     shown only what changes) and `edits` dropped -- or a refusal: `edits` sent with a
     title / description, the current listing unreadable, an `EditRejection` from
-    `apply_ops` (its machine code and English message go back to the model), or
-    operations that change nothing. Read-only.
+    `apply_ops` (its machine code and English message go back to the model; a reason-code
+    refusal names the codes that field may cite), or operations that change nothing.
+
+    P79: the codes the operations may cite are TikTok's ∪ Juli's own check of the current
+    listing ∪ the card's evidence (`listing_codes.edit_codes`). When TikTok was read and
+    none of them is a title / description code, the refusal ends the run cleanly
+    (`needs_photos_refusal`): the text already meets TikTok's rules. Read-only.
     """
     edits = params.edits
     if edits is None:
@@ -492,14 +521,25 @@ def resolve_update_product_listing(
         )
     current_title = str(detail.get("title") or "")
     current_description = str(detail.get("description") or "")
-    flagged = _flagged_codes(resources, context, edits)
-    result = apply_ops(current_title, current_description, edits, flagged)
+    # P79: TikTok's codes ∪ Juli's check of the current listing ∪ the card's evidence.
+    codes = edit_codes(
+        tiktok_codes=_tiktok_codes(resources, context, edits, detail),
+        detail=detail,
+        card_evidence=context.card_evidence,
+    )
+    if (
+        (edits.title_ops or edits.description_ops)
+        and codes.tiktok_read
+        and not (codes.has_text_code)
+    ):
+        # Only image codes remain: the text already meets TikTok's rules -- end cleanly.
+        return ProposalResolution(refusal=needs_photos_refusal(codes.for_model()["not_for_text"]))
+    result = apply_ops(current_title, current_description, edits, codes.flagged)
     if isinstance(result, EditRejection):
-        where = "" if result.op_index is None else f" ({result.field} operation {result.op_index})"
         return ProposalResolution(
             refusal=edit_refusal(
                 result.code.value,
-                f"{result.message}{where}",
+                _rejection_message(result, codes),
                 retry=result.code is not RejectionCode.LISTING_OVER_LIMITS,
             )
         )
@@ -547,7 +587,11 @@ def precheck_update_product_listing(
         current_description_html=_text_or_none(current.get("description")),
         proposed_title=params.title,
         proposed_description_html=params.description,
-        flagged_codes=context.flagged_codes or (),
+        flagged_codes=edit_codes(
+            tiktok_codes=context.flagged_codes,
+            detail=detail if isinstance(detail, Mapping) else None,
+            card_evidence=context.card_evidence,
+        ).flagged,
         brand_terms=(brand_name,) if brand_name else (),
     )
     return validation_refusal(enforced_violations(validation))

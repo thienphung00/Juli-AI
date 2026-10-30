@@ -735,6 +735,25 @@ async def _attach_voice_profile(
     await session.flush()
 
 
+async def _card_evidence(session: AsyncSession, run: WorkflowRun) -> tuple[tuple[str, str], ...]:
+    """P79: the evidence codes of the action card this run was approved from, as
+    ``(code, source tag)``; ``()`` for a run with no card or a card without evidence.
+    Advisory: a read that fails leaves the run with TikTok's and Juli's own codes."""
+    if run.action_card_id is None:
+        return ()
+    from juli_backend.models.models import ActionCard
+    from juli_backend.services.agent import run_context as run_context_module
+
+    try:
+        payload = await session.scalar(
+            select(ActionCard.recommendation_payload).where(ActionCard.id == run.action_card_id)
+        )
+    except DBAPIError:
+        logger.warning("card_evidence_unread", extra={"run_id": str(run.id)})
+        return ()
+    return run_context_module.card_evidence(payload)
+
+
 async def _construct_runner(
     session: AsyncSession,
     sync_session: Session,
@@ -906,6 +925,9 @@ async def _construct_runner(
         approved_tool_name=(
             str(run.state["pending_confirmation"]["tool_name"]) if live_leg is not None else None
         ),
+        # P79: the card's own evidence codes join TikTok's and Juli's check of the
+        # listing as the codes a listing edit may cite.
+        card_evidence=await _card_evidence(session, run),
         on_read_back_refused=(
             run_changes_module.SqlReadBackRefusalAudit(
                 sync_session, shop_id=run.shop_id, workflow_run_id=run.id

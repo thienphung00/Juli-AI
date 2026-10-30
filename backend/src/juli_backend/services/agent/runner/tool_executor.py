@@ -516,6 +516,7 @@ class ProductToolExecutor(DomainToolExecutor):
         approved_before_hashes: Mapping[str, str | None] | None = None,
         approved_tool_name: str | None = None,
         on_read_back_refused: ReadBackRefusalAudit | None = None,
+        card_evidence: Sequence[tuple[str, str]] = (),
     ) -> None:
         super().__init__(
             registry=registry,
@@ -564,6 +565,8 @@ class ProductToolExecutor(DomainToolExecutor):
         # P76-6: TikTok's diagnosis codes for this product, kept from this leg's
         # `get_product_diagnoses` read (`None` until read) for the listing proposal.
         self._flagged_codes: tuple[str, ...] | None = None
+        # P79: the action card's own evidence codes, `(code, source tag)`.
+        self._card_evidence = tuple(card_evidence)
 
     def _binding(self) -> ProductToolContext:
         """The `ProductToolContext` the product domain unwraps and hands to
@@ -584,6 +587,9 @@ class ProductToolExecutor(DomainToolExecutor):
             banned_terms=self._banned_terms,
             discount_rules=self._discount_rules,
             reverting=self._revert_expected is not None,
+            # P79: the product read lists the codes an edit may cite (TikTok's, once read).
+            flagged_codes=self._flagged_codes,
+            card_evidence=self._card_evidence,
         )
 
     def _proposal_binding(self, *, tool_name: str) -> ProductToolContext:
@@ -607,12 +613,16 @@ class ProductToolExecutor(DomainToolExecutor):
     ) -> Mapping[str, Any]:
         result = super().execute(tool_name=tool_name, params=params, tool_call_id=tool_call_id)
         if tool_name == GET_PRODUCT_DIAGNOSES_SPEC.name:
-            # P76-6: the codes the model read are the codes its edits may cite.
-            codes = result.get("codes") if not result.get("unavailable") else []
-            self._flagged_codes = tuple(
-                str(entry["code"])
-                for entry in codes or []
-                if isinstance(entry, Mapping) and entry.get("code")
+            # P76-6: the codes the model read are the codes its edits may cite. P79: an
+            # unavailable read is "not read" (`None`), never "TikTok flagged nothing".
+            self._flagged_codes = (
+                None
+                if result.get("unavailable")
+                else tuple(
+                    str(entry["code"])
+                    for entry in result.get("codes") or []
+                    if isinstance(entry, Mapping) and entry.get("code")
+                )
             )
         return result
 
