@@ -12,6 +12,7 @@ import {
   SANDBOX_SYNCING,
   SANDBOX_SYNC_UNAVAILABLE,
 } from "../../lib/reviewer/copy";
+import { useGuideMark } from "../../lib/reviewer/guide-context";
 import { parseServerIso } from "../../lib/vn-format";
 import { fetchSandboxShop, syncSandboxShop, type SandboxShop, type SyncResult } from "../../lib/reviewer/sandbox-client";
 
@@ -77,6 +78,7 @@ export function SandboxConnectionCard({
   refreshMs = SYNC_REFRESH_MS,
   maxPollMs = SYNC_POLL_MAX_MS,
 }: SandboxConnectionCardProps) {
+  const markGuide = useGuideMark();
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
@@ -154,6 +156,7 @@ export function SandboxConnectionCard({
   }, []);
 
   const onSync = () => {
+    markGuide("sync"); // P77: the reviewer pressed "Đồng bộ ngay"
     setBusy(true);
     setNotice(null);
     sync().then((result) => {

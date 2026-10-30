@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { REVIEWER_READ_ONLY_TITLE, REVIEWER_SANDBOX_READ_ONLY_TITLE } from "../lib/reviewer/copy";
 import { isSandboxReviewer } from "../lib/reviewer/mode";
 import { installAuthRefresh } from "../lib/auth-refresh";
+import { ReviewerGuideProvider, useGuideMark } from "../lib/reviewer/guide-context";
 import { ReviewerProvider, clearReviewerSignIn, useReviewer } from "../lib/reviewer/reviewer-context";
 import { resetReviewerSample } from "../lib/reviewer/sample-store";
 import { clearActiveShop, storeActiveShop } from "../lib/shop-session";
@@ -18,6 +19,7 @@ import { ReviewerBanner } from "./app-shell/reviewer-banner";
 import { TermStrip } from "./app-shell/term-strip";
 import { TermsAcceptanceStrip } from "./app-shell/terms-acceptance-strip";
 import { ShopHeader } from "./app-shell/shop-header";
+import { ReviewerGuide } from "./reviewer/reviewer-guide";
 import { DemoStateProvider, useDemoState } from "./demo-state";
 import { LandingEntryProvider, showsSampleDemo, useLandingEntry, type LandingEntry } from "./landing-entry";
 import { SellerViewProvider } from "./seller-view-context";
@@ -68,6 +70,7 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const { state } = useShopReport();
   const reviewer = useReviewer();
   const entry = useLandingEntry();
+  const markGuide = useGuideMark();
 
   // Đăng nhập (issue #1907) stays a real link to Supabase Auth, resolved on
   // mount (never during SSR) with the same builder the landing door uses.
@@ -99,10 +102,18 @@ function DemoShellContent({ children }: { children: ReactNode }) {
   const handleSwitchShop = (shop: ReviewerShopOption) => {
     if (!reviewer) return;
     resetReviewerSample();
+    // P77: the page reloads below, so the guide step is saved first (synchronously).
+    if (shop.mode === "sandbox") markGuide("switch");
     storeActiveShop({ id: shop.id, name: shop.name });
     storeReviewerRecord({ ...reviewer, mode: shop.mode, writesEnabled: shop.writesEnabled });
     window.location.assign("/");
   };
+
+  // P77: the guide's step 4 reuses the shop menu's switch handler.
+  const activeShopId = "shop" in state ? state.shop.id : null;
+  const switchTarget = reviewer?.shops?.find((shop) => shop.mode === "sandbox" && shop.id !== activeShopId);
+  // Already on the sandbox shop: nothing to switch to, the step is simply done.
+  const guideSwitch = switchTarget ? () => handleSwitchShop(switchTarget) : () => markGuide("switch");
 
   const handleSignOut = () => {
     resetReviewerSample();
@@ -157,7 +168,10 @@ function DemoShellContent({ children }: { children: ReactNode }) {
         {"token" in state && !reviewer ? <TermsAcceptanceStrip token={state.token} /> : null}
         {state.status === "ready" ? <TermStrip shopId={state.shop.id} token={state.token} /> : null}
         {state.status === "ready" && !reviewer ? <PermissionStrip shopId={state.shop.id} token={state.token} /> : null}
-        <main className="app-content">{page}</main>
+        <div className="app-shell__split">
+          <main className="app-content">{page}</main>
+          <ReviewerGuide onSwitchToSandbox={guideSwitch} />
+        </div>
       </div>
     </div>
   );
@@ -180,9 +194,11 @@ export function DemoShell({ children }: { children: ReactNode }) {
     <DemoStateProvider>
       <ShopReportProvider>
         <ReviewerProvider>
-          <LandingEntryProvider readKey={pathname}>
-            <DemoShellContent>{children}</DemoShellContent>
-          </LandingEntryProvider>
+          <ReviewerGuideProvider>
+            <LandingEntryProvider readKey={pathname}>
+              <DemoShellContent>{children}</DemoShellContent>
+            </LandingEntryProvider>
+          </ReviewerGuideProvider>
         </ReviewerProvider>
       </ShopReportProvider>
     </DemoStateProvider>

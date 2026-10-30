@@ -498,6 +498,11 @@ missing, draft per Design context, then add a keyed entry here in the same chang
 - VI: Đặt lại mô phỏng
 - Definition: P32-E: button in `reviewer.banner_sample`: drops every simulated decision, run and rule of the session and shows the sample as it started.
 
+**`reviewer.guide`**
+- EN: PARTNER REVIEWER GUIDE — "See Juli's live TikTok Shop integration in 8 steps" (phone: "Read a real shop, then write to a sandbox"); parts "Part 1 · A real seller's shop (read-only)" / "Part 2 · A TikTok sandbox shop (real writes)" / "Part 3 · Measure and undo" (phone tabs Read / Write / Check); progress "{n} of 8 done"; collapsed pill "Reviewer guide · {n}/8"; buttons "Continue with step {n}", "Done: you have seen read and write", "Start over"; icon buttons "Collapse the guide" / "Close the guide".
+- VI: (none — the guide is English, for the partner reviewer; the app names inside it are quoted verbatim: "Trang chủ", "Phân tích", "Quyết định › Đề xuất", "Duyệt", "Chuyển sang Shop sandbox TikTok", "Đồng bộ ngay", "Kết nối TikTok Shop", "Đo lường", "Hoàn tác")
+- Definition: P77 (fast track): the onboarding panel shown only to a partner reviewer account (never a seller), in `lib/reviewer/guide-copy.ts`. Opens on the first visit; "×" collapses it to the pill, the pill reopens it, Esc collapses it; open state and step progress are kept per user id in localStorage (works without storage). The 8 steps tick on their own (Trang chủ / Phân tích on the masked shop, Quyết định › Đề xuất or Duyệt on the masked shop, the shop switch, "Đồng bộ ngay", a sandbox run with a TikTok-confirmed write, Quyết định › Đo lường on the sandbox shop, starting a Hoàn tác) and by hand. No word "demo" anywhere in it.
+
 **`reviewer.switch_shop`**
 - EN: Switch to {shop} — "{masked name} · view only" / "TikTok sandbox shop · real writes"
 - VI: Chuyển sang {shop} — "{tên đã ẩn} · chỉ xem" / "Shop sandbox TikTok · ghi thật"
