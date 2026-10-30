@@ -41,6 +41,8 @@ export interface DiagnosisReading {
 export interface ListingQuality {
   before: DiagnosisReading | null;
   after: DiagnosisReading | null;
+  /** P76-5: "Sau sửa (TikTok kiểm tra)" -- TikTok's check of the draft before the write; null = not read. */
+  checked?: DiagnosisReading | null;
 }
 
 /**

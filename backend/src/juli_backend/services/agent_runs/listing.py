@@ -26,6 +26,7 @@ from juli_backend.models.models import (
 from juli_backend.models.models import WorkflowRun as WorkflowRunRow
 from juli_backend.models.models import WorkflowRunEvent as WorkflowRunEventRow
 from juli_backend.services import lever_flows
+from juli_backend.services.agent.tools.draft_scoring import DraftScore, stored_draft_score
 from juli_backend.services.agent_runs.confirmations import (
     PENDING_CONFIRMATION_STATUS,
     WAITING_APPROVAL_RUN_STATUS,
@@ -33,8 +34,10 @@ from juli_backend.services.agent_runs.confirmations import (
 from juli_backend.services.agent_runs.listing_quality import (
     MAX_RUNS,
     ListingQuality,
+    checked_reading,
     current_readings,
     day0_reading,
+    mark_stale,
 )
 
 STATUS_EVENT_TYPE = "workflow.status"
@@ -112,6 +115,9 @@ class ConfirmedWrite:
     confirmed_at: str | None
     discount_pct: int | None = None
     fields: tuple[str, ...] = ()
+    #: P76-5: a listing edit's stored TikTok check of the draft (not serialized; read
+    #: into ``listing_quality.checked``).
+    draft_score: DraftScore | None = None
 
 
 @dataclass(frozen=True)
@@ -230,10 +236,14 @@ async def _listing_quality(
     if not edits:
         return {}
     now = await current_readings(session, shop_id, [product_id for _, product_id in edits])
-    return {
-        run.id: ListingQuality(before=day0_reading(run.state), after=now.get(product_id))
-        for run, product_id in edits
-    }
+    found: dict[uuid.UUID, ListingQuality] = {}
+    for run, product_id in edits:
+        checked = checked_reading(written[run.id].draft_score)
+        after, stale = mark_stale(now.get(product_id), checked)
+        found[run.id] = ListingQuality(
+            before=day0_reading(run.state), after=after, checked=checked, stale_issues=stale
+        )
+    return found
 
 
 async def _ledger_flags(
@@ -312,6 +322,7 @@ def _confirmed_write(
         confirmed_at=confirmed_at,
         discount_pct=pct if isinstance(pct, int) and not isinstance(pct, bool) else None,
         fields=fields if kind == WRITE_LISTING_EDIT else (),
+        draft_score=stored_draft_score(outcome) if kind == WRITE_LISTING_EDIT else None,
     )
 
 

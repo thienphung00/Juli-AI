@@ -89,6 +89,7 @@ from juli_backend.integrations.tiktok import (
     TikTokAPIError,
 )
 from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
+from juli_backend.services.agent.tools.draft_scoring import DraftScore, score_confirmed_listing
 from juli_backend.services.agent.tools.listing_rules import (
     check_proposal,
     source_terms_not_in,
@@ -226,6 +227,9 @@ class UpdateProductListingOutput(BaseModel):
     title: str | None = None
     description: str | None = None
     image_attached: bool = False
+    #: P76-5: TikTok's check of the confirmed draft (``draft_scoring``); left out of the
+    #: dump when the write was not scored, so unscored outcomes keep their old shape.
+    draft_score: DraftScore | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 def _extract_leaf_category_id(product_detail: Mapping[str, Any]) -> str:
@@ -384,11 +388,15 @@ def handle_update_product_listing(
     params: UpdateProductListingInput,
 ) -> UpdateProductListingOutput:
     body = _build_listing_edit_body(params, context)
+    # P76-5 call site: TikTok scores the confirmed draft once, before the write; stored on
+    # the ledger outcome for Đo lường. Never blocks the write (``draft_scoring``).
+    draft_score = score_confirmed_listing(resources, context.product_id, body)
     resources.products.edit(product_id=context.product_id, body=body)
     return UpdateProductListingOutput(
         title=params.title,
         description=params.description,
         image_attached=params.attach_staged_image,
+        draft_score=draft_score,
     )
 
 

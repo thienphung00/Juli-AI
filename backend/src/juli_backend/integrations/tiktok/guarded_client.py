@@ -40,6 +40,25 @@ class GuardedTikTokClient(TikTokClient):
         self._capability = capability
         self._merchant_auth_id = merchant_auth_id
 
+    def with_own_session(self) -> GuardedTikTokClient:
+        """The same guarded client -- credentials, signing, guard, capability -- on a fresh
+        ``requests.Session``, for a call that may still be running on another thread when
+        this client's next request goes out (``requests.Session`` is not guaranteed
+        thread-safe). The caller closes it (:meth:`close`)."""
+        return GuardedTikTokClient(
+            TikTokClient(
+                app_key=self._app_key,
+                app_secret=self._app_secret,
+                access_token=self._access_token,
+                base_url=self._base_url,
+                shop_cipher=self._shop_cipher,
+                timeout=self._timeout,
+            ),
+            guard=self._guard,
+            capability=self._capability,
+            merchant_auth_id=self._merchant_auth_id,
+        )
+
     @overload
     def get(
         self,
