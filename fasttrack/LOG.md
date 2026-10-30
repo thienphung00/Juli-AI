@@ -3279,3 +3279,39 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Files: `lib/reviewer/{guide-copy.ts,guide-store.ts,guide-context.tsx}`, `components/reviewer/reviewer-guide.tsx`,
   `components/demo-shell.tsx`, `sandbox-connection-card.tsx`, `quyet-dinh-view.tsx`, `app/globals.css` (`.rg-*`),
   test `components/__tests__/reviewer-guide.test.tsx`.
+
+## 2026-10-30 — agent (Claude Opus) — P76-6: shop voice profile, prompt v4, listing edits as operations (D78)
+
+- Edits: `update_product_listing` gains `edits: ListingEditOps | None` (strict: the
+  discriminated `description_ops` union now converts to `anyOf`, `strict_schema`). New
+  `ToolDomain.resolvers` run first for a CONFIRM proposal: `resolve_update_product_listing`
+  reads the current listing (the run's captured detail, else one GetProduct), applies the ops
+  with the product's flagged codes and returns params with the applied full title/description
+  (`edits` dropped) -> normalizer -> precheck/validator -> pause, unchanged. The consent panel
+  and `params_sha` see the applied text. `EditRejection` (+ `edits_with_text`,
+  `edits_change_nothing`, `listing_unavailable`) -> `listing_rules.edit_refusal`, one redraft
+  then the run ends (`proposal_refusals`). `get_product_information` adds
+  `description_sections` (numbered sections, vendor text, 3 000-char budget).
+- Flagged codes: `ProductToolExecutor` keeps the codes its leg's `get_product_diagnoses`
+  returned and binds them for the resolver and precheck (`validate_listing_proposal(
+  flagged_codes=...)`, was empty). Not read this leg + an `append_section` op: the resolver reads
+  diagnoses once; a failed read fails closed (no append).
+- Voice profile: `services/optimize_product/voice_profile.py` (pure): title token-class pattern,
+  median title / description-text length, emoji and ALL-CAPS rates, addressing (ban / anh_chi /
+  chi_em / none), bullets vs paragraphs, recurring 2-3-word phrases, 3 examples capped at 1 500
+  chars; vendor text wrapped + `guard_inbound_tool_result` (a hit drops examples/phrases).
+  Worker first leg only (`agent_workflow._attach_voice_profile`): one `products` query (revenue,
+  units_sold, catalog order) + up to 5 GetProduct reads (bound product skipped), cached per shop
+  6 h in-process; added to the opening `juli` context as `voice_profile`. No reviewer route.
+- Prompt v4 (`optimize_product/v4.md`, pinned): edits never a rewrite, the D78 rules, the shop's
+  voice, Prohibition 9. Composed 2 406 proxy tokens (v3 2 997, -591). Tool schema +~480 tokens
+  (`edits`); per run + voice profile (~150 + <= ~1 150 examples) and `description_sections`
+  (~description text / 4, <= ~750). `max_output_tokens` 1024 unchanged: ops are shorter than a
+  rewrite. No input-token cap exists (cost cap only).
+- Tests: test_p76_listing_edit_ops.py, test_p76_voice_profile.py, v4 contract + snapshot,
+  budget/compose/fences/strict-schema updates, sanitize + golden-scenario fixtures regenerated.
+- Before `LISTING_VALIDATOR_ENFORCE=1`: one sandbox Optimize Product run on v4 -- the model sends
+  `edits` (not title/description), the consent shows full text with the seller's sentences kept,
+  no `listing_proposal_violation_logged` for length/token rules, the voice profile is in the
+  opening context.
+

@@ -151,10 +151,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import logging
 import os
 import uuid
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator, Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -630,6 +631,110 @@ async def _write_resources_for_leg(
     return await _default_write_resources(session), None, None
 
 
+#: P76-6: how many of the shop's best sellers have their description read (TikTok
+#: GetProduct, one call each) for the voice profile; the first ones become its examples.
+VOICE_PROFILE_DETAIL_READS = 5
+
+
+@functools.cache
+def _voice_profile_cache() -> Any:
+    """The process-wide voice-profile cache (P76-6), built on first use."""
+    from juli_backend.services.optimize_product import voice_profile as voice_module
+
+    return voice_module.VoiceProfileCache(clock=lambda: datetime.now(UTC))
+
+
+async def _voice_profile_block(
+    session: AsyncSession, run: WorkflowRun, product: Product, read_resources: Any
+) -> Any:
+    """The shop's ``voice_profile`` opening-context block (P76-6, D78), cached per shop.
+
+    The shop's listings come from ``products`` -- best sellers first (``revenue``,
+    then ``units_sold``, then catalog order) -- one query; the descriptions of the
+    :data:`VOICE_PROFILE_DETAIL_READS` best sellers other than the bound product come
+    from TikTok, one read each (a failed read only drops that description). A worker
+    leg only: no reviewer route reaches this.
+    """
+    from juli_backend.services.agent import composition as composition_module
+    from juli_backend.services.optimize_product import voice_profile as voice_module
+
+    cache = _voice_profile_cache()
+    hit, block = cache.get(run.shop_id)
+    if hit:
+        return block
+    rows = (
+        await session.execute(
+            select(Product.tiktok_product_id, Product.title)
+            .where(Product.shop_id == run.shop_id, Product.title.is_not(None))
+            .order_by(
+                Product.revenue.desc(), Product.units_sold.desc(), Product.created_at, Product.id
+            )
+            .limit(voice_module.MAX_LISTINGS)
+        )
+    ).all()
+    listings: list[Any] = []
+    examples: list[Any] = []
+    reads = 0
+    for tiktok_product_id, title in rows:
+        listing = voice_module.ShopListing(title=str(title))
+        if (
+            tiktok_product_id != product.tiktok_product_id
+            and read_resources is not None
+            and reads < VOICE_PROFILE_DETAIL_READS
+        ):
+            reads += 1
+            detail = composition_module.read_listing_detail(read_resources, tiktok_product_id)
+            if detail is not None:
+                brand = detail.get("brand")
+                listing = voice_module.ShopListing(
+                    title=str(detail.get("title") or title),
+                    description_html=detail.get("description") or None,
+                    brand=(brand.get("name") or None) if isinstance(brand, Mapping) else None,
+                )
+                examples.append(listing)
+        listings.append(listing)
+    profile = voice_module.build_voice_profile(listings, example_listings=examples)
+    block = voice_module.voice_profile_context(profile)
+    cache.put(run.shop_id, block)
+    return block
+
+
+async def _attach_voice_profile(
+    session: AsyncSession, run: WorkflowRun, product: Product, read_resources: Any
+) -> None:
+    """Put the shop's voice profile into a fresh run's opening context (P76-6).
+
+    Only before the model's first turn (one opening message, no iteration yet) and only
+    once; a later leg, or a run whose opening context already carries one, is left
+    alone. Never fails the run: a profile that cannot be built is logged and skipped.
+    """
+    import json
+
+    state = run.state if isinstance(run.state, dict) else {}
+    window = state.get("conversation_window")
+    if state.get("iteration_count") or not isinstance(window, list) or len(window) != 1:
+        return
+    try:
+        opening = json.loads(str(window[0].get("content") or ""))
+    except (ValueError, AttributeError):
+        return
+    if not isinstance(opening, dict) or "voice_profile" in opening:
+        return
+    try:
+        block = await _voice_profile_block(session, run, product, read_resources)
+    except Exception:  # advisory context: the run proceeds without it
+        logger.exception("voice_profile_unavailable", extra={"run_id": str(run.id)})
+        return
+    if not block:
+        return
+    opening["voice_profile"] = block
+    new_window = [{**window[0], "content": json.dumps(opening)}]
+    run.state = {**state, "conversation_window": new_window}
+    # Written now, under the run's own shop scope: a later autoflush could land inside
+    # another scope (the sandbox credential read) where the row is not visible.
+    await session.flush()
+
+
 async def _construct_runner(
     session: AsyncSession,
     sync_session: Session,
@@ -732,6 +837,11 @@ async def _construct_runner(
         sync_session, shop_id=run.shop_id, workflow_id=playbook.workflow_key
     )
     read_resources = await _default_read_resources(session, shop_id=run.shop_id)
+    if not (revert_plan or flow or content) and any(
+        "update_product_listing" in step.tools for step in playbook.steps
+    ):
+        # P76-6 (D78): prompt v4 edits in the shop's own voice.
+        await _attach_voice_profile(session, run, product, read_resources)
     write_resources, live_call, live_leg = await _write_resources_for_leg(
         session,
         run,

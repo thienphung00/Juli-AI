@@ -167,8 +167,12 @@ from juli_backend.services.agent.tools.domains import (
     RunSubject,
     ToolContext,
 )
-from juli_backend.services.agent.tools.product import ProductToolContext
+from juli_backend.services.agent.tools.product import (
+    GET_PRODUCT_DIAGNOSES_SPEC,
+    ProductToolContext,
+)
 from juli_backend.services.agent.tools.product_write import (
+    UPDATE_PRODUCT_LISTING_SPEC,
     UpdateProductListingInput,
     UpdateProductPriceInput,
     cover_replaced_image_uris,
@@ -305,6 +309,56 @@ class DomainToolExecutor:
 
     # --- pre-confirmation check (P64) ------------------------------------------
 
+    def _proposal_binding(self, *, tool_name: str) -> Any:
+        """The binding a resolver / precheck sees for `tool_name` (P76-6).
+
+        `_binding()` by default; the product executor adds what the run has read so far
+        (the product detail, TikTok's flagged codes) without changing what handlers see.
+        """
+        return self._binding()
+
+    def _proposal_context(self, *, tool_name: str) -> tuple[Any, Any] | None:
+        """`(resources, bound context)` for a proposal hook, or `None` when the domain
+        needs resources this executor lacks. Read bundle first (never writes)."""
+        spec = self._registry.get(tool_name)
+        domain = get_tool_domain(spec.domain)
+        resources = (
+            self._read_resources if self._read_resources is not None else self._write_resources
+        )
+        if domain.takes_resources and resources is None:
+            return None
+        context = ToolContext(
+            subject=self._subject,
+            resources=resources,
+            binding=self._proposal_binding(tool_name=tool_name),
+        )
+        return resources, domain.context_for(context)
+
+    def resolve_proposal(
+        self, *, tool_name: str, params: BaseModel
+    ) -> tuple[BaseModel | None, Mapping[str, Any] | None]:
+        """The domain's resolution of a CONFIRM proposal (P76-6), before the normalizer.
+
+        `(new_params, None)` when the resolver rewrote the proposal (edit operations
+        applied to the current listing), `(None, refusal)` when it refused it (the
+        refusal's dumped model), `(None, None)` when there is nothing to resolve.
+        Read-only.
+        """
+        spec = self._registry.get(tool_name)
+        resolver = get_tool_domain(spec.domain).resolvers.get(tool_name)
+        if resolver is None:
+            return None, None
+        bound = self._proposal_context(tool_name=tool_name)
+        if bound is None:
+            return None, None
+        resources, context = bound
+        resolution = resolver(resources, context, params)
+        if resolution is None:
+            return None, None
+        if resolution.refusal is not None:
+            return None, resolution.refusal.model_dump(mode="json")
+        return resolution.params, None
+
     def normalize_proposal(self, *, tool_name: str, params: BaseModel) -> BaseModel | None:
         """The domain's rewrite of a CONFIRM proposal (P69: the filtered listing text), or
         `None` when it has no normalizer or nothing changes. Pure; runs before `precheck`."""
@@ -321,17 +375,14 @@ class DomainToolExecutor:
         exists); never writes, never touches the ledger.
         """
         spec = self._registry.get(tool_name)
-        domain = get_tool_domain(spec.domain)
-        check = domain.prechecks.get(tool_name)
+        check = get_tool_domain(spec.domain).prechecks.get(tool_name)
         if check is None:
             return None
-        resources = (
-            self._read_resources if self._read_resources is not None else self._write_resources
-        )
-        if domain.takes_resources and resources is None:
+        bound = self._proposal_context(tool_name=tool_name)
+        if bound is None:
             return None
-        context = ToolContext(subject=self._subject, resources=resources, binding=self._binding())
-        refusal = check(resources, domain.context_for(context), params)
+        resources, context = bound
+        refusal = check(resources, context, params)
         return None if refusal is None else refusal.model_dump(mode="json")
 
     # --- dispatch -------------------------------------------------------------
@@ -510,6 +561,9 @@ class ProductToolExecutor(DomainToolExecutor):
         self._approved_before_hashes = dict(approved_before_hashes or {})
         self._approved_tool_name = approved_tool_name
         self._on_read_back_refused = on_read_back_refused
+        # P76-6: TikTok's diagnosis codes for this product, kept from this leg's
+        # `get_product_diagnoses` read (`None` until read) for the listing proposal.
+        self._flagged_codes: tuple[str, ...] | None = None
 
     def _binding(self) -> ProductToolContext:
         """The `ProductToolContext` the product domain unwraps and hands to
@@ -531,6 +585,36 @@ class ProductToolExecutor(DomainToolExecutor):
             discount_rules=self._discount_rules,
             reverting=self._revert_expected is not None,
         )
+
+    def _proposal_binding(self, *, tool_name: str) -> ProductToolContext:
+        """P76-6: a listing proposal is resolved and checked against what the run read.
+
+        The product detail `get_product_information` captured (the concurrency basis)
+        when the constructor got none -- the first leg -- and the TikTok-flagged codes
+        this leg's `get_product_diagnoses` returned (`None` when it was not called; the
+        resolver then reads them itself, only if an op needs them).
+        """
+        binding = self._binding()
+        if tool_name != UPDATE_PRODUCT_LISTING_SPEC.name:
+            return binding
+        detail = binding.product_detail
+        if detail is None and self._concurrency_guard is not None:
+            detail = self._concurrency_guard.get_product_detail()
+        return replace(binding, product_detail=detail, flagged_codes=self._flagged_codes)
+
+    def execute(
+        self, *, tool_name: str, params: BaseModel, tool_call_id: str | None = None
+    ) -> Mapping[str, Any]:
+        result = super().execute(tool_name=tool_name, params=params, tool_call_id=tool_call_id)
+        if tool_name == GET_PRODUCT_DIAGNOSES_SPEC.name:
+            # P76-6: the codes the model read are the codes its edits may cite.
+            codes = result.get("codes") if not result.get("unavailable") else []
+            self._flagged_codes = tuple(
+                str(entry["code"])
+                for entry in codes or []
+                if isinstance(entry, Mapping) and entry.get("code")
+            )
+        return result
 
     def _image_staged(self, uri: str) -> None:
         self._staged_image_uri = uri

@@ -66,8 +66,10 @@ _VIETNAMESE_DIACRITIC = re.compile(f"[{_VIETNAMESE_LETTERS}{_VIETNAMESE_LETTERS.
 # frozen expectation, not by comparing the source against itself.
 EXPECTED_DESCRIPTIONS: dict[str, str] = {
     "get_product_information": (
-        "Read the bound product's listing: title, description, status, "
-        "last-updated time, SKU count and prices, total inventory, and image sizes."
+        # P76-6: the numbered sections the listing edit operations address.
+        "Read the bound product's listing: title, description (also as numbered "
+        "sections, the indices edit operations use), status, last-updated time, SKU "
+        "count and prices, total inventory, and image sizes."
     ),
     "get_product_diagnoses": (
         "Read the diagnosis codes TikTok has raised for the bound product's listing, "
@@ -105,8 +107,10 @@ EXPECTED_DESCRIPTIONS: dict[str, str] = {
         "called with attach_staged_image=True."
     ),
     "update_product_listing": (
+        # P76-6: prompt v4 proposes the listing text as edit operations.
         "Apply agent-authored title/description (and, if attach_staged_image is true, "
-        "the run's staged image) to the bound product's listing."
+        "the run's staged image) to the bound product's listing. Propose listing text "
+        "as edits to the current listing (the edits field)."
     ),
     "update_product_price": (
         "Apply new SKU prices (by opaque sku_ref) to the bound product. Independently "
