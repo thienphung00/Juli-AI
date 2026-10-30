@@ -41,6 +41,7 @@ from juli_backend.services.agent.tools.product import (
 from juli_backend.services.agent.tools.product_write import (
     PRODUCT_WRITE_TOOL_HANDLERS,
     precheck_update_product_listing,
+    resolve_update_product_listing,
 )
 
 #: The subject kind a product tool acts on -- `workflow_runs.subject_type`
@@ -93,6 +94,8 @@ PRODUCT_TOOL_DOMAIN = ToolDomain(
     handlers=PRODUCT_TOOL_HANDLERS,
     # P64 (D73.5): the shop's listing rules gate the proposal before the seller is asked.
     prechecks={"update_product_listing": precheck_update_product_listing},
+    # P76-6 (D78): the model's edit operations become the full text before the check.
+    resolvers={"update_product_listing": resolve_update_product_listing},
     subject_types=PRODUCT_SUBJECT_TYPES,
     bind_context=bind_product_context,
 )

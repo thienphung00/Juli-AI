@@ -16,6 +16,10 @@ implements their handlers:
 - `update_product_listing` wraps `products.edit` with agent-authored
   title/description and, when the run staged one, the image the run already
   uploaded. WRITE / **CONFIRM** (playbook step 5).
+  Fast track P76-6 (D78): prompt v4 proposes the text as `edits` (edit operations
+  on the current listing); `resolve_update_product_listing`, the product domain's
+  resolver, applies them before the seller is asked, so the proposal, the consent
+  and this handler only ever carry full text.
 - `update_product_price` wraps `products.update_prices`. WRITE / **CONFIRM**,
   independently rejectable from the listing edit — a separate capability, not
   a bundled step, because a seller confirming new copy has not thereby
@@ -87,15 +91,17 @@ from juli_backend.integrations.tiktok import (
     PRODUCT_CATEGORY_VERSION,
     SandboxWriteResources,
     TikTokAPIError,
+    TransportGuardError,
 )
-from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
+from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN, ProposalResolution
 from juli_backend.services.agent.tools.draft_scoring import DraftScore, score_confirmed_listing
 from juli_backend.services.agent.tools.listing_rules import (
     check_proposal,
+    edit_refusal,
     source_terms_not_in,
     validation_refusal,
 )
-from juli_backend.services.agent.tools.product import ProductToolContext
+from juli_backend.services.agent.tools.product import ProductToolContext, parse_diagnosis_codes
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
     ToolPolicy,
@@ -103,6 +109,13 @@ from juli_backend.services.agent.tools.registry import (
     ToolSpec,
 )
 from juli_backend.services.execution.file_screening import screen_and_reencode_image
+from juli_backend.services.shop_rules.listing_structure import (
+    AppendSection,
+    EditRejection,
+    ListingEditOps,
+    RejectionCode,
+    apply_ops,
+)
 from juli_backend.services.shop_rules.listing_validator import (
     enforced_violations,
     validate_listing_proposal,
@@ -221,6 +234,20 @@ class UpdateProductListingInput(BaseModel):
     title: str | None = None
     description: str | None = None
     attach_staged_image: bool = False
+    # P76-6 (D78): the edit operations Juli applies to the CURRENT title/description
+    # (`listing_structure.apply_ops`); the proposal shown to the seller is the applied
+    # full text, never the operations, so the resolved params drop this field.
+    edits: ListingEditOps | None = Field(
+        default=None,
+        description=(
+            "Edits to the current listing, applied by Juli: title_ops replace one exact "
+            "span of the title; description_ops replace an exact span inside one "
+            "numbered section, insert a paragraph after a section, or append a section "
+            "(only for a flagged diagnosis code). Every op carries the TikTok diagnosis "
+            "code it fixes. When set, leave title and description null."
+        ),
+        exclude_if=lambda value: value is None,
+    )
 
 
 class UpdateProductListingOutput(BaseModel):
@@ -400,6 +427,97 @@ def handle_update_product_listing(
     )
 
 
+def _current_detail(resources: Any, context: ProductToolContext) -> Mapping[str, Any] | None:
+    """The listing as the run read it, else one read now; `None` when TikTok cannot say."""
+    detail = context.product_detail
+    if isinstance(detail, Mapping):
+        return detail
+    try:
+        fetched = resources.products.get_details(context.product_id)
+    except TikTokAPIError:  # the write re-reads; never block the proposal on a read
+        return None
+    return fetched if isinstance(fetched, Mapping) else None
+
+
+def _flagged_codes(
+    resources: Any, context: ProductToolContext, ops: ListingEditOps
+) -> tuple[str, ...]:
+    """The product's TikTok-flagged codes for `apply_ops`: the run's own read, else --
+    only when an op appends a section, the one op that needs them -- one read now.
+    A failed read fails closed (no code, so no section may be appended)."""
+    if context.flagged_codes is not None:
+        return context.flagged_codes
+    if not any(isinstance(op, AppendSection) for op in ops.description_ops):
+        return ()
+    try:
+        raw = resources.products.get_diagnoses([context.product_id])
+    except (TikTokAPIError, TransportGuardError):
+        return ()
+    codes = parse_diagnosis_codes(raw, product_id=context.product_id)
+    return tuple(str(entry["code"]) for entry in codes)
+
+
+def resolve_update_product_listing(
+    resources: Any, context: ProductToolContext, params: UpdateProductListingInput
+) -> ProposalResolution | None:
+    """P76-6 (D78): the model's edit operations applied to the current listing.
+
+    `None` when the proposal carries no `edits` (a whole title / description, as a
+    revert or prompt v3 sends). Otherwise the params with the APPLIED full title and/or
+    description (a field the operations leave alone stays `None`, so the seller is
+    shown only what changes) and `edits` dropped -- or a refusal: `edits` sent with a
+    title / description, the current listing unreadable, an `EditRejection` from
+    `apply_ops` (its machine code and English message go back to the model), or
+    operations that change nothing. Read-only.
+    """
+    edits = params.edits
+    if edits is None:
+        return None
+    if params.title is not None or params.description is not None:
+        return ProposalResolution(
+            refusal=edit_refusal(
+                "edits_with_text",
+                "Send either edits or title/description, not both; with edits, leave "
+                "title and description null.",
+            )
+        )
+    detail = _current_detail(resources, context)
+    if detail is None:
+        return ProposalResolution(
+            refusal=edit_refusal(
+                "listing_unavailable",
+                "The current listing could not be read, so the edits cannot be applied.",
+                retry=False,
+            )
+        )
+    current_title = str(detail.get("title") or "")
+    current_description = str(detail.get("description") or "")
+    flagged = _flagged_codes(resources, context, edits)
+    result = apply_ops(current_title, current_description, edits, flagged)
+    if isinstance(result, EditRejection):
+        where = "" if result.op_index is None else f" ({result.field} operation {result.op_index})"
+        return ProposalResolution(
+            refusal=edit_refusal(
+                result.code.value,
+                f"{result.message}{where}",
+                retry=result.code is not RejectionCode.LISTING_OVER_LIMITS,
+            )
+        )
+    title = result.title if result.title != current_title else None
+    description = (
+        result.description_html if result.description_html != current_description else None
+    )
+    if title is None and description is None:
+        return ProposalResolution(
+            refusal=edit_refusal(
+                "edits_change_nothing",
+                "The edits leave the title and description exactly as they are.",
+            )
+        )
+    resolved = params.model_copy(update={"title": title, "description": description, "edits": None})
+    return ProposalResolution(params=resolved)
+
+
 def precheck_update_product_listing(
     resources: Any, context: ProductToolContext, params: UpdateProductListingInput
 ) -> BaseModel | None:
@@ -408,14 +526,10 @@ def precheck_update_product_listing(
     The shop's banned terms, and the built-in source-title rule: a free-text attribute
     value or brand name of this product that its current title and description do not
     already carry is not introduced (``listing_rules``); then the P76-4 post-validator
-    (``shop_rules.listing_validator``) against the listing as it is now. Read-only.
+    (``shop_rules.listing_validator``) against the listing as it is now, with the
+    product's TikTok-flagged codes (P76-6). Read-only.
     """
-    detail = context.product_detail
-    if not isinstance(detail, Mapping):
-        try:
-            detail = resources.products.get_details(context.product_id)
-        except TikTokAPIError:  # the write re-reads; never block the proposal on a read
-            detail = None
+    detail = _current_detail(resources, context)
     reference = " ".join(str((detail or {}).get(key) or "") for key in ("title", "description"))
     refusal = check_proposal(
         {"title": params.title, "description": params.description},
@@ -433,6 +547,7 @@ def precheck_update_product_listing(
         current_description_html=_text_or_none(current.get("description")),
         proposed_title=params.title,
         proposed_description_html=params.description,
+        flagged_codes=context.flagged_codes or (),
         brand_terms=(brand_name,) if brand_name else (),
     )
     return validation_refusal(enforced_violations(validation))
@@ -446,7 +561,8 @@ UPDATE_PRODUCT_LISTING_SPEC = ToolSpec(
     name="update_product_listing",
     description=(
         "Apply agent-authored title/description (and, if attach_staged_image is true, "
-        "the run's staged image) to the bound product's listing."
+        "the run's staged image) to the bound product's listing. Propose listing text "
+        "as edits to the current listing (the edits field)."
     ),
     # dictionary.md `run.option_rationale.update_product_listing` (issue
     # #1904, W6-FIX). This is the string that replaced `description` above

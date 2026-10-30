@@ -28,5 +28,17 @@
         "height": 1200
       }
     ]
+  },
+  "description_sections": {
+    "items": [
+      {
+        "index": 0,
+        "kind": "paragraph",
+        "text": {
+          "source": "vendor",
+          "text": "[TRUNCATED — HTML product description]"
+        }
+      }
+    ]
   }
 }

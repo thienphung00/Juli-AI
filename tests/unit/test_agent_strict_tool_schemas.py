@@ -15,6 +15,7 @@ driven by the scripted fake LLM.
 from __future__ import annotations
 
 import copy
+import json
 import logging
 from typing import Any
 
@@ -112,8 +113,11 @@ def test_every_playbook_offers_only_strict_tools(playbook: Playbook) -> None:
 
 
 def test_update_product_listing_wire_body_golden() -> None:
-    """The exact function entry OpenAI receives for the listing write."""
-    assert _wire("update_product_listing") == {
+    """The exact function entry OpenAI receives for the listing write (edits: below)."""
+    wire = _wire("update_product_listing")
+    edits = wire["parameters"]["properties"].pop("edits")
+    assert wire["parameters"]["required"].pop() == "edits"
+    assert wire == {
         "type": "function",
         "name": "update_product_listing",
         "description": _REGISTRY.get("update_product_listing").description,
@@ -137,6 +141,59 @@ def test_update_product_listing_wire_body_golden() -> None:
         },
         "strict": True,
     }
+    assert edits["anyOf"][-1] == {"type": "null"}
+    assert "edits to the current listing" in edits["description"].lower()
+
+
+def test_listing_edit_ops_convert_to_a_closed_any_of_union() -> None:
+    """P76-6: the discriminated `description_ops` union goes out as `anyOf` of closed
+    objects, each pinned by its `op` const; the Pydantic `discriminator` is dropped."""
+    edits = _wire("update_product_listing")["parameters"]["properties"]["edits"]["anyOf"][0]
+    assert edits["required"] == ["title_ops", "description_ops"]
+    title_op = edits["properties"]["title_ops"]["items"]
+    assert title_op["properties"]["op"] == {"const": "replace_title_span", "type": "string"}
+    branches = edits["properties"]["description_ops"]["items"]["anyOf"]
+    assert [b["properties"]["op"]["const"] for b in branches] == [
+        "replace_span",
+        "insert_after",
+        "append_section",
+    ]
+    for branch in branches:
+        assert branch["additionalProperties"] is False
+        assert branch["required"] == list(branch["properties"])
+        assert "reason_code" in branch["required"]
+    assert "discriminator" not in json.dumps(edits) and "oneOf" not in json.dumps(edits)
+
+
+def test_a_strict_edits_call_parses_into_listing_edit_ops() -> None:
+    params = _REGISTRY.get("update_product_listing").parse_input(
+        {
+            "title": None,
+            "description": None,
+            "attach_staged_image": None,
+            "edits": {
+                "title_ops": [
+                    {"op": "replace_title_span", "old": "a", "new": "b", "reason_code": "TITLE_X"}
+                ],
+                "description_ops": [
+                    {"op": "insert_after", "section_index": 0, "text": "t", "reason_code": "DESC_X"}
+                ],
+            },
+        }
+    )
+    assert params.edits is not None
+    assert params.edits.description_ops[0].op == "insert_after"
+    assert params.attach_staged_image is False
+
+
+def test_discriminator_without_one_of_is_refused() -> None:
+    schema = {
+        "type": "object",
+        "properties": {"a": {"type": "object", "discriminator": {"propertyName": "op"}}},
+    }
+    with pytest.raises(StrictSchemaError, match="discriminator") as raised:
+        to_strict(schema)
+    assert "$.a" in str(raised.value)
 
 
 def test_nested_model_is_inlined_and_closed() -> None:

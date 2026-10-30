@@ -229,6 +229,7 @@ class TestNoIdentifierOrRawVendorValueInAnyInputSchema:
             "title",
             "description",
             "attach_staged_image",
+            "edits",  # P76-6: edit operations, no identifier
         }
 
     def test_update_product_price_input_has_exactly_skus(self):

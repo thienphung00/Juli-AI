@@ -1,7 +1,7 @@
 {
   "scenario_id": "optimize-product-confirm-pause",
   "workflow_key": "optimize_product_2",
-  "prompt_sha256": "eb8f6d0101622ecaaf2f2ea97d5ac71a39d63ac05781435c27f113cf78eb717b",
+  "prompt_sha256": "8199785be88d0dd060e17e833140251786097444c04db446db8455cce80e8727",
   "captured_at": "2026-01-01T00:00:00+00:00",
   "events": [
     {
@@ -12,7 +12,7 @@
       "payload": {
         "workflow_key": "optimize_product_2",
         "product_ref": "product-ref-ba227180",
-        "prompt_version": "optimize_product.v3"
+        "prompt_version": "optimize_product.v4"
       },
       "v": 1
     },

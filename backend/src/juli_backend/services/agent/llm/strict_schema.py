@@ -34,6 +34,8 @@ developers.openai.com/api/docs/guides/structured-outputs, read 2026-10-29):
   model still sees them as a sentence appended to the field's description.
 - ``$defs`` are inlined (Pydantic renders nested models as ``$ref``); a recursive
   model raises -- no registered tool has one.
+- A discriminated union (``oneOf`` + ``discriminator``, P76-6) becomes ``anyOf``: its
+  branches are disjoint by their ``const`` tag, so nothing is widened.
 - Anything else outside the supported list raises `StrictSchemaError`. No silent
   degrade: the CI registry test (`tests/unit/test_agent_strict_tool_schemas.py`) is the
   gate (D78.5); the adapter catches the error at request time, logs it, and sends that
@@ -132,6 +134,8 @@ def _convert(
         resolving = (*resolving, str(node.pop("__ref__")))
     if "allOf" in node:
         node = _unwrap_all_of(node, path=path)
+    if "discriminator" in node:
+        node = _discriminated_union(node, path=path)
 
     out: dict[str, Any] = {}
     hints = " ".join(hint for hint in (_length_hint(node), _default_hint(node)) if hint)
@@ -195,6 +199,21 @@ def _unwrap_all_of(node: dict[str, Any], *, path: str) -> dict[str, Any]:
     if not isinstance(branches, list) or len(branches) != 1:
         raise StrictSchemaError(f"{path}: allOf is not supported in strict mode")
     return {**dict(branches[0]), **node}
+
+
+def _discriminated_union(node: dict[str, Any], *, path: str) -> dict[str, Any]:
+    """A Pydantic discriminated union (``oneOf`` + ``discriminator``) as ``anyOf``.
+
+    P76-6: ``ListingEditOps.description_ops`` is a union keyed on ``op``. Pydantic pins
+    each branch's tag with a ``const``, so at most one branch matches any value and
+    ``anyOf`` accepts exactly what ``oneOf`` did; the ``discriminator`` itself is an
+    annotation and is dropped. A ``discriminator`` without a ``oneOf`` is refused.
+    """
+    branches = node.pop("oneOf", None)
+    node.pop("discriminator")
+    if not isinstance(branches, list) or "anyOf" in node:
+        raise StrictSchemaError(f"{path}: discriminator without a oneOf union is not supported")
+    return {**node, "anyOf": branches}
 
 
 def _length_hint(node: Mapping[str, Any]) -> str:

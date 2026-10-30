@@ -70,6 +70,7 @@ RELEASED_PROMPT_VERSIONS = (
         ),
     ),
     3,
+    4,
 )
 
 

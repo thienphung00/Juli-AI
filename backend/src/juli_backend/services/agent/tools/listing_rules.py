@@ -143,14 +143,41 @@ def validation_refusal(violations: Sequence[ListingViolation]) -> ProposalRefusa
     )
 
 
+#: P76-6: the machine code a refused set of edit operations carries.
+ERROR_LISTING_EDIT_REJECTED = "listing_edit_rejected"
+
+
+def edit_refusal(code: str, message: str, *, retry: bool = True) -> ProposalRefusal:
+    """P76-6: edit operations Juli could not apply, as one refusal (D78).
+
+    ``code`` is the machine reason (an ``listing_structure.RejectionCode`` value, or
+    ``edits_with_text`` / ``edits_change_nothing`` / ``listing_unavailable``) and
+    ``message`` the English fix for the model's one redraft. The seller reads the same
+    lines a rule refusal shows -- never the vendor text or the operations.
+    """
+    next_step = (
+        "Fix it and call the tool again (once) with edits; a second refusal ends the run."
+        if retry
+        else "Do not call the tool again; end the run and say the listing cannot be edited."
+    )
+    return ProposalRefusal(
+        error_code=ERROR_LISTING_EDIT_REJECTED,
+        summary_vi=RULE_REFUSAL_SUMMARY_VI,
+        model_hint=f"error_code={ERROR_LISTING_EDIT_REJECTED}: [{code}] {message} {next_step}",
+        final_summary_vi=RULE_REFUSAL_FINAL_VI,
+    )
+
+
 __all__ = [
     "DESCRIPTION_RETRY_HINT",
+    "ERROR_LISTING_EDIT_REJECTED",
     "ERROR_RULE_VIOLATION",
     "ERROR_SOURCE_NAME_NOT_IN_TITLE",
     "RULE_REFUSAL_FINAL_VI",
     "RULE_REFUSAL_SUMMARY_VI",
     "ProposalRefusal",
     "check_proposal",
+    "edit_refusal",
     "redact_terms",
     "source_terms_not_in",
     "validation_refusal",

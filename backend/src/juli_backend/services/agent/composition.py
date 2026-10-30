@@ -101,6 +101,8 @@ from juli_backend.integrations.tiktok import (
     ProductionReadResources,
     ProductionWriteResources,
     SandboxWriteResources,
+    TikTokAPIError,
+    TransportGuardError,
     is_read_capability,
 )
 from juli_backend.models.models import WRITE_MODE_LIVE, WRITE_MODE_SIMULATED, TikTokCredential
@@ -641,6 +643,18 @@ async def settle_live_write_mode(
         run.write_mode = WRITE_MODE_SIMULATED
         await session.flush()
     return run.write_mode
+
+
+def read_listing_detail(resources: Any, tiktok_product_id: str) -> Mapping[str, Any] | None:
+    """One product's raw listing (GetProduct) through a read bundle, or `None` when
+    TikTok refuses or the guard does (P76-6: the voice profile's shop listings are
+    advisory; a failed read only leaves that description out)."""
+    try:
+        detail = resources.products.get_details(tiktok_product_id)
+    except (TikTokAPIError, TransportGuardError):
+        logger.warning("listing_detail_unavailable", extra={"purpose": "voice_profile"})
+        return None
+    return detail if isinstance(detail, Mapping) else None
 
 
 def write_mode_of(resources: object) -> str:

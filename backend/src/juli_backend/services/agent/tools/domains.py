@@ -68,6 +68,27 @@ ToolHandler = Callable[[Any, Any, Any], BaseModel]
 #: A pre-confirmation check (P64): a handler's signature, `None` when the proposal passes.
 ProposalCheck = Callable[[Any, Any, Any], BaseModel | None]
 
+
+@dataclass(frozen=True)
+class ProposalResolution:
+    """What a proposal resolver returns (P76-6): the rewritten params, or a refusal.
+
+    Exactly one is set. ``params`` replaces the model's proposal (what the seller is
+    shown and what the write sends); ``refusal`` is a precheck-shaped refusal model
+    (``error_code``, ``summary_vi``, ``model_hint``), counted like a precheck refusal.
+    """
+
+    params: BaseModel | None = None
+    refusal: BaseModel | None = None
+
+    def __post_init__(self) -> None:
+        if (self.params is None) == (self.refusal is None):
+            raise ValueError("ProposalResolution needs exactly one of params / refusal")
+
+
+#: A proposal resolver (P76-6): a handler's signature; `None` when nothing to resolve.
+ProposalResolver = Callable[[Any, Any, Any], ProposalResolution | None]
+
 #: Turns the subject-generic `ToolContext` into the object a domain's own
 #: handlers take.
 ContextBinder = Callable[["ToolContext"], Any]
@@ -201,6 +222,11 @@ class ToolDomain:
     #: rewritten (e.g. the filtered listing text) or `None` for "no change". Pure: no
     #: resources, no I/O, idempotent (the rewritten params normalise to `None`).
     normalizers: Mapping[str, Callable[[Any], BaseModel | None]] = field(default_factory=dict)
+    #: P76-6: `tool_name -> resolver` run FIRST for a CONFIRM proposal, before the
+    #: normalizer and the precheck: turns the model's edit operations into the full
+    #: values the seller confirms, or refuses them. Same signature as a handler.
+    #: Read-only by contract.
+    resolvers: Mapping[str, ProposalResolver] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -267,6 +293,8 @@ __all__ = [
     "ToolDomainBindingError",
     "ToolDomainError",
     "ProposalCheck",
+    "ProposalResolution",
+    "ProposalResolver",
     "ToolHandler",
     "ToolNotInDomainError",
     "UnregisteredToolDomainError",

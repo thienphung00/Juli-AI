@@ -97,6 +97,11 @@ from juli_backend.services.agent.tools.registry import (
     ToolRegistry,
     ToolSpec,
 )
+from juli_backend.services.shop_rules.listing_structure import (
+    SectionKind,
+    parse_description,
+    section_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +178,11 @@ class ProductToolContext:
     # `reverting` -- P76-4: a "Hoàn tác" run puts back the seller's own earlier values,
     # so the listing post-validator (lengths, must-keep tokens) does not gate it.
     reverting: bool = False
+    # `flagged_codes` -- P76-6: TikTok's diagnosis codes for this product, as the run's
+    # `get_product_diagnoses` read them (`ProductToolExecutor` keeps them), so the edit
+    # operations may append a section only for a flagged code and the post-validator
+    # logs them. `None`: not read yet this leg; `()`: read, nothing flagged.
+    flagged_codes: tuple[str, ...] | None = None
 
 
 # --- sanitize helpers, shared by the READ handlers below (ADR-070) -----------
@@ -267,6 +277,46 @@ class GetProductInformationOutput(BaseModel):
     total_inventory_quantity: int = 0
     sku_prices: dict[str, Any] = Field(default_factory=dict)
     images: dict[str, Any] = Field(default_factory=dict)
+    #: P76-6: the description as the numbered sections `update_product_listing`'s edit
+    #: operations address (`description_sections`); `None` when there is no description.
+    description_sections: dict[str, Any] | None = None
+
+
+#: P76-6: at most this many characters of section text go into one product read; the
+#: rest is counted as omitted (the per-result token ceiling, ADR-070 decision 2).
+DESCRIPTION_SECTIONS_CHAR_BUDGET = 3000
+
+
+def description_sections(description_html: Any) -> dict[str, Any] | None:
+    """The description's sections as edit operations number them (P76-6, D78).
+
+    ``{"items": [{"index", "kind", "text"}], ["truncated", "omitted_count"]}``: ``index``
+    is the 0-based section index of ``listing_structure.parse_description``, ``kind``
+    ``heading`` / ``list`` / ``paragraph`` / ``raw``, ``text`` the section's text (lines
+    or list items joined by a newline) as a vendor provenance envelope -- the exact text
+    a ``replace_span`` copies ``old`` from. A ``raw`` section (an image or markup block)
+    carries no text: it is never edited. Sections past
+    :data:`DESCRIPTION_SECTIONS_CHAR_BUDGET` are omitted and counted.
+    """
+    if not isinstance(description_html, str) or not description_html.strip():
+        return None
+    skeleton = parse_description(description_html)
+    items: list[dict[str, Any]] = []
+    used = 0
+    for index, section in enumerate(skeleton):
+        entry: dict[str, Any] = {"index": index, "kind": section.kind.value}
+        if section.kind is not SectionKind.RAW:
+            text = section_text(section)
+            if items and used + len(text) > DESCRIPTION_SECTIONS_CHAR_BUDGET:
+                omitted = len(skeleton) - index
+                return {"items": items, "truncated": True, "omitted_count": omitted}
+            used += len(text)
+            capped = cap_text(text)
+            entry["text"] = to_json_safe(VendorText(text=capped.text))
+            if capped.truncated:
+                entry["truncated"] = True
+        items.append(entry)
+    return {"items": items}
 
 
 def handle_get_product_information(
@@ -295,14 +345,16 @@ def handle_get_product_information(
         total_inventory_quantity=total_inventory_quantity,
         sku_prices=capped_sku_prices.to_dict(),
         images=capped_images.to_dict(),
+        description_sections=description_sections(raw.get("description")),
     )
 
 
 GET_PRODUCT_INFORMATION_SPEC = ToolSpec(
     name="get_product_information",
     description=(
-        "Read the bound product's listing: title, description, status, "
-        "last-updated time, SKU count and prices, total inventory, and image sizes."
+        "Read the bound product's listing: title, description (also as numbered "
+        "sections, the indices edit operations use), status, last-updated time, SKU "
+        "count and prices, total inventory, and image sizes."
     ),
     # dictionary.md `run.option_rationale.get_product_information` (issue
     # #1904, W6-FIX) -- seller-facing, distinct from `description` above,

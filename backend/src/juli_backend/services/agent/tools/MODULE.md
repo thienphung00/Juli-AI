@@ -72,6 +72,21 @@ construction and refused by name. Adding a WRITE-CONFIRM capability is one
 handler plus one spec in the domain's own module, and nothing in `runner/`
 moves — the CONFIRM pause hangs off `ToolSpec.policy`, never off the domain.
 
+## Listing edits as operations (fast track P76-6, D78)
+
+`update_product_listing` takes `edits: ListingEditOps | None` (strict-schema: required +
+nullable; the discriminated `description_ops` union goes out as `anyOf`). A domain may
+register `ToolDomain.resolvers` (`ProposalResolver` -> `ProposalResolution`): run FIRST for
+a CONFIRM proposal, before the normalizer and the precheck. The product domain's
+`resolve_update_product_listing` applies the ops to the current listing
+(`shop_rules.listing_structure.apply_ops`, with the run's TikTok-flagged codes) and hands
+the runner params carrying the APPLIED full title / description (`edits` dropped), so the
+consent panel, `params_sha` and the write all see the applied text; an `EditRejection`
+(or `edits_with_text` / `edits_change_nothing` / `listing_unavailable`) is refused through
+`listing_rules.edit_refusal` and counted in `RunState.proposal_refusals` like a validator
+violation. `get_product_information` adds `description_sections` (the numbered sections
+the ops address). Plain `title` / `description` still work (revert, prompt v3).
+
 ## Registry, allowlist and dispatcher — all shipped
 
 The shared registry, the playbook allowlist cross-validation (W2-A, #1107) and the

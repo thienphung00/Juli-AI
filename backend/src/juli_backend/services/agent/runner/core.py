@@ -1954,18 +1954,35 @@ class WorkflowRunner:
             # P64: a domain may refuse a proposal before the seller is asked (the
             # sandbox create's brand guard). Counted like a malformed call: the model
             # may draft once more; a second refusal of the same tool ends the run (P76-4).
-            normalize = getattr(self._tool_executor, "normalize_proposal", None)
-            normalized = (
-                normalize(tool_name=block.tool_name, params=params) if callable(normalize) else None
+            # P76-6: the model's edit operations are applied to the current listing first;
+            # a rejected set of operations is refused here, counted the same way.
+            resolve = getattr(self._tool_executor, "resolve_proposal", None)
+            resolved, refusal = (
+                resolve(tool_name=block.tool_name, params=params)
+                if callable(resolve)
+                else (None, None)
             )
-            if normalized is not None:
-                # P69: the seller confirms exactly the filtered text, not the raw draft.
-                block = replace(block, arguments=normalized.model_dump(mode="json"))
-                params = normalized
-            precheck = getattr(self._tool_executor, "precheck", None)
-            refusal = (
-                precheck(tool_name=block.tool_name, params=params) if callable(precheck) else None
-            )
+            if resolved is not None:
+                # The seller confirms (and the write sends) the applied full text.
+                block = replace(block, arguments=resolved.model_dump(mode="json"))
+                params = resolved
+            if refusal is None:
+                normalize = getattr(self._tool_executor, "normalize_proposal", None)
+                normalized = (
+                    normalize(tool_name=block.tool_name, params=params)
+                    if callable(normalize)
+                    else None
+                )
+                if normalized is not None:
+                    # P69: the seller confirms exactly the filtered text, not the raw draft.
+                    block = replace(block, arguments=normalized.model_dump(mode="json"))
+                    params = normalized
+                precheck = getattr(self._tool_executor, "precheck", None)
+                refusal = (
+                    precheck(tool_name=block.tool_name, params=params)
+                    if callable(precheck)
+                    else None
+                )
             if refusal is not None:
                 # P76-4: one redraft per tool per run, counted on the state (a text block
                 # between the two drafts, or a pause, must not reset it): the second
