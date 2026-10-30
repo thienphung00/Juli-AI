@@ -147,7 +147,9 @@ FINAL_TEXT = (
     "thay đổi gì. Mình sẽ không tính kết quả của lần chạy thử này vào hiệu quả, và sẽ theo dõi "
     "lượt hiển thị cùng tỉ lệ bấm khi bạn áp dụng thật."
 )
-NEW_TITLE = "Tiêu đề mới do Juli đề xuất (P61-E)"
+#: P76-4 (D78.1): a proposal keeps the 40-character minimum and the current title's
+#: must-keep tokens (brand, "14mL").
+NEW_TITLE = "Chai xịt thơm miệng Fujisalt 14mL giữ hơi thở thơm mát cả ngày (P61-E)"
 STREAM_CHUNK_CHARS = 16
 
 
@@ -1152,7 +1154,11 @@ def _step_6_credentials(journey: Journey) -> None:
     assert any(call.token == B_TOKEN and call.path == AUTHORIZED_SHOPS_PATH for call in calls)
     # The sandbox credential was used for that write path alone (never a bulk read of B's shop).
     sandbox_paths = {call.path for call in calls if call.token == SANDBOX_TOKEN}
-    assert sandbox_paths == {f"/product/202309/products/{WEAK_PRODUCT_ID}"}
+    # P76-5: the confirmed draft is scored by TikTok (read-only) right before the edit.
+    assert sandbox_paths == {
+        f"/product/202309/products/{WEAK_PRODUCT_ID}",
+        "/product/202411/products/diagnose_optimize",
+    }
 
 
 async def _warm_up_shop_a(journey: Journey) -> None:
