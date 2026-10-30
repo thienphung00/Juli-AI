@@ -37,9 +37,13 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   environment has required reviewers, a deploy now asks for one more approval —
   check on the first deploy; if so, move the VPS secrets to repo level for `plan`
   or fold `plan` into `backup` with a step-level skip.
-- [ ] Per-dump egress not yet measured (estimate 35–70 MB) — read the first
-  `DUMP_SIZE label=daily bytes=…` line in `journalctl -u juli-db-backup` and tune
-  `BACKUP_MIN_INTERVAL_HOURS`.
+- [x] Per-dump egress measured (P62-C, 2026-10-30): ~210 MB of Shared Pooler egress
+  per full dump (2026-10-27: 803 MB with 3 dumps, 10-28: 376 MB with 1). The
+  `DUMP_SIZE bytes=` figure (~17 MiB) is the compressed file, not the wire: `-Fc`
+  compresses on the VPS. The estimate of 35–70 MB was wrong by ~4x.
+- [ ] `juli-db-backup.timer` at 72 h is ~9 dumps ≈ 1.9 GB a cycle, over the Free 5 GB
+  once app egress (~100–165 MB/day on 10-28/29) is added. Do not enable it until
+  the no-dump baseline is measured; then pick `BACKUP_MIN_INTERVAL_HOURS` from it.
 - [ ] `juli-db-backup.timer` is installed by hand, like `juli-restore-drill.timer`
   — `deploy.sh` installs only lane units — consider a one-shot timer installer.
 
@@ -1670,3 +1674,15 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   (3/3). Why not fixed: timing bounds, unrelated to P61-I. Repay: measure the event-loop stall
   relative to a calibrated baseline (or mark the test `serial` / give it a load-tolerant bound),
   and find what the scoring-persistence test waits on that can take >30 s under contention.
+
+## P62-C — one dump per migration deploy, none for a failed deploy (2026-10-30, D72)
+
+- [ ] The single migration dump is now safe-alembic-upgrade.sh's, which checks only
+  `pg_dump`'s exit status; the workflow `backup` job's TOC / size-floor / required-
+  table verification no longer runs on a migration deploy (only on force_backup).
+  Repay: have safe-alembic call backup-database.sh for its dump (one verified path).
+- [ ] `processed_events` rows are left out of every dump; other big, re-derivable
+  tables (bronze raw payloads, `gold.kpi_envelopes`) are not yet. Repay: rank tables
+  by `pg_total_relation_size` on SG and exclude the re-derivable ones the same way.
+- [ ] A forced backup on a migration deploy still dumps twice (job + safe-alembic).
+  Accepted: forcing is explicit and rare.

@@ -27,6 +27,9 @@ BACKUP_DIR="${BACKUP_DIR:-${HOME}/backups}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 DISK_MARGIN_MB="${DISK_MARGIN_MB:-512}"
 ALLOWLIST_FILE="${SCRIPT_DIR}/safe-migrate-allowlist.txt"
+# P62-C (D72 egress): schema kept, rows not copied — the webhook "already seen" ledger;
+# after a restore each record is re-compared once. Same list in backup-database.sh.
+EXCLUDE_TABLE_DATA=(public.processed_events)
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-}"
 
 log() {
@@ -172,7 +175,7 @@ if [ "${MIGRATION_PENDING}" = true ]; then
     BACKUP_FILE="${BACKUP_DIR}/juli-pre-migrate-${TS}.dump"
     log "starting pg_dump to ${BACKUP_FILE} (-Fc custom format)"
     MIGRATION_URL="$("${HELPER[@]}" migration-db-url)"
-    if ! pg_dump -Fc -f "${BACKUP_FILE}" "${MIGRATION_URL}"; then
+    if ! pg_dump -Fc "${EXCLUDE_TABLE_DATA[@]/#/--exclude-table-data=}" -f "${BACKUP_FILE}" "${MIGRATION_URL}"; then
         rm -f "${BACKUP_FILE}"
         fail "pg_dump failed — aborting before alembic upgrade"
     fi

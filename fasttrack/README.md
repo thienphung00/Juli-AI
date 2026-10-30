@@ -36,9 +36,9 @@ and the log, all in one place.
 ## Deploying to production
 
 Owner only. Tag a commit that is already on `fasttrack/optimize-product` and
-push the tag; `.github/workflows/fasttrack-deploy.yml` then backs up the
-production DB **only if the deploy carries a migration** (abort on failure; P62-A,
-D72.1), runs `check.sh`, and deploys. In parallel it
+push the tag; `.github/workflows/fasttrack-deploy.yml` then runs `check.sh` and
+deploys; a deploy that carries a migration is dumped once, inside `deploy.sh`,
+right before `alembic upgrade` (abort on failure; P62-A, P62-C, D72.1). In parallel it
 builds the demo artifact itself (`infra/scripts/build-release-artifact.sh`, the
 `NEXT_PUBLIC_SUPABASE_*` repo secrets inlined at build, verified by
 `verify-supabase-env-in-build.mjs`); if the demo lane changed, that tarball is
@@ -55,16 +55,16 @@ Jobs (stable ids; `deploy` needs every one of them, P55 / D64):
 | Job id | What it runs | Needs |
 |---|---|---|
 | `validate` | the SHA is a full commit on the fast-track branch | — |
-| `plan` | reads production's `alembic current` on the VPS (one SELECT, no dump) and compares it with the SHA's alembic head (`infra/scripts/migration_heads.py`); outputs `backup=true\|false` | validate |
-| `backup` | **only when `plan` says `backup=true`**: verified `pg_dump` of production on the VPS (`infra/scripts/backup-database.sh`, copied from the SHA) | plan |
-| `check` | `fasttrack/check.sh` with a throwaway Postgres (migrations, isolation, gitleaks, ruff + pytest on changed files). Runs when `backup` succeeded **or was skipped because no backup was needed**; never after a failed backup | plan, backup |
+| `plan` | reads production's `alembic current` on the VPS (one SELECT, no dump) and compares it with the SHA's alembic head (`infra/scripts/migration_heads.py`) for the log; outputs `backup=true` **only on force_backup** (P62-C) | validate |
+| `check` | `fasttrack/check.sh` with a throwaway Postgres (migrations, isolation, gitleaks, ruff + pytest on changed files) | plan |
 | `build` | demo + landing release tarballs | validate |
 | `frontend` | demo + landing `eslint`, `tsc --noEmit`, `vitest` (what `pnpm check:demo` / `check:landing` run, minus `next build`); `packages/ui` and `utils` tests; Node from `.nvmrc` | validate |
 | `backend-unit` | the full `pytest tests/unit -m "not live"` with no database (Postgres tests skip via `requires_postgres`), after fetching the negative dataset's archived evidence refs (D65) | validate |
 | `static` | `mypy --config-file backend/pyproject.toml backend/src/juli_backend` + `bandit -r backend/src/juli_backend -ll` | validate |
-| `deploy` | `infra/scripts/deploy.sh <sha>` over SSH, then a public `/health` check | check, build, frontend, backend-unit, static |
+| `backup` | **only when `plan` says `backup=true` and every gate passed**: verified `pg_dump` of production on the VPS (`infra/scripts/backup-database.sh`, copied from the SHA) | plan, check, build, frontend, backend-unit, static |
+| `deploy` | `infra/scripts/deploy.sh <sha>` over SSH, then a public `/health` check. Runs when `backup` succeeded **or was skipped because none was asked for**; never after a failed backup | plan, backup, check, build, frontend, backend-unit, static |
 
-`frontend`, `backend-unit` and `static` run beside `plan` → `backup` → `check`, so they
+`frontend`, `backend-unit` and `static` run beside `plan` → `check`, so they
 add wall time only when one of them is slower than that branch (LOG P55 has the
 measured times). The same commands locally:
 
@@ -83,13 +83,18 @@ bandit -r backend/src/juli_backend -ll
 Every full dump is a full copy of production through Supabase egress, so dumps are
 taken only where they protect something:
 
-- **Deploy `backup` job** — only when production's alembic revision differs from
-  the SHA's head (a migration is coming), or the head/revision cannot be read.
-  Otherwise the job shows as *skipped* and the deploy continues.
-- **`safe-alembic-upgrade.sh`** (inside `deploy.sh`) — its pre-migrate dump runs only
-  when `alembic` has pending revisions; otherwise it logs
+- **`safe-alembic-upgrade.sh`** (inside `deploy.sh`) — **the one dump of a migration
+  deploy** (P62-C), taken right before `alembic upgrade` and only when `alembic` has
+  pending revisions (an unreadable revision still dumps); otherwise it logs
   `no pending migration — pre-migrate dump skipped` and continues (privilege
   check, no-op upgrade, row counts and token decrypt still run).
+- **Deploy `backup` job** — only on force_backup (below), and only after every gate
+  passed, so a deploy that fails its tests never dumps. Until P62-C it also ran for
+  every migration, which made each migration deploy two full dumps (measured
+  2026-10-27: ~210 MB of pooler egress per dump, 803 MB that day for 3 dumps).
+- **Both dumps leave out the rows of `public.processed_events`** (the webhook
+  "already seen" ledger; schema kept). After a restore each record is re-compared
+  once; nothing is lost.
 - **Scheduled dump on the VPS** — `juli-db-backup.timer` fires daily at 19:30 UTC
   (02:30 Vietnam); `backup-database.sh` dumps only when the newest
   `~/backups/juli-pre-migrate-*.dump` is at least `BACKUP_MIN_INTERVAL_HOURS` old
@@ -97,7 +102,8 @@ taken only where they protect something:
   Each dump logs `DUMP_SIZE label=… bytes=…` for measuring egress. Same rotation
   (14 days) and the weekly restore drill restores the newest dump.
 
-**Force a backup** on a deploy without a migration (any one of):
+**Force the workflow's `backup` job** (an extra verified dump, ~210 MB of egress) on
+any deploy (any one of):
 
 ```bash
 git tag fasttrack-deploy-$(date -u +%Y%m%dT%H%MZ)-force-backup <full-sha> && git push origin <that-tag>
