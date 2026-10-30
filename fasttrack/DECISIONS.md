@@ -1768,3 +1768,23 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
   ids `an-<kind>-…` / `id-…` -- never "demo" (Shopee reads "demo" as not live); the seller / ops
   analytics mask keeps ADR-038's names. Contract `fasttrack/contracts/p32-reviewer-access.md`
   (D77 amendment).
+
+- **D78** — Juli's AI output is structured and faithful (owner, 2026-10-29, "accept all" on the
+  P76 plan). Seven steps, in order: **(1)** strict tool schemas (P76-1); **(2)** coded run-panel
+  narration; **(3)** description skeleton + edit operations; **(4)** post-validator, must-keep
+  facts and drift check, with one retry; **(5)** TikTok `diagnose_optimize` scoring before the
+  write and Đo lường after; **(6)** shop voice profile + prompt v4; **(7)** brand-name scrub.
+  1. **Title minimum 40 characters** for new listings AND edits (TikTok
+     `TITLE_LESS_THAN_40_CHARACTERS`).
+  2. **Run-panel narration is a coded Juli status line only** -- no free model text reaches the
+     seller in the run panel.
+  3. **A listing already over limits is refused and left unedited**: description over 10 000
+     characters, or title over the maximum. Juli never "fixes" it by a partial edit.
+  4. **The drift threshold ships as config in `shop_rules`**, log-only on the first tag (no
+     refusal until the owner turns it on).
+  5. **An unconvertible strict tool schema fails the CI registry test, never the running app.**
+     Every tool goes to OpenAI with `"strict": true` and `strict_schema.to_strict(input_schema)`;
+     `tests/unit/test_agent_strict_tool_schemas.py` fails on a schema `to_strict` cannot convert,
+     while the adapter only logs `strict_schema_unconvertible` and sends that one schema
+     non-strict. Under strict mode the model sends `null` for an optional field it leaves out;
+     `ToolSpec.parse_input` treats that `null` as the field default.

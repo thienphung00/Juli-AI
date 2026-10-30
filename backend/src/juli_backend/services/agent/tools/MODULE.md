@@ -25,7 +25,12 @@ stays untouched.
   a module-level spec is import time, and again by `register`)
 - `DomainlessToolError` — raised for a spec that names no domain
 - `ToolSpec.render_input_schema()` — the model-facing JSON schema, exactly
-  `input_model.model_json_schema()`
+  `input_model.model_json_schema()` (the adapter puts it in OpenAI strict form on the wire,
+  P76-1 / D78)
+- `ToolSpec.parse_input(arguments)` — the one place a model-proposed call is validated
+  against `input_model`; an explicit `null` for a field whose default is not `None` becomes
+  that default (`null_as_default`, recursive), since strict mode makes the model send `null`
+  for every optional field it leaves out
 - `ToolClassification` — `READ` | `WRITE`
 - `ToolPolicy` — `AUTO` | `CONFIRM` (NEVER-class operations are never registered — ADR-068)
 - `ToolRegistry` — explicit `register(spec)`, `get(name)`, `list_all()`

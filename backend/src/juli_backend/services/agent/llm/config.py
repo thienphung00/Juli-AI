@@ -46,6 +46,25 @@ def llm_streaming_enabled() -> bool:
     return raw not in _FALSE_VALUES
 
 
+# P76-1 (D78): strict tool schemas / output formats. On by default; set to one of
+# `_FALSE_VALUES` to send every tool and output format non-strict -- the kill switch
+# if OpenAI ever rejects the strict wire for a model Juli runs on.
+AGENT_STRICT_SCHEMAS_ENV_VAR = "AGENT_STRICT_SCHEMAS"
+DEFAULT_AGENT_STRICT_SCHEMAS = True
+
+
+def agent_strict_schemas_enabled() -> bool:
+    """Whether tools and output formats go to OpenAI strict (``AGENT_STRICT_SCHEMAS``).
+
+    Read at call time like ``LLM_STREAMING``: an env change and a worker restart.
+    Unset or blank -> `DEFAULT_AGENT_STRICT_SCHEMAS`.
+    """
+    raw = os.environ.get(AGENT_STRICT_SCHEMAS_ENV_VAR, "").strip().lower()
+    if not raw:
+        return DEFAULT_AGENT_STRICT_SCHEMAS
+    return raw not in _FALSE_VALUES
+
+
 @dataclass(frozen=True)
 class LLMConfig:
     """Resolved configuration for a single `LLMService.complete` call."""

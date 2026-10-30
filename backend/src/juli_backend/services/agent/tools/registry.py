@@ -20,11 +20,15 @@ which is name -> callable with no metadata and stays untouched (ADR-069).
 
 from __future__ import annotations
 
+import types
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Union, get_args, get_origin
 
 from pydantic import BaseModel
+from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined
 
 
 class ToolClassification(str, Enum):
@@ -162,6 +166,65 @@ class ToolSpec:
         against cannot drift apart.
         """
         return self.input_model.model_json_schema()
+
+    def parse_input(self, arguments: Mapping[str, Any]) -> BaseModel:
+        """Validate a tool call's raw ``arguments`` against `input_model`.
+
+        The one place a model-proposed call is parsed (the runner's dispatch and its
+        resume-after-consent path both come here). Since P76-1 (D78) tools are sent
+        strict, so the model writes every optional field and fills the ones it means
+        to leave out with an explicit ``null``; `null_as_default` turns that ``null``
+        back into "absent" wherever the field's default is not ``None`` (e.g.
+        ``attach_staged_image: bool = False``), at any depth. A ``null`` for a
+        required field is left for Pydantic to refuse.
+        """
+        return self.input_model.model_validate(null_as_default(self.input_model, arguments))
+
+
+def null_as_default(model: type[BaseModel], data: Any) -> Any:
+    """``data`` with every ``null`` dropped whose field has a non-``None`` default.
+
+    Recurses into nested models (a field typed as a model, an optional model, or a
+    list of models). Keys are matched by field name or alias; unknown keys and
+    non-dict data pass through untouched for Pydantic to judge.
+    """
+    if not isinstance(data, Mapping):
+        return data
+    out = dict(data)
+    for name, field in model.model_fields.items():
+        key = field.alias if field.alias in out else name
+        if key not in out:
+            continue
+        value = out[key]
+        if value is None:
+            if not field.is_required() and _default_is_not_none(field):
+                del out[key]
+            continue
+        nested = _nested_model(field.annotation)
+        if nested is None:
+            continue
+        if isinstance(value, Mapping):
+            out[key] = null_as_default(nested, value)
+        elif isinstance(value, list):
+            out[key] = [null_as_default(nested, item) for item in value]
+    return out
+
+
+def _default_is_not_none(field: FieldInfo) -> bool:
+    if field.default_factory is not None:
+        return True
+    return field.default is not PydanticUndefined and field.default is not None
+
+
+def _nested_model(annotation: Any) -> type[BaseModel] | None:
+    """The one `BaseModel` an annotation carries (``M``, ``M | None``, ``list[M]``)."""
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    origin = get_origin(annotation)
+    if origin in (Union, types.UnionType, list, tuple):
+        found = {m for arg in get_args(annotation) if (m := _nested_model(arg)) is not None}
+        return found.pop() if len(found) == 1 else None
+    return None
 
 
 class ToolRegistry:
