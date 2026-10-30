@@ -25,6 +25,7 @@ from juli_backend.integrations.tiktok.constants import (
     product_edit_path,
     product_prices_update_path,
 )
+from juli_backend.integrations.tiktok.guarded_client import GuardedTikTokClient
 from juli_backend.integrations.tiktok.resources import strip_nones
 from juli_backend.integrations.tiktok.schemas import (
     ProductsSearchData,
@@ -40,6 +41,18 @@ class ProductsResource:
 
     def __init__(self, client: TikTokClient) -> None:
         self._client = client
+
+    def with_own_session(self) -> ProductsResource | None:
+        """This resource on a copy of its guarded client with its own HTTP session (P76-5:
+        a draft score that may outlive its wait must not share the write's session), or
+        ``None`` when the client is not a guarded one that can be copied."""
+        if not isinstance(self._client, GuardedTikTokClient):
+            return None
+        return ProductsResource(self._client.with_own_session())
+
+    def close(self) -> None:
+        """Close the client's HTTP session."""
+        self._client.close()
 
     def search(
         self,

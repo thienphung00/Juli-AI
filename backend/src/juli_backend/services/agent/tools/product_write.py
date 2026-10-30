@@ -89,7 +89,12 @@ from juli_backend.integrations.tiktok import (
     TikTokAPIError,
 )
 from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN
-from juli_backend.services.agent.tools.listing_rules import check_proposal, source_terms_not_in
+from juli_backend.services.agent.tools.draft_scoring import DraftScore, score_confirmed_listing
+from juli_backend.services.agent.tools.listing_rules import (
+    check_proposal,
+    source_terms_not_in,
+    validation_refusal,
+)
 from juli_backend.services.agent.tools.product import ProductToolContext
 from juli_backend.services.agent.tools.registry import (
     ToolClassification,
@@ -98,6 +103,10 @@ from juli_backend.services.agent.tools.registry import (
     ToolSpec,
 )
 from juli_backend.services.execution.file_screening import screen_and_reencode_image
+from juli_backend.services.shop_rules.listing_validator import (
+    enforced_violations,
+    validate_listing_proposal,
+)
 
 # Vendor protocol constant from TikTok B-4 (Edit Product / Partial endpoint).
 # Section reference: docs/integrations/tiktok_api/contract-collection.md § B-4
@@ -218,6 +227,9 @@ class UpdateProductListingOutput(BaseModel):
     title: str | None = None
     description: str | None = None
     image_attached: bool = False
+    #: P76-5: TikTok's check of the confirmed draft (``draft_scoring``); left out of the
+    #: dump when the write was not scored, so unscored outcomes keep their old shape.
+    draft_score: DraftScore | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 def _extract_leaf_category_id(product_detail: Mapping[str, Any]) -> str:
@@ -376,11 +388,15 @@ def handle_update_product_listing(
     params: UpdateProductListingInput,
 ) -> UpdateProductListingOutput:
     body = _build_listing_edit_body(params, context)
+    # P76-5 call site: TikTok scores the confirmed draft once, before the write; stored on
+    # the ledger outcome for Đo lường. Never blocks the write (``draft_scoring``).
+    draft_score = score_confirmed_listing(resources, context.product_id, body)
     resources.products.edit(product_id=context.product_id, body=body)
     return UpdateProductListingOutput(
         title=params.title,
         description=params.description,
         image_attached=params.attach_staged_image,
+        draft_score=draft_score,
     )
 
 
@@ -391,7 +407,8 @@ def precheck_update_product_listing(
 
     The shop's banned terms, and the built-in source-title rule: a free-text attribute
     value or brand name of this product that its current title and description do not
-    already carry is not introduced (``listing_rules``). Read-only.
+    already carry is not introduced (``listing_rules``); then the P76-4 post-validator
+    (``shop_rules.listing_validator``) against the listing as it is now. Read-only.
     """
     detail = context.product_detail
     if not isinstance(detail, Mapping):
@@ -400,11 +417,29 @@ def precheck_update_product_listing(
         except TikTokAPIError:  # the write re-reads; never block the proposal on a read
             detail = None
     reference = " ".join(str((detail or {}).get(key) or "") for key in ("title", "description"))
-    return check_proposal(
+    refusal = check_proposal(
         {"title": params.title, "description": params.description},
         banned_terms=context.banned_terms,
         source_terms=source_terms_not_in(detail, reference),
     )
+    if refusal is not None or context.reverting:
+        return refusal
+    # P76-4 (D78): lengths, must-keep tokens, over-limits listing; drift is log-only.
+    current = detail if isinstance(detail, Mapping) else {}
+    brand = current.get("brand")
+    brand_name = str(brand.get("name") or "").strip() if isinstance(brand, Mapping) else ""
+    validation = validate_listing_proposal(
+        current_title=_text_or_none(current.get("title")),
+        current_description_html=_text_or_none(current.get("description")),
+        proposed_title=params.title,
+        proposed_description_html=params.description,
+        brand_terms=(brand_name,) if brand_name else (),
+    )
+    return validation_refusal(enforced_violations(validation))
+
+
+def _text_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 UPDATE_PRODUCT_LISTING_SPEC = ToolSpec(

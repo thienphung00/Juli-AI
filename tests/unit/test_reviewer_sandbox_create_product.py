@@ -146,7 +146,7 @@ DRAFT_P2 = "Nắp xoay chống tràn, kèm dây đeo. Trong hộp có 2 bình v�
 def _create(category_id: str = "605254") -> cc.CreateProductInput:
     return cc.CreateProductInput(
         category_id=category_id,
-        title="Combo 2 bình giữ nhiệt inox 750ml",
+        title="Combo 2 bình giữ nhiệt inox 750ml nắp xoay chống tràn",
         description=f"{DRAFT_P1}\n\n{DRAFT_P2}",
         reason_vi="Cùng danh mục bình nước với sản phẩm gốc.",
     )
@@ -195,7 +195,7 @@ def test_create_builds_one_create_call_from_the_source_and_reads_it_back():
     assert len(products.created) == 1
     body = products.created[0]
     assert body["category_id"] == "605254"
-    assert body["title"] == "Combo 2 bình giữ nhiệt inox 750ml"
+    assert body["title"] == "Combo 2 bình giữ nhiệt inox 750ml nắp xoay chống tràn"
     assert body["description"] == f"<p>{DRAFT_P1}</p><p>{DRAFT_P2}</p>"
     assert body["main_images"] == [{"uri": "tos-src-1"}, {"uri": "tos-src-2"}]
     sku = body["skus"][0]

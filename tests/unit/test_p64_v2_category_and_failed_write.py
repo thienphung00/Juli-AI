@@ -136,7 +136,7 @@ class RefusingProducts(FakeProducts):
 
 async def _pause_then_approve(products: FakeProducts):
     store, sink = InMemoryStore(), InMemoryEventSink()
-    llm = ScriptedLLM(["Combo 2 bình giữ nhiệt inox 750ml"])
+    llm = ScriptedLLM(["Combo 2 bình giữ nhiệt inox 750ml nắp xoay chống tràn"])
     run_id = uuid.uuid4()
     paused = await _runner(products, store, sink, llm).run(run_id, product_ref=SOURCE_ID)
     assert paused.status == WorkflowRunStatus.WAITING_APPROVAL, paused

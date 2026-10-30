@@ -159,6 +159,10 @@ class RunState:
     #: so #1708's dispatcher can match a webhook signal to the waiting run in
     #: SQL rather than by scanning JSONB.
     external_wait_reason: str | None = None
+    #: P76-4: CONFIRM proposals a domain precheck refused this run, by tool name. The
+    #: first refusal of a tool gets the model one more draft; the second ends the run.
+    #: Kept here, not in a loop local, so a resume after a pause still counts it.
+    proposal_refusals: dict[str, int] = field(default_factory=dict)
 
     # Fields present on a deserialized blob that this version of RunState
     # does not recognize (ADR-073 decision 5, the P-CS forward-compat
@@ -230,6 +234,8 @@ class RunState:
             blob["started_at"] = self.started_at
         if self.external_wait_reason is not None:
             blob["external_wait_reason"] = self.external_wait_reason
+        if self.proposal_refusals:
+            blob["proposal_refusals"] = dict(self.proposal_refusals)
         blob.update(self.unknown_fields)
         return blob
 
@@ -265,6 +271,7 @@ class RunState:
             "rows_affected",  # issue #1653
             "started_at",  # issue #1653
             "external_wait_reason",  # issue #1706
+            "proposal_refusals",  # P76-4
         }
         unknown = {
             key: value
@@ -288,5 +295,6 @@ class RunState:
             rows_affected=blob.get("rows_affected", 0),
             started_at=blob.get("started_at"),
             external_wait_reason=blob.get("external_wait_reason"),
+            proposal_refusals=dict(blob.get("proposal_refusals") or {}),
             unknown_fields=unknown,
         )

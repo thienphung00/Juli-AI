@@ -346,6 +346,7 @@ class ListingQualityOut(BaseModel):
 
     before: DiagnosisReadingOut | None = None
     after: DiagnosisReadingOut | None = None
+    checked: DiagnosisReadingOut | None = None  # P76-5: "Sau sửa (TikTok kiểm tra)"
 
 
 class WorkflowRunListItem(BaseModel):

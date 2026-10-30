@@ -737,16 +737,16 @@ async def test_an_edit_that_breaks_a_rule_is_refused_with_a_vietnamese_reason(
 
 
 def test_title_length_limits_are_tiktoks():
-    proposed = {"title": "Một tiêu đề Juli đề xuất đủ dài"}
-    with pytest.raises(shop_rules.ListingEditViolation, match="từ 25 đến 255"):
+    proposed = {"title": "Một tiêu đề Juli đề xuất đủ dài, từ bốn mươi ký tự"}
+    with pytest.raises(shop_rules.ListingEditViolation, match="từ 40 đến 255"):
         shop_rules.validate_listing_edits(
             {"title": "Quá ngắn"}, proposed=proposed, current=None, protected_terms=[]
         )
-    with pytest.raises(shop_rules.ListingEditViolation, match="từ 25 đến 255"):
+    with pytest.raises(shop_rules.ListingEditViolation, match="từ 40 đến 255"):
         shop_rules.validate_listing_edits(
             {"title": "x" * 256}, proposed=proposed, current=None, protected_terms=[]
         )
-    ok = "Tiêu đề người bán sửa, đủ hai mươi lăm ký tự"
+    ok = "Tiêu đề người bán sửa, đủ bốn mươi ký tự trở lên"
     assert shop_rules.validate_listing_edits(
         {"title": ok}, proposed=proposed, current=None, protected_terms=[]
     ) == {"title": ok}

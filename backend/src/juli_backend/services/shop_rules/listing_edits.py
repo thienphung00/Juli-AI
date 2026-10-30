@@ -8,10 +8,12 @@ Rules checked, in this order, per field:
 
 1. the field is one Juli proposed to change in this run (the seller edits the
    proposal; widening it to another field would be a change nobody reviewed);
-2. TikTok's length limits for the listing -- title 25 to 255 characters (VN is
-   one of the "other regions" of ``POST /product/202309/products/{id}``:
-   ``[25, 255]``), description non-empty and at most 10,000 characters (the same
-   endpoint's documented maximum, HTML included);
+2. the length limits for the listing -- title 40 to 255 characters (D78.1,
+   29/10: TikTok flags a title under 40 characters ``TITLE_LESS_THAN_40_CHARACTERS``,
+   so Juli's floor is 40 for new listings and edits alike, above the API's own
+   ``[25, 255]`` for VN, one of the "other regions" of
+   ``POST /product/202309/products/{id}``), description non-empty and at most
+   10,000 characters (the same endpoint's documented maximum, HTML included);
 3. the shop's protected terms (``shop_rules`` ``protected_terms``, ADR-109 d.12
    "Từ / thông tin không được sửa"): every term the current listing field
    contains -- or, when the current value is unknown, Juli's proposal contains
@@ -33,7 +35,8 @@ import unicodedata
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-TITLE_MIN_CHARS = 25
+#: D78.1: TikTok's ``TITLE_LESS_THAN_40_CHARACTERS``; the API itself accepts 25.
+TITLE_MIN_CHARS = 40
 TITLE_MAX_CHARS = 255
 DESCRIPTION_MAX_CHARS = 10_000
 

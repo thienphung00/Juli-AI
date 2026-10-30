@@ -357,6 +357,10 @@ class TikTokClient:
         self._timeout = timeout
         self._session = requests.Session()
 
+    def close(self) -> None:
+        """Close this client's HTTP session (its pooled connections)."""
+        self._session.close()
+
     @property
     def shop_cipher(self) -> str | None:
         """The shop cipher this client sends with shop-scoped calls (read-only)."""

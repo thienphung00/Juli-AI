@@ -529,6 +529,7 @@ class ProductToolExecutor(DomainToolExecutor):
             on_image_staged=self._image_staged,
             banned_terms=self._banned_terms,
             discount_rules=self._discount_rules,
+            reverting=self._revert_expected is not None,
         )
 
     def _image_staged(self, uri: str) -> None:

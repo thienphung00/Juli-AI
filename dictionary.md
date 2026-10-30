@@ -1157,6 +1157,17 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - VI: Đã tạo sản phẩm · mã [id] / Đã tạo khuyến mãi giảm [n]% · mã [id] / Đã sửa tiêu đề và mô tả · mã [id] · TikTok xác nhận lúc [HH:MM dd/mm/yyyy]
 - Definition: Đo lường on the reviewer's sandbox shop (fast track P67, D75 Q2) lists every run whose TikTok write TikTok confirmed (ledger `succeeded`), with the TikTok id and the confirmation time; chip "Không đo · shop sandbox", greyed "Ngày 7 · không đo" / "Ngày 14 · không đo". Title: "Các lượt Juli đã ghi lên TikTok Shop". Sellers unchanged.
 
+**`measure.sandbox.listing_quality.checked`**
+- EN: After the edit (TikTok's check) at [HH:MM dd/mm/yyyy]: [issues] / TikTok reports no issues
+- VI: Sau sửa (TikTok kiểm tra) lúc [HH:MM dd/mm/yyyy]: [lỗi] / TikTok không báo lỗi nào
+- Definition: P76-5. Đo lường's third reading of a sandbox listing edit, between "Ngày 0" and "Bây giờ": TikTok's own diagnosis (`diagnose_optimize`) of the draft the seller confirmed, asked once right before Juli wrote it. Absent when TikTok could not be read then -- never a guessed count.
+
+**`measure.sandbox.listing_quality.stale`**
+- EN: [issue] (TikTok has not updated its diagnosis)
+- VI: [lỗi] (TikTok chưa cập nhật chẩn đoán)
+- _Avoid_: chưa cải thiện
+- Definition: P76-5 (edge case D31). On the "Bây giờ" line, a title / description issue TikTok's live diagnosis still lists although TikTok's own check of the written draft cleared it: TikTok has not re-diagnosed the listing yet, which is not "no improvement". `diagnosis_labels.STALE_DIAGNOSIS_NOTE_VI`.
+
 ### Quyết định — P8-F (AC-8.7)
 
 **`qd.tab.de_xuat`**

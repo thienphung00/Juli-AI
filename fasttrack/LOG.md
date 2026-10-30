@@ -3167,3 +3167,82 @@ reconcile --write` re-derived the no-assert corpus figure.
   `test_agent_tool_definition_contract.py` and `test_p50p_llm_boundary.py` for the strict wire.
 - Not verified: live OpenAI acceptance of the strict wire bodies (no live call made). Not
   deployed by this slice.
+
+## 2026-10-29 — agent (Claude Opus) — P76-4: listing-edit post-validator, one retry then refuse (D78)
+
+- What: `services/shop_rules/listing_validator.py` -- `validate_listing_proposal(current_title,
+  current_description_html, proposed_title, proposed_description_html, flagged_codes,
+  brand_terms) -> ListingValidation` (`violations`: `ListingViolation(code, field, message` EN for
+  the model, `message_vi` for the seller`)`, plus `drift`). Codes: `listing_over_limits` (D78.3:
+  current title > 255 or description > 10,000 -> refused, nothing else reported),
+  `title_too_short` (< 40, D78.1), `title_too_long` (> 255), `title_shrunk` (< 80 % of the current
+  title), `title_missing_tokens` (a brand term or quantity of the current title dropped),
+  `description_shorter_than_current` / `description_too_short` (< 500, text after the P76-3 parse) /
+  `description_no_line_break` (`DESC_NO_NEW_LINE`) / `description_too_long` (HTML > 10,000).
+- Must-keep tokens: brand terms the current title carries (the product's `brand.name`) and
+  quantities (`270mL`, `1,5 lít`, `500 ml`, `12 Chai`, `Thùng 24 Lon`, `100%`, `x2`/`2x`), folded
+  for case, diacritics, `,`/`.` decimals, `lít`=`l`, spacing. Claim words added: warn-only.
+- Drift guard (D78.4): share of the current title's / description's words kept, thresholds
+  `TITLE_DRIFT_MIN_OVERLAP` 0.7 / `DESCRIPTION_DRIFT_MIN_OVERLAP` 0.6 in `shop_rules`; LOG-ONLY
+  (`listing_proposal_drift`, `blocking: false`) + `ListingDrift` on the result, never a violation.
+- `TITLE_MIN_CHARS` 25 -> 40 (`shop_rules.listing_edits`, D78.1): the seller's edit at consent and
+  the new-listing filter (`listing_text_filter`, `catalog_create`) share it. TikTok's max for VN
+  confirmed 255 (`edit-product-202509`: "Other regions: [25, 255]").
+- Wiring: `product_write.precheck_update_product_listing` runs it after `check_proposal`;
+  `listing_rules.validation_refusal` -> `listing_rule_violation` + `RULE_REFUSAL_SUMMARY_VI`, every
+  violation as `[code] message` in `model_hint`; new optional `ProposalRefusal.final_summary_vi`.
+- Retry: `RunState.proposal_refusals` (tool name -> count, persisted, survives a pause) counts
+  every precheck refusal; the first returns the violations to the model (`retryable: true`); the
+  second of the same tool ends the run (`_give_up`, `tool_error_unrecoverable`) with
+  `RULE_REFUSAL_FINAL_VI` + the first violation's Vietnamese line. Before, only a *consecutive*
+  streak counted, so a `TextBlock` between two refused drafts reset it. Applies to every domain
+  precheck (P64 create guard included). P70 forced-retry / second-confirm paths unchanged.
+- A "Hoàn tác" (revert) run is not gated by the post-validator: `ProductToolContext.reverting`
+  (set by `ProductToolExecutor` when `revert_expected` is bound) skips it -- it restores the
+  seller's own earlier values (`test_p70_reviewer_revert` caught it).
+- Not wired yet: the shop's `protected_terms` as must-keep brand terms (only the product's
+  `brand.name` is passed), and `flagged_codes` (passed empty; only the drift log reads them).
+- Docs: OP-FR-6 in `docs/product/agent-workflow-execution/v1-workflow-spec.md` now says 40. ADR-090 /
+  ADR-106 text (25) left as historical decision records; blog copy quotes TikTok's own academy rule.
+- Kill switch (orchestrator follow-up, same day): `LISTING_VALIDATOR_ENFORCE` (default on, read
+  per call like `LLM_STREAMING`; documented in `infra/scripts/env/api.env.example`). Off
+  (`0`/`false`/`no`/`off`): every violation except `listing_over_limits` and `title_too_short`
+  is logged `listing_proposal_violation_logged` (code, field) and the proposal passes -- prompt
+  v3 does not state these rules, so most runs would otherwise hit them twice and refuse. The
+  refusal's model hint now also says the description must keep all existing text, only add or
+  replace specific parts, and be at least as long as the current one
+  (`listing_rules.DESCRIPTION_RETRY_HINT`; left out for `listing_over_limits`).
+
+## 2026-10-29 — agent (Claude Opus) — P76-5: TikTok scores the listing draft before the write; Đo lường shows it
+
+- What: `services/agent/tools/draft_scoring.py` -- `score_listing_draft` calls
+  `POST /product/202411/products/diagnose_optimize` (shape from the bundled OAS,
+  `tts-openapi-guide/references/oas/paths/product.json`: `data.diagnoses[]{field,
+  diagnosis_results[]{code, how_to_solve, quality_tier}, suggestion}` + `listing_quality`)
+  with `optimization_fields=["NONE"]` (codes only; the OAS warns DESCRIPTION suggestions can
+  take >10 s). `DraftScore{status: scored|not_read, codes_after, scored_at}`; any error,
+  unreadable payload or >3 s (bounded in a worker thread -- the client's 15 s socket timeout
+  is per client, not per call) ⇒ `not_read`. Codes only, never TikTok's free text.
+- Call site: `product_write.handle_update_product_listing`, one marked line before
+  `products.edit`, scoring the exact edit body (title, description, category, main_images).
+  Only a `SandboxWriteResources` bundle is scored (the endpoint is not on the production-write
+  allowlist; a read bundle never reaches a write). Stored as `draft_score` on the handler's
+  output = the ledger outcome (`tool_executions.outcome_json`); left out of the dump when not
+  scored, so old outcome shapes are unchanged. No migration; precheck / P76-4 code untouched.
+- Đo lường: `listing._confirmed_write` reads the stored score (no new statement);
+  `listing_quality.checked_reading` / `mark_stale` give the "Sau sửa (TikTok kiểm tra)"
+  reading (`listing_quality.checked` on the wire) and relabel a title/description code the
+  live diagnosis still lists but the check cleared as "(TikTok chưa cập nhật chẩn đoán)"
+  (`diagnosis_labels.STALE_DIAGNOSIS_NOTE_VI`). Demo `listing-quality.ts` + `do-luong-panel.tsx`
+  render the extra line; tone "ok" when the check improved on Ngày 0. dictionary.md, D31 updated.
+- Tests: `test_p76_draft_scoring.py` (15), `test_p76_listing_quality_checked.py` (6), fixtures
+  `tests/support/tiktok_draft_scoring.py` (synthetic); vitest P76-5 ×2 in `quyet-dinh-p10.test.tsx`.
+- Unverified: TikTok sandbox's live answer to `diagnose_optimize` for a VN shop (never captured;
+  ADR-090/106 list it as a pending capture) and its latency against the 3 s budget.
+- Follow-up (coordinator review): the scoring call no longer shares the write's
+  `requests.Session`. `GuardedTikTokClient.with_own_session()` copies the guarded client
+  (credentials, signing, guard, capability) onto a fresh Session; `ProductsResource.with_own_session()`
+  / `close()` wrap it. The scoring thread uses the copy and closes it when the call ends,
+  timed out or not. A bundle that cannot give its own session is `not_read` without a call.
+  Test: real factory-built sandbox client with only the HTTP send stubbed -- the
+  `diagnose_optimize` POST and the edit PUT go out on different Sessions, and only the scoring one is closed.

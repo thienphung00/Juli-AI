@@ -208,7 +208,9 @@ async def test_a_title_naming_the_required_manufacturer_is_redrafted_then_ends_t
 def test_a_manufacturer_the_title_names_is_copied():
     products = BrandedProducts(attributes=MANUFACTURER_ATTRS, title=f"Bình nước {CUSTOMER} 750ml")
     out = cc.handle_create_product(
-        _sandbox(products), CONTEXT, _input(f"Bình nước {CUSTOMER} thép không gỉ 750ml")
+        _sandbox(products),
+        CONTEXT,
+        _input(f"Bình nước {CUSTOMER} thép không gỉ 750ml giữ nhiệt lâu"),
     )
     assert out.ok, out
     copied = {row["id"] for row in products.created[0]["product_attributes"]}
@@ -461,7 +463,7 @@ async def test_the_create_confirmation_accepts_the_reviewers_edit(session, enque
 @pytest.mark.parametrize(
     ("edited", "field", "fragment"),
     [
-        ({"title": "Quá ngắn"}, "title", "từ 25 đến 255"),
+        ({"title": "Quá ngắn"}, "title", "từ 40 đến 255"),
         ({"description": "x" * 5_001}, "description", "tối đa 5.000 ký tự"),
         ({"title": "Bình nước thép không gỉ 750ml hàng xịn nhất"}, "title", '"xịn nhất"'),
     ],
@@ -549,7 +551,7 @@ def test_a_listing_edit_proposal_is_gated_by_the_same_rules():
     assert pro is not None and pro.error_code == "brand_not_in_source"
     # The seller's own name, already in the listing's description: an edit may keep it.
     own = precheck_update_product_listing(
-        resources, context, _listing(title=f"Bình nước thép {CUSTOMER} 750ml chính hãng")
+        resources, context, _listing(title=f"Bình nước thép không gỉ {CUSTOMER} 750ml chính hãng")
     )
     assert own is None
 
@@ -567,7 +569,7 @@ async def test_the_reviewers_edit_naming_the_source_manufacturer_is_a_422(sessio
         {
             "decision": "approve",
             "option_id": "1",
-            "edited_values": {"title": f"Bình nước thép không gỉ {CUSTOMER} 750ml"},
+            "edited_values": {"title": f"Bình nước thép không gỉ {CUSTOMER} 750ml giữ nhiệt tốt"},
         },
     )
     assert resp.status_code == 422, resp.text
