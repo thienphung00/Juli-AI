@@ -450,14 +450,14 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P81-A Juli design system in Claude Design from the app's real tokens, ADR-054, D44 | D79.9a | done — https://claude.ai/artifact/BPrVH69A1rjqeanD8pgZ1A (28 colour tokens, 15 text styles, 13 component previews, logos) | lead |
-| P81-B Canvas: ten artboards at 1440 and 390 (D79.9b) | D79.9b | done — https://claude.ai/artifact/WHnrow7tLquPFUJ5p2mwYe (20 boards, 2026-11-01) | lead |
-| Owner: approve or mark up the artboards on the canvas (comment on the board; "approve all" or per board) | D79.9c | **waiting** | owner |
+| P81-A Juli design system in Claude Design from the app's real tokens, ADR-054, D44 | D79.9a | done — https://claude.ai/artifact/BPrVH69A1rjqeanD8pgZ1A (v7: 30 colour tokens incl. `surface-page` + `card-border` per D79.11a, 15 text styles, 13 component previews, logos) | lead |
+| P81-B Canvas: artboards at 1440 and 390 (D79.9b) | D79.9b | done — https://claude.ai/artifact/WHnrow7tLquPFUJ5p2mwYe (v10, 30 boards = 15 screens × 2 widths; boards 11–15 close the onboarding loop per D79.11c; D79.11a/b applied to all boards, 2026-11-01) | lead |
+| Owner: approve or mark up the artboards on the canvas (comment on the board; "approve all" or per board) | D79.9c | **waiting** — three feedback rounds applied (card border + tinted ground, fewer words, end-to-end onboarding); no approval yet | owner |
 | P81-C Approved boards copied to `fasttrack/design/p81/*.dc.html` | D79.9c | todo | lead |
 | P81-D Shell + tokens: Be Vietnam Pro app-wide, ink primary, pink accent only, nav without the Juli slot, Cài đặt in the rail, cookie-safe shell | D79.3, D79.7 | todo | agent (Fable) |
 | P81-E Trang chủ + Quyết định: proposal strip, bottleneck-only tint, per-stream mobile cards, two-tier card | D79.5, D79.6, D79.4 | todo | agent (Fable) |
 | P81-F Phân tích + Cài đặt + run panel: neutral bars, sample read-only Cài đặt, run panel to the board | D79.3, D79.7 | todo | agent (Fable) |
-| P81-G Onboarding chain + landing polish: connect-shop page, reading state, first-cards moment, trial entry; cookie bottom bar; hero card | D79.2, D79.8 | todo | agent (Fable) |
+| P81-G Onboarding chain + landing polish: connect-shop page, reading state, first-cards moment, trial entry; guide 1/3–3/3 on the first card, run panel, Đo lường; Trang chủ checklist states 1/5 → 4/5 → 5/5 (boards 11–15); cookie bottom bar; hero card | D79.2, D79.8, D79.11c | todo | agent (Fable) |
 | P81-H Recapture every landing figure after P81-D..G are merged | D79.8 | todo | agent |
 | Owner: deploy once, verify live at 1440 and 390 | D79.9e | todo | owner |
 | Next slice (not P81): First Connect Score reveal + three insights (#1980–#1983) behind the P81 artboards | D79.2 | later | — |
