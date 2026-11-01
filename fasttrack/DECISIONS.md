@@ -1788,3 +1788,60 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      while the adapter only logs `strict_schema_unconvertible` and sends that one schema
      non-strict. Under strict mode the model sends `null` for an optional field it leaves out;
      `ToolSpec.parse_input` treats that `null` as the field default.
+
+- **D79** — UI refinement of the app, the onboarding chain and the public site (owner grill,
+  2026-11-01, nine questions, every recommended answer accepted). Spec will be the approved
+  Claude Design artboards copied to `fasttrack/design/p81/*.dc.html`; tracker P81 in PROGRESS.md.
+  1. **Scope.** The app's inner screens as a prospect sees them in sample mode AND as a signed-in
+     seller (same components, one pass): Trang chủ, Quyết định (Đề xuất / Đang thực hiện / Đo
+     lường), Phân tích, Cài đặt, the run panel, and the onboarding chain. app-juli.com gets a
+     short polish list (d.8). NOT in scope: reviewer and `/ops` screens, the sign-in screen (D44.5
+     stands).
+  2. **Onboarding.** The canvas draws the full ADR-103 journey (connect → Juli reads → First
+     Connect Score → three insights → first approval) so the end state is approved once. This
+     round implements only what the backend supports today: the connect-shop page, the reading
+     state as a real first-run screen instead of the P17 strip, the first-cards moment, and the
+     trial entry `?dang-ky=dung-thu`. The score reveal and insights are the next slice behind the
+     same artboards (issues #1980–#1983 stay open).
+  3. **Colour and type: D44 carries fully into the app.** Ink `#121214` primary buttons ("Duyệt"
+     black, like "Tiếp tục với Google"); white cards with `#ececf0` hairlines; alt surfaces
+     `#fbfbfc`; body `#4a4a52`, muted `#6b6b74`. Pink `#f86ba5` is accent only: the active nav
+     mark, the selected tab, the one highlighted KPI cell, one flourish per screen; pink text
+     only `#b0386a` (ADR-054). Green / red are reserved for deltas; Phân tích bars go
+     `--chart-neutral` (ADR-054 d.4). Be Vietnam Pro everywhere in the app, not only the auth
+     screen. `packages/theme/tokens.css` stays byte-pinned; the app's tokens live in the app.
+  4. **Breakpoints.** Mobile (390) leads Trang chủ, the Quyết định list and the onboarding chain;
+     desktop (1440) leads Phân tích, the run panel and Cài đặt. Every screen ships at both widths;
+     nothing clips (today the Home formula strip collapses to "CTOR × AOV" at 390).
+  5. **The Quyết định card is two-tier.** Collapsed: product, one line "<lý do> → <thay đổi>",
+     KPI before → after with the GMV estimate, "Duyệt" + "Từ chối". Expanded under one "Chi tiết"
+     control: SKU, update date, helper chips, the full reason and evidence (ADR-055), links to
+     Phân tích. Group headers keep "Duyệt N thẻ".
+  6. **Trang chủ** keeps the GMV = Lượt hiển thị × CTR × CTOR × AOV matrix as the desktop
+     centrepiece. Only the bottleneck cell per stream is tinted; other cells are neutral with a
+     coloured delta glyph. The three KPI tiles become one row. A strip above the matrix states
+     what Juli proposes now ("3 đề xuất chờ duyệt · +7,2 tr đ/tháng") and links to Quyết định.
+     On mobile the matrix becomes one card per stream, four factors in one row, bottleneck first.
+  7. **Navigation.** The locked "Juli" slot leaves the nav until the assistant ships (soul: Juli
+     is contextual assistance, not a destination; a padlock in a sales surface reads as
+     unfinished). Cài đặt takes the fourth slot. **Amends ADR-109 d.7** accordingly. In sample
+     mode every destination shows read-only sample content — Cài đặt lists the sample shop's
+     rules and thresholds with editors disabled and one "Đăng nhập để chỉnh" line; no sample
+     screen may be a sentence on white.
+  8. **app-juli.com.** Cookie consent becomes a slim bottom bar (today it covers the hero on first
+     paint at both widths); the hero's sample card becomes the new two-tier card; every landing
+     figure is recaptured after the app ships (D44.3 shots become stale by construction). Nothing
+     structural moves.
+  9. **Process.** (a) A Juli design system in Claude Design built from the app's real tokens,
+     ADR-054 and D44 (the owner's empty Design System artifact becomes it). (b) One canvas, ten
+     artboards at 1440 and 390: Trang chủ; Quyết định list with both card tiers; run panel; Đo
+     lường; Phân tích; Cài đặt; Kết nối shop; the reading state; First Connect Score + three
+     insights (design only); landing hero card + cookie bar. (c) Owner approves on the canvas;
+     approved boards are copied to `fasttrack/design/p81/`. (d) Four executor groups (Fable) on
+     branches off `fasttrack/optimize-product`, merged in order: shell + tokens; Trang chủ +
+     Quyết định; Phân tích + Cài đặt + run panel; onboarding chain + landing polish + recapture.
+     (e) One deploy at the end; the owner verifies live once.
+  10. **Minimum requirements for every slice:** Vietnamese copy from `dictionary.md` with correct
+     diacritics; no user-visible "demo" wording (D77); 44 px targets, visible focus,
+     `prefers-reduced-motion`; evidence screenshots at 1440 and 390 per screen; `fasttrack/check.sh`
+     green; no new hardcoded colours in `apps/landing`.

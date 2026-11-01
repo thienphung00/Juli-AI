@@ -446,6 +446,22 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 | P68 follow-ups E12 (unscoped webhook side-effect paths) and E13 (webhook/poll dedupe key) | E12, E13 | todo | — |
 | Owner: deploy P68 | — | done: 0d64ca4a (migration 102), 2032d13f, f34827bd; E10 stopped the drained slot on all three | owner |
 
+## P81 — UI refinement: app, onboarding chain, public site polish (D79, 2026-11-01)
+
+| Task | ACs | Status | Owner |
+|---|---|---|---|
+| P81-A Juli design system in Claude Design from the app's real tokens, ADR-054, D44 | D79.9a | in progress | lead |
+| P81-B Canvas: ten artboards at 1440 and 390 (D79.9b) | D79.9b | todo | lead |
+| Owner: approve or mark up the artboards on the canvas | D79.9c | todo | owner |
+| P81-C Approved boards copied to `fasttrack/design/p81/*.dc.html` | D79.9c | todo | lead |
+| P81-D Shell + tokens: Be Vietnam Pro app-wide, ink primary, pink accent only, nav without the Juli slot, Cài đặt in the rail, cookie-safe shell | D79.3, D79.7 | todo | agent (Fable) |
+| P81-E Trang chủ + Quyết định: proposal strip, bottleneck-only tint, per-stream mobile cards, two-tier card | D79.5, D79.6, D79.4 | todo | agent (Fable) |
+| P81-F Phân tích + Cài đặt + run panel: neutral bars, sample read-only Cài đặt, run panel to the board | D79.3, D79.7 | todo | agent (Fable) |
+| P81-G Onboarding chain + landing polish: connect-shop page, reading state, first-cards moment, trial entry; cookie bottom bar; hero card | D79.2, D79.8 | todo | agent (Fable) |
+| P81-H Recapture every landing figure after P81-D..G are merged | D79.8 | todo | agent |
+| Owner: deploy once, verify live at 1440 and 390 | D79.9e | todo | owner |
+| Next slice (not P81): First Connect Score reveal + three insights (#1980–#1983) behind the P81 artboards | D79.2 | later | — |
+
 ## P2–P6
 
 Not started. See SPEC §4. P3 no longer waits on FastMoss (D22): next after P7. P2 (FastMoss) is optional and still waits on the API trial (owner).
