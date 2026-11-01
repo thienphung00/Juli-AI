@@ -450,9 +450,9 @@ Plan of record: `docs/product/data-platform/GRILL_LOG.md` (D16 order) corrected 
 
 | Task | ACs | Status | Owner |
 |---|---|---|---|
-| P81-A Juli design system in Claude Design from the app's real tokens, ADR-054, D44 | D79.9a | in progress | lead |
-| P81-B Canvas: ten artboards at 1440 and 390 (D79.9b) | D79.9b | todo | lead |
-| Owner: approve or mark up the artboards on the canvas | D79.9c | todo | owner |
+| P81-A Juli design system in Claude Design from the app's real tokens, ADR-054, D44 | D79.9a | done — https://claude.ai/artifact/BPrVH69A1rjqeanD8pgZ1A (28 colour tokens, 15 text styles, 13 component previews, logos) | lead |
+| P81-B Canvas: ten artboards at 1440 and 390 (D79.9b) | D79.9b | done — https://claude.ai/artifact/WHnrow7tLquPFUJ5p2mwYe (20 boards, 2026-11-01) | lead |
+| Owner: approve or mark up the artboards on the canvas (comment on the board; "approve all" or per board) | D79.9c | **waiting** | owner |
 | P81-C Approved boards copied to `fasttrack/design/p81/*.dc.html` | D79.9c | todo | lead |
 | P81-D Shell + tokens: Be Vietnam Pro app-wide, ink primary, pink accent only, nav without the Juli slot, Cài đặt in the rail, cookie-safe shell | D79.3, D79.7 | todo | agent (Fable) |
 | P81-E Trang chủ + Quyết định: proposal strip, bottleneck-only tint, per-stream mobile cards, two-tier card | D79.5, D79.6, D79.4 | todo | agent (Fable) |
