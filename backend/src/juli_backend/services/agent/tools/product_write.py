@@ -98,7 +98,10 @@ from juli_backend.services.agent.sanitize.caps import cap_text
 from juli_backend.services.agent.sanitize.chokepoints import guard_inbound_tool_result
 from juli_backend.services.agent.sanitize.provenance import VendorText, to_json_safe
 from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN, ProposalResolution
-from juli_backend.services.agent.tools.draft_scoring import DraftScore, score_confirmed_listing
+from juli_backend.services.agent.tools.draft_scoring import (
+    DraftScore,
+    start_confirmed_listing_score,
+)
 from juli_backend.services.agent.tools.listing_codes import EditCodes, edit_codes
 from juli_backend.services.agent.tools.listing_rules import (
     check_proposal,
@@ -425,10 +428,13 @@ def handle_update_product_listing(
     params: UpdateProductListingInput,
 ) -> UpdateProductListingOutput:
     body = _build_listing_edit_body(params, context)
-    # P76-5 call site: TikTok scores the confirmed draft once, before the write; stored on
-    # the ledger outcome for Đo lường. Never blocks the write (``draft_scoring``).
-    draft_score = score_confirmed_listing(resources, context.product_id, body)
+    # P76-5 / P83 call site: TikTok scores the confirmed draft (the exact body below) while
+    # the write goes out; the score is collected after it and stored on the ledger outcome
+    # for Đo lường. Never blocks or alters the write (``draft_scoring``): if the edit
+    # raises, the score is simply never collected.
+    pending_score = start_confirmed_listing_score(resources, context.product_id, body)
     resources.products.edit(product_id=context.product_id, body=body)
+    draft_score = pending_score.wait() if pending_score is not None else None
     return UpdateProductListingOutput(
         title=params.title,
         description=params.description,

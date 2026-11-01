@@ -9,6 +9,7 @@ quality_tier}], suggestion}`` plus ``listing_quality``. No real shop, brand or p
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from typing import Any
 
 from juli_backend.integrations.tiktok import SandboxWriteResources
@@ -72,6 +73,9 @@ class DraftScoringProducts:
         #: Own-session copies handed out for scoring, and how many were closed.
         self.copies: list[DraftScoringProducts] = []
         self.closed = 0
+        #: Runs inside ``edit`` (e.g. to release a blocked scorer mid-write); P83.
+        self.on_edit: Callable[[], None] | None = None
+        self.edit_error: BaseException | None = None
         self._gate = threading.Event()
         if not block:
             self._gate.set()
@@ -106,6 +110,7 @@ class DraftScoringProducts:
             }
         )
         self._gate.wait(timeout=5)
+        self.events.append("diagnose_done")
         if isinstance(self.diagnose_result, BaseException):
             raise self.diagnose_result
         result: Any = self.diagnose_result
@@ -114,6 +119,10 @@ class DraftScoringProducts:
     def edit(self, *, product_id: str, body: dict[str, Any]) -> dict[str, Any]:
         self.events.append("edit")
         self.edit_calls.append((product_id, body))
+        if self.on_edit is not None:
+            self.on_edit()
+        if self.edit_error is not None:
+            raise self.edit_error
         return {}
 
 

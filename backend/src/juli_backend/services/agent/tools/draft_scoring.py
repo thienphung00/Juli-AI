@@ -26,14 +26,17 @@ existing product with those values substituted. Response ``data``::
 DESCRIPTION suggestion "may take more than 10 seconds"), only the diagnosis codes, which
 come back regardless. Only codes are kept -- never TikTok's free text.
 
-Never a guess and never a blocker: any TikTok error, unexpected payload or a read slower
-than :data:`SCORING_TIMEOUT_SECONDS` gives ``status="not_read"`` and the write proceeds.
+Never a guess and never a blocker: scoring starts first, the write is performed while it
+runs, and only afterwards does the handler collect the score (P83). Any TikTok error,
+unexpected payload or a read slower than :data:`DRAFT_SCORE_BUDGET_SECONDS` (from the start
+of scoring) gives ``status="not_read"``; the write is unaffected either way.
 """
 
 from __future__ import annotations
 
 import concurrent.futures
 import logging
+import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any, Final, Literal
@@ -45,10 +48,12 @@ from juli_backend.services.agent.tools.diagnosis_labels import is_diagnosis_code
 
 logger = logging.getLogger(__name__)
 
-#: The write waits at most this long for TikTok's check. The TikTok client's own socket
-#: timeout (``TikTokClient(timeout=...)``, 15 s) is per request and not adjustable per
-#: call, so the wait is bounded here; a late answer is discarded.
-SCORING_TIMEOUT_SECONDS = 3.0
+#: TikTok's check gets this long in total, measured from when scoring starts (P83: it runs
+#: while the write goes out, so the write never waits on it; the old 3 s wait before the
+#: write timed out on the live sandbox, run d7b5d16c). The TikTok client's own socket
+#: timeout (15 s) is per request and not adjustable per call, so the wait is bounded here;
+#: a late answer is discarded.
+DRAFT_SCORE_BUDGET_SECONDS = 12.0
 #: Suggestions are not requested (see module docstring); codes return regardless.
 OPTIMIZATION_FIELDS: tuple[str, ...] = ("NONE",)
 
@@ -95,7 +100,49 @@ def parse_draft_codes(raw: object) -> list[str] | None:
     return codes
 
 
-def score_listing_draft(
+class PendingDraftScore:
+    """A scoring call already in flight on its own thread; :meth:`wait` collects it.
+
+    The deadline is fixed when scoring *starts*, so a write that runs meanwhile spends
+    from the same budget. A late answer, or one that arrives after the write failed and
+    nobody waits, is discarded; the thread closes its own client either way.
+    """
+
+    def __init__(
+        self,
+        future: concurrent.futures.Future[object] | None,
+        deadline: float,
+        budget_seconds: float,
+        monotonic: Callable[[], float],
+        clock: Callable[[], str],
+    ) -> None:
+        self._future = future
+        self._deadline = deadline
+        self._budget_seconds = budget_seconds
+        self._monotonic = monotonic
+        self._clock = clock
+
+    def wait(self) -> DraftScore:
+        """The score once the call is done, or ``not_read`` when the budget runs out."""
+        if self._future is None:
+            return DraftScore(status=STATUS_NOT_READ)
+        remaining = max(0.0, self._deadline - self._monotonic())
+        try:
+            raw = self._future.result(timeout=remaining)
+        except concurrent.futures.TimeoutError:
+            logger.warning("draft_score_timeout", extra={"timeout_seconds": self._budget_seconds})
+            return DraftScore(status=STATUS_NOT_READ)
+        except Exception:  # TikTok / credential / network: unknown, never a guess
+            logger.warning("draft_score_unread", exc_info=True)
+            return DraftScore(status=STATUS_NOT_READ)
+        codes = parse_draft_codes(raw)
+        if codes is None:
+            logger.warning("draft_score_unparsed")
+            return DraftScore(status=STATUS_NOT_READ)
+        return DraftScore(status=STATUS_SCORED, codes_after=codes, scored_at=self._clock())
+
+
+def start_listing_draft_score(
     resources: Any,
     product_id: str,
     category_id: str,
@@ -103,12 +150,17 @@ def score_listing_draft(
     description_html: str | None,
     main_images: Sequence[Mapping[str, Any]] | None,
     *,
-    timeout_seconds: float = SCORING_TIMEOUT_SECONDS,
+    budget_seconds: float | None = None,
     clock: Callable[[], str] = _now_iso,
-) -> DraftScore:
-    """Ask TikTok to diagnose the draft; ``not_read`` on any failure or timeout."""
+    monotonic: Callable[[], float] = time.monotonic,
+) -> PendingDraftScore:
+    """Start asking TikTok to diagnose the draft and return at once (P83).
 
-    # The call may outlive the wait (a slow TikTok) while the write goes out on the bundle's
+    Never raises: with no own-session client the pending score is ``not_read``."""
+    budget = DRAFT_SCORE_BUDGET_SECONDS if budget_seconds is None else budget_seconds
+    started = monotonic()
+
+    # The call outlives this function and runs while the write goes out on the bundle's
     # client: it runs on a copy of the guarded client with its own HTTP session, never the
     # write's (``requests.Session`` is not guaranteed thread-safe), closed when it ends.
     isolate = getattr(resources.products, "with_own_session", None)
@@ -118,7 +170,7 @@ def score_listing_draft(
         products = None
     if products is None:
         logger.warning("draft_score_no_own_session")
-        return DraftScore(status=STATUS_NOT_READ)
+        return PendingDraftScore(None, started, budget, monotonic, clock)
 
     def call() -> object:
         try:
@@ -135,36 +187,51 @@ def score_listing_draft(
 
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="draft-score")
     try:
-        raw = pool.submit(call).result(timeout=timeout_seconds)
-    except concurrent.futures.TimeoutError:
-        logger.warning("draft_score_timeout", extra={"timeout_seconds": timeout_seconds})
-        return DraftScore(status=STATUS_NOT_READ)
-    except Exception:  # TikTok / credential / network: unknown, never a guess
-        logger.warning("draft_score_unread", exc_info=True)
-        return DraftScore(status=STATUS_NOT_READ)
+        future = pool.submit(call)
     finally:
+        # The worker finishes its one call and exits; nothing waits on the pool.
         pool.shutdown(wait=False)
-    codes = parse_draft_codes(raw)
-    if codes is None:
-        logger.warning("draft_score_unparsed")
-        return DraftScore(status=STATUS_NOT_READ)
-    return DraftScore(status=STATUS_SCORED, codes_after=codes, scored_at=clock())
+    return PendingDraftScore(future, started + budget, budget, monotonic, clock)
 
 
-def score_confirmed_listing(
+def score_listing_draft(
+    resources: Any,
+    product_id: str,
+    category_id: str,
+    title: str | None,
+    description_html: str | None,
+    main_images: Sequence[Mapping[str, Any]] | None,
+    *,
+    timeout_seconds: float | None = None,
+    clock: Callable[[], str] = _now_iso,
+) -> DraftScore:
+    """Ask TikTok to diagnose the draft and wait; ``not_read`` on any failure or timeout."""
+    return start_listing_draft_score(
+        resources,
+        product_id,
+        category_id,
+        title,
+        description_html,
+        main_images,
+        budget_seconds=timeout_seconds,
+        clock=clock,
+    ).wait()
+
+
+def start_confirmed_listing_score(
     resources: object, product_id: str, body: Mapping[str, Any]
-) -> DraftScore | None:
-    """The write path's one call: score the edit body about to be sent, or ``None``
+) -> PendingDraftScore | None:
+    """The write path's one call: start scoring the edit body about to be sent, or ``None``
     (skipped) when the bundle is not the writable sandbox's -- a production write bundle
     is not allowed this endpoint, and a read bundle (the reviewer's masked pin) never
-    reaches a write."""
+    reaches a write. Collect with ``.wait()`` after the write."""
     if not isinstance(resources, SandboxWriteResources):
         return None
     category_id = body.get("category_id")
     if not isinstance(category_id, str) or not category_id:
-        return DraftScore(status=STATUS_NOT_READ)
+        return PendingDraftScore(None, 0.0, 0.0, time.monotonic, _now_iso)
     images = body.get("main_images")
-    return score_listing_draft(
+    return start_listing_draft_score(
         resources,
         product_id,
         category_id,
@@ -186,13 +253,15 @@ def stored_draft_score(outcome: Mapping[str, Any]) -> DraftScore | None:
 
 
 __all__ = [
+    "DRAFT_SCORE_BUDGET_SECONDS",
     "OPTIMIZATION_FIELDS",
-    "SCORING_TIMEOUT_SECONDS",
     "STATUS_NOT_READ",
     "STATUS_SCORED",
     "DraftScore",
+    "PendingDraftScore",
     "parse_draft_codes",
-    "score_confirmed_listing",
     "score_listing_draft",
+    "start_confirmed_listing_score",
+    "start_listing_draft_score",
     "stored_draft_score",
 ]
