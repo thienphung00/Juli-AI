@@ -1845,3 +1845,15 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      diacritics; no user-visible "demo" wording (D77); 44 px targets, visible focus,
      `prefers-reduced-motion`; evidence screenshots at 1440 and 390 per screen; `fasttrack/check.sh`
      green; no new hardcoded colours in `apps/landing`.
+  11. **Owner amendments after the first canvas review (2026-11-01).** (a) **Cards are told apart by
+     surface, not copy:** the app's page ground is `#f6f6f8`; header, rail and every card are white
+     with a 1px `#e4e4ea` border and a soft shadow (`0 1px 2px rgba(18,18,20,.06)`), the pattern
+     Shopify Polaris and most B2B SaaS use; hairlines stay for dividers inside a card. This amends d.3
+     ("white cards with hairlines on white"). (b) **Fewer words, no explanatory UI copy:** no sentence
+     that tells the reader how to read the screen ("Ô được tô = …", "Juli dựng báo cáo lúc …"); a
+     caption is one line or nothing; a screen lead is one short sentence. (c) **Onboarding is end to
+     end:** connect → Juli reads (3 one-time questions + Zalo) → Điểm kết nối with 3 cards → a 3-screen
+     guide on the first card (card anatomy · how Juli runs · day 7/14) → Trang chủ with a dismissible
+     "Bắt đầu với Juli" 5-step checklist (sample mode: xem báo cáo · duyệt một thẻ · xem Juli chạy · đọc
+     kết quả ngày 7 · kết nối shop của bạn; signed-in: the same with "kết nối" first and done). Boards 7
+     and 9 were cut to a few lines each; board 11 (guide) was added.
