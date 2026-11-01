@@ -36,12 +36,27 @@ dropped, merged or split; a section is appended only to fix a TikTok-flagged
 code present on the product; a listing already over TikTok's limits is refused.
 Pure and deterministic. With no description ops the original HTML is returned
 unchanged.
+
+Span matching (P80, D34)
+------------------------
+Every span is found in the ORIGINAL section (or title) text, all spans are checked
+for overlap, then applied right to left -- one op never sees another's result. An
+``old`` is first searched verbatim; when absent it is searched after the same
+normalisation of both sides: Unicode NFC, invisible format / control characters
+dropped (the product read strips them, so the model never sees them), whitespace
+runs collapsed to one space, ``-`` ``‐`` ``‑`` ``‒`` ``–`` ``—`` equal, straight and
+curly quotes equal, ``old``'s outer whitespace ignored. A match maps back to the
+exact original offsets, so only the original characters it covers are replaced.
+Nothing looser (case, diacritics, punctuation) ever matches. A refusal about an
+``old`` carries the text it searched (:attr:`EditRejection.context_text`) for the
+model's one retry; an ``old`` copied from an earlier op's ``new`` names that op.
 """
 
 from __future__ import annotations
 
 import html
 import re
+import unicodedata
 from collections.abc import Collection
 from dataclasses import dataclass, replace
 from enum import Enum
@@ -394,6 +409,11 @@ class EditRejection:
     field: Literal["title", "description"]
     op_index: int | None
     message: str
+    #: P80: the original section (or title) text an ``old`` was searched in, for an
+    #: ``old_not_found`` / ``old_ambiguous`` / ``ops_overlap`` refusal; ``None`` otherwise.
+    context_text: str | None = None
+    #: P80: where ``context_text`` comes from: ``"the title"`` or ``"section N"``.
+    context_where: str | None = None
 
 
 @dataclass(frozen=True)
@@ -411,42 +431,161 @@ class _Reject(Exception):
 
 
 def _reject(
-    code: RejectionCode, field: Literal["title", "description"], index: int | None, message: str
+    code: RejectionCode,
+    field: Literal["title", "description"],
+    index: int | None,
+    message: str,
+    context: tuple[str, str] | None = None,
 ) -> _Reject:
-    return _Reject(EditRejection(code, field, index, message))
+    """``context``: ``(text, where)`` an ``old`` was searched in (P80)."""
+    text, where = context if context is not None else (None, None)
+    return _Reject(EditRejection(code, field, index, message, text, where))
+
+
+# P80: the only differences an ``old`` may have from the original text.
+_DASHES = frozenset("-\u2010\u2011\u2012\u2013\u2014")
+_SINGLE_QUOTES = frozenset("'\u2018\u2019\u201a\u201b")
+_DOUBLE_QUOTES = frozenset('"\u201c\u201d\u201e\u201f')
+_INVISIBLE_CATEGORIES = frozenset({"Cc", "Cf"})
+
+
+def _fold_char(ch: str) -> str:
+    """One NFC character as matching sees it: ``""`` (invisible), ``" "`` or itself."""
+    if ch.isspace():
+        return " "
+    if unicodedata.category(ch) in _INVISIBLE_CATEGORIES:
+        return ""
+    if ch in _DASHES:
+        return "-"
+    if ch in _SINGLE_QUOTES:
+        return "'"
+    if ch in _DOUBLE_QUOTES:
+        return '"'
+    return ch
+
+
+def _clusters(text: str) -> list[tuple[int, int]]:
+    """``(start, end)`` of each base character with its combining marks: the unit NFC
+    composes within, so a normalised character maps back to whole original ones."""
+    bounds: list[tuple[int, int]] = []
+    for i, ch in enumerate(text):
+        if bounds and unicodedata.combining(ch):
+            bounds[-1] = (bounds[-1][0], i + 1)
+        else:
+            bounds.append((i, i + 1))
+    return bounds
+
+
+def _normalised(text: str) -> tuple[str, list[int], list[int]]:
+    """``text`` normalised for matching, with each normalised character's original
+    ``[start, end)``; whitespace runs collapse to one space spanning the whole run."""
+    chars: list[str] = []
+    starts: list[int] = []
+    ends: list[int] = []
+    for start, end in _clusters(text):
+        for ch in unicodedata.normalize("NFC", text[start:end]):
+            folded = _fold_char(ch)
+            if not folded:
+                continue
+            if folded == " " and chars and chars[-1] == " ":
+                ends[-1] = end
+                continue
+            chars.append(folded)
+            starts.append(start)
+            ends.append(end)
+    return "".join(chars), starts, ends
+
+
+def _needle(old: str) -> str:
+    return _normalised(old)[0].strip(" ")
+
+
+def _positions(haystack: str, needle: str) -> list[int]:
+    """Every (overlapping) position of ``needle`` in ``haystack``."""
+    found: list[int] = []
+    at = haystack.find(needle)
+    while at != -1:
+        found.append(at)
+        at = haystack.find(needle, at + 1)
+    return found
 
 
 def _locate(
-    text: str, old: str, field: Literal["title", "description"], index: int, where: str
-) -> int:
-    if not old:
+    text: str,
+    old: str,
+    field: Literal["title", "description"],
+    index: int,
+    where: str,
+    earlier_news: dict[int, str] | None = None,
+) -> tuple[int, int]:
+    """``old``'s ``[start, end)`` in the ORIGINAL ``text``: verbatim first, else after the
+    P80 normalisation, mapped back to the exact original offsets."""
+    needle = _needle(old)
+    if not needle:
         raise _reject(RejectionCode.OLD_EMPTY, field, index, "`old` must not be empty.")
-    count = text.count(old)
-    if count == 0:
-        raise _reject(
-            RejectionCode.OLD_NOT_FOUND, field, index,
-            f"`old` was not found verbatim in {where}; copy it exactly from the original text.",
-        )  # fmt: skip
+    exact = _positions(text, old)
+    if len(exact) == 1:
+        return exact[0], exact[0] + len(old)
+    count = len(exact)
+    if not exact:
+        haystack, starts, ends = _normalised(text)
+        found = _positions(haystack, needle)
+        if len(found) == 1:
+            return starts[found[0]], ends[found[0] + len(needle) - 1]
+        count = len(found)
     if count > 1:
         raise _reject(
-            RejectionCode.OLD_AMBIGUOUS, field, index,
+            RejectionCode.OLD_AMBIGUOUS,
+            field,
+            index,
             f"`old` occurs {count} times in {where}; "
             "include more surrounding text so it is unique.",
-        )  # fmt: skip
-    return text.index(old)
+            (text, where),
+        )
+    chained = next(
+        (j for j, new in (earlier_news or {}).items() if needle in _needle(new)),
+        None,
+    )
+    if chained is not None:
+        raise _reject(
+            RejectionCode.OLD_NOT_FOUND,
+            field,
+            index,
+            f"`old` copies text that operation {chained} writes, but every `old` is copied "
+            f"from the ORIGINAL text of {where}: operations never see each other's "
+            f"result. Put this change into operation {chained}'s `new` instead.",
+            (text, where),
+        )
+    raise _reject(
+        RejectionCode.OLD_NOT_FOUND,
+        field,
+        index,
+        f"`old` was not found verbatim in {where}; copy it exactly from the original text.",
+        (text, where),
+    )
 
 
 def _splice(
-    text: str, spans: list[tuple[int, int, str, int]], field: Literal["title", "description"]
+    text: str,
+    spans: list[tuple[int, int, str, int]],
+    field: Literal["title", "description"],
+    where: str,
 ) -> str:
-    """Apply (start, end, new, op_index) spans; reject overlaps."""
+    """Apply (start, end, new, op_index) spans of the ORIGINAL ``text`` right to left;
+    reject overlaps."""
     ordered = sorted(spans)
     for (_, prev_end, _, prev_idx), (start, _, _, idx) in zip(ordered, ordered[1:], strict=False):
         if start < prev_end:
+            first, second = sorted((prev_idx, idx))
             raise _reject(
-                RejectionCode.OPS_OVERLAP, field, idx,
-                f"Operation {idx} overlaps operation {prev_idx}; make their `old` spans disjoint.",
-            )  # fmt: skip
+                RejectionCode.OPS_OVERLAP,
+                field,
+                second,
+                f"Operation {second} overlaps operation {first} in {where}: their `old` "
+                "spans share text. Merge them into one replace_span whose `old` covers both "
+                "spans (copied from the original text) and whose `new` carries both changes.",
+                (text, where),
+            )
     for start, end, new, _ in reversed(ordered):
         text = text[:start] + new + text[end:]
     return text
@@ -460,9 +599,10 @@ def _apply_title(title: str, ops: list[ReplaceTitleSpan]) -> str:
                 RejectionCode.REASON_CODE_WRONG_FIELD, "title", i,
                 f"reason_code {op.reason_code!r} is not a title diagnosis code.",
             )  # fmt: skip
-        start = _locate(title, op.old, "title", i, "the title")
-        spans.append((start, start + len(op.old), op.new, i))
-    result = _collapse(_splice(title, spans, "title")) if spans else title
+        earlier = {j: span[2] for j, span in enumerate(spans)}
+        start, end = _locate(title, op.old, "title", i, "the title", earlier)
+        spans.append((start, end, op.new, i))
+    result = _collapse(_splice(title, spans, "title", "the title")) if spans else title
     if spans and not result:
         raise _reject(
             RejectionCode.TITLE_EMPTIED, "title", None, "The edits leave the title empty."
@@ -571,16 +711,15 @@ def _apply_description(
                 f"section {op.section_index} is an image/markup block and cannot be edited.",
             )  # fmt: skip
         text = texts[op.section_index]
-        start = _locate(text, op.old, "description", i, f"section {op.section_index}")
-        replacements.setdefault(op.section_index, []).append(
-            (start, start + len(op.old), op.new, i)
-        )
+        earlier = {j: new for _, _, new, j in replacements.get(op.section_index, [])}
+        span = _locate(text, op.old, "description", i, f"section {op.section_index}", earlier)
+        replacements.setdefault(op.section_index, []).append((*span, op.new, i))
 
     out: list[Section] = []
     for index, section in enumerate(skeleton):
         spans = replacements.get(index)
         if spans:
-            new_text = _splice(texts[index], spans, "description")
+            new_text = _splice(texts[index], spans, "description", f"section {index}")
             section = _rebuild_section(section, new_text, index)
         out.append(section)
         out.extend(inserts.get(index, []))
