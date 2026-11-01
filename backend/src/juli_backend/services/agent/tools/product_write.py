@@ -82,6 +82,7 @@ structurally, which is this module's whole point.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -93,6 +94,9 @@ from juli_backend.integrations.tiktok import (
     TikTokAPIError,
     TransportGuardError,
 )
+from juli_backend.services.agent.sanitize.caps import cap_text
+from juli_backend.services.agent.sanitize.chokepoints import guard_inbound_tool_result
+from juli_backend.services.agent.sanitize.provenance import VendorText, to_json_safe
 from juli_backend.services.agent.tools.domains import PRODUCT_DOMAIN, ProposalResolution
 from juli_backend.services.agent.tools.draft_scoring import DraftScore, score_confirmed_listing
 from juli_backend.services.agent.tools.listing_codes import EditCodes, edit_codes
@@ -127,6 +131,10 @@ from juli_backend.services.shop_rules.listing_validator import (
 # Section reference: docs/integrations/tiktok_api/contract-collection.md § B-4
 # Never hardcode this at call sites; always source it from this constant.
 TIKTOK_PRODUCT_EDIT_CATEGORY_VERSION = PRODUCT_CATEGORY_VERSION
+
+#: P80: at most this many characters of the section / title text an ``old`` refusal
+#: quotes back to the model for its one retry.
+REJECTION_TEXT_MAX_CHARS = 600
 
 
 class UnresolvedAgentRefError(ValueError):
@@ -478,7 +486,36 @@ def _rejection_message(result: EditRejection, codes: EditCodes) -> str:
         RejectionCode.APPEND_CODE_NOT_FLAGGED,
     ):
         message = f"{message} {codes.allowed_line(result.field)}"
+    quoted = _quoted_context(result)
+    if quoted is not None:
+        message = f"{message} {quoted}"
     return message
+
+
+_CONTEXT_CODES = frozenset(
+    {RejectionCode.OLD_NOT_FOUND, RejectionCode.OLD_AMBIGUOUS, RejectionCode.OPS_OVERLAP}
+)
+
+
+def _quoted_context(result: EditRejection) -> str | None:
+    """P80 (D34): the text an ``old`` was searched in, quoted for the model's one retry
+    so it can copy ``old`` verbatim. The vendor text goes through the inbound guard
+    (hidden characters stripped, as the product read showed it; a banned-pattern hit
+    drops the quote) and is capped at :data:`REJECTION_TEXT_MAX_CHARS`."""
+    if result.code not in _CONTEXT_CODES or not result.context_text:
+        return None
+    guarded = guard_inbound_tool_result(
+        {"text": to_json_safe(VendorText(text=result.context_text))},
+        tool_name="update_product_listing",
+    )
+    if "error" in guarded:
+        return None
+    text = str(guarded["text"]["text"])
+    capped = cap_text(text, cap=REJECTION_TEXT_MAX_CHARS)
+    shown = f"{capped.text}…" if capped.truncated else capped.text
+    where = result.context_where or "the text"
+    label = where[:1].upper() + where[1:]
+    return f"{label} reads exactly: {json.dumps(shown, ensure_ascii=False)}"
 
 
 def resolve_update_product_listing(

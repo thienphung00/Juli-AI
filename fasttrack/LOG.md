@@ -3342,3 +3342,29 @@ reconcile --write` re-derived the no-assert corpus figure.
   and pause for consent; wrong field -> allowed codes -> retry pauses; image-only + clean listing
   -> concluded; card evidence; union/per-field units); sanitize golden fixtures regenerated
   (`edit_codes`).
+
+## 2026-11-01 — agent (Claude Opus) — P80: listing edit spans match the text the model read (D34)
+
+- Live (sandbox, run 23ac1c02, prompt v4 + P79): one-sentence description, two `replace_span`
+  ops on section 0; op 1 refused `old_not_found` twice, no write (edge case D34).
+- Hypothesis "op 1 searches the text op 0 already changed" refuted by a test: `apply_ops`
+  already located every span in the ORIGINAL section and spliced right to left. Root cause
+  (from the code, the exact live `old` not inspected): the matcher searched `old` verbatim
+  while the model reads the section through the inbound guard, which strips hidden format
+  characters; dash / quote / whitespace / NFC differences and an `old` copied from an earlier
+  op's `new` fail the same way; the refusal gave the model nothing to copy from.
+- `listing_structure`: `_locate` tries verbatim, then normalises both sides (NFC per base +
+  combining marks, Cc/Cf dropped, whitespace runs -> one space, `-‐‑‒–—` equal, straight/curly
+  quotes equal, `old`'s outer whitespace ignored) and maps the single match back to exact
+  original offsets. Two matches -> `old_ambiguous` (positions now counted overlapping). An
+  `old` found in an earlier op's `new` -> `old_not_found` saying spans refer to the original
+  and naming the op to merge into. `ops_overlap` now says to merge into one replace_span.
+  `EditRejection` gains `context_text` / `context_where`.
+- Resolver: an `old_not_found` / `old_ambiguous` / `ops_overlap` refusal appends `Section N
+  reads exactly: "<text>"` (or `The title ...`), the text passed through
+  `guard_inbound_tool_result` (hidden characters stripped; a banned-pattern hit drops the
+  quote) and capped at 600 characters (`REJECTION_TEXT_MAX_CHARS`). Prompt v4 unchanged.
+- Tests: `test_p80_listing_edit_spans.py` (op patterns, normalisation table and negative
+  table, ambiguity, chaining, overlap; live replay through the real runner pauses for consent
+  with the original sentence kept; a refusal quotes the section and the retry passes; cap).
+
