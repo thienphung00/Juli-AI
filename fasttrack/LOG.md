@@ -3368,3 +3368,30 @@ reconcile --write` re-derived the no-assert corpus figure.
   table, ambiguity, chaining, overlap; live replay through the real runner pauses for consent
   with the original sentence kept; a refusal quotes the section and the retry passes; cap).
 
+
+## 2026-11-01 — agent (Claude Opus) — P81: a listing edit may split a paragraph (D35)
+
+- Live (sandbox, run aba7cb24, prompt v4 + P79 + P80): one-sentence description flagged
+  `DESC_NO_NEW_LINE` + `DESC_LESS_THAN_FIVE_HUNDRED_CHARS`. Attempt 1: two `replace_span` with
+  `old` = the whole sentence -> `ops_overlap` (correct). Attempt 2: one merged `replace_span`
+  keeping the sentence and adding paragraphs after blank lines -> `section_structure_changed`
+  ("must not be split"); no write (edge case D35).
+- `listing_structure`: `SPLIT_CODES = {DESC_NO_NEW_LINE, DESC_LESS_THAN_FIVE_HUNDRED_CHARS}`.
+  A `replace_span` that leaves blank lines in a PARAGRAPH section is re-parsed (as
+  `parse_description` reads plain text) into several paragraphs in that section's place when
+  one of the section's ops cites a split code that is flagged (P79 union); an `insert_after`
+  with blank lines inserts several paragraphs under the same gate. Rendered as one `<p>` per
+  paragraph (`<br>` per line), so the post-validator's line-break check passes. A result that
+  is still one paragraph (e.g. a trailing blank line) needs no gate.
+- Still refused: a section left empty (`section_structure_changed`, "empties section N"),
+  fewer non-empty lines/items than before (`section_dropped`), a heading with a line break, a
+  blank list item, a split / multi-paragraph insert whose code is not a flagged split code
+  (message names both codes). Every structure refusal now ends with "New paragraphs and line
+  breaks inside the edited paragraph are allowed (...); emptying a section, splitting a
+  heading, or deleting or merging other sections is not." and carries the op index. Ops still
+  address only their own section, so other sections are never touched. Prompt v4 unchanged
+  (still says insert_after adds "one paragraph"; the refusal message teaches the rest).
+- Tests: `test_p81_listing_paragraph_split.py` (split into 3 `<p>` with the sentence kept,
+  validator line-break check, insert_after multi-paragraph, other sections untouched, refusal
+  table, live replay of aba7cb24 attempts 1+2 through the real runner -> pauses for consent,
+  all original text kept, >= 500 characters, 7 paragraphs).

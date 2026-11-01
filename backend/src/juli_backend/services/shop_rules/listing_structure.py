@@ -32,10 +32,23 @@ or an :class:`EditRejection` carrying a machine-readable :class:`RejectionCode`
 and an English message for the model's retry. Section indices always refer to the
 *original* skeleton, so op order never shifts them. Rules (D78): a span is
 replaced only when ``old`` occurs exactly once in its section; no section is
-dropped, merged or split; a section is appended only to fix a TikTok-flagged
+dropped, merged or emptied; a section is appended only to fix a TikTok-flagged
 code present on the product; a listing already over TikTok's limits is refused.
+A paragraph may be split (P81, below).
 Pure and deterministic. With no description ops the original HTML is returned
 unchanged.
+
+Paragraph splits (P81, D35)
+---------------------------
+Fixing ``DESC_NO_NEW_LINE`` on a one-paragraph description needs more paragraphs.
+A ``replace_span`` whose ``new`` leaves a blank line inside a *paragraph* section,
+or an ``insert_after`` whose ``text`` holds blank lines, is re-parsed the way
+:func:`parse_description` reads plain text and becomes several paragraphs in that
+section's place -- but only when the op's ``reason_code`` is one of
+:data:`SPLIT_CODES` AND flagged on the product (the P79 union). Untouched text is
+still kept character for character by the span splice, a split must keep at least
+the section's original number of lines, and a section left empty, a heading split
+or a blank list item stay refused; other sections are never touched by an op.
 
 Span matching (P80, D34)
 ------------------------
@@ -85,6 +98,14 @@ _BOLD_TAGS = frozenset({"b", "strong"})
 _MARKUP_RE = re.compile(r"</?[a-zA-Z][^>]*>")
 _SPACE_RE = re.compile(r"\s+")
 _BOLD_HEADING = "bold"
+
+#: P81: the description codes whose fix may split a paragraph into several.
+SPLIT_CODES = frozenset({"DESC_NO_NEW_LINE", "DESC_LESS_THAN_FIVE_HUNDRED_CHARS"})
+_ALLOWED_STRUCTURE = (
+    "New paragraphs and line breaks inside the edited paragraph are allowed "
+    "(with a flagged DESC_NO_NEW_LINE or DESC_LESS_THAN_FIVE_HUNDRED_CHARS reason_code); "
+    "emptying a section, splitting a heading, or deleting or merging other sections is not."
+)
 
 
 class SectionKind(str, Enum):
@@ -610,28 +631,48 @@ def _apply_title(title: str, ops: list[ReplaceTitleSpan]) -> str:
     return result
 
 
-def _rebuild_section(section: Section, new_text: str, index: int) -> Section:
+def _rebuild_section(
+    section: Section,
+    new_text: str,
+    index: int,
+    spans: list[tuple[int, int, str, int]],
+    splittable: Collection[int],
+) -> list[Section]:
+    """The section(s) ``new_text`` becomes: one, or several paragraphs (P81 split)."""
     lines = [_collapse(line) for line in new_text.split("\n")]
     where = f"section {index}"
-    if any(not line for line in lines):
+    first_op = min(op_index for *_, op_index in spans)
+    multi_line_op = next(
+        (op_index for _, _, new, op_index in sorted(spans, key=lambda s: s[3]) if "\n" in new),
+        first_op,
+    )
+    if not any(lines):
         raise _reject(
-            RejectionCode.SECTION_STRUCTURE_CHANGED, "description", None,
-            f"The edit leaves an empty line in {where}; a section must not be split or emptied.",
+            RejectionCode.SECTION_STRUCTURE_CHANGED, "description", first_op,
+            f"The edit empties {where}; every section must keep text. {_ALLOWED_STRUCTURE}",
         )  # fmt: skip
     if section.kind is SectionKind.HEADING:
         if len(lines) != 1:
             raise _reject(
-                RejectionCode.SECTION_STRUCTURE_CHANGED, "description", None,
-                f"A heading is one line; the edit adds a line break in {where}.",
+                RejectionCode.SECTION_STRUCTURE_CHANGED, "description", multi_line_op,
+                f"{where} is a heading: one line, no line break. {_ALLOWED_STRUCTURE}",
             )  # fmt: skip
-        return replace(section, lines=(lines[0],))
+        return [replace(section, lines=(lines[0],))]
     before = len(section.items) if section.kind is SectionKind.LIST else len(section.lines)
-    if len(lines) < before:
+    kept = [line for line in lines if line]
+    if len(kept) < before:
         raise _reject(
-            RejectionCode.SECTION_DROPPED, "description", None,
-            f"The edit merges or drops lines/items of {where} ({before} -> {len(lines)}).",
+            RejectionCode.SECTION_DROPPED, "description", first_op,
+            f"The edit merges or drops lines/items of {where} ({before} -> {len(kept)}). "
+            f"{_ALLOWED_STRUCTURE}",
         )  # fmt: skip
     if section.kind is SectionKind.LIST:
+        if len(kept) != len(lines):
+            raise _reject(
+                RejectionCode.SECTION_STRUCTURE_CHANGED, "description", multi_line_op,
+                f"The edit leaves an empty item in {where} (a list); add items with single "
+                f"line breaks. {_ALLOWED_STRUCTURE}",
+            )  # fmt: skip
         items = tuple(
             ListItem(line, *(
                 (section.items[i].depth, section.items[i].ordered)
@@ -640,8 +681,18 @@ def _rebuild_section(section: Section, new_text: str, index: int) -> Section:
             ))
             for i, line in enumerate(lines)
         )  # fmt: skip
-        return replace(section, items=items)
-    return replace(section, lines=tuple(lines))
+        return [replace(section, items=items)]
+    paragraphs = _sections_from_lines([(line, False) for line in lines])
+    if len(paragraphs) == 1:
+        return paragraphs
+    if not any(op_index in splittable for *_, op_index in spans):
+        raise _reject(
+            RejectionCode.SECTION_STRUCTURE_CHANGED, "description", multi_line_op,
+            f"The edit splits {where} into several paragraphs (a blank line); that needs "
+            "a reason_code of DESC_NO_NEW_LINE or DESC_LESS_THAN_FIVE_HUNDRED_CHARS flagged "
+            f"on this product. {_ALLOWED_STRUCTURE}",
+        )  # fmt: skip
+    return paragraphs
 
 
 def _paragraphs(body: str) -> list[Section]:
@@ -653,6 +704,7 @@ def _apply_description(
     skeleton: DescriptionSkeleton, ops: list[DescriptionOp], flagged_codes: Collection[str]
 ) -> DescriptionSkeleton:
     replacements: dict[int, list[tuple[int, int, str, int]]] = {}
+    splittable: set[int] = set()  # P81: ops whose flagged code allows a paragraph split
     inserts: dict[int, list[Section]] = {}
     appended: list[Section] = []
     texts = [section_text(s) for s in skeleton]
@@ -695,14 +747,25 @@ def _apply_description(
                 f"reason_code {op.reason_code!r} is not a description diagnosis code.",
             )  # fmt: skip
         check_index(op.section_index, i)
+        may_split = op.reason_code in SPLIT_CODES and op.reason_code in flagged_codes
+        if may_split:
+            splittable.add(i)
         if isinstance(op, InsertAfter):
             new_sections = _paragraphs(op.text)
-            if len(new_sections) != 1 or new_sections[0].kind is not SectionKind.PARAGRAPH:
+            if not new_sections:
                 raise _reject(
                     RejectionCode.INSERT_TEXT_INVALID, "description", i,
-                    "insert_after text must be one non-empty paragraph with no blank line.",
+                    "insert_after text must not be empty.",
                 )  # fmt: skip
-            inserts.setdefault(op.section_index, []).append(new_sections[0])
+            if len(new_sections) > 1 and not may_split:
+                raise _reject(
+                    RejectionCode.INSERT_TEXT_INVALID, "description", i,
+                    "insert_after text with blank lines (several paragraphs) needs a "
+                    "reason_code of DESC_NO_NEW_LINE or DESC_LESS_THAN_FIVE_HUNDRED_CHARS "
+                    f"flagged on this product; {op.reason_code!r} is not. "
+                    "Send one paragraph (single line breaks are fine) or cite that code.",
+                )  # fmt: skip
+            inserts.setdefault(op.section_index, []).extend(new_sections)
             continue
         section = skeleton[op.section_index]
         if section.kind is SectionKind.RAW:
@@ -720,8 +783,9 @@ def _apply_description(
         spans = replacements.get(index)
         if spans:
             new_text = _splice(texts[index], spans, "description", f"section {index}")
-            section = _rebuild_section(section, new_text, index)
-        out.append(section)
+            out.extend(_rebuild_section(section, new_text, index, spans, splittable))
+        else:
+            out.append(section)
         out.extend(inserts.get(index, []))
     out.extend(appended)
     return tuple(out)
