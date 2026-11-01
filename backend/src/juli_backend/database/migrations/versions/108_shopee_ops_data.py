@@ -23,7 +23,9 @@ WHAT IT ADDS.
     ``products`` stays TikTok-shaped (``tiktok_product_id`` NOT NULL).
   - ``platform_product_flags`` -- Shopee's per-item flags for a period (new product,
     price (un)competitive, ads grow / optimize / track).
-  - ``platform_promotions`` -- one row per promotion program x order type.
+  - ``platform_promotions`` -- one row per promotion program x export period x order
+    type. Shopee exports no program id and two programs can share a name and run
+    times, so ``ordinal`` (the row's place among such twins in one export) is in the key.
 
 - Six OPS-ONLY tables (like 083 / 107: RLS on, the only policy ``FOR ALL TO juli_ops``,
   nothing for ``juli_app`` / ``anon`` / ``authenticated``): ``kpi_contracts`` (one row
@@ -263,8 +265,11 @@ def _create_promotions() -> None:
         sa.Column("platform", sa.String(length=16), nullable=False),
         sa.Column("promo_type", sa.String(length=32), nullable=False),
         sa.Column("program_name", sa.String(length=255), nullable=False),
-        sa.Column("starts_on", sa.Date(), nullable=False),
-        sa.Column("ends_on", sa.Date(), nullable=True),
+        sa.Column("starts_at", sa.DateTime(), nullable=False),
+        sa.Column("ends_at", sa.DateTime(), nullable=True),
+        sa.Column("ordinal", sa.SmallInteger(), server_default="0", nullable=False),
+        sa.Column("period_start", sa.Date(), nullable=False),
+        sa.Column("period_end", sa.Date(), nullable=False),
         sa.Column("status", sa.String(length=64), nullable=True),
         sa.Column("order_type", sa.String(length=16), nullable=False),
         sa.Column("gmv", count, nullable=True),
@@ -278,16 +283,20 @@ def _create_promotions() -> None:
             "platform",
             "promo_type",
             "program_name",
-            "starts_on",
+            "starts_at",
+            "ordinal",
+            "period_start",
+            "period_end",
             "order_type",
             name=f"uq_{PROMOTIONS_TABLE}_key",
         ),
         sa.CheckConstraint(
             f"order_type IN ({_in(ORDER_TYPES)})", name=f"ck_{PROMOTIONS_TABLE}_order_type"
         ),
+        sa.CheckConstraint("period_end >= period_start", name=f"ck_{PROMOTIONS_TABLE}_period"),
     )
     op.create_index(
-        f"ix_{PROMOTIONS_TABLE}_dates", PROMOTIONS_TABLE, ["shop_id", "platform", "starts_on"]
+        f"ix_{PROMOTIONS_TABLE}_dates", PROMOTIONS_TABLE, ["shop_id", "platform", "period_start"]
     )
 
 

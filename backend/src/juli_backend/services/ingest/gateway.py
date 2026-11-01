@@ -14,9 +14,11 @@ One call = one POST of one dataset for one shop. In order:
    deduplicated on a content hash of (platform, dataset, period, order type, rows) -- a re-post of
    the same data, at any ``captured_at``, changes nothing and answers
    ``duplicate: true``;
-4. normalized rows are upserted into ``platform_daily_metrics`` -- a row is only
-   replaced by a source of the same or higher rank (vendor < extension = file <
-   api);
+4. normalized rows are upserted into ``platform_daily_metrics`` -- or, for the
+   ADR-117 period datasets, ``platform_period_metrics`` (+ ``platform_items``),
+   ``platform_product_flags`` or ``platform_promotions`` -- a row is only replaced by
+   a source of the same or higher rank (vendor < extension = file < api), and every
+   row records the ``mapper_version`` that produced it;
 5. ``ingest_dataset_status`` records the last ingest; one ``ingest_accepted``
    log line is the audit record.
 
@@ -34,7 +36,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.ingest import (
@@ -45,15 +47,36 @@ from juli_backend.models.ingest import (
     IngestRawPayload,
     PlatformDailyMetric,
 )
+from juli_backend.models.platform_data import (
+    ITEM_LEVEL_VARIATION,
+    PlatformItem,
+    PlatformPeriodMetric,
+    PlatformProductFlag,
+    PlatformPromotion,
+)
 from juli_backend.services.consent import ConsentRequired, require_consent
 from juli_backend.services.ingest.mapping import (
     KPI_COLUMNS,
+    MAPPER_VERSION,
+    SHOPEE_PROMO_TYPES,
+    WRITE_DAILY,
+    WRITE_FLAGS,
+    WRITE_PERIOD,
+    WRITE_PROMOTIONS,
     DatasetSpec,
     dataset_spec,
     effective_order_type,
     normalize_rows,
 )
-from juli_backend.services.ingest.schemas import IngestBody, RowBase
+from juli_backend.services.ingest.schemas import (
+    DatasetRow,
+    IngestBody,
+    RowBase,
+    ShopeeItemBySourcePeriodRow,
+    ShopeeProductFlagRow,
+    ShopeeProductPeriodRow,
+    ShopeePromotionRow,
+)
 from juli_backend.services.privacy.payload_allowlist import allowlist_payload, ingest_endpoint
 
 logger = logging.getLogger(__name__)
@@ -73,6 +96,31 @@ _KEY_COLUMNS = (
     "item_id",
     "stream",
     "segment",
+    "order_type",
+)
+_PERIOD_KEY_COLUMNS = (
+    "shop_id",
+    "platform",
+    "dataset",
+    "period_start",
+    "period_end",
+    "item_id",
+    "variation_id",
+    "stream",
+    "segment",
+    "order_type",
+)
+_ITEM_KEY_COLUMNS = ("shop_id", "platform", "item_id", "variation_id")
+_FLAG_KEY_COLUMNS = ("shop_id", "platform", "item_id", "period_start", "period_end", "flag")
+_PROMOTION_KEY_COLUMNS = (
+    "shop_id",
+    "platform",
+    "promo_type",
+    "program_name",
+    "starts_at",
+    "ordinal",
+    "period_start",
+    "period_end",
     "order_type",
 )
 
@@ -130,8 +178,10 @@ def _errors(exc: ValidationError) -> list[dict[str, Any]]:
     ]
 
 
-def validate_rows(spec: DatasetSpec, body: IngestBody, now: datetime) -> list[RowBase]:
+def validate_rows(spec: DatasetSpec, body: IngestBody, now: datetime) -> list[DatasetRow]:
     """The validated rows, or ``IngestRejected`` naming what is wrong."""
+    if body.period.granularity != spec.granularity:
+        raise IngestRejected("granularity_mismatch")
     if spec.has_order_type and body.order_type is None:
         raise IngestRejected("order_type_required")
     if not spec.has_order_type and body.order_type is not None:
@@ -141,7 +191,7 @@ def validate_rows(spec: DatasetSpec, body: IngestBody, now: datetime) -> list[Ro
         raise IngestRejected("captured_at_in_future")
     if body.period.end > platform_today(now):
         raise IngestRejected("period_in_future")
-    rows: list[RowBase] = []
+    rows: list[DatasetRow] = []
     problems: list[dict[str, Any]] = []
     for index, raw in enumerate(body.rows):
         try:
@@ -154,7 +204,7 @@ def validate_rows(spec: DatasetSpec, body: IngestBody, now: datetime) -> list[Ro
         raise IngestRejected("invalid_rows", problems)
     seen: set[tuple[Any, ...]] = set()
     for index, row in enumerate(rows):
-        if not body.period.start <= row.date <= body.period.end:
+        if isinstance(row, RowBase) and not body.period.start <= row.date <= body.period.end:
             problems.append({"loc": ["rows", index, "date"], "msg": "date outside period"})
         key = row.key()
         if key in seen:
@@ -230,21 +280,70 @@ async def _store_raw(
     return existing, True
 
 
-async def _upsert_metrics(session: AsyncSession, values: list[dict[str, Any]]) -> None:
+async def _upsert(
+    session: AsyncSession,
+    model: Any,
+    key_columns: tuple[str, ...],
+    values: list[dict[str, Any]],
+) -> None:
+    """Insert, or replace a row of the same or lower ``source_rank`` on the same key."""
     if not values:
         return
     insert = _insert(session)
-    table = PlatformDailyMetric.__table__
+    table = model.__table__
     for start in range(0, len(values), UPSERT_CHUNK):
-        stmt = insert(PlatformDailyMetric).values(values[start : start + UPSERT_CHUNK])
+        stmt = insert(model).values(values[start : start + UPSERT_CHUNK])
         updated = {
             column: stmt.excluded[column]
             for column in values[0]
-            if column not in _KEY_COLUMNS and column not in ("id", "created_at")
+            if column not in key_columns and column not in ("id", "created_at")
         }
         await session.execute(
             stmt.on_conflict_do_update(
-                index_elements=list(_KEY_COLUMNS),
+                index_elements=list(key_columns),
+                set_=updated,
+                where=table.c.source_rank <= stmt.excluded.source_rank,
+            )
+        )
+
+
+async def _upsert_metrics(session: AsyncSession, values: list[dict[str, Any]]) -> None:
+    await _upsert(session, PlatformDailyMetric, _KEY_COLUMNS, values)
+
+
+async def _upsert_items(session: AsyncSession, values: list[dict[str, Any]]) -> None:
+    """``platform_items``: names / SKU / status from the newest post; the seen range widens."""
+    if not values:
+        return
+    insert = _insert(session)
+    table = PlatformItem.__table__
+    postgres = session.get_bind().dialect.name == "postgresql"
+    least, greatest = (func.least, func.greatest) if postgres else (func.min, func.max)
+    for start in range(0, len(values), UPSERT_CHUNK):
+        stmt = insert(PlatformItem).values(values[start : start + UPSERT_CHUNK])
+        updated: dict[str, Any] = {
+            column: func.coalesce(stmt.excluded[column], table.c[column])
+            for column in ("name", "variation_name", "seller_sku", "status")
+        }
+        updated.update(
+            {
+                column: stmt.excluded[column]
+                for column in (
+                    "source",
+                    "source_rank",
+                    "source_version",
+                    "mapper_version",
+                    "raw_payload_id",
+                    "captured_at",
+                    "updated_at",
+                )
+            }
+        )
+        updated["first_seen_on"] = least(table.c.first_seen_on, stmt.excluded.first_seen_on)
+        updated["last_seen_on"] = greatest(table.c.last_seen_on, stmt.excluded.last_seen_on)
+        await session.execute(
+            stmt.on_conflict_do_update(
+                index_elements=list(_ITEM_KEY_COLUMNS),
                 set_=updated,
                 where=table.c.source_rank <= stmt.excluded.source_rank,
             )
@@ -282,6 +381,145 @@ async def _record_status(
             set_={k: stmt.excluded[k] for k in values},
         )
     )
+
+
+def _metric_values(
+    spec: DatasetSpec,
+    rows: list[DatasetRow],
+    body: IngestBody,
+    order_type: str,
+    provenance: dict[str, Any],
+) -> list[dict[str, Any]]:
+    values = []
+    period = spec.writes == WRITE_PERIOD
+    for row in normalize_rows(spec, rows):
+        value: dict[str, Any] = {
+            "id": uuid.uuid4(),
+            **provenance,
+            "dataset": spec.name,
+            "item_id": row.item_id,
+            "stream": row.stream,
+            "segment": row.segment,
+            "order_type": order_type,
+            "platform_source": row.platform_source,
+            "extra": row.extra,
+            "confidence": SOURCE_CONFIDENCE[body.source],
+        }
+        if period:
+            value.update(
+                period_start=body.period.start,
+                period_end=body.period.end,
+                variation_id=row.variation_id,
+            )
+        else:
+            value["day"] = row.day
+        # Every KPI column on every row, so a later post can clear a value.
+        value.update({column: row.kpis.get(column) for column in KPI_COLUMNS})
+        values.append(value)
+    return values
+
+
+def _item_values(
+    rows: list[DatasetRow], body: IngestBody, provenance: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """One ``platform_items`` row per item / variation the period rows describe."""
+    items: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        if isinstance(row, ShopeeProductPeriodRow):
+            variation, name, sku, status = (
+                row.variation_id,
+                row.variation_name,
+                row.seller_sku,
+                row.variation_status if row.variation_id else row.item_status,
+            )
+            item_name = row.item_name
+        elif isinstance(row, ShopeeItemBySourcePeriodRow):
+            variation, name, sku, status = ITEM_LEVEL_VARIATION, None, None, row.item_status
+            item_name = row.item_name
+        else:
+            continue
+        items[(row.item_id, variation)] = {
+            "id": uuid.uuid4(),
+            **provenance,
+            "item_id": row.item_id,
+            "variation_id": variation,
+            "name": item_name,
+            "variation_name": name,
+            "seller_sku": sku,
+            "status": status,
+            "first_seen_on": body.period.start,
+            "last_seen_on": body.period.end,
+            "extra": {},
+        }
+    return list(items.values())
+
+
+def _promotion_extra(row: ShopeePromotionRow) -> dict[str, Any]:
+    extra: dict[str, Any] = dict(row.extra)
+    if row.sales_per_buyer is not None:
+        extra["sales_per_buyer"] = float(row.sales_per_buyer)
+    return extra
+
+
+async def _write(
+    session: AsyncSession,
+    spec: DatasetSpec,
+    rows: list[DatasetRow],
+    body: IngestBody,
+    order_type: str,
+    provenance: dict[str, Any],
+) -> None:
+    if spec.writes == WRITE_DAILY:
+        await _upsert_metrics(session, _metric_values(spec, rows, body, order_type, provenance))
+    elif spec.writes == WRITE_PERIOD:
+        await _upsert(
+            session,
+            PlatformPeriodMetric,
+            _PERIOD_KEY_COLUMNS,
+            _metric_values(spec, rows, body, order_type, provenance),
+        )
+        await _upsert_items(session, _item_values(rows, body, provenance))
+    elif spec.writes == WRITE_FLAGS:
+        flags = [
+            {
+                "id": uuid.uuid4(),
+                **provenance,
+                "item_id": row.item_id,
+                "period_start": body.period.start,
+                "period_end": body.period.end,
+                "flag": row.flag,
+                "extra": dict(row.extra),
+            }
+            for row in rows
+            if isinstance(row, ShopeeProductFlagRow)
+        ]
+        await _upsert(session, PlatformProductFlag, _FLAG_KEY_COLUMNS, flags)
+    elif spec.writes == WRITE_PROMOTIONS:
+        promotions = [
+            {
+                "id": uuid.uuid4(),
+                **provenance,
+                "promo_type": SHOPEE_PROMO_TYPES[row.promo_type],
+                "program_name": row.program_name,
+                "starts_at": row.starts_at.replace(tzinfo=None),
+                "ends_at": row.ends_at.replace(tzinfo=None) if row.ends_at else None,
+                "ordinal": row.ordinal,
+                "period_start": body.period.start,
+                "period_end": body.period.end,
+                "status": row.status,
+                "order_type": order_type,
+                "gmv": row.sales,
+                "orders": row.orders,
+                "units": row.units,
+                "buyers": row.buyers,
+                "extra": _promotion_extra(row),
+            }
+            for row in rows
+            if isinstance(row, ShopeePromotionRow)
+        ]
+        await _upsert(session, PlatformPromotion, _PROMOTION_KEY_COLUMNS, promotions)
+    else:
+        raise ValueError(f"unknown write target {spec.writes}")
 
 
 async def ingest(
@@ -332,35 +570,19 @@ async def ingest(
         token_id=token_id,
         now=now,
     )
-    normalized = normalize_rows(spec, rows)
     if not duplicate:
-        captured = body.captured_at.astimezone(UTC).replace(tzinfo=None)
-        values = []
-        for row in normalized:
-            value: dict[str, Any] = {
-                "id": uuid.uuid4(),
-                "shop_id": shop_id,
-                "platform": platform,
-                "dataset": dataset,
-                "day": row.day,
-                "item_id": row.item_id,
-                "stream": row.stream,
-                "segment": row.segment,
-                "order_type": order_type,
-                "platform_source": row.platform_source,
-                "extra": row.extra,
-                "source": body.source,
-                "source_rank": SOURCE_RANK[body.source],
-                "source_version": body.source_version,
-                "confidence": SOURCE_CONFIDENCE[body.source],
-                "raw_payload_id": raw_id,
-                "captured_at": captured,
-                "updated_at": now,
-            }
-            # Every KPI column on every row, so a later post can clear a value.
-            value.update({column: row.kpis.get(column) for column in KPI_COLUMNS})
-            values.append(value)
-        await _upsert_metrics(session, values)
+        provenance: dict[str, Any] = {
+            "shop_id": shop_id,
+            "platform": platform,
+            "source": body.source,
+            "source_rank": SOURCE_RANK[body.source],
+            "source_version": body.source_version,
+            "mapper_version": MAPPER_VERSION,
+            "raw_payload_id": raw_id,
+            "captured_at": body.captured_at.astimezone(UTC).replace(tzinfo=None),
+            "updated_at": now,
+        }
+        await _write(session, spec, rows, body, order_type, provenance)
     await _record_status(
         session,
         shop_id=shop_id,
@@ -381,7 +603,7 @@ async def ingest(
             "order_type": order_type,
             "period_start": body.period.start.isoformat(),
             "period_end": body.period.end.isoformat(),
-            "rows": len(normalized),
+            "rows": len(rows),
             "duplicate": duplicate,
             "content_hash": hashed[:16],
             "token_id": str(token_id) if token_id else None,
@@ -389,5 +611,5 @@ async def ingest(
         },
     )
     return IngestResult(
-        raw_payload_id=raw_id, duplicate=duplicate, rows=len(normalized), content_hash=hashed
+        raw_payload_id=raw_id, duplicate=duplicate, rows=len(rows), content_hash=hashed
     )

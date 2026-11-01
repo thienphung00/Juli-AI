@@ -1,0 +1,32 @@
+# Local Postgres for client data that may not leave this machine yet (ADR-117 §6, brief G8).
+#
+#   docker compose -f infra/local/shopee-ops-db.compose.yml up -d
+#   infra/local/shopee_ops_db.sh migrate         # roles + alembic upgrade head
+#   infra/local/shopee_ops_db.sh load FOLDER "SHOP NAME"
+#
+# Same schema as Supabase (same Alembic chain, UTC). Bound to 127.0.0.1 only; the data
+# lives in the named volume below, never in the repo. Delete it with `down -v`.
+services:
+  shopee-ops-db:
+    image: postgres:16
+    container_name: juli-shopee-ops-db
+    environment:
+      POSTGRES_USER: postgres
+      # No password: the port is bound to 127.0.0.1 and the database is for local use only.
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: juli_ops_local
+      TZ: UTC
+      PGTZ: UTC
+    command: ["postgres", "-c", "timezone=UTC"]
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - juli-shopee-ops-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d juli_ops_local"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  juli-shopee-ops-db:

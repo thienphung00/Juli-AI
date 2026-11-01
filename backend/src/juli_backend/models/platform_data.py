@@ -10,8 +10,8 @@ SELECT, INSERT, UPDATE), written by the ingest gateway path only:
 - ``platform_items`` -- the platform's items and variations (``variation_id = ''`` is the
   item itself). ``products`` stays TikTok-shaped: its ``tiktok_product_id`` is NOT NULL.
 - ``platform_product_flags`` -- Shopee's per-item flags for a period.
-- ``platform_promotions`` -- one row per promotion program x order type. Shopee exports no
-  program id, so the program's name is part of the key.
+- ``platform_promotions`` -- one row per promotion program x export period x order type.
+  Shopee exports no program id, so the name, start and an ordinal are the key.
 
 Every row records where it came from like 088's (``source``, ``source_rank``,
 ``source_version``, ``raw_payload_id``) plus ``mapper_version``. Timestamps naive UTC;
@@ -213,7 +213,7 @@ class PlatformProductFlag(Base):
 
 
 class PlatformPromotion(Base):
-    """One promotion program's results for one order type."""
+    """One promotion program's results over one export period, for one order type."""
 
     __tablename__ = "platform_promotions"
     __table_args__ = (
@@ -222,11 +222,15 @@ class PlatformPromotion(Base):
             "platform",
             "promo_type",
             "program_name",
-            "starts_on",
+            "starts_at",
+            "ordinal",
+            "period_start",
+            "period_end",
             "order_type",
             name="uq_platform_promotions_key",
         ),
-        Index("ix_platform_promotions_dates", "shop_id", "platform", "starts_on"),
+        CheckConstraint("period_end >= period_start", name="ck_platform_promotions_period"),
+        Index("ix_platform_promotions_dates", "shop_id", "platform", "period_start"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -235,8 +239,14 @@ class PlatformPromotion(Base):
     promo_type: Mapped[str] = mapped_column(String(32))
     #: The seller's own program name (listing text, not buyer text; ADR-117 §3).
     program_name: Mapped[str] = mapped_column(String(255))
-    starts_on: Mapped[date] = mapped_column(Date)
-    ends_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    #: The program's run times as Seller Centre shows them (platform wall clock, GMT+7).
+    starts_at: Mapped[datetime] = mapped_column()
+    ends_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    #: Place among programs sharing type, name and start in one export (no program id).
+    ordinal: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    #: The export's period: the results are for these days, not the program's whole run.
+    period_start: Mapped[date] = mapped_column(Date)
+    period_end: Mapped[date] = mapped_column(Date)
     status: Mapped[str | None] = mapped_column(String(64), nullable=True)
     order_type: Mapped[str] = mapped_column(String(16))
     gmv: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)

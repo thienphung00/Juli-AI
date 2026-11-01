@@ -62,16 +62,24 @@ A later API row (rank 3) replaces a file row (rank 2) on the same key; both raw 
   meaning, so a file-vs-API reconciliation can tell a mapping change from a data change.
 - **L2 sources are `segment` values of `traffic_overview`** (no new stream, G3). The L1 total row
   keeps `segment = 'all'`; readers sum streams over `segment = 'all'` only, so a child segment is
-  never added to a total. The Shopee label → code table lives in `mapping.py` (step 2); an
-  unknown label is refused (422 + drift report), never filed under `other`. Initial codes
-  (≤ 16 chars): product card `search`, `recommend`, `shop_page` (Cửa hàng = KPI flow "Trang
-  shop", G3), `cart`, `my_orders`, `promo`, `chat`, `other`; live / video `live_tab`,
-  `live_home`, `video_tab`, `video_home`; affiliate `aff_live`, `aff_video`; ads
-  `ads_roas_custom`, `ads_auto_bid`, `ads_shop`, `ads_gmvmax_shop`, `other`.
+  never added to a total. The Shopee label → code table is `schemas.SHOPEE_L2_SOURCES`, per L1
+  source; an unknown label is refused (422), never filed under `other`. Codes (≤ 16 chars, from
+  every label in the 13 Ory shop-stats files, 11/2025–10/2026): product card `search`,
+  `recommend`, `shop_page` (Cửa hàng = KPI flow "Trang shop", G3), `cart`, `my_orders`, `promo`,
+  `chat`, `other`; live and video share the card codes (`search`, `recommend`, `shop_page`,
+  `cart`, `my_orders`, `other`) plus `live_tab`, `live_home`, `video` (live) and `video_tab`,
+  `video_home` (video); affiliate `aff_live`, `aff_video`; ads `ads_roas_custom`,
+  `ads_auto_bid`, `ads_shop`, `ads_gmvmax_shop`, `other`. The ads group has **no L1 total row**
+  in the export: a reader sums the ad-type segments (they are disjoint).
+- Shopee's own ratios of the source counts (CTR, clicks → orders) are not posted from these
+  sheets: an L2 source can show more clicks than impressions (ratio > 1), which the gateway's
+  rate guard refuses. Readers compute ratios from the counts.
 - Live / video `impressions` hold **views** (Lượt xem Livestream / Video), and ads rows hold
   **ad impressions**; the stream decides the meaning, and a CTR is never compared across
-  streams. Ads revenue counts **placed** orders whatever sheet it came from (Shopee Uni 26972);
-  the loader stores the sheet's order type in the key and `ads_attribution = "placed"` in `extra`.
+  streams. Ads rows in the shop-stats export **follow the sheet's order type** like every other
+  stream (amended in step 2: the client export's ad orders differ between the placed and confirmed
+  sheets for the same days, and the contract's ROAS is the confirmed one); the Ads section's own reports
+  (G11) count placed orders (Shopee Uni 26972) and will say so when that dataset is defined.
 - New daily datasets in the existing registry: `shop_overview` (stream `total`, item `''`),
   `product_overview` (stream `total`, item `''`), `promotion_daily` (stream `promo`, segment =
   promotion type code). Placed and confirmed values in one export row are posted as two posts,
@@ -85,8 +93,10 @@ proposal) would make every reader that sums by day double-count, and two periods
 same day would collide. **New tenant table `platform_period_metrics`**, the same columns as the
 daily table plus `period_start`, `period_end` and `variation_id` (`''` = item level), key
 `(shop_id, platform, dataset, period_start, period_end, item_id, variation_id, stream, segment,
-order_type)`. Datasets: `product_period` (item × variation), `traffic_overview_period` (month ×
-L1 source). The gateway accepts `granularity: "period"` for these datasets only (step 2).
+order_type)`. Datasets: `product_period` (item × variation), `traffic_overview_period` (the
+export period × L1 / L2 source), `item_by_source_period` (item × L1 source, `Theo sản phẩm`).
+The gateway accepts `granularity: "period"` for the period datasets only, and a period row has
+no `date` of its own.
 
 ### 3. Shopee items, flags and promotions (client lane, tenant-direct)
 
@@ -97,11 +107,16 @@ L1 source). The gateway accepts `granularity: "period"` for these datasets only 
   `flag` ∈ {`new_product`, `price_competitive`, `price_uncompetitive`, `ads_grow`,
   `ads_optimize`, `ads_track`}. The flag's own metrics are the item's period metrics and are not
   copied here.
-- **`platform_promotions`**: one row per (program, order type): type, name, run dates, status,
-  sales, orders, units, buyers, `extra`. Shopee exports no program id; the key is `(shop_id,
-  platform, promo_type, program_name, starts_on, order_type)`. The program name is the seller's
-  own listing text, not buyer text, so it is stored as a column (D16 drops strings only from the
-  open `extra`).
+- **`platform_promotions`**: one row per (program, export period, order type): type, name, run
+  times (`starts_at`, `ends_at`, Seller Centre's wall clock), status, sales, orders, units,
+  buyers, `extra`. The figures are for the export's period, not the program's whole run (the
+  October file's one program equals October's total). Shopee exports no program id, and two
+  programs can share type, name and run times (Ory 06–09/2026), so the key is `(shop_id,
+  platform, promo_type, program_name, starts_at, ordinal, period_start, period_end,
+  order_type)` with `ordinal` the row's place among such twins in one export; it is not stable
+  across exports. The program name is the seller's own listing text, not buyer text, so it is
+  stored as a column (D16 drops strings only from the open `extra`; the raw-copy allowlist
+  lists `program_name` and `variation_name` as listing text).
 - **Ads by campaign (G11)**: the dataset name `ads_campaign_daily` is reserved; its row shape is
   fixed when the first campaign export (or the Ads API) is seen, not guessed now.
 
