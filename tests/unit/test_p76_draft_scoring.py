@@ -18,8 +18,8 @@ from juli_backend.services.agent.tools import draft_scoring
 from juli_backend.services.agent.tools.draft_scoring import (
     DraftScore,
     parse_draft_codes,
-    score_confirmed_listing,
     score_listing_draft,
+    start_confirmed_listing_score,
     stored_draft_score,
 )
 from juli_backend.services.agent.tools.product import ProductToolContext
@@ -113,23 +113,23 @@ def test_free_text_in_a_code_slot_is_not_echoed():
     assert parse_draft_codes(NOT_A_CODE_DATA) == []
 
 
-def test_the_budget_is_a_few_seconds():
-    assert 0 < draft_scoring.SCORING_TIMEOUT_SECONDS <= 3
+def test_the_budget_is_twelve_seconds_from_the_start_of_scoring():
+    assert draft_scoring.DRAFT_SCORE_BUDGET_SECONDS == 12
 
 
 def test_only_the_writable_sandbox_bundle_is_scored():
     products = DraftScoringProducts(SCORED_DATA)
 
-    assert score_confirmed_listing(products, PRODUCT_ID, {"category_id": "600001"}) is None
+    assert start_confirmed_listing_score(products, PRODUCT_ID, {"category_id": "600001"}) is None
     assert products.diagnose_calls == []
 
 
 def test_a_body_without_a_category_is_not_read_without_a_call():
     products = DraftScoringProducts(SCORED_DATA)
 
-    score = score_confirmed_listing(sandbox_resources(products), PRODUCT_ID, {})
+    pending = start_confirmed_listing_score(sandbox_resources(products), PRODUCT_ID, {})
 
-    assert score == DraftScore(status="not_read")
+    assert pending is not None and pending.wait() == DraftScore(status="not_read")
     assert products.diagnose_calls == []
 
 
@@ -148,7 +148,8 @@ def test_the_write_scores_the_confirmed_body_once_before_editing():
 
     outcome = _write(products)
 
-    assert products.events == ["diagnose_optimize", "edit"]
+    assert sorted(products.events) == ["diagnose_done", "diagnose_optimize", "edit"]
+    assert len(products.edit_calls) == 1 and len(products.diagnose_calls) == 1
     sent = products.edit_calls[0][1]
     asked = products.diagnose_calls[0]
     assert (asked["title"], asked["description"], asked["category_id"]) == (

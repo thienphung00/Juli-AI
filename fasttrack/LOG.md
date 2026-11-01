@@ -3472,3 +3472,28 @@ reconcile --write` re-derived the no-assert corpus figure.
   unchanged. `test_p82_egress_postgres.py` is an isolated-database module: its cards (several
   per shop and workflow) would otherwise block `test_production_write_authorizations_postgres`'
   downgrade past 062 on the shared database (seen once, fixed).
+
+## 2026-11-02 — agent (Claude Opus) — P83: TikTok's draft check overlaps the write (12 s budget)
+
+- Live finding (01/11, sandbox run d7b5d16c): P76-5's 3 s wait before `products.edit` logged
+  `draft_score_timeout` and stored `{"status":"not_read","codes_after":[],"scored_at":null}`,
+  so Đo lường had no "Sau sửa (TikTok kiểm tra)" line.
+- Change (`services/agent/tools/draft_scoring.py`, `product_write.py`): scoring starts first
+  (`start_confirmed_listing_score` -> `PendingDraftScore`, returns at once), `products.edit`
+  is performed meanwhile, then `pending.wait()` collects the score from what is left of
+  `DRAFT_SCORE_BUDGET_SECONDS = 12.0` measured from when scoring started (monotonic
+  deadline; replaces `SCORING_TIMEOUT_SECONDS = 3.0`; not env-overridable, as before).
+  Finished within budget -> `scored`; else (or any TikTok error / unparsed payload) ->
+  `not_read`, semantics unchanged. `score_listing_draft` kept as start + wait.
+- Unchanged: the score covers the exact edit body written; own `requests.Session` copy
+  (`with_own_session`) closed in the worker's `finally`; production/read bundles skipped;
+  the write's own errors propagate as before. If the edit raises, the score is never
+  collected: the worker (pool shut down with `wait=False` right after submit) finishes,
+  closes its client and its answer is dropped; no thread or exception outlives it visibly.
+- Tests: `tests/unit/test_p83_draft_score_overlap.py` (8: edit runs before a blocked scorer
+  finishes then `scored`; exact body; budget exceeded -> `not_read`, write unaffected;
+  deadline counts from start via injected monotonic; 5 s write leaves 7 s; failing write
+  keeps its error and the scoring client still closes; failing score leaves the write
+  alone); `test_p76_draft_scoring.py` adapted (events are now order-independent, renamed
+  API); `tests/support/tiktok_draft_scoring.py` gained `on_edit`, `edit_error`,
+  `diagnose_done` event. The real-Session isolation test is unchanged and passes.
