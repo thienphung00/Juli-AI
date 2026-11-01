@@ -34,7 +34,7 @@ from juli_backend.services.agent_runs import listing_quality
 from juli_backend.services.agent_runs.listing import RunViewer, list_runs
 from juli_backend.services.agent_runs.listing_quality import day0_reading
 from juli_backend.services.demo_decisions.card_view import load_card_contexts
-from tests.support.postgres import juli_app_async_sessionmaker, owner_sync_engine, requires_postgres
+from tests.support.postgres import juli_app_async_sessionmaker, requires_postgres
 
 pytestmark = [requires_postgres, pytest.mark.migration_heavy]
 
@@ -58,11 +58,11 @@ WINDOWS: list[Any] = [
 ]
 
 
-def _seed() -> dict[str, Any]:
+def _seed(engine) -> dict[str, Any]:
     owner, reviewer, shop, product = (uuid.uuid4() for _ in range(4))
     runs: list[uuid.UUID] = []
     cards: list[uuid.UUID] = []
-    with owner_sync_engine() as engine, Session(engine) as s:
+    with Session(engine) as s:
         s.add_all(
             [
                 User(id=owner, phone=f"+1582{owner.int % 10**7:07d}"),
@@ -146,8 +146,8 @@ def _record(session, seen: list[str]):
     return listener
 
 
-async def test_reviewer_day0_reading_comes_from_a_jsonpath_not_the_state(monkeypatch):
-    seeded = _seed()
+async def test_reviewer_day0_reading_comes_from_a_jsonpath_not_the_state(owner_engine, monkeypatch):
+    seeded = _seed(owner_engine)
 
     async def no_reading(session, shop_id, product_ids):
         return {}
@@ -180,8 +180,8 @@ async def test_reviewer_day0_reading_comes_from_a_jsonpath_not_the_state(monkeyp
         assert "workflow_runs.state" not in bare, sql
 
 
-async def test_b12_facts_and_card_contexts_read_columns_not_blobs():
-    seeded = _seed()
+async def test_b12_facts_and_card_contexts_read_columns_not_blobs(owner_engine):
+    seeded = _seed(owner_engine)
     seen: list[str] = []
     async with juli_app_async_sessionmaker() as maker, maker() as session:
         listener = _record(session, seen)

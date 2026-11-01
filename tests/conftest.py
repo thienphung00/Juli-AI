@@ -347,6 +347,10 @@ _SHARED_STATE_MODULES = frozenset(
         # Reason 2 again: fast track P69 seeds the sandbox shop (clearing every other
         # sandbox_write row), a reviewer and a seller, and bounds each route's round trips.
         "test_reviewer_round_trips.py",
+        # Reason 2 again: fast track P82 seeds several approved cards of one workflow per
+        # shop (each card's latest run, the reviewer's Ngày 0 readings); left on the shared
+        # database they block a later downgrade past 062 (uq_action_cards_shop_workflow).
+        "test_p82_egress_postgres.py",
         # Reason 1 and 2: D16 seeds two tenants, records webhooks as juli_app, and
         # runs the payload clean-up as the owner over the whole webhook_raw_events
         # archive (it has no shop column), asserting its counts.

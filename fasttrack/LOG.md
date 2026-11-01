@@ -3437,3 +3437,11 @@ reconcile --write` re-derived the no-assert corpus figure.
   `tests/integration/test_p82_egress_postgres.py` (jsonpath Ngày 0 equals `day0_reading` on
   edge windows, as `juli_app`; B12 facts; card contexts), `test_shop_report_refresh.py`
   (+3), demo `quyet-dinh-runs-poll.test.tsx` (15 s, terminal stop, hidden pause / resume).
+- Checks: unit `-m "not live"` 8942 passed (2 failed then fixed: the Redis key needed the
+  `juli:` prefix → `juli:agent_runs:list:`; the bootstrap-pin test fails only before the
+  first commit on a branch); demo vitest 137 files / 1359 passed, `tsc --noEmit` clean;
+  Postgres integration (UTC) 521 passed, 2 failed — the two known pre-existing (registry
+  sanitizer real-registry map, migrations grants); reviewer round-trip budgets pass
+  unchanged. `test_p82_egress_postgres.py` is an isolated-database module: its cards (several
+  per shop and workflow) would otherwise block `test_production_write_authorizations_postgres`'
+  downgrade past 062 on the shared database (seen once, fixed).
