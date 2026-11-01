@@ -90,7 +90,8 @@ CLEANUP_REVISION = "074_users_placeholder_phone_cleanup"
 #: `104_shop_pseudonym_keys`: 104 -> 101 -> 074, then
 #: `105_llm_call_log`: 105 -> 101 -> 074, then
 #: `106_write_platform_columns`: 106 -> 101 -> 074, then
-#: `107_ops_pooled_consent`: 107 -> 101 -> 074).
+#: `107_ops_pooled_consent`: 107 -> 101 -> 074, then
+#: ADR-117 `108_shopee_ops_data`: 108 -> 101 -> 074).
 PHONE_REVISION = "101_write_mode_backfill"
 
 _SCHEMA = "phone_cleanup_074"

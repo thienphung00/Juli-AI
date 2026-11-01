@@ -20,6 +20,14 @@ from juli_backend.models.ingest import (
     PlatformDailyMetric,
 )
 from juli_backend.models.ingestion import ShopIngestionState
+from juli_backend.models.kpi_contracts import (
+    KpiAdjustment,
+    KpiContract,
+    KpiExclusion,
+    KpiForecast,
+    KpiTarget,
+    LeverPlan,
+)
 from juli_backend.models.lever_flows import (
     LeverCalibration,
     RunLeverFlow,
@@ -27,6 +35,7 @@ from juli_backend.models.lever_flows import (
     RunMeasurementFinal,
 )
 from juli_backend.models.llm_call_log import LLMCallLog
+from juli_backend.models.market import MarketKeywordSnapshot, MarketListingSnapshot
 from juli_backend.models.models import *  # noqa: F403
 from juli_backend.models.ops import (
     OpsAuditLog,
@@ -42,6 +51,12 @@ from juli_backend.models.order_costs import (
     OrderCostFetch,
     OrderFinanceTransaction,
     OrderPriceDetail,
+)
+from juli_backend.models.platform_data import (
+    PlatformItem,
+    PlatformPeriodMetric,
+    PlatformProductFlag,
+    PlatformPromotion,
 )
 from juli_backend.models.pseudonym_keys import ShopPseudonymKey
 from juli_backend.models.run_changes import RunRevertQuestion, RunWriteValue, ShopRule
@@ -102,4 +117,16 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     PooledContributorSet,
     ShopPseudonymKey,
     LLMCallLog,
+    PlatformPeriodMetric,
+    PlatformItem,
+    PlatformProductFlag,
+    PlatformPromotion,
+    KpiContract,
+    KpiTarget,
+    KpiAdjustment,
+    KpiExclusion,
+    LeverPlan,
+    KpiForecast,
+    MarketListingSnapshot,
+    MarketKeywordSnapshot,
 )

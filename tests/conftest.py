@@ -237,6 +237,9 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         # D76 / D11 (ADR-116 §3): downgrades 107 -> 106 and back (the Ops pooled
         # prior's consent filter on ops_group_lift_draws()), after seeding four shops.
         "test_ops_pooled_consent_db.py",
+        # ADR-117: downgrades 108 -> 107 and back (Shopee files, contract KPIs, the
+        # public market lane), after seeding two tenants.
+        "test_shopee_ops_data_db.py",
         # Fast track P60-1b: migration 096 round trip with pre-096 rows seeded
         # at 095 (its data step fills hashes, audit links and attribution),
         # after the two-tenant end-to-end attribution walk.

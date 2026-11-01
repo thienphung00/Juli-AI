@@ -399,8 +399,11 @@ def test_zz_downgrade_restores_093_and_upgrade_restores_the_filter(owner_engine,
         "script_location", str(REPO_ROOT / "backend/src/juli_backend/database/migrations")
     )
     cfg.set_main_option("sqlalchemy.url", sync_database_url(os.environ["DATABASE_URL"]))
-    parent = ScriptDirectory.from_config(cfg).get_revision(MIGRATION_ID).down_revision
+    script = ScriptDirectory.from_config(cfg)
+    parent = script.get_revision(MIGRATION_ID).down_revision
     assert parent == "106_write_platform_columns"
+    # Later migrations (ADR-117's 108) sit on 107: the module starts and ends at head.
+    head = script.get_current_head()
 
     def current() -> str:
         with owner_engine.connect() as conn:
@@ -408,7 +411,7 @@ def test_zz_downgrade_restores_093_and_upgrade_restores_the_filter(owner_engine,
 
     ids = _ids(tenants)
     acl = _acl(owner_engine)
-    assert current() == MIGRATION_ID
+    assert current() == head
     assert _exists(owner_engine) == (True, True)
     command.downgrade(cfg, parent)
     assert current() == parent
@@ -416,7 +419,7 @@ def test_zz_downgrade_restores_093_and_upgrade_restores_the_filter(owner_engine,
     assert _acl(owner_engine) == acl
     assert _exists(owner_engine) == (False, False)
     command.upgrade(cfg, "head")
-    assert current() == MIGRATION_ID
+    assert current() == head
     assert _exists(owner_engine) == (True, True)
     assert _drawn_as_ops(owner_engine) & set(ids.values()) == {ids["granted"]}
     assert _acl(owner_engine) == acl

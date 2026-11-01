@@ -801,8 +801,8 @@ def test_revision_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # PR 5 put `106_write_platform_columns` on 105; the deferred tail moved onto 106.
     later = (MIGRATIONS / "versions/106_write_platform_columns.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    # Migration 107 then took the deferred tail.
-    assert 'down_revision: str | None = "107_ops_pooled_consent"' in BACKFILL.read_text("utf-8")
+    # Migration 107 then took the deferred tail, and ADR-117's 108 after it.
+    assert 'down_revision: str | None = "108_shopee_ops_data"' in BACKFILL.read_text("utf-8")
 
 
 def test_migration_vocabulary_matches_the_model_and_the_table_is_classified():
