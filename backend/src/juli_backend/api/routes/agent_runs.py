@@ -386,16 +386,15 @@ class WorkflowRunListResponse(BaseModel):
 async def list_demo_runs(
     request: Request,
     shop: Shop = Depends(get_active_shop),
+    user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     limit: int = Query(default=100, ge=1, le=1000),
-) -> WorkflowRunListResponse:
-    """Polled read model over the shop's runs, newest first (ADR-083 T4).
-
-    A read failure degrades to an empty list rather than a 5xx: the client
-    polls, and the next poll will show the rows (#1310).
-    """
-    return await runs_list_response(
-        shop=shop, session=session, limit=limit, viewer=sandbox_run_viewer(request)
+) -> WorkflowRunListResponse | dict[str, object]:
+    """The shop's runs, newest first (ADR-083 T4); a failed read polls empty, no 5xx (#1310)."""
+    viewer = sandbox_run_viewer(request)
+    return await agent_runs.read_through_runs_list(  # P82: a few-second Redis cache
+        agent_runs.runs_list_cache_key(request.headers, shop.id, user.id, viewer, limit),
+        lambda: runs_list_response(shop=shop, session=session, limit=limit, viewer=viewer),
     )
 
 

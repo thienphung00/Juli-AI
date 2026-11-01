@@ -40,6 +40,27 @@ class ShopDiagnosisReportsRepo(ShopScopedRepo[ShopDiagnosisReport]):
         )
         return await self._one_or_none(stmt)
 
+    async def latest_source(
+        self, shop_id: uuid.UUID, ranking: str
+    ) -> tuple[date, str | None] | None:
+        """The newest report's end date and ``report.metrics_source`` -- without the report.
+
+        P82: the B12 order hook needs only these two facts; the report itself is
+        ~200-400 KB on the wire. ``metrics_source`` is read by its JSON path in SQL.
+        """
+        stmt = (
+            self._scoped(shop_id, ShopDiagnosisReport.ranking == ranking)
+            .with_only_columns(
+                ShopDiagnosisReport.end_date,
+                ShopDiagnosisReport.report["metrics_source"].as_string(),
+            )
+            .order_by(ShopDiagnosisReport.end_date.desc(), ShopDiagnosisReport.built_at.desc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        row = result.first()
+        return None if row is None else (row[0], row[1])
+
     async def save(
         self,
         shop_id: uuid.UUID,

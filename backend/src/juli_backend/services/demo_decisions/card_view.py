@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
@@ -139,6 +139,17 @@ _GMV_METHOD_VI: Mapping[str, str] = {
 }
 
 
+@dataclass(frozen=True)
+class CardRun:
+    """The latest run of a card, as the card block reads it (P82: columns, never ``state``)."""
+
+    id: uuid.UUID
+    action_card_id: uuid.UUID | None
+    status: str
+    stop_reason: str | None
+    write_mode: str | None
+
+
 @dataclass
 class CardContext:
     """What the database knows about one card beyond its payload."""
@@ -146,7 +157,7 @@ class CardContext:
     product: Product | None = None
     seller_skus: list[str] = field(default_factory=list)
     sku_count: int = 0
-    latest_run: WorkflowRun | None = None
+    latest_run: CardRun | None = None
     writes: list[RunWriteValue] = field(default_factory=list)
     #: P30 (D34.8): the seller sentence of the card's group key, once measured.
     group_result: str | None = None
@@ -163,8 +174,10 @@ async def load_card_contexts(
 ) -> dict[uuid.UUID, CardContext]:
     """One context per card, read in two shop-scoped queries (P69; was four).
 
-    Each product with its SKUs (one outer join), and each card's runs with their
-    recorded writes (one outer join): ~197 ms per round trip in production.
+    Each product with its SKUs (one outer join), and each card's latest run with its
+    recorded writes (one outer join): ~197 ms per round trip in production. P82: only
+    the LATEST run per card is read (it used to read every run of every card, each
+    with its ``state`` blob, to keep the last), and only the columns the card uses.
     """
     cards = list(cards)
     contexts = {card.id: CardContext() for card in cards}
@@ -192,35 +205,60 @@ async def load_card_contexts(
                 seen_items.add(item.id)
                 skus[item.tiktok_product_id].append(item)
     card_ids = [card.id for card in cards]
-    latest_runs: dict[uuid.UUID, WorkflowRun] = {}
+    latest_runs: dict[uuid.UUID, CardRun] = {}
     run_writes: dict[uuid.UUID, list[RunWriteValue]] = defaultdict(list)
     if card_ids:
-        run_rows = await session.execute(
-            select(WorkflowRun, RunWriteValue)
-            .outerjoin(
-                RunWriteValue,
-                and_(
-                    RunWriteValue.shop_id == shop_id,
-                    RunWriteValue.workflow_run_id == WorkflowRun.id,
-                ),
+        ranked = (
+            select(
+                WorkflowRun.id,
+                WorkflowRun.action_card_id,
+                WorkflowRun.status,
+                WorkflowRun.stop_reason,
+                WorkflowRun.write_mode,
+                func.row_number()
+                .over(
+                    partition_by=WorkflowRun.action_card_id,
+                    order_by=(WorkflowRun.created_at.desc(), WorkflowRun.id.desc()),
+                )
+                .label("recency"),
             )
             .where(
                 WorkflowRun.shop_id == shop_id,
                 WorkflowRun.action_card_id.in_(card_ids),
                 WorkflowRun.reverts_run_id.is_(None),
             )
-            .order_by(
-                WorkflowRun.created_at.asc(),
-                WorkflowRun.id.asc(),
-                RunWriteValue.recorded_at.asc(),
-                RunWriteValue.id.asc(),
-            )
+            .subquery()
         )
-        for run, write in run_rows.all():
-            if run.action_card_id is not None:
-                latest_runs[run.action_card_id] = run
+        run_rows = await session.execute(
+            select(
+                ranked.c.id,
+                ranked.c.action_card_id,
+                ranked.c.status,
+                ranked.c.stop_reason,
+                ranked.c.write_mode,
+                RunWriteValue,
+            )
+            .outerjoin(
+                RunWriteValue,
+                and_(
+                    RunWriteValue.shop_id == shop_id,
+                    RunWriteValue.workflow_run_id == ranked.c.id,
+                ),
+            )
+            .where(ranked.c.recency == 1)
+            .order_by(RunWriteValue.recorded_at.asc(), RunWriteValue.id.asc())
+        )
+        for run_id, card_id, status, stop_reason, write_mode, write in run_rows.all():
+            if card_id is not None and card_id not in latest_runs:
+                latest_runs[card_id] = CardRun(
+                    id=run_id,
+                    action_card_id=card_id,
+                    status=status,
+                    stop_reason=stop_reason,
+                    write_mode=write_mode,
+                )
             if write is not None:
-                run_writes[run.id].append(write)
+                run_writes[run_id].append(write)
     writes = {run.id: run_writes.get(run.id, []) for run in latest_runs.values()}
     sentences = await _group_sentences(session, shop_id, cards)
     for card in cards:
