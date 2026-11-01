@@ -6,6 +6,7 @@ from juli_backend.api import reviewer as reviewer_gate
 from juli_backend.api.middleware import (
     CorrelationIdMiddleware,
     RequestTimingMiddleware,
+    RunsListInvalidationMiddleware,
     install_error_boundary,
 )
 from juli_backend.api.routes.action_cards import router as action_cards_router
@@ -116,6 +117,8 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     # P21: request timing sits just inside correlation, so its http_request event carries
     # the correlation id and its clock covers routing, handlers and the response body.
     app.add_middleware(RequestTimingMiddleware)
+    # P82: a write to a shop drops its cached runs lists (the poll's few-second cache).
+    app.add_middleware(RunsListInvalidationMiddleware)
     # P32-A (D42): bind the reviewer gate into get_current_user and mask every
     # reviewer response. Inside timing / correlation, outside the routes and the
     # exception handlers, so a refused reviewer request is masked too.

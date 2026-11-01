@@ -32,6 +32,10 @@ os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
 # Tests exercise every scoring workflow; production defaults to Tối ưu sản phẩm +
 # content only (persist.enabled_card_workflows, owner 2026-10-11).
 os.environ.setdefault("CDP_ENABLED_WORKFLOWS", "*")
+# P82: the runs list's few-second Redis cache is off in the suites -- CI runs a real
+# Redis, and a list cached by one test must never answer another test's read. Its own
+# tests turn it on with a fake client (`test_p82_egress_cuts.py`).
+os.environ.setdefault("RUNS_LIST_CACHE_SECONDS", "0")
 
 
 DISPOSABLE_MARKER = "JULI_TEST_DATABASE_DISPOSABLE"

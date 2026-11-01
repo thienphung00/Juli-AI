@@ -225,18 +225,48 @@ export function QuyetDinhView({
   const [runs, setRuns] = useState<Load<readonly QdRun[]>>({ status: "loading" });
   const [runsKey, setRunsKey] = useState(0);
   const polling = query.tab !== "de-xuat";
+  // P82 (Supabase egress): the next poll is scheduled only while the tab is visible and
+  // a run in the list is still live; a hidden tab stops, and showing it again re-reads at
+  // once. Approve / revert / a run's stream ending re-run this effect (`runsKey`).
   useEffect(() => {
     let cancelled = false;
+    let timer: number | null = null;
+    const stop = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+    };
+    const schedule = (data: readonly QdRun[] | null) => {
+      stop();
+      if (cancelled || !polling || document.hidden) return;
+      if (data !== null && !data.some((run) => !isTerminalRun(run))) return;
+      timer = window.setTimeout(load, RUN_LEDGER_POLL_INTERVAL_MS);
+    };
     const load = () =>
       clients
         .fetchRuns({ token, shopId: shop.id })
-        .then((data) => !cancelled && setRuns({ status: "ready", data: data as QdRun[] }))
-        .catch(() => !cancelled && setRuns((previous) => (previous.status === "ready" ? previous : { status: "error" })));
+        .then((data) => {
+          if (cancelled) return;
+          setRuns({ status: "ready", data: data as QdRun[] });
+          schedule(data as QdRun[]);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setRuns((previous) => (previous.status === "ready" ? previous : { status: "error" }));
+          schedule(null);
+        });
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else if (polling) {
+        stop();
+        void load();
+      }
+    };
     void load();
-    const timer = polling ? window.setInterval(load, RUN_LEDGER_POLL_INTERVAL_MS) : null;
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
-      if (timer !== null) window.clearInterval(timer);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [clients, token, shop.id, polling, runsKey]);
   const refreshRuns = useCallback(() => setRunsKey((key) => key + 1), []);

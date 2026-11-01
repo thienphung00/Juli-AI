@@ -192,3 +192,44 @@ class RequestTimingMiddleware:
         # A response that never sent a final body chunk (client disconnect, an app that
         # only sent headers) is still one request.
         _log()
+
+
+_READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_SHOP_HEADER = b"x-shop-id"
+
+
+class RunsListInvalidationMiddleware:
+    """Drop the shop's cached runs lists after a write to it succeeds (P82).
+
+    ``GET /v1/demo/runs`` is served from a few-second Redis cache keyed by the
+    ``X-Shop-Id`` header (``services/agent_runs/list_cache``). Approve, cancel, a
+    confirmation, a revert, a photo -- every request that can start or move a run
+    carries that header and is not a GET, so one rule here covers them all, including
+    routes added later. Runs when the route's non-error response starts -- after the
+    handler returned, before the client sees it; best-effort, never fails the request.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("method", "GET") in _READ_METHODS:
+            await self.app(scope, receive, send)
+            return
+        header = next(
+            (value for name, value in scope.get("headers", []) if name == _SHOP_HEADER), b""
+        )
+        if not header:
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message: Message) -> None:
+            # Before the response reaches the client: a client that refreshes the list
+            # as soon as its write returns must not be served the pre-write list.
+            if message["type"] == "http.response.start" and int(message["status"]) < 400:
+                from juli_backend.services.agent_runs import forget_cached_runs_lists
+
+                await forget_cached_runs_lists(header.decode("latin-1"))
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)

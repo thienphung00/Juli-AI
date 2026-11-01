@@ -52,6 +52,9 @@ from juli_backend.services.agent_runs.events import (
     run_events_channel,
     run_events_database_url,
 )
+from juli_backend.services.agent_runs.list_cache import cache_key as runs_list_cache_key
+from juli_backend.services.agent_runs.list_cache import forget as forget_cached_runs_lists
+from juli_backend.services.agent_runs.list_cache import read_through as read_through_runs_list
 from juli_backend.services.agent_runs.listing import (
     ConfirmedWrite,
     PendingDecision,
@@ -90,10 +93,13 @@ __all__ = [
     "decide_confirmation",
     "decline_pending_confirmation",
     "event_stream",
+    "forget_cached_runs_lists",
     "list_runs",
+    "read_through_runs_list",
     "resolve_after_seq",
     "resolve_redis_event_subscriber",
     "run_events_channel",
     "run_events_database_url",
+    "runs_list_cache_key",
     "transition_confirmation_or_none",
 ]

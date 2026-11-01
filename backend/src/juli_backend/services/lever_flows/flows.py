@@ -23,7 +23,7 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -86,7 +86,18 @@ def is_promotion_lever(lever_code: str | None) -> bool:
     return lever_code in PROMOTION_LEVERS
 
 
-def awaiting_of(run: WorkflowRunRow) -> str | None:
+class WaitFacts(Protocol):
+    """The two run facts :func:`awaiting_of` reads (a ``workflow_runs`` row or a projection
+    of it -- the runs list reads columns, not the row, P82)."""
+
+    @property
+    def status(self) -> str: ...
+
+    @property
+    def external_wait_reason(self) -> str | None: ...
+
+
+def awaiting_of(run: WaitFacts) -> str | None:
     """What the seller must do for this run to continue, or ``None``.
 
     Only while the run is actually waiting: the column keeps its last value

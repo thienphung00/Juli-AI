@@ -3368,3 +3368,72 @@ reconcile --write` re-derived the no-assert corpus figure.
   table, ambiguity, chaining, overlap; live replay through the real runner pauses for consent
   with the original sentence kept; a refusal quotes the section and the retry passes; cap).
 
+
+## 2026-11-01 — agent (Claude Opus) — P82: cut Supabase egress (runs list, poll, reaper, B12, decisions)
+
+- Why: Free plan 5 GB/cycle; egress rose to 433 MB (10-30) / 305 MB (10-31) with no dump. The
+  polled `GET /v1/demo/runs` read every run's whole `workflow_runs.state` (jsonb; ~3.7 KB
+  compressed on disk, several times that on the wire) every 5 s per open tab; the reaper loaded
+  every active run's full row 3× per 5-min tick; the decisions list read every run of every
+  card; the B12 order hook read the whole stored report to get two facts.
+- Measured on a throwaway UTC Postgres through a byte-counting TCP proxy (server → client bytes,
+  second call, synthetic shop: 50 runs with a ~20 KB state, 8 of them active, 25 cards, one
+  ~65 KB report; `before` = 3a55fd2c, `after` = this branch, same seed):
+
+  | read | before | after |
+  |---|---|---|
+  | runs list, seller (`GET /v1/demo/runs`, limit 100) | 1,067,762 B | 13,184 B (−98.8 %) |
+  | runs list, sandbox reviewer | 1,101,320 B | 18,479 B (−98.3 %) |
+  | reaper tick (8 active runs) | 506,532 B | 2,631 B (−99.5 %) |
+  | `load_card_contexts` (25 cards, 50 runs) | 1,056,825 B | 8,372 B (−99.2 %) |
+  | B12 report facts (per cache miss) | 65,889 B | 209 B |
+  | `GET /v1/demo/analysis` report | 65,767 B | unchanged (see DEBT) |
+
+  The JSON each read returns (runs list seller + reviewer, card contexts, B12 facts) is
+  byte-identical before/after (`cmp`). HTTP body of the runs list: 25.6 KB / 23.0 KB, unchanged.
+- Runs list (`services/agent_runs/listing.py`): the runs statement selects 10 run columns + the
+  product's name / TikTok id (was the full `WorkflowRun` + `Product` rows). The sandbox
+  reviewer's Ngày 0 reading comes from `jsonb_path_query_array(state, 'strict
+  $.conversation_window[*] ? (@.role == "tool" && @.tool_name == $tool)', …, silent)` — only the
+  diagnosis messages cross the wire; SQLite (unit tests) reads the window. The "mine or since"
+  reviewer filter runs in SQL before the LIMIT (was: newest N, then filtered — a reviewer could
+  get fewer than N visible runs; now up to N). The ledger read selects `workflow_run_id,
+  tool_name, updated_at, outcome_json` (no `payload_json`). Statement count unchanged (≤ 3).
+  `lever_flows.awaiting_of` takes a `WaitFacts` protocol.
+- Limit NOT cut to 30: Đo lường lists every executed run from this same response, so a cap
+  would hide older measurements; with `state` gone a row is ~250 B, 100 rows ~25 KB.
+- Runs-list cache (`services/agent_runs/list_cache.py`): 4 s Redis hash per `X-Shop-Id`
+  (`juli:agent_runs:list:<header>`), one field per (resolved shop, user, reviewer viewer + since,
+  limit); value carries its own timestamp (stale ⇒ miss). Fail-open; an empty list (possibly a
+  degraded read) is never cached; `RUNS_LIST_CACHE_SECONDS` (0 disables; the test suites set
+  0). `RunsListInvalidationMiddleware` drops the shop's hash when any non-GET request with
+  `X-Shop-Id` starts a < 400 response (approve, cancel, confirmation, revert, photo …) — before
+  the client sees it. Worker-side status changes (runner, reaper) rely on the 4 s TTL. Reviewer
+  responses still pass the mask middleware (the cache holds the route's pre-mask body).
+- Demo poll (`quyet-dinh-view.tsx`, `panel-config.ts`): 15 s (was 5 s), chained `setTimeout`;
+  no next poll while `document.hidden` or when every listed run is terminal; `visibilitychange`
+  → visible re-reads at once; approve / revert / a stream's terminal event still re-run the
+  effect (`runsKey`).
+- Reaper (`workers/tasks/reaper.py`): Postgres enumeration filters `out_status = ANY(:statuses)`
+  (non-matching runs are no longer loaded under a scope just to be skipped); each run's
+  decision facts are one projected select (`_RunFacts`: id, status, workflow_key,
+  external_wait_reason, created_at, started_at, waiting_*_since); the full row (with `state`,
+  for `required_steps_completed`) is loaded only by the sink of a run actually reaped.
+  Per-run tenant scope (ADR-089) unchanged; the enumeration stays per sweep.
+- B12 (`shop_diagnosis_daily/refresh.py`): `ShopDiagnosisReportsRepo.latest_source` reads
+  `end_date` + `report->>'metrics_source'`; per-process cache 60 s → 1 h, dropped by the daily
+  build in the same process (`forget_report_facts`); an order dated after the cached end date
+  re-reads facts older than 60 s (a newer report may have landed in another process).
+  Non-orders shops already stop at the facts check.
+- Decisions (`demo_decisions/card_view.py`): one statement reads each card's latest run
+  (`row_number() over (partition by action_card_id order by created_at desc, id desc)`) as
+  `CardRun` (id, card, status, stop_reason, write_mode) joined to its `run_write_values`.
+- Other `ShopDiagnosisReportsRepo.latest()` callers: only `GET /v1/demo/analysis`
+  (`latest_shop_diagnosis`), once per page load (app shell), not polled — left as is (DEBT).
+- Tests: `tests/unit/test_p82_egress_cuts.py` (seller + reviewer response equal to the
+  pre-P82 response on a long-`state` fixture — checked by running the 3a55fd2c `list_runs` on
+  it; no `workflow_runs.state` / `payload_json` in the SQL; filter-before-limit; card contexts;
+  cache isolation / TTL / disabled / route hit + invalidation / degraded read; reaper tick),
+  `tests/integration/test_p82_egress_postgres.py` (jsonpath Ngày 0 equals `day0_reading` on
+  edge windows, as `juli_app`; B12 facts; card contexts), `test_shop_report_refresh.py`
+  (+3), demo `quyet-dinh-runs-poll.test.tsx` (15 s, terminal stop, hidden pause / resume).

@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Exists, exists, select
+from sqlalchemy import ColumnElement, Exists, cast, exists, func, literal, or_, select
+from sqlalchemy.dialects.postgresql import JSONB, JSONPATH
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.models.models import (
@@ -32,6 +33,7 @@ from juli_backend.services.agent_runs.confirmations import (
     WAITING_APPROVAL_RUN_STATUS,
 )
 from juli_backend.services.agent_runs.listing_quality import (
+    DIAGNOSIS_TOOL,
     MAX_RUNS,
     ListingQuality,
     checked_reading,
@@ -137,6 +139,49 @@ _RUN_FLOWS: dict[str, str] = {"create_product": "create", "create_promotion": "p
 _SUCCEEDED = "succeeded"
 
 
+@dataclass(frozen=True)
+class _ListedRun:
+    """The ``workflow_runs`` columns the list reads -- never ``state`` (P82: the egress)."""
+
+    id: uuid.UUID
+    status: str
+    stop_reason: str | None
+    created_at: datetime
+    completed_at: datetime | None
+    running_seconds_elapsed: int
+    action_card_id: uuid.UUID | None
+    write_mode: str | None
+    workflow_key: str
+    external_wait_reason: str | None
+    product_name: str
+    product_tiktok_id: str
+    #: Sandbox reviewer only: the run's ``get_product_diagnoses`` tool messages (the
+    #: Ngày 0 reading, P71) -- the one part of ``state`` the list needs.
+    diagnosis_messages: Any = None
+
+
+#: P82: the ``get_product_diagnoses`` tool messages of a run's stored conversation, picked
+#: in Postgres so the ~20 KB (uncompressed) ``state`` never crosses the wire. Strict +
+#: silent: a state without a list ``conversation_window`` yields ``[]``; a malformed message
+#: fails its filter and is skipped -- exactly what :func:`listing_quality.day0_reading` does.
+_DIAGNOSIS_MESSAGES_PATH = (
+    'strict $.conversation_window[*] ? (@.role == "tool" && @.tool_name == $tool)'
+)
+
+
+def _diagnosis_messages(dialect: str) -> ColumnElement[Any]:
+    if dialect != "postgresql":
+        # SQLite (unit tests) has no jsonpath; it reads the window and Python filters it.
+        return WorkflowRunRow.state["conversation_window"]
+    return func.jsonb_path_query_array(
+        WorkflowRunRow.state,
+        cast(literal(_DIAGNOSIS_MESSAGES_PATH), JSONPATH),
+        cast(literal(json.dumps({"tool": DIAGNOSIS_TOOL})), JSONB),
+        True,
+        type_=JSONB,
+    )
+
+
 async def list_runs(
     session: AsyncSession, shop_id: uuid.UUID, *, limit: int, viewer: RunViewer | None = None
 ) -> list[RunListItem]:
@@ -149,6 +194,10 @@ async def list_runs(
     write flags are read from (only when a viewer or a simulated run needs them). This
     used to read the narration (and the confirmation) once PER RUN -- up to 200
     sequential round trips for the default limit, ~220 ms each in production.
+
+    P82: the runs statement reads columns, never the whole ``state`` blob (~20 KB per run
+    uncompressed on the wire, every poll); a sandbox reviewer's Ngày 0 reading comes from
+    the one JSON path it needs, and the reviewer's "mine or since" filter runs in SQL.
     """
     narration = (
         select(WorkflowRunEventRow.payload)
@@ -162,46 +211,77 @@ async def list_runs(
         .scalar_subquery()
     )
     statement = (
-        select(WorkflowRunRow, Product, narration.label("narration"))
+        select(
+            WorkflowRunRow.id,
+            WorkflowRunRow.status,
+            WorkflowRunRow.stop_reason,
+            WorkflowRunRow.created_at,
+            WorkflowRunRow.completed_at,
+            WorkflowRunRow.running_seconds_elapsed,
+            WorkflowRunRow.action_card_id,
+            WorkflowRunRow.write_mode,
+            WorkflowRunRow.workflow_key,
+            WorkflowRunRow.external_wait_reason,
+            Product.name,
+            Product.tiktok_product_id,
+            narration.label("narration"),
+        )
         .where(WorkflowRunRow.shop_id == shop_id)
         .join(Product, WorkflowRunRow.product_id == Product.id)
-        .order_by(WorkflowRunRow.created_at.desc())
-        .limit(limit)
     )
     if viewer is not None:
-        statement = statement.add_columns(_approved_by(viewer.user_id).label("started_by_viewer"))
-    result = await session.execute(statement)
-    rows: list[tuple[WorkflowRunRow, Product]] = []
+        approved = _approved_by(viewer.user_id)
+        dialect = session.get_bind().dialect.name
+        statement = statement.add_columns(
+            approved.label("started_by_viewer"),
+            _diagnosis_messages(dialect).label("diagnosis_messages"),
+        ).where(
+            approved
+            if viewer.since is None
+            else or_(approved, WorkflowRunRow.created_at >= viewer.since)
+        )
+    result = await session.execute(
+        statement.order_by(WorkflowRunRow.created_at.desc()).limit(limit)
+    )
+    rows: list[_ListedRun] = []
     narrations: dict[uuid.UUID, str | None] = {}
     mine: set[uuid.UUID] = set()
     for row in result.all():
-        run, product = row[0], row[1]
-        rows.append((run, product))
-        narrations[run.id] = _narration_of(row[2])
-        if viewer is not None and row[3]:
+        run = _ListedRun(
+            id=row.id,
+            status=row.status,
+            stop_reason=row.stop_reason,
+            created_at=row.created_at,
+            completed_at=row.completed_at,
+            running_seconds_elapsed=row.running_seconds_elapsed,
+            action_card_id=row.action_card_id,
+            write_mode=row.write_mode,
+            workflow_key=row.workflow_key,
+            external_wait_reason=row.external_wait_reason,
+            product_name=row.name,
+            product_tiktok_id=row.tiktok_product_id,
+            diagnosis_messages=row[14] if viewer is not None else None,
+        )
+        rows.append(run)
+        narrations[run.id] = _narration_of(row[12])
+        if viewer is not None and row[13]:
             mine.add(run.id)
-    if viewer is not None:
-        rows = [
-            (run, product)
-            for run, product in rows
-            if run.id in mine or (viewer.since is not None and run.created_at >= viewer.since)
-        ]
-    waiting = [run.id for run, _ in rows if run.status == WAITING_APPROVAL_RUN_STATUS]
+    waiting = [run.id for run in rows if run.status == WAITING_APPROVAL_RUN_STATUS]
     decisions = await _pending_decisions(session, waiting)
     written, simulated = await _ledger_flags(
         session,
         rows if viewer is not None else [],
-        [run.id for run, _ in rows if run.write_mode == WRITE_MODE_SIMULATED],
+        [run.id for run in rows if run.write_mode == WRITE_MODE_SIMULATED],
     )
     quality = await _listing_quality(session, shop_id, rows, written) if viewer is not None else {}
     items: list[RunListItem] = []
-    for run, product in rows:
+    for run in rows:
         items.append(
             RunListItem(
                 id=run.id,
                 status=run.status,
                 stop_reason=run.stop_reason,
-                product_name=product.name,
+                product_name=run.product_name,
                 created_at=_iso(run.created_at) or "",
                 completed_at=_iso(run.completed_at),
                 running_seconds_elapsed=run.running_seconds_elapsed,
@@ -222,14 +302,14 @@ async def list_runs(
 async def _listing_quality(
     session: AsyncSession,
     shop_id: uuid.UUID,
-    rows: list[tuple[WorkflowRunRow, Product]],
+    rows: list[_ListedRun],
     written: dict[uuid.UUID, ConfirmedWrite],
 ) -> dict[uuid.UUID, ListingQuality]:
     """P71: TikTok's listing diagnosis before / now for the newest listing-edit runs
     TikTok confirmed (sandbox reviewer only; :mod:`.listing_quality`)."""
     edits = [
-        (run, written[run.id].tiktok_id or product.tiktok_product_id)
-        for run, product in rows
+        (run, written[run.id].tiktok_id or run.product_tiktok_id)
+        for run in rows
         if run.id in written and written[run.id].kind == WRITE_LISTING_EDIT
     ][:MAX_RUNS]
     edits = [(run, product_id) for run, product_id in edits if product_id]
@@ -240,32 +320,39 @@ async def _listing_quality(
     for run, product_id in edits:
         checked = checked_reading(written[run.id].draft_score)
         after, stale = mark_stale(now.get(product_id), checked)
+        before = day0_reading({"conversation_window": run.diagnosis_messages})
         found[run.id] = ListingQuality(
-            before=day0_reading(run.state), after=after, checked=checked, stale_issues=stale
+            before=before, after=after, checked=checked, stale_issues=stale
         )
     return found
 
 
 async def _ledger_flags(
     session: AsyncSession,
-    confirmed_rows: list[tuple[WorkflowRunRow, Product]],
+    confirmed_rows: list[_ListedRun],
     simulated_run_ids: list[uuid.UUID],
 ) -> tuple[dict[uuid.UUID, ConfirmedWrite], set[uuid.UUID]]:
     """Each of ``confirmed_rows``' last WRITE TikTok confirmed, and which of
     ``simulated_run_ids`` wrote something -- both from ONE ledger statement (P69; was two).
 
-    A refused write (``ok: false``, P64 D10) never counts as confirmed.
+    A refused write (``ok: false``, P64 D10) never counts as confirmed. P82: only the four
+    columns the flags read (``payload_json`` and the rest stay in Postgres).
     """
     if not confirmed_rows and not simulated_run_ids:
         return {}, set()
     from juli_backend.services.agent import composition
 
-    products = {run.id: product for run, product in confirmed_rows}
+    products = {run.id: run.product_tiktok_id for run in confirmed_rows}
     measurable = set(composition.measurable_write_tool_names()) if simulated_run_ids else set()
     run_ids = set(products) | set(simulated_run_ids)
     tool_names = (set(_WRITE_KINDS) if products else set()) | measurable
     result = await session.execute(
-        select(ToolExecution)
+        select(
+            ToolExecution.workflow_run_id,
+            ToolExecution.tool_name,
+            ToolExecution.updated_at,
+            ToolExecution.outcome_json,
+        )
         .where(
             ToolExecution.workflow_run_id.in_(list(run_ids)),
             ToolExecution.status == _SUCCEEDED,
@@ -276,19 +363,18 @@ async def _ledger_flags(
     simulated_wanted = set(simulated_run_ids)
     found: dict[uuid.UUID, ConfirmedWrite] = {}
     simulated: set[uuid.UUID] = set()
-    for execution in result.scalars().all():
-        run_id = execution.workflow_run_id
+    for run_id, tool_name, updated_at, outcome_json in result.all():
         if run_id is None:
             continue
-        if run_id in simulated_wanted and execution.tool_name in measurable:
+        if run_id in simulated_wanted and tool_name in measurable:
             simulated.add(run_id)
-        if run_id not in products or execution.tool_name not in _WRITE_KINDS:
+        if run_id not in products or tool_name not in _WRITE_KINDS:
             continue
-        outcome = _outcome(execution.outcome_json)
+        outcome = _outcome(outcome_json)
         if outcome.get("ok") is False:
             continue
         found[run_id] = _confirmed_write(
-            execution, outcome, product_tiktok_id=products[run_id].tiktok_product_id
+            tool_name, updated_at, outcome, product_tiktok_id=products[run_id]
         )
     return found, simulated
 
@@ -302,12 +388,16 @@ def _outcome(raw: str | None) -> dict[str, Any]:
 
 
 def _confirmed_write(
-    execution: ToolExecution, outcome: dict[str, Any], *, product_tiktok_id: str | None
+    tool_name: str,
+    updated_at: datetime | None,
+    outcome: dict[str, Any],
+    *,
+    product_tiktok_id: str | None,
 ) -> ConfirmedWrite:
-    kind = _WRITE_KINDS[execution.tool_name]
+    kind = _WRITE_KINDS[tool_name]
     confirmed_at = outcome.get("confirmed_at")
     if not isinstance(confirmed_at, str) or not confirmed_at:
-        confirmed_at = _iso(execution.updated_at)
+        confirmed_at = _iso(updated_at)
     if kind == WRITE_CREATE_PRODUCT:
         tiktok_id = outcome.get("tiktok_product_id")
     elif kind == WRITE_CREATE_PROMOTION:

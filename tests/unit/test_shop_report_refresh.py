@@ -12,8 +12,10 @@ from juli_backend.models.models import Shop, User
 from juli_backend.repositories import ShopDiagnosisReportsRepo
 from juli_backend.services.etl.consumer import EtlConsumer, ProcessOutcome
 from juli_backend.services.etl.record import IngestRecord
+from juli_backend.services.shop_diagnosis_daily import refresh
 from juli_backend.services.shop_diagnosis_daily.refresh import (
     clear_report_cache,
+    forget_report_facts,
     maybe_refresh_stored_report,
 )
 
@@ -131,14 +133,14 @@ async def test_etl_consumer_hook_fires_on_cancelled_order(session):
 async def test_many_orders_inside_ttl_do_one_report_lookup(session, monkeypatch):
     shop = await _shop(session, "tt-a")
     calls = 0
-    real = ShopDiagnosisReportsRepo.latest
+    real = ShopDiagnosisReportsRepo.latest_source
 
     async def counting(self, *args, **kwargs):
         nonlocal calls
         calls += 1
         return await real(self, *args, **kwargs)
 
-    monkeypatch.setattr(ShopDiagnosisReportsRepo, "latest", counting)
+    monkeypatch.setattr(ShopDiagnosisReportsRepo, "latest_source", counting)
     spy = _Spy()
     for _ in range(25):
         await _change(session, shop, spy)
@@ -149,10 +151,65 @@ async def test_many_orders_inside_ttl_do_one_report_lookup(session, monkeypatch)
     assert calls == 1
 
 
+async def test_the_hook_reads_two_columns_never_the_report(session, monkeypatch):
+    """P82: the report is ~200-400 KB on the wire; the hook needs its end date and source."""
+    shop = await _shop(session, "tt-a")
+
+    async def no_full_report(self, *args, **kwargs):
+        raise AssertionError("the B12 hook loaded the whole report")
+
+    monkeypatch.setattr(ShopDiagnosisReportsRepo, "latest", no_full_report)
+    assert await ShopDiagnosisReportsRepo(session).latest_source(shop.id, "60d") == (
+        END,
+        "orders",
+    )
+    assert await _change(session, shop, _Spy()) is True
+
+
+async def test_report_facts_are_cached_an_hour_until_the_report_is_rebuilt(session, monkeypatch):
+    shop = await _shop(session, "tt-a", source="analytics")
+    clock = [1_000.0]
+    monkeypatch.setattr(refresh.time, "monotonic", lambda: clock[0])
+    spy = _Spy()
+    assert await _change(session, shop, spy) is False
+    # The daily build stores an orders-sourced report: inside the hour the cached
+    # "analytics" still answers ...
+    await ShopDiagnosisReportsRepo(session).save(
+        shop.id, end_date=END, ranking="60d", report={"metrics_source": "orders"}, built_at=BUILT
+    )
+    await session.commit()
+    clock[0] += 30 * 60
+    assert await _change(session, shop, spy) is False
+    # ... until the build forgets the shop's facts (same process) or the hour passes.
+    forget_report_facts(shop.id)
+    assert await _change(session, shop, spy) is True
+    assert refresh.REPORT_CACHE_TTL_SECONDS == 3600.0
+
+
+async def test_an_order_after_the_cached_end_date_rechecks_after_a_minute(session, monkeypatch):
+    """A newer report may have landed in another process: an order dated after the cached
+    end date re-reads the facts once they are a minute old, so it is not missed for an hour."""
+    shop = await _shop(session, "tt-a")
+    clock = [1_000.0]
+    monkeypatch.setattr(refresh.time, "monotonic", lambda: clock[0])
+    spy = _Spy()
+    assert await _change(session, shop, spy, created_at=AFTER) is False
+    await ShopDiagnosisReportsRepo(session).save(
+        shop.id,
+        end_date=date(2026, 10, 7),
+        ranking="60d",
+        report={"metrics_source": "orders"},
+        built_at=datetime(2026, 10, 8, 0, 15),
+    )
+    await session.commit()
+    clock[0] += 30
+    assert await _change(session, shop, spy, created_at=AFTER) is False
+    clock[0] += refresh.NEWER_DAY_RECHECK_SECONDS
+    assert await _change(session, shop, spy, created_at=AFTER) is True
+
+
 async def test_unbound_enqueuer_is_a_no_op(session, monkeypatch):
     """Services must not import workers: with no enqueuer bound, nothing is looked up."""
-    from juli_backend.services.shop_diagnosis_daily import refresh
-
     monkeypatch.setattr(refresh, "_enqueuer", None)
     called = []
     enqueued = await refresh.maybe_refresh_stored_report(
@@ -167,7 +224,6 @@ async def test_unbound_enqueuer_is_a_no_op(session, monkeypatch):
 
 
 def test_dispatch_binding_binds_the_report_refresh_enqueuer(monkeypatch):
-    from juli_backend.services.shop_diagnosis_daily import refresh
     from juli_backend.workers.dispatch_binding import (
         CeleryReportRefreshEnqueuer,
         bind_celery_dispatchers,
