@@ -1856,4 +1856,8 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      guide on the first card (card anatomy · how Juli runs · day 7/14) → Trang chủ with a dismissible
      "Bắt đầu với Juli" 5-step checklist (sample mode: xem báo cáo · duyệt một thẻ · xem Juli chạy · đọc
      kết quả ngày 7 · kết nối shop của bạn; signed-in: the same with "kết nối" first and done). Boards 7
-     and 9 were cut to a few lines each; board 11 (guide) was added.
+     and 9 were cut to a few lines each; boards 11–15 were added so the loop closes: guide 1/3 (card),
+     2/3 (Juli chạy: từng bước · xác nhận một lần · hoàn tác), 3/3 (ngày 7 sơ bộ · ngày 14 chốt · Giữ ổn
+     định ±3 %), Trang chủ at 4/5 with "Kết nối TikTok Shop" as the last step, and the connected shop's
+     Trang chủ at 5/5 ("Xong", dismissible). Two paths share the boards: a prospect in sample mode
+     (1/5 → 11 → 12 → 13 → 14 → 7) and a connected seller (7 → 8 → 9 → 11 → 12 → 13 → 15).
