@@ -101,6 +101,7 @@ from juli_backend.services.shop_diagnosis_daily.pacing import (
     RateLimitedResources,
     SharedWindowGate,
 )
+from juli_backend.services.shop_diagnosis_daily.refresh import forget_report_facts
 from juli_backend.services.shop_diagnosis_daily.video_windows import (
     fetch_video_windows,
     ranking_videos,
@@ -447,6 +448,8 @@ async def build_and_store_shop_diagnosis(
                     built_at=built_at,
                 )
         await session.commit()
+    # P82: this process's B12 hook re-reads the new report's end date / source.
+    forget_report_facts(shop_id)
     result.built = True
     result.rankings = list(reports)
     result.compact_rows = await _write_compact_days(

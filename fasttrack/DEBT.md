@@ -1686,3 +1686,25 @@ Every skipped gate or shortcut. Format: `- [ ] what — why skipped — how to r
   by `pg_total_relation_size` on SG and exclude the re-derivable ones the same way.
 - [ ] A forced backup on a migration deploy still dumps twice (job + safe-alembic).
   Accepted: forcing is explicit and rare.
+
+## P82 — egress cuts: runs list, poll, reaper, B12, decisions (2026-11-01)
+
+- [ ] `GET /v1/demo/analysis` still reads the whole stored report (~200–400 KB on the wire in
+  production) and drops `daily_products` (Ops-only) in Python. Once per page load (app shell),
+  not polled. Repay: project the report without `daily_products` in SQL — `report` is `json`
+  (not jsonb), so `json_each … WITH ORDINALITY` + `json_object_agg(… ORDER BY ord)` keeps the
+  values byte-exact (a jsonb cast would reorder keys and renormalise numbers) — or a short
+  per-shop cache invalidated by the daily build.
+- [ ] Runs-list cache invalidation covers API writes only (middleware on non-GET + `X-Shop-Id`);
+  a status change made by a worker (runner, reaper) shows after the 4 s TTL. The cache is per
+  user, so it saves Postgres only for the same user's concurrent reads (two tabs, reload, the
+  page's own double reads); the 15 s / hidden / all-terminal poll rules are the main cut.
+- [ ] The reaper still enumerates once per sweep (3 per tick) and does one scoped projected
+  read per matching run; folding the three sweeps into one enumeration would change which tick
+  a run that moves between sweeps is judged in — left for an owner call.
+- [ ] B12 facts cache is per process; the daily build drops it only in the process that built.
+  A report whose `metrics_source` flips (analytics ↔ orders) is seen by other processes within
+  the hour; a newer end date is re-checked after 60 s by an order dated past the cached one.
+- [ ] Bytes measured on a synthetic seed (LOG P82); production after deploy: compare Supabase
+  egress per day with 10-30 (433 MB) / 10-31 (305 MB), and `pg_stat_statements` rows / calls
+  for the runs-list statement.

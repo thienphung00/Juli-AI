@@ -166,7 +166,68 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def _policy_for_run(run: WorkflowRun) -> TerminationPolicy | None:
+@dataclass(frozen=True)
+class _RunFacts:
+    """The ``workflow_runs`` columns the reaper DECIDES on (P82).
+
+    Every active run is read on every 5-minute tick, by each of the three sweeps; loading
+    the whole row pulled its ``state`` blob (~20 KB uncompressed on the wire) each time,
+    for runs that are almost never acted on. A run that IS reaped is loaded in full once,
+    by the sink, which needs ``state`` for ``required_steps_completed``.
+    """
+
+    id: uuid.UUID
+    status: str
+    workflow_key: str
+    external_wait_reason: str | None
+    created_at: datetime
+    started_at: datetime | None
+    waiting_approval_since: datetime | None
+    waiting_external_since: datetime | None
+
+
+class _PolicyFacts(Protocol):
+    @property
+    def id(self) -> uuid.UUID: ...
+
+    @property
+    def status(self) -> str: ...
+
+    @property
+    def workflow_key(self) -> str: ...
+
+
+async def _load_run_facts(session: AsyncSession, run_id: uuid.UUID) -> _RunFacts | None:
+    """One run's decision columns under the caller's shop scope, or ``None`` when the
+    row is gone or invisible to that scope (the same answer ``session.get`` gave)."""
+    result = await session.execute(
+        select(
+            WorkflowRun.id,
+            WorkflowRun.status,
+            WorkflowRun.workflow_key,
+            WorkflowRun.external_wait_reason,
+            WorkflowRun.created_at,
+            WorkflowRun.started_at,
+            WorkflowRun.waiting_approval_since,
+            WorkflowRun.waiting_external_since,
+        ).where(WorkflowRun.id == run_id)
+    )
+    row = result.first()
+    if row is None:
+        return None
+    return _RunFacts(
+        id=row.id,
+        status=row.status,
+        workflow_key=row.workflow_key,
+        external_wait_reason=row.external_wait_reason,
+        created_at=row.created_at,
+        started_at=row.started_at,
+        waiting_approval_since=row.waiting_approval_since,
+        waiting_external_since=row.waiting_external_since,
+    )
+
+
+def _policy_for_run(run: _PolicyFacts) -> TerminationPolicy | None:
     """This run's own `TerminationPolicy`, resolved from its `workflow_key`
     (issue #1702) -- or `None` when the key is not registered.
 
@@ -389,7 +450,7 @@ async def _next_sequence_number(session: AsyncSession, run_id: uuid.UUID) -> int
     return result.scalar_one() + 1
 
 
-async def _last_activity_at(session: AsyncSession, run: WorkflowRun) -> datetime:
+async def _last_activity_at(session: AsyncSession, run: _RunFacts) -> datetime:
     """Most recent liveness signal for `run`: the latest event timestamp if
     any event has ever been emitted, else `started_at`, else `created_at` --
     the run's own insertion moment for a `queued` run that never started."""
@@ -409,7 +470,7 @@ async def _last_activity_at(session: AsyncSession, run: WorkflowRun) -> datetime
 async def _emit_terminal_event(
     session: AsyncSession,
     sink: _TerminalEventSink,
-    run: WorkflowRun,
+    run: _RunFacts,
     *,
     stop_reason: StopReason,
     status: WorkflowRunStatus,
@@ -438,9 +499,10 @@ async def _enumerate_active_runs(
     decides on is then loaded per-run under that run's own tenant context.
 
     The projection is narrower than the function. `enumerate_active_workflow_runs`
-    also returns status, created_at and running_seconds_elapsed, which no caller
-    reads; #1510 tracks narrowing the signature, which needs DROP + CREATE
-    rather than CREATE OR REPLACE and so is not this slice's migration.
+    also returns created_at and running_seconds_elapsed, which no caller reads
+    (`out_status` filters the rows, P82); #1510 tracks narrowing the signature,
+    which needs DROP + CREATE rather than CREATE OR REPLACE and so is not this
+    slice's migration.
 
     The branch is on dialect, deliberately, and not on `try: enumerate /
     except: scan fleet-wide`. That shape is wrong twice over. On Postgres a
@@ -452,16 +514,20 @@ async def _enumerate_active_runs(
     unfiltered scan this issue exists to remove.
     """
     if session.get_bind().dialect.name == "postgresql":
+        # P82: the function returns every active status; only the caller's are wanted,
+        # so the others are not loaded under a shop scope just to be skipped.
         result = await session.execute(
-            text("SELECT out_run_id, out_shop_id FROM public.enumerate_active_workflow_runs()")
+            text(
+                "SELECT out_run_id, out_shop_id FROM public.enumerate_active_workflow_runs() "
+                "WHERE out_status = ANY(:statuses)"
+            ),
+            {"statuses": list(statuses)},
         )
     else:
         # SQLite (unit tests) has neither the function nor RLS, so an ordinary
-        # query stands in. NOT the same result set: this branch filters on the
-        # caller's `statuses`, while the Postgres function always returns all
-        # three active statuses and each caller re-filters below. Both loops end
-        # up acting on the same runs; the Postgres path just does one extra
-        # `session.get` per non-matching run per tick.
+        # query stands in. Both branches filter on the caller's `statuses` (the
+        # Postgres one on the function's `out_status` since P82); each caller still
+        # re-checks the status it loads under the run's own scope.
         result = await session.execute(
             select(WorkflowRun.id, WorkflowRun.shop_id).where(WorkflowRun.status.in_(statuses))
         )
@@ -489,7 +555,7 @@ async def _reap_stale_running_and_queued(
 
     for run_id, shop_id in await _enumerate_active_runs(session, active_statuses):
         async with with_shop_scope(session, shop_id):
-            run = await session.get(WorkflowRun, run_id)
+            run = await _load_run_facts(session, run_id)
             if run is None:
                 # Deleted between enumeration and load, or — the case that
                 # matters — invisible to this shop's policies. Either way there
@@ -546,7 +612,7 @@ async def _reap_expired_waiting_approval(
 
     for run_id, shop_id in await _enumerate_active_runs(session, waiting):
         async with with_shop_scope(session, shop_id):
-            run = await session.get(WorkflowRun, run_id)
+            run = await _load_run_facts(session, run_id)
             if run is None:
                 continue
             if run.status != WorkflowRunStatus.WAITING_APPROVAL.value:
@@ -605,7 +671,7 @@ async def _reap_expired_external_waits(
 
     for run_id, shop_id in await _enumerate_active_runs(session, waiting):
         async with with_shop_scope(session, shop_id):
-            run = await session.get(WorkflowRun, run_id)
+            run = await _load_run_facts(session, run_id)
             if run is None:
                 continue
             if run.status != WorkflowRunStatus.WAITING_EXTERNAL.value:

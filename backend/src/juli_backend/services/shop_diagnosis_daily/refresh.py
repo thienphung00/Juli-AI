@@ -87,10 +87,15 @@ def _default_claim() -> ClaimFn | None:
     return claim
 
 
-#: shop id -> (expires at monotonic seconds, report end date, metrics_source); a shop
-#: with no stored report caches ``(None, None)``. Keeps a backfill of thousands of
-#: orders from reading the report JSON once per order.
-REPORT_CACHE_TTL_SECONDS = 60.0
+#: shop id -> (read at monotonic seconds, report end date, metrics_source); a shop with no
+#: stored report caches ``(None, None)``. Keeps a backfill of thousands of orders from
+#: reading the report facts once per order. P82: an hour (was 60 s) -- the facts change once
+#: a day, when the daily build stores the next report (:func:`forget_report_facts`).
+REPORT_CACHE_TTL_SECONDS = 3600.0
+#: An order dated AFTER the cached end date may mean the next daily build has landed in
+#: another process since; for such an order the facts are re-read once they are this old
+#: (the pre-P82 TTL), so a fresh report's first hour of changes is not missed.
+NEWER_DAY_RECHECK_SECONDS = 60.0
 _report_cache: dict[uuid.UUID, tuple[float, date | None, str | None]] = {}
 
 
@@ -98,24 +103,28 @@ def clear_report_cache() -> None:
     _report_cache.clear()
 
 
+def forget_report_facts(shop_id: uuid.UUID) -> None:
+    """The shop's report was just (re)built: the next order change re-reads its facts."""
+    _report_cache.pop(shop_id, None)
+
+
 async def _stored_report_facts(
-    session: AsyncSession, shop_id: uuid.UUID
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    *,
+    max_age_seconds: float = REPORT_CACHE_TTL_SECONDS,
 ) -> tuple[date | None, str | None]:
+    """The stored 60-day report's end date and ``metrics_source`` (two columns, never the
+    report JSON -- P82), cached per process."""
     cached = _report_cache.get(shop_id)
     now = time.monotonic()
-    if cached is not None and cached[0] > now:
+    if cached is not None and now - cached[0] < max_age_seconds:
         return cached[1], cached[2]
     async with with_shop_scope(session, shop_id):
-        stored = await ShopDiagnosisReportsRepo(session).latest(shop_id, RANKING_60D)
+        stored = await ShopDiagnosisReportsRepo(session).latest_source(shop_id, RANKING_60D)
     await session.commit()
-    end: date | None = None
-    source: str | None = None
-    if stored is not None:
-        end = stored.end_date
-        if isinstance(stored.report, dict):
-            raw = stored.report.get("metrics_source")
-            source = raw if isinstance(raw, str) else None
-    _report_cache[shop_id] = (now + REPORT_CACHE_TTL_SECONDS, end, source)
+    end, source = stored if stored is not None else (None, None)
+    _report_cache[shop_id] = (now, end, source)
     return end, source
 
 
@@ -163,12 +172,15 @@ async def maybe_refresh_stored_report(
         if claim_fn is None:
             return False
         end_date, source = await _stored_report_facts(session, shop_id)
+        day = _local_day(created_at) if created_at is not None else None
+        if end_date is not None and day is not None and day > end_date:
+            end_date, source = await _stored_report_facts(
+                session, shop_id, max_age_seconds=NEWER_DAY_RECHECK_SECONDS
+            )
         if end_date is None or source != METRICS_SOURCE_ORDERS:
             return False
-        if created_at is not None:
-            day = _local_day(created_at)
-            if day > end_date or day < end_date - timedelta(days=DAYS - 1):
-                return False
+        if day is not None and (day > end_date or day < end_date - timedelta(days=DAYS - 1)):
+            return False
         key = str(shop_id)
         if not claim_fn(key):
             return False
@@ -187,6 +199,7 @@ async def maybe_refresh_stored_report(
 
 __all__ = [
     "REFRESH_DEBOUNCE_SECONDS",
+    "forget_report_facts",
     "maybe_refresh_stored_report",
     "refresh_key",
     "set_report_refresh_enqueuer",
