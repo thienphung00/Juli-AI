@@ -10,6 +10,7 @@ import type { DiagKey, OpsMe, OverrideKey, ShopSettingsPage, StageId } from "../
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
 import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
 import { OpsCardGroups } from "./ops-card-groups";
+import { OpsShopConsent } from "./ops-contract-shop";
 import { OpsRules } from "./ops-rules";
 import { C, OpsHeader, OpsPage, STAGE_STYLE, card } from "./ops-shell";
 import { OpsSkeleton } from "./ops-skeleton";
@@ -28,7 +29,7 @@ const STAGES: [StageId, string, string][] = [
 const STREAM_LABEL: Record<string, string> = { product_card: "Thẻ SP", shop_tab: "Tab", seller_video: "Video", seller_live: "LIVE" };
 const OWN: CSSProperties = { background: "#fff7fa", borderColor: "#f8b9d3", fontWeight: 600 };
 
-type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "groups" | "createGroup" | "setGroupReason">>;
+type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "groups" | "createGroup" | "setGroupReason" | "consent" | "enableConsent" | "createPairingCode" | "ingestTokens" | "revokeIngestToken">>;
 
 function SettingRow({
   title,
@@ -307,6 +308,7 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
               {error}
             </p>
           ) : null}
+          <OpsShopConsent api={api} canEdit={canEdit} shopId={shopId} />
           <div style={{ ...card, gap: 12 }}>
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Giai đoạn</h2>
             <div aria-label="Giai đoạn" role="radiogroup" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

@@ -22,13 +22,14 @@ from juli_backend.services.consent.pooling import (
     log_contributing_set,
     record_contributing_set,
 )
-from juli_backend.services.consent.terms import grant_terms_consents_if_accepted
+from juli_backend.services.consent.terms import TERMS_SCOPES, grant_terms_consents_if_accepted
 
 __all__ = [
     "FIGURE_FLEET_CALIBRATION",
     "FIGURE_OPS_GROUP_PRIOR",
     "MAX_SHOP_SHARE",
     "MIN_CONTRIBUTING_SHOPS",
+    "TERMS_SCOPES",
     "CellCheck",
     "ConsentRequired",
     "ContributingSet",
