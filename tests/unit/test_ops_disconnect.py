@@ -193,6 +193,7 @@ async def test_reconnecting_resumes(session, user_id):
         owner_user_id=user_id,
         owner_email="seller2@gmail.com",
         owner_consent_at=None,
+        platform=shop.platform,
     )
     from juli_backend.services.ops.audit import Actor
 

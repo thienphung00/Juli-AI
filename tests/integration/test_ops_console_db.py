@@ -298,6 +298,66 @@ async def test_ops_summary_and_find_shop_from_a_juli_app_session(two_tenants):
     assert any(r["shop_id"] == str(tenant_a.shop_id) for r in data["shops"])
 
 
+async def test_listing_functions_return_the_platform_as_juli_ops(owner_engine, two_tenants):
+    """Migration 110: ``ops_list_shops()`` / ``ops_find_shop()`` end in ``out_platform``
+    (``shops.platform``); EXECUTE is still ``juli_ops`` only, never PUBLIC."""
+    tenant_a, tenant_b = two_tenants
+    with owner_engine.begin() as conn:
+        conn.execute(
+            text("UPDATE public.shops SET platform = 'shopee' WHERE id = :s"),
+            {"s": tenant_b.shop_id},
+        )
+        for fn in ("public.ops_list_shops()", "public.ops_find_shop(uuid)"):
+            allowed = conn.execute(
+                text("SELECT has_function_privilege('juli_ops', :f, 'EXECUTE')"), {"f": fn}
+            ).scalar_one()
+            assert allowed is True, fn
+            public = conn.execute(
+                text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a "
+                    "WHERE p.oid = CAST(:f AS regprocedure) AND a.grantee = 0)"
+                ),
+                {"f": fn},
+            ).scalar_one()
+            assert public is False, fn
+    try:
+        async with app_session() as session:
+            async with ops_role(session):
+                listed = (
+                    (await session.execute(text("SELECT * FROM public.ops_list_shops()")))
+                    .mappings()
+                    .all()
+                )
+                found = (
+                    (
+                        await session.execute(
+                            text("SELECT * FROM public.ops_find_shop(:s)"),
+                            {"s": tenant_b.shop_id},
+                        )
+                    )
+                    .mappings()
+                    .one()
+                )
+            assert list(found.keys())[-1] == "out_platform"
+            assert found["out_platform"] == "shopee"
+            by_id = {row["out_shop_id"]: row["out_platform"] for row in listed}
+            assert by_id[tenant_a.shop_id] == "tiktok"
+            assert by_id[tenant_b.shop_id] == "shopee"
+            listing, _ = await overview.find_shop_and_settings(session, tenant_b.shop_id)
+            assert listing is not None and listing.platform == "shopee"
+            data = await overview.build_overview(session)
+            await session.commit()
+        platforms = {row["shop_id"]: row["platform"] for row in data["shops"]}
+        assert platforms[str(tenant_a.shop_id)] == "tiktok"
+        assert platforms[str(tenant_b.shop_id)] == "shopee"
+    finally:
+        with owner_engine.begin() as conn:
+            conn.execute(
+                text("UPDATE public.shops SET platform = 'tiktok' WHERE id = :s"),
+                {"s": tenant_b.shop_id},
+            )
+
+
 async def test_handover_moves_the_shop_through_the_definer_function(owner_engine):
     from tests.integration.two_tenant import seed_tenant
 

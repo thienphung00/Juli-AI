@@ -66,6 +66,8 @@ class ShopListing:
     owner_user_id: uuid.UUID
     owner_email: str | None
     owner_consent_at: datetime | None
+    #: ``shops.platform`` ('tiktok' | 'shopee'), from ``out_platform`` (migration 110).
+    platform: str
 
 
 @dataclass
@@ -146,6 +148,7 @@ class ShopRow:
             "shop_id": str(self.listing.shop_id),
             "shop_name": self.listing.shop_name,
             "tiktok_shop_id": self.listing.tiktok_shop_id,
+            "platform": self.listing.platform,
             "owner_email": self.listing.owner_email,
             "owned_by_team": self.owned_by_team,
             "invite_pending": self.invite_pending,
@@ -202,6 +205,7 @@ async def list_shops(session: AsyncSession) -> list[ShopListing]:
                 owner_user_id=user.id,
                 owner_email=user.email,
                 owner_consent_at=user.staff_access_consent_at,
+                platform=shop.platform,
             )
             for shop, user in rows
         ]
@@ -220,6 +224,7 @@ def _listing_from_row(row: Any) -> ShopListing:
         owner_user_id=row["out_owner_user_id"],
         owner_email=row["out_owner_email"],
         owner_consent_at=row["out_owner_consent_at"],
+        platform=row["out_platform"],
     )
 
 
@@ -242,6 +247,7 @@ async def find_shop(session: AsyncSession, shop_id: uuid.UUID) -> ShopListing | 
             owner_user_id=user.id,
             owner_email=user.email,
             owner_consent_at=user.staff_access_consent_at,
+            platform=shop.platform,
         )
     async with ops_role(session):
         result = await session.execute(
@@ -259,6 +265,7 @@ _FIND_SHOP_COLUMNS = (
     "out_owner_user_id",
     "out_owner_email",
     "out_owner_consent_at",
+    "out_platform",
 )
 
 
@@ -301,7 +308,7 @@ async def find_shop_and_settings(
 # all: the caller restores the role itself before answering 404.
 _FIND_AND_ENTER_SQL = (
     "SELECT f.out_shop_id, f.out_shop_name, f.out_tiktok_shop_id, f.out_is_active, "  # nosec B608
-    "f.out_owner_user_id, f.out_owner_email, f.out_owner_consent_at, "
+    "f.out_owner_user_id, f.out_owner_email, f.out_owner_consent_at, f.out_platform, "
     "set_config('role', :role, true), "
     "set_config(:shop_key, f.out_shop_id::text, true), "
     "set_config(:user_key, coalesce(f.out_owner_user_id::text, ''), true) "
@@ -482,6 +489,7 @@ async def _computed_row(session: AsyncSession, shop_id: uuid.UUID, current: date
         owner_user_id=shop_id,
         owner_email=None,
         owner_consent_at=None,
+        platform="",
     )
     row = ShopRow(listing=placeholder)
     async with with_shop_scope(session, shop_id):
@@ -523,7 +531,7 @@ async def refresh_shop_summary(
 # (by shop creation) through the joins.
 _OVERVIEW_SQL = """
 SELECT f.out_shop_id, f.out_shop_name, f.out_tiktok_shop_id, f.out_is_active,
-       f.out_owner_user_id, f.out_owner_email, f.out_owner_consent_at,
+       f.out_owner_user_id, f.out_owner_email, f.out_owner_consent_at, f.out_platform,
        s.stage AS stage,
        EXISTS (
            SELECT 1 FROM public.ops_shop_invites i
@@ -534,7 +542,7 @@ SELECT f.out_shop_id, f.out_shop_name, f.out_tiktok_shop_id, f.out_is_active,
        d.payload AS payload, d.data_through AS data_through, d.generated_at AS generated_at
 FROM public.ops_list_shops() WITH ORDINALITY AS f(
     out_shop_id, out_shop_name, out_tiktok_shop_id, out_is_active, out_created_at,
-    out_owner_user_id, out_owner_email, out_owner_consent_at, ord)
+    out_owner_user_id, out_owner_email, out_owner_consent_at, out_platform, ord)
 LEFT JOIN public.ops_shop_settings s ON s.shop_id = f.out_shop_id
 LEFT JOIN public.ops_shop_daily_summary d ON d.shop_id = f.out_shop_id
 ORDER BY f.ord
