@@ -5,7 +5,7 @@ before the ISV approval) has no seller login: Juli Ops creates the shop and staf
 work on it there.
 
 - :func:`create_contract_shop` makes the owner row the ``shops.user_id`` foreign key
-  needs -- a ``users`` row with no e-mail and no phone, which no sign-in resolves to,
+  needs -- a ``users`` row with no sign-in identifier, which no sign-in resolves to,
   stamped ``staff_access_consent_at`` (the contract is the reason staff see the shop)
   -- and the ``platform='shopee'`` shop through the seller path's own
   ``connect_shopee_shop``.
@@ -74,8 +74,8 @@ async def create_contract_shop(
     """The login-less owner and its Shopee shop. ``ValueError`` on a bad name or id."""
     owner_id = uuid.uuid4()
     async with with_user_scope(session, owner_id):
-        # One INSERT (no phone, no e-mail: nothing a sign-in can resolve to).
-        session.add(User(id=owner_id, phone=None, staff_access_consent_at=now))
+        # One INSERT, no sign-in identifier set: nothing a sign-in can resolve to.
+        session.add(User(id=owner_id, staff_access_consent_at=now))
         await session.flush()
     return await connect_shopee_shop(
         session, user_id=owner_id, shop_name=shop_name, shopee_shop_id=shopee_shop_id
