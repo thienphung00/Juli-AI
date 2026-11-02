@@ -299,7 +299,10 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
             </Link>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{shopName} · Cài đặt shop</h1>
             <span style={{ fontSize: 12, fontWeight: 600, borderRadius: 999, padding: "3px 10px", ...STAGE_STYLE[s.stage] }}>{s.stage_label}</span>
-            <Link href={`/ops/shops/${shopId}/xem`} style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
+            <Link href={`/ops/shops/${shopId}/chu-ky`} style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
+              Chu kỳ ›
+            </Link>
+            <Link href={`/ops/shops/${shopId}/xem`} style={{ fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
               Xem như shop ›
             </Link>
           </div>
