@@ -326,6 +326,23 @@ GRANT_REQUIRED: tuple[MutationSite, ...] = (
         "row.received_bytes = storage.append_chunk(conf, row.storage_key, offset, data)",
         "fast track P15: upload progress, then the pipeline's status / result (granted by 082)",
     ),
+    # -- ADR-118 (migration 109): the manual cycle ---------------------------
+    MutationSite(
+        "public",
+        "shop_proposals",
+        "UPDATE",
+        "backend/src/juli_backend/services/shop_proposals/cycle.py",
+        "proposal.status = to",
+        "a proposal's status moves forward (sent, decided, executed, superseded)",
+    ),
+    MutationSite(
+        "public",
+        "shop_proposal_executions",
+        "UPDATE",
+        "backend/src/juli_backend/services/shop_proposals/cycle.py",
+        "execution.verified_at = verified_at",
+        "the export read-back verifies an execution once (column grant on verified_*)",
+    ),
 )
 
 #: Scan hits that are provably NOT database writes. Each is pinned to its
