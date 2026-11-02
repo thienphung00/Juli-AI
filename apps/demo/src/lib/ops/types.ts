@@ -736,4 +736,134 @@ export interface ExecutionCreate {
   readonly executed_at: string;
   readonly executor_role: ExecutorRole;
   readonly evidence_ref: string | null;
+/** ADR-117 step 4: the Shopee dashboards (`/v1/ops/shops/{id}/shopee/*`), measured data only. */
+export type ShopeeOrderType = "placed" | "paid" | "confirmed";
+
+export interface ShopeeRange {
+  readonly from: string;
+  readonly to: string;
+}
+
+export interface ShopeeFlowCell {
+  readonly gmv: number | null;
+  readonly orders: number | null;
+  readonly impressions: number | null;
+  readonly clicks: number | null;
+  readonly buyers: number | null;
+}
+
+export interface ShopeeFlowChild extends ShopeeFlowCell {
+  readonly segment: string;
+  readonly label: string;
+}
+
+export interface ShopeeFlow extends Partial<ShopeeFlowCell> {
+  readonly stream: string;
+  readonly label: string;
+  readonly has_total_row: boolean;
+  /** G3: a child ("Trang shop" under "Thẻ sản phẩm") is a breakdown, never added to the total. */
+  readonly children: ShopeeFlowChild[];
+}
+
+export interface ShopeeMonth {
+  readonly month: string;
+  readonly gmv: number | null;
+  readonly orders: number | null;
+}
+
+export interface ShopeeFlows {
+  readonly range: ShopeeRange;
+  readonly order_type: ShopeeOrderType;
+  readonly total_gmv: number;
+  readonly total_orders: number;
+  readonly flows: ShopeeFlow[];
+  readonly ads_overlay: { readonly stream: string; readonly label: string; readonly gmv: number; readonly orders: number; readonly in_total: false } | null;
+  readonly monthly: { readonly month: string; readonly streams: Record<string, number | null>; readonly shop_page_gmv: number | null }[];
+  readonly shop_monthly: ShopeeMonth[];
+  readonly has_data: boolean;
+}
+
+export interface ShopeeProduct {
+  readonly item_id: string;
+  readonly name: string | null;
+  readonly impressions: number | null;
+  readonly clicks: number | null;
+  readonly visitors: number | null;
+  readonly page_views: number | null;
+  readonly add_to_cart: number | null;
+  readonly orders: number | null;
+  readonly gmv: number | null;
+  readonly units: number | null;
+  readonly buyers: number | null;
+  readonly ctr: number | null;
+  readonly add_to_cart_rate: number | null;
+  readonly click_to_order: number | null;
+  readonly by_flow: Record<string, { readonly gmv: number | null; readonly orders: number | null }>;
+  readonly history: ShopeeMonth[];
+  readonly flags: { readonly flag: string; readonly label: string; readonly from: string; readonly to: string }[];
+}
+
+export interface ShopeeProducts {
+  readonly order_type: ShopeeOrderType;
+  readonly period: ShopeeRange | null;
+  readonly periods: { readonly from: string; readonly to: string; readonly items: number }[];
+  readonly items_total: number;
+  readonly totals: Omit<ShopeeProduct, "item_id" | "name" | "by_flow" | "history" | "flags"> | null;
+  readonly products: ShopeeProduct[];
+  readonly shop_monthly: ShopeeMonth[];
+  readonly has_data: boolean;
+}
+
+export interface ShopeeAdCell {
+  readonly cost: number | null;
+  readonly orders: number | null;
+  readonly gmv: number | null;
+  readonly roas: number | null;
+  readonly cost_per_order: number | null;
+}
+
+export interface ShopeeAdType extends ShopeeAdCell {
+  readonly ad_type: string;
+  readonly label?: string;
+}
+
+export interface ShopeeAds {
+  readonly range: ShopeeRange;
+  readonly order_type: ShopeeOrderType;
+  readonly total: ShopeeAdCell;
+  readonly by_type: ShopeeAdType[];
+  readonly daily: { readonly day: string; readonly by_type: ShopeeAdType[] }[];
+  readonly monthly: ({ readonly month: string; readonly by_type: ShopeeAdType[] } & ShopeeAdCell)[];
+  readonly campaigns: ShopeeAdType[];
+  readonly campaigns_available: boolean;
+  readonly alerts: { readonly ad_type: string; readonly label: string; readonly days: number; readonly from: string; readonly to: string; readonly roas: number | null; readonly floor: number }[];
+  readonly alert_rule: { readonly floor: number; readonly min_days: number };
+  readonly has_data: boolean;
+}
+
+export interface ShopeePromotions {
+  readonly range: ShopeeRange;
+  readonly order_type: ShopeeOrderType;
+  readonly programs: {
+    readonly promo_type: string;
+    readonly type_label: string;
+    readonly name: string;
+    readonly starts_at: string;
+    readonly ends_at: string | null;
+    readonly status: string | null;
+    readonly gmv: number | null;
+    readonly orders: number | null;
+    readonly units: number | null;
+    readonly buyers: number | null;
+  }[];
+  readonly daily: { readonly day: string; readonly promo_type: string; readonly type_label: string; readonly gmv: number | null; readonly orders: number | null }[];
+  readonly has_data: boolean;
+}
+
+export interface ShopeeQuery {
+  readonly from?: string;
+  readonly to?: string;
+  readonly orderType?: ShopeeOrderType;
+  readonly periodFrom?: string;
+  readonly periodTo?: string;
 }

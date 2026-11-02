@@ -305,12 +305,19 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
             <span data-testid="ops-shop-platform" style={{ fontSize: 12, fontWeight: 600, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 999, padding: "2px 10px" }}>
               {PLATFORM_LABEL[platform]}
             </span>
-                        <Link href={`/ops/shops/${shopId}/chu-ky`} style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
-              Chu kỳ ›
-            </Link>
-            <Link href={`/ops/shops/${shopId}/xem`} style={{ fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
-              Xem như shop ›
-            </Link>
+            <span style={{ marginLeft: "auto", display: "flex", gap: 16 }}>
+              {platform === "shopee" ? (
+                <Link href={`/ops/shops/${shopId}/shopee/san-pham`} style={{ fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
+                  Dashboard Shopee ›
+                </Link>
+              ) : null}
+              <Link href={`/ops/shops/${shopId}/chu-ky`} style={{ fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
+                Chu kỳ ›
+              </Link>
+              <Link href={`/ops/shops/${shopId}/xem`} style={{ fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
+                Xem như shop ›
+              </Link>
+            </span>
           </div>
           {error ? (
             <p role="alert" style={{ margin: 0, color: C.red }}>

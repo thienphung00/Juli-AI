@@ -18,6 +18,11 @@ import type {
   ShopSettings,
   ShopSettingsPage,
   ShopTermsPage,
+  ShopeeAds,
+  ShopeeFlows,
+  ShopeeProducts,
+  ShopeePromotions,
+  ShopeeQuery,
   SimulationPage,
   SystemCost,
   TermsPage,
@@ -220,6 +225,35 @@ export const opsApi = {
   /** ADR-118: the change was made on Shopee. */
   recordExecution: (shopId: string, proposalId: string, body: ExecutionCreate, o?: OpsRequestOptions) =>
     opsRequest<{ proposal_id: string; status: string }>(`${shopPath(shopId)}/proposals/${encodeURIComponent(proposalId)}/executions`, { method: "POST", body }, o),
+  /** ADR-117 step 4, Sản phẩm + luồng: the funnel per product for one export period (Xem+; 409 for a non-Shopee shop). */
+  shopeeProducts: (shopId: string, q: ShopeeQuery = {}, o?: OpsRequestOptions) =>
+    opsRequest<ShopeeProducts>(`${shopPath(shopId)}/shopee/products${shopeeQuery(q, true)}`, {}, o),
+  /** Sản phẩm + luồng: GMV by flow; "Trang shop" is a child of "Thẻ sản phẩm" (G3). */
+  shopeeFlows: (shopId: string, q: ShopeeQuery = {}, o?: OpsRequestOptions) =>
+    opsRequest<ShopeeFlows>(`${shopPath(shopId)}/shopee/flows${shopeeQuery(q)}`, {}, o),
+  /** Quảng cáo + khuyến mãi: cost / orders / ROAS by ad type, monthly and daily, with the low-ROAS alert. */
+  shopeeAds: (shopId: string, q: ShopeeQuery = {}, o?: OpsRequestOptions) =>
+    opsRequest<ShopeeAds>(`${shopPath(shopId)}/shopee/ads${shopeeQuery(q)}`, {}, o),
+  /** Quảng cáo + khuyến mãi: the promotion programme timeline. */
+  shopeePromotions: (shopId: string, q: ShopeeQuery = {}, o?: OpsRequestOptions) =>
+    opsRequest<ShopeePromotions>(`${shopPath(shopId)}/shopee/promotions${shopeeQuery(q)}`, {}, o),
 };
 
 export type OpsApi = typeof opsApi;
+
+/** The Shopee dashboards' query string; the `products` route takes a period, the others a day range. */
+function shopeeQuery(q: ShopeeQuery, period = false): string {
+  const params = new URLSearchParams();
+  if (q.orderType) params.set("order_type", q.orderType);
+  if (period) {
+    if (q.periodFrom && q.periodTo) {
+      params.set("period_from", q.periodFrom);
+      params.set("period_to", q.periodTo);
+    }
+  } else {
+    if (q.from) params.set("from", q.from);
+    if (q.to) params.set("to", q.to);
+  }
+  const text = params.toString();
+  return text ? `?${text}` : "";
+}
