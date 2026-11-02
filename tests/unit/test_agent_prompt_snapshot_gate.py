@@ -63,6 +63,13 @@ GOLDEN_PATH_V4 = (
     / "agent_prompt_gates"
     / "optimize_product_v4_composed.golden.md"
 )
+GOLDEN_PATH_V5 = (
+    REPO_ROOT
+    / "tests"
+    / "fixtures"
+    / "agent_prompt_gates"
+    / "optimize_product_v5_composed.golden.md"
+)
 
 #: The real `prompts/` directory `compose()` reads from in production --
 #: `composer.py`'s own `_PROMPTS_ROOT` (this module's parent directory).
@@ -91,6 +98,8 @@ def _regenerate_golden_fixtures() -> None:
     GOLDEN_PATH_V3.write_bytes(composed_v3.encode("utf-8"))
     composed_v4 = compose(WORKFLOW_KEY, 4)
     GOLDEN_PATH_V4.write_bytes(composed_v4.encode("utf-8"))
+    composed_v5 = compose(WORKFLOW_KEY, 5)
+    GOLDEN_PATH_V5.write_bytes(composed_v5.encode("utf-8"))
 
 
 def _assert_matches_golden_snapshot(composed: str, golden_bytes: bytes) -> None:
@@ -190,6 +199,21 @@ def test_golden_fixture_v4_is_present_and_non_empty():
 def test_composed_prompt_v4_matches_golden_snapshot_byte_for_byte():
     composed = compose(WORKFLOW_KEY, 4)
     assert composed.encode("utf-8") == GOLDEN_PATH_V4.read_bytes()
+
+
+# ---------------------------------------------------------------------------
+# The real gate for v5 (fast track P85): compose(WORKFLOW_KEY, 5) matches.
+# ---------------------------------------------------------------------------
+
+
+def test_golden_fixture_v5_is_present_and_non_empty():
+    assert GOLDEN_PATH_V5.is_file(), f"missing golden snapshot fixture at {GOLDEN_PATH_V5}"
+    assert GOLDEN_PATH_V5.stat().st_size > 0
+
+
+def test_composed_prompt_v5_matches_golden_snapshot_byte_for_byte():
+    composed = compose(WORKFLOW_KEY, 5)
+    assert composed.encode("utf-8") == GOLDEN_PATH_V5.read_bytes()
 
 
 # ---------------------------------------------------------------------------

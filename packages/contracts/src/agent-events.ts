@@ -163,8 +163,24 @@ export interface WorkflowStartedPayload {
   prompt_version: string;
 }
 
+/**
+ * The codes behind a coded status line (fast track P85, D78.2) -- mirrors
+ * `CodedStatusPayload` in `payloads.py`. Codes only, never model text:
+ * `phase_narration` is the line Juli wrote from them.
+ */
+export interface CodedStatusPayload {
+  reason_codes: string[];
+  plan_code: string;
+  impact_code: string;
+}
+
 export interface WorkflowStatusPayload {
   phase_narration: string;
+  /**
+   * Additive AND OPTIONAL (P85) -- present only on a coded status line; every
+   * other status line, and every row written before P85, has no key at all.
+   */
+  status_code?: CodedStatusPayload;
 }
 
 export interface AssistantTextPayload {
@@ -360,7 +376,13 @@ export const GOLDEN_WORKFLOW_STATUS_EVENT: WorkflowStatusEvent = {
   event_type: "workflow.status",
   timestamp: "2026-08-14T12:00:01Z",
   payload: {
-    phase_narration: "Đang xem lại nội dung sản phẩm...",
+    phase_narration:
+      "Juli đề xuất sửa mô tả. Lý do đề xuất: Mô tả quá ngắn. Tác động dự kiến: trang sản phẩm dễ đọc hơn.",
+    status_code: {
+      reason_codes: ["DESC_LESS_THAN_FIVE_HUNDRED_CHARS"],
+      plan_code: "description",
+      impact_code: "easier_to_read",
+    },
   },
   v: 1,
 };
@@ -581,6 +603,8 @@ export function validateAgentEvent(value: unknown): AgentEvent {
  */
 const OPTIONAL_PAYLOAD_FIELDS: Readonly<Partial<Record<AgentEventType, readonly string[]>>> = {
   "workflow.approval_required": ["options"],
+  // P85 (D78.2): only a coded status line carries its codes.
+  "workflow.status": ["status_code"],
 };
 
 function assertExactKeys(
@@ -667,6 +691,25 @@ function validateConfirmationOptions(eventType: AgentEventType, value: unknown):
   });
 }
 
+/** `status_code` validator for `workflow.status` (P85) -- every field required,
+ * extra keys forbidden, mirroring `CodedStatusPayload` field-for-field. */
+function validateCodedStatus(eventType: AgentEventType, value: unknown): void {
+  if (!isPlainObject(value)) {
+    throw new Error(`${eventType}: payload.status_code must be an object`);
+  }
+  assertExactKeys(value, ["reason_codes", "plan_code", "impact_code"], eventType, "payload.status_code");
+  const reasons = value["reason_codes"];
+  if (!Array.isArray(reasons) || !reasons.every((code) => typeof code === "string")) {
+    throw new Error(`${eventType}: payload.status_code.reason_codes must be an array of strings`);
+  }
+  if (typeof value["plan_code"] !== "string") {
+    throw new Error(`${eventType}: payload.status_code.plan_code must be a string`);
+  }
+  if (typeof value["impact_code"] !== "string") {
+    throw new Error(`${eventType}: payload.status_code.impact_code must be a string`);
+  }
+}
+
 function validatePayloadFields(type: AgentEventType, payload: Record<string, unknown>): void {
   switch (type) {
     case "workflow.started":
@@ -676,6 +719,9 @@ function validatePayloadFields(type: AgentEventType, payload: Record<string, unk
       return;
     case "workflow.status":
       requireString(payload, "phase_narration", type);
+      if (payload["status_code"] !== undefined) {
+        validateCodedStatus(type, payload["status_code"]);
+      }
       return;
     case "assistant.text":
       requireString(payload, "text", type);

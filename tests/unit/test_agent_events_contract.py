@@ -545,3 +545,34 @@ def test_pre_1221_legacy_approval_required_fixture_validates_on_both_languages_w
         f"TS validator rejected the legacy no-options fixture: {result.get('error')}"
     )
     assert "options" not in result["value"]["payload"]
+
+
+# ---------------------------------------------------------------------------
+# `status_code` is additive AND OPTIONAL (fast track P85, D78.2): only a coded
+# status line carries it. Every other status line -- and every row written
+# before P85 -- has no key at all, and must keep that exact one-field shape.
+# ---------------------------------------------------------------------------
+
+
+def test_status_line_without_status_code_validates_and_keeps_its_one_field_shape():
+    raw = _read_json(FIXTURES_DIR / "workflow-status-legacy-no-code.json")
+    assert "status_code" not in raw["payload"], "fixture must be the genuine pre-P85 shape"
+
+    event = WorkflowRunEventAdapter.validate_python(raw)
+    assert event.payload.status_code is None
+    assert event.model_dump(mode="json") == raw
+
+    results = _ts_validate_batch([{"id": "legacy-no-code", "event": raw}])
+    result = results["legacy-no-code"]
+    assert result["ok"], f"TS validator rejected the no-code status fixture: {result.get('error')}"
+    assert "status_code" not in result["value"]["payload"]
+
+
+def test_coded_status_rejects_model_prose_on_both_languages():
+    raw = _read_json(GOLDEN_FIXTURES["workflow.status"])
+    raw["payload"]["status_code"]["text"] = "Chào bạn, mình đã xem lại sản phẩm."
+    with pytest.raises(ValidationError):
+        WorkflowRunEventAdapter.validate_python(raw)
+    result = _ts_validate_batch([{"id": "prose", "event": raw}])["prose"]
+    assert not result["ok"]
+    assert 'unexpected field "text"' in result["error"]

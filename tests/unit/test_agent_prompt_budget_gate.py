@@ -96,12 +96,16 @@ PROMPT_TOKEN_BUDGET_CEILING = 3000
 #: step intents were tightened to pay for it). Headroom is **3 tokens**
 #: against 3000 ceiling. Fast track P76-6 (D78): production moved to v4 (listing
 #: edits as operations, the shop's voice), written tighter: 2406 tokens, so
-#: **594 tokens** of headroom. Recorded measurement (see module docstring
-#: "Measured headroom") -- the real composed prompt's proxy token count
-#: against the real, released v4.md + OPTIMIZE_PRODUCT_PLAYBOOK pair.
+#: **594 tokens** of headroom. Fast track P85 (D78.2): production moved to v5 (coded
+#: status instead of seller prose, paragraph splitting and length floors taught, the
+#: mini-glossary dropped with the prose it governed): 2228 tokens, **772 tokens** of
+#: headroom. (The runner's own report_status tool definition is sent beside the prompt,
+#: ~549 proxy tokens, outside this gate like every other tool schema.) Recorded
+#: measurement (see module docstring "Measured headroom") -- the real composed
+#: prompt's proxy token count against the real, released v5.md + OPTIMIZE_PRODUCT_PLAYBOOK pair.
 #: Asserted directly below so a silent drift in either input is caught even
 #: if it stays under the ceiling.
-RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2406
+RECORDED_COMPOSED_TOKEN_MEASUREMENT = 2228
 RECORDED_HEADROOM = PROMPT_TOKEN_BUDGET_CEILING - RECORDED_COMPOSED_TOKEN_MEASUREMENT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -156,7 +160,7 @@ def test_composed_prompt_token_estimate_matches_the_recorded_measurement():
         "changed intentionally, update this recorded value and the "
         "headroom note in the module docstring together"
     )
-    assert RECORDED_HEADROOM == 594
+    assert RECORDED_HEADROOM == 772
 
 
 # ---------------------------------------------------------------------------

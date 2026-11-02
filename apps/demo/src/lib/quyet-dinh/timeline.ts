@@ -85,6 +85,11 @@ export interface RunTimeline {
   } | null;
   readonly narration: string | null;
   /**
+   * P85 (D78.2): the latest coded status line -- a `workflow.status` that carries
+   * `status_code`, written by Juli from the model's codes -- or null.
+   */
+  readonly codedStatus: string | null;
+  /**
    * True while `narration` is the streamed preview of the model turn in flight
    * (`assistant.text.delta`, D71.3) rather than a committed line -- the panel
    * shows a typing caret after it.
@@ -127,6 +132,15 @@ export const STEP_COPY = {
   revertNoConflict: "Không ai sửa · an toàn để khôi phục",
   revertTerminal: 'Thay đổi ghi nhận "Đã hoàn tác"',
 } as const;
+
+/**
+ * P85 (D78.2): run kinds whose `assistant.text` is the model's own free text. The
+ * seller never reads it: new runs no longer emit it, and a stored line of an older
+ * run is not rendered at all (no stripping -- a stripped Markdown answer is still
+ * the model's prose). Photo, manual, revert and content runs are driven by Juli's
+ * scripted planners, whose `assistant.text` lines are Juli's own copy.
+ */
+export const MODEL_NARRATION_KINDS: ReadonlySet<RunKind> = new Set<RunKind>(["listing", "create", "promotion"]);
 
 const PHOTO_STAGE_TOOL = "upload_product_image";
 const WRITE_TOOLS = new Set([
@@ -318,7 +332,12 @@ export function endedDetail(stopReason: string, reason: string | null = null): s
 export function buildRunTimeline(events: readonly AgentEvent[], options: TimelineOptions = {}): RunTimeline {
   const kind: RunKind = options.isRevert ? "revert" : (options.kind ?? "listing");
   const plan = PLANS[kind];
-  const ordered = dedupe(events);
+  const hideModelText = MODEL_NARRATION_KINDS.has(kind);
+  const ordered = hideModelText
+    ? dedupe(events).filter(
+        (event) => event.event_type !== "assistant.text" && event.event_type !== "assistant.text.delta",
+      )
+    : dedupe(events);
 
   const calls: ToolCall[] = [];
   const byId = new Map<string, ToolCall>();
@@ -328,6 +347,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
   let consentEvent: { seq: number; at: string; request: ConsentRequest } | null = null;
   let consentDecidedAt: string | null = null;
   let narration: string | null = null;
+  let codedStatus: string | null = null;
   /** The last `workflow.status` line and its sequence number (P66: the end reason). */
   let lastStatus: { seq: number; text: string } | null = null;
   let liveBlock: { blockId: string; text: string } | null = null;
@@ -404,6 +424,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
         const text = event.payload.phase_narration || "";
         if (text) narration = text;
         if (text) lastStatus = { seq: event.sequence_number, text };
+        if (text && event.payload.status_code) codedStatus = text;
         if (!pauseSeen && /^Đang chờ/.test(text)) {
           pauseSeen = true;
           pauseSeq = event.sequence_number;
@@ -669,6 +690,7 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
     pendingConsent: consentEvent && !consentDecidedAt && !ended ? consentEvent.request : null,
     terminal,
     narration: streamingText ?? narration,
+    codedStatus,
     narrationStreaming: streamingText !== null,
     runningTool: running?.name ?? null,
     wrote,

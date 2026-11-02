@@ -62,6 +62,25 @@ async def list_runs(session: AsyncSession, shop_id: uuid.UUID) -> list[dict[str,
     return [_summary(run) for run in rows]
 
 
+def _audit_texts(state: Any) -> list[dict[str, Any]]:
+    """The model's own text kept in the run's conversation (P85, D78.2).
+
+    A coded-narration run never emits ``assistant.text``: the seller sees Juli's coded
+    status line only, and the model's words stay in ``state.conversation_window`` for
+    audit. Staff read them here.
+    """
+    window = state.get("conversation_window") if isinstance(state, dict) else None
+    messages = window if isinstance(window, list) else []
+    return [
+        {"source": "conversation", "text": message["content"]}
+        for message in messages
+        if isinstance(message, dict)
+        and message.get("role") == "assistant"
+        and isinstance(message.get("content"), str)
+        and message["content"]
+    ]
+
+
 def _content_drafts(state: Any) -> list[dict[str, Any]]:
     content = state.get("content_run") if isinstance(state, dict) else None
     drafts = content.get("drafts") if isinstance(content, dict) else None
@@ -100,6 +119,8 @@ async def run_detail(
         for e in events
         if e.event_type in LLM_EVENT_TYPES and isinstance(e.payload, dict)
     ]
+    if not llm_output:
+        llm_output.extend(_audit_texts(run.state))
     for draft in _content_drafts(run.state):
         llm_output.append(
             {

@@ -988,10 +988,12 @@ async def _construct_runner(
         # Fast track P16 (D25.4): the shop's OpenAI model override from Juli
         # Ops (default model otherwise); also what the run's cost is priced at.
         llm_config=await _ops_llm_config(session, run.shop_id),
-        # D71.3 / P61-C: only the real model streams its text. The scripted
-        # planners (revert, lever flow, content) neither accept nor need
-        # `on_text_delta`; LLM_STREAMING=off still falls back per call.
-        stream_text=not (revert_plan or flow or content),
+        # P85 (D78.2): the real model's free text never reaches the seller --
+        # no `assistant.text` / delta events (it replaced P61-C's streaming); its
+        # status arrives as codes Juli words itself. The scripted planners
+        # (revert, lever flow, content) speak only Juli's own copy and keep
+        # their `assistant.text` lines.
+        coded_narration=not (revert_plan or flow or content),
     )
     if content is not None:
         return content_driver_module.ContentRunner(runner, session=session, wiring=content)
