@@ -152,8 +152,9 @@ def test_source_row_maps_kpis_and_keeps_every_other_field_in_extra():
     assert normalized.stream == "seller_video"
     assert normalized.platform_source == "psd_label_seller_video"
     assert normalized.item_id == ""
+    # ADR-117 §1: a video row's impressions are its views; product impressions stay in extra.
     assert normalized.kpis == {
-        "impressions": Decimal("3000"),
+        "impressions": Decimal("900"),
         "clicks": Decimal("120"),
         "ctr": Decimal("0.04"),
         "orders": Decimal("4.5"),
@@ -161,7 +162,7 @@ def test_source_row_maps_kpis_and_keeps_every_other_field_in_extra():
         "buyers": Decimal("4"),
         "units": Decimal("6"),
     }
-    assert normalized.extra["video_views"] == 900
+    assert normalized.extra["product_impressions"] == 3000
     assert normalized.extra["unique_product_clicks"] == 95
     assert normalized.extra["sales_per_order"] == pytest.approx(277777.78)
     # D16: the open extra keeps numbers / booleans / nulls; a string is dropped.
@@ -419,13 +420,10 @@ async def test_status_lists_every_dataset_with_the_last_ingest(session):
     _, shop = await _shopee_tenant(session)
     await _ingest(session, shop, "traffic_overview", _body([_source_row("psd_label_product_card")]))
     status = await svc.dataset_status(session, shop_id=shop.id, platform="shopee")
-    assert [s["dataset"] for s in status] == [
-        "item_by_source",
-        "item_performance",
-        "shop_traffic",
-        "traffic_overview",
-    ]
-    overview = status[-1]
+    assert [s["dataset"] for s in status] == sorted(
+        dataset for platform, dataset in mapping.DATASETS if platform == "shopee"
+    )
+    overview = next(s for s in status if s["dataset"] == "traffic_overview")
     assert overview["last_row_count"] == 1
     assert overview["last_period_end"] == "2026-10-11"
     assert overview["drift"] == "ok"

@@ -217,6 +217,8 @@ class PlatformDailyMetric(Base):
     source_rank: Mapped[int] = mapped_column(SmallInteger)
     source_version: Mapped[str] = mapped_column(String(64))
     confidence: Mapped[str] = mapped_column(String(16))
+    #: ADR-117 (migration 108): the server mapping version that produced the row; NULL before.
+    mapper_version: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     raw_payload_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ingest_raw_payloads.id"), nullable=True
     )

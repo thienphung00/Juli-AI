@@ -217,6 +217,40 @@ async def test_a_failed_consent_write_does_not_break_connect(session, monkeypatc
     assert await _open_scopes(session, shop.id) == {}
 
 
+async def _connect_shopee(session, user, shopee_shop_id):
+    from juli_backend.models.models import Shop
+    from tests.support.api import authenticate, build_app, client_for
+
+    app = build_app(session)
+    authenticate(app, user=user, shop=None)
+    async with client_for(app) as seller:
+        made = await seller.post(
+            "/v1/shops/shopee", json={"shop_name": "Shopee", "shopee_shop_id": shopee_shop_id}
+        )
+    app.dependency_overrides.clear()
+    assert made.status_code == 201, made.text
+    return await session.get(Shop, uuid.UUID(made.json()["id"]))
+
+
+async def test_a_shopee_shop_connected_after_acceptance_gets_the_four_scopes(session):
+    user = await make_user(session)
+    await _accept(session, user.id)
+
+    shop = await _connect_shopee(session, user, "515151")
+
+    grants = await _open_scopes(session, shop.id)
+    assert set(grants) == set(TERMS_SCOPES)
+    assert {g.method for g in grants.values()} == {"in_app_click"}
+
+
+async def test_a_shopee_shop_connected_without_acceptance_gets_nothing(session):
+    user = await make_user(session)
+
+    shop = await _connect_shopee(session, user, "525252")
+
+    assert await _open_scopes(session, shop.id) == {}
+
+
 # -- operator CLI ---------------------------------------------------------------------
 
 

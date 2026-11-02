@@ -102,16 +102,21 @@ async def create_shopee_shop(
     """Connect a Shopee shop: a ``platform='shopee'`` shop fed by the Juli Connector.
 
     The seller then creates a pairing code for it (``POST /v1/ingest/pairing-codes``
-    with ``X-Shop-Id``) and types it into the extension.
+    with ``X-Shop-Id``) and types it into the extension. Consent comes from the Terms,
+    as for a TikTok connect (D10, ADR-116 §2): an owner who already accepted them grants
+    them to the new shop; one who has not gets no grant, and the ingest gate fails closed
+    until they accept.
     """
     from sqlalchemy.exc import IntegrityError
 
+    from juli_backend.services.consent.terms import grant_terms_consents_if_accepted
     from juli_backend.services.ingest import connect_shopee_shop
 
     try:
         shop = await connect_shopee_shop(
             session, user_id=user.id, shop_name=body.shop_name, shopee_shop_id=body.shopee_shop_id
         )
+        await grant_terms_consents_if_accepted(session, user.id, [shop.id])
         await session.commit()
     except IntegrityError:
         await session.rollback()

@@ -122,6 +122,12 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "ingest_tokens"): "tenant_direct",
     ("public", "ingest_raw_payloads"): "tenant_direct",
     ("public", "platform_daily_metrics"): "tenant_direct",
+    # ADR-117 (migration 108): Shopee Seller Centre files beside the daily table --
+    # period totals, items / variations, Shopee's product flags, promotion programs.
+    ("public", "platform_period_metrics"): "tenant_direct",
+    ("public", "platform_items"): "tenant_direct",
+    ("public", "platform_product_flags"): "tenant_direct",
+    ("public", "platform_promotions"): "tenant_direct",
     ("public", "ingest_dataset_status"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
@@ -166,6 +172,18 @@ TABLE_CLASSIFICATION_MAP = {
     # D76 / D15 (migration 107): who contributed to a persisted pooled figure -- shop
     # ids and counts only, written and read through ``juli_ops``.
     ("public", "pooled_contributor_sets"): "ops_only",
+    # ADR-117 §4 (migration 108): contract KPI versions, targets, adjustments, excluded
+    # days, lever plans and forecasts -- never shown to a seller, ``juli_ops`` only.
+    ("public", "kpi_contracts"): "ops_only",
+    ("public", "kpi_targets"): "ops_only",
+    ("public", "kpi_adjustments"): "ops_only",
+    ("public", "kpi_exclusions"): "ops_only",
+    ("public", "lever_plans"): "ops_only",
+    ("public", "kpi_forecasts"): "ops_only",
+    # ADR-117 §5 (migration 108): the public Shopee market lane (ADR-116 §1) -- no
+    # ``shop_id``; Ops-only until a seller-facing reader exists.
+    ("public", "market_listing_snapshots"): "ops_only",
+    ("public", "market_keyword_snapshots"): "ops_only",
 }
 
 #: Metadata about via-parent relationships (child_table -> (parent_table, fk_col, pk_col))
