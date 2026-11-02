@@ -3511,3 +3511,20 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Tests: `quyet-dinh-p10.test.tsx` (+1: waiting -> opened time, approved -> T2, declined -> T2,
   optimistic -> click time). Demo vitest 137 files / 1360 passed, `tsc --noEmit` clean,
   `test_agent_events_contract` + `test_ratchets` + `test_test_quality` 68 passed. No Python touched.
+
+## 2026-11-02 — agent (Claude Opus) — P86: brand / product-name scrub of free text (reviewer, second layer)
+
+- What: structured-output plan step 7. Free model text on a masked pin (narration, card / AI
+  reasons, content drafts, `assistant.text`) is scrubbed of brand words behind the structural
+  mask: case-, diacritics-insensitive, whole-word, inside markup too, to `Thương hiệu`.
+- Brands: shop-name words, `REVIEWER_MASK_TERMS`, a payload's own `brand` / `brand_name` /
+  `brand.name`, and words derived from the product titles `catalog._read_dictionary` already
+  reads (`services/reviewer/brands.py`: capitalised, 3+ letters, in 2+ distinct titles, never
+  lower-case in a title, not generic). No new query; stored in `MaskDictionary.catalog_brands`
+  and cached with the dictionary.
+- Guards: `GENERIC_WORDS` (Vietnamese / English product words, materials, colours, units) are
+  never derived and never taken from a payload `brand`; the replacement label's own words and the
+  alias words are in the list, so the mask stays idempotent. A single-title brand is not derived
+  (the title itself is aliased structurally); the operator adds it to `REVIEWER_MASK_TERMS`.
+- Seller surfaces and TikTok writes: untouched (the mask runs only for reviewer sessions).
+- Tests: `tests/unit/test_p86_reviewer_brand_scrub.py`.
