@@ -305,7 +305,10 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
             <span data-testid="ops-shop-platform" style={{ fontSize: 12, fontWeight: 600, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 999, padding: "2px 10px" }}>
               {PLATFORM_LABEL[platform]}
             </span>
-            <Link href={`/ops/shops/${shopId}/xem`} style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
+                        <Link href={`/ops/shops/${shopId}/chu-ky`} style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
+              Chu kỳ ›
+            </Link>
+            <Link href={`/ops/shops/${shopId}/xem`} style={{ fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
               Xem như shop ›
             </Link>
           </div>

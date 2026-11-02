@@ -663,3 +663,77 @@ export interface IngestTokenRow {
   readonly revoked_at: string | null;
   readonly active: boolean;
 }
+
+/** ADR-118 "Chu kỳ": proposals of a shop's manual cycle (`GET /v1/ops/shops/{id}/proposals`). */
+export type ProposalKind = "title" | "images" | "price" | "voucher" | "flash_sale" | "ads" | "bundle" | "program" | "stock" | "other";
+export type ProposalSubject = "item" | "shop" | "campaign";
+export type ProposalStatus = "draft" | "sent" | "approved" | "rejected" | "changes_requested" | "executed" | "measured" | "withdrawn" | "superseded";
+export type ApprovalDecision = "approved" | "rejected" | "changes_requested";
+export type ApprovalChannel = "email" | "document";
+export type ExecutorRole = "client_representative" | "juli_operator";
+
+export interface ProposalApproval {
+  readonly id: string;
+  readonly decision: ApprovalDecision | string;
+  readonly channel: string;
+  readonly evidence_ref: string | null;
+  readonly note: string | null;
+  readonly decided_at: string | null;
+}
+
+export interface ProposalExecution {
+  readonly id: string;
+  readonly executed_at: string | null;
+  readonly executor_role: string;
+  readonly channel: string;
+  readonly evidence_ref: string | null;
+  readonly verified_at: string | null;
+  readonly verified_how: string | null;
+}
+
+export interface ShopProposalRow {
+  readonly id: string;
+  readonly revision: number;
+  readonly cycle: string;
+  readonly kind: ProposalKind | string;
+  readonly subject_type: ProposalSubject | string;
+  readonly item_id: string | null;
+  readonly subject_label: string;
+  readonly change_before: Record<string, unknown>;
+  readonly change_after: Record<string, unknown>;
+  readonly reason: string;
+  readonly planned_start: string | null;
+  readonly status: ProposalStatus | string;
+  readonly platform: string;
+  readonly supersedes_id: string | null;
+  readonly sent_at: string | null;
+  readonly created_at: string | null;
+  readonly approvals: readonly ProposalApproval[];
+  readonly executions: readonly ProposalExecution[];
+}
+
+export interface ProposalCreate {
+  readonly cycle: string;
+  readonly kind: ProposalKind;
+  readonly subject_type: ProposalSubject;
+  readonly item_id: string | null;
+  readonly subject_label: string;
+  readonly change_before: Record<string, unknown>;
+  readonly change_after: Record<string, unknown>;
+  readonly reason: string;
+  readonly planned_start: string | null;
+}
+
+export interface ApprovalCreate {
+  readonly decision: ApprovalDecision;
+  readonly channel: ApprovalChannel;
+  readonly evidence_ref: string;
+  readonly decided_at: string;
+  readonly note: string | null;
+}
+
+export interface ExecutionCreate {
+  readonly executed_at: string;
+  readonly executor_role: ExecutorRole;
+  readonly evidence_ref: string | null;
+}

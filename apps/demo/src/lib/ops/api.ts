@@ -25,6 +25,10 @@ import type {
   TrialSignupStatus,
   TrialSignupsPage,
   ViewSession,
+  ApprovalCreate,
+  ExecutionCreate,
+  ProposalCreate,
+  ShopProposalRow,
 } from "./types";
 
 /**
@@ -198,6 +202,24 @@ export const opsApi = {
   /** ADR-118 "Thu hồi" (Vận hành / Admin); audited `ingest_token_revoke`. */
   revokeIngestToken: (shopId: string, tokenId: string, o?: OpsRequestOptions) =>
     opsRequest<void>(`${shopPath(shopId)}/ingest-tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE" }, o),
+  /** ADR-118 "Chu kỳ": the shop's proposals with approvals and executions, newest first. */
+  proposals: (shopId: string, o?: OpsRequestOptions) =>
+    opsRequest<{ proposals: ShopProposalRow[] }>(`${shopPath(shopId)}/proposals`, {}, o),
+  /** ADR-118 (Vận hành / Admin): a new draft; audited `proposal_create`. */
+  createProposal: (shopId: string, body: ProposalCreate, o?: OpsRequestOptions) =>
+    opsRequest<{ proposal: ShopProposalRow }>(`${shopPath(shopId)}/proposals`, { method: "POST", body }, o),
+  /** ADR-118: draft → sent (the text is frozen). */
+  sendProposal: (shopId: string, proposalId: string, o?: OpsRequestOptions) =>
+    opsRequest<{ proposal_id: string; status: string }>(`${shopPath(shopId)}/proposals/${encodeURIComponent(proposalId)}/send`, { method: "POST" }, o),
+  /** ADR-118: withdraw a proposal that has not been executed. */
+  withdrawProposal: (shopId: string, proposalId: string, o?: OpsRequestOptions) =>
+    opsRequest<{ proposal_id: string; status: string }>(`${shopPath(shopId)}/proposals/${encodeURIComponent(proposalId)}/withdraw`, { method: "POST" }, o),
+  /** ADR-118: the client's decision from an email / document, with the evidence pointer. */
+  recordApproval: (shopId: string, proposalId: string, body: ApprovalCreate, o?: OpsRequestOptions) =>
+    opsRequest<{ proposal_id: string; status: string }>(`${shopPath(shopId)}/proposals/${encodeURIComponent(proposalId)}/approvals`, { method: "POST", body }, o),
+  /** ADR-118: the change was made on Shopee. */
+  recordExecution: (shopId: string, proposalId: string, body: ExecutionCreate, o?: OpsRequestOptions) =>
+    opsRequest<{ proposal_id: string; status: string }>(`${shopPath(shopId)}/proposals/${encodeURIComponent(proposalId)}/executions`, { method: "POST", body }, o),
 };
 
 export type OpsApi = typeof opsApi;
