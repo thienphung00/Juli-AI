@@ -85,6 +85,15 @@ def test_every_ops_table_is_classified_and_rls_enabled(owner_engine):
             "trial_signups",
             # D76 / D15 (migration 107): the pooled-figure contributor audit
             "pooled_contributor_sets",
+            # ADR-117 (migration 108): contract KPIs, lever plans, the public market lane
+            "kpi_contracts",
+            "kpi_targets",
+            "kpi_exclusions",
+            "kpi_adjustments",
+            "kpi_forecasts",
+            "lever_plans",
+            "market_keyword_snapshots",
+            "market_listing_snapshots",
         ]
     )
     with owner_engine.connect() as conn:

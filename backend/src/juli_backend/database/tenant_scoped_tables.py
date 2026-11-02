@@ -129,6 +129,12 @@ TABLE_CLASSIFICATION_MAP = {
     ("public", "platform_product_flags"): "tenant_direct",
     ("public", "platform_promotions"): "tenant_direct",
     ("public", "ingest_dataset_status"): "tenant_direct",
+    # ADR-118 (migration 109): the manual cycle -- proposals, the client's approvals,
+    # executions made on the shop, measurement results.
+    ("public", "shop_proposals"): "tenant_direct",
+    ("public", "shop_proposal_approvals"): "tenant_direct",
+    ("public", "shop_proposal_executions"): "tenant_direct",
+    ("public", "shop_proposal_results"): "tenant_direct",
     # Fast track P30 (D34 / D39.3, migration 089): card groups with a randomised
     # delayed control and their members (arm per product).
     ("public", "card_groups"): "tenant_direct",

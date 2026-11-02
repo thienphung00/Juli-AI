@@ -66,6 +66,12 @@ from juli_backend.models.shop_diagnosis import (
     ShopDiagnosisReport,
     ShopMetricRanking,
 )
+from juli_backend.models.shop_proposals import (
+    ShopProposal,
+    ShopProposalApproval,
+    ShopProposalExecution,
+    ShopProposalResult,
+)
 from juli_backend.models.subscriptions import ShopSubscriptionPeriod
 from juli_backend.models.trial_signups import TrialSignup
 
@@ -129,4 +135,8 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     KpiForecast,
     MarketListingSnapshot,
     MarketKeywordSnapshot,
+    ShopProposal,
+    ShopProposalApproval,
+    ShopProposalExecution,
+    ShopProposalResult,
 )

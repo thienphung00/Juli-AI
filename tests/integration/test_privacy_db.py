@@ -41,6 +41,10 @@ DEPENDENT_TABLES = {
     "impact_readings",
     "run_confirmations",
     "workflow_run_events",
+    # ADR-117 (migration 108): children of kpi_contracts, which carries the shop_id.
+    "kpi_adjustments",
+    "kpi_exclusions",
+    "kpi_targets",
 }
 
 
@@ -318,11 +322,13 @@ def test_every_dependent_table_hangs_off_a_shop_scoped_table(owner_engine):
                 "AND a.attname = 'shop_id' AND NOT a.attisdropped)"
             )
         ).all()
-    children = {child for child, parent, _ in rows if parent not in ("users", "public.users")}
+    # An actor reference (the account, or the Ops staff member) is not a shop chain.
+    actors = ("users", "public.users", "ops_staff", "public.ops_staff")
+    children = {child for child, parent, _ in rows if parent not in actors}
     children.discard("shops")
     assert children == DEPENDENT_TABLES
     for child, parent, parent_has_shop in rows:
-        if child in DEPENDENT_TABLES and parent not in ("users", "public.users"):
+        if child in DEPENDENT_TABLES and parent not in actors:
             assert parent_has_shop, (child, parent)
 
 

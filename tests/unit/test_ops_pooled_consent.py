@@ -82,10 +82,10 @@ def test_migration_107_fits_alembic_and_the_deferred_tail_moved_onto_it():
     mig = _module(MIGRATION, "mig107")
     assert mig.revision == "107_ops_pooled_consent" and len(mig.revision) <= 32
     assert mig.down_revision == "106_write_platform_columns"
-    # ADR-117 put `108_shopee_ops_data` on 107; the deferred tail moved onto 108.
+    # ADR-117 put `108_shopee_ops_data` on 107; the deferred tail is now on 109 (ADR-118).
     later = (MIGRATIONS / "versions/108_shopee_ops_data.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "108_shopee_ops_data"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "109_shop_proposals"' in BACKFILL.read_text("utf-8")
     assert mig.POOLED_SCOPE == POOLED_TRAINING and POOLED_TRAINING in SCOPES
     assert mig.FUNCTION == _module(MIGRATION_093, "mig093").FUNCTION
 
