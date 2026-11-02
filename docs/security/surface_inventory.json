@@ -577,6 +577,70 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/proposals",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/proposals",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/proposals/{proposal_id}/approvals",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/proposals/{proposal_id}/executions",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/proposals/{proposal_id}/executions/{execution_id}/verify",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/proposals/{proposal_id}/revise",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/proposals/{proposal_id}/send",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/proposals/{proposal_id}/withdraw",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/rules",
       "methods": [
         "GET"

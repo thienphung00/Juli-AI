@@ -36,6 +36,7 @@ from juli_backend.api.routes.ingest import router as ingest_router
 from juli_backend.api.routes.me import router as me_router
 from juli_backend.api.routes.ops import router as ops_router
 from juli_backend.api.routes.ops_billing import router as ops_billing_router
+from juli_backend.api.routes.ops_proposals import router as ops_proposals_router
 from juli_backend.api.routes.ops_trial_signups import router as ops_trial_signups_router
 from juli_backend.api.routes.orders import router as orders_router
 from juli_backend.api.routes.outcomes import router as outcomes_router
@@ -94,6 +95,7 @@ def create_app(*, lifespan: Any | None = None) -> FastAPI:
     v1_router.include_router(ops_router)
     # Fast track P20 (D28.3 / D28.4): Juli Ops tabs Chi phí and Thời hạn.
     v1_router.include_router(ops_billing_router)
+    v1_router.include_router(ops_proposals_router)
     v1_router.include_router(shop_invites_router)
     # Fast track P24 (D31.3 / D31.4): the ingest gateway and Juli Connector pairing.
     v1_router.include_router(ingest_router)
