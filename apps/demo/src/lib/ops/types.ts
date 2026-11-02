@@ -16,6 +16,8 @@ export interface OverviewShop {
   readonly shop_id: string;
   readonly shop_name: string;
   readonly tiktok_shop_id: string | null;
+  /** Migration 110: `shops.platform` ("tiktok" | "shopee"); absent = TikTok. */
+  readonly platform?: string;
   readonly owner_email: string | null;
   readonly owned_by_team: boolean;
   readonly invite_pending: boolean;
@@ -158,6 +160,8 @@ export interface Invite {
 export interface ShopInfo {
   readonly shop_id: string;
   readonly shop_name: string;
+  /** Migration 110: `shops.platform` ("tiktok" | "shopee"); absent = TikTok. */
+  readonly platform?: string;
   readonly owner_email: string | null;
   readonly owned_by_team: boolean;
   readonly staff_access_consent_at: string | null;

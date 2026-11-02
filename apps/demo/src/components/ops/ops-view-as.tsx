@@ -15,6 +15,7 @@ import type { QdClients } from "../../lib/quyet-dinh/client-types";
 import { fetchRecommendations } from "../../lib/recommendations-api-client";
 import { fetchShopAnalysis } from "../../lib/shop-analysis/api-client";
 import type { ShopAnalysisEnvelope } from "../../lib/shop-analysis/types";
+import { PLATFORM_LABEL, platformOf } from "../../lib/shop-platform";
 import { readAuthSession } from "../../lib/supabase-auth";
 import { TermStrip } from "../app-shell/term-strip";
 import { HomeOverview } from "../home/home-overview";
@@ -243,7 +244,7 @@ export function OpsViewAs({
               <span style={{ width: 44, height: 44, borderRadius: 12, background: "#f3a9c8", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>{initials}</span>
               <span style={{ display: "flex", flexDirection: "column" }}>
                 <b style={{ fontSize: 17 }}>{name}</b>
-                <span style={{ fontSize: 12, color: C.muted }}>TikTok Shop{session ? ` · ${STAGE_NAMES[session.stage] ?? session.stage}` : ""}</span>
+                <span data-testid="view-as-platform" style={{ fontSize: 12, color: C.muted }}>{PLATFORM_LABEL[platformOf(session?.shop.platform)]}{session ? ` · ${STAGE_NAMES[session.stage] ?? session.stage}` : ""}</span>
               </span>
               <span data-testid="write-note" style={{ marginLeft: "auto", fontSize: 13, color: C.muted }}>
                 Xem được mọi trang của seller (Trang chủ, Quyết định, Phân tích, Quy tắc, lượt chạy). Mọi nút ghi đều khoá.

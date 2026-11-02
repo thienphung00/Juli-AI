@@ -5,6 +5,7 @@
  * format the editor reads and writes.
  */
 
+import { PLATFORM_NAME, type ShopPlatform } from "../shop-platform";
 import type { RuleValueItem, ShopRules } from "./types";
 
 export type OffApiRuleKey =
@@ -77,6 +78,14 @@ export const OFF_API_FIELDS: ReadonlyArray<{ readonly key: OffApiRuleKey; readon
     help: "Mỗi dòng một khung, ví dụ: T2 T4 T6 20:00-22:00 hoặc T7-CN 21:00-23:00.",
   },
 ];
+
+/** GMV Max is TikTok's ad product: its ROAS target and daily budget are not asked of a Shopee shop. */
+export const TIKTOK_ONLY_OFF_API_KEYS: ReadonlySet<OffApiRuleKey> = new Set<OffApiRuleKey>(["target_roas", "gmv_max_daily_budget"]);
+
+/** The off-API copy for the shop's platform: "TikTok …" stays as is; a Shopee shop reads "Shopee …". */
+export function forPlatform(text: string, platform: ShopPlatform): string {
+  return platform === "tiktok" ? text : text.replaceAll("TikTok", PLATFORM_NAME[platform]);
+}
 
 export const OFF_API_LABELS: Readonly<Record<OffApiRuleKey, string>> = Object.freeze(
   Object.fromEntries(OFF_API_FIELDS.map((field) => [field.key, field.label])) as Record<OffApiRuleKey, string>,

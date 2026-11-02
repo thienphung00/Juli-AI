@@ -10,8 +10,10 @@ import {
   OFF_API_SAMPLE_NOTE,
   OFF_API_SECTION_LEDE,
   OFF_API_SECTION_TITLE,
+  TIKTOK_ONLY_OFF_API_KEYS,
   displayOffApiValue,
   formatLiveSlot,
+  forPlatform,
   liveSlots,
   parseLiveSchedule,
   type OffApiRuleKey,
@@ -19,6 +21,7 @@ import {
 import { vnDate } from "../../lib/quyet-dinh/timeline";
 import { bandDefault, type RuleKey, type RuleValueItem, type SetBy, type ShopRules } from "../../lib/quyet-dinh/types";
 import { REVIEWER_SIMULATED_SETTINGS_NOTE } from "../../lib/reviewer/copy";
+import type { ShopPlatform } from "../../lib/shop-platform";
 import { SimulatedLabel } from "../app-shell/simulated-label";
 import { useRulesControl } from "../seller-view-context";
 
@@ -44,6 +47,8 @@ export interface RulesEditorProps {
   readonly offApiReadOnly?: boolean;
   /** Juli Ops (D25.14): every value is written as the team's; no toggle. */
   readonly fixedSetBy?: SetBy;
+  /** Juli Ops (migration 110): a Shopee shop names Shopee and is not asked GMV Max fields. Default TikTok. */
+  readonly platform?: ShopPlatform;
 }
 
 /** 422 → the rule's own range, in the seller's words (the backend's text is English). */
@@ -326,7 +331,7 @@ function ClearButton({
   );
 }
 
-function CampaignOptIn({ rules, setBy, onSave, onDelete }: FieldProps) {
+function CampaignOptIn({ rules, setBy, onSave, onDelete, platform = "tiktok" }: FieldProps & { readonly platform?: ShopPlatform }) {
   const write = useRulesControl();
   const item = rules.joins_platform_campaigns;
   const selectId = useId();
@@ -336,7 +341,7 @@ function CampaignOptIn({ rules, setBy, onSave, onDelete }: FieldProps) {
   return (
     <RuleRow
       error={error}
-      help={OFF_API_HELP.joins_platform_campaigns}
+      help={forPlatform(OFF_API_HELP.joins_platform_campaigns, platform)}
       item={item}
       label={label}
       testId="rule-joins_platform_campaigns"
@@ -514,14 +519,14 @@ function ContentVoiceFields({ rules, setBy, onSave, onDelete }: FieldProps) {
   );
 }
 
-function OffApiFields({ rules, setBy, onSave, onDelete }: FieldProps) {
+function OffApiFields({ rules, setBy, onSave, onDelete, platform }: FieldProps & { readonly platform: ShopPlatform }) {
   const number = (
     ruleKey: "default_gross_margin_pct" | "default_max_discount_pct" | "program_fee_pct" | "target_roas" | "gmv_max_daily_budget",
     suffix: string,
     placeholder: string,
-  ) => (
+  ) => (platform !== "tiktok" && TIKTOK_ONLY_OFF_API_KEYS.has(ruleKey) ? null : (
     <NumberRule
-      help={OFF_API_HELP[ruleKey]}
+      help={forPlatform(OFF_API_HELP[ruleKey], platform)}
       item={rules[ruleKey]}
       label={RULE_LABELS[ruleKey]}
       onDelete={onDelete}
@@ -532,7 +537,7 @@ function OffApiFields({ rules, setBy, onSave, onDelete }: FieldProps) {
       setBy={setBy}
       suffix={suffix}
     />
-  );
+  ));
   const note = rules.platform_campaign_note;
   return (
     <>
@@ -542,14 +547,14 @@ function OffApiFields({ rules, setBy, onSave, onDelete }: FieldProps) {
         onDelete={onDelete}
         onSave={onSave}
         ruleKey="sku_cost"
-        scopeLabel="Mã SKU TikTok"
+        scopeLabel={platform === "tiktok" ? "Mã SKU TikTok" : "Mã SKU"}
         setBy={setBy}
         suffix="₫/sản phẩm"
       />
       {number("default_gross_margin_pct", "%", "35")}
       {number("default_max_discount_pct", "%", "15")}
       {number("program_fee_pct", "%", "4")}
-      <CampaignOptIn onDelete={onDelete} onSave={onSave} rules={rules} setBy={setBy} />
+      <CampaignOptIn onDelete={onDelete} onSave={onSave} platform={platform} rules={rules} setBy={setBy} />
       <TextAreaRule
         initial={note?.set_by && typeof note.value === "string" ? note.value : ""}
         item={note}
@@ -612,6 +617,7 @@ export function RulesEditor({
   headingLevel = 2,
   offApiReadOnly = false,
   fixedSetBy,
+  platform = "tiktok",
 }: RulesEditorProps) {
   const write = useRulesControl();
   const [team, setTeam] = useState(false);
@@ -772,7 +778,7 @@ export function RulesEditor({
           onDelete={onDelete}
           onSave={onSave}
           ruleKey="product_cost"
-          scopeLabel="Mã sản phẩm TikTok"
+          scopeLabel={platform === "tiktok" ? "Mã sản phẩm TikTok" : "Mã sản phẩm"}
           setBy={setBy}
           suffix="₫/sản phẩm"
         />
@@ -788,12 +794,12 @@ export function RulesEditor({
       </fieldset>
 
       <fieldset className="qd-rules-editor__group" data-testid="rules-off-api">
-        <legend>{OFF_API_SECTION_TITLE}</legend>
-        <p className="qd-muted">{OFF_API_SECTION_LEDE}</p>
+        <legend>{forPlatform(OFF_API_SECTION_TITLE, platform)}</legend>
+        <p className="qd-muted">{forPlatform(OFF_API_SECTION_LEDE, platform)}</p>
         {offApiReadOnly ? (
           <OffApiReadOnly rules={rules} />
         ) : (
-          <OffApiFields onDelete={onDelete} onSave={onSave} rules={rules} setBy={setBy} />
+          <OffApiFields onDelete={onDelete} onSave={onSave} platform={platform} rules={rules} setBy={setBy} />
         )}
       </fieldset>
     </section>
