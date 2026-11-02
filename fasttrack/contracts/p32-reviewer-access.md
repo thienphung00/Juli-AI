@@ -204,6 +204,17 @@ becomes 502):
   product), and free text holding such a title reads a raw-text alias that is no listing's;
 - brand words of the shop name (`Fujiwa`; stop words like Store / Vietnam / Official dropped)
   plus `REVIEWER_MASK_TERMS` (comma-separated) → `Thương hiệu`, case-insensitive;
+- **P86 — brand scrub of free text (second layer).** In every string (narration, card / AI
+  reasons, content drafts, `assistant.text`, markup included) a brand word → `Thương hiệu`,
+  case-, diacritics-insensitive and whole-word (`services/reviewer/brands.py`). Brand words:
+  the shop-name words, `REVIEWER_MASK_TERMS`, a payload's own `brand` / `brand_name` /
+  `brand.name` value, and words **derived from the catalog's product titles** at dictionary
+  load (no extra query, cached with the dictionary): a capitalised word of 3+ letters in at
+  least two distinct titles, never written lower-case in any title, not in the guard list.
+  The guard list (`GENERIC_WORDS`: Vietnamese / English product words, materials, colours,
+  units such as `Nồi`, `Bình`, `Thép`, `ml`) is never a derived or payload brand. Reviewer
+  display only: a seller reads their own text unmasked and nothing sent to TikTok passes
+  through the mask;
 - image / media keys and every external `http(s)` URL → `null` (product photos identify the
   shop); buyer PII masked as in D25.6 (`mask_pii`);
 - **magnitudes are untouched**: numbers are never rewritten.

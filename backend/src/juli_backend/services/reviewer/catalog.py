@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from juli_backend.core.security import SingleFlight
 from juli_backend.models.models import InventoryItem, Livestream, Product, Shop
+from juli_backend.services.reviewer.brands import derive_from_titles
 from juli_backend.services.reviewer.config import extra_mask_terms, shop_alias_id
 from juli_backend.services.reviewer.masking import MaskDictionary
 
@@ -111,6 +112,10 @@ async def _read_dictionary(session: AsyncSession, shop: Shop) -> MaskDictionary:
             dictionary.ids[str(live_id)] = "live"
         if title and title.strip():
             dictionary.titles[title.strip()] = "live"
+    #: P86: brand words that recur across the titles just read (no extra round trip).
+    dictionary.catalog_brands = derive_from_titles(
+        raw for raw, kind in dictionary.titles.items() if kind == "product"
+    )
     with _lock:
         _cache[shop.id] = (time.monotonic(), dictionary)
     return dictionary
