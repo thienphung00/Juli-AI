@@ -211,7 +211,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from enum import Enum, auto
@@ -242,6 +242,7 @@ from juli_backend.services.agent.events import (
 )
 from juli_backend.services.agent.llm import (
     AssistantTurn,
+    Block,
     FinalResponse,
     LLMConfig,
     LLMService,
@@ -258,6 +259,13 @@ from juli_backend.services.agent.prompts.composer import (
     production_version,
     prompt_sha256,
     prompt_version,
+)
+from juli_backend.services.agent.runner.coded_status import (
+    CODED_STATUS_WORKFLOWS,
+    REPORT_STATUS_TOOL_NAME,
+    ReportStatusInput,
+    coded_status,
+    report_status_tool_definition,
 )
 from juli_backend.services.agent.runner.concurrency import (
     ConcurrencyExhaustedError,
@@ -472,8 +480,17 @@ class WorkflowRunner:
         concurrency_guard: ConcurrencyGuard | None = None,
         outcome_recorder: WriteOutcomeRecorder | None = None,
         stream_text: bool = False,
+        coded_narration: bool = False,
     ) -> None:
         self._llm_service = llm_service
+        # Fast track P85 (D78.2): no free model text reaches the seller. The
+        # model's text stays in the conversation (the audit record) but is never
+        # emitted as `assistant.text` / `assistant.text.delta`; a playbook in
+        # `CODED_STATUS_WORKFLOWS` is offered `report_status`, whose codes Juli
+        # renders as a `workflow.status` line (`coded_status.py`). Opt-in: the
+        # scripted planners' `assistant.text` lines are Juli's own copy.
+        self._coded_narration = coded_narration
+        self._status_tool = coded_narration and playbook.workflow_key in CODED_STATUS_WORKFLOWS
         # D71.3 / P61-C. When True, every model call passes `on_text_delta`
         # and the turn's text streams out as `assistant.text.delta` events
         # (`text_stream.py`). Opt-in because the scripted planners and most
@@ -1595,10 +1612,17 @@ class WorkflowRunner:
             state.output_tokens += turn.usage.output_tokens
             state.iteration_count += 1
             # Whatever forced choice was set, the call above has spent it.
-            next_tool_choice = None
+            spent_tool_choice, next_tool_choice = next_tool_choice, None
 
             stop = None
-            for block in turn.blocks:
+            # P85: the coded status line goes out first, before the turn's proposal
+            # can pause the run, so the seller reads it beside the decision.
+            blocks = await self._report_statuses(workflow_run_id, state, turn.blocks)
+            if spent_tool_choice == "required" and turn.blocks and not blocks:
+                # A forced turn spent on `report_status` alone took no step of the
+                # run: the next call stays forced (ADR-088's retry is not used up).
+                next_tool_choice = spent_tool_choice
+            for block in blocks:
                 if isinstance(block, TextBlock):
                     consecutive_malformed = 0
                     await self._append_text_block(workflow_run_id, state, block)
@@ -1828,7 +1852,7 @@ class WorkflowRunner:
 
     def _text_relay(self, workflow_run_id: uuid.UUID, state: RunState) -> TextDeltaRelay | None:
         """A fresh relay for one model call, or None when streaming is off."""
-        if not self._stream_text:
+        if not self._stream_text or self._coded_narration:
             return None
 
         async def emit_chunk(payload: AssistantTextDeltaPayload) -> None:
@@ -1858,9 +1882,67 @@ class WorkflowRunner:
         self, workflow_run_id: uuid.UUID, state: RunState, block: TextBlock
     ) -> None:
         state.conversation_window.append({"role": "assistant", "content": block.text})
+        if self._coded_narration:
+            # P85 (D78.2): kept for the audit, never shown to the seller.
+            return
         await self._emit(
             workflow_run_id, state, AssistantTextEvent, AssistantTextPayload(text=block.text)
         )
+
+    async def _report_statuses(
+        self, workflow_run_id: uuid.UUID, state: RunState, blocks: Sequence[Block]
+    ) -> tuple[Block, ...]:
+        """Handle the turn's `report_status` calls; return the other blocks (P85).
+
+        Each call is answered like a tool call (the provider pairs every
+        `function_call` with an output) and becomes one `workflow.status` line
+        Juli writes from the codes. No `tool.*` events: it is not a step of the
+        seller's run. A malformed call is answered with an error the model may
+        correct; it never ends the run.
+        """
+        if not self._status_tool:
+            return tuple(blocks)
+        rest: list[Block] = []
+        for block in blocks:
+            if not isinstance(block, ToolCallBlock) or block.tool_name != REPORT_STATUS_TOOL_NAME:
+                rest.append(block)
+                continue
+            state.conversation_window.append(self._tool_call_message(block))
+            try:
+                report = ReportStatusInput.model_validate(block.arguments)
+            except ValidationError as exc:
+                logger.warning("report_status_malformed", extra={"validation_errors": exc.errors()})
+                state.conversation_window.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": block.call_id,
+                        "tool_name": block.tool_name,
+                        "content": to_error_envelope(
+                            TranslatedError(
+                                category=ExecutionErrorCategory.VALIDATION,
+                                message="report_status: use only the listed codes.",
+                                retryable=True,
+                            )
+                        ),
+                    }
+                )
+                continue
+            line, codes = coded_status(report, window=state.conversation_window, turn_blocks=blocks)
+            state.conversation_window.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": block.call_id,
+                    "tool_name": block.tool_name,
+                    "content": {"ok": True, "shown_to_seller": codes.model_dump(mode="json")},
+                }
+            )
+            await self._emit(
+                workflow_run_id,
+                state,
+                WorkflowStatusEvent,
+                WorkflowStatusPayload(phase_narration=line, status_code=codes),
+            )
+        return tuple(rest)
 
     async def _commit_streamed_text(
         self, workflow_run_id: uuid.UUID, state: RunState, text: str
@@ -2802,6 +2884,9 @@ class WorkflowRunner:
                     "input_schema": spec.render_input_schema(),
                 }
             )
+        # P85: the runner's own status tool, never a playbook step.
+        if self._status_tool:
+            definitions.append(report_status_tool_definition())
         return tuple(definitions)
 
     def _sync_basis(self, state: RunState) -> None:

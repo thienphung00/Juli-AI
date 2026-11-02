@@ -11,7 +11,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 from juli_backend.services.agent.status import (
     STOP_REASON_TO_STATUS,
@@ -46,6 +53,18 @@ class WorkflowStartedPayload(_EventPayload):
     prompt_version: str
 
 
+class CodedStatusPayload(_EventPayload):
+    """The codes of one coded status line (fast track P85, D78.2).
+
+    `reason_codes` are diagnosis codes this run's own reads flagged;
+    `plan_code` / `impact_code` are `runner/coded_status.py`'s `PlanCode` /
+    `ImpactCode` values. Codes only -- never model text."""
+
+    reason_codes: list[str]
+    plan_code: str
+    impact_code: str
+
+
 class WorkflowStatusPayload(_EventPayload):
     """`phase_narration` is VI-locale copy describing the run's current
     phase (issue #1140 -- the Vietnamese text is generated server-side, in
@@ -54,9 +73,26 @@ class WorkflowStatusPayload(_EventPayload):
     event type (same single field) to make an iteration-cap extension grant
     visible on the stream (ADR-073 decision 2 / ADR-074 d.2) -- there is no
     separate "extension" field; the grant is narrated through this one
-    free-text field."""
+    free-text field.
+
+    `status_code` (fast track P85, D78.2) is additive AND OPTIONAL, like
+    `WorkflowApprovalRequiredPayload.options`: the codes behind a coded
+    status line -- the model reported them through `report_status`, Juli
+    wrote `phase_narration` from its own templates
+    (`runner/coded_status.py`). Absent on every other status line and on
+    every row written before P85; an absent value is left out of the
+    serialized payload entirely, so those rows and lines keep their exact
+    one-field shape."""
 
     phase_narration: str
+    status_code: CodedStatusPayload | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_status_code(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if data.get("status_code") is None:
+            data.pop("status_code", None)
+        return data
 
 
 class AssistantTextPayload(_EventPayload):

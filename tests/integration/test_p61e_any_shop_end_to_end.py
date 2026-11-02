@@ -20,9 +20,10 @@ scratch and walks:
 3. `approve_action_card` -> `accepted`; the agent workflow runs through the real
    `_run_agent_workflow_async` / `_resume_agent_workflow_async` shells with the REAL
    read and write composition: reads go out under B's own credential (`get_shop_identity`
-   answers `verified` with B's name), the model streams (`assistant.text.delta` then
-   `assistant.text`), the write takes the sandbox leg (`write_mode='simulated'`) and the
-   run ends with an `executed` card event.
+   answers `verified` with B's name), the model's own text never reaches an event
+   (P85, D78.2: no `assistant.text` / delta; one coded `workflow.status` line Juli writes
+   from `report_status`), the write takes the sandbox leg (`write_mode='simulated'`) and
+   the run ends with an `executed` card event.
 4. A product re-read after a seller edit: `external_changes` (`seller_change`) and a
    `seller_change` card event that links the run that wrote the field.
 5. The impact reader skips the simulated execution (no `impact_readings` for B).
@@ -851,7 +852,7 @@ async def _step_2_ingest(journey: Journey) -> None:
     await _assert_isolated(journey, "bootstrap")
 
 
-# -- step 3: approve, agent run (streamed), sandbox write ------------------------------------
+# -- step 3: approve, agent run (coded status), sandbox write ---------------------------------
 
 
 def _turn(*blocks: Any) -> AssistantTurn:
@@ -865,11 +866,19 @@ RUN_LEG_SCRIPT = [
     ),
     _turn(ToolCallBlock(call_id="c2", tool_name="get_product_information", arguments={})),
     _turn(
+        # P85 (D78.2): the model reports codes; Juli writes the seller's line.
+        ToolCallBlock(
+            call_id="s1",
+            tool_name="report_status",
+            arguments={"reason_codes": [], "plan_code": "title", "impact_code": "easier_to_find"},
+        ),
         ToolCallBlock(
             call_id="c3", tool_name="update_product_listing", arguments={"title": NEW_TITLE}
-        )
+        ),
     ),
 ]
+#: The line Juli writes from those codes (``runner/coded_status_copy.py``).
+CODED_LINE = "Juli đề xuất sửa tiêu đề. Tác động dự kiến: sản phẩm dễ được tìm thấy hơn."
 # The playbook also lists a price write, but once the approved listing write went through the
 # model's closing FinalResponse ends the run with the work it did. P70 (run ceec586e, #2213):
 # ADR-088's forced retry fires only while NO required step has been performed -- forcing a
@@ -962,7 +971,7 @@ async def _step_3_approve_and_run(journey: Journey, monkeypatch) -> None:
     )
     assert final == [("completed", "final_response", "simulated")]
 
-    # -- the model streamed: deltas first, then the authoritative text of the same turn --------
+    # -- P85 (D78.2): no model text on any event; one coded line, before the decision ---------
     events = _owner_rows(
         owner,
         "SELECT event_type, payload FROM public.workflow_run_events "
@@ -971,22 +980,19 @@ async def _step_3_approve_and_run(journey: Journey, monkeypatch) -> None:
     )
     kinds = [kind for kind, _payload in events]
     assert kinds[0] == "workflow.started" and kinds[-1] == "workflow.completed"
-    texts_checked = 0
-    pending_deltas: list[str] = []
-    for kind, payload in events:
-        if kind == "assistant.text.delta":
-            pending_deltas.append(payload["text"])
-        elif kind == "assistant.text":
-            if pending_deltas:
-                # What streamed is a prefix of the committed text, in order.
-                assert payload["text"].startswith("".join(pending_deltas))
-                texts_checked += 1
-            pending_deltas = []
-    assert texts_checked == 2, kinds  # narration + the final turn (P70: no forced retry turn)
-    assert not pending_deltas
-    assert [payload["text"] for kind, payload in events if kind == "assistant.text"][
-        -1
-    ] == FINAL_TEXT
+    assert "assistant.text" not in kinds and "assistant.text.delta" not in kinds, kinds
+    coded = [
+        (index, payload)
+        for index, (kind, payload) in enumerate(events)
+        if kind == "workflow.status" and "status_code" in payload
+    ]
+    assert [payload["phase_narration"] for _, payload in coded] == [CODED_LINE]
+    assert coded[0][1]["status_code"] == {
+        "reason_codes": [],
+        "plan_code": "title",
+        "impact_code": "easier_to_find",
+    }
+    assert coded[0][0] < kinds.index("workflow.approval_required")
 
     # -- reads used B's own credential: get_shop_identity answered with B's identity ------------
     window = _owner_rows(
@@ -997,6 +1003,9 @@ async def _step_3_approve_and_run(journey: Journey, monkeypatch) -> None:
         for entry in window
         if entry.get("role") == "tool" and entry.get("tool_name") == "get_shop_identity"
     )
+    # The model's own words are kept for audit, never shown.
+    audit = [e["content"] for e in window if e.get("role") == "assistant" and "content" in e]
+    assert FIRST_NARRATION in audit and FINAL_TEXT in audit
     assert identity["status"] == "verified" and identity["shop_matches"] is True
     assert identity["shop_name"]["text"] == B_SHOP_NAME
     assert "Shop A" not in json.dumps(identity, ensure_ascii=False)

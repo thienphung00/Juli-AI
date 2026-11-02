@@ -161,6 +161,14 @@ export function RunPanel(props: RunPanelProps) {
             />
           ) : null}
 
+          {phase === "consent" && timeline.codedStatus ? (
+            // P85 (D78.2): Juli's coded status line beside the decision -- the model's
+            // own words never reach this panel.
+            <p className="qv-status-line" data-testid="coded-status" role="status">
+              {timeline.codedStatus}
+            </p>
+          ) : null}
+
           {phase === "consent" && timeline.pendingConsent ? (
             <ConsentBlock
               card={card}
