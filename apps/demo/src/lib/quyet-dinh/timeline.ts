@@ -568,7 +568,11 @@ export function buildRunTimeline(events: readonly AgentEvent[], options: Timelin
             : expired
               ? STEP_COPY.consentExpired
               : STEP_COPY.consentDone;
-        rows.push(pseudo(spec, "consent", waiting ? "current" : expired ? "failed" : "done", consentEvent.at, detail));
+        // P84: waiting shows when the step opened; once decided (approve, decline or edit +
+        // approve) the time is the decision's, i.e. the resumed run's first event -- not the
+        // pause, which would make a 6 s write read as a 2-minute wait.
+        const at = waiting || expired || !consentDecidedAt ? consentEvent.at : consentDecidedAt;
+        rows.push(pseudo(spec, "consent", waiting ? "current" : expired ? "failed" : "done", at, detail));
         break;
       }
       case "awaitPhoto": {
@@ -683,14 +687,14 @@ export const STEP_IN_PROGRESS = "Đang thực hiện…";
  * "Đang thực hiện…" -- never a stale "Đang chờ bạn". Once the stream has moved past
  * that consent (or ended), the stream's own timeline is returned unchanged.
  */
-export function afterConfirmation(timeline: RunTimeline, toolCallId: string): RunTimeline {
+export function afterConfirmation(timeline: RunTimeline, toolCallId: string, decidedAt?: string): RunTimeline {
   if (timeline.terminal || timeline.pendingConsent?.toolCallId !== toolCallId) return timeline;
   let promoted = false;
   let consentSeen = false;
   const steps = timeline.steps.map((step): TimelineStep => {
     if (step.kind === "consent" && step.status === "current") {
       consentSeen = true;
-      return { ...step, status: "done", detail: STEP_COPY.consentDone };
+      return { ...step, status: "done", at: decidedAt ?? step.at, detail: STEP_COPY.consentDone };
     }
     if (consentSeen && !promoted && step.status === "upcoming") {
       promoted = true;

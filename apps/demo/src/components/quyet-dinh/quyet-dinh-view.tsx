@@ -756,6 +756,8 @@ function SelectedRun({
   const terminalSeen = events.some((event) => event.event_type === "workflow.completed" || event.event_type === "workflow.failed");
   /** The consent this visit confirmed (202) — shown as done until the stream catches up. */
   const [confirmedCall, setConfirmedCall] = useState<string | null>(null);
+  // P84: when the seller clicked, for the optimistic step until the stream shows the resume.
+  const [confirmedAt, setConfirmedAt] = useState<string | undefined>(undefined);
   const runLive = !isTerminalRun(run);
   useEffect(() => {
     if (streamStatus !== "closed" || terminalSeen || streamEpoch >= MAX_STREAM_RESUBSCRIBES) return;
@@ -806,8 +808,8 @@ function SelectedRun({
     [events, kind, run.awaiting, run.created_at, shownChecks, revertMeta, changes, card, sandboxShop],
   );
   const timeline = useMemo(
-    () => (confirmedCall ? afterConfirmation(streamTimeline, confirmedCall) : streamTimeline),
-    [streamTimeline, confirmedCall],
+    () => (confirmedCall ? afterConfirmation(streamTimeline, confirmedCall, confirmedAt) : streamTimeline),
+    [streamTimeline, confirmedCall, confirmedAt],
   );
   const phase = runPhase(run, kind, timeline, { appliedPosted, declined });
   // P14-E content runs: their phase and chip come from the run detail's `content`.
@@ -951,6 +953,7 @@ function SelectedRun({
         });
         // P66 (D6): move on at once ("Đang thực hiện") and follow the resumed run.
         setConfirmedCall(callId);
+        setConfirmedAt(new Date().toISOString());
         setStreamEpoch((epoch) => epoch + 1);
         onRefresh();
       }}
