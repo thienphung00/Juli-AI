@@ -26,10 +26,12 @@ import asyncio
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
 from collections import Counter
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -90,26 +92,56 @@ def _require_local(url: str, allow_remote: bool) -> None:
         )
 
 
-def send_http(posts: list[Post], api_url: str, token: str) -> Counter[str]:
+def _retry_after(detail: str) -> int | None:
+    """Seconds the gateway asks us to wait on a 429 (``retry_after_seconds``), else None."""
+    try:
+        seconds = json.loads(detail)["detail"]["retry_after_seconds"]
+    except (ValueError, KeyError, TypeError):
+        return None
+    return int(seconds) if isinstance(seconds, int | float) and seconds >= 0 else None
+
+
+def send_http(
+    posts: list[Post],
+    api_url: str,
+    token: str,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+    max_waits: int = 10,
+) -> Counter[str]:
+    """POST each body in order. The gateway allows 120 posts per shop per 10 minutes, so a
+    429 waits out ``retry_after_seconds`` and resends the same post (bodies are idempotent);
+    any other error stops the load."""
     outcome: Counter[str] = Counter()
-    for post in posts:
-        request = urllib.request.Request(
-            f"{api_url.rstrip('/')}/v1/ingest/shopee/{post.dataset}",
-            data=json.dumps(post.body, ensure_ascii=False).encode(),
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-                "User-Agent": USER_AGENT,
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                result = json.loads(response.read())
+    waits = 0
+    for index, post in enumerate(posts, start=1):
+        while True:
+            request = urllib.request.Request(
+                f"{api_url.rstrip('/')}/v1/ingest/shopee/{post.dataset}",
+                data=json.dumps(post.body, ensure_ascii=False).encode(),
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "User-Agent": USER_AGENT,
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    result = json.loads(response.read())
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode(errors="replace")[:300]
+                seconds = _retry_after(detail) if exc.code == 429 else None
+                if seconds is None or waits >= max_waits:
+                    raise SystemExit(
+                        f"{post.file} {post.dataset}: HTTP {exc.code} {detail}"
+                    ) from None
+                waits += 1
+                print(f"rate limited after {index - 1}/{len(posts)} posts; waiting {seconds + 1}s")
+                sleep(seconds + 1)
+                continue
             outcome["duplicate" if result.get("duplicate") else "stored"] += 1
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode(errors="replace")[:300]
-            raise SystemExit(f"{post.file} {post.dataset}: HTTP {exc.code} {detail}") from None
+            break
     return outcome
 
 

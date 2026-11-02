@@ -385,3 +385,55 @@ def test_http_posts_name_the_loader_so_cloudflare_lets_them_through(monkeypatch)
     assert outcome == {"stored": 1}
     assert sent[0].get_header("User-agent") == load_shopee_exports.USER_AGENT
     assert sent[0].full_url == "https://api.example.test/v1/ingest/shopee/promotions"
+
+
+def test_a_rate_limit_waits_and_resends_the_same_post(monkeypatch):
+    """120 posts / shop / 10 min: a 429 waits ``retry_after_seconds`` and carries on."""
+    import io
+    import urllib.error
+
+    answers = iter(["429", "ok", "ok"])
+    urls = []
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return b'{"duplicate": false}'
+
+    def fake_urlopen(request, timeout):
+        urls.append(request.full_url)
+        if next(answers) == "429":
+            body = io.BytesIO(b'{"detail":{"code":"rate_limited","retry_after_seconds":5}}')
+            raise urllib.error.HTTPError(request.full_url, 429, "Too Many", {}, body)
+        return _Response()
+
+    slept = []
+    monkeypatch.setattr(load_shopee_exports.urllib.request, "urlopen", fake_urlopen)
+    posts = [
+        load_shopee_exports.Post(file="a.xlsx", dataset="promotions", body={}),
+        load_shopee_exports.Post(file="b.xlsx", dataset="shop_overview", body={}),
+    ]
+    outcome = load_shopee_exports.send_http(posts, "https://x.test", "jci_x", sleep=slept.append)
+    assert outcome == {"stored": 2}
+    assert slept == [6]
+    assert [u.rsplit("/", 1)[1] for u in urls] == ["promotions", "promotions", "shop_overview"]
+
+
+def test_any_other_error_still_stops_the_load(monkeypatch):
+    import io
+    import urllib.error
+
+    def fake_urlopen(request, timeout):
+        raise urllib.error.HTTPError(
+            request.full_url, 403, "No", {}, io.BytesIO(b"error code: 1010")
+        )
+
+    monkeypatch.setattr(load_shopee_exports.urllib.request, "urlopen", fake_urlopen)
+    post = load_shopee_exports.Post(file="a.xlsx", dataset="promotions", body={})
+    with pytest.raises(SystemExit, match="HTTP 403"):
+        load_shopee_exports.send_http([post], "https://x.test", "jci_x", sleep=lambda s: None)
