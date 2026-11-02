@@ -435,5 +435,7 @@ def test_any_other_error_still_stops_the_load(monkeypatch):
 
     monkeypatch.setattr(load_shopee_exports.urllib.request, "urlopen", fake_urlopen)
     post = load_shopee_exports.Post(file="a.xlsx", dataset="promotions", body={})
+    slept: list[float] = []
     with pytest.raises(SystemExit, match="HTTP 403"):
-        load_shopee_exports.send_http([post], "https://x.test", "jci_x", sleep=lambda s: None)
+        load_shopee_exports.send_http([post], "https://x.test", "jci_x", sleep=slept.append)
+    assert slept == []

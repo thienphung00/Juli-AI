@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { OpsApiError, type OpsApi } from "../../lib/ops/api";
 import { fmtDate, fmtGmvShort } from "../../lib/ops/format";
 import type { CardGroup, CardGroupComparison, CardGroupCreate, CardGroupEb, CardGroupPlan, CardGroupsPage } from "../../lib/ops/types";
+import { PLATFORM_NAME, type ShopPlatform } from "../../lib/shop-platform";
 import { C, card } from "./ops-shell";
 
 /**
@@ -200,10 +201,12 @@ function GroupRow({
   group,
   canEdit,
   onReason,
+  platform = "tiktok",
 }: {
   readonly group: CardGroup;
   readonly canEdit: boolean;
   readonly onReason?: (groupId: string, reason: string | null) => Promise<void>;
+  readonly platform?: ShopPlatform;
 }) {
   const [open, setOpen] = useState(false);
   const ops = group.design?.source === "ops";
@@ -287,7 +290,7 @@ function GroupRow({
       ) : null}
       {group.verdict && !ops ? <div style={{ color: C.muted2 }}>Chỉ thẻ đã duyệt: {comparisonText(group.verdict.approved_only)}</div> : null}
       {group.seller_sentence ? <div style={{ color: C.body }}>Người bán thấy: “{group.seller_sentence}”</div> : null}
-      {ops ? <div style={{ color: C.muted2, fontSize: 12 }}>Người bán không thấy nhóm này. Chủ shop tự đổi trên TikTok cho nhóm áp dụng; Juli không ghi lên TikTok.</div> : null}
+      {ops ? <div style={{ color: C.muted2, fontSize: 12 }}>Người bán không thấy nhóm này. Chủ shop tự đổi trên {PLATFORM_NAME[platform]} cho nhóm áp dụng; Juli không ghi lên {PLATFORM_NAME[platform]}.</div> : null}
       {open ? (
         <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
@@ -325,7 +328,8 @@ function GroupRow({
 }
 
 /** P36 (D45.1): "Tạo nhóm thử nghiệm" — TikTok product ids, one per line (or comma-separated). */
-function CreateGroupForm({ onCreate }: { readonly onCreate: (body: CardGroupCreate) => Promise<void> }) {
+function CreateGroupForm({ onCreate, platform = "tiktok" }: { readonly onCreate: (body: CardGroupCreate) => Promise<void>; readonly platform?: ShopPlatform }) {
+  const idsLabel = platform === "tiktok" ? "Mã sản phẩm TikTok" : "Mã sản phẩm";
   const [open, setOpen] = useState(false);
   const [lever, setLever] = useState("pack_option");
   const [metric, setMetric] = useState("aov");
@@ -390,7 +394,7 @@ function CreateGroupForm({ onCreate }: { readonly onCreate: (body: CardGroupCrea
           <input checked={stratify} onChange={(e) => setStratify(e.target.checked)} type="checkbox" /> Chia tầng theo số đơn 30 ngày (nhiều / ít đơn)
         </label>
       </div>
-      <textarea aria-label="Mã sản phẩm TikTok" onChange={(e) => setIds(e.target.value)} placeholder="Mã sản phẩm TikTok, mỗi dòng một mã (ít nhất 3)" rows={4} value={ids} />
+      <textarea aria-label={idsLabel} onChange={(e) => setIds(e.target.value)} placeholder={`${idsLabel}, mỗi dòng một mã (ít nhất 3)`} rows={4} value={ids} />
       <input
         aria-label="Lý do chọn thử nghiệm (không bắt buộc)"
         maxLength={200}
@@ -399,7 +403,7 @@ function CreateGroupForm({ onCreate }: { readonly onCreate: (body: CardGroupCrea
         value={reason}
       />
       <div style={{ color: C.muted2, fontSize: 12 }}>
-        Juli chia ngẫu nhiên ≈ 1/3 làm đối chứng (ghi lại seed). Chủ shop tự tạo thay đổi trên TikTok cho nhóm áp dụng; Juli không ghi lên TikTok. Người bán không thấy nhóm này.
+        Juli chia ngẫu nhiên ≈ 1/3 làm đối chứng (ghi lại seed). Chủ shop tự tạo thay đổi trên {PLATFORM_NAME[platform]} cho nhóm áp dụng; Juli không ghi lên {PLATFORM_NAME[platform]}. Người bán không thấy nhóm này.
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button disabled={busy || products.length < (stratify ? 6 : 3)} type="submit">
@@ -420,12 +424,15 @@ export function OpsCardGroups({
   create,
   setReason,
   canEdit = false,
+  platform = "tiktok",
 }: {
   readonly shopId: string;
   readonly load?: OpsApi["groups"];
   readonly create?: OpsApi["createGroup"];
   readonly setReason?: OpsApi["setGroupReason"];
   readonly canEdit?: boolean;
+  /** Migration 110: the shop's platform names it in the copy. Default TikTok. */
+  readonly platform?: ShopPlatform;
 }) {
   const [page, setPage] = useState<CardGroupsPage | null>(null);
   const [failed, setFailed] = useState(false);
@@ -453,12 +460,13 @@ export function OpsCardGroups({
       {page && page.groups.length === 0 ? <span style={{ color: C.muted2, fontSize: 13 }}>Chưa có nhóm nào.</span> : null}
       {canEdit && create && page ? (
         <CreateGroupForm
+          platform={platform}
           onCreate={async (body) => {
             setPage(await create(shopId, body));
           }}
         />
       ) : null}
-      {page?.groups.map((g) => <GroupRow canEdit={canEdit} group={g} key={g.id} onReason={onReason} />)}
+      {page?.groups.map((g) => <GroupRow canEdit={canEdit} group={g} key={g.id} onReason={onReason} platform={platform} />)}
     </div>
   );
 }

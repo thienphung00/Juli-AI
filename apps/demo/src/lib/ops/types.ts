@@ -16,6 +16,8 @@ export interface OverviewShop {
   readonly shop_id: string;
   readonly shop_name: string;
   readonly tiktok_shop_id: string | null;
+  /** Migration 110: `shops.platform` ("tiktok" | "shopee"); absent = TikTok. */
+  readonly platform?: string;
   readonly owner_email: string | null;
   readonly owned_by_team: boolean;
   readonly invite_pending: boolean;
@@ -158,6 +160,8 @@ export interface Invite {
 export interface ShopInfo {
   readonly shop_id: string;
   readonly shop_name: string;
+  /** Migration 110: `shops.platform` ("tiktok" | "shopee"); absent = TikTok. */
+  readonly platform?: string;
   readonly owner_email: string | null;
   readonly owned_by_team: boolean;
   readonly staff_access_consent_at: string | null;
@@ -658,4 +662,210 @@ export interface IngestTokenRow {
   readonly last_used_at: string | null;
   readonly revoked_at: string | null;
   readonly active: boolean;
+}
+
+/** ADR-118 "Chu kỳ": proposals of a shop's manual cycle (`GET /v1/ops/shops/{id}/proposals`). */
+export type ProposalKind = "title" | "images" | "price" | "voucher" | "flash_sale" | "ads" | "bundle" | "program" | "stock" | "other";
+export type ProposalSubject = "item" | "shop" | "campaign";
+export type ProposalStatus = "draft" | "sent" | "approved" | "rejected" | "changes_requested" | "executed" | "measured" | "withdrawn" | "superseded";
+export type ApprovalDecision = "approved" | "rejected" | "changes_requested";
+export type ApprovalChannel = "email" | "document";
+export type ExecutorRole = "client_representative" | "juli_operator";
+
+export interface ProposalApproval {
+  readonly id: string;
+  readonly decision: ApprovalDecision | string;
+  readonly channel: string;
+  readonly evidence_ref: string | null;
+  readonly note: string | null;
+  readonly decided_at: string | null;
+}
+
+export interface ProposalExecution {
+  readonly id: string;
+  readonly executed_at: string | null;
+  readonly executor_role: string;
+  readonly channel: string;
+  readonly evidence_ref: string | null;
+  readonly verified_at: string | null;
+  readonly verified_how: string | null;
+}
+
+export interface ShopProposalRow {
+  readonly id: string;
+  readonly revision: number;
+  readonly cycle: string;
+  readonly kind: ProposalKind | string;
+  readonly subject_type: ProposalSubject | string;
+  readonly item_id: string | null;
+  readonly subject_label: string;
+  readonly change_before: Record<string, unknown>;
+  readonly change_after: Record<string, unknown>;
+  readonly reason: string;
+  readonly planned_start: string | null;
+  readonly status: ProposalStatus | string;
+  readonly platform: string;
+  readonly supersedes_id: string | null;
+  readonly sent_at: string | null;
+  readonly created_at: string | null;
+  readonly approvals: readonly ProposalApproval[];
+  readonly executions: readonly ProposalExecution[];
+}
+
+export interface ProposalCreate {
+  readonly cycle: string;
+  readonly kind: ProposalKind;
+  readonly subject_type: ProposalSubject;
+  readonly item_id: string | null;
+  readonly subject_label: string;
+  readonly change_before: Record<string, unknown>;
+  readonly change_after: Record<string, unknown>;
+  readonly reason: string;
+  readonly planned_start: string | null;
+}
+
+export interface ApprovalCreate {
+  readonly decision: ApprovalDecision;
+  readonly channel: ApprovalChannel;
+  readonly evidence_ref: string;
+  readonly decided_at: string;
+  readonly note: string | null;
+}
+
+export interface ExecutionCreate {
+  readonly executed_at: string;
+  readonly executor_role: ExecutorRole;
+  readonly evidence_ref: string | null;
+}
+
+/** ADR-117 step 4: the Shopee dashboards (`/v1/ops/shops/{id}/shopee/*`), measured data only. */
+export type ShopeeOrderType = "placed" | "paid" | "confirmed";
+
+export interface ShopeeRange {
+  readonly from: string;
+  readonly to: string;
+}
+
+export interface ShopeeFlowCell {
+  readonly gmv: number | null;
+  readonly orders: number | null;
+  readonly impressions: number | null;
+  readonly clicks: number | null;
+  readonly buyers: number | null;
+}
+
+export interface ShopeeFlowChild extends ShopeeFlowCell {
+  readonly segment: string;
+  readonly label: string;
+}
+
+export interface ShopeeFlow extends Partial<ShopeeFlowCell> {
+  readonly stream: string;
+  readonly label: string;
+  readonly has_total_row: boolean;
+  /** G3: a child ("Trang shop" under "Thẻ sản phẩm") is a breakdown, never added to the total. */
+  readonly children: ShopeeFlowChild[];
+}
+
+export interface ShopeeMonth {
+  readonly month: string;
+  readonly gmv: number | null;
+  readonly orders: number | null;
+}
+
+export interface ShopeeFlows {
+  readonly range: ShopeeRange;
+  readonly order_type: ShopeeOrderType;
+  readonly total_gmv: number;
+  readonly total_orders: number;
+  readonly flows: ShopeeFlow[];
+  readonly ads_overlay: { readonly stream: string; readonly label: string; readonly gmv: number; readonly orders: number; readonly in_total: false } | null;
+  readonly monthly: { readonly month: string; readonly streams: Record<string, number | null>; readonly shop_page_gmv: number | null }[];
+  readonly shop_monthly: ShopeeMonth[];
+  readonly has_data: boolean;
+}
+
+export interface ShopeeProduct {
+  readonly item_id: string;
+  readonly name: string | null;
+  readonly impressions: number | null;
+  readonly clicks: number | null;
+  readonly visitors: number | null;
+  readonly page_views: number | null;
+  readonly add_to_cart: number | null;
+  readonly orders: number | null;
+  readonly gmv: number | null;
+  readonly units: number | null;
+  readonly buyers: number | null;
+  readonly ctr: number | null;
+  readonly add_to_cart_rate: number | null;
+  readonly click_to_order: number | null;
+  readonly by_flow: Record<string, { readonly gmv: number | null; readonly orders: number | null }>;
+  readonly history: ShopeeMonth[];
+  readonly flags: { readonly flag: string; readonly label: string; readonly from: string; readonly to: string }[];
+}
+
+export interface ShopeeProducts {
+  readonly order_type: ShopeeOrderType;
+  readonly period: ShopeeRange | null;
+  readonly periods: { readonly from: string; readonly to: string; readonly items: number }[];
+  readonly items_total: number;
+  readonly totals: Omit<ShopeeProduct, "item_id" | "name" | "by_flow" | "history" | "flags"> | null;
+  readonly products: ShopeeProduct[];
+  readonly shop_monthly: ShopeeMonth[];
+  readonly has_data: boolean;
+}
+
+export interface ShopeeAdCell {
+  readonly cost: number | null;
+  readonly orders: number | null;
+  readonly gmv: number | null;
+  readonly roas: number | null;
+  readonly cost_per_order: number | null;
+}
+
+export interface ShopeeAdType extends ShopeeAdCell {
+  readonly ad_type: string;
+  readonly label?: string;
+}
+
+export interface ShopeeAds {
+  readonly range: ShopeeRange;
+  readonly order_type: ShopeeOrderType;
+  readonly total: ShopeeAdCell;
+  readonly by_type: ShopeeAdType[];
+  readonly daily: { readonly day: string; readonly by_type: ShopeeAdType[] }[];
+  readonly monthly: ({ readonly month: string; readonly by_type: ShopeeAdType[] } & ShopeeAdCell)[];
+  readonly campaigns: ShopeeAdType[];
+  readonly campaigns_available: boolean;
+  readonly alerts: { readonly ad_type: string; readonly label: string; readonly days: number; readonly from: string; readonly to: string; readonly roas: number | null; readonly floor: number }[];
+  readonly alert_rule: { readonly floor: number; readonly min_days: number };
+  readonly has_data: boolean;
+}
+
+export interface ShopeePromotions {
+  readonly range: ShopeeRange;
+  readonly order_type: ShopeeOrderType;
+  readonly programs: {
+    readonly promo_type: string;
+    readonly type_label: string;
+    readonly name: string;
+    readonly starts_at: string;
+    readonly ends_at: string | null;
+    readonly status: string | null;
+    readonly gmv: number | null;
+    readonly orders: number | null;
+    readonly units: number | null;
+    readonly buyers: number | null;
+  }[];
+  readonly daily: { readonly day: string; readonly promo_type: string; readonly type_label: string; readonly gmv: number | null; readonly orders: number | null }[];
+  readonly has_data: boolean;
+}
+
+export interface ShopeeQuery {
+  readonly from?: string;
+  readonly to?: string;
+  readonly orderType?: ShopeeOrderType;
+  readonly periodFrom?: string;
+  readonly periodTo?: string;
 }

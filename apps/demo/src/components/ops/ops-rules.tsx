@@ -6,6 +6,7 @@ import { createOpsRulesFetch } from "../../lib/ops/view-fetch";
 import { deleteShopRule, fetchShopRules, putShopRule } from "../../lib/quyet-dinh/api-client";
 import { RULE_LABELS } from "../../lib/quyet-dinh/copy";
 import type { RuleKey, RuleValueItem, ShopRules } from "../../lib/quyet-dinh/types";
+import type { ShopPlatform } from "../../lib/shop-platform";
 import { readAuthSession } from "../../lib/supabase-auth";
 import { RulesEditor } from "../quyet-dinh/rules-editor";
 import { ConfirmDialog } from "./ops-confirm";
@@ -48,11 +49,14 @@ export function OpsRules({
   shopName,
   canEdit,
   baseFetch,
+  platform = "tiktok",
 }: {
   readonly shopId: string;
   readonly shopName?: string;
   readonly canEdit: boolean;
   readonly baseFetch?: typeof fetch;
+  /** Migration 110: a Shopee shop's rules name Shopee and skip GMV Max. Default TikTok. */
+  readonly platform?: ShopPlatform;
 }) {
   const fetchImpl = useMemo(() => createOpsRulesFetch({ shopId, baseFetch }), [shopId, baseFetch]);
   const [rules, setRules] = useState<ShopRules | null>(null);
@@ -90,6 +94,7 @@ export function OpsRules({
             fixedSetBy="team"
             headingLevel={3}
             key={JSON.stringify(rules)}
+            platform={platform}
             onDelete={(key, scope) =>
               ask(key, scope, "Mặc định", `Bỏ quy tắc của ${shopName ?? "shop"}?`, "Về mặc định", async () => {
                 await deleteShopRule(auth, key, scope);

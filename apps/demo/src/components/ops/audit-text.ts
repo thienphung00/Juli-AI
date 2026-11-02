@@ -91,6 +91,22 @@ export function auditWhat(entry: AuditEntry): string {
       return "Tạo mã kết nối dữ liệu";
     case "ingest_token_revoke":
       return "Thu hồi một nguồn kết nối dữ liệu";
+    case "proposal_create":
+      return `Tạo đề xuất ${String(after.subject_label ?? "")}`;
+    case "proposal_send":
+      return "Gửi đề xuất cho khách hàng";
+    case "proposal_revise":
+      return "Sửa đề xuất (bản mới thay bản cũ)";
+    case "proposal_withdraw":
+      return "Rút đề xuất";
+    case "proposal_approval_record":
+      return `Ghi quyết định của khách · ${after.channel === "document" ? "tài liệu" : "email"}`;
+    case "proposal_execution_record":
+      return "Ghi việc đã thực hiện trên Shopee";
+    case "proposal_execution_verify":
+      return "Đối chiếu trạng thái sau khi thực hiện";
+    case "shopee_kpi_run":
+      return "Chạy tính KPI và dự báo Shopee";
     case "shop_disconnect":
       return `Huỷ kết nối · lý do: ${String(after.reason ?? "")}`;
     case "invite_create":
