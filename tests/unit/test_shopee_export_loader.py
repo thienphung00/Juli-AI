@@ -359,3 +359,29 @@ def test_a_remote_database_is_refused_without_the_explicit_flag():
     assert (
         load_shopee_exports._require_local("postgresql://postgres@127.0.0.1:55433/x", False) is None
     )
+
+
+def test_http_posts_name_the_loader_so_cloudflare_lets_them_through(monkeypatch):
+    """Cloudflare answers the default ``Python-urllib`` agent with 403 / error 1010."""
+    sent = []
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return b'{"duplicate": false}'
+
+    def fake_urlopen(request, timeout):
+        sent.append(request)
+        return _Response()
+
+    monkeypatch.setattr(load_shopee_exports.urllib.request, "urlopen", fake_urlopen)
+    post = load_shopee_exports.Post(file="f.xlsx", dataset="promotions", body={"rows": []})
+    outcome = load_shopee_exports.send_http([post], "https://api.example.test/", "jci_x")
+    assert outcome == {"stored": 1}
+    assert sent[0].get_header("User-agent") == load_shopee_exports.USER_AGENT
+    assert sent[0].full_url == "https://api.example.test/v1/ingest/shopee/promotions"

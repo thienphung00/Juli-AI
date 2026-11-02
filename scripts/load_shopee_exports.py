@@ -39,6 +39,9 @@ from pydantic import ValidationError
 from scripts.shopee_exports.parse import Parsed, Post, parse_folder
 
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+# Cloudflare in front of api.app-juli.com refuses the default "Python-urllib/x" agent
+# (403 "error code: 1010") before the request reaches the gateway.
+USER_AGENT = "juli-shopee-export-loader/1.0"
 
 
 def validate(parsed: Parsed, now: datetime) -> list[str]:
@@ -93,7 +96,11 @@ def send_http(posts: list[Post], api_url: str, token: str) -> Counter[str]:
         request = urllib.request.Request(
             f"{api_url.rstrip('/')}/v1/ingest/shopee/{post.dataset}",
             data=json.dumps(post.body, ensure_ascii=False).encode(),
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "User-Agent": USER_AGENT,
+            },
             method="POST",
         )
         try:
