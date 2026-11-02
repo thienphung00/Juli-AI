@@ -80,7 +80,7 @@ export const OFF_API_FIELDS: ReadonlyArray<{ readonly key: OffApiRuleKey; readon
 ];
 
 /** GMV Max is TikTok's ad product: its ROAS target and daily budget are not asked of a Shopee shop. */
-export const TIKTOK_ONLY_OFF_API_KEYS: ReadonlySet<OffApiRuleKey> = new Set<OffApiRuleKey>(["target_roas", "gmv_max_daily_budget"]);
+export const GMV_MAX_OFF_API_KEYS: ReadonlySet<OffApiRuleKey> = new Set<OffApiRuleKey>(["target_roas", "gmv_max_daily_budget"]);
 
 /** The off-API copy for the shop's platform: "TikTok …" stays as is; a Shopee shop reads "Shopee …". */
 export function forPlatform(text: string, platform: ShopPlatform): string {

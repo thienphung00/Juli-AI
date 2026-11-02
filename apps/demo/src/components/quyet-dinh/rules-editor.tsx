@@ -10,7 +10,7 @@ import {
   OFF_API_SAMPLE_NOTE,
   OFF_API_SECTION_LEDE,
   OFF_API_SECTION_TITLE,
-  TIKTOK_ONLY_OFF_API_KEYS,
+  GMV_MAX_OFF_API_KEYS,
   displayOffApiValue,
   formatLiveSlot,
   forPlatform,
@@ -524,7 +524,7 @@ function OffApiFields({ rules, setBy, onSave, onDelete, platform }: FieldProps &
     ruleKey: "default_gross_margin_pct" | "default_max_discount_pct" | "program_fee_pct" | "target_roas" | "gmv_max_daily_budget",
     suffix: string,
     placeholder: string,
-  ) => (platform !== "tiktok" && TIKTOK_ONLY_OFF_API_KEYS.has(ruleKey) ? null : (
+  ) => (platform !== "tiktok" && GMV_MAX_OFF_API_KEYS.has(ruleKey) ? null : (
     <NumberRule
       help={forPlatform(OFF_API_HELP[ruleKey], platform)}
       item={rules[ruleKey]}
