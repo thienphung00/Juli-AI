@@ -444,7 +444,26 @@ from juli_backend.services.agent.runner import ExternalWaitNotPermitted
   or by a terminal / other event and never committed (guard refusal,
   `llm_error`, `required_steps_unfulfilled`) — clients drop those.
 - `stream_text` defaults to False (scripted planners and test doubles do not
-  take `on_text_delta`); `workers/tasks/agent_workflow.py` turns it on only
-  for the real cap-guarded adapter. Deltas are persisted like every event
-  (Postgres is the replay authority); `services/ops/runs.py` leaves them out
-  of the ops timeline.
+  take `on_text_delta`). Since P85 the worker no longer turns it on: the real
+  model's text is never shown (below), so nothing streams in production. Deltas
+  are persisted like every event (Postgres is the replay authority);
+  `services/ops/runs.py` leaves them out of the ops timeline.
+
+## Coded run-panel narration (fast track P85, D78.2)
+
+- `WorkflowRunner(coded_narration=True)` (the worker sets it for every
+  real-model run; scripted planners keep their own `assistant.text` copy):
+  the model's text is appended to the conversation (audit; Juli Ops reads it
+  via `services/ops/runs.py::_audit_texts`) and never emitted as
+  `assistant.text` / `assistant.text.delta`; no text relay is created.
+- `runner/coded_status.py` — the runner's own strict `report_status` tool
+  (`ReportStatusInput`: `reason_codes` / `plan_code` / `impact_code` enums),
+  offered only to `CODED_STATUS_WORKFLOWS` (Optimize Product) and never a
+  playbook step, so released prompts' rendered playbooks stay byte-identical.
+  The runner answers each call before the turn's other blocks (so the line
+  precedes the pause), emits no `tool.*` event for it, and emits one
+  `workflow.status` with `status_code` (`events/payloads.py::CodedStatusPayload`,
+  optional, omitted when absent). Faithful: reasons only if this run's reads
+  flagged them; the plan from the same turn's proposal when there is one.
+- `runner/coded_status_copy.py` — the Vietnamese templates
+  (`dictionary.md` `agent.narration.coded_status.*`).

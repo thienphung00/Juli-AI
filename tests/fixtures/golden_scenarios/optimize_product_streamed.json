@@ -1,7 +1,7 @@
 {
   "scenario_id": "optimize-product-streamed",
   "workflow_key": "optimize_product_2",
-  "prompt_sha256": "8199785be88d0dd060e17e833140251786097444c04db446db8455cce80e8727",
+  "prompt_sha256": "c2078771400554298b8fa069de2ca02f77113f2607c9645f11209e2b924f5629",
   "captured_at": "2026-01-01T00:00:00+00:00",
   "events": [
     {
@@ -12,7 +12,7 @@
       "payload": {
         "workflow_key": "optimize_product_2",
         "product_ref": "product-ref-ba227180",
-        "prompt_version": "optimize_product.v4"
+        "prompt_version": "optimize_product.v5"
       },
       "v": 1
     },
