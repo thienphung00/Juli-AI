@@ -197,6 +197,7 @@ async def test_the_app_role_runs_the_job_and_reads_it_back():
 
 async def test_the_app_role_alone_cannot_read_forecasts():
     async with app_session() as session:
-        with pytest.raises(DBAPIError, match="permission denied"):
+        with pytest.raises(DBAPIError, match="permission denied") as refused:
             await session.execute(select(KpiForecast.id).limit(1))
         await session.rollback()
+    assert "kpi_forecasts" in str(refused.value)
