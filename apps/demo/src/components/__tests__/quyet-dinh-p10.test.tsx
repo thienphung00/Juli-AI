@@ -989,6 +989,30 @@ describe("P66 — the reviewer's run panel", () => {
     await waitFor(() => expect(screen.getByTestId("run-chip")).toHaveTextContent("Đã áp dụng"), { timeout: 8000 });
   }, 15000);
 
+  it("P84: the consent step shows when it opened while waiting, and the decision time once decided", () => {
+    const consentStep = (events: AgentEvent[]) =>
+      buildRunTimeline(events, { kind: "listing" }).steps.find((step) => step.kind === "consent");
+    // Waiting: the time the step opened (seq 4 -> 03:01:04).
+    expect(consentStep(CONSENT_RUN)).toMatchObject({ status: "current", at: "2026-10-09T03:01:04Z" });
+    // Approved: the resumed run's first event is the decision (seq 9 -> 03:01:09).
+    const approved = [
+      ...CONSENT_RUN,
+      ev(9, "tool.started", { tool_call_id: "w1", tool_name: "update_product_listing" }),
+      ev(10, "tool.completed", { tool_call_id: "w1", tool_name: "update_product_listing", ok: true, summary: "Đã ghi" }),
+    ];
+    expect(consentStep(approved)).toMatchObject({ status: "done", detail: "Bạn đã xác nhận", at: "2026-10-09T03:01:09Z" });
+    // Declined: the refusal's completion is the decision.
+    const declinedRun = [
+      ...CONSENT_RUN,
+      ev(12, "tool.completed", { tool_call_id: "w1", tool_name: "update_product_listing", ok: false, summary: "Bạn chọn không thực hiện" }),
+      ev(13, "workflow.completed", { stop_reason: "confirmation_declined" }),
+    ];
+    expect(consentStep(declinedRun)).toMatchObject({ status: "done", at: "2026-10-09T03:01:12Z" });
+    // The optimistic step carries the click time.
+    const optimistic = afterConfirmation(buildRunTimeline(CONSENT_RUN, { kind: "listing" }), "w1", "2026-10-09T03:05:00Z");
+    expect(optimistic.steps.find((step) => step.kind === "consent")?.at).toBe("2026-10-09T03:05:00Z");
+  });
+
   it("D6: the optimistic step reads Đang thực hiện until the stream catches up", () => {
     const timeline = buildRunTimeline(CONSENT_RUN, { kind: "listing" });
     const optimistic = afterConfirmation(timeline, "w1");
