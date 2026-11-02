@@ -3472,3 +3472,17 @@ reconcile --write` re-derived the no-assert corpus figure.
   unchanged. `test_p82_egress_postgres.py` is an isolated-database module: its cards (several
   per shop and workflow) would otherwise block `test_production_write_authorizations_postgres`'
   downgrade past 062 on the shared database (seen once, fixed).
+
+## P84 — the confirmation step shows the decision time, not the pause time
+
+- Bug (live 02/11): "Xác nhận một lần · Xong · Bạn đã xác nhận 05:40:56" showed when the step
+  OPENED (the run paused); the seller clicked at 05:42:57, so a ~6 s write read as a 2-minute wait.
+- Fix (frontend only, no new field, no DB read, contracts untouched): `buildRunTimeline`
+  (`lib/quyet-dinh/timeline.ts`) already tracked `consentDecidedAt` (the resumed run's first
+  event after the pause: `tool.started` on approve / edit+approve, the refusal's `tool.completed`
+  on decline). The consent row now uses it as `at` once decided; while waiting (and when expired,
+  no decision) it keeps the time the step opened. `afterConfirmation` takes the click time for
+  the optimistic step until the stream shows the resume.
+- Tests: `quyet-dinh-p10.test.tsx` (+1: waiting -> opened time, approved -> T2, declined -> T2,
+  optimistic -> click time). Demo vitest 137 files / 1360 passed, `tsc --noEmit` clean,
+  `test_agent_events_contract` + `test_ratchets` + `test_test_quality` 68 passed. No Python touched.
