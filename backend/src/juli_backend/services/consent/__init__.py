@@ -22,6 +22,7 @@ from juli_backend.services.consent.pooling import (
     log_contributing_set,
     record_contributing_set,
 )
+from juli_backend.services.consent.terms import grant_terms_consents_if_accepted
 
 __all__ = [
     "FIGURE_FLEET_CALIBRATION",
@@ -35,6 +36,7 @@ __all__ = [
     "check_cell",
     "contributing_set",
     "grant_consent",
+    "grant_terms_consents_if_accepted",
     "has_consent",
     "log_contributing_set",
     "record_contributing_set",

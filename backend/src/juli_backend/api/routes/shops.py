@@ -109,7 +109,7 @@ async def create_shopee_shop(
     """
     from sqlalchemy.exc import IntegrityError
 
-    from juli_backend.services.consent.terms import grant_terms_consents_if_accepted
+    from juli_backend.services.consent import grant_terms_consents_if_accepted
     from juli_backend.services.ingest import connect_shopee_shop
 
     try:
