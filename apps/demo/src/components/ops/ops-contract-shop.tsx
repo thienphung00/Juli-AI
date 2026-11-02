@@ -3,13 +3,16 @@
 import { useEffect, useState } from "react";
 
 import { opsApi, type OpsApi } from "../../lib/ops/api";
-import type { ShopConsent } from "../../lib/ops/types";
+import { fmtWhen } from "../../lib/ops/format";
+import type { IngestTokenRow, PairingCode, ShopConsent } from "../../lib/ops/types";
 import { C, card } from "./ops-shell";
 
 /**
  * Contract-client shops (owner decisions 2026-11-02, ADR-118): a Shopee shop with no
  * seller login, managed only in Ops. "Thêm shop hợp đồng" asks for the name and the
- * Seller Centre shop id; "Bật" turns the shop's data-use consent on with no fields.
+ * Seller Centre shop id; "Bật" turns the shop's data-use consent on with no fields;
+ * then "Tạo mã kết nối" gives the Juli Connector (or the export loader) a 10-minute
+ * code, and the connected sources can be revoked ("Thu hồi").
  */
 
 const BUTTON = {
@@ -114,7 +117,7 @@ export function OpsAddContractShop({ api = opsApi, onCreated }: { readonly api?:
   );
 }
 
-type ConsentApi = Partial<Pick<OpsApi, "consent" | "enableConsent">>;
+type ConsentApi = Partial<Pick<OpsApi, "consent" | "enableConsent" | "createPairingCode" | "ingestTokens" | "revokeIngestToken">>;
 
 export function OpsShopConsent({
   shopId,
@@ -160,9 +163,12 @@ export function OpsShopConsent({
     <div style={{ ...card, gap: 10 }}>
       <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Đồng ý xử lý dữ liệu</h2>
       {state.enabled ? (
-        <p role="status" style={{ margin: 0, fontSize: 14, color: C.green, fontWeight: 600 }}>
-          Đã bật
-        </p>
+        <>
+          <p role="status" style={{ margin: 0, fontSize: 14, color: C.green, fontWeight: 600 }}>
+            Đã bật
+          </p>
+          <OpsShopConnector api={api} canEdit={canEdit} shopId={shopId} />
+        </>
       ) : (
         <>
           <p style={{ margin: 0, fontSize: 13, color: C.muted }}>Shop hợp đồng: bật để Juli nhận và phân tích dữ liệu của shop.</p>
@@ -175,6 +181,93 @@ export function OpsShopConsent({
           ) : null}
         </>
       )}
+      {error ? (
+        <p role="alert" style={{ margin: 0, color: C.red, fontSize: 13 }}>
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function OpsShopConnector({ shopId, canEdit, api }: { readonly shopId: string; readonly canEdit: boolean; readonly api: ConsentApi }) {
+  const [code, setCode] = useState<PairingCode | null>(null);
+  const [tokens, setTokens] = useState<readonly IngestTokenRow[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [epoch, setEpoch] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    if (!api.ingestTokens) return;
+    api
+      .ingestTokens(shopId)
+      .then((r) => live && setTokens(r.data))
+      .catch(() => live && setError("Không tải được danh sách kết nối."));
+    return () => {
+      live = false;
+    };
+  }, [api, shopId, epoch]);
+
+  const issue = async () => {
+    if (!api.createPairingCode) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setCode(await api.createPairingCode(shopId));
+    } catch (e) {
+      const status = (e as { status?: number }).status;
+      setError(status === 429 ? "Đã có 5 mã chưa dùng. Đợi mã cũ hết hạn (10 phút)." : "Không tạo được mã. Thử lại sau.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async (tokenId: string) => {
+    if (!api.revokeIngestToken) return;
+    setError(null);
+    try {
+      await api.revokeIngestToken(shopId, tokenId);
+      setEpoch((n) => n + 1);
+    } catch {
+      setError("Không thu hồi được. Thử lại sau.");
+    }
+  };
+
+  const active = tokens.filter((t) => t.active);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
+      <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Kết nối dữ liệu</h3>
+      <p style={{ margin: 0, fontSize: 13, color: C.muted }}>Nhập mã vào Juli Connector (hoặc công cụ tải file xuất) để gửi dữ liệu Seller Centre của shop này.</p>
+      {canEdit ? (
+        <div>
+          <button disabled={busy} onClick={() => void issue()} style={SECONDARY} type="button">
+            {busy ? "Đang tạo…" : "Tạo mã kết nối"}
+          </button>
+        </div>
+      ) : null}
+      {code ? (
+        <p aria-label="Mã kết nối" style={{ margin: 0, fontSize: 13 }}>
+          <strong style={{ fontSize: 20, letterSpacing: 2, fontFamily: "ui-monospace, monospace" }}>{code.code}</strong>
+          <span style={{ color: C.muted }}> · dùng một lần, hết hạn sau {Math.round(code.ttl_seconds / 60)} phút</span>
+        </p>
+      ) : null}
+      <p style={{ margin: 0, fontSize: 13 }}>{active.length ? `${active.length} nguồn đang kết nối` : "Chưa có nguồn nào kết nối."}</p>
+      {active.length ? (
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+          {active.map((t) => (
+            <li key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+              <span>{t.client_label ?? "Nguồn không tên"}</span>
+              <span style={{ color: C.muted2 }}>dùng lần cuối: {t.last_used_at ? fmtWhen(t.last_used_at) : "chưa"}</span>
+              {canEdit ? (
+                <button onClick={() => void revoke(t.id)} style={{ ...SECONDARY, minHeight: 32, fontSize: 13, marginLeft: "auto" }} type="button">
+                  Thu hồi
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {error ? (
         <p role="alert" style={{ margin: 0, color: C.red, fontSize: 13 }}>
           {error}

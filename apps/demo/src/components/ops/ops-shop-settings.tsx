@@ -29,7 +29,7 @@ const STAGES: [StageId, string, string][] = [
 const STREAM_LABEL: Record<string, string> = { product_card: "Thẻ SP", shop_tab: "Tab", seller_video: "Video", seller_live: "LIVE" };
 const OWN: CSSProperties = { background: "#fff7fa", borderColor: "#f8b9d3", fontWeight: 600 };
 
-type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "groups" | "createGroup" | "setGroupReason" | "consent" | "enableConsent">>;
+type Api = Pick<OpsApi, "settings" | "putSettings" | "resetSettings" | "invite"> & Partial<Pick<OpsApi, "groups" | "createGroup" | "setGroupReason" | "consent" | "enableConsent" | "createPairingCode" | "ingestTokens" | "revokeIngestToken">>;
 
 function SettingRow({
   title,

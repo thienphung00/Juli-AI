@@ -642,3 +642,20 @@ export interface ContractShop {
   readonly platform: string;
   readonly shopee_shop_id: string | null;
 }
+
+/** ADR-118 "Tạo mã kết nối": the one-use code (shown once) and the connected sources. */
+export interface PairingCode {
+  readonly code: string;
+  readonly expires_at: string;
+  readonly ttl_seconds: number;
+}
+
+export interface IngestTokenRow {
+  readonly id: string;
+  readonly client_label: string | null;
+  readonly created_at: string;
+  readonly expires_at: string;
+  readonly last_used_at: string | null;
+  readonly revoked_at: string | null;
+  readonly active: boolean;
+}

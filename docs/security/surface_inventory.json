@@ -577,6 +577,22 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/shops/{shop_id}/ingest-tokens",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/ingest-tokens/{token_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/shops/{shop_id}/invites",
       "methods": [
         "GET"
@@ -596,6 +612,14 @@
       "path": "/v1/ops/shops/{shop_id}/openai-cap",
       "methods": [
         "PUT"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/pairing-codes",
+      "methods": [
+        "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": false

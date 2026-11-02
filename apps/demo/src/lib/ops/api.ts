@@ -8,9 +8,11 @@ import type {
   CostsPage,
   Deltas,
   DisconnectResult,
+  IngestTokenRow,
   Invite,
   OpsMe,
   Overview,
+  PairingCode,
   Scenario,
   ShopConsent,
   ShopSettings,
@@ -187,6 +189,15 @@ export const opsApi = {
   /** ADR-118 "Bật" (Vận hành / Admin): no fields; audited `consent_enable`. */
   enableConsent: (shopId: string, o?: OpsRequestOptions) =>
     opsRequest<ShopConsent>(`${shopPath(shopId)}/consent`, { method: "POST" }, o),
+  /** ADR-118 "Tạo mã kết nối" (Vận hành / Admin): a 10-minute, single-use code; 409 before "Bật". */
+  createPairingCode: (shopId: string, o?: OpsRequestOptions) =>
+    opsRequest<PairingCode>(`${shopPath(shopId)}/pairing-codes`, { method: "POST" }, o),
+  /** ADR-118: the shop's connected sources (never the token itself). */
+  ingestTokens: (shopId: string, o?: OpsRequestOptions) =>
+    opsRequest<{ data: IngestTokenRow[] }>(`${shopPath(shopId)}/ingest-tokens`, {}, o),
+  /** ADR-118 "Thu hồi" (Vận hành / Admin); audited `ingest_token_revoke`. */
+  revokeIngestToken: (shopId: string, tokenId: string, o?: OpsRequestOptions) =>
+    opsRequest<void>(`${shopPath(shopId)}/ingest-tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE" }, o),
 };
 
 export type OpsApi = typeof opsApi;

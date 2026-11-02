@@ -72,6 +72,14 @@ async def test_the_app_role_creates_a_contract_shop_and_enables_its_consent():
         async with with_shop_scope(session, shop_id):
             assert await has_consent(session, shop_id, "service")
 
+        # "Tạo mã kết nối" as the app role, then the (empty) token list.
+        issued = await contract_shops.issue_pairing_code(
+            session, shop_id, owner_id, created_by=None, now=_now()
+        )
+        await session.commit()
+        assert len(issued.code.replace("-", "")) == 10
+        assert await contract_shops.list_tokens(session, shop_id, owner_id) == []
+
 
 async def test_a_shop_whose_owner_signed_in_is_not_a_contract_client(two_tenants):
     tenant = two_tenants[0]

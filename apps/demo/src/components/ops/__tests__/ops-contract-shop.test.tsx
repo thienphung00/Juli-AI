@@ -40,7 +40,11 @@ describe("Thêm shop hợp đồng", () => {
 
 describe("Đồng ý xử lý dữ liệu", () => {
   it("one press, no fields, turns consent on", async () => {
-    const api = { consent: vi.fn().mockResolvedValue(OFF), enableConsent: vi.fn().mockResolvedValue(ON) };
+    const api = {
+      consent: vi.fn().mockResolvedValue(OFF),
+      enableConsent: vi.fn().mockResolvedValue(ON),
+      ingestTokens: vi.fn().mockResolvedValue({ data: [] }),
+    };
     render(<OpsShopConsent api={api} canEdit shopId="s1" />);
     fireEvent.click(await screen.findByRole("button", { name: "Bật" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Đã bật");
@@ -60,5 +64,43 @@ describe("Đồng ý xử lý dữ liệu", () => {
     const { container } = render(<OpsShopConsent api={api} canEdit shopId="s1" />);
     await waitFor(() => expect(api.consent).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("Kết nối dữ liệu", () => {
+  const TOKEN = {
+    id: "t1",
+    client_label: "Juli Connector",
+    created_at: "2026-11-02T07:00:00Z",
+    expires_at: "2027-01-31T07:00:00Z",
+    last_used_at: null,
+    revoked_at: null,
+    active: true,
+  };
+
+  it("shows a one-use code after 'Tạo mã kết nối' and revokes a source", async () => {
+    const api = {
+      consent: vi.fn().mockResolvedValue(ON),
+      enableConsent: vi.fn(),
+      createPairingCode: vi.fn().mockResolvedValue({ code: "ABCDE-FGHJK", expires_at: "2026-11-02T07:10:00Z", ttl_seconds: 600 }),
+      ingestTokens: vi.fn().mockResolvedValueOnce({ data: [TOKEN] }).mockResolvedValue({ data: [{ ...TOKEN, active: false }] }),
+      revokeIngestToken: vi.fn().mockResolvedValue(undefined),
+    };
+    render(<OpsShopConsent api={api} canEdit shopId="s1" />);
+    expect(await screen.findByText("1 nguồn đang kết nối")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tạo mã kết nối" }));
+    expect(await screen.findByLabelText("Mã kết nối")).toHaveTextContent("ABCDE-FGHJK");
+    expect(screen.getByLabelText("Mã kết nối")).toHaveTextContent("hết hạn sau 10 phút");
+    fireEvent.click(screen.getByRole("button", { name: "Thu hồi" }));
+    expect(await screen.findByText("Chưa có nguồn nào kết nối.")).toBeInTheDocument();
+    expect(api.revokeIngestToken).toHaveBeenCalledWith("s1", "t1");
+  });
+
+  it("a viewer sees the sources but cannot make a code or revoke", async () => {
+    const api = { consent: vi.fn().mockResolvedValue(ON), ingestTokens: vi.fn().mockResolvedValue({ data: [TOKEN] }) };
+    render(<OpsShopConsent api={api} canEdit={false} shopId="s1" />);
+    expect(await screen.findByText("1 nguồn đang kết nối")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tạo mã kết nối" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Thu hồi" })).toBeNull();
   });
 });

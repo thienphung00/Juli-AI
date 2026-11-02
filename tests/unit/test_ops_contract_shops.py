@@ -142,3 +142,63 @@ async def test_a_bad_shop_id_or_a_taken_one_is_refused(session, monkeypatch):
     assert bad.status_code == 422
     assert first.status_code == 201
     assert taken.status_code == 409
+
+
+async def test_a_pairing_code_comes_after_consent_and_its_token_can_be_revoked(
+    session, monkeypatch
+):
+    from juli_backend.repositories import utc_now_naive
+    from juli_backend.services import ingest as ingest_service
+    from tests.support.api import client_for
+
+    app = await _ops_client(session, monkeypatch, "operator")
+    async with client_for(app) as client:
+        made = await client.post("/v1/ops/contract-shops", json={"shop_name": "Synthetic"})
+        shop_id = made.json()["shop"]["id"]
+        early = await client.post(f"/v1/ops/shops/{shop_id}/pairing-codes")
+        await client.post(f"/v1/ops/shops/{shop_id}/consent")
+        issued = await client.post(f"/v1/ops/shops/{shop_id}/pairing-codes")
+        assert issued.status_code == 201, issued.text
+        code = issued.json()["code"]
+        token = await ingest_service.redeem_pairing_code(
+            session,
+            code=code,
+            platform="shopee",
+            platform_shop_id=None,
+            client_label="loader",
+            now=utc_now_naive(),
+        )
+        await session.commit()
+        listed = await client.get(f"/v1/ops/shops/{shop_id}/ingest-tokens")
+        revoked = await client.delete(f"/v1/ops/shops/{shop_id}/ingest-tokens/{token.token_id}")
+        after = await client.get(f"/v1/ops/shops/{shop_id}/ingest-tokens")
+    app.dependency_overrides.clear()
+
+    assert early.status_code == 409
+    assert early.json()["detail"]["code"] == "consent_required"
+    assert issued.json()["ttl_seconds"] == 600 and len(code.replace("-", "")) == 10
+    assert [t["active"] for t in listed.json()["data"]] == [True]
+    assert "token" not in listed.json()["data"][0]
+    assert revoked.status_code == 204
+    assert [t["active"] for t in after.json()["data"]] == [False]
+    actions = await _actions(session, uuid.UUID(shop_id))
+    assert "pairing_code_create" in actions and "ingest_token_revoke" in actions
+    # The audit row never carries the code itself.
+    rows = await session.execute(
+        select(OpsAuditLog.after).where(OpsAuditLog.action == "pairing_code_create")
+    )
+    assert all(code not in str(row) for row in rows.scalars())
+
+
+async def test_no_pairing_code_or_token_list_for_a_seller_shop(session, monkeypatch):
+    from tests.support.api import client_for
+
+    seller = await make_user(session, email="seller2@example.com")
+    shop_id = (await make_shop(session, seller)).id
+    await session.commit()
+    app = await _ops_client(session, monkeypatch, "operator")
+    async with client_for(app) as client:
+        code = await client.post(f"/v1/ops/shops/{shop_id}/pairing-codes")
+        tokens = await client.get(f"/v1/ops/shops/{shop_id}/ingest-tokens")
+    app.dependency_overrides.clear()
+    assert code.status_code == 409 and tokens.status_code == 409
