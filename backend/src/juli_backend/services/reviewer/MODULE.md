@@ -49,6 +49,11 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
   2026-10-28): "Hoàn tác" (`start_run_revert`) is on the same list, for a run the reviewer
   started only; the revert run stops at the same confirmation and writes through the same
   sandbox leg.
+- `brands` — P86: pure brand-word helpers for the mask's free-text pass: `derive_from_titles`
+  (recurring capitalised words across product titles; computed by `catalog` from the titles it
+  already reads, stored in `MaskDictionary.catalog_brands`), `GENERIC_WORDS` guard list, `fold`
+  (diacritics-insensitive, length-preserving), `compile_terms`, `scrub` (whole-word →
+  `Thương hiệu`). No I/O.
 - `gotrue` — `GoTrueAdmin` (service-role admin calls; CLI only).
 - `cli` — `python -m juli_backend.services.reviewer.cli create|renew|revoke|reset|show`. `reset` (P67, D75 Q4) retires the account (Supabase user banned and renamed `local+retired-<stamp>@domain`, ops row revoked under that address) and creates a fresh one: new user id, new `created_at`, so the sandbox reviewer's run history starts empty (`create` on an existing address keeps the same user and row).
 - `enter_shop_read_scope` — re-export of `services/ops/view_as`.
@@ -57,6 +62,9 @@ provisioning command. The HTTP gate is `api/reviewer.py`. Contract:
 - P75: on a masked pin no string under a product / SKU / shop / video / LIVE / creator key leaves
   unaliased, whether or not the catalog knows it (`tests/unit/test_p75_reviewer_structural_mask.py`
   builds each reviewer-reachable response shape from titles / SKUs outside the dictionary).
+- P86: free text is scrubbed of brand words (catalog-derived, shop name, `REVIEWER_MASK_TERMS`,
+  payload `brand` values) behind the structural mask; generic product words never are
+  (`tests/unit/test_p86_reviewer_brand_scrub.py`). Reviewer display only.
 - Nothing here writes a tenant row; the only writes are `ops_reviewer_accounts` and
   `ops_audit_log`. The P64 live sandbox writes to TikTok (the sandbox shop only), never to a
   Juli table.

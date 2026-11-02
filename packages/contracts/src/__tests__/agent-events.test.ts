@@ -32,6 +32,7 @@ import assistantTextDeltaMissingBlockIdFixture from "../../fixtures/agent-events
 import pythonOnlyValidFixture from "../../fixtures/agent-events/invalid/python-only-valid-workflow-started.json";
 import tsOnlyValidFixture from "../../fixtures/agent-events/invalid/ts-only-valid-tool-started.json";
 import legacyNoOptionsFixture from "../../fixtures/agent-events/workflow-approval-required-legacy-no-options.json";
+import legacyStatusNoCodeFixture from "../../fixtures/agent-events/workflow-status-legacy-no-code.json";
 
 const GOLDEN_FIXTURES: Array<[eventType: string, fixture: unknown]> = [
   ["workflow.started", workflowStartedFixture],
@@ -122,6 +123,25 @@ describe("workflow.approval_required -- options is optional (issue #1221 / AGT-W
 
     expect(event.event_type).toBe("workflow.approval_required");
     expect(event).toEqual(legacyNoOptionsFixture); // byte-equal-in-shape, not transformed
+  });
+});
+
+describe("workflow.status -- status_code is optional (fast track P85, D78.2)", () => {
+  it("accepts a status line with no status_code key (every pre-P85 row)", () => {
+    expect((legacyStatusNoCodeFixture as { payload: object }).payload).not.toHaveProperty("status_code");
+    const event = validateAgentEvent(legacyStatusNoCodeFixture);
+    expect(event).toEqual(legacyStatusNoCodeFixture);
+  });
+
+  it("rejects a status_code with a missing or extra field", () => {
+    const base = workflowStatusFixture as { payload: { status_code: Record<string, unknown> } };
+    const missing = { ...base, payload: { ...base.payload, status_code: { plan_code: "title", impact_code: "none" } } };
+    expect(() => validateAgentEvent(missing)).toThrow(/missing required field "reason_codes"/);
+    const extra = {
+      ...base,
+      payload: { ...base.payload, status_code: { ...base.payload.status_code, text: "prose" } },
+    };
+    expect(() => validateAgentEvent(extra)).toThrow(/unexpected field "text"/);
   });
 });
 

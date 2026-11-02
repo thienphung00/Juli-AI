@@ -112,6 +112,17 @@ def test_every_playbook_offers_only_strict_tools(playbook: Playbook) -> None:
         assert strict_problems(wire["parameters"]) == [], name
 
 
+def test_the_runners_own_report_status_tool_converts_and_conforms() -> None:
+    """P85: `report_status` is offered by the runner, not the registry -- same gate."""
+    from juli_backend.services.agent.runner.coded_status import report_status_tool_definition
+
+    definition = report_status_tool_definition()
+    strict = to_strict(definition["input_schema"])
+    assert strict_problems(strict) == []
+    wire = _translate_tool(definition)
+    assert wire["strict"] is True and wire["parameters"] == strict
+
+
 def test_update_product_listing_wire_body_golden() -> None:
     """The exact function entry OpenAI receives for the listing write (edits: below)."""
     wire = _wire("update_product_listing")

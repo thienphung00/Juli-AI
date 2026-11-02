@@ -51,6 +51,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from juli_backend.services.ops import mask_pii
+from juli_backend.services.reviewer import brands
 
 BRAND_REPLACEMENT = "Thương hiệu"
 _OWN_HOST_SUFFIX = "app-juli.com"
@@ -204,6 +205,8 @@ _STREAM_ROW_KIND: Mapping[str, str] = {
     "seller_live": "live",
     "affiliate_live": "live",
 }
+#: P86: payload keys holding a product's brand (a string, or ``{"name": …}``).
+_BRAND_KEYS = frozenset({"brand", "brand_name"})
 _ENTITY_TITLE_KEYS = ("title", "name", "caption", "product_title")
 _MEDIA_KEY = re.compile(
     r"^(.*_)?(image|images|image_url|image_urls|image_uri|img|photo|photos|photo_url|"
@@ -292,6 +295,9 @@ class MaskDictionary:
     #: P75: any reference to a product (its Juli UUID, a TikTok SKU id, a seller SKU,
     #: a raw title) -> its TikTok product id, so every page aliases it the same way.
     product_refs: dict[str, str] = field(default_factory=dict)
+    #: P86: brand words derived from the catalog's product titles (``brands.derive_from_titles``),
+    #: cached with the dictionary; the free-text pass scrubs them.
+    catalog_brands: tuple[str, ...] = ()
 
 
 class ReviewerMasker:
@@ -327,6 +333,10 @@ class ReviewerMasker:
         self._brand = (
             re.compile("|".join(re.escape(t) for t in terms), re.IGNORECASE) if terms else None
         )
+        #: P86: whole-word, diacritics-insensitive terms: the shop-name / operator words,
+        #: the catalog-derived brands, and (while walking) a payload's ``brand`` values.
+        self._brand_terms: set[str] = {*terms, *dictionary.catalog_brands}
+        self._brand_fold: re.Pattern[str] | None = None
 
     # -- collect -------------------------------------------------------------------
 
@@ -430,6 +440,14 @@ class ReviewerMasker:
             return
         self._replacements[text] = id_alias(kind, text)
 
+    def _add_brand(self, item: Any) -> None:
+        """P86: a payload's own ``brand`` / ``brand_name`` / ``brand.name`` value is a brand."""
+        if isinstance(item, dict):
+            item = item.get("name")
+        term = brands.usable(item if isinstance(item, str) else None)
+        if term is not None:
+            self._brand_terms.add(term)
+
     def _collect(self, value: Any) -> None:
         if isinstance(value, list):
             for item in value:
@@ -468,6 +486,8 @@ class ReviewerMasker:
                 self._add_title(entity_kind, item, self._identity(entity_kind, value))
             if name == "product_id" and isinstance(item, (str, int)):
                 self._add_id("product", item)
+            if name in _BRAND_KEYS:
+                self._add_brand(item)
             self._collect(item)
 
     def _collect_map(self, mapping: Mapping[Any, Any], kind: str, *, title: bool) -> None:
@@ -501,6 +521,7 @@ class ReviewerMasker:
             out = pattern.sub(lambda m: self._replacements[m.group(0)], out)
         if self._brand is not None:
             out = self._brand.sub(BRAND_REPLACEMENT, out)
+        out = brands.scrub(out, self._brand_fold, BRAND_REPLACEMENT)
         out = _mask_long_digits(out)
         return out
 
@@ -589,6 +610,7 @@ class ReviewerMasker:
         """The masked copy of ``payload`` (the input is not modified)."""
         self._collect(payload)
         pattern = self._compile()
+        self._brand_fold = brands.compile_terms(self._brand_terms)
         return self._transform(mask_pii(payload), pattern, None)
 
 

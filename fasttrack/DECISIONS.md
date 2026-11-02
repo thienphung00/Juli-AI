@@ -1788,3 +1788,9 @@ next number. Mark owner-unconfirmed ones as PROPOSED.
      while the adapter only logs `strict_schema_unconvertible` and sends that one schema
      non-strict. Under strict mode the model sends `null` for an optional field it leaves out;
      `ToolSpec.parse_input` treats that `null` as the field default.
+  - **D78.2 as built (P85, 2026-11-02).** The model reports codes through the runner's own
+    strict `report_status` tool (not a `text.format` final answer: that would constrain every
+    turn's text and arrive only after the seller's decision); Juli writes the line and emits it
+    as `workflow.status` with an optional `status_code`. Model text is kept in the conversation
+    for audit (Juli Ops) and never emitted; a stored `assistant.text` of an older model-driven
+    run renders nothing in the run panel.

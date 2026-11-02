@@ -4,7 +4,14 @@
   "event_type": "workflow.status",
   "timestamp": "2026-08-14T12:00:01Z",
   "payload": {
-    "phase_narration": "Đang xem lại nội dung sản phẩm..."
+    "phase_narration": "Juli đề xuất sửa mô tả. Lý do đề xuất: Mô tả quá ngắn. Tác động dự kiến: trang sản phẩm dễ đọc hơn.",
+    "status_code": {
+      "reason_codes": [
+        "DESC_LESS_THAN_FIVE_HUNDRED_CHARS"
+      ],
+      "plan_code": "description",
+      "impact_code": "easier_to_read"
+    }
   },
   "v": 1
 }

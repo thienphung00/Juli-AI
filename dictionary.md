@@ -1087,6 +1087,60 @@ turn done on real job completion. Kept here only so the key resolves until its l
 - Status: reviewed — mechanical gates (banned-pattern gate, dynamic-number tests) green, and the repo owner approved the Vietnamese register and tone on 2026-08-21, supplying the human voice review ADR-072/​#1071 requires for seller-facing copy. The reviewed wording renders "extension K of M" as the fraction `K/M` rather than translating the preposition, and carries no plural inflection because Vietnamese has none.
 - Definition: `workflow.status` `phase_narration` (ADR-074 d.2) for one iteration-cap extension grant (`services/agent/narration_copy.py::extension_grant_phase_narration`, issue #1140). The one narration the agent runner produces today; every bracketed number is sourced from `TerminationPolicy`, never a literal.
 
+**`agent.narration.coded_status.plan.title`**
+- EN: Juli proposes editing the title.
+- VI: Juli đề xuất sửa tiêu đề.
+- Status: draft — mechanical gates green (banned patterns, no Markdown or English, `tests/unit/test_p85_coded_narration.py`); register and tone await the owner's review.
+- Definition: Part of the run panel's coded status line (fast track P85, D78.2; `services/agent/runner/coded_status_copy.py`), a `workflow.status` `phase_narration` Juli writes from the codes the model reports through `report_status` -- never model text. `plan_code=title`.
+
+**`agent.narration.coded_status.plan.description`**
+- EN: Juli proposes editing the description.
+- VI: Juli đề xuất sửa mô tả.
+- Status: draft — mechanical gates green (banned patterns, no Markdown or English, `tests/unit/test_p85_coded_narration.py`); register and tone await the owner's review.
+- Definition: Part of the run panel's coded status line (fast track P85, D78.2; `services/agent/runner/coded_status_copy.py`), a `workflow.status` `phase_narration` Juli writes from the codes the model reports through `report_status` -- never model text. `plan_code=description`.
+
+**`agent.narration.coded_status.plan.title_and_description`**
+- EN: Juli proposes editing the title and the description.
+- VI: Juli đề xuất sửa tiêu đề và mô tả.
+- Status: draft — mechanical gates green (banned patterns, no Markdown or English, `tests/unit/test_p85_coded_narration.py`); register and tone await the owner's review.
+- Definition: Part of the run panel's coded status line (fast track P85, D78.2; `services/agent/runner/coded_status_copy.py`), a `workflow.status` `phase_narration` Juli writes from the codes the model reports through `report_status` -- never model text. `plan_code=title_and_description`.
+
+**`agent.narration.coded_status.plan.photos_needed`**
+- EN: The product needs more photos; Juli does not edit the title or description.
+- VI: Sản phẩm cần thêm ảnh; Juli không sửa tiêu đề hay mô tả.
+- Status: draft — mechanical gates green (banned patterns, no Markdown or English, `tests/unit/test_p85_coded_narration.py`); register and tone await the owner's review.
+- Definition: Part of the run panel's coded status line (fast track P85, D78.2; `services/agent/runner/coded_status_copy.py`), a `workflow.status` `phase_narration` Juli writes from the codes the model reports through `report_status` -- never model text. `plan_code=photos_needed`.
+
+**`agent.narration.coded_status.plan.nothing_to_change`**
+- EN: Juli sees nothing to change on the product page.
+- VI: Juli không thấy cần thay đổi gì ở trang sản phẩm.
+- Status: draft — mechanical gates green (banned patterns, no Markdown or English, `tests/unit/test_p85_coded_narration.py`); register and tone await the owner's review.
+- Definition: Part of the run panel's coded status line (fast track P85, D78.2; `services/agent/runner/coded_status_copy.py`), a `workflow.status` `phase_narration` Juli writes from the codes the model reports through `report_status` -- never model text. `plan_code=nothing_to_change`; no reasons and no impact follow it.
+
+**`agent.narration.coded_status.reasons`**
+- EN: Reasoning: [labels] (and [n] more).
+- VI: Lý do đề xuất: [nhãn] (và [n] điểm khác).
+- Status: draft — mechanical gates green (banned patterns, no Markdown or English, `tests/unit/test_p85_coded_narration.py`); register and tone await the owner's review.
+- Definition: Part of the run panel's coded status line (fast track P85, D78.2; `services/agent/runner/coded_status_copy.py`), a `workflow.status` `phase_narration` Juli writes from the codes the model reports through `report_status` -- never model text. The run's flagged diagnosis codes, as `diagnosis_labels.py` labels (at most three named, the rest counted); reuses `decisions.reasoning`.
+
+**`agent.narration.coded_status.impact.fixes_flagged_issues`**
+- EN: Estimated impact: fixes the points above.
+- VI: Tác động dự kiến: khắc phục các điểm đã nêu.
+- Status: draft — mechanical gates green (banned patterns, no Markdown or English, `tests/unit/test_p85_coded_narration.py`); register and tone await the owner's review.
+- Definition: Part of the run panel's coded status line (fast track P85, D78.2; `services/agent/runner/coded_status_copy.py`), a `workflow.status` `phase_narration` Juli writes from the codes the model reports through `report_status` -- never model text. `impact_code=fixes_flagged_issues`; reuses `decisions.estimated_impact`.
+
+**`agent.narration.coded_status.impact.easier_to_find`**
+- EN: Estimated impact: the product is easier to find.
+- VI: Tác động dự kiến: sản phẩm dễ được tìm thấy hơn.
+- Status: draft — mechanical gates green (banned patterns, no Markdown or English, `tests/unit/test_p85_coded_narration.py`); register and tone await the owner's review.
+- Definition: Part of the run panel's coded status line (fast track P85, D78.2; `services/agent/runner/coded_status_copy.py`), a `workflow.status` `phase_narration` Juli writes from the codes the model reports through `report_status` -- never model text. `impact_code=easier_to_find`.
+
+**`agent.narration.coded_status.impact.easier_to_read`**
+- EN: Estimated impact: the product page is easier to read.
+- VI: Tác động dự kiến: trang sản phẩm dễ đọc hơn.
+- Status: draft — mechanical gates green (banned patterns, no Markdown or English, `tests/unit/test_p85_coded_narration.py`); register and tone await the owner's review.
+- Definition: Part of the run panel's coded status line (fast track P85, D78.2; `services/agent/runner/coded_status_copy.py`), a `workflow.status` `phase_narration` Juli writes from the codes the model reports through `report_status` -- never model text. `impact_code=easier_to_read`.
+
 **`decisions.signed_in.acting_shop`**
 - EN: You are acting on: [shop name]
 - VI: Bạn đang thao tác trên: [tên shop]

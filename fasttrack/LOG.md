@@ -3511,3 +3511,85 @@ reconcile --write` re-derived the no-assert corpus figure.
 - Tests: `quyet-dinh-p10.test.tsx` (+1: waiting -> opened time, approved -> T2, declined -> T2,
   optimistic -> click time). Demo vitest 137 files / 1360 passed, `tsc --noEmit` clean,
   `test_agent_events_contract` + `test_ratchets` + `test_test_quality` 68 passed. No Python touched.
+
+## 2026-11-02 — agent (Claude Opus) — P85: coded run-panel narration (D78 step 2) + Optimize Product prompt v5
+
+- Live finding (sandbox runs d7b5d16c, 6a3dd6fd, 01-02/11, prompt v4): the run panel streamed
+  the model's own narration -- Markdown (`**`, `##`, numbered lists), English ("Next-steps",
+  "CONFIRM", "playbook"), "tool của mình", "luồng CONFIRM". D78.2: coded Juli line only.
+- Inventory of model free text reaching a seller/reviewer surface (before P85): (1) run panel
+  `assistant.text.delta` stream + committed `assistant.text` (`buildRunTimeline` narration,
+  typing caret) -- the only one; (2) runs list/detail `latest_narration` reads the latest
+  `workflow.status` (Juli copy, not model text); (3) decisions: `options[].rationale` is
+  `ToolSpec.seller_rationale_vi`, `tool.completed.summary` is `seller_facing_copy.py`, the
+  no-proposal reason is `no_proposal.py` (tool facts) -- none model text; the proposed
+  title/description is the listing draft itself (validated, not narration); (4) Đo lường /
+  notifications read no event text. Staff-only Juli Ops (`services/ops/runs.py`) showed
+  `assistant.text` as LLM output.
+- Design: the runner's own strict tool `report_status` (`runner/coded_status.py`), not a
+  `text.format` final answer -- a json_schema `text.format` constrains every output text of
+  every turn (the text beside a tool call too), arrives only when the model stops calling
+  tools (after the seller's decision: too late), and is not on the `LLMService` protocol; a
+  strict function call rides the proposal turn (parallel calls) and passes the D78.5 strict
+  gate. Codes: `reason_codes` (enum = `DIAGNOSIS_CODE_LABELS_VI` keys), `plan_code` (title /
+  description / title_and_description / photos_needed / nothing_to_change), `impact_code`
+  (fixes_flagged_issues / easier_to_find / easier_to_read / none). Not a playbook step, so
+  v1-v4 composed snapshots stay byte-identical; offered only to `CODED_STATUS_WORKFLOWS`
+  (Optimize Product). The runner answers it before the turn's other blocks (line precedes
+  the pause), emits no `tool.*` event, and emits one `workflow.status` whose
+  `phase_narration` Juli writes (`runner/coded_status_copy.py`, dictionary
+  `agent.narration.coded_status.*`, status draft) with the codes in the new optional
+  `status_code` (`CodedStatusPayload`; omitted from the JSON when absent, so every other
+  status line and old row keeps its one-field shape; TS contract mirrors it, optional).
+  Faithful: a reason shows only if this run's reads flagged it; the plan comes from the same
+  turn's proposal when there is one; numbers shown are Juli's (reason count), none from the
+  model. A forced (`tool_choice="required"`) turn spent on `report_status` alone stays forced.
+- `WorkflowRunner(coded_narration=True)` (worker: every real-model run, replacing
+  `stream_text=True`): no text relay, `TextBlock` / `FinalResponse` text appended to the
+  conversation (audit) but never emitted. Juli Ops falls back to the conversation's
+  assistant texts (`_audit_texts`) when a run has no `assistant.text` events.
+- Old runs' stored text: render nothing. `buildRunTimeline` drops `assistant.text` /
+  deltas for `listing` / `create` / `promotion` kinds (`MODEL_NARRATION_KINDS`); a stripped
+  Markdown answer would still be model prose. Scripted kinds (photo, manual, revert, content)
+  keep their `assistant.text` lines (Juli's own copy). Run panel: `timeline.codedStatus`
+  shown beside the decision (`data-testid="coded-status"`); while analysing the note already
+  shows the latest status line.
+- Prompt v5 (`prompts/optimize_product/v5.md`, v4 immutable): no prose for the seller (codes via
+  report_status, any text one plain sentence, no Markdown/English/tool names, Prohibition 2),
+  paragraph splitting taught (blank lines when DESC_NO_NEW_LINE / DESC_LESS_THAN_FIVE_HUNDRED_CHARS
+  flagged, never empty/merge sections), one replace_span per original span, `old` from
+  description_sections, reason codes from edit_codes, >= 500 characters of text when the
+  short-description code is flagged and >= now, title >= 40 with brand/number tokens, facts
+  only; worked example = the exact line Juli renders (tested). Mini-glossary dropped with
+  the prose it governed. `PRODUCTION_PROMPT_VERSION` -> 5. Composed 2228 proxy tokens (v4
+  2406, -178; headroom 772). The `report_status` definition adds ~549 proxy tokens per request
+  as a tool schema (outside the prompt gate, like every tool).
+- Tests: `test_p85_coded_narration.py` (75: live pattern through the real runner with
+  `LISTING_VALIDATOR_ENFORCE=1` -- 415-character split refused, >= 500 split paused, no
+  `assistant.text`/delta, one coded line before `approval_required`, prose kept for audit;
+  unflagged reason dropped + plan from proposal; malformed report answered; forced turn stays
+  forced; default runner unchanged; non-Optimize playbook gets no status tool; strict
+  schema; copy free of banned patterns/Markdown/English for every code combination),
+  `test_agent_prompt_optimize_product_v5_contract.py`, v5 snapshot/budget/compose/fences,
+  strict-schema gate + events contract (Python and TS, legacy no-code fixture), wiring,
+  golden scenarios re-pinned to v5's sha, demo `streamed-text.test.tsx` (P85 cases),
+  P61e end-to-end re-scripted (report_status) and green on a throwaway UTC Postgres.
+- Unverified: live gpt-5.4-nano behaviour -- whether it calls report_status in the proposal
+  turn, and whether it reaches 500 characters without inventing facts. No live call made.
+
+## 2026-11-02 — agent (Claude Opus) — P86: brand / product-name scrub of free text (reviewer, second layer)
+
+- What: structured-output plan step 7. Free model text on a masked pin (narration, card / AI
+  reasons, content drafts, `assistant.text`) is scrubbed of brand words behind the structural
+  mask: case-, diacritics-insensitive, whole-word, inside markup too, to `Thương hiệu`.
+- Brands: shop-name words, `REVIEWER_MASK_TERMS`, a payload's own `brand` / `brand_name` /
+  `brand.name`, and words derived from the product titles `catalog._read_dictionary` already
+  reads (`services/reviewer/brands.py`: capitalised, 3+ letters, in 2+ distinct titles, never
+  lower-case in a title, not generic). No new query; stored in `MaskDictionary.catalog_brands`
+  and cached with the dictionary.
+- Guards: `GENERIC_WORDS` (Vietnamese / English product words, materials, colours, units) are
+  never derived and never taken from a payload `brand`; the replacement label's own words and the
+  alias words are in the list, so the mask stays idempotent. A single-title brand is not derived
+  (the title itself is aliased structurally); the operator adds it to `REVIEWER_MASK_TERMS`.
+- Seller surfaces and TikTok writes: untouched (the mask runs only for reviewer sessions).
+- Tests: `tests/unit/test_p86_reviewer_brand_scrub.py`.
