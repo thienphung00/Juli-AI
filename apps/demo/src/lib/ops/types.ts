@@ -736,6 +736,8 @@ export interface ExecutionCreate {
   readonly executed_at: string;
   readonly executor_role: ExecutorRole;
   readonly evidence_ref: string | null;
+}
+
 /** ADR-117 step 4: the Shopee dashboards (`/v1/ops/shops/{id}/shopee/*`), measured data only. */
 export type ShopeeOrderType = "placed" | "paid" | "confirmed";
 

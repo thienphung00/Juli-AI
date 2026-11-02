@@ -44,6 +44,17 @@ import type {
  */
 export const OPS_API = "/v1/ops" as const;
 
+/** FastAPI `detail` is a string or `{code, message}`; never "[object Object]". */
+export function detailText(detail: unknown): string {
+  if (typeof detail === "object" && detail !== null) {
+    const { code, message } = detail as { code?: unknown; message?: unknown };
+    if (typeof message === "string") return message;
+    if (typeof code === "string") return code;
+    return JSON.stringify(detail);
+  }
+  return String(detail);
+}
+
 export class OpsApiError extends Error {
   constructor(
     public readonly status: number,
@@ -91,7 +102,7 @@ export async function opsRequest<T>(
   if (!response.ok) {
     const detail =
       typeof payload === "object" && payload !== null && "detail" in payload
-        ? String((payload as { detail: unknown }).detail)
+        ? detailText((payload as { detail: unknown }).detail)
         : response.statusText;
     throw new OpsApiError(response.status, detail);
   }
