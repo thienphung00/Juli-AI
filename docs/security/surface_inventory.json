@@ -465,6 +465,14 @@
       "tenant_scoped": false
     },
     {
+      "path": "/v1/ops/contract-shops",
+      "methods": [
+        "POST"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
       "path": "/v1/ops/costs",
       "methods": [
         "GET"
@@ -516,6 +524,22 @@
       "path": "/v1/ops/runtime-env",
       "methods": [
         "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/consent",
+      "methods": [
+        "GET"
+      ],
+      "requires_auth": true,
+      "tenant_scoped": false
+    },
+    {
+      "path": "/v1/ops/shops/{shop_id}/consent",
+      "methods": [
+        "POST"
       ],
       "requires_auth": true,
       "tenant_scoped": false

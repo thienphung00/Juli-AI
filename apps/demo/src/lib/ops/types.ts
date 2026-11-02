@@ -627,3 +627,18 @@ export interface TrialSignupsPage {
   readonly counts: Readonly<Record<TrialSignupStatus, number>>;
   readonly statuses: readonly { readonly value: TrialSignupStatus; readonly label: string }[];
 }
+
+/** Contract-client shops (ADR-118): the Terms scopes' open grants, and whether Ops may press "Bật". */
+export interface ShopConsent {
+  readonly scopes: Readonly<Record<string, boolean>>;
+  readonly enabled: boolean;
+  readonly contract_client: boolean;
+  readonly granted?: readonly string[];
+}
+
+export interface ContractShop {
+  readonly id: string;
+  readonly shop_name: string;
+  readonly platform: string;
+  readonly shopee_shop_id: string | null;
+}

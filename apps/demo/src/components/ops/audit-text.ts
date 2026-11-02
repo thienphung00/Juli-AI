@@ -83,6 +83,10 @@ export function auditWhat(entry: AuditEntry): string {
       return after.target === "simulation"
         ? `Làm mới số liệu Mô phỏng${num(after.window) ? ` (${num(after.window)} ngày)` : ""}`
         : "Làm mới số liệu Tổng quan";
+    case "contract_shop_create":
+      return `Thêm shop hợp đồng ${String(after.shop_name ?? "")}`;
+    case "consent_enable":
+      return "Bật đồng ý xử lý dữ liệu";
     case "shop_disconnect":
       return `Huỷ kết nối · lý do: ${String(after.reason ?? "")}`;
     case "invite_create":

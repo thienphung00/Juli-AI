@@ -4,6 +4,7 @@ import type {
   AuditKind,
   CardGroupCreate,
   CardGroupsPage,
+  ContractShop,
   CostsPage,
   Deltas,
   DisconnectResult,
@@ -11,6 +12,7 @@ import type {
   OpsMe,
   Overview,
   Scenario,
+  ShopConsent,
   ShopSettings,
   ShopSettingsPage,
   ShopTermsPage,
@@ -173,6 +175,18 @@ export const opsApi = {
   /** P33-F: set a sign-up's status (audited `trial_signup_status`). */
   setTrialSignupStatus: (id: string, status: TrialSignupStatus, o?: OpsRequestOptions) =>
     opsRequest<{ data: TrialSignup }>(`/trial-signups/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } }, o),
+  /** ADR-118 "Thêm shop hợp đồng" (Vận hành / Admin): a Shopee shop with no seller login. */
+  createContractShop: (shopName: string, shopeeShopId: string | null, o?: OpsRequestOptions) =>
+    opsRequest<{ shop: ContractShop }>(
+      "/contract-shops",
+      { method: "POST", body: { shop_name: shopName, shopee_shop_id: shopeeShopId } },
+      o,
+    ),
+  /** ADR-118: the shop's data-use consent; `contract_client` decides whether "Bật" shows. */
+  consent: (shopId: string, o?: OpsRequestOptions) => opsRequest<ShopConsent>(`${shopPath(shopId)}/consent`, {}, o),
+  /** ADR-118 "Bật" (Vận hành / Admin): no fields; audited `consent_enable`. */
+  enableConsent: (shopId: string, o?: OpsRequestOptions) =>
+    opsRequest<ShopConsent>(`${shopPath(shopId)}/consent`, { method: "POST" }, o),
 };
 
 export type OpsApi = typeof opsApi;

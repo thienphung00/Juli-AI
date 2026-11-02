@@ -7,6 +7,7 @@ import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { readCurrentShop, writeCurrentShop } from "../../lib/ops/current-shop";
 import { fmtGmvShort, fmtRate, fmtUsd, fmtWhen } from "../../lib/ops/format";
 import type { OpsMe, Overview, OverviewShop, Permissions, StageId } from "../../lib/ops/types";
+import { OpsAddContractShop } from "./ops-contract-shop";
 import { FreshnessLine } from "./ops-freshness";
 import { C, OpsHeader, OpsPage, STAGE_STYLE } from "./ops-shell";
 import { OpsSkeleton } from "./ops-skeleton";
@@ -117,6 +118,7 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>Gian hàng đã kết nối</h1>
           <FreshnessLine canRefresh={canRefresh} data={data} error={refreshError} onRefresh={() => void refresh()} refreshing={refreshing} />
         </div>
+        {me.role !== "viewer" ? <OpsAddContractShop onCreated={() => setEpoch((n) => n + 1)} /> : null}
         {failed ? <p role="alert">Không tải được tổng quan.</p> : null}
         {!data && !failed ? <OpsSkeleton rows={6} /> : null}
         {data ? (
