@@ -7,6 +7,7 @@ import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
 import { ACTION_NAMES, DIAG_KEYS, QUOTA_KEYS, SHRINKAGE_NAMES, STREAM_NAMES, TRIGGER_NAMES, changeRows, draftRows, draftSummary, fmtSetting, SETTING_KEYS, STAGE_NAMES } from "../../lib/ops/setting-changes";
 import type { DiagKey, OpsMe, OverrideKey, ShopSettingsPage, StageId } from "../../lib/ops/types";
+import { PLATFORM_LABEL, platformOf } from "../../lib/shop-platform";
 import { auditWhat, auditWhen, auditWho } from "./audit-text";
 import { ConfirmDialog, DraftBar, Toast } from "./ops-confirm";
 import { OpsCardGroups } from "./ops-card-groups";
@@ -212,6 +213,8 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
   const streams = (eff("enabled_streams") as string[]) ?? [];
   const actions = (eff("enabled_actions") as string[]) ?? [];
   const content = eff("content_cards_enabled") as boolean;
+  // Migration 110: a Shopee shop has no TikTok promotions API; its copy names Shopee.
+  const platform = platformOf(page.shop.platform);
   const capShown = eff("openai_monthly_cap_usd") as number | null;
   const anyOverride = SETTING_KEYS.some((k) => s.overrides[k] !== null && s.overrides[k] !== undefined);
   const pendingInvite = page.invites.find((i) => !i.accepted_at && !i.revoked_at);
@@ -299,6 +302,9 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
             </Link>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{shopName} · Cài đặt shop</h1>
             <span style={{ fontSize: 12, fontWeight: 600, borderRadius: 999, padding: "3px 10px", ...STAGE_STYLE[s.stage] }}>{s.stage_label}</span>
+            <span data-testid="ops-shop-platform" style={{ fontSize: 12, fontWeight: 600, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 999, padding: "2px 10px" }}>
+              {PLATFORM_LABEL[platform]}
+            </span>
             <Link href={`/ops/shops/${shopId}/xem`} style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, textDecoration: "none", color: C.pink }}>
               Xem như shop ›
             </Link>
@@ -405,16 +411,18 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
             >
               <Toggle label="Thẻ nội dung" on={content} onChange={(v) => change({ content_cards_enabled: v })} />
             </SettingRow>
-            <SettingRow
-              disabled={!canEdit}
-              help="Juli tự tạo khuyến mãi sau khi seller đồng ý"
-              onDefault={() => change({ promotion_api_enabled: null })}
-              overridden={isSet("promotion_api_enabled")}
-              summary={eff("promotion_api_enabled") ? "Bật" : "Tắt"}
-              title="API khuyến mãi"
-            >
-              <Toggle label="API khuyến mãi" on={Boolean(eff("promotion_api_enabled"))} onChange={(v) => change({ promotion_api_enabled: v })} />
-            </SettingRow>
+            {platform === "tiktok" ? (
+              <SettingRow
+                disabled={!canEdit}
+                help="Juli tự tạo khuyến mãi sau khi seller đồng ý"
+                onDefault={() => change({ promotion_api_enabled: null })}
+                overridden={isSet("promotion_api_enabled")}
+                summary={eff("promotion_api_enabled") ? "Bật" : "Tắt"}
+                title="API khuyến mãi"
+              >
+                <Toggle label="API khuyến mãi" on={Boolean(eff("promotion_api_enabled"))} onChange={(v) => change({ promotion_api_enabled: v })} />
+              </SettingRow>
+            ) : null}
             <SettingRow
               disabled={!canEdit}
               help="Vòng gọi tool và soạn nội dung"
@@ -451,8 +459,8 @@ export function OpsShopSettings({ me, shopId, api = opsApi }: { readonly me: Ops
           {QUOTA_KEYS.some((k) => s.defaults[k] !== undefined) ? (
             <QuotaSection canEdit={canEdit} cells={page.card_cells ?? null} change={change} eff={eff} epoch={epoch} isSet={isSet} onEpoch={() => setEpoch((e) => e + 1)} />
           ) : null}
-          <OpsCardGroups canEdit={canEdit} create={api.createGroup} load={api.groups} setReason={api.setGroupReason} shopId={shopId} />
-          <OpsRules canEdit={canEdit} shopName={shopName} shopId={shopId} />
+          <OpsCardGroups canEdit={canEdit} create={api.createGroup} load={api.groups} platform={platform} setReason={api.setGroupReason} shopId={shopId} />
+          <OpsRules canEdit={canEdit} platform={platform} shopName={shopName} shopId={shopId} />
         </section>
         <aside style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={card}>

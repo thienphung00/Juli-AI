@@ -7,6 +7,7 @@ import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { readCurrentShop, writeCurrentShop } from "../../lib/ops/current-shop";
 import { fmtGmvShort, fmtRate, fmtUsd, fmtWhen } from "../../lib/ops/format";
 import type { OpsMe, Overview, OverviewShop, Permissions, StageId } from "../../lib/ops/types";
+import { PLATFORM_LABEL, platformOf } from "../../lib/shop-platform";
 import { OpsAddContractShop } from "./ops-contract-shop";
 import { FreshnessLine } from "./ops-freshness";
 import { C, OpsHeader, OpsPage, STAGE_STYLE } from "./ops-shell";
@@ -216,6 +217,9 @@ export function OpsOverview({ me, api = opsApi }: { readonly me: OpsMe; readonly
                         >
                           {s.shop_name}
                         </button>
+                        <span data-testid="ops-shop-platform" style={{ fontSize: 11, fontWeight: 600, color: C.muted, border: `1px solid ${C.line}`, borderRadius: 999, padding: "1px 8px" }}>
+                          {PLATFORM_LABEL[platformOf(s.platform)]}
+                        </span>
                         <span style={{ fontSize: 12, color: C.muted2 }}>
                           {ownerLine(s)}
                           {chosen ? <b style={{ color: C.pink }}> · đang chọn</b> : null}

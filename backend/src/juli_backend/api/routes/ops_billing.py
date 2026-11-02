@@ -121,6 +121,7 @@ async def costs_body(session: AsyncSession) -> dict[str, Any]:
             {
                 "shop_id": str(listing.shop_id),
                 "shop_name": listing.shop_name,
+                "platform": listing.platform,
                 "stage": stage,
                 "stage_label": STAGE_LABELS.get(stage, stage),
                 "used_usd": float(spent),
@@ -223,6 +224,7 @@ def _term_row(
     return {
         "shop_id": str(listing.shop_id),
         "shop_name": listing.shop_name,
+        "platform": listing.platform,
         "stage": stage,
         "stage_label": STAGE_LABELS.get(stage, stage),
         **term.to_json(),

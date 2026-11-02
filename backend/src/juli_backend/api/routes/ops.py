@@ -392,6 +392,7 @@ def _shop_json(listing: ShopListing) -> dict[str, Any]:
     return {
         "shop_id": str(listing.shop_id),
         "shop_name": listing.shop_name,
+        "platform": listing.platform,
         "owner_email": listing.owner_email,
         "owned_by_team": (listing.owner_email or "").lower().endswith("@app-juli.com"),
         "staff_access_consent_at": listing.owner_consent_at.isoformat()
