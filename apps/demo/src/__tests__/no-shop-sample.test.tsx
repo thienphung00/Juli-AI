@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "../app/page";
@@ -108,7 +108,10 @@ describe("signed in, no TikTok Shop → the sample under the connect strip", () 
 
     await expectStrip();
     expect(await screen.findByTestId("mock-data-notice")).toHaveTextContent(SAMPLE_SHOP.name);
-    expect(document.querySelector('[data-decision-id="sample-sm-012"]')).not.toBeNull();
+    // The cards render after the notice; under load that is a later tick (CI flake 2026-11-03).
+    await waitFor(() =>
+      expect(document.querySelector('[data-decision-id="sample-sm-012"]')).not.toBeNull(),
+    );
     expect(screen.queryByText(/Bạn chưa chọn shop/)).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
