@@ -102,7 +102,9 @@ def test_migration_112_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # P90 step 2's 113 went on 112 and took the deferred tail.
     later = LATER_MIGRATION.read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "113_shopee_orders_and_logs"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "114_card_verification_events"' in BACKFILL.read_text(
+        "utf-8"
+    )
 
 
 def test_the_additive_gate_accepts_migration_112():
@@ -142,7 +144,8 @@ def test_migration_vocabularies_match_the_models():
     assert mig.AD_PURPOSES == models.AD_PURPOSES
     assert mig.SET_BY == models.SET_BY
     assert mig.SEED_ROLES == seed_models.ROLES
-    assert mig.EVENT_TYPES == card_models.EVENT_TYPES
+    # 114 (P90 assisted execution) appended verified / mismatch / not_seen to the model.
+    assert mig.EVENT_TYPES == card_models.EVENT_TYPES[: len(mig.EVENT_TYPES)]
     assert mig.EVENT_TYPES[-1] == "whatif_adjusted"
 
 

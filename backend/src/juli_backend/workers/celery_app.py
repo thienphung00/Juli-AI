@@ -220,6 +220,13 @@ celery_app.conf.update(
             "task": "juli_backend.shopee_kpi_daily",
             "schedule": crontab(hour=18, minute=29),
         },
+        # P90 assisted execution: compare the Connector's readings with each executed card
+        # change (verified / mismatch / not_seen after 48 h). Four times a day so a saved change
+        # is verified within hours; minute 17 at 01/07/13/19 UTC is free. Default queue.
+        "card-change-verification": {
+            "task": "juli_backend.card_change_verification",
+            "schedule": crontab(hour="1,7,13,19", minute=17),
+        },
     },
 )
 

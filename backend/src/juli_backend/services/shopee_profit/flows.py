@@ -6,7 +6,7 @@ product x Shopee source (item x source export / connector): views, clicks, order
 Shopee's own "The san pham" total includes its child "Cua hang" (Trang shop), so the rows use
 :class:`FlowSource` and :func:`build_flow_tables` splits them::
 
-    the_san_pham = THE_SAN_PHAM_TOTAL - TRANG_SHOP        (views, clicks, orders, GMV)
+    the_san_pham_khac = THE_SAN_PHAM_TOTAL - TRANG_SHOP       (views, clicks, orders, GMV)
     trang_shop   = TRANG_SHOP
     live, video, lien_ket                                  (L1 sources as reported)
 
@@ -51,7 +51,9 @@ class FlowSource(StrEnum):
 
 
 class Flow(StrEnum):
-    THE_SAN_PHAM = "the_san_pham"  # outside Trang shop
+    #: D-4 (2026-11-03): not ``the_san_pham``, which shopee_kpi keeps for Thẻ sản phẩm INCLUDING
+    #: Trang shop (``FLOW_SOURCES``). The two keys never mean the same thing.
+    THE_SAN_PHAM_KHAC = "the_san_pham_khac"  # outside Trang shop
     TRANG_SHOP = "trang_shop"
     LIVE = "live"
     VIDEO = "video"
@@ -61,7 +63,7 @@ class Flow(StrEnum):
 RESIDUAL_KEY = "chenh_lech_nguon"
 FLOW_ORDER: tuple[Flow, ...] = tuple(Flow)
 FLOW_LABELS: dict[str, str] = {
-    Flow.THE_SAN_PHAM: "Thẻ sản phẩm (ngoài Trang shop)",
+    Flow.THE_SAN_PHAM_KHAC: "Thẻ sản phẩm (ngoài Trang shop)",
     Flow.TRANG_SHOP: "Trang shop",
     Flow.LIVE: "Live",
     Flow.VIDEO: "Video",
@@ -217,7 +219,7 @@ def _split_product(rows: Iterable[FlowRow]) -> dict[Flow, _Acc]:
     ):
         raise FlowError("Trang shop (child) exceeds Thẻ sản phẩm (total)")
     return {
-        Flow.THE_SAN_PHAM: _Acc(
+        Flow.THE_SAN_PHAM_KHAC: _Acc(
             _minus(total.views, child.views),
             _minus(total.clicks, child.clicks),
             total.orders - child.orders,

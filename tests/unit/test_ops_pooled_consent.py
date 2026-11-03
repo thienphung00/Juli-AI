@@ -85,7 +85,9 @@ def test_migration_107_fits_alembic_and_the_deferred_tail_moved_onto_it():
     # ADR-117 put `108_shopee_ops_data` on 107; the deferred tail is now on 109 (ADR-118).
     later = (MIGRATIONS / "versions/108_shopee_ops_data.py").read_text("utf-8")
     assert f'down_revision: str | None = "{mig.revision}"' in later
-    assert 'down_revision: str | None = "113_shopee_orders_and_logs"' in BACKFILL.read_text("utf-8")
+    assert 'down_revision: str | None = "114_card_verification_events"' in BACKFILL.read_text(
+        "utf-8"
+    )
     assert mig.POOLED_SCOPE == POOLED_TRAINING and POOLED_TRAINING in SCOPES
     assert mig.FUNCTION == _module(MIGRATION_093, "mig093").FUNCTION
 

@@ -59,6 +59,13 @@ EVENT_SHADOW = "shadow"
 EVENT_SUPERSEDED = "superseded"
 #: ADR-120 (migration 112): the seller moved a what-if input on a card. Many per card.
 EVENT_WHATIF_ADJUSTED = "whatif_adjusted"
+#: P90 assisted execution (migration 114): the Connector's read-back of an executed change.
+#: ``verified`` = the new value was seen; ``mismatch`` = something else was seen by the
+#: deadline; ``not_seen`` = nothing was seen by the deadline. Many per card (one set per
+#: execution; the ``dedup_key`` carries the execution).
+EVENT_VERIFIED = "verified"
+EVENT_MISMATCH = "mismatch"
+EVENT_NOT_SEEN = "not_seen"
 
 #: ADR-107 amendment §1, in the table's order.
 EVENT_TYPES: tuple[str, ...] = (
@@ -78,6 +85,9 @@ EVENT_TYPES: tuple[str, ...] = (
     EVENT_SHADOW,
     EVENT_SUPERSEDED,
     EVENT_WHATIF_ADJUSTED,
+    EVENT_VERIFIED,
+    EVENT_MISMATCH,
+    EVENT_NOT_SEEN,
 )
 
 #: Once per card, whatever the run: unique on (card_id, event_type).

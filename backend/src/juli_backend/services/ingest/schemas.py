@@ -747,6 +747,52 @@ class ShopeeVoucherSettingRow(PeriodRowBase):
         return (self.voucher_id,)
 
 
+#: ``item_traffic_sources`` (the Connector's per-product ``traffic/details`` read): the level-1
+#: stream and the level-2 source of one row. ``total`` is the L1 total (``segment = 'all'``).
+#: A level-2 label may come with or without Seller Centre's ``psd_label_`` prefix.
+ITEM_TRAFFIC_L1: tuple[str, ...] = ("product_card", "live", "video", "affiliate")
+ITEM_TRAFFIC_L2: dict[str, str] = {
+    "total": "all",
+    "search": "search",
+    "recommendation": "recommend",
+    "my_purchase": "my_orders",
+    "shopping_cart": "cart",
+    "shop": "shop_page",
+    "promotion": "promo",
+    "others": "other",
+}
+
+
+class ShopeeItemTrafficSourceRow(RowBase):
+    """``shopee.item_traffic_sources``: one finished day x one item x L1 stream x L2 source, from
+    ``/api/mydata/v1/product/traffic/details/`` (one call per item and day, confirmed orders).
+    Numbers only: the ratios and ``pct_diff`` of the response are dropped by the sender. An L2
+    row is a breakdown of its L1 ``total`` row and is never added to it."""
+
+    item_id: ItemId
+    l1: Literal["product_card", "live", "video", "affiliate"]
+    l2: str
+    sales: Money | None = None
+    orders: Count | None = None
+    units: Count | None = None
+    buyers: Count | None = None
+    product_impressions: Count | None = None
+    unique_product_impressions: Count | None = None
+    product_clicks: Count | None = None
+    unique_product_clicks: Count | None = None
+
+    @field_validator("l2")
+    @classmethod
+    def _known_l2(cls, value: str) -> str:
+        name = value.removeprefix("psd_label_")
+        if name not in ITEM_TRAFFIC_L2:
+            raise ValueError("unknown l2 source")
+        return name
+
+    def key(self) -> tuple[Any, ...]:
+        return (self.date, self.item_id, self.l1, self.l2)
+
+
 class Period(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
