@@ -310,6 +310,9 @@ async def read_cards(
             report.skip("no_series")
             continue
         excluded = await executed_days_other(session, shop_id, p.id, first, last)
+        stacked = await stacked_with_other(
+            session, shop_id, p.id, items, t, t + timedelta(days=plan_days)
+        )
         reading = impact.read_effect(
             series_of(treated_days, metric, first, last),
             controls,
@@ -336,7 +339,7 @@ async def read_cards(
                 "se_rel": reading.se_rel,
                 "controls": list(reading.controls),
                 "clock": how,
-                "bundle": bool(card.get("bundle")),
+                "bundle": bool(card.get("bundle")) or stacked,
             },
         )
         if reading.impact_pct is None or reading.confidence == "suppressed":
@@ -352,7 +355,7 @@ async def read_cards(
                 reading.impact_pct,
                 reading.se_rel,
                 "card",
-                bool(card.get("bundle")),
+                bool(card.get("bundle")) or stacked,
                 str(p.id),
                 not reading.fallback,
             )
@@ -390,6 +393,33 @@ async def executed_days_other(
     return learning.executed_change_days(
         [(r.occurred_at.replace(tzinfo=None), 1) for r in rows], first, last
     )
+
+
+async def stacked_with_other(
+    session: AsyncSession,
+    shop_id: uuid.UUID,
+    card_id: uuid.UUID,
+    items: list[str],
+    start: date,
+    end: date,
+) -> bool:
+    """Another executed card changed one of these products inside [start - plan, end]: the two
+    are one bundle to measure (ADR-121 d.4), neither belongs to a per-kind calibration."""
+    if not items:
+        return False
+    for p, _ in await store.list_cards(session, shop_id, statuses=[STATUS_EXECUTED]):
+        if p.id == card_id:
+            continue
+        meta = await store.card_meta(session, shop_id, p.id)
+        if not set(items) & set(meta.get("locked_items", [])):
+            continue
+        when = meta.get("executed_at")
+        if when is None:
+            continue
+        day = datetime.fromisoformat(when).date()
+        if start - timedelta(days=int(meta.get("plan_days") or 14)) <= day <= end:
+            return True
+    return False
 
 
 async def run_learning(

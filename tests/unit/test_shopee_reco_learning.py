@@ -234,7 +234,7 @@ async def test_stacked_cards_are_read_but_excluded_from_per_kind_calibration(ses
     cid, card = await _executed_card(session, sid, user)
     # the bundle flag is read from the frozen payload: a mega card is simulated by saving a
     # second, bundle-flagged card
-    card2 = dict(card, bundle=True)
+    card2 = dict(card, bundle=True, scope={**card["scope"], "product_ids": ["1002"]})
     cid2 = await store.save_card(
         session, sid, card2, cycle="2026-10", position=2, now=datetime(2026, 9, 28)
     )
@@ -479,3 +479,19 @@ async def test_the_backfill_of_a_shop_with_no_history_reports_zeros(session):
     await session.commit()
     report = await reco.apply_backfill(session, sid, now=NOW)
     assert report.json() == {}
+
+
+async def test_two_changes_on_one_product_in_one_window_are_one_bundle(session):
+    user, shop, sid = await _series_shop(session, uplift=UPLIFT)
+    first, _ = await _executed_card(session, sid, user)
+    second, _ = await _executed_card(session, sid, user)  # the same product, the same days
+    report = await reco.run_learning(session, sid, now=NOW)
+    await session.commit()
+    st = (await store.load_calibrations(session, sid))[("flash_sale", "orders")]
+    assert report.readings == 2 and st.n_results == 0 and st.n_bundle_excluded == 2
+    events = (
+        await session.scalars(select(CardEvent).where(CardEvent.event_type == "impact_final"))
+    ).all()
+    assert {e.card_id for e in events} == {first, second} and all(
+        e.payload["bundle"] for e in events
+    )
