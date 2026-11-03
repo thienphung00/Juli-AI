@@ -51,3 +51,8 @@ def impact(event_type: str, run_id: uuid.UUID) -> str:
 def seller_change(external_change_id: uuid.UUID) -> str:
     """One ``seller_change`` per ``external_changes`` row (amendment §8)."""
     return f"seller_change:{external_change_id}"
+
+
+def verification(execution_ref: str, event_type: str) -> str:
+    """One ``verified`` / ``mismatch`` / ``not_seen`` per execution of a card's change."""
+    return f"{event_type}:{execution_ref}"

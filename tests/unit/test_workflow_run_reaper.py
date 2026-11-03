@@ -26,7 +26,7 @@ AC -> test map:
   test_reaped_run_has_both_the_event_row_and_the_status_update
 - beat schedule, every 5 minutes, existing entries unaffected ->
   test_reaper_beat_entry_runs_every_five_minutes,
-  test_beat_schedule_has_exactly_the_eight_expected_entries,
+  test_beat_schedule_has_exactly_the_expected_entries,
   test_reaper_task_is_registered_on_the_worker
 - termination values are READ off TerminationPolicy, never a copied literal
   (this phase's architect lock) ->
@@ -812,7 +812,7 @@ def test_reaper_beat_entry_runs_every_five_minutes():
     assert entry["schedule"] == crontab(minute="*/5")
 
 
-def test_beat_schedule_has_exactly_the_eight_expected_entries():
+def test_beat_schedule_has_exactly_the_expected_entries():
     """#1232, ADR-081 decision 1 row 1: `credential-refresh-beat` joined this
     set as the fleet's first credential refresh schedule. #1949 (ONB-DATA)
     adds `fujiwa-poll-cycle` alongside it, as the fleet's first scheduled
@@ -833,6 +833,8 @@ def test_beat_schedule_has_exactly_the_eight_expected_entries():
         "content-analysis-sweep",
         # Fast track P17 (D25.12): nightly history extension to 180 days.
         "shop-history-extend",
+        # P90 assisted execution: read-back verification of executed card changes.
+        "card-change-verification",
         # Fast track P18 (D27.4): nightly Ops audit retention.
         "ops-audit-retention",
         # Fast track P20 (D28.3): hourly system OpenAI limit 80 % e-mail check.

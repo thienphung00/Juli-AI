@@ -16,7 +16,7 @@ no clock; `Decimal` VND; frozen dataclasses.
   `profit_lines(...)` -> `ProfitBreakdown` (`contribution` = before ads; `profit` = after the
   DISPLAY line-level ad split). `profit_lines` takes whole orders (splits fixed fees).
 - `flows`: `build_flow_tables(rows, shop_gmv=, shop_orders=, product_totals=, ads=)` ->
-  `FlowTables(shop, products)`; five flows (`the_san_pham` = Thẻ sản phẩm - Trang shop,
+  `FlowTables(shop, products)`; five flows (`the_san_pham_khac` = Thẻ sản phẩm - Trang shop, D-4; `shopee_kpi` keeps `the_san_pham` = incl. Trang shop,
   `trang_shop`, `live`, `video`, `lien_ket`) + `chenh_lech_nguon` residual row; CTR / CTOR /
   AOV, exact identity `gmv_by_identity()`, ads as an overlay (`FlowMetrics.ads`).
 - `sources`: `build_source_matrix(...)`, `assert_additive(...)` -- price lever only

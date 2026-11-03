@@ -179,3 +179,56 @@ async def test_the_snapshot_and_health_readers_posts_are_accepted_by_the_gateway
         now=READ_AT,
     )
     assert result.rows > 0 and result.duplicate is False
+
+
+async def test_item_traffic_sources_post_lands_on_streams_and_segments(session):
+    """The pinned Connector body (one item, one day, confirmed) → stream / segment frame."""
+    _, shop = await make_tenant(session, platform="shopee", tiktok_shop_id=None)
+    await grant_service_consent(session, shop.id)
+    body = _body("item_traffic_sources.body.json")
+    result = await svc.ingest(
+        session,
+        shop_id=shop.id,
+        platform="shopee",
+        dataset="item_traffic_sources",
+        body=body,
+        token_id=None,
+        now=datetime(2026, 11, 4, 3, 0),
+    )
+    assert result.rows == len(body.rows)
+    stored = (
+        (
+            await session.execute(
+                select(PlatformDailyMetric).where(PlatformDailyMetric.shop_id == shop.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(stored) == len(body.rows)
+    segments = {m.segment for m in stored}
+    assert segments <= {
+        "all",
+        "search",
+        "recommend",
+        "my_orders",
+        "cart",
+        "shop_page",
+        "promo",
+        "other",
+    }
+    assert {m.stream for m in stored} <= {
+        "product_card",
+        "seller_live",
+        "seller_video",
+        "affiliate",
+    }
+    assert all(m.order_type == "confirmed" and m.item_id == "1001" for m in stored)
+    total = next(m for m in stored if m.stream == "product_card" and m.segment == "all")
+    assert (total.gmv, total.orders, total.impressions, total.clicks) == (
+        Decimal("1000000"),
+        Decimal("20"),
+        Decimal("1000"),
+        Decimal("100"),
+    )
+    assert total.extra["unique_product_clicks"] == 90
