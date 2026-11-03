@@ -777,3 +777,64 @@ async def test_a_mega_sale_is_edited_approved_and_executed_as_one_card(session, 
     assert all(e.payload["bundle"] is True for e in events)
     voucher = next(e for e in events if e.payload["change"]["change_kind"] == "voucher")
     assert voucher.payload["change"]["target"] == {"voucher_id": "9100"}
+
+
+# ---------------------------------------------- Quyết định UI fields (step 9c)
+
+
+async def test_the_approved_sheet_is_stored_at_approval_and_returned_in_the_detail(
+    session, shop, seller
+):
+    seeded, _, ids = shop
+    await _publish(session, seeded)
+    plain = await seller.post(f"{DEMO}/{ids[0]}/approve", json={})
+    assert plain.status_code == 200
+    detail = (await seller.get(f"{DEMO}/{ids[0]}")).json()
+    frozen = await store.card_payload(session, seeded.shop_id, ids[0])
+    assert detail["approved_with"]["inputs"] == {"discount_pct": 15}
+    assert detail["approved_with"]["execution_sheet"] == frozen["execution_sheet"]
+    # adjusted inputs: the stored sheet is the one for THOSE inputs, and "Đã làm" follows it
+    moved = await seller.post(f"{DEMO}/{ids[3]}/approve", json={"inputs": {"tier2_pct": 3}})
+    assert moved.status_code == 200, moved.text
+    detail2 = (await seller.get(f"{DEMO}/{ids[3]}")).json()
+    assert detail2["approved_with"]["inputs"]["tier2_pct"] == 3
+    steps = detail2["approved_with"]["execution_sheet"]["steps"]
+    assert (
+        steps
+        != (await store.card_payload(session, seeded.shop_id, ids[3]))["execution_sheet"]["steps"]
+    )
+    done = await seller.post(f"{DEMO}/{ids[3]}/executed", json={})
+    assert done.status_code == 201
+
+
+async def test_the_seller_list_carries_explore_and_the_read_back_state(session, shop, seller):
+    seeded, _, ids = shop
+    await store.set_meta(session, seeded.shop_id, ids[0], {})
+    frozen = await session.scalar(
+        select(CardEvent).where(CardEvent.card_id == ids[1], CardEvent.event_type == "proposed")
+    )
+    frozen.payload = {**frozen.payload, "rank": {**frozen.payload["rank"], "explore": True}}
+    await session.commit()
+    await _publish(session, seeded)
+    await seller.post(f"{DEMO}/{ids[0]}/approve", json={})
+    listing = {c["id"]: c for c in (await seller.get(DEMO)).json()["cards"]}
+    assert listing[str(ids[1])]["rank"]["explore"] is True
+    assert listing[str(ids[0])]["rank"]["explore"] is False
+    assert all(c["verification"]["state"] is None for c in listing.values())  # nothing done yet
+    await seller.post(f"{DEMO}/{ids[0]}/executed", json={})
+    now_list = {c["id"]: c for c in (await seller.get(DEMO)).json()["cards"]}
+    assert now_list[str(ids[0])]["verification"]["state"] == "pending"
+    # the Connector's read-back writes the verdict; the list follows
+    pending = await verification.pending_changes(session, seeded.shop_id, NOW + timedelta(hours=1))
+    change = pending[0]
+    verdict = verification.Verdict(
+        "verified", {"current_price": 1}, change.executed_at + timedelta(hours=2)
+    )
+    await verification.record_verdict(session, change, verdict, now=NOW)
+    await session.commit()
+    final = {c["id"]: c for c in (await seller.get(DEMO)).json()["cards"]}
+    assert final[str(ids[0])]["verification"]["state"] == "verified"
+    detail = (await seller.get(f"{DEMO}/{ids[0]}")).json()
+    row = next(j for j in detail["journey"] if j["event"] == "verified")
+    assert row["payload"]["observed"] == {"current_price": 1} and row["payload"]["observed_at"]
+    assert detail["verification"]["state"] == "verified"

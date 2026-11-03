@@ -26,6 +26,7 @@ from juli_backend.models.card_events import (
     ACTOR_SYSTEM,
     EVENT_EXECUTED,
     EVENT_IMPACT_FINAL,
+    EVENT_IMPACT_PRELIMINARY,
     EVENT_VERIFIED,
     CardEvent,
 )
@@ -205,6 +206,7 @@ async def load_traffic_controls(
 class LearningReport:
     cards_considered: int = 0
     readings: int = 0
+    preliminary: int = 0
     skipped: dict[str, int] = field(default_factory=dict)
     observations_total: int = 0
     states: int = 0
@@ -216,6 +218,7 @@ class LearningReport:
         return {
             "cards_considered": self.cards_considered,
             "readings": self.readings,
+            "preliminary": self.preliminary,
             "skipped": self.skipped,
             "observations_total": self.observations_total,
             "calibration_rows": self.states,
@@ -260,6 +263,10 @@ async def verified_time(
     return min(e.occurred_at for e in exe).replace(tzinfo=None), "executed_no_readback"
 
 
+#: The first look at a running change, shown as "sơ bộ" until the plan ends (same shape as final).
+PRELIMINARY_DAYS = 7
+
+
 def _lift_range(card: Mapping[str, Any]) -> tuple[float, float]:
     lift = card["predicted"]["lift"]["lift"]
     return float(lift["p10"]), float(lift["p90"])
@@ -286,10 +293,15 @@ async def read_cards(
             report.skip(how)
             continue
         t = t_at.date()
-        if today < t + timedelta(days=plan_days + 1):
+        final_due = today >= t + timedelta(days=plan_days + 1)
+        prelim_due = plan_days > PRELIMINARY_DAYS and today >= t + timedelta(
+            days=PRELIMINARY_DAYS + 1
+        )
+        if not final_due and not prelim_due:
             report.skip("plan_not_ended")
             continue
-        first, last = t - timedelta(days=impact.PRE_DAYS + 1), t + timedelta(days=plan_days)
+        span = plan_days if final_due else PRELIMINARY_DAYS
+        first, last = t - timedelta(days=impact.PRE_DAYS + 1), t + timedelta(days=span)
         items = card["scope"]["product_ids"]
         if metric in ("ads_gmv", "roas"):
             data = await load_campaign_days(session, shop_id, first, last)
@@ -313,6 +325,45 @@ async def read_cards(
         stacked = await stacked_with_other(
             session, shop_id, p.id, items, t, t + timedelta(days=plan_days)
         )
+
+        async def write(event_type: str, reading: impact.Reading, days: int) -> None:
+            await store.write_event(
+                session,
+                shop_id,
+                p.id,
+                event_type=event_type,
+                actor=ACTOR_SYSTEM,
+                occurred_at=datetime.combine(t + timedelta(days=days), datetime.min.time()),
+                dedup_key=f"{event_type}:{p.id}",
+                family=card["family"],
+                change_kind=card["change_kind"],
+                subject=("item", items[0]) if items else ("shop", str(p.id)),
+                payload={
+                    "method": "adr077_ratio_did",
+                    "confidence": reading.confidence,
+                    "reason": reading.reason,
+                    "impact_pct": reading.impact_pct,
+                    "se_rel": reading.se_rel,
+                    "controls": list(reading.controls),
+                    "clock": how,
+                    "bundle": bool(card.get("bundle")) or stacked,
+                    "post_days": days,
+                    "preliminary": event_type == EVENT_IMPACT_PRELIMINARY,
+                },
+            )
+
+        if prelim_due:
+            early = impact.read_effect(
+                series_of(treated_days, metric, first, last),
+                controls,
+                t,
+                post_days=PRELIMINARY_DAYS,
+                excluded=excluded,
+            )
+            await write(EVENT_IMPACT_PRELIMINARY, early, PRELIMINARY_DAYS)
+            report.preliminary += 1
+        if not final_due:
+            continue  # a preliminary reading never feeds calibration or coverage
         reading = impact.read_effect(
             series_of(treated_days, metric, first, last),
             controls,
@@ -320,28 +371,7 @@ async def read_cards(
             post_days=plan_days,
             excluded=excluded,
         )
-        await store.write_event(
-            session,
-            shop_id,
-            p.id,
-            event_type=EVENT_IMPACT_FINAL,
-            actor=ACTOR_SYSTEM,
-            occurred_at=datetime.combine(t + timedelta(days=plan_days), datetime.min.time()),
-            dedup_key=f"impact_final:{p.id}",
-            family=card["family"],
-            change_kind=card["change_kind"],
-            subject=("item", items[0]) if items else ("shop", str(p.id)),
-            payload={
-                "method": "adr077_ratio_did",
-                "confidence": reading.confidence,
-                "reason": reading.reason,
-                "impact_pct": reading.impact_pct,
-                "se_rel": reading.se_rel,
-                "controls": list(reading.controls),
-                "clock": how,
-                "bundle": bool(card.get("bundle")) or stacked,
-            },
-        )
+        await write(EVENT_IMPACT_FINAL, reading, plan_days)
         if reading.impact_pct is None or reading.confidence == "suppressed":
             report.skip(f"reading_{reading.reason}")
             continue

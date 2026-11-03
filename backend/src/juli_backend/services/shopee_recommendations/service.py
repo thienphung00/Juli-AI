@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -28,6 +29,11 @@ from juli_backend.models.card_events import (
     EVENT_EDITED,
     EVENT_EXECUTED,
     EVENT_EXPIRED,
+    EVENT_IMPACT_FINAL,
+    EVENT_IMPACT_PRELIMINARY,
+    EVENT_MISMATCH,
+    EVENT_NOT_SEEN,
+    EVENT_VERIFIED,
     EVENT_WHATIF_ADJUSTED,
     CardEvent,
 )
@@ -41,7 +47,7 @@ from juli_backend.models.shop_proposals import (
     STATUS_WITHDRAWN,
     ShopProposal,
 )
-from juli_backend.services.card_events import keys
+from juli_backend.services.card_events import keys, verification
 from juli_backend.services.shop_proposals import cycle as proposals
 from juli_backend.services.shop_proposals.cycle import ProposalError
 from juli_backend.services.shopee_analytics import loaders
@@ -435,6 +441,65 @@ def _xep_key(card: dict[str, Any], xep_theo: str) -> float:
     return float((card.get("rank") or {}).get("position", 10**6))
 
 
+#: What a journey row carries beyond its type and time: the read-back's observation and the
+#: impact reading (never the method, the controls or the standard error).
+_JOURNEY_FIELDS: dict[str, tuple[str, ...]] = {
+    EVENT_VERIFIED: ("change_kind", "expected", "observed", "observed_at", "executed_at"),
+    EVENT_MISMATCH: ("change_kind", "expected", "observed", "observed_at", "executed_at"),
+    EVENT_NOT_SEEN: ("change_kind", "expected", "executed_at", "deadline"),
+    EVENT_IMPACT_PRELIMINARY: ("impact_pct", "confidence", "reason", "post_days", "bundle"),
+    EVENT_IMPACT_FINAL: ("impact_pct", "confidence", "reason", "post_days", "bundle"),
+}
+
+
+def journey_payload(event_type: str, payload: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    fields = _JOURNEY_FIELDS.get(event_type)
+    if fields is None or not payload:
+        return None
+    return {k: payload[k] for k in fields if k in payload}
+
+
+async def verification_states(
+    session: AsyncSession, shop_id: uuid.UUID, card_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """``pending`` | ``verified`` | ``mismatch`` | ``not_seen`` per executed card whose changes
+    the Connector can read back (a card with none, or not yet executed, has no entry)."""
+    if not card_ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(CardEvent.card_id, CardEvent.event_type, CardEvent.payload).where(
+                CardEvent.shop_id == shop_id,
+                CardEvent.card_id.in_(list(card_ids)),
+                CardEvent.event_type.in_(
+                    [EVENT_EXECUTED, EVENT_VERIFIED, EVENT_MISMATCH, EVENT_NOT_SEEN]
+                ),
+            )
+        )
+    ).all()
+    readable: Counter[uuid.UUID] = Counter()
+    seen: dict[uuid.UUID, Counter[str]] = {}
+    for r in rows:
+        if r.event_type == EVENT_EXECUTED:
+            kind = ((r.payload or {}).get("change") or {}).get("change_kind")
+            if kind in verification.CHANGE_KINDS:
+                readable[r.card_id] += 1
+        else:
+            seen.setdefault(r.card_id, Counter())[r.event_type] += 1
+    out: dict[uuid.UUID, str] = {}
+    for cid, n in readable.items():
+        c = seen.get(cid, Counter())
+        if c[EVENT_MISMATCH]:
+            out[cid] = EVENT_MISMATCH
+        elif c[EVENT_NOT_SEEN]:
+            out[cid] = EVENT_NOT_SEEN
+        elif c[EVENT_VERIFIED] >= n:
+            out[cid] = EVENT_VERIFIED
+        else:
+            out[cid] = "pending"
+    return out
+
+
 async def list_cards(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -448,6 +513,7 @@ async def list_cards(
     if xep_theo not in XEP_THEO:
         raise ProposalError(ERROR_BAD_INPUT, 422, f"xep_theo must be one of {list(XEP_THEO)}")
     rows = await store.list_cards(session, shop_id)
+    states = await verification_states(session, shop_id, [p.id for p, _ in rows])
     out: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for p, card in rows:
         if audience == "seller" and p.status in SELLER_HIDDEN:
@@ -460,8 +526,13 @@ async def list_cards(
             continue
         meta = await store.card_meta(session, shop_id, p.id)
         summary = _summary(p, card, meta)
+        summary["verification"] = {"state": states.get(p.id)}
         if audience == "seller":
-            summary["rank"] = {"position": (card.get("rank") or {}).get("position")}
+            rank_ = card.get("rank") or {}
+            summary["rank"] = {
+                "position": rank_.get("position"),
+                "explore": bool(rank_.get("explore")),
+            }
         out.append((summary, card))
     out.sort(key=lambda t: (_xep_key(t[1], xep_theo), t[0]["id"]))
     summaries = [s for s, _ in out]
@@ -496,7 +567,12 @@ async def card_detail(
     meta = await store.card_meta(session, shop_id, card_id)
     events = (
         await session.execute(
-            select(CardEvent.event_type, CardEvent.occurred_at, CardEvent.reason_code)
+            select(
+                CardEvent.event_type,
+                CardEvent.occurred_at,
+                CardEvent.reason_code,
+                CardEvent.payload,
+            )
             .where(CardEvent.shop_id == shop_id, CardEvent.card_id == card_id)
             .order_by(CardEvent.occurred_at)
         )
@@ -505,13 +581,20 @@ async def card_detail(
         **_summary(p, card, meta),
         "card": seller_view(card) if audience == "seller" else card,
         "journey": [
-            {"event": e.event_type, "at": e.occurred_at.isoformat(), "reason_code": e.reason_code}
+            {
+                "event": e.event_type,
+                "at": e.occurred_at.isoformat(),
+                "reason_code": e.reason_code,
+                "payload": journey_payload(e.event_type, e.payload),
+            }
             for e in events
         ],
     }
-    final = await _final_override(session, shop_id, card_id)
-    if final is not None:
-        out["approved_with"] = {"inputs": final["inputs"]}
+    approved = await _approved_with(session, shop_id, card_id)
+    if approved is not None:
+        out["approved_with"] = approved
+    states = await verification_states(session, shop_id, [card_id])
+    out["verification"] = {"state": states.get(card_id)}
     return out
 
 
@@ -719,6 +802,10 @@ async def decide(
             payload={
                 "approval_id": str(approval.id),
                 "final": final if inputs else None,
+                "approved_with": {
+                    "inputs": final_card["inputs"],
+                    "execution_sheet": final_card["execution_sheet"],
+                },
                 "final_vs_default": _final_vs_default(card, inputs or {}),
             },
             family=card["family"],
@@ -835,6 +922,33 @@ async def _final_override(
     return final
 
 
+async def _approved_with(
+    session: AsyncSession, shop_id: uuid.UUID, card_id: uuid.UUID
+) -> dict[str, Any] | None:
+    """The inputs and the execution sheet the card was approved with (stored on the `accepted`
+    event, so the sheet a person follows is the one for the approved inputs)."""
+    ev = await session.scalar(
+        select(CardEvent)
+        .where(
+            CardEvent.shop_id == shop_id,
+            CardEvent.card_id == card_id,
+            CardEvent.event_type == EVENT_ACCEPTED,
+        )
+        .order_by(CardEvent.occurred_at.desc())
+    )
+    if ev is None:
+        return None
+    payload = ev.payload or {}
+    if payload.get("approved_with"):
+        return dict(payload["approved_with"])
+    final = payload.get("final")
+    return (
+        None
+        if not final
+        else {"inputs": final["inputs"], "execution_sheet": final["execution_sheet"]}
+    )
+
+
 async def mark_executed(
     session: AsyncSession,
     shop_id: uuid.UUID,
@@ -855,8 +969,8 @@ async def mark_executed(
     p, card = await _proposal(session, shop_id, card_id)
     if p.status != STATUS_APPROVED:
         raise ProposalError("proposal_bad_state", 409, f"a {p.status} card cannot be marked done")
-    final = await _final_override(session, shop_id, card_id)
-    sheet = (final or {}).get("execution_sheet") or card["execution_sheet"]
+    approved = await _approved_with(session, shop_id, card_id)
+    sheet = (approved or {}).get("execution_sheet") or card["execution_sheet"]
     changes = [dict(c) for c in sheet["changes"]]
     for c in changes:
         if c["change_kind"] == "voucher":
