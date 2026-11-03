@@ -6,9 +6,9 @@
    + affiliate commission. Shown "x d / 1d chi" and as % of the before-GMV; ``below_one`` is
    the red state (< 1d per 1d); when delta chi <= 0 the ratio is not shown and
    ``chi_status`` is ``"giam_chi"``.
-3. Bien cuoi = profit / buyer_paid. Profit = contribution - ad spend - other costs (the shop
-   profit definition of :mod:`.shop_profit`); with cost coverage < 100 % it is PARTIAL
-   (covered lines only, never extrapolated) and ``margin_is_partial`` says so.
+3. Bien cuoi = profit / buyer_paid. With cost coverage < 100 % (contract 9) the margin is
+   covered contribution - (covered ad spend + unattributed x covered share) - other x covered
+   share, over covered buyer_paid (``margin_is_partial``); profit in dong is None then.
 4. So don (confirmed orders). 5. AOV = GMV / orders (GMV = deal x qty before voucher).
 6. Chi marketing / ngay vs tran: chi / days against the daily cap.
 
@@ -44,6 +44,13 @@ class Snapshot:
     ad_spend: Decimal
     other_costs: Decimal = ZERO
     days: Decimal = ONE
+    # ad spend charged to the covered lines (covered products + unattributed x covered share);
+    # None -> ad_spend x covered share
+    ad_spend_covered: Decimal | None = None
+
+    @property
+    def covered_share(self) -> Decimal | None:
+        return safe_div(self.buyer_paid_covered, self.buyer_paid)
 
     @property
     def chi(self) -> Decimal:
@@ -54,11 +61,22 @@ class Snapshot:
         return self.promo + self.voucher + self.combo
 
     @property
-    def profit(self) -> Decimal | None:
-        """None when no revenue has a known cost (nothing to be partial about)."""
-        if self.buyer_paid_covered <= 0:
+    def margin_profit(self) -> Decimal | None:
+        """Numerator of the margin (contract 9). Full coverage: contribution - ads - other.
+        Partial: covered contribution - (covered ad spend + unattributed x covered share)
+        - other x covered share. None when no revenue has a known cost."""
+        share = self.covered_share
+        if share is None or self.buyer_paid_covered <= 0:
             return None
-        return self.contribution - self.ad_spend - self.other_costs
+        if not self.margin_is_partial:
+            return self.contribution - self.ad_spend - self.other_costs
+        ads = self.ad_spend_covered if self.ad_spend_covered is not None else self.ad_spend * share
+        return self.contribution - ads - self.other_costs * share
+
+    @property
+    def profit(self) -> Decimal | None:
+        """Profit in dong -- only at 100 % cost coverage (otherwise see ``margin_profit``)."""
+        return None if self.margin_is_partial else self.margin_profit
 
     @property
     def margin_is_partial(self) -> bool:
@@ -78,6 +96,7 @@ def snapshot_from_orders(
     *,
     other_costs: Decimal = ZERO,
     days: Decimal = ONE,
+    ad_spend_covered: Decimal | None = None,
 ) -> Snapshot:
     """Snapshot from whole orders, each with a weight (1 = counted once; what-if mixes use
     fractions). A group is ALL lines of one order."""
@@ -109,6 +128,7 @@ def snapshot_from_orders(
         ad_spend=ad_spend,
         other_costs=other_costs,
         days=days,
+        ad_spend_covered=ad_spend_covered,
     )
 
 
@@ -118,12 +138,17 @@ def snapshot_from(
     *,
     other_costs: Decimal = ZERO,
     days: Decimal = ONE,
+    ad_spend_covered: Decimal | None = None,
 ) -> Snapshot:
     by_order: dict[str, list[tuple[OrderLine, ProfitBreakdown]]] = defaultdict(list)
     for ln, pb in pairs:
         by_order[ln.order_id].append((ln, pb))
     return snapshot_from_orders(
-        ((ONE, g) for g in by_order.values()), ad_spend, other_costs=other_costs, days=days
+        ((ONE, g) for g in by_order.values()),
+        ad_spend,
+        other_costs=other_costs,
+        days=days,
+        ad_spend_covered=ad_spend_covered,
     )
 
 
@@ -163,7 +188,8 @@ class FiveNumbers:
 
 
 def _margin(s: Snapshot) -> Decimal | None:
-    return pct_points(safe_div(s.profit, s.buyer_paid_covered)) if s.profit is not None else None
+    mp = s.margin_profit
+    return pct_points(safe_div(mp, s.buyer_paid_covered)) if mp is not None else None
 
 
 def five_numbers(

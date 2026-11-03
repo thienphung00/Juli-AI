@@ -29,7 +29,8 @@ no clock; `Decimal` VND; frozen dataclasses.
 - `five_numbers`: `snapshot_from(pairs, ad_spend, ...)`, `five_numbers(before, after,
   spend_cap=)` -> discount, dGMV / dchi (+ `giam_chi`), margin, orders, AOV, spend/day vs cap.
 - `whatif`: `voucher_whatif` (usage model of contract 7: `VoucherRule(usage_limit, per_user_limit)`,
-  `usage_rate` u, `voucher_days` / `window_days`; returns used, cost, per-order organic vs
+  `usage_rate` u, `voucher_days` / `window_days`; `per_user_limit` is accepted and reported as
+  `per_user_limit_status="not_enforceable"` (no buyer key exists), never changes a number; returns used, cost, per-order organic vs
   ad-attributed, floor breaches, break-even, spend per day, and the five numbers),
   `price_change_whatif`, `ads_whatif` -> `{certain, predicted}`.
 
@@ -38,11 +39,16 @@ no clock; `Decimal` VND; frozen dataclasses.
 - Rates are fractions, `*_pct` outputs are percent points (0.1). Fees/ads/floors round to
   đồng half up; offered discounts round down to 1.000đ. Missing input -> `None` + reason,
   never 0. `predicted` only multiplies a caller range; nothing here forecasts.
-- Margin = profit / buyer_paid everywhere. Cost coverage < 100 % -> margin is PARTIAL
-  (covered lines only, ad spend charged in full), flagged, never extrapolated.
+- Margin = profit / buyer_paid everywhere. Cost coverage < 100 % (contract 9) -> margin =
+  (covered contribution - (covered products' ad spend + unattributed x covered share) - other
+  x covered share) / covered buyer_paid, flagged, never extrapolated; shop `profit` in dong is
+  `None` unless coverage is 100 % (components `profit_on_covered`, `covered_ad_charge`,
+  `covered_margin_profit` stay).
 - Product profit = sum(contribution) - ads-report spend by product; shop profit = sum(contribution)
   - total spend of all campaigns - other marketing costs. The line-level ad split is display only.
 - Flows come from aggregates, not order lines; they add up to shop GMV via the residual row.
+- Voucher number 2 is `None` (`chi_status="needs_volume"`) in the certain layer; it appears
+  in `predicted.extra_revenue_per_extra_spend_low/high` only when a `PredictedRange` is passed.
 - Voucher: used = min(Q x u, usage_limit), Q scaled to the voucher's days; cost = used x average
   discount of a qualifying order. u defaults to 1 (`usage_rate_source == "default_1"`).
 

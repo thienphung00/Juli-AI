@@ -40,7 +40,7 @@ from juli_backend.services.shopee_profit.shop_profit import (
     shop_profit,
 )
 from juli_backend.services.shopee_profit.sources import assert_additive, build_source_matrix
-from juli_backend.services.shopee_profit.whatif import VoucherRule, voucher_whatif
+from juli_backend.services.shopee_profit.whatif import PredictedRange, VoucherRule, voucher_whatif
 
 DAY = date(2026, 10, 15)
 SCHEDULE = FeeSchedule(
@@ -209,25 +209,33 @@ def test_end_to_end_shop_consistency() -> None:
         other_marketing_costs=D(5000),
         export_gmv=D(1310000),
     )
-    # contribution 392.000 ; ads 80.000 (all campaigns) ; other 5.000 -> profit 307.000
+    # contribution 392.000 ; ads 80.000 (all campaigns) ; other 5.000
     assert sp.contribution == D(392000) and sp.total_ad_spend == D(80000)
-    assert sp.profit == D(307000)
+    # coverage 88,4 % -> shop profit in dong is NOT shown (contract 9); components stay
+    assert sp.profit is None and sp.profit_on_covered == D(307000)
     assert sp.unattributed_ad_spend == D(30000) and sp.zero_revenue_campaign_spend == D(30000)
     assert sp.ad_spend_consistent is True
-    # sum(product profit) - unattributed ads - other costs == shop profit
+    # sum(product profit) - unattributed ads - other costs == shop profit components
     assert sum((p.profit for p in sp.products.values()), D(0)) == D(342000)
     assert (
         sum((p.profit for p in sp.products.values()), D(0))
         - sp.unattributed_ad_spend
         - sp.other_marketing_costs
-        == sp.profit
+        == sp.profit_on_covered
     )
     assert sp.products["P1"].profit == D(167250) - D(50000)
     assert sp.products["P1"].break_even_roas == D(560000) / D(167250)
-    # margin is profit / buyer_paid (of covered lines), never / GMV
+    # margin base is buyer_paid, never GMV. Contract 9 partial formula, covered share
+    # s = 1.145.000 / 1.295.000 = 229/259:
+    #   covered ads = P1 50.000 (fully covered) + unattributed 30.000 x s (26.525,0965)
+    #   numerator   = 392.000 - 76.525,0965 - 5.000 x s (4.420,8494) = 311.054,054 = 80.563.000/259
+    #   margin      = 311.054,054 / 1.145.000 = 27,2 %   (not 26,8 %: ads are not all charged)
     assert sp.buyer_paid == D(1295000) and sp.gmv == D(1310000)
     assert sp.buyer_paid_covered == D(1145000)
-    assert sp.margin_rate == D(307000) / D(1145000) and sp.margin_pct == D("26.8")
+    assert abs(sp.covered_ad_charge - (D(50000) + D(6870000) / D(259))) < D("0.0001")
+    assert sp.covered_margin_profit is not None
+    assert abs(sp.covered_margin_profit - D(80563000) / D(259)) < D("0.0001")
+    assert sp.margin_pct == D("27.2")
     # coverage < 100 % is flagged, not extrapolated
     assert sp.cost_coverage_pct == D("88.4") and sp.margin_is_partial is True
     assert sp.products["P5"].is_partial and sp.products["P5"].margin_rate is None
@@ -257,7 +265,12 @@ def test_end_to_end_shop_consistency() -> None:
     assert len(by_id) > 0
     fn = five_numbers(
         snapshot_from(before_pairs, D(0)),
-        snapshot_from(pairs, sp.total_ad_spend, other_costs=sp.other_marketing_costs),
+        snapshot_from(
+            pairs,
+            sp.total_ad_spend,
+            other_costs=sp.other_marketing_costs,
+            ad_spend_covered=sp.covered_ad_charge,
+        ),
         spend_cap=D(200000),
     )
     # 1: (promo 40.000 + voucher 10.000 + combo 5.000) / list 1.350.000
@@ -270,7 +283,8 @@ def test_end_to_end_shop_consistency() -> None:
     assert fn.below_one is False
     # 3: margin = profit / buyer_paid (covered) ; before 149.700 / 400.000
     assert fn.margin.vnd_before == D(149700) and fn.margin.pct_before == D("37.4")
-    assert fn.margin.vnd_after == D(307000) and fn.margin.pct_after == D("26.8")
+    # after: partial coverage -> no dong figure, margin 27,2 % on 88,4 % of revenue
+    assert fn.margin.vnd_after is None and fn.margin.pct_after == D("27.2")
     assert fn.margin_is_partial is True and fn.cost_coverage_pct == D("88.4")
     # 4 and 5
     assert fn.orders == (2, 6, D("200.0"))
@@ -331,7 +345,9 @@ def test_voucher_usage_limit_sweep_is_monotonic_and_consistent() -> None:
         # the 15 % fee that is not charged on the discounted amount
         f = r.five_numbers
         assert f.extra_spend == r.voucher_cost_scenario
-        assert f.extra_revenue == 0 and f.below_one is (r.extra_cost > 0)
+        # contract 9: no volume in the certain layer -> number 2 is not shown
+        assert f.extra_revenue == 0 and f.extra_revenue_per_extra_spend is None
+        assert f.chi_status == "needs_volume" and f.below_one is False
         assert f.margin.vnd_before is not None and f.margin.vnd_after is not None
         assert f.margin.vnd_before - f.margin.vnd_after == r.extra_cost * D("0.85")
         assert f.orders[0] == f.orders[1] == 40
@@ -386,18 +402,32 @@ def test_voucher_usage_rate_days_scaling_and_spend_cap() -> None:
         run(VoucherRule(D(200000), amount=D(10000)), usage_rate=D(2))
 
 
-def test_voucher_per_user_limit_uses_opaque_buyer_key() -> None:
-    lines = [
-        OrderLine(f"b{i}", "S1", "P1", DAY + timedelta(days=i), 1, D(250000), D(250000),
-                  buyer_key="u1" if i < 3 else f"u{i}")
-        for i in range(6)
-    ]  # fmt: skip
-    r = voucher_whatif(
+def test_voucher_per_user_limit_is_reported_not_enforced() -> None:
+    plain = run(VoucherRule(D(200000), amount=D(10000), usage_limit=20))
+    limited = run(VoucherRule(D(200000), amount=D(10000), usage_limit=20, per_user_limit=1))
+    assert plain.per_user_limit_status is None
+    assert limited.per_user_limit_status == "not_enforceable" and limited.per_user_limit == 1
+    assert limited.voucher_cost_scenario == plain.voucher_cost_scenario
+    assert limited.qualifying_orders == plain.qualifying_orders
+    assert limited.five_numbers == plain.five_numbers
+    assert "buyer_key" not in OrderLine.__dataclass_fields__
+
+
+def test_voucher_number_2_only_from_predicted_range() -> None:
+    lines = history()
+    costs = {"S1": SkuCost("S1", D(100000), D(3000))}
+    rule = VoucherRule(D(200000), amount=D(10000), usage_limit=20)
+    r = voucher_whatif(lines, costs, scenario=rule, schedule=SCHEDULE)
+    assert r.predicted is None and r.certain.break_even_extra_orders is not None
+    assert r.certain.five_numbers.extra_revenue_per_extra_spend is None
+    p = voucher_whatif(
         lines,
-        {"S1": SkuCost("S1", D(100000), D(3000))},
-        scenario=VoucherRule(D(200000), amount=D(10000), per_user_limit=1),
+        costs,
+        scenario=rule,
         schedule=SCHEDULE,
-    ).certain
-    assert r.per_user_limit_enforced is True
-    assert r.qualifying_orders == 4  # buyer u1's 2nd and 3rd order get no voucher
-    assert r.voucher_cost_scenario == D(40000)
+        predicted_extra_orders=PredictedRange(D(2), D(10), "caller"),
+    ).predicted
+    assert p is not None
+    # dGMV = n x 250.000 ; dchi = extra voucher cost 200.000 + n x 10.000
+    assert p.extra_revenue_per_extra_spend_low == D(2 * 250000) / D(200000 + 2 * 10000)
+    assert p.extra_revenue_per_extra_spend_high == D(10 * 250000) / D(200000 + 10 * 10000)

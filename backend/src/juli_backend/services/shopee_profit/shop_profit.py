@@ -14,11 +14,14 @@
   A negative unattributed amount (products claim more than the campaigns cost) sets
   ``ad_spend_consistent`` False -- surfaced, not hidden.
 - **Margin** = profit / buyer_paid everywhere. **Cost coverage** = share of buyer_paid whose
-  lines have every cost input known (giá vốn, packaging, fees, commission). Below 100 % the
-  figures are PARTIAL: contribution counts covered lines only, ad spend and other costs are
-  still charged in full, and the margin is profit / buyer_paid of the covered lines (shown as
-  "tren X % doanh thu co gia von"); nothing is extrapolated to the uncovered share. With no
-  covered revenue profit-margin is ``None``.
+  lines have every cost input known (giá vốn, packaging, fees, commission). Below 100 %
+  (contract 9) margin = (covered contribution - (ad spend of covered products + unattributed
+  ad spend x covered share of buyer_paid) - other costs x covered share) / covered buyer_paid,
+  shown as "tren X % doanh thu co gia von"; a product's report spend counts in proportion to its
+  covered share (so a fully covered product counts whole, an uncovered one not at all).
+  Shop ``profit`` in dong is ``None`` unless coverage is 100 %; the components
+  (``profit_on_covered``, ``covered_ad_charge``, ``covered_margin_profit``) stay available.
+  Nothing is extrapolated. With no covered revenue the margin is ``None``.
 - Break-even ROAS = buyer_paid / contribution before ads (covered lines); ``None`` when the
   contribution is <= 0.
 - Reconciliation: sum of order-line GMV (deal x qty) vs the export's GMV; a gap above 2 % is
@@ -114,7 +117,10 @@ class ShopProfit:
     zero_revenue_campaign_spend: Decimal  # informational subset of the above
     ad_spend_consistent: bool  # False when products claim more than the campaigns cost
     other_marketing_costs: Decimal
-    profit: Decimal  # contribution - total ads - other (partial when coverage < 100 %)
+    profit: Decimal | None  # dong, ONLY at 100 % cost coverage (contract 9); else None
+    profit_on_covered: Decimal  # component: contribution - total ads - other (partial if < 100 %)
+    covered_ad_charge: Decimal  # ads charged to covered lines (see module doc)
+    covered_margin_profit: Decimal | None  # margin numerator (contract 9); None if no coverage
     reconciliation: GmvReconciliation
     missing: dict[str, int]
     products: dict[str, ProductProfit]
@@ -133,8 +139,11 @@ class ShopProfit:
 
     @property
     def margin_rate(self) -> Decimal | None:
-        """profit / buyer_paid (of the covered lines when partial -- never extrapolated)."""
-        return safe_div(self.profit, self.buyer_paid_covered)
+        """Margin on the covered lines (never extrapolated): covered_margin_profit / covered
+        buyer_paid. At 100 % coverage it is profit / buyer_paid."""
+        if self.covered_margin_profit is None:
+            return None
+        return safe_div(self.covered_margin_profit, self.buyer_paid_covered)
 
     @property
     def margin_pct(self) -> Decimal | None:
@@ -233,6 +242,20 @@ def shop_profit(
     for p in products.values():
         for k, v in p.missing.items():
             missing[k] += v
+    paid = sum((q.buyer_paid for q in products.values()), ZERO)
+    paid_covered = sum((q.buyer_paid_covered for q in products.values()), ZERO)
+    share = safe_div(paid_covered, paid)
+    complete = paid > 0 and paid_covered == paid
+    covered_ads = ZERO
+    margin_num: Decimal | None = None
+    if share is not None and paid_covered > 0:
+        for q in products.values():
+            cs = safe_div(q.buyer_paid_covered, q.buyer_paid)
+            if cs is not None:  # a product's report spend follows its covered share
+                covered_ads += q.ad_spend * cs
+        covered_ads += unattributed * share
+        margin_num = contribution - covered_ads - other_marketing_costs * share
+    on_covered = contribution - total_ads - other_marketing_costs
     return ShopProfit(
         orders=len({ln.order_id for ln, _ in pairs}),
         gmv=sum((ln.order_value for ln, _ in pairs), ZERO),
@@ -245,7 +268,10 @@ def shop_profit(
         zero_revenue_campaign_spend=sum((c.spend for c in campaigns if c.revenue == 0), ZERO),
         ad_spend_consistent=unattributed >= 0,
         other_marketing_costs=other_marketing_costs,
-        profit=contribution - total_ads - other_marketing_costs,
+        profit=on_covered if complete else None,
+        profit_on_covered=on_covered,
+        covered_ad_charge=covered_ads,
+        covered_margin_profit=margin_num,
         reconciliation=reconcile_gmv(pairs, export_gmv),
         missing=dict(missing),
         products=products,

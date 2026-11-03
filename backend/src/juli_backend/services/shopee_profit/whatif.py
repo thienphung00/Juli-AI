@@ -14,6 +14,10 @@ Voucher rules:
 - Extra cost = scenario voucher total - baseline voucher total over the history.
 - Margins per order are split organic (no ad-attributed line) vs ad-attributed; an order with
   an unknown cost is excluded from profit figures and counted in ``orders_missing_cost``.
+- Number 2 of the five numbers is NOT shown from the certain layer (``chi_status`` is
+  ``needs_volume``; the certain layer exposes ``break_even_extra_orders``); it appears only
+  in ``predicted`` when a :class:`PredictedRange` of extra orders is passed: dGMV = n x AOV,
+  dchi = extra voucher cost + n x average discount of a qualifying order.
 - Break-even extra orders = ceil(extra cost / organic profit per order in the scenario)
   (falls back to all qualifying orders when none are organic); ``None`` + reason when that
   profit is <= 0 or unknown.
@@ -66,6 +70,9 @@ class PredictedNet:
     net_profit_low: Decimal
     net_profit_high: Decimal
     source: str
+    # voucher card only: number 2 ("dự kiến") = dGMV / dchi at the low / high extra orders
+    extra_revenue_per_extra_spend_low: Decimal | None = None
+    extra_revenue_per_extra_spend_high: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -81,7 +88,8 @@ class FloorBreach:
 class VoucherRule:
     """A shop voucher: value (``amount`` d, or ``pct`` of the order subtotal with
     ``max_discount``), minimum spend, ``usage_limit`` (so luong voucher, None = unlimited) and
-    ``per_user_limit`` (uses per buyer; needs ``OrderLine.buyer_key`` to be enforced)."""
+    ``per_user_limit`` (uses per buyer: accepted and reported, but NOT ENFORCEABLE -- order lines
+    carry no buyer identifier (contract 9), so it never affects a number)."""
 
     min_spend: Decimal
     amount: Decimal | None = None
@@ -133,7 +141,7 @@ class VoucherCertain:
     usage_rate_source: str  # "input" | "default_1"
     usage_limit: int | None
     per_user_limit: int | None
-    per_user_limit_enforced: bool
+    per_user_limit_status: str | None  # "not_enforceable" when an input was given (no buyer key)
     expected_qualifying_orders: Decimal  # Q
     used_baseline: Decimal
     used_scenario: Decimal
@@ -184,15 +192,6 @@ def _apply_rule(
         by_order[ln.order_id].append(ln)
     subtotals = {oid: sum((ln.order_value for ln in g), ZERO) for oid, g in by_order.items()}
     discounts = {oid: (rule.discount_for(subtotals[oid]) if rule else ZERO) for oid in by_order}
-    if rule is not None and rule.per_user_limit is not None:
-        seen: dict[str, int] = defaultdict(int)
-        for oid in sorted(by_order, key=lambda o: (by_order[o][0].order_date, o)):
-            key = by_order[oid][0].buyer_key
-            if key is None or discounts[oid] == 0:
-                continue
-            seen[key] += 1
-            if seen[key] > rule.per_user_limit:
-                discounts[oid] = ZERO
     out: list[OrderLine] = []
     qualifying: set[str] = set()
     total = ZERO
@@ -420,6 +419,14 @@ def voucher_whatif(
         days=d,
     )
     five = five_numbers(snap_before, snap_after, spend_cap=spend_cap_per_day)
+    # contract 9: the certain layer has no volume change -> number 2 is not shown from it
+    five = replace(
+        five,
+        extra_revenue_per_extra_spend=None,
+        extra_revenue_pct=None,
+        chi_status="needs_volume",
+        below_one=False,
+    )
 
     per_day = cost_s / d
     check = None
@@ -443,8 +450,7 @@ def voucher_whatif(
         usage_rate_source="default_1" if usage_rate is None else "input",
         usage_limit=scenario.usage_limit,
         per_user_limit=scenario.per_user_limit,
-        per_user_limit_enforced=scenario.per_user_limit is not None
-        and any(ln.buyer_key is not None for ln in lines),
+        per_user_limit_status="not_enforceable" if scenario.per_user_limit is not None else None,
         expected_qualifying_orders=plan.expected_q,
         used_baseline=base_plan.used,
         used_scenario=plan.used,
@@ -463,7 +469,21 @@ def voucher_whatif(
         break_even_reason=reason,
         five_numbers=five,
     )
-    return VoucherWhatIf(certain, _predicted(cpo, extra, predicted_extra_orders))
+    predicted = _predicted(cpo, extra, predicted_extra_orders)
+    if predicted is not None and predicted_extra_orders is not None:
+        aov = safe_div(snap_after.gmv, snap_after.orders)
+        avg_discount = safe_div(plan.hist_cost, Decimal(n_q)) or ZERO
+
+        def ratio(n: Decimal) -> Decimal | None:
+            denom = extra + n * avg_discount
+            return safe_div(n * aov, denom) if aov is not None and denom > 0 else None
+
+        predicted = replace(
+            predicted,
+            extra_revenue_per_extra_spend_low=ratio(predicted_extra_orders.low),
+            extra_revenue_per_extra_spend_high=ratio(predicted_extra_orders.high),
+        )
+    return VoucherWhatIf(certain, predicted)
 
 
 # ---------------------------------------------------------------- price change

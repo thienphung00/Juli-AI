@@ -59,7 +59,6 @@ class OrderLine:
     affiliate: bool = False
     commission: Decimal | None = None
     actual_fees: Decimal | None = None
-    buyer_key: str | None = None  # opaque hashed buyer id (never PII); per-user voucher limits
 
     def __post_init__(self) -> None:
         if self.qty <= 0:
