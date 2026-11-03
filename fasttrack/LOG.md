@@ -3619,3 +3619,30 @@ reconcile --write` re-derived the no-assert corpus figure.
   (sku, else title) and treats "Unknown" / blank as a placeholder.
 - Tests: `tests/unit/test_p87_reissue_and_run_header.py`; demo
   `reviewer-sandbox-create-promotion.test.tsx` (header + `runSubjectName`).
+## 2026-11-03 — agent (Claude Opus) — P88: scoring pass reads the rolling window, at most hourly (egress)
+
+- Why: pg_stat_statements (reset 2026-11-02 05:51 UTC, ~24 h): five queries at 57 calls each --
+  every `silver.orders` row of the shop, every column (5,788/call), every `order_items` row
+  (2,093/call), product-day intervals (3,381/call), KPI-window intervals (2,258/call) and the
+  gold daily rollup (534/call). The handoff guessed the B12 report rebuild; it is the
+  continuous-trigger card scoring (`material_worker` -> Shared Compute -> gold envelope ->
+  `decision_rules_scoring_stage` -> `run_daily_scoring_for_shop` -> `build_feature_aggregates`),
+  fired by webhooks and the staggered reconcile. The B12 rebuild reads 60 days of sandbox order
+  lines only and TikTok for the rest; unchanged.
+- What: `build_feature_aggregates` lists orders / order lines / returns inside the KPI window
+  (`ROLLING_WINDOW_DAYS` = 30; every `compute_all_kpis` figure, SLA risk included, already
+  dropped rows outside it in Python) with only the KPI columns (`load_only`). History-wide
+  order count, order-value sum and return count come from SQL `count`/`sum`. The production
+  seam (`material_worker`) now uses `hourly_scoring_stage`: Redis `SET NX EX 3600` per shop
+  (`cdp:scoring-gate:{shop}`), fail-open on a Redis error, a throttled pass logs
+  `decision_rules_scoring_stage_throttled`. Daily poll scoring and manual refresh are not gated.
+  The product-day read (60 days = 2 x the longest adaptive window, D72.3 columns) is unchanged
+  but now runs at most hourly.
+- Estimate (not measured): order + order-line rows per pass ~7.9k wide -> the last 30 days'
+  (~6 % of a 534-day history), and passes 57/day -> <= 24/day per shop. The owner re-checks
+  pg_stat_statements ~24 h after deploy (`select pg_stat_statements_reset();` first).
+- Tests: `test_p88_scoring_egress.py` (snapshot equals the whole-history computation on a
+  fixture with in- and out-of-window orders; only window rows and KPI columns loaded; gate
+  claims / skips / fails open). `test_feature_aggregates_contract.py` spies the new reads;
+  wiring test expects `hourly_scoring_stage`. Related unit 133 + 80 passed; Postgres
+  (throwaway, `JULI_TEST_DATABASE_DISPOSABLE=1`) material handoff + P62-B + P69: 11 passed.
