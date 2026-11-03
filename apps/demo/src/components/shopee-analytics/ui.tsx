@@ -1,0 +1,182 @@
+"use client";
+
+import Link from "next/link";
+import type { ReactNode } from "react";
+
+import { DASH, type Chip, type Tone } from "../../lib/shopee-analytics/format";
+import type { ApiRefusal } from "../../lib/shopee-analytics/client";
+import type { Resource } from "../../lib/shopee-analytics/use-resource";
+
+/** Small pieces every Shopee shop screen uses (classes in `app/shopee-analytics.css`). */
+
+export function toneClass(tone: Tone): string {
+  return `sa-tone--${tone}`;
+}
+
+export function ChipView({ chip, invert = false, testId }: { readonly chip: Chip; readonly invert?: boolean; readonly testId?: string }) {
+  const tone: Tone = chip.up === null ? "flat" : chip.up !== invert ? "up" : "down";
+  return (
+    <span className={`sa-chip sa-chip--${tone}`} data-testid={testId}>
+      {chip.text}
+    </span>
+  );
+}
+
+export function TextChip({ tone, children }: { readonly tone: Tone | "warn" | "pink" | "info"; readonly children: ReactNode }) {
+  return <span className={`sa-chip sa-chip--${tone}`}>{children}</span>;
+}
+
+export function Section({
+  title,
+  hint,
+  aside,
+  children,
+  testId,
+}: {
+  readonly title: string;
+  readonly hint?: ReactNode;
+  readonly aside?: ReactNode;
+  readonly children: ReactNode;
+  readonly testId?: string;
+}) {
+  return (
+    <section className="sa-card" data-testid={testId}>
+      <div className="sa-card__head">
+        <h2 className="sa-h2">{title}</h2>
+        {hint ? <span className="sa-hint">{hint}</span> : null}
+        {aside ? <span className="sa-card__aside">{aside}</span> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+export function Eyebrow({ children }: { readonly children: string }) {
+  return <div className="sa-eyebrow">{children}</div>;
+}
+
+export function PageHead({
+  eyebrow,
+  title,
+  chips,
+  info,
+  right,
+}: {
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly chips?: ReactNode;
+  readonly info?: ReactNode;
+  readonly right?: ReactNode;
+}) {
+  return (
+    <header className="sa-head">
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <div className="sa-head__line">
+        <h1 className="sa-h1">{title}</h1>
+        {chips}
+        {info}
+        {right ? <span className="sa-head__right">{right}</span> : null}
+      </div>
+    </header>
+  );
+}
+
+export function InfoToggle({ children }: { readonly children: ReactNode }) {
+  return (
+    <details className="sa-info">
+      <summary aria-label="Cách tính">i</summary>
+      <div className="sa-info__body">{children}</div>
+    </details>
+  );
+}
+
+export function Notice({ tone = "warn", children, testId }: { readonly tone?: "warn" | "info"; readonly children: ReactNode; readonly testId?: string }) {
+  return (
+    <div className={`sa-notice sa-notice--${tone}`} data-testid={testId} role="status">
+      {children}
+    </div>
+  );
+}
+
+export function Empty({ children, testId }: { readonly children: ReactNode; readonly testId?: string }) {
+  return (
+    <div className="sa-empty" data-testid={testId}>
+      {children}
+    </div>
+  );
+}
+
+export function Bar({ pct, tone = "neutral" }: { readonly pct: number | null; readonly tone?: "neutral" | "green" | "red" | "pink" }) {
+  const w = pct === null || !Number.isFinite(pct) ? 0 : Math.max(0, Math.min(100, pct));
+  return (
+    <span className="sa-bar" aria-hidden="true">
+      <span className={`sa-bar__fill sa-bar__fill--${tone}`} style={{ width: `${w}%` }} />
+    </span>
+  );
+}
+
+export function Ini({ text }: { readonly text: string }) {
+  return <span className="sa-ini">{text}</span>;
+}
+
+export function initialsOf(name: string | null | undefined): string {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return DASH;
+  return words
+    .slice(0, 2)
+    .map((w) => Array.from(w)[0] ?? "")
+    .join("")
+    .toLocaleUpperCase("vi-VN");
+}
+
+export function PillLink({ href, active, children, label }: { readonly href: string; readonly active: boolean; readonly children: ReactNode; readonly label?: string }) {
+  return (
+    <Link aria-current={active ? "true" : undefined} aria-label={label} className={`sa-pill${active ? " sa-pill--on" : ""}`} href={href}>
+      {children}
+    </Link>
+  );
+}
+
+const REFUSAL_COPY: Record<ApiRefusal, { title: string; body: string }> = {
+  "not-shopee": {
+    title: "Shop này không phải shop Shopee",
+    body: "Màn hình này dành cho shop Shopee. Shop TikTok dùng Trang chủ và Phân tích như trước.",
+  },
+  "no-data": {
+    title: "Shop chưa có dữ liệu Shopee",
+    body: "Khi Juli Connector hoặc tệp báo cáo đầu tiên được tải lên, số liệu sẽ hiện ở đây.",
+  },
+  "not-found": {
+    title: "Không tìm thấy sản phẩm này",
+    body: "Mã sản phẩm không có trong dữ liệu của shop. Quay lại danh sách Sản phẩm để chọn lại.",
+  },
+  invalid: {
+    title: "Kỳ xem không hợp lệ",
+    body: "Chọn lại khoảng thời gian (ngày kết thúc phải sau ngày bắt đầu).",
+  },
+  failed: {
+    title: "Chưa tải được số liệu",
+    body: "Đã có lỗi khi đọc số liệu. Thử tải lại trang; nếu vẫn lỗi, báo cho đội Juli.",
+  },
+};
+
+/** The state of a resource that is not ready, or `null` when it is. */
+export function ResourceState<T>({ resource, children }: { readonly resource: Resource<T>; readonly children: (data: T) => ReactNode }) {
+  if (resource.status === "loading") {
+    return (
+      <p className="sa-loading" role="status">
+        Đang tải số liệu…
+      </p>
+    );
+  }
+  if (resource.status === "refused") {
+    const copy = REFUSAL_COPY[resource.refusal];
+    return (
+      <section className="sa-card" data-testid={`sa-refusal-${resource.refusal}`} role="alert">
+        <h2 className="sa-h2">{copy.title}</h2>
+        <p className="sa-hint">{copy.body}</p>
+      </section>
+    );
+  }
+  return <>{children(resource.data)}</>;
+}

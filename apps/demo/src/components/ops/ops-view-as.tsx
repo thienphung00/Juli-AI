@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "reac
 import { opsApi, type OpsApi } from "../../lib/ops/api";
 import { writeCurrentShop } from "../../lib/ops/current-shop";
 import { createOpsViewFetch } from "../../lib/ops/view-fetch";
-import { readViewAsQuery, viewAsBase, viewAsHref, viewAsTabHref, type ViewAsTab } from "../../lib/ops/view-as-routes";
+import { VIEW_AS_PAGE_PARAM, readViewAsQuery, viewAsBase, viewAsHref, viewAsTabHref, type ViewAsTab } from "../../lib/ops/view-as-routes";
 import type { OpsMe, ViewSession } from "../../lib/ops/types";
 import { fetchMetricRanking } from "../../lib/phan-tich/rankings-client";
 import { resolveTab } from "../../lib/quyet-dinh/copy";
@@ -23,6 +23,10 @@ import { SignedInPhanTich } from "../phan-tich/signed-in-phan-tich";
 import { resolveMeasureTab, QuyetDinhView } from "../quyet-dinh/quyet-dinh-view";
 import { REAL_QD_CLIENTS } from "../quyet-dinh/signed-in-quyet-dinh";
 import { SellerViewProvider } from "../seller-view-context";
+import { ShopeeHostProvider } from "../../lib/shopee-analytics/context";
+import { useOpsShopeeHost } from "../shopee-analytics/hosts";
+import { ShopeeScreenSwitch } from "../shopee-analytics/shopee-screens";
+import type { ShopeeScreen } from "../../lib/shopee-analytics/params";
 import { C, FONT } from "./ops-shell";
 import { OpsSkeleton } from "./ops-skeleton";
 
@@ -106,7 +110,13 @@ export function OpsViewAs({
   );
   const setTab = useCallback((next: Tab) => go(viewAsTabHref(shopId, next)), [go, shopId]);
   const current = pending && pending.base === base ? new URLSearchParams(pending.href.split("?")[1] ?? "") : new URLSearchParams(base);
-  const { tab, params: screenParams } = readViewAsQuery(current);
+  const read = readViewAsQuery(current);
+  const { params: screenParams } = read;
+  // A Shopee shop opens on Tổng quan, not on Quyết định (its nav has no Trang chủ).
+  const isShopee = platformOf(session?.shop.platform) === "shopee";
+  const tab: Tab = !current.has(VIEW_AS_PAGE_PARAM) && isShopee ? "overview" : read.tab;
+  const navTab: Tab = tab === "ranking" ? "overview" : tab;
+  const shopeeHost = useOpsShopeeHost(shopId, "view-as", session?.shop.shop_name, baseFetch);
   const qdParams = tab === "decisions" || tab === "rules" ? screenParams : new URLSearchParams();
   const ptParams = tab === "analytics" ? screenParams : new URLSearchParams();
   const [envelope, setEnvelope] = useState<ShopAnalysisEnvelope | null | undefined>(undefined);
@@ -218,21 +228,29 @@ export function OpsViewAs({
           <nav aria-label="Seller" style={{ width: 104, borderRight: "1px solid #f1e6eb", background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", gap: 18, paddingTop: 18, fontSize: 12, color: C.body }}>
             <b style={{ fontSize: 20, color: C.ink }}>Juli.</b>
             {(
-              [
-                ["home", "Trang chủ"],
-                ["decisions", "Quyết định"],
-                ["analytics", "Phân tích"],
-                ["juli", "Juli"],
-                ["rules", "Quy tắc"],
-              ] as const
+              (isShopee
+                ? [
+                    ["overview", "Tổng quan"],
+                    ["analytics", "Phân tích"],
+                    ["products", "Sản phẩm"],
+                    ["decisions", "Quyết định"],
+                    ["rules", "Quy tắc"],
+                  ]
+                : [
+                    ["home", "Trang chủ"],
+                    ["decisions", "Quyết định"],
+                    ["analytics", "Phân tích"],
+                    ["juli", "Juli"],
+                    ["rules", "Quy tắc"],
+                  ]) as readonly (readonly [Tab | "juli", string])[]
             ).map(([id, label]) => (
               <button
-                aria-current={tab === id ? "page" : undefined}
+                aria-current={navTab === id ? "page" : undefined}
                 key={id}
                 disabled={id === "juli"}
                 onClick={() => id !== "juli" && setTab(id)}
                 title={id === "juli" ? "Trợ lý Juli của seller: không có trong Xem như shop" : undefined}
-                style={{ font: "inherit", fontSize: 12, background: "transparent", border: 0, cursor: "pointer", color: tab === id ? C.pink : C.body, fontWeight: tab === id ? 700 : 400 }}
+                style={{ font: "inherit", fontSize: 12, background: "transparent", border: 0, cursor: "pointer", color: navTab === id ? C.pink : C.body, fontWeight: navTab === id ? 700 : 400 }}
                 type="button"
               >
                 {label}
@@ -252,10 +270,19 @@ export function OpsViewAs({
             </div>
             <SellerViewProvider href={mapHref} readOnly>
             <div data-read-only-view="" data-testid="seller-view" onClick={onSellerClick} style={{ minWidth: 0 }}>
+              {isShopee && shopeeHost && (tab === "overview" || tab === "analytics" || tab === "products" || tab === "ranking") ? (
+                <ShopeeHostProvider host={shopeeHost}>
+                  <ShopeeScreenSwitch
+                    params={screenParams}
+                    productId={screenParams.get("id")}
+                    screen={SHOPEE_SCREEN[tab]}
+                  />
+                </ShopeeHostProvider>
+              ) : null}
               {tab === "home" ? (
                 envelope ? <HomeOverview envelope={envelope} /> : envelope === null ? <p role="status">Shop chưa có báo cáo.</p> : <OpsSkeleton variant="cards" rows={3} />
               ) : null}
-              {tab === "analytics" ? (
+              {tab === "analytics" && !isShopee ? (
                 envelope ? (
                   <SignedInPhanTich
                     envelope={envelope}
@@ -281,5 +308,12 @@ export function OpsViewAs({
     </div>
   );
 }
+
+const SHOPEE_SCREEN: Readonly<Record<"overview" | "analytics" | "products" | "ranking", ShopeeScreen>> = {
+  overview: "tong-quan",
+  analytics: "phan-tich",
+  products: "san-pham",
+  ranking: "xep-hang",
+};
 
 const STAGE_NAMES: Record<string, string> = { trial: "Thử nghiệm", self: "Tự vận hành", pilot: "Pilot đặc biệt" };

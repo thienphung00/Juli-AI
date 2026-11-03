@@ -9,7 +9,8 @@
 
 .qd-page,
 .qv-overlay,
-.pa-page {
+.pa-page,
+.sa-page {
   --qd-ink: #1a1a1f;
   --qd-ink-2: #4a4a55;
   --qd-ink-3: #3a3a44;

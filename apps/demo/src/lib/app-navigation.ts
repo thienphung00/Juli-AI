@@ -11,7 +11,7 @@ import { ACTIONS_DESTINATION_LABEL } from "./destination-copy";
  * and carries `JULI_LOCKED_HINT` as its tooltip.
  */
 
-export type AppDestinationIcon = "home" | "decisions" | "analytics" | "juli";
+export type AppDestinationIcon = "home" | "decisions" | "analytics" | "juli" | "overview" | "products";
 
 export interface AppDestination {
   readonly key: AppDestinationIcon;
@@ -20,6 +20,8 @@ export interface AppDestination {
   /** `null` for a locked destination — there is no page to navigate to. */
   readonly href: string | null;
   readonly locked: boolean;
+  /** Other paths that belong to this destination (Xếp hạng opens from Tổng quan). */
+  readonly alsoActive?: readonly string[];
 }
 
 export const JULI_LOCKED_HINT = "Sắp có: nhật ký 24 giờ";
@@ -36,6 +38,45 @@ export const APP_DESTINATIONS: readonly AppDestination[] = [
   { key: "analytics", label: "Phân tích", icon: "analytics", href: "/analytics", locked: false },
   { key: "juli", label: "Juli", icon: "juli", href: null, locked: true },
 ];
+
+/**
+ * Shopee shops (ADR-120 decision 2): Tổng quan / Phân tích / Sản phẩm / Quyết định, in that
+ * order; Cài đặt stays in the avatar menu. Tổng quan replaces Trang chủ, and there is no locked
+ * Juli entry. Isolated here so TikTok shops keep `APP_DESTINATIONS` untouched; the P81 app-shell
+ * rework may fold the two lists into one.
+ */
+export const SHOPEE_DESTINATIONS: readonly AppDestination[] = [
+  {
+    key: "overview",
+    label: "Tổng quan",
+    icon: "overview",
+    href: "/tong-quan",
+    locked: false,
+    alsoActive: ["/xep-hang"],
+  },
+  { key: "analytics", label: "Phân tích", icon: "analytics", href: "/phan-tich", locked: false },
+  { key: "products", label: "Sản phẩm", icon: "products", href: "/san-pham", locked: false },
+  {
+    key: "decisions",
+    label: ACTIONS_DESTINATION_LABEL,
+    icon: "decisions",
+    href: "/decisions",
+    locked: false,
+  },
+];
+
+export type NavPlatform = "tiktok" | "shopee";
+
+export function destinationsFor(platform: NavPlatform): readonly AppDestination[] {
+  return platform === "shopee" ? SHOPEE_DESTINATIONS : APP_DESTINATIONS;
+}
+
+export function isDestinationOn(pathname: string, destination: AppDestination): boolean {
+  return (
+    isDestinationActive(pathname, destination.href) ||
+    (destination.alsoActive ?? []).some((path) => isDestinationActive(pathname, path))
+  );
+}
 
 /** `/` is active only on itself; any other destination owns its sub-paths. */
 export function isDestinationActive(pathname: string, href: string | null): boolean {
