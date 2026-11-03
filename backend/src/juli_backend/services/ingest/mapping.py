@@ -44,8 +44,12 @@ tell a mapping change from a data change):
   campaign is ``segment`` = hash of its id, ``platform_source`` = its title; the shop-level
   ROAS-target row of the day has segment ``all``); ``voucher_settings`` lands in
   ``platform_promotions`` (``promo_type`` ``voucher``, one-day snapshot period);
-  ``item_catalog`` lands in ``platform_items`` only. ``item_snapshot`` and
-  ``shop_health_daily`` wait for their tables (migration 112): ``reserved.py``.
+  ``item_catalog`` lands in ``platform_items`` only.
+- P90 step 2 (migration 113): five datasets with tables of their own (``writers.py``):
+  ``order_lines`` (the order export, PII-stripped by the sender) and ``affiliate_order_lines``
+  land in ``shopee_order_lines`` (the second only marks lines the first created);
+  ``ads_change_log`` and ``shop_health_daily`` are append-only logs; ``item_snapshot`` writes
+  ``platform_item_snapshots`` only when a tracked field changed.
 """
 
 from __future__ import annotations
@@ -69,22 +73,27 @@ from juli_backend.services.ingest.schemas import (
     DatasetRow,
     ShopeeAdsCampaignDailyRow,
     ShopeeAdsCampaignPeriodRow,
+    ShopeeAdsChangeLogRow,
     ShopeeAdsKeywordPeriodRow,
     ShopeeAffiliateBillPeriodRow,
     ShopeeAffiliateCampaignTermsRow,
     ShopeeAffiliateOpenCampaignPeriodRow,
+    ShopeeAffiliateOrderLineRow,
     ShopeeAffiliatePartnerPeriodRow,
     ShopeeAffiliateProductPeriodRow,
     ShopeeItemBySourcePeriodRow,
     ShopeeItemBySourceRow,
     ShopeeItemCatalogRow,
     ShopeeItemPerformanceRow,
+    ShopeeItemSnapshotRow,
+    ShopeeOrderLineRow,
     ShopeeProductFlagRow,
     ShopeeProductOverviewRow,
     ShopeeProductPeriodRow,
     ShopeePromotionDailyRow,
     ShopeePromotionPeriodRow,
     ShopeePromotionRow,
+    ShopeeShopHealthDailyRow,
     ShopeeShopOverviewPeriodRow,
     ShopeeShopOverviewRow,
     ShopeeShopTrafficRow,
@@ -547,6 +556,11 @@ WRITE_PERIOD = "period"  # platform_period_metrics (+ platform_items for item ro
 WRITE_FLAGS = "flags"  # platform_product_flags
 WRITE_PROMOTIONS = "promotions"  # platform_promotions
 WRITE_ITEMS = "items"  # platform_items only
+WRITE_ORDER_LINES = "order_lines"  # shopee_order_lines (upsert)
+WRITE_AFFILIATE_LINES = "affiliate_lines"  # marks existing shopee_order_lines
+WRITE_ADS_LOG = "ads_log"  # ads_change_log (append-only)
+WRITE_ITEM_SNAPSHOTS = "item_snapshots"  # platform_item_snapshots (insert on change)
+WRITE_SHOP_HEALTH = "shop_health"  # shop_health_daily (append-only)
 
 
 @dataclass(frozen=True)
@@ -790,6 +804,56 @@ DATASETS: dict[tuple[str, str], DatasetSpec] = {
         "Per period, per promotion program (Khuyến mãi › Danh sách hiệu suất).",
         GRANULARITY_PERIOD,
         WRITE_PROMOTIONS,
+    ),
+    ("shopee", "order_lines"): DatasetSpec(
+        "shopee",
+        "order_lines",
+        ShopeeOrderLineRow,
+        _not_metrics,
+        False,
+        "Per order line (Đơn hàng › Xuất), PII stripped by the sender; order id is a keyed hash.",
+        GRANULARITY_PERIOD,
+        WRITE_ORDER_LINES,
+    ),
+    ("shopee", "affiliate_order_lines"): DatasetSpec(
+        "shopee",
+        "affiliate_order_lines",
+        ShopeeAffiliateOrderLineRow,
+        _not_metrics,
+        False,
+        "Per affiliate order line (SellerConversionReport): marks the matching order lines.",
+        GRANULARITY_PERIOD,
+        WRITE_AFFILIATE_LINES,
+    ),
+    ("shopee", "ads_change_log"): DatasetSpec(
+        "shopee",
+        "ads_change_log",
+        ShopeeAdsChangeLogRow,
+        _not_metrics,
+        False,
+        "Per ad change-log line of a campaign (ops_log_*): budget, products, optimiser.",
+        GRANULARITY_PERIOD,
+        WRITE_ADS_LOG,
+    ),
+    ("shopee", "item_snapshot"): DatasetSpec(
+        "shopee",
+        "item_snapshot",
+        ShopeeItemSnapshotRow,
+        _not_metrics,
+        False,
+        "The Connector's product-list read: price, stock, counts, tags per item / model.",
+        GRANULARITY_PERIOD,
+        WRITE_ITEM_SNAPSHOTS,
+    ),
+    ("shopee", "shop_health_daily"): DatasetSpec(
+        "shopee",
+        "shop_health_daily",
+        ShopeeShopHealthDailyRow,
+        _not_metrics,
+        False,
+        "Per account-health metric per capture day (Tài khoản › Sức khỏe).",
+        GRANULARITY_DAY,
+        WRITE_SHOP_HEALTH,
     ),
 }
 

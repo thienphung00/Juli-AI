@@ -1,5 +1,8 @@
 """Shopee profit and history tables (ADR-120), migration 112.
 
+Migration 113 (P90 step 2) adds order-export columns to ``shopee_order_lines`` and the two
+append-only tables ``shop_health_daily`` and ``ads_change_log``.
+
 Client lane, tenant-direct (``shop_id``, RLS by ``app_current_shop_id()``):
 
 - ``platform_item_snapshots`` -- append-only history of an item / variation as the
@@ -201,6 +204,25 @@ class ShopeeOrderLine(Base):
     )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    # Migration 113 (order export): order-level amounts split across the order's lines by line
+    # value, the seller / Shopee split of the line promotion, returns and the two settlement
+    # times. ``ad_attributed`` has no source yet (G-04): NULL = unknown, never False.
+    buyer_shipping_fee: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    bank_promo: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    ad_attributed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    seller_subsidy: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), default=Decimal(0), server_default="0"
+    )
+    shopee_subsidy: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), default=Decimal(0), server_default="0"
+    )
+    returned_qty: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    #: The export names the product by SKU only; the gateway fills ``item_id`` from the
+    #: catalogue when it knows the SKU (else ``item_id`` is ``sku:<sku>``).
+    sku: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    variation_sku: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
 class PlatformFeeFormula(Base):
@@ -231,6 +253,98 @@ class PlatformFeeFormula(Base):
     source_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     #: A plain staff uuid, not a foreign key into an Ops-only table (as 109).
     created_by: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ShopHealthDaily(Base):
+    """One Seller Centre account-health metric as the Connector read it (append-only: every
+    capture is a row, the latest ``captured_at`` per day and metric is the reading).
+    ``metric_id`` is ``''`` on the day's overview row (failed count, penalty points, rating)."""
+
+    __tablename__ = "shop_health_daily"
+    __table_args__ = (
+        UniqueConstraint(
+            "shop_id",
+            "platform",
+            "day",
+            "metric_id",
+            "captured_at",
+            name="uq_shop_health_daily_key",
+        ),
+        CheckConstraint(f"platform IN ({_in(PLATFORMS)})", name="ck_shop_health_daily_platform"),
+        Index("ix_shop_health_daily_day", "shop_id", "platform", "day"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    platform: Mapped[str] = mapped_column(String(16))
+    day: Mapped[date] = mapped_column(Date)
+    metric_id: Mapped[str] = mapped_column(String(32), default="", server_default="")
+    captured_at: Mapped[datetime] = mapped_column()
+    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    display_value: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    value: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    target_display: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    target: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    compare_result: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    metric_tag: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    failed_metric_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    penalty_point: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    performance_rating: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source: Mapped[str] = mapped_column(String(16))
+    source_rank: Mapped[int] = mapped_column(SmallInteger)
+    source_version: Mapped[str] = mapped_column(String(64))
+    raw_payload_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ingest_raw_payloads.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class AdsChangeLog(Base):
+    """One line of an ad campaign's change history (``ops_log_*``): budget changes, product
+    changes, Shopee's own optimiser. Append-only; a re-read of an overlapping window inserts
+    nothing new (same key). Times are Seller Centre's wall clock (GMT+7), naive."""
+
+    __tablename__ = "ads_change_log"
+    __table_args__ = (
+        UniqueConstraint(
+            "shop_id",
+            "platform",
+            "campaign_id",
+            "item_id",
+            "occurred_at",
+            "event_type",
+            "ordinal",
+            name="uq_ads_change_log_key",
+        ),
+        CheckConstraint(f"platform IN ({_in(PLATFORMS)})", name="ck_ads_change_log_platform"),
+        CheckConstraint("actor_kind IN ('system', 'user')", name="ck_ads_change_log_actor_kind"),
+        Index("ix_ads_change_log_time", "shop_id", "platform", "occurred_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    shop_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shops.id"))
+    platform: Mapped[str] = mapped_column(String(16))
+    campaign_id: Mapped[str] = mapped_column(String(32))
+    #: ``''`` for a campaign-level log (a NULL would defeat the unique key).
+    item_id: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    occurred_at: Mapped[datetime] = mapped_column()
+    actor_kind: Mapped[str] = mapped_column(String(8))
+    actor: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    surface: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(120))
+    detail: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    budget_from: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    budget_to: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    products_from: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    products_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ordinal: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
+    source: Mapped[str] = mapped_column(String(16))
+    source_version: Mapped[str] = mapped_column(String(64))
+    raw_payload_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ingest_raw_payloads.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
@@ -276,8 +390,10 @@ __all__ = [
     "ITEM_LEVEL_VARIATION",
     "PROMO_KINDS",
     "AdCampaignPurpose",
+    "AdsChangeLog",
     "PlatformFeeFormula",
     "PlatformItemSnapshot",
     "ProductImageAsset",
+    "ShopHealthDaily",
     "ShopeeOrderLine",
 ]

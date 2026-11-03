@@ -230,6 +230,9 @@ _DESTRUCTIVE_MIGRATION_MODULES = frozenset(
         "test_card_events_db.py",
         # ADR-120: downgrades 112 -> 111 and back, after its two-tenant RLS tests.
         "test_shopee_profit_db.py",
+        # P90 step 2: downgrades 113 -> 112 and back, after its two-tenant RLS tests and the
+        # gateway writing order lines, ad log, shop health and item snapshots as juli_app.
+        "test_shopee_orders_db.py",
         # D76 / ADR-116: downgrades 103 -> 102 and back.
         "test_data_use_consents_db.py",
         # D76 / ADR-116 §4: downgrades 104 -> 103 and back, and runs the

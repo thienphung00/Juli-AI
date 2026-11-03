@@ -16,9 +16,10 @@ One call = one POST of one dataset for one shop. In order:
    ``duplicate: true``;
 4. normalized rows are upserted into ``platform_daily_metrics`` -- or, for the
    ADR-117 period datasets, ``platform_period_metrics`` (+ ``platform_items``),
-   ``platform_product_flags`` or ``platform_promotions`` -- a row is only replaced by
-   a source of the same or higher rank (vendor < extension = file < api), and every
-   row records the ``mapper_version`` that produced it;
+   ``platform_product_flags`` or ``platform_promotions`` -- or, for the P90 step 2 datasets, the
+   tables of ``writers.py`` (order lines, ad change log, shop health, item snapshots) -- a row
+   of the metric tables is only replaced by a source of the same or higher rank
+   (vendor < extension = file < api), and every row records the ``mapper_version`` that produced it;
 5. ``ingest_dataset_status`` records the last ingest; one ``ingest_accepted``
    log line is the audit record.
 
@@ -33,7 +34,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import ValidationError
 from sqlalchemy import func, select
@@ -60,11 +61,16 @@ from juli_backend.services.ingest.mapping import (
     KPI_COLUMNS,
     MAPPER_VERSION,
     SHOPEE_PROMO_TYPES,
+    WRITE_ADS_LOG,
+    WRITE_AFFILIATE_LINES,
     WRITE_DAILY,
     WRITE_FLAGS,
+    WRITE_ITEM_SNAPSHOTS,
     WRITE_ITEMS,
+    WRITE_ORDER_LINES,
     WRITE_PERIOD,
     WRITE_PROMOTIONS,
+    WRITE_SHOP_HEALTH,
     DatasetSpec,
     dataset_spec,
     effective_order_type,
@@ -74,16 +80,30 @@ from juli_backend.services.ingest.schemas import (
     DatasetRow,
     IngestBody,
     RowBase,
+    ShopeeAdsChangeLogRow,
+    ShopeeAffiliateOrderLineRow,
     ShopeeItemBySourcePeriodRow,
     ShopeeItemCatalogRow,
+    ShopeeItemSnapshotRow,
+    ShopeeOrderLineRow,
     ShopeeProductFlagRow,
     ShopeeProductPeriodRow,
     ShopeePromotionRow,
+    ShopeeShopHealthDailyRow,
     ShopeeVoucherSettingRow,
+)
+from juli_backend.services.ingest.writers import (
+    write_ads_log,
+    write_affiliate_lines,
+    write_item_snapshots,
+    write_order_lines,
+    write_shop_health,
 )
 from juli_backend.services.privacy.payload_allowlist import allowlist_payload, ingest_endpoint
 
 logger = logging.getLogger(__name__)
+
+_Row = TypeVar("_Row", bound=DatasetRow)
 
 #: Seller Centre's calendar (Shopee VN) is GMT+7.
 PLATFORM_UTC_OFFSET = timedelta(hours=7)
@@ -535,6 +555,11 @@ def _voucher_values(
     return values
 
 
+def _typed(rows: list[DatasetRow], model: type[_Row]) -> list[_Row]:
+    """The rows of a dataset whose writer needs its own row type (the spec made them)."""
+    return [row for row in rows if isinstance(row, model)]
+
+
 async def _write(
     session: AsyncSession,
     spec: DatasetSpec,
@@ -597,6 +622,27 @@ async def _write(
             [row for row in rows if isinstance(row, ShopeeVoucherSettingRow)], body, provenance
         )
         await _upsert(session, PlatformPromotion, _PROMOTION_KEY_COLUMNS, promotions)
+    elif spec.writes == WRITE_ORDER_LINES:
+        await write_order_lines(session, _typed(rows, ShopeeOrderLineRow), body, provenance)
+    elif spec.writes == WRITE_AFFILIATE_LINES:
+        match = await write_affiliate_lines(
+            session, _typed(rows, ShopeeAffiliateOrderLineRow), body, provenance
+        )
+        logger.info(
+            "affiliate_lines_matched",
+            extra={
+                "shop_id": str(provenance["shop_id"]),
+                "matched": match.matched,
+                "unmatched": match.unmatched,
+                "invalid": match.invalid,
+            },
+        )
+    elif spec.writes == WRITE_ADS_LOG:
+        await write_ads_log(session, _typed(rows, ShopeeAdsChangeLogRow), body, provenance)
+    elif spec.writes == WRITE_ITEM_SNAPSHOTS:
+        await write_item_snapshots(session, _typed(rows, ShopeeItemSnapshotRow), body, provenance)
+    elif spec.writes == WRITE_SHOP_HEALTH:
+        await write_shop_health(session, _typed(rows, ShopeeShopHealthDailyRow), body, provenance)
     else:
         raise ValueError(f"unknown write target {spec.writes}")
 

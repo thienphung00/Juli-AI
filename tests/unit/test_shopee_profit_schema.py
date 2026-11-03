@@ -52,6 +52,7 @@ from juli_backend.orm_base import Base
 REPO = Path(__file__).resolve().parents[2]
 MIGRATIONS = REPO / "backend/src/juli_backend/database/migrations"
 MIGRATION = MIGRATIONS / "versions/112_shopee_profit_and_history.py"
+LATER_MIGRATION = MIGRATIONS / "versions/113_shopee_orders_and_logs.py"
 BACKFILL = MIGRATIONS / "deferred/101_write_mode_backfill.py"
 NOW = datetime(2026, 11, 3, 3, 0)
 
@@ -82,6 +83,11 @@ def _created_columns(source: str) -> set[str]:
     return found
 
 
+def _added_columns(source: str) -> set[str]:
+    """Columns a later migration adds with ``op.add_column(<table>, sa.Column("x" ...``."""
+    return set(re.findall(r'op\.add_column\(\s*LINES_TABLE,\s*sa\.Column\(\s*"(\w+)"', source))
+
+
 def _upgrade_body() -> str:
     return MIGRATION.read_text("utf-8").split("def upgrade")[1].split("def downgrade")[0]
 
@@ -93,7 +99,10 @@ def test_migration_112_fits_alembic_and_the_deferred_tail_moved_onto_it():
     mig = _module()
     assert mig.revision == "112_shopee_profit_and_history" and len(mig.revision) <= 32
     assert mig.down_revision == "111_shopee_keywords"
-    assert f'down_revision: str | None = "{mig.revision}"' in BACKFILL.read_text("utf-8")
+    # P90 step 2's 113 went on 112 and took the deferred tail.
+    later = LATER_MIGRATION.read_text("utf-8")
+    assert f'down_revision: str | None = "{mig.revision}"' in later
+    assert 'down_revision: str | None = "113_shopee_orders_and_logs"' in BACKFILL.read_text("utf-8")
 
 
 def test_the_additive_gate_accepts_migration_112():
@@ -142,8 +151,12 @@ def test_migration_vocabularies_match_the_models():
 )
 def test_every_model_column_is_created_by_the_migration(model):
     source = MIGRATION.read_text("utf-8")
+    created = _created_columns(source)
+    if model is ShopeeOrderLine:
+        # Migration 113 adds the order-export columns to this table.
+        created |= _added_columns(LATER_MIGRATION.read_text("utf-8"))
     for column in model.__table__.columns.keys():
-        assert column in _created_columns(source), f"{model.__tablename__}.{column}"
+        assert column in created, f"{model.__tablename__}.{column}"
     for column in ("role", "item_scope"):
         assert column in _created_columns(source)
 
@@ -193,11 +206,15 @@ def test_grants_follow_the_lanes():
 def test_order_lines_have_no_column_that_could_hold_a_buyer():
     forbidden = ("buyer", "name", "phone", "address", "email", "recipient", "customer", "tel")
     columns = ShopeeOrderLine.__table__.columns.keys()
-    assert [c for c in columns if any(word in c for word in forbidden)] == []
+    # ``buyer_shipping_fee`` (migration 113) is an AMOUNT the buyer paid, not a buyer field.
+    amounts = {"buyer_shipping_fee"}
+    assert [c for c in columns if c not in amounts and any(w in c for w in forbidden)] == []
     source = (
         MIGRATION.read_text("utf-8").split("def _create_lines")[1].split("def _create_formulas")[0]
     )
-    assert _created_columns(source) == set(columns)
+    added = _added_columns(LATER_MIGRATION.read_text("utf-8"))
+    assert added and added.isdisjoint(_created_columns(source))
+    assert _created_columns(source) | added == set(columns)
 
 
 # =========================================================================== card events

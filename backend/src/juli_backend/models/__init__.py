@@ -84,10 +84,12 @@ from juli_backend.models.shop_proposals import (
 )
 from juli_backend.models.shopee_profit import (
     AdCampaignPurpose,
+    AdsChangeLog,
     PlatformFeeFormula,
     PlatformItemSnapshot,
     ProductImageAsset,
     ShopeeOrderLine,
+    ShopHealthDaily,
 )
 from juli_backend.models.subscriptions import ShopSubscriptionPeriod
 from juli_backend.models.trial_signups import TrialSignup
@@ -164,4 +166,6 @@ _REGISTERED_OUTSIDE_MODELS_PY = (
     ShopeeOrderLine,
     PlatformFeeFormula,
     AdCampaignPurpose,
+    ShopHealthDaily,
+    AdsChangeLog,
 )
