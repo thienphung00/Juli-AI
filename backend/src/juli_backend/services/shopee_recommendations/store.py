@@ -355,26 +355,32 @@ async def save_sim(
     now: datetime,
 ) -> ShopeeSimPriorRun:
     """Store a run as the shop's active one; older runs become ``superseded``."""
+    existing = await session.scalar(
+        select(ShopeeSimPriorRun).where(
+            ShopeeSimPriorRun.shop_id == shop_id, ShopeeSimPriorRun.run_id == priors.run_id[:64]
+        )
+    )
     await session.execute(
         update(ShopeeSimPriorRun)
-        .where(ShopeeSimPriorRun.shop_id == shop_id, ShopeeSimPriorRun.status == SIM_STATUS_ACTIVE)
+        .where(
+            ShopeeSimPriorRun.shop_id == shop_id,
+            ShopeeSimPriorRun.status == SIM_STATUS_ACTIVE,
+            ShopeeSimPriorRun.run_id != priors.run_id[:64],
+        )
         .values(status=SIM_STATUS_SUPERSEDED)
     )
-    run = ShopeeSimPriorRun(
-        id=uuid.uuid4(),
-        shop_id=shop_id,
-        run_id=priors.run_id[:64],
-        shop_alias=priors.shop_alias[:64],
-        model_version=priors.model_version[:64],
-        priors_version=priors.priors_version[:64],
-        gate=priors.gate,
-        rows=priors.to_stored(),
-        row_count=len(priors.rows),
-        source_sha256=sha256,
-        status=SIM_STATUS_ACTIVE,
-        imported_by_staff_id=staff_id,
-        imported_at=now,
-    )
+    run = existing or ShopeeSimPriorRun(id=uuid.uuid4(), shop_id=shop_id, run_id=priors.run_id[:64])
+    # importing the same run again replaces it (a new gate override, a corrected file)
+    run.shop_alias = priors.shop_alias[:64]
+    run.model_version = priors.model_version[:64]
+    run.priors_version = priors.priors_version[:64]
+    run.gate = priors.gate
+    run.rows = priors.to_stored()
+    run.row_count = len(priors.rows)
+    run.source_sha256 = sha256
+    run.status = SIM_STATUS_ACTIVE
+    run.imported_by_staff_id = staff_id
+    run.imported_at = now
     session.add(run)
     await session.flush()
     return run

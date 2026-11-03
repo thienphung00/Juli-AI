@@ -270,11 +270,17 @@ async def section_sim(session, shop_id, as_of, sim_file: Path | None) -> None:
 
 async def section_worked(session) -> None:
     print("== contract 7 worked example through the API what-if")
+    # the test builders number users from 1 in every process: step past the earlier runs' users
+    import itertools
+    import random
+
     from juli_backend.services.shopee_recommendations.model import Candidate
+    from tests.support import builders
     from tests.support.api import authenticate, build_app, client_for
     from tests.support.shopee_worked import AS_OF as WAS_OF
     from tests.support.shopee_worked import ITEM, seed_worked_example
 
+    builders._sequence = itertools.count(random.randint(10**5, 9 * 10**6))  # noqa: S311
     seeded = await seed_worked_example(session)
     await session.commit()
     env = await load_env(session, seeded.shop_id, as_of=WAS_OF)

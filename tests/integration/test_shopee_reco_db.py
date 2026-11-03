@@ -304,16 +304,22 @@ async def test_sim_runs_and_calibration_are_tenant_private(shopee_tenants):  # n
             assert (await store.load_calibrations(session, a.shop_id))[
                 ("title", "ctr")
             ].n_results == 1
-            with pytest.raises(DBAPIError):  # one row per run id
-                await reco.save_sim(
-                    session,
-                    a.shop_id,
-                    reco.parse_priors(_doc("two")),
-                    sha256="2" * 64,
-                    staff_id=None,
-                    now=NOW,
+            # importing the same run again replaces it: still one row per run id, and active
+            again = await reco.save_sim(
+                session,
+                a.shop_id,
+                reco.parse_priors(_doc("two")),
+                sha256="2" * 64,
+                staff_id=None,
+                now=NOW,
+            )
+            n = (
+                await session.execute(
+                    text("SELECT count(*) FROM public.shopee_sim_prior_runs WHERE run_id = 'two'")
                 )
-            await session.rollback()
+            ).scalar()
+            assert n == 1 and again.source_sha256 == "2" * 64 and again.status == "active"
+            assert (await store.load_sim(session, a.shop_id)).run_id == "two"
         async with with_shop_scope(session, b.shop_id):
             assert await store.load_sim(session, b.shop_id) is None
             assert await store.load_calibrations(session, b.shop_id) == {}
